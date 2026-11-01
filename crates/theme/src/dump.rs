@@ -18,11 +18,12 @@ use crate::{
     MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
     PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes,
     PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens,
-    Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens,
-    ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States,
-    StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens,
-    ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
-    ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens,
+    ReviewTokens, Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens,
+    SelectionBarTokens, ShapeTokens, SheetTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens,
+    SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, TableTokens,
+    TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TimelineTokens, TitleBarTokens,
+    ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens,
+    TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -328,6 +329,9 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         inspector,
         kbd,
         layers,
+        timeline,
+        review,
+        sheet,
         levels,
         list,
         listbox,
@@ -480,6 +484,9 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     actions_lines(out, actions);
     channels_lines(out, channels);
     layers_lines(out, layers);
+    timeline_lines(out, timeline);
+    review_lines(out, review);
+    sheet_lines(out, sheet);
     history_lines(out, history);
     tab_lines(out, tab);
     text_editor_lines(out, text_editor);
@@ -2293,6 +2300,141 @@ fn layers_lines(out: &mut Lines, t: &LayersTokens) {
     out.line("layers.mask.cross_width", len(*mask_cross_width));
     out.line("layers.mask.cross_inset", len(*mask_cross_inset));
     out.line("layers.indicator.ring_width", len(*indicator_ring_width));
+}
+
+fn timeline_lines(out: &mut Lines, t: &TimelineTokens) {
+    let TimelineTokens {
+        top_height,
+        ruler_height,
+        scrollbar_height,
+        scroll_thumb_min,
+        divider_height,
+        mix_row_height,
+        header_width,
+        video_track_height,
+        audio_track_height,
+        track_height_min,
+        track_height_max,
+        label_strip,
+        snap_distance,
+        edge_zone,
+        roll_zone,
+        fit_margin,
+        transport_button,
+        keyframe_glyph,
+        keyframe_hold,
+        keyframe_bezier,
+        keyframe_snap,
+        keyframe_arrow_width,
+        keyframe_arrow_height,
+        keyframe_nav_step,
+        marker_width,
+        work_area_grab,
+        ruler_label_gap,
+        ruler_tick_gap,
+        scrub_step,
+    } = t;
+    out.line("timeline.top_height", len(*top_height));
+    out.line("timeline.ruler_height", len(*ruler_height));
+    out.line("timeline.scrollbar_height", len(*scrollbar_height));
+    out.line("timeline.scroll_thumb_min", len(*scroll_thumb_min));
+    out.line("timeline.divider_height", len(*divider_height));
+    out.line("timeline.mix_row_height", len(*mix_row_height));
+    out.line("timeline.header_width", len(*header_width));
+    out.line("timeline.video_track_height", len(*video_track_height));
+    out.line("timeline.audio_track_height", len(*audio_track_height));
+    out.line("timeline.track_height_min", len(*track_height_min));
+    out.line("timeline.track_height_max", len(*track_height_max));
+    out.line("timeline.label_strip", len(*label_strip));
+    out.line("timeline.snap_distance", len(*snap_distance));
+    out.line("timeline.edge_zone", len(*edge_zone));
+    out.line("timeline.roll_zone", len(*roll_zone));
+    out.line("timeline.fit_margin", len(*fit_margin));
+    out.line("timeline.transport_button", len(*transport_button));
+    out.line("timeline.keyframe_glyph", len(*keyframe_glyph));
+    out.line("timeline.keyframe_hold", len(*keyframe_hold));
+    out.line("timeline.keyframe_bezier", len(*keyframe_bezier));
+    out.line("timeline.keyframe_snap", len(*keyframe_snap));
+    out.line("timeline.keyframe_arrow_width", len(*keyframe_arrow_width));
+    out.line("timeline.keyframe_arrow_height", len(*keyframe_arrow_height));
+    out.line("timeline.keyframe_nav_step", len(*keyframe_nav_step));
+    out.line("timeline.marker_width", len(*marker_width));
+    out.line("timeline.work_area_grab", len(*work_area_grab));
+    out.line("timeline.ruler_label_gap", len(*ruler_label_gap));
+    out.line("timeline.ruler_tick_gap", len(*ruler_tick_gap));
+    out.line("timeline.scrub_step", len(*scrub_step));
+}
+
+fn review_lines(out: &mut Lines, t: &ReviewTokens) {
+    let ReviewTokens {
+        pin,
+        cluster_radius,
+        popover_width,
+        version_dot_x,
+        version_text_x,
+        chat_width,
+        chat_radius,
+        join_width,
+        revision_bar_width,
+        revision_bar_height,
+        status_accepted,
+        status_rejected,
+        status_cancelled,
+        status_completed,
+        card_accent,
+        revision_inserted,
+        revision_deleted,
+        revision_changed,
+    } = t;
+    out.line("review.pin", len(*pin));
+    out.line("review.cluster_radius", len(*cluster_radius));
+    out.line("review.popover_width", len(*popover_width));
+    out.line("review.version_dot_x", len(*version_dot_x));
+    out.line("review.version_text_x", len(*version_text_x));
+    out.line("review.chat_width", len(*chat_width));
+    out.line("review.chat_radius", len(*chat_radius));
+    out.line("review.join_width", len(*join_width));
+    out.line("review.revision_bar_width", len(*revision_bar_width));
+    out.line("review.revision_bar_height", len(*revision_bar_height));
+    out.line("review.status_accepted", hex(*status_accepted));
+    out.line("review.status_rejected", hex(*status_rejected));
+    out.line("review.status_cancelled", hex(*status_cancelled));
+    out.line("review.status_completed", hex(*status_completed));
+    out.line("review.card_accent", hex(*card_accent));
+    out.line("review.revision_inserted", hex(*revision_inserted));
+    out.line("review.revision_deleted", hex(*revision_deleted));
+    out.line("review.revision_changed", hex(*revision_changed));
+}
+
+fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
+    let SheetTokens {
+        column_header_height,
+        row_header_digit,
+        row_header_padding,
+        outline_lane,
+        slicer_header,
+        slicer_tile,
+        slicer_gap,
+        slicer_padding,
+        slicer_clear,
+        error_tag,
+        filter_button_min,
+        filter_button_max,
+        filter_button_inset,
+    } = t;
+    out.line("sheet.column_header_height", len(*column_header_height));
+    out.line("sheet.row_header_digit", len(*row_header_digit));
+    out.line("sheet.row_header_padding", len(*row_header_padding));
+    out.line("sheet.outline_lane", len(*outline_lane));
+    out.line("sheet.slicer_header", len(*slicer_header));
+    out.line("sheet.slicer_tile", len(*slicer_tile));
+    out.line("sheet.slicer_gap", len(*slicer_gap));
+    out.line("sheet.slicer_padding", len(*slicer_padding));
+    out.line("sheet.slicer_clear", len(*slicer_clear));
+    out.line("sheet.error_tag", len(*error_tag));
+    out.line("sheet.filter_button_min", len(*filter_button_min));
+    out.line("sheet.filter_button_max", len(*filter_button_max));
+    out.line("sheet.filter_button_inset", len(*filter_button_inset));
 }
 
 fn swatch_palette_lines(out: &mut Lines, s: &SwatchPaletteTokens) {

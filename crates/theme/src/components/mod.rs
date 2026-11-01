@@ -114,6 +114,7 @@ mod rating;
 mod readout;
 mod ref_point;
 mod reset_dot;
+mod review;
 mod ruler;
 mod sampler;
 mod scopes;
@@ -122,6 +123,7 @@ mod scroll;
 mod section;
 mod segmented;
 mod selection_bar;
+mod sheet;
 mod slider;
 mod slider_row;
 mod spinner;
@@ -138,6 +140,7 @@ mod text_styles;
 mod theme_chip;
 mod thumbnail;
 mod tile;
+mod timeline;
 mod title_bar;
 mod toast;
 mod toggle_button;
@@ -240,6 +243,7 @@ pub use rating::{RatingField, RatingTokens};
 pub use readout::{ReadoutField, ReadoutTokens};
 pub use ref_point::{RefPointField, RefPointTokens};
 pub use reset_dot::{ResetDotField, ResetDotTokens};
+pub use review::{ReviewField, ReviewTokens};
 pub use ruler::{RulerField, RulerTokens};
 pub use sampler::{SamplerField, SamplerTokens};
 pub use scopes::{ScopesField, ScopesTokens};
@@ -248,6 +252,7 @@ pub use scroll::{ScrollField, ScrollTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use selection_bar::{SelectionBarField, SelectionBarTokens};
+pub use sheet::{SheetField, SheetTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
@@ -264,6 +269,7 @@ pub use text_styles::{TextStylesField, TextStylesTokens};
 pub use theme_chip::{ThemeChipField, ThemeChipTokens};
 pub use thumbnail::{ThumbnailField, ThumbnailTokens};
 pub use tile::{TileField, TileTokens};
+pub use timeline::{TimelineField, TimelineTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
@@ -959,6 +965,12 @@ families! {
     kbd: KbdTokens => Kbd(KbdField);
     /// The Layers panel: indicators, mask badges, blend rows and the filter bar.
     layers: LayersTokens => Layers(LayersField);
+    /// The timeline: the sizes of its strips, tracks, clips, keyframes and markers.
+    timeline: TimelineTokens => Timeline(TimelineField);
+    /// Review: comment pins, thread popovers, version history, cursor chat and revision bars.
+    review: ReviewTokens => Review(ReviewField);
+    /// The spreadsheet grid: headers, outline lanes, slicers and filter buttons.
+    sheet: SheetTokens => Sheet(SheetField);
     /// Levels editors: the triangle thumbs and output bar under a histogram.
     levels: LevelsTokens => Levels(LevelsField);
     /// Lists: the rows of a list or tree panel.

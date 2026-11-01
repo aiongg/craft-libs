@@ -1,11 +1,10 @@
 //! [`ReviewStyle`]: the review widgets' sizes, from the `review` tokens.
 
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::Color32;
 
-/// The sizes the review widgets read, one `review.*` token each (proposed in the step 6b spec
-/// with the source apps' values; a token task adds the `review` family to craft-theme and fills
-/// [`of`](Self::of)). Colours with a fixed meaning (status badges, revision kinds, the selected
+/// The sizes the review widgets read, one `review.*` token each (craft-theme's `review` family,
+/// with the source apps' values). Colours with a fixed meaning (status badges, revision kinds, the selected
 /// card's accent) are `review.*` colour tokens read by the same task.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -47,9 +46,27 @@ pub struct ReviewStyle {
 
 impl ReviewStyle {
     /// The style from the theme's tokens: `ReviewStyle::of(&Tokens::of(ui))`.
-    // new: one style per family (step 6a's `LayersStyle::of`); filled by the token task.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn of(tokens: &UiTokens) -> ReviewStyle {
-        todo!()
+        let t = &tokens.component.review;
+        ReviewStyle {
+            pin: t.pin,
+            cluster_radius: t.cluster_radius,
+            popover_width: t.popover_width,
+            version_dot_x: t.version_dot_x,
+            version_text_x: t.version_text_x,
+            chat_width: t.chat_width,
+            chat_radius: t.chat_radius,
+            join_width: t.join_width,
+            revision_bar_width: t.revision_bar_width,
+            revision_bar_height: t.revision_bar_height,
+            status_accepted: t.status_accepted.to_egui(),
+            status_rejected: t.status_rejected.to_egui(),
+            status_cancelled: t.status_cancelled.to_egui(),
+            status_completed: t.status_completed.to_egui(),
+            card_accent: t.card_accent.to_egui(),
+            revision_inserted: t.revision_inserted.to_egui(),
+            revision_deleted: t.revision_deleted.to_egui(),
+            revision_changed: t.revision_changed.to_egui(),
+        }
     }
 }

@@ -2,9 +2,9 @@
 
 use craft_ui::theme::UiTokens;
 
-/// The sizes every timeline widget reads, one `timeline.*` token each (proposed in the step 6b
-/// spec with the source app's values; a token task adds them to craft-theme's `timeline` family
-/// and fills [`of`](Self::of)). Runtime tokens, so apps override them through `sizes.json`.
+/// The sizes every timeline widget reads, one `timeline.*` token each (craft-theme's `timeline`
+/// family, with FilmCraft's and EffectCraft's values). Runtime tokens, so apps override them
+/// through `sizes.json`.
 /// No widget of this crate takes a size from anywhere else.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -73,9 +73,38 @@ pub struct TimelineStyle {
 
 impl TimelineStyle {
     /// The style from the theme's tokens: `TimelineStyle::of(&Tokens::of(ui))`.
-    // new: one style per family (step 6a's `LayersStyle::of`); filled by the token task.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn of(tokens: &UiTokens) -> TimelineStyle {
-        todo!()
+        let t = &tokens.component.timeline;
+        TimelineStyle {
+            top_height: t.top_height,
+            ruler_height: t.ruler_height,
+            scrollbar_height: t.scrollbar_height,
+            scroll_thumb_min: t.scroll_thumb_min,
+            divider_height: t.divider_height,
+            mix_row_height: t.mix_row_height,
+            header_width: t.header_width,
+            video_track_height: t.video_track_height,
+            audio_track_height: t.audio_track_height,
+            track_height_min: t.track_height_min,
+            track_height_max: t.track_height_max,
+            label_strip: t.label_strip,
+            snap_distance: t.snap_distance,
+            edge_zone: t.edge_zone,
+            roll_zone: t.roll_zone,
+            fit_margin: t.fit_margin,
+            transport_button: t.transport_button,
+            keyframe_glyph: t.keyframe_glyph,
+            keyframe_hold: t.keyframe_hold,
+            keyframe_bezier: t.keyframe_bezier,
+            keyframe_snap: t.keyframe_snap,
+            keyframe_arrow_width: t.keyframe_arrow_width,
+            keyframe_arrow_height: t.keyframe_arrow_height,
+            keyframe_nav_step: t.keyframe_nav_step,
+            marker_width: t.marker_width,
+            work_area_grab: t.work_area_grab,
+            ruler_label_gap: t.ruler_label_gap,
+            ruler_tick_gap: t.ruler_tick_gap,
+            scrub_step: t.scrub_step,
+        }
     }
 }
