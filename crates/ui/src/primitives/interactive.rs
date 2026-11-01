@@ -168,8 +168,16 @@ impl<'a> Interactive<'a> {
     }
 
     /// The id [`show`](Interactive::show) gives an element made with `id_salt` in `ui`, for a
-    /// control that needs it first (to read its focus). A control that holds the salt as an
-    /// `IdSalt` uses `ui.make_persistent_id(salt)`, which is the same id.
+    /// control that needs it first (to read its focus). Every control's `X::id_in(ui, salt)`
+    /// follows this rule; a host reads a child control's id from its `id_in` or its response and
+    /// never rebuilds it.
+    ///
+    /// A control stores its salt as `stored = IdSalt::new(salt)`. Every egui call that takes a salt
+    /// by value hashes it (`IdSalt::new`, `Id::with`, `make_persistent_id`), so a stored salt goes
+    /// only where the raw-salt path passes `IdSalt::new(salt)`, never where it passes `salt`:
+    /// `ui.make_persistent_id(stored)` is this id, and outside a `Ui` the stored salt goes to
+    /// `Id::with_salt` (see [`facts_id`](crate::menu::facts_id)), never to `IdSalt::new` or
+    /// `Id::with`.
     pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
         ui.make_persistent_id(IdSalt::new(id_salt))
     }
