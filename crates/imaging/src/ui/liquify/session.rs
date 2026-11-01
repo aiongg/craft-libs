@@ -58,6 +58,10 @@ pub struct LiquifySession {
     steps: Vec<LiquifyStep>,
 }
 
+/// A lasso whose last point is within this many document pixels of its first (on both axes) is
+/// closed already.
+const LASSO_CLOSE_REACH: f64 = 0.5;
+
 impl LiquifySession {
     /// A session holding `steps` (a smart filter opened again).
     pub fn from_steps(steps: Vec<LiquifyStep>) -> Self {
@@ -72,24 +76,34 @@ impl LiquifySession {
     /// Records a finished stroke. A stroke without points records nothing; a lasso of fewer than 3
     /// points records nothing, and one whose last point is more than half a pixel from the first
     /// gets the first point again at its end.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-LQ1")]
-    pub fn record(&mut self, stroke: LiquifyStroke) {
+    pub fn record(&mut self, mut stroke: LiquifyStroke) {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:291 `end`, :299 `close_lasso`.
-        todo!()
+        if stroke.points.is_empty() {
+            return;
+        }
+        if stroke.tool == LiquifyTool::FreezeLasso {
+            if stroke.points.len() < 3 {
+                return;
+            }
+            if let (Some(&first), Some(&last)) = (stroke.points.first(), stroke.points.last())
+                && ((first[0] - last[0]).abs() > LASSO_CLOSE_REACH || (first[1] - last[1]).abs() > LASSO_CLOSE_REACH)
+            {
+                stroke.points.push(first);
+            }
+        }
+        self.steps.push(LiquifyStep::Stroke(stroke));
     }
 
     /// Records a whole-field operation.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-LQ1")]
     pub fn record_global(&mut self, op: LiquifyGlobal) {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:319 `global`.
-        todo!()
+        self.steps.push(LiquifyStep::Global(op));
     }
 
     /// Restore All: drops every step.
-    #[expect(clippy::todo, reason = "skeleton: task WS-LQ1")]
     pub fn restore_all(&mut self) {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:361 `restore_all`.
-        todo!()
+        self.steps.clear();
     }
 
     /// The strokes recorded so far (for the app's status line; PhotoCraft's "N stroke(s)").
@@ -186,9 +200,17 @@ impl Default for LiquifySettings {
 impl LiquifySettings {
     /// The settings with every number in its range (size 1..=15000, the others 0..=100) and
     /// non-finite numbers back to their defaults: what the app calls after loading a record.
-    #[expect(clippy::todo, reason = "skeleton: task WS-LQ1")]
-    pub fn clamped(self) -> Self {
+    pub fn clamped(mut self) -> Self {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:97 `LiquifyOpts::apply` (the clamps).
-        todo!()
+        let defaults = Self::default();
+        let size = |n: f64, default: f64| if n.is_finite() { n.clamp(1.0, LiquifyBrush::SIZE_MAX) } else { default };
+        let percent = |n: f64, default: f64| if n.is_finite() { n.clamp(0.0, 100.0) } else { default };
+        self.brush.size = size(self.brush.size, defaults.brush.size);
+        self.brush.density = percent(self.brush.density, defaults.brush.density);
+        self.brush.pressure = percent(self.brush.pressure, defaults.brush.pressure);
+        self.brush.rate = percent(self.brush.rate, defaults.brush.rate);
+        self.reconstruct_amount = percent(self.reconstruct_amount, defaults.reconstruct_amount);
+        self.backdrop_opacity = percent(self.backdrop_opacity, defaults.backdrop_opacity);
+        self
     }
 }
