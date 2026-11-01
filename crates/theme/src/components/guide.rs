@@ -1,6 +1,7 @@
 //! Guides: ruler guides and smart guides on the canvas. Their colours are the semantic
 //! `overlay.guide`, `overlay.guide_selected` and `overlay.smart_guide`; the family holds their
-//! geometry, the same at every Size because guides sit on the document.
+//! geometry, the same at every Size because guides sit on the document, and the widths of the
+//! fields and lists of the guide dialogs (PhotoCraft's).
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
@@ -27,6 +28,20 @@ pub struct GuideTokens {
     pub measure_pad_x: f32,
     /// Padding above and below it: `guide.measure_pad_y`.
     pub measure_pad_y: f32,
+    /// Width of Guide Layout's Number field: `guide.number_width`.
+    pub number_width: f32,
+    /// Width of its Width and Height fields (Size): `guide.size_width`.
+    pub size_width: f32,
+    /// Width of the field in each of its Margin sides: `guide.margin_width`.
+    pub margin_width: f32,
+    /// Width of New Guide's Position field: `guide.position_width`.
+    pub position_width: f32,
+    /// Width of New Guide's Color list: `guide.color_width`.
+    pub color_width: f32,
+    /// Width of Guide Layout's Preset and Target lists: `guide.layout_list_width`.
+    pub layout_list_width: f32,
+    /// Width of Guide Layout's Color list: `guide.layout_color_width`.
+    pub layout_color_width: f32,
 }
 
 /// Guides have no overridable field: their sizes come from the code, as every size does.
@@ -46,6 +61,13 @@ impl Family for GuideTokens {
         "measure_cap" 0.0..=1024.0 => measure_cap;
         "measure_pad_x" 0.0..=64.0 => measure_pad_x;
         "measure_pad_y" 0.0..=64.0 => measure_pad_y;
+        "number_width" 0.0..=1024.0 => number_width;
+        "size_width" 0.0..=1024.0 => size_width;
+        "margin_width" 0.0..=1024.0 => margin_width;
+        "position_width" 0.0..=1024.0 => position_width;
+        "color_width" 0.0..=1024.0 => color_width;
+        "layout_list_width" 0.0..=1024.0 => layout_list_width;
+        "layout_color_width" 0.0..=1024.0 => layout_color_width;
     };
 
     fn defaults(_: &Semantic<'_>) -> GuideTokens {
@@ -59,6 +81,13 @@ impl Family for GuideTokens {
             measure_cap: values::GUIDE_MEASURE_CAP,
             measure_pad_x: values::GUIDE_MEASURE_PAD.0,
             measure_pad_y: values::GUIDE_MEASURE_PAD.1,
+            number_width: values::GUIDE_NUMBER_WIDTH,
+            size_width: values::GUIDE_SIZE_WIDTH,
+            margin_width: values::GUIDE_MARGIN_WIDTH,
+            position_width: values::GUIDE_POSITION_WIDTH,
+            color_width: values::GUIDE_COLOR_WIDTH,
+            layout_list_width: values::GUIDE_LAYOUT_LIST_WIDTH,
+            layout_color_width: values::GUIDE_LAYOUT_COLOR_WIDTH,
         }
     }
 

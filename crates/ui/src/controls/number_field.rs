@@ -394,6 +394,13 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// The box's width, in place of `field.number_width` (and of the room a justified layout
+    /// gives it). For a dialog whose fields have the widths of its source.
+    pub fn width(mut self, width: f32) -> Self {
+        self.box_width = Some(width);
+        self
+    }
+
     /// Words other than the installed ones.
     pub fn labels(mut self, labels: NumberFieldLabels) -> Self {
         self.labels = Some(labels);

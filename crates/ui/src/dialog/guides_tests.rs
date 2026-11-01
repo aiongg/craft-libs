@@ -306,11 +306,25 @@ fn layout_dialog_previews_live_and_tracks_the_preset() {
     assert!(harness.state().get::<GuideLayoutDialog>().is_some(), "Reset keeps the dialog");
 }
 
-// New Guide opens with Position focused, as Photoshop and PhotoCraft do.
+// New Guide opens with Position focused and its value selected, as Photoshop and PhotoCraft do:
+// the first digit typed replaces the value.
 #[test]
 fn new_guide_opens_with_position_focused() {
-    let harness = open(NewGuideDialog::new(units()));
+    let initial = NewGuideOptions {
+        orientation: Orientation::Horizontal,
+        position: Length { value: 5.0, unit: LengthUnit::Centimetres },
+        position_px: 5.0 / 2.54 * 300.0,
+        color: GuideColor::Cyan,
+        color_changed: false,
+        edited: None,
+    };
+    let mut harness = open(NewGuideDialog::new(units()).initial(initial));
     assert!(harness.get_by_role_and_label(Role::SpinButton, "Position").accesskit_node().is_focused());
+    harness.event(Event::Text("7".into()));
+    harness.run();
+    harness.key_press(Key::Tab);
+    harness.run();
+    assert_eq!(new_guide(&harness).position, Length { value: 7.0, unit: LengthUnit::Centimetres });
 }
 
 // A typed percentage stays a percentage and resolves per artboard: 10 % of a 500 px and of a
@@ -344,4 +358,20 @@ fn invalid_layout_shows_its_reason() {
     type_into(&mut harness, "Width", "5000");
     assert!(harness.query_by_label("Invalid guide layout").is_some());
     assert!(harness.query_by_label(GuidesLabels::default().does_not_fit.as_str()).is_some());
+}
+
+// The fields and lists have PhotoCraft's widths (the `guide` tokens).
+#[test]
+fn guide_fields_have_photocraft_widths() {
+    let harness = open(NewGuideDialog::new(units()));
+    let width = |harness: &Harness<'_, App>, role, label| harness.get_all_by_role_and_label(role, label).next().expect("shown").rect().width();
+    assert!((width(&harness, Role::SpinButton, "Position") - 120.0).abs() < 1.0);
+    assert!((width(&harness, Role::ComboBox, "Color") - 140.0).abs() < 1.0);
+
+    let dialog = GuideLayoutDialog::new(document(), GuideLines::default(), pixel_units(), GuideColor::Cyan.rgb());
+    let harness = open(dialog);
+    assert!((width(&harness, Role::ComboBox, "Preset:") - 222.0).abs() < 1.0);
+    assert!((width(&harness, Role::ComboBox, "Color") - 174.0).abs() < 1.0);
+    assert!((width(&harness, Role::SpinButton, "Number") - 68.0).abs() < 1.0);
+    assert!((width(&harness, Role::SpinButton, "Top:") - 64.0).abs() < 1.0);
 }

@@ -177,6 +177,7 @@ pub struct Select<'a, T> {
     header_menu: Option<HeaderMenu<'a>>,
     wheel_steps: bool,
     fit: bool,
+    width: Option<f32>,
     content: Option<RowContent<'a, T>>,
     text_shown: SelectText,
     highlighted: Option<&'a mut Option<T>>,
@@ -247,6 +248,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             header_menu: None,
             wheel_steps: false,
             fit: false,
+            width: None,
             content: None,
             text_shown: SelectText::Always,
             highlighted: None,
@@ -343,6 +345,13 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
+    /// The closed box's width, in place of `field.width`, a fitted width and the room a justified
+    /// layout gives it.
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
+        self
+    }
+
     /// Whether the box is as wide as its widest option, the padding, the chevron and, when any
     /// option has an icon, room for it, in place of `field.width`. A justified layout still
     /// fills. Ignored with [`rows`](Select::rows), whose long list is not measured.
@@ -419,6 +428,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             mut header_menu,
             wheel_steps,
             fit,
+            width: set_width,
             content,
             text_shown,
             highlighted,
@@ -473,7 +483,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 
         // The text is shown unless a preview takes its place.
         let (box_text, row_text) = (content.is_none() || text_shown == SelectText::Always, content.is_none() || text_shown != SelectText::Never);
-        let width = box_width(ui, id, &style.field, fit.then_some(&options), content.as_ref().map(|c| c.size.x), box_text);
+        let width = box_width(ui, id, &style.field, fit.then_some(&options), content.as_ref().map(|c| c.size.x), box_text, set_width);
         let (_, rect) = ui.allocate_space(vec2(width, style.field.height));
         let response = Interactive::with_id(id, Role::ComboBox, label.as_str())
             .expanded(state.open)
@@ -1560,8 +1570,17 @@ fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<
 
 /// The box's width: all the room in a justified layout, else `field.width`, or the width that
 /// fits `fit`'s options (not rows).
-fn box_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, fit: Option<&Options<'_, '_, T>>, content: Option<f32>, text: bool) -> f32 {
+fn box_width<T: Clone + PartialEq>(
+    ui: &Ui,
+    id: Id,
+    f: &TextFieldStyle,
+    fit: Option<&Options<'_, '_, T>>,
+    content: Option<f32>,
+    text: bool,
+    set: Option<f32>,
+) -> f32 {
     match fit {
+        _ if set.is_some() => set.unwrap_or(f.width),
         _ if ui.layout().horizontal_justify() => ui.available_width(),
         Some(options) if !options.rows() && !text => {
             let icon = if options.has_icons() { f.icon + f.gap } else { 0.0 };
