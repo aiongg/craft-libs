@@ -106,6 +106,7 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <blend_keys_stories::BlendKeysStoryLabels as craft_ui::localized::Labels>::WORDS,
     <mask_view::MaskViewLabels as craft_ui::localized::Labels>::WORDS,
     <select::SelectLabels as craft_ui::localized::Labels>::WORDS,
+    <select::stories::SelectToolStoryLabels as craft_ui::localized::Labels>::WORDS,
     <vanishing_point::VanishingPointLabels as craft_ui::localized::Labels>::WORDS,
     <vanishing_point::stories::VanishingPointStoryLabels as craft_ui::localized::Labels>::WORDS,
     <select_mask::SelectMaskLabels as craft_ui::localized::Labels>::WORDS,

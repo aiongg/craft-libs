@@ -1,7 +1,6 @@
 //! Stories of the Free Transform session (task ST-TR1; task RG2 registers them). A rectangle
 //! stands for the layer over the story canvas, and the session, its overlay and its bar run on it
-//! as an app would run them. Sample words are story words where one exists; the plain strings are
-//! the result notes and the Warp stub.
+//! as an app would run them. Sample words, result notes and phase names are story words.
 //!
 //! - `composites/transform-session/session`: the overlay and the bar over a fake picture: modes,
 //!   the scale rule, the reference point shown or hidden, the readout, the interpolation. Apply
@@ -31,6 +30,37 @@ use craft_ui::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["TransformSession", "TransformBar"];
+
+craft_ui::words! {
+    /// The status words and the bar's group name of the transform session stories, English by default.
+    #[non_exhaustive]
+    pub(crate) struct TransformSessionStoryLabels {
+        applied: "transformSessionStory.applied" = "Applied";
+        closed: "transformSessionStory.closed" = "Closed without changes";
+        discarded: "transformSessionStory.discarded" = "Discarded";
+        warp: "transformSessionStory.warp" = "Warp";
+        box_phase: "transformSessionStory.box" = "Box";
+        warp_options: "transformSessionStory.warpOptions" = "Warp options";
+    }
+}
+
+/// What the app did with the last request.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Note {
+    Applied,
+    Closed,
+    Discarded,
+}
+
+impl Note {
+    fn text(self, labels: &TransformSessionStoryLabels) -> &str {
+        match self {
+            Note::Applied => &labels.applied,
+            Note::Closed => &labels.closed,
+            Note::Discarded => &labels.discarded,
+        }
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -173,7 +203,7 @@ struct Kept {
     session: TransformSession<()>,
     settings: TransformSettings,
     applied: BoxState,
-    note: &'static str,
+    note: Option<Note>,
     last: Snap,
 }
 
@@ -187,7 +217,7 @@ impl Kept {
         };
         let applied = BoxState::from_rect(frame(snap));
         let session = open(snap, &settings, applied, 0.0);
-        Self { session, settings, applied, note: "", last: snap }
+        Self { session, settings, applied, note: None, last: snap }
     }
 
     /// Closes the session and opens a box on what was applied.
@@ -200,15 +230,15 @@ impl Kept {
         match self.session.apply(edit, now) {
             Some(TransformRequest::Apply(result)) => {
                 self.applied = result.state;
-                self.note = "Applied";
+                self.note = Some(Note::Applied);
                 self.reopen(now);
             }
             Some(TransformRequest::CloseUntouched) => {
-                self.note = "Closed without changes";
+                self.note = Some(Note::Closed);
                 self.reopen(now);
             }
             Some(TransformRequest::Discard) => {
-                self.note = "Discarded";
+                self.note = Some(Note::Discarded);
                 self.reopen(now);
             }
             Some(TransformRequest::NeedWarp { .. }) => {
@@ -281,7 +311,7 @@ fn show_options_bar(ui: &mut Ui, kept: &mut Kept, phase: PhaseArg, size_menu: bo
         PhaseArg::ContentAware => BarGroups { reference: false, angle: false, skew: false, interpolation: false, ..BarGroups::ALL },
         PhaseArg::Free | PhaseArg::Warp => BarGroups::ALL,
     };
-    let warp_label = "Warp options".to_owned();
+    let warp_label = TransformSessionStoryLabels::of(ui).warp_options.clone();
     let mut shown = None;
     {
         let Kept { session, settings, .. } = kept;
@@ -317,6 +347,7 @@ fn show_options_bar(ui: &mut Ui, kept: &mut Kept, phase: PhaseArg, size_menu: bo
 /// transformed box; Discard (Esc or the cross) puts back the last applied one.
 fn show_session(ui: &mut Ui, args: &mut SessionArgs) {
     let words = StoryLabels::of(ui);
+    let story = TransformSessionStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let ctx = ui.ctx().clone();
     let now = ctx.input(|i| i.time);
@@ -360,8 +391,8 @@ fn show_session(ui: &mut Ui, args: &mut SessionArgs) {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             kept = Kept::new(snap);
         }
-        let phase = if kept.session.phase() == TransformPhase::Warp { "Warp" } else { "Box" };
-        status(ui, if kept.note.is_empty() { phase.to_owned() } else { format!("{phase} · {}", kept.note) });
+        let phase = if kept.session.phase() == TransformPhase::Warp { &story.warp } else { &story.box_phase };
+        status(ui, kept.note.map_or_else(|| phase.clone(), |note| format!("{phase} · {}", note.text(&story))));
     });
     kept.settle(ui);
     ctx.data_mut(|d| d.insert_temp(key, kept));
@@ -373,6 +404,7 @@ fn show_session(ui: &mut Ui, args: &mut SessionArgs) {
 /// change the session, commit and cancel reopen it.
 fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let words = StoryLabels::of(ui);
+    let story = TransformSessionStoryLabels::of(ui);
     let ctx = ui.ctx().clone();
     let now = ctx.input(|i| i.time);
     let snap = Snap {
@@ -392,8 +424,8 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             kept = Kept::new(snap);
         }
-        if !kept.note.is_empty() {
-            status(ui, kept.note.to_owned());
+        if let Some(note) = kept.note {
+            status(ui, note.text(&story).to_owned());
         }
     });
     kept.settle(ui);

@@ -1,7 +1,7 @@
 //! Stories of the Ruler tool, its bar and the distances between boxes (task ST-TO2; task RG2
 //! registers them). A fake picture stands for the layers, and the tool, the bar and the guides run
-//! on it as an app would run them. Sample words are story words where one exists; the plain strings
-//! are the status lines and the case names.
+//! on it as an app would run them. Sample words and the status lines are story words; the case
+//! names are choice names.
 //!
 //! - `primitives/ruler-tool/line`: the Ruler in a `ToolHost` over a fake picture: draw a line, grab
 //!   an end, ⇧ for 45° steps, a tiny line clears on release, the keyboard parts.
@@ -30,6 +30,50 @@ use craft_ui::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["RulerTool", "RulerBar", "box_distances"];
+
+craft_ui::words! {
+    /// The status lines of the Ruler stories, English by default.
+    #[non_exhaustive]
+    pub(crate) struct MeasureStoryLabels {
+        no_line: "measureStory.noLine" = "No line";
+        one_line: "measureStory.oneLine" = "L {l1} · A {angle}°";
+        two_lines: "measureStory.twoLines" = "L1 {l1} · L2 {l2} · A {angle}°";
+        begin: "measureStory.begin" = "Begin";
+        update: "measureStory.update" = "Update";
+        stored: "measureStory.stored" = "Stored";
+        cleared: "measureStory.cleared" = "Cleared";
+        cancelled: "measureStory.cancelled" = "Cancelled";
+        straighten_layer: "measureStory.straightenLayer" = "Straighten Layer";
+        clear: "measureStory.clear" = "Clear";
+        distances: "measureStory.distances" = "{lines} lines · {distances} distances";
+    }
+}
+
+/// What the last event of a story was.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Note {
+    Begin,
+    Update,
+    Stored,
+    Cleared,
+    Cancelled,
+    StraightenLayer,
+    Clear,
+}
+
+impl Note {
+    fn text(self, labels: &MeasureStoryLabels) -> &str {
+        match self {
+            Note::Begin => &labels.begin,
+            Note::Update => &labels.update,
+            Note::Stored => &labels.stored,
+            Note::Cleared => &labels.cleared,
+            Note::Cancelled => &labels.cancelled,
+            Note::StraightenLayer => &labels.straighten_layer,
+            Note::Clear => &labels.clear,
+        }
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -135,13 +179,13 @@ struct RulerKept {
     tool: RulerTool,
     line: Option<RulerLine>,
     saved: Option<RulerLine>,
-    note: &'static str,
+    note: Option<Note>,
     seed: Vec<f64>,
 }
 
 impl RulerKept {
     fn new(line: Option<RulerLine>, seed: Vec<f64>) -> Self {
-        Self { tool: RulerTool::new(), line, saved: None, note: "", seed }
+        Self { tool: RulerTool::new(), line, saved: None, note: None, seed }
     }
 
     /// Stores what the tool reported, as the app does: the line is document state outside the
@@ -153,19 +197,19 @@ impl RulerKept {
                 if let Some(value) = value {
                     self.line = *value;
                 }
-                self.note = "Begin";
+                self.note = Some(Note::Begin);
             }
             EditEvent::Update { value, .. } => {
                 self.line = *value;
-                self.note = "Update";
+                self.note = Some(Note::Update);
             }
             EditEvent::Commit { value, .. } | EditEvent::Set { value, .. } => {
                 self.line = *value;
-                self.note = if value.is_some() { "Stored" } else { "Cleared" };
+                self.note = Some(if value.is_some() { Note::Stored } else { Note::Cleared });
             }
             EditEvent::Cancel { .. } => {
                 self.line = self.saved;
-                self.note = "Cancelled";
+                self.note = Some(Note::Cancelled);
             }
             _ => {}
         }
@@ -176,6 +220,7 @@ impl RulerKept {
 /// Reset) starts with; a change of `seed` starts over.
 fn show_ruler(ui: &mut Ui, view: ViewArgs, name: &str, size: Size, initial: Option<RulerLine>, seed: Vec<f64>) {
     let words = StoryLabels::of(ui);
+    let own = MeasureStoryLabels::of(ui);
     let canvas = document(ui, view, &words.document);
     let ctx = ui.ctx().clone();
     let key = state_key(ui, name);
@@ -201,17 +246,21 @@ fn show_ruler(ui: &mut Ui, view: ViewArgs, name: &str, size: Size, initial: Opti
         }
         let numbers = LocaleNumbers::of(ui);
         let text = match kept.line {
-            None => "No line".to_owned(),
+            None => own.no_line.clone(),
             Some(line) => {
                 let r = line.reading();
                 let angle = numbers.format(r.angle, 1..=1);
                 match r.l2 {
-                    Some(l2) => format!("L1 {} · L2 {} · A {angle}°", numbers.format(r.l1, 1..=1), numbers.format(l2, 1..=1)),
-                    None => format!("L {} · A {angle}°", numbers.format(r.l1, 1..=1)),
+                    Some(l2) => own
+                        .two_lines
+                        .replace("{l1}", &numbers.format(r.l1, 1..=1))
+                        .replace("{l2}", &numbers.format(l2, 1..=1))
+                        .replace("{angle}", &angle),
+                    None => own.one_line.replace("{l1}", &numbers.format(r.l1, 1..=1)).replace("{angle}", &angle),
                 }
             }
         };
-        status(ui, if kept.note.is_empty() { text } else { format!("{text} · {}", kept.note) });
+        status(ui, kept.note.map_or_else(|| text.clone(), |note| format!("{text} · {}", note.text(&own))));
     });
     ctx.data_mut(|d| d.insert_temp(key, kept));
 }
@@ -264,7 +313,7 @@ struct BarArgs {
 #[derive(Clone, Debug)]
 struct BarKept {
     use_scale: bool,
-    note: &'static str,
+    note: Option<Note>,
     seed: (bool, ShownArg),
 }
 
@@ -272,11 +321,12 @@ struct BarKept {
 /// in the status line; the line is the args' alone.
 fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let words = StoryLabels::of(ui);
+    let own = MeasureStoryLabels::of(ui);
     let ctx = ui.ctx().clone();
     let key = state_key(ui, "bar");
     let seed = (args.use_scale, args.shown);
     let mut kept: BarKept =
-        ctx.data(|d| d.get_temp(key)).filter(|kept: &BarKept| kept.seed == seed).unwrap_or(BarKept { use_scale: args.use_scale, note: "", seed });
+        ctx.data(|d| d.get_temp(key)).filter(|kept: &BarKept| kept.seed == seed).unwrap_or(BarKept { use_scale: args.use_scale, note: None, seed });
 
     let turn = args.angle.to_radians();
     let start = Point::new(100.0, 100.0);
@@ -292,18 +342,18 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         RulerBar::new(line, &mut kept.use_scale).scale(args.factor).labels(labels).output(&mut out).add_to(bar);
     });
     if out.straighten_layer {
-        kept.note = "Straighten Layer";
+        kept.note = Some(Note::StraightenLayer);
     }
     if out.clear {
-        kept.note = "Clear";
+        kept.note = Some(Note::Clear);
     }
     ui.horizontal(|ui| {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             kept.use_scale = args.use_scale;
-            kept.note = "";
+            kept.note = None;
         }
-        if !kept.note.is_empty() {
-            status(ui, kept.note.to_owned());
+        if let Some(note) = kept.note {
+            status(ui, note.text(&own).to_owned());
         }
     });
     ctx.data_mut(|d| d.insert_temp(key, kept));
@@ -360,6 +410,7 @@ fn boxes(args: &DistanceArgs) -> (Rect, Rect) {
 /// Move tool does while ⌘ is held.
 fn show_distances(ui: &mut Ui, args: &mut DistanceArgs) {
     let words = StoryLabels::of(ui);
+    let own = MeasureStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let tokens = Tokens::of(ui);
     let (a, b) = boxes(args);
@@ -371,5 +422,5 @@ fn show_distances(ui: &mut Ui, args: &mut DistanceArgs) {
     let pixels = RulerUnits::pixels(LocaleNumbers::of(ui).as_ref().clone());
     let (lines, measures) = box_distances(a, b, |len, _| pixels.format_value(len, 0.0));
     SmartGuides::new(&lines, &measures).bounds(a).show(ui, &canvas.view);
-    status(ui, format!("{} lines · {} distances", lines.len(), measures.len()));
+    status(ui, own.distances.replace("{lines}", &lines.len().to_string()).replace("{distances}", &measures.len().to_string()));
 }
