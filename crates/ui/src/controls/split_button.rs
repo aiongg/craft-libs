@@ -2,15 +2,15 @@
 
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{AsIdSalt, CornerRadius, IdSalt, Key, Modifiers, Popup, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Key, Modifiers, Popup, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
 
 use super::button::{Face, content_color};
 use super::{Button, ButtonVariant, ControlSize, TooltipExt as _, icon_size};
 use crate::direction;
 use crate::icons::{self, Icon};
 use crate::menu::{MenuEntry, MenuResponse, PressMenu};
-use crate::primitives::{Corner, Interactive, SurfaceKind};
-use crate::theme::{Tokens, TokensOf as _};
+use crate::primitives::{Corner, Interactive, StateLayer, Surface, SurfaceEdge};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
 /// What the button reported this pass.
 #[derive(Debug)]
@@ -35,10 +35,13 @@ pub struct SplitButtonResponse<T> {
 /// ```
 ///
 /// - **Look.** A [`Button`](crate::controls::Button) of the variant and size whose end is an
-///   arrow part 18 points wide (VectorCraft's `SPLIT_ARROW`; `split_button.arrow_width`) with a
-///   chevron down, split by a 1-point divider inset 5 points top and bottom in the button's
-///   border colour. Each part has its own hover and pressed state layer; the outer corners are
-///   the button's, the inner ones square.
+///   arrow part `split_button.arrow_width` wide (VectorCraft's `SPLIT_ARROW`) with a chevron
+///   down. One surface and one border cover the whole button; each part has its own hover and
+///   pressed fill, clipped to its half (the outer corners are the button's, the inner ones
+///   square), and a 1-point divider, inset `split_button.divider_inset` top and bottom in the
+///   button's border colour, separates them. The chevron is in the muted text colour on a
+///   secondary or ghost button (VectorCraft's `text_dim`) and in the variant's text colour on a
+///   filled one, where muted text would not read.
 /// - **Menu.** A press on the arrow opens a [`PressMenu`](crate::menu::PressMenu) of `entries`
 ///   under the button, aligned to its start edge, so press-drag-release chooses in one gesture;
 ///   a press on the main part runs the action and never opens the menu. While the menu is open,
@@ -112,7 +115,6 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
         let laid = face.layout(ui, &tokens, &style);
         let id = ui.make_persistent_id(self.id_salt);
         let (main_id, arrow_id) = (id.with("main"), id.with("arrow"));
-        let popup_id = arrow_id.with("popup");
 
         let (_, rect) = ui.allocate_space(vec2(laid.size.x + split_button.arrow_width, style.height));
         let rtl = direction::is_rtl(ui);
@@ -127,24 +129,29 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
         let right = CornerRadius { nw: 0, sw: 0, ne: round, se: round };
         let (main_radius, arrow_radius) = if rtl { (right, left) } else { (left, right) };
 
-        let ctx = ui.ctx().clone();
-        let was_open = Popup::is_id_open(&ctx, popup_id);
+        // One surface under both parts: the parts add only their hover and pressed fills, and the
+        // edge is drawn once over everything.
+        let whole = Corner::Button.radius(&tokens);
+        let surface = style.surface.map(|kind| Surface::style(&tokens, kind));
+        let rest = if enabled { style.fill.rest } else { style.fill.disabled };
+        if ui.is_rect_visible(rect) && rest != Color32::TRANSPARENT {
+            ui.painter().rect_filled(rect, whole, rest);
+        }
+        let mut colors = style.colors();
+        colors.fill.rest = Color32::TRANSPARENT;
+        colors.fill.disabled = Color32::TRANSPARENT;
         let part = |id, label: &str, sense, radius| {
-            let mut part = Interactive::with_id(id, Role::Button, label)
-                .sense(sense)
-                .colors(style.colors())
-                .border_width(style.border_width)
-                .corner_radius(radius)
-                .enabled(enabled);
-            if style.surface.is_some() {
-                part = part.surface(SurfaceKind::Raised);
-            }
-            part
+            Interactive::with_id(id, Role::Button, label).sense(sense).colors(colors).corner_radius(radius).enabled(enabled)
         };
         let arrow_label = self.arrow_label.as_deref().unwrap_or(&self.label);
         let main_focused = ui.memory(|m| m.has_focus(main_id));
-        let mut main = part(main_id, &self.label, Sense::click(), main_radius).interact_at(ui, main_rect).finish(ui);
-        let mut arrow = part(arrow_id, arrow_label, Sense::CLICK, arrow_radius).expanded(was_open).interact_at(ui, arrow_rect).finish(ui);
+        let main_sensed = part(main_id, &self.label, Sense::click(), main_radius).interact_at(ui, main_rect);
+        let arrow_sensed = part(arrow_id, arrow_label, Sense::CLICK, arrow_radius).interact_at(ui, arrow_rect);
+        let popup_id = Popup::default_response_id(arrow_sensed.response());
+        let ctx = ui.ctx().clone();
+        let was_open = Popup::is_id_open(&ctx, popup_id);
+        let mut main = main_sensed.finish(ui);
+        let mut arrow = arrow_sensed.expanded(was_open).finish(ui);
         // The press that closes the menu does nothing else: the click it ends with is not the action's.
         let closing_key = id.with("closing");
         let (pressed, released) = ui.input(|i| (i.pointer.primary_pressed(), i.pointer.primary_released()));
@@ -165,9 +172,28 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
 
         if ui.is_rect_visible(rect) {
             face.paint(ui, main_rect, &laid, &style, content_color(ui, &style.text, &main, true));
-            let color = content_color(ui, &style.text, &arrow, true);
+            let color = match self.variant {
+                ButtonVariant::Secondary | ButtonVariant::Ghost => {
+                    if enabled {
+                        tokens.color.text.muted.to_egui()
+                    } else {
+                        tokens.color.text.disabled.to_egui()
+                    }
+                }
+                _ => content_color(ui, &style.text, &arrow, true),
+            };
             let chevron = Rect::from_center_size(arrow_rect.center(), vec2(style.icon, style.icon)).round_to_pixels(ui.pixels_per_point());
             icons::paint(ui, chevron, Icon::ChevronDown, icon_size(self.size), color);
+            // The border follows the part under the pointer, else the main part.
+            let lead = if arrow.hovered() || arrow.has_focus() { &arrow } else { &main };
+            if let Some(mut edge) = surface {
+                edge.radius = whole;
+                edge.fill = Color32::TRANSPARENT;
+                if let SurfaceEdge::Border(_) = edge.edge {
+                    edge.edge = SurfaceEdge::Border(Stroke::new(style.border_width, StateLayer::color(ui, &style.border, lead)));
+                }
+                ui.painter().extend(edge.shapes(rect, ui.pixels_per_point()));
+            }
             let divider = if enabled { style.border.rest } else { style.border.disabled };
             let x = if rtl { main_rect.left() } else { main_rect.right() };
             ui.painter().line_segment(

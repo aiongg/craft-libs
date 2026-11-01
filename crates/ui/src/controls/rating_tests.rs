@@ -3,14 +3,14 @@
 
 use egui::accesskit::Role;
 use egui::{Color32, Key, Modifiers, Pos2, Ui};
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::*;
 use crate::behavior::KeyClaim;
 use crate::direction::{self, Direction};
 use crate::edit::EditEvent;
-use crate::theme::{Base, install};
+use crate::theme::{Base, Tokens, TokensOf as _, install};
 
 #[derive(Default)]
 struct Host {
@@ -98,7 +98,7 @@ fn the_focused_row_claims_the_digits() {
     assert!(KeyClaim::claimed(&harness.ctx, &digit));
 }
 
-// `paint_rating` returns 3 × 13 for three Medium stars and 0 for none.
+// `paint_rating` returns 3 × the badge step for three Md stars and 0 for none.
 #[test]
 fn painted_stars_report_their_width() {
     let ctx = egui::Context::default();
@@ -106,13 +106,32 @@ fn painted_stars_report_their_width() {
     let mut widths = Vec::new();
     let output = ctx.run_ui(Default::default(), |ui| {
         let painter = ui.painter().clone();
+        let tokens = Tokens::of(ui);
         let at = Pos2::new(10.0, 10.0);
         widths = vec![
-            paint_rating(&painter, at, 3, StarSize::Medium, Color32::WHITE),
-            paint_rating(&painter, at, 0, StarSize::Medium, Color32::WHITE),
-            paint_rating(&painter, at, 9, StarSize::Small, Color32::WHITE),
+            paint_rating(&painter, &tokens, at, 3, ControlSize::Md, Color32::WHITE),
+            paint_rating(&painter, &tokens, at, 0, ControlSize::Md, Color32::WHITE),
+            paint_rating(&painter, &tokens, at, 9, ControlSize::Sm, Color32::WHITE),
         ];
     });
     output.drop_without_applying_deltas();
     assert_eq!(widths, [39.0, 0.0, 45.0], "a rating over five is five stars");
+}
+
+// A rating changed from outside while a star has the focus moves the focus to the new Tab stop,
+// and the arrows still act on the row in that pass.
+#[test]
+fn the_focus_follows_the_tab_stop_when_the_rating_changes_from_outside() {
+    let mut harness = harness(Direction::Ltr);
+    harness.state_mut().rating = 3;
+    harness.run();
+    star(&harness, "3 stars").focus();
+    harness.run();
+    harness.state_mut().rating = 1;
+    harness.run();
+    harness.run();
+    assert!(star(&harness, "1 star").accesskit_node().is_focused(), "the focus moved to the stop of the new rating");
+    harness.key_press(Key::ArrowRight);
+    harness.run();
+    assert_eq!(harness.state().rating, 2);
 }

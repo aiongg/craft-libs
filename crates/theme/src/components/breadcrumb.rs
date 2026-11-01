@@ -7,12 +7,12 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct BreadcrumbTokens {
-    /// Height of the bar: `breadcrumb.height`.
+    /// Height of the bar, a standard control's (`size.control.md`): `breadcrumb.height`.
     pub height: f32,
     /// Side of the chevron between segments: `breadcrumb.separator`.
     pub separator: f32,
-    /// Beside a segment's text and either side of a chevron: `breadcrumb.space`.
-    pub space: f32,
+    /// Beside a segment's text and either side of a chevron: `breadcrumb.gap`.
+    pub gap: f32,
     /// The room one shown segment counts for when the bar decides how many fit: `breadcrumb.min_segment`.
     pub min_segment: f32,
 }
@@ -27,15 +27,15 @@ impl Family for BreadcrumbTokens {
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { BreadcrumbTokens;
         "height" 0.0..=256.0 => height;
         "separator" 0.0..=64.0 => separator;
-        "space" 0.0..=64.0 => space;
+        "gap" 0.0..=64.0 => gap;
         "min_segment" 0.0..=1024.0 => min_segment;
     };
 
-    fn defaults(_: &Semantic<'_>) -> BreadcrumbTokens {
+    fn defaults(s: &Semantic<'_>) -> BreadcrumbTokens {
         BreadcrumbTokens {
-            height: values::BREADCRUMB_HEIGHT,
+            height: s.size.control.md,
             separator: values::BREADCRUMB_SEPARATOR,
-            space: values::BREADCRUMB_SPACE,
+            gap: values::BREADCRUMB_GAP,
             min_segment: values::BREADCRUMB_MIN_SEGMENT,
         }
     }

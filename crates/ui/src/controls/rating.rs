@@ -12,7 +12,7 @@ use crate::icons::{self, Icon, IconSize};
 use crate::localized::words::counts;
 use crate::localized::{Labels as _, Words};
 use crate::primitives::{Corner, Interactive};
-use crate::theme::{ToEgui, Tokens, TokensOf as _};
+use crate::theme::{ToEgui, Tokens, TokensOf as _, UiTokens};
 
 crate::words! {
     /// The rating's words, English by default.
@@ -33,46 +33,20 @@ crate::words! {
 /// The most stars a rating has.
 pub const MAX_STARS: u8 = 5;
 
-/// How big painted stars are, for [`paint_rating`]: LightCraft's three renderers.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum StarSize {
-    /// Film-strip badges: 8-point stars every 9 points.
-    Small,
-    /// Grid badges and compare captions: 12-point stars every 13.
-    #[default]
-    Medium,
-}
-
-impl StarSize {
-    /// One star's side.
-    pub fn side(self) -> f32 {
-        match self {
-            StarSize::Small => 8.0,
-            StarSize::Medium => 12.0,
-        }
-    }
-
-    /// From one star to the next.
-    pub fn step(self) -> f32 {
-        match self {
-            StarSize::Small => 9.0,
-            StarSize::Medium => 13.0,
-        }
-    }
-}
-
 /// A row of five stars, after LightCraft's `Rating`.
 ///
 /// ```ignore
 /// if let Some(EditEvent::Set { value, .. }) = Rating::new("rating", "Rating", &mut photo.rating).show(ui).event { app.rate(value) }
 /// ```
 ///
-/// - **Look.** Five [`Icon::Star`](crate::icons::Icon::Star) outlines, the first `rating` of them
-///   [`Icon::StarFilled`](crate::icons::Icon::StarFilled), in `rating.star` (LightCraft
-///   draws them in its accent), in 14-point stars on 19-point cells (Md) or 12 on 15 (Sm). In
-///   right-to-left the first star is on the right.
-/// - **Pointer.** Hovering star `n` previews `n` filled stars; a click sets `n`, and a click on
-///   the current rating's star clears it to 0 (LightCraft's `clicked_rating`).
+/// - **Look.** Five [`Icon::Star`](crate::icons::Icon::Star) outlines in the muted text colour
+///   (LightCraft's icon colour), the first `rating` of them
+///   [`Icon::StarFilled`](crate::icons::Icon::StarFilled) in `rating.star`, the text colour
+///   (LightCraft's near-text star), on cells of `rating.cell` with stars of `rating.star`'s sizes.
+///   In right-to-left the first star is on the right.
+/// - **Pointer.** Hovering star `n` previews `n` filled stars and fills the hovered cell through
+///   the state layer; a click sets `n`, and a click on the current rating's star clears it to 0
+///   (LightCraft's `clicked_rating`).
 /// - **Keys.** One Tab stop: the star of the current rating, the first when unrated. ← and →
 ///   (mirrored) lower and raise the rating from 0 to 5, Home and End go to 0 and 5, the digits 0
 ///   to 5 set it (Lightroom's). The focused row claims the digits
@@ -121,10 +95,7 @@ impl<'a> Rating<'a> {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         let enabled = enabled && ui.is_enabled();
-        let (cell, side) = match size {
-            ControlSize::Sm => (tokens.component.rating.cell_sm, tokens.component.rating.star_sm),
-            ControlSize::Md => (tokens.component.rating.cell_md, tokens.component.rating.star_md),
-        };
+        let (cell, side) = (tokens.component.rating.cell.get(size), tokens.component.rating.star_size.get(size));
         let (rtl, forward) = (direction::is_rtl(ui), direction::forward(ui));
         let current = (*rating).min(MAX_STARS);
         let words = Words::of_ctx(&ctx);
@@ -144,9 +115,8 @@ impl<'a> Rating<'a> {
 
         // The row is one Tab stop, on the current rating's star (the first when unrated).
         let mut value = current;
-        let focused = enabled && ids.iter().any(|&id| ui.memory(|m| m.has_focus(id)));
-        if focused {
-            let owner = stop(current);
+        let focus = ids.iter().copied().find(|&id| enabled && ui.memory(|m| m.has_focus(id)));
+        if let Some(owner) = focus {
             ui.memory_mut(|m| m.set_focus_lock_filter(owner, EventFilter { horizontal_arrows: true, ..EventFilter::default() }));
             let (raise, lower) = if rtl { (Key::ArrowLeft, Key::ArrowRight) } else { (Key::ArrowRight, Key::ArrowLeft) };
             ui.input_mut(|i| {
@@ -178,11 +148,8 @@ impl<'a> Rating<'a> {
         for (i, &id) in ids.iter().enumerate() {
             let x = direction::start_x(ui, strip) + forward * cell * i as f32;
             let rect = Rect::from_min_max(egui::pos2(x.min(x + forward * cell), strip.top()), egui::pos2(x.max(x + forward * cell), strip.bottom()));
-            let mut star = Interactive::with_id(id, Role::RadioButton, stars_name(i as u8 + 1))
-                .position_in_set(i)
-                .corner(Corner::Control)
-                .state_layer(false)
-                .enabled(enabled);
+            let mut star =
+                Interactive::with_id(id, Role::RadioButton, stars_name(i as u8 + 1)).position_in_set(i).corner(Corner::Control).enabled(enabled);
             if id != stop_now {
                 star = star.sense(Sense::CLICK);
             }
@@ -194,17 +161,22 @@ impl<'a> Rating<'a> {
             let n = i as u8 + 1;
             value = if n == current { 0 } else { n };
             ui.memory_mut(|m| m.request_focus(stop(value)));
-        } else if value != current && focused {
+        } else if focus.is_some_and(|id| id != stop(value)) {
             ui.memory_mut(|m| m.request_focus(stop(value)));
         }
 
         let shown = hovered.map_or(value, |i| i as u8 + 1);
-        let color = if enabled { tokens.component.rating.star.to_egui() } else { tokens.color.text.disabled.to_egui() };
+        let (lit, unlit) = if enabled {
+            (tokens.component.rating.star.to_egui(), tokens.color.text.muted.to_egui())
+        } else {
+            let disabled = tokens.color.text.disabled.to_egui();
+            (disabled, disabled)
+        };
         let mut responses = Vec::with_capacity(sensed.len());
         for (i, (star, rect)) in sensed.into_iter().zip(&rects).enumerate() {
             let response = star.checked(i as u8 + 1 == value).finish(&group);
             if group.is_rect_visible(*rect) {
-                let icon = if (i as u8) < shown { Icon::StarFilled } else { Icon::Star };
+                let (icon, color) = if (i as u8) < shown { (Icon::StarFilled, lit) } else { (Icon::Star, unlit) };
                 paint_star(group.painter(), *rect, icon, side, color);
             }
             responses.push(response);
@@ -241,13 +213,15 @@ fn paint_star(painter: &Painter, rect: Rect, icon: Icon, points: f32, color: Col
 }
 
 /// `rating` filled stars in a row, the first one's left edge at `pos.x` and its middle at `pos.y`,
-/// in `color`. Returns the row's width (0 for no stars), so the caller lays out what follows.
+/// in `color`, with the badge sizes of `tokens` for `size`. Returns the row's width (0 for no
+/// stars), so the caller lays out what follows.
 // lightcraft: crates/ui-egui/src/widgets/rating.rs:67 paint_rating
-pub fn paint_rating(painter: &Painter, pos: Pos2, rating: u8, size: StarSize, color: Color32) -> f32 {
+pub fn paint_rating(painter: &Painter, tokens: &UiTokens, pos: Pos2, rating: u8, size: ControlSize, color: Color32) -> f32 {
     let rating = rating.min(MAX_STARS);
+    let (side, step) = (tokens.component.rating.badge_star.get(size), tokens.component.rating.badge_step.get(size));
     for i in 0..rating {
-        let center = egui::pos2(pos.x + size.step() * f32::from(i) + size.side() / 2.0, pos.y);
-        paint_star(painter, Rect::from_center_size(center, vec2(size.side(), size.side())), Icon::StarFilled, size.side(), color);
+        let center = egui::pos2(pos.x + step * f32::from(i) + side / 2.0, pos.y);
+        paint_star(painter, Rect::from_center_size(center, vec2(side, side)), Icon::StarFilled, side, color);
     }
-    size.step() * f32::from(rating)
+    step * f32::from(rating)
 }

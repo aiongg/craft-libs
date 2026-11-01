@@ -409,6 +409,13 @@ impl Sensed {
         self
     }
 
+    /// Open or closed, as settled after sensing: a menu button whose popup id comes from its
+    /// response. See [`Interactive::expanded`].
+    pub fn expanded(mut self, expanded: bool) -> Self {
+        self.report.expanded = Some(expanded);
+        self
+    }
+
     /// Selected or not, as settled after sensing.
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = Some(selected);

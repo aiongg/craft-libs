@@ -24,6 +24,47 @@ fn path_segments_keep_the_paths_spelling() {
     assert!(crumbs("").is_empty() && crumbs("/").is_empty());
 }
 
+// Ancestors are in the text colour, the "…" in the muted one, and hovering an ancestor adds no underline.
+#[test]
+fn ancestors_keep_the_label_colour_and_hover_draws_no_underline() {
+    use egui::{Context, Event, RawInput, Rect, Shape, pos2, vec2};
+
+    use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
+
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let crumbs = path_crumbs("/a/b/c/d/e");
+    let frame = |events: Vec<Event>| {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(200.0, 80.0))), events, ..Default::default() };
+        let mut tokens = None;
+        let output = ctx.run_ui(input, |ui| {
+            tokens = Some(Tokens::of(ui));
+            BreadcrumbBar::new("folder", &crumbs).show(ui);
+        });
+        let (mut texts, mut lines) = (Vec::new(), 0);
+        for clipped in &output.shapes {
+            match &clipped.shape {
+                Shape::Text(t) => {
+                    let section = &t.galley.job.sections[0];
+                    texts.push((t.galley.text().to_owned(), section.format.color));
+                }
+                Shape::LineSegment { .. } => lines += 1,
+                _ => {}
+            }
+        }
+        output.drop_without_applying_deltas();
+        (tokens.expect("the pass ran"), texts, lines)
+    };
+    frame(vec![]);
+    let (tokens, texts, _) = frame(vec![Event::PointerMoved(pos2(120.0, 12.0))]);
+    let (normal, muted) = (tokens.color.text.normal.to_egui(), tokens.color.text.muted.to_egui());
+    let colour = |text: &str| texts.iter().find(|(t, _)| t == text).map(|(_, c)| *c);
+    assert_eq!(colour("…"), Some(muted));
+    assert_eq!(colour("d"), Some(normal), "an ancestor is in the label colour, hovered or not");
+    let (_, _, lines) = frame(vec![Event::PointerMoved(pos2(120.0, 12.0))]);
+    assert_eq!(lines, 0, "a hovered ancestor has no underline");
+}
+
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 mod bar {
     use egui::accesskit::Role;

@@ -61,3 +61,23 @@ fn a_changed_dot_resets_on_a_click() {
     assert!(Rig::new(true).tabbed_to());
     assert!(!Rig::new(false).tabbed_to());
 }
+
+// The tooltip fills the default through `craft_i18n::fmt`: a right-to-left default is isolated.
+#[test]
+fn the_tooltip_isolates_a_right_to_left_default() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    ctx.enable_accesskit();
+    let mut descriptions = Vec::new();
+    for _ in 0..2 {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), ..Default::default() };
+        let output = ctx.run_ui(input, |ui| {
+            ResetDot::new("dot", true, "\u{5e4}\u{5d5}\u{5e2}\u{5dc}").show(ui);
+        });
+        if let Some(update) = output.platform_output.accesskit_update.clone() {
+            descriptions = update.nodes.iter().filter_map(|(_, n)| n.description().map(str::to_owned)).collect();
+        }
+        output.drop_without_applying_deltas();
+    }
+    assert!(descriptions.iter().any(|d| d.contains('\u{2068}') && d.contains('\u{2069}')), "the default is a first-strong isolate: {descriptions:?}");
+}

@@ -2,7 +2,7 @@
 
 use craft_theme::TypeRole;
 use egui::accesskit::{self, Role};
-use egui::{AsIdSalt, CursorIcon, IdSalt, Rect, Response, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
+use egui::{AsIdSalt, CursorIcon, IdSalt, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
 
 use super::TooltipExt as _;
 use crate::direction;
@@ -52,11 +52,12 @@ pub struct BreadcrumbBarResponse<K> {
 /// if let Some(path) = BreadcrumbBar::new("folder", &crumbs).show(ui).opened { app.browse(path) }
 /// ```
 ///
-/// - **Look.** Segments in the `Body` role, 24 points high, the ancestors in `text.muted`
-///   and the last one in `text.normal` and `BodyStrong`, with a 16-point chevron right
+/// - **Look.** Segments in the `Body` role, `breadcrumb.height` high, the ancestors and the last
+///   one in `text.normal` (LightCraft's label colour; the last in `BodyStrong`), with a chevron
+///   right of `breadcrumb.separator` points
 ///   ([`Icon::ChevronRight`](crate::icons::Icon::ChevronRight), mirrored in right-to-left) in
-///   `text.muted` between them, 4 points either side. Ancestors show the pointing-hand cursor and
-///   the link hover underline.
+///   `text.muted` between them, `breadcrumb.gap` either side, and the "…" in `text.muted`.
+///   Ancestors show the pointing-hand cursor and the state layer's hover fill (no underline).
 /// - **Room.** The bar shows the last `clamp(width / 80, 1, 4)` segments (LightCraft's); the
 ///   ones before them collapse into a "…" button whose tooltip is the whole path and which opens
 ///   a [`Menu`](crate::menu::Menu) of the hidden segments, nearest last. The shown segments share
@@ -87,13 +88,12 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
     }
 
     // lightcraft: crates/ui-egui/src/panels/grid.rs:1070 folder_breadcrumbs
-    // needs: services craft-ui::text::elided_galley (N11.03) for the middle elision of a long segment.
     pub fn show(self, ui: &mut Ui) -> BreadcrumbBarResponse<K> {
         let Self { id_salt, crumbs, labels } = self;
         let labels = labels.unwrap_or_else(|| BreadcrumbLabels::of(ui));
         let tokens = Tokens::of(ui);
         let bread = &tokens.component.breadcrumb;
-        let (muted, strong) = (tokens.color.text.muted.to_egui(), tokens.color.text.normal.to_egui());
+        let (muted, normal) = (tokens.color.text.muted.to_egui(), tokens.color.text.normal.to_egui());
         let whole = crumbs.iter().map(|c| c.label.as_str()).collect::<Vec<_>>().join(" › ");
         let width = ui.available_width();
         let (_, strip) = ui.allocate_space(vec2(width, bread.height));
@@ -121,7 +121,7 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
 
         if hidden > 0 {
             let galley = elided_galley(&bar, "…", format(TypeRole::Body, muted), f32::INFINITY, ElideAt::End).galley;
-            let length = galley.size().x + 2.0 * bread.space;
+            let length = galley.size().x + 2.0 * bread.gap;
             let rect = span(at, length);
             let sensed = Interactive::new("hidden", Role::Button, labels.hidden.as_str()).corner(Corner::Control).interact_at(&bar, rect);
             let response = sensed.finish(&bar).tooltip(&whole);
@@ -132,13 +132,13 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
                 opened = Some(crumbs[i].key.clone());
             }
             responses.push(response);
-            at += length + bread.space;
+            at += length + bread.gap;
             at += chevron(&bar, span(at, bread.separator), muted, bread.separator);
-            at += bread.space;
+            at += bread.gap;
         }
 
         // The shown segments share what the separators leave, each taking at most what it needs.
-        let separators = shown_count.saturating_sub(1) as f32 * (bread.separator + 2.0 * bread.space);
+        let separators = shown_count.saturating_sub(1) as f32 * (bread.separator + 2.0 * bread.gap);
         let room = (width - at - separators).max(0.0);
         let shown = &crumbs[hidden..];
         let natural: Vec<f32> = shown
@@ -146,14 +146,14 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
             .enumerate()
             .map(|(i, c)| {
                 let role = if i + 1 == shown.len() { TypeRole::BodyStrong } else { TypeRole::Body };
-                elided_galley(&bar, &c.label, format(role, strong), f32::INFINITY, ElideAt::Middle).galley.size().x
+                elided_galley(&bar, &c.label, format(role, normal), f32::INFINITY, ElideAt::Middle).galley.size().x
             })
             .collect();
         let widths = fair_widths(&natural, room);
         for (i, (crumb, &length)) in shown.iter().zip(&widths).enumerate() {
             let last = i + 1 == shown.len();
             let rect = span(at, length);
-            let (role, color) = if last { (TypeRole::BodyStrong, strong) } else { (TypeRole::Body, muted) };
+            let (role, color) = if last { (TypeRole::BodyStrong, normal) } else { (TypeRole::Body, normal) };
             let text = elided_galley(&bar, &crumb.label, format(role, color), length, ElideAt::Middle);
             let galley = text.galley;
             let id = Interactive::id_in(&bar, ("segment", hidden + i));
@@ -166,11 +166,8 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
                 bar.ctx().accesskit_node_builder(id, |node| node.set_aria_current(accesskit::AriaCurrent::Page));
                 response
             } else {
-                let response = Interactive::with_id(id, Role::Link, crumb.label.as_str())
-                    .corner(Corner::Control)
-                    .state_layer(false)
-                    .interact_at(&bar, rect)
-                    .finish(&bar);
+                let response =
+                    Interactive::with_id(id, Role::Link, crumb.label.as_str()).corner(Corner::Control).interact_at(&bar, rect).finish(&bar);
                 if response.hovered() {
                     bar.ctx().set_cursor_icon(CursorIcon::PointingHand);
                 }
@@ -181,12 +178,7 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
             };
             let origin =
                 pos2(if direction::is_rtl(&bar) { rect.right() - galley.size().x } else { rect.left() }, rect.center().y - galley.size().y / 2.0);
-            if !last && response.hovered() {
-                let y = origin.y + galley.size().y;
-                let x = (origin.x, origin.x + galley.size().x);
-                bar.painter().line_segment([pos2(x.0, y), pos2(x.1, y)], Stroke::new(1.0, strong));
-            }
-            bar.painter().galley(origin, galley, if !last && response.hovered() { strong } else { color });
+            bar.painter().galley(origin, galley, color);
             let response = if text.elided {
                 response.tooltip(&crumb.label)
             } else if last {
@@ -197,9 +189,9 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
             responses.push(response);
             at += length;
             if !last {
-                at += bread.space;
+                at += bread.gap;
                 at += chevron(&bar, span(at, bread.separator), muted, bread.separator);
-                at += bread.space;
+                at += bread.gap;
             }
         }
 

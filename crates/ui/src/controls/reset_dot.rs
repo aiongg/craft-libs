@@ -29,10 +29,10 @@ crate::words! {
 /// });
 /// ```
 ///
-/// - **Look.** A 24-point square (`reset_dot.size`); while the field differs from its default,
-///   a filled dot of radius 3 in `accent.solid` (`text.disabled` in a disabled `Ui`), else a
-///   1-point ring of radius 3 in `text.disabled`. Hover fills the square with `state.hover` at
-///   3-point corners.
+/// - **Look.** A square of `reset_dot.size`; while the field differs from its default, a filled
+///   dot of radius `reset_dot.dot` in `accent.solid` (`text.disabled` in a disabled `Ui`), else a
+///   1-point ring of that radius in `text.disabled`. The state layer fills the square (hover and
+///   press, under the focus ring) with `reset_dot.radius` corners.
 /// - **Use.** A click (or Space and Enter with the focus) on a changed dot reports
 ///   `clicked()`; the host puts the default back. A dot at its default does nothing.
 /// - **Keys.** A changed dot is a Tab stop after its field; a dot at its default isn't.
@@ -63,27 +63,23 @@ impl ResetDot {
         let tokens = Tokens::of(ui);
         let labels = self.labels.unwrap_or_else(|| ResetDotLabels::of(ui));
         let dot = &tokens.component.reset_dot;
-        let corner = corner_radius(dot.corner);
+        let corner = corner_radius(dot.radius);
         let enabled = self.changed && ui.is_enabled();
         let response = Interactive::salted(self.id_salt, Role::Button, labels.reset.as_str())
             .sense(Sense::click())
             .enabled(enabled)
-            .state_layer(false)
             .corner_radius(corner)
             .show(ui, vec2(dot.size, dot.size));
         if ui.is_rect_visible(response.rect) {
             let center = response.rect.center();
             let disabled = tokens.color.text.disabled.to_egui();
-            if enabled && response.hovered() {
-                ui.painter().rect_filled(response.rect, corner, tokens.color.state.hover.to_egui());
-            }
             if self.changed {
                 let fill = if ui.is_enabled() { tokens.color.accent.solid.to_egui() } else { disabled };
-                ui.painter().circle_filled(center, dot.radius, fill);
+                ui.painter().circle_filled(center, dot.dot, fill);
             } else {
-                ui.painter().circle_stroke(center, dot.radius, egui::Stroke::new(1.0, disabled));
+                ui.painter().circle_stroke(center, dot.dot, egui::Stroke::new(1.0, disabled));
             }
         }
-        if self.changed { response.tooltip(labels.reset_to.replace("{default}", &self.default)) } else { response }
+        if self.changed { response.tooltip(craft_i18n::fmt(&labels.reset_to, &[("default", &self.default)])) } else { response }
     }
 }
