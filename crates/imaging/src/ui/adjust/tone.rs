@@ -5,14 +5,19 @@
 //! The library reports the sample; turning it into a Levels or Curves value needs the document's
 //! colour management and mode, so the app does that (lead call L7), as with the Eyedropper.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_theme::{ControlSize, Srgba};
+use egui::{AsIdSalt, Color32, IdSalt, Key, Modifiers, Painter, Response, RichText, Stroke, Ui, vec2};
 
-use craft_theme::Srgba;
-use egui::{AsIdSalt, IdSalt, Painter, Response, Ui};
-
+use craft_theme::TypeRole;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolPointer};
+use craft_ui::controls::IconButton;
+use craft_ui::direction;
+use craft_ui::icons::Icon;
+use craft_ui::localized::Labels as _;
+use craft_ui::primitives::{Content, Text};
+use craft_ui::theme::{Tokens, TokensOf as _};
 
-use super::AdjustLabels;
+use super::{AdjustLabels, AdjustStyle};
 
 /// One of the three point pickers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -122,7 +127,47 @@ impl TonePickerRow {
         // ("Eyedroppers:" caption, the note at 11 pt `text_faint`).
         // new: a second click and Esc disarm (PhotoCraft keeps the picker armed); the look from
         // `AdjustStyle::of`.
-        todo!()
+        let Self { id_salt, armed, enabled, unavailable, labels } = self;
+        let labels = labels.unwrap_or_else(|| AdjustLabels::of(ui));
+        let style = AdjustStyle::of(&Tokens::of(ui));
+        let rtl = direction::is_rtl(ui);
+        let mut change = None;
+        let row = direction::horizontal(ui, |ui| {
+            ui.add(Text::new(labels.eyedroppers.as_str()).role(TypeRole::Label).content(Content::Muted));
+            let mut focused = false;
+            for picker in TonePicker::ALL {
+                let is_armed = armed == Some(picker);
+                let usable = enabled[picker as usize] && !unavailable;
+                let name = picker.label(&labels);
+                let button =
+                    IconButton::new(Icon::Eyedropper, name).size(ControlSize::Md).selected(is_armed).enabled(usable).id_salt((id_salt, picker as u8));
+                let response = ui.add(button);
+                // The tone dot sits in the button's bottom-trailing corner; it is an image tone, so
+                // it dims with a disabled button but never takes the theme's colours.
+                let corner = if rtl {
+                    response.rect.left_bottom() + vec2(style.picker_dot_inset, -style.picker_dot_inset)
+                } else {
+                    response.rect.right_bottom() - vec2(style.picker_dot_inset, style.picker_dot_inset)
+                };
+                let dot = Color32::from_gray(picker.tone());
+                let (dot, ring) = if usable { (dot, style.picker_ring) } else { (dot.gamma_multiply(0.4), style.picker_ring.gamma_multiply(0.4)) };
+                ui.painter().circle_filled(corner, style.picker_dot, dot);
+                ui.painter().circle_stroke(corner, style.picker_dot, Stroke::new(1.0, ring));
+                // egui drops focus on the Esc press itself, so the frame of the press reports it as lost.
+                focused |= response.has_focus() || response.lost_focus();
+                if response.clicked() {
+                    change = Some(if is_armed { None } else { Some(picker) });
+                }
+            }
+            // Esc on a picker button disarms and keeps the press, so the dialog stays open.
+            if change.is_none() && armed.is_some() && focused && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+                change = Some(None);
+            }
+            if unavailable {
+                ui.label(RichText::new(labels.unavailable_mode.as_str()).font(style.note_font.clone()).color(style.note_colour));
+            }
+        });
+        TonePickerResponse { response: row.response, change }
     }
 }
 
@@ -173,35 +218,34 @@ impl<'a> TonePickTool<'a> {
 }
 
 impl CanvasTool for TonePickTool<'_> {
-    fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
+    fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
         // craft-color: crates/color/src/ui/eyedropper.rs:327-330 (the pipette, hotspot (2, 22)).
-        todo!()
+        ToolCursor::Tool { icon: Icon::Eyedropper, hotspot: vec2(2.0, 22.0), badge: None }
     }
 
-    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+    fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/dialogs/adjust_dialog.rs:52-80 `sample_at` (the armed picker samples
         // the composite at the click).
-        todo!()
+        self.picked =
+            (self.sample)([pointer.doc.x, pointer.doc.y]).map(|color| TonePick { picker: self.picker, at: [pointer.doc.x, pointer.doc.y], color });
+        ToolAction::Claimed
     }
 
-    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+    fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
         // new: nothing; the press took the sample.
-        todo!()
     }
 
-    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
         // new: nothing to commit.
-        todo!()
     }
 
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
         // new: drops a pick not yet taken.
-        todo!()
+        self.picked = None;
     }
 
-    fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {
         // new: no feedback beyond the cursor.
-        todo!()
     }
 
     fn autoscrolls(&self) -> bool {
