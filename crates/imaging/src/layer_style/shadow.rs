@@ -1,7 +1,5 @@
 //! The shadow drag: moving a Drop Shadow or Inner Shadow by dragging on the image (#5701).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land (task AD-7)")]
-
 /// A shadow drag in progress: the shadow's angle and distance when the press came. The offset of
 /// a shadow is (−cos angle, sin angle) × distance (the light sits opposite the shadow; y down).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -24,6 +22,13 @@ impl ShadowDrag {
     /// the new offset is shorter than 0.5 px. `None` when the result is not finite.
     pub fn moved(self, total: [f64; 2]) -> Option<(f64, f64)> {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:517-527 `drag_shadow`.
-        todo!()
+        let a = self.start_angle.to_radians();
+        let (ox, oy) = (-a.cos() * self.start_distance + total[0], a.sin() * self.start_distance + total[1]);
+        let d = ox.hypot(oy);
+        if !d.is_finite() {
+            return None;
+        }
+        let angle = if d >= 0.5 { oy.atan2(-ox).to_degrees().round() } else { self.start_angle };
+        Some((angle, d.round().clamp(0.0, 30000.0)))
     }
 }

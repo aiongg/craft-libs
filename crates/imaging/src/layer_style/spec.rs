@@ -1,11 +1,12 @@
 //! The effect tables: which fields an effect page shows, in which order, with which ranges, and
 //! the effect's factory defaults.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land (task AD-7)")]
-
 use std::borrow::Cow;
 
-use super::model::{EffectKind, StyleParams};
+use craft_theme::Srgba;
+
+use super::contour::Contour;
+use super::model::{EffectKind, StyleParams, StyleValue};
 
 /// A slider field's unit, shown after its number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -134,11 +135,310 @@ impl EffectSpec {
     pub fn photoshop(kind: EffectKind) -> EffectSpec {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:90-216 `spec` (fields, ranges, units);
         // crates/engine/src/layer_style.rs:82-110 `effect_defaults` (defaults).
-        todo!()
+        use FieldUnit::{Degrees, Percent, Pixels};
+        let percent = || slider(0.0, 100.0, Percent);
+        let contour = |anti_alias: &'static str| FieldKind::Contour { anti_alias: Some(Cow::Borrowed(anti_alias)) };
+        let glow_technique = || choice(&[("softer", "Softer"), ("precise", "Precise")]);
+        let (label, fields, defaults): (&'static str, Vec<EffectField>, Vec<(&'static str, StyleValue)>) = match kind {
+            EffectKind::DropShadow => (
+                "Drop Shadow",
+                vec![
+                    field("blend", "Blend Mode", FieldKind::Blend),
+                    field("color", "Color", FieldKind::Color),
+                    field("opacity", "Opacity", percent()),
+                    field("angle", "Angle", FieldKind::Angle),
+                    field("useGlobalLight", "Use Global Light", FieldKind::Check),
+                    field("distance", "Distance", slider(0.0, 300.0, Pixels)),
+                    field("spread", "Spread", percent()),
+                    field("size", "Size", slider(0.0, 250.0, Pixels)),
+                    field("contour", "Contour", contour("antiAlias")),
+                    field("noise", "Noise", percent()),
+                    field("knocksOut", "Layer Knocks Out Drop Shadow", FieldKind::Check),
+                ],
+                vec![
+                    ("blend", text("Multiply")),
+                    ("color", hex("#000000")),
+                    ("opacity", num(75.0)),
+                    ("angle", num(120.0)),
+                    ("useGlobalLight", StyleValue::Bool(true)),
+                    ("distance", num(5.0)),
+                    ("spread", num(0.0)),
+                    ("size", num(5.0)),
+                    ("contour", linear()),
+                    ("antiAlias", StyleValue::Bool(false)),
+                    ("noise", num(0.0)),
+                    ("knocksOut", StyleValue::Bool(true)),
+                ],
+            ),
+            EffectKind::InnerShadow => (
+                "Inner Shadow",
+                vec![
+                    field("blend", "Blend Mode", FieldKind::Blend),
+                    field("color", "Color", FieldKind::Color),
+                    field("opacity", "Opacity", percent()),
+                    field("angle", "Angle", FieldKind::Angle),
+                    field("useGlobalLight", "Use Global Light", FieldKind::Check),
+                    field("distance", "Distance", slider(0.0, 300.0, Pixels)),
+                    field("choke", "Choke", percent()),
+                    field("size", "Size", slider(0.0, 250.0, Pixels)),
+                    field("contour", "Contour", contour("antiAlias")),
+                    field("noise", "Noise", percent()),
+                ],
+                vec![
+                    ("blend", text("Multiply")),
+                    ("color", hex("#000000")),
+                    ("opacity", num(75.0)),
+                    ("angle", num(120.0)),
+                    ("useGlobalLight", StyleValue::Bool(true)),
+                    ("distance", num(5.0)),
+                    ("choke", num(0.0)),
+                    ("size", num(5.0)),
+                    ("contour", linear()),
+                    ("antiAlias", StyleValue::Bool(false)),
+                    ("noise", num(0.0)),
+                ],
+            ),
+            EffectKind::OuterGlow => (
+                "Outer Glow",
+                vec![
+                    field("blend", "Blend Mode", FieldKind::Blend),
+                    field("opacity", "Opacity", percent()),
+                    field("color", "Color", FieldKind::Color),
+                    field("technique", "Technique", glow_technique()),
+                    field("spread", "Spread", percent()),
+                    field("size", "Size", slider(0.0, 250.0, Pixels)),
+                    field("contour", "Contour", contour("antiAlias")),
+                    field("range", "Range", slider(1.0, 100.0, Percent)),
+                    field("noise", "Noise", percent()),
+                ],
+                vec![
+                    ("blend", text("Screen")),
+                    ("opacity", num(75.0)),
+                    ("color", hex("#ffffbe")),
+                    ("technique", text("softer")),
+                    ("spread", num(0.0)),
+                    ("size", num(5.0)),
+                    ("range", num(50.0)),
+                    ("contour", linear()),
+                    ("antiAlias", StyleValue::Bool(false)),
+                    ("noise", num(0.0)),
+                ],
+            ),
+            EffectKind::InnerGlow => (
+                "Inner Glow",
+                vec![
+                    field("blend", "Blend Mode", FieldKind::Blend),
+                    field("opacity", "Opacity", percent()),
+                    field("color", "Color", FieldKind::Color),
+                    field("technique", "Technique", glow_technique()),
+                    field("source", "Source", choice(&[("edge", "Edge"), ("center", "Center")])),
+                    field("choke", "Choke", percent()),
+                    field("size", "Size", slider(0.0, 250.0, Pixels)),
+                    field("contour", "Contour", contour("antiAlias")),
+                    field("range", "Range", slider(1.0, 100.0, Percent)),
+                    field("noise", "Noise", percent()),
+                ],
+                vec![
+                    ("blend", text("Screen")),
+                    ("opacity", num(75.0)),
+                    ("color", hex("#ffffbe")),
+                    ("technique", text("softer")),
+                    ("source", text("edge")),
+                    ("choke", num(0.0)),
+                    ("size", num(5.0)),
+                    ("range", num(50.0)),
+                    ("contour", linear()),
+                    ("antiAlias", StyleValue::Bool(false)),
+                    ("noise", num(0.0)),
+                ],
+            ),
+            EffectKind::Stroke => (
+                "Stroke",
+                vec![
+                    field("size", "Size", slider(1.0, 250.0, Pixels)),
+                    field("position", "Position", choice(&[("outside", "Outside"), ("inside", "Inside"), ("center", "Center")])),
+                    field("blend", "Blend Mode", FieldKind::Blend),
+                    field("opacity", "Opacity", percent()),
+                    field("overprint", "Overprint", FieldKind::Check),
+                    field("color", "Color", FieldKind::Color),
+                ],
+                vec![
+                    ("size", num(1.0)),
+                    ("position", text("inside")),
+                    ("blend", text("Normal")),
+                    ("opacity", num(100.0)),
+                    ("overprint", StyleValue::Bool(false)),
+                    ("color", hex("#000000")),
+                ],
+            ),
+            EffectKind::ColorOverlay => (
+                "Color Overlay",
+                vec![
+                    field("blend", "Blend Mode", FieldKind::Blend),
+                    field("color", "Color", FieldKind::Color),
+                    field("opacity", "Opacity", percent()),
+                ],
+                vec![("blend", text("Normal")), ("color", hex("#ff0000")), ("opacity", num(100.0))],
+            ),
+            EffectKind::GradientOverlay => (
+                "Gradient Overlay",
+                vec![
+                    field("blend", "Blend Mode", FieldKind::Blend),
+                    field("opacity", "Opacity", percent()),
+                    field("from", "From", FieldKind::Color),
+                    field("to", "To", FieldKind::Color),
+                    field("reverse", "Reverse", FieldKind::Check),
+                    field(
+                        "style",
+                        "Style",
+                        choice(&[("linear", "Linear"), ("radial", "Radial"), ("angle", "Angle"), ("reflected", "Reflected"), ("diamond", "Diamond")]),
+                    ),
+                    field("angle", "Angle", FieldKind::Angle),
+                    field("scale", "Scale", slider(10.0, 150.0, Percent)),
+                    field("method", "Method", FieldKind::GradientMethod),
+                ],
+                vec![
+                    ("blend", text("Normal")),
+                    ("opacity", num(100.0)),
+                    ("from", hex("#000000")),
+                    ("to", hex("#ffffff")),
+                    ("reverse", StyleValue::Bool(false)),
+                    ("style", text("linear")),
+                    ("angle", num(90.0)),
+                    ("scale", num(100.0)),
+                    ("method", text("custom")),
+                ],
+            ),
+            EffectKind::PatternOverlay => (
+                "Pattern Overlay",
+                vec![
+                    field("blend", "Blend Mode", FieldKind::Blend),
+                    field("opacity", "Opacity", percent()),
+                    field("pattern", "Pattern", FieldKind::Pattern),
+                    field("angle", "Angle", FieldKind::Angle),
+                    field("scale", "Scale", slider(1.0, 1000.0, Percent)),
+                    field("link", "Link with Layer", FieldKind::Check),
+                ],
+                vec![
+                    ("blend", text("Normal")),
+                    ("opacity", num(100.0)),
+                    ("pattern", text("")),
+                    ("angle", num(0.0)),
+                    ("scale", num(100.0)),
+                    ("link", StyleValue::Bool(true)),
+                ],
+            ),
+            EffectKind::BevelEmboss => (
+                "Bevel & Emboss",
+                vec![
+                    field(
+                        "style",
+                        "Style",
+                        choice(&[("inner", "Inner Bevel"), ("outer", "Outer Bevel"), ("emboss", "Emboss"), ("pillow", "Pillow Emboss")]),
+                    ),
+                    field("technique", "Technique", choice(&[("smooth", "Smooth"), ("chiselHard", "Chisel Hard"), ("chiselSoft", "Chisel Soft")])),
+                    field("depth", "Depth", slider(1.0, 1000.0, Percent)),
+                    field("direction", "Direction", choice(&[("up", "Up"), ("down", "Down")])),
+                    field("size", "Size", slider(0.0, 250.0, Pixels)),
+                    field("soften", "Soften", slider(0.0, 16.0, Pixels)),
+                    field("angle", "Angle", FieldKind::Angle),
+                    field("useGlobalLight", "Use Global Light", FieldKind::Check),
+                    field("altitude", "Altitude", slider(0.0, 90.0, Degrees)),
+                    field("glossContour", "Gloss Contour", contour("glossAntiAlias")),
+                    field("highlightBlend", "Highlight Mode", FieldKind::Blend),
+                    field("highlightColor", "Highlight Color", FieldKind::Color),
+                    field("highlightOpacity", "Highlight Opacity", percent()),
+                    field("shadowBlend", "Shadow Mode", FieldKind::Blend),
+                    field("shadowColor", "Shadow Color", FieldKind::Color),
+                    field("shadowOpacity", "Shadow Opacity", percent()),
+                    field("contour", "Contour", FieldKind::Check),
+                    field("contourName", "", contour("contourAntiAlias")),
+                    field("contourRange", "Range", slider(1.0, 100.0, Percent)),
+                ],
+                vec![
+                    ("style", text("inner")),
+                    ("technique", text("smooth")),
+                    ("depth", num(100.0)),
+                    ("direction", text("up")),
+                    ("size", num(5.0)),
+                    ("soften", num(0.0)),
+                    ("angle", num(120.0)),
+                    ("useGlobalLight", StyleValue::Bool(true)),
+                    ("altitude", num(30.0)),
+                    ("glossContour", linear()),
+                    ("glossAntiAlias", StyleValue::Bool(false)),
+                    ("highlightBlend", text("Screen")),
+                    ("highlightColor", hex("#ffffff")),
+                    ("highlightOpacity", num(75.0)),
+                    ("shadowBlend", text("Multiply")),
+                    ("shadowColor", hex("#000000")),
+                    ("shadowOpacity", num(75.0)),
+                    ("contour", StyleValue::Bool(false)),
+                    ("contourName", linear()),
+                    ("contourRange", num(50.0)),
+                    ("contourAntiAlias", StyleValue::Bool(false)),
+                ],
+            ),
+            EffectKind::Satin => (
+                "Satin",
+                vec![
+                    field("blend", "Blend Mode", FieldKind::Blend),
+                    field("color", "Color", FieldKind::Color),
+                    field("opacity", "Opacity", percent()),
+                    field("angle", "Angle", FieldKind::Angle),
+                    field("distance", "Distance", slider(0.0, 250.0, Pixels)),
+                    field("size", "Size", slider(0.0, 250.0, Pixels)),
+                    field("contour", "Contour", contour("antiAlias")),
+                    field("invert", "Invert", FieldKind::Check),
+                ],
+                vec![
+                    ("blend", text("Multiply")),
+                    ("color", hex("#000000")),
+                    ("opacity", num(50.0)),
+                    ("angle", num(19.0)),
+                    ("distance", num(11.0)),
+                    ("size", num(14.0)),
+                    ("contour", linear()),
+                    ("antiAlias", StyleValue::Bool(true)),
+                    ("invert", StyleValue::Bool(true)),
+                ],
+            ),
+        };
+        let defaults = StyleParams(defaults.into_iter().map(|(k, v)| (k.to_owned(), v)).collect());
+        EffectSpec { kind, label: Cow::Borrowed(label), fields, defaults }
     }
 
     /// The field with `key`.
     pub fn field(&self, key: &str) -> Option<&EffectField> {
         self.fields.iter().find(|f| f.key == key)
     }
+}
+
+fn field(key: &'static str, label: &'static str, kind: FieldKind) -> EffectField {
+    EffectField { key: Cow::Borrowed(key), label: Cow::Borrowed(label), kind }
+}
+
+fn slider(min: f64, max: f64, unit: FieldUnit) -> FieldKind {
+    FieldKind::Slider { min, max, unit }
+}
+
+fn choice(options: &[(&'static str, &'static str)]) -> FieldKind {
+    let options = options.iter().map(|&(value, label)| ChoiceOption { value: Cow::Borrowed(value), label: Cow::Borrowed(label) }).collect();
+    FieldKind::Choice(Cow::Owned(options))
+}
+
+fn num(n: f64) -> StyleValue {
+    StyleValue::Number(n)
+}
+
+fn text(s: &str) -> StyleValue {
+    StyleValue::Text(s.to_owned())
+}
+
+fn hex(s: &str) -> StyleValue {
+    StyleValue::Color(Srgba::from_hex(s).unwrap_or(Srgba::BLACK))
+}
+
+fn linear() -> StyleValue {
+    StyleValue::Contour(Contour::linear())
 }

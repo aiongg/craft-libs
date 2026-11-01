@@ -1,10 +1,9 @@
 //! The Layer Style dialog's draft: the style being edited plus the dialog's own view state, and
 //! the rules every edit follows.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land (task AD-7)")]
-
-use super::model::{EffectId, EffectKind, LayerStyle, LayerStylePage, StyleParams, StyleValue};
+use super::model::{EffectId, EffectInstance, EffectKind, LayerStyle, LayerStylePage, StyleParams, StyleValue};
 use super::shadow::ShadowDrag;
+use super::spec::EffectSpec;
 
 /// What the Layer Style dialog edits: the [`LayerStyle`] and the dialog's view state (the page,
 /// the Blend If channel shown, the Preview check, a shadow drag in progress).
@@ -48,7 +47,15 @@ impl LayerStyleDraft {
     /// or a new instance when the layer has none.
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:549-567 (`select` names a kind).
     pub fn open_on(&mut self, kind: EffectKind) {
-        todo!()
+        let first = self.style.instances(kind).next();
+        if let Some(id) = first {
+            if let Some(e) = self.style.effect_mut(id) {
+                e.on = true;
+            }
+            self.page = LayerStylePage::Effect(id);
+        } else {
+            self.add_instance(kind, &EffectSpec::photoshop(kind).defaults);
+        }
     }
 
     /// The selected instance's kind; `None` on Styles and Blending Options.
@@ -67,7 +74,15 @@ impl LayerStyleDraft {
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:449-460 `next_id`, :463-473 `add_instance`,
     // :82-88 `fresh_params`.
     pub fn add_instance(&mut self, kind: EffectKind, defaults: &StyleParams) -> EffectId {
-        todo!()
+        let id = self.next_id();
+        let mut params = defaults.clone();
+        if params.bool("useGlobalLight") == Some(true) {
+            params.set("angle", StyleValue::Number(f64::from(self.style.global_light)));
+        }
+        let at = self.style.effects.iter().rposition(|e| e.kind == kind).map_or(self.style.effects.len(), |i| i + 1);
+        self.style.effects.insert(at, EffectInstance { id, kind, on: true, params });
+        self.page = LayerStylePage::Effect(id);
+        id
     }
 
     /// Removes instance `id`. When its page was selected, the selection moves to the first
@@ -75,14 +90,22 @@ impl LayerStyleDraft {
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:476-491 `remove_instance` (falls back to
     // `STYLES_PAGE`).
     pub fn remove_instance(&mut self, id: EffectId) {
-        todo!()
+        let kind = self.style.effect(id).map(|e| e.kind);
+        self.style.effects.retain(|e| e.id != id);
+        if self.page == LayerStylePage::Effect(id) {
+            let sibling = kind.and_then(|kind| self.style.instances(kind).next());
+            self.page = sibling.map_or(LayerStylePage::Styles, LayerStylePage::Effect);
+        }
     }
 
     /// The check box of instance `id`: turns it on or off and selects its page (selecting a page
     /// alone never turns an effect on, #2288).
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:927-933.
     pub fn toggle(&mut self, id: EffectId) {
-        todo!()
+        if let Some(e) = self.style.effect_mut(id) {
+            e.on = !e.on;
+        }
+        self.page = LayerStylePage::Effect(id);
     }
 
     /// Sets parameter `key` of instance `id`. The shared light angle: when `key` is `angle` and
@@ -91,7 +114,26 @@ impl LayerStyleDraft {
     /// `useGlobalLight` on, disabled ones included, takes it as its `angle`.
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:415-446 `set_param`.
     pub fn set_param(&mut self, id: EffectId, key: &str, value: StyleValue) {
-        todo!()
+        let Some(instance) = self.style.effect(id) else {
+            return;
+        };
+        let lit = instance.params.bool("useGlobalLight") == Some(true);
+        let shared = match (key, &value) {
+            ("angle", StyleValue::Number(n)) if lit => Some(*n),
+            ("useGlobalLight", StyleValue::Bool(true)) => Some(f64::from(self.style.global_light)),
+            _ => None,
+        };
+        if let Some(e) = self.style.effect_mut(id) {
+            e.params.set(key, value);
+        }
+        if let Some(angle) = shared {
+            self.style.global_light = angle as f32;
+            for e in &mut self.style.effects {
+                if e.params.bool("useGlobalLight") == Some(true) {
+                    e.params.set("angle", StyleValue::Number(angle));
+                }
+            }
+        }
     }
 
     /// Replaces the instances with a style preset's (`(kind, on, params)` in order), numbered
@@ -100,7 +142,10 @@ impl LayerStyleDraft {
     /// are picked.
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:752-775 `apply_style_preset`.
     pub fn apply_preset(&mut self, effects: Vec<(EffectKind, bool, StyleParams)>) {
-        todo!()
+        self.style.effects = (1..).map(EffectId).zip(effects).map(|(id, (kind, on, params))| EffectInstance { id, kind, on, params }).collect();
+        if matches!(self.page, LayerStylePage::Effect(id) if self.style.effect(id).is_none()) {
+            self.page = LayerStylePage::Styles;
+        }
     }
 
     /// Whether a drag on the image moves the selected effect now: a Drop Shadow or Inner Shadow
@@ -119,7 +164,36 @@ impl LayerStyleDraft {
     /// [`shadow_drag`](Self::shadow_drag) on release.
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:508-527 `drag_shadow`.
     pub fn drag_shadow(&mut self, start: bool, total: [f64; 2]) -> bool {
-        todo!()
+        let LayerStylePage::Effect(id) = self.page else {
+            return false;
+        };
+        if !self.drags_shadow() {
+            return false;
+        }
+        let Some(instance) = self.style.effect(id) else {
+            return false;
+        };
+        if start || self.shadow_drag.is_none() {
+            let angle = instance.params.number("angle").unwrap_or(120.0);
+            let distance = instance.params.number("distance").unwrap_or(0.0);
+            self.shadow_drag = Some(ShadowDrag::begin(angle, distance));
+        }
+        let Some((angle, distance)) = self.shadow_drag.and_then(|drag| drag.moved(total)) else {
+            return false;
+        };
+        let before = self.style.clone();
+        self.set_param(id, "angle", StyleValue::Number(angle));
+        self.set_param(id, "distance", StyleValue::Number(distance));
+        self.style != before
+    }
+
+    /// An id one past the highest `fxN`, or the lowest free number when that overflows.
+    fn next_id(&self) -> EffectId {
+        let max = self.style.effects.iter().map(|e| e.id.0).max().unwrap_or(0);
+        match max.checked_add(1) {
+            Some(next) => EffectId(next),
+            None => EffectId((1..).find(|n| self.style.effect(EffectId(*n)).is_none()).unwrap_or(1)),
+        }
     }
 
     /// The style's [`render_hash`](LayerStyle::render_hash); the page, the Blend If channel,
