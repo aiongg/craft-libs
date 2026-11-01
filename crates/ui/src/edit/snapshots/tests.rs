@@ -8,7 +8,7 @@ use super::{HistoryOptions, HistorySource, HistorySourceChoice, SnapshotId, Snap
 use crate::dialog::{CommandForm, DialogFields, DialogHost, DialogResult, Param, ParamKind, ParamResult};
 use crate::edit::history_panel::{HistoryOptionsLabels, SnapshotFormLabels};
 use crate::edit::steps::{HistoryStep, StepList};
-use crate::localized::Labels as _;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::theme::{Base, install};
 
 struct App {
@@ -38,6 +38,10 @@ fn answer(form: CommandForm) -> DialogFields {
     fields.clone()
 }
 
+fn en() -> LocaleNumbers {
+    LocaleNumbers::from_tag("en")
+}
+
 fn names(list: &SnapshotList) -> Vec<&str> {
     list.iter().map(|snapshot| snapshot.name.as_str()).collect()
 }
@@ -47,9 +51,9 @@ fn names(list: &SnapshotList) -> Vec<&str> {
 fn snapshot_ids_are_never_reused() {
     let labels = SnapshotFormLabels::english();
     let mut list = SnapshotList::new();
-    let first = list.add(None, &labels);
+    let first = list.add(None, &labels, &en());
     assert!(list.remove(first));
-    let second = list.add(None, &labels);
+    let second = list.add(None, &labels, &en());
     assert_ne!(first, second);
     assert_eq!(names(&list), ["Snapshot 2"]);
     assert_eq!(list.take_dropped(), [first]);
@@ -61,9 +65,9 @@ fn snapshot_ids_are_never_reused() {
 fn a_blank_name_takes_the_suggestion_and_names_are_trimmed() {
     let labels = SnapshotFormLabels::english();
     let mut list = SnapshotList::new();
-    list.add(None, &labels);
-    list.add(Some("  "), &labels);
-    list.add(Some(" A "), &labels);
+    list.add(None, &labels, &en());
+    list.add(Some("  "), &labels, &en());
+    list.add(Some(" A "), &labels, &en());
     assert_eq!(names(&list), ["Snapshot 1", "Snapshot 2", "A"]);
 }
 
@@ -72,7 +76,7 @@ fn a_blank_name_takes_the_suggestion_and_names_are_trimmed() {
 fn rename_refuses_a_blank_name() {
     let labels = SnapshotFormLabels::english();
     let mut list = SnapshotList::new();
-    let id = list.add(Some("One"), &labels);
+    let id = list.add(Some("One"), &labels, &en());
     let revision = list.revision();
     assert!(!list.rename(id, "  "));
     assert!(!list.rename(SnapshotId::new(99), "X"));
@@ -87,7 +91,7 @@ fn rename_refuses_a_blank_name() {
 fn the_source_resolves_to_a_snapshot_when_one_is_chosen() {
     let mut steps = StepList::new(HistoryStep::new("Open"));
     let mut list = SnapshotList::new();
-    let id = list.add(None, &SnapshotFormLabels::english());
+    let id = list.add(None, &SnapshotFormLabels::english(), &en());
     let mut choice = HistorySourceChoice::default();
     choice.set(HistorySource::Snapshot(id), &mut steps);
     assert_eq!(choice.resolve(&steps, &list), Some(HistorySource::Snapshot(id)));
@@ -103,7 +107,7 @@ fn a_snapshot_source_and_a_state_source_are_separate_choices() {
     steps.record(HistoryStep::new("Blur"));
     let blur = steps.current_id();
     let mut list = SnapshotList::new();
-    let snapshot = list.add(None, &SnapshotFormLabels::english());
+    let snapshot = list.add(None, &SnapshotFormLabels::english(), &en());
     let mut choice = HistorySourceChoice::default();
     choice.set(HistorySource::Step(blur), &mut steps);
     assert_eq!((steps.pinned(), choice.resolve(&steps, &list)), (Some(blur), Some(HistorySource::Step(blur))));
@@ -146,4 +150,16 @@ fn history_options_form_returns_the_check_and_the_extra_rows() {
     assert_eq!(HistoryOptions::from_fields(&fields), HistoryOptions { non_linear: true });
     assert_eq!(fields.bool("undoableVisibility"), Some(true));
     assert_eq!(HistoryOptions::from_fields(&DialogFields::new()), HistoryOptions { non_linear: false });
+}
+
+// A `Default` list suggests "Snapshot 1" like a new one; the number takes the locale's digits.
+#[test]
+fn the_suggested_number_starts_at_one_and_uses_locale_digits() {
+    let labels = SnapshotFormLabels::english();
+    assert_eq!(SnapshotList::default(), SnapshotList::new());
+    assert_eq!(SnapshotList::default().suggested_name(&labels, &en()), "Snapshot 1");
+    let mut list = SnapshotList::new();
+    list.add(None, &labels, &en());
+    let arabic = LocaleNumbers::from_tag("ar-EG");
+    assert_eq!(list.suggested_name(&labels, &arabic), "Snapshot \u{662}");
 }

@@ -86,8 +86,6 @@ fn a_jump_or_another_record_ends_a_keyed_run() {
 // `GestureHost<QuietMarks<_>>` begin, update, commit and cancel leave a `StepList` untouched and restore the value on cancel.
 #[test]
 fn quiet_marks_never_touch_a_step_list() {
-    let list = StepList::new(step("Open"));
-    let revision = list.revision();
     let ctx = Context::default();
     let mut host: GestureHost<QuietMarks<i32>> = GestureHost::new();
     let mut value = QuietMarks(1);
@@ -106,5 +104,40 @@ fn quiet_marks_never_touch_a_step_list() {
     host.handle(&ctx, &mut value, EditEvent::cancel(id, crate::edit::CancelReason::Escape), set);
     assert_eq!(value.0, 5);
     assert_eq!(value.undo_mark(), 5);
-    assert_eq!((list.len(), list.revision()), (1, revision));
+}
+
+struct Doc {
+    steps: StepList,
+}
+
+impl UndoMarks for Doc {
+    type Mark = super::StepMark;
+    fn undo_mark(&self) -> Self::Mark {
+        self.steps.mark()
+    }
+    fn revert_to(&mut self, mark: Self::Mark) {
+        self.steps.revert_to(mark);
+    }
+    fn squash_since(&mut self, mark: Self::Mark) {
+        self.steps.squash_since(mark);
+    }
+}
+
+// Begin, Update, Cancel(External), then two one-shot Sets: the gesture's edit stays as one state and each Set adds its own.
+#[test]
+fn an_external_cancel_closes_the_gesture_run() {
+    let ctx = Context::default();
+    let mut doc = Doc { steps: StepList::new(step("Open")) };
+    let mut host: GestureHost<Doc> = GestureHost::new();
+    let record = |doc: &mut Doc, _: i32| {
+        doc.steps.record(step("Edit"));
+    };
+    let id = GestureId::next();
+    host.handle(&ctx, &mut doc, EditEvent::begin(id), record);
+    host.handle(&ctx, &mut doc, EditEvent::update(id, 1, Modifiers::NONE), record);
+    host.handle(&ctx, &mut doc, EditEvent::cancel(id, crate::edit::CancelReason::External), record);
+    assert_eq!(doc.steps.len(), 2, "the change stays");
+    host.handle(&ctx, &mut doc, EditEvent::set(2, Modifiers::NONE), record);
+    host.handle(&ctx, &mut doc, EditEvent::set(3, Modifiers::NONE), record);
+    assert_eq!(doc.steps.len(), 4);
 }

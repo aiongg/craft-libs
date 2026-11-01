@@ -1,6 +1,7 @@
 //! `SnapshotId`, `Snapshot` and `SnapshotList`: ids never reused, "Snapshot N" suggestions, rename and remove.
 
 use crate::edit::history_panel::SnapshotFormLabels;
+use crate::localized::LocaleNumbers;
 
 /// One snapshot, unique within its list; ids are never reused. The app keeps the snapshot's
 /// document and thumbnail keyed by it (a [`ThumbSource<SnapshotId>`](crate::canvas::textures::ThumbSource)).
@@ -32,7 +33,7 @@ pub struct Snapshot {
 /// one adds no state, and selecting one makes the document that snapshot as one new state named
 /// after it (the app calls `StepList::record`). Snapshots live for the session (Photoshop and
 /// PhotoCraft keep none in files).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SnapshotList {
     /// The snapshots, in creation order.
     pub(super) snapshots: Vec<Snapshot>,
@@ -42,6 +43,12 @@ pub struct SnapshotList {
     pub(super) dropped: Vec<SnapshotId>,
     /// The change counter.
     pub(super) revision: u64,
+}
+
+impl Default for SnapshotList {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SnapshotList {
@@ -54,18 +61,18 @@ impl SnapshotList {
     /// The name the next snapshot takes when it gets none: `labels.suggested` ("Snapshot {n}")
     /// with the list's counter, which never goes down (removing "Snapshot 2" does not make the
     /// next one "Snapshot 2" again).
-    pub fn suggested_name(&self, labels: &SnapshotFormLabels) -> String {
+    pub fn suggested_name(&self, labels: &SnapshotFormLabels, numbers: &LocaleNumbers) -> String {
         // pc: crates/engine/src/cmd/history_cmds.rs:118-121
-        labels.suggested.replace("{n}", &self.next_number().to_string())
+        craft_i18n::fmt(&labels.suggested, &[("n", &numbers.count(self.next))])
     }
 
     /// Adds a snapshot at the end and returns its id. `name` is trimmed; `None` or a blank name
     /// takes [`suggested_name`](Self::suggested_name). Bumps the counter and the revision.
-    pub fn add(&mut self, name: Option<&str>, labels: &SnapshotFormLabels) -> SnapshotId {
+    pub fn add(&mut self, name: Option<&str>, labels: &SnapshotFormLabels, numbers: &LocaleNumbers) -> SnapshotId {
         // pc: crates/engine/src/cmd/history_cmds.rs:136-170 (`new_snapshot`: name defaults to "Snapshot N")
-        let name = name.map(str::trim).filter(|name| !name.is_empty()).map_or_else(|| self.suggested_name(labels), str::to_owned);
-        let number = self.next_number();
-        self.next = number + 1;
+        let name = name.map(str::trim).filter(|name| !name.is_empty()).map_or_else(|| self.suggested_name(labels, numbers), str::to_owned);
+        let number = self.next;
+        self.next += 1;
         self.revision += 1;
         let id = SnapshotId(number);
         self.snapshots.push(Snapshot { id, name });
@@ -138,10 +145,5 @@ impl SnapshotList {
     pub fn revision(&self) -> u64 {
         // new: as `StepList::revision`.
         self.revision
-    }
-
-    /// The number of the next id and suggestion; a `Default` list starts at 1 too.
-    fn next_number(&self) -> u64 {
-        self.next.max(1)
     }
 }

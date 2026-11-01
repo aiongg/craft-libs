@@ -176,6 +176,18 @@ fn clear_keeps_only_the_current_state_and_restore_brings_the_rest_back() {
     assert!(!list.can_restore_cleared());
 }
 
+// Clear keeps a pin on the current state, so the limit cannot evict it; a pin on another state is set aside.
+#[test]
+fn clear_keeps_a_pin_on_the_current_state() {
+    let (mut list, ids) = list_of(4);
+    list.back();
+    list.pin_source(Some(ids[2]));
+    list.clear();
+    assert_eq!((list.pinned(), list.source()), (Some(ids[2]), Some(ids[2])));
+    assert!(list.restore_cleared());
+    assert_eq!(list.pinned(), Some(ids[2]));
+}
+
 // `source()` is the oldest without a pin; after deleting the pinned state it is `None`.
 #[test]
 fn source_defaults_to_the_oldest_state_and_is_gone_after_its_state_is_deleted() {
@@ -190,7 +202,7 @@ fn source_defaults_to_the_oldest_state_and_is_gone_after_its_state_is_deleted() 
     assert_eq!(list.source(), Some(ids[0]));
 }
 
-// Every mutating call that changes the list bumps `revision`; reads and refused calls do not.
+// Every call that changes the rows bumps `revision`; reads, refused calls, the pin and the mode do not.
 #[test]
 fn revision_changes_on_every_change_and_not_on_reads() {
     let (mut list, ids) = list_of(4);
@@ -209,10 +221,9 @@ fn revision_changes_on_every_change_and_not_on_reads() {
     assert!(bumped(&list));
     list.set_label(ids[1], "renamed");
     assert!(!bumped(&list));
+    // The panel reads the mode and the source from the list; a bump would follow-scroll and deselect.
     list.set_non_linear(true);
-    assert!(bumped(&list));
-    list.pin_source(Some(ids[1]));
-    assert!(bumped(&list));
+    assert!(!bumped(&list));
     list.pin_source(Some(ids[1]));
     assert!(!bumped(&list));
     list.set_limit(2);
