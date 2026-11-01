@@ -4,8 +4,6 @@
 //! the order they happened; the app applies them with its own commands and undo (owner
 //! question 1). It holds no document and no selection of its own.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 mod body;
 #[cfg(test)]
 mod body_tests;
@@ -33,16 +31,31 @@ pub use labels::LayersLabels;
 pub use menu::{CLIP_THUMBNAILS, COLLAPSE_ALL, LayersMenuAction, PANEL_OPTIONS, SHOW_FILTERS, panel_menu, run_command};
 pub use style::LayersStyle;
 
+use std::cell::RefCell;
+
+use craft_ui::behavior::ListDrag;
 use craft_ui::canvas::textures::{ThumbSource, Thumbnails};
+use craft_ui::composites::PanelFooter;
+use craft_ui::list::{ListRow, paint_ghost};
+use craft_ui::localized::Labels as _;
 use craft_ui::menu::MenuEntry;
-use egui::{AsIdSalt, IdSalt, KeyboardShortcut, Response, Ui};
+use craft_ui::theme::{Tokens, TokensOf as _};
+use egui::{AsIdSalt, DragAndDrop, Id, IdSalt, KeyboardShortcut, Response, Ui};
 
-use context::{RowMenu, ThumbHost, Trailing};
+use body::{min_width, shared_display_rows, show_body};
+use context::{PanelContext, RowMenu, RowSink, ThumbHost, Trailing};
+use drag::{drop_preview, reorder};
+use footer::show_footer;
+use menu::{note_drawn, show_row_menus};
 
-use super::filter::LayerFilter;
-use super::options::LayersSettings;
+use super::filter::{LayerFilter, LayerFilterBar};
+use super::options::{LayersOptions, LayersSettings};
+use super::rows::BlendRows;
 use super::thumbs::LayerThumb;
-use super::tree::{LayerInfo, LayerTree};
+use super::tree::{LayerInfo, LayerRowKey, LayerTree};
+
+/// The buttons of the footer: Delete, New Layer, New Group, Adjustment, Mask, `fx`, Link.
+const FOOTER_BUTTONS: usize = 7;
 
 /// The Layers panel over the app's [`LayerTree`].
 ///
@@ -217,7 +230,33 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
     /// the footer's buttons. A host sets its dock's minimum from it.
     pub fn min_width(&self, ui: &Ui) -> f32 {
         // new: lead call 9; body::min_width for the rows, `PanelFooter`'s buttons for the footer.
-        todo!()
+        let fallback = LayersSettings::default();
+        let settings = self.settings.as_deref().unwrap_or(&fallback);
+        let labels = self.labels.clone().unwrap_or_else(|| LayersLabels::of(ui));
+        let cx = self.context(ui, Id::NULL.with(self.id_salt), &settings.options, &labels);
+        panel_min_width(ui, min_width(ui, &cx))
+    }
+
+    fn context<'b>(&'b self, ui: &Ui, id: Id, options: &'b LayersOptions, labels: &'b LayersLabels) -> PanelContext<'b, T>
+    where
+        'a: 'b,
+    {
+        let tokens = Tokens::of(ui);
+        PanelContext {
+            ctx: ui.ctx().clone(),
+            id,
+            tree: self.tree,
+            selection: self.tree.selection(),
+            options,
+            thumbs: self.thumbnails,
+            labels,
+            style: LayersStyle::of(&tokens),
+            row_style: ListRow::<LayerRowKey<T::Id>>::style(&tokens),
+            lock_column: self.lock_column,
+            visibility_key: self.visibility_key,
+            trailing: self.trailing.as_ref(),
+            sink: RefCell::new(RowSink::default()),
+        }
     }
 
     /// Draws the panel over the available rect.
@@ -228,8 +267,94 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
     /// `body::shared_display_rows`, with `drag::reorder`), the row menus (`menu::show_row_menus`),
     /// the footer (`footer::show_footer`). Events are reported in that order; the drop preview
     /// is `drag::drop_preview` of the body's drop target.
-    pub fn show(self, ui: &mut Ui) -> LayersOutput<T::Id> {
+    pub fn show(mut self, ui: &mut Ui) -> LayersOutput<T::Id> {
         // pc: crates/ui-egui/src/panels/layers.rs:104-503 `layers` (filter bar, blend rows, rows, footer).
-        todo!()
+        let fallback = LayersSettings::default();
+        let settings = self.settings.take();
+        let given_filter = self.filter.take();
+        let settings_ref: &LayersSettings = settings.as_deref().unwrap_or(&fallback);
+        let labels = self.labels.clone().unwrap_or_else(|| LayersLabels::of(ui));
+        let id = Id::NULL.with(self.id_salt);
+        let cx = self.context(ui, id, &settings_ref.options, &labels);
+
+        let own_key = id.with("filter");
+        let mut own_filter =
+            if given_filter.is_none() { ui.data(|d| d.get_temp::<LayerFilter>(own_key)).unwrap_or_default() } else { LayerFilter::default() };
+        let uses_own_filter = given_filter.is_none();
+        let filter: &mut LayerFilter = match given_filter {
+            Some(filter) => filter,
+            None => &mut own_filter,
+        };
+
+        let tokens = Tokens::of(ui);
+        let footer_height = PanelFooter::reserved_height(&PanelFooter::style(&tokens, ui.pixels_per_point())) + ui.spacing().item_spacing.y;
+        let mut min = 0.0;
+        let mut events = Vec::new();
+        let mut preview = None;
+        let inner = ui.scope(|ui| {
+            if self.filter_bar && settings_ref.show_filters {
+                let modes = self.tree.blend_modes(true, &filter.mode);
+                let _ = LayerFilterBar::new(id.with("filter-bar"), filter).blend_modes(&modes).show(ui);
+                ui.add_space(ui.spacing().item_spacing.y);
+            }
+            if self.blend_rows {
+                let properties = self.tree.properties();
+                let modes =
+                    self.tree.blend_modes(properties.as_ref().is_some_and(|p| p.group), properties.as_ref().map_or("normal", |p| &p.blend_key));
+                let out = BlendRows::new(id.with("blend"), properties.as_ref(), &modes).show(ui);
+                events.extend(out.events.into_iter().map(LayersEvent::Properties));
+                ui.add_space(ui.spacing().item_spacing.y);
+            }
+
+            let rows = shared_display_rows(&cx.ctx, id, self.tree, filter);
+            let list_height = (ui.available_height() - footer_height).max(0.0);
+            let body = ui
+                .scope(|ui| {
+                    ui.set_max_height(list_height);
+                    let body = show_body(ui, &cx, &rows, Some(reorder(&cx, &rows)), self.reveal.clone());
+                    paint_mask_ghost(ui, &cx, ui.make_persistent_id(id.with("list")), body.response.rect.width());
+                    body
+                })
+                .inner;
+            preview = drop_preview(body.drop_target.as_ref(), cx.options);
+            min = panel_min_width(ui, body.min_width);
+            events.extend(body.events);
+            events.extend(show_row_menus(ui, &cx, &body.response, self.row_menu.as_deref(), body.menu));
+            events.extend(show_footer(ui, &cx));
+        });
+
+        note_drawn(&cx.ctx, self.id_salt);
+        if uses_own_filter {
+            ui.data_mut(|d| d.insert_temp(own_key, own_filter));
+        }
+        LayersOutput {
+            events,
+            drop_preview: preview.filter(|_| cx.options.preview_on_canvas_when_reordering),
+            response: inner.response,
+            min_width: min,
+        }
+    }
+}
+
+/// The footer's buttons side by side.
+fn footer_width(ui: &Ui) -> f32 {
+    let style = PanelFooter::style(&Tokens::of(ui), ui.pixels_per_point());
+    FOOTER_BUTTONS as f32 * style.button + (FOOTER_BUTTONS - 1) as f32 * style.gap
+}
+
+fn panel_min_width(ui: &Ui, rows: f32) -> f32 {
+    rows.max(footer_width(ui))
+}
+
+/// While a mask thumbnail is dragged, its ghost beside the pointer: the list paints only the
+/// ghost of its own row drags, and the mask's payload carries the label.
+fn paint_mask_ghost<T: LayerTree>(ui: &Ui, cx: &PanelContext<'_, T>, list: Id, width: f32) {
+    let Some(drag) = DragAndDrop::payload::<ListDrag<LayerRowKey<T::Id>>>(ui.ctx()) else { return };
+    let is_mask = drag.list == list && matches!(drag.items.as_slice(), [LayerRowKey::Mask(..)]);
+    if !is_mask || !ui.input(|i| i.pointer.any_down()) {
+        return;
+    }
+    if let Some(pointer) = ui.input(|i| i.pointer.interact_pos()) {
+        paint_ghost(ui, list, &cx.row_style, &drag.label, pointer, width, None);
     }
 }

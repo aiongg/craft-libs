@@ -83,8 +83,6 @@ pub(super) struct BodyOutput<Id> {
     pub(super) response: Response,
     /// The least width the rows need ([`min_width`]).
     pub(super) min_width: f32,
-    /// Whether a group row was shown, for the panel menu's Collapse All Groups.
-    pub(super) any_group: bool,
 }
 
 /// Draws the rows: a [`List`](craft_ui::list::List) in tree mode over `rows`, named
@@ -162,14 +160,7 @@ pub(super) fn show_body<T: LayerTree>(
     ask_near_thumbnails(cx, rows);
     thumb_load_cursor(ui, cx, &out.response);
 
-    BodyOutput {
-        events,
-        drop_target: out.drop_target,
-        menu,
-        min_width: min_width(ui, cx),
-        any_group: rows.iter().any(|row| row.has_children),
-        response: out.response,
-    }
+    BodyOutput { events, drop_target: out.drop_target, menu, min_width: min_width(ui, cx), response: out.response }
 }
 
 /// Whether a click with `modifiers` on the thumbnail of `part` reports
