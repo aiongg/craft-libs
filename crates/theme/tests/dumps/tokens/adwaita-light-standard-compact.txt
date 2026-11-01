@@ -806,6 +806,7 @@ list.icon.hover = #323236ff
 list.hover = #bebec180
 list.selected = #3584e428
 list.selected.hover = #acb6c694
+list.stripe = #e2e2e540
 list.divider = #dedee1ff
 list.thumb.border = #dadaddff
 list.thumb.border.selected = #323236ff

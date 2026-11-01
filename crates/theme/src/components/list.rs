@@ -96,6 +96,10 @@ pub struct ListTokens {
     /// non-text minimum on the panel (and to keep its step from `selected` where the theme has one).
     /// Where the theme pins `selected`, the hover fill laid over it.
     pub selected_hover: Rgba,
+    /// Behind every second row of a striped list: `state.hover` at [`values::LIST_STRIPE_OPACITY`]
+    /// (egui's `faint_bg_color`, which PdfCraft's striped tables use), translucent, so the hover
+    /// and selected fills laid over it keep their own contrast.
+    pub stripe: Rgba,
     /// Dividers: `line.divider`.
     pub divider: Rgba,
     /// The frame of a thumbnail: `line.control_edge`.
@@ -344,6 +348,7 @@ impl ListTokens {
             ListField::Hover => &mut self.hover,
             ListField::Selected => &mut self.selected,
             ListField::SelectedHover => &mut self.selected_hover,
+            ListField::Stripe => &mut self.stripe,
             ListField::Divider => &mut self.divider,
             ListField::ThumbBorder => &mut self.thumb_border,
             ListField::ThumbBorderSelected => &mut self.thumb_border_selected,
@@ -363,7 +368,7 @@ impl ListTokens {
 
 /// An overridable list token. Paths: `radius`, `text`, `text.dimmed`, `text.selected`,
 /// `text.selected.dimmed`, `detail`, `detail.selected`, `icon`, `icon.hover`, `hover`,
-/// `selected`, `selected.hover`, `divider`, `thumb.border`, `thumb.border.selected`, `thumb.radius`,
+/// `selected`, `selected.hover`, `stripe`, `divider`, `thumb.border`, `thumb.border.selected`, `thumb.radius`,
 /// `layer.hover`, `layer.selected`, `layer.outline`, `layer.radius`, `layer.text.selected`,
 /// `layer.text.selected.dimmed`, `layer.detail.selected`, `drop`, `drop.halo`, `ghost.fill`,
 /// `ghost.border` and `label.<color>.<fill|icon|swatch>`, e.g. `list.selected.hover`.
@@ -393,6 +398,8 @@ pub enum ListField {
     Selected,
     /// `list.selected.hover`
     SelectedHover,
+    /// `list.stripe`
+    Stripe,
     /// `list.divider`
     Divider,
     /// `list.thumb.border`
@@ -443,6 +450,7 @@ impl ListField {
             ListField::Hover => "hover",
             ListField::Selected => "selected",
             ListField::SelectedHover => "selected.hover",
+            ListField::Stripe => "stripe",
             ListField::Divider => "divider",
             ListField::ThumbBorder => "thumb.border",
             ListField::ThumbBorderSelected => "thumb.border.selected",
@@ -462,7 +470,7 @@ impl ListField {
     }
 }
 
-const BASE_FIELDS: [ListField; 27] = [
+const BASE_FIELDS: [ListField; 28] = [
     ListField::Radius,
     ListField::Text,
     ListField::Dimmed,
@@ -475,6 +483,7 @@ const BASE_FIELDS: [ListField; 27] = [
     ListField::Hover,
     ListField::Selected,
     ListField::SelectedHover,
+    ListField::Stripe,
     ListField::Divider,
     ListField::ThumbBorder,
     ListField::ThumbBorderSelected,
@@ -573,6 +582,7 @@ impl Family for ListTokens {
             hover,
             selected,
             selected_hover: look.selected_hover,
+            stripe: c.state.hover.faded(values::LIST_STRIPE_OPACITY),
             divider: c.line.divider,
             thumb_border: c.line.control_edge,
             thumb_border_selected: c.text.normal,
