@@ -171,7 +171,6 @@ impl Harness {
         self.renderer.handle_delta(&mut self.output.textures_delta);
         for action in actions {
             // Apps send renderer actions through their JSON command boundary before applying.
-            #[cfg(feature = "serde")]
             let action: Action<u32> = serde_json::from_value(serde_json::to_value(&action).unwrap()).unwrap();
             self.layout
                 .apply_with_permissions(action.clone(), |panel| if *panel == CANVAS { Permissions::PROTECTED } else { Permissions::default() })
@@ -262,7 +261,7 @@ fn floating_brushes_merge_detach_and_redock_through_real_pointer_input() {
 
 /// Each app's saved v1 layout goes through a docking session driven by real pointer input and a
 /// command, then writes and reads back unchanged.
-#[cfg(all(feature = "serde", feature = "testing"))]
+#[cfg(feature = "testing")]
 mod v1_fixtures {
     use craft_ui::docking::{DockCommand, DockContent, Hit, Layout, Node, Permissions, ResizeEdge, Side, testing::DockDriver};
     use egui::{Pos2, Rect, pos2};

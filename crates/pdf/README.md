@@ -21,7 +21,7 @@ stable `id`, `from_id` and English `label`, listed by the `Choice` trait), the b
 (`builtin_presets(app)`), and the checks that refuse settings a writer can't honour
 (`PdfSettings::check`, `check_values`, `warnings`). Errors and warnings are English text with a
 stable `id` each. Checks that depend on colour profiles ask an app-supplied `ProfileCatalog`.
-The optional `serde` feature derives `Serialize` and `Deserialize` (camelCase, every field optional, passwords never written); without it apps save settings through the ids.
+The settings types derive `Serialize` and `Deserialize` (camelCase, every field optional, passwords never written); apps can also save settings through the ids.
 
 ## Reading and rendering
 

@@ -22,9 +22,7 @@ pub mod security;
 pub mod synthetic;
 pub mod trace;
 
-#[cfg(feature = "tcp")]
 pub mod client;
-#[cfg(feature = "tcp")]
 pub mod server;
 
 pub use control::{ControlChannel, ControlRequest, ControlResponse, Dispatch, REPLY_DEADLINE, Reply};

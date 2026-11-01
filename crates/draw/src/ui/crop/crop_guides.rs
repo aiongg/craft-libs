@@ -23,8 +23,8 @@ pub const SHIELD_OPACITY: f32 = 0.75;
 pub const SHIELD_EDITING: f32 = 0.5;
 
 /// The composition guide drawn inside a crop frame, in Photoshop's menu order.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum CropGuide {
     #[default]
     Thirds,
@@ -187,8 +187,8 @@ fn golden_spiral() -> Polyline {
 }
 
 /// When the guide shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum GuideShow {
     /// Only while the frame is being dragged (drawn, moved, resized or turned).
     #[default]
@@ -221,8 +221,8 @@ impl GuideShow {
 }
 
 /// The shield's colour.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ShieldColor {
     /// The canvas colour (`surface.canvas`, or the host's pasteboard).
     #[default]
@@ -233,8 +233,8 @@ pub enum ShieldColor {
 
 /// The crop gear menu's shield options. Photoshop's defaults: shown, enabled, Match Canvas, 75 %,
 /// Auto Adjust on.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct CropShield {
     /// Show Cropped Area: off hides everything outside the frame behind the canvas colour.
     pub show_cropped_area: bool,

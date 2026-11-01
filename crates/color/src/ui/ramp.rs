@@ -15,8 +15,8 @@ use craft_ui::primitives::{FocusRing, Interactive};
 use craft_ui::theme::{Tokens, TokensOf};
 
 /// Which colours the ramp shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum RampKind {
     /// Hue across; white at the top through the full colour in the middle to black at the bottom.
     #[default]

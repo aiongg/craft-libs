@@ -10,11 +10,6 @@ repository.workspace = true
 [lints]
 workspace = true
 
-[features]
-default = []
-# `server` and `client`: the loopback JSON-lines transport over TCP.
-tcp = []
-
 [dependencies]
 base64 = "0.22"
 craft-platform = { workspace = true, features = ["clock"] }

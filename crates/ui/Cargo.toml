@@ -63,8 +63,6 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 
 [features]
 default = []
-# Kept for apps that name it; serde is always on (docking layouts and workspaces, the dialog field map).
-serde = []
 # Floating windows may move to their own OS windows (desktop egui backends with viewports).
 native-windows = []
 # Draw colour glyphs (COLR, sbix, CBDT), e.g. colour emoji.

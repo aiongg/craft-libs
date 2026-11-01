@@ -18,19 +18,16 @@ use crate::glyphs::{GlyphSource, GlyphsPanel, GlyphsPanelSettings};
 use crate::missing::{DocumentFont, MissingFontsDialog, document_fonts};
 use crate::{Catalog, FontEnv, Source};
 
-/// `patterns/font-picker/field`, `patterns/font-picker/filters` (with `font-picker`),
+/// `patterns/font-picker/field`, `patterns/font-picker/filters`,
 /// `patterns/glyphs-panel/panel`, `patterns/missing-fonts/dialog`, `composites/font-axes/sliders`.
 pub fn stories() -> Vec<Story> {
-    let mut stories = Vec::new();
-    #[cfg(feature = "font-picker")]
-    {
-        stories.push(typed_story!("patterns/font-picker/field", Level::Patterns, "Font picker", "Field", NoArgs {}, picker::field));
-        stories.push(typed_story!("patterns/font-picker/filters", Level::Patterns, "Font picker", "Filters", NoArgs {}, picker::filters));
-    }
-    stories.push(typed_story!("patterns/glyphs-panel/panel", Level::Patterns, "Glyphs panel", "Panel", NoArgs {}, glyphs_panel));
-    stories.push(typed_story!("patterns/missing-fonts/dialog", Level::Patterns, "Missing fonts", "Dialog", NoArgs {}, missing_fonts));
-    stories.push(typed_story!("composites/font-axes/sliders", Level::Composites, "Font axes", "Sliders", NoArgs {}, font_axes));
-    stories
+    vec![
+        typed_story!("patterns/font-picker/field", Level::Patterns, "Font picker", "Field", NoArgs {}, picker::field),
+        typed_story!("patterns/font-picker/filters", Level::Patterns, "Font picker", "Filters", NoArgs {}, picker::filters),
+        typed_story!("patterns/glyphs-panel/panel", Level::Patterns, "Glyphs panel", "Panel", NoArgs {}, glyphs_panel),
+        typed_story!("patterns/missing-fonts/dialog", Level::Patterns, "Missing fonts", "Dialog", NoArgs {}, missing_fonts),
+        typed_story!("composites/font-axes/sliders", Level::Composites, "Font axes", "Sliders", NoArgs {}, font_axes),
+    ]
 }
 
 const UBUNTU: &[u8] = epaint_default_fonts::UBUNTU_LIGHT;
@@ -51,7 +48,6 @@ fn state<T: Send + 'static>(ui: &Ui, name: &str, make: impl FnOnce() -> T) -> Ar
     ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, || Arc::new(Mutex::new(make()))).clone())
 }
 
-#[cfg(feature = "font-picker")]
 mod picker {
     use super::{Arc, Catalog, NoArgs, PoisonError, Ui, catalog, state};
     use crate::picker::{FontFilters, FontPicker, FontPickerSettings};
@@ -352,7 +348,6 @@ mod tests {
     }
 
     // The picker story opens with its list showing the catalog's families.
-    #[cfg(feature = "font-picker")]
     #[test]
     fn the_picker_story_starts_with_the_list_open() {
         let mut harness = Harness::builder()

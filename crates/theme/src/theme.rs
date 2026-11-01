@@ -321,8 +321,8 @@ pub enum Contrast {
 }
 
 /// The density preset: control heights, padding, gaps, type and default shape.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Size {
     /// Dense, sharper corners (Pro).
     #[default]
@@ -333,19 +333,19 @@ pub enum Size {
 
 /// The text-size setting (Photoshop's Interface › UI Font Size); scales type roles only, by the
 /// factor [`TextSizeSteps`] gives each step.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TextSize {
     /// Photoshop's Tiny (10 pt on a 12 pt base).
     Tiny,
     /// Photoshop's Small (12 pt), the default: factor 1.
     #[default]
-    #[cfg_attr(feature = "serde", serde(alias = "default"))]
+    #[serde(alias = "default")]
     Small,
     /// Photoshop's Medium (14 pt).
     Medium,
     /// Photoshop's Large (16 pt).
-    #[cfg_attr(feature = "serde", serde(alias = "larger"))]
+    #[serde(alias = "larger")]
     Large,
 }
 
@@ -411,8 +411,8 @@ impl Default for TextSizeSteps {
 
 /// The interface-font setting: the face the interface text draws with. Mono text keeps the suite's
 /// face either way, and type sizes stay the same.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum InterfaceFont {
     /// The suite's interface face.
     #[default]

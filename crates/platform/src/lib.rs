@@ -27,9 +27,8 @@ pub mod pointer;
 mod process;
 #[cfg(feature = "screen")]
 pub mod screen;
-#[cfg(feature = "session")]
 pub mod session;
-#[cfg(all(test, feature = "session"))]
+#[cfg(test)]
 mod session_tests;
 #[cfg(feature = "usage")]
 pub mod usage;

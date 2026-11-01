@@ -75,19 +75,11 @@ screen-testing = [
     "craft-ui?/screen-testing",
     "craft-update?/screen-testing",
 ]
-serde = [
-    "craft-color?/serde",
-    "craft-draw?/serde",
-    "craft-theme/serde",
-    "craft-theme-store?/serde",
-    "craft-ui?/serde",
-]
 ai-core = ["dep:craft-ai-core"]
 
 atomic = ["dep:craft-atomic"]
 
 automation = ["dep:craft-automation"]
-automation-tcp = ["automation", "craft-automation/tcp"]
 
 cms = ["dep:craft-cms"]
 
@@ -105,7 +97,6 @@ font-catalog = ["dep:craft-font-catalog"]
 font-catalog-system = ["font-catalog", "craft-font-catalog/system"]
 
 font-manager = ["dep:craft-font-manager"] # native only: needs craft-font-store's store and network client
-font-manager-font-picker = ["font-manager", "craft-font-manager/font-picker"]
 
 font-store = ["dep:craft-font-store"]
 font-store-bundled-index = ["font-store", "craft-font-store/bundled-index"]
@@ -144,7 +135,6 @@ platform-open = ["platform", "craft-platform/open"]
 platform-pacing = ["platform", "craft-platform/pacing"]
 platform-pointer = ["platform", "craft-platform/pointer"]
 platform-screen = ["platform", "craft-platform/screen"]
-platform-session = ["platform", "craft-platform/session"]
 platform-theme = ["platform", "craft-platform/theme"]
 platform-usage = ["platform", "craft-platform/usage"]
 
@@ -204,7 +194,6 @@ text-oriya = ["text", "craft-text/oriya"]
 text-panjabi = ["text", "craft-text/panjabi"]
 text-polish = ["text", "craft-text/polish"]
 text-portuguese = ["text", "craft-text/portuguese"]
-text-quotes = ["text", "craft-text/quotes"]
 text-russian = ["text", "craft-text/russian"]
 text-sanskrit = ["text", "craft-text/sanskrit"]
 text-segment = ["text", "craft-text/segment"]
@@ -224,7 +213,6 @@ text-ukrainian = ["text", "craft-text/ukrainian"]
 theme-ecolor = ["craft-theme/ecolor"]
 
 theme-store = ["dep:craft-theme-store"]
-theme-store-testing = ["theme-store", "craft-theme-store/testing"]
 
 ui-color_fonts = ["ui", "craft-ui/color_fonts"]
 ui-native-windows = ["ui", "craft-ui/native-windows"]

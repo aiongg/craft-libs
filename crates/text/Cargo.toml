@@ -23,7 +23,7 @@ unicode-bidi-mirroring = { version = "0.4.0", optional = true }
 egui = { workspace = true, optional = true }
 craft-ui = { workspace = true, optional = true }
 craft-host = { workspace = true, features = ["ui"], optional = true }
-serde = { workspace = true, optional = true }
+serde = { workspace = true }
 # `font-picker`: the character controls open craft-font-manager's picker instead of a plain list.
 craft-font-manager = { workspace = true, optional = true }
 
@@ -45,15 +45,13 @@ bidi = ["dep:unicode-bidi", "dep:unicode-bidi-mirroring"]
 linebreak = []
 # Spelling: a bundled English word list (SCOWL, deflated) with suggestions; user words from the app.
 spell = ["dep:miniz_oxide"]
-# Smart quotes: straight quotes typed into text become the language's curly quotes.
-quotes = []
 # The egui parts: `ui::editor` (canvas text editor on craft-ui's IME composer), `ui::style_panel`,
 # `ui::character` and `ui::spelling`.
-ui = ["dep:egui", "dep:craft-ui", "dep:craft-host", "dep:serde", "quotes", "spell"]
+ui = ["dep:egui", "dep:craft-ui", "dep:craft-host", "spell"]
 # `ui::character` shows craft-font-manager's font picker (stars, recents, previews, filters)
 # instead of a plain family list. Pulls the bundled font indexes; apps that only want the panels
 # leave it off.
-font-picker = ["ui", "dep:craft-font-manager", "craft-font-manager/font-picker"]
+font-picker = ["ui", "dep:craft-font-manager", "craft-font-manager/ui"]
 # The dictionary writer (`hyphen::dict`) and pattern trainer (`hyphen::patgen`) used by
 # examples/hyphgen.rs.
 generator = ["hyphen"]

@@ -7,45 +7,44 @@ use craft_theme::{ColorModel, HsbModel, LabModel, OklchModel, RgbModel};
 /// What the area and the strip show: the strip's component and the area's two, across (growing to
 /// the right) and down (growing upwards). The nine modes of PhotoCraft's Color Picker, with
 /// Photoshop's axes, and three for OKLCH laid out as the HSB ones.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum AreaMode {
     /// Hue in the strip; saturation across, brightness down (HSB).
     #[default]
-    #[cfg_attr(feature = "serde", serde(rename = "h"))]
+    #[serde(rename = "h")]
     Hue,
     /// Saturation in the strip; hue across, brightness down (HSB).
-    #[cfg_attr(feature = "serde", serde(rename = "s"))]
+    #[serde(rename = "s")]
     Saturation,
     /// Brightness in the strip; hue across, saturation down (HSB).
-    #[cfg_attr(feature = "serde", serde(rename = "v"))]
+    #[serde(rename = "v")]
     Brightness,
     /// Red in the strip; blue across, green down (RGB).
-    #[cfg_attr(feature = "serde", serde(rename = "r"))]
+    #[serde(rename = "r")]
     Red,
     /// Green in the strip; blue across, red down (RGB).
-    #[cfg_attr(feature = "serde", serde(rename = "g"))]
+    #[serde(rename = "g")]
     Green,
     /// Blue in the strip; red across, green down (RGB).
-    #[cfg_attr(feature = "serde", serde(rename = "b"))]
+    #[serde(rename = "b")]
     Blue,
     /// Lab lightness in the strip; a across, b down.
-    #[cfg_attr(feature = "serde", serde(rename = "lab_l"))]
+    #[serde(rename = "lab_l")]
     LabL,
     /// Lab a in the strip; b across, lightness down.
-    #[cfg_attr(feature = "serde", serde(rename = "lab_a"))]
+    #[serde(rename = "lab_a")]
     LabA,
     /// Lab b in the strip; a across, lightness down.
-    #[cfg_attr(feature = "serde", serde(rename = "lab_b"))]
+    #[serde(rename = "lab_b")]
     LabB,
     /// OKLCH lightness in the strip; hue across, chroma down.
-    #[cfg_attr(feature = "serde", serde(rename = "oklch_l"))]
+    #[serde(rename = "oklch_l")]
     OklchL,
     /// OKLCH chroma in the strip; hue across, lightness down.
-    #[cfg_attr(feature = "serde", serde(rename = "oklch_c"))]
+    #[serde(rename = "oklch_c")]
     OklchC,
     /// OKLCH hue in the strip; chroma across, lightness down.
-    #[cfg_attr(feature = "serde", serde(rename = "oklch_h"))]
+    #[serde(rename = "oklch_h")]
     OklchH,
 }
 
@@ -190,7 +189,6 @@ mod tests {
         assert_eq!(AreaMode::PHOTOSHOP.map(AreaMode::key), ["h", "s", "v", "r", "g", "b", "lab_l", "lab_a", "lab_b"]);
     }
 
-    #[cfg(feature = "serde")]
     #[test]
     fn serde_writes_the_key() {
         for mode in AreaMode::ALL {
