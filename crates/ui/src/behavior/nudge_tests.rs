@@ -73,7 +73,7 @@ fn reads_nothing_under_a_text_field_popup_or_modal() {
     assert_eq!(pass(&ctx, arrow(), |ui| keys.read(ui.ctx())), None, "text field");
 
     let ctx = Context::default();
-    let id = egui::Id::new("popup");
+    let id = egui::Id::unique("popup");
     for _ in 0..2 {
         pass(&ctx, Vec::new(), |ui| egui::Popup::open_id(ui.ctx(), id));
     }
@@ -82,7 +82,7 @@ fn reads_nothing_under_a_text_field_popup_or_modal() {
     let ctx = Context::default();
     for _ in 0..2 {
         pass(&ctx, Vec::new(), |ui| {
-            egui::Modal::new(egui::Id::new("modal")).show(ui.ctx(), |ui| ui.label("dialog"));
+            egui::Modal::new(egui::Id::unique("modal")).show(ui.ctx(), |ui| ui.label("dialog"));
         });
     }
     assert_eq!(pass(&ctx, arrow(), |ui| keys.read(ui.ctx())), None, "modal above the background");
