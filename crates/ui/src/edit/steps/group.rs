@@ -47,8 +47,7 @@ pub(super) enum RunKind {
 impl Run {
     /// The run a gesture's first record opens.
     pub(super) fn gesture(serial: u64, made: StepId, revision: u64) -> Run {
-        // new: used by `StepList::record` (list.rs).
-        todo!()
+        Run { kind: RunKind::Gesture { serial }, made, revision }
     }
 }
 
