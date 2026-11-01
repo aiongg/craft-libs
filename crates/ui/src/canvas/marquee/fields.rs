@@ -1,14 +1,18 @@
 //! The Style, Width and Height cells of a marquee's options bar: [`ConstraintFields`].
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::ops::RangeInclusive;
 
-use egui::{AsIdSalt, IdSalt, Ui};
+use egui::{AsIdSalt, IdSalt, Modifiers, Ui};
 
 use super::Constraint;
+use crate::controls::{IconButton, NumberField, Select};
 use crate::edit::EditEvent;
+use crate::icons::Icon;
+use crate::localized::Labels as _;
+use crate::localized::LocaleNumbers;
 use crate::localized::units::{LengthUnit, UnitContext};
+use crate::patterns::{CellWidth, OptionsBar};
+use craft_theme::ControlSize;
 
 crate::words! {
     /// The words of [`ConstraintFields`], English by default (Photoshop's).
@@ -28,9 +32,8 @@ crate::words! {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ConstraintFieldsOutput {
-    /// The constraint changed: a Style pick or the swap button (`Set`), a typed Width or Height
-    /// (`Set` on Enter, Tab or leaving the field), a scrub of a caption (`Begin`, `Update`,
-    /// `Commit`). The value is the whole new [`Constraint`]; it is tool settings, not a document
+    /// The constraint changed: a Style pick or the swap button (`Set`), a typed Width or Height or
+    /// a scrub of a caption (the number field's `Begin`, `Update` and `Commit`). The value is the whole new [`Constraint`]; it is tool settings, not a document
     /// edit, so the host stores the latest value (a scrub's Update too) and makes no undo step.
     pub event: Option<EditEvent<Constraint>>,
     /// A unit picked from a Fixed Size field's units menu: the host stores it with its settings
@@ -64,8 +67,9 @@ pub struct ConstraintFieldsOutput {
 ///   leaving a field that shows a rounded value is no change.
 /// - Picking a style resets the numbers as PhotoCraft does: Fixed Ratio 1 : 1, Fixed Size 64 × 64
 ///   px. The swap button exchanges Width and Height.
-/// - Typing keeps its text in the field until Enter, Tab or leaving the field (the number field's
-///   rule); the constraint changes then, once.
+/// - Typing follows the number field's rule: a plain number applies as it is typed (`Begin`,
+///   `Update`), arithmetic and unit text apply on Enter, Tab or leaving the field, and that
+///   commit ends the run.
 /// - [`enabled`](Self::enabled) off greys every cell (Photoshop greys them for the Single Row and
 ///   Single Column Marquee).
 /// - Keyboard: each cell is its own Tab stop in the bar's order. Right to left: the cells follow
@@ -130,8 +134,119 @@ impl<'a> ConstraintFields<'a> {
         // button "Swaps height and width" at :309-311, Height; Fixed Size through `fixed_size_field`
         // :758-774, the unit from a right-click); crates/ui-egui/src/tool_memory.rs:203-205
         // `style_range`; crates/ui-egui/src/panels/options_bar.rs:743 `FIXED_SIZE_MAX_PX`.
-        // new: the cells are `OptionsBar::cell` with `Select`, `OptionsBar::number_cell`,
-        // `OptionsBar::unit_cell` and `IconButton`; ids from `id_salt`.
-        todo!()
+        let Self { id_salt, constraint, enabled, size_units, labels } = self;
+        let labels = labels.unwrap_or_else(|| ConstraintFieldsLabels::of(ui));
+        let numbers = LocaleNumbers::of(ui);
+        let mut out = ConstraintFieldsOutput { event: None, unit_picked: None };
+        let (w, h) = match *constraint {
+            Constraint::Free => (1.0, 1.0),
+            Constraint::Ratio(w, h) | Constraint::Size(w, h) => (w, h),
+        };
+        let free = matches!(constraint, Constraint::Free);
+        let fields = Fields { constraint, size_units, numbers: &numbers };
+        ui.push_id(id_salt, |ui| {
+            OptionsBar::group(ui, enabled, |ui| {
+                let mut style = StyleChoice::of(constraint);
+                let current = style;
+                let pick = OptionsBar::cell(ui, &labels.style, CellWidth::Content, |ui, _| {
+                    Select::new("style", labels.style.as_str(), &mut style)
+                        .option(StyleChoice::Normal, labels.normal.as_str())
+                        .option(StyleChoice::FixedRatio, labels.fixed_ratio.as_str())
+                        .option(StyleChoice::FixedSize, labels.fixed_size.as_str())
+                        .size(ControlSize::Sm)
+                        .show(ui)
+                });
+                if let Some(event) = pick.event
+                    && let Some(&picked) = event.value()
+                    && picked != current
+                {
+                    out.event = Some(EditEvent::Set { value: picked.constraint(), modifiers: Modifiers::NONE });
+                }
+                OptionsBar::group(ui, !free, |ui| {
+                    fields.show(ui, "width", &labels.width, w, h, true, &mut out);
+                    let swap = ui.add(IconButton::new(Icon::SwapHorizontal, labels.swap.as_str()).size(ControlSize::Sm));
+                    if swap.clicked() {
+                        let swapped = match *constraint {
+                            Constraint::Free => None,
+                            Constraint::Ratio(w, h) => Some(Constraint::Ratio(h, w)),
+                            Constraint::Size(w, h) => Some(Constraint::Size(h, w)),
+                        };
+                        if let Some(value) = swapped {
+                            out.event = Some(EditEvent::Set { value, modifiers: Modifiers::NONE });
+                        }
+                    }
+                    fields.show(ui, "height", &labels.height, h, w, false, &mut out);
+                });
+            });
+        });
+        out
+    }
+}
+
+/// The three kinds of [`Constraint`], as the Style select lists them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum StyleChoice {
+    Normal,
+    FixedRatio,
+    FixedSize,
+}
+
+impl StyleChoice {
+    fn of(constraint: &Constraint) -> Self {
+        match constraint {
+            Constraint::Free => Self::Normal,
+            Constraint::Ratio(..) => Self::FixedRatio,
+            Constraint::Size(..) => Self::FixedSize,
+        }
+    }
+
+    /// The constraint a pick starts with.
+    fn constraint(self) -> Constraint {
+        match self {
+            Self::Normal => Constraint::Free,
+            Self::FixedRatio => Constraint::Ratio(ConstraintFields::RATIO_START.0, ConstraintFields::RATIO_START.1),
+            Self::FixedSize => Constraint::Size(ConstraintFields::SIZE_START.0, ConstraintFields::SIZE_START.1),
+        }
+    }
+}
+
+/// What the Width and Height cells share.
+struct Fields<'a> {
+    constraint: &'a Constraint,
+    size_units: Option<SizeUnits<'a>>,
+    numbers: &'a LocaleNumbers,
+}
+
+impl Fields<'_> {
+    /// One of Width (`first`) and Height: `value` with the `other` side beside it.
+    fn show(&self, ui: &mut Ui, name: &str, caption: &str, value: f64, other: f64, first: bool, out: &mut ConstraintFieldsOutput) {
+        let pair = |v: f64| if first { (v, other) } else { (other, v) };
+        match self.constraint {
+            Constraint::Size(..) => {
+                let (unit, units, width, height) = match &self.size_units {
+                    Some(s) => (s.unit, s.units, s.width, s.height),
+                    None => (LengthUnit::Pixels, &[][..], UnitContext::default(), UnitContext::default()),
+                };
+                let context = if first { width } else { height };
+                let cell = OptionsBar::unit_cell(ui, name, caption, value, 1.0..=ConstraintFields::SIZE_MAX, unit, units, context);
+                out.unit_picked = out.unit_picked.or(cell.unit_picked);
+                if let Some(event) = cell.edit.event {
+                    out.event = Some(event.map(|v| {
+                        let (w, h) = pair(v);
+                        Constraint::Size(w, h)
+                    }));
+                }
+            }
+            _ => {
+                let field = NumberField::new(name, caption, value, self.numbers).range(ConstraintFields::RATIO_RANGE).decimals(0..=3);
+                let edit = OptionsBar::number_cell(ui, caption, CellWidth::Sm, field);
+                if let Some(event) = edit.event {
+                    out.event = Some(event.map(|v| {
+                        let (w, h) = pair(v);
+                        Constraint::Ratio(w, h)
+                    }));
+                }
+            }
+        }
     }
 }
