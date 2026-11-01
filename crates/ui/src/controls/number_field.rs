@@ -52,6 +52,15 @@ pub struct NumberFieldStyle {
 /// The text a blank field shows: a mixed value, or one that isn't a finite number.
 const BLANK: &str = "\u{2014}";
 
+crate::words! {
+    /// A number field's words, English by default.
+    #[non_exhaustive]
+    pub struct NumberFieldLabels {
+        /// The placeholder of an [optional](NumberField::optional) field while it is empty.
+        automatic: "numberField.automatic" = "Auto";
+    }
+}
+
 /// An app's reader for text that isn't a plain number.
 type Reader<'a> = dyn Fn(&str) -> Option<f64> + 'a;
 
@@ -165,6 +174,8 @@ pub struct NumberField<'a> {
     wrap: bool,
     popup: Option<String>,
     mixed: bool,
+    optional: bool,
+    labels: Option<NumberFieldLabels>,
     policy: EditPolicy,
     size: ControlSize,
     enabled: bool,
@@ -344,6 +355,8 @@ impl<'a> NumberField<'a> {
             wrap: false,
             popup: None,
             mixed: false,
+            optional: false,
+            labels: None,
             policy: EditPolicy::default(),
             size: ControlSize::Md,
             enabled: true,
@@ -357,6 +370,24 @@ impl<'a> NumberField<'a> {
             scrub_rate: None,
             box_width: None,
         }
+    }
+
+    /// A field whose empty state means "automatic" (Guide Layout's Width and Height): `value` is
+    /// `None` while the field is empty, and it shows [`NumberFieldLabels::automatic`] as its
+    /// placeholder. Emptying the field reports `None`; typing or stepping a number reports
+    /// `Some`. Shown with [`show_optional`](NumberField::show_optional). A scrub or step of an
+    /// empty field starts from 0 kept in the range. Every other builder works as on
+    /// [`new`](NumberField::new).
+    pub fn optional(id_salt: impl AsIdSalt, label: impl Into<String>, value: Option<f64>, numbers: &'a LocaleNumbers) -> Self {
+        let mut field = Self::new(id_salt, label, value.unwrap_or(f64::NAN), numbers);
+        field.optional = true;
+        field
+    }
+
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: NumberFieldLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// The values the field takes, read in ascending order; unbounded by default. A typed,
@@ -633,7 +664,20 @@ impl<'a> NumberField<'a> {
     }
 
     /// Shows the field and returns this frame's edit. The response covers the box.
-    pub fn show(mut self, ui: &mut Ui) -> EditResponse<f64> {
+    pub fn show(self, ui: &mut Ui) -> EditResponse<f64> {
+        let host = self.value;
+        self.show_blank(ui).map(|value| value.unwrap_or(host))
+    }
+
+    /// Shows a field made by [`optional`](NumberField::optional): its events carry `None` for an
+    /// emptied field. On a field from [`new`](NumberField::new) it makes the field optional too,
+    /// with a non-finite value standing for none.
+    pub fn show_optional(mut self, ui: &mut Ui) -> EditResponse<Option<f64>> {
+        self.optional = true;
+        self.show_blank(ui).map(|value| value.filter(|v| v.is_finite()))
+    }
+
+    fn show_blank(mut self, ui: &mut Ui) -> EditResponse<Option<f64>> {
         if self.presets.any() && self.box_width.is_none() {
             // The box and the chevron are one unit whatever the parent layout; the chevron's room
             // comes off a justified layout's width.
@@ -651,7 +695,7 @@ impl<'a> NumberField<'a> {
         self.show_unit(ui)
     }
 
-    fn show_unit(mut self, ui: &mut Ui) -> EditResponse<f64> {
+    fn show_unit(mut self, ui: &mut Ui) -> EditResponse<Option<f64>> {
         let bounds = ordered(&self.range);
         if !(bounds.0.is_finite() && bounds.1.is_finite()) {
             debug_assert!(self.popup.is_none(), "a pop-up slider needs a finite range; set .range first");
@@ -673,6 +717,7 @@ impl<'a> NumberField<'a> {
             unit: &self.unit,
             fallback: self.fallback.as_deref(),
             expressions: self.expressions,
+            optional: self.optional,
             choices: self.presets.list.as_ref().map_or(&[], |list| list.rows),
             named: &named,
             bounds,
@@ -725,8 +770,9 @@ impl<'a> NumberField<'a> {
                 _ => None,
             })
         });
+        let automatic = self.optional.then(|| self.labels.clone().unwrap_or_else(|| NumberFieldLabels::of(ui)).automatic);
         let mut typing = Typing::with_codec(id, &self.label, host, codec.clone())
-            .placeholder(shown_name.unwrap_or(BLANK))
+            .placeholder(shown_name.or(automatic.as_deref()).unwrap_or(BLANK))
             .policy(self.policy)
             .enabled(self.enabled)
             .invalid(self.invalid)
@@ -801,7 +847,8 @@ impl<'a> NumberField<'a> {
             let _ = response.clone().tooltip(reason);
         }
         let (gesture, typing) = (typed.gesture().id(), typed.is_typing());
-        let edit = typed.end_as(ui, |value| value.unwrap_or(self.value));
+        let (optional, fallback) = (self.optional, self.value);
+        let edit = typed.end_as(ui, |value| if optional { value } else { Some(value.unwrap_or(fallback)) });
         if let Some(typed_name) = named.take() {
             ui.data_mut(|d| d.insert_temp(named_key, typed_name));
         }
@@ -815,7 +862,7 @@ impl<'a> NumberField<'a> {
         if self.part {
             // Any other value the field sends (typed, scrubbed, set on the pop-up slider) is
             // absolute.
-            let set = || edit.event.as_ref().and_then(EditEvent::value).filter(|v| v.is_finite()).map(|v| vec![ScalarOp::Set(*v)]);
+            let set = || edit.event.as_ref().and_then(EditEvent::value).copied().flatten().filter(|v| v.is_finite()).map(|v| vec![ScalarOp::Set(v)]);
             if let Some(ops) = stepped.or_else(set) {
                 edit::ops::report(ui.ctx(), id, ops);
             }
@@ -861,10 +908,10 @@ impl Follow {
 
     /// Keeps what the next pass needs while `gesture` goes on: `real` as seen, and whether this
     /// pass's `event` sent an update the host's value doesn't show yet.
-    fn store(ui: &Ui, id: Id, gesture: Option<GestureId>, typing: bool, real: Option<f64>, event: Option<&EditEvent<f64>>) {
+    fn store(ui: &Ui, id: Id, gesture: Option<GestureId>, typing: bool, real: Option<f64>, event: Option<&EditEvent<Option<f64>>>) {
         let ended = matches!(event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. }));
         let follow = gesture.filter(|_| !ended).map(|gesture| {
-            let sent = matches!(event, Some(EditEvent::Begin { value: Some(value), .. } | EditEvent::Update { value, .. }) if Some(*value) != real);
+            let sent = matches!(event, Some(EditEvent::Begin { value: Some(value), .. } | EditEvent::Update { value, .. }) if *value != real);
             Self { gesture, seen: real, typing, sent }
         });
         ui.data_mut(|d| match follow {
@@ -1262,6 +1309,8 @@ struct Numbers<'n> {
     unit: &'n Unit,
     fallback: Option<&'n Reader<'n>>,
     expressions: bool,
+    /// Empty text reads as no value ([`NumberField::optional`]).
+    optional: bool,
     /// The rows of [`NumberField::preset_list`]: a typed label of a [`Preset::Choice`] reads as
     /// the value from before.
     choices: &'n [Preset],
@@ -1343,8 +1392,8 @@ impl Codec for Numbers<'_> {
         if start.is_some() && bare == self.format(start) {
             return Ok(*start);
         }
-        // A mixed field committed blank changes nothing.
-        if start.is_none() && bare.is_empty() {
+        // A mixed field committed blank changes nothing; an optional field's empty text is its value.
+        if bare.trim().is_empty() && (start.is_none() || self.optional) {
             return Ok(None);
         }
         let read = self.numbers.parse(bare);

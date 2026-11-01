@@ -1,11 +1,16 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`SplitButton`]: an action button with an arrow part that opens a menu of variants or presets.
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::accesskit::Role;
+use egui::emath::GuiRounding as _;
+use egui::{AsIdSalt, CornerRadius, IdSalt, Key, Modifiers, Popup, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
 
-use super::{ButtonVariant, ControlSize};
-use crate::icons::Icon;
-use crate::menu::{MenuEntry, MenuResponse};
+use super::button::{Face, content_color};
+use super::{Button, ButtonVariant, ControlSize, TooltipExt as _, icon_size};
+use crate::direction;
+use crate::icons::{self, Icon};
+use crate::menu::{MenuEntry, MenuResponse, PressMenu};
+use crate::primitives::{Corner, Interactive, SurfaceKind};
+use crate::theme::{Tokens, TokensOf as _};
 
 /// What the button reported this pass.
 #[derive(Debug)]
@@ -99,6 +104,87 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
 
     // vectorcraft: crates/ui-egui/src/widgets/buttons.rs:65 split_button_named
     pub fn show(self, ui: &mut Ui) -> SplitButtonResponse<T> {
-        todo!()
+        let tokens = Tokens::of(ui);
+        let style = Button::style(&tokens, self.variant, self.size);
+        let face = Face { label: &self.label, icon: self.icon, trailing: None, size: self.size, loading: false };
+        let enabled = self.enabled && ui.is_enabled();
+        let laid = face.layout(ui, &tokens, &style);
+        let id = ui.make_persistent_id(self.id_salt);
+        let (main_id, arrow_id) = (id.with("main"), id.with("arrow"));
+        let popup_id = arrow_id.with("popup");
+
+        let (_, rect) = ui.allocate_space(vec2(laid.size.x + ARROW_WIDTH, style.height));
+        let rtl = direction::is_rtl(ui);
+        let split = if rtl { rect.left() + ARROW_WIDTH } else { rect.right() - ARROW_WIDTH };
+        let (main_rect, arrow_rect) = if rtl {
+            (Rect::from_min_max(pos2(split, rect.top()), rect.right_bottom()), Rect::from_min_max(rect.left_top(), pos2(split, rect.bottom())))
+        } else {
+            (Rect::from_min_max(rect.left_top(), pos2(split, rect.bottom())), Rect::from_min_max(pos2(split, rect.top()), rect.right_bottom()))
+        };
+        let round = Corner::Button.radius(&tokens).nw;
+        let left = CornerRadius { nw: round, sw: round, ne: 0, se: 0 };
+        let right = CornerRadius { nw: 0, sw: 0, ne: round, se: round };
+        let (main_radius, arrow_radius) = if rtl { (right, left) } else { (left, right) };
+
+        let ctx = ui.ctx().clone();
+        let was_open = Popup::is_id_open(&ctx, popup_id);
+        let part = |id, label: &str, sense, radius| {
+            let mut part = Interactive::with_id(id, Role::Button, label)
+                .sense(sense)
+                .colors(style.colors())
+                .border_width(style.border_width)
+                .corner_radius(radius)
+                .enabled(enabled);
+            if style.surface.is_some() {
+                part = part.surface(SurfaceKind::Raised);
+            }
+            part
+        };
+        let arrow_label = self.arrow_label.as_deref().unwrap_or(&self.label);
+        let main_focused = ui.memory(|m| m.has_focus(main_id));
+        let mut main = part(main_id, &self.label, Sense::click(), main_radius).interact_at(ui, main_rect).finish(ui);
+        let mut arrow = part(arrow_id, arrow_label, Sense::CLICK, arrow_radius).expanded(was_open).interact_at(ui, arrow_rect).finish(ui);
+        // The press that closes the menu does nothing else: the click it ends with is not the action's.
+        let closing_key = id.with("closing");
+        let (pressed, released) = ui.input(|i| (i.pointer.primary_pressed(), i.pointer.primary_released()));
+        if pressed && was_open {
+            ui.data_mut(|d| d.insert_temp(closing_key, true));
+        }
+        let closing = was_open || ui.data(|d| d.get_temp::<bool>(closing_key)).unwrap_or(false);
+        if closing {
+            main.flags.remove(egui::response::Flags::CLICKED | egui::response::Flags::FAKE_PRIMARY_CLICKED);
+        }
+        if released {
+            ui.data_mut(|d| d.remove::<bool>(closing_key));
+        }
+        let key_open = enabled
+            && main_focused
+            && !was_open
+            && ui.input_mut(|i| i.consume_key(Modifiers::ALT, Key::ArrowDown) | i.consume_key(Modifiers::NONE, Key::ArrowDown));
+
+        if ui.is_rect_visible(rect) {
+            face.paint(ui, main_rect, &laid, &style, content_color(ui, &style.text, &main, true));
+            let color = content_color(ui, &style.text, &arrow, true);
+            let chevron = Rect::from_center_size(arrow_rect.center(), vec2(style.icon, style.icon)).round_to_pixels(ui.pixels_per_point());
+            icons::paint(ui, chevron, Icon::ChevronDown, icon_size(self.size), color);
+            let divider = if enabled { style.border.rest } else { style.border.disabled };
+            let x = if rtl { main_rect.left() } else { main_rect.right() };
+            ui.painter().line_segment([pos2(x, rect.top() + DIVIDER_INSET), pos2(x, rect.bottom() - DIVIDER_INSET)], Stroke::new(1.0, divider));
+        }
+
+        let mut anchor = arrow.clone();
+        anchor.rect = rect;
+        anchor.interact_rect = rect;
+        let menu = PressMenu::new(self.entries).size(self.size).keyboard_owner(main_id, key_open).show(ui, &anchor);
+        let main = laid.tooltip(main, &self.label);
+        if self.arrow_label.is_some() {
+            arrow = arrow.tooltip(arrow_label);
+        }
+        SplitButtonResponse { main, arrow, menu }
     }
 }
+
+/// The arrow part's width (`split_button.arrow_width` once the tokens land) and the divider's
+/// inset from the top and bottom edges.
+const ARROW_WIDTH: f32 = 18.0;
+const DIVIDER_INSET: f32 = 5.0;
