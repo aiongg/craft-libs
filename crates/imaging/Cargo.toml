@@ -1,6 +1,6 @@
 [package]
 name = "craft-imaging"
-description = "Raster image editing for Craft apps: the warp grid and the levels editor."
+description = "Raster image editing for Craft apps: the warp grid, the levels editor, the Channels panel and the scopes."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -23,9 +23,11 @@ craft-theme = { workspace = true }
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 kurbo = { workspace = true, optional = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts", "serde"] }
+serde_json = { workspace = true }
 
 [[test]]
 name = "control_dumps"

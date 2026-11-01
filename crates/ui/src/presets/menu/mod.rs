@@ -1,4 +1,8 @@
-//! The context menu (DS-44 task 4).
+//! The context menu (DS-44 task 4); the panel menu, the named preset row and preset files.
+
+mod files;
+mod named;
+mod panel;
 
 use std::hash::Hash;
 use std::rc::Rc;
