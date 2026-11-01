@@ -13,7 +13,7 @@ use egui_kittest::{Harness, Node};
 use serde_json::Value;
 
 use super::labels::ActionsLabels;
-use super::panel::{ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsPanel, ActionsState, ShortcutChoice, show_body};
+use super::panel::{ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsPanel, ActionsPanelState, ShortcutChoice, show_body};
 use crate::actions::{Action, ActionColor, ActionList, ActionStep, ActionsFile};
 
 /// The app: labels for steps, the recording it runs and the steps recorded so far.
@@ -21,8 +21,8 @@ use crate::actions::{Action, ActionColor, ActionList, ActionStep, ActionsFile};
 struct Host {
     recording: Option<usize>,
     pending: Vec<ActionStep>,
-    /// The shortcut text of every action.
-    shortcut: Option<String>,
+    /// The shortcut of every action.
+    shortcut: Option<ShortcutChoice>,
 }
 
 impl ActionsHost for Host {
@@ -30,8 +30,8 @@ impl ActionsHost for Host {
         format!("Run {}", step.command)
     }
 
-    fn shortcut(&self, _: &Action) -> Option<String> {
-        self.shortcut.clone()
+    fn shortcut(&self, _: &Action) -> Option<ShortcutChoice> {
+        self.shortcut
     }
 
     fn recording(&self) -> Option<usize> {
@@ -44,11 +44,12 @@ impl ActionsHost for Host {
 }
 
 struct App {
-    state: ActionsState,
+    state: ActionsPanelState,
     list: ActionList,
     host: Host,
     events: Vec<ActionsEvent>,
     height: f32,
+    settings_changed: bool,
 }
 
 fn step(command: &str) -> ActionStep {
@@ -72,13 +73,13 @@ fn list() -> ActionList {
 }
 
 fn app(list: ActionList) -> App {
-    App { state: ActionsState::default(), list, host: Host::default(), events: Vec::new(), height: 320.0 }
+    App { state: ActionsPanelState::default(), list, host: Host::default(), events: Vec::new(), height: 320.0, settings_changed: false }
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
     let labels = ActionsLabels::shared(ui);
     let style = ActionsPanel::style(&Tokens::of(ui));
-    let App { state, list, host, events, height } = app;
+    let App { state, list, host, events, height, .. } = app;
     events.extend(show_body(ui, Id::NULL.with("actions"), state, list, Some(&*host), &labels, &style, *height));
 }
 
@@ -370,8 +371,10 @@ fn actions_panel_access_names() {
 }
 
 fn show_panel(ui: &mut Ui, app: &mut App) {
-    let App { state, list, host, events, .. } = app;
-    events.extend(ActionsPanel::new("actions", state, list).host(&*host).show(ui).events);
+    let App { state, list, host, events, settings_changed, .. } = app;
+    let out = ActionsPanel::new("actions", state, list).host(&*host).show(ui);
+    *settings_changed |= out.settings_changed;
+    events.extend(out.events);
 }
 
 fn panel_harness(app: App) -> Harness<'static, App> {
@@ -419,6 +422,35 @@ fn actions_panel_play_with_no_selection_plays_the_first() {
     harness.run();
     assert!(harness.state().state.settings.button_mode, "Button Mode toggles in the state");
     assert!(events_of(&mut harness).is_empty());
+    assert!(harness.state().settings_changed, "and the output says the settings changed");
+    assert_eq!(button(&harness, "Button Mode").accesskit_node().toggled(), Some(Toggled::True), "Button Mode is a toggle button");
+}
+
+// FX6-17: a set's disclosure changes the persisted settings and the output says so.
+#[test]
+fn actions_panel_set_disclosure_reports_settings_changed() {
+    let mut harness = panel_harness(app(list()));
+    assert!(!harness.state().settings_changed);
+    harness.get_by_role_and_label(Role::Button, "Collapse Effects").click();
+    harness.run();
+    assert_eq!(harness.state().state.settings.collapsed_sets, ["Effects"]);
+    assert!(harness.state().settings_changed);
+}
+
+// FX6-17: Record stays live while recording: toggled, in the alert tone, and its click starts nothing.
+#[test]
+fn actions_panel_record_button_shows_the_recording_and_ignores_the_click() {
+    let idle = panel_harness(app(list()));
+    assert_eq!(button(&idle, "Begin recording").accesskit_node().toggled(), Some(Toggled::False));
+    let mut recording = app(list());
+    recording.host.recording = Some(0);
+    let mut harness = panel_harness(recording);
+    let record = button(&harness, "Begin recording");
+    assert_eq!(record.accesskit_node().toggled(), Some(Toggled::True), "Record shows the recording");
+    assert!(!record.accesskit_node().is_disabled(), "and stays live");
+    record.click();
+    harness.run();
+    assert!(events_of(&mut harness).is_empty(), "a click while recording starts nothing");
 }
 
 // AC3: the context menu reports `AssignShortcut` with key, Shift and Command, and `SetColor`.
@@ -426,20 +458,24 @@ fn actions_panel_play_with_no_selection_plays_the_first() {
 fn actions_panel_context_menu_shortcut_and_color() {
     let labels = ActionsLabels::english();
     let mut app = app(list());
-    app.host.shortcut = Some("F3".to_owned());
+    app.host.shortcut = Some(ShortcutChoice { key: 3, shift: false, command: false });
     let mut harness = panel_harness(app);
 
-    // Check rows keep the menu open, so both can be ticked; closing the menu applies the ticks.
+    // Check rows keep the menu open, so both can be ticked; each tick is reported at once.
     item(&harness, "Sharpen").click_secondary();
     harness.run();
     menu_row(&mut harness, &labels.shift);
+    assert_eq!(
+        events_of(&mut harness),
+        [ActionsEvent::AssignShortcut { action: 0, choice: Some(ShortcutChoice { key: 3, shift: true, command: false }) }]
+    );
     menu_row(&mut harness, if cfg!(target_os = "macos") { &labels.command } else { &labels.ctrl });
-    assert!(events_of(&mut harness).is_empty(), "nothing is reported while the menu is open");
-    press(&mut harness, Modifiers::NONE, Key::Escape);
     assert_eq!(
         events_of(&mut harness),
         [ActionsEvent::AssignShortcut { action: 0, choice: Some(ShortcutChoice { key: 3, shift: true, command: true }) }]
     );
+    press(&mut harness, Modifiers::NONE, Key::Escape);
+    assert!(events_of(&mut harness).is_empty(), "closing the menu reports nothing more");
 
     // A key row reports at once, with the ticks the menu opened with.
     item(&harness, "Vignette").click_secondary();
@@ -464,4 +500,25 @@ fn actions_panel_context_menu_shortcut_and_color() {
     harness.run();
     menu_row(&mut harness, &labels.save_set);
     assert_eq!(events_of(&mut harness), [ActionsEvent::Save { set: Some("Effects".to_owned()) }]);
+}
+
+// FX6-17: reopening the menu on the same row (Shift+F10) starts from the host's shortcut again:
+// its key is marked and Shift is enabled.
+#[test]
+fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
+    let labels = ActionsLabels::english();
+    let mut app = app(list());
+    app.host.shortcut = Some(ShortcutChoice { key: 3, shift: false, command: false });
+    let mut harness = panel_harness(app);
+    item(&harness, "Sharpen").click();
+    harness.run();
+    for _ in 0..2 {
+        press(&mut harness, Modifiers::SHIFT, Key::F10);
+        assert_eq!(harness.get_by_role_and_label(Role::MenuItemRadio, "F3").accesskit_node().toggled(), Some(Toggled::True), "F3 is marked");
+        assert!(!harness.get_by_label(&labels.shift).accesskit_node().is_disabled(), "Shift is enabled with a key");
+        press(&mut harness, Modifiers::NONE, Key::Escape);
+        assert!(events_of(&mut harness).is_empty());
+        item(&harness, "Sharpen").click();
+        harness.run();
+    }
 }

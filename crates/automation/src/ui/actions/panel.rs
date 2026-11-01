@@ -8,15 +8,15 @@ use craft_ui::behavior::{Axis, DropPosition, Move, Reorder, Selection, Selection
 use craft_ui::composites::{EmptyState, PanelFooter};
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
-use craft_ui::list::{ContextMenuRequest, List, ListEvent, ListRow, OpenChange, RowEvent};
+use craft_ui::list::{List, ListEvent, ListRow, OpenChange, RowEvent};
 use craft_ui::localized::SharedLabels as _;
 use craft_ui::primitives::Interactive;
 use craft_ui::theme::{Tokens, TokensOf as _, role_format};
-use egui::{Align2, AsIdSalt, CornerRadius, CursorIcon, Id, IdSalt, Key, Modifiers, Popup, Response, Role, ScrollArea, Sense, Ui, Vec2, vec2};
+use egui::{Align2, AsIdSalt, CornerRadius, CursorIcon, Id, IdSalt, Key, Modifiers, Response, Role, ScrollArea, Sense, Ui, Vec2, vec2};
 
 use super::footer::footer;
 use super::labels::ActionsLabels;
-use super::menu::context_menu;
+use super::menu::show_context_menu;
 use super::rows::{ActionRows, row, toggle_edit_event};
 use super::style::ActionsPanelStyle;
 use crate::actions::{Action, ActionColor, ActionList, ActionStep};
@@ -27,9 +27,9 @@ pub trait ActionsHost {
     /// catalogue.
     fn step_label(&self, step: &ActionStep) -> String;
 
-    /// The action's keyboard shortcut text ("F2", "⇧F3"), if it has one (the app's
-    /// `actions.play:<name>` override). None by default.
-    fn shortcut(&self, action: &Action) -> Option<String> {
+    /// The action's keyboard shortcut, if it has one (the app's `actions.play:<name>`
+    /// override). None by default.
+    fn shortcut(&self, action: &Action) -> Option<ShortcutChoice> {
         let _ = action;
         None
     }
@@ -79,7 +79,7 @@ pub enum ActionSelection {
 /// What the panel keeps between passes. The app holds it beside the [`ActionList`]; only
 /// `settings` is persisted.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ActionsState {
+pub struct ActionsPanelState {
     /// The persisted section.
     pub settings: ActionsSettings,
     /// The selected row (one at most).
@@ -99,6 +99,18 @@ pub struct ShortcutChoice {
     pub shift: bool,
     /// Command (macOS) or Ctrl (elsewhere) is part of it.
     pub command: bool,
+}
+
+impl ShortcutChoice {
+    /// The shortcut as a row shows it: "F2" and "⇧⌘F3" on macOS, "Ctrl+Shift+F3" elsewhere.
+    pub fn text(&self) -> String {
+        let (shift, command) = (self.shift, self.command);
+        if cfg!(target_os = "macos") {
+            format!("{}{}F{}", if shift { "⇧" } else { "" }, if command { "⌘" } else { "" }, self.key)
+        } else {
+            format!("{}{}F{}", if command { "Ctrl+" } else { "" }, if shift { "Shift+" } else { "" }, self.key)
+        }
+    }
 }
 
 /// Where a dragged row goes.
@@ -212,12 +224,16 @@ pub enum ActionsEvent {
 
 /// What [`ActionsPanel::show`] returns.
 #[derive(Debug)]
+#[must_use = "handle the events and save the settings when `settings_changed`"]
 #[non_exhaustive]
 pub struct ActionsPanelOutput {
     /// The panel's area.
     pub response: Response,
     /// What the user did this pass, in order.
     pub events: Vec<ActionsEvent>,
+    /// The persisted [`ActionsSettings`] changed this pass (Button Mode, a set opened or
+    /// closed): the app saves them.
+    pub settings_changed: bool,
 }
 
 /// The Actions panel (Photoshop's Window › Actions): sets, actions and steps as a tree, the
@@ -269,7 +285,7 @@ pub struct ActionsPanelOutput {
 #[must_use = "show the panel with `show`"]
 pub struct ActionsPanel<'a> {
     pub(super) id_salt: IdSalt,
-    pub(super) state: &'a mut ActionsState,
+    pub(super) state: &'a mut ActionsPanelState,
     pub(super) list: &'a ActionList,
     pub(super) host: Option<&'a dyn ActionsHost>,
     pub(super) labels: Option<ActionsLabels>,
@@ -278,7 +294,7 @@ pub struct ActionsPanel<'a> {
 
 impl<'a> ActionsPanel<'a> {
     /// A panel over `list` with `state`; `id_salt` keeps its scroll, focus, rename and drag.
-    pub fn new(id_salt: impl AsIdSalt, state: &'a mut ActionsState, list: &'a ActionList) -> Self {
+    pub fn new(id_salt: impl AsIdSalt, state: &'a mut ActionsPanelState, list: &'a ActionList) -> Self {
         Self { id_salt: IdSalt::new(id_salt), state, list, host: None, labels: None, enabled: true }
     }
 
@@ -312,16 +328,18 @@ impl<'a> ActionsPanel<'a> {
         let id = Id::NULL.with(id_salt);
         let footer_height = PanelFooter::reserved_height(&PanelFooter::style(&tokens, ui.pixels_per_point()));
         let height = (ui.available_height() - footer_height).max(0.0);
+        let settings_before = state.settings.clone();
         let inner = ui.scope(|ui| {
             ui.spacing_mut().item_spacing = Vec2::ZERO;
             ui.add_enabled_ui(enabled, |ui| {
                 let mut events = show_body(ui, id, state, list, host, &labels, &style, height);
-                events.extend(footer(ui, state, list, host, &labels, &style));
+                events.extend(footer(ui, state, list, host, &labels));
                 events
             })
             .inner
         });
-        ActionsPanelOutput { response: inner.response, events: inner.inner }
+        let settings_changed = state.settings != settings_before;
+        ActionsPanelOutput { response: inner.response, events: inner.inner, settings_changed }
     }
 }
 
@@ -331,7 +349,7 @@ impl<'a> ActionsPanel<'a> {
 pub(super) fn show_body(
     ui: &mut Ui,
     id: Id,
-    state: &mut ActionsState,
+    state: &mut ActionsPanelState,
     list: &ActionList,
     host: Option<&dyn ActionsHost>,
     labels: &ActionsLabels,
@@ -358,7 +376,7 @@ pub(super) fn show_body(
 fn show_tree(
     ui: &mut Ui,
     id: Id,
-    state: &mut ActionsState,
+    state: &mut ActionsPanelState,
     list: &ActionList,
     host: Option<&dyn ActionsHost>,
     labels: &ActionsLabels,
@@ -385,7 +403,7 @@ fn show_tree(
         widget = widget.reveal(key);
     }
     let ctx = ui.ctx().clone();
-    let shown: &ActionsState = state;
+    let shown: &ActionsPanelState = state;
     let out = widget.show(ui, |_, key| row(&ctx, key, list, shown, host, labels, style));
     let focused = out.response.has_focus();
     let mut events = Vec::new();
@@ -420,7 +438,7 @@ fn show_tree(
     if focused && editable && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Delete)) {
         events.extend(state.selected.as_ref().and_then(|selected| delete_event(selected, host.is_some_and(|host| host.recording().is_some()))));
     }
-    events.extend(show_context_menu(ui, id, request, list, host, labels));
+    events.extend(show_context_menu(ui, id.with("context-menu"), request, list, host, labels));
     events
 }
 
@@ -431,7 +449,7 @@ pub(super) fn delete_event(selected: &ActionSelection, recording: bool) -> Optio
 
 /// Opens or closes what `change` names in `state`: an action's steps, a set's actions, or with
 /// `all` every one of them.
-fn apply_open(state: &mut ActionsState, list: &ActionList, change: &OpenChange<ActionSelection>) {
+fn apply_open(state: &mut ActionsPanelState, list: &ActionList, change: &OpenChange<ActionSelection>) {
     if change.all {
         if change.open {
             state.expanded.extend(list.actions().iter().map(|action| action.name.clone()));
@@ -523,36 +541,6 @@ fn move_event(list: &ActionList, mv: &Move<ActionSelection>) -> Option<ActionsEv
     let source = mv.items.first().filter(|_| !mv.copy)?.clone();
     let to = place(list, &source, &mv.target, mv.position)?;
     Some(ActionsEvent::Move { source, to })
-}
-
-/// Shows the context menu for `asked`, and keeps asking for it on the passes after (the request
-/// stays in egui memory) until a row is chosen or no popup is open any more.
-fn show_context_menu(
-    ui: &mut Ui,
-    id: Id,
-    asked: Option<ContextMenuRequest<ActionSelection>>,
-    list: &ActionList,
-    host: Option<&dyn ActionsHost>,
-    labels: &ActionsLabels,
-) -> Option<ActionsEvent> {
-    let slot = id.with("context-request");
-    let ctx = ui.ctx().clone();
-    let ctx = &ctx;
-    let kept = ctx.data(|data| data.get_temp::<ContextMenuRequest<ActionSelection>>(slot));
-    let request = match (asked, kept) {
-        (Some(asked), _) => asked,
-        (None, Some(kept)) if Popup::is_any_open(ctx) => kept,
-        _ => {
-            ctx.data_mut(|data| data.remove::<ContextMenuRequest<ActionSelection>>(slot));
-            return None;
-        }
-    };
-    ctx.data_mut(|data| data.insert_temp(slot, request.clone()));
-    let event = context_menu(ui, &request, list, host, labels);
-    if event.is_some() {
-        ctx.data_mut(|data| data.remove::<ContextMenuRequest<ActionSelection>>(slot));
-    }
-    event
 }
 
 /// Button Mode's body: each action of `list` in display order as a full-width button in its

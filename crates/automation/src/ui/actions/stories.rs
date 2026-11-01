@@ -20,7 +20,7 @@ use craft_ui::typed_story;
 use egui::{Id, Ui, vec2};
 use serde_json::Value;
 
-use super::{ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsLabels, ActionsPanel, ActionsState, ShortcutChoice};
+use super::{ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsLabels, ActionsPanel, ActionsPanelState, ShortcutChoice};
 use crate::actions::{Action, ActionColor, ActionList, ActionStep};
 
 craft_ui::words! {
@@ -72,7 +72,7 @@ struct StoryHost {
     words: ActionsStoryLabels,
     recording: Option<usize>,
     pending: Vec<ActionStep>,
-    shortcuts: BTreeMap<String, String>,
+    shortcuts: BTreeMap<String, ShortcutChoice>,
 }
 
 impl ActionsHost for StoryHost {
@@ -91,8 +91,8 @@ impl ActionsHost for StoryHost {
         }
     }
 
-    fn shortcut(&self, action: &Action) -> Option<String> {
-        self.shortcuts.get(&action.name).cloned()
+    fn shortcut(&self, action: &Action) -> Option<ShortcutChoice> {
+        self.shortcuts.get(&action.name).copied()
     }
 
     fn recording(&self) -> Option<usize> {
@@ -108,7 +108,7 @@ impl ActionsHost for StoryHost {
 #[derive(Clone)]
 struct Model {
     list: ActionList,
-    state: ActionsState,
+    state: ActionsPanelState,
     host: StoryHost,
 }
 
@@ -158,10 +158,10 @@ fn sets_model(words: ActionsStoryLabels) -> Model {
         ],
         &[&words.effects, &words.portrait],
     );
-    let mut model = Model { list, state: ActionsState::default(), host: host(words.clone()) };
+    let mut model = Model { list, state: ActionsPanelState::default(), host: host(words.clone()) };
     model.state.expanded.insert(words.sharpen.clone());
     model.state.selected = Some(ActionSelection::Action(0));
-    model.host.shortcuts.insert(words.sharpen, "F2".to_owned());
+    model.host.shortcuts.insert(words.sharpen, ShortcutChoice { key: 2, shift: false, command: false });
     model
 }
 
@@ -174,7 +174,7 @@ fn recording_model(words: ActionsStoryLabels) -> Model {
     let mut host = host(words.clone());
     host.recording = Some(1);
     host.pending = vec![step("brightness"), step("blur")];
-    let mut state = ActionsState::default();
+    let mut state = ActionsPanelState::default();
     state.expanded.insert(words.retouch);
     state.selected = Some(ActionSelection::Action(1));
     Model { list, state, host }
@@ -198,7 +198,7 @@ fn button_model(words: ActionsStoryLabels, labels: &ActionsLabels) -> Model {
             let _ = list.set_color(index, color);
         }
     }
-    let mut state = ActionsState::default();
+    let mut state = ActionsPanelState::default();
     state.settings.button_mode = true;
     Model { list, state, host: host(words) }
 }
@@ -291,7 +291,7 @@ fn apply(model: &mut Model, events: Vec<ActionsEvent>) {
             ActionsEvent::AssignShortcut { action, choice } => {
                 if let Some(name) = list.action(action).map(|current| current.name.clone()) {
                     match choice {
-                        Some(choice) => host.shortcuts.insert(name, shortcut_text(choice)),
+                        Some(choice) => host.shortcuts.insert(name, choice),
                         None => host.shortcuts.remove(&name),
                     };
                 }
@@ -299,11 +299,6 @@ fn apply(model: &mut Model, events: Vec<ActionsEvent>) {
             _ => {}
         }
     }
-}
-
-/// "F2", "⇧F3", "⌘F4" as the panel's rows show them.
-fn shortcut_text(choice: ShortcutChoice) -> String {
-    format!("{}{}F{}", if choice.shift { "⇧" } else { "" }, if choice.command { "⌘" } else { "" }, choice.key)
 }
 
 /// Shows the panel over the model kept under `name`, seeded by `seed` on the first pass, and
@@ -335,5 +330,5 @@ fn show_button_mode(ui: &mut Ui, _: &mut NoArgs) {
 }
 
 fn show_empty(ui: &mut Ui, _: &mut NoArgs) {
-    show_model(ui, "empty", |words, _| Model { list: ActionList::new(), state: ActionsState::default(), host: host(words) });
+    show_model(ui, "empty", |words, _| Model { list: ActionList::new(), state: ActionsPanelState::default(), host: host(words) });
 }
