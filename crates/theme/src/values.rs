@@ -1032,6 +1032,27 @@ pub const GUIDE_MEASURE_CAP: f32 = 4.0;
 /// Padding of a distance's label, beside and above the text.
 pub const GUIDE_MEASURE_PAD: (f32, f32) = (8.0, 4.0);
 
+/// Width of Guide Layout's Number field (PhotoCraft).
+pub const GUIDE_NUMBER_WIDTH: f32 = 68.0;
+
+/// Width of Guide Layout's Width and Height fields (PhotoCraft).
+pub const GUIDE_SIZE_WIDTH: f32 = 60.0;
+
+/// Width of the field of each Margin side in Guide Layout (PhotoCraft).
+pub const GUIDE_MARGIN_WIDTH: f32 = 64.0;
+
+/// Width of New Guide's Position field (PhotoCraft).
+pub const GUIDE_POSITION_WIDTH: f32 = 120.0;
+
+/// Width of New Guide's Color list (PhotoCraft).
+pub const GUIDE_COLOR_WIDTH: f32 = 140.0;
+
+/// Width of Guide Layout's Preset and Target lists (PhotoCraft).
+pub const GUIDE_LAYOUT_LIST_WIDTH: f32 = 222.0;
+
+/// Width of Guide Layout's Color list (PhotoCraft).
+pub const GUIDE_LAYOUT_COLOR_WIDTH: f32 = 174.0;
+
 /// Width of a transform box's line and a warp mesh's patch boundaries, in points, at every Size
 /// (PhotoCraft's).
 pub const TRANSFORM_LINE: f32 = 1.0;
@@ -1901,11 +1922,8 @@ pub const LIST_MANAGER_BUTTON_WIDTH: f32 = 100.0;
 /// Between a list manager's list and its buttons (the module's constant).
 pub const LIST_MANAGER_COLUMN_GAP: f32 = 12.0;
 
-/// Side of an align bar's buttons (PhotoCraft).
-pub const ALIGN_BUTTON: f32 = 24.0;
-
-/// Side of an align bar's icons (PhotoCraft).
-pub const ALIGN_ICON: f32 = 16.0;
+/// Between an align bar's buttons and its ⋯ button at the Compact size (PhotoCraft's `add_space(6.0)`); scaled with the control height.
+pub const ALIGN_MENU_GAP: f32 = 6.0;
 
 /// Most height of a tree picker's list (the module's constant).
 pub const TREE_PICKER_LIST_HEIGHT: f32 = 320.0;

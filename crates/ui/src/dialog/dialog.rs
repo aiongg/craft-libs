@@ -80,6 +80,11 @@ pub enum InitialFocus {
     FirstField,
     /// The default button.
     DefaultButton,
+    /// The widget with this id (a field of the body whose id the dialog names, for example
+    /// [`NumberField::with_id`](crate::controls::NumberField::with_id)): New Guide opens on
+    /// Position.
+    /// An id that is not shown on the pass the focus is due leaves the focus where it is.
+    Field(Id),
     /// Nothing: the keyboard stays with the view (Select and Mask).
     None,
 }
@@ -664,6 +669,7 @@ impl<'a> Dialog<'a> {
                     InitialFocus::Auto => frame.first_field.or(run.default),
                     InitialFocus::FirstField => frame.first_field,
                     InitialFocus::DefaultButton => run.default,
+                    InitialFocus::Field(id) => Some(id),
                     InitialFocus::None => None,
                 };
                 if let Some(target) = target {

@@ -297,7 +297,7 @@ impl<'a> Footer<'a> {
         self.apply_enabled = self.apply_when.take().map_or(self.apply_enabled, |f| f());
     }
 
-    /// Opts in to Alt turning Cancel into Reset.
+    /// Opts in to Alt turning Cancel into Reset (in the row and in the [`side`](Footer::side) column).
     pub fn reset(mut self, reset: Reset) -> Self {
         self.reset = Some(reset);
         self
@@ -454,7 +454,8 @@ impl<'a> Footer<'a> {
         let t = tokens.component.dialog;
         let mut labels: Vec<(ButtonRole, String)> = Vec::new();
         labels.extend(self.ok.get(&self.labels.ok).map(|l| (ButtonRole::Default, l)));
-        labels.extend(self.cancel.get(&self.labels.cancel).map(|l| (ButtonRole::Cancel, l)));
+        let reset = self.alt_reset(ui).map(str::to_owned);
+        labels.extend(self.cancel.get(&self.labels.cancel).map(|l| (ButtonRole::Cancel, reset.clone().unwrap_or(l))));
         let extras_from = labels.len();
         labels.extend(self.extras.iter().map(|l| (ButtonRole::Alternate, l.clone())));
         let width = labels.iter().fold(t.side_min, |w, (_, label)| w.max(Button::new(label.as_str()).natural_width(ui)));
@@ -492,6 +493,7 @@ impl<'a> Footer<'a> {
                     run.extra = Some(index - extras_from);
                 } else {
                     run.clicked = Some(Clicked { index, role: *role, nth: 0 });
+                    run.reset = reset.is_some() && *role == ButtonRole::Cancel;
                 }
             }
         }

@@ -1589,7 +1589,24 @@ fn grid_lines(out: &mut Lines, t: &GridTokens) {
 }
 
 fn guide_lines(out: &mut Lines, g: &GuideTokens) {
-    let GuideTokens { width, hit, dash, gap, dot_gap, dot_radius, measure_cap, measure_pad_x, measure_pad_y } = g;
+    let GuideTokens {
+        width,
+        hit,
+        dash,
+        gap,
+        dot_gap,
+        dot_radius,
+        measure_cap,
+        measure_pad_x,
+        measure_pad_y,
+        number_width,
+        size_width,
+        margin_width,
+        position_width,
+        color_width,
+        layout_list_width,
+        layout_color_width,
+    } = g;
     out.line("guide.width", len(*width));
     out.line("guide.hit", len(*hit));
     out.line("guide.dash", len(*dash));
@@ -1599,6 +1616,13 @@ fn guide_lines(out: &mut Lines, g: &GuideTokens) {
     out.line("guide.measure_cap", len(*measure_cap));
     out.line("guide.measure_pad_x", len(*measure_pad_x));
     out.line("guide.measure_pad_y", len(*measure_pad_y));
+    out.line("guide.number_width", len(*number_width));
+    out.line("guide.size_width", len(*size_width));
+    out.line("guide.margin_width", len(*margin_width));
+    out.line("guide.position_width", len(*position_width));
+    out.line("guide.color_width", len(*color_width));
+    out.line("guide.layout_list_width", len(*layout_list_width));
+    out.line("guide.layout_color_width", len(*layout_color_width));
 }
 
 fn transform_lines(out: &mut Lines, t: &TransformTokens) {
@@ -2338,9 +2362,10 @@ fn list_manager_lines(out: &mut Lines, t: &ListManagerTokens) {
 }
 
 fn align_lines(out: &mut Lines, t: &AlignTokens) {
-    let AlignTokens { button, icon } = t;
+    let AlignTokens { button, icon, menu_gap } = t;
     out.line("align.button", len(*button));
     out.line("align.icon", len(*icon));
+    out.line("align.menu_gap", len(*menu_gap));
 }
 
 fn tree_picker_lines(out: &mut Lines, t: &TreePickerTokens) {

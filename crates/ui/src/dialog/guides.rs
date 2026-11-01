@@ -15,12 +15,12 @@ use std::cell::Cell;
 use craft_host::Host;
 use craft_settings::Remembered;
 use craft_theme::{Rgba, Srgba, TypeRole};
-use egui::{Color32, Context, Ui};
+use egui::{Color32, Context, Id, Ui};
 
 use super::ColorRequest;
-use super::dialog::{Dialog, Outcome};
+use super::dialog::{Dialog, InitialFocus, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
-use super::footer::{DialogLabels, Footer};
+use super::footer::{DialogLabels, Footer, Reset};
 use super::size::Width;
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
@@ -270,8 +270,17 @@ fn edited_optional(event: Option<&EditEvent<Option<f64>>>, shown: Option<f64>, u
     }
 }
 
+/// The number in text that is only a number and a percent sign ("10%", "12.5 %"); anything with
+/// other units or arithmetic is not a percentage of the target.
+fn percent_text(text: &str) -> Option<f64> {
+    text.trim().strip_suffix('%')?.trim().parse::<f64>().ok().filter(|v| v.is_finite())
+}
+
 /// One length field in the ruler unit: `shown` is the value in `units.ruler`, typed text may
-/// carry another unit or arithmetic, and the field accepts `range` (in the ruler unit).
+/// carry another unit or arithmetic, and the field accepts `range` (in the ruler unit). A typed
+/// percentage is also left in `typed_percent`, so the dialog keeps it as a percentage and
+/// [`GuideLayoutOptions::lines`] resolves it against each target; the field shows its value in
+/// the ruler unit across `extent`.
 fn length_field<'a>(
     salt: impl egui::AsIdSalt,
     caption: &str,
@@ -279,18 +288,35 @@ fn length_field<'a>(
     numbers: &'a LocaleNumbers,
     units: &GuideUnits,
     extent: f64,
+    typed_percent: &'a Cell<Option<f64>>,
 ) -> NumberField<'a> {
     let ruler = units.ruler;
     let context = units.context(extent);
     let high = context.from_pixels(MAX_LAYOUT_PX, ruler).filter(|v| v.is_finite()).unwrap_or(MAX_LAYOUT_PX);
-    unit_number_field(salt, caption, shown, numbers, &ExprUnits { unit: Some(ruler), suffix: ruler.suffix(), context }).range(0.0..=high.max(0.0))
+    let suffix = ruler.suffix();
+    let reader = move |text: &str| {
+        let value = crate::controls::expr::parse_with_units(text, &ExprUnits { unit: Some(ruler), suffix, context })?;
+        typed_percent.set(percent_text(text));
+        Some(value)
+    };
+    unit_number_field(salt, caption, shown, numbers, &ExprUnits { unit: Some(ruler), suffix, context }).range(0.0..=high.max(0.0)).or_parse(reader)
+}
+
+/// The length a length field's `event` set, if it did: a typed percentage stays a percentage,
+/// anything else is in the ruler unit.
+fn edited_length(event: Option<&EditEvent<f64>>, shown: f64, ruler: LengthUnit, typed_percent: &Cell<Option<f64>>) -> Option<Length> {
+    let changed = matches!(event, Some(EditEvent::Commit { changed: true, .. } | EditEvent::Set { .. }));
+    if let Some(value) = typed_percent.get().filter(|_| changed) {
+        return Some(Length { value, unit: LengthUnit::Percent });
+    }
+    edited(event, shown, ruler).map(|value| Length { value, unit: ruler })
 }
 
 /// New Guide (and Edit Selected Guides): an orientation, a position with a unit and a colour.
 ///
 /// The user sees Orientation (Horizontal / Vertical radio buttons, one Tab stop, arrows pick),
-/// Position (a number field in the ruler unit; the first field, Orientation, has the focus on
-/// open and Tab reaches Position), Color (a
+/// Position (a number field in the ruler unit; it has the focus on open, as in Photoshop and
+/// PhotoCraft), Color (a
 /// list: Custom… then Photoshop's nine colours; with Custom… a swatch and its `#rrggbb` beside
 /// it), and OK and Cancel. Enter is OK, Esc is Cancel.
 ///
@@ -480,6 +506,11 @@ impl NewGuideDialog {
         self.initial_color = Some(memory.color);
     }
 
+    /// The Position field's id, which the dialog names as its initial focus.
+    fn position_id(&self) -> Id {
+        self.id.with("position")
+    }
+
     fn body(&mut self, ui: &mut Ui, labels: &GuidesLabels, numbers: &LocaleNumbers) {
         if let Some(error) = &self.error {
             Notice::new(error.as_str()).tone(Tone::Bad).id_salt("guides-error").show(ui);
@@ -498,7 +529,11 @@ impl NewGuideDialog {
                 let shown = context.from_pixels(self.position_px, ruler).unwrap_or(0.0);
                 let high = context.from_pixels(MAX_GUIDE_PX, ruler).filter(|v| v.is_finite()).unwrap_or(MAX_GUIDE_PX).abs();
                 let units = ExprUnits { unit: Some(ruler), suffix: ruler.suffix(), context };
-                let edit = unit_number_field("new-guide-position", labels.position.as_str(), shown, numbers, &units).range(-high..=high).show(ui);
+                let edit = unit_number_field("new-guide-position", labels.position.as_str(), shown, numbers, &units)
+                    .with_id(self.position_id())
+                    .width(Tokens::of(ui).component.guide.position_width)
+                    .range(-high..=high)
+                    .show(ui);
                 if let Some(value) = edited(edit.event.as_ref(), shown, ruler)
                     && let Some(px) = context.to_pixels(value, ruler)
                 {
@@ -512,8 +547,9 @@ impl NewGuideDialog {
 
     fn color_row(&mut self, ui: &mut Ui, labels: &GuidesLabels) -> egui::Response {
         let mut choice = self.color;
-        let mut select =
-            Select::new("new-guide-color", labels.color.as_str(), &mut choice).option(GuideColor::Custom(self.custom), labels.custom_color.as_str());
+        let mut select = Select::new("new-guide-color", labels.color.as_str(), &mut choice)
+            .width(Tokens::of(ui).component.guide.color_width)
+            .option(GuideColor::Custom(self.custom), labels.custom_color.as_str());
         for named in GuideColor::NAMED {
             select = select.option(named, named.label(labels));
         }
@@ -555,12 +591,12 @@ impl StackDialog for NewGuideDialog {
         let numbers = LocaleNumbers::of_ctx(ctx);
         let title = if self.edited.is_some() { &labels.edit_title } else { &labels.new_guide_title };
         let mut state = std::mem::take(&mut self.state);
-        let shown = Dialog::with_id(self.id, title.as_str()).stack(stack).width(Width::Compact).footer(Footer::standard()).show(
-            ctx,
-            &mut state,
-            &mut (),
-            |ui, ()| self.body(ui, &labels, &numbers),
-        );
+        let shown = Dialog::with_id(self.id, title.as_str())
+            .stack(stack)
+            .width(Width::Compact)
+            .initial_focus(InitialFocus::Field(self.position_id()))
+            .footer(Footer::standard())
+            .show(ctx, &mut state, &mut (), |ui, ()| self.body(ui, &labels, &numbers));
         self.state = state;
         match shown.outcome {
             Some(Outcome::Ok) => Some(DialogResult::Ok(self.options())),
@@ -1074,14 +1110,12 @@ impl StackDialog for GuideLayoutDialog {
         }
         let numbers = LocaleNumbers::of_ctx(ctx);
         let before = (self.layout, self.color, self.preview_on);
-        let alt = ctx.input(|i| i.modifiers.alt);
         let valid = Cell::new(false);
         let mut preview = self.preview_on;
         let mut state = std::mem::take(&mut self.state);
-        let footer =
-            Footer::side().cancel(if alt { words.reset.as_str() } else { words.cancel.as_str() }).ok_enabled_with(|| valid.get()).below(|ui| {
-                let _ = Checkbox::bool(words.preview.as_str(), &mut preview).id_salt("guide-layout-preview").show(ui);
-            });
+        let footer = Footer::side().reset(Reset::AltCancel(words.reset.clone())).ok_enabled_with(|| valid.get()).below(|ui| {
+            let _ = Checkbox::bool(words.preview.as_str(), &mut preview).id_salt("guide-layout-preview").show(ui);
+        });
         let shown = Dialog::with_id(self.id, labels.layout_title.as_str()).stack(stack).width(Width::Standard).footer(footer).show(
             ctx,
             &mut state,
@@ -1091,7 +1125,7 @@ impl StackDialog for GuideLayoutDialog {
         self.state = state;
         self.preview_on = preview;
         let outcome = match shown.outcome {
-            Some(Outcome::Cancel) if alt => {
+            Some(Outcome::Reset) => {
                 self.reset();
                 None
             }
@@ -1158,8 +1192,8 @@ impl GuideLayoutDialog {
             Ok(_) => valid.set(true),
             Err(error) => {
                 valid.set(false);
-                let text = Text::new(labels.invalid.as_str()).content(Content::Muted);
-                ui.add(text).on_hover_text(error.message(labels));
+                ui.add(Text::new(labels.invalid.as_str()).content(Content::Muted));
+                ui.add(Text::new(error.message(labels)).content(Content::Muted));
             }
         }
     }
@@ -1169,7 +1203,8 @@ impl GuideLayoutDialog {
         FormGrid::new("guide-layout-header").show(ui, |form| {
             form.row(labels.preset.as_str(), |ui, _| {
                 let mut preset = layout.preset;
-                let mut select = Select::new("guide-layout-preset", labels.preset.as_str(), &mut preset);
+                let width = Tokens::of(ui).component.guide.layout_list_width;
+                let mut select = Select::new("guide-layout-preset", labels.preset.as_str(), &mut preset).width(width);
                 for option in GuideLayoutPreset::ALL {
                     select = select.option(option, option.label(labels));
                 }
@@ -1181,7 +1216,9 @@ impl GuideLayoutDialog {
                 response
             });
             form.row(labels.target.as_str(), |ui, _| {
+                let width = Tokens::of(ui).component.guide.layout_list_width;
                 let mut select = Select::new("guide-layout-target", labels.target.as_str(), &mut layout.target)
+                    .width(width)
                     .option(GuideTarget::Document, labels.document.as_str());
                 if !self.artboards.is_empty() {
                     select = select.option(GuideTarget::SelectedArtboards, labels.selected_artboards.as_str());
@@ -1198,7 +1235,8 @@ impl GuideLayoutDialog {
             ui.horizontal(|ui| {
                 let current = GuideColor::from_rgb(self.color);
                 let mut choice = current;
-                let mut select = Select::new("guide-layout-color", labels.color.as_str(), &mut choice);
+                let mut select =
+                    Select::new("guide-layout-color", labels.color.as_str(), &mut choice).width(Tokens::of(ui).component.guide.layout_color_width);
                 if let GuideColor::Custom(rgb) = current {
                     select = select.option(GuideColor::Custom(rgb), labels.custom_color.as_str());
                 }
@@ -1228,9 +1266,10 @@ enum Axis {
 fn length_cell(ui: &mut Ui, salt: impl egui::AsIdSalt, caption: &str, length: &mut Length, numbers: &LocaleNumbers, units: &GuideUnits, extent: f64) {
     let ruler = units.ruler;
     let shown = units.context(extent).convert(*length, ruler).unwrap_or(length.value);
-    let edit = length_field(salt, caption, shown, numbers, units, extent).show(ui);
-    if let Some(value) = edited(edit.event.as_ref(), shown, ruler) {
-        *length = Length { value, unit: ruler };
+    let typed_percent = Cell::new(None);
+    let edit = length_field(salt, caption, shown, numbers, units, extent, &typed_percent).width(Tokens::of(ui).component.guide.margin_width).show(ui);
+    if let Some(edited) = edited_length(edit.event.as_ref(), shown, ruler, &typed_percent) {
+        *length = edited;
     }
 }
 
@@ -1248,6 +1287,7 @@ fn axis_group(ui: &mut Ui, labels: &GuidesLabels, numbers: &LocaleNumbers, units
             form.row(labels.number.as_str(), |ui, _| {
                 let edit = NumberField::new((salt, "number"), labels.number.as_str(), axis.number, numbers)
                     .range(1.0..=f64::from(MAX_COUNT))
+                    .width(Tokens::of(ui).component.guide.number_width)
                     .decimals(0..=0)
                     .show(ui);
                 if let Some(value) =
@@ -1259,8 +1299,16 @@ fn axis_group(ui: &mut Ui, labels: &GuidesLabels, numbers: &LocaleNumbers, units
             });
             form.row(size_caption.as_str(), |ui, _| {
                 let shown = axis.size.and_then(|size| units.context(extent).convert(size, ruler));
-                let edit = length_field((salt, "size"), size_caption, shown.unwrap_or(f64::NAN), numbers, units, extent).show_optional(ui);
-                if let Some(value) = edited_optional(edit.event.as_ref(), shown, ruler) {
+                let typed_percent = Cell::new(None);
+                let width = Tokens::of(ui).component.guide.size_width;
+                let edit = length_field((salt, "size"), size_caption, shown.unwrap_or(f64::NAN), numbers, units, extent, &typed_percent)
+                    .width(width)
+                    .show_optional(ui);
+                let percent =
+                    typed_percent.get().filter(|_| matches!(edit.event, Some(EditEvent::Commit { changed: true, .. } | EditEvent::Set { .. })));
+                if let Some(value) = percent {
+                    axis.size = Some(Length { value, unit: LengthUnit::Percent });
+                } else if let Some(value) = edited_optional(edit.event.as_ref(), shown, ruler) {
                     axis.size = value.map(|value| Length { value, unit: ruler });
                 }
                 edit.response.clone().on_hover_text(labels.automatic_size.as_str());
@@ -1268,9 +1316,12 @@ fn axis_group(ui: &mut Ui, labels: &GuidesLabels, numbers: &LocaleNumbers, units
             });
             form.row(labels.gutter.as_str(), |ui, _| {
                 let shown = units.context(extent).convert(axis.gutter, ruler).unwrap_or(axis.gutter.value);
-                let edit = length_field((salt, "gutter"), labels.gutter.as_str(), shown, numbers, units, extent).show(ui);
-                if let Some(value) = edited(edit.event.as_ref(), shown, ruler) {
-                    axis.gutter = Length { value, unit: ruler };
+                let typed_percent = Cell::new(None);
+                let edit = length_field((salt, "gutter"), labels.gutter.as_str(), shown, numbers, units, extent, &typed_percent)
+                    .width(Tokens::of(ui).component.guide.number_width)
+                    .show(ui);
+                if let Some(edited) = edited_length(edit.event.as_ref(), shown, ruler, &typed_percent) {
+                    axis.gutter = edited;
                 }
                 edit
             });

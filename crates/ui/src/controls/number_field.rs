@@ -156,6 +156,7 @@ enum Handle {
 #[must_use = "show the field with `show`"]
 pub struct NumberField<'a> {
     id_salt: IdSalt,
+    id: Option<Id>,
     label: String,
     value: f64,
     numbers: &'a LocaleNumbers,
@@ -337,6 +338,7 @@ impl<'a> NumberField<'a> {
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: impl Into<f64>, numbers: &'a LocaleNumbers) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
+            id: None,
             label: label.into(),
             value: value.into(),
             numbers,
@@ -382,6 +384,21 @@ impl<'a> NumberField<'a> {
         let mut field = Self::new(id_salt, label, value.unwrap_or(f64::NAN), numbers);
         field.optional = true;
         field
+    }
+
+    /// The field's whole id, instead of the one made from `id_salt` and the enclosing ui. A dialog
+    /// that opens on this field names it before its body runs:
+    /// `Dialog::initial_focus(InitialFocus::Field(id))`.
+    pub fn with_id(mut self, id: Id) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    /// The box's width, in place of `field.number_width` (and of the room a justified layout
+    /// gives it). For a dialog whose fields have the widths of its source.
+    pub fn width(mut self, width: f32) -> Self {
+        self.box_width = Some(width);
+        self
     }
 
     /// Words other than the installed ones.
@@ -704,7 +721,7 @@ impl<'a> NumberField<'a> {
         let tokens = Tokens::of(ui);
         let style = NumberField::style(&tokens, self.size);
         let enabled = self.enabled && ui.is_enabled();
-        let id = ui.make_persistent_id(self.id_salt);
+        let id = self.id.unwrap_or_else(|| ui.make_persistent_id(self.id_salt));
         let real = (!self.mixed && self.value.is_finite()).then_some(self.value);
         let host = Follow::host(ui, id, real);
         let named = Cell::new(None);
