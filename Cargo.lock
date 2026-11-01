@@ -969,6 +969,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "craft-platform",
+ "craft-theme",
  "craft-ui",
  "egui",
  "egui_kittest",

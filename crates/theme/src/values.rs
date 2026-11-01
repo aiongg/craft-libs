@@ -2102,8 +2102,8 @@ pub const ACTIONS_SET_ROW_HEIGHT: f32 = 24.0;
 pub const ACTIONS_ROW_HEIGHT: f32 = 26.0;
 /// A step row's height in the Actions panel.
 pub const ACTIONS_STEP_ROW_HEIGHT: f32 = 20.0;
-/// The indent of an action inside a set.
-pub const ACTIONS_INDENT: f32 = 14.0;
+/// The radius of the dot on the action being recorded (PhotoCraft `actions.rs:1040`).
+pub const ACTIONS_RECORDING_DOT_RADIUS: f32 = 4.0;
 /// The Button Mode fills, red to violet (PhotoCraft `actions.rs:297-313`).
 pub const ACTIONS_COLORS: [Rgba; 6] = [
     Rgba::rgb(196, 64, 64),

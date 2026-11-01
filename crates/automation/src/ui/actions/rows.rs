@@ -2,15 +2,15 @@
 
 use craft_ui::behavior::DisplayOrder;
 use craft_ui::controls::CheckState;
-use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
-use craft_ui::list::{ListRow, ListRowStyle, ToggleColumn, ToggleEdit};
+use craft_ui::list::{ListRow, ListRowStyle, ToggleColumn};
 use craft_ui::localized::words::{Counted, Words};
+use craft_ui::localized::{LocaleNumbers, fmt};
 use craft_ui::theme::{ToEgui as _, UiTokens, role_format};
 use egui::{Color32, Context, Key, KeyboardShortcut, Label, Modifiers, RichText, Sense, vec2};
 
 use super::labels::{ACTIONS, ActionsLabels, STEPS};
-use super::panel::{ActionSelection, ActionsEvent, ActionsHost, ActionsPanelState};
+use super::panel::{ActionSelection, ActionsHost, ActionsPanelState};
 use super::style::ActionsPanelStyle;
 use crate::actions::{ActionInclude, ActionList};
 
@@ -116,11 +116,10 @@ impl DisplayOrder<ActionSelection> for ActionRows {
 /// The `ListRow` of `key`, wrapped by the panel in a `TreeRow`:
 /// - a set: `Icon::Folder` or `Icon::FolderOpen`, its name, "{n} actions" (`ACTIONS`) as a
 ///   trailing text in `text.faint`;
-/// - an action: `Icon::Play` glyph, its name (`renaming` when [`ActionsPanelState::renaming`] is this
-///   action), the trailing text ([`ActionsLabels::shortcut_steps`] or the step count,
-///   [`ActionsLabels::partial_steps`] when partial), the recording dot (a 4 pt
+/// - an action: `Icon::Play` glyph, its name, the include cell unless it has no steps, the trailing text ([`ActionsLabels::shortcut_steps`] or the step count,
+///   [`ActionsLabels::partial_steps`] when partial), the recording dot (a
 ///   `status.bad.solid` circle) as a trailing item while recording into it, the accessible name
-///   with [`ActionsLabels::recording_suffix`] then;
+///   with [`ActionsLabels::recording_suffix`] then (the dot's radius is `actions.recording_dot_radius`);
 /// - a step: the host's label, dimmed when switched off.
 ///
 /// The include and dialog cells are the row's [toggle columns](ToggleColumn), at the reading start
@@ -151,24 +150,27 @@ pub(super) fn row<'r>(
         }
         ActionSelection::Action(index) => {
             let Some(action) = list.action(*index) else { return ListRow::new(key.clone(), String::new()) };
-            let mut row =
-                ListRow::new(key.clone(), action.name.clone()).icon(Icon::Play).toggle(include_column(include_state(action.include()), labels));
+            let mut row = ListRow::new(key.clone(), action.name.clone()).icon(Icon::Play);
+            if !action.steps.is_empty() {
+                row = row.toggle(include_column(include_state(action.include()), labels));
+            }
             let steps = list.step_count(*index);
             let mut text = counted(ctx, STEPS, steps);
             if action.include() == ActionInclude::Partial {
                 let enabled = action.enabled_steps().count();
-                text = labels.partial_steps.replace("{enabled}", &enabled.to_string()).replace("{steps}", &text);
+                let enabled = LocaleNumbers::of_ctx(ctx).format(enabled as f64, 0..=0);
+                text = fmt(&labels.partial_steps, &[("enabled", &enabled), ("steps", &text)]);
             }
             if let Some(shortcut) = host.and_then(|host| host.shortcut(action)).map(|choice| choice.text()) {
-                text = labels.shortcut_steps.replace("{shortcut}", &shortcut).replace("{steps}", &text);
+                text = fmt(&labels.shortcut_steps, &[("shortcut", &shortcut), ("steps", &text)]);
             }
             row = trailing_text(row, ctx, &tokens, &row_style, text);
             if host.and_then(|host| host.recording()) == Some(*index) {
-                row = row.accessible_name(labels.recording_suffix.replace("{name}", &action.name));
-                let (color, side) = (style.recording, row_style.icon_size);
+                row = row.accessible_name(fmt(&labels.recording_suffix, &[("name", &action.name)]));
+                let (color, side, radius) = (style.recording, row_style.icon_size, style.recording_dot_radius);
                 row = row.trailing_item(side, move |ui| {
                     let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
-                    ui.painter().circle_filled(rect.center(), side * 0.2, color);
+                    ui.painter().circle_filled(rect.center(), radius, color);
                 });
             }
             row
@@ -227,40 +229,6 @@ pub(super) fn include_state(include: ActionInclude) -> CheckState {
 pub(super) fn dialog_column(on: bool, labels: &ActionsLabels) -> ToggleColumn {
     // pc: crates/ui-egui/src/panels/actions.rs:1236-1250 `draw_step_controls` (the "message-square" icon, "Show dialog during playback: {label}").
     ToggleColumn::new(labels.dialog.clone(), Icon::Note, Icon::Note, on).check(true).tooltip(labels.dialog_tooltip.clone())
-}
-
-/// The panel event for a toggle column edit of `edit.row` (an `Update` or `Set`; `Begin`,
-/// `Commit` and `Cancel` report nothing): column 0 on a step row [`ActionsEvent::ToggleStep`],
-/// on an action row [`ActionsEvent::ToggleAll`]; column 1 on a step row
-/// [`ActionsEvent::ToggleDialog`]. `None` when `edit.on` is the state the cell already shows (a
-/// sweep crossing a cell in its state), since the list's events toggle.
-pub(super) fn toggle_event(edit: &ToggleEdit<ActionSelection>, list: &ActionList) -> Option<ActionsEvent> {
-    // new: maps the list's toggle columns to the model's toggles (ActionList::{toggle_step, toggle_all, toggle_dialog}).
-    let (on, column) = (edit.on, edit.column);
-    match (&edit.row, column) {
-        (ActionSelection::Step(action, step), 0) => {
-            let shown = list.action(*action)?.step_enabled(*step);
-            (shown != on).then_some(ActionsEvent::ToggleStep { action: *action, step: *step })
-        }
-        (ActionSelection::Action(action), 0) => {
-            let shown = list.action(*action)?.include() == ActionInclude::All;
-            (shown != on).then_some(ActionsEvent::ToggleAll { action: *action })
-        }
-        (ActionSelection::Step(action, step), 1) => {
-            let shown = list.action(*action)?.dialogs.contains(step);
-            (shown != on).then_some(ActionsEvent::ToggleDialog { action: *action, step: *step })
-        }
-        _ => None,
-    }
-}
-
-/// The toggle event of a row's [`EditEvent`]: an `Update` or a `Set` maps through
-/// [`toggle_event`]; `Begin`, `Commit` and `Cancel` report nothing.
-pub(super) fn toggle_edit_event(event: &EditEvent<ToggleEdit<ActionSelection>>, list: &ActionList) -> Option<ActionsEvent> {
-    match event {
-        EditEvent::Update { value, .. } | EditEvent::Set { value, .. } => toggle_event(value, list),
-        _ => None,
-    }
 }
 
 /// `n` in the count word `count`, in the installed words.

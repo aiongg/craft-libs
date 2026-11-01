@@ -2,6 +2,8 @@
 
 use std::collections::BTreeSet;
 
+use craft_theme::LabelColor;
+
 use serde_json::Value;
 
 /// One recorded step: a command id and its parameters, the shape batch and droplets accept.
@@ -34,8 +36,10 @@ impl From<ActionStep> for (String, Value) {
     }
 }
 
-/// An action's Button Mode colour (lead call L24): Photoshop's eight, serialised as PhotoCraft's
-/// `BUTTON_COLORS` names (`""` for none, `"red"` … `"gray"`). An unknown name reads as `None`.
+/// An action's Button Mode colour (lead call L24): none and Photoshop's seven, serialised as
+/// PhotoCraft's `BUTTON_COLORS` names (`""` for none, `"red"` … `"gray"`). An unknown name reads as
+/// `None`. The file keeps this type (lead call 40) because [`LabelColor`] has eleven colours and
+/// no "none"; [`label_color`](Self::label_color) maps it for words and tints.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(from = "String", into = "String")]
 pub enum ActionColor {
@@ -75,6 +79,22 @@ impl ActionColor {
             ActionColor::Blue => "blue",
             ActionColor::Violet => "violet",
             ActionColor::Gray => "gray",
+        }
+    }
+
+    /// The [`LabelColor`] this colour is, for the shared colour words
+    /// ([`LabelColorLabels::name`](craft_ui::localized::LabelColorLabels::name)); `None` for no
+    /// colour.
+    pub const fn label_color(self) -> Option<LabelColor> {
+        match self {
+            ActionColor::None => None,
+            ActionColor::Red => Some(LabelColor::Red),
+            ActionColor::Orange => Some(LabelColor::Orange),
+            ActionColor::Yellow => Some(LabelColor::Yellow),
+            ActionColor::Green => Some(LabelColor::Green),
+            ActionColor::Blue => Some(LabelColor::Blue),
+            ActionColor::Violet => Some(LabelColor::Violet),
+            ActionColor::Gray => Some(LabelColor::Gray),
         }
     }
 

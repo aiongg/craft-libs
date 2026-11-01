@@ -1,5 +1,5 @@
-//! The Actions panel: row heights, the indent of an action inside a set and the six Button Mode
-//! fills. Rows, selection fills and the footer are the list and panel footer families'. No theme
+//! The Actions panel: row heights, the recording dot's radius and the six Button Mode fills.
+//! Rows, selection fills and the footer are the list and panel footer families'. No theme
 //! overrides it.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
@@ -16,8 +16,9 @@ pub struct ActionsTokens {
     pub row_height: f32,
     /// A step row's height: [`values::ACTIONS_STEP_ROW_HEIGHT`].
     pub step_row_height: f32,
-    /// The indent of an action inside a set: [`values::ACTIONS_INDENT`].
-    pub indent: f32,
+    /// The radius of the dot on the action being recorded:
+    /// [`values::ACTIONS_RECORDING_DOT_RADIUS`].
+    pub recording_dot_radius: f32,
     /// The Button Mode fills, red to violet: `actions.color.red` to `actions.color.violet`
     /// ([`values::ACTIONS_COLORS`]). Data colours, the same in every theme (as the list's label
     /// colours); gray and no colour derive from `text.muted` and `surface.raised`.
@@ -38,7 +39,7 @@ impl Family for ActionsTokens {
         "set_row_height" 12.0..=64.0 => set_row_height;
         "row_height" 12.0..=64.0 => row_height;
         "step_row_height" 12.0..=64.0 => step_row_height;
-        "indent" 0.0..=48.0 => indent;
+        "recording_dot_radius" 1.0..=12.0 => recording_dot_radius;
     };
 
     fn defaults(_: &Semantic<'_>) -> ActionsTokens {
@@ -46,7 +47,7 @@ impl Family for ActionsTokens {
             set_row_height: values::ACTIONS_SET_ROW_HEIGHT,
             row_height: values::ACTIONS_ROW_HEIGHT,
             step_row_height: values::ACTIONS_STEP_ROW_HEIGHT,
-            indent: values::ACTIONS_INDENT,
+            recording_dot_radius: values::ACTIONS_RECORDING_DOT_RADIUS,
             colors: values::ACTIONS_COLORS,
             label_on_color: values::ACTIONS_LABEL_ON_COLOR,
         }

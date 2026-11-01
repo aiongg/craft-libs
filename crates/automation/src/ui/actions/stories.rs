@@ -14,13 +14,14 @@
 
 use std::collections::BTreeMap;
 
-use craft_ui::localized::{Labels as _, SharedLabels as _};
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::{LabelColorLabels, Labels as _, SharedLabels as _};
 use craft_ui::story::{Level, NoArgs, Story};
 use craft_ui::typed_story;
 use egui::{Id, Ui, vec2};
 use serde_json::Value;
 
-use super::{ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsLabels, ActionsPanel, ActionsPanelState, ShortcutChoice};
+use super::{ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsPanel, ActionsPanelState, ShortcutChoice};
 use crate::actions::{Action, ActionColor, ActionList, ActionStep};
 
 craft_ui::words! {
@@ -181,17 +182,8 @@ fn recording_model(words: ActionsStoryLabels) -> Model {
 }
 
 /// One action per colour in Button Mode, named after its colour.
-fn button_model(words: ActionsStoryLabels, labels: &ActionsLabels) -> Model {
-    let names = [
-        (&labels.none, ActionColor::None),
-        (&labels.red, ActionColor::Red),
-        (&labels.orange, ActionColor::Orange),
-        (&labels.yellow, ActionColor::Yellow),
-        (&labels.green, ActionColor::Green),
-        (&labels.blue, ActionColor::Blue),
-        (&labels.violet, ActionColor::Violet),
-        (&labels.gray, ActionColor::Gray),
-    ];
+fn button_model(words: ActionsStoryLabels, labels: &LabelColorLabels) -> Model {
+    let names = ActionColor::ALL.map(|color| (labels.name(color.label_color()), color));
     let mut list = ActionList::new();
     for (name, color) in names {
         if let Ok(index) = list.new_action(name, None) {
@@ -253,7 +245,7 @@ fn apply(model: &mut Model, events: Vec<ActionsEvent>) {
                 }
                 state.selected = None;
             }
-            ActionsEvent::Rename { action, name } => {
+            ActionsEvent::Rename { action, text: name } => {
                 let old = list.action(action).map(|current| current.name.clone());
                 if list.rename(action, &name, |_, _, _| {}).is_ok()
                     && let Some(old) = old
@@ -265,25 +257,26 @@ fn apply(model: &mut Model, events: Vec<ActionsEvent>) {
                     }
                 }
             }
-            ActionsEvent::Move { source, to } => match (source, to) {
-                (ActionSelection::Action(from), ActionPlace::Action { index, set }) => {
-                    if list.move_action(from, index).is_ok() {
-                        let _ = list.assign_set(index, set);
+            ActionsEvent::Reorder(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => {
+                match (value.items.first(), ActionPlace::of(list, &value)) {
+                    (Some(&ActionSelection::Action(from)), Some(ActionPlace::Action { index, set })) => {
+                        if list.move_action(from, index).is_ok() {
+                            let _ = list.assign_set(index, set);
+                        }
                     }
+                    (Some(&ActionSelection::Step(from, at)), Some(ActionPlace::Step { action, index })) => {
+                        let _ = list.move_step(from, at, action, index);
+                    }
+                    _ => {}
                 }
-                (ActionSelection::Step(from, at), ActionPlace::Step { action, index }) => {
-                    let _ = list.move_step(from, at, action, index);
-                }
-                _ => {}
-            },
-            ActionsEvent::ToggleStep { action, step } => {
-                let _ = list.toggle_step(action, step);
             }
-            ActionsEvent::ToggleAll { action } => {
-                let _ = list.toggle_all(action);
-            }
-            ActionsEvent::ToggleDialog { action, step } => {
-                let _ = list.toggle_dialog(action, step);
+            ActionsEvent::Toggle(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => {
+                let _ = match (value.row, value.column) {
+                    (ActionSelection::Step(action, step), 0) => list.set_step(action, step, value.on),
+                    (ActionSelection::Action(action), 0) => list.set_all(action, value.on),
+                    (ActionSelection::Step(action, step), 1) => list.set_dialog(action, step, value.on),
+                    _ => Ok(()),
+                };
             }
             ActionsEvent::SetColor { action, color } => {
                 let _ = list.set_color(action, color);
@@ -303,10 +296,10 @@ fn apply(model: &mut Model, events: Vec<ActionsEvent>) {
 
 /// Shows the panel over the model kept under `name`, seeded by `seed` on the first pass, and
 /// applies its events.
-fn show_model(ui: &mut Ui, name: &str, seed: impl FnOnce(ActionsStoryLabels, &ActionsLabels) -> Model) {
+fn show_model(ui: &mut Ui, name: &str, seed: impl FnOnce(ActionsStoryLabels, &LabelColorLabels) -> Model) {
     let key = Id::NULL.with(("actions-story", name));
     let kept: Option<Model> = ui.data(|data| data.get_temp(key));
-    let mut model = kept.unwrap_or_else(|| seed(ActionsStoryLabels::of(ui), &ActionsLabels::shared(ui)));
+    let mut model = kept.unwrap_or_else(|| seed(ActionsStoryLabels::of(ui), &LabelColorLabels::shared(ui)));
     let events = ui
         .allocate_ui(PANEL, |ui| {
             ui.set_min_size(PANEL);

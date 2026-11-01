@@ -280,45 +280,69 @@ impl ActionList {
 
     /// Switches step `step` of `action` on or off for playback; returns its new state.
     pub fn toggle_step(&mut self, action: usize, step: usize) -> Result<bool, ActionListError> {
+        let on = !self.action(action).ok_or(ActionListError::NoSuchAction(action))?.step_enabled(step);
+        self.set_step(action, step, on)?;
+        Ok(on)
+    }
+
+    /// Sets whether playback runs step `step` of `action`: the panel's include cell on a step
+    /// row, as a [`Toggle`](crate::ui::actions::ActionsEvent::Toggle) event reports it.
+    pub fn set_step(&mut self, action: usize, step: usize, on: bool) -> Result<(), ActionListError> {
         let target = self.actions.get_mut(action).ok_or(ActionListError::NoSuchAction(action))?;
         if step >= target.steps.len() {
             return Err(ActionListError::NoSuchStep { action, step });
         }
-        let enabled = !target.step_enabled(step);
-        if enabled {
-            target.disabled.remove(&step);
-        } else {
-            target.disabled.insert(step);
+        let changed = if on { target.disabled.remove(&step) } else { target.disabled.insert(step) };
+        if changed {
+            self.touch();
         }
-        self.touch();
-        Ok(enabled)
+        Ok(())
     }
 
     /// The include column on an action row: every step on unless all already are, in which case
     /// every step off. Returns whether the steps are now on.
     pub fn toggle_all(&mut self, action: usize) -> Result<bool, ActionListError> {
-        let target = self.actions.get_mut(action).ok_or(ActionListError::NoSuchAction(action))?;
+        let target = self.actions.get(action).ok_or(ActionListError::NoSuchAction(action))?;
         if target.steps.is_empty() {
             return Ok(false);
         }
         let enable = target.include() != ActionInclude::All;
-        target.disabled = if enable { BTreeSet::new() } else { (0..target.steps.len()).collect() };
-        self.touch();
+        self.set_all(action, enable)?;
         Ok(enable)
+    }
+
+    /// Switches every step of `action` on or off: the panel's include cell on an action row, as
+    /// a [`Toggle`](crate::ui::actions::ActionsEvent::Toggle) event reports it. An action with
+    /// no steps stays as it is.
+    pub fn set_all(&mut self, action: usize, on: bool) -> Result<(), ActionListError> {
+        let target = self.actions.get_mut(action).ok_or(ActionListError::NoSuchAction(action))?;
+        let disabled = if on { BTreeSet::new() } else { (0..target.steps.len()).collect() };
+        if target.disabled != disabled {
+            target.disabled = disabled;
+            self.touch();
+        }
+        Ok(())
     }
 
     /// Switches the dialog flag of step `step` of `action`; returns its new state.
     pub fn toggle_dialog(&mut self, action: usize, step: usize) -> Result<bool, ActionListError> {
+        let on = !self.action(action).ok_or(ActionListError::NoSuchAction(action))?.dialogs.contains(&step);
+        self.set_dialog(action, step, on)?;
+        Ok(on)
+    }
+
+    /// Sets the dialog flag of step `step` of `action`: the panel's dialog cell, as a
+    /// [`Toggle`](crate::ui::actions::ActionsEvent::Toggle) event reports it.
+    pub fn set_dialog(&mut self, action: usize, step: usize, on: bool) -> Result<(), ActionListError> {
         let target = self.actions.get_mut(action).ok_or(ActionListError::NoSuchAction(action))?;
         if step >= target.steps.len() {
             return Err(ActionListError::NoSuchStep { action, step });
         }
-        let shown = target.dialogs.insert(step);
-        if !shown {
-            target.dialogs.remove(&step);
+        let changed = if on { target.dialogs.insert(step) } else { target.dialogs.remove(&step) };
+        if changed {
+            self.touch();
         }
-        self.touch();
-        Ok(shown)
+        Ok(())
     }
 
     /// Sets the Button Mode colour of the action at `index`.

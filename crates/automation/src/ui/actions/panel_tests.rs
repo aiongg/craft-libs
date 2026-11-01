@@ -3,7 +3,8 @@
 //! The AC2 tests draw the part of the panel above the footer (`show_body`); the two AC3 tests
 //! draw the whole panel (`ActionsPanel::show`) for the footer and the context menu.
 
-use craft_ui::localized::{Labels as _, SharedLabels as _};
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::{LabelColorLabels, Labels as _, SharedLabels as _};
 use craft_ui::testing::{HarnessExt as _, events};
 use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
 use egui::accesskit::{Role, Toggled};
@@ -50,6 +51,7 @@ struct App {
     events: Vec<ActionsEvent>,
     height: f32,
     settings_changed: bool,
+    rename: Option<usize>,
 }
 
 fn step(command: &str) -> ActionStep {
@@ -73,14 +75,14 @@ fn list() -> ActionList {
 }
 
 fn app(list: ActionList) -> App {
-    App { state: ActionsPanelState::default(), list, host: Host::default(), events: Vec::new(), height: 320.0, settings_changed: false }
+    App { state: ActionsPanelState::default(), list, host: Host::default(), events: Vec::new(), height: 320.0, settings_changed: false, rename: None }
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
     let labels = ActionsLabels::shared(ui);
     let style = ActionsPanel::style(&Tokens::of(ui));
-    let App { state, list, host, events, height, .. } = app;
-    events.extend(show_body(ui, Id::NULL.with("actions"), state, list, Some(&*host), &labels, &style, *height));
+    let App { state, list, host, events, height, rename, .. } = app;
+    events.extend(show_body(ui, Id::NULL.with("actions"), state, list, Some(&*host), &labels, &style, *height, *rename));
 }
 
 fn harness(app: App) -> Harness<'static, App> {
@@ -103,6 +105,30 @@ fn item<'h>(harness: &'h Harness<'_, App>, name: &'h str) -> Node<'h> {
 
 fn check<'h>(harness: &'h Harness<'_, App>, name: &'h str) -> Node<'h> {
     harness.get_by_role_and_label(Role::CheckBox, name)
+}
+
+/// The cells the toggle gestures ended on (a `Commit` or a `Set`): row, column, state.
+fn toggles(events: &[ActionsEvent]) -> Vec<(ActionSelection, usize, bool)> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            ActionsEvent::Toggle(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => Some((value.row.clone(), value.column, value.on)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The moves the reorder gestures ended on (a `Commit` or a `Set`): the dragged row and where it goes.
+fn moves(list: &ActionList, events: &[ActionsEvent]) -> Vec<(ActionSelection, ActionPlace)> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            ActionsEvent::Reorder(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => {
+                Some((value.items.first()?.clone(), ActionPlace::of(list, value)?))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 fn double_click(harness: &mut Harness<'_, App>, pos: Pos2) {
@@ -173,7 +199,7 @@ fn actions_panel_rename_by_double_click_and_f2() {
     harness.event(Event::Text("Crisp".into()));
     harness.run();
     press(&mut harness, Modifiers::NONE, Key::Enter);
-    assert_eq!(events_of(&mut harness), [ActionsEvent::Rename { action: 0, name: "Crisp".into() }]);
+    assert_eq!(events_of(&mut harness), [ActionsEvent::Rename { action: 0, text: "Crisp".into() }]);
     assert!(harness.query_by_role(Role::TextInput).is_none());
 
     item(&harness, "Vignette").click();
@@ -214,8 +240,8 @@ fn actions_panel_include_column_events() {
     check(&harness, "Show dialog during playback: Run blur").click();
     harness.run();
     assert_eq!(
-        events_of(&mut harness),
-        [ActionsEvent::ToggleStep { action: 0, step: 1 }, ActionsEvent::ToggleAll { action: 0 }, ActionsEvent::ToggleDialog { action: 0, step: 2 }]
+        toggles(&events_of(&mut harness)),
+        [(ActionSelection::Step(0, 1), 0, true), (ActionSelection::Action(0), 0, true), (ActionSelection::Step(0, 2), 1, false)]
     );
     assert_eq!(check(&harness, "Show dialog during playback: Run blur").accesskit_node().toggled(), Some(Toggled::True));
     assert_eq!(check(&harness, "Show dialog during playback: Run levels").accesskit_node().toggled(), Some(Toggled::False));
@@ -234,25 +260,26 @@ fn actions_panel_drag_reports_move() {
 
     let (from, to) = (top(item(&harness, "Vignette"), 0.5), top(item(&harness, "Sharpen"), 0.1));
     harness.drag(from, to, Modifiers::NONE);
+    let list = harness.state().list.clone();
     assert_eq!(
-        events_of(&mut harness),
-        [ActionsEvent::Move { source: ActionSelection::Action(1), to: ActionPlace::Action { index: 0, set: None } }],
+        moves(&list, &events_of(&mut harness)),
+        [(ActionSelection::Action(1), ActionPlace::Action { index: 0, set: None })],
         "an action dropped above another takes its place"
     );
 
     let (from, to) = (top(item(&harness, "Vignette"), 0.5), top(item(&harness, "Effects"), 0.5));
     harness.drag(from, to, Modifiers::NONE);
     assert_eq!(
-        events_of(&mut harness),
-        [ActionsEvent::Move { source: ActionSelection::Action(1), to: ActionPlace::Action { index: 1, set: Some("Effects".into()) } }],
+        moves(&list, &events_of(&mut harness)),
+        [(ActionSelection::Action(1), ActionPlace::Action { index: 1, set: Some("Effects".into()) })],
         "dropped on a set it goes into it"
     );
 
     let (from, to) = (top(item(&harness, "Run blur"), 0.5), top(item(&harness, "Run levels"), 0.1));
     harness.drag(from, to, Modifiers::NONE);
     assert_eq!(
-        events_of(&mut harness),
-        [ActionsEvent::Move { source: ActionSelection::Step(0, 2), to: ActionPlace::Step { action: 0, index: 0 } }],
+        moves(&list, &events_of(&mut harness)),
+        [(ActionSelection::Step(0, 2), ActionPlace::Step { action: 0, index: 0 })],
         "a step dropped above another"
     );
 }
@@ -326,7 +353,7 @@ fn actions_panel_keyboard_operation() {
     press(&mut harness, Modifiers::NONE, Key::ArrowDown);
     assert_eq!(harness.state().state.selected, Some(ActionSelection::Step(0, 0)));
     press(&mut harness, Modifiers::NONE, Key::Space);
-    assert_eq!(events_of(&mut harness), [ActionsEvent::ToggleStep { action: 0, step: 0 }], "Space toggles a step's include cell");
+    assert_eq!(toggles(&events_of(&mut harness)), [(ActionSelection::Step(0, 0), 0, false)], "Space toggles a step's include cell");
     press(&mut harness, Modifiers::NONE, Key::ArrowLeft);
     assert_eq!(harness.state().state.selected, Some(ActionSelection::Action(0)), "Left goes to the parent");
     press(&mut harness, Modifiers::NONE, Key::ArrowLeft);
@@ -342,11 +369,15 @@ fn actions_panel_keyboard_operation() {
     let before = events_of(&mut harness);
     assert!(before.is_empty());
     press(&mut harness, Modifiers { ctrl: true, command: true, ..Modifiers::NONE }, Key::CloseBracket);
-    let moves = events_of(&mut harness);
-    assert_eq!(moves, [ActionsEvent::Move { source: ActionSelection::Action(1), to: ActionPlace::Action { index: 0, set: None } }]);
+    let list = harness.state().list.clone();
+    assert_eq!(moves(&list, &events_of(&mut harness)), [(ActionSelection::Action(1), ActionPlace::Action { index: 0, set: None })]);
 
     press(&mut harness, Modifiers::NONE, Key::Delete);
-    assert_eq!(events_of(&mut harness), [ActionsEvent::Delete(ActionSelection::Action(1))], "Delete deletes the selection");
+    assert_eq!(
+        events_of(&mut harness),
+        [ActionsEvent::Delete(ActionSelection::Action(0))],
+        "Delete deletes the selection, which followed the moved action to index 0"
+    );
 }
 
 // AC2: AccessKit roles and names of the tree, rows and the include and dialog cells.
@@ -371,8 +402,12 @@ fn actions_panel_access_names() {
 }
 
 fn show_panel(ui: &mut Ui, app: &mut App) {
-    let App { state, list, host, events, settings_changed, .. } = app;
-    let out = ActionsPanel::new("actions", state, list).host(&*host).show(ui);
+    let App { state, list, host, events, settings_changed, rename, .. } = app;
+    let mut panel = ActionsPanel::new("actions", state, list).host(&*host);
+    if let Some(action) = *rename {
+        panel = panel.start_rename(action);
+    }
+    let out = panel.show(ui);
     *settings_changed |= out.settings_changed;
     events.extend(out.events);
 }
@@ -493,7 +528,7 @@ fn actions_panel_context_menu_shortcut_and_color() {
     item(&harness, "Vignette").click_secondary();
     harness.run();
     menu_row(&mut harness, &labels.color);
-    menu_row(&mut harness, &labels.red);
+    menu_row(&mut harness, &LabelColorLabels::english().red);
     assert_eq!(events_of(&mut harness), [ActionsEvent::SetColor { action: 1, color: ActionColor::Red }]);
 
     item(&harness, "Effects").click_secondary();
@@ -521,4 +556,117 @@ fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
         item(&harness, "Sharpen").click();
         harness.run();
     }
+}
+
+/// Loose "Loose", then the sets "Alpha" (one action) and "Beta" (one action).
+fn two_sets() -> ActionList {
+    let actions = vec![action("Loose", None, &["a"]), action("First", Some("Alpha"), &["b"]), action("Second", Some("Beta"), &["c"])];
+    ActionList::from_file(ActionsFile { version: ActionsFile::VERSION, actions, sets: Vec::new() })
+}
+
+fn at(node: Node<'_>, share: f32) -> Pos2 {
+    let rect = node.rect();
+    Pos2::new(rect.center().x, rect.top() + rect.height() * share)
+}
+
+// nav M1 (LC57): a drop before a later set goes to the end of the set before it; before the first
+// set it is loose.
+#[test]
+fn actions_panel_drop_before_a_later_set_lands_at_the_end_of_the_previous_set() {
+    let mut harness = harness(app(two_sets()));
+    harness.drag(at(item(&harness, "Loose"), 0.5), at(item(&harness, "Beta"), 0.1), Modifiers::NONE);
+    let list = harness.state().list.clone();
+    assert_eq!(
+        moves(&list, &events_of(&mut harness)),
+        [(ActionSelection::Action(0), ActionPlace::Action { index: 1, set: Some("Alpha".into()) })],
+        "the drop line sits under Alpha's last action"
+    );
+
+    harness.drag(at(item(&harness, "Second"), 0.5), at(item(&harness, "Alpha"), 0.1), Modifiers::NONE);
+    assert_eq!(
+        moves(&list, &events_of(&mut harness)),
+        [(ActionSelection::Action(2), ActionPlace::Action { index: 1, set: None })],
+        "before the first set the action is loose, after the last loose one"
+    );
+}
+
+// nav M2: the panel follows its selection through a move, for an action and for a step.
+#[test]
+fn actions_panel_selection_follows_a_move() {
+    let mut app = app(list());
+    app.state.expanded.insert("Sharpen".into());
+    let mut harness = harness(app);
+    item(&harness, "Vignette").click();
+    harness.run();
+    assert_eq!(harness.state().state.selected, Some(ActionSelection::Action(1)));
+    harness.drag(at(item(&harness, "Vignette"), 0.5), at(item(&harness, "Sharpen"), 0.1), Modifiers::NONE);
+    assert_eq!(harness.state().state.selected, Some(ActionSelection::Action(0)), "the selected action moved to the front");
+
+    harness.state_mut().state.selected = Some(ActionSelection::Step(0, 1));
+    harness.run();
+    harness.drag(at(item(&harness, "Run blur"), 0.5), at(item(&harness, "Run levels"), 0.1), Modifiers::NONE);
+    assert_eq!(harness.state().state.selected, Some(ActionSelection::Step(0, 2)), "a step the moved one passed shifts by one");
+}
+
+// A sweep over the include column is one gesture: Begin, then one Commit, so the app has one undo
+// step; the events are the list's own.
+#[test]
+fn actions_panel_toggle_gesture_is_forwarded_whole() {
+    let mut app = app(list());
+    app.state.expanded.insert("Sharpen".into());
+    let mut harness = harness(app);
+    check(&harness, "Include in playback: Run levels").click();
+    harness.run();
+    let events = events_of(&mut harness);
+    let begins = events.iter().filter(|event| matches!(event, ActionsEvent::Toggle(EditEvent::Begin { .. }))).count();
+    let commits = events.iter().filter(|event| matches!(event, ActionsEvent::Toggle(EditEvent::Commit { .. }))).count();
+    assert_eq!((begins, commits), (1, 1), "{events:?}");
+    assert_eq!(toggles(&events), [(ActionSelection::Step(0, 0), 0, false)]);
+}
+
+// nav L6: an action with no steps shows no include box.
+#[test]
+fn actions_panel_an_action_without_steps_has_no_include_cell() {
+    let actions = vec![action("Empty", None, &[]), action("Full", None, &["a"])];
+    let list = ActionList::from_file(ActionsFile { version: ActionsFile::VERSION, actions, sets: Vec::new() });
+    let harness = harness(app(list));
+    assert!(harness.query_by_role_and_label(Role::CheckBox, "Include in playback: Empty").is_none());
+    assert!(harness.query_by_role_and_label(Role::CheckBox, "Include in playback: Full").is_some());
+}
+
+// con §9: `start_rename` opens the field; the rename ends with the typed `text`.
+#[test]
+fn actions_panel_start_rename_opens_the_field() {
+    let mut app = app(list());
+    app.rename = Some(1);
+    let mut harness = panel_harness(app);
+    assert_eq!(harness.get_by_role(Role::TextInput).value().as_deref(), Some("Vignette"));
+    harness.state_mut().rename = None;
+    harness.event(Event::Text("X".into()));
+    harness.run();
+    press(&mut harness, Modifiers::NONE, Key::Enter);
+    assert!(
+        events_of(&mut harness)
+            .iter()
+            .any(|event| matches!(event, ActionsEvent::Rename { action: 1, text } if text.starts_with('V') || text.ends_with('X')))
+    );
+}
+
+// A row of this list dropped on the footer's Delete reports `Delete` for the grabbed row, with
+// nothing selected.
+#[test]
+fn actions_panel_a_row_dropped_on_delete_reports_delete() {
+    let mut harness = panel_harness(app(list()));
+    harness.drag(at(item(&harness, "Vignette"), 0.5), button(&harness, "Delete").rect().center(), Modifiers::NONE);
+    assert!(events_of(&mut harness).contains(&ActionsEvent::Delete(ActionSelection::Action(1))));
+}
+
+// While recording, a dropped action is refused, as the button is.
+#[test]
+fn actions_panel_delete_refuses_a_dropped_action_while_recording() {
+    let mut app = app(list());
+    app.host.recording = Some(0);
+    let mut harness = panel_harness(app);
+    harness.drag(at(item(&harness, "Vignette"), 0.5), button(&harness, "Delete").rect().center(), Modifiers::NONE);
+    assert!(!events_of(&mut harness).iter().any(|event| matches!(event, ActionsEvent::Delete(_))));
 }

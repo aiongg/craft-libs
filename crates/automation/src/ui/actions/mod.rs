@@ -8,7 +8,7 @@
 //!     match event {
 //!         ActionsEvent::Play { action, from } => app.play(action, from),
 //!         ActionsEvent::BeginRecording { into } => app.record(into),
-//!         ActionsEvent::ToggleStep { action, step } => { app.actions.toggle_step(action, step)?; }
+//!         ActionsEvent::Rename { action, text } => { app.actions.rename(action, &text, |_, _, _| {})?; }
 //!         _ => app.run_action_event(event),
 //!     }
 //! }

@@ -50,6 +50,8 @@ craft_ui::words! {
         // Context menus.
         save_set: "actions.saveSet" = "Save Set…";
         keyboard_shortcuts: "actions.keyboardShortcuts" = "Keyboard Shortcuts";
+        /// The shortcut menu's "no shortcut" row. The colour menu's names are
+        /// [`LabelColorLabels`](craft_ui::localized::LabelColorLabels).
         none: "actions.none" = "None";
         shift: "actions.shift" = "Shift";
         /// The modifier check row on macOS.
@@ -57,13 +59,6 @@ craft_ui::words! {
         /// The modifier check row elsewhere.
         ctrl: "actions.ctrl" = "Ctrl";
         color: "actions.color" = "Color";
-        red: "actions.red" = "Red";
-        orange: "actions.orange" = "Orange";
-        yellow: "actions.yellow" = "Yellow";
-        green: "actions.green" = "Green";
-        blue: "actions.blue" = "Blue";
-        violet: "actions.violet" = "Violet";
-        gray: "actions.gray" = "Gray";
     }
 }
 
