@@ -81,6 +81,7 @@ pub use preview::{PagePreview, PagePreviewLabels, PagePreviewResponse};
 pub use range::{PageRangeField, PageRangeFieldResponse, PageRangeFieldState, PageRangeLabels, PageRangeOptions};
 pub use reading::{ReadingLabels, ReadingState, ReadingView, ReadingViewResponse};
 pub use setup::{PageLayoutChoice, PageLayoutMenus, PageSetupDialog, PageSetupLabels};
+pub use stories::stories;
 pub use style::{
     CellSelectionStyle, ColumnBarStyle, EdgePickerStyle, FrameMarksStyle, HeaderFooterStyle, MarginHandlesStyle, PageThumbnailsStyle, PageViewStyle,
     ReadingStyle, TableSizeStyle, TextSelectStyle,
@@ -92,12 +93,13 @@ pub use table::{
     TableValues, TextDirection,
 };
 pub use text_selection::{PageTextSource, PageTexts, TextMark, TextSelectState, TextSelectTool, TextSelection, TextSpan, paint_text_marks};
-pub use thumbnails::{PageThumbnails, PageThumbnailsOutput, ThumbnailEvent, ThumbnailLabels, ThumbnailMarks, ThumbnailSection, moved_page};
+pub use thumbnails::{PAGES, PageThumbnails, PageThumbnailsOutput, ThumbnailEvent, ThumbnailLabels, ThumbnailMarks, ThumbnailSection, moved_page};
 pub use view::{PageSource, PageView, PageViewResponse, PageViewState, PlacedPage};
 
-/// Every labels table of the page widgets, for a facade's word list (not yet in the facade's
-/// `words::all`: adding them changes the catalog dumps, which the fill task that lands the
-/// stories regenerates).
+/// The count words of the page widgets, for the facade's catalog extraction.
+pub const COUNTS: &[craft_ui::localized::words::Counted] = &[PAGES];
+
+/// Every labels table of the page widgets, for the facade's word list.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <ThumbnailLabels as craft_ui::localized::Labels>::WORDS,
     <HeaderFooterLabels as craft_ui::localized::Labels>::WORDS,
@@ -111,4 +113,5 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <EdgePickerLabels as craft_ui::localized::Labels>::WORDS,
     <TablePropertiesLabels as craft_ui::localized::Labels>::WORDS,
     <TableSizePickerLabels as craft_ui::localized::Labels>::WORDS,
+    <stories::PagesStoryLabels as craft_ui::localized::Labels>::WORDS,
 ];

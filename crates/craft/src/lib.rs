@@ -108,6 +108,8 @@ pub mod story {
         all.extend(craft_keymap::ui::stories());
         #[cfg(feature = "layers")]
         all.extend(craft_layers::ui::stories());
+        #[cfg(feature = "pages")]
+        all.extend(craft_pages::ui::stories());
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::stories());
         #[cfg(feature = "theme-store")]
@@ -145,6 +147,8 @@ pub mod words {
         all.extend(craft_keymap::ui::WORDS);
         #[cfg(feature = "layers")]
         all.extend(craft_layers::ui::WORDS);
+        #[cfg(feature = "pages")]
+        all.extend(craft_pages::ui::WORDS);
         #[cfg(feature = "print")]
         all.extend(craft_print::ui::WORDS);
         #[cfg(feature = "text")]
@@ -189,6 +193,8 @@ pub mod words {
         all.push(craft_font_manager::ui::COUNTS);
         #[cfg(feature = "keymap")]
         all.push(craft_keymap::ui::COUNTS);
+        #[cfg(feature = "pages")]
+        all.push(craft_pages::ui::COUNTS);
         #[cfg(feature = "text")]
         all.push(craft_text::ui::COUNTS);
         all

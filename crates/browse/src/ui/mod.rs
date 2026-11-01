@@ -34,7 +34,6 @@ pub fn stories() -> Vec<craft_ui::story::Story> {
 
 /// The labels tables of the browsing widgets, for the words registry.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[
-    <grid::TileLabels as craft_ui::localized::Labels>::WORDS,
     <bin::BinLabels as craft_ui::localized::Labels>::WORDS,
     <places::PlacesLabels as craft_ui::localized::Labels>::WORDS,
     <compare::CompareLabels as craft_ui::localized::Labels>::WORDS,
