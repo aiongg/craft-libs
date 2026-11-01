@@ -1183,13 +1183,12 @@ fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, 
 /// The [`ListRow::rule`] under a row of `rect`, when `rule`: `style.divider` along the bottom
 /// edge, on the last physical pixel inside the row (as the layer form's divider), unless `layer`
 /// already drew it there (`style.dividers` on). Nothing without `rule`.
-#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn paint_rule(ui: &Ui, style: &ListRowStyle, rect: Rect, (rule, layer): (bool, bool)) {
-    if !rule {
+    if !rule || layer && style.dividers || !ui.is_rect_visible(rect) {
         return;
     }
-    // pc: crates/ui-egui/src/panels/history.rs:331-333 (a 1 pt `separator` under the last snapshot).
-    todo!()
+    let y = (rect.bottom() - style.divider.width / 2.0).round_to_pixel_center(ui.pixels_per_point());
+    ui.painter().hline(rect.x_range(), y, style.divider);
 }
 
 /// [`ListRow::thumb_drags`], when `thumb_drags`: when `response` starts a primary drag
@@ -1197,7 +1196,6 @@ fn paint_rule(ui: &Ui, style: &ListRowStyle, rect: Rect, (rule, layer): (bool, b
 /// [`Extra`](ThumbTarget::Extra) thumbnail of `thumbs` (the rects drawn this pass), reports
 /// [`RowEvent::ThumbDrag`] for it. [`List`](super::List)'s `row_pointer` reads the event and skips
 /// its `start_drag`. Nothing without `thumb_drags`.
-#[expect(unused_variables, clippy::ptr_arg, clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn report_thumb_drag<K: Clone>(
     ui: &Ui,
     (thumb_drags, response): (bool, &Response),
@@ -1205,11 +1203,13 @@ fn report_thumb_drag<K: Clone>(
     thumbs: &[(ThumbTarget, Rect)],
     events: &mut Vec<RowEvent<K>>,
 ) {
-    if !thumb_drags {
+    if !thumb_drags || !response.drag_started_by(egui::PointerButton::Primary) {
         return;
     }
-    // pc: crates/ui-egui/src/panels/layer_drag.rs:236 `starts_mask_drag` (press origin in a mask thumbnail).
-    todo!()
+    let Some(origin) = ui.input(|i| i.pointer.press_origin()) else { return };
+    if let Some((which @ ThumbTarget::Extra(_), _)) = thumbs.iter().find(|(_, rect)| rect.contains(origin)) {
+        events.push(RowEvent::ThumbDrag { row: key.clone(), which: *which });
+    }
 }
 
 /// The link glyph between two thumbnails in `slot`: a click asks for the opposite state. It is a
