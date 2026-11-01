@@ -154,7 +154,6 @@ fn workspace_harness() -> Harness<'static, App> {
 // O M V A T K Y pick the views, J and P toggle, and a view change asks for a preview; the settings
 // carry the view and Remember Settings.
 #[test]
-#[ignore = "needs WS-SM2"]
 fn select_mask_view_keys_and_remember_settings() {
     let mut h = workspace_harness();
     assert_eq!(h.state().tickets.len(), 1, "the first pass asks for a preview");
@@ -180,7 +179,6 @@ fn select_mask_view_keys_and_remember_settings() {
 
 // OK reports `Outcome::Ok` once; Cancel reports `Outcome::Cancel` and the session is unchanged.
 #[test]
-#[ignore = "needs WS-SM2"]
 fn select_mask_ok_is_one_command_and_cancel_changes_nothing() {
     let mut h = workspace_harness();
     h.get_by_label("Clear Selection").click();
