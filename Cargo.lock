@@ -1475,6 +1475,7 @@ dependencies = [
  "craft-ui",
  "egui",
  "serde",
+ "web-time",
 ]
 
 [[package]]
