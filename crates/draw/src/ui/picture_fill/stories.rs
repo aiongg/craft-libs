@@ -7,7 +7,7 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `draw/picture-fill-editor` | Stretch and Tile; Insert… through the fake `Files` |
+//! | `composites/picture-fill-editor/editor` | Stretch and Tile; Insert… through the fake `Files` |
 
 #![expect(dead_code, reason = "registered by task RG2")]
 
@@ -44,7 +44,7 @@ craft_ui::words! {
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
-        "draw/picture-fill-editor",
+        "composites/picture-fill-editor/editor",
         Level::Composites,
         "PictureFillEditor",
         "Editor",

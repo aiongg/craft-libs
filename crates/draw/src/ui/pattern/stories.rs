@@ -7,8 +7,8 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `draw/pattern-editor` | Bitmap mode and two-colour preset mode; an empty library |
-//! | `draw/pattern-fill-dialog` | Live values and Snap to Origin |
+//! | `composites/pattern-fill-editor/editor` | Bitmap mode and two-colour preset mode; an empty library |
+//! | `patterns/pattern-fill-dialog/dialog` | Live values and Snap to Origin |
 
 #![expect(dead_code, reason = "registered by task RG2")]
 
@@ -43,7 +43,7 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "draw/pattern-editor",
+            "composites/pattern-fill-editor/editor",
             Level::Composites,
             "PatternFillEditor",
             "Editor",
@@ -51,8 +51,8 @@ pub(crate) fn stories() -> Vec<Story> {
             show_editor
         ),
         typed_story!(
-            "draw/pattern-fill-dialog",
-            Level::Composites,
+            "patterns/pattern-fill-dialog/dialog",
+            Level::Patterns,
             "PatternFillDialog",
             "Dialog",
             DialogArgs { open: true, mode: ModeArg::Bitmap },

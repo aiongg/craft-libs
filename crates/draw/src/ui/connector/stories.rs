@@ -8,9 +8,9 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `draw/connector-tool` | Straight, elbow and curved; attach points; reattach; reshape; the "+" buttons |
-//! | `draw/connector-routes` | The route gallery: every side pair and boxes in the way |
-//! | `draw/connector-bar` | Routing, caps, line style |
+//! | `primitives/connector-tool/tool` | Straight, elbow and curved; attach points; reattach; reshape; the "+" buttons |
+//! | `primitives/connector-tool/routes` | The route gallery: every side pair and boxes in the way |
+//! | `patterns/connector-bar/bar` | Routing, caps, line style |
 
 #![expect(dead_code, reason = "registered by task RG2")]
 
@@ -64,8 +64,8 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "draw/connector-tool",
-            Level::Composites,
+            "primitives/connector-tool/tool",
+            Level::Primitives,
             "ConnectorTool",
             "Tool",
             ToolArgs { view: ViewArgs::default(), routing: RoutingArg::Elbow, snap_free_end: true, add_buttons: true },
@@ -73,8 +73,8 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "draw/connector-routes",
-            Level::Composites,
+            "primitives/connector-tool/routes",
+            Level::Primitives,
             "ConnectorTool",
             "Routes",
             RoutesArgs { view: ViewArgs::default(), routing: RoutingArg::Elbow, layout: LayoutArg::Diagonal },
@@ -82,8 +82,8 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "draw/connector-bar",
-            Level::Composites,
+            "patterns/connector-bar/bar",
+            Level::Patterns,
             "ConnectorBar",
             "Bar",
             BarArgs { routing: RoutingArg::Straight, dashed: false, weight: 2.0, caps: true, mixed: false },

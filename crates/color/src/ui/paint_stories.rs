@@ -8,8 +8,8 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `color/paint-chip-kinds` | A chip with five tabs (pattern and picture editors from fakes) |
-//! | `color/paint-list` | Rows with hex, opacity, a bound style, remove (`PaintListOptions::SELECTION_COLORS`) |
+//! | `composites/paint-chip/kinds` | A chip with five tabs (pattern and picture editors from fakes) |
+//! | `patterns/paint-list/list` | Rows with hex, opacity, a bound style, remove (`PaintListOptions::SELECTION_COLORS`) |
 
 #![expect(dead_code, reason = "registered by task RG2")]
 
@@ -62,8 +62,15 @@ craft_ui::words! {
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("color/paint-chip-kinds", Level::Patterns, "PaintChip", "Kinds", ChipArgs { no_color: true, disabled: false }, show_chip),
-        typed_story!("color/paint-list", Level::Patterns, "PaintList", "List", ListArgs { actions: true, add: true, remove: true }, show_list),
+        typed_story!("composites/paint-chip/kinds", Level::Composites, "PaintChip", "Kinds", ChipArgs { no_color: true, disabled: false }, show_chip),
+        typed_story!(
+            "patterns/paint-list/list",
+            Level::Patterns,
+            "PaintList",
+            "List",
+            ListArgs { actions: true, add: true, remove: true },
+            show_list
+        ),
     ]
 }
 
