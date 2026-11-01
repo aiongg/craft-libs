@@ -5,16 +5,56 @@
 //!
 //! [`CurveEditor`]: craft_ui::composites::CurveEditor
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_theme::{ButtonVariant, ControlSize, Srgba, TypeRole};
+use egui::accesskit::Role;
+use egui::{AsIdSalt, Context, Id, IdSalt, Key, KeyboardShortcut, Modifiers, Ui, UiBuilder};
 
-use craft_theme::Srgba;
-use egui::{AsIdSalt, Context, Id, IdSalt, Ui};
+use craft_ui::composites::{ChannelColor, Curve, CurveChannel, CurveEditor, CurveLabels, CurveRules, HistogramData, Sampler};
+use craft_ui::controls::{Button, IconButton, Kbd, Select, TooltipExt as _};
+use craft_ui::direction;
+use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
+use craft_ui::icons::Icon;
+use craft_ui::localized::{Labels as _, LocaleNumbers, Words};
+use craft_ui::primitives::{Content, Gap, Stack, Text};
 
-use craft_ui::composites::{Curve, CurveLabels, Sampler};
-use craft_ui::edit::{EditPolicy, EditResponse};
-use craft_ui::localized::LocaleNumbers;
+use super::{AdjustContext, AdjustLabels, ToneChannel, ToneChannels, TonePicker, TonePickerRow};
 
-use super::{AdjustContext, AdjustLabels, ToneChannels, TonePicker};
+/// The key of the shown channel in egui memory, under the panel's id.
+const CHANNEL: &str = "channel";
+/// The key of the inner editor's id in egui memory, under the panel's id.
+const EDITOR: &str = "editor";
+/// The levels of a Curves value (8-bit tones) and the most points Photoshop allows.
+const RULES: CurveRules = CurveRules { levels: 255.0, max_points: 16 };
+/// Smooth's moving-average radius (PhotoCraft's `smooth_curve_map`).
+const SMOOTH_RADIUS: usize = 3;
+
+/// The map `outputs` smoothed by a moving average over `2 * SMOOTH_RADIUS + 1` levels, the window
+/// shrunk at the ends so the first and last levels keep their values.
+fn smoothed(outputs: &[f32]) -> Vec<f32> {
+    let n = outputs.len();
+    (0..n)
+        .map(|k| {
+            let r = SMOOTH_RADIUS.min(k).min(n - k - 1);
+            match outputs.get(k - r..=k + r) {
+                Some(window) if r > 0 => window.iter().sum::<f32>() / window.len() as f32,
+                _ => outputs[k],
+            }
+        })
+        .collect()
+}
+
+/// The curves the editor overlays on the shown channel: every channel's on a composite
+/// (Photoshop), none on a single channel or an isolated one.
+pub(super) fn overlays_for<'a>(channels: &ToneChannels, shown: usize, curves: &'a [Curve]) -> &'a [Curve] {
+    if channels.is_composite(shown) && !channels.is_isolated() { curves } else { &[] }
+}
+
+/// The modifier words of `modifiers` in the platform's notation (`⌘`, `Ctrl`, `Shift`).
+fn modifier_words(ui: &Ui, modifiers: Modifiers) -> String {
+    let mut parts = Kbd::parts_in(&KeyboardShortcut::new(modifiers, Key::A), ui.ctx().os(), &Words::of(ui));
+    parts.pop();
+    parts.concat()
+}
 
 /// How the shown curve is edited: Photoshop's two buttons above the graph.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -198,7 +238,7 @@ impl<'a> CurvesPanel<'a> {
     /// The channel the panel with `id` shows (0 before it was first drawn).
     pub fn shown_channel(ctx: &Context, id: Id) -> usize {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/curves.rs:50-55 (the choice in egui memory).
-        todo!()
+        ctx.data(|d| d.get_temp::<usize>(id.with(CHANNEL))).unwrap_or(0)
     }
 
     /// Selects point `index` of the shown curve in the panel with `id`, as a click on it would
@@ -206,7 +246,10 @@ impl<'a> CurvesPanel<'a> {
     /// [`CurveEditor::select`](craft_ui::composites::CurveEditor::select) with the inner editor's id.
     pub fn select_point(ctx: &Context, id: Id, index: usize) {
         // pc: crates/ui-egui/src/dialogs/adjust_dialog.rs:153-161 (the new point selected).
-        todo!()
+        // The editor wrote its id while drawing; before the first pass there is nothing to select in.
+        if let Some(editor) = ctx.data(|d| d.get_temp::<Id>(id.with(EDITOR))) {
+            CurveEditor::select(ctx, editor, Some(index));
+        }
     }
 
     /// ⌘/Ctrl-click on the image while Curves is open: adds a point to the shown channel's curve
@@ -234,7 +277,45 @@ impl<'a> CurvesPanel<'a> {
     ) -> Option<usize> {
         // pc: crates/ui-egui/src/dialogs/adjust_dialog.rs:95-175 `add_point_at` (pencil, mode, isolated
         // checks; the tone per channel; the output from the curve's table, rounded; insert).
-        todo!()
+        if curves.mode == CurvesMode::Pencil || channels.is_isolated() {
+            return None;
+        }
+        let list = channels.as_slice();
+        let shown_channel = list.get(shown)?;
+        let gray = channels.is_gray();
+        let level = |channel: &ToneChannel| -> Option<f32> {
+            Some(match channel {
+                ToneChannel::Red => sample.r,
+                ToneChannel::Green => sample.g,
+                ToneChannel::Blue => sample.b,
+                ToneChannel::Composite(super::ToneSpace::Rgb) => sample.r * 0.2126 + sample.g * 0.7152 + sample.b * 0.0722,
+                ToneChannel::Gray => (sample.r + sample.g + sample.b) / 3.0,
+                _ => return None,
+            })
+        };
+        level(shown_channel)?;
+        let targets: Vec<usize> = if every_channel && !gray {
+            list.iter().enumerate().filter(|(_, c)| matches!(c, ToneChannel::Red | ToneChannel::Green | ToneChannel::Blue)).map(|(i, _)| i).collect()
+        } else {
+            vec![shown]
+        };
+        let mut selected = None;
+        for index in targets {
+            let Some(tone) = list.get(index).and_then(level) else { continue };
+            let input = (tone.clamp(0.0, 1.0) * 255.0).round();
+            let Some(Curve::Points { points, corners }) = curves.curves.get_mut(index) else { continue };
+            let output = sampler(points).get(input as usize).copied().unwrap_or(input).round();
+            corners.resize(points.len(), false);
+            let before = points.len();
+            let Some(at) = RULES.insert(points, [input, output]) else { continue };
+            if points.len() > before {
+                corners.insert(at, false);
+            }
+            if index == shown {
+                selected = Some(at);
+            }
+        }
+        selected
     }
 
     /// Draws the panel and reports the shown channel's edit.
@@ -244,6 +325,119 @@ impl<'a> CurvesPanel<'a> {
         // (overlays on the composite only), :397-402 (hint, 11 pt `text_faint`); the smoothing is
         // engine `adjust_params.rs:548-560` `smooth_curve_map` (radius 3).
         // lib: `CurveEditor::new(..).channels(..).channel(..).pencil(..).overlays(..).histogram(..)`.
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
+        let id = Self::id_in(ui, self.id_salt);
+        let enabled = self.enabled && ui.is_enabled();
+        let count = self.channels.len();
+        let channel = Self::shown_channel(ui.ctx(), id).min(count.saturating_sub(1));
+        let pencil = self.curves.mode == CurvesMode::Pencil;
+        let fallback = Curve::identity(255.0);
+        let curve = self.curves.curves.get(channel).unwrap_or(&fallback);
+        let tone = self.channels.as_slice().get(channel);
+        let color = tone.map_or(ChannelColor::Neutral, ToneChannel::color);
+        let shown_name = tone.map(|c| c.label(&labels).to_owned()).unwrap_or_default();
+        let data = self.histograms.get(channel).map(|counts| HistogramData::tone(counts, color));
+        let curve_channels: Vec<CurveChannel> = self.channels.as_slice().iter().map(|c| CurveChannel::new(c.label(&labels), c.color())).collect();
+        // Photoshop overlays the other channels on the composite only.
+        let overlays = overlays_for(&self.channels, channel, &self.curves.curves);
+        let hint = if pencil {
+            labels.pencil_hint.replace("{key}", &modifier_words(ui, Modifiers::SHIFT))
+        } else {
+            labels.points_hint.replace("{key}", &modifier_words(ui, Modifiers::COMMAND))
+        };
+        let editor_salt = (self.id_salt, "curve");
+        let editor_id = CurveEditor::id_in(ui, editor_salt);
+        ui.data_mut(|d| d.insert_temp(id.with(EDITOR), editor_id));
+
+        let mut builder = UiBuilder::new().scope_id(id).accessibility_role(Role::Group).accessibility_label(labels.curves.as_str());
+        if !enabled {
+            builder = builder.disabled();
+        }
+        let group = ui.scope_builder(builder, |ui| {
+            Stack::new(Gap::Stack)
+                .show(ui, |ui| {
+                    let mut picked = channel;
+                    direction::horizontal(ui, |ui| {
+                        ui.add(Text::new(labels.channel.as_str()).role(TypeRole::Label).content(Content::Muted));
+                        let mut select = Select::new((self.id_salt, "channel"), labels.channel.as_str(), &mut picked);
+                        for (i, entry) in self.channels.as_slice().iter().enumerate() {
+                            select = select.option(i, entry.label(&labels));
+                        }
+                        let _ = select.enabled(enabled).show(ui);
+                    });
+                    let mut mode = None;
+                    let mut smooth = false;
+                    direction::horizontal(ui, |ui| {
+                        for (target, icon, name) in
+                            [(CurvesMode::Points, Icon::Spline, &labels.edit_points), (CurvesMode::Pencil, Icon::Pencil, &labels.draw_curve)]
+                        {
+                            let current = self.curves.mode == target;
+                            let button = IconButton::new(icon, name.as_str()).size(ControlSize::Sm).selected(current).enabled(enabled).id_salt((
+                                self.id_salt,
+                                "mode",
+                                target as u8,
+                            ));
+                            if ui.add(button).clicked() && !current {
+                                mode = Some(target);
+                            }
+                        }
+                        let can_smooth = enabled && pencil && matches!(curve, Curve::Map(_));
+                        let button = Button::new(labels.smooth.as_str())
+                            .variant(ButtonVariant::Secondary)
+                            .enabled(can_smooth)
+                            .id_salt((self.id_salt, "smooth"));
+                        smooth = ui.add(button).tooltip(labels.smooth_tip.as_str()).clicked();
+                    });
+                    let mut editor = CurveEditor::new(editor_salt, shown_name.as_str(), curve, self.numbers)
+                        .channels(&curve_channels)
+                        .channel(channel)
+                        .pencil(pencil)
+                        .overlays(overlays)
+                        .hint(hint.as_str())
+                        .policy(self.policy)
+                        .enabled(enabled);
+                    if let Some(data) = &data {
+                        editor = editor.histogram(data);
+                    }
+                    if let Some(sampler) = self.sampler {
+                        editor = editor.sampler(sampler);
+                    }
+                    if let Some(curve_labels) = &self.curve_labels {
+                        editor = editor.labels(curve_labels.clone());
+                    }
+                    let edit = editor.show(ui);
+                    let mut change = None;
+                    if self.pickers {
+                        let mut row = TonePickerRow::new((self.id_salt, "pickers"), self.picker).unavailable(self.unavailable).labels(labels.clone());
+                        for picker in TonePicker::ALL {
+                            let usable = self.picker_enabled[picker as usize] && !(picker == TonePicker::Gray && self.context.is_gray());
+                            row = row.enabled(picker, usable);
+                        }
+                        change = row.show(ui).change;
+                    }
+                    let smoothed = match curve {
+                        Curve::Map(map) if smooth => Some(EditEvent::set(Curve::Map(smoothed(map)), Modifiers::NONE)),
+                        _ => None,
+                    };
+                    (edit, smoothed, picked, mode, change)
+                })
+                .inner
+        });
+        let rect = group.response.rect;
+        // A `Ui`'s node gets no bounds of its own from egui.
+        let bounds = egui::accesskit::Rect { x0: rect.min.x.into(), y0: rect.min.y.into(), x1: rect.max.x.into(), y1: rect.max.y.into() };
+        ui.ctx().accesskit_node_builder(id, |node| node.set_bounds(bounds));
+        let (edit, smoothed, picked, mode, picker) = group.inner;
+        let (submitted, escaped) = (edit.submitted, edit.escaped);
+        let event = smoothed.or(edit.event);
+        // An edit belongs to the channel it was drawn for; a switch shows from the next pass.
+        let shown = if picked == channel || event.is_some() { channel } else { picked };
+        if picked != channel {
+            ui.data_mut(|d| d.insert_temp(id.with(CHANNEL), picked));
+        }
+        let mut edit = EditResponse::new(group.response, event);
+        edit.submitted = submitted;
+        edit.escaped = escaped;
+        CurvesPanelOutput { edit, channel: shown, mode, picker }
     }
 }
