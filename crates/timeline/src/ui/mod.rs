@@ -36,7 +36,7 @@ mod stories;
 mod clips_tests;
 #[cfg(test)]
 mod graph_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod keyframes_tests;
 #[cfg(test)]
 mod markers_tests;
@@ -52,7 +52,7 @@ mod render_queue_tests;
 mod ruler_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod timecode_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod transport_tests;
 
 pub use clips::{ClipLane, ClipLaneResponse, ThumbnailMode, TimelineTool, thumbnail_tiles};
