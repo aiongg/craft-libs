@@ -4,6 +4,7 @@ use egui::{AsIdSalt, Context};
 
 use super::files::PresetFiles;
 use crate::docking::panel_menu::PanelCommand;
+use crate::localized::Labels as _;
 use crate::menu::{MenuEntry, MenuItem};
 use crate::presets::{PresetLabels, PresetState, PresetView};
 
@@ -74,26 +75,33 @@ pub enum PresetMenuAction {
 /// ```ignore
 /// let files = PresetFiles::new("gradients", "Gradients", &["grd"]);
 /// let options = PresetMenuOptions::new().new_group(true).files(&files);
-/// let entries = PresetPanelMenu::panel_menu(ctx, "gradients", &state, &labels, &options);
+/// let entries = PresetPanelMenu::panel_menu(ctx, "gradients", &state, &options);
 /// if let Some(action) = PresetPanelMenu::run_command(ctx, "gradients", &mut state, &command, &options) { .. }
 /// for event in files.take_events(ctx, "gradients").events { /* Loaded { bytes, .. } */ }
 /// ```
 pub struct PresetPanelMenu;
 
 impl PresetPanelMenu {
-    /// The rows above, Grid View or List View checked by `state.view`.
+    /// The rows above, Grid View or List View checked by `state.view`, worded by the context's
+    /// [`PresetLabels`].
     pub fn panel_menu<K>(
         ctx: &Context,
         _id_salt: impl AsIdSalt,
         state: &PresetState<K>,
-        labels: &PresetLabels,
         options: &PresetMenuOptions<'_, K>,
     ) -> Vec<MenuEntry<PanelCommand>> {
-        let view = |label: &str, command: &str, chosen: bool| MenuEntry::from(MenuItem::new(label, command.to_owned()).radio(chosen));
-        let mut out = vec![
-            view(&labels.grid_view, CMD_GRID_VIEW, state.view == PresetView::Grid),
-            view(&labels.list_view, CMD_LIST_VIEW, state.view == PresetView::List),
-        ];
+        let labels = PresetLabels::of_ctx(ctx);
+        let mut out: Vec<MenuEntry<PanelCommand>> = state
+            .view_menu_items(&labels)
+            .into_iter()
+            .map(|item| {
+                let command = match item.command() {
+                    Some(PresetView::List) => CMD_LIST_VIEW,
+                    _ => CMD_GRID_VIEW,
+                };
+                MenuItem::new(item.label(), command.to_owned()).kind(item.item_kind()).into()
+            })
+            .collect();
         let files = options.files.map(|files| files.entries(ctx, options.selected)).unwrap_or_default();
         if options.new_group.is_some() || !files.is_empty() {
             out.push(MenuEntry::Separator);
@@ -149,9 +157,9 @@ mod tests {
         let ctx = Context::default();
         let mut state = PresetState::<u32>::new();
         state.view = PresetView::List;
-        let plain = PresetPanelMenu::panel_menu(&ctx, "p", &state, &labels(), &PresetMenuOptions::new());
+        let plain = PresetPanelMenu::panel_menu(&ctx, "p", &state, &PresetMenuOptions::new());
         assert_eq!(rows(&plain), [("Grid View".to_owned(), Some(false)), ("List View".to_owned(), Some(true))]);
-        let grouped = PresetPanelMenu::panel_menu(&ctx, "p", &state, &labels(), &PresetMenuOptions::new().new_group(true));
+        let grouped = PresetPanelMenu::panel_menu(&ctx, "p", &state, &PresetMenuOptions::new().new_group(true));
         assert_eq!(grouped.len(), 4);
         assert_eq!(grouped[2], MenuEntry::Separator);
         assert_eq!(grouped[3].item().map(MenuItem::label), Some(labels().new_group.as_str()));
