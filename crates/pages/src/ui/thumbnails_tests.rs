@@ -24,7 +24,7 @@ fn delete_needs_the_panel_and_keeps_a_page() {
     todo!()
 }
 
-// The minus button steps ZOOM_STEP and stops at 0.5; the slider writes the zoom; thumbnails resize.
+// The slider's smaller button steps THUMBNAIL_ZOOM by 0.25 and stops at 0.5; a slider drag writes the zoom and Esc restores it; Cmd/Ctrl+minus steps it too; thumbnails resize.
 #[test]
 #[ignore = "skeleton"]
 #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
@@ -32,10 +32,18 @@ fn size_row_steps_and_clamps_the_zoom() {
     todo!()
 }
 
-// Down moves the lead and reports Go; Shift+Down extends the picked set; a secondary click on an unpicked page reports Picked then ContextMenu.
+// Down moves the lead and reports Go; Shift+Down extends the picked set; Esc clears it; a secondary click on an unpicked page reports Picked then ContextMenu.
 #[test]
 #[ignore = "skeleton"]
 #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn keys_and_context_menu_follow_the_list_rules() {
+    todo!()
+}
+
+// The current page carries the grid's current ring and is aria_current; with CaptionPlace::Start, sections and marks, a hidden slide's option names "Hidden", a section chevron reports SectionOpen and the New Slide row reports NewPage.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn current_page_sections_and_slide_marks_map_to_the_grid() {
     todo!()
 }

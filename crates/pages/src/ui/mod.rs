@@ -87,14 +87,12 @@ pub use style::{
 };
 pub use sync_views::{Lead, SyncedViews, SyncedViewsState};
 pub use table::{
-    BorderEdges, BorderPreset, CellAlign, CellRange, CellSelection, CellSelectionOverlay, EdgeKey, EdgePicker, EdgePickerLabels, EdgePickerResponse,
-    RowHeight, TableChange, TableGeometry, TableProperties, TablePropertiesLabels, TablePropertiesOutput, TableSizePicker, TableSizePickerLabels,
-    TableSizeResponse, TableValues, TextDirection,
+    BorderEdges, BorderPreset, CellAlign, CellSelectionOverlay, EdgeKey, EdgePicker, EdgePickerLabels, EdgePickerResponse, RowHeight, TableChange,
+    TableGeometry, TableProperties, TablePropertiesLabels, TablePropertiesOutput, TableSizePicker, TableSizePickerLabels, TableSizeResponse,
+    TableValues, TextDirection,
 };
 pub use text_selection::{PageTextSource, PageTexts, TextMark, TextSelectState, TextSelectTool, TextSelection, TextSpan, paint_text_marks};
-pub use thumbnails::{
-    LabelPlace, PageThumbnails, PageThumbnailsOutput, ThumbnailEvent, ThumbnailLabels, ThumbnailMarks, ThumbnailSection, moved_page,
-};
+pub use thumbnails::{PageThumbnails, PageThumbnailsOutput, ThumbnailEvent, ThumbnailLabels, ThumbnailMarks, ThumbnailSection, moved_page};
 pub use view::{PageSource, PageView, PageViewResponse, PageViewState, PlacedPage};
 
 /// Every labels table of the page widgets, for a facade's word list (not yet in the facade's

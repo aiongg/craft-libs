@@ -1,6 +1,6 @@
 //! `TileStyle` from the `tile` tokens.
 
-use craft_ui::theme::{ToEgui as _, UiTokens};
+use crate::theme::{ToEgui as _, UiTokens};
 use egui::Color32;
 
 /// The tile grid's and compare tile's look: the `tile` family.

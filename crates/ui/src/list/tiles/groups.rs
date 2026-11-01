@@ -1,8 +1,8 @@
 //! `TileGroup` headers, pinned while their group scrolls.
 
+use crate::primitives::Divider;
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 use craft_theme::TypeRole;
-use craft_ui::primitives::Divider;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{Rect, Response, Sense, Ui, pos2};
@@ -36,7 +36,7 @@ pub(super) fn group_header(ui: &mut Ui, rect: Rect, group: &TileGroup, pinned: b
     if response.hovered() {
         painter.rect_filled(rect, 0.0, tokens.color.state.hover.to_egui().gamma_multiply(0.5));
     }
-    let rtl = craft_ui::direction::is_rtl(ui);
+    let rtl = crate::direction::is_rtl(ui);
     let pad = style.inset + 2.0;
     let text = |role: TypeRole, color, s: &str| painter.layout_job(LayoutJob::single_section(s.to_owned(), role_format(&tokens, role, color)));
     let title = text(TypeRole::BodyStrong, style.group_text, &group.title);

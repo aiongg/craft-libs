@@ -2,13 +2,13 @@
 
 use std::ops::RangeInclusive;
 
-use craft_ui::controls::{ControlSize, IconButton, Slider};
-use craft_ui::edit::{EditEvent, EditResponse};
-use craft_ui::icons::Icon;
+use crate::controls::{ControlSize, IconButton, Slider};
+use crate::edit::{EditEvent, EditResponse};
+use crate::icons::Icon;
 use egui::{AsIdSalt, IdSalt, Ui};
 
-use craft_ui::localized::Labels as _;
-use craft_ui::theme::{Tokens, TokensOf as _};
+use crate::localized::Labels as _;
+use crate::theme::{Tokens, TokensOf as _};
 
 use super::TileLabels;
 
@@ -129,35 +129,41 @@ impl ThumbnailSlider {
         let id = ui.make_persistent_id(self.id_salt);
         let range = self.zoom.range();
         let (low, high) = (*range.start(), *range.end());
-        let mut step = None;
-        let mut response = None;
-        ui.horizontal(|ui| {
-            let out = ui
-                .add(IconButton::new(Icon::GridSmall, labels.smaller.as_str()).size(ControlSize::Md).enabled(self.value > low).id_salt((id, "out")))
-                .clicked();
-            if out {
-                step = Some(ZoomStep::Out);
-            }
-            let mut slider = Slider::new(id, labels.thumbnail_size.as_str(), self.value, range.clone())
-                .size(ControlSize::Md)
-                .default_value(self.zoom.step(self.value, ZoomStep::Reset));
-            if let Some(total) = self.width {
-                let ends = 2.0 * (IconButton::style(&Tokens::of(ui), ControlSize::Md).side + ui.spacing().item_spacing.x);
-                slider = slider.width((total - ends).max(0.0));
-            }
-            slider = match self.zoom {
-                TileZoom::Ladder => slider.marks(&Self::marks()),
-                TileZoom::Range { step, .. } => slider.step(step),
-            };
-            response = Some(slider.show(ui));
-            let more = ui
-                .add(IconButton::new(Icon::Grid, labels.larger.as_str()).size(ControlSize::Md).enabled(self.value < high).id_salt((id, "in")))
-                .clicked();
-            if more {
-                step = Some(ZoomStep::In);
-            }
-        });
-        let mut out = response.expect("the slider is drawn");
+        let (mut out, step) = ui
+            .horizontal(|ui| {
+                let mut step = None;
+                let out = ui
+                    .add(
+                        IconButton::new(Icon::GridSmall, labels.smaller.as_str())
+                            .size(ControlSize::Md)
+                            .enabled(self.value > low)
+                            .id_salt((id, "out")),
+                    )
+                    .clicked();
+                if out {
+                    step = Some(ZoomStep::Out);
+                }
+                let mut slider = Slider::new(id, labels.thumbnail_size.as_str(), self.value, range.clone())
+                    .size(ControlSize::Md)
+                    .default_value(self.zoom.step(self.value, ZoomStep::Reset));
+                if let Some(total) = self.width {
+                    let ends = 2.0 * (IconButton::style(&Tokens::of(ui), ControlSize::Md).side + ui.spacing().item_spacing.x);
+                    slider = slider.width((total - ends).max(0.0));
+                }
+                slider = match self.zoom {
+                    TileZoom::Ladder => slider.marks(&Self::marks()),
+                    TileZoom::Range { step, .. } => slider.step(step),
+                };
+                let response = slider.show(ui);
+                let more = ui
+                    .add(IconButton::new(Icon::Grid, labels.larger.as_str()).size(ControlSize::Md).enabled(self.value < high).id_salt((id, "in")))
+                    .clicked();
+                if more {
+                    step = Some(ZoomStep::In);
+                }
+                (response, step)
+            })
+            .inner;
         if let Some(step) = step {
             let modifiers = ui.input(|i| i.modifiers);
             out.event = Some(EditEvent::set(f64::from(self.zoom.step(self.value, step)), modifiers));

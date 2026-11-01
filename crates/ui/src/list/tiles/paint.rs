@@ -2,14 +2,14 @@
 
 use std::sync::Arc;
 
+use crate::canvas::textures::{TextureKey, TextureState, ThumbPaint, Thumbnails};
+use crate::controls::{Badge, BadgeStyle, BadgeTone, CheckState, Checkbox, ControlSize, Rating, paint_box, paint_rating};
+use crate::icons::{self, Icon, IconSize};
+use crate::localized::words::counts::STARS as STARS_WORD;
+use crate::localized::{LocaleNumbers, Words, fmt};
+use crate::primitives::FocusRing;
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use craft_theme::TypeRole;
-use craft_ui::canvas::textures::{TextureKey, TextureState, ThumbPaint, Thumbnails};
-use craft_ui::controls::{Badge, BadgeStyle, BadgeTone, CheckState, Checkbox, ControlSize, Rating, paint_box, paint_rating};
-use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::localized::words::counts::STARS as STARS_WORD;
-use craft_ui::localized::{LocaleNumbers, Words, fmt};
-use craft_ui::primitives::FocusRing;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::text::LayoutJob;
 use egui::{Color32, CornerRadius, Galley, Painter, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
@@ -125,6 +125,9 @@ pub fn paint_tile<K: TextureKey>(
     // lightcraft: crates/ui-egui/src/panels/grid.rs:766 (`cell`, `paint_cell_thumbnail` :816, `paint_cell_caption` :848, `paint_cell_badges` :878).
     let tokens = Tokens::of(ui);
     let content = look.content;
+    if content.hidden || !content.marks.is_empty() {
+        super::strip::paint_hidden_and_marks();
+    }
     let mut faded = ui.painter().clone();
     if !content.enabled {
         faded.multiply_opacity(DISABLED_OPACITY);

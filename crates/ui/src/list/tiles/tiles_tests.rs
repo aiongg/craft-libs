@@ -3,13 +3,13 @@
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 
-use craft_ui::behavior::{Axis, DropPosition, Move, Reorder, Selection};
-use craft_ui::canvas::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails};
-use craft_ui::controls::{ControlSize, Rating};
-use craft_ui::direction::{self, Direction};
-use craft_ui::edit::EditEvent;
-use craft_ui::testing::{HarnessExt as _, events};
-use craft_ui::theme::{Base, current, install};
+use crate::behavior::{Axis, DropPosition, Move, Reorder, Selection};
+use crate::canvas::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails};
+use crate::controls::{ControlSize, Rating};
+use crate::direction::{self, Direction};
+use crate::edit::EditEvent;
+use crate::testing::{HarnessExt as _, events};
+use crate::theme::{Base, current, install};
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Ui, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -60,6 +60,8 @@ struct Host {
     direction: Direction,
     renamable: bool,
     start_rename: Option<usize>,
+    /// The last pass's `TileGridOutput::drop_target`.
+    drop_target: Option<Move<usize>>,
 }
 
 impl Host {
@@ -80,6 +82,7 @@ impl Host {
             direction: Direction::Ltr,
             renamable: false,
             start_rename: None,
+            drop_target: None,
         }
     }
 
@@ -105,6 +108,7 @@ fn show(ui: &mut Ui, host: &mut Host) {
         reorder,
         renamable,
         start_rename,
+        drop_target,
         ..
     } = host;
     let mut grid = TileGrid::new("grid", &*tiles)
@@ -125,7 +129,9 @@ fn show(ui: &mut Ui, host: &mut Host) {
     if let Some(key) = start_rename.take() {
         grid = grid.start_rename(key);
     }
-    events.extend(grid.show(ui).events);
+    let output = grid.show(ui);
+    events.extend(output.events);
+    *drop_target = output.drop_target;
 }
 
 fn harness(host: Host) -> Harness<'static, Host> {
@@ -396,13 +402,19 @@ fn reorder_commits_one_move_and_esc_cancels() {
     harness.state_mut().take();
     let from = centre(&harness, 0);
     let to = centre(&harness, 3) + vec2(30.0, 0.0);
-    harness.drag(from, to, Modifiers::NONE);
+    let mut frames = events::drag(from, to, Modifiers::NONE);
+    let release = frames.pop().unwrap();
+    play(&mut harness, frames);
+    let target = Move { items: vec![0], target: 3, position: DropPosition::After, copy: false };
+    assert_eq!(harness.state().drop_target, Some(target.clone()), "the output names the gap while dragging");
+    play(&mut harness, vec![release]);
     harness.run_steps(4);
+    assert_eq!(harness.state().drop_target, None);
     let reorders: Vec<_> =
         harness.state_mut().take().into_iter().filter_map(|e| if let TileEvent::Reorder(r) = e { Some(r) } else { None }).collect();
     assert!(matches!(reorders.first(), Some(EditEvent::Begin { .. })), "{reorders:?}");
     let commits: Vec<_> = reorders.iter().filter_map(|e| if let EditEvent::Commit { value, .. } = e { Some(value.clone()) } else { None }).collect();
-    assert_eq!(commits, [Move { items: vec![0], target: 3, position: DropPosition::After, copy: false }]);
+    assert_eq!(commits, [target]);
 
     // Esc halfway through a second drag.
     let from = centre(&harness, 1);
@@ -619,7 +631,7 @@ fn renames(events: Vec<TileEvent<usize>>) -> Vec<TileEvent<usize>> {
 // F2 opens the lead's rename field in the caption; Enter commits the typed text, Esc cancels.
 #[test]
 fn f2_renames_the_lead_and_enter_commits_while_escape_cancels() {
-    use craft_ui::list::RenameEnd;
+    use crate::list::RenameEnd;
     let mut host = Host::new(8);
     host.renamable = true;
     let mut harness = harness(host);
@@ -707,7 +719,7 @@ fn the_scroll_bar_has_a_name() {
 fn the_accessible_name_counts_stars_with_the_plural_word() {
     use super::TileLabels;
     use super::paint::accessible_name;
-    use craft_ui::localized::Labels as _;
+    use crate::localized::Labels as _;
     let ctx = egui::Context::default();
     let labels = TileLabels::english();
     let mut content = TileContent { name: "Beach".to_owned(), ..TileContent::default() };
@@ -740,4 +752,49 @@ fn two_thumbnail_sliders_with_one_salt_in_two_scopes_have_two_ids() {
     }
     assert_eq!(ids.len(), 2);
     assert_ne!(ids[0], ids[1]);
+}
+
+// The strip parts (craft-pages' thumbnails): `current` draws the current ring on a tile that is not
+// selected, marks its option `aria_current`, and a new current tile scrolls into view.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn current_tile_is_ringed_and_revealed() {
+    todo!()
+}
+
+// `CaptionPlace::Start`: the name sits beside the picture at the reading start (the right in RTL),
+// a hidden tile's name has the slash and its picture the veil, and a mark's tip joins the accessible name.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn start_captions_show_names_marks_and_hidden_tiles() {
+    todo!()
+}
+
+// `group_disclosure`: a chevron click reports GroupOpen without picking the group; a closed
+// group's tiles are skipped by Down and absent from AccessKit; `group_menus` reports
+// GroupContextMenu on a secondary click on a header.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn closed_groups_hide_their_tiles_and_headers_report_menus() {
+    todo!()
+}
+
+// `new_item_row`: a click, and Enter after Tab from the grid, report NewItem.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn new_item_row_reports_new_item() {
+    todo!()
+}
+
+// `file_drops`: a hovered file over the gap after tile 2 reports `file_gap == Some(3)`; none without
+// a hovered file.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn file_drops_report_the_gap() {
+    todo!()
 }
