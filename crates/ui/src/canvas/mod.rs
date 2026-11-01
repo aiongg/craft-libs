@@ -36,6 +36,12 @@
 //! - [`MomentaryKeys`] and [`SpringTool`]: temporary tools while a key is held.
 //! - [`RasterDisplay`]: the CPU raster path over a [`RasterSource`], with its [`Checkerboard`];
 //!   [`PixelGrid`]: the pixel grid above 500 %.
+//! - [`textures`]: the device texture limit, keyed texture caches ([`TextureCache`](textures::TextureCache)),
+//!   background loading and the thumbnail contract ([`Thumbnails`](textures::Thumbnails)) every list
+//!   and grid draws its pictures with.
+//! - [`SelectionOperation`]: how a new selection combines with the current one (Shift adds, Alt
+//!   subtracts, both intersect).
+//! - [`navigator`]: the Navigator panel body.
 //! - [`Pasteboard`]: the area around the pages and their [`PageFrame`]s; [`SplitViews`]: 1, 2 or
 //!   4 views of one document.
 //!
@@ -78,6 +84,7 @@ mod momentary_tests;
 pub mod navigate;
 #[cfg(test)]
 mod navigate_tests;
+pub mod navigator;
 mod part_focus;
 mod pasteboard;
 #[cfg(test)]
@@ -99,6 +106,7 @@ mod scrollbars;
 mod selection_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod selection_bar_tests;
+mod selection_operation;
 pub(crate) mod shell_stories;
 mod snap;
 #[cfg(test)]
@@ -109,6 +117,7 @@ mod split_tests;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
+pub mod textures;
 mod tool_host;
 #[cfg(test)]
 mod tool_host_tests;
@@ -143,14 +152,16 @@ pub use part_focus::{Part, PartFocus, PartFocusResponse};
 pub use pasteboard::{PageBorder, PageFrame, Pasteboard, PasteboardColor, PasteboardResponse, PasteboardStyle};
 pub use pixel_grid::{GridSegment, PixelGrid};
 pub use pointer::{CanvasButtons, PenFeed, PenInput, PenSample};
-pub use raster::{CheckerColors, CheckerSize, Checkerboard, DetailPlan, MAX_TEXTURE, PixelRect, RasterDisplay, RasterResponse, RasterSource};
+pub use raster::{CheckerColors, CheckerSize, Checkerboard, PixelRect, RasterDisplay, RasterResponse, RasterSource};
 pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
 pub use selection_bar::{SelectionBar, SelectionBarLabels, SelectionBarResponse};
+pub use selection_operation::{SelectionOperation, SelectionOperationLabels};
 pub use snap::{SNAP_PX, SnapGesture, SnapKind, SnapLine, SnapOptions, SnapTarget, SnapTargets, union as snap_union};
 pub use split::{SplitLabels, SplitLayout, SplitPane, SplitResponse, SplitViews};
+pub use textures::{DetailPlan, MAX_TEXTURE, texture_factor, texture_side};
 pub use tool_host::{CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolPointer};
 pub use tool_pill::{PillPlace, ToolPill, ToolPillLabels, ToolPillResponse};
 pub use turn::{

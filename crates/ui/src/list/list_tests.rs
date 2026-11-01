@@ -586,3 +586,12 @@ fn type_ahead_skips_sections() {
     harness.run();
     assert_eq!(harness.state().selection, Selection::only(3));
 }
+
+// In a reordering list, a ThumbDrag row event starts no row drag (no ListDrag payload, no Begin);
+// a drag from the row's label still does.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_thumbnail_drag_starts_no_row_drag() {
+    todo!()
+}

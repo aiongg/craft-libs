@@ -21,8 +21,9 @@ use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 use crate::typed_story;
 
-/// The thumbnail setting of a list (PhotoCraft's Layers Panel Options), which the host stores.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+/// The thumbnail setting of a list (PhotoCraft's Layers Panel Options), which the host stores
+/// (it is serde, for a panel's `*Settings`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ThumbSize {
     /// No thumbnail: rows are `list.row_height` high.
     #[default]
@@ -163,6 +164,16 @@ pub enum RowEvent<K> {
         /// The row.
         row: K,
         /// The thumbnail.
+        which: ThumbTarget,
+    },
+    /// A drag started on an extra thumbnail of a row with [`thumb_drags`](ListRow::thumb_drags):
+    /// the thumbnail is dragged, not the row. A [`List`](super::List) starts no row drag for this
+    /// press; the host sets its own egui drag payload in the same pass (a layer's mask, which only
+    /// the footer's Delete takes).
+    ThumbDrag {
+        /// The row.
+        row: K,
+        /// The thumbnail the press started on: always an [`Extra`](ThumbTarget::Extra) one.
         which: ThumbTarget,
     },
 }
@@ -392,6 +403,7 @@ pub struct ListRow<'a, K> {
     thumb_width: Option<f32>,
     extras: Vec<ExtraThumb<'a>>,
     target: Option<ThumbTarget>,
+    thumb_drags: bool,
     trailing: Vec<TrailingItem<'a>>,
     selected: bool,
     focused: bool,
@@ -401,6 +413,7 @@ pub struct ListRow<'a, K> {
     clipped: bool,
     italic: bool,
     renaming: bool,
+    rule: bool,
     drop: Option<DropMark>,
     indent: f32,
     indented_toggles: bool,
@@ -444,6 +457,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             thumb_width: None,
             extras: Vec::new(),
             target: None,
+            thumb_drags: false,
             trailing: Vec::new(),
             selected: false,
             focused: false,
@@ -453,6 +467,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             clipped: false,
             italic: false,
             renaming: false,
+            rule: false,
             drop: None,
             indent: 0.0,
             indented_toggles: false,
@@ -653,6 +668,17 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
+    /// A press that starts a drag on an [extra thumbnail](ListRow::extra_thumb) drags the
+    /// thumbnail instead of the row (default false): the row reports [`RowEvent::ThumbDrag`] in the
+    /// pass the drag starts, and a [`List`](super::List) starts no row drag for it. A drag from the
+    /// first thumbnail, the label or anywhere else drags the row as before. Clicks on any
+    /// thumbnail still report [`RowEvent::ThumbClicked`]. PhotoCraft's mask thumbnails: a drag
+    /// from one carries the mask to the footer's Delete.
+    pub fn thumb_drags(mut self, thumb_drags: bool) -> Self {
+        self.thumb_drags = thumb_drags;
+        self
+    }
+
     /// An item at the trailing end, `width` wide, that always shows. The first item added is the
     /// outermost.
     pub fn trailing_item(mut self, width: f32, add: impl FnOnce(&mut Ui) + 'a) -> Self {
@@ -703,6 +729,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// The rename field replaces the label.
     pub fn renaming(mut self, renaming: bool) -> Self {
         self.renaming = renaming;
+        self
+    }
+
+    /// A `list.divider` hairline along the row's bottom edge, across its whole width, in a
+    /// [plain](ListRow::layer) row too (default false): the History panel's rule under its last
+    /// snapshot. A layer-form row already draws it where `list.dividers` is on, and draws it once.
+    pub fn rule(mut self, rule: bool) -> Self {
+        self.rule = rule;
         self
     }
 
@@ -815,6 +849,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             thumb_width,
             extras,
             target,
+            thumb_drags,
             trailing,
             selected,
             focused,
@@ -824,6 +859,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             clipped,
             italic,
             renaming,
+            rule,
             drop,
             indent,
             indented_toggles,
@@ -886,6 +922,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let hovered = ui.rect_contains_pointer(rect) && ui.is_enabled();
         if visible {
             paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer, striped }, columns.len(), &geometry);
+            paint_rule(ui, &style, rect, (rule, layer));
         }
 
         let mut toggles = Vec::with_capacity(columns.len());
@@ -949,6 +986,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
                 {
                     events.push(RowEvent::ThumbClicked { row: key.clone(), which: *which });
                 }
+                report_thumb_drag(ui, (thumb_drags, &response), &key, &thumbs, &mut events);
             } else {
                 paint_icon_slot(ui, &style, at, glyph, icon);
             }
@@ -1140,6 +1178,38 @@ fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, 
             painter.vline(geometry.edge(rect, i as f32 * style.toggle_column).round_to_pixel_center(ppp), rect.y_range(), style.divider);
         }
     }
+}
+
+/// The [`ListRow::rule`] under a row of `rect`, when `rule`: `style.divider` along the bottom
+/// edge, on the last physical pixel inside the row (as the layer form's divider), unless `layer`
+/// already drew it there (`style.dividers` on). Nothing without `rule`.
+#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn paint_rule(ui: &Ui, style: &ListRowStyle, rect: Rect, (rule, layer): (bool, bool)) {
+    if !rule {
+        return;
+    }
+    // pc: crates/ui-egui/src/panels/history.rs:331-333 (a 1 pt `separator` under the last snapshot).
+    todo!()
+}
+
+/// [`ListRow::thumb_drags`], when `thumb_drags`: when `response` starts a primary drag
+/// (`drag_started_by(Primary)`) whose press origin (`pointer.press_origin()`) lies in an
+/// [`Extra`](ThumbTarget::Extra) thumbnail of `thumbs` (the rects drawn this pass), reports
+/// [`RowEvent::ThumbDrag`] for it. [`List`](super::List)'s `row_pointer` reads the event and skips
+/// its `start_drag`. Nothing without `thumb_drags`.
+#[expect(unused_variables, clippy::ptr_arg, clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn report_thumb_drag<K: Clone>(
+    ui: &Ui,
+    (thumb_drags, response): (bool, &Response),
+    key: &K,
+    thumbs: &[(ThumbTarget, Rect)],
+    events: &mut Vec<RowEvent<K>>,
+) {
+    if !thumb_drags {
+        return;
+    }
+    // pc: crates/ui-egui/src/panels/layer_drag.rs:236 `starts_mask_drag` (press origin in a mask thumbnail).
+    todo!()
 }
 
 /// The link glyph between two thumbnails in `slot`: a click asks for the opposite state. It is a

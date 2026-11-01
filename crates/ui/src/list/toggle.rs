@@ -20,6 +20,7 @@ pub struct ToggleColumn {
     pub(super) on: bool,
     pub(super) key: Option<KeyboardShortcut>,
     pub(super) label: Option<LabelColor>,
+    pub(super) exclusive: bool,
 }
 
 impl ToggleColumn {
@@ -27,7 +28,7 @@ impl ToggleColumn {
     /// pointer while off. `name` is the cell's name for a screen reader, translated by the host as
     /// a whole pattern with `{row}` for the row's label: "Visibility {row}" (PhotoCraft).
     pub fn new(name: impl Into<String>, on_icon: Icon, off_icon: Icon, on: bool) -> Self {
-        Self { name: name.into(), on_icon, off_icon, on, key: None, label: None }
+        Self { name: name.into(), on_icon, off_icon, on, key: None, label: None, exclusive: false }
     }
 
     /// A key that toggles the column on the selected rows while a [`List`](super::List) has the
@@ -43,6 +44,17 @@ impl ToggleColumn {
     /// tokens, the same in every theme.
     pub fn label(mut self, color: LabelColor) -> Self {
         self.label = Some(color);
+        self
+    }
+
+    /// The column is on in one row at most, as the History panel's source column (default false):
+    /// a click on an off cell reports one [`EditEvent::Set`] with `on: true` for that row only (the
+    /// host turns the old row off), a click on the on cell reports nothing, and a press never
+    /// sweeps. The cell senses clicks only, so a drag that starts on it drags the row (History's
+    /// drag to the trash). A screen reader's click is the same `Set`. The off icon shows under the
+    /// pointer as for any column.
+    pub fn exclusive(mut self, exclusive: bool) -> Self {
+        self.exclusive = exclusive;
         self
     }
 
@@ -112,6 +124,9 @@ pub(super) fn show<K: Clone>(
     style: &ListRowStyle,
     events: &mut Vec<RowEvent<K>>,
 ) -> Response {
+    if column.exclusive {
+        return show_exclusive(ui, cell, column, rect, style, events);
+    }
     let id = cell.row_id.with(("toggle", cell.index));
     let name = super::tree::with_row(&column.name, cell.row_label);
     let sensed = Interactive::with_id(id, Role::Button, name)
@@ -253,4 +268,22 @@ fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, hovered: bool, style: &List
         None => style.icon,
     };
     icons::paint_in(ui, rect, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), color);
+}
+
+/// An [exclusive](ToggleColumn::exclusive) cell in `rect`: the cell's `Interactive` (same id and
+/// name as a sweeping cell, `Sense::CLICK` only, `checked` from `column.on`), painted by `paint`
+/// as any cell; a click while off reports `RowEvent::Toggle(EditEvent::Set { value: ToggleEdit {
+/// column: cell.index, row, on: true }, modifiers })`.
+#[expect(unused_variables, clippy::ptr_arg, clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn show_exclusive<K: Clone>(
+    ui: &mut Ui,
+    cell: &Cell<'_, K>,
+    column: &ToggleColumn,
+    rect: Rect,
+    style: &ListRowStyle,
+    events: &mut Vec<RowEvent<K>>,
+) -> Response {
+    // pc: crates/ui-egui/src/panels/history.rs:198 `history_source_column` (`Sense::click()`, the
+    // icon on the source, faint under the pointer elsewhere).
+    todo!()
 }

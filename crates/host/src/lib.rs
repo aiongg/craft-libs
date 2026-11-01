@@ -1,6 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 mod files;
+pub mod queue;
+#[cfg(test)]
+mod queue_tests;
 mod services;
 
 use std::sync::Arc;
@@ -10,7 +13,7 @@ use craft_i18n::{I18n, Lang};
 pub use files::{FileError, FileFilter, Files, NoPickFiles, PickAnswer, PickId, PickKind, PickRequest, Picked};
 #[cfg(not(target_arch = "wasm32"))]
 pub use services::ThreadJobs;
-pub use services::{AppInfo, Commands, InlineJobs, Jobs, MemorySections, NoCommands, Section, SectionStore, Wake};
+pub use services::{AppInfo, Commands, InlineJobs, Jobs, ManualJobs, MemorySections, NoCommands, Section, SectionStore, Wake};
 
 /// The app's shared services, built once at startup and installed on the egui context.
 /// Every library feature reads them with `Host::of(ui)`; none takes them as parameters.
@@ -74,6 +77,12 @@ impl Host {
 
     pub fn jobs(&self) -> &dyn Jobs {
         &*self.jobs
+    }
+
+    /// [`Host::jobs`] as the shared handle, for code that keeps it (a
+    /// [`JobQueue`](queue::JobQueue) spawns its lanes on it).
+    pub fn jobs_shared(&self) -> &Arc<dyn Jobs> {
+        &self.jobs
     }
 
     /// A copy in another language; install it to switch the interface.

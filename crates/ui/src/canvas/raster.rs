@@ -2,7 +2,7 @@
 //! RGBA for a region ([`RasterSource`]); the display uploads it as egui textures, draws it through
 //! the [`CanvasView`] over a [`Checkerboard`], and re-reads only what the app marks damaged.
 //!
-//! A document larger than the device's texture limit ([`MAX_TEXTURE`], or less where the GPU
+//! A document larger than the device's texture limit ([`MAX_TEXTURE`](super::MAX_TEXTURE), or less where the GPU
 //! allows less) is uploaded reduced; zoomed in, the part in view is added at the screen's
 //! resolution as a detail texture ([`DetailPlan`]), so a large document shows its own pixels at
 //! 100 % and the cost follows the window, not the document. Pixels are drawn sharp (nearest)
@@ -22,10 +22,11 @@
 use egui::epaint::{Mesh, Vertex};
 use egui::{AsIdSalt, Color32, ColorImage, Context, Id, IdSalt, Painter, Pos2, Shape, TextureHandle, TextureId, TextureOptions, Ui, pos2};
 
+use super::textures::limits::{DetailPlan, texture_side};
 use super::view::CanvasView;
 
-/// The largest texture side the display uploads.
-pub const MAX_TEXTURE: u32 = 4096;
+// The raster tests use `texture_factor` by this path.
+pub(super) use super::textures::limits::texture_factor;
 
 /// A rectangle of whole document pixels, `x0..x1` by `y0..y1` (exclusive ends).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -100,77 +101,6 @@ pub trait RasterSource {
     /// is full resolution). `out` is already
     /// `region / factor` texels, rounded up.
     fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage);
-}
-
-/// The texture side on this device: [`MAX_TEXTURE`], or the device's smaller limit (2048 on some
-/// older GPUs and WebGL); past it egui asserts and the backend fails.
-// pc: crates/ui-egui/src/canvas/textures.rs:15 `texture_side`, :20 `clamp_texture_side`.
-pub fn texture_side(ctx: &Context) -> u32 {
-    u32::try_from(ctx.input(|i| i.max_texture_side)).unwrap_or(MAX_TEXTURE).clamp(1, MAX_TEXTURE)
-}
-
-/// How many document pixels per side one texel of the base texture holds for a document of
-/// `size` with textures at most `side` per side: 1 when it fits.
-// pc: crates/ui-egui/src/canvas/textures.rs:26 `texture_factor`.
-pub fn texture_factor(size: [u32; 2], side: u32) -> u32 {
-    size[0].max(size[1]).div_ceil(side.max(1)).max(1)
-}
-
-/// The detail texture a zoomed-in view of a reduced document needs: the part in view (`region`,
-/// snapped outward to 256-texel steps so a small pan reuses it) at one texel per `factor`
-/// pixels, a power of two no coarser than the screen and capped by the texture side.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DetailPlan {
-    pub factor: u32,
-    pub region: PixelRect,
-}
-
-/// The detail region snaps outward to multiples of this many texels.
-const DETAIL_QUANTUM: i32 = 256;
-
-/// The largest power of two, up to 64, whose texels are still no coarser than a device pixel at
-/// `device_zoom`.
-// pc: crates/ui-egui/src/dialogs/adjust_preview.rs:363 `proxy_factor`.
-fn proxy_factor(device_zoom: f64) -> u32 {
-    let mut k = 1u32;
-    while k < 64 && f64::from(k * 2) * device_zoom <= 1.0 {
-        k *= 2;
-    }
-    k
-}
-
-impl DetailPlan {
-    /// The plan for a view at `device_zoom` (device pixels per document pixel) over `visible`,
-    /// or `None` when the base texture is already as fine as the screen or nothing is in view.
-    // pc: crates/ui-egui/src/canvas/textures.rs:50 `detail_plan`.
-    pub fn of(size: [u32; 2], side: u32, device_zoom: f64, visible: PixelRect) -> Option<DetailPlan> {
-        if !device_zoom.is_finite() || device_zoom <= 0.0 {
-            return None;
-        }
-        let base = texture_factor(size, side);
-        let mut factor = proxy_factor(device_zoom);
-        let v = visible.intersect(&PixelRect::of_size(size));
-        if v.is_empty() {
-            return None;
-        }
-        let bounds = PixelRect::of_size(size);
-        while factor < base {
-            let q = DETAIL_QUANTUM.saturating_mul(i32::try_from(factor).unwrap_or(i32::MAX));
-            let down = |x: i32| x.div_euclid(q).saturating_mul(q);
-            let up = |x: i32| x.div_euclid(q).saturating_add(i32::from(x.rem_euclid(q) != 0)).saturating_mul(q);
-            let region = PixelRect::new(down(v.x0), down(v.y0), up(v.x1), up(v.y1)).intersect(&bounds);
-            // A reduced region's texel count can round one up.
-            let fits = |n: i32| n.unsigned_abs().div_ceil(factor).saturating_add(1) <= side;
-            // Snapped when that fits, else just what is in view (a window near the device's limit).
-            for region in [region, v] {
-                if !region.is_empty() && fits(region.width()) && fits(region.height()) {
-                    return Some(DetailPlan { factor, region });
-                }
-            }
-            factor = factor.saturating_mul(2);
-        }
-        None
-    }
 }
 
 /// Photoshop's Transparency grid size (Preferences › Transparency & Gamut).

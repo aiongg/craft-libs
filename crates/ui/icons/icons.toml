@@ -682,6 +682,14 @@ carbon = "circle-dash"  # near: dashed circle, not ellipse
 tabler = "circle-dashed"  # near: dashed circle, not ellipse
 
 [[icon]]
+name = "rect_dashed"
+directional = false
+lucide = "square-dashed"
+phosphor = "selection"
+carbon = "select--01"  # near: dashed square with crosshair
+tabler = "square-dashed"
+
+[[icon]]
 name = "file"
 directional = false
 lucide = "file"

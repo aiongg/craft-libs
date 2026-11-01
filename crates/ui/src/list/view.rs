@@ -1019,7 +1019,9 @@ where
             }
             self.events.push(ListEvent::Clicked(key.clone()));
         }
-        if self.reorder.is_some() && self.state.drag.is_none() && response.drag_started_by(PointerButton::Primary) {
+        // A drag from a thumbnail of a row with `thumb_drags` is the host's, not a row drag.
+        let thumb_drag = out.events.iter().any(|event| matches!(event, RowEvent::ThumbDrag { .. }));
+        if self.reorder.is_some() && self.state.drag.is_none() && !thumb_drag && response.drag_started_by(PointerButton::Primary) {
             self.start_drag(at, key);
         }
         if response.secondary_clicked() {

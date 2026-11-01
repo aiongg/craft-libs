@@ -395,3 +395,31 @@ fn the_drop_target_follows_the_pointer_in_the_same_pass() {
     harness.step();
     assert_eq!(harness.state_mut().take_targets(), [mv(&[1], 6, DropPosition::Before)]);
 }
+
+// `into_rows` accepting the dragged rows: the middle of a row without children is an Into target
+// (marker Into, Move position Into); a row it refuses keeps halves.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn into_rows_offers_into_on_a_row_without_children() {
+    todo!()
+}
+
+// A row drag released over a `PanelFooter` button below the list: the list reports
+// Cancel(Dismissed) and `PanelFooter::drop_target` returns the ListDrag in the same pass, with the
+// footer drawn after the list and with it drawn before.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_release_over_a_footer_button_delivers_the_list_drag() {
+    todo!()
+}
+
+// While a drag hovers a footer button, `drop_target` paints the Into outline and sets the drop hint
+// when `accepts` takes the payload, and paints nothing, sets no hint and returns None when it refuses.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_footer_button_outlines_only_an_accepted_drag() {
+    todo!()
+}

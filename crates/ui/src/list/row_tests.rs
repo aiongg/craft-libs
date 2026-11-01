@@ -1330,3 +1330,30 @@ fn tooltip_shows_on_hover_for_a_label_that_fits() {
     harness.run_steps(30);
     assert!(harness.query_by_label("/photos/a.png").is_some(), "the tooltip shows");
 }
+
+// An exclusive column: a click on an off cell reports one Set with `on: true`; a press dragged over
+// three rows reports nothing more and sweeps none; a click on the on cell reports nothing.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn an_exclusive_toggle_column_does_not_sweep() {
+    todo!()
+}
+
+// A plain row with `rule(true)` paints one `list.divider` hairline on its bottom pixel; a layer
+// row with dividers on paints it once.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_plain_row_can_draw_a_rule_under_itself() {
+    todo!()
+}
+
+// With `thumb_drags(true)` a drag from the extra thumbnail reports ThumbDrag { which: Extra(0) };
+// a drag from the first thumbnail reports none; without the switch none is reported.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_drag_from_an_extra_thumbnail_reports_thumb_drag() {
+    todo!()
+}

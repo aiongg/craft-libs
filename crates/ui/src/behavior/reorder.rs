@@ -286,6 +286,7 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> ReorderGesture<K> {
 }
 
 type Accepts<'a, K> = Box<dyn Fn(&Move<K>, Modifiers) -> bool + 'a>;
+type IntoRows<'a, K> = Box<dyn Fn(&[K], &K) -> bool + 'a>;
 
 /// Where a drag over a list or strip drops, which keys move rows, and how fast it scrolls.
 ///
@@ -309,6 +310,7 @@ pub struct Reorder<'a, K> {
     right_to_left: bool,
     copy_with_alt: bool,
     accepts: Option<Accepts<'a, K>>,
+    into_rows: Option<IntoRows<'a, K>>,
 }
 
 impl<K: Clone + PartialEq> Default for Reorder<'_, K> {
@@ -332,7 +334,7 @@ const SCROLL_MAX_DT: f32 = 0.05;
 impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
     /// Rules for a list along `axis`.
     pub fn new(axis: Axis) -> Self {
-        Self { axis, right_to_left: false, copy_with_alt: false, accepts: None }
+        Self { axis, right_to_left: false, copy_with_alt: false, accepts: None, into_rows: None }
     }
 
     /// Whether a horizontal list reads right to left (default false).
@@ -351,6 +353,16 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
     /// no drop. It gets the modifiers held (a locked layer takes drops with Cmd/Ctrl).
     pub fn accepts(mut self, accepts: impl Fn(&Move<K>, Modifiers) -> bool + 'a) -> Self {
         self.accepts = Some(Box::new(accepts));
+        self
+    }
+
+    /// Rows without children that still take an `Into` drop: `into_rows(dragged, row)` says
+    /// whether the row `row` takes the dragged rows into itself (effects and Smart Filters dragged
+    /// onto a layer that has none). Such a row has the group's three zones (the middle 30 to 70
+    /// percent `Into`, above it `Before`, below it `After`) for that drag; other rows keep halves.
+    /// [`accepts`](Reorder::accepts) still decides last.
+    pub fn into_rows(mut self, into_rows: impl Fn(&[K], &K) -> bool + 'a) -> Self {
+        self.into_rows = Some(Box::new(into_rows));
         self
     }
 
@@ -404,7 +416,7 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
                     (first_after, DropPosition::Before)
                 } else {
                     let share = (pointer - span.start) / (span.end - span.start).max(f32::EPSILON);
-                    let position = if order.has_children(first_after) {
+                    let position = if order.has_children(first_after) || self.takes_into(order, first_after, dragged) {
                         if share < INTO_START {
                             DropPosition::Before
                         } else if share > INTO_END {
@@ -429,6 +441,12 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
         }
         let mv = Move { items, target: order.key(at).clone(), position, copy };
         self.accepts.as_ref().is_none_or(|accepts| accepts(&mv, modifiers)).then_some(Resolved { at, mv })
+    }
+
+    /// Whether the childless row at `at` takes an `Into` drop of `dragged` by
+    /// [`into_rows`](Reorder::into_rows).
+    fn takes_into(&self, order: &(impl DisplayOrder<K> + ?Sized), at: usize, dragged: &[K]) -> bool {
+        self.into_rows.as_ref().is_some_and(|into_rows| row_takes_into(into_rows, order, at, dragged))
     }
 
     /// The move for a stacking key over the `selected` rows, or `None` when they can't move that
@@ -583,4 +601,12 @@ fn drop_changes_something<K>(order: &(impl DisplayOrder<K> + ?Sized), positions:
     let adjacent = (first..=after_block).contains(&slot);
     let same_depth = positions.iter().all(|&p| order.depth(p) == order.depth(at));
     !(adjacent && same_depth)
+}
+
+/// `into_rows(dragged, key of the row at at)`, false for a row that is itself dragged (a row never
+/// goes into itself; `drop_changes_something` refuses it too).
+#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn row_takes_into<K: PartialEq>(into_rows: &IntoRows<'_, K>, order: &(impl DisplayOrder<K> + ?Sized), at: usize, dragged: &[K]) -> bool {
+    // pc: crates/ui-egui/src/panels/layer_drag.rs:288 `fx_drop` (any layer row but the source takes dragged effects).
+    todo!()
 }

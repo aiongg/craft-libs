@@ -4,6 +4,9 @@ use craft_theme::ControlSize;
 use craft_theme::Stroke as Hairline;
 use egui::accesskit::HasPopup;
 use egui::emath::GuiRounding as _;
+use std::any::Any;
+use std::sync::Arc;
+
 use egui::{Rect, Response, Stroke, Ui, UiBuilder, pos2, vec2};
 
 use crate::controls::IconButton;
@@ -53,6 +56,9 @@ pub struct PanelFooterStyle {
 ///   edge. The clip is widened to the bar, so hover boxes are not cut.
 /// - The first widget added is at the reading end; later ones follow towards the start. Buttons are
 ///   `panel_footer.button` squares ([`PanelFooter::button`]) `panel_footer.gap` apart.
+/// - **Drops.** A button takes things dragged onto it with
+///   [`drop_target`](PanelFooter::drop_target): a layer row onto Delete, a channel onto New, a
+///   history state onto the trash. The button shows the list's drop outline while it accepts.
 /// - **Keyboard and AccessKit:** the host's widgets are Tab stops in the order added; the footer
 ///   adds no node.
 pub struct PanelFooter;
@@ -104,6 +110,40 @@ impl PanelFooter {
     /// button's expanded state.
     pub fn menu_button(ui: &mut Ui, icon: Icon, label: &str, open: bool) -> Response {
         PanelFooter::button_in(ui, icon, label, Some(open))
+    }
+
+    /// Makes `button` a drop target for egui drag payloads of type `P` (a list's
+    /// [`ListDrag`](crate::behavior::ListDrag), a layer's mask), and returns the payload when it is
+    /// released over the button and `accepts` takes it. Call it after the button, in the pass the
+    /// button is shown.
+    ///
+    /// ```ignore
+    /// let delete = PanelFooter::button(ui, Icon::Trash, "Delete layer");
+    /// if let Some(drag) = PanelFooter::drop_target::<ListDrag<LayerId>>(ui, &delete, |drag| !drag.items.is_empty()) {
+    ///     events.push(LayersEvent::FooterDrop { button: LayersFooterButton::Delete, rows: drag.items.clone() });
+    /// }
+    /// ```
+    ///
+    /// - While the pointer is over the button (`Response::dnd_hover_payload`, which works during
+    ///   another widget's drag) with a `P` payload that `accepts` takes, the button shows the list's
+    ///   drop outline ([`paint_drop_mark`](crate::list::paint_drop_mark) with
+    ///   [`DropMark::Into`](crate::list::DropMark::Into) over the button's rect) and sets this pass's
+    ///   [drop hint](crate::behavior::set_drop_hint) to the button's label, the text given to
+    ///   [`button`](PanelFooter::button) or [`menu_button`](PanelFooter::menu_button). A payload
+    ///   `accepts` refuses shows nothing and is never returned. `accepts` runs once per pass.
+    /// - On the release over the button (`Response::dnd_release_payload`) it takes the payload and
+    ///   returns it; a release elsewhere leaves the payload for the widget under the pointer.
+    /// - A list's own drag released over the footer ends in that list as
+    ///   `ListEvent::Reorder(Cancel(Dismissed))`, and the list leaves its payload for the widget
+    ///   under the pointer, so the footer gets it in the same pass whether it is drawn after the
+    ///   list or before it (egui clears a payload only at the end of the release pass). A list that
+    ///   drags only to its footer refuses every row target with
+    ///   [`Reorder::accepts`](crate::behavior::Reorder::accepts).
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+    pub fn drop_target<P: Any + Send + Sync>(ui: &Ui, button: &Response, accepts: impl FnOnce(&P) -> bool) -> Option<Arc<P>> {
+        // pc: crates/ui-egui/src/panels/layer_drag.rs:40 `dropped_on` (outline while over, true on release);
+        // the label for the hint is kept by `button_in` in egui temp data under the response id.
+        todo!()
     }
 
     fn button_in(ui: &mut Ui, icon: Icon, label: &str, menu: Option<bool>) -> Response {

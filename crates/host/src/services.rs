@@ -117,3 +117,50 @@ impl Jobs for InlineJobs {
         job();
     }
 }
+
+/// A [`Jobs`] that keeps every job until a test or story runs it: [`run_next`](Self::run_next)
+/// runs the oldest one on the calling thread. Stories show loading, stand-in and failure states
+/// one step at a time ("Finish next"), and tests order background work exactly, without threads.
+/// A job that spawns another while it runs (a [`JobQueue`](crate::queue::JobQueue) lane starting
+/// its next run) queues it behind the others; the lock is not held while a job runs.
+#[derive(Default)]
+pub struct ManualJobs {
+    #[expect(dead_code, reason = "skeleton: removed when the bodies land")]
+    waiting: Mutex<std::collections::VecDeque<Box<dyn FnOnce() + Send>>>,
+}
+
+impl ManualJobs {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Runs the oldest waiting job; false when none waits.
+    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+    pub fn run_next(&self) -> bool {
+        // new: the stories' "Finish next" button and the queue tests.
+        todo!()
+    }
+
+    /// Runs jobs until none waits, including the ones they spawn, and returns how many ran.
+    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+    pub fn run_all(&self) -> usize {
+        // new: a test that only needs every job done.
+        todo!()
+    }
+
+    /// How many jobs wait.
+    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+    pub fn waiting(&self) -> usize {
+        // new: stories show it beside the "Finish next" button.
+        todo!()
+    }
+}
+
+impl Jobs for ManualJobs {
+    /// Queues `job` behind the waiting ones; `name` is not kept.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+    fn spawn(&self, _name: &str, job: Box<dyn FnOnce() + Send>) {
+        // new: see `ManualJobs`.
+        todo!()
+    }
+}
