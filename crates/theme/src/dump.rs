@@ -2179,10 +2179,11 @@ fn chip_lines(out: &mut Lines, t: &ChipTokens) {
 }
 
 fn icon_picker_lines(out: &mut Lines, t: &IconPickerTokens) {
-    let IconPickerTokens { cell, gap, inset } = t;
+    let IconPickerTokens { cell, gap, inset, max_height } = t;
     out.line("icon_picker.cell", len(*cell));
     out.line("icon_picker.gap", len(*gap));
     out.line("icon_picker.inset", len(*inset));
+    out.line("icon_picker.max_height", len(*max_height));
 }
 
 fn split_button_lines(out: &mut Lines, t: &SplitButtonTokens) {

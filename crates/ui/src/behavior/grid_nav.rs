@@ -211,6 +211,15 @@ impl GridNav {
     /// moved the focus to the stop. Tab arriving at the resting stop is not a move, so a grid
     /// whose focus picks (theme chips) can leave the choice alone on Tab.
     pub fn roving_move(ui: &Ui, ids: &[Id], selected: Option<usize>, enabled: bool) -> (usize, bool) {
+        let rects: Vec<Option<Rect>> = ids.iter().map(|&id| ui.ctx().read_response(id).map(|r| r.rect)).collect();
+        let nav = Self::wrapped(ids.len(), first_row_len(&rects)).rtl(direction::is_rtl(ui));
+        Self::roving_move_in(ui, ids, &nav, selected, enabled)
+    }
+
+    /// [`roving_move`](Self::roving_move) over the rows of `nav`, which must have one cell per
+    /// id: a grid whose lines are known (ragged chips, a picker with group headers) passes its
+    /// own [`GridNav::ragged`].
+    pub fn roving_move_in(ui: &Ui, ids: &[Id], nav: &GridNav, selected: Option<usize>, enabled: bool) -> (usize, bool) {
         let resting = selected.unwrap_or(0);
         if !enabled || ids.is_empty() {
             return (resting, false);
@@ -226,8 +235,6 @@ impl GridNav {
             ui.memory_mut(|m| {
                 m.set_focus_lock_filter(ids[from], EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() })
             });
-            let rects: Vec<Option<Rect>> = ids.iter().map(|&id| ui.ctx().read_response(id).map(|r| r.rect)).collect();
-            let nav = Self::wrapped(ids.len(), first_row_len(&rects)).rtl(direction::is_rtl(ui));
             ui.input_mut(|i| {
                 for (key, grid_key) in [
                     (Key::ArrowRight, GridKey::Right),

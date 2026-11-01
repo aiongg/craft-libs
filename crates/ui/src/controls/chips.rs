@@ -4,15 +4,14 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use craft_theme::TypeRole;
-use egui::accesskit::{Action, Role};
+use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{
-    AsIdSalt, Color32, Context, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui,
-    UiBuilder, pos2, vec2,
+    AsIdSalt, Color32, Context, CornerRadius, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2,
 };
 
 use super::{ControlSize, TooltipExt as _};
-use crate::behavior::{ClaimedKey, GridKey, GridNav, KeyClaim};
+use crate::behavior::{ClaimedKey, GridNav, KeyClaim};
 use crate::direction;
 use crate::localized::words::counts;
 use crate::localized::{Labels as _, Words};
@@ -103,8 +102,8 @@ pub struct ChipFieldResponse {
 ///   1-point `field.border.rest` edge, the label in the `Label` role 8 points in, and for a
 ///   removable chip a × target 22 points wide at its end (`chip.remove_width`; arms 3.5, 1.5
 ///   wide, `text.muted`, `text.normal` under the pointer). Hovering the name fills the chip with
-///   `state.hover` at half strength; hovering the × lights only the × end, so the user sees which
-///   part a click hits. A label too long for a line is cut short at its end with "…" to fit
+///   the state layer; hovering the × lights only the × end (with the state layer's pressed fill
+///   too), so the user sees which part a click hits. A label too long for a line is cut short at its end with "…" to fit
 ///   (services' `text::elided_galley` with `ElideAt::End`), its full name as the tooltip.
 /// - **Lines.** Chips flow in lines 6 points apart (`chip.gap`), each moved whole to the next
 ///   line when it doesn't fit ([`chip_lines`]). With [`max_lines`](Self::max_lines), the chips
@@ -116,7 +115,7 @@ pub struct ChipFieldResponse {
 ///   buttons after them) as a grid of the laid-out lines:
 ///   [`GridNav::ragged`](crate::behavior::GridNav::ragged) of the line lengths with
 ///   [`rtl`](crate::behavior::GridNav::rtl), the stop from
-///   [`GridNav::roving_move`](crate::behavior::GridNav::roving_move) (resting on the first chip).
+///   [`GridNav::roving_move_in`](crate::behavior::GridNav::roving_move_in) (resting on the first chip).
 ///   ← and → move along the reading order (mirrored in right-to-left), ↑ and ↓ to the
 ///   neighbouring line, Home and End to the ends. Delete and Backspace remove the focused chip
 ///   and the focus moves to the next one (the previous one at the end), Enter and Space click
@@ -180,7 +179,6 @@ impl<'a> ChipField<'a> {
     }
 
     // lightcraft: crates/ui-egui/src/panels/keywording.rs:80 chip, :243 chip_groups; lightcraft: crates/ui-egui/src/panels/chips.rs:92 show
-    // needs: services craft-ui::text::elided_galley (N11.03) for the cut label.
     pub fn show(self, ui: &mut Ui) -> ChipFieldResponse {
         let labels = self.labels.clone().unwrap_or_else(|| ChipLabels::of(ui));
         let tokens = Tokens::of(ui);
@@ -218,7 +216,8 @@ impl<'a> ChipField<'a> {
             ctx.memory_mut(|m| m.request_focus(ids[index.min(ids.len() - 1)]));
         }
         let focused = enabled.then(|| ids.iter().position(|&id| ctx.memory(|m| m.has_focus(id)))).flatten();
-        let stop = move_focus(ui, &ids, lines, focused, look.rtl);
+        let nav = GridNav::ragged(lines.iter().map(Range::len)).rtl(look.rtl);
+        let (stop, _) = GridNav::roving_move_in(ui, &ids, &nav, None, enabled);
 
         let mut out = Outcome::default();
         if let Some(chip) = focused.filter(|&f| f < shown) {
@@ -363,7 +362,6 @@ struct Look<'a> {
     rtl: bool,
     radius: CornerRadius,
     edge: Stroke,
-    hover_fill: Color32,
     normal: Color32,
     muted: Color32,
 }
@@ -390,10 +388,15 @@ impl<'a> Look<'a> {
             rtl: direction::is_rtl(ui),
             radius: corner_radius(tokens.shape.radius.pill.min(height / 2.0)),
             edge: Stroke::new(1.0, color(tokens.component.field.border.rest)),
-            hover_fill: color(tokens.color.state.hover),
             normal: color(tokens.color.text.normal),
             muted: color(tokens.color.text.muted),
         }
+    }
+
+    /// The corners of the × end: the chip's on its outer side.
+    fn cross_radius(&self) -> CornerRadius {
+        let r = self.radius;
+        if self.rtl { CornerRadius { nw: r.nw, sw: r.sw, ne: 0, se: 0 } } else { CornerRadius { nw: 0, sw: 0, ne: r.ne, se: r.se } }
     }
 
     fn format(&self, color: Color32) -> egui::text::TextFormat {
@@ -425,54 +428,16 @@ impl<'a> Look<'a> {
     }
 }
 
-/// Moves the field's one Tab stop with the arrows, Home and End over the laid-out lines
-/// (a screen reader's Focus request too) and returns the stop: the focused cell, else the first.
-fn move_focus(ui: &Ui, ids: &[Id], lines: &[Range<usize>], focused: Option<usize>, rtl: bool) -> usize {
-    let ctx = ui.ctx();
-    let mut stop = focused.unwrap_or(0);
-    if let Some(from) = focused {
-        ctx.memory_mut(|m| {
-            m.set_focus_lock_filter(ids[from], EventFilter { horizontal_arrows: true, vertical_arrows: true, ..EventFilter::default() })
-        });
-        let nav = GridNav::ragged(lines.iter().map(Range::len)).rtl(rtl);
-        ui.input_mut(|i| {
-            for (key, grid_key) in [
-                (Key::ArrowRight, GridKey::Right),
-                (Key::ArrowLeft, GridKey::Left),
-                (Key::ArrowDown, GridKey::Down),
-                (Key::ArrowUp, GridKey::Up),
-                (Key::Home, GridKey::Home),
-                (Key::End, GridKey::End),
-            ] {
-                if i.consume_key(Modifiers::NONE, key) {
-                    stop = nav.step(stop, grid_key, None).index;
-                }
-            }
-        });
-    }
-    if let Some(requested) = ids.iter().position(|&id| ui.input(|i| i.has_accesskit_action_request(id, Action::Focus))) {
-        stop = requested;
-    }
-    if focused.is_some_and(|from| from != stop) || (focused.is_none() && stop != 0) {
-        ctx.memory_mut(|m| m.request_focus(ids[stop]));
-    }
-    stop
-}
-
 /// A pill button ("+N more", Clear All) over `rect`.
 fn button(field: &mut Ui, look: &Look<'_>, id: Id, rect: Rect, sense: Sense, text: &str) -> Response {
     let response = Interactive::with_id(id, Role::Button, text)
         .sense(sense)
         .corner_radius(look.radius)
-        .state_layer(false)
         .enabled(look.enabled)
         .interact_at(field, rect)
         .finish(field);
     if field.is_rect_visible(rect) {
         let painter = field.painter();
-        if response.hovered() && look.enabled {
-            painter.rect_filled(rect, look.radius, look.hover_fill.gamma_multiply(0.5));
-        }
         painter.add(Shape::rect_stroke(rect, look.radius, look.edge, StrokeKind::Inside));
         let color = look.text_color(false);
         let galley = elided_galley(field, text, look.format(color), (rect.width() - 2.0 * look.pad_x).max(1.0), ElideAt::End).galley;
@@ -500,7 +465,6 @@ impl ChipPart<'_> {
         let body = Interactive::with_id(id, Role::ListItem, accessible)
             .sense(sense)
             .corner_radius(look.radius)
-            .state_layer(false)
             .enabled(look.enabled)
             .interact_at(field, rect)
             .finish(field);
@@ -512,15 +476,14 @@ impl ChipPart<'_> {
             let remove = craft_i18n::fmt(&look.labels.remove, &[("name", name)]);
             Interactive::new(("remove", cell), Role::Button, remove.as_str())
                 .sense(Sense::CLICK)
-                .corner_radius(CornerRadius::ZERO)
-                .state_layer(false)
+                .corner_radius(look.cross_radius())
                 .focus_ring(false)
                 .enabled(look.enabled)
                 .interact_at(&parts, cross_rect)
                 .finish(&parts)
         });
         if field.is_rect_visible(rect) {
-            self.paint(field, look, &body, cross.as_ref(), text);
+            self.paint(field, look, cross.as_ref(), text);
         }
         if look.enabled {
             if cross.as_ref().is_some_and(Response::clicked) {
@@ -537,18 +500,10 @@ impl ChipPart<'_> {
         std::iter::once(body).chain(cross).collect()
     }
 
-    fn paint(&self, field: &Ui, look: &Look<'_>, body: &Response, cross: Option<&Response>, text: &str) {
+    fn paint(&self, field: &Ui, look: &Look<'_>, cross: Option<&Response>, text: &str) {
         let (chip, rect) = (self.chip, self.rect);
         let painter = field.painter();
         let cross_hot = cross.is_some_and(Response::hovered);
-        if body.hovered() && look.enabled {
-            painter.rect_filled(rect, look.radius, look.hover_fill.gamma_multiply(0.5));
-        }
-        if let (true, Some(cross)) = (cross_hot, cross) {
-            let r = look.radius;
-            let round = if look.rtl { CornerRadius { nw: r.nw, sw: r.sw, ne: 0, se: 0 } } else { CornerRadius { nw: 0, sw: 0, ne: r.ne, se: r.se } };
-            painter.rect_filled(cross.rect, round, look.hover_fill);
-        }
         painter.add(Shape::rect_stroke(rect, look.radius, look.edge, StrokeKind::Inside));
         let room = (rect.width() - look.pad_x - if chip.removable { look.cross } else { look.pad_x }).max(1.0);
         let color = look.text_color(chip.partial);

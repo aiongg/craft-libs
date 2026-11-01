@@ -221,6 +221,7 @@ chip.cross_stroke = 1.5
 icon_picker.cell = 36
 icon_picker.gap = 3
 icon_picker.inset = 6
+icon_picker.max_height = 420
 split_button.arrow_width = 18
 split_button.divider_inset = 5
 breadcrumb.height = 24

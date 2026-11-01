@@ -75,6 +75,31 @@ mod field {
         assert!(harness.get_by_label("gamma").accesskit_node().is_focused(), "the focus moved to the next chip");
     }
 
+    // In a harness: ↓ from a chip goes to the neighbouring line and ↑ comes back to the column, → moves along the line, Home and End go to the first and last chip.
+    #[test]
+    fn arrows_walk_the_lines() {
+        let long = "a-label-long-enough-to-fill-a-whole-line-of-the-field-and-more";
+        let mut harness = harness(&["a", "b", long], None);
+        harness.run();
+        harness.get_by_label("a").focus();
+        harness.run();
+        harness.key_press(Key::ArrowRight);
+        harness.run();
+        assert!(harness.get_by_label("b").accesskit_node().is_focused(), "→ moves along the line");
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        assert!(harness.get_by_label(long).accesskit_node().is_focused(), "↓ goes to the line below");
+        harness.key_press(Key::ArrowUp);
+        harness.run();
+        assert!(harness.get_by_label("a").accesskit_node().is_focused(), "↑ keeps the column, the first");
+        harness.key_press(Key::End);
+        harness.run();
+        assert!(harness.get_by_label(long).accesskit_node().is_focused(), "End goes to the last chip");
+        harness.key_press(Key::Home);
+        harness.run();
+        assert!(harness.get_by_label("a").accesskit_node().is_focused());
+    }
+
     // In a harness: with `max_lines(1)` the hidden chips are counted on "+N more", whose menu removes one.
     #[test]
     fn chips_past_the_last_line_go_behind_more() {

@@ -32,6 +32,7 @@ mod list {
         /// Esc presses left for the editor after the list took its keys.
         escapes: u32,
         tabs: u32,
+        downs: u32,
     }
 
     fn harness() -> Harness<'static, Host> {
@@ -42,17 +43,20 @@ mod list {
         ];
         HarnessBuilder::default().with_size([360.0, 300.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
             |ui: &mut Ui, host: &mut Host| {
-                let list = Autocomplete::new("formula", &host.suggestions);
+                let editor = ui.make_persistent_id("editor");
+                let list = Autocomplete::new("formula", editor, &host.suggestions);
                 let keys = list.take_keys(ui);
                 host.escapes += u32::from(ui.input(|i| i.key_pressed(Key::Escape)));
                 host.tabs += u32::from(ui.input(|i| i.key_pressed(Key::Tab)));
-                let field = egui::TextEdit::singleline(&mut host.text).id_salt("editor").show(ui);
+                host.downs += u32::from(ui.input(|i| i.key_pressed(Key::ArrowDown)));
+                let field = egui::TextEdit::singleline(&mut host.text).id(editor).show(ui);
+                let _ = ui.button("Other");
                 ui.ctx().accesskit_node_builder(field.response.id, |node| node.set_label("Formula"));
                 let out = list.show(ui, field.response.rect, keys);
                 host.accepted.extend(out.accepted);
                 host.dismissed += u32::from(out.dismissed);
             },
-            Host { text: "=SU".to_string(), suggestions, accepted: Vec::new(), dismissed: 0, escapes: 0, tabs: 0 },
+            Host { text: "=SU".to_string(), suggestions, accepted: Vec::new(), dismissed: 0, escapes: 0, tabs: 0, downs: 0 },
         )
     }
 
@@ -100,9 +104,28 @@ mod list {
         harness.key_press(Key::Escape);
         harness.run();
         assert_eq!(harness.state().escapes, 1, "a second Esc reaches the editor");
+        focus_editor(&mut harness);
         harness.state_mut().suggestions.pop();
         harness.run();
         harness.run();
         assert_eq!(harness.query_all_by_role(Role::ListBoxOption).count(), 2, "other suggestions show the list again");
+    }
+
+    // With the focus on another widget the list is hidden and takes no key: ↓, Tab and Esc stay with the focused widget.
+    #[test]
+    fn the_list_needs_the_editors_focus() {
+        let mut harness = harness();
+        harness.get_by_label("Other").focus();
+        harness.run();
+        harness.run();
+        assert_eq!(harness.query_all_by_role(Role::ListBoxOption).count(), 0, "no list while the editor lacks the focus");
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        harness.key_press(Key::Escape);
+        harness.run();
+        assert_eq!((harness.state().downs, harness.state().escapes), (1, 1), "the keys were not taken");
+        assert_eq!(harness.state().dismissed, 0);
+        focus_editor(&mut harness);
+        assert_eq!(harness.query_all_by_role(Role::ListBoxOption).count(), 3, "the list shows with the editor focused");
     }
 }
