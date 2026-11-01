@@ -13,9 +13,9 @@ use egui::{Color32, Id, Key, Modifiers, Painter, Rect, Sense, TextEdit, Ui, vec2
 use super::slider::{store, with_values};
 use super::{
     AltText, AltTextField, Apply, ApplyRow, Autocomplete, BreadcrumbBar, Button, ButtonVariant, Chip, ChipField, ControlSize, DatePicker,
-    DatePrecision, IconPicker, IconPickerGroup, IconPickerItem, LineStyle, LinkMode, LinkedFields, LinkedLayout, NumberField, PickedDate, Rating,
-    ResetDot, Select, SelectText, SplitButton, StarSize, Suggestion, TextField, TreeEntry, TreePicker, completion_rest, paint_inline_completion,
-    paint_line_style, paint_rating, path_crumbs,
+    DatePrecision, IconPicker, IconPickerGroup, IconPickerItem, LineStyle, LineWeights, LinkMode, LinkedFields, LinkedLayout, NumberField,
+    PickedDate, Rating, ResetDot, Select, SelectText, SplitButton, StarSize, Suggestion, TextField, TreeEntry, TreePicker, completion_rest,
+    paint_inline_completion, paint_line_style, paint_rating, path_crumbs,
 };
 use crate::icons::{self, Icon, IconSize};
 use crate::localized::{Labels as _, LocaleNumbers, Word, Words};
@@ -391,7 +391,7 @@ fn show_margins(ui: &mut Ui, args: &mut super::SizeDisabledArgs) {
         let edit = LinkedFields::new("story-margins", captions, *values, linked, LinkMode::Equal, &numbers)
             .range(0.0..=200.0)
             .decimals(0..=1)
-            .layout(LinkedLayout::Column)
+            .layout(LinkedLayout::Columns)
             .size(args.size.control())
             .enabled(!args.disabled)
             .show(ui);
@@ -412,7 +412,7 @@ fn show_underline(ui: &mut Ui, args: &mut super::SizeArgs) {
             variant_row(form, &story.underline, |ui| {
                 Select::new("story-underline", &story.underline, underline)
                     .rows(LineStyle::UNDERLINES.len(), |i| LineStyle::UNDERLINES[i], |i| name(LineStyle::UNDERLINES[i]))
-                    .row_content(vec2(120.0, 22.0), move |painter, rect, style| paint_line_style(painter, rect, *style, ink))
+                    .row_content(vec2(120.0, 22.0), move |painter, rect, style| paint_line_style(painter, rect, *style, ink, &LineWeights::UNDERLINE))
                     .text_shown(SelectText::Never)
                     .size(size)
                     .show(ui)
@@ -421,7 +421,7 @@ fn show_underline(ui: &mut Ui, args: &mut super::SizeArgs) {
             variant_row(form, &story.stroke, |ui| {
                 Select::new("story-stroke", &story.stroke, stroke)
                     .rows(LineStyle::STROKES.len(), |i| LineStyle::STROKES[i], |i| name(LineStyle::STROKES[i]))
-                    .row_content(vec2(120.0, 22.0), move |painter, rect, style| paint_line_style(painter, rect, *style, ink))
+                    .row_content(vec2(120.0, 22.0), move |painter, rect, style| paint_line_style(painter, rect, *style, ink, &LineWeights::STROKE))
                     .text_shown(SelectText::InList)
                     .size(size)
                     .show(ui)

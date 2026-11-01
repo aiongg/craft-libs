@@ -7,13 +7,14 @@
 //! ```ignore
 //! Select::new("underline", "Underline", &mut style)
 //!     .rows(LineStyle::UNDERLINES.len(), |i| LineStyle::UNDERLINES[i], |i| LineStyle::UNDERLINES[i].label())
-//!     .row_content(vec2(160.0, 22.0), |p, r, s| paint_line_style(p, r, *s, ink))
+//!     .row_content(vec2(160.0, 22.0), |p, r, s| paint_line_style(p, r, *s, ink, &LineWeights::UNDERLINE))
 //!     .text_shown(SelectText::Never)
 //!     .show(ui);
 //! ```
 
 use egui::{Color32, Painter, Rect, Shape, Stroke, pos2};
 
+use crate::canvas::crisp;
 use crate::localized::Word;
 
 /// Where a select shows its options' text beside their [row content](super::Select::row_content).
@@ -99,21 +100,49 @@ pub(crate) const LINE_STYLE_WORDS: &[Word] = &[
     Word::plain("Thick - Thick"),
 ];
 
-/// A sample of `style` across `rect` at its middle, in `color`, 1 point lines unless the style
-/// says otherwise: dots of radius 0.75 every 1.5 + gap points, dashes from (length, gap) runs
-/// (WordCraft's `pattern`), a sine wave of amplitude 1.6 and period 6 for `Wave`; the two-line styles 6 apart
-/// (DesignCraft's `paint_stroke_type`, 3 above and below the middle). The line sits on a pixel
-/// centre so 1-point lines stay sharp.
+/// The weights of [`paint_line_style`]'s samples, in points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LineWeights {
+    /// The solid line.
+    pub line: f32,
+    /// A dash's thickness.
+    pub dash: f32,
+    /// A dash's length.
+    pub dash_length: f32,
+    /// The gap after a dash.
+    pub dash_gap: f32,
+    /// A dot's radius.
+    pub dot_radius: f32,
+    /// The gap after a dot.
+    pub dot_gap: f32,
+}
+
+impl LineWeights {
+    /// WordCraft's underline samples: 1 point lines, dashes 6 long, dots of radius 0.75.
+    // wordcraft: crates/ui-egui/src/ribbon/underline.rs:55 paint_underline
+    pub const UNDERLINE: Self = Self { line: 1.0, dash: 1.0, dash_length: 6.0, dash_gap: 4.0, dot_radius: 0.75, dot_gap: 2.0 };
+    /// DesignCraft's Stroke Type samples: a 5 point solid line, 4 point dashes 6 long every 9,
+    /// dots of radius 2 every 6.
+    // designcraft: crates/ui-egui/src/panels/properties/object.rs:258 paint_stroke_type
+    pub const STROKE: Self = Self { line: 5.0, dash: 4.0, dash_length: 6.0, dash_gap: 3.0, dot_radius: 2.0, dot_gap: 2.0 };
+}
+
+/// A sample of `style` across `rect` at its middle, in `color`, with the lines and patterns of
+/// `weights`: dashes and dots as the weights give them, a sine wave of amplitude 1.6 and period 6
+/// for `Wave`; the two-line styles 6 apart (DesignCraft's `paint_stroke_type`, 3 above and below
+/// the middle), `Double` 3 apart and `Thick` 2.5 points. Horizontal lines cover whole device
+/// pixels ([`crisp`]), so thin lines stay sharp at any scale.
 // wordcraft: crates/ui-egui/src/ribbon/underline.rs:55 paint_underline
 // designcraft: crates/ui-egui/src/panels/properties/object.rs:258 paint_stroke_type
-pub fn paint_line_style(painter: &Painter, rect: Rect, style: LineStyle, color: Color32) {
-    let y = rect.center().y.round() + 0.5;
+pub fn paint_line_style(painter: &Painter, rect: Rect, style: LineStyle, color: Color32, weights: &LineWeights) {
+    let ppp = painter.pixels_per_point();
+    let y = rect.center().y;
     let (x0, x1) = (rect.left(), rect.right());
-    let line = |y: f32, width: f32| {
-        painter.line_segment([pos2(x0, y), pos2(x1, y)], Stroke::new(width, color));
-    };
+    let line = |y: f32, width: f32| crisp(painter, pos2(x0, y), pos2(x1, y), Stroke::new(width, color));
     // Repeats (length, gap) runs along the line; a length of 0 is a dot.
     let pattern = |runs: &[(f32, f32)]| {
+        let dot_y = (y * ppp).round() / ppp;
+        let radius = weights.dot_radius;
         let mut x = x0;
         loop {
             for &(length, gap) in runs {
@@ -121,10 +150,10 @@ pub fn paint_line_style(painter: &Painter, rect: Rect, style: LineStyle, color: 
                     return;
                 }
                 if length == 0.0 {
-                    painter.circle_filled(pos2(x + 0.75, y), 0.75, color);
-                    x += 1.5 + gap;
+                    painter.circle_filled(pos2(x + radius, dot_y), radius, color);
+                    x += 2.0 * radius + gap;
                 } else {
-                    painter.line_segment([pos2(x, y), pos2((x + length).min(x1), y)], Stroke::new(1.0, color));
+                    crisp(painter, pos2(x, y), pos2((x + length).min(x1), y), Stroke::new(weights.dash, color));
                     x += length + gap;
                 }
             }
@@ -134,21 +163,24 @@ pub fn paint_line_style(painter: &Painter, rect: Rect, style: LineStyle, color: 
         line(y - 3.0, upper);
         line(y + 3.0, lower);
     };
+    let dash = weights.dash_length;
     match style {
-        LineStyle::Solid => line(y, 1.0),
+        LineStyle::Solid => line(y, weights.line),
         LineStyle::Double => {
-            line(y - 1.5, 1.0);
-            line(y + 1.5, 1.0);
+            line(y - 1.5, weights.line);
+            line(y + 1.5, weights.line);
         }
         LineStyle::Thick => line(y, 2.5),
-        LineStyle::Dotted => pattern(&[(0.0, 2.0)]),
-        LineStyle::Dashed => pattern(&[(6.0, 4.0)]),
-        LineStyle::DotDash => pattern(&[(6.0, 3.0), (0.0, 3.0)]),
-        LineStyle::DotDotDash => pattern(&[(6.0, 3.0), (0.0, 2.5), (0.0, 3.0)]),
+        LineStyle::Dotted => pattern(&[(0.0, weights.dot_gap)]),
+        LineStyle::Dashed => pattern(&[(dash, weights.dash_gap)]),
+        LineStyle::DotDash => pattern(&[(dash, 3.0), (0.0, 3.0)]),
+        LineStyle::DotDotDash => pattern(&[(dash, 3.0), (0.0, 2.5), (0.0, 3.0)]),
         LineStyle::Wave => {
-            let points =
-                (0..=((x1 - x0).max(0.0) as usize)).map(|i| pos2(x0 + i as f32, y + 1.6 * (i as f32 * std::f32::consts::TAU / 6.0).sin())).collect();
-            painter.add(Shape::line(points, Stroke::new(1.0, color)));
+            let wave_y = (y * ppp).round() / ppp;
+            let points = (0..=((x1 - x0).max(0.0) as usize))
+                .map(|i| pos2(x0 + i as f32, wave_y + 1.6 * (i as f32 * std::f32::consts::TAU / 6.0).sin()))
+                .collect();
+            painter.add(Shape::line(points, Stroke::new(weights.line, color)));
         }
         LineStyle::ThickThin => pair(3.0, 1.0),
         LineStyle::ThinThick => pair(1.0, 3.0),
