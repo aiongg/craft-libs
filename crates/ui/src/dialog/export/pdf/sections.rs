@@ -50,6 +50,10 @@ pub(super) struct Sections<'a> {
     pub switches: &'a mut PasswordSwitches,
     /// The warnings of the Summary, already worded.
     pub warnings: &'a [String],
+    /// The options that differ from the chosen preset, already worded.
+    pub changed: &'a [String],
+    /// The chosen preset's name as shown.
+    pub preset_name: &'a str,
 }
 
 impl Sections<'_> {
@@ -358,6 +362,13 @@ impl Sections<'_> {
             form.value(&labels.compatibility, settings.compatibility.label());
             form.value(&labels.encryption, encryption);
         });
+        ui.add_space(crate::theme::current(ui.ctx()).space.gap.section);
+        for line in self.changed {
+            ui.label(line);
+        }
+        if self.changed.is_empty() {
+            caption(ui, craft_i18n::fmt(&labels.summary_matches, &[("preset", self.preset_name)]), Content::Muted);
+        }
         ui.add_space(crate::theme::current(ui.ctx()).space.gap.section);
         heading(ui, &labels.summary_warnings);
         if self.warnings.is_empty() {

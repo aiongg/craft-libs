@@ -28,6 +28,7 @@ resvg = { version = "0.45.1", default-features = false }
 # The XML parser usvg 0.45 uses, to parse icons with a node limit and no DTD.
 roxmltree = "0.20"
 serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true }
 craft-quit = { workspace = true }
 craft-settings = { workspace = true }
 # Same version as epaint's, for reading a face's character map.
@@ -90,7 +91,6 @@ epaint_default_fonts = "0.37"
 [dev-dependencies]
 # serde: the IME tests read events that only the suite's egui fork has from JSON.
 egui = { workspace = true, features = ["default_fonts", "serde"] }
-serde_json = "1"
 # The dialog field map is a TOML settings section; its test round-trips one.
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "display", "serde"] }
 ron = "0.12"

@@ -156,6 +156,33 @@ crate::words! {
         check_passwords_equal: "pdfExport.checkPasswordsEqual" = "The open and permissions passwords must differ";
         /// `{version}`.
         check_low_printing: "pdfExport.checkLowPrinting" = "{version} can't limit printing to low resolution: choose PDF 1.4 or later, or allow high-resolution printing";
+        /// `{field}`: the setting; `{range}`: the allowed values with their unit; `{value}`: the value given.
+        check_range: "pdfExport.checkRange" = "{field} must be {range} (got {value})";
+        /// `{name}`: a colour profile.
+        check_destination_unknown: "pdfExport.checkDestinationUnknown" = "Destination: no RGB or CMYK profile is called “{name}”";
+        /// `{standard}`, `{name}`.
+        check_destination_rgb: "pdfExport.checkDestinationRgb" = "Destination: {standard} files are CMYK, and “{name}” is an RGB profile";
+        /// `{standard}`, `{name}`.
+        check_intent_rgb: "pdfExport.checkIntentRgb" = "Output intent profile: {standard} files print in CMYK, and “{name}” is an RGB profile";
+        /// `{standard}`, `{name}`.
+        check_intent_gray: "pdfExport.checkIntentGray" = "Output intent profile: “{name}” is a grey profile, which can't be a {standard} output intent";
+        /// `{standard}`, `{name}`.
+        check_intent_unknown_x4: "pdfExport.checkIntentUnknownX4" = "Output intent profile: no profile is called “{name}”, and a {standard} output intent embeds its profile";
+        /// `{standard}`, `{name}`.
+        check_intent_unknown: "pdfExport.checkIntentUnknown" = "Output intent profile: no profile is called “{name}”: a {standard} output intent embeds a profile, or names a registered printing condition (condition identifier and registry)";
+        /// `{version}`, `{limit}`: the number of characters.
+        check_password_legacy: "pdfExport.checkPasswordLegacy" = "{version} passwords can have up to {limit} ASCII characters (PDF 1.7 and later take any)";
+        /// `{limit}`: the number of bytes.
+        check_password_long: "pdfExport.checkPasswordLong" = "Passwords can have up to {limit} bytes";
+        /// `{range}`, `{part}`, `{count}`.
+        range_not_a_number: "pdfExport.rangeNotANumber" = "Range `{range}`: `{part}` is not a number from 1 to {count}";
+        range_no_number: "pdfExport.rangeNoNumber" = "Range `{range}`: `{part}` names no number";
+        range_backwards: "pdfExport.rangeBackwards" = "Range `{range}`: `{part}` runs backwards";
+        range_empty: "pdfExport.rangeEmpty" = "Range `{range}` is empty";
+        on: "pdfExport.on" = "On";
+        off: "pdfExport.off" = "Off";
+        /// `{preset}`: the preset the settings are compared with.
+        summary_matches: "pdfExport.summaryMatches" = "Every option matches {preset}.";
         warn_layers_version: "pdfExport.warnLayersVersion" = "PDF layers need PDF 1.5 or later: every layer is plain page content";
         warn_font_subset: "pdfExport.warnFontSubset" = "Fonts are embedded as subsets of the characters used: a subset threshold below 100% is not applied";
         warn_permissions_password: "pdfExport.warnPermissionsPassword" = "Permissions need a password: without one they are not applied";
@@ -222,11 +249,15 @@ impl PdfExportLabels {
         }
     }
 
-    /// The words of a refused setting, craft-pdf's English message where no word exists.
+    /// The words of a refused setting; craft-pdf's English message for an id this table doesn't
+    /// know.
     pub(super) fn error_text(&self, error: &SettingsError, settings: &PdfSettings) -> String {
         let standard = settings.standard.label();
         let version = settings.compatibility.label();
-        let fill = |word: &str| craft_i18n::fmt(word, &[("standard", standard), ("version", version)]);
+        let message = error.message.as_str();
+        let name = message.split_once('“').and_then(|(_, rest)| rest.split_once('”')).map_or("", |(name, _)| name);
+        let limit = message.split_once("up to ").map_or("", |(_, rest)| rest.split(|c: char| !c.is_ascii_digit()).next().unwrap_or(""));
+        let fill = |word: &str| craft_i18n::fmt(word, &[("standard", standard), ("version", version), ("name", name), ("limit", limit)]);
         match error.id {
             "standardVersion" => fill(&self.check_standard_version),
             "standardEditing" => fill(&self.check_standard_editing),
@@ -234,7 +265,29 @@ impl PdfExportLabels {
             "standardPassword" => fill(&self.check_standard_password),
             "lowPrintingVersion" => fill(&self.check_low_printing),
             "passwordsEqual" => self.check_passwords_equal.clone(),
-            _ => error.message.clone(),
+            "passwordLegacy" => fill(&self.check_password_legacy),
+            "passwordLong" => fill(&self.check_password_long),
+            "destinationUnknown" => fill(&self.check_destination_unknown),
+            "destinationRgb" => fill(&self.check_destination_rgb),
+            "intentRgb" => fill(&self.check_intent_rgb),
+            "intentGray" => fill(&self.check_intent_gray),
+            "intentUnknownX4" => fill(&self.check_intent_unknown_x4),
+            "intentUnknown" => fill(&self.check_intent_unknown),
+            "compressionPpi" | "compressionAbovePpi" | "marksWeight" | "marksOffset" | "bleedSide" | "fontSubsetPercent" => {
+                // "{path} must be {low}–{high}{unit} (got {value})"
+                let parsed = message.split_once(" must be ").and_then(|(path, rest)| {
+                    let (range, got) = rest.split_once(" (got ")?;
+                    Some((path, range, got.strip_suffix(')')?))
+                });
+                match parsed {
+                    Some((path, range, value)) => craft_i18n::fmt(
+                        &self.check_range,
+                        &[("field", &super::summary::option_label(self, path)), ("range", range), ("value", value)],
+                    ),
+                    None => message.to_owned(),
+                }
+            }
+            _ => message.to_owned(),
         }
     }
 

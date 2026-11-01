@@ -1652,6 +1652,21 @@ pub const EXPORT_SETTINGS_WIDTH: f32 = 250.0;
 /// Between Export As's settings and its preview (PhotoCraft).
 pub const EXPORT_PANE_GAP: f32 = 12.0;
 
+/// Width of Save PDF's section list (VectorCraft).
+pub const EXPORT_PDF_LIST_WIDTH: f32 = 150.0;
+
+/// Width of Save PDF's section content (VectorCraft).
+pub const EXPORT_PDF_CONTENT_WIDTH: f32 = 500.0;
+
+/// Height of Save PDF's section content before it scrolls (VectorCraft).
+pub const EXPORT_PDF_CONTENT_HEIGHT: f32 = 360.0;
+
+/// Between Save PDF's section list and its content (VectorCraft).
+pub const EXPORT_PDF_GAP: f32 = 14.0;
+
+/// Width of the Save PDF dialog: list, gap and content.
+pub const EXPORT_PDF_WIDTH: f32 = EXPORT_PDF_LIST_WIDTH + EXPORT_PDF_GAP + EXPORT_PDF_CONTENT_WIDTH;
+
 /// Size of a chip (PhotoCraft).
 pub const THEME_CHIP_SIZE: [f32; 2] = [30.0, 26.0];
 

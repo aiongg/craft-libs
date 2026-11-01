@@ -1,6 +1,7 @@
 //! File › Save as PDF: the Save PDF dialog over [`craft_pdf::settings`].
 
 mod sections;
+mod summary;
 mod words;
 
 use std::path::PathBuf;
@@ -32,15 +33,6 @@ use crate::localized::units::LengthUnit;
 use crate::localized::{LocaleNumbers, SharedLabels as _};
 use crate::primitives::Text;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
-
-/// Width of the section list (PhotoCraft-style frame: VectorCraft's `LIST_WIDTH`).
-const LIST_WIDTH: f32 = 150.0;
-/// Width of the section content (VectorCraft's 500).
-const CONTENT_WIDTH: f32 = 500.0;
-/// Height of the section content before it scrolls (VectorCraft's 360).
-const CONTENT_HEIGHT: f32 = 360.0;
-/// The gap between the list and the content.
-const GAP: f32 = 14.0;
 
 /// Which artboards to write.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -93,6 +85,7 @@ pub struct PdfExportDialog {
     unit: LengthUnit,
     document_bleed: [f64; 4],
     artboards: ArtboardChoice,
+    artboard_count: Option<usize>,
     switches: PasswordSwitches,
     section: usize,
     /// The name being typed for Save Preset….
@@ -123,6 +116,7 @@ impl PdfExportDialog {
             unit: LengthUnit::Points,
             document_bleed: [0.0; 4],
             artboards: ArtboardChoice::default(),
+            artboard_count: None,
             switches: PasswordSwitches::default(),
             section: 0,
             naming: None,
@@ -197,9 +191,21 @@ impl PdfExportDialog {
         self
     }
 
+    /// The number of artboards of the document, which a typed range is checked against: a range
+    /// outside `1..=n` disables Save PDF with the reason.
+    pub fn artboard_count(mut self, count: usize) -> Self {
+        self.artboard_count = Some(count);
+        self
+    }
+
     /// The settings the dialog shows.
     pub fn settings(&self) -> &PdfSettings {
         &self.settings
+    }
+
+    #[cfg(test)]
+    fn settings_mut_for_test(&mut self) -> &mut PdfSettings {
+        &mut self.settings
     }
 
     /// The preset Save Preset… named, once: the app stores it. Its passwords are cleared.
@@ -212,6 +218,19 @@ impl PdfExportDialog {
         let mut presets = builtin_presets(&self.app);
         presets.extend(self.saved.iter().cloned());
         presets
+    }
+
+    /// Why Save PDF is disabled: a refused setting, or a range the document doesn't have.
+    fn blocked(&self, labels: &PdfExportLabels) -> Option<String> {
+        if let Some(error) = self.error() {
+            return Some(labels.error_text(&error, &self.settings));
+        }
+        let text = self.artboards.range.trim();
+        let count = self.artboard_count?;
+        if !self.artboards.range_only || text.is_empty() {
+            return None;
+        }
+        summary::check_range(text, count).err().map(|error| labels.range_error_text(text, count, &error))
     }
 
     fn error(&self) -> Option<SettingsError> {
@@ -371,8 +390,11 @@ impl StackDialog for PdfExportDialog {
         let labels = PdfExportLabels::shared_ctx(ctx);
         let numbers = LocaleNumbers::of_ctx(ctx);
         let tokens = crate::theme::current(ctx);
-        let error = self.error();
-        let error_text = error.as_ref().map(|error| labels.error_text(error, &self.settings));
+        let export_tokens = tokens.component.export;
+        let error_text = self.blocked(&labels);
+        let base = self.presets().into_iter().find(|preset| preset.name == self.preset).map(|preset| preset.settings).unwrap_or_default();
+        let changed = summary::changes(&labels, &self.settings, &base);
+        let preset_text = labels.preset_name(&self.preset, &self.app);
         let warnings: Vec<String> =
             self.settings.warnings(&*self.catalog).iter().map(|warning| labels.warning_text(warning, &self.settings)).collect();
         let saving = self.picking.is_some();
@@ -384,20 +406,20 @@ impl StackDialog for PdfExportDialog {
         let Self { app, settings, preset, naming, profiles, flatteners, unit, document_bleed, artboards, switches, state, .. } = self;
         let shown = Dialog::with_id(id, labels.title.as_str())
             .stack(stack)
-            .width(Width::Fixed(LIST_WIDTH + GAP + CONTENT_WIDTH))
-            .footer(Footer::standard().ok(labels.save.as_str()).ok_enabled(!saving && error.is_none()))
+            .width(Width::Fixed(export_tokens.pdf_width))
+            .footer(Footer::standard().ok(labels.save.as_str()).ok_enabled(!saving && error_text.is_none()))
             .show(ctx, state, &mut (), |ui, ()| {
                 ui.vertical(|ui| {
                     (chosen, saved) = top_rows(ui, &labels, app, &presets, preset, settings, naming);
                     ui.add_space(tokens.space.gap.section);
                     ui.horizontal_top(|ui| {
                         ui.vertical(|ui| {
-                            ui.set_width(LIST_WIDTH);
+                            ui.set_width(export_tokens.pdf_list_width);
                             section = section_list(ui, section, &labels, tokens.component.field.height.md);
                         });
-                        ui.add_space(GAP);
+                        ui.add_space(export_tokens.pdf_gap);
                         ui.vertical(|ui| {
-                            ui.set_width(CONTENT_WIDTH);
+                            ui.set_width(export_tokens.pdf_content_width);
                             ui.add(Text::new(section_title(&labels, section)).role(TypeRole::Title));
                             ui.add_space(tokens.space.gap.row);
                             let mut sections = Sections {
@@ -411,10 +433,12 @@ impl StackDialog for PdfExportDialog {
                                 artboards,
                                 switches,
                                 warnings: &warnings,
+                                changed: &changed,
+                                preset_name: &preset_text,
                             };
                             egui::ScrollArea::vertical()
                                 .id_salt(("pdf-section", section))
-                                .max_height(CONTENT_HEIGHT)
+                                .max_height(export_tokens.pdf_content_height)
                                 .auto_shrink([false, false])
                                 .show(ui, |ui| {
                                     sections.show(ui, section);
@@ -441,7 +465,7 @@ impl StackDialog for PdfExportDialog {
         }
         match shown.outcome {
             Some(Outcome::Ok) => {
-                if self.error().is_none() {
+                if self.blocked(&labels).is_none() {
                     self.queue_save(ctx, &labels);
                 }
                 None

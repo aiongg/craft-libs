@@ -181,3 +181,86 @@ fn save_preset_reports_the_named_preset_without_passwords() {
     assert!(preset.settings.security.open_password.is_empty());
     assert!(pdf(&mut harness).take_preset().is_none(), "taken once");
 }
+
+// Every refused setting is worded by its id, with the values it carries; a translator's words
+// replace the English, and craft-pdf's message stays only for an unknown id.
+#[test]
+fn check_messages_come_from_words_with_their_values() {
+    use craft_pdf::settings::SettingsError;
+
+    use super::words::PdfExportLabels;
+
+    let labels = PdfExportLabels::default();
+    let mut settings = PdfSettings::default();
+    settings.compression.color.ppi = 5.0;
+    let error = settings.check_values().unwrap_err();
+    assert_eq!(labels.error_text(&error, &settings), "Compression › Color images › to must be 9–2400 ppi (got 5)");
+
+    let settings = PdfSettings {
+        output: craft_pdf::settings::OutputSettings {
+            conversion: craft_pdf::settings::ColorConversion::Destination,
+            destination: "Nowhere".to_owned(),
+            ..Default::default()
+        },
+        ..PdfSettings::default()
+    };
+    let error = settings.check(&Profiles).unwrap_err();
+    assert_eq!(labels.error_text(&error, &settings), "Destination: no RGB or CMYK profile is called “Nowhere”");
+
+    let settings = PdfSettings {
+        compatibility: Compatibility::Pdf14,
+        security: SecuritySettings { open_password: "é".repeat(20), ..SecuritySettings::default() },
+        ..PdfSettings::default()
+    };
+    let error = settings.check_values().unwrap_err();
+    assert_eq!(labels.error_text(&error, &settings), "PDF 1.4 passwords can have up to 32 ASCII characters (PDF 1.7 and later take any)");
+
+    let translated = PdfExportLabels::default().localized(|key| (key == "pdfExport.checkPasswordLegacy").then(|| "{version}: {limit}".to_owned()));
+    assert_eq!(translated.error_text(&error, &settings), "PDF 1.4: 32");
+    let unknown = SettingsError { id: "newRule", message: "a new rule".to_owned() };
+    assert_eq!(labels.error_text(&unknown, &settings), "a new rule");
+}
+
+// The Summary lists the options that differ from the chosen preset, and says so when none do.
+#[test]
+fn the_summary_lists_options_that_differ_from_the_preset() {
+    use super::summary::changes;
+    use super::words::PdfExportLabels;
+
+    let labels = PdfExportLabels::default();
+    let base = builtin_preset("Test Default", "Test").unwrap().settings;
+    let smallest = builtin_preset("Smallest File Size", "Test").unwrap().settings;
+    let lines = changes(&labels, &smallest, &base);
+    assert!(lines.contains(&"General › Optimize for fast web view: On".to_owned()), "{lines:?}");
+    assert!(lines.contains(&"Compression › Color images › Downsampling: Bicubic".to_owned()), "{lines:?}");
+    assert!(lines.contains(&"General › Preserve editing capabilities: Off".to_owned()), "{lines:?}");
+    assert!(changes(&labels, &base, &base).is_empty());
+
+    let (mut harness, _) = harness(dialog());
+    section(&mut harness, "Summary");
+    assert!(harness.query_by_label("Every option matches Test Default.").is_some());
+    pdf(&mut harness).settings_mut_for_test().thumbnails = true;
+    harness.run_steps(4);
+    assert!(harness.query_by_label("General › Embed page thumbnails: On").is_some());
+}
+
+// A range outside the artboards disables Save PDF with VectorCraft's message.
+#[test]
+fn a_bad_artboard_range_blocks_save_with_its_message() {
+    use super::summary::{RangeError, check_range};
+
+    assert_eq!(check_range("1-3, 5", 5), Ok(()));
+    assert_eq!(check_range("3-", 5), Ok(()));
+    assert_eq!(check_range("All", 5), Ok(()));
+    assert_eq!(check_range("6", 5), Err(RangeError::NotANumber { part: "6".to_owned() }));
+    assert_eq!(check_range("+2", 5), Err(RangeError::NotANumber { part: "+2".to_owned() }));
+    assert_eq!(check_range("4-2", 5), Err(RangeError::Backwards { part: "4-2".to_owned() }));
+    assert_eq!(check_range("-", 5), Err(RangeError::NoNumber { part: "-".to_owned() }));
+    assert_eq!(check_range(" , ", 5), Err(RangeError::Empty));
+
+    let (mut harness, files) = harness(dialog().artboard_count(3).artboards(PdfArtboards::Range("1-9".to_owned())));
+    assert!(harness.query_by_label("Range `1-9`: `9` is not a number from 1 to 3").is_some());
+    assert!(harness.get_by_role_and_label(Role::Button, "Save PDF").accesskit_node().is_disabled());
+    save(&mut harness);
+    assert!(files.requests().is_empty());
+}
