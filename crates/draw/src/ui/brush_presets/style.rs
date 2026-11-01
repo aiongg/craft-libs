@@ -88,7 +88,7 @@ pub struct BrushPickerStyle {
     pub head_max: f32,
     /// The least height of the card list: `brush.picker_list_min` (80).
     pub list_min: f32,
-    /// Between the head and the search row, and around the hairline: `space.s3` (6).
+    /// Between the head and the search row, and around the hairline: `brush.picker_gap` (6).
     pub gap: f32,
     /// Room the footer slider leaves for the grip: `brush.picker_grip_room` (20).
     pub grip_room: f32,
@@ -128,7 +128,7 @@ pub struct BrushPresetChipStyle {
     pub number: Color32,
     /// The chevron: `text.faint`.
     pub chevron_color: Color32,
-    /// The corners: `radius.sm`.
+    /// The corners: `radius.control`.
     pub radius: CornerRadius,
 }
 

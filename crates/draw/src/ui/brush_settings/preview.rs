@@ -68,7 +68,7 @@ impl PreviewStroke {
 /// [`TextureCache`](craft_ui::canvas::textures::TextureCache) by its [`Revision`]. The app's
 /// render closure runs only when the revision or the strip's size in pixels changes.
 ///
-/// - **Look.** On `field.fill` with a 1 pt `field.border` and `radius.sm` corners, the full width
+/// - **Look.** On `field.fill` with a 1 pt `field.border` and `radius.control` corners, the full width
 ///   it is given, `brush.strip_height` (76) high; the image fills it.
 /// - **AccessKit.** An `Image` named "Stroke preview".
 #[must_use = "show the strip with `show`"]

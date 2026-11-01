@@ -28,7 +28,7 @@ pub struct BeforeAfterStyle {
     pub gap_side: f32,
     /// Between two stacked panes: `before_after.gap_stacked` (28, LightCraft `detail.rs:486`).
     pub gap_stacked: f32,
-    /// Below a caption: `before_after.caption_gap` (`space.s4`).
+    /// Below a caption: `before_after.caption_gap` (4).
     pub caption_gap: f32,
     /// The captions: `type.label` in `text.muted`.
     pub caption_font: FontId,
