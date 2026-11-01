@@ -13,7 +13,10 @@ use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, corner_radius, role_format};
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
-use egui::{Align, AsIdSalt, Color32, Context, Frame, Id, IdSalt, Key, Layout, Margin, Modifiers, Rect, Response, Sense, Ui, UiBuilder, Vec2, pos2};
+use egui::{
+    Align, AsIdSalt, Color32, Context, EventFilter, Frame, Id, IdSalt, Key, Layout, Margin, Modifiers, Rect, Response, Sense, Ui, UiBuilder, Vec2,
+    pos2,
+};
 
 use super::ReviewStyle;
 use crate::comments::{CommentSort, CommentThread, ReviewStatus, ThreadId, initials, matches, sort_threads};
@@ -105,6 +108,25 @@ pub enum CommentEdit {
     CopyText {
         thread: ThreadId,
         index: usize,
+    },
+    /// The viewer's reaction `emoji` on message `index` toggled (the thread popover).
+    React {
+        thread: ThreadId,
+        index: usize,
+        emoji: String,
+    },
+    /// Figma's resolve (`true`) or reopen (`false`).
+    Resolve {
+        thread: ThreadId,
+        resolved: bool,
+    },
+    /// The app puts a link to the thread on the clipboard.
+    CopyLink {
+        thread: ThreadId,
+    },
+    /// The viewer's read state of the thread cleared.
+    MarkUnread {
+        thread: ThreadId,
     },
 }
 
@@ -432,6 +454,9 @@ fn card(ui: &mut Ui, cx: &Cx, thread: &CommentThread, state: &mut CommentsPanelS
     if response.clicked() {
         select(thread.id, state, edits);
     }
+    if response.has_focus() {
+        ui.memory_mut(|memory| memory.set_focus_lock_filter(response.id, EventFilter { vertical_arrows: true, ..EventFilter::default() }));
+    }
     if response.has_focus() && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Enter)) {
         select(thread.id, state, edits);
         if editable {
@@ -542,15 +567,7 @@ fn message_body(ui: &mut Ui, cx: &Cx, thread: &CommentThread, index: usize, stat
     }
 }
 
-fn reply(
-    ui: &mut Ui,
-    cx: &Cx,
-    thread: &CommentThread,
-    index: usize,
-    editable: bool,
-    state: &mut CommentsPanelState,
-    edits: &mut Vec<CommentEdit>,
-) {
+fn reply(ui: &mut Ui, cx: &Cx, thread: &CommentThread, index: usize, editable: bool, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) {
     let (tokens, labels) = (cx.tokens, cx.labels);
     let Some(message) = thread.messages.get(index) else { return };
     ui.horizontal_top(|ui| {
@@ -559,7 +576,13 @@ fn reply(
             ui.spacing_mut().item_spacing.y = 0.0;
             ui.horizontal(|ui| {
                 text(ui, tokens, TypeRole::BodyStrong, tokens.color.text.normal.to_egui(), &message.author);
-                text(ui, tokens, TypeRole::Caption, tokens.color.text.muted.to_egui(), age_text(ui.ctx(), message.modified.unwrap_or(message.created)));
+                text(
+                    ui,
+                    tokens,
+                    TypeRole::Caption,
+                    tokens.color.text.muted.to_egui(),
+                    age_text(ui.ctx(), message.modified.unwrap_or(message.created)),
+                );
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let mut entries: Vec<MenuEntry<CardMenu>> = Vec::new();
                     if editable {

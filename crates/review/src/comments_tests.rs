@@ -1,6 +1,6 @@
 //! Comment threads.
 
-use crate::comments::{CommentAnchor, CommentMessage, CommentSort, CommentThread, ThreadId, ReviewStatus, initials, matches, sort_threads};
+use crate::comments::{CommentAnchor, CommentMessage, CommentSort, CommentThread, ReviewStatus, ThreadId, initials, matches, sort_threads};
 
 fn message(author: &str, text: &str, created: i64) -> CommentMessage {
     CommentMessage { author: author.into(), created, modified: None, text: text.into(), reactions: Vec::new(), read: true }
