@@ -11,6 +11,8 @@
 use egui::Modifiers;
 use kurbo::{Affine, Point, Rect, Vec2};
 
+use crate::behavior::move_gesture::{Directions, lock_direction};
+
 /// The skew fields' reach in degrees: a skew of ±90° would flatten the box (PhotoCraft's).
 pub const SKEW_LIMIT: f64 = 89.0;
 
@@ -181,10 +183,15 @@ impl BoxRules {
     /// `scale` [`ScaleRule::Free`] (corners stretch, ⇧ keeps the proportions, edges stretch their
     /// one axis, as VectorCraft and DesignCraft), `aspect_linked` true, `allow` everything off (no
     /// rotate, skew or distort: the outside and ⌘-drags only scale), `rotate_step` 15.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn resize_only() -> BoxRules {
         // new: step7-select lead call 24 (rotation of a selection frame is the Free Transform's).
-        todo!()
+        BoxRules {
+            mode: TransformMode::Free,
+            scale: ScaleRule::Free,
+            aspect_linked: true,
+            allow: BoxAllow { rotate: false, skew: false, distort: false },
+            rotate_step: 15.0,
+        }
     }
 
     /// The mode drags follow: a mode the content refuses scales as Free Transform does.
@@ -347,7 +354,7 @@ fn apply_drag(g: &Gesture, p: Point, mods: Modifiers, rotate_step: f64) -> BoxSt
     let (q0, c) = (g.quad0, g.pivot0);
     match g.part {
         BoxPart::Inside => {
-            let d = if mods.shift { constrain(d, Some(g.last), MOVE_DIRECTIONS) } else { d };
+            let d = if mods.shift { lock_direction(d, Some(g.last), Directions::Eight) } else { d };
             BoxState { quad: q0.map(|q| q + d), pivot: c + d }
         }
         BoxPart::Pivot => BoxState { quad: q0, pivot: p },
@@ -470,39 +477,6 @@ fn scale_drag(g: &Gesture, p: Point, mods: Modifiers) -> Option<BoxState> {
     // ⌥ scales about the reference point, so it stays put; otherwise it rides along.
     let pivot = if mods.alt { g.pivot0 } else { carry_pivot(g.quad0, quad, g.pivot0) };
     Some(BoxState { quad, pivot })
-}
-
-/// The directions a ⇧ move inside the box locks to: the axes and the diagonals.
-const MOVE_DIRECTIONS: u32 = 8;
-/// Extra angle in degrees the pointer must pass the half-way line by before a ⇧ move's locked
-/// direction switches, so it doesn't flicker near the diagonal.
-const HYSTERESIS_DEG: f64 = 8.0;
-
-/// `d` locked to the nearest of `n` evenly spaced directions (0° = right), keeping `prev`'s
-/// direction until `d` is clearly nearer another.
-// K2: delete this copy and its two constants; `drag` calls
-// `crate::behavior::move_gesture::lock_direction(d, Some(g.last), Directions::Eight)`.
-fn constrain(d: Vec2, prev: Option<Vec2>, n: u32) -> Vec2 {
-    let len = d.hypot();
-    if n == 0 || !len.is_finite() || len == 0.0 {
-        return d;
-    }
-    let step = std::f64::consts::TAU / f64::from(n);
-    let a = d.atan2();
-    let mut k = (a / step).round();
-    if let Some(p) = prev.filter(|p| p.hypot() > 0.0) {
-        let kp = (p.atan2() / step).round();
-        let off = (a - kp * step).rem_euclid(std::f64::consts::TAU);
-        let off = off.min(std::f64::consts::TAU - off);
-        if off < step / 2.0 + HYSTERESIS_DEG.to_radians() {
-            k = kp;
-        }
-    }
-    let (s, c) = (k * step).sin_cos();
-    let t = (d.x * c + d.y * s).max(0.0);
-    // Axis-locked moves stay exactly on the axis.
-    let clean = |v: f64| if v.abs() < 1e-9 { 0.0 } else { v };
-    Vec2::new(clean(t * c), clean(t * s))
 }
 
 /// The turn at each corner of a quad: all of one sign for a convex quad, mixed for a concave or

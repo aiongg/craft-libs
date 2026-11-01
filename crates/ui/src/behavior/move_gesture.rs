@@ -26,8 +26,6 @@
 //! # let _ = (begin, commit);
 //! # }
 //! ```
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use egui::Modifiers;
 use kurbo::{Point, Vec2};
 
@@ -70,7 +68,25 @@ pub fn lock_direction(d: Vec2, previous: Option<Vec2>, directions: Directions) -
     // pc: crates/ui-egui/src/tools/move_mods.rs:42 `constrain` (step TAU / n; k = round(atan2 / step);
     // keep kp while the wrapped offset < step / 2 + 8°; t = max(0, d · dir); clean |v| < 1e-9 to 0).
     // The library's copy is `canvas/quad.rs:472` `constrain`: K2 deletes it and calls this.
-    todo!()
+    let len = d.hypot();
+    if !len.is_finite() || len == 0.0 {
+        return d;
+    }
+    let step = std::f64::consts::TAU / f64::from(directions.count());
+    let a = d.atan2();
+    let mut k = (a / step).round();
+    if let Some(p) = previous.filter(|p| p.hypot() > 0.0) {
+        let kp = (p.atan2() / step).round();
+        let off = (a - kp * step).rem_euclid(std::f64::consts::TAU);
+        let off = off.min(std::f64::consts::TAU - off);
+        if off < step / 2.0 + LOCK_HYSTERESIS_DEGREES.to_radians() {
+            k = kp;
+        }
+    }
+    let (s, c) = (k * step).sin_cos();
+    let t = (d.x * c + d.y * s).max(0.0);
+    let clean = |v: f64| if v.abs() < 1e-9 { 0.0 } else { v };
+    Vec2::new(clean(t * c), clean(t * s))
 }
 
 /// The sizes of the move and stroke rules, from the `constrain` token family.
@@ -87,7 +103,8 @@ impl ConstrainStyle {
     /// The style from `tokens` (`constrain.copy_reach`, `constrain.stroke_lock`).
     pub fn of(tokens: &UiTokens) -> Self {
         // new: token task TK1 adds the `constrain` family (values 2 and 3 at both Sizes).
-        todo!()
+        let c = &tokens.component.constrain;
+        Self { copy_reach: f64::from(c.copy_reach), stroke_lock: f64::from(c.stroke_lock) }
     }
 }
 
@@ -124,7 +141,17 @@ impl MoveGesture {
     /// gesture and `EditEvent::Begin` (no value): the host takes its undo mark.
     pub fn begin(style: &ConstrainStyle, start: Point, modifiers: Modifiers, directions: Directions) -> (MoveGesture, EditEvent<MoveValue>) {
         // pc: crates/ui-egui/src/tools/move_mods.rs:124 `filter_event` Down (`MoveDrag { start, alt: mods.alt, .. }`).
-        todo!()
+        let id = GestureId::next();
+        let gesture = MoveGesture {
+            id,
+            start,
+            directions,
+            copy_reach: style.copy_reach,
+            alt_at_press: modifiers.alt,
+            value: MoveValue::default(),
+            locked: None,
+        };
+        (gesture, EditEvent::begin(id))
     }
 
     /// The pointer moved to `at` (document units) with `modifiers` at `zoom` screen points per
@@ -135,7 +162,12 @@ impl MoveGesture {
     pub fn drag(&mut self, at: Point, modifiers: Modifiers, zoom: f64) -> Option<EditEvent<MoveValue>> {
         // pc: crates/ui-egui/src/tools/move_mods.rs:139 `drag_to` (constrain with `last`; the
         // duplicate threshold `hypot × zoom >= 2.0`, once per drag).
-        todo!()
+        let next = self.value_at(at, modifiers, zoom);
+        if next == self.value {
+            return None;
+        }
+        self.value = next;
+        Some(EditEvent::update(self.id, next, modifiers))
     }
 
     /// The release at `at`: the same lock as [`drag`](Self::drag) applies, so a release where
@@ -143,14 +175,31 @@ impl MoveGesture {
     /// press and release without travel commits unchanged (no undo step).
     pub fn end(self, at: Point, modifiers: Modifiers, zoom: f64) -> EditEvent<MoveValue> {
         // pc: crates/ui-egui/src/tools/move_mods.rs:132 `filter_event` Up (`drag_to` then `finish`).
-        todo!()
+        let mut this = self;
+        let value = this.value_at(at, modifiers, zoom);
+        EditEvent::commit(this.id, value, value.delta != Vec2::ZERO || value.copy, modifiers)
     }
 
     /// Esc or a lost pointer: `Cancel` with [`CancelReason::Escape`](crate::edit::CancelReason).
     /// The host restores its mark, which also takes back a copy.
     pub fn cancel(self) -> EditEvent<MoveValue> {
         // new: decisions §2.5 (gestures cancel); PhotoCraft's `abandon` rolls the copy back instead.
-        todo!()
+        EditEvent::cancel(self.id, crate::edit::CancelReason::Escape)
+    }
+
+    /// The value at `at`, updating the remembered lock; `copy` stays on once on.
+    fn value_at(&mut self, at: Point, modifiers: Modifiers, zoom: f64) -> MoveValue {
+        let d = at - self.start;
+        let delta = if modifiers.shift {
+            let locked = lock_direction(d, self.locked, self.directions);
+            self.locked = Some(locked);
+            locked
+        } else {
+            self.locked = None;
+            d
+        };
+        let copy = self.value.copy || (self.alt_at_press && delta.hypot() * zoom >= self.copy_reach);
+        MoveValue { delta, copy }
     }
 
     /// The value of the last event: the offset and whether it copies.
@@ -187,7 +236,21 @@ impl StrokeLock {
     pub fn constrain(&mut self, last: Point, p: Point, shift: bool, zoom: f64) -> Point {
         // pc: crates/ui-egui/src/tools/stroke_constraint.rs:65 `constrain` (LOCK_DISTANCE 3.0 / zoom.max(1e-3);
         // `snapped_dir` with FRAC_PI_4; `project`).
-        todo!()
+        if !shift {
+            self.reset();
+            return p;
+        }
+        let origin = *self.origin.get_or_insert(last);
+        if self.direction.is_none() {
+            if (p - origin).hypot() < self.reach / zoom.max(1e-3) {
+                return origin;
+            }
+            self.direction = snap_direction(origin, p, std::f64::consts::FRAC_PI_4);
+        }
+        match self.direction {
+            Some(dir) => origin + dir * (p - origin).dot(dir),
+            None => origin,
+        }
     }
 
     /// Whether a direction is locked.
@@ -208,5 +271,19 @@ impl StrokeLock {
 /// within 1e-9 of `origin`, a coordinate is not finite or `step` is not positive.
 pub fn snap_ray(origin: Point, p: Point, step: f64) -> Point {
     // pc: crates/ui-egui/src/tools/stroke_constraint.rs:39 `snapped_dir` (None under 1e-9), :49 `project`, :55 `snap45`.
-    todo!()
+    match snap_direction(origin, p, step) {
+        Some(dir) => origin + dir * (p - origin).dot(dir),
+        None => p,
+    }
+}
+
+/// The unit direction from `origin` towards `p` snapped to the nearest multiple of `step`; `None`
+/// when the points coincide, a coordinate is not finite or `step` is not positive.
+fn snap_direction(origin: Point, p: Point, step: f64) -> Option<Vec2> {
+    let d = p - origin;
+    if !(d.x.is_finite() && d.y.is_finite()) || d.hypot() < 1e-9 || step.is_nan() || step <= 0.0 {
+        return None;
+    }
+    let a = (d.atan2() / step).round() * step;
+    Some(Vec2::new(a.cos(), a.sin()))
 }
