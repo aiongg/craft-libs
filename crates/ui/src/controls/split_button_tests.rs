@@ -104,6 +104,48 @@ fn the_main_part_runs_and_the_arrow_opens_the_menu() {
     rig.button(main, true);
     rig.button(main, false);
     assert_eq!((rig.open, rig.runs), (false, 1), "the closing press does nothing else");
+
+    // A press on the arrow closes the menu it opened, and the main part's action does not run.
+    rig.button(arrow, true);
+    rig.button(arrow, false);
+    assert!(rig.open);
+    rig.button(arrow, true);
+    rig.button(arrow, false);
+    assert_eq!((rig.open, rig.runs), (false, 1), "a press on the arrow closes the menu");
+
+    // A menu opened from the keyboard is closed by a press on the main part, which runs nothing.
+    let mut rig = Rig::new();
+    rig.key(Key::Tab, Modifiers::NONE);
+    rig.key(Key::ArrowDown, Modifiers::ALT);
+    assert!(rig.open);
+    let main = rig.center(Role::Button, "Image Trace");
+    rig.button(main, true);
+    rig.button(main, false);
+    assert_eq!((rig.open, rig.runs), (false, 0), "the closing press does nothing else");
+}
+
+// The border is one rectangle around the whole button: no part has an edge of its own.
+#[test]
+fn one_border_surrounds_both_parts() {
+    let rig = Rig::new();
+    let ctx = rig.ctx.clone();
+    let entries = rig.entries.clone();
+    let mut width = 0.0;
+    let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(rig.time), ..Default::default() };
+    let output = ctx.run_ui(input, |ui| {
+        width = SplitButton::new("trace", "Image Trace", &entries).arrow_label("Tracing Presets").show(ui).main.rect.width();
+    });
+    let outlines: Vec<f32> = output
+        .shapes
+        .iter()
+        .filter_map(|s| match &s.shape {
+            egui::Shape::Rect(r) if r.stroke.width > 0.0 => Some(r.rect.width()),
+            _ => None,
+        })
+        .collect();
+    output.drop_without_applying_deltas();
+    assert!(!outlines.is_empty(), "the button has a border");
+    assert!(outlines.iter().all(|w| *w > width + 1.0), "every outline spans the arrow part too: {outlines:?} beside the main part's {width}");
 }
 
 // With the focus on the button, Alt+↓ opens the menu with its first row active; Enter runs the action when it is closed.

@@ -130,7 +130,7 @@ mod rating;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod rating_tests;
 mod reset_dot;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+#[cfg(test)]
 mod reset_dot_tests;
 pub(crate) mod segmented;
 pub(crate) mod select;
@@ -143,7 +143,7 @@ mod slider_tests;
 mod small_tests;
 pub(crate) mod spinner;
 mod split_button;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+#[cfg(test)]
 mod split_button_tests;
 pub mod swatch;
 pub(crate) mod switch;
@@ -190,7 +190,7 @@ pub use preview_select::{LineStyle, LineWeights, SelectText, paint_line_style};
 pub use progress::{Progress, ProgressStyle};
 pub use radio::{PreparedRadioSet, RadioGroup, RadioSet, RadioStyle};
 pub use range_slider::RangeSlider;
-pub use rating::{MAX_STARS, Rating, RatingLabels, StarSize, paint_rating};
+pub use rating::{MAX_STARS, Rating, RatingLabels, paint_rating};
 pub use reset_dot::{ResetDot, ResetDotLabels};
 pub use segmented::{Segmented, SegmentedStyle};
 pub use select::{ListboxStyle, Select, SelectStyle};

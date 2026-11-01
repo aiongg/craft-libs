@@ -7,12 +7,12 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ResetDotTokens {
-    /// Side of the dot's square: `reset_dot.size`.
+    /// Side of the dot's square, a standard control's side (`size.control.md`): `reset_dot.size`.
     pub size: f32,
-    /// Radius of the dot: `reset_dot.radius`.
+    /// Radius of the dot and of its default ring: `reset_dot.dot`.
+    pub dot: f32,
+    /// Corner radius of the square's state fills: `reset_dot.radius`.
     pub radius: f32,
-    /// Corner radius of the square's hover fill: `reset_dot.corner`.
-    pub corner: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -24,12 +24,12 @@ impl Family for ResetDotTokens {
     const FIELDS: &'static [ResetDotField] = &[];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { ResetDotTokens;
         "size" 0.0..=256.0 => size;
+        "dot" 0.0..=64.0 => dot;
         "radius" 0.0..=64.0 => radius;
-        "corner" 0.0..=64.0 => corner;
     };
 
-    fn defaults(_: &Semantic<'_>) -> ResetDotTokens {
-        ResetDotTokens { size: values::RESET_DOT_SIZE, radius: values::RESET_DOT_RADIUS, corner: values::RESET_DOT_CORNER }
+    fn defaults(s: &Semantic<'_>) -> ResetDotTokens {
+        ResetDotTokens { size: s.size.control.md, dot: values::RESET_DOT_RADIUS, radius: values::RESET_DOT_CORNER }
     }
 
     fn path(f: ResetDotField) -> String {

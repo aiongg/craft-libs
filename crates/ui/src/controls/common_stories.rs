@@ -14,7 +14,7 @@ use super::slider::{store, with_values};
 use super::{
     AltText, AltTextField, Apply, ApplyRow, Autocomplete, BreadcrumbBar, Button, ButtonVariant, Chip, ChipField, ControlSize, DatePicker,
     DatePrecision, IconPicker, IconPickerGroup, IconPickerItem, LineStyle, LineWeights, LinkMode, LinkedFields, LinkedLayout, NumberField,
-    PickedDate, Rating, ResetDot, Select, SelectText, SplitButton, StarSize, Suggestion, TextField, TreeEntry, TreePicker, completion_rest,
+    PickedDate, Rating, ResetDot, Select, SelectText, SplitButton, Suggestion, TextField, TreeEntry, TreePicker, completion_rest,
     paint_inline_completion, paint_line_style, paint_rating, path_crumbs,
 };
 use crate::icons::{self, Icon, IconSize};
@@ -479,7 +479,8 @@ fn show_path(ui: &mut Ui, args: &mut PathArgs) {
 /// The rating at both control sizes, and the painted stars of both sizes.
 fn show_stars(ui: &mut Ui, args: &mut DisabledArgs) {
     let words = ControlStoryLabels::of(ui);
-    let star = Tokens::of(ui).component.rating.star.to_egui();
+    let tokens = Tokens::of(ui);
+    let star = tokens.component.rating.star.to_egui();
     state(ui, "story-stars", [3_u8, 0], |ui, [medium, small]| {
         variant_list(ui, "story-stars", |form| {
             variant_row(form, &words.rating_medium, |ui| {
@@ -490,9 +491,10 @@ fn show_stars(ui: &mut Ui, args: &mut DisabledArgs) {
             });
             variant_row(form, &words.rating_painted, |ui| {
                 ui.horizontal(|ui| {
-                    for (size, rating) in [(StarSize::Medium, *medium), (StarSize::Small, *small)] {
-                        let (rect, _) = ui.allocate_exact_size(vec2(size.step() * 5.0, size.side()), Sense::hover());
-                        paint_rating(ui.painter(), rect.left_center(), rating, size, star);
+                    for (size, rating) in [(ControlSize::Md, *medium), (ControlSize::Sm, *small)] {
+                        let (side, step) = (tokens.component.rating.badge_star.get(size), tokens.component.rating.badge_step.get(size));
+                        let (rect, _) = ui.allocate_exact_size(vec2(step * 5.0, side), Sense::hover());
+                        paint_rating(ui.painter(), &tokens, rect.left_center(), rating, size, star);
                     }
                 })
                 .response

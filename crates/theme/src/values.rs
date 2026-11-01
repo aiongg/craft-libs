@@ -1757,14 +1757,11 @@ pub const SPLIT_BUTTON_ARROW_WIDTH: f32 = 18.0;
 /// Between a split button's divider and its top and bottom edge (VectorCraft).
 pub const SPLIT_BUTTON_DIVIDER_INSET: f32 = 5.0;
 
-/// Height of a breadcrumb bar (LightCraft).
-pub const BREADCRUMB_HEIGHT: f32 = 24.0;
-
 /// Side of the chevron between breadcrumb segments (LightCraft).
 pub const BREADCRUMB_SEPARATOR: f32 = 16.0;
 
 /// Space beside a breadcrumb segment's text and either side of a chevron (LightCraft).
-pub const BREADCRUMB_SPACE: f32 = 4.0;
+pub const BREADCRUMB_GAP: f32 = 4.0;
 
 /// The room one breadcrumb segment counts for when deciding how many fit (LightCraft).
 pub const BREADCRUMB_MIN_SEGMENT: f32 = 80.0;
@@ -1781,13 +1778,10 @@ pub const DATE_POPUP_WIDTH: f32 = 220.0;
 /// Padding either side of a month or year cell's text (LightCraft).
 pub const DATE_CELL_PAD: f32 = 6.0;
 
-/// Side of a reset dot's square (VectorCraft).
-pub const RESET_DOT_SIZE: f32 = 24.0;
-
-/// Radius of a reset dot (VectorCraft).
+/// Radius of a reset dot's circle (VectorCraft).
 pub const RESET_DOT_RADIUS: f32 = 3.0;
 
-/// Corner radius of a reset dot's hover fill (VectorCraft).
+/// Corner radius of a reset dot's state fills (VectorCraft).
 pub const RESET_DOT_CORNER: f32 = 3.0;
 
 /// Distance of a drag badge from the pointer, across (LightCraft's `pos + vec2(14, 10)`).
@@ -1853,17 +1847,17 @@ pub const METADATA_GROUP_GAP: f32 = 6.0;
 /// The most a metadata table's rows take before they scroll (LightCraft's dialog).
 pub const METADATA_MAX_HEIGHT: f32 = 440.0;
 
-/// Side of a medium rating star (LightCraft's `widgets/rating.rs`).
-pub const RATING_STAR_MD: f32 = 14.0;
+/// Side of a rating row's star, small and medium (LightCraft's `widgets/rating.rs`).
+pub const RATING_STAR: (f32, f32) = (12.0, 14.0);
 
-/// Side of a medium rating star's cell (LightCraft).
-pub const RATING_CELL_MD: f32 = 19.0;
+/// Side of a rating row's star cell, small and medium (LightCraft).
+pub const RATING_CELL: (f32, f32) = (15.0, 19.0);
 
-/// Side of a small rating star (LightCraft).
-pub const RATING_STAR_SM: f32 = 12.0;
+/// Side of a painted badge star, small and medium (LightCraft's film-strip and grid badges).
+pub const RATING_BADGE_STAR: (f32, f32) = (8.0, 12.0);
 
-/// Side of a small rating star's cell (LightCraft).
-pub const RATING_CELL_SM: f32 = 15.0;
+/// From one painted badge star to the next, small and medium (LightCraft).
+pub const RATING_BADGE_STEP: (f32, f32) = (9.0, 13.0);
 
 /// Duration of a text caret's glide, in milliseconds (WordCraft's `caret_glide.rs`, measured from Word).
 pub const MOTION_CARET_MS: u32 = 100;

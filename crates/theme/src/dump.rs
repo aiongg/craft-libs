@@ -2192,20 +2192,20 @@ fn split_button_lines(out: &mut Lines, t: &SplitButtonTokens) {
 }
 
 fn breadcrumb_lines(out: &mut Lines, t: &BreadcrumbTokens) {
-    let BreadcrumbTokens { height, separator, space, min_segment } = t;
+    let BreadcrumbTokens { height, separator, gap, min_segment } = t;
     out.line("breadcrumb.height", len(*height));
     out.line("breadcrumb.separator", len(*separator));
-    out.line("breadcrumb.space", len(*space));
+    out.line("breadcrumb.gap", len(*gap));
     out.line("breadcrumb.min_segment", len(*min_segment));
 }
 
 fn rating_lines(out: &mut Lines, t: &RatingTokens) {
-    let RatingTokens { star, star_md, cell_md, star_sm, cell_sm } = t;
+    let RatingTokens { star, star_size, cell, badge_star, badge_step } = t;
     out.line("rating.star", hex(*star));
-    out.line("rating.star_md", len(*star_md));
-    out.line("rating.cell_md", len(*cell_md));
-    out.line("rating.star_sm", len(*star_sm));
-    out.line("rating.cell_sm", len(*cell_sm));
+    by_size(out, "rating.star", star_size);
+    by_size(out, "rating.cell", cell);
+    by_size(out, "rating.badge_star", badge_star);
+    by_size(out, "rating.badge_step", badge_step);
 }
 
 fn date_lines(out: &mut Lines, t: &DateTokens) {
@@ -2218,10 +2218,10 @@ fn date_lines(out: &mut Lines, t: &DateTokens) {
 }
 
 fn reset_dot_lines(out: &mut Lines, t: &ResetDotTokens) {
-    let ResetDotTokens { size, radius, corner } = t;
+    let ResetDotTokens { size, dot, radius } = t;
     out.line("reset_dot.size", len(*size));
+    out.line("reset_dot.dot", len(*dot));
     out.line("reset_dot.radius", len(*radius));
-    out.line("reset_dot.corner", len(*corner));
 }
 
 fn drag_lines(out: &mut Lines, t: &DragTokens) {
