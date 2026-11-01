@@ -1,11 +1,13 @@
 //! Tests of the session's options bar (task TR-T9).
 
 use egui::Context;
+use egui::accesskit::Role;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 use kurbo::Rect;
 
 use super::{BarGroups, Interpolation, TransformBar, TransformEdit, TransformSession, TransformSettings};
+use craft_ui::localized::units::{LengthUnit, UnitContext};
 use craft_ui::theme::{Base, install};
 
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
@@ -17,23 +19,36 @@ struct Host {
     mode_switch: bool,
     edits: Vec<String>,
     reset: bool,
+    context: Option<UnitContext>,
 }
 
 fn host(session: TransformSession<()>) -> Host {
-    Host { session, settings: TransformSettings::default(), groups: BarGroups::ALL, mode_switch: true, edits: Vec::new(), reset: false }
+    Host {
+        session,
+        settings: TransformSettings::default(),
+        groups: BarGroups::ALL,
+        mode_switch: true,
+        edits: Vec::new(),
+        reset: false,
+        context: None,
+    }
 }
 
 fn harness(host: Host) -> Harness<'static, Host> {
-    let mut h =
-        Harness::<Host>::builder().with_size([1800.0, 80.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
+    let mut h = Harness::<Host>::builder()
+        .with_size([1800.0, 320.0])
+        .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
+        .build_ui_state(
             |ui, host: &mut Host| {
+                let context = host.context;
                 let out = ui
                     .horizontal(|ui| {
-                        TransformBar::new("bar", &host.session)
-                            .groups(host.groups)
-                            .mode_switch(host.mode_switch)
-                            .settings(&mut host.settings)
-                            .show(ui)
+                        let mut bar =
+                            TransformBar::new("bar", &host.session).groups(host.groups).mode_switch(host.mode_switch).settings(&mut host.settings);
+                        if let Some(context) = context {
+                            bar = bar.unit_context(context);
+                        }
+                        bar.show(ui)
                     })
                     .inner;
                 host.reset |= out.reset_warp;
@@ -152,4 +167,31 @@ fn the_switch_asks_for_a_warp_and_reset_asks_for_an_identity_warp() {
     h.get_by_label("Switch between free transform and warp modes").click();
     h.run();
     assert_eq!(h.state().edits, ["leave warp"]);
+}
+
+// A pick in the W menu changes the unit the fields show and is written to `size_unit`.
+#[test]
+fn a_unit_picked_in_the_size_menu_is_written_to_the_settings() {
+    let mut start = host(TransformSession::new(RECT));
+    start.context = Some(UnitContext::default());
+    let mut h = harness(start);
+    assert_eq!(h.state().settings.size_unit, None);
+    h.run_steps(2);
+    let at = h.get_by_role_and_label(Role::SpinButton, "Width").rect().center();
+    h.event(egui::Event::PointerMoved(at));
+    h.run();
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Secondary, pressed, modifiers: egui::Modifiers::NONE });
+        h.run();
+    }
+    h.run_steps(3);
+    let to = h.get_by_label("Millimeters").rect().center();
+    h.event(egui::Event::PointerMoved(to));
+    h.run();
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton { pos: to, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+        h.run();
+    }
+    h.run_steps(2);
+    assert_eq!(h.state().settings.size_unit, Some(LengthUnit::Millimetres));
 }
