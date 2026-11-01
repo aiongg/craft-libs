@@ -1,6 +1,6 @@
 //! [`PolygonLassoTool`]: the Polygonal Lasso, click by click (task SE-F9).
 
-use craft_ui::canvas::draft::{DraftKind, DraftPoint, DraftReach, OutlineDraft};
+use craft_ui::canvas::draft::{DraftKind, DraftPoint, DraftReach, OutlineDraft, turn_to_45};
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasTool, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer};
 use egui::{Key, Modifiers, Painter};
@@ -9,19 +9,6 @@ use super::drag::{InsideDrag, PressRule, drag_kind};
 use super::lasso::{apply, begin_inside, cursor, outline_node, paint_outline, phase, sample};
 use super::style::SelectToolStyle;
 use super::{SelectEvent, SelectPhase, SelectToolPass};
-
-/// `point` turned about `from` to the nearest multiple of 45°, keeping its distance: the draft's
-/// own turn for a vertex, applied to the rubber band too.
-fn turn_to_45(from: Point, point: Point) -> Point {
-    // pc: crates/ui-egui/src/canvas/gesture.rs:157-169 `constrained_polygon_point`.
-    let delta = point - from;
-    let length = delta.hypot();
-    if !length.is_finite() || length == 0.0 {
-        return point;
-    }
-    let angle = (delta.y.atan2(delta.x) / std::f64::consts::FRAC_PI_4).round() * std::f64::consts::FRAC_PI_4;
-    Point::new(from.x + length * angle.cos(), from.y + length * angle.sin())
-}
 
 /// Photoshop's Polygonal Lasso: each click adds a vertex; the outline closes into a selection.
 ///

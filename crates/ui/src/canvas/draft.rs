@@ -429,7 +429,7 @@ impl OutlineDraft {
 }
 
 /// `point` turned about `from` to the nearest multiple of 45°, keeping its distance.
-fn turn_to_45(from: Point, point: Point) -> Point {
+pub fn turn_to_45(from: Point, point: Point) -> Point {
     // pc: crates/ui-egui/src/canvas/gesture.rs:157-169 `constrained_polygon_point`.
     let delta = point - from;
     let length = delta.hypot();
