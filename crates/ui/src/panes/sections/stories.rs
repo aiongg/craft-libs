@@ -11,6 +11,7 @@ use egui::{IdSalt, ScrollArea, Ui};
 use super::{ReorderableSections, SectionButton, SectionEvent, SectionInfo, SectionKey, SectionLayout, SectionState, SectionsLabels};
 use crate::icons::Icon;
 use crate::localized::Labels as _;
+use crate::menu::PressMenu;
 use crate::primitives::{Content, Text};
 use crate::story::{Level, Story, StoryArgs};
 use crate::typed_story;
@@ -142,9 +143,9 @@ fn show_sidebar(ui: &mut Ui, args: &mut SidebarArgs) {
         .collect();
 
     let mut events = Vec::new();
-    ui.menu_button(words.menu.clone(), |ui| {
-        events.extend(ReorderableSections::menu(ui, &demo.layout, &sections, None, &labels));
-    });
+    let entries = ReorderableSections::menu(&demo.layout, &sections, None, &labels);
+    let menu_button = ui.button(words.menu.clone());
+    events.extend(PressMenu::new(&entries).show(ui, &menu_button).chosen);
     let out = ScrollArea::vertical().id_salt(IdSalt::new("sections-story-scroll")).max_height(args.height).show(ui, |ui| {
         ReorderableSections::new("sections-story-sections", &demo.layout)
             .show_counts(args.show_counts)
