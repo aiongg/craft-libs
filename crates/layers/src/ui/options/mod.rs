@@ -13,10 +13,10 @@ mod dialog_tests;
 mod tests;
 
 use craft_ui::composites::GroupBox;
-use craft_ui::controls::{Checkbox, RadioGroup, RadioSet};
+use craft_ui::controls::{Checkbox, RadioGroup, RadioOption, RadioSet};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, Outcome, StackDialog, Width, dialog_id};
 use craft_ui::list::{ListRow, ListRowStyle, ThumbSize};
-use craft_ui::localized::{SharedLabels as _, Words};
+use craft_ui::localized::{LocaleNumbers, SharedLabels as _, Words};
 use craft_ui::primitives::Gap;
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{Color32, Context, Painter, Rect, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
@@ -90,7 +90,8 @@ craft_ui::words! {
     pub struct LayersOptionsLabels {
         title: "layers.options.title" = "Layers Panel Options";
         thumbnail_size: "layers.options.thumbnailSize" = "Thumbnail Size";
-        /// A size radio's description for a screen reader: `{side}` is the sample's side in points.
+        /// A size radio's description for a screen reader: `{side}` is the sample's side in points,
+        /// written with the locale's digits.
         sample: "layers.options.sample" = "{side} by {side} point thumbnails";
         thumbnail_contents: "layers.options.thumbnailContents" = "Thumbnail Contents";
         layer_bounds: "layers.options.layerBounds" = "Layer Bounds";
@@ -116,8 +117,8 @@ craft_ui::words! {
 ///   [`GroupBox`](craft_ui::composites::GroupBox) "Thumbnail Size" with a
 ///   [`RadioGroup`](craft_ui::controls::RadioGroup) of None (a text label), then Small, Medium and
 ///   Large, each with a real-size sample ([`paint_sample_thumbnail`]) at twice the row thumbnail
-///   (`layers.options.sample_scale` × `list.thumb.*`: 36, 48, 96 at Compact); a click on a
-///   sample picks its size. A group box "Thumbnail Contents" with Layer Bounds and Entire
+///   (`layers.options.sample_scale` × `list.thumb.*`: 36, 48, 96 at Compact), drawn inside the
+///   radio's hit area, so a click on a sample picks its size and the sample adds no Tab stop. A group box "Thumbnail Contents" with Layer Bounds and Entire
 ///   Document; then the five switches as [`Checkbox`](craft_ui::controls::Checkbox)es, in
 ///   PhotoCraft's order.
 /// - Keyboard: the radio groups take arrows; Tab walks the groups and checkboxes; Enter is OK,
@@ -134,7 +135,7 @@ pub struct LayersOptionsDialog {
 impl LayersOptionsDialog {
     /// The dialog at Photoshop's defaults ([`LayersOptions::default`]).
     pub fn new() -> Self {
-        Self { id: dialog_id("layers.options"), draft: LayersOptions::default(), state: DialogState::new() }
+        Self { id: dialog_id("layers-options"), draft: LayersOptions::default(), state: DialogState::new() }
     }
 
     /// Opens with `options`: the panel's current Panel Options.
@@ -163,7 +164,7 @@ impl StackDialog for LayersOptionsDialog {
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<LayersOptions>> {
         let labels = LayersOptionsLabels::shared_ctx(ctx);
         let mut state = std::mem::take(&mut self.state);
-        let shown = Dialog::new("layers.options", labels.title.as_str()).stack(stack).width(Width::Standard).footer(Footer::standard()).show(
+        let shown = Dialog::new("layers-options", labels.title.as_str()).stack(stack).width(Width::Standard).footer(Footer::standard()).show(
             ctx,
             &mut state,
             &mut (),
@@ -186,6 +187,7 @@ impl LayersOptionsDialog {
     fn body(&mut self, ui: &mut Ui, labels: &LayersOptionsLabels) {
         let tokens = Tokens::of(ui);
         let words = Words::of_ctx(ui.ctx());
+        let numbers = LocaleNumbers::of(ui);
         let gap = Gap::Section.points(&tokens);
         let row = ListRow::<u8>::style(&tokens);
         let layers = LayersStyle::of(&tokens);
@@ -197,30 +199,26 @@ impl LayersOptionsDialog {
                 .item(ThumbSize::Medium)
                 .item(ThumbSize::Large)
                 .begin(ui);
-            let mut picked = None;
             for (index, size) in ThumbSize::ALL.into_iter().enumerate() {
                 let name = size.label(&words);
-                ui.horizontal(|ui| {
-                    if size == ThumbSize::None {
-                        set.radio(ui, index, &name);
-                        return;
-                    }
-                    let side = sample_side(&row, &layers, size);
-                    set.radio_named(ui, index, "", &name).on_hover_text(name.as_ref());
-                    ui.add_space(Gap::Inline.points(&tokens));
-                    let (rect, response) = ui.allocate_exact_size(vec2(side, side), Sense::click());
+                if size == ThumbSize::None {
+                    set.radio(ui, index, &name);
+                    continue;
+                }
+                let side = sample_side(&row, &layers, size);
+                let side_text = numbers.format(f64::from(side), 0..=1);
+                let description = craft_i18n::fmt(&labels.sample, &[("side", side_text.as_str())]);
+                let inline = Gap::Inline.points(&tokens);
+                let option = RadioOption::new("").name(&name).description(&description).content(|ui| {
+                    ui.add_space(inline);
+                    let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::empty());
                     paint_sample_thumbnail(ui.painter(), rect);
-                    let description = labels.sample.as_str().replace("{side}", &format!("{side}"));
-                    response.widget_info(|| egui::WidgetInfo::labeled(egui::accesskit::Role::Button, true, format!("{name}: {description}")));
-                    if response.on_hover_text(name.as_ref()).clicked() {
-                        picked = Some(size);
-                    }
                 });
+                // A row of its own: `radio_with` centres its content in the height it is given,
+                // which in the dialog's column is all that is left of it.
+                ui.horizontal(|ui| set.radio_with(ui, index, option).on_hover_text(name.as_ref()));
             }
             let _ = set.end(ui);
-            if let Some(size) = picked {
-                draft.thumbnail_size = size;
-            }
         });
         ui.add_space(gap);
         GroupBox::new(labels.thumbnail_contents.as_str()).show(ui, |ui| {

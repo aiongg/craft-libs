@@ -2,14 +2,18 @@
 
 #![allow(clippy::expect_used, reason = "tests")]
 
+use craft_theme::ControlSize;
+use craft_ui::controls::IconButton;
 use craft_ui::edit::EditEvent;
-use craft_ui::theme::{Base, install};
+use craft_ui::theme::{Base, current, install};
+use egui::Context;
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::{BlendRows, LayerPropertyEdit, opacity_row_layout};
+use crate::ui::panel::LayersStyle;
 use crate::ui::tree::{BlendChoice, LayerLocks, LayerProperties, LockKind};
 
 struct App {
@@ -147,25 +151,53 @@ fn opacity_drag_is_one_gesture_and_cancel_restores() {
     assert!(!later.iter().any(|e| matches!(e, LayerPropertyEdit::Opacity(EditEvent::Commit { .. }))), "{later:?}");
 }
 
-// The "Opacity:" label hides below `label + field + 2 gaps + 16 + layers.blend.min_width`; the
-// field stays (`opacity_row_layout` and the drawn rows).
+// The "Opacity:" label hides below `label + field + 2 gaps + layers.blend.label_slack +
+// layers.blend.min_width`; the field stays (`opacity_row_layout` and the drawn rows). The field's
+// box is the text part (`layers.percent_field_width`) plus the pop-up arrow.
 #[test]
 fn opacity_label_hides_on_a_narrow_panel() {
-    let (wide_blend, shown) = opacity_row_layout(300.0, 50.0, 66.0, 8.0, 80.0);
-    assert!(shown && (wide_blend - (300.0 - 66.0 - 8.0 - 50.0 - 8.0 - 16.0)).abs() < 1e-3);
-    let (edge, shown) = opacity_row_layout(50.0 + 66.0 + 16.0 + 16.0 + 80.0, 50.0, 66.0, 8.0, 80.0);
-    assert!(shown && (edge - 80.0).abs() < 1e-3, "the label shows exactly at the threshold");
-    let (narrow_blend, shown) = opacity_row_layout(50.0 + 66.0 + 16.0 + 16.0 + 80.0 - 0.5, 50.0, 66.0, 8.0, 80.0);
-    assert!(!shown && (narrow_blend - (50.0 + 66.0 + 16.0 + 16.0 + 80.0 - 0.5 - 66.0 - 8.0)).abs() < 1e-3);
-    assert!((opacity_row_layout(100.0, 50.0, 66.0, 8.0, 80.0).0 - 40.0).abs() < 1e-3, "the select keeps 40");
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let tokens = current(&ctx);
+    let style = LayersStyle::of(&tokens);
+    let arrow = IconButton::style(&tokens, ControlSize::Sm).side;
+    let (slack, floor, min) = (style.blend_label_slack, style.blend_floor_width, style.blend_min_width);
+    let field = style.percent_field_width + arrow;
+    assert!(arrow > 0.0 && (slack - 16.0).abs() < 1e-3 && (floor - 40.0).abs() < 1e-3);
+
+    let (wide_blend, shown) = opacity_row_layout(300.0, 50.0, field, 8.0, &style);
+    assert!(shown && (wide_blend - (300.0 - field - 8.0 - 50.0 - 8.0 - slack)).abs() < 1e-3);
+    let threshold = 50.0 + field + 2.0 * 8.0 + slack + min;
+    let (edge, shown) = opacity_row_layout(threshold, 50.0, field, 8.0, &style);
+    assert!(shown && (edge - min).abs() < 1e-3, "the label shows exactly at the threshold");
+    let (narrow_blend, shown) = opacity_row_layout(threshold - 0.5, 50.0, field, 8.0, &style);
+    assert!(!shown && (narrow_blend - (threshold - 0.5 - field - 8.0)).abs() < 1e-3);
+    assert!((opacity_row_layout(100.0, 50.0, field, 8.0, &style).0 - floor).abs() < 1e-3, "the select keeps its floor");
 
     let wide = rows(Some(props()), 300.0);
     assert!(wide.query_by_label("Opacity:").is_some());
     let narrow = rows(Some(props()), 150.0);
     assert!(narrow.query_by_label("Opacity:").is_none(), "the label hides");
-    let field = narrow.get_by_role_and_label(Role::SpinButton, "Opacity").rect();
+    let drawn = narrow.get_by_role_and_label(Role::SpinButton, "Opacity").rect();
     let select = narrow.get_by_role(Role::ComboBox).rect();
-    assert!((field.width() - 66.0).abs() < 1.0 && field.left() >= select.right(), "the field stays, after the select: {field:?} {select:?}");
+    assert!(
+        (drawn.width() - field).abs() < 1.0 && drawn.left() >= select.right(),
+        "the field is its text part and the arrow wide and stays after the select: {drawn:?} {select:?}"
+    );
+}
+
+// The rows are `layers.blend.row_gap` apart: Fill sits one row height and one gap below Opacity.
+#[test]
+fn property_rows_are_one_row_gap_apart() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let gap = LayersStyle::of(&current(&ctx)).blend_row_gap;
+    let harness = rows(Some(props()), 300.0);
+    let opacity = harness.get_by_role_and_label(Role::SpinButton, "Opacity").rect();
+    let fill = harness.get_by_role_and_label(Role::SpinButton, "Fill").rect();
+    // Both fields fill their rows, so the step from one to the next is a row and a gap.
+    let step = fill.top() - opacity.top();
+    assert!((step - (opacity.height() + gap)).abs() < 0.5, "step {step}, field {}, gap {gap}", opacity.height());
 }
 
 // With Lock image pixels on, Lock transparent pixels is disabled and described as included.

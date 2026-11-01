@@ -2232,7 +2232,16 @@ fn layers_lines(out: &mut Lines, t: &LayersTokens) {
         percent_field_width,
         filter_gap,
         filter_type_width,
+        filter_type_gap,
         options_sample_scale,
+        blend_label_slack,
+        blend_floor_width,
+        blend_row_gap,
+        kind_type_ink,
+        indicator_fx_gap,
+        mask_cross_width,
+        mask_cross_inset,
+        indicator_ring_width,
     } = t;
     out.line("layers.indicator.icon", len(*indicator_icon));
     out.line("layers.indicator.triangle", len(*indicator_triangle));
@@ -2249,7 +2258,16 @@ fn layers_lines(out: &mut Lines, t: &LayersTokens) {
     out.line("layers.percent_field_width", len(*percent_field_width));
     out.line("layers.filter.gap", len(*filter_gap));
     out.line("layers.filter.type_width", len(*filter_type_width));
+    out.line("layers.filter.type_gap", len(*filter_type_gap));
     out.line("layers.options.sample_scale", len(*options_sample_scale));
+    out.line("layers.blend.label_slack", len(*blend_label_slack));
+    out.line("layers.blend.floor_width", len(*blend_floor_width));
+    out.line("layers.blend.row_gap", len(*blend_row_gap));
+    out.line("layers.kind.type_ink", hex(*kind_type_ink));
+    out.line("layers.indicator.fx_gap", len(*indicator_fx_gap));
+    out.line("layers.mask.cross_width", len(*mask_cross_width));
+    out.line("layers.mask.cross_inset", len(*mask_cross_inset));
+    out.line("layers.indicator.ring_width", len(*indicator_ring_width));
 }
 
 fn swatch_palette_lines(out: &mut Lines, s: &SwatchPaletteTokens) {

@@ -47,6 +47,11 @@ craft_ui::words! {
         linked: "layers.linked" = "linked";
         layer_mask: "layers.layerMask" = "layer mask";
         vector_mask: "layers.vectorMask" = "vector mask";
+        /// The mask names as titles (the drag ghost of a mask row), capitalised.
+        layer_mask_title: "layers.layerMaskTitle" = "Layer Mask";
+        vector_mask_title: "layers.vectorMaskTitle" = "Vector Mask";
+        /// The effects mark beside a row's triangle, "fx" in every language.
+        fx: "layers.fx" = "fx";
         disabled_mask: "layers.disabledMask" = "disabled mask";
         has_effects: "layers.hasEffects" = "effects";
         has_smart_filters: "layers.hasSmartFilters" = "Smart Filters";
@@ -64,19 +69,6 @@ craft_ui::words! {
         add_adjustment: "layers.addAdjustment" = "Create new fill or adjustment layer";
         new_group: "layers.newGroup" = "Create a new group";
         new_layer: "layers.newLayer" = "Create a new layer";
-        /// The eye cell's colour menu.
-        no_color: "layers.color.none" = "None";
-        red: "layers.color.red" = "Red";
-        orange: "layers.color.orange" = "Orange";
-        yellow: "layers.color.yellow" = "Yellow";
-        green: "layers.color.green" = "Green";
-        seafoam: "layers.color.seafoam" = "Seafoam";
-        blue: "layers.color.blue" = "Blue";
-        indigo: "layers.color.indigo" = "Indigo";
-        magenta: "layers.color.magenta" = "Magenta";
-        fuchsia: "layers.color.fuchsia" = "Fuchsia";
-        violet: "layers.color.violet" = "Violet";
-        gray: "layers.color.gray" = "Gray";
         /// The panel menu's library rows.
         filter_options: "layers.menu.filterOptions" = "Filter Options";
         show_filters: "layers.menu.showFilters" = "Show";

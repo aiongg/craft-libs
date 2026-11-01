@@ -23,14 +23,6 @@ use super::tree::{BlendChoice, LayerLocks, LayerProperties, LockKind};
 // pc: crates/ui-egui/src/panels/options_bar.rs:698 `scrub_pct_label`.
 const PERCENT_PER_POINT: f64 = 0.5;
 
-/// The room kept free between the "Opacity:" label and the field.
-// pc: crates/ui-egui/src/panels/layers.rs:39-46 `opacity_row_layout`.
-const LABEL_SLACK: f32 = 16.0;
-
-/// The blend select's least width when the row is too narrow for anything else.
-// pc: crates/ui-egui/src/panels/layers.rs:39-46 `opacity_row_layout`.
-const LEAST_BLEND_WIDTH: f32 = 40.0;
-
 /// An edit of the active layer's properties, which the app applies to every selected layer (the
 /// Background left out of a multi-layer change, as PhotoCraft).
 #[derive(Clone, Debug, PartialEq)]
@@ -90,10 +82,11 @@ craft_ui::words! {
 /// - **Row 1**: the blend [`Select`](craft_ui::controls::Select) (Small) with `blend_modes` and
 ///   their separators, then "Opacity:" as a scrub label and a Small
 ///   [`NumberField`](craft_ui::controls::NumberField) 0 to 100 % with its pop-up slider,
-///   `layers.percent_field_width` wide. A wheel notch over the closed select steps one mode
+///   `layers.percent_field_width` of text plus the pop-up arrow wide. A wheel notch over the closed select steps one mode
 ///   (`Set` each); hovering a mode in the open list reports `BlendHover`. The "Opacity:" label
-///   hides when `available < label + field + 2 gaps + 16 + layers.blend.min_width`, and the
-///   select takes the rest of the row (at least 40).
+///   hides when `available < label + field + 2 gaps + layers.blend.label_slack +
+///   layers.blend.min_width`, and the select takes the rest of the row (at least
+///   `layers.blend.floor_width`). The rows are `layers.blend.row_gap` apart.
 /// - **Row 2** (with [`locks`](Self::locks)): "Lock:", five Small toggle
 ///   [`IconButton`](craft_ui::controls::IconButton)s in [`LockKind::ALL`] order (Lock image pixels
 ///   disables Lock transparent pixels), then "Fill:" and its field as Opacity's, right-aligned in
@@ -173,7 +166,8 @@ impl<'a> BlendRows<'a> {
         let height = NumberField::style(&tokens, size).field.height.max(side);
         let gap = ui.spacing().item_spacing.x;
         let avail = ui.available_width();
-        let field_width = style.percent_field_width;
+        // The text part plus the number field's pop-up arrow, which is an icon button's side.
+        let field_width = style.percent_field_width + IconButton::style(&tokens, size).side;
 
         let opacity_text = labels.opacity.as_str();
         let fill_text = labels.fill.as_str();
@@ -185,8 +179,9 @@ impl<'a> BlendRows<'a> {
 
         let mut events = Vec::new();
         let block = ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = style.blend_row_gap;
             // Row 1: the blend select, then "Opacity:" and its field at the end.
-            let (blend_width, show_opacity) = opacity_row_layout(avail, opacity_width, field_width, gap, style.blend_min_width);
+            let (blend_width, show_opacity) = opacity_row_layout(avail, opacity_width, field_width, gap, &style);
             ui.add_enabled_ui(editable, |ui| {
                 let row = row_rect(ui, avail, height);
                 let mut key = props.blend_key.clone();
@@ -330,13 +325,16 @@ fn percent_field(ui: &mut Ui, spec: PercentField<'_, impl AsIdSalt>, numbers: &L
 }
 
 /// The width of the blend select and whether the "Opacity:" label shows, for an `available`
-/// row width, the label's width, the field's width (`layers.percent_field_width`, the whole box with its pop-up
-/// arrow), the gap and the select's least width (`layers.blend.min_width`, 80): the label shows
-/// while `available >= label + field + 2 × gap + 16 + min_blend`; the select gets
-/// `available - field - gap - (label + gap + 16 when shown)`, at least 40.
-pub(crate) fn opacity_row_layout(available: f32, label_width: f32, field_width: f32, gap: f32, min_blend: f32) -> (f32, bool) {
+/// row width, the label's width, the field's whole box (`layers.percent_field_width` and the
+/// pop-up arrow), the gap and `style`: the label shows while
+/// `available >= label + field + 2 × gap + slack + min_blend` (`layers.blend.label_slack`, 16;
+/// `layers.blend.min_width`, 80); the select gets
+/// `available - field - gap - (label + gap + slack when shown)`, at least
+/// `layers.blend.floor_width` (40).
+pub(crate) fn opacity_row_layout(available: f32, label_width: f32, field_width: f32, gap: f32, style: &LayersStyle) -> (f32, bool) {
     // pc: crates/ui-egui/src/panels/layers.rs:39-46 `opacity_row_layout`.
-    let show_label = available >= label_width + field_width + 2.0 * gap + LABEL_SLACK + min_blend;
-    let reserved = field_width + gap + if show_label { label_width + gap + LABEL_SLACK } else { 0.0 };
-    ((available - reserved).max(LEAST_BLEND_WIDTH), show_label)
+    let slack = style.blend_label_slack;
+    let show_label = available >= label_width + field_width + 2.0 * gap + slack + style.blend_min_width;
+    let reserved = field_width + gap + if show_label { label_width + gap + slack } else { 0.0 };
+    ((available - reserved).max(style.blend_floor_width), show_label)
 }

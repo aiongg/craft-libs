@@ -1969,6 +1969,26 @@ pub const LAYERS_PERCENT_FIELD_WIDTH: f32 = 66.0;
 pub const LAYERS_FILTER_TYPE_WIDTH: f32 = 64.0;
 /// Panel Options' sample side as a factor of the row thumbnail.
 pub const LAYERS_OPTIONS_SAMPLE_SCALE: f32 = 2.0;
+/// Space after the Layers filter type select (PhotoCraft `layer_filter_ui.rs`).
+pub const LAYERS_FILTER_TYPE_GAP: f32 = 4.0;
+/// Room kept free between the "Opacity:" label and its field (PhotoCraft `opacity_row_layout`).
+pub const LAYERS_BLEND_LABEL_SLACK: f32 = 16.0;
+/// Least width of the blend select when the row is too narrow for anything else (PhotoCraft
+/// `opacity_row_layout`).
+pub const LAYERS_BLEND_FLOOR_WIDTH: f32 = 40.0;
+/// Space between the blend, Opacity, Lock and Fill rows (PhotoCraft `ROW_GAP`).
+pub const LAYERS_BLEND_ROW_GAP: f32 = 4.0;
+/// Ink of the Type layer's kind tile, the same in every theme like its paper (PhotoCraft
+/// `layer_row.rs`).
+pub const LAYERS_KIND_TYPE_INK: Rgba = Rgba::rgb(40, 40, 40);
+/// Space between the effects triangle and the `fx` mark (PhotoCraft `layer_row_ui.rs`).
+pub const LAYERS_INDICATOR_FX_GAP: f32 = 1.0;
+/// Stroke of the cross over a disabled mask.
+pub const LAYERS_MASK_CROSS_WIDTH: f32 = 1.5;
+/// How far the cross over a disabled mask is inset from its thumbnail.
+pub const LAYERS_MASK_CROSS_INSET: f32 = 1.0;
+/// Stroke of the Smart Filters indicator's rings.
+pub const LAYERS_INDICATOR_RING_WIDTH: f32 = 1.0;
 
 /// Side of a media tile's flag glyph in its badge bar (LightCraft `grid.rs`).
 pub const TILE_FLAG: f32 = 14.0;

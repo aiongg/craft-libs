@@ -3,7 +3,7 @@
 
 use craft_theme::LabelColor;
 use craft_ui::docking::panel_menu::PanelCommand;
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{LabelColorLabels, Labels as _};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{AsIdSalt, Context, Id, IdSalt, Response, Ui};
@@ -165,7 +165,7 @@ pub(super) fn show_row_menus<T: LayerTree>(
             (events, shown.open || at.is_some())
         }
         OpenMenu::Eye { rows, current } => {
-            let entries = eye_entries(ui, cx.labels, current);
+            let entries = eye_entries(ui, current);
             let shown = ContextMenu::new(&entries).own_gestures(false).open_at(at).show(ui, list);
             let events = shown.chosen.map(|color| LayersEvent::LabelColor { rows, color }).into_iter().collect();
             (events, shown.open || at.is_some())
@@ -185,32 +185,13 @@ enum OpenMenu<Id> {
 }
 
 /// None, a separator, then every label colour with its swatch and a check on `current`.
-fn eye_entries(ui: &Ui, labels: &LayersLabels, current: Option<LabelColor>) -> Vec<MenuEntry<Option<LabelColor>>> {
+fn eye_entries(ui: &Ui, current: Option<LabelColor>) -> Vec<MenuEntry<Option<LabelColor>>> {
     let tokens = Tokens::of(ui);
-    let mut entries = vec![MenuItem::new(color_name(labels, None), None).into(), MenuEntry::Separator];
+    let names = LabelColorLabels::of(ui);
+    let mut entries = vec![MenuItem::new(names.name(None), None).into(), MenuEntry::Separator];
     for color in LabelColor::ALL {
-        let item =
-            MenuItem::new(color_name(labels, Some(color)), Some(color)).check(current == Some(color)).tint(tokens.component.list.label(color).swatch);
+        let item = MenuItem::new(names.name(Some(color)), Some(color)).check(current == Some(color)).tint(tokens.component.list.label(color).swatch);
         entries.push(item.into());
     }
     entries
-}
-
-/// The menu name of `color` (`None`: "None").
-pub(super) fn color_name(labels: &LayersLabels, color: Option<LabelColor>) -> &str {
-    // new: `LayersLabels::{no_color, red, …, gray}` in `LabelColor::ALL` order.
-    match color {
-        None => &labels.no_color,
-        Some(LabelColor::Red) => &labels.red,
-        Some(LabelColor::Orange) => &labels.orange,
-        Some(LabelColor::Yellow) => &labels.yellow,
-        Some(LabelColor::Green) => &labels.green,
-        Some(LabelColor::Seafoam) => &labels.seafoam,
-        Some(LabelColor::Blue) => &labels.blue,
-        Some(LabelColor::Indigo) => &labels.indigo,
-        Some(LabelColor::Magenta) => &labels.magenta,
-        Some(LabelColor::Fuchsia) => &labels.fuchsia,
-        Some(LabelColor::Violet) => &labels.violet,
-        Some(LabelColor::Gray) => &labels.gray,
-    }
 }
