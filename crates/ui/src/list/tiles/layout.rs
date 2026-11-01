@@ -110,6 +110,19 @@ pub struct ArrangeSpacing {
 /// - `groups` are in display order and cover only the tiles they name; tiles outside every group
 ///   sit in rows without a header.
 pub fn arrange(aspects: &[f32], groups: &[TileGroup], width: f32, layout: TileLayout, spacing: ArrangeSpacing) -> TileArrangement {
+    arrange_closed(aspects, groups, &[], width, layout, spacing)
+}
+
+/// [`arrange`] with the groups flagged in `closed` (by group index; groups past its end are open)
+/// reduced to their header: their tiles get no row and keep `Rect::NOTHING`.
+pub(super) fn arrange_closed(
+    aspects: &[f32],
+    groups: &[TileGroup],
+    closed: &[bool],
+    width: f32,
+    layout: TileLayout,
+    spacing: ArrangeSpacing,
+) -> TileArrangement {
     // lightcraft: crates/ui-egui/src/panels/grid.rs:588 (`layout`: justified rows, square cells, groups).
     let sanitized: Vec<f32> = aspects.iter().map(|a| if a.is_finite() && *a > 0.0 { *a } else { 1.0 }).collect();
     let n = sanitized.len();
@@ -143,6 +156,9 @@ pub fn arrange(aspects: &[f32], groups: &[TileGroup], width: f32, layout: TileLa
         if group.is_some() {
             out.headers.push(Rect::from_min_size(pos2(inset, y), vec2(content, group_header)));
             y += group_header;
+        }
+        if group.is_some_and(|g| closed.get(g).copied().unwrap_or(false)) {
+            continue;
         }
         let mut first_row = true;
         let mut place = |out: &mut TileArrangement, y: &mut f32, tiles: Range<usize>, height: f32| {

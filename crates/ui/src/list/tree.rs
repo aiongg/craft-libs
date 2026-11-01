@@ -47,7 +47,7 @@ crate::words! {
 }
 
 /// `pattern` with `{row}` replaced by the row's label.
-pub(super) fn with_row(pattern: &str, row: &str) -> String {
+pub(in crate::list) fn with_row(pattern: &str, row: &str) -> String {
     pattern.replace("{row}", row)
 }
 

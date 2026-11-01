@@ -51,7 +51,7 @@ use crate::patterns::ScrollBarLabels;
 use crate::primitives::{FocusRing, Interactive};
 use crate::theme::{Tokens, TokensOf as _};
 use craft_theme::{Rgba, TypeRole};
-use egui::accesskit::{Action, Role};
+use egui::accesskit::{Action, AriaCurrent, Role};
 use egui::containers::scroll_area::ScrollSource;
 use egui::os::OperatingSystem;
 use egui::{
@@ -672,6 +672,10 @@ struct Signature {
     layout: TileLayout,
     spacing: ArrangeSpacing,
     groups: Vec<TileGroup>,
+    /// The width of the `Start` caption column; 0 for any other caption place.
+    start_width: f32,
+    /// The groups that are closed, by index; empty when none is.
+    closed: Vec<bool>,
 }
 
 /// A marquee under way: where it began in content coordinates, and the selection it began with.
@@ -712,6 +716,8 @@ struct State<K> {
     /// A click on the caption of the only selected tile and when it happened: it opens the
     /// rename once no second click came within the double-click interval.
     slow_click: Option<(K, f64)>,
+    /// The current key of the last pass, to tell a new current tile from an old one.
+    current: Option<K>,
 }
 
 impl<K> Default for State<K> {
@@ -731,6 +737,7 @@ impl<K> Default for State<K> {
             pinch: 0.0,
             rename: None,
             slow_click: None,
+            current: None,
         }
     }
 }
@@ -944,6 +951,15 @@ struct Pass<'a, 's, K: TextureKey, S: ?Sized> {
     gesture: Option<ReorderGesture<K>>,
     /// Where a drag of this grid's tiles would drop this pass.
     drop_target: Option<Move<K>>,
+    strip: strip::Strip<'a, K>,
+    /// The width of the `Start` caption column; 0 for any other caption place.
+    start_width: f32,
+    /// The positions of the tiles in open groups, when a group is closed.
+    visible: Option<Vec<usize>>,
+    /// The height the new item row adds below the arrangement.
+    extra: f32,
+    /// Where files hovering over the grid would drop this pass.
+    file_gap: Option<usize>,
 }
 
 /// What the scroll area's contents found out.
@@ -956,6 +972,10 @@ struct Drawn<K> {
     lead_tile: Option<Id>,
     /// What the rename field showed, when the renamed tile was built.
     rename: Option<TileRenameOutcome>,
+    /// The disclosure and menu events of the group headers.
+    group_events: Vec<TileEvent<K>>,
+    /// Whether the new item row was activated.
+    new_item: bool,
 }
 
 /// What one tile draws into while the rows are built.
@@ -994,9 +1014,6 @@ where
         start_rename,
         strip,
     } = grid;
-    if strip.is_set() {
-        strip.show_unbuilt();
-    }
     // A grid whose host gives no selection keeps its own.
     let own_id = ui.make_persistent_id(id_salt).with("own selection");
     let mut own: Selection<K> = ui.ctx().data(|d| d.get_temp(own_id)).unwrap_or_default();
@@ -1004,7 +1021,7 @@ where
         Some(selection) => selection,
         None => &mut own,
     };
-    let mut pass = Pass::new(ui, id_salt, source, layout, groups, selection, labels);
+    let mut pass = Pass::new(ui, id_salt, source, layout, groups, selection, labels, strip);
     pass.thumbnails = thumbnails;
     pass.badges = badges;
     pass.rating_keys = rating_keys;
@@ -1020,8 +1037,9 @@ where
         pass.start_rename(key);
     }
     pass.slow_click_due();
-    let scroll_to = pass.scroll_request(ui);
     let dragging = DragAndDrop::payload::<ListDrag<K>>(&pass.ctx).is_some_and(|p| p.list == pass.id);
+    pass.follow_current(dragging);
+    let scroll_to = pass.scroll_request(ui);
     let builder = UiBuilder::new()
         .scope_id(pass.id)
         .sense(Sense::CLICK | Sense::FOCUSABLE)
@@ -1052,10 +1070,15 @@ where
     for hit in drawn.hits {
         pass.hit(hit, modifiers);
     }
+    pass.events.extend(drawn.group_events);
+    if drawn.new_item {
+        pass.events.push(TileEvent::NewItem);
+    }
     pass.group_picks(drawn.group_clicks);
     pass.background(&drawn.background, view, &drawn.mapper, menu_key);
     pass.marquee(ui, &drawn.background, view, &drawn.mapper, dragging, modifiers);
     pass.drag(ui, view, &drawn.mapper);
+    pass.file_drop(ui, view, &drawn.mapper);
     let output = pass.finish(ui, &response, lead_tile);
     ui.ctx().data_mut(|d| d.insert_temp(own_id, own));
     output
@@ -1066,6 +1089,7 @@ where
     K: TextureKey + std::fmt::Debug,
     S: TileSource<K> + ?Sized,
 {
+    #[expect(clippy::too_many_arguments, reason = "what the builders set, passed on as the grid hands it over")]
     fn new(
         ui: &Ui,
         id_salt: egui::IdSalt,
@@ -1074,6 +1098,7 @@ where
         groups: &'a [TileGroup],
         selection: &'s mut Selection<K>,
         labels: Option<TileLabels>,
+        strip: strip::Strip<'a, K>,
     ) -> Self {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
@@ -1091,12 +1116,18 @@ where
             group_header: style.group_header,
             caption: 2.0 * caption_line + 2.0 * style.caption_gap,
         };
-        let signature = Signature { len, revision: source.aspects_revision(), width, layout, spacing, groups: groups.to_vec() };
+        let start_width = strip.start_width(&style, layout);
+        let closed = strip.closed(groups);
+        let signature = Signature { len, revision: source.aspects_revision(), width, layout, spacing, groups: groups.to_vec(), start_width, closed };
         if state.arrangement.as_ref().is_none_or(|(old, _)| *old != signature) {
             let aspects: Vec<f32> = (0..len).map(|at| source.aspect(at)).collect();
-            state.arrangement = Some((signature, Arc::new(arrange(&aspects, groups, width, layout, spacing))));
+            let arrangement = strip::arrange_strip(&aspects, groups, &signature.closed, width, layout, spacing, start_width);
+            state.arrangement = Some((signature, Arc::new(arrangement)));
         }
         let arr = state.arrangement.as_ref().map(|(_, a)| a.clone()).unwrap_or_default();
+        let visible =
+            state.arrangement.as_ref().filter(|(s, _)| s.closed.contains(&true)).map(|_| arr.rows.iter().flat_map(|r| r.tiles.clone()).collect());
+        let extra = if strip.new_item.is_some() { style.gap + style.group_header } else { 0.0 };
         let window_focused = ctx.input(|i| i.focused);
         let window_lost = state.window_focused && !window_focused;
         state.window_focused = window_focused;
@@ -1107,7 +1138,7 @@ where
             rtl: direction::is_rtl(ui),
             mac: matches!(ctx.os(), OperatingSystem::Mac | OperatingSystem::IOS),
             labels: labels.unwrap_or_else(|| TileLabels::of(ui)),
-            captioned: matches!(layout, TileLayout::Cards { caption: true, .. }),
+            captioned: start_width == 0.0 && matches!(layout, TileLayout::Cards { caption: true, .. }),
             ctx,
             id,
             source,
@@ -1131,6 +1162,11 @@ where
             events: Vec::new(),
             gesture: None,
             drop_target: None,
+            strip,
+            start_width,
+            visible,
+            extra,
+            file_gap: None,
         }
     }
 
@@ -1172,7 +1208,7 @@ where
         let grid_keys = KeyGrid {
             mac: self.mac,
             nav: &nav,
-            lead: self.lead_at(),
+            lead: self.lead_at().and_then(|at| self.nav_index(at)),
             goal: self.state.goal,
             space: self.space,
             check_mode: self.check_mode,
@@ -1229,7 +1265,7 @@ where
         }
         let names = Names {
             text: (0..self.len).map(|p| content_at::<K, S>(self.source, p).name).collect(),
-            enabled: (0..self.len).map(|p| !self.order.is_section(p)).collect(),
+            enabled: (0..self.len).map(|p| !self.order.is_section(p) && self.nav_index(p).is_some()).collect(),
         };
         listbox.set_active(self.lead_at());
         if listbox.type_ahead(ui, &names)
@@ -1245,7 +1281,7 @@ where
     /// One key's action (the menu is the caller's).
     fn command(&mut self, action: GridKeyAction) {
         match action {
-            GridKeyAction::Move { to, goal, extend, lead_only, .. } => self.move_lead(to, goal, extend, lead_only),
+            GridKeyAction::Move { to, goal, extend, lead_only, .. } => self.move_lead(self.nav_position(to), goal, extend, lead_only),
             GridKeyAction::SelectAll => self.select_all(),
             GridKeyAction::Activate => self.events.extend(self.selection.lead.clone().map(TileEvent::Activate)),
             GridKeyAction::Preview => self.events.extend(self.selection.lead.clone().map(TileEvent::Preview)),
@@ -1346,11 +1382,25 @@ where
         }
     }
 
+    /// Where tile `at` is among the tiles the arrow keys reach (every tile unless a group is closed);
+    /// `None` for a tile in a closed group.
+    fn nav_index(&self, at: usize) -> Option<usize> {
+        match &self.visible {
+            Some(visible) => visible.binary_search(&at).ok(),
+            None => Some(at),
+        }
+    }
+
+    /// The tile at `index` of the tiles the arrow keys reach.
+    fn nav_position(&self, index: usize) -> usize {
+        self.visible.as_ref().and_then(|v| v.get(index)).copied().unwrap_or(index)
+    }
+
     fn move_lead(&mut self, to: usize, goal: usize, extend: bool, lead_only: bool) {
         let from = self.lead_at().unwrap_or(0);
-        // Skip the tiles that are not enabled, in the direction of the move.
-        let found =
-            if to >= from { (to..self.len).find(|&p| !self.order.is_section(p)) } else { (0..=to).rev().find(|&p| !self.order.is_section(p)) };
+        // Skip the tiles that are not enabled or hidden by a closed group, in the direction of the move.
+        let reachable = |p: &usize| !self.order.is_section(*p) && self.nav_index(*p).is_some();
+        let found = if to >= from { (to..self.len).find(reachable) } else { (0..=to).rev().find(reachable) };
         let Some(to) = found else { return };
         self.state.goal = Some(goal);
         self.state.reveal = Some(to);
@@ -1390,7 +1440,7 @@ where
     /// pinch asks for a `Zoom`.
     fn scroll_request(&mut self, ui: &Ui) -> Option<f32> {
         let view_height = self.state.view.map_or(0.0, |v| v.height());
-        let max_offset = (self.arr.height - view_height).max(0.0);
+        let max_offset = (self.arr.height + self.extra - view_height).max(0.0);
         let mut scroll_to: Option<f32> = None;
         if let Some(at) = self.state.reveal.take()
             && let Some(row) = self.arr.row_of(at)
@@ -1439,14 +1489,15 @@ where
     /// the pinned header.
     fn draw(&self, ui: &mut Ui, viewport: Rect, dragging: bool, overlay: &mut Option<CardOverlay<'a, K>>) -> Drawn<K> {
         let width = self.width;
-        let (content, _) = ui.allocate_exact_size(vec2(width, self.arr.height.max(viewport.height())), Sense::hover());
+        let (content, _) = ui.allocate_exact_size(vec2(width, (self.arr.height + self.extra).max(viewport.height())), Sense::hover());
         let mapper = Mapper { origin: content.min, width, rtl: self.rtl };
-        let background = ui.interact(content, self.id.with("background"), Sense::click_and_drag());
+        let background = ui.interact(content, self.id.with("background"), Sense::CLICK | Sense::DRAG);
         let mut group_clicks = Vec::new();
+        let mut group_events = Vec::new();
 
         let first = self.arr.headers.partition_point(|h| h.bottom() < viewport.top());
         for (index, header) in self.arr.headers.iter().enumerate().skip(first).take_while(|(_, h)| h.top() <= viewport.bottom()) {
-            self.group_header(ui, &mapper, index, *header, false, &mut group_clicks);
+            self.group_header(ui, &mapper, index, *header, false, &mut group_clicks, &mut group_events);
         }
 
         // Tiles in view are drawn; those within a viewport of it are built, so their pictures are
@@ -1462,16 +1513,34 @@ where
 
         let at_top = self.arr.headers.partition_point(|h| h.top() <= viewport.top()).checked_sub(1);
         if let Some((index, rect)) = groups::pinned_rect(&self.arr.headers, viewport, at_top) {
-            self.group_header(ui, &mapper, index, rect, true, &mut group_clicks);
+            self.group_header(ui, &mapper, index, rect, true, &mut group_clicks, &mut group_events);
         }
-        Drawn { mapper, background, hits: rows.hits, group_clicks, lead_tile: rows.lead_tile, rename: rows.rename }
+        let new_item = self.new_item_row(ui, &mapper);
+        Drawn { mapper, background, hits: rows.hits, group_clicks, lead_tile: rows.lead_tile, rename: rows.rename, group_events, new_item }
     }
 
-    fn group_header(&self, ui: &mut Ui, mapper: &Mapper, index: usize, header: Rect, pinned: bool, clicks: &mut Vec<(usize, Modifiers)>) {
+    #[expect(clippy::too_many_arguments, reason = "the header's place and the two lists it reports to")]
+    fn group_header(
+        &self,
+        ui: &mut Ui,
+        mapper: &Mapper,
+        index: usize,
+        header: Rect,
+        pinned: bool,
+        clicks: &mut Vec<(usize, Modifiers)>,
+        events: &mut Vec<TileEvent<K>>,
+    ) {
         let Some(group) = self.groups.get(index) else { return };
-        let response = groups::group_header(ui, mapper.rect(header), group, pinned, &self.style);
-        if response.clicked() {
+        let disclosure = self.strip.group_open.map(|open| open.get(index).copied().unwrap_or(true));
+        let out = groups::group_header(ui, mapper.rect(header), group, pinned, &self.style, disclosure);
+        if let Some(open) = out.toggled {
+            events.push(TileEvent::GroupOpen { group: index, open });
+        } else if out.response.clicked() {
             clicks.push((index, ui.input(|i| i.modifiers)));
+        }
+        if self.strip.group_menus && out.response.secondary_clicked() {
+            self.focus();
+            events.push(TileEvent::GroupContextMenu { group: index, anchor: out.response.rect, pointer: out.response.interact_pointer_pos() });
         }
     }
 
@@ -1481,9 +1550,14 @@ where
         let key = self.source.key(at).clone();
         let content = content_at::<K, S>(self.source, at);
         let picture = rows.mapper.rect(self.arr.tiles[at]);
-        let caption = self
-            .captioned
-            .then(|| Rect::from_min_max(pos2(picture.left(), picture.bottom()), pos2(picture.right(), rows.mapper.origin.y + row.top + row.height)));
+        let start = self.start_width > 0.0;
+        let caption = if start {
+            Some(rows.mapper.rect(strip::start_column(self.arr.tiles[at], self.start_width)))
+        } else {
+            self.captioned.then(|| {
+                Rect::from_min_max(pos2(picture.left(), picture.bottom()), pos2(picture.right(), rows.mapper.origin.y + row.top + row.height))
+            })
+        };
         let cell = caption.map_or(picture, |c| picture.union(c));
         let in_view = cell.bottom() >= ui.clip_rect().top() && cell.top() <= ui.clip_rect().bottom();
         let texture = self.thumbnails.map(|(thumbs, source)| {
@@ -1496,7 +1570,7 @@ where
         let tile = tile_id(self.id, &key);
         let selected = self.selection.contains(&key);
         let response = Interactive::with_id(tile, Role::ListBoxOption, accessible_name(&self.ctx, &content, &self.labels, None))
-            .sense(Sense::click_and_drag())
+            .sense(Sense::CLICK | Sense::DRAG)
             .selected(selected)
             .position_in_set(at)
             .state_layer(false)
@@ -1505,6 +1579,9 @@ where
             .finish(ui);
         self.ctx.accesskit_node_builder(tile, |node| {
             node.set_size_of_set(self.len);
+            if self.strip.current.as_ref() == Some(&key) {
+                node.set_aria_current(AriaCurrent::Page);
+            }
             node.add_action(Action::Focus);
             node.add_action(Action::ShowContextMenu);
             if !content.enabled {
@@ -1516,7 +1593,7 @@ where
             rows.lead_tile = Some(tile);
         }
         let scrub = self.scrub_fraction(ui, rows, &response, picture, &content);
-        let renaming = self.state.rename.as_ref().filter(|r| r.key == key);
+        let renaming = self.state.rename.as_ref().filter(|r| r.key == key && !start);
         let look = TileLook {
             content: &content,
             picture,
@@ -1532,20 +1609,24 @@ where
             face: TileFace::Picture,
         };
         let stars = paint_tile(ui, &self.style, &self.labels, &look, self.thumbnails.map(|(t, _)| t), texture.as_ref());
+        if self.strip.current.as_ref() == Some(&key) {
+            strip::ring_current(ui.painter(), &self.style, picture);
+        }
         if let (Some(rename), Some(band)) = (renaming, caption) {
             rows.rename = Some(show_tile_rename(ui, tile, band, &self.labels.rename, rename));
         }
         if let Some(overlay) = overlay.as_mut() {
             overlay(ui, &key, picture);
         }
-        if let Some(tip) = tooltip(&content, texture.as_ref()) {
+        let mark_tip = start.then(|| strip::mark_tip(ui, &Tokens::of(ui), &self.style, &content, caption)).flatten();
+        if let Some(tip) = mark_tip.or_else(|| tooltip(&content, texture.as_ref())) {
             response.clone().on_hover_text(tip);
         }
         let mut found = Vec::new();
         if let Some(fraction) = scrub {
             found.push(HitKind::Scrub(fraction));
         }
-        found.extend(self.pointer_hits(ui, &response, stars, content.rating, caption, rows.modifiers));
+        found.extend(self.pointer_hits(ui, &response, stars, content.rating, caption.filter(|_| !start), rows.modifiers));
         for kind in found {
             rows.hits.push(Hit { at, key: key.clone(), rect: cell, kind });
         }
@@ -1739,7 +1820,7 @@ where
             }));
         }
         if menu_key {
-            let anchor = self.lead_at().and_then(|at| self.arr.tiles.get(at)).map_or(view, |r| mapper.rect(*r));
+            let anchor = self.lead_at().and_then(|at| self.arr.tiles.get(at)).filter(|r| **r != Rect::NOTHING).map_or(view, |r| mapper.rect(*r));
             self.events.push(TileEvent::ContextMenu(ContextMenuRequest {
                 row: self.selection.lead.clone(),
                 selected: self.selection.lead.is_some(),
@@ -1883,7 +1964,7 @@ where
         let events = std::mem::take(&mut self.events);
         let ctx = self.ctx.clone();
         self.state.store(&ctx, id);
-        TileGridOutput { response: response.clone(), events, drop_target: self.drop_target.take(), file_gap: None }
+        TileGridOutput { response: response.clone(), events, drop_target: self.drop_target.take(), file_gap: self.file_gap }
     }
 }
 
