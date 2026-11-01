@@ -2,9 +2,13 @@
 //! size the table, click to insert; the label above reads "4×3 Table" (columns × rows) or Insert
 //! Table, and the page shows a live preview of the hovered table (Word).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use egui::Ui;
+use craft_ui::behavior::{GridKey, GridNav};
+use craft_ui::direction;
+use craft_ui::localized::Labels as _;
+use craft_ui::primitives::{Interactive, Surface, SurfaceEdge, SurfaceKind};
+use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, scale};
+use egui::accesskit::Role;
+use egui::{EventFilter, Key, Modifiers, Rect, Sense, Ui, UiBuilder, vec2};
 
 /// The grid's size: 8 rows by 10 columns (Word and PowerPoint).
 pub const ROWS: usize = 8;
@@ -59,6 +63,94 @@ impl TableSizePicker {
     // wordcraft: crates/ui-egui/src/dialogs/forms.rs:335 `table_grid_picker`; deckcraft:
     // crates/ui-egui/src/ribbon/insert.rs:136 `table_grid_picker`.
     pub fn show(self, ui: &mut Ui) -> TableSizeResponse {
-        todo!()
+        let tokens = Tokens::of(ui);
+        let style = Self::style(&tokens);
+        let labels = self.labels.clone().unwrap_or_else(|| TableSizePickerLabels::of(ui));
+        let step = style.cell + style.gap;
+        let nav = GridNav::wrapped(ROWS * COLUMNS, COLUMNS).rtl(direction::is_rtl(ui));
+        let id = Interactive::id_in(ui, self.id_salt);
+        let lead_key = id.with("lead");
+        let mut lead: Option<usize> = ui.data(|d| d.get_temp(lead_key)).flatten();
+
+        // The label's row is reserved above the grid and filled once this pass's lead is known.
+        let size = vec2(COLUMNS as f32 * step - style.gap, ROWS as f32 * step - style.gap);
+        let (_, label_rect) = ui.allocate_space(vec2(size.x, ui.text_style_height(&egui::TextStyle::Body)));
+        let (_, rect) = ui.allocate_space(size);
+
+        let focused = ui.memory(|m| m.has_focus(id));
+        let mut close = false;
+        if focused {
+            ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() }));
+            let from = lead.unwrap_or(0);
+            ui.input_mut(|i| {
+                for (key, grid_key) in [
+                    (Key::ArrowRight, GridKey::Right),
+                    (Key::ArrowLeft, GridKey::Left),
+                    (Key::ArrowDown, GridKey::Down),
+                    (Key::ArrowUp, GridKey::Up),
+                    (Key::Home, GridKey::Home),
+                    (Key::End, GridKey::End),
+                ] {
+                    if i.consume_key(Modifiers::NONE, key) {
+                        lead = Some(nav.step(lead.unwrap_or(from), grid_key, None).index);
+                    }
+                }
+                close = i.consume_key(Modifiers::NONE, Key::Escape);
+            });
+            lead.get_or_insert(from);
+        }
+
+        let forward = direction::forward(ui);
+        let start = direction::start_x(ui, rect);
+        let cell_at = |p: egui::Pos2| {
+            let column = (((p.x - start) * forward / step).floor().max(0.0) as usize).min(COLUMNS - 1);
+            let row = (((p.y - rect.top()) / step).floor().max(0.0) as usize).min(ROWS - 1);
+            row * COLUMNS + column
+        };
+        let text = |lead: Option<usize>| match lead {
+            Some(i) => labels.size.replace("{cols}", &(i % COLUMNS + 1).to_string()).replace("{rows}", &(i / COLUMNS + 1).to_string()),
+            None => labels.insert_table.clone(),
+        };
+
+        let pointer_moved = ui.input(|i| i.pointer.delta() != vec2(0.0, 0.0));
+        let response =
+            Interactive::with_id(id, Role::Grid, labels.insert_table.as_str()).value(text(lead)).sense(Sense::click()).interact_at(ui, rect);
+        let pointer = response.response().hover_pos().map(cell_at);
+        match pointer {
+            Some(cell) if pointer_moved || !focused => lead = Some(cell),
+            None if !focused => lead = None,
+            _ => {}
+        }
+        let clicked = response.response().clicked();
+        response.value(text(lead)).finish(ui);
+        ui.data_mut(|d| d.insert_temp(lead_key, lead));
+
+        let picked = if clicked { lead.map(|i| (i / COLUMNS + 1, i % COLUMNS + 1)) } else { None };
+        if close {
+            ui.close();
+        }
+
+        if ui.is_rect_visible(rect) {
+            let painter = ui.painter();
+            let hovered = lead.map(|i| (i / COLUMNS, i % COLUMNS));
+            let accent = tokens.color.accent.solid.to_egui();
+            let off = Surface::style(&tokens, SurfaceKind::Sunken);
+            let mut on = off;
+            on.fill = tokens.color.state.selected.to_egui();
+            on.edge = SurfaceEdge::Border(scale::Stroke::W1.egui(painter.ctx(), accent));
+            for row in 0..ROWS {
+                for column in 0..COLUMNS {
+                    let x = start + forward * column as f32 * step;
+                    let cell = Rect::from_x_y_ranges(x.min(x + forward * style.cell)..=x.max(x + forward * style.cell), {
+                        let y = rect.top() + row as f32 * step;
+                        y..=y + style.cell
+                    });
+                    let chosen = hovered.is_some_and(|(r, c)| row <= r && column <= c);
+                    painter.extend((if chosen { on } else { off }).shapes(cell, painter.pixels_per_point()));
+                }
+            }
+        }
+        ui.scope_builder(UiBuilder::new().max_rect(label_rect), |ui| ui.label(text(lead)));
+        TableSizeResponse { hovered: lead.map(|i| (i / COLUMNS + 1, i % COLUMNS + 1)), picked }
     }
 }

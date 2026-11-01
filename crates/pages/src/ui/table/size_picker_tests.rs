@@ -1,9 +1,65 @@
 //! The Insert Table grid.
+#![allow(clippy::expect_used, reason = "tests")]
+
+use craft_ui::theme::{Base, install};
+use egui::accesskit::Role;
+use egui::{Event, Key, Modifiers, PointerButton, Pos2, vec2};
+use egui_kittest::kittest::Queryable as _;
+use egui_kittest::{Harness, HarnessBuilder};
+
+use super::size_picker::*;
+
+#[derive(Default)]
+struct App {
+    last: TableSizeResponse,
+    picked: Vec<(usize, usize)>,
+}
+
+fn open() -> Harness<'static, App> {
+    HarnessBuilder::default()
+        .with_step_dt(0.05)
+        .with_size(vec2(300.0, 300.0))
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, app: &mut App| {
+                app.last = TableSizePicker::new("size").show(ui);
+                app.picked.extend(app.last.picked);
+            },
+            App::default(),
+        )
+}
 
 // Hovering row 3, column 4 reports (3, 4) and labels "4×3 Table"; clicking returns it; arrows and Enter do the same from the keyboard.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn hover_sizes_and_click_picks() {
-    todo!()
+    let mut harness = open();
+    harness.run();
+    let grid = harness.get_by_role_and_label(Role::Grid, "Insert Table").rect();
+    let step = grid.width() / COLUMNS as f32;
+    // Square (3, 4) is the fourth to the right and third down; its centre is in the middle of its step.
+    let at: Pos2 = grid.min + vec2(3.5 * step, 2.5 * step);
+
+    harness.event(Event::PointerMoved(at));
+    harness.step();
+    assert_eq!(harness.state().last.hovered, Some((3, 4)));
+    assert!(harness.query_by_label("4×3 Table").is_some());
+
+    for pressed in [true, false] {
+        harness.event(Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        harness.step();
+    }
+    assert_eq!(harness.state().picked, vec![(3, 4)]);
+
+    // From the keyboard: the grid takes the focus, → and ↓ move the square, Enter picks it.
+    harness.event(Event::PointerMoved(Pos2::new(-10.0, -10.0)));
+    harness.state_mut().picked.clear();
+    harness.get_by_role_and_label(Role::Grid, "Insert Table").focus();
+    harness.run();
+    harness.key_press(Key::ArrowRight);
+    harness.key_press(Key::ArrowDown);
+    harness.run();
+    assert_eq!(harness.state().last.hovered, Some((2, 2)));
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert_eq!(harness.state().picked, vec![(2, 2)]);
 }

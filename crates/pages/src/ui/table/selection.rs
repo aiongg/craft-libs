@@ -24,10 +24,11 @@
 //! [`CellDirection`]: craft_ui::behavior::cells::CellDirection
 //! [`CellSpace::next_in_reading_order`]: craft_ui::behavior::cells::CellSpace::next_in_reading_order
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use craft_ui::behavior::cells::{CellRange, CellRef, CellSelection};
-use egui::{Painter, Rect};
+use craft_ui::theme::current;
+use egui::{Painter, Rect, StrokeKind, pos2};
+
+use crate::ui::CellSelectionStyle;
 
 /// Where the table's rows and columns are on screen: the edges, top to bottom and left to right
 /// (n + 1 values for n rows).
@@ -41,14 +42,33 @@ impl TableGeometry {
     /// The cell under a screen point, if any (a merged cell answers with the cell the point is
     /// in; the model's `CellSpace::merge_at` maps it to the merge).
     pub fn cell_at(&self, p: egui::Pos2) -> Option<CellRef> {
-        todo!()
+        let row = band(&self.row_edges, p.y)?;
+        let column = band(&self.column_edges, p.x)?;
+        Some(CellRef::new(row, column))
     }
 
     /// The screen rectangle of a range: its first row's and column's leading edges to its last
     /// row's and column's trailing edges.
     pub fn rect(&self, range: CellRange) -> Rect {
-        todo!()
+        let edge = |edges: &[f32], i: u32| edges.get(i as usize).or(edges.last()).copied();
+        match (
+            edge(&self.column_edges, range.start.column),
+            edge(&self.row_edges, range.start.row),
+            edge(&self.column_edges, range.end.column + 1),
+            edge(&self.row_edges, range.end.row + 1),
+        ) {
+            (Some(left), Some(top), Some(right), Some(bottom)) => Rect::from_min_max(pos2(left, top), pos2(right, bottom)),
+            _ => Rect::NOTHING,
+        }
     }
+}
+
+/// The index of the band of `edges` (n + 1 ascending values for n bands) holding `v`: a band
+/// owns its leading edge and not its trailing one.
+fn band(edges: &[f32], v: f32) -> Option<u32> {
+    let after = edges.partition_point(|&e| e <= v);
+    let last = edges.len().checked_sub(1)?;
+    (1..=last).contains(&after).then(|| (after - 1) as u32)
 }
 
 /// The overlay over selected cells, painted after the table.
@@ -71,6 +91,11 @@ impl<'a> CellSelectionOverlay<'a> {
 
     // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:126 `draw_cell_selection`.
     pub fn paint(self, painter: &Painter) {
-        todo!()
+        let style = CellSelectionStyle::of(&current(painter.ctx()));
+        for &range in self.selection.ranges() {
+            let rect = self.geometry.rect(range);
+            painter.rect_filled(rect, 0.0, style.fill);
+            painter.rect_stroke(rect, 0.0, style.outline, StrokeKind::Inside);
+        }
     }
 }
