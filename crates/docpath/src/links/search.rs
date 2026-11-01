@@ -36,14 +36,17 @@ impl LinkSearch {
 
     /// Runs the search for `links` (the missing ones): indexes `root` ([`index_folder`](super::index_folder)),
     /// reporting `Progress` every 500 files indexed, then for each link checks the files whose
-    /// name matches (by `exact_names`) and reports each as a `Hit`, in link order, each link's
-    /// hits ranked ([`rank`](super::rank)). `cancelled` is asked between folders and between
+    /// name matches (by `exact_names`) with [`check_candidate`](super::check_candidate), then
+    /// `checker` (the app's own properties: it returns the candidate with its problems added and
+    /// `ok` and `score` adjusted), and reports each as a `Hit`, in link order, each link's hits
+    /// ranked ([`rank`](super::rank)) after the checker has run. `cancelled` is asked between folders and between
     /// checks; once it says yes nothing more is reported and the result is `Cancelled`. Blocks:
     /// run it in a job.
     pub fn run<K: Clone>(
         &self,
         links: &[Link<K>],
         files: &dyn LinkFiles,
+        checker: &dyn Fn(&Link<K>, Candidate) -> Candidate,
         cancelled: &dyn Fn() -> bool,
         report: &mut dyn FnMut(SearchUpdate<K>),
     ) -> SearchEnd {
@@ -70,7 +73,7 @@ impl LinkSearch {
                 if cancelled() {
                     return SearchEnd::Cancelled;
                 }
-                candidates.push(check_candidate(link, path, &self.criteria, files));
+                candidates.push(checker(link, check_candidate(link, path, &self.criteria, files)));
             }
             rank(&mut candidates);
             for candidate in candidates {

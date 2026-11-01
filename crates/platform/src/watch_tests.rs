@@ -103,6 +103,18 @@ fn whole_policy_waits_for_a_complete_file() {
     assert_eq!(changes[0].bytes.as_deref().map(Vec::as_slice), Some(b"new, whole\n%%EOF".as_slice()));
 }
 
+// `modified` is the modification time the metadata reports, and moves with a rewrite.
+#[test]
+fn a_stamp_reports_the_modification_time() {
+    let dir = TempDir::new("craft-watch-test").unwrap();
+    let path = file(&dir, "doc.txt", "content");
+    let stamp = FileStamp::at(&path).unwrap();
+    assert_eq!(stamp.modified(), std::fs::metadata(&path).unwrap().modified().ok());
+    let past = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000);
+    std::fs::File::options().write(true).open(&path).unwrap().set_modified(past).unwrap();
+    assert_eq!(FileStamp::at(&path).unwrap().modified(), Some(past));
+}
+
 // disk_differs: false for a missing file, an unknown key, or a change-time-only difference with
 // equal saved bytes; true after another write.
 #[test]

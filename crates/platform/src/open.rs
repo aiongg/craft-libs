@@ -12,18 +12,17 @@
 //! No egui: the app converts egui's dropped files into [`DroppedFile`]s and reads the pointer
 //! position for [`DropTarget`] itself.
 
-use std::cmp::Ordering;
 use std::collections::VecDeque;
 #[cfg(not(target_arch = "wasm32"))]
 use std::ffi::OsString;
-use std::iter::Peekable;
 use std::path::{Path, PathBuf};
 #[cfg(not(target_arch = "wasm32"))]
 use std::process::{Command, Stdio};
-use std::str::Chars;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use craft_host::Wake;
+
+pub use craft_docpath::names::natural_cmp;
 
 use crate::PlatformText;
 
@@ -148,47 +147,6 @@ impl FileIntake {
         let mut queue = self.queue.lock().unwrap_or_else(PoisonError::into_inner);
         queue.drain(..).collect()
     }
-}
-
-/// File-name order as people sort: runs of ASCII digits compare by value ("2" before "10";
-/// leading zeros dropped, then shorter first, then by digits), other characters compare
-/// ignoring case, and an exact string comparison breaks ties.
-// pc: crates/ui-egui/src/file_open.rs:374 natural_cmp, :403 digit_run
-pub fn natural_cmp(a: &str, b: &str) -> Ordering {
-    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
-    loop {
-        match (x.peek().copied(), y.peek().copied()) {
-            (None, None) => return a.cmp(b),
-            (None, Some(_)) => return Ordering::Less,
-            (Some(_), None) => return Ordering::Greater,
-            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
-                let (m, n) = (digit_run(&mut x), digit_run(&mut y));
-                let (m, n) = (m.trim_start_matches('0'), n.trim_start_matches('0'));
-                match m.len().cmp(&n.len()).then_with(|| m.cmp(n)) {
-                    Ordering::Equal => {}
-                    o => return o,
-                }
-            }
-            (Some(c), Some(d)) => {
-                x.next();
-                y.next();
-                match c.to_lowercase().cmp(d.to_lowercase()) {
-                    Ordering::Equal => {}
-                    o => return o,
-                }
-            }
-        }
-    }
-}
-
-/// Takes the run of ASCII digits at the front of `it`.
-fn digit_run(it: &mut Peekable<Chars>) -> String {
-    let mut run = String::new();
-    while let Some(c) = it.peek().copied().filter(char::is_ascii_digit) {
-        run.push(c);
-        it.next();
-    }
-    run
 }
 
 /// Whether an open document's path `open` names the file at `path`. Equal paths match at once;

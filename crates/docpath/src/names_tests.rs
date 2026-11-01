@@ -1,6 +1,6 @@
 //! `craft_docpath::names`.
 
-use crate::names::{CopyNumbering, MAX_NAME_BYTES, safe_file_name, safe_file_stem, unique_file_name};
+use crate::names::{CopyNumbering, MAX_NAME_BYTES, natural_cmp, safe_file_name, safe_file_stem, unique_file_name};
 
 // Reserved and control characters become `_`, bidi controls go, trailing dots and spaces go,
 // "NUL.txt" becomes "_NUL.txt", a 300-byte name is cut to 200 bytes on a char boundary keeping
@@ -50,4 +50,12 @@ fn space_numbering_keeps_a_number_in_the_name() {
     assert_eq!(unique_file_name("Invoice 2026.pdf", CopyNumbering::Space, taken(&["Invoice 2026.pdf"])), "Invoice 2026 2.pdf");
     assert_eq!(unique_file_name("Chapter 1.docx", CopyNumbering::Space, taken(&["Chapter 1.docx", "Chapter 1 2.docx"])), "Chapter 1 3.docx");
     assert_eq!(unique_file_name("photo 2.jpg", CopyNumbering::Space, taken(&["photo 2.jpg"])), "photo 2 2.jpg");
+}
+
+// "img2" sorts before "img10", "IMG3" between them ignoring case, "a01" beside "a1" by length.
+#[test]
+fn natural_order_compares_digit_runs_by_value() {
+    let mut names = ["img10", "img2", "IMG3", "a1", "a01"];
+    names.sort_by(|a, b| natural_cmp(a, b));
+    assert_eq!(names, ["a01", "a1", "img2", "IMG3", "img10"]);
 }

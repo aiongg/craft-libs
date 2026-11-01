@@ -6,15 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use craft_host::Wake;
 
-use crate::open::{DropTarget, DroppedFile, FileIntake, Intake, natural_cmp, path_text, same_file};
-
-// "img2" sorts before "img10", "IMG3" between them ignoring case, "a01" beside "a1" by length.
-#[test]
-fn natural_order_compares_digit_runs_by_value() {
-    let mut names = ["img10", "img2", "IMG3", "a1", "a01"];
-    names.sort_by(|a, b| natural_cmp(a, b));
-    assert_eq!(names, ["a01", "a1", "img2", "IMG3", "img10"]);
-}
+use crate::open::{DropTarget, DroppedFile, FileIntake, Intake, path_text, same_file};
 
 // Equal paths match without touching the disk; a symlink matches its target through the
 // canonical path.

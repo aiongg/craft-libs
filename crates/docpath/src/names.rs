@@ -8,6 +8,12 @@
 //! spaces (Windows drops them, so `report.` would write `report`); Windows' device names (`CON`,
 //! `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`, `COM0`–`COM9`, `LPT0`–`LPT9` and the superscript forms,
 //! with any extension) get a leading `_`.
+//!
+//! [`natural_cmp`] is the order file names are listed in.
+
+use std::cmp::Ordering;
+use std::iter::Peekable;
+use std::str::Chars;
 
 /// The longest name [`safe_file_name`] and [`safe_file_stem`] return, in bytes: 200, so
 /// `" (page 12).pdf"` still fits the usual 255-byte limit (PdfCraft `file_stem_from_user`).
@@ -161,4 +167,45 @@ impl CopyNumbering {
     pub const fn platform() -> CopyNumbering {
         if cfg!(target_os = "macos") { CopyNumbering::Space } else { CopyNumbering::Parenthesized }
     }
+}
+
+/// File-name order as people sort: runs of ASCII digits compare by value ("2" before "10";
+/// leading zeros dropped, then shorter first, then by digits), other characters compare
+/// ignoring case, and an exact string comparison breaks ties.
+// pc: crates/ui-egui/src/file_open.rs:374 natural_cmp, :403 digit_run
+pub fn natural_cmp(a: &str, b: &str) -> Ordering {
+    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
+    loop {
+        match (x.peek().copied(), y.peek().copied()) {
+            (None, None) => return a.cmp(b),
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
+                let (m, n) = (digit_run(&mut x), digit_run(&mut y));
+                let (m, n) = (m.trim_start_matches('0'), n.trim_start_matches('0'));
+                match m.len().cmp(&n.len()).then_with(|| m.cmp(n)) {
+                    Ordering::Equal => {}
+                    o => return o,
+                }
+            }
+            (Some(c), Some(d)) => {
+                x.next();
+                y.next();
+                match c.to_lowercase().cmp(d.to_lowercase()) {
+                    Ordering::Equal => {}
+                    o => return o,
+                }
+            }
+        }
+    }
+}
+
+/// Takes the run of ASCII digits at the front of `it`.
+fn digit_run(it: &mut Peekable<Chars>) -> String {
+    let mut run = String::new();
+    while let Some(c) = it.peek().copied().filter(char::is_ascii_digit) {
+        run.push(c);
+        it.next();
+    }
+    run
 }

@@ -1,51 +1,14 @@
 //! Link status, identity, candidates, remaps, folder matches and the search, over a fake
 //! `LinkFiles` and (desktop) a temporary folder.
 
-use std::collections::BTreeMap;
-use std::io::{self, Cursor};
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime};
 
 use super::*;
 
-/// A fake file system: files by path with their bytes and modification time.
-#[derive(Default)]
-struct Fake {
-    files: BTreeMap<PathBuf, (Vec<u8>, Option<SystemTime>)>,
-    unreadable: Vec<PathBuf>,
-    calls: AtomicUsize,
-}
-
-impl Fake {
-    fn with(mut self, path: &str, bytes: &[u8], secs: u64) -> Self {
-        self.files.insert(PathBuf::from(path), (bytes.to_vec(), Some(stamp(secs))));
-        self
-    }
-}
-
 fn stamp(secs: u64) -> SystemTime {
     SystemTime::UNIX_EPOCH + Duration::from_secs(secs)
-}
-
-impl LinkFiles for Fake {
-    fn stat(&self, path: &Path) -> Option<FileInfo> {
-        self.calls.fetch_add(1, Ordering::Relaxed);
-        self.files.get(path).map(|(b, m)| FileInfo { size: b.len() as u64, modified: *m })
-    }
-
-    fn identity(&self, path: &Path) -> io::Result<LinkIdentity> {
-        self.calls.fetch_add(1, Ordering::Relaxed);
-        if self.unreadable.iter().any(|p| p == path) {
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "locked"));
-        }
-        let (bytes, modified) = self.files.get(path).ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?;
-        identity_of(&mut Cursor::new(bytes), bytes.len() as u64, *modified)
-    }
-
-    fn list(&self, _dir: &Path) -> io::Result<Vec<FolderEntry>> {
-        Err(io::Error::from(io::ErrorKind::Unsupported))
-    }
 }
 
 fn link(stored: &str, identity: Option<LinkIdentity>) -> Link<u32> {
@@ -59,11 +22,11 @@ fn identity_for(bytes: &[u8], secs: u64) -> LinkIdentity {
 // Network (`\\host\s\a.png`), device (`\\.\COM1`) and URL (`https://h/a.png`) links are Refused, and the fake saw no call.
 #[test]
 fn a_status_is_missing_for_a_link_that_may_not_be_followed() {
-    let fake = Fake::default();
+    let fake = FakeLinkFiles::new();
     for (stored, why) in [(r"\\host\s\a.png", Refused::Network), (r"\\.\COM1", Refused::Device), ("https://h/a.png", Refused::Url)] {
         assert_eq!(status(&link(stored, None), None, &fake), LinkStatus::Refused(why), "{stored}");
     }
-    assert_eq!(fake.calls.load(Ordering::Relaxed), 0);
+    assert_eq!(fake.calls(), 0);
     assert!(LinkStatus::Refused(Refused::Url).is_missing());
     assert!(!LinkStatus::Modified.is_missing());
 }
@@ -73,28 +36,27 @@ fn a_status_is_missing_for_a_link_that_may_not_be_followed() {
 fn a_touched_file_is_ok_and_a_changed_file_is_modified() {
     let recorded = identity_for(b"hello world", 10);
     let l = link("/m/a.png", Some(recorded));
-    let at = |bytes: &[u8], secs: u64| Fake::default().with("/m/a.png", bytes, secs);
+    let at = |bytes: &[u8], secs: u64| FakeLinkFiles::new().with("/m/a.png", bytes, secs);
 
     let same = at(b"hello world", 10);
     assert_eq!(status(&l, None, &same), LinkStatus::Ok);
-    assert_eq!(same.calls.load(Ordering::Relaxed), 1, "the stamp matched, so nothing was hashed");
+    assert_eq!(same.calls(), 1, "the stamp matched, so nothing was hashed");
     assert_eq!(status(&l, None, &at(b"hello world", 99)), LinkStatus::Ok);
     assert_eq!(status(&l, None, &at(b"hello w0rld", 99)), LinkStatus::Modified);
     assert_eq!(status(&l, None, &at(b"hello", 99)), LinkStatus::Modified);
-    let mut locked = at(b"hello world", 99);
-    locked.unreadable.push("/m/a.png".into());
+    let locked = at(b"hello world", 99).unreadable("/m/a.png");
     assert_eq!(status(&l, None, &locked), LinkStatus::Unreadable);
-    assert_eq!(status(&l, None, &Fake::default()), LinkStatus::Missing);
+    assert_eq!(status(&l, None, &FakeLinkFiles::new()), LinkStatus::Missing);
     assert_eq!(status(&link("/m/a.png", None), None, &at(b"x", 1)), LinkStatus::Ok);
     let embedded = Link { embedded: true, ..l };
-    assert_eq!(status(&embedded, None, &Fake::default()), LinkStatus::Embedded);
+    assert_eq!(status(&embedded, None, &FakeLinkFiles::new()), LinkStatus::Embedded);
 }
 
 // Same name, other bytes: not ok, `same_file == Some(false)`, a DifferentFile problem; the same file scores highest.
 #[test]
 fn a_different_file_with_the_same_name_is_refused_by_identity() {
     let l = link(r"C:\shoot\A.PNG", Some(identity_for(b"original", 1)));
-    let fake = Fake::default().with("/x/a.png", b"original", 5).with("/y/a.png", b"other!!!", 5).with("/z/b.jpg", b"original", 5);
+    let fake = FakeLinkFiles::new().with("/x/a.png", b"original", 5).with("/y/a.png", b"other!!!", 5).with("/z/b.jpg", b"original", 5);
     let c = MatchCriteria::default();
 
     let mut found = vec![
@@ -172,7 +134,7 @@ fn relink_to_folder_matches_only_the_plain_name_in_that_folder() {
     assert_eq!(m("/old/a.png", Some("j/pg")), None);
     assert_eq!(m("/old/a.png", Some(r"j\pg")), None);
 
-    let fake = Fake::default().with("/new/a.png", b"x", 1);
+    let fake = FakeLinkFiles::new().with("/new/a.png", b"x", 1);
     let links = [Link { key: 1, ..link("/old/a.png", None) }, Link { key: 2, ..link("/old/b.png", None) }, Link { key: 3, ..link("NUL", None) }];
     let (found, missing) = folder_matches(&links, folder, None, &fake);
     assert_eq!(found, vec![(1, PathBuf::from("/new/a.png"))]);
@@ -213,44 +175,20 @@ fn the_search_never_follows_directory_links_and_stops_at_the_limit() {
 // `cancelled` turning true mid-walk ends the run as Cancelled and no update follows it (task B5).
 #[test]
 fn a_cancelled_search_stops_and_reports_nothing_more() {
-    /// A tree of files whose folders `list` reports.
-    struct Tree(Fake);
-    impl LinkFiles for Tree {
-        fn stat(&self, path: &Path) -> Option<FileInfo> {
-            self.0.stat(path)
-        }
-        fn identity(&self, path: &Path) -> io::Result<LinkIdentity> {
-            self.0.identity(path)
-        }
-        fn list(&self, dir: &Path) -> io::Result<Vec<FolderEntry>> {
-            let mut out: Vec<FolderEntry> = Vec::new();
-            for path in self.0.files.keys() {
-                let Ok(rest) = path.strip_prefix(dir) else { continue };
-                let first = rest.components().next().map(|c| c.as_os_str().to_string_lossy().into_owned());
-                let Some(name) = first else { continue };
-                if out.iter().any(|e| e.name == name) {
-                    continue;
-                }
-                let is_dir = rest.components().count() > 1;
-                out.push(FolderEntry { path: dir.join(&name), name, is_dir, is_link: false });
-            }
-            Ok(out)
-        }
-    }
-    let tree = Tree(Fake::default().with("/r/a/x.png", b"1", 1).with("/r/b/x.png", b"2", 1).with("/r/c/x.png", b"3", 1));
+    let tree = FakeLinkFiles::new().with("/r/a/x.png", b"1", 1).with("/r/b/x.png", b"2", 1).with("/r/c/x.png", b"3", 1);
     let links = [link("/old/x.png", None)];
     let mut search = LinkSearch::new("/r");
     search.exact_names = true;
 
     let mut all = Vec::new();
-    let end = search.run(&links, &tree, &|| false, &mut |u| all.push(u));
+    let end = search.run(&links, &tree, &|_, c| c, &|| false, &mut |u| all.push(u));
     assert_eq!(end, SearchEnd::Done { files: 3 });
     assert_eq!(all.iter().filter(|u| matches!(u, SearchUpdate::Hit(_))).count(), 3);
 
     // Cancelled from the first hit on: that hit is the last update.
     let stop = std::cell::Cell::new(false);
     let mut seen = Vec::new();
-    let end = search.run(&links, &tree, &|| stop.get(), &mut |u| {
+    let end = search.run(&links, &tree, &|_, c| c, &|| stop.get(), &mut |u| {
         seen.push(u);
         stop.set(true);
     });
@@ -259,8 +197,34 @@ fn a_cancelled_search_stops_and_reports_nothing_more() {
 
     // Cancelled before it starts: nothing is reported.
     let mut none = Vec::new();
-    assert_eq!(search.run(&links, &tree, &|| true, &mut |u| none.push(u)), SearchEnd::Cancelled);
+    assert_eq!(search.run(&links, &tree, &|_, c| c, &|| true, &mut |u| none.push(u)), SearchEnd::Cancelled);
     assert!(none.is_empty());
+}
+
+// The checker hook runs in the search, before ranking: a candidate it rejects drops below one it keeps, and a hit it marks keeps the mark.
+#[test]
+fn the_search_checker_adjusts_candidates_before_they_are_ranked() {
+    let files = FakeLinkFiles::new().with("/r/a/x.png", b"1", 1).with("/r/b/x.png", b"2", 1);
+    let links = [link("/old/x.png", None)];
+    let mut search = LinkSearch::new("/r");
+    search.exact_names = true;
+    let reject_a = |_: &Link<u32>, mut c: Candidate| {
+        if c.path.starts_with("/r/a") {
+            c.ok = false;
+            c.score = 0;
+            c.problems.push(CandidateProblem::Other("too short".into()));
+        }
+        c
+    };
+    let mut hits = Vec::new();
+    search.run(&links, &files, &reject_a, &|| false, &mut |u| {
+        if let SearchUpdate::Hit(h) = u {
+            hits.push(h.candidate);
+        }
+    });
+    let paths: Vec<_> = hits.iter().map(|c| c.path.clone()).collect();
+    assert_eq!(paths, [PathBuf::from("/r/b/x.png"), PathBuf::from("/r/a/x.png")]);
+    assert_eq!(hits[1].problems, [CandidateProblem::Other("too short".into())]);
 }
 
 // `Link<String>` with an identity (and a `None` modified time) and `MatchCriteria` come back equal through serde_json; `{}` reads as `MatchCriteria::default()`.

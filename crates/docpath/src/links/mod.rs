@@ -12,9 +12,10 @@
 //! | Relink the others after one relink | [`derive_remap`] and [`Remap::apply`] |
 //! | Relink to Folder | [`folder_matches`] |
 //! | Search a folder tree for the missing files | [`LinkSearch`], run as a job |
-//! | Stories and tests | a fake [`LinkFiles`] |
+//! | Stories and tests | [`FakeLinkFiles`] |
 
 mod candidate;
+mod fake;
 mod index;
 mod remap;
 mod search;
@@ -32,6 +33,7 @@ use serde::{Deserialize, Serialize};
 use crate::Refused;
 
 pub use candidate::{Candidate, CandidateProblem, MatchCriteria, check_candidate, rank};
+pub use fake::FakeLinkFiles;
 pub use index::{FolderIndex, index_folder};
 pub use remap::{Remap, derive_remap, folder_match, folder_matches};
 pub use search::{LinkSearch, SearchEnd, SearchHit, SearchUpdate};
