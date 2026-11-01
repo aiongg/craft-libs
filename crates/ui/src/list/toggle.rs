@@ -389,12 +389,11 @@ fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, (hovered, selected): (bool,
 /// its off icon at `style.icon_size` in `style.dimmed`, or `style.selected_dimmed` on a selected
 /// row (`selected`), over the label colour fill `paint` already drew; as `paint` draws icons
 /// otherwise (`icons::paint_in` with `IconSize::Md.stroke()`).
-#[expect(clippy::todo, reason = "skeleton: K7")]
 fn paint_off(ui: &Ui, rect: Rect, column: &ToggleColumn, selected: bool, style: &ListRowStyle) {
     // pc: crates/ui-egui/src/panels/brush_panel.rs:329-330 (`if *lock { t.text } else {
     // t.text_faint }`, the "lock-open" icon at 12).
-    let _ = (ui, rect, column, selected, style);
-    todo!()
+    let color = if selected { style.selected_dimmed } else { style.dimmed };
+    icons::paint_in(ui, rect, column.off_icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), color);
 }
 
 /// A [check box](ToggleColumn::check_box) or [mixed](ToggleColumn::mixed) cell in `response.rect`:

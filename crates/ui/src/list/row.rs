@@ -556,7 +556,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let style = Self::style(&Tokens::of(ui));
         let (column, leading) = self.extent(&style, group);
         let widths: Vec<(f32, bool)> = self.trailing.iter().map(|t| (t.width, t.optional)).collect();
-        min_width(&style, (self.columns.len(), self.indented_toggles), column, leading, &widths)
+        let ends = self.columns.iter().filter(|c| c.at_end).count();
+        min_width(&style, (self.columns.len() - ends, ends, self.indented_toggles), column, leading, &widths)
     }
 
     /// The width of a tree row's disclosure and clipping columns, and of the leading part.
@@ -960,15 +961,17 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let leading = leading_width(&style, thumb, icon.is_some() || glyph.is_some(), thumb_width, &extras);
         let extras = if side > 0.0 && thumb != ThumbSize::None { extras } else { Vec::new() };
         let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
-        let min_width = min_width(&style, (columns.len(), indented_toggles), column, leading, &widths);
-        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), (columns.len(), indented_toggles), (indent, column), leading, &widths);
+        let ends = columns.iter().filter(|c| c.at_end).count();
+        let counts = (columns.len() - ends, ends, indented_toggles);
+        let min_width = min_width(&style, counts, column, leading, &widths);
+        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), counts, (indent, column), leading, &widths);
         // Parts that don't fit stay in their place and the row's trailing edge cuts them.
         let outer_clip = ui.clip_rect();
         ui.set_clip_rect(outer_clip.intersect(rect));
         let visible = ui.is_rect_visible(rect);
         let hovered = ui.rect_contains_pointer(rect) && ui.is_enabled();
         if visible {
-            paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer, striped }, columns.len(), &geometry);
+            paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer, striped }, counts.0, &geometry);
             paint_rule(ui, &style, rect, (rule, layer));
         }
 
@@ -980,7 +983,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
                 toggles.push(toggle::show(ui, &cell, column, (at, at), &style, &mut events));
                 continue;
             }
-            let offset = geometry.toggles_start + index as f32 * style.toggle_column;
+            let before = columns[..index].iter().filter(|c| !c.at_end).count();
+            let offset = geometry.toggles_start + before as f32 * style.toggle_column;
             let at = geometry.span(rect, offset, style.toggle_column);
             // A sweep crosses an indented cell anywhere between the leading edge and the cell.
             let reach = if indented_toggles { geometry.span(rect, 0.0, offset + style.toggle_column) } else { at };
@@ -1103,10 +1107,17 @@ fn toggle_rooms(indented: bool) -> f32 {
 }
 
 /// The least width of a row: everything but the indent and the optional items, and `min_label`.
-fn min_width(style: &ListRowStyle, (columns, indented): (usize, bool), column: f32, leading: Option<f32>, items: &[(f32, bool)]) -> f32 {
+fn min_width(style: &ListRowStyle, (columns, ends, indented): (usize, usize, bool), column: f32, leading: Option<f32>, items: &[(f32, bool)]) -> f32 {
     let required: f32 = items.iter().filter(|(_, optional)| !optional).map(|(w, _)| w + style.gap).sum();
     let leading = leading.map_or(0.0, |side| side + style.gap);
-    columns as f32 * style.toggle_column * toggle_rooms(indented) + style.pad_x + column + leading + style.min_label + required + style.trailing_pad
+    columns as f32 * style.toggle_column * toggle_rooms(indented)
+        + style.pad_x
+        + column
+        + leading
+        + style.min_label
+        + required
+        + style.trailing_pad
+        + ends as f32 * style.toggle_column
 }
 
 /// The cell of the [end column](ToggleColumn::at_end) `index` of `columns` in a row of `rect`:
@@ -1119,12 +1130,11 @@ fn min_width(style: &ListRowStyle, (columns, indented): (usize, bool), column: f
 /// `columns`), and reserve `n_end × style.toggle_column` at the trailing end before the trailing
 /// items are placed; a leading column's offset counts only the leading columns before it.
 /// Rows without end columns lay out exactly as before.
-#[expect(clippy::todo, reason = "skeleton: K7")]
 fn end_cell(geometry: &Geometry, style: &ListRowStyle, rect: Rect, columns: &[ToggleColumn], index: usize) -> Rect {
     // pc: crates/ui-egui/src/panels/brush_panel.rs:325 (the lock's 18 pt square centred 11 pt in
     // from the row's right edge, after the name).
-    let _ = (geometry, style, rect, columns, index);
-    todo!()
+    let place = columns[..index].iter().filter(|c| c.at_end).count();
+    geometry.span(rect, geometry.ends_start + place as f32 * style.toggle_column, style.toggle_column)
 }
 
 /// Where the parts of a row lie, as offsets from the reading start of the row.
@@ -1132,6 +1142,8 @@ struct Geometry {
     rtl: bool,
     /// Where the first toggle cell starts.
     toggles_start: f32,
+    /// Where the first end column starts; it moves out with the items of a row too narrow.
+    ends_start: f32,
     column_start: f32,
     leading_start: f32,
     label_start: f32,
@@ -1146,14 +1158,15 @@ impl Geometry {
         style: &ListRowStyle,
         rect: Rect,
         rtl: bool,
-        (columns, indented): (usize, bool),
+        (columns, ends, indented): (usize, usize, bool),
         (indent, column): (f32, f32),
         leading: Option<f32>,
         items: &[(f32, bool)],
     ) -> Geometry {
         let leading_columns = columns as f32 * style.toggle_column;
         let base = leading_columns * toggle_rooms(indented) + style.pad_x;
-        let end = rect.width() - style.trailing_pad;
+        let ends_start = rect.width() - style.trailing_pad - ends as f32 * style.toggle_column;
+        let end = ends_start;
         let leading_width = leading.map_or(0.0, |side| side + style.gap);
         // Trailing items are placed first. Optional ones stay while the label keeps its least
         // width at the full indent; the indent then shrinks for what is left.
@@ -1188,6 +1201,7 @@ impl Geometry {
         Geometry {
             rtl,
             toggles_start,
+            ends_start: ends_start + overflow,
             column_start: base + indent,
             leading_start: base + indent + column,
             label_start: base + indent + column + leading_width,
