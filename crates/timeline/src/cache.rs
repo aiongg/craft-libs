@@ -6,8 +6,6 @@
 //! frames at another scale than the one on screen, frames the playing preview never reaches, the
 //! least recently shown; while a preview plays, the frame it reaches last.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::collections::{HashMap, VecDeque};
 use std::hash::Hash;
 use std::sync::Arc;
@@ -57,7 +55,15 @@ impl<K: FrameCacheKey> FramePlayhead<K> {
     /// Looping, a frame behind it is reached after the range's end and around from its start.
     // effectcraft: crates/ui-egui/src/frames.rs:132 `Playhead::ahead`.
     pub fn ahead(&self, key: &K) -> Option<i64> {
-        todo!()
+        let frame = key.frame();
+        if !key.same_series(&self.series) || frame < self.start || frame > self.end {
+            return None;
+        }
+        let step = self.step.max(1);
+        if frame >= self.current {
+            return Some((frame - self.current) / step);
+        }
+        self.looping.then(|| (self.end.saturating_sub(self.current) / step).saturating_add(1).saturating_add((frame - self.start) / step))
     }
 }
 
@@ -98,7 +104,8 @@ impl<K: FrameCacheKey, V: FrameSize> FrameCache<K, V> {
 
     /// A new budget (Settings › Memory); evicts down to it at once.
     pub fn set_budget(&mut self, bytes: usize) {
-        todo!()
+        self.budget = bytes;
+        self.evict_to_budget();
     }
 
     /// Keep `frame` under `key`, replacing any frame there. Past the budget, frames are evicted
@@ -108,13 +115,26 @@ impl<K: FrameCacheKey, V: FrameSize> FrameCache<K, V> {
     // effectcraft: crates/ui-egui/src/frames.rs:161 `insert`, `:169` `victim`, `:249`
     // `evict_to_budget`; filmcraft: crates/ui-egui/src/frames.rs:389 (the 80 % mark).
     pub fn insert(&mut self, key: K, frame: Arc<V>) {
-        todo!()
+        let size = frame.bytes();
+        if let Some(old) = self.map.remove(&key) {
+            self.bytes = self.bytes.saturating_sub(old.bytes());
+            self.order.retain(|k| *k != key);
+        }
+        if size > self.budget {
+            return;
+        }
+        self.bytes = self.bytes.saturating_add(size);
+        self.order.push_back(key.clone());
+        self.map.insert(key, frame);
+        self.evict_to_budget();
     }
 
     /// The frame under `key`, marked as just shown (last in line for eviction).
     // effectcraft: crates/ui-egui/src/frames.rs:225 `touch`.
     pub fn get(&mut self, key: &K) -> Option<Arc<V>> {
-        todo!()
+        let frame = self.map.get(key)?.clone();
+        self.touch(key);
+        Some(frame)
     }
 
     /// Whether a frame is cached, without touching it.
@@ -127,13 +147,18 @@ impl<K: FrameCacheKey, V: FrameSize> FrameCache<K, V> {
     /// flashes black.
     // filmcraft: crates/ui-egui/src/frames.rs:727 `nearest`.
     pub fn nearest(&mut self, key: &K, max_back: i64) -> Option<(K, Arc<V>)> {
-        todo!()
+        (0..=max_back).find_map(|back| {
+            let earlier = key.at_frame(key.frame().saturating_sub(back));
+            self.get(&earlier).map(|frame| (earlier, frame))
+        })
     }
 
     /// The cached frame numbers of `series`, sorted: the timeline draws them as the cache bar.
     // effectcraft: crates/ui-egui/src/frames.rs:811 `cached_frames`.
     pub fn cached_frames(&self, series: &K) -> Vec<i64> {
-        todo!()
+        let mut frames: Vec<i64> = self.map.keys().filter(|k| k.same_series(series)).map(FrameCacheKey::frame).collect();
+        frames.sort_unstable();
+        frames
     }
 
     /// The playing preview, or `None` when playback stops.
@@ -148,12 +173,62 @@ impl<K: FrameCacheKey, V: FrameSize> FrameCache<K, V> {
 
     /// Drop every frame `drop` accepts (a revision the document left, a closed item).
     pub fn remove_where(&mut self, drop: impl Fn(&K) -> bool) {
-        todo!()
+        let gone: Vec<K> = self.map.keys().filter(|k| drop(k)).cloned().collect();
+        for key in &gone {
+            self.remove(key);
+        }
+        self.order.retain(|k| self.map.contains_key(k));
     }
 
     pub fn clear(&mut self) {
         self.map.clear();
         self.order.clear();
         self.bytes = 0;
+    }
+
+    fn remove(&mut self, key: &K) {
+        if let Some(old) = self.map.remove(key) {
+            self.bytes = self.bytes.saturating_sub(old.bytes());
+        }
+    }
+
+    /// Shown again: last in line for eviction.
+    fn touch(&mut self, key: &K) {
+        if let Some(i) = self.order.iter().rposition(|k| k == key)
+            && let Some(k) = self.order.remove(i)
+        {
+            self.order.push_back(k);
+        }
+    }
+
+    /// The position in `order` of the frame to evict next (the module's order).
+    fn victim(&self) -> Option<usize> {
+        if let Some(shown) = &self.on_screen
+            && let Some(i) = self.order.iter().position(|k| !k.same_scale(shown))
+        {
+            return Some(i);
+        }
+        let Some(playhead) = &self.playhead else { return (!self.order.is_empty()).then_some(0) };
+        let mut farthest: Option<(i64, usize)> = None;
+        for (i, key) in self.order.iter().enumerate() {
+            match playhead.ahead(key) {
+                None => return Some(i),
+                Some(d) if farthest.is_none_or(|(f, _)| d > f) => farthest = Some((d, i)),
+                Some(_) => {}
+            }
+        }
+        farthest.map(|(_, i)| i)
+    }
+
+    /// Past the budget, evict down to 80 % of it; the newest frame alone is never evicted.
+    fn evict_to_budget(&mut self) {
+        if self.bytes <= self.budget {
+            return;
+        }
+        let mark = self.budget - self.budget / 5;
+        while self.bytes > mark && self.order.len() > 1 {
+            let Some(old) = self.victim().and_then(|i| self.order.remove(i)) else { break };
+            self.remove(&old);
+        }
     }
 }

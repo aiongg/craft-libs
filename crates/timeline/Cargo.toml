@@ -21,6 +21,7 @@ screen-testing = ["ui", "craft-ui/screen-testing"]
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 serde = { workspace = true }
+web-time = "1.1"
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts", "serde"] }

@@ -10,12 +10,13 @@
 //! The renderer is the app's ([`FrameRenderer`]): FilmCraft composites a sequence, EffectCraft a
 //! comp from a project snapshot, SoundCraft decodes a movie frame.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::collections::VecDeque;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
+
+use web_time::Instant;
 
 use crate::cache::{FrameCache, FrameCacheKey, FramePlayhead, FrameSize};
 
@@ -90,7 +91,7 @@ pub struct PlaybackRequest<K> {
 /// far ahead a queued job may be before it is dropped as stale.
 // filmcraft: crates/ui-egui/src/frames.rs:430.
 pub fn prefetch_depth(speed: f64) -> i64 {
-    todo!()
+    if speed.abs() > 1.5 { 24 } else { 14 }
 }
 
 /// Which frames playback asks for, given the per-frame render cost (s), the shown frame rate and
@@ -100,7 +101,21 @@ pub fn prefetch_depth(speed: f64) -> i64 {
 /// on purpose and evenly, instead of every frame arriving late.
 // filmcraft: crates/ui-egui/src/frames.rs:450.
 pub fn playback_plan(render_cost: f64, fps: f64, workers: usize) -> (i64, i64) {
-    todo!()
+    let frames_per_job = render_cost * fps;
+    let load = frames_per_job * 1.15 / workers.max(1) as f64;
+    if load <= 1.0 {
+        return (1, 1);
+    }
+    (frames_per_job.ceil() as i64, load.ceil() as i64)
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// The step between the frames playback shows: `speed` as whole frames, signed by direction.
+fn playback_step(speed: f64) -> i64 {
+    (speed.abs().max(1.0) as i64) * if speed < 0.0 { -1 } else { 1 }
 }
 
 struct Job<R: FrameRenderer> {
@@ -145,13 +160,21 @@ impl<R: FrameRenderer> FrameServer<R> {
     // filmcraft: crates/ui-egui/src/frames.rs:478 `FrameServer::new` (named threads
     // `frames-<n>`, each pulling the lowest priority, oldest first).
     pub fn new(renderer: Arc<R>, workers: usize, budget: usize) -> Self {
-        todo!()
+        let workers = if cfg!(target_arch = "wasm32") { 0 } else { workers };
+        let shared = Arc::new(Shared::new(renderer, workers, budget));
+        #[cfg(not(target_arch = "wasm32"))]
+        for i in 0..workers {
+            let shared = shared.clone();
+            std::thread::Builder::new().name(format!("frames-{i}")).spawn(move || shared.work()).ok();
+        }
+        Self { shared }
     }
 
-    /// The available parallelism less one (the UI thread), at least 1.
+    /// The available parallelism, from 2 to 6 workers (more only compete with the UI thread and
+    /// the decoders for memory bandwidth); 3 when it is unknown.
     // filmcraft: crates/ui-egui/src/frames.rs:508.
     pub fn default_workers() -> usize {
-        todo!()
+        std::thread::available_parallelism().map(|n| n.get().clamp(2, 6)).unwrap_or(3)
     }
 
     /// Called from a worker when a frame is ready (the app asks egui for a repaint).
@@ -168,7 +191,40 @@ impl<R: FrameRenderer> FrameServer<R> {
     /// behind older ones. A running job for the same frame at an older revision is left to finish.
     // filmcraft: crates/ui-egui/src/frames.rs:585 `request`, `:590` `request_job`.
     pub fn request(&self, key: R::Key, job: R::Job, priority: u32) {
-        todo!()
+        self.request_job(key, job, priority, false);
+    }
+
+    fn request_job(&self, key: R::Key, job: R::Job, priority: u32, prefetch: bool) {
+        let shared = &self.shared;
+        if priority == 0 {
+            lock(&shared.cache).set_on_screen(Some(key.clone()));
+        }
+        let hit = || lock(&shared.stats).request_hits += 1;
+        if lock(&shared.cache).contains(&key) || lock(&shared.running).iter().any(|(k, cancel, _)| *k == key && !cancel.is_cancelled()) {
+            hit();
+            return;
+        }
+        let mut queue = lock(&shared.queue);
+        if let Some(queued) = queue.iter_mut().find(|j| j.key == key) {
+            queued.priority = queued.priority.min(priority);
+            queued.prefetch &= prefetch;
+            drop(queue);
+            hit();
+            return;
+        }
+        lock(&shared.stats).request_misses += 1;
+        if priority == 0 {
+            let same_view = |k: &R::Key| key.same_series(k) && key.same_scale(k);
+            queue.retain(|j| !(j.priority == 0 && !j.prefetch && same_view(&j.key)));
+            for (k, cancel, prefetch) in lock(&shared.running).iter() {
+                if !prefetch && same_view(k) && k.frame() != key.frame() {
+                    cancel.cancel();
+                }
+            }
+        }
+        queue.push_back(Job { key, job, priority, prefetch, cancel: CancelToken::default() });
+        drop(queue);
+        shared.wake.notify_one();
     }
 
     /// Playback scheduling for one monitor: the frame due now first, then the next frames in
@@ -178,57 +234,88 @@ impl<R: FrameRenderer> FrameServer<R> {
     /// While `preroll`, only frames 0…[`PREROLL_FRAMES`] − 1 from the playhead are asked for.
     // filmcraft: crates/ui-egui/src/frames.rs:646 `schedule_playback`.
     pub fn schedule_playback(&self, request: &PlaybackRequest<R::Key>, job_for: impl Fn(i64) -> R::Job) {
-        todo!()
+        let key = &request.key;
+        let step = playback_step(request.speed);
+        let dir = step.signum();
+        let step = step.abs();
+        let fps = request.fps * request.speed.abs().max(1.0) / step as f64;
+        let (lead, stride) = if request.preroll { (1, 1) } else { playback_plan(lock(&self.shared.stats).render_cost, fps, self.shared.workers) };
+        let current = key.frame();
+        if lead <= 1 {
+            self.request_job(key.clone(), job_for(current), 0, false);
+        }
+        let ahead = if request.preroll { PREROLL_FRAMES - 1 } else { prefetch_depth(request.speed) };
+        for i in 0..ahead {
+            let frame = current.saturating_add(lead.saturating_add(i.saturating_mul(stride)).saturating_mul(dir).saturating_mul(step));
+            if frame >= 0 && frame <= request.last {
+                self.request_job(key.at_frame(frame), job_for(frame), i as u32 + 1, true);
+            }
+        }
+        let span = lead.saturating_add(ahead.saturating_mul(stride)).saturating_mul(step).saturating_add(26);
+        self.retain_queue(|k| !k.same_series(key) || ((k.frame() - current) * dir >= 0 && (k.frame() - current).abs() < span));
     }
 
     /// Whether playback can start at `key`: the next [`PREROLL_FRAMES`] frames in the playing
     /// direction (up to `last`) are cached.
     // filmcraft: crates/ui-egui/src/frames.rs:689 `preroll_ready`.
     pub fn preroll_ready(&self, key: &R::Key, speed: f64, last: i64) -> bool {
-        todo!()
+        let step = playback_step(speed);
+        let cache = lock(&self.shared.cache);
+        (0..PREROLL_FRAMES).map(|i| key.frame() + i * step).filter(|f| (0..=last).contains(f)).all(|f| cache.contains(&key.at_frame(f)))
     }
 
     /// The cached frame, marked as shown.
     pub fn get(&self, key: &R::Key) -> Option<Arc<R::Frame>> {
-        todo!()
+        lock(&self.shared.cache).get(key)
     }
 
     /// See [`FrameCache::nearest`].
     pub fn nearest(&self, key: &R::Key, max_back: i64) -> Option<(R::Key, Arc<R::Frame>)> {
-        todo!()
+        lock(&self.shared.cache).nearest(key, max_back)
     }
 
     /// See [`FrameCache::cached_frames`].
     pub fn cached_frames(&self, series: &R::Key) -> Vec<i64> {
-        todo!()
+        lock(&self.shared.cache).cached_frames(series)
     }
 
     /// The playing preview for the cache's eviction order ([`FrameCache::set_playhead`]).
     pub fn set_playhead(&self, playhead: Option<FramePlayhead<R::Key>>) {
-        todo!()
+        lock(&self.shared.cache).set_playhead(playhead);
     }
 
     /// Drop queued jobs that fail `keep` and cancel running ones (a worker blocked behind a
     /// decoder sees the token).
     // filmcraft: crates/ui-egui/src/frames.rs:702 `retain_queue`.
     pub fn retain_queue(&self, keep: impl Fn(&R::Key) -> bool) {
-        todo!()
+        lock(&self.shared.queue).retain(|j| keep(&j.key));
+        for (key, cancel, _) in lock(&self.shared.running).iter() {
+            if !keep(key) {
+                cancel.cancel();
+            }
+        }
     }
 
     /// Playback stopped: drop and cancel every prefetch job.
     // filmcraft: crates/ui-egui/src/frames.rs:713 `stop_prefetch`.
     pub fn stop_prefetch(&self) {
-        todo!()
+        lock(&self.shared.queue).retain(|j| !j.prefetch);
+        for (_, cancel, prefetch) in lock(&self.shared.running).iter() {
+            if *prefetch {
+                cancel.cancel();
+            }
+        }
     }
 
     /// A new cache budget, evicting at once.
     pub fn set_budget(&self, bytes: usize) {
-        todo!()
+        lock(&self.shared.cache).set_budget(bytes);
     }
 
     /// `(bytes held, budget)`.
     pub fn cache_usage(&self) -> (usize, usize) {
-        todo!()
+        let cache = lock(&self.shared.cache);
+        (cache.bytes(), cache.budget())
     }
 
     pub fn queue_len(&self) -> usize {
@@ -239,7 +326,7 @@ impl<R: FrameRenderer> FrameServer<R> {
         self.shared.workers
     }
     pub fn stats(&self) -> FrameStats {
-        todo!()
+        *lock(&self.shared.stats)
     }
 
     /// Without worker threads (wasm): run queued jobs on this thread, lowest priority number
@@ -247,13 +334,67 @@ impl<R: FrameRenderer> FrameServer<R> {
     /// without a cancel go back to the queue. The number of jobs finished; a no-op with workers.
     // filmcraft: crates/ui-egui/src/frames.rs:739 `pump`.
     pub fn pump(&self, budget: Duration) -> usize {
-        todo!()
+        if self.shared.workers > 0 {
+            return 0;
+        }
+        let started = Instant::now();
+        let (mut done, mut retry) = (0, Vec::new());
+        while let Some(outcome) = self.shared.run_next() {
+            match outcome {
+                Some(job) => retry.push(job),
+                None => done += 1,
+            }
+            if started.elapsed() >= budget {
+                break;
+            }
+        }
+        let mut queue = lock(&self.shared.queue);
+        for job in retry.into_iter().rev() {
+            if !queue.iter().any(|q| q.key == job.key) {
+                queue.push_front(job);
+            }
+        }
+        done
     }
 }
 
 impl<R: FrameRenderer> Shared<R> {
     fn new(renderer: Arc<R>, workers: usize, budget: usize) -> Self {
-        todo!()
+        Self {
+            renderer,
+            queue: Mutex::new(VecDeque::new()),
+            wake: Condvar::new(),
+            cache: Mutex::new(FrameCache::new(budget)),
+            running: Mutex::new(Vec::new()),
+            stats: Mutex::new(FrameStats::default()),
+            repaint: Mutex::new(None),
+            workers,
+            stop: AtomicBool::new(false),
+        }
+    }
+
+    /// A worker thread: run jobs until the server is dropped.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn work(&self) {
+        loop {
+            {
+                let mut queue = lock(&self.queue);
+                loop {
+                    if self.stop.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    if !queue.is_empty() {
+                        break;
+                    }
+                    queue = self.wake.wait(queue).unwrap_or_else(PoisonError::into_inner);
+                }
+            }
+            if self.run_one()
+                && let Some(repaint) = lock(&self.repaint).as_ref()
+            {
+                repaint();
+            }
+        }
     }
 
     /// Take the next job (lowest priority number, oldest first), render it, cache the frame and
@@ -261,10 +402,70 @@ impl<R: FrameRenderer> Shared<R> {
     /// 0.2). `false` when the queue was empty.
     // filmcraft: crates/ui-egui/src/frames.rs (`run_job`, the worker loop).
     fn run_one(&self) -> bool {
-        todo!()
+        match self.run_next() {
+            None => false,
+            Some(dropped) => {
+                if let Some(job) = dropped {
+                    self.finish(job.key, None, false);
+                }
+                true
+            }
+        }
     }
+
+    /// Run the next job. The outer `None`: the queue was empty. The inner job: the renderer had
+    /// no frame and no cancel was set (the source is not ready); it is neither cached nor counted.
+    fn run_next(&self) -> Option<Option<Job<R>>> {
+        let job = {
+            let mut queue = lock(&self.queue);
+            let next = queue.iter().enumerate().min_by_key(|(i, j)| (j.priority, *i)).map(|(i, _)| i)?;
+            let job = queue.remove(next)?;
+            lock(&self.running).push((job.key.clone(), job.cancel.clone(), job.prefetch));
+            job
+        };
+        if self.stop.load(Ordering::Relaxed) {
+            job.cancel_token().cancel();
+        }
+        let started = Instant::now();
+        let frame = if job.cancel_token().is_cancelled() {
+            None
+        } else {
+            // A renderer panic (bad media) must not leave the frame running forever.
+            catch_unwind(AssertUnwindSafe(|| self.renderer.render(&job.key, &job.job, job.cancel_token()))).unwrap_or(None)
+        };
+        let cancelled = job.cancel_token().is_cancelled();
+        let retry = frame.is_none() && !cancelled;
+        if job.prefetch && !retry {
+            let cost = started.elapsed().as_secs_f64();
+            let mut stats = lock(&self.stats);
+            if !cancelled || cost > stats.render_cost {
+                stats.render_cost = if stats.render_cost == 0.0 { cost } else { stats.render_cost * 0.8 + cost * 0.2 };
+            }
+        }
+        let Job { key, cancel, .. } = &job;
+        if retry {
+            self.forget_running(key, cancel);
+            return Some(Some(job));
+        }
+        self.finish(key.clone(), frame, cancelled);
+        self.forget_running(key, cancel);
+        Some(None)
+    }
+
+    fn forget_running(&self, key: &R::Key, cancel: &CancelToken) {
+        lock(&self.running).retain(|(k, c, _)| !(k == key && Arc::ptr_eq(&c.0, &cancel.0)));
+    }
+
+    /// Cache the frame (a cancelled job's result may be incomplete: not cached) and count the job.
     fn finish(&self, key: R::Key, frame: Option<R::Frame>, cancelled: bool) {
-        todo!()
+        if let Some(frame) = frame
+            && !cancelled
+        {
+            lock(&self.cache).insert(key, Arc::new(frame));
+        }
+        let mut stats = lock(&self.stats);
+        stats.jobs_done += 1;
+        stats.jobs_cancelled += u64::from(cancelled);
     }
 }
 
@@ -276,7 +477,13 @@ impl<R: FrameRenderer> Job<R> {
 
 impl<R: FrameRenderer> Drop for FrameServer<R> {
     fn drop(&mut self) {
+        let mut queue = lock(&self.shared.queue);
         self.shared.stop.store(true, Ordering::Relaxed);
+        queue.clear();
+        drop(queue);
+        for (_, cancel, _) in lock(&self.shared.running).iter() {
+            cancel.cancel();
+        }
         self.shared.wake.notify_all();
     }
 }
