@@ -13,8 +13,6 @@
 //! | `primitives/pin-warp/pins` | Empty mesh, several pins, a selected pin, a fixed rotation ring, several selected, mesh hidden |
 //! | `composites/pin-warp/bar` | The bar with and without a selected pin (with Fixed rotation on request); a refused remesh notice |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_ui::canvas::kurbo::{Point, Rect, Vec2};
 use craft_ui::localized::Labels as _;
 use craft_ui::patterns::OptionsBar;
@@ -24,7 +22,8 @@ use craft_ui::typed_story;
 use egui::Ui;
 
 use super::{
-    Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpBarOutput, PinWarpOptions, PinWarpSession, PinWarpSettings,
+    Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpBarLabels, PinWarpBarOutput, PinWarpOptions, PinWarpSession,
+    PinWarpSettings,
 };
 use crate::ui::transform_preview::PreviewMap;
 use crate::ui::transform_preview::stories::{Document, draw};
@@ -297,7 +296,7 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         let mut cell = PinCell::load(ui, salt, kind, layer, &labels.refusal);
         let mut out = PinWarpBarOutput::default();
         OptionsBar::new(salt).label(text.as_str()).show(ui, |slots| {
-            slots.body(|ui| out = PinWarpBar::new("bar", &cell.session).notice(cell.notice.as_deref()).show(ui));
+            slots.body(|ui| out = PinWarpBar::new("bar", &cell.session).labels(PinWarpBarLabels::of(ui)).notice(cell.notice.as_deref()).show(ui));
         });
         if out.discard {
             cell.reset();

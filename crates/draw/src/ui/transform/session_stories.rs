@@ -7,7 +7,6 @@
 //!   and Discard close the session and reopen a box on the applied result.
 //! - `composites/transform-session/bar`: the bar alone in its phases: Free, the Content-Aware
 //!   subset (`BarGroups`, no switch) and Warp with a stub warp group.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Shape, Stroke, Ui};
 use kurbo::{Rect, Size};

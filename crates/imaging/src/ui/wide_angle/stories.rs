@@ -14,15 +14,13 @@
 //! |---|---|
 //! | `patterns/wide-angle/constraints` | Free, Horizontal and Vertical constraints on the source; the same over the corrected preview (arg) |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use std::sync::{Arc, Mutex};
 
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::dialog::Outcome;
 use craft_ui::localized::Labels as _;
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, dialog_closed, dialog_shown};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, claim, dialog_closed, dialog_shown};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui};
 
@@ -204,7 +202,7 @@ fn show_constraints(ui: &mut Ui, args: &mut ConstraintsArgs) {
     let id = ui.make_persistent_id("craft_imaging::wide_angle::story");
     let slot: Slot = ui.data_mut(|d| d.get_temp_mut_or_insert_with::<Slot>(id, Slot::default).clone());
     let Ok(mut kept) = slot.lock() else { return };
-    if !dialog_shown(ui, args.open) {
+    if !(dialog_shown(ui, args.open) && claim(ui.ctx(), "wide_angle", ui.scope_id())) {
         *kept = None;
         return;
     }

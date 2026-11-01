@@ -17,13 +17,11 @@
 //! | `patterns/select-mask/tools` | Each tool's options bar, a Polygonal Lasso in progress, Refine Hair and Object Aware disabled with their reasons |
 //! | `patterns/select-mask/refine` | Edge Detection and Global Refinements, Output To with Decontaminate Colors, the limit message |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_ui::canvas::{Checkerboard, RasterSource};
 use craft_ui::dialog::full_window::FullWindowCanvas;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, dialog_closed, dialog_shown, lock, shared};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, claim, dialog_closed, dialog_shown, lock, shared};
 use craft_ui::typed_story;
 use egui::{Key, Modifiers, Ui, vec2};
 
@@ -35,7 +33,7 @@ use crate::trace::MaskSource;
 use crate::ui::mask_view::stories::Composite;
 use crate::ui::mask_view::{MaskViewMode, MaskViewRecipe, MaskViewState};
 use crate::ui::mock_image::{MockImage, MockSubject};
-use crate::ui::selection::SelectionOverlay;
+use crate::ui::selection::{SelectionOverlay, SelectionOverlayLabels};
 use craft_ui::edit::EditEvent;
 
 /// The components this module has stories for.
@@ -227,7 +225,7 @@ impl Held {
 
 fn show_views(ui: &mut Ui, args: &mut ViewsArgs) {
     let words = SelectMaskStoryLabels::of(ui);
-    if !dialog_shown(ui, args.open) {
+    if !(dialog_shown(ui, args.open) && claim(ui.ctx(), "select_mask", ui.scope_id())) {
         return;
     }
     let mode = args.view.mode();
@@ -316,7 +314,7 @@ fn show_tools(ui: &mut Ui, args: &mut ToolsArgs) {
                 .checkerboard(Checkerboard::default())
                 .tool(&mut active)
                 .show(ui);
-            SelectionOverlay::new("select-mask-story-ants", &subject).show(ui, &shown.response, &shown.view);
+            SelectionOverlay::new("select-mask-story-ants", &subject).labels(SelectionOverlayLabels::of(ui)).show(ui, &shown.response, &shown.view);
         });
         for event in canvas.take_events() {
             match event {
@@ -384,6 +382,6 @@ fn show_refine(ui: &mut Ui, args: &mut RefineArgs) {
         let image = MockImage::default();
         let width = ui.available_width();
         let (response, view) = image.canvas(ui, "select-mask-story-refine-picture", width, None, None);
-        SelectionOverlay::new("select-mask-story-refine-ants", &MockSubject(image)).show(ui, &response, &view);
+        SelectionOverlay::new("select-mask-story-refine-ants", &MockSubject(image)).labels(SelectionOverlayLabels::of(ui)).show(ui, &response, &view);
     });
 }

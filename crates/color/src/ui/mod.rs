@@ -295,6 +295,7 @@ pub const COMPONENTS: &[&str] = &[
     "HexField",
     "LutPicker",
     "PaintChip",
+    "PaintList",
     "ProfileMismatchDialog",
     "SwatchPair",
     "SwatchPalette",
@@ -455,6 +456,7 @@ pub fn stories() -> Vec<Story> {
     stories.extend(ramp_stories::stories());
     stories.extend(disc_stories::stories());
     stories.extend(colour_stories::stories());
+    stories.extend(paint_stories::stories());
     stories
 }
 

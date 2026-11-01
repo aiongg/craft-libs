@@ -13,8 +13,6 @@
 //! | `patterns/filter-gallery/default` | The Artistic folder open and Sketch closed, the selected thumbnail, the settings, a three-layer stack with one eye off |
 //! | `patterns/filter-gallery/rendering` | The zoom bar with a progress bar (arg), then the note |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use std::f64::consts::TAU;
 use std::sync::{Arc, Mutex};
 
@@ -23,7 +21,7 @@ use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::dialog::full_window::PreviewTicket;
 use craft_ui::dialog::{Outcome, Param, ParamKind};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, dialog_closed, dialog_shown};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, claim, dialog_closed, dialog_shown};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui};
 
@@ -269,7 +267,7 @@ fn show_workspace(ui: &mut Ui, open: &mut bool, name: &'static str, state: Optio
     let id = ui.make_persistent_id(("craft_imaging::filter_gallery::story", name));
     let slot: Slot = ui.data_mut(|d| d.get_temp_mut_or_insert_with::<Slot>(id, Slot::default).clone());
     let Ok(mut kept) = slot.lock() else { return };
-    if !dialog_shown(ui, *open) {
+    if !(dialog_shown(ui, *open) && claim(ui.ctx(), "filter_gallery", ui.scope_id())) {
         *kept = None;
         return;
     }

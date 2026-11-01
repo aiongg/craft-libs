@@ -14,8 +14,6 @@
 //! | `primitives/perspective-warp/planes` | Layout with two linked planes; Warp with the picture following; a picked corner with keyboard focus (the story asks for the group's focus once; the ring shows once the keyboard is in use) |
 //! | `composites/perspective-warp/bar` | Layout (count "2 planes", Remove Planes) and Warp (Straighten, Level, Both); the plane count is an arg |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::canvas::quad::Homography;
 use craft_ui::localized::Labels as _;

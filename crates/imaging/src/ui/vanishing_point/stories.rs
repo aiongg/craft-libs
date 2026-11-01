@@ -16,8 +16,6 @@
 //! | `patterns/vanishing-point/planes` | Valid, questionable and invalid planes, a torn-off wall; click a plane to select it and show its nodes; Create Plane's pending corners |
 //! | `patterns/vanishing-point/stamp` | The source cross, the foreshortened ring under the pointer, the paste image on a plane |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{Checkerboard, NavigationOptions, RasterSource};
 use craft_ui::dialog::full_window::{FullWindowCanvas, FullWindowView};

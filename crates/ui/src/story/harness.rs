@@ -12,10 +12,15 @@ use crate::localized::Labels as _;
 
 /// State of one story instance, kept in egui memory under `name` in `ui`'s scope and made by
 /// `init` the first time. Two instances of a story (a component tab and a variants view) each
-/// get their own.
+/// get their own. `init` runs outside egui's data lock, so it may read the theme or load textures.
 pub fn shared<T: Send + 'static>(ui: &Ui, name: &str, init: impl FnOnce() -> T) -> Arc<Mutex<T>> {
     let key = ui.make_persistent_id(("craft_ui::story::shared", name));
-    ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, || Arc::new(Mutex::new(init()))).clone())
+    if let Some(kept) = ui.data(|d| d.get_temp::<Arc<Mutex<T>>>(key)) {
+        return kept;
+    }
+    let made = Arc::new(Mutex::new(init()));
+    ui.data_mut(|d| d.insert_temp(key, made.clone()));
+    made
 }
 
 /// Locks [`shared`] state; a story that panicked while holding it leaves the state as it was.

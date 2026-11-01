@@ -9,8 +9,6 @@
 //! |---|---|---|
 //! | `composites/live-preview/live` | `LivePreview` | A slider changes the settings and so the key; the story outlines the target region, each switch's damage rect and the area `uncovered` returns after the view pans, and reads out the settle state, the proxy factor at the zoom, and a `DraftScale` drag's scale |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use std::time::Duration;
 
 use craft_ui::canvas::kurbo::{Point, Rect};

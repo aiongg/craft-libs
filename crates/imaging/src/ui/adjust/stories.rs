@@ -1,6 +1,5 @@
-//! Stories of the adjustment editors (task ST-AD1): not registered. Registering them (task RG2)
-//! merges [`stories`] into `adjust::stories()` (today the Levels editor's), [`COMPONENTS`] into
-//! `adjust::COMPONENTS` and [`AdjustStoryLabels`] into `WORDS`, and regenerates the registry dump.
+//! Stories of the adjustment editors. `adjust::stories()` returns these and the Levels editor's;
+//! `adjust::COMPONENTS` lists both.
 //!
 //! Histograms and the adjusted hue spectrum are fakes made by the story (`story_bins` hills, a hue
 //! rotation), so every state shows without an engine. Each cell keeps its own value and applies
@@ -27,8 +26,6 @@
 //! `dynamic_colors` (Preferences › Interface › Dynamic Color Sliders). The point pickers are
 //! inside the Levels and Curves panels, so `TonePickerRow` has no story of its own.
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_theme::{Hsb, Srgba};
 use craft_ui::composites::curve_editor::story_bins;
 use craft_ui::composites::{ChannelColor, Curve};
@@ -48,22 +45,6 @@ use super::{
     PhotoFilterPreset, SelectiveColor, SelectiveColorEditor, SelectiveMethod, ThresholdEditor, ToneChannel, ToneChannels, ToneCurves, TonePicker,
     ToneSpace,
 };
-
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &[
-    "LevelsPanel",
-    "CurvesPanel",
-    "AdjustSliders",
-    "BrightnessContrastEditor",
-    "ThresholdEditor",
-    "HueSaturationEditor",
-    "ColorBalanceEditor",
-    "BlackWhiteEditor",
-    "PhotoFilterEditor",
-    "ChannelMixerEditor",
-    "SelectiveColorEditor",
-    "AdjustSession",
-];
 
 craft_ui::words! {
     /// The captions of the adjustment stories, English by default.

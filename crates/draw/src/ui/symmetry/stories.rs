@@ -9,7 +9,6 @@
 //!   reopens the session on it; Cancel reopens it on the stored one.
 //! - `patterns/symmetry-menu/menu`: the menu with paths, Off, and Transform Symmetry disabled and
 //!   enabled.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::Ui;
 use kurbo::Vec2;
@@ -58,7 +57,7 @@ pub(crate) fn stories() -> Vec<Story> {
             Level::Primitives,
             "Symmetry",
             "Modes",
-            ModesArgs { view: ViewArgs::default(), mode: ModeArg::Vertical, x: 0.0, y: 0.0, rotation: 0.0, handles: false },
+            ModesArgs { view: ViewArgs::default(), mode: ModeArg::Vertical, x: 0.0, y: 0.0, angle: 0.0, handles: false },
             show_modes
         )
         .on(Surface::Canvas),
@@ -67,7 +66,7 @@ pub(crate) fn stories() -> Vec<Story> {
             Level::Primitives,
             "SymmetryTransform",
             "Transform",
-            TransformArgs { view: ViewArgs::default(), mode: ModeArg::Vertical, x: 0.0, y: 0.0, rotation: 0.0 },
+            TransformArgs { view: ViewArgs::default(), mode: ModeArg::Vertical, x: 0.0, y: 0.0, angle: 0.0 },
             show_transform
         )
         .on(Surface::Canvas),
@@ -133,7 +132,7 @@ struct ModesArgs {
     y: f64,
     /// Degrees clockwise.
     #[arg(range = 0.0..=360.0)]
-    rotation: f64,
+    angle: f64,
     /// Shows the centre and the rotation handle, as while transforming.
     handles: bool,
 }
@@ -143,7 +142,7 @@ fn show_modes(ui: &mut Ui, args: &mut ModesArgs) {
     let words = StoryLabels::of(ui);
     let own = SymmetryStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
-    let Some(symmetry) = symmetry(args.mode, args.x, args.y, args.rotation) else {
+    let Some(symmetry) = symmetry(args.mode, args.x, args.y, args.angle) else {
         return;
     };
     let style = SymmetryStyle::of(&Tokens::of(ui));
@@ -165,7 +164,7 @@ struct TransformArgs {
     y: f64,
     /// Degrees clockwise.
     #[arg(range = 0.0..=360.0)]
-    rotation: f64,
+    angle: f64,
 }
 
 /// What the transform story keeps: the open session, the stored symmetry, the last result and the
@@ -206,8 +205,8 @@ fn show_transform(ui: &mut Ui, args: &mut TransformArgs) {
     let own = SymmetryStoryLabels::of(ui);
     let ctx = ui.ctx().clone();
     let key = state_key(ui, "transform");
-    let seed = [f64::from(args.mode as u8), args.x, args.y, args.rotation];
-    let Some(initial) = symmetry(args.mode, args.x, args.y, args.rotation) else {
+    let seed = [f64::from(args.mode as u8), args.x, args.y, args.angle];
+    let Some(initial) = symmetry(args.mode, args.x, args.y, args.angle) else {
         return;
     };
     let mut kept: Kept = ctx.data(|d| d.get_temp(key)).filter(|kept: &Kept| kept.seed == seed).unwrap_or_else(|| Kept::new(initial, seed));

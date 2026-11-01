@@ -14,8 +14,6 @@
 //! |---|---|---|
 //! | `patterns/blend-keys/stepping` | `BlendKeys` | ⇧+ and ⇧− stepping with wrap, ⇧⌥ letters, a letter the target lacks (consumed, logged as nothing), and a text field that keeps the keys |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_theme::TypeRole;
 use craft_ui::focus::key_owner::{self, KeyOwner, OwnerGate};
 use craft_ui::localized::Labels as _;

@@ -21,8 +21,6 @@
 //! | `patterns/select/polygon-lasso` | Click by click; ⇧ at 45°; closing on the first point; Backspace retracts |
 //! | `patterns/select/magnetic-lasso` | The tracer on the house's edges; Width, Contrast and Frequency from the options; fastening points, the closing ring |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_ui::canvas::kurbo::{Point, Rect, Size, Vec2};
 use craft_ui::canvas::{CanvasId, CanvasTool, Constraint, RasterSource as _, SelectionOperation, ToolHost, ToolInput};
 use craft_ui::controls::Button;
@@ -39,7 +37,7 @@ use super::{
 };
 use crate::trace::{MaskRect, MaskSource};
 use crate::ui::mock_image::MockImage;
-use crate::ui::selection::SelectionOverlay;
+use crate::ui::selection::{SelectionOverlay, SelectionOverlayLabels};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["MarqueeTool", "LassoTool", "PolygonLassoTool", "MagneticLassoTool"];
@@ -628,6 +626,7 @@ where
     run_script(ui, id, &mut session.script);
 
     SelectionOverlay::new(("select-story", salt, "ants"), &session.selection)
+        .labels(SelectionOverlayLabels::of(ui))
         .visible(!session.tool.replaces_selection())
         .offset(session.dragging.unwrap_or([0, 0]))
         .show(ui, &response, &view);

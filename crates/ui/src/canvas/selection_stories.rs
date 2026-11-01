@@ -14,8 +14,6 @@
 //! | `primitives/selection/outline` | Solid and dashed outlines over a list of shapes in two layer colours |
 //! | `primitives/selection/range-bands` | A range with the active cell cut out; a 20-million-point column scrolled to its middle |
 
-#![expect(dead_code, reason = "registered by task RG2")]
-
 use egui::{Painter, Pos2, Shape, Stroke, Ui};
 use kurbo::{Affine, BezPath, Ellipse, Point, Rect, Shape as _, Vec2};
 

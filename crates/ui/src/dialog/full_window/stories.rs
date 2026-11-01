@@ -13,7 +13,6 @@
 //!   progress bar and with a note, `PreviewStatus` pending and failed.
 //! - `patterns/full-window/rail-in-dialog`: `ToolRail` with group gaps and a shared-letter slot
 //!   inside a `FullWindowDialog`, `pick_by_key` on.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Color32, ColorImage, Id, Rect, Sense, Ui, Vec2, vec2};
 use kurbo::Size;

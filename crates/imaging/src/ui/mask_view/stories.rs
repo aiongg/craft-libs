@@ -11,8 +11,6 @@
 //! |---|---|
 //! | `patterns/mask-view/modes` | The seven views over the picture; the opacity kept per view; Show Edge; Show Original; hold X |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
@@ -22,7 +20,7 @@ use egui::{Color32, ColorImage, Ui};
 
 use super::{MaskCoverage, MaskViewControls, MaskViewKeys, MaskViewLabels, MaskViewMode, MaskViewRecipe, MaskViewState, VeilMask};
 use crate::ui::mock_image::{MockImage, MockSubject};
-use crate::ui::selection::SelectionOverlay;
+use crate::ui::selection::{SelectionOverlay, SelectionOverlayLabels};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["MaskViewControls"];
@@ -134,7 +132,10 @@ fn view(ui: &mut Ui, salt: &'static str, size: [u32; 2], recipe: MaskViewRecipe,
     let ants = recipe.ants && !recipe.hidden;
     let composite = Composite { image, recipe, revision };
     let (response, view) = image.canvas_of(ui, ("mask-view-story", salt), width, None, None, &composite);
-    SelectionOverlay::new(("mask-view-story", salt), &MockSubject(image)).visible(ants).show(ui, &response, &view);
+    SelectionOverlay::new(("mask-view-story", salt), &MockSubject(image))
+        .labels(SelectionOverlayLabels::of(ui))
+        .visible(ants)
+        .show(ui, &response, &view);
 }
 
 /// The View Mode controls and keys drive one large view; the seven views show small below, each

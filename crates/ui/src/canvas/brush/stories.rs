@@ -9,7 +9,6 @@
 //! - `primitives/brush/resize`: a canvas on a [`ToolHost`] where Ctrl + Alt + drag resizes the
 //!   brush, and a Play button that injects the same drag: diameter, the hardness, opacity and
 //!   density levels, tint, hard and soft falloff, the readout.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Color32, Modifiers, Painter, Pos2, Shape, Stroke, Ui, vec2};
 use kurbo::{Point, Rect, Vec2};

@@ -372,6 +372,13 @@ register! {
     crate::patterns::rail::flyout,
     crate::patterns::rail::tool,
     crate::popover,
+    crate::canvas::hover_stories,
+    crate::canvas::selection_stories,
+    crate::canvas::marquee::fields_stories,
+    crate::canvas::before_after::stories,
+    crate::canvas::brush::stories,
+    crate::behavior::stories_move,
+    crate::dialog::full_window::stories,
 }
 
 fn overview_key() -> egui::Id {

@@ -19,8 +19,6 @@
 //! | `composites/contour-field/editor` | `ContourField` | The contour field, its picker with a host library and the Contour Editor |
 //! | `composites/blend-if-bar/handles` | `BlendIfBar` | One Blend If bar unsplit and one split, with the keys |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_theme::Srgba;
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasView, Checkerboard};

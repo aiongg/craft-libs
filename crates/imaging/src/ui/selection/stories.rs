@@ -12,8 +12,6 @@
 //! | `primitives/selection/ants` | The subject at four zooms; the large mask at 12 %; a floating offset; a mapped (turned) outline; hidden |
 //! | `primitives/selection/preview` | The five preview modes; the Quick Mask colour, opacity and Color Indicates |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_theme::Srgba;
 use craft_ui::canvas::CanvasView;
 use craft_ui::canvas::kurbo::{Point, Rect};

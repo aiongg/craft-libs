@@ -13,7 +13,6 @@
 //!
 //! RG2 registers `stories()` and the components `SliceTool`, `SliceBar`, `SliceOptionsDialog` and
 //! `DivideSlicesDialog`; RG1 adds [`SliceStoryLabels`] to `WORDS`.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::Ui;
 use kurbo::Rect;

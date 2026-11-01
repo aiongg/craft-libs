@@ -13,8 +13,6 @@
 //! [`Document`] (the blank document, its canvas and the layer's textures) is the one stage the
 //! other warp stories (`warp::pin::stories`, `warp::perspective::stories`) share.
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use std::sync::{Arc, PoisonError};
 
 use craft_ui::canvas::kurbo::{Point, Rect};

@@ -13,15 +13,12 @@
 //!   one is cheap for a thumbnail and a huge one costs nothing until it is read.
 //! - It is a [`RasterSource`]: `RasterDisplay::new(salt).show(ui, &view, &image)`, or
 //!   [`MockImage::canvas`], which allocates a canvas of a given width and shows the picture on it.
-//!   [`set_revision`](MockImage::set_revision) tells the display the document changed.
 //! - [`MockSubject`] is the subject as a [`MaskSource`] (a selection of the house): use it for the
 //!   selection overlay, a Select and Mask preview or a fake mask source.
 //!   [`MockImage::subject_bounds`] gives its pixels.
 //! - Everything is a pure function of the coordinates: no randomness, no clock. Every method takes
 //!   document pixels as `f64`; an integer pixel's centre is `+ 0.5`.
 //! - Nothing here uses egui except `read`'s output type and `canvas`.
-
-#![expect(dead_code, reason = "task RG2 registers the stories that draw it; ST-WS1 and ST-WS2 are its other users")]
 
 use egui::{AsIdSalt, Color32, ColorImage, Response, Sense, Ui, vec2};
 
@@ -35,8 +32,7 @@ use crate::trace::{MaskRect, MaskSource};
 const EDGE: f64 = 0.004;
 
 /// The generated picture as a `RasterSource`. Pixels are computed on read (no buffer), so any
-/// size costs nothing until shown. [`set_revision`](Self::set_revision) lets a story say "the
-/// document changed" (a workspace closes or re-reads on it).
+/// size costs nothing until shown.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct MockImage {
     size: [u32; 2],
@@ -101,10 +97,6 @@ struct House {
 impl MockImage {
     pub(crate) fn new(size: [u32; 2]) -> Self {
         Self { size, revision: 1 }
-    }
-
-    pub(crate) fn set_revision(&mut self, revision: u64) {
-        self.revision = revision;
     }
 
     /// The width and height as `f64`, at least 1.

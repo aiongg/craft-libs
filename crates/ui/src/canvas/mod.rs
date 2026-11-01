@@ -127,7 +127,6 @@ mod split;
 mod split_tests;
 pub(crate) mod story;
 pub mod straight_line;
-pub(crate) mod straight_line_stories;
 #[cfg(test)]
 mod straight_line_tests;
 #[cfg(test)]

@@ -6,7 +6,6 @@
 //! | Story id | Shows |
 //! |---|---|
 //! | `primitives/corner-widgets/edit` | A fake rectangle, a star and a path's corner anchors; args: kinds, hide-above angle, individual |
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Pos2, Shape, Stroke, Ui};
 use kurbo::{Point, Vec2};

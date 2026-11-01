@@ -13,8 +13,6 @@
 //! | `composites/blur-pins/spin` | A Spin pin; the ring sets the blur angle |
 //! | `composites/blur-pins/tilt` | Tilt-Shift's band with its solid and dashed lines and turn dots |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_ui::canvas::RasterSource as _;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};

@@ -714,10 +714,7 @@ fn show_field(ui: &mut Ui, rect: Rect, salt: &str, field: NumberField<'_>) -> Ed
     field.show(&mut ui.new_child(UiBuilder::new().id_salt(salt).max_rect(rect).layout(layout)))
 }
 
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["LevelsEditor"];
-
-pub fn stories() -> Vec<Story> {
+pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
             "composites/levels-editor/levels",

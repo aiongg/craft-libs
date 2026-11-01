@@ -11,8 +11,6 @@
 //! |---|---|
 //! | `patterns/marquee/constraint-fields` | Normal (fields greyed), Fixed Ratio 1 : 1 after the switch, Fixed Size 64 × 64 px, swap, a picked unit (in), the whole group disabled (single row marquee) |
 
-#![expect(dead_code, reason = "registered by task RG2")]
-
 use egui::Ui;
 
 use super::Constraint;

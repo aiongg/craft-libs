@@ -71,7 +71,7 @@ use craft_ui::patterns::{LastUsed, OptionsBar, ToolRail};
 
 use crate::trace::MaskSource;
 use crate::ui::mask_view::{MaskViewKeys, MaskViewRecipe, MaskViewState};
-use crate::ui::selection::{OutlineSource, SelectionOverlay};
+use crate::ui::selection::{OutlineSource, SelectionOverlay, SelectionOverlayLabels};
 
 /// What the app gives the workspace to show each pass.
 pub trait SelectMaskSource {
@@ -376,7 +376,10 @@ impl SelectMaskWorkspace {
                 && !recipe.hidden
                 && let Some((mask, reduction)) = source.ants()
             {
-                SelectionOverlay::new("select-mask-ants", OutlineSource::Mask(mask)).reduction(reduction).show(ui, &shown.response, &shown.view);
+                SelectionOverlay::new("select-mask-ants", OutlineSource::Mask(mask))
+                    .labels(SelectionOverlayLabels::of(ui))
+                    .reduction(reduction)
+                    .show(ui, &shown.response, &shown.view);
             }
             run.absorb_canvas(canvas, session, limits, error, settings.real_time);
         });

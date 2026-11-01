@@ -135,6 +135,23 @@ craft_ui::story::register! {
     pen::bezier::story,
     pen::story,
     transform::transform_fields,
+    transform::session_stories,
+    stroke::stories,
+    corner::stories,
+    crop::stories_tool,
+    crop::stories_bar,
+    measure::stories,
+    symmetry::stories,
+    brush_presets::stories,
+    brush_settings::stories,
+    shape::stories,
+    shape_drag::stories,
+    slice::stories,
+    artboard::stories,
+    add_beside_stories,
+    pattern::stories,
+    picture_fill::stories,
+    connector::stories,
 }
 
 /// The stories of the draw tools.

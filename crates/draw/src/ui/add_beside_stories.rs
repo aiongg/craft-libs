@@ -8,7 +8,6 @@
 //!
 //! RG2 registers `stories()` and the component `AddBesideHandles`; RG1 adds
 //! [`AddBesideStoryLabels`] to `WORDS`.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Pos2, Shape, Stroke, Ui};
 use kurbo::{Rect, Vec2};

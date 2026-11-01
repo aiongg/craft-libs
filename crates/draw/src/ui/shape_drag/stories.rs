@@ -11,7 +11,6 @@
 //!
 //! RG2 registers `stories()` and the components `ShapeDragTool` and `CreateShapeDialog`; RG1 adds
 //! [`ShapeDragStoryLabels`] to `WORDS`.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Painter, Shape, Stroke, Ui};
 use kurbo::{PathEl, Point};

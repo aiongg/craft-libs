@@ -13,7 +13,6 @@
 //!
 //! RG2 registers `stories()` and the components `ArtboardTool`, `ArtboardBar` and
 //! `ArtboardProperties`; RG1 adds [`ArtboardStoryLabels`] to `WORDS`.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Color32, Ui};
 use kurbo::{Point, Rect, Size, Vec2};

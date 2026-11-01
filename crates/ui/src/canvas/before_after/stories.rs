@@ -12,8 +12,6 @@
 //! | `primitives/before-after/modes` | The six modes over the two fakes, captions on and off |
 //! | `primitives/before-after/divider` | A Split and a SplitStacked view with the fraction readout, the keys, `drag_anywhere` on and off, hold Backslash for the original |
 
-#![expect(dead_code, reason = "registered by task RG2")]
-
 use egui::{Color32, Key, Mesh, Painter, Rect, Shape, Ui, vec2};
 
 use super::{BeforeAfter, BeforeAfterMode, BeforeAfterPane, BeforeAfterSide};
@@ -57,7 +55,7 @@ pub(crate) fn stories() -> Vec<Story> {
             "primitives/before-after/divider",
             Level::Primitives,
             "BeforeAfter",
-            "Divider",
+            "Split view",
             DividerArgs { stacked: false, drag_anywhere: true, captions: false },
             show_divider
         )

@@ -12,8 +12,6 @@
 //! | `primitives/connector-tool/routes` | The route gallery: every side pair and boxes in the way |
 //! | `patterns/connector-bar/bar` | Routing, caps, line style |
 
-#![expect(dead_code, reason = "registered by task RG2")]
-
 use egui::epaint::CubicBezierShape;
 use egui::{Color32, Painter, Pos2, Rect as ScreenRect, Shape, Stroke, Ui};
 use kurbo::{Point, Rect, Size, Vec2};

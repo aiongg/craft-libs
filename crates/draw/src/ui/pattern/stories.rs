@@ -10,8 +10,6 @@
 //! | `composites/pattern-fill-editor/editor` | Bitmap mode and two-colour preset mode; an empty library |
 //! | `patterns/pattern-fill-dialog/dialog` | Live values and Snap to Origin |
 
-#![expect(dead_code, reason = "registered by task RG2")]
-
 use egui::{Painter, Pos2, Rect, Stroke, Ui};
 
 use super::{PatternColors, PatternFillDialog, PatternFillEditor, PatternFillOptions, PatternSwatch};

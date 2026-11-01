@@ -9,7 +9,6 @@
 //!
 //! RG2 registers `stories()` and the components `ShapePanel` and `ShapeOptionsBar`, and RG1 adds
 //! [`ShapeStoryLabels`] to `WORDS`.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::Ui;
 

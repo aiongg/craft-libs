@@ -11,8 +11,6 @@
 //! | `composites/paint-chip/kinds` | A chip with five tabs (pattern and picture editors from fakes) |
 //! | `patterns/paint-list/list` | Rows with hex, opacity, a bound style, remove (`PaintListOptions::SELECTION_COLORS`) |
 
-#![expect(dead_code, reason = "registered by task RG2")]
-
 use craft_theme::Srgba;
 use craft_ui::controls::Button;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
@@ -26,9 +24,6 @@ use super::{
     FillKind, GradientPreview, ImagePreview, Paint, PaintChip, PaintKindLabels, PaintLabels, PaintLink, PaintLinkKind, PaintList, PaintListEvent,
     PaintListOptions, PaintRow,
 };
-
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["PaintChip", "PaintList"];
 
 craft_ui::words! {
     /// The captions of the paint stories, English by default.

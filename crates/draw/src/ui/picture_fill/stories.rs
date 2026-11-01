@@ -9,8 +9,6 @@
 //! |---|---|
 //! | `composites/picture-fill-editor/editor` | Stretch and Tile; Insert… through the fake `Files` |
 
-#![expect(dead_code, reason = "registered by task RG2")]
-
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 

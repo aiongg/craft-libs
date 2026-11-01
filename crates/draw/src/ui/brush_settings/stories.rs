@@ -11,7 +11,6 @@
 //! | `composites/tip-ellipse/ellipse` | The angle and roundness widget with its value readout |
 //! | `composites/dynamic-control-row/dynamics` | `DynamicControlRow` with and without Fade, the curve toggle lit and plain; `BrushSizeField` with and without restore |
 //! | `composites/brush-stroke-strip/strip` | The strip with the S-curve of a fake stroke at three widths |
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Color32, ColorImage, Ui, vec2};
 

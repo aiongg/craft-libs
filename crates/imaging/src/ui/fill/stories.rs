@@ -19,14 +19,12 @@
 //! | `patterns/content-aware-fill/lasso` | The fill area's ants, the four operations, Expand and Contract |
 //! | `patterns/content-aware-fill/preview` | The Preview panel framed on the sampling window, recomputing, failed |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_ui::canvas::kurbo;
 use craft_ui::canvas::{Checkerboard, PixelRect, RasterSource, SelectionOperation};
 use craft_ui::dialog::full_window::FullWindowCanvas;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, dialog_closed, dialog_shown, lock, shared};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, claim, dialog_closed, dialog_shown, lock, shared};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui, vec2};
 
@@ -382,7 +380,7 @@ impl Held {
 /// says.
 fn run_workspace(ui: &mut Ui, salt: &'static str, open: &mut bool, settings: FillSettings, preview: PreviewArg) {
     let words = FillStoryLabels::of(ui);
-    if !dialog_shown(ui, *open) {
+    if !(dialog_shown(ui, *open) && claim(ui.ctx(), "fill", ui.scope_id())) {
         return;
     }
     let signature = (settings.sampling, settings.excluded, settings.opacity.to_bits(), settings.show_overlay);

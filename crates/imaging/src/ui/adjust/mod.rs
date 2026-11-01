@@ -55,8 +55,6 @@ mod session_tests;
 mod sliders;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod sliders_tests;
-// The editors' stories (ST-AD1); the `stories` function below is the Levels editor's until RG2
-// registers these.
 pub(crate) mod stories;
 mod style;
 #[cfg(test)]
@@ -73,7 +71,7 @@ pub use context::{AdjustContext, ToneChannel, ToneChannels, ToneSpace};
 pub use curves_panel::{CurvesMode, CurvesPanel, CurvesPanelOutput, ToneCurves};
 pub use hue_saturation::{HueRangeValue, HueSaturation, HueSaturationEditor};
 pub use labels::AdjustLabels;
-pub use levels_editor::{COMPONENTS, Levels, LevelsClip, LevelsEditor, LevelsLabels, LevelsStyle, stories};
+pub use levels_editor::{Levels, LevelsClip, LevelsEditor, LevelsLabels, LevelsStyle};
 pub use levels_panel::{LevelsPanel, LevelsPanelOutput};
 pub use mixers::{
     BlackWhite, BlackWhiteEditor, BlackWhiteOutput, ChannelMixer, ChannelMixerEditor, SelectiveColor, SelectiveColorEditor, SelectiveMethod,
@@ -82,3 +80,27 @@ pub use session::AdjustSession;
 pub use sliders::{AdjustField, AdjustSliders, AdjustTrack};
 pub use style::AdjustStyle;
 pub use tone::{TonePick, TonePickTool, TonePicker, TonePickerResponse, TonePickerRow};
+
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &[
+    "LevelsEditor",
+    "LevelsPanel",
+    "CurvesPanel",
+    "AdjustSliders",
+    "BrightnessContrastEditor",
+    "ThresholdEditor",
+    "HueSaturationEditor",
+    "ColorBalanceEditor",
+    "BlackWhiteEditor",
+    "PhotoFilterEditor",
+    "ChannelMixerEditor",
+    "SelectiveColorEditor",
+    "AdjustSession",
+];
+
+/// The Levels editor's story and the other editors' stories.
+pub fn stories() -> Vec<craft_ui::story::Story> {
+    let mut all = levels_editor::stories();
+    all.extend(stories::stories());
+    all
+}

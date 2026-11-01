@@ -10,8 +10,6 @@
 //! |---|---|
 //! | `composites/warp-fields/group` | The group with a preset and with Custom; an armed split; the type-layer variant (Split and Grid disabled, no Custom) |
 
-#![expect(dead_code, reason = "task RG2 registers the stories")]
-
 use craft_ui::localized::Labels as _;
 use craft_ui::patterns::OptionsBar;
 use craft_ui::primitives::{Content, Text};
@@ -19,7 +17,7 @@ use craft_ui::story::{Level, Story, StoryArgs};
 use craft_ui::typed_story;
 use egui::Ui;
 
-use super::{WarpFieldValues, WarpFields, WarpFieldsEdit, WarpFieldsOutput, WarpGridChoice, WarpSplit, WarpStyleEntry};
+use super::{WarpFieldValues, WarpFields, WarpFieldsEdit, WarpFieldsLabels, WarpFieldsOutput, WarpGridChoice, WarpSplit, WarpStyleEntry};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["WarpFields"];
@@ -147,7 +145,11 @@ fn show_group(ui: &mut Ui, args: &mut GroupArgs) {
         let mut output = WarpFieldsOutput::default();
         OptionsBar::new(salt).label(text.as_str()).show(ui, |slots| {
             slots.body(|ui| {
-                output = WarpFields::new("group", &styles, fields.values.clone()).split(fields.split).on_type(kind == Kind::OnType).show(ui);
+                output = WarpFields::new("group", &styles, fields.values.clone())
+                    .labels(WarpFieldsLabels::of(ui))
+                    .split(fields.split)
+                    .on_type(kind == Kind::OnType)
+                    .show(ui);
             });
         });
         fields.apply(output);

@@ -10,7 +10,6 @@
 //! | `composites/brush-preset-picker/empty` | An empty library |
 //! | `composites/brush-cards/parts` | The card in all seven part combinations at one of the scales 0.15, 0.7, 1 and 2 |
 //! | `controls/brush-preset-chip/states` | Closed, open, a four-digit size |
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Ui, vec2};
 
@@ -291,7 +290,9 @@ fn show_picker(ui: &mut Ui, id: &str, count: u32, diameter: &mut f64, hardness: 
     let mut kept: Kept = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| Kept {
         state: BrushPickerState::new(),
         library: Library::new(&words, count),
-        open: true,
+        // An Overview tile starts closed: an open popover is a layer of its own that the tile cannot
+        // clip, and its outside press would swallow clicks on the other tiles.
+        open: !craft_ui::story::in_overview(ui.ctx()),
         current: None,
         note: String::new(),
     });

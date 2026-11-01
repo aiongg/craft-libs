@@ -8,7 +8,6 @@
 //! | `composites/stroke-editor/panel` | The docked body; args: closed, dashed, mixed, sections (panel, popover), unit (widths, document) |
 //! | `composites/stroke-editor/popover` | The opener and the popover; args: stroke on or off |
 //! | `composites/stroke-editor/choice-rows` | Arrowhead start and end and profile rows with painted previews |
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Ui, vec2};
 

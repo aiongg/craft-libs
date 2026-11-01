@@ -11,8 +11,6 @@
 //! | `primitives/hover/outline` | `HoverShape::Rect`, a `Path` in a layer colour and a `Mask` tint, on a light and a dark image |
 //! | `primitives/hover/lookup` | A fake finder whose job takes 300 ms: debounce, pending, hit, miss, a cached hit inside a found object, cleared by a press, the empty-layer hint |
 
-#![expect(dead_code, reason = "registered by task RG2")]
-
 use std::sync::{Arc, Mutex};
 
 use craft_host::ManualJobs;

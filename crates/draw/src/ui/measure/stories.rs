@@ -11,7 +11,6 @@
 //!   Measurement Scale at a fake factor.
 //! - `primitives/box-distances/cases`: the distances of two boxes apart, overlapping, diagonal and
 //!   inside the canvas, drawn by `SmartGuides`.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Painter, Shape, Stroke, Ui};
 use kurbo::{Point, Rect, Size, Vec2};

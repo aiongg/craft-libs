@@ -1,5 +1,4 @@
-//! Stories of the nudge, the move gesture and the stroke constraints (task KS2; task RG2
-//! registers them). A fake page with rectangles and strokes, so every state shows without an app.
+//! Stories of the nudge, the move gesture and the stroke constraints (task KS2). A fake page with rectangles and strokes, so every state shows without an app.
 //! Sample text and the axis and flag names of the status lines are story words.
 //!
 //! - `primitives/nudge/arrows`: a rectangle on a fake page; arrows move it 1 unit, ⇧ 10, a ⌘ base
@@ -9,7 +8,6 @@
 //! - `primitives/move-gesture/pixels`: the eight-direction lock.
 //! - `primitives/move-gesture/stroke`: `StrokeLock` and the Gradient tool's `snap_ray` over a drawn
 //!   stroke, with the Shift-click `StraightLinePreview`.
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use egui::{Modifiers, Painter, Shape, Stroke, Ui};
 use kurbo::{Point, Rect, Vec2};

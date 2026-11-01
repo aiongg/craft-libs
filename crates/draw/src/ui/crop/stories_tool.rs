@@ -15,8 +15,6 @@
 //! | `primitives/crop-tool/straighten` | The armed button and the temporary Command line |
 //! | `primitives/crop-tool/box-undo` | Edit › Undo and Redo buttons stepping the box |
 
-#![expect(dead_code, reason = "registered by task RG2")]
-
 use egui::{Color32, Painter, Shape, Stroke, Ui};
 use kurbo::{Point, Rect};
 

@@ -12,8 +12,6 @@
 //! | `patterns/crop-options/overlay-menu` | The overlay menu with its shortcuts |
 //! | `patterns/crop-options/gear-menu` | The gear popover, Classic Mode greying two rows, the Custom colour request |
 
-#![expect(dead_code, reason = "registered by task RG2")]
-
 use egui::{Ui, vec2};
 use kurbo::Size;
 

@@ -125,6 +125,23 @@ craft_ui::story::register! {
     adjust,
     channels::stories,
     scopes::stories,
+    transform_preview::stories,
+    warp::fields_stories,
+    warp::pin::stories,
+    warp::perspective::stories,
+    select::stories,
+    selection::stories,
+    mask_view::stories,
+    live_preview::stories,
+    layer_style::stories,
+    blend_keys_stories,
+    liquify::stories,
+    select_mask::stories,
+    fill::stories,
+    filter_gallery::stories,
+    wide_angle::stories,
+    vanishing_point::stories,
+    blur_pins::stories,
 }
 
 /// The stories of the imaging widgets.
