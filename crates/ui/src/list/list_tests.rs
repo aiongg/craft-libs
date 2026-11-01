@@ -782,3 +782,41 @@ fn a_paint_depth_indents_the_row_as_the_true_depth_does() {
     let unpainted = hooks(rows(0), true);
     assert!(x_of(&unpainted) < plain, "without a paint depth the row sits at its list depth");
 }
+
+// The popover a list is drawn in doesn't take its keys: ↓ moves the selection and Enter activates.
+#[test]
+fn a_list_in_a_popover_moves_with_down_and_picks_with_enter() {
+    use crate::popover::{Popover, PopoverAnchor};
+
+    struct App {
+        selection: Selection<usize>,
+        activated: Vec<usize>,
+    }
+    let app = App { selection: Selection::only(0), activated: Vec::new() };
+    let mut harness = Harness::builder().with_size(vec2(320.0, 300.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, app: &mut App| {
+            let anchor = ui.button("Open");
+            let mut open = true;
+            Popover::new("popover", PopoverAnchor::Control(anchor)).show(ui, &mut open, |ui, _| {
+                let rows: Vec<RowInfo<usize>> = (0..3).map(RowInfo::leaf).collect();
+                let out = List::new("list", "Items", rows.as_slice())
+                    .selection(&mut app.selection)
+                    .show(ui, |at, &key| ListRow::new(key, format!("Item {at}")));
+                ui.memory_mut(|m| m.request_focus(out.response.id));
+                for event in out.events {
+                    if let ListEvent::Activate(key) = event {
+                        app.activated.push(key);
+                    }
+                }
+            });
+        },
+        app,
+    );
+    harness.run();
+    for pressed in [Key::ArrowDown, Key::Enter] {
+        harness.key_press(pressed);
+        harness.run();
+    }
+    assert_eq!(harness.state().selection, Selection::only(1));
+    assert_eq!(harness.state().activated, [1]);
+}

@@ -75,8 +75,12 @@ fn picker_groups_by_folder_and_applies() {
     let order = [top("Body, meta 2"), top("Lead, meta 4"), top("Brand"), top("Red, meta 3"), top("Brand/Blue"), top("500, meta 1")];
     assert!(order.windows(2).all(|pair| pair[0] < pair[1]), "{order:?}");
 
-    harness.get_by_label("Lead, meta 4").click();
+    harness.get_by_label(&StylePickerLabels::english().search).focus();
     harness.run();
+    for key in [egui::Key::ArrowDown, egui::Key::Home, egui::Key::ArrowDown, egui::Key::Enter] {
+        harness.key_press(key);
+        harness.run();
+    }
     assert_eq!(harness.state().picked, [4]);
 }
 

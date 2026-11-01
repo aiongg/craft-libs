@@ -443,8 +443,8 @@ where
             pass.focus_arrived();
         }
         let mut menu_key = false;
-        // An open popup (the list's context menu) takes the keys.
-        if focused && ui.is_enabled() && !popup_list::any_open(ui.ctx()) {
+        // An open popup (the list's context menu) takes the keys; the popover the list is drawn in does not count.
+        if focused && ui.is_enabled() && !popup_list::any_open_beyond_drawing(ui.ctx()) {
             let page = pass.state.viewport.map_or(1, |h| spans.page(pass.state.offset..pass.state.offset + h));
             menu_key = pass.keys(ui, page, type_ahead, id);
         }
