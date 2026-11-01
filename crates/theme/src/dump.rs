@@ -2159,9 +2159,10 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
 }
 
 fn navigator_lines(out: &mut Lines, t: &NavigatorTokens) {
-    let NavigatorTokens { proxy, proxy_width, proxy_radius, inset, min_preview, checker, row_gap, proxy_colors } = t;
+    let NavigatorTokens { proxy, proxy_width, halo, proxy_radius, inset, min_preview, checker, row_gap, proxy_colors } = t;
     out.line("navigator.proxy", hex(*proxy));
     out.line("navigator.proxy_width", len(*proxy_width));
+    out.line("navigator.halo", len(*halo));
     out.line("navigator.proxy_radius", len(*proxy_radius));
     out.line("navigator.inset", len(*inset));
     out.line("navigator.min_preview", len(*min_preview));

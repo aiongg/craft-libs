@@ -81,3 +81,11 @@ fn navigator_options_dialog_returns_one_setting() {
     harness.run();
     assert!(matches!(harness.state().answer, Some(DialogResult::Cancel)), "Cancel answers no options");
 }
+
+// The dialog has the kebab-case id and opens with the Color list focused.
+#[test]
+fn navigator_options_dialog_opens_on_the_color_list() {
+    let mut harness = open(NavigatorOptions::default());
+    assert_eq!(dialog(&mut harness).id, crate::dialog::dialog_id("navigator-panel-options"));
+    assert!(harness.get_by_role_and_label(Role::ComboBox, "Color").is_focused(), "the list has the initial focus");
+}

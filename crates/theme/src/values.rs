@@ -2046,7 +2046,9 @@ pub const LINK_DIALOG_MAX_WIDTH: f32 = 760.0;
 pub const NAVIGATOR_PROXY: Rgba = Rgba::rgb(255, 84, 84);
 /// The Navigator proxy's stroke width (PhotoCraft `navigator.rs:105`).
 pub const NAVIGATOR_PROXY_WIDTH: f32 = 1.5;
-/// The Navigator proxy's corner radius on an upright view.
+/// Width of the halo under the navigator's proxy outline.
+pub const NAVIGATOR_HALO: f32 = 1.0;
+/// Corner radius of the proxy on an upright view.
 pub const NAVIGATOR_PROXY_RADIUS: f32 = 2.0;
 /// Space between the Navigator's preview box and the fitted document.
 pub const NAVIGATOR_INSET: f32 = 8.0;

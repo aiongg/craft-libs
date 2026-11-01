@@ -1,5 +1,5 @@
 //! The Navigator: the preview box, the proxy rectangle and the zoom row's spacing. The box fill,
-//! its corner radius and the halo are the canvas surface, `shape.radius.control` and
+//! its corner radius and the halo's colour are the canvas surface, `shape.radius.control` and
 //! `overlay.halo`.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
@@ -16,6 +16,9 @@ pub struct NavigatorTokens {
     pub proxy: Rgba,
     /// The proxy's stroke width: [`values::NAVIGATOR_PROXY_WIDTH`].
     pub proxy_width: f32,
+    /// Width of the halo outline under the proxy, also the margin its edges are clipped to:
+    /// [`values::NAVIGATOR_HALO`].
+    pub halo: f32,
     /// The proxy's corner radius on an upright view: [`values::NAVIGATOR_PROXY_RADIUS`].
     pub proxy_radius: f32,
     /// Space between the preview box and the fitted document: [`values::NAVIGATOR_INSET`].
@@ -44,6 +47,7 @@ impl Family for NavigatorTokens {
     const FIELDS: &'static [NavigatorField] = &[NavigatorField::Proxy];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { NavigatorTokens;
         "proxy_width" 0.5..=8.0 => proxy_width;
+        "halo" 0.0..=4.0 => halo;
         "proxy_radius" 0.0..=16.0 => proxy_radius;
         "inset" 0.0..=32.0 => inset;
         "min_preview" 16.0..=240.0 => min_preview;
@@ -55,6 +59,7 @@ impl Family for NavigatorTokens {
         NavigatorTokens {
             proxy: values::NAVIGATOR_PROXY,
             proxy_width: values::NAVIGATOR_PROXY_WIDTH,
+            halo: values::NAVIGATOR_HALO,
             proxy_radius: values::NAVIGATOR_PROXY_RADIUS,
             inset: values::NAVIGATOR_INSET,
             min_preview: values::NAVIGATOR_MIN_PREVIEW,

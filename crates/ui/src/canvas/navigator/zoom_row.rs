@@ -9,9 +9,9 @@ use super::style::NavigatorStyle;
 use crate::canvas::{CanvasView, ZoomLadder, zoom};
 use crate::controls::{IconButton, NumberField, Slider};
 use crate::direction;
-use crate::edit::EditEvent;
+use crate::edit::{CancelReason, EditEvent};
 use crate::icons::Icon;
-use crate::localized::{LocaleNumbers, Unit};
+use crate::localized::{self, LocaleNumbers, Unit};
 use crate::theme::{Tokens, TokensOf as _};
 
 /// What the row did this pass.
@@ -35,7 +35,7 @@ pub(super) struct RowChange {
 ///   range widened to include the zoom, so the field never pulls it back); Up and Down step the
 ///   ladder (`NumberField::steps_with` and [`ZoomLadder::step`](crate::canvas::ZoomLadder::step));
 ///   a typed value applies without animation. The field takes the library's default width (lead
-///   call L6, not PhotoCraft's 64). A run's Esc restores the zoom at its start.
+///   call L6, not PhotoCraft's 64). A run's Esc restores the zoom at its start; any other end of a run leaves the zoom as it is.
 /// - **Zoom Out**, **Zoom In** ([`IconButton`](crate::controls::IconButton) with `Icon::Minus`
 ///   and `Icon::Plus`, names [`NavigatorLabels::zoom_out`] and [`NavigatorLabels::zoom_in`]):
 ///   one ladder rung; `animate` is `animated_zoom`.
@@ -100,7 +100,8 @@ fn set_device(view: &mut CanvasView, device: f64, step: &Step) -> bool {
     changed
 }
 
-/// Applies one control event: a run's start is remembered under `key` and Esc puts it back.
+/// Applies one control event: a run's start is remembered under `key`; Esc puts it back, and
+/// any other end of the run drops it.
 /// `device` maps the control's value to a device zoom.
 fn apply(ui: &Ui, key: Id, event: &EditEvent<f64>, view: &mut CanvasView, step: &Step, device: impl Fn(f64) -> f64) -> bool {
     match event {
@@ -108,15 +109,27 @@ fn apply(ui: &Ui, key: Id, event: &EditEvent<f64>, view: &mut CanvasView, step: 
             ui.data_mut(|d| d.insert_temp(key, view.zoom));
             value.is_some_and(|v| set_device(view, device(v), step))
         }
-        EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. } => set_device(view, device(*value), step),
-        EditEvent::Cancel { .. } => match ui.data(|d| d.get_temp::<f64>(key)) {
-            Some(start) => {
-                let changed = start != view.zoom;
-                view.zoom = start;
-                changed
+        EditEvent::Update { value, .. } | EditEvent::Set { value, .. } => set_device(view, device(*value), step),
+        EditEvent::Commit { value, .. } => {
+            ui.data_mut(|d| d.remove_temp::<f64>(key));
+            set_device(view, device(*value), step)
+        }
+        // Only Esc puts the start back: any other cancel means the zoom was changed elsewhere.
+        EditEvent::Cancel { reason, .. } => {
+            let start = ui.data_mut(|d| {
+                let start = d.get_temp::<f64>(key);
+                d.remove_temp::<f64>(key);
+                start
+            });
+            match start {
+                Some(start) if *reason == CancelReason::Escape => {
+                    let changed = start != view.zoom;
+                    view.zoom = start;
+                    changed
+                }
+                _ => false,
             }
-            None => false,
-        },
+        }
     }
 }
 
@@ -150,10 +163,13 @@ fn slider(ui: &mut Ui, view: &mut CanvasView, step: &Step, numbers: &LocaleNumbe
     let device = zoom::device_zoom(view, step.ppp);
     let low = ZoomLadder::min(step.size).min(device).log2();
     let high = ZoomLadder::MAX.max(device).log2();
-    let edit = Slider::new("navigator-zoom-slider", labels.zoom.as_str(), device.log2(), low..=high).size(step.control).width(width).show(ui);
     let percent = numbers.format(device * 100.0, 0..=2);
-    let text = labels.zoom_value.replace("{n}", &percent);
-    ui.ctx().accesskit_node_builder(edit.response.id, |node| node.set_value(text));
+    let text = localized::fmt(&labels.zoom_value, &[("n", &percent)]);
+    let edit = Slider::new("navigator-zoom-slider", labels.zoom.as_str(), device.log2(), low..=high)
+        .size(step.control)
+        .width(width)
+        .value_text(text)
+        .show(ui);
     if let Some(event) = &edit.event {
         change.changed |= apply(ui, edit.response.id.with("start"), event, view, step, f64::exp2);
     }

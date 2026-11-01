@@ -2,12 +2,14 @@
 //! [`NavigatorOptionsDialog`].
 
 use craft_theme::{Rgba, Srgba};
-use egui::{Color32, Context, Ui};
+use egui::{Color32, Context, Id, Ui};
 
 use super::labels::NavigatorLabels;
 use crate::composites::FormGrid;
 use crate::controls::{Select, Swatch};
-use crate::dialog::{ColorRequest, Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, Outcome, StackDialog, Width, dialog_id};
+use crate::dialog::{
+    ColorRequest, Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width, dialog_id,
+};
 use crate::localized::SharedLabels as _;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 
@@ -133,6 +135,8 @@ pub struct NavigatorOptionsDialog {
     /// The colour before Custom… was chosen, while the picker is open.
     pub(super) before_custom: Option<ProxyColor>,
     pub(super) state: crate::dialog::DialogState,
+    /// The Color list's id, read from the body's `Ui` the first time it is shown.
+    pub(super) list_id: Option<Id>,
 }
 
 impl NavigatorOptionsDialog {
@@ -145,6 +149,7 @@ impl NavigatorOptionsDialog {
             color_request: None,
             before_custom: None,
             state: DialogState::new(),
+            list_id: None,
         }
     }
 
@@ -209,12 +214,11 @@ impl NavigatorOptionsDialog {
         let tokens = Tokens::of(ui);
         let side = Swatch::style(&tokens, craft_theme::ControlSize::Md).side;
         let mut choice = self.options.proxy_color;
-        let mut select = Select::new("navigator-proxy-color", labels.proxy_color.as_str(), &mut choice).row_content(
-            egui::vec2(side, side),
-            move |painter, rect, value| {
+        self.list_id = Some(Select::id_in(ui, COLOR_LIST));
+        let mut select =
+            Select::new(COLOR_LIST, labels.proxy_color.as_str(), &mut choice).row_content(egui::vec2(side, side), move |painter, rect, value| {
                 painter.rect_filled(rect, 0.0, value.color(&tokens));
-            },
-        );
+            });
         for named in ProxyColor::ALL {
             select = select.option(named, named.label(labels));
         }
@@ -240,7 +244,10 @@ impl NavigatorOptionsDialog {
 }
 
 /// The dialog's key.
-const OPTIONS_DIALOG: &str = "navigator.panelOptions";
+const OPTIONS_DIALOG: &str = "navigator-panel-options";
+
+/// The Color list's salt.
+const COLOR_LIST: &str = "navigator-proxy-color";
 
 /// The colour Custom… starts at before one was chosen: the default proxy red.
 const DEFAULT_CUSTOM: [u8; 3] = [255, 84, 84];
@@ -263,16 +270,19 @@ impl StackDialog for NavigatorOptionsDialog {
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<NavigatorOptions>> {
         let labels = NavigatorLabels::shared_ctx(ctx);
         let mut state = std::mem::take(&mut self.state);
-        let shown = Dialog::new(OPTIONS_DIALOG, labels.options_title.as_str()).stack(stack).width(Width::Compact).footer(Footer::standard()).show(
-            ctx,
-            &mut state,
-            &mut (),
-            |ui, ()| {
+        // The list's id comes from the body's `Ui`; the focus is due after the dialog's sizing pass,
+        // by which time the body has shown it.
+        let focus = self.list_id.map_or(InitialFocus::FirstField, InitialFocus::Field);
+        let shown = Dialog::with_id(self.id, labels.options_title.as_str())
+            .stack(stack)
+            .width(Width::Compact)
+            .initial_focus(focus)
+            .footer(Footer::standard())
+            .show(ctx, &mut state, &mut (), |ui, ()| {
                 FormGrid::new("navigator-options").show(ui, |form| {
                     form.row(labels.proxy_color.as_str(), |ui, _| self.color_row(ui, &labels));
                 });
-            },
-        );
+            });
         self.state = state;
         match shown.outcome {
             Some(Outcome::Ok) => Some(DialogResult::Ok(self.options)),

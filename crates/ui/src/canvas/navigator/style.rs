@@ -27,6 +27,8 @@ pub struct NavigatorStyle {
     pub proxy_radius: f32,
     /// The 1 pt outline under the proxy, so it reads on any image: `overlay.halo`.
     pub halo: Color32,
+    /// The halo's width, also the margin the proxy's edges are clipped to: `navigator.halo`.
+    pub halo_width: f32,
     /// The side of a checkerboard square behind transparent pixels: `navigator.checker`.
     pub checker: f32,
     /// The two checkerboard colours (`Checkerboard`'s default pair).
@@ -48,6 +50,7 @@ impl Navigator<'_> {
             proxy_width: n.proxy_width,
             proxy_radius: n.proxy_radius,
             halo: tokens.color.overlay.halo.to_egui(),
+            halo_width: n.halo,
             checker: n.checker,
             checker_colors: crate::canvas::CheckerColors::default().colors(),
             row_gap: n.row_gap,
