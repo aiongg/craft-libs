@@ -26,6 +26,7 @@ mod layout;
 mod layout_tests;
 mod paint;
 mod rename;
+mod strip;
 mod style;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tiles_tests;
@@ -65,6 +66,7 @@ pub use fake::{DescribeTile, FakeTiles};
 pub use layout::{ArrangeSpacing, TileArrangement, TileGroup, TileLayout, TileRow, arrange, card_size, fit_name};
 pub use paint::{TileFace, TileLook, paint_tile, stack_text};
 pub use rename::{TileRename, TileRenameOutcome, show_tile_rename};
+pub use strip::{CaptionPlace, TileMark};
 pub use style::TileStyle;
 pub use zoom::{ThumbnailSlider, TileZoom, ZoomStep};
 
@@ -118,6 +120,12 @@ pub struct TileContent {
     pub rejected: bool,
     /// The stack's size on a stack's first tile ("×N" badge).
     pub stack: Option<usize>,
+    /// Hidden from the output (PowerPoint's hidden slide): the picture under the veil as
+    /// `dimmed`, and with [`CaptionPlace::Start`] a slash across the name. Still selectable.
+    pub hidden: bool,
+    /// Glyphs under the name with [`CaptionPlace::Start`] (PowerPoint's animation star), each a
+    /// part of the accessible name; ignored with [`CaptionPlace::Below`].
+    pub marks: Vec<TileMark>,
 }
 
 impl Default for TileContent {
@@ -138,6 +146,8 @@ impl Default for TileContent {
             dimmed: false,
             rejected: false,
             stack: None,
+            hidden: false,
+            marks: Vec::new(),
         }
     }
 }
@@ -277,6 +287,15 @@ pub enum TileEvent<K> {
     Renamed { key: K, text: String },
     /// A rename closed, and how.
     RenameEnded { key: K, end: RenameEnd },
+    /// A group header's disclosure chevron, or AccessKit's Expand or Collapse on the header,
+    /// asks to open or close group `group` (with [`TileGrid::group_disclosure`]); the host keeps
+    /// the open states.
+    GroupOpen { group: usize, open: bool },
+    /// The host's menu for group `group` is asked for: a secondary click on its header (with
+    /// [`TileGrid::group_menus`]). `anchor` is the header's rect, `pointer` where the click was.
+    GroupContextMenu { group: usize, anchor: Rect, pointer: Option<Pos2> },
+    /// A click, Enter or Space on the new item row ([`TileGrid::new_item_row`]).
+    NewItem,
 }
 
 /// What [`TileGrid::show`] returns.
@@ -287,6 +306,13 @@ pub struct TileGridOutput<K> {
     pub response: Response,
     /// What happened this pass, in order.
     pub events: Vec<TileEvent<K>>,
+    /// While tiles of this grid are dragged with `.reorder(..)`, where they would drop this pass
+    /// (the move the release would commit).
+    pub drop_target: Option<Move<K>>,
+    /// Files dragged in from outside the app are over the gap before this position (with
+    /// [`TileGrid::file_drops`]; the count for the gap after the last tile); the host takes the
+    /// drop from egui's `dropped_files`.
+    pub file_gap: Option<usize>,
 }
 
 crate::words! {
@@ -413,6 +439,7 @@ pub struct TileGrid<'a, K: TextureKey, S: ?Sized> {
     labels: Option<TileLabels>,
     can_rename: Option<CanRename<'a, K>>,
     start_rename: Option<K>,
+    strip: strip::Strip<'a, K>,
 }
 
 impl<'a, K, S> TileGrid<'a, K, S>
@@ -442,6 +469,7 @@ where
             labels: None,
             can_rename: None,
             start_rename: None,
+            strip: strip::Strip::default(),
         }
     }
 
@@ -564,6 +592,64 @@ where
     #[must_use]
     pub fn labels(mut self, labels: TileLabels) -> Self {
         self.labels = Some(labels);
+        self
+    }
+
+    /// Marks tile `key` as the current one (Acrobat's current page, PowerPoint's current slide):
+    /// a `tile.ring.current` ring in `accent.solid` round its picture, inside the selection ring,
+    /// whether or not it is selected; AccessKit `aria_current` (`AriaCurrent::Page`) on its option.
+    /// It is not the lead: keys still start from the lead. A new current tile scrolls into view as
+    /// little as it takes, except during a drag (Acrobat follows the page it shows).
+    #[must_use]
+    pub fn current(mut self, key: K) -> Self {
+        self.strip.current = Some(key);
+        self
+    }
+
+    /// Where `Cards` captions go (default [`CaptionPlace::Below`]).
+    #[must_use]
+    pub fn caption_place(mut self, place: CaptionPlace) -> Self {
+        self.strip.caption_place = place;
+        self
+    }
+
+    /// Group headers with a disclosure chevron (`list::paint_disclosure`, as a tree row's) at the
+    /// header's reading start; `open[g]` says whether group `g` shows its tiles. A closed group's
+    /// tiles leave the arrangement, the keys and AccessKit (its header stays); a click on the
+    /// chevron, or AccessKit Expand or Collapse on the header, reports
+    /// [`TileEvent::GroupOpen`]; a click elsewhere on the header still picks the group. The
+    /// header's AccessKit node gets `expanded`. Groups past the slice's end are open.
+    #[must_use]
+    pub fn group_disclosure(mut self, open: &'a [bool]) -> Self {
+        self.strip.group_open = Some(open);
+        self
+    }
+
+    /// A secondary click on a group header reports [`TileEvent::GroupContextMenu`] (PowerPoint's
+    /// section menu) instead of the background menu.
+    #[must_use]
+    pub fn group_menus(mut self, on: bool) -> Self {
+        self.strip.group_menus = on;
+        self
+    }
+
+    /// A row after the last tile with `label` (DeckCraft's New Slide hint under the slide strip):
+    /// the caption's text in `tile.detail` centred in a cell as wide as a tile, with the hover
+    /// fill on hover. A click reports [`TileEvent::NewItem`]; it is a Tab stop of its own after
+    /// the grid, an AccessKit `Button` named `label`, and Enter or Space on it report `NewItem`.
+    #[must_use]
+    pub fn new_item_row(mut self, label: impl Into<String>) -> Self {
+        self.strip.new_item = Some(label.into());
+        self
+    }
+
+    /// Files dragged from outside the app (egui's `hovered_files`) show the insert line in the
+    /// gap under the pointer, as a reorder does, and [`TileGridOutput::file_gap`] reports the gap;
+    /// the grid scrolls near its edges (`Reorder::auto_scroll`'s rule). The drop itself is the
+    /// host's (egui's `dropped_files`).
+    #[must_use]
+    pub fn file_drops(mut self, on: bool) -> Self {
+        self.strip.file_drops = on;
         self
     }
 
@@ -856,6 +942,8 @@ struct Pass<'a, 's, K: TextureKey, S: ?Sized> {
     selection: &'s mut Selection<K>,
     events: Vec<TileEvent<K>>,
     gesture: Option<ReorderGesture<K>>,
+    /// Where a drag of this grid's tiles would drop this pass.
+    drop_target: Option<Move<K>>,
 }
 
 /// What the scroll area's contents found out.
@@ -904,7 +992,11 @@ where
         labels,
         can_rename,
         start_rename,
+        strip,
     } = grid;
+    if strip.is_set() {
+        strip.show_unbuilt();
+    }
     // A grid whose host gives no selection keeps its own.
     let own_id = ui.make_persistent_id(id_salt).with("own selection");
     let mut own: Selection<K> = ui.ctx().data(|d| d.get_temp(own_id)).unwrap_or_default();
@@ -1038,6 +1130,7 @@ where
             selection,
             events: Vec::new(),
             gesture: None,
+            drop_target: None,
         }
     }
 
@@ -1743,6 +1836,7 @@ where
             return;
         }
         if let Some(((at, mv), pointer)) = target {
+            self.drop_target = Some(mv.clone());
             let tile = mapper.rect(self.arr.tiles[at]);
             if mv.position == DropPosition::Into {
                 paint_drop_mark(ui, tile, DropMark::Into);
@@ -1789,7 +1883,7 @@ where
         let events = std::mem::take(&mut self.events);
         let ctx = self.ctx.clone();
         self.state.store(&ctx, id);
-        TileGridOutput { response: response.clone(), events }
+        TileGridOutput { response: response.clone(), events, drop_target: self.drop_target.take(), file_gap: None }
     }
 }
 

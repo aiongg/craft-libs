@@ -95,10 +95,10 @@ pub use row::{
 };
 pub use table::{CellContext, SortOrder, Table, TableColumn, TableEvent, TableLabels, TableLayout, TableOutput, TableSort, TableStyle};
 pub use tiles::{
-    ArrangeSpacing, BadgeKind, BadgeSlot, BadgeVisibility, CardOverlay, DescribeTile, FakeTiles, RatingKeys, SpaceAction, ThumbnailSlider,
-    TileArrangement, TileBadge, TileContent, TileEvent, TileFace, TileFlag, TileGrid, TileGridOutput, TileGroup, TileLabels, TileLayout, TileLook,
-    TileRename, TileRenameOutcome, TileRow, TileSource, TileStatus, TileStyle, TileZoom, ZoomStep, arrange, card_size, fit_name, paint_tile,
-    show_tile_rename, stack_text,
+    ArrangeSpacing, BadgeKind, BadgeSlot, BadgeVisibility, CaptionPlace, CardOverlay, DescribeTile, FakeTiles, RatingKeys, SpaceAction,
+    ThumbnailSlider, TileArrangement, TileBadge, TileContent, TileEvent, TileFace, TileFlag, TileGrid, TileGridOutput, TileGroup, TileLabels,
+    TileLayout, TileLook, TileMark, TileRename, TileRenameOutcome, TileRow, TileSource, TileStatus, TileStyle, TileZoom, ZoomStep, arrange,
+    card_size, fit_name, paint_tile, show_tile_rename, stack_text,
 };
 pub use toggle::{ToggleColumn, ToggleEdit};
 pub use tree::{OpenChange, TreeRow, TreeState, TreeText, paint_disclosure};

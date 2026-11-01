@@ -125,6 +125,9 @@ pub fn paint_tile<K: TextureKey>(
     // lightcraft: crates/ui-egui/src/panels/grid.rs:766 (`cell`, `paint_cell_thumbnail` :816, `paint_cell_caption` :848, `paint_cell_badges` :878).
     let tokens = Tokens::of(ui);
     let content = look.content;
+    if content.hidden || !content.marks.is_empty() {
+        super::strip::paint_hidden_and_marks();
+    }
     let mut faded = ui.painter().clone();
     if !content.enabled {
         faded.multiply_opacity(DISABLED_OPACITY);

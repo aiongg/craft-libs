@@ -27,33 +27,14 @@ impl PageViewStyle {
     }
 }
 
-/// [`PageThumbnails`](super::PageThumbnails)' sizes and colours.
+/// [`PageThumbnails`](super::PageThumbnails)' sizes: what sets the card side. Rings, the insert
+/// line, captions and spacing are the grid's (`TileStyle`, `tile.*`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PageThumbnailsStyle {
     /// The thumbnail width at zoom 1 (`thumbnails.usual_width`).
     pub usual_width: f32,
     /// What the panel keeps free beside the thumbnails (`thumbnails.panel_inset`).
     pub panel_inset: f32,
-    /// A cell's padding around its thumbnail (`thumbnails.cell_pad`).
-    pub cell_pad: f32,
-    /// Between rows of cells (`thumbnails.row_gap`).
-    pub row_gap: f32,
-    /// The current page's border, accent (`thumbnails.current_border`); others take
-    /// `thumbnails.border` in `line.control_edge`.
-    pub current_border: f32,
-    pub border: f32,
-    /// A picked page's outline, accent (`thumbnails.picked_outline`).
-    pub picked_outline: f32,
-    /// PowerPoint's outline round the current and picked slides and its offset outward
-    /// (`thumbnails.strip_outline`, `thumbnails.strip_outline_offset`).
-    pub strip_outline: f32,
-    pub strip_outline_offset: f32,
-    /// The drop bar's width, accent (`thumbnails.drop_bar`).
-    pub drop_bar: f32,
-    /// The selected-row wash (`list.selected_fill`, the list family's own token, as every
-    /// selected row).
-    pub wash: Color32,
-    pub accent: Color32,
 }
 
 impl PageThumbnailsStyle {
