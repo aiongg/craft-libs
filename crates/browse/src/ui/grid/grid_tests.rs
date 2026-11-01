@@ -96,6 +96,8 @@ struct Host {
     hover_scrub: bool,
     reorder: bool,
     direction: Direction,
+    renamable: bool,
+    start_rename: Option<usize>,
 }
 
 impl Host {
@@ -114,6 +116,8 @@ impl Host {
             hover_scrub: false,
             reorder: false,
             direction: Direction::Ltr,
+            renamable: false,
+            start_rename: None,
         }
     }
 
@@ -124,7 +128,23 @@ impl Host {
 
 fn show(ui: &mut Ui, host: &mut Host) {
     let thumbnails = Thumbnails::<usize>::in_context(ui.ctx(), "pictures", ThumbnailOptions::default());
-    let Host { tiles, pictures, selection, events, layout, groups, badges, check_mode, space, rating_keys, hover_scrub, reorder, .. } = host;
+    let Host {
+        tiles,
+        pictures,
+        selection,
+        events,
+        layout,
+        groups,
+        badges,
+        check_mode,
+        space,
+        rating_keys,
+        hover_scrub,
+        reorder,
+        renamable,
+        start_rename,
+        ..
+    } = host;
     let mut grid = TileGrid::new("grid", &*tiles)
         .layout(*layout)
         .groups(groups)
@@ -138,6 +158,10 @@ fn show(ui: &mut Ui, host: &mut Host) {
         .label("Photos");
     if *reorder {
         grid = grid.reorder(Reorder::new(Axis::Horizontal));
+    }
+    grid = grid.renamable(*renamable);
+    if let Some(key) = start_rename.take() {
+        grid = grid.start_rename(key);
     }
     events.extend(grid.show(ui).events);
 }
@@ -206,7 +230,7 @@ fn play(harness: &mut Harness<'_, Host>, frames: Vec<events::Frame>) {
 }
 
 fn style(harness: &Harness<'_, Host>) -> TileStyle {
-    TileStyle::of(&current(&harness.ctx))
+    TileStyle::style(&current(&harness.ctx))
 }
 
 // 50 000 fake tiles: `content` is asked only for rows in view ± one viewport; thumbnails VISIBLE and NEAR accordingly.
@@ -354,7 +378,7 @@ fn a_star_click_rates_the_whole_selection_when_the_tile_is_in_it() {
     click_with(&mut harness, 2, Modifiers::SHIFT);
     harness.state_mut().take();
     let tokens = current(&harness.ctx);
-    let (tile_style, step) = (TileStyle::of(&tokens), Rating::style(&tokens, ControlSize::Sm).badge_step);
+    let (tile_style, step) = (TileStyle::style(&tokens), Rating::style(&tokens, ControlSize::Sm).badge_step);
     let star = |harness: &Harness<'_, Host>, at: usize, n: f32| {
         let p = picture(harness, at);
         pos2(p.left() + tile_style.inset + 2.0 + step * (n - 0.5), p.bottom() - tile_style.bar / 2.0)
@@ -573,4 +597,185 @@ fn tiles_tell_their_position_in_the_whole_set() {
         assert_eq!(node.accesskit_node().position_in_set(), Some(n), "{label}");
         assert_eq!(node.accesskit_node().size_of_set(), Some(200), "{label}");
     }
+}
+
+// Group headers select the group's tiles and report it; Shift or Cmd adds to the selection.
+#[test]
+fn a_group_header_click_selects_the_group() {
+    let mut host = Host::new(12);
+    host.groups = [(0, 4, "Monday"), (4, 8, "Tuesday")]
+        .into_iter()
+        .map(|(start, count, title)| TileGroup { start, count, title: title.to_owned(), detail: String::new() })
+        .collect();
+    let mut harness = harness(host);
+    click(&mut harness, 10);
+    harness.state_mut().take();
+    let header = harness.get_by_label("Monday").rect().center();
+    harness.click_at(header);
+    harness.run_steps(8);
+    assert_eq!(selected(&harness), [0, 1, 2, 3]);
+    let events = harness.state_mut().take();
+    assert!(events.iter().any(|e| matches!(e, TileEvent::GroupPicked { group: 0, .. })), "{events:?}");
+
+    let header = harness.get_by_label("Tuesday").rect().center();
+    harness.click_at_with(header, PointerButton::Primary, CMD);
+    harness.run_steps(8);
+    assert_eq!(selected(&harness), (0..12).collect::<Vec<_>>(), "Cmd adds the group");
+}
+
+// Cmd/Ctrl + / - / 0 and a pinch ask the host for a size step.
+#[test]
+fn zoom_keys_and_pinch_report_a_zoom_step() {
+    use super::ZoomStep;
+    let mut host = Host::new(12);
+    // With `CommandDigits` Cmd+0 clears a rating (Bridge's rule); Reset needs plain digits.
+    host.rating_keys = RatingKeys::Digits;
+    let mut harness = harness(host);
+    click(&mut harness, 0);
+    harness.state_mut().take();
+    let zooms = |harness: &mut Harness<'_, Host>| -> Vec<ZoomStep> {
+        harness.state_mut().take().into_iter().filter_map(|e| if let TileEvent::Zoom(step) = e { Some(step) } else { None }).collect()
+    };
+    key(&mut harness, CMD, Key::Equals);
+    assert_eq!(zooms(&mut harness), [ZoomStep::In]);
+    key(&mut harness, CMD, Key::Minus);
+    assert_eq!(zooms(&mut harness), [ZoomStep::Out]);
+    key(&mut harness, CMD, Key::Num0);
+    assert_eq!(zooms(&mut harness), [ZoomStep::Reset]);
+    harness.event(Event::Zoom(1.5));
+    harness.run_steps(2);
+    assert_eq!(zooms(&mut harness), [ZoomStep::In], "a pinch out");
+    harness.event(Event::Zoom(0.6));
+    harness.run_steps(2);
+    assert_eq!(zooms(&mut harness), [ZoomStep::Out], "a pinch in");
+}
+
+fn renames(events: Vec<TileEvent<usize>>) -> Vec<TileEvent<usize>> {
+    events.into_iter().filter(|e| matches!(e, TileEvent::Renamed { .. } | TileEvent::RenameEnded { .. })).collect()
+}
+
+// F2 opens the lead's rename field in the caption; Enter commits the typed text, Esc cancels.
+#[test]
+fn f2_renames_the_lead_and_enter_commits_while_escape_cancels() {
+    use craft_ui::list::RenameEnd;
+    let mut host = Host::new(8);
+    host.renamable = true;
+    let mut harness = harness(host);
+    key(&mut harness, Modifiers::NONE, Key::F2);
+    assert!(renames(harness.state_mut().take()).is_empty(), "no lead, no rename");
+    click(&mut harness, 2);
+    harness.state_mut().take();
+    key(&mut harness, Modifiers::NONE, Key::F2);
+    harness.run_steps(2);
+    harness.event(Event::Text("Sunrise".to_owned()));
+    harness.run_steps(2);
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    harness.run_steps(2);
+    assert_eq!(
+        renames(harness.state_mut().take()),
+        [TileEvent::Renamed { key: 2, text: "Sunrise".to_owned() }, TileEvent::RenameEnded { key: 2, end: RenameEnd::Enter }]
+    );
+
+    key(&mut harness, Modifiers::NONE, Key::F2);
+    harness.run_steps(2);
+    harness.event(Event::Text("Dusk".to_owned()));
+    harness.run_steps(2);
+    key(&mut harness, Modifiers::NONE, Key::Escape);
+    harness.run_steps(2);
+    assert_eq!(renames(harness.state_mut().take()), [TileEvent::RenameEnded { key: 2, end: RenameEnd::Escape }]);
+}
+
+// F2 is the host's when the grid does not rename.
+#[test]
+fn f2_does_nothing_without_a_rename_hook() {
+    let mut harness = harness(Host::new(8));
+    click(&mut harness, 2);
+    harness.state_mut().take();
+    key(&mut harness, Modifiers::NONE, Key::F2);
+    harness.run_steps(2);
+    assert!(harness.query_by_role(Role::TextInput).is_none());
+}
+
+// A second click on the caption of the only selected tile opens the rename once the double-click
+// interval passes; a click on the picture does not.
+#[test]
+fn a_slow_click_on_the_caption_renames() {
+    let mut host = Host::new(8);
+    host.renamable = true;
+    let mut harness = harness(host);
+    click(&mut harness, 3);
+    harness.state_mut().take();
+    let caption = picture(&harness, 3).center_bottom() + vec2(0.0, 6.0);
+    harness.click_at(caption);
+    harness.run_steps(2);
+    assert!(harness.query_by_role(Role::TextInput).is_none(), "not before the double-click interval");
+    harness.run_steps(12);
+    assert!(harness.query_by_role(Role::TextInput).is_some(), "the field opens");
+
+    let mut host = Host::new(8);
+    host.renamable = true;
+    let mut harness = self::harness(host);
+    click(&mut harness, 3);
+    let on_picture = picture(&harness, 3).center();
+    harness.click_at(on_picture);
+    harness.run_steps(16);
+    assert!(harness.query_by_role(Role::TextInput).is_none(), "a click on the picture does not rename");
+}
+
+// The host's context menu opens a rename with `start_rename`; another open rename commits first.
+#[test]
+fn start_rename_opens_the_field_of_that_tile() {
+    let mut host = Host::new(8);
+    host.renamable = true;
+    let mut harness = harness(host);
+    harness.state_mut().start_rename = Some(4);
+    harness.run_steps(2);
+    assert!(harness.query_by_role(Role::TextInput).is_some());
+}
+
+// The scroll bar is named in the language of the Ui (ScrollBarLabels).
+#[test]
+fn the_scroll_bar_has_a_name() {
+    let harness = harness(Host::new(200));
+    assert!(harness.query_by_role(Role::ScrollBar).is_some_and(|n| n.accesskit_node().label().as_deref() == Some("Scroll bar")));
+}
+
+// A rating's accessible name uses the count word: "1 star", "3 stars".
+#[test]
+fn the_accessible_name_counts_stars_with_the_plural_word() {
+    use super::TileLabels;
+    use super::paint::accessible_name;
+    use craft_ui::localized::Labels as _;
+    let ctx = egui::Context::default();
+    let labels = TileLabels::english();
+    let mut content = TileContent { name: "Beach".to_owned(), ..TileContent::default() };
+    content.rating = Some(1);
+    assert_eq!(accessible_name(&ctx, &content, &labels, None), "Beach, 1 star");
+    content.rating = Some(3);
+    assert_eq!(accessible_name(&ctx, &content, &labels, None), "Beach, 3 stars");
+    content.stack = Some(4);
+    content.status = super::TileStatus::Offline("moved".to_owned());
+    assert_eq!(accessible_name(&ctx, &content, &labels, None), "Beach, 3 stars, Offline: moved, ×4");
+}
+
+// The thumbnail slider derives its id in the ui it is shown in: two with the same salt in two
+// scopes do not share an id (they would share the slider's drag state).
+#[test]
+fn two_thumbnail_sliders_with_one_salt_in_two_scopes_have_two_ids() {
+    use super::{ThumbnailSlider, TileZoom};
+    let mut ids = Vec::new();
+    let mut harness = Harness::builder().with_size([400.0, 200.0]).build_ui(|ui| {
+        for scope in ["left", "right"] {
+            ui.push_id(scope, |ui| {
+                let _ = ThumbnailSlider::new("zoom", 1.0, TileZoom::Ladder).show(ui);
+            });
+        }
+    });
+    harness.run();
+    let sliders: Vec<_> = harness.query_all_by_role(Role::Slider).collect();
+    for node in &sliders {
+        ids.push(node.accesskit_node().id());
+    }
+    assert_eq!(ids.len(), 2);
+    assert_ne!(ids[0], ids[1]);
 }

@@ -23,6 +23,8 @@ pub struct TileStyle {
     pub dot: f32,
     /// `tile.checkbox` (16).
     pub checkbox: f32,
+    /// `tile.checkbox_backdrop` (2).
+    pub checkbox_backdrop: f32,
     /// `tile.badge_height` (16).
     pub badge_height: f32,
     /// `tile.status_band` (20).
@@ -73,7 +75,7 @@ pub struct TileStyle {
 
 impl TileStyle {
     /// The style of `tokens`.
-    pub fn of(tokens: &UiTokens) -> TileStyle {
+    pub fn style(tokens: &UiTokens) -> TileStyle {
         let t = &tokens.component.tile;
         TileStyle {
             gap: t.gap,
@@ -84,6 +86,7 @@ impl TileStyle {
             flag: t.flag,
             dot: t.dot,
             checkbox: t.checkbox,
+            checkbox_backdrop: t.checkbox_backdrop,
             badge_height: t.badge_height,
             status_band: t.status_band,
             range_bar: t.range_bar,

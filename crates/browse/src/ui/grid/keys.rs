@@ -24,6 +24,8 @@ pub(super) enum GridKeyAction {
     Remove,
     Rate(u8),
     Zoom(ZoomStep),
+    /// F2: rename the lead.
+    Rename,
     Menu,
 }
 
@@ -36,6 +38,8 @@ pub(super) struct KeyGrid<'a> {
     pub space: SpaceAction,
     pub check_mode: bool,
     pub rating: RatingKeys,
+    /// Whether the lead can be renamed (F2 is claimed only then).
+    pub renamable: bool,
 }
 
 const DIGITS: [Key; 6] = [Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5];
@@ -85,6 +89,7 @@ pub(super) fn action(key: Key, modifiers: Modifiers, grid: &KeyGrid<'_>) -> Opti
     }
     match key {
         Key::Enter if plain && !shift => Some(GridKeyAction::Activate),
+        Key::F2 if plain && !shift && grid.renamable => Some(GridKeyAction::Rename),
         Key::Space if ctrl && !alt && !mac_cmd => Some(GridKeyAction::ToggleLead),
         Key::Space if plain => {
             Some(if grid.check_mode || grid.space == SpaceAction::Toggle { GridKeyAction::ToggleLead } else { GridKeyAction::Preview })

@@ -157,7 +157,7 @@ impl<'a> CompareTile<'a> {
         let Self { id_salt, view, image, caption, state, active, rejected, survey, overlay, labels } = self;
         let tokens = Tokens::of(ui);
         let style = CompareStyle::of(&tokens);
-        let tile = TileStyle::of(&tokens);
+        let tile = TileStyle::style(&tokens);
         let labels = labels.unwrap_or_else(|| CompareLabels::of(ui));
         let ctx = ui.ctx().clone();
         let ppp = ctx.pixels_per_point();

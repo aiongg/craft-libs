@@ -2075,6 +2075,7 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
         flag,
         dot,
         checkbox,
+        checkbox_backdrop,
         badge_height,
         status_band,
         range_bar,
@@ -2113,6 +2114,7 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
     out.line("tile.flag", len(*flag));
     out.line("tile.dot", len(*dot));
     out.line("tile.checkbox", len(*checkbox));
+    out.line("tile.checkbox_backdrop", len(*checkbox_backdrop));
     out.line("tile.badge_height", len(*badge_height));
     out.line("tile.status_band", len(*status_band));
     out.line("tile.range_bar", len(*range_bar));

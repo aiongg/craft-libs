@@ -4,12 +4,14 @@ use std::sync::Arc;
 
 use craft_theme::TypeRole;
 use craft_ui::canvas::textures::{TextureKey, TextureState, ThumbPaint, Thumbnails};
-use craft_ui::controls::{Badge, BadgeStyle, BadgeTone, Checkbox, ControlSize, Rating, paint_rating};
+use craft_ui::controls::{Badge, BadgeStyle, BadgeTone, CheckState, Checkbox, ControlSize, Rating, paint_box, paint_rating};
 use craft_ui::icons::{self, Icon, IconSize};
+use craft_ui::localized::words::counts::STARS as STARS_WORD;
+use craft_ui::localized::{LocaleNumbers, Words, fmt};
 use craft_ui::primitives::FocusRing;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::text::LayoutJob;
-use egui::{Color32, CornerRadius, Galley, Painter, Rect, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
+use egui::{Color32, CornerRadius, Galley, Painter, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
 use super::{BadgeKind, BadgeSlot, BadgeVisibility, TileBadge, TileContent, TileFlag, TileLabels, TileStatus, TileStyle, fit_name};
 
@@ -19,23 +21,45 @@ const DISABLED_OPACITY: f32 = 0.4;
 const CHECKBOX_BACKDROP: f32 = 0.6;
 /// Stars a rating has.
 const STARS: f32 = 5.0;
-/// The size of a glyph in a corner badge.
-const BADGE_GLYPH: f32 = 12.0;
-/// The size of the offline glyph in the status band.
-const STATUS_GLYPH: f32 = 13.0;
+
+/// What a tile's picture area shows when the host's thumbnail does not.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TileFace {
+    /// The thumbnail from `Thumbnails` (or the placeholder while it loads).
+    Picture,
+    /// A folder: the placeholder fill with the folder glyph in `glyph`; no thumbnail is asked for.
+    Folder {
+        /// The glyph's colour.
+        glyph: Color32,
+    },
+}
 
 /// How one tile is drawn this pass.
-pub(super) struct TileLook<'a> {
+pub struct TileLook<'a> {
+    /// What the tile shows.
     pub content: &'a TileContent,
+    /// The picture's rect.
     pub picture: Rect,
+    /// Where the caption goes, under the picture; none for a tile without one.
     pub caption: Option<Rect>,
+    /// Whether the tile is selected.
     pub selected: bool,
+    /// Whether the pointer is over it.
     pub hovered: bool,
+    /// Whether it is the lead of a focused grid (draws the focus ring).
     pub lead_focused: bool,
+    /// The check box in check mode: its state, or none outside check mode.
     pub checked: Option<bool>,
+    /// When the badge bar shows.
     pub badges: BadgeVisibility,
+    /// The scrub line's fraction across the picture from the reading start.
     pub scrub: Option<f32>,
+    /// Right-to-left reading order.
     pub rtl: bool,
+    /// The tile's response, for the state colours of its check box.
+    pub response: &'a Response,
+    /// The picture area.
+    pub face: TileFace,
 }
 
 /// A corner badge ready to draw: the host's, or one the grid adds for a stack or a file status.
@@ -51,15 +75,20 @@ impl Pill {
     }
 }
 
+/// The stack pill's text: `labels.stack` with the count written by the locale's numbers.
+pub fn stack_text(ctx: &egui::Context, labels: &TileLabels, n: usize) -> String {
+    fmt(&labels.stack, &[("n", &LocaleNumbers::of_ctx(ctx).format(n as f64, 0..=0))])
+}
+
 fn layout(painter: &Painter, tokens: &UiTokens, color: Color32, text: &str) -> Arc<Galley> {
     painter.layout_job(LayoutJob::single_section(text.to_owned(), role_format(tokens, TypeRole::Caption, color)))
 }
 
 /// The corner badges of `content`: the host's, the stack badge and the file status badge.
-fn pills(content: &TileContent, labels: &TileLabels) -> Vec<Pill> {
+fn pills(ctx: &egui::Context, content: &TileContent, labels: &TileLabels) -> Vec<Pill> {
     let mut all: Vec<Pill> = content.badges.iter().map(Pill::of).collect();
     if let Some(n) = content.stack {
-        all.push(Pill { slot: BadgeSlot::EndTop, kind: BadgeKind::Text(labels.stack.replace("{n}", &n.to_string())), tone: BadgeTone::Neutral });
+        all.push(Pill { slot: BadgeSlot::EndTop, kind: BadgeKind::Text(stack_text(ctx, labels, n)), tone: BadgeTone::Neutral });
     }
     match &content.status {
         TileStatus::Unreadable => {
@@ -84,9 +113,9 @@ fn pills(content: &TileContent, labels: &TileLabels) -> Vec<Pill> {
 /// stars from the first one's edge, so a click on star `n` sets `n`.
 ///
 /// `thumbnails` paints the picture; without it (or without a state) the placeholder shows.
-pub(super) fn paint_tile<K: TextureKey>(
-    ui: &Ui,
-    painter: &Painter,
+/// `look.face` swaps the picture for a folder; the stack pill is `content.stack`.
+pub fn paint_tile<K: TextureKey>(
+    ui: &mut Ui,
     style: &TileStyle,
     labels: &TileLabels,
     look: &TileLook<'_>,
@@ -96,23 +125,28 @@ pub(super) fn paint_tile<K: TextureKey>(
     // lightcraft: crates/ui-egui/src/panels/grid.rs:766 (`cell`, `paint_cell_thumbnail` :816, `paint_cell_caption` :848, `paint_cell_badges` :878).
     let tokens = Tokens::of(ui);
     let content = look.content;
-    let mut faded;
-    let painter = if content.enabled {
-        painter
-    } else {
-        faded = painter.clone();
+    let mut faded = ui.painter().clone();
+    if !content.enabled {
         faded.multiply_opacity(DISABLED_OPACITY);
-        &faded
-    };
-    let pen = Pen { painter, tokens: &tokens, style, look, set: icons::active(painter.ctx()) };
+    }
+    let painter = &faded;
+    let pen = Pen { painter, tokens: &tokens, style, look, set: icons::active(painter.ctx()), glyph: IconSize::Sm.points(&tokens) };
     let p = look.picture;
 
-    let drawn = match (thumbnails, state) {
-        (Some(thumbnails), Some(state)) => thumbnails.paint(painter, p, state, &ThumbPaint::default().checker(false)),
-        _ => false,
-    };
-    if !drawn && !matches!(state, Some(TextureState::Empty)) {
-        painter.rect_filled(p, 0.0, Thumbnails::<K>::style(&tokens).placeholder);
+    match look.face {
+        TileFace::Picture => {
+            let drawn = match (thumbnails, state) {
+                (Some(thumbnails), Some(state)) => thumbnails.paint(painter, p, state, &ThumbPaint::default().checker(false)),
+                _ => false,
+            };
+            if !drawn && !matches!(state, Some(TextureState::Empty)) {
+                painter.rect_filled(p, 0.0, Thumbnails::<K>::style(&tokens).placeholder);
+            }
+        }
+        TileFace::Folder { glyph } => {
+            painter.rect_filled(p, 0.0, Thumbnails::<K>::style(&tokens).placeholder);
+            icons::paint_on(painter, p, Icon::Folder, pen.set, IconSize::Lg.points(&tokens), IconSize::Lg.stroke(), glyph);
+        }
     }
     if content.rejected || content.dimmed {
         painter.rect_filled(p, 0.0, style.veil);
@@ -124,12 +158,13 @@ pub(super) fn paint_tile<K: TextureKey>(
     let stars = if show_bar { pen.badge_bar(bar) } else { None };
 
     let checkbox = look.checked.map(|_| {
-        let x = if look.rtl { p.right() - style.inset - 2.0 - style.checkbox } else { p.left() + style.inset + 2.0 };
-        Rect::from_min_size(pos2(x, p.top() + style.inset + 2.0), vec2(style.checkbox, style.checkbox))
+        let margin = style.inset + style.checkbox_backdrop;
+        let x = if look.rtl { p.right() - margin - style.checkbox } else { p.left() + margin };
+        Rect::from_min_size(pos2(x, p.top() + margin), vec2(style.checkbox, style.checkbox))
     });
-    pen.corner_badges(labels, Rect::from_min_max(p.min, pos2(p.right(), if show_bar { bar.top() } else { floor })), checkbox);
+    pen.corner_badges(ui.ctx(), labels, Rect::from_min_max(p.min, pos2(p.right(), if show_bar { bar.top() } else { floor })), checkbox);
     if let (Some(rect), Some(checked)) = (checkbox, look.checked) {
-        paint_checkbox(painter, &tokens, style, rect, checked);
+        paint_checkbox(ui, &tokens, style, rect, checked, look.response, content.enabled);
     }
     pen.rings(ui);
     pen.caption();
@@ -143,6 +178,8 @@ struct Pen<'a> {
     style: &'a TileStyle,
     look: &'a TileLook<'a>,
     set: icons::IconSet,
+    /// A badge's and the status band's glyph: `IconSize::Sm`.
+    glyph: f32,
 }
 
 impl Pen<'_> {
@@ -173,11 +210,11 @@ impl Pen<'_> {
         let on_status = self.tokens.color.text.on_status.to_egui();
         let band = Rect::from_min_max(pos2(p.left(), p.bottom() - style.status_band), p.right_bottom());
         self.painter.rect_filled(band, 0.0, self.tokens.color.status.bad.solid.to_egui());
-        let glyph_at = if rtl { band.right() - style.inset - STATUS_GLYPH } else { band.left() + style.inset };
-        let glyph = Rect::from_min_size(pos2(glyph_at, band.center().y - STATUS_GLYPH / 2.0), vec2(STATUS_GLYPH, STATUS_GLYPH));
-        icons::paint_on(self.painter, glyph, Icon::Unlink, self.set, STATUS_GLYPH, IconSize::Sm.stroke(), on_status);
+        let glyph_at = if rtl { band.right() - style.inset - self.glyph } else { band.left() + style.inset };
+        let glyph = Rect::from_min_size(pos2(glyph_at, band.center().y - self.glyph / 2.0), vec2(self.glyph, self.glyph));
+        icons::paint_on(self.painter, glyph, Icon::Unlink, self.set, self.glyph, IconSize::Sm.stroke(), on_status);
         let message = if text.is_empty() { &labels.offline } else { text };
-        let room = (band.width() - STATUS_GLYPH - 3.0 * style.inset).max(0.0);
+        let room = (band.width() - self.glyph - 3.0 * style.inset).max(0.0);
         let shown = fit_name(message, |t| layout(self.painter, self.tokens, on_status, t).size().x <= room);
         let galley = layout(self.painter, self.tokens, on_status, &shown);
         let x = if rtl { glyph.left() - style.inset - galley.size().x } else { glyph.right() + style.inset };
@@ -232,9 +269,9 @@ impl Pen<'_> {
     }
 
     /// The corner badges in `area`, around the check box.
-    fn corner_badges(&self, labels: &TileLabels, area: Rect, checkbox: Option<Rect>) {
+    fn corner_badges(&self, ctx: &egui::Context, labels: &TileLabels, area: Rect, checkbox: Option<Rect>) {
         let (style, rtl) = (self.style, self.look.rtl);
-        let all = pills(self.look.content, labels);
+        let all = pills(ctx, self.look.content, labels);
         let pad_x = Badge::look(self.tokens, BadgeTone::Neutral, BadgeStyle::Solid).pad_x;
         for slot in [BadgeSlot::StartTop, BadgeSlot::EndTop, BadgeSlot::StartBottom, BadgeSlot::EndBottom] {
             let in_slot: Vec<&Pill> = all.iter().filter(|b| b.slot == slot).collect();
@@ -261,7 +298,7 @@ impl Pen<'_> {
                 let (fill, text) = pill_colors(self.tokens, style, pill.tone);
                 self.painter.rect_filled(rect, CornerRadius::same((style.badge_height / 2.0).round() as u8), fill);
                 match (&pill.kind, galley) {
-                    (BadgeKind::Glyph(icon), _) => icons::paint_on(self.painter, rect, *icon, self.set, BADGE_GLYPH, IconSize::Sm.stroke(), text),
+                    (BadgeKind::Glyph(icon), _) => icons::paint_on(self.painter, rect, *icon, self.set, self.glyph, IconSize::Sm.stroke(), text),
                     (BadgeKind::Text(_), Some(galley)) => self.painter.galley(rect.center() - galley.size() / 2.0, galley, text),
                     (BadgeKind::Text(_), None) => {}
                 }
@@ -319,21 +356,16 @@ fn pill_colors(tokens: &UiTokens, style: &TileStyle, tone: BadgeTone) -> (Color3
     }
 }
 
-/// The library check box's resting look in `rect`, on a backdrop that keeps it readable over a picture.
-fn paint_checkbox(painter: &Painter, tokens: &UiTokens, style: &TileStyle, rect: Rect, checked: bool) {
+/// The library check box in `rect`, on a backdrop that keeps it readable over a picture. A
+/// disabled tile's box fades with the tile.
+fn paint_checkbox(ui: &mut Ui, tokens: &UiTokens, style: &TileStyle, rect: Rect, checked: bool, response: &Response, enabled: bool) {
     let look = Checkbox::style(tokens, ControlSize::Sm);
-    painter.rect_filled(rect.expand(2.0), look.radius, style.scrim.gamma_multiply(CHECKBOX_BACKDROP));
-    let colors = if checked { &look.on } else { &look.off };
-    painter.rect(rect, look.radius, colors.fill.rest, Stroke::new(look.outline, colors.border.rest), StrokeKind::Inside);
-    if let Some(mark) = colors.mark {
-        let stroke = Stroke::new(look.mark, mark.rest);
-        let k = rect.width() / 14.0;
-        let a = rect.left_center() + vec2(3.0, 0.5) * k;
-        let b = rect.center_bottom() + vec2(-1.0, -3.5) * k;
-        let c = rect.right_top() + vec2(-3.0, 3.5) * k;
-        painter.add(Shape::line_segment([a, b], stroke));
-        painter.add(Shape::line_segment([b, c], stroke));
+    let mut layer = ui.new_child(UiBuilder::new().max_rect(ui.max_rect()));
+    if !enabled {
+        layer.multiply_opacity(DISABLED_OPACITY);
     }
+    layer.painter().rect_filled(rect.expand(style.checkbox_backdrop), look.radius, style.scrim.gamma_multiply(CHECKBOX_BACKDROP));
+    paint_box(&layer, &look, rect, if checked { CheckState::Checked } else { CheckState::Unchecked }, response);
 }
 
 /// The badge rects for one corner, inward from it, skipping the check box's rect (LightCraft's
@@ -361,16 +393,15 @@ pub(super) fn badge_rects(picture: Rect, widths: &[f32], style: &TileStyle, chec
 }
 
 /// The accessible name built from `TileLabels`: name, stars, flag, label, status, badge tips.
-pub(super) fn accessible_name(content: &TileContent, labels: &TileLabels, label_name: Option<&str>) -> String {
+pub(super) fn accessible_name(ctx: &egui::Context, content: &TileContent, labels: &TileLabels, label_name: Option<&str>) -> String {
     // lightcraft: crates/ui-egui/src/panels/grid.rs:800 (`cell_description`).
     if let Some(name) = &content.accessible_name {
         return name.clone();
     }
     let mut details: Vec<String> = Vec::new();
-    match content.rating {
-        Some(1) => details.push(labels.one_star.clone()),
-        Some(n) if n > 1 => details.push(labels.stars.replace("{n}", &n.to_string())),
-        _ => {}
+    if let Some(n) = content.rating.filter(|n| *n > 0) {
+        let words = Words::of_ctx(ctx);
+        details.push(words.counted(ctx, STARS_WORD, &words.get(STARS_WORD.word), u64::from(n)));
     }
     match content.flag {
         Some(TileFlag::Picked) => details.push(labels.picked.clone()),
@@ -379,22 +410,18 @@ pub(super) fn accessible_name(content: &TileContent, labels: &TileLabels, label_
         None => {}
     }
     if let Some(name) = label_name.filter(|_| content.label_color.is_some()) {
-        details.push(labels.label.replace("{label}", name));
+        details.push(fmt(&labels.label, &[("label", name)]));
     }
     match &content.status {
         TileStatus::Normal => {}
         TileStatus::Offline(text) if text.is_empty() => details.push(labels.offline.clone()),
-        TileStatus::Offline(text) => details.push(format!("{}: {text}", labels.offline)),
+        TileStatus::Offline(text) => details.push(fmt(&labels.offline_with, &[("offline", &labels.offline), ("message", text)])),
         TileStatus::Unreadable => details.push(labels.unreadable.clone()),
         TileStatus::Failed => details.push(labels.failed.clone()),
     }
     if let Some(n) = content.stack {
-        details.push(labels.stack.replace("{n}", &n.to_string()));
+        details.push(stack_text(ctx, labels, n));
     }
     details.extend(content.badges.iter().map(|b| b.tip.clone()).filter(|tip| !tip.is_empty()));
-    if details.is_empty() {
-        content.name.clone()
-    } else {
-        labels.tile_name.replace("{name}", &content.name).replace("{details}", &details.join(", "))
-    }
+    if details.is_empty() { content.name.clone() } else { fmt(&labels.tile_name, &[("name", &content.name), ("details", &details.join(", "))]) }
 }

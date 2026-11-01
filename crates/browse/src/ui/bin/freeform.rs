@@ -100,7 +100,7 @@ where
     let FreeformInput { id, model, state, selection, thumbnails, cards, snap, zoom_range, default_size } = input;
     let ctx = ui.ctx().clone();
     let tokens = Tokens::of(ui);
-    let style = TileStyle::of(&tokens);
+    let style = TileStyle::style(&tokens);
     let bin_style = BinStyle::of(&tokens);
     let tile_labels = TileLabels::shared(ui);
     let searching = !state.search.trim().is_empty();
