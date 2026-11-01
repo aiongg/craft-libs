@@ -1,14 +1,19 @@
 //! [`SelectionOverlay`] (task SE-F7).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: task SE-F7")]
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
-use craft_ui::canvas::CanvasView;
 use craft_ui::canvas::kurbo::Point;
+use craft_ui::canvas::{CanvasView, Marquee, MarqueeLook};
 use craft_ui::localized::{LocaleNumbers, Unit};
-use egui::{AsIdSalt, Id, IdSalt, Response, Ui};
+use egui::accesskit::Role;
+use egui::epaint::Vertex;
+use egui::{
+    AsIdSalt, Color32, ColorImage, Id, IdSalt, Mesh, Rect, Response, Sense, Shape, TextureHandle, TextureOptions, Ui, UiBuilder, WidgetInfo, pos2,
+};
 
 use crate::selection::{PreviewMode, QuickMaskLook};
-use crate::trace::{MaskRect, MaskSource, Segment};
+use crate::trace::{MaskRect, MaskSource, Segment, bounded_step, outline, quantised_region, trace_step};
 
 /// The longest side of the preview texture, in texels: a larger document is sampled every `k`-th
 /// pixel (`k = ceil(long side / 1024)`).
@@ -192,10 +197,197 @@ impl<'a> SelectionOverlay<'a> {
     /// Draws the overlay over `canvas` (the canvas's response, for the clip rect and the AccessKit
     /// parent) with `view`.
     pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> SelectionOverlayResponse {
-        // pc: crates/ui-egui/src/canvas.rs:231-321 `paint_selection_outline` (step :248, region
-        // :261-278, whole trace under a transform :266-281, cache key :282-290, scale by `k`
-        // :298-302, offset :309-313, repaint :318); crates/ui-egui/src/dialogs/color_range_ui.rs:592-636
-        // `paint_selection_preview` (texture, reuse by key, drawn over the image rect).
-        todo!()
+        let id = canvas.id.with("craft_imaging::ui::SelectionOverlay").with_salt(self.id_salt);
+        let k = self.reduction.max(1);
+        let mut retraced = false;
+        let bounds = match self.source {
+            OutlineSource::Mask(mask) => content_bounds(mask, k),
+            OutlineSource::Segments { bounds, .. } => (!bounds.is_empty()).then_some(bounds),
+        };
+
+        if let OutlineSource::Mask(mask) = self.source
+            && self.preview != PreviewMode::None
+        {
+            self.paint_preview(ui, id, view, mask, k);
+        }
+
+        // pc: canvas.rs:236-244 draws the ants only when the selection has an outline to draw.
+        if self.visible && bounds.is_some() {
+            let traced;
+            let segments: &[Segment] = match self.source {
+                OutlineSource::Mask(mask) => {
+                    let (segments, ran) = self.traced(ui, id, view, mask, k);
+                    (traced, retraced) = (segments, ran);
+                    &traced
+                }
+                OutlineSource::Segments { segments, .. } => segments,
+            };
+            // pc: canvas.rs:309-313 (offset), :318 and `Marquee::paint` (repaint every tick).
+            let [dx, dy] = self.offset.map(f64::from);
+            let place = |p: [i32; 2]| {
+                let p = Point::new(f64::from(p[0]) + dx, f64::from(p[1]) + dy);
+                self.map.map_or(p, |map| map(p))
+            };
+            let lines = segments.iter().map(|&(a, b)| (place(a), place(b))).collect::<Vec<_>>();
+            let time = ui.input(|i| i.time);
+            Marquee::segments(lines, "").paint(&ui.painter_at(view.rect), view, MarqueeLook::Ants, time);
+        }
+
+        self.describe(ui, canvas, view, id, bounds);
+        SelectionOverlayResponse { id, bounds, retraced }
     }
+
+    /// The cached trace of the visible region (the whole selection under a map), and whether it ran
+    /// this pass.
+    fn traced(&self, ui: &Ui, id: Id, view: &CanvasView, mask: &dyn MaskSource, k: u32) -> (Arc<Vec<Segment>>, bool) {
+        // pc: canvas.rs:248 (step in device pixels), :261-278 (region), :266-281 (whole trace).
+        let device_zoom = view.zoom * f64::from(ui.ctx().pixels_per_point());
+        let mut step = trace_step(device_zoom, k);
+        let whole = self.map.is_some();
+        let region = if whole {
+            let far = 1 << 30;
+            MaskRect::new(-far, -far, far, far)
+        } else {
+            let v = view.visible();
+            quantised_region([v.x0, v.y0, v.x1, v.y1], step, k)
+        };
+        let content = if mask.outside() > 0.0 { MaskRect::of_size(mask.size()) } else { mask.content_bounds() };
+        let bounds = content.intersect(&region);
+        if whole {
+            step = bounded_step(bounds, step);
+        }
+        let revision = mask.revision();
+        let key = (revision, step, region, k);
+        let cached = ui.ctx().data(|d| d.get_temp::<(TraceKey, Arc<Vec<Segment>>)>(id));
+        if let Some((cached_key, segments)) = cached
+            && cached_key == key
+        {
+            return (segments, false);
+        }
+        // pc: canvas.rs:298-302 scales the segments up by `k`.
+        let mut segments = outline(mask, bounds, step);
+        if k > 1 {
+            let s = i32::try_from(k).unwrap_or(i32::MAX);
+            let up = |p: [i32; 2]| [p[0].saturating_mul(s), p[1].saturating_mul(s)];
+            segments.iter_mut().for_each(|(a, b)| (*a, *b) = (up(*a), up(*b)));
+        }
+        let segments = Arc::new(segments);
+        ui.ctx().data_mut(|d| d.insert_temp(id, (key, segments.clone())));
+        (segments, true)
+    }
+
+    /// The preview texture over the document's rectangle.
+    fn paint_preview(&self, ui: &Ui, id: Id, view: &CanvasView, mask: &dyn MaskSource, k: u32) {
+        // pc: color_range_ui.rs:592-636 (texture, reuse by key, drawn over the image rect).
+        let size = mask.size();
+        if size[0] == 0 || size[1] == 0 {
+            return;
+        }
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        (mask.revision(), self.preview, k, size).hash(&mut hasher);
+        let look = &self.look;
+        (look.color.r.to_bits(), look.color.g.to_bits(), look.color.b.to_bits(), look.opacity.to_bits(), look.indicates as u8).hash(&mut hasher);
+        let key = hasher.finish();
+        let texture_id = id.with("preview");
+        let cached = ui.ctx().data(|d| d.get_temp::<(u64, TextureHandle)>(texture_id));
+        let texture = match cached {
+            Some((cached_key, texture)) if cached_key == key => texture,
+            _ => {
+                let texture = ui.ctx().load_texture("craft-selection-preview", self.preview_image(mask, size), TextureOptions::LINEAR);
+                ui.ctx().data_mut(|d| d.insert_temp(texture_id, (key, texture.clone())));
+                texture
+            }
+        };
+        let side = |n: u32| f64::from(n) * f64::from(k);
+        let corners = view.quad(craft_ui::canvas::kurbo::Rect::new(0.0, 0.0, side(size[0]), side(size[1])));
+        let uvs = [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(1.0, 1.0), pos2(0.0, 1.0)];
+        let mut mesh = Mesh::with_texture(texture.id());
+        for (pos, uv) in corners.into_iter().zip(uvs) {
+            mesh.vertices.push(Vertex { pos, uv, color: Color32::WHITE });
+        }
+        mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
+        ui.painter_at(view.rect).add(Shape::mesh(mesh));
+    }
+
+    /// One texel per `p`-th source pixel (`p = ceil(long side / 1024)`), each [`PreviewMode::pixel`].
+    fn preview_image(&self, mask: &dyn MaskSource, size: [u32; 2]) -> ColorImage {
+        let p = size[0].max(size[1]).div_ceil(PREVIEW_TEXTURE_MAX).max(1);
+        let (w, h) = (size[0].div_ceil(p) as usize, size[1].div_ceil(p) as usize);
+        let mut row = vec![0.0_f32; w];
+        let mut pixels = Vec::with_capacity(w * h);
+        for ty in 0..h {
+            mask.read_row(i32::try_from(ty as u64 * u64::from(p)).unwrap_or(i32::MAX), 0, p, &mut row);
+            pixels.extend(row.iter().map(|&c| {
+                let [r, g, b, a] = self.preview.pixel(c, &self.look).0;
+                Color32::from_rgba_unmultiplied(r, g, b, a)
+            }));
+        }
+        ColorImage::new([w, h], pixels)
+    }
+
+    /// The AccessKit node: one graphics object inside the canvas node, hover-only.
+    fn describe(&self, ui: &mut Ui, canvas: &Response, view: &CanvasView, id: Id, bounds: Option<MaskRect>) {
+        let value = self.value(ui, bounds);
+        let rect = bounds
+            .map(|b| {
+                let side = |v: i32| f64::from(v);
+                let [dx, dy] = self.offset.map(f64::from);
+                let r = craft_ui::canvas::kurbo::Rect::new(side(b.x0) + dx, side(b.y0) + dy, side(b.x1) + dx, side(b.y1) + dy);
+                Rect::from_points(&view.quad(r)).intersect(view.rect)
+            })
+            .filter(|r| r.is_positive())
+            .unwrap_or_else(|| Rect::from_center_size(view.rect.center(), egui::Vec2::ZERO));
+        let nodes = ui.new_child(UiBuilder::new().max_rect(view.rect).accessibility_parent(canvas.id));
+        let response = nodes.interact(rect, id, Sense::hover());
+        response.widget_info(|| {
+            let mut info = WidgetInfo::labeled(Role::GraphicsObject, nodes.is_enabled(), &self.labels.name);
+            info.current_text_value = Some(value.clone());
+            info
+        });
+    }
+
+    /// The accessible value: the bounds in the unit (or "No selection"), plus the preview's name.
+    fn value(&self, ui: &Ui, bounds: Option<MaskRect>) -> String {
+        let l = &self.labels;
+        let base = match bounds {
+            None => l.nothing.clone(),
+            Some(b) => {
+                let default_numbers;
+                let default_unit;
+                let (numbers, unit) = match self.value_in {
+                    Some(pair) => pair,
+                    None => {
+                        default_numbers = LocaleNumbers::of(ui);
+                        default_unit = Unit::new("{n} px");
+                        (&*default_numbers, &default_unit)
+                    }
+                };
+                let n = |v: f64| format!("{}{}{}", unit.prefix(), numbers.format(v, 0..=2), unit.suffix());
+                l.bounds
+                    .replace("{width}", &n(f64::from(b.width())))
+                    .replace("{height}", &n(f64::from(b.height())))
+                    .replace("{x}", &n(f64::from(b.x0)))
+                    .replace("{y}", &n(f64::from(b.y0)))
+            }
+        };
+        let mode = match self.preview {
+            PreviewMode::None => return base,
+            PreviewMode::Grayscale => &l.grayscale,
+            PreviewMode::BlackMatte => &l.black_matte,
+            PreviewMode::WhiteMatte => &l.white_matte,
+            PreviewMode::QuickMask => &l.quick_mask,
+        };
+        l.with_mode.replace("{value}", &base).replace("{mode}", mode)
+    }
+}
+
+/// The cache key of a trace: the mask's revision, the step, the region and the reduction.
+type TraceKey = (u64, u32, MaskRect, u32);
+
+/// The selection's content bounds in full-size document pixels (the whole canvas when the mask is
+/// selected outside its content); `None` when nothing is selected.
+fn content_bounds(mask: &dyn MaskSource, k: u32) -> Option<MaskRect> {
+    let b = if mask.outside() > 0.0 { MaskRect::of_size(mask.size()) } else { mask.content_bounds() };
+    let up = |v: i32| v.saturating_mul(i32::try_from(k).unwrap_or(i32::MAX));
+    (!b.is_empty()).then(|| MaskRect::new(up(b.x0), up(b.y0), up(b.x1), up(b.y1)))
 }
