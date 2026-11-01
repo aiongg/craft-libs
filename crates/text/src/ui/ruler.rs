@@ -160,8 +160,8 @@ pub struct TextRulerResponse {
 /// - Ticks and numbers in the unit through craft-ui's ruler ticks
 ///   ([`Ticks`](craft_ui::canvas::Ticks), [`RulerUnits`](craft_ui::canvas::RulerUnits); the
 ///   canvas rulers' style), from the column's start edge; numbers keep clear of the markers
-///   (WordCraft #1878). The column takes the ruler's fill, the margins its margin shade (the
-///   same token as craft-pages' margin handles, `margins.shade`).
+///   (WordCraft #1878). The column takes the ruler's fill, the margins the ruler family's
+///   `ruler.margin_shade` (the token craft-pages' margin handles read too).
 /// - Indent markers (Word's): the first-line triangle down at the top, the hanging triangle up
 ///   and the left box under it at the bottom, the right triangle at the right. Dragging the box
 ///   moves first-line and left together; Alt drags freely (no snap).

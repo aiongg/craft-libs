@@ -4,7 +4,7 @@
 //!
 //! Built on craft-ui's shared pieces, never copies of them: picks through
 //! [`ListSelection`](craft_ui::behavior::ListSelection) on a host-owned
-//! [`Selection`](craft_ui::behavior::Selection), arrow keys through
+//! [`Selection`], arrow keys through
 //! [`GridNav`](craft_ui::behavior::GridNav), drags through
 //! [`Reorder`](craft_ui::behavior::Reorder) with a [`ListDrag`](craft_ui::behavior::ListDrag)
 //! payload reported as `EditEvent<Move<usize>>`, pictures through

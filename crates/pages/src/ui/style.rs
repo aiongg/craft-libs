@@ -1,5 +1,5 @@
 //! The page widgets' sizes and colours, one style per widget, each a pure function of
-//! [`UiTokens`] (the `pages.*`, `thumbnails.*`, `margins.*`, `text_selection.*`, `column_bar.*`,
+//! [`UiTokens`] (the `pages.*`, `thumbnails.*`, `margins.*`, `header_footer.*`, `text_selection.*`, `find.*`, `column_bar.*`,
 //! `reading.*`, `frame_marks.*`, `edge_picker.*`, `table_size.*` and `cell_selection.*` component
 //! tokens; names and source values in the spec's "Proposed tokens"). The token task fills every
 //! function here from the tokens it adds; no body here or in a widget holds a literal size.
@@ -67,7 +67,8 @@ impl PageThumbnailsStyle {
 pub struct MarginHandlesStyle {
     /// How far either side of an edge grabs it (`margins.edge_grab`).
     pub edge_grab: f32,
-    /// The margin part of a ruler (`margins.shade`); the text part keeps the ruler's fill.
+    /// The margin part of a ruler (`ruler.margin_shade`, a new leaf of craft-ui's ruler family,
+    /// which craft-text's `TextRuler` reads too); the text part keeps the ruler's fill.
     pub shade: Color32,
 }
 
