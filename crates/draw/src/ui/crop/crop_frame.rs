@@ -8,7 +8,7 @@ use crate::ui::transform::transform_box::{fixed, key_part, outset, part_key, pos
 use craft_ui::behavior::nudge;
 use craft_ui::canvas::claim::PrimaryPress;
 use craft_ui::canvas::quad::BoxPart;
-use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, crisp, resize_cursor, turn_cursor};
+use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, ToolKey, ToolParts, crisp, resize_cursor, turn_cursor};
 use craft_ui::edit::order::Turn;
 use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::{Labels, Unit, Word, Words};
@@ -311,6 +311,17 @@ pub enum CropRelease {
     Straighten(f64),
     /// Nothing happened: a click without a move, or a Straighten line too short.
     Nothing,
+}
+
+/// What a key did to the frame ([`CropFrame::key`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CropKeyAction {
+    /// Enter: apply the crop.
+    Apply,
+    /// Esc with no drag: close the frame without applying it.
+    Discard,
+    /// An arrow or X: the frame after the key, one `EditEvent::Set` for the host.
+    Set(CropBox),
 }
 
 /// A drag [`CropFrame::show`] keeps between passes.
@@ -675,7 +686,7 @@ impl<'a> CropFrame<'a> {
 
         let shown = *gesture.shown();
         let screen = on_screen(view, &shown);
-        let parts = self.parts(screen, &style, &shown, picked);
+        let parts = self.part_list(screen, &style, &shown, picked);
         let mut focus = PartFocus::new(id, self.names.group.clone()).parts(&parts).picked(picked.map(part_key));
         let value = self.value.clone().or_else(|| self.group_value(&shown));
         if let Some(value) = value {
@@ -1008,6 +1019,41 @@ impl<'a> CropFrame<'a> {
         self.framed && !self.default_frame && self.over(view, point, style) == Hit::Inside
     }
 
+    /// A key a host-driven tool received ([`ToolKey`], from the canvas tool host), by the rules
+    /// [`show`](Self::show) applies to the input: Enter applies, Esc discards, the arrows move the
+    /// whole frame or, with `picked`, that part as a plain drag of it would (⇧ by
+    /// [`nudge::BIG_STEP`]; in [Image mode](Self::image_mode) the whole-frame arrows move the image
+    /// under the frame, so the frame goes the other way and `view` follows it), and X swaps
+    /// portrait and landscape about the centre (re-centring `view` with
+    /// [Auto Center Preview](Self::auto_center)). The [bounds](Self::bounds) and the
+    /// [ratio](Self::ratio) hold. A release, another key or a frame that is not finite gives
+    /// `None`; the host passes keys only while the canvas or the tool's parts have the keyboard and
+    /// no text field claims them. `picked` is `None` unless the tool's parts group has the
+    /// keyboard ([`CropResponse::picked`] has the same rule in `show`).
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: the body is extracted from `keys` in task TO-C3")]
+    pub fn key(&self, key: &ToolKey, view: &mut CanvasView, picked: Option<BoxPart>) -> Option<CropKeyAction> {
+        // new: the body of the private `keys` below without the input reads, which
+        // `keys` keeps: it turns each consumed press into a `ToolKey` and calls this, so `show`
+        // and the host share one body (lead call 32). Arrows parse through
+        // `NudgeKeys::new().from_key` (task K1).
+        todo!()
+    }
+
+    /// The frame's keyboard parts on `view` for a host-driven tool's
+    /// [`CanvasTool::parts`](craft_ui::canvas::CanvasTool::parts): the group named by the
+    /// [names](CropNames::group) with the [value](Self::value) or "W × H, X, Y, angle°" through the
+    /// [units](Self::units), and its parts as [`show`](Self::show) gives them: the whole frame,
+    /// then the corners and the edges clockwise from the top left, `picked` marked selected.
+    /// The tool keys the parts by [`CropResponse::picked`]'s part.
+    pub fn parts(&self, view: &CanvasView, style: &CropStyle, frame: &CropBox, picked: Option<BoxPart>) -> ToolParts {
+        let parts = self.part_list(on_screen(view, frame), style, frame, picked);
+        let group = ToolParts::new(self.names.group.clone(), parts);
+        match self.value.clone().or_else(|| self.group_value(frame)) {
+            Some(value) => group.value(value),
+            None => group,
+        }
+    }
+
     /// Enter, Esc, the arrows and X; `idle`: no press is held; `enter_ok`: no other widget
     /// (a Tab-focused button) holds the keyboard, so Enter is the frame's.
     #[allow(clippy::too_many_arguments)]
@@ -1090,7 +1136,7 @@ impl<'a> CropFrame<'a> {
 
     /// The keyboard parts of the frame `shown` (mapped to the screen as `screen`): the whole
     /// frame, the corners and the edges.
-    fn parts(&self, q: [Point; 4], style: &CropStyle, shown: &CropBox, picked: Option<BoxPart>) -> Vec<Part> {
+    fn part_list(&self, q: [Point; 4], style: &CropStyle, shown: &CropBox, picked: Option<BoxPart>) -> Vec<Part> {
         let reach = egui::Vec2::splat(2.0 * style.hit);
         let doc = shown.corners();
         let mid = |a: Point, b: Point| a.midpoint(b);
