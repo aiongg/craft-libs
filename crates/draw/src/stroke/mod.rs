@@ -5,8 +5,6 @@
 //! ([`StrokeStyle::validate`]) and presets ([`StrokeStyle::with_line_style`]). Colour and paint
 //! stay with the app (S7-shapes' paints list).
 
-#![expect(clippy::todo, reason = "skeleton: removed when the bodies land (task PE-A1)")]
-
 use std::fmt;
 use std::ops::RangeInclusive;
 
@@ -178,7 +176,25 @@ impl StrokeStyle {
     /// [`DashUnit`].
     pub fn validate(&self) -> Result<(), StrokeError> {
         // pc: crates/doc/src/vector.rs:270-290 `ShapeStroke::validate`.
-        todo!()
+        if !self.width.is_finite() || !Self::WIDTH_RANGE.contains(&self.width) {
+            return Err(StrokeError::Width);
+        }
+        if !self.opacity.is_finite() || !(0.0..=1.0).contains(&self.opacity) {
+            return Err(StrokeError::Opacity);
+        }
+        if !self.miter_limit.is_finite() || !Self::MITER_LIMIT_RANGE.contains(&self.miter_limit) {
+            return Err(StrokeError::MiterLimit);
+        }
+        if !self.dash_offset.is_finite() || self.dash_offset.abs() > Self::DASH_OFFSET_MAX {
+            return Err(StrokeError::DashOffset);
+        }
+        if self.dashes.len() > Self::MAX_DASHES || self.dashes.iter().any(|d| !d.is_finite() || !Self::DASH_RANGE.contains(d)) {
+            return Err(StrokeError::DashPattern);
+        }
+        if !self.dashes.is_empty() && self.dashes.iter().sum::<f32>() < Self::DASH_TOTAL_MIN {
+            return Err(StrokeError::DashTotal);
+        }
+        Ok(())
     }
 
     /// The pattern's name: empty dashes are [`LineStyle::Solid`]; exactly
@@ -187,7 +203,15 @@ impl StrokeStyle {
     /// (`[0, 2]` with another cap too). The dash offset plays no part.
     pub fn line_style(&self) -> LineStyle {
         // pc: crates/ui-egui/src/tools/shape_stroke_ui.rs:53-63 `StrokeOptions::label`.
-        todo!()
+        if self.dashes.is_empty() {
+            LineStyle::Solid
+        } else if self.dashes == Self::DASHED {
+            LineStyle::Dashed
+        } else if self.dashes == Self::DOTTED && self.cap == LineCap::Round {
+            LineStyle::Dotted
+        } else {
+            LineStyle::Custom
+        }
     }
 
     /// This style with the preset `style`: the dash offset goes to 0 and the dashes become empty
@@ -195,17 +219,27 @@ impl StrokeStyle {
     /// [`LineCap::Round`]. Every other field is kept. [`LineStyle::Custom`] returns the style
     /// unchanged.
     #[must_use]
-    #[expect(unused_variables, reason = "skeleton: removed when the body lands (task PE-A1)")]
     pub fn with_line_style(&self, style: LineStyle) -> StrokeStyle {
         // pc: crates/ui-egui/src/tools/shape_stroke_ui.rs:65-75 `StrokeOptions::preset`.
-        todo!()
+        let mut out = self.clone();
+        match style {
+            LineStyle::Custom => return out,
+            LineStyle::Solid => out.dashes = Vec::new(),
+            LineStyle::Dashed => out.dashes = Self::DASHED.to_vec(),
+            LineStyle::Dotted => {
+                out.dashes = Self::DOTTED.to_vec();
+                out.cap = LineCap::Round;
+            }
+        }
+        out.dash_offset = 0.0;
+        out
     }
 
     /// The dashes as (dash, gap) pairs in order. An odd-length pattern's last pair has no gap
     /// (`None`), as PhotoCraft's editor shows it (one Dash field in the last row).
     pub fn dash_pairs(&self) -> Vec<(f32, Option<f32>)> {
         // pc: crates/ui-egui/src/tools/shape_stroke_ui/editor.rs:201-211 (`dashes.chunks_mut(2)`).
-        todo!()
+        self.dashes.chunks(2).map(|c| (c[0], c.get(1).copied())).collect()
     }
 
     /// This style with its first `pairs.len()` pairs replaced by `pairs` and every later entry of
@@ -214,10 +248,31 @@ impl StrokeStyle {
     /// keeps the stored gap anywhere else. Pairs past the stored ones are appended. The result is
     /// not validated.
     #[must_use]
-    #[expect(unused_variables, reason = "skeleton: removed when the body lands (task PE-A1)")]
     pub fn with_dash_pairs(&self, pairs: &[(f32, Option<f32>)]) -> StrokeStyle {
         // new: entries a field row does not show stay unchanged (step7-pen "Stroke editor", Dashes).
-        todo!()
+        let mut out = self.clone();
+        for (i, &(dash, gap)) in pairs.iter().enumerate() {
+            let at = i * 2;
+            if at >= out.dashes.len() {
+                out.dashes.push(dash);
+                out.dashes.extend(gap);
+                continue;
+            }
+            out.dashes[at] = dash;
+            let is_last = at + 1 >= out.dashes.len();
+            match (gap, is_last) {
+                (Some(g), false) => out.dashes[at + 1] = g,
+                (Some(g), true) => out.dashes.push(g),
+                (None, true) => {}
+                (None, false) => {
+                    // The stored gap stays unless this pair is the pattern's last.
+                    if at + 2 >= out.dashes.len() {
+                        out.dashes.truncate(at + 1);
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// The style as a kurbo stroke, for an engine and the editor's line samples: width, join,
@@ -230,6 +285,24 @@ impl StrokeStyle {
         // new: kurbo `Stroke::new(width).with_join(..).with_miter_limit(..).with_caps(..)
         // .with_dashes(offset, pattern)`. PhotoCraft strokes with its own engine
         // (crates/ui-egui/src/tools/shape_stroke_ui/editor.rs:329-343 renders through it).
-        todo!()
+        let scale = match self.dash_unit {
+            DashUnit::Widths => f64::from(self.width),
+            DashUnit::Document => 1.0,
+        };
+        let cap = match self.cap {
+            LineCap::Butt => kurbo::Cap::Butt,
+            LineCap::Round => kurbo::Cap::Round,
+            LineCap::Square => kurbo::Cap::Square,
+        };
+        let join = match self.join {
+            LineJoin::Miter => kurbo::Join::Miter,
+            LineJoin::Round => kurbo::Join::Round,
+            LineJoin::Bevel => kurbo::Join::Bevel,
+        };
+        kurbo::Stroke::new(f64::from(self.width))
+            .with_join(join)
+            .with_miter_limit(f64::from(self.miter_limit))
+            .with_caps(cap)
+            .with_dashes(f64::from(self.dash_offset) * scale, self.dashes.iter().map(|&d| f64::from(d) * scale))
     }
 }
