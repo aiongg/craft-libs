@@ -1,5 +1,4 @@
 //! The brush tip as the cursor draws it.
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 use std::sync::Arc;
 
@@ -92,8 +91,22 @@ impl TipPose {
     /// tilt direction by `cos(|tilt|)`, at least 0.05, as a tilted pen's footprint. A zero tilt
     /// or a non-finite value leaves that step out.
     pub fn pen(degrees: f64, tilt: Option<[f32; 2]>) -> TipPose {
-        // pc: crates/ui-egui/src/tools/brush_cursor.rs:55 `pen_axes` (x = (cos, −sin), y = (sin, cos) of the
-        // angle; `project`: v + dir · (v · dir) · (max(cos tilt, 0.05) − 1) with tilt clamped to 0..90).
-        todo!()
+        // pc: crates/ui-egui/src/tools/brush_cursor.rs:55 `pen_axes`.
+        let degrees = if degrees.is_finite() { degrees } else { 0.0 };
+        let (sin, cos) = degrees.to_radians().sin_cos();
+        let (x, y) = (Vec2::new(cos, -sin), Vec2::new(sin, cos));
+        let project = |v: Vec2| match tilt {
+            Some([tx, ty]) if tx.is_finite() && ty.is_finite() => {
+                let (tx, ty) = (f64::from(tx), f64::from(ty));
+                let tilt = tx.hypot(ty).clamp(0.0, 90.0);
+                if tilt == 0.0 {
+                    return v;
+                }
+                let dir = Vec2::new(tx, ty) / tx.hypot(ty);
+                v + dir * (v.dot(dir) * (tilt.to_radians().cos().max(0.05) - 1.0))
+            }
+            _ => v,
+        };
+        TipPose { x_axis: project(x), y_axis: project(y) }
     }
 }
