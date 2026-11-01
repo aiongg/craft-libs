@@ -26,12 +26,17 @@ craft_ui::words! {
         delete: "wideAngle.delete" = "Delete";
         preview: "wideAngle.preview" = "Preview";
         hint: "wideAngle.hint" = "Drag on the image to add a constraint; Shift for horizontal/vertical; right-click a constraint to change or delete it.";
+        /// The accessible name of the group the constraints make on the canvas.
+        constraint_lines: "wideAngle.constraintLines" = "Constraint lines";
+        /// The accessible name of a constraint row's Orientation select; `{n}` the constraint's number.
+        orientation_of: "wideAngle.orientationOf" = "Orientation of constraint {n}";
+        /// The accessible name of a constraint row's Delete button; `{n}` the constraint's number.
+        delete_constraint: "wideAngle.deleteConstraint" = "Delete constraint {n}";
         /// A constraint as a keyboard part: `{n}` its number, `{orientation}` its orientation.
         constraint_part: "wideAngle.constraintPart" = "Constraint {n}, {orientation}";
     }
 }
 
 /// "Constraints (N)": the list's header.
-#[expect(dead_code, reason = "skeleton: the panel (task WS-WA1) reads it; RG1 registers it")]
 pub(crate) const CONSTRAINTS: craft_ui::localized::words::Counted =
     craft_ui::localized::words::Counted::new("wideAngle.constraints", "Constraints ({n})", "Constraints ({n})");
