@@ -60,13 +60,21 @@ pub use session::{BackdropMode, BackdropUse, LiquifyGlobal, LiquifySession, Liqu
 pub use style::LiquifyStyle;
 pub use tools::{LiquifyBrush, LiquifyTool, StrokeRecorder};
 
-use egui::{Context, Rect};
+use egui::{Context, Key, Modifiers, Rect};
 
-use craft_ui::canvas::RasterSource;
-use craft_ui::dialog::full_window::FullWindowView;
-use craft_ui::dialog::{DialogState, LocalHistory, Outcome, Step};
+use craft_ui::canvas::kurbo::Size;
+use craft_ui::canvas::{CanvasId, Checkerboard, NavigationOptions, RasterSource, ToolHost};
+use craft_ui::dialog::full_window::{FullWindowCanvas, FullWindowSide, FullWindowTitle, FullWindowView, RasterOverlay, SideFooter};
+use craft_ui::dialog::{ButtonRole, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step};
 use craft_ui::edit::EditEvent;
-use craft_ui::patterns::LastUsed;
+use craft_ui::localized::Labels as _;
+use craft_ui::patterns::{LastUsed, ToolRail};
+use craft_ui::theme::current;
+
+use canvas::LayeredImage;
+use panel::backdrop_id;
+
+use crate::ui::warp::{MeshStyle, paint_mesh};
 
 /// What the app gives the workspace to show each pass: images and names only. The field, the
 /// proxy and the backdrop render stay the app's (PhotoCraft's `photocraft_algo::liquify`).
@@ -167,7 +175,6 @@ pub struct LiquifyOutput {
 /// ([`LiquifyKeys`]); ⌘+, ⌘−, ⌘0, ⌘1 zoom the workspace's view; ⌘Z and ⇧⌘Z step the session's
 /// history, also while a number field has focus; Enter is OK and Esc Cancel (Esc during a stroke
 /// cancels the stroke only).
-#[expect(dead_code, reason = "skeleton: `show` (task WS-LQ2) reads the fields")]
 pub struct LiquifyWorkspace {
     dialog: DialogState<LiquifySession>,
     session: LiquifySession,
@@ -180,6 +187,8 @@ pub struct LiquifyWorkspace {
     view: FullWindowView,
     last_used: LastUsed<LiquifyTool>,
     canvas: LiquifyCanvas,
+    /// The backdrop the app was last asked for, while Show Backdrop is on.
+    asked: Option<Option<u64>>,
 }
 
 impl LiquifyWorkspace {
@@ -196,6 +205,7 @@ impl LiquifyWorkspace {
             size: open.size,
             view: FullWindowView::new(),
             last_used: LastUsed::default(),
+            asked: None,
         }
     }
 
@@ -212,11 +222,132 @@ impl LiquifyWorkspace {
     /// is on, and [`LiquifyCanvas`] as its tool. Then `LocalHistory::settle(&session, busy)` with
     /// `busy` while a stroke or a slider drag runs. Undo and redo report
     /// [`LiquifyEvent::Replay`] in the same pass.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-LQ2")]
     pub fn show(&mut self, ctx: &Context, source: &dyn LiquifySource) -> LiquifyOutput {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:950 `show` (title, strip, panel, footer,
         // preview, brush circle); :730 `history_keys`; :740 `keys`.
-        todo!()
+        let labels = LiquifyLabels::of_ctx(ctx);
+        let dialog_labels = DialogLabels::of_ctx(ctx);
+        let tokens = current(ctx);
+        let style = LiquifyStyle::of(&tokens);
+        let mesh_style = MeshStyle::of(&tokens);
+        let layers = source.layers();
+        let title = FullWindowTitle::new(labels.name.as_str()).subject(self.subject.as_str()).zoom(self.view.zoom_percent()).text(ctx);
+        self.canvas.attach(ctx);
+        let Self { dialog, session, history, settings, subject: _, size, view, last_used, canvas, asked } = self;
+        let doc = Size::new(f64::from(size[0]), f64::from(size[1]));
+        // The user's navigation options are the app's; Photoshop's defaults until it passes them.
+        let navigation = NavigationOptions::default();
+
+        let mut events = Vec::new();
+        let mut changed = false;
+        let mut panel_busy = false;
+        let response = FullWindowDialog::new("liquify").title(title).show(ctx, dialog, session, |ui, session, fx| {
+            // The history keys are read whatever has focus, so ⌘Z works while a number field has
+            // it, but only while this workspace is the top modal layer.
+            if ctx.memory(|m| m.top_modal_layer()) == Some(ui.layer_id()) {
+                if let Some(step) = take_step(ctx) {
+                    // An open stroke ends first; the replay that follows rebuilds the field.
+                    if let Some(event) = canvas.end_stroke() {
+                        absorb(session, event, &mut Vec::new());
+                    }
+                    if history.step(session, step) {
+                        events.push(LiquifyEvent::Replay(session.steps().to_vec()));
+                    }
+                }
+                let (keys_changed, globals) = LiquifyKeys::read(ctx, settings);
+                changed |= keys_changed;
+                for op in globals {
+                    record_global(canvas, session, op, &mut events);
+                }
+            }
+
+            let slots = LiquifyTool::slots(&labels);
+            let rail =
+                ToolRail::new("liquify-tools").label(labels.tools.as_str()).pick_by_key(true).show(ui, &slots, &settings.tool, last_used, |_, _| {});
+            if let Some(tool) = rail.select.filter(|tool| *tool != settings.tool) {
+                if canvas.busy() {
+                    let id = CanvasId::new(ui, CANVAS);
+                    match settings.tool {
+                        LiquifyTool::Hand => ToolHost::cancel(ctx, id, canvas.hand(doc, navigation)),
+                        LiquifyTool::Zoom => ToolHost::cancel(ctx, id, canvas.zoom(doc, navigation)),
+                        _ => ToolHost::cancel(ctx, id, &mut canvas.tool(settings, &style)),
+                    };
+                    for event in canvas.take_events() {
+                        absorb(session, event, &mut events);
+                    }
+                }
+                settings.tool = tool;
+                changed = true;
+            }
+
+            let footer = SideFooter::bottom(vec![
+                FooterButton::new(ButtonRole::Default, dialog_labels.ok.as_str()),
+                FooterButton::new(ButtonRole::Cancel, dialog_labels.cancel.as_str()),
+            ]);
+            let mut panel = None;
+            FullWindowSide::new("liquify-props").header(labels.properties.as_str()).footer(footer).show(ui, fx, |ui| {
+                panel = Some(LiquifyPanel::new("liquify-panel", settings, &labels).layers(&layers).show(ui));
+            });
+            if let Some(panel) = panel {
+                changed |= panel.changed;
+                panel_busy |= panel.dragging;
+                if let Some(op) = panel.global {
+                    record_global(canvas, session, op, &mut events);
+                }
+                if panel.restore_all {
+                    finish_stroke(canvas, session, &mut events);
+                    session.restore_all();
+                    events.push(LiquifyEvent::Replay(Vec::new()));
+                }
+                if let Some(of) = panel.backdrop_wanted {
+                    events.push(LiquifyEvent::BackdropWanted(of));
+                    *asked = Some(of);
+                }
+            }
+            if !settings.show_backdrop {
+                *asked = None;
+            } else if asked.is_none() {
+                // Show Backdrop was already on when the workspace opened.
+                let of = backdrop_id(settings.backdrop);
+                events.push(LiquifyEvent::BackdropWanted(of));
+                *asked = Some(of);
+            }
+
+            let backdrop = source.backdrop().filter(|_| settings.show_backdrop);
+            let layering = BackdropLayering::of(backdrop.is_some(), settings.backdrop_mode, settings.backdrop_opacity);
+            let layered = backdrop.filter(|_| !layering.is_plain()).map(|backdrop| LayeredImage { image: source.image(), backdrop, layering });
+            let image: &dyn RasterSource = match &layered {
+                Some(layered) => layered,
+                None => source.image(),
+            };
+            let mut widget = FullWindowCanvas::new(CANVAS, view).source(image).checkerboard(Checkerboard::default()).navigation(navigation);
+            if let Some((mask, texel)) = source.freeze_mask().filter(|_| settings.show_mask) {
+                // The mask is white with the frozen amount as alpha: the tint carries the colour.
+                let [r, g, b, a] = style.freeze.to_srgba_unmultiplied();
+                let tint = egui::Color32::from_rgba_premultiplied(r, g, b, (f32::from(a) * style.mask_opacity).round() as u8);
+                widget = widget.overlay(RasterOverlay::new(mask, texel).tint(tint));
+            }
+            let mesh = source.mesh(settings.mesh_size).filter(|_| settings.show_mesh);
+            widget = widget.painter(move |painter, view| {
+                if let Some(mesh) = &mesh {
+                    paint_mesh(painter, mesh.edges(view), &mesh_style);
+                }
+            });
+            let shown = match settings.tool {
+                LiquifyTool::Hand => widget.tool(canvas.hand(doc, navigation)).show(ui),
+                LiquifyTool::Zoom => widget.tool(canvas.zoom(doc, navigation)).show(ui),
+                _ => widget.tool(&mut canvas.tool(settings, &style)).show(ui),
+            };
+            // The Esc that cancelled a stroke is not the dialog's Cancel.
+            if shown.took_key.is_some_and(|key| key.key == Key::Escape) {
+                ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
+            }
+            for event in canvas.take_events() {
+                absorb(session, event, &mut events);
+            }
+        });
+        history.settle(session, canvas.busy() || panel_busy);
+        LiquifyOutput { events, outcome: response.outcome, rect: response.rect, settings_changed: changed }
     }
 
     /// What OK applies.
@@ -232,10 +363,50 @@ impl LiquifyWorkspace {
     /// Undo or redo from the app's Edit menu: steps the history and returns the
     /// [`LiquifyEvent::Replay`] to apply, or `None` with nothing to step. A stroke in progress ends
     /// first. The workspace reads ⌘Z itself while it is the top modal layer.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-LQ2")]
     pub fn step(&mut self, step: Step) -> Option<LiquifyEvent> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:340 `undo`, :351 `redo` (a stroke still
         // open ends first).
-        todo!()
+        if let Some(event) = self.canvas.end_stroke() {
+            absorb(&mut self.session, event, &mut Vec::new());
+        }
+        self.history.step(&mut self.session, step).then(|| LiquifyEvent::Replay(self.session.steps().to_vec()))
     }
+}
+
+/// The canvas's id salt, shared by the canvas and the tool switch that cancels its gesture.
+const CANVAS: &str = "liquify-view";
+
+/// Puts `event` in `out`, recording a committed stroke in the session first (the lasso's closing
+/// point included) and following a cancelled one with the replay that rebuilds the app's field.
+fn absorb(session: &mut LiquifySession, event: LiquifyEvent, out: &mut Vec<LiquifyEvent>) {
+    match event {
+        LiquifyEvent::Stroke(EditEvent::Commit { id, value, modifiers, .. }) => {
+            let before = session.len();
+            session.record(value.clone());
+            let recorded = match session.steps().last() {
+                Some(LiquifyStep::Stroke(stroke)) if session.len() > before => stroke.clone(),
+                _ => value,
+            };
+            out.push(LiquifyEvent::Stroke(EditEvent::commit(id, recorded, true, modifiers)));
+        }
+        LiquifyEvent::Stroke(cancel @ EditEvent::Cancel { .. }) => {
+            out.push(LiquifyEvent::Stroke(cancel));
+            out.push(LiquifyEvent::Replay(session.steps().to_vec()));
+        }
+        other => out.push(other),
+    }
+}
+
+/// Ends the stroke in progress, if any, and records it.
+fn finish_stroke(canvas: &mut LiquifyCanvas, session: &mut LiquifySession, out: &mut Vec<LiquifyEvent>) {
+    if let Some(event) = canvas.end_stroke() {
+        absorb(session, event, out);
+    }
+}
+
+/// Records a whole-field operation after the stroke in progress.
+fn record_global(canvas: &mut LiquifyCanvas, session: &mut LiquifySession, op: LiquifyGlobal, out: &mut Vec<LiquifyEvent>) {
+    finish_stroke(canvas, session, out);
+    session.record_global(op);
+    out.push(LiquifyEvent::Global(op));
 }

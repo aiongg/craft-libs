@@ -63,11 +63,15 @@ fn liquify_stroke_events_begin_update_commit_and_short_strokes_are_recorded_whol
     assert!(recorder.extend([20.0, 10.0, 0.9], Modifiers::NONE).is_none(), "an equal point is skipped");
     let Some(EditEvent::Update { value: three, .. }) = recorder.extend([30.0, 12.0, 0.5], Modifiers::NONE) else { panic!("Update") };
     assert_eq!(three.points.len(), 3);
+    for held in [4, 5] {
+        let Some(EditEvent::Update { value, .. }) = recorder.hold([30.0, 12.0, 0.5], Modifiers::NONE) else { panic!("Update") };
+        assert_eq!(value.points.len(), held, "a held dab at the same point is recorded each time");
+    }
     let Some(EditEvent::Commit { value, changed, id, .. }) = recorder.end([40.0, 12.0], Modifiers::NONE) else { panic!("Commit") };
     assert!(changed && !recorder.is_active());
     assert_eq!(Some(id), begin.id());
     assert_eq!(value.points.last(), Some(&[40.0, 12.0, 0.5]), "the release point keeps the last pressure");
-    assert_eq!(value.points.len(), 4);
+    assert_eq!(value.points.len(), 6);
 
     recorder.begin(LiquifyTool::ForwardWarp, &brush, [5.0, 5.0, 1.0], Modifiers::NONE);
     let Some(EditEvent::Commit { value: short, .. }) = recorder.end([6.0, 5.0], Modifiers::NONE) else { panic!("Commit") };
