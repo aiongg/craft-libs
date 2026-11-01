@@ -18,6 +18,8 @@
 use craft_color::ui::Paint;
 use serde::{Deserialize, Serialize};
 
+use crate::stroke::StrokeStyle;
+
 use super::shape_drag::{ShapeDragOptions, ShapeKind};
 
 mod bar;
@@ -69,16 +71,24 @@ pub struct ShapeAppearance {
     pub stroke: Paint,
     /// Stroke width in pixels; 0 is no stroke.
     pub stroke_width: f64,
-    // needs: PE craft_draw::stroke::StrokeStyle: `pub stroke_style: StrokeStyle,` (the value the
-    // Stroke style button shows and edits).
+    /// The stroke's style (alignment, caps, corners, dashes): the value the Stroke style button
+    /// shows and edits. Its `width` is ignored here; [`stroke_width`](Self::stroke_width) is the
+    /// width.
+    pub stroke_style: StrokeStyle,
     /// The layer is locked (`locks.all` or `.pixels`): every field is disabled.
     pub locked: bool,
 }
 
 impl ShapeAppearance {
-    /// Fill and stroke, unlocked.
+    /// Fill and stroke with the default stroke style, unlocked.
     pub fn new(fill: Paint, stroke: Paint, stroke_width: f64) -> Self {
-        ShapeAppearance { fill, stroke, stroke_width, locked: false }
+        ShapeAppearance { fill, stroke, stroke_width, stroke_style: StrokeStyle::default(), locked: false }
+    }
+
+    /// The stroke's style.
+    pub fn stroke_style(mut self, style: StrokeStyle) -> Self {
+        self.stroke_style = style;
+        self
     }
 
     /// Disables every field.
@@ -102,8 +112,8 @@ pub enum ShapeChange {
     /// The stroke width in pixels, 0–288. A stroke turned on without a width carries
     /// [`ShapeChange::ENABLED_STROKE_WIDTH`]; a step that clamps at 0 is no change.
     StrokeWidth(f64),
-    // needs: PE craft_draw::stroke::StrokeStyle: `StrokeStyle(StrokeStyle),` (the Stroke style
-    // button's `EditEvent<StrokeStyle>`, mapped).
+    /// The Stroke style button's edit (its `EditEvent<StrokeStyle>`, mapped).
+    StrokeStyle(StrokeStyle),
     /// Width and height of a rect, ellipse or polygon.
     Size {
         width: f64,

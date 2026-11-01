@@ -6,6 +6,7 @@ use egui::{AsIdSalt, IdSalt, Ui};
 
 use super::ConnectorBarLabels;
 use crate::geometry::connector::Routing;
+use crate::ui::stroke::StrokeChoiceRow;
 
 /// A connector's line style as the bar's menu offers it.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -31,14 +32,15 @@ impl Default for ConnectorLine {
 }
 
 /// One choice made in the bar; each is one undo step (`Set`).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ConnectorBarEvent {
     Routing(Routing),
-    /// The start cap picked: its index in the caps the app gave.
-    StartCap(usize),
-    /// The end cap picked: its index in the caps the app gave.
-    EndCap(usize),
+    /// The start cap picked: the [`StrokeChoice`](crate::ui::stroke::StrokeChoice) id from the
+    /// app's start row.
+    StartCap(String),
+    /// The end cap picked: the choice's id from the app's end row.
+    EndCap(String),
     Line(ConnectorLine),
 }
 
@@ -51,25 +53,29 @@ pub struct ConnectorBarOutput {
 }
 
 /// The connector part of a style bar, in FigCraft's order: three routing buttons (Straight, Elbow,
-/// Curved; a radio group, the current one on), the start and end cap menus (S7-pen's
-/// `StrokeChoiceRow`s with the app's arrowheads and their painted previews; the library holds no
-/// arrowhead data), and the line style menu (Solid, Dash, then the [weights](ConnectorLine::WEIGHTS)).
+/// Curved; a radio group, the current one on), the start and end cap menus (the app's
+/// [`StrokeChoiceRow`]s from [`caps`](Self::caps), with its arrowheads and their painted previews;
+/// the library holds no arrowhead data; no menus without them), and the line style menu (Solid, Dash, then the [weights](ConnectorLine::WEIGHTS)).
 /// Each control is a Tab stop; the menus are keyboard operable as `Select`s.
 pub struct ConnectorBar<'a> {
     id_salt: IdSalt,
     routing: Routing,
     line: ConnectorLine,
-    // needs: PE craft_draw::ui::stroke::StrokeChoice: `caps: (&'a [StrokeChoice], &'a [StrokeChoice])`
-    // and `current_caps: (Option<usize>, Option<usize>)`, set by a `caps(start, end, current)`
-    // builder.
+    caps: Option<(StrokeChoiceRow<'a>, StrokeChoiceRow<'a>)>,
     labels: Option<ConnectorBarLabels>,
-    lifetime: std::marker::PhantomData<&'a ()>,
 }
 
 impl<'a> ConnectorBar<'a> {
     /// The bar for a connector routed `routing` with `line`.
     pub fn new(id_salt: impl AsIdSalt, routing: Routing, line: ConnectorLine) -> Self {
-        ConnectorBar { id_salt: IdSalt::new(id_salt), routing, line, labels: None, lifetime: std::marker::PhantomData }
+        ConnectorBar { id_salt: IdSalt::new(id_salt), routing, line, caps: None, labels: None }
+    }
+
+    /// The start and end cap menus: the app's rows of arrowheads, each with its picked choice
+    /// ([`StrokeChoiceRow::selected`], mixed across a selection) and its preview painter.
+    pub fn caps(mut self, start: StrokeChoiceRow<'a>, end: StrokeChoiceRow<'a>) -> Self {
+        self.caps = Some((start, end));
+        self
     }
 
     /// The words; the installed ones by default.
@@ -83,7 +89,8 @@ impl<'a> ConnectorBar<'a> {
         // inv-figcraft: crates/ui-egui/src/canvas/board_bar.rs:350-371 `line_part` (routings :351-354),
         // :375-397 `cap_menu` ("Start point", "End point"), :411-445 `style_menu`, :343 `WEIGHTS`,
         // :345 `DASHES`.
-        // needs: PE craft_draw::ui::stroke::StrokeChoiceRow (the cap menus).
+        // The cap menus are `Select`s over each row's choices with its `paint` previews, as
+        // `StrokeEditor` shows its rows.
         todo!()
     }
 }

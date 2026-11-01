@@ -25,6 +25,16 @@ fn auto_add_delete_leaves_open_ends_to_the_pen() {
     todo!()
 }
 
+// PE-B1. With an open pen draft passed as one more `EditPath` (its own key, last), Add on the
+// draft's segment and Delete on its anchor report `insert` and `delete` with the draft's key, and
+// applying them with `EditSubpath::{insert_at, remove_knot}` leaves the draft open from its last
+// anchor (PhotoCraft `anchor_tools.rs:116-128`).
+#[test]
+#[ignore = "skeleton"]
+fn anchor_tools_edit_the_pen_draft_passed_as_a_path() {
+    todo!()
+}
+
 // PE-B1. Hovering a segment with Add draws the segment mark and a hollow anchor at t; hovering an
 // anchor with Delete draws the enlarged anchor.
 #[test]

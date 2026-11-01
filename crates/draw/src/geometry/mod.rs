@@ -18,3 +18,5 @@ mod shape_tests;
 pub mod slice;
 #[cfg(test)]
 mod slice_tests;
+
+pub use shape::ShapeGeometry;

@@ -39,7 +39,9 @@ impl BezierOverlay<'_> {
     /// A click of Add, Delete or Auto Add/Delete on `hit` (task PE-B1), reported on press as
     /// PhotoCraft does: a segment sets [`BezierResponse::insert`] with the hit's `t`; an anchor
     /// sets [`BezierResponse::delete`] with that one anchor. One undo step each; no gesture, no
-    /// drag, no selection change.
+    /// drag, no selection change. The pen draft, when the host passes it as one more path
+    /// ([`PathMode::resolve`](crate::ui::pen::PathMode::resolve)), is hit and reported like any
+    /// path, under the key the host gave it.
     pub(super) fn anchor_click(&self, hit: BezierHit, mods: Modifiers, out: &mut BezierResponse) {
         // pc: crates/ui-egui/src/tools/anchor_tools.rs:88-114 `pointer`, `click`; :130-150 `apply`.
         todo!()

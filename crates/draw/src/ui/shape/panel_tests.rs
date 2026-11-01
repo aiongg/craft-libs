@@ -30,3 +30,11 @@ fn shape_panel_disables_for_locked_layer() {
 fn shape_panel_rect_shows_uniform_radius_and_four_corners() {
     todo!()
 }
+
+// With `stroke_open` the Stroke style button shows `ShapeAppearance::stroke_style`, is disabled
+// at width 0, and a pick in its popover (Dashed on) reports `ShapeChange::StrokeStyle`.
+#[test]
+#[ignore = "skeleton"]
+fn shape_panel_stroke_style_button_reports_the_style() {
+    todo!()
+}

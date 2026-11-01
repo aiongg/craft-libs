@@ -134,7 +134,7 @@ impl StrokeChoice {
 
 /// The painter of a choice's preview in a [`StrokeChoiceRow`]: the painter, the preview's rect
 /// and the choice.
-type PaintChoice<'a> = Box<dyn Fn(&Painter, Rect, &StrokeChoice) + 'a>;
+pub(crate) type PaintChoice<'a> = Box<dyn Fn(&Painter, Rect, &StrokeChoice) + 'a>;
 
 /// A row the app fills: a label and a `Select` of [`StrokeChoice`]s with painted previews
 /// (arrowheads at the start and end, a width profile, DesignCraft's named stroke types). The
@@ -147,7 +147,8 @@ pub struct StrokeChoiceRow<'a> {
     pub choices: &'a [StrokeChoice],
     /// The picked choice's id, `MixedValue::Mixed` across a selection, `None` for none.
     pub selected: Option<craft_ui::controls::MixedValue<&'a str>>,
-    paint: Option<PaintChoice<'a>>,
+    /// The preview painter; read by the editor and the connector bar's cap menus.
+    pub(crate) paint: Option<PaintChoice<'a>>,
 }
 
 impl<'a> StrokeChoiceRow<'a> {

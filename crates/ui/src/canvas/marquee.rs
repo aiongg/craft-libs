@@ -379,8 +379,10 @@ impl MarqueeShape {
     }
 }
 
-/// The options bar's marquee style.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// The options bar's marquee style. Serialises camelCase (`"free"`, `{"ratio": [1, 1]}`,
+/// `{"size": [64, 64]}`) for the tools' persisted settings.
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum Constraint {
     /// Sized by the drag; ⇧ makes it square.

@@ -231,8 +231,10 @@ impl BeforeAfter {
         // the split, a click or drag anywhere on the picture sets it, `ResizeHorizontal`, 2 pt line,
         // 20 pt knob with a two-way glyph).
         // new: keys, RTL and AccessKit as the type's doc says; the look from `BeforeAfter::style`.
-        // needs: lead an `Icon::SwapVertical` (icons.toml, lucide "arrow-up-down") for the
-        // SplitStacked knob; the Split knob uses `Icon::SwapHorizontal`.
+        // The Split knob uses `Icon::SwapHorizontal`; the SplitStacked knob `Icon::SwapVertical`,
+        // which this task adds: an `icons.toml` row `swap_vertical` beside `swap_horizontal`
+        // (lucide `arrow-up-down`, phosphor `arrows-down-up`, carbon `arrows--vertical`, tabler
+        // `arrows-down-up`), the four SVGs from the sets' packages, and the icon tests' counts.
         todo!()
     }
 }

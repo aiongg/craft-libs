@@ -10,9 +10,9 @@ pub const MIN_LINE: f64 = 0.5;
 
 /// The Ruler line in document units: from `start` to `end`, and with a protractor a second arm
 /// from `start` (the vertex) to `protractor`.
-// needs: lead, kurbo's `serde` feature for craft-draw (root change), then `serde::Serialize` and
-// `serde::Deserialize` derives here (task TO-R1): the app stores the line in its document.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// Serialises camelCase, points as kurbo's: the app stores the line in its document.
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RulerLine {
     pub start: Point,
     pub end: Point,

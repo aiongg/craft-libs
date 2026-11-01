@@ -157,7 +157,8 @@ pub enum SliceEvent {
 
 /// The Slice tool's persisted options: its Style, Width and Height (as a marquee's
 /// [`Constraint`], pixels for Fixed Size) and Hide Auto Slices.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct SliceToolSettings {
     pub style: Constraint,

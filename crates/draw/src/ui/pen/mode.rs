@@ -36,7 +36,8 @@ pub struct PathMode {
     /// The pen draft's mode, or `None` when the draft is not shown.
     pub draft: Option<PenMode>,
     /// Whether the draft takes presses ([`PenDraft::sensing`](super::PenDraft::sensing)): false
-    /// while ⌘ makes the pointer Direct Selection, so the draft is drawn and keeps its keys.
+    /// while ⌘ makes the pointer Direct Selection and under the anchor tools, so the draft is
+    /// drawn and keeps its keys while the overlay edits it ([`resolve`](Self::resolve)).
     pub draft_senses: bool,
 }
 
@@ -61,6 +62,16 @@ impl PathMode {
     ///
     /// The draft's own Auto Add/Delete (while drawing) is [`PenDraft::auto_add_delete`](super::PenDraft::auto_add_delete),
     /// which the host passes the same option to; it is off while ⇧, ⌥ or ⌘ is held.
+    ///
+    /// Where the draft shows without sensing (⌘, Add Anchor, Delete Anchor, Convert Point, Direct
+    /// Selection), the anchor tools edit it as PhotoCraft's do (`anchor_tools.rs:116-128`,
+    /// `PathRef::Pen`; Photoshop edits an open path with them too): the host passes the open draft
+    /// to the [`BezierOverlay`](super::BezierOverlay) as one more [`EditPath`](super::EditPath),
+    /// last in the slice under a key of its own, and applies the overlay's `insert`, `delete` and
+    /// `edit` for that key to its draft ([`EditSubpath::insert_at`](super::EditSubpath::insert_at),
+    /// [`remove_knot`](super::EditSubpath::remove_knot), [`PathEdit::apply`](super::PathEdit::apply)).
+    /// The draft is not in the document, so these are draft changes, not document commands, and
+    /// drawing goes on from the draft's last anchor.
     #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands (task PE-B5)")]
     pub fn resolve(tool: PathTool, modifiers: Modifiers, drawing: bool, auto_add_delete: bool) -> PathMode {
         // pc: crates/ui-egui/src/tools/direct_select.rs:135-153 `direct`, `converting`,

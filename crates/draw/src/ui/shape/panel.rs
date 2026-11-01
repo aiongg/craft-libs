@@ -109,8 +109,8 @@ impl<'a> ShapePanel<'a> {
         // pc: crates/ui-egui/src/tools/vector_ui/options.rs:156-312 `shape_properties` (Appearance at
         // :178, the live shape at :233, fields :232-300, corner rows :265, the stroke width rule
         // :126-128, the gesture keys :142-153).
-        // new: `SectionHeader` (collapsible), `PaintChip`, `NumberField`, S7-pen's `StrokeButton`
-        // (needs: PE craft_draw::ui::stroke::StrokeButton).
+        // new: `SectionHeader` (collapsible), `PaintChip`, `NumberField`, `craft_draw::ui::stroke::StrokeButton`
+        // (its `EditEvent<StrokeStyle>` mapped to `ShapeChange::StrokeStyle`).
         todo!()
     }
 }

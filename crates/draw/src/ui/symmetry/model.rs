@@ -31,9 +31,9 @@ impl SymmetryMode {
 
 /// A painting symmetry: its mode, the centre the axes run through (document units) and the
 /// rotation in degrees clockwise (document y points down), 0 to 360.
-// needs: lead, kurbo's `serde` feature for craft-draw (root change), then `serde::Serialize` and
-// `serde::Deserialize` derives here (task TO-S1): brush presets store the symmetry.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// Serialises camelCase, the centre as kurbo's point: brush presets store the symmetry.
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Symmetry {
     pub mode: SymmetryMode,
     pub center: Point,

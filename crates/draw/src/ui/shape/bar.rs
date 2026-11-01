@@ -90,8 +90,8 @@ impl<'a> ShapeOptionsBar<'a> {
     pub fn show(self, ui: &mut Ui) -> ShapeOptionsOutput {
         // pc: crates/ui-egui/src/tools/shape_options.rs:35-191 `options_bar` (Fill :63, Stroke :69, the
         // width field :71, Radius :100, Sides :113, Weight :121; the edit target :36-52, :173-191).
-        // new: `OptionsBar` cells, `PaintChip`, `NumberField`, S7-pen's `StrokeButton`
-        // (needs: PE craft_draw::ui::stroke::StrokeButton).
+        // new: `OptionsBar` cells, `PaintChip`, `NumberField`, `craft_draw::ui::stroke::StrokeButton`
+        // (its `EditEvent<StrokeStyle>` mapped to `ShapeChange::StrokeStyle`).
         todo!()
     }
 }

@@ -154,15 +154,14 @@ impl CreateShapeDialog {
     fn recall(&mut self, ctx: &Context) {
         // pc: crates/ui-egui/src/dialogs/shape_dialog.rs:21 `KEYS`, :38 `pref_key` (`shape.create.<kind>`),
         // :58-96 `open` (the remembered values over the defaults).
-        // needs: root `craft-settings` dependency of craft-draw (`craft_settings::Remembered`, as
-        // `NewGuideDialog::remember` uses it).
+        // new: `craft_settings::Remembered`, as `NewGuideDialog` uses it (crates/ui/src/dialog/guides.rs).
         todo!()
     }
 
     /// Stores the answer's remembered values.
     fn remember(&self, ctx: &Context, answer: &CreatedShape) {
         // pc: crates/ui-egui/src/dialogs/shape_dialog.rs:140-155 `confirm` (remembers on OK), :21 `KEYS`.
-        // needs: root `craft-settings` dependency of craft-draw.
+        // new: `craft_settings::Remembered`.
         todo!()
     }
 
