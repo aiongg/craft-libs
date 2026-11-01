@@ -2109,22 +2109,6 @@ pub const PAGES_SEAM: f32 = 1.0;
 pub const THUMBNAILS_USUAL_WIDTH: f32 = 150.0;
 /// What the panel keeps free beside the thumbnails.
 pub const THUMBNAILS_PANEL_INSET: f32 = 40.0;
-/// A cell's padding around its thumbnail.
-pub const THUMBNAILS_CELL_PAD: f32 = 16.0;
-/// Between rows of cells.
-pub const THUMBNAILS_ROW_GAP: f32 = 4.0;
-/// The current page's border.
-pub const THUMBNAILS_CURRENT_BORDER: f32 = 2.0;
-/// The border of the other pages.
-pub const THUMBNAILS_BORDER: f32 = 1.0;
-/// A picked page's outline.
-pub const THUMBNAILS_PICKED_OUTLINE: f32 = 1.5;
-/// The drop bar's width.
-pub const THUMBNAILS_DROP_BAR: f32 = 3.0;
-/// The outline round the current and picked slides of a strip.
-pub const THUMBNAILS_STRIP_OUTLINE: f32 = 3.0;
-/// How far outward the strip outline sits.
-pub const THUMBNAILS_STRIP_OUTLINE_OFFSET: f32 = 2.0;
 /// How far either side of an edge grabs it.
 pub const MARGINS_EDGE_GRAB: f32 = 4.0;
 /// A section's inset from its band, top and bottom.
@@ -2216,6 +2200,11 @@ pub const TILE_RING_WIDTH: f32 = 2.0;
 pub const TILE_RING_HOVER_WIDTH: f32 = 1.0;
 /// Width of the halo outside a media tile's selection ring (PhotoCraft preset ring).
 pub const TILE_RING_HALO_WIDTH: f32 = 1.0;
+/// Width of the current tile's ring (PdfCraft `panels/pages.rs`: the current page's border).
+pub const TILE_RING_CURRENT_WIDTH: f32 = 2.0;
+/// Width of the caption column at a tile's reading start (DeckCraft `panels/thumbs.rs:184`: the
+/// slide starts 30 in).
+pub const TILE_START_CAPTION_WIDTH: f32 = 30.0;
 /// Share of the grid's height one wheel notch scrolls (LightCraft `WHEEL_STRIP_SHARE`).
 pub const TILE_WHEEL_SHARE: f32 = 1.0 / 3.0;
 /// Opacity of the veil over a rejected tile, as a factor of `surface.scrim` (LightCraft alpha 110).

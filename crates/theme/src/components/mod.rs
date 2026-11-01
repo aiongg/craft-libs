@@ -997,7 +997,7 @@ families! {
     sheet: SheetTokens => Sheet(SheetField);
     /// The page view: spacing, margin and side gutter.
     pages: PagesTokens => Pages(PagesField);
-    /// Page thumbnails: cells, borders and outlines.
+    /// Page thumbnails: the card width and the panel's inset.
     thumbnails: ThumbnailsTokens => Thumbnails(ThumbnailsField);
     /// Margin handles on the rulers.
     margins: MarginsTokens => Margins(MarginsField);

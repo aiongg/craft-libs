@@ -39,6 +39,10 @@ pub struct TileTokens {
     pub ring_hover_width: f32,
     /// Width of the halo outside the selection ring: [`values::TILE_RING_HALO_WIDTH`].
     pub ring_halo_width: f32,
+    /// Width of the current tile's ring (a page panel's current page): [`values::TILE_RING_CURRENT_WIDTH`].
+    pub ring_current_width: f32,
+    /// Width of the caption column of `CaptionPlace::Start` (a slide strip's numbers): [`values::TILE_START_CAPTION_WIDTH`].
+    pub start_caption_width: f32,
     /// Share of the grid's height one wheel notch scrolls: [`values::TILE_WHEEL_SHARE`].
     pub wheel_share: f32,
     /// Height of the compare caption strip: [`values::TILE_COMPARE_CAPTION`].
@@ -59,6 +63,8 @@ pub struct TileTokens {
     pub ring_halo: Rgba,
     /// The hover ring: `tile.ring.hover`, `text.muted`.
     pub ring_hover: Rgba,
+    /// The current tile's ring: `tile.ring.current`, `accent.solid`.
+    pub ring_current: Rgba,
     /// A caption: `tile.caption`, `text.muted`.
     pub caption: Rgba,
     /// The caption of a selected tile: `tile.caption_selected`, `text.normal`.
@@ -110,6 +116,8 @@ impl Family for TileTokens {
         "ring_width" 0.0..=8.0 => ring_width;
         "ring_hover_width" 0.0..=8.0 => ring_hover_width;
         "ring_halo_width" 0.0..=8.0 => ring_halo_width;
+        "ring_current_width" 0.0..=8.0 => ring_current_width;
+        "start_caption_width" 0.0..=96.0 => start_caption_width;
         "wheel_share" 0.05..=1.0 => wheel_share;
         "compare_caption" 12.0..=96.0 => compare_caption;
         "compare_margin" 0.0..=64.0 => compare_margin;
@@ -137,6 +145,8 @@ impl Family for TileTokens {
             ring_width: values::TILE_RING_WIDTH,
             ring_hover_width: values::TILE_RING_HOVER_WIDTH,
             ring_halo_width: values::TILE_RING_HALO_WIDTH,
+            ring_current_width: values::TILE_RING_CURRENT_WIDTH,
+            start_caption_width: values::TILE_START_CAPTION_WIDTH,
             wheel_share: values::TILE_WHEEL_SHARE,
             compare_caption: values::TILE_COMPARE_CAPTION,
             compare_margin: values::TILE_COMPARE_MARGIN,
@@ -147,6 +157,7 @@ impl Family for TileTokens {
             ring_selected: c.accent.solid,
             ring_halo: c.overlay.halo,
             ring_hover: c.text.muted,
+            ring_current: c.accent.solid,
             caption: c.text.muted,
             caption_selected: c.text.normal,
             detail: c.text.faint,

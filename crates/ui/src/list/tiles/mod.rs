@@ -596,8 +596,8 @@ where
     }
 
     /// Marks tile `key` as the current one (Acrobat's current page, PowerPoint's current slide):
-    /// a `tile.ring.current` ring in `accent.solid` round its picture, inside the selection ring,
-    /// whether or not it is selected; AccessKit `aria_current` (`AriaCurrent::Page`) on its option.
+    /// a `tile.ring_current_width` ring in `tile.ring.current` (`accent.solid`) round its
+    /// picture, inside the selection ring, whether or not it is selected; AccessKit `aria_current` (`AriaCurrent::Page`) on its option.
     /// It is not the lead: keys still start from the lead. A new current tile scrolls into view as
     /// little as it takes, except during a drag (Acrobat follows the page it shows).
     #[must_use]

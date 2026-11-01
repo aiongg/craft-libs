@@ -2129,6 +2129,8 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
         ring_width,
         ring_hover_width,
         ring_halo_width,
+        ring_current_width,
+        start_caption_width,
         wheel_share,
         compare_caption,
         compare_margin,
@@ -2139,6 +2141,7 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
         ring_selected,
         ring_halo,
         ring_hover,
+        ring_current,
         caption,
         caption_selected,
         detail,
@@ -2168,6 +2171,8 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
     out.line("tile.ring_width", len(*ring_width));
     out.line("tile.ring_hover_width", len(*ring_hover_width));
     out.line("tile.ring_halo_width", len(*ring_halo_width));
+    out.line("tile.ring_current_width", len(*ring_current_width));
+    out.line("tile.start_caption_width", len(*start_caption_width));
     out.line("tile.wheel_share", len(*wheel_share));
     out.line("tile.compare_caption", len(*compare_caption));
     out.line("tile.compare_margin", len(*compare_margin));
@@ -2178,6 +2183,7 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
     out.line("tile.ring.selected", hex(*ring_selected));
     out.line("tile.ring.halo", hex(*ring_halo));
     out.line("tile.ring.hover", hex(*ring_hover));
+    out.line("tile.ring.current", hex(*ring_current));
     out.line("tile.caption", hex(*caption));
     out.line("tile.caption_selected", hex(*caption_selected));
     out.line("tile.detail", hex(*detail));
@@ -2473,28 +2479,9 @@ fn pages_lines(out: &mut Lines, t: &PagesTokens) {
 }
 
 fn thumbnails_lines(out: &mut Lines, t: &ThumbnailsTokens) {
-    let ThumbnailsTokens {
-        usual_width,
-        panel_inset,
-        cell_pad,
-        row_gap,
-        current_border,
-        border,
-        picked_outline,
-        drop_bar,
-        strip_outline,
-        strip_outline_offset,
-    } = t;
+    let ThumbnailsTokens { usual_width, panel_inset } = t;
     out.line("thumbnails.usual_width", len(*usual_width));
     out.line("thumbnails.panel_inset", len(*panel_inset));
-    out.line("thumbnails.cell_pad", len(*cell_pad));
-    out.line("thumbnails.row_gap", len(*row_gap));
-    out.line("thumbnails.current_border", len(*current_border));
-    out.line("thumbnails.border", len(*border));
-    out.line("thumbnails.picked_outline", len(*picked_outline));
-    out.line("thumbnails.drop_bar", len(*drop_bar));
-    out.line("thumbnails.strip_outline", len(*strip_outline));
-    out.line("thumbnails.strip_outline_offset", len(*strip_outline_offset));
 }
 
 fn margins_lines(out: &mut Lines, t: &MarginsTokens) {

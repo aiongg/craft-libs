@@ -47,20 +47,7 @@ pub struct PageThumbnailsStyle {
 impl PageThumbnailsStyle {
     pub fn of(tokens: &UiTokens) -> Self {
         let t = &tokens.component.thumbnails;
-        Self {
-            usual_width: t.usual_width,
-            panel_inset: t.panel_inset,
-            cell_pad: t.cell_pad,
-            row_gap: t.row_gap,
-            current_border: t.current_border,
-            border: t.border,
-            picked_outline: t.picked_outline,
-            strip_outline: t.strip_outline,
-            strip_outline_offset: t.strip_outline_offset,
-            drop_bar: t.drop_bar,
-            wash: tokens.component.list.selected.to_egui(),
-            accent: tokens.color.accent.solid.to_egui(),
-        }
+        Self { usual_width: t.usual_width, panel_inset: t.panel_inset }
     }
 }
 
