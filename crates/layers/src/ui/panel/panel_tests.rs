@@ -696,11 +696,11 @@ fn drop_zones_into_above_below_and_between_rows() {
         h.hover(at(&h, "Title", share));
         assert_eq!(target(&h), Some((4, position)), "a layer row has halves only: {share}");
     }
+    // The rows touch: the seam between two rows is a drop zone too.
     let (above, below) = (rect(&h, "Title"), rect(&h, "Levels 1"));
-    let gap = below.top() - above.bottom();
-    assert!(gap > 0.5, "the rows have a gap to drop in: {gap}");
-    h.hover(Pos2::new(above.center().x, above.bottom() + gap / 2.0));
-    assert!(target(&h).is_some(), "the gap between rows is a drop zone");
+    assert!((below.top() - above.bottom()).abs() < 0.5, "the rows touch: {above:?} {below:?}");
+    h.hover(Pos2::new(above.center().x, above.bottom()));
+    assert!(target(&h).is_some_and(|(row, _)| row == 4 || row == 5), "the seam between rows is a drop zone: {:?}", target(&h));
     h.hover(Pos2::new(200.0, rect(&h, "Background").bottom() + 20.0));
     assert_eq!(target(&h), Some((9, DropPosition::After)), "the space below the last row");
     h.release(Pos2::new(200.0, rect(&h, "Background").bottom() + 20.0));
@@ -799,19 +799,19 @@ fn rows_masks_and_effects_dropped_on_footer_buttons_report_footer_drop() {
     }
 }
 
-// A mask thumbnail dragged shows the mask's name beside the pointer.
+// A mask thumbnail dragged shows the mask's title beside the pointer.
 #[test]
 fn a_mask_drag_paints_its_ghost_beside_the_pointer() {
     let mut h = harness();
     let masks = h.thumb_centres("Masked");
     let from = Pos2::new(*masks.last().expect("a mask thumbnail"), rect(&h, "Masked").center().y);
-    assert_eq!(painted_texts(&h, "layer mask"), 0);
+    assert_eq!(painted_texts(&h, "Layer Mask"), 0);
     h.grab(from);
     h.hover(from + vec2(30.0, 40.0));
-    assert_eq!(painted_texts(&h, "layer mask"), 1, "the ghost");
+    assert_eq!(painted_texts(&h, "Layer Mask"), 1, "the ghost");
     h.release(from + vec2(30.0, 40.0));
     h.run();
-    assert_eq!(painted_texts(&h, "layer mask"), 0, "gone after the drop");
+    assert_eq!(painted_texts(&h, "Layer Mask"), 0, "gone after the drop");
 }
 
 // The list scrolls while a drag is near its top or bottom edge.
@@ -884,9 +884,9 @@ fn a_new_active_layer_in_a_closed_group_is_revealed_once() {
     assert!(h.query_by_label("Buried").is_none(), "the group is closed");
 
     h.select(&[buried], buried);
-    h.run();
+    h.run_steps(20);
     assert!(h.state().events.iter().any(|e| matches!(e, LayersEvent::Open(c) if c.row == group && c.open)), "the group opens");
-    h.run();
+    h.run_steps(20);
     let revealed = rect(&h, "Buried");
     assert!(list.contains_rect(revealed), "{revealed:?} in {list:?}");
 
@@ -898,8 +898,8 @@ fn a_new_active_layer_in_a_closed_group_is_revealed_once() {
         modifiers: Modifiers::NONE,
         source: egui::MouseWheelSource::Unknown,
     });
-    h.run();
-    h.run();
+    h.run_steps(20);
+    h.run_steps(20);
     assert!(h.query_by_label("Buried").is_none_or(|n| !list.contains_rect(n.rect())), "the list is not scrolled back to the row");
 }
 
@@ -911,10 +911,10 @@ fn right_click_on_a_sub_row_eye_opens_the_row_menu_with_the_sub_row() {
     tree.layer_mut(7).effects_open = true;
     let mut h = harness_of(App::new(tree));
     h.get_by_label("Visibility Drop Shadow").click_secondary();
-    h.run();
+    h.run_steps(20);
     assert!(h.query_by_label("Red").is_none(), "no colour menu");
     h.get_by_label("Rename Layer…").click();
-    h.run();
+    h.run_steps(20);
     let menus: Vec<_> = h.take().into_iter().filter_map(|e| if let LayersEvent::Menu { target, .. } = e { Some(target.row) } else { None }).collect();
     assert_eq!(menus, [LayerRowKey::Effects(7, Some(0))]);
 }
@@ -928,14 +928,17 @@ fn eye_menu_checks_only_a_colour_the_rows_share() {
     let mut h = harness_of(App::new(tree));
     h.select(&[4, 5], 4);
     h.get_by_label("Visibility Title").click_secondary();
-    h.run();
+    h.run_steps(20);
     assert!(h.get_by_label("Red").accesskit_node().toggled().is_some_and(|t| t == egui::accesskit::Toggled::True), "shared colour is checked");
     h.key(Key::Escape, Modifiers::NONE);
-    h.run();
+    h.run_steps(20);
 
     h.state_mut().tree.layer_mut(5).info.label = Some(LabelColor::Blue);
-    h.run();
+    h.run_steps(20);
     h.get_by_label("Visibility Title").click_secondary();
-    h.run();
-    assert!(!h.get_by_label("Red").accesskit_node().toggled().is_some_and(|t| t == egui::accesskit::Toggled::True), "differing colours: none checked");
+    h.run_steps(20);
+    assert!(
+        !h.get_by_label("Red").accesskit_node().toggled().is_some_and(|t| t == egui::accesskit::Toggled::True),
+        "differing colours: none checked"
+    );
 }

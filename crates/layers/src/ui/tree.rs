@@ -82,7 +82,8 @@ pub trait LayerTree {
         None
     }
 
-    /// A number that changes whenever rows are added, removed, moved, opened or closed; with it
+    /// A number that changes whenever rows are added, removed, moved, opened or closed, or an
+    /// effects or Smart Filters row is added or removed; with it
     /// the panel keeps its display order between passes instead of walking the tree each pass.
     /// `None` (the default) walks every pass.
     fn revision(&self) -> Option<u64> {

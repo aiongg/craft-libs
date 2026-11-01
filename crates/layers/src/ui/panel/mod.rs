@@ -36,7 +36,7 @@ use std::cell::RefCell;
 use craft_ui::behavior::ListDrag;
 use craft_ui::canvas::textures::{ThumbSource, Thumbnails};
 use craft_ui::composites::PanelFooter;
-use craft_ui::list::{List, ListRow, paint_ghost};
+use craft_ui::list::{ListRow, paint_ghost};
 use craft_ui::localized::Labels as _;
 use craft_ui::menu::MenuEntry;
 use craft_ui::theme::{Tokens, TokensOf as _};

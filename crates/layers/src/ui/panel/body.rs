@@ -54,13 +54,7 @@ pub(super) struct DisplayRows<Id> {
 /// are what they were in the last pass; built again when either changes, when the filter is
 /// active (it reads fields the revision doesn't cover), when the panel opens groups this pass
 /// (`opened`) or when the tree gives no revision.
-pub(super) fn shared_display_rows<T: LayerTree>(
-    ctx: &Context,
-    id: Id,
-    tree: &T,
-    filter: &LayerFilter,
-    opened: &[T::Id],
-) -> Arc<DisplayRows<T::Id>> {
+pub(super) fn shared_display_rows<T: LayerTree>(ctx: &Context, id: Id, tree: &T, filter: &LayerFilter, opened: &[T::Id]) -> Arc<DisplayRows<T::Id>> {
     let revision = tree.revision().filter(|_| !filter.active() && opened.is_empty());
     let Some(revision) = revision else { return Arc::new(display_rows(tree, filter, opened)) };
     let key = id.with("display-rows");
@@ -494,9 +488,7 @@ fn map_events<T: LayerTree>(
                     _ => None,
                 }) {
                     ActivateOn::Thumbnail(thumb_part(row, &tree.info(row.layer()), which))
-                } else if row.is_layer()
-                    && list.iter().any(|e| matches!(e, ListEvent::Row(RowEvent::LabelDoubleClicked { row: r }) if r == row))
-                {
+                } else if row.is_layer() && list.iter().any(|e| matches!(e, ListEvent::Row(RowEvent::LabelDoubleClicked { row: r }) if r == row)) {
                     ActivateOn::Name
                 } else {
                     ActivateOn::Row

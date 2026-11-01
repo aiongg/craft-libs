@@ -4,7 +4,7 @@ use craft_ui::behavior::RowInfo;
 use craft_ui::edit::EditEvent;
 use egui::Modifiers;
 
-use super::body::{toggle_event_for_tests, display_rows, reveal_opens, shared_display_rows, thumb_click_replaces_select};
+use super::body::{display_rows, reveal_opens, shared_display_rows, thumb_click_replaces_select, toggle_event_for_tests};
 use crate::ui::filter::{FilterKind, LayerFilter};
 use crate::ui::mock::{MockLayer, MockLayers};
 use crate::ui::tree::{LayerInfo, LayerKind, LayerPart, LayerRowKey};
