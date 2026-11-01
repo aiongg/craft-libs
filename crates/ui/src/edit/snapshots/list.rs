@@ -1,7 +1,5 @@
 //! `SnapshotId`, `Snapshot` and `SnapshotList`: ids never reused, "Snapshot N" suggestions, rename and remove.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use crate::edit::history_panel::SnapshotFormLabels;
 
 /// One snapshot, unique within its list; ids are never reused. The app keeps the snapshot's
@@ -50,7 +48,7 @@ impl SnapshotList {
     /// An empty list; the first suggestion is "Snapshot 1".
     pub fn new() -> Self {
         // pc: crates/engine/src/cmd/history_cmds.rs:118-121 (`next_snapshot`, "Snapshot N")
-        todo!()
+        SnapshotList { snapshots: Vec::new(), next: 1, dropped: Vec::new(), revision: 0 }
     }
 
     /// The name the next snapshot takes when it gets none: `labels.suggested` ("Snapshot {n}")
@@ -58,70 +56,92 @@ impl SnapshotList {
     /// next one "Snapshot 2" again).
     pub fn suggested_name(&self, labels: &SnapshotFormLabels) -> String {
         // pc: crates/engine/src/cmd/history_cmds.rs:118-121
-        todo!()
+        labels.suggested.replace("{n}", &self.next_number().to_string())
     }
 
     /// Adds a snapshot at the end and returns its id. `name` is trimmed; `None` or a blank name
     /// takes [`suggested_name`](Self::suggested_name). Bumps the counter and the revision.
     pub fn add(&mut self, name: Option<&str>, labels: &SnapshotFormLabels) -> SnapshotId {
         // pc: crates/engine/src/cmd/history_cmds.rs:136-170 (`new_snapshot`: name defaults to "Snapshot N")
-        todo!()
+        let name = name.map(str::trim).filter(|name| !name.is_empty()).map_or_else(|| self.suggested_name(labels), str::to_owned);
+        let number = self.next_number();
+        self.next = number + 1;
+        self.revision += 1;
+        let id = SnapshotId(number);
+        self.snapshots.push(Snapshot { id, name });
+        id
     }
 
     /// Renames snapshot `id` to `name`, trimmed. Refuses a blank name and an unknown id (returns
     /// false, nothing changes). Two snapshots may share a name (Photoshop allows it).
     pub fn rename(&mut self, id: SnapshotId, name: &str) -> bool {
         // pc: crates/ui-egui/src/panels/history.rs:292-313 (rename in place; a blank name keeps the old one)
-        todo!()
+        let name = name.trim();
+        if name.is_empty() {
+            return false;
+        }
+        let Some(snapshot) = self.snapshots.iter_mut().find(|snapshot| snapshot.id == id) else { return false };
+        name.clone_into(&mut snapshot.name);
+        self.revision += 1;
+        true
     }
 
     /// Removes snapshot `id` and reports it through [`take_dropped`](Self::take_dropped).
     /// Returns false for an unknown id.
     pub fn remove(&mut self, id: SnapshotId) -> bool {
         // pc: crates/engine/src/cmd/history_cmds.rs:208-215 (`history.deleteSnapshot`)
-        todo!()
+        let Some(at) = self.snapshots.iter().position(|snapshot| snapshot.id == id) else { return false };
+        self.snapshots.remove(at);
+        self.dropped.push(id);
+        self.revision += 1;
+        true
     }
 
     /// Snapshot `id`.
     pub fn get(&self, id: SnapshotId) -> Option<&Snapshot> {
         // new: a linear search.
-        todo!()
+        self.snapshots.iter().find(|snapshot| snapshot.id == id)
     }
 
     /// Whether snapshot `id` is in the list.
     pub fn contains(&self, id: SnapshotId) -> bool {
         // new: `get(id).is_some()`.
-        todo!()
+        self.get(id).is_some()
     }
 
     /// The snapshots in creation order (the panel's order, top to bottom).
     pub fn iter(&self) -> std::slice::Iter<'_, Snapshot> {
         // new: `snapshots.iter()`.
-        todo!()
+        self.snapshots.iter()
     }
 
     /// The number of snapshots.
     pub fn len(&self) -> usize {
         // new: `snapshots.len()`.
-        todo!()
+        self.snapshots.len()
     }
 
     /// Whether the list has no snapshot.
     pub fn is_empty(&self) -> bool {
         // new: `snapshots.is_empty()`.
-        todo!()
+        self.snapshots.is_empty()
     }
 
     /// Every id removed since the last call, once; the app drops the snapshot's document and
     /// thumbnail.
     pub fn take_dropped(&mut self) -> Vec<SnapshotId> {
         // new: `std::mem::take(&mut self.dropped)`.
-        todo!()
+        std::mem::take(&mut self.dropped)
     }
 
     /// The change counter: different after every add, rename and remove.
     pub fn revision(&self) -> u64 {
         // new: as `StepList::revision`.
-        todo!()
+        self.revision
+    }
+
+    /// The number of the next id and suggestion; a `Default` list starts at 1 too.
+    fn next_number(&self) -> u64 {
+        self.next.max(1)
     }
 }

@@ -1,7 +1,5 @@
 //! `HistorySource` and `HistorySourceChoice`: the one history brush source of a document.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use super::list::{SnapshotId, SnapshotList};
 use crate::edit::steps::{StepId, StepList};
 
@@ -30,13 +28,18 @@ impl HistorySourceChoice {
     /// `steps`; a snapshot unpins any pinned state.
     pub fn set(&mut self, source: HistorySource, steps: &mut StepList) {
         // pc: crates/engine/src/cmd/history_source_cmds.rs:36-41 (`HistorySource::{State, Snapshot}`, one per document)
-        todo!()
+        self.chosen = Some(source);
+        steps.pin_source(match source {
+            HistorySource::Step(id) => Some(id),
+            HistorySource::Snapshot(_) => None,
+        });
     }
 
     /// Returns to the default and unpins (Edit › Purge › Histories).
     pub fn reset(&mut self, steps: &mut StepList) {
         // pc: crates/engine/src/cmd/history_source_cmds.rs:1-9 (default: the oldest state held)
-        todo!()
+        self.chosen = None;
+        steps.pin_source(None);
     }
 
     /// The source to show and use: the chosen snapshot if `snapshots` holds it; the chosen state
@@ -44,6 +47,10 @@ impl HistorySourceChoice {
     /// oldest); `None` when the chosen state or snapshot is gone.
     pub fn resolve(&self, steps: &StepList, snapshots: &SnapshotList) -> Option<HistorySource> {
         // pc: crates/ops/src/lib.rs:325-331 (`brush_source`: none after its state is gone)
-        todo!()
+        match self.chosen {
+            None => steps.source().map(HistorySource::Step),
+            Some(HistorySource::Snapshot(id)) => snapshots.contains(id).then_some(HistorySource::Snapshot(id)),
+            Some(HistorySource::Step(id)) => steps.row_of(id).is_some().then_some(HistorySource::Step(id)),
+        }
     }
 }
