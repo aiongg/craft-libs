@@ -127,7 +127,8 @@ fn arrow_keys_step_the_playhead_one_frame() {
     harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::ArrowRight));
     harness.press(KeyboardShortcut::new(Modifiers::SHIFT, Key::ArrowRight));
     let rate = FrameRate::new(24, 1);
-    let sets: Vec<Tick> = harness.state().events.iter().filter_map(|event| matches!(event, EditEvent::Set { .. }).then(|| *event.value().unwrap())).collect();
+    let sets: Vec<Tick> =
+        harness.state().events.iter().filter(|event| matches!(event, EditEvent::Set { .. })).map(|event| *event.value().unwrap()).collect();
     assert_eq!(sets, [rate.tick_of(1), rate.tick_of(5)]);
     assert_eq!(harness.get_by_role_and_label(Role::Slider, "Time Ruler").value().as_deref(), Some("00:00:00:00"));
 }

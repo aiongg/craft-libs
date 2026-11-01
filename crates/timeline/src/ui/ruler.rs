@@ -8,7 +8,7 @@ use craft_ui::primitives::FocusRing;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format, tabular};
 use egui::accesskit::Role;
 use egui::{
-    AsIdSalt, CornerRadius, CursorIcon, EventFilter, IdSalt, Key, Modifiers, PointerButton, Rect, Response, Sense, Shape, Stroke, Ui, WidgetInfo,
+    AsIdSalt, CornerRadius, CursorIcon, EventFilter, Id, IdSalt, Key, Modifiers, PointerButton, Rect, Response, Sense, Shape, Stroke, Ui, WidgetInfo,
     pos2, vec2,
 };
 
@@ -16,6 +16,7 @@ use super::markers::{MarkerEdit, MarkerStrip};
 use super::style::TimelineStyle;
 use crate::clips::SnapTargets;
 use crate::markers::Marker;
+use crate::rates::FrameRate;
 use crate::time::{Tick, TimeRange, TimeView, VIEW_EXTENT_PAST_END};
 use crate::timecode::{TimeFormat, format_time};
 
@@ -31,7 +32,6 @@ craft_ui::words! {
         scroll_bar: "timelineRuler.scrollBar" = "Zoom and Scroll";
     }
 }
-
 
 // The ruler's rows as shares of its height: the layout has no sizes of its own, so it scales with
 // `style.ruler_height` (FilmCraft: markers on the top row, labels at 24 of 44 pt, ticks on the
@@ -94,6 +94,40 @@ struct ScrollHold {
     total: f64,
 }
 
+/// The playhead an arrow key asked for: a frame (Shift: five) either way, or the start or the end.
+fn arrow_target(ui: &Ui, id: Id, playhead: Tick, rate: FrameRate, end: Tick) -> Option<Tick> {
+    ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, ..EventFilter::default() }));
+    KeyClaim::claim(ui.ctx(), id, &SCRUB_KEYS);
+    let (key, shift) = ui.input_mut(|i| {
+        [true, false].into_iter().find_map(|shift| {
+            let modifiers = if shift { Modifiers::SHIFT } else { Modifiers::NONE };
+            [Key::ArrowLeft, Key::ArrowRight, Key::Home, Key::End].into_iter().find(|key| i.consume_key(modifiers, *key)).map(|key| (key, shift))
+        })
+    })?;
+    let frames = if shift { SHIFT_STEP_FRAMES } else { STEP_FRAMES };
+    let from = rate.frame_at(playhead);
+    let to = match key {
+        Key::ArrowLeft => rate.tick_of(from.saturating_sub(frames)),
+        Key::ArrowRight => rate.tick_of(from.saturating_add(frames)),
+        Key::Home => Tick::ZERO,
+        _ => end,
+    };
+    Some(to.max(Tick::ZERO))
+}
+
+/// The work area after dragging `kind` of it by `moved` from `anchor`; no end gets closer to the
+/// other than `frame`, and `settle` snaps a moving time.
+fn dragged_range(kind: WorkGrab, anchor: TimeRange, moved: Tick, frame: Tick, settle: impl Fn(Tick) -> Tick) -> TimeRange {
+    match kind {
+        WorkGrab::Move => TimeRange::new(settle((anchor.start + moved).max(Tick::ZERO)), anchor.duration),
+        WorkGrab::Start => {
+            let start = settle((anchor.start + moved).clamp(Tick::ZERO, (anchor.end() - frame).max(Tick::ZERO)));
+            TimeRange::from_bounds(start, anchor.end())
+        }
+        WorkGrab::End => TimeRange::from_bounds(anchor.start, settle((anchor.end() + moved).max(anchor.start + frame))),
+    }
+}
+
 /// One ruler tick.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RulerTick {
@@ -129,7 +163,8 @@ pub enum RulerScale<'a> {
 // filmcraft: crates/ui-egui/src/panels/timeline/ruler.rs:12 `ruler_steps`.
 pub fn ruler_steps(frame_points: f64, base: i64, label_gap: f32, tick_gap: f32) -> (i64, i64) {
     let big = |k: i64| base.saturating_mul(k);
-    let ladder = [1, 2, 5, 10, base / 2, base, big(2), big(5), big(10), big(15), big(30), big(60), big(120), big(300), big(600), big(1800), big(3600)];
+    let ladder =
+        [1, 2, 5, 10, base / 2, base, big(2), big(5), big(10), big(15), big(30), big(60), big(120), big(300), big(600), big(1800), big(3600)];
     let (label_gap, tick_gap) = (f64::from(label_gap), f64::from(tick_gap));
     let label = ladder.iter().copied().find(|step| *step as f64 * frame_points >= label_gap).unwrap_or(big(3600)).max(1);
     let tick = (1..=9)
@@ -285,7 +320,8 @@ impl<'a> TimelineRuler<'a> {
         let id = ui.make_persistent_id(id_salt);
         let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
         let response = ui.interact(rect, id, Sense::click_and_drag());
-        let band = |from: f32, to: f32| Rect::from_min_max(pos2(rect.left(), rect.top() + from * height), pos2(rect.right(), rect.top() + to * height));
+        let band =
+            |from: f32, to: f32| Rect::from_min_max(pos2(rect.left(), rect.top() + from * height), pos2(rect.right(), rect.top() + to * height));
         let rate = format.rate;
         let modifiers = ui.input(|i| i.modifiers);
         let enabled = ui.is_enabled();
@@ -346,26 +382,11 @@ impl<'a> TimelineRuler<'a> {
         if scrub.is_active() && released {
             scrub.commit();
         }
-        if out.response.has_focus() && enabled {
-            ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, ..EventFilter::default() }));
-            KeyClaim::claim(ui.ctx(), id, &SCRUB_KEYS);
-            let pressed = ui.input_mut(|i| {
-                [true, false].into_iter().find_map(|shift| {
-                    let modifiers = if shift { Modifiers::SHIFT } else { Modifiers::NONE };
-                    [Key::ArrowLeft, Key::ArrowRight, Key::Home, Key::End].into_iter().find(|key| i.consume_key(modifiers, *key)).map(|key| (key, shift))
-                })
-            });
-            if let Some((key, shift)) = pressed {
-                let frames = if shift { SHIFT_STEP_FRAMES } else { STEP_FRAMES };
-                let from = rate.frame_at(*scrub.shown());
-                let to = match key {
-                    Key::ArrowLeft => rate.tick_of(from.saturating_sub(frames)),
-                    Key::ArrowRight => rate.tick_of(from.saturating_add(frames)),
-                    Key::Home => Tick::ZERO,
-                    _ => end,
-                };
-                scrub.set(to.max(Tick::ZERO));
-            }
+        if out.response.has_focus()
+            && enabled
+            && let Some(to) = arrow_target(ui, id, *scrub.shown(), rate, end)
+        {
+            scrub.set(to);
         }
         let shown = *scrub.shown();
         out.scrub = scrub.finish();
@@ -426,15 +447,7 @@ impl<'a> TimelineRuler<'a> {
                     Some(hit) => hit,
                     None => rate.snap_nearest(t),
                 };
-                let frame = rate.frame_duration();
-                let next = match kind {
-                    WorkGrab::Move => TimeRange::new(settle((anchor.start + moved).max(Tick::ZERO)), anchor.duration),
-                    WorkGrab::Start => {
-                        let start = settle((anchor.start + moved).clamp(Tick::ZERO, (anchor.end() - frame).max(Tick::ZERO)));
-                        TimeRange::from_bounds(start, anchor.end())
-                    }
-                    WorkGrab::End => TimeRange::from_bounds(anchor.start, settle((anchor.end() + moved).max(anchor.start + frame))),
-                };
+                let next = dragged_range(kind, anchor, moved, rate.frame_duration(), settle);
                 gesture.update(next, modifiers);
             }
             if gesture.is_active() && released {
@@ -496,7 +509,8 @@ impl<'a> TimelineRuler<'a> {
         let x = view.x_of(shown, left);
         let accent = color.accent.solid.to_egui();
         let half = HEAD_HALF_WIDTH * height;
-        painter.line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), accent));
+        painter
+            .line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), accent));
         let head = vec![pos2(x - half, rect.top()), pos2(x + half, rect.top()), pos2(x, rect.top() + HEAD_HEIGHT * height)];
         painter.add(Shape::convex_polygon(head, accent, Stroke::NONE));
         FocusRing::paint_radius(ui, rect, CornerRadius::ZERO, &out.response);
@@ -608,7 +622,11 @@ impl<'a> TimelineScrollBar<'a> {
                     ScrollGrab::Middle => (l.min(bar.right() - held.width), held.width),
                     _ => (l, (r - l).clamp(floor, width)),
                 };
-                let seen = if held.grab == ScrollGrab::Middle { f64::from(width) / held.from.points_per_second } else { f64::from(new_width / width) * held.total };
+                let seen = if held.grab == ScrollGrab::Middle {
+                    f64::from(width) / held.from.points_per_second
+                } else {
+                    f64::from(new_width / width) * held.total
+                };
                 let (travel, range) = ((width - new_width).max(0.0), (held.total - seen).max(0.0));
                 let start = if travel > 0.5 { f64::from(((l - bar.left()) / travel).clamp(0.0, 1.0)) * range } else { 0.0 };
                 if held.grab != ScrollGrab::Middle {
@@ -631,7 +649,12 @@ impl<'a> TimelineScrollBar<'a> {
         painter.rect_filled(thumb, round, if hot { color.text.muted } else { color.text.faint }.to_egui());
         let radius = bar.height() * KNOB;
         for x in [thumb.left() + thumb.height() / 2.0, thumb.right() - thumb.height() / 2.0] {
-            painter.circle(pos2(x, thumb.center().y), radius, color.surface.chrome.to_egui(), Stroke::new(craft_theme::Stroke::W1_5.width(ui.pixels_per_point()), color.text.normal.to_egui()));
+            painter.circle(
+                pos2(x, thumb.center().y),
+                radius,
+                color.surface.chrome.to_egui(),
+                Stroke::new(craft_theme::Stroke::W1_5.width(ui.pixels_per_point()), color.text.normal.to_egui()),
+            );
         }
         let name = TimelineRulerLabels::of(ui).scroll_bar;
         response.widget_info(|| WidgetInfo::labeled(Role::ScrollBar, enabled, &name));
