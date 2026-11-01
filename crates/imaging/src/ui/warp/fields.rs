@@ -13,6 +13,9 @@ use craft_ui::words;
 
 use super::{WarpMesh, WarpSplit};
 
+/// One number field of the bar: id salt, caption, accessible name, value and the edit it reports.
+type NumberRow<'a> = (&'a str, &'a str, &'a str, f64, fn(EditEvent<f64>) -> WarpFieldsEdit);
+
 words! {
     /// The words of [`WarpFields`] (PhotoCraft's Warp options bar). `Default` is English.
     pub struct WarpFieldsLabels {
@@ -261,7 +264,7 @@ impl<'a> WarpFields<'a> {
                 if ui.add(button).clicked() {
                     out.edits.push(WarpFieldsEdit::Orientation { vertical: !values.vertical });
                 }
-                let fields: [(&str, &str, &str, f64, fn(EditEvent<f64>) -> WarpFieldsEdit); 3] = [
+                let fields: [NumberRow<'_>; 3] = [
                     ("bend", &labels.bend, labels.bend.trim_end_matches(':'), values.bend, WarpFieldsEdit::Bend),
                     ("horizontal", &labels.horizontal, &labels.horizontal_name, values.horizontal, WarpFieldsEdit::Horizontal),
                     ("vertical", &labels.vertical, &labels.vertical_name, values.vertical_distortion, WarpFieldsEdit::Vertical),
