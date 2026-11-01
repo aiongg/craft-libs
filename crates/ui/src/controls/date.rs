@@ -1,9 +1,6 @@
 //! [`DatePicker`]: a calendar button whose popup picks a year, a month or a day, and the
 //! [`PickedDate`] it edits.
 
-use std::sync::Arc;
-
-use craft_host::Host;
 use craft_i18n::{CalendarDate, DateFormat, DateLength, DateStyle, DateTime, NameLength, TimeZone, Weekday};
 use egui::accesskit::Role;
 use egui::{Align2, AsIdSalt, Color32, CornerRadius, Id, IdSalt, Key, Modifiers, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
@@ -14,7 +11,7 @@ use crate::behavior::{GridKey, GridNav};
 use crate::direction;
 use crate::edit::{EditEvent, EditResponse};
 use crate::icons::Icon;
-use crate::localized::Labels as _;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::popover::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use crate::primitives::Interactive;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -140,7 +137,6 @@ impl PickedDate {
 
     /// The last day it covers, at day precision (`CalendarDate::days_in_month` for a month's).
     // lightcraft: crates/ui-egui/src/widgets/date_picker.rs:109 last_day
-    // needs: services craft_i18n::CalendarDate::days_in_month (N11.02).
     pub fn last_day(&self) -> PickedDate {
         let month = self.month.unwrap_or(12);
         Self::day(self.year, month, self.day.unwrap_or_else(|| CalendarDate::days_in_month(i64::from(self.year), month)))
@@ -203,8 +199,8 @@ pub fn month_grid(year: i32, month: u8, first_weekday: Weekday) -> Vec<Option<u8
 ///   shows the month as a 7-column grid with weekday initials over it (the locale's week start
 ///   and narrow names), Month the twelve months of the year in 3 rows of 4, Year twelve years
 ///   (2016 to 2027) in 3 rows of 4. Paging stops at years 0000 and 9999 (LightCraft's `step`). Cells are 26
-///   points wide and 2 apart; the value's cell is selected (`listbox.active.*`), today's has an
-///   outline ring in `accent.solid`, cells outside `min`/`max` are disabled. Below, Today and
+///   points wide and 2 apart; the value's cell is selected (`listbox.active.*`), today's has a
+///   1-point outline ring in `accent.solid` (the library's look; LightCraft underlines today in bold), cells outside `min`/`max` are disabled. Below, Today and
 ///   Clear as link buttons.
 /// - **Choosing.** A click on a cell sets the value at the page's precision and closes the
 ///   popup; Today sets today at the current precision; Clear sets `None`. Each is a one-shot
@@ -294,7 +290,6 @@ impl<'a> DatePicker<'a> {
 
     /// The button, and the popup while it is open.
     // lightcraft: crates/ui-egui/src/widgets/date_picker.rs:238 show
-    // needs: services craft_i18n::{DateFormat, DateTime, CalendarDate, NameLength} (N11.02) for month and weekday names, the week start, the long date and today.
     pub fn show(self, ui: &mut Ui) -> EditResponse<Option<PickedDate>> {
         let Self { id_salt, label, value, precisions, min, max, today, size, enabled, labels } = self;
         let labels = labels.unwrap_or_else(|| DateLabels::of(ui));
@@ -369,28 +364,14 @@ fn system_today() -> Option<PickedDate> {
     }
 }
 
-/// The installed host's date format, else English (US) conventions kept in the context.
-fn date_format(ctx: &egui::Context) -> Arc<DateFormat> {
-    if let Some(dates) = Host::try_of_ctx(ctx).and_then(|host| host.i18n().map(|i18n| i18n.dates())) {
-        return dates;
-    }
-    let key = Id::NULL.with("craft-ui-date-fallback");
-    if let Some(dates) = ctx.data(|d| d.get_temp::<Arc<DateFormat>>(key)) {
-        return dates;
-    }
-    let dates = Arc::new(DateFormat::from_tag("en-US"));
-    ctx.data_mut(|d| d.insert_temp(key, Arc::clone(&dates)));
-    dates
-}
-
 /// Which page the open popup shows, and the cell that has the keyboard (its day, month number
 /// or year, by the page).
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct View {
-    precision: DatePrecision,
-    year: i32,
-    month: u8,
-    active: i32,
+pub(super) struct View {
+    pub(super) precision: DatePrecision,
+    pub(super) year: i32,
+    pub(super) month: u8,
+    pub(super) active: i32,
 }
 
 impl View {
@@ -451,23 +432,23 @@ impl View {
 }
 
 /// One cell of a page.
-struct Cell {
+pub(super) struct Cell {
     /// The day, the month number or the year.
     key: i32,
     date: PickedDate,
-    text: String,
+    pub(super) text: String,
     /// The accessible name.
-    name: String,
+    pub(super) name: String,
 }
 
 /// A page's cells in reading order; `None` is the blank before the 1st and after the last day.
-struct Page {
-    cells: Vec<Option<Cell>>,
+pub(super) struct Page {
+    pub(super) cells: Vec<Option<Cell>>,
     columns: usize,
 }
 
 impl Page {
-    fn of(view: &View, dates: &DateFormat) -> Page {
+    pub(super) fn of(view: &View, dates: &DateFormat, numbers: &LocaleNumbers) -> Page {
         let long = |date: PickedDate| match date.calendar_date() {
             Some(day) => dates.format(DateTime { date: day, hour: 0, minute: 0, second: 0 }, DateStyle { date: Some(DateLength::Long), time: None }),
             None => date.iso(),
@@ -480,7 +461,7 @@ impl Page {
                     .map(|day| {
                         day.map(|d| {
                             let date = PickedDate::day(view.year, view.month, d);
-                            Cell { key: i32::from(d), date, text: d.to_string(), name: long(date) }
+                            Cell { key: i32::from(d), date, text: numbers.small(u32::from(d)), name: long(date) }
                         })
                     })
                     .collect(),
@@ -490,7 +471,7 @@ impl Page {
                 cells: (1..=12u8)
                     .map(|m| {
                         let date = PickedDate::month(view.year, m);
-                        let name = format!("{} {:04}", dates.month_name(m, NameLength::Wide), view.year);
+                        let name = dates.year_month(i64::from(view.year), m);
                         Some(Cell { key: i32::from(m), date, text: dates.month_name(m, NameLength::Abbreviated), name })
                     })
                     .collect(),
@@ -499,7 +480,7 @@ impl Page {
                 columns: 4,
                 cells: (view.first_year()..view.first_year() + YEARS_PER_PAGE)
                     .filter(|y| *y <= LAST_YEAR)
-                    .map(|y| Some(Cell { key: y, date: PickedDate::year(y), text: format!("{y:04}"), name: format!("{y:04}") }))
+                    .map(|y| Some(Cell { key: y, date: PickedDate::year(y), text: numbers.year(y), name: numbers.year(y) }))
                     .collect(),
             },
         }
@@ -530,13 +511,13 @@ impl Page {
     }
 
     /// The title over the page.
-    fn title(&self, view: &View, dates: &DateFormat) -> String {
+    pub(super) fn title(&self, view: &View, numbers: &LocaleNumbers, dates: &DateFormat) -> String {
         match view.precision {
-            DatePrecision::Day => format!("{} {:04}", dates.month_name(view.month, NameLength::Wide), view.year),
-            DatePrecision::Month => format!("{:04}", view.year),
+            DatePrecision::Day => dates.year_month(i64::from(view.year), view.month),
+            DatePrecision::Month => numbers.year(view.year),
             DatePrecision::Year => {
                 let first = view.first_year();
-                format!("{first:04}\u{2013}{:04}", (first + YEARS_PER_PAGE - 1).min(LAST_YEAR))
+                format!("{}\u{2013}{}", numbers.year(first), numbers.year((first + YEARS_PER_PAGE - 1).min(LAST_YEAR)))
             }
         }
     }
@@ -565,7 +546,8 @@ impl Popup<'_> {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         let date = tokens.component.date;
-        let dates = date_format(&ctx);
+        let dates = crate::localized::dates(&ctx);
+        let numbers = LocaleNumbers::of_ctx(&ctx);
         let list = Select::style(&tokens, self.size).list;
         let rtl = direction::is_rtl(ui);
         let allowed = |date: &PickedDate| date.in_bounds(self.min.as_ref(), self.max.as_ref());
@@ -595,12 +577,12 @@ impl Popup<'_> {
         // Keys: the arrows, Home and End move the active cell, Page Up and Page Down the page.
         // They apply before the page is built, so it draws the new page and cell in this pass.
         let focused = {
-            let page = Page::of(view, &dates);
+            let page = Page::of(view, &dates, &numbers);
             (0..page.cells.len()).filter_map(|at| page.cells[at].as_ref()).any(|c| ctx.memory(|m| m.has_focus(self.cell_id(view, c.key))))
         };
         let mut moved = false;
         if focused {
-            let page = Page::of(view, &dates);
+            let page = Page::of(view, &dates, &numbers);
             if let Some(at) = page.position(view.active) {
                 ctx.memory_mut(|m| {
                     m.set_focus_lock_filter(
@@ -648,8 +630,8 @@ impl Popup<'_> {
         if IconButton::new(Icon::ChevronRight, self.labels.next.as_str()).size(self.size).show_at(ui, next_rect).clicked() {
             *view = view.paged(true);
         }
-        let page = Page::of(view, &dates);
-        let title = page.title(view, &dates);
+        let page = Page::of(view, &dates, &numbers);
+        let title = page.title(view, &numbers, &dates);
         ui.painter().text(
             strip.center(),
             Align2::CENTER_CENTER,
@@ -707,7 +689,6 @@ impl Popup<'_> {
                 let permitted = allowed(&cell.date);
                 let mut element = Interactive::with_id(ids[row * columns + column].unwrap_or(Id::NULL), Role::GridCell, cell.name.as_str())
                     .corner_radius(list.radius)
-                    .state_layer(false)
                     .selected(self.current == Some(cell.date))
                     .enabled(permitted);
                 if cell.key != active_key {
@@ -715,7 +696,7 @@ impl Popup<'_> {
                 }
                 let response = element.interact_at(&grid, rect).finish(&grid);
                 if grid.is_rect_visible(rect) {
-                    self.paint(&grid, &tokens, &list, rect, cell, &response);
+                    self.paint(&grid, &tokens, &list, rect, cell);
                 }
                 if moved && cell.key == active_key {
                     response.scroll_to_me(None);
@@ -748,7 +729,7 @@ impl Popup<'_> {
         picked
     }
 
-    fn paint(&self, ui: &Ui, tokens: &Tokens, list: &ListboxStyle, rect: Rect, cell: &Cell, response: &egui::Response) {
+    fn paint(&self, ui: &Ui, tokens: &Tokens, list: &ListboxStyle, rect: Rect, cell: &Cell) {
         let permitted = cell.date.in_bounds(self.min.as_ref(), self.max.as_ref());
         let selected = self.current == Some(cell.date);
         let painter = ui.painter();
@@ -756,8 +737,6 @@ impl Popup<'_> {
         if selected && permitted {
             painter.rect_filled(rect, radius, list.active_fill);
             painter.rect_stroke(rect, radius, Stroke::new(1.0, list.active_border), StrokeKind::Inside);
-        } else if response.hovered() && permitted {
-            painter.rect_filled(rect, radius, tokens.color.state.hover.to_egui());
         }
         let holds_today = self
             .today

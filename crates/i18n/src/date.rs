@@ -24,7 +24,7 @@ use chrono::{Datelike, Local, NaiveDate, Offset, TimeZone as _};
 use icu_calendar::week::WeekInformation;
 use icu_calendar::{Date, Gregorian};
 use icu_datetime::FixedCalendarDateTimeFormatter;
-use icu_datetime::fieldsets::{T, YMD, YMDE, YMDET, YMDT};
+use icu_datetime::fieldsets::{T, YM, YMD, YMDE, YMDET, YMDT};
 use icu_datetime::options::{Length, TimePrecision as IcuPrecision};
 use icu_datetime::parts;
 use icu_datetime::pattern::{DateTimePattern, FixedCalendarDateTimeNames};
@@ -34,7 +34,7 @@ use icu_provider::buf::AsDeserializingBufferProvider;
 use icu_time::Time;
 use writeable::{Part, PartsWrite, TryWriteable, Writeable};
 
-use crate::{HourCycle, I18n, Region, data};
+use crate::{Digits, HourCycle, I18n, Region, data};
 
 /// Days in a 400-year Gregorian cycle, after which the calendar (and the weekday) repeats.
 const CYCLE_DAYS: i64 = 146_097;
@@ -241,6 +241,8 @@ pub struct DateFormat {
     locale: String,
     /// The region's clock where the system sets one apart from the locale.
     hour_cycle: Option<crate::HourCycle>,
+    /// Write `0`–`9` whatever the locale's digits are.
+    latin_digits: bool,
     /// Formatters and names, built on first use and shared by clones.
     cache: Arc<Cache>,
 }
@@ -289,6 +291,7 @@ struct Cache {
     /// seconds); the slot with neither is unused.
     formatters: [OnceLock<Option<Formatter>>; 15],
     names: OnceLock<Option<Names>>,
+    year_month: OnceLock<Option<FixedCalendarDateTimeFormatter<Gregorian, YM>>>,
     first_weekday: OnceLock<Option<Weekday>>,
     order: OnceLock<[Field; 3]>,
 }
@@ -324,7 +327,13 @@ impl PartsWrite for Spliced {
 impl DateFormat {
     /// The format for `region`'s time locale and clock.
     pub fn new(region: &Region) -> DateFormat {
-        Self { locale: region.time.clone(), hour_cycle: region.hour_cycle, cache: Arc::default() }
+        Self { locale: region.time.clone(), hour_cycle: region.hour_cycle, latin_digits: false, cache: Arc::default() }
+    }
+
+    /// This format writing `0`–`9` for [`Digits::Latin`], else the locale's own digits. Formatters
+    /// are rebuilt on first use.
+    pub fn with_digits(self, digits: Digits) -> DateFormat {
+        DateFormat { latin_digits: digits == Digits::Latin, cache: Arc::default(), ..self }
     }
 
     /// The format for a locale tag (`de-CH`), with the locale's clock.
@@ -396,8 +405,11 @@ impl DateFormat {
             return String::new();
         }
         let slot = style.date.map_or(0, |d| d as usize + 1) * 3 + style.time.map_or(0, |t| t as usize + 1);
-        let formatter =
-            self.cache.formatters.get(slot).and_then(|cell| cell.get_or_init(|| self.load_formatter(style.date, style.time, false)).as_ref());
+        let formatter = self
+            .cache
+            .formatters
+            .get(slot)
+            .and_then(|cell| cell.get_or_init(|| self.load_formatter(style.date, style.time, self.latin_digits)).as_ref());
         let Some(((icu, true_year), formatter)) = to_icu(at).zip(formatter) else {
             return plain(at, style);
         };
@@ -446,6 +458,30 @@ impl DateFormat {
             Some(names) => names.months[length as usize][index].clone(),
             None => month.to_string(),
         }
+    }
+
+    /// The month and year as a calendar's title writes them, in the region's order and digits:
+    /// `October 2026`, `2026年10月`. A year past 9999 keeps its digits. Without locale data,
+    /// `2026-10`.
+    pub fn year_month(&self, year: i64, month: u8) -> String {
+        let month = month.clamp(1, 12);
+        let formatter = self.cache.year_month.get_or_init(|| {
+            let provider = data::dates_provider()?;
+            let locale = self.icu_locale(self.latin_digits);
+            FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(provider, (&locale).into(), YM::long()).ok()
+        });
+        let at = DateTime { date: CalendarDate { year, month, day: 1 }, hour: 0, minute: 0, second: 0 };
+        let Some(((icu, true_year), formatter)) = to_icu(at).zip(formatter.as_ref()) else {
+            return format!("{year:04}-{month:02}");
+        };
+        let mut out = Spliced::default();
+        if formatter.format(&icu).write_to_parts(&mut out).is_err() {
+            return format!("{year:04}-{month:02}");
+        }
+        if let (Some(range), Some(true_year)) = (out.year, true_year) {
+            out.text.replace_range(range, &true_year.to_string());
+        }
+        out.text
     }
 
     /// The name of `day` as it stands alone: `Saturday`, `Sat`, `S`.
@@ -669,6 +705,10 @@ mod tests {
         let far = DateTime { date: CalendarDate { year: 4_000_000_026, ..AFTERNOON.date }, ..AFTERNOON };
         assert_eq!(us.format(far, DateStyle::DATE), "Oct 31, 4000000026");
         assert_eq!(us.clone().month_name(10, NameLength::Wide), "October");
+        assert_eq!(us.year_month(2026, 10), "October 2026");
+        assert_eq!(de.year_month(2026, 10), "Oktober 2026");
+        assert_eq!(region("ja-JP", None).year_month(2026, 10), "2026年10月");
+        assert_eq!(us.year_month(4_000_000_026, 10), "October 4000000026");
 
         names_week_and_typed_dates(&us, &de);
     }
