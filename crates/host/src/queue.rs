@@ -16,13 +16,12 @@
 //! On wasm32 there are no threads: [`QueueOptions::default_lanes`] is 0 and the owner calls
 //! [`JobQueue::run_inline`] once per pass.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::collections::VecDeque;
 use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
-use std::time::Duration;
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::thread::{self, ThreadId};
+use std::time::{Duration, Instant};
 
 use crate::{Jobs, Wake};
 
@@ -81,7 +80,10 @@ impl QueueOptions {
     // lightcraft: crates/preview/src/pool.rs:104 `default_threads` (cores − 1 clamped to 2..=8;
     // ours is 0 on wasm32 instead of 1, because wasm runs jobs only through `run_inline`).
     pub fn default_lanes() -> usize {
-        todo!()
+        #[cfg(target_arch = "wasm32")]
+        return 0;
+        #[cfg(not(target_arch = "wasm32"))]
+        thread::available_parallelism().map_or(4, |n| n.get().saturating_sub(1).clamp(2, 8))
     }
 }
 
@@ -89,7 +91,7 @@ impl Default for QueueOptions {
     /// [`default_lanes`](QueueOptions::default_lanes) lanes named `"craft-queue"`.
     fn default() -> Self {
         // new: the default every library queue starts from.
-        todo!()
+        Self { lanes: Self::default_lanes(), name: "craft-queue" }
     }
 }
 
@@ -126,11 +128,29 @@ struct Queued<K, R> {
     job: QueueJob<R>,
 }
 
+/// A job that has started.
+struct Running<K> {
+    /// The submission number of the job, to find it again when it ends.
+    id: u64,
+    key: K,
+    priority: Priority,
+    cancel: Cancel,
+    /// The thread running it, so `shutdown` never waits for the caller's own job.
+    thread: ThreadId,
+}
+
+/// A job taken from the queue, about to run.
+struct Started<R> {
+    id: u64,
+    cancel: Cancel,
+    job: QueueJob<R>,
+}
+
 /// State shared with the lanes, behind one lock.
 struct State<K, R> {
     queued: Vec<Queued<K, R>>,
-    /// Keys with a job running, each with its cancel flag: their next job waits until it ends.
-    running: Vec<(K, Cancel)>,
+    /// Jobs running now: their keys' next jobs wait until they end.
+    running: Vec<Running<K>>,
     finished: VecDeque<Finished<K, R>>,
     /// Lanes alive now (at most `lanes`).
     lanes_alive: usize,
@@ -145,6 +165,102 @@ struct Shared<K, R> {
     jobs: Arc<dyn Jobs>,
     wake: Wake,
     options: QueueOptions,
+}
+
+impl<K: Clone + Eq, R> Shared<K, R> {
+    fn lock(&self) -> MutexGuard<'_, State<K, R>> {
+        self.state.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+impl<K, R> State<K, R> {
+    /// Drops the waiting jobs and cancels the running ones.
+    fn stop(&mut self) {
+        self.stopped = true;
+        self.queued.clear();
+        for r in &self.running {
+            r.cancel.cancel();
+        }
+    }
+}
+
+impl<K: Clone + Eq, R> State<K, R> {
+    /// Index of the best waiting job whose key is not running: highest priority, then newest.
+    fn best(&self) -> Option<usize> {
+        self.queued
+            .iter()
+            .enumerate()
+            .filter(|(_, q)| !self.running.iter().any(|r| r.key == q.key))
+            .max_by_key(|(_, q)| (q.priority, q.seq))
+            .map(|(i, _)| i)
+    }
+
+    /// Moves the best startable job to `running` and returns it.
+    fn start_best(&mut self) -> Option<Started<R>> {
+        let queued = self.queued.swap_remove(self.best()?);
+        let cancel = Cancel::new();
+        self.running.push(Running {
+            id: queued.seq,
+            key: queued.key,
+            priority: queued.priority,
+            cancel: cancel.clone(),
+            thread: thread::current().id(),
+        });
+        Some(Started { id: queued.seq, cancel, job: queued.job })
+    }
+}
+
+impl<K: Clone + Eq + Send + 'static, R: Send + 'static> Shared<K, R> {
+    fn spawn_lane(self: &Arc<Self>) {
+        let shared = Arc::clone(self);
+        self.jobs.spawn(self.options.name, Box::new(move || shared.lane()));
+    }
+
+    /// One run of a lane: one job, then the next run when work waits.
+    fn lane(self: Arc<Self>) {
+        let started = {
+            let mut state = self.lock();
+            let started = if state.stopped { None } else { state.start_best() };
+            if started.is_none() {
+                state.lanes_alive -= 1;
+            }
+            started
+        };
+        let Some(started) = started else { return };
+        if self.run(started, true) {
+            self.spawn_lane();
+        }
+    }
+
+    /// Runs a started job on this thread and files its result. With `from_lane`, returns whether
+    /// the lane continues; otherwise the lane is given up here.
+    fn run(&self, started: Started<R>, from_lane: bool) -> bool {
+        let Started { id, cancel, job } = started;
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| job(&cancel))).ok();
+        let (delivered, again) = {
+            let mut state = self.lock();
+            let pos = state.running.iter().position(|r| r.id == id);
+            let running = pos.map(|i| state.running.swap_remove(i));
+            let mut delivered = false;
+            if let (Some(running), Some(result)) = (running, result)
+                && !running.cancel.is_cancelled()
+                && !state.stopped
+            {
+                state.finished.push_back(Finished { key: running.key, result });
+                delivered = true;
+            }
+            let again = from_lane && !state.stopped && state.best().is_some();
+            if from_lane && !again {
+                state.lanes_alive -= 1;
+            }
+            (delivered, again)
+        };
+        self.ended.notify_all();
+        if delivered {
+            self.wake.wake();
+        }
+        again
+    }
 }
 
 /// A priority queue of background jobs, after LightCraft's `JobPool`.
@@ -189,7 +305,8 @@ impl<K: Clone + Eq + Hash + Send + 'static, R: Send + 'static> JobQueue<K, R> {
     /// after each finished job. No lane starts before the first [`submit`](Self::submit).
     pub fn new(jobs: Arc<dyn Jobs>, wake: Wake, options: QueueOptions) -> Self {
         // new: lanes are spawned on demand by `submit` and by a lane that ends with work waiting.
-        todo!()
+        let state = State { queued: Vec::new(), running: Vec::new(), finished: VecDeque::new(), lanes_alive: 0, seq: 0, stopped: false };
+        Self { shared: Arc::new(Shared { state: Mutex::new(state), ended: Condvar::new(), jobs, wake, options }) }
     }
 
     /// Queues `job` for `key` at `priority`, replacing a waiting job of the same key (the replaced
@@ -198,7 +315,24 @@ impl<K: Clone + Eq + Hash + Send + 'static, R: Send + 'static> JobQueue<K, R> {
     /// that one ends. After [`shutdown`](Self::shutdown) the job is dropped.
     // lightcraft: crates/preview/src/pool.rs:182 `submit`.
     pub fn submit(&self, key: K, priority: Priority, job: impl FnOnce(&Cancel) -> R + Send + 'static) {
-        todo!()
+        let spawn = {
+            let mut state = self.shared.lock();
+            if state.stopped {
+                return;
+            }
+            state.queued.retain(|q| q.key != key);
+            state.seq += 1;
+            let seq = state.seq;
+            state.queued.push(Queued { key, priority, seq, job: Box::new(job) });
+            let spawn = state.lanes_alive < self.shared.options.lanes && state.best().is_some();
+            if spawn {
+                state.lanes_alive += 1;
+            }
+            spawn
+        };
+        if spawn {
+            self.shared.spawn_lane();
+        }
     }
 
     /// Re-ranks the waiting jobs and the running ones: `f(key, priority)` returns the new priority,
@@ -208,14 +342,39 @@ impl<K: Clone + Eq + Hash + Send + 'static, R: Send + 'static> JobQueue<K, R> {
     /// waiting ones).
     // lightcraft: crates/preview/src/pool.rs:197 `reprioritize` (waiting jobs only; ours also
     // cancels running ones, so a thumbnail scrolled away stops decoding).
-    pub fn reprioritize(&self, f: impl FnMut(&K, Priority) -> Option<Priority>) -> Vec<K> {
-        todo!()
+    pub fn reprioritize(&self, mut f: impl FnMut(&K, Priority) -> Option<Priority>) -> Vec<K> {
+        let mut state = self.shared.lock();
+        let mut dropped = Vec::new();
+        let mut kept = Vec::with_capacity(state.queued.len());
+        for mut q in std::mem::take(&mut state.queued) {
+            match f(&q.key, q.priority) {
+                Some(priority) => {
+                    q.priority = priority;
+                    kept.push(q);
+                }
+                None => dropped.push(q.key),
+            }
+        }
+        state.queued = kept;
+        for r in &mut state.running {
+            if r.cancel.is_cancelled() {
+                continue;
+            }
+            match f(&r.key, r.priority) {
+                Some(priority) => r.priority = priority,
+                None => {
+                    r.cancel.cancel();
+                    dropped.push(r.key.clone());
+                }
+            }
+        }
+        dropped
     }
 
     /// The oldest result not yet taken, if any. Results of cancelled jobs are never here.
     // lightcraft: crates/preview/src/pool.rs:224 `try_recv`.
     pub fn try_recv(&self) -> Option<Finished<K, R>> {
-        todo!()
+        self.shared.lock().finished.pop_front()
     }
 
     /// Runs up to `max_jobs` waiting jobs, best first, on the calling thread, and returns how
@@ -224,17 +383,32 @@ impl<K: Clone + Eq + Hash + Send + 'static, R: Send + 'static> JobQueue<K, R> {
     /// beside them, still one per key.
     // lightcraft: crates/preview/src/pool.rs:237 `run_inline`.
     pub fn run_inline(&self, max_jobs: usize) -> usize {
-        todo!()
+        let mut ran = 0;
+        while ran < max_jobs {
+            let started = {
+                let mut state = self.shared.lock();
+                if state.stopped {
+                    break;
+                }
+                state.start_best()
+            };
+            let Some(started) = started else { break };
+            self.shared.run(started, false);
+            ran += 1;
+        }
+        ran
     }
 
     /// Whether a job for `key` is waiting or running.
     pub fn contains(&self, key: &K) -> bool {
-        todo!()
+        let state = self.shared.lock();
+        state.queued.iter().any(|q| q.key == *key) || state.running.iter().any(|r| r.key == *key)
     }
 
     /// Jobs waiting, running and finished.
     pub fn counts(&self) -> QueueCounts {
-        todo!()
+        let state = self.shared.lock();
+        QueueCounts { queued: state.queued.len(), running: state.running.len(), finished: state.finished.len() }
     }
 
     /// Stops the queue: waiting jobs are dropped, running ones are cancelled, no new job starts,
@@ -244,7 +418,23 @@ impl<K: Clone + Eq + Hash + Send + 'static, R: Send + 'static> JobQueue<K, R> {
     /// running on the calling thread (a queue shut down by one of its own jobs).
     // lightcraft: crates/preview/src/pool.rs:155 `shutdown` (LightCraft #620).
     pub fn shutdown(&self, timeout: Duration) -> bool {
-        todo!()
+        let me = thread::current().id();
+        let deadline = Instant::now().checked_add(timeout);
+        let mut state = self.shared.lock();
+        state.stop();
+        loop {
+            if !state.running.iter().any(|r| r.thread != me) {
+                return true;
+            }
+            let left = match deadline {
+                Some(deadline) => deadline.saturating_duration_since(Instant::now()),
+                None => timeout,
+            };
+            if left.is_zero() {
+                return false;
+            }
+            state = self.shared.ended.wait_timeout(state, left).unwrap_or_else(|e| e.into_inner()).0;
+        }
     }
 }
 
@@ -252,6 +442,6 @@ impl<K, R> Drop for JobQueue<K, R> {
     /// Drops the waiting jobs and cancels the running ones, without waiting.
     fn drop(&mut self) {
         // new: dropping never blocks the UI thread; `shutdown` is the waiting form.
-        todo!()
+        self.shared.state.lock().unwrap_or_else(|e| e.into_inner()).stop();
     }
 }
