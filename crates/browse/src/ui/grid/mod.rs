@@ -27,7 +27,7 @@ mod layout;
 #[cfg(test)]
 mod layout_tests;
 mod paint;
-mod rename;
+pub(crate) mod rename;
 pub(crate) mod stories;
 mod style;
 mod zoom;

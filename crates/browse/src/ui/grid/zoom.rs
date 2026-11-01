@@ -8,6 +8,7 @@ use craft_ui::icons::Icon;
 use egui::{AsIdSalt, IdSalt, Ui};
 
 use craft_ui::localized::Labels as _;
+use craft_ui::theme::{Tokens, TokensOf as _};
 
 use super::TileLabels;
 
@@ -80,6 +81,7 @@ pub struct ThumbnailSlider {
     value: f32,
     zoom: TileZoom,
     labels: Option<TileLabels>,
+    width: Option<f32>,
 }
 
 impl ThumbnailSlider {
@@ -90,7 +92,26 @@ impl ThumbnailSlider {
     /// The slider for `value` (the host's current size).
     pub fn new(id_salt: impl AsIdSalt, value: f32, zoom: TileZoom) -> Self {
         // filmcraft: crates/ui-egui/src/panels/project.rs:555 (`footer`: the zoom slider).
-        Self { id_salt: IdSalt::new(id_salt), value, zoom, labels: None }
+        Self { id_salt: IdSalt::new(id_salt), value, zoom, labels: None, width: None }
+    }
+
+    /// The widths of the whole control, end buttons included, in `ui`: the natural one (the
+    /// slider's `slider.width`) and the least (half of it). A host that is short of room gives
+    /// [`width`](Self::width) a value between them, or leaves the control out.
+    pub fn extent(ui: &Ui) -> (f32, f32) {
+        // new: footers fit the control to the room they have.
+        let tokens = Tokens::of(ui);
+        let fixed = 2.0 * (IconButton::style(&tokens, ControlSize::Md).side + ui.spacing().item_spacing.x);
+        let slider = Slider::style(&tokens, ControlSize::Md).width;
+        (fixed + slider, fixed + slider / 2.0)
+    }
+
+    /// The width of the whole control, end buttons included (default: natural, see
+    /// [`extent`](Self::extent)).
+    #[must_use]
+    pub fn width(self, width: f32) -> Self {
+        // new: builder.
+        Self { width: Some(width), ..self }
     }
 
     /// The words: the slider's name and the two end buttons' (default `TileLabels::of(ui)`).
@@ -120,6 +141,10 @@ impl ThumbnailSlider {
             let mut slider = Slider::new(id, labels.thumbnail_size.as_str(), self.value, range.clone())
                 .size(ControlSize::Md)
                 .default_value(self.zoom.step(self.value, ZoomStep::Reset));
+            if let Some(total) = self.width {
+                let ends = 2.0 * (IconButton::style(&Tokens::of(ui), ControlSize::Md).side + ui.spacing().item_spacing.x);
+                slider = slider.width((total - ends).max(0.0));
+            }
             slider = match self.zoom {
                 TileZoom::Ladder => slider.marks(&Self::marks()),
                 TileZoom::Range { step, .. } => slider.step(step),

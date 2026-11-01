@@ -7,6 +7,7 @@ use craft_ui::controls::{ControlSize, Segmented};
 use craft_ui::icons::Icon;
 use craft_ui::list::{SortOrder, TableColumn, TableEvent, TableSort};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
+use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{Id, Ui};
 
 use super::{BinEvent, BinLabels, BinView};
@@ -68,8 +69,17 @@ pub(super) fn footer_events<K: TextureKey>(ui: &mut Ui, input: &FooterInput<'_>)
             sort_menu(ui, id, columns, icon_sort, labels, &mut events);
         }
         let zoom = TileZoom::Range { min: zoom_range.0, max: zoom_range.1, step: ZOOM_STEP, default: default_size };
-        if let Some(event) = ThumbnailSlider::new((id, "zoom"), icon_size, zoom).show(ui).event {
-            events.push(BinEvent::Zoom(event));
+        // The slider takes the room the view switch leaves, down to its least width; below that it hides.
+        let tokens = Tokens::of(ui);
+        let strip = Segmented::style(&tokens, ControlSize::Sm);
+        let switch = 3.0 * (strip.icon + 2.0 * strip.pad_x) + 2.0 * strip.gap;
+        let room = ui.available_width() - switch - ui.spacing().item_spacing.x;
+        let (natural, least) = ThumbnailSlider::extent(ui);
+        if room >= least {
+            let slider = ThumbnailSlider::new((id, "zoom"), icon_size, zoom).width(room.min(natural));
+            if let Some(event) = slider.show(ui).event {
+                events.push(BinEvent::Zoom(event));
+            }
         }
         let mut picked = view;
         Segmented::new((id, "view"), &labels.views, &mut picked)

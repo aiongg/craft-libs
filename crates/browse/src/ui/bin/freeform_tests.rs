@@ -210,7 +210,7 @@ fn a_foreign_drag_released_in_freeform_drops_into_the_shown_bin_or_a_bin_card() 
 // The Icon view renames in place: F2, and `MediaBin::start_rename`; the List view opens its field too.
 #[test]
 fn the_icon_and_list_views_open_the_rename_field() {
-    for view in [BinView::Icon, BinView::List] {
+    for view in [BinView::Icon, BinView::List, BinView::Freeform] {
         let mut harness = harness(host(view));
         harness.state_mut().rename = Some(30);
         harness.run_steps(3);
@@ -226,4 +226,57 @@ fn the_icon_and_list_views_open_the_rename_field() {
     harness.key_press(Key::Escape);
     harness.run_steps(3);
     assert!(harness.state().events.iter().all(|e| !matches!(e, BinEvent::Rename { .. })), "Esc renames nothing");
+}
+
+// Freeform cards rename in the caption like the Icon view's: F2, typing, Enter reports `Rename`; Esc reports nothing.
+#[test]
+fn freeform_cards_rename_with_f2_and_enter() {
+    let mut harness = harness(host(BinView::Freeform));
+    harness.click_at(card(&harness, "Title.psd").center());
+    harness.run_steps(2);
+    harness.key_press(Key::F2);
+    harness.run_steps(3);
+    assert!(harness.query_by_role(Role::TextInput).is_some(), "F2 opened the field");
+    harness.event(egui::Event::Text("Poster.psd".to_owned()));
+    harness.run_steps(2);
+    harness.key_press(Key::Enter);
+    harness.run_steps(3);
+    assert!(harness.query_by_role(Role::TextInput).is_none());
+    assert!(harness.state().events.contains(&BinEvent::Rename { key: 30, text: "Poster.psd".to_owned() }), "{:?}", harness.state().events);
+
+    harness.state_mut().events.clear();
+    harness.state_mut().rename = Some(31);
+    harness.run_steps(3);
+    harness.event(egui::Event::Text("Other".to_owned()));
+    harness.run_steps(2);
+    harness.key_press(Key::Escape);
+    harness.run_steps(3);
+    assert!(harness.query_by_role(Role::TextInput).is_none());
+    assert!(harness.state().events.iter().all(|e| !matches!(e, BinEvent::Rename { .. })), "{:?}", harness.state().events);
+}
+
+// The footer fits a 200 pt width: the slider shrinks, then hides, and no button leaves the rect (lead call 70).
+#[test]
+fn the_footer_keeps_every_shape_inside_a_narrow_width() {
+    for view in [BinView::Icon, BinView::Freeform] {
+        let ctx = egui::Context::default();
+        install(&ctx, &Base::suite_default());
+        let mut host = host(view);
+        let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 480.0))), ..egui::RawInput::default() };
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let mut out = ctx.run_ui(input.clone(), |ui| {
+                ui.scope_builder(egui::UiBuilder::new().max_rect(Rect::from_min_size(Pos2::ZERO, vec2(200.0, 480.0))), |ui| show(ui, &mut host));
+            });
+            shapes = std::mem::take(&mut out.shapes);
+            out.drop_without_applying_deltas();
+        }
+        for shape in &shapes {
+            let r = shape.shape.visual_bounding_rect();
+            // The footer is the bottom bar (its rule runs out to the panel edges on purpose).
+            if r.is_finite() && r.is_positive() && r.min.y > 455.0 && r.height() > 2.0 {
+                assert!(r.min.x >= -2.5 && r.max.x <= 202.5, "{view:?}: a shape at {r:?} leaves the 200 pt width");
+            }
+        }
+    }
 }

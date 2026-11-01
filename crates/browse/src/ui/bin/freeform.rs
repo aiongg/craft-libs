@@ -8,6 +8,7 @@ use craft_ui::behavior::{ListDrag, ListSelection, Selection, SelectionChange, Se
 use craft_ui::canvas::textures::{Priority, TextureKey, ThumbRequest};
 use craft_ui::direction;
 use craft_ui::edit::EditEvent;
+use craft_ui::list::RenameEnd;
 use craft_ui::list::{ContextMenuRequest, DropMark, paint_drop_mark};
 use craft_ui::localized::SharedLabels as _;
 use craft_ui::primitives::{FocusRing, Interactive};
@@ -22,6 +23,7 @@ use egui::{
 use super::icon::{ASPECT, CardList, entries_of};
 use super::list::{drop_items, inside_any, item_of, open_event};
 use super::{BinEvent, BinLabels, BinModel, BinState, MediaBin, ThumbPair};
+use crate::ui::grid::rename::{self, Rename};
 use crate::ui::grid::{
     BadgeVisibility, TileContent, TileFace, TileLabels, TileLook, TileSource as _, TileStyle, TileZoom, ZoomStep, card_size, paint_tile,
 };
@@ -50,6 +52,7 @@ pub(super) struct FreeformInput<'a, K: TextureKey, M: ?Sized> {
     pub zoom_range: (f32, f32),
     pub default_size: f32,
     pub labels: &'a BinLabels,
+    pub rename: Option<K>,
 }
 
 /// A drag under way: the cards it moves (the selection and the grabbed card's stack, in display
@@ -209,16 +212,16 @@ fn take_press(ctx: &egui::Context) -> Option<Press> {
 /// card; a release outside the view reports nothing, so a footer action can take the payload. A
 /// drag from another list released in the view is a drop into the bin it is over, else into the
 /// shown bin; items already there report nothing. Click, Shift range, Cmd toggle, double click,
-/// Enter, Delete, the context menu and Cmd/Ctrl + / − / 0 are as in the Icon view. Cards have no
-/// in-place rename field: `MediaBin::start_rename` does nothing in this view and the host
-/// renames through its own command.
+/// Enter, Delete, the context menu and Cmd/Ctrl + / − / 0 are as in the Icon view. F2 on the lead and
+/// `MediaBin::start_rename` open the grid's rename field in the card's caption (`Rename` on Enter or
+/// focus loss when the text changed; Esc cancels).
 pub(super) fn freeform_view<K, M>(ui: &mut Ui, input: FreeformInput<'_, K, M>) -> (Response, Vec<BinEvent<K>>)
 where
     K: TextureKey + Debug,
     M: BinModel<K> + ?Sized,
 {
     // filmcraft: crates/ui-egui/src/panels/project_views.rs:1014 (Freeform: cards, snap lines, stacks, Esc cancels).
-    let FreeformInput { id, model, state, selection, thumbnails, cards, snap, zoom_range, default_size, labels } = input;
+    let FreeformInput { id, model, state, selection, thumbnails, cards, snap, zoom_range, default_size, labels, rename: requested } = input;
     let ctx = ui.ctx().clone();
     let tokens = Tokens::of(ui);
     let style = TileStyle::style(&tokens);
@@ -275,6 +278,8 @@ where
     let marquee_slot = id.with("marquee");
     let mut drag: Option<Drag<K>> = ctx.data(|d| d.get_temp::<Option<Drag<K>>>(drag_slot)).flatten();
     let mut marquee: Option<Marquee<K>> = ctx.data(|d| d.get_temp::<Option<Marquee<K>>>(marquee_slot)).flatten();
+    let rename_slot = id.with("rename");
+    let mut renaming: Option<Rename<K>> = ctx.data(|d| d.get_temp::<Option<Rename<K>>>(rename_slot)).flatten();
     let pointer = ctx.input(|i| i.pointer.latest_pos());
     let delta = drag.as_ref().zip(pointer).map_or(Vec2::ZERO, |(drag, pointer)| drag.delta(pointer, snap, rtl));
     let moved = |from: Vec2| (from + delta).max(Vec2::ZERO);
@@ -284,15 +289,17 @@ where
 
     // The keys of the focused list box, handled before the cards are drawn so they show them.
     let focused = ctx.memory(|m| m.has_focus(box_id));
-    let (mut reveal, mut menu_key) = (None, false);
-    if focused {
-        let geometry = Geometry { positions: &positions, cell, rtl };
-        (reveal, menu_key) = handle_keys(&ctx, box_id, &list, &geometry, selection, &mut events);
-    }
+    let geometry = Geometry { positions: &positions, cell, rtl };
+    let (reveal, menu_key) = if focused { handle_keys(&ctx, box_id, &list, &geometry, selection, &mut events) } else { (None, false) };
+
+    let f2 = focused && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F2));
+    let wanted = requested.or_else(|| f2.then(|| selection.lead.clone()).flatten());
+    begin_rename(model, wanted.filter(|key| list.keys.contains(key)), &mut renaming, &mut events);
 
     let mut hits: Vec<(usize, Hit)> = Vec::new();
     let mut bin_rects: Vec<(K, Rect)> = Vec::new();
     let mut lead_tile: Option<Id> = None;
+    let mut rename_shown: Option<rename::Outcome> = None;
     let extent = positions.iter().fold(Vec2::ZERO, |far, pos| far.max(*pos + cell)) + vec2(style.gap, style.gap);
     let grabbed_key = drag.as_ref().map(|d| d.keys[d.grabbed].clone());
     let is_dragged = |key: &K| drag.as_ref().is_some_and(|d| d.keys.contains(key));
@@ -313,7 +320,6 @@ where
                 let modifiers = ui.input(|i| i.modifiers);
                 let ppp = ui.pixels_per_point();
 
-                let geometry = Geometry { positions: &positions, cell, rtl };
                 let band = marquee_step(&ctx, box_id, &mut marquee, &background, drag.is_some(), area, &list.keys, &geometry, selection, &mut events);
 
                 for &at in &order {
@@ -324,7 +330,8 @@ where
                     if reveal == Some(at) {
                         ui.scroll_to_rect(cell_rect, None);
                     }
-                    if !ui.is_rect_visible(cell_rect) && grabbed_key.as_ref() != Some(key) {
+                    let open = renaming.as_ref().filter(|open| open.key == *key);
+                    if !ui.is_rect_visible(cell_rect) && grabbed_key.as_ref() != Some(key) && open.is_none() {
                         continue;
                     }
                     let is_bin = list.bins[at];
@@ -362,7 +369,7 @@ where
                     let look = TileLook {
                         content: &content,
                         picture,
-                        caption: Some(caption),
+                        caption: open.is_none().then_some(caption),
                         selected,
                         hovered: response.hovered() && drag.is_none(),
                         lead_focused: focused && is_lead,
@@ -381,7 +388,9 @@ where
                         texture.as_ref().map(|(thumbs, _)| *thumbs),
                         texture.as_ref().map(|(_, state)| state),
                     );
-                    if drag.is_none() {
+                    if let Some(open) = open {
+                        rename_shown = Some(rename::show(ui, tile, caption, &tile_labels.rename, open));
+                    } else if drag.is_none() {
                         response.clone().on_hover_text(content.name);
                     }
                     if is_bin && !dragged {
@@ -409,6 +418,9 @@ where
             },
         )
     });
+    if let Some(shown) = rename_shown {
+        settle_rename(model, shown, &mut renaming, &mut events);
+    }
     let response = scope.response;
     let scroll = scope.inner;
     let (background, area) = scroll.inner;
@@ -493,23 +505,7 @@ where
     // Cmd/Ctrl + / − / 0 zoom.
     if focused || response.hovered() {
         let zoom = TileZoom::Range { min: zoom_range.0, max: zoom_range.1, step: super::footer::ZOOM_STEP, default: default_size };
-        let step = ctx.input(|i| {
-            if !i.modifiers.command {
-                None
-            } else if i.key_pressed(Key::Plus) || i.key_pressed(Key::Equals) {
-                Some(ZoomStep::In)
-            } else if i.key_pressed(Key::Minus) {
-                Some(ZoomStep::Out)
-            } else if i.key_pressed(Key::Num0) {
-                Some(ZoomStep::Reset)
-            } else {
-                None
-            }
-        });
-        if let Some(step) = step {
-            let modifiers = ctx.input(|i| i.modifiers);
-            events.push(BinEvent::Zoom(EditEvent::set(f64::from(zoom.step(side, step)), modifiers)));
-        }
+        events.extend(zoom_event(&ctx, zoom, side));
     }
 
     // The drag: a release in the view commits (into a bin card, or the new positions), one outside
@@ -557,6 +553,7 @@ where
     ctx.data_mut(|d| {
         d.insert_temp(drag_slot, drag);
         d.insert_temp(marquee_slot, marquee);
+        d.insert_temp(rename_slot, renaming);
     });
 
     ctx.accesskit_node_builder(box_id, |node| {
@@ -736,6 +733,67 @@ fn foreign_drop<K, M>(
     } else if let Some((_, rect)) = over {
         paint_drop_mark(ui, *rect, DropMark::Into);
     }
+}
+
+/// Opens the rename of `key` with its whole name selected, ending another open one first.
+fn begin_rename<K, M>(model: &M, key: Option<K>, renaming: &mut Option<Rename<K>>, events: &mut Vec<BinEvent<K>>)
+where
+    K: TextureKey + Debug,
+    M: BinModel<K> + ?Sized,
+{
+    let Some(key) = key else { return };
+    if renaming.as_ref().is_some_and(|open| open.key == key) {
+        return;
+    }
+    if let Some(open) = renaming.take() {
+        end_rename(model, open, RenameEnd::Blur, events);
+    }
+    *renaming = Some(Rename { text: item_of(model, &key).name, key, fresh: true });
+}
+
+/// Takes what the rename field showed: the text so far, and the end if it came.
+fn settle_rename<K, M>(model: &M, shown: rename::Outcome, renaming: &mut Option<Rename<K>>, events: &mut Vec<BinEvent<K>>)
+where
+    K: TextureKey + Debug,
+    M: BinModel<K> + ?Sized,
+{
+    let Some(mut open) = renaming.take() else { return };
+    open.text = shown.text;
+    open.fresh = false;
+    match shown.end {
+        Some(end) => end_rename(model, open, end, events),
+        None => *renaming = Some(open),
+    }
+}
+
+/// Closes a rename: a changed, non-empty text is reported unless Esc ended it.
+fn end_rename<K, M>(model: &M, open: Rename<K>, end: RenameEnd, events: &mut Vec<BinEvent<K>>)
+where
+    K: TextureKey + Debug,
+    M: BinModel<K> + ?Sized,
+{
+    if end != RenameEnd::Escape && !open.text.is_empty() && open.text != item_of(model, &open.key).name {
+        events.push(BinEvent::Rename { key: open.key, text: open.text });
+    }
+}
+
+/// The zoom step Cmd/Ctrl + / − / 0 asks for this pass, as the footer slider's event.
+fn zoom_event<K>(ctx: &egui::Context, zoom: TileZoom, side: f32) -> Option<BinEvent<K>> {
+    let step = ctx.input(|i| {
+        if !i.modifiers.command {
+            None
+        } else if i.key_pressed(Key::Plus) || i.key_pressed(Key::Equals) {
+            Some(ZoomStep::In)
+        } else if i.key_pressed(Key::Minus) {
+            Some(ZoomStep::Out)
+        } else if i.key_pressed(Key::Num0) {
+            Some(ZoomStep::Reset)
+        } else {
+            None
+        }
+    })?;
+    let modifiers = ctx.input(|i| i.modifiers);
+    Some(BinEvent::Zoom(EditEvent::set(f64::from(zoom.step(side, step)), modifiers)))
 }
 
 /// Sets the selection a change gives and reports it.

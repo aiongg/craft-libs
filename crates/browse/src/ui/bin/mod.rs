@@ -493,7 +493,7 @@ where
     /// The words.
     /// Opens the in-place rename of `key` in this pass, as F2 would: in the List view the name
     /// cell's field (`Table::start_rename`), in the Icon view the card's caption
-    /// (`TileGrid::start_rename`). The Freeform view has no rename field and ignores it. Call it
+    /// (`TileGrid::start_rename`). In the Freeform view it is the caption's field as in the Icon view. Call it
     /// in the pass that handles the host's Rename command; ignored when `key` is not shown.
     #[must_use]
     pub fn start_rename(self, key: K) -> Self {
@@ -656,6 +656,7 @@ where
                     zoom_range,
                     default_size: DEFAULT_ICON_SIZE,
                     labels: &labels,
+                    rename,
                 };
                 let (response, mut freeform_events) = freeform::freeform_view(ui, input);
                 events.append(&mut freeform_events);

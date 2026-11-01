@@ -12,20 +12,20 @@ use egui::{Align, Id, Layout, Rect, Ui, UiBuilder, vec2};
 /// The open rename: the tile, the text typed so far and whether the field is new (it takes the
 /// focus and selects its text).
 #[derive(Clone, Debug)]
-pub(super) struct Rename<K> {
+pub(crate) struct Rename<K> {
     pub key: K,
     pub text: String,
     pub fresh: bool,
 }
 
 /// What the field showed this pass: the text, and how the rename ended, if it did.
-pub(super) struct Outcome {
+pub(crate) struct Outcome {
     pub text: String,
     pub end: Option<RenameEnd>,
 }
 
 /// Shows the field for the tile `tile` in `band` (the caption's rect) with `rename`'s text.
-pub(super) fn show<K>(ui: &mut Ui, tile: Id, band: Rect, label: &str, rename: &Rename<K>) -> Outcome {
+pub(crate) fn show<K>(ui: &mut Ui, tile: Id, band: Rect, label: &str, rename: &Rename<K>) -> Outcome {
     let height = TextField::style(&Tokens::of(ui), ControlSize::Sm).height.min(band.height());
     let band = Rect::from_center_size(band.center(), vec2(band.width(), height));
     // A child, not a scope: a scope would move the parent's cursor into the tile it was allocated.
