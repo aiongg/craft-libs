@@ -3,9 +3,9 @@
 use super::panel::HistoryPanel;
 use crate::theme::UiTokens;
 
-/// The History panel's own sizes; every other part draws with the `list.*` and `panel_footer.*`
-/// tokens. Proposed tokens (task TK1): `history.snapshot_thumb` 28 / 28 (Compact / Comfortable),
-/// `history.undo_list_width` 210 / 210, both Size data an app overrides through its sizes table.
+/// The History panel's own sizes, from the `history` tokens (Size data an app overrides through
+/// its sizes table); every other part draws with the `list.*` and `panel_footer.*` tokens.
+/// Painting code reads these sizes from here and nowhere else; no body names a number for them.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct HistoryPanelStyle {
@@ -16,11 +16,11 @@ pub struct HistoryPanelStyle {
 }
 
 impl HistoryPanel<'_> {
-    /// The panel's sizes. The skeleton returns PhotoCraft's and WordCraft's values; task TK1
-    /// reads the `history.*` tokens instead.
+    /// The panel's sizes: `history.snapshot_thumb` and `history.undo_list_width`.
+    #[expect(clippy::todo, reason = "skeleton: task TK1 adds the `history` tokens and reads them here")]
     pub fn style(tokens: &UiTokens) -> HistoryPanelStyle {
-        // pc: crates/ui-egui/src/panels/history.rs:284 (28 pt thumbnail); wordcraft: crates/ui-egui/src/chrome.rs:153 (`W` 210)
+        // pc: crates/ui-egui/src/panels/history.rs:284 (snapshot thumbnail); wordcraft: crates/ui-egui/src/chrome.rs:153 (`W`, the Undo list's width). Values in specs/step6a-history.md, "Proposed tokens".
         let _ = tokens;
-        HistoryPanelStyle { snapshot_thumb: 28.0, undo_list_width: 210.0 }
+        todo!()
     }
 }

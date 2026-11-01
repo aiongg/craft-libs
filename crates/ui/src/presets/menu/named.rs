@@ -105,10 +105,12 @@ pub struct NamedPresetOutput<K> {
 ///   `built_in`.
 /// - **Files**: the entries of [`PresetFiles`]; their picks finish inside the row and come back
 ///   as `File` events with a status line.
-/// - **Layout.** One row with 4 pt gaps (`preset.toolbar_gap`): field, then while naming the Name
-///   label and a `TextField` `size.preset.name_width` wide, then the buttons or the Manage
-///   button. When the width cannot hold them, the buttons wrap to a second line. Tab visits the
-///   field, the Name field and the buttons in reading order; right to left mirrors the order.
+/// - **Layout.** One row with `preset.toolbar_gap` gaps: field, then while naming the Name
+///   label and a `TextField`
+///   [`PresetSizes::name_width`](crate::presets::style::PresetSizes::name_width) wide, then the
+///   buttons or the Manage button. When the width cannot hold them, the buttons wrap to a second
+///   line. Tab visits the field, the Name field and the buttons in reading order; right to left
+///   mirrors the order.
 /// - **AccessKit.** A group named by the label; the Name field named [`NamedPresetLabels::name`];
 ///   the Manage button named "Manage presets" with `has_popup`.
 ///
@@ -198,7 +200,7 @@ impl<'a, K> NamedPresetRow<'a, K> {
     /// Shows the row across the available width; `thumb` paints a preset's thumbnail (for a
     /// thumbnail field and its popup).
     pub fn show(self, ui: &mut Ui, thumb: impl FnMut(&Painter, Rect, ThumbInfo<'_, K>)) -> NamedPresetOutput<K> {
-        // pc: crates/ui-egui/src/dialogs/layer_style/contour.rs:395-518 (`editor`: Load…, Save…, New… 84 wide :444-454, Name row 150 :408, suggestion :462, empty name "Contour")
+        // pc: crates/ui-egui/src/dialogs/layer_style/contour.rs:395-518 (`editor`: Load…, Save…, New… :444-454, Name row :408, suggestion :462, empty name "Contour"); the Name field's width is `PresetSizes::name_width`, the buttons size to their labels
         todo!()
     }
 }
