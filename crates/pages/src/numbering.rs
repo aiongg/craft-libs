@@ -2,8 +2,6 @@
 //! Numbering & Section Options, Word's Page Number Format). The styles are craft-text's list
 //! number styles, so a page number and a list number written "iv" look the same.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 pub use craft_text::lists::NumberStyle;
 
 /// The styles a page numbering Style menu offers, in DesignCraft's order; each item reads its
@@ -45,6 +43,8 @@ impl PageNumbering {
     // designcraft: crates/ui-egui/src/section_options.rs:32 `open` (start number and prefix fields);
     // crates/doc/src/attrs/rules_lists.rs:144 `NumberStyle::format`.
     pub fn label(&self, index: usize) -> String {
-        todo!()
+        let number = u32::try_from(index).unwrap_or(u32::MAX).saturating_add(self.start);
+        let prefix = if self.include_prefix { self.prefix.as_str() } else { "" };
+        format!("{prefix}{}", self.style.format(number))
     }
 }
