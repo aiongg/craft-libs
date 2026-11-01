@@ -1,11 +1,13 @@
 //! `ChannelsLabels`: every user-visible word of the Channels panel, and the shortcut chords
 //! the rows display.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+#![expect(dead_code, reason = "ChannelsPanel::show (CH1) is their caller: removed when it lands")]
 
-use egui::Context;
+use craft_ui::controls::Kbd;
+use craft_ui::localized::Words;
+use egui::{Context, Key, KeyboardShortcut, Modifiers};
 
-use super::model::ChannelRow;
+use super::model::{ChannelKind, ChannelRow};
 
 craft_ui::words! {
     /// The words of the Channels panel. Channel names are the app's ([`ChannelRow::name`]).
@@ -63,12 +65,23 @@ craft_ui::words! {
 pub(super) fn shortcut_numbers<K>(rows: &[ChannelRow<K>]) -> Vec<Option<u8>> {
     // pc: crates/ui-egui/src/panels/channels_panel.rs:249-284 `row_presentation` (`slot`: Composite 2,
     // colour 3 + k, alpha 3 + colours + i while at most 9).
-    todo!()
+    let mut next = 2u8;
+    rows.iter()
+        .map(|row| match row.kind {
+            ChannelKind::Composite | ChannelKind::Color | ChannelKind::Alpha { .. } | ChannelKind::Spot { .. } => {
+                let number = next;
+                next = next.saturating_add(1);
+                (number <= 9).then_some(number)
+            }
+            ChannelKind::QuickMask { .. } | ChannelKind::LayerMask { .. } => None,
+        })
+        .collect()
 }
 
 /// The chord text of shortcut `number`: Cmd+n on macOS, Ctrl+n elsewhere, in the library's
 /// [`Kbd`](craft_ui::controls::Kbd) form for the context's platform.
 pub(super) fn chord_text(ctx: &Context, number: u8) -> String {
     // pc: crates/ui-egui/src/panels/channels_panel.rs:403-411 (`shortcuts::pretty("Cmd+{slot}")`, mono 11, unified to `Kbd`).
-    todo!()
+    let key = Key::from_name(&number.to_string()).unwrap_or(Key::Num2);
+    Kbd::new(&KeyboardShortcut::new(Modifiers::COMMAND, key)).text_in(ctx.os(), &Words::of_ctx(ctx))
 }
