@@ -1,9 +1,11 @@
 //! [`SelectionOutline`]: solid or dashed highlights over selected shapes.
 
-use egui::{Color32, Painter};
-use kurbo::BezPath;
+use egui::{Color32, Painter, Pos2, Shape, Stroke, pos2};
+use kurbo::{BezPath, PathEl};
 
+use super::SelectionFrame;
 use crate::canvas::CanvasView;
+use crate::theme::current;
 
 /// How a [`SelectionOutline`] strokes its shapes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -49,6 +51,39 @@ impl<'a> SelectionOutline<'a> {
         // cadcraft: crates/ui-egui/src/canvas/draw.rs:266-270 `Look::selection` (1.5 pt, dashed when
         // SELECTIONEFFECT is 0); designcraft: crates/ui-egui/src/canvas/frames.rs:168-173 (each path 1 pt
         // in its layer colour). The widths, dash and gap from `SelectionFrame::style`.
-        todo!()
+        let style = SelectionFrame::style(&current(painter.ctx()));
+        let (width, dashed) = match self.look {
+            SelectionOutlineLook::Solid => (style.line, false),
+            SelectionOutlineLook::Dashed => (style.outline, true),
+        };
+        let stroke = Stroke::new(width, self.colour.unwrap_or(style.colour));
+        let line = |mut points: Vec<Pos2>, closed: bool| {
+            if points.len() < 2 {
+                return;
+            }
+            if closed {
+                points.push(points[0]);
+            }
+            if dashed {
+                painter.extend(Shape::dashed_line(&points, stroke, style.dash, style.gap));
+            } else {
+                painter.add(Shape::line(points, stroke));
+            }
+        };
+        let affine = view.affine();
+        for path in self.paths {
+            let screen = affine * path;
+            let mut points = Vec::new();
+            kurbo::flatten(screen.elements().iter().copied(), 0.25, |el| match el {
+                PathEl::MoveTo(p) => {
+                    line(std::mem::take(&mut points), false);
+                    points.push(pos2(p.x as f32, p.y as f32));
+                }
+                PathEl::LineTo(p) => points.push(pos2(p.x as f32, p.y as f32)),
+                PathEl::ClosePath => line(std::mem::take(&mut points), true),
+                _ => {}
+            });
+            line(points, false);
+        }
     }
 }
