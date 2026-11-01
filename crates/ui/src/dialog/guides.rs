@@ -289,7 +289,6 @@ fn length_field<'a>(
     units: &GuideUnits,
     extent: f64,
     typed_percent: &'a Cell<Option<f64>>,
-    width: f32,
 ) -> NumberField<'a> {
     let ruler = units.ruler;
     let context = units.context(extent);
@@ -300,10 +299,7 @@ fn length_field<'a>(
         typed_percent.set(percent_text(text));
         Some(value)
     };
-    unit_number_field(salt, caption, shown, numbers, &ExprUnits { unit: Some(ruler), suffix, context })
-        .range(0.0..=high.max(0.0))
-        .width(width)
-        .or_parse(reader)
+    unit_number_field(salt, caption, shown, numbers, &ExprUnits { unit: Some(ruler), suffix, context }).range(0.0..=high.max(0.0)).or_parse(reader)
 }
 
 /// The length a length field's `event` set, if it did: a typed percentage stays a percentage,
@@ -1271,7 +1267,7 @@ fn length_cell(ui: &mut Ui, salt: impl egui::AsIdSalt, caption: &str, length: &m
     let ruler = units.ruler;
     let shown = units.context(extent).convert(*length, ruler).unwrap_or(length.value);
     let typed_percent = Cell::new(None);
-    let edit = length_field(salt, caption, shown, numbers, units, extent, &typed_percent, Tokens::of(ui).component.guide.margin_width).show(ui);
+    let edit = length_field(salt, caption, shown, numbers, units, extent, &typed_percent).width(Tokens::of(ui).component.guide.margin_width).show(ui);
     if let Some(edited) = edited_length(edit.event.as_ref(), shown, ruler, &typed_percent) {
         *length = edited;
     }
@@ -1305,7 +1301,8 @@ fn axis_group(ui: &mut Ui, labels: &GuidesLabels, numbers: &LocaleNumbers, units
                 let shown = axis.size.and_then(|size| units.context(extent).convert(size, ruler));
                 let typed_percent = Cell::new(None);
                 let width = Tokens::of(ui).component.guide.size_width;
-                let edit = length_field((salt, "size"), size_caption, shown.unwrap_or(f64::NAN), numbers, units, extent, &typed_percent, width)
+                let edit = length_field((salt, "size"), size_caption, shown.unwrap_or(f64::NAN), numbers, units, extent, &typed_percent)
+                    .width(width)
                     .show_optional(ui);
                 let percent =
                     typed_percent.get().filter(|_| matches!(edit.event, Some(EditEvent::Commit { changed: true, .. } | EditEvent::Set { .. })));
@@ -1320,17 +1317,9 @@ fn axis_group(ui: &mut Ui, labels: &GuidesLabels, numbers: &LocaleNumbers, units
             form.row(labels.gutter.as_str(), |ui, _| {
                 let shown = units.context(extent).convert(axis.gutter, ruler).unwrap_or(axis.gutter.value);
                 let typed_percent = Cell::new(None);
-                let edit = length_field(
-                    (salt, "gutter"),
-                    labels.gutter.as_str(),
-                    shown,
-                    numbers,
-                    units,
-                    extent,
-                    &typed_percent,
-                    Tokens::of(ui).component.guide.number_width,
-                )
-                .show(ui);
+                let edit = length_field((salt, "gutter"), labels.gutter.as_str(), shown, numbers, units, extent, &typed_percent)
+                    .width(Tokens::of(ui).component.guide.number_width)
+                    .show(ui);
                 if let Some(edited) = edited_length(edit.event.as_ref(), shown, ruler, &typed_percent) {
                     axis.gutter = edited;
                 }
