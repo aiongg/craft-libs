@@ -1,13 +1,28 @@
 //! [`ArtboardProperties`]: an artboard's section in the Properties panel (task SH-T8).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
+use craft_theme::Srgba;
 use egui::{AsIdSalt, IdSalt, Ui};
 use kurbo::Rect;
 
+use super::bar::SIDE;
 use super::{ArtboardBackground, ArtboardItem, ArtboardLabels, ArtboardPreset};
+use craft_ui::composites::{PropertyGroup, PropertyLabel, PropertyRow, SectionHeader};
+use craft_ui::controls::{NumberField, Select, Swatch};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::edit::EditEvent;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+
+/// The range of X and Y, pixels.
+const OFFSET: std::ops::RangeInclusive<f64> = -300_000.0..=300_000.0;
+
+/// The background dropdown's rows.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Choice {
+    White,
+    Black,
+    Transparent,
+    Other,
+}
 
 /// What [`ArtboardProperties::show`] reports.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -48,9 +63,94 @@ impl<'a> ArtboardProperties<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> ArtboardPropertiesOutput {
-        // pc: crates/ui-egui/src/canvas/artboard_ui.rs:130-205 `properties` (Artboard :137, X :166,
+        // pc: crates/ui-egui/src/canvas/artboard_ui.rs:129-205 `properties` (Artboard :137, X :166,
         // Y :167, the background dropdown :174-184, Other… :182).
         // new: `SectionHeader`, `NumberField`, `Select`, `Swatch`; `ColorRequest` as `NewGuideDialog`.
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| ArtboardLabels::of(ui));
+        let numbers = LocaleNumbers::of(ui);
+        let id = ui.make_persistent_id(self.id_salt);
+        let mut out = ArtboardPropertiesOutput::default();
+        let rect = self.board.rect.abs();
+        let (width, height) = (rect.width(), rect.height());
+        let background = self.board.background;
+        SectionHeader::new((id, "section"), labels.artboard.as_str()).show(ui, |ui| {
+            PropertyGroup::new((id, "rows")).show(ui, |ui| {
+                let mut choice = self.presets.iter().position(|p| p.size.width == width && p.size.height == height);
+                PropertyRow::word(labels.size.as_str()).show(ui, |ui, _| {
+                    let mut select = Select::new((id, "preset"), &labels.preset, &mut choice).option(None, labels.custom.as_str());
+                    for (i, preset) in self.presets.iter().enumerate() {
+                        select = select.option(Some(i), preset.name.as_str());
+                    }
+                    let pick = select.show(ui);
+                    if let Some(EditEvent::Commit { value: Some(i), modifiers, .. } | EditEvent::Set { value: Some(i), modifiers, .. }) = pick.event
+                        && let Some(preset) = self.presets.get(i)
+                    {
+                        let moved = Rect::new(rect.x0, rect.y0, rect.x0 + preset.size.width, rect.y0 + preset.size.height);
+                        out.rect = Some(EditEvent::set(moved, modifiers));
+                    }
+                    pick
+                });
+                let field = |ui: &mut Ui, salt: &str, name: &str, value: f64, range: &std::ops::RangeInclusive<f64>| {
+                    NumberField::new((id, salt), name, value, &numbers).range(range.clone()).decimals(0..=0).show(ui)
+                };
+                let (w, h) = PropertyRow::pair(PropertyLabel::glyph(labels.width.as_str()), PropertyLabel::glyph(labels.height.as_str()))
+                    .show(ui, |ui, _| field(ui, "w", &labels.width_name, width, &SIDE), |ui, _| field(ui, "h", &labels.height_name, height, &SIDE))
+                    .inner;
+                let resized = |size: (f64, f64)| Rect::new(rect.x0, rect.y0, rect.x0 + size.0, rect.y0 + size.1);
+                let (x, y) = PropertyRow::pair(PropertyLabel::glyph(labels.x.as_str()), PropertyLabel::glyph(labels.y.as_str()))
+                    .show(ui, |ui, _| field(ui, "x", &labels.x, rect.x0, &OFFSET), |ui, _| field(ui, "y", &labels.y, rect.y0, &OFFSET))
+                    .inner;
+                let moved = |at: (f64, f64)| Rect::new(at.0, at.1, at.0 + width, at.1 + height);
+                out.rect = out
+                    .rect
+                    .take()
+                    .or(w.event.map(|e| e.map(|v| resized((v, height)))))
+                    .or(h.event.map(|e| e.map(|v| resized((width, v)))))
+                    .or(x.event.map(|e| e.map(|v| moved((v, rect.y0)))))
+                    .or(y.event.map(|e| e.map(|v| moved((rect.x0, v)))));
+
+                let custom = match background {
+                    ArtboardBackground::Custom(c) => Some(c),
+                    _ => None,
+                };
+                let request = |colour: Option<Srgba>| {
+                    ColorRequest::new("artboard-background", colour.unwrap_or(Srgba::rgb(1.0, 1.0, 1.0))).title(labels.background_color.as_str())
+                };
+                PropertyRow::word(labels.background.as_str()).show(ui, |ui, _| {
+                    let mut now = match background {
+                        ArtboardBackground::White => Choice::White,
+                        ArtboardBackground::Black => Choice::Black,
+                        ArtboardBackground::Transparent => Choice::Transparent,
+                        ArtboardBackground::Custom(_) => Choice::Other,
+                    };
+                    let pick = ui
+                        .horizontal(|ui| {
+                            let pick = Select::new((id, "background"), &labels.background, &mut now)
+                                .option(Choice::White, labels.white.as_str())
+                                .option(Choice::Black, labels.black.as_str())
+                                .option(Choice::Transparent, labels.transparent.as_str())
+                                .option(Choice::Other, labels.other.as_str())
+                                .show(ui);
+                            if let Some(colour) = custom
+                                && ui.add(Swatch::new((id, "swatch"), labels.background_color.as_str(), colour)).clicked()
+                            {
+                                out.color_request = Some(request(Some(colour)));
+                            }
+                            pick
+                        })
+                        .inner;
+                    if let Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = pick.event {
+                        match value {
+                            Choice::White => out.background = Some(ArtboardBackground::White),
+                            Choice::Black => out.background = Some(ArtboardBackground::Black),
+                            Choice::Transparent => out.background = Some(ArtboardBackground::Transparent),
+                            Choice::Other => out.color_request = Some(request(custom)),
+                        }
+                    }
+                    pick
+                });
+            });
+        });
+        out
     }
 }

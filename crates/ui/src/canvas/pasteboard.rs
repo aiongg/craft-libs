@@ -71,7 +71,7 @@ pub struct PageFrame {
     /// The page's own fill under the document (an artboard's background), or `None` for none.
     pub fill: Option<Color32>,
     /// An artboard's edge: `Some(true)` for the active board (a 1 pt `accent.solid` edge, its name
-    /// in `text.primary`), `Some(false)` for another board (a 1 pt `overlay.artboard` edge outside,
+    /// in `text.normal`), `Some(false)` for another board (a 1 pt `overlay.artboard` edge outside,
     /// name in `text.muted`); `None` for a plain page (only the border preference draws).
     pub active: Option<bool>,
 }
@@ -295,12 +295,20 @@ fn clip(r: Rect, canvas: Rect) -> Option<Rect> {
 
 /// Draws an artboard's edge round `quad` (`bounds` when the view is axis-aligned): `pasteboard.outline_width`
 /// (1) outside, in `accent.solid` when `active`, else `overlay.artboard` (black at alpha 90); and
-/// returns its name's colour, `text.primary` when active, else `text.muted`.
-#[expect(unused_variables, clippy::todo, reason = "skeleton: task SH-T8 (the `overlay.artboard` colour lands in TK3)")]
+/// returns its name's colour, `text.normal` when active, else `text.muted`.
 fn artboard_edge(painter: &egui::Painter, quad: &[Pos2; 4], bounds: egui::Rect, aligned: bool, active: bool, ui: &Ui) -> Color32 {
-    // pc: crates/ui-egui/src/canvas/artboard_ui.rs:92-103 `draw_frames` (accent for the active board,
+    // pc: crates/ui-egui/src/canvas/artboard_ui.rs:98-101 `draw_frames` (accent for the active board,
     // black at alpha 90 outside otherwise; the name in `text` or `text_dim`).
-    todo!()
+    let tokens = Tokens::of(ui);
+    let (edge, name) =
+        if active { (tokens.color.accent.solid, tokens.color.text.normal) } else { (tokens.color.overlay.artboard, tokens.color.text.muted) };
+    let stroke = Stroke::new(tokens.component.pasteboard.outline_width, edge.to_egui());
+    if aligned {
+        painter.rect_stroke(bounds, 0.0, stroke, StrokeKind::Outside);
+    } else {
+        painter.add(Shape::closed_line(quad.to_vec(), stroke));
+    }
+    name.to_egui()
 }
 
 /// A convex quad as a mesh, so a turned view paints the parallelogram and not its bounding box.
