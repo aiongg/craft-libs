@@ -325,7 +325,6 @@ pub struct TransformBox<'a> {
     policy: EditPolicy,
     modifiers: Option<Modifiers>,
     pixel_grid: bool,
-    /// Read by hit, press, the part list and the paint (task TR-T8).
     reference_point: bool,
 }
 
@@ -473,7 +472,7 @@ impl<'a> TransformBox<'a> {
         let style = TransformBox::style(&tokens);
         let id = ui.make_persistent_id(self.id_salt);
         let mut out = TransformBoxResponse { id, event: None, apply: false, discard: false, picked: None, hovered: None, claimed: false };
-        let mut picked: Option<BoxPart> = ctx.data(|d| d.get_temp(pick_key(id)));
+        let mut picked: Option<BoxPart> = ctx.data(|d| d.get_temp(pick_key(id))).filter(|&p| self.reference_point || p != BoxPart::Pivot);
 
         // A drag whose press ended while the box was not shown is dropped, and its gesture with it.
         let mut drag: Option<Drag> =
@@ -614,7 +613,7 @@ impl<'a> TransformBox<'a> {
         let screen = on_screen(view, self.state);
         let part = self.takes(&screen, origin, style, mods)?;
         let from = view.to_doc(origin);
-        let alt_pivot = part == BoxPart::Pivot && mods.alt && raw_part(&screen, origin, style.hit) != BoxPart::Pivot;
+        let alt_pivot = part == BoxPart::Pivot && mods.alt && raw_part(&screen, origin, style.hit, self.reference_point) != BoxPart::Pivot;
         let start = if alt_pivot { BoxState { pivot: from, ..*self.state } } else { *self.state };
         Some(BoxPress { part, at_press: *self.state, start, from, origin, began: false, alt_pivot, last: *self.state })
     }
@@ -706,7 +705,7 @@ impl<'a> TransformBox<'a> {
     /// The part a press at screen point `p` with `mods` takes from the box mapped to the screen;
     /// `None` where the press is the tool's.
     fn takes(&self, screen: &BoxState, p: Pos2, style: &TransformStyle, mods: Modifiers) -> Option<BoxPart> {
-        let part = match raw_part(screen, p, style.hit) {
+        let part = match raw_part(screen, p, style.hit, self.reference_point) {
             BoxPart::Inside if !self.inside_moves => return None,
             BoxPart::Outside if self.zone == RotateZone::Band && !(self.rules.allows(BoxPart::Outside) && in_band(screen, p, style)) => {
                 return None;
@@ -714,7 +713,8 @@ impl<'a> TransformBox<'a> {
             part => part,
         };
         match part {
-            BoxPart::Inside | BoxPart::Outside if mods.alt => Some(BoxPart::Pivot),
+            // ⌥ away from the handles places the reference point; hidden, it does nothing.
+            BoxPart::Inside | BoxPart::Outside if mods.alt => self.reference_point.then_some(BoxPart::Pivot),
             BoxPart::Outside => Some(part),
             part => self.rules.allows(part).then_some(part),
         }
@@ -771,7 +771,7 @@ impl<'a> TransformBox<'a> {
     /// and the reference point, whatever [`inside_moves`](Self::inside_moves) and the modifiers
     /// make of a press there. The host applies the box on it, as [`show`](Self::show) does.
     pub fn double_click(&self, view: &CanvasView, style: &TransformStyle, point: Pos2) -> bool {
-        raw_part(&on_screen(view, self.state), point, style.hit) == BoxPart::Inside
+        raw_part(&on_screen(view, self.state), point, style.hit, self.reference_point) == BoxPart::Inside
     }
 
     /// Enter, Esc and the arrows; `idle`: no press is held.
@@ -787,7 +787,7 @@ impl<'a> TransformBox<'a> {
             return;
         }
         if let Some(by) = nudge::read(ui, nudge::STEP, nudge::BIG_STEP) {
-            let part = picked.filter(|&p| self.rules.allows(p)).unwrap_or(BoxPart::Inside);
+            let part = picked.filter(|&p| self.rules.allows(p) && (self.reference_point || p != BoxPart::Pivot)).unwrap_or(BoxPart::Inside);
             gesture.set(self.nudged(part, by));
         }
     }
@@ -817,7 +817,7 @@ impl<'a> TransformBox<'a> {
             .chain(
                 (0..4u8).map(|i| (BoxPart::Edge(i), q[usize::from(i)].midpoint(q[usize::from(i + 1) % 4]), self.names.edges[usize::from(i)].clone())),
             )
-            .chain([(BoxPart::Pivot, shown.pivot, self.names.pivot.clone())]);
+            .chain(self.reference_point.then(|| (BoxPart::Pivot, shown.pivot, self.names.pivot.clone())));
         for (part, at, name) in handles {
             if !self.rules.allows(part) {
                 continue;
@@ -919,7 +919,9 @@ impl<'a> TransformBox<'a> {
                 }
             }
         }
-        paint_pivot(&painter, pos(screen.pivot), style);
+        if self.reference_point {
+            paint_pivot(&painter, pos(screen.pivot), style);
+        }
         if !keyboard {
             return;
         }
@@ -1004,7 +1006,10 @@ fn screen_point(screen: &BoxState, part: BoxPart) -> Option<Point> {
 
 /// The part under screen point `p`: the nearest handle or the reference point within `hit`, else
 /// inside or outside.
-fn raw_part(screen: &BoxState, p: Pos2, hit: f32) -> BoxPart {
+fn raw_part(screen: &BoxState, p: Pos2, hit: f32, pivot: bool) -> BoxPart {
+    // A hidden reference point is moved out of reach so the inside or a handle wins there.
+    let far = Point::new(f64::INFINITY, f64::INFINITY);
+    let screen = if pivot { *screen } else { BoxState { pivot: far, ..*screen } };
     screen.part_at(Point::new(f64::from(p.x), f64::from(p.y)), f64::from(hit))
 }
 
