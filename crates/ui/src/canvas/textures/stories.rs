@@ -7,9 +7,9 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `primitives/textures/cache` | `TextureCache` with a small budget: Ready, Loading with stand-in, Empty, Failed, eviction as the key count grows, a `TextureStatistics` readout |
-//! | `primitives/textures/thumbnails` | `Thumbnails` over `FakeThumbSource`: synchronous and background renders, portrait and landscape frames, a transparent picture on the checkerboard, `hold` |
-//! | `primitives/textures/queue` | The order of visible, near and background requests with `ManualJobs`; requests scrolled away dropped |
+//! | `primitives/texture-cache/cache` | `TextureCache` with a small budget: Ready, Loading with stand-in, Empty, Failed, eviction as the key count grows, a `TextureStatistics` readout |
+//! | `primitives/thumbnails/thumbnails` | `Thumbnails` over `FakeThumbSource`: synchronous and background renders, portrait and landscape frames, a transparent picture on the checkerboard, `hold` |
+//! | `primitives/texture-queue/queue` | The order of visible, near and background requests with `ManualJobs`; requests scrolled away dropped |
 //!
 //! Story ids start with their level (`ids_are_unique_and_follow_the_level_component_story_form`),
 //! so these are `Level::Primitives` stories with the component names in [`COMPONENTS`].
@@ -25,7 +25,7 @@ use super::{
 };
 use crate::controls::Button;
 use crate::localized::Labels as _;
-use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::typed_story;
 
 /// The components this module has stories for.
@@ -33,8 +33,7 @@ pub const COMPONENTS: &[&str] = &["Texture cache", "Thumbnails", "Texture queue"
 
 crate::words! {
     /// The words of the texture stories.
-    pub(crate) struct TextureStoryWords {
-        finish_next: "textureStory.finishNext" = "Finish next";
+    pub(crate) struct TextureStoryLabels {
         put: "textureStory.put" = "Put";
         put_next: "textureStory.putNext" = "Put next key";
         new_revision: "textureStory.newRevision" = "New revision";
@@ -52,7 +51,6 @@ crate::words! {
         visible: "textureStory.visible" = "visible";
         near: "textureStory.near" = "near";
         background: "textureStory.background" = "background";
-        portrait: "textureStory.portrait" = "Portrait";
         landscape: "textureStory.landscape" = "Landscape";
         square: "textureStory.square" = "Square";
         failing: "textureStory.failing" = "Fails";
@@ -63,21 +61,35 @@ crate::words! {
 /// The three stories above.
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("primitives/textures/cache", Level::Primitives, "Texture cache", "Cache", CacheArgs { entries: 4.0, visible: 3.0 }, show_cache),
         typed_story!(
-            "primitives/textures/thumbnails",
+            "primitives/texture-cache/cache",
+            Level::Primitives,
+            "Texture cache",
+            "Cache",
+            CacheArgs { entries: 4.0, visible: 3.0 },
+            show_cache
+        ),
+        typed_story!(
+            "primitives/thumbnails/thumbnails",
             Level::Primitives,
             "Thumbnails",
             "Thumbnails",
             ThumbnailsArgs { background: true, fit: FitArg::Contain, checker: true, hold: false },
             show_thumbnails
         ),
-        typed_story!("primitives/textures/queue", Level::Primitives, "Texture queue", "Queue", QueueArgs { prefetch: true }, show_queue),
+        typed_story!("primitives/texture-queue/queue", Level::Primitives, "Texture queue", "Queue", QueueArgs { prefetch: true }, show_queue),
     ]
 }
 
 /// The cell side of the cache and thumbnail tiles, in points.
 const TILE: f32 = 64.0;
+
+/// How many [`TILE`] cells fit in a row of `ui`. A nested `vertical` per cell doesn't wrap in
+/// `horizontal_wrapped`, so the story breaks rows itself.
+fn cells_per_row(ui: &Ui) -> usize {
+    let gap = ui.spacing().item_spacing.x;
+    (((ui.available_width() + gap) / (TILE + gap)).floor() as usize).max(1)
+}
 
 /// The jobs the story's thumbnails run on, kept in egui memory under the story's name.
 fn manual_jobs(ui: &Ui, name: &str) -> Arc<ManualJobs> {
@@ -93,13 +105,13 @@ fn thumbnails(ctx: &Context, salt: impl std::hash::Hash + std::fmt::Debug, jobs:
 }
 
 /// The "Finish next" button: runs the oldest waiting job.
-fn finish_next(ui: &mut Ui, jobs: &ManualJobs, words: &TextureStoryWords) {
-    if ui.add(Button::new(words.finish_next.clone()).enabled(jobs.waiting() > 0)).clicked() {
+fn finish_next(ui: &mut Ui, jobs: &ManualJobs) {
+    if ui.add(Button::new(StoryLabels::of(ui).finish_next).enabled(jobs.waiting() > 0)).clicked() {
         jobs.run_next();
     }
 }
 
-fn state_word(words: &TextureStoryWords, state: &TextureState) -> String {
+fn state_word(words: &TextureStoryLabels, state: &TextureState) -> String {
     match state {
         TextureState::Missing => words.missing.clone(),
         TextureState::Loading { stand_in: None } => words.loading.clone(),
@@ -140,7 +152,7 @@ struct CacheDemo {
 }
 
 /// Puts what key `key` shows at `revision`: every fifth key from 2 is Empty, from 3 Failed.
-fn put_key(cache: &TextureCache<u32>, ctx: &Context, key: u32, revision: u64, words: &TextureStoryWords) {
+fn put_key(cache: &TextureCache<u32>, ctx: &Context, key: u32, revision: u64, words: &TextureStoryLabels) {
     match key % 5 {
         2 => cache.put_empty(ctx, key, Revision(revision)),
         3 => cache.put_failure(ctx, key, Revision(revision), words.failed.clone()),
@@ -151,7 +163,7 @@ fn put_key(cache: &TextureCache<u32>, ctx: &Context, key: u32, revision: u64, wo
 }
 
 fn show_cache(ui: &mut Ui, args: &mut CacheArgs) {
-    let words = TextureStoryWords::of(ui);
+    let words = TextureStoryLabels::of(ui);
     let ctx = ui.ctx().clone();
     let entries = args.entries.round().max(1.0) as usize;
     let visible = args.visible.round().max(1.0) as u32;
@@ -170,30 +182,33 @@ fn show_cache(ui: &mut Ui, args: &mut CacheArgs) {
             demo.revision += 1;
         }
     });
-    ui.horizontal_wrapped(|ui| {
-        for key in demo.puts.saturating_sub(visible)..demo.puts {
-            let state = cache.state(&ctx, &key, Revision(demo.revision));
-            ui.vertical(|ui| {
-                ui.set_width(TILE);
-                let size = vec2(TILE, TILE);
-                match state.shown() {
-                    Some(texture) => {
-                        ui.add(Image::new((texture.id, size)));
+    let keys: Vec<u32> = (demo.puts.saturating_sub(visible)..demo.puts).collect();
+    for row in keys.chunks(cells_per_row(ui)) {
+        ui.horizontal_top(|ui| {
+            for &key in row {
+                let state = cache.state(&ctx, &key, Revision(demo.revision));
+                ui.vertical(|ui| {
+                    ui.set_width(TILE);
+                    let size = vec2(TILE, TILE);
+                    match state.shown() {
+                        Some(texture) => {
+                            ui.add(Image::new((texture.id, size)));
+                        }
+                        None => {
+                            let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+                            ui.painter().rect_filled(rect, 0.0, ui.visuals().extreme_bg_color);
+                        }
                     }
-                    None => {
-                        let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-                        ui.painter().rect_filled(rect, 0.0, ui.visuals().extreme_bg_color);
+                    ui.label(craft_i18n::fmt(&words.key, &[("n", &key.to_string())]));
+                    ui.label(state_word(&words, &state));
+                    let settled = matches!(state, TextureState::Ready(_) | TextureState::Empty | TextureState::Failed { .. });
+                    if !settled && ui.add(Button::new(words.put.clone())).clicked() {
+                        put_key(&cache, &ctx, key, demo.revision, &words);
                     }
-                }
-                ui.label(craft_i18n::fmt(&words.key, &[("n", &key.to_string())]));
-                ui.label(state_word(&words, &state));
-                let settled = matches!(state, TextureState::Ready(_) | TextureState::Empty | TextureState::Failed { .. });
-                if !settled && ui.add(Button::new(words.put.clone())).clicked() {
-                    put_key(&cache, &ctx, key, demo.revision, &words);
-                }
-            });
-        }
-    });
+                });
+            }
+        });
+    }
     let statistics = cache.statistics();
     ui.label(craft_i18n::fmt(
         &words.readout,
@@ -226,14 +241,14 @@ struct ThumbnailsArgs {
 }
 
 fn show_thumbnails(ui: &mut Ui, args: &mut ThumbnailsArgs) {
-    let words = TextureStoryWords::of(ui);
+    let words = TextureStoryLabels::of(ui);
     let ctx = ui.ctx().clone();
     let jobs = manual_jobs(ui, "thumbnails");
     let thumbs = thumbnails(&ctx, ("thumbnails", args.background), &jobs);
     let revision_id = ui.make_persistent_id("texture-story-thumbnails-revision");
     let mut revision = ui.data_mut(|data| data.get_temp::<u64>(revision_id)).unwrap_or(0);
     ui.horizontal(|ui| {
-        finish_next(ui, &jobs, &words);
+        finish_next(ui, &jobs);
         if ui.add(Button::new(words.new_revision.clone())).clicked() {
             revision += 1;
         }
@@ -245,7 +260,7 @@ fn show_thumbnails(ui: &mut Ui, args: &mut ThumbnailsArgs) {
         source
     };
     let cells = [
-        (1, source(3, 4), words.portrait.clone()),
+        (1, source(3, 4), StoryLabels::of(ui).portrait),
         (2, source(4, 3), words.landscape.clone()),
         (3, source(1, 1), words.square.clone()),
         (4, source(1, 1), words.failing.clone()),
@@ -257,18 +272,20 @@ fn show_thumbnails(ui: &mut Ui, args: &mut ThumbnailsArgs) {
     };
     let paint = ThumbPaint::default().fit(fit).checker(args.checker);
     let request = ThumbRequest::for_cell(TILE, ui.pixels_per_point());
-    ui.horizontal_wrapped(|ui| {
-        for (key, source, caption) in &cells {
-            ui.vertical(|ui| {
-                ui.set_width(TILE);
-                let (rect, _) = ui.allocate_exact_size(vec2(TILE, TILE), Sense::hover());
-                let state = thumbs.state(&ctx, source, key, &request, Priority::VISIBLE);
-                thumbs.paint(ui.painter(), rect, &state, &paint);
-                ui.label(caption.clone());
-                ui.label(state_word(&words, &state));
-            });
-        }
-    });
+    for row in cells.chunks(cells_per_row(ui)) {
+        ui.horizontal_top(|ui| {
+            for (key, source, caption) in row {
+                ui.vertical(|ui| {
+                    ui.set_width(TILE);
+                    let (rect, _) = ui.allocate_exact_size(vec2(TILE, TILE), Sense::hover());
+                    let state = thumbs.state(&ctx, source, key, &request, Priority::VISIBLE);
+                    thumbs.paint(ui.painter(), rect, &state, &paint);
+                    ui.label(caption.clone());
+                    ui.label(state_word(&words, &state));
+                });
+            }
+        });
+    }
     ui.data_mut(|data| data.insert_temp(revision_id, revision));
 }
 
@@ -285,13 +302,13 @@ const QUEUE_ROWS: u32 = 14;
 const QUEUE_ROW: f32 = 32.0;
 
 fn show_queue(ui: &mut Ui, args: &mut QueueArgs) {
-    let words = TextureStoryWords::of(ui);
+    let words = TextureStoryLabels::of(ui);
     let ctx = ui.ctx().clone();
     let jobs = manual_jobs(ui, "queue");
     let thumbs = thumbnails(&ctx, "queue", &jobs);
     let source = FakeThumbSource::<u32>::new().later(true);
     let request = ThumbRequest::for_cell(QUEUE_ROW - 4.0, ui.pixels_per_point());
-    finish_next(ui, &jobs, &words);
+    finish_next(ui, &jobs);
     let mut waiting = 0;
     ScrollArea::vertical().max_height(QUEUE_ROW * 4.0).id_salt("texture-story-queue").show_viewport(ui, |ui, viewport| {
         ui.spacing_mut().item_spacing.y = 0.0;

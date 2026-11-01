@@ -97,7 +97,7 @@ pub(super) const TABLES: &[&[Word]] = &[
     crate::controls::preview_select::LINE_STYLE_WORDS,
     <crate::canvas::navigator::NavigatorLabels as Labels>::WORDS,
     <crate::canvas::SelectionOperationLabels as Labels>::WORDS,
-    <crate::canvas::textures::stories::TextureStoryWords as Labels>::WORDS,
+    <crate::canvas::textures::stories::TextureStoryLabels as Labels>::WORDS,
     <crate::edit::history_panel::HistoryLabels as Labels>::WORDS,
     <crate::edit::history_panel::UndoListLabels as Labels>::WORDS,
     <crate::edit::history_panel::SnapshotFormLabels as Labels>::WORDS,
