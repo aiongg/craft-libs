@@ -2160,12 +2160,14 @@ fn new_document_lines(out: &mut Lines, t: &NewDocumentTokens) {
 }
 
 fn table_lines(out: &mut Lines, t: &TableTokens) {
-    let TableTokens { header_height, sort_glyph, sort_gap, grip_width, drop_line_width } = t;
+    let TableTokens { header_height, sort_glyph, sort_gap, grip_width, drop_line_width, min_column, drop_line_slack } = t;
     out.line("table.header_height", len(*header_height));
     out.line("table.sort_glyph", len(*sort_glyph));
     out.line("table.sort_gap", len(*sort_gap));
     out.line("table.grip_width", len(*grip_width));
     out.line("table.drop_line_width", len(*drop_line_width));
+    out.line("table.min_column", len(*min_column));
+    out.line("table.drop_line_slack", len(*drop_line_slack));
 }
 
 fn chip_lines(out: &mut Lines, t: &ChipTokens) {

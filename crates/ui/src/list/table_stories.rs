@@ -155,27 +155,30 @@ fn show_files(ui: &mut Ui, args: &mut FilesArgs) {
             .striped(args.striped)
             .movable(args.movable)
             .max_height(320.0)
-            .show(ui, |ui, &file, column| match column {
+            .show(ui, |ui, &file, column, cx| match column {
                 Column::Name => {
-                    ui.label(format!("{} {:03}.pdf", words.report, file + 1));
+                    cx.label(ui, format!("{} {:03}.pdf", words.report, file + 1));
                 }
                 Column::Pages => {
-                    ui.label(numbers.format(pages(file) as f64, 0..=0));
+                    cx.label(ui, numbers.format(pages(file) as f64, 0..=0));
                 }
                 Column::Size => {
                     let megabytes = numbers.format(kilobytes(file) as f64 / 1024.0, 1..=1);
-                    ui.label(craft_i18n::fmt(&words.megabytes, &[("n", &megabytes)]));
+                    cx.label(ui, craft_i18n::fmt(&words.megabytes, &[("n", &megabytes)]));
                 }
                 Column::Modified => {
-                    ui.label(relative_age(&ctx, age(file), AgeStyle::Short));
+                    cx.label(ui, relative_age(&ctx, age(file), AgeStyle::Short));
                 }
                 Column::Warnings => {
                     if warnings(file) > 0 {
-                        ui.label(numbers.format(warnings(file) as f64, 0..=0));
+                        cx.label(ui, numbers.format(warnings(file) as f64, 0..=0));
                     }
                 }
             });
         for event in out.events {
+            if matches!(event, TableEvent::Unsorted) {
+                rows.sort_by_key(|row| row.key);
+            }
             if let TableEvent::Sort(sort) = &event {
                 sort.apply(rows, |a, b, column| match column {
                     Column::Name => a.key.cmp(&b.key),

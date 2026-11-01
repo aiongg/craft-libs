@@ -9,6 +9,7 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
+use craft_i18n::{CalendarDate, DateFormat, DateStyle, DateTime};
 use egui::{Context, Ui};
 
 use super::dialog::Dialog;
@@ -20,7 +21,7 @@ use super::state::DialogState;
 use crate::behavior::DisplayOrder;
 use crate::controls::{Button, ButtonVariant, IconButton, Link, Segmented, Select};
 use crate::icons::Icon;
-use crate::list::{Table, TableColumn, TableEvent, TableLayout, TableSort};
+use crate::list::{SortOrder, Table, TableColumn, TableEvent, TableLayout, TableSort};
 use crate::localized::words::counts;
 use crate::localized::{Labels as _, LocaleNumbers, Words};
 use crate::primitives::{Content, Text};
@@ -68,6 +69,13 @@ crate::words! {
         model_version: "about.modelVersion" = "Version";
         commits: "about.commits" = "Commits";
         share: "about.share" = "% of all commits";
+        /// A signed count in the Contributors table: `{count}` a grouped number.
+        plus: "about.plus" = "+{count}";
+        minus: "about.minus" = "−{count}";
+        /// A model's lines in the Models table: `{added}` and `{deleted}`, grouped numbers.
+        lines_range: "about.linesRange" = "+{added} / −{deleted}";
+        /// A share under half a percent: `{percent}` the written 1 %.
+        under_one: "about.underOne" = "<{percent}";
         lines: "about.lines" = "Lines +/−";
         /// A contributor's tooltip; `{prs}` and `{commits}` are the two counted words below.
         summary: "about.summary" = "@{login}: {prs}, {commits}, +{added} / −{deleted} lines (Δ {delta}), +{binAdded} / −{binDeleted} binary assets, {first} – {last}";
@@ -144,6 +152,7 @@ impl Contributor {
         let labels = AboutLabels::of_ctx(ctx);
         let words = Words::of_ctx(ctx);
         let numbers = LocaleNumbers::of_ctx(ctx);
+        let dates = crate::localized::dates(ctx);
         let prs = words.counted(ctx, counts::ABOUT_PRS, &labels.prs, self.prs);
         let commits = words.counted(ctx, counts::ABOUT_COMMITS, &labels.commit_count, self.commits);
         craft_i18n::fmt(
@@ -154,11 +163,11 @@ impl Contributor {
                 ("commits", &commits),
                 ("added", &numbers.count(self.lines_added)),
                 ("deleted", &numbers.count(self.lines_deleted)),
-                ("delta", &signed(&numbers, self.lines_delta())),
+                ("delta", &signed(&labels, &numbers, self.lines_delta())),
                 ("binAdded", &numbers.count(self.binary_added)),
                 ("binDeleted", &numbers.count(self.binary_deleted)),
-                ("first", day(&self.first_commit)),
-                ("last", day(&self.last_commit)),
+                ("first", &day(&dates, &self.first_commit)),
+                ("last", &day(&dates, &self.last_commit)),
             ],
         )
     }
@@ -253,18 +262,18 @@ impl ContributorSort {
     }
 
     /// The table cell for `c`; the name column shows the name as a link instead.
-    fn cell(self, c: &Contributor, numbers: &LocaleNumbers) -> String {
+    fn cell(self, c: &Contributor, numbers: &LocaleNumbers, dates: &DateFormat, labels: &AboutLabels) -> String {
         match self {
             ContributorSort::Name => c.login.to_string(),
             ContributorSort::Prs => numbers.count(c.prs),
             ContributorSort::Commits => numbers.count(c.commits),
             ContributorSort::LinesAdded => numbers.count(c.lines_added),
             ContributorSort::LinesDeleted => numbers.count(c.lines_deleted),
-            ContributorSort::LinesDelta => signed(numbers, c.lines_delta()),
+            ContributorSort::LinesDelta => signed(labels, numbers, c.lines_delta()),
             ContributorSort::BinaryAdded => numbers.count(c.binary_added),
             ContributorSort::BinaryDeleted => numbers.count(c.binary_deleted),
-            ContributorSort::FirstCommit => day(&c.first_commit).to_owned(),
-            ContributorSort::LastCommit => day(&c.last_commit).to_owned(),
+            ContributorSort::FirstCommit => day(dates, &c.first_commit),
+            ContributorSort::LastCommit => day(dates, &c.last_commit),
         }
     }
 }
@@ -312,14 +321,28 @@ fn compare(a: &Contributor, b: &Contributor, mode: NameMode, sort: ContributorSo
 }
 
 /// `+1,234` or `−1,234`.
-fn signed(numbers: &LocaleNumbers, delta: i128) -> String {
+pub(super) fn signed(labels: &AboutLabels, numbers: &LocaleNumbers, delta: i128) -> String {
     let magnitude = numbers.count(u64::try_from(delta.unsigned_abs()).unwrap_or(u64::MAX));
-    if delta < 0 { format!("−{magnitude}") } else { format!("+{magnitude}") }
+    craft_i18n::fmt(if delta < 0 { &labels.minus } else { &labels.plus }, &[("count", &magnitude)])
 }
 
-/// The date of an ISO 8601 timestamp, or "—" for none.
-fn day(iso: &str) -> &str {
-    if iso.is_empty() { "—" } else { iso.get(..10).unwrap_or(iso) }
+/// The date of an ISO 8601 timestamp in the region's date style, "—" for none; a timestamp that
+/// doesn't parse shows its first ten characters.
+pub(super) fn day(dates: &DateFormat, iso: &str) -> String {
+    if iso.is_empty() {
+        return "—".to_owned();
+    }
+    match iso_date(iso) {
+        Some(date) => dates.format(DateTime { date, hour: 0, minute: 0, second: 0 }, DateStyle::DATE),
+        None => iso.get(..10).unwrap_or(iso).to_owned(),
+    }
+}
+
+/// The calendar date of the `YYYY-MM-DD` that starts an ISO 8601 timestamp.
+fn iso_date(iso: &str) -> Option<CalendarDate> {
+    let mut parts = iso.get(..10)?.split('-');
+    let (year, month, day) = (parts.next()?.parse().ok()?, parts.next()?.parse().ok()?, parts.next()?.parse().ok()?);
+    CalendarDate::new(year, month, day)
 }
 
 /// A model's share of all commits, in whole percent, written by `percent` (the region's
@@ -388,17 +411,19 @@ impl ModelColumn {
     }
 
     /// The cell for `m`; `total` counts every commit.
-    pub(super) fn cell(self, m: &ModelCredit, total: u64, numbers: &LocaleNumbers) -> String {
+    pub(super) fn cell(self, m: &ModelCredit, total: u64, numbers: &LocaleNumbers, labels: &AboutLabels) -> String {
         match self {
             ModelColumn::Company => m.company.to_string(),
             ModelColumn::Model => m.model.to_string(),
             ModelColumn::Version => m.version.to_string(),
             ModelColumn::Commits => numbers.count(m.commits),
             ModelColumn::Share => match commit_share(m.commits, total) {
-                CommitShare::UnderOne => format!("<{}", numbers.percent(0.01)),
+                CommitShare::UnderOne => craft_i18n::fmt(&labels.under_one, &[("percent", &numbers.percent(0.01))]),
                 CommitShare::Ratio(ratio) => numbers.percent(ratio),
             },
-            ModelColumn::Lines => format!("+{} / −{}", numbers.count(m.lines_added), numbers.count(m.lines_deleted)),
+            ModelColumn::Lines => {
+                craft_i18n::fmt(&labels.lines_range, &[("added", &numbers.count(m.lines_added)), ("deleted", &numbers.count(m.lines_deleted))])
+            }
         }
     }
 }
@@ -505,7 +530,7 @@ impl StackDialog for AboutDialog {
         let response = Dialog::with_id(id, title)
             .stack(stack)
             .width(Width::Fixed(crate::theme::current(ctx).component.about.width))
-            .footer(Footer::none())
+            .footer(Footer::standard().without_cancel())
             .show(ctx, state, &mut (), |ui, ()| {
                 let tabs = [
                     Tab::new(AboutTab::About, labels.about_tab.as_str()),
@@ -588,7 +613,9 @@ fn column_width(ui: &Ui, head: &str, cells: impl Iterator<Item = String>) -> f32
 
 /// A contributor's name linking to their GitHub profile, with the full summary as its tooltip.
 fn contributor_link(ui: &mut Ui, c: &Contributor, names: NameMode, salt: impl std::hash::Hash + std::fmt::Debug, clicked: &mut Option<String>) {
-    let response = ui.add(Link::new(c.name(names)).id_salt(salt)).on_hover_text(c.summary(ui.ctx()));
+    let response = ui.add(Link::new(c.name(names)).id_salt(salt)).on_hover_ui(|ui| {
+        ui.label(c.summary(ui.ctx()));
+    });
     if response.clicked() {
         *clicked = Some(format!("https://github.com/{}", c.login));
     }
@@ -675,47 +702,42 @@ fn contributors_table(
     clicked: &mut Option<String>,
 ) {
     let numbers = LocaleNumbers::of_ctx(ui.ctx());
+    let dates = crate::localized::dates(ui.ctx());
     let about = Tokens::of(ui).component.about;
     let columns: Vec<TableColumn<ContributorSort>> = ContributorSort::ALL
         .into_iter()
         .map(|key| {
-            let head = key.label(labels).1;
-            let column = TableColumn::new(key, head);
+            let (name, head) = key.label(labels);
+            let first = if key.default_ascending() { SortOrder::Ascending } else { SortOrder::Descending };
+            let column = TableColumn::new(key, head).first_order(first).tip(name);
             let column = if key.numeric() { column.numeric() } else { column };
             if key == ContributorSort::Name {
                 column.min_width(about.flex_min)
             } else {
-                let width = column_width(ui, head, list.iter().map(|c| key.cell(c, &numbers)));
+                let width = column_width(ui, head, list.iter().map(|c| key.cell(c, &numbers, &dates, labels)));
                 column.min_width(width).initial_width(width)
             }
         })
         .collect();
-    layout.sort = Some(TableSort {
-        column: view.sort,
-        order: if view.ascending { crate::list::SortOrder::Ascending } else { crate::list::SortOrder::Descending },
-    });
+    layout.sort = Some(TableSort { column: view.sort, order: if view.ascending { SortOrder::Ascending } else { SortOrder::Descending } });
     let header = Table::style(&Tokens::of(ui)).header_height;
     let rows = RowOrder(order);
     let names = view.names;
     let out = Table::new("about-contributors", labels.contributors_tab.as_str(), &columns, layout, &rows)
         .movable(false)
         .max_height(about.list_height - header)
-        .show(ui, |ui, &at, column| {
+        .show(ui, |ui, &at, column, cx| {
             let c = &list[at];
             if *column == ContributorSort::Name {
                 contributor_link(ui, c, names, ("name", at), clicked);
             } else {
-                ui.add(Text::new(column.cell(c, &numbers)));
+                cx.label(ui, column.cell(c, &numbers, &dates, labels));
             }
         });
     for event in out.events {
         if let TableEvent::Sort(sort) = event {
-            if sort.column == view.sort {
-                view.ascending = sort.order == crate::list::SortOrder::Ascending;
-            } else {
-                view.sort = sort.column;
-                view.ascending = sort.column.default_ascending();
-            }
+            view.sort = sort.column;
+            view.ascending = sort.order == SortOrder::Ascending;
         }
     }
 }
@@ -739,7 +761,7 @@ fn models_tab(ui: &mut Ui, labels: &AboutLabels, credits: &Credits, layout: &mut
             if key == ModelColumn::Model {
                 column.min_width(about.flex_min)
             } else {
-                let width = column_width(ui, head, models.iter().map(|m| key.cell(m, total, &numbers)));
+                let width = column_width(ui, head, models.iter().map(|m| key.cell(m, total, &numbers, labels)));
                 column.min_width(width).initial_width(width)
             }
         })
@@ -749,8 +771,8 @@ fn models_tab(ui: &mut Ui, labels: &AboutLabels, credits: &Credits, layout: &mut
     let rows = RowOrder((0..models.len()).collect());
     let _ = Table::new("about-models", labels.models_tab.as_str(), &columns, layout, &rows).movable(false).max_height(body).show(
         ui,
-        |ui, &at, column| {
-            ui.add(Text::new(column.cell(&models[at], total, &numbers)));
+        |ui, &at, column, cx| {
+            cx.label(ui, column.cell(&models[at], total, &numbers, labels));
         },
     );
 }

@@ -5,7 +5,9 @@ use egui::{Key, Modifiers};
 use egui_kittest::kittest::Queryable as _;
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::about::{ModelColumn, share_total};
+use craft_i18n::DateFormat;
+
+use super::about::{ModelColumn, day, share_total, signed};
 use super::*;
 use crate::dialog::DialogHost;
 use crate::localized::LocaleNumbers;
@@ -79,9 +81,10 @@ fn model_share_is_never_zero_for_a_credited_model() {
     assert_eq!(commit_share(5, 1_000), CommitShare::Ratio(0.005));
     assert_eq!(commit_share(10, 0), CommitShare::Ratio(1.0), "no total reads as the whole");
     let numbers = LocaleNumbers::from_tag("en-US");
+    let labels = AboutLabels::default();
     let models = credits().models;
-    assert_eq!(ModelColumn::Share.cell(&models[1], 1_000, &numbers), "<1%");
-    assert_eq!(ModelColumn::Share.cell(&models[0], 1_000, &numbers), "6%");
+    assert_eq!(ModelColumn::Share.cell(&models[1], 1_000, &numbers, &labels), "<1%");
+    assert_eq!(ModelColumn::Share.cell(&models[0], 1_000, &numbers, &labels), "6%");
     let trailing = Credits { total_commits: 10, ..credits() };
     assert_eq!(share_total(&trailing), 60, "a total below the busiest model's is raised to it");
 }
@@ -167,4 +170,59 @@ fn about_tabs_and_links() {
     harness.run();
     assert_eq!(dialog_width(&harness), width);
     harness.get_by_label("<1%");
+}
+
+// The window has an OK button, and Enter presses it as it does in PhotoCraft; the dialog then
+// reports its result.
+#[test]
+fn enter_presses_ok() {
+    let mut harness = harness(AboutTab::About);
+    harness.run();
+    harness.get_by_role_and_label(egui::accesskit::Role::Button, "OK");
+    harness.key_press(Key::Enter);
+    harness.run();
+    harness.run();
+    assert!(!harness.state().host.is_open::<AboutDialog>(), "Enter closed the window");
+
+    let mut harness = self::harness(AboutTab::About);
+    harness.run();
+    harness.get_by_role_and_label(egui::accesskit::Role::Button, "OK").click();
+    harness.run();
+    assert!(!harness.state().host.is_open::<AboutDialog>(), "a click on OK closed it");
+}
+
+// Dates are written in the region's date style; a timestamp that doesn't parse shows its first ten characters.
+#[test]
+fn commit_dates_follow_the_region() {
+    let us = DateFormat::from_tag("en-US");
+    let de = DateFormat::from_tag("de-DE");
+    assert_eq!(day(&us, "2025-01-02T10:00:00Z"), "Jan 2, 2025");
+    assert_eq!(day(&de, "2025-01-02T10:00:00Z"), "02.01.2025");
+    assert_eq!(day(&us, ""), "—", "no date");
+    assert_eq!(day(&us, "2025-13-45 and more"), "2025-13-45", "not a date: the ISO slice");
+}
+
+// The cells of signed counts and model lines come from the words, so a translation can reorder them.
+#[test]
+fn signs_and_line_ranges_are_words() {
+    let numbers = LocaleNumbers::from_tag("en-US");
+    let labels = AboutLabels::default();
+    assert_eq!(signed(&labels, &numbers, 1_000), "+1,000");
+    assert_eq!(signed(&labels, &numbers, -2_500), "−2,500");
+    let models = credits().models;
+    assert_eq!(ModelColumn::Lines.cell(&models[0], 1_000, &numbers, &labels), "+5,000 / −100");
+}
+
+// A contributor's table header has its long sort name as its tooltip.
+#[test]
+fn an_abbreviated_head_has_its_long_name_as_tooltip() {
+    let mut harness = harness(AboutTab::Contributors);
+    harness.run();
+    harness.get_by_label("Table").click();
+    harness.run();
+    harness.get_by_role_and_label(Role::ColumnHeader, "+LOC").hover();
+    for _ in 0..30 {
+        harness.step();
+    }
+    harness.get_by_label("Lines added");
 }
