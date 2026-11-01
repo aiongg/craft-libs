@@ -2,9 +2,15 @@
 //! [`FullWindowZoomKeys`], the zoom keys that act on it.
 
 use egui::{Key, KeyboardShortcut, Modifiers, Rect, Ui};
-use kurbo::Point;
+use kurbo::{Point, Size};
 
-use crate::canvas::CanvasView;
+use crate::canvas::{CanvasView, ZoomLadder};
+
+/// The most a fitted view magnifies: 400 %.
+const FIT_MAX: f64 = 4.0;
+/// Zooms and centres closer than this are the same view (the round trip through screen points
+/// per unit and back differs in the last bits).
+const SAME: f64 = 1e-9;
 
 /// How a full-window canvas shows its image: fitted, or a zoom and a centre the user chose.
 ///
@@ -70,24 +76,32 @@ impl FullWindowView {
 
     /// Sets the device zoom (clamped to [`ZoomLadder`](crate::canvas::ZoomLadder)'s range for the
     /// image's size, once it is known), keeping the centre, and ends the fit.
-    #[expect(clippy::todo, reason = "skeleton: K16")]
     pub fn set_zoom(&mut self, zoom: f64) {
         // new: PhotoCraft keeps `zoom <= 0.0` as "fit on the next frame" and clamps to 0.01..32
         // (pc: crates/ui-egui/src/dialogs/liquify_ui.rs:1232-1233); the library's ladder range
         // replaces the clamp (step7-workspaces.md lead call 16).
-        let _ = zoom;
-        todo!()
+        self.zoom = ZoomLadder::clamp(zoom, self.doc_size());
+        self.fit = false;
     }
 
     /// Steps the zoom one rung of [`ZoomLadder::STEPS`](crate::canvas::ZoomLadder::STEPS) in
     /// (`dir > 0`) or out, from the zoom on screen, and ends the fit. False at the end of the
     /// range (nothing changes).
-    #[expect(clippy::todo, reason = "skeleton: K16")]
     pub fn step(&mut self, dir: i32) -> bool {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:747-748 (`step_in_range` from the zoom on
         // screen), with `ZoomLadder::step` for the image's size in place of the dialog's range.
-        let _ = dir;
-        todo!()
+        let next = ZoomLadder::step(self.zoom, dir, self.doc_size());
+        let changed = next.is_finite() && (next / self.zoom - 1.0).abs() > SAME;
+        if changed {
+            self.zoom = next;
+            self.fit = false;
+        }
+        changed
+    }
+
+    /// The image's size as the ladder takes it.
+    fn doc_size(&self) -> Size {
+        Size::new(f64::from(self.size[0]), f64::from(self.size[1]))
     }
 
     /// Fits the image again (⌘0, Fit in View).
@@ -100,32 +114,53 @@ impl FullWindowView {
     /// ladder's minimum), else the zoom and centre. Records `size` and, while fitted, the zoom it
     /// fitted to. The view's zoom is in screen points per image pixel
     /// ([`CanvasView::points_per_unit`] of the device zoom at `pixels_per_point`).
-    #[expect(clippy::todo, reason = "skeleton: K16")]
     pub fn canvas_view(&mut self, rect: Rect, size: [u32; 2], margin: f32, pixels_per_point: f32) -> CanvasView {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1914-1915 (fit: `(area - 40) / size`,
         // clamped to 0.01..4), liquify_ui.rs:1085-1086 (the same).
-        let _ = (rect, size, margin, pixels_per_point);
-        todo!()
+        self.size = size;
+        if self.fit && size[0] > 0 && size[1] > 0 {
+            let doc = self.doc_size();
+            let room = |side: f32| f64::from((side - 2.0 * margin).max(1.0));
+            let points = (room(rect.width()) / doc.width).min(room(rect.height()) / doc.height);
+            self.zoom = (points * f64::from(pixels_per_point)).min(FIT_MAX).max(ZoomLadder::min(doc));
+            self.center = Point::new(doc.width / 2.0, doc.height / 2.0);
+        }
+        CanvasView::new(rect, self.center, CanvasView::points_per_unit(self.zoom, pixels_per_point))
     }
 
     /// Takes the zoom and centre of `view` (after a tool, a pan or a wheel zoom changed it on the
     /// canvas this pass); a change of either ends the fit.
-    #[expect(clippy::todo, reason = "skeleton: K16")]
     pub fn take(&mut self, view: &CanvasView, pixels_per_point: f32) {
         // new: the canvas hands the host's changed `CanvasView` back to the plain data.
-        let _ = (view, pixels_per_point);
-        todo!()
+        let zoom = view.zoom * f64::from(pixels_per_point);
+        let moved = (zoom / self.zoom - 1.0).abs() > SAME || (view.center - self.center).hypot() > SAME;
+        if moved {
+            self.zoom = zoom;
+            self.center = view.center;
+            self.fit = false;
+        }
     }
 
     /// Applies a zoom command: [`In`](FullWindowZoom::In) and [`Out`](FullWindowZoom::Out) step
     /// the ladder, [`Fit`](FullWindowZoom::Fit) fits, [`ActualPixels`](FullWindowZoom::ActualPixels)
     /// sets 100 % about the centre. False when nothing changed.
-    #[expect(clippy::todo, reason = "skeleton: K16")]
     pub fn apply(&mut self, zoom: FullWindowZoom) -> bool {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:746-752 (zoom in, out, fit as `0.0`, else
         // 100 %).
-        let _ = zoom;
-        todo!()
+        match zoom {
+            FullWindowZoom::In => self.step(1),
+            FullWindowZoom::Out => self.step(-1),
+            FullWindowZoom::Fit => {
+                let changed = !self.fit;
+                self.reset_fit();
+                changed
+            }
+            FullWindowZoom::ActualPixels => {
+                let changed = self.fit || (self.zoom - 1.0).abs() > SAME;
+                self.set_zoom(1.0);
+                changed
+            }
+        }
     }
 }
 
@@ -168,11 +203,19 @@ impl FullWindowZoomKeys {
     /// The first of these chords pressed this pass, consumed. `None` while a text field has the
     /// keyboard (it keeps ⌘+ and ⌘− for its own text), or when `ui`'s layer is not the top modal
     /// layer (a dialog the workspace opened is above it).
-    #[expect(clippy::todo, reason = "skeleton: K16")]
     pub fn take(&self, ui: &Ui) -> Option<FullWindowZoom> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:742-743 ("⌘+ / ⌘− / ⌘0 / ⌘1 (or their
         // overrides) zoom the preview, not the canvas behind it").
-        let _ = ui;
-        todo!()
+        let ctx = ui.ctx();
+        if ctx.text_edit_focused() || ctx.memory(|m| m.top_modal_layer()) != Some(ui.layer_id()) {
+            return None;
+        }
+        let groups = [
+            (&self.zoom_in, FullWindowZoom::In),
+            (&self.zoom_out, FullWindowZoom::Out),
+            (&self.fit, FullWindowZoom::Fit),
+            (&self.actual_pixels, FullWindowZoom::ActualPixels),
+        ];
+        groups.into_iter().find_map(|(chords, zoom)| chords.iter().any(|chord| ctx.input_mut(|i| i.consume_shortcut(chord))).then_some(zoom))
     }
 }
