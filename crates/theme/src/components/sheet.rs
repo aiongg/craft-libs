@@ -44,6 +44,24 @@ pub struct SheetTokens {
     pub filter_button_max: f32,
     /// The filter button's inset from the header cell's corner: [`values::SHEET_FILTER_BUTTON_INSET`].
     pub filter_button_inset: f32,
+    /// A dashed chart line's dash: [`values::SHEET_CHART_DASH`].
+    pub chart_dash: f32,
+    /// The gap between a dashed chart line's dashes: [`values::SHEET_CHART_DASH_GAP`].
+    pub chart_dash_gap: f32,
+    /// The gap between the error checking tag and its cell: [`values::SHEET_ERROR_TAG_GAP`].
+    pub error_tag_gap: f32,
+    /// The error checking tag's corner radius: [`values::SHEET_ERROR_TAG_RADIUS`].
+    pub error_tag_radius: f32,
+    /// The warning diamond's half-diagonal in the error checking tag: [`values::SHEET_ERROR_TAG_MARK`].
+    pub error_tag_mark: f32,
+    /// The exclamation mark's text size in the error checking tag: [`values::SHEET_ERROR_TAG_MARK_TEXT`].
+    pub error_tag_mark_text: f32,
+    /// The filter button's corner radius: [`values::SHEET_FILTER_BUTTON_RADIUS`].
+    pub filter_button_radius: f32,
+    /// The filter button's inset round its glyph: [`values::SHEET_FILTER_BUTTON_GLYPH_INSET`].
+    pub filter_button_glyph_inset: f32,
+    /// The gap between statistics in the status bar: [`values::SHEET_STATS_GAP`].
+    pub stats_gap: f32,
 }
 
 /// Sheet tokens have no overridable field.
@@ -72,6 +90,15 @@ impl Family for SheetTokens {
         "filter_button_min" 4.0..=48.0 => filter_button_min;
         "filter_button_max" 6.0..=64.0 => filter_button_max;
         "filter_button_inset" 0.0..=16.0 => filter_button_inset;
+        "chart_dash" 0.5..=32.0 => chart_dash;
+        "chart_dash_gap" 0.5..=32.0 => chart_dash_gap;
+        "error_tag_gap" 0.0..=16.0 => error_tag_gap;
+        "error_tag_radius" 0.0..=16.0 => error_tag_radius;
+        "error_tag_mark" 1.0..=32.0 => error_tag_mark;
+        "error_tag_mark_text" 4.0..=32.0 => error_tag_mark_text;
+        "filter_button_radius" 0.0..=16.0 => filter_button_radius;
+        "filter_button_glyph_inset" 0.0..=16.0 => filter_button_glyph_inset;
+        "stats_gap" 0.0..=64.0 => stats_gap;
     };
 
     fn defaults(_: &Semantic<'_>) -> SheetTokens {
@@ -94,6 +121,15 @@ impl Family for SheetTokens {
             filter_button_min: values::SHEET_FILTER_BUTTON_MIN,
             filter_button_max: values::SHEET_FILTER_BUTTON_MAX,
             filter_button_inset: values::SHEET_FILTER_BUTTON_INSET,
+            chart_dash: values::SHEET_CHART_DASH,
+            chart_dash_gap: values::SHEET_CHART_DASH_GAP,
+            error_tag_gap: values::SHEET_ERROR_TAG_GAP,
+            error_tag_radius: values::SHEET_ERROR_TAG_RADIUS,
+            error_tag_mark: values::SHEET_ERROR_TAG_MARK,
+            error_tag_mark_text: values::SHEET_ERROR_TAG_MARK_TEXT,
+            filter_button_radius: values::SHEET_FILTER_BUTTON_RADIUS,
+            filter_button_glyph_inset: values::SHEET_FILTER_BUTTON_GLYPH_INSET,
+            stats_gap: values::SHEET_STATS_GAP,
         }
     }
 

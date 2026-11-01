@@ -1,9 +1,7 @@
 //! Reference picking: a formula field in point mode takes a cell reference from a click on the
 //! grid (N6.07).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use super::grid::CellRef;
+use super::grid::{CellRange, CellRef, absolute_range_reference};
 
 /// Excel's point mode for a dialog's formula box (GridCraft's conditional-format and validation
 /// dialogs): while the box is in point mode, a click on the grid writes the cell's absolute
@@ -52,7 +50,6 @@ impl ReferencePicker {
     /// (a reference may go at the caret: after `=`, an operator, `(` or `,`); `quote` quotes a
     /// sheet name (`'My Sheet'`).
     // gridcraft: crates/ui-egui/src/dialogs.rs:140 `pick_reference`, `:79` `RefPick`.
-    #[expect(clippy::ptr_arg, reason = "skeleton: the body edits the String")]
     pub fn pick(
         &mut self,
         text: &mut String,
@@ -62,7 +59,30 @@ impl ReferencePicker {
         can_point: impl Fn(&str, usize) -> bool,
         quote: impl Fn(&str) -> String,
     ) -> bool {
-        todo!()
+        let caret = self.caret.min(text.chars().count());
+        let (mut edited, caret, point) = if text.trim().is_empty() { ("=".to_owned(), 1, None) } else { (text.clone(), caret, self.point) };
+        let caret_byte = edited.char_indices().nth(caret).map_or(edited.len(), |(at, _)| at);
+        let at_reference = point.is_some_and(|p| p.span.1 == caret_byte && edited.get(p.span.0..p.span.1).is_some());
+        if !at_reference && !can_point(&edited, caret) {
+            return false;
+        }
+        let anchor = match point {
+            Some(p) if extend => p.anchor,
+            _ => cell,
+        };
+        let range = absolute_range_reference(CellRange::new(anchor, cell));
+        let reference = if sheet.eq_ignore_ascii_case(&self.sheet) { range } else { format!("{}!{range}", quote(sheet)) };
+        let start = match point {
+            Some(p) if at_reference => p.span.0,
+            _ => caret_byte,
+        };
+        edited.replace_range(start..if at_reference { caret_byte } else { start }, &reference);
+        let end = start + reference.len();
+        self.caret = edited[..end].chars().count();
+        self.point = Some(Pointed { span: (start, end), anchor });
+        self.refocus = true;
+        *text = edited;
+        true
     }
 
     /// Whether to give the box the keyboard back this pass, caret after the reference (once).

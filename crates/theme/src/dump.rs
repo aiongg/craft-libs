@@ -2458,6 +2458,15 @@ fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
         filter_button_min,
         filter_button_max,
         filter_button_inset,
+        chart_dash,
+        chart_dash_gap,
+        error_tag_gap,
+        error_tag_radius,
+        error_tag_mark,
+        error_tag_mark_text,
+        filter_button_radius,
+        filter_button_glyph_inset,
+        stats_gap,
     } = t;
     out.line("sheet.column_header_height", len(*column_header_height));
     out.line("sheet.row_header_digit", len(*row_header_digit));
@@ -2477,6 +2486,15 @@ fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
     out.line("sheet.filter_button_min", len(*filter_button_min));
     out.line("sheet.filter_button_max", len(*filter_button_max));
     out.line("sheet.filter_button_inset", len(*filter_button_inset));
+    out.line("sheet.chart_dash", len(*chart_dash));
+    out.line("sheet.chart_dash_gap", len(*chart_dash_gap));
+    out.line("sheet.error_tag_gap", len(*error_tag_gap));
+    out.line("sheet.error_tag_radius", len(*error_tag_radius));
+    out.line("sheet.error_tag_mark", len(*error_tag_mark));
+    out.line("sheet.error_tag_mark_text", len(*error_tag_mark_text));
+    out.line("sheet.filter_button_radius", len(*filter_button_radius));
+    out.line("sheet.filter_button_glyph_inset", len(*filter_button_glyph_inset));
+    out.line("sheet.stats_gap", len(*stats_gap));
 }
 
 fn pages_lines(out: &mut Lines, t: &PagesTokens) {
