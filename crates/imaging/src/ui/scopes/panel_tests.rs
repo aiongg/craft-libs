@@ -1,14 +1,14 @@
 //! The scope panel on screen (egui_kittest).
-#![expect(clippy::todo, reason = "skeleton: ST6 fills the clipping buttons test")]
 
 use craft_ui::composites::ChannelColor;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
-use egui::{Context, Event, Modifiers, PointerButton, Pos2, pos2};
+use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, pos2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-use super::{HistogramSet, ScopeChannel, ScopeFrame, ScopePanel, ScopePanelOutput, ScopePanelState, ScopeSource, ScopeView};
+use super::{ClippingFrame, HistogramSet, ScopeChannel, ScopeFrame, ScopePanel, ScopePanelOutput, ScopePanelState, ScopeSource, ScopeView};
+use crate::scopes::ChannelMask;
 
 /// The state, what the last pass reported, and which one-shot reports have come.
 struct Host {
@@ -17,6 +17,8 @@ struct Host {
     sources: &'static [ScopeSource<'static>],
     last: Option<ScopePanelOutput>,
     refreshes: usize,
+    clipping: Option<ClippingFrame>,
+    toggles: usize,
 }
 
 static RAMP: [u32; 256] = {
@@ -32,7 +34,7 @@ static RAMP: [u32; 256] = {
 fn rig(view: ScopeView, sources: &'static [ScopeSource<'static>], stale: bool) -> Harness<'static, Host> {
     let mut state = ScopePanelState::default();
     state.settings.view = view;
-    let host = Host { state, stale, sources, last: None, refreshes: 0 };
+    let host = Host { state, stale, sources, last: None, refreshes: 0, clipping: None, toggles: 0 };
     let mut harness =
         Harness::builder().with_size([320.0, 480.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
             |ui, host: &mut Host| {
@@ -42,9 +44,13 @@ fn rig(view: ScopeView, sources: &'static [ScopeSource<'static>], stale: bool) -
                     ScopeChannel { key: "green", label: "Green", ink: ChannelColor::Green, bins: &RAMP, color_channel: true },
                     ScopeChannel { key: "blue", label: "Blue", ink: ChannelColor::Blue, bins: &RAMP, color_channel: true },
                 ];
-                let frame = ScopeFrame::histogram(HistogramSet::new(&channels).stale(host.stale));
+                let mut frame = ScopeFrame::histogram(HistogramSet::new(&channels).stale(host.stale));
+                if let Some(clipping) = host.clipping {
+                    frame = frame.clipping(clipping);
+                }
                 let out = ScopePanel::new("scope", &mut host.state).frame(&frame).sources(host.sources).show(ui);
                 host.refreshes += usize::from(out.refresh);
+                host.toggles += usize::from(out.clipping_toggled);
                 host.last = Some(out);
             },
             host,
@@ -137,10 +143,40 @@ fn scope_refresh_is_requested_three_ways() {
     assert!(harness.state().refreshes >= 3, "the double-click");
 }
 
-// A click, U and O toggle the warnings and report `clipping_toggled`; the fill shows the clipped
-// channels. Needs SC2's panel and SC3's buttons: filled by ST6.
+// A click, U and O toggle the warnings and report `clipping_toggled`; the buttons exist only when
+// the frame carries clipping.
 #[test]
-#[ignore = "skeleton"]
 fn clipping_buttons_toggle_by_click_and_keys() {
-    todo!()
+    const SHADOWS: &str = "Shadow Clipping Warning (U)";
+    const HIGHLIGHTS: &str = "Highlight Clipping Warning (O)";
+    let mut harness = rig(ScopeView::Compact, &[], false);
+    assert!(harness.query_by_label(SHADOWS).is_none(), "no clipping in the frame, no buttons");
+
+    harness.state_mut().clipping = Some(ClippingFrame { shadows: ChannelMask::R, highlights: ChannelMask::RGB });
+    harness.run();
+    let warnings = |harness: &Harness<'_, Host>| {
+        let settings = &harness.state().state.settings;
+        (settings.shadow_warning, settings.highlight_warning)
+    };
+    assert_eq!(warnings(&harness), (false, false));
+
+    harness.get_by_role_and_label(Role::CheckBox, SHADOWS).click();
+    harness.run();
+    assert_eq!(warnings(&harness), (true, false), "a click on the shadow button");
+    assert_eq!(harness.state().toggles, 1);
+
+    harness.get_by_role_and_label(Role::CheckBox, HIGHLIGHTS).click();
+    harness.run();
+    assert_eq!(warnings(&harness), (true, true), "a click on the highlight button");
+    assert_eq!(harness.state().toggles, 2);
+
+    harness.get_by_role_and_label(Role::CheckBox, HIGHLIGHTS).focus();
+    harness.run();
+    harness.key_press(Key::U);
+    harness.run();
+    assert_eq!(warnings(&harness), (false, true), "U toggles the shadow warning");
+    harness.key_press(Key::O);
+    harness.run();
+    assert_eq!(warnings(&harness), (false, false), "O toggles the highlight warning");
+    assert_eq!(harness.state().toggles, 4);
 }
