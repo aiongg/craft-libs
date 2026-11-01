@@ -4,6 +4,11 @@ use serde::{Deserialize, Serialize};
 
 use craft_ui::canvas::kurbo::Point;
 
+/// The smallest radius (a fraction of the shorter side), as the filter commands bound it.
+const MIN_RADIUS: f64 = 0.01;
+/// The largest feather.
+const MAX_FEATHER: f64 = 0.99;
+
 /// The most pins (PhotoCraft `MAX_PINS`: more than anyone places by hand; it bounds the
 /// parameters and the per-pixel loop).
 pub const MAX_PINS: usize = 64;
@@ -63,10 +68,16 @@ impl IrisShape {
 
     /// The shape with every value finite and in range (non-finite values back to the defaults,
     /// the angle wrapped into −180..180).
-    #[expect(clippy::todo, reason = "skeleton: task WS-BP1")]
     pub fn clean(self) -> IrisShape {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:122 `clean`.
-        todo!()
+        let finite = |value: f64, default: f64| if value.is_finite() { value } else { default };
+        IrisShape {
+            radius_x: finite(self.radius_x, 0.35).clamp(MIN_RADIUS, 1.0),
+            radius_y: finite(self.radius_y, 0.25).clamp(MIN_RADIUS, 1.0),
+            angle: (finite(self.angle, 0.0) + 180.0).rem_euclid(360.0) - 180.0,
+            roundness: finite(self.roundness, 0.0).clamp(0.0, 100.0),
+            feather: finite(self.feather, 0.5).clamp(0.0, MAX_FEATHER),
+        }
     }
 
     /// The superellipse exponent the engine uses: 2 + roundness / 100 × 6 (2 an ellipse … 8).
@@ -92,10 +103,22 @@ pub struct TiltBand {
 impl TiltBand {
     /// The band with every value finite and in range (the angle folded into −90..=90: the band
     /// turned half a turn is the same).
-    #[expect(clippy::todo, reason = "skeleton: task WS-BP1")]
     pub fn clean(self) -> TiltBand {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:150 `clean`.
-        todo!()
+        let finite = |value: f64, default: f64| if value.is_finite() { value } else { default };
+        let mut angle = (finite(self.angle, 0.0) + 180.0).rem_euclid(360.0) - 180.0;
+        if angle > 90.0 {
+            angle -= 180.0;
+        } else if angle < -90.0 {
+            angle += 180.0;
+        }
+        TiltBand { angle, focus: finite(self.focus, 0.1).clamp(0.0, 1.0), transition: finite(self.transition, 0.15).clamp(0.01, 1.0) }
+    }
+
+    /// Tilt-Shift's default band: horizontal, focus 0.1, transition 0.15.
+    pub fn default_band() -> TiltBand {
+        // pc: crates/ui-egui/src/dialogs/blur_pins.rs:160 (the `unwrap_or` in `set_pins`).
+        TiltBand { angle: 0.0, focus: 0.1, transition: 0.15 }
     }
 
     /// The band's unit normal and its direction along the band (the engine's).
@@ -136,10 +159,20 @@ pub struct BlurPins {
 impl BlurPins {
     /// One pin in the middle of `bounds` with `start` (the remembered amount and shape), selected:
     /// what the filter opens with, and what Alt + Cancel (Reset) starts again from.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-BP1")]
     pub fn new(kind: BlurKind, bounds: [f64; 4], start: BlurPin) -> BlurPins {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:171 `init`, :182 `reset`.
-        todo!()
+        let amount = if start.amount.is_finite() { start.amount } else { DEFAULT_AMOUNT };
+        let centred = BlurPin { x: 0.5, y: 0.5, amount, iris: None, tilt: None };
+        let pin = match kind {
+            BlurKind::Field => centred,
+            BlurKind::Iris => BlurPin { iris: Some(start.iris.unwrap_or_else(IrisShape::iris)), ..centred },
+            BlurKind::Spin => BlurPin { iris: Some(start.iris.unwrap_or_else(IrisShape::spin)), ..centred },
+            // Tilt-Shift keeps the remembered centre.
+            BlurKind::TiltShift => BlurPin { x: start.x, y: start.y, tilt: Some(start.tilt.unwrap_or_else(TiltBand::default_band)), ..centred },
+        };
+        let mut pins = BlurPins { kind, bounds, pins: vec![pin], selected: Some(0) };
+        pins.clean();
+        pins
     }
 
     /// The bounds' shorter side in document pixels: the unit of radii and widths.
@@ -149,39 +182,73 @@ impl BlurPins {
     }
 
     /// A pin's position in document pixels.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-BP1")]
     pub fn to_document(&self, pin: &BlurPin) -> Point {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:313 `to_doc`.
-        todo!()
+        let b = self.bounds;
+        Point::new(b[0] + pin.x * (b[2] - b[0]), b[1] + pin.y * (b[3] - b[1]))
     }
 
     /// A document point as fractions of the bounds, clamped to 0..=1 (pins stay inside).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-BP1")]
     pub fn from_document(&self, at: Point) -> (f64, f64) {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:317 `from_doc`.
-        todo!()
+        let b = self.bounds;
+        let fraction = |value: f64, low: f64, high: f64| ((value - low) / (high - low).max(f64::EPSILON)).clamp(0.0, 1.0);
+        (fraction(at.x, b[0], b[2]), fraction(at.y, b[1], b[3]))
     }
 
     /// Adds a pin at `at` (inside the bounds; not for Tilt-Shift, not past [`MAX_PINS`]) with the
     /// selected pin's amount and shape, and selects it. Returns whether it was added.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-BP1")]
     pub fn add(&mut self, at: Point) -> bool {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:571-583 (`Grab::New`).
-        todo!()
+        let b = self.bounds;
+        let inside = (b[0]..=b[2]).contains(&at.x) && (b[1]..=b[3]).contains(&at.y);
+        if self.kind == BlurKind::TiltShift || self.pins.len() >= MAX_PINS || !inside {
+            return false;
+        }
+        let from = self.selected.and_then(|index| self.pins.get(index)).copied();
+        let amount = from.map_or(DEFAULT_AMOUNT, |pin| pin.amount).clamp(0.0, self.kind.max());
+        let iris = match self.kind {
+            BlurKind::Iris => Some(from.and_then(|pin| pin.iris).unwrap_or_else(IrisShape::iris)),
+            BlurKind::Spin => Some(from.and_then(|pin| pin.iris).unwrap_or_else(IrisShape::spin)),
+            BlurKind::Field | BlurKind::TiltShift => None,
+        };
+        let (x, y) = self.from_document(at);
+        self.pins.push(BlurPin { x, y, amount, iris, tilt: None });
+        self.selected = Some(self.pins.len() - 1);
+        true
     }
 
     /// Removes the selected pin unless it is the last; the one before it is selected.
-    #[expect(clippy::todo, reason = "skeleton: task WS-BP1")]
     pub fn remove_selected(&mut self) -> bool {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:385 `remove_selected`.
-        todo!()
+        let Some(index) = self.selected.filter(|index| *index < self.pins.len()) else { return false };
+        if self.kind == BlurKind::TiltShift || self.pins.len() <= 1 {
+            return false;
+        }
+        self.pins.remove(index);
+        self.selected = Some(index.saturating_sub(1));
+        true
     }
 
     /// The pins cleaned: positions in 0..=1, amounts in 0..=[`BlurKind::max`], shapes and bands
     /// [`IrisShape::clean`] and [`TiltBand::clean`], at most [`MAX_PINS`], the selection in range.
-    #[expect(clippy::todo, reason = "skeleton: task WS-BP1")]
     pub fn clean(&mut self) {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:228 `pins`.
-        todo!()
+        let kind = self.kind;
+        // Tilt-Shift has one band.
+        self.pins.truncate(if kind == BlurKind::TiltShift { 1 } else { MAX_PINS });
+        for pin in &mut self.pins {
+            let fraction = |value: f64| if value.is_finite() { value.clamp(0.0, 1.0) } else { 0.5 };
+            pin.x = fraction(pin.x);
+            pin.y = fraction(pin.y);
+            pin.amount = if pin.amount.is_finite() { pin.amount } else { DEFAULT_AMOUNT }.clamp(0.0, kind.max());
+            pin.iris = match kind {
+                BlurKind::Iris => Some(pin.iris.unwrap_or_else(IrisShape::iris).clean()),
+                BlurKind::Spin => Some(pin.iris.unwrap_or_else(IrisShape::spin).clean()),
+                BlurKind::Field | BlurKind::TiltShift => None,
+            };
+            pin.tilt = (kind == BlurKind::TiltShift).then(|| pin.tilt.unwrap_or_else(TiltBand::default_band).clean());
+        }
+        self.selected = self.selected.filter(|index| *index < self.pins.len());
     }
 }
