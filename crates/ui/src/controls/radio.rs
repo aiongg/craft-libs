@@ -372,7 +372,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PreparedRadioSet<T> {
                     None => element.interact(ui, laid.size),
                     Some(content) => {
                         let layout = direction::row(ui);
-                        let hit = ui.scope_builder(UiBuilder::new().layout(layout), |row| {
+                        // Bound to the label's height: a centred row would otherwise take the
+                        // rest of a tall parent.
+                        let room = Rect::from_min_size(ui.cursor().min, vec2(ui.available_width(), laid.size.y));
+                        let hit = ui.scope_builder(UiBuilder::new().max_rect(room).layout(layout), |row| {
                             row.spacing_mut().item_spacing.x = 0.0;
                             row.allocate_space(laid.size);
                             row.add_space(style.gap);

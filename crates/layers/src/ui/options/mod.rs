@@ -214,9 +214,7 @@ impl LayersOptionsDialog {
                     let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::empty());
                     paint_sample_thumbnail(ui.painter(), rect);
                 });
-                // A row of its own: `radio_with` centres its content in the height it is given,
-                // which in the dialog's column is all that is left of it.
-                ui.horizontal(|ui| set.radio_with(ui, index, option).on_hover_text(name.as_ref()));
+                set.radio_with(ui, index, option).on_hover_text(name.as_ref());
             }
             let _ = set.end(ui);
         });

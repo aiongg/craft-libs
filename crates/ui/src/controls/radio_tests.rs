@@ -46,3 +46,27 @@ fn an_option_with_content_is_one_tab_stop_with_a_description_and_the_content_sel
     harness.click_at(content.center());
     assert_eq!(harness.state().0, 1, "a click on the content selected the option");
 }
+
+#[test]
+fn an_option_with_content_takes_no_more_height_than_its_content_in_a_tall_column() {
+    let mut harness = Harness::builder().with_size([320.0, 800.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, (choice, _): &mut State| {
+            let mut set = RadioSet::new("sizes", "Sizes", choice).item(0).item(1).item(2).begin(ui);
+            let _ = set.radio(ui, 0, "None");
+            let _ = set.radio_with(
+                ui,
+                1,
+                RadioOption::new("Small").content(|ui| {
+                    ui.allocate_space(vec2(20.0, 20.0));
+                }),
+            );
+            let _ = set.radio(ui, 2, "Large");
+            let _ = set.end(ui);
+        },
+        (0, None),
+    );
+    harness.run();
+    let plain = harness.get_by_label("None").rect().height();
+    let with = harness.get_by_label("Small").rect().height();
+    assert!((with - plain.max(20.0)).abs() < 1.0, "option {with} high, plain row {plain}");
+}
