@@ -175,6 +175,12 @@ impl<'a> TextField<'a> {
         self
     }
 
+    /// Types in the monospace face: [`role`](TextField::role) with [`TypeRole::Mono`] (a hex
+    /// value, a path, a code). Gap 70.
+    pub fn monospace(self) -> Self {
+        self.role(TypeRole::Mono)
+    }
+
     /// How the typing run reports ([`EditPolicy`]); the default reports every change at once and
     /// cancels on Esc.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
