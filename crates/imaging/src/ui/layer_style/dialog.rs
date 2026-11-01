@@ -1,20 +1,24 @@
 //! [`LayerStyleDialog`]: the Layer Style dialog's body (task AD-8).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land (task AD-8)")]
-
 use craft_theme::Srgba;
-use egui::{AsIdSalt, IdSalt, Ui};
+use egui::accesskit::Role;
+use egui::{Align, AsIdSalt, IdSalt, Layout, RichText, Sense, Ui, UiBuilder, vec2};
 
-use craft_ui::controls::BlendChoice;
+use craft_ui::controls::{BlendChoice, Checkbox};
 use craft_ui::dialog::ColorRequest;
-use craft_ui::edit::EditResponse;
-use craft_ui::localized::LocaleNumbers;
+use craft_ui::direction;
+use craft_ui::edit::{EditEvent, EditResponse};
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::primitives::{Divider, Gap, Stack};
+use craft_ui::theme::{Tokens, TokensOf as _};
 
+use super::blending::{BlendingInput, blending_page};
 use super::contour::ContourAction;
-use super::labels::LayerStyleLabels;
-use super::page::PatternChoice;
-use super::styles::StylePresets;
-use crate::layer_style::{Contour, EffectId, EffectKind, EffectSpec, LayerStyleDraft, StyleParams};
+use super::labels::{BlendIfBarLabels, ContourFieldLabels, LayerStyleLabels};
+use super::list::{ListAction, effect_list};
+use super::page::{PageInput, PatternChoice, effect_page};
+use super::styles::{StylePresets, styles_page};
+use crate::layer_style::{Contour, EffectId, EffectKind, EffectSpec, LayerStyleDraft, LayerStylePage, StyleParams, StyleValue};
 
 /// What [`LayerStyleDialog::show`] reports.
 #[derive(Debug)]
@@ -154,7 +158,81 @@ impl<'a> LayerStyleDialog<'a> {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:831-1185 `body` (list, divider at 330, title
         // with Preview, Styles page, Blending Options page, field pages, Make Default and Reset to
         // Default, the contour editor).
-        todo!()
+        // new: the body keeps no history and reads no undo key; the host's `Dialog` frame owns the
+        // draft's undo (the dialog is one outer gesture, OK one step).
+        let LayerStyleDialog {
+            id_salt,
+            draft,
+            channel_names,
+            numbers,
+            specs,
+            blend_modes,
+            patterns,
+            user_contours,
+            mut style_presets,
+            labels,
+            enabled,
+        } = self;
+        let id = ui.make_persistent_id(id_salt);
+        let labels = labels.unwrap_or_else(|| LayerStyleLabels::of(ui));
+        let contour_labels = ContourFieldLabels::of(ui);
+        let bar_labels = BlendIfBarLabels::of(ui);
+        let builtin: Vec<EffectSpec> = if specs.is_none() { EffectKind::ALL.into_iter().map(EffectSpec::photoshop).collect() } else { Vec::new() };
+        let specs: &[EffectSpec] = specs.unwrap_or(&builtin);
+        let tokens = Tokens::of(ui);
+        let style = LayerStyleDialog::style(&tokens);
+
+        let mut builder = UiBuilder::new().scope_id(id);
+        if !enabled {
+            builder = builder.disabled();
+        }
+        let mut work = Work { next: draft.clone(), event: None, extras: Extras::default() };
+        let scope = ui.scope_builder(builder, |ui| {
+            let layout = if direction::is_rtl(ui) { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) };
+            ui.with_layout(layout, |ui| {
+                let list = ui.scope(|ui| effect_list(ui, draft, specs, &labels, enabled));
+                if let Some(action) = list.inner {
+                    work.list_action(action, specs);
+                }
+                let (slot, _) = ui.allocate_exact_size(vec2(ui.spacing().item_spacing.x, 0.0), Sense::hover());
+                let page = ui.scope(|ui| {
+                    ui.set_width(style.page_width);
+                    let page_id = ("page", work.next.page);
+                    let title = page_title(&work.next, &labels);
+                    let group = UiBuilder::new().id_salt(page_id).accessibility_role(Role::Group).accessibility_label(title);
+                    ui.scope_builder(group, |ui| {
+                        Stack::new(Gap::Row).show(ui, |ui| {
+                            let env = PageEnv {
+                                specs,
+                                blend_modes,
+                                patterns,
+                                user_contours,
+                                channel_names,
+                                numbers,
+                                labels: &labels,
+                                contour_labels: &contour_labels,
+                                bar_labels: &bar_labels,
+                                enabled,
+                            };
+                            work.page(ui, &env, style_presets.as_mut());
+                        });
+                    });
+                });
+                let top = list.response.rect.top();
+                let bottom = list.response.rect.bottom().max(page.response.rect.bottom());
+                Divider::paint(ui.painter(), egui::pos2(slot.center().x, top), egui::pos2(slot.center().x, bottom), &tokens);
+            });
+        });
+        let Work { event, extras, .. } = work;
+        LayerStyleOutput {
+            edit: EditResponse::new(scope.response, event),
+            pick_color: extras.pick_color,
+            apply_style: extras.apply_style,
+            new_style: extras.new_style,
+            make_default: extras.make_default,
+            reset_to_default: extras.reset_to_default,
+            contour_action: extras.contour_action,
+        }
     }
 
     /// Answers a [`ColorRequest`] the dialog made: sets the colour parameter its key names
@@ -163,6 +241,173 @@ impl<'a> LayerStyleDialog<'a> {
     pub fn set_color(draft: &mut LayerStyleDraft, key: &str, color: Srgba) -> bool {
         // pc: crates/ui-egui/src/dialogs/layer_style/color_picker.rs:128-136 `confirm` (the answer
         // written through `set_param` into the effect and field the request named).
-        todo!()
+        let Some((id, field)) = key.split_once('/') else { return false };
+        let Some(id) = EffectId::from_key(id).filter(|id| draft.style.effect(*id).is_some()) else { return false };
+        if field.is_empty() {
+            return false;
+        }
+        draft.set_param(id, field, StyleValue::Color(color));
+        true
     }
+}
+
+/// What the page needs besides the draft.
+struct PageEnv<'a> {
+    specs: &'a [EffectSpec],
+    blend_modes: &'a [BlendChoice],
+    patterns: &'a [PatternChoice],
+    user_contours: &'a [Contour],
+    channel_names: &'a [String],
+    numbers: &'a LocaleNumbers,
+    labels: &'a LayerStyleLabels,
+    contour_labels: &'a ContourFieldLabels,
+    bar_labels: &'a BlendIfBarLabels,
+    enabled: bool,
+}
+
+/// The requests of a pass besides the edit.
+#[derive(Default)]
+struct Extras {
+    pick_color: Option<ColorRequest>,
+    apply_style: Option<String>,
+    new_style: bool,
+    make_default: Option<(EffectKind, StyleParams)>,
+    reset_to_default: Option<EffectId>,
+    contour_action: Option<ContourAction>,
+}
+
+/// The pass's working copy of the draft and what it has reported so far.
+struct Work {
+    next: LayerStyleDraft,
+    event: Option<EditEvent<LayerStyleDraft>>,
+    extras: Extras,
+}
+
+impl Work {
+    /// Applies a list action to the copy and reports the copy as a `Set`.
+    fn list_action(&mut self, action: ListAction, specs: &[EffectSpec]) {
+        match action {
+            ListAction::Select(page) => self.next.page = page,
+            ListAction::Toggle(id) => self.next.toggle(id),
+            ListAction::Add(kind) => {
+                let defaults = specs.iter().find(|spec| spec.kind == kind).map(|spec| spec.defaults.clone()).unwrap_or_default();
+                self.next.add_instance(kind, &defaults);
+            }
+            ListAction::Remove(id) => self.next.remove_instance(id),
+        }
+        self.report(EditEvent::set(self.next.clone(), egui::Modifiers::NONE));
+    }
+
+    /// Keeps the first event of the pass.
+    fn report(&mut self, event: EditEvent<LayerStyleDraft>) {
+        if self.event.is_none() {
+            self.event = Some(event);
+        }
+    }
+
+    /// Draws the page of the copy.
+    fn page(&mut self, ui: &mut Ui, env: &PageEnv<'_>, presets: Option<&mut StylePresets<'_>>) {
+        let labels = env.labels;
+        let page = self.next.page;
+        let instance = match page {
+            LayerStylePage::Effect(id) => self.next.style.effect(id).cloned(),
+            _ => None,
+        };
+        match (page, instance) {
+            (LayerStylePage::Blending, _) => {
+                self.title_with_preview(ui, labels, &labels.blending_options);
+                let input = BlendingInput {
+                    blending: &self.next.style.blending,
+                    blend_if_channel: self.next.blend_if_channel,
+                    channel_names: env.channel_names,
+                    blend_modes: env.blend_modes,
+                    labels,
+                    bar_labels: env.bar_labels,
+                    numbers: env.numbers,
+                    enabled: env.enabled,
+                };
+                let out = blending_page(ui, &input);
+                if let Some(event) = out.edit {
+                    let base = self.next.clone();
+                    self.report(event.map(|blending| {
+                        let mut draft = base;
+                        draft.style.blending = blending;
+                        draft
+                    }));
+                }
+                if let Some(channel) = out.blend_if_channel {
+                    let mut draft = self.next.clone();
+                    draft.blend_if_channel = channel;
+                    self.report(EditEvent::set(draft, egui::Modifiers::NONE));
+                }
+            }
+            (LayerStylePage::Effect(id), Some(instance)) => {
+                self.title_with_preview(ui, labels, labels.effect(instance.kind));
+                let Some(spec) = env.specs.iter().find(|spec| spec.kind == instance.kind).filter(|spec| !spec.fields.is_empty()) else { return };
+                let input = PageInput {
+                    spec,
+                    instance: &instance,
+                    blend_modes: env.blend_modes,
+                    patterns: env.patterns,
+                    user_contours: env.user_contours,
+                    labels,
+                    contour_labels: env.contour_labels,
+                    numbers: env.numbers,
+                    enabled: env.enabled,
+                };
+                let out = effect_page(ui, &input);
+                if let Some(edit) = out.edit {
+                    let base = self.next.clone();
+                    let key = edit.key;
+                    self.report(edit.event.map(|value| {
+                        let mut draft = base;
+                        draft.set_param(id, &key, value);
+                        draft
+                    }));
+                }
+                self.extras.pick_color = out.pick_color;
+                self.extras.contour_action = out.contour_action;
+                self.extras.make_default = out.make_default.map(|params| (instance.kind, params));
+                self.extras.reset_to_default = out.reset_to_default.then_some(id);
+            }
+            _ => {
+                let out = styles_page(ui, presets, labels);
+                self.extras.apply_style = out.apply_style;
+                self.extras.new_style = out.new_style;
+            }
+        }
+    }
+
+    /// The page title with the Preview check box at its end; a click flips the copy's `preview`.
+    fn title_with_preview(&mut self, ui: &mut Ui, labels: &LayerStyleLabels, title: &str) {
+        let mut preview = self.next.preview;
+        let edit = title_row(ui, title, |ui| Checkbox::bool(labels.preview.as_str(), &mut preview).id_salt("preview").show(ui));
+        if let Some(event) = edit.event {
+            let mut draft = self.next.clone();
+            draft.preview = preview;
+            self.report(event.map(|_| draft));
+        }
+    }
+}
+
+/// The title of `draft`'s page, for the page's AccessKit group.
+fn page_title(draft: &LayerStyleDraft, labels: &LayerStyleLabels) -> String {
+    match draft.page {
+        LayerStylePage::Blending => labels.blending_options.clone(),
+        LayerStylePage::Effect(id) => match draft.style.effect(id) {
+            Some(instance) => labels.effect(instance.kind).to_owned(),
+            None => labels.styles.clone(),
+        },
+        LayerStylePage::Styles => labels.styles.clone(),
+    }
+}
+
+/// A page title in `type.title` with `end` at the row's end.
+pub(super) fn title_row<R>(ui: &mut Ui, title: &str, end: impl FnOnce(&mut Ui) -> R) -> R {
+    let style = LayerStyleDialog::style(&Tokens::of(ui));
+    direction::horizontal(ui, |ui| {
+        ui.label(RichText::new(title).font(style.title_font.clone()).color(style.title_colour));
+        ui.with_layout(direction::trailing(ui), end).inner
+    })
+    .inner
 }
