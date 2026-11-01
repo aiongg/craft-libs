@@ -6,7 +6,7 @@ use craft_host::{AppInfo, Host};
 use craft_i18n::{Embedded, I18n, Lang};
 use egui::Context;
 
-use super::relative_age;
+use super::{AgeStyle, relative_age};
 
 const APP: AppInfo = AppInfo { id: "test", name: "Test", version: "1.0" };
 
@@ -16,7 +16,7 @@ static CATALOGS: &Embedded = &[("ru", "@plural\t{n} year ago|{n} years ago\tпр
 #[test]
 fn relative_age_steps() {
     let ctx = Context::default();
-    let age = |seconds| relative_age(&ctx, seconds);
+    let age = |seconds| relative_age(&ctx, seconds, AgeStyle::Long);
     assert_eq!(age(30), "less than a minute ago");
     assert_eq!(age(61), "1 minute ago");
     assert_eq!(age(3_600), "1 hour ago");
@@ -36,6 +36,15 @@ fn relative_age_uses_the_locales_plural_forms() {
     let ru = i18n.from_code("ru").unwrap_or(Lang::EN);
     let ctx = Context::default();
     Host::builder(APP).i18n(Arc::new(i18n)).lang(ru).install(&ctx);
-    let age = |years: u64| relative_age(&ctx, 86_400 * 365 * years);
+    let age = |years: u64| relative_age(&ctx, 86_400 * 365 * years, AgeStyle::Long);
     assert_eq!((age(1), age(2), age(5)), ("прошёл 1 год".to_owned(), "прошло 2 года".to_owned(), "прошло 5 лет".to_owned()));
+}
+
+// Short: 30 s "just now", 180 s "3 min ago", 7200 s "2 h ago", from a day on the Long forms
+// ("4 days ago"); a catalog's plural row for "{n} min ago" is used.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn short_ages_abbreviate_under_a_day() {
+    todo!()
 }

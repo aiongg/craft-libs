@@ -19,7 +19,7 @@ use crate::controls::{Button, IconButton, Segmented, Select};
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::list::{List, ListEvent, ListRow, ThumbSize};
-use crate::localized::{Labels as _, relative_age};
+use crate::localized::{AgeStyle, Labels as _, relative_age};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Pad, Row, Stack, Surface, SurfaceKind, Text};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -209,7 +209,7 @@ impl<'a> StartScreen<'a> {
         let now = self.now.or_else(unix_now);
         let ctx = ui.ctx().clone();
         let age = |then: Option<i64>| match (now, then) {
-            (Some(now), Some(then)) => relative_age(&ctx, now.saturating_sub(then).max(0).unsigned_abs()),
+            (Some(now), Some(then)) => relative_age(&ctx, now.saturating_sub(then).max(0).unsigned_abs(), AgeStyle::Long),
             _ => String::new(),
         };
         let mut recent: Vec<RecentFile> = self.recent.iter().take(self.max_recent).cloned().collect();

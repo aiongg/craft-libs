@@ -11,7 +11,7 @@ use super::footer::Footer;
 use super::size::Width;
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
-use crate::localized::{Labels as _, relative_age};
+use crate::localized::{AgeStyle, Labels as _, relative_age};
 
 crate::words! {
     /// The recovery dialog's words, English by default.
@@ -87,7 +87,7 @@ impl StackDialog for RecoveryDialog {
     // soundcraft: crates/ui-egui/src/dialogs/recovery.rs:8 show
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<RecoveryAnswer>> {
         let labels = RecoveryLabels::of_ctx(ctx);
-        let age = SystemTime::now().duration_since(self.document.saved).map_or_else(|_| labels.recently.clone(), |d| relative_age(ctx, d.as_secs()));
+        let age = SystemTime::now().duration_since(self.document.saved).map_or_else(|_| labels.recently.clone(), |d| relative_age(ctx, d.as_secs(), AgeStyle::Long));
         let message = craft_i18n::fmt(&labels.message, &[("name", self.document.name.as_str()), ("age", age.as_str())]);
         let blocked = self.document.blocked.clone();
         let (discard, recover) = (labels.discard.clone(), labels.recover.clone());
