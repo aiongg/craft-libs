@@ -2,15 +2,19 @@
 //! (N6.01). The cell-selection model is craft-ui's ([`craft_ui::behavior::cells`]), shared with
 //! craft-pages' document tables; it is re-exported here.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::collections::BTreeMap;
 
 pub use craft_ui::behavior::cells::{CellAdvance, CellDirection, CellRange, CellRef, CellSelection, CellSpace};
 use craft_ui::edit::EditEvent;
-use egui::{AsIdSalt, IdSalt, Painter, Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::theme::scale::Stroke as Line;
+use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _};
+use egui::accesskit::Role;
+use egui::{AsIdSalt, Id, IdSalt, Painter, Pos2, Rect, Response, Sense, Ui, Vec2, WidgetInfo};
 
 use super::style::SheetStyle;
+
+mod input;
+mod paint;
 
 /// Rows in a sheet, Excel's 1,048,576 (GridCraft `crates/core/src/addr.rs:10` `MAX_ROWS`).
 pub const SHEET_ROWS: u32 = 1_048_576;
@@ -35,7 +39,14 @@ pub fn absolute_range_reference(range: CellRange) -> String {
 /// `A`, `Z`, `AA`, `XFD` for column 0, 25, 26, 16383.
 // gridcraft: crates/core/src/addr.rs:94 `col_to_letters`.
 pub fn column_letters(column: u32) -> String {
-    todo!()
+    let mut rest = u64::from(column) + 1;
+    let mut letters = Vec::new();
+    while rest > 0 {
+        rest -= 1;
+        letters.push(char::from(b'A' + (rest % 26) as u8));
+        rest /= 26;
+    }
+    letters.iter().rev().collect()
 }
 
 /// Lines (rows or columns) with a default size and custom or hidden ones, and prefix sums, so
@@ -53,23 +64,60 @@ impl LineIndex {
     /// lines in all (1,048,576 rows, 16,384 columns in Excel).
     // gridcraft: crates/model/src/sheet.rs:395 `LineIndex::new`.
     pub fn new(custom: &BTreeMap<u32, f32>, default: f32, count: u32) -> Self {
-        todo!()
+        let default = f64::from(default.max(0.0));
+        let count = count.max(1);
+        let mut lines = Vec::with_capacity(custom.len());
+        let (mut position, mut next) = (0.0, 0u32);
+        for (&line, &size) in custom {
+            if line >= count {
+                break;
+            }
+            position += f64::from(line - next) * default;
+            let size = f64::from(size.max(0.0));
+            lines.push((line, position, size));
+            position += size;
+            next = line + 1;
+        }
+        Self { default, count, lines }
     }
 
     /// The start of `line`.
     // gridcraft: crates/model/src/sheet.rs:410 `start`.
     pub fn start(&self, line: u32) -> f64 {
-        todo!()
+        match self.lines.binary_search_by(|entry| entry.0.cmp(&line)) {
+            Ok(i) => self.lines.get(i).map_or(0.0, |entry| entry.1),
+            Err(i) => match i.checked_sub(1).and_then(|k| self.lines.get(k)) {
+                Some(&(before, start, size)) => start + size + f64::from(line - before - 1) * self.default,
+                None => f64::from(line) * self.default,
+            },
+        }
     }
 
     /// The line holding `pos` (0 for a negative position, the last line past the end).
     // gridcraft: crates/model/src/sheet.rs:421 `at`.
     pub fn at(&self, pos: f64) -> u32 {
-        todo!()
+        if pos.is_nan() || pos <= 0.0 {
+            return 0;
+        }
+        let last = self.count - 1;
+        let after = self.lines.partition_point(|entry| entry.1 <= pos);
+        let (first, first_start) = match after.checked_sub(1).and_then(|k| self.lines.get(k)) {
+            Some(&(line, start, size)) if pos < start + size => return line.min(last),
+            Some(&(line, start, size)) => (line + 1, start + size),
+            None => (0, 0.0),
+        };
+        if self.default <= 0.0 {
+            return first.min(last);
+        }
+        let line = f64::from(first) + ((pos - first_start) / self.default).floor();
+        if line >= f64::from(self.count) { last } else { line as u32 }
     }
 
     pub fn size(&self, line: u32) -> f64 {
-        todo!()
+        match self.lines.binary_search_by(|entry| entry.0.cmp(&line)) {
+            Ok(i) => self.lines.get(i).map_or(self.default, |entry| entry.2),
+            Err(_) => self.default,
+        }
     }
 
     pub fn count(&self) -> u32 {
@@ -80,6 +128,21 @@ impl LineIndex {
 /// The least zoom the column headers' height follows: below it they stay at this share of their
 /// 100 % height, so the letters stay readable (GridCraft `geo.rs:35`). A proportion, not a size.
 pub const HEADER_MIN_ZOOM: f32 = 0.75;
+
+/// How far from a header's far edge a press still grabs it, as a share of the column header's
+/// height (GridCraft `interact.rs:945`: 4 of 21). A proportion, not a size.
+const EDGE_GRAB_SHARE: f32 = 0.2;
+
+/// The opacity (0…255) of the selection's tint over the cells.
+const SELECTION_FILL_ALPHA: u8 = 48;
+
+/// The least and greatest zoom (10 %…400 %).
+const MIN_ZOOM: f32 = 0.1;
+const MAX_ZOOM: f32 = 4.0;
+
+/// How far below the window (points at 100 %) the row headers look for the last row whose digits
+/// they must hold, so the header doesn't resize while scrolling (GridCraft `geo.rs:41`).
+const ROW_HEADER_LOOKAHEAD: f64 = 200.0;
 
 /// What a grid's geometry is made from, per frame.
 #[derive(Clone, Debug)]
@@ -118,8 +181,22 @@ impl SheetGeometry {
     /// plus 200 (`(digits × style.row_header_digit + style.row_header_padding) × zoom`, at least
     /// two digits), none without headings; cells right of and below them and the bands.
     // gridcraft: crates/ui-egui/src/grid/geo.rs:35 `Geo::new`, `grid.rs:56` `COL_HEADER_H`.
-    pub fn new(layout: GridLayout, style: &SheetStyle) -> Self {
-        todo!()
+    pub fn new(mut layout: GridLayout, style: &SheetStyle) -> Self {
+        layout.zoom = if layout.zoom.is_finite() { layout.zoom.clamp(MIN_ZOOM, MAX_ZOOM) } else { 1.0 };
+        layout.frozen = (layout.frozen.0.min(layout.rows.count()), layout.frozen.1.min(layout.columns.count()));
+        let (zoom, rect) = (layout.zoom, layout.rect);
+        let header_zoom = zoom.max(HEADER_MIN_ZOOM);
+        let header_height = if layout.headings { (style.column_header_height * header_zoom).round() } else { 0.0 };
+        let header_width = if layout.headings {
+            let last_row = layout.rows.at(f64::from(layout.scroll.y + rect.height() / zoom) + ROW_HEADER_LOOKAHEAD) + 1;
+            let digits = last_row.ilog10() + 1;
+            ((digits.max(2) as f32 * style.row_header_digit + style.row_header_padding) * header_zoom).round()
+        } else {
+            0.0
+        };
+        let cells = Rect::from_min_max(Pos2::new(rect.left() + layout.bands.x + header_width, rect.top() + layout.bands.y + header_height), rect.max);
+        let frozen_size = Vec2::new(layout.columns.start(layout.frozen.1) as f32 * zoom, layout.rows.start(layout.frozen.0) as f32 * zoom);
+        Self { layout, cells, header: Vec2::new(header_width, header_height), frozen_size }
     }
 
     /// The cells' area (right of the row headers, below the column headers).
@@ -134,31 +211,59 @@ impl SheetGeometry {
     /// The left x of `column` (frozen columns don't scroll).
     // gridcraft: crates/ui-egui/src/grid/geo.rs:141 `x`.
     pub fn x(&self, column: u32) -> f32 {
-        todo!()
+        let (columns, zoom) = (&self.layout.columns, self.layout.zoom);
+        if column < self.layout.frozen.1 {
+            self.cells.left() + columns.start(column) as f32 * zoom
+        } else {
+            let from_split = columns.start(column) - columns.start(self.layout.frozen.1) - f64::from(self.layout.scroll.x);
+            self.cells.left() + self.frozen_size.x + from_split as f32 * zoom
+        }
     }
 
     // gridcraft: crates/ui-egui/src/grid/geo.rs:151 `y`.
     pub fn y(&self, row: u32) -> f32 {
-        todo!()
+        let (rows, zoom) = (&self.layout.rows, self.layout.zoom);
+        if row < self.layout.frozen.0 {
+            self.cells.top() + rows.start(row) as f32 * zoom
+        } else {
+            let from_split = rows.start(row) - rows.start(self.layout.frozen.0) - f64::from(self.layout.scroll.y);
+            self.cells.top() + self.frozen_size.y + from_split as f32 * zoom
+        }
     }
 
     pub fn cell_rect(&self, c: CellRef) -> Rect {
-        todo!()
+        let (x, y) = (self.x(c.column), self.y(c.row));
+        let size = Vec2::new(self.layout.columns.size(c.column) as f32, self.layout.rows.size(c.row) as f32) * self.layout.zoom;
+        Rect::from_min_size(Pos2::new(x, y), size)
     }
 
     pub fn range_rect(&self, r: CellRange) -> Rect {
-        todo!()
+        Rect::from_min_max(self.cell_rect(r.start).min, self.cell_rect(r.end).max)
     }
 
     /// The column at logical x.
     // gridcraft: crates/ui-egui/src/grid/geo.rs:172 `col_at`.
     pub fn column_at(&self, x: f32) -> u32 {
-        todo!()
+        let (columns, zoom, fc) = (&self.layout.columns, self.layout.zoom, self.layout.frozen.1);
+        let from_left = f64::from((x - self.cells.left()) / zoom);
+        if from_left < f64::from(self.frozen_size.x / zoom) {
+            columns.at(from_left.max(0.0))
+        } else {
+            let past_split = from_left - f64::from(self.frozen_size.x / zoom);
+            columns.at(columns.start(fc) + f64::from(self.layout.scroll.x) + past_split)
+        }
     }
 
     // gridcraft: crates/ui-egui/src/grid/geo.rs:183 `row_at`.
     pub fn row_at(&self, y: f32) -> u32 {
-        todo!()
+        let (rows, zoom, fr) = (&self.layout.rows, self.layout.zoom, self.layout.frozen.0);
+        let from_top = f64::from((y - self.cells.top()) / zoom);
+        if from_top < f64::from(self.frozen_size.y / zoom) {
+            rows.at(from_top.max(0.0))
+        } else {
+            let past_split = from_top - f64::from(self.frozen_size.y / zoom);
+            rows.at(rows.start(fr) + f64::from(self.layout.scroll.y) + past_split)
+        }
     }
 
     pub fn cell_at(&self, p: Pos2) -> CellRef {
@@ -168,17 +273,69 @@ impl SheetGeometry {
     /// The visible scrolled rows and columns (after the frozen ones), inclusive.
     // gridcraft: crates/ui-egui/src/grid/geo.rs:198 `scroll_rows`, `:204` `scroll_cols`.
     pub fn visible(&self) -> ((u32, u32), (u32, u32)) {
-        todo!()
+        let GridLayout { rows, columns, frozen, scroll, zoom, .. } = &self.layout;
+        let span = |lines: &LineIndex, frozen: u32, scroll: f32, room: f32| {
+            let top = lines.start(frozen) + f64::from(scroll);
+            (lines.at(top).max(frozen), lines.at(top + f64::from(room / zoom)).min(lines.count() - 1))
+        };
+        (
+            span(rows, frozen.0, scroll.y, self.cells.height() - self.frozen_size.y),
+            span(columns, frozen.1, scroll.x, self.cells.width() - self.frozen_size.x),
+        )
     }
 
     /// The panes (frozen corner, frozen rows, frozen columns, scrolling) that hold part of `r`, as
     /// screen rects to clip to, so a range scrolled under the frozen part isn't drawn over it.
     // gridcraft: crates/ui-egui/src/grid/geo.rs:213 `range_panes`.
     pub fn range_panes(&self, r: CellRange) -> Vec<Rect> {
-        todo!()
+        let (frozen_rows, frozen_columns) = self.layout.frozen;
+        let split = Pos2::new(self.cells.left() + self.frozen_size.x, self.cells.top() + self.frozen_size.y);
+        let mut xs = Vec::new();
+        if r.start.column < frozen_columns {
+            xs.push((self.cells.left(), split.x));
+        }
+        if r.end.column >= frozen_columns {
+            xs.push((split.x, self.cells.right()));
+        }
+        let mut ys = Vec::new();
+        if r.start.row < frozen_rows {
+            ys.push((self.cells.top(), split.y));
+        }
+        if r.end.row >= frozen_rows {
+            ys.push((split.y, self.cells.bottom()));
+        }
+        ys.iter()
+            .flat_map(|&(top, bottom)| xs.iter().map(move |&(left, right)| Rect::from_min_max(Pos2::new(left, top), Pos2::new(right, bottom))))
+            .collect()
     }
 
     /// Logical x to screen x and back (identity left-to-right).
+    /// The scroll that shows `range` whole (as little change as possible); a range in a frozen
+    /// pane keeps the scroll of that axis.
+    fn scroll_to_reveal(&self, range: CellRange) -> Vec2 {
+        let GridLayout { rows, columns, frozen, scroll, zoom, .. } = &self.layout;
+        let fit = |lines: &LineIndex, frozen: u32, (first, last): (u32, u32), scroll: f32, room: f32| {
+            if first < frozen {
+                return scroll;
+            }
+            let origin = lines.start(frozen);
+            let (near, far) = (lines.start(first) - origin, lines.start(last) + lines.size(last) - origin);
+            let (view, scroll) = (f64::from(room / zoom), f64::from(scroll));
+            let next = if near < scroll {
+                near
+            } else if far > scroll + view {
+                (far - view).min(near)
+            } else {
+                scroll
+            };
+            next.max(0.0) as f32
+        };
+        Vec2::new(
+            fit(columns, frozen.1, (range.start.column, range.end.column), scroll.x, self.cells.width() - self.frozen_size.x),
+            fit(rows, frozen.0, (range.start.row, range.end.row), scroll.y, self.cells.height() - self.frozen_size.y),
+        )
+    }
+
     pub fn mirror_x(&self, x: f32) -> f32 {
         if self.layout.right_to_left { self.layout.rect.left() + self.layout.rect.right() - x } else { x }
     }
@@ -379,7 +536,73 @@ impl<'a, M: GridModel> CellGrid<'a, M> {
     // `grid/keyboard.rs:7` `keyboard`, `grid/selection.rs:93` `paint_selection`,
     // `grid/quadrant.rs:112` `paint_quadrant`.
     pub fn show(self, ui: &mut Ui) -> CellGridResponse {
-        todo!()
+        let Self { id_salt, model, state, headings, right_to_left } = self;
+        let tokens = Tokens::of(ui);
+        let ppp = ui.ctx().pixels_per_point();
+        let (rect, _) = ui.allocate_exact_size(ui.available_size_before_wrap(), Sense::hover());
+        let id = ui.make_persistent_id(id_salt);
+        state.zoom = if state.zoom.is_finite() { state.zoom.clamp(MIN_ZOOM, MAX_ZOOM) } else { 1.0 };
+        state.scroll = state.scroll.max(Vec2::ZERO);
+
+        let hidden_row = |row| model.rows().size(row) <= 0.0;
+        let hidden_column = |column| model.columns().size(column) <= 0.0;
+        let selectable = |cell| model.selectable(cell);
+        let space = CellSpace::new(model.rows().count(), model.columns().count())
+            .merges(model.merges())
+            .hidden_rows(&hidden_row)
+            .hidden_columns(&hidden_column)
+            .selectable(&selectable);
+        let pass = Pass { model, space, id, rect, style: SheetStyle::of(&tokens), headings, right_to_left, hairline: Line::Hairline.width(ppp) };
+
+        let described = pass.geometry(state);
+        paint::describe_cells(&pass, ui, id, &described);
+        let response = ui.interact(rect, id, Sense::click_and_drag());
+        response.widget_info(|| WidgetInfo::labeled(Role::Grid, ui.is_enabled(), ""));
+
+        let before = state.selection.clone();
+        let mut edits = Vec::new();
+        input::wheel(&pass, ui, state);
+        input::pointer(&pass, ui, &response, state, &mut edits);
+        input::keys(&pass, ui, &response, state, &mut edits);
+        let geometry = pass.geometry(state);
+        paint::paint(&pass, ui, &tokens, state, &geometry);
+        paint::describe_grid(&pass, ui, id, state, &described);
+        if response.has_focus() {
+            let focus = Line::W2.egui(ui.ctx(), tokens.color.line.focus.to_egui());
+            ui.painter().rect_stroke(rect, 0.0, focus, egui::StrokeKind::Inside);
+        }
+        CellGridResponse { selection_changed: state.selection != before, response, geometry, edits }
+    }
+}
+
+/// What one pass of the grid reads: the model and the selection rules' space over it, the grid's
+/// id and rect, and the sizes.
+struct Pass<'a, M: GridModel> {
+    model: &'a M,
+    space: CellSpace<'a>,
+    id: Id,
+    rect: Rect,
+    style: SheetStyle,
+    headings: bool,
+    right_to_left: bool,
+    /// The width of a hairline in points.
+    hairline: f32,
+}
+
+impl<M: GridModel> Pass<'_, M> {
+    fn geometry(&self, state: &GridState) -> SheetGeometry {
+        let layout = GridLayout {
+            rect: self.rect,
+            zoom: state.zoom,
+            rows: self.model.rows().clone(),
+            columns: self.model.columns().clone(),
+            frozen: self.model.frozen(),
+            scroll: state.scroll,
+            headings: self.headings,
+            bands: Vec2::ZERO,
+            right_to_left: self.right_to_left,
+        };
+        SheetGeometry::new(layout, &self.style)
     }
 }
 

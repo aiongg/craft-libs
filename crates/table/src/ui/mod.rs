@@ -36,7 +36,7 @@ mod chart_tests;
 mod conditions_tests;
 #[cfg(test)]
 mod fields_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod grid_tests;
 #[cfg(test)]
 mod outline_tests;

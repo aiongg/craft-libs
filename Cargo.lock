@@ -1423,6 +1423,7 @@ version = "0.1.0"
 dependencies = [
  "craft-ui",
  "egui",
+ "egui_kittest",
 ]
 
 [[package]]
