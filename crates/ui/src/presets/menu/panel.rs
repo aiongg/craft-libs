@@ -1,16 +1,18 @@
 //! The panel-menu pair of every preset panel: Grid View, List View, New Group… (`PresetPanelMenu::{panel_menu, run_command}`).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use egui::{AsIdSalt, Context};
 
 use super::files::PresetFiles;
 use crate::docking::panel_menu::PanelCommand;
-use crate::menu::MenuEntry;
+use crate::menu::{MenuEntry, MenuItem};
 use crate::presets::{PresetLabels, PresetState, PresetView};
 
 /// The menu command of New Group….
 pub(crate) const CMD_NEW_GROUP: &str = "presets.newGroup";
+
+/// The menu commands of the two views.
+pub(crate) const CMD_GRID_VIEW: &str = "presets.gridView";
+pub(crate) const CMD_LIST_VIEW: &str = "presets.listView";
 
 /// What a preset panel's menu has beyond the two views.
 pub struct PresetMenuOptions<'a, K> {
@@ -82,13 +84,25 @@ impl PresetPanelMenu {
     /// The rows above, Grid View or List View checked by `state.view`.
     pub fn panel_menu<K>(
         ctx: &Context,
-        id_salt: impl AsIdSalt,
+        _id_salt: impl AsIdSalt,
         state: &PresetState<K>,
         labels: &PresetLabels,
         options: &PresetMenuOptions<'_, K>,
     ) -> Vec<MenuEntry<PanelCommand>> {
-        // new: E11 (Grid View, List View in every preset panel); craft-libs: crates/color/src/ui/swatches.rs:525 (`panel_menu`)
-        todo!()
+        let view = |label: &str, command: &str, chosen: bool| MenuEntry::from(MenuItem::new(label, command.to_owned()).radio(chosen));
+        let mut out = vec![
+            view(&labels.grid_view, CMD_GRID_VIEW, state.view == PresetView::Grid),
+            view(&labels.list_view, CMD_LIST_VIEW, state.view == PresetView::List),
+        ];
+        let files = options.files.map(|files| files.entries(ctx, options.selected)).unwrap_or_default();
+        if options.new_group.is_some() || !files.is_empty() {
+            out.push(MenuEntry::Separator);
+        }
+        if let Some(enabled) = options.new_group {
+            out.push(MenuItem::new(labels.new_group.as_str(), CMD_NEW_GROUP.to_owned()).enabled(enabled).into());
+        }
+        out.extend(files);
+        out
     }
 
     /// Carries out a row of [`panel_menu`](Self::panel_menu): a view row sets `state.view`, New
@@ -101,27 +115,62 @@ impl PresetPanelMenu {
         command: &PanelCommand,
         options: &PresetMenuOptions<'_, K>,
     ) -> Option<PresetMenuAction> {
-        // craft-libs: crates/color/src/ui/swatches.rs:549-640 (`run_command`)
-        todo!()
+        match command.as_str() {
+            CMD_GRID_VIEW => {
+                state.view = PresetView::Grid;
+                Some(PresetMenuAction::View(PresetView::Grid))
+            }
+            CMD_LIST_VIEW => {
+                state.view = PresetView::List;
+                Some(PresetMenuAction::View(PresetView::List))
+            }
+            CMD_NEW_GROUP => options.new_group.filter(|enabled| *enabled).map(|_| PresetMenuAction::NewGroup),
+            other => options.files.is_some_and(|files| files.start(ctx, id_salt, other, options.selected)).then_some(PresetMenuAction::PickStarted),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     //! Tests of the panel-menu pair (task PR3).
-    #![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+    use super::*;
+
+    fn labels() -> PresetLabels {
+        <PresetLabels as crate::localized::Labels>::english()
+    }
+
+    fn rows(entries: &[MenuEntry<PanelCommand>]) -> Vec<(String, Option<bool>)> {
+        entries.iter().filter_map(MenuEntry::item).map(|i| (i.label().to_owned(), i.item_kind().checked())).collect()
+    }
 
     // The rows are Grid View and List View with the current view checked, then New Group… when asked.
     #[test]
-    #[ignore = "skeleton"]
     fn panel_menu_lists_grid_and_list_view_and_marks_the_current_one() {
-        todo!()
+        let ctx = Context::default();
+        let mut state = PresetState::<u32>::new();
+        state.view = PresetView::List;
+        let plain = PresetPanelMenu::panel_menu(&ctx, "p", &state, &labels(), &PresetMenuOptions::new());
+        assert_eq!(rows(&plain), [("Grid View".to_owned(), Some(false)), ("List View".to_owned(), Some(true))]);
+        let grouped = PresetPanelMenu::panel_menu(&ctx, "p", &state, &labels(), &PresetMenuOptions::new().new_group(true));
+        assert_eq!(grouped.len(), 4);
+        assert_eq!(grouped[2], MenuEntry::Separator);
+        assert_eq!(grouped[3].item().map(MenuItem::label), Some(labels().new_group.as_str()));
     }
 
     // `run_command` of List View sets `state.view`; New Group… reports `NewGroup`, nothing when disabled.
     #[test]
-    #[ignore = "skeleton"]
     fn panel_menu_commands_set_the_view_and_start_a_group() {
-        todo!()
+        let ctx = Context::default();
+        let mut state = PresetState::<u32>::new();
+        let on = PresetMenuOptions::new().new_group(true);
+        let off = PresetMenuOptions::new().new_group(false);
+        let run = |state: &mut PresetState<u32>, command: &str, options: &PresetMenuOptions<'_, u32>| {
+            PresetPanelMenu::run_command(&ctx, "p", state, &command.to_owned(), options)
+        };
+        assert_eq!(run(&mut state, CMD_LIST_VIEW, &on), Some(PresetMenuAction::View(PresetView::List)));
+        assert_eq!(state.view, PresetView::List);
+        assert_eq!(run(&mut state, CMD_NEW_GROUP, &on), Some(PresetMenuAction::NewGroup));
+        assert_eq!(run(&mut state, CMD_NEW_GROUP, &off), None);
+        assert_eq!(run(&mut state, "other.command", &on), None);
     }
 }
