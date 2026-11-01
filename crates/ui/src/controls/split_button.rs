@@ -106,6 +106,7 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
     pub fn show(self, ui: &mut Ui) -> SplitButtonResponse<T> {
         let tokens = Tokens::of(ui);
         let style = Button::style(&tokens, self.variant, self.size);
+        let split_button = &tokens.component.split_button;
         let face = Face { label: &self.label, icon: self.icon, trailing: None, size: self.size, loading: false };
         let enabled = self.enabled && ui.is_enabled();
         let laid = face.layout(ui, &tokens, &style);
@@ -113,9 +114,9 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
         let (main_id, arrow_id) = (id.with("main"), id.with("arrow"));
         let popup_id = arrow_id.with("popup");
 
-        let (_, rect) = ui.allocate_space(vec2(laid.size.x + ARROW_WIDTH, style.height));
+        let (_, rect) = ui.allocate_space(vec2(laid.size.x + split_button.arrow_width, style.height));
         let rtl = direction::is_rtl(ui);
-        let split = if rtl { rect.left() + ARROW_WIDTH } else { rect.right() - ARROW_WIDTH };
+        let split = if rtl { rect.left() + split_button.arrow_width } else { rect.right() - split_button.arrow_width };
         let (main_rect, arrow_rect) = if rtl {
             (Rect::from_min_max(pos2(split, rect.top()), rect.right_bottom()), Rect::from_min_max(rect.left_top(), pos2(split, rect.bottom())))
         } else {
@@ -169,7 +170,10 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
             icons::paint(ui, chevron, Icon::ChevronDown, icon_size(self.size), color);
             let divider = if enabled { style.border.rest } else { style.border.disabled };
             let x = if rtl { main_rect.left() } else { main_rect.right() };
-            ui.painter().line_segment([pos2(x, rect.top() + DIVIDER_INSET), pos2(x, rect.bottom() - DIVIDER_INSET)], Stroke::new(1.0, divider));
+            ui.painter().line_segment(
+                [pos2(x, rect.top() + split_button.divider_inset), pos2(x, rect.bottom() - split_button.divider_inset)],
+                Stroke::new(1.0, divider),
+            );
         }
 
         let mut anchor = arrow.clone();
@@ -183,8 +187,3 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
         SplitButtonResponse { main, arrow, menu }
     }
 }
-
-/// The arrow part's width (`split_button.arrow_width` once the tokens land) and the divider's
-/// inset from the top and bottom edges.
-const ARROW_WIDTH: f32 = 18.0;
-const DIVIDER_INSET: f32 = 5.0;

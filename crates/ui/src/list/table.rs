@@ -251,18 +251,18 @@ impl<C: Clone + PartialEq> TableLayout<C> {
 /// The look of a table's header and rows, from [`Table::style`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct TableStyle {
-    /// Header height: the dock tab height (`tab.height`), so a table under a panel's tabs
-    /// lines up with them; PdfCraft's is 26.
+    /// Header height: `table.header_height`, the dock tab height, so a table under a panel's
+    /// tabs lines up with them; PdfCraft's is 26.
     pub header_height: f32,
     /// Row height: `list.height` (PdfCraft 22).
     pub row_height: f32,
     /// Between a cell's edge and its text: `list.pad_x` (PdfCraft 4).
     pub cell_pad_x: f32,
-    /// The sort glyph's side (PdfCraft's chevron, 12) and its gap after the label (PdfCraft 14
-    /// to its centre, so 8 to its edge).
+    /// The sort glyph's side and its gap after the label: `table.sort_glyph` (PdfCraft's
+    /// chevron, 12) and `table.sort_gap` (PdfCraft 14 to its centre, so 8 to its edge).
     pub sort_glyph: f32,
     pub sort_gap: f32,
-    /// The resize grip's hit width either side of a column edge.
+    /// The resize grip's hit width, centred on a column edge: `table.grip_width`.
     pub grip_width: f32,
     /// Header text: the `Label` role in `text.muted`, the sorting column's in `text.normal`
     /// (PdfCraft's).
@@ -271,10 +271,11 @@ pub struct TableStyle {
     /// The header's hover and pressed fills: `list.hover` and `state.pressed`.
     pub header_hover: Color32,
     pub header_pressed: Color32,
-    /// The drop line a dragged header shows, 2.5 wide in `accent.solid` (PdfCraft's).
+    /// The drop line a dragged header shows, `table.drop_line_width` (2.5, PdfCraft's) wide in
+    /// `accent.solid`.
     pub drop_line: Color32,
     pub drop_line_width: f32,
-    /// Every other row's fill (the proposed `list.stripe`); none when the theme has none.
+    /// Every other row's fill (`list.stripe`).
     pub stripe: Color32,
 }
 
@@ -575,28 +576,28 @@ where
 
 impl Table<'static, (), (), [()]> {
     /// The table's look from the tokens.
-    // new: the `table.*` tokens the spec proposes (header height from `tab.height`)
+    // new: the `table.*` tokens
     pub fn style(tokens: &UiTokens) -> TableStyle {
         table_style(tokens)
     }
 }
 
-/// The documented numbers of [`TableStyle`], until the `table.*` tokens exist.
+/// [`TableStyle`] from the `table.*` and `list.*` tokens.
 fn table_style(tokens: &UiTokens) -> TableStyle {
-    let list = &tokens.component.list;
+    let (list, table) = (&tokens.component.list, &tokens.component.table);
     TableStyle {
-        header_height: tokens.component.tab.height,
+        header_height: table.header_height,
         row_height: list.row_height,
         cell_pad_x: list.pad_x,
-        sort_glyph: 12.0,
-        sort_gap: 8.0,
-        grip_width: 6.0,
+        sort_glyph: table.sort_glyph,
+        sort_gap: table.sort_gap,
+        grip_width: table.grip_width,
         header_text: tokens.color.text.muted.to_egui(),
         header_text_sorted: tokens.color.text.normal.to_egui(),
         header_hover: list.hover.to_egui(),
         header_pressed: tokens.color.state.pressed.to_egui(),
         drop_line: tokens.color.accent.solid.to_egui(),
-        drop_line_width: 2.5,
+        drop_line_width: table.drop_line_width,
         stripe: list.stripe.to_egui(),
     }
 }

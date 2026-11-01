@@ -15,14 +15,8 @@ use crate::primitives::{Content, FocusRing, Interactive, Text};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 use craft_theme::{ControlSize, TypeRole};
 
-/// Between the name and value columns (LightCraft's grid spacing).
-const COLUMN_GAP: f32 = 16.0;
-/// Between rows (LightCraft's grid spacing).
-const ROW_GAP: f32 = 3.0;
 /// The most of the table the name column takes.
 const NAME_SHARE: f32 = 1.0 / 3.0;
-/// The most the rows take before they scroll when the host gives no height (LightCraft's dialog).
-const DEFAULT_MAX_HEIGHT: f32 = 440.0;
 
 crate::words! {
     /// The table's words, English by default.
@@ -159,8 +153,15 @@ impl<'a> MetadataTable<'a> {
                 query.clone_from(text);
             }
             let visible = filter_metadata(groups, &query);
-            Body { rows_id, groups: &visible, chosen, max_height: max_height.unwrap_or(DEFAULT_MAX_HEIGHT), labels: &labels, tokens: &tokens }
-                .show(ui, !groups.iter().all(|g| g.rows.is_empty()))
+            Body {
+                rows_id,
+                groups: &visible,
+                chosen,
+                max_height: max_height.unwrap_or(tokens.component.metadata.max_height),
+                labels: &labels,
+                tokens: &tokens,
+            }
+            .show(ui, !groups.iter().all(|g| g.rows.is_empty()))
         });
         MetadataTableOutput { response: scope.response, chosen_changed: scope.inner }
     }
@@ -237,7 +238,7 @@ impl Body<'_> {
             .map(|name| ui.fonts_mut(|f| f.layout_no_wrap((*name).to_owned(), name_font.font_id.clone(), Color32::PLACEHOLDER).size().x))
             .fold(0.0, f32::max);
         let name_width = widest.min(full_width * NAME_SHARE).ceil();
-        let value_width = (full_width - check_width - name_width - COLUMN_GAP).max(0.0);
+        let value_width = (full_width - check_width - name_width - tokens.component.metadata.column_gap).max(0.0);
         let stripe = stripe_fill(tokens);
         let name_line = tokens.typography.get(TypeRole::Label).line_height;
         let rtl = crate::direction::is_rtl(ui);
@@ -251,7 +252,7 @@ impl Body<'_> {
         let mut lead_node = None;
         let table = ui.scope_builder(builder, |ui| {
             egui::ScrollArea::vertical().id_salt("scroll").max_height(max_height).auto_shrink([false, true]).content_margin(0.0).show(ui, |ui| {
-                ui.spacing_mut().item_spacing.y = ROW_GAP;
+                ui.spacing_mut().item_spacing.y = tokens.component.metadata.row_gap;
                 let mut flat = 0;
                 for group in groups {
                     if !group.name.is_empty() {
@@ -302,7 +303,7 @@ impl Body<'_> {
                                 });
                                 ui.scope_builder(
                                     UiBuilder::new()
-                                        .max_rect(slot(check_width + name_width + COLUMN_GAP, value_width))
+                                        .max_rect(slot(check_width + name_width + tokens.component.metadata.column_gap, value_width))
                                         .accessibility_role(Role::Cell),
                                     |ui| {
                                         ui.add(Text::new(row.value.as_str()));

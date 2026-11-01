@@ -6,20 +6,21 @@
 use std::fmt::Write as _;
 
 use crate::{
-    AngleDialTokens, AppShellTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens,
-    BySize, CanvasTokens, CheckOffColors, CheckOnColors, CheckSpellingTokens, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens,
-    ColorToken, ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed,
-    DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens,
-    FindingsTokens, FloatTokens, FontPickerTokens, FontSlot, FormSpacing, FormTokens, Gaps, GlyphsTokens, GradientEditorTokens, GradientLineTokens,
-    GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, IconButtonTokens, IconSizes,
+    AngleDialTokens, AppShellTokens, AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors,
+    BreadcrumbTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, CheckOffColors, CheckOnColors, CheckSpellingTokens, CheckSwitchColors,
+    CheckTokens, ChipTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ControlSizes,
+    CropTokens, CursorTokens, CurveTokens, DateTokens, DialogTokens, Dimmed, DockTokens, DragTokens, DropVeilTokens, Easing, Edge, Elevation,
+    ElevationTokens, EmptyStateTokens, EventLogTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens, FindingsTokens, FloatTokens,
+    FontPickerTokens, FontSlot, FormSpacing, FormTokens, Gaps, GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens,
+    GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, IconButtonTokens, IconPickerTokens, IconSizes,
     InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens,
-    Motion, MotionTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens,
-    PanelTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens,
-    RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens, ScrollTokens,
-    SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens,
-    SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, TextEditorTokens,
-    TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens,
-    ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    MetadataTokens, Motion, MotionTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens,
+    PanelHeaderTokens, PanelTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens,
+    PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens,
+    ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens,
+    SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens,
+    TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
+    ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -210,8 +211,8 @@ fn easing(e: Easing) -> &'static str {
 }
 
 fn motion_lines(out: &mut Lines, m: &MotionTokens) {
-    let MotionTokens { hover, open, r#move, reduced } = m;
-    for (k, motion) in [("hover", hover), ("open", open), ("move", r#move)] {
+    let MotionTokens { hover, open, r#move, caret, outline, reduced } = m;
+    for (k, motion) in [("hover", hover), ("open", open), ("move", r#move), ("caret", caret), ("outline", outline)] {
         let Motion { millis, easing: e } = motion;
         out.line(&format!("motion.{k}.millis"), millis);
         out.line(&format!("motion.{k}.easing"), easing(*e));
@@ -235,6 +236,19 @@ fn states(out: &mut Lines, key: &str, v: &States<Rgba>) {
 fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     let ComponentTokens {
         angle_dial,
+        table,
+        chip,
+        icon_picker,
+        split_button,
+        breadcrumb,
+        rating,
+        date,
+        reset_dot,
+        drag,
+        drop_veil,
+        event_log,
+        autocomplete,
+        metadata,
         export,
         file_list,
         findings,
@@ -324,6 +338,19 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         transform,
     } = c;
     angle_dial_lines(out, angle_dial);
+    table_lines(out, table);
+    chip_lines(out, chip);
+    icon_picker_lines(out, icon_picker);
+    split_button_lines(out, split_button);
+    breadcrumb_lines(out, breadcrumb);
+    rating_lines(out, rating);
+    date_lines(out, date);
+    reset_dot_lines(out, reset_dot);
+    drag_lines(out, drag);
+    drop_veil_lines(out, drop_veil);
+    event_log_lines(out, event_log);
+    autocomplete_lines(out, autocomplete);
+    metadata_lines(out, metadata);
     export_lines(out, export);
     file_list_lines(out, file_list);
     findings_lines(out, findings);
@@ -2117,6 +2144,112 @@ fn new_document_lines(out: &mut Lines, t: &NewDocumentTokens) {
     out.line("new_document.scroll_room", len(*scroll_room));
     out.line("new_document.saved_height", len(*saved_height));
     out.line("new_document.saved_row", len(*saved_row));
+}
+
+fn table_lines(out: &mut Lines, t: &TableTokens) {
+    let TableTokens { header_height, sort_glyph, sort_gap, grip_width, drop_line_width } = t;
+    out.line("table.header_height", len(*header_height));
+    out.line("table.sort_glyph", len(*sort_glyph));
+    out.line("table.sort_gap", len(*sort_gap));
+    out.line("table.grip_width", len(*grip_width));
+    out.line("table.drop_line_width", len(*drop_line_width));
+}
+
+fn chip_lines(out: &mut Lines, t: &ChipTokens) {
+    let ChipTokens { height, pad_x, remove_width, gap, cross_arm, cross_stroke } = t;
+    by_size(out, "chip.height", height);
+    out.line("chip.pad_x", len(*pad_x));
+    out.line("chip.remove_width", len(*remove_width));
+    out.line("chip.gap", len(*gap));
+    out.line("chip.cross_arm", len(*cross_arm));
+    out.line("chip.cross_stroke", len(*cross_stroke));
+}
+
+fn icon_picker_lines(out: &mut Lines, t: &IconPickerTokens) {
+    let IconPickerTokens { cell, gap, inset } = t;
+    out.line("icon_picker.cell", len(*cell));
+    out.line("icon_picker.gap", len(*gap));
+    out.line("icon_picker.inset", len(*inset));
+}
+
+fn split_button_lines(out: &mut Lines, t: &SplitButtonTokens) {
+    let SplitButtonTokens { arrow_width, divider_inset } = t;
+    out.line("split_button.arrow_width", len(*arrow_width));
+    out.line("split_button.divider_inset", len(*divider_inset));
+}
+
+fn breadcrumb_lines(out: &mut Lines, t: &BreadcrumbTokens) {
+    let BreadcrumbTokens { height, separator, space, min_segment } = t;
+    out.line("breadcrumb.height", len(*height));
+    out.line("breadcrumb.separator", len(*separator));
+    out.line("breadcrumb.space", len(*space));
+    out.line("breadcrumb.min_segment", len(*min_segment));
+}
+
+fn rating_lines(out: &mut Lines, t: &RatingTokens) {
+    let RatingTokens { star, star_md, cell_md, star_sm, cell_sm } = t;
+    out.line("rating.star", hex(*star));
+    out.line("rating.star_md", len(*star_md));
+    out.line("rating.cell_md", len(*cell_md));
+    out.line("rating.star_sm", len(*star_sm));
+    out.line("rating.cell_sm", len(*cell_sm));
+}
+
+fn date_lines(out: &mut Lines, t: &DateTokens) {
+    let DateTokens { cell, gap, popup_width, page_button, cell_pad } = t;
+    out.line("date.cell", len(*cell));
+    out.line("date.gap", len(*gap));
+    out.line("date.popup_width", len(*popup_width));
+    out.line("date.page_button", len(*page_button));
+    out.line("date.cell_pad", len(*cell_pad));
+}
+
+fn reset_dot_lines(out: &mut Lines, t: &ResetDotTokens) {
+    let ResetDotTokens { size, radius, corner } = t;
+    out.line("reset_dot.size", len(*size));
+    out.line("reset_dot.radius", len(*radius));
+    out.line("reset_dot.corner", len(*corner));
+}
+
+fn drag_lines(out: &mut Lines, t: &DragTokens) {
+    let DragTokens { badge_offset_x, badge_offset_y, badge_pad_x, badge_pad_y } = t;
+    out.line("drag.badge_offset_x", len(*badge_offset_x));
+    out.line("drag.badge_offset_y", len(*badge_offset_y));
+    out.line("drag.badge_pad_x", len(*badge_pad_x));
+    out.line("drag.badge_pad_y", len(*badge_pad_y));
+}
+
+fn drop_veil_lines(out: &mut Lines, t: &DropVeilTokens) {
+    let DropVeilTokens { inset, frame_width, frame_radius, card_radius, card_gap, card_pad_x, card_pad_y, wrap_margin, min_wrap } = t;
+    out.line("drop_veil.inset", len(*inset));
+    out.line("drop_veil.frame_width", len(*frame_width));
+    out.line("drop_veil.frame_radius", len(*frame_radius));
+    out.line("drop_veil.card_radius", len(*card_radius));
+    out.line("drop_veil.card_gap", len(*card_gap));
+    out.line("drop_veil.card_pad_x", len(*card_pad_x));
+    out.line("drop_veil.card_pad_y", len(*card_pad_y));
+    out.line("drop_veil.wrap_margin", len(*wrap_margin));
+    out.line("drop_veil.min_wrap", len(*min_wrap));
+}
+
+fn event_log_lines(out: &mut Lines, t: &EventLogTokens) {
+    let EventLogTokens { details_height, glyph, glyph_box } = t;
+    out.line("event_log.details_height", len(*details_height));
+    out.line("event_log.glyph", len(*glyph));
+    out.line("event_log.glyph_box", len(*glyph_box));
+}
+
+fn autocomplete_lines(out: &mut Lines, t: &AutocompleteTokens) {
+    let AutocompleteTokens { min_width, gap } = t;
+    out.line("autocomplete.min_width", len(*min_width));
+    out.line("autocomplete.gap", len(*gap));
+}
+
+fn metadata_lines(out: &mut Lines, t: &MetadataTokens) {
+    let MetadataTokens { column_gap, row_gap, max_height } = t;
+    out.line("metadata.column_gap", len(*column_gap));
+    out.line("metadata.row_gap", len(*row_gap));
+    out.line("metadata.max_height", len(*max_height));
 }
 
 fn export_lines(out: &mut Lines, t: &ExportTokens) {

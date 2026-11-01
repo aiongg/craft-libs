@@ -16,11 +16,6 @@ use crate::localized::Labels as _;
 use crate::popup_list::edge_width;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, apply_popup_style};
 
-/// The least width of the list in points (GridCraft's `min_size`); token `autocomplete.min_width`.
-const MIN_WIDTH: f32 = 220.0;
-/// Between the editor's bottom edge and the list.
-const GAP: f32 = 4.0;
-
 crate::words! {
     /// The list's words, English by default.
     #[non_exhaustive]
@@ -201,13 +196,14 @@ impl<'a> Autocomplete<'a> {
         let labels = self.labels.unwrap_or_else(|| AutocompleteLabels::of(ui));
         let tokens = Tokens::of(ui);
         let style = Select::style(&tokens, ControlSize::Md);
+        let autocomplete = &tokens.component.autocomplete;
         let mut rows_style = style.list;
         rows_style.label = craft_theme::TypeRole::Mono;
         let texts: Vec<String> =
             self.suggestions.iter().map(|s| s.mark.as_ref().map_or_else(|| s.text.clone(), |mark| format!("{mark}  {}", s.text))).collect();
         let widest =
             texts.iter().map(|t| text_galley(ui, rows_style.label, t, egui::Color32::PLACEHOLDER, f32::INFINITY).size().x).fold(0.0, f32::max);
-        let width = MIN_WIDTH.max(2.0 * rows_style.pad_x + rows_style.icon + rows_style.gap + widest);
+        let width = autocomplete.min_width.max(2.0 * rows_style.pad_x + rows_style.icon + rows_style.gap + widest);
         let active = pass.listbox.active().filter(|&a| a < count).unwrap_or(0);
         if pass.listbox.active() != Some(active) {
             pass.listbox.reveal(Some(active), false);
@@ -215,9 +211,9 @@ impl<'a> Autocomplete<'a> {
         let bounds = self.bounds.unwrap_or_else(|| ctx.content_rect());
         let rtl = direction::is_rtl(ui);
         let (origin, pivot) = if rtl {
-            (pos2(anchor.right(), anchor.bottom() + GAP), Align2::RIGHT_TOP)
+            (pos2(anchor.right(), anchor.bottom() + autocomplete.gap), Align2::RIGHT_TOP)
         } else {
-            (pos2(anchor.left(), anchor.bottom() + GAP), Align2::LEFT_TOP)
+            (pos2(anchor.left(), anchor.bottom() + autocomplete.gap), Align2::LEFT_TOP)
         };
         let mut clicked = None;
         let shown = Area::new(id.with("popup"))

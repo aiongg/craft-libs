@@ -19,16 +19,6 @@ use crate::popover::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use crate::primitives::Interactive;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
-/// A cell's least width and the gap between cells (LightCraft's `min_size(26)` and
-/// `spacing(2, 2)`); tokens `date.cell` and `date.gap`.
-const CELL: f32 = 26.0;
-const GAP: f32 = 2.0;
-/// The popup's width (LightCraft's `set_min_width(220)`).
-const POPUP_WIDTH: f32 = 220.0;
-/// The side of Previous and Next.
-const PAGE_BUTTON: f32 = 24.0;
-/// Padding either side of the text of a month or year cell.
-const CELL_PAD: f32 = 6.0;
 /// The last year that can be picked (four digits).
 const LAST_YEAR: i32 = 9999;
 /// Years on a Year page.
@@ -574,11 +564,12 @@ impl Popup<'_> {
     fn show(&self, ui: &mut Ui, view: &mut View, initial_focus: impl Fn(Id)) -> Option<Option<PickedDate>> {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
+        let date = tokens.component.date;
         let dates = date_format(&ctx);
         let list = Select::style(&tokens, self.size).list;
         let rtl = direction::is_rtl(ui);
         let allowed = |date: &PickedDate| date.in_bounds(self.min.as_ref(), self.max.as_ref());
-        ui.set_width(POPUP_WIDTH);
+        ui.set_width(date.popup_width);
         let mut picked: Option<Option<PickedDate>> = None;
 
         if self.precisions.len() > 1 {
@@ -645,12 +636,12 @@ impl Popup<'_> {
         let width = ui.available_width();
 
         // Previous, the title, Next.
-        let (strip, _) = ui.allocate_exact_size(vec2(width, PAGE_BUTTON), Sense::hover());
+        let (strip, _) = ui.allocate_exact_size(vec2(width, date.page_button), Sense::hover());
         let forward = direction::forward(ui);
         let start = direction::start_x(ui, strip);
         let end = direction::end_x(ui, strip);
         let button = |from: f32, to: f32| Rect::from_x_y_ranges(from.min(to)..=from.max(to), strip.y_range());
-        let (previous_rect, next_rect) = (button(start, start + forward * PAGE_BUTTON), button(end, end - forward * PAGE_BUTTON));
+        let (previous_rect, next_rect) = (button(start, start + forward * date.page_button), button(end, end - forward * date.page_button));
         if IconButton::new(Icon::ChevronLeft, self.labels.previous.as_str()).size(self.size).show_at(ui, previous_rect).clicked() {
             *view = view.paged(false);
         }
@@ -673,10 +664,10 @@ impl Popup<'_> {
             .cells
             .iter()
             .flatten()
-            .map(|c| text_galley(ui, list.label, &c.text, Color32::PLACEHOLDER, f32::INFINITY).size().x + 2.0 * CELL_PAD)
-            .fold(CELL, f32::max);
+            .map(|c| text_galley(ui, list.label, &c.text, Color32::PLACEHOLDER, f32::INFINITY).size().x + 2.0 * date.cell_pad)
+            .fold(date.cell, f32::max);
         let columns = page.columns;
-        let grid_width = columns as f32 * widest + (columns - 1) as f32 * GAP;
+        let grid_width = columns as f32 * widest + (columns - 1) as f32 * date.gap;
         let ids: Vec<Option<Id>> = page.cells.iter().map(|c| c.as_ref().map(|c| self.cell_id(view, c.key))).collect();
         if let Some(Some(id)) = page.position(active_key).map(|at| ids[at]) {
             initial_focus(id);
@@ -692,7 +683,7 @@ impl Popup<'_> {
                 .accessibility_label(title.as_str()),
         );
         let origin = direction::start_x(&grid, grid.max_rect()) + forward * ((width - grid_width) / 2.0).max(0.0);
-        let x_of = |column: usize| origin + forward * column as f32 * (widest + GAP);
+        let x_of = |column: usize| origin + forward * column as f32 * (widest + date.gap);
         let cell_rect = |top: f32, column: usize, height: f32| {
             let (a, b) = (x_of(column), x_of(column) + forward * widest);
             Rect::from_min_max(pos2(a.min(b), top), pos2(a.max(b), top + height))
@@ -706,7 +697,7 @@ impl Popup<'_> {
                 let rect = cell_rect(row.top(), column, list.height);
                 grid.painter().text(rect.center(), Align2::CENTER_CENTER, name, tokens.font(craft_theme::TypeRole::Caption), muted);
             }
-            grid.add_space(GAP);
+            grid.add_space(date.gap);
         }
         for (row, cells) in page.cells.chunks(columns).enumerate() {
             let (_, strip) = grid.allocate_space(vec2(width, list.height));
@@ -733,7 +724,7 @@ impl Popup<'_> {
                     picked = Some(Some(cell.date));
                 }
             }
-            grid.add_space(GAP);
+            grid.add_space(date.gap);
         }
         ui.advance_cursor_after_rect(grid.min_rect());
 

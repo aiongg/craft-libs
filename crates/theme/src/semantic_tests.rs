@@ -800,8 +800,10 @@ fn size_presets_text_size_shape_and_motion() {
     assert_eq!(t.shape.edge, Edge::Bevel { light: Rgba::WHITE, dark: t.color(T::EdgeDark), width: 1.0 });
 
     assert_eq!((compact.motion.hover.millis, compact.motion.open.millis), (80, 150));
+    assert_eq!((compact.motion.caret.millis, compact.motion.outline.millis), (100, 120));
     let still = resolve(&def, Appearance { reduced_motion: true, ..app(Mode::Dark, Contrast::Standard) }, None).tokens;
     assert_eq!((still.motion.hover.millis, still.motion.open.millis, still.motion.r#move.millis), (0, 0, 0));
+    assert_eq!((still.motion.caret.millis, still.motion.outline.millis), (0, 0));
     assert!(still.elevation.popup.alpha > compact.elevation.popup.alpha, "dark shadows are stronger");
     assert_eq!(compact.elevation.floating, Elevation { alpha: 50.0 / 255.0, ..values::WINDOW_SHADOW });
 }

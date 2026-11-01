@@ -1709,3 +1709,167 @@ pub const FILE_LIST_SIZE: [f32; 2] = [300.0, 160.0];
 
 /// Least width of a button beside the list (PhotoCraft).
 pub const FILE_LIST_BUTTON_MIN: f32 = 120.0;
+
+// Step 5 controls (S5C-F8).
+
+/// Side of a table header's sort chevron (PdfCraft's Combine Files table).
+pub const TABLE_SORT_GLYPH: f32 = 12.0;
+
+/// From a header's text to its sort chevron (PdfCraft: the chevron's centre 14 past the label with a 12 chevron).
+pub const TABLE_SORT_GAP: f32 = 8.0;
+
+/// Width of a column edge's grab strip: three points either side of the edge.
+pub const TABLE_GRIP_WIDTH: f32 = 6.0;
+
+/// Width of the drop line of a moved column (PdfCraft).
+pub const TABLE_DROP_LINE_WIDTH: f32 = 2.5;
+
+/// Height of a chip, small and medium (LightCraft's keyword chip 22 and filter chip 18).
+pub const CHIP_HEIGHT: (f32, f32) = (18.0, 22.0);
+
+/// Between a chip's edge and its label (LightCraft).
+pub const CHIP_PAD_X: f32 = 8.0;
+
+/// Width of a chip's remove target (LightCraft's `CROSS_W`).
+pub const CHIP_REMOVE_WIDTH: f32 = 22.0;
+
+/// Between chips and between lines of chips (LightCraft).
+pub const CHIP_GAP: f32 = 6.0;
+
+/// Reach of a chip's remove cross from its centre (LightCraft).
+pub const CHIP_CROSS_ARM: f32 = 3.5;
+
+/// Stroke width of a chip's remove cross (LightCraft).
+pub const CHIP_CROSS_STROKE: f32 = 1.5;
+
+/// Side of an icon picker's cell (DeckCraft's `icon_cell`).
+pub const ICON_PICKER_CELL: f32 = 36.0;
+
+/// Between an icon picker's cells (PhotoCraft's preset panels).
+pub const ICON_PICKER_GAP: f32 = 3.0;
+
+/// Between an icon picker's cell edge and its icon (DeckCraft).
+pub const ICON_PICKER_INSET: f32 = 6.0;
+
+/// Width of a split button's arrow part (VectorCraft).
+pub const SPLIT_BUTTON_ARROW_WIDTH: f32 = 18.0;
+
+/// Between a split button's divider and its top and bottom edge (VectorCraft).
+pub const SPLIT_BUTTON_DIVIDER_INSET: f32 = 5.0;
+
+/// Height of a breadcrumb bar (LightCraft).
+pub const BREADCRUMB_HEIGHT: f32 = 24.0;
+
+/// Side of the chevron between breadcrumb segments (LightCraft).
+pub const BREADCRUMB_SEPARATOR: f32 = 16.0;
+
+/// Space beside a breadcrumb segment's text and either side of a chevron (LightCraft).
+pub const BREADCRUMB_SPACE: f32 = 4.0;
+
+/// The room one breadcrumb segment counts for when deciding how many fit (LightCraft).
+pub const BREADCRUMB_MIN_SEGMENT: f32 = 80.0;
+
+/// Least side of a date picker's cell (LightCraft).
+pub const DATE_CELL: f32 = 26.0;
+
+/// Between a date picker's cells (LightCraft).
+pub const DATE_GAP: f32 = 2.0;
+
+/// Width of a date picker's popup (LightCraft).
+pub const DATE_POPUP_WIDTH: f32 = 220.0;
+
+/// Side of a date picker's Previous and Next buttons (LightCraft).
+pub const DATE_PAGE_BUTTON: f32 = 24.0;
+
+/// Padding either side of a month or year cell's text (LightCraft).
+pub const DATE_CELL_PAD: f32 = 6.0;
+
+/// Side of a reset dot's square (VectorCraft).
+pub const RESET_DOT_SIZE: f32 = 24.0;
+
+/// Radius of a reset dot (VectorCraft).
+pub const RESET_DOT_RADIUS: f32 = 3.0;
+
+/// Corner radius of a reset dot's hover fill (VectorCraft).
+pub const RESET_DOT_CORNER: f32 = 3.0;
+
+/// Distance of a drag badge from the pointer, across (LightCraft's `pos + vec2(14, 10)`).
+pub const DRAG_BADGE_OFFSET_X: f32 = 14.0;
+
+/// Distance of a drag badge from the pointer, down (LightCraft).
+pub const DRAG_BADGE_OFFSET_Y: f32 = 10.0;
+
+/// Padding beside a drag badge's text (LightCraft).
+pub const DRAG_BADGE_PAD_X: f32 = 9.0;
+
+/// Padding above and below a drag badge's text (LightCraft).
+pub const DRAG_BADGE_PAD_Y: f32 = 3.0;
+
+/// Distance of a drop veil's frame from the window's edge (LightCraft).
+pub const DROP_VEIL_INSET: f32 = 10.0;
+
+/// Stroke width of a drop veil's frame (LightCraft).
+pub const DROP_VEIL_FRAME_WIDTH: f32 = 2.0;
+
+/// Corner radius of a drop veil's frame (LightCraft).
+pub const DROP_VEIL_FRAME_RADIUS: f32 = 12.0;
+
+/// Corner radius of a drop veil's card (LightCraft).
+pub const DROP_VEIL_CARD_RADIUS: f32 = 10.0;
+
+/// Between a drop veil card's lines (LightCraft).
+pub const DROP_VEIL_CARD_GAP: f32 = 8.0;
+
+/// Padding at the sides of a drop veil's card (LightCraft).
+pub const DROP_VEIL_CARD_PAD_X: f32 = 32.0;
+
+/// Padding at the top and bottom of a drop veil's card (LightCraft).
+pub const DROP_VEIL_CARD_PAD_Y: f32 = 24.0;
+
+/// A drop veil's lines wrap at the window's width less this (LightCraft).
+pub const DROP_VEIL_WRAP_MARGIN: f32 = 120.0;
+
+/// The least width a drop veil's lines wrap at (LightCraft).
+pub const DROP_VEIL_MIN_WRAP: f32 = 200.0;
+
+/// Least height of an event log's details box (FilmCraft).
+pub const EVENT_LOG_DETAILS_HEIGHT: f32 = 70.0;
+
+/// Side of an event log's level glyph (FilmCraft).
+pub const EVENT_LOG_GLYPH: f32 = 10.0;
+
+/// The room an event log's level glyph takes (FilmCraft).
+pub const EVENT_LOG_GLYPH_BOX: f32 = 14.0;
+
+/// Least width of an autocomplete list (GridCraft's formula bar).
+pub const AUTOCOMPLETE_MIN_WIDTH: f32 = 220.0;
+
+/// Between an editor's bottom edge and its autocomplete list (GridCraft).
+pub const AUTOCOMPLETE_GAP: f32 = 4.0;
+
+/// Between a metadata table's name and value columns (LightCraft's grid spacing).
+pub const METADATA_COLUMN_GAP: f32 = 16.0;
+
+/// Between a metadata table's rows (LightCraft's grid spacing).
+pub const METADATA_ROW_GAP: f32 = 3.0;
+
+/// The most a metadata table's rows take before they scroll (LightCraft's dialog).
+pub const METADATA_MAX_HEIGHT: f32 = 440.0;
+
+/// Side of a medium rating star (LightCraft's `widgets/rating.rs`).
+pub const RATING_STAR_MD: f32 = 14.0;
+
+/// Side of a medium rating star's cell (LightCraft).
+pub const RATING_CELL_MD: f32 = 19.0;
+
+/// Side of a small rating star (LightCraft).
+pub const RATING_STAR_SM: f32 = 12.0;
+
+/// Side of a small rating star's cell (LightCraft).
+pub const RATING_CELL_SM: f32 = 15.0;
+
+/// Duration of a text caret's glide, in milliseconds (WordCraft's `caret_glide.rs`, measured from Word).
+pub const MOTION_CARET_MS: u32 = 100;
+
+/// Duration of a selection outline's glide, in milliseconds (GridCraft's `selection_glide.rs`).
+pub const MOTION_OUTLINE_MS: u32 = 120;

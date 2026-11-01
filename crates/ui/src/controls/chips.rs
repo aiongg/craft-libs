@@ -24,15 +24,6 @@ use crate::theme::{ToEgui, Tokens, TokensOf as _, UiTokens, corner_radius, role_
 /// The "+N more" button's word; S5C-F9 moves it to the kernel's `counts`.
 const MORE: Counted = Counted::new("chips.more", "+{n} more", "+{n} more");
 
-/// Side of the × arms' reach from its centre, and their stroke (`chip.remove_width` and the arms
-/// are proposed tokens; S5C-F8 moves them).
-const CROSS_ARM: f32 = 3.5;
-const CROSS_STROKE: f32 = 1.5;
-/// Between the chip's edge and its label, and after a label with no ×.
-const PAD_X: f32 = 8.0;
-/// Between chips and between lines.
-const GAP: f32 = 6.0;
-
 crate::words! {
     /// The chips' words, English by default.
     #[non_exhaustive]
@@ -202,7 +193,7 @@ impl<'a> ChipField<'a> {
         let Arrangement { shown, hidden, ref widths, ref lines, clear } = arrangement;
         let ctx = ui.ctx().clone();
 
-        let total = if lines.is_empty() { 0.0 } else { lines.len() as f32 * look.height + (lines.len() - 1) as f32 * GAP };
+        let total = if lines.is_empty() { 0.0 } else { lines.len() as f32 * look.height + (lines.len() - 1) as f32 * look.gap };
         let (_, strip) = ui.allocate_space(vec2(look.width, total));
         let mut field = ui.new_child(
             UiBuilder::new()
@@ -251,7 +242,7 @@ impl<'a> ChipField<'a> {
             let mut at = 0.0;
             for cell in line.clone() {
                 let rect = look.span(ui, strip, at, widths[cell], row);
-                at += widths[cell] + GAP;
+                at += widths[cell] + look.gap;
                 let cell_sense = if cell == stop { Sense::click() } else { Sense::CLICK };
                 if cell < shown {
                     let part = ChipPart {
@@ -297,7 +288,7 @@ impl<'a> ChipField<'a> {
             .iter()
             .map(|chip| {
                 let label = look.text_width(ui, &arrangement_text(chip));
-                (PAD_X + label + if chip.removable { look.cross } else { PAD_X }).ceil().min(look.width.max(look.cross + PAD_X))
+                (look.pad_x + label + if chip.removable { look.cross } else { look.pad_x }).ceil().min(look.width.max(look.cross + look.pad_x))
             })
             .collect();
         let clear_width = (self.clear_all && !chips.is_empty()).then(|| look.button_width(ui, &look.labels.clear_all));
@@ -308,14 +299,14 @@ impl<'a> ChipField<'a> {
                 widths.push(look.button_width(ui, &more_text(ctx, look.labels, hidden)));
             }
             widths.extend(clear_width);
-            let lines = chip_lines(&widths, look.width, GAP);
+            let lines = chip_lines(&widths, look.width, look.gap);
             (widths, lines)
         };
         let mut shown = chips.len();
         let (mut widths, mut lines) = layout(shown, 0);
         if let Some(limit) = self.max_lines.map(|n| n.max(1)).filter(|&limit| lines.len() > limit) {
             // The chips that fit `limit` lines, less as many as the button needs room for.
-            shown = chip_lines(&wants, look.width, GAP).get(limit - 1).map_or(chips.len(), |last| last.end);
+            shown = chip_lines(&wants, look.width, look.gap).get(limit - 1).map_or(chips.len(), |last| last.end);
             loop {
                 (widths, lines) = layout(shown, chips.len() - shown);
                 if lines.len() <= limit || shown == 0 {
@@ -363,6 +354,13 @@ struct Look<'a> {
     height: f32,
     /// Width of the × target.
     cross: f32,
+    /// Between a chip's edge and its label, and after a label with no ×.
+    pad_x: f32,
+    /// Between chips and between lines.
+    gap: f32,
+    /// Reach and stroke width of the × arms.
+    cross_arm: f32,
+    cross_stroke: f32,
     width: f32,
     enabled: bool,
     rtl: bool,
@@ -375,16 +373,21 @@ struct Look<'a> {
 
 impl<'a> Look<'a> {
     fn new(ui: &Ui, tokens: &'a UiTokens, labels: &'a ChipLabels, size: ControlSize, enabled: bool) -> Self {
+        let chip = &tokens.component.chip;
         let height = match size {
-            ControlSize::Sm => 18.0,
-            ControlSize::Md => 22.0,
+            ControlSize::Sm => chip.height.sm,
+            ControlSize::Md => chip.height.md,
         };
         let color = |c: craft_theme::Rgba| c.to_egui();
         Self {
             tokens,
             labels,
             height,
-            cross: height,
+            cross: chip.remove_width.min(height),
+            pad_x: chip.pad_x,
+            gap: chip.gap,
+            cross_arm: chip.cross_arm,
+            cross_stroke: chip.cross_stroke,
             width: ui.available_width(),
             enabled,
             rtl: direction::is_rtl(ui),
@@ -405,7 +408,7 @@ impl<'a> Look<'a> {
     }
 
     fn button_width(&self, ui: &Ui, text: &str) -> f32 {
-        (2.0 * PAD_X + self.text_width(ui, text)).ceil().min(self.width)
+        (2.0 * self.pad_x + self.text_width(ui, text)).ceil().min(self.width)
     }
 
     fn text_color(&self, muted: bool) -> Color32 {
@@ -420,7 +423,7 @@ impl<'a> Look<'a> {
     fn span(&self, ui: &Ui, strip: Rect, from: f32, length: f32, row: usize) -> Rect {
         let forward = direction::forward(ui);
         let (a, b) = (direction::start_x(ui, strip) + forward * from, direction::start_x(ui, strip) + forward * (from + length));
-        let top = strip.top() + row as f32 * (self.height + GAP);
+        let top = strip.top() + row as f32 * (self.height + self.gap);
         Rect::from_min_max(pos2(a.min(b), top), pos2(a.max(b), top + self.height))
     }
 }
@@ -475,7 +478,7 @@ fn button(field: &mut Ui, look: &Look<'_>, id: Id, rect: Rect, sense: Sense, tex
         }
         painter.add(Shape::rect_stroke(rect, look.radius, look.edge, StrokeKind::Inside));
         let color = look.text_color(false);
-        let galley = elided_galley(field, text, look.format(color), (rect.width() - 2.0 * PAD_X).max(1.0), ElideAt::End).galley;
+        let galley = elided_galley(field, text, look.format(color), (rect.width() - 2.0 * look.pad_x).max(1.0), ElideAt::End).galley;
         painter.galley(rect.center() - galley.size() / 2.0, galley, color);
     }
     response
@@ -550,16 +553,16 @@ impl ChipPart<'_> {
             painter.rect_filled(cross.rect, round, look.hover_fill);
         }
         painter.add(Shape::rect_stroke(rect, look.radius, look.edge, StrokeKind::Inside));
-        let room = (rect.width() - PAD_X - if chip.removable { look.cross } else { PAD_X }).max(1.0);
+        let room = (rect.width() - look.pad_x - if chip.removable { look.cross } else { look.pad_x }).max(1.0);
         let color = look.text_color(chip.partial);
         let galley = elided_galley(field, text, look.format(color), room, ElideAt::End).galley;
-        let x = if look.rtl { rect.right() - PAD_X - galley.size().x } else { rect.left() + PAD_X };
+        let x = if look.rtl { rect.right() - look.pad_x - galley.size().x } else { rect.left() + look.pad_x };
         painter.galley(pos2(x, rect.center().y - galley.size().y / 2.0).round_to_pixels(field.pixels_per_point()), galley, color);
         if let Some(cross) = cross {
             let c = cross.rect.center();
-            let stroke = Stroke::new(CROSS_STROKE, if cross_hot && look.enabled { look.normal } else { look.text_color(true) });
-            painter.line_segment([c + vec2(-CROSS_ARM, -CROSS_ARM), c + vec2(CROSS_ARM, CROSS_ARM)], stroke);
-            painter.line_segment([c + vec2(-CROSS_ARM, CROSS_ARM), c + vec2(CROSS_ARM, -CROSS_ARM)], stroke);
+            let stroke = Stroke::new(look.cross_stroke, if cross_hot && look.enabled { look.normal } else { look.text_color(true) });
+            painter.line_segment([c + vec2(-look.cross_arm, -look.cross_arm), c + vec2(look.cross_arm, look.cross_arm)], stroke);
+            painter.line_segment([c + vec2(-look.cross_arm, look.cross_arm), c + vec2(look.cross_arm, -look.cross_arm)], stroke);
         }
     }
 }

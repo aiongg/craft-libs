@@ -32,12 +32,15 @@ macro_rules! sizes {
 
 mod angle_dial;
 mod app_shell;
+mod autocomplete;
 mod badge;
 mod bezier;
+mod breadcrumb;
 mod button;
 mod canvas;
 mod check;
 mod check_spelling;
+mod chip;
 mod color_picker;
 mod color_ramp;
 mod color_wheel;
@@ -45,9 +48,13 @@ mod command_palette;
 mod crop;
 mod cursor;
 mod curve;
+mod date;
 mod dialog;
 mod dock;
+mod drag;
+mod drop_veil;
 mod empty_state;
+mod event_log;
 mod export;
 mod eyedropper;
 mod field;
@@ -67,6 +74,7 @@ mod handle;
 mod harmony;
 mod histogram;
 mod icon_button;
+mod icon_picker;
 mod identify;
 mod inspector;
 mod kbd;
@@ -75,6 +83,7 @@ mod list;
 mod listbox;
 mod marquee;
 mod menu;
+mod metadata;
 mod new_document;
 mod notice;
 mod options_bar;
@@ -90,8 +99,10 @@ mod preset;
 mod progress;
 mod property;
 mod rail;
+mod rating;
 mod readout;
 mod ref_point;
+mod reset_dot;
 mod ruler;
 mod sampler;
 mod screen_picker;
@@ -103,11 +114,13 @@ mod slider;
 mod slider_row;
 mod spinner;
 mod split;
+mod split_button;
 mod start;
 mod status_bar;
 mod swatch;
 mod swatch_palette;
 mod tab;
+mod table;
 mod text_editor;
 mod text_styles;
 mod theme_chip;
@@ -131,12 +144,15 @@ use super::tokens::{ColorTokens, ElevationTokens, ShapeTokens, SizeTokens, Space
 
 pub use angle_dial::{AngleDialField, AngleDialTokens};
 pub use app_shell::{AppShellField, AppShellTokens};
+pub use autocomplete::{AutocompleteField, AutocompleteTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use bezier::{BezierField, BezierTokens};
+pub use breadcrumb::{BreadcrumbField, BreadcrumbTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use canvas::{CanvasField, CanvasTokens};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckSwitchColors, CheckSwitchPart, CheckTokens};
 pub use check_spelling::{CheckSpellingField, CheckSpellingTokens};
+pub use chip::{ChipField, ChipTokens};
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use color_ramp::{ColorRampField, ColorRampTokens};
 pub use color_wheel::{ColorWheelField, ColorWheelTokens};
@@ -144,9 +160,13 @@ pub use command_palette::{CommandPaletteField, CommandPaletteTokens};
 pub use crop::{CropField, CropTokens};
 pub use cursor::{CursorField, CursorTokens};
 pub use curve::{CurveField, CurveTokens};
+pub use date::{DateField, DateTokens};
 pub use dialog::{DialogField, DialogTokens};
 pub use dock::{DockField, DockTokens};
+pub use drag::{DragField, DragTokens};
+pub use drop_veil::{DropVeilField, DropVeilTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
+pub use event_log::{EventLogField, EventLogTokens};
 pub use export::{ExportField, ExportTokens};
 pub use eyedropper::{EyedropperField, EyedropperTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
@@ -166,6 +186,7 @@ pub use handle::{HandleField, HandleTokens};
 pub use harmony::{HarmonyField, HarmonyTokens};
 pub use histogram::{HistogramField, HistogramTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
+pub use icon_picker::{IconPickerField, IconPickerTokens};
 pub use inspector::{InspectorField, InspectorTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use levels::{LevelsField, LevelsTokens};
@@ -173,6 +194,7 @@ pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
+pub use metadata::{MetadataField, MetadataTokens};
 pub use new_document::{NewDocumentField, NewDocumentTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
@@ -188,8 +210,10 @@ pub use preset::{PresetField, PresetTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
 pub use rail::{RailField, RailTokens};
+pub use rating::{RatingField, RatingTokens};
 pub use readout::{ReadoutField, ReadoutTokens};
 pub use ref_point::{RefPointField, RefPointTokens};
+pub use reset_dot::{ResetDotField, ResetDotTokens};
 pub use ruler::{RulerField, RulerTokens};
 pub use sampler::{SamplerField, SamplerTokens};
 pub use screen_picker::{ScreenPickerField, ScreenPickerTokens};
@@ -201,11 +225,13 @@ pub use slider::{SliderField, SliderTokens};
 pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
 pub use split::{SplitField, SplitTokens};
+pub use split_button::{SplitButtonField, SplitButtonTokens};
 pub use start::{StartField, StartTokens};
 pub use status_bar::{StatusBarField, StatusBarTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
 pub use tab::{TabField, TabTokens};
+pub use table::{TableField, TableTokens};
 pub use text_editor::{TextEditorField, TextEditorTokens};
 pub use text_styles::{TextStylesField, TextStylesTokens};
 pub use theme_chip::{ThemeChipField, ThemeChipTokens};
@@ -763,6 +789,32 @@ impl ComponentTokens {
 }
 
 families! {
+    /// Tables: the header, the sort chevron, the column edges and the drop line.
+    table: TableTokens => Table(TableField);
+    /// Chips: pills with a remove cross.
+    chip: ChipTokens => Chip(ChipField);
+    /// Icon pickers: the cells of the grid.
+    icon_picker: IconPickerTokens => IconPicker(IconPickerField);
+    /// Split buttons: the arrow part and its divider.
+    split_button: SplitButtonTokens => SplitButton(SplitButtonField);
+    /// Breadcrumb bars: the height, chevrons and segment room.
+    breadcrumb: BreadcrumbTokens => Breadcrumb(BreadcrumbField);
+    /// Ratings: the star colour and the star and cell sizes.
+    rating: RatingTokens => Rating(RatingField);
+    /// Date pickers: the day grid and its popup.
+    date: DateTokens => Date(DateField);
+    /// Reset dots: the square, dot and hover corner.
+    reset_dot: ResetDotTokens => ResetDot(ResetDotField);
+    /// Drag badges: the offset from the pointer and the padding.
+    drag: DragTokens => Drag(DragField);
+    /// Drop veils: the frame and card of the file-drop overlay.
+    drop_veil: DropVeilTokens => DropVeil(DropVeilField);
+    /// Event logs: the level glyphs and the details box.
+    event_log: EventLogTokens => EventLog(EventLogField);
+    /// Autocomplete lists: the least width and the gap to the editor.
+    autocomplete: AutocompleteTokens => Autocomplete(AutocompleteField);
+    /// Metadata tables: the column and row gaps and the most height.
+    metadata: MetadataTokens => Metadata(MetadataField);
     /// Export As and Save for Web: the widths of the dialogs and their settings columns.
     export: ExportTokens => Export(ExportField);
     /// File list pickers: the list box and the width of its buttons.
