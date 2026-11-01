@@ -1,15 +1,16 @@
 //! [`SymmetryTransform`]: Transform Symmetry, a cancellable session that moves a copy of the
 //! symmetry's centre and turns its axes on the canvas tool host.
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TO-S2)")]
-
-use egui::Painter;
+use egui::{CursorIcon, Key, Modifiers, Painter, Pos2};
 use kurbo::{Point, Size};
 
 use super::menu::SymmetryLabels;
-use super::model::Symmetry;
-use craft_ui::canvas::{CanvasTool, RulerUnits, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
-use craft_ui::edit::{EditEvent, GestureId};
+use super::model::{Symmetry, TURN_STEP_DEGREES};
+use super::overlay::part_rect;
+use super::style::SymmetryStyle;
+use craft_ui::canvas::{CanvasTool, Part, RulerUnits, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
+use craft_ui::edit::{CancelReason, EditEvent, GestureId};
+use craft_ui::localized::Labels as _;
 
 /// What Transform Symmetry reports.
 #[derive(Clone, Debug, PartialEq)]
@@ -90,7 +91,10 @@ pub struct SymmetryTransform {
     original: Symmetry,
     preview: Symmetry,
     drag: Option<Drag>,
-    gesture: Option<GestureId>,
+    /// The running drag's gesture and the preview it began with.
+    gesture: Option<(GestureId, Symmetry)>,
+    /// Commit or Cancel went out: the pass takes nothing more.
+    ended: bool,
     /// 0 the centre, 1 the rotation handle.
     picked: Option<u64>,
 }
@@ -98,7 +102,7 @@ pub struct SymmetryTransform {
 impl SymmetryTransform {
     /// Opens the session on a copy of `symmetry`.
     pub fn begin(symmetry: Symmetry) -> Self {
-        Self { original: symmetry, preview: symmetry, drag: None, gesture: None, picked: None }
+        Self { original: symmetry, preview: symmetry, drag: None, gesture: None, ended: false, picked: None }
     }
 
     /// The symmetry the session began with (the app compares it to the preset's for `valid`).
@@ -140,68 +144,237 @@ pub struct SymmetryTransformPass<'a> {
     output: SymmetryTransformOutput,
 }
 
+const CENTER: u64 = 0;
+const HANDLE: u64 = 1;
+
 impl SymmetryTransformPass<'_> {
     /// The pass's events.
     pub fn finish(self) -> SymmetryTransformOutput {
         self.output
     }
+
+    fn push(&mut self, event: SymmetryEvent) {
+        self.output.events.push(event);
+    }
+
+    /// The part under a screen position: the centre first, then the rotation handle.
+    fn part_at(&self, cx: &ToolContext<'_>, at: Pos2) -> Option<u64> {
+        let style = SymmetryStyle::of(cx.tokens);
+        let preview = &self.session.preview;
+        let handle = preview.rotation_handle(self.input.size, style.handle_share);
+        [(CENTER, preview.center), (HANDLE, handle)].into_iter().find(|(_, p)| cx.view.to_screen(*p).distance(at) <= style.hit).map(|(key, _)| key)
+    }
+
+    /// Replaces the preview with `next` unless `Symmetry::new` refuses it; true when it changed.
+    fn set(&mut self, center: Point, rotation: f64) -> Option<Symmetry> {
+        let next = Symmetry::new(self.session.preview.mode, center, rotation)?;
+        (next != self.session.preview).then(|| {
+            self.session.preview = next;
+            next
+        })
+    }
+
+    fn labels(&self, cx: &ToolContext<'_>) -> SymmetryLabels {
+        self.input.labels.clone().unwrap_or_else(|| SymmetryLabels::of_ctx(&cx.canvas.ctx))
+    }
+
+    /// The preview after a key step on the picked part, or `None` for a key it does not read.
+    fn step(&self, key: &ToolKey) -> Option<Symmetry> {
+        let big = if key.modifiers.matches_exact(Modifiers::SHIFT) {
+            true
+        } else if key.modifiers.matches_exact(Modifiers::NONE) {
+            false
+        } else {
+            return None;
+        };
+        let p = self.session.preview;
+        match self.session.picked? {
+            CENTER => {
+                let step = if big { 10.0 } else { 1.0 };
+                let (dx, dy) = match key.key {
+                    Key::ArrowLeft => (-step, 0.0),
+                    Key::ArrowRight => (step, 0.0),
+                    Key::ArrowUp => (0.0, -step),
+                    Key::ArrowDown => (0.0, step),
+                    _ => return None,
+                };
+                Some(Symmetry::new(p.mode, Point::new(p.center.x + dx, p.center.y + dy), p.rotation).unwrap_or(p))
+            }
+            _ => {
+                let step = if big { TURN_STEP_DEGREES } else { 1.0 };
+                // Right is clockwise in every language: the canvas does not mirror.
+                let turn = match key.key {
+                    Key::ArrowLeft => -step,
+                    Key::ArrowRight => step,
+                    _ => return None,
+                };
+                Some(Symmetry::new(p.mode, p.center, p.rotation + turn).unwrap_or(p))
+            }
+        }
+    }
 }
 
 impl CanvasTool for SymmetryTransformPass<'_> {
     /// An invalid session reports Cancel once.
-    fn each_pass(&mut self, cx: &mut ToolContext<'_>) {
+    fn each_pass(&mut self, _cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:131 `track` (the validity half), :124 `valid`.
-        todo!()
+        if self.input.valid || self.session.ended {
+            return;
+        }
+        self.session.ended = true;
+        self.session.drag = None;
+        if let Some((id, before)) = self.session.gesture.take() {
+            self.session.preview = before;
+            self.push(SymmetryEvent::Preview(EditEvent::cancel(id, CancelReason::DocumentSwitched)));
+        }
+        self.push(SymmetryEvent::Cancel);
     }
 
     fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:111 `cursor`.
-        todo!()
+        let icon = match self.session.drag {
+            Some(Drag::Move { .. }) => CursorIcon::Move,
+            Some(Drag::Turn { .. }) => CursorIcon::Alias,
+            None => match cx.pointer.filter(|_| !self.session.ended).and_then(|p| self.part_at(cx, p.screen)) {
+                Some(CENTER) => CursorIcon::Move,
+                Some(_) => CursorIcon::Alias,
+                None => CursorIcon::Default,
+            },
+        };
+        ToolCursor::System(icon)
     }
 
     /// Takes every press: the centre, the handle, or nothing (claimed, so nothing paints).
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:233 `pointer` (Down).
-        todo!()
+        if self.session.ended {
+            return ToolAction::Ignored;
+        }
+        let preview = self.session.preview;
+        let drag = match self.part_at(cx, pointer.screen) {
+            Some(CENTER) => Drag::Move { start: pointer.doc, center: preview.center },
+            Some(_) => {
+                let from = pointer.doc - preview.center;
+                Drag::Turn { angle: from.y.atan2(from.x), rotation: preview.rotation }
+            }
+            None => return ToolAction::Claimed,
+        };
+        self.session.picked = Some(if matches!(drag, Drag::Move { .. }) { CENTER } else { HANDLE });
+        self.session.drag = Some(drag);
+        let id = GestureId::next();
+        self.session.gesture = Some((id, preview));
+        self.push(SymmetryEvent::Preview(EditEvent::begin(id)));
+        ToolAction::Claimed
     }
 
-    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+    fn drag(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:233 `pointer` (Move; ⇧ rounds the rotation to
         // 15°; a value `Symmetry::new` refuses keeps the last preview).
-        todo!()
+        let Some(drag) = self.session.drag else { return };
+        let preview = self.session.preview;
+        let (center, rotation) = match drag {
+            Drag::Move { start, center } => (center + (pointer.doc - start), preview.rotation),
+            Drag::Turn { angle, rotation } => {
+                let from = pointer.doc - preview.center;
+                let mut turned = rotation + (from.y.atan2(from.x) - angle).to_degrees();
+                if pointer.modifiers.shift {
+                    turned = (turned / TURN_STEP_DEGREES).round() * TURN_STEP_DEGREES;
+                }
+                (preview.center, turned)
+            }
+        };
+        if let (Some(next), Some((id, _))) = (self.set(center, rotation), self.session.gesture) {
+            self.push(SymmetryEvent::Preview(EditEvent::update(id, next, pointer.modifiers)));
+        }
     }
 
-    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+    fn release(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:233 `pointer` (Up).
-        todo!()
+        self.session.drag = None;
+        if let Some((id, before)) = self.session.gesture.take() {
+            let preview = self.session.preview;
+            self.push(SymmetryEvent::Preview(EditEvent::commit(id, preview, preview != before, pointer.modifiers)));
+        }
     }
 
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
         // new: the drag's Cancel; the preview goes back to the press.
-        todo!()
+        self.session.drag = None;
+        if let Some((id, before)) = self.session.gesture.take() {
+            self.session.preview = before;
+            self.push(SymmetryEvent::Preview(EditEvent::cancel(id, CancelReason::Escape)));
+        }
     }
 
     /// Enter commits, Esc cancels; arrows act on the picked part.
-    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:131 `track` (Enter, Esc); the arrows are new
         // (lead call 24).
-        todo!()
+        if !key.pressed || self.session.ended || self.session.drag.is_some() {
+            return false;
+        }
+        if key.modifiers.matches_exact(Modifiers::NONE) {
+            match key.key {
+                Key::Enter => {
+                    self.session.ended = true;
+                    let event = self.session.commit();
+                    self.push(event);
+                    return true;
+                }
+                Key::Escape => {
+                    self.session.ended = true;
+                    let event = self.session.cancel();
+                    self.push(event);
+                    return true;
+                }
+                _ => {}
+            }
+        }
+        let Some(next) = self.step(key) else { return false };
+        if next != self.session.preview {
+            self.session.preview = next;
+            self.push(SymmetryEvent::Preview(EditEvent::set(next, key.modifiers)));
+        }
+        true
     }
 
     /// Nothing: the app draws [`SymmetryOverlay`](super::SymmetryOverlay) with `editing` on, so
     /// the guides show whichever tool is picked.
-    fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {}
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
 
     fn parts(&self, cx: &ToolContext<'_>) -> Option<ToolParts> {
         // new: lead call 33; the group "Symmetry" with "Center" and "Rotation handle".
-        todo!()
+        let style = SymmetryStyle::of(cx.tokens);
+        let labels = self.labels(cx);
+        let preview = &self.session.preview;
+        let (x, y) = match self.input.units {
+            Some((x, y)) => (x.clone(), y.clone()),
+            None => {
+                let pixels = RulerUnits::pixels(cx.numbers.clone());
+                (pixels.clone(), pixels)
+            }
+        };
+        let center = format!("{}, {}", x.format_value(preview.center.x, 0.0), y.format_value(preview.center.y, 0.0));
+        let angle = format!("{}\u{b0}", cx.numbers.format(preview.rotation, 0..=1));
+        let handle = preview.rotation_handle(self.input.size, style.handle_share);
+        let part = |key, name: String, value, at: Point| Part {
+            key,
+            name,
+            value: Some(value),
+            rect: part_rect(cx.view.to_screen(at), &style),
+            selected: false,
+        };
+        Some(ToolParts::new(
+            labels.group.clone(),
+            vec![part(CENTER, labels.center.clone(), center, preview.center), part(HANDLE, labels.rotation_handle.clone(), angle, handle)],
+        ))
     }
 
     fn picked(&self) -> Option<u64> {
         self.session.picked
     }
 
-    fn pick(&mut self, key: Option<u64>, cx: &mut ToolContext<'_>) {
+    fn pick(&mut self, key: Option<u64>, _cx: &mut ToolContext<'_>) {
         self.session.picked = key.filter(|k| *k < 2);
     }
 }
