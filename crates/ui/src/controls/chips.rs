@@ -1,12 +1,37 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`ChipField`]: removable chips laid out in lines, with "+N more" where a long list stops.
 
 use std::borrow::Cow;
 use std::ops::Range;
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use craft_theme::TypeRole;
+use egui::accesskit::{Action, Role};
+use egui::emath::GuiRounding as _;
+use egui::{
+    AsIdSalt, Color32, Context, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui,
+    UiBuilder, pos2, vec2,
+};
 
-use super::ControlSize;
+use super::{ControlSize, TooltipExt as _};
+use crate::behavior::{ClaimedKey, GridKey, GridNav, KeyClaim};
+use crate::direction;
+use crate::localized::words::Counted;
+use crate::localized::{Labels as _, Words};
+use crate::menu::{MenuEntry, MenuItem, PressMenu};
+use crate::primitives::Interactive;
+use crate::text::{ElideAt, elided_galley};
+use crate::theme::{ToEgui, Tokens, TokensOf as _, UiTokens, corner_radius, role_format};
+
+/// The "+N more" button's word; S5C-F9 moves it to the kernel's `counts`.
+const MORE: Counted = Counted::new("chips.more", "+{n} more", "+{n} more");
+
+/// Side of the × arms' reach from its centre, and their stroke (`chip.remove_width` and the arms
+/// are proposed tokens; S5C-F8 moves them).
+const CROSS_ARM: f32 = 3.5;
+const CROSS_STROKE: f32 = 1.5;
+/// Between the chip's edge and its label, and after a label with no ×.
+const PAD_X: f32 = 8.0;
+/// Between chips and between lines.
+const GAP: f32 = 6.0;
 
 crate::words! {
     /// The chips' words, English by default.
@@ -169,7 +194,373 @@ impl<'a> ChipField<'a> {
     // lightcraft: crates/ui-egui/src/panels/keywording.rs:80 chip, :243 chip_groups; lightcraft: crates/ui-egui/src/panels/chips.rs:92 show
     // needs: services craft-ui::text::elided_galley (N11.03) for the cut label.
     pub fn show(self, ui: &mut Ui) -> ChipFieldResponse {
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| ChipLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let enabled = self.enabled && ui.is_enabled();
+        let look = Look::new(ui, &tokens, &labels, self.size, enabled);
+        let arrangement = self.arrange(ui, &look);
+        let Arrangement { shown, hidden, ref widths, ref lines, clear } = arrangement;
+        let ctx = ui.ctx().clone();
+
+        let total = if lines.is_empty() { 0.0 } else { lines.len() as f32 * look.height + (lines.len() - 1) as f32 * GAP };
+        let (_, strip) = ui.allocate_space(vec2(look.width, total));
+        let mut field = ui.new_child(
+            UiBuilder::new()
+                .id_salt(self.id_salt)
+                .max_rect(strip)
+                .layout(direction::row(ui))
+                .accessibility_role(Role::List)
+                .accessibility_label(self.label.as_str()),
+        );
+
+        // Cells in reading order: the shown chips, "+N more", Clear All.
+        let more_cell = (hidden > 0).then_some(shown);
+        let clear_cell = clear.then_some(shown + usize::from(hidden > 0));
+        let ids: Vec<Id> = (0..widths.len())
+            .map(|cell| match cell {
+                _ if Some(cell) == more_cell => Interactive::id_in(&field, "more"),
+                _ if Some(cell) == clear_cell => Interactive::id_in(&field, "clear-all"),
+                _ => Interactive::id_in(&field, ("chip", cell)),
+            })
+            .collect();
+        let pending = field.unique_id().with("focus-after");
+        if let Some(index) = ctx.data_mut(|d| d.remove_temp::<usize>(pending))
+            && !ids.is_empty()
+        {
+            ctx.memory_mut(|m| m.request_focus(ids[index.min(ids.len() - 1)]));
+        }
+        let focused = enabled.then(|| ids.iter().position(|&id| ctx.memory(|m| m.has_focus(id)))).flatten();
+        let stop = move_focus(ui, &ids, lines, focused, look.rtl);
+
+        let mut out = Outcome::default();
+        if let Some(chip) = focused.filter(|&f| f < shown) {
+            KeyClaim::claim(
+                &ctx,
+                ids[chip],
+                &[Key::Delete, Key::Backspace, Key::Enter, Key::Space].map(|key| ClaimedKey::exact(Modifiers::NONE, key)),
+            );
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete) || i.consume_key(Modifiers::NONE, Key::Backspace)) {
+                out.removed = Some(chip);
+                // The next chip takes the removed one's place; the last one hands the focus back.
+                ctx.data_mut(|d| d.insert_temp(pending, if chip + 1 < shown { chip } else { chip.saturating_sub(1) }));
+            }
+        }
+
+        let mut responses: Vec<Response> = Vec::new();
+        for (row, line) in lines.iter().enumerate() {
+            let mut at = 0.0;
+            for cell in line.clone() {
+                let rect = look.span(ui, strip, at, widths[cell], row);
+                at += widths[cell] + GAP;
+                let cell_sense = if cell == stop { Sense::click() } else { Sense::CLICK };
+                if cell < shown {
+                    let part = ChipPart {
+                        chip: &self.chips[cell],
+                        text: &arrangement_text(&self.chips[cell]),
+                        cell,
+                        id: ids[cell],
+                        rect,
+                        sense: cell_sense,
+                    };
+                    responses.extend(part.show(&mut field, &look, &mut out));
+                } else {
+                    let more = Some(cell) == more_cell;
+                    let text = if more { more_text(&ctx, &labels, hidden) } else { labels.clear_all.clone() };
+                    let response = button(&mut field, &look, ids[cell], rect, cell_sense, &text);
+                    if more {
+                        let entries: Vec<MenuEntry<usize>> = (shown..self.chips.len())
+                            .map(|i| MenuItem::new(self.chips[i].full_name.as_deref().unwrap_or(&self.chips[i].label), i).into())
+                            .collect();
+                        if enabled && let Some(i) = PressMenu::new(&entries).show(&field, &response).chosen {
+                            out.removed = out.removed.or(Some(i));
+                        }
+                    } else if enabled && response.clicked() {
+                        out.cleared = true;
+                    }
+                    responses.push(response);
+                }
+            }
+        }
+
+        let response = match responses.into_iter().reduce(|all, r| all.union(r)) {
+            Some(all) => all.with_new_rect(strip),
+            None => ui.interact(strip, field.unique_id(), Sense::hover()),
+        };
+        ChipFieldResponse { response, removed: out.removed, clicked: out.clicked, context_menu: out.context_menu, cleared: out.cleared }
+    }
+
+    /// Which chips show and how the cells flow into lines: all of them, or with
+    /// [`max_lines`](Self::max_lines) as many as leave room for "+N more" in the last line.
+    fn arrange(&self, ui: &Ui, look: &Look<'_>) -> Arrangement {
+        let chips = self.chips;
+        let wants: Vec<f32> = chips
+            .iter()
+            .map(|chip| {
+                let label = look.text_width(ui, &arrangement_text(chip));
+                (PAD_X + label + if chip.removable { look.cross } else { PAD_X }).ceil().min(look.width.max(look.cross + PAD_X))
+            })
+            .collect();
+        let clear_width = (self.clear_all && !chips.is_empty()).then(|| look.button_width(ui, &look.labels.clear_all));
+        let ctx = ui.ctx();
+        let layout = |shown: usize, hidden: usize| {
+            let mut widths = wants[..shown].to_vec();
+            if hidden > 0 {
+                widths.push(look.button_width(ui, &more_text(ctx, look.labels, hidden)));
+            }
+            widths.extend(clear_width);
+            let lines = chip_lines(&widths, look.width, GAP);
+            (widths, lines)
+        };
+        let mut shown = chips.len();
+        let (mut widths, mut lines) = layout(shown, 0);
+        if let Some(limit) = self.max_lines.map(|n| n.max(1)).filter(|&limit| lines.len() > limit) {
+            // The chips that fit `limit` lines, less as many as the button needs room for.
+            shown = chip_lines(&wants, look.width, GAP).get(limit - 1).map_or(chips.len(), |last| last.end);
+            loop {
+                (widths, lines) = layout(shown, chips.len() - shown);
+                if lines.len() <= limit || shown == 0 {
+                    break;
+                }
+                shown -= 1;
+            }
+        }
+        Arrangement { shown, hidden: chips.len() - shown, widths, lines, clear: clear_width.is_some() }
+    }
+}
+
+/// What a chip shows: its label, with an asterisk after a partial one's.
+fn arrangement_text(chip: &Chip<'_>) -> String {
+    if chip.partial { format!("{}*", chip.label) } else { chip.label.to_string() }
+}
+
+/// "+N more" for `hidden` chips.
+fn more_text(ctx: &Context, labels: &ChipLabels, hidden: usize) -> String {
+    Words::of_ctx(ctx).counted(ctx, MORE, &labels.more, hidden as u64)
+}
+
+/// The field's cells: which chips show, "+N more" after them when some don't, Clear All.
+struct Arrangement {
+    shown: usize,
+    hidden: usize,
+    widths: Vec<f32>,
+    lines: Vec<Range<usize>>,
+    clear: bool,
+}
+
+/// What the cells of one pass report.
+#[derive(Default)]
+struct Outcome {
+    removed: Option<usize>,
+    clicked: Option<usize>,
+    context_menu: Option<(usize, Rect)>,
+    cleared: bool,
+}
+
+/// Sizes and colours of one pass.
+struct Look<'a> {
+    tokens: &'a UiTokens,
+    labels: &'a ChipLabels,
+    height: f32,
+    /// Width of the × target.
+    cross: f32,
+    width: f32,
+    enabled: bool,
+    rtl: bool,
+    radius: CornerRadius,
+    edge: Stroke,
+    hover_fill: Color32,
+    normal: Color32,
+    muted: Color32,
+}
+
+impl<'a> Look<'a> {
+    fn new(ui: &Ui, tokens: &'a UiTokens, labels: &'a ChipLabels, size: ControlSize, enabled: bool) -> Self {
+        let height = match size {
+            ControlSize::Sm => 18.0,
+            ControlSize::Md => 22.0,
+        };
+        let color = |c: craft_theme::Rgba| c.to_egui();
+        Self {
+            tokens,
+            labels,
+            height,
+            cross: height,
+            width: ui.available_width(),
+            enabled,
+            rtl: direction::is_rtl(ui),
+            radius: corner_radius(tokens.shape.radius.pill.min(height / 2.0)),
+            edge: Stroke::new(1.0, color(tokens.component.field.border.rest)),
+            hover_fill: color(tokens.color.state.hover),
+            normal: color(tokens.color.text.normal),
+            muted: color(tokens.color.text.muted),
+        }
+    }
+
+    fn format(&self, color: Color32) -> egui::text::TextFormat {
+        role_format(self.tokens, TypeRole::Label, color)
+    }
+
+    fn text_width(&self, ui: &Ui, text: &str) -> f32 {
+        elided_galley(ui, text, self.format(self.normal), f32::INFINITY, ElideAt::End).galley.size().x
+    }
+
+    fn button_width(&self, ui: &Ui, text: &str) -> f32 {
+        (2.0 * PAD_X + self.text_width(ui, text)).ceil().min(self.width)
+    }
+
+    fn text_color(&self, muted: bool) -> Color32 {
+        match () {
+            () if !self.enabled => self.tokens.color.text.disabled.to_egui(),
+            () if muted => self.muted,
+            () => self.normal,
+        }
+    }
+
+    /// The span of line `row` from `from` to `from + length`, along the reading direction.
+    fn span(&self, ui: &Ui, strip: Rect, from: f32, length: f32, row: usize) -> Rect {
+        let forward = direction::forward(ui);
+        let (a, b) = (direction::start_x(ui, strip) + forward * from, direction::start_x(ui, strip) + forward * (from + length));
+        let top = strip.top() + row as f32 * (self.height + GAP);
+        Rect::from_min_max(pos2(a.min(b), top), pos2(a.max(b), top + self.height))
+    }
+}
+
+/// Moves the field's one Tab stop with the arrows, Home and End over the laid-out lines
+/// (a screen reader's Focus request too) and returns the stop: the focused cell, else the first.
+fn move_focus(ui: &Ui, ids: &[Id], lines: &[Range<usize>], focused: Option<usize>, rtl: bool) -> usize {
+    let ctx = ui.ctx();
+    let mut stop = focused.unwrap_or(0);
+    if let Some(from) = focused {
+        ctx.memory_mut(|m| {
+            m.set_focus_lock_filter(ids[from], EventFilter { horizontal_arrows: true, vertical_arrows: true, ..EventFilter::default() })
+        });
+        let nav = GridNav::ragged(lines.iter().map(Range::len)).rtl(rtl);
+        ui.input_mut(|i| {
+            for (key, grid_key) in [
+                (Key::ArrowRight, GridKey::Right),
+                (Key::ArrowLeft, GridKey::Left),
+                (Key::ArrowDown, GridKey::Down),
+                (Key::ArrowUp, GridKey::Up),
+                (Key::Home, GridKey::Home),
+                (Key::End, GridKey::End),
+            ] {
+                if i.consume_key(Modifiers::NONE, key) {
+                    stop = nav.step(stop, grid_key, None).index;
+                }
+            }
+        });
+    }
+    if let Some(requested) = ids.iter().position(|&id| ui.input(|i| i.has_accesskit_action_request(id, Action::Focus))) {
+        stop = requested;
+    }
+    if focused.is_some_and(|from| from != stop) || (focused.is_none() && stop != 0) {
+        ctx.memory_mut(|m| m.request_focus(ids[stop]));
+    }
+    stop
+}
+
+/// A pill button ("+N more", Clear All) over `rect`.
+fn button(field: &mut Ui, look: &Look<'_>, id: Id, rect: Rect, sense: Sense, text: &str) -> Response {
+    let response = Interactive::with_id(id, Role::Button, text)
+        .sense(sense)
+        .corner_radius(look.radius)
+        .state_layer(false)
+        .enabled(look.enabled)
+        .interact_at(field, rect)
+        .finish(field);
+    if field.is_rect_visible(rect) {
+        let painter = field.painter();
+        if response.hovered() && look.enabled {
+            painter.rect_filled(rect, look.radius, look.hover_fill.gamma_multiply(0.5));
+        }
+        painter.add(Shape::rect_stroke(rect, look.radius, look.edge, StrokeKind::Inside));
+        let color = look.text_color(false);
+        let galley = elided_galley(field, text, look.format(color), (rect.width() - 2.0 * PAD_X).max(1.0), ElideAt::End).galley;
+        painter.galley(rect.center() - galley.size() / 2.0, galley, color);
+    }
+    response
+}
+
+/// One chip: its body over `rect` and, for a removable one, the × at its end.
+struct ChipPart<'a> {
+    chip: &'a Chip<'a>,
+    text: &'a str,
+    cell: usize,
+    id: Id,
+    rect: Rect,
+    sense: Sense,
+}
+
+impl ChipPart<'_> {
+    /// Senses, paints and reports the chip; returns its responses.
+    fn show(self, field: &mut Ui, look: &Look<'_>, out: &mut Outcome) -> Vec<Response> {
+        let Self { chip, text, cell, id, rect, sense } = self;
+        let name = chip.full_name.as_deref().unwrap_or(&chip.label);
+        let accessible = if chip.partial { craft_i18n::fmt(&look.labels.partial, &[("name", name)]) } else { name.to_string() };
+        let body = Interactive::with_id(id, Role::ListItem, accessible)
+            .sense(sense)
+            .corner_radius(look.radius)
+            .state_layer(false)
+            .enabled(look.enabled)
+            .interact_at(field, rect)
+            .finish(field);
+        let cross = chip.removable.then(|| {
+            let forward = direction::forward(field);
+            let (end, inner) = (direction::end_x(field, rect), direction::end_x(field, rect) - forward * look.cross);
+            let cross_rect = Rect::from_x_y_ranges(end.min(inner)..=end.max(inner), rect.y_range());
+            let parts = field.new_child(UiBuilder::new().id_salt(("chip-remove", cell)).max_rect(cross_rect).accessibility_parent(id));
+            let remove = craft_i18n::fmt(&look.labels.remove, &[("name", name)]);
+            Interactive::new(("remove", cell), Role::Button, remove.as_str())
+                .sense(Sense::CLICK)
+                .corner_radius(CornerRadius::ZERO)
+                .state_layer(false)
+                .focus_ring(false)
+                .enabled(look.enabled)
+                .interact_at(&parts, cross_rect)
+                .finish(&parts)
+        });
+        if field.is_rect_visible(rect) {
+            self.paint(field, look, &body, cross.as_ref(), text);
+        }
+        if look.enabled {
+            if cross.as_ref().is_some_and(Response::clicked) {
+                out.removed = Some(cell);
+            } else if body.clicked() {
+                out.clicked = Some(cell);
+            }
+            let key = body.has_focus() && field.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Menu) || i.consume_key(Modifiers::SHIFT, Key::F10));
+            if body.secondary_clicked() || key {
+                out.context_menu = Some((cell, rect));
+            }
+        }
+        let body = if chip.full_name.is_some() { body.tooltip(name) } else { body };
+        std::iter::once(body).chain(cross).collect()
+    }
+
+    fn paint(&self, field: &Ui, look: &Look<'_>, body: &Response, cross: Option<&Response>, text: &str) {
+        let (chip, rect) = (self.chip, self.rect);
+        let painter = field.painter();
+        let cross_hot = cross.is_some_and(Response::hovered);
+        if body.hovered() && look.enabled {
+            painter.rect_filled(rect, look.radius, look.hover_fill.gamma_multiply(0.5));
+        }
+        if let (true, Some(cross)) = (cross_hot, cross) {
+            let r = look.radius;
+            let round = if look.rtl { CornerRadius { nw: r.nw, sw: r.sw, ne: 0, se: 0 } } else { CornerRadius { nw: 0, sw: 0, ne: r.ne, se: r.se } };
+            painter.rect_filled(cross.rect, round, look.hover_fill);
+        }
+        painter.add(Shape::rect_stroke(rect, look.radius, look.edge, StrokeKind::Inside));
+        let room = (rect.width() - PAD_X - if chip.removable { look.cross } else { PAD_X }).max(1.0);
+        let color = look.text_color(chip.partial);
+        let galley = elided_galley(field, text, look.format(color), room, ElideAt::End).galley;
+        let x = if look.rtl { rect.right() - PAD_X - galley.size().x } else { rect.left() + PAD_X };
+        painter.galley(pos2(x, rect.center().y - galley.size().y / 2.0).round_to_pixels(field.pixels_per_point()), galley, color);
+        if let Some(cross) = cross {
+            let c = cross.rect.center();
+            let stroke = Stroke::new(CROSS_STROKE, if cross_hot && look.enabled { look.normal } else { look.text_color(true) });
+            painter.line_segment([c + vec2(-CROSS_ARM, -CROSS_ARM), c + vec2(CROSS_ARM, CROSS_ARM)], stroke);
+            painter.line_segment([c + vec2(-CROSS_ARM, CROSS_ARM), c + vec2(CROSS_ARM, -CROSS_ARM)], stroke);
+        }
     }
 }
 
@@ -178,5 +569,20 @@ impl<'a> ChipField<'a> {
 /// line has a line of its own. Ranges index `widths`.
 // lightcraft: crates/ui-egui/src/panels/keywording.rs:601 lines
 pub fn chip_lines(widths: &[f32], row_width: f32, gap: f32) -> Vec<Range<usize>> {
-    todo!()
+    let mut lines = Vec::new();
+    let mut start = 0;
+    let mut used = 0.0;
+    for (i, &w) in widths.iter().enumerate() {
+        if i > start && used + gap + w > row_width {
+            lines.push(start..i);
+            start = i;
+            used = w;
+        } else {
+            used = if i == start { w } else { used + gap + w };
+        }
+    }
+    if start < widths.len() {
+        lines.push(start..widths.len());
+    }
+    lines
 }
