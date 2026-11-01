@@ -75,7 +75,7 @@ fn rows_show_their_age_and_the_bar_counts_in_plural_forms() {
     let mut harness = harness(EventLevel::Info);
     harness.run();
     harness.get_by_role_and_label(Role::ListBoxOption, "Warning: Disk almost full, 3 minutes ago");
-    harness.get_by_role_and_label(Role::ListBoxOption, "Warning: Slow disk, less than a minute ago");
+    harness.get_by_role_and_label(Role::ListBoxOption, "Warning: Slow disk, Just now");
     harness.get_by_label("1 error");
     harness.get_by_label("2 warnings");
     harness.get_by_label("1 message");
