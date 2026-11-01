@@ -5,7 +5,7 @@
 //! canvas_story`) over a small picture the story paints, and keeps the tool, the settings and the
 //! view in egui memory. The story plays the app: it applies the tool's `Settings` events, answers
 //! `Apply` with `applied(true)`, and routes the bar's events to the tool as an app does. Sizes are
-//! args with defaults; the strings that have a story word use it, the rest are plain.
+//! args with defaults; the strings are story words.
 //!
 //! | Story id | Shows |
 //! |---|---|
@@ -36,6 +36,43 @@ use craft_ui::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Crop tool"];
+
+craft_ui::words! {
+    /// The buttons, status lines and sample names of the Crop stories, English by default.
+    #[non_exhaustive]
+    pub(crate) struct CropStoryLabels {
+        postcard: "cropStory.postcard" = "Postcard";
+        banner: "cropStory.banner" = "Banner";
+        apply: "cropStory.apply" = "Apply {w} × {h} px at {angle}°";
+        apply_to: "cropStory.applyTo" = "Apply {w} × {h} px at {angle}° to {target_w} × {target_h} px";
+        discard: "cropStory.discard" = "Discard";
+        straightened: "cropStory.straightened" = "Straighten {angle}°";
+        new_preset_named: "cropStory.newPresetNamed" = "New Crop Preset: {name}";
+        new_preset: "cropStory.newPreset" = "New Crop Preset";
+        delete_preset: "cropStory.deletePreset" = "Delete Crop Preset";
+        shield_requested: "cropStory.shieldRequested" = "Crop Shield color requested";
+        ratio: "cropStory.ratio" = "Ratio";
+        ratio_editing: "cropStory.ratioEditing" = "Ratio (editing)";
+        straighten: "cropStory.straighten" = "Straighten";
+        commit: "cropStory.commit" = "Commit";
+        cancel: "cropStory.cancel" = "Cancel";
+        left_tool: "cropStory.leftTool" = "Left the tool";
+        pick_other: "cropStory.pickOther" = "Pick another tool";
+        pick_crop: "cropStory.pickCrop" = "Pick Crop tool";
+        undo: "cropStory.undo" = "Undo";
+        redo: "cropStory.redo" = "Redo";
+        classic_mode: "cropStory.classicMode" = "Classic Mode";
+        image_mode: "cropStory.imageMode" = "Image mode";
+        mode_line: "cropStory.modeLine" = "{mode} · {frame} · view {angle}°";
+        target: "cropStory.target" = "Target {w} × {h} px";
+        target_ppi: "cropStory.targetPpi" = "Target {w} × {h} px at {ppi} ppi";
+        free_crop: "cropStory.freeCrop" = "Free crop";
+        straighten_hint: "cropStory.straightenHint" = "Hold ⌘ (Ctrl) to draw a line without arming Straighten";
+        orientation: "cropStory.orientation" = "orientation {n}";
+        narrow: "cropStory.narrow" = "narrow";
+        wide: "cropStory.wide" = "wide";
+    }
+}
 
 /// The fake selection of the default-frame story, in document units.
 const SELECTION: Rect = Rect::new(160.0, 100.0, 480.0, 300.0);
@@ -91,7 +128,7 @@ pub(crate) fn stories() -> Vec<Story> {
 }
 
 /// Two saved crop presets, for the bar's list and its New and Delete entries.
-pub(super) fn presets() -> Vec<CropUserPreset> {
+pub(super) fn presets(labels: &CropStoryLabels) -> Vec<CropUserPreset> {
     let size = |width: &str, height: &str| CropSizeFields {
         width: width.to_owned(),
         height: height.to_owned(),
@@ -99,8 +136,8 @@ pub(super) fn presets() -> Vec<CropUserPreset> {
         ..CropSizeFields::default()
     };
     vec![
-        CropUserPreset { name: "Postcard".to_owned(), ratio: CropRatio::Size, size: size("6 in", "4 in") },
-        CropUserPreset { name: "Banner".to_owned(), ratio: CropRatio::Sides { width: 3.0, height: 1.0 }, size: CropSizeFields::default() },
+        CropUserPreset { name: labels.postcard.clone(), ratio: CropRatio::Size, size: size("6 in", "4 in") },
+        CropUserPreset { name: labels.banner.clone(), ratio: CropRatio::Sides { width: 3.0, height: 1.0 }, size: CropSizeFields::default() },
     ]
 }
 
@@ -189,26 +226,29 @@ fn paint_picture(painter: &Painter, view: &CanvasView, tilt: f64) {
 }
 
 /// The event as the status line words it.
-fn describe(numbers: &LocaleNumbers, event: &CropEvent) -> Option<String> {
+fn describe(numbers: &LocaleNumbers, labels: &CropStoryLabels, event: &CropEvent) -> Option<String> {
     let n = |v: f64| numbers.format(v, 0..=1);
     match event {
         CropEvent::Apply(commit) => {
             let rect = commit.frame.rect;
-            let mut text = format!("Apply {} × {} px at {}°", n(rect.width()), n(rect.height()), n(commit.frame.angle));
-            if let Some(target) = commit.target {
-                text.push_str(&format!(" to {} × {} px", n(target.width), n(target.height)));
-            }
-            Some(text)
+            let (w, h, angle) = (n(rect.width()), n(rect.height()), n(commit.frame.angle));
+            Some(match commit.target {
+                Some(target) => craft_i18n::fmt(
+                    &labels.apply_to,
+                    &[("w", &w), ("h", &h), ("angle", &angle), ("target_w", &n(target.width)), ("target_h", &n(target.height))],
+                ),
+                None => craft_i18n::fmt(&labels.apply, &[("w", &w), ("h", &h), ("angle", &angle)]),
+            })
         }
-        CropEvent::Discard => Some("Discard".to_owned()),
-        CropEvent::Straightened(angle) => Some(format!("Straighten {}°", n(*angle))),
+        CropEvent::Discard => Some(labels.discard.clone()),
+        CropEvent::Straightened(angle) => Some(craft_i18n::fmt(&labels.straightened, &[("angle", &n(*angle))])),
         CropEvent::Frame(_) | CropEvent::Settings(_) => None,
     }
 }
 
 /// Handles one event of the tool as an app does.
-fn handle(kept: &mut Kept, numbers: &LocaleNumbers, event: CropEvent) {
-    if let Some(text) = describe(numbers, &event) {
+fn handle(kept: &mut Kept, numbers: &LocaleNumbers, labels: &CropStoryLabels, event: CropEvent) {
+    if let Some(text) = describe(numbers, labels, &event) {
         kept.last = Some(text);
     }
     match event {
@@ -225,9 +265,10 @@ fn handle(kept: &mut Kept, numbers: &LocaleNumbers, event: CropEvent) {
 /// it. Returns the tool's output while the tool is picked.
 fn run(ui: &mut Ui, kept: &mut Kept, pane: &Pane) -> Option<super::CropOutput> {
     let numbers = LocaleNumbers::of(ui);
+    let own = CropStoryLabels::of(ui);
     let document = pane.document();
     if pane.bar {
-        let users = presets();
+        let users = presets(&own);
         let mut out = CropBarOutput::default();
         let armed = kept.tool.straighten_armed();
         OptionsBar::new(("crop-story-bar", &pane.label)).show(ui, |bar| {
@@ -248,20 +289,23 @@ fn run(ui: &mut Ui, kept: &mut Kept, pane: &Pane) -> Option<super::CropOutput> {
                 CropBarEvent::Commit => kept.tool.apply(&kept.settings, &document, kept.view),
                 CropBarEvent::Cancel => kept.tool.discard(),
                 CropBarEvent::NewPreset => {
-                    kept.last = kept.settings.preset_name(&super::CropBarLabels::of(ui)).map(|name| format!("New Crop Preset: {name}"));
+                    kept.last = kept
+                        .settings
+                        .preset_name(&super::CropBarLabels::of(ui))
+                        .map(|name| craft_i18n::fmt(&own.new_preset_named, &[("name", &name)]));
                     None
                 }
                 CropBarEvent::DeletePreset => {
-                    kept.last = Some("Delete Crop Preset".to_owned());
+                    kept.last = Some(own.delete_preset.clone());
                     None
                 }
                 CropBarEvent::PickShieldColor => {
-                    kept.last = Some("Crop Shield colour requested".to_owned());
+                    kept.last = Some(own.shield_requested.clone());
                     None
                 }
             };
             if let Some(event) = tool_event {
-                handle(kept, &numbers, event);
+                handle(kept, &numbers, &own, event);
             }
         }
     }
@@ -288,7 +332,7 @@ fn run(ui: &mut Ui, kept: &mut Kept, pane: &Pane) -> Option<super::CropOutput> {
         kept.view = Some(view);
     }
     for event in out.events.clone() {
-        handle(kept, &numbers, event);
+        handle(kept, &numbers, &own, event);
     }
     Some(out)
 }
@@ -342,17 +386,18 @@ fn show_default_frame(ui: &mut Ui, args: &mut DefaultArgs) {
     pane.selection = args.selection.then_some(SELECTION);
     let out = run(ui, &mut kept, &pane);
     let numbers = LocaleNumbers::of(ui);
+    let own = CropStoryLabels::of(ui);
     ui.horizontal(|ui| {
         if kept.picked {
-            if ui.add(Button::new("Pick another tool")).clicked() {
+            if ui.add(Button::new(own.pick_other.as_str())).clicked() {
                 let event = kept.tool.leave(&kept.settings, &pane.document(), false);
                 kept.picked = false;
-                kept.last = Some("Left the tool".to_owned());
+                kept.last = Some(own.left_tool.clone());
                 if let Some(event) = event {
-                    handle(&mut kept, &numbers, event);
+                    handle(&mut kept, &numbers, &own, event);
                 }
             }
-        } else if ui.add(Button::new("Pick Crop tool")).clicked() {
+        } else if ui.add(Button::new(own.pick_crop.as_str())).clicked() {
             kept.picked = true;
         }
         if ui.add(Button::new(words.reset.as_str())).clicked() {
@@ -380,6 +425,7 @@ struct ImageModeArgs {
 /// turns the image; in Classic Mode the frame turns over a fixed image. P switches a pane.
 fn show_image_mode(ui: &mut Ui, args: &mut ImageModeArgs) {
     let words = StoryLabels::of(ui);
+    let own = CropStoryLabels::of(ui);
     let numbers = LocaleNumbers::of(ui);
     ui.columns(2, |columns| {
         for (index, ui) in columns.iter_mut().enumerate() {
@@ -394,9 +440,10 @@ fn show_image_mode(ui: &mut Ui, args: &mut ImageModeArgs) {
                 if ui.add(Button::new(words.reset.as_str())).clicked() {
                     kept = Kept::new(index == 1, args.view);
                 }
-                let mode = if kept.settings.shield.classic_mode { "Classic Mode" } else { "Image mode" };
+                let mode = if kept.settings.shield.classic_mode { &own.classic_mode } else { &own.image_mode };
                 let view = kept.view.map_or(args.view.rotation, |v| v.rotation);
-                status(ui, format!("{mode} · {} · view {}°", frame_line(&numbers, out.as_ref()), numbers.format(view, 0..=1)));
+                let frame = frame_line(&numbers, out.as_ref());
+                status(ui, craft_i18n::fmt(&own.mode_line, &[("mode", mode), ("frame", &frame), ("angle", &numbers.format(view, 0..=1))]));
             });
             last_event(ui, &kept);
             store(ui, name, kept);
@@ -426,15 +473,16 @@ fn show_ratio_and_size(ui: &mut Ui, args: &mut RatioArgs) {
     pane.bar = true;
     let out = run(ui, &mut kept, &pane);
     let numbers = LocaleNumbers::of(ui);
+    let own = CropStoryLabels::of(ui);
     let target = match kept.settings.target(&pane.document()) {
         Some(t) => {
-            let mut text = format!("Target {} × {} px", numbers.format(t.width, 0..=1), numbers.format(t.height, 0..=1));
-            if let Some(ppi) = t.resolution {
-                text.push_str(&format!(" at {} ppi", numbers.format(ppi, 0..=2)));
+            let (w, h) = (numbers.format(t.width, 0..=1), numbers.format(t.height, 0..=1));
+            match t.resolution {
+                Some(ppi) => craft_i18n::fmt(&own.target_ppi, &[("w", &w), ("h", &h), ("ppi", &numbers.format(ppi, 0..=2))]),
+                None => craft_i18n::fmt(&own.target, &[("w", &w), ("h", &h)]),
             }
-            text
         }
-        None => "Free crop".to_owned(),
+        None => own.free_crop.clone(),
     };
     status(ui, format!("{target} · {}", frame_line(&numbers, out.as_ref())));
     last_event(ui, &kept);
@@ -468,7 +516,7 @@ fn show_straighten(ui: &mut Ui, args: &mut StraightenArgs) {
     let out = run(ui, &mut kept, &pane);
     args.armed = kept.tool.straighten_armed();
     let numbers = LocaleNumbers::of(ui);
-    status(ui, "Hold ⌘ (Ctrl) to draw a line without arming Straighten".to_owned());
+    status(ui, CropStoryLabels::of(ui).straighten_hint.clone());
     status(ui, frame_line(&numbers, out.as_ref()));
     last_event(ui, &kept);
     store(ui, "straighten", kept);
@@ -490,13 +538,14 @@ fn show_box_undo(ui: &mut Ui, args: &mut UndoArgs) {
     let pane = Pane::new(words.document.clone(), args.view);
     let out = run(ui, &mut kept, &pane);
     let numbers = LocaleNumbers::of(ui);
+    let own = CropStoryLabels::of(ui);
     ui.horizontal(|ui| {
         let session = kept.tool.session();
         let (can_undo, can_redo) = (session.pending() && session.can_undo(), session.can_redo());
-        if ui.add_enabled(can_undo, Button::new("Undo")).clicked() {
+        if ui.add_enabled(can_undo, Button::new(own.undo.as_str())).clicked() {
             kept.tool.undo();
         }
-        if ui.add_enabled(can_redo, Button::new("Redo")).clicked() {
+        if ui.add_enabled(can_redo, Button::new(own.redo.as_str())).clicked() {
             kept.tool.redo();
         }
         if ui.add(Button::new(words.reset.as_str())).clicked() {

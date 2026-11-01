@@ -14,6 +14,7 @@ mod overlay_tests;
 #[cfg(test)]
 mod session_tests;
 
+pub(crate) use bar::PLANES;
 pub use bar::{PerspectiveBar, PerspectiveBarLabels, PerspectiveBarOutput};
 pub use overlay::{PerspectiveWarp, PerspectiveWarpLabels, PerspectiveWarpResponse};
 pub use session::{

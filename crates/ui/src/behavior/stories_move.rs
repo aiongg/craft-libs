@@ -1,7 +1,6 @@
 //! Stories of the nudge, the move gesture and the stroke constraints (task KS2; task RG2
 //! registers them). A fake page with rectangles and strokes, so every state shows without an app.
-//! Sample text is a story word where one exists; the plain strings are the axis and flag names in
-//! the status lines.
+//! Sample text and the axis and flag names of the status lines are story words.
 //!
 //! - `primitives/nudge/arrows`: a rectangle on a fake page; arrows move it 1 unit, ⇧ 10, a ⌘ base
 //!   toggle, the ⌥ copy flag in a status line; a text field beside it takes the arrows when focused.
@@ -30,6 +29,20 @@ use crate::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["NudgeKeys", "MoveGesture", "StrokeLock"];
+
+crate::words! {
+    /// The axis and flag names of the move stories' status lines, English by default.
+    #[non_exhaustive]
+    pub(crate) struct MoveStoryLabels {
+        free: "moveStory.free" = "Free";
+        horizontal: "moveStory.horizontal" = "Horizontal";
+        vertical: "moveStory.vertical" = "Vertical";
+        diagonal: "moveStory.diagonal" = "Diagonal";
+        locked: "moveStory.locked" = "Locked";
+        copy: "moveStory.copy" = "Copy";
+        shift: "moveStory.shift" = "Shift";
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -137,6 +150,7 @@ struct NudgeState {
 /// text field beside the status takes the arrows while it has focus.
 fn show_nudge(ui: &mut Ui, args: &mut NudgeArgs) {
     let words = StoryLabels::of(ui);
+    let labels = MoveStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let ctx = ui.ctx().clone();
     let key = state_key(ui, "nudge");
@@ -173,10 +187,12 @@ fn show_nudge(ui: &mut Ui, args: &mut NudgeArgs) {
         let mut line = format!("{}, {}", numbers.format(state.origin.x, 0..=1), numbers.format(state.origin.y, 0..=1));
         if let Some(last) = state.last {
             if last.shift {
-                line.push_str(" · Shift");
+                line.push_str(" · ");
+                line.push_str(&labels.shift);
             }
             if last.alt {
-                line.push_str(" · Copy");
+                line.push_str(" · ");
+                line.push_str(&labels.copy);
             }
         }
         status(ui, line);
@@ -274,15 +290,15 @@ impl CanvasTool for MoveTool {
 }
 
 /// The locked axis of a move: free without ⇧.
-fn axis(delta: Vec2, shift: bool) -> &'static str {
+fn axis(labels: &MoveStoryLabels, delta: Vec2, shift: bool) -> &str {
     if !shift || delta == Vec2::ZERO {
-        "Free"
+        &labels.free
     } else if delta.y == 0.0 {
-        "Horizontal"
+        &labels.horizontal
     } else if delta.x == 0.0 {
-        "Vertical"
+        &labels.vertical
     } else {
-        "Diagonal"
+        &labels.diagonal
     }
 }
 
@@ -290,6 +306,7 @@ fn axis(delta: Vec2, shift: bool) -> &'static str {
 /// puts the rectangles back.
 fn show_move(ui: &mut Ui, args: &MoveArgs, name: &str, directions: Directions, count: usize) {
     let words = StoryLabels::of(ui);
+    let labels = MoveStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let ctx = ui.ctx().clone();
     let key = state_key(ui, name);
@@ -306,9 +323,10 @@ fn show_move(ui: &mut Ui, args: &MoveArgs, name: &str, directions: Directions, c
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             tool = fresh();
         }
-        let mut line = axis(tool.value.delta, shift).to_owned();
+        let mut line = axis(&labels, tool.value.delta, shift).to_owned();
         if tool.value.copy {
-            line.push_str(" · Copy");
+            line.push_str(" · ");
+            line.push_str(&labels.copy);
         }
         status(ui, line);
     });
@@ -458,6 +476,7 @@ impl CanvasTool for StrokeDemo {
 /// Shift-click line from the end of the last stroke, and a ⇧ click paints it.
 fn show_stroke(ui: &mut Ui, args: &mut StrokeArgs) {
     let words = StoryLabels::of(ui);
+    let labels = MoveStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let ctx = ui.ctx().clone();
     let key = state_key(ui, "stroke");
@@ -485,7 +504,7 @@ fn show_stroke(ui: &mut Ui, args: &mut StrokeArgs) {
             tool.lock = None;
         }
         let locked = tool.lock.as_ref().is_some_and(StrokeLock::locked);
-        status(ui, if locked { "Locked" } else { "Free" }.to_owned());
+        status(ui, if locked { labels.locked.clone() } else { labels.free.clone() });
     });
     ctx.data_mut(|d| d.insert_temp(key, tool));
 }

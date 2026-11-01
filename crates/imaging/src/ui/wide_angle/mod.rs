@@ -24,6 +24,7 @@ mod style;
 mod tests;
 mod tool;
 
+pub(crate) use labels::CONSTRAINTS;
 pub use labels::WideAngleLabels;
 pub use panel::{WideAnglePanel, WideAnglePanelOutput};
 pub use session::{ConstraintOrientation, WideAngleConstraint, WideAngleConstraintEdit, WideAngleGeometry, WideAngleModel, WideAngleSession};

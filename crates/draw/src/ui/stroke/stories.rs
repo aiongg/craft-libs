@@ -27,6 +27,21 @@ use craft_ui::typed_story;
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["StrokeEditor", "StrokeButton"];
 
+craft_ui::words! {
+    /// The row and choice names of the stroke choice-row story, English by default.
+    #[non_exhaustive]
+    pub(crate) struct StrokeStoryLabels {
+        profile: "strokeStory.profile" = "Profile";
+        arrow: "strokeStory.arrow" = "Arrow";
+        circle: "strokeStory.circle" = "Circle";
+        square: "strokeStory.square" = "Square";
+        bar: "strokeStory.bar" = "Bar";
+        uniform: "strokeStory.uniform" = "Uniform";
+        taper: "strokeStory.taper" = "Taper";
+        bulge: "strokeStory.bulge" = "Bulge";
+    }
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
@@ -334,15 +349,20 @@ fn show_rows(ui: &mut Ui, args: &mut RowsArgs) {
     let look = StrokeEditorStyle { width: args.width, ..StrokeEditor::style(&tokens) };
     let color = tokens.color.text.normal.to_egui();
     let line = look.sample_stroke;
+    let own = StrokeStoryLabels::of(ui);
     let none = StrokeChoice::new("none", words.none.as_str());
     let heads = [
         none.clone(),
-        StrokeChoice::new("arrow", "Arrow"),
-        StrokeChoice::new("circle", "Circle"),
-        StrokeChoice::new("square", "Square"),
-        StrokeChoice::new("bar", "Bar"),
+        StrokeChoice::new("arrow", own.arrow.as_str()),
+        StrokeChoice::new("circle", own.circle.as_str()),
+        StrokeChoice::new("square", own.square.as_str()),
+        StrokeChoice::new("bar", own.bar.as_str()),
     ];
-    let profiles = [StrokeChoice::new("uniform", "Uniform"), StrokeChoice::new("taper", "Taper"), StrokeChoice::new("bulge", "Bulge")];
+    let profiles = [
+        StrokeChoice::new("uniform", own.uniform.as_str()),
+        StrokeChoice::new("taper", own.taper.as_str()),
+        StrokeChoice::new("bulge", own.bulge.as_str()),
+    ];
     let picked = (state.start.clone(), state.end.clone(), state.profile.clone());
     let profile = if args.mixed { MixedValue::Mixed } else { MixedValue::Same(picked.2.as_str()) };
     let rows = [
@@ -352,7 +372,7 @@ fn show_rows(ui: &mut Ui, args: &mut RowsArgs) {
         StrokeChoiceRow::new(END, words.end.as_str(), &heads)
             .selected(MixedValue::Same(picked.1.as_str()))
             .paint(move |painter, rect, choice| paint_head(painter, rect, &choice.id, true, color, line)),
-        StrokeChoiceRow::new(PROFILE, "Profile", &profiles)
+        StrokeChoiceRow::new(PROFILE, own.profile.as_str(), &profiles)
             .selected(profile)
             .paint(move |painter, rect, choice| paint_profile(painter, rect, &choice.id, color)),
     ];

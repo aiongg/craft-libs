@@ -12,7 +12,7 @@
 //! house's outline where the colour across it differs by the Contrast option.
 //!
 //! The Play button injects the same input a hand would (`ToolHost::inject`), so each story runs
-//! without a pointer. Every string is a story word where one exists; the rest are plain strings.
+//! without a pointer. Button captions are story words; the status line under the picture is Debug text.
 //!
 //! | Story id | Shows |
 //! |---|---|
@@ -43,6 +43,14 @@ use crate::ui::selection::SelectionOverlay;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["MarqueeTool", "LassoTool", "PolygonLassoTool", "MagneticLassoTool"];
+
+craft_ui::words! {
+    /// The captions of the selection tool stories, English by default.
+    #[non_exhaustive]
+    pub(crate) struct SelectToolStoryLabels {
+        reset: "selectToolStory.reset" = "Reset selection";
+    }
+}
 
 /// The stories above.
 pub(crate) fn stories() -> Vec<Story> {
@@ -581,10 +589,11 @@ fn session<T: StoryTool>(ui: &Ui, salt: &'static str, image: &MockImage, tool: i
 /// The Play and reset buttons. Returns whether Play was pressed.
 fn buttons<T>(ui: &mut Ui, session: &mut Session<T>, image: &MockImage) -> bool {
     let play = StoryLabels::of(ui).play;
+    let reset = SelectToolStoryLabels::of(ui).reset.clone();
     let mut pressed = false;
     ui.horizontal(|ui| {
         pressed = ui.add(Button::new(play.as_str())).clicked() && session.script.is_none();
-        if ui.add(Button::new("Reset selection")).clicked() {
+        if ui.add(Button::new(reset.as_str())).clicked() {
             session.selection = FakeSelection::house(image);
         }
     });

@@ -1,6 +1,6 @@
 //! Stories of painting symmetry (task ST-TO2; task RG2 registers them). A fake page stands for the
 //! document, and the axes, the Transform Symmetry session and the menu run on it as an app would
-//! run them. Sample words are story words where one exists; the plain strings are the status lines.
+//! run them. Sample words and the status lines are story words.
 //!
 //! - `primitives/symmetry/modes`: the four modes at the page centre and off-centre, with the
 //!   handles of Transform Symmetry on request; the axes clip to the page.
@@ -30,6 +30,26 @@ use craft_ui::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Symmetry", "SymmetryOverlay", "SymmetryTransform", "SymmetryMenu"];
+
+craft_ui::words! {
+    /// The status lines and sample path names of the symmetry stories, English by default.
+    #[non_exhaustive]
+    pub(crate) struct SymmetryStoryLabels {
+        axes: "symmetryStory.axes" = "{n} axes on the page";
+        centre: "symmetryStory.centre" = "Centre {x}, {y} · {angle}°";
+        stored: "symmetryStory.stored" = "Stored";
+        cancelled: "symmetryStory.cancelled" = "Cancelled";
+        wave: "symmetryStory.wave" = "Wave";
+        star: "symmetryStory.star" = "Star";
+    }
+}
+
+/// How the last session ended.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Ended {
+    Stored,
+    Cancelled,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -121,13 +141,14 @@ struct ModesArgs {
 /// The axes over the page, clipped to it.
 fn show_modes(ui: &mut Ui, args: &mut ModesArgs) {
     let words = StoryLabels::of(ui);
+    let own = SymmetryStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let Some(symmetry) = symmetry(args.mode, args.x, args.y, args.rotation) else {
         return;
     };
     let style = SymmetryStyle::of(&Tokens::of(ui));
     SymmetryOverlay::new(&symmetry, DOC.size()).editing(args.handles).paint(&ui.painter_at(canvas.view.rect), &canvas.view, &style);
-    status(ui, format!("{} axes on the page", symmetry.segments(DOC.size()).len()));
+    status(ui, craft_i18n::fmt(&own.axes, &[("n", &symmetry.segments(DOC.size()).len().to_string())]));
 }
 
 // --- transform ---
@@ -153,13 +174,13 @@ struct TransformArgs {
 struct Kept {
     session: SymmetryTransform,
     stored: Symmetry,
-    note: &'static str,
+    note: Option<Ended>,
     seed: [f64; 4],
 }
 
 impl Kept {
     fn new(stored: Symmetry, seed: [f64; 4]) -> Self {
-        Self { session: SymmetryTransform::begin(stored), stored, note: "", seed }
+        Self { session: SymmetryTransform::begin(stored), stored, note: None, seed }
     }
 
     /// Answers an event as the app does: Commit stores the symmetry, and either end drops the
@@ -169,9 +190,9 @@ impl Kept {
             SymmetryEvent::Preview(_) => return,
             SymmetryEvent::Commit(symmetry) => {
                 self.stored = symmetry;
-                self.note = "Stored";
+                self.note = Some(Ended::Stored);
             }
-            SymmetryEvent::Cancel => self.note = "Cancelled",
+            SymmetryEvent::Cancel => self.note = Some(Ended::Cancelled),
         }
         self.session = SymmetryTransform::begin(self.stored);
     }
@@ -182,6 +203,7 @@ impl Kept {
 fn show_transform(ui: &mut Ui, args: &mut TransformArgs) {
     let words = StoryLabels::of(ui);
     let labels = SymmetryLabels::of(ui);
+    let own = SymmetryStoryLabels::of(ui);
     let ctx = ui.ctx().clone();
     let key = state_key(ui, "transform");
     let seed = [f64::from(args.mode as u8), args.x, args.y, args.rotation];
@@ -228,13 +250,19 @@ fn show_transform(ui: &mut Ui, args: &mut TransformArgs) {
             kept = Kept::new(initial, seed);
         }
         let numbers = LocaleNumbers::of(ui);
-        let text = format!(
-            "Centre {}, {} · {}°",
-            numbers.format(preview.center.x, 0..=1),
-            numbers.format(preview.center.y, 0..=1),
-            numbers.format(preview.rotation, 0..=1)
+        let text = craft_i18n::fmt(
+            &own.centre,
+            &[
+                ("x", &numbers.format(preview.center.x, 0..=1)),
+                ("y", &numbers.format(preview.center.y, 0..=1)),
+                ("angle", &numbers.format(preview.rotation, 0..=1)),
+            ],
         );
-        status(ui, if kept.note.is_empty() { text } else { format!("{text} · {}", kept.note) });
+        let ended = kept.note.map(|ended| match ended {
+            Ended::Stored => own.stored.as_str(),
+            Ended::Cancelled => own.cancelled.as_str(),
+        });
+        status(ui, ended.map_or_else(|| text.clone(), |ended| format!("{text} · {ended}")));
     });
     ctx.data_mut(|d| d.insert_temp(key, kept));
 }
@@ -290,6 +318,7 @@ struct MenuKept {
 fn show_menu(ui: &mut Ui, args: &mut MenuArgs) {
     let words = StoryLabels::of(ui);
     let labels = SymmetryLabels::of(ui);
+    let own = SymmetryStoryLabels::of(ui);
     let ctx = ui.ctx().clone();
     let key = state_key(ui, "menu");
     let mut kept: MenuKept = ctx.data(|d| d.get_temp(key)).filter(|kept: &MenuKept| kept.seed == args.choice).unwrap_or_else(|| MenuKept {
@@ -299,8 +328,8 @@ fn show_menu(ui: &mut Ui, args: &mut MenuArgs) {
     });
     let rows = [
         SymmetryPathRow { key: "work".to_owned(), label: labels.work_path.clone() },
-        SymmetryPathRow { key: "wave".to_owned(), label: "Wave".to_owned() },
-        SymmetryPathRow { key: "star".to_owned(), label: "Star".to_owned() },
+        SymmetryPathRow { key: "wave".to_owned(), label: own.wave.clone() },
+        SymmetryPathRow { key: "star".to_owned(), label: own.star.clone() },
     ];
     let paths: &[SymmetryPathRow] = if args.paths { &rows } else { &[] };
     ui.horizontal(|ui| {

@@ -65,7 +65,7 @@ pub use polygon::PolygonLassoTool;
 pub use style::SelectToolStyle;
 
 /// The point count of an outline being drawn, for the status line and the outline's AccessKit
-/// value ("5 points"). Registered by task RG1.
+/// value ("5 points").
 pub(crate) const OUTLINE_POINTS: Counted = Counted::new("select.outlinePoints", "{n} point", "{n} points");
 
 craft_ui::words! {

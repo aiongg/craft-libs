@@ -12,7 +12,7 @@ use craft_ui::words;
 
 use super::{PerspectiveEdit, PerspectiveSession, PlaneMode, Straighten};
 
-/// The plane count in Layout mode: "{n} plane", "{n} planes" (registered by RG1).
+/// The plane count in Layout mode: "{n} plane", "{n} planes".
 pub(crate) const PLANES: Counted = Counted::new("perspectiveBar.planes", "{n} plane", "{n} planes");
 
 words! {
