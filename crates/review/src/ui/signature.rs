@@ -92,7 +92,11 @@ fn paint_strokes(painter: &Painter, rect: Rect, strokes: &[Vec<[f32; 2]>], strok
     let scale = (rect.width() / extent.x).min(rect.height() / extent.y) * FILL;
     let middle = (min + max) / 2.0;
     let place = |p: &[f32; 2]| {
-        if fit { rect.center() + (vec2(p[0] * PAD_ASPECT, p[1]) - middle) * scale } else { rect.min + vec2(p[0] * rect.width(), p[1] * rect.height()) }
+        if fit {
+            rect.center() + (vec2(p[0] * PAD_ASPECT, p[1]) - middle) * scale
+        } else {
+            rect.min + vec2(p[0] * rect.width(), p[1] * rect.height())
+        }
     };
     for line in strokes {
         let shown: Vec<Pos2> = line.iter().filter(|p| p.iter().all(|v| v.is_finite())).map(place).collect();
@@ -336,7 +340,12 @@ fn type_tab(ui: &mut Ui, tokens: &UiTokens, labels: &SignatureLabels, salt: Id, 
     }
     let (rect, response) = pad_box(ui, tokens, Sense::hover());
     response.widget_info(|| egui::WidgetInfo::labeled(egui::accesskit::Role::Image, true, &draft.text));
-    paint_signature(&ui.painter_at(rect), rect.shrink(tokens.space.pad.control), &SavedSignature::Typed(draft.text.trim().to_owned()), tokens.color.text.normal.to_egui());
+    paint_signature(
+        &ui.painter_at(rect),
+        rect.shrink(tokens.space.pad.control),
+        &SavedSignature::Typed(draft.text.trim().to_owned()),
+        tokens.color.text.normal.to_egui(),
+    );
 }
 
 fn image_tab(ui: &mut Ui, tokens: &UiTokens, labels: &SignatureLabels, draft: &SignatureDraft) -> bool {

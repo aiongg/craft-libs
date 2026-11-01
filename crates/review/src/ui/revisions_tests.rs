@@ -51,10 +51,7 @@ fn accept_and_reject_report_their_row() {
     harness.run();
     harness.get_by_role_and_label(Role::Button, "Reject All (2)").click();
     harness.run();
-    assert_eq!(
-        harness.state().actions,
-        [RevisionAction::Accept(1), RevisionAction::Reject(0), RevisionAction::Go(0), RevisionAction::RejectAll]
-    );
+    assert_eq!(harness.state().actions, [RevisionAction::Accept(1), RevisionAction::Reject(0), RevisionAction::Go(0), RevisionAction::RejectAll]);
 }
 
 // an empty list shows End Review.

@@ -53,11 +53,7 @@ impl SignatureDraft {
     /// word of it.
     // pdfcraft: crates/ui-egui/src/tools/fill_sign.rs:97 `SigDraft::new`.
     pub fn new(initials: bool, name: &str) -> Self {
-        let text = if initials {
-            name.split_whitespace().filter_map(|word| word.chars().next()).collect()
-        } else {
-            name.trim().to_string()
-        };
+        let text = if initials { name.split_whitespace().filter_map(|word| word.chars().next()).collect() } else { name.trim().to_string() };
         Self { text, initials, ..Self::default() }
     }
 
