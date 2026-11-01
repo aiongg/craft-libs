@@ -347,7 +347,8 @@ where
     } else {
         st.store(ui.ctx(), id);
     }
-    PresetOutput { response, events, drag }
+    // PR2: set `hovered` here (the item cell or row under the pointer, `None` during a drag).
+    PresetOutput { response, events, drag, hovered: None, footer: Vec::new() }
 }
 
 impl<'p, K, F> Pass<'p, K, F>
@@ -947,4 +948,40 @@ fn paint_icon(painter: &Painter, ctx: &Context, rect: Rect, icon: Icon, points: 
     let side = px as f32 / ppp;
     let at = Rect::from_center_size(rect.center(), vec2(side, side));
     painter.image(icons::texture(ctx, icon, px), at, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), color);
+}
+
+impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a, K> {
+    /// A rect outside the browser (a canvas, a timeline, a layer list) where a dragged preset can
+    /// be dropped: a release inside it ends the drag's gesture as `Reorder(Cancel(Dismissed))`
+    /// and then reports [`PresetEvent::DropAt`] with the pointer position, in the same pass, and
+    /// clears the payload. Groups dropped there report nothing. One zone per browser; Styles'
+    /// "the layer under the pointer" is the host reading `pos`. Needs
+    /// [`reorder`](Self::reorder): without it nothing drags.
+    pub fn drop_zone(mut self, zone: egui::Rect) -> Self {
+        self.drop_zone = Some(zone);
+        self
+    }
+}
+
+/// [`PresetBrowser::show`] for a browser with a [`footer`](PresetBrowser::footer) or a
+/// [`drop_zone`](PresetBrowser::drop_zone) (task PR2, which folds this into the one `show`
+/// path and may change `mod.rs`'s `show` for it):
+///
+/// - the list takes `max_height.min(available) - footer::footer_height(ui)`, so list and footer
+///   fit the height with no one-pass lag; the footer is drawn below the list with
+///   `footer::show_options` and its presses go to `PresetOutput::footer`;
+/// - a release of the browser's own drag (`ListDrag<K>` payload of this browser's id, an item)
+///   with the pointer inside the zone: `Reorder(Cancel(Dismissed))`, then `DropAt { key, pos,
+///   modifiers }`, then the payload is cleared (`DragAndDrop::clear_payload`), all in this pass;
+///   the port's canvas-drop block is the model;
+/// - `hovered` as in the plain path.
+#[expect(clippy::todo, reason = "skeleton: task PR2")]
+pub(super) fn show_with_extras<K, F>(browser: PresetBrowser<'_, K>, ui: &mut Ui, paint: F) -> PresetOutput<K>
+where
+    K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
+    F: FnMut(&Painter, Rect, ThumbInfo<'_, K>),
+{
+    // pc: crates/ui-egui/src/panels/preset_panels.rs:354 (`FOOTER_GUESS`); pc-port: crates/ui-egui/src/panels/preset_panels.rs:514-537 (canvas drop, footer height)
+    let _ = (browser, ui, paint);
+    todo!()
 }

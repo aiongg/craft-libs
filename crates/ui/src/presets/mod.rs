@@ -37,7 +37,7 @@ use crate::composites::EmptyState;
 
 pub use drag::PresetReorder;
 pub use event::{PresetEvent, PresetOutput};
-pub use footer::{FooterEvent, PresetFooter};
+pub use footer::{FooterEvent, PresetFooter, PresetFooterOptions};
 pub use labels::PresetLabels;
 pub use menu::PresetExtra;
 pub use model::{CellShape, PresetKind, PresetRow, Preview, ThumbInfo};
@@ -99,6 +99,8 @@ pub struct PresetBrowser<'a, K> {
     max_height: Option<f32>,
     min_height: Option<f32>,
     shrink_to_content: bool,
+    footer: Option<PresetFooterOptions<'a>>,
+    drop_zone: Option<Rect>,
 }
 
 impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a, K> {
@@ -127,6 +129,8 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
             max_height: None,
             min_height: None,
             shrink_to_content: false,
+            footer: None,
+            drop_zone: None,
         }
     }
 
@@ -247,6 +251,9 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
     /// `thumb` paints the thumbnail of a preset into a rect, clipped to it; it runs for the cells
     /// and rows in view and for the drag's ghost.
     pub fn show(mut self, ui: &mut Ui, thumb: impl FnMut(&Painter, Rect, ThumbInfo<'_, K>)) -> PresetOutput<K> {
+        if self.footer.is_some() || self.drop_zone.is_some() {
+            return view::show_with_extras(self, ui, thumb);
+        }
         let id = ui.make_persistent_id(self.id_salt);
         let rows = self.rows;
         let labels = self.labels.clone().unwrap_or_else(|| Rc::new(<PresetLabels as crate::localized::Labels>::of(ui)));
@@ -271,7 +278,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
                 if let Some(short) = min_height.map(|min| min - response.rect.height()).filter(|&short| short > 0.0) {
                     ui.allocate_space(vec2(0.0, short));
                 }
-                PresetOutput { response, events: Vec::new(), drag: None }
+                PresetOutput { response, events: Vec::new(), drag: None, hovered: None, footer: Vec::new() }
             }
             None => view::show(self, id, ui, thumb),
         };
