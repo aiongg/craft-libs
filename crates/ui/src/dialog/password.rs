@@ -1,14 +1,26 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`PasswordDialog`]: the password for a protected file, a permissions password, or a new
 //! password with its strength (N9.05, from PdfCraft).
 
 use std::any::Any;
+use std::cell::Cell;
 use std::fmt;
 
-use egui::Context;
+use egui::{Context, Id, TextWrapMode};
 
+use super::dialog::{Dialog, InitialFocus, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
+use super::footer::Footer;
+use super::size::Width;
 use super::stack::{DialogId, DialogStack, dialog_id};
+use super::state::DialogState;
+use crate::composites::{Field, FieldGroup};
+use crate::controls::{IconButton, TextField};
+use crate::icons::{Icon, IconSize};
+use crate::localized::Labels as _;
+use crate::primitives::{Content, Icon as IconView, Text};
+
+/// The dialog's width in points (PdfCraft `dialogs/prompts.rs:311`).
+const WIDTH: f32 = 400.0;
 
 crate::words! {
     /// The password dialog's words, English by default (PdfCraft's, after Acrobat). `{name}` is
@@ -67,9 +79,12 @@ impl fmt::Debug for Secret {
 }
 
 impl Drop for Secret {
-    // new: overwrite the bytes in place (no unsafe: the String is replaced by zeros of its length first)
+    // new: the String's own buffer is zeroed (`into_bytes` keeps it), then kept alive by `black_box`
+    // so the writes are not removed as dead stores.
     fn drop(&mut self) {
-        todo!()
+        let mut bytes = std::mem::take(&mut self.0).into_bytes();
+        bytes.fill(0);
+        std::hint::black_box(&bytes);
     }
 }
 
@@ -85,7 +100,23 @@ pub enum PasswordStrength {
 /// digits, anything not alphanumeric); Medium: at least 8 and two classes; else Weak.
 // pdfcraft: crates/ui-egui/src/dialogs/protect.rs:57 strength
 pub fn password_strength(password: &str) -> PasswordStrength {
-    todo!()
+    let classes = [
+        password.chars().any(char::is_lowercase),
+        password.chars().any(char::is_uppercase),
+        password.chars().any(|c| c.is_ascii_digit()),
+        password.chars().any(|c| !c.is_alphanumeric()),
+    ]
+    .into_iter()
+    .filter(|class| *class)
+    .count();
+    let length = password.chars().count();
+    if length >= 12 && classes >= 3 {
+        PasswordStrength::Strong
+    } else if length >= 8 && classes >= 2 {
+        PasswordStrength::Medium
+    } else {
+        PasswordStrength::Weak
+    }
 }
 
 /// What the dialog asks for.
@@ -132,27 +163,39 @@ impl fmt::Debug for PasswordAnswer {
 /// A 400 pt wide question with a lock icon, the title, the message, the masked field, an error
 /// line and the buttons (OK at the platform's default place, Cancel).
 ///
-/// The field takes focus when the dialog opens and gets it back whenever it loses it, but only
-/// then: asking every pass interrupts the input method, and on Linux typed keys go through it
-/// (PdfCraft #2818). Enter submits from the field; Esc and the close box cancel. The eye button
-/// beside the field shows or hides the text (its name says which: "Show password" / "Hide
-/// password"); the field's AccessKit node is a password field either way.
+/// The field takes focus when the dialog opens, after the eye button was pressed, and whenever
+/// nothing in the window has focus; it asks only then: asking every pass interrupts the input
+/// method, and on Linux typed keys go through it (PdfCraft #2818), and Tab can still reach the
+/// eye button and the buttons. Enter submits from the field; Esc and the close box cancel. The
+/// eye button beside the (first) field shows or hides the text (its name says what it does:
+/// "Show password" / "Hide password"); the field's AccessKit node is a password field while the
+/// text is hidden.
 ///
 /// A wrong password: the app reopens the dialog with its message,
 /// `dialogs.open(PasswordDialog::open(name).tag(id).error(labels.wrong))`; the field starts empty.
 pub struct PasswordDialog {
     id: DialogId,
     purpose: PasswordPurpose,
-    input: String,
-    confirm: String,
+    input: Secret,
+    confirm: Secret,
     shown: bool,
+    state: DialogState<()>,
     error: Option<String>,
     tag: Option<Box<dyn Any + Send>>,
 }
 
 impl PasswordDialog {
     pub fn new(purpose: PasswordPurpose) -> Self {
-        Self { id: dialog_id("password"), purpose, input: String::new(), confirm: String::new(), shown: false, error: None, tag: None }
+        Self {
+            id: dialog_id("password"),
+            purpose,
+            input: Secret::default(),
+            confirm: Secret::default(),
+            shown: false,
+            state: DialogState::new(),
+            error: None,
+            tag: None,
+        }
     }
 
     /// [`PasswordPurpose::Open`].
@@ -192,6 +235,106 @@ impl StackDialog for PasswordDialog {
     // pdfcraft: crates/ui-egui/src/dialogs/prompts.rs:299 password_modal, :348 password, :362 unlock
     // pdfcraft: crates/ui-egui/src/dialogs/protect.rs:93 body (Set: two fields and the strength line)
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<PasswordAnswer>> {
-        todo!()
+        let labels = PasswordLabels::of_ctx(ctx);
+        let (title, message, ok) = match &self.purpose {
+            PasswordPurpose::Open { name } => {
+                (labels.open_title.clone(), Some(craft_i18n::fmt(&labels.open_message, &[("name", name.as_str())])), Some(labels.open.clone()))
+            }
+            PasswordPurpose::Permissions { name } => (
+                labels.permissions_title.clone(),
+                Some(craft_i18n::fmt(&labels.permissions_message, &[("name", name.as_str())])),
+                Some(labels.unlock.clone()),
+            ),
+            PasswordPurpose::Set => (labels.set_title.clone(), None, None),
+        };
+        let setting = matches!(self.purpose, PasswordPurpose::Set);
+        let id = self.id;
+        let can_submit = Cell::new(!setting || (!self.input.is_empty() && self.input == self.confirm));
+        let mut footer = Footer::standard().ok_enabled_with(|| can_submit.get());
+        if let Some(ok) = ok {
+            footer = footer.ok(ok);
+        }
+        let Self { input, confirm, shown: reveal, error, state, .. } = self;
+        let mut first_field: Option<Id> = None;
+        let mut eye_pressed = false;
+        let response = Dialog::with_id(id, title)
+            .stack(stack)
+            .width(Width::Fixed(WIDTH))
+            .footer(footer)
+            .initial_focus(InitialFocus::FirstField)
+            .show(ctx, state, &mut (), |ui, ()| {
+                if let Some(message) = &message {
+                    ui.horizontal_top(|ui| {
+                        ui.add(IconView::new(Icon::Lock).size(IconSize::Lg).content(Content::Accent));
+                        ui.scope(|ui| {
+                            ui.style_mut().wrap_mode = Some(TextWrapMode::Wrap);
+                            ui.add(Text::new(message.as_str()));
+                        });
+                    });
+                    ui.add_space(ui.spacing().item_spacing.y);
+                }
+                let hidden = !*reveal;
+                let eye = if hidden { (Icon::Eye, labels.show.as_str()) } else { (Icon::EyeOff, labels.hide.as_str()) };
+                let strength = (setting && !input.is_empty()).then(|| {
+                    let word = match password_strength(input.expose()) {
+                        PasswordStrength::Weak => &labels.weak,
+                        PasswordStrength::Medium => &labels.medium,
+                        PasswordStrength::Strong => &labels.strong,
+                    };
+                    craft_i18n::fmt(&labels.strength, &[("strength", word.as_str())])
+                });
+                let mismatch = (setting && !confirm.is_empty() && *input != *confirm).then(|| labels.mismatch.clone());
+                FieldGroup::new(id.with("fields")).show(ui, |ui| {
+                    let mut field = if setting { Field::new(labels.type_password.as_str()) } else { Field::unlabelled() };
+                    if let Some(strength) = strength {
+                        field = field.help(strength);
+                    } else if !setting {
+                        field = field.error(error.as_deref());
+                    }
+                    field.show(ui, |ui, invalid| {
+                        let side = ui.spacing().interact_size.y;
+                        let width = (ui.available_width() - side - ui.spacing().item_spacing.x).max(side);
+                        let edit = TextField::new(id.with("password"), labels.hint.as_str(), input.expose())
+                            .placeholder(if setting { "" } else { labels.hint.as_str() })
+                            .password(hidden)
+                            .invalid(invalid)
+                            .width(width)
+                            .show(ui);
+                        if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+                            *input = Secret::new(value.clone());
+                        }
+                        first_field = Some(edit.response.id);
+                        let button = ui.add(IconButton::new(eye.0, eye.1));
+                        eye_pressed = button.clicked();
+                        (edit, button)
+                    });
+                    if setting {
+                        Field::new(labels.retype_password.as_str()).error(mismatch.as_deref()).show(ui, |ui, invalid| {
+                            let edit = TextField::new(id.with("confirm"), labels.retype_password.as_str(), confirm.expose())
+                                .password(hidden)
+                                .invalid(invalid)
+                                .show(ui);
+                            if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+                                *confirm = Secret::new(value.clone());
+                            }
+                            edit
+                        });
+                    }
+                });
+                can_submit.set(!setting || (!input.is_empty() && *input == *confirm));
+            });
+        if eye_pressed {
+            *reveal = !*reveal;
+        }
+        if response.active
+            && let Some(field) = first_field
+            && (eye_pressed || ctx.memory(|m| m.focused()).is_none())
+        {
+            ctx.memory_mut(|m| m.request_focus(field));
+        }
+        match response.outcome? {
+            Outcome::Ok => Some(DialogResult::Ok(PasswordAnswer { secret: Secret::new(std::mem::take(&mut self.input.0)), tag: self.tag.take() })),
+            _ => Some(DialogResult::Cancel),
+        }
     }
 }
