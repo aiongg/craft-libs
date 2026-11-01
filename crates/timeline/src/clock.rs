@@ -9,8 +9,6 @@
 //! [`Follow`] scrolls a [`TimeView`] with the playhead while playing, unless something else moved
 //! the view during playback.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use crate::time::{Tick, TimeRange, TimeView};
 
 /// How long playback waits for the first frames before its clock starts anyway, in seconds
@@ -20,6 +18,13 @@ pub const PREROLL_TIMEOUT_S: f64 = 0.5;
 /// Seconds an external clock may stand still while playing before the wall clock takes over (a
 /// device that stopped consuming samples; FilmCraft `audio.rs:7` `AUDIO_STALL_S`).
 pub const EXTERNAL_STALL_S: f64 = 1.0;
+
+/// [`FollowMode::Page`] pages when the playhead passes this share of the width and puts it at
+/// [`PAGE_MARGIN`] from the left (FilmCraft `timeline.rs:513`).
+const PAGE_EDGE: f64 = 0.95;
+const PAGE_MARGIN: f64 = 0.05;
+/// The middle of the view, where the centred modes hold the playhead.
+const CENTRE: f64 = 0.5;
 
 /// Where playback is.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -68,6 +73,11 @@ pub struct PlaybackClock {
     external: Option<(Tick, f64)>,
 }
 
+/// The playhead after a loop's end or start has been passed: back inside `range`.
+fn folded(raw: Tick, range: TimeRange) -> Tick {
+    range.start + Tick((raw - range.start).0.rem_euclid(range.duration.0))
+}
+
 impl PlaybackClock {
     pub fn new() -> Self {
         Self::default()
@@ -84,6 +94,26 @@ impl PlaybackClock {
 
     pub fn speed(&self) -> f64 {
         self.speed
+    }
+
+    /// The unfolded playhead at `now` while playing: the external clock's reading while it moves,
+    /// continued on the wall clock once it has stood still for [`EXTERNAL_STALL_S`].
+    fn raw(&self, now: f64) -> Tick {
+        let (from, since) = match self.external {
+            Some((reading, moved)) if now < moved + EXTERNAL_STALL_S => return reading,
+            Some((reading, moved)) => (reading, moved + EXTERNAL_STALL_S),
+            None => (self.anchor, self.anchor_time),
+        };
+        from + Tick::from_seconds_f64((now - since) * self.speed)
+    }
+
+    /// Stop at `at` without asking where the playhead is.
+    fn halt(&mut self, now: f64, at: Tick) {
+        self.state = PlaybackState::Stopped;
+        self.anchor = at;
+        self.anchor_time = now;
+        self.external = None;
+        self.stop_at = None;
     }
 
     /// Loop over `range` while playing (Premiere's Loop button with In and Out set; the whole
@@ -103,40 +133,100 @@ impl PlaybackClock {
     /// changes the speed and re-anchors at the current position (shuttle).
     // filmcraft: crates/ui-egui/src/app/playback.rs:18 `play` (anchor time and tick, preroll).
     pub fn play(&mut self, now: f64, from: Tick, speed: f64, preroll: bool) {
-        todo!()
+        let from = if self.state == PlaybackState::Playing { self.position(now) } else { from };
+        self.speed = speed;
+        self.anchor = from;
+        self.anchor_time = now;
+        self.external = None;
+        self.state = if preroll { PlaybackState::Prerolling { since: now } } else { PlaybackState::Playing };
     }
 
     /// Stop and return where the playhead stopped.
     // filmcraft: crates/ui-egui/src/app/playback.rs:97 `stop`.
     pub fn stop(&mut self, now: f64) -> Tick {
-        todo!()
+        let at = self.position(now);
+        self.state = PlaybackState::Stopped;
+        self.anchor = at;
+        self.anchor_time = now;
+        self.external = None;
+        self.stop_at = None;
+        at
     }
 
     /// Space: stop when playing (returns the position), else play at 1.0 from `from` with
     /// preroll.
     // filmcraft: crates/ui-egui/src/app/playback.rs:10 `toggle_play`.
     pub fn toggle(&mut self, now: f64, from: Tick) -> Option<Tick> {
-        todo!()
+        if self.is_playing() {
+            Some(self.stop(now))
+        } else {
+            self.play(now, from, 1.0, true);
+            None
+        }
     }
 
     /// Move the playhead to `t` while playing (a click in the ruler): re-anchors there; the
     /// state is unchanged.
     pub fn seek(&mut self, now: f64, t: Tick) {
-        todo!()
+        self.anchor = t;
+        self.anchor_time = now;
+        self.external = None;
     }
 
     /// The playhead at `now`: the anchor while stopped or prerolling; while playing the anchor
     /// plus `(now − anchor_time) × speed`, or the external clock's reading while it moves, folded
     /// into the loop range and held at the stop point.
     pub fn position(&self, now: f64) -> Tick {
-        todo!()
+        match self.state {
+            PlaybackState::Stopped | PlaybackState::Prerolling { .. } => self.anchor,
+            PlaybackState::Playing => {
+                let raw = self.raw(now);
+                match self.loop_range.filter(|r| !r.is_empty()) {
+                    Some(range) if self.speed > 0.0 && raw >= range.end() => folded(raw, range),
+                    Some(range) if self.speed < 0.0 && raw < range.start => folded(raw, range),
+                    Some(_) => raw,
+                    None => match self.stop_at {
+                        Some(at) if self.speed > 0.0 && raw >= at => at,
+                        _ if raw < Tick::ZERO => Tick::ZERO,
+                        _ => raw,
+                    },
+                }
+            }
+        }
     }
 
     /// Advance the state machine for this pass. `frames_ready` is whether the frames preroll
     /// waits for are there ([`FrameServer::preroll_ready`](crate::frames::FrameServer::preroll_ready)).
     /// Returns what happened this pass, in order (a long pass can loop and then stop).
     pub fn step(&mut self, now: f64, frames_ready: bool) -> Vec<ClockEvent> {
-        todo!()
+        let mut events = Vec::new();
+        if let PlaybackState::Prerolling { since } = self.state {
+            if !(frames_ready || now - since >= PREROLL_TIMEOUT_S) {
+                return events;
+            }
+            self.state = PlaybackState::Playing;
+            self.anchor_time = now;
+            events.push(ClockEvent::Started);
+        }
+        if self.state != PlaybackState::Playing {
+            return events;
+        }
+        let raw = self.raw(now);
+        if let Some(range) = self.loop_range.filter(|r| !r.is_empty()) {
+            if self.speed > 0.0 && raw >= range.end() || self.speed < 0.0 && raw < range.start {
+                self.anchor = folded(raw, range);
+                self.anchor_time = now;
+                self.external = None;
+                events.push(ClockEvent::Looped);
+            }
+        } else if let Some(at) = self.stop_at.filter(|at| self.speed > 0.0 && raw >= *at) {
+            self.halt(now, at);
+            events.push(ClockEvent::Stopped(at));
+        } else if self.speed < 0.0 && raw <= Tick::ZERO {
+            self.halt(now, Tick::ZERO);
+            events.push(ClockEvent::Stopped(Tick::ZERO));
+        }
+        events
     }
 
     /// An external clock (the audio device's played-sample count, as a time) read at `now`. While
@@ -144,7 +234,13 @@ impl PlaybackClock {
     /// playing, the wall clock takes over from its last reading (FilmCraft's audio clock,
     /// `lib.rs:141`).
     pub fn sync_external(&mut self, position: Tick, now: f64) {
-        todo!()
+        if self.state != PlaybackState::Playing {
+            return;
+        }
+        match self.external {
+            Some((last, _)) if last == position => {}
+            _ => self.external = Some((position, now)),
+        }
     }
 }
 
@@ -176,6 +272,8 @@ pub struct Follow {
     /// The view start seen last pass and the start the follow last asked for.
     last_start: Option<Tick>,
     last_target: Option<Tick>,
+    /// Whether the last pass was playing, to reveal the playhead once when it stops.
+    was_playing: bool,
 }
 
 impl Follow {
@@ -198,6 +296,39 @@ impl Follow {
     // filmcraft: crates/ui-egui/src/panels/timeline.rs:513 (the 95 % / 5 % page rule and the
     // centred smooth scroll).
     pub fn update(&mut self, mode: FollowMode, playing: bool, view: &TimeView, width: f32, playhead: Tick) -> Option<Tick> {
-        todo!()
+        let was_playing = std::mem::replace(&mut self.was_playing, playing);
+        let start = view.start;
+        let moved_by_other = self.last_start.is_some_and(|last| last != start) && self.last_target != Some(start);
+        self.last_start = Some(start);
+        if !playing {
+            self.hold = false;
+            self.last_target = None;
+            return (was_playing && mode == FollowMode::AfterPlayback).then(|| view.scroll_to_reveal(playhead, width)).flatten();
+        }
+        if !was_playing {
+            self.hold = false;
+        }
+        let follows = matches!(mode, FollowMode::Page | FollowMode::Continuous | FollowMode::Center);
+        let pps = view.points_per_second;
+        let (width, x) = (f64::from(width), (playhead - start).seconds() * pps);
+        let in_view = (0.0..=width).contains(&x);
+        if in_view {
+            self.hold = false;
+        } else if follows && moved_by_other {
+            self.hold = true;
+        }
+        if !follows || self.hold || !(pps > 0.0 && pps.is_finite()) {
+            return None;
+        }
+        let behind = |share: f64| playhead - Tick::from_seconds_f64(width * share / pps);
+        let target = match mode {
+            FollowMode::Page => (x > width * PAGE_EDGE || x < 0.0).then(|| behind(PAGE_MARGIN)),
+            FollowMode::Center => (x > width * CENTRE || x < 0.0).then(|| behind(CENTRE)),
+            FollowMode::Continuous => Some(behind(CENTRE)),
+            FollowMode::None | FollowMode::AfterPlayback => None,
+        }?
+        .max(Tick::ZERO);
+        self.last_target = Some(target);
+        (target != start).then_some(target)
     }
 }
