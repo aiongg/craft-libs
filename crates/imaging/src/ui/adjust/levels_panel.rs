@@ -1,14 +1,21 @@
 //! [`LevelsPanel`]: the Levels adjustment around the [`LevelsEditor`]: the Channel select, Auto,
 //! the point pickers and the editor over the shown channel's histogram (task AD-1).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_theme::TypeRole;
+use egui::accesskit::Role;
+use egui::{AsIdSalt, Context, Id, IdSalt, Modifiers, Ui, UiBuilder};
 
-use egui::{AsIdSalt, Context, Id, IdSalt, Ui};
+use craft_ui::composites::HistogramData;
+use craft_ui::controls::{Button, Select};
+use craft_ui::direction;
+use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::primitives::{Content, Gap, Stack, Text};
 
-use craft_ui::edit::{EditPolicy, EditResponse};
-use craft_ui::localized::LocaleNumbers;
+use super::{AdjustContext, AdjustLabels, Levels, LevelsEditor, LevelsLabels, ToneChannels, TonePicker, TonePickerRow};
 
-use super::{AdjustContext, AdjustLabels, Levels, LevelsLabels, ToneChannels, TonePicker};
+/// The key of the shown channel in egui memory, under the panel's id.
+const CHANNEL: &str = "channel";
 
 impl Levels {
     /// Photoshop's Auto: the black and white inputs clip 0.1 % of the pixels at each end of
@@ -21,7 +28,19 @@ impl Levels {
     pub fn auto(&self, counts: &[u32; 256]) -> Levels {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/levels.rs:42-57 `auto_levels`, :78-85 (gamma
         // to 1).
-        todo!()
+        let total: u64 = counts.iter().map(|&n| u64::from(n)).sum();
+        let clip = total / 1000;
+        let (mut sum, mut lo) = (0u64, 0usize);
+        while lo < 253 && sum + u64::from(counts[lo]) <= clip {
+            sum += u64::from(counts[lo]);
+            lo += 1;
+        }
+        let (mut sum, mut hi) = (0u64, 255usize);
+        while hi > lo + 2 && sum + u64::from(counts[hi]) <= clip {
+            sum += u64::from(counts[hi]);
+            hi -= 1;
+        }
+        Levels { in_black: lo as f64, gamma: 1.0, in_white: hi as f64, ..*self }
     }
 }
 
@@ -174,7 +193,7 @@ impl<'a> LevelsPanel<'a> {
     /// picker application needs it between passes.
     pub fn shown_channel(ctx: &Context, id: Id) -> usize {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/curves.rs:50-55 (the choice in egui memory).
-        todo!()
+        ctx.data(|d| d.get_temp::<usize>(id.with(CHANNEL))).unwrap_or(0)
     }
 
     /// Draws the panel and reports the shown channel's edit.
@@ -184,6 +203,82 @@ impl<'a> LevelsPanel<'a> {
         // (the picker row in the dialog).
         // lib: `LevelsEditor::new(.., &self.levels[channel], ..).channel(color).histogram(..)`;
         // the picker row is `TonePickerRow`.
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
+        let id = Self::id_in(ui, self.id_salt);
+        let enabled = self.enabled && ui.is_enabled();
+        let count = self.channels.len();
+        let channel = Self::shown_channel(ui.ctx(), id).min(count.saturating_sub(1));
+        let value = self.levels.get(channel).copied().unwrap_or_else(|| Levels::identity(0.0..=255.0));
+        let counts = self.histograms.get(channel);
+        let color = self.channels.as_slice().get(channel).map_or(craft_ui::composites::ChannelColor::Neutral, |c| c.color());
+        let data = counts.map(|counts| HistogramData::tone(counts, color));
+        let shown_name = self.channels.as_slice().get(channel).map(|c| c.label(&labels).to_owned()).unwrap_or_default();
+
+        let mut builder = UiBuilder::new().scope_id(id).accessibility_role(Role::Group).accessibility_label(labels.levels.as_str());
+        if !enabled {
+            builder = builder.disabled();
+        }
+        let group = ui.scope_builder(builder, |ui| {
+            Stack::new(Gap::Stack)
+                .show(ui, |ui| {
+                    let mut picked = channel;
+                    let mut auto = false;
+                    direction::horizontal(ui, |ui| {
+                        ui.add(Text::new(labels.channel.as_str()).role(TypeRole::Label).content(Content::Muted));
+                        let mut select = Select::new((self.id_salt, "channel"), labels.channel.as_str(), &mut picked);
+                        for (i, entry) in self.channels.as_slice().iter().enumerate() {
+                            select = select.option(i, entry.label(&labels));
+                        }
+                        let _ = select.enabled(enabled).show(ui);
+                        ui.with_layout(direction::trailing(ui), |ui| {
+                            auto = ui
+                                .add(Button::new(labels.auto.as_str()).enabled(enabled && counts.is_some()).id_salt((self.id_salt, "auto")))
+                                .clicked();
+                        });
+                    });
+                    let mut editor = LevelsEditor::new((self.id_salt, "levels", channel), labels.levels.as_str(), &value, self.numbers)
+                        .channel(color)
+                        .value(shown_name.as_str())
+                        .stale(self.stale)
+                        .policy(self.policy)
+                        .enabled(enabled);
+                    if let Some(data) = &data {
+                        editor = editor.histogram(data);
+                    }
+                    if let Some(levels_labels) = &self.levels_labels {
+                        editor = editor.labels(levels_labels.clone());
+                    }
+                    let edit = editor.show(ui);
+                    let mut change = None;
+                    if self.pickers {
+                        let mut row = TonePickerRow::new((self.id_salt, "pickers"), self.picker).unavailable(self.unavailable).labels(labels.clone());
+                        for picker in TonePicker::ALL {
+                            // A grey document has no Neutral Gray point.
+                            let usable = self.picker_enabled[picker as usize] && !(picker == TonePicker::Gray && self.context.is_gray());
+                            row = row.enabled(picker, usable);
+                        }
+                        change = row.show(ui).change;
+                    }
+                    let auto = counts.filter(|_| auto).map(|counts| EditEvent::set(value.auto(counts), Modifiers::NONE));
+                    (edit, auto, picked, change)
+                })
+                .inner
+        });
+        let rect = group.response.rect;
+        // A `Ui`'s node gets no bounds of its own from egui.
+        let bounds = egui::accesskit::Rect { x0: rect.min.x.into(), y0: rect.min.y.into(), x1: rect.max.x.into(), y1: rect.max.y.into() };
+        ui.ctx().accesskit_node_builder(id, |node| node.set_bounds(bounds));
+        let (edit, auto, picked, picker) = group.inner;
+        let (submitted, escaped) = (edit.submitted, edit.escaped);
+        let event = auto.or(edit.event);
+        // An edit belongs to the channel it was drawn for; a switch shows from the next pass.
+        let shown = if picked == channel || event.is_some() { channel } else { picked };
+        if picked != channel {
+            ui.data_mut(|d| d.insert_temp(id.with(CHANNEL), picked));
+        }
+        let mut edit = EditResponse::new(group.response, event);
+        edit.submitted = submitted;
+        edit.escaped = escaped;
+        LevelsPanelOutput { edit, channel: shown, picker }
     }
 }

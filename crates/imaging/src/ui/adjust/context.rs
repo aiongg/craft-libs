@@ -1,8 +1,6 @@
 //! [`AdjustContext`], what every adjustment editor shares with its host, and the tone channels of
 //! Levels and Curves ([`ToneSpace`], [`ToneChannel`], [`ToneChannels`]) (task AD-1).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use craft_theme::Srgba;
 use craft_ui::composites::ChannelColor;
 
@@ -140,7 +138,22 @@ impl ToneChannel {
     pub fn label<'l>(&'l self, labels: &'l AdjustLabels) -> &'l str {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/curves.rs:18-41 `tone_channels` (the
         // labels), :50 `channel_picker_opts` (a user-typed name shown as entered).
-        todo!()
+        match self {
+            ToneChannel::Composite(ToneSpace::Rgb) => &labels.rgb,
+            ToneChannel::Composite(ToneSpace::Cmyk) => &labels.cmyk,
+            ToneChannel::Composite(ToneSpace::Lab) | ToneChannel::Lightness => &labels.lightness,
+            ToneChannel::Red => &labels.red,
+            ToneChannel::Green => &labels.green,
+            ToneChannel::Blue => &labels.blue,
+            ToneChannel::Cyan => &labels.cyan,
+            ToneChannel::Magenta => &labels.magenta,
+            ToneChannel::Yellow => &labels.yellow,
+            ToneChannel::Black => &labels.black,
+            ToneChannel::A => &labels.lab_a,
+            ToneChannel::B => &labels.lab_b,
+            ToneChannel::Gray => &labels.gray,
+            ToneChannel::Named { name, .. } => name,
+        }
     }
 }
 
@@ -164,7 +177,15 @@ impl ToneChannels {
     /// | Lab | Lightness, a, b |
     pub fn of(space: ToneSpace, gray: bool) -> Self {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/curves.rs:18-41 `tone_channels`.
-        todo!()
+        let channels = match space {
+            ToneSpace::Rgb if gray => vec![ToneChannel::Gray],
+            ToneSpace::Rgb => vec![ToneChannel::Composite(space), ToneChannel::Red, ToneChannel::Green, ToneChannel::Blue],
+            ToneSpace::Cmyk => {
+                vec![ToneChannel::Composite(space), ToneChannel::Cyan, ToneChannel::Magenta, ToneChannel::Yellow, ToneChannel::Black]
+            }
+            ToneSpace::Lab => vec![ToneChannel::Lightness, ToneChannel::A, ToneChannel::B],
+        };
+        Self { gray: gray && space == ToneSpace::Rgb, channels, isolated: false }
     }
 
     /// One channel the host isolated (Image › Curves with one Channels-panel target selected,
