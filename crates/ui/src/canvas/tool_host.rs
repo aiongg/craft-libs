@@ -413,10 +413,6 @@ struct HostState {
     queued: Vec<ToolInput>,
     /// The view of the last pass, for [`ToolHost::cancel`] outside a pass.
     view: Option<CanvasView>,
-    /// The latest press of the click run: its count, time and screen point.
-    // K4: goes, with `Run::press_clicks` counting through `claim::click_count` (one counter with
-    // `PrimaryPress::clicks`, task K8).
-    clicks: Option<(u32, f64, Pos2)>,
     /// Autoscroll's accumulated screen points while the view cannot move yet.
     scroll_carry: egui::Vec2,
     /// The tool asked to keep the keys in the last pass ([`ToolContext::keep_keys`]).
@@ -791,16 +787,10 @@ impl Run<'_, '_> {
 
     /// `press` with its place in the click run: it continues the last press's run when it comes
     /// soon and near enough (egui's double-click delay and distance), else it starts a new one.
-    // K4: count through `super::claim::click_count(&self.ctx, press.time, press.screen)` and drop
-    // `HostState::clicks`, so overlays and the host share one run.
-    fn press_clicks(&mut self, press: ToolPointer) -> ToolPointer {
-        let (delay, distance) = self.ctx.options(|o| (o.input_options.max_double_click_delay, o.input_options.max_click_dist));
-        let count = match self.state.clicks {
-            Some((n, at, pos)) if (0.0..delay).contains(&(press.time - at)) && press.screen.distance(pos) < distance => n.saturating_add(1),
-            _ => 1,
-        };
-        self.state.clicks = Some((count, press.time, press.screen));
-        ToolPointer { clicks: count, ..press }
+    /// The count comes from the context's one click run ([`super::claim::click_count`]), which
+    /// overlays share.
+    fn press_clicks(&self, press: ToolPointer) -> ToolPointer {
+        ToolPointer { clicks: super::claim::click_count(&self.ctx, press.time, press.screen), ..press }
     }
 
     fn call<R>(&mut self, pointer: Option<ToolPointer>, run: impl FnOnce(&mut dyn CanvasTool, &mut ToolContext<'_>) -> R) -> R {
@@ -899,19 +889,26 @@ impl Run<'_, '_> {
     /// requests apply). Returns whether the group has focus and, while
     /// [`keyboard`](super::PartFocusResponse::keyboard), the rect of the part picked after the
     /// pick.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     fn show_parts(&mut self, ui: &mut Ui, parts: ToolParts, enabled: bool) -> PartsPass {
-        // new: tools lead call 33; `PartFocus::new(id, group).parts(&parts).picked(..).value(..)
-        // .focusable(enabled).show(ui, canvas)` as the overlays call it (`part_focus.rs:113`).
-        todo!()
+        // new: tools lead call 33; the overlays call `PartFocus` the same way.
+        let id = tool_claim_id(self.resp.id.id());
+        let mut focus = PartFocus::new(id, parts.group.as_str()).parts(&parts.parts).picked(self.tool.picked()).focusable(enabled);
+        if let Some(value) = parts.value.as_deref() {
+            focus = focus.value(value);
+        }
+        let shown = focus.show(ui, self.pass.canvas);
+        if let Some(key) = shown.pick {
+            self.call(None, |tool, cx| tool.pick(key, cx));
+        }
+        let ring = shown.keyboard.then(|| self.tool.picked().and_then(|key| parts.parts.iter().find(|p| p.key == key)).map(|p| p.rect)).flatten();
+        PartsPass { focused: shown.focused, ring }
     }
 
     fn step(&mut self, ui: &mut Ui, enabled: bool, keys: bool) {
         let ctx = self.ctx.clone();
         let canvas = self.pass.canvas;
         let claim = tool_claim_id(self.resp.id.id());
-        // K4: the button of a gesture running, else `button_for` the modifiers (`gesture_button`).
-        let button = self.tool.button();
+        let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, self.pass.modifiers);
         let (pos, origin, pressed, down, released, key_events) = ctx.input(|i| {
             let key_events: Vec<ToolKey> = i
                 .events
@@ -1040,12 +1037,11 @@ impl Run<'_, '_> {
     }
 
     fn injected(&mut self, input: ToolInput, enabled: bool) {
-        // K4: as in `step`, through `gesture_button`.
-        let button = self.tool.button();
         let own = self.state.gesture.is_none_or(|g| g.injected);
         match input {
             ToolInput::Down { doc, pressure, tilt, rotation, modifiers } if enabled && self.state.gesture.is_none() => {
                 let pen = PenSample { pressure, tilt, rotation, eraser: false, time_ms: 0.0 };
+                let button = gesture_button(None, &*self.tool, modifiers);
                 let p = self.sample(Pos2::ZERO, Some(doc), modifiers, Some(pen), button, true);
                 let p = self.press_clicks(p);
                 self.begin(p, true);
@@ -1053,6 +1049,7 @@ impl Run<'_, '_> {
             ToolInput::Move { doc, pressure, tilt, rotation, modifiers } if enabled && own => {
                 let pen = PenSample { pressure, tilt, rotation, eraser: false, time_ms: 0.0 };
                 let gesture = self.state.gesture.is_some();
+                let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, modifiers);
                 let p = self.sample(Pos2::ZERO, Some(doc), modifiers, Some(pen), button, false);
                 if gesture {
                     self.drag(p);
@@ -1061,6 +1058,7 @@ impl Run<'_, '_> {
                 }
             }
             ToolInput::Up { doc, modifiers } if own && self.state.gesture.is_some() => {
+                let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, modifiers);
                 let p = self.sample(Pos2::ZERO, Some(doc), modifiers, None, button, false);
                 self.end(p);
             }
@@ -1117,11 +1115,10 @@ impl Run<'_, '_> {
 /// The button the host reads this pass: the button of `gesture` when one runs (a gesture keeps
 /// the button it began with, so releasing Alt mid-resize doesn't strand it), else
 /// `tool.button_for(modifiers)` for the next press. Automation's injected presses use it too.
-#[expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn gesture_button(gesture: Option<&Active>, tool: &dyn CanvasTool, modifiers: Modifiers) -> PointerButton {
     // new: step7-brush lead call 3 (`CanvasTool::button_for`); PhotoCraft arms the Alt+right
     // resize at the press (`tools/brush_resize.rs:71` `pointer`, `armed`).
-    todo!()
+    gesture.map_or_else(|| tool.button_for(modifiers), |g| g.button)
 }
 
 /// How [`ToolHost::sample`] snaps: the gesture kind, the targets and the tolerance in document
@@ -1167,12 +1164,24 @@ fn typed_keys() -> Vec<ClaimedKey> {
 /// with `node.value` as its current value, over `node.bounds` mapped through `view` and clipped to
 /// the canvas (no size at the canvas centre without bounds or off the canvas). Its id comes from
 /// the canvas id, so it stays the same from pass to pass.
-#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn show_node(ui: &mut Ui, canvas: &Response, view: &CanvasView, node: ToolNode) {
-    // new: as `Marquee::describe` (`marquee.rs`, `fn describe`):
-    // `ui.new_child(UiBuilder::new().max_rect(view.rect).accessibility_parent(canvas.id))`,
-    // `interact(rect, id, Sense::hover())`, `WidgetInfo::labeled(Role::GraphicsObject, ..)`.
-    todo!()
+    // new: as `Marquee::describe` (`marquee.rs`, `fn describe`).
+    let id = canvas.id.with("craft_ui::canvas::ToolNode");
+    let corners = node
+        .bounds
+        .map(|b| [Point::new(b.x0, b.y0), Point::new(b.x1, b.y0), Point::new(b.x1, b.y1), Point::new(b.x0, b.y1)].map(|c| view.to_screen(c)));
+    let bounds = corners.map(|c| egui::Rect::from_points(&c).intersect(view.rect));
+    let rect = match bounds {
+        Some(r) if r.is_positive() => r,
+        _ => egui::Rect::from_center_size(view.rect.center(), egui::Vec2::ZERO),
+    };
+    let nodes = ui.new_child(egui::UiBuilder::new().max_rect(view.rect).accessibility_parent(canvas.id));
+    let response = nodes.interact(rect, id, egui::Sense::hover());
+    response.widget_info(|| {
+        let mut info = egui::WidgetInfo::labeled(egui::accesskit::Role::GraphicsObject, nodes.is_enabled(), &node.name);
+        info.current_text_value.clone_from(&node.value);
+        info
+    });
 }
 
 /// Lets the host's [`Claim`](super::Claim) name the tool as an overlay: the tool's claim id under the canvas.

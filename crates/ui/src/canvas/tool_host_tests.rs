@@ -3,16 +3,19 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use egui::accesskit::Role;
 use egui::{Event, Key, KeyboardShortcut, Modifiers, Painter, PointerButton, Pos2, Rect, Sense, pos2, vec2};
 use egui_kittest::Harness;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Size};
 
+use super::claim::PrimaryPress;
 use super::navigate::{HandTool, NavigationOptions, ZoomTool};
 use super::zoom::{self, ZoomAnimation, ZoomLadder};
 use super::{
     CanvasId, CanvasTool, CanvasView, Claim, SnapGesture, SnapKind, SnapTarget, SnapTargets, ToolAction, ToolContext, ToolGesture, ToolHost,
 };
-use super::{ToolHostResponse, ToolInput, ToolKey, ToolPointer};
+use super::{Part, ToolHostResponse, ToolInput, ToolKey, ToolNode, ToolParts, ToolPointer};
 use crate::behavior::KeyClaim;
 use crate::theme::{Base, install};
 
@@ -79,6 +82,8 @@ struct Rig {
     document: Size,
     /// An overlay that takes every primary press before the host.
     overlay: bool,
+    /// The click count the overlay saw at each press it took.
+    overlay_clicks: Vec<u32>,
     /// A text field next to the canvas, and whether it holds the focus.
     text: Option<String>,
     focus_text: bool,
@@ -96,6 +101,7 @@ impl Rig {
             targets: None,
             document: Size::ZERO,
             overlay: false,
+            overlay_clicks: Vec::new(),
             text: None,
             focus_text: false,
             focus_canvas: false,
@@ -136,6 +142,9 @@ fn harness(rig: Rig, step_dt: f32) -> Harness<'static, Rig> {
                 }
                 if rig.overlay && ui.input(|i| i.pointer.primary_pressed()) {
                     Claim::take(ui.ctx(), canvas.id, canvas.id.with("overlay"));
+                    if let Some(press) = PrimaryPress::current(ui.ctx()) {
+                        rig.overlay_clicks.push(press.clicks(ui.ctx()));
+                    }
                 }
                 let mut host = ToolHost::new(canvas_id).document(rig.document);
                 if let Some(prefs) = rig.navigation {
@@ -593,72 +602,280 @@ fn the_zoom_tool_zooms_while_the_press_is_held() {
     assert_eq!(h.state().view.zoom, held.zoom, "the release of a hold steps nothing");
 }
 
+/// A tool whose `button_for` is the secondary button while Alt is held (the brush resize chord).
+struct AltResize {
+    log: Log,
+    overridden: bool,
+}
+
+impl AltResize {
+    fn note(&self, what: &str, p: &ToolPointer) {
+        self.log.borrow_mut().push(format!("{what} {:?} x{}", p.button, p.clicks));
+    }
+}
+
+impl CanvasTool for AltResize {
+    fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+        self.note("press", pointer);
+        ToolAction::Claimed
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+        self.note("drag", pointer);
+    }
+
+    fn release(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+        self.note("release", pointer);
+    }
+
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+
+    fn button_for(&self, modifiers: Modifiers) -> PointerButton {
+        if self.overridden && modifiers.alt { PointerButton::Secondary } else { self.button() }
+    }
+}
+
+fn button_of(at: Pos2, button: PointerButton, pressed: bool, modifiers: Modifiers) -> Event {
+    Event::PointerButton { pos: at, button, pressed, modifiers }
+}
+
 // A tool whose `button_for` gives the secondary button while Alt is held begins its gesture with
 // an Alt + right press, and `ToolPointer::button` is `Secondary`.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn button_for_takes_the_secondary_press_while_alt_is_held() {
-    todo!()
+    let calls = Log::default();
+    let mut h = harness(Rig::new(AltResize { log: calls.clone(), overridden: true }), 0.05);
+    let at = pos2(100.0, 100.0);
+    move_to(&mut h, at);
+    h.event(Event::ModifiersChanged(Modifiers::ALT));
+    h.event(button_of(at, PointerButton::Secondary, true, Modifiers::ALT));
+    h.step();
+    assert_eq!(log(&calls), ["press Secondary x1"]);
+    h.event(button_of(at, PointerButton::Secondary, false, Modifiers::ALT));
+    h.step();
+    assert_eq!(log(&calls).last().map(String::as_str), Some("release Secondary x1"));
+    // The primary press without Alt is not the chord.
+    h.event(Event::ModifiersChanged(Modifiers::NONE));
+    press(&mut h, at, Modifiers::NONE);
+    assert!(log(&calls).last().is_some_and(|c| c.starts_with("press Primary")), "{:?}", log(&calls));
 }
 
 // A tool that doesn't override `button_for` gets the same presses as before: its `button()`.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn button_for_default_is_the_tools_button() {
-    todo!()
+    let calls = Log::default();
+    let mut h = harness(Rig::new(AltResize { log: calls.clone(), overridden: false }), 0.05);
+    let at = pos2(100.0, 100.0);
+    move_to(&mut h, at);
+    h.event(Event::ModifiersChanged(Modifiers::ALT));
+    h.event(button_of(at, PointerButton::Secondary, true, Modifiers::ALT));
+    h.step();
+    assert!(log(&calls).is_empty(), "the secondary press is not the tool's");
+    h.event(button_of(at, PointerButton::Secondary, false, Modifiers::ALT));
+    h.step();
+    h.event(button_of(at, PointerButton::Primary, true, Modifiers::ALT));
+    h.step();
+    assert_eq!(log(&calls), ["press Primary x1"]);
 }
 
 // Alt released mid-gesture: the gesture still ends on the secondary button's release, not the
 // primary's, and drags keep arriving meanwhile.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_gesture_keeps_its_button_after_alt_is_released() {
-    todo!()
+    let calls = Log::default();
+    let mut h = harness(Rig::new(AltResize { log: calls.clone(), overridden: true }), 0.05);
+    let at = pos2(100.0, 100.0);
+    move_to(&mut h, at);
+    h.event(Event::ModifiersChanged(Modifiers::ALT));
+    h.event(button_of(at, PointerButton::Secondary, true, Modifiers::ALT));
+    h.step();
+    h.event(Event::ModifiersChanged(Modifiers::NONE));
+    move_to(&mut h, pos2(140.0, 100.0));
+    move_to(&mut h, pos2(160.0, 100.0));
+    let drags = log(&calls).iter().filter(|c| c.starts_with("drag Secondary")).count();
+    assert!(drags >= 2, "{:?}", log(&calls));
+    assert!(!log(&calls).iter().any(|c| c.starts_with("release")), "still running");
+    h.event(button_of(pos2(160.0, 100.0), PointerButton::Secondary, false, Modifiers::NONE));
+    h.step();
+    assert_eq!(log(&calls).last().map(String::as_str), Some("release Secondary x1"));
+}
+
+fn descendants(node: egui_kittest::kittest::AccessKitNode<'_>) -> Vec<egui_kittest::kittest::AccessKitNode<'_>> {
+    node.children().flat_map(|child| std::iter::once(child).chain(descendants(child))).collect()
+}
+
+const PART_KEYS: [u64; 3] = [1, 2, 3];
+
+/// A tool made of three parts along the top of the canvas; Page keys pick, the arrows log.
+struct Parted {
+    picked: Option<u64>,
+    parts: bool,
+    node: Option<ToolNode>,
+    keys: Log,
+}
+
+impl Parted {
+    fn new(parts: bool, keys: &Log) -> Self {
+        Self { picked: None, parts, node: None, keys: keys.clone() }
+    }
+}
+
+impl CanvasTool for Parted {
+    fn press(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+        ToolAction::Ignored
+    }
+
+    fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+
+    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
+        self.keys.borrow_mut().push(format!("{:?} on {:?}", key.key, self.picked));
+        true
+    }
+
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+
+    fn parts(&self, _cx: &ToolContext<'_>) -> Option<ToolParts> {
+        self.parts.then(|| {
+            let parts = PART_KEYS
+                .iter()
+                .map(|&key| Part {
+                    key,
+                    name: format!("Handle {key}"),
+                    value: Some(format!("{key} px")),
+                    rect: Rect::from_center_size(pos2(40.0 + key as f32 * 40.0, 40.0), vec2(12.0, 12.0)),
+                    selected: false,
+                })
+                .collect();
+            ToolParts::new("Frame", parts).value("3 handles")
+        })
+    }
+
+    fn picked(&self) -> Option<u64> {
+        self.picked
+    }
+
+    fn pick(&mut self, key: Option<u64>, _cx: &mut ToolContext<'_>) {
+        self.picked = key;
+    }
+
+    fn node(&self, _cx: &ToolContext<'_>) -> Option<ToolNode> {
+        self.node.clone()
+    }
 }
 
 // A tool with parts is one Tab stop: Tab focuses the group, Page Down picks through `pick`, the
 // arrows then reach the tool's `key` and the host draws the focus ring round the picked part.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_tool_with_parts_is_one_tab_stop_whose_page_keys_pick() {
-    todo!()
+    let keys = Log::default();
+    let mut h = harness(Rig::new(Parted::new(true, &keys)), 0.05);
+    h.key_press(Key::Tab);
+    h.run();
+    h.key_press(Key::Tab);
+    h.run();
+    h.key_press(Key::PageDown);
+    h.run();
+    h.key_press(Key::ArrowRight);
+    h.run();
+    assert_eq!(log(&keys).last().map(String::as_str), Some("ArrowRight on Some(2)"), "Tab picked the first part, Page Down the second");
 }
 
 // The group and each part are in the AccessKit tree with the tool's names and values; the picked
 // part is the group's active descendant.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn tool_parts_reach_the_accesskit_tree() {
-    todo!()
+    let keys = Log::default();
+    let mut parted = Parted::new(true, &keys);
+    parted.picked = Some(3);
+    let mut h = harness(Rig::new(parted), 0.05);
+    h.run();
+    let group = h.get_by_label("Frame");
+    assert_eq!(group.accesskit_node().role(), Role::Group);
+    assert_eq!(group.accesskit_node().value().as_deref(), Some("3 handles"));
+    let objects: Vec<_> = descendants(group.accesskit_node())
+        .into_iter()
+        .filter(|n| n.role() == Role::GraphicsObject)
+        .map(|n| (n.label().unwrap_or_default(), n.value().unwrap_or_default()))
+        .collect();
+    let want: Vec<_> = PART_KEYS.iter().map(|k| (format!("Handle {k}"), format!("{k} px"))).collect();
+    assert_eq!(objects, want);
+    assert_eq!(group.accesskit_node().active_descendant().and_then(|n| n.label()).as_deref(), Some("Handle 3"));
 }
 
 // A claimed press released on a part gives the group focus; a tool without parts adds no Tab stop.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_press_on_a_part_focuses_the_group_and_tools_without_parts_add_no_stop() {
-    todo!()
+    struct Claims(Parted);
+    impl CanvasTool for Claims {
+        fn press(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+            ToolAction::Claimed
+        }
+        fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+        fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+        fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+        fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+            self.0.key(key, cx)
+        }
+        fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+        fn parts(&self, cx: &ToolContext<'_>) -> Option<ToolParts> {
+            self.0.parts(cx)
+        }
+    }
+    let keys = Log::default();
+    let mut h = harness(Rig::new(Claims(Parted::new(true, &keys))), 0.05);
+    let on_part = pos2(80.0, 40.0);
+    press(&mut h, on_part, Modifiers::NONE);
+    release(&mut h, on_part, Modifiers::NONE);
+    key(&mut h, Key::ArrowLeft);
+    assert_eq!(keys.borrow().len(), 1, "the arrow reached the tool: the group has the focus");
+
+    // Without parts the canvas is the only stop and the group is not in the tree.
+    let keys = Log::default();
+    let mut h = harness(Rig::new(Parted::new(false, &keys)), 0.05);
+    h.run();
+    assert!(h.query_by_label("Frame").is_none());
 }
 
 // A press the host took and one an overlay took share one click run: `ToolPointer::clicks` and
 // `PrimaryPress::clicks` agree for a double click (after K8's `click_count`).
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn the_host_and_an_overlay_count_one_click_run() {
-    todo!()
+    let calls = Log::default();
+    let mut rig = Rig::new(AltResize { log: calls.clone(), overridden: false });
+    rig.overlay = true;
+    let mut h = harness(rig, 0.02);
+    let at = pos2(100.0, 100.0);
+    press(&mut h, at, Modifiers::NONE);
+    release(&mut h, at, Modifiers::NONE);
+    assert_eq!(h.state().overlay_clicks, [1]);
+    h.state_mut().overlay = false;
+    press(&mut h, at, Modifiers::NONE);
+    assert_eq!(log(&calls), ["press Primary x2"], "the host continues the overlay's run");
+    release(&mut h, at, Modifiers::NONE);
 }
 
 // A tool's `node` is one GraphicsObject under the canvas node with its name, value and screen
 // bounds; a tool returning `None` adds no node.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_tools_node_is_a_graphics_object_under_the_canvas() {
-    todo!()
+    let keys = Log::default();
+    let mut tool = Parted::new(false, &keys);
+    tool.node = Some(ToolNode::new("Outline").value("5 points").bounds(kurbo::Rect::new(100.0, 50.0, 180.0, 90.0)));
+    let mut h = harness(Rig::new(tool), 0.05);
+    h.run();
+    let node = h.get_by_label("Outline");
+    assert_eq!(node.accesskit_node().role(), Role::GraphicsObject);
+    assert_eq!(node.accesskit_node().value().as_deref(), Some("5 points"));
+    let bounds = node.accesskit_node().raw_bounds().expect("bounds");
+    assert!((bounds.x0 - 100.0).abs() < 1.0 && (bounds.x1 - 180.0).abs() < 1.0, "{bounds:?}");
+
+    let mut h = harness(Rig::new(Parted::new(false, &keys)), 0.05);
+    h.run();
+    assert!(h.query_by_role(Role::GraphicsObject).is_none());
 }
