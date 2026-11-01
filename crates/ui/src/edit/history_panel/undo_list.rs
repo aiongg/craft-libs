@@ -114,8 +114,7 @@ impl<'a> UndoList<'a> {
         let holds_keys = owner(ui.ctx(), &OwnerGate::default()) == KeyOwner::Menu
             || ui.memory(|m| {
                 // egui drops focus on Esc before the pass runs, so the previous frame's focus counts.
-                let ours = |f: Id| f == id.with("cancel") || (0..count).any(|i| f == row_id(id, i));
-                m.focused().is_some_and(ours) || ours_last_frame(m, id, count)
+                m.focused().is_some_and(|f| (0..count).any(|i| f == row_id(id, i))) || (0..count).any(|i| m.had_focus_last_frame(row_id(id, i)))
             });
         let (down, up, enter, escape) = if holds_keys {
             ui.input_mut(|i| {
@@ -140,6 +139,10 @@ impl<'a> UndoList<'a> {
         if escape {
             close = true;
         }
+        // One Tab stop for the whole list: the row with focus, else the marked row, else the
+        // newest. The other rows and the Cancel row take clicks only.
+        let focus_row = ui.memory(|m| (0..count).find(|&i| m.focused() == Some(row_id(id, i)) || m.had_focus_last_frame(row_id(id, i))));
+        let stop = if moved_by_key { mark.unwrap_or(0) } else { focus_row.or(mark).unwrap_or(0) };
         let pointer_moved = ui.input(|i| i.pointer.delta() != vec2(0.0, 0.0));
 
         ui.set_width(width);
@@ -155,7 +158,7 @@ impl<'a> UndoList<'a> {
                         let label = steps.label(state_of(i));
                         let size = vec2(ui.available_width(), style.row_height);
                         let response = Interactive::with_id(row_id(id, i), Role::ListBoxOption, label.as_ref())
-                            .sense(Sense::click())
+                            .sense(if i == stop { Sense::click() } else { Sense::CLICK })
                             .selected(mark.is_some_and(|m| i <= m))
                             .state_layer(false)
                             .focus_ring(false)
@@ -166,6 +169,9 @@ impl<'a> UndoList<'a> {
                         }
                         if response.clicked() {
                             clicked = Some(i);
+                        }
+                        if moved_by_key && i == stop {
+                            response.request_focus();
                         }
                         if moved_by_key && mark == Some(i) {
                             ui.scroll_to_rect(response.rect, None);
@@ -198,7 +204,7 @@ impl<'a> UndoList<'a> {
                     None => {
                         let size = vec2(ui.available_width(), style.row_height);
                         let response = Interactive::with_id(id.with("cancel"), Role::Button, labels.cancel.as_str())
-                            .sense(Sense::click())
+                            .sense(Sense::CLICK)
                             .state_layer(false)
                             .interact(ui, size)
                             .finish(ui);
@@ -261,9 +267,4 @@ fn paint_rule(ui: &mut Ui, style: &crate::list::ListRowStyle) {
         let y = (rect.bottom() - width / 2.0).round_to_pixel_center(ui.pixels_per_point());
         ui.painter().hline(rect.x_range(), y, egui::Stroke::new(width, style.divider.color));
     }
-}
-
-/// Whether the cancel row or a list row had focus at the end of the previous frame.
-fn ours_last_frame(memory: &egui::Memory, id: Id, count: usize) -> bool {
-    memory.had_focus_last_frame(id.with("cancel")) || (0..count).any(|i| memory.had_focus_last_frame(row_id(id, i)))
 }

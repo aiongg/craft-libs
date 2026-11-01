@@ -242,3 +242,20 @@ fn the_footer_count_uses_the_labels_override() {
     harness.run();
     assert!(harness.query_by_label("Revert 2 edits").is_some());
 }
+
+// The list is one Tab stop; the arrows move the mark and the focus with it.
+#[test]
+fn the_list_is_one_tab_stop_and_focus_follows_the_mark() {
+    let mut harness = harness(host(7));
+    let stops = crate::testing::a11y::tab_order(&mut harness);
+    let stops: Vec<_> = stops.iter().map(|s| (s.role, s.label.as_str())).collect();
+    assert_eq!(stops, [(Role::ListBoxOption, "State 6")], "one Tab stop, on the newest row");
+
+    for _ in 0..2 {
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+    }
+    assert_eq!(marked(&harness), ["State 6", "State 5"]);
+    let stops = crate::testing::a11y::tab_order(&mut harness);
+    assert_eq!(stops.iter().map(|s| s.label.as_str()).collect::<Vec<_>>(), ["State 5"], "the stop is the marked row");
+}
