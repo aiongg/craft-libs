@@ -5,7 +5,7 @@
 use egui::Ui;
 
 use super::framework_stories::{claim, drive};
-use super::{ListManagerAction, ListManagerEntry, ListManagerDialog, ListManagerLabels};
+use super::{ListManagerAction, ListManagerDialog, ListManagerEntry, ListManagerLabels};
 use crate::localized::Labels as _;
 use crate::story::{Level, Story, StoryArgs, StoryLabels};
 use crate::typed_story;
@@ -63,7 +63,12 @@ fn show_list_manager(ui: &mut Ui, args: &mut ListManagerArgs) {
             ctx.data_mut(|d| d.insert_temp(rows_key, rows.clone()));
             let dialog = ListManagerDialog::new("macros", words.macros.as_str(), words.macro_name.as_str())
                 .entries(rows)
-                .actions(vec![ListManagerAction::run(&labels), ListManagerAction::edit(&labels).kind(1), ListManagerAction::create(&labels), ListManagerAction::delete(&labels)])
+                .actions(vec![
+                    ListManagerAction::run(&labels),
+                    ListManagerAction::edit(&labels).kind(1),
+                    ListManagerAction::create(&labels),
+                    ListManagerAction::delete(&labels),
+                ])
                 .searchable(searchable)
                 .empty_text(words.macros_empty.as_str());
             if note { dialog.note(words.macros_note.as_str()) } else { dialog }

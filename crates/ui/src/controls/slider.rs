@@ -1198,7 +1198,9 @@ fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
     with_values(ui, "slider-values", [0.0, 50.0, 100.0, 25.0, 100.0, 50.0, 30.0], |ui, values| {
         variant_list(ui, "slider-values", |form| {
             let (minimum_to_maximum, shaped) = values.split_at_mut(3);
-            for (i, (label, value)) in ["Minimum", "Middle", words.maximum.as_str()].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate() {
+            for (i, (label, value)) in
+                ["Minimum", words.middle.as_str(), words.maximum.as_str()].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate()
+            {
                 let (default, wheel, fill) = (args.default_value, args.wheel_unfocused, !args.unfilled);
                 slider_row_with(form, look, &format!("slider-values-{i}"), label, value, None, |slider| {
                     let slider = slider.wheel_unfocused(wheel).fill(fill);

@@ -73,17 +73,19 @@ pub(crate) fn stories() -> Vec<Story> {
 }
 
 fn show(ui: &mut Ui, _: &mut NoArgs) {
+    use crate::localized::Labels as _;
+    let words = crate::story::StoryLabels::of(ui);
     super::Stack::new(super::Gap::Stack).show(ui, |ui| {
         ui.add(super::Text::new("Above"));
         Divider::horizontal().show(ui);
         ui.add(super::Text::new("Below"));
         Divider::horizontal().show(ui);
         super::Row::new(super::Gap::Inline).show(ui, |ui| {
-            ui.add(super::Text::new("Start"));
+            ui.add(super::Text::new(words.start.as_str()));
             Divider::vertical().show(ui);
-            ui.add(super::Text::new("Middle"));
+            ui.add(super::Text::new(words.middle.as_str()));
             Divider::vertical().show(ui);
-            ui.add(super::Text::new("End"));
+            ui.add(super::Text::new(words.end.as_str()));
         });
     });
 }

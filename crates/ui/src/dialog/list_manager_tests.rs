@@ -25,7 +25,12 @@ fn dialog(searchable: bool) -> ListManagerDialog {
     let labels = ListManagerLabels::default();
     ListManagerDialog::new("macros", "Macros", "Macro name:")
         .entries(entries())
-        .actions(vec![ListManagerAction::run(&labels), ListManagerAction::edit(&labels).kind(1), ListManagerAction::create(&labels), ListManagerAction::delete(&labels)])
+        .actions(vec![
+            ListManagerAction::run(&labels),
+            ListManagerAction::edit(&labels).kind(1),
+            ListManagerAction::create(&labels),
+            ListManagerAction::delete(&labels),
+        ])
         .searchable(searchable)
 }
 

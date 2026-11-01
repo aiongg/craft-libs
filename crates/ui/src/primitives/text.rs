@@ -260,7 +260,7 @@ fn show_elide(ui: &mut Ui, args: &mut ElideArgs) {
     use crate::localized::Labels as _;
     let words = crate::story::StoryLabels::of(ui);
     crate::story::variant_list(ui, "text-elide", |form| {
-        for (name, at) in [(&words.elide_end, ElideAt::End), (&words.elide_middle, ElideAt::Middle), (&words.elide_start, ElideAt::Start)] {
+        for (name, at) in [(&words.end, ElideAt::End), (&words.middle, ElideAt::Middle), (&words.start, ElideAt::Start)] {
             crate::story::variant_row(form, name, |ui| ui.add(Text::new(args.text.as_str()).elide(at).max_width(width)));
         }
         crate::story::variant_row(form, &words.elide_path, |ui| ui.add(Text::new(path).elide_path().max_width(width)));

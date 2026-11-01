@@ -12,9 +12,9 @@ use egui::{Color32, Id, Key, Modifiers, Painter, Rect, Sense, TextEdit, Ui, vec2
 
 use super::slider::{store, with_values};
 use super::{
-    AltText, AltTextField, ApplyValue, ApplyRow, Autocomplete, BreadcrumbBar, Button, ButtonVariant, Chip, ChipField, ControlSize, DatePicker,
-    DatePrecision, IconPicker, IconPickerGroup, IconPickerItem, LineStyle, LineWeights, LinkMode, LinkedFields, LinkedLayout, LinkedSlot, NumberField,
-    PickedDate, Rating, ResetDot, Select, SelectText, SplitButton, Suggestion, TextField, TreeEntry, TreePicker, completion_rest,
+    AltText, AltTextField, ApplyRow, ApplyValue, Autocomplete, BreadcrumbBar, Button, ButtonVariant, Chip, ChipField, ControlSize, DatePicker,
+    DatePrecision, IconPicker, IconPickerGroup, IconPickerItem, LineStyle, LineWeights, LinkMode, LinkedFields, LinkedLayout, LinkedSlot,
+    NumberField, PickedDate, Rating, ResetDot, Select, SelectText, SplitButton, Suggestion, TextField, TreeEntry, TreePicker, completion_rest,
     paint_inline_completion, paint_line_style, paint_rating, path_crumbs,
 };
 use crate::icons::{self, Icon, IconSize};
@@ -142,7 +142,14 @@ pub(super) fn stories() -> Vec<Story> {
         typed_story!("controls/tree-picker/albums", Level::Controls, "Tree picker", "Albums", SizeDisabledArgs::default(), show_albums),
         typed_story!("controls/icon-picker/icons", Level::Controls, "Icon picker", "Icons", NoArgs {}, show_icons),
         typed_story!("controls/linked-fields/size", Level::Controls, "Linked fields", "Size", SizeDisabledArgs::default(), show_size),
-        typed_story!("controls/linked-fields/clone-source", Level::Controls, "Linked fields", "Clone source", SizeDisabledArgs::default(), show_clone_source),
+        typed_story!(
+            "controls/linked-fields/clone-source",
+            Level::Controls,
+            "Linked fields",
+            "Clone source",
+            SizeDisabledArgs::default(),
+            show_clone_source
+        ),
         typed_story!("controls/linked-fields/margins", Level::Controls, "Linked fields", "Margins", SizeDisabledArgs::default(), show_margins),
         typed_story!("controls/preview-select/underline", Level::Controls, "Preview select", "Underline", SizeArgs::default(), show_underline),
         typed_story!(
@@ -400,25 +407,26 @@ fn show_clone_source(ui: &mut Ui, args: &mut super::SizeDisabledArgs) {
                 let edit = NumberField::new(("story-clone-offset", axis), caption, offset[axis], &numbers).size(size).enabled(enabled).show(ui);
                 store(&edit, &mut offset[axis]);
             };
-            let edit = LinkedFields::new("story-clone-size", [words.clone_w.as_str(), words.clone_h.as_str()], *scale, linked, LinkMode::Ratio, &numbers)
-                .range(-1000.0..=1000.0)
-                .decimals(0..=1)
-                .size(size)
-                .enabled(enabled)
-                .show_cells(ui, |ui, slot, add| match slot {
-                    LinkedSlot::Field(0) => {
-                        offset_field(ui, 0, &words.clone_x, offset);
-                        ui.add(Text::new(words.clone_w.as_str()));
-                        add(ui);
-                    }
-                    LinkedSlot::Link => {
-                        add(ui);
-                        ui.end_row();
-                        offset_field(ui, 1, &words.clone_y, offset);
-                        ui.add(Text::new(words.clone_h.as_str()));
-                    }
-                    LinkedSlot::Field(_) => add(ui),
-                });
+            let edit =
+                LinkedFields::new("story-clone-size", [words.clone_w.as_str(), words.clone_h.as_str()], *scale, linked, LinkMode::Ratio, &numbers)
+                    .range(-1000.0..=1000.0)
+                    .decimals(0..=1)
+                    .size(size)
+                    .enabled(enabled)
+                    .show_cells(ui, |ui, slot, add| match slot {
+                        LinkedSlot::Field(0) => {
+                            offset_field(ui, 0, &words.clone_x, offset);
+                            ui.add(Text::new(words.clone_w.as_str()));
+                            add(ui);
+                        }
+                        LinkedSlot::Link => {
+                            add(ui);
+                            ui.end_row();
+                            offset_field(ui, 1, &words.clone_y, offset);
+                            ui.add(Text::new(words.clone_h.as_str()));
+                        }
+                        LinkedSlot::Field(_) => add(ui),
+                    });
             store(&edit, scale);
         });
     });
