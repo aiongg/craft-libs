@@ -19,8 +19,6 @@
 //! # };
 //! ```
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 /// Numbers past this are written in Arabic digits by the styles that repeat characters (roman
 /// numerals, letters, symbols), so a hostile start number can't build a huge label
 /// (DesignCraft's `MAX_REPEATED_FORM`).
@@ -83,7 +81,33 @@ impl NumberStyle {
     // designcraft: crates/doc/src/attrs/rules_lists.rs:144 `NumberStyle::format` (roman, letters,
     // symbols, kanji_digits; the 3999 cap).
     pub fn format(self, n: u32) -> String {
-        todo!()
+        if n > MAX_REPEATED_FORM
+            && matches!(
+                self,
+                NumberStyle::UpperRoman | NumberStyle::LowerRoman | NumberStyle::UpperLetters | NumberStyle::LowerLetters | NumberStyle::Symbols
+            )
+        {
+            return n.to_string();
+        }
+        match self {
+            NumberStyle::Arabic => n.to_string(),
+            NumberStyle::ArabicLeadingZero => format!("{n:02}"),
+            NumberStyle::ArabicThreeDigits => format!("{n:03}"),
+            NumberStyle::ArabicFourDigits => format!("{n:04}"),
+            NumberStyle::UpperRoman => roman(n),
+            NumberStyle::LowerRoman => roman(n).to_lowercase(),
+            NumberStyle::UpperLetters => letters(n),
+            NumberStyle::LowerLetters => letters(n).to_lowercase(),
+            NumberStyle::Symbols => {
+                const SYMBOLS: [char; 6] = ['*', '†', '‡', '§', '¶', '‖'];
+                let i = n.max(1) as usize - 1;
+                std::iter::repeat_n(SYMBOLS[i % SYMBOLS.len()], i / SYMBOLS.len() + 1).collect()
+            }
+            NumberStyle::Kanji => {
+                const DIGITS: [char; 10] = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+                n.to_string().chars().map(|c| c.to_digit(10).map_or(c, |d| DIGITS[d as usize])).collect()
+            }
+        }
     }
 
     /// The menu sample: the first four numbers and "…" ("1, 2, 3, 4…", "i, ii, iii, iv…",
@@ -91,7 +115,10 @@ impl NumberStyle {
     /// need no translated word for a style.
     // designcraft: crates/ui-egui/src/section_options.rs:14 `STYLES` (the samples it spells out).
     pub fn sample(self) -> String {
-        todo!()
+        let shown =
+            if matches!(self, NumberStyle::ArabicLeadingZero | NumberStyle::ArabicThreeDigits | NumberStyle::ArabicFourDigits) { 3 } else { 4 };
+        let numbers: Vec<String> = (1..=shown).map(|n| self.format(n)).collect();
+        format!("{}…", numbers.join(", "))
     }
 }
 
@@ -126,7 +153,13 @@ impl ListMarker {
     /// The number `n` (already counted from `start`) with its punctuation: "3.", "iv)", "(c)".
     // deckcraft: crates/ui-egui/src/panels/notes.rs:79 (`deckcraft_text::autonum(scheme, n)`).
     pub fn number_text(style: NumberStyle, punctuation: NumberPunctuation, n: u32) -> String {
-        todo!()
+        let number = style.format(n);
+        match punctuation {
+            NumberPunctuation::Period => format!("{number}."),
+            NumberPunctuation::ParenRight => format!("{number})"),
+            NumberPunctuation::ParenBoth => format!("({number})"),
+            NumberPunctuation::Plain => number,
+        }
     }
 }
 
@@ -154,7 +187,68 @@ impl ListParagraph {
 // deckcraft: crates/ui-egui/src/panels/notes.rs:62 `bullets` (the per-level counters and their
 // reset rule).
 pub fn markers(paragraphs: &[ListParagraph]) -> Vec<Option<String>> {
-    todo!()
+    let mut counts = [0u32; MAX_LEVEL as usize + 1];
+    paragraphs
+        .iter()
+        .map(|p| {
+            if p.empty {
+                return None;
+            }
+            let level = usize::from(p.level.min(MAX_LEVEL));
+            let numbered = matches!(p.marker, Some(ListMarker::Number { .. }));
+            for (i, count) in counts.iter_mut().enumerate().skip(level) {
+                if i > level || !numbered {
+                    *count = 0;
+                }
+            }
+            match p.marker.as_ref()? {
+                ListMarker::Bullet(text) => Some(text.clone()),
+                ListMarker::Number { style, start, punctuation } => {
+                    let count = &mut counts[level];
+                    *count = count.saturating_add(1);
+                    Some(ListMarker::number_text(*style, *punctuation, start.saturating_sub(1).saturating_add(*count)))
+                }
+            }
+        })
+        .collect()
+}
+
+fn roman(mut n: u32) -> String {
+    if n == 0 {
+        return "0".into();
+    }
+    const TABLE: [(u32, &str); 13] = [
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
+    ];
+    let mut out = String::new();
+    for (value, text) in TABLE {
+        while n >= value {
+            out.push_str(text);
+            n -= value;
+        }
+    }
+    out
+}
+
+/// A, B, …, Z, AA, BB, …: the letter repeats.
+fn letters(n: u32) -> String {
+    if n == 0 {
+        return String::new();
+    }
+    let letter = char::from(b'A' + ((n - 1) % 26) as u8);
+    std::iter::repeat_n(letter, ((n - 1) / 26 + 1) as usize).collect()
 }
 
 /// Where a paragraph's first line and its other lines start, in points from the text box's
@@ -163,5 +257,6 @@ pub fn markers(paragraphs: &[ListParagraph]) -> Vec<Option<String>> {
 /// sits in it and the text of every line lines up.
 // deckcraft: crates/ui-egui/src/panels/notes.rs:54 `indents`.
 pub fn line_starts(level: u8, margin: Option<f64>, indent: Option<f64>) -> (f64, f64) {
-    todo!()
+    let margin = margin.unwrap_or(LEVEL_INDENT * f64::from(level.min(MAX_LEVEL)));
+    (margin + indent.unwrap_or(0.0), margin)
 }

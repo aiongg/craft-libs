@@ -10,12 +10,22 @@
 //! if let Some(editor) = &mut edit { editor.show(ui, r.rect(at)); }   // commit on a click elsewhere
 //! ```
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use egui::{Rect, Response, Ui};
+use craft_ui::primitives::Interactive;
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
+use egui::accesskit::Role;
+use egui::{Align2, Color32, FontId, Rect, Response, Sense, Shape, Ui, pos2};
+use kurbo::Point;
 
 use super::style::HeaderFooterStyle;
 use super::view::PlacedPage;
+
+/// The page the zones sit on and the text printed on it: document colours, not interface ones.
+const PAPER: Color32 = Color32::WHITE;
+const INK: Color32 = Color32::BLACK;
+
+/// The dash and gap of the hint outline, screen points.
+const DASH: f32 = 3.0;
+const GAP: f32 = 3.0;
 
 /// The header and footer text size, page points (GridCraft's `hf_font` base).
 pub const HEADER_TEXT: f32 = 10.0;
@@ -66,7 +76,13 @@ impl HeaderFooterPage {
     // gridcraft: crates/model/src/features/print.rs:86 `hf_page`; crates/ui-egui/src/paper_view.rs:354
     // `page_kind`.
     pub fn of(number: usize, different_first: bool, different_odd_even: bool) -> Self {
-        todo!()
+        if different_first && number == 1 {
+            HeaderFooterPage::First
+        } else if different_odd_even && number.is_multiple_of(2) {
+            HeaderFooterPage::Even
+        } else {
+            HeaderFooterPage::Odd
+        }
     }
 }
 
@@ -144,11 +160,91 @@ impl<'a> HeaderFooterZones<'a> {
     /// placed.
     // gridcraft: crates/ui-egui/src/paper_view.rs:194 `section_rects`.
     pub fn rect(&self, at: ZoneAt) -> Option<Rect> {
-        todo!()
+        let placed = self.placed.iter().find(|p| p.page == at.page)?;
+        Some(self.section_rect(placed, at.zone))
+    }
+
+    /// The whole section on `placed`, without the style's inset.
+    fn section_rect(&self, placed: &PlacedPage, zone: Zone) -> Rect {
+        let bands = (self.bands)(placed.page);
+        let width = f64::from(placed.rect.width()) / placed.scale;
+        let height = f64::from(placed.rect.height()) / placed.scale;
+        let (top, bottom) = if zone.footer { (height - bands.bottom, height) } else { (0.0, bands.top) };
+        let third = (width - bands.sides[0] - bands.sides[1]).max(0.0) / 3.0;
+        let left = bands.sides[0] + third * f64::from(zone.section);
+        Rect::from_min_max(placed.to_screen(Point::new(left, top)), placed.to_screen(Point::new(left + third, bottom)))
     }
 
     // gridcraft: crates/ui-egui/src/paper_view.rs:217 `paint_headers_footers`, :291 `interact`.
     pub fn show(self, ui: &mut Ui) -> HeaderFooterResponse {
-        todo!()
+        let tokens = Tokens::of(ui);
+        let style = Self::style(&tokens);
+        let labels = self.labels.clone().unwrap_or_default();
+        let faint = tokens.color.text.faint.to_egui();
+        let visible = ui.clip_rect();
+        let mut begin = None;
+        let mut zones = Vec::new();
+        for placed in self.placed.iter().filter(|p| p.rect.intersects(visible)) {
+            for footer in [false, true] {
+                for section in 0..3 {
+                    let at = ZoneAt { page: placed.page, zone: Zone { footer, section } };
+                    let whole = self.section_rect(placed, at.zone);
+                    zones.push(whole);
+                    let rect = whole.shrink2(egui::vec2(0.0, style.inset));
+                    let text = self.text.map(|text| text(at)).unwrap_or_default();
+                    let editing = self.editing == Some(at);
+                    let band_editing = self.editing.is_some_and(|e| e.page == at.page && e.zone.footer == footer);
+                    if editing {
+                        ui.painter().rect_filled(rect, 0.0, PAPER);
+                        ui.painter().rect_stroke(rect, 0.0, style.editing, egui::StrokeKind::Inside);
+                        continue;
+                    }
+                    let add = if footer { &labels.add_footer } else { &labels.add_header };
+                    let name = if text.is_empty() { add.as_str() } else { text.as_str() };
+                    let id = ui.make_persistent_id((self.id_salt, at.page, footer, section));
+                    let response = Interactive::with_id(id, Role::Button, name)
+                        .sense(Sense::click())
+                        .state_layer(false)
+                        .focus_ring(false)
+                        .interact_at(ui, rect)
+                        .finish(ui);
+                    if response.clicked() {
+                        begin = Some(at);
+                    }
+                    let font =
+                        FontId::proportional((HEADER_TEXT * placed.scale as f32).clamp(*HEADER_TEXT_SCREEN.start(), *HEADER_TEXT_SCREEN.end()));
+                    let painter = ui.painter();
+                    if band_editing {
+                        painter.rect_stroke(rect, 0.0, style.neighbour, egui::StrokeKind::Inside);
+                    }
+                    if text.is_empty() {
+                        if response.hovered() || response.has_focus() {
+                            let corners = [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom(), rect.left_top()];
+                            painter.extend(Shape::dashed_line(&corners, style.hint, DASH, GAP));
+                            painter.text(rect.center(), Align2::CENTER_CENTER, add, font, faint);
+                        }
+                        continue;
+                    }
+                    let galley = painter.layout(text, font, INK, rect.width());
+                    let width = galley.size().x;
+                    let x = match section {
+                        0 => rect.left(),
+                        1 => rect.center().x - width / 2.0,
+                        _ => rect.right() - width,
+                    };
+                    let y = if footer { rect.bottom() - galley.size().y } else { rect.top() };
+                    painter.galley(pos2(x, y), galley, INK);
+                }
+            }
+        }
+        let end = self.editing.is_some()
+            && ui.input(|i| i.pointer.primary_clicked())
+            && ui
+                .input(|i| i.pointer.interact_pos())
+                .is_some_and(|p| self.placed.iter().any(|page| page.rect.contains(p)) && !zones.iter().any(|z| z.contains(p)));
+        let extent =
+            self.placed.iter().map(|p| p.rect).reduce(Rect::union).unwrap_or_else(|| Rect::from_min_size(ui.min_rect().min, egui::Vec2::ZERO));
+        let response = ui.interact(extent, ui.make_persistent_id((self.id_salt, "zones")), Sense::hover());
+        HeaderFooterResponse { begin, end, response }
     }
 }
