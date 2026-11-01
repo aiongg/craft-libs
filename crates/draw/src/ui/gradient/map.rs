@@ -5,14 +5,27 @@
 //! editors in craft-imaging: a family crate depends on no other family crate but craft-color
 //! (lead call L5).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use egui::accesskit::Role;
+use egui::{AsIdSalt, Id, IdSalt, Modifiers, Sense, Ui, UiBuilder};
 
-use egui::{AsIdSalt, Id, IdSalt, Ui};
+use craft_theme::ControlSize;
+use craft_ui::controls::{Button, Checkbox, IconButton};
+use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
+use craft_ui::icons::Icon;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
+use craft_ui::popover::{Popover, PopoverAnchor};
+use craft_ui::primitives::{Gap, Stack};
 
-use craft_ui::edit::{EditPolicy, EditResponse};
-use craft_ui::localized::LocaleNumbers;
+use super::stops::round_location;
+use super::{
+    ColorStop, GradientEditor, GradientGroup, GradientLabels, GradientPalette, GradientRef, GradientStops, PaletteLayout, Sampler, StopRef, StopRows,
+};
 
-use super::{GradientGroup, GradientLabels, GradientStops, Sampler};
+/// Most colour stops a Gradient Map keeps.
+const MAX_STOPS: usize = 64;
+/// Fewest colour stops a Gradient Map keeps.
+const MIN_STOPS: usize = 2;
 
 /// A Gradient Map value: the map from tone (0 black … 1 white) to colour.
 #[derive(Clone, Debug, PartialEq)]
@@ -157,8 +170,134 @@ impl<'a> GradientMapEditor<'a> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/gradient_map.rs:151-269 `gradient_map` (preset
         // combo with the gear and Import .GRD :158-205, the strip :206, 64 stops at most :120 and
         // :243, two at least :212, Reverse and Dither :259-266); locations rounded to 0.001 (:65).
-        // lib: `GradientEditor::new(..).rows(StopRows::ColorOnly).stops(2, 64).midpoints(false)`;
-        // the preset list is `GradientPalette` with `PaletteLayout::List` in a `Popover`.
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| GradientMapLabels::of(ui));
+        let enabled = self.enabled && ui.is_enabled();
+        let id = ui.make_persistent_id(self.id_salt);
+        let builder =
+            UiBuilder::new().id_salt(id).sense(Sense::hover()).accessibility_role(Role::Group).accessibility_label(labels.gradient_map.as_str());
+        let scoped = ui.scope_builder(builder, |ui| self.show_inside(ui, id, &labels, enabled));
+        let mut output = scoped.inner;
+        output.edit.response = scoped.response;
+        output
     }
+
+    fn show_inside(&self, ui: &mut Ui, id: Id, labels: &GradientMapLabels, enabled: bool) -> GradientMapOutput {
+        let mut event: Option<EditEvent<GradientMap>> = None;
+        let mut import_presets = false;
+        let mut output = GradientMapOutput {
+            edit: EditResponse::new(ui.response(), None),
+            color_requested: None,
+            eyedropper_requested: false,
+            picker_id: None,
+            import_presets: false,
+        };
+        let bar_id = GradientEditor::id_in(ui, "stops");
+        Stack::new(Gap::Stack).show(ui, |ui| {
+            ui.add_enabled_ui(enabled, |ui| {
+                // 1. Preset.
+                let (pick, import) = self.preset_row(ui, id, labels);
+                import_presets = import;
+                if let Some(pick) = pick {
+                    GradientEditor::select(ui.ctx(), bar_id, Some(StopRef::Color(0)));
+                    event = Some(EditEvent::set(GradientMap { stops: pick, ..self.value.clone() }, Modifiers::NONE));
+                }
+
+                // 2. The stop bar.
+                let numbers = self.numbers;
+                let mut bar = GradientEditor::new("stops", labels.gradient_map.as_str(), &self.value.stops, numbers)
+                    .rows(StopRows::ColorOnly)
+                    .stops(MIN_STOPS, MAX_STOPS)
+                    .midpoints(false)
+                    .location_decimals(1)
+                    .policy(self.policy)
+                    .color_popover(self.color_popover)
+                    .enabled(enabled);
+                if let Some(sampler) = self.sampler {
+                    bar = bar.sampler(sampler);
+                }
+                if let Some(stop_labels) = &self.stop_labels {
+                    bar = bar.labels(stop_labels.clone());
+                }
+                let response = bar.show(ui);
+                output.color_requested = response.color_requested;
+                output.eyedropper_requested = response.eyedropper_requested;
+                output.picker_id = response.picker_id;
+                let value = self.value.clone();
+                let bar_event = response.edit.map(|stops| GradientMap { stops, ..value }).event;
+                event = event.take().or(bar_event);
+
+                // 3. Reverse and Dither.
+                let mut reverse = self.value.reverse;
+                let toggled = Checkbox::bool(labels.reverse.as_str(), &mut reverse).id_salt((id, "reverse")).show(ui);
+                let value = self.value.clone();
+                event = event.take().or(toggled.map(|reverse| GradientMap { reverse, ..value }).event);
+                let mut dither = self.value.dither;
+                let toggled = Checkbox::bool(labels.dither.as_str(), &mut dither).id_salt((id, "dither")).show(ui);
+                let value = self.value.clone();
+                event = event.take().or(toggled.map(|dither| GradientMap { dither, ..value }).event);
+            });
+        });
+        output.edit.event = event;
+        output.import_presets = import_presets;
+        output
+    }
+
+    /// The preset button, its popover with the gear menu and the list. Returns a picked preset's
+    /// colour stops and whether Import .GRD was chosen.
+    fn preset_row(&self, ui: &mut Ui, id: Id, labels: &GradientMapLabels) -> (Option<GradientStops>, bool) {
+        let button =
+            ui.add_enabled(!self.presets.is_empty(), Button::new(labels.custom.as_str()).trailing_icon(Icon::ChevronDown).id_salt((id, "preset")));
+        let open_id = id.with("open");
+        let mut open = ui.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
+        if button.clicked() {
+            open = !open;
+        }
+        let mut pick = None;
+        let mut import = false;
+        let max_height = ui.ctx().content_rect().height() / 2.0;
+        Popover::new((id, "popover"), PopoverAnchor::Control(button.clone())).toggle(button.id).label(labels.preset.as_str()).show(
+            ui,
+            &mut open,
+            |ui, popover| {
+                let gear = ui.add(IconButton::new(Icon::Settings, labels.preset_options.as_str()).size(ControlSize::Sm).id_salt((id, "gear")));
+                let entries = [MenuEntry::from(MenuItem::new(labels.import_presets.as_str(), ()))];
+                if PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &gear).chosen.is_some() {
+                    import = true;
+                    popover.close();
+                }
+                let mut palette = GradientPalette::new((id, "presets"), labels.preset.as_str(), self.presets)
+                    .layout(PaletteLayout::List)
+                    .rows(StopRows::ColorOnly)
+                    .max_height(max_height);
+                if let Some(sampler) = self.sampler {
+                    palette = palette.sampler(sampler);
+                }
+                if let Some(GradientRef::Item { group, item }) = palette.show(ui).event.and_then(|e| e.value().copied())
+                    && let Some(preset) = self.presets.get(group).and_then(|g| g.items.get(item))
+                    && let Some(stops) = color_only(&preset.stops)
+                {
+                    pick = Some(stops);
+                    popover.close();
+                }
+            },
+        );
+        ui.data_mut(|d| d.insert_temp(open_id, open));
+        (pick, import)
+    }
+}
+
+/// A preset's colour stops as a Gradient Map keeps them: alpha 1, no opacity stops, locations
+/// rounded to 0.001, at most 64. `None` for a preset with fewer than two colour stops.
+fn color_only(stops: &GradientStops) -> Option<GradientStops> {
+    let color: Vec<ColorStop> = stops
+        .color
+        .iter()
+        .take(MAX_STOPS)
+        .map(|s| {
+            let mut color = s.color;
+            color.a = 1.0;
+            ColorStop { location: round_location(s.location), color, midpoint: 0.5, ..*s }
+        })
+        .collect();
+    (color.len() >= MIN_STOPS).then(|| GradientStops::new(color))
 }
