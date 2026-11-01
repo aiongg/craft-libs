@@ -64,7 +64,8 @@ impl PanelMenu<'_> {
     /// Opens the menu under `button` (the ≡ button or a tab's right click) in its own popup,
     /// sized `ControlSize::Sm`, and returns what the user
     /// picked. Arrow keys, Enter, Escape and mnemonics are the library menu's; a check or
-    /// radio row closes the menu (Photoshop's panel menus do), a submenu opens on hover and
+    /// radio row closes the menu (Photoshop's panel menus do) unless it is a
+    /// [keep-open](crate::menu::MenuItem::keep_open) row, a submenu opens on hover and
     /// Right. Focus returns to the button on close.
     // pc: crates/ui-egui/src/panels/panel_docking.rs:826 `body` (the popup PhotoCraft fills
     // per panel) and crates/ui-egui/src/panels/swatches_panel.rs `panel_menu`; the dock rows

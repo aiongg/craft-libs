@@ -258,7 +258,7 @@ impl<'a, T: Clone> Menu<'a, T> {
             let keys = nav.keys(&ctx, crate::direction::is_rtl(&ctx), mnemonics, draw.typing);
             chosen = chosen.or(keys.run);
             step = keys.step;
-            if chosen.is_some() {
+            if chosen.as_ref().is_some_and(|path| !keeps_open(self.entries, path)) {
                 Popup::close_id(&ctx, id);
                 open = false;
             }
@@ -491,7 +491,9 @@ impl Draw<'_> {
                     let released_on = self.pressing && r.contains_pointer();
                     if enabled && (r.clicked() || released_on) {
                         self.chosen = Some(row_path.clone());
-                        ui.close();
+                        if !it.keeps_open() {
+                            ui.close();
+                        }
                     }
                     false
                 }
@@ -507,6 +509,11 @@ impl Draw<'_> {
             (r, ())
         });
     }
+}
+
+/// Whether the row at `path` leaves the menu open when it runs.
+fn keeps_open<T>(entries: &[MenuEntry<T>], path: &[usize]) -> bool {
+    at_path(entries, path).is_some_and(MenuItem::keeps_open)
 }
 
 fn row_content<'r, T>(it: &'r MenuItem<T>, label: &'r str, mnemonic: Option<char>) -> RowContent<'r> {
