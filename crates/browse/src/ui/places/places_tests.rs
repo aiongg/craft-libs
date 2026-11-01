@@ -1,57 +1,38 @@
-//! `PlacesTree` through egui_kittest with a fake `Directories` and `ManualJobs` (task B7).
+//! `PlacesTree` through egui_kittest with `FakeDirectories` and `ManualJobs` (task B7).
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
-use craft_host::queue::Cancel;
 use craft_host::{ManualJobs, Wake};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
-use egui::{Event, Id, Modifiers, PointerButton, Ui, ViewportId};
+use egui::{Event, Id, Key, Modifiers, PointerButton, Ui, ViewportId};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
 use super::*;
-use crate::places::{Directories, Place, PlaceGroup, Volume};
+use crate::places::{FakeDirectories, Place, PlaceGroup};
 
 fn path(s: &str) -> PathBuf {
     PathBuf::from(s)
 }
 
 /// `/home/u` holds Photos and Docs; Photos holds 2024 and 2025; 2024 holds Trip.
-struct Fake {
-    calls: AtomicUsize,
-}
-
-impl Directories for Fake {
-    fn standard(&self) -> Vec<(StandardFolder, PathBuf)> {
-        vec![(StandardFolder::Home, path("/home/u"))]
-    }
-    fn volumes(&self) -> Vec<Volume> {
-        Vec::new()
-    }
-    fn subfolders(&self, folder: &Path, _: &Cancel) -> std::io::Result<Vec<Folder>> {
-        self.calls.fetch_add(1, Ordering::SeqCst);
-        let names: &[&str] = match folder.to_str().unwrap_or_default() {
-            "/home/u" => &["Docs", "Photos"],
-            "/home/u/Photos" => &["2024", "2025"],
-            "/home/u/Photos/2024" => &["Trip"],
-            _ => &[],
-        };
-        Ok(names.iter().map(|n| Folder { path: folder.join(n), name: (*n).into() }).collect())
-    }
-    fn unlisted_ancestors(&self, _: &Path) -> Vec<PathBuf> {
-        Vec::new()
-    }
+fn fake() -> FakeDirectories {
+    FakeDirectories::new()
+        .standard_folder(StandardFolder::Home, "/home/u")
+        .folder("/home/u/Docs")
+        .folder("/home/u/Photos/2025")
+        .folder("/home/u/Photos/2024/Trip")
 }
 
 struct Host {
     places: Places,
     cache: FolderCache,
     jobs: Arc<ManualJobs>,
-    fake: Arc<Fake>,
+    fake: Arc<FakeDirectories>,
     current: Option<PathBuf>,
     accepted: &'static str,
+    host_menu: bool,
     events: Vec<PlacesEvent<u32>>,
 }
 
@@ -66,8 +47,10 @@ fn hidden(names: &[&str]) -> Vec<Place> {
 
 fn show(ui: &mut Ui, host: &mut Host) {
     let accepted = host.accepted;
+    let host_menu = host.host_menu;
     let out = PlacesTree::<u32>::new("places", &host.places, &mut host.cache)
         .current(host.current.as_deref())
+        .row_menu(move |_| if host_menu { vec![MenuItem::new("Rename Folder…", String::from("folder.rename")).into()] } else { Vec::new() })
         .accepts(move |path, _| path.ends_with(accepted))
         .show(ui);
     host.events.extend(out.events);
@@ -75,9 +58,9 @@ fn show(ui: &mut Ui, host: &mut Host) {
 
 fn harness(current: Option<&str>, places: Places) -> Harness<'static, Host> {
     let jobs = Arc::new(ManualJobs::new());
-    let fake = Arc::new(Fake { calls: AtomicUsize::new(0) });
+    let fake = Arc::new(fake());
     let cache = FolderCache::new(fake.clone(), jobs.clone(), Wake::new(|| {}));
-    let host = Host { places, cache, jobs, fake, current: current.map(path), accepted: "Photos", events: Vec::new() };
+    let host = Host { places, cache, jobs, fake, current: current.map(path), accepted: "Photos", host_menu: false, events: Vec::new() };
     let mut harness = Harness::<Host>::builder()
         .with_size([300.0, 400.0])
         .with_step_dt(0.05)
@@ -178,8 +161,74 @@ fn regaining_focus_lists_open_folders_again() {
         settle(harness);
     };
     focus(&mut harness, false);
-    let before = harness.state().fake.calls.load(Ordering::SeqCst);
+    let before = harness.state().fake.calls();
     focus(&mut harness, true);
-    let after = harness.state().fake.calls.load(Ordering::SeqCst);
+    let after = harness.state().fake.calls();
     assert_eq!(after - before, 2, "Home and Photos are open");
+}
+
+/// A harness with Photos open and `/home/u/Docs` browsed, the keyboard on the tree.
+fn browsing_docs() -> Harness<'static, Host> {
+    let mut harness = harness(Some("/home/u/Photos/2024"), home());
+    harness.state_mut().current = Some(path("/home/u/Docs"));
+    settle(&mut harness);
+    harness.key_press(Key::Tab);
+    harness.run();
+    harness
+}
+
+// Down twice from the browsed folder, then Enter: the keys act on the lead, which the next passes keep.
+#[test]
+fn arrow_keys_move_the_lead_and_enter_opens_it() {
+    let mut harness = browsing_docs();
+    harness.key_press(Key::ArrowDown);
+    harness.run();
+    harness.key_press(Key::ArrowDown);
+    settle(&mut harness);
+    harness.key_press(Key::Enter);
+    settle(&mut harness);
+    assert_eq!(harness.state().events, vec![PlacesEvent::Open(path("/home/u/Photos/2024"))]);
+}
+
+// The selection follows `current` when it changes, and not on the passes between.
+#[test]
+fn the_selection_follows_current_only_when_it_changes() {
+    let mut harness = browsing_docs();
+    harness.key_press(Key::ArrowDown);
+    settle(&mut harness);
+    harness.key_press(Key::Enter);
+    settle(&mut harness);
+    assert_eq!(harness.state().events, vec![PlacesEvent::Open(path("/home/u/Photos"))], "the lead stayed on the row the key reached");
+
+    harness.state_mut().events.clear();
+    harness.state_mut().current = Some(path("/home/u/Photos/2025"));
+    settle(&mut harness);
+    harness.key_press(Key::Enter);
+    settle(&mut harness);
+    assert_eq!(harness.state().events, vec![PlacesEvent::Open(path("/home/u/Photos/2025"))], "a new `current` moves the selection to its row");
+}
+
+// A `current` spelled differently from the listing's still opens the rows on its way.
+#[test]
+fn reveal_matches_folders_by_their_key_not_their_spelling() {
+    let harness = harness(Some("/home/u/Docs/../Photos/2024/Trip/"), home());
+    let shown = rows(&harness);
+    for name in ["Photos", "2024", "Trip"] {
+        assert!(shown.iter().any(|r| r == name), "{name} is shown: {shown:?}");
+    }
+}
+
+// The host's folder menu rows come after the library's and report their command with the folder.
+#[test]
+fn a_host_menu_row_reports_its_command_and_folder() {
+    let mut harness = harness(Some("/home/u/Photos"), home());
+    harness.state_mut().host_menu = true;
+    harness.run();
+    let docs = row(&harness, "Docs").rect().center();
+    harness.event(Event::PointerButton { pos: docs, button: PointerButton::Secondary, pressed: true, modifiers: Modifiers::NONE });
+    harness.event(Event::PointerButton { pos: docs, button: PointerButton::Secondary, pressed: false, modifiers: Modifiers::NONE });
+    settle(&mut harness);
+    harness.get_by_label("Rename Folder…").click();
+    settle(&mut harness);
+    assert_eq!(harness.state().events, vec![PlacesEvent::Menu { target: path("/home/u/Docs"), command: "folder.rename".into() }]);
 }
