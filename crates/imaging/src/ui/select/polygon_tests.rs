@@ -1,32 +1,89 @@
-//! Tests of the Polygonal Lasso on the tool host (task SE-F9).
-#![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+//! Tests of the Polygonal Lasso on the tool host (task SE-F9), on the rig of `lasso_tests`.
+
+use craft_ui::canvas::SelectionOperation;
+use craft_ui::canvas::kurbo::{Point, Rect};
+use egui::{Key, Modifiers};
+
+use super::lasso_tests::{Fake, NONE, click, down, drag_to, press_key, rig, tags, up};
+use super::{DragKind, SelectEvent, SelectPhase, SelectionShape};
 
 // ⇧ turns a segment to 45° steps from the last vertex, not for the first vertex and not with ⌥.
 #[test]
-#[ignore = "skeleton"]
 fn polygon_shift_constrains_to_45_degrees() {
-    todo!()
+    let mut h = rig(true, Fake::empty());
+    h.state_mut().focus = true;
+    h.step();
+    click(&mut h, (50.0, 50.0), Modifiers::SHIFT);
+    // 11° from the last vertex rounds to 0°, keeping the distance √(100² + 20²).
+    click(&mut h, (150.0, 70.0), Modifiers::SHIFT);
+    click(&mut h, (140.0, 170.0), Modifiers::SHIFT | Modifiers::ALT);
+    press_key(&mut h, Key::Enter);
+    let events = h.state_mut().events();
+    let [SelectEvent::Commit { shape: SelectionShape::Polygon(points), operation }] = events.as_slice() else { panic!("one commit: {events:?}") };
+    assert_eq!(*operation, SelectionOperation::Add);
+    let turned = Point::new(50.0 + 100.0_f64.hypot(20.0), 50.0);
+    assert_eq!(points.len(), 3);
+    assert_eq!(points[0], Point::new(50.0, 50.0), "the first vertex is never turned");
+    assert!((points[1] - turned).hypot() < 1e-9, "{:?}", points[1]);
+    assert_eq!(points[2], Point::new(140.0, 170.0), "⇧ with ⌥ keeps the point");
 }
 
 // A plain press inside the selection places a vertex; only ⌘ drags it, and not while an outline
 // is open.
 #[test]
-#[ignore = "skeleton"]
 fn polygon_click_driven_needs_command_to_drag() {
-    todo!()
+    let mut h = rig(true, Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
+    click(&mut h, (150.0, 150.0), NONE);
+    assert_eq!(h.state().phase(), SelectPhase::Outline { points: 1 });
+    // ⌘ with an outline open places a vertex too.
+    click(&mut h, (180.0, 120.0), Modifiers::COMMAND);
+    assert_eq!(h.state().phase(), SelectPhase::Outline { points: 2 });
+    assert!(h.state_mut().events().is_empty());
+    h.state_mut().polygon.reset();
+
+    down(&mut h, (150.0, 150.0), Modifiers::COMMAND);
+    assert_eq!(h.state().phase(), SelectPhase::Dragging(DragKind::Pixels { copy: false }));
+    drag_to(&mut h, (155.0, 150.0), Modifiers::COMMAND);
+    up(&mut h, (155.0, 150.0), Modifiers::COMMAND);
+    assert_eq!(tags(&h.state_mut().events()), ["begin", "update 5,0", "commit 5,0 changed"]);
+
+    // ⌘ outside the selection is the Move tool's.
+    assert!(!h.state().ignored);
+    click(&mut h, (300.0, 250.0), Modifiers::COMMAND);
+    assert!(h.state().ignored);
+    assert_eq!(h.state().phase(), SelectPhase::Idle);
 }
 
 // `retract` (the app's secondary click), Backspace and Delete remove the last vertex; the last one
 // cancels with no event.
 #[test]
-#[ignore = "skeleton"]
 fn polygon_retract_removes_last_vertex_then_cancels() {
-    todo!()
+    let mut h = rig(true, Fake::empty());
+    h.state_mut().focus = true;
+    h.step();
+    assert!(!h.state_mut().polygon.retract(), "nothing open");
+    for at in [(50.0, 50.0), (150.0, 50.0), (150.0, 150.0)] {
+        click(&mut h, at, NONE);
+    }
+    assert!(h.state_mut().polygon.retract());
+    assert_eq!(h.state().phase(), SelectPhase::Outline { points: 2 });
+    press_key(&mut h, Key::Backspace);
+    assert_eq!(h.state().phase(), SelectPhase::Outline { points: 1 });
+    press_key(&mut h, Key::Delete);
+    assert_eq!(h.state().phase(), SelectPhase::Idle);
+    assert!(h.state_mut().events().is_empty());
 }
 
 // `replaces_selection` is true only while a New outline is open.
 #[test]
-#[ignore = "skeleton"]
 fn polygon_new_outline_replaces_selection() {
-    todo!()
+    let mut h = rig(true, Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
+    assert!(!h.state().polygon.replaces_selection());
+    click(&mut h, (20.0, 20.0), NONE);
+    assert!(h.state().polygon.replaces_selection());
+    h.state_mut().polygon.reset();
+    assert!(!h.state().polygon.replaces_selection());
+    click(&mut h, (20.0, 20.0), Modifiers::SHIFT);
+    assert_eq!(h.state().phase(), SelectPhase::Outline { points: 1 });
+    assert!(!h.state().polygon.replaces_selection(), "Add keeps the selection visible");
 }

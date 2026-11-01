@@ -36,8 +36,6 @@
 //!
 //! [`CanvasTool`]: craft_ui::canvas::CanvasTool
 
-#![expect(dead_code, reason = "skeleton: removed when the bodies land")]
-
 use craft_ui::canvas::SelectionOperation;
 use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::edit::EditEvent;

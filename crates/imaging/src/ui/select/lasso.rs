@@ -1,13 +1,111 @@
 //! [`LassoTool`]: the freehand Lasso with ⌥-latched straight segments (task SE-F9).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: task SE-F9")]
+use craft_ui::behavior::move_gesture::ConstrainStyle;
+use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};
+use craft_ui::canvas::kurbo::Rect;
+use craft_ui::canvas::{
+    CanvasTool, Marquee, MarqueeLook, PointerInk, SelectionBadge, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode,
+    ToolPointer, selection_cursor,
+};
+use craft_ui::localized::{Labels as _, Words};
+use egui::{CursorIcon, Key, Modifiers, Painter};
 
-use craft_ui::canvas::draft::{DraftKind, DraftReach, OutlineDraft};
-use craft_ui::canvas::{CanvasTool, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer};
-use egui::{Modifiers, Painter};
+use super::drag::{InsideDrag, PressRule, cursor_over, drag_kind};
+use super::style::SelectToolStyle;
+use super::{OUTLINE_POINTS, SelectEvent, SelectLabels, SelectPhase, SelectToolPass, SelectionProbe, SelectionShape};
 
-use super::drag::InsideDrag;
-use super::{SelectEvent, SelectPhase, SelectToolPass};
+/// Turns a draft's answer into the tool's events: `Started` latches the operation from the
+/// press's intent, `Closed` is the commit. Shared by the Lasso and the Polygonal Lasso.
+pub(super) fn apply(
+    event: Option<DraftEvent>,
+    bar: SelectionOperation,
+    has_selection: bool,
+    operation: &mut SelectionOperation,
+    events: &mut Vec<SelectEvent>,
+) {
+    match event {
+        Some(DraftEvent::Started { intent }) => *operation = SelectionOperation::resolve(bar, intent, has_selection),
+        Some(DraftEvent::Closed { points, .. }) => events.push(SelectEvent::Commit { shape: SelectionShape::Polygon(points), operation: *operation }),
+        _ => {}
+    }
+}
+
+/// What a lasso is doing: a selection drag, an outline with its point count, or nothing.
+pub(super) fn phase(draft: &OutlineDraft, inside: Option<&InsideDrag>) -> SelectPhase {
+    if let Some(inside) = inside {
+        return SelectPhase::Dragging(inside.kind());
+    }
+    if draft.is_open() { SelectPhase::Outline { points: draft.points().len() } } else { SelectPhase::Idle }
+}
+
+/// The crosshair with the operation's badge: the latched one while an outline is open, else the
+/// live modifiers'; ⌘ is the Move tool's, so it shows none. Over the selection, the cursors of
+/// [`cursor_over`].
+pub(super) fn cursor(
+    draft: &OutlineDraft,
+    operation: SelectionOperation,
+    bar: SelectionOperation,
+    inside: Option<&InsideDrag>,
+    rule: PressRule,
+    probe: &dyn SelectionProbe,
+    cx: &ToolContext<'_>,
+) -> ToolCursor {
+    let crosshair = ToolCursor::System(CursorIcon::Crosshair);
+    let Some(pointer) = cx.pointer else { return crosshair };
+    if !draft.is_open()
+        && let Some(cursor) = cursor_over(probe, pointer.raw, cx.modifiers, bar, rule, inside.map(InsideDrag::kind))
+    {
+        return cursor;
+    }
+    let badge = if draft.is_open() {
+        operation.badge()
+    } else if cx.modifiers.command {
+        SelectionBadge::New
+    } else {
+        SelectionOperation::resolve(bar, cx.modifiers, probe.has_selection()).badge()
+    };
+    selection_cursor(&cx.canvas.ctx, pointer.screen, badge, PointerInk::System);
+    crosshair
+}
+
+/// The outline as a solid line and, between straight segments, the rubber band.
+pub(super) fn paint_outline(draft: &OutlineDraft, painter: &Painter, cx: &ToolContext<'_>) {
+    let points = draft.points();
+    if points.len() >= 2 {
+        Marquee::polyline(points.iter().copied(), "").paint(painter, cx.view, MarqueeLook::Drawing, cx.time);
+    }
+    if let Some([a, b]) = draft.rubber_band() {
+        Marquee::segments([(a, b)], "").paint(painter, cx.view, MarqueeLook::Drawing, cx.time);
+    }
+}
+
+/// The open outline as one AccessKit object; `None` with no outline.
+pub(super) fn outline_node(draft: &OutlineDraft, cx: &ToolContext<'_>) -> Option<ToolNode> {
+    let points = draft.points();
+    let first = *points.first()?;
+    let bounds = points.iter().fold(Rect::from_points(first, first), |rect, &p| rect.union_pt(p));
+    let (ctx, words) = (&cx.canvas.ctx, Words::of_ctx(&cx.canvas.ctx));
+    let value = words.counted(ctx, OUTLINE_POINTS, &words.get(OUTLINE_POINTS.word), points.len() as u64);
+    Some(ToolNode::new(SelectLabels::of_ctx(ctx).outline).value(value).bounds(bounds))
+}
+
+/// Starts the selection drag for `kind` at the press.
+pub(super) fn begin_inside(
+    kind: super::DragKind,
+    pointer: &ToolPointer,
+    cx: &ToolContext<'_>,
+    inside: &mut Option<InsideDrag>,
+    events: &mut Vec<SelectEvent>,
+) {
+    let (drag, event) = InsideDrag::begin(&ConstrainStyle::of(cx.tokens), kind, pointer.doc, pointer.modifiers);
+    *inside = Some(drag);
+    events.push(event);
+}
+
+/// The draft sample for `pointer`.
+pub(super) fn sample(pointer: &ToolPointer, cx: &ToolContext<'_>) -> DraftPoint {
+    DraftPoint::new(pointer.doc, pointer.modifiers, cx.view.zoom)
+}
 
 /// Photoshop's Lasso: a drag draws a freehand outline; the release closes it into a selection.
 ///
@@ -73,14 +171,13 @@ impl LassoTool {
     /// Drop the outline and any selection drag without an event: the app switched tools (an
     /// outline open between clicks has no host gesture for `ToolHost::cancel` to end).
     pub fn reset(&mut self) {
-        // new: `OutlineDraft::cancel`, drop `inside`.
-        todo!()
+        self.draft.cancel();
+        self.inside = None;
     }
 
     /// What the tool is doing: an outline with its point count, or a selection drag.
     pub fn phase(&self) -> SelectPhase {
-        // new: `Dragging` from `inside`, `Outline` while `draft.is_open()`.
-        todo!()
+        phase(&self.draft, self.inside.as_ref())
     }
 }
 
@@ -91,13 +188,27 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
     /// the keys while the draft takes retract.
     fn each_pass(&mut self, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:95-100 `cancel_stale`, :108-125 `modifiers`.
-        todo!()
+        let (tool, probe) = (&mut *self.tool, self.probe);
+        tool.draft.set_reach(SelectToolStyle::of(cx.tokens).reach());
+        if tool.draft.for_document(probe.document()).is_some() {
+            tool.inside = None;
+        }
+        if cx.modifiers != tool.modifiers {
+            tool.modifiers = cx.modifiers;
+            let event = tool.draft.modifiers_changed(cx.modifiers);
+            apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
+        }
+        if tool.draft.takes_retract() {
+            cx.keep_keys();
+        }
     }
 
-    /// The lasso icon with the operation's badge; over the selection `drag::cursor_over`.
+    /// The crosshair with the operation's badge (PhotoCraft draws the selection tools' pointer the
+    /// same way); over the selection `drag::cursor_over`.
     fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
-        // pc: crates/ui-egui/src/canvas.rs:1384-1408.
-        todo!()
+        // pc: crates/ui-egui/src/canvas.rs:1384-1408, tool_feedback.rs:158-169 `draw_badge`.
+        let tool = &*self.tool;
+        cursor(&tool.draft, tool.operation, tool.bar, tool.inside.as_ref(), PressRule::Drags, self.probe, cx)
     }
 
     /// With no outline open: a selection drag inside the selection, `Ignored` for ⌘ outside,
@@ -107,47 +218,97 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:136-207 `pointer` (Down), :284-286 (double-click
         // commits).
-        todo!()
+        let (tool, probe) = (&mut *self.tool, self.probe);
+        let open = tool.draft.is_open();
+        if !open {
+            if let Some(kind) = drag_kind(probe, pointer.raw, pointer.modifiers, tool.bar, PressRule::Drags) {
+                begin_inside(kind, pointer, cx, &mut tool.inside, &mut tool.events);
+                return ToolAction::Claimed;
+            }
+            if pointer.modifiers.command {
+                return ToolAction::Ignored;
+            }
+        }
+        let event = if open && pointer.clicks >= 2 { tool.draft.close() } else { tool.draft.press(sample(pointer, cx), probe.has_selection()) };
+        apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
+        ToolAction::Claimed
     }
 
     /// Freehand points, or the selection drag.
     fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:208-240 (Move).
-        todo!()
+        let (tool, probe) = (&mut *self.tool, self.probe);
+        if let Some(inside) = tool.inside.as_mut() {
+            if let Some(event) = inside.drag(pointer.doc, pointer.modifiers, cx.view.zoom) {
+                tool.events.push(event);
+            }
+            return;
+        }
+        let event = tool.draft.drag(sample(pointer, cx));
+        apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
     }
 
     /// The release closes a freehand outline (`Commit`) unless straight segments are on; ends a
     /// selection drag.
     fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:237-239.
-        todo!()
+        let (tool, probe) = (&mut *self.tool, self.probe);
+        if let Some(inside) = tool.inside.take() {
+            tool.events.push(inside.end(pointer.doc, pointer.modifiers, cx.view.zoom));
+            return;
+        }
+        let event = tool.draft.release(sample(pointer, cx));
+        apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
     }
 
     /// Between clicks the rubber band follows the pointer (`OutlineDraft::hover`); never adds a
     /// vertex.
     fn hover(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:245-246 (hover moves only move the rubber band).
-        todo!()
+        if self.tool.draft.hover(sample(pointer, cx)).is_some() {
+            cx.request_repaint();
+        }
     }
 
     /// Esc during a drag, a lost pointer or `ToolHost::cancel`: drops the outline (no event); a
     /// selection drag reports `Cancel`.
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:272-276 (window focus lost drops it).
-        todo!()
+        let tool = &mut *self.tool;
+        if let Some(inside) = tool.inside.take() {
+            tool.events.push(inside.cancel());
+        }
+        tool.draft.cancel();
     }
 
     /// Between clicks: Enter closes, Esc cancels, Backspace and Delete (no modifier) retract.
-    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:60-75 `undo_last_vertex`.
-        todo!()
+        let (tool, probe) = (&mut *self.tool, self.probe);
+        if !key.pressed || !tool.draft.takes_retract() {
+            return false;
+        }
+        match key.key {
+            Key::Enter if key.modifiers.is_none() => {
+                let event = tool.draft.close();
+                apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
+            }
+            Key::Escape => {
+                tool.draft.cancel();
+            }
+            Key::Backspace | Key::Delete if key.modifiers.is_none() => {
+                tool.draft.retract();
+            }
+            _ => return false,
+        }
+        true
     }
 
     /// The outline (`Marquee::polyline`, `MarqueeLook::Drawing`) and its rubber band.
     fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
         // pc: crates/ui-egui/src/canvas/tool_feedback.rs:178-182 (the solid path's 3 pt light at
         // 0.55 under 1 pt dark, `MarqueeLook::Drawing`).
-        todo!()
+        paint_outline(&self.tool.draft, painter, cx);
     }
 
     /// The outline being drawn as one AccessKit object: named `SelectLabels::outline`, valued
@@ -155,6 +316,6 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
     /// outline is open.
     fn node(&self, cx: &ToolContext<'_>) -> Option<ToolNode> {
         // new: SE deviation 3 (no `Ui` on the host); `ToolNode::new(..).value(..).bounds(..)`.
-        todo!()
+        outline_node(&self.tool.draft, cx)
     }
 }
