@@ -39,7 +39,8 @@ pub enum Match {
 pub enum ConditionKind {
     Text,
     Number,
-    /// `// needs: step5 craft_ui::controls::date` (the date picker).
+    /// A date, edited with the kernel's [`DatePicker`](craft_ui::controls::DatePicker) (its value
+    /// a [`PickedDate`](craft_ui::controls::PickedDate)).
     Date,
     Bool,
     /// One of the field's choices (an album, a label).
@@ -55,8 +56,8 @@ pub enum ConditionValue {
     Number(f64),
     /// Two numbers for "is between".
     Range(f64, f64),
-    /// A date as `YYYY-MM-DD`.
-    Date(String),
+    /// A date (a day, or a month or year for a partial date), the date picker's value.
+    Date(craft_ui::controls::PickedDate),
     /// "in the last N units".
     Last {
         n: u32,
