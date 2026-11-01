@@ -18,10 +18,8 @@ pub struct Vectorscope {
 }
 
 impl Default for Vectorscope {
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     fn default() -> Self {
-        // pc: crates/algo/src/vectorscope.rs:12-16 (zeroed `HUES * SATURATIONS`).
-        todo!()
+        Self { counts: vec![0; HUES * SATURATIONS], samples: 0 }
     }
 }
 
@@ -40,39 +38,58 @@ impl Vectorscope {
     /// skipped; RGB is clamped to 0..=1; the hue cell is `floor(h × HUES)` (at most `HUES − 1`),
     /// the saturation cell `round(s × (SATURATIONS − 1))`; counts saturate. PhotoCraft samples at
     /// most 8192 proxy pixels; the caller picks them.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn from_rgba(pixels: &[[f32; 4]]) -> Self {
-        // pc: crates/algo/src/vectorscope.rs:19 `from_rgba`.
-        todo!()
+        let mut out = Self::default();
+        for pixel in pixels {
+            if pixel[3] <= 0.0 || !pixel.iter().all(|v| v.is_finite()) {
+                continue;
+            }
+            let rgb = [pixel[0].clamp(0.0, 1.0), pixel[1].clamp(0.0, 1.0), pixel[2].clamp(0.0, 1.0)];
+            let (hue, saturation) = hue_saturation(rgb);
+            let hue_cell = ((hue * HUES as f32) as usize).min(HUES - 1);
+            let saturation_cell = ((saturation * (SATURATIONS - 1) as f32).round() as usize).min(SATURATIONS - 1);
+            if let Some(count) = out.counts.get_mut(hue_cell * SATURATIONS + saturation_cell) {
+                *count = count.saturating_add(1);
+            }
+            out.samples = out.samples.saturating_add(1);
+        }
+        out
     }
 
     /// Adds `other`'s counts and samples (saturating), for a scope counted in tiles or jobs.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn merge(&mut self, other: &Vectorscope) {
-        // new: cell-wise saturating add.
-        todo!()
+        for (count, added) in self.counts.iter_mut().zip(&other.counts) {
+            *count = count.saturating_add(*added);
+        }
+        self.samples = self.samples.saturating_add(other.samples);
     }
 
     /// The largest count, at least 1: the cloud's alpha is `0.2 + 0.8 × sqrt(count / peak)`.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn peak(&self) -> u32 {
-        // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:465 (`max().unwrap_or(1).max(1)`).
-        todo!()
+        self.counts.iter().copied().max().unwrap_or(1).max(1)
     }
 
     /// The hue (turns, 0..1) and saturation (0..=1) a cell index stands for: `(index /
     /// SATURATIONS) / HUES` and `(index % SATURATIONS) / (SATURATIONS − 1)`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn cell(index: usize) -> (f32, f32) {
-        // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:467-468.
-        todo!()
+        ((index / SATURATIONS) as f32 / HUES as f32, (index % SATURATIONS) as f32 / (SATURATIONS - 1) as f32)
     }
 
     /// The summary for AccessKit; `None` when nothing was counted.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn summary(&self) -> Option<VectorscopeSummary> {
-        // new: spec AccessKit "Vectorscope" (Peak saturation, mean hue).
-        todo!()
+        let mut peak_saturation: Option<f32> = None;
+        let (mut sin, mut cos) = (0.0f64, 0.0f64);
+        for (index, count) in self.counts.iter().enumerate().filter(|(_, count)| **count > 0) {
+            let (hue, saturation) = Self::cell(index);
+            peak_saturation = Some(peak_saturation.map_or(saturation, |peak| peak.max(saturation)));
+            let weight = f64::from(*count) * f64::from(saturation);
+            let angle = f64::from(hue) * std::f64::consts::TAU;
+            sin += weight * angle.sin();
+            cos += weight * angle.cos();
+        }
+        let peak_saturation = peak_saturation?;
+        let mean_hue = if sin == 0.0 && cos == 0.0 { 0.0 } else { sin.atan2(cos).to_degrees().rem_euclid(360.0) as f32 };
+        Some(VectorscopeSummary { peak_saturation, mean_hue })
     }
 }
 
