@@ -629,3 +629,49 @@ fn highlight_draws_the_hover_look_on_the_hit_only() {
     assert_eq!(lines(&h, style.selected_segment, style.color), 1, "the ring");
     assert!(!square_widths(&h).contains(&enlarged), "no enlarged anchor for a segment");
 }
+
+// Task PE-A3 from here.
+
+// `hit_test` answers what a press takes, without a pass: handles, then anchors, then segments, in
+// a rotated and flipped view, as the overlay's own press does.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn hit_test_matches_the_overlays_press_priority() {
+    todo!()
+}
+
+// `HitMark` on a segment draws the haloed segment and a hollow anchor at the point at t (gap row
+// 37); on an anchor the enlarged anchor; the `highlight` builder draws the same.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn hit_mark_draws_a_preview_anchor_at_t_on_a_segment() {
+    todo!()
+}
+
+// A selected segment draws its two handles and no thick line by default (gap row 36);
+// `SegmentMark::Line` draws the line too.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn selected_segment_draws_handles_only_by_default() {
+    todo!()
+}
+
+// `AnchorsShown::Hidden` draws outlines only: no anchor, no handle, no AccessKit part (gap row 38).
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn anchors_hidden_draws_outlines_only() {
+    todo!()
+}
+
+// Path Options: a colour replaces `overlay.line` for paths without their own colour and a
+// thickness replaces `bezier.line`; the pen draft's line takes them too (task PE-C2's half).
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn path_options_colour_and_thickness_change_the_pen_and_path_look() {
+    todo!()
+}

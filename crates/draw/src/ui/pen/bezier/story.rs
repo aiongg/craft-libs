@@ -167,6 +167,8 @@ pub(crate) fn apply(paths: &mut [EditPath], edit: &PathEdit) {
                 Some(out) => Knot::smooth(k.anchor, out),
             };
         }
+        // Task ST-PE2 replaces this function with `PathEdit::apply`, which covers these.
+        PathEdit::MoveCurvature { .. } | PathEdit::InsertCurvature { .. } | PathEdit::ToggleCurvature { .. } => {}
     }
 }
 

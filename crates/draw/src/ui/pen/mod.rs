@@ -1,14 +1,24 @@
-//! [`PenDraft`]: the path being drawn with the Pen, as PhotoCraft's Pen tool draws it.
+//! [`PenDraft`]: the path being drawn with the Pen and the Curvature Pen, as PhotoCraft's tools
+//! draw it; [`PathMode`]: which path overlay a tool and the held keys run; the pen's Path Options
+//! ([`PathOptionsSettings`], [`PathOptionsPopover`]).
 
+mod auto;
 pub(crate) mod bezier;
+mod curvature_mode;
+#[cfg(test)]
+mod curvature_tests;
+mod mode;
+#[cfg(test)]
+mod mode_tests;
+mod options;
 pub(crate) mod story;
 
 use egui::{AsIdSalt, Color32, Context, Id, IdSalt, Key, Modifiers, Response, Shape, Stroke, Ui, vec2};
 use kurbo::Point;
 
 pub use bezier::{
-    BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,
-    MAX_ANCHORS, PathEdit, PathSelection,
+    AnchorsShown, BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown,
+    HitMark, Knot, KnotRef, MAX_ANCHORS, PathEdit, PathSelection, SegmentMark,
 };
 use bezier::{adjusted, constrain, outline};
 use craft_ui::behavior::nudge;
@@ -20,6 +30,8 @@ use craft_ui::localized::words::format_in;
 use craft_ui::localized::{Labels, Word, Words};
 use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+pub use mode::{PathMode, PathTool, PenMode};
+pub use options::{PATH_OPTIONS_COLOR_KEY, PathOptionsLabels, PathOptionsPopover, PathOptionsPopoverResponse, PathOptionsSettings};
 
 /// The AccessKit names of the path being drawn. [`PenNames::english`] is English, and a host passes
 /// its own translated text or [`PenNames::of`] for the words installed in the context.
@@ -116,6 +128,11 @@ pub struct PenResponse {
     pub resumed: Option<(u64, KnotRef)>,
     /// The overlay owns the current press: the host's tool leaves it alone.
     pub claimed: bool,
+    /// A press at the pointer would close the path (over the first anchor of a draft that can
+    /// close: 2 or more anchors with the Pen, 3 or more in Curvature mode): the host shows its
+    /// close-path cursor (PhotoCraft `pen.rs:27-34`).
+    // Task PE-C2 sets it; false until then.
+    pub closes: bool,
 }
 
 /// What a press drags.
@@ -191,7 +208,23 @@ struct Drag {
 ///   since a draft ended with no change after such a step has no event to report.
 ///   [`GestureHost`](craft_ui::edit::GestureHost) judges an interruption from
 ///   [`ending`](craft_ui::edit::ending).
-/// - Order: the host shows the pen after its handles and guides, as it is a tool.
+/// - Order: the host shows the pen after its handles and guides, as it is a tool, and after the
+///   [`BezierOverlay`] whose tool [`PathMode::resolve`] picked (it claims only presses on parts).
+/// - [`PenMode::Curvature`] ([`mode`](Self::mode)): a click adds a smooth anchor the curve flows
+///   through, which follows the pointer while the button is down (past `bezier.click_slop`); a
+///   press on the first anchor of 3 or more closes at once; a press on another anchor grabs and
+///   drags it; the second click of a double-click on an anchor toggles it between smooth and
+///   corner. Every change reflows the handles ([`EditSubpath::reflow`]). ⇧ and ⌥ do nothing; the
+///   keys and the edit gesture are the Pen's; there is no resume. Hover: with two or more
+///   anchors a dashed preview of the curve the next click makes, with one a dashed line; always
+///   drawn, whatever the rubber band setting.
+/// - [`sensing`](Self::sensing) false: drawn, keys kept, no press taken (⌘ held).
+///   [`auto_add_delete`](Self::auto_add_delete) (Pen mode): a press on a segment of the draft
+///   inserts an anchor, on an anchor that is not the first or the last deletes it, each an
+///   Update; off while ⇧, ⌥ or ⌘ is held and while a handle is pulled. The hover shows the
+///   [`HitMark`] of what a press would do. [`path_options`](Self::path_options): the colour and
+///   thickness of the draft line and whether the Pen's rubber band shows (off by default, as
+///   Photoshop).
 pub struct PenDraft<'a> {
     id_salt: IdSalt,
     draft: Option<&'a EditSubpath>,
@@ -200,12 +233,57 @@ pub struct PenDraft<'a> {
     units: Option<(&'a RulerUnits, &'a RulerUnits)>,
     zero: Point,
     look: Option<PenStyle>,
+    mode: PenMode,
+    sensing: bool,
+    auto_add_delete: bool,
+    path_options: Option<&'a PathOptionsSettings>,
 }
 
 impl<'a> PenDraft<'a> {
     /// The host's open `draft`, named `names` in the AccessKit tree.
     pub fn new(id_salt: impl AsIdSalt, draft: Option<&'a EditSubpath>, names: PenNames<'a>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), draft, names, ends: &[], units: None, zero: Point::ZERO, look: None }
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            draft,
+            names,
+            ends: &[],
+            units: None,
+            zero: Point::ZERO,
+            look: None,
+            mode: PenMode::default(),
+            sensing: true,
+            auto_add_delete: false,
+            path_options: None,
+        }
+    }
+
+    /// The Pen or the Curvature Pen; [`PenMode::Pen`] by default.
+    pub fn mode(mut self, mode: PenMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Whether the draft takes presses; true by default. False draws the draft and keeps its keys
+    /// (Enter, Esc, Backspace, Delete, the host's undo) while another overlay takes the pointer:
+    /// [`PathMode::draft_senses`] (⌘ making the pointer Direct Selection, gap row 39).
+    pub fn sensing(mut self, sensing: bool) -> Self {
+        self.sensing = sensing;
+        self
+    }
+
+    /// The Pen's Auto Add/Delete on the open draft (PhotoCraft's `pen_auto_add_delete`, on by
+    /// default there; the host passes its option). False by default. No effect in Curvature mode.
+    pub fn auto_add_delete(mut self, on: bool) -> Self {
+        self.auto_add_delete = on;
+        self
+    }
+
+    /// The user's Path Options: the draft line's colour and thickness, and the Pen's rubber band.
+    /// Without them: the tokens' look and no rubber band.
+    // Task PE-C2 applies them; until then the rubber band always shows, as before.
+    pub fn path_options(mut self, options: &'a PathOptionsSettings) -> Self {
+        self.path_options = Some(options);
+        self
     }
 
     /// The end points of the open paths a press continues: the path's key, the end's knot and its
@@ -267,6 +345,9 @@ impl<'a> PenDraft<'a> {
 
     /// Draws the draft over `view` and senses through the host's `canvas` response.
     pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> PenResponse {
+        if self.mode == PenMode::Curvature {
+            return self.show_curvature(ui, canvas, view);
+        }
         let ctx = ui.ctx().clone();
         let id = ui.make_persistent_id(self.id_salt);
         let style = self.look.unwrap_or_else(|| PenDraft::style(&Tokens::of(ui)));
@@ -277,7 +358,7 @@ impl<'a> PenDraft<'a> {
         if !gesture.is_active() && !host.knots.is_empty() {
             gesture.begin();
         }
-        let mut out = PenResponse { id, event: None, finished: false, resumed: None, claimed: false };
+        let mut out = PenResponse { id, event: None, finished: false, resumed: None, claimed: false, closes: false };
 
         let mut drag: Option<Drag> = ctx
             .data(|d| d.get_temp(drag_key(id)))

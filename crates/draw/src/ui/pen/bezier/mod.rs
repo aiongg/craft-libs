@@ -1,12 +1,22 @@
 //! [`BezierOverlay`]: paths with their anchors and direction handles on a canvas, edited as
-//! PhotoCraft's Direct Selection and Convert Point tools edit them.
+//! PhotoCraft's Direct Selection, Convert Point, Add and Delete Anchor Point and Curvature Pen
+//! tools edit them.
 
+mod hit_test;
+mod mark;
 mod model;
+mod ops;
+#[cfg(test)]
+mod ops_tests;
 pub(crate) mod story;
+mod tools;
+#[cfg(test)]
+mod tools_tests;
 
 use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, vec2};
 use kurbo::{Affine, BezPath, CubicBez, ParamCurve as _, ParamCurveNearest as _, PathEl, Point, Rect, Vec2};
 
+pub use mark::{AnchorsShown, HitMark, SegmentMark};
 pub use model::{EditPath, EditSubpath, HandleSide, Knot, KnotRef, PathEdit, PathSelection};
 
 use craft_ui::behavior::nudge;
@@ -18,6 +28,8 @@ use craft_ui::localized::words::format_in;
 use craft_ui::localized::{Labels, Word, Words};
 use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+
+use super::PathOptionsSettings;
 
 /// `style` with `change` applied: handle styles are `#[non_exhaustive]`, so a struct update is not
 /// available outside craft-ui.
@@ -41,6 +53,23 @@ pub enum BezierTool {
     Convert,
     /// Anchors drawn, not edited (PhotoCraft's Path Selection and Pen tools).
     Show,
+    /// Add Anchor Point: a click on a segment reports [`insert`](BezierResponse::insert) at the
+    /// hit's `t`; ⌥ makes it Delete Anchor Point. Hover: the segment mark with the anchor a click
+    /// adds ([`HitMark`]).
+    AddAnchor,
+    /// Delete Anchor Point: a click on an anchor reports [`delete`](BezierResponse::delete) of
+    /// that anchor; ⌥ makes it Add Anchor Point. Hover: the anchor mark.
+    DeleteAnchor,
+    /// The Pen's Auto Add/Delete while no path is being drawn: Add on a segment, Delete on an
+    /// anchor that is not an open subpath's end (the pen draft takes those), no ⌥ swap, no
+    /// marquee. Presses on empty canvas are left to the pen draft.
+    AutoAddDelete,
+    /// The Curvature Pen on finished paths: an anchor drags with the curve reflowing
+    /// ([`PathEdit::MoveCurvature`]); a segment gets a smooth anchor that drags the same way
+    /// ([`PathEdit::InsertCurvature`]); a double-click on an anchor toggles smooth and corner
+    /// ([`PathEdit::ToggleCurvature`]). Empty canvas is left to the pen draft. Arrows move the
+    /// selected anchors, Enter toggles the picked one.
+    Curvature,
 }
 
 /// Whose direction handles the overlay shows.
@@ -332,6 +361,12 @@ struct Pass<'p> {
 ///   [`delete`](BezierResponse::delete), Insert [`insert`](BezierResponse::insert) halfway along
 ///   the segment leaving the picked anchor; Esc deselects.
 /// - Selection is the host's: it passes it and applies [`select`](BezierResponse::select).
+/// - The anchor tools ([`BezierTool::AddAnchor`], [`BezierTool::DeleteAnchor`],
+///   [`BezierTool::AutoAddDelete`]) and [`BezierTool::Curvature`] claim only a press that hits
+///   what they edit, and draw the [`HitMark`] of what a press would take under the pointer.
+///   [`segment_mark`](Self::segment_mark), [`anchors`](Self::anchors) and
+///   [`path_options`](Self::path_options) change the look; [`hit_test`](Self::hit_test) answers
+///   the press priority without a pass.
 pub struct BezierOverlay<'a> {
     id_salt: IdSalt,
     paths: &'a [EditPath],
@@ -348,6 +383,9 @@ pub struct BezierOverlay<'a> {
     policy: EditPolicy,
     modifiers: Option<Modifiers>,
     highlight: Option<BezierHit>,
+    segment_mark: SegmentMark,
+    anchors: AnchorsShown,
+    path_options: Option<&'a PathOptionsSettings>,
 }
 
 impl<'a> BezierOverlay<'a> {
@@ -378,6 +416,9 @@ impl<'a> BezierOverlay<'a> {
             policy: EditPolicy::default(),
             modifiers: None,
             highlight: None,
+            segment_mark: SegmentMark::default(),
+            anchors: AnchorsShown::default(),
+            path_options: None,
         }
     }
 
@@ -442,6 +483,30 @@ impl<'a> BezierOverlay<'a> {
 
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
+        self
+    }
+
+    /// How a clicked segment shows; [`SegmentMark::HandlesOnly`] by default (gap row 36).
+    // Task PE-A3 makes `paint` read it; until then the selected segment draws as `Line`.
+    pub fn segment_mark(mut self, mark: SegmentMark) -> Self {
+        self.segment_mark = mark;
+        self
+    }
+
+    /// Whether anchors and handles show; [`AnchorsShown::All`] by default (gap row 38).
+    // Task PE-A3 makes `paint`, `parts` and the hit test read it.
+    pub fn anchors(mut self, anchors: AnchorsShown) -> Self {
+        self.anchors = anchors;
+        self
+    }
+
+    /// The user's Path Options: a [`color`](PathOptionsSettings::color) replaces `overlay.line`
+    /// for paths without a colour of their own, a [`thickness`](PathOptionsSettings::thickness)
+    /// replaces `bezier.line` (and `bezier.selected_segment` grows by the same amount). The
+    /// rubber band setting is the pen draft's. None by default: the tokens' look.
+    // Task PE-A3 applies it in `show` before `paint`.
+    pub fn path_options(mut self, options: &'a PathOptionsSettings) -> Self {
+        self.path_options = Some(options);
         self
     }
 
@@ -789,6 +854,10 @@ impl<'a> BezierOverlay<'a> {
             BezierTool::Direct => true,
             BezierTool::Convert => !matches!(hit, BezierHit::Segment { .. }),
             BezierTool::Show => false,
+            // Tasks PE-B1 and PE-C1 thread the pass's modifiers through `takes`.
+            BezierTool::AddAnchor | BezierTool::DeleteAnchor | BezierTool::AutoAddDelete | BezierTool::Curvature => {
+                self.tool_takes(hit, self.modifiers.unwrap_or_default())
+            }
         }
     }
 

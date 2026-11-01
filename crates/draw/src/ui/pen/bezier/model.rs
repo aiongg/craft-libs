@@ -161,7 +161,8 @@ pub enum HandleSide {
 }
 
 /// An edit of a path, the value of the overlays' edit events. A drag reports the whole move from
-/// its press: the host applies each one to the path it had at the press.
+/// its press: the host applies each one to the path it had at the press, with its own path code
+/// or with [`PathEdit::apply`] on an [`EditPath`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum PathEdit {
     /// Move anchors with their handles by `by`, in document units.
@@ -175,6 +176,17 @@ pub enum PathEdit {
     /// Convert Point: `None` makes a corner with retracted handles; `Some(out)` a smooth point
     /// whose out handle is at `out` and whose in handle mirrors it.
     Convert { path: u64, knot: KnotRef, out: Option<Point> },
+    /// The Curvature tool's drag of anchors: move them with their handles by `by` (the whole move
+    /// from the press), then reflow every subpath they are on ([`EditSubpath::reflow`]).
+    MoveCurvature { path: u64, anchors: Vec<KnotRef>, by: Vec2 },
+    /// The Curvature tool's press on a segment: insert a smooth anchor into the segment leaving
+    /// `segment` at `t` ([`EditSubpath::insert_at`], `t` in
+    /// [`CURVATURE_T_RANGE`](crate::geometry::curvature::CURVATURE_T_RANGE)), move it by `by`
+    /// (zero for a click), and reflow the subpath. Insert and drag are one undo step.
+    InsertCurvature { path: u64, segment: KnotRef, t: f64, by: Vec2 },
+    /// The Curvature tool's double-click or Enter on an anchor: a smooth knot becomes a corner
+    /// with retracted handles and a corner becomes smooth, then the subpath reflows.
+    ToggleCurvature { path: u64, knot: KnotRef },
 }
 
 impl PathEdit {
@@ -184,7 +196,10 @@ impl PathEdit {
             PathEdit::MoveAnchors { path, .. }
             | PathEdit::MoveHandle { path, .. }
             | PathEdit::BendSegment { path, .. }
-            | PathEdit::Convert { path, .. } => path,
+            | PathEdit::Convert { path, .. }
+            | PathEdit::MoveCurvature { path, .. }
+            | PathEdit::InsertCurvature { path, .. }
+            | PathEdit::ToggleCurvature { path, .. } => path,
         }
     }
 }
