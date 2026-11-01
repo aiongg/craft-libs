@@ -39,13 +39,9 @@ fn star<'h>(harness: &'h Harness<'_, Host>, label: &'h str) -> egui_kittest::Nod
 }
 
 fn sets(host: &Host) -> Vec<u8> {
-    host.events
-        .iter()
-        .map(|e| match e {
-            EditEvent::Set { value, .. } => *value,
-            other => panic!("a rating reports only Set: {other:?}"),
-        })
-        .collect()
+    let sets: Vec<u8> = host.events.iter().filter_map(|e| if let EditEvent::Set { value, .. } = e { Some(*value) } else { None }).collect();
+    assert_eq!(sets.len(), host.events.len(), "a rating reports only Set");
+    sets
 }
 
 // Clicking star 3 of an unrated row gives 3; clicking star 3 again gives 0.

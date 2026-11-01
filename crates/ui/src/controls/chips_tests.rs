@@ -2,14 +2,19 @@
 
 use super::*;
 
+/// The lines as (first, end) pairs.
+fn lines(widths: &[f32], row_width: f32) -> Vec<(usize, usize)> {
+    chip_lines(widths, row_width, 6.0).into_iter().map(|line| (line.start, line.end)).collect()
+}
+
 // `chip_lines` starts a new line for a chip that does not fit and gives an over-wide chip a line of its own.
 #[test]
 fn chips_move_whole_to_the_next_line() {
-    assert_eq!(chip_lines(&[40.0, 40.0, 40.0], 100.0, 6.0), [0..2, 2..3], "40 + 6 + 40 fits, the third would need 138");
-    assert_eq!(chip_lines(&[40.0, 40.0], 86.0, 6.0), [0..2], "exactly the row's width fits");
-    assert_eq!(chip_lines(&[40.0, 200.0, 10.0], 100.0, 6.0), [0..1, 1..2, 2..3], "an over-wide chip has a line of its own");
-    assert_eq!(chip_lines(&[300.0], 100.0, 6.0), [0..1]);
-    assert!(chip_lines(&[], 100.0, 6.0).is_empty());
+    assert_eq!(lines(&[40.0, 40.0, 40.0], 100.0), [(0, 2), (2, 3)], "40 + 6 + 40 fits, the third would need 138");
+    assert_eq!(lines(&[40.0, 40.0], 86.0), [(0, 2)], "exactly the row's width fits");
+    assert_eq!(lines(&[40.0, 200.0, 10.0], 100.0), [(0, 1), (1, 2), (2, 3)], "an over-wide chip has a line of its own");
+    assert_eq!(lines(&[300.0], 100.0), [(0, 1)]);
+    assert!(lines(&[], 100.0).is_empty());
 }
 
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
