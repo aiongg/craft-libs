@@ -10,6 +10,8 @@
 //! | `canvas/before-after/modes` | The six modes over the two fakes, captions on and off, a right-to-left layout |
 //! | `canvas/before-after/divider` | A Split and a SplitStacked view with the fraction readout, the keys, `drag_anywhere` on and off, hold Backslash for the original |
 
+#![expect(dead_code, clippy::todo, reason = "skeleton: removed when the bodies land")]
+
 use crate::story::Story;
 
 /// The stories above.
