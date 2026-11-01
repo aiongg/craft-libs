@@ -166,7 +166,6 @@ where
         drop: None,
         user_order,
         pressed: false,
-        table_id,
     };
     let columns_ref = columns;
     let out = Table::new(salt, labels.list_view.as_str(), columns_ref, &mut state.settings.columns, rows.as_slice())
@@ -353,7 +352,7 @@ fn apply<K: Clone>(selection: &mut Selection<K>, change: SelectionChange<K>, eve
 }
 
 /// What an Enter or a double click on `key` opens, and how.
-fn open_event<K, M: BinModel<K> + ?Sized>(model: &M, key: K, modifiers: Modifiers) -> BinEvent<K> {
+pub(super) fn open_event<K, M: BinModel<K> + ?Sized>(model: &M, key: K, modifiers: Modifiers) -> BinEvent<K> {
     if model.is_bin(&key) {
         let how = if modifiers.command {
             OpenHow::NewWindow
@@ -368,7 +367,7 @@ fn open_event<K, M: BinModel<K> + ?Sized>(model: &M, key: K, modifiers: Modifier
     }
 }
 
-fn item_of<K, M: BinModel<K> + ?Sized>(model: &M, key: &K) -> BinItem {
+pub(super) fn item_of<K, M: BinModel<K> + ?Sized>(model: &M, key: &K) -> BinItem {
     let mut item = BinItem::default();
     model.item(key, &mut item);
     item
@@ -419,7 +418,11 @@ where
 }
 
 /// `entries` with bins before items, each kind in the model's order or sorted by `sort`.
-fn sort_entries<K: Clone, M: BinModel<K> + ?Sized>(model: &M, sort: Option<&TableSort<String>>, entries: &mut Vec<BinEntry<K>>) -> Vec<BinEntry<K>> {
+pub(super) fn sort_entries<K: Clone, M: BinModel<K> + ?Sized>(
+    model: &M,
+    sort: Option<&TableSort<String>>,
+    entries: &mut Vec<BinEntry<K>>,
+) -> Vec<BinEntry<K>> {
     let (mut bins, mut items): (Vec<_>, Vec<_>) = std::mem::take(entries).into_iter().partition(|entry| matches!(entry, BinEntry::Bin(_)));
     if let Some(sort) = sort {
         let text = |entry: &BinEntry<K>| {
@@ -455,7 +458,7 @@ fn collect_bins<K: Clone, M: BinModel<K> + ?Sized>(model: &M, parent: Option<&K>
 }
 
 /// Whether `bin` is one of `items` or inside one of them.
-fn inside_any<K: Clone + PartialEq, M: BinModel<K> + ?Sized>(model: &M, bin: &K, items: &[K]) -> bool {
+pub(super) fn inside_any<K: Clone + PartialEq, M: BinModel<K> + ?Sized>(model: &M, bin: &K, items: &[K]) -> bool {
     let mut at = Some(bin.clone());
     for _ in 0..=MAX_DEPTH {
         let Some(key) = at else { return false };
@@ -482,7 +485,6 @@ struct Cells<'a, K: TextureKey, M: ?Sized> {
     drop: Option<RowDrop<K>>,
     user_order: bool,
     pressed: bool,
-    table_id: Id,
 }
 
 impl<K, M> Cells<'_, K, M>

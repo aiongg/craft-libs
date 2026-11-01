@@ -1,5 +1,4 @@
 //! `MediaBin` behaviour through egui_kittest (tasks B11, B12).
-#![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 use craft_ui::behavior::Selection;
 use craft_ui::edit::{CancelReason, EditEvent};
@@ -8,11 +7,11 @@ use craft_ui::list::TableColumn;
 use craft_ui::testing::{HarnessExt as _, events};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
-use egui::{Key, Modifiers, PointerButton, Pos2, Ui, pos2};
+use egui::{Key, Modifiers, PointerButton, Pos2, Ui, Vec2, pos2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use super::{BinEntry, BinEvent, BinFooterAction, BinItem, BinModel, BinState, BinView, MediaBin, OpenHow};
+use super::{BinEntry, BinEvent, BinFooterAction, BinItem, BinModel, BinState, BinView, FreeformCard, MediaBin, OpenHow};
 
 /// Cmd on a Mac and Ctrl elsewhere, as a platform reports it: `ctrl` with the abstract `command`.
 const CMD: Modifiers = Modifiers { alt: false, ctrl: true, shift: false, mac_cmd: false, command: true };
@@ -75,6 +74,9 @@ struct Host {
     selection: Selection<u32>,
     columns: Vec<TableColumn<String>>,
     actions: Vec<BinFooterAction>,
+    hover_scrub: bool,
+    freeform: Vec<FreeformCard<u32>>,
+    snap: Option<f32>,
     events: Vec<BinEvent<u32>>,
 }
 
@@ -88,14 +90,24 @@ impl Host {
             selection: Selection::new(),
             columns: vec![TableColumn::new("name".to_owned(), "Name"), TableColumn::new("duration".to_owned(), "Duration")],
             actions: vec![BinFooterAction::new("newItem", Icon::Plus, "New Item").accepts_drops(true)],
+            hover_scrub: false,
+            freeform: Vec::new(),
+            snap: None,
             events: Vec::new(),
         }
     }
 }
 
 fn show(ui: &mut Ui, host: &mut Host) {
-    let Host { project, state, selection, columns, actions, events } = host;
-    let out = MediaBin::new("bin", state, &*project).selection(selection).columns(columns).footer_actions(actions).show(ui);
+    let Host { project, state, selection, columns, actions, hover_scrub, freeform, snap, events } = host;
+    let out = MediaBin::new("bin", state, &*project)
+        .selection(selection)
+        .columns(columns)
+        .footer_actions(actions)
+        .hover_scrub(*hover_scrub)
+        .freeform(freeform)
+        .snap(*snap)
+        .show(ui);
     for event in &out.events {
         state.apply(event);
     }
@@ -245,16 +257,115 @@ fn escape_during_the_zoom_drag_restores_the_size() {
     assert_eq!(harness.state().state.settings.icon_size, before);
 }
 
+/// The card of `name` in the Icon and Freeform views.
+fn card_rect(harness: &Harness<'_, Host>, name: &str) -> egui::Rect {
+    harness.get_by(|n| n.role() == Role::ListBoxOption && n.label().as_deref() == Some(name)).rect()
+}
+
+fn moved(harness: &Harness<'_, Host>) -> Vec<(Vec<u32>, Vec<Vec2>)> {
+    harness
+        .state()
+        .events
+        .iter()
+        .filter_map(|e| if let BinEvent::FreeformMoved { keys, to } = e { Some((keys.clone(), to.clone())) } else { None })
+        .collect()
+}
+
 // A Freeform drag moves the selection and the dragged card's stack; Esc puts them back; release commits once (B12).
 #[test]
-#[ignore = "skeleton"]
 fn freeform_drag_moves_the_stack_and_escape_puts_it_back() {
-    todo!()
+    let mut host = Host::new();
+    host.state.settings.view = BinView::Freeform;
+    let at = |key, x, y, stack| FreeformCard { key, pos: vec2(x, y), stack };
+    // Footage and Archive are one stack; Title is on its own.
+    host.freeform = vec![at(30, 20.0, 20.0, None), at(1, 240.0, 20.0, Some(5)), at(2, 240.0, 150.0, Some(5))];
+    let mut harness = harness(host);
+    harness.click_at(card_rect(&harness, "Title.psd").center());
+    harness.run_steps(2);
+    assert_eq!(harness.state().selection.items, [30]);
+
+    // Cmd-drag Footage by (60, 40): the selection (Title), Footage and its stack mate Archive move together.
+    let (from, rest) = (card_rect(&harness, "Footage").center(), card_rect(&harness, "Title.psd"));
+    harness.state_mut().events.clear();
+    harness.drag(from, from + vec2(60.0, 40.0), CMD);
+    harness.run_steps(4);
+    let commits = moved(&harness);
+    assert_eq!(commits.len(), 1, "one commit: {:?}", harness.state().events);
+    let (keys, to) = &commits[0];
+    assert_eq!(keys, &[1, 2, 30]);
+    let origin = [vec2(240.0, 20.0), vec2(240.0, 150.0), vec2(20.0, 20.0)];
+    for (to, origin) in to.iter().zip(origin) {
+        let by = *to - origin;
+        assert!((by - vec2(60.0, 40.0)).length() < 1.5, "moved by {by:?}");
+    }
+
+    // Esc halfway through a second drag: no commit, and the cards are where the host has them.
+    harness.state_mut().events.clear();
+    let mut frames = events::drag(from, from + vec2(60.0, 40.0), Modifiers::NONE);
+    let release = frames.pop().expect("a release frame");
+    frames.extend(events::key_press(Key::Escape, Modifiers::NONE));
+    frames.push(release);
+    play(&mut harness, frames);
+    harness.run_steps(4);
+    assert!(moved(&harness).is_empty(), "{:?}", harness.state().events);
+    assert_eq!(card_rect(&harness, "Title.psd"), rest, "put back");
 }
 
 // Icon view: hover scrub reports the fraction and draws the playhead; bins are cards before items (B12).
 #[test]
-#[ignore = "skeleton"]
 fn the_icon_view_shows_bins_first_and_scrubs_items() {
-    todo!()
+    let mut host = Host::new();
+    host.state.settings.view = BinView::Icon;
+    host.hover_scrub = true;
+    let mut harness = harness(host);
+    let (footage, archive, title) = (card_rect(&harness, "Footage"), card_rect(&harness, "Archive"), card_rect(&harness, "Title.psd"));
+    assert!(footage.left() < archive.left() && archive.left() < title.left(), "bins first: {footage:?} {archive:?} {title:?}");
+    assert_eq!(footage.top(), title.top(), "one row");
+    assert!(harness.query_by_label("Beach.mov").is_none(), "a bin's items show when it is opened");
+
+    // A quarter of the way across Title's picture.
+    let over = pos2(title.left() + title.width() * 0.25, title.top() + 10.0);
+    play(&mut harness, vec![vec![egui::Event::PointerMoved(over)]]);
+    harness.run_steps(2);
+    let scrubs: Vec<_> = harness
+        .state()
+        .events
+        .iter()
+        .filter_map(|e| if let BinEvent::Scrub { key, fraction } = e { Some((*key, *fraction)) } else { None })
+        .collect();
+    let (key, fraction) = *scrubs.last().expect("a scrub");
+    assert_eq!(key, 30);
+    assert!((fraction - 0.25).abs() < 0.02, "{fraction}");
+
+    // A bin has no picture to scrub; a double click opens it.
+    harness.state_mut().events.clear();
+    play(&mut harness, vec![vec![egui::Event::PointerMoved(footage.center())]]);
+    harness.run_steps(2);
+    assert!(harness.state().events.iter().all(|e| !matches!(e, BinEvent::Scrub { .. })));
+    play(&mut harness, events::click(footage.center(), PointerButton::Primary, 2, Modifiers::NONE));
+    harness.run_steps(2);
+    assert!(harness.state().events.contains(&BinEvent::OpenBin { key: 1, how: OpenHow::InPlace }));
+}
+
+// Icon view: a drag released over a bin card's middle drops into it, over the background into the shown bin (B12).
+#[test]
+fn icon_cards_drop_into_bins_and_the_background() {
+    let mut host = Host::new();
+    host.state.settings.view = BinView::Icon;
+    let mut harness = harness(host);
+    let (title, archive) = (card_rect(&harness, "Title.psd"), card_rect(&harness, "Archive"));
+    let picture = pos2(archive.center().x, archive.top() + archive.width() * 9.0 / 32.0);
+    harness.drag(title.center(), picture, Modifiers::NONE);
+    harness.run_steps(4);
+    let drops: Vec<_> = harness.state().events.iter().filter(|e| matches!(e, BinEvent::Drop { .. })).cloned().collect();
+    assert_eq!(drops, [BinEvent::Drop { items: vec![30], into: Some(2) }], "{:?}", harness.state().events);
+
+    // In User Order the space past the last card is a move to the end; in a sorted order it is a drop into the shown bin.
+    harness.state_mut().state.settings.icon_sort = Some(("name".to_owned(), false));
+    harness.run();
+    harness.state_mut().events.clear();
+    harness.drag(card_rect(&harness, "Archive").center(), pos2(300.0, 330.0), Modifiers::NONE);
+    harness.run_steps(4);
+    let drops: Vec<_> = harness.state().events.iter().filter(|e| matches!(e, BinEvent::Drop { .. })).cloned().collect();
+    assert_eq!(drops, [BinEvent::Drop { items: vec![2], into: None }], "{:?}", harness.state().events);
 }
