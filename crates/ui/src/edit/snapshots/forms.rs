@@ -1,8 +1,6 @@
 //! The New Snapshot and History Options dialogs as `CommandForm`s.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use crate::dialog::{CommandForm, DialogFields, Param};
+use crate::dialog::{CommandForm, DialogFields, Param, ParamKind};
 use crate::edit::history_panel::{HistoryOptionsLabels, SnapshotFormLabels};
 
 /// The New Snapshot form (Alt-click on the camera, or the panel menu's New Snapshot…): a Name
@@ -13,7 +11,11 @@ use crate::edit::history_panel::{HistoryOptionsLabels, SnapshotFormLabels};
 /// [`SnapshotOptions::from_fields`].
 pub fn new_snapshot_form(key: impl Into<String>, labels: &SnapshotFormLabels, suggested: &str, from: Vec<(String, String)>) -> CommandForm {
     // pc: crates/ui-egui/src/dialogs/snapshot_dialog.rs:44-67 (Name, From with three options)
-    todo!()
+    let mut params = vec![Param::new("name", &labels.name, ParamKind::Text { default: suggested.to_owned() })];
+    if !from.is_empty() {
+        params.push(Param::new("from", &labels.from, ParamKind::Choice { options: from, default: None }));
+    }
+    CommandForm::new(key, &labels.title, params)
 }
 
 /// What the New Snapshot form returned.
@@ -30,7 +32,7 @@ impl SnapshotOptions {
     /// Reads the form's `name` and `from` fields.
     pub fn from_fields(fields: &DialogFields) -> SnapshotOptions {
         // new: keys of `new_snapshot_form`.
-        todo!()
+        SnapshotOptions { name: fields.text("name").unwrap_or_default().trim().to_owned(), from: fields.text("from").map(str::to_owned) }
     }
 }
 
@@ -45,7 +47,7 @@ impl HistoryOptions {
     /// Reads the form's `nonLinear` field; a missing field is false.
     pub fn from_fields(fields: &DialogFields) -> HistoryOptions {
         // new: Lead call 23 (key `nonLinear`; PhotoCraft maps `allowNonLinearHistory`).
-        todo!()
+        HistoryOptions { non_linear: fields.bool("nonLinear").unwrap_or(false) }
     }
 }
 
@@ -54,5 +56,7 @@ impl HistoryOptions {
 /// Changes Undoable), whose keys the app reads from the same fields.
 pub fn history_options_form(key: impl Into<String>, labels: &HistoryOptionsLabels, options: &HistoryOptions, extra: Vec<Param>) -> CommandForm {
     // pc: crates/ui-egui/src/dialogs/history_options_ui.rs:34-35 (two check boxes)
-    todo!()
+    let mut params = vec![Param::new("nonLinear", &labels.non_linear, ParamKind::Bool { default: options.non_linear })];
+    params.extend(extra);
+    CommandForm::new(key, &labels.title, params)
 }
