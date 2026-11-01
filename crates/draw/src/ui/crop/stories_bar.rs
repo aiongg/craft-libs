@@ -3,8 +3,8 @@
 //!
 //! Every story fills an `OptionsBar` with `CropOptionsBar` (or shows one menu) over settings kept in
 //! the story's state, with a fake 2400 × 1500 px document at 300 ppi and two fake saved presets, and
-//! shows the bar's last event in a status line. Sizes are args with defaults; the strings that
-//! have a story word use it, the rest are plain.
+//! shows the bar's last event in a status line. Sizes are args with defaults; the strings are
+//! story words.
 //!
 //! | Story id | Shows |
 //! |---|---|
@@ -17,7 +17,7 @@
 use egui::{Ui, vec2};
 use kurbo::Size;
 
-use super::stories_tool::presets;
+use super::stories_tool::{CropStoryLabels, presets};
 use super::{
     CropBarEvent, CropBarLabels, CropBarOutput, CropDocKey, CropDocument, CropGuide, CropOptionsBar, CropOptionsMenu, CropOverlayMenu, CropSettings,
     GuideShow, ShieldColor,
@@ -101,18 +101,18 @@ struct BarState {
     last: Option<String>,
 }
 
-fn event_text(event: CropBarEvent, settings: &CropSettings, labels: &CropBarLabels) -> String {
+fn event_text(event: CropBarEvent, settings: &CropSettings, labels: &CropBarLabels, own: &CropStoryLabels) -> String {
     match event {
-        CropBarEvent::Ratio { editing } => format!("Ratio{}", if editing { " (editing)" } else { "" }),
-        CropBarEvent::Straighten => "Straighten".to_owned(),
-        CropBarEvent::Commit => "Commit".to_owned(),
-        CropBarEvent::Cancel => "Cancel".to_owned(),
+        CropBarEvent::Ratio { editing } => if editing { &own.ratio_editing } else { &own.ratio }.clone(),
+        CropBarEvent::Straighten => own.straighten.clone(),
+        CropBarEvent::Commit => own.commit.clone(),
+        CropBarEvent::Cancel => own.cancel.clone(),
         CropBarEvent::NewPreset => match settings.preset_name(labels) {
-            Some(name) => format!("New Crop Preset: {name}"),
-            None => "New Crop Preset".to_owned(),
+            Some(name) => craft_i18n::fmt(&own.new_preset_named, &[("name", &name)]),
+            None => own.new_preset.clone(),
         },
-        CropBarEvent::DeletePreset => "Delete Crop Preset".to_owned(),
-        CropBarEvent::PickShieldColor => "Crop Shield colour requested".to_owned(),
+        CropBarEvent::DeletePreset => own.delete_preset.clone(),
+        CropBarEvent::PickShieldColor => own.shield_requested.clone(),
     }
 }
 
@@ -120,15 +120,16 @@ fn event_text(event: CropBarEvent, settings: &CropSettings, labels: &CropBarLabe
 /// scrolls sideways when it does not fit.
 fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let words = StoryLabels::of(ui);
+    let own = CropStoryLabels::of(ui);
     let key = state_key(ui, "bar");
     let mut state: BarState = ui.data(|d| d.get_temp(key)).unwrap_or(BarState { settings: CropSettings::default(), armed: false, last: None });
     let labels = CropBarLabels::of(ui);
-    let (document, users) = (document(), presets());
-    for (name, width) in [("narrow", args.narrow), ("wide", args.wide)] {
+    let (document, users) = (document(), presets(&own));
+    for (name, label, width) in [("narrow", &own.narrow, args.narrow), ("wide", &own.wide, args.wide)] {
         let mut out = CropBarOutput::default();
         ui.allocate_ui(vec2(width, 0.0), |ui| {
             ui.set_max_width(width);
-            OptionsBar::new(("crop-bar-story", name)).label(name).show(ui, |bar| {
+            OptionsBar::new(("crop-bar-story", name)).label(label.as_str()).show(ui, |bar| {
                 let mut crop = CropOptionsBar::new(("crop", name), &mut state.settings).straighten(state.armed).output(&mut out);
                 if args.document {
                     crop = crop.document(&document);
@@ -143,7 +144,7 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
             if event == CropBarEvent::Straighten {
                 state.armed = !state.armed;
             }
-            state.last = Some(event_text(event, &state.settings, &labels));
+            state.last = Some(event_text(event, &state.settings, &labels, &own));
         }
     }
     let text = match &state.last {
@@ -227,10 +228,12 @@ fn show_overlay_menu(ui: &mut Ui, args: &mut OverlayArgs) {
         state.settings.guide_show = args.show.show();
     }
     let labels = CropBarLabels::of(ui);
+    let own = CropStoryLabels::of(ui);
     ui.horizontal(|ui| {
         CropOverlayMenu::new("crop-overlay-story", &mut state.settings).labels(&labels).show(ui);
         let settings = &state.settings;
-        status(ui, format!("{} · {} · orientation {}", settings.guide.name(), settings.guide_show.name(), settings.guide_orientation));
+        let orientation = craft_i18n::fmt(&own.orientation, &[("n", &settings.guide_orientation.to_string())]);
+        status(ui, format!("{} · {} · {orientation}", settings.guide.name(), settings.guide_show.name()));
     });
     ui.data_mut(|d| d.insert_temp(key, state));
 }
@@ -272,13 +275,14 @@ fn show_gear_menu(ui: &mut Ui, args: &mut GearArgs) {
     }
     let labels = CropBarLabels::of(ui);
     let words = StoryLabels::of(ui);
+    let own = CropStoryLabels::of(ui);
     let mut last = None;
     ui.horizontal(|ui| {
         let out = CropOptionsMenu::new("crop-gear-story", &mut state.settings.shield).labels(&labels).show(ui);
         if out.pick_color {
             state.settings.shield.custom_color = SAMPLE_COLOURS[state.requests % SAMPLE_COLOURS.len()];
             state.requests += 1;
-            last = Some("Crop Shield colour requested".to_owned());
+            last = Some(own.shield_requested.clone());
         }
         let [r, g, b] = state.settings.shield.custom_color;
         let colour = match state.settings.shield.color {
