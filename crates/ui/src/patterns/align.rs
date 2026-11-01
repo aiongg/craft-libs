@@ -10,7 +10,7 @@ use crate::icons::Icon;
 use crate::localized::Labels as _;
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::Divider;
-use crate::theme::{Tokens, TokensOf as _};
+use crate::theme::{Tokens, TokensOf as _, UiTokens};
 use craft_theme::ControlSize;
 
 crate::words! {
@@ -133,6 +133,18 @@ pub enum DistributeButtons {
     Row,
 }
 
+/// The bar's sizes, from [`AlignBar::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct AlignStyle {
+    /// A button's side: `align.button`.
+    pub button: f32,
+    /// A button's icon: `align.icon`.
+    pub icon: f32,
+    /// Between the buttons and the "more" menu button: `align.menu_gap`.
+    pub menu_gap: f32,
+}
+
 /// What the bar did this pass.
 #[derive(Debug)]
 pub struct AlignBarResponse {
@@ -186,6 +198,12 @@ impl<'a> AlignBar<'a> {
         self
     }
 
+    /// The bar's sizes.
+    pub fn style(tokens: &UiTokens) -> AlignStyle {
+        let align = &tokens.component.align;
+        AlignStyle { button: align.button, icon: align.icon, menu_gap: align.menu_gap }
+    }
+
     // pc: crates/ui-egui/src/tools/align_bar.rs:32 options
     pub fn show(self, ui: &mut Ui) -> AlignBarResponse {
         let labels = self.labels.unwrap_or_else(|| AlignLabels::of(ui));
@@ -193,7 +211,7 @@ impl<'a> AlignBar<'a> {
             let group = if action.is_align() { &labels.align } else { &labels.distribute };
             craft_i18n::fmt(&labels.tooltip, &[("group", group), ("action", action.label(&labels))])
         };
-        let sizes = Tokens::of(ui).component.align;
+        let sizes = Self::style(&Tokens::of(ui));
         let mut picked = None;
         let inner = ui.scope_builder(egui::UiBuilder::new().id_salt(ui.make_persistent_id(self.id_salt)), |ui| {
             direction::horizontal(ui, |ui| {

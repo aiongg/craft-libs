@@ -10,18 +10,18 @@ use egui::emath::GuiRounding as _;
 use egui::{AsIdSalt, Context, EventFilter, Id, IdSalt, Key, Modifiers, Shape, Ui, pos2, vec2};
 
 use super::option_list::{paint_chevron, text_galley};
-use super::select::Select;
+use super::select::{Select, SelectStyle};
 use super::text_field::{BoxState, field_box};
 use super::{ControlSize, SearchField, TooltipExt as _};
 use crate::behavior::{ListSelection, RowInfo, Selection, SelectionMode, Step, TreeMove, take_composing_keys, tree_key};
 use crate::direction;
 use crate::edit::{EditEvent, EditResponse};
 use crate::icons::Icon;
-use crate::list::{List, ListEvent, ListRow, ThumbSize};
+use crate::list::{List, ListEvent, ListRow, ListRowStyle, ThumbSize};
 use crate::localized::Labels as _;
 use crate::popover::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use crate::primitives::Interactive;
-use crate::theme::{Tokens, TokensOf as _};
+use crate::theme::{Tokens, TokensOf as _, UiTokens};
 
 crate::words! {
     /// The picker's words, English by default.
@@ -50,6 +50,20 @@ pub struct TreeEntry<K> {
     pub blocked: Option<String>,
     /// An icon before the name (LightCraft's album and smart album).
     pub icon: Option<Icon>,
+}
+
+/// The picker's sizes, from [`TreePicker::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct TreePickerStyle {
+    /// The closed box and the popup surface: a select's look at the size.
+    pub select: SelectStyle,
+    /// The popup's rows: the list row's look.
+    pub rows: ListRowStyle,
+    /// The list's tallest height before it scrolls: `tree_picker.list_height`.
+    pub list_height: f32,
+    /// The popup's narrowest width: `tree_picker.min_popup_width`.
+    pub min_popup_width: f32,
 }
 
 /// A drop-down tree, after LightCraft's album picker.
@@ -128,13 +142,25 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
         self
     }
 
+    /// The picker's sizes and colours at `size`.
+    pub fn style(tokens: &UiTokens, size: ControlSize) -> TreePickerStyle {
+        let picker = &tokens.component.tree_picker;
+        TreePickerStyle {
+            select: Select::style(tokens, size),
+            rows: ListRow::<usize>::style(tokens),
+            list_height: picker.list_height,
+            min_popup_width: picker.min_popup_width,
+        }
+    }
+
     // lightcraft: crates/ui-egui/src/widgets/album_picker.rs:201 show, :208 show_with_choices
     pub fn show(self, ui: &mut Ui) -> EditResponse<Option<K>> {
         let Self { id_salt, label, value, entries, placeholder, size, enabled, labels } = self;
         let labels = labels.unwrap_or_else(|| TreePickerLabels::of(ui));
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
-        let style = Select::style(&tokens, size);
+        let look = Self::style(&tokens, size);
+        let style = look.select;
         let id = ui.make_persistent_id(id_salt);
         let enabled = enabled && ui.is_enabled();
         let index = Index::of(&ctx, id, entries);
@@ -162,6 +188,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
 
         let mut picked = None;
         let popup_salt = (id, "popup");
+        let popup_min = look.min_popup_width;
         let popup_id = Popover::id_in(ui, popup_salt);
         let state_id = id.with("state");
         let shown = Popover::new(popup_salt, PopoverAnchor::Control(response.clone()))
@@ -170,7 +197,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
             .toggle(id)
             .label(label.as_str())
             .show(ui, &mut open, |ui, pop| {
-                ui.set_width(width.max(Tokens::of(ui).component.tree_picker.min_popup_width));
+                ui.set_width(width.max(popup_min));
                 let mut state = ctx.data(|d| d.get_temp::<Browsing>(state_id)).unwrap_or_else(|| Browsing::opening(&index, chosen));
                 let found =
                     state.pick(ui, &Pass { entries, index: &index, chosen, labels: &labels, size, enabled }, |field| pop.initial_focus(field));
@@ -263,7 +290,8 @@ impl Browsing {
         let search_id = Interactive::id_in(ui, search_salt);
         initial_focus(search_id);
         let rtl = direction::is_rtl(ui);
-        let row_style = ListRow::<usize>::style(&tokens);
+        let look = TreePicker::<K>::style(&tokens, size);
+        let row_style = look.rows;
 
         // The keys of the search field, which has the focus while the popup is used from the keyboard.
         let mut activate = false;
@@ -271,7 +299,7 @@ impl Browsing {
         if in_search {
             let (searching, rows) = self.rows(entries, index);
             let rules = ListSelection::new(SelectionMode::Single).allow_empty(false);
-            let page = (tokens.component.tree_picker.list_height / row_style.height(ThumbSize::None, searching)) as usize;
+            let page = (look.list_height / row_style.height(ThumbSize::None, searching)) as usize;
             let mut moved = None;
             ui.input_mut(|i| {
                 for (key, step) in
@@ -333,7 +361,7 @@ impl Browsing {
         if searching && rows.is_empty() {
             ui.label(labels.no_match.as_str());
         } else {
-            let height = (rows.len() as f32 * row_height).clamp(row_height, Tokens::of(ui).component.tree_picker.list_height);
+            let height = (rows.len() as f32 * row_height).clamp(row_height, look.list_height);
             let mut list = List::new(("craft-tree-picker-list", searching), labels.search.as_str(), rows.as_slice())
                 .selection(&mut self.selection)
                 .mode(SelectionMode::Single)
@@ -456,7 +484,7 @@ struct Field<'a> {
 }
 
 /// The closed field: a select's box with the chosen item's path, or the placeholder.
-fn paint_field(ui: &Ui, style: &super::select::SelectStyle, response: &egui::Response, field: &Field<'_>) {
+fn paint_field(ui: &Ui, style: &SelectStyle, response: &egui::Response, field: &Field<'_>) {
     let f = &style.field;
     let rect = response.rect;
     if !ui.is_rect_visible(rect) {

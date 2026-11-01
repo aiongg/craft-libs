@@ -1,7 +1,7 @@
 //! [`FindingsList`]: the problems a check found (preflight, export warnings), each one a row that
 //! takes the user to what it is about.
 
-use egui::{Context, Sense, Ui, vec2};
+use egui::{Color32, Context, Sense, Ui, vec2};
 
 use super::{List, ListEvent, ListRow};
 use crate::behavior::{RowInfo, SelectionMode};
@@ -11,7 +11,7 @@ use crate::localized::{SharedLabels as _, Words};
 use crate::primitives::Text;
 use craft_theme::TypeRole;
 
-use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 
 crate::words! {
     /// The list's words, English by default.
@@ -59,6 +59,20 @@ pub struct FindingsListResponse {
     pub activated: Option<usize>,
 }
 
+/// The summary line's sizes and colours, from [`FindingsList::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct FindingsStyle {
+    /// The status dot's radius: `findings.status_dot`.
+    pub status_dot: f32,
+    /// The status dot with no errors: `color.status.good.fg`.
+    pub good: Color32,
+    /// The status dot with errors: `color.status.bad.fg`.
+    pub bad: Color32,
+    /// The summary's line height: the body role's.
+    pub line_height: f32,
+}
+
 /// A summary line over a list of findings, after InDesign's Preflight panel and DesignCraft's
 /// port of it.
 ///
@@ -87,19 +101,30 @@ impl<'a> FindingsList<'a> {
         self
     }
 
+    /// The summary line's sizes and colours.
+    pub fn style(tokens: &UiTokens) -> FindingsStyle {
+        FindingsStyle {
+            status_dot: tokens.component.findings.status_dot,
+            good: tokens.color.status.good.fg.to_egui(),
+            bad: tokens.color.status.bad.fg.to_egui(),
+            line_height: tokens.typography.get(TypeRole::Body).line_height,
+        }
+    }
+
     pub fn show(self, ui: &mut Ui) -> FindingsListResponse {
         let Self { id_salt, findings, summary } = self;
         let labels = FindingsLabels::shared(ui);
         let tokens = Tokens::of(ui);
+        let look = Self::style(&tokens);
         if summary {
             let errors = findings.iter().filter(|f| f.level == FindingLevel::Error).count();
-            let color = if errors == 0 { tokens.color.status.good.fg } else { tokens.color.status.bad.fg };
+            let color = if errors == 0 { look.good } else { look.bad };
             let mut row = crate::direction::row(ui);
             row.cross_align = egui::Align::Center;
             ui.allocate_ui_with_layout(vec2(ui.available_width(), tokens.typography.get(TypeRole::Body).line_height), row, |ui| {
-                let radius = tokens.component.findings.status_dot;
+                let radius = look.status_dot;
                 let (dot, _) = ui.allocate_exact_size(vec2(radius * 2.0 + 1.0, radius * 2.0 + 1.0), Sense::hover());
-                ui.painter().circle_filled(dot.center(), radius, color.to_egui());
+                ui.painter().circle_filled(dot.center(), radius, color);
                 ui.add(Text::new(findings_summary(ui.ctx(), findings, &labels)).role(TypeRole::Body));
             });
         }

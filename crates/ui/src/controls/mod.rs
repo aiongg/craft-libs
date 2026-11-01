@@ -163,22 +163,22 @@ mod ui_tests;
 
 use egui::{IdSalt, Ui};
 
-pub use alt_text::{AltText, AltTextField, AltTextLabels, starts_decorative};
+pub use alt_text::{AltText, AltTextField, AltTextLabels, AltTextStyle, starts_decorative};
 pub use angle_dial::{AngleDial, AngleDialStyle, AngleOrientation};
 pub use autocomplete::{
-    Autocomplete, AutocompleteKeys, AutocompleteLabels, AutocompleteResponse, Suggestion, completion_rest, paint_inline_completion,
+    Autocomplete, AutocompleteKeys, AutocompleteLabels, AutocompleteResponse, AutocompleteStyle, Suggestion, completion_rest, paint_inline_completion,
 };
 pub use badge::{Badge, BadgeLook, BadgeStyle, BadgeTone};
-pub use breadcrumb::{BreadcrumbBar, BreadcrumbBarResponse, BreadcrumbLabels, Crumb, path_crumbs};
+pub use breadcrumb::{BreadcrumbBar, BreadcrumbBarResponse, BreadcrumbLabels, BreadcrumbStyle, Crumb, path_crumbs};
 pub use button::{Button, ButtonStyle, ButtonTone};
 pub use check::IndicatorColors;
 pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle};
-pub use chips::{Chip, ChipField, ChipFieldResponse, ChipLabels, chip_lines};
+pub use chips::{Chip, ChipField, ChipFieldResponse, ChipLabels, ChipStyle, chip_lines};
 pub use combo_box::ComboBox;
 pub use craft_theme::{ButtonVariant, ControlSize};
-pub use date::{DateLabels, DatePicker, DatePrecision, PickedDate, month_grid};
+pub use date::{DateLabels, DatePicker, DatePickerStyle, DatePrecision, PickedDate, month_grid};
 pub use icon_button::{IconButton, IconButtonStyle, IconSource};
-pub use icon_picker::{IconPicker, IconPickerGroup, IconPickerItem, IconPickerLabels, IconPickerOutput, icon_matches};
+pub use icon_picker::{IconPicker, IconPickerGroup, IconPickerItem, IconPickerLabels, IconPickerOutput, IconPickerStyle, icon_matches};
 pub use kbd::{Kbd, KbdStyle};
 pub use link::{Link, LinkStyle};
 pub use linked::{LinkButton, LinkMode, LinkedFields, LinkedLabels, LinkedLayout, LinkedSlot, follow_equal, follow_ratio};
@@ -190,20 +190,20 @@ pub use preview_select::{LineStyle, LineWeights, SelectText, paint_line_style};
 pub use progress::{Progress, ProgressStyle};
 pub use radio::{PreparedRadioSet, RadioGroup, RadioSet, RadioStyle};
 pub use range_slider::RangeSlider;
-pub use rating::{MAX_STARS, Rating, RatingLabels, paint_rating};
-pub use reset_dot::{ResetDot, ResetDotLabels};
+pub use rating::{MAX_STARS, Rating, RatingLabels, RatingStyle, paint_rating};
+pub use reset_dot::{ResetDot, ResetDotLabels, ResetDotStyle};
 pub use segmented::{Segmented, SegmentedStyle};
 pub use select::{ListboxStyle, Select, SelectStyle};
 pub use slider::{Slider, SliderScale, SliderStyle, SliderThumb};
 pub use spinner::Spinner;
-pub use split_button::{SplitButton, SplitButtonResponse};
+pub use split_button::{SplitButton, SplitButtonResponse, SplitButtonStyle};
 pub use swatch::{Swatch, SwatchStyle, checkerboard};
 pub use switch::{Switch, SwitchStyle};
 pub use text_field::{SearchField, TextField, TextFieldStyle};
 pub use thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowLabels, ThumbRowOutput, ThumbRowStyle};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
 pub use tooltip::{Tooltip, TooltipExt, TooltipStyle};
-pub use tree_picker::{TreeEntry, TreePicker, TreePickerLabels, tree_path, tree_search};
+pub use tree_picker::{TreeEntry, TreePicker, TreePickerLabels, TreePickerStyle, tree_path, tree_search};
 
 use crate::icons::IconSize;
 

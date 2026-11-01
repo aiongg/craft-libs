@@ -10,11 +10,16 @@ use egui::{
 };
 
 use super::option_list::{Hover, OptionRow, OptionRows, option_id, text_galley};
-use super::{ControlSize, Select};
+use craft_theme::{ControlSize, TypeRole};
+use egui::Color32;
+
+use super::{ListboxStyle, Select};
 use crate::behavior::Listbox;
 use crate::direction;
 use crate::localized::Labels as _;
 use crate::popup_list::edge_width;
+use crate::primitives::SurfaceStyle;
+use crate::theme::UiTokens;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, apply_popup_style};
 
 crate::words! {
@@ -200,15 +205,13 @@ impl<'a> Autocomplete<'a> {
         });
         let labels = self.labels.unwrap_or_else(|| AutocompleteLabels::of(ui));
         let tokens = Tokens::of(ui);
-        let style = Select::style(&tokens, ControlSize::Md);
-        let autocomplete = &tokens.component.autocomplete;
-        let mut rows_style = style.list;
-        rows_style.label = craft_theme::TypeRole::Mono;
+        let style = Autocomplete::style(&tokens);
+        let rows_style = style.list;
         let texts: Vec<String> =
             self.suggestions.iter().map(|s| s.mark.as_ref().map_or_else(|| s.text.clone(), |mark| format!("{mark}  {}", s.text))).collect();
         let widest =
             texts.iter().map(|t| text_galley(ui, rows_style.label, t, egui::Color32::PLACEHOLDER, f32::INFINITY).size().x).fold(0.0, f32::max);
-        let width = autocomplete.min_width.max(2.0 * rows_style.pad_x + rows_style.icon + rows_style.gap + widest);
+        let width = style.min_width.max(2.0 * rows_style.pad_x + rows_style.icon + rows_style.gap + widest);
         let active = pass.listbox.active().filter(|&a| a < count).unwrap_or(0);
         if pass.listbox.active() != Some(active) {
             pass.listbox.reveal(Some(active), false);
@@ -216,9 +219,9 @@ impl<'a> Autocomplete<'a> {
         let bounds = self.bounds.unwrap_or_else(|| ctx.content_rect());
         let rtl = direction::is_rtl(ui);
         let (origin, pivot) = if rtl {
-            (pos2(anchor.right(), anchor.bottom() + autocomplete.gap), Align2::RIGHT_TOP)
+            (pos2(anchor.right(), anchor.bottom() + style.gap), Align2::RIGHT_TOP)
         } else {
-            (pos2(anchor.left(), anchor.bottom() + autocomplete.gap), Align2::LEFT_TOP)
+            (pos2(anchor.left(), anchor.bottom() + style.gap), Align2::LEFT_TOP)
         };
         let mut clicked = None;
         let shown = Area::new(id.with("popup"))
@@ -237,7 +240,7 @@ impl<'a> Autocomplete<'a> {
                     ui.spacing_mut().item_spacing.y = 0.0;
                     let rows = OptionRows::new(ui, &rows_style, ControlSize::Md, id, false, true, false).hover(Hover::Highlights);
                     let reveal = if ui.is_sizing_pass() { None } else { pass.listbox.take_reveal() };
-                    egui::ScrollArea::vertical().max_height(style.list.max_height).auto_shrink([true, true]).show(ui, |ui| {
+                    egui::ScrollArea::vertical().max_height(rows_style.max_height).auto_shrink([true, true]).show(ui, |ui| {
                         for (row, text) in texts.iter().enumerate() {
                             let outcome = rows.show(
                                 ui,
@@ -257,7 +260,7 @@ impl<'a> Autocomplete<'a> {
                         let (line, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), egui::Sense::hover());
                         ui.painter().rect_filled(line, 0.0, rows_style.separator);
                         ui.add_space(rows_style.separator_pad);
-                        let text = RichText::new(description).font(tokens.font(craft_theme::TypeRole::Caption)).color(rows_style.text);
+                        let text = RichText::new(description).font(tokens.font(style.description)).color(rows_style.text);
                         ui.add(Label::new(text).wrap());
                     }
                 });
@@ -276,6 +279,45 @@ impl<'a> Autocomplete<'a> {
         ctx.accesskit_node_builder(self.editor, |node| node.set_active_descendant(option_id(id, active).accesskit_id()));
         pass.store(ui, id);
         out
+    }
+}
+
+/// The suggestion list's sizes and colours, from [`Autocomplete::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct AutocompleteStyle {
+    /// The list's narrowest width: `autocomplete.min_width`.
+    pub min_width: f32,
+    /// Between the editor and the list: `style.gap`.
+    pub gap: f32,
+    /// The rows: a select list's, in the monospace role to match the editor.
+    pub list: ListboxStyle,
+    /// The list's surface: [`SurfaceKind::Popup`](crate::primitives::SurfaceKind::Popup).
+    pub popup: SurfaceStyle,
+    /// The active suggestion's description: its text role.
+    pub description: TypeRole,
+    /// The inline completion's box: `field.selection`.
+    pub completion_fill: Color32,
+    /// The inline completion's text: `field.selected_text`.
+    pub completion_text: Color32,
+}
+
+impl Autocomplete<'static> {
+    /// The list's sizes and colours.
+    pub fn style(tokens: &UiTokens) -> AutocompleteStyle {
+        let select = Select::style(tokens, ControlSize::Md);
+        let (autocomplete, field) = (&tokens.component.autocomplete, &tokens.component.field);
+        let mut list = select.list;
+        list.label = TypeRole::Mono;
+        AutocompleteStyle {
+            min_width: autocomplete.min_width,
+            gap: autocomplete.gap,
+            list,
+            popup: select.popup,
+            description: TypeRole::Caption,
+            completion_fill: field.selection.to_egui(),
+            completion_text: field.selected_text.to_egui(),
+        }
     }
 }
 
@@ -302,8 +344,8 @@ pub fn completion_rest<'s>(full: &'s str, typed: &str) -> Option<&'s str> {
 /// (GridCraft's column AutoComplete: accent fill, on-accent text).
 // gridcraft: crates/ui-egui/src/formula_bar.rs:861 (inline completion)
 pub fn paint_inline_completion(ui: &Ui, text_pos: Pos2, galley: &Galley, rest: &str) {
-    let field = &Tokens::of(ui).component.field;
-    let (fill, ink) = (field.selection.to_egui(), field.selected_text.to_egui());
+    let style = Autocomplete::style(&Tokens::of(ui));
+    let (fill, ink) = (style.completion_fill, style.completion_text);
     let font = galley.job.sections.first().map(|s| s.format.font_id.clone()).unwrap_or_default();
     let pos = text_pos + vec2(galley.rect.right(), 0.0);
     let painted = ui.painter().layout_no_wrap(rest.to_owned(), font, ink);

@@ -4,13 +4,14 @@ use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Key, Modifiers, Popup, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
 
+use super::button::ButtonStyle;
 use super::button::{Face, content_color};
 use super::{Button, ButtonVariant, ControlSize, TooltipExt as _, icon_size};
 use crate::direction;
 use crate::icons::{self, Icon};
 use crate::menu::{MenuEntry, MenuResponse, PressMenu};
 use crate::primitives::{Corner, Interactive, StateLayer, Surface, SurfaceEdge};
-use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 
 /// What the button reported this pass.
 #[derive(Debug)]
@@ -22,6 +23,22 @@ pub struct SplitButtonResponse<T> {
     pub arrow: Response,
     /// The menu, and the row chosen from it.
     pub menu: MenuResponse<T>,
+}
+
+/// The button's sizes and colours, from [`SplitButton::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct SplitButtonStyle {
+    /// The whole button's look: the [`Button`] of the same variant and size.
+    pub button: ButtonStyle,
+    /// The arrow part's width: `split_button.arrow_width`.
+    pub arrow_width: f32,
+    /// The divider's gap from the top and bottom edges: `split_button.divider_inset`.
+    pub divider_inset: f32,
+    /// The arrow in quiet variants: `color.text.muted`.
+    pub arrow: Color32,
+    /// The arrow in quiet variants when disabled: `color.text.disabled`.
+    pub arrow_disabled: Color32,
 }
 
 /// A button whose end opens a menu, after VectorCraft's Image Trace button and Paragraph panel
@@ -105,11 +122,23 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
         self
     }
 
+    /// The button's sizes and colours for `variant` at `size`.
+    pub fn style(tokens: &UiTokens, variant: ButtonVariant, size: ControlSize) -> SplitButtonStyle {
+        let split_button = &tokens.component.split_button;
+        SplitButtonStyle {
+            button: Button::style(tokens, variant, size),
+            arrow_width: split_button.arrow_width,
+            divider_inset: split_button.divider_inset,
+            arrow: tokens.color.text.muted.to_egui(),
+            arrow_disabled: tokens.color.text.disabled.to_egui(),
+        }
+    }
+
     // vectorcraft: crates/ui-egui/src/widgets/buttons.rs:65 split_button_named
     pub fn show(self, ui: &mut Ui) -> SplitButtonResponse<T> {
         let tokens = Tokens::of(ui);
-        let style = Button::style(&tokens, self.variant, self.size);
-        let split_button = &tokens.component.split_button;
+        let look = Self::style(&tokens, self.variant, self.size);
+        let (style, split_button) = (look.button, &look);
         let face = Face { label: &self.label, icon: self.icon, trailing: None, size: self.size, loading: false };
         let enabled = self.enabled && ui.is_enabled();
         let laid = face.layout(ui, &tokens, &style);
@@ -175,9 +204,9 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
             let color = match self.variant {
                 ButtonVariant::Secondary | ButtonVariant::Ghost => {
                     if enabled {
-                        tokens.color.text.muted.to_egui()
+                        look.arrow
                     } else {
-                        tokens.color.text.disabled.to_egui()
+                        look.arrow_disabled
                     }
                 }
                 _ => content_color(ui, &style.text, &arrow, true),

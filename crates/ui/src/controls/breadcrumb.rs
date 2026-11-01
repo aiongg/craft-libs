@@ -2,7 +2,7 @@
 
 use craft_theme::TypeRole;
 use egui::accesskit::{self, Role};
-use egui::{AsIdSalt, CursorIcon, IdSalt, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
+use egui::{AsIdSalt, Color32, CursorIcon, IdSalt, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
 
 use super::TooltipExt as _;
 use crate::direction;
@@ -11,7 +11,7 @@ use crate::localized::Labels as _;
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Corner, Interactive};
 use crate::text::{ElideAt, elided_galley};
-use crate::theme::{ToEgui, Tokens, TokensOf as _, role_format};
+use crate::theme::{ToEgui, Tokens, TokensOf as _, UiTokens, role_format};
 
 /// The most segments shown before the rest go behind the ellipsis.
 const MOST_SEGMENTS: usize = 4;
@@ -43,6 +43,45 @@ pub struct BreadcrumbBarResponse<K> {
     /// The segment clicked or activated: the app opens it. The last segment (where the user is)
     /// never reports.
     pub opened: Option<K>,
+}
+
+/// The bar's sizes and colours, from [`BreadcrumbBar::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct BreadcrumbStyle {
+    /// The strip's height: `breadcrumb.height`.
+    pub height: f32,
+    /// The narrowest a shown segment may get: `breadcrumb.min_segment`.
+    pub min_segment: f32,
+    /// Around each separator and the "…" button: `breadcrumb.gap`.
+    pub gap: f32,
+    /// A separator chevron's side: `breadcrumb.separator`.
+    pub separator: f32,
+    /// Separators and "…": `color.text.muted`.
+    pub muted: Color32,
+    /// The segments: `color.text.normal`.
+    pub text: Color32,
+    /// An ancestor segment's and the "…" button's text role.
+    pub ancestor: TypeRole,
+    /// The last segment's text role.
+    pub current: TypeRole,
+}
+
+impl BreadcrumbBar<'static, ()> {
+    /// The bar's sizes and colours.
+    pub fn style(tokens: &UiTokens) -> BreadcrumbStyle {
+        let bread = &tokens.component.breadcrumb;
+        BreadcrumbStyle {
+            height: bread.height,
+            min_segment: bread.min_segment,
+            gap: bread.gap,
+            separator: bread.separator,
+            muted: tokens.color.text.muted.to_egui(),
+            text: tokens.color.text.normal.to_egui(),
+            ancestor: TypeRole::Body,
+            current: TypeRole::BodyStrong,
+        }
+    }
 }
 
 /// A breadcrumb bar, after LightCraft's folder header.
@@ -92,8 +131,8 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
         let Self { id_salt, crumbs, labels } = self;
         let labels = labels.unwrap_or_else(|| BreadcrumbLabels::of(ui));
         let tokens = Tokens::of(ui);
-        let bread = &tokens.component.breadcrumb;
-        let (muted, normal) = (tokens.color.text.muted.to_egui(), tokens.color.text.normal.to_egui());
+        let bread = BreadcrumbBar::<()>::style(&tokens);
+        let (muted, normal) = (bread.muted, bread.text);
         let whole = crumbs.iter().map(|c| c.label.as_str()).collect::<Vec<_>>().join(" › ");
         let width = ui.available_width();
         let (_, strip) = ui.allocate_space(vec2(width, bread.height));
@@ -120,7 +159,7 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
         let mut at = 0.0;
 
         if hidden > 0 {
-            let galley = elided_galley(&bar, "…", format(TypeRole::Body, muted), f32::INFINITY, ElideAt::End).galley;
+            let galley = elided_galley(&bar, "…", format(bread.ancestor, muted), f32::INFINITY, ElideAt::End).galley;
             let length = galley.size().x + 2.0 * bread.gap;
             let rect = span(at, length);
             let sensed = Interactive::new("hidden", Role::Button, labels.hidden.as_str()).corner(Corner::Control).interact_at(&bar, rect);
@@ -153,7 +192,7 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
         for (i, (crumb, &length)) in shown.iter().zip(&widths).enumerate() {
             let last = i + 1 == shown.len();
             let rect = span(at, length);
-            let (role, color) = if last { (TypeRole::BodyStrong, normal) } else { (TypeRole::Body, normal) };
+            let (role, color) = if last { (bread.current, normal) } else { (bread.ancestor, normal) };
             let text = elided_galley(&bar, &crumb.label, format(role, color), length, ElideAt::Middle);
             let galley = text.galley;
             let id = Interactive::id_in(&bar, ("segment", hidden + i));

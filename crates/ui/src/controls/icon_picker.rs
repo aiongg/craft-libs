@@ -2,6 +2,7 @@
 
 use std::ops::Range;
 
+use craft_theme::TypeRole;
 use egui::accesskit::Role;
 use egui::{
     AsIdSalt, Color32, Event, EventFilter, Id, IdSalt, Key, Modifiers, Painter, Rect, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, pos2,
@@ -14,7 +15,7 @@ use crate::behavior::GridNav;
 use crate::direction;
 use crate::localized::Labels as _;
 use crate::primitives::Interactive;
-use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 
 crate::words! {
     /// The picker's words, English by default.
@@ -58,6 +59,45 @@ pub struct IconPickerOutput<K> {
 
 /// Paints one cell's item into the rect, in the colour given.
 type PaintCell<'a, K> = Box<dyn Fn(&Painter, Rect, &K, Color32) + 'a>;
+
+/// The picker's sizes and colours, from [`IconPicker::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct IconPickerStyle {
+    /// Side of a cell: `icon_picker.cell`.
+    pub cell: f32,
+    /// Between cells: `icon_picker.gap`.
+    pub gap: f32,
+    /// Between a cell's edge and its icon: `icon_picker.inset`.
+    pub inset: f32,
+    /// Most the grid takes before it scrolls: `icon_picker.max_height`.
+    pub max_height: f32,
+    /// The group names' text role.
+    pub group: TypeRole,
+    /// The group names' colour: `color.text.muted`.
+    pub group_text: Color32,
+    /// The icons' colour: `color.text.normal`.
+    pub icon: Color32,
+    /// The icons' colour in a disabled picker: `color.text.disabled`.
+    pub icon_disabled: Color32,
+}
+
+impl IconPicker<'static, ()> {
+    /// The grid's sizes and colours.
+    pub fn style(tokens: &UiTokens) -> IconPickerStyle {
+        let picker = &tokens.component.icon_picker;
+        IconPickerStyle {
+            cell: picker.cell,
+            gap: picker.gap,
+            inset: picker.inset,
+            max_height: picker.max_height,
+            group: TypeRole::Caption,
+            group_text: tokens.color.text.muted.to_egui(),
+            icon: tokens.color.text.normal.to_egui(),
+            icon_disabled: tokens.color.text.disabled.to_egui(),
+        }
+    }
+}
 
 /// A searchable icon grid, after DeckCraft's Insert › Icons popup, with PdfCraft's All Tools
 /// search by keywords.
@@ -133,7 +173,7 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
         let search_id = Interactive::id_in(ui, search_salt);
         let enabled = ui.is_enabled();
         let rtl = direction::is_rtl(ui);
-        let picker = &tokens.component.icon_picker;
+        let picker = IconPicker::style(&tokens);
         let (cell, gap, inset) = (picker.cell, picker.gap, picker.inset);
         let max_height = max_height.unwrap_or(picker.max_height);
         let columns = GridNav::columns(ui.available_width() - ui.spacing().scroll.allocated_width(), 0.0, gap, cell);
@@ -206,8 +246,7 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
                 let forward = direction::forward(ui);
                 let mut at = 0;
                 for group in &shown {
-                    let heading =
-                        RichText::new(group.name).font(tokens.font(craft_theme::TypeRole::Caption)).color(tokens.color.text.muted.to_egui());
+                    let heading = RichText::new(group.name).font(tokens.font(picker.group)).color(picker.group_text);
                     ui.label(heading);
                     for row in rows_of(group.items.len(), columns) {
                         let (_, strip) = ui.allocate_space(vec2(columns as f32 * (cell + gap) - gap, cell));
@@ -222,7 +261,7 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
                             }
                             let response = cell.interact_at(ui, rect).finish(ui);
                             if ui.is_rect_visible(rect) {
-                                let color = if enabled { tokens.color.text.normal } else { tokens.color.text.disabled }.to_egui();
+                                let color = if enabled { picker.icon } else { picker.icon_disabled };
                                 paint(&ui.painter().with_clip_rect(rect), rect.shrink(inset), &item.key, color);
                             }
                             if moved && at == stop {

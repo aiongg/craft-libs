@@ -343,6 +343,58 @@ struct Outcome {
     cleared: bool,
 }
 
+/// A chip field's sizes and colours at one size, from [`ChipField::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ChipStyle {
+    /// `chip.height` at the size.
+    pub height: f32,
+    /// Width of the × target: `chip.remove_width`, at most the height.
+    pub cross: f32,
+    /// Between a chip's edge and its label: `chip.pad_x`.
+    pub pad_x: f32,
+    /// Between chips and between lines: `chip.gap`.
+    pub gap: f32,
+    /// Reach of the × arms: `chip.cross_arm`.
+    pub cross_arm: f32,
+    /// Stroke width of the × arms: `chip.cross_stroke`.
+    pub cross_stroke: f32,
+    /// The chip's corners: the pill radius, at most half the height.
+    pub radius: CornerRadius,
+    /// The chip's edge: one point in `field.border.rest`.
+    pub edge: Stroke,
+    /// Labels: `color.text.normal`.
+    pub normal: Color32,
+    /// The "+N more" and counts text: `color.text.muted`.
+    pub muted: Color32,
+    /// Labels of a disabled field: `color.text.disabled`.
+    pub disabled: Color32,
+    /// The label text role.
+    pub label: TypeRole,
+}
+
+impl ChipField<'static> {
+    /// The chips' sizes and colours at `size`.
+    pub fn style(tokens: &UiTokens, size: ControlSize) -> ChipStyle {
+        let chip = &tokens.component.chip;
+        let height = chip.height.get(size);
+        ChipStyle {
+            height,
+            cross: chip.remove_width.min(height),
+            pad_x: chip.pad_x,
+            gap: chip.gap,
+            cross_arm: chip.cross_arm,
+            cross_stroke: chip.cross_stroke,
+            radius: corner_radius(tokens.shape.radius.pill.min(height / 2.0)),
+            edge: Stroke::new(1.0, tokens.component.field.border.rest.to_egui()),
+            normal: tokens.color.text.normal.to_egui(),
+            muted: tokens.color.text.muted.to_egui(),
+            disabled: tokens.color.text.disabled.to_egui(),
+            label: TypeRole::Label,
+        }
+    }
+}
+
 /// Sizes and colours of one pass.
 struct Look<'a> {
     tokens: &'a UiTokens,
@@ -364,32 +416,31 @@ struct Look<'a> {
     edge: Stroke,
     normal: Color32,
     muted: Color32,
+    disabled: Color32,
+    label: TypeRole,
 }
 
 impl<'a> Look<'a> {
     fn new(ui: &Ui, tokens: &'a UiTokens, labels: &'a ChipLabels, size: ControlSize, enabled: bool) -> Self {
-        let chip = &tokens.component.chip;
-        let height = match size {
-            ControlSize::Sm => chip.height.sm,
-            ControlSize::Md => chip.height.md,
-        };
-        let color = |c: craft_theme::Rgba| c.to_egui();
+        let style = ChipField::style(tokens, size);
         Self {
             tokens,
             labels,
-            height,
-            cross: chip.remove_width.min(height),
-            pad_x: chip.pad_x,
-            gap: chip.gap,
-            cross_arm: chip.cross_arm,
-            cross_stroke: chip.cross_stroke,
+            height: style.height,
+            cross: style.cross,
+            pad_x: style.pad_x,
+            gap: style.gap,
+            cross_arm: style.cross_arm,
+            cross_stroke: style.cross_stroke,
             width: ui.available_width(),
             enabled,
             rtl: direction::is_rtl(ui),
-            radius: corner_radius(tokens.shape.radius.pill.min(height / 2.0)),
-            edge: Stroke::new(1.0, color(tokens.component.field.border.rest)),
-            normal: color(tokens.color.text.normal),
-            muted: color(tokens.color.text.muted),
+            radius: style.radius,
+            edge: style.edge,
+            normal: style.normal,
+            muted: style.muted,
+            disabled: style.disabled,
+            label: style.label,
         }
     }
 
@@ -400,7 +451,7 @@ impl<'a> Look<'a> {
     }
 
     fn format(&self, color: Color32) -> egui::text::TextFormat {
-        role_format(self.tokens, TypeRole::Label, color)
+        role_format(self.tokens, self.label, color)
     }
 
     fn text_width(&self, ui: &Ui, text: &str) -> f32 {
@@ -413,7 +464,7 @@ impl<'a> Look<'a> {
 
     fn text_color(&self, muted: bool) -> Color32 {
         match () {
-            () if !self.enabled => self.tokens.color.text.disabled.to_egui(),
+            () if !self.enabled => self.disabled,
             () if muted => self.muted,
             () => self.normal,
         }

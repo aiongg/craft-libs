@@ -1,12 +1,12 @@
 //! [`AltTextField`]: an object's description for people who can't see it, with Mark as
 //! decorative.
 
-use egui::{AsIdSalt, IdSalt, Label, RichText, Ui};
+use egui::{AsIdSalt, Color32, IdSalt, Label, RichText, Ui};
 
 use super::{Checkbox, TextField};
 use crate::edit::{EditEvent, EditResponse};
 use crate::localized::Labels as _;
-use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 
 /// The box's height in lines (DeckCraft's `desired_rows(4)`).
 const BOX_ROWS: usize = 4;
@@ -23,6 +23,18 @@ crate::words! {
         /// The box's placeholder while the description is mixed across the selection.
         mixed: "altText.mixed" = "Several descriptions";
     }
+}
+
+/// The field's sizes, from [`AltTextField::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct AltTextStyle {
+    /// Between the prompt, the box and the checkbox: `alt_text.row_gap`.
+    pub row_gap: f32,
+    /// The box's width when the layout doesn't justify it: `alt_text.box_width`.
+    pub box_width: f32,
+    /// The prompt's colour: `color.text.normal`.
+    pub prompt: Color32,
 }
 
 /// An object's alt text: its description and whether it is decorative (read by no one).
@@ -87,27 +99,29 @@ impl<'a> AltTextField<'a> {
         self
     }
 
+    /// The field's sizes and colours.
+    pub fn style(tokens: &UiTokens) -> AltTextStyle {
+        let alt_text = &tokens.component.alt_text;
+        AltTextStyle { row_gap: alt_text.row_gap, box_width: alt_text.box_width, prompt: tokens.color.text.normal.to_egui() }
+    }
+
     // deckcraft: crates/ui-egui/src/dialogs/body.rs:596 dlg_alt_text
     pub fn show(self, ui: &mut Ui) -> EditResponse<AltText> {
         let Self { id_salt, value, mixed, enabled, labels } = self;
         let labels = labels.unwrap_or_else(|| AltTextLabels::of(ui));
         let tokens = Tokens::of(ui);
+        let style = Self::style(&tokens);
         let enabled = enabled && ui.is_enabled();
         ui.scope(|ui| {
-            ui.spacing_mut().item_spacing.y = ui.spacing().item_spacing.y.max(tokens.component.alt_text.row_gap);
-            ui.add(
-                Label::new(
-                    RichText::new(labels.prompt.as_str()).font(tokens.font(craft_theme::TypeRole::Body)).color(tokens.color.text.normal.to_egui()),
-                )
-                .wrap(),
-            );
+            ui.spacing_mut().item_spacing.y = ui.spacing().item_spacing.y.max(style.row_gap);
+            ui.add(Label::new(RichText::new(labels.prompt.as_str()).font(tokens.font(craft_theme::TypeRole::Body)).color(style.prompt)).wrap());
             let placeholder = if mixed { &labels.mixed } else { &labels.alt_text };
             let mut field = TextField::new((&id_salt, "text"), labels.alt_text.as_str(), &value.text)
                 .placeholder(placeholder.as_str())
                 .multiline(BOX_ROWS)
                 .enabled(enabled && !value.decorative);
             if !ui.layout().horizontal_justify() {
-                field = field.width(tokens.component.alt_text.box_width);
+                field = field.width(style.box_width);
             }
             let typed = field.show(ui);
             let mut event = typed.event.as_ref().map(|e| e.clone().map(|text| AltText { text, decorative: value.decorative }));

@@ -33,6 +33,26 @@ crate::words! {
 /// The most stars a rating has.
 pub const MAX_STARS: u8 = 5;
 
+/// The stars' sizes and colours at one size, from [`Rating::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RatingStyle {
+    /// One star's cell: `rating.cell` at the size.
+    pub cell: f32,
+    /// A star's side in the control: `rating.star_size` at the size.
+    pub star: f32,
+    /// A star's side on a badge ([`paint_rating`]): `rating.badge_star` at the size.
+    pub badge_star: f32,
+    /// Between the left edges of badge stars: `rating.badge_step` at the size.
+    pub badge_step: f32,
+    /// Lit stars: `rating.star`.
+    pub lit: Color32,
+    /// Unlit stars: `color.text.muted`.
+    pub unlit: Color32,
+    /// Both kinds of stars in a disabled rating: `color.text.disabled`.
+    pub disabled: Color32,
+}
+
 /// A row of five stars, after LightCraft's `Rating`.
 ///
 /// ```ignore
@@ -88,6 +108,20 @@ impl<'a> Rating<'a> {
         self
     }
 
+    /// The stars' sizes and colours at `size`.
+    pub fn style(tokens: &UiTokens, size: ControlSize) -> RatingStyle {
+        let rating = &tokens.component.rating;
+        RatingStyle {
+            cell: rating.cell.get(size),
+            star: rating.star_size.get(size),
+            badge_star: rating.badge_star.get(size),
+            badge_step: rating.badge_step.get(size),
+            lit: rating.star.to_egui(),
+            unlit: tokens.color.text.muted.to_egui(),
+            disabled: tokens.color.text.disabled.to_egui(),
+        }
+    }
+
     // lightcraft: crates/ui-egui/src/widgets/rating.rs:129 show
     pub fn show(self, ui: &mut Ui) -> EditResponse<u8> {
         let Self { id_salt, label, rating, size, enabled, labels } = self;
@@ -95,7 +129,8 @@ impl<'a> Rating<'a> {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         let enabled = enabled && ui.is_enabled();
-        let (cell, side) = (tokens.component.rating.cell.get(size), tokens.component.rating.star_size.get(size));
+        let style = Self::style(&tokens, size);
+        let (cell, side) = (style.cell, style.star);
         let (rtl, forward) = (direction::is_rtl(ui), direction::forward(ui));
         let current = (*rating).min(MAX_STARS);
         let words = Words::of_ctx(&ctx);
@@ -166,12 +201,7 @@ impl<'a> Rating<'a> {
         }
 
         let shown = hovered.map_or(value, |i| i as u8 + 1);
-        let (lit, unlit) = if enabled {
-            (tokens.component.rating.star.to_egui(), tokens.color.text.muted.to_egui())
-        } else {
-            let disabled = tokens.color.text.disabled.to_egui();
-            (disabled, disabled)
-        };
+        let (lit, unlit) = if enabled { (style.lit, style.unlit) } else { (style.disabled, style.disabled) };
         let mut responses = Vec::with_capacity(sensed.len());
         for (i, (star, rect)) in sensed.into_iter().zip(&rects).enumerate() {
             let response = star.checked(i as u8 + 1 == value).finish(&group);
@@ -218,7 +248,8 @@ fn paint_star(painter: &Painter, rect: Rect, icon: Icon, points: f32, color: Col
 // lightcraft: crates/ui-egui/src/widgets/rating.rs:67 paint_rating
 pub fn paint_rating(painter: &Painter, tokens: &UiTokens, pos: Pos2, rating: u8, size: ControlSize, color: Color32) -> f32 {
     let rating = rating.min(MAX_STARS);
-    let (side, step) = (tokens.component.rating.badge_star.get(size), tokens.component.rating.badge_step.get(size));
+    let style = Rating::style(tokens, size);
+    let (side, step) = (style.badge_star, style.badge_step);
     for i in 0..rating {
         let center = egui::pos2(pos.x + step * f32::from(i) + side / 2.0, pos.y);
         paint_star(painter, Rect::from_center_size(center, vec2(side, side)), Icon::StarFilled, side, color);

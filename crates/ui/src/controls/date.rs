@@ -2,6 +2,7 @@
 //! [`PickedDate`] it edits.
 
 use craft_i18n::{CalendarDate, DateFormat, DateLength, DateStyle, DateTime, NameLength, TimeZone, Weekday};
+use craft_theme::TypeRole;
 use egui::accesskit::Role;
 use egui::{Align2, AsIdSalt, Color32, CornerRadius, Id, IdSalt, Key, Modifiers, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
@@ -14,7 +15,7 @@ use crate::icons::Icon;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::popover::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use crate::primitives::Interactive;
-use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 
 /// The last year that can be picked (four digits).
 const LAST_YEAR: i32 = 9999;
@@ -182,6 +183,54 @@ pub fn month_grid(year: i32, month: u8, first_weekday: Weekday) -> Vec<Option<u8
         cells.push(None);
     }
     cells
+}
+
+/// The picker's popup sizes and colours, from [`DatePicker::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct DatePickerStyle {
+    /// The popup's width: `date.popup_width`.
+    pub popup_width: f32,
+    /// The Previous and Next buttons' side: `date.page_button`.
+    pub page_button: f32,
+    /// A cell's least width: `date.cell`.
+    pub cell: f32,
+    /// At each side of a cell's text, for the widest cell: `date.cell_pad`.
+    pub cell_pad: f32,
+    /// Between cells and rows: `date.gap`.
+    pub gap: f32,
+    /// A cell's look: the select list's row.
+    pub list: ListboxStyle,
+    /// The page title's text role.
+    pub title: TypeRole,
+    /// The page title's colour: `color.text.normal`.
+    pub title_text: Color32,
+    /// The weekday names' text role.
+    pub weekday: TypeRole,
+    /// The weekday names' colour: `color.text.muted`.
+    pub weekday_text: Color32,
+    /// The ring around the cell that holds today: `color.accent.solid`.
+    pub today_ring: Color32,
+}
+
+impl DatePicker<'static> {
+    /// The popup's sizes and colours at `size`.
+    pub fn style(tokens: &UiTokens, size: ControlSize) -> DatePickerStyle {
+        let date = &tokens.component.date;
+        DatePickerStyle {
+            popup_width: date.popup_width,
+            page_button: date.page_button,
+            cell: date.cell,
+            cell_pad: date.cell_pad,
+            gap: date.gap,
+            list: Select::style(tokens, size).list,
+            title: TypeRole::BodyStrong,
+            title_text: tokens.color.text.normal.to_egui(),
+            weekday: TypeRole::Caption,
+            weekday_text: tokens.color.text.muted.to_egui(),
+            today_ring: tokens.color.accent.solid.to_egui(),
+        }
+    }
 }
 
 /// A calendar button that edits an optional [`PickedDate`], after LightCraft's date picker.
@@ -545,10 +594,10 @@ impl Popup<'_> {
     fn show(&self, ui: &mut Ui, view: &mut View, initial_focus: impl Fn(Id)) -> Option<Option<PickedDate>> {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
-        let date = tokens.component.date;
+        let date = DatePicker::style(&tokens, self.size);
         let dates = crate::localized::dates(&ctx);
         let numbers = LocaleNumbers::of_ctx(&ctx);
-        let list = Select::style(&tokens, self.size).list;
+        let list = date.list;
         let rtl = direction::is_rtl(ui);
         let allowed = |date: &PickedDate| date.in_bounds(self.min.as_ref(), self.max.as_ref());
         ui.set_width(date.popup_width);
@@ -632,13 +681,7 @@ impl Popup<'_> {
         }
         let page = Page::of(view, &dates, &numbers);
         let title = page.title(view, &numbers, &dates);
-        ui.painter().text(
-            strip.center(),
-            Align2::CENTER_CENTER,
-            &title,
-            tokens.font(craft_theme::TypeRole::BodyStrong),
-            tokens.color.text.normal.to_egui(),
-        );
+        ui.painter().text(strip.center(), Align2::CENTER_CENTER, &title, tokens.font(date.title), date.title_text);
 
         // The page.
         let active_key = view.active;
@@ -673,11 +716,11 @@ impl Popup<'_> {
         if view.precision == DatePrecision::Day {
             let (_, row) = grid.allocate_space(vec2(width, list.height));
             let first = dates.first_weekday() as usize;
-            let muted = tokens.color.text.muted.to_egui();
+            let muted = date.weekday_text;
             for column in 0..7 {
                 let name = dates.weekday_name(Weekday::ALL[(first + column) % 7], NameLength::Narrow);
                 let rect = cell_rect(row.top(), column, list.height);
-                grid.painter().text(rect.center(), Align2::CENTER_CENTER, name, tokens.font(craft_theme::TypeRole::Caption), muted);
+                grid.painter().text(rect.center(), Align2::CENTER_CENTER, name, tokens.font(date.weekday), muted);
             }
             grid.add_space(date.gap);
         }
@@ -696,7 +739,7 @@ impl Popup<'_> {
                 }
                 let response = element.interact_at(&grid, rect).finish(&grid);
                 if grid.is_rect_visible(rect) {
-                    self.paint(&grid, &tokens, &list, rect, cell);
+                    self.paint(&grid, &date, rect, cell);
                 }
                 if moved && cell.key == active_key {
                     response.scroll_to_me(None);
@@ -729,7 +772,8 @@ impl Popup<'_> {
         picked
     }
 
-    fn paint(&self, ui: &Ui, tokens: &Tokens, list: &ListboxStyle, rect: Rect, cell: &Cell) {
+    fn paint(&self, ui: &Ui, style: &DatePickerStyle, rect: Rect, cell: &Cell) {
+        let list = &style.list;
         let permitted = cell.date.in_bounds(self.min.as_ref(), self.max.as_ref());
         let selected = self.current == Some(cell.date);
         let painter = ui.painter();
@@ -742,7 +786,7 @@ impl Popup<'_> {
             .today
             .is_some_and(|t| t.first_day().day_key() >= cell.date.first_day().day_key() && t.first_day().day_key() <= cell.date.last_day().day_key());
         if holds_today {
-            painter.rect_stroke(rect, radius, Stroke::new(1.0, tokens.color.accent.solid.to_egui()), StrokeKind::Inside);
+            painter.rect_stroke(rect, radius, Stroke::new(1.0, style.today_ring), StrokeKind::Inside);
         }
         let color = match () {
             () if !permitted => list.text_disabled,

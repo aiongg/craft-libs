@@ -78,9 +78,9 @@ pub(crate) fn stories() -> Vec<crate::story::Story> {
 }
 
 pub use drag::{GhostThumb, paint_ghost};
-pub use events::{EventLevel, EventLog, EventLogLabels, EventLogOutput, EventLogState, LogEvent};
-pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsListResponse, findings_summary};
-pub use metadata::{MetadataGroup, MetadataLabels, MetadataRow, MetadataTable, MetadataTableOutput, filter_metadata};
+pub use events::{EventLevel, EventLog, EventLogLabels, EventLogOutput, EventLogState, EventLogStyle, LogEvent};
+pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsListResponse, FindingsStyle, findings_summary};
+pub use metadata::{MetadataGroup, MetadataLabels, MetadataRow, MetadataStyle, MetadataTable, MetadataTableOutput, filter_metadata};
 pub use row::{
     DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget, TrailingItem, drop_line,
     paint_drop_mark,

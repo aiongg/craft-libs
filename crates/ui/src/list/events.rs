@@ -16,7 +16,7 @@ use crate::icons::IconSize;
 use crate::localized::words::counts;
 use crate::localized::{AgeStyle, LocaleNumbers, SharedLabels as _, Words, relative_age};
 use crate::primitives::{Content, Text};
-use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use craft_theme::{Tone, TypeRole};
 
 crate::words! {
@@ -109,6 +109,43 @@ pub struct EventLogOutput {
     pub clear_all: bool,
 }
 
+/// The log's sizes and colours, from [`EventLog::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct EventLogStyle {
+    /// The details box's height: `event_log.details_height`.
+    pub details_height: f32,
+    /// Above and below the details text: `event_log.details_pad_y`.
+    pub details_pad_y: f32,
+    /// At the sides of the details text: `field.pad_x`.
+    pub details_pad_x: f32,
+    /// The details box's fill: `field.fill.rest`.
+    pub details_fill: Color32,
+    /// The details box's corners: `field.radius`.
+    pub details_radius: CornerRadius,
+    /// The shortest the list gets while the details box takes room: `list.row_height_dense`.
+    pub min_list_height: f32,
+    /// The age's text role.
+    pub age: TypeRole,
+    /// The info level's glyph colour: the info notice's.
+    pub info: Color32,
+    /// The warning level's glyph colour: the warning notice's.
+    pub warning: Color32,
+    /// The error level's glyph colour: the error notice's.
+    pub error: Color32,
+}
+
+impl EventLogStyle {
+    /// The glyph colour of `level`.
+    pub fn level_color(&self, level: EventLevel) -> Color32 {
+        match level {
+            EventLevel::Info => self.info,
+            EventLevel::Warning => self.warning,
+            EventLevel::Error => self.error,
+        }
+    }
+}
+
 /// FilmCraft's Events panel as a component.
 ///
 /// ```ignore
@@ -159,12 +196,30 @@ impl<'a> EventLog<'a> {
         self
     }
 
+    /// The log's sizes and colours.
+    pub fn style(tokens: &UiTokens) -> EventLogStyle {
+        let (log, field) = (&tokens.component.event_log, &tokens.component.field);
+        let level = |level: EventLevel| Notice::style(tokens, level.tone()).fg;
+        EventLogStyle {
+            details_height: log.details_height,
+            details_pad_y: log.details_pad_y,
+            details_pad_x: field.pad_x,
+            details_fill: field.fill.rest.to_egui(),
+            details_radius: CornerRadius::from(field.radius),
+            min_list_height: tokens.component.list.row_height_dense,
+            age: TypeRole::Caption,
+            info: level(EventLevel::Info),
+            warning: level(EventLevel::Warning),
+            error: level(EventLevel::Error),
+        }
+    }
+
     // filmcraft: crates/ui-egui/src/panels/events.rs:52 events
     pub fn show(self, ui: &mut Ui) -> EventLogOutput {
         let Self { id_salt, events, state, now_ms, labels } = self;
         let labels = labels.map_or_else(|| EventLogLabels::shared(ui), Arc::new);
         let tokens = Tokens::of(ui);
-        let log = tokens.component.event_log;
+        let log = Self::style(&tokens);
         let ctx = ui.ctx().clone();
         let words = Words::of_ctx(&ctx);
         let scope = ui.scope_builder(UiBuilder::new().id_salt(id_salt), |ui| {
@@ -183,7 +238,7 @@ impl<'a> EventLog<'a> {
                 ] {
                     let n = events.iter().filter(|e| e.level == glyph_level).count() as u64;
                     let tone = glyph_level.tone();
-                    tone_icon(ui, tone, IconSize::Sm, 0.0, Notice::style(&tokens, tone).fg);
+                    tone_icon(ui, tone, IconSize::Sm, 0.0, log.level_color(glyph_level));
                     ui.add(Text::new(words.counted(&ctx, count, text, n)).content(Content::Muted));
                 }
                 ui.with_layout(crate::direction::trailing(ui), |ui| {
@@ -212,7 +267,7 @@ impl<'a> EventLog<'a> {
             let output = List::new("rows", labels.list.as_str(), rows.as_slice())
                 .mode(SelectionMode::Single)
                 .selection(&mut selection)
-                .max_height((ui.available_height() - details_height).max(tokens.component.list.row_height_dense))
+                .max_height((ui.available_height() - details_height).max(log.min_list_height))
                 .show(ui, |at, &id| {
                     let event = visible[at];
                     let age = relative_age(&ctx, now_ms.saturating_sub(event.time_ms) / 1000, AgeStyle::Long);
@@ -228,14 +283,14 @@ impl<'a> EventLog<'a> {
                     );
                     let age_width = ctx.fonts_mut(|f| f.layout_no_wrap(age.clone(), caption.clone(), Color32::PLACEHOLDER).size().x).ceil();
                     let tone = event.level.tone();
-                    let color = Notice::style(&tokens, tone).fg;
+                    let color = log.level_color(event.level);
                     let glyph_tokens = &tokens;
                     ListRow::new(id, message)
                         .accessible_name(name)
                         .glyph(move |painter, rect| paint_tone_icon(painter, rect, glyph_tokens, tone, IconSize::Md, color))
                         .striped(at % 2 == 1)
                         .trailing_item(age_width, move |ui| {
-                            ui.add(Text::new(age).role(TypeRole::Caption).content(Content::Faint));
+                            ui.add(Text::new(age).role(log.age).content(Content::Faint));
                         })
                 });
             let before = state.selected;
@@ -256,9 +311,8 @@ impl<'a> EventLog<'a> {
             }
             if let Some(event) = selected {
                 let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), log.details_height), Sense::hover());
-                let field = &tokens.component.field;
-                ui.painter().rect_filled(rect, CornerRadius::from(field.radius), field.fill.rest.to_egui());
-                let inner = rect.shrink2(vec2(field.pad_x, log.details_pad_y));
+                ui.painter().rect_filled(rect, log.details_radius, log.details_fill);
+                let inner = rect.shrink2(vec2(log.details_pad_x, log.details_pad_y));
                 let age = relative_age(&ctx, now_ms.saturating_sub(event.time_ms) / 1000, AgeStyle::Long);
                 let line = craft_i18n::fmt(
                     &labels.details,

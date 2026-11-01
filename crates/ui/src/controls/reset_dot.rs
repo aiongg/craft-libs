@@ -2,12 +2,12 @@
 //! resets it on a click.
 
 use egui::accesskit::Role;
-use egui::{AsIdSalt, IdSalt, Response, Sense, Ui, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Response, Sense, Ui, vec2};
 
 use super::TooltipExt as _;
 use crate::localized::Labels as _;
 use crate::primitives::Interactive;
-use crate::theme::{ToEgui, Tokens, TokensOf as _, corner_radius};
+use crate::theme::{ToEgui, Tokens, TokensOf as _, UiTokens, corner_radius};
 
 crate::words! {
     /// The dot's words, English by default (VectorCraft's).
@@ -18,6 +18,22 @@ crate::words! {
         /// Its tooltip: `{default}` the default value as the field shows it.
         reset_to: "resetDot.resetTo" = "Reset to default: {default}";
     }
+}
+
+/// The dot's sizes and colours, from [`ResetDot::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ResetDotStyle {
+    /// The target's side: `reset_dot.size`.
+    pub size: f32,
+    /// The dot's radius: `reset_dot.dot`.
+    pub dot: f32,
+    /// The target's corner radius: `reset_dot.radius`.
+    pub radius: CornerRadius,
+    /// The filled dot of a changed value: `color.accent.solid`.
+    pub changed: Color32,
+    /// The ring of an unchanged value, and the dot of a disabled field: `color.text.disabled`.
+    pub disabled: Color32,
 }
 
 /// A reset dot, after VectorCraft's 3D and Revolve dialogs.
@@ -58,12 +74,24 @@ impl ResetDot {
         self
     }
 
+    /// The dot's sizes and colours.
+    pub fn style(tokens: &UiTokens) -> ResetDotStyle {
+        let dot = &tokens.component.reset_dot;
+        ResetDotStyle {
+            size: dot.size,
+            dot: dot.dot,
+            radius: corner_radius(dot.radius),
+            changed: tokens.color.accent.solid.to_egui(),
+            disabled: tokens.color.text.disabled.to_egui(),
+        }
+    }
+
     // vectorcraft: crates/ui-egui/src/dialogs/revolve.rs:573 reset_dot, :564 dot
     pub fn show(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let labels = self.labels.unwrap_or_else(|| ResetDotLabels::of(ui));
-        let dot = &tokens.component.reset_dot;
-        let corner = corner_radius(dot.radius);
+        let dot = Self::style(&tokens);
+        let corner = dot.radius;
         let enabled = self.changed && ui.is_enabled();
         let response = Interactive::salted(self.id_salt, Role::Button, labels.reset.as_str())
             .sense(Sense::click())
@@ -72,9 +100,9 @@ impl ResetDot {
             .show(ui, vec2(dot.size, dot.size));
         if ui.is_rect_visible(response.rect) {
             let center = response.rect.center();
-            let disabled = tokens.color.text.disabled.to_egui();
+            let disabled = dot.disabled;
             if self.changed {
-                let fill = if ui.is_enabled() { tokens.color.accent.solid.to_egui() } else { disabled };
+                let fill = if ui.is_enabled() { dot.changed } else { disabled };
                 ui.painter().circle_filled(center, dot.dot, fill);
             } else {
                 ui.painter().circle_stroke(center, dot.dot, egui::Stroke::new(1.0, disabled));

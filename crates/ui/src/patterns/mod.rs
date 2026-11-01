@@ -56,7 +56,7 @@ pub(crate) mod tour;
 mod tour_tests;
 
 pub use crate::behavior::PaletteEntry;
-pub use align::{AlignAction, AlignBar, AlignBarResponse, AlignLabels, DistributeButtons};
+pub use align::{AlignAction, AlignBar, AlignBarResponse, AlignLabels, AlignStyle, DistributeButtons};
 pub use command_palette::{CommandPalette, CommandPaletteStyle, PaletteLabels};
 pub use inspector::{Inspector, InspectorHeader, InspectorStyle};
 pub use options_bar::{CommitCancel, OptionsBar, OptionsBarSlots, OptionsBarStyle};

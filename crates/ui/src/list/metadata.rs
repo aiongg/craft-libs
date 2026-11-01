@@ -12,7 +12,7 @@ use crate::controls::checkbox::paint_box;
 use crate::controls::{CheckState, Checkbox, SearchField};
 use crate::localized::SharedLabels as _;
 use crate::primitives::{Content, FocusRing, Interactive, Text};
-use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use craft_theme::{ControlSize, TypeRole};
 
 /// The most of the table the name column takes.
@@ -94,6 +94,32 @@ pub struct MetadataTableOutput {
     pub chosen_changed: bool,
 }
 
+/// The table's sizes and colours, from [`MetadataTable::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct MetadataStyle {
+    /// Between the name and value columns: `metadata.column_gap`.
+    pub column_gap: f32,
+    /// Between rows: `metadata.row_gap`.
+    pub row_gap: f32,
+    /// Above a group's name, after the first group: `metadata.group_gap`.
+    pub group_gap: f32,
+    /// The rows' tallest height before they scroll: `metadata.max_height`.
+    pub max_height: f32,
+    /// The fill of every other row: `list.stripe`.
+    pub stripe: Color32,
+    /// The names' text role, and the line height a row takes from it.
+    pub name: TypeRole,
+    /// The names' line height: the `name` role's.
+    pub name_line: f32,
+    /// The values' text role.
+    pub value: TypeRole,
+    /// The values' colour: `color.text.normal`.
+    pub value_text: Color32,
+    /// A group name's text role.
+    pub group: TypeRole,
+}
+
 /// A key and value table, after LightCraft's All Metadata dialog, with FilmCraft's Metadata
 /// Display column picker.
 ///
@@ -167,6 +193,23 @@ impl<'a> MetadataTable<'a> {
     }
 
     // lightcraft: crates/ui-egui/src/dialogs.rs:662 all_metadata_body
+    /// The table's sizes and colours.
+    pub fn style(tokens: &UiTokens) -> MetadataStyle {
+        let metadata = &tokens.component.metadata;
+        MetadataStyle {
+            column_gap: metadata.column_gap,
+            row_gap: metadata.row_gap,
+            group_gap: metadata.group_gap,
+            max_height: metadata.max_height,
+            stripe: crate::list::ListRow::<()>::style(tokens).stripe,
+            name: TypeRole::Label,
+            name_line: tokens.typography.get(TypeRole::Label).line_height,
+            value: TypeRole::Body,
+            value_text: tokens.color.text.normal.to_egui(),
+            group: TypeRole::BodyStrong,
+        }
+    }
+
     // filmcraft: crates/ui-egui/src/panels/project_dialogs.rs:124 metadata_display
     pub fn show(self, ui: &mut Ui) -> MetadataTableOutput {
         let Self { id_salt, groups, filter, chosen, max_height, labels } = self;
@@ -192,7 +235,7 @@ impl<'a> MetadataTable<'a> {
                 rows_id,
                 groups: &visible,
                 chosen,
-                max_height: max_height.unwrap_or(tokens.component.metadata.max_height),
+                max_height: max_height.unwrap_or(MetadataTable::style(&tokens).max_height),
                 labels: &labels,
                 tokens: &tokens,
             }
@@ -212,11 +255,6 @@ struct Body<'a> {
     tokens: &'a crate::theme::UiTokens,
 }
 
-/// The fill of every other row: `list.stripe`.
-fn stripe_fill(tokens: &crate::theme::UiTokens) -> Color32 {
-    crate::list::ListRow::<()>::style(tokens).stripe
-}
-
 fn toggle(chosen: &mut Vec<String>, key: &str) {
     match chosen.iter().position(|c| c == key) {
         Some(at) => {
@@ -230,6 +268,7 @@ impl Body<'_> {
     /// Draws the rows; true when a check changed `chosen`.
     fn show(self, ui: &mut Ui, any_fields: bool) -> bool {
         let Body { rows_id, groups, mut chosen, max_height, labels, tokens } = self;
+        let style = MetadataTable::style(tokens);
         let total: usize = groups.iter().map(|g| g.rows.len()).sum();
         if total == 0 {
             let text = if any_fields { &labels.no_match } else { &labels.none };
@@ -250,8 +289,7 @@ impl Body<'_> {
             let space = chosen.is_some() && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Space));
             let order: Vec<RowInfo<usize>> = (0..total).map(RowInfo::leaf).collect();
             let lead_only = Selection::only(lead);
-            let page = (ui.available_height().min(max_height)
-                / (tokens.typography.get(TypeRole::Label).line_height + tokens.component.metadata.row_gap)) as usize;
+            let page = (ui.available_height().min(max_height) / (style.name_line + style.row_gap)) as usize;
             let steps = [Key::ArrowDown, Key::ArrowUp, Key::PageDown, Key::PageUp, Key::Home, Key::End].into_iter().filter_map(|key| {
                 let pressed = ui.input_mut(|input| input.consume_key(Modifiers::NONE, key));
                 pressed.then(|| ListKey::from_key(key, Modifiers::NONE, false)).flatten()
@@ -274,8 +312,8 @@ impl Body<'_> {
         }
 
         let check_style = Checkbox::style(tokens, ControlSize::Md);
-        let name_font = role_format(tokens, TypeRole::Label, Color32::PLACEHOLDER);
-        let value_format = role_format(tokens, TypeRole::Body, tokens.color.text.normal.to_egui());
+        let name_font = role_format(tokens, style.name, Color32::PLACEHOLDER);
+        let value_format = role_format(tokens, style.value, style.value_text);
         let full_width = ui.available_width();
         let check_width = if chosen.is_some() { check_style.side + check_style.gap } else { 0.0 };
         let widest = names
@@ -283,9 +321,9 @@ impl Body<'_> {
             .map(|name| ui.fonts_mut(|f| f.layout_no_wrap((*name).to_owned(), name_font.font_id.clone(), Color32::PLACEHOLDER).size().x))
             .fold(0.0, f32::max);
         let name_width = widest.min(full_width * NAME_SHARE).ceil();
-        let value_width = (full_width - check_width - name_width - tokens.component.metadata.column_gap).max(0.0);
-        let stripe = stripe_fill(tokens);
-        let name_line = tokens.typography.get(TypeRole::Label).line_height;
+        let value_width = (full_width - check_width - name_width - style.column_gap).max(0.0);
+        let stripe = style.stripe;
+        let name_line = style.name_line;
         let rtl = crate::direction::is_rtl(ui);
 
         let builder = UiBuilder::new()
@@ -297,14 +335,14 @@ impl Body<'_> {
         let mut lead_node = None;
         let table = ui.scope_builder(builder, |ui| {
             egui::ScrollArea::vertical().id_salt("scroll").max_height(max_height).auto_shrink([false, true]).content_margin(0.0).show(ui, |ui| {
-                ui.spacing_mut().item_spacing.y = tokens.component.metadata.row_gap;
+                ui.spacing_mut().item_spacing.y = style.row_gap;
                 let mut flat = 0;
                 for (group_at, group) in groups.iter().enumerate() {
                     if !group.name.is_empty() {
                         if group_at > 0 {
-                            ui.add_space(tokens.component.metadata.group_gap);
+                            ui.add_space(style.group_gap);
                         }
-                        ui.add(Text::new(group.name.as_str()).role(TypeRole::BodyStrong));
+                        ui.add(Text::new(group.name.as_str()).role(style.group));
                     }
                     for (at, row) in group.rows.iter().enumerate() {
                         let mut job = LayoutJob::single_section(row.value.clone(), value_format.clone());
@@ -352,7 +390,7 @@ impl Body<'_> {
                                 });
                                 ui.scope_builder(
                                     UiBuilder::new()
-                                        .max_rect(slot(check_width + name_width + tokens.component.metadata.column_gap, value_width))
+                                        .max_rect(slot(check_width + name_width + style.column_gap, value_width))
                                         .accessibility_role(Role::Cell),
                                     |ui| {
                                         ui.add(Text::new(row.value.as_str()));
