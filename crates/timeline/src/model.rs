@@ -1,0 +1,123 @@
+//! [`TimelineModel`]: what the [`Timeline`](crate::ui::Timeline) panel reads from the app's
+//! sequence. The app implements it on its document view; the panel never owns document state and
+//! reports every change as an edit.
+
+use crate::markers::{Marker, MarkerColor};
+use crate::time::{Tick, TimeRange, TimeView};
+use crate::timecode::TimeFormat;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct TrackId(pub u64);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct ClipId(pub u64);
+
+/// What a track holds; the panel groups video tracks above the divider (stacked upward from it,
+/// as Premiere does) and audio below.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TrackKind {
+    #[default]
+    Video,
+    Audio,
+    /// Captions, above the video tracks.
+    Caption,
+    /// An app row with its own content: an After Effects layer, a property row, an automation
+    /// lane. Shown in the order the model gives.
+    Other,
+}
+
+/// One track row as the panel shows it. The `Option<bool>` switches show in the header only
+/// when `Some` (an EffectCraft layer has no sync lock).
+#[derive(Clone, Debug, PartialEq)]
+pub struct TrackInfo<'a> {
+    pub id: TrackId,
+    pub kind: TrackKind,
+    /// "V1", "A2", a layer name.
+    pub name: &'a str,
+    /// Points; the user resizes it at the row's bottom edge (8–600, FilmCraft's clamps).
+    pub height: f32,
+    /// Nesting under the track before it (EffectCraft property rows, SoundCraft folders).
+    pub depth: u8,
+    pub label: Option<MarkerColor>,
+    pub locked: Option<bool>,
+    pub targeted: Option<bool>,
+    pub sync_lock: Option<bool>,
+    /// Track output (the eye on video, the speaker on audio).
+    pub enabled: Option<bool>,
+    pub muted: Option<bool>,
+    pub solo: Option<bool>,
+}
+
+/// One clip on a track, within the visible time.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClipInfo<'a> {
+    pub id: ClipId,
+    pub track: TrackId,
+    pub range: TimeRange,
+    pub name: &'a str,
+    pub label: Option<MarkerColor>,
+    /// Disabled clips are drawn dimmed (Premiere's Enable off).
+    pub enabled: bool,
+    /// The whole media under the clip, on the timeline: a slip shows it as a ghost, and a trim
+    /// stops at it.
+    pub source: Option<TimeRange>,
+}
+
+/// The sequence the timeline panel shows.
+///
+/// ```ignore
+/// impl TimelineModel for SequenceView<'_> {
+///     fn duration(&self) -> Tick { self.seq.duration() }
+///     fn format(&self) -> TimeFormat { TimeFormat::timecode(self.seq.rate).drop_frame(self.seq.drop_frame) }
+///     fn playhead(&self) -> Tick { self.session.playhead() }
+///     fn view(&mut self) -> &mut TimeView { &mut self.ui.views.entry(self.id).or_default().time }
+///     fn tracks(&self) -> Vec<TrackInfo<'_>> { /* V3, V2, V1, A1, A2 */ }
+///     fn clips(&self, track: TrackId, visible: TimeRange) -> Vec<ClipInfo<'_>> { /* items overlapping `visible` */ }
+/// }
+/// ```
+pub trait TimelineModel {
+    /// The end of the content.
+    fn duration(&self) -> Tick;
+
+    /// How times are shown and typed (rate, drop-frame, display).
+    fn format(&self) -> TimeFormat;
+
+    fn playhead(&self) -> Tick;
+
+    /// The view (zoom and scroll) the panel shows and changes directly: view changes are not
+    /// document edits and never undo steps.
+    fn view(&mut self) -> &mut TimeView;
+
+    /// Top to bottom.
+    fn tracks(&self) -> Vec<TrackInfo<'_>>;
+
+    /// The clips of `track` that overlap `visible`.
+    fn clips(&self, track: TrackId, visible: TimeRange) -> Vec<ClipInfo<'_>>;
+
+    /// The selected clips; the panel draws them selected and reports changes as
+    /// `TimelineEdit::Select` (in `craft_timeline::ui`).
+    fn selection(&self) -> &[ClipId];
+
+    /// Sequence markers, in the ruler.
+    fn markers(&self) -> &[Marker] {
+        &[]
+    }
+
+    /// The edit points (cuts on targeted tracks) Up and Down move the playhead to, in time
+    /// order; Premiere's Go to Previous / Next Edit Point.
+    fn edit_points(&self) -> Vec<Tick> {
+        Vec::new()
+    }
+
+    /// Mark In and Mark Out.
+    fn in_out(&self) -> (Option<Tick>, Option<Tick>) {
+        (None, None)
+    }
+
+    /// The work area (After Effects; Premiere's work area bar when shown).
+    fn work_area(&self) -> Option<TimeRange> {
+        None
+    }
+}

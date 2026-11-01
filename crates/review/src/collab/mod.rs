@@ -1,0 +1,65 @@
+//! Collaboration: presence, voting, cursor chat and joining a shared document by code
+//! (N5.07–N5.09, N5.11), over a [`CollabTransport`] the app implements. The library has no
+//! network: FigCraft's sessions, servers and codes stay FigCraft's; the widgets read and ask
+//! through the trait.
+
+pub mod chat;
+pub mod join;
+pub mod presence;
+pub mod vote;
+
+pub use chat::{CHAT_FADE_S, CHAT_HOLD_S, CursorChat, chat_alpha};
+pub use join::JoinState;
+pub use presence::{GLIDE, PEOPLE_COLORS, Participant, ParticipantId, glide, initials};
+pub use vote::{VoteScope, VoteSession};
+
+/// The app's side of a shared session, read by the widgets: who is here, the vote and the join
+/// in progress. Implemented by the app on its session (FigCraft: over its `collab.*` state). The
+/// widgets never act through it: what the user asks for comes back as [`CollabRequest`]s on
+/// their outputs, which the app sends (owner rule: widgets report events, they never change the
+/// app's state themselves).
+///
+/// ```ignore
+/// impl CollabTransport for Live<'_> {
+///     fn me(&self) -> ParticipantId { ParticipantId(self.session.me) }
+///     fn participants(&self) -> Vec<Participant> { self.session.peers().map(to_participant).collect() }
+///     fn vote(&self) -> Option<VoteSession> { self.board.vote.clone() }
+///     fn join_state(&self) -> JoinState { self.join.state() }
+/// }
+/// let out = PeopleBar::new("people", &live).show(ui);
+/// for request in out.requests { live.send(request) }   // collab.follow, collab.spotlight, …
+/// ```
+pub trait CollabTransport {
+    fn me(&self) -> ParticipantId;
+
+    /// Everyone in the session, you included.
+    fn participants(&self) -> Vec<Participant>;
+
+    /// The running or last vote.
+    fn vote(&self) -> Option<VoteSession>;
+
+    fn join_state(&self) -> JoinState;
+}
+
+/// What a collaboration widget asks the app to send, in the order the user did it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CollabRequest {
+    /// Your pointer on the canvas (document units), `None` when it left.
+    Cursor(Option<[f64; 2]>),
+    /// Your cursor chat text; empty closes the bubble.
+    Chat(String),
+    /// Follow someone's view, or stop.
+    Follow(Option<ParticipantId>),
+    /// Ask everyone to follow you, or stop.
+    Spotlight(bool),
+    StartVote {
+        per_person: u32,
+        scope: VoteScope,
+    },
+    EndVote,
+    /// Show the kept results of the last vote.
+    ShowResults,
+    /// Join with what the user typed (a code or an invite link); the app parses it.
+    Join(String),
+    CancelJoin,
+}

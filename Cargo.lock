@@ -1388,6 +1388,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-review"
+version = "0.1.0"
+dependencies = [
+ "craft-host",
+ "craft-ui",
+ "egui",
+ "kurbo 0.13.1",
+ "serde",
+]
+
+[[package]]
 name = "craft-settings"
 version = "0.1.0"
 dependencies = [
@@ -1399,6 +1410,14 @@ dependencies = [
  "tempfile",
  "toml",
  "toml_edit",
+]
+
+[[package]]
+name = "craft-table"
+version = "0.1.0"
+dependencies = [
+ "craft-ui",
+ "egui",
 ]
 
 [[package]]
@@ -1447,6 +1466,15 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "craft-timeline"
+version = "0.1.0"
+dependencies = [
+ "craft-ui",
+ "egui",
+ "serde",
 ]
 
 [[package]]
