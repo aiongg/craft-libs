@@ -251,9 +251,6 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
     /// `thumb` paints the thumbnail of a preset into a rect, clipped to it; it runs for the cells
     /// and rows in view and for the drag's ghost.
     pub fn show(mut self, ui: &mut Ui, thumb: impl FnMut(&Painter, Rect, ThumbInfo<'_, K>)) -> PresetOutput<K> {
-        if self.footer.is_some() || self.drop_zone.is_some() {
-            return view::show_with_extras(self, ui, thumb);
-        }
         let id = ui.make_persistent_id(self.id_salt);
         let rows = self.rows;
         let labels = self.labels.clone().unwrap_or_else(|| Rc::new(<PresetLabels as crate::localized::Labels>::of(ui)));
@@ -278,7 +275,11 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
                 if let Some(short) = min_height.map(|min| min - response.rect.height()).filter(|&short| short > 0.0) {
                     ui.allocate_space(vec2(0.0, short));
                 }
-                PresetOutput { response, events: Vec::new(), drag: None, hovered: None, footer: Vec::new() }
+                let footer = match self.footer.take() {
+                    Some(options) => footer::show_below(ui, options, self.state, &labels, self.thumb_range.clone()),
+                    None => Vec::new(),
+                };
+                PresetOutput { response, events: Vec::new(), drag: None, hovered: None, footer }
             }
             None => view::show(self, id, ui, thumb),
         };
