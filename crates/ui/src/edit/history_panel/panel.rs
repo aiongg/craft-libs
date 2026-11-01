@@ -1,14 +1,22 @@
 //! `HistoryPanel::show`: rows, selection, events, rename, follow-scroll, the source column, drag and thumbnails.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
+use super::footer::{FooterSpec, show_footer};
 use super::labels::HistoryLabels;
+use super::menu::MenuFacts;
 use super::state::HistoryPanelState;
-use crate::canvas::textures::{ThumbSource, Thumbnails};
-use crate::edit::snapshots::{HistorySource, SnapshotId, SnapshotList};
+use crate::behavior::{Axis, Reorder, RowInfo, Selection, SelectionMode};
+use crate::canvas::textures::{Priority, ThumbPaint, ThumbRequest, ThumbSource, Thumbnails};
+use crate::composites::PanelFooter;
+use crate::edit::EditEvent;
+use crate::edit::snapshots::{HistorySource, Snapshot, SnapshotId, SnapshotList};
 use crate::edit::steps::{StepId, StepRows};
+use crate::icons::Icon;
+use crate::list::{List, ListEvent, ListRow, RowEvent, ThumbSize, ToggleColumn};
+use crate::localized::Labels as _;
+use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
+use crate::theme::{Tokens, TokensOf as _};
 
 /// Which parts of the panel an app shows. The default is PhotoCraft's full set: everything but
 /// [`delete_later`](Self::delete_later). VectorCraft turns off `snapshots`, `source`,
@@ -250,6 +258,194 @@ impl<'a> HistoryPanel<'a> {
     /// `menu::MenuFacts::store` keyed by `id_salt`.
     pub fn show(self, ui: &mut Ui) -> HistoryOutput {
         // pc: crates/ui-egui/src/panels/history.rs:5-160 (`history_panel`: rows :44-114, source column :196-209, snapshot rows :273-334, follow-scroll :31-41)
-        todo!()
+        let HistoryPanel { id_salt, steps, state, snapshots, source, thumbnails, features, order, labels } = self;
+        let labels = labels.unwrap_or_else(|| HistoryLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let sizes = HistoryPanel::style(&tokens);
+        let row_style = ListRow::<HistoryKey>::style(&tokens);
+        let ctx = ui.ctx().clone();
+        let list_id = ui.make_persistent_id(id_salt);
+        let rename_key = list_id.with("rename-snapshot");
+        let menu_key = list_id.with("menu-snapshot");
+
+        let revision = steps.revision();
+        let len = steps.len();
+        let current = steps.current();
+        let current_id = steps.id(current);
+        let snaps: Vec<&Snapshot> = snapshots.filter(|_| features.snapshots).map(|list| list.iter().collect()).unwrap_or_default();
+        if let Some(id) = state.selected_snapshot()
+            && (!state.keeps(revision) || !snaps.iter().any(|snap| snap.id == id))
+        {
+            state.clear_snapshot();
+        }
+        let selected_snapshot = state.selected_snapshot();
+
+        let state_rows: Vec<usize> = match order {
+            HistoryOrder::OldestFirst => (0..len).collect(),
+            HistoryOrder::NewestFirst => (0..len).rev().collect(),
+        };
+        let first_state = snaps.len();
+        let mut order_rows: Vec<RowInfo<HistoryKey>> = snaps.iter().map(|snap| RowInfo::leaf(HistoryKey::Snapshot(snap.id))).collect();
+        order_rows.extend(state_rows.iter().map(|&at| RowInfo { depth: steps.depth(at), ..RowInfo::leaf(HistoryKey::Step(steps.id(at))) }));
+        let tree = state_rows.iter().any(|&at| steps.depth(at) > 0);
+
+        let mut selection = Selection::only(selected_snapshot.map_or(HistoryKey::Step(current_id), HistoryKey::Snapshot));
+        let side = sizes.snapshot_thumb;
+        let thumb_size = ThumbSize::Px(side.round() as u16);
+        let snapshot_height = row_style.height(thumb_size, false);
+        let state_height = row_style.height(ThumbSize::None, false);
+
+        let has_footer = features.delete || features.snapshots || features.new_document;
+        let reserved = if has_footer {
+            PanelFooter::reserved_height(&PanelFooter::style(&tokens, ui.pixels_per_point())) + ui.spacing().item_spacing.y
+        } else {
+            0.0
+        };
+
+        let seen = state.seen.replace(revision);
+        let mut list = List::new(id_salt, &labels.list, order_rows.as_slice())
+            .selection(&mut selection)
+            .mode(SelectionMode::Single)
+            .allow_empty(false)
+            .tree(tree)
+            .heights(move |at| if at < first_state { snapshot_height } else { state_height })
+            .can_rename(|key| matches!(key, HistoryKey::Snapshot(_)))
+            .reorder(Reorder::new(Axis::Vertical).accepts(|_, _| false))
+            .max_height((ui.available_height() - reserved).max(0.0));
+        if seen != Some(revision) && selected_snapshot.is_none() {
+            list = list.reveal(HistoryKey::Step(current_id));
+        }
+        if let Some(id) = ui.data_mut(|d| {
+            let id = d.get_temp::<SnapshotId>(rename_key);
+            d.remove::<SnapshotId>(rename_key);
+            id
+        }) {
+            list = list.start_rename(HistoryKey::Snapshot(id));
+        }
+
+        let out = list.show(ui, |at, key| match *key {
+            HistoryKey::Snapshot(id) => {
+                let snap = snaps.iter().find(|snap| snap.id == id);
+                let mut row =
+                    ListRow::new(*key, snap.map_or("", |snap| snap.name.as_str())).description(&labels.snapshot).rule(at + 1 == first_state);
+                if features.source {
+                    row = row.toggle(source_column(&labels, source == Some(HistorySource::Snapshot(id))));
+                }
+                match thumbnails {
+                    Some((thumbs, picture_source)) => {
+                        let request = ThumbRequest::for_cell(side, ctx.pixels_per_point());
+                        let texture = thumbs.state(&ctx, picture_source, &id, &request, Priority::VISIBLE);
+                        row.thumb(thumb_size, move |painter, rect| {
+                            thumbs.paint(painter, rect, &texture, &ThumbPaint::default());
+                        })
+                    }
+                    None => row.thumb(thumb_size, |_, _| {}),
+                }
+            }
+            HistoryKey::Step(id) => {
+                let at = state_rows[at - first_state];
+                let later = steps.is_later(at);
+                let description = if at == current {
+                    labels.current_state.as_str()
+                } else if later {
+                    labels.later_state.as_str()
+                } else {
+                    ""
+                };
+                let mut row = ListRow::new(*key, steps.label(at)).dimmed(later).description(description);
+                if features.source {
+                    row = row.toggle(source_column(&labels, source == Some(HistorySource::Step(id))));
+                }
+                match steps.icon(at) {
+                    Some(icon) => row.icon(icon),
+                    None => row.glyph(|_, _| {}),
+                }
+            }
+        });
+
+        let mut events = Vec::new();
+        let mut target = None;
+        let mut open_menu = None;
+        for event in out.events {
+            match event {
+                ListEvent::Selection(change) => target = change.row.or(target),
+                ListEvent::Clicked(key) | ListEvent::Activate(key) => target = Some(key),
+                ListEvent::Row(RowEvent::Toggle(EditEvent::Set { value, .. })) if value.on => {
+                    events.push(HistoryEvent::SetSource(match value.row {
+                        HistoryKey::Snapshot(id) => HistorySource::Snapshot(id),
+                        HistoryKey::Step(id) => HistorySource::Step(id),
+                    }));
+                }
+                ListEvent::Row(RowEvent::Renamed { row: HistoryKey::Snapshot(id), text }) => {
+                    let name = text.trim();
+                    if !name.is_empty() && snaps.iter().any(|snap| snap.id == id && snap.name != name) {
+                        events.push(HistoryEvent::RenameSnapshot { id, name: name.to_owned() });
+                    }
+                }
+                ListEvent::ContextMenu(request) => {
+                    if let Some(HistoryKey::Snapshot(id)) = request.row {
+                        ui.data_mut(|d| d.insert_temp(menu_key, id));
+                        open_menu = Some(request.pointer.map_or(OpenAt::Rect(request.anchor), OpenAt::Pointer));
+                    }
+                }
+                _ => {}
+            }
+        }
+        match target {
+            Some(HistoryKey::Snapshot(id)) => events.push(HistoryEvent::SelectSnapshot(id)),
+            Some(HistoryKey::Step(id)) if id != current_id => events.push(HistoryEvent::GoTo(id)),
+            Some(HistoryKey::Step(_)) if selected_snapshot.is_some() => {
+                state.clear_snapshot();
+                ctx.request_repaint();
+            }
+            _ => {}
+        }
+
+        let entries = [
+            MenuEntry::from(MenuItem::new(&labels.rename, SnapshotCommand::Rename)),
+            MenuEntry::from(MenuItem::new(&labels.delete, SnapshotCommand::Delete)),
+        ];
+        let menu = ContextMenu::new(&entries).open_at(open_menu).own_gestures(false).show(ui, &out.response);
+        if let Some(command) = menu.chosen
+            && let Some(id) = ui.data(|d| d.get_temp::<SnapshotId>(menu_key))
+        {
+            match command {
+                SnapshotCommand::Rename => {
+                    ui.data_mut(|d| d.insert_temp(rename_key, id));
+                    ctx.request_repaint();
+                }
+                SnapshotCommand::Delete => events.push(HistoryEvent::DeleteSnapshot(id)),
+            }
+        }
+
+        let trash = match selected_snapshot {
+            Some(id) => Some(HistoryKey::Snapshot(id)),
+            None => steps.can_delete(current).then_some(HistoryKey::Step(current_id)),
+        };
+        let row_of = |id: StepId| (0..len).find(|&at| steps.id(at) == id);
+        let accepts = |key: &HistoryKey| match *key {
+            HistoryKey::Snapshot(_) => true,
+            HistoryKey::Step(id) => row_of(id).is_some_and(|at| steps.can_delete(at) && (steps.is_non_linear() || !steps.is_later(at))),
+        };
+        MenuFacts { features, can_forward: current + 1 < len, can_backward: current > 0, delete: trash, can_clear: len > 1, current: current_id }
+            .store(&ctx, MenuFacts::id(id_salt));
+        if has_footer {
+            let spec = FooterSpec { features: &features, labels: &labels, trash, accepts: &accepts, current: current_id };
+            events.extend(show_footer(ui, &spec));
+        }
+        HistoryOutput { response: out.response, events }
     }
+}
+
+/// The source column of a row: exclusive, the History Brush icon on the source row and under the
+/// pointer elsewhere. `{row}` in the name is the row's label, filled by the list.
+fn source_column(labels: &HistoryLabels, is_source: bool) -> ToggleColumn {
+    ToggleColumn::new(&labels.source, Icon::Clock, Icon::Clock, is_source).exclusive(true).tooltip(&labels.source_tooltip)
+}
+
+/// A row of a snapshot's context menu.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SnapshotCommand {
+    Rename,
+    Delete,
 }
