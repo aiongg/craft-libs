@@ -23,7 +23,7 @@ fn a_repeated_event_shows_its_count() {
 }
 
 // A row 3 minutes older than `now_ms` reads "3 minutes ago" (`relative_age`), one newer than
-// `now_ms` "less than a minute ago"; the bar reads "1 error" and "2 warnings".
+// `now_ms` "Just now"; the bar reads "1 error" and "2 warnings".
 #[test]
 #[ignore = "skeleton"]
 fn rows_show_their_age_and_the_bar_counts_in_plural_forms() {
