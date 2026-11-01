@@ -7,7 +7,7 @@
 
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog};
 use craft_ui::localized::units::LengthUnit;
-use egui::{Context, Ui};
+use egui::Context;
 
 /// The most columns (PowerPoint's 16).
 pub const MAX_COLUMNS: u32 = 16;
@@ -22,8 +22,8 @@ craft_ui::words! {
         title: "columns.title" = "Columns";
         number: "columns.number" = "Number:";
         spacing: "columns.spacing" = "Spacing:";
-        number_range: "columns.numberRange" = "Number must be a whole number from 1 to 16";
-        spacing_range: "columns.spacingRange" = "Spacing must be from 0 to 22 inches";
+        number_range: "columns.numberRange" = "Number must be a whole number from {min} to {max}";
+        spacing_range: "columns.spacingRange" = "Spacing must be from {min} to {max}";
         presets: "columns.presets" = "Presets";
         one: "columns.one" = "One";
         two: "columns.two" = "Two";
@@ -66,9 +66,9 @@ pub enum ColumnsPreset {
 
 /// The Columns dialog: only what changed comes back.
 ///
-/// - [`word`](Self::word) off (PowerPoint): Number (1–[`MAX_COLUMNS`]) and Spacing (0–22 in);
-///   values out of range keep the dialog open with "Number must be a whole number from 1 to 16" /
-///   "Spacing must be from 0 to 22 inches" in red under the fields.
+/// - [`word`](Self::word) off (PowerPoint): Number (a craft-ui `NumberField`, 1–[`MAX_COLUMNS`])
+///   and Spacing (a `unit_number_field`, 0–[`MAX_SPACING`] points); values out of range keep the
+///   dialog open with the labels' range messages under the fields in the field error style.
 /// - On (Word): the presets row, Number, the width and spacing grid (one row per column, Col #
 ///   1–n; width fields disabled after the first with Equal column width), Equal column width,
 ///   Line between, and the page's text width for the grid's sums.
@@ -125,9 +125,10 @@ pub enum ColumnsChoice {
     More,
 }
 
-/// Layout › Columns: One, Two, Three, Left, Right with the matching one checked, a separator and
-/// More Columns…. Returns the choice.
+/// Layout › Columns as craft-ui menu entries (no `Ui`): One, Two, Three, Left, Right with the
+/// matching one checked, a separator and More Columns…. The app shows them with
+/// `menu::PressMenu` from its ribbon button or menu bar and applies the chosen value.
 // wordcraft: crates/ui-egui/src/ribbon/layout.rs:36 `columns_items`.
-pub fn columns_menu(ui: &mut Ui, current: Option<ColumnsPreset>, labels: &TextColumnsLabels) -> Option<ColumnsChoice> {
+pub fn columns_menu(current: Option<ColumnsPreset>, labels: &TextColumnsLabels) -> Vec<craft_ui::menu::MenuEntry<ColumnsChoice>> {
     todo!()
 }

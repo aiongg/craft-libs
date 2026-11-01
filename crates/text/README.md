@@ -11,14 +11,15 @@ plain text and a language and return what layout needs before it shapes and plac
 | `linebreak` | `linebreak` (default) | Line breaking on a box/glue/penalty model |
 | `spell` | `spell` | Spelling with a bundled US English word list (SCOWL 50), suggestions and the user's words |
 | `quotes` | always | Smart quotes: typed straight quotes become the language's quotation marks |
-| `find` | always | Find and replace patterns (Acrobat's and Word's options, Word's `^` codes and wildcards) and the matches across pages |
+| `find` | `find` | Find and replace patterns (Acrobat's and Word's options, Word's `^` codes and wildcards) and the matches across pages; pulls `regex` |
 | `styles` | always | Named style lists: folders in names, the next free name |
 | `lists` | always | Bullet and number markers per list level; the number styles page numbers use too |
 | `ui::editor` | `ui` | `TextEditor` and `TextEditorTool`: the text editor on a canvas over a `TextEditorHost`; input methods through craft-ui's `Composer`. Caret and underline sizes are the `text_editor.*` tokens |
 | `ui::character` | `ui` | `CharacterControls` and `ParagraphControls`: Photoshop's Character and Paragraph panels |
 | `ui::style_panel` | `ui` | `TextStylesPanel`: the Character Styles and Paragraph Styles panels |
 | `ui::spelling` | `ui` | `CheckSpellingDialog` and the user's words as a settings section |
-| `ui::ruler`, `ui::tabs_dialog`, `ui::notes`, `ui::columns`, `ui::hyperlink`, `ui::find` | `ui` | The paged-text controls: the text ruler, Tabs dialog, notes editor, Columns and Hyperlink dialogs, find bar and Find and Replace |
+| `ui::ruler`, `ui::tabs_dialog`, `ui::notes`, `ui::columns`, `ui::hyperlink` | `ui` | The paged-text controls: the text ruler, Tabs dialog, notes editor, Columns and Hyperlink dialogs |
+| `ui::find` | `ui` and `find` | The find bar and Find and Replace |
 | | `font-picker` | The Character controls' family field is craft-font-manager's font picker |
 
 The `ui` stories (`patterns/text-editor/canvas`, `patterns/character/*`, `patterns/text-styles/panel`, `patterns/check-spelling/dialog`) are in `craft::story::all()` with the `text` and `ui` features of the `craft` facade.

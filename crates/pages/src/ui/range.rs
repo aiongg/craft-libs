@@ -5,6 +5,7 @@
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
+use craft_ui::menu::MenuEntry;
 use egui::{Response, Ui};
 
 use crate::range::{PageRange, PageRangeError};
@@ -43,18 +44,27 @@ pub struct PageRangeFieldState {
     error: Option<PageRangeError>,
 }
 
-/// The app's page choices menu: its pick, if any.
-type RangeMenu<'a> = Box<dyn FnOnce(&mut Ui) -> Option<Vec<usize>> + 'a>;
+/// What the field did this pass.
+#[derive(Debug)]
+pub struct PageRangeFieldResponse {
+    /// The text field's response (focus, rect).
+    pub response: Response,
+    /// The pages to select, on the pass they were typed or picked.
+    pub picked: Option<Vec<usize>>,
+}
 
 /// The field, built per pass.
 ///
 /// - Shows `selected` formatted ([`format_pages`](crate::range::format_pages)); with nothing
 ///   selected, the current page as its placeholder (the page actions apply to).
-/// - Typed text applies on Enter or when the field loses focus: parsed text returns the pages and
-///   shows them back formatted; text that doesn't parse stays, with the error under the field.
-///   Esc puts the selection's text back.
-/// - The chevron opens the app's menu (pages by kind: Odd, Even, Portrait, Landscape, All); its
-///   pick returns like typed pages.
+/// - The field is craft-ui's [`TextField`](craft_ui::controls::TextField) (its typing run, Esc
+///   and focus rules). Typed text applies on Enter or when the field loses focus: parsed text
+///   returns the pages and shows them back formatted; text that doesn't parse stays, with the
+///   error under the field in the field error style (`status.bad.fg`, replacing help text). Esc
+///   puts the selection's text back.
+/// - The chevron is a craft-ui menu button showing the app's [`menu`](Self::menu) entries (pages
+///   by kind: Odd, Even, Portrait, Landscape, All) with `menu::PressMenu`; a pick returns like
+///   typed pages.
 /// - The field is one Tab stop (AccessKit TextInput "Selected pages"), the chevron another.
 pub struct PageRangeField<'a> {
     id_salt: egui::IdSalt,
@@ -62,18 +72,19 @@ pub struct PageRangeField<'a> {
     selected: &'a [usize],
     count: usize,
     current: usize,
-    menu: Option<RangeMenu<'a>>,
+    menu: &'a [MenuEntry<Vec<usize>>],
     labels: Option<PageRangeLabels>,
 }
 
 impl<'a> PageRangeField<'a> {
     /// The field over `selected` (0-based) in a document of `count` pages; `current` is 0-based.
     pub fn new(id_salt: impl egui::AsIdSalt, state: &'a mut PageRangeFieldState, selected: &'a [usize], count: usize, current: usize) -> Self {
-        PageRangeField { id_salt: egui::IdSalt::new(id_salt), state, selected, count, current, menu: None, labels: None }
+        PageRangeField { id_salt: egui::IdSalt::new(id_salt), state, selected, count, current, menu: &[], labels: None }
     }
 
-    pub fn menu(mut self, menu: impl FnOnce(&mut Ui) -> Option<Vec<usize>> + 'a) -> Self {
-        self.menu = Some(Box::new(menu));
+    /// The chevron's menu: the app's page choices, each item carrying its pages.
+    pub fn menu(mut self, entries: &'a [MenuEntry<Vec<usize>>]) -> Self {
+        self.menu = entries;
         self
     }
 
@@ -82,24 +93,26 @@ impl<'a> PageRangeField<'a> {
         self
     }
 
-    /// The pages to select, on the pass they were typed or picked.
     // pdfcraft: crates/ui-egui/src/panels/page_selection_ui.rs:64 `PageSelectionInput::show`.
-    pub fn show(self, ui: &mut Ui) -> Option<Vec<usize>> {
+    pub fn show(self, ui: &mut Ui) -> PageRangeFieldResponse {
         todo!()
     }
 }
 
-/// The All pages / Pages from [ ] to [ ] / Subset [ ] row, editing a [`PageRange`]; From and To
-/// are 1 to `count` and disabled with All pages. Returns whether the range changed.
+/// The All pages / Pages from [ ] to [ ] / Subset [ ] row, editing a dialog's [`PageRange`] draft
+/// (dialog values, not the document): a craft-ui `RadioSet` for All and From/To, `NumberField`s
+/// for From and To (1 to `count`, whole numbers, disabled with All pages), a `Select` for Subset.
+/// Returns the row's response; `changed()` is set when the range changed.
 pub struct PageRangeOptions<'a> {
+    id_salt: egui::IdSalt,
     range: &'a mut PageRange,
     count: usize,
     labels: Option<PageRangeLabels>,
 }
 
 impl<'a> PageRangeOptions<'a> {
-    pub fn new(range: &'a mut PageRange, count: usize) -> Self {
-        PageRangeOptions { range, count, labels: None }
+    pub fn new(id_salt: impl egui::AsIdSalt, range: &'a mut PageRange, count: usize) -> Self {
+        PageRangeOptions { id_salt: egui::IdSalt::new(id_salt), range, count, labels: None }
     }
 
     pub fn labels(mut self, labels: PageRangeLabels) -> Self {

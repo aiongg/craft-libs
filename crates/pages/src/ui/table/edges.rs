@@ -7,9 +7,6 @@
 
 use egui::{Response, Ui};
 
-/// The picker's size, screen points (DesignCraft's `PROXY_SIZE`); lines sit 8 pt in.
-pub const PICKER_SIZE: f32 = 64.0;
-
 craft_ui::words! {
     /// The edges' and presets' names (Word's border menu, InDesign's proxy tooltips).
     #[non_exhaustive]
@@ -116,17 +113,21 @@ pub struct EdgePickerResponse {
 
 /// The picker, editing `edges` in place.
 ///
-/// - A 64 pt square with a 1 pt field border, filled grey (0xF2) 8 pt in; the outer rectangle
-///   8 pt in and the two inner lines through its middle. Chosen lines are 2.5 pt in the accent
-///   colour, others 1 pt grey (0x9A), the line under the pointer 3 pt (DesignCraft); the grey
-///   fill and line become tokens in the fill.
+/// - A square of [`EdgePickerStyle`](crate::ui::EdgePickerStyle)'s side with a field border,
+///   filled with its fill inside the inset; the outer rectangle at the inset and the two inner
+///   lines through its middle. Chosen lines in the accent at `line_on`, others in
+///   `line_off_color` at `line_off`, the line under the pointer at `line_hover` (DesignCraft;
+///   InDesign's proxy).
 /// - Click toggles a line. Double-click on a line picks its group alone (an outer line: the four
 ///   outer lines on, the inner off; an inner line the other way round). Triple-click turns all on,
 ///   or all off when all were on (InDesign's proxy).
 /// - [`paragraph`](Self::paragraph): no inside vertical line, and the inside horizontal is
 ///   "Between" paragraphs (Word's paragraph borders).
 /// - Keys: one Tab stop (an AccessKit Group "Edges" of six CheckBoxes); ←/→/↑/↓ move between
-///   lines, space toggles.
+///   lines through craft-ui's [`GridNav`](craft_ui::behavior::GridNav) over the lines' 3 × 3
+///   places (`GridNav::ragged`), Space toggles. The edges are the panel's choice of
+///   which lines a stroke applies to (view state, not the document), so the picker edits them in
+///   place and reports [`EdgePickerResponse::changed`].
 pub struct EdgePicker<'a> {
     id_salt: egui::IdSalt,
     edges: &'a mut BorderEdges,
@@ -135,6 +136,11 @@ pub struct EdgePicker<'a> {
 }
 
 impl<'a> EdgePicker<'a> {
+    /// The picker's sizes and colours, from the tokens.
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> crate::ui::EdgePickerStyle {
+        crate::ui::EdgePickerStyle::of(tokens)
+    }
+
     pub fn new(id_salt: impl egui::AsIdSalt, edges: &'a mut BorderEdges) -> Self {
         EdgePicker { id_salt: egui::IdSalt::new(id_salt), edges, paragraph: false, labels: None }
     }

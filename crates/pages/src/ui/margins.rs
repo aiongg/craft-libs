@@ -17,6 +17,9 @@
 use craft_ui::edit::EditEvent;
 use egui::{Rect, Ui};
 
+use craft_ui::localized::units::LengthUnit;
+
+use super::style::MarginHandlesStyle;
 use super::view::PlacedPage;
 use crate::setup::Margins;
 
@@ -26,9 +29,6 @@ pub const MIN_TEXT: f64 = 72.0;
 
 /// The step a dragged margin snaps to, points: 1/16 inch (Word). Alt drags freely.
 pub const SNAP: f64 = 4.5;
-
-/// Screen points either side of an edge that grab it (GridCraft's `EDGE_GRAB`).
-pub const EDGE_GRAB: f32 = 4.0;
 
 craft_ui::words! {
     /// The edges' names, shown as tooltips and AccessKit names.
@@ -98,14 +98,21 @@ pub struct MarginResponse {
 /// The margin edges of one page (the page the caret is on, or the first page in view) on the
 /// horizontal and vertical ruler strips.
 ///
-/// - Each edge grabs within [`EDGE_GRAB`] of it on its ruler; the cursor is ResizeHorizontal or
-///   ResizeVertical; the tooltip names it, and while dragging shows the value in the unit
-///   ("1.25 in", "3.18 cm").
-/// - A drag reports Begin, Update per move and Commit on release, [`dragged_margin`]'s value;
-///   Esc cancels. The view doesn't follow the caret during the drag (the page would move under the
-///   pointer).
-/// - Not Tab stops (Page Setup and the Layout menus are the keyboard path); each edge is an
-///   AccessKit Splitter named by [`MarginLabels`].
+/// - The strips are the ruler rects of craft-ui's [`Rulers`](craft_ui::canvas::Rulers) the app
+///   shows (its `RulersResponse`); the margins shade them with [`MarginHandlesStyle::shade`].
+/// - Each edge grabs within [`MarginHandlesStyle::edge_grab`] of it on its ruler; the cursor is
+///   ResizeHorizontal or ResizeVertical; the tooltip names it, and while dragging shows the value
+///   in [`unit`](Self::unit) through craft-ui's length formatting (`LengthUnit`, its decimals and
+///   suffix: "1.25 in", "3.18 cm").
+/// - A drag is one edit gesture, [`EditEvent`]: Begin with the first value, Update per move,
+///   Commit on release with [`dragged_margin`]'s value; Esc and focus loss Cancel. At most one
+///   event a pass. The view doesn't follow the caret during the drag (the page would move under
+///   the pointer).
+/// - Keys: each edge is a Tab stop after the rulers (an AccessKit Splitter named by
+///   [`MarginLabels`], its value the margin in the unit); ← / → (↑ / ↓ on the vertical ruler)
+///   move it one [`snap`](Self::snap) step as one `EditEvent::Set`, ⇧ ten steps. Word reaches
+///   margins from the keyboard only through Page Setup; the suite's rule is every control from
+///   the keyboard.
 pub struct MarginHandles<'a> {
     id_salt: egui::IdSalt,
     page: &'a PlacedPage,
@@ -115,6 +122,7 @@ pub struct MarginHandles<'a> {
     header_footer: Option<(f64, f64)>,
     snap: f64,
     min_text: f64,
+    unit: LengthUnit,
     labels: Option<MarginLabels>,
 }
 
@@ -130,8 +138,20 @@ impl<'a> MarginHandles<'a> {
             header_footer: None,
             snap: SNAP,
             min_text: MIN_TEXT,
+            unit: LengthUnit::Inches,
             labels: None,
         }
+    }
+
+    /// The handles' sizes and colours, from the tokens.
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> MarginHandlesStyle {
+        MarginHandlesStyle::of(tokens)
+    }
+
+    /// The unit the drag tooltip and the AccessKit value show (the app's ruler unit).
+    pub fn unit(mut self, unit: LengthUnit) -> Self {
+        self.unit = unit;
+        self
     }
 
     pub fn gutter(mut self, gutter: f64) -> Self {
@@ -166,7 +186,8 @@ impl<'a> MarginHandles<'a> {
         self
     }
 
-    /// Draw the margin shading on the two ruler strips and run the drags.
+    /// Draw the margin shading on the two ruler strips (from the app's `RulersResponse`) and run
+    /// the drags and keys.
     // wordcraft: crates/ui-egui/src/canvas/margins.rs:67 `margin_handle`; gridcraft:
     // crates/ui-egui/src/paper_view.rs:779 `ruler_margins`.
     pub fn show(self, ui: &mut Ui, horizontal: Rect, vertical: Rect) -> MarginResponse {

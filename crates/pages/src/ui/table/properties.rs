@@ -6,6 +6,7 @@
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
+use craft_ui::edit::EditEvent;
 use egui::{Response, Ui};
 
 craft_ui::words! {
@@ -119,18 +120,36 @@ pub enum TableChange {
     FooterRows(usize),
 }
 
-/// The panel body, built per pass. Number fields are craft-ui number fields in the document's
-/// unit (a field scrubbed reports updates, the change goes out on release; `scrubbing` tells the
-/// app to coalesce the history step).
+/// The panel's result.
+#[derive(Debug)]
+#[must_use = "the app applies the panel's edits"]
+pub struct TablePropertiesOutput {
+    pub response: Response,
+    /// What the user did this pass, in order, as craft-ui edit events: a number field's typing
+    /// run or scrub is one gesture (`Begin`, `Update`s, `Commit`, or `Cancel` on Esc) carrying a
+    /// [`TableChange`] with the field's value, one undo step; a button, a menu choice or a
+    /// checkbox is one `Set`.
+    pub edits: Vec<EditEvent<TableChange>>,
+}
+
+/// InDesign's Table panel body, built per pass (look InDesign; behaviour Photoshop's panel
+/// fields, then DesignCraft).
+///
+/// - Number fields are craft-ui `NumberField`s (counts) and `unit_number_field`s (lengths in
+///   the document's unit), mixed (empty) where [`TableValues`] has `None`; row height mode,
+///   cell alignment and direction are `Select`s or icon `Segmented` controls; Merge, Unmerge,
+///   Insert and Delete are `Button`s, enabled from `several_cells` and `merged`.
+/// - Keys: Tab moves through the fields in reading order; each control's own keys.
 pub struct TableProperties<'a> {
+    id_salt: egui::IdSalt,
     values: &'a TableValues,
     unit: craft_ui::localized::units::LengthUnit,
     labels: Option<TablePropertiesLabels>,
 }
 
 impl<'a> TableProperties<'a> {
-    pub fn new(values: &'a TableValues, unit: craft_ui::localized::units::LengthUnit) -> Self {
-        TableProperties { values, unit, labels: None }
+    pub fn new(id_salt: impl egui::AsIdSalt, values: &'a TableValues, unit: craft_ui::localized::units::LengthUnit) -> Self {
+        TableProperties { id_salt: egui::IdSalt::new(id_salt), values, unit, labels: None }
     }
 
     pub fn labels(mut self, labels: TablePropertiesLabels) -> Self {
@@ -138,9 +157,8 @@ impl<'a> TableProperties<'a> {
         self
     }
 
-    /// The response, the change made this pass and whether a field is being scrubbed.
     // designcraft: crates/ui-egui/src/panels/table.rs:11 `show`.
-    pub fn show(self, ui: &mut Ui) -> (Response, Option<TableChange>, bool) {
+    pub fn show(self, ui: &mut Ui) -> TablePropertiesOutput {
         todo!()
     }
 }

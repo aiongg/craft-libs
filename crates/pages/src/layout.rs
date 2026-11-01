@@ -3,15 +3,19 @@
 //!
 //! Two apps lay pages out today and they differ (fact sheet `S6b-pages-facts.md`): PdfCraft
 //! shows one page across or a two-page spread (with Acrobat's cover-page rule), continuous or one
-//! row at a time, with a 14 pt gap and a 70 pt side gutter; WordCraft flows as many pages across as
-//! fit (Word's Print Layout zoomed out), with an 18 pt gap, a markup column beside each page and
-//! Hide White Space. [`PageDisplay`] holds both, and [`LayoutOptions`] carries each app's
-//! constants ([`LayoutOptions::ACROBAT`], [`LayoutOptions::WORD`]).
+//! row at a time, with a side gutter; WordCraft flows as many pages across as fit (Word's Print Layout zoomed
+//! out), with a markup column beside each page and Hide White Space. [`PageDisplay`] holds both,
+//! and [`LayoutOptions`] carries each app's switches ([`LayoutOptions::ACROBAT`],
+//! [`LayoutOptions::WORD`]). The screen spacing ([`PageSpacing`]: gap, margin, side gutter, Hide
+//! White Space's pad and seam) is not a constant here: the page view reads it from the `pages.*`
+//! size tokens (`PageView::style`), which an app overrides in its `sizes.json` (WordCraft's wider
+//! gap and no side gutter).
 //!
 //! ```ignore
 //! let sizes: Vec<Size> = doc.pages.iter().map(|p| p.size()).collect();
-//! let scale = fit_scale(&sizes, viewport, view.fit, &options, view.current).unwrap_or(view.zoom * SCREEN_POINTS_PER_POINT);
-//! let laid = place_pages(&sizes, scale, viewport, &options);
+//! let spacing = PageView::style(&tokens).spacing;
+//! let scale = fit_scale(&sizes, viewport, view.fit, &options, &spacing, view.current).unwrap_or(view.zoom * SCREEN_POINTS_PER_POINT);
+//! let laid = place_pages(&sizes, scale, viewport, &options, &spacing);
 //! let shown = if options.continuous { 0..sizes.len() } else { shown_row(sizes.len(), view.current, &options) };
 //! ```
 
@@ -29,8 +33,7 @@ pub const SCREEN_POINTS_PER_POINT: f64 = 96.0 / 72.0;
 pub const ZOOM_RANGE: RangeInclusive<f64> = 0.08..=64.0;
 
 /// How pages are placed across the view.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PageDisplay {
     /// One page across (Acrobat's Single Page, Word's One Page and Page Width).
@@ -51,8 +54,7 @@ impl PageDisplay {
 
 /// The fit modes. A fit recomputes the zoom whenever the viewport or the pages change; a zoom the
 /// user sets is [`Fit::None`].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Fit {
     /// Fit Width (Word's Page Width): the widest page, or the widest spread, fills the width.
@@ -75,14 +77,9 @@ pub struct LayoutOptions {
     pub cover: bool,
     /// Every page scrolls past; off shows one row (a page or a spread) at a time ([`shown_row`]).
     pub continuous: bool,
-    /// Screen points between pages; 0 joins page edges (PdfCraft's Show page gaps off: pages are
-    /// then sized in whole device pixels so no hairline seams show).
-    pub gap: f64,
-    /// Screen points above the first and below the last row.
-    pub margin: f64,
-    /// Screen points kept clear at each side (PdfCraft's gutter for the floating quick-action
-    /// bar).
-    pub side: f64,
+    /// Pages keep [`PageSpacing::gap`] between them; off joins page edges (PdfCraft's Show page
+    /// gaps off: pages are then sized in whole device pixels so no hairline seams show).
+    pub page_gaps: bool,
     /// Page points beside each page for comment and revision balloons (WordCraft's markup area,
     /// 216 pt when shown), or 0.
     pub markup: f64,
@@ -91,28 +88,32 @@ pub struct LayoutOptions {
 }
 
 impl LayoutOptions {
-    /// PdfCraft's: single page, continuous, 14 pt gap, 28 pt margin, 70 pt side.
-    pub const ACROBAT: LayoutOptions = LayoutOptions {
-        display: PageDisplay::Single,
-        cover: false,
-        continuous: true,
-        gap: 14.0,
-        margin: 28.0,
-        side: 70.0,
-        markup: 0.0,
-        min_columns: 1,
-    };
-    /// WordCraft's: as many across as fit, 18 pt gap and margin, no side.
-    pub const WORD: LayoutOptions = LayoutOptions {
-        display: PageDisplay::Columns,
-        cover: false,
-        continuous: true,
-        gap: 18.0,
-        margin: 18.0,
-        side: 0.0,
-        markup: 0.0,
-        min_columns: 1,
-    };
+    /// PdfCraft's: single page, continuous, page gaps.
+    pub const ACROBAT: LayoutOptions =
+        LayoutOptions { display: PageDisplay::Single, cover: false, continuous: true, page_gaps: true, markup: 0.0, min_columns: 1 };
+    /// WordCraft's: as many across as fit, continuous, page gaps.
+    pub const WORD: LayoutOptions =
+        LayoutOptions { display: PageDisplay::Columns, cover: false, continuous: true, page_gaps: true, markup: 0.0, min_columns: 1 };
+}
+
+/// The screen spacing of a page layout, screen points. The page view takes it from the `pages.*`
+/// size tokens (`craft_pages::ui::PageView::style`); this crate's core has no tokens, so the
+/// layout functions take it as a value.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PageSpacing {
+    /// Between pages, and between rows (token `pages.gap`); unused with
+    /// [`LayoutOptions::page_gaps`] off.
+    pub gap: f64,
+    /// Above the first and below the last row (token `pages.margin`).
+    pub margin: f64,
+    /// Kept clear at each side (token `pages.side`; PdfCraft's gutter for its floating
+    /// quick-action bar).
+    pub side: f64,
+    /// What Hide White Space leaves above and below each page's text area (token
+    /// `pages.white_space_pad`).
+    pub white_space_pad: f64,
+    /// The seam Hide White Space draws between pages (token `pages.seam`).
+    pub seam: f64,
 }
 
 /// Pages placed in the scroll content of a view, origin at the content's top-left.
@@ -132,8 +133,9 @@ pub struct PagedLayout {
 /// Place pages of `sizes` (page points) at `scale` screen points per page point in a viewport
 /// `viewport` wide and tall.
 ///
-/// - [`PageDisplay::Single`]: each page centred, at least [`side`](LayoutOptions::side) from the
-///   left, `gap` below the one before, from `margin` at the top.
+/// - [`PageDisplay::Single`]: each page centred, at least [`side`](PageSpacing::side) from the
+///   left, `gap` below the one before (none with [`page_gaps`](LayoutOptions::page_gaps) off),
+///   from `margin` at the top.
 /// - [`PageDisplay::TwoUp`]: pages in pairs, each pair centred and a shorter page centred vertically
 ///   on the taller one; with a cover the first
 ///   page sits alone right of the centre line.
@@ -145,20 +147,21 @@ pub struct PagedLayout {
 /// (WordCraft's `sane_dim` and scale guard).
 // pdfcraft: crates/ui-egui/src/canvas/zoom.rs:306 `layout`; wordcraft:
 // crates/ui-egui/src/canvas/geometry.rs:126 `columns_for`, :139 `place_pages`.
-pub fn place_pages(sizes: &[Size], scale: f64, viewport: Size, options: &LayoutOptions) -> PagedLayout {
+pub fn place_pages(sizes: &[Size], scale: f64, viewport: Size, options: &LayoutOptions, spacing: &PageSpacing) -> PagedLayout {
     todo!()
 }
 
 impl PagedLayout {
     /// Word's Hide White Space: single-column pages stacked so that only each page's text area
-    /// (`bodies`: the top and bottom of its body, page points) plus 6 pt shows, a 1 pt seam
+    /// (`bodies`: the top and bottom of its body, page points) plus
+    /// [`white_space_pad`](PageSpacing::white_space_pad) shows, a [`seam`](PageSpacing::seam)
     /// between pages. The first page keeps its top and the last its bottom. Rects keep the full
     /// page size, so page coordinates still map as `(p - rect.min) / scale`; neighbouring rects
     /// overlap in the hidden margins. Only for one column and more than one page; otherwise the
     /// layout is unchanged.
-    // wordcraft: crates/ui-egui/src/canvas/geometry.rs:28 `collapse_white_space` (WHITE_SPACE_PAD
-    // 6, SEAM 1).
-    pub fn hide_white_space(&mut self, bodies: &[(f64, f64)], scale: f64, viewport_height: f64) {
+    // wordcraft: crates/ui-egui/src/canvas/geometry.rs:28 `collapse_white_space` (its
+    // `WHITE_SPACE_PAD` and `SEAM` are the spacing's pad and seam).
+    pub fn hide_white_space(&mut self, bodies: &[(f64, f64)], scale: f64, viewport_height: f64, spacing: &PageSpacing) {
         todo!()
     }
 
@@ -188,7 +191,7 @@ pub fn page_at(layout: &PagedLayout, p: Point) -> Option<usize> {
 /// - Clamped to [`ZOOM_RANGE`] × [`SCREEN_POINTS_PER_POINT`].
 // pdfcraft: crates/ui-egui/src/canvas/zoom.rs:259 `fit_zoom`; wordcraft:
 // crates/ui-egui/src/canvas/geometry.rs:178 (pageWidth, onePage, multiplePages).
-pub fn fit_scale(sizes: &[Size], viewport: Size, fit: Fit, options: &LayoutOptions, current: Option<usize>) -> Option<f64> {
+pub fn fit_scale(sizes: &[Size], viewport: Size, fit: Fit, options: &LayoutOptions, spacing: &PageSpacing, current: Option<usize>) -> Option<f64> {
     todo!()
 }
 
@@ -223,8 +226,7 @@ pub fn parse_display_token(token: &str) -> Option<(PageDisplay, bool)> {
 
 /// How a newly opened document is shown (Preferences › Documents and view). A file that asks for
 /// its own layout or zoom gets that instead.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct ViewDefaults {
     pub display: PageDisplay,

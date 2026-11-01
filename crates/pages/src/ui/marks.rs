@@ -10,6 +10,10 @@ use kurbo::{Point, Rect};
 
 use craft_ui::canvas::CanvasView;
 
+/// A hidden-character mark's size as a share of the font's ascent (DesignCraft): a proportion
+/// (lead call 38).
+pub const MARK_SHARE: f32 = 0.75;
+
 /// A hidden-character mark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HiddenMark {
@@ -72,14 +76,14 @@ pub struct FrameExtras {
 
 /// The marks and extras of the frames on screen, painted over the page after its content.
 ///
-/// - Marks are drawn in the frame's layer colour, at `ascent × 0.75 × zoom` screen points
-///   clamped 6–40 (DesignCraft).
-/// - Ports are 8.5 screen-point squares, white with a hairline in the layer colour: the in port
-///   10 pt right of the top-left corner on the top edge, the out port 10 pt left of the
-///   bottom-right corner on the bottom edge (DesignCraft's `port_pos`, `PORT_SIZE_PX`). A
-///   threaded port holds a small triangle in the layer colour; the overset port a red
-///   (230, 20, 20) + of 5 screen points, 1.5 wide, drawn on every frame that ends an overset
-///   story, not only selected ones.
+/// - Marks are drawn in the frame's layer colour, at `ascent ×` [`MARK_SHARE`] `× zoom`, kept
+///   between the style's `mark_min` and `mark_max` (DesignCraft).
+/// - Ports are squares of the style's `port` side, white with a hairline in the layer colour:
+///   the in port `port_inset` right of the top-left corner on the top edge, the out port
+///   `port_inset` left of the bottom-right corner on the bottom edge (DesignCraft's `port_pos`,
+///   `PORT_SIZE_PX`). A threaded port holds a small triangle in the layer colour; the overset port
+///   the style's overset `+`, drawn on every frame that ends an overset story, not only selected
+///   ones. Sizes from [`FrameMarksStyle`](super::FrameMarksStyle).
 /// - Nothing here takes input or focus: it's paint only.
 pub struct TextFrameMarks<'a> {
     view: &'a CanvasView,

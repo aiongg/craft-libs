@@ -1,6 +1,6 @@
-//! The text selection layer over a mock page text.
+//! The Select Text tool in a `ToolHost` over a mock page text.
 
-// A drag from glyph 3 to glyph 10 selects Run { anchor: 3, head: 10 } and text_of gives the text.
+// A press at glyph 3 and a drag to glyph 10 select Run { anchor: 3, head: 10 }, changed() is true and text_of gives the text; Esc during the drag cancels it.
 #[test]
 #[ignore = "skeleton"]
 #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
@@ -16,7 +16,7 @@ fn alt_drag_selects_a_column() {
     todo!()
 }
 
-// Double-click selects the word, triple-click the line, four clicks the page.
+// ToolPointer clicks 2, 3 and 4 select the word, the line and the page.
 #[test]
 #[ignore = "skeleton"]
 #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]

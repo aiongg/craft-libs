@@ -14,7 +14,15 @@
 
 use egui::{Rect, Response, Ui};
 
+use super::style::HeaderFooterStyle;
 use super::view::PlacedPage;
+
+/// The header and footer text size, page points (GridCraft's `hf_font` base).
+pub const HEADER_TEXT: f32 = 10.0;
+
+/// The screen sizes header and footer text is kept between at extreme zooms (GridCraft clamps
+/// 4–120): limits of document text drawn at a zoom, not interface sizes.
+pub const HEADER_TEXT_SCREEN: std::ops::RangeInclusive<f32> = 4.0..=120.0;
 
 craft_ui::words! {
     /// The zones' words (GridCraft's strings).
@@ -84,14 +92,19 @@ pub struct HeaderFooterResponse {
 
 /// The zones over the pages on screen.
 ///
-/// - Sections split the band's inner width in thirds, 3 screen points inset top and bottom.
-/// - A hovered empty section shows a dashed outline and "Add header" / "Add footer"; the section
-///   being edited ([`editing`](Self::editing)) is filled white with an accent outline, its
-///   neighbours outlined.
-/// - Text the app gives is drawn left, centred and right aligned in its section, at 10 pt × the
-///   page scale, clamped 4–120 screen points (GridCraft's `hf_font`).
-/// - Each section is an AccessKit Button ("Add header" or its text) in the view's tree; Tab
-///   doesn't stop on them (the app's Insert › Header & Footer starts editing from the keyboard).
+/// - Sections split the band's inner width in thirds, inset top and bottom by
+///   [`HeaderFooterStyle::inset`](super::HeaderFooterStyle::inset).
+/// - A hovered empty section shows the style's dashed hint outline and "Add header" / "Add
+///   footer"; the section being edited ([`editing`](Self::editing)) is filled with the page
+///   colour with the editing outline, its neighbours outlined (Excel).
+/// - Text the app gives is drawn left, centred and right aligned in its section, at the
+///   document's header size ([`HEADER_TEXT`] page points) × the page scale, between
+///   [`HEADER_TEXT_SCREEN`] screen points (GridCraft's `hf_font`; document text, so not a type
+///   role).
+/// - Keys: each section is a Tab stop (an AccessKit Button "Add header" or its text) after the
+///   page view; Enter or Space starts editing it ([`HeaderFooterResponse`]). Excel reaches the
+///   zones only through Insert › Header & Footer; the suite's rule is every control from the
+///   keyboard.
 pub struct HeaderFooterZones<'a> {
     id_salt: egui::IdSalt,
     placed: &'a [PlacedPage],
@@ -102,6 +115,11 @@ pub struct HeaderFooterZones<'a> {
 }
 
 impl<'a> HeaderFooterZones<'a> {
+    /// The zones' sizes and strokes, from the tokens.
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> HeaderFooterStyle {
+        HeaderFooterStyle::of(tokens)
+    }
+
     pub fn new(id_salt: impl egui::AsIdSalt, placed: &'a [PlacedPage], bands: &'a dyn Fn(usize) -> ZoneBands) -> Self {
         HeaderFooterZones { id_salt: egui::IdSalt::new(id_salt), placed, bands, text: None, editing: None, labels: None }
     }

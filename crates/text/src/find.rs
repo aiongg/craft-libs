@@ -35,8 +35,7 @@ pub const MAX_PATTERN: usize = 1024;
 pub const MAX_COUNT: u32 = 1000;
 
 /// How the Find what text is read. The default is a plain search ignoring case.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct FindOptions {
     pub match_case: bool,

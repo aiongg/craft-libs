@@ -35,7 +35,7 @@ mod setup_tests;
 pub mod ui;
 
 pub use layout::{
-    Fit, LayoutOptions, PageDisplay, PagedLayout, SCREEN_POINTS_PER_POINT, ViewDefaults, ZOOM_RANGE, display_token, fit_scale, page_at,
+    Fit, LayoutOptions, PageDisplay, PageSpacing, PagedLayout, SCREEN_POINTS_PER_POINT, ViewDefaults, ZOOM_RANGE, display_token, fit_scale, page_at,
     parse_display_token, place_pages, shown_row, spread_first,
 };
 pub use numbering::{NumberStyle, PAGE_NUMBER_STYLES, PageNumbering};

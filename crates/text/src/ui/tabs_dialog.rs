@@ -50,16 +50,22 @@ pub struct TabStopsResult {
     pub default_interval: f32,
 }
 
+/// The most stops the dialog reads from a paragraph (Word's 64).
+pub const MAX_STOPS: usize = 64;
+
 /// The Tabs dialog.
 ///
-/// - The list shows each stop's position (a number field in the unit), alignment and leader (a
-///   menu showing just the fill when closed); editing a row in place keeps the list in row order
-///   until the edit ends, then [`TabStopsDialog::normalize`] restores position order and merges
-///   stops moved onto one another (the edited row wins).
+/// - The stops are a craft-ui [`Table`](craft_ui::list::Table) (columns Position, Alignment,
+///   Leader; one Tab stop with the list keys and selection) whose cells are a `unit_number_field`
+///   in the unit and two `Select`s (the leader's showing just the fill when closed); editing a
+///   row in place keeps the table in row order until the edit ends, then
+///   [`TabStopsDialog::normalize`] restores position order and merges stops moved onto one
+///   another (the edited row wins).
 /// - Set adds a stop at the next free multiple of the default interval after the last stop, left
 ///   aligned, no leader, selected and ready to edit; Clear moves the selected stop to "to be
 ///   cleared"; Clear All clears every stop.
-/// - Positions are clamped to ±[`MAX_POSITION`](super::ruler::MAX_POSITION); at most 64 stops are read from a paragraph.
+/// - Positions are clamped to ±[`MAX_POSITION`](super::ruler::MAX_POSITION); at most
+///   [`MAX_STOPS`] stops are read from a paragraph.
 /// - Keys: Enter is OK unless a row's field has the keyboard (it commits the field), Esc Cancel.
 pub struct TabStopsDialog {
     stops: Vec<TabStop>,

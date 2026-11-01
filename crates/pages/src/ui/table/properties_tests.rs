@@ -1,6 +1,6 @@
 //! The table properties panel.
 
-// Typing 5 in Rows returns Rows(5); choosing Exactly returns RowHeightMode(Exactly); Merge Cells is disabled with one cell selected.
+// Typing 5 in Rows and Enter reports Begin then Commit of Rows(5); a scrub of Row Height reports Begin, Updates, Commit; choosing Exactly reports Set(RowHeightMode(Exactly)); Merge Cells is disabled with one cell selected.
 #[test]
 #[ignore = "skeleton"]
 #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]

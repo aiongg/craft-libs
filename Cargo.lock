@@ -1413,6 +1413,7 @@ dependencies = [
  "hypher",
  "icu_segmenter",
  "miniz_oxide 0.8.9",
+ "regex",
  "serde",
  "unicode-bidi",
  "unicode-bidi-mirroring",

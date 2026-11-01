@@ -9,7 +9,7 @@
 //! - [`margins`] (N3.11): [`MarginHandles`] on the rulers.
 //! - [`header_footer`] (N3.10): [`HeaderFooterZones`].
 //! - [`range`] (N3.13): [`PageRangeField`] and [`PageRangeOptions`].
-//! - [`text_selection`] (N3.14): [`TextSelectionLayer`] over the app's [`PageTextSource`].
+//! - [`text_selection`] (N3.14): [`TextSelectTool`], a canvas tool over the app's [`PageTexts`].
 //! - [`preview`] (N3.16): [`PagePreview`].
 //! - [`marks`] (N3.17): [`TextFrameMarks`], hidden characters and frame extras.
 //! - [`column_bar`] (N3.19): [`ColumnBar`].
@@ -19,6 +19,7 @@
 //! - [`grid`] (N3.26): [`PageGrids`], margins, columns and baseline grid.
 //! - [`table`] (N3.07, N3.12, N3.24, N3.25): [`EdgePicker`], [`TableProperties`],
 //!   [`TableSizePicker`], [`CellSelectionOverlay`].
+//! - [`style`]: every widget's sizes and colours from the tokens.
 
 pub mod access;
 #[cfg(test)]
@@ -54,6 +55,7 @@ pub mod setup;
 #[cfg(test)]
 mod setup_tests;
 mod stories;
+pub mod style;
 pub mod sync_views;
 #[cfg(test)]
 mod sync_views_tests;
@@ -69,24 +71,30 @@ pub mod view;
 mod view_tests;
 
 pub use access::{AccessBuilder, AccessDescriber, AccessNode, AccessPosition, BlockRole, PagesAccess};
-pub use column_bar::ColumnBar;
+pub use column_bar::{ColumnBar, ColumnBarLabels, ColumnBarResponse};
 pub use grid::{PageGrid, PageGridColors, PageGrids};
 pub use header_footer::{HeaderFooterLabels, HeaderFooterPage, HeaderFooterResponse, HeaderFooterZones, Zone, ZoneAt, ZoneBands};
-pub use list::{PageList, PageListAction, PageListLabels, PageListResponse, PageListRow};
+pub use list::{PageList, PageListEvent, PageListLabels, PageListOutput, PageListRow};
 pub use margins::{MarginChange, MarginEdge, MarginHandles, MarginLabels, MarginResponse, MarginRules};
 pub use marks::{FrameExtras, HiddenMark, PlacedMark, TextFrameMarks};
 pub use preview::{PagePreview, PagePreviewLabels, PagePreviewResponse};
-pub use range::{PageRangeField, PageRangeFieldState, PageRangeLabels, PageRangeOptions};
-pub use reading::{ReadingState, ReadingView};
+pub use range::{PageRangeField, PageRangeFieldResponse, PageRangeFieldState, PageRangeLabels, PageRangeOptions};
+pub use reading::{ReadingLabels, ReadingState, ReadingView, ReadingViewResponse};
 pub use setup::{PageLayoutChoice, PageLayoutMenus, PageSetupDialog, PageSetupLabels};
+pub use style::{
+    CellSelectionStyle, ColumnBarStyle, EdgePickerStyle, FrameMarksStyle, HeaderFooterStyle, MarginHandlesStyle, PageThumbnailsStyle, PageViewStyle,
+    ReadingStyle, TableSizeStyle, TextSelectStyle,
+};
 pub use sync_views::{Lead, SyncedViews, SyncedViewsState};
 pub use table::{
     BorderEdges, BorderPreset, CellAlign, CellRange, CellSelection, CellSelectionOverlay, EdgeKey, EdgePicker, EdgePickerLabels, EdgePickerResponse,
-    RowHeight, TableChange, TableGeometry, TableProperties, TablePropertiesLabels, TableSizePicker, TableSizePickerLabels, TableSizeResponse,
-    TableValues, TextDirection,
+    RowHeight, TableChange, TableGeometry, TableProperties, TablePropertiesLabels, TablePropertiesOutput, TableSizePicker, TableSizePickerLabels,
+    TableSizeResponse, TableValues, TextDirection,
 };
-pub use text_selection::{PageTextSource, TextMark, TextSelection, TextSelectionLayer, TextSpan};
-pub use thumbnails::{LabelPlace, PageMove, PageThumbnails, ThumbnailAction, ThumbnailLabels, ThumbnailMarks, ThumbnailResponse, ThumbnailSection};
+pub use text_selection::{PageTextSource, PageTexts, TextMark, TextSelectState, TextSelectTool, TextSelection, TextSpan, paint_text_marks};
+pub use thumbnails::{
+    LabelPlace, PageThumbnails, PageThumbnailsOutput, ThumbnailEvent, ThumbnailLabels, ThumbnailMarks, ThumbnailSection, moved_page,
+};
 pub use view::{PageSource, PageView, PageViewResponse, PageViewState, PlacedPage};
 
 /// Every labels table of the page widgets, for a facade's word list (not yet in the facade's
@@ -100,6 +108,8 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <PageRangeLabels as craft_ui::localized::Labels>::WORDS,
     <PagePreviewLabels as craft_ui::localized::Labels>::WORDS,
     <PageListLabels as craft_ui::localized::Labels>::WORDS,
+    <ReadingLabels as craft_ui::localized::Labels>::WORDS,
+    <ColumnBarLabels as craft_ui::localized::Labels>::WORDS,
     <EdgePickerLabels as craft_ui::localized::Labels>::WORDS,
     <TablePropertiesLabels as craft_ui::localized::Labels>::WORDS,
     <TableSizePickerLabels as craft_ui::localized::Labels>::WORDS,

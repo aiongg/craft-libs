@@ -16,6 +16,6 @@ pub mod size_picker;
 mod size_picker_tests;
 
 pub use edges::{BorderEdges, BorderPreset, EdgeKey, EdgePicker, EdgePickerLabels, EdgePickerResponse};
-pub use properties::{CellAlign, RowHeight, TableChange, TableProperties, TablePropertiesLabels, TableValues, TextDirection};
+pub use properties::{CellAlign, RowHeight, TableChange, TableProperties, TablePropertiesLabels, TablePropertiesOutput, TableValues, TextDirection};
 pub use selection::{CellRange, CellSelection, CellSelectionOverlay, TableGeometry};
 pub use size_picker::{TableSizePicker, TableSizePickerLabels, TableSizeResponse};

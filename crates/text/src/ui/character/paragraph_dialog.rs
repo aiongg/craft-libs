@@ -52,7 +52,7 @@ craft_ui::words! {
         at: "paragraphDialog.at" = "At";
         preview: "paragraphDialog.preview" = "Preview";
         tabs: "paragraphDialog.tabs" = "Tabs…";
-        not_a_number: "paragraphDialog.notANumber" = "{field} must be a number";
+        out_of_range: "paragraphDialog.outOfRange" = "{field} must be from {min} to {max}";
     }
 }
 
@@ -120,12 +120,14 @@ pub struct ParagraphAnswer {
 
 /// The Paragraph dialog.
 ///
-/// - Alignment as a select; Before text, Special (None, First line, Hanging) and By; Spacing
-///   before and after; Line spacing (Single, 1.5 lines, Double, Multiple, Exactly) and At.
+/// - Alignment and Special (None, First line, Hanging) and Line spacing (Single, 1.5 lines,
+///   Double, Multiple, Exactly) are craft-ui `Select`s; Before text, By and Spacing before and
+///   after are `unit_number_field`s in the dialog's unit; At is a `NumberField` (lines or
+///   points, by the line spacing).
 ///   Choosing Exactly with an At of 9.99 or less sets 18 pt; choosing a multiple with an At above
 ///   9.99 sets 1 (DeckCraft).
-/// - Lengths in the dialog's unit (inches by default, as PowerPoint); a field that doesn't parse
-///   refuses OK with "{field} must be a number" in the status line.
+/// - Lengths in the dialog's unit (inches by default, as PowerPoint); a value out of range
+///   refuses OK with the labels' range message under its field (the field error style).
 /// - Preview (Word's; DeckCraft has none): three grey sample paragraphs with the middle one in black, laid out with the
 ///   values as they are now (Word's Preview box), redrawn as fields change.
 /// - Keys: Enter is OK, Esc Cancel; first focus on Alignment.

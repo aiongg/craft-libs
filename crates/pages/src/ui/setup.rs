@@ -15,9 +15,13 @@
 
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog};
 use craft_ui::localized::units::LengthUnit;
-use egui::{Context, Ui};
+use craft_ui::menu::MenuEntry;
+use egui::Context;
 
 use crate::setup::{MARGIN_PRESETS, MarginPreset, Orientation, PAPER_SIZES, PageSetup, PaperSize};
+
+/// The margin and paper fields' scrub step, page points (WordCraft's 0.05 in).
+pub const MARGIN_SCRUB_STEP: f64 = 3.6;
 
 craft_ui::words! {
     /// The dialog's and menus' words (WordCraft's strings; DesignCraft's for the pages row).
@@ -68,12 +72,14 @@ craft_ui::words! {
 /// fit the paper ([`Margins::fit`](crate::setup::Margins::fit)).
 ///
 /// - Margins: Top, Bottom, Left (Inside with mirrored margins), Right (Outside), and Gutter, in
-///   the dialog's [`LengthUnit`], two decimals, typed or scrubbed (3.6 pt per scrub step).
-/// - Orientation: Portrait and Landscape radio buttons; switching turns the size (and the margins)
-///   ([`PageSetup::set_orientation`]).
+///   the dialog's [`LengthUnit`], each craft-ui's `unit_number_field` (typed in any unit, scrubbed,
+///   two decimals, the unit's suffix), the scrub step [`MARGIN_SCRUB_STEP`] page points.
+/// - Orientation: Portrait and Landscape as a craft-ui `RadioGroup`; switching turns the size
+///   (and the margins) ([`PageSetup::set_orientation`]).
 /// - Pages: Mirror margins (Word) or Facing Pages and Number of Pages (InDesign, with
 ///   [`document_setup`](Self::document_setup)).
-/// - Paper: a Paper size list of [`papers`](Self::papers) plus Custom size, and Width and Height
+/// - Paper: a craft-ui `Select` of [`papers`](Self::papers) plus Custom size, and Width and Height
+///   `unit_number_field`s
 ///   ([`MIN_PAGE_SIDE`](crate::setup::MIN_PAGE_SIDE)–[`MAX_PAGE_SIDE`](crate::setup::MAX_PAGE_SIDE));
 ///   Custom size stays chosen while the numbers match a name; a typed size wider than tall turns
 ///   the orientation ([`PageSetup::set_size`]).
@@ -175,9 +181,10 @@ pub enum PageLayoutChoice {
     PageSetup,
 }
 
-/// Layout › Margins, Orientation and Size as menu bodies, each item checked when it matches the
-/// page setup at the caret (Word's check marks). For a ribbon's menu buttons, a menu bar or a
-/// context menu.
+/// Layout › Margins, Orientation and Size as craft-ui menu entries (`MenuEntry<PageLayoutChoice>`,
+/// no `Ui`), each item checked when it matches the page setup at the caret (Word's check marks).
+/// The app shows them with `menu::PressMenu` from a ribbon's menu button, in its menu bar or a
+/// context menu, and applies the chosen item's value.
 pub struct PageLayoutMenus<'a> {
     setup: &'a PageSetup,
     unit: LengthUnit,
@@ -209,12 +216,12 @@ impl<'a> PageLayoutMenus<'a> {
     /// The presets (a uniform one reads "Normal  2.54 cm all" in the unit), a separator and
     /// Custom Margins…; Mirrored is checked when the document mirrors margins.
     // wordcraft: crates/ui-egui/src/ribbon/layout.rs:8 `margins_items`.
-    pub fn margins(&self, ui: &mut Ui) -> Option<PageLayoutChoice> {
+    pub fn margins(&self) -> Vec<MenuEntry<PageLayoutChoice>> {
         todo!()
     }
 
     // wordcraft: crates/ui-egui/src/ribbon/layout.rs:30 `orientation_items`.
-    pub fn orientation(&self, ui: &mut Ui) -> Option<PageLayoutChoice> {
+    pub fn orientation(&self) -> Vec<MenuEntry<PageLayoutChoice>> {
         todo!()
     }
 
@@ -222,7 +229,7 @@ impl<'a> PageLayoutMenus<'a> {
     /// Sizes….
     // wordcraft: crates/ui-egui/src/ribbon/layout.rs:51 (the Size menu button);
     // designcraft: crates/ui-egui/src/chrome/control_bar.rs:44 (presets in the control bar).
-    pub fn size(&self, ui: &mut Ui) -> Option<PageLayoutChoice> {
+    pub fn size(&self) -> Vec<MenuEntry<PageLayoutChoice>> {
         todo!()
     }
 }

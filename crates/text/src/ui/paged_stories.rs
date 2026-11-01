@@ -10,10 +10,11 @@ use egui::Ui;
 
 /// `composites/text-ruler/word`, `composites/text-ruler/tabs-panel`, `patterns/tabs/dialog`,
 /// `patterns/paragraph/dialog`, `patterns/notes/editor`, `patterns/columns/dialog`,
-/// `patterns/hyperlink/dialog`, `patterns/find/bar`, `patterns/find/dialog`,
+/// `patterns/hyperlink/dialog`, `patterns/find/bar`, `patterns/find/dialog` (with `find`),
 /// `composites/style-chip/picker`.
 pub fn stories() -> Vec<Story> {
-    vec![
+    #[cfg_attr(not(feature = "find"), expect(unused_mut, reason = "only the find stories are added after the list"))]
+    let mut all = vec![
         typed_story!("composites/text-ruler/word", Level::Composites, "Text ruler", "Word", NoArgs {}, ruler_word),
         typed_story!("composites/text-ruler/tabs-panel", Level::Composites, "Text ruler", "Tabs panel", NoArgs {}, ruler_panel),
         typed_story!("patterns/tabs/dialog", Level::Patterns, "Tabs", "Dialog", NoArgs {}, tabs_dialog),
@@ -21,10 +22,14 @@ pub fn stories() -> Vec<Story> {
         typed_story!("patterns/notes/editor", Level::Patterns, "Notes", "Editor", NoArgs {}, notes),
         typed_story!("patterns/columns/dialog", Level::Patterns, "Columns", "Dialog", NoArgs {}, columns),
         typed_story!("patterns/hyperlink/dialog", Level::Patterns, "Hyperlink", "Dialog", NoArgs {}, hyperlink),
+        typed_story!("composites/style-chip/picker", Level::Composites, "Style chip", "Picker", NoArgs {}, style_chip),
+    ];
+    #[cfg(feature = "find")]
+    all.extend([
         typed_story!("patterns/find/bar", Level::Patterns, "Find", "Bar", NoArgs {}, find_bar),
         typed_story!("patterns/find/dialog", Level::Patterns, "Find", "Dialog", NoArgs {}, find_dialog),
-        typed_story!("composites/style-chip/picker", Level::Composites, "Style chip", "Picker", NoArgs {}, style_chip),
-    ]
+    ]);
+    all
 }
 
 // new: Word's ruler over a 6.5 in column, a hanging indent, four stops of each kind, the selector.
@@ -63,11 +68,13 @@ fn hyperlink(ui: &mut Ui, _: &mut NoArgs) {
 }
 
 // new: the bar with "page" and 3 of 12, options on.
+#[cfg(feature = "find")]
 fn find_bar(ui: &mut Ui, _: &mut NoArgs) {
     todo!()
 }
 
 // new: Word's Find and Replace, Replace tab, Search Options open.
+#[cfg(feature = "find")]
 fn find_dialog(ui: &mut Ui, _: &mut NoArgs) {
     todo!()
 }

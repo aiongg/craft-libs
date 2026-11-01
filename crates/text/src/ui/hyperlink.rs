@@ -76,10 +76,12 @@ pub enum HyperlinkAnswer {
 
 /// The dialog.
 ///
-/// - Link to: the three targets as a vertical tab list (Word's left column); a new link's address
-///   starts at `https://` (DeckCraft).
-/// - Place in This Document lists [`places`](Self::places) (Top of the Document first; headings
-///   and bookmarks, or slides "1. Title").
+/// - Link to: the three targets as craft-ui's `RadioSet` with icons, a column at the left
+///   (Word's); a new link's address starts at `https://` (DeckCraft). Address, Email address,
+///   Subject and Text to display are craft-ui `TextField`s.
+/// - Place in This Document lists [`places`](Self::places) in a craft-ui
+///   [`List`](craft_ui::list::List) (one Tab stop, the list keys, type-ahead; Top of the Document
+///   first; headings and bookmarks, or slides "1. Title").
 /// - With [`CurrentLink::Mixed`] or [`CurrentLink::Other`] the fields start empty and OK returns
 ///   [`HyperlinkAnswer::Keep`] until a target differs from the seed (DeckCraft's
 ///   `hyperlink_should_apply`).

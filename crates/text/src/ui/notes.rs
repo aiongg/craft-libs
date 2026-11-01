@@ -67,32 +67,43 @@ pub struct NotesResponse {
 
 /// The editor, built per pass over the app's notes.
 ///
-/// - Text at the body type role (the app may set a size for Zoom of the notes pane), wrapped to
+/// - Text at the body type role × [`zoom`](NotesEditor::zoom), wrapped to
 ///   the width; each paragraph laid out at its indent, its marker
 ///   ([`crate::lists::markers`]) drawn at its first line's start.
-/// - An empty editor shows the placeholder ("Click to add notes").
+/// - An empty editor shows [`NotesLabels::placeholder`]; the editor is named by
+///   [`NotesLabels::notes`].
 /// - Keys and focus are the craft-ui text field's (it is one, multi-line); ⌘/Ctrl-B, -I, -U toggle
 ///   the run style at the selection through the app's commands, not here.
 pub struct NotesEditor<'a> {
     id_salt: egui::IdSalt,
     notes: &'a NotesText,
-    placeholder: Option<String>,
-    size: Option<f32>,
+    zoom: f32,
+    labels: Option<NotesLabels>,
+}
+
+craft_ui::words! {
+    /// The notes pane's words (PowerPoint's).
+    #[non_exhaustive]
+    pub struct NotesLabels {
+        notes: "notes.notes" = "Notes";
+        placeholder: "notes.placeholder" = "Click to add notes";
+    }
 }
 
 impl<'a> NotesEditor<'a> {
     pub fn new(id_salt: impl egui::AsIdSalt, notes: &'a NotesText) -> Self {
-        NotesEditor { id_salt: egui::IdSalt::new(id_salt), notes, placeholder: None, size: None }
+        NotesEditor { id_salt: egui::IdSalt::new(id_salt), notes, zoom: 1.0, labels: None }
     }
 
-    pub fn placeholder(mut self, text: impl Into<String>) -> Self {
-        self.placeholder = Some(text.into());
+    /// The notes pane's zoom (PowerPoint's Zoom of the notes pane), a factor over the body type
+    /// role's size; 1 by default.
+    pub fn zoom(mut self, zoom: f32) -> Self {
+        self.zoom = zoom;
         self
     }
 
-    /// The text size, points (the pane's zoom); the body role's size by default.
-    pub fn size(mut self, size: f32) -> Self {
-        self.size = Some(size);
+    pub fn labels(mut self, labels: NotesLabels) -> Self {
+        self.labels = Some(labels);
         self
     }
 
@@ -105,17 +116,19 @@ impl<'a> NotesEditor<'a> {
 
 /// The notes read-only, wrapped to the width and selectable like a label.
 pub struct NotesView<'a> {
+    id_salt: egui::IdSalt,
     notes: &'a NotesText,
-    size: Option<f32>,
+    zoom: f32,
 }
 
 impl<'a> NotesView<'a> {
-    pub fn new(notes: &'a NotesText) -> Self {
-        NotesView { notes, size: None }
+    pub fn new(id_salt: impl egui::AsIdSalt, notes: &'a NotesText) -> Self {
+        NotesView { id_salt: egui::IdSalt::new(id_salt), notes, zoom: 1.0 }
     }
 
-    pub fn size(mut self, size: f32) -> Self {
-        self.size = Some(size);
+    /// A factor over the body type role's size, as [`NotesEditor::zoom`].
+    pub fn zoom(mut self, zoom: f32) -> Self {
+        self.zoom = zoom;
         self
     }
 

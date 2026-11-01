@@ -7,6 +7,25 @@
 use craft_ui::edit::EditEvent;
 use egui::{Response, Ui};
 
+use super::style::ColumnBarStyle;
+
+craft_ui::words! {
+    /// The bar's words.
+    #[non_exhaustive]
+    pub struct ColumnBarLabels {
+        divider: "columnBar.divider" = "Column {n} width";
+        column: "columnBar.column" = "Column {letter}";
+    }
+}
+
+/// What the bar did this pass.
+#[derive(Debug)]
+pub struct ColumnBarResponse {
+    pub response: Response,
+    /// A divider gesture or key: the new widths.
+    pub edit: Option<EditEvent<Vec<f64>>>,
+}
+
 /// The smallest share a column keeps when a divider moves, or a quarter of what the two columns
 /// have between them when that is less, so narrow columns can still be resized (PdfCraft's
 /// `MIN_SHARE`).
@@ -30,35 +49,47 @@ pub fn move_divider(widths: &mut [f64], i: usize, delta: f64) {
     todo!()
 }
 
-/// The bar, editing `widths` in place.
+/// The bar over the app's `widths`; it reports edits, it never writes them.
 ///
-/// - The bar is outlined 1 pt in the border colour, corner radius 3; each divider is a 1.5 pt
-///   border-coloured line, 3 pt accent while hovered, dragged or focused. Labels (the app's, "A",
-///   "B", … by default) are centred in their share when they fit.
-/// - A divider grabs within a few points but never past the middle of a column; a drag reports
-///   one edit gesture (Begin, Update, Commit with the new widths; Esc cancels).
-/// - Keys: Tab moves through the dividers (each an AccessKit Splitter "Column {n} width"); ← / →
-///   move the focused one by [`KEY_STEP`] as a one-shot [`EditEvent::Set`].
+/// - Look ([`ColumnBarStyle`]): the bar outlined, rounded; each divider a line, the active
+///   divider (hovered, dragged or focused) in the accent. Labels (the app's, "A", "B", … by
+///   default, [`ColumnBarLabels::column`]) are centred in their share when they fit.
+/// - A divider grabs within the style's `grab` but never past the middle of a column; a drag is
+///   one edit gesture, [`EditEvent`] (Begin, Update per move, Commit with the new widths; Esc
+///   and focus loss Cancel), at most one event a pass.
+/// - Keys: each divider is a Tab stop (an AccessKit Splitter named by
+///   [`ColumnBarLabels::divider`], "Column {n} width"); ← / → move the focused one by
+///   [`KEY_STEP`] as one [`EditEvent::Set`], mirrored in a right-to-left interface.
 pub struct ColumnBar<'a> {
     id_salt: egui::IdSalt,
     widths: &'a [f64],
-    labels: Option<&'a [String]>,
+    names: Option<&'a [String]>,
+    labels: Option<ColumnBarLabels>,
 }
 
 impl<'a> ColumnBar<'a> {
     pub fn new(id_salt: impl egui::AsIdSalt, widths: &'a [f64]) -> Self {
-        ColumnBar { id_salt: egui::IdSalt::new(id_salt), widths, labels: None }
+        ColumnBar { id_salt: egui::IdSalt::new(id_salt), widths, names: None, labels: None }
     }
 
-    /// Column names drawn in their shares.
-    pub fn labels(mut self, labels: &'a [String]) -> Self {
+    /// The bar's sizes and colours, from the tokens.
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> ColumnBarStyle {
+        ColumnBarStyle::of(tokens)
+    }
+
+    /// Column names drawn in their shares (the app's field names).
+    pub fn names(mut self, names: &'a [String]) -> Self {
+        self.names = Some(names);
+        self
+    }
+
+    pub fn labels(mut self, labels: ColumnBarLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
-    /// The bar with the new widths when a divider moved.
     // pdfcraft: crates/ui-egui/src/tools/field_table_ui.rs:338 `column_bar`, :376 `column_dividers`.
-    pub fn show(self, ui: &mut Ui) -> (Response, Option<EditEvent<Vec<f64>>>) {
+    pub fn show(self, ui: &mut Ui) -> ColumnBarResponse {
         todo!()
     }
 }

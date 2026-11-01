@@ -72,10 +72,14 @@ pub struct StyleChipResponse {
 ///
 /// - Shows the applied style's preview and leaf name, "Mixed" for several, or the app's own value
 ///   field when no style is applied ([`StyleChip::show`] returns and the app draws it).
-/// - A click opens the picker popover under the chip: a header with the list/grid toggle and
-///   create, then the styles by folder (top-level first, folder captions), the applied one
-///   checked; ↑/↓ move, Enter applies, Esc closes; typing filters by name.
-/// - Rows: preview, name and meta on two lines; a right-click opens Edit style.
+/// - A click (or Enter, Space) opens the picker popover under the chip (craft-ui's popover: focus
+///   moves in, Esc closes and returns it): a header with the list/grid toggle (`Segmented`) and
+///   create (`IconButton`), a `SearchField` that filters by name, then the styles by folder
+///   (top-level first, folder captions as section rows), the applied one checked.
+/// - List view: a craft-ui [`List`](craft_ui::list::List) of `ListRow`s (the preview in the
+///   glyph slot, name with meta as the detail line; folders as `RowInfo::section` rows; one Tab
+///   stop, ↑/↓, Enter applies, the context menu's Edit style). Grid view: preview tiles moved
+///   through with craft-ui's [`GridNav`](craft_ui::behavior::GridNav), the name in the tooltip.
 pub struct StyleChip<'a> {
     id_salt: egui::IdSalt,
     styles: &'a [NamedStyleRow],

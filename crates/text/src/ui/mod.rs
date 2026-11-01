@@ -23,7 +23,7 @@
 //! - [`notes`] (N3.18): [`NotesEditor`](notes::NotesEditor) and [`NotesView`](notes::NotesView).
 //! - [`columns`] (N3.27): [`TextColumnsDialog`](columns::TextColumnsDialog) and the Columns menu.
 //! - [`hyperlink`] (N3.28): [`HyperlinkDialog`](hyperlink::HyperlinkDialog).
-//! - [`find`] (N3.03): [`FindBar`](find::FindBar) and [`FindReplaceDialog`](find::FindReplaceDialog).
+//! - `find` (N3.03, with the `find` feature): `FindBar` and `FindReplaceDialog`.
 
 pub mod character;
 #[cfg(test)]
@@ -34,8 +34,9 @@ mod columns_tests;
 pub mod editor;
 #[cfg(test)]
 mod editor_tests;
+#[cfg(feature = "find")]
 pub mod find;
-#[cfg(test)]
+#[cfg(all(test, feature = "find"))]
 mod find_tests;
 pub mod hyperlink;
 #[cfg(test)]
@@ -69,4 +70,18 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <character::ParagraphLabels as craft_ui::localized::Labels>::WORDS,
     <style_panel::TextStylesLabels as craft_ui::localized::Labels>::WORDS,
     <spelling::CheckSpellingLabels as craft_ui::localized::Labels>::WORDS,
+];
+
+/// The labels tables of the paged-text controls (6b), for the facade's catalog extraction once
+/// the registration task adds them to [`WORDS`] (that changes the catalog dumps).
+pub const PAGED_WORDS: &[&[craft_ui::localized::Word]] = &[
+    <ruler::TextRulerLabels as craft_ui::localized::Labels>::WORDS,
+    <tabs_dialog::TabStopsLabels as craft_ui::localized::Labels>::WORDS,
+    <character::ParagraphDialogLabels as craft_ui::localized::Labels>::WORDS,
+    <style_panel::StylePickerLabels as craft_ui::localized::Labels>::WORDS,
+    <notes::NotesLabels as craft_ui::localized::Labels>::WORDS,
+    <columns::TextColumnsLabels as craft_ui::localized::Labels>::WORDS,
+    <hyperlink::HyperlinkLabels as craft_ui::localized::Labels>::WORDS,
+    #[cfg(feature = "find")]
+    <find::FindLabels as craft_ui::localized::Labels>::WORDS,
 ];

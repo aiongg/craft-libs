@@ -1,6 +1,6 @@
 //! Page placement, fits and spreads.
 
-// Three Letter pages at 100 % with ACROBAT options sit centred, 14 pt apart, from 28 pt down; with gap 0 their heights are whole device pixels.
+// Three Letter pages at 100 % with ACROBAT options and a test spacing (gap 14, margin 28) sit centred, 14 pt apart, from 28 pt down; with page gaps off their heights are whole device pixels.
 #[test]
 #[ignore = "skeleton"]
 #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]

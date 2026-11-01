@@ -10,10 +10,6 @@ use egui::Ui;
 pub const ROWS: usize = 8;
 pub const COLUMNS: usize = 10;
 
-/// Each square, screen points, and the space between (WordCraft: 16 and 2).
-pub const CELL: f32 = 16.0;
-pub const CELL_GAP: f32 = 2.0;
-
 craft_ui::words! {
     /// The picker's words.
     #[non_exhaustive]
@@ -35,14 +31,22 @@ pub struct TableSizeResponse {
 ///
 /// - Squares up to the hovered one fill with the checked fill and an accent outline; others the
 ///   input fill and strong border.
-/// - Keys: the grid is one Tab stop; arrows move the hovered square, Enter inserts it, Esc closes
-///   the menu. It is an AccessKit Grid whose value reads like the label.
+/// - Squares of [`TableSizeStyle`](crate::ui::TableSizeStyle)'s cell and gap.
+/// - Keys: the grid is one Tab stop; arrows move the hovered square through craft-ui's
+///   [`GridNav`](craft_ui::behavior::GridNav) (`GridNav::wrapped(ROWS * COLUMNS, COLUMNS)`, its
+///   right-to-left mirroring), Enter inserts it, Esc closes the menu. It is an AccessKit Grid
+///   whose value reads like the label.
 pub struct TableSizePicker {
     id_salt: egui::IdSalt,
     labels: Option<TableSizePickerLabels>,
 }
 
 impl TableSizePicker {
+    /// The picker's sizes, from the tokens.
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> crate::ui::TableSizeStyle {
+        crate::ui::TableSizeStyle::of(tokens)
+    }
+
     pub fn new(id_salt: impl egui::AsIdSalt) -> Self {
         TableSizePicker { id_salt: egui::IdSalt::new(id_salt), labels: None }
     }

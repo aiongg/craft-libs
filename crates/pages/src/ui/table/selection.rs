@@ -6,7 +6,7 @@
 //! craft-table's spreadsheet grid needs the same model. [`CellRange`] and [`CellSelection`] are
 //! written here so this part compiles; they move down to `craft_ui::behavior::cell_selection`
 //! once craft-table lands, and both crates use them from there (rule 3 of the crate layout).
-//! needs: lead craft-ui::behavior::cell_selection (shared with craft-table, part "timeline,
+//! needs: R2 `craft_ui::behavior::cells` (lead call; the shared model R2 writes, part "timeline,
 //! review, tables").
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
@@ -92,9 +92,9 @@ impl TableGeometry {
 
 /// The overlay over selected cells, painted after the table.
 ///
-/// - Selected cells tint with the selection colour (DesignCraft's 80, 140, 255 at 110 alpha for
-///   text highlights; a token in the fill), the range outlined 1 pt in the accent colour; a
-///   caret or text selection inside one cell draws as text.
+/// - Selected cells tint with [`CellSelectionStyle`](crate::ui::CellSelectionStyle)'s fill, the
+///   range outlined with its outline (accent); a caret or text selection inside one cell draws
+///   as text (InDesign; DesignCraft).
 /// - Paint only: the app's table tool runs clicks and drags (press in a cell and drag selects a
 ///   range, ⇧-click extends) and calls [`CellSelection`]'s rules.
 pub struct CellSelectionOverlay<'a> {

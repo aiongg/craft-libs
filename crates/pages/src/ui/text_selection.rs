@@ -1,7 +1,8 @@
-//! [`TextSelectionLayer`] (N3.14): selecting text on a rendered page (Acrobat's Select tool):
+//! [`TextSelectTool`] (N3.14): selecting text on a rendered page (Acrobat's Select tool, a
+//! craft-ui canvas tool):
 //! drag across glyphs in reading order, Alt-drag (or the app's Column Select tool) for the glyphs
 //! inside a rectangle, double-click a word, triple-click a line, four clicks the page; the
-//! selection highlighted, with find matches under it.
+//! selection highlighted, with find matches under it ([`paint_text_marks`]).
 //!
 //! The page's text comes from the app ([`PageTextSource`]: PdfCraft's extracted text layer); the
 //! layer keeps no text.
@@ -10,9 +11,12 @@
 
 use std::ops::Range;
 
-use egui::{Response, Ui};
+use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
+use craft_ui::theme::UiTokens;
+use egui::Painter;
 use kurbo::Rect;
 
+use super::style::TextSelectStyle;
 use super::view::PlacedPage;
 
 /// A page's text as the selection reads it, glyph by glyph in reading order. Rectangles are page
@@ -74,33 +78,71 @@ pub fn click_unit(text: &dyn PageTextSource, clicks: u32, glyph: usize) -> Optio
 /// A highlight drawn with the selection: find matches, the current one stronger.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextMark {
+    pub page: usize,
     pub glyphs: Range<usize>,
     pub current: bool,
 }
 
-/// The layer on one placed page, built per pass after the page is drawn.
-///
-/// - Drag with the primary button selects ([`TextSpan::Run`]); with Alt held (or
-///   [`column`](Self::column) on) it selects a column, its rectangle outlined 1 pt while
-///   dragging. The cursor is the I-beam over glyphs.
-/// - Highlights: selection 70/255 of `selection.text_fill` (PdfCraft: #3A7BF0 at 70), corner
-///   radius 1; matches yellow at 90 and the current one orange at 110, 1 pt larger, radius 2
-///   (PdfCraft's find marks); the colours are tokens the fill task proposes.
-/// - Keys with the page view focused: ⇧-arrows extend a run by a glyph (⇧⌥ by a word), ⌘/Ctrl-A
-///   selects the page (or, continuous, the document: the app's Select All), Esc clears.
-/// - The selection is reported to AccessKit through the bridge ([`super::access`]).
-pub struct TextSelectionLayer<'a> {
-    id_salt: egui::IdSalt,
-    page: &'a PlacedPage,
-    text: &'a dyn PageTextSource,
-    selection: &'a mut Option<TextSelection>,
-    marks: &'a [TextMark],
-    column: bool,
+/// The text of the document's pages, for the tool: the pages whose text the app has (PdfCraft
+/// extracts it in the background; a page without it yet selects nothing).
+pub trait PageTexts {
+    fn page(&self, page: usize) -> Option<&dyn PageTextSource>;
 }
 
-impl<'a> TextSelectionLayer<'a> {
-    pub fn new(id_salt: impl egui::AsIdSalt, page: &'a PlacedPage, text: &'a dyn PageTextSource, selection: &'a mut Option<TextSelection>) -> Self {
-        TextSelectionLayer { id_salt: egui::IdSalt::new(id_salt), page, text, selection, marks: &[], column: false }
+/// The tool's state, kept by the app per document view: the selection (view state, applied in
+/// place, as craft-ui's `List` applies its selection) and the gesture in progress.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TextSelectState {
+    pub selection: Option<TextSelection>,
+    /// The drag in progress: the page and where it started (glyph, or page point for a column).
+    gesture: Option<(usize, TextSpan)>,
+}
+
+/// Paint the selection and find marks of one placed page: the selection fill, the match fills,
+/// the current match grown and rounded as the style says. The page view's overlays call it for
+/// every page whatever tool is active (find marks show under the Hand tool too);
+/// [`TextSelectTool::paint`](craft_ui::canvas::CanvasTool::paint) calls it for the selection.
+// pdfcraft: crates/ui-egui/src/canvas.rs:1485 `paint_text_marks`.
+pub fn paint_text_marks(
+    painter: &Painter,
+    placed: &PlacedPage,
+    text: &dyn PageTextSource,
+    selection: Option<&TextSelection>,
+    marks: &[TextMark],
+    style: &TextSelectStyle,
+) {
+    todo!()
+}
+
+/// Acrobat's Select tool on the page view, a craft-ui [`CanvasTool`] the app runs in its
+/// `ToolHost` over [`PageViewResponse::canvas`](super::PageViewResponse::canvas); built per pass
+/// over the pass's placed pages and the app's [`TextSelectState`].
+///
+/// - Press and drag with the primary button selects ([`TextSpan::Run`], anchored at the press's
+///   glyph); with Alt held (or [`column`](Self::column) on: the Column Select tool) it selects
+///   a column, its rectangle outlined while dragging. The press's click count is
+///   [`ToolPointer::clicks`](craft_ui::canvas::ToolPointer::clicks) (the app-wide double-click
+///   time): 2 the word, 3 the line, 4 the page ([`click_unit`]). The cursor is the I-beam over
+///   glyphs, the arrow elsewhere ([`CanvasTool::cursor`]). A press off any glyph clears the
+///   selection.
+/// - Highlights through [`paint_text_marks`] with [`TextSelectStyle`] (the `text_selection.*`
+///   tokens proposed in the spec).
+/// - Keys while the canvas has the keyboard ([`CanvasTool::key`], taken only when used):
+///   ⇧-arrows extend a run by a glyph (⇧⌥ by a word), Esc clears. Select All and Copy are the
+///   app's commands (they read [`TextSelection::text`]).
+/// - The selection is reported to AccessKit through the bridge ([`super::access`]).
+pub struct TextSelectTool<'a> {
+    pages: &'a [PlacedPage],
+    texts: &'a dyn PageTexts,
+    state: &'a mut TextSelectState,
+    marks: &'a [TextMark],
+    column: bool,
+    changed: bool,
+}
+
+impl<'a> TextSelectTool<'a> {
+    pub fn new(pages: &'a [PlacedPage], texts: &'a dyn PageTexts, state: &'a mut TextSelectState) -> Self {
+        TextSelectTool { pages, texts, state, marks: &[], column: false, changed: false }
     }
 
     pub fn marks(mut self, marks: &'a [TextMark]) -> Self {
@@ -114,9 +156,44 @@ impl<'a> TextSelectionLayer<'a> {
         self
     }
 
-    // pdfcraft: crates/ui-egui/src/canvas.rs:1470 `text_layer`, :1485 `paint_text_marks`, :1547
-    // `text_pointer_input`.
-    pub fn show(self, ui: &mut Ui) -> Response {
+    /// Whether the selection changed this pass (read after `ToolHost::show`).
+    pub fn changed(&self) -> bool {
+        self.changed
+    }
+
+    /// The tool's colours and sizes, from the tokens.
+    pub fn style(tokens: &UiTokens) -> TextSelectStyle {
+        TextSelectStyle::of(tokens)
+    }
+}
+
+// pdfcraft: crates/ui-egui/src/canvas.rs:1470 `text_layer`, :1547 `text_pointer_input`.
+impl CanvasTool for TextSelectTool<'_> {
+    fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
+        todo!()
+    }
+
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+        todo!()
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+        todo!()
+    }
+
+    fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
         todo!()
     }
 }

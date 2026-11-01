@@ -1,12 +1,17 @@
 //! [`PageView`] (N3.06): a scrolling view of a document's pages, laid out by
 //! [`crate::layout`], drawn through craft-ui's [`Pasteboard`](craft_ui::canvas::Pasteboard) page
-//! frames, with the page rasters the app renders.
+//! frames on a [`CanvasView`], with the page pictures the app renders through craft-ui's texture
+//! contract ([`ThumbSource`]).
+//!
+//! The view is a canvas: the app runs its [`ToolHost`](craft_ui::canvas::ToolHost) over
+//! [`PageViewResponse::canvas`] with the page tools (Select Text,
+//! [`TextSelectTool`](super::TextSelectTool); craft-ui's `HandTool` and `ZoomTool`), as
+//! PhotoCraft runs its tools over its canvas.
 //!
 //! ```ignore
-//! let r = PageView::new("doc-7", &mut doc_pages, &mut view_state).options(LayoutOptions::ACROBAT).show(ui);
-//! for placed in &r.pages {
-//!     selection_layer.show(ui, placed, &page_text(placed.page));   // overlays draw on placed pages
-//! }
+//! let r = PageView::new("doc-7", &doc_pages, &mut view_state).options(LayoutOptions::ACROBAT).show(ui);
+//! let mut tool = TextSelectTool::new(&r.pages, &doc_texts, &mut tab.text_selection).marks(&find_marks);
+//! let tools = ToolHost::new(r.canvas_id).show(ui, &r.canvas, &r.response, &mut tool);
 //! if r.current_changed { thumbnails_follow = true; }
 //! ```
 
@@ -14,14 +19,25 @@
 
 use std::ops::Range;
 
-use egui::{Rect, Response, TextureId, Ui};
+use craft_ui::canvas::textures::ThumbSource;
+use craft_ui::canvas::{CanvasId, CanvasView};
+use craft_ui::theme::UiTokens;
+use egui::{Rect, Response, Ui};
 use kurbo::{Point, Size};
 
+use super::style::PageViewStyle;
 use crate::layout::{Fit, LayoutOptions, PageDisplay, PagedLayout, ViewDefaults};
 
 /// The document's pages as a page view, thumbnails and previews read them. The app implements it
-/// over its document and its render cache; the view never owns pages.
-pub trait PageSource {
+/// over its document; the view never owns pages.
+///
+/// Pictures go through craft-ui's one texture contract, [`ThumbSource<usize>`] keyed by page
+/// index (`revision` a cheap stamp of the page's content, `render` the page at
+/// `request.side` pixels on its longest side, usually as a `ThumbRender::Later` job on the
+/// loader's queue). The library uploads, caches (`TextureCacheOptions::pages()` for the view,
+/// `thumbnails()` for the strip), evicts, keeps a stale picture as the stand-in until the new
+/// one lands and asks for the redraw; the app holds no texture and polls nothing.
+pub trait PageSource: ThumbSource<usize> {
     fn page_count(&self) -> usize;
 
     /// Page `page`'s size in points as shown (its rotation applied).
@@ -32,12 +48,6 @@ pub trait PageSource {
     fn page_label(&self, page: usize) -> String {
         (page + 1).to_string()
     }
-
-    /// The page's raster for drawing `pixels` device pixels wide, if the app has one; the app
-    /// starts rendering when it hasn't and asks for a repaint when it is ready. `visible` is false
-    /// for a page just outside the view, rendered ahead. A stale raster of another size is fine
-    /// to return: the view draws it stretched until the new one arrives (PdfCraft).
-    fn texture(&mut self, page: usize, pixels: u32, visible: bool) -> Option<TextureId>;
 }
 
 /// The view's state, kept by the app per document view (one per tab).
@@ -59,7 +69,8 @@ pub struct PageViewState {
     pub hide_white_space: bool,
     /// The scroll offset (screen points).
     pub offset: (f64, f64),
-    /// A page to bring into view next pass, with a fraction of its height to put at the top.
+    /// A page the next [`PageView::show`] brings to the top of the view, with a fraction of its
+    /// height to put at the top; that `show` clears it.
     #[serde(skip)]
     pub go_to: Option<(usize, f64)>,
 }
@@ -87,16 +98,20 @@ impl PageViewState {
         }
     }
 
-    /// Bring `page` to the top of the view next pass (page box, outline, thumbnails, find).
+    /// Ask the next [`PageView::show`] to bring `page` to the top of the view (page box,
+    /// outline, thumbnails, find), and make it current now.
     pub fn go_to(&mut self, page: usize) {
         self.go_to = Some((page, 0.0));
         self.current = page;
     }
 
-    /// Zoom In / Zoom Out: the next of `steps` above (or below) the shown zoom; a fit ends.
-    // pdfcraft: crates/ui-egui/src/canvas/zoom.rs (zoom steps); wordcraft:
-    // crates/ui-egui/src/canvas/geometry.rs:234 `sync_fit_zoom`.
-    pub fn zoom_step(&mut self, steps: &[f64], larger: bool) {
+    /// Zoom In / Zoom Out: the next rung of craft-ui's [`ZoomLadder`](craft_ui::canvas::ZoomLadder)
+    /// above (or below) the shown zoom, within [`ZOOM_RANGE`](crate::layout::ZOOM_RANGE)
+    /// (`ZoomLadder::step_in_range`; Photoshop's rungs, the suite's one zoom ladder); a fit ends.
+    /// The zoom a fit showed is the start (WordCraft issue #67).
+    // wordcraft: crates/ui-egui/src/canvas/geometry.rs:234 `sync_fit_zoom` (start from the shown
+    // zoom); the steps are craft-ui's.
+    pub fn zoom_step(&mut self, larger: bool) {
         todo!()
     }
 }
@@ -130,6 +145,12 @@ impl PlacedPage {
 pub struct PageViewResponse {
     /// The view's area; it has the keyboard focus for paging keys.
     pub response: Response,
+    /// The canvas this pass: content coordinates of [`layout`](Self::layout) (screen points at
+    /// the zoom, origin at the content's top-left) as the document, for the app's `ToolHost`,
+    /// `CanvasScrollbars` and `Rulers`.
+    pub canvas: CanvasView,
+    /// The view's canvas id (from its id salt), for the `ToolHost` and craft-ui's canvas state.
+    pub canvas_id: CanvasId,
     /// The pages drawn, in order.
     pub pages: Vec<PlacedPage>,
     /// The whole layout, content coordinates.
@@ -145,13 +166,16 @@ pub struct PageViewResponse {
 /// The page view, built per pass over the app's [`PageSource`] and [`PageViewState`].
 ///
 /// - Layout: [`place_pages`](crate::layout::place_pages) at the state's zoom, or the fit's
-///   ([`fit_scale`](crate::layout::fit_scale)), recomputed when the viewport or the pages
-///   change; the zoom is written back so it equals what shows. Pages draw as craft-ui
-///   [`PageFrame`](craft_ui::canvas::PageFrame)s (white, the pasteboard's border and shadow), the
-///   raster over them, a white page until it arrives; pages outside the view plus one row either
-///   side ask for rasters (`visible` false for those outside).
-/// - Scrolling: wheel, scroll bars, space-drag and the Hand tool are the app's canvas
-///   navigation (craft-ui `canvas::navigate`); the view keeps its offset in the state. Not
+///   ([`fit_scale`](crate::layout::fit_scale)), with the [`PageSpacing`](crate::layout::PageSpacing)
+///   of [`PageView::style`], recomputed when the viewport or the pages change; the zoom is written
+///   back so it equals what shows. Pages draw as craft-ui
+///   [`PageFrame`](craft_ui::canvas::PageFrame)s on a [`Pasteboard`](craft_ui::canvas::Pasteboard)
+///   (its page fill, border and shadow), the page picture over each through
+///   `Thumbnails::state`/`paint` at `Priority::VISIBLE`, one row either side at `Priority::NEAR`;
+///   a zoom past `MAX_TEXTURE` adds a detail picture of the part in view (`DetailPlan`).
+/// - Scrolling: [`CanvasScrollbars`](craft_ui::canvas::CanvasScrollbars) and craft-ui's canvas
+///   navigation (`canvas::navigate`: wheel, space-drag, the Hand and Zoom tools in the app's
+///   `ToolHost`); the view keeps its offset in the state. Not
 ///   continuous, a page that fits turns with the wheel instead (PdfCraft #1924), and one zoomed in
 ///   far enough to pan pans and turns the page at its edge.
 /// - Keys (with the view focused, one Tab stop): Page Up/Down a screen (a page or spread when not
@@ -163,7 +187,7 @@ pub struct PageViewResponse {
 ///   accessibility bridge ([`super::access`]) describes the text under it.
 pub struct PageView<'a> {
     id_salt: egui::IdSalt,
-    source: &'a mut dyn PageSource,
+    source: &'a dyn PageSource,
     state: &'a mut PageViewState,
     options: LayoutOptions,
     name: Option<String>,
@@ -171,8 +195,14 @@ pub struct PageView<'a> {
 }
 
 impl<'a> PageView<'a> {
-    pub fn new(id_salt: impl egui::AsIdSalt, source: &'a mut dyn PageSource, state: &'a mut PageViewState) -> Self {
+    pub fn new(id_salt: impl egui::AsIdSalt, source: &'a dyn PageSource, state: &'a mut PageViewState) -> Self {
         PageView { id_salt: egui::IdSalt::new(id_salt), source, state, options: LayoutOptions::ACROBAT, name: None, bodies: None }
+    }
+
+    /// The view's spacing (`pages.gap`, `pages.margin`, `pages.side`, Hide White Space's pad and
+    /// seam), from the tokens.
+    pub fn style(tokens: &UiTokens) -> PageViewStyle {
+        PageViewStyle::of(tokens)
     }
 
     /// The layout constants; the state's display, continuous, cover and page gaps override

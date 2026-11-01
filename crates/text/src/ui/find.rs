@@ -52,7 +52,7 @@ craft_ui::words! {
 }
 
 /// What the bar did this pass.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct FindBarResponse {
     /// The query or an option changed: search again ([`FindMatches::new`] from the current page).
     pub search: bool,
@@ -61,17 +61,23 @@ pub struct FindBarResponse {
     pub stepped: bool,
     /// Esc in the field or the close button.
     pub closed: bool,
-    pub response: Option<Response>,
+    /// The bar's row.
+    pub response: Response,
 }
 
 /// The find bar, built per pass while open, over the app's query, options and matches.
 ///
-/// - The field (placeholder "Find text") takes the keyboard when the bar opens; Enter steps to the
-///   next match and keeps the keyboard, ⇧-Enter the previous; Esc closes.
+/// - The field is craft-ui's [`SearchField`](craft_ui::controls::SearchField) (placeholder "Find
+///   text"); it takes the keyboard when the bar opens; Enter steps to the next match and keeps
+///   the keyboard, ⇧-Enter the previous; Esc clears the field and a second Esc closes the bar (the
+///   suite's search field rule).
 /// - The count reads "Searching… {s}/{p}" while pages are still being read, "No matches", or
 ///   "{c} of {n}" (with "+" in `{more}` when a page hit its match limit).
-/// - Previous and Next are icon buttons with their shortcuts in the tooltips; the options button
-///   is shown on while an option is on; changing an option searches again.
+/// - Previous and Next are craft-ui `IconButton`s with their shortcuts in the tooltips; the
+///   options button opens a `PressMenu` of the options (checked items) and shows pressed while an
+///   option is on; changing an option searches again.
+/// - Keys: the field, Previous, Next and the options button are Tab stops in that order; ⌘G and
+///   ⇧⌘G (F3 and ⇧F3 elsewhere) step while the bar is open, through `focus::key_owner`.
 pub struct FindBar<'a> {
     id_salt: egui::IdSalt,
     query: &'a mut String,
@@ -149,7 +155,8 @@ pub enum FindRequest {
 /// - Word ([`word`](Self::word) on): Find, Replace and Go To tabs; Match case, Whole words and Use
 ///   wildcards (wildcards grey out the other two, as Word); Search Options with Match prefix,
 ///   Match suffix, Ignore punctuation, Ignore white-space, Regular expressions and the Special
-///   menu of `^` codes (inserted into the field that last had the keyboard).
+///   menu of `^` codes (craft-ui `MenuEntry`s shown with `PressMenu`, inserted into the field
+///   that last had the keyboard). Tabs are craft-ui's tab strip; options are `Checkbox`es.
 /// - PowerPoint (off): Find what, Replace with after Replace…, Match case, Find whole words only;
 ///   Find Next, Replace, Replace All, Close.
 /// - Enter in Find what finds the next match and keeps the keyboard there (DeckCraft #951);

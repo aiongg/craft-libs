@@ -23,6 +23,24 @@ use craft_ui::edit::EditEvent;
 use craft_ui::localized::units::LengthUnit;
 use egui::{Rect, Response, Ui};
 
+craft_ui::words! {
+    /// The ruler's AccessKit names and tooltips (Word's).
+    #[non_exhaustive]
+    pub struct TextRulerLabels {
+        ruler: "textRuler.ruler" = "Ruler";
+        left_tab: "textRuler.leftTab" = "Left Tab";
+        center_tab: "textRuler.centerTab" = "Center Tab";
+        right_tab: "textRuler.rightTab" = "Right Tab";
+        decimal_tab: "textRuler.decimalTab" = "Decimal Tab";
+        bar_tab: "textRuler.barTab" = "Bar Tab";
+        first_line_indent: "textRuler.firstLineIndent" = "First Line Indent";
+        hanging_indent: "textRuler.hangingIndent" = "Hanging Indent";
+        left_indent: "textRuler.leftIndent" = "Left Indent";
+        right_indent: "textRuler.rightIndent" = "Right Indent";
+        tab_selector: "textRuler.tabSelector" = "Tab Selector: {kind}";
+    }
+}
+
 /// How a tab stop aligns the text after it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -139,21 +157,30 @@ pub struct TextRulerResponse {
 /// The ruler for one paragraph, built per pass in the ruler strip the app lays out (a canvas
 /// ruler, or the Tabs panel's own strip above a text frame).
 ///
-/// - Ticks and numbers in the unit, from the column's start edge; numbers keep clear of the
-///   markers (WordCraft #1878). The column is white, the margins grey.
+/// - Ticks and numbers in the unit through craft-ui's ruler ticks
+///   ([`Ticks`](craft_ui::canvas::Ticks), [`RulerUnits`](craft_ui::canvas::RulerUnits); the
+///   canvas rulers' style), from the column's start edge; numbers keep clear of the markers
+///   (WordCraft #1878). The column takes the ruler's fill, the margins its margin shade (the
+///   same token as craft-pages' margin handles, `margins.shade`).
 /// - Indent markers (Word's): the first-line triangle down at the top, the hanging triangle up
 ///   and the left box under it at the bottom, the right triangle at the right. Dragging the box
 ///   moves first-line and left together; Alt drags freely (no snap).
 /// - A click on the ruler sets a stop of the selector's kind at the snapped position (1/16 in, or
 ///   the unit's minor tick); dragging a stop moves it; dragging it off the ruler
 ///   ([`dropped_off`]) clears it on release, the stop drawn faded meanwhile. Each gesture is one
-///   edit: Begin on press, Update while moving, Commit on release; Esc cancels.
+///   craft-ui [`EditEvent`]: Begin on press (with the first value), Update while moving, Commit
+///   on release; Esc and focus loss Cancel; at most one event a pass.
 /// - The tab selector ([`kind`](Self::kind)) sits in the corner square left of the strip: click
 ///   for the next kind, right-click for the previous, its glyph the kind's.
 /// - Right-to-left paragraphs mirror the ruler: positions run from the right edge, and the stops'
 ///   feet point the other way.
-/// - Keys: the ruler isn't a Tab stop (Word's Tabs dialog and the Paragraph dialog are the
-///   keyboard path); each marker and stop is an AccessKit Slider named by its kind and value.
+/// - Keys (the suite's rule for a set of canvas items, as the guides: one Tab stop, keys move
+///   inside): Page Down and Page Up pick the next or previous marker or stop, the arrows move the
+///   picked one by the snap step ([`craft_ui::behavior::nudge`]: ⇧ ten steps), Delete clears a
+///   picked stop; each key is one `EditEvent::Set`. Word reaches stops from the keyboard only
+///   through its dialogs; the suite's rule is every control from the keyboard. Each marker and
+///   stop is an AccessKit Slider named by its kind ([`TextRulerLabels`]) with its value in the
+///   unit.
 pub struct TextRuler<'a> {
     id_salt: egui::IdSalt,
     values: &'a RulerValues,
@@ -163,6 +190,7 @@ pub struct TextRuler<'a> {
     scale: Option<f32>,
     right_to_left: bool,
     selected: Option<usize>,
+    labels: Option<TextRulerLabels>,
 }
 
 impl<'a> TextRuler<'a> {
@@ -177,7 +205,13 @@ impl<'a> TextRuler<'a> {
             scale: None,
             right_to_left: false,
             selected: None,
+            labels: None,
         }
+    }
+
+    pub fn labels(mut self, labels: TextRulerLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn unit(mut self, unit: LengthUnit) -> Self {
