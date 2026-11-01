@@ -48,9 +48,9 @@ mod panel_tests;
 mod preview_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod render_queue_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod ruler_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod timecode_tests;
 #[cfg(test)]
 mod transport_tests;
