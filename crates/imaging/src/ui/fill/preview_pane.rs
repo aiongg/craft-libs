@@ -1,10 +1,16 @@
 //! [`FillPreviewPane`]: Content-Aware Fill's Preview panel (task WS-CA2).
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::{AsIdSalt, Frame, IdSalt, Panel, Rect as ScreenRect, Response, Ui, UiBuilder};
 
-use craft_ui::canvas::RasterSource;
-use craft_ui::canvas::kurbo::Rect;
-use craft_ui::dialog::full_window::{FullWindowView, PreviewStatus};
+use craft_ui::canvas::kurbo::{Point, Rect, Size};
+use craft_ui::canvas::{CanvasView, Checkerboard, HandTool, NavigationOptions, RasterSource, ZoomLadder};
+use craft_ui::dialog::full_window::{
+    FullWindowCanvas, FullWindowLabels, FullWindowStyle, FullWindowView, FullWindowZoomBar, FullWindowZoomKeys, PreviewStatus,
+};
+use craft_ui::localized::Labels as _;
+use craft_ui::theme::{Tokens, TokensOf as _};
+
+use super::FillLabels;
 
 /// The Preview panel: a Standard side column headed "Preview", between the canvas and the
 /// settings column, with the fill result in its own view and a `FullWindowZoomBar` under it
@@ -16,7 +22,6 @@ use craft_ui::dialog::full_window::{FullWindowView, PreviewStatus};
 ///   ("nothing to sample from: the sampling area has no pixels outside the fill area") under the
 ///   view, in `status.bad.fg`; `PreviewStatus::show` carries the polite live label.
 /// - The canvas in the pane is one Tab stop named by the header; it takes no tool.
-#[expect(dead_code, reason = "skeleton: `show` (task WS-CA2) reads the fields")]
 pub struct FillPreviewPane<'a> {
     id_salt: IdSalt,
     view: &'a mut FullWindowView,
@@ -43,10 +48,65 @@ impl<'a> FillPreviewPane<'a> {
     }
 
     /// Draws the pane in the column's `ui`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA2")]
     pub fn show(self, ui: &mut Ui) -> Response {
         // pc: crates/ui-egui/src/dialogs/caf_ui/view.rs:211 `caf_preview_panel`; caf_ui/preview.rs:62
         // `NOTHING_TO_SAMPLE`.
-        todo!()
+        let Self { id_salt, view, status, source, frame } = self;
+        let id = ui.make_persistent_id(id_salt);
+        let ctx = ui.ctx().clone();
+        let tokens = Tokens::of(ui);
+        let margin = FullWindowStyle::of(&tokens).canvas_margin;
+        let labels = FullWindowLabels::of(ui);
+        let mut canvas_labels = labels.clone();
+        canvas_labels.canvas = FillLabels::of(ui).preview;
+        let ppp = ui.pixels_per_point();
+        // A side column's body scrolls, so it offers unbounded room below: the pane takes what the
+        // column shows.
+        let top = ui.cursor().min;
+        let room = ScreenRect::from_min_size(top, egui::vec2(ui.available_width(), (ui.clip_rect().bottom() - top.y).max(0.0)));
+        ui.scope_builder(UiBuilder::new().max_rect(room), |ui| {
+            FullWindowZoomBar::new((id, "zoom"), view).progress(status.progress()).show(ui);
+            Panel::bottom(id.with("status")).resizable(false).show_separator_line(false).frame(Frame::NONE).show(ui, |ui| {
+                status.show(ui, &labels);
+            });
+
+            let rect = ui.available_rect_before_wrap();
+            let size = source.map_or([0, 0], RasterSource::size);
+            if let Some(frame) = frame.filter(|_| size[0] > 0 && size[1] > 0) {
+                // Records the image size, so the zoom below is kept inside the ladder's range.
+                view.canvas_view(rect, size, margin, ppp);
+                let framed = ctx.data(|d| d.get_temp::<Framed>(id));
+                // Frame again when the window moved, but not over the user's zoom or pan.
+                let untouched = framed.is_none_or(|f| f.zoom == view.zoom() && f.center == view.center());
+                if untouched && framed.is_none_or(|f| f.frame != frame) {
+                    let room = |side: f32| f64::from((side - 2.0 * margin).max(1.0)) * f64::from(ppp);
+                    let fit = (room(rect.width()) / frame.width().max(1.0)).min(room(rect.height()) / frame.height().max(1.0));
+                    let doc = Size::new(f64::from(size[0]), f64::from(size[1]));
+                    let zoom = ZoomLadder::clamp(fit, doc);
+                    let center = Point::new((frame.x0 + frame.x1) / 2.0, (frame.y0 + frame.y1) / 2.0);
+                    view.take(&CanvasView::new(rect, center, CanvasView::points_per_unit(zoom, ppp)), ppp);
+                    ctx.data_mut(|d| d.insert_temp(id, Framed { frame, zoom: view.zoom(), center: view.center() }));
+                }
+            }
+
+            let doc = Size::new(f64::from(size[0]), f64::from(size[1]));
+            let mut hand = HandTool::new(doc, NavigationOptions::default());
+            let none = FullWindowZoomKeys { zoom_in: Vec::new(), zoom_out: Vec::new(), fit: Vec::new(), actual_pixels: Vec::new() };
+            let mut canvas =
+                FullWindowCanvas::new((id, "view"), view).checkerboard(Checkerboard::default()).zoom_keys(none).labels(canvas_labels).tool(&mut hand);
+            if let Some(source) = source {
+                canvas = canvas.source(source);
+            }
+            canvas.show(ui).response
+        })
+        .inner
     }
+}
+
+/// The window the view was last framed on, and the zoom and centre that framing gave.
+#[derive(Clone, Copy, PartialEq)]
+struct Framed {
+    frame: Rect,
+    zoom: f64,
+    center: Point,
 }

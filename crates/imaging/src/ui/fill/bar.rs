@@ -1,6 +1,14 @@
 //! [`FillBar`]: Content-Aware Fill's options bar (task WS-CA2).
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::{AsIdSalt, IdSalt, ModifierNames, Modifiers, Response, Ui};
+
+use craft_theme::ControlSize;
+use craft_ui::canvas::SelectionOperation;
+use craft_ui::controls::{IconButton, NumberField};
+use craft_ui::dialog::DialogLabels;
+use craft_ui::icons::Icon;
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::patterns::{CellWidth, OptionsBar};
 
 use super::FillLabels;
 use super::lasso::FillAreaEdit;
@@ -24,7 +32,6 @@ pub struct FillBarOutput {
 /// - Lasso: the four operations (New, Add with the Shift hint, Subtract with Alt, Intersect with
 ///   Shift+Alt, the hints in the platform's key names), Expand, Contract, the amount (1..=100 px)
 ///   and Reset (an icon button).
-#[expect(dead_code, reason = "skeleton: `show` (task WS-CA2) reads the fields")]
 pub struct FillBar<'a> {
     id_salt: IdSalt,
     tool: FillTool,
@@ -37,9 +44,98 @@ impl<'a> FillBar<'a> {
         Self { id_salt: IdSalt::new(id_salt), tool, options, labels }
     }
 
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA2")]
     pub fn show(self, ui: &mut Ui) -> FillBarOutput {
         // pc: crates/ui-egui/src/dialogs/caf_ui/view.rs:33 `caf_options_bar`.
-        todo!()
+        let Self { id_salt, tool, options, labels } = self;
+        let reset_label = DialogLabels::of(ui).reset;
+        let mac = ui.ctx().os().is_mac();
+        let mut edit = None;
+        let mut reset_fill_area = false;
+        let (edit_ref, reset_ref) = (&mut edit, &mut reset_fill_area);
+        let response = OptionsBar::new(id_salt).show(ui, move |bar| {
+            bar.leading(move |ui| {
+                let (icon, label) = match tool {
+                    FillTool::SamplingBrush => (Icon::Brush, &labels.sampling_brush),
+                    FillTool::Lasso => (Icon::Lasso, &labels.lasso),
+                    FillTool::Hand => (Icon::Hand, &labels.hand),
+                    FillTool::Zoom => (Icon::ZoomIn, &labels.zoom),
+                };
+                OptionsBar::tool_icon(ui, icon, label.as_str());
+            });
+            bar.body(move |ui| {
+                let sm = ControlSize::Sm;
+                let numbers = LocaleNumbers::of(ui);
+                match tool {
+                    FillTool::SamplingBrush => {
+                        for (add, icon, name, salt) in [(true, Icon::Plus, &labels.add, "add"), (false, Icon::Minus, &labels.subtract, "subtract")] {
+                            let button = IconButton::new(icon, name.as_str()).size(sm).selected(options.brush_add == add).id_salt(salt);
+                            if ui.add(button).clicked() {
+                                options.brush_add = add;
+                            }
+                        }
+                        OptionsBar::divider(ui);
+                        let field = NumberField::new("size", labels.size.as_str(), options.brush_size, &numbers)
+                            .range(1.0..=FillToolOptions::SIZE_MAX)
+                            .decimals(0..=0)
+                            .unit(Unit::new("{n} px"));
+                        if let Some(value) =
+                            OptionsBar::number_cell(ui, &labels.size, CellWidth::Md, field).event.as_ref().and_then(|e| e.value()).copied()
+                        {
+                            options.brush_size = value.clamp(1.0, FillToolOptions::SIZE_MAX);
+                        }
+                    }
+                    FillTool::Lasso => {
+                        let hints = [
+                            (SelectionOperation::New, Icon::Square, labels.new_selection.clone(), "new"),
+                            (SelectionOperation::Add, Icon::Plus, hinted(&labels.add_to_selection, Modifiers::SHIFT, mac), "add"),
+                            (SelectionOperation::Subtract, Icon::Minus, hinted(&labels.subtract_from_selection, Modifiers::ALT, mac), "subtract"),
+                            (
+                                SelectionOperation::Intersect,
+                                Icon::SquaresSubtract,
+                                hinted(&labels.intersect_with_selection, Modifiers::SHIFT | Modifiers::ALT, mac),
+                                "intersect",
+                            ),
+                        ];
+                        for (operation, icon, name, salt) in hints {
+                            let button = IconButton::new(icon, name).size(sm).selected(options.lasso == operation).id_salt(salt);
+                            if ui.add(button).clicked() {
+                                options.lasso = operation;
+                            }
+                        }
+                        OptionsBar::divider(ui);
+                        let by = options.grow_by;
+                        let (min, max) = FillAreaEdit::GROW_RANGE;
+                        let unit = Unit::new("{n} px");
+                        let width = NumberField::fit_width(ui, sm, &numbers, min..=max, 0, &unit);
+                        for (expand, name, salt) in [(true, &labels.expand, "expand"), (false, &labels.contract, "contract")] {
+                            if ui.add(craft_ui::controls::Button::new(name.as_str()).size(sm).id_salt(salt)).clicked() {
+                                *edit_ref = Some(FillAreaEdit::grow(expand, by));
+                            }
+                        }
+                        let field = NumberField::new("grow-by", labels.expand.as_str(), by, &numbers)
+                            .range(min..=max)
+                            .decimals(0..=0)
+                            .unit(unit)
+                            .size(sm)
+                            .width(width);
+                        if let Some(value) = field.show(ui).event.as_ref().and_then(|e| e.value()).copied() {
+                            options.grow_by = value.clamp(min, max);
+                        }
+                        let button = IconButton::new(Icon::Undo, reset_label.as_str()).size(sm).id_salt("reset");
+                        if ui.add(button).clicked() {
+                            *reset_ref = true;
+                        }
+                    }
+                    FillTool::Hand | FillTool::Zoom => {}
+                }
+            });
+        });
+        FillBarOutput { response, edit, reset_fill_area }
     }
+}
+
+/// `template` with `{key}` filled by `modifiers` in the platform's notation.
+fn hinted(template: &str, modifiers: Modifiers, mac: bool) -> String {
+    let names = if mac { ModifierNames::SYMBOLS } else { ModifierNames::NAMES };
+    craft_i18n::fmt(template, &[("key", &names.format(&modifiers, mac))])
 }
