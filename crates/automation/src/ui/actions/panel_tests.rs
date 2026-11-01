@@ -1,10 +1,9 @@
 //! The Actions panel on screen (egui_kittest).
 //!
 //! The AC2 tests draw the part of the panel above the footer (`show_body`); the two AC3 tests
-//! need the footer and the context menu.
-#![expect(clippy::todo, reason = "skeleton: the AC3 tests are removed when their bodies land")]
+//! draw the whole panel (`ActionsPanel::show`) for the footer and the context menu.
 
-use craft_ui::localized::SharedLabels as _;
+use craft_ui::localized::{Labels as _, SharedLabels as _};
 use craft_ui::testing::{HarnessExt as _, events};
 use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
 use egui::accesskit::{Role, Toggled};
@@ -14,19 +13,25 @@ use egui_kittest::{Harness, Node};
 use serde_json::Value;
 
 use super::labels::ActionsLabels;
-use super::panel::{ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsPanel, ActionsState, show_body};
-use crate::actions::{Action, ActionList, ActionStep, ActionsFile};
+use super::panel::{ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsPanel, ActionsState, ShortcutChoice, show_body};
+use crate::actions::{Action, ActionColor, ActionList, ActionStep, ActionsFile};
 
 /// The app: labels for steps, the recording it runs and the steps recorded so far.
 #[derive(Default)]
 struct Host {
     recording: Option<usize>,
     pending: Vec<ActionStep>,
+    /// The shortcut text of every action.
+    shortcut: Option<String>,
 }
 
 impl ActionsHost for Host {
     fn step_label(&self, step: &ActionStep) -> String {
         format!("Run {}", step.command)
+    }
+
+    fn shortcut(&self, _: &Action) -> Option<String> {
+        self.shortcut.clone()
     }
 
     fn recording(&self) -> Option<usize> {
@@ -364,16 +369,99 @@ fn actions_panel_access_names() {
     craft_ui::testing::a11y::assert_labelled(&harness);
 }
 
+fn show_panel(ui: &mut Ui, app: &mut App) {
+    let App { state, list, host, events, .. } = app;
+    events.extend(ActionsPanel::new("actions", state, list).host(&*host).show(ui).events);
+}
+
+fn panel_harness(app: App) -> Harness<'static, App> {
+    let mut harness = Harness::<App>::builder()
+        .with_size([320.0, 720.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(show_panel, app);
+    harness.run();
+    harness
+}
+
+fn button<'h>(harness: &'h Harness<'_, App>, name: &'h str) -> Node<'h> {
+    harness.get_by_role_and_label(Role::Button, name)
+}
+
+fn menu_row(harness: &mut Harness<'_, App>, label: &str) {
+    harness.get_by_label(label).click();
+    harness.run();
+}
+
 // AC3: Play with nothing selected reports `Play` for action 0.
 #[test]
-#[ignore = "skeleton"]
 fn actions_panel_play_with_no_selection_plays_the_first() {
-    todo!()
+    let mut harness = panel_harness(app(list()));
+    button(&harness, "Play selection").click();
+    harness.run();
+    assert_eq!(events_of(&mut harness), [ActionsEvent::Play { action: 0, from: 0 }]);
+
+    harness.get_by_role_and_label(Role::Button, "Expand Vignette").click();
+    harness.run();
+    item(&harness, "Run blur").click();
+    harness.run();
+    button(&harness, "Play selection").click();
+    harness.run();
+    assert_eq!(events_of(&mut harness), [ActionsEvent::Play { action: 1, from: 1 }], "a selected step plays its action from that step");
+
+    button(&harness, "Delete").click();
+    harness.run();
+    assert_eq!(events_of(&mut harness), [ActionsEvent::Delete(ActionSelection::Step(1, 1))]);
+    button(&harness, "Create new set").click();
+    harness.run();
+    assert_eq!(events_of(&mut harness), [ActionsEvent::NewSet]);
+    button(&harness, "Button Mode").click();
+    harness.run();
+    assert!(harness.state().state.settings.button_mode, "Button Mode toggles in the state");
+    assert!(events_of(&mut harness).is_empty());
 }
 
 // AC3: the context menu reports `AssignShortcut` with key, Shift and Command, and `SetColor`.
 #[test]
-#[ignore = "skeleton"]
 fn actions_panel_context_menu_shortcut_and_color() {
-    todo!()
+    let labels = ActionsLabels::english();
+    let mut app = app(list());
+    app.host.shortcut = Some("F3".to_owned());
+    let mut harness = panel_harness(app);
+
+    // Check rows keep the menu open, so both can be ticked; closing the menu applies the ticks.
+    item(&harness, "Sharpen").click_secondary();
+    harness.run();
+    menu_row(&mut harness, &labels.shift);
+    menu_row(&mut harness, if cfg!(target_os = "macos") { &labels.command } else { &labels.ctrl });
+    assert!(events_of(&mut harness).is_empty(), "nothing is reported while the menu is open");
+    press(&mut harness, Modifiers::NONE, Key::Escape);
+    assert_eq!(
+        events_of(&mut harness),
+        [ActionsEvent::AssignShortcut { action: 0, choice: Some(ShortcutChoice { key: 3, shift: true, command: true }) }]
+    );
+
+    // A key row reports at once, with the ticks the menu opened with.
+    item(&harness, "Vignette").click_secondary();
+    harness.run();
+    menu_row(&mut harness, "F7");
+    assert_eq!(
+        events_of(&mut harness),
+        [ActionsEvent::AssignShortcut { action: 1, choice: Some(ShortcutChoice { key: 7, shift: false, command: false }) }]
+    );
+    item(&harness, "Vignette").click_secondary();
+    harness.run();
+    menu_row(&mut harness, &labels.none);
+    assert_eq!(events_of(&mut harness), [ActionsEvent::AssignShortcut { action: 1, choice: None }]);
+
+    item(&harness, "Vignette").click_secondary();
+    harness.run();
+    menu_row(&mut harness, &labels.color);
+    menu_row(&mut harness, &labels.red);
+    assert_eq!(events_of(&mut harness), [ActionsEvent::SetColor { action: 1, color: ActionColor::Red }]);
+
+    item(&harness, "Effects").click_secondary();
+    harness.run();
+    menu_row(&mut harness, &labels.save_set);
+    assert_eq!(events_of(&mut harness), [ActionsEvent::Save { set: Some("Effects".to_owned()) }]);
 }
