@@ -2188,7 +2188,7 @@ pub const CONSTRAIN_STROKE_LOCK: f32 = 3.0;
 // --- line_guide ---
 /// The line width: `line_guide.width`.
 pub const LINE_GUIDE_WIDTH: f32 = 1.0;
-/// The halo's extra width: `line_guide.halo`.
+/// The halo's width, under the line: `line_guide.halo`.
 pub const LINE_GUIDE_HALO: f32 = 3.0;
 
 // --- before_after ---

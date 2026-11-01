@@ -9,7 +9,7 @@ use crate::values;
 pub struct LineGuideTokens {
     /// The line width: `line_guide.width`.
     pub width: f32,
-    /// The halo's extra width: `line_guide.halo`.
+    /// The halo's width, under the line: `line_guide.halo`.
     pub halo: f32,
 }
 
