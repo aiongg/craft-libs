@@ -1,12 +1,16 @@
 //! [`ConnectorBar`]: the connector part of a style bar (task SH-T11).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use egui::{AsIdSalt, IdSalt, Ui};
+use craft_theme::ControlSize;
+use egui::{AsIdSalt, Color32, IdSalt, Painter, Rect, Stroke, Ui, UiBuilder, pos2, vec2};
 
 use super::ConnectorBarLabels;
 use crate::geometry::connector::Routing;
-use crate::ui::stroke::StrokeChoiceRow;
+use crate::ui::stroke::{StrokeChoiceRow, StrokeEditor};
+use craft_ui::controls::mixed::ApplyRowLabels;
+use craft_ui::controls::{Segmented, Select, SelectText};
+use craft_ui::localized::Labels as _;
+use craft_ui::patterns::OptionsBar;
+use craft_ui::theme::{Tokens, TokensOf as _};
 
 /// A connector's line style as the bar's menu offers it.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -86,11 +90,102 @@ impl<'a> ConnectorBar<'a> {
 
     /// Adds the controls to the bar's row `ui`.
     pub fn show(self, ui: &mut Ui) -> ConnectorBarOutput {
-        // inv-figcraft: crates/ui-egui/src/canvas/board_bar.rs:350-371 `line_part` (routings :351-354),
-        // :375-397 `cap_menu` ("Start point", "End point"), :411-445 `style_menu`, :343 `WEIGHTS`,
-        // :345 `DASHES`.
-        // The cap menus are `Select`s over each row's choices with its `paint` previews, as
-        // `StrokeEditor` shows its rows.
-        todo!()
+        let Self { id_salt, routing, line, caps, labels } = self;
+        let labels = labels.unwrap_or_else(|| ConnectorBarLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let bar = OptionsBar::style(&tokens, false);
+        let ink = StrokeEditor::style(&tokens).sample_color;
+        let preview = vec2(bar.fields[1], Select::style(&tokens, ControlSize::Sm).field.icon);
+        let mixed_word = ApplyRowLabels::of(ui).mixed;
+        let mut events = Vec::new();
+        let builder = UiBuilder::new().id_salt(id_salt).layout(*ui.layout());
+        ui.scope_builder(builder, |ui| {
+            let mut picked = routing;
+            let segmented = Segmented::new("routing", labels.routing.as_str(), &mut picked)
+                .size(ControlSize::Sm)
+                .item(Routing::Straight, labels.straight.as_str())
+                .item(Routing::Elbow, labels.elbow.as_str())
+                .item(Routing::Curved, labels.curved.as_str());
+            if segmented.show(ui).changed() {
+                events.push(ConnectorBarEvent::Routing(picked));
+            }
+
+            if let Some((start, end)) = &caps {
+                OptionsBar::divider(ui);
+                for (row, name, salt, event) in [
+                    (start, labels.start.as_str(), "start-cap", ConnectorBarEvent::StartCap as fn(String) -> ConnectorBarEvent),
+                    (end, labels.end.as_str(), "end-cap", ConnectorBarEvent::EndCap),
+                ] {
+                    let mixed = row.selected.is_some_and(|m| m.is_mixed());
+                    let mut value: Option<String> = row.selected.and_then(|m| m.same()).map(str::to_owned);
+                    let mut select = Select::new(salt, name, &mut value)
+                        .size(ControlSize::Sm)
+                        .width(bar.fields[2])
+                        .text_shown(SelectText::InList)
+                        .placeholder(if mixed { mixed_word.as_str() } else { "" });
+                    for choice in row.choices {
+                        select = select.option(Some(choice.id.clone()), choice.label.clone());
+                    }
+                    if let Some(paint) = &row.paint {
+                        select = select.row_content(preview, |painter, rect, id: &Option<String>| {
+                            if let Some(choice) = row.choices.iter().find(|c| Some(&c.id) == id.as_ref()) {
+                                paint(painter, rect, choice);
+                            }
+                        });
+                    }
+                    if let Some(id) = select.show(ui).committed().cloned().flatten() {
+                        events.push(event(id));
+                    }
+                }
+            }
+
+            OptionsBar::divider(ui);
+            let mut value = LinePick::Style(line.dashed);
+            let mut select = Select::new("line-style", labels.line_style.as_str(), &mut value)
+                .size(ControlSize::Sm)
+                .width(bar.fields[1])
+                .text_shown(SelectText::InList)
+                .option(LinePick::Style(false), labels.solid.as_str())
+                .option(LinePick::Style(true), labels.dashed.as_str())
+                .separator();
+            for (index, weight) in ConnectorLine::WEIGHTS.iter().enumerate() {
+                let text = labels.weight.replace("{weight}", &weight.to_string());
+                select = select.option(LinePick::Weight(index), text);
+            }
+            let select = select.row_content(preview, |painter, rect, pick: &LinePick| {
+                let (dashed, weight) = match *pick {
+                    LinePick::Style(dashed) => (dashed, line.weight),
+                    LinePick::Weight(index) => (false, ConnectorLine::WEIGHTS[index]),
+                };
+                paint_line(painter, rect, ink, weight, dashed);
+            });
+            if let Some(pick) = select.show(ui).committed().copied() {
+                let line = match pick {
+                    LinePick::Style(dashed) => ConnectorLine { dashed, ..line },
+                    LinePick::Weight(index) => ConnectorLine { weight: ConnectorLine::WEIGHTS[index], ..line },
+                };
+                events.push(ConnectorBarEvent::Line(line));
+            }
+        });
+        ConnectorBarOutput { events }
+    }
+}
+
+/// A row of the line style menu: the solid or dashed rows set the dashes, a weight row the weight.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum LinePick {
+    Style(bool),
+    Weight(usize),
+}
+
+/// A line `weight` thick, dashed or not, across the middle of `rect`; no thicker than half of it.
+fn paint_line(painter: &Painter, rect: Rect, ink: Color32, weight: f64, dashed: bool) {
+    let stroke = Stroke::new((weight as f32).min(rect.height() / 2.0), ink);
+    let ends = [pos2(rect.min.x, rect.center().y), pos2(rect.max.x, rect.center().y)];
+    if dashed {
+        let [dash, gap] = ConnectorLine::DASH.map(|n| n as f32);
+        painter.extend(egui::Shape::dashed_line(&ends, stroke, dash, gap));
+    } else {
+        painter.line_segment(ends, stroke);
     }
 }
