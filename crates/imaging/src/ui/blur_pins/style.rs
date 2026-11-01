@@ -2,7 +2,7 @@
 
 use egui::Color32;
 
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// The pins' sizes in screen points (the `blur_pins` family, the same at every Size) and colours.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -27,9 +27,19 @@ pub struct BlurPinsStyle {
 }
 
 impl BlurPinsStyle {
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `blur_pins` lands in task TK4")]
     pub fn of(tokens: &UiTokens) -> BlurPinsStyle {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:44-51 (the sizes), :689 `draw` (the colours).
-        todo!()
+        let b = &tokens.component.blur_pins;
+        BlurPinsStyle {
+            dot: b.dot,
+            grab: b.grab,
+            ring: b.ring,
+            ring_band: b.ring_band,
+            handle: b.handle,
+            line_grab: b.line_grab,
+            line: tokens.color.overlay.handle_fill.to_egui(),
+            halo: tokens.color.overlay.halo.to_egui(),
+            amount: tokens.color.accent.solid.to_egui(),
+        }
     }
 }

@@ -2,7 +2,7 @@
 
 use egui::Color32;
 
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// The constraints' look: the `wide_angle` family, the same at every Size (the marks sit on the
 /// image).
@@ -27,10 +27,19 @@ pub struct WideAngleStyle {
 }
 
 impl WideAngleStyle {
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `wide_angle` lands in task TK4")]
     pub fn of(tokens: &UiTokens) -> WideAngleStyle {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:331-356 (2 pt lines, 3.5 pt dots, the
         // three colours).
-        todo!()
+        let w = &tokens.component.wide_angle;
+        WideAngleStyle {
+            line: w.line,
+            end: w.end,
+            hit: w.hit,
+            free: tokens.color.accent.solid.to_egui(),
+            horizontal: tokens.color.status.warn.fg.to_egui(),
+            vertical: tokens.color.status.bad.fg.to_egui(),
+            halo: w.halo.to_egui(),
+            halo_width: w.halo_width,
+        }
     }
 }

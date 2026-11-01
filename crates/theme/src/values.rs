@@ -2557,3 +2557,63 @@ pub const CONNECTOR_END_HANDLE: f32 = 5.0;
 pub const CONNECTOR_PATH_HANDLE: f32 = 3.5;
 /// An end within this many screen points of a site glues to it: `connector.attach_reach`.
 pub const CONNECTOR_ATTACH_REACH: f32 = 10.0;
+
+// --- vanishing_point ---
+/// A plane's outline width: `vanishing_point.line`.
+pub const VANISHING_POINT_LINE: f32 = 1.25;
+/// The selected plane's outline width: `vanishing_point.line_selected`.
+pub const VANISHING_POINT_LINE_SELECTED: f32 = 2.0;
+/// A grid line's width: `vanishing_point.grid`.
+pub const VANISHING_POINT_GRID: f32 = 0.75;
+/// A grid line's alpha: `vanishing_point.grid_alpha`.
+pub const VANISHING_POINT_GRID_ALPHA: f32 = 0.6;
+/// A node square's side: `vanishing_point.node`.
+pub const VANISHING_POINT_NODE: f32 = 7.0;
+/// Create Plane's pending corner square: `vanishing_point.pending`.
+pub const VANISHING_POINT_PENDING: f32 = 6.0;
+/// The extra width of the halo: `vanishing_point.halo_width`.
+pub const VANISHING_POINT_HALO_WIDTH: f32 = 2.5;
+/// An arm of the source cross: `vanishing_point.source_arm`.
+pub const VANISHING_POINT_SOURCE_ARM: f32 = 7.0;
+/// The halo under lines, the ring and the cross, black at alpha 160: `vanishing_point.halo`.
+pub const VANISHING_POINT_HALO: Rgba = Rgba::rgb(0, 0, 0).with_alpha(160);
+
+// --- wide_angle ---
+/// A constraint line's width: `wide_angle.line`.
+pub const WIDE_ANGLE_LINE: f32 = 2.0;
+/// The end dots' radius: `wide_angle.end`.
+pub const WIDE_ANGLE_END: f32 = 3.5;
+/// How near a right-click must pass a curve to open its menu: `wide_angle.hit`.
+pub const WIDE_ANGLE_HIT: f32 = 10.0;
+/// The extra width of the halo: `wide_angle.halo_width`.
+pub const WIDE_ANGLE_HALO_WIDTH: f32 = 2.5;
+/// The halo under each line, black at alpha 160: `wide_angle.halo`.
+pub const WIDE_ANGLE_HALO: Rgba = Rgba::rgb(0, 0, 0).with_alpha(160);
+
+// --- blur_pins ---
+/// A pin's dot radius: `blur_pins.dot`.
+pub const BLUR_PINS_DOT: f32 = 5.0;
+/// How near a press grabs a pin: `blur_pins.grab`.
+pub const BLUR_PINS_GRAB: f32 = 9.0;
+/// The ring's radius: `blur_pins.ring`.
+pub const BLUR_PINS_RING: f32 = 24.0;
+/// The ring's band width: `blur_pins.ring_band`.
+pub const BLUR_PINS_RING_BAND: f32 = 5.0;
+/// A shape handle's radius: `blur_pins.handle`.
+pub const BLUR_PINS_HANDLE: f32 = 4.5;
+/// How near a press grabs a Tilt-Shift line: `blur_pins.line_grab`.
+pub const BLUR_PINS_LINE_GRAB: f32 = 5.0;
+
+// --- liquify ---
+/// The Freeze Lasso's line width: `liquify.lasso`.
+pub const LIQUIFY_LASSO: f32 = 1.5;
+/// The freeze mask's opacity over the image: `liquify.mask_opacity`.
+pub const LIQUIFY_MASK_OPACITY: f32 = 0.5;
+
+// --- filter_gallery ---
+/// A filter thumbnail's width: `filter_gallery.thumb_width`.
+pub const FILTER_GALLERY_THUMB_WIDTH: f32 = 80.0;
+/// A filter thumbnail's height: `filter_gallery.thumb_height`.
+pub const FILTER_GALLERY_THUMB_HEIGHT: f32 = 56.0;
+/// The effect-layer stack's height: `filter_gallery.stack_height`.
+pub const FILTER_GALLERY_STACK_HEIGHT: f32 = 190.0;
