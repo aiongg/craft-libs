@@ -18,6 +18,7 @@ mod options;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod options_tests;
 mod path_row;
+pub mod pdf;
 mod watermark;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod watermark_tests;

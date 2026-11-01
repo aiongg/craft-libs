@@ -57,6 +57,7 @@ pub(super) const TABLES: &[&[Word]] = &[
     <crate::dialog::export::FormatOptionsLabels as Labels>::WORDS,
     <crate::dialog::export::OutputPathLabels as Labels>::WORDS,
     <crate::dialog::export::WatermarkLabels as Labels>::WORDS,
+    <crate::dialog::export::pdf::PdfExportLabels as Labels>::WORDS,
     <crate::list::FindingsLabels as Labels>::WORDS,
     <crate::composites::SettingsNoticeLabels as Labels>::WORDS,
     <crate::preferences::SettingsDocumentLabels as Labels>::WORDS,

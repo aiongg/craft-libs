@@ -12,6 +12,7 @@ pub const COMPONENTS: &[&str] = &[
     "Dialog",
     "NewDocumentDialog",
     "ExportAsDialog",
+    "PdfExportDialog",
     "SaveForWebDialog",
     "JpegOptionsDialog",
     "TiffOptionsDialog",

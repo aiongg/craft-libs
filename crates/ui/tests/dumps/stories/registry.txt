@@ -166,6 +166,7 @@ patterns/dialog/report = Dialog | Report | Panel | open=Bool(true); notes=Number
 patterns/dialog/startup-queue = Dialog | Startup queue | Panel | recovery=Bool(true); warning=Bool(true); update=Bool(true)
 patterns/new-document-dialog/dialog = NewDocumentDialog | Dialog | Panel | open=Bool(true); clipboard image=Bool(false)
 patterns/export-as-dialog/dialog = ExportAsDialog | Dialog | Panel | open=Bool(true); format=Choice { options: ["png", "jpg", "webp", "tiff", "tga", "ico"], index: 1 }; preview ready=Bool(true); exact size=Bool(false)
+patterns/pdf-export-dialog/dialog = PdfExportDialog | Dialog | Panel | open=Bool(true); preset=Choice { options: ["default", "press", "pdfx1a", "smallest"], index: 0 }
 patterns/save-for-web-dialog/dialog = SaveForWebDialog | Dialog | Panel | open=Bool(true); animation=Bool(false); presets=Bool(true)
 patterns/jpeg-options-dialog/dialog = JpegOptionsDialog | Dialog | Panel | open=Bool(true); quality=Number { value: 8.0, min: 0.0, max: 12.0 }; file's own quality=Bool(false)
 patterns/tiff-options-dialog/dialog = TiffOptionsDialog | Dialog | Panel | open=Bool(true)
