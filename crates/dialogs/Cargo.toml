@@ -14,7 +14,7 @@ repository.workspace = true
 craft-atomic = { workspace = true }
 craft-host = { workspace = true }
 craft-i18n = { workspace = true }
-craft-platform = { workspace = true, features = ["watch"] }
+craft-platform = { workspace = true }
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 raw-window-handle = "0.6.2"

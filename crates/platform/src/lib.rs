@@ -14,9 +14,9 @@ pub mod clipboard;
 mod clipboard_tests;
 #[cfg(feature = "clock")]
 pub mod clock;
-#[cfg(all(feature = "default-app", not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod default_app;
-#[cfg(all(test, feature = "default-app", not(target_arch = "wasm32")))]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod default_app_tests;
 pub mod dialog_outcome;
 #[cfg(all(feature = "dialogs", not(target_arch = "wasm32")))]
@@ -24,9 +24,8 @@ pub mod dialogs;
 #[cfg(feature = "logs")]
 pub mod logs;
 mod message;
-#[cfg(feature = "open")]
 pub mod open;
-#[cfg(all(test, feature = "open"))]
+#[cfg(test)]
 mod open_tests;
 #[cfg(feature = "pacing")]
 pub mod pacing;
@@ -40,17 +39,16 @@ pub mod screen;
 pub mod session;
 #[cfg(all(test, feature = "session"))]
 mod session_tests;
-#[cfg(all(feature = "temp", not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod temp;
-#[cfg(all(test, feature = "temp", not(target_arch = "wasm32")))]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod temp_tests;
 #[cfg(feature = "usage")]
 pub mod usage;
 #[cfg(all(test, feature = "usage"))]
 mod usage_tests;
-#[cfg(feature = "watch")]
 pub mod watch;
-#[cfg(all(test, feature = "watch", not(target_arch = "wasm32")))]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod watch_tests;
 
 pub use message::PlatformText;

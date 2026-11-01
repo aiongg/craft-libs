@@ -6,7 +6,7 @@ third-party dependencies. Enable only the services a host uses.
 
 | Feature | Shared responsibility |
 | --- | --- |
-| default | Typed dialog outcomes; no backend or toolkit. |
+| default | Typed dialog outcomes; `PlatformText`; `open` (see below), `watch`, and on native `default_app` and `temp`, which need no dependency beyond craft-host; no backend or toolkit. |
 | `dialogs` | Reserve waiting workers before eager UI-thread native picker creation; serial requests, failure delivery and completion wakeups. The backend factory belongs to the app. |
 | `theme` | `From<appearance::Reading> for craft_theme::SystemAppearance`, so a host hands the OS answer to `Base::resolve`. |
 | `ui` | Combine with `dialogs` for the deferred-close guard or with `appearance` for native theme mapping. |
@@ -18,7 +18,7 @@ third-party dependencies. Enable only the services a host uses.
 | `logs` | The app log: `log` records to standard error and `<dir>/<app>.log` with `RUST_LOG`-style filters, rotation to `.1`/`.2`, per-instance logs while another instance runs, a size cap; `logs::crash`: the panic hook, crash log, last panic for the error window, and `catch`. |
 | `session` | `session::Session` and `SessionKeeper`: the documents open at the last quit and where the user was in each, stored in the app's settings (serde) for a "Reopen Last Session" preference; `to_reopen` skips what is already open; a stored list longer than 64 documents is cut. No egui. |
 | `usage` | `usage::sample`: the process's resident memory and the memory it may still use (`MemorySample`, `None` when unknown), for the status readout's Scratch and Efficiency items. Linux reads `/proc`; other platforms return `None`. |
-| `open` | `open::FileIntake` with `IntakeSender` (the app's Apple Events and second-instance hand-over feed it): one queue for files the OS asks the app to open and files dropped on the window (`DroppedFile`, `DropTarget`: canvas, tab strip or window); `natural_cmp` and `same_file` for opening order and duplicates; `reveal` and `open_external`; the shared open-error texts. No egui. |
+| (always) `open` | `open::FileIntake` with `IntakeSender` (the app's Apple Events and second-instance hand-over feed it): one queue for files the OS asks the app to open and files dropped on the window (`DroppedFile`, `DropTarget`: canvas, tab strip or window); `natural_cmp` and `same_file` for opening order and duplicates; `reveal` and `open_external`; the shared open-error texts. No egui. |
 | `autosave` | `autosave::Autosave` (the timer: which documents are due, results by revision), `recovery_dir`, `adopt_legacy_recovery` and `RecoveryStore`: the recovery folder of copies with a JSON sidecar each (`RecoveryEntry`, the fields craft-ui's `RecoveryDialog` lists), `AUTOSAVE_FAILED`. The app serializes its documents. |
 | `screen` | Screen capture for the screen colour picker (`craft_platform::screen`). |
 
