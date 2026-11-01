@@ -2183,6 +2183,10 @@ fn scopes_lines(out: &mut Lines, t: &ScopesTokens) {
         vector_dot_max,
         hover_badge_height,
         zone_alpha,
+        vector_height_min,
+        vector_height_max,
+        vector_margin,
+        warning_inset,
     } = t;
     out.line("scopes.warning_size", len(*warning_size));
     out.line("scopes.statistics_gap", len(*statistics_gap));
@@ -2192,6 +2196,10 @@ fn scopes_lines(out: &mut Lines, t: &ScopesTokens) {
     out.line("scopes.vector_dot_max", len(*vector_dot_max));
     out.line("scopes.hover_badge_height", len(*hover_badge_height));
     out.line("scopes.zone_alpha", len(*zone_alpha));
+    out.line("scopes.vector_height_min", len(*vector_height_min));
+    out.line("scopes.vector_height_max", len(*vector_height_max));
+    out.line("scopes.vector_margin", len(*vector_margin));
+    out.line("scopes.warning_inset", len(*warning_inset));
 }
 
 fn actions_lines(out: &mut Lines, t: &ActionsTokens) {

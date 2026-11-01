@@ -24,6 +24,15 @@ pub struct ScopesTokens {
     pub hover_badge_height: f32,
     /// The hovered zone band's alpha on `text.normal`: [`values::SCOPES_ZONE_ALPHA`].
     pub zone_alpha: f32,
+    /// The vectorscope's smallest default height: [`values::SCOPES_VECTOR_HEIGHT_MIN`].
+    pub vector_height_min: f32,
+    /// The vectorscope's largest default height: [`values::SCOPES_VECTOR_HEIGHT_MAX`].
+    pub vector_height_max: f32,
+    /// The vectorscope's margin between its outer ring and the plot's edge:
+    /// [`values::SCOPES_VECTOR_MARGIN`].
+    pub vector_margin: f32,
+    /// The inset of a clipping warning's triangle in its button: [`values::SCOPES_WARNING_INSET`].
+    pub warning_inset: f32,
 }
 
 /// Scopes have no overridable field.
@@ -42,6 +51,10 @@ impl Family for ScopesTokens {
         "vector_dot_max" 0.1..=16.0 => vector_dot_max;
         "hover_badge_height" 8.0..=64.0 => hover_badge_height;
         "zone_alpha" 0.0..=1.0 => zone_alpha;
+        "vector_height_min" 24.0..=400.0 => vector_height_min;
+        "vector_height_max" 24.0..=800.0 => vector_height_max;
+        "vector_margin" 0.0..=48.0 => vector_margin;
+        "warning_inset" 0.0..=16.0 => warning_inset;
     };
 
     fn defaults(_: &Semantic<'_>) -> ScopesTokens {
@@ -54,6 +67,10 @@ impl Family for ScopesTokens {
             vector_dot_max: values::SCOPES_VECTOR_DOT_MAX,
             hover_badge_height: values::SCOPES_HOVER_BADGE_HEIGHT,
             zone_alpha: values::SCOPES_ZONE_ALPHA,
+            vector_height_min: values::SCOPES_VECTOR_HEIGHT_MIN,
+            vector_height_max: values::SCOPES_VECTOR_HEIGHT_MAX,
+            vector_margin: values::SCOPES_VECTOR_MARGIN,
+            warning_inset: values::SCOPES_WARNING_INSET,
         }
     }
 

@@ -2,7 +2,6 @@
 
 use craft_theme::TypeRole;
 use craft_ui::composites::{ChannelColor, Histogram, HistogramData, HistogramResponse};
-use craft_ui::localized::Labels as _;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::{RichText, Ui};
 
@@ -53,21 +52,26 @@ pub(super) fn colors_data(set: &HistogramSet<'_>, overlay: ChannelOverlay) -> Hi
 
 /// Draws the main plot with the library [`Histogram`](craft_ui::composites::Histogram): `shown`
 /// in its colour when `colored` (else `ChannelColor::Neutral`), the original outlined, the
-/// markers, the stale mark (with `on_stale_click`), the selection (`range`) and the value text.
-/// Returns the histogram's response (hovered level, selection change, stale click).
-#[expect(clippy::too_many_arguments, reason = "the panel passes the plot's seven inputs once per pass")]
+/// markers, the stale mark (with `on_stale_click`), the selection (`range`) and the value text
+/// (`labels.histogram_value` over the channel's name and `source`, the resolved Source's label).
+/// With `zoned` the plot takes the pointer and the keys for the tone zones
+/// ([`Histogram::interactive`]) and has no selection (`range` is ignored). Returns the histogram's response (hovered level, selection
+/// change, stale click).
+#[expect(clippy::too_many_arguments, reason = "the panel passes the plot's inputs once per pass")]
 pub(super) fn main_plot(
     ui: &mut Ui,
     id: egui::Id,
+    labels: &ScopePanelLabels,
+    source: &str,
     set: &HistogramSet<'_>,
     shown: Shown<'_>,
     colored: bool,
     height: f32,
     markers: &[(f32, String)],
     range: Option<std::ops::RangeInclusive<f32>>,
+    zoned: bool,
 ) -> HistogramResponse {
     // pc: crates/ui-egui/src/panels/histogram_panel.rs:636 `graph` (band, outline, sampler ticks, cached mark, double-click).
-    let labels = ScopePanelLabels::of(ui);
     let (data, name, original) = match shown {
         Shown::Channel(channel) => {
             let ink = if colored { channel.ink } else { ChannelColor::Neutral };
@@ -75,15 +79,19 @@ pub(super) fn main_plot(
         }
         Shown::Colors(overlay) => (colors_data(set, overlay), labels.colors.as_str(), set.original.and_then(|o| o.first())),
     };
-    let value = labels.histogram_value.replace("{channel}", name).replace("{source}", &labels.entire_image);
+    let value = craft_i18n::fmt(&labels.histogram_value, &[("channel", name), ("source", source)]);
     let mut histogram = Histogram::new(id, labels.histogram.clone())
         .data(data)
         .markers(markers)
-        .selection(range)
         .stale(set.stale || set.cache_level > 1)
         .on_stale_click(labels.refresh_hint.clone())
         .value(value)
-        .height(height);
+        .height(height)
+        .interactive(zoned);
+    // The selection and the zones both take the plot's keys and drags: with zones there is none.
+    if !zoned {
+        histogram = histogram.selection(range);
+    }
     if let Some(original) = original {
         histogram = histogram.outline(original.bins, ChannelColor::Neutral);
     }
@@ -91,16 +99,17 @@ pub(super) fn main_plot(
 }
 
 /// All Channels View's extra plots: for each colour channel its label (`TypeRole::Caption`, the
-/// channel's name) and a hover-only plot `height` high, in its colour when `colored`.
-pub(super) fn all_channels(ui: &mut Ui, id: egui::Id, set: &HistogramSet<'_>, colored: bool, height: f32) {
+/// channel's name) and a hover-only plot `height` high, in its colour when `colored`, named and
+/// valued from `labels` and `source` as the main plot is.
+pub(super) fn all_channels(ui: &mut Ui, id: egui::Id, labels: &ScopePanelLabels, source: &str, set: &HistogramSet<'_>, colored: bool, height: f32) {
     // pc: crates/ui-egui/src/panels/histogram_panel.rs:792-801.
     let tokens = Tokens::of(ui);
     let caption = tokens.font(TypeRole::Caption);
     let text = tokens.color.text.normal.to_egui();
-    let labels = ScopePanelLabels::of(ui);
     for channel in set.channels.iter().filter(|channel| channel.color_channel) {
         ui.label(RichText::new(channel.label).font(caption.clone()).color(text));
         let ink = if colored { channel.ink } else { ChannelColor::Neutral };
-        Histogram::new((id, channel.key), labels.histogram.clone()).tone(channel.bins, ink).value(channel.label).height(height).show(ui);
+        let value = craft_i18n::fmt(&labels.histogram_value, &[("channel", channel.label), ("source", source)]);
+        Histogram::new((id, channel.key), labels.histogram.clone()).tone(channel.bins, ink).value(value).height(height).show(ui);
     }
 }

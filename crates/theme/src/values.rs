@@ -2086,6 +2086,15 @@ pub const SCOPES_VECTOR_DOT_MAX: f32 = 3.0;
 pub const SCOPES_HOVER_BADGE_HEIGHT: f32 = 20.0;
 /// The hovered zone band's alpha (PhotoCraft `camera_raw_scope_ui.rs:417`).
 pub const SCOPES_ZONE_ALPHA: f32 = 0.055;
+/// The vectorscope's smallest default height (PhotoCraft `camera_raw_scope_ui.rs:511`).
+pub const SCOPES_VECTOR_HEIGHT_MIN: f32 = 100.0;
+/// The vectorscope's largest default height.
+pub const SCOPES_VECTOR_HEIGHT_MAX: f32 = 220.0;
+/// The vectorscope's margin between the outer ring and the plot's edge, which holds the hue
+/// letters (PhotoCraft `camera_raw_scope_ui.rs:443`).
+pub const SCOPES_VECTOR_MARGIN: f32 = 14.0;
+/// The inset of a clipping warning's triangle in its button (PhotoCraft `camera_raw_scope_ui.rs:352`).
+pub const SCOPES_WARNING_INSET: f32 = 3.0;
 
 /// A set header's height in the Actions panel (PhotoCraft `actions.rs:831`).
 pub const ACTIONS_SET_ROW_HEIGHT: f32 = 24.0;

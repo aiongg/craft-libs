@@ -11,7 +11,7 @@ use craft_ui::direction;
 use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::focus::key_owner::{self, KeyOwner, OwnerGate};
 use craft_ui::icons::Icon;
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::menu::{ContextMenu, MenuEntry};
 use craft_ui::primitives::{Content, Corner, Text};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
@@ -420,13 +420,22 @@ impl<'a> ScopePanel<'a> {
             out.range = self.state.range.clone();
             return out;
         };
+        let numbers = LocaleNumbers::of(ui);
         let menu_entries =
             (frame.vectorscope.is_some() || frame.clipping.is_some()).then(|| ScopePanel::scope_menu(ui.ctx(), base, self.state, self.has_selection));
         let scope = ui.scope(|ui| {
             ui.add_enabled_ui(self.enabled, |ui| {
                 self.rows(
                     ui,
-                    &Context { base, tokens: &tokens, style: &style, labels: &labels, composite, menu_entries: menu_entries.as_deref() },
+                    &Context {
+                        base,
+                        tokens: &tokens,
+                        style: &style,
+                        labels: &labels,
+                        numbers: &numbers,
+                        composite,
+                        menu_entries: menu_entries.as_deref(),
+                    },
                     &mut out,
                 );
             });
@@ -481,47 +490,33 @@ impl<'a> ScopePanel<'a> {
         }
         let shown = resolve_channel(set, &state.settings.channel).unwrap_or(shown);
 
+        let source =
+            self.sources.iter().find(|s| s.key == state.settings.source).or(self.sources.first()).map_or(labels.entire_image.as_str(), |s| s.label);
         let zoned = !self.zones.is_empty();
-        let plot = main_plot(
-            ui,
-            cx.base.with("plot"),
-            set,
-            shown,
-            colored,
-            style.plot_height,
-            self.markers,
-            (!zoned).then(|| state.range.clone()).flatten(),
-        );
+        let plot =
+            main_plot(ui, cx.base.with("plot"), labels, source, set, shown, colored, style.plot_height, self.markers, state.range.clone(), zoned);
         let rect = plot.response.rect;
-        let mut plot_widget = plot.response.clone();
-        let mut hovered = plot.hovered_level;
         if zoned {
-            let overlay = ui.interact(rect, cx.base.with("zones"), Sense::click_and_drag());
-            let bins = shown_bins(set, shown).len();
-            if bins > 0
-                && (overlay.hovered() || overlay.dragged())
-                && let Some(at) = overlay.interact_pointer_pos().or_else(|| overlay.hover_pos())
-            {
-                hovered = Some((((at.x - rect.left()) / rect.width().max(1.0)) * bins as f32).floor().clamp(0.0, bins as f32 - 1.0));
-            }
-            out.zone = zones(ui, &overlay, rect, self.zones, self.zone_values, labels, style);
-            plot_widget = overlay;
+            out.zone = zones(ui, &plot.response, rect, self.zones, self.zone_values, labels, style);
         } else if let Some(selection) = plot.selection.clone() {
             state.range = selection;
         }
-        if plot.clicked || plot.response.double_clicked() || plot_widget.double_clicked() && !zoned {
+        // With zones a double-click resets the zone under it instead.
+        if plot.clicked || !zoned && plot.response.double_clicked() {
             out.refresh = true;
         }
-        out.hovered_level = hovered;
-        menu_widgets.push(plot_widget);
+        out.hovered_level = plot.hovered_level;
+        menu_widgets.push(plot.response.clone());
 
         if let Some(clipping) = frame.clipping {
             let side = style.warning_size;
             let settings = &mut state.settings;
             let shadows = Rect::from_min_size(rect.min, vec2(side, side));
             let highlights = Rect::from_min_size(pos2(rect.right() - side, rect.top()), vec2(side, side));
-            let toggled_shadows = warning_button(ui, shadows, clipping.shadows, &mut settings.shadow_warning, &labels.shadow_warning);
-            let toggled_highlights = warning_button(ui, highlights, clipping.highlights, &mut settings.highlight_warning, &labels.highlight_warning);
+            let toggled_shadows =
+                warning_button(ui, shadows, style.warning_inset, clipping.shadows, &mut settings.shadow_warning, &labels.shadow_warning);
+            let toggled_highlights =
+                warning_button(ui, highlights, style.warning_inset, clipping.highlights, &mut settings.highlight_warning, &labels.highlight_warning);
             if toggled_shadows || toggled_highlights {
                 out.clipping_toggled = true;
                 out.settings_changed = true;
@@ -571,7 +566,7 @@ impl<'a> ScopePanel<'a> {
         }
 
         if view == ScopeView::AllChannels {
-            all_channels(ui, cx.base.with("channels"), set, colored, style.all_channels_height);
+            all_channels(ui, cx.base.with("channels"), labels, source, set, colored, style.all_channels_height);
         }
 
         if let Some(entries) = cx.menu_entries {
@@ -593,6 +588,7 @@ struct Context<'a> {
     tokens: &'a UiTokens,
     style: &'a ScopePanelStyle,
     labels: &'a ScopePanelLabels,
+    numbers: &'a LocaleNumbers,
     composite: &'a ScopeChannel<'a>,
     menu_entries: Option<&'a [MenuEntry<PanelCommand>]>,
 }
@@ -614,21 +610,23 @@ fn level_of(level: f32) -> u8 {
 /// Count, Percentile, Cache Level), as a `Table` of `Row`s and `Cell`s.
 fn statistics(ui: &mut Ui, cx: &Context<'_>, stats: &HistogramStatistics, cache_level: u32) {
     let labels = cx.labels;
+    // Numbers read left to right in every language (`ltr`).
+    let number = |value: f64, decimals: usize| craft_i18n::ltr(&cx.numbers.format(value, decimals..=decimals));
     let level = match stats.level {
-        Some([a, b]) if a == b => a.to_string(),
-        Some([a, b]) => format!("{a}..{b}"),
+        Some([a, b]) if a == b => number(f64::from(a), 0),
+        Some([a, b]) => craft_i18n::ltr(&format!("{}..{}", number(f64::from(a), 0), number(f64::from(b), 0))),
         None => String::new(),
     };
     let rows = [
-        (&labels.mean, format!("{:.2}", stats.mean), &labels.level, level),
+        (&labels.mean, number(stats.mean, 2), &labels.level, level),
         (
             &labels.standard_deviation,
-            format!("{:.2}", stats.standard_deviation),
+            number(stats.standard_deviation, 2),
             &labels.count,
-            stats.count.map(|c| c.to_string()).unwrap_or_default(),
+            stats.count.map(|c| number(c as f64, 0)).unwrap_or_default(),
         ),
-        (&labels.median, stats.median.to_string(), &labels.percentile, stats.percentile.map(|p| format!("{p:.2}")).unwrap_or_default()),
-        (&labels.pixels, stats.pixels.to_string(), &labels.cache_level, cache_level.to_string()),
+        (&labels.median, number(f64::from(stats.median), 0), &labels.percentile, stats.percentile.map(|p| number(p, 2)).unwrap_or_default()),
+        (&labels.pixels, number(stats.pixels as f64, 0), &labels.cache_level, number(f64::from(cache_level), 0)),
     ];
     let label_font = role_format(cx.tokens, TypeRole::Label, Color32::PLACEHOLDER).font_id;
     let value_font = role_format(cx.tokens, TypeRole::Mono, Color32::PLACEHOLDER).font_id;
@@ -684,11 +682,11 @@ fn readout_badge(ui: &Ui, cx: &Context<'_>, plot: Rect, readout: ScopeReadout) {
     let labels = cx.labels;
     let text = match readout {
         ScopeReadout::Rgb([r, g, b]) => {
-            let [r, g, b] = [r, g, b].map(|v| format!("{:.0}", v * 255.0));
+            let [r, g, b] = [r, g, b].map(|v| craft_i18n::ltr(&cx.numbers.format(f64::from(v) * 255.0, 0..=0)));
             craft_i18n::fmt(&labels.readout_rgb, &[("r", &r), ("g", &g), ("b", &b)])
         }
         ScopeReadout::Lab([l, a, b]) => {
-            let [l, a, b] = [l, a, b].map(|v| format!("{v:.1}"));
+            let [l, a, b] = [l, a, b].map(|v| craft_i18n::ltr(&cx.numbers.format(f64::from(v), 1..=1)));
             craft_i18n::fmt(&labels.readout_lab, &[("l", &l), ("a", &a), ("b", &b)])
         }
     };
