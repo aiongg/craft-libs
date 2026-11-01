@@ -138,12 +138,12 @@ fn channels_color(mask: ChannelMask, tokens: &UiTokens) -> Color32 {
     if mask.is_empty() { data.scope.to_egui() } else { Color32::from_rgb(sum[0], sum[1], sum[2]) }
 }
 
-/// One clipping warning button: a triangle in `rect` (`scopes.warning_size` square, inset 3),
+/// One clipping warning button: a triangle in `rect` (`scopes.warning_size` square, inset `scopes.warning_inset`),
 /// filled with the data colour of `mask` (black when empty), outlined 1 pt in `text.normal` when
 /// `on`, `text.faint` when off; a click toggles `on`. AccessKit: a `CheckBox` named `label`
 /// ("Shadow Clipping Warning (U)"), checked as `on`; its tooltip is `label`. Returns whether it
 /// toggled.
-pub(super) fn warning_button(ui: &mut egui::Ui, rect: Rect, mask: ChannelMask, on: &mut bool, label: &str) -> bool {
+pub(super) fn warning_button(ui: &mut egui::Ui, rect: Rect, inset: f32, mask: ChannelMask, on: &mut bool, label: &str) -> bool {
     // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:345-360 `warning`.
     use craft_ui::controls::TooltipExt as _;
     use craft_ui::theme::{Tokens, TokensOf as _};
@@ -152,7 +152,7 @@ pub(super) fn warning_button(ui: &mut egui::Ui, rect: Rect, mask: ChannelMask, o
     let response = ui.interact(rect, ui.scope_id().with(("scope-warning", label)), Sense::click());
     response.widget_info(|| WidgetInfo::selected(Role::CheckBox, ui.is_enabled(), *on, label));
     let response = response.tooltip(label);
-    let triangle = rect.shrink(3.0);
+    let triangle = rect.shrink(inset);
     let outline = if *on { tokens.color.text.normal } else { tokens.color.text.faint };
     ui.painter().add(Shape::convex_polygon(
         vec![pos2(triangle.center().x, triangle.top()), triangle.left_bottom(), triangle.right_bottom()],

@@ -71,6 +71,7 @@ impl ToneZone {
 
 /// What the user did to one zone.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ZoneChange {
     /// A drag over the plot, one gesture: `Begin` at the press, `Update` per pass with the signed
     /// share of the plot width moved since the press (Shift drags a tenth as far: LightCraft's
@@ -99,7 +100,8 @@ pub struct ScopeZoneEdit {
     pub change: ZoneChange,
 }
 
-/// The zones' input and look over `plot`: the hovered zone (or the pressed one during a drag)
+/// The zones' input and look over `plot`, read from `response`, the response of a
+/// [`Histogram::interactive`](craft_ui::composites::Histogram::interactive) plot (one Tab stop): the hovered zone (or the pressed one during a drag)
 /// shows its band in `text.normal` at `zone_alpha`, the `ResizeHorizontal` cursor and the tooltip
 /// [`ScopePanelLabels::zone_tooltip`] with the host's value text; a press locks the zone under it
 /// for the whole drag (LightCraft); the top `warning_size` strip belongs to the warning buttons.
