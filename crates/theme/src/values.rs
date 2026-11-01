@@ -2076,6 +2076,16 @@ pub const SHEET_ROW_HEADER_DIGIT: f32 = 7.0;
 pub const SHEET_ROW_HEADER_PADDING: f32 = 14.0;
 /// One outline lane.
 pub const SHEET_OUTLINE_LANE: f32 = 15.0;
+/// What an outline button's side is short of the lane (GridCraft `outline.rs:197`).
+pub const SHEET_OUTLINE_BUTTON_MARGIN: f32 = 4.0;
+/// An outline button's least side (GridCraft `outline.rs:197`).
+pub const SHEET_OUTLINE_BUTTON_MIN: f32 = 7.0;
+/// The first outline lane's inset from the band's edge (GridCraft `outline.rs:203`).
+pub const SHEET_OUTLINE_INSET: f32 = 2.0;
+/// How far an outline button's hit area reaches past its square (GridCraft `outline.rs:288`).
+pub const SHEET_OUTLINE_HIT: f32 = 1.5;
+/// An outline button's corner radius (GridCraft `outline.rs:268`).
+pub const SHEET_OUTLINE_RADIUS: f32 = 1.0;
 /// A slicer's header.
 pub const SHEET_SLICER_HEADER: f32 = 26.0;
 /// A slicer's value tile.

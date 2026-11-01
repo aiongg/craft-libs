@@ -1434,3 +1434,11 @@ lucide = "calendar"
 phosphor = "calendar"
 carbon = "calendar"
 tabler = "calendar"
+
+[[icon]]
+name = "funnel"
+directional = false
+lucide = "funnel"
+phosphor = "funnel"
+carbon = "filter"
+tabler = "filter"
