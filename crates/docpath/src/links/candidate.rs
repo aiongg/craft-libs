@@ -132,7 +132,7 @@ pub(super) fn last_component(path: &str) -> &str {
 }
 
 /// A file name split at its last dot into stem and extension; a leading dot is part of the stem.
-fn split_ext(name: &str) -> (&str, &str) {
+pub(super) fn split_ext(name: &str) -> (&str, &str) {
     match name.rfind('.') {
         Some(i) if i > 0 => (&name[..i], &name[i + 1..]),
         _ => (name, ""),

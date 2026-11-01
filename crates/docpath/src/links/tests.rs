@@ -212,10 +212,55 @@ fn the_search_never_follows_directory_links_and_stops_at_the_limit() {
 
 // `cancelled` turning true mid-walk ends the run as Cancelled and no update follows it (task B5).
 #[test]
-#[ignore = "task B5: LinkSearch::run"]
-#[expect(clippy::todo, reason = "B5 writes the body")]
 fn a_cancelled_search_stops_and_reports_nothing_more() {
-    todo!()
+    /// A tree of files whose folders `list` reports.
+    struct Tree(Fake);
+    impl LinkFiles for Tree {
+        fn stat(&self, path: &Path) -> Option<FileInfo> {
+            self.0.stat(path)
+        }
+        fn identity(&self, path: &Path) -> io::Result<LinkIdentity> {
+            self.0.identity(path)
+        }
+        fn list(&self, dir: &Path) -> io::Result<Vec<FolderEntry>> {
+            let mut out: Vec<FolderEntry> = Vec::new();
+            for path in self.0.files.keys() {
+                let Ok(rest) = path.strip_prefix(dir) else { continue };
+                let first = rest.components().next().map(|c| c.as_os_str().to_string_lossy().into_owned());
+                let Some(name) = first else { continue };
+                if out.iter().any(|e| e.name == name) {
+                    continue;
+                }
+                let is_dir = rest.components().count() > 1;
+                out.push(FolderEntry { path: dir.join(&name), name, is_dir, is_link: false });
+            }
+            Ok(out)
+        }
+    }
+    let tree = Tree(Fake::default().with("/r/a/x.png", b"1", 1).with("/r/b/x.png", b"2", 1).with("/r/c/x.png", b"3", 1));
+    let links = [link("/old/x.png", None)];
+    let mut search = LinkSearch::new("/r");
+    search.exact_names = true;
+
+    let mut all = Vec::new();
+    let end = search.run(&links, &tree, &|| false, &mut |u| all.push(u));
+    assert_eq!(end, SearchEnd::Done { files: 3 });
+    assert_eq!(all.iter().filter(|u| matches!(u, SearchUpdate::Hit(_))).count(), 3);
+
+    // Cancelled from the first hit on: that hit is the last update.
+    let stop = std::cell::Cell::new(false);
+    let mut seen = Vec::new();
+    let end = search.run(&links, &tree, &|| stop.get(), &mut |u| {
+        seen.push(u);
+        stop.set(true);
+    });
+    assert_eq!(end, SearchEnd::Cancelled);
+    assert_eq!(seen.len(), 1);
+
+    // Cancelled before it starts: nothing is reported.
+    let mut none = Vec::new();
+    assert_eq!(search.run(&links, &tree, &|| true, &mut |u| none.push(u)), SearchEnd::Cancelled);
+    assert!(none.is_empty());
 }
 
 // `Link<String>` with an identity (and a `None` modified time) and `MatchCriteria` come back equal through serde_json; `{}` reads as `MatchCriteria::default()`.

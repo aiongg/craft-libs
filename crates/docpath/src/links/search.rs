@@ -1,11 +1,14 @@
 //! `LinkSearch` and `SearchHit`: a cancellable folder search for missing links, run as a job
 //! (craft-browse's `SearchRun` runs it on a `JobQueue`).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::path::PathBuf;
 
-use super::{Candidate, Link, LinkFiles, MatchCriteria};
+use super::candidate::{last_component, split_ext};
+use super::index::index_folder_reporting;
+use super::{Candidate, Link, LinkFiles, MatchCriteria, check_candidate, rank};
+
+/// Files indexed between two `Progress` updates.
+const PROGRESS_STEP: usize = 500;
 
 /// What to search: the folder, the matching rule, and how many files to look at.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,7 +31,7 @@ impl LinkSearch {
     /// A search of `root` with the default criteria, exact names off, and [`LinkSearch::LIMIT`].
     pub fn new(root: impl Into<PathBuf>) -> Self {
         // new: the dialog's defaults.
-        todo!()
+        Self { root: root.into(), exact_names: false, criteria: MatchCriteria::default(), limit: Self::LIMIT }
     }
 
     /// Runs the search for `links` (the missing ones): indexes `root` ([`index_folder`](super::index_folder)),
@@ -45,7 +48,39 @@ impl LinkSearch {
         report: &mut dyn FnMut(SearchUpdate<K>),
     ) -> SearchEnd {
         // filmcraft: crates/engine/src/relink.rs:512 (`search`; it ran on the UI thread).
-        todo!()
+        let index = index_folder_reporting(&self.root, self.limit, files, cancelled, &mut |indexed| {
+            if indexed % PROGRESS_STEP == 0 && !cancelled() {
+                report(SearchUpdate::Progress { files: indexed });
+            }
+        });
+        if cancelled() {
+            return SearchEnd::Cancelled;
+        }
+        for link in links {
+            let wanted = last_component(&link.stored).to_lowercase();
+            let stem = split_ext(&wanted).0;
+            let mut found: Vec<&PathBuf> = if self.exact_names {
+                index.by_name.get(&wanted).into_iter().flatten().collect()
+            } else {
+                index.by_name.iter().filter(|(name, _)| split_ext(name).0 == stem).flat_map(|(_, paths)| paths).collect()
+            };
+            found.sort();
+            let mut candidates = Vec::with_capacity(found.len());
+            for path in found {
+                if cancelled() {
+                    return SearchEnd::Cancelled;
+                }
+                candidates.push(check_candidate(link, path, &self.criteria, files));
+            }
+            rank(&mut candidates);
+            for candidate in candidates {
+                if cancelled() {
+                    return SearchEnd::Cancelled;
+                }
+                report(SearchUpdate::Hit(SearchHit { link: link.key.clone(), candidate }));
+            }
+        }
+        if index.truncated { SearchEnd::Truncated { files: index.files } } else { SearchEnd::Done { files: index.files } }
     }
 }
 
