@@ -7,19 +7,24 @@
 //! tabs ([`PaintChip::pattern_editor`], [`PaintChip::picture_editor`]: craft-draw's
 //! `PatternFillEditor` and `PictureFillEditor`).
 
-use craft_theme::Srgba;
-use egui::accesskit::HasPopup;
-use egui::{AsIdSalt, Color32, Id, IdSalt, Key, LayerId, Mesh, Modifiers, Order, Painter, PopupCloseBehavior, Rect, Stroke, Ui, pos2};
+use std::cell::RefCell;
 
-use super::{ColorPicker, ColorPickerLayout, ScreenColorPicker, ScreenPickerLabels};
+use craft_theme::{ControlSize, Srgba};
+use egui::accesskit::HasPopup;
+use egui::{
+    Align, AsIdSalt, Color32, Id, IdSalt, Key, LayerId, Layout, Mesh, Modifiers, Order, Painter, PopupCloseBehavior, Rect, Stroke, Ui, pos2, vec2,
+};
+
+use super::{ColorPicker, ColorPickerLayout, HexField, ScreenColorPicker, ScreenPickerLabels};
 use craft_ui::behavior::{RowInfo, Selection};
-use craft_ui::controls::{Segmented, Swatch, SwatchStyle, checkerboard};
-use craft_ui::edit::{EditEvent, EditResponse};
+use craft_ui::controls::{Badge, BadgeStyle, BadgeTone, Button, IconButton, NumberField, Segmented, Swatch, SwatchStyle, TextField, checkerboard};
+use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
+use craft_ui::icons::Icon;
 use craft_ui::list::{List, ListEvent, ListRow, RowEvent};
-use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, fmt};
 use craft_ui::popup_list::PopupList;
 use craft_ui::primitives::{Interactive, Surface, SurfaceKind};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 
 craft_ui::words! {
     /// The paint popover's tabs, English by default.
@@ -238,8 +243,8 @@ impl<'a> PaintChip<'a> {
     // pc: crates/ui-egui/src/tools/shape_paint_ui.rs:21-24 (the swatches never offered a pattern);
     // crates/ui-egui/src/panels/preset_panels.rs:277-279 (the pattern grid meant for paint popups).
     // inv-deckcraft: crates/ui-egui/src/panels/format_shape.rs:369-375 (the fill types).
-    // new: the Pattern and Picture tabs are task SH-T14's; until then they never show.
-    #[expect(clippy::todo, reason = "skeleton: the Pattern and Picture tabs land in task SH-T14")]
+    // new: the Pattern and Picture tabs (Photoshop's Fill popover, PowerPoint's Picture fill); a
+    // chip without their editors is PhotoCraft's.
     pub fn show(self, ui: &mut Ui) -> EditResponse<Paint> {
         let Self { id_salt, label, paint, fallback, numbers, none_allowed, gradient, pattern, picture, enabled } = self;
         let ctx = ui.ctx().clone();
@@ -300,8 +305,9 @@ impl<'a> PaintChip<'a> {
         let current = Tab::of(paint);
         let popup = egui::Popup::menu(&response);
         let popup_id = popup.get_id();
-        let has_gradient = gradient.is_some();
-        let mut gradient = gradient;
+        let (has_gradient, has_pattern, has_picture) = (gradient.is_some(), pattern.is_some(), picture.is_some());
+        let (mut gradient, mut pattern, mut picture) = (gradient, pattern, picture);
+        let kind_labels = PaintKindLabels::of(ui);
         PopupList::with_popup(popup, ui, &response)
             .open(&mut open)
             .focus_owners(&[response.id])
@@ -318,13 +324,20 @@ impl<'a> PaintChip<'a> {
                 if has_gradient {
                     tabs = tabs.item(Tab::Gradient, labels.gradient.as_str());
                 }
+                if has_pattern {
+                    tabs = tabs.item(Tab::Pattern, kind_labels.pattern.as_str());
+                }
+                if has_picture {
+                    tabs = tabs.item(Tab::Picture, kind_labels.picture.as_str());
+                }
                 let tabs = tabs.enabled(enabled).show(ui);
                 if tabs.changed() && tab != current {
                     let next = match tab {
                         Tab::None => Paint::None,
                         Tab::Solid => Paint::Solid(remembered),
                         Tab::Gradient => Paint::Gradient(gradient.as_ref().map(|(g, _)| g.clone()).unwrap_or_default()),
-                        Tab::Pattern | Tab::Picture => todo!(),
+                        Tab::Pattern => Paint::Pattern(pattern.as_ref().map(|(p, _)| p.clone()).unwrap_or_default()),
+                        Tab::Picture => Paint::Picture(picture.as_ref().map(|(p, _)| p.clone()).unwrap_or_default()),
                     };
                     event = Some(EditEvent::set(next, Modifiers::NONE));
                 }
@@ -370,8 +383,16 @@ impl<'a> PaintChip<'a> {
                         }
                     }
                     Paint::Pattern(_) | Paint::Picture(_) => {
-                        let _ = (&pattern, &picture);
-                        todo!()
+                        let (editor, kind) = match paint {
+                            Paint::Pattern(_) => (pattern.as_mut(), Paint::Pattern as fn(ImagePreview) -> Paint),
+                            _ => (picture.as_mut(), Paint::Picture as fn(ImagePreview) -> Paint),
+                        };
+                        if let Some((_, editor)) = editor
+                            && let Some(edited) = editor(ui)
+                            && event.is_none()
+                        {
+                            event = Some(EditEvent::set(kind(edited), Modifiers::NONE));
+                        }
                     }
                 }
             });
@@ -456,7 +477,6 @@ fn paint_paint(painter: &Painter, rect: Rect, paint: &Paint, style: &SwatchStyle
 /// Draws a pattern tiled across `rect` at the tile's pixel size, or a picture stretched to it,
 /// over the checkerboard; the field fill while the preview has no texture; then the edge.
 #[expect(clippy::too_many_arguments, reason = "the chip painter's arguments plus the preview")]
-#[expect(unused_variables, clippy::todo, reason = "skeleton: task SH-T14")]
 fn paint_image(
     painter: &Painter,
     rect: Rect,
@@ -468,15 +488,51 @@ fn paint_image(
     ppp: f32,
 ) {
     // inv-deckcraft: crates/ui-egui/src/panels/fillui.rs:478-515 (pattern cells painted in their
-    // colours). new: `Mesh` with the texture's UVs repeating per tile for a pattern.
-    todo!()
+    // colours). new: one textured quad per tile, so the texture needs no repeat wrapping.
+    painter.extend(checkerboard(rect, style.radius, style.checker, style.checker_cell));
+    match preview.texture {
+        Some(texture) => {
+            let mut mesh = Mesh::with_texture(texture);
+            let tile = vec2(preview.size[0], preview.size[1]) / ppp;
+            let tiled = matches!(paint, Paint::Pattern(_)) && tile.x > 0.0 && tile.y > 0.0 && tile.x.is_finite() && tile.y.is_finite();
+            let (cols, rows) = if tiled { ((rect.width() / tile.x).ceil(), (rect.height() / tile.y).ceil()) } else { (1.0, 1.0) };
+            if cols * rows > MAX_TILES {
+                mesh.add_rect_with_uv(rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            } else if tiled {
+                for row in 0..rows as usize {
+                    for col in 0..cols as usize {
+                        let min = rect.min + vec2(col as f32 * tile.x, row as f32 * tile.y);
+                        let cell = Rect::from_min_size(min, tile).intersect(rect);
+                        let uv_max = pos2(cell.width() / tile.x, cell.height() / tile.y);
+                        mesh.add_rect_with_uv(cell, Rect::from_min_max(pos2(0.0, 0.0), uv_max), Color32::WHITE);
+                    }
+                }
+            } else {
+                mesh.add_rect_with_uv(rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            }
+            painter.add(mesh);
+        }
+        None => {
+            painter.rect_filled(rect, style.radius, tokens.component.field.fill.get(enabled).to_egui());
+        }
+    }
+    painter.extend(Swatch::outline(style, rect, false, enabled, ppp));
 }
 
-/// The chip's value for a screen reader: "Pattern: Bubbles", "Picture: photo.png".
-#[expect(unused_variables, clippy::todo, reason = "skeleton: task SH-T14")]
+/// The most tiles a pattern chip draws; a tile so small that more would fit is drawn as one
+/// stretched image.
+const MAX_TILES: f32 = 4096.0;
+
+/// The chip's value for a screen reader: "Pattern: Bubbles", "Picture: photo.png"; the kind alone
+/// for an image without a name.
 fn image_value(labels: &PaintKindLabels, paint: &Paint) -> String {
     // new: `pattern_named` or `picture_named` with the preview's name.
-    todo!()
+    let (named, kind, preview) = match paint {
+        Paint::Pattern(preview) => (&labels.pattern_named, &labels.pattern, preview),
+        Paint::Picture(preview) => (&labels.picture_named, &labels.picture, preview),
+        _ => return String::new(),
+    };
+    if preview.name.is_empty() { kind.clone() } else { fmt(named, &[("name", preview.name.as_str())]) }
 }
 
 /// The gradient's stops as a mesh across `rect`, held flat before the first and after the last.
@@ -689,13 +745,156 @@ impl<'a> PaintList<'a> {
 
     /// [`show`](Self::show) with row actions: the rows as before plus the trailing items of
     /// [`PaintListOptions`], and the Add button under them.
-    #[expect(clippy::todo, reason = "skeleton: task SH-T14")]
     fn show_with_actions(self, ui: &mut Ui) -> PaintListResponse {
         // inv-figcraft: crates/ui-egui/src/panels/selection_colors.rs:1-130 (per row a swatch that
         // opens the picker, hex, opacity, style or variable bind and detach, "Select layers with this
         // color").
-        // new: `ListRow` trailing items (`HexField`, `NumberField`, `IconButton`s).
-        let _ = (self, ui);
-        todo!()
+        // new: `ListRow` trailing items (`HexField`, `NumberField`, `IconButton`s). The chip is a
+        // trailing item too (a `PaintChip`, which owns the picker), so a row with `edit` has no
+        // painted thumbnail; hex and opacity are for solid paints, and other rows keep their
+        // columns empty.
+        let Self { id_salt, label, paints, selected, options, rows: row_data } = self;
+        let tokens = Tokens::of(ui);
+        let labels = PaintListLabels::of(ui);
+        let ctx = ui.ctx().clone();
+        let numbers = LocaleNumbers::of_ctx(&ctx);
+        let chip = tokens.component.paint_chip;
+        let style = Swatch::style(&tokens, craft_theme::ControlSize::Md);
+        let ppp = ui.pixels_per_point();
+        let enabled = ui.is_enabled();
+        let side = IconButton::style(&tokens, ControlSize::Md).side;
+        let hex_width = TextField::style(&tokens, ControlSize::Md).width;
+        let percent = Unit::new("{n}%");
+        let percent_width = NumberField::fit_width(ui, ControlSize::Md, &numbers, 0.0..=100.0, 0, &percent);
+        let badge = Badge::look(&tokens, BadgeTone::Neutral, BadgeStyle::Soft);
+        let badge_font = role_format(&tokens, badge.label, badge.text);
+        let acted = RefCell::new(Vec::new());
+        let rows: Vec<RowInfo<usize>> = (0..paints.len()).map(RowInfo::leaf).collect();
+        let mut selection = selected.filter(|&i| i < paints.len()).map_or_else(Selection::new, Selection::only);
+        // The Add button takes the bottom strip first: the list fills the height left over.
+        let mut add_clicked = false;
+        let mut listed = None;
+        ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
+            if options.add {
+                add_clicked = ui.add(Button::new(labels.add.as_str()).icon(Icon::Plus).enabled(enabled)).clicked();
+            }
+            ui.with_layout(Layout::top_down(Align::Min), |ui| {
+                listed = Some(List::new(id_salt, label, rows.as_slice()).selection(&mut selection).renamable(true).show(ui, |_, &row| {
+                    let (name, paint) = &paints[row];
+                    let (style, tokens, acted, labels, numbers) = (&style, &tokens, &acted, &labels, &*numbers);
+                    let solid = match paint {
+                        Paint::Solid(color) => Some(*color),
+                        _ => None,
+                    };
+                    let mut item = ListRow::new(row, name.as_str());
+                    if let Some(color) = solid {
+                        item = item.accessible_name(format!("{name}, {}", Swatch::hex(color.to_rgba())));
+                    }
+                    if !options.edit {
+                        item = item.thumb_sized(vec2(chip.size[0], chip.size[1]), move |painter, rect| {
+                            paint_paint(painter, rect, paint, style, tokens, enabled, ppp);
+                        });
+                    }
+                    // The first item added is the outermost, so they go in from the trailing end.
+                    if options.remove {
+                        item = item.trailing_item(side, move |ui| {
+                            if ui.add(IconButton::new(Icon::Minus, labels.remove.as_str()).id_salt(("remove", row))).clicked() {
+                                acted.borrow_mut().push(PaintListEvent::Remove { row });
+                            }
+                        });
+                    }
+                    if options.select_users {
+                        item = item.trailing_item(side, move |ui| {
+                            if ui.add(IconButton::new(Icon::Layers, labels.select_users.as_str()).id_salt(("select-users", row))).clicked() {
+                                acted.borrow_mut().push(PaintListEvent::SelectUsers { row });
+                            }
+                        });
+                    }
+                    let link = row_data.get(row).and_then(|data| data.link.as_ref());
+                    if options.bind {
+                        item = item.trailing_item(side, move |ui| match link {
+                            Some(link) => {
+                                let text = match link.kind {
+                                    PaintLinkKind::Style => labels.detach_style.as_str(),
+                                    PaintLinkKind::Variable => labels.detach_variable.as_str(),
+                                };
+                                if ui.add(IconButton::new(Icon::Unlink, text).id_salt(("detach", row))).clicked() {
+                                    acted.borrow_mut().push(PaintListEvent::Detach { row });
+                                }
+                            }
+                            None => {
+                                if ui.add(IconButton::new(Icon::Palette, labels.styles.as_str()).id_salt(("bind", row))).clicked() {
+                                    acted.borrow_mut().push(PaintListEvent::Bind { row });
+                                }
+                            }
+                        });
+                    }
+                    if options.opacity {
+                        item = item.trailing_item(percent_width, move |ui| {
+                            let Some(color) = solid else { return };
+                            let shown = NumberField::new(("opacity", row), labels.opacity.as_str(), f64::from(color.a) * 100.0, numbers)
+                                .range(0.0..=100.0)
+                                .decimals(0..=0)
+                                .unit(Unit::new("{n}%"))
+                                .width(percent_width)
+                                .enabled(enabled)
+                                .show(ui);
+                            if let Some(event) = shown.event {
+                                acted.borrow_mut().push(PaintListEvent::Opacity { row, event: event.map(|percent| (percent / 100.0) as f32) });
+                            }
+                        });
+                    }
+                    if options.hex {
+                        item = item.trailing_item(hex_width, move |ui| {
+                            let Some(color) = solid else { return };
+                            let shown = HexField::new(("hex", row), labels.hex.as_str(), color.to_rgba())
+                                .reason(labels.invalid.as_str())
+                                .width(hex_width)
+                                .policy(EditPolicy::default().on_release_only(true))
+                                .enabled(enabled)
+                                .show(ui);
+                            if let Some(typed) = shown.committed() {
+                                // The field has no alpha digits: the colour keeps its alpha.
+                                let color = Srgba { a: color.a, ..Srgba::from(*typed) };
+                                acted.borrow_mut().push(PaintListEvent::Hex { row, color });
+                            }
+                        });
+                    }
+                    if options.edit {
+                        item = item.trailing_item(chip.size[0], move |ui| {
+                            let fallback = solid.unwrap_or(Srgba::rgb(0.0, 0.0, 0.0));
+                            let shown = PaintChip::new(("chip", row), labels.edit.as_str(), paint, fallback, numbers).enabled(enabled).show(ui);
+                            if let Some(event) = shown.event {
+                                acted.borrow_mut().push(PaintListEvent::Edit { row, event });
+                            }
+                        });
+                    }
+                    if let Some(link) = link {
+                        let text = link.name.clone();
+                        let galley = ctx.fonts_mut(|f| f.layout_no_wrap(text.clone(), badge_font.font_id.clone(), badge.text));
+                        let width = (galley.size().x + 2.0 * badge.pad_x).max(badge.height).ceil();
+                        item = item.optional_item(width, move |ui| {
+                            ui.add(Badge::new(text));
+                        });
+                    }
+                    item
+                }));
+            });
+        });
+        let mut response = PaintListResponse { selected, renamed: None, events: acted.into_inner() };
+        for event in listed.map(|output| output.events).unwrap_or_default() {
+            match event {
+                ListEvent::Selection(change) => response.selected = change.row.or(response.selected),
+                ListEvent::Row(RowEvent::Renamed { row, text }) => {
+                    response.events.push(PaintListEvent::Rename { row, name: text.clone() });
+                    response.renamed = Some((row, text));
+                }
+                _ => {}
+            }
+        }
+        if add_clicked {
+            response.events.push(PaintListEvent::Add);
+        }
+        response
     }
 }
