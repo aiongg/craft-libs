@@ -1,7 +1,5 @@
 //! The Blending Options page (task AD-9).
 
-#![cfg_attr(not(test), expect(dead_code, reason = "used by the dialog body (task AD-8)"))]
-
 use egui::accesskit::Role;
 use egui::{Ui, UiBuilder};
 

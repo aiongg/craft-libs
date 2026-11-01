@@ -1,7 +1,5 @@
 //! The effect page: one row per field of the effect's [`EffectSpec`], drawn by kind (task AD-9).
 
-#![cfg_attr(not(test), expect(dead_code, reason = "used by the dialog body (task AD-8)"))]
-
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Modifiers, Ui, UiBuilder};
 
