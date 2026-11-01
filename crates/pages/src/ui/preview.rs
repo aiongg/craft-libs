@@ -3,10 +3,16 @@
 //! large as fits, "Page 3 of 12", ← / → (and Page Up / Page Down) to step, Esc or the close
 //! button to leave.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_ui::canvas::textures::{MAX_TEXTURE, Priority, TextureCacheOptions, TextureState, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails};
+use craft_ui::controls::{ControlSize, IconButton};
+use craft_ui::direction;
+use craft_ui::icons::Icon;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::theme::{ToEgui as _, current};
+use egui::accesskit::Role;
+use egui::{Align, Context, Frame, Id, Key, Layout, Modal, Modifiers, Sense, Vec2};
 
-use egui::Context;
-
+use super::style::PageViewStyle;
 use super::view::PageSource;
 
 craft_ui::words! {
@@ -66,6 +72,111 @@ impl<'a> PagePreview<'a> {
     // pdfcraft: crates/ui-egui/src/workflows/combine_grid/card.rs:326 `preview`; vectorcraft:
     // crates/ui-egui/src/dialogs/import_pdf.rs (page choice with a preview).
     pub fn show(self, ctx: &Context) -> PagePreviewResponse {
-        todo!()
+        let PagePreview { id_salt, source, pages, at, labels } = self;
+        let mut out = PagePreviewResponse::default();
+        if pages.is_empty() {
+            out.closed = true;
+            return out;
+        }
+        let labels = labels.unwrap_or_else(|| PagePreviewLabels::of_ctx(ctx));
+        *at = (*at).min(pages.len() - 1);
+        let id = Id::unique((id_salt, "page-preview"));
+
+        // The preview takes the keyboard on the pass it opens and gives it back on the pass it closes.
+        let pass = ctx.cumulative_pass_nr();
+        let (seen, before) = (id.with("seen"), id.with("focus-before"));
+        let opened = ctx.data_mut(|d| d.get_temp::<u64>(seen)).is_none_or(|last| last + 1 < pass);
+        ctx.data_mut(|d| d.insert_temp(seen, pass));
+        if opened {
+            let focused = ctx.memory(|m| m.focused());
+            ctx.data_mut(|d| d.insert_temp(before, focused));
+        }
+
+        let mut step = 0_isize;
+        let mut close = false;
+        if !ctx.text_edit_focused() {
+            let (back, forward) = if direction::is_rtl(ctx) { (Key::ArrowRight, Key::ArrowLeft) } else { (Key::ArrowLeft, Key::ArrowRight) };
+            ctx.input_mut(|input| {
+                if input.consume_key(Modifiers::NONE, back) | input.consume_key(Modifiers::NONE, Key::PageUp) {
+                    step = -1;
+                } else if input.consume_key(Modifiers::NONE, forward) | input.consume_key(Modifiers::NONE, Key::PageDown) {
+                    step = 1;
+                }
+                for key in [Key::Plus, Key::Equals, Key::Minus, Key::Num0] {
+                    input.consume_key(Modifiers::NONE, key);
+                    input.consume_key(Modifiers::COMMAND, key);
+                }
+            });
+        }
+        let last = pages.len() - 1;
+        let target = (*at as isize + step).clamp(0, last as isize) as usize;
+        if target != *at {
+            *at = target;
+            out.stepped = true;
+        }
+        let page = pages[*at];
+
+        let tokens = current(ctx);
+        let margin = PageViewStyle::of(&tokens).spacing.margin as f32;
+        let button = IconButton::style(&tokens, ControlSize::Md).side;
+        let numbers = LocaleNumbers::of_ctx(ctx);
+        let name = labels.page_of.replace("{p}", &source.page_label(page)).replace("{n}", &numbers.format(source.page_count() as f64, 0..=0));
+        let area = Modal::default_area(id).accessible_name(name.clone()).role(Role::Dialog);
+        let thumbs = Thumbnails::<usize>::in_context(
+            ctx,
+            (id_salt, "pictures"),
+            ThumbnailOptions { max_side: MAX_TEXTURE, cache: TextureCacheOptions::pages(), ..ThumbnailOptions::default() },
+        );
+        let shown = Modal::new(id).area(area).backdrop_color(tokens.color.surface.scrim.to_egui()).frame(Frame::NONE).show(ctx, |ui| {
+            let gap = ui.spacing().item_spacing.y;
+            let room =
+                Vec2::new((ctx.content_rect().width() - 2.0 * margin).max(0.0), (ctx.content_rect().height() - 2.0 * margin - button - gap).max(0.0));
+            let size = source.page_size(page);
+            let scale = if size.width > 0.0 && size.height > 0.0 {
+                (f64::from(room.x) / size.width).min(f64::from(room.y) / size.height) as f32
+            } else {
+                0.0
+            };
+            let picture = if scale > 0.0 { Vec2::new(size.width as f32 * scale, size.height as f32 * scale) } else { Vec2::splat(room.min_elem()) };
+            ui.with_layout(Layout::top_down(Align::Center), |ui| {
+                let (rect, response) = ui.allocate_exact_size(picture, Sense::hover());
+                let request = ThumbRequest::for_cell(picture.max_elem(), ctx.pixels_per_point());
+                let state = thumbs.state(ctx, source, &page, &request, Priority::VISIBLE);
+                thumbs.paint(ui.painter(), rect, &state, &ThumbPaint::default().checker(false));
+                if let TextureState::Failed { message } = &state {
+                    response.on_hover_text(message);
+                    ui.label(labels.unavailable.as_str());
+                }
+                ui.horizontal(|ui| {
+                    let previous =
+                        ui.add_enabled(*at > 0, IconButton::new(Icon::ChevronLeft, labels.previous.as_str()).id_salt((id_salt, "previous")));
+                    ui.label(name.as_str());
+                    let next = ui.add_enabled(*at < last, IconButton::new(Icon::ChevronRight, labels.next.as_str()).id_salt((id_salt, "next")));
+                    let closer = ui.add(IconButton::new(Icon::Close, labels.close.as_str()).id_salt((id_salt, "close")));
+                    if previous.clicked() && *at > 0 {
+                        *at -= 1;
+                        out.stepped = true;
+                    }
+                    if next.clicked() && *at < last {
+                        *at += 1;
+                        out.stepped = true;
+                    }
+                    close |= closer.clicked();
+                    if opened {
+                        closer.request_focus();
+                    }
+                });
+            });
+        });
+        if shown.is_top_modal && ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape)) {
+            close = true;
+        }
+        if close {
+            out.closed = true;
+            if let Some(Some(id)) = ctx.data(|d| d.get_temp::<Option<Id>>(before)) {
+                ctx.memory_mut(|m| m.request_focus(id));
+            }
+        }
+        out
     }
 }

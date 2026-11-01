@@ -3,12 +3,16 @@
 //! [`PageRangeOptions`], the All pages / Pages from–to / Subset row of Acrobat's Page Range
 //! Options.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use craft_ui::menu::MenuEntry;
+use craft_ui::composites::Field;
+use craft_ui::controls::{ControlSize, IconButton, NumberField, RadioSet, Select, TextField};
+use craft_ui::edit::{EditEvent, EditPolicy};
+use craft_ui::icons::Icon;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::menu::{MenuEntry, PressMenu};
+use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{Response, Ui};
 
-use crate::range::{PageRange, PageRangeError};
+use crate::range::{PageRange, PageRangeError, Subset, format_pages, parse_pages};
 
 craft_ui::words! {
     /// The field's and row's words (PdfCraft's strings).
@@ -16,6 +20,7 @@ craft_ui::words! {
     pub struct PageRangeLabels {
         selected_pages: "pageRange.selectedPages" = "Selected pages";
         select_pages: "pageRange.selectPages" = "Select pages";
+        page_range: "pageRange.pageRange" = "Page range";
         not_a_page: "pageRange.notAPage" = "{page} is not a page number or label";
         out_of_range: "pageRange.outOfRange" = "page {n} is out of range (1–{count})";
         too_long: "pageRange.tooLong" = "Too many pages";
@@ -32,7 +37,11 @@ craft_ui::words! {
 impl PageRangeLabels {
     /// The error in these words.
     pub fn error(&self, error: &PageRangeError) -> String {
-        todo!()
+        match error {
+            PageRangeError::NotAPage(token) => self.not_a_page.replace("{page}", &format!("{token:?}")),
+            PageRangeError::OutOfRange { page, count } => self.out_of_range.replace("{n}", &page.to_string()).replace("{count}", &count.to_string()),
+            PageRangeError::TooLong => self.too_long.clone(),
+        }
     }
 }
 
@@ -95,7 +104,69 @@ impl<'a> PageRangeField<'a> {
 
     // pdfcraft: crates/ui-egui/src/panels/page_selection_ui.rs:64 `PageSelectionInput::show`.
     pub fn show(self, ui: &mut Ui) -> PageRangeFieldResponse {
-        todo!()
+        let PageRangeField { id_salt, state, selected, count, current, menu, labels } = self;
+        let labels = labels.unwrap_or_else(|| PageRangeLabels::of(ui));
+        let selected_text = format_pages(selected);
+        if state.shown != selected {
+            state.text.clone_from(&selected_text);
+            state.shown = selected.to_vec();
+            state.error = None;
+        }
+        let placeholder = (current + 1).to_string();
+        let error = state.error.as_ref().map(|error| labels.error(error));
+        let mut chosen = None;
+        let tokens = Tokens::of(ui);
+        let chevron = IconButton::style(&tokens, ControlSize::Md).side;
+        let edit = Field::unlabelled()
+            .error(error)
+            .show(ui, |ui, invalid| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    let room = if menu.is_empty() { 0.0 } else { chevron };
+                    let edit = TextField::new((id_salt, "text"), labels.selected_pages.as_str(), &state.text)
+                        .placeholder(placeholder)
+                        .policy(EditPolicy::default().on_release_only(true))
+                        .invalid(invalid)
+                        .width((ui.available_width() - room).max(0.0))
+                        .show(ui);
+                    if !menu.is_empty() {
+                        let button = ui.add(IconButton::new(Icon::ChevronDown, labels.select_pages.as_str()).id_salt((id_salt, "menu")));
+                        chosen = PressMenu::new(menu).show(ui, &button).chosen;
+                    }
+                    edit
+                })
+                .inner
+            })
+            .inner;
+        let mut picked = None;
+        let escaped = edit.escaped;
+        match edit.event {
+            Some(EditEvent::Commit { value, changed: true, .. }) => {
+                state.text = value;
+                match parse_pages(&state.text, count) {
+                    Ok(pages) => picked = Some(pages),
+                    Err(error) => state.error = Some(error),
+                }
+            }
+            Some(EditEvent::Cancel { .. }) => {
+                state.text = selected_text;
+                state.error = None;
+            }
+            _ if escaped => {
+                state.text = selected_text;
+                state.error = None;
+            }
+            _ => {}
+        }
+        if let Some(pages) = chosen {
+            picked = Some(pages);
+        }
+        if let Some(pages) = &picked {
+            state.text = format_pages(pages);
+            state.shown.clone_from(pages);
+            state.error = None;
+        }
+        PageRangeFieldResponse { response: edit.response, picked }
     }
 }
 
@@ -122,6 +193,62 @@ impl<'a> PageRangeOptions<'a> {
 
     // pdfcraft: crates/ui-egui/src/dialogs/marks_ui.rs:58 `PageRange::ui`.
     pub fn show(self, ui: &mut Ui) -> Response {
-        todo!()
+        let PageRangeOptions { id_salt, range, count, labels } = self;
+        let labels = labels.unwrap_or_else(|| PageRangeLabels::of(ui));
+        let numbers = LocaleNumbers::of_ctx(ui.ctx());
+        let before = *range;
+        let last = count.max(1);
+        let mut all = range.all;
+        let mut set = RadioSet::new((id_salt, "which"), labels.page_range.as_str(), &mut all).item(true).item(false).begin(ui);
+        set.radio(ui, 0, labels.all_pages.as_str());
+        let from_to = ui
+            .horizontal(|ui| {
+                set.radio(ui, 1, labels.pages_from.as_str());
+                let enabled = !all;
+                let shown_from = range.from.clamp(1, last);
+                let from = NumberField::new((id_salt, "from"), labels.pages_from.as_str(), shown_from as f64, &numbers)
+                    .range(1.0..=last as f64)
+                    .decimals(0..=0)
+                    .enabled(enabled)
+                    .show(ui);
+                ui.label(labels.to.as_str());
+                let shown_to = range.to.clamp(1, last);
+                let to = NumberField::new((id_salt, "to"), labels.to.as_str(), shown_to as f64, &numbers)
+                    .range(1.0..=last as f64)
+                    .decimals(0..=0)
+                    .enabled(enabled)
+                    .show(ui);
+                (from, to, shown_from, shown_to)
+            })
+            .inner;
+        let mut response = set.end(ui).response;
+        range.all = all;
+        let (from, to, shown_from, shown_to) = from_to;
+        if let Some(value) = from.event.as_ref().and_then(EditEvent::value).map(|v| (v.round() as usize).clamp(1, last)).filter(|v| *v != shown_from)
+        {
+            range.from = value;
+            range.to = range.to.max(value);
+        }
+        if let Some(value) = to.event.as_ref().and_then(EditEvent::value).map(|v| (v.round() as usize).clamp(1, last)).filter(|v| *v != shown_to) {
+            range.to = value;
+            range.from = range.from.min(value);
+        }
+        response |= from.response;
+        response |= to.response;
+        let subset = ui
+            .horizontal(|ui| {
+                ui.label(labels.subset.as_str());
+                Select::new((id_salt, "subset"), labels.subset.as_str(), &mut range.subset)
+                    .option(Subset::All, labels.all_in_range.as_str())
+                    .option(Subset::Even, labels.even_only.as_str())
+                    .option(Subset::Odd, labels.odd_only.as_str())
+                    .show(ui)
+            })
+            .inner;
+        response |= subset.response;
+        if *range != before {
+            response.mark_changed();
+        }
+        response
     }
 }
