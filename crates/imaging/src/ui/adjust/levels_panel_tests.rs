@@ -18,16 +18,18 @@ struct Host {
     histograms: Vec<[u32; 256]>,
     before: Option<Levels>,
     events: Vec<(usize, EditEvent<Levels>)>,
+    shown: usize,
 }
 
 fn rig(levels: Vec<Levels>, histograms: Vec<[u32; 256]>) -> Harness<'static, Host> {
-    let state = Host { levels, histograms, before: None, events: Vec::new() };
+    let state = Host { levels, histograms, before: None, events: Vec::new(), shown: 0 };
     let mut h = Harness::builder().with_size([480.0, 640.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
             let numbers = LocaleNumbers::from_tag("en");
             let out = LevelsPanel::new("levels-panel", &host.levels, ToneChannels::of(ToneSpace::Rgb, false), &numbers)
                 .histograms(&host.histograms)
                 .show(ui);
+            host.shown = LevelsPanel::shown_channel(ui.ctx(), LevelsPanel::id_in(ui, "levels-panel"));
             let Some(event) = out.edit.event else { return };
             match &event {
                 EditEvent::Begin { .. } => host.before = host.levels.get(out.channel).copied(),
@@ -88,6 +90,7 @@ fn levels_panel_reports_the_shown_channel_with_the_edit() {
     h.get_by(|n| n.role() == Role::ListBoxOption && n.label().as_deref() == Some("Red")).click();
     h.run_steps(3);
     assert_eq!(h.get_by_role_and_label(Role::SpinButton, "Input black").accesskit_node().numeric_value(), Some(20.0), "Red's levels show");
+    assert_eq!(h.state().shown, 1, "the host reads the shown channel through `id_in`");
 
     let from = thumb(&h);
     h.hover_at(from);

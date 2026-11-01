@@ -326,7 +326,7 @@ impl<'a> CurvesPanel<'a> {
         // engine `adjust_params.rs:548-560` `smooth_curve_map` (radius 3).
         // lib: `CurveEditor::new(..).channels(..).channel(..).pencil(..).overlays(..).histogram(..)`.
         let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
-        let id = Self::id_in(ui, self.id_salt);
+        let id = ui.make_persistent_id(self.id_salt);
         let enabled = self.enabled && ui.is_enabled();
         let count = self.channels.len();
         let channel = Self::shown_channel(ui.ctx(), id).min(count.saturating_sub(1));
