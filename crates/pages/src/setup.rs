@@ -5,8 +5,6 @@
 //! The paper catalog is here rather than in craft-print: print spools PDFs and has no paper list,
 //! and this crate is what the page apps share.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 /// A named paper size, portrait, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PaperSize {
@@ -52,7 +50,9 @@ pub const PAPER_SIZES: &[PaperSize] = &[
 // wordcraft: crates/geom/src/lib.rs:294 `paper_name`; designcraft:
 // crates/ui-egui/src/panels/properties/document.rs:26 `preset_name`.
 pub fn paper_named(list: &[PaperSize], width: f64, height: f64) -> Option<&PaperSize> {
-    todo!()
+    const TOLERANCE: f64 = 0.5;
+    let near = |a: f64, b: f64| (a - b).abs() < TOLERANCE;
+    list.iter().find(|p| (near(p.width, width) && near(p.height, height)) || (near(p.width, height) && near(p.height, width)))
 }
 
 /// The smallest and largest page side, points (0.1" and 22", as Word allows).
@@ -74,7 +74,11 @@ pub enum Orientation {
 impl Orientation {
     /// `(width, height)` turned to this orientation: the long side across in landscape.
     pub fn turn(self, size: (f64, f64)) -> (f64, f64) {
-        todo!()
+        let (short, long) = (size.0.min(size.1), size.0.max(size.1));
+        match self {
+            Orientation::Portrait => (short, long),
+            Orientation::Landscape => (long, short),
+        }
     }
 }
 
@@ -98,7 +102,7 @@ impl Margins {
     /// this size; make the margins smaller first.").
     // wordcraft: crates/engine/src/cmd/page.rs:541 `margins_fit`.
     pub fn fit(&self, width: f64, height: f64, gutter: f64) -> bool {
-        todo!()
+        self.left + self.right + gutter <= width - MIN_TEXT_ROOM && self.top + self.bottom <= height - MIN_TEXT_ROOM
     }
 }
 
@@ -136,7 +140,15 @@ impl MarginPreset {
     /// matching item in Layout › Margins).
     // wordcraft: crates/engine/src/cmd/page.rs:383 `margins_preset_at`.
     pub fn matching<'a>(presets: &'a [MarginPreset], margins: &Margins, mirrored: bool) -> Option<&'a MarginPreset> {
-        todo!()
+        const TOLERANCE: f64 = 0.5;
+        let near = |a: f64, b: f64| (a - b).abs() < TOLERANCE;
+        presets.iter().find(|p| {
+            p.mirrored == mirrored
+                && near(p.margins.top, margins.top)
+                && near(p.margins.bottom, margins.bottom)
+                && near(p.margins.left, margins.left)
+                && near(p.margins.right, margins.right)
+        })
     }
 }
 
@@ -196,15 +208,30 @@ impl Default for PageSetup {
 
 impl PageSetup {
     /// The page size turned to `orientation` (the fields swap, the margins turn with the page as
-    /// Word's `layout.orientation` does: top becomes left going to landscape).
+    /// Word's `layout.orientation` does: going to landscape the top takes the old left, the left the old bottom, the bottom the old right and the right the old top).
     // wordcraft: crates/ui-egui/src/dialogs/page_setup.rs:82 `page_paper_group` (the swap rule).
     pub fn set_orientation(&mut self, orientation: Orientation) {
-        todo!()
+        if orientation == self.orientation {
+            return;
+        }
+        (self.width, self.height) = orientation.turn((self.width, self.height));
+        let Margins { top, bottom, left, right } = self.margins;
+        self.margins = match orientation {
+            Orientation::Landscape => Margins { top: left, bottom: right, left: bottom, right: top },
+            Orientation::Portrait => Margins { top: right, bottom: left, left: top, right: bottom },
+        };
+        self.orientation = orientation;
     }
 
     /// A typed size wider than tall turns the orientation to landscape, taller than wide to
     /// portrait; a square keeps it (Word).
     pub fn set_size(&mut self, width: f64, height: f64) {
-        todo!()
+        self.width = width.clamp(MIN_PAGE_SIDE, MAX_PAGE_SIDE);
+        self.height = height.clamp(MIN_PAGE_SIDE, MAX_PAGE_SIDE);
+        if self.width > self.height {
+            self.orientation = Orientation::Landscape;
+        } else if self.width < self.height {
+            self.orientation = Orientation::Portrait;
+        }
     }
 }
