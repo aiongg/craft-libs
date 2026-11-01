@@ -67,13 +67,13 @@
 //! ```
 
 mod alt_text;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+#[cfg(test)]
 mod alt_text_tests;
 pub(crate) mod angle_dial;
 #[cfg(test)]
 mod angle_dial_tests;
 mod autocomplete;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+#[cfg(test)]
 mod autocomplete_tests;
 pub(crate) mod badge;
 mod breadcrumb;
@@ -103,7 +103,7 @@ pub(crate) mod field_wheel;
 pub mod gradient_track;
 pub(crate) mod icon_button;
 mod icon_picker;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+#[cfg(test)]
 mod icon_picker_tests;
 pub(crate) mod kbd;
 pub(crate) mod link;

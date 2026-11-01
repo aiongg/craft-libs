@@ -1,10 +1,17 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`AltTextField`]: an object's description for people who can't see it, with Mark as
 //! decorative.
 
-use egui::{AsIdSalt, IdSalt, Ui};
+use egui::{AsIdSalt, IdSalt, Label, RichText, Ui};
 
-use crate::edit::EditResponse;
+use super::{Checkbox, TextField};
+use crate::edit::{EditEvent, EditResponse};
+use crate::localized::Labels as _;
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
+
+/// The box's width in a layout that doesn't stretch it (DeckCraft's `desired_width(340)`).
+const BOX_WIDTH: f32 = 340.0;
+/// The box's height in lines (DeckCraft's `desired_rows(4)`).
+const BOX_ROWS: usize = 4;
 
 crate::words! {
     /// The field's words, English by default (PowerPoint's and DeckCraft's).
@@ -80,7 +87,50 @@ impl<'a> AltTextField<'a> {
 
     // deckcraft: crates/ui-egui/src/dialogs/body.rs:596 dlg_alt_text
     pub fn show(self, ui: &mut Ui) -> EditResponse<AltText> {
-        todo!()
+        let Self { id_salt, value, mixed, enabled, labels } = self;
+        let labels = labels.unwrap_or_else(|| AltTextLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let enabled = enabled && ui.is_enabled();
+        ui.scope(|ui| {
+            ui.spacing_mut().item_spacing.y = ui.spacing().item_spacing.y.max(6.0);
+            ui.add(
+                Label::new(
+                    RichText::new(labels.prompt.as_str()).font(tokens.font(craft_theme::TypeRole::Body)).color(tokens.color.text.normal.to_egui()),
+                )
+                .wrap(),
+            );
+            let placeholder = if mixed { &labels.mixed } else { &labels.alt_text };
+            let mut field = TextField::new((&id_salt, "text"), labels.alt_text.as_str(), &value.text)
+                .placeholder(placeholder.as_str())
+                .multiline(BOX_ROWS)
+                .enabled(enabled && !value.decorative);
+            if !ui.layout().horizontal_justify() {
+                field = field.width(BOX_WIDTH);
+            }
+            let typed = field.show(ui);
+            let mut event = typed.event.as_ref().map(|e| e.clone().map(|text| AltText { text, decorative: value.decorative }));
+            if let Some(text) = typed.event.as_ref().and_then(EditEvent::value) {
+                value.text.clone_from(text);
+            }
+            let mut decorative = value.decorative;
+            let check = Checkbox::bool(labels.decorative.as_str(), &mut decorative).id_salt((&id_salt, "decorative")).enabled(enabled).show(ui);
+            if let Some(EditEvent::Set { modifiers, .. }) = check.event {
+                value.decorative = decorative;
+                // The press that checks the box also ends a typing run; the run's event is the
+                // one the host needs, and it carries the new flag with the text.
+                let whole = AltText { text: value.text.clone(), decorative };
+                event = match event {
+                    Some(typed) => Some(typed.map(|_| whole)),
+                    None => Some(EditEvent::set(whole, modifiers)),
+                };
+            }
+            let mut response = typed.response;
+            if check.response.changed() {
+                response.mark_changed();
+            }
+            EditResponse::new(response, event).submitted(typed.submitted).escaped(typed.escaped)
+        })
+        .inner
     }
 }
 
@@ -88,5 +138,12 @@ impl<'a> AltTextField<'a> {
 /// least one and every one is decorative.
 // deckcraft: crates/ui-egui/src/dialogs/alt_text.rs:2 alt_text_starts_decorative
 pub fn starts_decorative(decorative: impl IntoIterator<Item = bool>) -> bool {
-    todo!()
+    let mut any = false;
+    for flag in decorative {
+        if !flag {
+            return false;
+        }
+        any = true;
+    }
+    any
 }
