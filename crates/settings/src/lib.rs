@@ -39,6 +39,7 @@ pub mod document;
 pub mod error;
 pub mod files;
 pub mod migrate;
+mod names;
 pub mod presets;
 pub mod remember;
 

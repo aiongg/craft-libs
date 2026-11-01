@@ -17,6 +17,8 @@ use craft_host::SectionStore;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+use crate::names;
+
 /// The folder beside `config.toml` that holds the preset folders, one per kind.
 pub const PRESETS_DIR: &str = "presets";
 
@@ -33,7 +35,7 @@ pub const PRESETS_SECTION: &str = "presets";
 pub const MAX_FILE_BYTES: u64 = 1 << 20;
 
 /// The longest preset name, in characters (`Profiles`' limit).
-pub const MAX_NAME_CHARS: usize = 100;
+pub const MAX_NAME_CHARS: usize = names::MAX_NAME_CHARS;
 
 /// The envelope's version written by this library.
 pub const FORMAT_VERSION: u32 = 1;
@@ -95,7 +97,7 @@ impl From<io::Error> for PresetFolderError {
 ///   closes. On desktop, prefer files: settings put every preset inside the settings file.
 /// - **File format.** `{"format": "<kind>", "version": 1, ...fields of T}`: `T` serializes as a
 ///   map whose fields sit beside the two envelope keys (SoundCraft's plugin preset shape).
-///   Unknown fields are ignored on load. A settings entry is the same text as a string, so
+///   A file without `version` reads as version 1. `T` may not have fields named `format` or `version`. Unknown fields are ignored on load. A settings entry is the same text as a string, so
 ///   [`export`](Self::export) gives the same bytes in both places and a preset moves between them
 ///   unchanged.
 /// - **Names** compare without case. [`list`](Self::list) sorts them ignoring case;
@@ -226,6 +228,9 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
             return Err(PresetFolderError::Unreadable("the preset is not a map of fields".into()));
         };
         let mut envelope = serde_json::Map::new();
+        if fields.contains_key("format") || fields.contains_key("version") {
+            return Err(PresetFolderError::Unreadable("the preset has a field named format or version, which the file format reserves".into()));
+        }
         envelope.insert("format".into(), self.kind.clone().into());
         envelope.insert("version".into(), FORMAT_VERSION.into());
         envelope.extend(fields);
@@ -250,10 +255,14 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
             Some(serde_json::Value::String(found)) => return Err(PresetFolderError::ForeignFormat { found }),
             _ => return Err(PresetFolderError::Unreadable("the file has no format".into())),
         }
-        match fields.remove("version").and_then(|v| v.as_u64()) {
-            Some(v) if v <= u64::from(FORMAT_VERSION) => {}
-            Some(v) => return Err(PresetFolderError::Unreadable(format!("it was saved by a newer version (format {v})"))),
-            None => return Err(PresetFolderError::Unreadable("the file has no version".into())),
+        match fields.remove("version") {
+            // SoundCraft's files were written before the envelope had a version.
+            None => {}
+            Some(version) => match version.as_u64() {
+                Some(v) if v <= u64::from(FORMAT_VERSION) => {}
+                Some(v) => return Err(PresetFolderError::Unreadable(format!("it was saved by a newer version (format {v})"))),
+                None => return Err(PresetFolderError::Unreadable("the file's version is not a number".into())),
+            },
         }
         serde_json::from_value(serde_json::Value::Object(fields)).map_err(unreadable)
     }
@@ -340,11 +349,12 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
             PresetPlace::Settings(store) => {
                 let text = String::from_utf8(bytes.to_vec()).map_err(|_| PresetFolderError::Unreadable("the preset is not text".into()))?;
                 let mut section = store.read(PRESETS_SECTION).unwrap_or_default();
-                let table = self.table_mut(&mut section);
+                let mut table = self.kind_table(store.as_ref()).unwrap_or_default();
                 if old != to {
                     table.remove(old);
                 }
                 table.insert(to.to_owned(), toml::Value::String(text));
+                section.insert(self.kind.clone(), toml::Value::Table(table));
                 store.write(PRESETS_SECTION, section);
                 Ok(())
             }
@@ -361,9 +371,11 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
             }
             PresetPlace::Settings(store) => {
                 let mut section = store.read(PRESETS_SECTION).unwrap_or_default();
-                if self.table_mut(&mut section).remove(stored).is_none() {
+                let mut table = self.kind_table(store.as_ref()).unwrap_or_default();
+                if table.remove(stored).is_none() {
                     return Err(PresetFolderError::NotFound);
                 }
+                section.insert(self.kind.clone(), toml::Value::Table(table));
                 store.write(PRESETS_SECTION, section);
                 Ok(())
             }
@@ -375,19 +387,6 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
         match store.read(PRESETS_SECTION)?.remove(&self.kind)? {
             toml::Value::Table(t) => Some(t),
             _ => None,
-        }
-    }
-
-    /// This kind's table in `section`, created (or replacing a non-table value) when missing.
-    #[expect(clippy::unreachable, reason = "the slot is made a table on the line before")]
-    fn table_mut<'a>(&self, section: &'a mut toml::Table) -> &'a mut toml::Table {
-        let slot = section.entry(self.kind.clone()).or_insert_with(|| toml::Value::Table(toml::Table::new()));
-        if !slot.is_table() {
-            *slot = toml::Value::Table(toml::Table::new());
-        }
-        match slot {
-            toml::Value::Table(t) => t,
-            _ => unreachable!("the slot was just made a table"),
         }
     }
 }
@@ -408,23 +407,7 @@ fn unsupported() -> PresetFolderError {
 
 /// `name` trimmed, or `BadName` when it can't be a file name on every platform.
 fn checked_name(name: &str) -> Result<String, PresetFolderError> {
-    let name = name.trim();
-    let reserved = |c: char| c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*');
-    let windows_device = {
-        let stem = name.split('.').next().unwrap_or_default().to_ascii_uppercase();
-        matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-            || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT")) && stem.ends_with(|c: char| c.is_ascii_digit()))
-    };
-    if name.is_empty()
-        || name.chars().count() > MAX_NAME_CHARS
-        || name.contains(reserved)
-        || name.ends_with('.')
-        || name.starts_with('.')
-        || windows_device
-    {
-        return Err(PresetFolderError::BadName);
-    }
-    Ok(name.to_owned())
+    names::checked_name(name).map_err(|_| PresetFolderError::BadName)
 }
 
 #[cfg(test)]
@@ -496,6 +479,26 @@ mod tests {
         assert_eq!(presets.load("X 2").unwrap(), curve(5));
         let foreign = br#"{"format":"plugin","version":1,"points":[]}"#;
         assert!(matches!(presets.import("Y.json", foreign), Err(PresetFolderError::ForeignFormat { found }) if found == "plugin"));
+    }
+
+    // A SoundCraft-shaped file (no `version`) loads and lists; a `T` with a `version` field is refused.
+    #[test]
+    fn a_file_without_a_version_reads_as_version_one_and_a_clashing_field_is_refused() {
+        let tmp = tempfile::tempdir().unwrap();
+        let presets = folder(tmp.path());
+        std::fs::create_dir_all(presets.dir().unwrap()).unwrap();
+        std::fs::write(presets.dir().unwrap().join("old.json"), br#"{"format":"curve","points":[[0,0],[9,9]]}"#).unwrap();
+        assert_eq!(presets.list(), ["old"]);
+        assert_eq!(presets.load("old").unwrap(), Curve { points: vec![(0, 0), (9, 9)] });
+        let bad = br#"{"format":"curve","version":"x","points":[]}"#;
+        assert!(matches!(presets.from_bytes(bad), Err(PresetFolderError::Unreadable(_))));
+
+        #[derive(Serialize, serde::Deserialize)]
+        struct Clash {
+            version: u32,
+        }
+        let clash = PresetFolder::<Clash>::new(Some(tmp.path()), "clash");
+        assert!(matches!(clash.save("x", &Clash { version: 3 }), Err(PresetFolderError::Unreadable(_))));
     }
 
     // A file of garbage and one over 1 MiB are left out of `list` and stay on disk.

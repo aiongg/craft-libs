@@ -9,15 +9,13 @@ use std::path::{Path, PathBuf};
 use crate::Settings;
 use crate::document;
 use crate::migrate::{self, Upgrade};
+use crate::names;
 
 /// The extension of a profile file.
 const EXTENSION: &str = "toml";
 
 /// Longest profile file read (CadCraft's cap); a settings file is far smaller.
 const MAX_PROFILE_BYTES: u64 = 64 * 1024;
-
-/// Longest profile name, in characters.
-const MAX_NAME_CHARS: usize = 100;
 
 /// The folder beside `config.toml` that holds the profiles.
 pub const PROFILES_DIR: &str = "profiles";
@@ -205,21 +203,5 @@ fn file_path(dir: &Path, name: &str) -> PathBuf {
 
 /// `name` trimmed, or [`ProfileError::BadName`] when it can't be a file name on every platform.
 fn checked_name(name: &str) -> Result<String, ProfileError> {
-    let name = name.trim();
-    let reserved = |c: char| c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*');
-    let windows_device = {
-        let stem = name.split('.').next().unwrap_or_default().to_ascii_uppercase();
-        matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-            || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT")) && stem.ends_with(|c: char| c.is_ascii_digit()))
-    };
-    if name.is_empty()
-        || name.chars().count() > MAX_NAME_CHARS
-        || name.contains(reserved)
-        || name.ends_with('.')
-        || name.starts_with('.')
-        || windows_device
-    {
-        return Err(ProfileError::BadName);
-    }
-    Ok(name.to_owned())
+    names::checked_name(name).map_err(|_| ProfileError::BadName)
 }
