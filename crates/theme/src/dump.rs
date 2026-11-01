@@ -7,23 +7,24 @@ use std::fmt::Write as _;
 
 use crate::{
     AboutTokens, ActionsTokens, AlignTokens, AltTextTokens, AngleDialTokens, AppShellTokens, AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens,
-    BadgeTone, BarSizes, BezierTokens, BorderColors, BreadcrumbTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, ChannelsTokens,
-    CheckOffColors, CheckOnColors, CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens, ColorRampTokens, ColorToken,
-    ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DateTokens, DialogTokens, Dimmed,
-    DockTokens, DragTokens, DropVeilTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, EventLogTokens, ExportTokens,
-    EyedropperTokens, FieldTokens, FileListTokens, FindingsTokens, FloatTokens, FontPickerTokens, FontSlot, FormSpacing, FormTokens, Gaps,
-    GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens,
-    HarmonyTokens, HistogramTokens, HistoryTokens, IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor,
-    LayersTokens, LevelsTokens, LinkTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens,
-    MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
-    PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes,
-    PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens,
-    ReviewTokens, Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens,
-    SelectionBarTokens, ShapeTokens, SheetTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens,
-    SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, TableTokens,
-    TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TimelineTokens, TitleBarTokens,
-    ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens,
-    TypeRole, TypeStyle, TypeTokens,
+    BadgeTone, BarSizes, BezierTokens, BorderColors, BreadcrumbTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, CellSelectionTokens,
+    ChannelsTokens, CheckOffColors, CheckOnColors, CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens,
+    ColorRampTokens, ColorToken, ColorWheelTokens, ColumnBarTokens, CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens,
+    CurveTokens, DateTokens, DialogTokens, Dimmed, DockTokens, DragTokens, DropVeilTokens, Easing, Edge, EdgePickerTokens, Elevation,
+    ElevationTokens, EmptyStateTokens, EventLogTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens, FindTokens, FindingsTokens,
+    FloatTokens, FontPickerTokens, FontSlot, FormSpacing, FormTokens, FrameMarksTokens, Gaps, GlyphsTokens, GradientEditorTokens, GradientLineTokens,
+    GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HeaderFooterTokens, HistogramTokens, HistoryTokens,
+    IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayersTokens, LevelsTokens, LinkTokens,
+    ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarginsTokens, MarqueeTokens, MenuHue, MenuTokens, MetadataTokens, Motion, MotionTokens,
+    NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PagesTokens, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens,
+    PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens,
+    PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, ReviewTokens, Rgba,
+    RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens,
+    SheetTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States,
+    StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, TableSizeTokens, TableTokens, TextEditorTokens,
+    TextSelectionTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, ThumbnailsTokens, TileTokens, TimelineTokens,
+    TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens,
+    TreePickerTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -330,6 +331,18 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         kbd,
         layers,
         timeline,
+        pages,
+        thumbnails,
+        margins,
+        header_footer,
+        text_selection,
+        find,
+        column_bar,
+        reading,
+        frame_marks,
+        edge_picker,
+        table_size,
+        cell_selection,
         review,
         sheet,
         levels,
@@ -485,6 +498,18 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     channels_lines(out, channels);
     layers_lines(out, layers);
     timeline_lines(out, timeline);
+    pages_lines(out, pages);
+    thumbnails_lines(out, thumbnails);
+    margins_lines(out, margins);
+    header_footer_lines(out, header_footer);
+    text_selection_lines(out, text_selection);
+    find_lines(out, find);
+    column_bar_lines(out, column_bar);
+    reading_lines(out, reading);
+    frame_marks_lines(out, frame_marks);
+    edge_picker_lines(out, edge_picker);
+    table_size_lines(out, table_size);
+    cell_selection_lines(out, cell_selection);
     review_lines(out, review);
     sheet_lines(out, sheet);
     history_lines(out, history);
@@ -1818,7 +1843,7 @@ fn readout_lines(out: &mut Lines, r: &ReadoutTokens) {
 }
 
 fn ruler_lines(out: &mut Lines, r: &RulerTokens) {
-    let RulerTokens { size, label, label_pitch, label_pad, step_min, tick_mid, tick_minor } = r;
+    let RulerTokens { size, label, label_pitch, label_pad, step_min, tick_mid, tick_minor, margin_shade } = r;
     out.line("ruler.size", len(*size));
     out.line("ruler.label", len(*label));
     out.line("ruler.label_pitch", len(*label_pitch));
@@ -1826,6 +1851,7 @@ fn ruler_lines(out: &mut Lines, r: &RulerTokens) {
     out.line("ruler.step_min", len(*step_min));
     out.line("ruler.tick_mid", len(*tick_mid));
     out.line("ruler.tick_minor", len(*tick_minor));
+    out.line("ruler.margin_shade", hex(*margin_shade));
 }
 
 fn scroll_lines(out: &mut Lines, s: &ScrollTokens) {
@@ -2435,6 +2461,117 @@ fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
     out.line("sheet.filter_button_min", len(*filter_button_min));
     out.line("sheet.filter_button_max", len(*filter_button_max));
     out.line("sheet.filter_button_inset", len(*filter_button_inset));
+}
+
+fn pages_lines(out: &mut Lines, t: &PagesTokens) {
+    let PagesTokens { gap, margin, side, white_space_pad, seam } = t;
+    out.line("pages.gap", len(*gap));
+    out.line("pages.margin", len(*margin));
+    out.line("pages.side", len(*side));
+    out.line("pages.white_space_pad", len(*white_space_pad));
+    out.line("pages.seam", len(*seam));
+}
+
+fn thumbnails_lines(out: &mut Lines, t: &ThumbnailsTokens) {
+    let ThumbnailsTokens {
+        usual_width,
+        panel_inset,
+        cell_pad,
+        row_gap,
+        current_border,
+        border,
+        picked_outline,
+        drop_bar,
+        strip_outline,
+        strip_outline_offset,
+    } = t;
+    out.line("thumbnails.usual_width", len(*usual_width));
+    out.line("thumbnails.panel_inset", len(*panel_inset));
+    out.line("thumbnails.cell_pad", len(*cell_pad));
+    out.line("thumbnails.row_gap", len(*row_gap));
+    out.line("thumbnails.current_border", len(*current_border));
+    out.line("thumbnails.border", len(*border));
+    out.line("thumbnails.picked_outline", len(*picked_outline));
+    out.line("thumbnails.drop_bar", len(*drop_bar));
+    out.line("thumbnails.strip_outline", len(*strip_outline));
+    out.line("thumbnails.strip_outline_offset", len(*strip_outline_offset));
+}
+
+fn margins_lines(out: &mut Lines, t: &MarginsTokens) {
+    let MarginsTokens { edge_grab } = t;
+    out.line("margins.edge_grab", len(*edge_grab));
+}
+
+fn header_footer_lines(out: &mut Lines, t: &HeaderFooterTokens) {
+    let HeaderFooterTokens { inset, hint_outline, edit_outline } = t;
+    out.line("header_footer.inset", len(*inset));
+    out.line("header_footer.hint_outline", len(*hint_outline));
+    out.line("header_footer.edit_outline", len(*edit_outline));
+}
+
+fn text_selection_lines(out: &mut Lines, t: &TextSelectionTokens) {
+    let TextSelectionTokens { radius, column_outline, fill } = t;
+    out.line("text_selection.radius", len(*radius));
+    out.line("text_selection.column_outline", len(*column_outline));
+    out.line("text_selection.fill", hex(*fill));
+}
+
+fn find_lines(out: &mut Lines, t: &FindTokens) {
+    let FindTokens { current_radius, current_grow, matched, current } = t;
+    out.line("find.current_radius", len(*current_radius));
+    out.line("find.current_grow", len(*current_grow));
+    out.line("find.match", hex(*matched));
+    out.line("find.current", hex(*current));
+}
+
+fn column_bar_lines(out: &mut Lines, t: &ColumnBarTokens) {
+    let ColumnBarTokens { outline, divider, divider_active, grab } = t;
+    out.line("column_bar.outline", len(*outline));
+    out.line("column_bar.divider", len(*divider));
+    out.line("column_bar.divider_active", len(*divider_active));
+    out.line("column_bar.grab", len(*grab));
+}
+
+fn reading_lines(out: &mut Lines, t: &ReadingTokens) {
+    let ReadingTokens { column_gap, nav_bar, column_target, column_min } = t;
+    out.line("reading.column_gap", len(*column_gap));
+    out.line("reading.nav_bar", len(*nav_bar));
+    out.line("reading.column_target", len(*column_target));
+    out.line("reading.column_min", len(*column_min));
+}
+
+fn frame_marks_lines(out: &mut Lines, t: &FrameMarksTokens) {
+    let FrameMarksTokens { port, port_inset, overset_arm, overset_stroke, mark_min, mark_max, overset } = t;
+    out.line("frame_marks.port", len(*port));
+    out.line("frame_marks.port_inset", len(*port_inset));
+    out.line("frame_marks.overset_arm", len(*overset_arm));
+    out.line("frame_marks.overset_stroke", len(*overset_stroke));
+    out.line("frame_marks.mark_min", len(*mark_min));
+    out.line("frame_marks.mark_max", len(*mark_max));
+    out.line("frame_marks.overset", hex(*overset));
+}
+
+fn edge_picker_lines(out: &mut Lines, t: &EdgePickerTokens) {
+    let EdgePickerTokens { side, inset, line_on, line_off, line_hover, fill, line_off_color } = t;
+    out.line("edge_picker.side", len(*side));
+    out.line("edge_picker.inset", len(*inset));
+    out.line("edge_picker.line_on", len(*line_on));
+    out.line("edge_picker.line_off", len(*line_off));
+    out.line("edge_picker.line_hover", len(*line_hover));
+    out.line("edge_picker.fill", hex(*fill));
+    out.line("edge_picker.line_off_color", hex(*line_off_color));
+}
+
+fn table_size_lines(out: &mut Lines, t: &TableSizeTokens) {
+    let TableSizeTokens { cell, gap } = t;
+    out.line("table_size.cell", len(*cell));
+    out.line("table_size.gap", len(*gap));
+}
+
+fn cell_selection_lines(out: &mut Lines, t: &CellSelectionTokens) {
+    let CellSelectionTokens { outline, fill } = t;
+    out.line("cell_selection.outline", len(*outline));
+    out.line("cell_selection.fill", hex(*fill));
 }
 
 fn swatch_palette_lines(out: &mut Lines, s: &SwatchPaletteTokens) {
