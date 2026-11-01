@@ -191,12 +191,7 @@ impl<'a, T: CheckValue> Checkbox<'a, T> {
         }
         if ui.is_rect_visible(response.rect) {
             let (rect, label) = laid.place(ui, response.rect);
-            let on = state != CheckState::Unchecked;
-            let paint = Paint::now(ui, if on { &style.on } else { &style.off }, &response);
-            ui.painter().add(box_shape(rect, style.radius, style.outline, paint));
-            if let Some(color) = paint.mark {
-                ui.painter().extend(mark(rect, state, style.mark, color));
-            }
+            paint_box(ui, &style, rect, state, &response);
             laid.paint_label(ui, label, content_color(ui, &style.text, &response, false));
         }
         let response = laid.tooltip(response, &self.label);
@@ -219,6 +214,17 @@ impl Checkbox<'static, CheckState> {
             on: IndicatorColors::from(&c.on),
             text: label_colors(tokens, tokens.color.text.muted),
         }
+    }
+}
+
+/// The box alone in `rect`, in the colours of `response`'s state: for a row that has its own
+/// focus stop and so can't hold a [`Checkbox`].
+pub(crate) fn paint_box(ui: &Ui, style: &CheckboxStyle, rect: Rect, state: CheckState, response: &egui::Response) {
+    let on = state != CheckState::Unchecked;
+    let paint = Paint::now(ui, if on { &style.on } else { &style.off }, response);
+    ui.painter().add(box_shape(rect, style.radius, style.outline, paint));
+    if let Some(color) = paint.mark {
+        ui.painter().extend(mark(rect, state, style.mark, color));
     }
 }
 
