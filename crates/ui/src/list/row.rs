@@ -166,6 +166,14 @@ pub enum RowEvent<K> {
         /// The thumbnail.
         which: ThumbTarget,
     },
+    /// A double click landed on the label area of a row the [`List`](super::List) can't rename
+    /// (one it renames starts the rename instead). Reported before the
+    /// [`Activate`](super::ListEvent::Activate) the same click makes, so a host can tell a double
+    /// click on the name from one elsewhere on the row (Layers' `ActivateOn::Name`).
+    LabelDoubleClicked {
+        /// The row.
+        row: K,
+    },
     /// A drag started on an extra thumbnail of a row with [`thumb_drags`](ListRow::thumb_drags):
     /// the thumbnail is dragged, not the row. A [`List`](super::List) starts no row drag for this
     /// press; the host sets its own egui drag payload in the same pass (a layer's mask, which only
@@ -232,6 +240,8 @@ pub struct RowResponse<K> {
 pub struct ListRowStyle {
     /// Height of a row without a thumbnail: `list.row_height`.
     pub row_height: f32,
+    /// Height of a row in a dense list (a layer's sub-row, a compact panel): `list.row_height_dense`.
+    pub row_height_dense: f32,
     /// Thumbnail sides: `list.thumb`.
     pub thumb: ThumbSizes,
     /// Added to the thumbnail for the row's height: `list.thumb_pad`.
@@ -416,7 +426,9 @@ pub struct ListRow<'a, K> {
     rule: bool,
     drop: Option<DropMark>,
     indent: f32,
+    paint_depth: Option<usize>,
     indented_toggles: bool,
+    rename_field_name: Option<String>,
     role: Role,
     position: Option<usize>,
     slot: Option<Rect>,
@@ -470,7 +482,9 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             rule: false,
             drop: None,
             indent: 0.0,
+            paint_depth: None,
             indented_toggles: false,
+            rename_field_name: None,
             role: Role::ListBoxOption,
             position: None,
             slot: None,
@@ -528,15 +542,26 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// label, whatever the indent (which shrinks). Equals [`RowResponse::min_width`] of the shown
     /// row; measures without showing.
     pub fn min_width(&self, ui: &Ui) -> f32 {
+        self.min_width_with(ui, self.branch.is_some_and(|b| b.group))
+    }
+
+    /// [`min_width`](ListRow::min_width) of the row as a row of a tree [`List`](super::List) shows
+    /// it, with the disclosure column when `has_children`. The indent shrinks before the label,
+    /// so the depth does not change the width.
+    pub fn min_width_in_tree(&self, ui: &Ui, has_children: bool) -> f32 {
+        self.min_width_with(ui, has_children)
+    }
+
+    fn min_width_with(&self, ui: &Ui, group: bool) -> f32 {
         let style = Self::style(&Tokens::of(ui));
-        let (column, leading) = self.extent(&style);
+        let (column, leading) = self.extent(&style, group);
         let widths: Vec<(f32, bool)> = self.trailing.iter().map(|t| (t.width, t.optional)).collect();
         min_width(&style, (self.columns.len(), self.indented_toggles), column, leading, &widths)
     }
 
     /// The width of a tree row's disclosure and clipping columns, and of the leading part.
-    fn extent(&self, style: &ListRowStyle) -> (f32, Option<f32>) {
-        let disclosure = self.branch.map_or(0.0, |b| if b.group { style.disclosure } else { 0.0 });
+    fn extent(&self, style: &ListRowStyle, group: bool) -> (f32, Option<f32>) {
+        let disclosure = if group { style.disclosure } else { 0.0 };
         let marker = if self.clipped { style.icon_size } else { 0.0 };
         (disclosure + marker, leading_width(style, self.thumb, self.icon.is_some() || self.glyph.is_some(), self.thumb_width, &self.extras))
     }
@@ -753,6 +778,22 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
+    /// The tree depth the indent is painted at, when it differs from the depth the list has the
+    /// row at: a filtered view lists a row under the ancestors shown (its depth for the keys and
+    /// AccessKit) and keeps the indent of its true depth. Only a row of a tree list indents by
+    /// depth; the depth counts as [`TreeRow`](super::TreeRow)'s does.
+    pub fn paint_depth(mut self, depth: usize) -> Self {
+        self.paint_depth = Some(depth);
+        self
+    }
+
+    /// The accessible name of the rename field (default: the row's label): the field's purpose,
+    /// as in History's "Name".
+    pub fn rename_field_name(mut self, name: impl Into<String>) -> Self {
+        self.rename_field_name = Some(name.into());
+        self
+    }
+
     /// Puts the [toggle columns](ListRow::toggle) after the [indent](ListRow::indent) instead of at
     /// the leading edge: a sub-row's eye sits under its parent's. The leading edge keeps its
     /// columns' width, empty, so the dividers and the parent's eye column run on through the row.
@@ -779,6 +820,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let l = &tokens.component.list;
         ListRowStyle {
             row_height: l.row_height,
+            row_height_dense: l.row_height_dense,
             thumb: l.thumb,
             thumb_pad: l.thumb_pad,
             thumb_row_min: l.thumb_row_min,
@@ -862,7 +904,9 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             rule,
             drop,
             indent,
+            paint_depth,
             indented_toggles,
+            rename_field_name,
             role,
             position,
             slot,
@@ -874,8 +918,10 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         style.divider.width = Hairline::Hairline.width(ui.pixels_per_point());
         let height = style.height(thumb, detail.is_some());
         let indent = indent + if clipped { style.indent } else { 0.0 };
-        let (indent, disclosure) =
-            branch.map_or((indent, 0.0), |b| (indent + b.steps() as f32 * style.indent, if b.group { style.disclosure } else { 0.0 }));
+        let (indent, disclosure) = branch.map_or((indent, 0.0), |b| {
+            let steps = Branch { depth: paint_depth.unwrap_or(b.depth), ..b }.steps();
+            (indent + steps as f32 * style.indent, if b.group { style.disclosure } else { 0.0 })
+        });
         // The clipping arrow takes a column of its own after the disclosure triangle.
         let marker = if clipped { style.icon_size } else { 0.0 };
         let column = disclosure + marker;
@@ -1005,7 +1051,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             (false, false) => (style.text, style.detail),
         };
         if renaming {
-            rename::show(ui, row_id, &key, &label, band, &mut events);
+            rename::show(ui, row_id, &key, &label, rename_field_name.as_deref().unwrap_or(&label), band, &mut events);
         } else if visible {
             paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), (text, italic));
         }

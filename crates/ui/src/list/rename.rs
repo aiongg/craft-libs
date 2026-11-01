@@ -49,8 +49,17 @@ pub(super) fn take_draft(ctx: &egui::Context, row_id: Id) -> Option<String> {
     draft.map(|d| d.text)
 }
 
-/// Shows the rename field in `band` and reports how the rename ends, if it does.
-pub(super) fn show<K: Clone + Send + Sync + 'static>(ui: &mut Ui, row_id: Id, key: &K, label: &str, band: Rect, events: &mut Vec<RowEvent<K>>) {
+/// Shows the rename field in `band`, named `field_name` for a screen reader and starting from
+/// `label`, and reports how the rename ends, if it does.
+pub(super) fn show<K: Clone + Send + Sync + 'static>(
+    ui: &mut Ui,
+    row_id: Id,
+    key: &K,
+    label: &str,
+    field_name: &str,
+    band: Rect,
+    events: &mut Vec<RowEvent<K>>,
+) {
     let memory = row_id.with("rename");
     let stored = ui.data(|d| d.get_temp::<Option<Draft>>(memory)).flatten();
     let fresh = stored.is_none();
@@ -71,7 +80,7 @@ pub(super) fn show<K: Clone + Send + Sync + 'static>(ui: &mut Ui, row_id: Id, ke
             state.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(draft.chars().count()))));
             state.store(ui.ctx(), field);
         }
-        TextField::new("rename", label, &draft).size(ControlSize::Sm).show(ui)
+        TextField::new("rename", field_name, &draft).size(ControlSize::Sm).show(ui)
     };
     let pressed_tab = ui.input(|i| {
         i.events.iter().find_map(|e| match e {

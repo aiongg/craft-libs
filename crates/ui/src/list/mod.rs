@@ -88,5 +88,5 @@ pub use row::{
 };
 pub use table::{CellContext, SortOrder, Table, TableColumn, TableEvent, TableLabels, TableLayout, TableOutput, TableSort, TableStyle};
 pub use toggle::{ToggleColumn, ToggleEdit};
-pub use tree::{OpenChange, TreeRow, TreeState, TreeText};
+pub use tree::{OpenChange, TreeRow, TreeState, TreeText, paint_disclosure};
 pub use view::{ContextMenuRequest, List, ListEvent, ListOutput};

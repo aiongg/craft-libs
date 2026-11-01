@@ -52,7 +52,8 @@ pub enum ListEvent<K> {
     /// focus on a row).
     LeadMoved(K),
     /// The row's default action: Enter on the lead, or a double click (on the label only where
-    /// the list renames).
+    /// the list renames). A double click on the label of a row that can't be renamed reports a
+    /// [`RowEvent::LabelDoubleClicked`] first.
     Activate(K),
     /// The host's context menu is asked for.
     ContextMenu(ContextMenuRequest<K>),
@@ -109,6 +110,9 @@ pub struct ListOutput<K> {
     /// shows, `None` over no target. A host may preview it; the move itself comes as
     /// [`ListEvent::Reorder`]'s `Commit`.
     pub drop_target: Option<Move<K>>,
+    /// The rows drawn this frame with their rects on the screen, in display order: where a host
+    /// drops a foreign payload on a row. Rows out of view are not listed.
+    pub rows: Vec<(K, Rect)>,
 }
 
 /// The heights of a list's rows.
@@ -121,7 +125,7 @@ enum Heights<'a> {
     Mixed(Box<dyn Fn(usize) -> f32 + 'a>),
 }
 
-type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
+type KeyTest<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 
 /// A list of rows: a scroll area that lays out only the rows in view, one focus stop, the
 /// selection rules of [`ListSelection`], rename in place, and a hook for the host's context menu.
@@ -201,7 +205,8 @@ pub struct List<'a, K, O: ?Sized> {
     allow_empty: bool,
     heights: Heights<'a>,
     max_height: Option<f32>,
-    can_rename: Option<CanRename<'a, K>>,
+    can_rename: Option<KeyTest<'a, K>>,
+    can_drag: Option<KeyTest<'a, K>>,
     type_ahead: bool,
     reveal: Option<K>,
     start_rename: Option<K>,
@@ -229,6 +234,7 @@ where
             heights: Heights::Rows(ThumbSize::None, false),
             max_height: None,
             can_rename: None,
+            can_drag: None,
             type_ahead: false,
             reveal: None,
             start_rename: None,
@@ -317,7 +323,7 @@ where
 
     /// Whether rows can be renamed in place (default false).
     pub fn renamable(mut self, renamable: bool) -> Self {
-        self.can_rename = renamable.then(|| Box::new(|_: &K| true) as CanRename<'a, K>);
+        self.can_rename = renamable.then(|| Box::new(|_: &K| true) as KeyTest<'a, K>);
         self
     }
 
@@ -325,6 +331,13 @@ where
     /// at a row that can't (PhotoCraft's Background).
     pub fn can_rename(mut self, can_rename: impl Fn(&K) -> bool + 'a) -> Self {
         self.can_rename = Some(Box::new(can_rename));
+        self
+    }
+
+    /// Rows can be dragged where `can_drag` says so (default: every row of a list that
+    /// [reorders](List::reorder)). A refused row starts no drag and shows no ghost.
+    pub fn can_drag(mut self, can_drag: impl Fn(&K) -> bool + 'a) -> Self {
+        self.can_drag = Some(Box::new(can_drag));
         self
     }
 
@@ -373,6 +386,7 @@ where
             heights,
             max_height,
             can_rename,
+            can_drag,
             type_ahead,
             reveal,
             start_rename,
@@ -404,6 +418,8 @@ where
             events: Vec::new(),
             build: row,
             can_rename: can_rename.as_deref(),
+            can_drag: can_drag.as_deref(),
+            row_rects: Vec::new(),
             focus: false,
             lead_row: None,
             id,
@@ -503,6 +519,7 @@ where
         FocusRing::paint_if(ui, response.rect, CornerRadius::ZERO, focused && rows.is_empty());
         let drop_target = pass.state.drag.as_ref().and(pass.target.as_ref()).map(|t| t.mv.clone());
         let events = pass.events;
+        let rows = pass.row_rects;
         if focused {
             ui.memory_mut(|m| {
                 m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false });
@@ -511,7 +528,7 @@ where
         state.focused = focused;
         state.own = own;
         state.store(ui.ctx(), id);
-        ListOutput { response, events, drop_target }
+        ListOutput { response, events, drop_target, rows }
     }
 }
 
@@ -613,6 +630,9 @@ struct Pass<'p, K, O: ?Sized, F> {
     events: Vec<ListEvent<K>>,
     build: F,
     can_rename: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
+    can_drag: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
+    /// The rows drawn this frame.
+    row_rects: Vec<(K, Rect)>,
     /// The list takes the focus at the end of the frame.
     focus: bool,
     /// The lead row's id and rect, once drawn.
@@ -926,6 +946,7 @@ where
         let mark = self.target.as_ref().filter(|t| t.at == at).map(|t| drop_mark(t.mv.position));
         let row = row.selected(self.selection.contains(&key)).focused(lead && focused).renaming(renaming).drop_mark(mark);
         let out = row.show_at(ui, rect);
+        self.row_rects.push((key.clone(), rect));
         if lead {
             self.lead_row = Some((out.response.id, rect));
         }
@@ -1027,6 +1048,9 @@ where
             if on_label && self.renamable(key) {
                 self.start_rename(key.clone());
             } else {
+                if on_label {
+                    self.events.push(ListEvent::Row(RowEvent::LabelDoubleClicked { row: key.clone() }));
+                }
                 self.events.push(ListEvent::Activate(key.clone()));
             }
         } else if response.clicked() {
@@ -1037,7 +1061,12 @@ where
         }
         // A drag from a thumbnail of a row with `thumb_drags` is the host's, not a row drag.
         let thumb_drag = out.events.iter().any(|event| matches!(event, RowEvent::ThumbDrag { .. }));
-        if self.reorder.is_some() && self.state.drag.is_none() && !thumb_drag && response.drag_started_by(PointerButton::Primary) {
+        if self.reorder.is_some()
+            && self.state.drag.is_none()
+            && !thumb_drag
+            && self.can_drag.is_none_or(|can| can(key))
+            && response.drag_started_by(PointerButton::Primary)
+        {
             self.start_drag(at, key);
         }
         // A toggle cell senses its own clicks, so its secondary click is read from its response.
