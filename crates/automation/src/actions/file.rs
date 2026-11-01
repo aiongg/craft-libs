@@ -23,16 +23,12 @@ impl ActionsFile {
     pub const VERSION: u32 = 1;
 
     /// Reads a file's JSON text.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn from_json(text: &str) -> Result<ActionsFile, serde_json::Error> {
-        // new: `serde_json::from_str`.
-        todo!()
+        serde_json::from_str(text)
     }
 
     /// The file as pretty JSON text.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        // new: `serde_json::to_string_pretty`.
-        todo!()
+        serde_json::to_string_pretty(self)
     }
 }

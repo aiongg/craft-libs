@@ -20,16 +20,30 @@ impl ActionList {
     /// Starts a recording: into the action at `into`, or into a new action with a
     /// [unique name](ActionList::unique_name) (in `set` when given) when `into` is `None`.
     /// `journal_start` is the app's journal length now.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn begin_recording(&mut self, into: Option<usize>, set: Option<String>, journal_start: usize) -> Result<Recording, ActionListError> {
-        // pc: crates/engine/src/cmd/actions_cmds.rs:305 `record`.
-        todo!()
+        let index = match into {
+            Some(index) => {
+                if index >= self.actions.len() {
+                    return Err(ActionListError::NoSuchAction(index));
+                }
+                index
+            }
+            None => {
+                let name = self.unique_name("");
+                self.new_action(&name, set)?
+            }
+        };
+        Ok(Recording { action: index, journal_start })
     }
 
     /// Appends `steps` to the action at `index` (a flush of the journal while recording).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn append_recorded(&mut self, index: usize, steps: impl IntoIterator<Item = ActionStep>) -> Result<(), ActionListError> {
-        // pc: crates/engine/src/cmd/actions_cmds.rs:344 `flush_recording`.
-        todo!()
+        let action = self.actions.get_mut(index).ok_or(ActionListError::NoSuchAction(index))?;
+        let before = action.steps.len();
+        action.steps.extend(steps);
+        if action.steps.len() != before {
+            self.touch();
+        }
+        Ok(())
     }
 }

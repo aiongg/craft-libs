@@ -65,17 +65,22 @@ impl ActionColor {
 
     /// The file name: `""`, `"red"`, `"orange"`, `"yellow"`, `"green"`, `"blue"`, `"violet"`,
     /// `"gray"`.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub const fn name(self) -> &'static str {
-        // pc: crates/engine/src/cmd/actions_cmds.rs:54 `BUTTON_COLORS`.
-        todo!()
+        match self {
+            ActionColor::None => "",
+            ActionColor::Red => "red",
+            ActionColor::Orange => "orange",
+            ActionColor::Yellow => "yellow",
+            ActionColor::Green => "green",
+            ActionColor::Blue => "blue",
+            ActionColor::Violet => "violet",
+            ActionColor::Gray => "gray",
+        }
     }
 
     /// The colour a file name stands for; `None` for `""` and any unknown name.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn from_name(name: &str) -> ActionColor {
-        // pc: crates/engine/src/cmd/actions_cmds.rs:674 (`BUTTON_COLORS.contains`).
-        todo!()
+        ActionColor::ALL.into_iter().find(|color| color.name() == name).unwrap_or(ActionColor::None)
     }
 }
 
@@ -148,17 +153,21 @@ impl Action {
     }
 
     /// The include column's mark.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn include(&self) -> ActionInclude {
-        // new: All when no step is disabled and there are steps; None when every step is (or none exist); else Partial.
-        todo!()
+        let enabled = self.enabled_steps().count();
+        if enabled == 0 {
+            ActionInclude::None
+        } else if enabled == self.steps.len() {
+            ActionInclude::All
+        } else {
+            ActionInclude::Partial
+        }
     }
 
     /// Applies `map` to every index in `disabled` and `dialogs` after steps moved; `None` drops the
     /// index.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn remap_steps(&mut self, map: impl Fn(usize) -> Option<usize>) {
-        // pc: crates/engine/src/cmd/actions_cmds.rs:62 `remap_steps`.
-        todo!()
+        self.disabled = self.disabled.iter().filter_map(|&i| map(i)).collect();
+        self.dialogs = self.dialogs.iter().filter_map(|&i| map(i)).collect();
     }
 }

@@ -77,18 +77,25 @@ impl PlaybackBudget {
 
     /// Charges one step; `false` once the limit is reached (the step must not run). A script host
     /// with its own limit charges that one itself.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn charge(&mut self) -> bool {
-        // pc: crates/engine/src/cmd/actions_cmds.rs:158 `consume_playback_step`.
-        todo!()
+        if self.steps >= self.limit {
+            return false;
+        }
+        self.steps += 1;
+        true
     }
 
     /// Enters the action named `name`: refused when it is already on the stack (a call back to a
     /// running action) or the stack is [`MAX_PLAYBACK_DEPTH`] deep.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn enter(&mut self, name: &str) -> Result<(), PlaybackRefusal> {
-        // pc: crates/engine/src/cmd/actions_cmds.rs:187-192 (`playback_plan`: recursive call, nesting over 16).
-        todo!()
+        if self.stack.iter().any(|running| running == name) {
+            return Err(PlaybackRefusal::Recursive(name.to_owned()));
+        }
+        if self.stack.len() >= MAX_PLAYBACK_DEPTH {
+            return Err(PlaybackRefusal::TooDeep);
+        }
+        self.stack.push(name.to_owned());
+        Ok(())
     }
 
     /// Leaves the innermost action.
@@ -146,9 +153,44 @@ impl ActionPlayer {
     /// the action on `budget` before returning. An index past the list reports
     /// `failed` with the message "no such action". Playing the action being recorded into is the
     /// app's to refuse (PhotoCraft's `playback_plan` does), since the list holds no recording.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn play(list: &ActionList, index: usize, from: usize, runner: &mut dyn ActionRunner, budget: &mut PlaybackBudget) -> PlaybackReport {
-        // pc: crates/engine/src/cmd/actions_cmds.rs:384 `run_recorded`; crates/ui-egui/src/panels/actions.rs:542-615 (pause and resume).
-        todo!()
+        let Some(action) = list.action(index) else {
+            let failure = StepFailure { step: 0, command: String::new(), message: "no such action".to_owned() };
+            return PlaybackReport { failed: Some(failure), ..PlaybackReport::default() };
+        };
+        let mut report = PlaybackReport::default();
+        if let Err(refusal) = budget.enter(&action.name) {
+            report.refused = Some(refusal);
+            return report;
+        }
+        for (i, step) in action.enabled_steps().filter(|(i, _)| *i >= from) {
+            let fail = |message: String| StepFailure { step: i, command: step.command.clone(), message };
+            if !budget.charge() {
+                report.failed = Some(fail(format!("action playback exceeded the {}-step limit", budget.limit)));
+                report.refused = Some(PlaybackRefusal::StepLimit);
+                break;
+            }
+            if let Err(message) = runner.authorize(step) {
+                report.failed = Some(fail(message));
+                break;
+            }
+            if runner.is_noop(step) {
+                report.ran += 1;
+                continue;
+            }
+            match runner.run_step(action, i, step, action.dialogs.contains(&i), budget) {
+                StepOutcome::Done(_) => report.ran += 1,
+                StepOutcome::Paused => {
+                    report.paused_at = Some(i);
+                    break;
+                }
+                StepOutcome::Failed(message) => {
+                    report.failed = Some(fail(message));
+                    break;
+                }
+            }
+        }
+        budget.leave();
+        report
     }
 }
