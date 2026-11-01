@@ -2,6 +2,8 @@
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
+use craft_ui::behavior::Move;
+use craft_ui::edit::EditEvent;
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
 craft_ui::words! {
@@ -22,6 +24,9 @@ craft_ui::words! {
         refresh: "fieldList.refresh" = "Refresh";
         calculated: "fieldList.calculated" = "Calculated Field…";
         layout: "fieldList.layout" = "Report Layout";
+        compact: "fieldList.compact" = "Show in Compact Form";
+        outline: "fieldList.outline" = "Show in Outline Form";
+        tabular: "fieldList.tabular" = "Show in Tabular Form";
     }
 }
 
@@ -47,7 +52,7 @@ pub struct PivotField {
 }
 
 /// What the pane asks of the app.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FieldListEdit {
     /// Ticked: add it to its default area.
     Add {
@@ -57,21 +62,41 @@ pub enum FieldListEdit {
     Remove {
         field: String,
     },
+    /// A field's menu (Move to …, Move Up, Move Down), or a drag between or inside the areas,
+    /// as one gesture of the kernel's [`Move`](craft_ui::behavior::Move) (the list's reorder):
+    /// the app previews `Update`s and applies the `Commit`.
     Move {
-        field: String,
         to: FieldArea,
-        index: usize,
+        change: EditEvent<Move<String>>,
     },
     Refresh,
     CalculatedField,
-    /// The Report Layout menu (Compact, Outline, Tabular), by index.
-    Layout(usize),
+    /// The Report Layout menu.
+    Layout(ReportLayout),
 }
 
-/// The PivotTable Fields task pane (GridCraft): a field checklist, then the four areas each
-/// listing its fields with a menu (Move to … each other area, Move Up, Move Down, Remove Field);
-/// fields drag between areas (a drop line shows where); Refresh, Calculated Field… and the Report
-/// Layout menu at the bottom. Checkboxes, field menus and buttons are Tab stops.
+/// The Report Layout menu's choices (Excel's).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ReportLayout {
+    Compact,
+    Outline,
+    Tabular,
+}
+
+/// The PivotTable Fields task pane (Excel's, as GridCraft lays it out): a field checklist, then
+/// the four areas each listing its fields; Refresh, Calculated Field… and the Report Layout
+/// [`PressMenu`](craft_ui::menu::PressMenu) at the bottom.
+///
+/// - The checklist is a kernel [`List`](craft_ui::list::List) whose rows carry a check-box
+///   [`ToggleColumn`](craft_ui::list::ToggleColumn) (ticked: [`FieldListEdit::Add`], unticked:
+///   [`FieldListEdit::Remove`]).
+/// - Each area is a `List` with [`List::reorder`](craft_ui::list::List) and the
+///   [`ListDrag`](craft_ui::behavior::ListDrag) payload, so fields drag inside an area and between
+///   areas with the list's drop marker and ghost; each row's context menu (and the Menu key) has
+///   Move to … each other area, Move Up, Move Down and Remove Field; Cmd/Ctrl+] and [ move the
+///   selected field (decisions §4.2, lists). Moves arrive as [`FieldListEdit::Move`].
+/// - Keyboard: each list is one Tab stop, then the buttons; AccessKit is the lists' (`ListBox`
+///   named by the area's word) and the buttons'.
 pub struct FieldListPane<'a> {
     id_salt: IdSalt,
     fields: &'a [PivotField],
@@ -90,7 +115,15 @@ impl<'a> FieldListPane<'a> {
     }
 
     // gridcraft: crates/ui-egui/src/pivot_pane.rs:21 `show`.
-    pub fn show(self, ui: &mut Ui) -> (Response, Vec<FieldListEdit>) {
+    pub fn show(self, ui: &mut Ui) -> FieldListPaneOutput {
         todo!()
     }
+}
+
+/// What the pane did this pass.
+#[must_use]
+pub struct FieldListPaneOutput {
+    pub response: Response,
+    /// This pass's edits, in order.
+    pub edits: Vec<FieldListEdit>,
 }

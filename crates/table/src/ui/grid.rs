@@ -1,105 +1,40 @@
-//! The spreadsheet cell grid: addresses, the selection, line sizes, geometry and the grid widget
-//! (N6.01).
-//!
-//! `CellRef`, `CellRange` and `CellSelection` are the cell-selection model. craft-pages' document
-//! tables (step 6b, "pages and paged text") select cells too; if both use one model it moves down
-//! to `craft_ui::cells` (spec, "Dependencies on other parts").
+//! The spreadsheet cell grid: addresses in A1 notation, line sizes, geometry and the grid widget
+//! (N6.01). The cell-selection model is craft-ui's ([`craft_ui::behavior::cells`]), shared with
+//! craft-pages' document tables; it is re-exported here.
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 use std::collections::BTreeMap;
 
+pub use craft_ui::behavior::cells::{CellAdvance, CellDirection, CellRange, CellRef, CellSelection, CellSpace};
+use craft_ui::edit::EditEvent;
 use egui::{AsIdSalt, IdSalt, Painter, Pos2, Rect, Response, Ui, Vec2};
 
-/// A cell address, zero-based (A1 is row 0, column 0).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CellRef {
-    pub row: u32,
-    pub col: u32,
+use super::style::SheetStyle;
+
+/// Rows in a sheet, Excel's 1,048,576 (GridCraft `crates/core/src/addr.rs:10` `MAX_ROWS`).
+pub const SHEET_ROWS: u32 = 1_048_576;
+
+/// Columns in a sheet, Excel's 16,384 (A to XFD).
+pub const SHEET_COLUMNS: u32 = 16_384;
+
+/// The absolute reference `$B$3` of a cell (Excel's point mode inserts these).
+pub fn absolute_reference(cell: CellRef) -> String {
+    format!("${}${}", column_letters(cell.column), cell.row + 1)
 }
 
-impl CellRef {
-    pub fn new(row: u32, col: u32) -> Self {
-        Self { row, col }
-    }
-
-    /// The absolute reference `$B$3` (Excel's point mode inserts these).
-    pub fn absolute(self) -> String {
-        format!("${}${}", column_letters(self.col), self.row + 1)
-    }
-}
-
-/// A rectangular range, `start` the top-left and `end` the bottom-right, inclusive.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct CellRange {
-    pub start: CellRef,
-    pub end: CellRef,
-}
-
-impl CellRange {
-    /// The range spanned by two corners in any order.
-    pub fn new(a: CellRef, b: CellRef) -> Self {
-        Self { start: CellRef::new(a.row.min(b.row), a.col.min(b.col)), end: CellRef::new(a.row.max(b.row), a.col.max(b.col)) }
-    }
-
-    pub fn cell(c: CellRef) -> Self {
-        Self { start: c, end: c }
-    }
-
-    pub fn contains(&self, c: CellRef) -> bool {
-        (self.start.row..=self.end.row).contains(&c.row) && (self.start.col..=self.end.col).contains(&c.col)
-    }
-
-    pub fn is_single_cell(&self) -> bool {
-        self.start == self.end
-    }
-
-    /// `$A$1:$C$4`, or `$A$1` for one cell.
-    pub fn absolute(self) -> String {
-        if self.is_single_cell() { self.start.absolute() } else { format!("{}:{}", self.start.absolute(), self.end.absolute()) }
-    }
-}
-
-/// The selected ranges, the active cell (where typing goes) and the anchor Shift extends from.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct CellSelection {
-    pub ranges: Vec<CellRange>,
-    pub active: CellRef,
-    pub anchor: CellRef,
-}
-
-impl CellSelection {
-    /// One cell, active and anchor.
-    pub fn cell(c: CellRef) -> Self {
-        Self { ranges: vec![CellRange::cell(c)], active: c, anchor: c }
-    }
-
-    pub fn is_single_cell(&self) -> bool {
-        self.ranges.len() == 1 && self.ranges[0].is_single_cell()
-    }
-
-    /// Shift+click or Shift+arrow: the last range runs from the anchor to `c`; `c` is not made
-    /// active (Excel keeps the active cell at the anchor).
-    pub fn extend_to(&mut self, c: CellRef) {
-        todo!()
-    }
-
-    /// Cmd+click (Ctrl+click): a new range at `c`, which becomes active and the anchor.
-    pub fn add(&mut self, c: CellRef) {
-        todo!()
-    }
-
-    /// Enter / Tab inside a multi-cell selection: the active cell moves within the ranges
-    /// (rows first for Enter, columns first for Tab; `back` with Shift), wrapping, the selection
-    /// kept.
-    pub fn advance(&mut self, by_row: bool, back: bool) {
-        todo!()
+/// `$A$1:$C$4`, or `$A$1` for one cell.
+pub fn absolute_range_reference(range: CellRange) -> String {
+    if range.is_single_cell() {
+        absolute_reference(range.start)
+    } else {
+        format!("{}:{}", absolute_reference(range.start), absolute_reference(range.end))
     }
 }
 
 /// `A`, `Z`, `AA`, `XFD` for column 0, 25, 26, 16383.
 // gridcraft: crates/core/src/addr.rs:94 `col_to_letters`.
-pub fn column_letters(col: u32) -> String {
+pub fn column_letters(column: u32) -> String {
     todo!()
 }
 
@@ -142,6 +77,10 @@ impl LineIndex {
     }
 }
 
+/// The least zoom the column headers' height follows: below it they stay at this share of their
+/// 100 % height, so the letters stay readable (GridCraft `geo.rs:35`). A proportion, not a size.
+pub const HEADER_MIN_ZOOM: f32 = 0.75;
+
 /// What a grid's geometry is made from, per frame.
 #[derive(Clone, Debug)]
 pub struct GridLayout {
@@ -149,7 +88,7 @@ pub struct GridLayout {
     /// 0.1…4 (10 %…400 %).
     pub zoom: f32,
     pub rows: LineIndex,
-    pub cols: LineIndex,
+    pub columns: LineIndex,
     /// Frozen rows and columns at the top and left.
     pub frozen: (u32, u32),
     /// Scroll of the unfrozen part, in points at 100 %.
@@ -174,11 +113,12 @@ pub struct GridGeometry {
 }
 
 impl GridGeometry {
-    /// Column headers 21 points high at 100 % (at least 0.75 of that zoomed), row headers wide
-    /// enough for the digits of the last visible row plus 200 (`(digits·7 + 14) × zoom`, at
-    /// least two digits), none without headings; cells right of and below them and the bands.
+    /// Column headers `style.column_header_height` high at 100 % zoom (zoomed, but never below
+    /// [`HEADER_MIN_ZOOM`] of it), row headers wide enough for the digits of the last visible row
+    /// plus 200 (`(digits × style.row_header_digit + style.row_header_padding) × zoom`, at least
+    /// two digits), none without headings; cells right of and below them and the bands.
     // gridcraft: crates/ui-egui/src/grid/geo.rs:35 `Geo::new`, `grid.rs:56` `COL_HEADER_H`.
-    pub fn new(layout: GridLayout) -> Self {
+    pub fn new(layout: GridLayout, style: &SheetStyle) -> Self {
         todo!()
     }
 
@@ -191,9 +131,9 @@ impl GridGeometry {
         self.header
     }
 
-    /// The left x of column `col` (frozen columns don't scroll).
+    /// The left x of `column` (frozen columns don't scroll).
     // gridcraft: crates/ui-egui/src/grid/geo.rs:141 `x`.
-    pub fn x(&self, col: u32) -> f32 {
+    pub fn x(&self, column: u32) -> f32 {
         todo!()
     }
 
@@ -212,7 +152,7 @@ impl GridGeometry {
 
     /// The column at logical x.
     // gridcraft: crates/ui-egui/src/grid/geo.rs:172 `col_at`.
-    pub fn col_at(&self, x: f32) -> u32 {
+    pub fn column_at(&self, x: f32) -> u32 {
         todo!()
     }
 
@@ -222,7 +162,7 @@ impl GridGeometry {
     }
 
     pub fn cell_at(&self, p: Pos2) -> CellRef {
-        CellRef::new(self.row_at(p.y), self.col_at(p.x))
+        CellRef::new(self.row_at(p.y), self.column_at(p.x))
     }
 
     /// The visible scrolled rows and columns (after the frozen ones), inclusive.
@@ -253,37 +193,75 @@ impl GridGeometry {
     }
 }
 
-/// The workbook sheet the grid shows; the app implements it on its sheet.
+/// The workbook sheet the grid shows; the app implements it on its sheet. Read only: the grid
+/// reports what the user asks for as [`GridEdit`]s and moves the selection in [`GridState`].
 pub trait GridModel {
     /// Row heights and column widths (points at 100 %) with hidden lines at 0.
     fn rows(&self) -> &LineIndex;
-    fn cols(&self) -> &LineIndex;
+    fn columns(&self) -> &LineIndex;
 
     fn frozen(&self) -> (u32, u32) {
         (0, 0)
     }
+
+    /// The merged cells; clicks, arrows and ranges treat each as one cell.
+    fn merges(&self) -> &[CellRange] {
+        &[]
+    }
+
+    /// Whether a click or an arrow may land on `cell` (Excel's protected sheet with "Select
+    /// unlocked cells" only).
+    fn selectable(&self, cell: CellRef) -> bool {
+        let _ = cell;
+        true
+    }
+
+    /// Cmd/Ctrl+arrow (Excel's End mode): the edge of the data region from `from` toward
+    /// `direction`, which only the app's cells know. The default goes to the sheet's edge.
+    // gridcraft: crates/engine/src/selection.rs:132 `jump`.
+    fn data_edge(&self, from: CellRef, direction: CellDirection) -> CellRef {
+        let (rows, columns) = (self.rows().count().saturating_sub(1), self.columns().count().saturating_sub(1));
+        match direction {
+            CellDirection::Up => CellRef::new(0, from.column),
+            CellDirection::Down => CellRef::new(rows, from.column),
+            CellDirection::Left => CellRef::new(from.row, 0),
+            CellDirection::Right => CellRef::new(from.row, columns),
+        }
+    }
+
+    /// Cmd/Ctrl+End: the last cell with content (the bottom row and right column in use).
+    fn last_used(&self) -> CellRef;
 
     /// Paints cell `c` (value, format, borders, conditional format) into `rect`. The grid draws
     /// the gridlines, headers and selection; the app everything in the cell.
     fn paint_cell(&self, painter: &Painter, rect: Rect, c: CellRef);
 
     /// The column header's text: the letters, or a table's header name (Excel, GridCraft #1423).
-    fn column_label(&self, col: u32) -> String {
-        column_letters(col)
+    fn column_label(&self, column: u32) -> String {
+        column_letters(column)
     }
 
     /// The cell's text for AccessKit and the copy fallback.
     fn cell_text(&self, c: CellRef) -> String;
 }
 
-/// What the grid keeps between passes; the app keeps one per sheet view.
-#[derive(Clone, Debug, Default, PartialEq)]
+/// What the grid keeps between passes; the app keeps one per sheet view and saves it with the
+/// view (selection, scroll and zoom come back when the sheet reopens).
+#[derive(Clone, Debug, PartialEq)]
 pub struct GridState {
     pub selection: CellSelection,
     pub scroll: Vec2,
+    /// 0.1…4 (10 %…400 %); 1.0 for a new sheet.
     pub zoom: f32,
     /// The app's in-cell editor is open (the grid then leaves typing alone).
     pub editing: bool,
+}
+
+impl Default for GridState {
+    /// A1 selected, unscrolled, at 100 %.
+    fn default() -> Self {
+        Self { selection: CellSelection::default(), scroll: Vec2::ZERO, zoom: 1.0, editing: false }
+    }
 }
 
 /// What the grid asks of the app.
@@ -298,14 +276,25 @@ pub enum GridEdit {
     Clear,
     /// Backspace: clear the active cell and edit it.
     ClearAndEdit,
-    /// A header edge dragged (points at 100 %); a double-click on it asks for AutoFit (`None`).
+    /// A column header's right edge dragged: the new width in points at 100 % zoom, as one
+    /// gesture (Esc during the drag cancels it). Several selected columns resize together: the
+    /// app applies the width to every column of the selection that holds `column`, as Excel does.
     ResizeColumn {
-        col: u32,
-        width: Option<f32>,
+        column: u32,
+        width: EditEvent<f32>,
     },
+    /// A row header's bottom edge dragged, as [`ResizeColumn`](Self::ResizeColumn).
     ResizeRow {
         row: u32,
-        height: Option<f32>,
+        height: EditEvent<f32>,
+    },
+    /// A double-click on a column header's edge: Excel's AutoFit Column Width.
+    AutoFitColumn {
+        column: u32,
+    },
+    /// A double-click on a row header's edge: AutoFit Row Height.
+    AutoFitRow {
+        row: u32,
     },
     Copy,
     Cut,
@@ -313,30 +302,56 @@ pub enum GridEdit {
     /// Cmd+Page Down / Up.
     NextSheet,
     PreviousSheet,
-    /// A secondary click on a cell or header.
+    /// A secondary click (or the Menu key, Shift+F10) on the cells or a header; the app opens
+    /// its menu at `at`. The selection has already moved as Excel moves it (a click outside the
+    /// selection selects the cell or line first).
     ContextMenu {
         at: Pos2,
-        header: Option<(bool, u32)>,
+        target: GridMenuTarget,
     },
 }
 
-/// Excel's cell grid (GridCraft): virtualised painting of the visible cells only, frozen panes,
-/// headers, gridlines, the selection (ranges in the selection tint, the active cell's outline,
-/// the fill handle), column and row resizing at header edges, right-to-left sheets.
+/// Where a grid's context menu was asked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GridMenuTarget {
+    Cells,
+    ColumnHeader(u32),
+    RowHeader(u32),
+}
+
+/// Excel's cell grid (look and keys from Excel, as GridCraft draws it): virtualised painting of
+/// the visible cells only, frozen panes, headers, gridlines, the selection (ranges in the
+/// selection tint with the active cell left clear, the current range's outline and its fill
+/// handle), column and row resizing at header edges, right-to-left sheets. Sizes come from
+/// [`SheetStyle`] (`sheet.*` tokens).
 ///
-/// - Pointer: click selects, drag extends, Shift+click extends from the anchor, Cmd+click adds
-///   a range; a header click selects the line (drag for several); wheel scrolls (Shift
-///   horizontally), Cmd+wheel zooms.
-/// - Keys while the grid has the focus and the app's editor is closed; the grid owns arrows, Tab
-///   and Esc (egui's focus lock filter): arrows move (mirrored right-to-left; Shift extends;
-///   Cmd jumps to the data edge through the app), Page Up / Down move a screen of rows,
-///   Cmd+Page next / previous sheet, Home the row start, Cmd+Home A1 and Cmd+End the last used
-///   cell (the app's), Enter and Tab move the active cell (Shift back; inside a selection with
-///   [`CellSelection::advance`]), F2 edits, Delete clears, Backspace clears and edits, typed text
-///   starts an edit with it (unless a shortcut typed it, GridCraft's Alt+= on Windows), Copy,
-///   Cut and Paste events.
-/// - AccessKit: a grid with rows and cells, the active cell focused, named by its address and
-///   text.
+/// The selection is [`GridState::selection`], moved by the rules of
+/// [`craft_ui::behavior::cells`] over a [`CellSpace`] built from the model (its row and column
+/// counts, [`GridModel::merges`], hidden lines from the [`LineIndex`]es,
+/// [`GridModel::selectable`]); `selection_changed` on the response says it moved. Everything
+/// else is a [`GridEdit`] for the app.
+///
+/// - Pointer: click selects ([`CellSelection::select`]), drag extends
+///   ([`CellSelection::extend_to`]), Shift+click extends from the anchor, Cmd/Ctrl+click adds a
+///   range ([`CellSelection::add`]); a header click selects the line, a drag over headers
+///   several ([`CellSpace::whole_rows`], [`CellSpace::whole_columns`]); the corner selects all;
+///   wheel scrolls (Shift horizontally), Cmd/Ctrl+wheel zooms about the pointer.
+/// - Keys while the grid has the focus and the app's editor is closed. The grid is one Tab stop
+///   and keeps arrows, Tab, Enter and Esc (egui's focus lock filter, as GridCraft); Delete,
+///   Backspace and typed text go through [`craft_ui::focus::key_owner`] so the app's shortcuts
+///   leave them to the grid. Arrows move ([`CellSelection::step`]; mirrored right to left; Shift
+///   extends with [`CellSelection::extend`]; Cmd/Ctrl jumps to [`GridModel::data_edge`]), Page
+///   Up / Down move a screen of rows, Cmd/Ctrl+Page Down / Up the next / previous sheet, Home
+///   the row start, Cmd/Ctrl+Home A1 and Cmd/Ctrl+End [`GridModel::last_used`], Enter and Tab
+///   move the active cell ([`CellSelection::advance`]; Shift back), Cmd/Ctrl+A selects all, F2
+///   edits, Delete clears, Backspace clears and edits, typed text starts an edit with it
+///   (unless a shortcut typed it, GridCraft's Alt+= on Windows; an IME composition goes to the
+///   editor, not the grid), Copy, Cut and Paste events. F6 and Shift+F6 leave the grid for the
+///   next and previous focus region (owner answer Q-S6b-11).
+/// - AccessKit: `Grid` with `Row`s of `Cell`s (only the visible ones; `row_count` and
+///   `column_count` give the sheet's size, each cell its `row_index` and `column_index`), the
+///   active cell focused (`active_descendant`), named by its address and the model's
+///   [`GridModel::cell_text`]; column and row headers as `ColumnHeader` and `RowHeader`.
 pub struct CellGrid<'a, M: GridModel> {
     id_salt: IdSalt,
     model: &'a M,

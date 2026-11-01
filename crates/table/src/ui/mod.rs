@@ -11,6 +11,10 @@
 //! - [`stats`] has [`SelectionStats`] and the [`SelectionStatsReadout`].
 //! - [`error_tag`] has the [`ErrorTag`].
 //! - [`filter`] has the [`FilterButton`].
+//! - [`style`] has [`SheetStyle`], every size the widgets read (`sheet.*` tokens).
+//!
+//! The cell-selection model ([`CellRef`], [`CellRange`], [`CellSelection`], [`CellSpace`]) is
+//! craft-ui's `behavior::cells`, re-exported here.
 
 pub mod chart;
 pub mod conditions;
@@ -22,6 +26,7 @@ pub mod outline;
 pub mod refpick;
 pub mod slicer;
 pub mod stats;
+pub mod style;
 
 mod stories;
 
@@ -48,17 +53,19 @@ pub use chart::{ChartPrimitive, HAlign, VAlign, paint_chart};
 pub use conditions::{
     Condition, ConditionBuilder, ConditionFields, ConditionGroup, ConditionItem, ConditionKind, ConditionLabels, ConditionValue, Match,
 };
-pub use error_tag::ErrorTag;
-pub use fields::{FieldArea, FieldListEdit, FieldListLabels, FieldListPane, PivotField};
-pub use filter::{FilterButton, filter_button_rect};
+pub use error_tag::{ErrorTag, ErrorTagLabels, ErrorTagResponse};
+pub use fields::{FieldArea, FieldListEdit, FieldListLabels, FieldListPane, FieldListPaneOutput, PivotField, ReportLayout};
+pub use filter::{FilterButton, FilterButtonLabels, filter_button_rect};
 pub use grid::{
-    CellGrid, CellGridResponse, CellRange, CellRef, CellSelection, GridEdit, GridGeometry, GridLayout, GridModel, GridState, LineIndex,
+    CellAdvance, CellDirection, CellGrid, CellGridResponse, CellRange, CellRef, CellSelection, CellSpace, GridEdit, GridGeometry, GridLayout,
+    GridMenuTarget, GridModel, GridState, HEADER_MIN_ZOOM, LineIndex, SHEET_COLUMNS, SHEET_ROWS, absolute_range_reference, absolute_reference,
     column_letters,
 };
-pub use outline::{OutlineAction, OutlineAxis, OutlineBand, OutlineGroup};
+pub use outline::{OutlineAction, OutlineAxis, OutlineBand, OutlineBandLabels, OutlineBandOutput, OutlineGroup};
 pub use refpick::ReferencePicker;
-pub use slicer::{Slicer, SlicerAction, SlicerLayout, slicer_layout};
+pub use slicer::{Slicer, SlicerAction, SlicerLabels, SlicerLayout, SlicerOutput, slicer_layout};
 pub use stats::{SelectionStats, SelectionStatsReadout, StatsLabels, StatsShown, stats_parts};
+pub use style::SheetStyle;
 
 use craft_ui::localized::{Labels, Word};
 
@@ -68,4 +75,12 @@ pub fn stories() -> Vec<craft_ui::story::Story> {
 }
 
 /// The labels tables of the table widgets, for the words registry.
-pub const WORDS: &[&[Word]] = &[<ConditionLabels as Labels>::WORDS, <FieldListLabels as Labels>::WORDS, <StatsLabels as Labels>::WORDS];
+pub const WORDS: &[&[Word]] = &[
+    <ConditionLabels as Labels>::WORDS,
+    <FieldListLabels as Labels>::WORDS,
+    <StatsLabels as Labels>::WORDS,
+    <OutlineBandLabels as Labels>::WORDS,
+    <SlicerLabels as Labels>::WORDS,
+    <ErrorTagLabels as Labels>::WORDS,
+    <FilterButtonLabels as Labels>::WORDS,
+];

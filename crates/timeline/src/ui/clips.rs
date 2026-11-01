@@ -2,8 +2,9 @@
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
+use craft_ui::behavior::SelectionChange;
 use craft_ui::edit::EditEvent;
-use egui::{IdSalt, Painter, Rect, Response, Ui};
+use egui::{AsIdSalt, IdSalt, Painter, Rect, Response, Ui};
 
 use super::LabelPalette;
 use crate::clips::{ClipEdit, SnapTargets};
@@ -43,12 +44,12 @@ pub enum ThumbnailMode {
 /// At most this many thumbnail tiles per clip (FilmCraft `clips.rs:128`).
 pub const MAX_THUMBNAIL_TILES: usize = 256;
 
-/// Where the thumbnails of a clip from `x0` to `x1` go, `tile_w` wide, and the clip time each
+/// Where the thumbnails of a clip from `x0` to `x1` go, `tile_width` wide, and the clip time each
 /// shows: `(x, time)`. Only tiles within `visible` (an x range) are listed; `Continuous` tiles the
 /// clip edge to edge, capped at [`MAX_THUMBNAIL_TILES`]; `frame` is one frame's duration (the
 /// tail shows the last frame).
 // filmcraft: crates/ui-egui/src/panels/timeline/clips.rs:135 `thumbnail_tiles`.
-pub fn thumbnail_tiles(mode: ThumbnailMode, x0: f32, x1: f32, tile_w: f32, visible: (f32, f32), duration: Tick, frame: Tick) -> Vec<(f32, Tick)> {
+pub fn thumbnail_tiles(mode: ThumbnailMode, x0: f32, x1: f32, tile_width: f32, visible: (f32, f32), duration: Tick, frame: Tick) -> Vec<(f32, Tick)> {
     todo!()
 }
 
@@ -60,17 +61,23 @@ pub type ClipPainter<'a> = Box<dyn FnMut(&Painter, Rect, &ClipInfo<'_>) + 'a>;
 /// - Draws each [`ClipInfo`] as a block: label colour (from [`LabelPalette`]), name, a
 ///   selected outline, dimmed when disabled; the app paints the content (thumbnails, waveform,
 ///   fades) through [`content`](Self::content) before the outline.
-/// - A press with the [`TimelineTool`] on an edge ([`edge_at`](crate::edge_at), FilmCraft's
-///   zones) starts a trim of the kind the tool and modifiers give; on a body it moves (Selection),
+/// - A press with the [`TimelineTool`] on an edge ([`edge_at`](crate::edge_at) with the
+///   `timeline.edge_zone` and `timeline.roll_zone` sizes of [`TimelineStyle`](super::TimelineStyle)) starts a trim of the kind the tool and modifiers give; on a body it moves (Selection),
 ///   slips or slides; the Razor cuts at the pointer (snapped to `rate`'s frames). The drag is
-///   reported as an `EditEvent<ClipEdit>` gesture; moves snap to `snap` targets. Esc during the
+///   reported as an `EditEvent<ClipEdit>` gesture; moves snap to `snap` targets within
+///   `timeline.snap_distance` ([`snap_time`](crate::snap_time)). Esc during the
 ///   drag cancels it, and the release after an Esc is ignored (FilmCraft #580).
 /// - A press acts on what it pressed, worked out on the press frame, not when egui's drag
 ///   threshold passes (FilmCraft `Pressed`, #259).
-/// - A click selects (Shift or Cmd adds), a double-click and a secondary click are reported.
+/// - A click picks a clip, or clears on empty space, over the [`selection`](Self::selection):
+///   a click replaces, Shift toggles, Cmd/Ctrl toggles without linked partners (Premiere's),
+///   reported as a [`SelectionChange`]; a double-click and a secondary click are reported.
 /// - A locked track draws stripes over its clips and starts no gesture.
 /// - Hover cursors: trim, roll, slip, slide, razor (craft-ui's canvas cursors).
-/// - Keyboard: none here; clips are reached through the panel (arrows move the selection).
+/// - Keyboard: none here; the lane is not a Tab stop. The panel's time area holds the focus
+///   (playhead keys); clips are selected with the pointer and Cmd/Ctrl+A, as in Premiere.
+/// - AccessKit: each visible clip a `Button` (named by its name, its start and duration as the
+///   value, `selected`), with a Click action that selects it.
 pub struct ClipLane<'a> {
     id_salt: IdSalt,
     track: TrackId,
@@ -81,14 +88,15 @@ pub struct ClipLane<'a> {
     no_modifier_trims: bool,
     snap: Option<&'a SnapTargets>,
     locked: bool,
+    selection: &'a [ClipId],
     palette: Option<&'a LabelPalette>,
     content: Option<ClipPainter<'a>>,
 }
 
 impl<'a> ClipLane<'a> {
-    pub fn new(track: TrackId, clips: &'a [ClipInfo<'a>], view: &'a TimeView, rate: FrameRate) -> Self {
+    pub fn new(id_salt: impl AsIdSalt, track: TrackId, clips: &'a [ClipInfo<'a>], view: &'a TimeView, rate: FrameRate) -> Self {
         Self {
-            id_salt: IdSalt::new(("clip-lane", track)),
+            id_salt: IdSalt::new(id_salt),
             track,
             clips,
             view,
@@ -97,6 +105,7 @@ impl<'a> ClipLane<'a> {
             no_modifier_trims: false,
             snap: None,
             locked: false,
+            selection: &[],
             palette: None,
             content: None,
         }
@@ -121,6 +130,13 @@ impl<'a> ClipLane<'a> {
 
     pub fn locked(mut self, locked: bool) -> Self {
         self.locked = locked;
+        self
+    }
+
+    /// The selected clips (the app's, [`TimelineModel::selection`](crate::TimelineModel::selection));
+    /// none selected without it.
+    pub fn selection(mut self, selection: &'a [ClipId]) -> Self {
+        self.selection = selection;
         self
     }
 
@@ -149,8 +165,9 @@ impl<'a> ClipLane<'a> {
 pub struct ClipLaneResponse {
     pub response: Response,
     pub edit: Option<EditEvent<ClipEdit>>,
-    /// A click on a clip; `add` with Shift or Cmd.
-    pub clicked: Option<(ClipId, bool)>,
+    /// A click's selection change and whether Cmd/Ctrl left the linked partners out. The panel
+    /// reports it as [`TimelineEdit::Select`](super::TimelineEdit::Select).
+    pub select: Option<(SelectionChange<ClipId>, bool)>,
     pub double_clicked: Option<ClipId>,
     /// A secondary click: the app opens its clip menu.
     pub context_menu: Option<ClipId>,

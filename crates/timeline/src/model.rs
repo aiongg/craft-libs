@@ -58,7 +58,6 @@ pub struct ClipInfo<'a> {
     pub range: TimeRange,
     pub name: &'a str,
     pub label: Option<MarkerColor>,
-    pub selected: bool,
     /// Disabled clips are drawn dimmed (Premiere's Enable off).
     pub enabled: bool,
     /// The whole media under the clip, on the timeline: a slip shows it as a ghost, and a trim
@@ -96,6 +95,10 @@ pub trait TimelineModel {
 
     /// The clips of `track` that overlap `visible`.
     fn clips(&self, track: TrackId, visible: TimeRange) -> Vec<ClipInfo<'_>>;
+
+    /// The selected clips; the panel draws them selected and reports changes as
+    /// `TimelineEdit::Select` (in `craft_timeline::ui`).
+    fn selection(&self) -> &[ClipId];
 
     /// Sequence markers, in the ruler.
     fn markers(&self) -> &[Marker] {

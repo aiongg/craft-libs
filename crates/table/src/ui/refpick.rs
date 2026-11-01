@@ -21,15 +21,22 @@ pub struct ReferencePicker {
     sheet: String,
     /// Caret (chars), mirrored from the box.
     caret: usize,
-    /// The reference last inserted (byte span), replaced by the next pick.
-    point: Option<(usize, usize)>,
-    anchor: CellRef,
+    /// The reference last inserted, replaced by the next pick.
+    point: Option<Pointed>,
     refocus: bool,
+}
+
+/// The reference a pick inserted: its byte span in the text and the cell the press was on (a
+/// drag grows the range from it).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Pointed {
+    span: (usize, usize),
+    anchor: CellRef,
 }
 
 impl ReferencePicker {
     pub fn new(sheet: impl Into<String>) -> Self {
-        Self { sheet: sheet.into(), caret: 0, point: None, anchor: CellRef::default(), refocus: false }
+        Self { sheet: sheet.into(), caret: 0, point: None, refocus: false }
     }
 
     /// The caret (chars) while the box has the keyboard; typing forgets the last reference.

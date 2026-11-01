@@ -7,17 +7,18 @@
 use crate::model::{ClipId, TrackId};
 use crate::time::{Tick, TimeRange, TimeView};
 
-/// The widest an edge zone gets, in points, on each side of a clip edge; at most a third of the
-/// clip's width (FilmCraft `timeline_hit.rs:21`).
-pub const EDGE_PT: f32 = 7.0;
-
-/// Within this distance of a cut with a clip on its other side, the Selection tool rolls instead
-/// of rippling when its no-modifier trims are on (FilmCraft `timeline_hit.rs:18`).
-pub const ROLL_PT: f32 = 2.5;
-
-/// How near a snap target must be, in points (FilmCraft `timeline.rs:83`; EffectCraft snaps the
-/// work area at 8).
-pub const SNAP_PT: f32 = 9.0;
+/// The hit sizes of clip edges, in points: the widgets pass the `timeline.edge_zone` and
+/// `timeline.roll_zone` tokens (`TimelineStyle` in `craft_timeline::ui`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EdgeZones {
+    /// The widest an edge zone gets on each side of a clip edge; at most a third of the clip's
+    /// width (FilmCraft `timeline_hit.rs:21` `EDGE_PX`).
+    pub edge: f32,
+    /// Within this distance of a cut with a clip on its other side, the Selection tool rolls
+    /// instead of rippling when its no-modifier trims are on (FilmCraft `timeline_hit.rs:18`
+    /// `ROLL_PX`).
+    pub roll: f32,
+}
 
 /// A clip's start (In) or end (Out).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -54,10 +55,10 @@ pub struct EdgeHit {
     pub distance: f32,
 }
 
-/// The edge zone of a clip `width` points wide: [`EDGE_PT`], at most a third of the width;
+/// The edge zone of a clip `width` points wide: `zones.edge`, at most a third of the width;
 /// `None` for a clip without a finite positive width.
 // filmcraft: crates/ui-egui/src/panels/timeline_hit.rs:195 `zone`.
-pub fn edge_zone(width: f32) -> Option<f32> {
+pub fn edge_zone(width: f32, zones: &EdgeZones) -> Option<f32> {
     todo!()
 }
 
@@ -65,16 +66,16 @@ pub fn edge_zone(width: f32) -> Option<f32> {
 /// the one the pointer is inside of beats one it is outside of, then the nearer (FilmCraft
 /// #259: two touching clips share the cut, and the press goes to the clip it is over).
 // filmcraft: crates/ui-egui/src/panels/timeline_hit.rs:200 `edge_at`, `:167` `Reach::beats`.
-pub fn edge_at(clips: &[(ClipId, TimeRange)], view: &TimeView, left: f32, x: f32) -> Option<EdgeHit> {
+pub fn edge_at(clips: &[(ClipId, TimeRange)], view: &TimeView, left: f32, x: f32, zones: &EdgeZones) -> Option<EdgeHit> {
     todo!()
 }
 
 /// The trim the Selection tool starts at an edge: Cmd+Shift rolls, Cmd ripples, else a regular
 /// trim. With `no_modifier` (Premiere's Trim setting "Allow Selection tool to choose Roll and
-/// Ripple trims without modifier key") no modifier is needed: on the cut (within [`ROLL_PT`],
-/// a clip on the other side) it rolls, elsewhere on the edge it ripples.
+/// Ripple trims without modifier key") no modifier is needed: on the cut (within
+/// `zones.roll`, a clip on the other side) it rolls, elsewhere on the edge it ripples.
 // filmcraft: crates/ui-egui/src/panels/timeline_hit.rs:26 `selection_trim_kind`.
-pub fn selection_trim(command: bool, shift: bool, no_modifier: bool, distance: f32, has_neighbour: bool) -> TrimKind {
+pub fn selection_trim(command: bool, shift: bool, no_modifier: bool, distance: f32, has_neighbour: bool, zones: &EdgeZones) -> TrimKind {
     todo!()
 }
 
@@ -152,7 +153,8 @@ impl Extend<Tick> for SnapTargets {
     }
 }
 
-/// `t` snapped to the nearest target within `tolerance` points at this zoom, and the target it
+/// `t` snapped to the nearest target within `tolerance` points at this zoom (the
+/// `timeline.snap_distance` token), and the target it
 /// snapped to (the timeline draws the snap line there); `t` and `None` when none is in reach.
 // filmcraft: crates/ui-egui/src/panels/timeline/snap.rs:15 `snap_to` (distance in screen
 // points, nearest wins).

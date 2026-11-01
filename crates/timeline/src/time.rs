@@ -241,11 +241,11 @@ impl TimeView {
         todo!()
     }
 
-    /// The view that shows `range` in `width` points with 10 points to spare, After Effects'
-    /// fit (Shift+= toggles it with the frame zoom).
+    /// The view that shows `range` in `width` points with `margin` to spare
+    /// (`timeline.fit_margin`), After Effects' fit (Shift+= toggles it with the frame zoom).
     // effectcraft: crates/ui-egui/src/panels/timeline.rs:608 `fit_pps` (`(width - 10) /
     // duration`, at least 0.01 s).
-    pub fn fit(range: TimeRange, width: f32) -> TimeView {
+    pub fn fit(range: TimeRange, width: f32, margin: f32) -> TimeView {
         todo!()
     }
 
