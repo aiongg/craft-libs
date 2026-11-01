@@ -16,19 +16,23 @@
 //! }
 //! ```
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod places_tests;
 pub(crate) mod stories;
 mod style;
 
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
-use craft_ui::behavior::ListDrag;
-use egui::{AsIdSalt, Response, Ui};
+use craft_ui::behavior::{ListDrag, RowInfo, Selection, SelectionMode};
+use craft_ui::icons::{self, Icon, IconSize};
+use craft_ui::list::{DropMark, List, ListEvent, ListRow, OpenChange, TreeState, paint_drop_mark};
+use craft_ui::localized::{Labels as _, Words};
+use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
+use craft_ui::theme::{Tokens, TokensOf as _};
+use egui::{AsIdSalt, Context, IdSalt, PointerButton, Rect, Response, Sense, Ui};
 
-use crate::places::{FolderCache, Places, PlacesSettings};
+use crate::places::{Folder, FolderCache, Listing, PlaceGroupKind, PlaceKind, Places, PlacesSettings, StandardFolder, same_folder};
 
 pub use style::PlacesStyle;
 
@@ -48,7 +52,7 @@ impl PlaceExtra {
     /// An enabled item.
     pub fn new(id: &'static str, label: impl Into<String>) -> Self {
         // lightcraft: crates/ui-egui/src/panels/left/folders.rs:56 (the folder menu: Keep in Local, Remove from Local).
-        todo!()
+        Self { id, label: label.into(), enabled: true }
     }
 }
 
@@ -79,7 +83,14 @@ impl PlacesSettings {
     /// Returns whether the settings changed (the host saves them).
     pub fn apply<K>(&mut self, event: &PlacesEvent<K>) -> bool {
         // new: the host applies the menu's settings events in one call.
-        todo!()
+        match event {
+            PlacesEvent::Keep(path) => self.keep(path),
+            PlacesEvent::Remove(path) => self.remove(path),
+            PlacesEvent::Restore(path) => self.restore(path),
+            PlacesEvent::RestoreAll => self.restore_all(),
+            PlacesEvent::ClearRecent => self.clear_recent(),
+            PlacesEvent::Open(_) | PlacesEvent::Extra { .. } | PlacesEvent::Dropped { .. } => false,
+        }
     }
 }
 
@@ -159,7 +170,7 @@ type Accepts<'a, K> = Box<dyn Fn(&Path, &ListDrag<K>) -> bool + 'a>;
 /// - **AccessKit.** `Tree` with `TreeItem`s (`level`, `expanded`); headings are `Heading`s.
 /// - **RTL.** Indent and triangle mirror.
 pub struct PlacesTree<'a, K> {
-    id_salt: egui::Id,
+    id_salt: IdSalt,
     places: &'a Places,
     cache: &'a mut FolderCache,
     current: Option<&'a Path>,
@@ -173,40 +184,466 @@ impl<'a, K: Clone + Send + Sync + 'static> PlacesTree<'a, K> {
     /// The tree of `places`, listing children through `cache`.
     pub fn new(id_salt: impl AsIdSalt, places: &'a Places, cache: &'a mut FolderCache) -> Self {
         // lightcraft: crates/ui-egui/src/panels/left/folders.rs:14 (`folder_tree`).
-        todo!()
+        let favorites_group = places.groups.iter().any(|group| group.kind == PlaceGroupKind::Favorites);
+        Self { id_salt: IdSalt::new(id_salt), places, cache, current: None, favorites_group, extras: &[], accepts: None, labels: None }
     }
 
     /// The folder being browsed: its row is selected and revealed when it changes.
     #[must_use]
-    pub fn current(self, current: Option<&'a Path>) -> Self {
+    pub fn current(mut self, current: Option<&'a Path>) -> Self {
         // lightcraft: crates/ui-egui/src/panels/left/folders.rs:280 (`reveal_chosen`).
-        todo!()
+        self.current = current;
+        self
     }
 
     /// The host's menu items for folder rows.
     #[must_use]
-    pub fn extras(self, extras: &'a [PlaceExtra]) -> Self {
+    pub fn extras(mut self, extras: &'a [PlaceExtra]) -> Self {
         // new: builder.
-        todo!()
+        self.extras = extras;
+        self
     }
 
     /// Which rows take a drag of `ListDrag<K>`.
     #[must_use]
-    pub fn accepts(self, accepts: impl Fn(&Path, &ListDrag<K>) -> bool + 'a) -> Self {
+    pub fn accepts(mut self, accepts: impl Fn(&Path, &ListDrag<K>) -> bool + 'a) -> Self {
         // lightcraft: crates/ui-egui/src/panels/left/folders.rs:376 (`folder_drop_target`).
-        todo!()
+        self.accepts = Some(Box::new(accepts));
+        self
     }
 
     /// The words.
     #[must_use]
-    pub fn labels(self, labels: PlacesLabels) -> Self {
+    pub fn labels(mut self, labels: PlacesLabels) -> Self {
         // new: builder.
-        todo!()
+        self.labels = Some(labels);
+        self
     }
 
     /// Draws the tree and reports what happened.
     pub fn show(self, ui: &mut Ui) -> PlacesOutput<K> {
         // lightcraft: crates/ui-egui/src/panels/left/folders.rs:312 (`folder_rows`); filmcraft: crates/ui-egui/src/panels/media_browser.rs:262 (`tree`: headings, "(none)").
-        todo!()
+        show_tree(self, ui)
+    }
+}
+
+/// Rows below this depth list no children (LightCraft's cap).
+const MAX_DEPTH: usize = 8;
+
+/// A folder row's place in the tree: the group and root it hangs from, and its path. A folder
+/// shown under two roots has two rows, each with its own open state.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct At {
+    group: usize,
+    root: PathBuf,
+    path: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum RowKey {
+    Heading(usize),
+    Empty(usize),
+    Folder(At),
+    /// The placeholder under the folder `At` while its listing runs.
+    Loading(At),
+    Hidden,
+}
+
+enum Content {
+    Heading(String),
+    Empty(String),
+    Loading(String),
+    Folder { name: String },
+    Hidden(String),
+}
+
+/// The rows as shown, in display order.
+struct Shown {
+    info: Vec<RowInfo<RowKey>>,
+    content: Vec<Content>,
+}
+
+/// What a context menu was asked for.
+#[derive(Clone, Debug)]
+enum Target {
+    Folder { path: PathBuf, root: Option<PlaceKind> },
+    Hidden,
+}
+
+#[derive(Clone, Debug)]
+enum Command {
+    Keep(PathBuf),
+    Remove(PathBuf),
+    Reveal(PathBuf),
+    ClearRecent,
+    Extra(usize, PathBuf),
+    Restore(PathBuf),
+    RestoreAll,
+}
+
+/// What the tree keeps between passes, in egui memory.
+#[derive(Clone, Default)]
+struct Memory {
+    /// The `current` of the last pass, to see it change.
+    current: Option<PathBuf>,
+    /// The row to scroll to once its parents have listed.
+    pending: Option<RowKey>,
+    /// The window focus of the last pass that knew it.
+    focused: Option<bool>,
+    /// The target of the open context menu.
+    menu: Option<Target>,
+}
+
+fn show_tree<K: Clone + Send + Sync + 'static>(tree: PlacesTree<'_, K>, ui: &mut Ui) -> PlacesOutput<K> {
+    let PlacesTree { id_salt, places, cache, current, favorites_group, extras, accepts, labels } = tree;
+    let ctx = ui.ctx().clone();
+    let id = ui.make_persistent_id(("craft-browse-places", id_salt));
+    let labels = labels.unwrap_or_else(|| PlacesLabels::of(ui));
+    let words = Words::of(ui);
+    let mut memory: Memory = ctx.data(|d| d.get_temp(id)).unwrap_or_default();
+    let mut open = TreeState::load(&ctx, id);
+    let mut events = Vec::new();
+
+    let focused = ui.input(|i| i.viewport().focused);
+    if memory.focused == Some(false) && focused == Some(true) {
+        cache.refresh();
+    }
+    if focused.is_some() {
+        memory.focused = focused;
+    }
+
+    if memory.current.as_deref() != current {
+        memory.current = current.map(Path::to_path_buf);
+        memory.pending = current.and_then(|current| reveal(places, current, &mut open));
+    }
+
+    let shown = rows(places, cache, &open, &labels, (&ctx, &words));
+    if memory.pending.as_ref().is_some_and(|key| shown.info.iter().all(|row| &row.key != key)) && !shown.has_loading() {
+        memory.pending = None;
+    }
+    let selected = current.and_then(|current| selected_key(places, &shown, current));
+    let mut selection = selected.map_or_else(Selection::default, Selection::only);
+    let reveal_key = memory.pending.take_if(|key| shown.info.iter().any(|row| &row.key == key));
+
+    let sink: RefCell<Vec<(RowKey, Rect)>> = RefCell::new(Vec::new());
+    let tokens = Tokens::of(ui);
+    let style = PlacesStyle::of(&tokens);
+    let row_height = ListRow::<RowKey>::style(&tokens).row_height;
+    let mut list =
+        List::new(id.with("list"), labels.places.clone(), &shown.info[..]).tree(true).mode(SelectionMode::Single).selection(&mut selection);
+    if let Some(key) = reveal_key {
+        list = list.reveal(key);
+    }
+    let out = list.show(ui, |at, key| {
+        let record = |key: &RowKey| {
+            let key = key.clone();
+            let sink = &sink;
+            move |painter: &egui::Painter, rect: Rect, paint: bool| {
+                sink.borrow_mut().push((key, rect));
+                if paint {
+                    icons::paint_on(painter, rect, Icon::Folder, icons::active(painter.ctx()), rect.width(), IconSize::Md.stroke(), style.icon);
+                }
+            }
+        };
+        match &shown.content[at] {
+            Content::Heading(text) => ListRow::new(key.clone(), text.clone()),
+            Content::Empty(text) | Content::Loading(text) => ListRow::new(key.clone(), text.clone()).dimmed(true),
+            Content::Folder { name } => {
+                let paint = record(key);
+                ListRow::new(key.clone(), name.clone()).glyph(move |painter, rect| paint(painter, rect, true))
+            }
+            Content::Hidden(text) => {
+                let paint = record(key);
+                ListRow::new(key.clone(), text.clone()).glyph(move |painter, rect| paint(painter, rect, false))
+            }
+        }
+    });
+    let list_rect = out.response.rect;
+    let row_rect = |rect: Rect| Rect::from_x_y_ranges(list_rect.x_range(), rect.center().y - row_height / 2.0..=rect.center().y + row_height / 2.0);
+    let sink = sink.into_inner();
+
+    let mut menu_request = None;
+    let double_click = ui.input(|i| i.pointer.button_double_clicked(PointerButton::Primary));
+    let mut changed = false;
+    for event in out.events {
+        match event {
+            ListEvent::Clicked(RowKey::Folder(at)) => events.push(PlacesEvent::Open(at.path)),
+            ListEvent::Activate(RowKey::Folder(at)) if !double_click => events.push(PlacesEvent::Open(at.path)),
+            ListEvent::Activate(RowKey::Folder(at)) => {
+                let wanted = !open.is_open(&RowKey::Folder(at.clone()));
+                changed |= set_open(&mut open, cache, &RowKey::Folder(at), wanted);
+            }
+            ListEvent::Clicked(RowKey::Hidden) | ListEvent::Activate(RowKey::Hidden) => match places.hidden.as_slice() {
+                [only] => events.push(PlacesEvent::Restore(only.path.clone())),
+                [] => {}
+                _ => {
+                    let at = sink.iter().find(|(key, _)| *key == RowKey::Hidden).map_or(OpenAt::Rect(list_rect), |(_, r)| OpenAt::Rect(row_rect(*r)));
+                    menu_request = Some((Target::Hidden, at));
+                }
+            },
+            ListEvent::Open(change) => changed |= apply_open(&mut open, cache, &shown, &change),
+            ListEvent::ContextMenu(request) => {
+                let place = request.pointer.map_or(OpenAt::Rect(request.anchor), OpenAt::Pointer);
+                match request.row {
+                    Some(RowKey::Folder(at)) => {
+                        let root = places.groups.get(at.group).and_then(|g| g.places.iter().find(|p| p.path == at.root));
+                        let root = root.filter(|_| at.path == at.root).map(|p| p.kind);
+                        menu_request = Some((Target::Folder { path: at.path, root }, place));
+                    }
+                    Some(RowKey::Hidden) => menu_request = Some((Target::Hidden, place)),
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+    if changed {
+        ctx.request_repaint();
+    }
+
+    drops(ui, &sink, &row_rect, list_rect, accepts.as_ref(), &mut events);
+
+    let at = menu_request.map(|(target, at)| {
+        memory.menu = Some(target);
+        at
+    });
+    if let Some(target) = &memory.menu {
+        let entries = menu_entries(target, places, extras, &labels, favorites_group);
+        if let Some(command) = ContextMenu::new(&entries).open_at(at).own_gestures(false).show(ui, &out.response).chosen {
+            events.extend(run(command, extras));
+        }
+    }
+
+    open.store(&ctx);
+    ctx.data_mut(|d| d.insert_temp(id, memory));
+    cache.end_pass();
+    PlacesOutput { response: out.response, events }
+}
+
+impl Shown {
+    fn has_loading(&self) -> bool {
+        self.info.iter().any(|row| matches!(row.key, RowKey::Loading(_)))
+    }
+}
+
+/// Opens the owner root and every folder on the way down to `current`, and returns the row of
+/// `current` to scroll to.
+fn reveal(places: &Places, current: &Path, open: &mut TreeState) -> Option<RowKey> {
+    let (group, index) = places.owner?;
+    let root = &places.groups.get(group)?.places.get(index)?.path;
+    let relative = current.strip_prefix(root).ok()?;
+    let mut path = root.clone();
+    let at = |path: &PathBuf| At { group, root: root.clone(), path: path.clone() };
+    let count = relative.components().count();
+    if count > 0 {
+        open.set(&RowKey::Folder(at(&path)), true);
+    }
+    for (i, part) in relative.components().enumerate() {
+        path.push(part);
+        if i + 1 < count {
+            open.set(&RowKey::Folder(at(&path)), true);
+        }
+    }
+    Some(RowKey::Folder(at(&path)))
+}
+
+/// The row of `current`: the owner root's, else the first that names it.
+fn selected_key(places: &Places, shown: &Shown, current: &Path) -> Option<RowKey> {
+    let named = |row: &&RowInfo<RowKey>| matches!(&row.key, RowKey::Folder(at) if same_folder(&at.path, current));
+    let owner = places.owner.and_then(|(group, index)| places.groups.get(group)?.places.get(index));
+    let in_owner = |row: &&RowInfo<RowKey>| matches!((&row.key, owner), (RowKey::Folder(at), Some(root)) if at.root == root.path);
+    shown.info.iter().filter(named).find(in_owner).or_else(|| shown.info.iter().find(named)).map(|row| row.key.clone())
+}
+
+fn group_word(labels: &PlacesLabels, kind: PlaceGroupKind) -> &str {
+    match kind {
+        PlaceGroupKind::Favorites => &labels.favorites,
+        PlaceGroupKind::Places => &labels.places,
+        PlaceGroupKind::Volumes => &labels.volumes,
+        PlaceGroupKind::Network => &labels.network,
+        PlaceGroupKind::Recent => &labels.recent,
+    }
+}
+
+fn standard_word(labels: &PlacesLabels, folder: StandardFolder) -> &str {
+    match folder {
+        StandardFolder::Home => &labels.home,
+        StandardFolder::Desktop => &labels.desktop,
+        StandardFolder::Documents => &labels.documents,
+        StandardFolder::Downloads => &labels.downloads,
+        StandardFolder::Pictures => &labels.pictures,
+        StandardFolder::Movies => &labels.movies,
+        StandardFolder::Music => &labels.music,
+    }
+}
+
+/// The display order: each group's heading, its roots with their open folders, then the hidden
+/// row.
+fn rows(places: &Places, cache: &mut FolderCache, open: &TreeState, labels: &PlacesLabels, (ctx, words): (&Context, &Words)) -> Shown {
+    let mut shown = Shown { info: Vec::new(), content: Vec::new() };
+    for (group, items) in places.groups.iter().enumerate() {
+        shown.info.push(RowInfo::section(RowKey::Heading(group)));
+        shown.content.push(Content::Heading(group_word(labels, items.kind).to_owned()));
+        if items.places.is_empty() {
+            shown.info.push(RowInfo::leaf(RowKey::Empty(group)));
+            shown.content.push(Content::Empty(labels.none.clone()));
+        }
+        for place in &items.places {
+            let name = match place.kind {
+                PlaceKind::Standard(folder) => standard_word(labels, folder).to_owned(),
+                _ => place.name.clone(),
+            };
+            let at = At { group, root: place.path.clone(), path: place.path.clone() };
+            folder_rows(&mut shown, cache, open, labels, at, 0, name);
+        }
+    }
+    if !places.hidden.is_empty() {
+        shown.info.push(RowInfo::leaf(RowKey::Hidden));
+        let text = words.counted(ctx, HIDDEN_PLACES, &words.get(HIDDEN_PLACES.word), places.hidden.len() as u64);
+        shown.content.push(Content::Hidden(text));
+    }
+    shown
+}
+
+fn folder_rows(shown: &mut Shown, cache: &mut FolderCache, open: &TreeState, labels: &PlacesLabels, at: At, depth: usize, name: String) {
+    let key = RowKey::Folder(at.clone());
+    let is_open = open.is_open(&key);
+    let mut children = None;
+    let has_children = if depth >= MAX_DEPTH {
+        false
+    } else if !is_open {
+        true
+    } else {
+        match cache.subfolders(&at.path) {
+            Listing::Loading => {
+                children = Some(None);
+                true
+            }
+            Listing::Ready([]) | Listing::Failed(_) => false,
+            Listing::Ready(folders) => {
+                children = Some(Some(folders.to_vec()));
+                true
+            }
+        }
+    };
+    shown.info.push(RowInfo { key, depth, has_children, open: is_open && has_children, section: false });
+    shown.content.push(Content::Folder { name });
+    match children {
+        Some(None) => {
+            shown.info.push(RowInfo { key: RowKey::Loading(at), depth: depth + 1, has_children: false, open: false, section: false });
+            shown.content.push(Content::Loading(labels.loading.clone()));
+        }
+        Some(Some(folders)) => {
+            for Folder { path, name } in folders {
+                let child = At { group: at.group, root: at.root.clone(), path };
+                folder_rows(shown, cache, open, labels, child, depth + 1, name);
+            }
+        }
+        None => {}
+    }
+}
+
+/// Opens or closes `key`; an opened folder is listed again. Returns whether the state changed.
+fn set_open(open: &mut TreeState, cache: &mut FolderCache, key: &RowKey, wanted: bool) -> bool {
+    if open.is_open(key) == wanted {
+        return false;
+    }
+    open.set(key, wanted);
+    if let (true, RowKey::Folder(at)) = (wanted, key) {
+        cache.refresh_folder(&at.path);
+    }
+    true
+}
+
+fn apply_open(open: &mut TreeState, cache: &mut FolderCache, shown: &Shown, change: &OpenChange<RowKey>) -> bool {
+    let mut changed = set_open(open, cache, &change.row, change.open);
+    if change.all {
+        for row in shown.info.iter().filter(|row| row.has_children) {
+            changed |= set_open(open, cache, &row.key, change.open);
+        }
+    }
+    changed
+}
+
+/// Outlines the folder row under a `ListDrag<K>` the host accepts and reports its release.
+fn drops<K: Clone + Send + Sync + 'static>(
+    ui: &Ui,
+    sink: &[(RowKey, Rect)],
+    row_rect: &dyn Fn(Rect) -> Rect,
+    list_rect: Rect,
+    accepts: Option<&Accepts<'_, K>>,
+    events: &mut Vec<PlacesEvent<K>>,
+) {
+    let Some(accepts) = accepts else { return };
+    let Some(pointer) = ui.input(|i| i.pointer.hover_pos()) else { return };
+    for (key, glyph) in sink {
+        let RowKey::Folder(at) = key else { continue };
+        let rect = row_rect(*glyph).intersect(list_rect);
+        if !rect.contains(pointer) {
+            continue;
+        }
+        let response = ui.interact(rect, ui.scope_id().with(("drop", key)), Sense::hover());
+        let Some(drag) = response.dnd_hover_payload::<ListDrag<K>>() else { return };
+        if !accepts(&at.path, &drag) {
+            return;
+        }
+        if let Some(dropped) = response.dnd_release_payload::<ListDrag<K>>() {
+            events.push(PlacesEvent::Dropped { place: at.path.clone(), items: (*dropped).clone() });
+        } else {
+            paint_drop_mark(ui, rect, DropMark::Into);
+        }
+        return;
+    }
+}
+
+fn menu_entries(target: &Target, places: &Places, extras: &[PlaceExtra], labels: &PlacesLabels, favorites_group: bool) -> Vec<MenuEntry<Command>> {
+    let mut entries: Vec<MenuEntry<Command>> = Vec::new();
+    match target {
+        Target::Hidden => {
+            for place in &places.hidden {
+                entries.push(MenuItem::new(place.name.clone(), Command::Restore(place.path.clone())).into());
+            }
+            entries.push(MenuEntry::Separator);
+            entries.push(MenuItem::new(labels.restore_all.clone(), Command::RestoreAll).into());
+        }
+        Target::Folder { path, root } => {
+            let keep = if favorites_group { &labels.add_favorite } else { &labels.keep };
+            match root {
+                None | Some(PlaceKind::Session) => entries.push(MenuItem::new(keep.clone(), Command::Keep(path.clone())).into()),
+                Some(PlaceKind::Recent) => entries.push(MenuItem::new(labels.clear_recent.clone(), Command::ClearRecent).into()),
+                Some(_) => entries.push(MenuItem::new(labels.remove.clone(), Command::Remove(path.clone())).into()),
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let reveal = if std::env::consts::OS == "macos" { &labels.reveal_mac } else { &labels.reveal_other };
+                entries.push(MenuItem::new(reveal.clone(), Command::Reveal(path.clone())).into());
+            }
+            if !extras.is_empty() {
+                entries.push(MenuEntry::Separator);
+            }
+            for (index, extra) in extras.iter().enumerate() {
+                entries.push(MenuItem::new(extra.label.clone(), Command::Extra(index, path.clone())).enabled(extra.enabled).into());
+            }
+        }
+    }
+    entries
+}
+
+/// The event a menu command reports; revealing runs here and reports nothing.
+fn run<K>(command: Command, extras: &[PlaceExtra]) -> Option<PlacesEvent<K>> {
+    match command {
+        Command::Keep(path) => Some(PlacesEvent::Keep(path)),
+        Command::Remove(path) => Some(PlacesEvent::Remove(path)),
+        Command::Restore(path) => Some(PlacesEvent::Restore(path)),
+        Command::RestoreAll => Some(PlacesEvent::RestoreAll),
+        Command::ClearRecent => Some(PlacesEvent::ClearRecent),
+        Command::Extra(index, path) => extras.get(index).map(|extra| PlacesEvent::Extra { id: extra.id, path }),
+        Command::Reveal(path) => {
+            #[cfg(not(target_arch = "wasm32"))]
+            let _ = craft_platform::open::reveal(&path);
+            #[cfg(target_arch = "wasm32")]
+            let _ = path;
+            None
+        }
     }
 }
