@@ -12,15 +12,17 @@ const APP: AppInfo = AppInfo { id: "test", name: "Test", version: "1.0" };
 
 static CATALOGS: &Embedded = &[("ru", "@plural\t{n} year ago|{n} years ago\tпрошёл {n} год|прошло {n} года|прошло {n} лет\n", "")];
 
-// 30 s is "less than a minute ago", then minutes, hours, days, months and years.
+// 30 s is "Just now", then minutes, hours, days, months and years.
 #[test]
 fn relative_age_steps() {
     let ctx = Context::default();
     let age = |seconds| relative_age(&ctx, seconds, AgeStyle::Long);
-    assert_eq!(age(30), "less than a minute ago");
+    assert_eq!(age(30), "Just now");
     assert_eq!(age(61), "1 minute ago");
     assert_eq!(age(3_600), "1 hour ago");
     assert_eq!(age(7200), "2 hours ago");
+    assert_eq!(age(86_400), "Yesterday");
+    assert_eq!(age(86_400 * 2 - 1), "Yesterday");
     assert_eq!(age(86_400 * 2), "2 days ago");
     assert_eq!(age(86_400 * 30), "1 month ago");
     assert_eq!(age(86_400 * 90), "3 months ago");
@@ -40,11 +42,15 @@ fn relative_age_uses_the_locales_plural_forms() {
     assert_eq!((age(1), age(2), age(5)), ("прошёл 1 год".to_owned(), "прошло 2 года".to_owned(), "прошло 5 лет".to_owned()));
 }
 
-// Short: 30 s "just now", 180 s "3 min ago", 7200 s "2 h ago", from a day on the Long forms
-// ("4 days ago"); a catalog's plural row for "{n} min ago" is used.
+// Short: 30 s "Just now", 180 s "3 min ago", 7200 s "2 h ago", from a day on the Long forms
+// ("Yesterday", "4 days ago").
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn short_ages_abbreviate_under_a_day() {
-    todo!()
+    let ctx = Context::default();
+    let age = |seconds| relative_age(&ctx, seconds, AgeStyle::Short);
+    assert_eq!(age(30), "Just now");
+    assert_eq!(age(180), "3 min ago");
+    assert_eq!(age(7200), "2 h ago");
+    assert_eq!(age(86_400), "Yesterday");
+    assert_eq!(age(86_400 * 4), "4 days ago");
 }

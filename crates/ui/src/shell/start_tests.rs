@@ -55,7 +55,7 @@ fn start_screen_reports_new_open_and_recent() {
     assert_eq!(*actions.borrow(), [StartAction::New, StartAction::Open, StartAction::OpenRecent(PathBuf::from("/work/b.psd"))]);
     // The card is named by the file and described by its folder and age.
     let node = card(&harness, "a.psd");
-    assert_eq!(node.accesskit_node().description().as_deref(), Some("/work, 1 day ago"));
+    assert_eq!(node.accesskit_node().description().as_deref(), Some("/work, Yesterday"));
 
     // Arrow keys move between the cards and Enter opens the focused one.
     let focused = Actions::default();
