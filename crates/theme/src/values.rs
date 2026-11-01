@@ -2405,6 +2405,8 @@ pub const STROKE_EDITOR_SAMPLE_HEIGHT: f32 = 58.0;
 pub const STROKE_EDITOR_SAMPLE_STROKE: f32 = 2.5;
 /// The tall sample's rectangle inset: `stroke_editor.sample_inset`.
 pub const STROKE_EDITOR_SAMPLE_INSET: f32 = 12.0;
+/// The open sample line's distance from the sample's ends: `stroke_editor.sample_margin`.
+pub const STROKE_EDITOR_SAMPLE_MARGIN: f32 = 4.0;
 
 // --- measure ---
 /// A press within this many screen points of an end grabs it: `measure.hit`.

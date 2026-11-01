@@ -31,6 +31,8 @@ pub struct StrokeEditorStyle {
     pub sample_stroke: f32,
     /// The tall sample's rectangle inset: `stroke_editor.sample_inset` (12).
     pub sample_inset: f32,
+    /// The open sample line's distance from the sample's ends: `stroke_editor.sample_margin` (4).
+    pub sample_margin: f32,
     /// The samples' colour: `text.normal` on `field.fill` (4.5:1 in High contrast).
     pub sample_color: Color32,
     pub sample_fill: Color32,
@@ -60,6 +62,7 @@ impl StrokeEditor<'_> {
             sample_height: s.sample_height,
             sample_stroke: s.sample_stroke,
             sample_inset: s.sample_inset,
+            sample_margin: s.sample_margin,
             sample_color: c.text.normal.to_egui(),
             sample_fill: field.fill.rest.to_egui(),
             off_line: c.text.faint.to_egui(),

@@ -27,6 +27,8 @@ pub struct StrokeEditorTokens {
     pub sample_stroke: f32,
     /// The tall sample's rectangle inset: `stroke_editor.sample_inset`.
     pub sample_inset: f32,
+    /// The open sample line's distance from the sample's ends: `stroke_editor.sample_margin`.
+    pub sample_margin: f32,
 }
 
 /// This family has no overridable field: its sizes come from the code, as every size does.
@@ -47,6 +49,7 @@ impl Family for StrokeEditorTokens {
         "sample_height" 0.0..=512.0 => sample_height;
         "sample_stroke" 0.0..=16.0 => sample_stroke;
         "sample_inset" 0.0..=512.0 => sample_inset;
+        "sample_margin" 0.0..=512.0 => sample_margin;
     };
 
     fn defaults(_: &Semantic<'_>) -> StrokeEditorTokens {
@@ -61,6 +64,7 @@ impl Family for StrokeEditorTokens {
             sample_height: values::STROKE_EDITOR_SAMPLE_HEIGHT,
             sample_stroke: values::STROKE_EDITOR_SAMPLE_STROKE,
             sample_inset: values::STROKE_EDITOR_SAMPLE_INSET,
+            sample_margin: values::STROKE_EDITOR_SAMPLE_MARGIN,
         }
     }
 
