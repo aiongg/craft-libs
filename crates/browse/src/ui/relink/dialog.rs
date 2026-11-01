@@ -1,16 +1,39 @@
 //! `RelinkDialog`: the Link Media dialog for a document's missing links.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
+use std::cell::Cell;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use craft_docpath::links::{Candidate, Link, LinkFiles, MatchCriteria};
-use craft_host::Jobs;
-use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog};
-use egui::Context;
+use craft_docpath::links::{
+    Candidate, CandidateProblem, Link, LinkFiles, LinkSearch, MatchCriteria, SearchEnd, SearchHit, SearchUpdate, check_candidate, derive_remap, rank,
+};
+use craft_host::queue::{JobQueue, Priority, QueueOptions};
+use craft_host::{Host, Jobs, PickId, PickRequest, Wake};
+use craft_theme::TypeRole;
+use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
+use craft_ui::canvas::textures::{ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails};
+use craft_ui::composites::live::{self, Politeness};
+use craft_ui::controls::{Button, Checkbox, TextField};
+use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width, dialog_id};
+use craft_ui::direction;
+use craft_ui::edit::EditEvent;
+use craft_ui::icons::{self, Icon, IconSize};
+use craft_ui::list::{List, ListRow, Table, TableColumn, TableLayout};
+use craft_ui::localized::SharedLabels as _;
+use craft_ui::theme::{Tokens, TokensOf as _, current, role_format};
+use egui::accesskit::Role;
+use egui::text::LayoutJob;
+use egui::{Align, Align2, Color32, Context, CornerRadius, Label, Layout, Rect, Response, Sense, Ui, pos2, vec2};
 
+use super::RelinkStyle;
 use crate::links::SearchRun;
+use crate::thumbs::{FileThumbKey, FileThumbSource};
+
+/// The id the dialog's widgets hang under, and its `DialogId` ([`dialog_id`] of it).
+const KEY: &str = "browse.relink";
+
+/// The folder memory of the dialog's picks.
+const PICK_PURPOSE: &str = "relink";
 
 /// One missing link as the dialog's table shows it: Clip Name, File Name, File Path, Status.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,7 +90,15 @@ pub struct RelinkOptions {
 impl Default for RelinkOptions {
     fn default() -> Self {
         // filmcraft: crates/engine/src/relink.rs:161 (`MatchOptions::default`: relink others on).
-        todo!()
+        Self {
+            criteria: MatchCriteria::default(),
+            app_criteria: Vec::new(),
+            relink_others: true,
+            exact_names: false,
+            folder: None,
+            document: None,
+            jobs: None,
+        }
     }
 }
 
@@ -112,6 +143,7 @@ craft_ui::words! {
         size_differs: "browse.relinkSizeDiffers" = "Not the same file: {found} bytes, the original had {wanted}";
         fingerprint_differs: "browse.relinkFingerprintDiffers" = "Not the same file: the contents differ";
         unreadable: "browse.relinkUnreadable" = "Can't read the file: {reason}";
+        candidates: "browse.relinkCandidates" = "Candidates";
         locate: "browse.relinkLocate" = "Locate…";
         link: "browse.relinkLink" = "Link";
         link_anyway: "browse.relinkLinkAnyway" = "Link Anyway";
@@ -153,12 +185,105 @@ craft_ui::words! {
 /// - **RTL.** Table columns and the candidate and preview split mirror.
 pub struct RelinkDialog<K> {
     id: DialogId,
+    state: DialogState<()>,
+    model: Model<K>,
+}
+
+/// The row a missing link is in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Fate {
+    Missing,
+    Linked,
+    Offline,
+}
+
+/// The table's columns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Col {
+    Owner,
+    FileName,
+    FilePath,
+    Status,
+}
+
+/// What a check job was asked for, so its answer finds its place.
+#[derive(Clone, Copy, Debug)]
+enum Purpose {
+    /// A search hit for the selected row, in the candidate list's `generation`.
+    Hit { generation: u64 },
+    /// A file the user located for `row`.
+    Locate { row: usize, generation: u64 },
+    /// The file a remap offers for `row` when another row was linked.
+    Other { row: usize },
+}
+
+/// What a check job starts from.
+enum Found {
+    /// The library's checks are done (a search hit).
+    Checked(Candidate),
+    /// A path no check has seen.
+    Path(PathBuf),
+}
+
+struct Checked {
+    purpose: Purpose,
+    candidate: Candidate,
+}
+
+/// A folder or file pick the user has open.
+#[derive(Clone, Copy, Debug)]
+enum Pick {
+    Folder(PickId),
+    Locate { id: PickId, row: usize },
+}
+
+impl Pick {
+    fn id(self) -> PickId {
+        match self {
+            Pick::Folder(id) | Pick::Locate { id, .. } => id,
+        }
+    }
+}
+
+/// What the footer's and the leading buttons ask for in one pass.
+#[derive(Clone, Copy, Debug)]
+enum Action {
+    Offline,
+    OfflineAll,
+}
+
+/// The queues and wake the dialog starts jobs with; made on the first pass, when the context is
+/// known.
+struct Runtime {
+    jobs: Arc<dyn Jobs>,
+    wake: Wake,
+    checks: JobQueue<u64, Checked>,
+}
+
+struct Model<K> {
     rows: Vec<RelinkRow<K>>,
+    fates: Vec<Fate>,
     files: Arc<dyn LinkFiles>,
     options: RelinkOptions,
     checker: Option<Arc<dyn CandidateChecker<K>>>,
+    preview: Option<FileThumbSource>,
+    runtime: Option<Runtime>,
+    layout: TableLayout<Col>,
+    row_sel: Selection<usize>,
+    cand_sel: Selection<PathBuf>,
+    /// The candidate selection was made by the dialog (the best one so far), not by the user.
+    auto_selected: bool,
+    folder: String,
     search: Option<SearchRun<K>>,
+    /// Files indexed by the running search.
+    progress: usize,
+    /// The last search ran to its end.
+    searched: bool,
     candidates: Vec<Candidate>,
+    /// Bumped whenever the candidate list is emptied, so answers for an older list are dropped.
+    generation: u64,
+    ticket: u64,
+    pick: Option<Pick>,
     linked: Vec<(K, Candidate)>,
     offline: Vec<K>,
 }
@@ -167,14 +292,54 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> RelinkDialog<K> {
     /// The dialog over the missing `rows`, reading files through `files`.
     pub fn new(rows: Vec<RelinkRow<K>>, files: Arc<dyn LinkFiles>, options: RelinkOptions) -> Self {
         // filmcraft: crates/ui-egui/src/panels/media_dialogs.rs:146 (`link_media`).
-        todo!()
+        let folder = options.folder.as_ref().map(|f| f.display().to_string()).unwrap_or_default();
+        let row_sel = if rows.is_empty() { Selection::new() } else { Selection::only(0) };
+        let model = Model {
+            fates: vec![Fate::Missing; rows.len()],
+            rows,
+            files,
+            options,
+            checker: None,
+            preview: None,
+            runtime: None,
+            layout: TableLayout {
+                order: vec![Col::Owner, Col::FileName, Col::FilePath, Col::Status],
+                hidden: Vec::new(),
+                widths: Vec::new(),
+                sort: None,
+            },
+            row_sel,
+            cand_sel: Selection::new(),
+            auto_selected: true,
+            folder,
+            search: None,
+            progress: 0,
+            searched: false,
+            candidates: Vec::new(),
+            generation: 0,
+            ticket: 0,
+            pick: None,
+            linked: Vec::new(),
+            offline: Vec::new(),
+        };
+        Self { id: dialog_id(KEY), state: DialogState::new(), model }
     }
 
     /// The app's extra checks.
     #[must_use]
-    pub fn checker(self, checker: Arc<dyn CandidateChecker<K>>) -> Self {
+    pub fn checker(mut self, checker: Arc<dyn CandidateChecker<K>>) -> Self {
         // filmcraft: crates/engine/src/relink.rs:202 (`check_candidate`'s media checks stay the app's).
-        todo!()
+        self.model.checker = Some(checker);
+        self
+    }
+
+    /// The source of the preview box's picture of the selected candidate. Without one the box
+    /// stays empty.
+    #[must_use]
+    pub fn preview(mut self, source: FileThumbSource) -> Self {
+        // new: the preview shows the candidate through `Thumbnails` over the host's file source.
+        self.model.preview = Some(source);
+        self
     }
 }
 
@@ -187,11 +352,568 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> StackDialog for RelinkDialog<
 
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<RelinkOutcome<K>>> {
         // filmcraft: crates/ui-egui/src/panels/media_dialogs.rs:146 (`link_media`: table, checks, search, candidates, preview, buttons).
-        todo!()
+        let labels = RelinkLabels::shared_ctx(ctx);
+        let style = RelinkStyle::of(&current(ctx));
+        let model = &mut self.model;
+        model.poll(ctx);
+        let action = Cell::new(None::<Action>);
+        let open = model.fates.contains(&Fate::Missing);
+        let candidate = model.selected_candidate();
+        let ok_label = match candidate {
+            _ if !open => &labels.done,
+            Some(c) if !c.ok => &labels.link_anyway,
+            _ => &labels.link,
+        };
+        let mut footer = Footer::standard()
+            .ok(ok_label.as_str())
+            .ok_enabled(!open || candidate.is_some())
+            .apply(labels.locate.as_str())
+            .apply_enabled(open && model.pick.is_none())
+            .leading(|ui| {
+                for (label, what) in [(&labels.offline_all, Action::OfflineAll), (&labels.offline, Action::Offline)] {
+                    if ui.add(Button::new(label.as_str()).enabled(open)).clicked() {
+                        action.set(Some(what));
+                    }
+                }
+            });
+        if open {
+            footer = footer.alternate(labels.done.as_str());
+        }
+        let shown = Dialog::new(KEY, labels.title.as_str())
+            .stack(stack)
+            .width(Width::Fixed(style.dialog_max_width))
+            .footer(footer)
+            .initial_focus(InitialFocus::DefaultButton)
+            .show(ctx, &mut self.state, &mut (), |ui, ()| model.body(ui, &labels, &style));
+        match action.take() {
+            Some(Action::Offline) => model.leave_selected_offline(),
+            Some(Action::OfflineAll) => model.leave_all_offline(),
+            None => {}
+        }
+        match shown.outcome? {
+            Outcome::Ok if open => {
+                model.link_selected(ctx);
+                None
+            }
+            Outcome::Ok | Outcome::Alternate => Some(DialogResult::Ok(model.outcome())),
+            Outcome::Apply => {
+                model.locate(ctx, &labels);
+                None
+            }
+            Outcome::Cancel | Outcome::Close if model.pick.is_some() => {
+                // Esc while a pick is open closes the pick only.
+                model.forget_pick(ctx);
+                None
+            }
+            Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
+            _ => None,
+        }
     }
 
     fn cancelled(&mut self, ctx: &Context) {
         // new: cancels the search and forgets a pending pick (`Files::forget`).
-        todo!()
+        self.model.search = None;
+        self.model.forget_pick(ctx);
     }
+}
+
+impl<K: Clone + PartialEq + Send + Sync + 'static> Model<K> {
+    // --- state ---
+
+    fn unresolved(&self) -> Vec<usize> {
+        (0..self.rows.len()).filter(|&i| self.fates[i] == Fate::Missing).collect()
+    }
+
+    /// The row shown selected, while it is still missing.
+    fn selected_row(&self) -> Option<usize> {
+        self.row_sel.lead.filter(|&i| self.fates.get(i) == Some(&Fate::Missing))
+    }
+
+    fn selected_candidate(&self) -> Option<&Candidate> {
+        let path = self.cand_sel.lead.as_ref()?;
+        self.candidates.iter().find(|c| &c.path == path)
+    }
+
+    fn outcome(&mut self) -> RelinkOutcome<K> {
+        self.search = None;
+        RelinkOutcome { linked: std::mem::take(&mut self.linked), offline: std::mem::take(&mut self.offline) }
+    }
+
+    /// Empties the candidate list and stops the search: the selected row changed or was resolved.
+    fn clear_candidates(&mut self) {
+        self.candidates.clear();
+        self.cand_sel = Selection::new();
+        self.auto_selected = true;
+        self.generation += 1;
+        self.search = None;
+        self.progress = 0;
+        self.searched = false;
+    }
+
+    /// Selects the next missing row after `row` (wrapping), or none.
+    fn advance(&mut self, row: usize) {
+        self.clear_candidates();
+        let missing = self.unresolved();
+        let next = missing.iter().copied().find(|&i| i > row).or_else(|| missing.first().copied());
+        self.row_sel = next.map_or_else(Selection::new, Selection::only);
+    }
+
+    fn add_candidate(&mut self, candidate: Candidate, chosen: bool) {
+        let path = candidate.path.clone();
+        self.candidates.retain(|c| c.path != path);
+        self.candidates.push(candidate);
+        rank(&mut self.candidates);
+        if chosen {
+            self.cand_sel = Selection::only(path);
+            self.auto_selected = false;
+        } else if self.cand_sel.is_empty() || self.auto_selected {
+            self.cand_sel = Selection::only(self.candidates[0].path.clone());
+            self.auto_selected = true;
+        }
+    }
+
+    // --- jobs ---
+
+    /// Makes the queues on the first pass, then takes in whatever the jobs and picks finished.
+    fn poll(&mut self, ctx: &Context) {
+        if self.runtime.is_none() {
+            let jobs =
+                self.options.jobs.clone().unwrap_or_else(|| Host::try_of_ctx(ctx).map_or_else(default_jobs, |host| Arc::clone(host.jobs_shared())));
+            let wake = {
+                let ctx = ctx.clone();
+                Wake::new(move || ctx.request_repaint())
+            };
+            let checks = JobQueue::new(Arc::clone(&jobs), wake.clone(), QueueOptions { lanes: 1, name: "relink-check" });
+            self.runtime = Some(Runtime { jobs, wake, checks });
+        }
+        self.poll_pick(ctx);
+        self.poll_search();
+        self.poll_checks();
+    }
+
+    fn poll_pick(&mut self, ctx: &Context) {
+        let (Some(pick), Some(host)) = (self.pick, Host::try_of_ctx(ctx)) else { return };
+        let Some(answer) = host.files().take_answer(pick.id()) else { return };
+        self.pick = None;
+        let Some(path) = answer.first_path() else { return };
+        match pick {
+            Pick::Folder(_) => self.folder = path.display().to_string(),
+            Pick::Locate { row, .. } => {
+                let generation = self.generation;
+                self.submit_check(Purpose::Locate { row, generation }, row, Found::Path(path));
+            }
+        }
+    }
+
+    fn poll_search(&mut self) {
+        let Some(run) = self.search.as_mut() else { return };
+        let end = run.end();
+        let updates = run.take_updates();
+        for update in updates {
+            match update {
+                SearchUpdate::Progress { files } => self.progress = files,
+                SearchUpdate::Hit(hit) => self.on_hit(hit),
+            }
+        }
+        if let Some(end) = end {
+            self.search = None;
+            self.searched = end != SearchEnd::Cancelled;
+        }
+    }
+
+    fn on_hit(&mut self, hit: SearchHit<K>) {
+        let Some(row) = self.selected_row() else { return };
+        if self.checker.is_some() {
+            let generation = self.generation;
+            self.submit_check(Purpose::Hit { generation }, row, Found::Checked(hit.candidate));
+        } else {
+            self.add_candidate(hit.candidate, false);
+        }
+    }
+
+    fn poll_checks(&mut self) {
+        let Some(runtime) = &self.runtime else { return };
+        let mut done = Vec::new();
+        while let Some(finished) = runtime.checks.try_recv() {
+            done.push(finished.result);
+        }
+        for Checked { purpose, candidate } in done {
+            match purpose {
+                Purpose::Hit { generation } if generation == self.generation => self.add_candidate(candidate, false),
+                Purpose::Locate { row, generation } if generation == self.generation && self.selected_row() == Some(row) => {
+                    self.add_candidate(candidate, true);
+                }
+                Purpose::Other { row } if self.fates[row] == Fate::Missing && candidate.ok => {
+                    self.record_link(row, candidate);
+                    if self.selected_row().is_none() {
+                        self.advance(row);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Starts the checks of `found` as the new file of `row` in a job.
+    fn submit_check(&mut self, purpose: Purpose, row: usize, found: Found) {
+        let Some(runtime) = &self.runtime else { return };
+        let link = self.rows[row].link.clone();
+        let files = Arc::clone(&self.files);
+        let checker = self.checker.clone();
+        let criteria = self.options.criteria;
+        let app = self.options.app_criteria.clone();
+        self.ticket += 1;
+        runtime.checks.submit(self.ticket, Priority::VISIBLE, move |_| {
+            let candidate = match found {
+                Found::Checked(candidate) => candidate,
+                Found::Path(path) => check_candidate(&link, &path, &criteria, &*files),
+            };
+            let candidate = match &checker {
+                Some(checker) => checker.check(&link, candidate, &app),
+                None => candidate,
+            };
+            Checked { purpose, candidate }
+        });
+    }
+
+    // --- commands ---
+
+    fn start_search(&mut self) {
+        let (Some(row), Some(runtime)) = (self.selected_row(), &self.runtime) else { return };
+        let folder = self.folder.trim();
+        if folder.is_empty() {
+            return;
+        }
+        let mut search = LinkSearch::new(folder);
+        search.exact_names = self.options.exact_names;
+        search.criteria = self.options.criteria;
+        let run =
+            SearchRun::start(search, vec![self.rows[row].link.clone()], Arc::clone(&self.files), Arc::clone(&runtime.jobs), runtime.wake.clone());
+        self.clear_candidates();
+        self.search = Some(run);
+    }
+
+    fn stop_search(&mut self) {
+        if let Some(run) = self.search.as_mut() {
+            run.cancel();
+        }
+        self.search = None;
+        self.searched = false;
+    }
+
+    fn browse(&mut self, ctx: &Context, labels: &RelinkLabels) {
+        let Some(host) = Host::try_of_ctx(ctx) else { return };
+        self.forget_pick(ctx);
+        let mut request = PickRequest::folder(PICK_PURPOSE).title(labels.browse.as_str());
+        if let Some(folder) = self.options.folder.as_ref().filter(|_| self.folder.trim().is_empty()) {
+            request = request.directory(folder.clone());
+        }
+        self.pick = Some(Pick::Folder(host.files().pick(request)));
+    }
+
+    fn locate(&mut self, ctx: &Context, labels: &RelinkLabels) {
+        let (Some(host), Some(row)) = (Host::try_of_ctx(ctx), self.selected_row()) else { return };
+        self.forget_pick(ctx);
+        let id = host.files().pick(PickRequest::open(PICK_PURPOSE).title(labels.locate.as_str()));
+        self.pick = Some(Pick::Locate { id, row });
+    }
+
+    fn forget_pick(&mut self, ctx: &Context) {
+        if let (Some(pick), Some(host)) = (self.pick.take(), Host::try_of_ctx(ctx)) {
+            host.files().forget(pick.id());
+        }
+    }
+
+    fn record_link(&mut self, row: usize, candidate: Candidate) {
+        self.fates[row] = Fate::Linked;
+        self.linked.push((self.rows[row].link.key.clone(), candidate));
+    }
+
+    /// Links the selected row to the selected candidate and goes on to the next row; with Relink
+    /// others, every other missing row the same folder change fits is checked in a job.
+    fn link_selected(&mut self, ctx: &Context) {
+        let (Some(row), Some(candidate)) = (self.selected_row(), self.selected_candidate().cloned()) else { return };
+        let remap = self.options.relink_others.then(|| derive_remap(&self.rows[row].link.stored, &candidate.path.to_string_lossy())).flatten();
+        self.record_link(row, candidate);
+        if let Some(remap) = remap {
+            for other in self.unresolved() {
+                let moved = remap.apply(&self.rows[other].link.stored);
+                // A network or device path is refused here, before any file is read.
+                let Some(path) = moved.and_then(|moved| craft_docpath::resolve_absolute(&moved, self.options.document.as_deref()).ok()) else {
+                    continue;
+                };
+                self.submit_check(Purpose::Other { row: other }, other, Found::Path(path));
+            }
+        }
+        self.advance(row);
+        ctx.request_repaint();
+    }
+
+    fn leave_selected_offline(&mut self) {
+        let Some(row) = self.selected_row() else { return };
+        self.fates[row] = Fate::Offline;
+        self.offline.push(self.rows[row].link.key.clone());
+        self.advance(row);
+    }
+
+    fn leave_all_offline(&mut self) {
+        for row in self.unresolved() {
+            self.fates[row] = Fate::Offline;
+            self.offline.push(self.rows[row].link.key.clone());
+        }
+        self.clear_candidates();
+        self.row_sel = Selection::new();
+    }
+
+    // --- drawing ---
+
+    fn body(&mut self, ui: &mut Ui, labels: &RelinkLabels, style: &RelinkStyle) {
+        let ctx = ui.ctx().clone();
+        ui.label(labels.message.as_str());
+        self.table(ui, labels, style);
+        ui.separator();
+        self.match_checks(ui, labels);
+        ui.separator();
+        self.search_rows(ui, &ctx, labels);
+        self.candidates_and_preview(ui, &ctx, labels, style);
+    }
+
+    fn table(&mut self, ui: &mut Ui, labels: &RelinkLabels, style: &RelinkStyle) {
+        let columns = [
+            TableColumn::new(Col::Owner, labels.owner.as_str()).sortable(false),
+            TableColumn::new(Col::FileName, labels.file_name.as_str()).sortable(false),
+            TableColumn::new(Col::FilePath, labels.file_path.as_str()).sortable(false),
+            TableColumn::new(Col::Status, labels.status.as_str()).sortable(false),
+        ];
+        let order: Vec<RowInfo<usize>> = self.unresolved().into_iter().map(RowInfo::leaf).collect();
+        let height = (ui.ctx().content_rect().height() * style.table_share).clamp(style.table_min, style.table_max);
+        let before = self.row_sel.lead;
+        let id = self.id_salt();
+        let Self { rows, layout, row_sel, .. } = self;
+        let bad = style.bad_mark;
+        let _ = Table::new((id, "table"), labels.title.as_str(), &columns, layout, order.as_slice())
+            .selection(row_sel)
+            .mode(SelectionMode::Single)
+            .max_height(height)
+            .show(ui, |ui, &row, column, cell| {
+                let row = &rows[row];
+                match column {
+                    Col::Owner => drop(cell.label(ui, row.owner.as_str())),
+                    Col::FileName => drop(cell.label(ui, file_name(&row.link.stored))),
+                    Col::FilePath => drop(cell.label(ui, row.link.stored.as_str())),
+                    Col::Status => drop(colored(ui, TypeRole::Body, bad, &row.status)),
+                }
+            });
+        if self.row_sel.lead.is_none() {
+            // A row stays selected while any is missing.
+            self.row_sel = before.map_or_else(Selection::new, Selection::only);
+        }
+        if self.row_sel.lead != before {
+            self.clear_candidates();
+        }
+    }
+
+    fn id_salt(&self) -> egui::Id {
+        dialog_id(KEY)
+    }
+
+    fn match_checks(&mut self, ui: &mut Ui, labels: &RelinkLabels) {
+        let id = self.id_salt();
+        let criteria = &mut self.options.criteria;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(labels.match_heading.as_str());
+            for (name, label, value) in [
+                ("name", &labels.match_name, &mut criteria.file_name),
+                ("extension", &labels.match_extension, &mut criteria.extension),
+                ("same-file", &labels.match_same_file, &mut criteria.same_file),
+            ] {
+                let _ = Checkbox::bool(label.as_str(), value).id_salt((id, name)).show(ui);
+            }
+            for criterion in &mut self.options.app_criteria {
+                let _ = Checkbox::bool(criterion.label.as_str(), &mut criterion.on).id_salt((id, "app", criterion.id)).show(ui);
+            }
+        });
+        let _ = Checkbox::bool(labels.relink_others.as_str(), &mut self.options.relink_others).id_salt((id, "others")).show(ui);
+    }
+
+    fn search_rows(&mut self, ui: &mut Ui, ctx: &Context, labels: &RelinkLabels) {
+        let id = self.id_salt();
+        direction::horizontal(ui, |ui| {
+            ui.label(labels.search_in.as_str());
+            let browse = Button::new(labels.browse.as_str());
+            let room = (ui.available_width() - browse.natural_width(ui) - ui.spacing().item_spacing.x).max(0.0);
+            let field = TextField::new((id, "folder"), labels.search_in.as_str(), &self.folder).width(room).show(ui);
+            if let Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = field.event {
+                self.folder = value;
+            }
+            if field.submitted && self.search.is_none() {
+                self.start_search();
+            }
+            if ui.add(browse).clicked() {
+                self.browse(ctx, labels);
+            }
+        });
+        direction::horizontal(ui, |ui| {
+            let _ = Checkbox::bool(labels.exact_names.as_str(), &mut self.options.exact_names).id_salt((id, "exact")).show(ui);
+            let searching = self.search.is_some();
+            let (label, enabled) = if searching {
+                (&labels.cancel_search, true)
+            } else {
+                (&labels.search, self.selected_row().is_some() && !self.folder.trim().is_empty())
+            };
+            if ui.add(Button::new(label.as_str()).enabled(enabled)).clicked() {
+                if searching {
+                    self.stop_search();
+                } else {
+                    self.start_search();
+                }
+            }
+        });
+        self.progress_line(ui, labels);
+    }
+
+    fn progress_line(&self, ui: &mut Ui, labels: &RelinkLabels) {
+        let muted = RelinkStyle::of(&current(ui.ctx())).muted;
+        if self.search.is_some() {
+            let text = labels.searching.replace("{n}", &self.progress.to_string());
+            live::region(ui, self.id_salt().with("progress"), Role::Status, Politeness::Polite, |ui, announced| {
+                let _ = colored(ui, TypeRole::Body, muted, &text);
+                announced.add(text);
+            });
+        } else if self.searched && self.candidates.is_empty() {
+            let _ = colored(ui, TypeRole::Body, muted, &labels.not_found);
+        }
+    }
+
+    fn candidates_and_preview(&mut self, ui: &mut Ui, ctx: &Context, labels: &RelinkLabels, style: &RelinkStyle) {
+        let id = self.id_salt();
+        let selected_path = self.selected_candidate().map(|c| c.path.clone());
+        direction::horizontal(ui, |ui| {
+            let width = (ui.available_width() - style.preview.x - ui.spacing().item_spacing.x).max(0.0);
+            ui.allocate_ui_with_layout(vec2(width, style.candidates_height), Layout::top_down(Align::Min), |ui| {
+                self.candidate_list(ui, ctx, labels, style, id);
+            });
+            self.preview_box(ui, ctx, style, selected_path);
+        });
+    }
+
+    fn candidate_list(&mut self, ui: &mut Ui, ctx: &Context, labels: &RelinkLabels, style: &RelinkStyle, id: egui::Id) {
+        if self.candidates.is_empty() {
+            return;
+        }
+        let order: Vec<RowInfo<PathBuf>> = self.candidates.iter().map(|c| RowInfo::leaf(c.path.clone())).collect();
+        let before = self.cand_sel.lead.clone();
+        let candidates = &self.candidates;
+        let _ = List::new((id, "candidates"), labels.candidates.as_str(), order.as_slice())
+            .selection(&mut self.cand_sel)
+            .mode(SelectionMode::Single)
+            .max_height(style.candidates_height)
+            .show(ui, |at, _| candidate_row(ctx, labels, style, &candidates[at], at));
+        if self.cand_sel.lead != before {
+            self.auto_selected = false;
+        }
+    }
+
+    fn preview_box(&self, ui: &mut Ui, ctx: &Context, style: &RelinkStyle, path: Option<PathBuf>) {
+        let (rect, _) = ui.allocate_exact_size(style.preview, Sense::hover());
+        ui.painter().rect_filled(rect, CornerRadius::ZERO, style.preview_fill);
+        let (Some(source), Some(path), Some(runtime)) = (&self.preview, path, &self.runtime) else { return };
+        #[expect(clippy::field_reassign_with_default, reason = "ThumbnailOptions is non_exhaustive: no struct update outside its crate")]
+        let options = {
+            let mut options = ThumbnailOptions::default();
+            options.jobs = Some(Arc::clone(&runtime.jobs));
+            options
+        };
+        let thumbnails = Thumbnails::<FileThumbKey>::in_context(ctx, (KEY, "preview"), options);
+        let request = ThumbRequest::for_cell(style.preview.x.max(style.preview.y), ctx.pixels_per_point());
+        let state = thumbnails.state(ctx, source, &FileThumbKey::file(path), &request, Priority::VISIBLE);
+        thumbnails.paint(&ui.painter().with_clip_rect(rect), rect, &state, &ThumbPaint::default().checker(false));
+    }
+}
+
+/// The identity-free file tail of a stored path, for the File Name column.
+fn file_name(stored: &str) -> &str {
+    stored.rsplit(['/', '\\']).next().unwrap_or(stored)
+}
+
+/// `text` in `role` and `color`.
+fn colored(ui: &mut Ui, role: TypeRole, color: Color32, text: &str) -> Response {
+    let format = role_format(&Tokens::of(ui), role, color);
+    ui.add(Label::new(LayoutJob::single_section(text.to_owned(), format)).selectable(false))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn default_jobs() -> Arc<dyn Jobs> {
+    Arc::new(craft_host::ThreadJobs)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn default_jobs() -> Arc<dyn Jobs> {
+    Arc::new(craft_host::InlineJobs)
+}
+
+/// The mark of a candidate: its icon, colour and words ("same file", "matches", "different file";
+/// none for a candidate that fails on a name or extension check).
+fn mark<'l>(candidate: &Candidate, labels: &'l RelinkLabels, style: &RelinkStyle) -> (Icon, Color32, &'l str) {
+    match (candidate.ok, candidate.same_file) {
+        (true, Some(true)) => (Icon::Check, style.good_mark, labels.same_file.as_str()),
+        (true, _) => (Icon::Check, style.good_mark, labels.matches.as_str()),
+        (false, Some(false)) => (Icon::Close, style.bad_mark, labels.different_file.as_str()),
+        (false, _) => (Icon::Close, style.bad_mark, ""),
+    }
+}
+
+/// Why a candidate fails, in the user's words, in check order.
+fn problem_words(candidate: &Candidate, labels: &RelinkLabels) -> Vec<String> {
+    candidate
+        .problems
+        .iter()
+        .map(|problem| match problem {
+            CandidateProblem::NameDiffers { found, wanted } => labels.name_differs.replace("{found}", found).replace("{wanted}", wanted),
+            CandidateProblem::ExtensionDiffers { found, wanted } => labels.extension_differs.replace("{found}", found).replace("{wanted}", wanted),
+            CandidateProblem::DifferentFile { found, wanted } if found == wanted => labels.fingerprint_differs.clone(),
+            CandidateProblem::DifferentFile { found, wanted } => {
+                labels.size_differs.replace("{found}", &found.to_string()).replace("{wanted}", &wanted.to_string())
+            }
+            CandidateProblem::Unreadable(reason) => labels.unreadable.replace("{reason}", reason),
+            CandidateProblem::Other(text) => text.clone(),
+            _ => String::new(),
+        })
+        .filter(|words| !words.is_empty())
+        .collect()
+}
+
+/// The list row of one candidate: its path, striped, with its mark at the trailing end and its
+/// problems as the tooltip.
+fn candidate_row<'r>(ctx: &Context, labels: &RelinkLabels, style: &RelinkStyle, candidate: &Candidate, at: usize) -> ListRow<'r, PathBuf> {
+    let (icon, color, words) = mark(candidate, labels, style);
+    let path = candidate.path.display().to_string();
+    let problems = problem_words(candidate, labels).join("; ");
+    let name = if words.is_empty() { path.clone() } else { format!("{path}, {words}") };
+    let mut row = ListRow::new(candidate.path.clone(), path).striped(at % 2 == 1).accessible_name(name);
+    if !problems.is_empty() {
+        row = row.tooltip(problems.clone()).description(problems);
+    }
+    let tokens = current(ctx);
+    let format = role_format(&tokens, TypeRole::Caption, color);
+    let words = words.to_owned();
+    let job = LayoutJob::simple_singleline(words.clone(), format.font_id.clone(), color);
+    let text = if words.is_empty() { 0.0 } else { ctx.fonts_mut(|fonts| fonts.layout_job(job).size().x).ceil() };
+    let side = IconSize::Sm.points(&tokens);
+    let gap = ctx.global_style().spacing.item_spacing.x;
+    let width = side + if words.is_empty() { 0.0 } else { gap + text };
+    row.trailing_item(width, move |ui| {
+        let rect = ui.max_rect();
+        let rtl = direction::is_rtl(ui);
+        let (icon_x, text_at, align) = if rtl {
+            (rect.right() - side / 2.0, pos2(rect.right() - side - gap, rect.center().y), Align2::RIGHT_CENTER)
+        } else {
+            (rect.left() + side / 2.0, pos2(rect.left() + side + gap, rect.center().y), Align2::LEFT_CENTER)
+        };
+        let icon_rect = Rect::from_center_size(pos2(icon_x, rect.center().y), vec2(side, side));
+        icons::paint_on(ui.painter(), icon_rect, icon, icons::active(ui.ctx()), side, IconSize::Sm.stroke(), color);
+        if !words.is_empty() {
+            ui.painter().text(text_at, align, words, format.font_id, color);
+        }
+    })
 }
