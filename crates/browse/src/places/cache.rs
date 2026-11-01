@@ -58,13 +58,17 @@ enum Job {
 /// timed refresh.
 pub struct FolderCache {
     directories: Arc<dyn Directories>,
-    queue: JobQueue<Job, Found>,
+    queue: JobQueue<Job, (u64, Found)>,
     roots: Option<Roots>,
     listings: HashMap<PathBuf, (Result<Vec<Folder>, String>, bool)>,
     unlisted: HashMap<PathBuf, Vec<PathBuf>>,
     stale_roots: bool,
     /// What this pass asked for, for [`end_pass`](Self::end_pass).
     asked: HashSet<Job>,
+    /// Per listing, the generation a refresh last asked for. A job carries the generation current
+    /// when it was queued; a result of an older generation started before the refresh, so it
+    /// shows but stays stale and is listed again.
+    generations: HashMap<Job, u64>,
 }
 
 impl FolderCache {
@@ -80,6 +84,7 @@ impl FolderCache {
             unlisted: HashMap::new(),
             stale_roots: false,
             asked: HashSet::new(),
+            generations: HashMap::new(),
         }
     }
 
@@ -130,6 +135,9 @@ impl FolderCache {
     pub fn refresh(&mut self) {
         // new: replaces LightCraft's 2 s refresh (lead call 26).
         self.stale_roots = true;
+        for generation in self.generations.values_mut() {
+            *generation += 1;
+        }
         for (_, stale) in self.listings.values_mut() {
             *stale = true;
         }
@@ -138,6 +146,9 @@ impl FolderCache {
     /// Marks one folder's listing stale.
     pub fn refresh_folder(&mut self, folder: &Path) {
         // new: the tree calls it when a row opens.
+        if let Some(generation) = self.generations.get_mut(&Job::Subfolders(folder.to_path_buf())) {
+            *generation += 1;
+        }
         if let Some((_, stale)) = self.listings.get_mut(folder) {
             *stale = true;
         }
@@ -151,19 +162,24 @@ impl FolderCache {
         self.listings.retain(|path, _| asked.contains(&Job::Subfolders(path.clone())));
         self.unlisted.retain(|path, _| asked.contains(&Job::Unlisted(path.clone())));
         self.queue.reprioritize(|job, priority| asked.contains(job).then_some(priority));
+        self.generations.retain(|job, _| *job == Job::Roots || asked.contains(job));
     }
 
     /// Queues `job` unless one for it is waiting or running.
-    fn submit(&self, job: Job, priority: Priority) {
+    fn submit(&mut self, job: Job, priority: Priority) {
         if self.queue.contains(&job) {
             return;
         }
         let directories = Arc::clone(&self.directories);
         let key = job.clone();
-        self.queue.submit(key, priority, move |cancel| match job {
-            Job::Roots => Found::Roots(Roots { standard: directories.standard(), volumes: directories.volumes() }),
-            Job::Subfolders(folder) => Found::Subfolders(directories.subfolders(&folder, cancel).map_err(|e| e.to_string())),
-            Job::Unlisted(path) => Found::Unlisted(directories.unlisted_ancestors(&path)),
+        let generation = *self.generations.entry(job.clone()).or_insert(0);
+        self.queue.submit(key, priority, move |cancel| {
+            let found = match job {
+                Job::Roots => Found::Roots(Roots { standard: directories.standard(), volumes: directories.volumes() }),
+                Job::Subfolders(folder) => Found::Subfolders(directories.subfolders(&folder, cancel).map_err(|e| e.to_string())),
+                Job::Unlisted(path) => Found::Unlisted(directories.unlisted_ancestors(&path)),
+            };
+            (generation, found)
         });
     }
 
@@ -174,13 +190,15 @@ impl FolderCache {
             self.queue.run_inline(1);
         }
         while let Some(done) = self.queue.try_recv() {
-            match (done.key, done.result) {
+            let (generation, found) = done.result;
+            let current = self.generations.get(&done.key).is_none_or(|&latest| latest == generation);
+            match (done.key, found) {
                 (Job::Roots, Found::Roots(roots)) => {
                     self.roots = Some(roots);
-                    self.stale_roots = false;
+                    self.stale_roots = !current;
                 }
                 (Job::Subfolders(folder), Found::Subfolders(result)) => {
-                    self.listings.insert(folder, (result, false));
+                    self.listings.insert(folder, (result, !current));
                 }
                 (Job::Unlisted(path), Found::Unlisted(found)) => {
                     self.unlisted.insert(path, found);

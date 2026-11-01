@@ -1,8 +1,11 @@
 //! `Directories`: the folder access the places tree needs, with `SystemDirectories` for the
 //! desktop.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use craft_host::queue::Cancel;
 
@@ -193,5 +196,110 @@ fn is_hidden(path: &Path, metadata: impl FnOnce() -> io::Result<std::fs::Metadat
     {
         let _ = metadata;
         false
+    }
+}
+
+/// [`Directories`] over an in-memory tree, for tests and stories. Folders are added with
+/// [`folder`](Self::folder) (their ancestors are implied) and can be added or removed through a
+/// shared reference while a cache holds it.
+#[derive(Default)]
+pub struct FakeDirectories {
+    standard: Vec<(StandardFolder, PathBuf)>,
+    volumes: Vec<Volume>,
+    children: Mutex<BTreeMap<PathBuf, BTreeSet<String>>>,
+    unlisted: Vec<PathBuf>,
+    failing: Vec<PathBuf>,
+    calls: AtomicUsize,
+}
+
+impl FakeDirectories {
+    /// An empty file system.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A standard folder, reported by [`standard`](Directories::standard) in the order added.
+    #[must_use]
+    pub fn standard_folder(mut self, kind: StandardFolder, path: impl Into<PathBuf>) -> Self {
+        self.standard.push((kind, path.into()));
+        self
+    }
+
+    /// A mounted volume, reported by [`volumes`](Directories::volumes) in the order added.
+    #[must_use]
+    pub fn volume(mut self, volume: Volume) -> Self {
+        self.volumes.push(volume);
+        self
+    }
+
+    /// The folder at `path`, with its ancestors.
+    #[must_use]
+    pub fn folder(self, path: impl AsRef<Path>) -> Self {
+        self.add_folder(path);
+        self
+    }
+
+    /// A hidden folder: `unlisted_ancestors` reports it for paths inside it.
+    #[must_use]
+    pub fn hidden(mut self, path: impl Into<PathBuf>) -> Self {
+        self.unlisted.push(path.into());
+        self
+    }
+
+    /// Listing `path` fails with a permission error.
+    #[must_use]
+    pub fn failing(mut self, path: impl Into<PathBuf>) -> Self {
+        self.failing.push(path.into());
+        self
+    }
+
+    /// Adds the folder at `path` and its ancestors; later listings show it.
+    pub fn add_folder(&self, path: impl AsRef<Path>) {
+        let mut children = self.children.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut path = path.as_ref();
+        while let (Some(parent), Some(name)) = (path.parent(), path.file_name()) {
+            children.entry(parent.to_path_buf()).or_default().insert(name.to_string_lossy().into_owned());
+            path = parent;
+        }
+    }
+
+    /// Removes the folder at `path` from its parent's listing.
+    pub fn remove_folder(&self, path: impl AsRef<Path>) {
+        let path = path.as_ref();
+        let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else { return };
+        if let Some(names) = self.children.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_mut(parent) {
+            names.remove(&*name.to_string_lossy());
+        }
+    }
+
+    /// How many [`subfolders`](Directories::subfolders) calls were made.
+    pub fn calls(&self) -> usize {
+        self.calls.load(Ordering::Relaxed)
+    }
+}
+
+impl Directories for FakeDirectories {
+    fn standard(&self) -> Vec<(StandardFolder, PathBuf)> {
+        self.standard.clone()
+    }
+
+    fn volumes(&self) -> Vec<Volume> {
+        self.volumes.clone()
+    }
+
+    fn subfolders(&self, folder: &Path, _: &Cancel) -> io::Result<Vec<Folder>> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        if self.failing.iter().any(|p| p == folder) {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "permission denied"));
+        }
+        let children = self.children.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut out: Vec<Folder> =
+            children.get(folder).map(|names| names.iter().map(|n| Folder { path: folder.join(n), name: n.clone() }).collect()).unwrap_or_default();
+        out.sort_by(|a, b| craft_platform::open::natural_cmp(&a.name, &b.name));
+        Ok(out)
+    }
+
+    fn unlisted_ancestors(&self, path: &Path) -> Vec<PathBuf> {
+        path.ancestors().filter(|a| self.unlisted.iter().any(|h| h == a)).map(Path::to_path_buf).collect()
     }
 }

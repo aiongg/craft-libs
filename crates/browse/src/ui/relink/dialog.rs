@@ -587,8 +587,20 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> Model<K> {
         let mut search = LinkSearch::new(folder);
         search.exact_names = self.options.exact_names;
         search.criteria = self.options.criteria;
-        let run =
-            SearchRun::start(search, vec![self.rows[row].link.clone()], Arc::clone(&self.files), Arc::clone(&runtime.jobs), runtime.wake.clone());
+        let checker = self.checker.clone();
+        let app = self.options.app_criteria.clone();
+        let checker = Arc::new(move |link: &Link<K>, candidate: Candidate| match &checker {
+            Some(checker) => checker.check(link, candidate, &app),
+            None => candidate,
+        });
+        let run = SearchRun::start(
+            search,
+            vec![self.rows[row].link.clone()],
+            Arc::clone(&self.files),
+            checker,
+            Arc::clone(&runtime.jobs),
+            runtime.wake.clone(),
+        );
         self.clear_candidates();
         self.search = Some(run);
     }

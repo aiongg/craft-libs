@@ -20,7 +20,7 @@ use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use craft_docpath::links::{Link, LinkFiles, LinkSearch, LinkStatus, SearchEnd, SearchUpdate};
+use craft_docpath::links::{Candidate, Link, LinkFiles, LinkSearch, LinkStatus, SearchEnd, SearchUpdate};
 use craft_host::queue::{Cancel, JobQueue, Priority, QueueOptions};
 use craft_host::{Jobs, Wake};
 use craft_platform::watch::FileWatch;
@@ -52,12 +52,16 @@ pub struct LinkChange<K> {
 /// nothing is watched (`FileWatch` has no paths there) and statuses come from the first check.
 pub struct LinkMonitor<K> {
     files: Arc<dyn LinkFiles>,
-    queue: JobQueue<K, LinkStatus>,
+    queue: JobQueue<K, (u64, LinkStatus)>,
     watch: FileWatch<K>,
     links: HashMap<K, Link<K>>,
     document: Option<PathBuf>,
     statuses: HashMap<K, LinkStatus>,
     changes: Vec<LinkChange<K>>,
+    /// The generation of the latest check queued per link; a result of an older one is dropped.
+    generations: HashMap<K, u64>,
+    /// The last generation handed out; never reused, so a forgotten and re-added link can't match an old result.
+    last_generation: u64,
 }
 
 /// The file a link points at, when it has one to watch.
@@ -75,7 +79,17 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> LinkMonitor<K> {
         // vectorcraft: crates/engine/src/link_watch.rs:66 (`start_link_scan`: stamps on a worker thread).
         let watch = FileWatch::new(wake.clone());
         let queue = JobQueue::new(jobs, wake, QueueOptions { name: "links", ..QueueOptions::default() });
-        Self { files, queue, watch, links: HashMap::new(), document: None, statuses: HashMap::new(), changes: Vec::new() }
+        Self {
+            files,
+            queue,
+            watch,
+            links: HashMap::new(),
+            document: None,
+            statuses: HashMap::new(),
+            changes: Vec::new(),
+            generations: HashMap::new(),
+            last_generation: 0,
+        }
     }
 
     /// The links to keep current, with the document's path (`None` for an unsaved document):
@@ -95,6 +109,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> LinkMonitor<K> {
         for key in gone {
             self.links.remove(&key);
             self.statuses.remove(&key);
+            self.generations.remove(&key);
             self.watch.forget(&key);
         }
         for link in links {
@@ -143,12 +158,13 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> LinkMonitor<K> {
             }
         }
         while let Some(done) = self.queue.try_recv() {
-            if !self.links.contains_key(&done.key) {
+            let (generation, status) = done.result;
+            if !self.links.contains_key(&done.key) || self.generations.get(&done.key) != Some(&generation) {
                 continue;
             }
-            let before = self.statuses.insert(done.key.clone(), done.result);
-            if before != Some(done.result) {
-                self.changes.push(LinkChange { key: done.key, before, status: done.result });
+            let before = self.statuses.insert(done.key.clone(), status);
+            if before != Some(status) {
+                self.changes.push(LinkChange { key: done.key, before, status });
             }
         }
         std::mem::take(&mut self.changes)
@@ -167,13 +183,22 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> LinkMonitor<K> {
         self.check(link);
     }
 
-    /// Queues the status check of `link`, replacing a waiting one.
-    fn check(&self, link: Link<K>) {
+    /// Queues the status check of `link`, replacing a waiting one; it becomes the link's latest
+    /// generation, so the result of a check that started earlier is dropped.
+    fn check(&mut self, link: Link<K>) {
+        self.last_generation += 1;
+        let generation = self.last_generation;
+        self.generations.insert(link.key.clone(), generation);
         let files = Arc::clone(&self.files);
         let document = self.document.clone();
-        self.queue.submit(link.key.clone(), Priority::BACKGROUND, move |_| craft_docpath::links::status(&link, document.as_deref(), &*files));
+        self.queue
+            .submit(link.key.clone(), Priority::BACKGROUND, move |_| (generation, craft_docpath::links::status(&link, document.as_deref(), &*files)));
     }
 }
+
+/// The app's check of a search candidate: returns it with its problems added and `ok` and `score`
+/// adjusted (`LinkSearch::run`'s `checker`).
+pub type LinkChecker<K> = dyn Fn(&Link<K>, Candidate) -> Candidate + Send + Sync;
 
 /// A [`LinkSearch`] running as one cancellable job on a `JobQueue` (one lane, name
 /// `"relink-search"`) over the app's `Jobs`. The job reports through a shared inbox and calls
@@ -187,8 +212,16 @@ pub struct SearchRun<K> {
 }
 
 impl<K: Clone + Send + 'static> SearchRun<K> {
-    /// Starts `search` for `links` (the missing ones) over `files`.
-    pub fn start(search: LinkSearch, links: Vec<Link<K>>, files: Arc<dyn LinkFiles>, jobs: Arc<dyn Jobs>, wake: Wake) -> Self {
+    /// Starts `search` for `links` (the missing ones) over `files`; `checker` is the app's own
+    /// check of each candidate, run in the job before the hits are ranked.
+    pub fn start(
+        search: LinkSearch,
+        links: Vec<Link<K>>,
+        files: Arc<dyn LinkFiles>,
+        checker: Arc<LinkChecker<K>>,
+        jobs: Arc<dyn Jobs>,
+        wake: Wake,
+    ) -> Self {
         // filmcraft: crates/ui-egui/src/panels/media_dialogs.rs:146 (`link_media` ran `media.search` on the UI thread).
         let queue = JobQueue::new(jobs, wake.clone(), QueueOptions { lanes: 1, name: "relink-search" });
         let updates = Arc::new(Mutex::new(Vec::new()));
@@ -197,7 +230,7 @@ impl<K: Clone + Send + 'static> SearchRun<K> {
         let own = cancel.clone();
         queue.submit(0, Priority::VISIBLE, move |queue_cancel| {
             let cancelled = || own.is_cancelled() || queue_cancel.is_cancelled();
-            search.run(&links, &*files, &cancelled, &mut |update| {
+            search.run(&links, &*files, &*checker, &cancelled, &mut |update| {
                 inbox.lock().unwrap_or_else(PoisonError::into_inner).push(update);
                 wake.wake();
             })

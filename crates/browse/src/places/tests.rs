@@ -2,8 +2,7 @@
 //! fake `Directories` and `ManualJobs`.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use craft_host::queue::Cancel;
 use craft_host::{ManualJobs, Wake};
@@ -186,31 +185,8 @@ fn folder_listing_skips_hidden_entries_and_sorts_naturally() {
     assert!(SystemDirectories.subfolders(&dir.path().join("missing"), &Cancel::new()).is_err());
 }
 
-/// Lists the folders it is given and counts the calls.
-#[derive(Default)]
-struct Fake {
-    folders: Mutex<Vec<&'static str>>,
-    calls: AtomicUsize,
-}
-
-impl Directories for Fake {
-    fn standard(&self) -> Vec<(StandardFolder, PathBuf)> {
-        vec![(StandardFolder::Home, p("/home/u"))]
-    }
-    fn volumes(&self) -> Vec<Volume> {
-        Vec::new()
-    }
-    fn subfolders(&self, folder: &Path, _: &Cancel) -> std::io::Result<Vec<Folder>> {
-        self.calls.fetch_add(1, Ordering::SeqCst);
-        Ok(self.folders.lock().unwrap().iter().map(|n| Folder { path: folder.join(n), name: (*n).into() }).collect())
-    }
-    fn unlisted_ancestors(&self, _: &Path) -> Vec<PathBuf> {
-        Vec::new()
-    }
-}
-
-fn cache() -> (FolderCache, Arc<Fake>, Arc<ManualJobs>) {
-    let fake = Arc::new(Fake::default());
+fn cache() -> (FolderCache, Arc<FakeDirectories>, Arc<ManualJobs>) {
+    let fake = Arc::new(FakeDirectories::new().standard_folder(StandardFolder::Home, "/home/u"));
     let jobs = Arc::new(ManualJobs::new());
     (FolderCache::new(fake.clone(), jobs.clone(), Wake::new(|| {})), fake, jobs)
 }
@@ -226,20 +202,20 @@ fn names_of(listing: Listing<'_>) -> Vec<String> {
 #[test]
 fn a_folder_is_listed_again_after_a_refresh() {
     let (mut cache, fake, jobs) = cache();
-    *fake.folders.lock().unwrap() = vec!["a"];
+    fake.add_folder("/x/a");
     let dir = Path::new("/x");
     assert_eq!(cache.subfolders(dir), Listing::Loading);
     jobs.run_all();
     assert_eq!(names_of(cache.subfolders(dir)), ["a"]);
-    assert_eq!(fake.calls.load(Ordering::SeqCst), 1, "a fresh listing is not listed again");
+    assert_eq!(fake.calls(), 1, "a fresh listing is not listed again");
 
-    *fake.folders.lock().unwrap() = vec!["a", "b"];
+    fake.add_folder("/x/b");
     cache.refresh_folder(dir);
     assert_eq!(names_of(cache.subfolders(dir)), ["a"], "the old listing shows while the job waits");
     assert_eq!(names_of(cache.subfolders(dir)), ["a"]);
     jobs.run_all();
     assert_eq!(names_of(cache.subfolders(dir)), ["a", "b"]);
-    assert_eq!(fake.calls.load(Ordering::SeqCst), 2, "one job per refresh");
+    assert_eq!(fake.calls(), 2, "one job per refresh");
 
     // The roots go stale with `refresh` as well.
     assert!(cache.roots().is_none());
@@ -254,11 +230,11 @@ fn a_folder_is_listed_again_after_a_refresh() {
 #[test]
 fn listing_never_blocks_the_pass() {
     let (mut cache, fake, jobs) = cache();
-    *fake.folders.lock().unwrap() = vec!["only"];
+    fake.add_folder("/slow/only");
     let dir = Path::new("/slow");
     assert_eq!(cache.subfolders(dir), Listing::Loading);
     assert_eq!(cache.subfolders(dir), Listing::Loading);
-    assert_eq!(fake.calls.load(Ordering::SeqCst), 0, "nothing is listed in the pass");
+    assert_eq!(fake.calls(), 0, "nothing is listed in the pass");
     assert_eq!(jobs.waiting(), 1, "asking twice queues one job");
     jobs.run_all();
     assert_eq!(names_of(cache.subfolders(dir)), ["only"]);
@@ -268,4 +244,30 @@ fn listing_never_blocks_the_pass() {
     assert_eq!(cache.subfolders(Path::new("/other")), Listing::Loading);
     cache.end_pass();
     assert_eq!(cache.subfolders(dir), Listing::Loading, "/slow was not asked for in the last pass");
+}
+
+// A listing that started before a refresh shows, but stays stale and is listed again; before the fix its landing cleared the refresh.
+#[test]
+fn a_listing_started_before_a_refresh_is_listed_again() {
+    let (mut cache, fake, jobs) = cache();
+    fake.add_folder("/x/a");
+    let dir = Path::new("/x");
+    assert_eq!(cache.subfolders(dir), Listing::Loading);
+    jobs.run_all();
+    // The folder changes and is refreshed while the finished listing is not yet taken in.
+    fake.add_folder("/x/b");
+    cache.refresh_folder(dir);
+    assert_eq!(names_of(cache.subfolders(dir)), ["a"], "the old listing shows");
+    jobs.run_all();
+    assert_eq!(names_of(cache.subfolders(dir)), ["a", "b"]);
+    assert_eq!(fake.calls(), 2);
+
+    // The same for the roots and `refresh`.
+    assert!(cache.roots().is_none());
+    jobs.run_all();
+    cache.refresh();
+    assert!(cache.roots().is_some());
+    jobs.run_all();
+    assert!(cache.roots().is_some());
+    assert_eq!(jobs.waiting(), 0, "the refreshed roots landed fresh");
 }
