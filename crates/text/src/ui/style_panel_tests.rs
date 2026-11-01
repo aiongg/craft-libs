@@ -144,8 +144,92 @@ fn panel_menu_follows_the_footers_conditions() {
 // applying; Delete with three highlighted returns DeleteHighlighted; a highlighted row dropped on
 // New returns DuplicateHighlighted, an unhighlighted one Duplicate(id).
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn highlighted_rows_act_together() {
-    todo!()
+    use craft_ui::behavior::Selection;
+
+    // `drop_at` also removes the pointer, which a drop target needs on the release pass.
+    fn release(harness: &Harness<'_, Highlighting>, at: egui::Pos2) {
+        harness.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    }
+
+    struct Highlighting {
+        rows: Vec<TextStyleRow>,
+        state: TextStylesState,
+        highlighted: Selection<u64>,
+        actions: Vec<TextStyleAction>,
+    }
+    let app = Highlighting {
+        rows: rows(&["Basic Paragraph", "A", "B", "C", "D"]),
+        state: TextStylesState::default(),
+        highlighted: Selection::new(),
+        actions: Vec::new(),
+    };
+    let mut harness = HarnessBuilder::default()
+        .with_step_dt(0.05)
+        .with_size(egui::vec2(320.0, 400.0))
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, app: &mut Highlighting| {
+                let r = TextStylesPanel::new("styles", TextStyleKind::Paragraph, &app.rows, &mut app.state)
+                    .target(true)
+                    .highlighted(&mut app.highlighted)
+                    .show(ui);
+                app.actions.extend(r.action);
+            },
+            app,
+        );
+    harness.run();
+    let labels = TextStylesLabels::english();
+
+    harness.get_by_label("A").click();
+    harness.run();
+    assert_eq!(harness.state().actions, [TextStyleAction::Apply { id: 1, clear_overrides: false }]);
+    harness.state_mut().actions.clear();
+
+    harness.get_by_label("C").click_modifiers(Modifiers::SHIFT);
+    harness.run();
+    harness.get_by_label("D").click_modifiers(Modifiers::COMMAND);
+    harness.run();
+    let mut items = harness.state().highlighted.items.clone();
+    items.sort_unstable();
+    assert_eq!(items, [1, 2, 3, 4]);
+    assert!(harness.state().actions.is_empty(), "{:?}", harness.state().actions);
+
+    harness.key_press(Key::Delete);
+    harness.run();
+    assert_eq!(harness.state().actions, [TextStyleAction::DeleteHighlighted]);
+    harness.state_mut().actions.clear();
+
+    // A highlighted row dropped on New duplicates every highlighted style.
+    let new = harness.get_by_label(&labels.new_style).rect().center();
+    let from = harness.get_by_label("B").rect().center();
+    harness.hover_at(from);
+    harness.run();
+    harness.drag_at(from);
+    harness.run();
+    harness.hover_at(from + egui::vec2(0.0, 12.0));
+    harness.run();
+    harness.hover_at(new);
+    harness.run();
+    release(&harness, new);
+    harness.run();
+    assert_eq!(harness.state().actions, [TextStyleAction::DuplicateHighlighted]);
+    harness.state_mut().actions.clear();
+
+    // An unhighlighted row dropped there duplicates itself only.
+    harness.get_by_label("Basic Paragraph").click();
+    harness.run();
+    harness.state_mut().actions.clear();
+    let from = harness.get_by_label("D").rect().center();
+    harness.hover_at(from);
+    harness.run();
+    harness.drag_at(from);
+    harness.run();
+    harness.hover_at(from + egui::vec2(0.0, -12.0));
+    harness.run();
+    harness.hover_at(new);
+    harness.run();
+    release(&harness, new);
+    harness.run();
+    assert_eq!(harness.state().actions, [TextStyleAction::Duplicate(4)]);
 }
