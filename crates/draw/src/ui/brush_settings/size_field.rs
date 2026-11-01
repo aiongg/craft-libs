@@ -1,8 +1,11 @@
 //! The brush Size row ([`BrushSizeField`]): a value field over a log slider.
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-use craft_ui::edit::EditResponse;
-use egui::{AsIdSalt, IdSalt, Ui};
+use craft_ui::controls::{IconButton, NumberField, Slider, SliderScale};
+use craft_ui::edit::{EditEvent, EditResponse};
+use craft_ui::icons::Icon;
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::primitives::{Content, Text};
+use egui::{Align, AsIdSalt, IdSalt, Layout, Ui};
 
 use super::labels::BrushSettingsLabels;
 
@@ -52,6 +55,48 @@ impl BrushSizeField {
     pub fn show(self, ui: &mut Ui) -> EditResponse<f64> {
         // pc: crates/ui-egui/src/panels/brush_sections.rs:129-150 `size_row` (field 74 wide, restore button, log slider, 4 pt after)
         // pc: crates/ui-egui/src/tools/brush_picker.rs:232-247 (the picker head's Size: field and log slider)
-        todo!()
+        let labels = self.labels.unwrap_or_else(|| BrushSettingsLabels::of(ui));
+        let numbers = LocaleNumbers::of(ui);
+        let max = if self.max.is_finite() { self.max.max(1.0) } else { 1.0 };
+        let shown = if self.diameter.is_finite() { self.diameter.clamp(1.0, max) } else { 1.0 };
+        let mut restored = None;
+        let field = ui
+            .horizontal(|ui| {
+                ui.add(Text::new(self.label.as_str()).content(Content::Muted));
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    let field = NumberField::new((&self.id_salt, "field"), self.label.as_str(), shown, &numbers)
+                        .range(1.0..=max)
+                        .step(1.0)
+                        .decimals(0..=0)
+                        .snap_typed(true)
+                        .unit(Unit::new("{n} px"))
+                        .show(ui);
+                    if let Some(original) = self.restore
+                        && original.is_finite()
+                        && ui.add(IconButton::new(Icon::Undo, labels.restore_size.as_str()).id_salt((&self.id_salt, "restore"))).clicked()
+                    {
+                        restored = Some(original.clamp(1.0, max));
+                    }
+                    field
+                })
+                .inner
+            })
+            .inner;
+        let slider = Slider::new((&self.id_salt, "slider"), self.label.as_str(), shown, 1.0..=max)
+            .step(1.0)
+            .scale(SliderScale::Log)
+            .enabled(max > 1.0 && ui.is_enabled())
+            .show(ui);
+        ui.add_space(ui.spacing().item_spacing.y);
+        let modifiers = ui.input(|i| i.modifiers);
+        let (submitted, escaped) = (field.submitted, field.escaped);
+        let event = match restored {
+            Some(original) => Some(EditEvent::set(original, modifiers)),
+            None => slider.event.or(field.event),
+        };
+        let mut out = EditResponse::new(slider.response, event);
+        out.submitted = submitted;
+        out.escaped = escaped || slider.escaped;
+        out
     }
 }

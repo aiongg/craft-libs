@@ -1,10 +1,15 @@
 //! Photoshop's tip angle and roundness widget ([`TipEllipse`]) and its geometry.
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-use craft_ui::edit::EditResponse;
-use egui::{AsIdSalt, IdSalt, Ui, Vec2};
+use craft_ui::controls::slider::{KEY_FILTER, tap};
+use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::primitives::{FocusRing, Interactive};
+use craft_ui::theme::{Tokens, TokensOf as _};
+use egui::accesskit::{Action, Role};
+use egui::{AsIdSalt, CornerRadius, IdSalt, Key, Modifiers, PointerButton, Pos2, Sense, Shape, Stroke, Ui, Vec2, vec2};
 
 use super::labels::BrushSettingsLabels;
+use super::style::TipEllipseStyle;
 
 /// A tip's angle and roundness.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -36,14 +41,16 @@ pub enum TipEllipseGrab {
 /// `(−sin a, −cos a)`.
 pub fn ellipse_handles(angle: TipAngle, radius: f32) -> [Vec2; 2] {
     // pc: crates/ui-egui/src/panels/brush_sections.rs:163-168 `roundness_handles`
-    todo!()
+    let (sin, cos) = (angle.degrees as f32).to_radians().sin_cos();
+    let minor = vec2(-sin, -cos) * radius * (angle.roundness as f32).clamp(0.0, 1.0);
+    [minor, -minor]
 }
 
 /// What a press at `at` (relative to the centre) grabs: a roundness dot within `reach`
 /// (`brush.ellipse_grab`, 7) of either, else the arrow.
 pub fn ellipse_grab(at: Vec2, angle: TipAngle, radius: f32, reach: f32) -> TipEllipseGrab {
     // pc: crates/ui-egui/src/panels/brush_sections.rs:171-173 `ellipse_grab` (`<= 7.0`)
-    todo!()
+    if ellipse_handles(angle, radius).iter().any(|h| (*h - at).length() <= reach) { TipEllipseGrab::Roundness } else { TipEllipseGrab::Angle }
 }
 
 /// The value after a drag to `at` (relative to the centre) holding `grab`. Angle: the direction
@@ -51,7 +58,18 @@ pub fn ellipse_grab(at: Vec2, angle: TipAngle, radius: f32, reach: f32) -> TipEl
 /// the centre. Roundness: `|at · minor| / radius` clamped to 0.01 to 1; the angle stays.
 pub fn ellipse_drag(grab: TipEllipseGrab, at: Vec2, angle: TipAngle, radius: f32) -> TipAngle {
     // pc: crates/ui-egui/src/panels/brush_sections.rs:177-187 `ellipse_drag`
-    todo!()
+    if !(at.x.is_finite() && at.y.is_finite()) {
+        return angle;
+    }
+    match grab {
+        TipEllipseGrab::Angle if at.length() > 1.0 => TipAngle { degrees: f64::from((-at.y).atan2(at.x).to_degrees().round()), ..angle },
+        TipEllipseGrab::Angle => angle,
+        TipEllipseGrab::Roundness => {
+            let (sin, cos) = (angle.degrees as f32).to_radians().sin_cos();
+            let along = (at.x * -sin + at.y * -cos).abs();
+            TipAngle { roundness: f64::from(along / radius.max(f32::EPSILON)).clamp(0.01, 1.0), ..angle }
+        }
+    }
 }
 
 /// Photoshop's angle and roundness widget: a disc with cross lines, the tip's ellipse, an arrow
@@ -95,6 +113,131 @@ impl TipEllipse {
     /// Shows the widget.
     pub fn show(self, ui: &mut Ui) -> EditResponse<TipAngle> {
         // pc: crates/ui-egui/src/panels/brush_sections.rs:190-246 `ellipse_widget` (84 square, disc 40, ellipse 34 at 18 %, arrow +5 with a head 7 long and 8 wide, dots 4)
-        todo!()
+        let labels = self.labels.unwrap_or_else(|| BrushSettingsLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let style = TipEllipseStyle::of(&tokens);
+        let enabled = ui.is_enabled();
+        let sensed = Interactive::salted(self.id_salt, Role::Slider, labels.tip_angle.as_str())
+            .sense(Sense::drag())
+            .enabled(enabled)
+            .state_layer(false)
+            .focus_ring(false)
+            .interact(ui, Vec2::splat(style.size));
+        let response = sensed.response().clone();
+        let center = response.rect.center();
+        let id = response.id;
+        let grab_key = id.with("grab");
+
+        let mut gesture = Gesture::load(ui, id, &self.value, EditPolicy::default()).event_filter(KEY_FILTER).enabled(enabled);
+        let drag_to = |gesture: &mut Gesture<TipAngle>, grab: TipEllipseGrab, pos: Pos2| {
+            let to = ellipse_drag(grab, pos - center, *gesture.shown(), style.radius);
+            gesture.update(to, ui.input(|i| i.modifiers));
+        };
+        let grab_of = |ui: &Ui| ui.data(|d| d.get_temp::<TipEllipseGrab>(grab_key)).unwrap_or(TipEllipseGrab::Angle);
+        if response.drag_started_by(PointerButton::Primary) {
+            response.request_focus();
+            if let Some(pos) = response.interact_pointer_pos() {
+                let grab = ellipse_grab(pos - center, *gesture.shown(), style.radius, style.grab);
+                ui.data_mut(|d| d.insert_temp(grab_key, grab));
+            }
+            gesture.begin();
+        }
+        if response.dragged_by(PointerButton::Primary)
+            && gesture.is_active()
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            drag_to(&mut gesture, grab_of(ui), pos);
+        }
+        if response.drag_stopped() {
+            gesture.commit();
+        }
+        if let Some(pos) = tap(ui, &response) {
+            response.request_focus();
+            let now = *gesture.shown();
+            let grab = ellipse_grab(pos - center, now, style.radius, style.grab);
+            gesture.set(ellipse_drag(grab, pos - center, now, style.radius));
+        }
+        if !response.dragged()
+            && let Some(to) = keyed(ui, &response, *gesture.shown())
+        {
+            gesture.set(to);
+        }
+
+        let shown = *gesture.shown();
+        let numbers = LocaleNumbers::of(ui);
+        let text = format!("{}°, {} %", numbers.format(shown.degrees, 0..=0), numbers.format((shown.roundness * 100.0).round(), 0..=0));
+        let response = sensed.numeric(shown.degrees, -180.0..=180.0, 1.0).value(text).finish(ui);
+        if ui.is_rect_visible(response.rect) {
+            paint(ui, &style, center, shown, enabled);
+        }
+        let disc = egui::Rect::from_center_size(center, Vec2::splat(style.disc * 2.0));
+        FocusRing::paint_radius(ui, disc, CornerRadius::same(style.disc.round() as u8), &response);
+        let _ = response.clone().on_hover_text(labels.tip_angle_tip.as_str());
+        EditResponse::new(response, gesture.finish())
+    }
+}
+
+/// The value after this frame's keys and screen-reader steps on the focused widget, or `None`.
+fn keyed(ui: &Ui, response: &egui::Response, value: TipAngle) -> Option<TipAngle> {
+    if !response.enabled() {
+        return None;
+    }
+    let focused = ui.memory(|m| m.has_focus(response.id));
+    let (mut turn, mut squash) = (0.0_f64, 0.0_f64);
+    if focused {
+        ui.input_mut(|i| {
+            let mut count = |modifiers, key| f64::from(i.count_and_consume_key(modifiers, key) as u32);
+            for (key, sign) in [(Key::ArrowUp, 1.0), (Key::ArrowRight, 1.0), (Key::ArrowDown, -1.0), (Key::ArrowLeft, -1.0)] {
+                // Alt first: it is the roundness. Shift before none: `Modifiers::NONE` matches a held Shift.
+                squash += sign * count(Modifiers::ALT, key);
+                turn += sign * (15.0 * count(Modifiers::SHIFT, key) + count(Modifiers::NONE, key));
+            }
+        });
+    }
+    ui.input(|i| {
+        let requests = |action| i.num_accesskit_action_requests(response.id, action) as f64;
+        turn += requests(Action::Increment) - requests(Action::Decrement);
+    });
+    if turn == 0.0 && squash == 0.0 {
+        return None;
+    }
+    let mut degrees = value.degrees + turn;
+    if degrees > 180.0 {
+        degrees -= 360.0;
+    } else if degrees < -180.0 {
+        degrees += 360.0;
+    }
+    let roundness = (value.roundness + squash / 100.0).clamp(0.01, 1.0);
+    Some(TipAngle { degrees: degrees.round(), roundness: (roundness * 100.0).round() / 100.0 })
+}
+
+fn paint(ui: &Ui, style: &TipEllipseStyle, center: Pos2, value: TipAngle, enabled: bool) {
+    let fade = |c: egui::Color32| if enabled { c } else { c.gamma_multiply(0.5) };
+    let painter = ui.painter();
+    painter.circle_filled(center, style.disc, fade(style.disc_fill));
+    painter.circle_stroke(center, style.disc, Stroke::new(style.disc_border.width, fade(style.disc_border.color)));
+    let cross = Stroke::new(style.cross.width, fade(style.cross.color));
+    painter.line_segment([center - vec2(style.disc, 0.0), center + vec2(style.disc, 0.0)], cross);
+    painter.line_segment([center - vec2(0.0, style.disc), center + vec2(0.0, style.disc)], cross);
+    let (sin, cos) = (value.degrees as f32).to_radians().sin_cos();
+    let (major, minor) = (vec2(cos, -sin), vec2(-sin, -cos));
+    let round = (value.roundness as f32).clamp(0.01, 1.0);
+    let ring = fade(style.ellipse);
+    let points: Vec<Pos2> = (0..48)
+        .map(|i| {
+            let t = i as f32 / 48.0 * std::f32::consts::TAU;
+            center + major * t.cos() * style.radius + minor * t.sin() * style.radius * round
+        })
+        .collect();
+    painter.add(Shape::convex_polygon(points, ring.gamma_multiply(0.18), Stroke::new(style.line, ring)));
+    let accent = fade(style.accent);
+    let tip = center + major * (style.radius + style.arrow_reach);
+    painter.line_segment([center, tip], Stroke::new(style.line, accent));
+    let back = tip - major * style.head.x;
+    let half = style.head.y / 2.0;
+    painter.add(Shape::convex_polygon(vec![tip, back + minor * half, back - minor * half], accent, Stroke::NONE));
+    for handle in ellipse_handles(value, style.radius) {
+        painter.circle_filled(center + handle, style.dot, fade(style.dot_fill));
+        painter.circle_stroke(center + handle, style.dot, Stroke::new(1.0, accent));
     }
 }
