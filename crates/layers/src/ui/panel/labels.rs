@@ -58,6 +58,8 @@ craft_ui::words! {
         filter_mask_targeted: "layers.filterMaskTargeted" = "filter mask targeted";
         /// The footer buttons' tooltips and names, from the reading start.
         link_layers: "layers.linkLayers" = "Link layers";
+        /// The mask button's name while the app offers no mask to add (the button is greyed).
+        add_mask: "layers.addMask" = "Add a mask";
         add_style: "layers.addStyle" = "Add a layer style";
         add_adjustment: "layers.addAdjustment" = "Create new fill or adjustment layer";
         new_group: "layers.newGroup" = "Create a new group";

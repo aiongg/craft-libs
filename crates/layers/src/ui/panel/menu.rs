@@ -1,17 +1,18 @@
 //! The panel menu (`panel_menu`, `run_command`, `LayersMenuAction`), the eye colour menu and the
 //! row menu slot.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use craft_theme::LabelColor;
 use craft_ui::docking::panel_menu::PanelCommand;
-use craft_ui::menu::{MenuEntry, OpenAt};
-use egui::{AsIdSalt, Context, Response, Ui};
+use craft_ui::localized::Labels as _;
+use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
+use craft_ui::theme::{Tokens, TokensOf as _};
+use egui::{AsIdSalt, Context, Id, IdSalt, Response, Ui};
 
 use super::context::{PanelContext, RowMenu};
 use super::events::{LayersEvent, MenuTarget};
 use super::labels::LayersLabels;
 use crate::ui::options::LayersSettings;
+use crate::ui::thumbs::ThumbContents;
 use crate::ui::tree::LayerTree;
 
 /// The panel menu's Filter Options › Show.
@@ -51,15 +52,53 @@ pub fn panel_menu(ctx: &Context, id_salt: impl AsIdSalt, settings: &LayersSettin
     // pc: crates/ui-egui/src/panels/layer_row_ui.rs:296-334 (Filter Options › Show, Panel Options…,
     // Collapse All Groups, Clip Thumbnails to Layer Bounds); the facts the panel stores under its id
     // as `TextStylesPanel::panel_menu` (craft-text `ui/style_panel.rs`) does.
-    todo!()
+    let labels = LayersLabels::of_ctx(ctx);
+    let drawn = ctx.data(|d| d.get_temp::<Drawn>(drawn_key(IdSalt::new(id_salt)))).is_some();
+    let item = |text: &str, command: &str| MenuItem::new(text, command.to_owned());
+    vec![
+        MenuItem::submenu(labels.filter_options.as_str(), vec![item(&labels.show_filters, SHOW_FILTERS).check(settings.show_filters).into()]).into(),
+        item(&labels.panel_options, PANEL_OPTIONS).into(),
+        MenuEntry::Separator,
+        item(&labels.collapse_all, COLLAPSE_ALL).enabled(drawn).into(),
+        MenuEntry::Separator,
+        item(&labels.clip_thumbnails, CLIP_THUMBNAILS).check(settings.options.thumbnail_contents == ThumbContents::LayerBounds).into(),
+    ]
+}
+
+/// Marks the panel `id_salt` as drawn, which enables Collapse All Groups in [`panel_menu`].
+#[derive(Clone, Copy)]
+struct Drawn;
+
+fn drawn_key(salt: IdSalt) -> Id {
+    Id::NULL.with(salt)
+}
+
+/// Records that the panel `salt` has been drawn (`LayersPanel::show` calls it once per pass).
+pub(super) fn note_drawn(ctx: &Context, salt: IdSalt) {
+    ctx.data_mut(|d| d.insert_temp(drawn_key(salt), Drawn));
 }
 
 /// Carries out a command of [`panel_menu`]: Show and Clip Thumbnails flip their setting in
 /// `settings` and report [`LayersMenuAction::SettingsChanged`]; Panel Options… and Collapse All
 /// Groups report what the app does. Any other command returns `None`.
-pub fn run_command(ctx: &Context, id_salt: impl AsIdSalt, settings: &mut LayersSettings, command: &PanelCommand) -> Option<LayersMenuAction> {
+pub fn run_command(_ctx: &Context, _id_salt: impl AsIdSalt, settings: &mut LayersSettings, command: &PanelCommand) -> Option<LayersMenuAction> {
     // pc: crates/ui-egui/src/panels/layer_row_ui.rs:296-334.
-    todo!()
+    match command.as_str() {
+        SHOW_FILTERS => {
+            settings.show_filters = !settings.show_filters;
+            Some(LayersMenuAction::SettingsChanged)
+        }
+        CLIP_THUMBNAILS => {
+            settings.options.thumbnail_contents = match settings.options.thumbnail_contents {
+                ThumbContents::LayerBounds => ThumbContents::EntireDocument,
+                ThumbContents::EntireDocument => ThumbContents::LayerBounds,
+            };
+            Some(LayersMenuAction::SettingsChanged)
+        }
+        PANEL_OPTIONS => Some(LayersMenuAction::OpenOptions),
+        COLLAPSE_ALL => Some(LayersMenuAction::CollapseAll),
+        _ => None,
+    }
 }
 
 /// A menu the body asks for this pass.
@@ -103,11 +142,75 @@ pub(super) fn show_row_menus<T: LayerTree>(
     // pc: crates/ui-egui/src/panels/layer_row.rs:470-496 `row_context_menu`;
     // pc: crates/ui-egui/src/panels/layer_menu_ui.rs:266-287 `color_choices` (None first, a separator,
     // then the colours; the current one checked).
-    todo!()
+    let ctx = ui.ctx();
+    let key = cx.id.with("open-menu");
+    let mut at = None;
+    match request {
+        Some(MenuRequest::Row { target, at: place }) if row_menu.is_some() => {
+            ctx.data_mut(|d| d.insert_temp(key, OpenMenu::Row(target)));
+            at = Some(place);
+        }
+        Some(MenuRequest::Eye { rows, current, at: place }) => {
+            ctx.data_mut(|d| d.insert_temp(key, OpenMenu::Eye { rows, current }));
+            at = Some(place);
+        }
+        _ => {}
+    }
+    let Some(open) = ctx.data(|d| d.get_temp::<OpenMenu<T::Id>>(key)) else { return Vec::new() };
+    let (events, keep): (Vec<LayersEvent<T::Id>>, bool) = match open {
+        OpenMenu::Row(target) => {
+            let entries: Vec<MenuEntry<String>> = row_menu.map(|menu| menu(&target)).unwrap_or_default();
+            let shown = ContextMenu::new(&entries).own_gestures(false).open_at(at).show(ui, list);
+            let events = shown.chosen.map(|command| LayersEvent::Menu { target, command }).into_iter().collect();
+            (events, shown.open || at.is_some())
+        }
+        OpenMenu::Eye { rows, current } => {
+            let entries = eye_entries(ui, cx.labels, current);
+            let shown = ContextMenu::new(&entries).own_gestures(false).open_at(at).show(ui, list);
+            let events = shown.chosen.map(|color| LayersEvent::LabelColor { rows, color }).into_iter().collect();
+            (events, shown.open || at.is_some())
+        }
+    };
+    if !keep || !events.is_empty() {
+        ctx.data_mut(|d| d.remove::<OpenMenu<T::Id>>(key));
+    }
+    events
+}
+
+/// The menu kept open across passes, with what it acts on.
+#[derive(Clone)]
+enum OpenMenu<Id> {
+    Row(MenuTarget<Id>),
+    Eye { rows: Vec<Id>, current: Option<LabelColor> },
+}
+
+/// None, a separator, then every label colour with its swatch and a check on `current`.
+fn eye_entries(ui: &Ui, labels: &LayersLabels, current: Option<LabelColor>) -> Vec<MenuEntry<Option<LabelColor>>> {
+    let tokens = Tokens::of(ui);
+    let mut entries = vec![MenuItem::new(color_name(labels, None), None).into(), MenuEntry::Separator];
+    for color in LabelColor::ALL {
+        let item =
+            MenuItem::new(color_name(labels, Some(color)), Some(color)).check(current == Some(color)).tint(tokens.component.list.label(color).swatch);
+        entries.push(item.into());
+    }
+    entries
 }
 
 /// The menu name of `color` (`None`: "None").
 pub(super) fn color_name(labels: &LayersLabels, color: Option<LabelColor>) -> &str {
     // new: `LayersLabels::{no_color, red, …, gray}` in `LabelColor::ALL` order.
-    todo!()
+    match color {
+        None => &labels.no_color,
+        Some(LabelColor::Red) => &labels.red,
+        Some(LabelColor::Orange) => &labels.orange,
+        Some(LabelColor::Yellow) => &labels.yellow,
+        Some(LabelColor::Green) => &labels.green,
+        Some(LabelColor::Seafoam) => &labels.seafoam,
+        Some(LabelColor::Blue) => &labels.blue,
+        Some(LabelColor::Indigo) => &labels.indigo,
+        Some(LabelColor::Magenta) => &labels.magenta,
+        Some(LabelColor::Fuchsia) => &labels.fuchsia,
+        Some(LabelColor::Violet) => &labels.violet,
+        Some(LabelColor::Gray) => &labels.gray,
+    }
 }
