@@ -19,7 +19,7 @@ use crate::icons::Icon;
 use crate::localized::Labels as _;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, PressMenu};
 use crate::presets::model::PresetError;
-use crate::presets::picker::{PickerField, PresetPicker};
+use crate::presets::picker::{PickerField, PresetPicker, PresetPickerLabels};
 use crate::presets::{PresetRow, PresetStyle, ThumbInfo};
 use crate::theme::{Tokens, TokensOf as _, role_format};
 
@@ -61,8 +61,8 @@ pub enum NamedPresetEvent<K> {
     Apply(K),
     /// New… or Save as New Preset… committed `name` (trimmed; an empty name is the suggestion).
     Create { name: String },
-    /// Rename… committed `name` for `key`.
-    Rename { key: K, name: String },
+    /// Rename… committed `text` (trimmed) for `key`.
+    Rename { key: K, text: String },
     /// Delete was chosen for `key`; the row acts at once (the app confirms if it wants to).
     Delete(K),
     /// A file pick finished.
@@ -102,7 +102,7 @@ pub struct NamedPresetOutput<K> {
 /// for event in out.events { /* Apply, Create, Rename, Delete, File */ }
 /// ```
 ///
-/// - **Naming.** New… (or Save as New Preset…) opens the name row below the field, focused, the
+/// - **Naming.** New… (or Save as New Preset…) opens the name row inline after the field (it wraps to a second line when the width cannot hold it), focused, the
 ///   suggested name selected; Rename… opens it on the selected user preset with its name. Enter
 ///   and OK commit; Esc cancels the name row only (the Name field owns Enter and Esc through
 ///   `focus::key_owner`, so a second Esc reaches the dialog); losing focus any other way keeps
@@ -113,15 +113,19 @@ pub struct NamedPresetOutput<K> {
 /// - **Built-in presets** (`built_in`): Rename… and Delete are disabled; the closed field reads
 ///   "{name} (built-in)" ([`NamedPresetLabels::built_in`]) only when the app sets
 ///   `built_in`.
-/// - **Files**: the entries of [`PresetFiles`]; their picks finish inside the row and come back
-///   as `File` events with a status line.
+/// - **Files**: the entries of [`PresetFiles`]; their picks finish inside the row (ticket keyed
+///   by the row's persistent id) and come back as `File` events with a status line.
+/// - **Closing the name row.** Delete of the preset being renamed and Apply of another preset
+///   close it. A rename to exactly the current name reports nothing; a change of case only is a
+///   `Rename`, and `check_name` is not asked about the preset's own name.
 /// - **Layout.** One row with `preset.toolbar_gap` gaps: field, then while naming the Name
 ///   label and a `TextField`
 ///   [`PresetStyle::name_width`](crate::presets::style::PresetStyle::name_width) wide, then the
 ///   buttons or the Manage button. When the width cannot hold them, the buttons wrap to a second
 ///   line. Tab visits the field, the Name field and the buttons in reading order; right to left
 ///   mirrors the order.
-/// - **AccessKit.** A group named by the label; the Name field named [`NamedPresetLabels::name`];
+/// - **AccessKit.** A group named by the label; the Name field named [`NamedPresetLabels::name`] (the visible
+///   "Name" text is hidden from AccessKit, so the field is one labelled field);
 ///   the Manage button named "Manage presets" with `has_popup`.
 ///
 /// [`PresetPicker`]: crate::presets::picker::PresetPicker
@@ -240,7 +244,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> NamedPresetRow<'_, K>
         let enabled = ui.is_enabled();
         let mut events = Vec::new();
 
-        let files_out = files.map(|files| files.take_events(&ctx, id_salt)).unwrap_or_default();
+        let files_out = files.map(|files| files.take_events(&ctx, id)).unwrap_or_default();
         events.extend(files_out.events.into_iter().map(NamedPresetEvent::File));
 
         let current = selected.and_then(|key| rows.iter().find(|row| row.key == *key));
@@ -262,12 +266,18 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> NamedPresetRow<'_, K>
             .accessibility_label(label.as_str());
         let row = ui.scope_builder(group, |ui| {
             ui.spacing_mut().item_spacing = vec2(preset.toolbar_gap, preset.toolbar_gap);
+            let picker_words = PresetPickerLabels { custom: words.custom.clone(), ..PresetPickerLabels::of(ui) };
             let mut picker = PresetPicker::new(("named-preset-picker", id), label.as_str(), rows)
+                .labels(picker_words)
                 .selected(selected)
                 .field(field)
                 .closed_name(closed_name)
                 .show(ui, thumb);
             if let Some(key) = picker.picked.take() {
+                // Applying another preset ends a rename of the one before.
+                if naming.as_ref().is_some_and(|open| open.target.as_ref().is_some_and(|target| *target != key)) {
+                    naming = None;
+                }
                 events.push(NamedPresetEvent::Apply(key));
             }
             let field_response = picker.response;
@@ -278,9 +288,13 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> NamedPresetRow<'_, K>
             if let Some(open) = naming.as_mut() {
                 let suggestion = suggest_name.as_deref().unwrap_or("");
                 let probe = effective_name(&open.text, open.target.is_none().then_some(suggestion));
-                let unchanged = open.target.as_ref().and_then(|key| rows.iter().find(|row| row.key == *key)).is_some_and(|row| row.label == probe);
+                let target_label = open.target.as_ref().and_then(|key| rows.iter().find(|row| row.key == *key)).map(|row| row.label.as_str());
+                // The exact current name changes nothing. A change of case only is a rename: the
+                // preset's own name is not "taken" by itself.
+                let unchanged = target_label == Some(probe.as_str());
+                let own_name = target_label.is_some_and(|label| label.to_lowercase() == probe.to_lowercase());
                 let error = match &check_name {
-                    Some(check) if !probe.is_empty() && !unchanged => check(&probe).map(|error| match error {
+                    Some(check) if !probe.is_empty() && !own_name => check(&probe).map(|error| match error {
                         PresetError::NameTaken => words.name_taken.clone(),
                         _ => words.name_invalid.clone(),
                     }),
@@ -296,7 +310,9 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> NamedPresetRow<'_, K>
                 if room < needed && room < ui.max_rect().width() - 0.5 {
                     ui.end_row();
                 }
-                ui.add(Label::new(name_label).selectable(false));
+                // The Name field carries its own accessible name; the static text is not a second node.
+                let name_text = ui.add(Label::new(name_label).selectable(false));
+                ctx.accesskit_node_builder(name_text.id, |node| node.set_hidden());
                 let field_id = id.with("name-field");
                 if open.fresh {
                     ui.memory_mut(|m| m.request_focus(field_id));
@@ -340,7 +356,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> NamedPresetRow<'_, K>
                     if !probe.is_empty() && error.is_none() {
                         match open.target.clone() {
                             None => events.push(NamedPresetEvent::Create { name: probe }),
-                            Some(key) if !unchanged => events.push(NamedPresetEvent::Rename { key, name: probe }),
+                            Some(key) if !unchanged => events.push(NamedPresetEvent::Rename { key, text: probe }),
                             Some(_) => {}
                         }
                         naming = None;
@@ -404,12 +420,15 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> NamedPresetRow<'_, K>
                 }
                 Command::Delete => {
                     if let Some(key) = user_preset {
+                        if naming.as_ref().is_some_and(|open| open.target.as_ref() == Some(key)) {
+                            naming = None;
+                        }
                         events.push(NamedPresetEvent::Delete(key.clone()));
                     }
                 }
                 Command::File(command) => {
                     if let Some(files) = files {
-                        files.start(&ctx, id_salt, &command, selected);
+                        files.start(&ctx, id, &command, selected);
                     }
                 }
             }
@@ -663,6 +682,82 @@ mod tests {
         assert!(name_row_open(&harness));
         assert!(at(&harness, "New…").rect().top() >= field.bottom(), "narrow: New… wraps below the field");
         assert!(at(&harness, "Save…").rect().top() >= field.bottom(), "narrow: Save… wraps below the field");
+    }
+
+    fn right_click(harness: &mut Harness<'_, State>, pos: Pos2) {
+        let button = |pressed| Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+        frame(harness, 1.0, vec![Event::PointerMoved(pos), button(true), button(false)]);
+        harness.run();
+    }
+
+    fn type_text(harness: &mut Harness<'_, State>, text: &str) {
+        frame(harness, 0.5, vec![Event::Text(text.to_owned())]);
+        harness.run();
+    }
+
+    fn rename_with_f2(harness: &mut Harness<'_, State>) {
+        // `run` never settles while the focus ring animates, so these presses run a few frames only.
+        for key in [Key::Tab, Key::F2] {
+            let event = |pressed| Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE };
+            frame(harness, 0.5, vec![event(true)]);
+            frame(harness, 0.016, vec![event(false)]);
+            harness.run_steps(3);
+        }
+    }
+
+    // F2 on the focused field opens Rename… on a user preset; a change of case only is a `Rename`
+    // although `check_name` counts the preset's own name as taken; the exact name reports nothing.
+    #[test]
+    fn named_row_f2_renames_and_a_case_only_change_passes_the_name_check() {
+        let mut state = state();
+        state.selected = Some(USER);
+        state.taken = Some("MINE");
+        let mut harness = harness(state);
+        rename_with_f2(&mut harness);
+        assert!(name_row_open(&harness), "F2 opens the name row");
+        type_text(&mut harness, "MINE");
+        press_key(&mut harness, Key::Enter);
+        assert_eq!(harness.state().events, [NamedPresetEvent::Rename { key: USER, text: "MINE".into() }]);
+        assert!(!name_row_open(&harness));
+
+        rename_with_f2(&mut harness);
+        press_key(&mut harness, Key::Enter);
+        assert_eq!(harness.state().events.len(), 1, "the unchanged name reports nothing");
+        assert!(!name_row_open(&harness));
+    }
+
+    // The field's context menu has Rename… and Delete; Rename… opens the name row on the preset.
+    #[test]
+    fn named_row_context_menu_renames() {
+        let mut state = state();
+        state.selected = Some(USER);
+        let mut harness = harness(state);
+        let pos = at(&harness, "Contour preset: Mine").rect().center();
+        right_click(&mut harness, pos);
+        harness.get_by_label("Delete");
+        let pos = at(&harness, "Rename…").rect().center();
+        click(&mut harness, pos);
+        assert!(name_row_open(&harness), "Rename… opens the name row");
+        let named: Vec<_> =
+            harness.query_all_by_label("Name").filter(|node| !node.accesskit_node().is_hidden()).map(|node| node.accesskit_node().role()).collect();
+        assert_eq!(named, [egui::accesskit::Role::TextInput], "the field and its text are one labelled node");
+    }
+
+    // Delete of the preset being renamed closes the name row.
+    #[test]
+    fn named_row_delete_closes_the_rename_of_the_deleted_preset() {
+        let mut state = state();
+        state.style = NamedPresetStyle::Menu;
+        state.selected = Some(USER);
+        let mut harness = harness(state);
+        rename_with_f2(&mut harness);
+        assert!(name_row_open(&harness));
+        let pos = at(&harness, "Manage presets").rect().center();
+        click(&mut harness, pos);
+        let pos = at(&harness, "Delete").rect().center();
+        click(&mut harness, pos);
+        assert_eq!(harness.state().events, [NamedPresetEvent::Delete(USER)]);
+        assert!(!name_row_open(&harness), "the name row of the deleted preset is closed");
     }
 
     #[derive(Default)]

@@ -1024,8 +1024,8 @@ impl Named {
                         self.selected = Some(PresetKey::Item(id));
                     }
                 }
-                NamedPresetEvent::Rename { key: PresetKey::Item(id), name } => {
-                    let _ = self.library.rename(id, &name);
+                NamedPresetEvent::Rename { key: PresetKey::Item(id), text } => {
+                    let _ = self.library.rename(id, &text);
                 }
                 NamedPresetEvent::Delete(PresetKey::Item(id)) => {
                     let _ = self.library.delete(id);

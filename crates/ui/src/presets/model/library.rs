@@ -154,6 +154,9 @@ pub enum PresetError {
     NoPreset,
     /// The group would sit deeper than the library's nesting.
     TooDeep,
+    /// A rename to the name the preset or group already has (the same letters): nothing changes,
+    /// so the app saves nothing. [`PresetLibrary::apply`] returns no change for it.
+    Unchanged,
 }
 
 impl std::fmt::Display for PresetError {
@@ -164,6 +167,7 @@ impl std::fmt::Display for PresetError {
             PresetError::NoGroup => "no group has that path",
             PresetError::NoPreset => "no preset has that id",
             PresetError::TooDeep => "the group would be nested too deep",
+            PresetError::Unchanged => "the name is the current name",
         })
     }
 }
@@ -265,14 +269,15 @@ impl<T> PresetLibrary<T> {
 
     /// Renames preset `id`: trimmed; [`PresetError::EmptyName`] for a blank name,
     /// [`PresetError::NameTaken`] when another preset has it ignoring case (a change of case of
-    /// its own name is allowed).
+    /// its own name is allowed), [`PresetError::Unchanged`] for exactly its current name.
     pub fn rename(&mut self, id: PresetId, name: &str) -> Result<PresetChange, PresetError> {
         let name = name.trim();
         if name.is_empty() {
             return Err(PresetError::EmptyName);
         }
-        if self.get(id).is_none() {
-            return Err(PresetError::NoPreset);
+        let Some(current) = self.get(id) else { return Err(PresetError::NoPreset) };
+        if current.name == name {
+            return Err(PresetError::Unchanged);
         }
         if self.items().iter().any(|i| i.id != id && same_name(&i.name, name)) {
             return Err(PresetError::NameTaken);
@@ -292,6 +297,9 @@ impl<T> PresetLibrary<T> {
         let siblings = self.group(&parent).ok_or(PresetError::NoGroup)?;
         if !siblings.groups.iter().any(|g| g.name == path.name()) {
             return Err(PresetError::NoGroup);
+        }
+        if path.name() == name {
+            return Err(PresetError::Unchanged);
         }
         if siblings.groups.iter().any(|g| g.name != path.name() && same_name(&g.name, name)) {
             return Err(PresetError::NameTaken);
@@ -512,6 +520,8 @@ mod tests {
         assert_eq!(lib.get(second).unwrap().name, "red 2");
         assert_eq!(lib.rename(second, "RED"), Err(PresetError::NameTaken));
         assert!(lib.rename(first, "RED").is_ok());
+        assert_eq!(lib.rename(first, "RED"), Err(PresetError::Unchanged), "the same name changes nothing");
+        assert_eq!(lib.apply(&crate::presets::PresetEvent::Rename { key: PresetKey::Item(first), text: "RED".into() }), []);
         assert_eq!(lib.rename(second, "  "), Err(PresetError::EmptyName));
         assert_eq!(lib.add(&root, "", 3), Err(PresetError::EmptyName));
         assert_eq!(lib.name_error("red 2"), Some(PresetError::NameTaken));
