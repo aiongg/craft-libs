@@ -1,7 +1,5 @@
 //! The value of a layer's style: effect instances, their parameters, the Blending Options.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land (task AD-7)")]
-
 use std::collections::BTreeMap;
 
 use craft_theme::Srgba;
@@ -46,13 +44,24 @@ impl EffectKind {
     /// `dropShadow`. Apps convert their engine's effects through it.
     pub fn key(self) -> &'static str {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:53-64 `KINDS` (the first column).
-        todo!()
+        match self {
+            EffectKind::BevelEmboss => "bevelEmboss",
+            EffectKind::Stroke => "stroke",
+            EffectKind::InnerShadow => "innerShadow",
+            EffectKind::InnerGlow => "innerGlow",
+            EffectKind::Satin => "satin",
+            EffectKind::ColorOverlay => "colorOverlay",
+            EffectKind::GradientOverlay => "gradientOverlay",
+            EffectKind::PatternOverlay => "patternOverlay",
+            EffectKind::OuterGlow => "outerGlow",
+            EffectKind::DropShadow => "dropShadow",
+        }
     }
 
     /// The kind with [`key`](Self::key) `key`; `None` for any other text.
     pub fn from_key(key: &str) -> Option<EffectKind> {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:53-64 `KINDS`.
-        todo!()
+        EffectKind::ALL.into_iter().find(|kind| kind.key() == key)
     }
 
     /// Whether a layer may hold several instances of the kind (the `+` and `−` buttons): Stroke,
@@ -60,14 +69,14 @@ impl EffectKind {
     /// `…Multi` lists in a PSD.
     pub fn allows_several(self) -> bool {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:67 `MULTI`.
-        todo!()
+        matches!(self, EffectKind::Stroke | EffectKind::DropShadow | EffectKind::InnerShadow | EffectKind::ColorOverlay | EffectKind::GradientOverlay)
     }
 
     /// Whether a drag on the image moves this effect while its page is selected: Drop Shadow and
     /// Inner Shadow.
     pub fn drags_shadow(self) -> bool {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:498 `drags_shadow`.
-        todo!()
+        matches!(self, EffectKind::DropShadow | EffectKind::InnerShadow)
     }
 }
 
@@ -142,7 +151,11 @@ impl StyleParams {
     /// shows: the factory defaults under the instance's values).
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:1010-1024 (defaults under the shown values).
     pub fn over(&self, defaults: &StyleParams) -> StyleParams {
-        todo!()
+        let mut merged = self.clone();
+        for (key, value) in &defaults.0 {
+            merged.0.entry(key.clone()).or_insert_with(|| value.clone());
+        }
+        merged
     }
 }
 
@@ -185,7 +198,11 @@ impl BlendIfRange {
     /// `blend_quad` after reading).
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:1352-1365 `blend_quad`.
     pub fn ordered(values: [u8; 4]) -> BlendIfRange {
-        todo!()
+        let mut q = values;
+        for i in 1..4 {
+            q[i] = q[i].max(q[i - 1]);
+        }
+        BlendIfRange(q)
     }
 
     /// Handle `handle` (0..4) moved to `to`. `split` (Alt held): only that half moves. Otherwise
@@ -195,7 +212,27 @@ impl BlendIfRange {
     /// raised to at least the one before.
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:1399-1430 (the drag in `blend_if_bar`).
     pub fn moved(self, handle: usize, to: u8, split: bool) -> BlendIfRange {
-        todo!()
+        let Some(&current) = self.0.get(handle) else {
+            return self;
+        };
+        let mut n = self.0;
+        if split {
+            n[handle] = to;
+        } else {
+            let delta = i16::from(to) - i16::from(current);
+            let pair = if handle < 2 { 0 } else { 2 };
+            for v in &mut n[pair..pair + 2] {
+                *v = u8::try_from((i16::from(*v) + delta).clamp(0, 255)).unwrap_or(*v);
+            }
+        }
+        for i in 0..4 {
+            if i < handle {
+                n[i] = n[i].min(n[handle]);
+            } else if i > handle {
+                n[i] = n[i].max(n[handle]);
+            }
+        }
+        BlendIfRange::ordered(n)
     }
 }
 
@@ -295,7 +332,48 @@ impl LayerStyle {
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:730-735 `preview_hash` (FNV-1a over the fields
     // that change the rendered style).
     pub fn render_hash(&self) -> u64 {
-        todo!()
+        let mut h = Fnv::default();
+        h.count(self.effects.len());
+        for e in &self.effects {
+            h.u64(u64::from(e.id.0));
+            h.text(e.kind.key());
+            h.byte(u8::from(e.on));
+            h.count(e.params.0.len());
+            for (key, value) in &e.params.0 {
+                h.text(key);
+                h.value(value);
+            }
+        }
+        let b = &self.blending;
+        h.text(&b.blend);
+        h.f32(b.opacity);
+        h.f32(b.fill_opacity);
+        h.count(b.channels.len());
+        for &on in &b.channels {
+            h.byte(u8::from(on));
+        }
+        h.byte(match b.knockout {
+            Knockout::None => 0,
+            Knockout::Shallow => 1,
+            Knockout::Deep => 2,
+        });
+        for on in [
+            b.blend_interior_effects_as_group,
+            b.blend_clipped_layers_as_group,
+            b.transparency_shapes_layer,
+            b.layer_mask_hides_effects,
+            b.vector_mask_hides_effects,
+        ] {
+            h.byte(u8::from(on));
+        }
+        h.count(b.blend_if.len());
+        for entry in &b.blend_if {
+            h.count(entry.channel);
+            h.bytes(&entry.this_layer.0);
+            h.bytes(&entry.underlying.0);
+        }
+        h.f32(self.global_light);
+        h.0
     }
 }
 
@@ -309,4 +387,84 @@ pub enum LayerStylePage {
     Blending,
     /// An effect instance's page.
     Effect(EffectId),
+}
+
+/// FNV-1a over the fields that change a render.
+struct Fnv(u64);
+
+impl Default for Fnv {
+    fn default() -> Self {
+        Fnv(0xcbf2_9ce4_8422_2325)
+    }
+}
+
+impl Fnv {
+    fn byte(&mut self, b: u8) {
+        self.0 = (self.0 ^ u64::from(b)).wrapping_mul(0x100_0000_01b3);
+    }
+
+    fn bytes(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.byte(b);
+        }
+    }
+
+    fn u64(&mut self, n: u64) {
+        self.bytes(&n.to_le_bytes());
+    }
+
+    /// A length or index; lengths prefix every list so neighbouring lists cannot run together.
+    fn count(&mut self, n: usize) {
+        self.u64(n as u64);
+    }
+
+    fn text(&mut self, s: &str) {
+        self.count(s.len());
+        self.bytes(s.as_bytes());
+    }
+
+    fn f32(&mut self, x: f32) {
+        self.bytes(&(if x == 0.0 { 0.0 } else { x }).to_bits().to_le_bytes());
+    }
+
+    fn f64(&mut self, x: f64) {
+        self.u64((if x == 0.0 { 0.0 } else { x }).to_bits());
+    }
+
+    fn value(&mut self, v: &StyleValue) {
+        match v {
+            StyleValue::Number(n) => {
+                self.byte(0);
+                self.f64(*n);
+            }
+            StyleValue::Bool(b) => {
+                self.byte(1);
+                self.byte(u8::from(*b));
+            }
+            StyleValue::Text(s) => {
+                self.byte(2);
+                self.text(s);
+            }
+            StyleValue::Color(c) => {
+                self.byte(3);
+                for x in [c.r, c.g, c.b, c.a] {
+                    self.f32(x);
+                }
+            }
+            StyleValue::Contour(c) => {
+                self.byte(4);
+                self.text(&c.name);
+                self.count(c.points.len());
+                for p in &c.points {
+                    self.f32(p.input);
+                    self.f32(p.output);
+                    self.byte(u8::from(p.corner));
+                }
+            }
+            StyleValue::Other(s) => {
+                self.byte(5);
+                self.text(s);
+            }
+        }
+    }
 }
