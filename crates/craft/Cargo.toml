@@ -18,6 +18,8 @@ egui = { workspace = true, optional = true }
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 craft-ai-core = { workspace = true, optional = true }
 craft-atomic = { workspace = true, optional = true }
+craft-automation = { workspace = true, optional = true }
+craft-browse = { workspace = true, optional = true }
 craft-cms = { workspace = true, optional = true }
 craft-color = { workspace = true, optional = true }
 craft-crw = { workspace = true, optional = true }
@@ -30,6 +32,7 @@ craft-font-store = { workspace = true, optional = true }
 craft-imaging = { workspace = true, optional = true }
 craft-jpeg = { workspace = true, optional = true }
 craft-keymap = { workspace = true, optional = true }
+craft-layers = { workspace = true, optional = true }
 craft-media = { workspace = true, optional = true }
 craft-menu = { workspace = true, optional = true }
 craft-pdf = { workspace = true, optional = true }
@@ -48,7 +51,9 @@ craft-ui = { workspace = true, optional = true }
 ui = [
     "dep:craft-ui",
     "dep:egui",
+    "craft-browse?/ui",
     "craft-color?/ui",
+    "craft-dialogs?/ui",
     "craft-draw?/ui",
     "craft-font-manager?/ui",
     "craft-host/ui",
@@ -57,33 +62,36 @@ ui = [
     "craft-platform?/ui",
     "craft-print?/ui",
     "craft-quit?/ui",
+    "craft-text?/ui",
+    "craft-theme-store?/ui",
     "craft-update?/ui",
     "craft-window?/ui",
 ]
 screen-testing = [
     "ui",
     "craft-ui/screen-testing",
+    "craft-automation?/screen-testing",
+    "craft-browse?/screen-testing",
     "craft-color?/screen-testing",
     "craft-draw?/screen-testing",
     "craft-imaging?/screen-testing",
     "craft-keymap?/screen-testing",
+    "craft-layers?/screen-testing",
+    "craft-theme-store?/screen-testing",
     "craft-ui?/screen-testing",
     "craft-update?/screen-testing",
-]
-serde = [
-    "craft-color?/serde",
-    "craft-draw?/serde",
-    "craft-theme/serde",
-    "craft-theme-store?/serde",
-    "craft-ui?/serde",
 ]
 ai-core = ["dep:craft-ai-core"]
 
 atomic = ["dep:craft-atomic"]
 
+automation = ["dep:craft-automation"]
+
+browse = ["dep:craft-browse"]
+
 cms = ["dep:craft-cms"]
 
-color = ["dep:craft-color"]
+color = ["dep:craft-color", "settings", "platform"]
 
 crw = ["dep:craft-crw"]
 
@@ -109,6 +117,8 @@ jpeg = ["dep:craft-jpeg"]
 
 keymap = ["dep:craft-keymap"]
 
+layers = ["dep:craft-layers"]
+
 media = ["dep:craft-media"]
 media-bitstream = ["media", "craft-media/bitstream"]
 media-isobmff = ["media", "craft-media/isobmff"]
@@ -127,8 +137,12 @@ pdf-write-simple-text = ["pdf", "craft-pdf/write-simple-text"]
 platform = ["dep:craft-platform"]
 platform-appearance = ["platform", "craft-platform/appearance"]
 platform-browser = ["platform", "craft-platform/browser"]
+platform-clipboard = ["platform", "craft-platform/clipboard"]
 platform-dialogs = ["platform", "craft-platform/dialogs"]
-platform-theme = ["platform", "craft-platform/theme"]
+platform-pacing = ["platform", "craft-platform/pacing"]
+platform-pointer = ["platform", "craft-platform/pointer"]
+platform-screen = ["platform", "craft-platform/screen"]
+platform-usage = ["platform", "craft-platform/usage"]
 
 prepress = ["dep:craft-prepress"]
 prepress-flatten = ["prepress", "craft-prepress/flatten"]
@@ -157,6 +171,7 @@ text-danish = ["text", "craft-text/danish"]
 text-dutch = ["text", "craft-text/dutch"]
 text-estonian = ["text", "craft-text/estonian"]
 text-finnish = ["text", "craft-text/finnish"]
+text-font-picker = ["text", "craft-text/font-picker"]
 text-french = ["text", "craft-text/french"]
 text-galician = ["text", "craft-text/galician"]
 text-generator = ["text", "craft-text/generator"]
@@ -192,6 +207,7 @@ text-serbian = ["text", "craft-text/serbian"]
 text-slovak-gpl = ["text", "craft-text/slovak-gpl"]
 text-slovenian = ["text", "craft-text/slovenian"]
 text-spanish = ["text", "craft-text/spanish"]
+text-spell = ["text", "craft-text/spell"]
 text-swedish = ["text", "craft-text/swedish"]
 text-tamil = ["text", "craft-text/tamil"]
 text-telugu = ["text", "craft-text/telugu"]
@@ -200,10 +216,7 @@ text-turkish = ["text", "craft-text/turkish"]
 text-turkmen = ["text", "craft-text/turkmen"]
 text-ukrainian = ["text", "craft-text/ukrainian"]
 
-theme-ecolor = ["craft-theme/ecolor"]
-
 theme-store = ["dep:craft-theme-store"]
-theme-store-testing = ["theme-store", "craft-theme-store/testing"]
 
 ui-color_fonts = ["ui", "craft-ui/color_fonts"]
 ui-native-windows = ["ui", "craft-ui/native-windows"]
@@ -216,7 +229,6 @@ update = ["dep:craft-update"] # native only: downloads and installs through getr
 update-local-mirror = ["update", "craft-update/local-mirror"]
 
 window = ["dep:craft-window"]
-window-restore = ["window", "craft-window/restore"] # native only: the window-restore store
 window-restore-eframe = ["window", "craft-window/restore-eframe"] # native only: the window-restore store
 window-restore-ui = ["window", "craft-window/restore-ui"] # native only: the window-restore store
 window-restore-ui-glow = ["window", "craft-window/restore-ui-glow"] # native only: the window-restore store

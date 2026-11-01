@@ -1,4 +1,11 @@
-//! Position already shaped text within a fixed-width reading area.
+//! Position already shaped text within a fixed-width reading area; [`elide`](mod@elide) shortens text to
+//! fit.
+
+pub mod elide;
+#[cfg(test)]
+mod elide_tests;
+
+pub use elide::{ELLIPSIS, ElideAt, Elided, elide, elide_chars, elide_path, elided_galley, text_width};
 
 use std::sync::Arc;
 

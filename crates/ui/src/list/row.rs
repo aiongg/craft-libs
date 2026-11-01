@@ -17,12 +17,13 @@ use crate::icons::{self, Icon, IconSize};
 use crate::localized::SharedLabels as _;
 use crate::localized::{Labels, Word, Words};
 use crate::primitives::{FocusRing, Interactive};
-use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 use crate::typed_story;
 
-/// The thumbnail setting of a list (PhotoCraft's Layers Panel Options), which the host stores.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+/// The thumbnail setting of a list (PhotoCraft's Layers Panel Options), which the host stores
+/// (it is serde, for a panel's `*Settings`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ThumbSize {
     /// No thumbnail: rows are `list.row_height` high.
     #[default]
@@ -76,7 +77,7 @@ crate::words! {
 
 crate::words! {
     /// The description of a clipped row for a screen reader.
-    struct ClippedLabels {
+    pub(crate) struct ClippedLabels {
         clipped: "list.clipped" = "Clipped to the layer below";
     }
 }
@@ -165,6 +166,24 @@ pub enum RowEvent<K> {
         /// The thumbnail.
         which: ThumbTarget,
     },
+    /// A double click landed on the label area of a row the [`List`](super::List) can't rename
+    /// (one it renames starts the rename instead). Reported before the
+    /// [`Activate`](super::ListEvent::Activate) the same click makes, so a host can tell a double
+    /// click on the name from one elsewhere on the row (Layers' `ActivateOn::Name`).
+    LabelDoubleClicked {
+        /// The row.
+        row: K,
+    },
+    /// A drag started on an extra thumbnail of a row with [`thumb_drags`](ListRow::thumb_drags):
+    /// the thumbnail is dragged, not the row. A [`List`](super::List) starts no row drag for this
+    /// press; the host sets its own egui drag payload in the same pass (a layer's mask, which only
+    /// the footer's Delete takes).
+    ThumbDrag {
+        /// The row.
+        row: K,
+        /// The thumbnail the press started on: always an [`Extra`](ThumbTarget::Extra) one.
+        which: ThumbTarget,
+    },
 }
 
 /// One of a row's thumbnails.
@@ -221,6 +240,8 @@ pub struct RowResponse<K> {
 pub struct ListRowStyle {
     /// Height of a row without a thumbnail: `list.row_height`.
     pub row_height: f32,
+    /// Height of a row in a dense list (a layer's sub-row, a compact panel): `list.row_height_dense`.
+    pub row_height_dense: f32,
     /// Thumbnail sides: `list.thumb`.
     pub thumb: ThumbSizes,
     /// Added to the thumbnail for the row's height: `list.thumb_pad`.
@@ -275,6 +296,8 @@ pub struct ListRowStyle {
     pub hover: Color32,
     pub selected: Color32,
     pub selected_hover: Color32,
+    /// `list.stripe`: behind every second row of a striped list, under the hover and selected fills.
+    pub stripe: Color32,
     /// The hairlines: `list.divider`, one physical pixel.
     pub divider: Stroke,
     /// `list.thumb.border` and `list.thumb.border.selected`.
@@ -356,7 +379,8 @@ impl ListRowStyle {
 ///   while the keyboard is the last input), [`dimmed`](ListRow::dimmed) (a hidden layer's faint
 ///   label), [`highlight`](ListRow::highlight) (the hover fill without the pointer),
 ///   [`drop_mark`](ListRow::drop_mark) and [`renaming`](ListRow::renaming).
-/// - **Label.** One line, cut with an ellipsis, showing the whole text as a tooltip. Trailing
+/// - **Label.** One line, cut with an ellipsis. The row shows a tooltip only when
+///   [`tooltip`](ListRow::tooltip) sets one. Trailing
 ///   items are placed first, from the trailing edge inward; those marked
 ///   [optional](ListRow::optional_item) drop out, in the order given, before the label would
 ///   get narrower than `list.min_label`, and the indent shrinks before the label gets narrower
@@ -378,13 +402,18 @@ pub struct ListRow<'a, K> {
     label: String,
     detail: Option<String>,
     description: Option<String>,
+    tooltip: Option<egui::WidgetText>,
+    accessible_name: Option<String>,
     columns: Vec<ToggleColumn>,
     icon: Option<Icon>,
+    glyph: Option<Thumbnail<'a>>,
+    striped: bool,
     thumb: ThumbSize,
     thumbnail: Option<Thumbnail<'a>>,
     thumb_width: Option<f32>,
     extras: Vec<ExtraThumb<'a>>,
     target: Option<ThumbTarget>,
+    thumb_drags: bool,
     trailing: Vec<TrailingItem<'a>>,
     selected: bool,
     focused: bool,
@@ -394,14 +423,24 @@ pub struct ListRow<'a, K> {
     clipped: bool,
     italic: bool,
     renaming: bool,
+    rule: bool,
     drop: Option<DropMark>,
     indent: f32,
+    paint_depth: Option<usize>,
     indented_toggles: bool,
+    rename_field_name: Option<String>,
     role: Role,
     position: Option<usize>,
     slot: Option<Rect>,
     branch: Option<Branch>,
     tree_text: Option<Arc<TreeText>>,
+}
+
+fn with_tooltip(response: Response, tooltip: Option<egui::WidgetText>) -> Response {
+    match tooltip {
+        Some(tooltip) => response.on_hover_text(tooltip),
+        None => response,
+    }
 }
 
 /// The id of the row for `key` among rows shown in a `Ui` whose scope is `scope`: the base of the
@@ -419,13 +458,18 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             label: label.into(),
             detail: None,
             description: None,
+            tooltip: None,
+            accessible_name: None,
             columns: Vec::new(),
             icon: None,
+            glyph: None,
+            striped: false,
             thumb: ThumbSize::None,
             thumbnail: None,
             thumb_width: None,
             extras: Vec::new(),
             target: None,
+            thumb_drags: false,
             trailing: Vec::new(),
             selected: false,
             focused: false,
@@ -435,9 +479,12 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             clipped: false,
             italic: false,
             renaming: false,
+            rule: false,
             drop: None,
             indent: 0.0,
+            paint_depth: None,
             indented_toggles: false,
+            rename_field_name: None,
             role: Role::ListBoxOption,
             position: None,
             slot: None,
@@ -495,17 +542,28 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// label, whatever the indent (which shrinks). Equals [`RowResponse::min_width`] of the shown
     /// row; measures without showing.
     pub fn min_width(&self, ui: &Ui) -> f32 {
+        self.min_width_with(ui, self.branch.is_some_and(|b| b.group))
+    }
+
+    /// [`min_width`](ListRow::min_width) of the row as a row of a tree [`List`](super::List) shows
+    /// it, with the disclosure column when `has_children`. The indent shrinks before the label,
+    /// so the depth does not change the width.
+    pub fn min_width_in_tree(&self, ui: &Ui, has_children: bool) -> f32 {
+        self.min_width_with(ui, has_children)
+    }
+
+    fn min_width_with(&self, ui: &Ui, group: bool) -> f32 {
         let style = Self::style(&Tokens::of(ui));
-        let (column, leading) = self.extent(&style);
+        let (column, leading) = self.extent(&style, group);
         let widths: Vec<(f32, bool)> = self.trailing.iter().map(|t| (t.width, t.optional)).collect();
         min_width(&style, (self.columns.len(), self.indented_toggles), column, leading, &widths)
     }
 
     /// The width of a tree row's disclosure and clipping columns, and of the leading part.
-    fn extent(&self, style: &ListRowStyle) -> (f32, Option<f32>) {
-        let disclosure = self.branch.map_or(0.0, |b| if b.group { style.disclosure } else { 0.0 });
+    fn extent(&self, style: &ListRowStyle, group: bool) -> (f32, Option<f32>) {
+        let disclosure = if group { style.disclosure } else { 0.0 };
         let marker = if self.clipped { style.icon_size } else { 0.0 };
-        (disclosure + marker, leading_width(style, self.thumb, self.icon.is_some(), self.thumb_width, &self.extras))
+        (disclosure + marker, leading_width(style, self.thumb, self.icon.is_some() || self.glyph.is_some(), self.thumb_width, &self.extras))
     }
 
     /// The row's key.
@@ -529,9 +587,23 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self.show(ui)
     }
 
+    /// The row's AccessKit name when it differs from the drawn text (a row whose icon carries
+    /// part of the meaning). Without it the name is the label, then the detail.
+    pub fn accessible_name(mut self, name: impl Into<String>) -> Self {
+        self.accessible_name = Some(name.into()).filter(|n| !n.is_empty());
+        self
+    }
+
     /// What a screen reader adds after the row's name; not drawn. Empty is none.
     pub fn description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into()).filter(|d| !d.is_empty());
+        self
+    }
+
+    /// A tooltip shown while the pointer rests on the row, whether or not the label is cut
+    /// (PhotoCraft's file list shows the full path).
+    pub fn tooltip(mut self, tooltip: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(tooltip.into());
         self
     }
 
@@ -551,6 +623,25 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// An icon before the label. A thumbnail takes its place.
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
+        self.glyph = None;
+        self
+    }
+
+    /// A glyph painted by `paint` before the label, in the icon's slot: the same place and size as
+    /// [`icon`](ListRow::icon) (`size.icon.md` square, centred on the row), with no frame, for a
+    /// status mark the host draws itself. `paint` draws into the painter, clipped to that rect. The
+    /// row's width and AccessKit tree are those of a row with an icon. It replaces an icon, and an
+    /// icon replaces it (the last one set wins). A thumbnail takes its place.
+    pub fn glyph(mut self, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
+        self.glyph = Some(Box::new(paint));
+        self.icon = None;
+        self
+    }
+
+    /// Fills the row with `list.stripe` under the hover and selected fills, for every second row
+    /// of a striped list (the host counts the rows).
+    pub fn striped(mut self, striped: bool) -> Self {
+        self.striped = striped;
         self
     }
 
@@ -599,6 +690,17 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// only. Without a call no thumbnail is marked. A click on a thumbnail reports [`RowEvent::ThumbClicked`].
     pub fn thumb_target(mut self, target: ThumbTarget) -> Self {
         self.target = Some(target);
+        self
+    }
+
+    /// A press that starts a drag on an [extra thumbnail](ListRow::extra_thumb) drags the
+    /// thumbnail instead of the row (default false): the row reports [`RowEvent::ThumbDrag`] in the
+    /// pass the drag starts, and a [`List`](super::List) starts no row drag for it. A drag from the
+    /// first thumbnail, the label or anywhere else drags the row as before. Clicks on any
+    /// thumbnail still report [`RowEvent::ThumbClicked`]. PhotoCraft's mask thumbnails: a drag
+    /// from one carries the mask to the footer's Delete.
+    pub fn thumb_drags(mut self, thumb_drags: bool) -> Self {
+        self.thumb_drags = thumb_drags;
         self
     }
 
@@ -655,6 +757,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
+    /// A `list.divider` hairline along the row's bottom edge, across its whole width, in a
+    /// [plain](ListRow::layer) row too (default false): the History panel's rule under its last
+    /// snapshot. A layer-form row already draws it where `list.dividers` is on, and draws it once.
+    pub fn rule(mut self, rule: bool) -> Self {
+        self.rule = rule;
+        self
+    }
+
     /// The drop marker of a drag in progress, if this row is its target.
     pub fn drop_mark(mut self, mark: Option<DropMark>) -> Self {
         self.drop = mark;
@@ -665,6 +775,22 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// shrinks before the label gets narrower than `list.min_label`.
     pub fn indent(mut self, indent: f32) -> Self {
         self.indent = indent.max(0.0);
+        self
+    }
+
+    /// The tree depth the indent is painted at, when it differs from the depth the list has the
+    /// row at: a filtered view lists a row under the ancestors shown (its depth for the keys and
+    /// AccessKit) and keeps the indent of its true depth. Only a row of a tree list indents by
+    /// depth; the depth counts as [`TreeRow`](super::TreeRow)'s does.
+    pub fn paint_depth(mut self, depth: usize) -> Self {
+        self.paint_depth = Some(depth);
+        self
+    }
+
+    /// The accessible name of the rename field (default: the row's label): the field's purpose,
+    /// as in History's "Name".
+    pub fn rename_field_name(mut self, name: impl Into<String>) -> Self {
+        self.rename_field_name = Some(name.into());
         self
     }
 
@@ -694,6 +820,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let l = &tokens.component.list;
         ListRowStyle {
             row_height: l.row_height,
+            row_height_dense: l.row_height_dense,
             thumb: l.thumb,
             thumb_pad: l.thumb_pad,
             thumb_row_min: l.thumb_row_min,
@@ -725,6 +852,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             hover: l.hover.to_egui(),
             selected: l.selected.to_egui(),
             selected_hover: l.selected_hover.to_egui(),
+            stripe: l.stripe.to_egui(),
             divider: Stroke::new(Hairline::Hairline.width(1.0), l.divider.to_egui()),
             thumb_border: l.thumb_border.to_egui(),
             thumb_border_selected: l.thumb_border_selected.to_egui(),
@@ -752,13 +880,18 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             label,
             detail,
             description,
+            tooltip,
+            accessible_name,
             columns,
             icon,
+            glyph,
+            striped,
             thumb,
             thumbnail,
             thumb_width,
             extras,
             target,
+            thumb_drags,
             trailing,
             selected,
             focused,
@@ -768,9 +901,12 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             clipped,
             italic,
             renaming,
+            rule,
             drop,
             indent,
+            paint_depth,
             indented_toggles,
+            rename_field_name,
             role,
             position,
             slot,
@@ -782,16 +918,19 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         style.divider.width = Hairline::Hairline.width(ui.pixels_per_point());
         let height = style.height(thumb, detail.is_some());
         let indent = indent + if clipped { style.indent } else { 0.0 };
-        let (indent, disclosure) =
-            branch.map_or((indent, 0.0), |b| (indent + b.steps() as f32 * style.indent, if b.group { style.disclosure } else { 0.0 }));
+        let (indent, disclosure) = branch.map_or((indent, 0.0), |b| {
+            let steps = Branch { depth: paint_depth.unwrap_or(b.depth), ..b }.steps();
+            (indent + steps as f32 * style.indent, if b.group { style.disclosure } else { 0.0 })
+        });
         // The clipping arrow takes a column of its own after the disclosure triangle.
         let marker = if clipped { style.icon_size } else { 0.0 };
         let column = disclosure + marker;
         let rect = slot.unwrap_or_else(|| ui.allocate_space(vec2(ui.available_width(), height)).1);
         let row_id = row_id(ui.scope_id(), &key);
-        let name = match &detail {
-            Some(detail) => format!("{label}, {detail}"),
-            None => label.clone(),
+        let name = match (accessible_name, &detail) {
+            (Some(name), _) => name,
+            (None, Some(detail)) => format!("{label}, {detail}"),
+            (None, None) => label.clone(),
         };
         let mut element = Interactive::with_id(row_id, role, name.clone())
             .sense(Sense::CLICK | Sense::DRAG)
@@ -805,6 +944,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             element = element.position_in_set(position);
         }
         let response = element.interact_at(ui, rect).finish(ui);
+        let response = with_tooltip(response, tooltip);
         let description = if clipped { Some(clipped_description(ui, description)) } else { description };
         if let Some(description) = description {
             ui.ctx().accesskit_node_builder(response.id, |node| node.set_description(description));
@@ -816,7 +956,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
 
         let side = style.thumb_side(thumb);
         let first_width = (side > 0.0).then(|| thumb_width.unwrap_or(side));
-        let leading = leading_width(&style, thumb, icon.is_some(), thumb_width, &extras);
+        let leading = leading_width(&style, thumb, icon.is_some() || glyph.is_some(), thumb_width, &extras);
         let extras = if side > 0.0 && thumb != ThumbSize::None { extras } else { Vec::new() };
         let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
         let min_width = min_width(&style, (columns.len(), indented_toggles), column, leading, &widths);
@@ -827,12 +967,13 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let visible = ui.is_rect_visible(rect);
         let hovered = ui.rect_contains_pointer(rect) && ui.is_enabled();
         if visible {
-            paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer }, columns.len(), &geometry);
+            paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer, striped }, columns.len(), &geometry);
+            paint_rule(ui, &style, rect, (rule, layer));
         }
 
         let mut toggles = Vec::with_capacity(columns.len());
         for (index, column) in columns.iter().enumerate() {
-            let cell = Cell { index, row_id, key: &key, row_label: &label };
+            let cell = Cell { index, row_id, key: &key, row_label: &label, selected };
             let offset = geometry.toggles_start + index as f32 * style.toggle_column;
             let at = geometry.span(rect, offset, style.toggle_column);
             // A sweep crosses an indented cell anywhere between the leading edge and the cell.
@@ -891,8 +1032,9 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
                 {
                     events.push(RowEvent::ThumbClicked { row: key.clone(), which: *which });
                 }
-            } else if let Some(icon) = icon {
-                icons::paint_in(ui, at, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), style.icon);
+                report_thumb_drag(ui, (thumb_drags, &response), &key, &thumbs, &mut events);
+            } else {
+                paint_icon_slot(ui, &style, at, glyph, icon);
             }
         }
 
@@ -909,7 +1051,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             (false, false) => (style.text, style.detail),
         };
         if renaming {
-            rename::show(ui, row_id, &key, &label, band, &mut events);
+            rename::show(ui, row_id, &key, &label, rename_field_name.as_deref().unwrap_or(&label), band, &mut events);
         } else if visible {
             paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), (text, italic));
         }
@@ -1051,9 +1193,10 @@ struct Fill {
     selected: bool,
     lit: bool,
     layer: bool,
+    striped: bool,
 }
 
-fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, lit, layer }: Fill, columns: usize, geometry: &Geometry) {
+fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, lit, layer, striped }: Fill, columns: usize, geometry: &Geometry) {
     let fill = match (selected, lit, layer) {
         // The layer form shows no change under the pointer once selected.
         (true, _, true) => style.layer_selected,
@@ -1065,6 +1208,9 @@ fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, 
     };
     let painter = ui.painter();
     let radius = corner_radius(if layer { style.layer_radius } else { style.radius });
+    if striped {
+        painter.rect_filled(rect, radius, style.stripe);
+    }
     if fill != Color32::TRANSPARENT {
         painter.rect_filled(rect, radius, fill);
     }
@@ -1077,6 +1223,38 @@ fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, 
         for i in 1..=columns {
             painter.vline(geometry.edge(rect, i as f32 * style.toggle_column).round_to_pixel_center(ppp), rect.y_range(), style.divider);
         }
+    }
+}
+
+/// The [`ListRow::rule`] under a row of `rect`, when `rule`: `style.divider` along the bottom
+/// edge, on the last physical pixel inside the row (as the layer form's divider), unless `layer`
+/// already drew it there (`style.dividers` on). Nothing without `rule`.
+fn paint_rule(ui: &Ui, style: &ListRowStyle, rect: Rect, (rule, layer): (bool, bool)) {
+    if !rule || layer && style.dividers || !ui.is_rect_visible(rect) {
+        return;
+    }
+    let y = (rect.bottom() - style.divider.width / 2.0).round_to_pixel_center(ui.pixels_per_point());
+    ui.painter().hline(rect.x_range(), y, style.divider);
+}
+
+/// [`ListRow::thumb_drags`], when `thumb_drags`: when `response` starts a primary drag
+/// (`drag_started_by(Primary)`) whose press origin (`pointer.press_origin()`) lies in an
+/// [`Extra`](ThumbTarget::Extra) thumbnail of `thumbs` (the rects drawn this pass), reports
+/// [`RowEvent::ThumbDrag`] for it. [`List`](super::List)'s `row_pointer` reads the event and skips
+/// its `start_drag`. Nothing without `thumb_drags`.
+fn report_thumb_drag<K: Clone>(
+    ui: &Ui,
+    (thumb_drags, response): (bool, &Response),
+    key: &K,
+    thumbs: &[(ThumbTarget, Rect)],
+    events: &mut Vec<RowEvent<K>>,
+) {
+    if !thumb_drags || !response.drag_started_by(egui::PointerButton::Primary) {
+        return;
+    }
+    let Some(origin) = ui.input(|i| i.pointer.press_origin()) else { return };
+    if let Some((which @ ThumbTarget::Extra(_), _)) = thumbs.iter().find(|(_, rect)| rect.contains(origin)) {
+        events.push(RowEvent::ThumbDrag { row: key.clone(), which: *which });
     }
 }
 
@@ -1153,6 +1331,15 @@ fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbn
     }
     let color = if selected { style.thumb_border_selected } else { style.thumb_border };
     ui.painter().rect_stroke(at, corner_radius(style.thumb_radius), Stroke::new(1.0, color), StrokeKind::Outside);
+}
+
+/// The icon, or the host's glyph, in the slot `at`.
+fn paint_icon_slot(ui: &Ui, style: &ListRowStyle, at: Rect, glyph: Option<Thumbnail<'_>>, icon: Option<Icon>) {
+    if let Some(paint) = glyph {
+        paint(&ui.painter().with_clip_rect(at), at);
+    } else if let Some(icon) = icon {
+        icons::paint_in(ui, at, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), style.icon);
+    }
 }
 
 /// The label, and the detail line under it, centred in `band` and cut with an ellipsis.
@@ -1371,12 +1558,12 @@ fn layer(name: &str, locked: bool) -> Layer {
     Layer { name: name.to_owned(), visible: true, locked }
 }
 
-impl Default for Layers {
-    fn default() -> Self {
+impl Layers {
+    fn new(words: &StoryLabels) -> Self {
         let rows = vec![
             layer("Headline", false),
             layer("Photo with a name too long for the panel to show whole", false),
-            layer("Shadow", false),
+            layer(&words.shadow, false),
             layer("Background", true),
         ];
         Self { rows, selected: Some(0), renaming: None }
@@ -1391,7 +1578,7 @@ pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
     let thumb = args.thumbnails.size();
     let (detail, highlight, layer) = (args.detail, args.highlight_second_row, args.layer_form);
     let state_id = ui.scope_id().with("list-row-story");
-    let mut layers = ui.data(|d| d.get_temp::<Layers>(state_id)).unwrap_or_default();
+    let mut layers = ui.data(|d| d.get_temp::<Layers>(state_id)).unwrap_or_else(|| Layers::new(&StoryLabels::of(ui)));
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         ui.spacing_mut().item_spacing.y = 0.0;

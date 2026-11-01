@@ -10,13 +10,14 @@ use craft_ui::composites::{
     SectionLabel, SliderRow, ToastStack, Tone,
 };
 use craft_ui::controls::{
-    AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, PointPicker, Progress,
-    RadioGroup, Segmented, Select, Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
+    AltTextField, AngleDial, Autocomplete, Badge, BadgeStyle, BadgeTone, BreadcrumbBar, Button, Checkbox, ChipField, DatePicker, IconButton,
+    IconPicker, IndicatorColors, Kbd, Link, NumberField, PointPicker, Progress, RadioGroup, Rating, ResetDot, Segmented, Select, Slider, SplitButton,
+    Swatch, Switch, TextField, ToggleButton, Tooltip, TreePicker,
 };
 use craft_ui::docking::DockLook;
-use craft_ui::list::ListRow;
+use craft_ui::list::{EventLog, FindingsList, ListRow, MetadataTable, Table};
 use craft_ui::menu::Menu;
-use craft_ui::patterns::{CommandPalette, Inspector, OptionsBar, StatusBar, Toolbar};
+use craft_ui::patterns::{AlignBar, CommandPalette, Inspector, OptionsBar, StatusBar, Toolbar};
 use craft_ui::presets::style::PresetStyle;
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::tab_strip::Tab;
@@ -358,6 +359,9 @@ fn preset_style() {
         d.line("cell_radius", s.cell_radius.nw).line("caption_gap", s.caption_gap).line("slider_width", s.slider_width);
         d.line("thumb_list_min", s.thumb_list_min).line("thumb_list_max", s.thumb_list_max).line("ghost_thumb", s.ghost_thumb);
         d.line("toolbar_gap", s.toolbar_gap);
+        d.line("picker_wide.width", s.picker_wide.x).line("picker_wide.height", s.picker_wide.y).line("picker_square", s.picker_square);
+        d.line("picker_cell", s.picker_cell).line("name_width", s.name_width).line("popup_max_height", s.popup_max_height);
+        d.line("footer_room", s.footer_room);
         for (key, stroke) in [("border", s.border), ("ring.hover", s.ring_hover), ("ring.selected", s.ring_selected), ("ring.halo", s.ring_halo)] {
             d.line(&format!("{key}.width"), stroke.width).line(&format!("{key}.color"), stroke.color);
         }
@@ -784,7 +788,11 @@ fn marquee() {
 fn list_row() {
     check("list_row.txt", |d, t| {
         let s = ListRow::<u8>::style(t);
-        d.line("row_height", s.row_height).line("thumb.sm", s.thumb.sm).line("thumb.md", s.thumb.md).line("thumb.lg", s.thumb.lg);
+        d.line("row_height", s.row_height)
+            .line("row_height_dense", s.row_height_dense)
+            .line("thumb.sm", s.thumb.sm)
+            .line("thumb.md", s.thumb.md)
+            .line("thumb.lg", s.thumb.lg);
         d.line("thumb_pad", s.thumb_pad).line("thumb_row_min", s.thumb_row_min).line("pad_x", s.pad_x).line("gap", s.gap);
         d.line("indent", s.indent)
             .line("disclosure", s.disclosure)
@@ -878,5 +886,168 @@ fn preferences() {
             .line("page_row_height", s.page_row_height)
             .line("hex_width", s.hex_width)
             .line("checks_inset", s.checks_inset);
+    });
+}
+
+#[test]
+fn alt_text() {
+    check("alt_text.txt", |d, t| {
+        let s = AltTextField::style(t);
+        d.line("row_gap", s.row_gap).line("box_width", s.box_width).line("prompt", s.prompt);
+    });
+}
+
+/// The list rows and the popup surface are the select's (`select.txt`); the dump has what the
+/// autocomplete adds.
+#[test]
+fn autocomplete() {
+    check("autocomplete.txt", |d, t| {
+        let s = Autocomplete::style(t);
+        d.line("min_width", s.min_width).line("gap", s.gap).line("list.label", role(s.list.label));
+        d.line("list.height", s.list.height).line("list.max_height", s.list.max_height).line("list.radius", s.list.radius);
+        d.line("description", role(s.description));
+        d.line("completion.fill", s.completion_fill).line("completion.text", s.completion_text);
+        surface(d, "popup", &s.popup);
+    });
+}
+
+#[test]
+fn breadcrumb() {
+    check("breadcrumb.txt", |d, t| {
+        let s = BreadcrumbBar::<()>::style(t);
+        d.line("height", s.height).line("min_segment", s.min_segment).line("gap", s.gap).line("separator", s.separator);
+        d.line("muted", s.muted).line("text", s.text).line("ancestor", role(s.ancestor)).line("current", role(s.current));
+    });
+}
+
+#[test]
+fn chip_field() {
+    check("chip_field.txt", |d, t| {
+        for (size, name) in SIZES {
+            let s = ChipField::style(t, size);
+            d.group(&format!("size.{name}"), |d| {
+                d.line("height", s.height).line("cross", s.cross).line("radius", s.radius);
+            });
+        }
+        let s = ChipField::style(t, ControlSize::Md);
+        d.line("pad_x", s.pad_x).line("gap", s.gap).line("cross_arm", s.cross_arm).line("cross_stroke", s.cross_stroke);
+        d.line("edge", s.edge).line("normal", s.normal).line("muted", s.muted).line("disabled", s.disabled).line("label", role(s.label));
+    });
+}
+
+/// The cells are the select list's rows (`select.txt`); the dump has what the date picker adds.
+#[test]
+fn date_picker() {
+    check("date_picker.txt", |d, t| {
+        for (size, name) in SIZES {
+            let s = DatePicker::style(t, size);
+            d.group(&format!("size.{name}"), |d| {
+                d.line("cell_height", s.list.height);
+            });
+        }
+        let s = DatePicker::style(t, ControlSize::Md);
+        d.line("popup_width", s.popup_width).line("page_button", s.page_button).line("cell", s.cell).line("cell_pad", s.cell_pad);
+        d.line("gap", s.gap).line("title", role(s.title)).line("title_text", s.title_text);
+        d.line("weekday", role(s.weekday)).line("weekday_text", s.weekday_text).line("today_ring", s.today_ring);
+    });
+}
+
+#[test]
+fn icon_picker() {
+    check("icon_picker.txt", |d, t| {
+        let s = IconPicker::style(t);
+        d.line("cell", s.cell).line("gap", s.gap).line("inset", s.inset).line("max_height", s.max_height);
+        d.line("group", role(s.group)).line("group_text", s.group_text).line("icon", s.icon).line("icon_disabled", s.icon_disabled);
+    });
+}
+
+#[test]
+fn rating() {
+    check("rating.txt", |d, t| {
+        for (size, name) in SIZES {
+            let s = Rating::style(t, size);
+            d.group(&format!("size.{name}"), |d| {
+                d.line("cell", s.cell).line("star", s.star).line("badge_star", s.badge_star).line("badge_step", s.badge_step);
+            });
+        }
+        let s = Rating::style(t, ControlSize::Md);
+        d.line("lit", s.lit).line("unlit", s.unlit).line("disabled", s.disabled);
+    });
+}
+
+#[test]
+fn reset_dot() {
+    check("reset_dot.txt", |d, t| {
+        let s = ResetDot::style(t);
+        d.line("size", s.size).line("dot", s.dot).line("radius", s.radius).line("changed", s.changed).line("disabled", s.disabled);
+    });
+}
+
+/// The whole button's look is the button's (`button.txt`); the dump has what the split adds.
+#[test]
+fn split_button() {
+    check("split_button.txt", |d, t| {
+        let s = SplitButton::<()>::style(t, ButtonVariant::Secondary, ControlSize::Md);
+        d.line("arrow_width", s.arrow_width).line("divider_inset", s.divider_inset);
+        d.line("arrow", s.arrow).line("arrow_disabled", s.arrow_disabled);
+    });
+}
+
+/// The select's and list row's looks are theirs (`select.txt`, `list_row.txt`); the dump has what
+/// the tree picker adds.
+#[test]
+fn tree_picker() {
+    check("tree_picker.txt", |d, t| {
+        let s = TreePicker::<u8>::style(t, ControlSize::Md);
+        d.line("list_height", s.list_height).line("min_popup_width", s.min_popup_width);
+    });
+}
+
+#[test]
+fn event_log() {
+    check("event_log.txt", |d, t| {
+        let s = EventLog::style(t);
+        d.line("details_height", s.details_height).line("details_pad_y", s.details_pad_y).line("details_pad_x", s.details_pad_x);
+        d.line("details_fill", s.details_fill).line("details_radius", s.details_radius).line("min_list_height", s.min_list_height);
+        d.line("age", role(s.age)).line("info", s.info).line("warning", s.warning).line("error", s.error);
+    });
+}
+
+#[test]
+fn findings() {
+    check("findings.txt", |d, t| {
+        let s = FindingsList::style(t);
+        d.line("status_dot", s.status_dot).line("good", s.good).line("bad", s.bad).line("line_height", s.line_height);
+    });
+}
+
+#[test]
+fn metadata_table() {
+    check("metadata_table.txt", |d, t| {
+        let s = MetadataTable::style(t);
+        d.line("column_gap", s.column_gap).line("row_gap", s.row_gap).line("group_gap", s.group_gap).line("max_height", s.max_height);
+        d.line("stripe", s.stripe).line("name", role(s.name)).line("name_line", s.name_line);
+        d.line("value", role(s.value)).line("value_text", s.value_text).line("group", role(s.group));
+    });
+}
+
+#[test]
+fn table() {
+    check("table.txt", |d, t| {
+        let s = Table::<'static, (), (), [()]>::style(t);
+        d.line("header_height", s.header_height).line("row_height", s.row_height).line("cell_pad_x", s.cell_pad_x);
+        d.line("sort_glyph", s.sort_glyph).line("sort_gap", s.sort_gap).line("grip_width", s.grip_width);
+        d.line("header_text", s.header_text).line("header_text_sorted", s.header_text_sorted);
+        d.line("header_hover", s.header_hover).line("header_pressed", s.header_pressed);
+        d.line("drop_line", s.drop_line).line("drop_line_width", s.drop_line_width).line("drop_line_slack", s.drop_line_slack);
+        d.line("min_column", s.min_column).line("edge", s.edge).line("edge_focus", s.edge_focus).line("stripe", s.stripe);
+    });
+}
+
+#[test]
+fn align_bar() {
+    check("align_bar.txt", |d, t| {
+        let s = AlignBar::style(t);
+        d.line("button", s.button).line("icon", s.icon).line("menu_gap", s.menu_gap);
     });
 }

@@ -1,5 +1,6 @@
 use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui::interface_scale::InterfaceScale;
+use craft_ui::testing::i18n_audit;
 use craft_ui_gallery::Gallery;
 use craft_ui_gallery::layout::{GalleryWorkspace, PanelId, PreviewView, VariantAxis};
 use egui::{Context, RawInput};
@@ -660,8 +661,14 @@ fn click_nth(ctx: &Context, gallery: &mut Gallery, name: &str, role: egui::acces
 /// A component with several stories: its name and the ids of its stories. It is the first by name
 /// in the first level that has one, so its row is near the top of the list.
 fn component_with_stories(gallery: &Gallery) -> (&'static str, Vec<&'static str>) {
+    component_with_at_most(gallery, usize::MAX)
+}
+
+/// [`component_with_stories`] among the components with at most `most` stories. The Stories
+/// panel's list draws only the rows in view, so a test that looks for every row needs few stories.
+fn component_with_at_most(gallery: &Gallery, most: usize) -> (&'static str, Vec<&'static str>) {
     let stories = gallery.stories();
-    let several = |c: &str| stories.iter().filter(|s| s.component == c).count() > 1;
+    let several = |c: &str| (2..=most).contains(&stories.iter().filter(|s| s.component == c).count());
     let level = craft_ui::story::Level::ALL.into_iter().find(|l| stories.iter().any(|s| s.level == *l && several(s.component))).expect("a level");
     let component =
         stories.iter().filter(|s| s.level == level && several(s.component)).map(|s| s.component).min_by_key(|c| c.to_lowercase()).unwrap();
@@ -751,7 +758,7 @@ fn closing_a_tab_fronts_the_overview_and_drops_the_story() {
     gallery.select(ids[1]);
     assert_eq!(gallery.selected(), Some(ids[1]));
     open_tab_menu(&ctx, &mut gallery, component);
-    click(&ctx, &mut gallery, "Close Panel", Role::Button);
+    click(&ctx, &mut gallery, "Close", Role::Button);
     assert_eq!(gallery.open_tabs(), [other]);
     assert_eq!(gallery.front_tab(), PanelId::View);
     gallery.open_component(component);
@@ -779,7 +786,7 @@ fn a_tile_click_moves_the_side_panels_and_a_story_pick_changes_the_tile() {
     let ctx = Context::default();
     ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
-    let (component, ids) = component_with_stories(&gallery);
+    let (component, ids) = component_with_at_most(&gallery, 4);
     let neighbour = neighbour_of(&gallery, component);
     let tree = settled_tree(&ctx, &mut gallery);
     assert_eq!(gallery.selected(), None);
@@ -1053,133 +1060,411 @@ fn a_double_click_on_a_tile_header_opens_the_component() {
     assert_eq!(gallery.front_tab(), PanelId::Component(neighbour));
 }
 
+/// The stories that show the sample host app.
+const MOCK_APP: &[&str] =
+    &["patterns/app-preview/photo-editor", "shells/canvas/body_only", "shells/canvas/revealed", "shells/canvas/rtl", "shells/canvas/standard"];
+
 /// Host text a story writes itself that equals the English of a registered word:
 /// `(text, stories, reason)`. The same text bypassing `Words` in another story still fails.
 const STORY_TEXT: &[(&str, &[&str], &str)] = &[
     (
         "Background",
         &[
-            "controls/search-field/states",
-            "controls/search-field/filter",
-            "composites/list-row/layers",
-            "composites/list-row/masks",
-            "composites/list/ten-thousand-rows",
-            "composites/list/reorder",
-            "composites/list/reorder-tree",
-            "composites/list/reorder-refused",
-            "composites/list/reorder-copy",
-            "composites/list/tree",
+            "composites/layers-panel/drag",
+            "composites/layers-panel/filtered",
+            "composites/layers-panel/illustrator-columns",
+            "composites/layers-panel/indesign-columns",
+            "composites/layers-panel/narrow",
+            "composites/layers-panel/no-active-layer",
+            "composites/layers-panel/sizes",
+            "composites/layers-panel/tree",
+        ],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Grid",
+        &[
+            "composites/layers-panel/drag",
+            "composites/layers-panel/filtered",
+            "composites/layers-panel/illustrator-columns",
+            "composites/layers-panel/indesign-columns",
+            "composites/layers-panel/narrow",
+            "composites/layers-panel/no-active-layer",
+            "composites/layers-panel/sizes",
+            "composites/layers-panel/tree",
+        ],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Group",
+        &[
+            "composites/layers-panel/drag",
+            "composites/layers-panel/filtered",
+            "composites/layers-panel/illustrator-columns",
+            "composites/layers-panel/indesign-columns",
+            "composites/layers-panel/narrow",
+            "composites/layers-panel/no-active-layer",
+            "composites/layers-panel/sizes",
+            "composites/layers-panel/tree",
+            "composites/layer-rows/indicators",
+            "composites/layer-rows/kinds",
+            "composites/layer-rows/masks",
+            "composites/layer-rows/sub-rows",
+        ],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Guides",
+        &[
+            "composites/layers-panel/drag",
+            "composites/layers-panel/filtered",
+            "composites/layers-panel/illustrator-columns",
+            "composites/layers-panel/indesign-columns",
+            "composites/layers-panel/narrow",
+            "composites/layers-panel/no-active-layer",
+            "composites/layers-panel/sizes",
+            "composites/layers-panel/tree",
+        ],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Image",
+        &["composites/layer-rows/indicators", "composites/layer-rows/kinds", "composites/layer-rows/masks", "composites/layer-rows/sub-rows"],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Marks",
+        &[
+            "composites/layers-panel/drag",
+            "composites/layers-panel/filtered",
+            "composites/layers-panel/illustrator-columns",
+            "composites/layers-panel/indesign-columns",
+            "composites/layers-panel/narrow",
+            "composites/layers-panel/no-active-layer",
+            "composites/layers-panel/sizes",
+            "composites/layers-panel/tree",
+        ],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Path",
+        &[
+            "composites/layers-panel/drag",
+            "composites/layers-panel/filtered",
+            "composites/layers-panel/illustrator-columns",
+            "composites/layers-panel/indesign-columns",
+            "composites/layers-panel/narrow",
+            "composites/layers-panel/no-active-layer",
+            "composites/layers-panel/sizes",
+            "composites/layers-panel/tree",
+            "composites/layer-rows/indicators",
+            "composites/layer-rows/kinds",
+            "composites/layer-rows/masks",
+            "composites/layer-rows/sub-rows",
+        ],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Photo",
+        &[
+            "composites/layers-panel/drag",
+            "composites/layers-panel/filtered",
+            "composites/layers-panel/illustrator-columns",
+            "composites/layers-panel/indesign-columns",
+            "composites/layers-panel/narrow",
+            "composites/layers-panel/no-active-layer",
+            "composites/layers-panel/sizes",
+            "composites/layers-panel/tree",
+        ],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Portrait",
+        &[
+            "composites/layers-panel/drag",
+            "composites/layers-panel/filtered",
+            "composites/layers-panel/illustrator-columns",
+            "composites/layers-panel/indesign-columns",
+            "composites/layers-panel/narrow",
+            "composites/layers-panel/no-active-layer",
+            "composites/layers-panel/sizes",
+            "composites/layers-panel/tree",
+        ],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Shape",
+        &["composites/layer-rows/indicators", "composites/layer-rows/kinds", "composites/layer-rows/masks", "composites/layer-rows/sub-rows"],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Sharpen",
+        &["composites/layer-rows/indicators", "composites/layer-rows/kinds", "composites/layer-rows/masks", "composites/layer-rows/sub-rows"],
+        "a layer name in the story's sample document",
+    ),
+    ("Studio", &["patterns/places-tree/places"], "a folder name in the story's sample places"),
+    (
+        "Title",
+        &[
+            "composites/layers-panel/drag",
+            "composites/layers-panel/filtered",
+            "composites/layers-panel/illustrator-columns",
+            "composites/layers-panel/indesign-columns",
+            "composites/layers-panel/narrow",
+            "composites/layers-panel/no-active-layer",
+            "composites/layers-panel/sizes",
+            "composites/layers-panel/tree",
+        ],
+        "a layer name in the story's sample document",
+    ),
+    (
+        "Blue",
+        &[
+            "composites/color/palette",
+            "composites/color/palette-table",
             "patterns/app-preview/photo-editor",
-            "shells/canvas/standard",
             "shells/canvas/body_only",
             "shells/canvas/revealed",
             "shells/canvas/rtl",
+            "shells/canvas/standard",
         ],
-        "a layer or document name in the story's sample data",
+        "a swatch name in the story's sample palette or the sample host app",
     ),
     (
-        "Gray",
-        &["patterns/app-preview/photo-editor", "shells/canvas/standard", "shells/canvas/body_only", "shells/canvas/revealed", "shells/canvas/rtl"],
-        "a colour mode name in the sample document",
+        "Canvas",
+        &["patterns/dock-area/docked", "patterns/dock-area/drag", "patterns/dock-area/floating", "patterns/dock-area/iconic"],
+        "a tab, panel or dock group name in the story's sample app",
+    ),
+    (
+        "Contour",
+        &["composites/curve-editor/corners", "composites/curve-editor/curves", "composites/curve-editor/preview", "composites/curve-editor/small"],
+        "sample text of the story's sample document or specimen",
+    ),
+    (
+        "Cool",
+        &[
+            "composites/preset-browser/brushes",
+            "composites/preset-browser/drop-on-canvas",
+            "composites/preset-browser/footer-in-panel",
+            "composites/preset-browser/gradients",
+            "composites/preset-browser/hover-preview",
+            "composites/preset-browser/popover-grid",
+            "composites/preset-browser/reorder",
+            "composites/preset-browser/short-list",
+            "composites/preset-browser/swatches",
+            "composites/preset-browser/tool-presets",
+        ],
+        "a preset group name in the story's sample library",
+    ),
+    (
+        "Default",
+        &["composites/preset-browser/drop-on-canvas", "composites/preset-browser/footer-in-panel", "composites/preset-browser/hover-preview"],
+        "a preset group name in the story's sample library",
+    ),
+    (
+        "Empty",
+        &[
+            "controls/combo-box/font-size",
+            "controls/combo-box/states",
+            "controls/progress/indeterminate",
+            "controls/progress/values",
+            "controls/search-field/filter",
+            "controls/search-field/states",
+            "controls/text-field/event-log",
+            "controls/text-field/states",
+        ],
+        "a sample name in the story's sample data",
+    ),
+    ("Group", &["specimens/type/faces"], "sample text of the story's sample document or specimen"),
+    (
+        "History",
+        &[
+            "composites/tab-strip/documents",
+            "composites/tab-strip/drops",
+            "composites/tab-strip/panels",
+            "composites/tab-strip/text",
+            "patterns/app-preview/photo-editor",
+            "patterns/dock-area/docked",
+            "patterns/dock-area/drag",
+            "patterns/dock-area/floating",
+            "patterns/dock-area/iconic",
+            "patterns/rail/panel",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a tab, panel or dock group name in the story's sample app",
+    ),
+    ("Navigator", &["patterns/rail/panel"], "a tab, panel or dock group name in the story's sample app"),
+    (
+        "Orange",
+        &[
+            "composites/color/palette",
+            "composites/color/palette-table",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a swatch name in the story's sample palette or the sample host app",
+    ),
+    (
+        "Red",
+        &[
+            "composites/color/palette",
+            "composites/color/palette-table",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a swatch name in the story's sample palette or the sample host app",
+    ),
+    (
+        "Shape",
+        &[
+            "composites/list/reorder",
+            "composites/list/reorder-copy",
+            "composites/list/reorder-refused",
+            "composites/list/reorder-tree",
+            "composites/list/ten-thousand-rows",
+        ],
+        "sample text of the story's sample document or specimen",
+    ),
+    (
+        "Transparent",
+        &["composites/preset-browser/drop-on-canvas", "composites/preset-browser/footer-in-panel", "composites/preset-browser/hover-preview"],
+        "a preset group name in the story's sample library",
+    ),
+    ("Violet", &["composites/color/palette", "composites/color/palette-table"], "a swatch name in the story's sample palette or the sample host app"),
+    (
+        "Warm",
+        &[
+            "composites/preset-browser/brushes",
+            "composites/preset-browser/drop-on-canvas",
+            "composites/preset-browser/footer-in-panel",
+            "composites/preset-browser/gradients",
+            "composites/preset-browser/hover-preview",
+            "composites/preset-browser/popover-grid",
+            "composites/preset-browser/reorder",
+            "composites/preset-browser/short-list",
+            "composites/preset-browser/swatches",
+            "composites/preset-browser/tool-presets",
+        ],
+        "a preset group name in the story's sample library",
+    ),
+    (
+        "background",
+        &[
+            "patterns/channels/alpha-and-spot",
+            "patterns/channels/cmyk",
+            "patterns/channels/empty",
+            "patterns/channels/multichannel",
+            "patterns/channels/quick-mask-and-layer-mask",
+            "patterns/channels/rgb",
+            "primitives/surface/kind",
+            "primitives/surface/surfaces",
+            "primitives/thumbnails/grid",
+        ],
+        "a story arg label and an option name of the story, not a catalog word",
+    ),
+    ("Apply", &["specimens/type/faces"], "sample text of the type specimen"),
+    ("Arrange", &["specimens/type/faces"], "sample text of the type specimen"),
+    ("Background", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    (
+        "Background",
+        &[
+            "composites/list-row/layers",
+            "composites/list-row/masks",
+            "composites/list/reorder",
+            "composites/list/reorder-copy",
+            "composites/list/reorder-refused",
+            "composites/list/reorder-tree",
+            "composites/list/ten-thousand-rows",
+            "composites/list/tree",
+            "controls/search-field/filter",
+            "controls/search-field/states",
+        ],
+        "a layer or group name in the story's sample document",
+    ),
+    ("Black", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Brush", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Cancel", &["specimens/type/faces"], "sample text of the type specimen"),
+    (
+        "Color",
+        &["composites/tab-strip/documents", "composites/tab-strip/drops", "composites/tab-strip/panels", "composites/tab-strip/text"],
+        "a panel title in the story's sample dock",
+    ),
+    ("Crop", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Cyan", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    (
+        "Default",
+        &[
+            "composites/preset-browser/brushes",
+            "composites/preset-browser/gradients",
+            "composites/preset-browser/popover-grid",
+            "composites/preset-browser/reorder",
+            "composites/preset-browser/short-list",
+            "composites/preset-browser/swatches",
+            "composites/preset-browser/tool-presets",
+        ],
+        "a preset group name in the story's sample library",
+    ),
+    ("Document", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Duplicate", &["specimens/type/faces"], "sample text of the type specimen"),
+    ("Edit", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Eraser", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("File", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Gray", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Green", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Green", &["composites/color/palette", "composites/color/palette-table"], "a swatch name in the story's sample palette"),
+    ("Guides", &["composites/list/tree"], "a layer or group name in the story's sample document"),
+    ("Height", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Height", &["specimens/type/faces"], "sample text of the type specimen"),
+    ("Home", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Lake", &["controls/search-field/filter", "controls/search-field/states"], "a layer or group name in the story's sample document"),
+    ("Layer", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Magenta", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Move", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Opacity", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Path", &["controls/search-field/filter", "controls/search-field/states"], "a layer or group name in the story's sample document"),
+    (
+        "Photos",
+        &[
+            "composites/list/reorder",
+            "composites/list/reorder-copy",
+            "composites/list/reorder-refused",
+            "composites/list/reorder-tree",
+            "composites/list/ten-thousand-rows",
+            "composites/list/tree",
+        ],
+        "a layer or group name in the story's sample document",
+    ),
+    ("Poster", &["composites/list/tree"], "a layer or group name in the story's sample document"),
+    ("Recent", &["composites/gradient/palette-grid", "composites/gradient/palette-list"], "a palette or gradient name in the story's sample library"),
+    ("Search", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Shapes", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Square", &["patterns/shell/start"], "a document template name in the story's sample template list"),
+    ("Studio", &["patterns/appearance-page/page"], "the built-in theme name"),
+    ("Sunset", &["composites/gradient/palette-grid", "composites/gradient/palette-list"], "a palette or gradient name in the story's sample library"),
+    ("Title", &["specimens/type/faces"], "sample text of the type specimen"),
+    (
+        "Title",
+        &[
+            "composites/list/reorder",
+            "composites/list/reorder-copy",
+            "composites/list/reorder-refused",
+            "composites/list/reorder-tree",
+            "composites/list/ten-thousand-rows",
+        ],
+        "a layer or group name in the story's sample document",
     ),
     (
         "Transparent",
         &[
-            "composites/preset-browser/swatches",
-            "composites/preset-browser/gradients",
-            "composites/preset-browser/brushes",
-            "composites/preset-browser/tool-presets",
-            "composites/preset-browser/reorder",
-            "composites/preset-browser/popover-grid",
-            "composites/preset-browser/short-list",
-        ],
-        "a sample preset group name",
-    ),
-    ("Other", &["controls/kbd/plain", "controls/kbd/keycaps"], "the sample operating system name"),
-    ("Constrain proportions", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Dimensions:", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Height unit", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Height:", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Image Size:", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Pixels/Inch", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Resample", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Resample method", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Resolution:", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Width unit", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Width:", &["composites/form-grid/image-size"], "the sample dialog body the story draws by hand"),
-    ("Inches", &["controls/radio/states", "controls/radio/groups"], "the sample radio options"),
-    ("Picas", &["controls/radio/states", "controls/radio/groups"], "the sample radio options"),
-    ("Pixels", &["controls/radio/states", "controls/radio/groups"], "the sample radio options"),
-    ("Points", &["controls/radio/states", "controls/radio/groups"], "the sample radio options"),
-    ("Search", &["patterns/fonts-panel/panel"], "the Fonts panel's own search field; it keeps its words in a catalog of its own"),
-    (
-        "V",
-        &[
-            "patterns/app-preview/photo-editor",
-            "patterns/rail/tool",
-            "shells/canvas/body_only",
-            "shells/canvas/revealed",
-            "shells/canvas/rtl",
-            "shells/canvas/standard",
-        ],
-        "the shortcut letter of the story's Move tool",
-    ),
-    (
-        "H",
-        &["patterns/rail/tool", "patterns/toolbar/horizontal-overflow", "patterns/toolbar/vertical-liquify"],
-        "the shortcut letter of the story's Hand tool, or a scrub label the story names itself",
-    ),
-    ("W", &["patterns/toolbar/horizontal-overflow", "patterns/toolbar/vertical-liquify"], "a scrub label the story names itself"),
-    (
-        "Angle",
-        &[
-            "composites/property-row/inspector",
-            "controls/angle-dial/dial",
-            "controls/angle-dial/dialog",
-            "controls/number-field/event-log",
-            "controls/number-field/right-to-left",
-            "controls/number-field/scrub",
-            "controls/number-field/states",
-            "controls/number-field/unit-menu",
-        ],
-        "a field or dial label the story names itself",
-    ),
-    ("Apply", &["specimens/type/faces"], "sample text of the type specimen"),
-    (
-        "Black",
-        &["patterns/app-preview/photo-editor", "shells/canvas/body_only", "shells/canvas/revealed", "shells/canvas/rtl", "shells/canvas/standard"],
-        "a swatch name of the preview app",
-    ),
-    (
-        "Brightness",
-        &[
-            "patterns/dialog/blocking",
-            "patterns/dialog/footer",
-            "patterns/dialog/frame",
-            "patterns/dialog/modeless",
-            "patterns/dialog/preview",
-            "patterns/dialog/prompt",
-            "patterns/dialog/stack",
-        ],
-        "the demo dialog's own slider label",
-    ),
-    ("Cancel", &["specimens/type/faces"], "sample text of the type specimen"),
-    (
-        "Clear",
-        &["controls/search-field/filter", "controls/search-field/states", "controls/swatch/palette", "controls/swatch/states"],
-        "a clear-button name the story gives its sample",
-    ),
-    (
-        "Color",
-        &["composites/tab-strip/documents", "composites/tab-strip/drops", "composites/tab-strip/panels", "composites/tab-strip/text"],
-        "a sample tab title",
-    ),
-    ("Copy", &["controls/icon-button/app-icon", "controls/icon-button/plain", "controls/icon-button/toggle"], "an icon button name the story gives"),
-    ("Custom", &["controls/tooltip/custom", "controls/tooltip/shortcut", "controls/tooltip/text"], "a sample tooltip target"),
-    (
-        "Default",
-        &[
-            "composites/group-box/default",
             "composites/preset-browser/brushes",
             "composites/preset-browser/gradients",
             "composites/preset-browser/popover-grid",
@@ -1187,305 +1472,18 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
             "composites/preset-browser/short-list",
             "composites/preset-browser/swatches",
             "composites/preset-browser/tool-presets",
-            "composites/section-label/default",
         ],
-        "a sample group or section title",
+        "a preset group name in the story's sample library",
     ),
-    (
-        "Delete",
-        &[
-            "composites/list/reorder",
-            "composites/list/reorder-copy",
-            "composites/list/reorder-refused",
-            "composites/list/reorder-tree",
-            "composites/list/ten-thousand-rows",
-            "controls/icon-button/app-icon",
-            "controls/icon-button/plain",
-            "controls/icon-button/toggle",
-        ],
-        "an item or button name the story gives",
-    ),
-    (
-        "Gradient",
-        &[
-            "composites/gradient/dialog",
-            "composites/gradient/editor-combined",
-            "composites/gradient/editor-split",
-            "patterns/app-preview/photo-editor",
-            "patterns/rail/tool",
-            "primitives/gradient-line/edit",
-            "primitives/gradient-line/with-editor",
-            "shells/canvas/body_only",
-            "shells/canvas/revealed",
-            "shells/canvas/rtl",
-            "shells/canvas/standard",
-        ],
-        "a sample tool, group or editor name",
-    ),
-    (
-        "Guides",
-        &["composites/list/tree", "controls/toggle-button/toggle", "primitives/guides/guides"],
-        "a sample tree row, toggle or heading named after the component",
-    ),
-    (
-        "H",
-        &[
-            "composites/property-row/inspector",
-            "composites/section-header/always-open",
-            "composites/section-header/collapsible",
-            "controls/number-field/event-log",
-            "controls/number-field/right-to-left",
-            "controls/number-field/scrub",
-            "controls/number-field/states",
-            "controls/number-field/unit-menu",
-            "patterns/app-preview/photo-editor",
-            "shells/canvas/body_only",
-            "shells/canvas/revealed",
-            "shells/canvas/rtl",
-            "shells/canvas/standard",
-        ],
-        "a field label the story names itself",
-    ),
-    (
-        "Height",
-        &[
-            "composites/property-row/inspector",
-            "composites/section-header/always-open",
-            "composites/section-header/collapsible",
-            "patterns/app-preview/photo-editor",
-            "shells/canvas/body_only",
-            "shells/canvas/revealed",
-            "shells/canvas/rtl",
-            "shells/canvas/standard",
-            "specimens/type/faces",
-        ],
-        "a field label the story names itself",
-    ),
-    ("Hex colour", &["composites/color/hex-field"], "the HexField label the story passes"),
-    (
-        "Histogram",
-        &[
-            "composites/histogram/inks",
-            "composites/histogram/markers",
-            "composites/histogram/outline",
-            "composites/histogram/rgb",
-            "composites/histogram/selection",
-            "composites/histogram/stale-click",
-            "composites/histogram/tone",
-        ],
-        "the accessible name the story gives the histogram",
-    ),
-    (
-        "Hue",
-        &["composites/color-area/parts", "composites/slider-row/adjustments", "composites/slider-row/wheel-step"],
-        "a slider label the story passes",
-    ),
-    (
-        "Name",
-        &["controls/angle-dial/dial", "controls/angle-dial/dialog", "controls/text-field/event-log", "controls/text-field/states"],
-        "a field label the story names itself",
-    ),
-    (
-        "New",
-        &[
-            "controls/segmented/icons",
-            "controls/segmented/text",
-            "patterns/title-bar/adwaita",
-            "patterns/title-bar/breeze",
-            "patterns/title-bar/generic",
-            "patterns/title-bar/mac-inset",
-            "patterns/title-bar/native",
-            "patterns/title-bar/windows",
-        ],
-        "a segment or menu item the story names",
-    ),
-    (
-        "No matching commands",
-        &["composites/empty-state/canvas", "composites/empty-state/panel", "composites/empty-state/start-screen"],
-        "the empty state's own title",
-    ),
-    (
-        "Not a number",
-        &[
-            "controls/number-field/presets",
-            "controls/number-field/event-log",
-            "controls/number-field/right-to-left",
-            "controls/number-field/scrub",
-            "controls/number-field/states",
-            "controls/number-field/unit-menu",
-        ],
-        "the sample's field name",
-    ),
-    ("OK", &["patterns/viewport/embedded"], "a demo button of the story"),
-    (
-        "Opacity",
-        &[
-            "composites/property-row/inspector",
-            "composites/section-header/always-open",
-            "composites/section-header/collapsible",
-            "composites/slider-row/adjustments",
-            "composites/slider-row/wheel-step",
-            "controls/number-field/event-log",
-            "controls/number-field/right-to-left",
-            "controls/number-field/scrub",
-            "controls/number-field/states",
-            "controls/number-field/unit-menu",
-            "controls/slider/disabled",
-            "controls/slider/event-log",
-            "controls/slider/right-to-left",
-            "controls/slider/step",
-            "controls/slider/values",
-            "patterns/app-preview/photo-editor",
-            "patterns/inspector/properties",
-            "patterns/options-bar/brush-and-transform",
-            "shells/canvas/body_only",
-            "shells/canvas/revealed",
-            "shells/canvas/rtl",
-            "shells/canvas/standard",
-        ],
-        "a slider or field label the story names itself",
-    ),
-    ("Output black", &["controls/thumb-row/rows"], "a thumb name the story gives"),
-    ("Output white", &["controls/thumb-row/rows"], "a thumb name the story gives"),
-    (
-        "Panels",
-        &["composites/tab-strip/documents", "composites/tab-strip/drops", "composites/tab-strip/panels", "composites/tab-strip/text"],
-        "a sample title of the tab strip story",
-    ),
-    ("Path", &["controls/search-field/filter", "controls/search-field/states"], "a sample search field name"),
-    ("Perspective crop", &["primitives/canvas/perspective-crop"], "the story's own heading"),
-    ("Saturation and brightness", &["composites/color-area/parts"], "a slider label the story passes"),
-    (
-        "Search",
-        &[
-            "patterns/app-preview/photo-editor",
-            "patterns/command-palette/photocraft",
-            "patterns/command-palette/recents",
-            "patterns/title-bar/adwaita",
-            "patterns/title-bar/breeze",
-            "patterns/title-bar/generic",
-            "patterns/title-bar/mac-inset",
-            "patterns/title-bar/native",
-            "patterns/title-bar/windows",
-            "shells/canvas/body_only",
-            "shells/canvas/revealed",
-            "shells/canvas/rtl",
-            "shells/canvas/standard",
-        ],
-        "a menu item, button or placeholder the story names",
-    ),
-    (
-        "Selection",
-        &[
-            "composites/histogram/inks",
-            "composites/histogram/markers",
-            "composites/histogram/outline",
-            "composites/histogram/rgb",
-            "composites/histogram/selection",
-            "composites/histogram/stale-click",
-            "composites/histogram/tone",
-        ],
-        "the story's own caption",
-    ),
-    (
-        "Small",
-        &["composites/curve-editor/corners", "composites/curve-editor/curves", "composites/curve-editor/small", "foundations/stock-egui/widgets"],
-        "the story's own caption",
-    ),
-    (
-        "Tools",
-        &["patterns/preferences/window", "patterns/toolbar/horizontal-overflow", "patterns/toolbar/vertical-liquify"],
-        "a toolbar or page name the story gives",
-    ),
-    (
-        "Undo",
-        &[
-            "controls/icon-button/app-icon",
-            "controls/icon-button/plain",
-            "controls/icon-button/toggle",
-            "controls/tooltip/custom",
-            "controls/tooltip/shortcut",
-            "controls/tooltip/text",
-        ],
-        "an icon button or tooltip target the story names",
-    ),
-    (
-        "W",
-        &[
-            "composites/property-row/inspector",
-            "composites/section-header/always-open",
-            "composites/section-header/collapsible",
-            "controls/number-field/event-log",
-            "controls/number-field/right-to-left",
-            "controls/number-field/scrub",
-            "controls/number-field/states",
-            "controls/number-field/unit-menu",
-            "patterns/app-preview/photo-editor",
-            "shells/canvas/body_only",
-            "shells/canvas/revealed",
-            "shells/canvas/rtl",
-            "shells/canvas/standard",
-        ],
-        "a field label the story names itself",
-    ),
-    ("Warp", &["primitives/warp-grid/warp"], "the story's own heading"),
-    (
-        "White",
-        &["patterns/app-preview/photo-editor", "shells/canvas/body_only", "shells/canvas/revealed", "shells/canvas/rtl", "shells/canvas/standard"],
-        "a swatch name of the preview app",
-    ),
-    (
-        "Width",
-        &[
-            "composites/property-row/inspector",
-            "composites/section-header/always-open",
-            "composites/section-header/collapsible",
-            "controls/number-field/event-log",
-            "controls/number-field/right-to-left",
-            "controls/number-field/scrub",
-            "controls/number-field/states",
-            "controls/number-field/unit-menu",
-            "patterns/app-preview/photo-editor",
-            "shells/canvas/body_only",
-            "shells/canvas/revealed",
-            "shells/canvas/rtl",
-            "shells/canvas/standard",
-            "specimens/type/faces",
-        ],
-        "a field label the story names itself",
-    ),
-    (
-        "X",
-        &[
-            "composites/property-row/inspector",
-            "composites/section-header/always-open",
-            "composites/section-header/collapsible",
-            "patterns/app-preview/photo-editor",
-            "patterns/inspector/properties",
-            "shells/canvas/body_only",
-            "shells/canvas/revealed",
-            "shells/canvas/rtl",
-            "shells/canvas/standard",
-            "specimens/type/faces",
-        ],
-        "a field label the story names itself",
-    ),
-    (
-        "Y",
-        &[
-            "composites/property-row/inspector",
-            "composites/section-header/always-open",
-            "composites/section-header/collapsible",
-            "patterns/app-preview/photo-editor",
-            "patterns/inspector/properties",
-            "shells/canvas/body_only",
-            "shells/canvas/revealed",
-            "shells/canvas/rtl",
-            "shells/canvas/standard",
-            "specimens/type/faces",
-        ],
-        "a field label the story names itself",
-    ),
+    ("View", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("White", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Width", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Width", &["specimens/type/faces"], "sample text of the type specimen"),
+    ("Width", &["composites/font-axes/sliders"], "the sample axis name, as a font's name table gives it"),
+    ("Workspace", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Yellow", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    ("Yellow", &["composites/color/palette", "composites/color/palette-table"], "a swatch name in the story's sample palette"),
+    ("Zoom", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
 ];
 
 /// Whether a node is the gallery's own text: it names components and stories (the browser lists,
@@ -1502,6 +1500,10 @@ fn gallery_chrome(tree: &craft_ui::inspect::AccessTree, node: egui::accesskit::N
     (data.role() == Role::Tab && own_tab_bar)
         || (data.role() == Role::Label && data.supports_action(Action::Click) && titles.contains(&name))
         || ancestors.iter().any(|a| matches!(a.as_str(), "ListBox:Components" | "ListBox:Stories"))
+        // The name on a tile, which is the name of a component or story.
+        || (data.role() == Role::Label && ancestors.iter().any(|a| *a == format!("Button:Select {name}")))
+        // The gallery's own workspace switch in its options bar.
+        || (data.role() == Role::RadioGroup && name == "Workspace" && ancestors.iter().any(|a| a == "Toolbar:Appearance"))
 }
 
 /// In the pseudo locale every string a component takes from `Words` shows marked. A node whose
@@ -1524,7 +1526,7 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
             components.push(story.component);
         }
     }
-    let mut unmarked = std::collections::BTreeMap::<String, Vec<&str>>::new();
+    let mut audit = i18n_audit::Audit::new();
     let mut marked = 0;
     for component in components {
         let ids: Vec<(&str, &str)> = gallery.stories().iter().filter(|s| s.component == component).map(|s| (s.id, s.name)).collect();
@@ -1538,33 +1540,25 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
                 let name = tree.name(node);
                 let role = tree.node(node).map(|n| format!("{:?}", n.role())).unwrap_or_default();
                 stack.push(format!("{role}:{}", name.as_deref().unwrap_or_default()));
-                let node_data = tree.node(node);
-                let texts = [
-                    name.clone(),
-                    node_data.and_then(|n| n.description().map(str::to_owned)),
-                    node_data.and_then(|n| n.tooltip().map(str::to_owned)),
-                ];
-                if texts.iter().all(Option::is_none)
-                    || gallery_chrome(&tree, node, &stack, name.as_deref().unwrap_or_default(), [component, story_name])
-                {
+                let texts = i18n_audit::accesskit_texts(&tree, node);
+                if texts.is_empty() || gallery_chrome(&tree, node, &stack, name.as_deref().unwrap_or_default(), [component, story_name]) {
                     continue;
                 }
-                for text in texts.into_iter().flatten() {
+                // Only text equal to a registered word is checked: stories show sample English
+                // of their own, which the audit would otherwise list as well.
+                let words = texts.into_iter().filter(|text| {
                     if text.contains('⟦') {
                         marked += 1;
-                    } else if registered.contains(text.as_str()) && !STORY_TEXT.iter().any(|(t, stories, _)| *t == text && stories.contains(&id)) {
-                        let ids = unmarked.entry(text).or_default();
-                        if !ids.contains(&id) {
-                            ids.push(id);
-                        }
                     }
-                }
+                    registered.contains(text.as_str()) && !STORY_TEXT.iter().any(|(t, stories, _)| t == text && stories.contains(&id))
+                });
+                audit.record(id, words, &i18n_audit::Exempt::new());
             }
         }
     }
     assert!(marked > 0, "the pseudo locale marked nothing");
     assert!(!gallery.i18n().looked_up().is_empty(), "no word was looked up");
-    assert!(unmarked.is_empty(), "English that bypasses Words (name: stories): {unmarked:#?}");
+    audit.assert_clean();
 }
 
 #[test]

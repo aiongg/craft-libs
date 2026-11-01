@@ -12,9 +12,24 @@
 //! [`CanvasTool::key`](super::CanvasTool::key)), not a momentary tool. PhotoCraft's Cmd-held Move
 //! tool and the Brush's erase key are tool behaviour (step 7), not here.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use egui::{Context, InputState, Key, KeyboardShortcut, Modifiers};
 
-use egui::{Context, Id, InputState, Key, KeyboardShortcut, Modifiers};
+use super::canvas_id::CanvasId;
+
+use crate::behavior::KeyClaim;
+use crate::focus::key_owner::canvas_keys_free;
+
+/// Is `sc` held: its key down with at least its modifiers (more may be held, so Shift still
+/// squares a marquee while Space is down).
+fn shortcut_held(input: &InputState, sc: &KeyboardShortcut) -> bool {
+    let (want, m) = (sc.modifiers, input.modifiers);
+    input.key_down(sc.logical_key)
+        && (!want.alt || m.alt)
+        && (!want.shift || m.shift)
+        && (!want.command || m.command)
+        && (!want.ctrl || m.ctrl)
+        && (!want.mac_cmd || m.mac_cmd)
+}
 
 /// A tool in effect only while its keys are held.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -41,9 +56,9 @@ impl MomentaryTool {
 ///
 /// ```no_run
 /// use craft_ui::canvas::{MomentaryKeys, MomentaryTool};
-/// # fn demo(ctx: &egui::Context, canvas: egui::Id, drawing: bool) {
+/// # fn demo(ctx: &egui::Context, canvas: craft_ui::canvas::CanvasId, drawing: bool) {
 /// let keys = MomentaryKeys::default();
-/// match keys.update(ctx, canvas, drawing) {
+/// match keys.read(ctx, canvas, drawing) {
 ///     Some(MomentaryTool::Hand) => { /* show the Hand tool this pass */ }
 ///     Some(MomentaryTool::ZoomIn | MomentaryTool::ZoomOut) => { /* the Zoom tool, in or out */ }
 ///     None => { /* the selected tool */ }
@@ -70,6 +85,14 @@ impl Default for MomentaryKeys {
 }
 
 impl MomentaryKeys {
+    fn shortcut_of(&self, tool: MomentaryTool) -> KeyboardShortcut {
+        match tool {
+            MomentaryTool::Hand => self.hand,
+            MomentaryTool::ZoomIn => self.zoom_in,
+            MomentaryTool::ZoomOut => self.zoom_out,
+        }
+    }
+
     /// The temporary tool the keys held in `input` ask for, in any order of pressing (Space then
     /// Cmd, or Cmd then Space). Of the bindings whose key is down and whose modifiers are all held,
     /// the one with the most modifiers wins (Cmd+Space beats Space); Alt held with Zoom In turns it
@@ -77,18 +100,44 @@ impl MomentaryKeys {
     /// ignores whether a text field has the keys.
     // pc: crates/ui-egui/src/input/hold_keys.rs:176 `held_tool`, :163 `held`.
     pub fn held(&self, input: &InputState) -> Option<MomentaryTool> {
-        todo!()
+        let count = |sc: &KeyboardShortcut| {
+            let m = sc.modifiers;
+            u8::from(m.alt) + u8::from(m.shift) + u8::from(m.command || m.mac_cmd) + u8::from(m.ctrl && !m.command)
+        };
+        let mut best: Option<(u8, MomentaryTool, KeyboardShortcut)> = None;
+        for (tool, sc) in [(MomentaryTool::Hand, self.hand), (MomentaryTool::ZoomIn, self.zoom_in), (MomentaryTool::ZoomOut, self.zoom_out)] {
+            if shortcut_held(input, &sc) && best.is_none_or(|(n, ..)| count(&sc) > n) {
+                best = Some((count(&sc), tool, sc));
+            }
+        }
+        best.map(
+            |(_, tool, sc)| {
+                if tool == MomentaryTool::ZoomIn && input.modifiers.alt && !sc.modifiers.alt { MomentaryTool::ZoomOut } else { tool }
+            },
+        )
     }
 
     /// The temporary tool for this pass on the canvas `canvas`: [`held`](Self::held) while no
     /// text field has the keyboard, except while `drawing` (a marquee, lasso or shape is being
     /// dragged: Space repositions it instead). A temporary tool in effect when the primary button
     /// went down stays while it is down and on the pass it is released (the Move tool's release
-    /// commits the move), even after its keys come up. The latch lives in egui memory under
-    /// `canvas`.
+    /// commits the move), even after its keys come up. A drag that began without one finishes
+    /// without one: keys pressed mid-drag start no temporary tool until the button is up. The
+    /// latch lives in egui memory under `canvas`.
     // pc: crates/ui-egui/src/input/hold_keys.rs:240 `for_frame`, :232 `latch_id`.
-    pub fn update(&self, ctx: &Context, canvas: Id, drawing: bool) -> Option<MomentaryTool> {
-        todo!()
+    pub fn read(&self, ctx: &Context, canvas: CanvasId, drawing: bool) -> Option<MomentaryTool> {
+        let (down, released, pressed) = ctx.input(|i| (i.pointer.primary_down(), i.pointer.primary_released(), i.pointer.primary_pressed()));
+        let latch = canvas.with("momentary-latch");
+        let latched = ctx.data(|d| d.get_temp::<Option<MomentaryTool>>(latch)).flatten();
+        let tool = if (down || released) && !pressed {
+            latched
+        } else if drawing || !canvas_keys_free(ctx) {
+            None
+        } else {
+            ctx.input(|i| self.held(i)).filter(|tool| !KeyClaim::claimed(ctx, &self.shortcut_of(*tool)))
+        };
+        ctx.data_mut(|d| d.insert_temp(latch, if down { tool } else { None }));
+        tool
     }
 }
 
@@ -135,21 +184,57 @@ impl<T: Clone + PartialEq> SpringTool<T> {
     /// false for Shift or Alt with the letter, or the current group's own letter (no spring).
     // pc: crates/ui-egui/src/input/spring_tools.rs:65 `pressed`.
     pub fn pressed(&mut self, key: Key, before: T, picked: T, plain: bool, now: f64) {
-        todo!()
+        let active = self.spring.as_ref().is_some_and(|s| !s.released);
+        if !plain {
+            self.spring = None;
+        } else if active {
+            if let Some(s) = self.spring.as_mut() {
+                s.keys.retain(|k| *k != key);
+                s.keys.push(key);
+                s.used = true;
+                s.tool = picked;
+            }
+        } else {
+            self.spring = Some(Spring { previous: before, tool: picked, keys: vec![key], since: now, used: false, released: false });
+        }
     }
 
     /// The canvas was pressed while a letter is held: the switch is temporary however short the
     /// hold.
     // pc: crates/ui-egui/src/input/spring_tools.rs:86 `note_canvas_press`.
     pub fn canvas_used(&mut self) {
-        todo!()
+        if let Some(s) = self.spring.as_mut().filter(|s| !s.released) {
+            s.used = true;
+        }
     }
 
     /// Once a pass: the tool to switch back to now, if every held letter is up, the switch was
     /// temporary, `current` is still the sprung tool and no gesture runs (`in_gesture`).
     // pc: crates/ui-egui/src/input/spring_tools.rs:94 `tick`.
     pub fn tick(&mut self, input: &InputState, current: &T, in_gesture: bool) -> Option<T> {
-        todo!()
+        let mut s = self.spring.take()?;
+        if *current != s.tool {
+            return None;
+        }
+        if !s.released {
+            if in_gesture {
+                s.used = true;
+            }
+            s.keys.retain(|k| input.key_down(*k));
+            if !s.keys.is_empty() {
+                self.spring = Some(s);
+                return None;
+            }
+            if !s.used && input.time - s.since < Self::HOLD {
+                return None;
+            }
+            s.released = true;
+        }
+        if in_gesture || input.pointer.any_down() {
+            self.spring = Some(s);
+            return None;
+        }
+        Some(s.previous)
     }
 
     /// The tool a release would give back, while a spring is pending (for automation and tests).

@@ -77,7 +77,7 @@ fn card_sits_beside_the_target_or_centred() {
     let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
     let card = Vec2::new(340.0, 180.0);
     let target = |min: (f32, f32), max: (f32, f32)| Some(Rect::from_min_max(pos2(min.0, min.1), pos2(max.0, max.1)));
-    let at = |t| card_position(t, card, screen, 8.0);
+    let at = |t| card_position(t, card, screen, 8.0, 12.0);
 
     let right = at(target((100.0, 200.0), (200.0, 240.0)));
     assert!(right.x > 200.0 && (right.y - 130.0).abs() < 0.5, "right of the target, centred on it: {right:?}");

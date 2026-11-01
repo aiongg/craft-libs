@@ -1,7 +1,7 @@
 //! [`SettingsFiles`]: the file access a [`SettingsStore`](crate::SettingsStore) goes through, so an
 //! app can route its settings elsewhere (PhotoCraft's `Services` file closures, browser storage).
 
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 /// How the store reads and writes its files. [`DiskFiles`] is the file system, the default; an
@@ -20,6 +20,12 @@ pub trait SettingsFiles: Send + Sync {
     fn move_aside(&self, path: &Path) -> io::Result<PathBuf>;
     /// Writes the backup beside `path` ([`write_backup`](crate::recovery::write_backup)'s rules).
     fn write_backup(&self, path: &Path, text: &str) -> io::Result<()>;
+    /// Makes sure the folder exists before the store checks it. Files that have no folders
+    /// (browser storage) keep the default, which does nothing.
+    fn create_dir(&self, dir: &Path) -> io::Result<()> {
+        let _ = dir;
+        Ok(())
+    }
     /// Whether `dir` accepts a new file.
     fn check_writable(&self, dir: &Path) -> io::Result<()>;
 }
@@ -31,16 +37,24 @@ pub trait SettingsFiles: Send + Sync {
 pub struct DiskFiles;
 
 #[cfg(not(target_arch = "wasm32"))]
-#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 impl SettingsFiles for DiskFiles {
-    // new: the `std::fs::read_to_string` calls of store.rs (`open_with`, `check_disk`), NotFound as `None`
     fn read(&self, path: &Path) -> io::Result<Option<String>> {
-        todo!()
+        match std::fs::read_to_string(path) {
+            Ok(text) => Ok(Some(text)),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
-    // new: store.rs `save`'s `atomic_write_with` with `NewFilePermissions::Private` and `restrict_permissions`
     fn write(&self, path: &Path, text: &str) -> io::Result<()> {
-        todo!()
+        craft_atomic::WriteOptions::default().with_new_file_permissions(craft_atomic::NewFilePermissions::Private).atomic_write_with(path, |file| {
+            restrict_permissions(file)?;
+            file.write_all(text.as_bytes())
+        })
+    }
+
+    fn create_dir(&self, dir: &Path) -> io::Result<()> {
+        std::fs::create_dir_all(dir)
     }
 
     fn move_aside(&self, path: &Path) -> io::Result<PathBuf> {
@@ -54,4 +68,16 @@ impl SettingsFiles for DiskFiles {
     fn check_writable(&self, dir: &Path) -> io::Result<()> {
         crate::recovery::check_writable(dir)
     }
+}
+
+/// New files are owner-only; on a replace `craft-atomic` keeps the existing file's mode.
+#[cfg(all(unix, not(target_arch = "wasm32")))]
+fn restrict_permissions(file: &std::fs::File) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    file.set_permissions(std::fs::Permissions::from_mode(0o600))
+}
+
+#[cfg(all(not(unix), not(target_arch = "wasm32")))]
+fn restrict_permissions(_file: &std::fs::File) -> io::Result<()> {
+    Ok(())
 }

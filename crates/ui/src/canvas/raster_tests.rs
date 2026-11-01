@@ -130,3 +130,34 @@ fn the_checkerboard_holds_still_while_the_document_scrolls() {
         }
     }
 }
+
+// A detail region that fell back to the visible rect starts off the factor's grid; damage snaps
+// to texels counted from the region's own origin, so the partial update lands on whole texels.
+#[test]
+fn damage_snaps_to_the_detail_regions_own_texel_grid() {
+    let region = PixelRect::new(5, 3, 45, 43);
+    let snapped = super::raster::snap_from(PixelRect::new(14, 10, 17, 12), region, 4);
+    assert_eq!(snapped, PixelRect::new(13, 7, 17, 15));
+    assert_eq!((snapped.x0 - region.x0) % 4, 0);
+    assert_eq!((snapped.y0 - region.y0) % 4, 0);
+}
+
+// A rotated view draws the document as one textured quad on the view's rotated corners, with the
+// texture's own corners as uv; the checkerboard and base texture follow the same rotation.
+#[test]
+fn a_rotated_view_draws_the_document_on_its_rotated_corners() {
+    let (ctx, source) = (context(), Solid::new([400, 300]));
+    for rotation in [90.0, 30.0] {
+        let view = CanvasView { rotation, ..view(1.0) };
+        let shapes = run(&ctx, |ui| {
+            RasterDisplay::new("rotated").show(ui, &view, &source);
+        });
+        let mesh = shapes.iter().find_map(|s| if let Shape::Mesh(m) = &s.shape { Some(m.clone()) } else { None }).expect("the document's quad");
+        let quad = view.quad(kurbo::Rect::new(0.0, 0.0, 400.0, 300.0));
+        let positions: Vec<_> = mesh.vertices.iter().map(|v| v.pos).collect();
+        assert_eq!(positions, quad, "rotation {rotation}");
+        let uvs: Vec<_> = mesh.vertices.iter().map(|v| v.uv).collect();
+        assert_eq!(uvs, [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(1.0, 1.0), pos2(0.0, 1.0)], "rotation {rotation}");
+        assert_eq!(view.axis_aligned(), rotation == 90.0);
+    }
+}

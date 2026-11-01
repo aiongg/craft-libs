@@ -113,7 +113,6 @@ impl Rgba {
 
 /// egui's colours are premultiplied, so a translucent one comes back to its straight channels only
 /// as closely as 8 bits allow, and a fully transparent one is transparent black.
-#[cfg(feature = "ecolor")]
 impl From<ecolor::Color32> for Rgba {
     fn from(c: ecolor::Color32) -> Rgba {
         Rgba(c.to_srgba_unmultiplied())
@@ -403,14 +402,12 @@ impl From<Srgba> for Rgba {
     }
 }
 
-#[cfg(feature = "ecolor")]
 impl From<ecolor::Color32> for Srgba {
     fn from(c: ecolor::Color32) -> Srgba {
         Rgba::from(c).into()
     }
 }
 
-#[cfg(feature = "ecolor")]
 impl From<Srgba> for ecolor::Color32 {
     fn from(c: Srgba) -> ecolor::Color32 {
         let [r, g, b, a] = c.to_rgba().0;

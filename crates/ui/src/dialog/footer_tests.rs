@@ -23,6 +23,7 @@ struct App {
     shape: Shape,
     modeless: bool,
     ok_enabled: bool,
+    ok_stays_open: bool,
     apply: bool,
     alternates: usize,
     reset: bool,
@@ -42,6 +43,7 @@ impl App {
             shape,
             modeless: false,
             ok_enabled: true,
+            ok_stays_open: false,
             apply: false,
             alternates: 0,
             reset: false,
@@ -67,6 +69,7 @@ fn harness(app: App, os: OperatingSystem) -> Harness<'static, App> {
                 Shape::Side => Footer::side().extra("Add to Swatches"),
             }
             .ok_enabled(app.ok_enabled)
+            .ok_stays_open(app.ok_stays_open)
             .enter(app.enter);
             if app.below {
                 footer = footer.below(|ui| {
@@ -94,7 +97,7 @@ fn harness(app: App, os: OperatingSystem) -> Harness<'static, App> {
                 }
             });
             app.outcomes.extend(shown.outcome);
-            app.open &= !shown.outcome.is_some_and(Outcome::closes);
+            app.open &= !shown.closed;
             app.last = Some(shown);
         },
         app,
@@ -208,6 +211,26 @@ fn apply_leaves_the_dialog_open() {
 }
 
 #[test]
+fn an_ok_that_stays_open_reports_each_press_and_an_alternate_closes() {
+    let mut app = App::new(Shape::Standard);
+    app.ok_stays_open = true;
+    app.alternates = 1;
+    let mut harness = harness(app, OperatingSystem::Nix);
+    harness.run();
+    harness.get_by_label("OK").click();
+    harness.run();
+    assert!(harness.state().state.is_open() && harness.state().open, "a click on OK leaves the dialog open");
+    assert!(!harness.state().last.as_ref().is_some_and(|shown| shown.closed));
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert!(harness.state().state.is_open(), "Enter leaves it open too");
+    harness.get_by_label("Don't Save").click();
+    harness.run();
+    assert_eq!(harness.state().outcomes, [Outcome::Ok, Outcome::Ok, Outcome::Alternate]);
+    assert!(!harness.state().state.is_open() && harness.state().last.as_ref().is_some_and(|shown| shown.closed));
+}
+
+#[test]
 fn an_alternate_reports_which_one_was_pressed() {
     let mut app = App::new(Shape::Standard);
     app.alternates = 2;
@@ -221,7 +244,13 @@ fn an_alternate_reports_which_one_was_pressed() {
 
 #[test]
 fn alt_turns_cancel_into_reset_and_esc_stays_cancel() {
-    let mut app = App::new(Shape::Standard);
+    for shape in [Shape::Standard, Shape::Side] {
+        alt_reset(shape);
+    }
+}
+
+fn alt_reset(shape: Shape) {
+    let mut app = App::new(shape);
     app.reset = true;
     let mut harness = harness(app, OperatingSystem::Nix);
     harness.run();

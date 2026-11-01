@@ -429,6 +429,27 @@ fn the_hosts_delete_request_acts_from_anywhere_and_keyboard_focus_keeps_a_place(
 }
 
 #[test]
+fn a_host_route_finds_the_interactive_guides_and_a_delete_request_to_others_reports_false() {
+    let mut h = harness(vec![Guide::new(1, Orientation::Vertical, 100.0)], 0.0);
+    h.run();
+    let id = Guides::active_id(&h.ctx).expect("interactive guides are active");
+    assert!(Guides::request_delete(&h.ctx, id));
+    h.state_mut().interactive = false;
+    h.run();
+    assert_eq!(Guides::active_id(&h.ctx), None, "guides that are not interactive are not active");
+    assert!(!Guides::request_delete(&h.ctx, id));
+    h.state_mut().interactive = true;
+    h.run();
+    assert_eq!(Guides::active_id(&h.ctx), Some(id));
+    h.state_mut().hidden = true;
+    for _ in 0..3 {
+        h.run();
+    }
+    assert_eq!(Guides::active_id(&h.ctx), None, "guides that are not shown are not active");
+    assert!(!Guides::request_delete(&h.ctx, id));
+}
+
+#[test]
 fn the_response_says_when_the_pointer_is_over_a_guide_the_guides_would_take() {
     let mut h =
         harness(vec![Guide::new(1, Orientation::Vertical, 100.0), Guide { locked: true, ..Guide::new(2, Orientation::Vertical, 200.0) }], 0.0);

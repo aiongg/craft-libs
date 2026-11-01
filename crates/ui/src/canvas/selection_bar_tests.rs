@@ -14,6 +14,7 @@ struct Host {
     above: bool,
     inner: Option<()>,
     rect: Option<Rect>,
+    pinned_at: Option<egui::Pos2>,
 }
 
 fn host(selection: Option<Rect>, above: bool) -> Harness<'static, Host> {
@@ -23,13 +24,18 @@ fn host(selection: Option<Rect>, above: bool) -> Harness<'static, Host> {
         });
         host.inner = response.inner;
         host.rect = response.rect;
+        host.pinned_at = response.pinned_at.or(host.pinned_at);
     };
     let mut h = Harness::<Host>::builder()
         .with_size([800.0, 600.0])
         .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
-        .build_ui_state(app, Host { selection, above, inner: None, rect: None });
+        .build_ui_state(app, Host { selection, above, inner: None, rect: None, pinned_at: None });
     h.run();
     h
+}
+
+fn bar() -> craft_theme::SelectionBarTokens {
+    Base::suite_default().shown(craft_theme::Mode::Light).resolved.tokens.component.selection_bar
 }
 
 fn selection(min: (f32, f32), max: (f32, f32)) -> Rect {
@@ -40,26 +46,26 @@ fn selection(min: (f32, f32), max: (f32, f32)) -> Rect {
 fn bar_sits_above_the_selection_and_flips_below() {
     let middle = selection((300.0, 200.0), (500.0, 300.0));
     let width = 200.0;
-    assert_eq!(place(CANVAS, middle, width, false), pos2(300.0, 314.0), "14 pt below, centred");
-    assert_eq!(place(CANVAS, middle, width, true), pos2(300.0, 200.0 - 36.0 - 8.0), "8 pt above, centred");
+    assert_eq!(place(CANVAS, middle, width, false, &bar()), pos2(300.0, 314.0), "14 pt below, centred");
+    assert_eq!(place(CANVAS, middle, width, true, &bar()), pos2(300.0, 200.0 - 36.0 - 8.0), "8 pt above, centred");
 
     let high = selection((300.0, 20.0), (500.0, 100.0));
-    assert_eq!(place(CANVAS, high, width, true).y, 108.0, "no room above: below");
+    assert_eq!(place(CANVAS, high, width, true, &bar()).y, 108.0, "no room above: below");
 
     let low = selection((300.0, 400.0), (500.0, 590.0));
-    assert_eq!(place(CANVAS, low, width, false).y, 400.0 - 36.0 - 14.0, "no room below: above");
+    assert_eq!(place(CANVAS, low, width, false, &bar()).y, 400.0 - 36.0 - 14.0, "no room below: above");
 
     let tall = selection((300.0, 20.0), (500.0, 590.0));
-    assert_eq!(place(CANVAS, tall, width, false).y, 600.0 - 8.0 - 36.0, "neither fits: the canvas's bottom less 8 pt");
+    assert_eq!(place(CANVAS, tall, width, false, &bar()).y, 600.0 - 8.0 - 36.0, "neither fits: the canvas's bottom less 8 pt");
 
     let corner = selection((0.0, 200.0), (20.0, 300.0));
-    assert_eq!(place(CANVAS, corner, width, false).x, 8.0, "x stays 8 pt inside the canvas");
+    assert_eq!(place(CANVAS, corner, width, false, &bar()).x, 8.0, "x stays 8 pt inside the canvas");
 
     // The drawn bar uses the width it measured on the previous frame.
     let mut h = host(Some(middle), false);
     h.run();
     let rect = h.state().rect.expect("shown");
-    let expected = place(CANVAS, middle, rect.width(), false);
+    let expected = place(CANVAS, middle, rect.width(), false, &bar());
     assert!((rect.min - expected).abs().max_elem() <= 0.5, "{:?} vs {expected:?}", rect.min);
 }
 
@@ -79,4 +85,21 @@ fn bar_hides_while_dragging_and_without_selection() {
     h.event(Event::PointerButton { pos: away, button: PointerButton::Primary, pressed: false, modifiers: Default::default() });
     h.run();
     assert!(h.state().inner.is_some(), "and it returns on release");
+}
+
+#[test]
+// With the focus on the grip the arrow keys move the bar and pin it there.
+fn arrow_keys_on_the_grip_move_the_bar() {
+    use egui_kittest::kittest::Queryable as _;
+    let mut h = host(Some(selection((300.0, 200.0), (500.0, 300.0))), false);
+    h.get_by_label("Move Bar").focus();
+    h.run();
+    let before = h.state().rect.unwrap();
+    h.key_press(egui::Key::ArrowRight);
+    h.run();
+    h.key_press(egui::Key::ArrowDown);
+    h.run();
+    let after = h.state().rect.unwrap();
+    assert!(after.min.x > before.min.x && after.min.y > before.min.y, "{before:?} -> {after:?}");
+    assert!(h.state().pinned_at.is_some());
 }

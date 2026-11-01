@@ -11,8 +11,8 @@ use crate::list::OpenChange;
 use crate::menu::MenuItem;
 
 /// How the presets are shown.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "lowercase"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum PresetView {
     /// Thumbnails in a wrapped grid.
     #[default]
@@ -39,12 +39,8 @@ pub enum DefaultOpen {
 ///
 /// A group is open when its default (from [`DefaultOpen`]) differs from membership in
 /// [`toggled`](PresetState::toggled). While the search text is not empty, every group is open.
-#[derive(Clone, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(default, bound(serialize = "K: serde::Serialize", deserialize = "K: serde::Deserialize<'de> + Eq + std::hash::Hash"))
-)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(default, bound(serialize = "K: serde::Serialize", deserialize = "K: serde::Deserialize<'de> + Eq + std::hash::Hash"))]
 pub struct PresetState<K> {
     /// Grid or list. Independent of the size: a small thumbnail stays a grid.
     pub view: PresetView,

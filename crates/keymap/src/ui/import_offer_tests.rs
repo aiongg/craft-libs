@@ -5,6 +5,8 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
 use super::{ImportOffer, ImportOfferLabels, NoOffer, OfferAnswer, OfferRecord};
+use craft_ui::dialog::{DialogHost, DialogResult, StartupStage};
+
 use crate::chord::Platform;
 use crate::import::kys;
 use crate::keymap::{Bindable, Binding, Keymap, Overrides};
@@ -60,19 +62,24 @@ fn offer_is_made_once_and_only_for_a_set_that_changes_something() {
 // Import from the shown prompt returns OfferAnswer::Import and applying the plan changes the counted shortcuts.
 fn import_answer_applies_the_plan() {
     let offer = prepare(&keymap(), None).unwrap();
-    let mut answer = None;
+    let mut host = DialogHost::new();
+    host.enqueue(StartupStage::Offer, offer.labels(ImportOfferLabels::default()));
+    let answer = None;
     let mut harness = Harness::new_ui_state(
-        |ui, answer: &mut Option<OfferAnswer>| {
-            *answer = answer.take().or(offer.show(ui.ctx(), &ImportOfferLabels::default()));
+        |ui, (host, answer): &mut (DialogHost, Option<OfferAnswer>)| {
+            host.show(ui.ctx());
+            if let Some(DialogResult::Ok(given)) = host.take::<ImportOffer>() {
+                *answer = Some(given);
+            }
         },
-        answer,
+        (host, answer),
     );
     harness.run();
     assert!(harness.get_all_by_label("Import keyboard shortcuts?").count() > 0);
     assert!(harness.get_all_by_label_contains("Mine").count() > 0);
     harness.get_by_role_and_label(Role::Button, "Import").click();
     harness.run();
-    answer = *harness.state();
+    let answer = harness.state().1;
     assert_eq!(answer, Some(OfferAnswer::Import));
 
     let offer = prepare(&keymap(), None).unwrap();

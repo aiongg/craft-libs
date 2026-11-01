@@ -1,12 +1,17 @@
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`RecoveryDialog`]: the offer to recover a document an earlier run autosaved and never saved.
 
 use std::time::SystemTime;
 
 use egui::Context;
 
+use super::buttons::{ButtonRole, FooterButton};
+use super::dialog::{Dialog, InitialFocus, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
+use super::footer::Footer;
+use super::size::Width;
 use super::stack::{DialogId, DialogStack, dialog_id};
+use super::state::DialogState;
+use crate::localized::{AgeStyle, Labels as _, relative_age};
 
 crate::words! {
     /// The recovery dialog's words, English by default.
@@ -17,13 +22,6 @@ crate::words! {
         message: "recovery.message" = "“{name}” has unsaved changes from an earlier run, autosaved {age}.";
         recover: "recovery.recover" = "Recover";
         discard: "recovery.discard" = "Discard";
-        just_now: "recovery.justNow" = "less than a minute ago";
-        minute_one: "recovery.minuteOne" = "{n} minute ago";
-        minute_other: "recovery.minuteOther" = "{n} minutes ago";
-        hour_one: "recovery.hourOne" = "{n} hour ago";
-        hour_other: "recovery.hourOther" = "{n} hours ago";
-        day_one: "recovery.dayOne" = "{n} day ago";
-        day_other: "recovery.dayOther" = "{n} days ago";
         recently: "recovery.recently" = "recently";
     }
 }
@@ -47,7 +45,7 @@ pub struct RecoveredDocument {
 /// What the user chose for one document. Closing the dialog (Esc, the close box) is
 /// `DialogResult::Cancel`: the copy stays and is offered again at the next launch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RecoveryAction {
+pub enum RecoveryAnswer {
     /// Open the autosaved copy as an unsaved document.
     Recover,
     /// Delete the autosaved copy.
@@ -61,15 +59,16 @@ pub enum RecoveryAction {
 /// ago." and Discard and Recover (Recover is the default button). Esc or the close box keep the
 /// copy for the next launch. The app enqueues the first document at
 /// [`StartupStage::Recovery`](super::StartupStage::Recovery) and opens the next after taking each
-/// answer. Result: [`RecoveryAction`].
+/// answer. Result: [`RecoveryAnswer`].
 pub struct RecoveryDialog {
     id: DialogId,
     document: RecoveredDocument,
+    state: DialogState,
 }
 
 impl RecoveryDialog {
     pub fn new(document: RecoveredDocument) -> Self {
-        Self { id: dialog_id("recovery"), document }
+        Self { id: dialog_id("recovery"), document, state: DialogState::new() }
     }
 
     /// The document asked about; the app reads its key with the answer.
@@ -79,21 +78,43 @@ impl RecoveryDialog {
 }
 
 impl StackDialog for RecoveryDialog {
-    type Result = RecoveryAction;
+    type Result = RecoveryAnswer;
 
     fn id(&self) -> DialogId {
         self.id
     }
 
     // soundcraft: crates/ui-egui/src/dialogs/recovery.rs:8 show
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<RecoveryAction>> {
-        todo!()
+    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<RecoveryAnswer>> {
+        let labels = RecoveryLabels::of_ctx(ctx);
+        let age = SystemTime::now()
+            .duration_since(self.document.saved)
+            .map_or_else(|_| labels.recently.clone(), |d| relative_age(ctx, d.as_secs(), AgeStyle::Long));
+        let message = craft_i18n::fmt(&labels.message, &[("name", self.document.name.as_str()), ("age", age.as_str())]);
+        let blocked = self.document.blocked.clone();
+        let (discard, recover) = (labels.discard.clone(), labels.recover.clone());
+        let footer = Footer::custom(move |ui, fx| {
+            let buttons =
+                vec![FooterButton::new(ButtonRole::Alternate, discard), FooterButton::new(ButtonRole::Default, recover).enabled(blocked.is_none())];
+            let row = fx.buttons(ui, buttons);
+            if let (Some(reason), Some(response)) = (&blocked, row.responses.get(1)) {
+                response.clone().on_disabled_hover_text(reason);
+            }
+        });
+        let shown = Dialog::with_id(self.id, labels.title.as_str())
+            .stack(stack)
+            .width(Width::Fixed(crate::theme::current(ctx).component.dialog.width_alert))
+            .footer(footer)
+            .initial_focus(InitialFocus::DefaultButton)
+            .answers()
+            .show(ctx, &mut self.state, &mut (), |ui, ()| {
+                ui.label(message);
+            });
+        match shown.outcome? {
+            Outcome::Answer(ButtonRole::Default) => Some(DialogResult::Ok(RecoveryAnswer::Recover)),
+            Outcome::Answer(_) => Some(DialogResult::Ok(RecoveryAnswer::Discard)),
+            Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
+            _ => None,
+        }
     }
-}
-
-/// How long ago `seconds` was: "less than a minute ago" under 60 s, then whole minutes, hours and
-/// days ("1 minute ago", "3 hours ago", "2 days ago") with the catalog's plural forms.
-// soundcraft: crates/ui-egui/src/dialogs/recovery.rs:42 ago
-pub fn relative_age(seconds: u64, labels: &RecoveryLabels) -> String {
-    todo!()
 }

@@ -3,10 +3,10 @@
 //! A transport sends [`ControlRequest`]s; once per frame, between the input and the UI pass, the
 //! app drains them through [`ControlChannel::next_request`], runs its own method table on each
 //! (`engine.execute`, `ui.inspect`, `ui.set`, `ui.dialog.*`, `ui.screenshot`, …) and hands the
-//! [`Outcome`] to [`ControlChannel::settle`]. The channel replies at once, after the queued
-//! synthetic input has been processed ([`Outcome::AfterInput`], so a following `ui.inspect` sees
-//! the effect), when a background job ends ([`Outcome::AfterJob`]), or when a screenshot completes
-//! ([`Outcome::Screenshot`], through [`crate::screenshot::Captures`]).
+//! [`Reply`] to [`ControlChannel::settle`]. The channel replies at once, after the queued
+//! synthetic input has been processed ([`Reply::AfterInput`], so a following `ui.inspect` sees
+//! the effect), when a background job ends ([`Reply::AfterJob`]), or when a screenshot completes
+//! ([`Reply::Screenshot`], through [`crate::screenshot::Captures`]).
 //!
 //! Deadlines: a request still queued when its [`REPLY_DEADLINE`] passes is dropped before dispatch
 //! and the transport replies [`expired_error`] (safe to re-send); one that was dispatched and gave
@@ -24,7 +24,7 @@ use crate::synthetic::SyntheticInput;
 /// A reply: the JSON object the transport writes as one line.
 pub type ControlResponse = Value;
 
-/// A background job's id in `jobs.list`, `jobs.cancel` and [`Outcome::AfterJob`].
+/// A background job's id in `jobs.list`, `jobs.cancel` and [`Reply::AfterJob`].
 pub type JobId = u64;
 
 /// The per-request reply deadline.
@@ -102,7 +102,7 @@ impl Dispatch {
 }
 
 /// What the app's method table answers for one request.
-pub enum Outcome {
+pub enum Reply {
     /// Reply with this JSON now.
     Done(Value),
     /// A `ui.screenshot`: admit `token` to the queue; `path` is where the app's write authority
@@ -115,7 +115,7 @@ pub enum Outcome {
     AfterJob(JobId),
 }
 
-impl Outcome {
+impl Reply {
     /// `Done` with an `ok` or `error` reply from a method's result.
     pub fn from_result(r: Result<Value, String>) -> Self {
         match r {
@@ -162,15 +162,15 @@ impl ControlChannel {
     /// Reply now, or park the reply on input, a job or a screenshot. `settle_ms` is the
     /// screenshot settle delay ([`crate::screenshot::settle_ms`] of the animation time);
     /// `document` the identity a screenshot is attributed to.
-    pub fn settle(&mut self, req: ControlRequest, outcome: Outcome, document: Option<DocumentId>, settle_ms: f64) {
+    pub fn settle(&mut self, req: ControlRequest, outcome: Reply, document: Option<DocumentId>, settle_ms: f64) {
         let reply = req.reply;
         match outcome {
-            Outcome::Done(v) => {
+            Reply::Done(v) => {
                 let _ = reply.send(v);
             }
-            Outcome::AfterInput => self.input_waiters.push(reply),
-            Outcome::AfterJob(job) => self.job_waiters.push((job, reply)),
-            Outcome::Screenshot { token, path } => {
+            Reply::AfterInput => self.input_waiters.push(reply),
+            Reply::AfterJob(job) => self.job_waiters.push((job, reply)),
+            Reply::Screenshot { token, path } => {
                 if let Err((reply, e)) = self.captures.admit(token, path, reply, document, settle_ms, Instant::now()) {
                     let _ = reply.send(json!({"ok": false, "error": e}));
                 }
@@ -179,7 +179,7 @@ impl ControlChannel {
     }
 
     /// The pass that consumed the queued synthetic input ended: reply
-    /// `{"ok": true, "result": null}` to every [`Outcome::AfterInput`] waiter. Call it only after a
+    /// `{"ok": true, "result": null}` to every [`Reply::AfterInput`] waiter. Call it only after a
     /// pass that reached the end of the UI with the synthetic queue empty; an early-returning pass
     /// keeps the waiters.
     pub fn input_processed(&mut self) {
@@ -189,7 +189,7 @@ impl ControlChannel {
     }
 
     /// The queued synthetic input was dropped (the window lost it, a modal took over): reply
-    /// `{"ok": false, "error": "input cancelled: {reason}"}` to every [`Outcome::AfterInput`]
+    /// `{"ok": false, "error": "input cancelled: {reason}"}` to every [`Reply::AfterInput`]
     /// waiter.
     pub fn input_cancelled(&mut self, reason: &str) {
         for waiter in self.input_waiters.drain(..) {
@@ -198,7 +198,7 @@ impl ControlChannel {
     }
 
     /// PhotoCraft's `cancel_synthetic`: drop `input`'s queue and in-flight step, and fail every
-    /// [`Outcome::AfterInput`] waiter with `input cancelled: {reason}`, also when only waiters
+    /// [`Reply::AfterInput`] waiter with `input cancelled: {reason}`, also when only waiters
     /// remain (their input was already consumed). True when anything was pending or waiting.
     pub fn cancel_input(&mut self, input: &mut SyntheticInput, reason: &str) -> bool {
         let pending = input.cancel() || !self.input_waiters.is_empty();

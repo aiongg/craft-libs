@@ -18,6 +18,8 @@
 //! - [`CanvasGrid`]: major and minor grid lines over a document, solid, dashed, dotted or as crossings.
 //! - [`Guides`]: ruler guides; [`SmartGuides`]: alignment lines and distances during a move.
 //! - [`quad`]: transform box geometry, where a box goes when a part of it is dragged.
+//! - [`geom`]: point in polygon, segment clipping, a vector's angle, and a polygon through a
+//!   projective map cut at the camera's near plane.
 //! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
 //! - [`ReferencePoint`]: the 3 × 3 picker of a transform box's reference point.
 //! - [`turn_cursor`]: the rotate pointer outside a transform box's corners; [`distort_cursor`],
@@ -30,10 +32,16 @@
 //! - [`zoom`]: the zoom range and ladder ([`ZoomLadder`]), fit and fill, zoom about a point,
 //!   [`ZoomAnimation`], the Zoom tool's [`HoldZoom`] and [`ZoomDrag`], [`ZoomWindowFit`].
 //! - [`navigate`]: wheel, pinch and twist, page keys, flick pan, [`Autoscroll`], [`RotateView`],
-//!   all under the user's [`NavigationPrefs`]; [`ViewHistory`]: Go Back and Go Forward.
+//!   all under the user's [`NavigationOptions`]; [`ViewHistory`]: Go Back and Go Forward.
 //! - [`MomentaryKeys`] and [`SpringTool`]: temporary tools while a key is held.
 //! - [`RasterDisplay`]: the CPU raster path over a [`RasterSource`], with its [`Checkerboard`];
 //!   [`PixelGrid`]: the pixel grid above 500 %.
+//! - [`textures`]: the device texture limit, keyed texture caches ([`TextureCache`](textures::TextureCache)),
+//!   background loading and the thumbnail contract ([`Thumbnails`](textures::Thumbnails)) every list
+//!   and grid draws its pictures with.
+//! - [`SelectionOperation`]: how a new selection combines with the current one (Shift adds, Alt
+//!   subtracts, both intersect).
+//! - [`navigator`]: the Navigator panel body.
 //! - [`Pasteboard`]: the area around the pages and their [`PageFrame`]s; [`SplitViews`]: 1, 2 or
 //!   4 views of one document.
 //!
@@ -56,12 +64,16 @@
 //! # });
 //! ```
 
+mod canvas_id;
 pub mod claim;
 pub(crate) mod core_stories;
 mod crisp;
 mod cursor;
 #[cfg(test)]
 mod cursor_tests;
+pub mod geom;
+#[cfg(test)]
+mod geom_tests;
 mod grid;
 pub mod guides;
 pub mod hit;
@@ -72,6 +84,7 @@ mod momentary_tests;
 pub mod navigate;
 #[cfg(test)]
 mod navigate_tests;
+pub mod navigator;
 mod part_focus;
 mod pasteboard;
 #[cfg(test)]
@@ -93,6 +106,8 @@ mod scrollbars;
 mod selection_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod selection_bar_tests;
+mod selection_operation;
+pub(crate) mod shell_stories;
 mod snap;
 #[cfg(test)]
 mod snap_tests;
@@ -102,6 +117,7 @@ mod split_tests;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
+pub mod textures;
 mod tool_host;
 #[cfg(test)]
 mod tool_host_tests;
@@ -120,9 +136,10 @@ mod zoom_tests;
 
 pub use crate::edit::order::Turn;
 pub use ::kurbo;
+pub use canvas_id::CanvasId;
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
-pub use cursor::{CursorBadge, CursorHost, CursorPrefs, CursorStyle, PaintingCursor, ToolCursor};
+pub use cursor::{CursorBadge, CursorHost, CursorOptions, CursorStyle, PaintingCursor, ToolCursor};
 pub use grid::{CanvasGrid, GridLine, GridStyle};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{
@@ -130,19 +147,21 @@ pub use marquee::{
     square_pixels,
 };
 pub use momentary::{MomentaryKeys, MomentaryTool, SpringTool};
-pub use navigate::{Autoscroll, HandTool, NavigationLabels, NavigationPrefs, RotateView, RotateViewTool, ZoomTool};
+pub use navigate::{Autoscroll, HandTool, NavigationLabels, NavigationOptions, RotateView, RotateViewTool, ZoomTool};
 pub use part_focus::{Part, PartFocus, PartFocusResponse};
 pub use pasteboard::{PageBorder, PageFrame, Pasteboard, PasteboardColor, PasteboardResponse, PasteboardStyle};
 pub use pixel_grid::{GridSegment, PixelGrid};
 pub use pointer::{CanvasButtons, PenFeed, PenInput, PenSample};
-pub use raster::{CheckerColors, CheckerSize, Checkerboard, DetailPlan, MAX_TEXTURE, PixelRect, RasterDisplay, RasterResponse, RasterSource};
+pub use raster::{CheckerColors, CheckerSize, Checkerboard, PixelRect, RasterDisplay, RasterResponse, RasterSource};
 pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
 pub use selection_bar::{SelectionBar, SelectionBarLabels, SelectionBarResponse};
+pub use selection_operation::{SelectionOperation, SelectionOperationLabels};
 pub use snap::{SNAP_PX, SnapGesture, SnapKind, SnapLine, SnapOptions, SnapTarget, SnapTargets, union as snap_union};
 pub use split::{SplitLabels, SplitLayout, SplitPane, SplitResponse, SplitViews};
+pub use textures::{DetailPlan, MAX_TEXTURE, texture_factor, texture_side};
 pub use tool_host::{CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolPointer};
 pub use tool_pill::{PillPlace, ToolPill, ToolPillLabels, ToolPillResponse};
 pub use turn::{

@@ -1129,3 +1129,95 @@ fn a_debounced_runs_first_character_waits_for_the_update() {
     rig.frame(vec![]);
     assert_eq!(rig.event, update(id, "a"));
 }
+
+/// Runs one frame of `draw` in `ctx` and returns the AccessKit nodes' labels with their rects.
+fn raw_frame(ctx: &Context, events: Vec<Event>, time: f64, draw: impl FnMut(&mut Ui)) -> Vec<(String, Rect)> {
+    let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(time), events, ..Default::default() };
+    let output = ctx.run_ui(input, draw);
+    let update = output.platform_output.accesskit_update.clone();
+    output.drop_without_applying_deltas();
+    update
+        .map(|u| {
+            u.nodes
+                .iter()
+                .filter_map(|(_, node)| {
+                    let b = node.bounds()?;
+                    Some((node.label()?.to_owned(), Rect::from_min_max(Pos2::new(b.x0 as f32, b.y0 as f32), Pos2::new(b.x1 as f32, b.y1 as f32))))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[test]
+fn a_raw_text_edit_gets_the_library_edit_menu() {
+    use crate::behavior::EditMenu;
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    ctx.enable_accesskit();
+    let mut text = String::from("hello");
+    let id = Id::unique("raw-edit");
+    let mut rect = Rect::NOTHING;
+    let mut time = 0.0;
+    let mut frame = |events: Vec<Event>, text: &mut String, rect: &mut Rect| {
+        time += 1.0 / 60.0;
+        raw_frame(&ctx, events, time, |ui| {
+            EditMenu::before_text_edit(ui, id, false);
+            let response = egui::TextEdit::singleline(text).id(id).show(ui).response;
+            EditMenu::after_text_edit(ui, id, &response);
+            *rect = response.rect;
+        })
+    };
+    frame(vec![], &mut text, &mut rect);
+    let pos = rect.center();
+    let press = |pressed| Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    frame(vec![Event::PointerMoved(pos)], &mut text, &mut rect);
+    frame(vec![press(true)], &mut text, &mut rect);
+    frame(vec![press(false)], &mut text, &mut rect);
+    frame(vec![], &mut text, &mut rect);
+    let nodes = frame(vec![], &mut text, &mut rect);
+    let (_, row) = nodes.iter().find(|(l, _)| l == "Select All").expect("the menu shows Select All");
+    let at = row.center();
+    frame(vec![Event::PointerMoved(at)], &mut text, &mut rect);
+    frame(vec![Event::PointerMoved(at), button(at, true)], &mut text, &mut rect);
+    frame(vec![button(at, false)], &mut text, &mut rect);
+    frame(vec![], &mut text, &mut rect);
+    let range = egui::text_edit::TextEditState::load(&ctx, id).and_then(|s| s.cursor.char_range()).expect("a cursor");
+    let [a, b] = range.sorted_cursors();
+    assert_eq!((a.index.0, b.index.0), (0, 5), "Select All reached the raw TextEdit");
+    assert!(ctx.memory(|m| m.has_focus(id)), "the edit keeps its focus");
+}
+
+#[test]
+fn a_monospace_field_types_in_the_mono_face_and_stops_at_its_char_limit() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut value = String::new();
+    let mut time = 0.0;
+    let mut faces = Vec::new();
+    for (i, events) in [vec![], vec![], vec![Event::Text("abcdefgh".into())], vec![]].into_iter().enumerate() {
+        time += 1.0 / 60.0;
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(time), events, ..Default::default() };
+        let output = ctx.run_ui(input, |ui| {
+            let edit = TextField::new("mono", "Hex", &value).monospace().char_limit(4).show(ui);
+            if i == 0 {
+                ui.memory_mut(|m| m.request_focus(edit.response.id));
+            }
+            if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
+                value.clone_from(v);
+            }
+        });
+        faces = output
+            .shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Text(t) if !t.galley.text().is_empty() => Some(t.galley.job.sections[0].format.font_id.family.clone()),
+                _ => None,
+            })
+            .collect();
+        output.drop_without_applying_deltas();
+    }
+    assert_eq!(value, "abcd", "typing stops at the limit");
+    assert!(!faces.is_empty() && faces.iter().all(|f| *f == egui::FontFamily::Monospace), "{faces:?}");
+}

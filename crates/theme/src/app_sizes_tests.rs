@@ -20,7 +20,7 @@ fn at(size: Size, text_size: TextSize) -> Appearance {
 
 fn resolved(size: Size, sizes: &AppSizes) -> Tokens {
     let theme = builtins::suite_default();
-    resolve_sized(theme, at(size, TextSize::Default), None, sizes).tokens
+    resolve_sized(theme, at(size, TextSize::Small), None, sizes).tokens
 }
 
 #[test]
@@ -58,9 +58,9 @@ fn text_size_scales_an_app_type_override() {
     let mut expected = sizes::builtin(Size::Compact).base.typography;
     expected.body.size = 15.0;
     expected.body.line_height = 20.0;
-    let factor = values::text_size_factor(TextSize::ALL[TextSize::ALL.len() - 1]);
+    let factor = TextSizeSteps::PHOTOSHOP.factor(TextSize::Large);
     assert_eq!(large.typography.body, expected.scaled(factor, values::TYPE_ROUNDING).body);
-    let default = resolve_sized(theme, at(Size::Compact, TextSize::Default), None, &app).tokens;
+    let default = resolve_sized(theme, at(Size::Compact, TextSize::Small), None, &app).tokens;
     assert_eq!(default.typography.body.size, 15.0);
 }
 
@@ -77,11 +77,11 @@ fn app_radii_apply_unless_the_theme_has_its_own_shape() {
     let app = sizes(&json!({ "all": { "radius.control": 2, "radius.button": "full" } }));
     let mut theme = builtins::suite_default().clone();
     theme.shape = None;
-    let tokens = resolve_sized(&theme, at(Size::Compact, TextSize::Default), None, &app).tokens;
+    let tokens = resolve_sized(&theme, at(Size::Compact, TextSize::Small), None, &app).tokens;
     assert_eq!((tokens.shape.radius.control, tokens.shape.radius.button), (2.0, scale::Radius::Full.px()));
     let own = RadiusSet { control: 9.0, ..sizes::builtin(Size::Compact).base.radius };
     theme.shape = Some(ShapeSeed { radius: Some(own), radius_offset: None, edge: None });
-    let tokens = resolve_sized(&theme, at(Size::Compact, TextSize::Default), None, &app).tokens;
+    let tokens = resolve_sized(&theme, at(Size::Compact, TextSize::Small), None, &app).tokens;
     assert_eq!(tokens.shape.radius, own, "the theme's shape wins over the app's radii");
 }
 
@@ -211,11 +211,18 @@ const FROM_BASE: &[(&str, &str)] = &[
     ("listbox.separator_pad", "space.gap.inline"),
     ("list.pad_x", "space.pad.control"),
     ("list.gap", "space.gap.inline"),
+    ("layers.filter.gap", "space.gap.inline"),
     ("preset.header_height", "size.preset.header_height"),
     ("preset.grid_gap", "size.preset.grid_gap"),
     ("preset.grid_inset", "size.preset.grid_inset"),
     ("preset.caption_gap", "size.preset.caption_gap"),
     ("preset.slider_width", "size.preset.slider_width"),
+    ("preset.picker_square", "size.preset.picker_square"),
+    ("preset.picker_cell", "size.preset.picker_cell"),
+    ("preset.picker_wide_width", "size.preset.picker_wide_width"),
+    ("preset.picker_wide_height", "size.preset.picker_wide_height"),
+    ("preset.name_width", "size.preset.name_width"),
+    ("preset.popup_max_height", "size.preset.popup_max_height"),
     ("status_bar.height", "size.bar.status"),
     ("title_bar.height", "size.bar.title"),
     ("title_bar.pad", "space.pad.panel"),

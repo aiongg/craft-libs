@@ -39,8 +39,10 @@ pub const MAX_RETRIES: u8 = 2;
 /// The base delay that lets popup open and close animations finish.
 const BASE_SETTLE_MS: f64 = 60.0;
 
-/// The document a screenshot belongs to, fixed at admission. `generation` changes whenever a
-/// different document becomes active; `revision` is recorded for attribution only.
+/// The document a screenshot belongs to, fixed at admission. `generation` must be the app's
+/// active-document generation: it changes on every switch of the active document, including a
+/// switch away and back, so it is not a per-document counter. `revision` is recorded for
+/// attribution only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DocumentId {
     pub generation: u64,

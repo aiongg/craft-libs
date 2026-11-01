@@ -4,7 +4,7 @@ use super::*;
 use ColorToken as T;
 
 fn appearance(mode: Mode, contrast: Contrast, size: Size) -> Appearance {
-    Appearance { mode, contrast, size, text_size: TextSize::Default, reduced_motion: false }
+    Appearance { mode, contrast, size, text_size: TextSize::Small, reduced_motion: false }
 }
 
 fn graphite() -> ThemeDef {

@@ -18,16 +18,18 @@ use super::option_list::{
     Leading, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
     text_galley,
 };
+use super::preview_select::SelectText;
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, SearchField, Swatch, TextField, TextFieldStyle, icon_size};
 use crate::behavior::{ListOptions, Listbox, take_composing_keys, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
+use crate::localized::Labels as _;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::popup_list::{self, PopupList};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, variant_list, variant_row};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, variant_list, variant_row};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 use crate::typed_story;
 
@@ -175,7 +177,9 @@ pub struct Select<'a, T> {
     header_menu: Option<HeaderMenu<'a>>,
     wheel_steps: bool,
     fit: bool,
+    width: Option<f32>,
     content: Option<RowContent<'a, T>>,
+    text_shown: SelectText,
     highlighted: Option<&'a mut Option<T>>,
     placeholder: String,
     size: ControlSize,
@@ -244,7 +248,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             header_menu: None,
             wheel_steps: false,
             fit: false,
+            width: None,
             content: None,
+            text_shown: SelectText::Always,
             highlighted: None,
             placeholder: String::new(),
             size: ControlSize::Md,
@@ -339,6 +345,13 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
+    /// The closed box's width, in place of `field.width`, a fitted width and the room a justified
+    /// layout gives it.
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
+        self
+    }
+
     /// Whether the box is as wide as its widest option, the padding, the chevron and, when any
     /// option has an icon, room for it, in place of `field.width`. A justified layout still
     /// fills. Ignored with [`rows`](Select::rows), whose long list is not measured.
@@ -355,6 +368,17 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     /// is one of the options.
     pub fn row_content(mut self, size: Vec2, paint: impl Fn(&Painter, Rect, &T) + 'a) -> Self {
         self.content = Some(RowContent { size, paint: Box::new(paint) });
+        self
+    }
+
+    /// Where the options' text shows beside their [`row_content`](Select::row_content): in the
+    /// list and the closed box (default), the list only, or nowhere (a preview select, see
+    /// [`preview_select`](super::preview_select)). Hidden text stays each option's accessible
+    /// name and tooltip, and type-ahead and the search still match it. Without row content the
+    /// text always shows. A box or row without its text is as wide as its content plus the
+    /// padding, and a [`fit`](Select::fit) box fits the content alone.
+    pub fn text_shown(mut self, shown: SelectText) -> Self {
+        self.text_shown = shown;
         self
     }
 
@@ -404,7 +428,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             mut header_menu,
             wheel_steps,
             fit,
+            width: set_width,
             content,
+            text_shown,
             highlighted,
             placeholder,
             size,
@@ -455,7 +481,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             action = Some(Action::Close { reason: CancelReason::Disabled, focus: false });
         }
 
-        let width = box_width(ui, id, &style.field, fit.then_some(&options), content.as_ref().map(|c| c.size.x));
+        // The text is shown unless a preview takes its place.
+        let (box_text, row_text) = (content.is_none() || text_shown == SelectText::Always, content.is_none() || text_shown != SelectText::Never);
+        let width = box_width(ui, id, &style.field, fit.then_some(&options), content.as_ref().map(|c| c.size.x), box_text, set_width);
         let (_, rect) = ui.allocate_space(vec2(width, style.field.height));
         let response = Interactive::with_id(id, Role::ComboBox, label.as_str())
             .expanded(state.open)
@@ -510,7 +538,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 .height(style.list.max_height + header)
                 .surface(style.popup);
             let menu = header_menu.as_ref().map(|m| m.gear(id));
-            let list = List { style: &style, size, id, chosen, enabled, wheel_steps, search: search.as_ref(), menu, content: content.as_ref() };
+            let list =
+                List { style: &style, size, id, chosen, enabled, wheel_steps, search: search.as_ref(), menu, content: content.as_ref(), row_text };
             keyed_active = pass.listbox.active();
             let mut menu_picked = None;
             pass.state.wheel.stepped = false;
@@ -586,7 +615,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 (content.paint)(painter, rect, &*value);
             }
         };
-        let leading = content.as_ref().filter(|_| shown_option.is_some()).map(|c| Leading { size: c.size, paint: &paint_value });
+        let leading = content.as_ref().filter(|_| shown_option.is_some()).map(|c| Leading { size: c.size, text: box_text, paint: &paint_value });
         let focused = open || ui.memory(|m| m.has_focus(id));
         paint_box(
             ui,
@@ -624,6 +653,12 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 }
 
 impl Select<'static, ()> {
+    /// The id a select made with `id_salt` has in `ui`: its box's id and its response's, for a
+    /// dialog that names it in [`InitialFocus::Field`](crate::dialog::InitialFocus::Field).
+    pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
+        Interactive::id_in(ui, id_salt)
+    }
+
     /// The select's sizes and colours at `size`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SelectStyle {
         let l = &tokens.component.listbox;
@@ -1296,6 +1331,8 @@ struct List<'l, T> {
     search: Option<&'l (String, String)>,
     menu: Option<GearMenu<'l>>,
     content: Option<&'l RowContent<'l, T>>,
+    /// The options' text shows beside their content ([`SelectText`]).
+    row_text: bool,
 }
 
 impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
@@ -1412,10 +1449,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
                 option,
                 text: &text,
                 icon: options.icon(option),
-                leading: self.content.map(|c| Leading { size: c.size, paint: &paint }),
+                leading: self.content.map(|c| Leading { size: c.size, text: self.row_text, paint: &paint }),
                 chosen: self.chosen == Some(option),
                 enabled: options.enabled(option),
-                tooltip: options.tooltip(option),
+                tooltip: options.tooltip(option).or_else(|| (!self.row_text).then_some(text.as_ref())),
             };
             let outcome = rows.show(ui, listbox, &row);
             if outcome.picked {
@@ -1539,9 +1576,22 @@ fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<
 
 /// The box's width: all the room in a justified layout, else `field.width`, or the width that
 /// fits `fit`'s options (not rows).
-fn box_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, fit: Option<&Options<'_, '_, T>>, content: Option<f32>) -> f32 {
+fn box_width<T: Clone + PartialEq>(
+    ui: &Ui,
+    id: Id,
+    f: &TextFieldStyle,
+    fit: Option<&Options<'_, '_, T>>,
+    content: Option<f32>,
+    text: bool,
+    set: Option<f32>,
+) -> f32 {
     match fit {
+        _ if set.is_some() => set.unwrap_or(f.width),
         _ if ui.layout().horizontal_justify() => ui.available_width(),
+        Some(options) if !options.rows() && !text => {
+            let icon = if options.has_icons() { f.icon + f.gap } else { 0.0 };
+            (2.0 * f.pad_x + icon + content.unwrap_or(0.0) + f.gap + f.icon).ceil()
+        }
         Some(options) if !options.rows() => fitted_width(ui, id, f, options) + content.map_or(0.0, |w| w + f.gap),
         _ => f.width,
     }
@@ -1611,6 +1661,9 @@ fn paint_box(ui: &Ui, style: &SelectStyle, response: &egui::Response, content: B
     if let Some(leading) = content.leading {
         leading.paint(ui, start, rect.center().y);
         start += forward * (leading.size.x + f.gap);
+    }
+    if content.leading.is_some_and(|l| !l.text) {
+        return;
     }
     let (text, color) = match content.text {
         Some(text) => (text, text_color),
@@ -1862,11 +1915,12 @@ fn show_row_content(ui: &mut Ui, args: &mut SearchableArgs) {
         ("Mono", Color32::WHITE, Color32::BLACK),
     ];
     let size = args.size.control();
+    let words = StoryLabels::of(ui);
     with_choices(ui, "select-row-content", [0], |ui, choices| {
         variant_list(ui, "select-row-content", |form| {
-            variant_row(form, "Preset", |ui| {
+            variant_row(form, &words.preset, |ui| {
                 let mut select =
-                    Select::new("select-preset", "Preset", &mut choices[0]).size(size).row_content(vec2(48.0, 16.0), |painter, rect, i| {
+                    Select::new("select-preset", &words.preset, &mut choices[0]).size(size).row_content(vec2(48.0, 16.0), |painter, rect, i| {
                         let (_, from, to) = PRESETS[*i];
                         let steps = 12;
                         for step in 0..steps {

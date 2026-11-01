@@ -11,22 +11,20 @@ repository.workspace = true
 # `decorate`: set the decision on an `egui::ViewportBuilder`. `title_bar`: an app-drawn strip as
 # the title bar (on macOS with AppKit's `movable` flag). `Viewports`: one immediate viewport per window.
 ui = ["dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation"]
-# `restore`: the window-restore store (`window.json` beside `config.toml`) and the pure `place`. No egui.
-restore = ["dep:craft-atomic", "dep:craft-settings", "dep:serde", "dep:serde_json"]
 # `restore::install`, `restore::Tracker` and placement for further windows, for eframe apps. eframe
 # needs a renderer: `restore-ui` turns on its wgpu (without backends), `restore-ui-glow` its glow.
 # Pick the one the app already uses: with both, eframe starts on wgpu.
 restore-ui = ["restore-eframe", "eframe/wgpu_no_default_features"]
 restore-ui-glow = ["restore-eframe", "eframe/glow"]
 # What the two above share; enable one of them instead.
-restore-eframe = ["restore", "ui", "dep:eframe", "dep:winit"]
+restore-eframe = ["ui", "dep:eframe", "dep:winit"]
 
 [dependencies]
 egui = { workspace = true, optional = true }
-craft-atomic = { workspace = true, optional = true }
-craft-settings = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
+craft-atomic = { workspace = true }
+craft-settings = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 eframe = { version = "0.37", default-features = false, optional = true }

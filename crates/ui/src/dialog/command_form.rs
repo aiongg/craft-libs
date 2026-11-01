@@ -2,13 +2,17 @@
 //! Reset on Alt+Cancel. The same [`Param`] list as [`ParamDialog`](super::ParamDialog), without
 //! preview, sliders or remembered values.
 
-use egui::Context;
+use craft_theme::Srgba;
+use egui::{Context, Ui};
 
+use super::color_request::ColorRequest;
 use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::DialogFields;
 use super::footer::{DialogLabels, Footer, Reset};
-use super::params::{Param, ParamResult, draw_rows, first_field_focused, open_fields, take_color_press};
+use super::params::{
+    FooterExtra, Param, ParamResult, PathRequest, draw_rows, first_field_focused, open_fields, set_color_field, take_color_press, take_path_press,
+};
 use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
@@ -38,9 +42,18 @@ pub struct CommandForm {
     ok_label: Option<String>,
     ok_enabled: bool,
     width: Width,
-    picked_color: Option<String>,
+    body: Body,
+    picked_color: Option<ColorRequest>,
+    picked_path: Option<PathRequest>,
+    below: Option<Below>,
+    history: bool,
+    close_label: Option<Option<String>>,
+    footer_extra: Option<FooterExtra>,
     state: DialogState<DialogFields>,
 }
+
+/// A section drawn under the rows ([`CommandForm::below`]).
+type Below = Box<dyn Fn(&mut Ui, &DialogFields) + Send>;
 
 impl CommandForm {
     /// A form for `params`, opening with their defaults.
@@ -55,7 +68,13 @@ impl CommandForm {
             ok_label: None,
             ok_enabled: true,
             width: Width::Standard,
+            body: Body::Scroll,
             picked_color: None,
+            picked_path: None,
+            below: None,
+            history: false,
+            close_label: None,
+            footer_extra: None,
             state: DialogState::new(),
         }
     }
@@ -89,6 +108,38 @@ impl CommandForm {
         self.ok_enabled = enabled;
     }
 
+    /// A section under the rows that only reads the values (File Info's Camera Data).
+    pub fn below(mut self, draw: impl Fn(&mut Ui, &DialogFields) + Send + 'static) -> Self {
+        self.below = Some(Box::new(draw));
+        self
+    }
+
+    /// Cmd/Ctrl+Z steps the form's own settings ([`Dialog::history`]).
+    pub fn history(mut self, history: bool) -> Self {
+        self.history = history;
+        self
+    }
+
+    /// The close box's accessible name; `None` removes the box ([`Dialog::close_label`]).
+    pub fn close_label(mut self, label: Option<String>) -> Self {
+        self.close_label = Some(label);
+        self
+    }
+
+    /// Controls before the buttons in the footer row.
+    pub fn footer_extra(mut self, add: impl FnMut(&mut Ui) + Send + 'static) -> Self {
+        self.footer_extra = Some(Box::new(add));
+        self
+    }
+
+    /// How the body fits the window: [`Body::Scroll`] (the default) or [`Body::Fit`], where the
+    /// dialog takes the height its rows need and shrinks to their width, scrolling only when the
+    /// window is too short ([`Dialog::body`]).
+    pub fn body(mut self, body: Body) -> Self {
+        self.body = body;
+        self
+    }
+
     pub fn width(mut self, width: Width) -> Self {
         self.width = width;
         self
@@ -102,10 +153,26 @@ impl CommandForm {
         &mut self.fields
     }
 
-    /// The key of the colour parameter whose swatch the user pressed, once: the host opens its
-    /// colour picker for it and writes the pick with `fields_mut().set(key, FieldValue::Color(..))`.
-    pub fn pick_color(&mut self) -> Option<String> {
+    /// The colour parameter whose swatch the user pressed, once: the host opens its colour picker
+    /// for the request (key = the parameter's key, title = its label, colour = the value shown) and
+    /// answers with [`set_color`](Self::set_color).
+    pub fn pick_color(&mut self) -> Option<ColorRequest> {
         self.picked_color.take()
+    }
+
+    /// The colour picker's answer for the parameter `key`; other keys are ignored.
+    pub fn set_color(&mut self, key: &str, color: Srgba) {
+        set_color_field(&self.params, &mut self.fields, key, color);
+    }
+
+    /// The Browse button of a [`Param::browse`] row the user pressed, once: the host opens its
+    /// file dialog and writes the path with `fields_mut().set(key, FieldValue::Text(..))`.
+    pub fn pick_path(&mut self) -> Option<PathRequest> {
+        self.picked_path.take()
+    }
+
+    fn answer(&self) -> ParamResult {
+        ParamResult { key: self.key.clone(), fields: self.fields.clone() }
     }
 }
 
@@ -127,20 +194,27 @@ impl StackDialog for CommandForm {
         if let Some(ok) = &self.ok_label {
             footer = footer.ok(ok.as_str());
         }
-        let (params, id) = (&self.params, self.id);
-        let shown = Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).show(
-            ctx,
-            &mut self.state,
-            &mut self.fields,
-            |ui, fields| {
-                first_field_focused(ui, id, |ui| {
-                    FormGrid::new("form").show(ui, |form| draw_rows(params, id, form, fields, None));
-                });
-            },
-        );
+        if let Some(extra) = &mut self.footer_extra {
+            footer = footer.trailing_extra(|ui| extra(ui));
+        }
+        let (params, id, below) = (&self.params, self.id, &self.below);
+        let mut dialog =
+            Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(self.body).footer(footer).history(self.history);
+        if let Some(label) = &self.close_label {
+            dialog = dialog.close_label(label.clone());
+        }
+        let shown = dialog.show(ctx, &mut self.state, &mut self.fields, |ui, fields| {
+            first_field_focused(ui, id, |ui| {
+                FormGrid::new("form").show(ui, |form| draw_rows(params, id, form, fields, None));
+            });
+            if let Some(below) = below {
+                below(ui, fields);
+            }
+        });
         self.picked_color = take_color_press(ctx, self.id).or(self.picked_color.take());
+        self.picked_path = take_path_press(ctx, self.id).or(self.picked_path.take());
         match shown.outcome? {
-            Outcome::Ok => Some(DialogResult::Ok(ParamResult { key: self.key.clone(), fields: self.fields.clone() })),
+            Outcome::Ok => Some(DialogResult::Ok(self.answer())),
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
             Outcome::Reset => {
                 self.fields.reset();
@@ -148,5 +222,19 @@ impl StackDialog for CommandForm {
             }
             _ => None,
         }
+    }
+
+    fn key(&self) -> Option<&str> {
+        Some(&self.key)
+    }
+
+    fn confirm(&mut self, ctx: &Context) -> Option<ParamResult> {
+        if !self.ok_enabled {
+            return None;
+        }
+        if !self.state.is_open() {
+            open_fields(ctx, self.id, &self.params, &mut self.fields);
+        }
+        Some(self.answer())
     }
 }

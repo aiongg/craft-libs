@@ -17,7 +17,7 @@
 //!     "seeds": {"neutral": "#8b8d98", "accent": "#3e63dd",
 //!               "status": {"good": "#30a46c", "warn": "#ffc53d", "bad": "#e5484d", "info": "#0090ff"}}}"##;
 //! let theme = format::parse(file).unwrap().theme;
-//! let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+//! let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
 //! let resolved = resolve(&theme, appearance, None);
 //! assert!(resolved.warnings.is_empty());
 //! ```
@@ -73,26 +73,35 @@ pub use color_model::{
     Channel, ColorModel, DefaultOn, HsbModel, LabModel, MAX_CHANNELS, ModelValues, OklchModel, RgbModel, builtin_models, kept_or_converted,
 };
 pub use components::{
-    AngleDialField, AngleDialTokens, AppShellField, AppShellTokens, BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone,
-    BezierField, BezierTokens, BorderColors, BorderState, ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant, BySize, CanvasField,
-    CanvasTokens, CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckSwitchColors, CheckSwitchPart, CheckTokens,
-    ColorPickerField, ColorPickerTokens, ColorRampField, ColorRampTokens, ColorWheelField, ColorWheelTokens, CommandPaletteField,
-    CommandPaletteTokens, ComponentField, ComponentTokens, ControlSize, CropField, CropTokens, CursorField, CursorTokens, CurveField, CurveTokens,
-    DialogField, DialogTokens, Dimmed, DockField, DockTokens, EmptyStateField, EmptyStateTokens, EyedropperField, EyedropperTokens, FieldField,
-    FieldKind, FieldPart, FieldTokens, FloatField, FloatTokens, FormField, FormSpacing, FormTokens, GradientEditorField, GradientEditorTokens,
-    GradientLineField, GradientLineTokens, GradientPaletteField, GradientPaletteTokens, GridField, GridTokens, GroupBoxField, GroupBoxTokens,
-    GuideField, GuideTokens, HandleField, HandleTokens, HarmonyField, HarmonyTokens, HistogramField, HistogramTokens, IconButtonField,
-    IconButtonTokens, InspectorField, InspectorTokens, ItemColors, ItemPart, KbdField, KbdTokens, LabelColor, LabelPart, LabelTint, LevelsField,
-    LevelsTokens, ListField, ListTokens, ListboxField, ListboxTokens, MarqueeField, MarqueeTokens, MenuField, MenuHue, MenuTint, MenuTintPart,
-    MenuTokens, NoticeField, NoticeTokens, OptionsBarField, OptionsBarTokens, OverrideError, OverrideValue, PaintChipField, PaintChipTokens,
-    PanelField, PanelFooterField, PanelFooterTokens, PanelHeaderField, PanelHeaderTokens, PanelTokens, PopoverField, PopoverTokens, PopupField,
+    AboutField, AboutTokens, ActionsField, ActionsTokens, AlignField, AlignTokens, AltTextField, AltTextTokens, AngleDialField, AngleDialTokens,
+    AppShellField, AppShellTokens, AutocompleteField, AutocompleteTokens, BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone,
+    BezierField, BezierTokens, BorderColors, BorderState, BreadcrumbField, BreadcrumbTokens, ButtonColors, ButtonField, ButtonPart, ButtonTokens,
+    ButtonVariant, BySize, CanvasField, CanvasTokens, ChannelsField, ChannelsTokens, CheckField, CheckOffColors, CheckOffPart, CheckOnColors,
+    CheckOnPart, CheckSpellingField, CheckSpellingTokens, CheckSwitchColors, CheckSwitchPart, CheckTokens, ChipField, ChipTokens, ColorPickerField,
+    ColorPickerTokens, ColorRampField, ColorRampTokens, ColorWheelField, ColorWheelTokens, CommandPaletteField, CommandPaletteTokens, ComponentField,
+    ComponentTokens, ControlSize, CropField, CropTokens, CursorField, CursorTokens, CurveField, CurveTokens, DateField, DateTokens, DialogField,
+    DialogTokens, Dimmed, DockField, DockTokens, DragField, DragTokens, DropVeilField, DropVeilTokens, EmptyStateField, EmptyStateTokens,
+    EventLogField, EventLogTokens, ExportField, ExportTokens, EyedropperField, EyedropperTokens, FieldField, FieldKind, FieldPart, FieldTokens,
+    FileListField, FileListTokens, FindingsField, FindingsTokens, FloatField, FloatTokens, FontPickerField, FontPickerTokens, FormField, FormSpacing,
+    FormTokens, GlyphsField, GlyphsTokens, GradientEditorField, GradientEditorTokens, GradientLineField, GradientLineTokens, GradientPaletteField,
+    GradientPaletteTokens, GridField, GridTokens, GroupBoxField, GroupBoxTokens, GuideField, GuideTokens, HandleField, HandleTokens, HarmonyField,
+    HarmonyTokens, HistogramField, HistogramTokens, HistoryField, HistoryTokens, IconButtonField, IconButtonTokens, IconPickerField,
+    IconPickerTokens, InspectorField, InspectorTokens, ItemColors, ItemPart, KbdField, KbdTokens, LabelColor, LabelPart, LabelTint, LayersField,
+    LayersTokens, LevelsField, LevelsTokens, LinkField, LinkTokens, ListField, ListManagerField, ListManagerTokens, ListTokens, ListboxField,
+    ListboxTokens, MarqueeField, MarqueeTokens, MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens, MetadataField, MetadataTokens,
+    NavigatorField, NavigatorTokens, NewDocumentField, NewDocumentTokens, NoticeField, NoticeTokens, OptionsBarField, OptionsBarTokens,
+    OverrideError, OverrideValue, PaintChipField, PaintChipTokens, PanelField, PanelFooterField, PanelFooterTokens, PanelHeaderField,
+    PanelHeaderTokens, PanelTokens, PasswordField, PasswordTokens, PasteboardField, PasteboardTokens, PopoverField, PopoverTokens, PopupField,
     PopupTokens, PreferencesField, PreferencesTokens, PresetField, PresetTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens,
-    RailField, RailTokens, ReadoutField, ReadoutTokens, RefPointField, RefPointTokens, RulerField, RulerTokens, SamplerField, SamplerTokens,
-    ScreenPickerField, ScreenPickerTokens, ScrollField, ScrollTokens, SectionField, SectionTokens, SegmentedField, SegmentedTokens, SizeField,
-    SliderField, SliderRowField, SliderRowTokens, SliderTokens, SpinnerField, SpinnerTokens, SplitField, SplitTokens, State, States, StatusBarField,
-    StatusBarTokens, SwatchColor, SwatchField, SwatchPaletteField, SwatchPaletteTokens, SwatchTokens, TabField, TabTokens, ThumbColors, ThumbPart,
-    TitleBarField, TitleBarTokens, ToastField, ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone, ToolbarField, ToolbarTokens, TooltipField,
-    TooltipTokens, TransformField, TransformTokens,
+    RailField, RailTokens, RatingField, RatingTokens, ReadoutField, ReadoutTokens, RefPointField, RefPointTokens, ResetDotField, ResetDotTokens,
+    RulerField, RulerTokens, SamplerField, SamplerTokens, ScopesField, ScopesTokens, ScreenPickerField, ScreenPickerTokens, ScrollField,
+    ScrollTokens, SectionField, SectionTokens, SegmentedField, SegmentedTokens, SelectionBarField, SelectionBarTokens, SizeField, SliderField,
+    SliderRowField, SliderRowTokens, SliderTokens, SpinnerField, SpinnerTokens, SplitButtonField, SplitButtonTokens, SplitField, SplitTokens,
+    StartField, StartTokens, State, States, StatusBarField, StatusBarTokens, SwatchColor, SwatchField, SwatchPaletteField, SwatchPaletteTokens,
+    SwatchTokens, TabField, TabTokens, TableField, TableTokens, TextEditorField, TextEditorTokens, TextStylesField, TextStylesTokens, ThemeChipField,
+    ThemeChipTokens, ThumbColors, ThumbPart, ThumbnailField, ThumbnailTokens, TileField, TileTokens, TitleBarField, TitleBarTokens, ToastField,
+    ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone, ToolPillField, ToolPillTokens, ToolbarField, ToolbarTokens, TooltipField,
+    TooltipTokens, TourField, TourTokens, TransformField, TransformTokens, TreePickerField, TreePickerTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};

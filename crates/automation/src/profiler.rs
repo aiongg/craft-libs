@@ -33,7 +33,7 @@ pub struct FrameStages {
     pub upload_ms: f64,
     pub gpu_ms: Option<f64>,
     pub present_ms: Option<f64>,
-    /// What the canvas refreshed (`"gpu full"`, `"cpu tile"`, `""` none).
+    /// What the canvas refreshed (`"full"`, `"rect"`, `"gpu-full"`, …; `""` none; a kind starting with `gpu` is the GPU path).
     pub refresh: &'static str,
     pub refresh_px: u64,
     /// The render path name (`"gpu"`, `"cpu"`).

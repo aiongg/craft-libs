@@ -159,8 +159,8 @@ pub fn window_movable(ctx: &egui::Context) -> bool {
 /// [`empty_area`] writes, it holds for this pass and the next, so write it every such pass; a
 /// drawn bar overwrites it.
 pub fn set_window_movable(ctx: &egui::Context, movable: bool) {
-    let pass = ctx.cumulative_pass_nr();
-    ctx.data_mut(|d| d.insert_temp(movable_id(ctx.viewport_id()), (pass, movable)));
+    let (pass, id) = (ctx.cumulative_pass_nr(), movable_id(ctx.viewport_id()));
+    ctx.data_mut(|d| d.insert_temp(id, (pass, movable)));
 }
 
 /// Sets the `movable` flag of the context's window from this pass's [`window_movable`], which

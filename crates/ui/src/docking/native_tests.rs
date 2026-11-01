@@ -664,7 +664,6 @@ fn unused_keys_in_a_native_window_reach_the_app() {
     assert!(out.forwarded_events.is_empty());
 }
 
-#[cfg(feature = "serde")]
 #[test]
 fn a_native_window_saves_its_id_place_and_monitor() {
     let mut layout = layout(true);

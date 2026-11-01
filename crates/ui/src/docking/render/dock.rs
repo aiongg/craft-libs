@@ -4,6 +4,7 @@
 //! column's inner edge is the dock's inner edge. Behavior follows VectorCraft `floating.rs`
 //! (column layout, drop geometry) and PhotoCraft `dock.rs` (group heights).
 
+use crate::docking::panel_menu::PanelMenuLabels;
 use std::{fmt::Debug, hash::Hash};
 
 use egui::{Context, Key, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
@@ -608,7 +609,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 Rect::from_min_max(bar.min, pos2(bar.right() - width, bar.bottom())),
             ),
         };
-        let label = if column.iconic { self.config.expand_panels_label.clone() } else { self.config.collapse_to_icons_label.clone() };
+        let label =
+            if column.iconic { PanelMenuLabels::in_dock(ui).expand_panels.clone() } else { PanelMenuLabels::in_dock(ui).collapse_to_icons.clone() };
         if usable(button) {
             let response = ui.interact(button, self.id.with(("column-collapse", Some(first))), Sense::click());
             self.register_interaction(ui.ctx(), response.id);

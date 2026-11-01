@@ -80,16 +80,25 @@ fn lookup_picks_the_nearest_scope() {
 
 #[test]
 fn typing_rules_decide_what_fires_in_a_text_field() {
-    let catalog = vec![app("tool.brush", &["B"]), app("edit.copy", &["Cmd+C"]), app("help", &["F1"]), app("view.alt", &["Alt+V"])];
+    // The clipboard chords are the text field's under every rule (`text_editing_chords`).
+    let catalog = vec![
+        app("tool.brush", &["B"]),
+        app("file.save", &["Cmd+S"]),
+        app("help", &["F1"]),
+        app("view.alt", &["Alt+V"]),
+        app("edit.copy", &["Cmd+C"]),
+    ];
     let typing = Active { panel: None, contexts: &[], typing: true };
     let cases = [
-        (TypingRule::PlainKeysWait, [false, true, true, true]),
-        (TypingRule::CommandKeysOnly, [false, true, true, false]),
-        (TypingRule::AllWait, [false, false, false, false]),
+        (TypingRule::PlainKeysWait, [false, true, true, true, false]),
+        (TypingRule::CommandKeysOnly, [false, true, true, false, false]),
+        (TypingRule::AllWait, [false, false, false, false, false]),
     ];
     for (rule, fires) in cases {
         let km = Keymap::new(catalog.clone(), Scopes::new(), Platform::Windows).with_typing_rule(rule);
-        for ((key, id), fire) in [("B", "tool.brush"), ("Cmd+C", "edit.copy"), ("F1", "help"), ("Alt+V", "view.alt")].into_iter().zip(fires) {
+        for ((key, id), fire) in
+            [("B", "tool.brush"), ("Cmd+S", "file.save"), ("F1", "help"), ("Alt+V", "view.alt"), ("Cmd+C", "edit.copy")].into_iter().zip(fires)
+        {
             let want = if fire { run(id) } else { Lookup::None };
             assert_eq!(press(&km, key, &typing), want, "{rule:?} {key}");
             assert_eq!(press(&km, key, &Active::NONE), run(id), "{rule:?} {key} not typing");

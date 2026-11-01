@@ -298,6 +298,7 @@ pub struct Histogram {
     stale_click: Option<String>,
     height: Option<f32>,
     bordered: bool,
+    interactive: bool,
 }
 
 /// What [`Histogram::show`] returns. It dereferences to the plot's [`egui::Response`].
@@ -353,6 +354,7 @@ impl Histogram {
             stale_click: None,
             height: None,
             bordered: false,
+            interactive: false,
         }
     }
 
@@ -467,6 +469,17 @@ impl Histogram {
         self
     }
 
+    /// The plot takes the pointer and the keyboard for the host's own gestures, for example tone
+    /// zones that edit the host's controls: a press, a drag, a double-click and the arrow keys
+    /// with the plot focused, read from [`HistogramResponse::response`] (`dragged`,
+    /// `double_clicked`, `has_focus`). The plot is one Tab stop with the focus ring and paints
+    /// nothing for the gestures; a [`selection`](Histogram::selection) takes the same input and
+    /// needs no call. Off by default.
+    pub fn interactive(mut self, interactive: bool) -> Self {
+        self.interactive = interactive;
+        self
+    }
+
     /// The look in `tokens`. The ribbon colours are those of `tokens`; [`show`](Histogram::show)
     /// uses the dark mode's.
     pub fn style(tokens: &UiTokens) -> HistogramStyle {
@@ -511,7 +524,8 @@ impl Histogram {
         let id = ui.make_persistent_id(self.id_salt);
         let bins = self.data.as_ref().map_or(0, HistogramData::bin_count);
         let selectable = self.selection.is_some() && bins > 0 && ui.is_enabled();
-        let response = ui.interact(rect, id, if selectable { Sense::click_and_drag() } else { Sense::hover() });
+        let takes_input = selectable || self.interactive && bins > 0 && ui.is_enabled();
+        let response = ui.interact(rect, id, if takes_input { Sense::click_and_drag() } else { Sense::hover() });
         response.widget_info(|| {
             let mut info = WidgetInfo::labeled(Role::Image, ui.is_enabled(), &self.label);
             info.current_text_value.clone_from(&self.value);
@@ -557,7 +571,7 @@ impl Histogram {
             if self.bordered {
                 painter.rect_stroke(rect, 0.0, Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), style.border), StrokeKind::Inside);
             }
-            if selectable {
+            if takes_input {
                 FocusRing::paint_radius(ui, rect, CornerRadius::ZERO, &response);
             }
             if self.stale {

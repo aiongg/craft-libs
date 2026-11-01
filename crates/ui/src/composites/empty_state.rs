@@ -9,6 +9,7 @@ use super::live;
 use crate::controls::Button;
 use crate::direction;
 use crate::icons::{Icon, IconSize};
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Icon as IconWidget};
 use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format, style_format};
@@ -392,6 +393,15 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
+crate::words! {
+    /// The sample text of the empty state stories, English by default.
+    #[non_exhaustive]
+    pub struct EmptyStateStoryLabels {
+        no_matches: "emptyStateStory.noMatches" = "No matching commands";
+        open: "emptyStateStory.open" = "Open…";
+    }
+}
+
 #[derive(StoryArgs, Debug, PartialEq)]
 struct PanelArgs {
     search: String,
@@ -417,7 +427,7 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
         ui.set_max_width(width);
         let matches: Vec<&str> = ITEMS.into_iter().filter(|item| item.to_lowercase().contains(&needle)).collect();
         if matches.is_empty() {
-            let empty = EmptyState::new("No matching commands");
+            let empty = EmptyState::new(EmptyStateStoryLabels::of(ui).no_matches);
             empty.status_if(args.status).show(ui);
         } else {
             for item in matches {
@@ -430,13 +440,14 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
 /// The no-document screen: title, description, two actions and a footer.
 fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
     let size = vec2(args.width.min(ui.available_width()), args.height);
+    let words = EmptyStateStoryLabels::of(ui);
     ui.allocate_ui(size, |ui| {
         ui.set_min_size(size);
         EmptyState::centred("No document")
             .description("Create a new document or open an existing file.")
             .icon(Icon::Image)
             .action(Button::new("New document…"))
-            .action(Button::new("Open…"))
+            .action(Button::new(&words.open))
             .footer(|ui| {
                 ui.label("Drop an image here to open it");
             })
@@ -448,13 +459,14 @@ fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
 /// actions and a footer.
 fn show_start_screen(ui: &mut Ui, args: &mut CanvasArgs) {
     let size = vec2(args.width.min(ui.available_width()), args.height);
+    let words = EmptyStateStoryLabels::of(ui);
     ui.allocate_ui(size, |ui| {
         ui.set_min_size(size);
         EmptyState::centred("Sample App")
             .brand("open source")
             .description("Create a new document or open an existing file.")
             .action(Button::new("New document…"))
-            .action(Button::new("Open…"))
+            .action(Button::new(&words.open))
             .below_actions(|ui| {
                 ui.label("Drop an image here to open it");
             })

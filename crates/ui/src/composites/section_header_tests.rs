@@ -356,3 +356,29 @@ fn a_caption_header_uses_the_caption_role_faint_capitals() {
 fn capitals_leave_other_scripts_alone() {
     assert_eq!(uppercase_latin("Straße ünï 日本 Ωμέγα ñ"), "STRAßE ÜNÏ 日本 Ωμέγα Ñ");
 }
+
+#[test]
+fn a_header_senses_drags_only_when_asked() {
+    for drag in [false, true] {
+        let mut harness = harness(Direction::Ltr).build_ui_state(
+            move |ui, started: &mut bool| {
+                panel(ui, 240.0, |ui| {
+                    let response = SectionHeader::new("transform", "Transform").drag(drag).show(ui, |ui| ui.label("Body")).response;
+                    *started |= response.drag_started();
+                })
+            },
+            false,
+        );
+        harness.run();
+        let from = header(&harness, "Transform").rect().center();
+        harness.input_mut().events.push(egui::Event::PointerMoved(from));
+        harness.run_steps(1);
+        let press =
+            |pressed| egui::Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        harness.input_mut().events.push(press(true));
+        harness.run_steps(1);
+        harness.input_mut().events.push(egui::Event::PointerMoved(from + vec2(0.0, 12.0)));
+        harness.run_steps(2);
+        assert_eq!(*harness.state(), drag, "drag sensing {drag}");
+    }
+}

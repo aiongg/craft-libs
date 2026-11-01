@@ -11,7 +11,7 @@ use crate::icons::Icon;
 use crate::localized::{Labels as _, LocaleNumbers, Unit};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Content, Divider, Text};
-use crate::story::{Level, NoArgs, Story, StoryArgs, Surface};
+use crate::story::{Level, NoArgs, PatternStoryLabels, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 use craft_theme::{ControlSize, TypeRole};
@@ -341,8 +341,8 @@ impl Default for Demo {
     }
 }
 
-fn info_text(index: usize) -> &'static str {
-    ["1200 px x 800 px (72 ppi)", "sRGB IEC61966-2.1", "Brush"][index]
+fn info_text(index: usize, words: &PatternStoryLabels) -> &str {
+    ["1200 px x 800 px (72 ppi)", "sRGB IEC61966-2.1", words.brush.as_str()][index]
 }
 
 /// PhotoCraft's status bar: zoom, the chosen info and its menu, a message and the render path.
@@ -352,12 +352,13 @@ fn show_story(ui: &mut Ui, args: &mut StatusArgs) {
     let state_id = ui.scope_id().with("status-bar-demo");
     let mut demo = ui.data(|d| d.get_temp::<Demo>(state_id)).unwrap_or_default();
     let numbers = LocaleNumbers::from_tag("en-US");
+    let words = PatternStoryLabels::of(ui);
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         StatusBar::new("status-bar-demo").show(ui, |bar| {
             bar.leading(|ui| {
                 StatusBar::field(ui, |ui| {
-                    let edit = NumberField::new("demo-zoom", "Zoom", demo.zoom, &numbers)
+                    let edit = NumberField::new("demo-zoom", &words.zoom, demo.zoom, &numbers)
                         .range(1.0..=6400.0)
                         .unit(Unit::new("{n}%"))
                         .scrub_wrap(true)
@@ -367,8 +368,8 @@ fn show_story(ui: &mut Ui, args: &mut StatusArgs) {
                         demo.zoom = *v;
                     }
                 });
-                StatusBar::info(ui, info_text(demo.info));
-                let button = StatusBar::menu_button(ui, "Show");
+                StatusBar::info(ui, info_text(demo.info, &words));
+                let button = StatusBar::menu_button(ui, &words.show);
                 let entries: Vec<MenuEntry<usize>> =
                     INFO.iter().enumerate().map(|(i, (_, label))| MenuItem::new(*label, i).radio(demo.info == i).into()).collect();
                 if let Some(chosen) = PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &button).chosen {

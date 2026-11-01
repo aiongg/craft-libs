@@ -5,7 +5,8 @@
 //! The wrap moves the system pointer with [`Scrub::warp`]: through the warp service the app
 //! installed ([`Scrub::install_warp`], craft-platform's `pointer::warp` on macOS, where egui's
 //! `ViewportCommand::CursorPosition` lags a frame and the pointer must be re-associated), else
-//! through egui. Where the platform does not move the pointer on request (Wayland without a
+//! through egui, which is also the fallback where the service reports it could not move the
+//! pointer. Where the platform does not move the pointer on request (Wayland without a
 //! pointer lock) the scrub stops at the edge.
 
 use std::sync::Arc;
@@ -68,23 +69,26 @@ pub struct Scrub;
 
 impl Scrub {
     /// Install the app's pointer warp for `ctx` (once at startup). craft-platform's
-    /// `pointer::warp` is the macOS one; an app without one leaves egui's.
+    /// `pointer::warp` is the macOS one; it takes the screen point, so the closure converts from
+    /// the viewport (`pointer::warp` returns `false` off macOS, where egui's command then moves
+    /// the pointer). An app without a service leaves egui's.
     pub fn install_warp(ctx: &Context, warp: impl Fn(&Context, Pos2) -> bool + Send + Sync + 'static) {
         let warp: Warp = Arc::new(warp);
         ctx.data_mut(|d| d.insert_temp(Self::id(), warp));
     }
 
     /// Move the system pointer to `pos` (egui points in the current viewport) for a scrub's
-    /// wrap: the installed service if any, else `ViewportCommand::CursorPosition`. Returns
-    /// `false` when the installed service could not move it (the scrub then waits at the edge,
-    /// see [`travel`]).
+    /// wrap: the installed service if any, and `ViewportCommand::CursorPosition` where the
+    /// service is absent or could not move it (it returns `false` where the platform refuses,
+    /// such as Windows and X11 for a service that only knows macOS). A platform that moves the
+    /// pointer for neither leaves it where it is, and the scrub waits at the edge (see
+    /// [`travel`]).
     // pc: crates/ui-egui/src/input/scrub_wrap.rs:15 `wrap_target`, number_field.rs `ViewportCommand::CursorPosition`.
-    pub fn warp(ctx: &Context, pos: Pos2) -> bool {
-        if let Some(warp) = ctx.data(|d| d.get_temp::<Warp>(Self::id())) {
-            return warp(ctx, pos);
+    pub fn warp(ctx: &Context, pos: Pos2) {
+        let moved = ctx.data(|d| d.get_temp::<Warp>(Self::id())).is_some_and(|warp| warp(ctx, pos));
+        if !moved {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CursorPosition(pos));
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::CursorPosition(pos));
-        true
     }
 
     fn id() -> Id {

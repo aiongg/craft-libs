@@ -17,8 +17,7 @@ const DEFAULT_FLOAT: [f32; 4] = [48.0, 48.0, 260.0, 320.0];
 /// The window edge a [`Node::Dock`] sits on, in reading order so right-to-left interfaces
 /// mirror. `Start` is the edge of a horizontal split's first child (left in a left-to-right
 /// layout); the renderer maps it to a physical edge from the layout direction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Side {
     Start,
@@ -26,19 +25,18 @@ pub enum Side {
 }
 
 /// Tabs that move, minimize and size together in a dock column.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(bound(deserialize = "P: serde::Deserialize<'de>")))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
 pub struct Group<P> {
     pub panels: Vec<P>,
     pub active: usize,
     /// Only the tab strip shows. `height` is kept for when the group expands again.
-    #[cfg_attr(feature = "serde", serde(default))]
+    #[serde(default)]
     pub minimized: bool,
     /// Preferred height in points, set when the user resizes the group; `None` shares the free
     /// height of the column or stack, or in a dock column takes
     /// [`DockContent::dock_heights`](crate::docking::DockContent::dock_heights).
-    #[cfg_attr(feature = "serde", serde(default))]
+    #[serde(default)]
     pub height: Option<f32>,
 }
 
@@ -53,18 +51,17 @@ impl<P> Group<P> {
 }
 
 /// One column of a dock: groups from top to bottom.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(bound(deserialize = "P: serde::Deserialize<'de>")))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
 pub struct Column<P> {
     pub groups: Vec<Group<P>>,
     /// Expanded width in points.
     pub width: f32,
     /// Collapsed to one icon per panel.
-    #[cfg_attr(feature = "serde", serde(default))]
+    #[serde(default)]
     pub iconic: bool,
     /// Width while iconic; labels show beside the icons when it is wide enough.
-    #[cfg_attr(feature = "serde", serde(default))]
+    #[serde(default)]
     pub iconic_width: Option<f32>,
 }
 
@@ -75,8 +72,7 @@ impl<P> Column<P> {
 }
 
 /// Where a group, column or floating window goes.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Target<P> {
     /// Relative to the panel `anchor`, which must not be part of what moves.
@@ -129,8 +125,7 @@ pub enum PanelState {
 }
 
 /// The group a closed panel was in, when that group was in a dock.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GroupLocation {
     pub minimized: bool,
     pub height: Option<f32>,
@@ -138,8 +133,7 @@ pub struct GroupLocation {
     pub column: Option<ColumnLocation>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ColumnLocation {
     pub side: Side,
     pub width: f32,

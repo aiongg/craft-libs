@@ -3,7 +3,8 @@
 //!
 //! - [`MenuItem`] and [`MenuEntry`]: a menu's data. A row has a label, an optional icon, a check or
 //!   radio mark ([`ItemKind`]), a shortcut ([`Kbd`](crate::controls::Kbd)), an enabled state, a
-//!   preferred mnemonic, and a command (`T`) or a submenu of entries.
+//!   preferred mnemonic, and a command (`T`) or a submenu of entries. A check or radio row can
+//!   [keep the menu open](MenuItem::keep_open) when it runs, for panel menus of settings.
 //! - [`Menu`]: the popup. Its owner (a menu bar's title, a button, a secondary click) makes the
 //!   egui [`Popup`](egui::Popup) with its anchor and open state; the menu draws the rows in it,
 //!   tracks the highlight, the pointer heading for a submenu, and the keys, and returns the
@@ -14,6 +15,7 @@
 //! - [`mnemonics`]: whether menus have mnemonics here (off on macOS); [`set_mnemonics`] overrides.
 //! - [`any_open`]: whether any menu is open, for the app's single-key shortcuts, which wait
 //!   meanwhile.
+//! - [`facts_id`]: the id a panel keeps what its panel menu needs under.
 //!
 //! Menus draw with the list box rows' tokens (`listbox.*`) and their own `menu.*` (least width,
 //! shortcut gap, scroll strip, the accent-filled active row); [`Menu::style`] is the pure style
@@ -21,7 +23,10 @@
 
 pub mod bar;
 mod context;
+mod facts;
 mod item;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod keep_open_tests;
 mod mnemonic;
 mod nav;
 mod popup;
@@ -32,6 +37,7 @@ mod tests;
 
 pub use bar::{MenuBar, MenuBarLabels, MenuBarResponse};
 pub use context::{ContextMenu, OpenAt};
+pub use facts::facts_id;
 pub use item::{ItemKind, MenuEntry, MenuItem};
 pub use mnemonic::{mnemonics, set_mnemonics};
 pub use nav::MenuStep;
@@ -43,6 +49,7 @@ use egui::{Id, Key, KeyboardShortcut, Modifiers, Ui};
 
 use crate::controls::{Button, Kbd};
 use crate::icons::Icon;
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Gap, Row, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs};
 use crate::typed_story;
@@ -62,6 +69,17 @@ struct MenusArgs {
 struct IconsArgs {
     size: SizeArg,
     icons: bool,
+}
+
+crate::words! {
+    /// The sample text of the menu stories, English by default.
+    #[non_exhaustive]
+    pub struct MenuStoryLabels {
+        file: "menuStory.file" = "File";
+        edit: "menuStory.edit" = "Edit";
+        view: "menuStory.view" = "View";
+        nothing_chosen: "menuStory.nothingChosen" = "Nothing chosen";
+    }
 }
 
 pub(crate) fn stories() -> Vec<Story> {
@@ -102,6 +120,8 @@ pub(crate) enum Command {
     Fit,
     Mode(u8),
     Row(usize),
+    /// The context-menu story's check row that keeps the menu open.
+    Guides,
 }
 
 fn shortcut(modifiers: Modifiers, key: Key) -> Kbd {
@@ -166,33 +186,43 @@ fn long_menu(rows: usize) -> Vec<MenuEntry<Command>> {
 fn show_menus(ui: &mut Ui, args: &mut MenusArgs) {
     let size = args.size.control();
     let edit = edit_menu(args.icons);
+    let words = MenuStoryLabels::of(ui);
     let long = long_menu(args.rows.max(1) as usize);
     let last = Id::unique("craft-ui-menu-story-last");
     Row::new(Gap::Section).show(ui, |ui| {
-        for (label, entries) in [("Edit", &edit), ("Long", &long)] {
+        for (label, entries) in [(words.edit.as_str(), &edit), ("Long", &long)] {
             let button = ui.add(Button::new(label));
             let shown = PressMenu::new(entries).size(size).show(ui, &button);
             if let Some(command) = shown.chosen {
                 ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
             }
         }
-        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());
+        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| words.nothing_chosen.clone());
         ui.add(Text::new(chosen).content(Content::Muted));
     });
 }
 
 /// A focusable box with a context menu: secondary click, or Menu key and Shift+F10 once it has the
-/// focus (Tab to it).
+/// focus (Tab to it). The last row is a check row that keeps the menu open (a choice that changes a
+/// setting leaves the menu up for the next one).
 fn show_context_menu(ui: &mut Ui, args: &mut IconsArgs) {
     let size = args.size.control();
-    let entries = edit_menu(args.icons);
+    let words = MenuStoryLabels::of(ui);
+    let mut entries = edit_menu(args.icons);
     let last = Id::unique("craft-ui-context-menu-story-last");
+    let guides = Id::unique("craft-ui-context-menu-story-guides");
+    let show_guides = ui.data(|d| d.get_temp::<bool>(guides)).unwrap_or(true);
+    entries.push(MenuEntry::Separator);
+    entries.push(MenuItem::new("Show Guides (stays open)", Command::Guides).check(show_guides).keep_open(true).into());
     Row::new(Gap::Section).show(ui, |ui| {
         let target = ui.add(Button::new("Right-click, or focus and press Shift+F10"));
         if let Some(command) = ContextMenu::new(&entries).size(size).show(ui, &target).chosen {
+            if command == Command::Guides {
+                ui.data_mut(|d| d.insert_temp(guides, !show_guides));
+            }
             ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
         }
-        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());
+        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| words.nothing_chosen.clone());
         ui.add(Text::new(chosen).content(Content::Muted));
     });
 }
@@ -202,15 +232,16 @@ fn show_press_menu(ui: &mut Ui, args: &mut IconsArgs) {
     let size = args.size.control();
     let edit = edit_menu(args.icons);
     let long = long_menu(30);
+    let words = MenuStoryLabels::of(ui);
     let last = Id::unique("craft-ui-press-menu-story-last");
     Row::new(Gap::Section).show(ui, |ui| {
-        for (label, entries) in [("Edit", &edit), ("Long", &long)] {
+        for (label, entries) in [(words.edit.as_str(), &edit), ("Long", &long)] {
             let button = ui.add(Button::new(label));
             if let Some(command) = PressMenu::new(entries).size(size).show(ui, &button).chosen {
                 ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
             }
         }
-        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());
+        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| words.nothing_chosen.clone());
         ui.add(Text::new(chosen).content(Content::Muted));
     });
 }

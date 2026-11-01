@@ -3,18 +3,19 @@
 use egui::text::LayoutJob;
 use std::ops::RangeInclusive;
 
-use egui::{AsIdSalt, CursorIcon, Id, IdSalt, Label, PointerButton, Response, Sense, Ui, vec2};
+use egui::{AsIdSalt, Id, IdSalt, Label, Response, Sense, Ui, vec2};
 
 use super::options_bar::OptionsBar;
 use crate::canvas::rulers;
 use crate::controls::expr::{self, ExprUnits};
 use crate::controls::{CheckState, Checkbox, NumberField, Select};
 use crate::direction;
-use crate::edit::{EditPolicy, EditResponse, Gesture};
+use crate::edit::EditResponse;
+use crate::localized::Labels as _;
 use crate::localized::units::{LengthUnit, UnitContext};
 use crate::localized::{LocaleNumbers, Unit, Word, Words};
 use crate::primitives::{Content, FocusRing, Text};
-use crate::story::StoryArgs;
+use crate::story::{PatternStoryLabels, StoryArgs, StoryLabels};
 use crate::theme::{Tokens, TokensOf};
 use craft_theme::{ControlSize, TypeRole};
 
@@ -104,37 +105,16 @@ impl OptionsBar {
         let salt = IdSalt::new(id_salt);
         let field_id = ui.make_persistent_id(salt);
         Self::cell(ui, caption, CellWidth::Sm, |ui, label| {
-            let drag = scrub_area(ui, label, field_id);
-            let mut gesture = Gesture::load(ui, drag.id, &value, EditPolicy::default()).enabled(drag.enabled());
-            if drag.hovered() || drag.dragged() {
-                ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
-            }
-            if drag.drag_started_by(PointerButton::Primary) && value.is_finite() {
-                gesture.begin();
-            }
-            if drag.dragged_by(PointerButton::Primary)
-                && let Some(start) = gesture.anchor().copied()
-                && let Some((pos, origin)) = drag.interact_pointer_pos().zip(ui.input(|i| i.pointer.press_origin()))
-            {
-                let next = (start + f64::from(pos.x - origin.x) * PERCENT_PER_POINT).clamp(0.0, 100.0);
-                gesture.update(next, ui.input(|i| i.modifiers));
-            }
-            if drag.drag_stopped() {
-                gesture.commit();
-            }
-            let shown = *gesture.shown();
-            let mut edit = NumberField::new(salt, caption, shown, numbers)
+            let area = scrub_area(ui, label, field_id);
+            NumberField::new(salt, caption, value, numbers)
                 .range(0.0..=100.0)
                 .decimals(0..=0)
                 .unit(Unit::new("{n}%"))
                 .size(ControlSize::Sm)
+                .scrub_by(&area)
+                .scrub_rate(PERCENT_PER_POINT)
                 .popup_slider(caption)
-                .show(ui);
-            if drag.clicked() {
-                edit.response.request_focus();
-            }
-            edit.event = gesture.finish().or(edit.event.take());
-            edit
+                .show(ui)
         })
     }
 
@@ -173,20 +153,10 @@ impl OptionsBar {
         let shown = context.from_pixels(pixels, unit).map_or(f64::NAN, round);
         let entries = rulers::unit_entries(ui, units, unit);
         let mut picked = None;
-        let template = if unit == LengthUnit::Percent { "{n}%".to_owned() } else { format!("{{n}} {}", unit.suffix()) };
-        let reader = |text: &str| expr::parse_with_units(text, &ExprUnits { unit: Some(unit), suffix: unit.suffix(), context });
+        let units_of_field = ExprUnits { unit: Some(unit), suffix: unit.suffix(), context };
         let edit = Self::cell(ui, caption, CellWidth::Md, |ui, label| {
             let area = scrub_area(ui, label, label.id);
-            NumberField::new(salt, caption, shown, &numbers)
-                .range(bounds)
-                .decimals(0..=places)
-                .unit(Unit::new(&template))
-                .expressions(true)
-                .or_parse(reader)
-                .unit_menu(&entries, &mut picked)
-                .size(ControlSize::Sm)
-                .scrub_by(&area)
-                .show(ui)
+            unit_number_field(salt, caption, shown, &numbers, &units_of_field).range(bounds).unit_menu(&entries, &mut picked).scrub_by(&area).show(ui)
         });
         let to_pixels = |value: f64| {
             let exact = if (round(value) - shown).abs() < 0.5 / scale { pixels } else { context.to_pixels(value, unit).unwrap_or(pixels) };
@@ -206,7 +176,33 @@ impl OptionsBar {
     }
 }
 
-/// Percentage points a caption drag adds per screen point.
+/// A [`NumberField`] for a number with a unit, as the length cells and the Character panel's size
+/// fields show it: `shown` is already in the field's unit; `units.suffix` follows the number
+/// (`{n} pt`, `{n}%` for a percentage, none for a plain number); typed text may carry another
+/// unit (`2in`) or arithmetic ([`expr::parse_with_units`]). Decimals follow
+/// [`LengthUnit::decimals`] (`0..=2` for a field with no length unit). The caller adds the range,
+/// the unit menu, presets and the scrub area.
+pub fn unit_number_field<'a>(
+    id_salt: impl AsIdSalt,
+    caption: &str,
+    shown: f64,
+    numbers: &'a LocaleNumbers,
+    units: &ExprUnits<'_>,
+) -> NumberField<'a> {
+    let places = units.unit.map_or(2, LengthUnit::decimals);
+    let template = match units.suffix {
+        "" => "{n}".to_owned(),
+        "%" => "{n}%".to_owned(),
+        suffix => format!("{{n}} {suffix}"),
+    };
+    let (unit, suffix, context) = (units.unit, units.suffix.to_owned(), units.context);
+    let reader = move |text: &str| {
+        if suffix.is_empty() { expr::parse(text) } else { expr::parse_with_units(text, &ExprUnits { unit, suffix: &suffix, context }) }
+    };
+    NumberField::new(id_salt, caption, shown, numbers).decimals(0..=places).unit(Unit::new(&template)).or_parse(reader).size(ControlSize::Sm)
+}
+
+/// Percentage points a caption drag adds per screen point ([`NumberField::scrub_rate`]).
 const PERCENT_PER_POINT: f64 = 0.5;
 
 /// The longest gap after a caption that still scrubs.
@@ -253,8 +249,9 @@ impl Default for Demo {
 }
 
 fn brush_cells(ui: &mut Ui, numbers: &LocaleNumbers, size: &mut f64, opacity: &mut f64, mode: &mut String) {
+    let words = StoryLabels::of(ui);
     OptionsBar::cell(ui, "Size:", super::CellWidth::Sm, |ui, caption| {
-        let edit = NumberField::new("demo-size", "Size", *size, numbers)
+        let edit = NumberField::new("demo-size", &words.size, *size, numbers)
             .range(1.0..=5000.0)
             .unit(Unit::new("{n} px"))
             .size(ControlSize::Sm)
@@ -265,7 +262,7 @@ fn brush_cells(ui: &mut Ui, numbers: &LocaleNumbers, size: &mut f64, opacity: &m
         }
     });
     OptionsBar::cell(ui, "Opacity:", super::CellWidth::Md, |ui, caption| {
-        let edit = NumberField::new("demo-opacity", "Opacity", *opacity, numbers)
+        let edit = NumberField::new("demo-opacity", &words.opacity, *opacity, numbers)
             .range(1.0..=100.0)
             .unit(Unit::new("{n}%"))
             .size(ControlSize::Sm)
@@ -310,13 +307,14 @@ pub(super) fn show_story(ui: &mut Ui, args: &mut BarArgs) {
     let state_id = ui.scope_id().with("options-bar-demo");
     let mut demo = ui.data(|d| d.get_temp::<Demo>(state_id)).unwrap_or_default();
     let numbers = LocaleNumbers::from_tag("en-US");
+    let pattern_words = PatternStoryLabels::of(ui);
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         let mut finished = None;
         OptionsBar::new("options-bar-demo").narrow(narrow).show(ui, |bar| {
             bar.leading(|ui| {
-                OptionsBar::home(ui, &mut demo.home, "Home");
-                OptionsBar::tool_icon(ui, crate::icons::Icon::Brush, "Brush");
+                OptionsBar::home(ui, &mut demo.home, &pattern_words.home);
+                OptionsBar::tool_icon(ui, crate::icons::Icon::Brush, &pattern_words.brush);
             });
             if two_rows {
                 bar.row(|ui| brush_cells(ui, &numbers, &mut demo.size, &mut demo.opacity, &mut demo.mode));

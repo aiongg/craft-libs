@@ -1190,7 +1190,8 @@ fn show_transform_box(ui: &mut Ui, args: &mut FreeTransformArgs) {
     let scale = if args.scale == ScaleArg::Free { ScaleRule::Free } else { ScaleRule::Proportional };
     let zone = if args.zone == ZoneArg::Band { RotateZone::Band } else { RotateZone::Outside };
     let rules = BoxRules { mode, scale, rotate_step: if scale == ScaleRule::Free { 45.0 } else { 15.0 }, ..BoxRules::default() };
-    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
+    let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
     let view = &canvas.view;
     let painter = ui.painter_at(view.rect);
     let picture = |quad: &[Point; 4], alpha: u8| {

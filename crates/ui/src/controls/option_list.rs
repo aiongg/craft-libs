@@ -57,6 +57,8 @@ pub(super) enum Hover {
 #[derive(Clone, Copy)]
 pub(super) struct Leading<'t> {
     pub size: Vec2,
+    /// The option's text shows after the content; without it the content is all the row shows.
+    pub text: bool,
     pub paint: &'t dyn Fn(&Painter, Rect),
 }
 
@@ -157,7 +159,8 @@ impl<'r> OptionRows<'r> {
     fn width(&self, ui: &Ui, text: &str, leading: Option<Leading<'_>>) -> f32 {
         let s = self.style;
         let galley = text_galley(ui, s.label, text, Color32::PLACEHOLDER, f32::INFINITY);
-        2.0 * s.pad_x + text_offset(s, self.icons, leading) + galley.size().x
+        let text = if leading.is_none_or(|l| l.text) { galley.size().x } else { 0.0 };
+        2.0 * s.pad_x + text_offset(s, self.icons, leading) + text
     }
 }
 
@@ -184,7 +187,7 @@ struct RowLook<'r> {
 /// From a row's reading start to its text, inside the padding: the check mark and, when the list
 /// has icons, an icon, and the host's content, each followed by the gap.
 fn text_offset(s: &ListboxStyle, icons: bool, leading: Option<Leading<'_>>) -> f32 {
-    (s.icon + s.gap) * if icons { 2.0 } else { 1.0 } + leading.map_or(0.0, |l| l.size.x + s.gap)
+    (s.icon + s.gap) * if icons { 2.0 } else { 1.0 } + leading.map_or(0.0, |l| l.size.x + if l.text { s.gap } else { 0.0 })
 }
 
 fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &RowLook<'_>) {
@@ -225,6 +228,9 @@ fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &Ro
     if let Some(leading) = look.leading {
         let from = start + forward * (text_offset(s, look.icons, None));
         leading.paint(ui, from, rect.center().y);
+    }
+    if look.leading.is_some_and(|l| !l.text) {
+        return;
     }
     let offset = text_offset(s, look.icons, look.leading);
     let galley = text_galley(ui, s.label, look.text, text, f32::INFINITY);
@@ -372,7 +378,7 @@ mod tests {
                 contrast: ContrastChoice::Standard,
                 motion: MotionChoice::System,
                 size: Size::Compact,
-                text_size: TextSize::Default,
+                text_size: TextSize::Small,
             };
             let defaults = AppDefaults {
                 theme: ThemePair::same(ThemeId::suite_default()),

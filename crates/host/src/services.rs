@@ -1,10 +1,39 @@
 //! The service traits of a [`Host`](crate::Host) and their default implementations.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::fmt;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+
+/// Wakes the app's event loop so it runs a frame (`ctx.request_repaint()` in an egui app).
+/// Services call it from any thread when work they did for the UI is ready. Cloning shares the
+/// callback.
+#[derive(Clone)]
+pub struct Wake(Arc<dyn Fn() + Send + Sync>);
+
+impl Wake {
+    pub fn new(wake: impl Fn() + Send + Sync + 'static) -> Self {
+        Self(Arc::new(wake))
+    }
+
+    /// A wake that does nothing (tests, headless runs).
+    pub fn none() -> Self {
+        Self::new(|| {})
+    }
+
+    /// Asks the event loop for a frame.
+    pub fn wake(&self) {
+        (self.0)();
+    }
+}
+
+impl fmt::Debug for Wake {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Wake")
+    }
+}
 
 /// Who the app is: shown by About, the updater and recovery.
 #[derive(Clone, Debug)]
@@ -86,5 +115,52 @@ pub struct InlineJobs;
 impl Jobs for InlineJobs {
     fn spawn(&self, _name: &str, job: Box<dyn FnOnce() + Send>) {
         job();
+    }
+}
+
+/// A [`Jobs`] that keeps every job until a test or story runs it: [`run_next`](Self::run_next)
+/// runs the oldest one on the calling thread. Stories show loading, stand-in and failure states
+/// one step at a time ("Finish next"), and tests order background work exactly, without threads.
+/// A job that spawns another while it runs (a [`JobQueue`](crate::queue::JobQueue) lane starting
+/// its next run) queues it behind the others; the lock is not held while a job runs.
+#[derive(Default)]
+pub struct ManualJobs {
+    waiting: Mutex<std::collections::VecDeque<Box<dyn FnOnce() + Send>>>,
+}
+
+impl ManualJobs {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Runs the oldest waiting job; false when none waits.
+    pub fn run_next(&self) -> bool {
+        // new: the stories' "Finish next" button and the queue tests.
+        let job = self.waiting.lock().unwrap_or_else(|e| e.into_inner()).pop_front();
+        job.map(|job| job()).is_some()
+    }
+
+    /// Runs jobs until none waits, including the ones they spawn, and returns how many ran.
+    pub fn run_all(&self) -> usize {
+        // new: a test that only needs every job done.
+        let mut ran = 0;
+        while self.run_next() {
+            ran += 1;
+        }
+        ran
+    }
+
+    /// How many jobs wait.
+    pub fn waiting(&self) -> usize {
+        // new: stories show it beside the "Finish next" button.
+        self.waiting.lock().unwrap_or_else(|e| e.into_inner()).len()
+    }
+}
+
+impl Jobs for ManualJobs {
+    /// Queues `job` behind the waiting ones; `name` is not kept.
+    fn spawn(&self, _name: &str, job: Box<dyn FnOnce() + Send>) {
+        // new: see `ManualJobs`.
+        self.waiting.lock().unwrap_or_else(|e| e.into_inner()).push_back(job);
     }
 }

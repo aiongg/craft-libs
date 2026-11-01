@@ -2,6 +2,8 @@
 
 use egui::{Context, Ui};
 
+use craft_theme::Srgba;
+
 use super::model::{PageSpec, PrefValue};
 
 /// The app's side of the Preferences window. The model keeps the saved settings and the draft;
@@ -18,6 +20,11 @@ pub trait PreferencesModel {
     fn pages(&self) -> Vec<PageSpec<'_>>;
     /// A row changed in the draft. A cancelled gesture reports the value from before it.
     fn set(&mut self, key: &str, value: PrefValue);
+    /// The colour picker's answer to a [`PreferencesOutput::pick_color`](super::PreferencesOutput::pick_color)
+    /// request: the colour row `key` changes in the draft.
+    fn set_color(&mut self, key: &str, color: Srgba) {
+        self.set(key, PrefValue::Color(color.into()));
+    }
     /// Draws a [`RowKind::Custom`](super::RowKind::Custom) row's control.
     fn custom_row(&mut self, ui: &mut Ui, key: &str);
     /// Draws a [`PageSpec::custom`] page.

@@ -32,7 +32,7 @@ use crate::controls::Kbd;
 use crate::direction;
 use crate::localized::Labels as _;
 use crate::primitives::{Content, Interactive, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, Surface};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, Surface};
 use crate::theme::{Tokens, TokensOf as _, UiTokens, role_format};
 use crate::typed_story;
 use keys::Keys;
@@ -650,13 +650,13 @@ pub(crate) fn stories() -> Vec<Story> {
 }
 
 /// The story's bar: File, Edit (the menus story's), View, Image, Window and Help.
-pub(crate) fn story_bar() -> Vec<MenuItem<super::Command>> {
+pub(crate) fn story_bar(words: &StoryLabels, titles: &super::MenuStoryLabels) -> Vec<MenuItem<super::Command>> {
     use super::Command;
     let key = |modifiers: Modifiers, key: Key| Kbd::new(&KeyboardShortcut::new(modifiers, key));
     let row = |label: &str, n: usize| -> MenuEntry<Command> { MenuItem::new(label, Command::Row(n)).into() };
     vec![
         MenuItem::submenu(
-            "File",
+            titles.file.as_str(),
             vec![
                 MenuItem::new("New…", Command::Row(1)).shortcut(key(Modifiers::COMMAND, Key::N)).into(),
                 MenuItem::new("Open…", Command::Row(2)).shortcut(key(Modifiers::COMMAND, Key::O)).into(),
@@ -666,9 +666,9 @@ pub(crate) fn story_bar() -> Vec<MenuItem<super::Command>> {
                 MenuItem::new("Close", Command::Row(6)).shortcut(key(Modifiers::COMMAND, Key::W)).into(),
             ],
         ),
-        MenuItem::submenu("Edit", super::edit_menu(true)),
+        MenuItem::submenu(titles.edit.as_str(), super::edit_menu(true)),
         MenuItem::submenu(
-            "View",
+            titles.view.as_str(),
             vec![
                 MenuItem::new("Rulers", Command::Rulers).check(true).into(),
                 MenuItem::new("Grid", Command::Grid).check(false).into(),
@@ -677,7 +677,7 @@ pub(crate) fn story_bar() -> Vec<MenuItem<super::Command>> {
             ],
         ),
         MenuItem::submenu(
-            "Image",
+            words.image.as_str(),
             vec![
                 MenuItem::submenu("Adjustments", vec![row("Levels…", 7), row("Curves…", 8), row("Hue/Saturation…", 9)]).into(),
                 row("Image Size…", 10),
@@ -693,7 +693,8 @@ pub(crate) fn story_bar() -> Vec<MenuItem<super::Command>> {
 /// below it.
 fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let size = args.size.control();
-    let menus = story_bar();
+    let titles = super::MenuStoryLabels::of(ui);
+    let menus = story_bar(&StoryLabels::of(ui), &titles);
     let last = Id::unique("craft-ui-menu-bar-story-last");
     let mut bar = MenuBar::new(&menus).id(last.with("bar")).size(size).shrink_to_fit(args.width as f32);
     if args.search {
@@ -703,6 +704,6 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     if let Some(command) = shown.chosen {
         ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
     }
-    let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());
+    let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| titles.nothing_chosen.clone());
     ui.add(Text::new(chosen).content(Content::Muted));
 }

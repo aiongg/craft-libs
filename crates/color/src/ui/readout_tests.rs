@@ -65,7 +65,7 @@ impl Rig {
             }
             Subject::Readout => {
                 ui.set_max_width(self.width);
-                color_event = ColorReadout::new("readout", "Hex colour", self.color, &self.numbers).show(ui).event;
+                color_event = ColorReadout::new("readout", "Hex color", self.color, &self.numbers).show(ui).event;
             }
         });
         if let Some(event) = pair_event {
@@ -142,7 +142,7 @@ fn a_typed_channel_reports_the_whole_colour() {
     rig.key(Key::Tab, Modifiers::NONE);
     assert_eq!(rig.color, Rgba::rgb(200, 0x66, 0x99));
 
-    let hex = rig.rect("Hex colour");
+    let hex = rig.rect("Hex color");
     rig.click(hex.center());
     rig.key(Key::A, Modifiers::COMMAND);
     rig.text("102030");
@@ -164,7 +164,7 @@ fn the_readout_is_one_row_with_photocrafts_field_widths_in_the_default_panel() {
     let mut rig = Rig::new(Subject::Readout);
     rig.width = PANEL_ROW_WIDTH;
     rig.settle();
-    let hex = rig.rect("Hex colour");
+    let hex = rig.rect("Hex color");
     assert_eq!(hex.width(), 64.0);
     let channels = ["Red", "Green", "Blue"].map(|name| rig.rect(name));
     for channel in channels {

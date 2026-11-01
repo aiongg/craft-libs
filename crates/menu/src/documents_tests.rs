@@ -33,13 +33,13 @@ fn window_documents_are_check_items() {
 }
 
 #[test]
-// listed_items ends with window.document.0 and window.document.1 for two documents; hidden documents are left out; index_of reads the index back.
+// listed_items ends with window.document.0 and window.document.1 for two documents; hidden documents are left out; index_from_command reads the index back.
 fn listed_items_include_numbered_document_rows() {
     let listed = window_bar().listed_items();
     let ids: Vec<&str> = listed.iter().map(|i| i.command.id.as_str()).collect();
     assert_eq!(ids, ["panel.layers", "window.document.0", "window.document.1"]);
     assert_eq!(listed[1].kind, ItemKind::Check(true));
-    assert_eq!(Document::index_of(&listed[2].command), Some(1));
-    assert_eq!(Document::index_of(&CommandRef::new("window.document.x")), None);
-    assert_eq!(Document::index_of(&CommandRef::new("panel.layers")), None);
+    assert_eq!(Document::index_from_command(&listed[2].command), Some(1));
+    assert_eq!(Document::index_from_command(&CommandRef::new("window.document.x")), None);
+    assert_eq!(Document::index_from_command(&CommandRef::new("panel.layers")), None);
 }

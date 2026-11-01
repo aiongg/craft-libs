@@ -10,14 +10,16 @@ use egui::{
     Align2, AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Rect, Response, Shape, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 
+use super::common_stories::ControlStoryLabels;
 use super::slider::with_values;
 use super::{IconButton, icon_size};
 use crate::behavior::{Escape, Typing, TypingLook};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Gap, Stack, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, variant_list, variant_row};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, variant_list, variant_row};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, margin_x};
 use crate::typed_story;
 
@@ -173,6 +175,12 @@ impl<'a> TextField<'a> {
     pub fn role(mut self, role: TypeRole) -> Self {
         self.role = Some(role);
         self
+    }
+
+    /// Types in the monospace face: [`role`](TextField::role) with [`TypeRole::Mono`] (a hex
+    /// value, a path, a code). Gap 70.
+    pub fn monospace(self) -> Self {
+        self.role(TypeRole::Mono)
     }
 
     /// How the typing run reports ([`EditPolicy`]); the default reports every change at once and
@@ -731,6 +739,9 @@ impl Held {
     }
 }
 
+/// The row whose name is a shared word, shown from the story labels.
+const PASSWORD_ROW: usize = 4;
+
 const STATE_ROWS: [(&str, &str); 6] = [
     ("Empty", ""),
     ("Filled", "Background"),
@@ -743,6 +754,7 @@ const STATE_ROWS: [(&str, &str); 6] = [
 /// Empty, filled, long, invalid, password and leading-icon fields, a multiline one, then two
 /// disabled ones. A secondary click opens the edit menu unless the argument turns it off.
 fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
+    let story = ControlStoryLabels::of(ui);
     let size = args.size.control();
     let placeholder = args.placeholder.clone();
     let edit_menu = args.edit_menu;
@@ -752,8 +764,9 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
         variant_list(ui, "text-field-states", |form| {
             let Some((notes, values)) = values.split_last_mut() else { return };
             for (i, ((name, _), held)) in STATE_ROWS.iter().zip(values.iter_mut()).enumerate() {
+                let name = if i == PASSWORD_ROW { story.password.as_str() } else { name };
                 variant_row(form, name, |ui| {
-                    let field = TextField::new(("text-field-state", i), *name, &held.text).placeholder(&placeholder).size(size).edit_menu(edit_menu);
+                    let field = TextField::new(("text-field-state", i), name, &held.text).placeholder(&placeholder).size(size).edit_menu(edit_menu);
                     let field = match i {
                         3 => field.invalid(true),
                         4 => field.password(true),
@@ -779,17 +792,20 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
 
 /// Empty, filled and disabled search fields.
 fn show_search_states(ui: &mut Ui, args: &mut SearchArgs) {
+    let story = ControlStoryLabels::of(ui);
     let size = args.size.control();
     let placeholder = args.placeholder.clone();
     with_values(ui, "search-field-states", [Held::new(""), Held::new("brush")], |ui, values| {
         variant_list(ui, "search-field-states", |form| {
             for (i, (name, held)) in ["Empty", "With text"].into_iter().zip(values.iter_mut()).enumerate() {
                 variant_row(form, name, |ui| {
-                    held.apply(SearchField::new(("search-field-state", i), name, &held.text, "Clear").placeholder(&placeholder).size(size).show(ui))
+                    held.apply(
+                        SearchField::new(("search-field-state", i), name, &held.text, &story.clear).placeholder(&placeholder).size(size).show(ui),
+                    )
                 });
             }
             variant_row(form, "Disabled", |ui| {
-                SearchField::new("search-field-disabled", "Disabled", "brush", "Clear")
+                SearchField::new("search-field-disabled", "Disabled", "brush", &story.clear)
                     .placeholder(&placeholder)
                     .size(size)
                     .enabled(false)
@@ -805,12 +821,15 @@ const NAMES: [&str; 12] =
 
 /// A search field filtering a list of layer names as the user types.
 fn show_filter(ui: &mut Ui, args: &mut SearchArgs) {
+    let story = ControlStoryLabels::of(ui);
     let size = args.size.control();
     let placeholder = args.placeholder.clone();
     with_values(ui, "search-field-filter", [Held::new("")], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let query = &mut values[0];
-            query.apply(SearchField::new("search-field-filter", "Filter layers", &query.text, "Clear").placeholder(&placeholder).size(size).show(ui));
+            query.apply(
+                SearchField::new("search-field-filter", "Filter layers", &query.text, &story.clear).placeholder(&placeholder).size(size).show(ui),
+            );
             let needle = query.text.to_lowercase();
             let shown: Vec<_> = NAMES.into_iter().filter(|name| name.to_lowercase().contains(&needle)).collect();
             if shown.is_empty() {
@@ -889,6 +908,7 @@ impl LogState {
 /// in the field is the field's own undo; outside it, it undoes a step of the document.
 fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
     let policy = edit::policy(args);
+    let words = StoryLabels::of(ui);
     let state_id = ui.scope_id().with("text-field-event-log");
     let mut state = ui.data(|d| d.get_temp::<LogState>(state_id)).unwrap_or_default();
     let in_field = state.field.is_some_and(|id| ui.memory(|m| m.has_focus(id)));
@@ -898,8 +918,8 @@ fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
     Stack::new(Gap::Stack).show(ui, |ui| {
         let text = state.doc.text.clone();
         variant_list(ui, "text-field-event-log", |form| {
-            variant_row(form, "Name", |ui| {
-                let edit = TextField::new("text-field-log", "Name", &text).placeholder("Type, then Enter, Esc or Tab").policy(policy).show(ui);
+            variant_row(form, &words.name, |ui| {
+                let edit = TextField::new("text-field-log", &words.name, &text).placeholder("Type, then Enter, Esc or Tab").policy(policy).show(ui);
                 state.field = Some(edit.response.id);
                 if edit.submitted {
                     state.log("field: submitted".to_owned());

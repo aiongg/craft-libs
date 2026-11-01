@@ -30,8 +30,11 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [`craft-ai-core`](crates/ai-core/README.md): the data model and contract for AI in the Craft Apps (connections, models, tools, requests, jobs, consent, history, route spec). Pure, no I/O, wasm-safe. Contract in [docs/ai-shared-layer.md](docs/ai-shared-layer.md).
 - [`craft-pdf`](crates/pdf/README.md): independently optional PDF parsing, interpretation, rasterization and guarded authoring. Apps retain layout, fonts, editing and export policy; writer-only consumers do not enable the shared reader.
 
-- [`craft-automation`](crates/automation/README.md): drive a running app from tests, agents and the CLI: control channel, screenshot queue, frame profiler and trace (native only).
+- [`craft-automation`](crates/automation/README.md): drive a running app from tests, agents and the CLI: control channel, screenshot queue, frame profiler and trace (native only); recorded actions, their playback and the Actions panel (every target).
 - [`craft-atomic`](crates/atomic/README.md): Crash-safe atomic file writing and replacement with same-directory staging, directory fsync, Apple `F_FULLFSYNC` fallback, transient lock backoff, and fault injection for the Craft suite.
+- [`craft-browse`](crates/browse/README.md): browsing: standard folders, volumes and lazy folder
+  listings, linked-file statuses kept current, file thumbnails decoded by the app in jobs, and
+  (`ui` feature) the tile grid, media bin, places tree, compare tile, links list and relink dialog.
 - [`craft-cms`](crates/cms/README.md): pure-Rust ICC v2/v4 colour management: profile parsing
   and writing, transforms, rendering intents, black point compensation, soft proofing, gamut
   checks, 3D LUTs and built-in profiles (sRGB, Display P3, synthetic coated CMYK and others).
@@ -49,11 +52,14 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [`craft-docpath`](crates/docpath/src/lib.rs): decides whether a path or `file:` URL stored in a
   document may be opened. Paths stored in documents are followed only when they are local or on the
   document's own network share; other network paths, device paths and non-file URLs are refused.
+  `links` keeps a document's linked files: their status, the identity check, folder remaps and
+  folder searches.
 - [`craft-draw`](crates/draw/README.md): vector and shape tools; the gradient editor and
   on-canvas gradient overlay, the pen and path overlays, the crop frame and perspective crop, and the
   free transform box and fields (`ui` feature).
-- [`craft-imaging`](crates/imaging/README.md): raster image editing; the warp grid and the levels
-  editor (`ui` feature).
+- [`craft-imaging`](crates/imaging/README.md): raster image editing; the scope counting (every
+  target) and, with the `ui` feature, the warp grid, the levels editor, the Channels panel and the
+  scope panel with its clipping overlay.
 - [`craft-font-catalog`](crates/font-catalog/README.md): the installed fonts on every platform
   (font folders, fontconfig and Flatpak host folders, CoreText, DirectWrite, the font store),
   lookup by family, style, localized, legacy, full and PostScript names, family loads shared
@@ -81,6 +87,9 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   scopes, conflicts, user overrides stored through craft-settings and import of other
   applications' shortcut sets. Command catalogs, file readers and the shortcut editor UI stay
   in each app.
+- [`craft-layers`](crates/layers/README.md): the Layers panel over the app's `LayerTree`: rows
+  with thumbnails and masks, blend, opacity, lock and fill rows, the filter bar, Layers Panel
+  Options, drag and drop, and events the app applies with its own commands and undo. UI-only.
 - [`craft-media`](crates/media/README.md): bit-level I/O (`bitstream`), clean-room MP4/MOV
   (`isobmff`) and Matroska/WebM (`matroska`) demuxers and muxers, from FilmCraft, and an ISO BMFF
   box reader. Containers only; codecs stay in each app.
@@ -98,7 +107,7 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   popover and composer, Acrobat's annotation tool, the signature pad, version history and the
   revisions panel (`ui` feature); presence, voting, cursor chat and join over the app's own
   transport (`collab` feature).
-- [`craft-settings`](crates/settings/README.md): `config.toml` settings storage for every app: platform folders, portable mode and overrides, atomic saves while running, backup, damaged-file recovery and schema migrations. Policy in [docs/settings-storage.md](docs/settings-storage.md).
+- [`craft-settings`](crates/settings/README.md): `config.toml` settings storage for every app: platform folders, portable mode and overrides, atomic saves while running, backup, damaged-file recovery and schema migrations, plus remembered dialog options and preset folders (also on wasm32). Policy in [docs/settings-storage.md](docs/settings-storage.md).
 - [`craft-table`](crates/table/README.md): spreadsheet widgets: the cell grid with Excel's
   keys, outline bands, the PivotTable field list, the condition builder, chart painting, slicers,
   reference picking, selection statistics, error tags and filter buttons (`ui` feature).

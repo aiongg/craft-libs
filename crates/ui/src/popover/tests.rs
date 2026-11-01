@@ -28,6 +28,7 @@ struct Host {
     nested: bool,
     child_open: bool,
     foreign: bool,
+    keep_focus: bool,
     mode: usize,
     amount: f64,
     chip: Id,
@@ -52,6 +53,7 @@ impl Default for Host {
             nested: false,
             child_open: false,
             foreign: false,
+            keep_focus: false,
             mode: 0,
             amount: 40.0,
             chip: Id::NULL,
@@ -83,7 +85,8 @@ fn app(ui: &mut Ui, host: &mut Host) {
         });
     }
     let anchor = host.point.map_or_else(|| PopoverAnchor::Control(chip.clone()), PopoverAnchor::Point);
-    let mut popover = Popover::new("p", anchor).size(host.size).close(PopoverClose::default().enter(host.enter)).label("Picker");
+    let mut popover =
+        Popover::new("p", anchor).size(host.size).close(PopoverClose::default().enter(host.enter)).label("Picker").keep_anchor_focus(host.keep_focus);
     if host.point.is_none() {
         popover = popover.toggle(chip.id);
     }
@@ -271,6 +274,20 @@ fn the_focus_moves_into_the_popover_on_open() {
     let h = opened(host(Host::default()));
     let focused = h.ctx.memory(|m| m.focused()).and_then(|f| h.ctx.read_response(f)).map(|r| r.layer_id.id);
     assert_eq!(focused, Some(h.state().popover));
+}
+
+#[test]
+fn keep_anchor_focus_leaves_the_focus_on_the_anchor_through_every_pass() {
+    let mut h = host(Host { keep_focus: true, ..Host::default() });
+    h.get_by_label("Chip").focus();
+    h.run();
+    let chip = h.state().chip;
+    h.state_mut().open = true;
+    for _ in 0..8 {
+        h.run();
+        assert!(h.ctx.memory(|m| m.has_focus(chip)), "the anchor keeps the focus");
+    }
+    assert!(h.state().open, "{:?}", h.state().closed);
 }
 
 #[test]
@@ -569,4 +586,39 @@ fn a_press_in_a_child_list_is_not_outside_for_a_host_with_its_own_close_rule() {
     click(&mut h, pos(470.0, 630.0));
     assert_eq!(h.state().outside_seen, 1);
     assert!(!h.state().open, "the host closed it on the press elsewhere");
+}
+
+// A Popover that is not shown for a while (its editor hidden) comes back with its Select's list
+// closed: the list's open flag does not outlive the passes the popover skipped (PhotoCraft's
+// `close_children`).
+#[test]
+fn child_lists_are_closed_when_the_popover_was_not_shown_in_a_pass() {
+    struct Editor {
+        draw: bool,
+        open: bool,
+        mode: usize,
+    }
+    fn editor(ui: &mut Ui, e: &mut Editor) {
+        if !e.draw {
+            return;
+        }
+        let Editor { open, mode, .. } = e;
+        let anchor = PopoverAnchor::Point(pos2(20.0, 20.0));
+        Popover::new("hidden-editor", anchor).close(PopoverClose::default().outside(false).focus_left(false)).show(ui, open, |ui, _| {
+            let _ = Select::new("mode", "Mode", mode).option(0, "A").option(1, "B").show(ui);
+        });
+    }
+    let mut h = Harness::<Editor>::builder()
+        .with_size(SCREEN)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(editor, Editor { draw: true, open: true, mode: 0 });
+    h.run();
+    open_select(&mut h);
+    assert!(h.query_by_role_and_label(Role::ListBoxOption, "B").is_some(), "the list is open");
+    h.state_mut().draw = false;
+    h.step();
+    h.state_mut().draw = true;
+    h.run();
+    assert!(h.state().open, "the editor is open again");
+    assert!(h.query_by_role_and_label(Role::ListBoxOption, "B").is_none(), "its list is closed");
 }

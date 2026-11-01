@@ -30,13 +30,22 @@ macro_rules! sizes {
     };
 }
 
+mod about;
+mod actions;
+mod align;
+mod alt_text;
 mod angle_dial;
 mod app_shell;
+mod autocomplete;
 mod badge;
 mod bezier;
+mod breadcrumb;
 mod button;
 mod canvas;
+mod channels;
 mod check;
+mod check_spelling;
+mod chip;
 mod color_picker;
 mod color_ramp;
 mod color_wheel;
@@ -44,13 +53,22 @@ mod command_palette;
 mod crop;
 mod cursor;
 mod curve;
+mod date;
 mod dialog;
 mod dock;
+mod drag;
+mod drop_veil;
 mod empty_state;
+mod event_log;
+mod export;
 mod eyedropper;
 mod field;
+mod file_list;
+mod findings;
 mod float;
+mod font_picker;
 mod form;
+mod glyphs;
 mod gradient_editor;
 mod gradient_line;
 mod gradient_palette;
@@ -60,21 +78,31 @@ mod guide;
 mod handle;
 mod harmony;
 mod histogram;
+mod history;
 mod icon_button;
+mod icon_picker;
 mod identify;
 mod inspector;
 mod kbd;
+mod layers;
 mod levels;
+mod link;
 mod list;
+mod list_manager;
 mod listbox;
 mod marquee;
 mod menu;
+mod metadata;
+mod navigator;
+mod new_document;
 mod notice;
 mod options_bar;
 mod paint_chip;
 mod panel;
 mod panel_footer;
 mod panel_header;
+mod password;
+mod pasteboard;
 mod popover;
 mod popup;
 mod preferences;
@@ -82,28 +110,43 @@ mod preset;
 mod progress;
 mod property;
 mod rail;
+mod rating;
 mod readout;
 mod ref_point;
+mod reset_dot;
 mod ruler;
 mod sampler;
+mod scopes;
 mod screen_picker;
 mod scroll;
 mod section;
 mod segmented;
+mod selection_bar;
 mod slider;
 mod slider_row;
 mod spinner;
 mod split;
+mod split_button;
+mod start;
 mod status_bar;
 mod swatch;
 mod swatch_palette;
 mod tab;
+mod table;
+mod text_editor;
+mod text_styles;
+mod theme_chip;
+mod thumbnail;
+mod tile;
 mod title_bar;
 mod toast;
 mod toggle_button;
+mod tool_pill;
 mod toolbar;
 mod tooltip;
+mod tour;
 mod transform;
+mod tree_picker;
 
 use std::fmt;
 
@@ -114,13 +157,22 @@ use identify::Identify;
 
 use super::tokens::{ColorTokens, ElevationTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
 
+pub use about::{AboutField, AboutTokens};
+pub use actions::{ActionsField, ActionsTokens};
+pub use align::{AlignField, AlignTokens};
+pub use alt_text::{AltTextField, AltTextTokens};
 pub use angle_dial::{AngleDialField, AngleDialTokens};
 pub use app_shell::{AppShellField, AppShellTokens};
+pub use autocomplete::{AutocompleteField, AutocompleteTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use bezier::{BezierField, BezierTokens};
+pub use breadcrumb::{BreadcrumbField, BreadcrumbTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use canvas::{CanvasField, CanvasTokens};
+pub use channels::{ChannelsField, ChannelsTokens};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckSwitchColors, CheckSwitchPart, CheckTokens};
+pub use check_spelling::{CheckSpellingField, CheckSpellingTokens};
+pub use chip::{ChipField, ChipTokens};
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use color_ramp::{ColorRampField, ColorRampTokens};
 pub use color_wheel::{ColorWheelField, ColorWheelTokens};
@@ -128,13 +180,22 @@ pub use command_palette::{CommandPaletteField, CommandPaletteTokens};
 pub use crop::{CropField, CropTokens};
 pub use cursor::{CursorField, CursorTokens};
 pub use curve::{CurveField, CurveTokens};
+pub use date::{DateField, DateTokens};
 pub use dialog::{DialogField, DialogTokens};
 pub use dock::{DockField, DockTokens};
+pub use drag::{DragField, DragTokens};
+pub use drop_veil::{DropVeilField, DropVeilTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
+pub use event_log::{EventLogField, EventLogTokens};
+pub use export::{ExportField, ExportTokens};
 pub use eyedropper::{EyedropperField, EyedropperTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
+pub use file_list::{FileListField, FileListTokens};
+pub use findings::{FindingsField, FindingsTokens};
 pub use float::{FloatField, FloatTokens};
+pub use font_picker::{FontPickerField, FontPickerTokens};
 pub use form::{FormField, FormSpacing, FormTokens};
+pub use glyphs::{GlyphsField, GlyphsTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
 pub use gradient_line::{GradientLineField, GradientLineTokens};
 pub use gradient_palette::{GradientPaletteField, GradientPaletteTokens};
@@ -144,20 +205,30 @@ pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use harmony::{HarmonyField, HarmonyTokens};
 pub use histogram::{HistogramField, HistogramTokens};
+pub use history::{HistoryField, HistoryTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
+pub use icon_picker::{IconPickerField, IconPickerTokens};
 pub use inspector::{InspectorField, InspectorTokens};
 pub use kbd::{KbdField, KbdTokens};
+pub use layers::{LayersField, LayersTokens};
 pub use levels::{LevelsField, LevelsTokens};
+pub use link::{LinkField, LinkTokens};
 pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
+pub use list_manager::{ListManagerField, ListManagerTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
+pub use metadata::{MetadataField, MetadataTokens};
+pub use navigator::{NavigatorField, NavigatorTokens};
+pub use new_document::{NewDocumentField, NewDocumentTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
 pub use paint_chip::{PaintChipField, PaintChipTokens};
 pub use panel::{PanelField, PanelTokens};
 pub use panel_footer::{PanelFooterField, PanelFooterTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
+pub use password::{PasswordField, PasswordTokens};
+pub use pasteboard::{PasteboardField, PasteboardTokens};
 pub use popover::{PopoverField, PopoverTokens};
 pub use popup::{PopupField, PopupTokens};
 pub use preferences::{PreferencesField, PreferencesTokens};
@@ -165,28 +236,43 @@ pub use preset::{PresetField, PresetTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
 pub use rail::{RailField, RailTokens};
+pub use rating::{RatingField, RatingTokens};
 pub use readout::{ReadoutField, ReadoutTokens};
 pub use ref_point::{RefPointField, RefPointTokens};
+pub use reset_dot::{ResetDotField, ResetDotTokens};
 pub use ruler::{RulerField, RulerTokens};
 pub use sampler::{SamplerField, SamplerTokens};
+pub use scopes::{ScopesField, ScopesTokens};
 pub use screen_picker::{ScreenPickerField, ScreenPickerTokens};
 pub use scroll::{ScrollField, ScrollTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
+pub use selection_bar::{SelectionBarField, SelectionBarTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
 pub use split::{SplitField, SplitTokens};
+pub use split_button::{SplitButtonField, SplitButtonTokens};
+pub use start::{StartField, StartTokens};
 pub use status_bar::{StatusBarField, StatusBarTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
 pub use tab::{TabField, TabTokens};
+pub use table::{TableField, TableTokens};
+pub use text_editor::{TextEditorField, TextEditorTokens};
+pub use text_styles::{TextStylesField, TextStylesTokens};
+pub use theme_chip::{ThemeChipField, ThemeChipTokens};
+pub use thumbnail::{ThumbnailField, ThumbnailTokens};
+pub use tile::{TileField, TileTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
+pub use tool_pill::{ToolPillField, ToolPillTokens};
 pub use toolbar::{ToolbarField, ToolbarTokens};
 pub use tooltip::{TooltipField, TooltipTokens};
+pub use tour::{TourField, TourTokens};
 pub use transform::{TransformField, TransformTokens};
+pub use tree_picker::{TreePickerField, TreePickerTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
 /// family's defaults can depend on another's. Fields are added as families need them.
@@ -733,6 +819,66 @@ impl ComponentTokens {
 }
 
 families! {
+    /// About windows: the window width, the Contributors list height and the grab bag.
+    about: AboutTokens => About(AboutField);
+    /// Password prompts: the width of the dialog.
+    password: PasswordTokens => Password(PasswordField);
+    /// List managers: the list box, the buttons and the gap between them.
+    list_manager: ListManagerTokens => ListManager(ListManagerField);
+    /// Align bars: the icon buttons.
+    align: AlignTokens => Align(AlignField);
+    /// Tree pickers: the popup's list.
+    tree_picker: TreePickerTokens => TreePicker(TreePickerField);
+    /// Alternative text editors: the box.
+    alt_text: AltTextTokens => AltText(AltTextField);
+    /// Tables: the header, the sort chevron, the column edges and the drop line.
+    table: TableTokens => Table(TableField);
+    /// Chips: pills with a remove cross.
+    chip: ChipTokens => Chip(ChipField);
+    /// Icon pickers: the cells of the grid.
+    icon_picker: IconPickerTokens => IconPicker(IconPickerField);
+    /// Split buttons: the arrow part and its divider.
+    split_button: SplitButtonTokens => SplitButton(SplitButtonField);
+    /// Breadcrumb bars: the height, chevrons and segment room.
+    breadcrumb: BreadcrumbTokens => Breadcrumb(BreadcrumbField);
+    /// Ratings: the star colour and the star and cell sizes.
+    rating: RatingTokens => Rating(RatingField);
+    /// Date pickers: the day grid and its popup.
+    date: DateTokens => Date(DateField);
+    /// Reset dots: the square, dot and hover corner.
+    reset_dot: ResetDotTokens => ResetDot(ResetDotField);
+    /// Drag badges: the offset from the pointer and the padding.
+    drag: DragTokens => Drag(DragField);
+    /// Drop veils: the frame and card of the file-drop overlay.
+    drop_veil: DropVeilTokens => DropVeil(DropVeilField);
+    /// Event logs: the level glyphs and the details box.
+    event_log: EventLogTokens => EventLog(EventLogField);
+    /// Autocomplete lists: the least width and the gap to the editor.
+    autocomplete: AutocompleteTokens => Autocomplete(AutocompleteField);
+    /// Metadata tables: the column and row gaps and the most height.
+    metadata: MetadataTokens => Metadata(MetadataField);
+    /// Export As and Save for Web: the widths of the dialogs and their settings columns.
+    export: ExportTokens => Export(ExportField);
+    /// File list pickers: the list box and the width of its buttons.
+    file_list: FileListTokens => FileList(FileListField);
+    /// Findings lists: the status dot of the summary line.
+    findings: FindingsTokens => Findings(FindingsField);
+    /// The New Document dialog: the card grid, the page icon and the Saved list.
+    new_document: NewDocumentTokens => NewDocument(NewDocumentField);
+    /// Theme chips: the small preview of a theme in the Appearance page.
+    theme_chip: ThemeChipTokens => ThemeChip(ThemeChipField);
+    /// Picture thumbnails: the checkerboard, the empty cell and the failure icon.
+    thumbnail: ThumbnailTokens => Thumbnail(ThumbnailField);
+    /// Media tiles: the grid, the compare tile and the media bin's label chip.
+    tile: TileTokens => Tile(TileField);
+    /// Link Media: the status badge, links table, candidate list and preview.
+    link: LinkTokens => Link(LinkField);
+    /// The Navigator: the preview box, the proxy rectangle and the zoom row's gap.
+    navigator: NavigatorTokens => Navigator(NavigatorField);
+    /// The scope panel: warning buttons, statistics, All Channels plots and the vectorscope.
+    scopes: ScopesTokens => Scopes(ScopesField);
+    /// The Actions panel: row heights, the recording dot's radius and the Button Mode fills.
+    actions: ActionsTokens => Actions(ActionsField);
     /// Angle dials: the round face and needle that point in a direction.
     angle_dial: AngleDialTokens => AngleDial(AngleDialField);
     /// The app shell: the backdrop behind the document and the edge reveal zone.
@@ -747,6 +893,8 @@ families! {
     canvas: CanvasTokens => Canvas(CanvasField);
     /// Check boxes, radio buttons and switches.
     check: CheckTokens => Check(CheckField);
+    /// The Channels panel: the thumbnail side and the spot channel's ink swatch.
+    channels: ChannelsTokens => Channels(ChannelsField);
     /// Colour pickers: the sizes of the area, strip, compare swatch and marker.
     color_picker: ColorPickerTokens => ColorPicker(ColorPickerField);
     /// Colour ramps: the bar under the slider rows, with its white and black boxes.
@@ -775,6 +923,14 @@ families! {
     form: FormTokens => Form(FormField);
     /// Text fields: one line of editable text in a sunken box.
     field: FieldTokens => Field(FieldField);
+    /// Check Spelling dialog: the sizes of its fields and suggestion list.
+    check_spelling: CheckSpellingTokens => CheckSpelling(CheckSpellingField);
+    /// The font picker: the open list and its class column.
+    font_picker: FontPickerTokens => FontPicker(FontPickerField);
+    /// The Character Styles and Paragraph Styles panels: their list.
+    text_styles: TextStylesTokens => TextStyles(TextStylesField);
+    /// The Glyphs panel: the character grid and the Recently Used strip.
+    glyphs: GlyphsTokens => Glyphs(GlyphsField);
     /// Gradient editors: the stop bar, its markers and midpoint diamonds.
     gradient_editor: GradientEditorTokens => GradientEditor(GradientEditorField);
     /// Gradient lines: the line, end handles, stops and midpoints of a gradient on the canvas.
@@ -793,12 +949,16 @@ families! {
     harmony: HarmonyTokens => Harmony(HarmonyField);
     /// Histograms: the plot height and the fill and backdrop alphas.
     histogram: HistogramTokens => Histogram(HistogramField);
+    /// The History panel: the snapshot thumbnail and the Undo list's width.
+    history: HistoryTokens => History(HistoryField);
     /// Square icon-only buttons.
     icon_button: IconButtonTokens => IconButton(IconButtonField);
     /// Inspectors: the body of a Properties panel and its target header.
     inspector: InspectorTokens => Inspector(InspectorField);
     /// Key chords and keycaps.
     kbd: KbdTokens => Kbd(KbdField);
+    /// The Layers panel: indicators, mask badges, blend rows and the filter bar.
+    layers: LayersTokens => Layers(LayersField);
     /// Levels editors: the triangle thumbs and output bar under a histogram.
     levels: LevelsTokens => Levels(LevelsField);
     /// Lists: the rows of a list or tree panel.
@@ -821,6 +981,8 @@ families! {
     panel_footer: PanelFooterTokens => PanelFooter(PanelFooterField);
     /// Panel headers: the title row of a flyout or floating panel.
     panel_header: PanelHeaderTokens => PanelHeader(PanelHeaderField);
+    /// The pasteboard: the page name's gap and the page outline.
+    pasteboard: PasteboardTokens => Pasteboard(PasteboardField);
     /// Popovers: the padding, resize grip and screen margin of an anchored popup.
     popover: PopoverTokens => Popover(PopoverField);
     /// Popups: the card that holds a menu or a list under a field.
@@ -851,6 +1013,8 @@ families! {
     section: SectionTokens => Section(SectionField);
     /// Segmented controls: one of a few options as separate pills.
     segmented: SegmentedTokens => Segmented(SegmentedField);
+    /// Selection bars: the floating bar of actions beside a selection.
+    selection_bar: SelectionBarTokens => SelectionBar(SelectionBarField);
     /// Sliders: a track filled to the value, with a thumb on it.
     slider: SliderTokens => Slider(SliderField);
     /// Slider rows: a caption and number field over a full-width slider.
@@ -859,6 +1023,8 @@ families! {
     spinner: SpinnerTokens => Spinner(SpinnerField);
     /// Split views: the gap between panes.
     split: SplitTokens => Split(SplitField);
+    /// Start screens: the recent-file card grid.
+    start: StartTokens => Start(StartField);
     /// Status bars: the bar at the bottom of the window.
     status_bar: StatusBarTokens => StatusBar(StatusBarField);
     /// Colour wells.
@@ -867,16 +1033,22 @@ families! {
     swatch_palette: SwatchPaletteTokens => SwatchPalette(SwatchPaletteField);
     /// Tabs: one tab of a document or panel strip.
     tab: TabTokens => Tab(TabField);
+    /// The text editor on a canvas: the caret and the marked-text underlines.
+    text_editor: TextEditorTokens => TextEditor(TextEditorField);
     /// Title bars: the caption row with the window's buttons and the document title.
     title_bar: TitleBarTokens => TitleBar(TitleBarField);
     /// Toasts: cards stacked in a corner of the window.
     toast: ToastTokens => Toast(ToastField);
     /// Toggle buttons that are on.
     toggle_button: ToggleButtonTokens => ToggleButton(ToggleButtonField);
+    /// Tool pills: the floating row of tools over a canvas.
+    tool_pill: ToolPillTokens => ToolPill(ToolPillField);
     /// Toolbars: a row or column of icon-button groups.
     toolbar: ToolbarTokens => Toolbar(ToolbarField);
     /// Tooltips.
     tooltip: TooltipTokens => Tooltip(TooltipField);
+    /// Tours: the coach marks and the card of a guided tour.
+    tour: TourTokens => Tour(TourField);
     /// Transform boxes and warp meshes.
     transform: TransformTokens => Transform(TransformField);
 }

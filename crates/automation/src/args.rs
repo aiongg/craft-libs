@@ -3,7 +3,7 @@
 //! An app's command line has `--control <PORT>`, `--control-token <64-HEX>` and
 //! `--control-token-file <PATH>`; each has a variable (`<APP>_CONTROL_PORT`,
 //! `<APP>_CONTROL_TOKEN`, `<APP>_CONTROL_TOKEN_FILE`) that stands in for it when the flag is
-//! absent. A flag wins over its variable; a blank variable counts as unset; a bad variable value
+//! absent. A flag wins over its variable; a blank variable counts as unset; a bad variable value (not a port, or not Unicode)
 //! is a usage error that names the variable, never the token's value. Parsing the command line
 //! itself (clap in PhotoCraft) stays in the app: this module checks the values and reports them
 //! in the apps' wording, so the exit code is 2 and the message is the one the apps' integration
@@ -77,11 +77,16 @@ pub enum OptionsError {
     /// Never contains the token.
     #[error("the argument '{a}' cannot be used with '{b}'")]
     Conflict { a: String, b: String },
+    /// `invalid UTF-8 was detected in 'PHOTOCRAFT_CONTROL_TOKEN'`: a variable that is set but is
+    /// not Unicode. The token file's path is the exception: any path is accepted.
+    #[error("invalid UTF-8 was detected in '{shown}'")]
+    NotUnicode { shown: String },
 }
 
 impl ControlOptions {
     /// The values from the environment alone: a blank variable is unset; a bad port is
-    /// [`OptionsError::NotAPort`] naming the variable.
+    /// [`OptionsError::NotAPort`] and a non-Unicode port or token is [`OptionsError::NotUnicode`],
+    /// each naming the variable. The token file's path may be any OS string.
     pub fn from_env(names: &EnvNames) -> Result<Self, OptionsError> {
         Self::from_lookup(names, |name| std::env::var_os(name))
     }
@@ -89,12 +94,16 @@ impl ControlOptions {
     /// [`Self::from_env`] over any variable source, so tests need not touch the process
     /// environment.
     fn from_lookup(names: &EnvNames, get: impl Fn(&str) -> Option<std::ffi::OsString>) -> Result<Self, OptionsError> {
-        let read = |name: &str| get(name).and_then(|v| v.into_string().ok()).filter(|v| !v.trim().is_empty());
-        let port = match read(&names.port) {
+        let read = |name: &str| get(name).filter(|v| !v.to_str().is_some_and(|v| v.trim().is_empty()));
+        let text = |name: &String| match read(name) {
+            Some(value) => value.into_string().map(Some).map_err(|_| OptionsError::NotUnicode { shown: name.clone() }),
+            None => Ok(None),
+        };
+        let port = match text(&names.port)? {
             Some(value) => Some(control_port(&value).map_err(|_| OptionsError::NotAPort { value, shown: names.port.clone() })?),
             None => None,
         };
-        let token = read(&names.token);
+        let token = text(&names.token)?;
         let token_file = read(&names.token_file).map(PathBuf::from);
         let from_env = Some(Source::Env);
         Ok(Self {

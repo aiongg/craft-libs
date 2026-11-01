@@ -42,6 +42,7 @@ struct Rig {
     label: Rect,
     popup: bool,
     arithmetic: bool,
+    rate: Option<f64>,
     /// Typed inches convert to pixels at 300 ppi; the committed value keeps this many decimals.
     inches: Option<usize>,
     drawn: bool,
@@ -110,6 +111,7 @@ impl Rig {
             label: Rect::NOTHING,
             popup: false,
             arithmetic: false,
+            rate: None,
             inches: None,
             drawn: true,
             enabled: true,
@@ -239,6 +241,9 @@ impl Rig {
         if let Some(label) = &label {
             self.label = label.rect;
             field = field.scrub_by(label);
+        }
+        if let Some(rate) = self.rate {
+            field = field.scrub_rate(rate);
         }
         if self.arithmetic {
             field = field.or_parse(sum);
@@ -643,6 +648,21 @@ fn a_scrub_begins_updates_and_commits_a_step_a_point_with_shift_and_alt() {
     assert_eq!(rig.value, 25.0 + 10.0 * 12.0);
     rig.drag(rig.handle(), &[10.0, 25.0], Modifiers::ALT, true);
     assert_eq!(rig.value, 145.0 + 2.0, "a tenth as fast, the rest carried");
+}
+
+// A scrub rate of 0.5 moves a step every two points; the rest carries, and Shift still multiplies.
+#[test]
+fn a_scrub_rate_sets_the_value_moved_per_point() {
+    let mut rig = Rig::with(10.0, |r| {
+        r.scrub = true;
+        r.rate = Some(0.5);
+    });
+    rig.drag(rig.handle(), &[10.0, 20.0], Modifiers::NONE, true);
+    assert_eq!(rig.value, 20.0, "20 points at 0.5 a point");
+    rig.drag(rig.handle(), &[10.0, 11.0], Modifiers::NONE, true);
+    assert_eq!(rig.value, 25.0, "11 points make 5 steps, the half carried");
+    rig.drag(rig.handle(), &[10.0, 12.0], Modifiers::SHIFT, true);
+    assert_eq!(rig.value, 85.0, "Shift ten times as far");
 }
 
 #[test]
@@ -1635,4 +1655,74 @@ fn text_grown_past_the_character_limit_stays_but_never_applies() {
     assert_eq!(rig.value, 4.0);
     rig.key(Key::Enter);
     assert_eq!(rig.value, 4.0);
+}
+
+/// A host with one optional field.
+struct OptionalRig {
+    ctx: Context,
+    time: f64,
+    value: Option<f64>,
+    events: Vec<EditEvent<Option<f64>>>,
+    painted: Vec<String>,
+}
+
+impl OptionalRig {
+    fn new(value: Option<f64>) -> Self {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let mut rig = Self { ctx, time: 0.0, value, events: Vec::new(), painted: Vec::new() };
+        focus_first_field(&rig.ctx, true);
+        rig.frame(vec![]);
+        rig.frame(vec![]);
+        rig
+    }
+
+    fn frame(&mut self, events: Vec<Event>) {
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), time: Some(self.time), events, ..Default::default() };
+        self.time += 1.0 / 60.0;
+        let ctx = self.ctx.clone();
+        let numbers = LocaleNumbers::from_tag("en");
+        let output = ctx.run_ui(input, |ui| {
+            if let Some(event) = NumberField::optional("width", "Width", self.value, &numbers).show_optional(ui).event {
+                self.events.push(event.clone());
+                if !matches!(event, EditEvent::Cancel { .. }) {
+                    self.value = event.value().copied().unwrap_or(self.value);
+                }
+            }
+        });
+        fn walk(shape: &Shape, out: &mut Vec<String>) {
+            match shape {
+                Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, out)),
+                _ => {}
+            }
+        }
+        self.painted.clear();
+        output.shapes.iter().for_each(|clipped| walk(&clipped.shape, &mut self.painted));
+        output.drop_without_applying_deltas();
+    }
+
+    fn key(&mut self, key: Key) {
+        self.frame(vec![Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
+        self.frame(vec![Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::NONE }]);
+    }
+}
+
+#[test]
+fn an_optional_field_reads_none_when_emptied_and_shows_auto() {
+    let mut rig = OptionalRig::new(None);
+    assert!(rig.painted.iter().any(|text| text == "Auto"), "{:?}", rig.painted);
+    rig.frame(vec![Event::Text("5".into())]);
+    rig.key(Key::Enter);
+    assert_eq!(rig.value, Some(5.0), "{:?}", rig.events);
+    assert!(matches!(rig.events.last(), Some(EditEvent::Commit { value: Some(v), .. }) if *v == 5.0), "{:?}", rig.events);
+
+    let mut rig = OptionalRig::new(Some(300.0));
+    assert!(!rig.painted.iter().any(|text| text == "Auto"));
+    rig.key(Key::Backspace);
+    rig.key(Key::Enter);
+    assert_eq!(rig.value, None, "{:?}", rig.events);
+    assert!(matches!(rig.events.last(), Some(EditEvent::Commit { value: None, changed: true, .. })), "{:?}", rig.events);
+    assert!(rig.painted.iter().any(|text| text == "Auto"), "{:?}", rig.painted);
 }

@@ -212,7 +212,8 @@ fn show_edit(ui: &mut Ui, args: &mut EditArgs) {
         state.host.value.stops.color.len(),
         state.last
     ));
-    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
+    let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
     let view = &canvas.view;
     paint_picture(ui, view, &state.host.value, rows, reverse);
     let id = ui.make_persistent_id("story-gradient");
@@ -335,7 +336,8 @@ fn show_with_editor(ui: &mut Ui, args: &mut WithEditorArgs) {
                 bar.edit.response.id
             })
             .inner;
-        let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
+        let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+        let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
         let view = &canvas.view;
         paint_picture(ui, view, &state.doc.value, rows, reverse);
         let value = state.doc.value.clone();

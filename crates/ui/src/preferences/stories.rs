@@ -7,11 +7,12 @@ use egui::{Ui, vec2};
 
 use super::{GroupSpec, PageSpec, PrefValue, PreferencesBody, PreferencesModel, RowKind, RowSpec};
 use crate::direction::{self, Direction};
-use crate::story::{Level, Story, StoryArgs};
+use crate::localized::Labels as _;
+use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryLabels};
 use crate::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["PreferencesWindow"];
+pub const COMPONENTS: &[&str] = &["PreferencesWindow", "SettingsDocument"];
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct WindowArgs {
@@ -24,14 +25,15 @@ struct WindowArgs {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!(
+    let window = typed_story!(
         "patterns/preferences/window",
         Level::Patterns,
         "PreferencesWindow",
         "Window",
         WindowArgs { search: String::new(), width: 760.0, height: 480.0, rtl: false },
         show_window
-    )]
+    );
+    std::iter::once(window).chain(super::document_stories::stories()).collect()
 }
 
 /// A host of five pages with every row kind: General, Interface (grouped), Tools, an empty page
@@ -44,6 +46,9 @@ pub(crate) struct FakeHost {
     pub can_ok: bool,
     /// A nested dialog is open (the window refuses OK and takes no keys).
     pub nested: bool,
+    /// The sample labels pages and rows share with registered words.
+    pub labels: StoryLabels,
+    pub pattern_labels: PatternStoryLabels,
 }
 
 impl FakeHost {
@@ -61,7 +66,16 @@ impl FakeHost {
         ] {
             saved.insert(k.to_owned(), v);
         }
-        Self { draft: saved.clone(), saved, log: Vec::new(), fail: None, can_ok: true, nested: false }
+        Self {
+            draft: saved.clone(),
+            saved,
+            log: Vec::new(),
+            fail: None,
+            can_ok: true,
+            nested: false,
+            labels: StoryLabels::default(),
+            pattern_labels: PatternStoryLabels::default(),
+        }
     }
 
     fn text(&self, key: &str) -> &str {
@@ -97,7 +111,7 @@ impl PreferencesModel for FakeHost {
         };
         let general = PageSpec::new(
             "general",
-            "General",
+            &self.pattern_labels.general,
             vec![
                 RowSpec::new(
                     "general.language",
@@ -105,7 +119,7 @@ impl PreferencesModel for FakeHost {
                     RowKind::Choice { value: self.text("general.language"), options: vec![("en", "English"), ("de", "Deutsch")] },
                 )
                 .keywords("locale")
-                .help("Applies at next launch."),
+                .help(&self.labels.applies_at_next_launch),
                 RowSpec::new("general.name", "Workspace name:", RowKind::Text(self.text("general.name"))),
                 RowSpec::new("general.autosave", "Save automatically", RowKind::Bool(self.flag("general.autosave"))),
             ],
@@ -130,7 +144,7 @@ impl PreferencesModel for FakeHost {
         };
         let tools = PageSpec::new(
             "tools",
-            "Tools",
+            &self.labels.tools,
             vec![
                 RowSpec::new("tools.size", "Brush size:", RowKind::Int { value: int, range: 1..=100, unit: Some("px") }),
                 RowSpec::new("tools.smoothing", "Smoothing:", RowKind::Float { value: float, range: 0.0..=1.0, decimals: 2, unit: None }),
@@ -144,7 +158,7 @@ impl PreferencesModel for FakeHost {
         };
         let advanced = PageSpec::new(
             "advanced",
-            "Advanced",
+            &self.pattern_labels.advanced,
             vec![
                 RowSpec::new("advanced.disks", "Scratch disks:", RowKind::Custom).keywords("temp").help("Used when memory runs low."),
                 RowSpec::new("advanced.gamma", "Gamma:", RowKind::Float { value: gamma, range: 0.0..=100.0, decimals: 1, unit: None }).step(0.1),
@@ -215,6 +229,8 @@ fn show_window(ui: &mut Ui, args: &mut WindowArgs) {
     ctx.data_mut(|d| d.insert_temp(key, (args.search.clone(), args.rtl)));
     let host_id = key.with("host");
     let mut host: FakeHost = ctx.data_mut(|d| d.get_temp::<FakeHostBox>(host_id)).map(|b| b.0).unwrap_or_else(FakeHost::new);
+    host.labels = StoryLabels::of(ui);
+    host.pattern_labels = PatternStoryLabels::of(ui);
     let size = vec2(args.width.min(ui.available_width()), args.height);
     ui.allocate_ui(size, |ui| {
         ui.set_min_size(size);
@@ -241,6 +257,8 @@ impl Clone for FakeHostBox {
             fail: self.0.fail.clone(),
             can_ok: self.0.can_ok,
             nested: self.0.nested,
+            labels: self.0.labels.clone(),
+            pattern_labels: self.0.pattern_labels.clone(),
         })
     }
 }

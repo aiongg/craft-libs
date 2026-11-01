@@ -56,7 +56,8 @@ use crate::theme::{Tokens, TokensOf as _, UiTokens};
 /// active. A level taller than the window scrolls, with ▲ / ▼ strips that scroll while the
 /// pointer rests on them.
 ///
-/// Pointer: a click on an enabled row runs it and closes every level; a click on a disabled row or
+/// Pointer: a click on an enabled row runs it and closes every level (a
+/// [keep-open](MenuItem::keep_open) row leaves them open); a click on a disabled row or
 /// a separator leaves the menu open; a click outside closes it. Submenus open on hover with no
 /// delay and stay open while the pointer heads for them (PhotoCraft's aim triangle, 24 pt of
 /// slack, let go after 0.3 s at rest). With [`pressing`](Menu::pressing), the release of the
@@ -99,7 +100,8 @@ pub struct Menu<'a, T> {
 #[non_exhaustive]
 pub struct MenuResponse<T> {
     /// The command of the row run this pass (clicked, released on, Enter, Space or its
-    /// mnemonic). The menu has closed.
+    /// mnemonic). The menu has closed, unless the row
+    /// [keeps it open](crate::menu::MenuItem::keep_open).
     pub chosen: Option<T>,
     /// The menu is open after this pass.
     pub open: bool,
@@ -256,7 +258,7 @@ impl<'a, T: Clone> Menu<'a, T> {
             let keys = nav.keys(&ctx, crate::direction::is_rtl(&ctx), mnemonics, draw.typing);
             chosen = chosen.or(keys.run);
             step = keys.step;
-            if chosen.is_some() {
+            if chosen.as_ref().is_some_and(|path| !keeps_open(self.entries, path)) {
                 Popup::close_id(&ctx, id);
                 open = false;
             }
@@ -469,7 +471,7 @@ impl Draw<'_> {
         let row = Row { widget, enabled, path: row_path.clone(), submenu: children.is_some(), mnemonic };
         let height = self.painter.style.rows.height;
         nav.row(ui, depth - 1, row, |ui, nav, lit| {
-            let r = Interactive::with_id(widget, row::role(it.item_kind()), label)
+            let r = Interactive::with_id(widget, row::role(it.item_kind()), it.accessible_name_of().unwrap_or(label))
                 .sense(Sense::CLICK)
                 .enabled(enabled)
                 .state_layer(false)
@@ -489,7 +491,9 @@ impl Draw<'_> {
                     let released_on = self.pressing && r.contains_pointer();
                     if enabled && (r.clicked() || released_on) {
                         self.chosen = Some(row_path.clone());
-                        ui.close();
+                        if !it.keeps_open() {
+                            ui.close();
+                        }
                     }
                     false
                 }
@@ -505,6 +509,11 @@ impl Draw<'_> {
             (r, ())
         });
     }
+}
+
+/// Whether the row at `path` leaves the menu open when it runs.
+fn keeps_open<T>(entries: &[MenuEntry<T>], path: &[usize]) -> bool {
+    at_path(entries, path).is_some_and(MenuItem::keeps_open)
 }
 
 fn row_content<'r, T>(it: &'r MenuItem<T>, label: &'r str, mnemonic: Option<char>) -> RowContent<'r> {

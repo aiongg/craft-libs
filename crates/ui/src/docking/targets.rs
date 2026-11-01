@@ -282,6 +282,19 @@ pub(super) fn resolve_drop_on<P: Clone + Eq>(
     rule: ZoneRule,
     sides: Sides,
 ) -> Option<DropProposal<P>> {
+    resolve_drop_of(Some(panel), pointer, targets, rule, sides)
+}
+
+/// [`resolve_drop_on`] for a drag that may carry no panel of the layout: a titled floating
+/// frame of a host, dropped onto the dock. With `None` no target holds the dragged panel, so
+/// nothing is a no-op and no group is skipped.
+pub(super) fn resolve_drop_of<P: Clone + Eq>(
+    panel: Option<&P>,
+    pointer: Pos2,
+    targets: &[DropTarget<P>],
+    rule: ZoneRule,
+    sides: Sides,
+) -> Option<DropProposal<P>> {
     if !pointer.is_finite() || targets.len() > super::MAX_PANELS {
         return None;
     }
@@ -289,7 +302,11 @@ pub(super) fn resolve_drop_on<P: Clone + Eq>(
     if target.tabs.len() > super::MAX_PANELS {
         return None;
     }
-    let anchor = if &target.anchor == panel { target.tabs.iter().find(|(p, _)| p != panel).map(|(p, _)| p).unwrap_or(panel) } else { &target.anchor };
+    let anchor = if panel == Some(&target.anchor) {
+        target.tabs.iter().find(|(p, _)| Some(p) != panel).map(|(p, _)| p).unwrap_or(&target.anchor)
+    } else {
+        &target.anchor
+    };
     let strip = target.tab_strip.map(|strip| strip.intersect(target.rect)).filter(|r| usable(*r) && r.contains(pointer));
     if strip.is_some() {
         if !target.accepts_tabs {
@@ -301,15 +318,15 @@ pub(super) fn resolve_drop_on<P: Clone + Eq>(
         let insertion = tab_insertion_marker(target, before_panel.as_ref())?;
         let old_order: Vec<_> = target.tabs.iter().map(|(p, _)| p).collect();
         let mut order = old_order.clone();
-        let noop = if before_panel.as_ref() == Some(panel) {
-            old_order.contains(&panel)
-        } else if old_order.contains(&panel) {
-            order.retain(|p| *p != panel);
-            let at = before_panel.as_ref().and_then(|before| order.iter().position(|p| *p == before)).unwrap_or(order.len());
-            order.insert(at, panel);
-            order == old_order
-        } else {
-            false
+        let noop = match panel {
+            Some(panel) if before_panel.as_ref() == Some(panel) => old_order.contains(&panel),
+            Some(panel) if old_order.contains(&panel) => {
+                order.retain(|p| *p != panel);
+                let at = before_panel.as_ref().and_then(|before| order.iter().position(|p| *p == before)).unwrap_or(order.len());
+                order.insert(at, panel);
+                order == old_order
+            }
+            _ => false,
         };
         return Some(DropProposal {
             anchor: anchor.clone(),
@@ -325,7 +342,11 @@ pub(super) fn resolve_drop_on<P: Clone + Eq>(
         ZoneRule::Depth(depth) => drop_zone(target.rect, header, depth, pointer)?,
         ZoneRule::Fraction { fraction, .. } => body_zone_on(target.rect, header, fraction, target.accepts_tabs, sides, pointer)?,
     };
-    if zone == Zone::Center && target.accepts_tabs && target.tabs.iter().any(|(p, _)| p == panel) {
+    if let Some(panel) = panel
+        && zone == Zone::Center
+        && target.accepts_tabs
+        && target.tabs.iter().any(|(p, _)| p == panel)
+    {
         return Some(DropProposal {
             anchor: anchor.clone(),
             placement: Placement::Tab { before: Some(panel.clone()) },
@@ -334,11 +355,11 @@ pub(super) fn resolve_drop_on<P: Clone + Eq>(
             noop: true,
         });
     }
-    if anchor == panel {
+    if panel == Some(anchor) {
         return None;
     }
     if zone == Zone::Center {
-        if !target.accepts_tabs || target.tabs.iter().any(|(p, _)| p == panel) {
+        if !target.accepts_tabs || panel.is_some_and(|panel| target.tabs.iter().any(|(p, _)| p == panel)) {
             return None;
         }
     } else if !target.allow_splits {
@@ -354,6 +375,36 @@ pub(super) fn resolve_drop_on<P: Clone + Eq>(
         insertion: None,
         noop: false,
     })
+}
+
+/// The drop targets a dock area drew last, for hosts that drop a frame of their own onto it
+/// ([`crate::docking::FloatingFrame::dock_into`]).
+#[derive(Clone)]
+struct DropSnapshot<P> {
+    targets: Vec<DropTarget<P>>,
+    rule: ZoneRule,
+    sides: Sides,
+}
+
+fn snapshot_key(area: egui::Id) -> egui::Id {
+    area.with("drop-snapshot")
+}
+
+pub(super) fn record_drop_targets<P: Clone + Send + Sync + 'static>(
+    ctx: &egui::Context,
+    area: egui::Id,
+    targets: Vec<DropTarget<P>>,
+    rule: ZoneRule,
+    sides: Sides,
+) {
+    ctx.data_mut(|d| d.insert_temp(snapshot_key(area), DropSnapshot { targets, rule, sides }));
+}
+
+/// What dropping a frame that holds no panel of the layout at `pointer` does in the area `area`,
+/// by the targets it drew last.
+pub(super) fn frame_proposal<P: Clone + Eq + Send + Sync + 'static>(ctx: &egui::Context, area: egui::Id, pointer: Pos2) -> Option<DropProposal<P>> {
+    let snapshot = ctx.data(|d| d.get_temp::<DropSnapshot<P>>(snapshot_key(area)))?;
+    resolve_drop_of(None, pointer, &snapshot.targets, snapshot.rule, snapshot.sides)
 }
 
 /// [D] A dock drop target, built once per frame next to the [`DropTarget`]s. The pointer selects

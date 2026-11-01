@@ -1,5 +1,4 @@
 //! `DockCommand`: every documented shape parses and maps to atomic layout actions.
-#![cfg(feature = "serde")]
 
 use std::collections::BTreeSet;
 

@@ -6,9 +6,10 @@ use egui::epaint::RectShape;
 use egui::{Color32, CornerRadius, Rect, Response, Sense, Shape, Ui, Widget, WidgetInfo, pos2, vec2};
 
 use crate::direction;
+use crate::localized::Labels as _;
 use crate::primitives::{Surface, SurfaceEdge, SurfaceKind, SurfaceStyle};
-use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs, variant_cluster, variant_list};
+use crate::story::{NoArgs, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 use crate::typed_story;
 
@@ -214,9 +215,10 @@ pub(crate) fn stories() -> Vec<Story> {
 /// Empty, the args' fraction, and full.
 fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
     let chosen = args.fraction as f32;
+    let labels = StoryLabels::of(ui);
     variant_list(ui, "progress-values", |form| {
         for (name, fraction) in [("Empty", 0.0), ("Chosen", chosen), ("Full", 1.0)] {
-            variant_cluster(form, &format!("{:.0}%", fraction * 100.0), |ui| {
+            variant_cluster(form, &labels.percent_text(f64::from(fraction) * 100.0), |ui| {
                 ui.add(Progress::new(fraction).label(name));
             });
         }
@@ -224,9 +226,10 @@ fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
 }
 
 fn show_indeterminate(ui: &mut Ui, _: &mut NoArgs) {
+    let working = StoryLabels::of(ui).working;
     variant_list(ui, "progress-indeterminate", |form| {
-        variant_cluster(form, "Working", |ui| {
-            ui.add(Progress::indeterminate().label("Working"));
+        variant_cluster(form, &working, |ui| {
+            ui.add(Progress::indeterminate().label(&working));
         });
     });
 }

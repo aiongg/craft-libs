@@ -11,11 +11,13 @@ use super::SizeDisabledArgs;
 use super::button::content_color;
 use super::check::{IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
 use super::checkbox::LONG_LABEL;
+use super::common_stories::ControlStoryLabels;
 use crate::behavior::RadioSelection;
 use crate::direction;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Gap, Interactive, Row, Sensed, Stack, Text};
-use crate::story::{Level, Story};
+use crate::story::{Level, Story, StoryLabels};
 use crate::theme::{Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
@@ -346,20 +348,48 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PreparedRadioSet<T> {
     ///
     /// If the set has no option `index`.
     pub fn radio_named(&mut self, ui: &mut Ui, index: usize, label: &str, name: &str) -> Response {
+        self.radio_with(ui, index, RadioOption::new(label).name(name))
+    }
+
+    /// Draws option `index` as `option` describes it: its label, accessible name, accessible
+    /// description and content. The content is drawn after the label inside the option's hit
+    /// area, so the option stays one Tab stop and one `RadioButton` node.
+    ///
+    /// # Panics
+    ///
+    /// If the set has no option `index`.
+    pub fn radio_with(&mut self, ui: &mut Ui, index: usize, option: RadioOption<'_>) -> Response {
+        let RadioOption { label, name, description, content } = option;
+        let name = name.unwrap_or(label);
         let (id, enabled) = self.items[index];
         let selected = self.radios.selected() == Some(index);
         let (tokens, style) = (&self.tokens, &self.style);
         let response = ui
             .scope_builder(UiBuilder::new().accessibility_parent(self.id), |ui| {
                 let laid = Labelled::layout(ui, tokens, &style.layout(), label);
-                let sensed = Interactive::with_id(id, Role::RadioButton, name)
-                    .position_in_set(index)
-                    .state_layer(false)
-                    .enabled(enabled)
-                    .interact(ui, laid.size);
+                let element = Interactive::with_id(id, Role::RadioButton, name).position_in_set(index).state_layer(false).enabled(enabled);
+                let sensed = match content {
+                    None => element.interact(ui, laid.size),
+                    Some(content) => {
+                        let layout = direction::row(ui);
+                        // Bound to the label's height: a centred row would otherwise take the
+                        // rest of a tall parent.
+                        let room = Rect::from_min_size(ui.cursor().min, vec2(ui.available_width(), laid.size.y));
+                        let hit = ui.scope_builder(UiBuilder::new().max_rect(room).layout(layout), |row| {
+                            row.spacing_mut().item_spacing.x = 0.0;
+                            row.allocate_space(laid.size);
+                            row.add_space(style.gap);
+                            content(row);
+                        });
+                        element.interact_at(ui, hit.response.rect)
+                    }
+                };
                 laid.tooltip(paint(ui, style, &laid, sensed, selected), label)
             })
             .inner;
+        if let Some(description) = description {
+            response.ctx.accesskit_node_builder(response.id, |node| node.set_description(description));
+        }
         self.responses.push(response.clone());
         response
     }
@@ -378,10 +408,62 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PreparedRadioSet<T> {
     }
 }
 
+/// One option of a [`PreparedRadioSet`] for [`radio_with`](PreparedRadioSet::radio_with): its
+/// label, and what the label alone can't carry.
+#[must_use = "an option is drawn by `PreparedRadioSet::radio_with`"]
+pub struct RadioOption<'a> {
+    label: &'a str,
+    name: Option<&'a str>,
+    description: Option<&'a str>,
+    content: Option<OptionContent<'a>>,
+}
+
+type OptionContent<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
+
+impl<'a> RadioOption<'a> {
+    /// An option showing `label`, which is also its accessible name.
+    pub fn new(label: &'a str) -> Self {
+        Self { label, name: None, description: None, content: None }
+    }
+
+    /// The accessible name, for an option whose label is a short form ("H:" for "Hue").
+    pub fn name(mut self, name: &'a str) -> Self {
+        self.name = Some(name);
+        self
+    }
+
+    /// What a screen reader reads after the name: a sample's size, a hint.
+    pub fn description(mut self, description: &'a str) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    /// Content drawn after the label (a sample picture), inside the option's hit area, so a
+    /// click on it selects the option. It paints and senses nothing itself: a widget that senses
+    /// input would take the click from the option.
+    pub fn content(mut self, content: impl FnOnce(&mut Ui) + 'a) -> Self {
+        self.content = Some(Box::new(content));
+        self
+    }
+}
+
+impl std::fmt::Debug for RadioOption<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RadioOption")
+            .field("label", &self.label)
+            .field("name", &self.name)
+            .field("description", &self.description)
+            .field("content", &self.content.is_some())
+            .finish()
+    }
+}
+
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Radio"];
 
-const OPTIONS: [&str; 5] = ["Pixels", "Millimetres", "Inches", "Points", "Picas"];
+fn options(words: &ControlStoryLabels) -> [String; 5] {
+    [words.unit_pixels.clone(), "Millimetres".to_owned(), words.unit_inches.clone(), words.unit_points.clone(), words.unit_picas.clone()]
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -395,10 +477,11 @@ pub(crate) fn stories() -> Vec<Story> {
 fn show_states(ui: &mut Ui, args: &mut SizeDisabledArgs) {
     let size = args.size.control();
     let enabled = !args.disabled;
+    let story = ControlStoryLabels::of(ui);
     let state_id = ui.scope_id().with("radio-states");
     let mut choice = ui.data(|d| d.get_temp::<usize>(state_id).unwrap_or(0));
     Stack::new(Gap::Stack).show(ui, |ui| {
-        let mut set = RadioSet::new("radio-zoom", "Zoom", &mut choice).size(size).enabled(enabled);
+        let mut set = RadioSet::new("radio-zoom", &story.zoom, &mut choice).size(size).enabled(enabled);
         for i in 0..4 {
             set = set.item(i);
         }
@@ -406,7 +489,7 @@ fn show_states(ui: &mut Ui, args: &mut SizeDisabledArgs) {
         let _ = set.radio(ui, 0, "Fit to window");
         Row::new(Gap::Inline).show(ui, |ui| {
             let _ = set.radio(ui, 1, "Actual size");
-            ui.add(Text::new("100%").content(Content::Muted));
+            ui.add(Text::new(StoryLabels::of(ui).percent_text(100.0)).content(Content::Muted));
         });
         let _ = set.radio(ui, 2, LONG_LABEL);
         let _ = set.radio(ui, 3, "Print size (no printer)");
@@ -425,19 +508,20 @@ fn show_states(ui: &mut Ui, args: &mut SizeDisabledArgs) {
 fn show_groups(ui: &mut Ui, args: &mut SizeDisabledArgs) {
     let size = args.size.control();
     let enabled = !args.disabled;
+    let options = options(&ControlStoryLabels::of(ui));
     let state_id = ui.scope_id().with("radio-groups");
     let mut choices = ui.data(|d| d.get_temp::<[usize; 2]>(state_id).unwrap_or([0, 2]));
     Stack::new(Gap::Stack).show(ui, |ui| {
         Row::new(Gap::Section).show(ui, |ui| {
             for (n, choice) in [3, 5].into_iter().zip(choices.iter_mut()) {
                 let mut group = RadioGroup::new(("radio-group", n), format!("Units ({n})"), choice).size(size).enabled(enabled);
-                for (i, label) in OPTIONS.iter().take(n).enumerate() {
-                    group = group.item(i, *label).item_enabled(i != 3);
+                for (i, label) in options.iter().take(n).enumerate() {
+                    group = group.item(i, label.as_str()).item_enabled(i != 3);
                 }
                 let _ = group.show(ui);
             }
         });
-        ui.add(Text::new(format!("Selected: {}, {}", OPTIONS[choices[0]], OPTIONS[choices[1]])).content(Content::Muted));
+        ui.add(Text::new(format!("Selected: {}, {}", options[choices[0]], options[choices[1]])).content(Content::Muted));
     });
     ui.data_mut(|d| d.insert_temp(state_id, choices));
 }

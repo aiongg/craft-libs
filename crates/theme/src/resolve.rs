@@ -6,7 +6,7 @@ use super::app_sizes::AppSizes;
 use super::components::{ComponentField, ComponentTokens, Semantic};
 use super::derive::{self, ColorSteps, ContrastCheck};
 use super::ramp::Mode;
-use super::scale::Elevation;
+use super::scale::{Easing, Elevation};
 use super::sizes;
 use super::theme::{Appearance, Contrast, ContrastIntent, PinLayer, Pins, ThemeDef};
 use super::tokens::{ColorToken, Edge, ElevationTokens, Motion, MotionTokens, ShapeTokens, TokenRef, Tokens};
@@ -217,9 +217,10 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
 
     let motion = |d: super::scale::Duration| Motion { millis: if appearance.reduced_motion { 0 } else { d.millis() }, easing: values::MOTION_EASING };
     let (hover, open, move_) = values::MOTION_DURATIONS;
+    let motion_ms = |millis: u32, easing: Easing| Motion { millis: if appearance.reduced_motion { 0 } else { millis }, easing };
 
     let shape = ShapeTokens { radius, edge };
-    let typography = preset.typography.scaled(values::text_size_factor(appearance.text_size), values::TYPE_ROUNDING);
+    let typography = preset.typography.scaled(sizes.text_steps.factor(appearance.text_size), values::TYPE_ROUNDING);
     let mut component = ComponentTokens::defaults(&Semantic {
         color: &color,
         shape: &shape,
@@ -244,7 +245,14 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
         size: preset.size,
         typography,
         elevation,
-        motion: MotionTokens { hover: motion(hover), open: motion(open), r#move: motion(move_), reduced: appearance.reduced_motion },
+        motion: MotionTokens {
+            hover: motion(hover),
+            open: motion(open),
+            r#move: motion(move_),
+            caret: motion_ms(values::MOTION_CARET_MS, values::MOTION_CARET_EASING),
+            outline: motion_ms(values::MOTION_OUTLINE_MS, values::MOTION_OUTLINE_EASING),
+            reduced: appearance.reduced_motion,
+        },
         component,
     };
     let resolved = Resolved { tokens, warnings, contrast_intent: theme.contrast_intent, variant_used: mode };

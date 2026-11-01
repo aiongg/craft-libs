@@ -246,3 +246,40 @@ fn a_multi_paragraph_error_is_one_error_message_node_reading_every_paragraph() {
     let group = harness.get_by_role_and_label(Role::Group, "First problem.\nSecond problem.");
     assert_eq!(group.accesskit_node().locate().0, message);
 }
+
+// Help text in a status is drawn in that status's foreground; without one it is muted.
+#[test]
+fn help_status_colours_the_help_text() {
+    use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut tokens = None;
+    let mut colours = |status: Option<craft_theme::StatusKind>| {
+        let mut found = Vec::new();
+        let output = ctx.run_ui(
+            egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 200.0))), ..Default::default() },
+            |ui| {
+                tokens = Some(Tokens::of(ui));
+                let mut field = Field::unlabelled().help("Strength: Weak");
+                if let Some(status) = status {
+                    field = field.help_status(status);
+                }
+                let _ = field.show(ui, |ui, _| TextField::new("t", "Text", "").show(ui));
+            },
+        );
+        for clipped in &output.shapes {
+            if let egui::Shape::Text(t) = &clipped.shape
+                && t.galley.text() == "Strength: Weak"
+            {
+                found.push(t.galley.job.sections[0].format.color);
+            }
+        }
+        output.drop_without_applying_deltas();
+        found
+    };
+    let warn = colours(Some(craft_theme::StatusKind::Warn));
+    let muted = colours(None);
+    let tokens = tokens.unwrap();
+    assert_eq!(warn, vec![tokens.color.status.warn.fg.to_egui()]);
+    assert_eq!(muted, vec![Field::style(&tokens).help]);
+}

@@ -9,6 +9,8 @@ use crate::values;
 pub struct SplitTokens {
     /// Space between panes: `split.gap`.
     pub gap: f32,
+    /// Width of the line round the active pane: `split.active_edge`.
+    pub active_edge: f32,
 }
 
 /// Split views have no overridable field: their sizes come from the code, as every size does.
@@ -20,10 +22,11 @@ impl Family for SplitTokens {
     const FIELDS: &'static [SplitField] = &[];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { SplitTokens;
         "gap" 0.0..=64.0 => gap;
+        "active_edge" 0.0..=8.0 => active_edge;
     };
 
     fn defaults(_: &Semantic<'_>) -> SplitTokens {
-        SplitTokens { gap: values::SPLIT_GAP }
+        SplitTokens { gap: values::SPLIT_GAP, active_edge: values::SPLIT_ACTIVE_EDGE }
     }
 
     fn path(f: SplitField) -> String {

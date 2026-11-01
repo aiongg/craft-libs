@@ -85,3 +85,33 @@ fn f6_does_nothing_under_a_modal_layer() {
     });
     assert_eq!(RegionFocus::new(&ctx).current(&ctx).as_deref(), Some("tools"));
 }
+
+// Entering a region without an entry widget focuses the first widget in layer order (back to
+// front), not whichever layer the widget map yields first.
+#[test]
+fn a_region_without_an_entry_focuses_the_back_most_layer_first() {
+    let ctx = Context::default();
+    let mut first = None;
+    let mut run = |events: Vec<Event>, act: &dyn Fn(&RegionFocus, &Context)| {
+        let raw = RawInput { events, ..Default::default() };
+        let mut out = ctx.run_ui(raw, |ui| {
+            let ctx = ui.ctx();
+            let focus = RegionFocus::new(ctx);
+            act(&focus, ctx);
+            for layer in 0..8 {
+                egui::Area::new(Id::unique(("layer", layer))).fixed_pos(pos2(10.0, 10.0)).show(ctx, |ui| {
+                    let response = ui.button("Go");
+                    if layer == 0 {
+                        first = Some(response.id);
+                    }
+                });
+            }
+            focus.region(ctx, Region::new("area", "Area"), rect_of(0.0), None);
+        });
+        out.textures_delta.clear();
+    };
+    run(vec![], &|_, _| {});
+    run(vec![], &|_, _| {});
+    run(vec![], &|f, ctx| f.step(ctx, 1));
+    assert_eq!(focused(&ctx), first);
+}

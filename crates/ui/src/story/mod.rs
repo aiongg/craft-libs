@@ -62,6 +62,9 @@
 //!   a function or a frame share one local wrapper macro that expands to `typed_story!` calls
 //!   (as `dock_story!` and `bar_story!` do), because a closure inside `typed_story!` cannot
 //!   capture the wrapper's parameters.
+//! - Stories of panels and dialogs keep their state with [`shared`], open their dialog with
+//!   [`drive`] and swap in a fake file service with [`ensure_files`]. Sample text they share
+//!   ("Last event: {event}", "Finish next") is in [`StoryLabels`].
 //! - The gallery reads and edits the erased [`Args`] (`story.defaults()`, [`Arg`], [`ArgValue`]);
 //!   a story reads its own struct only.
 //!
@@ -76,17 +79,26 @@
 mod args;
 mod choices;
 mod colours;
+mod harness;
+#[cfg(test)]
+mod harness_tests;
+mod pattern_words;
 mod stock_egui;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod typed_tests;
+mod words;
 
 pub use args::{Arg, ArgValue, Args, NoArgs, StoryArgs, StoryChoice, show_typed};
 pub use choices::{SizeArg, ToneArg};
 /// `#[derive(StoryArgs)]` and `#[derive(StoryChoice)]`; see the traits.
 pub use craft_ui_macros::{StoryArgs, StoryChoice};
+pub use harness::{claim, drive, ensure_files, lock, shared};
+pub use pattern_words::PatternStoryLabels;
+pub use words::StoryLabels;
 
+use crate::localized::Labels as _;
 use crate::{composites, controls, primitives};
 
 /// Where a story's component sits in the design system, in the order the gallery lists them.
@@ -311,6 +323,7 @@ register! {
     controls::number_field,
     controls::angle_dial,
     controls::point_picker,
+    controls,
     composites::field,
     composites::form_grid,
     composites::property_row,
@@ -332,15 +345,26 @@ register! {
     #[cfg(feature = "window-frame")]
     crate::title_bar::stories,
     crate::presets::stories,
+    crate::presets::stories_library,
+    crate::canvas::textures::stories,
+    crate::canvas::navigator::stories,
+    crate::edit::history_panel::stories,
+    crate::panes::sections::stories,
     crate::docking,
+    crate::docking::shell_stories,
     crate::dialog::stories,
     crate::dialog::full_window_stories,
     crate::dialog::preview_stories,
     crate::viewport::stories,
     crate::preferences::stories,
     crate::patterns::options_bar,
+    crate::patterns::align_stories,
     crate::patterns::status_bar,
     crate::patterns::command_palette,
+    crate::patterns::shell_stories,
+    crate::composites::notice_center_stories,
+    crate::shell::start_stories,
+    crate::canvas::shell_stories,
     crate::patterns::inspector,
     crate::patterns::toolbar,
     crate::patterns::panel,
@@ -373,13 +397,13 @@ pub fn with_overview<R>(ctx: &egui::Context, overview: bool, show: impl FnOnce()
 /// Whether a story draws its dialog. Outside an Overview tile that is the story's `open` arg.
 /// In a tile the dialog starts closed, with a "Show dialog" button in its place, and shows once
 /// the button is pressed; the arg does not matter there. Pair it with [`dialog_closed`].
-pub(crate) fn dialog_shown(ui: &mut egui::Ui, open: bool) -> bool {
+pub fn dialog_shown(ui: &mut egui::Ui, open: bool) -> bool {
     if !in_overview(ui.ctx()) {
         return open;
     }
     let key = ui.make_persistent_id("craft_ui::story::overview_dialog_open");
     let mut shown = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
-    if !shown && ui.add(crate::controls::Button::new("Show dialog")).clicked() {
+    if !shown && ui.add(crate::controls::Button::new(StoryLabels::of(ui).show_dialog)).clicked() {
         shown = true;
         ui.data_mut(|d| d.insert_temp(key, true));
     }
@@ -387,7 +411,7 @@ pub(crate) fn dialog_shown(ui: &mut egui::Ui, open: bool) -> bool {
 }
 
 /// The dialog was closed: clears `open` in a component's tab, the tile's own state in an Overview tile.
-pub(crate) fn dialog_closed(ui: &egui::Ui, open: &mut bool) {
+pub fn dialog_closed(ui: &egui::Ui, open: &mut bool) {
     if in_overview(ui.ctx()) {
         let key = ui.make_persistent_id("craft_ui::story::overview_dialog_open");
         ui.data_mut(|d| d.insert_temp(key, false));

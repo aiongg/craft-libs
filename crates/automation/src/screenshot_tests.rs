@@ -102,3 +102,40 @@ fn early_request_waits_for_geometry() {
     assert_eq!(finished.len(), 1);
     assert_eq!(finished[0].result.as_ref().unwrap().size, [64, 48]);
 }
+
+// A finished image is encoded as a PNG that decodes to the same pixels, inlined as base64 or handed to the writer; an encode-budget overflow and a write error are error replies.
+#[test]
+fn screenshot_reply_encodes_a_png_and_writes_it() {
+    use base64::Engine as _;
+    let mut pixels = ColorImage::filled([3, 2], egui::Color32::from_rgb(10, 20, 30));
+    pixels.pixels[4] = egui::Color32::from_rgb(200, 100, 50);
+    let image = Arc::new(pixels);
+    let decode = |bytes: &[u8]| {
+        let mut reader = png::Decoder::new(bytes).read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        let info = reader.next_frame(&mut buf).unwrap();
+        (info.width, info.height, buf)
+    };
+    let expected: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
+
+    let inline = screenshot_reply(5, image.clone(), None, &mut |_, _| panic!("no path, no write"));
+    assert_eq!((inline["result"]["width"].clone(), inline["result"]["mime"].clone()), (3.into(), "image/png".into()));
+    let bytes = base64::engine::general_purpose::STANDARD.decode(inline["result"]["base64"].as_str().unwrap()).unwrap();
+    assert_eq!(decode(&bytes), (3, 2, expected.clone()));
+
+    let mut written = Vec::new();
+    let reply = screenshot_reply(5, image.clone(), Some("out.png"), &mut |path, png| {
+        written.push((path.to_owned(), png.to_vec()));
+        Ok(())
+    });
+    assert_eq!(reply, serde_json::json!({"ok": true, "result": {"path": "out.png", "width": 3, "height": 2}}));
+    assert_eq!(written[0].0, "out.png");
+    assert_eq!(decode(&written[0].1), (3, 2, expected));
+
+    let failed = screenshot_reply(5, image, Some("../out.png"), &mut |_, _| Err("path is outside the workspace".into()));
+    assert_eq!(failed, serde_json::json!({"ok": false, "error": "path is outside the workspace"}));
+
+    let huge = Arc::new(ColorImage::filled([8192, 4097], egui::Color32::BLACK));
+    let over = screenshot_reply(6, huge, None, &mut |_, _| Ok(()));
+    assert!(over["error"].as_str().unwrap().starts_with("screenshot 6 failed: the image exceeds the 128 MiB"), "{over}");
+}

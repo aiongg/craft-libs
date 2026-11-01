@@ -143,3 +143,18 @@ fn a_menu_button_reports_the_hosts_open_state() {
     });
     assert_eq!(harness.get_by_label("New fill").accesskit_node().data().is_expanded(), Some(true));
 }
+
+#[test]
+fn a_pressed_button_reports_the_hosts_state_as_toggled() {
+    use egui::accesskit::Toggled;
+    for (pressed, toggled) in [(true, Toggled::True), (false, Toggled::False)] {
+        let harness = harness(Direction::Ltr).build_ui(move |ui| {
+            PanelFooter::show(ui, |ui| {
+                PanelFooter::pressed_button(ui, Icon::Plus, "Record", pressed, craft_theme::Tone::Bad);
+                PanelFooter::button(ui, Icon::Trash, "Delete");
+            });
+        });
+        assert_eq!(harness.get_by_label("Record").accesskit_node().toggled(), Some(toggled), "pressed: {pressed}");
+        assert_eq!(harness.get_by_label("Delete").accesskit_node().toggled(), None, "a plain button has no toggled state");
+    }
+}

@@ -643,6 +643,42 @@ fn a_lone_protected_panel_draws_no_strip_and_no_bar() {
     assert!(ctx.read_response(Id::unique(AREA).with(("drag-bar", Some(&2u32)))).is_some());
 }
 
+// The group items and the panel rows read one table, `PanelMenuLabels`, from the installed words.
+#[test]
+fn the_group_menu_rows_come_from_the_installed_words() {
+    use craft_host::{AppInfo, Host};
+    use craft_i18n::{Embedded, I18n};
+    use egui_kittest::{Harness, kittest::Queryable};
+    static CATALOGS: &Embedded = &[("de", "@id\tdock.panelMenu.closeGroup\tTabgruppe schliessen\n", "")];
+    let (i18n, problems) = I18n::new(CATALOGS, &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let lang = i18n.from_code("de").unwrap();
+    let i18n = std::sync::Arc::new(i18n);
+    let mut h = Harness::builder()
+        .with_size(vec2(800.0, 600.0))
+        .with_context_setup(move |ctx: &egui::Context| {
+            Host::builder(AppInfo { id: "test", name: "Test", version: "1.0" }).i18n(i18n.clone()).lang(lang).install(ctx)
+        })
+        .build_ui_state(
+            |ui, (content, actions): &mut (TestContent, Vec<Action<u32>>)| {
+                let out = DockArea::new(Id::unique(AREA)).show_content(ui, &docked(), &DockStyle::from_ui(ui), content);
+                actions.extend(out.actions);
+            },
+            (TestContent { protected: vec![0], ..Default::default() }, Vec::new()),
+        );
+    h.run_steps(2);
+    let at = h.ctx.read_response(Id::unique(AREA).with(("drag-bar", Some(&2u32)))).unwrap().rect.center();
+    h.input_mut().events.extend([
+        Event::PointerMoved(at),
+        Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed: true, modifiers: Modifiers::NONE },
+    ]);
+    h.run_steps(1);
+    h.input_mut().events.push(Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed: false, modifiers: Modifiers::NONE });
+    h.run_steps(2);
+    assert_eq!(h.query_all_by_label("Tabgruppe schliessen").count(), 1);
+    assert_eq!(h.query_all_by_label("Close Tab Group").count(), 0);
+}
+
 #[test]
 /// The drag bar's context menu contains Close Tab Group, Minimize, Float Tab Group and Move Group
 /// To; clicking Close emits `CloseGroup`, and Enter on the focused bar opens the menu.

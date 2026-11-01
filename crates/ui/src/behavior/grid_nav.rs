@@ -204,21 +204,37 @@ impl GridNav {
     /// The columns are those of the first row of rects, so a grid laid out by wrapping works
     /// without knowing its width.
     pub fn roving_stop(ui: &Ui, ids: &[Id], selected: Option<usize>, enabled: bool) -> usize {
+        Self::roving_move(ui, ids, selected, enabled).0
+    }
+
+    /// [`roving_stop`](Self::roving_stop), and whether this frame's key or screen reader request
+    /// moved the focus to the stop. Tab arriving at the resting stop is not a move, so a grid
+    /// whose focus picks (theme chips) can leave the choice alone on Tab.
+    pub fn roving_move(ui: &Ui, ids: &[Id], selected: Option<usize>, enabled: bool) -> (usize, bool) {
+        let rects: Vec<Option<Rect>> = ids.iter().map(|&id| ui.ctx().read_response(id).map(|r| r.rect)).collect();
+        let nav = Self::wrapped(ids.len(), first_row_len(&rects)).rtl(direction::is_rtl(ui));
+        Self::roving_move_in(ui, ids, &nav, selected, enabled)
+    }
+
+    /// [`roving_move`](Self::roving_move) over the rows of `nav`, which must have one cell per
+    /// id: a grid whose lines are known (ragged chips, a picker with group headers) passes its
+    /// own [`GridNav::ragged`].
+    pub fn roving_move_in(ui: &Ui, ids: &[Id], nav: &GridNav, selected: Option<usize>, enabled: bool) -> (usize, bool) {
         let resting = selected.unwrap_or(0);
         if !enabled || ids.is_empty() {
-            return resting;
+            return (resting, false);
         }
+        let mut moved = false;
         let focused = ids.iter().position(|&id| ui.memory(|m| m.has_focus(id)));
         let mut stop = focused.unwrap_or(resting);
         if let Some(requested) = ids.iter().position(|&id| ui.input(|i| i.has_accesskit_action_request(id, Action::Focus))) {
             stop = requested;
+            moved = true;
         }
         if let Some(from) = focused {
             ui.memory_mut(|m| {
                 m.set_focus_lock_filter(ids[from], EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() })
             });
-            let rects: Vec<Option<Rect>> = ids.iter().map(|&id| ui.ctx().read_response(id).map(|r| r.rect)).collect();
-            let nav = Self::wrapped(ids.len(), first_row_len(&rects)).rtl(direction::is_rtl(ui));
             ui.input_mut(|i| {
                 for (key, grid_key) in [
                     (Key::ArrowRight, GridKey::Right),
@@ -230,6 +246,7 @@ impl GridNav {
                 ] {
                     if i.consume_key(Modifiers::NONE, key) {
                         stop = nav.step(from, grid_key, None).index;
+                        moved = true;
                     }
                 }
             });
@@ -237,7 +254,7 @@ impl GridNav {
         if focused.is_some_and(|f| f != stop) || (focused.is_none() && stop != resting) {
             ui.memory_mut(|m| m.request_focus(ids[stop]));
         }
-        stop
+        (stop, moved)
     }
 }
 

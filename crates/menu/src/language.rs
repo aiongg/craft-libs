@@ -24,6 +24,20 @@ pub enum LanguageChoice {
     Code(String),
 }
 
+impl LanguageChoice {
+    /// The choice a command made, `None` for any other command or an unknown parameter.
+    pub fn from_command(command: &CommandRef) -> Option<LanguageChoice> {
+        if command.id != LANGUAGE_COMMAND {
+            return None;
+        }
+        match command.params.get("lang")?.as_str()? {
+            "auto" => Some(LanguageChoice::Automatic),
+            "" => None,
+            code => Some(LanguageChoice::Code(code.to_owned())),
+        }
+    }
+}
+
 /// One language row: its code and its name in itself ("Français").
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LanguageRow {
@@ -37,8 +51,8 @@ pub struct LanguageRow {
 /// use craft_menu::{LanguageChoice, LanguageLabels, LanguageMenu};
 /// # fn demo(i18n: &craft_i18n::I18n, command: &craft_menu::CommandRef) {
 /// let menu = LanguageMenu::from_i18n(i18n, LanguageChoice::Automatic);
-/// let node = menu.node(&LanguageLabels::default()); // into the app's View menu, or anywhere on a Mac
-/// if let Some(choice) = LanguageMenu::chosen(command) { /* store it, install the language */ }
+/// let node = menu.submenu(&LanguageLabels::default()); // into the app's View menu, or anywhere on a Mac
+/// if let Some(choice) = LanguageChoice::from_command(command) { /* store it, install the language */ }
 /// # }
 /// ```
 ///
@@ -90,20 +104,8 @@ impl LanguageMenu {
     }
 
     /// The "Language" submenu, tagged [`crate::ItemRole::Language`].
-    pub fn node(&self, labels: &LanguageLabels) -> Node {
+    pub fn submenu(&self, labels: &LanguageLabels) -> Node {
         Node::submenu(labels.language.as_str(), self.items(labels)).role(ItemRole::Language)
-    }
-
-    /// The choice a command made, `None` for any other command or an unknown parameter.
-    pub fn chosen(command: &CommandRef) -> Option<LanguageChoice> {
-        if command.id != LANGUAGE_COMMAND {
-            return None;
-        }
-        match command.params.get("lang")?.as_str()? {
-            "auto" => Some(LanguageChoice::Automatic),
-            "" => None,
-            code => Some(LanguageChoice::Code(code.to_owned())),
-        }
     }
 
     /// The language a choice means: the system's for Automatic, English for a code `i18n`

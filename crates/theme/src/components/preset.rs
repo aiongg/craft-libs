@@ -24,6 +24,20 @@ pub struct PresetTokens {
     pub caption_gap: f32,
     /// Width of the thumbnail size slider: `size.preset.slider_width`.
     pub slider_width: f32,
+    /// Side of a picker field's square thumbnail (patterns, contours): `size.preset.picker_square`.
+    pub picker_square: f32,
+    /// The side of a cell in the picker's popup: `size.preset.picker_cell`.
+    pub picker_cell: f32,
+    /// Width of a picker field's wide thumbnail (custom shapes): `size.preset.picker_wide_width`.
+    pub picker_wide_width: f32,
+    /// Height of a picker field's wide thumbnail: `size.preset.picker_wide_height`.
+    pub picker_wide_height: f32,
+    /// Width of the named preset row's Name field: `size.preset.name_width`.
+    pub name_width: f32,
+    /// The greatest height of the picker's popup: `size.preset.popup_max_height`.
+    pub popup_max_height: f32,
+    /// The gap between the browser's list and its own footer: `gap.inline`.
+    pub footer_room: f32,
     /// Least thumbnail side in a list row: [`values::PRESET_THUMB_LIST_MIN`].
     pub thumb_list_min: f32,
     /// Greatest thumbnail side in a list row: [`values::PRESET_THUMB_LIST_MAX`].
@@ -82,6 +96,13 @@ impl Family for PresetTokens {
         "grid_inset" 0.0..=32.0 => grid_inset;
         "caption_gap" 0.0..=16.0 => caption_gap;
         "slider_width" 48.0..=240.0 => slider_width;
+        "picker_square" 8.0..=256.0 => picker_square;
+        "picker_cell" 8.0..=256.0 => picker_cell;
+        "picker_wide_width" 8.0..=256.0 => picker_wide_width;
+        "picker_wide_height" 8.0..=256.0 => picker_wide_height;
+        "name_width" 48.0..=480.0 => name_width;
+        "popup_max_height" 120.0..=1024.0 => popup_max_height;
+        "footer_room" 0.0..=32.0 => footer_room;
         "thumb_list_min" 0.0..=1024.0 => thumb_list_min;
         "thumb_list_max" 0.0..=1024.0 => thumb_list_max;
         "ghost_thumb" 0.0..=1024.0 => ghost_thumb;
@@ -99,6 +120,13 @@ impl Family for PresetTokens {
             cell_radius: p.cell_radius,
             caption_gap: p.caption_gap,
             slider_width: p.slider_width,
+            picker_square: p.picker_square,
+            picker_cell: p.picker_cell,
+            picker_wide_width: p.picker_wide_width,
+            picker_wide_height: p.picker_wide_height,
+            name_width: p.name_width,
+            popup_max_height: p.popup_max_height,
+            footer_room: p.footer_room,
             thumb_list_min: values::PRESET_THUMB_LIST_MIN,
             thumb_list_max: values::PRESET_THUMB_LIST_MAX,
             ghost_thumb: values::PRESET_GHOST_THUMB,

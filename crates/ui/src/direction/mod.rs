@@ -35,8 +35,8 @@ pub use craft_i18n::Direction;
 pub const ENV_VAR: &str = "CRAFT_UI_DIRECTION";
 
 /// Where the interface direction comes from: an app setting, usually hidden in a debug section.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "lowercase"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Setting {
     /// Follow the UI language.
     #[default]

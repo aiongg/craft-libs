@@ -1,7 +1,8 @@
 //! What a `PresetBrowser` reports.
 
-use egui::{Modifiers, Response};
+use egui::{Modifiers, Pos2, Response};
 
+use super::footer::PresetFooterEvent;
 use crate::behavior::{ListDrag, Move};
 use crate::edit::EditEvent;
 use crate::list::OpenChange;
@@ -49,17 +50,34 @@ pub enum PresetEvent<K> {
     /// `Dismissed` also reports a drag released over a host widget: the host ignores it and takes
     /// the payload from that widget.
     Reorder(EditEvent<Move<K>>),
-    /// An entry the host added to the context menu was chosen for `key`.
-    Extra {
-        /// The preset or group the menu was opened on.
+    /// A preset was dragged from the browser and released inside its
+    /// [`drop_zone`](super::PresetBrowser::drop_zone) (a canvas, a timeline, a layer list): the
+    /// host applies `key` at `pos`. The drag's gesture has ended as `Reorder(Cancel(Dismissed))`
+    /// in the same pass, before this event, and the drag payload is cleared. Items only: a group
+    /// dropped on the zone reports nothing.
+    DropAt {
+        /// The preset.
         key: K,
-        /// The id the host gave the entry.
-        id: &'static str,
+        /// The pointer at the release, in points.
+        pos: Pos2,
+        /// The modifiers held at the release.
+        modifiers: Modifiers,
+    },
+    /// A button of the [`footer`](super::PresetBrowser::footer) was pressed, in the order it
+    /// happened among the other events.
+    Footer(PresetFooterEvent<K>),
+    /// A row the host added to the context menu was chosen for `target`.
+    Menu {
+        /// The preset or group the menu was opened on.
+        target: K,
+        /// The command the host gave the row.
+        command: String,
     },
 }
 
 /// What `PresetBrowser::show` returns.
 #[derive(Debug)]
+#[non_exhaustive]
 #[must_use = "the host applies the browser's events"]
 pub struct PresetOutput<K> {
     /// The browser: its focus and its rect.
@@ -69,4 +87,8 @@ pub struct PresetOutput<K> {
     /// While a preset or group is dragged, its payload, so the host can draw its own drop
     /// highlight; `None` otherwise.
     pub drag: Option<ListDrag<K>>,
+    /// The preset under the pointer this pass, for a hover preview (LightCraft's develop presets
+    /// show the photo with it); `None` off the list, over a header, or while a drag is under way.
+    /// A field, not an event: a pass without a change sends nothing.
+    pub hovered: Option<K>,
 }

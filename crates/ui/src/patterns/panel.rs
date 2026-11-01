@@ -38,14 +38,14 @@ pub struct PanelOutput<R> {
 
 crate::words! {
     /// The name every scroll area gives its scroll bar.
-    pub(crate) struct ScrollBarLabels {
+    pub struct ScrollBarLabels {
         name: "scroll.bar" = "Scroll bar";
     }
 }
 
 impl ScrollBarLabels {
     /// The scroll bar's name in the language of `ui`.
-    pub(crate) fn name(ui: &Ui) -> String {
+    pub fn name(ui: &Ui) -> String {
         crate::localized::Words::of(ui).get(<Self as crate::localized::Labels>::WORDS[0]).into_owned()
     }
 }

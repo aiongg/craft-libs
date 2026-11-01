@@ -1,17 +1,79 @@
-//! Behaviour tests of `choice`, to be written by the fill task (names only in the skeleton).
+//! The pasteboard colour choice in a kittest harness: its rows and the picker request.
 
-#![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_theme::Srgba;
+use egui::accesskit::Role;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
+use egui_kittest::{Harness, HarnessBuilder};
+
+use super::{ChosenColor, ColorChoice, NamedColor};
+use craft_ui::dialog::ColorRequest;
+use craft_ui::edit::EditEvent;
+use craft_ui::theme::{Base, install};
+
+struct Host {
+    value: ChosenColor,
+    custom: Option<Srgba>,
+    picks: Vec<ColorRequest>,
+    events: Vec<EditEvent<ChosenColor>>,
+}
+
+fn harness<State>() -> HarnessBuilder<State> {
+    Harness::<State>::builder().with_size([480.0, 480.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+}
+
+fn pasteboard() -> Harness<'static, Host> {
+    let host = Host { value: ChosenColor::Named("default".into()), custom: Some(Srgba::rgb(1.0, 0.0, 0.0)), picks: Vec::new(), events: Vec::new() };
+    let mut harness = harness().build_ui_state(
+        |ui, host: &mut Host| {
+            let named = [
+                NamedColor::new("default", "Default", None),
+                NamedColor::new("black", "Black", Some(Srgba::rgb(0.0, 0.0, 0.0))),
+                NamedColor::new("darkGray", "Dark Gray", Some(Srgba::rgb(0.25, 0.25, 0.25))),
+            ];
+            let shown = ColorChoice::new("pasteboard", "Pasteboard", &host.value).named(named).custom(host.custom).show(ui);
+            host.picks.extend(shown.pick_color);
+            if let Some(event) = shown.edit.event {
+                if let EditEvent::Set { value, .. } = &event {
+                    host.value = value.clone();
+                }
+                host.events.push(event);
+            }
+        },
+        host,
+    );
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    harness
+}
+
+fn options(harness: &Harness<'_, Host>) -> Vec<String> {
+    harness.query_all_by_role(Role::ListBoxOption).filter_map(|n| n.accesskit_node().label()).collect()
+}
 
 /// The rows are the named colours, Custom when there is one, then Select Custom Color….
 #[test]
-#[ignore = "skeleton"]
 fn rows_follow_the_pasteboard_menu() {
-    todo!()
+    let harness = pasteboard();
+    assert_eq!(options(&harness), ["Default", "Black", "Dark Gray", "Custom", "Select Custom Color…"]);
 }
 
-/// Select Custom Color… asks for the picker and leaves the choice unchanged.
+/// Select Custom Color… asks for the picker, as a request keyed for the custom colour that opens on
+/// it, once, and leaves the choice unchanged.
 #[test]
-#[ignore = "skeleton"]
 fn select_custom_asks_for_the_picker() {
-    todo!()
+    let mut harness = pasteboard();
+    harness.get_by_label("Select Custom Color…").click();
+    harness.run();
+    let expected = ColorRequest::new(ColorChoice::CUSTOM_KEY, Srgba::rgb(1.0, 0.0, 0.0)).title("Select Custom Color");
+    assert_eq!(harness.state().picks, [expected]);
+    assert_eq!(harness.state().value, ChosenColor::Named("default".into()));
+    assert!(harness.state().events.is_empty(), "{:?}", harness.state().events);
+
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    harness.get_by_label("Black").click();
+    harness.run();
+    assert_eq!(harness.state().value, ChosenColor::Named("black".into()));
+    assert_eq!(harness.state().picks.len(), 1, "the request is taken once");
 }

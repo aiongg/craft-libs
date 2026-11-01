@@ -8,7 +8,7 @@ use crate::components::SizeField;
 use crate::ramp::Mode;
 use crate::resolve_sized;
 use crate::sizes::{ComponentSizes, FULL, Leaf, Preset, SizeSet, Slot, leaves};
-use crate::theme::{Appearance, Contrast, Size, TextSize};
+use crate::theme::{Appearance, Contrast, Size, TextSize, TextSizeSteps};
 
 const SECTIONS: [&str; 3] = ["all", "compact", "comfortable"];
 
@@ -43,7 +43,8 @@ pub(super) fn parse(bytes: &[u8]) -> Result<AppSizes, FormatErrors> {
             SizeMap::new()
         }
     };
-    let sizes = AppSizes { all: section("all"), compact: section("compact"), comfortable: section("comfortable") };
+    let sizes =
+        AppSizes { all: section("all"), compact: section("compact"), comfortable: section("comfortable"), text_steps: TextSizeSteps::default() };
     if errors.is_empty() {
         cross_rules(&sizes, &mut errors);
         component_cross_rules(&sizes, &mut errors);
@@ -136,7 +137,7 @@ fn component_cross_rules(sizes: &AppSizes, errors: &mut Vec<FormatError>) {
         if rules.is_empty() {
             continue;
         }
-        let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size, text_size: TextSize::Default, reduced_motion: false };
+        let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size, text_size: TextSize::Small, reduced_motion: false };
         let tokens = resolve_sized(crate::builtins::suite_default(), appearance, None, sizes).tokens;
         for (first, second) in rules {
             let value = |path: &str| SizeField::from_path(path).map(|f| f.get(&tokens.component));

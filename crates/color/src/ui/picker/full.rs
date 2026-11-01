@@ -10,10 +10,11 @@ use egui::{
 use super::{ColorPicker, Inner, Parts, PickerOp, RowPart, channel_name, texts, unit_of};
 use crate::ui::{AreaMode, ColorArea, ColorStrip};
 use craft_ui::controls::{Button, Checkbox, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
-use craft_ui::dialog::{Clicked, FooterButtons, focus_inside};
+use craft_ui::dialog::{Clicked, DialogLabels, FooterButtons, focus_inside};
 use craft_ui::direction;
 use craft_ui::edit::ops;
 use craft_ui::icons::{self, Icon, IconSize};
+use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Gap, Interactive, Stack, Text};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf, UiTokens, role_format};
 
@@ -100,8 +101,8 @@ const WARNINGS_INSET: f32 = 2.0;
 impl ColorPicker<'_> {
     /// The Full layout: the square area and the strip, with the alpha row and the eyedropper
     /// button under them; beside them the compare swatch and the warnings over the channel grid.
-    /// The radios write `mode` before the area draws. Whether the eyedropper button was pressed,
-    /// and the side action clicked.
+    /// The radios write `mode` before the area draws. The eyedropper button's response, and the
+    /// side action clicked.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn full(
         &self,
@@ -113,7 +114,7 @@ impl ColorPicker<'_> {
         translate: &dyn Fn(&'static str) -> String,
         parts: &mut Parts<'_>,
         opened: bool,
-    ) -> (bool, Option<Clicked>) {
+    ) -> (Option<Response>, Option<Clicked>) {
         let tokens = Tokens::of(ui);
         let style = ColorArea::style(&tokens);
         let gap = Gap::Inline.points(&tokens);
@@ -131,7 +132,7 @@ impl ColorPicker<'_> {
         let mut radios = set.begin(ui);
         let mode = *mode;
 
-        let mut requested = false;
+        let mut eyedropper = None;
         let mut side_clicked = None;
         let mut keys = None;
         top_row(ui, gap, |ui| {
@@ -150,7 +151,7 @@ impl ColorPicker<'_> {
                     ui.with_layout(direction::column(ui), |ui| {
                         let button =
                             Button::new(label.as_str()).icon(Icon::Eyedropper).size(ControlSize::Sm).enabled(inner.enabled && !self.eyedropper_busy);
-                        requested = ui.add(button).tooltip(translate(texts::SAMPLE_SCREEN)).clicked();
+                        eyedropper = Some(ui.add(button).tooltip(translate(texts::SAMPLE_SCREEN)));
                     });
                 }
             });
@@ -175,7 +176,8 @@ impl ColorPicker<'_> {
                             }
                         });
                         if !self.side_actions.is_empty() {
-                            let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone());
+                            let buttons =
+                                FooterButtons::new((id, "side-actions"), self.side_actions.clone()).default_hint(DialogLabels::of(ui).default_hint);
                             let width = buttons.column_width(ui);
                             ui.add_space((trailing - ui.min_rect().width() - width - gap).max(0.0));
                             ui.allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down(Align::Min), |ui| {
@@ -200,14 +202,14 @@ impl ColorPicker<'_> {
         let inside_now = focus_inside(ui.ctx(), ui.layer_id());
         ui.data_mut(|d| d.insert_temp(inside_id, inside_now));
         if let Some(shown) = keys.filter(|_| inner.enabled) {
-            let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone());
+            let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone()).default_hint(DialogLabels::of(ui).default_hint);
             // As a dialog's: the top modal answers whatever has the focus, a layer under a modal
             // answers nothing, and any other layer answers with the focus inside.
             let layer = ui.layer_id();
             let active = ui.memory(|m| m.allows_interaction(layer) && (m.top_modal_layer() == Some(layer) || inside_before));
             side_clicked = side_clicked.or(buttons.key_click(ui.ctx(), &shown, active, opened));
         }
-        (requested, side_clicked)
+        (eyedropper, side_clicked)
     }
 
     /// The channel grid: every model's channels, in columns ([`column_of`]), each row a radio
@@ -523,7 +525,7 @@ mod warning_tests {
     #[test]
     fn the_web_colour_warning_shows_the_cube_and_the_gamut_warning_the_triangle() {
         let nearest = Srgba::rgb(0.2, 0.4, 0.6);
-        assert_eq!(ColorWarning::web_colors("Not a web colour", nearest).icon, Icon::WebColors);
+        assert_eq!(ColorWarning::web_colors("Not a web color", nearest).icon, Icon::WebColors);
         assert_eq!(ColorWarning::new("Out of gamut for printing", nearest).icon, Icon::Warning);
     }
 }

@@ -39,6 +39,8 @@ pub mod document;
 pub mod error;
 pub mod files;
 pub mod migrate;
+mod names;
+pub mod presets;
 pub mod remember;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -81,6 +83,10 @@ mod paths_default {
 pub trait Settings: Serialize + DeserializeOwned + Default + Clone + PartialEq {
     /// Lowercase application id, used for the folder name and the `<APP>_CONFIG_DIR` variable.
     const APP_ID: &'static str;
+
+    /// Name of the platform config folder (and the current-directory fallback). Override to keep
+    /// a folder that existing settings already sit in, e.g. `Photocraft` on macOS and Windows.
+    const FOLDER_NAME: &'static str = Self::APP_ID;
 
     /// Version written as `schema_version` at the top of `config.toml`.
     const SCHEMA_VERSION: u32;

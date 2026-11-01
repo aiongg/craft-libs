@@ -41,9 +41,8 @@ fn payload_message(payload: &(dyn std::any::Any + Send)) -> String {
     payload.downcast_ref::<&str>().map(|s| (*s).to_owned()).or_else(|| payload.downcast_ref::<String>().cloned()).unwrap_or_else(|| "panic".into())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn unix_secs() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
+    (crate::clock::unix_ms() / 1000.0) as u64
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -111,7 +110,8 @@ pub fn record(message: &str) {
     write_log(message);
 }
 
-/// Take the last panic summary; the app's error window shows it once.
+/// Take the last panic summary that [`catch`] did not turn into an error; the app's error window
+/// shows it once.
 pub fn take_last() -> Option<String> {
     // filmcraft: crates/ui-egui/src/crash.rs:50
     lock(&LAST).take()
@@ -129,10 +129,18 @@ pub fn log_path() -> Option<PathBuf> {
     None
 }
 
-/// Run `f`; a panic inside it is logged by the hook and comes back as [`Panicked`].
+/// Run `f`; a panic inside it is logged by the hook and comes back as [`Panicked`]. The caller
+/// reports that error, so the panic is not kept for [`take_last`] as well.
 pub fn catch<T>(f: impl FnOnce() -> T) -> Result<T, Panicked> {
     // pc: apps/photocraft/src/crash_guard.rs:20
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).map_err(|payload| Panicked { message: payload_message(&*payload) })
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).map_err(|payload| {
+        let message = payload_message(&*payload);
+        let mut last = lock(&LAST);
+        if last.as_deref().is_some_and(|summary| summary.starts_with(&message)) {
+            *last = None;
+        }
+        Panicked { message }
+    })
 }
 
 #[cfg(test)]

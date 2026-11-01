@@ -8,13 +8,15 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use egui::accesskit::Action;
-use egui::{AsIdSalt, Context, Id, Rect, Response, Shape, Stroke, Ui, pos2};
+use egui::{AsIdSalt, Color32, Context, Id, Painter, Rect, Response, Shape, Stroke, Ui, pos2};
 
 use super::row::{ListRow, ListRowStyle, RowEvent, RowResponse};
 use crate::behavior::DisplayOrder;
 use crate::controls::TooltipExt as _;
 use crate::direction;
+use crate::localized::Labels as _;
 use crate::primitives::Interactive;
+use crate::story::StoryLabels;
 
 /// A group row opened or closed: by its triangle, the arrow keys, or a screen reader's Expand and
 /// Collapse. `all` (Alt held) asks for every group, not only this one.
@@ -188,16 +190,22 @@ pub(super) fn show_disclosure<K: Clone>(
         return;
     }
     let color = if response.hovered() { style.icon_hover } else { style.icon };
-    let s = TRIANGLE_HALF * style.disclosure;
+    paint_disclosure(ui.painter(), rect, branch.open, direction::is_rtl(ui), color);
+}
+
+/// Paints a disclosure triangle in `rect`, a column as wide as `list.disclosure`: down when
+/// `open`, else toward the reading end (left when `rtl`).
+pub fn paint_disclosure(painter: &Painter, rect: Rect, open: bool, rtl: bool, color: Color32) {
+    let s = TRIANGLE_HALF * rect.width();
     let c = rect.center();
-    let flip = if direction::is_rtl(ui) { -1.0 } else { 1.0 };
-    let points = if branch.open {
+    let flip = if rtl { -1.0 } else { 1.0 };
+    let points = if open {
         vec![pos2(c.x - s, c.y - s * TRIANGLE_DEPTH), pos2(c.x + s, c.y - s * TRIANGLE_DEPTH), pos2(c.x, c.y + s * TRIANGLE_DEPTH)]
     } else {
         let d = flip * s * TRIANGLE_DEPTH;
         vec![pos2(c.x - d, c.y - s), pos2(c.x + d, c.y), pos2(c.x - d, c.y + s)]
     };
-    ui.painter().add(Shape::convex_polygon(points, color, Stroke::NONE));
+    painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
 }
 
 /// The open groups of a tree, for a host without a model of its own: kept in egui memory under
@@ -270,6 +278,11 @@ pub(super) fn topmost<K>(order: &(impl DisplayOrder<K> + ?Sized), at: usize) -> 
 /// Whether the row at `inner` is below the group at `outer` in the display order.
 pub(super) fn is_below<K>(order: &(impl DisplayOrder<K> + ?Sized), outer: usize, inner: usize) -> bool {
     inner > outer && (outer + 1..=inner).all(|at| order.depth(at) > order.depth(outer))
+}
+
+/// A node's name as shown: the sample names that are registered words come from the story labels.
+fn sample_name<'a>(name: &'a str, words: &'a StoryLabels) -> &'a str {
+    if name == "Text" { &words.text } else { name }
 }
 
 /// The story's tree: a name and a depth, a group being a row followed by a deeper one.
@@ -353,12 +366,11 @@ pub(super) fn show_tree(ui: &mut Ui, args: &mut TreeArgs) {
         ui.data_mut(|d| d.insert_temp(state_id.with("seeded"), true));
     }
     let rows = display(NODES, &open);
+    let words = StoryLabels::of(ui);
     ui.allocate_ui(egui::vec2(width, height), |ui| {
-        let out = List::new("tree", "Layers", rows.as_slice())
-            .tree(true)
-            .selection(&mut selection)
-            .max_height(height)
-            .show(ui, |_, &key| ListRow::new(key, NODES[key].0).icon(if is_group(NODES, key) { Icon::Layers } else { Icon::Check }));
+        let out = List::new("tree", "Layers", rows.as_slice()).tree(true).selection(&mut selection).max_height(height).show(ui, |_, &key| {
+            ListRow::new(key, sample_name(NODES[key].0, &words)).icon(if is_group(NODES, key) { Icon::Layers } else { Icon::Check })
+        });
         for event in out.events {
             if let ListEvent::Open(change) = event {
                 let groups: Vec<usize> = (0..NODES.len()).filter(|&at| is_group(NODES, at)).collect();

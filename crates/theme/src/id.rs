@@ -154,14 +154,12 @@ impl fmt::Display for IdError {
 
 impl std::error::Error for IdError {}
 
-#[cfg(feature = "serde")]
 impl serde::Serialize for ThemeId {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         s.serialize_str(&self.0)
     }
 }
 
-#[cfg(feature = "serde")]
 impl<'de> serde::Deserialize<'de> for ThemeId {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let s = <std::borrow::Cow<'de, str>>::deserialize(d)?;
