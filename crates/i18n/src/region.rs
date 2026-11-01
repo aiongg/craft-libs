@@ -109,7 +109,7 @@ impl Region {
         let measurement = tag.measurement.unwrap_or(if INCHES.contains(&territory) { Measurement::Us } else { Measurement::Metric });
         Region {
             numbers: tag.bcp47(),
-            time: tag.bcp47(),
+            time: tag.bcp47_with_calendar(),
             measurement,
             paper: if LETTER.contains(&territory) { Paper::Letter } else { Paper::A4 },
             decimal: None,
@@ -132,11 +132,21 @@ struct Tag {
     hour_cycle: Option<HourCycle>,
     /// The `nu` keyword (`latn`, `arab`); empty when the tag has none.
     digits: String,
+    /// The `ca` keyword (`gregory`, `buddhist`); empty when the tag has none. Only dates use it.
+    calendar: String,
 }
 
 impl Default for Tag {
     fn default() -> Self {
-        Tag { language: "en".into(), script: String::new(), territory: "US".into(), measurement: None, hour_cycle: None, digits: String::new() }
+        Tag {
+            language: "en".into(),
+            script: String::new(),
+            territory: "US".into(),
+            measurement: None,
+            hour_cycle: None,
+            digits: String::new(),
+            calendar: String::new(),
+        }
     }
 }
 
@@ -161,6 +171,7 @@ impl Tag {
             measurement: None,
             hour_cycle: None,
             digits: String::new(),
+            calendar: String::new(),
         };
         let mut extension = None;
         for p in parts.by_ref() {
@@ -205,6 +216,9 @@ impl Tag {
                 ("hc", "h11" | "h12") => out.hour_cycle = Some(HourCycle::H12),
                 ("hc", "h23" | "h24") => out.hour_cycle = Some(HourCycle::H23),
                 ("nu" | "numbers", v) if (3..=8).contains(&v.len()) && v.chars().all(|c| c.is_ascii_alphanumeric()) => out.digits = v.into(),
+                ("ca" | "calendar", v) if out.calendar.is_empty() && (3..=8).contains(&v.len()) && v.chars().all(|c| c.is_ascii_alphanumeric()) => {
+                    out.calendar = v.into();
+                }
                 ("rg", v) if v.len() == 6 && v.ends_with("zzzz") && v.get(..2).is_some_and(is_territory) => {
                     out.territory = v.get(..2).unwrap_or_default().to_ascii_uppercase();
                 }
@@ -215,6 +229,16 @@ impl Tag {
             out.territory = "US".into();
         }
         Some(out)
+    }
+
+    /// The tag with its `ca` keyword, which the time locale carries.
+    fn bcp47_with_calendar(&self) -> String {
+        let tag = self.bcp47();
+        match (self.calendar.is_empty(), self.digits.is_empty()) {
+            (true, _) => tag,
+            (false, true) => format!("{tag}-u-ca-{}", self.calendar),
+            (false, false) => format!("{tag}-ca-{}", self.calendar),
+        }
     }
 
     fn bcp47(&self) -> String {

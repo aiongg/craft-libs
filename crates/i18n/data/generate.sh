@@ -19,13 +19,16 @@ TMPDIR=$CACHE icu4x-datagen --format blob --overwrite \
     --out "$HERE/numbers.postcard"
 
 ZIP=$CACHE/icu4x-source-cache/github.com/unicode-org/cldr-json/releases/download/$CLDR/cldr-$CLDR-json-full.zip
-# Gregorian dates and times, month and weekday names, and week data. The markers are those the
-# date formatters, name patterns and WeekInformation load; digits come from the decimal markers.
+# Gregorian, Buddhist and Persian dates and times, month and weekday names, week data and the
+# regional default calendar (CalendarPreferredV1). The markers are those the date formatters, name
+# patterns and WeekInformation load; digits come from the decimal markers.
 TMPDIR=$CACHE icu4x-datagen --format blob --overwrite \
     --cldr-tag "$CLDR" \
-    --markers CalendarWeekV1 DatetimeNamesDayperiodV1 DatetimeNamesMonthGregorianV1 \
-    DatetimeNamesWeekdayV1 DatetimeNamesYearGregorianV1 DatetimePatternsDateGregorianV1 \
-    DatetimePatternsGlueV1 DatetimePatternsTimeV1 DecimalDigitsV1 DecimalSymbolsV1 \
+    --markers CalendarWeekV1 CalendarPreferredV1 DatetimeNamesDayperiodV1 \
+    DatetimeNamesMonthGregorianV1 DatetimeNamesMonthBuddhistV1 DatetimeNamesMonthPersianV1 \
+    DatetimeNamesWeekdayV1 DatetimeNamesYearGregorianV1 DatetimeNamesYearBuddhistV1 \
+    DatetimeNamesYearPersianV1 DatetimePatternsDateGregorianV1 DatetimePatternsDateBuddhistV1 \
+    DatetimePatternsDatePersianV1 DatetimePatternsGlueV1 DatetimePatternsTimeV1 DecimalDigitsV1 DecimalSymbolsV1 \
     --locales full --deduplication maximal \
     --out "$HERE/dates.postcard"
 

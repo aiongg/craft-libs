@@ -12,8 +12,17 @@
 //! - [`utc_stamp`]: `2026-10-08 14:05` (UTC), the same in every language: render-queue logs,
 //!   export file names, report headers.
 //!
-//! Dates are proleptic Gregorian. Years outside ±9999 are kept, written with as many digits as
-//! they need (EffectCraft's and PdfCraft's 400-year-cycle rule), never collapsed to the epoch.
+//! Stored dates ([`CalendarDate`], [`DateTime`]) are proleptic Gregorian, and so is everything a
+//! calendar grid needs ([`DateFormat::month_name`], [`DateFormat::year_month`],
+//! [`DateFormat::first_weekday`], [`DateFormat::parse_date`]). [`DateFormat::format`] writes a date
+//! in the region's default calendar, which CLDR's calendar preferences give as Gregorian for every
+//! region except Thailand (Buddhist, the Gregorian year plus 543), and Iran and Afghanistan
+//! (Persian). Saudi Arabia, the other Gulf states and Israel are Gregorian by default. A locale
+//! with a `-u-ca-` keyword (`th-TH-u-ca-gregory`, `ar-SA-u-ca-islamic-umalqura`) writes that
+//! calendar when its data is bundled (Buddhist and Persian) and Gregorian otherwise.
+//!
+//! Years outside ±9999 are kept, written with as many digits as they need (EffectCraft's and
+//! PdfCraft's 400-year-cycle rule), never collapsed to the epoch.
 
 use std::fmt;
 use std::ops::Range;
@@ -22,12 +31,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use chrono::{Datelike, Local, NaiveDate, Offset, TimeZone as _};
 use icu_calendar::week::WeekInformation;
-use icu_calendar::{Date, Gregorian};
-use icu_datetime::FixedCalendarDateTimeFormatter;
+use icu_calendar::{AnyCalendarKind, Date, Gregorian};
 use icu_datetime::fieldsets::{T, YM, YMD, YMDE, YMDET, YMDT};
 use icu_datetime::options::{Length, TimePrecision as IcuPrecision};
 use icu_datetime::parts;
 use icu_datetime::pattern::{DateTimePattern, FixedCalendarDateTimeNames};
+use icu_datetime::{DateTimeFormatter, FixedCalendarDateTimeFormatter};
 use icu_locale_core::Locale;
 use icu_locale_core::extensions::unicode::{key, value};
 use icu_provider::buf::AsDeserializingBufferProvider;
@@ -233,8 +242,9 @@ pub enum NameLength {
 /// dates.first_weekday();                                                                // Sunday in en-US, Monday in de-DE
 /// ```
 ///
-/// Dates are Gregorian in every region (the calendar a date picker and a file list share), with
-/// the region's order, words, digits and clock.
+/// Dates are written in the region's default calendar (Buddhist in Thailand, Persian in Iran and
+/// Afghanistan, Gregorian elsewhere), with the region's order, words, digits and clock. Month and
+/// weekday names, the month title and the date parser stay Gregorian, as a date picker's grid is.
 #[derive(Clone, Debug)]
 pub struct DateFormat {
     /// The time locale, BCP 47.
@@ -250,14 +260,26 @@ pub struct DateFormat {
 /// One ICU formatter per field set the styles need.
 #[derive(Debug)]
 enum Formatter {
-    Date(FixedCalendarDateTimeFormatter<Gregorian, YMD>),
-    DateWeekday(FixedCalendarDateTimeFormatter<Gregorian, YMDE>),
-    DateTime(FixedCalendarDateTimeFormatter<Gregorian, YMDT>),
-    DateTimeWeekday(FixedCalendarDateTimeFormatter<Gregorian, YMDET>),
-    Time(FixedCalendarDateTimeFormatter<Gregorian, T>),
+    Date(DateTimeFormatter<YMD>),
+    DateWeekday(DateTimeFormatter<YMDE>),
+    DateTime(DateTimeFormatter<YMDT>),
+    DateTimeWeekday(DateTimeFormatter<YMDET>),
+    Time(DateTimeFormatter<T>),
 }
 
 impl Formatter {
+    /// Whether the formatter writes Gregorian years, which a date past ICU4X's range relies on.
+    fn is_gregorian(&self) -> bool {
+        let kind = match self {
+            Formatter::Date(f) => f.calendar().kind(),
+            Formatter::DateWeekday(f) => f.calendar().kind(),
+            Formatter::DateTime(f) => f.calendar().kind(),
+            Formatter::DateTimeWeekday(f) => f.calendar().kind(),
+            Formatter::Time(f) => f.calendar().kind(),
+        };
+        kind == AnyCalendarKind::Gregorian
+    }
+
     fn write(&self, at: &icu_time::DateTime<Gregorian>, sink: &mut Spliced) -> fmt::Result {
         match self {
             Formatter::Date(f) => f.format(at).write_to_parts(sink),
@@ -343,6 +365,11 @@ impl DateFormat {
 
     /// The time locale with the region's clock as a `-u-hc-` keyword.
     fn icu_locale(&self, latin_digits: bool) -> Locale {
+        self.icu_locale_in(latin_digits, false)
+    }
+
+    /// As [`Self::icu_locale`], with the calendar forced to Gregorian when `gregorian` is set.
+    fn icu_locale_in(&self, latin_digits: bool, gregorian: bool) -> Locale {
         let mut locale = Locale::try_from_str(&self.locale).unwrap_or(Locale::UNKNOWN);
         match self.hour_cycle {
             Some(HourCycle::H12) => locale.extensions.unicode.keywords.set(key!("hc"), value!("h12")),
@@ -352,12 +379,21 @@ impl DateFormat {
         if latin_digits {
             locale.extensions.unicode.keywords.set(key!("nu"), value!("latn"));
         }
+        if gregorian {
+            locale.extensions.unicode.keywords.set(key!("ca"), value!("gregory"));
+        }
         locale
     }
 
-    fn load_formatter(&self, date: Option<DateLength>, time: Option<TimePrecision>, latin_digits: bool) -> Option<Formatter> {
+    /// The formatter in the locale's calendar, or in the Gregorian one when `gregorian` is set or
+    /// the locale names a calendar whose data isn't bundled.
+    fn load_formatter(&self, date: Option<DateLength>, time: Option<TimePrecision>, latin_digits: bool, gregorian: bool) -> Option<Formatter> {
+        let own = (!gregorian).then(|| self.load_formatter_in(date, time, self.icu_locale_in(latin_digits, false)));
+        own.flatten().or_else(|| self.load_formatter_in(date, time, self.icu_locale_in(latin_digits, true)))
+    }
+
+    fn load_formatter_in(&self, date: Option<DateLength>, time: Option<TimePrecision>, locale: Locale) -> Option<Formatter> {
         let provider = data::dates_provider()?;
-        let locale = self.icu_locale(latin_digits);
         let prefs = (&locale).into();
         let length = |l: DateLength| match l {
             DateLength::Short => Length::Short,
@@ -375,26 +411,24 @@ impl DateFormat {
                     TimePrecision::Minutes => T::hm(),
                     TimePrecision::Seconds => T::hms(),
                 };
-                FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(provider, prefs, set).ok().map(Formatter::Time)
+                DateTimeFormatter::try_new_with_buffer_provider(provider, prefs, set).ok().map(Formatter::Time)
             }
             (Some(DateLength::Full), None) => {
-                FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(provider, prefs, YMDE::long()).ok().map(Formatter::DateWeekday)
+                DateTimeFormatter::try_new_with_buffer_provider(provider, prefs, YMDE::long()).ok().map(Formatter::DateWeekday)
             }
-            (Some(d), None) => FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(provider, prefs, YMD::medium().with_length(length(d)))
-                .ok()
-                .map(Formatter::Date),
+            (Some(d), None) => {
+                DateTimeFormatter::try_new_with_buffer_provider(provider, prefs, YMD::medium().with_length(length(d))).ok().map(Formatter::Date)
+            }
             (Some(DateLength::Full), Some(t)) => {
-                FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(provider, prefs, YMDE::long().with_time(precision(t)))
+                DateTimeFormatter::try_new_with_buffer_provider(provider, prefs, YMDE::long().with_time(precision(t)))
                     .ok()
                     .map(Formatter::DateTimeWeekday)
             }
-            (Some(d), Some(t)) => FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(
-                provider,
-                prefs,
-                YMD::medium().with_length(length(d)).with_time(precision(t)),
-            )
-            .ok()
-            .map(Formatter::DateTime),
+            (Some(d), Some(t)) => {
+                DateTimeFormatter::try_new_with_buffer_provider(provider, prefs, YMD::medium().with_length(length(d)).with_time(precision(t)))
+                    .ok()
+                    .map(Formatter::DateTime)
+            }
         }
     }
 
@@ -409,10 +443,15 @@ impl DateFormat {
             .cache
             .formatters
             .get(slot)
-            .and_then(|cell| cell.get_or_init(|| self.load_formatter(style.date, style.time, self.latin_digits)).as_ref());
+            .and_then(|cell| cell.get_or_init(|| self.load_formatter(style.date, style.time, self.latin_digits, false)).as_ref());
         let Some(((icu, true_year), formatter)) = to_icu(at).zip(formatter) else {
             return plain(at, style);
         };
+        // A year moved by whole cycles is written back as a Gregorian year, which only a Gregorian
+        // formatter can do.
+        if true_year.is_some() && !formatter.is_gregorian() {
+            return plain(at, style);
+        }
         let mut out = Spliced::default();
         if formatter.write(&icu, &mut out).is_err() {
             return plain(at, style);
@@ -510,7 +549,7 @@ impl DateFormat {
             const PROBE: DateTime = DateTime { date: CalendarDate { year: 2033, month: 11, day: 22 }, hour: 0, minute: 0, second: 0 };
             let numeric = |length: DateLength| -> Option<[Field; 3]> {
                 let (icu, _) = to_icu(PROBE)?;
-                let formatter = self.load_formatter(Some(length), None, true)?;
+                let formatter = self.load_formatter(Some(length), None, true, true)?;
                 let mut out = Spliced::default();
                 formatter.write(&icu, &mut out).ok()?;
                 let runs = digit_runs(&out.text);
@@ -750,5 +789,33 @@ mod tests {
         assert_eq!(DateTime::from_unix(1_791_036_300, TimeZone::Utc).hour, 14);
         let before = UNIX_EPOCH - std::time::Duration::from_millis(1500);
         assert_eq!(DateTime::from_system(before, TimeZone::Utc).second, 58);
+    }
+
+    #[test]
+    fn thailand_writes_buddhist_years() {
+        assert_eq!(DateFormat::from_tag("th-TH").format(AFTERNOON, DateStyle::DATE), "31 ต.ค. 2569");
+    }
+
+    #[test]
+    fn iran_and_afghanistan_write_persian_dates() {
+        // 2026-10-31 is 9 Aban 1405.
+        assert_eq!(DateFormat::from_tag("fa-IR").format(AFTERNOON, DateStyle::DATE), "۹ آبان ۱۴۰۵");
+        assert_eq!(DateFormat::from_tag("ps-AF").format(AFTERNOON, DateStyle::DATE), "AP ۱۴۰۵ لړم ۹");
+    }
+
+    #[test]
+    fn saudi_arabia_follows_its_default_calendar() {
+        // CLDR's calendar preferences give Saudi Arabia the Gregorian calendar.
+        assert_eq!(DateFormat::from_tag("ar-SA").format(AFTERNOON, DateStyle::DATE), "٣١\u{200f}/١٠\u{200f}/٢٠٢٦");
+    }
+
+    #[test]
+    fn united_states_stays_gregorian() {
+        assert_eq!(DateFormat::from_tag("en-US").format(AFTERNOON, DateStyle::DATE), "Oct 31, 2026");
+    }
+
+    #[test]
+    fn calendar_keyword_overrides_the_region() {
+        assert_eq!(DateFormat::from_tag("th-TH-u-ca-gregory").format(AFTERNOON, DateStyle::DATE), "31 ต.ค. 2026");
     }
 }
