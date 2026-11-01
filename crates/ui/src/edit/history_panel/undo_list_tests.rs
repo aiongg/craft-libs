@@ -116,6 +116,8 @@ fn the_footer_says_cancel_while_nothing_is_marked_and_the_cancel_row_closes() {
 #[test]
 fn arrow_keys_move_the_mark_and_enter_commits() {
     let mut harness = harness(host(7));
+    row(&harness, "State 6").focus();
+    harness.run();
     for _ in 0..2 {
         harness.key_press(Key::ArrowDown);
         harness.run();
@@ -132,6 +134,8 @@ fn arrow_keys_move_the_mark_and_enter_commits() {
     assert!(harness.state().closed);
 
     let mut harness = self::harness(host(31));
+    row(&harness, "State 30").focus();
+    harness.run();
     let cancel = harness.get_by_role_and_label(Role::Button, "Cancel").rect();
     let top = row(&harness, "State 30").rect().top();
     assert!(row(&harness, "State 9").rect().top() >= cancel.top(), "the 22nd row starts below the visible rows");
@@ -142,4 +146,99 @@ fn arrow_keys_move_the_mark_and_enter_commits() {
     let row = row(&harness, "State 9").rect();
     let footer = harness.get_by_label("Undo 22 Actions").rect();
     assert!(row.top() >= top - 0.5 && row.bottom() <= footer.top() + 0.5, "{row:?} below {top} and above footer {footer:?}");
+}
+
+// The mark, Enter and Esc belong to the list only while it holds focus (LC53).
+#[test]
+fn keys_are_the_lists_only_while_it_holds_focus() {
+    let mut harness = harness(host(7));
+    harness.key_press(Key::ArrowDown);
+    harness.run();
+    assert!(marked(&harness).is_empty(), "an unfocused list leaves Down alone");
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert!(!harness.state().closed, "an unfocused list leaves Esc alone");
+
+    row(&harness, "State 6").focus();
+    harness.run();
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert!(harness.state().closed, "Esc closes a focused list");
+    assert!(harness.state().events.is_empty());
+}
+
+// Enter with nothing marked reports nothing and leaves the list open.
+#[test]
+fn enter_without_a_mark_does_nothing() {
+    let mut harness = harness(host(7));
+    row(&harness, "State 6").focus();
+    harness.run();
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert!(harness.state().events.is_empty());
+    assert!(!harness.state().closed);
+}
+
+// A list that closed with a mark shows unmarked, with the Cancel row, when it is shown again.
+#[test]
+fn a_reopened_list_has_no_mark() {
+    let mut harness = harness(host(7));
+    let pos = row(&harness, "State 4").rect().center();
+    hover(&mut harness, pos);
+    assert_eq!(marked(&harness).len(), 3);
+    harness.click_at(pos);
+    harness.run_steps(3);
+    assert_eq!(harness.state().events, [UndoListEvent::UndoThrough(3)]);
+    assert!(marked(&harness).is_empty(), "the mark does not outlive the popup");
+    assert!(harness.query_by_role_and_label(Role::Button, "Cancel").is_some(), "the Cancel row is back");
+}
+
+// Esc closes a marked list, and the mark is gone with it.
+#[test]
+fn escape_closes_and_clears_the_mark() {
+    let mut harness = harness(host(7));
+    row(&harness, "State 6").focus();
+    harness.run();
+    harness.key_press(Key::ArrowDown);
+    harness.run();
+    assert_eq!(marked(&harness), ["State 6"]);
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert!(harness.state().closed);
+    assert!(harness.state().events.is_empty());
+    assert!(marked(&harness).is_empty());
+}
+
+// `marked` presets the mark on the first show only.
+#[test]
+fn the_marked_preset_applies_once() {
+    let host = host(7);
+    let mut harness =
+        Harness::<Host>::builder().with_size([300.0, 700.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, host: &mut Host| {
+                let scope = ui.scope_builder(UiBuilder::new().closable(), |ui| {
+                    let _ = UndoList::new("undo", &host.steps).marked(Some(1)).show(ui);
+                });
+                host.closed |= scope.response.should_close();
+            },
+            host,
+        );
+    harness.run();
+    assert_eq!(marked(&harness), ["State 6", "State 5"]);
+}
+
+// The footer count reads `UndoListLabels::undo_actions`, so an app's override shows.
+#[test]
+fn the_footer_count_uses_the_labels_override() {
+    let host = host(7);
+    let mut harness =
+        Harness::<Host>::builder().with_size([300.0, 700.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, host: &mut Host| {
+                let labels = super::UndoListLabels { undo_actions: "Revert {n} edits".into(), ..Default::default() };
+                let _ = UndoList::new("undo", &host.steps).labels(labels).marked(Some(1)).show(ui);
+            },
+            host,
+        );
+    harness.run();
+    assert!(harness.query_by_label("Revert 2 edits").is_some());
 }

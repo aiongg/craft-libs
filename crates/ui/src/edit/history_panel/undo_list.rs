@@ -1,17 +1,20 @@
 //! `UndoList`: the Undo drop-down list over `StepRows`.
 
 use egui::accesskit::Role;
+use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{Align2, AsIdSalt, IdSalt, Key, Modifiers, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
+use egui::{Align2, AsIdSalt, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
 
 use super::HistoryPanel;
 use super::labels::{UNDO_ACTIONS, UndoListLabels};
 use crate::direction;
 use crate::edit::steps::StepRows;
+use crate::focus::key_owner::{KeyOwner, OwnerGate, owner};
 use crate::list::ListRow;
 use crate::localized::words::{Labels as _, Words};
 use crate::primitives::Interactive;
 use crate::theme::{Tokens, TokensOf as _, role_format};
+use craft_theme::Stroke as Hairline;
 
 /// Rows shown before the list scrolls (WordCraft `chrome.rs:159`).
 const VISIBLE_ROWS: f32 = 18.0;
@@ -64,12 +67,20 @@ pub struct UndoList<'a> {
     id_salt: IdSalt,
     steps: &'a dyn StepRows,
     labels: Option<UndoListLabels>,
+    preset: Option<Option<usize>>,
 }
 
 impl<'a> UndoList<'a> {
     /// A list over `steps`.
     pub fn new(id_salt: impl AsIdSalt, steps: &'a dyn StepRows) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), steps, labels: None }
+        Self { id_salt: IdSalt::new(id_salt), steps, labels: None, preset: None }
+    }
+
+    /// Starts the list with `marked` as its mark (row 0 is the newest), for stories. Only the
+    /// first show of the list uses it; a mark cleared by closing stays cleared.
+    pub fn marked(mut self, marked: Option<usize>) -> Self {
+        self.preset = Some(marked);
+        self
     }
 
     /// The list's words (default English).
@@ -93,19 +104,31 @@ impl<'a> UndoList<'a> {
         let count = current;
         let state_of = |i: usize| current - i;
 
-        let mut mark: Option<usize> = ui.data(|d| d.get_temp(mark_id)).flatten().filter(|&m| m < count);
+        let stored: Option<Option<usize>> = ui.data(|d| d.get_temp(mark_id));
+        let mut mark: Option<usize> = stored.or(self.preset).flatten().filter(|&m| m < count);
         let mut event = None;
         let mut close = false;
         let mut moved_by_key = false;
 
-        let (down, up, enter, escape) = ui.input_mut(|i| {
-            (
-                i.consume_key(Modifiers::NONE, Key::ArrowDown),
-                i.consume_key(Modifiers::NONE, Key::ArrowUp),
-                i.consume_key(Modifiers::NONE, Key::Enter),
-                i.consume_key(Modifiers::NONE, Key::Escape),
-            )
-        });
+        // The keys are the list's while it holds focus or its popup owns the keyboard.
+        let holds_keys = owner(ui.ctx(), &OwnerGate::default()) == KeyOwner::Menu
+            || ui.memory(|m| {
+                // egui drops focus on Esc before the pass runs, so the previous frame's focus counts.
+                let ours = |f: Id| f == id.with("cancel") || (0..count).any(|i| f == row_id(id, i));
+                m.focused().is_some_and(ours) || ours_last_frame(m, id, count)
+            });
+        let (down, up, enter, escape) = if holds_keys {
+            ui.input_mut(|i| {
+                (
+                    i.consume_key(Modifiers::NONE, Key::ArrowDown),
+                    i.consume_key(Modifiers::NONE, Key::ArrowUp),
+                    i.consume_key(Modifiers::NONE, Key::Enter),
+                    i.consume_key(Modifiers::NONE, Key::Escape),
+                )
+            })
+        } else {
+            (false, false, false, false)
+        };
         if down && count > 0 {
             mark = Some(mark.map_or(0, |m| (m + 1).min(count - 1)));
             moved_by_key = true;
@@ -131,8 +154,8 @@ impl<'a> UndoList<'a> {
                     for i in 0..count {
                         let label = steps.label(state_of(i));
                         let size = vec2(ui.available_width(), style.row_height);
-                        let response = Interactive::with_id(id.with(("row", i)), Role::ListBoxOption, label.as_ref())
-                            .sense(Sense::CLICK)
+                        let response = Interactive::with_id(row_id(id, i), Role::ListBoxOption, label.as_ref())
+                            .sense(Sense::click())
                             .selected(mark.is_some_and(|m| i <= m))
                             .state_layer(false)
                             .focus_ring(false)
@@ -170,12 +193,12 @@ impl<'a> UndoList<'a> {
                     event = Some(UndoListEvent::UndoThrough(m + 1));
                     close = true;
                 }
-                ui.separator();
+                paint_rule(ui, &style);
                 match mark {
                     None => {
                         let size = vec2(ui.available_width(), style.row_height);
                         let response = Interactive::with_id(id.with("cancel"), Role::Button, labels.cancel.as_str())
-                            .sense(Sense::CLICK)
+                            .sense(Sense::click())
                             .state_layer(false)
                             .interact(ui, size)
                             .finish(ui);
@@ -190,7 +213,7 @@ impl<'a> UndoList<'a> {
                         }
                     }
                     Some(m) => {
-                        let text = words.counted(ui.ctx(), UNDO_ACTIONS, &words.get(UNDO_ACTIONS.word), (m + 1) as u64);
+                        let text = words.counted(ui.ctx(), UNDO_ACTIONS, &labels.undo_actions, (m + 1) as u64);
                         let job = LayoutJob::single_section(text, role_format(&tokens, style.label_role, style.text));
                         ui.allocate_ui_with_layout(
                             vec2(ui.available_width(), style.row_height),
@@ -201,7 +224,8 @@ impl<'a> UndoList<'a> {
                 }
             },
         );
-        ui.data_mut(|d| d.insert_temp(mark_id, mark));
+        // A closed list reopens unmarked.
+        ui.data_mut(|d| d.insert_temp(mark_id, if close { None } else { mark }));
         if close {
             ui.close();
         }
@@ -222,4 +246,24 @@ fn paint_label(ui: &Ui, tokens: &crate::theme::UiTokens, style: &crate::list::Li
     };
     let pos = align.anchor_size(anchor, galley.size()).min;
     ui.painter_at(rect).galley(pos, galley, style.text);
+}
+
+/// The id of row `i` under the list's `id`.
+fn row_id(id: Id, i: usize) -> Id {
+    id.with(("row", i))
+}
+
+/// The rule above the footer: one `list.divider` hairline across the list, as [`ListRow::rule`].
+fn paint_rule(ui: &mut Ui, style: &crate::list::ListRowStyle) {
+    let width = Hairline::Hairline.width(ui.pixels_per_point());
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), width), Sense::hover());
+    if ui.is_rect_visible(rect) {
+        let y = (rect.bottom() - width / 2.0).round_to_pixel_center(ui.pixels_per_point());
+        ui.painter().hline(rect.x_range(), y, egui::Stroke::new(width, style.divider.color));
+    }
+}
+
+/// Whether the cancel row or a list row had focus at the end of the previous frame.
+fn ours_last_frame(memory: &egui::Memory, id: Id, count: usize) -> bool {
+    memory.had_focus_last_frame(id.with("cancel")) || (0..count).any(|i| memory.had_focus_last_frame(row_id(id, i)))
 }
