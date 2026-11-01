@@ -25,18 +25,18 @@ crate::words! {
     /// The picker's words, English by default. Month and weekday names come from the region's
     /// date format (services' `craft_i18n::DateFormat::{month_name, weekday_name}`).
     #[non_exhaustive]
-    pub struct DateLabels {
+    pub struct DatePickerLabels {
         /// The calendar button's tooltip and accessible name (LightCraft's).
-        pick: "date.pick" = "Pick a date";
-        year: "date.year" = "Year";
-        month: "date.month" = "Month";
-        day: "date.day" = "Day";
-        previous: "date.previous" = "Previous";
-        next: "date.next" = "Next";
-        today: "date.today" = "Today";
-        clear: "date.clear" = "Clear";
+        pick: "datePicker.pick" = "Pick a date";
+        year: "datePicker.year" = "Year";
+        month: "datePicker.month" = "Month";
+        day: "datePicker.day" = "Day";
+        previous: "datePicker.previous" = "Previous";
+        next: "datePicker.next" = "Next";
+        today: "datePicker.today" = "Today";
+        clear: "datePicker.clear" = "Clear";
         /// The precision switch's accessible name.
-        precision: "date.precision" = "Pick by";
+        precision: "datePicker.precision" = "Pick by";
     }
 }
 
@@ -191,7 +191,7 @@ pub fn month_grid(year: i32, month: u8, first_weekday: Weekday) -> Vec<Option<u8
 /// ```
 ///
 /// - **Button.** An [`IconButton`](crate::controls::IconButton) with the calendar icon (a new
-///   `calendar` icon; LightCraft's 24 × 22) named [`DateLabels::pick`]; the host shows the value
+///   `calendar` icon; LightCraft's 24 × 22) named [`DatePickerLabels::pick`]; the host shows the value
 ///   beside it in its own words (`craft_i18n::DateFormat::format`).
 /// - **Popup.** A [`Popover`](crate::popover::Popover) under the button. A
 ///   [`Segmented`](crate::controls::Segmented) of the allowed precisions (Year, Month, Day) when
@@ -228,7 +228,7 @@ pub struct DatePicker<'a> {
     today: Option<PickedDate>,
     size: ControlSize,
     enabled: bool,
-    labels: Option<DateLabels>,
+    labels: Option<DatePickerLabels>,
 }
 
 impl<'a> DatePicker<'a> {
@@ -249,7 +249,7 @@ impl<'a> DatePicker<'a> {
     }
 
     /// Words other than the installed ones.
-    pub fn labels(mut self, labels: DateLabels) -> Self {
+    pub fn labels(mut self, labels: DatePickerLabels) -> Self {
         self.labels = Some(labels);
         self
     }
@@ -292,7 +292,7 @@ impl<'a> DatePicker<'a> {
     // lightcraft: crates/ui-egui/src/widgets/date_picker.rs:238 show
     pub fn show(self, ui: &mut Ui) -> EditResponse<Option<PickedDate>> {
         let Self { id_salt, label, value, precisions, min, max, today, size, enabled, labels } = self;
-        let labels = labels.unwrap_or_else(|| DateLabels::of(ui));
+        let labels = labels.unwrap_or_else(|| DatePickerLabels::of(ui));
         let ctx = ui.ctx().clone();
         let id = ui.make_persistent_id(id_salt);
         let enabled = enabled && ui.is_enabled();
@@ -531,7 +531,7 @@ struct Popup<'a> {
     min: Option<PickedDate>,
     max: Option<PickedDate>,
     precisions: &'a [DatePrecision],
-    labels: &'a DateLabels,
+    labels: &'a DatePickerLabels,
     size: ControlSize,
 }
 

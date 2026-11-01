@@ -79,25 +79,29 @@ impl LineStyle {
     /// "Thick - Thin"): WordCraft's and DesignCraft's names.
     // wordcraft: crates/ui-egui/src/ribbon/underline.rs:5 UNDERLINE_STYLES; designcraft: crates/ui-egui/src/panels/properties/object.rs:236 TYPES
     pub fn label(self) -> &'static str {
-        LINE_STYLE_WORDS[self as usize].english
+        self.word().english
+    }
+
+    /// The keyed word of [`label`](Self::label), for `Words::get`.
+    pub fn word(self) -> Word {
+        LINE_STYLE_WORDS[self as usize]
     }
 }
 
-/// The names of [`LineStyle::label`], plain words looked up by their English text, in the order of
-/// the variants.
+/// The names of [`LineStyle::label`], keyed `lineStyle.<name>`, in the order of the variants.
 pub(crate) const LINE_STYLE_WORDS: &[Word] = &[
-    Word::plain("Single"),
-    Word::plain("Double"),
-    Word::plain("Thick"),
-    Word::plain("Dotted"),
-    Word::plain("Dashed"),
-    Word::plain("Dot-dash"),
-    Word::plain("Dot-dot-dash"),
-    Word::plain("Wave"),
-    Word::plain("Thick - Thin"),
-    Word::plain("Thin - Thick"),
-    Word::plain("Thin - Thin"),
-    Word::plain("Thick - Thick"),
+    Word::keyed("lineStyle.single", "Single"),
+    Word::keyed("lineStyle.double", "Double"),
+    Word::keyed("lineStyle.thick", "Thick"),
+    Word::keyed("lineStyle.dotted", "Dotted"),
+    Word::keyed("lineStyle.dashed", "Dashed"),
+    Word::keyed("lineStyle.dotDash", "Dot-dash"),
+    Word::keyed("lineStyle.dotDotDash", "Dot-dot-dash"),
+    Word::keyed("lineStyle.wave", "Wave"),
+    Word::keyed("lineStyle.thickThin", "Thick - Thin"),
+    Word::keyed("lineStyle.thinThick", "Thin - Thick"),
+    Word::keyed("lineStyle.thinThin", "Thin - Thin"),
+    Word::keyed("lineStyle.thickThick", "Thick - Thick"),
 ];
 
 /// The weights of [`paint_line_style`]'s samples, in points.

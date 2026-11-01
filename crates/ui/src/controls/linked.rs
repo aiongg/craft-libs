@@ -18,12 +18,12 @@ use crate::theme::{Tokens, TokensOf as _};
 crate::words! {
     /// The link button's words, English by default.
     #[non_exhaustive]
-    pub struct LinkedLabels {
+    pub struct LinkedFieldsLabels {
         /// [`LinkMode::Ratio`]'s tooltip and accessible name (PhotoCraft's Clone Source,
         /// craft-draw's transform bar and Photoshop's Image Size).
-        keep_ratio: "linked.keepRatio" = "Maintain aspect ratio";
+        keep_ratio: "linkedFields.keepRatio" = "Maintain aspect ratio";
         /// [`LinkMode::Equal`]'s (DesignCraft's margins, InDesign's).
-        same_values: "linked.sameValues" = "Make all settings the same";
+        same_values: "linkedFields.sameValues" = "Make all settings the same";
     }
 }
 
@@ -47,7 +47,7 @@ pub struct LinkButton<'a> {
     linked: &'a mut bool,
     mode: LinkMode,
     size: ControlSize,
-    labels: Option<LinkedLabels>,
+    labels: Option<LinkedFieldsLabels>,
 }
 
 impl<'a> LinkButton<'a> {
@@ -57,7 +57,7 @@ impl<'a> LinkButton<'a> {
 
     /// Words other than the installed ones (PhotoCraft's Properties' Canvas says "Link width
     /// and height").
-    pub fn labels(mut self, labels: LinkedLabels) -> Self {
+    pub fn labels(mut self, labels: LinkedFieldsLabels) -> Self {
         self.labels = Some(labels);
         self
     }
@@ -69,7 +69,7 @@ impl<'a> LinkButton<'a> {
 
     // pc: crates/ui-egui/src/panels/preset_panels/panels.rs:603 (Clone Source link button)
     pub fn show(self, ui: &mut Ui) -> Response {
-        let labels = self.labels.unwrap_or_else(|| LinkedLabels::of(ui));
+        let labels = self.labels.unwrap_or_else(|| LinkedFieldsLabels::of(ui));
         let tip = match self.mode {
             LinkMode::Ratio => labels.keep_ratio,
             LinkMode::Equal => labels.same_values,
@@ -149,7 +149,7 @@ pub struct LinkedFields<'a, const N: usize> {
     layout: LinkedLayout,
     size: ControlSize,
     enabled: bool,
-    labels: Option<LinkedLabels>,
+    labels: Option<LinkedFieldsLabels>,
 }
 
 impl<'a, const N: usize> LinkedFields<'a, N> {
@@ -222,7 +222,7 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
     }
 
     /// Words other than the installed ones, for the link button.
-    pub fn labels(mut self, labels: LinkedLabels) -> Self {
+    pub fn labels(mut self, labels: LinkedFieldsLabels) -> Self {
         self.labels = Some(labels);
         self
     }

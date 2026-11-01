@@ -5,7 +5,7 @@
 //! is blank with a `—` placeholder, [`Swatch::mixed`](super::Swatch::mixed) draws the mixed
 //! well, [`CheckState::Mixed`](super::CheckState::Mixed) the dash, and a
 //! [`Select`](super::Select) whose value is none of its options shows its placeholder (give it
-//! [`MixedLabels::mixed`]). This module gives the host the value to feed them and PdfCraft's
+//! [`ApplyRowLabels::mixed`]). This module gives the host the value to feed them and PdfCraft's
 //! apply rows.
 
 use egui::{AsIdSalt, IdSalt, Ui, Vec2};
@@ -18,9 +18,9 @@ use crate::primitives::{Content, Text};
 crate::words! {
     /// The words of mixed values, English by default.
     #[non_exhaustive]
-    pub struct MixedLabels {
+    pub struct ApplyRowLabels {
         /// A select's or a text's placeholder while the values differ (PdfCraft's).
-        mixed: "mixed.mixed" = "Mixed";
+        mixed: "applyRow.mixed" = "Mixed";
     }
 }
 
@@ -59,7 +59,7 @@ impl<T: PartialEq> MixedValue<T> {
 /// One property of a bulk-edit dialog (PdfCraft's Edit Fields of several form fields): a value,
 /// whether the selection's values differed, and whether the user chose to apply it.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Apply<T> {
+pub struct ApplyValue<T> {
     pub value: T,
     pub mixed: bool,
     /// Off until the user turns it on: opening the dialog or visiting a tab never turns mixed
@@ -67,13 +67,13 @@ pub struct Apply<T> {
     pub apply: bool,
 }
 
-impl<T: Clone + PartialEq> Apply<T> {
+impl<T: Clone + PartialEq> ApplyValue<T> {
     /// The first item's value, `mixed` when another differs, not applied; `None` for no items.
     // pdfcraft: crates/ui-egui/src/tools/bulk_fields.rs:18 from_values
     pub fn of(values: impl IntoIterator<Item = T>) -> Option<Self> {
         let values: Vec<T> = values.into_iter().collect();
         let mixed = MixedValue::of(&values)?.is_mixed();
-        Some(Apply { value: values[0].clone(), mixed, apply: false })
+        Some(ApplyValue { value: values[0].clone(), mixed, apply: false })
     }
 
     /// The value to write when applied and different from `current`.
@@ -84,27 +84,27 @@ impl<T: Clone + PartialEq> Apply<T> {
 }
 
 /// A bulk-edit row: a [`Checkbox`](super::Checkbox) labelled with the property that turns
-/// [`Apply::apply`] on and off, the property's editor (enabled only while applied, in its own id
-/// scope so two editors of one kind don't share state), and [`MixedLabels::mixed`] in
+/// [`ApplyValue::apply`] on and off, the property's editor (enabled only while applied, in its own id
+/// scope so two editors of one kind don't share state), and [`ApplyRowLabels::mixed`] in
 /// `text.muted` after it while the values differ. Lay rows out in a grid of three columns
 /// (PdfCraft's). Toggling the check is the row's own edit: a `Set` of
-/// [`Apply::apply`] in the returned [`EditResponse`], as a [`Checkbox`](super::Checkbox)
+/// [`ApplyValue::apply`] in the returned [`EditResponse`], as a [`Checkbox`](super::Checkbox)
 /// reports. The editor's edits go to `value`; the host reads them from the editor's own
 /// response inside `edit`.
 pub struct ApplyRow<'a, T> {
     id_salt: IdSalt,
     label: String,
-    apply: &'a mut Apply<T>,
-    labels: Option<MixedLabels>,
+    apply: &'a mut ApplyValue<T>,
+    labels: Option<ApplyRowLabels>,
 }
 
 impl<'a, T: Clone + PartialEq> ApplyRow<'a, T> {
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, apply: &'a mut Apply<T>) -> Self {
+    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, apply: &'a mut ApplyValue<T>) -> Self {
         Self { id_salt: IdSalt::new(id_salt), label: label.into(), apply, labels: None }
     }
 
     /// Words other than the installed ones.
-    pub fn labels(mut self, labels: MixedLabels) -> Self {
+    pub fn labels(mut self, labels: ApplyRowLabels) -> Self {
         self.labels = Some(labels);
         self
     }
@@ -120,7 +120,7 @@ impl<'a, T: Clone + PartialEq> ApplyRow<'a, T> {
             ui.push_id((id_salt, "editor"), |ui| edit(ui, value));
         });
         if apply.mixed {
-            let labels = labels.unwrap_or_else(|| MixedLabels::of(ui));
+            let labels = labels.unwrap_or_else(|| ApplyRowLabels::of(ui));
             ui.add(Text::new(labels.mixed).content(Content::Muted));
         } else {
             // The third cell of the grid row stays empty.

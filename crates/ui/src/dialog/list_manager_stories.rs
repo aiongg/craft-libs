@@ -5,7 +5,7 @@
 use egui::Ui;
 
 use super::framework_stories::{claim, drive};
-use super::{ListAction, ListEntry, ListManagerDialog, ListManagerLabels};
+use super::{ListManagerAction, ListManagerEntry, ListManagerDialog, ListManagerLabels};
 use crate::localized::Labels as _;
 use crate::story::{Level, Story, StoryArgs, StoryLabels};
 use crate::typed_story;
@@ -29,8 +29,8 @@ pub(super) fn stories() -> Vec<Story> {
     )]
 }
 
-fn entries(words: &StoryLabels) -> Vec<ListEntry> {
-    let entry = |id: &str, name: &str, detail: Option<&str>, description: &str, kind| ListEntry {
+fn entries(words: &StoryLabels) -> Vec<ListManagerEntry> {
+    let entry = |id: &str, name: &str, detail: Option<&str>, description: &str, kind| ListManagerEntry {
         id: id.to_owned(),
         name: name.to_owned(),
         detail: detail.map(str::to_owned),
@@ -63,7 +63,7 @@ fn show_list_manager(ui: &mut Ui, args: &mut ListManagerArgs) {
             ctx.data_mut(|d| d.insert_temp(rows_key, rows.clone()));
             let dialog = ListManagerDialog::new("macros", words.macros.as_str(), words.macro_name.as_str())
                 .entries(rows)
-                .actions(vec![ListAction::run(&labels), ListAction::edit(&labels).kind(1), ListAction::create(&labels), ListAction::delete(&labels)])
+                .actions(vec![ListManagerAction::run(&labels), ListManagerAction::edit(&labels).kind(1), ListManagerAction::create(&labels), ListManagerAction::delete(&labels)])
                 .searchable(searchable)
                 .empty_text(words.macros_empty.as_str());
             if note { dialog.note(words.macros_note.as_str()) } else { dialog }
@@ -72,7 +72,7 @@ fn show_list_manager(ui: &mut Ui, args: &mut ListManagerArgs) {
             if let Some(choice) = dialog.take_action()
                 && choice.action == "delete"
             {
-                let mut rows: Vec<ListEntry> = ctx.data(|d| d.get_temp(rows_key)).unwrap_or_default();
+                let mut rows: Vec<ListManagerEntry> = ctx.data(|d| d.get_temp(rows_key)).unwrap_or_default();
                 rows.retain(|row| row.name != choice.name);
                 dialog.set_entries(rows.clone());
                 ctx.data_mut(|d| d.insert_temp(rows_key, rows));

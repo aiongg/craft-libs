@@ -37,7 +37,7 @@ crate::words! {
 
 /// One row.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ListEntry {
+pub struct ListManagerEntry {
     /// The app's id for the entry; the answer carries it.
     pub id: String,
     pub name: String,
@@ -62,7 +62,7 @@ pub enum ActionEnabled {
 
 /// One button of the column, top to bottom.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ListAction {
+pub struct ListManagerAction {
     /// The app's id ("run", "stepInto"); the answer carries it.
     pub id: String,
     pub label: String,
@@ -74,7 +74,7 @@ pub struct ListAction {
     pub closes: bool,
 }
 
-impl ListAction {
+impl ListManagerAction {
     pub fn new(id: impl Into<String>, label: impl Into<String>, enabled: ActionEnabled) -> Self {
         Self { id: id.into(), label: label.into(), tooltip: None, enabled, closes: true }
     }
@@ -120,7 +120,7 @@ impl ListAction {
 /// A button pressed: which action, on which entry (`None` for a new name) and the name box's
 /// text, trimmed.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ListChoice {
+pub struct ListManagerChoice {
     pub action: String,
     pub entry: Option<String>,
     pub name: String,
@@ -146,13 +146,13 @@ pub struct ListManagerDialog {
     id: DialogId,
     title: String,
     name_label: String,
-    entries: Vec<ListEntry>,
-    actions: Vec<ListAction>,
+    entries: Vec<ListManagerEntry>,
+    actions: Vec<ListManagerAction>,
     empty: String,
     note: Option<String>,
     searchable: bool,
     name: String,
-    pressed: Option<ListChoice>,
+    pressed: Option<ListManagerChoice>,
     state: DialogState<()>,
 }
 
@@ -175,12 +175,12 @@ impl ListManagerDialog {
         }
     }
 
-    pub fn entries(mut self, entries: Vec<ListEntry>) -> Self {
+    pub fn entries(mut self, entries: Vec<ListManagerEntry>) -> Self {
         self.entries = entries;
         self
     }
 
-    pub fn actions(mut self, actions: Vec<ListAction>) -> Self {
+    pub fn actions(mut self, actions: Vec<ListManagerAction>) -> Self {
         self.actions = actions;
         self
     }
@@ -210,25 +210,25 @@ impl ListManagerDialog {
     }
 
     /// Replaces the rows; the name box keeps its text.
-    pub fn set_entries(&mut self, entries: Vec<ListEntry>) {
+    pub fn set_entries(&mut self, entries: Vec<ListManagerEntry>) {
         self.entries = entries;
     }
 
     /// The last press of an action that keeps the dialog open.
-    pub fn take_action(&mut self) -> Option<ListChoice> {
+    pub fn take_action(&mut self) -> Option<ListManagerChoice> {
         self.pressed.take()
     }
 }
 
 impl StackDialog for ListManagerDialog {
-    type Result = ListChoice;
+    type Result = ListManagerChoice;
 
     fn id(&self) -> DialogId {
         self.id
     }
 
     // gridcraft: crates/ui-egui/src/macro_ui.rs:367 macros_dialog
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<ListChoice>> {
+    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<ListManagerChoice>> {
         let cancel_label = DialogLabels::of_ctx(ctx).cancel;
         let id = self.id;
         let Self { title, name_label, entries, actions, empty, note, searchable, name, pressed, state, .. } = self;
@@ -387,7 +387,7 @@ impl StackDialog for ListManagerDialog {
         }
         let action = actions.get(chosen?)?;
         let found = entries.iter().find(|e| is_named(e, &folder_of(ctx), name) && action_accepts(action, e));
-        let choice = ListChoice { action: action.id.clone(), entry: found.map(|e| e.id.clone()), name: name.trim().to_owned() };
+        let choice = ListManagerChoice { action: action.id.clone(), entry: found.map(|e| e.id.clone()), name: name.trim().to_owned() };
         if action.closes {
             Some(DialogResult::Ok(choice))
         } else {
@@ -405,12 +405,12 @@ fn folder_of(ctx: &Context) -> craft_i18n::Folder {
     craft_i18n::Folder::new(&code)
 }
 
-fn is_named(entry: &ListEntry, folder: &craft_i18n::Folder, name: &str) -> bool {
+fn is_named(entry: &ListManagerEntry, folder: &craft_i18n::Folder, name: &str) -> bool {
     folder.fold(&entry.name).as_str() == folder.fold(name.trim()).as_str()
 }
 
 /// Whether `action` takes `entry` as its target.
-fn action_accepts(action: &ListAction, entry: &ListEntry) -> bool {
+fn action_accepts(action: &ListManagerAction, entry: &ListManagerEntry) -> bool {
     match action.enabled {
         ActionEnabled::OnEntry { kind } => kind.is_none_or(|k| k == entry.kind),
         ActionEnabled::Always | ActionEnabled::OnNewName => true,
@@ -418,7 +418,7 @@ fn action_accepts(action: &ListAction, entry: &ListEntry) -> bool {
 }
 
 /// The action's button state for the name box's text.
-fn is_enabled(action: &ListAction, entries: &[ListEntry], folder: &craft_i18n::Folder, name: &str) -> bool {
+fn is_enabled(action: &ListManagerAction, entries: &[ListManagerEntry], folder: &craft_i18n::Folder, name: &str) -> bool {
     match action.enabled {
         ActionEnabled::Always => true,
         ActionEnabled::OnEntry { .. } => entries.iter().any(|e| is_named(e, folder, name) && action_accepts(action, e)),
@@ -428,7 +428,7 @@ fn is_enabled(action: &ListAction, entries: &[ListEntry], folder: &craft_i18n::F
 
 /// The indices of the rows the list shows: all of them, or with `searchable` those whose folded
 /// name contains the folded text of the box.
-fn visible(entries: &[ListEntry], folder: &craft_i18n::Folder, name: &str, searchable: bool) -> Vec<usize> {
+fn visible(entries: &[ListManagerEntry], folder: &craft_i18n::Folder, name: &str, searchable: bool) -> Vec<usize> {
     let query = folder.fold(name.trim());
     (0..entries.len())
         .filter(|&i| !searchable || query.as_str().is_empty() || folder.fold(&entries[i].name).as_str().contains(query.as_str()))

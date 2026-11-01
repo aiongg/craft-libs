@@ -64,14 +64,14 @@ pub(super) fn stories() -> Vec<Story> {
     vec![
         typed_story!("composites/table/files", Level::Composites, "Table", "Files", FilesArgs { striped: true, movable: true }, show_files),
         typed_story!(
-            "composites/table/metadata",
+            "composites/metadata-table/metadata",
             Level::Composites,
-            "MetadataTable",
+            "Metadata table",
             "Metadata",
             MetadataArgs { column_picker: false },
             show_metadata
         ),
-        typed_story!("composites/table/events", Level::Composites, "EventLog", "Events", NoArgs {}, show_events),
+        typed_story!("composites/event-log/events", Level::Composites, "Event log", "Events", NoArgs {}, show_events),
     ]
 }
 

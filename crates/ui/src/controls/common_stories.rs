@@ -12,13 +12,13 @@ use egui::{Color32, Id, Key, Modifiers, Painter, Rect, Sense, TextEdit, Ui, vec2
 
 use super::slider::{store, with_values};
 use super::{
-    AltText, AltTextField, Apply, ApplyRow, Autocomplete, BreadcrumbBar, Button, ButtonVariant, Chip, ChipField, ControlSize, DatePicker,
-    DatePrecision, IconPicker, IconPickerGroup, IconPickerItem, LineStyle, LineWeights, LinkMode, LinkedFields, LinkedLayout, NumberField,
+    AltText, AltTextField, ApplyValue, ApplyRow, Autocomplete, BreadcrumbBar, Button, ButtonVariant, Chip, ChipField, ControlSize, DatePicker,
+    DatePrecision, IconPicker, IconPickerGroup, IconPickerItem, LineStyle, LineWeights, LinkMode, LinkedFields, LinkedLayout, LinkedSlot, NumberField,
     PickedDate, Rating, ResetDot, Select, SelectText, SplitButton, Suggestion, TextField, TreeEntry, TreePicker, completion_rest,
     paint_inline_completion, paint_line_style, paint_rating, path_crumbs,
 };
 use crate::icons::{self, Icon, IconSize};
-use crate::localized::{Labels as _, LocaleNumbers, Word, Words};
+use crate::localized::{Labels as _, LocaleNumbers, Words};
 use crate::menu::{MenuEntry, MenuItem};
 use crate::popover::{Popover, PopoverAnchor};
 use crate::primitives::{Content, Gap, Row, Text};
@@ -78,6 +78,10 @@ crate::words! {
         icon_align_left: "controlStory.iconAlignLeft" = "Align Left";
         icon_align_center: "controlStory.iconAlignCenter" = "Align Center";
         icon_align_right: "controlStory.iconAlignRight" = "Align Right";
+        clone_x: "controlStory.cloneX" = "X";
+        clone_y: "controlStory.cloneY" = "Y";
+        clone_w: "controlStory.cloneW" = "W";
+        clone_h: "controlStory.cloneH" = "H";
         margin_top: "controlStory.marginTop" = "Top";
         margin_right: "controlStory.marginRight" = "Right";
         margin_bottom: "controlStory.marginBottom" = "Bottom";
@@ -127,18 +131,19 @@ pub(super) fn stories() -> Vec<Story> {
     use super::{SizeArgs, SizeDisabledArgs};
     vec![
         typed_story!(
-            "controls/chips/keywords",
+            "controls/chip-field/keywords",
             Level::Controls,
             "Chip field",
             "Keywords",
             KeywordArgs { size: SizeArg::Md, limit_lines: true, max_lines: 2, disabled: false },
             show_keywords
         ),
-        typed_story!("controls/chips/filters", Level::Controls, "Chip field", "Filters", SizeDisabledArgs::default(), show_filters),
+        typed_story!("controls/chip-field/filters", Level::Controls, "Chip field", "Filters", SizeDisabledArgs::default(), show_filters),
         typed_story!("controls/tree-picker/albums", Level::Controls, "Tree picker", "Albums", SizeDisabledArgs::default(), show_albums),
         typed_story!("controls/icon-picker/icons", Level::Controls, "Icon picker", "Icons", NoArgs {}, show_icons),
-        typed_story!("controls/linked/size", Level::Controls, "Linked fields", "Size", SizeDisabledArgs::default(), show_size),
-        typed_story!("controls/linked/margins", Level::Controls, "Linked fields", "Margins", SizeDisabledArgs::default(), show_margins),
+        typed_story!("controls/linked-fields/size", Level::Controls, "Linked fields", "Size", SizeDisabledArgs::default(), show_size),
+        typed_story!("controls/linked-fields/clone-source", Level::Controls, "Linked fields", "Clone source", SizeDisabledArgs::default(), show_clone_source),
+        typed_story!("controls/linked-fields/margins", Level::Controls, "Linked fields", "Margins", SizeDisabledArgs::default(), show_margins),
         typed_story!("controls/preview-select/underline", Level::Controls, "Preview select", "Underline", SizeArgs::default(), show_underline),
         typed_story!(
             "controls/split-button/trace",
@@ -150,10 +155,10 @@ pub(super) fn stories() -> Vec<Story> {
         ),
         typed_story!("controls/breadcrumb/path", Level::Controls, "Breadcrumb", "Path", PathArgs { width: 420.0 }, show_path),
         typed_story!("controls/rating/stars", Level::Controls, "Rating", "Stars", DisabledArgs { disabled: false }, show_stars),
-        typed_story!("controls/date/picker", Level::Controls, "Date picker", "Picker", SizeDisabledArgs::default(), show_dates),
+        typed_story!("controls/date-picker/picker", Level::Controls, "Date picker", "Picker", SizeDisabledArgs::default(), show_dates),
         typed_story!("controls/alt-text/field", Level::Controls, "Alt text", "Field", AltArgs { mixed: false }, show_alt_text),
         typed_story!("controls/autocomplete/functions", Level::Controls, "Autocomplete", "Functions", NoArgs {}, show_autocomplete),
-        typed_story!("controls/mixed/apply-rows", Level::Controls, "Apply row", "Apply rows", SizeArgs::default(), show_apply_rows),
+        typed_story!("controls/apply-row/apply-rows", Level::Controls, "Apply row", "Apply rows", SizeArgs::default(), show_apply_rows),
         typed_story!("controls/reset-dot/fields", Level::Controls, "Reset dot", "Fields", SizeArgs::default(), show_reset_dots),
     ]
 }
@@ -382,6 +387,43 @@ fn show_size(ui: &mut Ui, args: &mut super::SizeDisabledArgs) {
     });
 }
 
+/// PhotoCraft's Clone Source grid: X and W with the link on one row, Y and H under them. The
+/// host places its own X and Y fields in the same grid as the linked pair.
+fn show_clone_source(ui: &mut Ui, args: &mut super::SizeDisabledArgs) {
+    let words = ControlStoryLabels::of(ui);
+    let numbers = LocaleNumbers::of(ui);
+    let (size, enabled) = (args.size.control(), !args.disabled);
+    state(ui, "story-clone-source", ([100.0, 100.0], true, [0.0, 0.0]), |ui, (scale, linked, offset)| {
+        egui::Grid::new("story-clone-source-grid").show(ui, |ui| {
+            let offset_field = |ui: &mut Ui, axis: usize, caption: &str, offset: &mut [f64; 2]| {
+                ui.add(Text::new(caption));
+                let edit = NumberField::new(("story-clone-offset", axis), caption, offset[axis], &numbers).size(size).enabled(enabled).show(ui);
+                store(&edit, &mut offset[axis]);
+            };
+            let edit = LinkedFields::new("story-clone-size", [words.clone_w.as_str(), words.clone_h.as_str()], *scale, linked, LinkMode::Ratio, &numbers)
+                .range(-1000.0..=1000.0)
+                .decimals(0..=1)
+                .size(size)
+                .enabled(enabled)
+                .show_cells(ui, |ui, slot, add| match slot {
+                    LinkedSlot::Field(0) => {
+                        offset_field(ui, 0, &words.clone_x, offset);
+                        ui.add(Text::new(words.clone_w.as_str()));
+                        add(ui);
+                    }
+                    LinkedSlot::Link => {
+                        add(ui);
+                        ui.end_row();
+                        offset_field(ui, 1, &words.clone_y, offset);
+                        ui.add(Text::new(words.clone_h.as_str()));
+                    }
+                    LinkedSlot::Field(_) => add(ui),
+                });
+            store(&edit, scale);
+        });
+    });
+}
+
 /// Four margins in a column with the equal link.
 fn show_margins(ui: &mut Ui, args: &mut super::SizeDisabledArgs) {
     let words = ControlStoryLabels::of(ui);
@@ -406,7 +448,7 @@ fn show_underline(ui: &mut Ui, args: &mut super::SizeArgs) {
     let words = Words::of(ui);
     let ink = Tokens::of(ui).color.text.normal.to_egui();
     let size = args.size.control();
-    let name = |style: LineStyle| words.get(Word::plain(style.label()));
+    let name = |style: LineStyle| words.get(style.word());
     state(ui, "story-line-styles", [LineStyle::Solid, LineStyle::Solid], |ui, [underline, stroke]| {
         variant_list(ui, "story-line-styles", |form| {
             variant_row(form, &story.underline, |ui| {
@@ -629,9 +671,9 @@ fn show_apply_rows(ui: &mut Ui, args: &mut super::SizeArgs) {
         ui,
         "story-apply",
         (
-            Apply { value: words.apply_name.clone(), mixed: true, apply: false },
-            Apply { value: 100.0, mixed: false, apply: true },
-            Apply { value: 15.0, mixed: true, apply: false },
+            ApplyValue { value: words.apply_name.clone(), mixed: true, apply: false },
+            ApplyValue { value: 100.0, mixed: false, apply: true },
+            ApplyValue { value: 15.0, mixed: true, apply: false },
         ),
         |ui, (name, opacity, rotation)| {
             ui.horizontal(|ui| {
