@@ -9,8 +9,6 @@
 //! TileGrid::new("library", &photos).thumbnails(&thumbs, &source).show(ui);
 //! ```
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 #[cfg(feature = "ui")]
 mod source;
 #[cfg(all(test, feature = "ui"))]
@@ -40,7 +38,7 @@ impl FileThumbKey {
     /// The whole file (variant 0).
     pub fn file(path: impl Into<PathBuf>) -> Self {
         // new: the common case.
-        todo!()
+        Self { path: path.into(), variant: 0 }
     }
 }
 
@@ -93,7 +91,7 @@ pub trait ThumbDecoder: Send + Sync {
 
     /// An embedded preview to show first (a raw file's JPEG, LightCraft's `ThumbQuick`), when the
     /// file has one that is cheaper than `decode`. The default has none.
-    fn quick(&self, request: &DecodeRequest, cancel: &Cancel) -> Option<DecodedThumb> {
+    fn quick(&self, _request: &DecodeRequest, _cancel: &Cancel) -> Option<DecodedThumb> {
         None
     }
 }

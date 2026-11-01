@@ -1,15 +1,14 @@
 //! `FileThumbSource`: a `ThumbSource` over files, decoded by the app's `ThumbDecoder` in jobs.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use craft_ui::canvas::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource};
+use craft_host::queue::Cancel;
+use craft_ui::canvas::textures::{LoadedPicture, Revision, ThumbRender, ThumbRequest, ThumbSource};
 use egui::ColorImage;
 
-use super::{DecodedThumb, FileThumbKey, ThumbDecoder, ThumbStore};
+use super::{DecodeRequest, DecodedThumb, FileThumbKey, StoreKey, ThumbDecoder, ThumbError, ThumbStore};
 
 /// How a [`FileThumbSource`] uses the decoder and the store.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -24,7 +23,7 @@ pub struct FileThumbOptions {
 impl Default for FileThumbOptions {
     fn default() -> Self {
         // lightcraft: crates/ui-egui/src/panels/grid.rs:693 (`request_thumb`: quick preview, then the bucket render).
-        todo!()
+        Self { quick_previews: true, save_to_store: true }
     }
 }
 
@@ -44,11 +43,11 @@ enum Stage {
 ///   `full` is 1 once a quick preview has landed and the full picture is wanted (0 before, and
 ///   when the first job already made the full picture). So the first picture is never asked
 ///   twice, and after a quick preview the cache keeps it as the stand-in while the full job runs.
-/// - `render` always returns `ThumbRender::Later`: statting (`craft_platform::watch::FileStamp`),
+/// - `render` always returns `ThumbRender::Later`: statting (length and modification time),
 ///   store reads, decoding and saving happen in the job, never on the UI thread. The first job
-///   stats the file (missing: `Err` with the "missing" message), loads the store at
+///   stats the file with `std::fs::metadata` (missing: `Err` with the "missing" message), loads the store at
 ///   `StoreKey { len, modified, side }` (a hit is final), else with `quick_previews` asks
-///   `quick` (a picture: stage `NeedsFull`, and the job wakes the host so the next pass asks the
+///   `quick` (a picture: stage `NeedsFull`; the loader repaints when it stores the picture, so the next pass asks the
 ///   new revision), else decodes, saves, and is final. The second job (stage `NeedsFull`)
 ///   decodes and saves.
 /// - `ThumbError::Unsupported` ends the job with `Ok(LoadedPicture::Blank)`, which the cache
@@ -71,34 +70,124 @@ impl FileThumbSource {
     /// A source over `decoder`, with the app's `store` if it has one.
     pub fn new(decoder: Arc<dyn ThumbDecoder>, store: Option<Arc<dyn ThumbStore>>) -> Self {
         // lightcraft: crates/ui-egui/src/panels/grid.rs:693 (`request_thumb`).
-        todo!()
+        Self { decoder, store, options: FileThumbOptions::default(), generations: Arc::default(), stages: Arc::default(), epoch: Arc::default() }
     }
 
     /// Replaces the options.
     #[must_use]
     pub fn options(self, options: FileThumbOptions) -> Self {
         // new: builder.
-        todo!()
+        Self { options, ..self }
     }
 
     /// The source seen through the widget's key: `locate` turns a tile key into the file's key
     /// (`None`: no file, the tile shows no picture). Built per pass; borrows `self`.
     pub fn keyed<K, F: Fn(&K) -> Option<FileThumbKey>>(&self, locate: F) -> KeyedFileThumbs<'_, F> {
         // new: per-pass adapter (thumbs spec, call site 3).
-        todo!()
+        KeyedFileThumbs { source: self, locate }
     }
 
     /// `path` changed on disk: every variant's revision moves on, so the next pass decodes again
     /// and shows the old picture until the new one lands.
     pub fn invalidate(&self, path: &Path) {
         // lightcraft: crates/ui-egui/src/panels/grid.rs:759 (`skips_the_real_render`: a fresh render replaces the embedded one).
-        todo!()
+        *lock(&self.generations).entry(path.to_path_buf()).or_insert(0) += 1;
+        lock(&self.stages).retain(|key, _| key.path != path);
     }
 
     /// Another library opened: every revision moves on and the stages are forgotten.
     pub fn clear(&self) {
         // new: one call for a library switch.
-        todo!()
+        *lock(&self.epoch) += 1;
+        lock(&self.stages).clear();
+    }
+}
+
+/// The message of a file that isn't there.
+const MISSING: &str = "The file is missing";
+
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+impl FileThumbSource {
+    /// The key's generation (path count plus library count) and stage.
+    fn state_of(&self, key: &FileThumbKey) -> (u64, Stage) {
+        let generation = self.state_of_generation(key);
+        let stage = lock(&self.stages).get(key).copied().unwrap_or(Stage::Fresh);
+        (generation, stage)
+    }
+}
+
+/// One decode job's inputs, moved onto the queue lane.
+struct Job {
+    decoder: Arc<dyn ThumbDecoder>,
+    store: Option<Arc<dyn ThumbStore>>,
+    options: FileThumbOptions,
+    key: FileThumbKey,
+    side: u32,
+    stage: Stage,
+    generation: u64,
+    source: FileThumbSource,
+}
+
+impl Job {
+    fn run(self, cancel: &Cancel) -> Result<LoadedPicture, String> {
+        match self.pictures(cancel) {
+            Ok(thumb) => Ok(LoadedPicture::Image(to_image(thumb))),
+            Err(ThumbError::Unsupported) => Ok(LoadedPicture::Blank),
+            Err(ThumbError::Missing) => Err(MISSING.to_owned()),
+            Err(ThumbError::Failed(message)) => Err(message),
+            Err(ThumbError::Cancelled) => Err("cancelled".to_owned()),
+        }
+    }
+
+    fn pictures(&self, cancel: &Cancel) -> Result<DecodedThumb, ThumbError> {
+        let cancelled = || if cancel.is_cancelled() { Err(ThumbError::Cancelled) } else { Ok(()) };
+        cancelled()?;
+        let meta = std::fs::metadata(&self.key.path).map_err(|_| ThumbError::Missing)?;
+        let request = DecodeRequest { key: self.key.clone(), side: self.side, len: meta.len(), modified: meta.modified().ok() };
+        let store_key = StoreKey { key: self.key.clone(), len: request.len, modified: request.modified, side: self.side };
+        if self.stage == Stage::Fresh {
+            if let Some(thumb) = self.store.as_ref().and_then(|store| store.load(&store_key)) {
+                self.set_stage(Stage::Done);
+                return Ok(thumb);
+            }
+            cancelled()?;
+            if self.options.quick_previews
+                && let Some(thumb) = self.decoder.quick(&request, cancel)
+            {
+                cancelled()?;
+                self.set_stage(Stage::NeedsFull);
+                return Ok(thumb);
+            }
+        }
+        cancelled()?;
+        let thumb = self.decoder.decode(&request, cancel)?;
+        cancelled()?;
+        if self.options.save_to_store
+            && let Some(store) = &self.store
+        {
+            store.save(&store_key, &thumb);
+        }
+        if self.stage == Stage::Fresh {
+            self.set_stage(Stage::Done);
+        }
+        Ok(thumb)
+    }
+
+    /// Records the key's stage unless `invalidate` or `clear` moved the generation meanwhile.
+    fn set_stage(&self, stage: Stage) {
+        let mut stages = lock(&self.source.stages);
+        if self.source.state_of_generation(&self.key) == self.generation {
+            stages.insert(self.key.clone(), stage);
+        }
+    }
+}
+
+impl FileThumbSource {
+    fn state_of_generation(&self, key: &FileThumbKey) -> u64 {
+        lock(&self.generations).get(&key.path).copied().unwrap_or(0).wrapping_add(*lock(&self.epoch) << 32)
     }
 }
 
@@ -106,18 +195,30 @@ impl FileThumbSource {
 /// (`LoadedPicture::Image`; an unsupported file is `LoadedPicture::Blank`, never a picture).
 fn to_image(thumb: DecodedThumb) -> ColorImage {
     // new: `ColorImage::from_rgba_unmultiplied`.
-    todo!()
+    ColorImage::from_rgba_unmultiplied([thumb.width as usize, thumb.height as usize], &thumb.rgba)
 }
 
 impl ThumbSource<FileThumbKey> for FileThumbSource {
-    fn revision(&self, key: &FileThumbKey, request: &ThumbRequest) -> Revision {
+    fn revision(&self, key: &FileThumbKey, _: &ThumbRequest) -> Revision {
         // new: as the type's doc says.
-        todo!()
+        let (generation, stage) = self.state_of(key);
+        Revision::of(&(generation, u8::from(stage == Stage::NeedsFull)))
     }
 
     fn render(&self, key: &FileThumbKey, request: &ThumbRequest) -> ThumbRender {
         // lightcraft: crates/ui-egui/src/panels/grid.rs:693 (`request_thumb`, now always a job).
-        todo!()
+        let (generation, stage) = self.state_of(key);
+        let job = Job {
+            decoder: Arc::clone(&self.decoder),
+            store: self.store.clone(),
+            options: self.options,
+            key: key.clone(),
+            side: request.side,
+            stage,
+            generation,
+            source: self.clone(),
+        };
+        ThumbRender::Later(Box::new(move |cancel| job.run(cancel)))
     }
 }
 
@@ -131,12 +232,18 @@ impl<K, F: Fn(&K) -> Option<FileThumbKey>> ThumbSource<K> for KeyedFileThumbs<'_
     /// The located key's revision; `Revision(0)` when `locate` gives `None`.
     fn revision(&self, key: &K, request: &ThumbRequest) -> Revision {
         // new: delegates.
-        todo!()
+        match (self.locate)(key) {
+            Some(file) => self.source.revision(&file, request),
+            None => Revision(0),
+        }
     }
 
     /// The located key's render; `ThumbRender::Blank` when `locate` gives `None`.
     fn render(&self, key: &K, request: &ThumbRequest) -> ThumbRender {
         // new: delegates.
-        todo!()
+        match (self.locate)(key) {
+            Some(file) => self.source.render(&file, request),
+            None => ThumbRender::Blank,
+        }
     }
 }
