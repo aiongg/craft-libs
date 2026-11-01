@@ -1,7 +1,5 @@
 //! `HistoryPanelState`: the snapshot selection the panel keeps between passes.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use crate::edit::snapshots::SnapshotId;
 
 /// What the History panel keeps per document between passes: the selected snapshot and the
@@ -28,24 +26,23 @@ impl HistoryPanelState {
     /// as in Photoshop.
     pub fn snapshot_selected(&mut self, id: SnapshotId, revision: u64) {
         // pc: crates/ui-egui/src/panels/history.rs:214-255 (`(id, spot)` kept per document)
-        todo!()
+        self.selected = Some((id, revision));
     }
 
     /// The selected snapshot, as of the last pass (the panel drops a stale selection in `show`).
     pub fn selected_snapshot(&self) -> Option<SnapshotId> {
-        // new: `selected.map(|(id, _)| id)`.
-        todo!()
+        self.selected.map(|(id, _)| id)
     }
 
     /// Deselects the snapshot (a click on the current state, the snapshot deleted).
     pub fn clear_snapshot(&mut self) {
         // pc: crates/ui-egui/src/panels/history.rs:187-190 (a click on the current row deselects the snapshot)
-        todo!()
+        self.selected = None;
     }
 
     /// Whether a snapshot selected at `revision` is still selected with the rows at `now`.
     pub(super) fn keeps(&self, now: u64) -> bool {
         // pc: crates/ui-egui/src/panels/history.rs:214-255
-        todo!()
+        self.selected.is_some_and(|(_, revision)| revision == now)
     }
 }
