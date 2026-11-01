@@ -4,9 +4,9 @@
 //! app's settings sections instead, the store library features already save through
 //! (`craft_host::SectionStore`).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::io;
+#[cfg(not(target_arch = "wasm32"))]
+use std::io::Read;
 use std::marker::PhantomData;
 use std::path::Path;
 #[cfg(not(target_arch = "wasm32"))]
@@ -132,142 +132,435 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
     /// settings store's folder; `None` keeps nothing. Desktop only.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn new(config_dir: Option<&Path>, kind: &str) -> Self {
-        // craft-libs: crates/settings/src/profiles.rs:75 (`Profiles::new(config_dir)`)
-        todo!()
+        Self { place: PresetPlace::Folder(config_dir.map(|d| d.join(PRESETS_DIR).join(kind))), kind: kind.to_owned(), value: PhantomData }
     }
 
     /// The presets of `kind` as entries of the [`PRESETS_SECTION`] settings section in
     /// `settings`: the store the app gave its `Host` (`HostBuilder::settings`). Every target; the
     /// web build's only place for presets.
     pub fn in_settings(settings: Arc<dyn SectionStore>, kind: &str) -> Self {
-        // craft-libs: crates/settings/src/remember.rs:68 (`Remembered::store`: a value inside a library section through the Host's store)
-        todo!()
+        Self { place: PresetPlace::Settings(settings), kind: kind.to_owned(), value: PhantomData }
     }
 
     /// The folder, `<config>/presets/<kind>`; `None` without a config folder and for presets
     /// kept in settings.
     pub fn dir(&self) -> Option<&Path> {
-        // new: the stored path.
-        todo!()
+        match &self.place {
+            #[cfg(not(target_arch = "wasm32"))]
+            PresetPlace::Folder(dir) => dir.as_deref(),
+            PresetPlace::Settings(_) => None,
+        }
     }
 
     /// The kind, as written in each file's `format`.
     pub fn kind(&self) -> &str {
-        // new: the stored kind.
-        todo!()
+        &self.kind
     }
 
     /// The names of the readable presets, sorted ignoring case. A missing folder or table is an
     /// empty list; corrupt and oversized files or entries are left out (and left where they are).
     pub fn list(&self) -> Vec<String> {
-        // craft-libs: crates/settings/src/profiles.rs:80 (`list`, sorted ignoring case); soundcraft: crates/ui-egui/src/panels/plugins.rs:162 (`preset_dir`, `*.json`)
-        todo!()
+        let mut names: Vec<String> =
+            self.entry_names().into_iter().filter(|name| self.read_entry(name).and_then(|bytes| self.from_bytes(&bytes)).is_ok()).collect();
+        names.sort_by_cached_key(|n| n.to_lowercase());
+        names
     }
 
     /// Reads preset `name` (matched ignoring case).
     pub fn load(&self, name: &str) -> Result<T, PresetFolderError> {
-        // craft-libs: crates/settings/src/profiles.rs:106
-        todo!()
+        let stored = self.find(name)?;
+        self.from_bytes(&self.read_entry(&stored)?)
     }
 
     /// Writes `value` as preset `name`, replacing a preset whose name matches ignoring case (the
     /// file or entry takes the new spelling). Creates the folder or the kind's table when needed.
     pub fn save(&self, name: &str, value: &T) -> Result<(), PresetFolderError> {
-        // craft-libs: crates/settings/src/profiles.rs:87-104 (`save` replaces a name that matches ignoring case)
-        todo!()
+        let bytes = self.to_bytes(value)?;
+        self.put(name, &bytes)
     }
 
     /// Deletes preset `name` (matched ignoring case).
     pub fn delete(&self, name: &str) -> Result<(), PresetFolderError> {
-        // craft-libs: crates/settings/src/profiles.rs:112
-        todo!()
+        let stored = self.find(name)?;
+        self.remove_entry(&stored)
     }
 
     /// Renames preset `from` to `to`; `BadName` when `to` is not valid or another preset has it
     /// ignoring case (a change of case alone is allowed).
     pub fn rename(&self, from: &str, to: &str) -> Result<(), PresetFolderError> {
-        // new: the named row's Rename….
-        todo!()
+        let to = checked_name(to)?;
+        let stored = self.find(from)?;
+        if self.entry_names().iter().any(|n| *n != stored && n.to_lowercase() == to.to_lowercase()) {
+            return Err(PresetFolderError::BadName);
+        }
+        let bytes = self.read_entry(&stored)?;
+        self.put_replacing(&stored, &to, &bytes)
     }
 
     /// The file of preset `name` as bytes (a settings entry's text), for an export the user saves
     /// with `Files`.
     pub fn export(&self, name: &str) -> Result<Vec<u8>, PresetFolderError> {
-        // craft-libs: crates/settings/src/profiles.rs:119 (`export`); the bytes go through the host's `Files`.
-        todo!()
+        let stored = self.find(name)?;
+        self.read_entry(&stored)
     }
 
     /// Imports the bytes of a file the user picked: checks the size and the envelope's `format`,
     /// takes `file_name`'s stem as the name, numbers a taken one, saves it, and returns the name.
     pub fn import(&self, file_name: &str, bytes: &[u8]) -> Result<String, PresetFolderError> {
-        // craft-libs: crates/settings/src/profiles.rs:127 (`import`: stem as name, " 2", " 3" when taken)
-        todo!()
+        self.from_bytes(bytes)?;
+        let stem = Path::new(file_name).file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+        let base = checked_name(stem)?;
+        let taken: Vec<String> = self.entry_names().iter().map(|n| n.to_lowercase()).collect();
+        let name = std::iter::once(base.clone())
+            .chain((2..).map(|n| format!("{base} {n}")))
+            .find(|candidate| !taken.contains(&candidate.to_lowercase()))
+            .unwrap_or(base);
+        self.put(&name, bytes)?;
+        Ok(name)
     }
 
     /// `value` in the file format, for a copy or a host-side export.
     pub fn to_bytes(&self, value: &T) -> Result<Vec<u8>, PresetFolderError> {
-        // new: serde_json with the envelope.
-        todo!()
+        let unreadable = |e: serde_json::Error| PresetFolderError::Unreadable(e.to_string());
+        let serde_json::Value::Object(fields) = serde_json::to_value(value).map_err(unreadable)? else {
+            return Err(PresetFolderError::Unreadable("the preset is not a map of fields".into()));
+        };
+        let mut envelope = serde_json::Map::new();
+        envelope.insert("format".into(), self.kind.clone().into());
+        envelope.insert("version".into(), FORMAT_VERSION.into());
+        envelope.extend(fields);
+        let bytes = serde_json::to_vec(&envelope).map_err(unreadable)?;
+        if bytes.len() as u64 > MAX_FILE_BYTES {
+            return Err(PresetFolderError::TooLarge);
+        }
+        Ok(bytes)
     }
 
     /// A value of this kind from the file format.
     pub fn from_bytes(&self, bytes: &[u8]) -> Result<T, PresetFolderError> {
-        // new: the envelope check, then serde_json.
-        todo!()
+        if bytes.len() as u64 > MAX_FILE_BYTES {
+            return Err(PresetFolderError::TooLarge);
+        }
+        let unreadable = |e: serde_json::Error| PresetFolderError::Unreadable(e.to_string());
+        let serde_json::Value::Object(mut fields) = serde_json::from_slice(bytes).map_err(unreadable)? else {
+            return Err(PresetFolderError::Unreadable("the file is not a preset".into()));
+        };
+        match fields.remove("format") {
+            Some(serde_json::Value::String(found)) if found == self.kind => {}
+            Some(serde_json::Value::String(found)) => return Err(PresetFolderError::ForeignFormat { found }),
+            _ => return Err(PresetFolderError::Unreadable("the file has no format".into())),
+        }
+        match fields.remove("version").and_then(|v| v.as_u64()) {
+            Some(v) if v <= u64::from(FORMAT_VERSION) => {}
+            Some(v) => return Err(PresetFolderError::Unreadable(format!("it was saved by a newer version (format {v})"))),
+            None => return Err(PresetFolderError::Unreadable("the file has no version".into())),
+        }
+        serde_json::from_value(serde_json::Value::Object(fields)).map_err(unreadable)
     }
+
+    /// The names of every entry as stored, readable or not.
+    fn entry_names(&self) -> Vec<String> {
+        match &self.place {
+            #[cfg(not(target_arch = "wasm32"))]
+            PresetPlace::Folder(dir) => {
+                let Some(dir) = dir else { return Vec::new() };
+                let Ok(read) = std::fs::read_dir(dir) else { return Vec::new() };
+                read.filter_map(Result::ok)
+                    .filter_map(|entry| {
+                        let path = entry.path();
+                        if !path.extension()?.to_str()?.eq_ignore_ascii_case(EXTENSION) || !path.is_file() {
+                            return None;
+                        }
+                        Some(path.file_stem()?.to_str()?.to_owned())
+                    })
+                    .collect()
+            }
+            PresetPlace::Settings(store) => {
+                self.kind_table(store.as_ref()).map(|t| t.into_iter().filter(|(_, v)| v.is_str()).map(|(k, _)| k).collect()).unwrap_or_default()
+            }
+        }
+    }
+
+    /// The stored spelling of the entry whose name matches `name` ignoring case.
+    fn find(&self, name: &str) -> Result<String, PresetFolderError> {
+        let wanted = checked_name(name)?.to_lowercase();
+        self.entry_names().into_iter().find(|n| n.to_lowercase() == wanted).ok_or(PresetFolderError::NotFound)
+    }
+
+    /// The text of the entry stored as `stored`; `TooLarge` over [`MAX_FILE_BYTES`].
+    fn read_entry(&self, stored: &str) -> Result<Vec<u8>, PresetFolderError> {
+        match &self.place {
+            #[cfg(not(target_arch = "wasm32"))]
+            PresetPlace::Folder(dir) => {
+                let dir = dir.as_deref().ok_or(PresetFolderError::NotFound)?;
+                let mut bytes = Vec::new();
+                std::fs::File::open(entry_path(dir, stored))?.take(MAX_FILE_BYTES + 1).read_to_end(&mut bytes)?;
+                if bytes.len() as u64 > MAX_FILE_BYTES {
+                    return Err(PresetFolderError::TooLarge);
+                }
+                Ok(bytes)
+            }
+            PresetPlace::Settings(store) => {
+                let text = self
+                    .kind_table(store.as_ref())
+                    .and_then(|mut t| t.remove(stored))
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .ok_or(PresetFolderError::NotFound)?;
+                if text.len() as u64 > MAX_FILE_BYTES {
+                    return Err(PresetFolderError::TooLarge);
+                }
+                Ok(text.into_bytes())
+            }
+        }
+    }
+
+    /// Writes `bytes` as `name`, replacing a preset whose name matches ignoring case.
+    fn put(&self, name: &str, bytes: &[u8]) -> Result<(), PresetFolderError> {
+        let name = checked_name(name)?;
+        let wanted = name.to_lowercase();
+        let old = self.entry_names().into_iter().find(|n| n.to_lowercase() == wanted);
+        self.put_replacing(old.as_deref().unwrap_or(&name), &name, bytes)
+    }
+
+    /// Writes `bytes` as `to`, dropping the entry stored as `old` when its spelling differs.
+    fn put_replacing(&self, old: &str, to: &str, bytes: &[u8]) -> Result<(), PresetFolderError> {
+        match &self.place {
+            #[cfg(not(target_arch = "wasm32"))]
+            PresetPlace::Folder(dir) => {
+                let dir = dir.as_deref().ok_or_else(unsupported)?;
+                std::fs::create_dir_all(dir)?;
+                // `rename` also works for a change of case on a case-insensitive file system, where
+                // removing the old spelling after the write would remove the new file.
+                if old != to && entry_path(dir, old).exists() {
+                    std::fs::rename(entry_path(dir, old), entry_path(dir, to))?;
+                }
+                craft_atomic::atomic_write(&entry_path(dir, to), bytes)?;
+                Ok(())
+            }
+            PresetPlace::Settings(store) => {
+                let text = String::from_utf8(bytes.to_vec()).map_err(|_| PresetFolderError::Unreadable("the preset is not text".into()))?;
+                let mut section = store.read(PRESETS_SECTION).unwrap_or_default();
+                let table = self.table_mut(&mut section);
+                if old != to {
+                    table.remove(old);
+                }
+                table.insert(to.to_owned(), toml::Value::String(text));
+                store.write(PRESETS_SECTION, section);
+                Ok(())
+            }
+        }
+    }
+
+    fn remove_entry(&self, stored: &str) -> Result<(), PresetFolderError> {
+        match &self.place {
+            #[cfg(not(target_arch = "wasm32"))]
+            PresetPlace::Folder(dir) => {
+                let dir = dir.as_deref().ok_or(PresetFolderError::NotFound)?;
+                std::fs::remove_file(entry_path(dir, stored))?;
+                Ok(())
+            }
+            PresetPlace::Settings(store) => {
+                let mut section = store.read(PRESETS_SECTION).unwrap_or_default();
+                if self.table_mut(&mut section).remove(stored).is_none() {
+                    return Err(PresetFolderError::NotFound);
+                }
+                store.write(PRESETS_SECTION, section);
+                Ok(())
+            }
+        }
+    }
+
+    /// This kind's table in the section, if there is one.
+    fn kind_table(&self, store: &dyn SectionStore) -> Option<toml::Table> {
+        match store.read(PRESETS_SECTION)?.remove(&self.kind)? {
+            toml::Value::Table(t) => Some(t),
+            _ => None,
+        }
+    }
+
+    /// This kind's table in `section`, created (or replacing a non-table value) when missing.
+    #[expect(clippy::unreachable, reason = "the slot is made a table on the line before")]
+    fn table_mut<'a>(&self, section: &'a mut toml::Table) -> &'a mut toml::Table {
+        let slot = section.entry(self.kind.clone()).or_insert_with(|| toml::Value::Table(toml::Table::new()));
+        if !slot.is_table() {
+            *slot = toml::Value::Table(toml::Table::new());
+        }
+        match slot {
+            toml::Value::Table(t) => t,
+            _ => unreachable!("the slot was just made a table"),
+        }
+    }
+}
+
+/// The file extension of a preset file.
+#[cfg(not(target_arch = "wasm32"))]
+const EXTENSION: &str = "json";
+
+#[cfg(not(target_arch = "wasm32"))]
+fn entry_path(dir: &Path, name: &str) -> PathBuf {
+    dir.join(format!("{name}.{EXTENSION}"))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn unsupported() -> PresetFolderError {
+    PresetFolderError::Io(io::Error::new(io::ErrorKind::Unsupported, "no preset folder"))
+}
+
+/// `name` trimmed, or `BadName` when it can't be a file name on every platform.
+fn checked_name(name: &str) -> Result<String, PresetFolderError> {
+    let name = name.trim();
+    let reserved = |c: char| c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*');
+    let windows_device = {
+        let stem = name.split('.').next().unwrap_or_default().to_ascii_uppercase();
+        matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+            || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT")) && stem.ends_with(|c: char| c.is_ascii_digit()))
+    };
+    if name.is_empty()
+        || name.chars().count() > MAX_NAME_CHARS
+        || name.contains(reserved)
+        || name.ends_with('.')
+        || name.starts_with('.')
+        || windows_device
+    {
+        return Err(PresetFolderError::BadName);
+    }
+    Ok(name.to_owned())
 }
 
 #[cfg(test)]
 mod tests {
-    #![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+    use craft_host::MemorySections;
+    use serde::Deserialize;
+
+    use super::*;
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct Curve {
+        points: Vec<(u8, u8)>,
+    }
+
+    fn curve(n: u8) -> Curve {
+        Curve { points: vec![(0, 0), (n, n), (255, 255)] }
+    }
+
+    fn folder(dir: &Path) -> PresetFolder<Curve> {
+        PresetFolder::new(Some(dir), "curve")
+    }
+
+    fn settings() -> (Arc<MemorySections>, PresetFolder<Curve>) {
+        let store = Arc::new(MemorySections::default());
+        let presets = PresetFolder::in_settings(store.clone(), "curve");
+        (store, presets)
+    }
 
     // In a temp dir: save, list (sorted ignoring case), load, rename and delete.
     #[test]
-    #[ignore = "skeleton"]
     fn preset_folder_saves_lists_loads_deletes_and_renames() {
-        todo!()
+        let tmp = tempfile::tempdir().unwrap();
+        let presets = folder(tmp.path());
+        presets.save("b", &curve(1)).unwrap();
+        presets.save("A", &curve(2)).unwrap();
+        presets.save("c", &curve(3)).unwrap();
+        assert_eq!(presets.list(), ["A", "b", "c"]);
+        assert_eq!(presets.load("a").unwrap(), curve(2));
+        presets.rename("b", "D").unwrap();
+        assert_eq!(presets.list(), ["A", "c", "D"]);
+        assert!(matches!(presets.rename("c", "a"), Err(PresetFolderError::BadName)));
+        presets.rename("c", "C").unwrap();
+        presets.delete("a").unwrap();
+        assert_eq!(presets.list(), ["C", "D"]);
+        assert!(matches!(presets.load("a"), Err(PresetFolderError::NotFound)));
+        assert!(matches!(presets.save("a/b", &curve(1)), Err(PresetFolderError::BadName)));
     }
 
     // Saving "x" after "X" leaves one file, named "x".
     #[test]
-    #[ignore = "skeleton"]
     fn preset_folder_replaces_a_name_that_differs_only_in_case() {
-        todo!()
+        let tmp = tempfile::tempdir().unwrap();
+        let presets = folder(tmp.path());
+        presets.save("X", &curve(1)).unwrap();
+        presets.save("x", &curve(2)).unwrap();
+        assert_eq!(presets.list(), ["x"]);
+        assert_eq!(presets.load("X").unwrap(), curve(2));
+        assert_eq!(std::fs::read_dir(presets.dir().unwrap()).unwrap().count(), 1);
     }
 
     // Importing "X.json" twice gives "X" and "X 2"; bytes with another `format` are `ForeignFormat`.
     #[test]
-    #[ignore = "skeleton"]
     fn preset_folder_import_numbers_a_taken_name_and_refuses_a_foreign_format() {
-        todo!()
+        let tmp = tempfile::tempdir().unwrap();
+        let presets = folder(tmp.path());
+        let bytes = presets.to_bytes(&curve(5)).unwrap();
+        assert_eq!(presets.import("X.json", &bytes).unwrap(), "X");
+        assert_eq!(presets.import("X.json", &bytes).unwrap(), "X 2");
+        assert_eq!(presets.load("X 2").unwrap(), curve(5));
+        let foreign = br#"{"format":"plugin","version":1,"points":[]}"#;
+        assert!(matches!(presets.import("Y.json", foreign), Err(PresetFolderError::ForeignFormat { found }) if found == "plugin"));
     }
 
     // A file of garbage and one over 1 MiB are left out of `list` and stay on disk.
     #[test]
-    #[ignore = "skeleton"]
     fn preset_folder_skips_a_corrupt_or_oversized_file() {
-        todo!()
+        let tmp = tempfile::tempdir().unwrap();
+        let presets = folder(tmp.path());
+        presets.save("good", &curve(1)).unwrap();
+        let dir = presets.dir().unwrap();
+        std::fs::write(dir.join("bad.json"), b"not json").unwrap();
+        let mut big = br#"{"format":"curve","version":1,"points":[],"pad":""#.to_vec();
+        big.extend(std::iter::repeat_n(b'x', MAX_FILE_BYTES as usize));
+        big.extend(br#""}"#);
+        std::fs::write(dir.join("big.json"), big).unwrap();
+        assert_eq!(presets.list(), ["good"]);
+        assert!(dir.join("bad.json").exists() && dir.join("big.json").exists());
     }
 
     // `new(None, ..)`: `list` is empty and `save` is `Io` with `ErrorKind::Unsupported`.
     #[test]
-    #[ignore = "skeleton"]
     fn preset_folder_without_a_folder_keeps_nothing() {
-        todo!()
+        let presets = PresetFolder::<Curve>::new(None, "curve");
+        assert!(presets.list().is_empty());
+        assert!(matches!(presets.save("x", &curve(1)), Err(PresetFolderError::Io(e)) if e.kind() == io::ErrorKind::Unsupported));
     }
 
     // `in_settings` over a `MemorySections`: save, list, load, rename and delete; the section's
     // `curve` table holds each name with its file text, and another kind's table is untouched.
     #[test]
-    #[ignore = "skeleton"]
     fn presets_in_settings_live_in_the_kinds_table_of_the_section() {
-        todo!()
+        let (store, presets) = settings();
+        let other = PresetFolder::<Curve>::in_settings(store.clone(), "other");
+        other.save("keep", &curve(9)).unwrap();
+        presets.save("b", &curve(1)).unwrap();
+        presets.save("A", &curve(2)).unwrap();
+        assert_eq!(presets.list(), ["A", "b"]);
+        assert_eq!(presets.load("a").unwrap(), curve(2));
+        presets.save("a", &curve(3)).unwrap();
+        presets.rename("b", "C").unwrap();
+        assert_eq!(presets.list(), ["a", "C"]);
+        let section = store.read(PRESETS_SECTION).unwrap();
+        let table = section["curve"].as_table().unwrap();
+        assert_eq!(table.len(), 2);
+        assert_eq!(table["a"].as_str().unwrap().as_bytes(), presets.to_bytes(&curve(3)).unwrap());
+        assert_eq!(other.list(), ["keep"]);
+        presets.delete("A").unwrap();
+        assert_eq!(presets.list(), ["C"]);
+        assert!(matches!(presets.delete("A"), Err(PresetFolderError::NotFound)));
+        assert!(presets.dir().is_none());
     }
 
     // A preset saved in settings exports bytes that a folder imports and loads equal, and back.
     #[test]
-    #[ignore = "skeleton"]
     fn a_preset_moves_between_settings_and_a_folder_unchanged() {
-        todo!()
+        let tmp = tempfile::tempdir().unwrap();
+        let files = folder(tmp.path());
+        let (_store, presets) = settings();
+        presets.save("Strong Contrast", &curve(64)).unwrap();
+        let bytes = presets.export("Strong Contrast").unwrap();
+        assert_eq!(files.import("Strong Contrast.json", &bytes).unwrap(), "Strong Contrast");
+        assert_eq!(files.load("Strong Contrast").unwrap(), curve(64));
+        assert_eq!(files.export("Strong Contrast").unwrap(), bytes);
+        let back = files.export("Strong Contrast").unwrap();
+        let (_s2, other) = settings();
+        assert_eq!(other.import("Strong Contrast.json", &back).unwrap(), "Strong Contrast");
+        assert_eq!(other.load("Strong Contrast").unwrap(), curve(64));
     }
 }
