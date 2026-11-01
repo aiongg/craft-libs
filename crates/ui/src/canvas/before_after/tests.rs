@@ -1,4 +1,5 @@
 //! Tests of the before and after view (task K14).
+#![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
 use egui::accesskit::Role;
 use egui::{Event, Key, KeyboardShortcut, Modifiers, PointerButton, Rect, pos2, vec2};
