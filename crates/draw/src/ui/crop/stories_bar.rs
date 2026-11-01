@@ -230,7 +230,7 @@ fn show_overlay_menu(ui: &mut Ui, args: &mut OverlayArgs) {
     ui.horizontal(|ui| {
         CropOverlayMenu::new("crop-overlay-story", &mut state.settings).labels(&labels).show(ui);
         let settings = &state.settings;
-        status(ui, format!("{} · {:?} · orientation {}", settings.guide.name(), settings.guide_show, settings.guide_orientation));
+        status(ui, format!("{} · {} · orientation {}", settings.guide.name(), settings.guide_show.name(), settings.guide_orientation));
     });
     ui.data_mut(|d| d.insert_temp(key, state));
 }
