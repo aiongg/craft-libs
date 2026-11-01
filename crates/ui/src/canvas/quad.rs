@@ -176,6 +176,17 @@ impl Default for BoxRules {
 }
 
 impl BoxRules {
+    /// The rules of a box that only resizes and moves: a selection frame (CadCraft's and GridCraft's
+    /// rectangle selections, the select family's `SelectionFrame`). `mode` [`TransformMode::Free`],
+    /// `scale` [`ScaleRule::Free`] (corners stretch, ⇧ keeps the proportions, edges stretch their
+    /// one axis, as VectorCraft and DesignCraft), `aspect_linked` true, `allow` everything off (no
+    /// rotate, skew or distort: the outside and ⌘-drags only scale), `rotate_step` 15.
+    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+    pub fn resize_only() -> BoxRules {
+        // new: step7-select lead call 24 (rotation of a selection frame is the Free Transform's).
+        todo!()
+    }
+
     /// The mode drags follow: a mode the content refuses scales as Free Transform does.
     pub fn effective_mode(&self) -> TransformMode {
         let refused = match self.mode {
@@ -469,6 +480,8 @@ const HYSTERESIS_DEG: f64 = 8.0;
 
 /// `d` locked to the nearest of `n` evenly spaced directions (0° = right), keeping `prev`'s
 /// direction until `d` is clearly nearer another.
+// K2: delete this copy and its two constants; `drag` calls
+// `crate::behavior::move_gesture::lock_direction(d, Some(g.last), Directions::Eight)`.
 fn constrain(d: Vec2, prev: Option<Vec2>, n: u32) -> Vec2 {
     let len = d.hypot();
     if n == 0 || !len.is_finite() || len == 0.0 {

@@ -58,12 +58,23 @@ pub struct CursorOptions {
     pub other_precise: bool,
     /// Caps Lock swaps a painting cursor for the precise one (Photoshop; PhotoCraft has it).
     pub caps_lock_precise: bool,
+    /// Show Only Crosshair While Painting: during a stroke a brush outline gives way to the
+    /// precise crosshair ([`BrushCursor::painting`](super::brush::BrushCursor::painting)).
+    /// Photoshop's preference; PhotoCraft has it. Off by default.
+    pub show_only_crosshair_while_painting: bool,
 }
 
 impl Default for CursorOptions {
-    /// Photoshop's defaults: Normal Brush Tip, no crosshair, standard other cursors, Caps Lock on.
+    /// Photoshop's defaults: Normal Brush Tip, no crosshair, standard other cursors, Caps Lock on,
+    /// the outline also while painting.
     fn default() -> Self {
-        Self { painting: PaintingCursor::NormalBrushTip, crosshair_in_brush_tip: false, other_precise: false, caps_lock_precise: true }
+        Self {
+            painting: PaintingCursor::NormalBrushTip,
+            crosshair_in_brush_tip: false,
+            other_precise: false,
+            caps_lock_precise: true,
+            show_only_crosshair_while_painting: false,
+        }
     }
 }
 

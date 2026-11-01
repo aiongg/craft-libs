@@ -131,6 +131,31 @@ impl Claim {
     }
 }
 
+/// The context's one click run: the count, time and screen point of the last press counted. The
+/// tool host's [`ToolPointer::clicks`](super::ToolPointer::clicks) and
+/// [`PrimaryPress::clicks`] both read it, so a double click counts the same for a tool and an
+/// overlay.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[expect(dead_code, reason = "skeleton: removed when the bodies land")]
+struct ClickRun {
+    count: u32,
+    time: f64,
+    at: Pos2,
+}
+
+/// The place of a press at `time` (egui input time) and `at` (screen) in the context's one click
+/// run, stored in egui temp memory under one id for the context: the same press asked again (same
+/// time and point) gets the count it got; a press later than the last counted one by less than
+/// egui's `InputOptions::max_double_click_delay` and nearer than `max_click_dist` continues the
+/// run (`count + 1`, saturating); any other press starts a new run of 1. A press nobody asks about
+/// is not counted. The tool host counts its presses here too (task K4 replaces its own
+/// `HostState::clicks` with this), injected presses at their screen point.
+#[expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+pub(crate) fn click_count(ctx: &Context, time: f64, at: Pos2) -> u32 {
+    // new: the rule of `tool_host.rs:675` `Run::press_clicks`, moved to one counter (step7-pen lead call 30).
+    todo!()
+}
+
 /// The buttons other than the primary one.
 const OTHER_BUTTONS: [PointerButton; 4] = [PointerButton::Secondary, PointerButton::Middle, PointerButton::Extra1, PointerButton::Extra2];
 
@@ -169,6 +194,17 @@ impl PrimaryPress {
                 Some(PrimaryPress { origin: p.press_origin()?, time: p.press_start_time()? })
             })
         })
+    }
+
+    /// How many presses make up the click run this press belongs to: 1 for a lone press, 2 for a
+    /// second press within egui's double-click delay and click distance of the first, and so on.
+    /// The count the tool host gives the same press in [`ToolPointer::clicks`](super::ToolPointer::clicks),
+    /// from one counter (`click_count` with the press's time and origin). The pen's Curvature
+    /// mode reads it for its double click; nothing else changes egui's own double-click state.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+    pub fn clicks(self, ctx: &Context) -> u32 {
+        // new: step7-pen lead call 30; `click_count(ctx, self.time, self.origin)`.
+        todo!()
     }
 
     /// The queue key of `overlay`'s input for this press: a later press of the same overlay never

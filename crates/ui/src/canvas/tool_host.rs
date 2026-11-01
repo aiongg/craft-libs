@@ -23,6 +23,12 @@
 //!    the [`CursorHost`](super::CursorHost) (the OS pointer, a bitmap, or the painted tool icon
 //!    with its badge).
 //!
+//! A tool made of parts (a crop frame's corners and edges, a ruler's ends, a symmetry centre)
+//! returns them from [`CanvasTool::parts`]; the host makes them one Tab stop with
+//! [`PartFocus`](super::PartFocus), passes Page Up and Down picks back through
+//! [`CanvasTool::pick`], gives the tool the keys while that stop has the focus, and draws the focus
+//! ring round the picked part. Tools without parts (the default) get no Tab stop of their own.
+//!
 //! A momentary tool (Space for the Hand, see [`MomentaryKeys`](super::MomentaryKeys)) is the
 //! app's: it passes the temporary tool to `show` instead of the selected one; a drag in progress
 //! keeps the tool it started with until it ends. An app that switches tools calls
@@ -44,6 +50,7 @@ use super::canvas_id::CanvasId;
 use super::claim::Claim;
 use super::cursor::{CursorHost, ToolCursor};
 use super::navigate::{Autoscroll, FlickPan, NavigationOptions};
+use super::part_focus::{Part, PartFocus};
 use super::pointer::{PenInput, PenSample};
 use super::snap::{SNAP_PX, SnapGesture, SnapTargets};
 use super::view::CanvasView;
@@ -104,6 +111,31 @@ pub struct ToolKey {
     pub pressed: bool,
     /// The key is a repeat of a held press.
     pub repeat: bool,
+}
+
+/// A tool's keyboard parts for one pass ([`CanvasTool::parts`]): the group the host makes one Tab
+/// stop, as [`PartFocus`] names it for AccessKit.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ToolParts {
+    /// The group's accessible name, e.g. "Crop frame", "Ruler" (the tool's words).
+    pub group: String,
+    /// The group's value for a screen reader, e.g. "1200 × 800, 40, 25, 0°".
+    pub value: Option<String>,
+    /// The parts in keyboard order (Page Down goes forward), with their screen rects this pass.
+    pub parts: Vec<Part>,
+}
+
+impl ToolParts {
+    /// A group named `group` with `parts`, no value.
+    pub fn new(group: impl Into<String>, parts: Vec<Part>) -> Self {
+        Self { group: group.into(), value: None, parts }
+    }
+
+    /// The group's value for a screen reader.
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
 }
 
 /// The phase of the tool's pointer gesture this pass.
@@ -278,6 +310,36 @@ pub trait CanvasTool {
     fn button(&self) -> PointerButton {
         PointerButton::Primary
     }
+
+    /// The button a press with `modifiers` held starts a gesture with: a brush takes the
+    /// secondary button while Alt is held (the resize chord Alt + right-drag) and the primary
+    /// otherwise. The host asks at each press with no gesture running; a gesture keeps the button
+    /// it began with until that button comes up, whatever happens to the keys meanwhile.
+    /// Default: [`button`](Self::button), so a tool that doesn't override it never changes.
+    fn button_for(&self, _modifiers: Modifiers) -> PointerButton {
+        self.button()
+    }
+
+    /// The tool's keyboard parts this pass, or `None` (the default) for a tool without parts.
+    /// With parts the host makes the group one Tab stop ([`PartFocus`]), puts each part in the
+    /// AccessKit tree, and lets Page Up, Page Down, Home and End pick a part
+    /// ([`pick`](Self::pick)); the keys the tool reads through [`key`](Self::key) (arrows,
+    /// Delete, Enter) act on [`picked`](Self::picked). Called once per pass after
+    /// [`each_pass`](Self::each_pass), with `cx.pointer` unset.
+    fn parts(&self, _cx: &ToolContext<'_>) -> Option<ToolParts> {
+        None
+    }
+
+    /// The part the tool's keys act on, by [`Part::key`]. Default: none.
+    fn picked(&self) -> Option<u64> {
+        None
+    }
+
+    /// The host picked another part: Page Up or Down, Home or End while the group has the
+    /// keyboard, the first part when the group gains focus from the keyboard with none picked, or
+    /// `None` when the picked part is no longer among the parts. A press the tool claims on a part
+    /// also gives the group focus; the tool picks that part itself. Default: nothing.
+    fn pick(&mut self, _key: Option<u64>, _cx: &mut ToolContext<'_>) {}
 }
 
 /// A pointer event from automation (PhotoCraft's `ui.pointer`), queued with
@@ -310,6 +372,8 @@ struct HostState {
     /// The view of the last pass, for [`ToolHost::cancel`] outside a pass.
     view: Option<CanvasView>,
     /// The latest press of the click run: its count, time and screen point.
+    // K4: goes, with `Run::press_clicks` counting through `claim::click_count` (one counter with
+    // `PrimaryPress::clicks`, task K8).
     clicks: Option<(u32, f64, Pos2)>,
     /// Autoscroll's accumulated screen points while the view cannot move yet.
     scroll_carry: egui::Vec2,
@@ -439,11 +503,12 @@ impl<'a> ToolHost<'a> {
             autoscroll: self.autoscroll,
             navigation: self.navigation,
             ctx: ctx.clone(),
+            parts: None,
         };
         run.pass.time = ctx.input(|i| i.time);
         run.pass.dt = ctx.input(|i| i.unstable_dt);
         run.pass.modifiers = ctx.input(|i| i.modifiers);
-        run.step(self.enabled, self.keys);
+        run.step(ui, self.enabled, self.keys);
         run.finish(ui)
     }
 
@@ -644,6 +709,18 @@ struct Run<'r, 'p> {
     autoscroll: bool,
     navigation: Option<NavigationOptions>,
     ctx: Context,
+    /// The tool's parts group this pass, when it has parts.
+    parts: Option<PartsPass>,
+}
+
+/// What the host's [`PartFocus`] group did this pass.
+#[derive(Clone, Copy, Debug, Default)]
+struct PartsPass {
+    /// The group has keyboard focus: keys go to the tool as when the canvas has it.
+    focused: bool,
+    /// The picked part's screen rect, while the focus came from the keyboard: the host draws
+    /// [`PartFocus::ring`] round it after the tool paints.
+    ring: Option<egui::Rect>,
 }
 
 impl Run<'_, '_> {
@@ -672,6 +749,8 @@ impl Run<'_, '_> {
 
     /// `press` with its place in the click run: it continues the last press's run when it comes
     /// soon and near enough (egui's double-click delay and distance), else it starts a new one.
+    // K4: count through `super::claim::click_count(&self.ctx, press.time, press.screen)` and drop
+    // `HostState::clicks`, so overlays and the host share one run.
     fn press_clicks(&mut self, press: ToolPointer) -> ToolPointer {
         let (delay, distance) = self.ctx.options(|o| (o.input_options.max_double_click_delay, o.input_options.max_click_dist));
         let count = match self.state.clicks {
@@ -763,10 +842,33 @@ impl Run<'_, '_> {
         }
     }
 
-    fn step(&mut self, enabled: bool, keys: bool) {
+    /// The tool's parts this pass, made one Tab stop: `None` for a tool without parts (no group,
+    /// no Tab stop, nothing else changes).
+    fn parts_focus(&mut self, ui: &mut Ui, enabled: bool) -> Option<PartsPass> {
+        let tool = &*self.tool;
+        let parts = tool.parts(&self.pass.context(None))?;
+        Some(self.show_parts(ui, parts, enabled))
+    }
+
+    /// Shows `parts` as one [`PartFocus`] group over the canvas under the tool's claim id
+    /// ([`tool_claim_id`], so a claimed press released on a part gives the group focus), named
+    /// `parts.group` with `parts.value`, picked [`CanvasTool::picked`], focusable while `enabled`.
+    /// A `pick` in the response goes to [`CanvasTool::pick`] (a [`call`](Self::call), so its
+    /// requests apply). Returns whether the group has focus and, while
+    /// [`keyboard`](super::PartFocusResponse::keyboard), the rect of the part picked after the
+    /// pick.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+    fn show_parts(&mut self, ui: &mut Ui, parts: ToolParts, enabled: bool) -> PartsPass {
+        // new: tools lead call 33; `PartFocus::new(id, group).parts(&parts).picked(..).value(..)
+        // .focusable(enabled).show(ui, canvas)` as the overlays call it (`part_focus.rs:113`).
+        todo!()
+    }
+
+    fn step(&mut self, ui: &mut Ui, enabled: bool, keys: bool) {
         let ctx = self.ctx.clone();
         let canvas = self.pass.canvas;
         let claim = tool_claim_id(self.resp.id.id());
+        // K4: the button of a gesture running, else `button_for` the modifiers (`gesture_button`).
         let button = self.tool.button();
         let (pos, origin, pressed, down, released, key_events) = ctx.input(|i| {
             let key_events: Vec<ToolKey> = i
@@ -797,6 +899,7 @@ impl Run<'_, '_> {
         }
         self.call(None, |tool, cx| tool.each_pass(cx));
         self.glide();
+        self.parts = self.parts_focus(ui, enabled);
 
         // A press that waited for another control's typing run.
         let waited = self.state.waiting.is_some();
@@ -863,7 +966,8 @@ impl Run<'_, '_> {
 
         // Keys. Esc ends a gesture whoever has the keyboard; other keys need the canvas to have it.
         let mut took = None;
-        let keyboard = enabled && keys && canvas.has_focus() && !ctx.text_edit_focused();
+        let parts_focused = self.parts.is_some_and(|p| p.focused);
+        let keyboard = enabled && keys && (canvas.has_focus() || parts_focused) && !ctx.text_edit_focused();
         if keyboard {
             // egui drops the focus on Esc and moves it on the arrows unless the widget asks for them.
             let filter = egui::EventFilter { escape: true, horizontal_arrows: true, vertical_arrows: true, ..egui::EventFilter::default() };
@@ -894,6 +998,7 @@ impl Run<'_, '_> {
     }
 
     fn injected(&mut self, input: ToolInput, enabled: bool) {
+        // K4: as in `step`, through `gesture_button`.
         let button = self.tool.button();
         let own = self.state.gesture.is_none_or(|g| g.injected);
         match input {
@@ -932,6 +1037,9 @@ impl Run<'_, '_> {
 
         let painter = ui.painter_at(canvas.rect);
         self.tool.paint(&painter, &self.pass.context(pointer));
+        if let Some(rect) = self.parts.and_then(|p| p.ring) {
+            PartFocus::ring(&painter, rect);
+        }
         if let Some(readout) = self.pass.readout.take()
             && let Some(p) = pointer
         {
@@ -959,6 +1067,16 @@ impl Run<'_, '_> {
         ctx.data_mut(|d| d.insert_temp(id, self.state));
         self.resp
     }
+}
+
+/// The button the host reads this pass: the button of `gesture` when one runs (a gesture keeps
+/// the button it began with, so releasing Alt mid-resize doesn't strand it), else
+/// `tool.button_for(modifiers)` for the next press. Automation's injected presses use it too.
+#[expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn gesture_button(gesture: Option<&Active>, tool: &dyn CanvasTool, modifiers: Modifiers) -> PointerButton {
+    // new: step7-brush lead call 3 (`CanvasTool::button_for`); PhotoCraft arms the Alt+right
+    // resize at the press (`tools/brush_resize.rs:71` `pointer`, `armed`).
+    todo!()
 }
 
 /// How [`ToolHost::sample`] snaps: the gesture kind, the targets and the tolerance in document
