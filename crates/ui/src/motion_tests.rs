@@ -136,3 +136,19 @@ fn no_glide_between_places_or_with_animate_off() {
     assert_eq!(glide.frame(still), cell(500.0, 300.0));
     assert!(!glide.is_gliding());
 }
+
+// `OutlineGlide::with_secs`: the glide takes the given time, and none at 0.
+#[test]
+fn the_outline_glide_takes_the_time_it_is_given() {
+    let wide = Rect::from_min_max(pos2(100.0, 100.0), pos2(292.0, 116.0));
+    let mut quick = OutlineGlide::with_secs(0.0);
+    quick.frame(outline(1, cell(100.0, 100.0), 10.0, 1));
+    assert_eq!(quick.frame(outline(2, wide, 10.1, 2)), wide);
+    assert!(!quick.is_gliding());
+
+    let mut slow = OutlineGlide::with_secs(1.0);
+    slow.frame(outline(1, cell(100.0, 100.0), 10.0, 1));
+    slow.frame(outline(2, wide, 10.1, 2));
+    assert!(slow.frame(outline(2, wide, 10.1 + 0.5, 3)) != wide);
+    assert!(slow.is_gliding());
+}

@@ -2,12 +2,12 @@
 //! resets it on a click.
 
 use egui::accesskit::Role;
-use egui::{AsIdSalt, CornerRadius, IdSalt, Response, Sense, Ui, vec2};
+use egui::{AsIdSalt, IdSalt, Response, Sense, Ui, vec2};
 
 use super::TooltipExt as _;
 use crate::localized::Labels as _;
 use crate::primitives::Interactive;
-use crate::theme::{ToEgui, Tokens, TokensOf as _};
+use crate::theme::{ToEgui, Tokens, TokensOf as _, corner_radius};
 
 crate::words! {
     /// The dot's words, English by default (VectorCraft's).
@@ -62,31 +62,28 @@ impl ResetDot {
     pub fn show(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let labels = self.labels.unwrap_or_else(|| ResetDotLabels::of(ui));
+        let dot = &tokens.component.reset_dot;
+        let corner = corner_radius(dot.corner);
         let enabled = self.changed && ui.is_enabled();
         let response = Interactive::salted(self.id_salt, Role::Button, labels.reset.as_str())
             .sense(Sense::click())
             .enabled(enabled)
             .state_layer(false)
-            .corner_radius(CornerRadius::same(CORNER))
-            .show(ui, vec2(SIZE, SIZE));
+            .corner_radius(corner)
+            .show(ui, vec2(dot.size, dot.size));
         if ui.is_rect_visible(response.rect) {
             let center = response.rect.center();
             let disabled = tokens.color.text.disabled.to_egui();
             if enabled && response.hovered() {
-                ui.painter().rect_filled(response.rect, CornerRadius::same(CORNER), tokens.color.state.hover.to_egui());
+                ui.painter().rect_filled(response.rect, corner, tokens.color.state.hover.to_egui());
             }
             if self.changed {
                 let fill = if ui.is_enabled() { tokens.color.accent.solid.to_egui() } else { disabled };
-                ui.painter().circle_filled(center, RADIUS, fill);
+                ui.painter().circle_filled(center, dot.radius, fill);
             } else {
-                ui.painter().circle_stroke(center, RADIUS, egui::Stroke::new(1.0, disabled));
+                ui.painter().circle_stroke(center, dot.radius, egui::Stroke::new(1.0, disabled));
             }
         }
         if self.changed { response.tooltip(labels.reset_to.replace("{default}", &self.default)) } else { response }
     }
 }
-
-/// The dot's square (`reset_dot.size` once the tokens land), its dot and its hover corners.
-const SIZE: f32 = 24.0;
-const RADIUS: f32 = 3.0;
-const CORNER: u8 = 3;

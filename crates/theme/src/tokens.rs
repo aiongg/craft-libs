@@ -973,6 +973,10 @@ pub struct MotionTokens {
     pub open: Motion,
     /// Elements moving within the screen.
     pub r#move: Motion,
+    /// A text caret gliding to its new place (`motion.caret`).
+    pub caret: Motion,
+    /// A selection outline gliding to its new cells (`motion.outline`).
+    pub outline: Motion,
     /// The appearance asks for reduced motion: every duration above is zero.
     pub reduced: bool,
 }

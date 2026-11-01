@@ -24,23 +24,6 @@ use crate::theme::{ToEgui as _, corner_radius};
 /// [`COUNTS`](crate::localized::words::COUNTS).
 const COUNT: Counted = Counted::new("drag.count", "{n} item", "{n} items");
 
-/// Where the badge sits from the pointer (LightCraft's `pos + vec2(14, 10)`).
-const BADGE_OFFSET: egui::Vec2 = vec2(14.0, 10.0);
-/// The badge's padding.
-const BADGE_PAD: Margin = Margin::symmetric(9, 3);
-/// The veil's frame: its distance from the window edge, corner radius and stroke width.
-const VEIL_FRAME_INSET: f32 = 10.0;
-const VEIL_FRAME_RADIUS: f32 = 12.0;
-const VEIL_FRAME_STROKE: f32 = 2.0;
-/// The veil's card: corner radius, space between lines, top and side padding.
-const CARD_RADIUS: f32 = 10.0;
-const CARD_GAP: f32 = 8.0;
-const CARD_PAD_Y: f32 = 24.0;
-const CARD_PAD_X: f32 = 32.0;
-/// The lines wrap at the window's width less this, at least [`MIN_WRAP`].
-const WRAP_MARGIN: f32 = 120.0;
-const MIN_WRAP: f32 = 200.0;
-
 fn hint_id() -> Id {
     Id::NULL.with("craft_ui::behavior::drag_feedback::hint")
 }
@@ -117,20 +100,22 @@ impl<'a> DragBadge<'a> {
         });
         let tokens = crate::theme::current(ctx);
         let (fill, ink) = (tokens.color.accent.solid.to_egui(), tokens.color.text.on_accent.to_egui());
+        let drag = &tokens.component.drag;
+        let pad = vec2(drag.badge_pad_x, drag.badge_pad_y);
         let font = tokens.font(TypeRole::BodyStrong);
         let rtl = direction::is_rtl(ctx);
         let (pivot, at) = if rtl {
-            (egui::Align2::RIGHT_TOP, pointer + vec2(-BADGE_OFFSET.x, BADGE_OFFSET.y))
+            (egui::Align2::RIGHT_TOP, pointer + vec2(-drag.badge_offset_x, drag.badge_offset_y))
         } else {
-            (egui::Align2::LEFT_TOP, pointer + BADGE_OFFSET)
+            (egui::Align2::LEFT_TOP, pointer + vec2(drag.badge_offset_x, drag.badge_offset_y))
         };
         ctx.set_cursor_icon(CursorIcon::Grabbing);
         Area::new(layer_id("badge", id_salt)).order(Order::Tooltip).interactable(false).pivot(pivot).fixed_pos(at).show(ctx, |ui| {
             let galley = ui.painter().layout_no_wrap(text.clone(), font, ink);
-            let size = galley.size() + BADGE_PAD.sum();
+            let size = galley.size() + 2.0 * pad;
             let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
             ui.painter().rect_filled(rect, corner_radius(tokens.shape.radius.pill.min(size.y / 2.0)), fill);
-            ui.painter().galley(rect.min + vec2(f32::from(BADGE_PAD.left), f32::from(BADGE_PAD.top)), galley, ink);
+            ui.painter().galley(rect.min + pad, galley, ink);
             response.widget_info(|| WidgetInfo::labeled(Role::Label, true, &text));
         });
         ctx.request_repaint();
@@ -221,26 +206,27 @@ impl<'a> DropVeil<'a> {
         // The scrim and its frame go on the layer first, under the card the area adds.
         let painter = ctx.layer_painter(LayerId::new(Order::Tooltip, id));
         painter.rect_filled(screen, 0.0, c.surface.scrim.to_egui());
-        painter.rect_stroke(screen.shrink(VEIL_FRAME_INSET), VEIL_FRAME_RADIUS, Stroke::new(VEIL_FRAME_STROKE, accent), StrokeKind::Inside);
-        let wrap = (screen.width() - WRAP_MARGIN).max(MIN_WRAP);
+        let veil = &tokens.component.drop_veil;
+        painter.rect_stroke(screen.shrink(veil.inset), veil.frame_radius, Stroke::new(veil.frame_width, accent), StrokeKind::Inside);
+        let wrap = (screen.width() - veil.wrap_margin).max(veil.min_wrap);
         let font = tokens.font(TypeRole::Title);
         let galleys: Vec<_> = lines.iter().map(|line| painter.layout(line.clone(), font.clone(), ink, wrap)).collect();
         let width = galleys.iter().fold(0.0f32, |w, g| w.max(g.size().x));
-        let height = galleys.iter().map(|g| g.size().y).sum::<f32>() + CARD_GAP * galleys.len().saturating_sub(1) as f32;
-        let margin = Margin::symmetric(CARD_PAD_X as i8, CARD_PAD_Y as i8);
+        let height = galleys.iter().map(|g| g.size().y).sum::<f32>() + veil.card_gap * galleys.len().saturating_sub(1) as f32;
+        let margin = Margin::symmetric(veil.card_pad_x as i8, veil.card_pad_y as i8);
         Area::new(id).order(Order::Tooltip).interactable(false).pivot(egui::Align2::CENTER_CENTER).fixed_pos(screen.center()).show(ctx, |ui| {
             let live_id = id.with("live");
             region(ui, live_id, Role::Alert, Politeness::Polite, |ui, labels| {
                 for line in lines {
                     labels.add(line.clone());
                 }
-                Frame::NONE.fill(raised).stroke(Stroke::new(1.0, accent)).corner_radius(CARD_RADIUS).inner_margin(margin).show(ui, |ui| {
+                Frame::NONE.fill(raised).stroke(Stroke::new(1.0, accent)).corner_radius(veil.card_radius).inner_margin(margin).show(ui, |ui| {
                     let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
                     let mut y = rect.top();
                     for galley in galleys {
                         let size = galley.size();
                         ui.painter().galley(pos2(rect.center().x - size.x / 2.0, y), galley, ink);
-                        y += size.y + CARD_GAP;
+                        y += size.y + veil.card_gap;
                     }
                 });
             });

@@ -16,11 +16,6 @@ use crate::localized::Labels as _;
 use crate::primitives::Interactive;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
-/// A cell's side, the gap between cells and the item's inset in its cell: DeckCraft's
-/// `icon_cell` and PhotoCraft's preset panels; tokens `icon_picker.cell`, `.gap` and `.inset`.
-const CELL: f32 = 36.0;
-const GAP: f32 = 3.0;
-const INSET: f32 = 6.0;
 /// The corners of a hovered cell (DeckCraft's `CornerRadius::same(4)`).
 const CELL_RADIUS: u8 = 4;
 
@@ -140,7 +135,11 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
         let search_id = Interactive::id_in(ui, search_salt);
         let enabled = ui.is_enabled();
         let rtl = direction::is_rtl(ui);
-        let columns = GridNav::columns(ui.available_width() - ui.spacing().scroll.allocated_width(), 0.0, GAP, CELL);
+        let (cell, gap, inset) = {
+            let picker = &tokens.component.icon_picker;
+            (picker.cell, picker.gap, picker.inset)
+        };
+        let columns = GridNav::columns(ui.available_width() - ui.spacing().scroll.allocated_width(), 0.0, gap, cell);
 
         let first = load_kept::<()>(ui, id.with("kept")).is_none();
         store_kept(ui, id.with("kept"), ());
@@ -228,7 +227,7 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
         } else {
             grid.add_space(ui.spacing().item_spacing.y);
             ScrollArea::vertical().id_salt((id_salt, "scroll")).max_height(max_height).auto_shrink([false, true]).show(&mut grid, |ui| {
-                ui.spacing_mut().item_spacing.y = GAP;
+                ui.spacing_mut().item_spacing.y = gap;
                 let forward = direction::forward(ui);
                 let mut at = 0;
                 for group in &shown {
@@ -236,11 +235,11 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
                         RichText::new(group.name).font(tokens.font(craft_theme::TypeRole::Caption)).color(tokens.color.text.muted.to_egui());
                     ui.label(heading);
                     for row in rows_of(group.items.len(), columns) {
-                        let (_, strip) = ui.allocate_space(vec2(columns as f32 * (CELL + GAP) - GAP, CELL));
+                        let (_, strip) = ui.allocate_space(vec2(columns as f32 * (cell + gap) - gap, cell));
                         for (column, item) in group.items[row].iter().enumerate() {
-                            let x = direction::start_x(ui, strip) + forward * column as f32 * (CELL + GAP);
+                            let x = direction::start_x(ui, strip) + forward * column as f32 * (cell + gap);
                             let rect =
-                                Rect::from_min_max(pos2(x.min(x + forward * CELL), strip.top()), pos2(x.max(x + forward * CELL), strip.bottom()));
+                                Rect::from_min_max(pos2(x.min(x + forward * cell), strip.top()), pos2(x.max(x + forward * cell), strip.bottom()));
                             let cell_id = ids[at];
                             let mut cell = Interactive::with_id(cell_id, Role::GridCell, item.label.as_str())
                                 .corner_radius(CornerRadius::same(CELL_RADIUS))
@@ -255,7 +254,7 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
                                     ui.painter().rect_filled(rect, CornerRadius::same(CELL_RADIUS), tokens.color.state.hover.to_egui());
                                 }
                                 let color = if enabled { tokens.color.text.normal } else { tokens.color.text.disabled }.to_egui();
-                                paint(&ui.painter().with_clip_rect(rect), rect.shrink(INSET), &item.key, color);
+                                paint(&ui.painter().with_clip_rect(rect), rect.shrink(inset), &item.key, color);
                             }
                             if moved && at == stop {
                                 response.scroll_to_me(None);

@@ -15,19 +15,28 @@
 
 use egui::{Context, Pos2, Rect, pos2};
 
-/// How long a caret's glide, and each fade of its blink, takes: 100 ms (WordCraft, measured from
-/// Word for Windows 16.0 at 144 Hz).
+/// How long a caret's glide, and each fade of its blink, takes when the host gives no time: 100 ms
+/// (WordCraft, measured from Word for Windows 16.0 at 144 Hz), the default of the `motion.caret`
+/// token. Hosts build their glide with `CaretGlide::with_secs(motion_secs(tokens.motion.caret))`.
 pub const CARET_GLIDE_SECS: f64 = 0.10;
 /// A resting caret is on for this long, then off for as long: 530 ms (Word's, and the Windows
 /// default).
 pub const CARET_BLINK_SECS: f64 = 0.53;
-/// How long an outline's glide takes: 120 ms (GridCraft's estimate of Excel's cell cursor).
+/// How long an outline's glide takes when the host gives no time: 120 ms (GridCraft's estimate of
+/// Excel's cell cursor), the default of the `motion.outline` token. Hosts build their glide with
+/// `OutlineGlide::with_secs(motion_secs(tokens.motion.outline))`.
 pub const OUTLINE_GLIDE_SECS: f64 = 0.12;
 /// Moves shorter than this (points) don't glide.
 pub const MIN_MOVE: f32 = 0.5;
 /// How far outside the view a glide may start or end (points); a move from or to further away
 /// is drawn in place.
 pub const OFFSCREEN_SLACK: f32 = 48.0;
+
+/// A motion token's duration in seconds, for [`CaretGlide::with_secs`] and
+/// [`OutlineGlide::with_secs`] (0 with reduced motion).
+pub fn motion_secs(motion: craft_theme::Motion) -> f64 {
+    f64::from(motion.millis) / 1000.0
+}
 
 /// Whether glides may run in `ctx`: the theme's motion isn't reduced
 /// (`tokens.motion.reduced`, the appearance's reduced motion) and egui's `animation_time` is
@@ -272,15 +281,16 @@ pub struct OutlineFrame {
 ///
 /// - The selection changed (keys, a click, a drag, any command): the outline, and whatever the
 ///   host draws with it (fill, fill handle), glides from where it is drawn now to the new cells
-///   in [`OUTLINE_GLIDE_SECS`], each edge on its own, so extending a selection grows it edge by
+///   in the glide's time ([`OUTLINE_GLIDE_SECS`] by default), each edge on its own, so extending a selection grows it edge by
 ///   edge and a held arrow key reads as one motion.
 /// - The same cells moved on screen (scrolling, zoom, a resized column): the outline stays on
 ///   its cells. The glide is kept as each edge's distance from its target, decaying to zero, so
 ///   the outline is always "the cells' rect plus what is left of the offset".
 /// - Another place, an outline not drawn the frame before, a move from or to more than
 ///   [`OFFSCREEN_SLACK`] off the view, `animate` false: it appears in place.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct OutlineGlide {
+    secs: f64,
     place: u64,
     selection: u64,
     drawn: Option<Rect>,
@@ -290,7 +300,20 @@ pub struct OutlineGlide {
     frame_nr: u64,
 }
 
+impl Default for OutlineGlide {
+    fn default() -> Self {
+        Self::with_secs(OUTLINE_GLIDE_SECS)
+    }
+}
+
 impl OutlineGlide {
+    /// An outline whose glides take `secs` (0 or less: it jumps; a non-finite value is the default;
+    /// at most 10 s).
+    pub fn with_secs(secs: f64) -> Self {
+        let secs = if secs.is_finite() { secs.clamp(0.0, 10.0) } else { OUTLINE_GLIDE_SECS };
+        Self { secs, place: 0, selection: 0, drawn: None, offset: [0.0; 4], started: 0.0, gliding: false, frame_nr: 0 }
+    }
+
     /// Advances to this frame; returns where to draw the outline (screen points).
     // gridcraft: crates/ui-egui/src/selection_glide.rs:77 frame
     pub fn frame(&mut self, f: OutlineFrame) -> Rect {
@@ -310,7 +333,7 @@ impl OutlineGlide {
             self.offset = [0.0; 4];
         }
         // Arrived when the time is up (or the clock went backwards).
-        let progress = (f.now - self.started) / OUTLINE_GLIDE_SECS;
+        let progress = if self.secs > 0.0 { (f.now - self.started) / self.secs } else { 1.0 };
         self.gliding = self.offset != [0.0; 4] && (0.0..1.0).contains(&progress);
         let left = if self.gliding { 1.0 - ease_out(progress as f32) } else { 0.0 };
         let [l, t, r, b] = self.offset.map(|o| o * left);

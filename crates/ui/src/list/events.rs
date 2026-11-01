@@ -21,11 +21,6 @@ const ERROR_COUNT: Counted = Counted::new("events.errorCount", "{n} error", "{n}
 const WARNING_COUNT: Counted = Counted::new("events.warningCount", "{n} warning", "{n} warnings");
 const MESSAGE_COUNT: Counted = Counted::new("events.messageCount", "{n} message", "{n} messages");
 
-/// The least height of the details box.
-const DETAILS_HEIGHT: f32 = 70.0;
-/// The room the level glyph takes in the bar and in a row.
-const GLYPH_BOX: f32 = 14.0;
-
 crate::words! {
     /// The log's words, English by default.
     #[non_exhaustive]
@@ -155,6 +150,7 @@ impl<'a> EventLog<'a> {
         let Self { id_salt, events, state, now_ms, labels } = self;
         let labels = labels.map_or_else(|| EventLogLabels::shared(ui), Arc::new);
         let tokens = Tokens::of(ui);
+        let log = tokens.component.event_log;
         let ctx = ui.ctx().clone();
         let words = Words::of_ctx(&ctx);
         let scope = ui.scope_builder(UiBuilder::new().id_salt(id_salt), |ui| {
@@ -172,7 +168,7 @@ impl<'a> EventLog<'a> {
                     (EventLevel::Info, MESSAGE_COUNT, &labels.message_count),
                 ] {
                     let n = events.iter().filter(|e| e.level == glyph_level).count() as u64;
-                    let (rect, _) = ui.allocate_exact_size(vec2(GLYPH_BOX, GLYPH_BOX), Sense::hover());
+                    let (rect, _) = ui.allocate_exact_size(vec2(log.glyph_box, log.glyph_box), Sense::hover());
                     paint_event_glyph(ui.painter(), &tokens, rect.center(), glyph_level);
                     ui.add(Text::new(words.counted(&ctx, count, text, n)).content(Content::Muted));
                 }
@@ -194,7 +190,7 @@ impl<'a> EventLog<'a> {
             }
             ctx.request_repaint_after(Duration::from_secs(60));
 
-            let details_height = if selected.is_some() { DETAILS_HEIGHT + ui.spacing().item_spacing.y } else { 0.0 };
+            let details_height = if selected.is_some() { log.details_height + ui.spacing().item_spacing.y } else { 0.0 };
             let rows: Vec<RowInfo<u64>> = visible.iter().map(|e| RowInfo::leaf(e.id)).collect();
             let mut selection = state.selected.filter(|_| selected.is_some()).map_or_else(Selection::new, Selection::only);
             let caption = role_format(&tokens, TypeRole::Caption, Color32::PLACEHOLDER).font_id;
@@ -240,7 +236,7 @@ impl<'a> EventLog<'a> {
             }
 
             if let Some(event) = selected {
-                let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), DETAILS_HEIGHT), Sense::hover());
+                let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), log.details_height), Sense::hover());
                 let field = &tokens.component.field;
                 ui.painter().rect_filled(rect, CornerRadius::from(field.radius), field.fill.rest.to_egui());
                 let inner = rect.shrink2(vec2(field.pad_x, 4.0));
@@ -264,7 +260,7 @@ impl<'a> EventLog<'a> {
     }
 }
 
-/// A level's glyph centred on `center`, drawn in code: a dot of radius 5 (info), a triangle 12
+/// A level's glyph centred on `center`, drawn in code from `event_log.glyph` (10): a dot of radius 5 (info), a triangle 12
 /// wide and 11 high (warning), a 10-point square with 2-point corners (error), each in its
 /// status colour (`status.info.fg`, `status.warn.fg`, `status.bad.fg`), with an "i" or "!"
 /// in `text.on_status` on it in the `Caption` role (FilmCraft's black semibold 8; the warning's mark
@@ -278,16 +274,19 @@ pub fn paint_event_glyph(painter: &Painter, tokens: &UiTokens, center: Pos2, lev
         EventLevel::Error => status.bad.fg,
     }
     .to_egui();
+    // The shapes are drawn from the glyph's side: FilmCraft's 10 gives a dot of radius 5, a triangle 12 wide and 11 high.
+    let glyph = tokens.component.event_log.glyph;
+    let half = glyph / 2.0;
     match level {
         EventLevel::Info => {
-            painter.circle_filled(center, 5.0, color);
+            painter.circle_filled(center, half, color);
         }
         EventLevel::Warning => {
-            let points = vec![center + vec2(0.0, -6.0), center + vec2(6.0, 5.0), center + vec2(-6.0, 5.0)];
+            let points = vec![center + vec2(0.0, -(half + 1.0)), center + vec2(half + 1.0, half), center + vec2(-(half + 1.0), half)];
             painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
         }
         EventLevel::Error => {
-            painter.rect_filled(Rect::from_center_size(center, vec2(10.0, 10.0)), CornerRadius::same(2), color);
+            painter.rect_filled(Rect::from_center_size(center, vec2(glyph, glyph)), CornerRadius::same(2), color);
         }
     }
     let (mark, drop) = match level {

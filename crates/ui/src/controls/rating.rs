@@ -71,7 +71,7 @@ impl StarSize {
 /// ```
 ///
 /// - **Look.** Five [`Icon::Star`](crate::icons::Icon::Star) outlines, the first `rating` of them
-///   [`Icon::StarFilled`](crate::icons::Icon::StarFilled), in `rating.star` (proposed; LightCraft
+///   [`Icon::StarFilled`](crate::icons::Icon::StarFilled), in `rating.star` (LightCraft
 ///   draws them in its accent), in 14-point stars on 19-point cells (Md) or 12 on 15 (Sm). In
 ///   right-to-left the first star is on the right.
 /// - **Pointer.** Hovering star `n` previews `n` filled stars; a click sets `n`, and a click on
@@ -125,8 +125,8 @@ impl<'a> Rating<'a> {
         let tokens = Tokens::of(ui);
         let enabled = enabled && ui.is_enabled();
         let (cell, side) = match size {
-            ControlSize::Sm => (15.0, 12.0),
-            ControlSize::Md => (19.0, 14.0),
+            ControlSize::Sm => (tokens.component.rating.cell_sm, tokens.component.rating.star_sm),
+            ControlSize::Md => (tokens.component.rating.cell_md, tokens.component.rating.star_md),
         };
         let (rtl, forward) = (direction::is_rtl(ui), direction::forward(ui));
         let current = (*rating).min(MAX_STARS);
@@ -202,7 +202,7 @@ impl<'a> Rating<'a> {
         }
 
         let shown = hovered.map_or(value, |i| i as u8 + 1);
-        let color = if enabled { tokens.color.accent.solid.to_egui() } else { tokens.color.text.disabled.to_egui() };
+        let color = if enabled { tokens.component.rating.star.to_egui() } else { tokens.color.text.disabled.to_egui() };
         let mut responses = Vec::with_capacity(sensed.len());
         for (i, (star, rect)) in sensed.into_iter().zip(&rects).enumerate() {
             let response = star.checked(i as u8 + 1 == value).finish(&group);

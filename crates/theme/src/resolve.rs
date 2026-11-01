@@ -217,6 +217,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
 
     let motion = |d: super::scale::Duration| Motion { millis: if appearance.reduced_motion { 0 } else { d.millis() }, easing: values::MOTION_EASING };
     let (hover, open, move_) = values::MOTION_DURATIONS;
+    let motion_ms = |millis: u32| Motion { millis: if appearance.reduced_motion { 0 } else { millis }, easing: values::MOTION_EASING };
 
     let shape = ShapeTokens { radius, edge };
     let typography = preset.typography.scaled(sizes.text_steps.factor(appearance.text_size), values::TYPE_ROUNDING);
@@ -244,7 +245,14 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
         size: preset.size,
         typography,
         elevation,
-        motion: MotionTokens { hover: motion(hover), open: motion(open), r#move: motion(move_), reduced: appearance.reduced_motion },
+        motion: MotionTokens {
+            hover: motion(hover),
+            open: motion(open),
+            r#move: motion(move_),
+            caret: motion_ms(values::MOTION_CARET_MS),
+            outline: motion_ms(values::MOTION_OUTLINE_MS),
+            reduced: appearance.reduced_motion,
+        },
         component,
     };
     let resolved = Resolved { tokens, warnings, contrast_intent: theme.contrast_intent, variant_used: mode };

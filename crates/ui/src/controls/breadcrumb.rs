@@ -13,13 +13,7 @@ use crate::primitives::{Corner, Interactive};
 use crate::text::{ElideAt, elided_galley};
 use crate::theme::{ToEgui, Tokens, TokensOf as _, role_format};
 
-/// The bar's height.
-const HEIGHT: f32 = 24.0;
-/// The chevron between segments, and the space either side of it.
-const CHEVRON: f32 = 16.0;
-const SPACE: f32 = 4.0;
-/// The room one shown segment counts for when the bar decides how many fit.
-const SEGMENT_ROOM: f32 = 80.0;
+/// The most segments shown before the rest go behind the ellipsis.
 const MOST_SEGMENTS: usize = 4;
 
 crate::words! {
@@ -98,10 +92,11 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
         let Self { id_salt, crumbs, labels } = self;
         let labels = labels.unwrap_or_else(|| BreadcrumbLabels::of(ui));
         let tokens = Tokens::of(ui);
+        let bread = &tokens.component.breadcrumb;
         let (muted, strong) = (tokens.color.text.muted.to_egui(), tokens.color.text.normal.to_egui());
         let whole = crumbs.iter().map(|c| c.label.as_str()).collect::<Vec<_>>().join(" › ");
         let width = ui.available_width();
-        let (_, strip) = ui.allocate_space(vec2(width, HEIGHT));
+        let (_, strip) = ui.allocate_space(vec2(width, bread.height));
         let bar = ui.new_child(
             UiBuilder::new()
                 .id_salt(id_salt)
@@ -119,14 +114,14 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
             Rect::from_min_max(pos2(a.min(b), strip.top()), pos2(a.max(b), strip.bottom()))
         };
 
-        let shown_count = ((width / SEGMENT_ROOM) as usize).clamp(1, MOST_SEGMENTS).min(crumbs.len());
+        let shown_count = ((width / bread.min_segment) as usize).clamp(1, MOST_SEGMENTS).min(crumbs.len());
         let hidden = crumbs.len() - shown_count;
         let format = |role, color| role_format(&tokens, role, color);
         let mut at = 0.0;
 
         if hidden > 0 {
             let galley = elided_galley(&bar, "…", format(TypeRole::Body, muted), f32::INFINITY, ElideAt::End).galley;
-            let length = galley.size().x + 2.0 * SPACE;
+            let length = galley.size().x + 2.0 * bread.space;
             let rect = span(at, length);
             let sensed = Interactive::new("hidden", Role::Button, labels.hidden.as_str()).corner(Corner::Control).interact_at(&bar, rect);
             let response = sensed.finish(&bar).tooltip(&whole);
@@ -137,13 +132,13 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
                 opened = Some(crumbs[i].key.clone());
             }
             responses.push(response);
-            at += length + SPACE;
-            at += chevron(&bar, span(at, CHEVRON), muted);
-            at += SPACE;
+            at += length + bread.space;
+            at += chevron(&bar, span(at, bread.separator), muted, bread.separator);
+            at += bread.space;
         }
 
         // The shown segments share what the separators leave, each taking at most what it needs.
-        let separators = shown_count.saturating_sub(1) as f32 * (CHEVRON + 2.0 * SPACE);
+        let separators = shown_count.saturating_sub(1) as f32 * (bread.separator + 2.0 * bread.space);
         let room = (width - at - separators).max(0.0);
         let shown = &crumbs[hidden..];
         let natural: Vec<f32> = shown
@@ -202,9 +197,9 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
             responses.push(response);
             at += length;
             if !last {
-                at += SPACE;
-                at += chevron(&bar, span(at, CHEVRON), muted);
-                at += SPACE;
+                at += bread.space;
+                at += chevron(&bar, span(at, bread.separator), muted, bread.separator);
+                at += bread.space;
             }
         }
 
@@ -217,9 +212,9 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
 }
 
 /// Paints the chevron between segments in `rect` and returns its width.
-fn chevron(ui: &Ui, rect: Rect, color: egui::Color32) -> f32 {
-    icons::paint_in(ui, rect, Icon::ChevronRight, icons::active(ui.ctx()), CHEVRON, icons::IconSize::Md.stroke(), color);
-    CHEVRON
+fn chevron(ui: &Ui, rect: Rect, color: egui::Color32, size: f32) -> f32 {
+    icons::paint_in(ui, rect, Icon::ChevronRight, icons::active(ui.ctx()), size, icons::IconSize::Md.stroke(), color);
+    size
 }
 
 /// Widths for segments that want `natural` points each in `room` points: the shortest keep what
