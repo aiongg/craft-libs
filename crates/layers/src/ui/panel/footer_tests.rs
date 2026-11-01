@@ -23,18 +23,18 @@ use super::footer::{LayersFooterAction, LayersFooterButton, accepts_footer_drop,
 use super::labels::LayersLabels;
 use super::menu::{CLIP_THUMBNAILS, COLLAPSE_ALL, LayersMenuAction, MenuRequest, PANEL_OPTIONS, SHOW_FILTERS, note_drawn, show_row_menus};
 use super::style::LayersStyle;
-use crate::ui::mock::MockLayers;
+use crate::ui::mock::FakeLayers;
 use crate::ui::options::{LayersOptions, LayersSettings};
 use crate::ui::thumbs::ThumbContents;
 use crate::ui::tree::{LayerRowKey, LayerTree as _};
 
 struct App {
-    tree: MockLayers,
+    tree: FakeLayers,
     events: Vec<LayersEvent<u32>>,
 }
 
 fn footer() -> Harness<'static, App> {
-    let app = App { tree: MockLayers::sample(), events: Vec::new() };
+    let app = App { tree: FakeLayers::sample(), events: Vec::new() };
     let mut harness =
         HarnessBuilder::default().with_size(vec2(400.0, 300.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
             |ui: &mut Ui, app: &mut App| {
@@ -160,7 +160,7 @@ fn panel_menu_entries_and_commands_change_the_settings() {
             .map(|item| (item.label().to_owned(), item.command().cloned(), item.is_enabled(), item.item_kind().checked()))
             .collect()
     };
-    let entries = LayersPanel::<MockLayers>::panel_menu(&ctx, "layers", &settings);
+    let entries = LayersPanel::<FakeLayers>::panel_menu(&ctx, "layers", &settings);
     let top = rows(&entries);
     assert_eq!(
         top.iter().map(|r| r.0.as_str()).collect::<Vec<_>>(),
@@ -172,15 +172,15 @@ fn panel_menu_entries_and_commands_change_the_settings() {
     assert_eq!(top[3].3, Some(false));
 
     note_drawn(&ctx, IdSalt::new("layers"));
-    assert!(rows(&LayersPanel::<MockLayers>::panel_menu(&ctx, "layers", &settings))[2].2);
-    assert!(!rows(&LayersPanel::<MockLayers>::panel_menu(&ctx, "other", &settings))[2].2, "the mark belongs to its panel");
+    assert!(rows(&LayersPanel::<FakeLayers>::panel_menu(&ctx, "layers", &settings))[2].2);
+    assert!(!rows(&LayersPanel::<FakeLayers>::panel_menu(&ctx, "other", &settings))[2].2, "the mark belongs to its panel");
 
-    let run = |settings: &mut LayersSettings, command: &str| LayersPanel::<MockLayers>::run_command(&ctx, "layers", settings, &command.to_owned());
+    let run = |settings: &mut LayersSettings, command: &str| LayersPanel::<FakeLayers>::run_command(&ctx, "layers", settings, &command.to_owned());
     assert_eq!(run(&mut settings, SHOW_FILTERS), Some(LayersMenuAction::SettingsChanged));
     assert!(!settings.show_filters);
     assert_eq!(run(&mut settings, CLIP_THUMBNAILS), Some(LayersMenuAction::SettingsChanged));
     assert_eq!(settings.options.thumbnail_contents, ThumbContents::LayerBounds);
-    assert_eq!(rows(&LayersPanel::<MockLayers>::panel_menu(&ctx, "layers", &settings))[3].3, Some(true));
+    assert_eq!(rows(&LayersPanel::<FakeLayers>::panel_menu(&ctx, "layers", &settings))[3].3, Some(true));
     assert_eq!(run(&mut settings, CLIP_THUMBNAILS), Some(LayersMenuAction::SettingsChanged));
     assert_eq!(settings.options.thumbnail_contents, ThumbContents::EntireDocument);
     assert_eq!(run(&mut settings, PANEL_OPTIONS), Some(LayersMenuAction::OpenOptions));
@@ -234,11 +234,11 @@ fn footer_buttons_refuse_a_drag_from_another_list() {
 #[test]
 fn row_menus_stay_open_and_report_their_pick() {
     struct Menus {
-        tree: MockLayers,
+        tree: FakeLayers,
         request: Option<MenuRequest<u32>>,
         events: Vec<LayersEvent<u32>>,
     }
-    let app = Menus { tree: MockLayers::sample(), request: None, events: Vec::new() };
+    let app = Menus { tree: FakeLayers::sample(), request: None, events: Vec::new() };
     let mut h =
         HarnessBuilder::default().with_size(vec2(400.0, 400.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
             |ui: &mut Ui, app: &mut Menus| {

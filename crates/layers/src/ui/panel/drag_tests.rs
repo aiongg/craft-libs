@@ -13,7 +13,7 @@ use super::drag::{accepts_move, drop_event, drop_preview, layer_drop, reorder, s
 use super::events::{LayerDrop, LayersEvent, SubRowMove};
 use super::labels::LayersLabels;
 use super::style::LayersStyle;
-use crate::ui::mock::MockLayers;
+use crate::ui::mock::FakeLayers;
 use crate::ui::options::LayersOptions;
 use crate::ui::tree::{
     BlendChoice, LayerInfo, LayerPart, LayerProperties, LayerRowKey, LayerSelection, LayerTree, LayersFooterState, SubRowGroup, SubRows,
@@ -26,7 +26,7 @@ fn mv(items: Vec<Key>, target: Key, position: DropPosition) -> Move<Key> {
 }
 
 /// The sample tree, refusing every drop below its Background (layer 9), as PhotoCraft does.
-struct NothingBelowBackground(MockLayers);
+struct NothingBelowBackground(FakeLayers);
 
 impl LayerTree for NothingBelowBackground {
     type Id = u32;
@@ -70,7 +70,7 @@ impl LayerTree for NothingBelowBackground {
 // marker shows.
 #[test]
 fn accepts_drop_refusal_shows_no_marker() {
-    let tree = NothingBelowBackground(MockLayers::sample());
+    let tree = NothingBelowBackground(FakeLayers::sample());
     let ok = mv(vec![Key::Layer(4)], Key::Layer(9), DropPosition::Before);
     let below = mv(vec![Key::Layer(4)], Key::Layer(9), DropPosition::After);
     assert!(accepts_move(&tree, &ok, Modifiers::NONE));
@@ -118,7 +118,7 @@ fn with_context<T: LayerTree>(ui: &egui::Ui, tree: &T, body: impl FnOnce(&PanelC
 // Effects rows `Into` another layer are a `Transfer` (Alt copies); onto their own layer refused.
 #[test]
 fn effects_drag_onto_a_layer_outlines_it_and_reports_a_transfer() {
-    let tree = MockLayers::sample();
+    let tree = FakeLayers::sample();
     let effects = Key::Effects(7, None);
     let onto = mv(vec![effects.clone()], Key::Layer(4), DropPosition::Into);
     assert!(accepts_move(&tree, &onto, Modifiers::NONE));
@@ -154,7 +154,7 @@ fn effects_drag_onto_a_layer_outlines_it_and_reports_a_transfer() {
 // it out; among another layer's filters refused.
 #[test]
 fn smart_filter_drag_reorders_within_its_object() {
-    let tree = MockLayers::sample();
+    let tree = FakeLayers::sample();
     let filter = |layer, at| Key::Filters(layer, Some(at));
     let sub_rows = |from: usize, target: Key, position| match layer_drop(&mv(vec![filter(6, from)], target, position)) {
         Some(LayerDrop::SubRows(SubRowMove { layer: 6, group: SubRowGroup::SmartFilters, from: f, to, copy: false })) => Some((f, to)),
@@ -215,7 +215,7 @@ fn drop_events_carry_the_layer_drop_of_the_move() {
 // of them, land below that layer; onto one (`Into`) they go nowhere.
 #[test]
 fn layers_dropped_beside_sub_rows_land_after_their_layer() {
-    let tree = MockLayers::sample();
+    let tree = FakeLayers::sample();
     let landing = |target: Key, position| match layer_drop(&mv(vec![Key::Layer(4)], target, position)) {
         Some(LayerDrop::Layers(m)) => Some((m.target, m.position)),
         _ => None,

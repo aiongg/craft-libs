@@ -17,7 +17,7 @@ use super::context::{PanelContext, ThumbHost, Trailing};
 use super::labels::LayersLabels;
 use super::row::{ask_near_thumbnails, build_row, row_description, row_height};
 use super::style::LayersStyle;
-use crate::ui::mock::MockLayers;
+use crate::ui::mock::FakeLayers;
 use crate::ui::options::LayersOptions;
 use crate::ui::thumbs::LayerThumb;
 use crate::ui::tree::{LayerInfo, LayerKind, LayerLocks, LayerPart, LayerRowKey, LayerSelection, LayerTree as _, MaskInfo};
@@ -33,7 +33,7 @@ struct Out {
 }
 
 struct Setup {
-    tree: MockLayers,
+    tree: FakeLayers,
     options: LayersOptions,
     key: LayerRowKey<u32>,
     width: f32,
@@ -43,7 +43,7 @@ struct Setup {
 }
 
 impl Setup {
-    fn new(tree: MockLayers, key: LayerRowKey<u32>) -> Self {
+    fn new(tree: FakeLayers, key: LayerRowKey<u32>) -> Self {
         let options = LayersOptions { thumbnail_size: ThumbSize::Medium, ..LayersOptions::default() };
         Self {
             tree,
@@ -139,8 +139,8 @@ fn texts(shapes: &[Shape]) -> Vec<String> {
 }
 
 /// A tree of one layer, `edit` applied to its info.
-fn one(name: &str, kind: LayerKind, edit: impl FnOnce(&mut LayerInfo)) -> MockLayers {
-    let mut tree = MockLayers::sample();
+fn one(name: &str, kind: LayerKind, edit: impl FnOnce(&mut LayerInfo)) -> FakeLayers {
+    let mut tree = FakeLayers::sample();
     tree.layers.retain(|l| l.id == 4);
     let layer = &mut tree.layers[0];
     layer.parent = None;
@@ -154,7 +154,7 @@ fn rect_of(harness: &Harness<'_, Setup>, label: &str) -> Rect {
     harness.get_by_label(label).rect()
 }
 
-fn busy() -> MockLayers {
+fn busy() -> FakeLayers {
     one("Busy", LayerKind::Pixel, |info| {
         info.masks = vec![
             MaskInfo { part: LayerPart::LayerMask, enabled: true, linked: true },
@@ -305,8 +305,8 @@ fn disabled_mask_is_crossed_out_and_badges_follow_the_setting() {
     assert_eq!(badges(&shapes(&mut with_badges)), 1, "one badge on the mask thumbnail");
 }
 
-fn effects_tree() -> MockLayers {
-    let mut tree = MockLayers::sample();
+fn effects_tree() -> FakeLayers {
+    let mut tree = FakeLayers::sample();
     tree.selection.active = None;
     tree
 }
@@ -370,7 +370,7 @@ fn trailing_slot_hosts_app_furniture_without_losing_the_name() {
     assert!(out.label.width() >= min_label - 0.5, "the name keeps list.min_label");
 }
 
-fn with_cx(ui: &mut Ui, setup: &mut Setup, run: impl FnOnce(&PanelContext<'_, MockLayers>)) {
+fn with_cx(ui: &mut Ui, setup: &mut Setup, run: impl FnOnce(&PanelContext<'_, FakeLayers>)) {
     let tokens = current(ui.ctx());
     let labels = LayersLabels::of(ui);
     let cx = PanelContext {
@@ -397,7 +397,7 @@ fn with_cx(ui: &mut Ui, setup: &mut Setup, run: impl FnOnce(&PanelContext<'_, Mo
 fn row_height_follows_size_preset_and_thumbnail_setting() {
     let ctx = Context::default();
     install(&ctx, &Base::suite_default());
-    let mut setup = Setup::new(MockLayers::sample(), LayerRowKey::Layer(1));
+    let mut setup = Setup::new(FakeLayers::sample(), LayerRowKey::Layer(1));
     let mut heights = |size: Size| {
         let mut out = Vec::new();
         run(&ctx, |ui| {
@@ -452,7 +452,7 @@ fn rows_are_list_box_options_with_state_in_the_description() {
 fn tree_with_ten_thousand_layers_builds_rows_in_view_only() {
     let ctx = Context::default();
     install(&ctx, &Base::suite_default());
-    let tree = MockLayers::flat(10_000);
+    let tree = FakeLayers::flat(10_000);
     let setup = Setup::new(tree, LayerRowKey::Layer(1));
     let rows: Vec<RowInfo<LayerRowKey<u32>>> = (1..=10_000).map(|id| RowInfo::leaf(LayerRowKey::Layer(id))).collect();
     let thumbnails = Thumbnails::<LayerThumb<u32>>::in_context(&ctx, "layers-test", ThumbnailOptions::default());

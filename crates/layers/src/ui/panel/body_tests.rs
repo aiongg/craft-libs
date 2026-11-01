@@ -6,7 +6,7 @@ use egui::Modifiers;
 
 use super::body::{display_rows, reveal_opens, shared_display_rows, thumb_click_replaces_select, toggle_event_for_tests};
 use crate::ui::filter::{FilterKind, LayerFilter};
-use crate::ui::mock::{MockLayer, MockLayers};
+use crate::ui::mock::{FakeLayer, FakeLayers};
 use crate::ui::tree::{LayerInfo, LayerKind, LayerPart, LayerRowKey};
 
 fn layers(rows: &[RowInfo<LayerRowKey<u32>>]) -> Vec<(u32, usize)> {
@@ -21,7 +21,7 @@ fn layers(rows: &[RowInfo<LayerRowKey<u32>>]) -> Vec<(u32, usize)> {
 // `display_rows` follows `children()` top first and leaves out closed groups' contents.
 #[test]
 fn display_order_lists_top_first_and_hides_closed_groups() {
-    let mut tree = MockLayers::sample();
+    let mut tree = FakeLayers::sample();
     let open = display_rows(&tree, &LayerFilter::default(), &[]).rows;
     assert_eq!(layers(&open), [(1, 0), (2, 1), (3, 1), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0), (9, 0)]);
     assert!(open[0].has_children && open[0].open);
@@ -53,7 +53,7 @@ fn display_order_lists_top_first_and_hides_closed_groups() {
 // its true depth.
 #[test]
 fn filtered_view_lists_rows_by_shown_ancestors_and_paints_the_true_depth() {
-    let mut tree = MockLayers::sample();
+    let mut tree = FakeLayers::sample();
     tree.layers[0].open = false;
     let filter = LayerFilter { kinds: vec![FilterKind::Pixel], ..LayerFilter::default() };
     let shown = display_rows(&tree, &filter, &[]);
@@ -65,7 +65,7 @@ fn filtered_view_lists_rows_by_shown_ancestors_and_paints_the_true_depth() {
 // `opened` lists a closed group's contents, as the reveal of a layer inside it needs in the same pass.
 #[test]
 fn groups_opened_this_pass_list_their_children() {
-    let mut tree = MockLayers::sample();
+    let mut tree = FakeLayers::sample();
     tree.layers[0].open = false;
     let closed = display_rows(&tree, &LayerFilter::default(), &[]);
     let opened = display_rows(&tree, &LayerFilter::default(), &[1]);
@@ -78,7 +78,7 @@ fn groups_opened_this_pass_list_their_children() {
 #[test]
 fn the_display_cache_is_not_used_while_the_filter_is_active() {
     let ctx = egui::Context::default();
-    let mut tree = MockLayers::sample();
+    let mut tree = FakeLayers::sample();
     tree.revision = Some(1);
     let id = egui::Id::NULL.with("cache");
     let none = LayerFilter::default();
@@ -121,10 +121,10 @@ fn modified_thumbnail_clicks_replace_the_select_event() {
 // on the first pass.
 #[test]
 fn active_layer_change_opens_ancestors_and_scrolls_once() {
-    let mut tree = MockLayers::sample();
+    let mut tree = FakeLayers::sample();
     tree.layers[0].open = false;
     tree.layers[1].open = false;
-    let child = MockLayer {
+    let child = FakeLayer {
         id: 10,
         parent: Some(2),
         info: LayerInfo::new("Deep", LayerKind::Pixel),
