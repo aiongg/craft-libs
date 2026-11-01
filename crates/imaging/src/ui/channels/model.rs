@@ -142,11 +142,13 @@ impl<K> ChannelRow<K> {
 /// The row the footer's Delete and Load act on: the targeted layer-mask, alpha, spot or Quick
 /// Mask row; else the composite when it is targeted; else the one targeted colour row; `None`
 /// with no rows or no target.
-#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 pub fn targeted_row<K>(rows: &[ChannelRow<K>]) -> Option<&ChannelRow<K>> {
     // pc: crates/ui-egui/src/panels/channels_panel.rs:458-464 (`target_ref` from the view's target;
     // the mask row while it is the visible target, :478-485).
-    todo!()
+    let targeted = |kinds: fn(ChannelKind) -> bool| rows.iter().find(|row| row.targeted && kinds(row.kind));
+    targeted(|kind| !matches!(kind, ChannelKind::Composite | ChannelKind::Color))
+        .or_else(|| targeted(|kind| matches!(kind, ChannelKind::Composite)))
+        .or_else(|| targeted(|kind| matches!(kind, ChannelKind::Color)))
 }
 
 /// What the Channels panel reports, in the order it happened.
@@ -213,4 +215,30 @@ pub struct ChannelsOutput<K> {
     pub events: Vec<ChannelsEvent<K>>,
     /// The panel.
     pub response: Response,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row(key: u8, kind: ChannelKind, targeted: bool) -> ChannelRow<u8> {
+        ChannelRow { targeted, ..ChannelRow::new(key, kind, "c") }
+    }
+
+    // While the composite is targeted every colour row is highlighted too; the footer acts on the
+    // composite. A targeted alpha row wins over both.
+    #[test]
+    fn targeted_row_prefers_the_single_channel_then_the_composite() {
+        let indicates = ColorIndicates::MaskedAreas;
+        let mut rows = vec![row(0, ChannelKind::Composite, true), row(1, ChannelKind::Color, true), row(2, ChannelKind::Color, true)];
+        assert_eq!(targeted_row(&rows).map(|r| r.key), Some(0));
+        rows.push(row(3, ChannelKind::Alpha { indicates }, true));
+        assert_eq!(targeted_row(&rows).map(|r| r.key), Some(3));
+        rows[0].targeted = false;
+        rows[3].targeted = false;
+        rows[2].targeted = false;
+        assert_eq!(targeted_row(&rows).map(|r| r.key), Some(1));
+        rows[1].targeted = false;
+        assert!(targeted_row(&rows).is_none());
+    }
 }
