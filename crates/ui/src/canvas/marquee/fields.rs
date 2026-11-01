@@ -219,6 +219,7 @@ struct Fields<'a> {
 
 impl Fields<'_> {
     /// One of Width (`first`) and Height: `value` with the `other` side beside it.
+    #[allow(clippy::too_many_arguments)]
     fn show(&self, ui: &mut Ui, name: &str, caption: &str, value: f64, other: f64, first: bool, out: &mut ConstraintFieldsOutput) {
         let pair = |v: f64| if first { (v, other) } else { (other, v) };
         match self.constraint {

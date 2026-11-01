@@ -99,13 +99,6 @@ impl<'a> BrushCursor<'a> {
             return precise;
         }
         let full = prefs.painting == PaintingCursor::FullSizeBrushTip;
-        // Rule 4.
-        if let BrushTipOutline::Pixels { cell, .. } = &self.tip.outline {
-            let corners = view.quad(*cell);
-            let (min, max) = corners.iter().fold((corners[0], corners[0]), |(lo, hi), p| (lo.min(*p), hi.max(*p)));
-            let narrow = !((max.x - min.x).min(max.y - min.y) >= style.cursor.precise_reach);
-            return if self.centre || narrow { min_crosshair } else { ToolCursor::Hidden };
-        }
         // Rule 5.
         let unit = sanitize(self.tip.diameter) / 2.0;
         let axes_for = |radius: f64| [view.map_vec(self.pose.x_axis * radius), view.map_vec(self.pose.y_axis * radius)].map(|v| Vec2::new(v.x, v.y));
@@ -121,7 +114,14 @@ impl<'a> BrushCursor<'a> {
                 let mapped = rings.rings().iter().map(|ring| ring.iter().map(|p| unit_axes[0] * p[0] + unit_axes[1] * p[1]).collect()).collect();
                 (mapped, None)
             }
-            BrushTipOutline::Pixels { .. } => unreachable!("handled by rule 4"),
+            // Rule 4. A cell narrower than the precise reach, or not finite, shows the crosshair.
+            BrushTipOutline::Pixels { cell, .. } => {
+                let corners = view.quad(*cell);
+                let (min, max) = corners.iter().fold((corners[0], corners[0]), |(lo, hi), p| (lo.min(*p), hi.max(*p)));
+                let side = (max.x - min.x).min(max.y - min.y);
+                let narrow = matches!(side.partial_cmp(&style.cursor.precise_reach), None | Some(std::cmp::Ordering::Less));
+                return if self.centre || narrow { min_crosshair } else { ToolCursor::Hidden };
+            }
         };
         // Rule 6, also for a non-finite outline.
         let extent = match round {
