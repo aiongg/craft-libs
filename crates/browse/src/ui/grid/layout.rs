@@ -1,11 +1,10 @@
 //! `TileLayout`, `TileArrangement` and `arrange`: where each tile and group header goes; and
 //! `fit_name`, the caption's middle shortening.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::ops::Range;
 
-use egui::{Rect, Vec2};
+use craft_ui::behavior::GridNav;
+use egui::{Rect, Vec2, pos2, vec2};
 
 /// How tiles are laid out.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -66,19 +65,23 @@ impl TileArrangement {
     /// row tops.
     pub fn rows_between(&self, top: f32, bottom: f32) -> Range<usize> {
         // lightcraft: crates/ui-egui/src/panels/grid.rs:279 (`rows_between`).
-        todo!()
+        let first = self.rows.partition_point(|r| r.top + r.height < top);
+        let rest = self.rows.get(first..).unwrap_or(&[]);
+        let count = rest.partition_point(|r| r.top <= bottom);
+        first..first + count
     }
 
     /// The tile counts of the rows, for `GridNav::ragged`.
     pub fn row_lengths(&self) -> Vec<usize> {
         // lightcraft: crates/ui-egui/src/panels/grid.rs:536 (`vertical_neighbor` over the layout rows).
-        todo!()
+        self.rows.iter().map(|r| r.tiles.len()).collect()
     }
 
     /// The row holding tile `at`.
     pub fn row_of(&self, at: usize) -> Option<usize> {
         // new: for scrolling a tile into view.
-        todo!()
+        let row = self.rows.partition_point(|r| r.tiles.end <= at);
+        self.rows.get(row).filter(|r| r.tiles.contains(&at)).map(|_| row)
     }
 }
 
@@ -108,7 +111,89 @@ pub struct ArrangeSpacing {
 ///   sit in rows without a header.
 pub fn arrange(aspects: &[f32], groups: &[TileGroup], width: f32, layout: TileLayout, spacing: ArrangeSpacing) -> TileArrangement {
     // lightcraft: crates/ui-egui/src/panels/grid.rs:588 (`layout`: justified rows, square cells, groups).
-    todo!()
+    let sanitized: Vec<f32> = aspects.iter().map(|a| if a.is_finite() && *a > 0.0 { *a } else { 1.0 }).collect();
+    let n = sanitized.len();
+    let ArrangeSpacing { gap, inset, group_header, caption } = spacing;
+    let content = (width - 2.0 * inset).max(1.0);
+    let mut out = TileArrangement { tiles: vec![Rect::NOTHING; n], ..TileArrangement::default() };
+
+    // Segments in display order: (group index, tile range); tiles outside every group have no header.
+    let mut segments: Vec<(Option<usize>, Range<usize>)> = Vec::new();
+    let mut at = 0;
+    for (index, group) in groups.iter().enumerate() {
+        let start = group.start.clamp(at, n);
+        let end = (group.start.saturating_add(group.count)).clamp(start, n);
+        if start > at {
+            segments.push((None, at..start));
+        }
+        segments.push((Some(index), start..end));
+        at = end;
+    }
+    if at < n {
+        segments.push((None, at..n));
+    }
+
+    let mut y = inset;
+    let mut started = false;
+    for (group, range) in segments {
+        if started {
+            y += gap;
+        }
+        started = true;
+        if group.is_some() {
+            out.headers.push(Rect::from_min_size(pos2(inset, y), vec2(content, group_header)));
+            y += group_header;
+        }
+        let mut first_row = true;
+        let mut place = |out: &mut TileArrangement, y: &mut f32, tiles: Range<usize>, height: f32| {
+            if !first_row {
+                *y += gap;
+            }
+            first_row = false;
+            out.rows.push(TileRow { tiles, top: *y, height, group });
+            let top = *y;
+            *y += height;
+            top
+        };
+        match layout {
+            TileLayout::Justified { row_height } => {
+                let mut i = range.start;
+                while i < range.end {
+                    let mut j = i + 1;
+                    let mut sum = sanitized[i];
+                    while j < range.end && (sum + sanitized[j]) * row_height + gap * (j - i) as f32 <= content {
+                        sum += sanitized[j];
+                        j += 1;
+                    }
+                    let height = if j < range.end { (content - gap * (j - i - 1) as f32) / sum } else { row_height };
+                    let top = place(&mut out, &mut y, i..j, height);
+                    let mut x = inset;
+                    for (tile, aspect) in out.tiles[i..j].iter_mut().zip(&sanitized[i..j]) {
+                        let w = aspect * height;
+                        *tile = Rect::from_min_size(pos2(x, top), vec2(w, height));
+                        x += w + gap;
+                    }
+                    i = j;
+                }
+            }
+            TileLayout::Cards { side, aspect, caption: captioned } => {
+                let columns = GridNav::columns(width, inset, gap, side);
+                let picture = card_size(side, aspect, 0.0);
+                let height = card_size(side, aspect, if captioned { caption } else { 0.0 }).y;
+                let mut i = range.start;
+                while i < range.end {
+                    let j = (i + columns).min(range.end);
+                    let top = place(&mut out, &mut y, i..j, height);
+                    for (c, k) in (i..j).enumerate() {
+                        out.tiles[k] = Rect::from_min_size(pos2(inset + c as f32 * (side + gap), top), picture);
+                    }
+                    i = j;
+                }
+            }
+        }
+    }
+    out.height = y + inset;
+    out
 }
 
 /// `name` shortened in the middle to fit, keeping its extension: `fits` says whether a text fits
@@ -116,11 +201,35 @@ pub fn arrange(aspects: &[f32], groups: &[TileGroup], width: f32, layout: TileLa
 /// cut on character boundaries; `….ext` when nothing more fits.
 pub fn fit_name(name: &str, fits: impl Fn(&str) -> bool) -> String {
     // pdfcraft: crates/ui-egui/src/workflows/combine_grid.rs:78 (`fit_name`).
-    todo!()
+    if fits(name) {
+        return name.to_owned();
+    }
+    // A short extension after the last dot (a dot is one byte, so these are char boundaries).
+    let split = name.rfind('.').filter(|p| *p > 0 && name.len() - p <= 6);
+    let (stem, ext) = match split {
+        Some(p) => (name.get(..p).unwrap_or(name), name.get(p..).unwrap_or("")),
+        None => (name, ""),
+    };
+    let chars: Vec<char> = stem.chars().collect();
+    // `kept` stem characters: a third of them (rounded down) from the end, the rest from the start.
+    let with = |kept: usize| {
+        let tail = kept / 3;
+        let head: String = chars.iter().take(kept - tail).collect();
+        let end: String = chars[chars.len() - tail..].iter().collect();
+        format!("{head}…{end}{ext}")
+    };
+    // The most characters that fit, found by halving; the result is monotonic in `kept`.
+    let (mut lo, mut hi) = (0usize, chars.len());
+    while lo < hi {
+        let mid = lo + (hi - lo).div_ceil(2);
+        if fits(&with(mid)) { lo = mid } else { hi = mid - 1 }
+    }
+    with(lo)
 }
 
 /// The size a card cell takes: `side` wide, `side / aspect` plus the caption high.
 pub fn card_size(side: f32, aspect: f32, caption: f32) -> Vec2 {
     // pdfcraft: crates/ui-egui/src/workflows/combine_grid.rs:41 (card cell from the paper and its surround).
-    todo!()
+    let aspect = if aspect.is_finite() && aspect > 0.0 { aspect } else { 1.0 };
+    vec2(side, side / aspect + caption)
 }
