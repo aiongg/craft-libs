@@ -322,6 +322,7 @@ struct Cache {
     calendar: OnceLock<Option<icu_calendar::AnyCalendar>>,
     year_offset: OnceLock<Option<i32>>,
     local_year_month: OnceLock<Option<DateTimeFormatter<YM>>>,
+    local_months: OnceLock<Option<[[String; 12]; 2]>>,
     order: OnceLock<[Field; 3]>,
 }
 
@@ -583,8 +584,9 @@ impl DateFormat {
         self.to_local(CalendarDate { year: 2026, month: 1, day: 1 }).map_or(2000, |l| l.year.div_euclid(100) * 100)
     }
 
-    /// A date typed in the region's short or medium form (`10/31/2026`, `31.10.2026`,
-    /// `2026-10-31`), for a date field, in the display calendar: a Thai `31/10/2569` and a Persian
+    /// A date typed in the region's short or medium form (`10/31/2026`, `31.10.2026`), for a
+    /// date field, in the display calendar, or as Gregorian ISO (`2026-10-31`, whatever the
+    /// calendar): a Thai `31/10/2569` and a Persian
     /// `۱۴۰۵/۰۸/۰۹` are the Gregorian 2026-10-31. Two-digit years are in the display calendar's
     /// current century (2000 to 2099, 1400 to 1499 in Persian). Digits are any script's.
     /// `None` when the text isn't a valid date.
@@ -595,6 +597,11 @@ impl DateFormat {
         }
         let runs = digit_runs(&text);
         let [a, b, c] = runs.as_slice() else { return None };
+        // `2026-10-31`, the form `plain` writes, is Gregorian ISO in every locale.
+        let iso = a.len() == 4 && text.trim().split('-').map(str::len).eq([4, b.len(), c.len()]);
+        if iso {
+            return CalendarDate::new(a.parse().ok()?, b.parse().ok()?, c.parse().ok()?);
+        }
         let order = if a.len() == 4 { [Field::Year, Field::Month, Field::Day] } else { self.field_order() };
         let (mut year, mut month, mut day) = (None, None, None);
         for (field, run) in order.into_iter().zip([a, b, c]) {
@@ -874,5 +881,14 @@ mod tests {
         assert_eq!(DateFormat::from_tag("fa-IR").parse_date("۱۴۰۵/۰۸/۰۹"), day);
         assert_eq!(DateFormat::from_tag("fa-IR").parse_date("۱۴۰۵/۸/۹"), day);
         assert_eq!(DateFormat::from_tag("en-US").parse_date("10/31/2026"), day);
+    }
+
+    #[test]
+    fn iso_dates_are_gregorian_in_every_locale() {
+        let day = Some(CalendarDate { year: 2026, month: 10, day: 31 });
+        for tag in ["th-TH", "fa-IR", "en-US", "de-DE"] {
+            assert_eq!(DateFormat::from_tag(tag).parse_date("2026-10-31"), day, "{tag}");
+        }
+        assert_eq!(DateFormat::from_tag("th-TH").parse_date("31-10-2569"), day, "other orders follow the locale's calendar");
     }
 }

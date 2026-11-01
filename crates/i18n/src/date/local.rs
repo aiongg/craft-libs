@@ -5,9 +5,9 @@
 use icu_calendar::types::{Month, YearInput};
 use icu_calendar::{AnyCalendar, AnyCalendarKind, Date, Gregorian, Ref};
 use icu_datetime::DateTimeFormatter;
-use icu_datetime::fieldsets::YM;
+use icu_datetime::fieldsets::{M, YM};
 
-use super::{CalendarDate, DateFormat, DateLength, Formatter, Spliced, to_icu};
+use super::{CalendarDate, DateFormat, DateLength, Formatter, NameLength, Spliced, to_icu};
 use crate::data;
 use writeable::Writeable as _;
 
@@ -130,5 +130,35 @@ impl DateFormat {
             return fallback();
         }
         out.text
+    }
+
+    /// The name of `month` (1 to 12) of the display calendar as it stands alone: `October`,
+    /// `آبان`. Narrow names are the abbreviated ones.
+    pub fn local_month_name(&self, month: u8, length: NameLength) -> String {
+        if matches!(self.calendar_kind(), CalendarKind::Gregorian | CalendarKind::Buddhist) {
+            return self.month_name(month, length);
+        }
+        let index = usize::from(month.clamp(1, 12)) - 1;
+        let names = self.cache.local_months.get_or_init(|| {
+            let provider = data::dates_provider()?;
+            let locale = self.icu_locale(false);
+            let year = self.to_local(CalendarDate { year: 2026, month: 1, day: 1 })?.year;
+            let build = |abbreviated: bool| -> Option<[String; 12]> {
+                let set = if abbreviated { M::medium() } else { M::long() };
+                let formatter = DateTimeFormatter::try_new_with_buffer_provider(provider, (&locale).into(), set).ok()?;
+                let mut names: [String; 12] = Default::default();
+                for (i, name) in names.iter_mut().enumerate() {
+                    let date = self.from_local(LocalDate { year, month: i as u8 + 1, day: 1 })?;
+                    let (icu, _) = to_icu(super::DateTime { date, hour: 0, minute: 0, second: 0 })?;
+                    *name = formatter.format(&icu).write_to_string().into_owned();
+                }
+                Some(names)
+            };
+            Some([build(true)?, build(false)?])
+        });
+        match names {
+            Some(names) => names[usize::from(length == NameLength::Wide)][index].clone(),
+            None => month.to_string(),
+        }
     }
 }

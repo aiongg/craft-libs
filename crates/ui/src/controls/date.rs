@@ -42,6 +42,13 @@ crate::words! {
 }
 
 /// How much of a date a value names.
+///
+/// A picker offering only [`DatePrecision::Day`] shows the region's calendar on every page: its
+/// Month and Year pages only move the day grid (the title goes up a level), so they list the
+/// calendar's own months and years (Persian ones, say). A picker offering Month or Year as well
+/// picks stored values, which are Gregorian partial dates, so its Month and Year pages hold
+/// Gregorian months and years (shifted by the year offset where the calendar's months are the
+/// Gregorian ones, as in the Buddhist calendar).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum DatePrecision {
     Year,
@@ -436,6 +443,9 @@ pub(super) struct View {
     pub(super) year: i32,
     pub(super) month: u8,
     pub(super) active: i32,
+    /// The Month and Year pages only move the Day page, in the display calendar (a Day-only
+    /// picker), instead of choosing a Gregorian month or year.
+    pub(super) nav: bool,
 }
 
 impl View {
@@ -444,28 +454,31 @@ impl View {
         dates.from_local(local).and_then(PickedDate::from_calendar_date)
     }
 
-    /// The year number a Month or Year page adds to a value's Gregorian year: the display
-    /// calendar's when its months are the Gregorian months (Buddhist: 543), else none, since a
-    /// month or year of a calendar with other month starts is not a Gregorian month or year.
+    /// The year number a value page adds to a value's Gregorian year: the display calendar's when
+    /// its months are the Gregorian months (Buddhist: 543), else none, since a month or year of a
+    /// calendar with other month starts is not a Gregorian month or year.
     fn frame_offset(dates: &DateFormat) -> i32 {
         dates.local_year_offset().unwrap_or(0)
     }
 
-    /// The years a page can show, as the page counts them.
-    fn year_range(precision: DatePrecision, dates: &DateFormat) -> (i32, i32) {
-        match precision {
-            DatePrecision::Day => dates.local_year_range().unwrap_or((0, LAST_YEAR)),
-            _ => (Self::frame_offset(dates), LAST_YEAR + Self::frame_offset(dates)),
-        }
+    /// Whether the page counts days, months and years of the display calendar: the Day page, and
+    /// the navigation pages. Else it counts Gregorian ones (shifted by [`Self::frame_offset`]).
+    fn local(&self) -> bool {
+        self.precision == DatePrecision::Day || self.nav
     }
 
-    /// `date`'s year and month as `precision`'s pages count them.
-    fn locate(precision: DatePrecision, date: PickedDate, dates: &DateFormat) -> (i32, u8) {
-        match precision {
-            DatePrecision::Day => {
-                date.calendar_date().and_then(|d| dates.to_local(d)).map_or((date.year, date.month.unwrap_or(1)), |l| (l.year, l.month))
-            }
-            _ => (date.year + Self::frame_offset(dates), date.month.unwrap_or(1)),
+    /// The years a page can show, as the page counts them.
+    fn year_range(local: bool, dates: &DateFormat) -> (i32, i32) {
+        if local { dates.local_year_range().unwrap_or((0, LAST_YEAR)) } else { (Self::frame_offset(dates), LAST_YEAR + Self::frame_offset(dates)) }
+    }
+
+    /// `date`'s first day as a page counts it: year, month, day.
+    fn coords(&self, date: PickedDate, dates: &DateFormat) -> Option<(i32, u8, u8)> {
+        if self.local() {
+            let local = dates.to_local(date.calendar_date()?)?;
+            Some((local.year, local.month, local.day))
+        } else {
+            Some((date.year + Self::frame_offset(dates), date.month.unwrap_or(1), date.day.unwrap_or(1)))
         }
     }
 
@@ -476,26 +489,55 @@ impl View {
         let fallback =
             if precisions.contains(&DatePrecision::Day) { DatePrecision::Day } else { precisions.first().copied().unwrap_or(DatePrecision::Day) };
         let precision = value.map(|v| v.precision()).filter(|p| precisions.contains(p)).unwrap_or(fallback);
-        let (year, month) = Self::locate(precision, at, dates);
-        let (first, last) = Self::year_range(precision, dates);
-        let mut view = View { precision, year: year.clamp(first, last), month: month.max(1), active: 0 };
+        let nav = precision == DatePrecision::Day && precisions.iter().all(|p| *p == DatePrecision::Day);
+        let mut view = View { precision, year: 0, month: 1, active: 0, nav };
+        let (year, month, _) = view.coords(at, dates).unwrap_or((at.year, at.month.unwrap_or(1), 1));
+        let (first, last) = Self::year_range(view.local(), dates);
+        view.year = year.clamp(first, last);
+        view.month = month.max(1);
         view.active = view.landing(value, today, dates);
         view
     }
 
-    /// This view on another precision's page, over the same day.
+    /// This view on another precision's value page, over the same day.
     pub(super) fn switched(self, precision: DatePrecision, dates: &DateFormat) -> View {
         let (year, month) = match (self.precision, precision) {
             (DatePrecision::Day, DatePrecision::Day) => (self.year, self.month),
             (DatePrecision::Day, _) => match View::picked(dates, LocalDate { year: self.year, month: self.month, day: 1 }) {
-                Some(first) => Self::locate(precision, first, dates),
+                Some(first) => (first.year + Self::frame_offset(dates), first.month.unwrap_or(1)),
                 None => (self.year, self.month),
             },
-            (_, DatePrecision::Day) => Self::locate(precision, PickedDate::month(self.year - Self::frame_offset(dates), self.month), dates),
+            (_, DatePrecision::Day) => {
+                let first = PickedDate::day(self.year - Self::frame_offset(dates), self.month, 1);
+                first.calendar_date().and_then(|d| dates.to_local(d)).map_or((self.year, self.month), |l| (l.year, l.month))
+            }
             _ => (self.year, self.month),
         };
-        let (first, last) = Self::year_range(precision, dates);
-        View { precision, year: year.clamp(first, last), month: month.max(1), ..self }
+        let (first, last) = Self::year_range(precision == DatePrecision::Day, dates);
+        View { precision, year: year.clamp(first, last), month: month.max(1), nav: false, ..self }
+    }
+
+    /// The navigation page one level up from the Day page: Month, then Year.
+    pub(super) fn up(self, dates: &DateFormat, value: Option<PickedDate>, today: Option<PickedDate>) -> View {
+        let mut view = match (self.nav, self.precision) {
+            (true, DatePrecision::Day) => View { precision: DatePrecision::Month, ..self },
+            (true, DatePrecision::Month) => View { precision: DatePrecision::Year, ..self },
+            _ => self,
+        };
+        view.active = view.landing(value, today, dates);
+        view
+    }
+
+    /// The view after choosing the cell `key` of a navigation page: a Year page's year opens its
+    /// Month page, a Month page's month its Day page.
+    pub(super) fn entered(self, key: i32, dates: &DateFormat, value: Option<PickedDate>, today: Option<PickedDate>) -> View {
+        let mut view = match self.precision {
+            DatePrecision::Year => View { precision: DatePrecision::Month, year: key, ..self },
+            DatePrecision::Month => View { precision: DatePrecision::Day, month: u8::try_from(key).unwrap_or(1), ..self },
+            DatePrecision::Day => self,
+        };
+        view.active = view.landing(value, today, dates);
+        view
     }
 
     /// The first year of a Year page.
@@ -506,16 +548,15 @@ impl View {
     /// The cell that has the keyboard when the page shows: the value's, else today's, else the
     /// first.
     fn landing(&self, value: Option<PickedDate>, today: Option<PickedDate>, dates: &DateFormat) -> i32 {
-        let offset = Self::frame_offset(dates);
-        let (_, last) = Self::year_range(self.precision, dates);
-        let on_page = |date: PickedDate| match self.precision {
-            DatePrecision::Day => {
-                let local = date.month.and(date.calendar_date()).and_then(|d| dates.to_local(d))?;
-                (local.year == self.year && local.month == self.month).then(|| i32::from(date.day.map_or(1, |_| local.day)))
-            }
-            DatePrecision::Month => (date.year + offset == self.year).then(|| i32::from(date.month.unwrap_or(1))),
-            DatePrecision::Year => {
-                (self.first_year()..self.first_year() + YEARS_PER_PAGE).contains(&(date.year + offset)).then_some(date.year + offset)
+        let (_, last) = Self::year_range(self.local(), dates);
+        let on_page = |date: PickedDate| {
+            let (year, month, day) = self.coords(date, dates)?;
+            match self.precision {
+                DatePrecision::Day => {
+                    (date.month.is_some() && year == self.year && month == self.month).then(|| i32::from(date.day.map_or(1, |_| day)))
+                }
+                DatePrecision::Month => (year == self.year).then_some(i32::from(month)),
+                DatePrecision::Year => (self.first_year()..self.first_year() + YEARS_PER_PAGE).contains(&year).then_some(year),
             }
         };
         value.and_then(on_page).or_else(|| today.and_then(on_page)).unwrap_or(match self.precision {
@@ -528,7 +569,7 @@ impl View {
     /// same place. Paging stops at the first and last year rather than wrapping.
     pub(super) fn paged(self, forward: bool, dates: &DateFormat) -> View {
         let sign = if forward { 1 } else { -1 };
-        let (first, last) = Self::year_range(self.precision, dates);
+        let (first, last) = Self::year_range(self.local(), dates);
         let (year, month) = match self.precision {
             DatePrecision::Day => {
                 let months = i32::from(dates.local_months_in_year(self.year).max(1));
@@ -562,7 +603,12 @@ impl View {
 pub(super) struct Cell {
     /// The day, the month number or the year.
     pub(super) key: i32,
+    /// What choosing it sets; a navigation cell's first day.
     pub(super) date: PickedDate,
+    /// The first and last Gregorian day it covers.
+    span: (PickedDate, PickedDate),
+    /// Whether choosing it only moves the page.
+    pub(super) nav: bool,
     pub(super) text: String,
     /// The accessible name.
     pub(super) name: String,
@@ -580,41 +626,76 @@ impl Page {
             Some(day) => dates.format(DateTime { date: day, hour: 0, minute: 0, second: 0 }, DateStyle { date: Some(DateLength::Long), time: None }),
             None => date.iso(),
         };
-        let offset = View::frame_offset(dates);
-        let (first, last) = View::year_range(view.precision, dates);
-        match view.precision {
-            DatePrecision::Day => Page {
+        let cell = |key: i32, date: PickedDate, text: String, name: String| Cell {
+            key,
+            date,
+            span: (date.first_day(), date.last_day()),
+            nav: false,
+            text,
+            name,
+        };
+        let offset = if view.local() { 0 } else { View::frame_offset(dates) };
+        let (first, last) = View::year_range(view.local(), dates);
+        // A local month or year as the Gregorian days it covers; the ends of the range are clamped.
+        let span_of = |year: i32, first_month: u8, last_month: u8| {
+            let start = View::picked(dates, LocalDate { year, month: first_month, day: 1 }).unwrap_or(PickedDate::day(0, 1, 1));
+            let end = View::picked(dates, LocalDate { year, month: last_month, day: dates.local_days_in_month(year, last_month) })
+                .unwrap_or(PickedDate::day(LAST_YEAR, 12, 31));
+            (start, end)
+        };
+        match (view.precision, view.nav) {
+            (DatePrecision::Day, _) => Page {
                 columns: 7,
                 cells: local_month_grid(dates, view.year, view.month)
                     .into_iter()
                     .map(|day| {
                         let d = day?;
                         let date = View::picked(dates, LocalDate { year: view.year, month: view.month, day: d })?;
-                        Some(Cell { key: i32::from(d), date, text: numbers.small(u32::from(d)), name: long(date) })
+                        Some(cell(i32::from(d), date, numbers.small(u32::from(d)), long(date)))
                     })
                     .collect(),
             },
-            DatePrecision::Month => Page {
+            (DatePrecision::Month, true) => Page {
+                columns: 4,
+                cells: (1..=dates.local_months_in_year(view.year))
+                    .map(|m| {
+                        let span = span_of(view.year, m, m);
+                        Some(Cell {
+                            key: i32::from(m),
+                            date: span.0,
+                            span,
+                            nav: true,
+                            text: dates.local_month_name(m, NameLength::Abbreviated),
+                            name: dates.local_year_month(view.year, m),
+                        })
+                    })
+                    .collect(),
+            },
+            (DatePrecision::Year, true) => Page {
+                columns: 4,
+                cells: (view.first_year()..view.first_year() + YEARS_PER_PAGE)
+                    .map(|y| {
+                        (first..=last).contains(&y).then(|| {
+                            let span = span_of(y, 1, dates.local_months_in_year(y));
+                            Cell { key: y, date: span.0, span, nav: true, text: numbers.year(y), name: numbers.year(y) }
+                        })
+                    })
+                    .collect(),
+            },
+            (DatePrecision::Month, false) => Page {
                 columns: 4,
                 cells: (1..=12u8)
                     .map(|m| {
                         let date = PickedDate::month(view.year - offset, m);
                         let name = if offset == 0 { dates.year_month(i64::from(view.year), m) } else { dates.local_year_month(view.year, m) };
-                        Some(Cell { key: i32::from(m), date, text: dates.month_name(m, NameLength::Abbreviated), name })
+                        Some(cell(i32::from(m), date, dates.month_name(m, NameLength::Abbreviated), name))
                     })
                     .collect(),
             },
-            DatePrecision::Year => Page {
+            (DatePrecision::Year, false) => Page {
                 columns: 4,
                 cells: (view.first_year()..view.first_year() + YEARS_PER_PAGE)
-                    .map(|y| {
-                        (first..=last).contains(&y).then(|| Cell {
-                            key: y,
-                            date: PickedDate::year(y - offset),
-                            text: numbers.year(y),
-                            name: numbers.year(y),
-                        })
-                    })
+                    .map(|y| (first..=last).contains(&y).then(|| cell(y, PickedDate::year(y - offset), numbers.year(y), numbers.year(y))))
                     .collect(),
             },
         }
@@ -651,11 +732,7 @@ impl Page {
             DatePrecision::Month => numbers.year(view.year),
             DatePrecision::Year => {
                 let first = view.first_year();
-                format!(
-                    "{}\u{2013}{}",
-                    numbers.year(first),
-                    numbers.year((first + YEARS_PER_PAGE - 1).min(View::year_range(view.precision, dates).1))
-                )
+                format!("{}\u{2013}{}", numbers.year(first), numbers.year((first + YEARS_PER_PAGE - 1).min(View::year_range(view.local(), dates).1)))
             }
         }
     }
@@ -691,6 +768,7 @@ impl Popup<'_> {
         let allowed = |date: &PickedDate| date.in_bounds(self.min.as_ref(), self.max.as_ref());
         ui.set_width(date.popup_width);
         let mut picked: Option<Option<PickedDate>> = None;
+        let mut entered: Option<i32> = None;
 
         if self.precisions.len() > 1 {
             let before = view.precision;
@@ -770,7 +848,15 @@ impl Popup<'_> {
         }
         let page = Page::of(view, &dates, &numbers);
         let title = page.title(view, &numbers, &dates);
-        ui.painter().text(strip.center(), Align2::CENTER_CENTER, &title, tokens.font(date.title), date.title_text);
+        let title_rect = ui.painter().text(strip.center(), Align2::CENTER_CENTER, &title, tokens.font(date.title), date.title_text);
+        // In a Day-only picker the title goes up a level: Day to Month to Year.
+        if view.nav && view.precision != DatePrecision::Year {
+            let response = ui.interact(title_rect.expand(ui.spacing().item_spacing.x), self.id.with(("title", view.precision as u8)), Sense::click());
+            response.widget_info(|| egui::WidgetInfo::labeled(Role::Button, true, title.as_str()));
+            if response.clicked() {
+                *view = view.up(&dates, self.current, self.today);
+            }
+        }
 
         // The page.
         let active_key = view.active;
@@ -818,10 +904,10 @@ impl Popup<'_> {
             for (column, cell) in cells.iter().enumerate() {
                 let Some(cell) = cell else { continue };
                 let rect = cell_rect(strip.top(), column, list.height);
-                let permitted = allowed(&cell.date);
+                let permitted = self.permitted(cell);
                 let mut element = Interactive::with_id(ids[row * columns + column].unwrap_or(Id::NULL), Role::GridCell, cell.name.as_str())
                     .corner_radius(list.radius)
-                    .selected(self.current == Some(cell.date))
+                    .selected(self.selected(cell))
                     .enabled(permitted);
                 if cell.key != active_key {
                     element = element.sense(Sense::CLICK);
@@ -834,12 +920,19 @@ impl Popup<'_> {
                     response.scroll_to_me(None);
                 }
                 if permitted && response.clicked() {
-                    picked = Some(Some(cell.date));
+                    if cell.nav {
+                        entered = Some(cell.key);
+                    } else {
+                        picked = Some(Some(cell.date));
+                    }
                 }
             }
             grid.add_space(date.gap);
         }
         ui.advance_cursor_after_rect(grid.min_rect());
+        if let Some(key) = entered {
+            *view = view.entered(key, &dates, self.current, self.today);
+        }
 
         // Today and Clear.
         let today = self.today.map(|t| match view.precision {
@@ -861,19 +954,33 @@ impl Popup<'_> {
         picked
     }
 
+    /// Whether any day of the cell lies within the bounds.
+    fn permitted(&self, cell: &Cell) -> bool {
+        self.min.is_none_or(|m| cell.span.1.day_key() >= m.first_day().day_key())
+            && self.max.is_none_or(|m| cell.span.0.day_key() <= m.last_day().day_key())
+    }
+
+    /// Whether the value is the cell's, or for a navigation cell falls within it.
+    fn selected(&self, cell: &Cell) -> bool {
+        if cell.nav {
+            self.current.is_some_and(|c| (cell.span.0.day_key()..=cell.span.1.day_key()).contains(&c.first_day().day_key()))
+        } else {
+            self.current == Some(cell.date)
+        }
+    }
+
     fn paint(&self, ui: &Ui, style: &DatePickerStyle, rect: Rect, cell: &Cell) {
         let list = &style.list;
-        let permitted = cell.date.in_bounds(self.min.as_ref(), self.max.as_ref());
-        let selected = self.current == Some(cell.date);
+        let permitted = self.permitted(cell);
+        let selected = self.selected(cell);
         let painter = ui.painter();
         let radius: CornerRadius = list.radius;
         if selected && permitted {
             painter.rect_filled(rect, radius, list.active_fill);
             painter.rect_stroke(rect, radius, Stroke::new(1.0, list.active_border), StrokeKind::Inside);
         }
-        let holds_today = self
-            .today
-            .is_some_and(|t| t.first_day().day_key() >= cell.date.first_day().day_key() && t.first_day().day_key() <= cell.date.last_day().day_key());
+        let holds_today =
+            self.today.is_some_and(|t| t.first_day().day_key() >= cell.span.0.day_key() && t.first_day().day_key() <= cell.span.1.day_key());
         if holds_today {
             painter.rect_stroke(rect, radius, Stroke::new(1.0, style.today_ring), StrokeKind::Inside);
         }

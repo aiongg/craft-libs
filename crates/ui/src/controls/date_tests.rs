@@ -1,6 +1,6 @@
 //! `PickedDate` rules, the calendar grid and `DatePicker` in a harness.
 
-use craft_i18n::{DateFormat, Weekday};
+use craft_i18n::{DateFormat, NameLength, Weekday};
 
 use super::date::{Page, View};
 use crate::localized::LocaleNumbers;
@@ -17,7 +17,7 @@ fn parse(text: &str) -> Option<PickedDate> {
 fn pages_write_the_regions_digits_and_year_month_titles() {
     let (ar_numbers, de_numbers) = (LocaleNumbers::from_tag("ar-EG"), LocaleNumbers::from_tag("de-DE"));
     let (de, us) = (DateFormat::from_tag("de-DE"), DateFormat::from_tag("en-US"));
-    let day_view = View { precision: DatePrecision::Day, year: 2026, month: 10, active: 1 };
+    let day_view = View { precision: DatePrecision::Day, year: 2026, month: 10, active: 1, nav: false };
     let page = Page::of(&day_view, &de, &ar_numbers);
     let first = page.cells.iter().flatten().next().unwrap();
     assert_eq!(first.text, "\u{661}", "the day in Arabic-Indic digits");
@@ -93,7 +93,7 @@ fn a_persian_month_grid_has_its_own_length_and_start() {
     assert_eq!((grid.iter().take_while(|d| d.is_none()).count(), grid.iter().flatten().count(), grid.len() % 7), (6, 30, 0));
     assert_eq!(local_month_grid(&fa, 1405, 1).iter().flatten().count(), 31);
     assert_eq!(local_month_grid(&fa, 1405, 12).iter().flatten().count(), 29);
-    let view = View { precision: DatePrecision::Day, year: 1405, month: 8, active: 1 };
+    let view = View { precision: DatePrecision::Day, year: 1405, month: 8, active: 1, nav: false };
     let page = Page::of(&view, &fa, &numbers);
     let day = |key| page.cells.iter().flatten().find(|c| c.key == key).unwrap();
     assert_eq!((day(1).date, day(9).date), (PickedDate::day(2026, 10, 23), PickedDate::day(2026, 10, 31)));
@@ -104,7 +104,7 @@ fn a_persian_month_grid_has_its_own_length_and_start() {
 #[test]
 fn paging_crosses_the_persian_year_end() {
     let fa = DateFormat::from_tag("fa-IR");
-    let esfand = View { precision: DatePrecision::Day, year: 1405, month: 12, active: 29 };
+    let esfand = View { precision: DatePrecision::Day, year: 1405, month: 12, active: 29, nav: false };
     let next = esfand.paged(true, &fa);
     assert_eq!((next.year, next.month, next.active), (1406, 1, 29));
     let back = View { active: 31, ..next }.paged(false, &fa);
@@ -117,11 +117,45 @@ fn paging_crosses_the_persian_year_end() {
 #[test]
 fn persian_month_and_year_pages_count_gregorian_months() {
     let fa = DateFormat::from_tag("fa-IR");
-    let day = View { precision: DatePrecision::Day, year: 1405, month: 8, active: 9 };
+    let day = View { precision: DatePrecision::Day, year: 1405, month: 8, active: 9, nav: false };
     let month = day.switched(DatePrecision::Month, &fa);
     assert_eq!((month.year, month.month), (2026, 10));
     let back = month.switched(DatePrecision::Day, &fa);
     assert_eq!((back.year, back.month), (1405, 7), "2026-10-01 falls in Mehr");
+}
+
+// A Day-only Persian picker: the title goes up to the Month page, which lists Persian months, and choosing one opens that month's days.
+#[test]
+fn navigating_a_persian_day_picker_lands_on_the_chosen_persian_month() {
+    let (fa, numbers) = (DateFormat::from_tag("fa-IR"), LocaleNumbers::from_tag("fa-IR"));
+    let value = Some(PickedDate::day(2026, 10, 31));
+    let day = View::open(value, None, &[DatePrecision::Day], &fa);
+    assert_eq!((day.year, day.month, day.nav), (1405, 8, true));
+    let months = day.up(&fa, value, None);
+    assert_eq!(months.precision, DatePrecision::Month);
+    let page = Page::of(&months, &fa, &numbers);
+    assert_eq!(page.cells.iter().flatten().count(), 12);
+    assert_eq!(page.cells[7].as_ref().unwrap().text, fa.local_month_name(8, NameLength::Abbreviated));
+    assert!(page.cells[7].as_ref().unwrap().text.contains("آبان"), "Aban");
+    assert_eq!(months.active, 8, "the value's month has the keyboard");
+    let mehr = months.entered(7, &fa, value, None);
+    assert_eq!((mehr.precision, mehr.year, mehr.month), (DatePrecision::Day, 1405, 7));
+    let first = Page::of(&mehr, &fa, &numbers).cells.iter().flatten().next().unwrap().date;
+    assert_eq!(first, PickedDate::day(2026, 9, 23), "1 Mehr 1405");
+    let years = months.up(&fa, value, None);
+    assert_eq!(Page::of(&years, &fa, &numbers).cells.iter().flatten().find(|c| c.key == 1405).map(|c| c.text.clone()), Some(numbers.year(1405)));
+    assert_eq!(years.entered(1404, &fa, value, None).precision, DatePrecision::Month);
+}
+
+// With month precision offered, the value is a Gregorian month, so the Persian picker's Month page picks one.
+#[test]
+fn a_persian_month_precision_picker_returns_a_gregorian_month() {
+    let (fa, numbers) = (DateFormat::from_tag("fa-IR"), LocaleNumbers::from_tag("fa-IR"));
+    let view = View::open(Some(PickedDate::month(2026, 10)), None, &[DatePrecision::Month, DatePrecision::Day], &fa);
+    assert_eq!((view.precision, view.year, view.nav), (DatePrecision::Month, 2026, false));
+    let page = Page::of(&view, &fa, &numbers);
+    let cell = page.cells[9].as_ref().unwrap();
+    assert_eq!((cell.date, cell.nav), (PickedDate::month(2026, 10), false));
 }
 
 // The screen-reader name of a cell is the date in the calendar the grid shows.
