@@ -1,10 +1,12 @@
 //! [`MaskViewControls`]: the View Mode block of Select and Mask's Properties panel (task SE-F6).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: task SE-F6")]
-
+use craft_theme::TypeRole;
+use craft_ui::controls::{Checkbox, Select, Slider};
+use craft_ui::direction;
+use craft_ui::primitives::{Content, Text};
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
-use super::{MaskViewChange, MaskViewLabels, MaskViewState};
+use super::{MaskViewChange, MaskViewLabels, MaskViewMode, MaskViewState};
 
 /// What [`MaskViewControls::show`] reports.
 #[derive(Clone, Debug)]
@@ -44,8 +46,55 @@ impl<'a> MaskViewControls<'a> {
 
     /// Shows the controls in `ui`'s layout.
     pub fn show(self, ui: &mut Ui) -> MaskViewResponse {
-        // pc: crates/ui-egui/src/canvas/select_mask_view.rs:178-199 `controls` (drop-down, Opacity
-        // slider only when the view has one, rounded, the two checkboxes, the hint).
-        todo!()
+        let Self { id_salt, state, labels } = self;
+        let mut changed = None;
+        let outer = ui.scope(|ui| {
+            direction::horizontal(ui, |ui| {
+                ui.add(Text::new(labels.view_mode.as_str()).role(TypeRole::Label).content(Content::Muted));
+                let mut picked = state.mode;
+                let mut select = Select::new((&id_salt, "mode"), labels.view_mode.as_str(), &mut picked);
+                for mode in MaskViewMode::ALL {
+                    let letter = mode.key().name();
+                    select = select.option(mode, format!("{} ({letter})", mode.label(&labels)));
+                }
+                let _ = select.show(ui);
+                if picked != state.mode {
+                    let change = MaskViewChange::Mode(picked);
+                    state.apply(change);
+                    changed = Some(change);
+                }
+            });
+            let mode = state.mode;
+            if let Some(percent) = state.opacity(mode) {
+                let out = Slider::new((&id_salt, "opacity", mode.id()), labels.opacity.as_str(), percent, 0.0..=100.0)
+                    .step(1.0)
+                    .value_text(format!("{percent:.0} %"))
+                    .show(ui);
+                if let Some(value) = out.event.as_ref().and_then(|e| e.value()) {
+                    let value = (*value as f32).round();
+                    if Some(value) != state.opacity(mode) {
+                        let change = MaskViewChange::Opacity(mode, value);
+                        state.apply(change);
+                        changed = Some(change);
+                    }
+                }
+            }
+            let mut edge = state.show_edge;
+            let _ = Checkbox::bool(labels.show_edge.as_str(), &mut edge).id_salt((&id_salt, "edge")).show(ui);
+            if edge != state.show_edge {
+                let change = MaskViewChange::ShowEdge(edge);
+                state.apply(change);
+                changed = Some(change);
+            }
+            let mut original = state.show_original;
+            let _ = Checkbox::bool(labels.show_original.as_str(), &mut original).id_salt((&id_salt, "original")).show(ui);
+            if original != state.show_original {
+                let change = MaskViewChange::ShowOriginal(original);
+                state.apply(change);
+                changed = Some(change);
+            }
+            ui.add(Text::new(labels.hint.as_str()).role(TypeRole::Caption).content(Content::Muted));
+        });
+        MaskViewResponse { response: outer.response, changed }
     }
 }

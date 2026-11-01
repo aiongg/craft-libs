@@ -1,8 +1,6 @@
 //! [`MaskViewMode`], [`MaskViewState`] and the [`MaskViewRecipe`] an engine builds the view from
 //! (task SE-F6).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: task SE-F6")]
-
 use craft_theme::Srgba;
 use serde::{Deserialize, Serialize};
 
@@ -47,7 +45,15 @@ impl MaskViewMode {
     /// `onBlack`, `onWhite`, `blackWhite`, `onLayers`.
     pub fn id(self) -> &'static str {
         // pc: crates/ui-egui/src/canvas/select_mask_view.rs:44-54 `Mode::id`.
-        todo!()
+        match self {
+            MaskViewMode::OnionSkin => "onionSkin",
+            MaskViewMode::MarchingAnts => "marchingAnts",
+            MaskViewMode::Overlay => "overlay",
+            MaskViewMode::OnBlack => "onBlack",
+            MaskViewMode::OnWhite => "onWhite",
+            MaskViewMode::BlackAndWhite => "blackWhite",
+            MaskViewMode::OnLayers => "onLayers",
+        }
     }
 
     /// The view with `id`, if any.
@@ -58,26 +64,51 @@ impl MaskViewMode {
     /// The letter that picks the view: O, M, V, A, T, K, Y.
     pub fn key(self) -> egui::Key {
         // pc: crates/ui-egui/src/canvas/select_mask_view.rs:73-83 `Mode::key`.
-        todo!()
+        match self {
+            MaskViewMode::OnionSkin => egui::Key::O,
+            MaskViewMode::MarchingAnts => egui::Key::M,
+            MaskViewMode::Overlay => egui::Key::V,
+            MaskViewMode::OnBlack => egui::Key::A,
+            MaskViewMode::OnWhite => egui::Key::T,
+            MaskViewMode::BlackAndWhite => egui::Key::K,
+            MaskViewMode::OnLayers => egui::Key::Y,
+        }
     }
 
     /// The view's opacity in percent until the user changes it: 50 for Onion Skin and Overlay, 100
     /// for On Black and On White, `None` for the three without one.
     pub fn default_opacity(self) -> Option<f32> {
         // pc: crates/ui-egui/src/canvas/select_mask_view.rs:86-92 `Mode::default_opacity`.
-        todo!()
+        match self {
+            MaskViewMode::OnionSkin | MaskViewMode::Overlay => Some(50.0),
+            MaskViewMode::OnBlack | MaskViewMode::OnWhite => Some(100.0),
+            MaskViewMode::MarchingAnts | MaskViewMode::BlackAndWhite | MaskViewMode::OnLayers => None,
+        }
+    }
+
+    fn index(self) -> usize {
+        MaskViewMode::ALL.iter().position(|m| *m == self).unwrap_or(0)
     }
 
     /// The next view in menu order, Onion Skin after On Layers (F).
     pub fn next(self) -> MaskViewMode {
         // pc: crates/ui-egui/src/canvas/select_mask_view.rs:94-97 `Mode::next`.
-        todo!()
+        let i = MaskViewMode::ALL.iter().position(|m| *m == self).unwrap_or(0);
+        MaskViewMode::ALL[(i + 1) % MaskViewMode::ALL.len()]
     }
 
     /// The view's name in `labels`.
     pub fn label(self, labels: &MaskViewLabels) -> &str {
         // new: one `MaskViewLabels` field per view.
-        todo!()
+        match self {
+            MaskViewMode::OnionSkin => &labels.onion_skin,
+            MaskViewMode::MarchingAnts => &labels.marching_ants,
+            MaskViewMode::Overlay => &labels.overlay,
+            MaskViewMode::OnBlack => &labels.on_black,
+            MaskViewMode::OnWhite => &labels.on_white,
+            MaskViewMode::BlackAndWhite => &labels.black_and_white,
+            MaskViewMode::OnLayers => &labels.on_layers,
+        }
     }
 }
 
@@ -107,7 +138,16 @@ impl Default for MaskViewState {
     fn default() -> Self {
         // pc: crates/ui-egui/src/canvas/select_mask_view.rs:100-113 (`mode` default, `opacity`),
         // :456-465 (`View::of`: red, masked unless `indicates` is "selected").
-        todo!()
+        let opacities = MaskViewMode::ALL.map(|m| m.default_opacity().unwrap_or(100.0));
+        Self {
+            mode: MaskViewMode::OnionSkin,
+            opacities,
+            show_edge: false,
+            show_original: false,
+            hide_view: false,
+            overlay_color: Srgba { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }, // design: allow(Photoshop's rubylith red, document data)
+            overlay_indicates: ColorIndicates::MaskedAreas,
+        }
     }
 }
 
@@ -115,19 +155,29 @@ impl MaskViewState {
     /// The opacity of `mode` in percent, `None` for a view without one.
     pub fn opacity(&self, mode: MaskViewMode) -> Option<f32> {
         // pc: crates/ui-egui/src/canvas/select_mask_view.rs:109-113 `opacity` (clamped 0..=100).
-        todo!()
+        mode.default_opacity()?;
+        Some(self.opacities[mode.index()].clamp(0.0, 100.0))
     }
 
     /// Set `mode`'s opacity (percent, rounded, clamped to 0..=100); a view without one ignores it.
     pub fn set_opacity(&mut self, mode: MaskViewMode, percent: f32) {
         // pc: crates/ui-egui/src/canvas/select_mask_view.rs:115-119 `set_opacity`; :192 (rounded).
-        todo!()
+        if mode.default_opacity().is_none() || !percent.is_finite() {
+            return;
+        }
+        self.opacities[mode.index()] = percent.round().clamp(0.0, 100.0);
     }
 
     /// Apply one change (from the keys or the controls).
     pub fn apply(&mut self, change: MaskViewChange) {
         // new: one field per variant.
-        todo!()
+        match change {
+            MaskViewChange::Mode(mode) => self.mode = mode,
+            MaskViewChange::Opacity(mode, percent) => self.set_opacity(mode, percent),
+            MaskViewChange::ShowEdge(on) => self.show_edge = on,
+            MaskViewChange::ShowOriginal(on) => self.show_original = on,
+            MaskViewChange::HideView(on) => self.hide_view = on,
+        }
     }
 
     /// What the engine builds for the current view.
@@ -146,7 +196,42 @@ impl MaskViewState {
     pub fn recipe(&self) -> MaskViewRecipe {
         // pc: crates/ui-egui/src/canvas/select_mask_view.rs:497-507 (which coverage), :586-620
         // `show` (the veils and the layer mask).
-        todo!()
+        let mode = self.mode;
+        let o = self.opacity(mode).unwrap_or(100.0) / 100.0;
+        let coverage = if self.show_edge {
+            MaskCoverage::EdgeBand
+        } else if self.show_original {
+            MaskCoverage::Original
+        } else {
+            MaskCoverage::Refined
+        };
+        let black = Srgba { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }; // design: allow(the On Black view's veil)
+        let white = Srgba { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }; // design: allow(the On White view's veil)
+        let mut veils = Vec::new();
+        let mut layer_floor = None;
+        let mut hide_other_layers = false;
+        match mode {
+            MaskViewMode::MarchingAnts => {}
+            MaskViewMode::Overlay => {
+                let mask = match self.overlay_indicates {
+                    ColorIndicates::MaskedAreas => VeilMask::Inverse,
+                    ColorIndicates::SelectedAreas => VeilMask::Coverage,
+                };
+                veils.push(Veil { color: self.overlay_color, opacity: o, mask });
+            }
+            MaskViewMode::OnBlack => veils.push(Veil { color: black, opacity: o, mask: VeilMask::Inverse }),
+            MaskViewMode::OnWhite => veils.push(Veil { color: white, opacity: o, mask: VeilMask::Inverse }),
+            MaskViewMode::BlackAndWhite => {
+                veils.push(Veil { color: black, opacity: 1.0, mask: VeilMask::Everywhere });
+                veils.push(Veil { color: white, opacity: 1.0, mask: VeilMask::Coverage });
+            }
+            MaskViewMode::OnionSkin => {
+                layer_floor = Some(1.0 - o);
+                hide_other_layers = true;
+            }
+            MaskViewMode::OnLayers => layer_floor = Some(0.0),
+        }
+        MaskViewRecipe { mode, coverage, veils, layer_floor, hide_other_layers, ants: mode == MaskViewMode::MarchingAnts, hidden: self.hide_view }
     }
 }
 
