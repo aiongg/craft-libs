@@ -1,16 +1,26 @@
 //! The clips of one track row, with Premiere's trims and moves (N1.05).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_theme::TypeRole;
+use craft_ui::behavior::{ListSelection, RowInfo, Selection, SelectionChange};
+use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
+use egui::accesskit::Role;
+use egui::{
+    Align2, AsIdSalt, Color32, CursorIcon, IdSalt, Modifiers, Painter, PointerButton, Rect, Response, Sense, Stroke, StrokeKind, Ui, WidgetInfo, pos2,
+};
 
-use craft_ui::behavior::SelectionChange;
-use craft_ui::edit::EditEvent;
-use egui::{AsIdSalt, IdSalt, Painter, Rect, Response, Ui};
-
-use super::LabelPalette;
-use crate::clips::{ClipEdit, SnapTargets};
+use super::{LabelPalette, TimelineStyle};
+use crate::clips::{ClipEdge, ClipEdit, EdgeZones, SnapTargets, TrimKind, edge_at, snap_time};
 use crate::model::{ClipId, ClipInfo, TrackId};
 use crate::rates::FrameRate;
 use crate::time::{Tick, TimeView};
+use crate::timecode::{TimeFormat, format_time};
+
+/// How much darker a disabled clip's label colour is drawn (FilmCraft `clips.rs` halves each
+/// channel).
+const DISABLED_DIVISOR: u8 = 2;
+/// The locked hatch's line spacing, as a fraction of the caption line height.
+const HATCH_STEP_DIVISOR: f32 = 4.0;
 
 /// The timeline tool that decides what a press on a clip does (Premiere's Tools panel; the app
 /// keeps the current one).
@@ -50,7 +60,28 @@ pub const MAX_THUMBNAIL_TILES: usize = 256;
 /// tail shows the last frame).
 // filmcraft: crates/ui-egui/src/panels/timeline/clips.rs:135 `thumbnail_tiles`.
 pub fn thumbnail_tiles(mode: ThumbnailMode, x0: f32, x1: f32, tile_width: f32, visible: (f32, f32), duration: Tick, frame: Tick) -> Vec<(f32, Tick)> {
-    todo!()
+    let width = x1 - x0;
+    if !(x0.is_finite() && width.is_finite() && width > 0.0 && tile_width.is_finite() && tile_width >= 1.0) {
+        return Vec::new();
+    }
+    let last = (duration - frame).max(Tick::ZERO);
+    let offset_at = |x: f32| Tick(((x - x0) as f64 / width as f64 * duration.0 as f64).round() as i64).clamp(Tick::ZERO, last);
+    let shown = |x: f32| x < visible.1 && x + tile_width > visible.0;
+    let head = (x0, Tick::ZERO);
+    let tiles = match mode {
+        ThumbnailMode::Off => Vec::new(),
+        ThumbnailMode::Head => vec![head],
+        ThumbnailMode::HeadAndTail if width >= 2.0 * tile_width => vec![head, (x1 - tile_width, last)],
+        ThumbnailMode::HeadAndTail => vec![head],
+        ThumbnailMode::Continuous => {
+            // A grid anchored at the clip's head: scrolling reveals tiles without changing the
+            // others' frames.
+            let first = ((visible.0 - x0).max(0.0) / tile_width).floor() as usize;
+            let end = ((visible.1.min(x1) - x0) / tile_width).ceil().max(1.0) as usize;
+            (first..end).take(MAX_THUMBNAIL_TILES).map(|k| x0 + k as f32 * tile_width).map(|x| (x, offset_at(x))).collect()
+        }
+    };
+    tiles.into_iter().filter(|(x, _)| shown(*x)).collect()
 }
 
 /// Paints a clip's content (thumbnails, waveform, fades) into its body rect.
@@ -157,7 +188,166 @@ impl<'a> ClipLane<'a> {
     // `drag_update`, `:713` `commit_drag`, `:526` `escape_cancel`, `:260` `hover_cursor`;
     // `timeline_hit.rs:283` `grab_at`.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> ClipLaneResponse {
-        todo!()
+        let Self { id_salt, track, clips, view, rate, tool, no_modifier_trims, snap, locked, selection, palette, mut content } = self;
+        let tokens = Tokens::of(ui);
+        let style = TimelineStyle::of(&tokens);
+        let lane = Lane {
+            clips,
+            view,
+            left: rect.left(),
+            rate,
+            zones: EdgeZones { edge: style.edge_zone, roll: style.roll_zone },
+            no_modifier_trims,
+            tool,
+            snap,
+            tolerance: style.snap_distance,
+        };
+        let id = ui.make_persistent_id(id_salt);
+        let enabled = ui.is_enabled() && !locked;
+        let format = TimeFormat::timecode(rate);
+
+        // One reader-facing button per visible clip, below the lane's own widget: the pointer
+        // goes to the lane, a reader's Click action reaches the clip.
+        let mut reader_click = None;
+        for clip in clips {
+            let Some(body) = lane.body(clip, rect) else { continue };
+            let node = ui.interact(body.intersect(rect), id.with((track.0, clip.id.0)), Sense::CLICK);
+            let selected = selection.contains(&clip.id);
+            node.widget_info(|| WidgetInfo {
+                current_text_value: Some(format!("{} {}", format_time(clip.range.start, &format), format_time(clip.range.duration, &format))),
+                ..WidgetInfo::selected(Role::Button, enabled, selected, clip.name)
+            });
+            if enabled && node.clicked() {
+                reader_click = Some(clip.id);
+            }
+        }
+
+        let sense = if enabled { Sense::CLICK | Sense::DRAG } else { Sense::HOVER };
+        let response = ui.interact(rect, id, sense);
+        let mods = ui.input(|i| i.modifiers);
+        let pointer = response.interact_pointer_pos().or_else(|| response.hover_pos());
+
+        if ui.is_rect_visible(rect) {
+            let palette_owned;
+            let palette = match palette {
+                Some(palette) => palette,
+                None => {
+                    palette_owned = LabelPalette::default();
+                    &palette_owned
+                }
+            };
+            let painter = ui.painter_at(rect);
+            for clip in clips {
+                if let Some(body) = lane.body(clip, rect) {
+                    paint_clip(ui, &painter, &tokens, body, clip, palette, selection.contains(&clip.id), locked, content.as_mut());
+                }
+            }
+        }
+
+        let mut out = ClipLaneResponse { response, edit: None, select: None, double_clicked: None, context_menu: None, snapped_at: None };
+        if let Some(clip) = reader_click {
+            out.select = lane.pick(selection, Some(clip), Modifiers::NONE);
+        }
+        if !enabled {
+            ui.data_mut(|d| d.remove::<Pressed>(id));
+            return out;
+        }
+
+        let primary_down = ui.input(|i| i.pointer.primary_down());
+        let mut pressed = ui.data(|d| d.get_temp::<Pressed>(id));
+        if let Some(pos) = pointer
+            && out.response.contains_pointer()
+            && ui.input(|i| i.pointer.primary_pressed())
+            && tool != TimelineTool::Razor
+        {
+            let grab = lane.grab(pos.x, mods);
+            let moving = match grab {
+                Grab::Body(clip) if selection.contains(&clip) => selection.to_vec(),
+                Grab::Body(clip) => vec![clip],
+                _ => Vec::new(),
+            };
+            pressed = Some(Pressed { grab, from: view.time_at(pos.x, lane.left), moving, linked: !mods.alt, cancelled: false });
+        }
+
+        // The Razor cuts on the press, snapped to a frame.
+        if tool == TimelineTool::Razor
+            && (out.response.clicked() || out.response.drag_started_by(PointerButton::Primary))
+            && let Some(pos) = pointer
+            && let Grab::Body(clip) = lane.body_at(pos.x)
+        {
+            let (at, snapped) = lane.snapped(rate.snap_nearest(view.time_at(pos.x, lane.left)));
+            out.snapped_at = snapped;
+            out.edit = Some(EditEvent::set(ClipEdit::Cut { clip, at }, mods));
+        }
+
+        if let Some(pressed) = pressed.as_mut()
+            && let Some(rest) = lane.rest(pressed)
+        {
+            let mut gesture = Gesture::load(ui, id, &rest, EditPolicy::default());
+            if !pressed.cancelled && out.response.drag_started_by(PointerButton::Primary) {
+                gesture.begin_with_value();
+                if let Grab::Body(clip) = pressed.grab
+                    && !selection.contains(&clip)
+                {
+                    out.select = lane.pick(selection, Some(clip), Modifiers::NONE);
+                }
+            }
+            if !pressed.cancelled
+                && gesture.is_active()
+                && out.response.dragged_by(PointerButton::Primary)
+                && let Some(pos) = pointer
+                && let Some((edit, snapped)) = lane.edit(pressed, pos.x, mods)
+            {
+                gesture.update(edit, mods);
+                out.snapped_at = snapped;
+            }
+            if out.response.drag_stopped() {
+                gesture.commit();
+            }
+            out.edit = gesture.finish();
+            if matches!(out.edit, Some(EditEvent::Cancel { .. })) {
+                pressed.cancelled = true;
+            }
+        }
+
+        if out.response.clicked()
+            && !pressed.as_ref().is_some_and(|p| p.cancelled)
+            && tool != TimelineTool::Razor
+            && let Some(pos) = pointer
+        {
+            let target = pressed.as_ref().map_or_else(|| lane.body_at(pos.x), |p| p.grab);
+            let clip = match target {
+                Grab::Body(clip) | Grab::Edge { clip, .. } => Some(clip),
+                Grab::Empty => None,
+            };
+            out.select = lane.pick(selection, clip, mods);
+        }
+        if let Some(pos) = pointer {
+            if out.response.double_clicked() {
+                out.double_clicked = lane.clip_at(pos.x);
+            }
+            if out.response.secondary_clicked() {
+                out.context_menu = lane.clip_at(pos.x);
+            }
+        }
+
+        let hovered = match &pressed {
+            Some(pressed) => Some(pressed.grab),
+            None => pointer.filter(|_| out.response.contains_pointer()).map(|pos| lane.grab(pos.x, mods)),
+        };
+        if let Some(cursor) = hovered.and_then(|grab| lane.cursor(grab)) {
+            ui.ctx().set_cursor_icon(cursor);
+        }
+
+        match pressed {
+            Some(pressed) if primary_down => {
+                ui.data_mut(|d| d.insert_temp(id, pressed));
+            }
+            _ => {
+                ui.data_mut(|d| d.remove::<Pressed>(id));
+            }
+        }
+        out
     }
 }
 
@@ -173,4 +363,280 @@ pub struct ClipLaneResponse {
     pub context_menu: Option<ClipId>,
     /// Where a drag snapped this pass.
     pub snapped_at: Option<Tick>,
+}
+
+/// What a press grabbed, worked out on the press frame (FilmCraft `Pressed`, #259).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Grab {
+    /// A clip edge and the trim it starts; `partner` is the clip touching the cut on the other
+    /// side.
+    Edge {
+        clip: ClipId,
+        edge: ClipEdge,
+        kind: TrimKind,
+        partner: Option<ClipId>,
+    },
+    Body(ClipId),
+    Empty,
+}
+
+/// A primary press under way: kept from the press to the release.
+#[derive(Clone, Debug)]
+struct Pressed {
+    grab: Grab,
+    /// The time under the pointer at the press.
+    from: Tick,
+    /// The clips a body drag moves: the selection when it holds the pressed clip, else the clip.
+    moving: Vec<ClipId>,
+    /// Linked partners trim along (false when Alt was held at the press).
+    linked: bool,
+    /// Esc cancelled the gesture: the rest of the drag and its release do nothing.
+    cancelled: bool,
+}
+
+/// The lane's clips and the numbers its rules read.
+struct Lane<'a> {
+    clips: &'a [ClipInfo<'a>],
+    view: &'a TimeView,
+    left: f32,
+    rate: FrameRate,
+    zones: EdgeZones,
+    no_modifier_trims: bool,
+    tool: TimelineTool,
+    snap: Option<&'a SnapTargets>,
+    tolerance: f32,
+}
+
+impl Lane<'_> {
+    fn info(&self, id: ClipId) -> Option<&ClipInfo<'_>> {
+        self.clips.iter().find(|clip| clip.id == id)
+    }
+
+    /// A clip's block: the lane's full height from its start to its end, `None` outside `rect`.
+    fn body(&self, clip: &ClipInfo<'_>, rect: Rect) -> Option<Rect> {
+        let (x0, x1) = (self.view.x_of(clip.range.start, self.left), self.view.x_of(clip.range.end(), self.left));
+        (x1 >= rect.left() && x0 <= rect.right()).then(|| Rect::from_min_max(pos2(x0, rect.top()), pos2(x1, rect.bottom())))
+    }
+
+    fn clip_at(&self, x: f32) -> Option<ClipId> {
+        self.clips
+            .iter()
+            .find(|clip| (self.view.x_of(clip.range.start, self.left)..self.view.x_of(clip.range.end(), self.left)).contains(&x))
+            .map(|clip| clip.id)
+    }
+
+    /// The clip body under `x`, whatever the tool.
+    fn body_at(&self, x: f32) -> Grab {
+        self.clip_at(x).map_or(Grab::Empty, Grab::Body)
+    }
+
+    /// What a press of the tool at `x` grabs (FilmCraft `timeline_hit.rs:283` `grab_at`).
+    fn grab(&self, x: f32, mods: Modifiers) -> Grab {
+        let ranges: Vec<_> = self.clips.iter().map(|clip| (clip.id, clip.range)).collect();
+        let Some(hit) = edge_at(&ranges, self.view, self.left, x, &self.zones) else { return self.body_at(x) };
+        let Some(info) = self.info(hit.clip) else { return self.body_at(x) };
+        let cut = match hit.edge {
+            ClipEdge::In => info.range.start,
+            ClipEdge::Out => info.range.end(),
+        };
+        let partner = self
+            .clips
+            .iter()
+            .find(|other| {
+                other.id != hit.clip
+                    && match hit.edge {
+                        ClipEdge::In => other.range.end() == cut,
+                        ClipEdge::Out => other.range.start == cut,
+                    }
+            })
+            .map(|other| other.id);
+        let kind = match self.tool {
+            TimelineTool::Selection => {
+                crate::clips::selection_trim(mods.command, mods.shift, self.no_modifier_trims, hit.distance, partner.is_some(), &self.zones)
+            }
+            TimelineTool::Ripple => TrimKind::Ripple,
+            TimelineTool::Rolling => TrimKind::Roll,
+            TimelineTool::RateStretch => TrimKind::Stretch,
+            TimelineTool::Razor | TimelineTool::Slip | TimelineTool::Slide => return Grab::Body(hit.clip),
+        };
+        // Nothing to roll against: a regular trim.
+        let kind = if kind == TrimKind::Roll && partner.is_none() { TrimKind::Trim } else { kind };
+        Grab::Edge { clip: hit.clip, edge: hit.edge, kind, partner }
+    }
+
+    fn cursor(&self, grab: Grab) -> Option<CursorIcon> {
+        match (grab, self.tool) {
+            (Grab::Edge { .. }, _) => Some(CursorIcon::ResizeColumn),
+            (Grab::Body(_), TimelineTool::Razor) => Some(CursorIcon::Crosshair),
+            (Grab::Body(_), TimelineTool::Slip | TimelineTool::Slide) => Some(CursorIcon::ResizeHorizontal),
+            _ => None,
+        }
+    }
+
+    fn snapped(&self, t: Tick) -> (Tick, Option<Tick>) {
+        match self.snap {
+            Some(targets) => snap_time(targets, t, self.view, self.tolerance),
+            None => (t, None),
+        }
+    }
+
+    /// The selection change of a click on `clip` (none: empty space) and whether the linked
+    /// partners stay out: Shift and Cmd/Ctrl toggle, Cmd/Ctrl without partners, else replace.
+    fn pick(&self, selection: &[ClipId], clip: Option<ClipId>, mods: Modifiers) -> Option<(SelectionChange<ClipId>, bool)> {
+        let last = selection.last().copied();
+        let current = Selection { items: selection.to_vec(), lead: last, anchor: last };
+        let rules = ListSelection::default();
+        let Some(clip) = clip else { return rules.click_empty(&current).map(|change| (change, false)) };
+        let order: Vec<RowInfo<ClipId>> = self.clips.iter().map(|info| RowInfo::leaf(info.id)).collect();
+        let at = order.iter().position(|row| row.key == clip)?;
+        let toggle = Modifiers { command: mods.shift || mods.command, ..Modifiers::NONE };
+        rules.click(&current, order.as_slice(), at, toggle).map(|change| (change, mods.command))
+    }
+
+    /// The edit a drag reports before it moves: the gesture's start value.
+    fn rest(&self, pressed: &Pressed) -> Option<ClipEdit> {
+        match pressed.grab {
+            Grab::Empty => None,
+            Grab::Edge { clip, edge, kind: TrimKind::Roll, partner: Some(other) } => {
+                let (left, right) = if edge == ClipEdge::Out { (clip, other) } else { (other, clip) };
+                Some(ClipEdit::Roll { left, right, delta: Tick::ZERO })
+            }
+            Grab::Edge { clip, edge, kind, .. } => Some(ClipEdit::Trim { clip, edge, kind, delta: Tick::ZERO, linked: pressed.linked }),
+            Grab::Body(clip) => match self.tool {
+                TimelineTool::Razor => None,
+                TimelineTool::Slip => Some(ClipEdit::Slip { clip, delta: Tick::ZERO }),
+                TimelineTool::Slide => Some(ClipEdit::Slide { clip, delta: Tick::ZERO }),
+                _ => Some(ClipEdit::Move { clips: pressed.moving.clone(), delta: Tick::ZERO, track_delta: 0, new_track: false, copy: false }),
+            },
+        }
+    }
+
+    /// The edit of the drag with the pointer at `x`, and the target it snapped to
+    /// (FilmCraft `interact.rs:558` `drag_update`).
+    fn edit(&self, pressed: &Pressed, x: f32, mods: Modifiers) -> Option<(ClipEdit, Option<Tick>)> {
+        let here = self.view.time_at(x, self.left);
+        let moved = here - pressed.from;
+        let frame = self.rate.frame_duration();
+        match pressed.grab {
+            Grab::Empty => None,
+            Grab::Body(clip) => match self.tool {
+                TimelineTool::Razor => None,
+                TimelineTool::Slip => {
+                    let info = self.info(clip)?;
+                    let mut delta = -self.rate.snap_nearest(moved);
+                    if let Some(source) = info.source {
+                        delta = delta.clamp(info.range.end() - source.end(), info.range.start - source.start);
+                    }
+                    Some((ClipEdit::Slip { clip, delta }, None))
+                }
+                TimelineTool::Slide => Some((ClipEdit::Slide { clip, delta: self.rate.snap_nearest(moved) }, None)),
+                _ => {
+                    let dragged: Vec<_> = self.clips.iter().filter(|info| pressed.moving.contains(&info.id)).collect();
+                    let first = dragged.iter().map(|info| info.range.start).min()?;
+                    let last = dragged.iter().map(|info| info.range.end()).max()?;
+                    let raw = self.rate.snap_nearest(moved);
+                    let (start, start_hit) = self.snapped(first + raw);
+                    let (offset, hit) = if start != first + raw {
+                        (start - first, start_hit)
+                    } else {
+                        let (end, end_hit) = self.snapped(last + raw);
+                        (end - last, end_hit)
+                    };
+                    let delta = offset.max(-first);
+                    let edit = ClipEdit::Move { clips: pressed.moving.clone(), delta, track_delta: 0, new_track: false, copy: mods.alt };
+                    Some((edit, hit))
+                }
+            },
+            Grab::Edge { clip, edge, kind: TrimKind::Roll, partner: Some(other) } => {
+                let (left, right) = if edge == ClipEdge::Out { (self.info(clip)?, self.info(other)?) } else { (self.info(other)?, self.info(clip)?) };
+                let cut = left.range.end();
+                let (target, hit) = self.snapped(self.rate.snap_nearest(cut + moved));
+                let mut lowest = -(left.range.duration - frame);
+                let mut highest = right.range.duration - frame;
+                if let Some(source) = left.source {
+                    highest = highest.min(source.end() - cut);
+                }
+                if let Some(source) = right.source {
+                    lowest = lowest.max(source.start - right.range.start);
+                }
+                let delta = (target - cut).clamp(lowest, highest);
+                let hit = hit.filter(|_| delta == target - cut);
+                Some((ClipEdit::Roll { left: left.id, right: right.id, delta }, hit))
+            }
+            Grab::Edge { clip, edge, kind, .. } => {
+                let info = self.info(clip)?;
+                let base = match edge {
+                    ClipEdge::In => info.range.start,
+                    ClipEdge::Out => info.range.end(),
+                };
+                let (target, hit) = self.snapped(self.rate.snap_nearest(base + moved));
+                // A clip keeps one frame, and a trim stops at the media's ends (a stretch changes
+                // the speed and has none).
+                let shortest = info.range.duration - frame;
+                let (mut lowest, mut highest) = match edge {
+                    ClipEdge::In => (Tick::MIN, shortest),
+                    ClipEdge::Out => (-shortest, Tick::MAX),
+                };
+                if kind != TrimKind::Stretch
+                    && let Some(source) = info.source
+                {
+                    match edge {
+                        ClipEdge::In => lowest = source.start - base,
+                        ClipEdge::Out => highest = source.end() - base,
+                    }
+                }
+                let delta = (target - base).clamp(lowest, highest);
+                let hit = hit.filter(|_| delta == target - base);
+                Some((ClipEdit::Trim { clip, edge, kind, delta, linked: pressed.linked }, hit))
+            }
+        }
+    }
+}
+
+/// Paints one clip block: label colour (dimmed when disabled), the app's content, the name, the
+/// left-edge separator, the locked hatch, the selected outline.
+#[allow(clippy::too_many_arguments)]
+fn paint_clip(
+    ui: &Ui,
+    painter: &Painter,
+    tokens: &craft_ui::theme::UiTokens,
+    body: Rect,
+    clip: &ClipInfo<'_>,
+    palette: &LabelPalette,
+    selected: bool,
+    locked: bool,
+    content: Option<&mut ClipPainter<'_>>,
+) {
+    let base = palette.color(clip.label.unwrap_or_default());
+    let fill =
+        if clip.enabled { base } else { Color32::from_rgb(base.r() / DISABLED_DIVISOR, base.g() / DISABLED_DIVISOR, base.b() / DISABLED_DIVISOR) };
+    let clipped = painter.with_clip_rect(body.intersect(painter.clip_rect()));
+    clipped.rect_filled(body, 0.0, fill);
+    if let Some(content) = content {
+        content(&clipped, body, clip);
+    }
+    let text_color = if clip.enabled { tokens.color.text.on_strong } else { tokens.color.text.disabled };
+    let caption = role_format(tokens, TypeRole::Caption, text_color.to_egui());
+    let line = tokens.typography.get(TypeRole::Caption).line_height;
+    let pad = ui.spacing().item_spacing.x;
+    let name_at = pos2(body.left().max(clipped.clip_rect().left()) + pad, body.top() + pad + line / 2.0);
+    clipped.text(name_at, Align2::LEFT_CENTER, clip.name, caption.font_id.clone(), caption.color);
+    let hairline = ui.visuals().widgets.noninteractive.bg_stroke.width;
+    painter.line_segment([body.left_top(), body.left_bottom()], Stroke::new(hairline, tokens.color.surface.canvas.to_egui()));
+    if locked {
+        let step = line / HATCH_STEP_DIVISOR;
+        let stroke = Stroke::new(hairline, tokens.color.text.faint.to_egui());
+        let visible = body.intersect(clipped.clip_rect());
+        if step > 0.0 {
+            let first = ((visible.left() - body.height() - body.left()) / step).floor().max(0.0);
+            let mut x = body.left() + first * step;
+            while x < visible.right() {
+                clipped.line_segment([pos2(x, body.bottom()), pos2(x + body.height(), body.top())], stroke);
+                x += step;
+            }
+        }
+    }
+    if selected {
+        painter.rect_stroke(body, 0.0, ui.visuals().selection.stroke, StrokeKind::Inside);
+    }
 }
