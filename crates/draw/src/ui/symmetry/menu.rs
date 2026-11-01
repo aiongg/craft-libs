@@ -1,7 +1,10 @@
 //! [`SymmetryMenu`]: the brush options bar's painting symmetry button and its menu.
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TO-S3)")]
-
+use craft_theme::ControlSize;
+use craft_ui::controls::IconButton;
+use craft_ui::icons::Icon;
+use craft_ui::localized::Labels as _;
+use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
 use super::model::SymmetryMode;
@@ -128,6 +131,50 @@ impl<'a> SymmetryMenu<'a> {
     pub fn show(self, ui: &mut Ui) -> SymmetryMenuResponse {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:168 `menu`, :151 `mode_button` (min width 220,
         // the menu token's).
-        todo!()
+        let labels = self.labels.cloned().unwrap_or_else(|| SymmetryLabels::of(ui));
+        let current = self.current.unwrap_or(&SymmetryChoice::Off);
+        let is_off = matches!(current, SymmetryChoice::Off);
+
+        let mut entries: Vec<MenuEntry<SymmetryCommand>> = Vec::new();
+        entries.push(MenuItem::new(labels.off.clone(), SymmetryCommand::Off).radio(is_off).enabled(!is_off).into());
+        entries.push(MenuEntry::Separator);
+        for mode in SymmetryMode::ALL {
+            let (label, icon) = match mode {
+                SymmetryMode::Vertical => (&labels.vertical, Icon::SymmetryVertical),
+                SymmetryMode::Horizontal => (&labels.horizontal, Icon::SymmetryHorizontal),
+                SymmetryMode::Dual => (&labels.dual, Icon::SymmetryDual),
+                SymmetryMode::Diagonal => (&labels.diagonal, Icon::SymmetryDiagonal),
+            };
+            let chosen = *current == SymmetryChoice::Mode(mode);
+            entries.push(MenuItem::new(label.clone(), SymmetryCommand::Mode(mode)).icon(icon).radio(chosen).into());
+        }
+        if !self.paths.is_empty() {
+            entries.push(MenuEntry::Separator);
+        }
+        for row in self.paths {
+            let chosen = matches!(current, SymmetryChoice::Path(key) if *key == row.key);
+            entries.push(MenuItem::new(row.label.clone(), SymmetryCommand::FromPath(row.key.clone())).radio(chosen).into());
+        }
+        entries.push(MenuEntry::Separator);
+        entries.push(MenuItem::new(labels.transform.clone(), SymmetryCommand::Transform).enabled(self.can_transform).into());
+
+        let value = match current {
+            SymmetryChoice::Off => None,
+            SymmetryChoice::Mode(mode) => Some(match mode {
+                SymmetryMode::Vertical => labels.vertical.clone(),
+                SymmetryMode::Horizontal => labels.horizontal.clone(),
+                SymmetryMode::Dual => labels.dual.clone(),
+                SymmetryMode::Diagonal => labels.diagonal.clone(),
+            }),
+            SymmetryChoice::Path(key) => Some(self.paths.iter().find(|row| row.key == *key).map_or_else(|| key.clone(), |row| row.label.clone())),
+        };
+        let size = ControlSize::Sm;
+        let button =
+            ui.add(IconButton::new(Icon::PaintingSymmetry, labels.button.clone()).size(size).selected(!is_off).id_salt((&self.id_salt, "button")));
+        if let Some(value) = value {
+            button.ctx.accesskit_node_builder(button.id, |node| node.set_value(value));
+        }
+        let command = PressMenu::new(&entries).size(size).show(ui, &button).chosen;
+        SymmetryMenuResponse { response: button, command }
     }
 }
