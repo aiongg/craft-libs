@@ -87,9 +87,19 @@ impl CellRange {
     /// pass that took in a merge, since a merge taken in can reach another one.
     // gridcraft: crates/engine/src/selection.rs:68 `expand_merges`;
     // designcraft: crates/doc/src/table/merge.rs (the same rule for document tables).
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn covering_merges(self, merges: &[CellRange]) -> CellRange {
-        todo!()
+        let mut grown = self;
+        loop {
+            let before = grown;
+            for m in merges {
+                if m.intersects(&grown) {
+                    grown = grown.union(m);
+                }
+            }
+            if grown == before {
+                return grown;
+            }
+        }
     }
 }
 
@@ -192,9 +202,10 @@ impl<'a> CellSpace<'a> {
     /// rows and whole columns stay as they are: a click on column B's header selects only B even
     /// when B1:C1 is merged, as in Excel.
     // gridcraft: crates/engine/src/selection.rs:66 (`is_full_cols`, `is_full_rows`).
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn cover(&self, range: CellRange) -> CellRange {
-        todo!()
+        let whole_rows = range.start.column == 0 && range.end.column == self.columns - 1;
+        let whole_columns = range.start.row == 0 && range.end.row == self.rows - 1;
+        if whole_rows || whole_columns { range } else { range.covering_merges(self.merges) }
     }
 
     /// The cell one step from `from` toward `direction`: out of `from`'s merged cell from its far
@@ -203,9 +214,28 @@ impl<'a> CellSpace<'a> {
     /// cell lies that way.
     // gridcraft: crates/engine/src/cmd/edit/selection.rs:58 `selection_move` (hidden lines,
     // "Leaving a merged cell moves from its edge", the merge's start, `cell_selectable`).
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn neighbour(&self, from: CellRef, direction: CellDirection) -> Option<CellRef> {
-        todo!()
+        let mut at = from;
+        if let Some(m) = self.merge_at(from) {
+            match direction {
+                CellDirection::Up => at.row = m.start.row,
+                CellDirection::Down => at.row = m.end.row,
+                CellDirection::Left => at.column = m.start.column,
+                CellDirection::Right => at.column = m.end.column,
+            }
+        }
+        loop {
+            match direction {
+                CellDirection::Up => at.row = at.row.checked_sub(1)?,
+                CellDirection::Down => at.row = at.row.checked_add(1).filter(|r| *r < self.rows)?,
+                CellDirection::Left => at.column = at.column.checked_sub(1)?,
+                CellDirection::Right => at.column = at.column.checked_add(1).filter(|c| *c < self.columns)?,
+            }
+            let target = self.merge_at(at).map_or(at, |m| m.start);
+            if self.visitable(target) && !self.is_hidden(at) {
+                return Some(target);
+            }
+        }
     }
 
     /// A document table's Tab (InDesign, Word): the next cell along the row, then the first cell
@@ -215,9 +245,64 @@ impl<'a> CellSpace<'a> {
     /// the app's edit. A sheet's Tab is [`CellSelection::advance`], which stops at the sheet's
     /// edge.
     // designcraft: crates/engine/src/cmd/table/selection.rs:37 (Tab moves to the next cell).
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn next_in_reading_order(&self, from: CellRef, back: bool) -> Option<CellRef> {
-        todo!()
+        self.scan(self.all(), Some(from), CellAdvance::Tab, back)
+    }
+
+    fn is_hidden(&self, c: CellRef) -> bool {
+        self.hidden_rows.is_some_and(|h| h(c.row)) || self.hidden_columns.is_some_and(|h| h(c.column))
+    }
+
+    /// Whether a walk may stop at `c`: shown, selectable, and a merged cell only at its top-left.
+    fn visitable(&self, c: CellRef) -> bool {
+        !self.is_hidden(c) && self.merge_at(c).is_none_or(|m| m.start == c) && self.selectable.is_none_or(|s| s(c))
+    }
+
+    /// The next visitable cell after `from` (before it with `back`) inside `range`, walking along
+    /// rows for Tab and down columns for Enter, wrapping to the next line; `from` `None` starts at
+    /// the range's first (last) cell, which counts itself. A merged `from` is left from its far
+    /// edge.
+    fn scan(&self, range: CellRange, from: Option<CellRef>, along: CellAdvance, back: bool) -> Option<CellRef> {
+        let pair = |c: CellRef| match along {
+            CellAdvance::Tab => (i64::from(c.row), i64::from(c.column)),
+            CellAdvance::Enter => (i64::from(c.column), i64::from(c.row)),
+        };
+        let cell = |(major, minor): (i64, i64)| {
+            let (major, minor) = (major as u32, minor as u32);
+            match along {
+                CellAdvance::Tab => CellRef::new(major, minor),
+                CellAdvance::Enter => CellRef::new(minor, major),
+            }
+        };
+        let (major0, minor0) = pair(range.start);
+        let (major1, minor1) = pair(range.end);
+        let step = if back { -1 } else { 1 };
+        let (mut major, mut minor) = match from {
+            None if back => (major1, minor1),
+            None => (major0, minor0),
+            Some(c) => {
+                let (major, minor) = pair(c);
+                let (_, edge) = pair(self.merge_at(c).map_or(c, |m| if back { m.start } else { m.end }));
+                (major, if self.merge_at(c).is_some() { edge } else { minor } + step)
+            }
+        };
+        loop {
+            if minor > minor1 {
+                minor = minor0;
+                major += 1;
+            } else if minor < minor0 {
+                minor = minor1;
+                major -= 1;
+            }
+            if major > major1 || major < major0 {
+                return None;
+            }
+            let c = cell((major, minor));
+            if self.visitable(c) {
+                return Some(c);
+            }
+            minor += step;
+        }
     }
 }
 
@@ -325,25 +410,33 @@ impl CellSelection {
     /// the merge's top-left), active and the anchor. Ends a Tab run. Returns whether the
     /// selection changed.
     // gridcraft: crates/engine/src/cmd/edit/selection.rs:58 (`m.start` for a merged cell).
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn select(&mut self, c: CellRef, space: &CellSpace<'_>) -> bool {
-        todo!()
+        if !space.selectable.is_none_or(|s| s(c)) {
+            return false;
+        }
+        self.collapse_to(c, space)
     }
 
     /// A header click, a header drag or Select All: `range` alone, covered over merges unless it
     /// is whole lines ([`CellSpace::cover`]); the active cell and the anchor at its top-left.
     /// Ends a Tab run.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn select_range(&mut self, range: CellRange, space: &CellSpace<'_>) -> bool {
-        todo!()
+        let range = space.cover(range);
+        self.replace(vec![range], range.start, range.start)
     }
 
     /// Shift+click and a drag: the current range runs from the anchor to `c`, covered over
     /// merges; the active cell stays (Excel keeps it at the anchor). Ends a Tab run.
     // gridcraft: crates/engine/src/selection.rs:54 `extend_to`, `:68` `expand_merges`.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn extend_to(&mut self, c: CellRef, space: &CellSpace<'_>) -> bool {
-        todo!()
+        let range = space.cover(CellRange::new(self.anchor, c));
+        let mut ranges = self.ranges.clone();
+        match ranges.last_mut() {
+            Some(last) => *last = range,
+            None => ranges.push(range),
+        }
+        let active = if range.contains(self.active) { self.active } else { self.anchor };
+        self.replace(ranges, active, self.anchor)
     }
 
     /// Shift+arrow: the [`head`](Self::head) moves one cell toward `direction` through
@@ -351,26 +444,37 @@ impl CellSelection {
     /// from the anchor to it, covered over merges. Nothing changes at the grid's edge. Ends a
     /// Tab run.
     // gridcraft: crates/engine/src/cmd/edit/selection.rs:58 ("Extension moves the far corner").
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn extend(&mut self, direction: CellDirection, space: &CellSpace<'_>) -> bool {
-        todo!()
+        let Some(target) = space.neighbour(self.head(), direction) else {
+            return false;
+        };
+        self.extend_to(target, space)
     }
 
     /// Cmd+click (Ctrl+click): a new range at `c` (its merged cell whole) after the others; `c`
     /// becomes active and the anchor. A drag from there extends the new range. Excel never
     /// removes a range on Cmd+click, even over a selected cell. Ends a Tab run.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn add(&mut self, c: CellRef, space: &CellSpace<'_>) -> bool {
-        todo!()
+        if !space.selectable.is_none_or(|s| s(c)) {
+            return false;
+        }
+        let range = space.merge_at(c).unwrap_or(CellRange::cell(c));
+        let mut ranges = self.ranges.clone();
+        ranges.push(range);
+        self.tab_run = None;
+        self.ranges = ranges;
+        self.active = range.start;
+        self.anchor = range.start;
+        true
     }
 
     /// An arrow: the selection collapses to the active cell's neighbour toward `direction`
     /// ([`CellSpace::neighbour`]), as [`select`](Self::select) does. At the grid's edge the
     /// selection collapses to the active cell. Ends a Tab run. A Cmd/Ctrl+arrow jump to the data
     /// edge is the widget's: it asks the app for the target and calls `select` or `extend_to`.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn step(&mut self, direction: CellDirection, space: &CellSpace<'_>) -> bool {
-        todo!()
+        let target = space.neighbour(self.active, direction).unwrap_or(self.active);
+        self.collapse_to(target, space)
     }
 
     /// Enter and Tab after an entry (`back` with Shift).
@@ -389,8 +493,61 @@ impl CellSelection {
     // gridcraft: crates/engine/src/selection.rs:90 `cycle` (inside the current range only;
     // Excel's rule goes on to the next range); crates/ui-egui/src/app/editing.rs:186
     // `move_after_enter` (the Tab run).
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn advance(&mut self, along: CellAdvance, back: bool, space: &CellSpace<'_>) -> bool {
-        todo!()
+        let moved_from = self.active;
+        if !self.is_single_cell(space) {
+            self.tab_run = None;
+            self.anchor = self.active;
+            let count = self.ranges.len();
+            let at = self.ranges.iter().rposition(|r| r.contains(self.active)).unwrap_or(count - 1);
+            let mut next = space.scan(self.ranges[at], Some(self.active), along, back).map(|c| (at, c));
+            for k in 1..=count {
+                if next.is_some() {
+                    break;
+                }
+                let i = if back { (at + count - k % count) % count } else { (at + k) % count };
+                next = space.scan(self.ranges[i], None, along, back).map(|c| (i, c));
+            }
+            let Some((i, c)) = next else {
+                return false;
+            };
+            self.ranges.rotate_left(i + 1);
+            self.active = c;
+            self.anchor = c;
+            return c != moved_from;
+        }
+        let run = self.tab_run;
+        let target = match (along, back, run) {
+            (CellAdvance::Enter, false, Some(column)) => space.neighbour(self.active, CellDirection::Down).map(|n| CellRef::new(n.row, column)),
+            (CellAdvance::Enter, false, None) => space.neighbour(self.active, CellDirection::Down),
+            (CellAdvance::Enter, true, _) => space.neighbour(self.active, CellDirection::Up),
+            (CellAdvance::Tab, false, _) => space.neighbour(self.active, CellDirection::Right),
+            (CellAdvance::Tab, true, _) => space.neighbour(self.active, CellDirection::Left),
+        };
+        let Some(target) = target else {
+            return false;
+        };
+        self.select(target, space);
+        if along == CellAdvance::Tab {
+            self.tab_run = Some(run.unwrap_or(moved_from.column));
+        }
+        self.active != moved_from
+    }
+
+    /// Sets the state, ends the Tab run, and returns whether ranges, active or anchor changed.
+    fn replace(&mut self, ranges: Vec<CellRange>, active: CellRef, anchor: CellRef) -> bool {
+        self.tab_run = None;
+        let changed = self.ranges != ranges || self.active != active || self.anchor != anchor;
+        self.ranges = ranges;
+        self.active = active;
+        self.anchor = anchor;
+        changed
+    }
+
+    /// `c` alone, its merged cell whole with the active cell at the merge's top-left.
+    fn collapse_to(&mut self, c: CellRef, space: &CellSpace<'_>) -> bool {
+        let range = space.merge_at(c).unwrap_or(CellRange::cell(c));
+        let active = range.start;
+        self.replace(vec![range], active, active)
     }
 }
