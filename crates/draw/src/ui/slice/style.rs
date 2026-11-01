@@ -1,9 +1,11 @@
 //! [`SliceStyle`]: the slice overlay's look, from tokens (task TK3).
 
-use egui::{Color32, FontId, Vec2};
+use egui::{Color32, FontId, Vec2, vec2};
 
 use super::SliceTool;
-use craft_ui::theme::UiTokens;
+use craft_theme::TypeRole;
+use craft_ui::primitives::{Handle, HandleShape};
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// What [`SliceOverlay`](super::SliceOverlay) and [`SliceTool`] draw. The same at every Size (it
 /// sits on the document).
@@ -51,10 +53,30 @@ pub struct SliceStyle {
 
 impl SliceTool {
     /// The slice look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `slice` lands in task TK3")]
     pub fn style(tokens: &UiTokens) -> SliceStyle {
         // pc: crates/ui-egui/src/tools/slice_ui.rs:242-321 `draw_overlay` (the values in the doc
         // comments), :249 (the slice colour, default #38b5ff: crates/engine/src/prefs.rs:842).
-        todo!()
+        let (s, o) = (&tokens.component.slice, &tokens.color.overlay);
+        let handle = Handle::style(tokens, HandleShape::Square);
+        SliceStyle {
+            outline: s.outline,
+            selected_outline: s.selected_outline,
+            colour: o.slice.to_egui(),
+            selected: o.slice_selected.to_egui(),
+            auto_fill: o.slice_auto.to_egui(),
+            text: o.slice_text.to_egui(),
+            auto_dash: (s.auto_dash, s.auto_gap),
+            auto_alpha: s.auto_alpha,
+            drag_dash: (s.drag_dash, s.drag_gap),
+            badge_offset: s.badge_offset,
+            badge_pad: vec2(s.badge_pad[0], s.badge_pad[1]),
+            badge_radius: s.badge_radius,
+            badge_min: vec2(s.badge_min[0], s.badge_min[1]),
+            badge_font: tokens.font(TypeRole::Caption),
+            click_slop: s.click_slop,
+            handle: handle.size,
+            handle_hit: handle.hit,
+            handle_fill: handle.fill,
+        }
     }
 }

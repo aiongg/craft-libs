@@ -5,11 +5,10 @@
 //! two-colour slider tracks show what the adjustment does to the image, as the Levels thumb faces
 //! do.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use egui::{Color32, FontId, vec2};
 
-use egui::{Color32, FontId};
-
-use craft_ui::theme::UiTokens;
+use craft_theme::TypeRole;
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// What the adjustment editors draw besides their controls.
 #[derive(Clone, Debug, PartialEq)]
@@ -68,6 +67,31 @@ impl AdjustStyle {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/hue_saturation.rs:147-207 (bars, band,
         // thumbs), crates/ui-egui/src/dialogs/adjust_dialog.rs:177-183 `picker_button`,
         // crates/ui-egui/src/dialogs/adjust_editors/basic.rs:71-85 (threshold), :271 (Total).
-        todo!()
+        let (a, c) = (&tokens.component.adjust, &tokens.color);
+        AdjustStyle {
+            spectrum_bar: a.spectrum_bar,
+            range_band: a.range_band,
+            spectrum_gap: a.spectrum_master_extra,
+            range_thumb: vec2(a.range_thumb_width, a.range_thumb_height),
+            band_outer: c.text.faint.to_egui(),
+            band_inner: c.text.muted.to_egui(),
+            thumb_inner: c.text.normal.to_egui(),
+            thumb_outer: c.surface.sunken.to_egui(),
+            thumb_edge: c.text.muted.to_egui(),
+            degrees_font: tokens.font(TypeRole::Mono),
+            degrees_colour: c.text.faint.to_egui(),
+            picker_dot: a.picker_dot,
+            picker_dot_inset: a.picker_dot_inset,
+            picker_ring: tokens.component.field.border.rest.to_egui(),
+            picker_button: tokens.component.icon_button.size.md,
+            threshold_histogram: a.threshold_histogram,
+            threshold_width: a.threshold_width,
+            threshold_marker: c.accent.strong.to_egui(),
+            total_font: tokens.font(TypeRole::Mono),
+            total_colour: c.text.normal.to_egui(),
+            total_warn: c.status.warn.fg.to_egui(),
+            note_font: tokens.font(TypeRole::Caption),
+            note_colour: c.text.faint.to_egui(),
+        }
     }
 }
