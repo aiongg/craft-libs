@@ -5,7 +5,7 @@ use egui::Color32;
 
 /// The Layers panel's own sizes and colours, besides the list's (`list.*`, from
 /// [`ListRow::style`](craft_ui::list::ListRow::style)) and the footer's. A pure function of the
-/// tokens ([`LayersStyle::of`]).
+/// tokens ([`LayersPanel::style`](super::LayersPanel::style)).
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct LayersStyle {
@@ -35,19 +35,40 @@ pub struct LayersStyle {
     /// The least width of the blend select before the "Opacity:" label hides:
     /// `layers.blend.min_width`.
     pub blend_min_width: f32,
-    /// The Opacity and Fill fields' width, without the pop-up arrow: `layers.percent_field_width`.
+    /// The Opacity and Fill fields' text part, without the pop-up arrow:
+    /// `layers.percent_field_width`. The box adds the number field's pop-up arrow.
     pub percent_field_width: f32,
     /// Between the filter bar's controls: `layers.filter.gap`.
     pub filter_gap: f32,
     /// The filter type select's width: `layers.filter.type_width`.
     pub filter_type_width: f32,
+    /// The space after the filter type select, besides `filter_gap`: `layers.filter.type_gap`.
+    pub filter_type_gap: f32,
+    /// The room kept free between the "Opacity:" label and its field: `layers.blend.label_slack`.
+    pub blend_label_slack: f32,
+    /// The blend select's least width when the row is too narrow for anything else:
+    /// `layers.blend.floor_width`.
+    pub blend_floor_width: f32,
+    /// Between the blend, Opacity, Lock and Fill rows: `layers.blend.row_gap`.
+    pub blend_row_gap: f32,
+    /// The Type layer's kind tile ink: `layers.kind.type_ink`.
+    pub kind_type_ink: Color32,
+    /// Between the effects triangle and the `fx` mark: `layers.indicator.fx_gap`.
+    pub indicator_fx_gap: f32,
+    /// The stroke of the cross over a disabled mask: `layers.mask.cross_width`.
+    pub mask_cross_width: f32,
+    /// The cross's inset from the thumbnail: `layers.mask.cross_inset`.
+    pub mask_cross_inset: f32,
+    /// The stroke of the Smart Filters rings: `layers.indicator.ring_width`.
+    pub indicator_ring_width: f32,
     /// Panel Options' sample side as a factor of the row thumbnail: `layers.options.sample_scale`.
     pub sample_scale: f32,
 }
 
 impl LayersStyle {
-    /// The style of `tokens`: the `layers` family.
-    pub fn of(tokens: &UiTokens) -> LayersStyle {
+    /// The style of `tokens`: the `layers` family. [`LayersPanel::style`](super::LayersPanel::style)
+    /// is the public form; the crate's own code, which has no tree type to name, calls this.
+    pub(crate) fn of(tokens: &UiTokens) -> LayersStyle {
         let l = &tokens.component.layers;
         LayersStyle {
             indicator_icon: l.indicator_icon,
@@ -65,6 +86,15 @@ impl LayersStyle {
             percent_field_width: l.percent_field_width,
             filter_gap: l.filter_gap,
             filter_type_width: l.filter_type_width,
+            filter_type_gap: l.filter_type_gap,
+            blend_label_slack: l.blend_label_slack,
+            blend_floor_width: l.blend_floor_width,
+            blend_row_gap: l.blend_row_gap,
+            kind_type_ink: l.kind_type_ink.to_egui(),
+            indicator_fx_gap: l.indicator_fx_gap,
+            mask_cross_width: l.mask_cross_width,
+            mask_cross_inset: l.mask_cross_inset,
+            indicator_ring_width: l.indicator_ring_width,
             sample_scale: l.options_sample_scale,
         }
     }

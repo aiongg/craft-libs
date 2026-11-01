@@ -128,6 +128,12 @@ pub struct LayersOutput<Id> {
 }
 
 impl<'a, T: LayerTree> LayersPanel<'a, T> {
+    /// The panel's own sizes and colours for `tokens`: the `layers` family (the list's and the
+    /// footer's come from [`ListRow::style`](craft_ui::list::ListRow::style) and the footer's).
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> LayersStyle {
+        LayersStyle::of(tokens)
+    }
+
     /// The panel showing `tree`; `id_salt` keeps its scroll position, rename, drag and menus.
     pub fn new(id_salt: impl AsIdSalt, tree: &'a T) -> Self {
         Self {

@@ -163,7 +163,7 @@ craft_ui::words! {
 }
 
 /// PhotoCraft's filter row: the type select (Kind, Name, Mode; `layers.filter.type_width` wide),
-/// then that type's controls, `layers.filter.gap` apart.
+/// then that type's controls, `layers.filter.gap` apart (`layers.filter.type_gap` more after the select).
 ///
 /// ```ignore
 /// let out = LayerFilterBar::new("layer-filter", &mut ui_state.layer_filter).blend_modes(&modes).show(ui);
@@ -220,8 +220,8 @@ impl<'a> LayerFilterBar<'a> {
 
     /// Draws the bar on one row of the available width.
     pub fn show(self, ui: &mut Ui) -> LayerFilterOutput {
-        // pc: crates/ui-egui/src/panels/layer_filter_ui.rs:122-158 `bar` (gap 2, type select 64,
-        // kind buttons 22, name field, mode dropdown).
+        // pc: crates/ui-egui/src/panels/layer_filter_ui.rs:122-158 `bar` (gap 2, type select 64 and
+        // 4 more after it, kind buttons 22, name field, mode dropdown).
         let Self { id_salt, filter, blend_modes, labels } = self;
         let labels = labels.unwrap_or_else(|| LayerFilterLabels::of(ui));
         let style = LayersStyle::of(&Tokens::of(ui));
@@ -237,6 +237,7 @@ impl<'a> LayerFilterBar<'a> {
                 .width(style.filter_type_width)
                 .size(size)
                 .show(ui);
+            ui.add_space(style.filter_type_gap);
             if picked.event.as_ref().and_then(EditEvent::value).is_some() && by != filter.by {
                 filter.by = by;
                 changed = true;

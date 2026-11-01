@@ -43,9 +43,31 @@ pub struct LayersTokens {
     pub filter_gap: f32,
     /// Width of the filter type select: [`values::LAYERS_FILTER_TYPE_WIDTH`].
     pub filter_type_width: f32,
+    /// Space after the filter type select, besides `filter_gap`:
+    /// [`values::LAYERS_FILTER_TYPE_GAP`].
+    pub filter_type_gap: f32,
     /// Panel Options' sample side as a factor of the row thumbnail:
     /// [`values::LAYERS_OPTIONS_SAMPLE_SCALE`].
     pub options_sample_scale: f32,
+    /// Room kept free between the "Opacity:" label and its field:
+    /// [`values::LAYERS_BLEND_LABEL_SLACK`].
+    pub blend_label_slack: f32,
+    /// Least width of the blend select when the row is too narrow for anything else:
+    /// [`values::LAYERS_BLEND_FLOOR_WIDTH`].
+    pub blend_floor_width: f32,
+    /// Between the blend, Opacity, Lock and Fill rows: [`values::LAYERS_BLEND_ROW_GAP`].
+    pub blend_row_gap: f32,
+    /// Ink of the Type layer's kind tile: [`values::LAYERS_KIND_TYPE_INK`]. Like the tile's paper
+    /// (the thumbnail checker) it is the same in every theme.
+    pub kind_type_ink: Rgba,
+    /// Between the effects triangle and the `fx` mark: [`values::LAYERS_INDICATOR_FX_GAP`].
+    pub indicator_fx_gap: f32,
+    /// Stroke of the cross over a disabled mask: [`values::LAYERS_MASK_CROSS_WIDTH`].
+    pub mask_cross_width: f32,
+    /// Inset of that cross from the thumbnail: [`values::LAYERS_MASK_CROSS_INSET`].
+    pub mask_cross_inset: f32,
+    /// Stroke of the Smart Filters indicator's rings: [`values::LAYERS_INDICATOR_RING_WIDTH`].
+    pub indicator_ring_width: f32,
 }
 
 /// Layers have no overridable field.
@@ -63,7 +85,15 @@ impl Family for LayersTokens {
         "percent_field_width" 32.0..=240.0 => percent_field_width;
         "filter.gap" 0.0..=32.0 => filter_gap;
         "filter.type_width" 32.0..=240.0 => filter_type_width;
+        "filter.type_gap" 0.0..=32.0 => filter_type_gap;
         "options.sample_scale" 1.0..=4.0 => options_sample_scale;
+        "blend.label_slack" 0.0..=64.0 => blend_label_slack;
+        "blend.floor_width" 16.0..=240.0 => blend_floor_width;
+        "blend.row_gap" 0.0..=32.0 => blend_row_gap;
+        "indicator.fx_gap" 0.0..=16.0 => indicator_fx_gap;
+        "mask.cross_width" 0.5..=4.0 => mask_cross_width;
+        "mask.cross_inset" 0.0..=8.0 => mask_cross_inset;
+        "indicator.ring_width" 0.5..=4.0 => indicator_ring_width;
     };
 
     fn defaults(s: &Semantic<'_>) -> LayersTokens {
@@ -84,7 +114,16 @@ impl Family for LayersTokens {
             percent_field_width: values::LAYERS_PERCENT_FIELD_WIDTH,
             filter_gap: s.space.gap.inline,
             filter_type_width: values::LAYERS_FILTER_TYPE_WIDTH,
+            filter_type_gap: values::LAYERS_FILTER_TYPE_GAP,
             options_sample_scale: values::LAYERS_OPTIONS_SAMPLE_SCALE,
+            blend_label_slack: values::LAYERS_BLEND_LABEL_SLACK,
+            blend_floor_width: values::LAYERS_BLEND_FLOOR_WIDTH,
+            blend_row_gap: values::LAYERS_BLEND_ROW_GAP,
+            kind_type_ink: values::LAYERS_KIND_TYPE_INK,
+            indicator_fx_gap: values::LAYERS_INDICATOR_FX_GAP,
+            mask_cross_width: values::LAYERS_MASK_CROSS_WIDTH,
+            mask_cross_inset: values::LAYERS_MASK_CROSS_INSET,
+            indicator_ring_width: values::LAYERS_INDICATOR_RING_WIDTH,
         }
     }
 
