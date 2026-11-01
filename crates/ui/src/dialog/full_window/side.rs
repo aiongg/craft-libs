@@ -1,11 +1,19 @@
 //! [`FullWindowSide`]: a side column of a full-window dialog, with its header, scrolling body
 //! and the dialog's footer buttons.
 
-use egui::{IdSalt, Rect, Ui};
+use egui::accesskit::Role;
+use egui::emath::GuiRounding as _;
+use egui::{AsIdSalt, Frame, IdSalt, Rect, ScrollArea, Stroke, Ui, UiBuilder, pos2};
 
-use super::FullWindowFx;
+use super::style::FullWindowStyle;
+use super::{FullWindowFx, FullWindowLabels};
+use crate::composites::PanelHeader;
 use crate::dialog::{FooterButton, FooterButtonsResponse};
-use egui::AsIdSalt;
+use crate::direction;
+use crate::localized::SharedLabels as _;
+use crate::patterns::panel::ScrollBarLabels;
+use crate::theme::{Tokens, TokensOf as _};
+use craft_theme::ControlSize;
 
 type Leading<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 
@@ -23,7 +31,6 @@ pub enum SideWidth {
 /// Content-Aware Fill, Wide Angle) or its top (Filter Gallery), in the platform's order, with an
 /// optional leading slot (a Reset icon button) at the other end of the row.
 #[must_use = "pass the footer to `FullWindowSide::footer`"]
-#[expect(dead_code, reason = "skeleton: K15 places the footer")]
 pub struct SideFooter<'a> {
     pub(super) buttons: Vec<FooterButton>,
     pub(super) top: bool,
@@ -120,13 +127,84 @@ impl<'a> FullWindowSide<'a> {
 
     /// Draws the column in `ui` (the dialog's body), its body with `body`, and the footer with
     /// `fx`.
-    #[expect(clippy::todo, reason = "skeleton: K15")]
     pub fn show(self, ui: &mut Ui, fx: &mut FullWindowFx, body: impl FnOnce(&mut Ui)) -> FullWindowSideOutput {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:991-992 (the right panel, `RIGHT_W` on
         // `t.dock`), :1070 (the footer row at the bottom, 14 pt in), gallery_ui.rs:756-770 (the
         // footer at the top of the right column, 12 × 10 padding), select_mask_ui.rs:1886 (the
         // footer at the bottom, 10 pt in).
-        let _ = (self.id_salt, self.width, self.header, self.footer, ui, fx, body);
-        todo!()
+        let FullWindowSide { id_salt, width, header, footer } = self;
+        let tokens = Tokens::of(ui);
+        let style = FullWindowStyle::of(&tokens);
+        let button_height = tokens.component.button.height.get(ControlSize::Md);
+        let id = ui.make_persistent_id(id_salt);
+        let name = header.clone().unwrap_or_else(|| FullWindowLabels::shared(ui).side.clone());
+        let scroll_bar_label = ScrollBarLabels::name(ui);
+        let width = match width {
+            SideWidth::Standard => style.side_width,
+            SideWidth::Wide => style.side_width_wide,
+        };
+        // The column is at the left in a right-to-left interface, so its inner edge is the right one.
+        let inner_start = direction::is_rtl(ui);
+
+        let mut footer_response = None;
+        let shown = direction::end_panel(ui, id.with("panel"))
+            .exact_size(width)
+            .resizable(false)
+            .show_separator_line(false)
+            .frame(Frame::NONE.fill(style.side_fill))
+            .show(ui, |ui| {
+                let group = UiBuilder::new().id_salt("column").accessibility_role(Role::Group).accessibility_label(name.as_str());
+                ui.scope_builder(group, |ui| {
+                    let room = ui.max_rect();
+                    if let Some(title) = &header {
+                        PanelHeader::new(id.with("header"), title.as_str()).menu(false).show(ui, |_| {});
+                    }
+                    let (left, right) = (room.left() + style.side_pad.x, room.right() - style.side_pad.x);
+                    let row_at = |y: f32| Rect::from_min_max(pos2(left, y), pos2(right, y + button_height));
+                    let mut top = ui.cursor().min.y + style.side_pad.y;
+                    let mut bottom = room.bottom() - style.side_pad.y;
+                    let mut footer_rect = None;
+                    if let Some(footer) = &footer {
+                        if footer.top {
+                            footer_rect = Some(row_at(top));
+                            top += button_height + style.footer_gap;
+                        } else {
+                            let row = row_at(bottom - button_height);
+                            bottom = row.top() - style.footer_gap;
+                            footer_rect = Some(row);
+                        }
+                    }
+                    // The top footer comes first in the focus order, the bottom one last.
+                    let place = |ui: &mut Ui, fx: &mut FullWindowFx, footer: SideFooter<'a>, row: Rect| {
+                        let SideFooter { buttons, leading, .. } = footer;
+                        if let Some(leading) = leading {
+                            let mut lead = ui.new_child(UiBuilder::new().max_rect(row).layout(direction::row(ui)));
+                            leading(&mut lead);
+                        }
+                        fx.buttons(ui, row, buttons)
+                    };
+                    let (mut top_footer, mut bottom_footer) = (None, None);
+                    if let Some(f) = footer {
+                        if f.top { top_footer = Some(f) } else { bottom_footer = Some(f) }
+                    }
+                    if let (Some(f), Some(row)) = (top_footer.take(), footer_rect) {
+                        footer_response = Some(place(ui, fx, f, row));
+                    }
+                    let area = Rect::from_min_max(pos2(left, top), pos2(right, bottom.max(top)));
+                    let mut content = ui.new_child(UiBuilder::new().max_rect(area));
+                    ScrollArea::vertical()
+                        .id_salt(id.with("body"))
+                        .auto_shrink([false, false])
+                        .vertical_scroll_bar_label(&scroll_bar_label)
+                        .show(&mut content, body);
+                    if let (Some(f), Some(row)) = (bottom_footer, footer_rect) {
+                        footer_response = Some(place(ui, fx, f, row));
+                    }
+                });
+            });
+        let rect = shown.response.rect;
+        let x = if inner_start { rect.right() - 0.5 } else { rect.left() + 0.5 }.round_to_pixel_center(ui.pixels_per_point());
+        ui.painter().line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], Stroke::new(style.side_divider.width, style.side_divider.color));
+        FullWindowSideOutput { footer: footer_response, rect }
     }
 }

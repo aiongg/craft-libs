@@ -3,6 +3,7 @@
 use egui::Context;
 
 use super::labels::FullWindowLabels;
+use crate::localized::{Labels as _, LocaleNumbers};
 
 /// The title strip's text: the workspace's name, then in brackets what it works on and the zoom
 /// on screen, "Liquify (Layer 1, 66%)". Without a subject "Liquify (66%)"; without a zoom
@@ -53,12 +54,19 @@ impl FullWindowTitle {
 
     /// The text: `fullWindow.titleZoom`, `titleSubject` or `titleZoomOnly` with `{name}`,
     /// `{subject}` and `{zoom}` filled, or the bare name.
-    #[expect(clippy::todo, reason = "skeleton: K15")]
     pub fn text(&self, ctx: &Context) -> String {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:980-987 (`"{} ({}, {:.0}%)"`, the name's
         // "…" trimmed), caf_ui/view.rs:293-300 (the same), wide_angle_ui.rs:273-275 (no zoom);
         // the percent through `LocaleNumbers::percent` instead of `{:.0}%`.
-        let _ = ctx;
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| FullWindowLabels::of_ctx(ctx));
+        let name = self.name.trim_end_matches('…').trim_end_matches("...").trim_end();
+        let zoom = self.zoom.map(|percent| LocaleNumbers::of_ctx(ctx).percent(percent / 100.0));
+        let fill = |template: &str, args: &[(&str, &str)]| craft_i18n::fmt(template, args);
+        match (&self.subject, &zoom) {
+            (Some(subject), Some(zoom)) => fill(&labels.title_zoom, &[("name", name), ("subject", subject), ("zoom", zoom)]),
+            (Some(subject), None) => fill(&labels.title_subject, &[("name", name), ("subject", subject)]),
+            (None, Some(zoom)) => fill(&labels.title_zoom_only, &[("name", name), ("zoom", zoom)]),
+            (None, None) => name.to_owned(),
+        }
     }
 }
