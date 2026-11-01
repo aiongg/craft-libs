@@ -2,9 +2,7 @@
 //! menus offer (Premiere's sequence settings, After Effects' composition settings, Pro Tools'
 //! session rates).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use crate::time::Tick;
+use crate::time::{TICKS_PER_SECOND, Tick};
 
 /// A frame rate as an exact rational, `num / den` frames a second. Rates come from files, so
 /// every frame computation goes through [`sane`](Self::sane) and a zero or negative rate counts
@@ -52,14 +50,18 @@ impl FrameRate {
     /// `num / den` reduced by their greatest common divisor.
     // filmcraft: crates/time/src/lib.rs:198 (i128 division by the gcd, at least 1).
     pub fn new(num: i64, den: i64) -> Self {
-        todo!()
+        let g = i128::from(gcd(num.unsigned_abs(), den.unsigned_abs()).max(1));
+        FrameRate { num: (i128::from(num) / g) as i64, den: (i128::from(den) / g) as i64 }
     }
 
     /// The [`COMMON`](Self::COMMON) rate within 0.005 fps of `fps` (a container's average rate),
     /// else `round(fps × 1000) / 1000`.
     // filmcraft: crates/time/src/lib.rs:204.
     pub fn from_f64(fps: f64) -> Self {
-        todo!()
+        if let Some(r) = Self::COMMON.into_iter().find(|r| (r.as_f64() - fps).abs() < 0.005) {
+            return r;
+        }
+        FrameRate::new((fps * 1000.0).round() as i64, 1000)
     }
 
     /// This rate when both parts are positive, else the default.
@@ -74,14 +76,15 @@ impl FrameRate {
     /// One frame's exact duration (floored only for exotic rates); saturates at the tick range.
     // filmcraft: crates/time/src/lib.rs:225 (`TICKS_PER_SECOND * den / num` in i128).
     pub fn frame_duration(self) -> Tick {
-        todo!()
+        let r = self.sane();
+        Tick(clamp_i64(i128::from(TICKS_PER_SECOND) * i128::from(r.den) / i128::from(r.num)))
     }
 
     /// The index of the frame holding `t` (floor), saturated to the frame range.
     // filmcraft: crates/time/src/lib.rs:231 (`frame_index`: `t * num / (TICKS_PER_SECOND * den)`
     // with `div_euclid` in i128).
     pub fn frame_at(self, t: Tick) -> i64 {
-        todo!()
+        clamp_i64(frame_index(self.sane(), t))
     }
 
     /// The first tick of frame `f`, by ceiling division, so `frame_at(tick_of(f)) == f` holds
@@ -89,27 +92,36 @@ impl FrameRate {
     /// boundary back a tick and frame stepping stalls).
     // filmcraft: crates/time/src/lib.rs:244 (`frame_boundary`).
     pub fn tick_of(self, f: i64) -> Tick {
-        todo!()
+        Tick(clamp_i64(frame_boundary(self.sane(), i128::from(f))))
     }
 
     /// `t` moved down to its frame's first tick.
     // filmcraft: crates/time/src/lib.rs:249.
     pub fn snap(self, t: Tick) -> Tick {
-        todo!()
+        let r = self.sane();
+        Tick(clamp_i64(frame_boundary(r, frame_index(r, t))))
     }
 
     /// `t` moved to the nearest frame boundary (the earlier one at the exact middle); both
     /// boundaries are compared in i128 before saturating.
     // filmcraft: crates/time/src/lib.rs:255.
     pub fn snap_nearest(self, t: Tick) -> Tick {
-        todo!()
+        let r = self.sane();
+        // Both boundaries stay wide until compared: saturating an unrepresentable upper one first
+        // would make it look closer than it is.
+        let f = frame_index(r, t);
+        let a = frame_boundary(r, f);
+        let b = frame_boundary(r, f.saturating_add(1));
+        let t = i128::from(t.0);
+        Tick(clamp_i64(if t - a <= b - t { a } else { b }))
     }
 
     /// Frames counted per timecode second: 30 for 29.97, 24 for 23.976 (`num / den` rounded up,
     /// at least 1).
     // filmcraft: crates/time/src/lib.rs:267.
     pub fn timecode_base(self) -> i64 {
-        todo!()
+        let r = self.sane();
+        (r.num / r.den).saturating_add(i64::from(r.num % r.den != 0)).max(1)
     }
 
     /// An NTSC (x/1001) rate.
@@ -121,14 +133,18 @@ impl FrameRate {
     /// (29.97, 59.94, 119.88).
     // filmcraft: crates/time/src/lib.rs:278.
     pub fn supports_drop_frame(self) -> bool {
-        todo!()
+        self.is_ntsc() && self.timecode_base() % 30 == 0
     }
 
     /// The menu label without the unit: `24`, `23.976`, `29.97` (three decimals, trailing zeros
     /// and the point trimmed). The unit ("fps") is the menu's word.
     // filmcraft: crates/time/src/lib.rs:282.
     pub fn label(self) -> String {
-        todo!()
+        if self.den == 1 {
+            return self.num.to_string();
+        }
+        let s = format!("{:.3}", self.as_f64());
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
     }
 }
 
@@ -204,6 +220,36 @@ impl PixelAspect {
     /// are the menu's.
     // filmcraft: crates/ui-egui/src/panels/sequence_settings.rs:204 `par_label`.
     pub fn ratio_label(self) -> String {
-        todo!()
+        if self.num == self.den || self.den == 0 {
+            return "1.0".to_string();
+        }
+        format!("{:.4}", self.as_f64())
     }
+}
+
+/// Narrows after applying the storage bounds, never by a wrapping cast.
+fn clamp_i64(value: i128) -> i64 {
+    value.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
+}
+
+/// The frame holding `t`, for a positive rate.
+fn frame_index(rate: FrameRate, t: Tick) -> i128 {
+    (i128::from(t.0) * i128::from(rate.num)).div_euclid(i128::from(TICKS_PER_SECOND) * i128::from(rate.den))
+}
+
+/// The ceiling of a frame's rational start. An overflowing numerator over an `i64` rate cannot
+/// fit a tick, so saturating it keeps the public result.
+fn frame_boundary(rate: FrameRate, frame: i128) -> i128 {
+    let Some(n) = frame.checked_mul(i128::from(TICKS_PER_SECOND)).and_then(|n| n.checked_mul(i128::from(rate.den))) else {
+        return if frame < 0 { i128::MIN } else { i128::MAX };
+    };
+    let d = i128::from(rate.num);
+    n.div_euclid(d) + i128::from(n.rem_euclid(d) != 0)
+}
+
+fn gcd(mut a: u64, mut b: u64) -> u64 {
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    a
 }

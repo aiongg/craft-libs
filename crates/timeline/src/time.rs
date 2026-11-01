@@ -6,8 +6,6 @@
 //! (`Tick::from_units(samples, 48_000)`). Every conversion is total: a zero or negative rate gives
 //! zero, never a division-by-zero panic.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 
 /// Ticks per second.
@@ -35,7 +33,7 @@ impl Tick {
     // filmcraft: crates/time/src/lib.rs:33 (`(s * TICKS_PER_SECOND).round()`; a non-finite `s`
     // gives zero here, FilmCraft's cast saturates).
     pub fn from_seconds_f64(s: f64) -> Tick {
-        todo!()
+        Tick(if s.is_finite() { (s * TICKS_PER_SECOND as f64).round() as i64 } else { 0 })
     }
 
     /// The time in seconds.
@@ -47,26 +45,32 @@ impl Tick {
     /// whole rate). Zero when `per_second` is zero.
     // filmcraft: crates/time/src/lib.rs:40 (i128 product, checked division, clamped to i64).
     pub fn from_units(units: i64, per_second: i64) -> Tick {
-        todo!()
+        Tick(clamp_i64((i128::from(units) * i128::from(TICKS_PER_SECOND)).checked_div(i128::from(per_second)).unwrap_or(0)))
     }
 
     /// The count of whole units at `per_second` before this time (floor, also for negative times).
     // filmcraft: crates/time/src/lib.rs:44 (`div_euclid`).
     pub fn to_units_floor(self, per_second: i64) -> i64 {
-        todo!()
+        clamp_i64((i128::from(self.0) * i128::from(per_second)).div_euclid(i128::from(TICKS_PER_SECOND)))
     }
 
     /// The time of a rational timestamp `pts × num / den` seconds (a container timebase). Zero
     /// when `den` is zero; a product past `i128` saturates to the sign's limit.
     // filmcraft: crates/time/src/lib.rs:48.
     pub fn from_rational(pts: i64, num: i64, den: i64) -> Tick {
-        todo!()
+        if den == 0 {
+            return Tick::ZERO;
+        }
+        let Some(t) = (i128::from(pts) * i128::from(num)).checked_mul(i128::from(TICKS_PER_SECOND)) else {
+            return Tick(if (pts < 0) ^ (num < 0) ^ (den < 0) { i64::MIN } else { i64::MAX });
+        };
+        Tick(clamp_i64(t.div_euclid(i128::from(den))))
     }
 
     /// The inverse of [`Tick::from_rational`], floored to the timebase.
     // filmcraft: crates/time/src/lib.rs:59.
     pub fn to_rational_floor(self, num: i64, den: i64) -> i64 {
-        todo!()
+        clamp_i64((i128::from(self.0) * i128::from(den)).checked_div_euclid(i128::from(num) * i128::from(TICKS_PER_SECOND)).unwrap_or(0))
     }
 
     /// The inverse of [`Tick::from_rational`], rounded to the nearest unit (halves up): containers
@@ -74,13 +78,19 @@ impl Tick {
     /// late.
     // filmcraft: crates/time/src/lib.rs:67.
     pub fn to_rational_round(self, num: i64, den: i64) -> i64 {
-        todo!()
+        let n = i128::from(self.0) * i128::from(den);
+        let unit = i128::from(num) * i128::from(TICKS_PER_SECOND);
+        let (n, unit) = if unit < 0 { (-n, -unit) } else { (n, unit) };
+        let (Some(q), Some(r)) = (n.checked_div_euclid(unit), n.checked_rem_euclid(unit)) else {
+            return 0;
+        };
+        clamp_i64(if r * 2 >= unit { q + 1 } else { q })
     }
 
     /// Scaled by `num / den`, floored; zero when `den` is zero.
     // filmcraft: crates/time/src/lib.rs:89.
     pub fn mul_ratio(self, num: i64, den: i64) -> Tick {
-        todo!()
+        Tick(clamp_i64((i128::from(self.0) * i128::from(num)).checked_div_euclid(i128::from(den)).unwrap_or(0)))
     }
 
     pub fn abs(self) -> Tick {
@@ -212,7 +222,10 @@ impl TimeView {
     /// The time under screen x.
     // filmcraft: crates/ui-egui/src/panels/timeline/layout.rs:29 (`scroll + (x - left) / pps`).
     pub fn time_at(&self, x: f32, left: f32) -> Tick {
-        todo!()
+        if !(self.points_per_second > 0.0 && self.points_per_second.is_finite() && x.is_finite() && left.is_finite()) {
+            return self.start;
+        }
+        self.start + Tick::from_seconds_f64(f64::from(x - left) / self.points_per_second)
     }
 
     /// Zoom by `factor` keeping `anchor` under the same x; when the anchor is outside the
@@ -221,7 +234,15 @@ impl TimeView {
     /// zero.
     // filmcraft: crates/ui-egui/src/panels/timeline/layout.rs:108 `zoom_about`.
     pub fn zoom_about(&mut self, factor: f64, anchor: Tick, width: f32) {
-        todo!()
+        if !factor.is_finite() || !(self.points_per_second > 0.0 && self.points_per_second.is_finite()) {
+            return;
+        }
+        let old = self.points_per_second;
+        let new = (old * factor).clamp(Self::MIN_ZOOM, Self::MAX_ZOOM);
+        let x = ((anchor - self.start).seconds() * old) as f32;
+        let x = if (0.0..=width).contains(&x) { x } else { width / 2.0 };
+        self.points_per_second = new;
+        self.start = (anchor - Tick::from_seconds_f64(f64::from(x) / new)).max(Tick::ZERO);
     }
 
     /// Where `start` goes so `t` shows in a view `width` points wide: `t` 5 % of the width from
@@ -230,7 +251,12 @@ impl TimeView {
     /// even when the time did not change (FilmCraft #1188).
     // filmcraft: crates/ui-egui/src/panels/timeline/layout.rs:87 `scroll_to_reveal`.
     pub fn scroll_to_reveal(&self, t: Tick, width: f32) -> Option<Tick> {
-        todo!()
+        let pps = self.points_per_second;
+        if !(pps > 0.0 && pps.is_finite() && width.is_finite()) {
+            return None;
+        }
+        let px = (t - self.start).seconds() * pps;
+        (px < 0.0 || px > f64::from(width)).then(|| (t - Tick::from_seconds_f64(f64::from(width) * 0.05 / pps)).max(Tick::ZERO))
     }
 
     /// The latest `start` a view `width` points wide may have over content ending at `end`:
@@ -238,7 +264,11 @@ impl TimeView {
     // filmcraft: crates/ui-egui/src/panels/timeline/layout.rs:73 `timeline_extent`, `:78`
     // `max_scroll`.
     pub fn max_start(&self, end: Tick, width: f32) -> Tick {
-        todo!()
+        let pps = self.points_per_second;
+        if !(pps > 0.0 && pps.is_finite() && width.is_finite()) {
+            return Tick::ZERO;
+        }
+        (end.max(Tick::ZERO) + VIEW_EXTENT_PAST_END - Tick::from_seconds_f64(f64::from(width) / pps)).max(Tick::ZERO)
     }
 
     /// The view that shows `range` in `width` points with `margin` to spare
@@ -246,7 +276,9 @@ impl TimeView {
     // effectcraft: crates/ui-egui/src/panels/timeline.rs:608 `fit_pps` (`(width - 10) /
     // duration`, at least 0.01 s).
     pub fn fit(range: TimeRange, width: f32, margin: f32) -> TimeView {
-        todo!()
+        let span = range.duration.seconds().max(0.01);
+        let points_per_second = (f64::from(width - margin).max(1.0) / span).clamp(Self::MIN_ZOOM, Self::MAX_ZOOM);
+        TimeView { start: range.start, points_per_second }
     }
 
     /// This view with every number brought into a usable range (zoom 0.001…100,000, start
@@ -254,6 +286,20 @@ impl TimeView {
     /// in them is trusted.
     // filmcraft: crates/project/src/view.rs:21 `SequenceView::checked`.
     pub fn checked(self) -> Option<TimeView> {
-        todo!()
+        if !self.points_per_second.is_finite() {
+            return None;
+        }
+        Some(TimeView {
+            start: self.start.clamp(Tick::ZERO, Tick(MAX_START_SECONDS * TICKS_PER_SECOND)),
+            points_per_second: self.points_per_second.clamp(0.001, 100_000.0),
+        })
     }
+}
+
+/// The latest start [`TimeView::checked`] accepts, in seconds.
+const MAX_START_SECONDS: i64 = 10_000_000;
+
+/// Narrows after applying the storage bounds, never by a wrapping cast.
+fn clamp_i64(value: i128) -> i64 {
+    value.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
 }
