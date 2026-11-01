@@ -5,7 +5,8 @@ use std::any::Any;
 use std::cell::Cell;
 use std::fmt;
 
-use egui::{Context, Id, TextWrapMode};
+use craft_theme::StatusKind;
+use egui::{Context, Id, TextWrapMode, vec2};
 
 use super::dialog::{Dialog, InitialFocus, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
@@ -49,7 +50,9 @@ crate::words! {
 }
 
 /// A password, kept in memory only: `Debug` never prints it (debug output ends up in logs), and
-/// its bytes are overwritten when it is dropped.
+/// its bytes are overwritten when it is dropped. Only this buffer is overwritten: while the
+/// dialog is open the text is also in the text field's `String`, the edit event's value and
+/// egui's text-edit state (its undo history), and those copies are freed without being zeroed.
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Secret(String);
 
@@ -270,45 +273,52 @@ impl StackDialog for PasswordDialog {
                     });
                     ui.add_space(ui.spacing().item_spacing.y);
                 }
-                let hidden = !*reveal;
-                let eye = if hidden { (Icon::Eye, labels.show.as_str()) } else { (Icon::EyeOff, labels.hide.as_str()) };
                 let strength = (setting && !input.is_empty()).then(|| {
-                    let word = match password_strength(input.expose()) {
-                        PasswordStrength::Weak => &labels.weak,
-                        PasswordStrength::Medium => &labels.medium,
-                        PasswordStrength::Strong => &labels.strong,
+                    let (word, status) = match password_strength(input.expose()) {
+                        PasswordStrength::Weak => (&labels.weak, StatusKind::Bad),
+                        PasswordStrength::Medium => (&labels.medium, StatusKind::Warn),
+                        PasswordStrength::Strong => (&labels.strong, StatusKind::Good),
                     };
-                    craft_i18n::fmt(&labels.strength, &[("strength", word.as_str())])
+                    (craft_i18n::fmt(&labels.strength, &[("strength", word.as_str())]), status)
                 });
                 let mismatch = (setting && !confirm.is_empty() && *input != *confirm).then(|| labels.mismatch.clone());
                 FieldGroup::new(id.with("fields")).show(ui, |ui| {
                     let mut field = if setting { Field::new(labels.type_password.as_str()) } else { Field::unlabelled() };
-                    if let Some(strength) = strength {
-                        field = field.help(strength);
+                    if let Some((strength, status)) = strength {
+                        field = field.help(strength).help_status(status);
                     } else if !setting {
                         field = field.error(error.as_deref());
                     }
                     field.show(ui, |ui, invalid| {
-                        let side = ui.spacing().interact_size.y;
-                        let width = (ui.available_width() - side - ui.spacing().item_spacing.x).max(side);
-                        let edit = TextField::new(id.with("password"), labels.hint.as_str(), input.expose())
-                            .placeholder(if setting { "" } else { labels.hint.as_str() })
-                            .password(hidden)
-                            .invalid(invalid)
-                            .width(width)
-                            .show(ui);
-                        if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
-                            *input = Secret::new(value.clone());
-                        }
-                        first_field = Some(edit.response.id);
-                        let button = ui.add(IconButton::new(eye.0, eye.1));
-                        eye_pressed = button.clicked();
-                        (edit, button)
+                        // The eye button comes first, so that its press masks or shows the text in the
+                        // same pass; the row runs from the reading end.
+                        let size = vec2(ui.available_width(), ui.spacing().interact_size.y);
+                        ui.allocate_ui_with_layout(size, crate::direction::trailing(ui), |ui| {
+                            let button = ui.add(
+                                IconButton::new(Icon::Eye, labels.show.as_str())
+                                    .when_on(Icon::EyeOff, labels.hide.as_str())
+                                    .toggle(&mut *reveal)
+                                    .id_salt("eye"),
+                            );
+                            eye_pressed = button.clicked();
+                            let edit = TextField::new(id.with("password"), labels.hint.as_str(), input.expose())
+                                .placeholder(if setting { "" } else { labels.hint.as_str() })
+                                .password(!*reveal)
+                                .invalid(invalid)
+                                .width(ui.available_width())
+                                .show(ui);
+                            if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+                                *input = Secret::new(value.clone());
+                            }
+                            first_field = Some(edit.response.id);
+                            (edit, button)
+                        })
+                        .inner
                     });
                     if setting {
                         Field::new(labels.retype_password.as_str()).error(mismatch.as_deref()).show(ui, |ui, invalid| {
                             let edit = TextField::new(id.with("confirm"), labels.retype_password.as_str(), confirm.expose())
-                                .password(hidden)
+                                .password(!*reveal)
                                 .invalid(invalid)
                                 .show(ui);
                             if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
@@ -320,9 +330,6 @@ impl StackDialog for PasswordDialog {
                 });
                 can_submit.set(!setting || (!input.is_empty() && *input == *confirm));
             });
-        if eye_pressed {
-            *reveal = !*reveal;
-        }
         if response.active
             && let Some(field) = first_field
             && (eye_pressed || ctx.memory(|m| m.focused()).is_none())

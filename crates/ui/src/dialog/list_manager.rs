@@ -1,6 +1,7 @@
 //! [`ListManagerDialog`]: a named list with a name box and a column of buttons that run, edit,
 //! create or delete entries (N9.09, from GridCraft's Macros dialog, after Excel's).
 
+use craft_host::Host;
 use craft_theme::TypeRole;
 use egui::{Context, Key, Modifiers, vec2};
 
@@ -245,7 +246,7 @@ impl StackDialog for ListManagerDialog {
             .show(ctx, state, &mut (), |ui, ()| {
                 let ctx = ui.ctx().clone();
                 let field_id = id.with("name");
-                let folder = craft_i18n::Folder::new("");
+                let folder = folder_of(&ctx);
                 let mut label_height = 0.0;
                 ui.horizontal_top(|ui| {
                     ui.spacing_mut().item_spacing.x = column_gap;
@@ -298,7 +299,7 @@ impl StackDialog for ListManagerDialog {
                             .collect();
                         ui.allocate_ui(list_size, |ui| {
                             if entries.is_empty() {
-                                ui.add(Text::new(empty.as_str()).content(Content::Faint));
+                                ui.add(Text::new(empty.as_str()).content(Content::Faint).italic());
                                 return;
                             }
                             let mut list = List::new(id.with("list"), title.as_str(), rows.as_slice())
@@ -385,7 +386,7 @@ impl StackDialog for ListManagerDialog {
             return Some(DialogResult::Cancel);
         }
         let action = actions.get(chosen?)?;
-        let found = entries.iter().find(|e| is_named(e, &craft_i18n::Folder::new(""), name) && action_accepts(action, e));
+        let found = entries.iter().find(|e| is_named(e, &folder_of(ctx), name) && action_accepts(action, e));
         let choice = ListChoice { action: action.id.clone(), entry: found.map(|e| e.id.clone()), name: name.trim().to_owned() };
         if action.closes {
             Some(DialogResult::Ok(choice))
@@ -397,6 +398,13 @@ impl StackDialog for ListManagerDialog {
 }
 
 /// Whether the name box names `entry`: its trimmed text equals the entry's name, case ignored.
+/// The folding of the Host's language ("en" without a Host or a catalog), as every search field
+/// of the interface folds.
+fn folder_of(ctx: &Context) -> craft_i18n::Folder {
+    let code = Host::try_of_ctx(ctx).and_then(|host| Some(host.i18n()?.code(host.lang()).to_owned())).unwrap_or_else(|| "en".to_owned());
+    craft_i18n::Folder::new(&code)
+}
+
 fn is_named(entry: &ListEntry, folder: &craft_i18n::Folder, name: &str) -> bool {
     folder.fold(&entry.name).as_str() == folder.fold(name.trim()).as_str()
 }
