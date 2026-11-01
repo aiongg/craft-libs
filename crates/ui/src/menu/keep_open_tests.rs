@@ -13,7 +13,8 @@ struct State {
     chosen: Vec<&'static str>,
 }
 
-/// A button "Open" with a menu of a keep-open check row, a plain row and a keep-open plain row.
+/// A button "Open" with a menu of a keep-open check row, a plain row, a keep-open plain row and
+/// a submenu with a keep-open check row.
 fn harness() -> Harness<'static, State> {
     let mut harness = Harness::builder().with_size([400.0, 300.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, state: &mut State| {
@@ -21,6 +22,7 @@ fn harness() -> Harness<'static, State> {
                 MenuItem::new("Show Cropped Area", "crop").check(state.on).keep_open(true).into(),
                 MenuItem::new("Plain", "plain").into(),
                 MenuItem::new("Keep open but plain", "stay").keep_open(true).into(),
+                MenuItem::submenu("More", vec![MenuItem::new("Show Grid", "grid").check(false).keep_open(true).into()]).into(),
             ];
             let button = ui.add(crate::controls::Button::new("Open"));
             let toggle = button.clicked_by(egui::PointerButton::Primary).then_some(SetOpenCommand::Toggle);
@@ -88,4 +90,29 @@ fn other_rows_still_close_the_menu() {
     harness.get_by_label("Plain").click();
     harness.run();
     assert!(!harness.state().open, "a plain row closes the menu");
+}
+
+#[test]
+fn a_mnemonic_on_a_keep_open_row_runs_it_and_leaves_the_menu_open() {
+    let mut harness = harness();
+    harness.get_by_label("Open").click();
+    harness.run();
+    harness.key_press(Key::S);
+    harness.run();
+    assert_eq!(harness.state().chosen, ["crop"], "S is the first row's letter");
+    assert!(harness.state().open, "the mnemonic keeps the menu open");
+}
+
+#[test]
+fn a_keep_open_row_in_a_submenu_leaves_both_levels_open() {
+    let mut harness = harness();
+    harness.get_by_label("Open").click();
+    harness.run();
+    harness.get_by_label("More").click();
+    harness.run();
+    harness.get_by_label("Show Grid").click();
+    harness.run();
+    assert_eq!(harness.state().chosen, ["grid"]);
+    assert!(harness.state().open, "the menu stays open");
+    assert!(harness.query_by_label("Show Grid").is_some(), "the submenu stays open");
 }

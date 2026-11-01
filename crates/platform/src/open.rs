@@ -41,6 +41,8 @@ pub const PATH_NOT_UNICODE_SAVE: PlatformText =
 pub const FILE_GONE: PlatformText = PlatformText { id: "open.fileGone", english: "The file no longer exists" };
 /// [`reveal`] when no file manager answered.
 pub const REVEAL_FAILED: PlatformText = PlatformText { id: "open.revealFailed", english: "Could not reveal the file in the system file manager" };
+/// Every [`PlatformText`] of this module, for the missing-translation report ([`crate::texts`]).
+pub const TEXTS: &[PlatformText] = &[OPEN_FAILED, PLACE_FAILED, PATH_NOT_UNICODE_OPEN, PATH_NOT_UNICODE_SAVE, FILE_GONE, REVEAL_FAILED];
 
 /// Where files dropped on the window land. winit's drops carry no position, so the app finds it
 /// from the pointer (PhotoCraft asks the OS while files hover); unknown counts as

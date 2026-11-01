@@ -179,3 +179,5 @@ impl Drop for TempFiles {
 
 /// When no private temporary folder could be made; `{error}`.
 pub const TEMP_FAILED: PlatformText = PlatformText { id: "temp.failed", english: "Couldn't make a private temporary folder: {error}" };
+/// Every [`PlatformText`] of this module, for the missing-translation report ([`crate::texts`]).
+pub const TEXTS: &[PlatformText] = &[TEMP_FAILED];

@@ -518,3 +518,5 @@ pub const FILE_CHANGED_UNSAVED: PlatformText = PlatformText {
 };
 /// The status line after a clean document reloaded; `{name}` is its file name.
 pub const FILE_RELOADED: PlatformText = PlatformText { id: "watch.reloaded", english: "Reloaded “{name}”: it changed on disk." };
+/// Every [`PlatformText`] of this module, for the missing-translation report ([`crate::texts`]).
+pub const TEXTS: &[PlatformText] = &[FILE_CHANGED_UNSAVED, FILE_RELOADED];

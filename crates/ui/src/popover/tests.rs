@@ -587,3 +587,38 @@ fn a_press_in_a_child_list_is_not_outside_for_a_host_with_its_own_close_rule() {
     assert_eq!(h.state().outside_seen, 1);
     assert!(!h.state().open, "the host closed it on the press elsewhere");
 }
+
+// A Popover that is not shown for a while (its editor hidden) comes back with its Select's list
+// closed: the list's open flag does not outlive the passes the popover skipped (PhotoCraft's
+// `close_children`).
+#[test]
+fn child_lists_are_closed_when_the_popover_was_not_shown_in_a_pass() {
+    struct Editor {
+        draw: bool,
+        open: bool,
+        mode: usize,
+    }
+    fn editor(ui: &mut Ui, e: &mut Editor) {
+        if !e.draw {
+            return;
+        }
+        let Editor { open, mode, .. } = e;
+        let anchor = PopoverAnchor::Point(pos2(20.0, 20.0));
+        Popover::new("hidden-editor", anchor).close(PopoverClose::default().outside(false).focus_left(false)).show(ui, open, |ui, _| {
+            let _ = Select::new("mode", "Mode", mode).option(0, "A").option(1, "B").show(ui);
+        });
+    }
+    let mut h = Harness::<Editor>::builder()
+        .with_size(SCREEN)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(editor, Editor { draw: true, open: true, mode: 0 });
+    h.run();
+    open_select(&mut h);
+    assert!(h.query_by_role_and_label(Role::ListBoxOption, "B").is_some(), "the list is open");
+    h.state_mut().draw = false;
+    h.step();
+    h.state_mut().draw = true;
+    h.run();
+    assert!(h.state().open, "the editor is open again");
+    assert!(h.query_by_role_and_label(Role::ListBoxOption, "B").is_none(), "its list is closed");
+}

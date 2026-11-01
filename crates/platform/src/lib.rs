@@ -21,6 +21,8 @@ pub mod dialog_outcome;
 pub mod dialogs;
 pub mod logs;
 mod message;
+#[cfg(test)]
+mod message_tests;
 pub mod open;
 #[cfg(test)]
 mod open_tests;
@@ -47,4 +49,4 @@ pub mod watch;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod watch_tests;
 
-pub use message::PlatformText;
+pub use message::{PlatformText, texts};

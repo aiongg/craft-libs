@@ -85,8 +85,8 @@ impl Text {
         self
     }
 
-    /// At most this wide, even when the row has more room; with an elision, the width it
-    /// shortens to. Leaving room for what follows on the line is
+    /// At most this wide, even when the row has more room: a label that wraps at that width, or,
+    /// with an elision or [`truncate`](Self::truncate), the one line it shortens to. Leaving room for what follows on the line is
     /// `.max_width(ui.available_width() - after)`.
     pub fn max_width(mut self, width: f32) -> Self {
         self.max_width = Some(width);
@@ -107,8 +107,17 @@ impl Widget for Text {
         // beside it, such as a link.
         format.valign = ui.text_valign();
         format.italics = self.italic;
-        if self.elide.is_some() || self.max_width.is_some() {
+        if self.elide.is_some() || (self.max_width.is_some() && self.truncate) {
             return self.show_elided(ui, format);
+        }
+        if let Some(width) = self.max_width {
+            // A wrapping label with a width cap: it wraps at the cap and stays selectable.
+            return ui
+                .scope(|ui| {
+                    ui.set_max_width(width.min(ui.available_width()).max(1.0));
+                    ui.add(Label::new(LayoutJob::single_section(self.text, format)))
+                })
+                .inner;
         }
         let label = Label::new(LayoutJob::single_section(self.text, format));
         ui.add(if self.truncate { label.truncate() } else { label })
@@ -118,8 +127,8 @@ impl Widget for Text {
 impl Text {
     /// One line no wider than `max_width` (else the room left), laid out with
     /// [`elided_galley`](crate::text::elided_galley) (or the shortened path), drawn as a label
-    /// whose hover text and AccessKit node are the whole text when it was shortened. Without an
-    /// elision but with a width, egui's end truncation inside that width.
+    /// whose hover text and AccessKit node are the whole text when it was shortened. With `truncate` and
+    /// a width but no elision, an end elision inside that width.
     // pc: crates/ui-egui/src/widgets/fields.rs:26 elided_label_sensed
     // lightcraft: crates/ui-egui/src/dialogs/settings/widgets.rs:31 path_label
     fn show_elided(self, ui: &mut Ui, format: TextFormat) -> Response {

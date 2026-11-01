@@ -9,3 +9,27 @@ pub struct PlatformText {
     pub id: &'static str,
     pub english: &'static str,
 }
+
+impl PlatformText {
+    /// What a catalog lookup uses: the id.
+    pub const fn key(&self) -> &'static str {
+        self.id
+    }
+}
+
+/// Every message the library's services word with a [`PlatformText`] (the services this build
+/// has), in module order, for an app's missing-translation report beside the UI words of
+/// `craft_ui::localized::words::all()`. The save flow's are in `craft_dialogs::save::TEXTS`.
+pub fn texts() -> Vec<PlatformText> {
+    let tables: &[&[PlatformText]] = &[
+        #[cfg(feature = "clipboard")]
+        crate::clipboard::TEXTS,
+        #[cfg(not(target_arch = "wasm32"))]
+        crate::default_app::TEXTS,
+        crate::open::TEXTS,
+        #[cfg(not(target_arch = "wasm32"))]
+        crate::temp::TEXTS,
+        crate::watch::TEXTS,
+    ];
+    tables.iter().flat_map(|table| table.iter().copied()).collect()
+}

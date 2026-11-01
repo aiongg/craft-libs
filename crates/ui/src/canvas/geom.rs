@@ -7,6 +7,8 @@
 
 use kurbo::{Point, Rect, Vec2};
 
+use super::quad::Homography;
+
 /// The least homogeneous depth `w` a projected point keeps: points at or behind a perspective
 /// camera would flip through infinity and draw long lines across the view (EffectCraft issue
 /// 572). 0.5, EffectCraft's `NEAR_W`.
@@ -54,18 +56,18 @@ pub fn angle_deg(v: Vec2) -> f64 {
     v.y.atan2(v.x).to_degrees()
 }
 
-/// A 3 × 3 projective matrix, rows of (x, y, w) coefficients applied to (x, y, 1).
-pub type Projective = [[f64; 3]; 3];
-
 /// The closed polygon `points` through `m`, cut at `w = NEAR_W` before the perspective divide, so
 /// only the part in front of the camera is drawn; empty when none of it is. Points that come out
 /// non-finite are dropped.
 // effectcraft: crates/ui-egui/src/panels/viewer/geometry.rs:51 project_clipped
-pub fn project_clipped(m: &Projective, points: &[Point]) -> Vec<Point> {
+pub fn project_clipped(m: &Homography, points: &[Point]) -> Vec<Point> {
     let homogeneous: Vec<[f64; 3]> = points
         .iter()
         .map(|p| {
-            let row = |i: usize| m[i][0] * p.x + m[i][1] * p.y + m[i][2];
+            let row = |i: usize| {
+                let r = m.row(i);
+                r[0] * p.x + r[1] * p.y + r[2]
+            };
             [row(0), row(1), row(2)]
         })
         .collect();

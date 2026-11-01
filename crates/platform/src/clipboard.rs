@@ -178,6 +178,9 @@ pub const CLIPBOARD_BAD_IMAGE: PlatformText = PlatformText { id: "clipboard.badI
 /// Any other failure; `{error}` is the reason: [`ClipboardError::text`] looked up in the catalog,
 /// or the system's own text of [`ClipboardError::Other`].
 pub const CLIPBOARD_FAILED: PlatformText = PlatformText { id: "clipboard.failed", english: "Couldn't use the clipboard: {error}" };
+/// Every [`PlatformText`] of this module, for the missing-translation report ([`crate::texts`]).
+pub const TEXTS: &[PlatformText] =
+    &[CLIPBOARD_UNAVAILABLE, CLIPBOARD_TOO_LARGE, CLIPBOARD_UNREACHABLE, CLIPBOARD_BUSY, CLIPBOARD_NO_FORMAT, CLIPBOARD_BAD_IMAGE, CLIPBOARD_FAILED];
 
 /// What a write did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

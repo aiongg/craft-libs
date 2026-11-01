@@ -82,3 +82,37 @@ fn the_veil_covers_the_window_while_files_hover() {
     let alert = harness.get_by_role(Role::Alert);
     assert_eq!(alert.accesskit_node().label().as_deref(), Some("Import 3 photos, 1 preset"));
 }
+
+// A veil line that wraps keeps its rows centred on one another.
+#[test]
+fn the_veil_centres_the_rows_of_a_wrapped_line() {
+    let lines = vec!["Import these forty-two photos into the album named Holidays by the sea".to_owned()];
+    let mut harness = builder().build_ui(|ui| DropVeil::new("veil", &lines).show(ui.ctx()));
+    harness.step();
+    harness.step();
+    let mut centres = Vec::new();
+    for clipped in &harness.output().shapes {
+        if let egui::Shape::Text(text) = &clipped.shape {
+            for placed in &text.galley.rows {
+                centres.push(text.pos.x + placed.rect().center().x);
+            }
+        }
+    }
+    assert!(centres.len() > 1, "the line wraps: {centres:?}");
+    assert!(centres.windows(2).all(|w| (w[0] - w[1]).abs() < 1.5), "{centres:?}");
+}
+
+// Neither the badge nor the veil asks for a repaint of its own: pointer and file events start the passes.
+#[test]
+fn drag_feedback_does_not_spin_the_frame_loop() {
+    let lines = vec!["Import".to_owned()];
+    let mut harness = builder().build_ui(|ui| {
+        DragBadge::new("badge", "Paris.jpg").show(ui.ctx());
+        DropVeil::new("veil", &lines).show(ui.ctx());
+    });
+    harness.hover_at(pos2(100.0, 100.0));
+    harness.step();
+    harness.step();
+    harness.step();
+    assert!(!harness.ctx.has_requested_repaint(), "{:?}", harness.ctx.repaint_causes());
+}

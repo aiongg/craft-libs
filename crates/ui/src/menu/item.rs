@@ -212,6 +212,9 @@ impl<T> MenuItem<T> {
     /// ([`MenuResponse::chosen`](super::MenuResponse::chosen)) and stays open with the row
     /// highlighted; the host changes the setting, and the next pass's entries show the new
     /// mark. Any other row, a click outside and Esc close the menu as usual.
+    ///
+    /// Not for the menus of a [`MenuBar`](super::MenuBar): the bar does not enforce it, but a bar's
+    /// menus close on every run.
     pub fn keep_open(mut self, keep_open: bool) -> Self {
         self.keep_open = keep_open;
         self

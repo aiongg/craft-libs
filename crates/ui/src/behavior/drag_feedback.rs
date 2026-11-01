@@ -12,6 +12,7 @@ use std::path::PathBuf;
 
 use craft_theme::TypeRole;
 use egui::accesskit::Role;
+use egui::text::LayoutJob;
 use egui::{Area, AsIdSalt, Context, CursorIcon, Frame, Id, IdSalt, LayerId, Margin, Order, Sense, Stroke, StrokeKind, WidgetInfo, pos2, vec2};
 
 use crate::composites::live::{Politeness, region};
@@ -114,7 +115,6 @@ impl<'a> DragBadge<'a> {
             ui.painter().galley(rect.min + pad, galley, ink);
             response.widget_info(|| WidgetInfo::labeled(Role::Label, true, &text));
         });
-        ctx.request_repaint();
     }
 }
 
@@ -177,7 +177,8 @@ impl HoveredFiles {
 ///   the sides, wrapping at the window's width less 120 (at least 200).
 /// - **When.** The host shows it each frame [`HoveredFiles::of`] is not empty and its drop would
 ///   land (LightCraft skips it while a modal prompt holds the input, so the veil never promises
-///   a drop the barrier would refuse). It takes no input and asks for a repaint.
+///   a drop the barrier would refuse). It takes no input and asks for no repaint: the platform's hover, cancel and drop
+///   events each start a pass.
 /// - **AccessKit.** The card is a live `Alert` region with the lines as its text.
 pub struct DropVeil<'a> {
     id_salt: IdSalt,
@@ -206,7 +207,15 @@ impl<'a> DropVeil<'a> {
         painter.rect_stroke(screen.shrink(veil.inset), veil.frame_radius, Stroke::new(veil.frame_width, accent), StrokeKind::Inside);
         let wrap = (screen.width() - veil.wrap_margin).max(veil.min_wrap);
         let font = tokens.font(TypeRole::Title);
-        let galleys: Vec<_> = lines.iter().map(|line| painter.layout(line.clone(), font.clone(), ink, wrap)).collect();
+        // A line that wraps keeps its rows centred under each other, not only the block.
+        let galleys: Vec<_> = lines
+            .iter()
+            .map(|line| {
+                let mut job = LayoutJob::simple(line.clone(), font.clone(), ink, wrap);
+                job.halign = egui::Align::Center;
+                painter.layout_job(job)
+            })
+            .collect();
         let width = galleys.iter().fold(0.0f32, |w, g| w.max(g.size().x));
         let height = galleys.iter().map(|g| g.size().y).sum::<f32>() + veil.card_gap * galleys.len().saturating_sub(1) as f32;
         let margin = Margin::symmetric(veil.card_pad_x as i8, veil.card_pad_y as i8);
@@ -221,12 +230,12 @@ impl<'a> DropVeil<'a> {
                     let mut y = rect.top();
                     for galley in galleys {
                         let size = galley.size();
-                        ui.painter().galley(pos2(rect.center().x - size.x / 2.0, y), galley, ink);
+                        // The galley's rect is where its rows are, whichever side of its origin.
+                        ui.painter().galley(pos2(rect.center().x - galley.rect.center().x, y - galley.rect.min.y), galley, ink);
                         y += size.y + veil.card_gap;
                     }
                 });
             });
         });
-        ctx.request_repaint();
     }
 }
