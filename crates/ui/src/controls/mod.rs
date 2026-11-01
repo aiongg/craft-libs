@@ -165,7 +165,9 @@ use egui::{IdSalt, Ui};
 
 pub use alt_text::{AltText, AltTextField, AltTextLabels, starts_decorative};
 pub use angle_dial::{AngleDial, AngleDialStyle, AngleOrientation};
-pub use autocomplete::{Autocomplete, AutocompleteKeys, AutocompleteLabels, AutocompleteResponse, Suggestion, completion_rest, paint_inline_completion};
+pub use autocomplete::{
+    Autocomplete, AutocompleteKeys, AutocompleteLabels, AutocompleteResponse, Suggestion, completion_rest, paint_inline_completion,
+};
 pub use badge::{Badge, BadgeLook, BadgeStyle, BadgeTone};
 pub use breadcrumb::{BreadcrumbBar, BreadcrumbBarResponse, BreadcrumbLabels, Crumb, path_crumbs};
 pub use button::{Button, ButtonStyle, ButtonTone};
