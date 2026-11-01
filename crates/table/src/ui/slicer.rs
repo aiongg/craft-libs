@@ -1,8 +1,15 @@
 //! Slicers: tiles that filter a table by a column's values (N6.06).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_ui::localized::Labels as _;
+use craft_ui::theme::scale::Stroke as Line;
+use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _};
+use egui::accesskit::Role;
+use egui::{
+    Align2, Color32, CornerRadius, EventFilter, FontId, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, TextStyle, Ui,
+    UiBuilder, WidgetInfo, pos2, vec2,
+};
 
-use egui::{IdSalt, Rect, Response, Ui};
+use craft_ui::behavior::{GridKey, GridNav};
 
 use super::style::SheetStyle;
 
@@ -29,7 +36,24 @@ pub struct SlicerLayout {
 /// tiles filling the width.
 // gridcraft: crates/ui-egui/src/chartview.rs:400 `slicer_layout`.
 pub fn slicer_layout(rect: Rect, zoom: f32, n: usize, columns: u32, style: &SheetStyle) -> SlicerLayout {
-    todo!()
+    let header_height = style.slicer_header * zoom;
+    let padding = style.slicer_padding * zoom;
+    let gap = style.slicer_gap * zoom;
+    let tile_height = style.slicer_tile * zoom;
+    let header = Rect::from_min_size(rect.min, vec2(rect.width(), header_height));
+    let button = style.slicer_clear * zoom;
+    let clear = Rect::from_min_size(pos2(header.right() - padding - button, header.top() + (header_height - button) / 2.0), vec2(button, button));
+    let columns = columns.max(1) as f32;
+    let inner_width = (rect.width() - 2.0 * padding).max(1.0);
+    let tile_width = ((inner_width - (columns - 1.0) * gap) / columns).max(1.0);
+    let tiles = (0..n)
+        .map(|i| {
+            let (column, row) = ((i as f32) % columns, (i as f32 / columns).floor());
+            let min = pos2(rect.left() + padding + column * (tile_width + gap), header.bottom() + padding + row * (tile_height + gap));
+            Rect::from_min_size(min, vec2(tile_width, tile_height))
+        })
+        .collect();
+    SlicerLayout { header, clear, tiles }
 }
 
 /// What a click on a slicer did.
@@ -88,7 +112,103 @@ impl<'a> Slicer<'a> {
 
     // gridcraft: crates/ui-egui/src/chartview.rs:424 `paint_slicers`, `:472` `slicer_click`.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> SlicerOutput {
-        todo!()
+        let Self { id_salt, caption, items, columns, filtered, zoom, labels } = self;
+        let labels = labels.unwrap_or_else(|| SlicerLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let style = SheetStyle::of(&tokens);
+        let ctx = ui.ctx().clone();
+        let id = ui.make_persistent_id(id_salt);
+        let layout = slicer_layout(rect, zoom, items.len(), columns, &style);
+        // Tiles that overflow the card are left out (GridCraft `chartview.rs:442`).
+        let shown: Vec<usize> = (0..items.len()).filter(|&i| rect.contains(layout.tiles[i].left_top())).collect();
+        let enabled = ui.is_enabled();
+
+        // The AccessKit options are created first so the card, above them, keeps pointer and focus.
+        let options = ui.new_child(UiBuilder::new().id_salt("tiles").accessibility_parent(id).max_rect(rect));
+        for &i in &shown {
+            let option = options.interact(layout.tiles[i], id.with(("tile", i)), Sense::hover());
+            option.widget_info(|| WidgetInfo::selected(Role::ListBoxOption, enabled, items[i].1, &items[i].0));
+        }
+        let card = ui.interact(rect, id, Sense::click());
+        card.widget_info(|| WidgetInfo::labeled(Role::ListBox, enabled, caption));
+        let clear = ui.interact(layout.clear, id.with("clear"), Sense::click());
+        clear.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, &labels.clear));
+
+        let mut action = None;
+        let active_key = id.with("active");
+        let mut active = ctx.data(|d| d.get_temp::<usize>(active_key)).unwrap_or(0);
+        let nav = GridNav::wrapped(shown.len(), columns.max(1) as usize).rtl(craft_ui::direction::is_rtl(ui));
+        if card.has_focus() && !shown.is_empty() {
+            ui.memory_mut(|m| {
+                m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() });
+            });
+            let key = ui.input_mut(|input| {
+                [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown, Key::Home, Key::End]
+                    .into_iter()
+                    .find(|&key| input.consume_key(Modifiers::NONE, key))
+            });
+            if let Some(step) = key.and_then(GridKey::from_key) {
+                active = nav.step(active.min(shown.len() - 1), step, None).index;
+            }
+            if ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Space)) {
+                action = Some(SlicerAction::Toggle(items[shown[active.min(shown.len() - 1)]].0.clone()));
+            }
+        }
+        if card.clicked() && !clear.hovered() {
+            let hit = ui.input(|input| input.pointer.interact_pos()).and_then(|p| shown.iter().position(|&i| layout.tiles[i].contains(p)));
+            if let Some(at) = hit {
+                active = at;
+                action = Some(SlicerAction::Toggle(items[shown[at]].0.clone()));
+            }
+        }
+        if clear.clicked() {
+            action = Some(SlicerAction::Clear);
+        }
+        ctx.data_mut(|d| d.insert_temp(active_key, active));
+
+        let colors = &tokens.color;
+        let radius: CornerRadius = tokens.radius.panel;
+        let line = Line::Hairline.egui(&ctx, colors.line.border.to_egui());
+        let painter = ui.painter();
+        painter.add(tokens.shadow.floating.as_shape(rect, radius));
+        painter.rect_filled(rect, radius, colors.surface.raised.to_egui());
+        painter.rect_stroke(rect, radius, line, StrokeKind::Inside);
+        let header_radius = CornerRadius { sw: 0, se: 0, ..radius };
+        painter.rect_filled(layout.header, header_radius, colors.accent.soft.to_egui());
+        let base = TextStyle::Body.resolve(ui.style());
+        let font = FontId::new(base.size * zoom, base.family);
+        let padding = style.slicer_padding * zoom;
+        let caption_at = layout.header.left_center() + vec2(padding, 0.0);
+        painter.with_clip_rect(Rect::from_min_max(layout.header.min, pos2(layout.clear.left(), layout.header.max.y))).text(
+            caption_at,
+            Align2::LEFT_CENTER,
+            caption,
+            font.clone(),
+            colors.accent.text.to_egui(),
+        );
+        let funnel = if filtered { colors.accent.solid } else { colors.text.muted }.to_egui();
+        paint_funnel(ui, layout.clear, Stroke::new(Line::W1_5.width(ctx.pixels_per_point()), funnel));
+        let painter = ui.painter();
+        for &i in &shown {
+            let (text, on) = &items[i];
+            let tile = layout.tiles[i];
+            let (fill, ink): (Color32, Color32) = if *on {
+                (colors.accent.solid.to_egui(), colors.text.on_accent.to_egui())
+            } else {
+                (colors.state.hover.to_egui(), colors.text.muted.to_egui())
+            };
+            painter.rect_filled(tile, tokens.radius.control, fill);
+            painter.with_clip_rect(tile).text(tile.left_center() + vec2(padding, 0.0), Align2::LEFT_CENTER, text, font.clone(), ink);
+        }
+        if card.has_focus() && !shown.is_empty() {
+            let focus = Line::W2.egui(&ctx, colors.line.focus.to_egui());
+            painter.rect_stroke(layout.tiles[shown[active.min(shown.len() - 1)]], tokens.radius.control, focus, StrokeKind::Outside);
+        }
+        if clear.has_focus() {
+            let focus = Line::W2.egui(&ctx, colors.line.focus.to_egui());
+            painter.rect_stroke(layout.clear, tokens.radius.control, focus, StrokeKind::Outside);
+        }
+        SlicerOutput { response: card, action }
     }
 }
 
@@ -97,4 +217,11 @@ impl<'a> Slicer<'a> {
 pub struct SlicerOutput {
     pub response: Response,
     pub action: Option<SlicerAction>,
+}
+
+/// A funnel outline filling `rect`.
+fn paint_funnel(ui: &Ui, rect: Rect, stroke: Stroke) {
+    const OUTLINE: [(f32, f32); 6] = [(0.1, 0.15), (0.9, 0.15), (0.58, 0.55), (0.58, 0.9), (0.42, 0.78), (0.42, 0.55)];
+    let points = OUTLINE.iter().map(|&(x, y)| pos2(rect.left() + rect.width() * x, rect.top() + rect.height() * y)).collect();
+    ui.painter().add(Shape::closed_line(points, stroke));
 }
