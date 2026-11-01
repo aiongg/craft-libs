@@ -655,6 +655,24 @@ fn pin_overlay_colours_are_fixed() {
     }
 }
 
+/// Slice and artboard overlays sit on the document, so they keep PhotoCraft's colours in every built-in mode.
+#[test]
+fn slice_and_artboard_overlay_colours_are_fixed() {
+    for theme in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            if matches!((theme.variants, mode), (Variants::LightOnly, Mode::Dark) | (Variants::DarkOnly, Mode::Light)) {
+                continue;
+            }
+            let c = resolve(theme, app(mode, Contrast::Standard), None).tokens.color;
+            assert_eq!(c.overlay.slice, hex("#38b5ff"));
+            assert_eq!(c.overlay.slice_selected, hex("#ffb000"));
+            assert_eq!(c.overlay.slice_auto, hex("#6e6e6e"));
+            assert_eq!(c.overlay.slice_text, hex("#ffffff"));
+            assert_eq!(c.overlay.artboard, hex("#0000005a"));
+        }
+    }
+}
+
 #[test]
 fn pins_replace_defaults_and_aliases_follow() {
     let mut def = grey_blue();

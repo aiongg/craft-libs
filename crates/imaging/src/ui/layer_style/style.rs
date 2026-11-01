@@ -3,7 +3,8 @@
 
 use egui::{Color32, FontId};
 
-use craft_ui::theme::UiTokens;
+use craft_theme::TypeRole;
+use craft_ui::theme::{ToEgui, UiTokens};
 
 use super::{BlendIfBar, ContourField, LayerStyleDialog};
 
@@ -54,13 +55,13 @@ pub struct BlendIfBarStyle {
     /// (10 and 10, `:1432-1440`).
     pub handle_width: f32,
     pub handle_height: f32,
-    /// The ramp's border: `field.border` (`:1383`).
+    /// The ramp's border: `field.border.rest` (`:1383`).
     pub ramp_border: Color32,
     /// The handles' edge: `text.muted` (3:1 against the panel, as `levels.thumb_edge`).
     pub handle_edge: Color32,
-    /// The focus ring around the focused handle: `focus.ring`.
+    /// The focus ring around the focused handle: `line.focus`.
     pub focus: Color32,
-    /// The readout over the bar ("0 / 20    255"): `type.body`, `text.default`.
+    /// The readout over the bar ("0 / 20    255"): `type.body`, `text.normal`.
     pub readout_font: FontId,
     pub readout_colour: Color32,
 }
@@ -77,7 +78,7 @@ pub struct ContourFieldStyle {
     pub cell: f32,
     /// The Contour Editor's graph: `layer_style.contour_graph` (220, `:358`).
     pub graph: f32,
-    /// The curve in a thumbnail: `text.default`; the thumbnail's border `field.border`; its
+    /// The curve in a thumbnail: `text.normal`; the thumbnail's border `field.border`; its
     /// fill `surface.sunken`.
     pub curve: Color32,
     pub border: Color32,
@@ -86,30 +87,64 @@ pub struct ContourFieldStyle {
 
 impl LayerStyleDialog<'_> {
     /// The dialog's look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `layer_style` lands in task TK3")]
     pub fn style(tokens: &UiTokens) -> LayerStyleDialogStyle {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:840 (190), :942 (330), :954 (340), :962 (32),
         // :965-969 (accent 1.5 outline, radius 2), :987 (semibold 14).
-        todo!()
+        let (l, c) = (&tokens.component.layer_style, &tokens.color);
+        LayerStyleDialogStyle {
+            list_width: l.list_width,
+            page_width: l.page_width,
+            divider: c.line.divider.to_egui(),
+            title_font: tokens.font(TypeRole::Title),
+            title_colour: c.text.normal.to_egui(),
+            absent_colour: c.text.faint.to_egui(),
+            off_colour: c.text.muted.to_egui(),
+            preset_thumb: l.preset_thumb,
+            preset_gap: l.preset_gap,
+            preset_radius: l.preset_radius,
+            presets_height: l.presets_height,
+            invalid_colour: c.status.bad.fg.to_egui(),
+        }
     }
 }
 
 impl BlendIfBar {
     /// The bar's look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `blend_if` lands in task TK3")]
     pub fn style(tokens: &UiTokens) -> BlendIfBarStyle {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:1370-1372 (120..320, 26, ramp 12 inset 6),
         // :1383 (field border), :1432-1440 (triangles 10 high, 5 half-wide).
-        todo!()
+        let (b, c) = (&tokens.component.blend_if, &tokens.color);
+        BlendIfBarStyle {
+            width_min: b.width_min,
+            width_max: b.width_max,
+            height: b.height,
+            ramp: b.ramp,
+            inset: b.inset,
+            handle_width: b.handle_width,
+            handle_height: b.handle_height,
+            ramp_border: tokens.component.field.border.rest.to_egui(),
+            handle_edge: c.text.muted.to_egui(),
+            focus: c.line.focus.to_egui(),
+            readout_font: tokens.font(TypeRole::Body),
+            readout_colour: c.text.normal.to_egui(),
+        }
     }
 }
 
 impl ContourField<'_> {
     /// The field's look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `layer_style` lands in task TK3")]
     pub fn style(tokens: &UiTokens) -> ContourFieldStyle {
         // pc: crates/ui-egui/src/dialogs/layer_style/contour.rs:111 (36), :119 (14), :142 (40),
         // :358 (220).
-        todo!()
+        let (l, c) = (&tokens.component.layer_style, &tokens.color);
+        ContourFieldStyle {
+            thumb: l.contour_thumb,
+            arrow: l.contour_arrow,
+            cell: l.contour_cell,
+            graph: l.contour_graph,
+            curve: c.text.normal.to_egui(),
+            border: tokens.component.field.border.rest.to_egui(),
+            fill: c.surface.sunken.to_egui(),
+        }
     }
 }

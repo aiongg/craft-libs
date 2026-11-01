@@ -32,14 +32,18 @@ macro_rules! sizes {
 
 mod about;
 mod actions;
+mod add_beside;
+mod adjust;
 mod align;
 mod alt_text;
 mod angle_dial;
 mod app_shell;
+mod artboard;
 mod autocomplete;
 mod badge;
 mod before_after;
 mod bezier;
+mod blend_if;
 mod breadcrumb;
 mod brush;
 mod button;
@@ -52,6 +56,7 @@ mod color_picker;
 mod color_ramp;
 mod color_wheel;
 mod command_palette;
+mod connector;
 mod constrain;
 mod corner;
 mod crop;
@@ -91,6 +96,7 @@ mod icon_picker;
 mod identify;
 mod inspector;
 mod kbd;
+mod layer_style;
 mod layers;
 mod levels;
 mod line_guide;
@@ -133,6 +139,8 @@ mod segmented;
 mod select;
 mod selection_bar;
 mod selection_frame;
+mod shape_drag;
+mod slice;
 mod slider;
 mod slider_row;
 mod spinner;
@@ -172,14 +180,18 @@ use super::tokens::{ColorTokens, ElevationTokens, ShapeTokens, SizeTokens, Space
 
 pub use about::{AboutField, AboutTokens};
 pub use actions::{ActionsField, ActionsTokens};
+pub use add_beside::{AddBesideField, AddBesideTokens};
+pub use adjust::{AdjustField, AdjustTokens};
 pub use align::{AlignField, AlignTokens};
 pub use alt_text::{AltTextField, AltTextTokens};
 pub use angle_dial::{AngleDialField, AngleDialTokens};
 pub use app_shell::{AppShellField, AppShellTokens};
+pub use artboard::{ArtboardField, ArtboardTokens};
 pub use autocomplete::{AutocompleteField, AutocompleteTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use before_after::{BeforeAfterField, BeforeAfterTokens};
 pub use bezier::{BezierField, BezierTokens};
+pub use blend_if::{BlendIfField, BlendIfTokens};
 pub use breadcrumb::{BreadcrumbField, BreadcrumbTokens};
 pub use brush::{BrushField, BrushTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
@@ -192,6 +204,7 @@ pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use color_ramp::{ColorRampField, ColorRampTokens};
 pub use color_wheel::{ColorWheelField, ColorWheelTokens};
 pub use command_palette::{CommandPaletteField, CommandPaletteTokens};
+pub use connector::{ConnectorField, ConnectorTokens};
 pub use constrain::{ConstrainField, ConstrainTokens};
 pub use corner::{CornerField, CornerTokens};
 pub use crop::{CropField, CropTokens};
@@ -230,6 +243,7 @@ pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use icon_picker::{IconPickerField, IconPickerTokens};
 pub use inspector::{InspectorField, InspectorTokens};
 pub use kbd::{KbdField, KbdTokens};
+pub use layer_style::{LayerStyleField, LayerStyleTokens};
 pub use layers::{LayersField, LayersTokens};
 pub use levels::{LevelsField, LevelsTokens};
 pub use line_guide::{LineGuideField, LineGuideTokens};
@@ -272,6 +286,8 @@ pub use segmented::{SegmentedField, SegmentedTokens};
 pub use select::{SelectField, SelectTokens};
 pub use selection_bar::{SelectionBarField, SelectionBarTokens};
 pub use selection_frame::{SelectionFrameField, SelectionFrameTokens};
+pub use shape_drag::{ShapeDragField, ShapeDragTokens};
+pub use slice::{SliceField, SliceTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
@@ -1065,6 +1081,22 @@ families! {
     measure: MeasureTokens => Measure(MeasureField);
     /// Symmetry guides: the axis lines and the Transform Symmetry handles' reach.
     symmetry: SymmetryTokens => Symmetry(SymmetryField);
+    /// The adjustment editors: Hue/Saturation's spectrum bars and range thumbs, the point pickers' tone dot and Threshold's histogram.
+    adjust: AdjustTokens => Adjust(AdjustField);
+    /// The Layer Style dialog: the effect list and page columns, the Styles page's thumbnails and the contour field.
+    layer_style: LayerStyleTokens => LayerStyle(LayerStyleField);
+    /// The Blend If bar: its width range, ramp and handle triangles.
+    blend_if: BlendIfTokens => BlendIf(BlendIfField);
+    /// The "+" buttons beside a selected object.
+    add_beside: AddBesideTokens => AddBeside(AddBesideField);
+    /// The Shape tools' drag: the preview outline and the click slop.
+    shape_drag: ShapeDragTokens => ShapeDrag(ShapeDragField);
+    /// The Slice tool's overlay: outlines, dashes, badges and the click slop.
+    slice: SliceTokens => Slice(SliceField);
+    /// The Artboard tool: the drag preview and the click slop.
+    artboard: ArtboardTokens => Artboard(ArtboardField);
+    /// The Connector tool: the route, attach points, handles and the ghost.
+    connector: ConnectorTokens => Connector(ConnectorField);
     /// Selection bars: the floating bar of actions beside a selection.
     selection_bar: SelectionBarTokens => SelectionBar(SelectionBarField);
     /// Sliders: a track filled to the value, with a thumb on it.

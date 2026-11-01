@@ -233,6 +233,16 @@ pub struct OverlayColors {
     pub pin_turn: Rgba,
     /// The pin mesh's lines.
     pub mesh: Rgba,
+    /// A slice's outline (the default; a preference overrides it).
+    pub slice: Rgba,
+    /// The selected slice's outline.
+    pub slice_selected: Rgba,
+    /// An auto slice's badge fill.
+    pub slice_auto: Rgba,
+    /// A slice badge's text.
+    pub slice_text: Rgba,
+    /// An inactive artboard's edge.
+    pub artboard: Rgba,
 }
 
 /// Chart and histogram colours.
@@ -348,6 +358,11 @@ impl ColorTokens {
                 pin_ring: c,
                 pin_turn: c,
                 mesh: c,
+                slice: c,
+                slice_selected: c,
+                slice_auto: c,
+                slice_text: c,
+                artboard: c,
             },
             data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c, cyan: c, magenta: c, yellow: c, scope: c },
             caption: CaptionColors { close_hover: c, close_text: c, inactive: c },
@@ -564,6 +579,16 @@ color_tokens! {
     OverlayPinTurn = "overlay.pin_turn" => overlay.pin_turn;
     /// `overlay.mesh`
     OverlayMesh = "overlay.mesh" => overlay.mesh;
+    /// `overlay.slice`
+    OverlaySlice = "overlay.slice" => overlay.slice;
+    /// `overlay.slice_selected`
+    OverlaySliceSelected = "overlay.slice_selected" => overlay.slice_selected;
+    /// `overlay.slice_auto`
+    OverlaySliceAuto = "overlay.slice_auto" => overlay.slice_auto;
+    /// `overlay.slice_text`
+    OverlaySliceText = "overlay.slice_text" => overlay.slice_text;
+    /// `overlay.artboard`
+    OverlayArtboard = "overlay.artboard" => overlay.artboard;
     /// `data.series.0`
     DataSeries0 = "data.series.0" => data.series[0];
     /// `data.series.1`

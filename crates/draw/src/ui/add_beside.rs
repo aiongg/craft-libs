@@ -13,7 +13,7 @@ use egui::{AsIdSalt, Color32, IdSalt, Painter, Pos2, Stroke, Ui};
 use kurbo::Rect;
 
 use craft_ui::canvas::CanvasView;
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui, UiTokens};
 
 craft_ui::words! {
     /// The "+" buttons' names, English by default. The host may name the group for what it adds
@@ -134,11 +134,21 @@ impl<'a> AddBesideHandles<'a> {
     }
 
     /// The buttons' look in `tokens`.
-    #[expect(clippy::todo, reason = "skeleton: the token family `add_beside` lands in task TK3")]
     pub fn style(tokens: &UiTokens) -> AddBesideStyle {
         // pc: crates/ui-egui/src/tools/artboard_tool.rs:26-28 (`PLUS_OFFSET_PX` 18, `PLUS_RADIUS_PX`
         // 8), :274-279 (fill `card`, 1 pt accent ring, 1.5 pt plus, arm radius × 0.5).
-        todo!()
+        let (b, c) = (&tokens.component.add_beside, &tokens.color);
+        let accent = c.accent.solid.to_egui();
+        AddBesideStyle {
+            offset: b.offset,
+            radius: b.radius,
+            arm: b.arm,
+            plus: Stroke::new(b.line, accent),
+            ring: Stroke::new(b.ring, accent),
+            fill: c.surface.raised.to_egui(),
+            hot_fill: accent,
+            hot_plus: c.text.on_strong.to_egui(),
+        }
     }
 
     /// The visible buttons' screen centres in [`AddSide::ALL`] order.

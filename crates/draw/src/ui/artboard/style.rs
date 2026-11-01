@@ -3,7 +3,8 @@
 use egui::{Color32, Stroke};
 
 use super::ArtboardTool;
-use craft_ui::theme::UiTokens;
+use craft_ui::primitives::{Handle, HandleShape};
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// What [`ArtboardTool`] draws. The same at every Size (it sits on the document). The frames and
 /// names are the `Pasteboard`'s; the "+" buttons have their own
@@ -27,10 +28,19 @@ pub struct ArtboardStyle {
 
 impl ArtboardTool {
     /// The Artboard tool's look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `artboard` lands in task TK3")]
     pub fn style(tokens: &UiTokens) -> ArtboardStyle {
         // pc: crates/ui-egui/src/tools/artboard_tool.rs:24 `CLICK_PX`, :266 (1.5 pt accent), :284-288
         // (handles 7 × 7 white, 1 pt accent edge).
-        todo!()
+        let a = &tokens.component.artboard;
+        let accent = tokens.color.accent.solid.to_egui();
+        let handle = Handle::style(tokens, HandleShape::Square);
+        ArtboardStyle {
+            preview: Stroke::new(a.preview_line, accent),
+            click_slop: a.click_slop,
+            handle: handle.size,
+            handle_hit: handle.hit,
+            handle_fill: handle.fill,
+            handle_edge: Stroke::new(handle.stroke.width, accent),
+        }
     }
 }

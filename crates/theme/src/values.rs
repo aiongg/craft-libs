@@ -265,6 +265,12 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::OverlayPinRing => Fixed(Rgba::rgb(0x00, 0x00, 0x00)),
         T::OverlayPinTurn => Fixed(Rgba::rgb(0xff, 0xff, 0xff)),
         T::OverlayMesh => Fixed(Rgba([40, 40, 40, 150])),
+        // Slices and artboard edges sit on the document, so one value in both modes (PhotoCraft `slice_ui.rs:242-321`, `artboard_ui.rs:97`).
+        T::OverlaySlice => Fixed(Rgba::rgb(0x38, 0xb5, 0xff)),
+        T::OverlaySliceSelected => Fixed(Rgba::rgb(0xff, 0xb0, 0x00)),
+        T::OverlaySliceAuto => Fixed(Rgba::rgb(110, 110, 110)),
+        T::OverlaySliceText => Fixed(Rgba::rgb(0xff, 0xff, 0xff)),
+        T::OverlayArtboard => Fixed(Rgba([0, 0, 0, 90])),
         T::OverlayGripStroke => Fixed(Rgba::rgb(0x10, 0x30, 0x80)),
         T::DataSeries0 => series(0),
         T::DataSeries1 => series(1),
@@ -2415,3 +2421,139 @@ pub const SYMMETRY_LINE: f32 = 1.0;
 pub const SYMMETRY_HIT: f32 = 8.0;
 /// The rotation handle's distance from the centre as a share of the document's shorter side (a ratio, not a size): `symmetry.handle_share`.
 pub const SYMMETRY_HANDLE_SHARE: f32 = 0.35;
+
+// --- adjust ---
+/// A Hue/Saturation spectrum bar's height: `adjust.spectrum_bar`.
+pub const ADJUST_SPECTRUM_BAR: f32 = 10.0;
+/// The range band's height between the bars: `adjust.range_band`.
+pub const ADJUST_RANGE_BAND: f32 = 6.0;
+/// The height between the two bars that holds the range thumbs: `adjust.spectrum_master_extra`.
+pub const ADJUST_SPECTRUM_MASTER_EXTRA: f32 = 20.0;
+/// A range thumb's width: `adjust.range_thumb_width`.
+pub const ADJUST_RANGE_THUMB_WIDTH: f32 = 5.0;
+/// A range thumb's height: `adjust.range_thumb_height`.
+pub const ADJUST_RANGE_THUMB_HEIGHT: f32 = 12.0;
+/// A point picker's tone dot radius: `adjust.picker_dot`.
+pub const ADJUST_PICKER_DOT: f32 = 3.5;
+/// The tone dot's centre, in from the button's bottom-trailing corner: `adjust.picker_dot_inset`.
+pub const ADJUST_PICKER_DOT_INSET: f32 = 5.5;
+/// Threshold's histogram height: `adjust.threshold_histogram`.
+pub const ADJUST_THRESHOLD_HISTOGRAM: f32 = 90.0;
+/// Threshold's histogram widest width: `adjust.threshold_width`.
+pub const ADJUST_THRESHOLD_WIDTH: f32 = 300.0;
+
+// --- layer_style ---
+/// The effect list's width: `layer_style.list_width`.
+pub const LAYER_STYLE_LIST_WIDTH: f32 = 190.0;
+/// The page column's width: `layer_style.page_width`.
+pub const LAYER_STYLE_PAGE_WIDTH: f32 = 330.0;
+/// A Styles page thumbnail's side: `layer_style.preset_thumb`.
+pub const LAYER_STYLE_PRESET_THUMB: f32 = 32.0;
+/// The gap between Styles page thumbnails: `layer_style.preset_gap`.
+pub const LAYER_STYLE_PRESET_GAP: f32 = 4.0;
+/// A Styles page thumbnail's corner radius: `layer_style.preset_radius`.
+pub const LAYER_STYLE_PRESET_RADIUS: f32 = 2.0;
+/// The Styles page's scroll height: `layer_style.presets_height`.
+pub const LAYER_STYLE_PRESETS_HEIGHT: f32 = 340.0;
+/// The contour field's thumbnail side: `layer_style.contour_thumb`.
+pub const LAYER_STYLE_CONTOUR_THUMB: f32 = 36.0;
+/// The contour field's picker arrow width: `layer_style.contour_arrow`.
+pub const LAYER_STYLE_CONTOUR_ARROW: f32 = 14.0;
+/// A cell of the contour preset picker: `layer_style.contour_cell`.
+pub const LAYER_STYLE_CONTOUR_CELL: f32 = 40.0;
+/// The Contour Editor's graph side: `layer_style.contour_graph`.
+pub const LAYER_STYLE_CONTOUR_GRAPH: f32 = 220.0;
+
+// --- blend_if ---
+/// The bar's narrowest width: `blend_if.width_min`.
+pub const BLEND_IF_WIDTH_MIN: f32 = 120.0;
+/// The bar's widest width: `blend_if.width_max`.
+pub const BLEND_IF_WIDTH_MAX: f32 = 320.0;
+/// The bar's height: `blend_if.height`.
+pub const BLEND_IF_HEIGHT: f32 = 26.0;
+/// The ramp's height: `blend_if.ramp`.
+pub const BLEND_IF_RAMP: f32 = 12.0;
+/// The ramp's side inset: `blend_if.inset`.
+pub const BLEND_IF_INSET: f32 = 6.0;
+/// A handle triangle's width: `blend_if.handle_width`.
+pub const BLEND_IF_HANDLE_WIDTH: f32 = 10.0;
+/// A handle triangle's height: `blend_if.handle_height`.
+pub const BLEND_IF_HANDLE_HEIGHT: f32 = 10.0;
+
+// --- add_beside ---
+/// From the object's edge to a button's centre, in screen points: `add_beside.offset`.
+pub const ADD_BESIDE_OFFSET: f32 = 18.0;
+/// A button's radius: `add_beside.radius`.
+pub const ADD_BESIDE_RADIUS: f32 = 8.0;
+/// The plus's arm as a share of the radius (a ratio, not a size): `add_beside.arm`.
+pub const ADD_BESIDE_ARM: f32 = 0.5;
+/// The plus's width: `add_beside.line`.
+pub const ADD_BESIDE_LINE: f32 = 1.5;
+/// The ring's width: `add_beside.ring`.
+pub const ADD_BESIDE_RING: f32 = 1.0;
+
+// --- shape_drag ---
+/// A press and release closer than this many screen points is a click: `shape_drag.click_slop`.
+pub const SHAPE_DRAG_CLICK_SLOP: f32 = 3.0;
+/// The outline of the shape being drawn: `shape_drag.preview_line`.
+pub const SHAPE_DRAG_PREVIEW_LINE: f32 = 1.5;
+/// The dark halo's extra width on each side of the preview outline (PhotoCraft's `contrast_path`: 3 under 1): `shape_drag.preview_halo`.
+pub const SHAPE_DRAG_PREVIEW_HALO: f32 = 1.0;
+
+// --- slice ---
+/// A slice's outline width: `slice.outline`.
+pub const SLICE_OUTLINE: f32 = 1.0;
+/// The selected slice's outline width: `slice.selected_outline`.
+pub const SLICE_SELECTED_OUTLINE: f32 = 2.0;
+/// An auto slice's dash: `slice.auto_dash`.
+pub const SLICE_AUTO_DASH: f32 = 3.0;
+/// An auto slice's gap: `slice.auto_gap`.
+pub const SLICE_AUTO_GAP: f32 = 3.0;
+/// An auto slice's alpha over the slice colour (a ratio, not a size): `slice.auto_alpha`.
+pub const SLICE_AUTO_ALPHA: f32 = 0.7;
+/// A new slice preview's dash: `slice.drag_dash`.
+pub const SLICE_DRAG_DASH: f32 = 4.0;
+/// A new slice preview's gap: `slice.drag_gap`.
+pub const SLICE_DRAG_GAP: f32 = 4.0;
+/// The badge's offset from the slice's corner: `slice.badge_offset`.
+pub const SLICE_BADGE_OFFSET: f32 = 2.0;
+/// The badge's padding around the number, horizontal then vertical: `slice.badge_pad`.
+pub const SLICE_BADGE_PAD: [f32; 2] = [3.0, 1.0];
+/// The badge's corner radius: `slice.badge_radius`.
+pub const SLICE_BADGE_RADIUS: f32 = 2.0;
+/// The smallest slice on screen that shows a badge, width then height: `slice.badge_min`.
+pub const SLICE_BADGE_MIN: [f32; 2] = [18.0, 12.0];
+/// A drag no wider and no taller than this many document pixels is a click: `slice.click_slop`.
+pub const SLICE_CLICK_SLOP: f32 = 2.0;
+
+// --- artboard ---
+/// A drag shorter than this many screen points draws nothing: `artboard.click_slop`.
+pub const ARTBOARD_CLICK_SLOP: f32 = 3.0;
+/// The drag preview's width: `artboard.preview_line`.
+pub const ARTBOARD_PREVIEW_LINE: f32 = 1.5;
+
+// --- connector ---
+/// The route and rings' width: `connector.line`.
+pub const CONNECTOR_LINE: f32 = 1.5;
+/// An attach point's radius: `connector.attach`.
+pub const CONNECTOR_ATTACH: f32 = 4.0;
+/// The active attach point's radius: `connector.attach_active`.
+pub const CONNECTOR_ATTACH_ACTIVE: f32 = 7.0;
+/// The active attach point's fill alpha (a ratio, not a size): `connector.attach_fill_alpha`.
+pub const CONNECTOR_ATTACH_FILL_ALPHA: f32 = 0.25;
+/// The ghost's fill alpha (a ratio, not a size): `connector.ghost_alpha`.
+pub const CONNECTOR_GHOST_ALPHA: f32 = 0.08;
+/// The ghost outline's dash: `connector.ghost_dash`.
+pub const CONNECTOR_GHOST_DASH: f32 = 6.0;
+/// The ghost outline's gap: `connector.ghost_gap`.
+pub const CONNECTOR_GHOST_GAP: f32 = 4.0;
+/// The ghost outline's alpha (a ratio, not a size): `connector.ghost_line_alpha`.
+pub const CONNECTOR_GHOST_LINE_ALPHA: f32 = 0.6;
+/// A drag shorter than this many screen points makes nothing: `connector.click_slop`.
+pub const CONNECTOR_CLICK_SLOP: f32 = 4.0;
+/// An end handle's radius: `connector.end_handle`.
+pub const CONNECTOR_END_HANDLE: f32 = 5.0;
+/// A path handle's radius: `connector.path_handle`.
+pub const CONNECTOR_PATH_HANDLE: f32 = 3.5;
+/// An end within this many screen points of a site glues to it: `connector.attach_reach`.
+pub const CONNECTOR_ATTACH_REACH: f32 = 10.0;
