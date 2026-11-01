@@ -15,9 +15,9 @@ use crate::controls::{IconButton, NumberField, Swatch};
 use crate::direction;
 use crate::edit::{EditEvent, EditResponse};
 use crate::icons::Icon;
-use crate::localized::LocaleNumbers;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::Content;
-use crate::story::{Level, Story, StoryArgs};
+use crate::story::{Level, Story, StoryArgs, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
@@ -595,14 +595,15 @@ pub(super) fn show_inspector(ui: &mut Ui, args: &mut InspectorArgs) {
         linked: true,
     });
     let numbers = LocaleNumbers::from_tag("en");
-    let number = |id: &'static str, label: &'static str, value: f64| NumberField::new(id, label, value, &numbers).mixed(mixed);
+    let words = StoryLabels::of(ui);
+    let number = |id: &'static str, label: &str, value: f64| NumberField::new(id, label, value, &numbers).mixed(mixed);
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         PropertyGroup::new("property-row-transform").show(ui, |ui| {
             let (w, link, h) = PropertyRow::pair(PropertyLabel::glyph("W"), PropertyLabel::glyph("H").redundant())
                 .show_linked(
                     ui,
-                    |ui, _| number("w", "Width", v.w).show(ui),
+                    |ui, _| number("w", &words.width, v.w).show(ui),
                     |ui| {
                         ui.add(
                             IconButton::new(if v.linked { Icon::Link } else { Icon::Unlink }, "Link width and height")
@@ -610,7 +611,7 @@ pub(super) fn show_inspector(ui: &mut Ui, args: &mut InspectorArgs) {
                                 .toggle(&mut v.linked),
                         )
                     },
-                    |ui, _| number("h", "Height", v.h).show(ui),
+                    |ui, _| number("h", &words.height, v.h).show(ui),
                 )
                 .inner;
             let _ = link;
@@ -625,7 +626,7 @@ pub(super) fn show_inspector(ui: &mut Ui, args: &mut InspectorArgs) {
         });
         ui.add_space(ui.spacing().item_spacing.y * 2.0);
         PropertyGroup::new("property-row-appearance").show(ui, |ui| {
-            for (label, id, value) in [("Opacity", "opacity", 0usize), ("Angle", "angle", 1)] {
+            for (label, id, value) in [(words.opacity.as_str(), "opacity", 0usize), ("Angle", "angle", 1)] {
                 let edit = PropertyRow::word(label)
                     .scrubs()
                     .show(ui, |ui, row| {

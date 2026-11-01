@@ -351,9 +351,10 @@ fn show_wheel_step(ui: &mut Ui, args: &mut WheelStepArgs) {
     let state_id = ui.scope_id().with("slider-row-wheel-step");
     let mut value = ui.data(|d| d.get_temp::<f64>(state_id)).unwrap_or(50.0);
     let numbers = LocaleNumbers::from_tag("en");
+    let words = StoryLabels::of(ui);
     ui.allocate_ui(vec2(260.0, 0.0), |ui| {
         ui.set_max_width(260.0);
-        let row = SliderRow::new("wheel-step", "Opacity", value, 0.0..=1000.0, &numbers).wheel(true).wheel_step(f64::from(args.step));
+        let row = SliderRow::new("wheel-step", &words.opacity, value, 0.0..=1000.0, &numbers).wheel(true).wheel_step(f64::from(args.step));
         for event in row.show(ui).edits() {
             if let EditEvent::Begin { value: Some(v), .. }
             | EditEvent::Update { value: v, .. }
@@ -365,6 +366,14 @@ fn show_wheel_step(ui: &mut Ui, args: &mut WheelStepArgs) {
         }
     });
     ui.data_mut(|d| d.insert_temp(state_id, value));
+}
+
+crate::words! {
+    /// The sample text of the slider row stories, English by default.
+    #[non_exhaustive]
+    pub struct SliderRowStoryLabels {
+        exposure: "sliderRowStory.exposure" = "Exposure";
+    }
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]
@@ -388,6 +397,7 @@ pub(super) fn show_adjustments(ui: &mut Ui, args: &mut AdjustmentsArgs) {
     let mut values = ui.data(|d| d.get_temp::<[f64; 4]>(state_id)).unwrap_or([80.0, 0.5, 210.0, 35.0]);
     let numbers = LocaleNumbers::from_tag("en");
     let words = StoryLabels::of(ui);
+    let story = SliderRowStoryLabels::of(ui);
     let hue = [
         Srgba::rgb(0.9, 0.2, 0.2),
         Srgba::rgb(0.9, 0.9, 0.2),
@@ -400,8 +410,8 @@ pub(super) fn show_adjustments(ui: &mut Ui, args: &mut AdjustmentsArgs) {
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         let rows = [
-            SliderRow::new("opacity", "Opacity", values[0], 0.0..=100.0, &numbers).unit(Unit::new("{n} %")),
-            SliderRow::new("exposure", "Exposure", values[1], -20.0..=20.0, &numbers).decimals(2),
+            SliderRow::new("opacity", &words.opacity, values[0], 0.0..=100.0, &numbers).unit(Unit::new("{n} %")),
+            SliderRow::new("exposure", &story.exposure, values[1], -20.0..=20.0, &numbers).decimals(2),
             SliderRow::new("hue", "Hue", values[2], 0.0..=360.0, &numbers).unit(Unit::new("{n}°")).track_colors(hue),
             SliderRow::new("amount", &words.amount, values[3], 0.0..=100.0, &numbers).enabled(!disabled),
         ];

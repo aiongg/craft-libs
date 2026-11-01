@@ -110,7 +110,8 @@ pub(crate) fn finished_paths() -> Vec<EditPath> {
 fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
     let key = ui.scope_id().with("pen-story");
     let mut host: PenHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PenHost::new(finished_paths()));
-    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
+    let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let selection = PathSelection::default();
     let names = BezierNames::of(ui);

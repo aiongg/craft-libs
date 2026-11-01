@@ -240,9 +240,18 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
     }
 }
 
+craft_ui::words! {
+    /// The sample text of the colour stories, English by default.
+    #[non_exhaustive]
+    pub struct ColorStoryLabels {
+        hex_color: "colorStory.hexColor" = "Hex color";
+    }
+}
+
 /// The labels tables of the colour widgets, for the words registry.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     picker::WORDS,
+    <ColorStoryLabels as Labels>::WORDS,
     <ColorChoiceLabels as Labels>::WORDS,
     <ColorPanelLabels as Labels>::WORDS,
     <ColorPickerLabels as Labels>::WORDS,
@@ -559,7 +568,11 @@ fn show_hex_field(ui: &mut Ui, args: &mut HexFieldArgs) {
         let (color, last) = &mut state[0];
         let digits = if args.digits == DigitsArg::One { 1 } else { 2 };
         ui.set_width(160.0);
-        let edit = HexField::new("color-hex-field", "Hex color", *color).digits(digits).alpha(args.alpha).enabled(!args.disabled).show(ui);
+        let edit = HexField::new("color-hex-field", &ColorStoryLabels::of(ui).hex_color, *color)
+            .digits(digits)
+            .alpha(args.alpha)
+            .enabled(!args.disabled)
+            .show(ui);
         if let Some(event) = &edit.event {
             if let Some(c) = event.value() {
                 *color = *c;

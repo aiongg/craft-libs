@@ -221,7 +221,8 @@ pub(crate) fn stories() -> Vec<Story> {
 /// canvas has focus; crisp lines along the document axes through it; the pointer's document
 /// position in a readout.
 fn show_document(ui: &mut Ui, args: &mut PlainArgs) {
-    let canvas = document(ui, args.view, "Document");
+    let document_name = crate::story::StoryLabels::of(ui).document;
+    let canvas = document(ui, args.view, &document_name);
     let (response, view) = (&canvas.response, &canvas.view);
     let tokens = Tokens::of(ui);
     let key = ui.scope_id().with("canvas-story-point");
@@ -261,7 +262,8 @@ fn show_document(ui: &mut Ui, args: &mut PlainArgs) {
 
 /// The grid over the document, inside the document rect.
 fn show_grid(ui: &mut Ui, args: &mut GridArgs) {
-    let canvas = document(ui, args.view, "Document");
+    let document_name = crate::story::StoryLabels::of(ui).document;
+    let canvas = document(ui, args.view, &document_name);
     CanvasGrid::new("canvas-story-grid")
         .spacing(kurbo::Vec2::new(args.spacing, args.spacing))
         .subdivisions(args.subdivisions)
@@ -275,7 +277,8 @@ fn show_grid(ui: &mut Ui, args: &mut GridArgs) {
 fn show_scrollbars(ui: &mut Ui, args: &mut ScrollbarsArgs) {
     let key = ui.scope_id().with("canvas-story-scroll");
     let center: Point = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| DOC.center());
-    let canvas = document_at(ui, args.view, "Document", 0.0, center);
+    let document_name = crate::story::StoryLabels::of(ui).document;
+    let canvas = document_at(ui, args.view, &document_name, 0.0, center);
     let mut view = canvas.view;
     let overscroll = args.overscroll;
     if !overscroll {

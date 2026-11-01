@@ -456,6 +456,7 @@ pub(crate) fn stories() -> Vec<Story> {
 
 #[derive(StoryArgs, Debug, PartialEq)]
 pub(super) struct DialogArgs {
+    #[arg(name = "labels above")]
     pub(super) above: bool,
     pub(super) help: bool,
     pub(super) error: bool,

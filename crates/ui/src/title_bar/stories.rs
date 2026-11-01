@@ -66,7 +66,7 @@ fn show(ui: &mut Ui, args: &mut BarArgs, frame: Frame) {
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         let words = PatternStoryLabels::of(ui);
-        let menus = story_bar(&StoryLabels::of(ui), &words);
+        let menus = story_bar(&StoryLabels::of(ui), &crate::menu::MenuStoryLabels::of(ui));
         let title = Title::new(args.title.as_str()).unsaved(args.unsaved);
         TitleBar::new(&frame).id_salt("craft-ui-title-bar-story").preview(state).separator(true).title(title).show_titled(
             ui,

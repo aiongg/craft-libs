@@ -14,7 +14,6 @@ crate::words! {
         description: "patternStory.description" = "Description";
         edit: "patternStory.edit" = "Edit";
         eraser: "patternStory.eraser" = "Eraser";
-        file: "patternStory.file" = "File";
         general: "patternStory.general" = "General";
         home: "patternStory.home" = "Home";
         more: "patternStory.more" = "More";
@@ -24,7 +23,6 @@ crate::words! {
         search: "patternStory.search" = "Search";
         show: "patternStory.show" = "Show";
         small: "patternStory.small" = "Small";
-        view: "patternStory.view" = "View";
         zoom: "patternStory.zoom" = "Zoom";
     }
 }

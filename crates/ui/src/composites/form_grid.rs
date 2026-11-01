@@ -435,7 +435,9 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut ImageSizeArgs) {
         method: 0,
     });
     let numbers = LocaleNumbers::from_tag("en");
-    let unit_menu = |ui: &mut Ui, id: &'static str, label: &'static str, unit: &mut usize| {
+    use crate::localized::Labels as _;
+    let words = crate::dialog::SizingLabels::of(ui);
+    let unit_menu = |ui: &mut Ui, id: &'static str, label: &str, unit: &mut usize| {
         let mut select = Select::new(id, label, unit);
         for (i, name) in UNITS.into_iter().enumerate() {
             select = select.option(i, name);
@@ -448,24 +450,24 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut ImageSizeArgs) {
         .min_label_width(90.0)
         .show(ui, |form| {
             let bytes = |w: f64, h: f64| format!("{:.1}M", w * h * 4.0 / (1024.0 * 1024.0));
-            form.value("Image Size:", format!("{} (was {})", bytes(v.width, v.height), bytes(1200.0, 800.0)));
-            form.value("Dimensions:", format!("{} px × {} px", v.width.round(), v.height.round()));
+            form.value(&words.image_size, format!("{} (was {})", bytes(v.width, v.height), bytes(1200.0, 800.0)));
+            form.value(&words.dimensions, format!("{} px × {} px", v.width.round(), v.height.round()));
             form.space(6.0);
             let mut constrain = v.constrain;
             let (mut width, mut height) = (None, None);
-            form.linked("Constrain proportions", &mut constrain, |form| {
+            form.linked(&words.constrain, &mut constrain, |form| {
                 width = form
-                    .row("Width:", |ui, _| {
+                    .row(&words.width, |ui, _| {
                         let edit = NumberField::new("width", "Width", v.width, &numbers).range(1.0..=300000.0).decimals(0..=0).show(ui);
-                        let _ = unit_menu(ui, "width-unit", "Width unit", &mut v.unit);
+                        let _ = unit_menu(ui, "width-unit", &words.width_unit, &mut v.unit);
                         edit
                     })
                     .inner
                     .event;
                 height = form
-                    .row("Height:", |ui, _| {
+                    .row(&words.height, |ui, _| {
                         let edit = NumberField::new("height", "Height", v.height, &numbers).range(1.0..=300000.0).decimals(0..=0).show(ui);
-                        let _ = unit_menu(ui, "height-unit", "Height unit", &mut v.unit);
+                        let _ = unit_menu(ui, "height-unit", &words.height_unit, &mut v.unit);
                         edit
                     })
                     .inner
@@ -475,18 +477,18 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut ImageSizeArgs) {
             apply(width, &mut v.width);
             apply(height, &mut v.height);
             let resolution = form
-                .row("Resolution:", |ui, _| {
+                .row(&words.resolution, |ui, _| {
                     let edit = NumberField::new("resolution", "Resolution", v.resolution, &numbers).range(1.0..=30000.0).decimals(0..=0).show(ui);
-                    ui.label("Pixels/Inch");
+                    ui.label(&words.pixels_per_inch);
                     edit
                 })
                 .inner;
             apply(resolution.event, &mut v.resolution);
             form.space(4.0);
             form.unlabelled(|ui| {
-                let check = Checkbox::bool("Resample", &mut v.resample).show(ui);
+                let check = Checkbox::bool(&words.resample, &mut v.resample).show(ui);
                 if v.resample {
-                    let mut select = Select::new("resample-method", "Resample method", &mut v.method);
+                    let mut select = Select::new("resample-method", &words.resample_method, &mut v.method);
                     for (i, name) in METHODS.into_iter().enumerate() {
                         select = select.option(i, name);
                     }
