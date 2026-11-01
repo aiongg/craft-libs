@@ -33,5 +33,11 @@ craft_ui::words! {
         render_failed: "browse.compareRenderFailed" = "Render failed";
         /// The tile's accessible name: `{label}`: `{name}`, then `{details}` (stars, flag, label).
         tile_name: "browse.compareTileName" = "{label}: {name}{details}";
+        /// One entry of `{details}`: `{n}` the rating.
+        stars: "browse.compareStars" = "{n} of 5 stars";
+        /// One entry of `{details}`: the pick flag.
+        picked: "browse.comparePicked" = "picked";
+        /// One entry of `{details}`: the reject flag.
+        rejected: "browse.compareRejected" = "rejected";
     }
 }
