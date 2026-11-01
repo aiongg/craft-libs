@@ -1,15 +1,44 @@
 //! The channel-mixing adjustments: Black & White, Channel Mixer and Selective Color (task AD-5).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_theme::{Srgba, TypeRole};
+use egui::{AsIdSalt, Context, Id, IdSalt, Label, RichText, Ui};
 
-use craft_theme::Srgba;
-use egui::{AsIdSalt, Context, Id, IdSalt, Ui};
-
+use craft_ui::controls::{Button, Checkbox, RadioSet, Select, Swatch};
 use craft_ui::dialog::ColorRequest;
-use craft_ui::edit::{EditPolicy, EditResponse};
-use craft_ui::localized::LocaleNumbers;
+use craft_ui::direction;
+use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::primitives::{Content, Gap, Stack, Text};
+use craft_ui::theme::{Tokens, TokensOf as _};
 
-use super::{AdjustContext, AdjustLabels};
+use super::sliders::{PERCENT, is_ending, pick};
+use super::{AdjustContext, AdjustField, AdjustLabels, AdjustSliders, AdjustStyle, AdjustTrack};
+
+/// Where Channel Mixer keeps its Output Channel and Selective Color its Colors choice, under the
+/// editor's id.
+const OUTPUT: &str = "output";
+const RANGE: &str = "range";
+
+/// The colour request's key.
+const TINT_KEY: &str = "blackWhite.tint";
+
+/// An opaque colour from 8-bit sRGB channels.
+fn rgb8(r: u8, g: u8, b: u8) -> Srgba {
+    Srgba::rgb(f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0)
+}
+
+/// The editor's response: marked changed when the event carries a value, as the slider tables do.
+fn finish<T>(mut response: egui::Response, event: Option<EditEvent<T>>, submitted: bool, escaped: bool) -> EditResponse<T> {
+    if event.as_ref().is_some_and(|event| event.value().is_some()) {
+        response.mark_changed();
+    }
+    EditResponse::new(response, event).submitted(submitted).escaped(escaped)
+}
+
+/// The first event that ends a gesture among `events`, else the first.
+fn first_of<T>(events: impl IntoIterator<Item = Option<EditEvent<T>>>) -> Option<EditEvent<T>> {
+    pick(events.into_iter().flatten().collect(), is_ending)
+}
 
 // ---------------------------------------------------------------------------------------------
 // Black & White
@@ -101,7 +130,58 @@ impl<'a> BlackWhiteEditor<'a> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:158-192 `black_white` (colours :160,
         // tint colour :178, Default :184-189).
         // new: the tint colour through `ColorRequest`.
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
+        let enabled = self.enabled && ui.is_enabled();
+        let value = *self.value;
+        let names = [
+            ("reds", &labels.reds, rgb8(230, 50, 50)),
+            ("yellows", &labels.yellows, rgb8(235, 215, 40)),
+            ("greens", &labels.greens, rgb8(50, 200, 70)),
+            ("cyans", &labels.cyans, rgb8(40, 200, 220)),
+            ("blues", &labels.blues, rgb8(50, 90, 235)),
+            ("magentas", &labels.magentas, rgb8(220, 50, 210)),
+        ];
+        let black = rgb8(0, 0, 0);
+        let fields: Vec<AdjustField> = names
+            .iter()
+            .enumerate()
+            .map(|(i, (key, label, color))| {
+                AdjustField::new(key, label.as_str(), -200.0..=300.0, BlackWhite::DEFAULT_WEIGHTS[i])
+                    .unit(Unit::new(PERCENT))
+                    .track(AdjustTrack::Colors(vec![black, *color]))
+            })
+            .collect();
+        let mut pick_color = None;
+        let group = Stack::new(Gap::Stack).show(ui, |ui| {
+            let sliders = AdjustSliders::new((self.id_salt, "rows"), &fields, &value.weights, self.numbers)
+                .context(self.context)
+                .policy(self.policy)
+                .enabled(enabled)
+                .show(ui);
+            let mut tint = value.tint;
+            let mut check = None;
+            let mut default = false;
+            direction::horizontal(ui, |ui| {
+                check = Some(Checkbox::bool(labels.tint.as_str(), &mut tint).id_salt((self.id_salt, "tint")).enabled(enabled).show(ui));
+                let swatch =
+                    Swatch::new((self.id_salt, "swatch"), labels.tint_color.as_str(), value.tint_color.to_rgba()).enabled(enabled && value.tint);
+                if ui.add(swatch).clicked() {
+                    pick_color = Some(ColorRequest::new(TINT_KEY, value.tint_color).title(labels.tint_color.as_str()));
+                }
+                default = ui.add(Button::new(labels.default_button.as_str()).enabled(enabled).id_salt((self.id_salt, "default"))).clicked();
+            });
+            (sliders, check, default)
+        });
+        let (sliders, check, default) = group.inner;
+        let (submitted, escaped) = (sliders.submitted, sliders.escaped);
+        let weights = sliders.event.map(|e| e.map(|row| BlackWhite { weights: std::array::from_fn(|i| row[i]), ..value }));
+        let tinted = check.and_then(|c| c.event).map(|e| e.map(|tint| BlackWhite { tint, ..value }));
+        let restored = default.then(|| {
+            let modifiers = ui.input(|i| i.modifiers);
+            EditEvent::set(BlackWhite { weights: BlackWhite::DEFAULT_WEIGHTS, ..value }, modifiers)
+        });
+        let edit = finish(group.response, first_of([weights, tinted, restored]), submitted, escaped);
+        BlackWhiteOutput { edit, pick_color }
     }
 }
 
@@ -128,6 +208,46 @@ impl Default for ChannelMixer {
     fn default() -> Self {
         Self { red: [100.0, 0.0, 0.0, 0.0], green: [0.0, 100.0, 0.0, 0.0], blue: [0.0, 0.0, 100.0, 0.0], gray: None }
     }
+}
+
+impl ChannelMixer {
+    /// The row the editor shows for output `out` (0 Red, 1 Green, 2 Blue): the Gray row with
+    /// Monochrome.
+    fn shown_row(&self, out: usize) -> [f64; 4] {
+        match (self.gray, out) {
+            (Some(gray), _) => gray,
+            (None, 0) => self.red,
+            (None, 1) => self.green,
+            (None, _) => self.blue,
+        }
+    }
+
+    /// The value with the row shown for `out` replaced, whole numbers.
+    fn with_row(mut self, out: usize, row: [f64; 4]) -> Self {
+        let row = row.map(f64::round);
+        match (self.gray, out) {
+            (Some(_), _) => self.gray = Some(row),
+            (None, 0) => self.red = row,
+            (None, 1) => self.green = row,
+            (None, _) => self.blue = row,
+        }
+        self
+    }
+
+    /// The weights of the three sources in `row`, as the Total adds them.
+    fn total(row: [f64; 4]) -> f64 {
+        row[0] + row[1] + row[2]
+    }
+}
+
+/// The Total readout's text: the sum with its sign and a percent sign (PhotoCraft `{total:+.0}%`).
+pub(super) fn total_text(total: f64) -> String {
+    format!("{total:+.0}%")
+}
+
+/// Whether the Total is over 100 %, where the readout turns to the warning colour.
+pub(super) fn total_warns(total: f64) -> bool {
+    total > 100.0
 }
 
 /// Channel Mixer: the Output Channel select, three source rows, the Total readout, Constant and
@@ -188,7 +308,81 @@ impl<'a> ChannelMixerEditor<'a> {
     pub fn show(self, ui: &mut Ui) -> EditResponse<ChannelMixer> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:243-290 `channel_mixer` (output
         // select :245-255, rows :262-266, Total :267-272, Monochrome :280-288).
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
+        let style = AdjustStyle::of(&Tokens::of(ui));
+        let enabled = self.enabled && ui.is_enabled();
+        let id = ui.make_persistent_id(self.id_salt);
+        let value = *self.value;
+        let mono = value.gray.is_some();
+        // Monochrome has the one output, Gray.
+        let outputs = if mono { 1 } else { 3 };
+        let out = ui.data(|d| d.get_temp::<usize>(id.with(OUTPUT))).unwrap_or(0);
+        let out = if out < outputs { out } else { 0 };
+        let row = value.shown_row(out);
+        // A row starts from the identity of its output (Gray from Photoshop's mix).
+        let identity: [f64; 4] = if mono { ChannelMixer::MONOCHROME_START } else { std::array::from_fn(|i| if i == out { 100.0 } else { 0.0 }) };
+        let sources =
+            [("red", &labels.red, rgb8(225, 50, 50)), ("green", &labels.green, rgb8(50, 190, 70)), ("blue", &labels.blue, rgb8(60, 100, 235))];
+        let black = rgb8(0, 0, 0);
+        let fields: Vec<AdjustField> = sources
+            .iter()
+            .enumerate()
+            .map(|(i, (key, label, color))| {
+                AdjustField::new(key, label.as_str(), -200.0..=200.0, identity[i])
+                    .unit(Unit::new(PERCENT))
+                    .track(AdjustTrack::Colors(vec![black, *color]))
+            })
+            .collect();
+        let constant = [AdjustField::new("constant", labels.constant.as_str(), -200.0..=200.0, 0.0).unit(Unit::new(PERCENT))];
+        // Each output has its own slider state.
+        let shown = if mono { 3 } else { out };
+        let mut picked = out;
+        let group = Stack::new(Gap::Stack).show(ui, |ui| {
+            direction::horizontal(ui, |ui| {
+                ui.add(Text::new(labels.output_channel.as_str()).role(TypeRole::Label).content(Content::Muted));
+                let mut select = Select::new((self.id_salt, "output"), labels.output_channel.as_str(), &mut picked);
+                if mono {
+                    select = select.option(0, labels.gray.as_str());
+                } else {
+                    for (i, name) in [&labels.red, &labels.green, &labels.blue].into_iter().enumerate() {
+                        select = select.option(i, name.as_str());
+                    }
+                }
+                let _ = select.enabled(enabled).show(ui);
+            });
+            let table = AdjustSliders::new((self.id_salt, "rows", shown), &fields, &row[..3], self.numbers)
+                .context(self.context)
+                .policy(self.policy)
+                .enabled(enabled)
+                .show(ui);
+            let total = ChannelMixer::total(row);
+            let warn = total_warns(total);
+            direction::horizontal(ui, |ui| {
+                ui.add(Text::new(labels.total.as_str()).role(TypeRole::Label).content(Content::Muted));
+                let color = if warn { style.total_warn } else { style.total_colour };
+                let readout = ui.add(Label::new(RichText::new(total_text(total)).font(style.total_font.clone()).color(color)).selectable(false));
+                let named = if warn { labels.total_over.replace("{value}", &total_text(total)) } else { total_text(total) };
+                ui.ctx().accesskit_node_builder(readout.id, |node| {
+                    node.set_label(labels.total.as_str());
+                    node.set_value(named);
+                });
+            });
+            let offset = AdjustSliders::new((self.id_salt, "constant", shown), &constant, &row[3..], self.numbers)
+                .context(self.context)
+                .policy(self.policy)
+                .enabled(enabled)
+                .show(ui);
+            let mut monochrome = mono;
+            let check = Checkbox::bool(labels.monochrome.as_str(), &mut monochrome).id_salt((self.id_salt, "monochrome")).enabled(enabled).show(ui);
+            (table, offset, check)
+        });
+        ui.data_mut(|d| d.insert_temp(id.with(OUTPUT), picked));
+        let (table, offset, check) = group.inner;
+        let (submitted, escaped) = (table.submitted | offset.submitted, table.escaped | offset.escaped);
+        let sources = table.event.map(|e| e.map(|r| value.with_row(out, [r[0], r[1], r[2], row[3]])));
+        let constant = offset.event.map(|e| e.map(|c| value.with_row(out, [row[0], row[1], row[2], c[0]])));
+        let monochrome = check.event.map(|e| e.map(|on| ChannelMixer { gray: on.then_some(ChannelMixer::MONOCHROME_START), ..value }));
+        finish(group.response, first_of([sources, constant, monochrome]), submitted, escaped)
     }
 }
 
@@ -270,12 +464,72 @@ impl<'a> SelectiveColorEditor<'a> {
     /// The range the editor with `id` shows, 0 Reds … 8 Blacks.
     pub fn shown_range(ctx: &Context, id: Id) -> usize {
         // pc: crates/ui-egui/src/panels/adjust_ui.rs:38-39 (`selc-range` in memory).
-        todo!()
+        ctx.data(|d| d.get_temp::<usize>(id.with(RANGE))).unwrap_or(0).min(8)
     }
 
     pub fn show(self, ui: &mut Ui) -> EditResponse<SelectiveColor> {
         // pc: crates/ui-egui/src/panels/adjust_ui.rs:17 (the nine ranges), :31-81
         // `selective_color_editor` (select :40-46, rows :50-59, method :61-71).
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
+        let enabled = self.enabled && ui.is_enabled();
+        let id = ui.make_persistent_id(self.id_salt);
+        let value = *self.value;
+        let range = Self::shown_range(ui.ctx(), id);
+        let names = [
+            &labels.reds,
+            &labels.yellows,
+            &labels.greens,
+            &labels.cyans,
+            &labels.blues,
+            &labels.magentas,
+            &labels.whites,
+            &labels.neutrals,
+            &labels.blacks,
+        ];
+        let fields: Vec<AdjustField> = [("cyan", &labels.cyan), ("magenta", &labels.magenta), ("yellow", &labels.yellow), ("black", &labels.black)]
+            .into_iter()
+            .map(|(key, label)| AdjustField::new(key, label.as_str(), -100.0..=100.0, 0.0).unit(Unit::new(PERCENT)))
+            .collect();
+        let mut picked = range;
+        let group = Stack::new(Gap::Stack).show(ui, |ui| {
+            direction::horizontal(ui, |ui| {
+                ui.add(Text::new(labels.colors.as_str()).role(TypeRole::Label).content(Content::Muted));
+                let mut select = Select::new((self.id_salt, "colors"), labels.colors.as_str(), &mut picked);
+                for (i, name) in names.into_iter().enumerate() {
+                    select = select.option(i, name.as_str());
+                }
+                let _ = select.enabled(enabled).show(ui);
+            });
+            let table = AdjustSliders::new((self.id_salt, "rows", range), &fields, &value.ranges[range], self.numbers)
+                .context(self.context)
+                .policy(self.policy)
+                .enabled(enabled)
+                .show(ui);
+            let mut method = value.method;
+            let method_name = format!("{} / {}", labels.relative, labels.absolute);
+            let mut set = RadioSet::new((self.id_salt, "method"), method_name.as_str(), &mut method)
+                .item(SelectiveMethod::Relative)
+                .item(SelectiveMethod::Absolute)
+                .enabled(enabled)
+                .begin(ui);
+            direction::horizontal(ui, |ui| {
+                set.radio(ui, 0, &labels.relative);
+                set.radio(ui, 1, &labels.absolute);
+            });
+            (table, set.end(ui))
+        });
+        // An edit belongs to the range it was drawn for; a switch shows from the next pass.
+        ui.data_mut(|d| d.insert_temp(id.with(RANGE), picked));
+        let (table, method) = group.inner;
+        let (submitted, escaped) = (table.submitted, table.escaped);
+        let rows = table.event.map(|e| {
+            e.map(|row| {
+                let mut next = value;
+                next.ranges[range] = std::array::from_fn(|i| row[i].round());
+                next
+            })
+        });
+        let radios = method.event.map(|e| e.map(|method| SelectiveColor { method, ..value }));
+        finish(group.response, first_of([rows, radios]), submitted, escaped)
     }
 }
