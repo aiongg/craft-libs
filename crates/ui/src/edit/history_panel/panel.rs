@@ -438,7 +438,11 @@ impl<'a> HistoryPanel<'a> {
             && let Some(id) = state.menu_row
         {
             match command {
-                SnapshotCommand::Rename => state.rename = Some(id),
+                SnapshotCommand::Rename => {
+                    state.rename = Some(id);
+                    // The field opens in the next pass; without this a real app may not draw again until input.
+                    ctx.request_repaint();
+                }
                 SnapshotCommand::Delete => events.push(HistoryEvent::DeleteSnapshot(id)),
             }
         }
