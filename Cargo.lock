@@ -1285,6 +1285,7 @@ dependencies = [
  "wasm-bindgen-test",
  "web-sys",
  "web-time",
+ "wl-clipboard-rs",
  "x11rb",
  "xcap",
  "zbus",

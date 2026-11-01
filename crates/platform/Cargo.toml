@@ -25,8 +25,8 @@ pacing = ["dep:egui"]
 # Screen capture for the screen colour picker (`craft_platform::screen`).
 screen = ["dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", "dep:x11rb", "dep:core-graphics2", "dep:xcap"]
 # `clipboard`: the system clipboard with size limits, the synthetic-input fence and the paste probe.
-# Windows and macOS ask the system which formats the clipboard offers (no content is read).
-clipboard = ["dep:arboard", "dep:clipboard-win", "dep:objc2-app-kit", "dep:objc2-foundation"]
+# The presence check asks the system which formats the clipboard offers (no content is read): Windows, macOS, Wayland and X11.
+clipboard = ["dep:arboard", "dep:clipboard-win", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:wl-clipboard-rs", "dep:x11rb"]
 
 [dependencies]
 egui = { workspace = true, optional = true }
@@ -49,6 +49,10 @@ async-channel = { version = "2", optional = true }
 async-io = { version = "2", optional = true }
 async-process = { version = "2", optional = true }
 x11rb = { version = "0.13", default-features = false, features = ["image", "randr"], optional = true }
+
+# Wayland's offer list; the version arboard (feature `wayland-data-control`) already locks.
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "android", target_os = "emscripten"))))'.dependencies]
+wl-clipboard-rs = { version = "0.9", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # The versions arboard already pulls in: the pasteboard's format list for the clipboard presence check.

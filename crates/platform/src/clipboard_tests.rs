@@ -116,10 +116,13 @@ fn holds_ours_tells_our_copy_from_another_apps() {
 fn event_clipboard_reads_the_offered_paste() {
     let out = Arc::new(Mutex::new(Vec::new()));
     let sink = out.clone();
-    let mut clipboard = Clipboard::new(EventClipboard::new(move |flavors| {
-        sink.lock().unwrap().extend_from_slice(flavors);
-        Ok(0)
-    }));
+    let mut clipboard = Clipboard::new(EventClipboard::new(
+        || 0,
+        move |flavors| {
+            sink.lock().unwrap().extend_from_slice(flavors);
+            Ok(0)
+        },
+    ));
     assert_eq!(clipboard.read_text(), Ok(None));
     clipboard.offer_paste(vec![
         Flavor::text("pasted"),
@@ -244,17 +247,57 @@ fn holds_ours_compares_the_flavor_the_backend_wrote() {
     assert!(!clipboard.holds_ours());
 }
 
-// An offered paste is readable in the pass that delivered it only: after end_pass a later Paste
-// command finds nothing and has() is false.
+// An offered paste is readable in the pass it was offered in only, with no call from the app when
+// the pass ends: in a later pass a Paste command finds nothing and has() is false.
 #[test]
 fn an_offered_paste_ends_with_its_pass() {
-    let mut clipboard = Clipboard::new(EventClipboard::new(|_| Ok(0)));
+    let pass = Arc::new(AtomicUsize::new(7));
+    let clock = pass.clone();
+    let mut clipboard = Clipboard::new(EventClipboard::new(move || clock.load(Ordering::SeqCst) as u64, |_| Ok(0)));
     clipboard.offer_paste(vec![Flavor::text("pasted")]);
     assert!(clipboard.has(&[TEXT]));
     assert_eq!(clipboard.read_text().unwrap().as_deref(), Some("pasted"));
-    clipboard.end_pass();
+    pass.fetch_add(1, Ordering::SeqCst);
     assert!(!clipboard.has(&[TEXT]));
     assert_eq!(clipboard.read_text(), Ok(None));
+    clipboard.offer_paste(vec![Flavor::text("again")]);
+    assert_eq!(clipboard.read_text().unwrap().as_deref(), Some("again"));
+}
+
+// Under egui the pass is the context's: an offer made while a pass runs is gone in the next one.
+#[cfg(feature = "ui")]
+#[test]
+fn the_egui_clipboard_counts_egui_passes() {
+    let ctx = egui::Context::default();
+    let mut clipboard = Clipboard::new(EventClipboard::for_egui(&ctx));
+    let run = |body: &mut dyn FnMut()| {
+        let mut output = ctx.run_ui(egui::RawInput::default(), |_| body());
+        output.textures_delta.clear();
+    };
+    let mut seen = Vec::new();
+    run(&mut || {
+        clipboard.offer_paste(vec![Flavor::text("pasted")]);
+        seen.push(clipboard.has(&[TEXT]));
+    });
+    run(&mut || seen.push(clipboard.has(&[TEXT])));
+    assert_eq!(seen, [true, false]);
+}
+
+// X11 target names and Wayland MIME types map to the formats SystemClipboard reads; a bitmap is
+// image/png only (jpeg and bmp offers read as None), so Paste is not enabled for them.
+#[test]
+fn offered_names_map_to_flavors() {
+    let offered = |names: &[&str]| names.iter().map(|n| (*n).to_owned()).collect::<Vec<_>>();
+    let screenshot = offered(&["TARGETS", "image/png", "image/bmp"]);
+    assert!(offered_has(&screenshot, BITMAP) && offered_has(&screenshot, RGBA8));
+    assert!(!offered_has(&screenshot, TEXT) && !offered_has(&screenshot, URI_LIST));
+    assert!(!offered_has(&offered(&["image/jpeg", "image/bmp"]), BITMAP));
+    for text in ["UTF8_STRING", "STRING", "text/plain", "text/plain;charset=utf-8", "text/plain;charset=UTF-8"] {
+        assert!(offered_has(&offered(&[text]), TEXT), "{text}");
+    }
+    assert!(offered_has(&offered(&["text/html"]), HTML) && !offered_has(&offered(&["text/html"]), TEXT));
+    assert!(offered_has(&offered(&["text/uri-list"]), URI_LIST));
+    assert!(!offered_has(&[], TEXT) && !offered_has(&screenshot, SVG));
 }
 
 // The library's own reasons are PlatformTexts with an id; only the system's text is free.
@@ -303,4 +346,18 @@ fn the_web_copy_sends_one_flavor() {
     assert_eq!(wrote, Some(Ok(1)));
     output.textures_delta.clear();
     assert_eq!(output.platform_output.commands.len(), 1);
+}
+
+// On an X11 server the presence check answers from the TARGETS list: text copied by this
+// process is present, a bitmap is not. Skipped without a display.
+#[cfg(all(unix, not(target_os = "macos")))]
+#[test]
+fn x11_presence_comes_from_the_target_list() {
+    if std::env::var_os("DISPLAY").is_none() || std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        return;
+    }
+    let mut clipboard = Clipboard::new(SystemClipboard::new());
+    assert_eq!(clipboard.write_text("probe").unwrap(), Written::Written);
+    assert!(clipboard.has(&[TEXT]));
+    assert!(!clipboard.has(&[BITMAP, URI_LIST, HTML]));
 }
