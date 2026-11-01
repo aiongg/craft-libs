@@ -102,6 +102,7 @@ impl App {
         }
     }
 
+    #[expect(clippy::expect_used, reason = "a test helper")]
     fn view(&self) -> CanvasView {
         self.shown.expect("a pass ran")
     }

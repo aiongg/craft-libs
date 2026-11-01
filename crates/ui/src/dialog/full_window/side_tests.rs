@@ -55,7 +55,7 @@ fn harness(app: App) -> Harness<'static, App> {
                         }
                         seen.2 = ui.min_rect().bottom();
                     });
-                    seen.0 = out.footer.map(|f| f.responses.iter().map(|r| r.rect).reduce(|a, b| a.union(b)).unwrap());
+                    seen.0 = out.footer.map(|f| f.responses.iter().map(|r| r.rect).fold(Rect::NOTHING, |a, b| a.union(b)));
                     seen.1.push(out.rect);
                     if two {
                         seen.1.push(FullWindowSide::new("b").show(ui, fx, |ui| drop(ui.label("second"))).rect);

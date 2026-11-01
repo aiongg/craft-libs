@@ -98,7 +98,7 @@ fn empty_w_or_h_is_a_free_crop() {
     settings.set_ratio_field(0, 3.0);
     assert_eq!((settings.ratio, settings.ratio_fields, settings.ratio_value(&doc)), (CropRatio::Free, [3.0, 0.0], None));
     assert_eq!(settings.shown_ratio_fields(&doc), [3.0, 0.0]);
-    settings.set_ratio_field(1, 1.41421);
+    settings.set_ratio_field(1, 1.41437);
     assert_eq!(settings.ratio, CropRatio::Sides { width: 3.0, height: 1.414 });
     settings.set_ratio_field(0, 0.0);
     assert_eq!((settings.ratio, settings.ratio_fields), (CropRatio::Free, [0.0, 1.414]));

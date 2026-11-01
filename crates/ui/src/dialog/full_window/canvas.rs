@@ -247,8 +247,7 @@ impl<'a> FullWindowCanvas<'a> {
         }
 
         let mut none = NoTool;
-        let mut user = tool;
-        let active: &mut dyn CanvasTool = match (temporary, user.as_deref_mut()) {
+        let active: &mut dyn CanvasTool = match (temporary, tool) {
             (Some(MomentaryTool::Hand), _) => &mut tools.hand,
             (Some(MomentaryTool::ZoomIn | MomentaryTool::ZoomOut), _) => &mut tools.zoom,
             (None, Some(tool)) => tool,

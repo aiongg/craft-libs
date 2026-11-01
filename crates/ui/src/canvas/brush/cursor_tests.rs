@@ -105,10 +105,8 @@ fn traced_rings_follow_zoom_rotation_flip_and_aspect() {
     view.aspect = 1.5;
     let cursor = BrushCursor::new(&tip).cursor(&style, &prefs(), &view, false);
     let origin = view.to_screen(Point::ZERO);
-    let expected: Vec<Vec2> = [[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]]
-        .iter()
-        .map(|p| view.to_screen(Point::new(f64::from(p[0]) * 10.0, f64::from(p[1]) * 10.0)) - origin)
-        .collect();
+    let expected: Vec<Vec2> =
+        [[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]].iter().map(|p| view.to_screen(Point::new(p[0] * 10.0, p[1] * 10.0)) - origin).collect();
     let ring = &rings_of(&cursor)[0];
     assert_eq!(ring.len(), expected.len());
     for (got, want) in ring.iter().zip(&expected) {
@@ -121,7 +119,7 @@ fn traced_rings_follow_zoom_rotation_flip_and_aspect() {
 fn pen_pose_precedes_the_view() {
     let style = style();
     let tip = traced(20.0);
-    let BrushTipOutline::Traced { normal, .. } = &tip.outline else { unreachable!() };
+    let BrushTipOutline::Traced { normal, .. } = &tip.outline else { panic!("a traced tip") };
     let shared = normal.clone();
     let mut view = view(2.0);
     view.rotation = 90.0;

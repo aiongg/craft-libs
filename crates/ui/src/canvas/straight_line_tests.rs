@@ -39,7 +39,7 @@ fn preview_draws_two_strokes_from_the_last_stroke_end() {
     assert_eq!(segments.len(), 2);
     let stroke = |s: &Shape| match s {
         Shape::LineSegment { points, stroke } => (*points, stroke.width, stroke.color),
-        _ => unreachable!(),
+        other => panic!("a line segment, not {other:?}"),
     };
     let (halo, line) = (stroke(&segments[0]), stroke(&segments[1]));
     assert_eq!((halo.1, halo.2), (style.halo, style.halo_color));
