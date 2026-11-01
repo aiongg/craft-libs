@@ -1311,6 +1311,7 @@ dependencies = [
  "core-graphics",
  "core-graphics2",
  "craft-atomic",
+ "craft-docpath",
  "craft-host",
  "craft-theme",
  "egui",

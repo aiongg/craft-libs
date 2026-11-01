@@ -78,6 +78,11 @@ impl FileStamp {
         self.len == 0
     }
 
+    /// The modification time; `None` where the file system keeps none.
+    pub fn modified(&self) -> Option<SystemTime> {
+        self.modified
+    }
+
     /// Only the Unix change time differs from `other`: the metadata may have changed without a
     /// content edit (LaunchServices, Finder tags). [`FileWatch::disk_differs`] then compares the
     /// bytes; the watcher itself reports such a change, and the app compares it with the bytes it

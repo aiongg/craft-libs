@@ -1,14 +1,12 @@
 //! `check_candidate` and `rank`: whether a file may replace a missing link, and the order the
 //! relink dialog lists candidates in.
 
-use std::cmp::Ordering;
-use std::iter::Peekable;
 use std::path::{Path, PathBuf};
-use std::str::Chars;
 
 use serde::{Deserialize, Serialize};
 
 use super::{Link, LinkFiles, LinkIdentity};
+use crate::names::natural_cmp;
 
 /// Which properties a candidate must share with the missing file (the relink dialog's "Match
 /// file properties" checks the library knows). An app's own properties (duration, timecode, frame
@@ -137,44 +135,4 @@ pub(super) fn split_ext(name: &str) -> (&str, &str) {
         Some(i) if i > 0 => (&name[..i], &name[i + 1..]),
         _ => (name, ""),
     }
-}
-
-/// File-name order as people sort: runs of ASCII digits compare by value, other characters
-/// compare ignoring case, and an exact comparison breaks ties. The same order as
-/// `craft_platform::open::natural_cmp`, which this crate cannot depend on.
-fn natural_cmp(a: &str, b: &str) -> Ordering {
-    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
-    loop {
-        match (x.peek().copied(), y.peek().copied()) {
-            (None, None) => return a.cmp(b),
-            (None, Some(_)) => return Ordering::Less,
-            (Some(_), None) => return Ordering::Greater,
-            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
-                let (m, n) = (digit_run(&mut x), digit_run(&mut y));
-                let (m, n) = (m.trim_start_matches('0'), n.trim_start_matches('0'));
-                match m.len().cmp(&n.len()).then_with(|| m.cmp(n)) {
-                    Ordering::Equal => {}
-                    o => return o,
-                }
-            }
-            (Some(c), Some(d)) => {
-                x.next();
-                y.next();
-                match c.to_lowercase().cmp(d.to_lowercase()) {
-                    Ordering::Equal => {}
-                    o => return o,
-                }
-            }
-        }
-    }
-}
-
-/// Takes the run of ASCII digits at the front of `it`.
-fn digit_run(it: &mut Peekable<Chars>) -> String {
-    let mut run = String::new();
-    while let Some(c) = it.peek().copied().filter(char::is_ascii_digit) {
-        run.push(c);
-        it.next();
-    }
-    run
 }
