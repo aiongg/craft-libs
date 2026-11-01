@@ -1,11 +1,9 @@
 //! `StepList` and `StepRows`: record, go to, back, forward, delete, clear and restore, eviction, the pinned source.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::borrow::Cow;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::group::Run;
+use super::group::{Run, RunKind};
 use super::{DeleteRefused, Deleted, HistoryStep, Jump, Recorded, StepId, StepRows};
 use crate::icons::Icon;
 
@@ -87,109 +85,117 @@ impl StepList {
     /// A list holding one state, `first` ("Open"), current, with the limit
     /// [`DEFAULT_LIMIT`](Self::DEFAULT_LIMIT) and linear history. Its id is the first of the list's counter.
     pub fn new(first: HistoryStep) -> Self {
-        // new: the list always holds the oldest state.
-        todo!()
+        Self {
+            rows: vec![Row { id: StepId(0), label: first.label, icon: first.icon }],
+            current: 0,
+            limit: Self::DEFAULT_LIMIT,
+            non_linear: false,
+            next_id: 1,
+            pinned: None,
+            dropped: Vec::new(),
+            cleared: None,
+            run: None,
+            marks: AtomicU64::new(0),
+            closed: 0,
+            revision: 0,
+        }
     }
 
     /// The most past states held.
     pub fn limit(&self) -> usize {
-        // pc: crates/ops/src/lib.rs:51 (`max_states`)
-        todo!()
+        self.limit
     }
 
     /// Sets the limit, at least 1 (PhotoCraft's `max_states.max(1)`), and drops the oldest past
     /// states over it as [`record`](Self::record) does (sparing the pinned source).
     pub fn set_limit(&mut self, limit: usize) {
-        // pc: crates/ops/src/lib.rs:114-119 (`new` clamps to 1), :172-176 (trim loop)
-        todo!()
+        self.limit = limit.max(1);
+        if self.trim_to_limit() {
+            self.revision += 1;
+        }
     }
 
     /// Whether history is non-linear (History Options › Allow Non-Linear History).
     pub fn is_non_linear(&self) -> bool {
-        // pc: crates/engine/src/cmd/history_options_cmds.rs:29
-        todo!()
+        self.non_linear
     }
 
     /// Turns non-linear history on or off; the states stay where they are.
     pub fn set_non_linear(&mut self, non_linear: bool) {
-        // pc: crates/engine/src/cmd/history_options_cmds.rs:29 (`allowNonLinearHistory`)
-        todo!()
+        if self.non_linear != non_linear {
+            self.non_linear = non_linear;
+            self.revision += 1;
+        }
     }
 
     /// The number of states, at least 1.
     #[expect(clippy::len_without_is_empty, reason = "a step list always holds the oldest state")]
     pub fn len(&self) -> usize {
-        // new: `rows.len()`.
-        todo!()
+        self.rows.len()
     }
 
     /// The number of states before the current one.
     pub fn past_len(&self) -> usize {
-        // new: `current`.
-        todo!()
+        self.current
     }
 
     /// The number of states after the current one.
     pub fn later_len(&self) -> usize {
-        // new: `rows.len() - current - 1`.
-        todo!()
+        self.rows.len() - self.current - 1
     }
 
     /// The row of the current state (0 is the oldest).
     pub fn current_index(&self) -> usize {
-        // new: `current`.
-        todo!()
+        self.current
     }
 
     /// The id of the current state.
     pub fn current_id(&self) -> StepId {
-        // new: `rows[current].id`.
-        todo!()
+        self.rows[self.current].id
     }
 
     /// The id of row `at`, if the list has that row. PhotoCraft's engine commands keep `state`
     /// as a row index and map it with this and [`row_of`](Self::row_of).
     pub fn id_at(&self, at: usize) -> Option<StepId> {
-        // pc: crates/engine/src/cmd/history_select_cmds.rs:1-9 (`state` is a row index)
-        todo!()
+        self.rows.get(at).map(|row| row.id)
     }
 
     /// The row of state `id`, if it is in the list.
     pub fn row_of(&self, id: StepId) -> Option<usize> {
-        // new: a linear search (lists are at most a few hundred states).
-        todo!()
+        self.rows.iter().position(|row| row.id == id)
     }
 
     /// The label of state `id`.
     pub fn label_of(&self, id: StepId) -> Option<&str> {
-        // new: the row's label.
-        todo!()
+        self.rows.iter().find(|row| row.id == id).map(|row| row.label.as_str())
     }
 
     /// Changes the label of state `id` (an app that translates labels at display time sets them
     /// again after a language change). Returns false when `id` is not in the list. Bumps the
     /// revision when the label changed.
     pub fn set_label(&mut self, id: StepId, label: impl Into<String>) -> bool {
-        // new: Lead call 13 (rows show the label text the app gives).
-        todo!()
+        let Some(at) = self.row_of(id) else { return false };
+        let label = label.into();
+        if self.rows[at].label != label {
+            self.rows[at].label = label;
+            self.revision += 1;
+        }
+        true
     }
 
     /// The id of the oldest state (row 0).
     pub fn oldest_id(&self) -> StepId {
-        // new: `rows[0].id`.
-        todo!()
+        self.rows[0].id
     }
 
     /// Whether a past state exists (Step Backward is enabled).
     pub fn can_back(&self) -> bool {
-        // pc: crates/engine/src/cmd/history_menu_cmds.rs:22-48 (`step`) (Step Backward errors without a past state)
-        todo!()
+        self.current > 0
     }
 
     /// Whether a later state exists (Step Forward is enabled).
     pub fn can_forward(&self) -> bool {
-        // pc: crates/engine/src/cmd/history_menu_cmds.rs:22-48 (`step`)
-        todo!()
+        self.current + 1 < self.rows.len()
     }
 
     /// Records one edit: a new state after the current one, made current. Ends a keyed run that
@@ -209,30 +215,61 @@ impl StepList {
     ///   (PhotoCraft: `while undo.len() > max_states`, the brush source spared and the next
     ///   oldest goes).
     pub fn record(&mut self, step: HistoryStep) -> Recorded {
-        // pc: crates/ops/src/lib.rs:140-183 (`record`: linear drops redo, non-linear keeps it before the new step; limit loop :172-176)
-        todo!()
+        let serial = self.marks.load(Ordering::Relaxed);
+        let gesture_open = serial > self.closed;
+        if gesture_open
+            && let Some(run) = self.run
+            && run.kind == (RunKind::Gesture { serial })
+            && self.row_of(run.made).is_some()
+        {
+            self.revision += 1;
+            self.run = Some(Run { revision: self.revision, ..run });
+            return Recorded { id: run.made, extended: true };
+        }
+        self.forget_cleared();
+        if !self.non_linear {
+            while self.rows.len() > self.current + 1 {
+                self.remove_row(self.current + 1);
+            }
+        }
+        let id = StepId(self.next_id);
+        self.next_id += 1;
+        self.rows.push(Row { id, label: step.label, icon: step.icon });
+        self.current = self.rows.len() - 1;
+        self.trim_to_limit();
+        self.revision += 1;
+        self.run = gesture_open.then(|| Run::gesture(serial, id, self.revision));
+        Recorded { id, extended: false }
     }
 
     /// Makes `id` current. No state is added or dropped; the skipped states stay redoable (one
     /// jump, never one undo per state: PhotoCraft #2966). Ends any run and forgets what `clear`
     /// set aside. `None` when `id` is unknown or already current.
     pub fn go_to(&mut self, id: StepId) -> Option<Jump> {
-        // pc: crates/engine/src/cmd/history_select_cmds.rs:1-9
-        todo!()
+        let to = self.row_of(id)?;
+        if to == self.current {
+            return None;
+        }
+        let from = self.current_id();
+        self.end_run();
+        self.forget_cleared();
+        self.current = to;
+        self.revision += 1;
+        Some(Jump { from, to: id })
     }
 
     /// [`go_to`](Self::go_to) the state before the current one (Step Backward); `None` at the
     /// oldest state.
     pub fn back(&mut self) -> Option<Jump> {
-        // pc: crates/engine/src/cmd/history_menu_cmds.rs:22-48 (`step`)
-        todo!()
+        let id = self.id_at(self.current.checked_sub(1)?)?;
+        self.go_to(id)
     }
 
     /// [`go_to`](Self::go_to) the state after the current one (Step Forward); `None` at the
     /// newest state.
     pub fn forward(&mut self) -> Option<Jump> {
-        // pc: crates/engine/src/cmd/history_menu_cmds.rs:22-48 (`step`)
-        todo!()
+        let id = self.id_at(self.current + 1)?;
+        self.go_to(id)
     }
 
     /// Deletes state `id`. Ends any run and forgets what `clear` set aside.
@@ -247,8 +284,24 @@ impl StepList {
     ///
     /// A deleted pinned source is unpinned, so [`source`](Self::source) is `None` from then on.
     pub fn delete(&mut self, id: StepId) -> Result<Deleted, DeleteRefused> {
-        // pc: crates/engine/src/cmd/history_cmds.rs:60-89 (linear), crates/engine/src/cmd/history_options_cmds.rs:61-110 (non-linear)
-        todo!()
+        let at = self.row_of(id).ok_or(DeleteRefused::Unknown)?;
+        if at == 0 {
+            return Err(DeleteRefused::Oldest);
+        }
+        if !self.non_linear && at > self.current {
+            return Err(DeleteRefused::Later);
+        }
+        self.end_run();
+        self.forget_cleared();
+        if self.non_linear {
+            self.remove_row(at);
+        } else {
+            while self.rows.len() > at {
+                self.remove_row(at);
+            }
+        }
+        self.revision += 1;
+        Ok(Deleted { now: self.current_id() })
     }
 
     /// Clear History: keeps only the current state. The other states are set aside, not
@@ -257,21 +310,34 @@ impl StepList {
     /// History). The pinned source is forgotten and comes back with the restore. Does nothing
     /// (and keeps the revision) when the list holds one state.
     pub fn clear(&mut self) {
-        // pc: crates/ops/src/lib.rs:69-71 (`cleared`), :186-192, :229-230 (undo of the clear)
-        todo!()
+        if self.rows.len() == 1 {
+            return;
+        }
+        // A clear set aside earlier is final now.
+        self.forget_cleared();
+        self.end_run();
+        let current = self.rows[self.current].clone();
+        let rows = std::mem::replace(&mut self.rows, vec![current]);
+        self.cleared = Some(Cleared { rows, current: self.current, pinned: self.pinned.take() });
+        self.current = 0;
+        self.revision += 1;
     }
 
     /// Whether [`restore_cleared`](Self::restore_cleared) has something to bring back.
     pub fn can_restore_cleared(&self) -> bool {
-        // pc: crates/ops/src/lib.rs:186 (`can_undo` counts `cleared`)
-        todo!()
+        self.cleared.is_some()
     }
 
     /// Brings back the states [`clear`](Self::clear) set aside, with the current state and the
     /// pinned source as they were. Returns false when nothing was set aside.
     pub fn restore_cleared(&mut self) -> bool {
-        // pc: crates/ops/src/lib.rs:229-230
-        todo!()
+        let Some(cleared) = self.cleared.take() else { return false };
+        self.end_run();
+        self.rows = cleared.rows;
+        self.current = cleared.current;
+        self.pinned = cleared.pinned;
+        self.revision += 1;
+        true
     }
 
     /// Drops the oldest past state that is not the pinned source and returns its id, for a byte
@@ -279,47 +345,93 @@ impl StepList {
     /// id also goes to [`take_dropped`](Self::take_dropped). `None` when no past state is left to
     /// drop; the current state is always kept.
     pub fn evict_oldest(&mut self) -> Option<StepId> {
-        // pc: crates/ops/src/lib.rs:580-600 (`trim`: oldest first, the newest state kept)
-        todo!()
+        let at = self.oldest_unpinned_past()?;
+        let id = self.rows[at].id;
+        self.remove_row(at);
+        self.revision += 1;
+        Some(id)
     }
 
     /// Pins the history brush source to state `id`, or unpins with `None`. A pinned state is
     /// never evicted. An id not in the list unpins. Bumps the revision when the pin changed.
     pub fn pin_source(&mut self, id: Option<StepId>) {
-        // pc: crates/ops/src/lib.rs:76 (`brush_source: Option<u64>`), :313-331
-        todo!()
+        let id = id.filter(|id| self.row_of(*id).is_some());
+        if self.pinned != id {
+            self.pinned = id;
+            self.revision += 1;
+        }
     }
 
     /// The pinned state, if any.
     pub fn pinned(&self) -> Option<StepId> {
-        // pc: crates/ops/src/lib.rs:76
-        todo!()
+        self.pinned.filter(|id| self.row_of(*id).is_some())
     }
 
     /// The state the history brush reads: the pinned state, else the oldest state. `None` once a
     /// pinned state has left the list (deleted or dropped): there is no source until one is set.
     pub fn source(&self) -> Option<StepId> {
-        // pc: crates/ops/src/lib.rs:325-331 (`brush_source`: row 0 for the default, none after its state is gone)
-        todo!()
+        match self.pinned {
+            Some(id) => self.row_of(id).map(|_| id),
+            None => Some(self.oldest_id()),
+        }
     }
 
     /// [`pin_source`](Self::pin_source)`(Some(id))`.
     pub fn set_source(&mut self, id: StepId) {
-        // new: shorthand used by `HistorySourceChoice::set`.
-        todo!()
+        self.pin_source(Some(id));
     }
 
     /// Every id removed since the last call, once, in the order removed. Ids set aside by
     /// [`clear`](Self::clear) are not in it until the clear can no longer be undone.
     pub fn take_dropped(&mut self) -> Vec<StepId> {
-        // new: `std::mem::take(&mut self.dropped)`.
-        todo!()
+        std::mem::take(&mut self.dropped)
     }
 
     /// The change counter: different after every change to the list, the same after reads.
     pub fn revision(&self) -> u64 {
-        // new: PhotoCraft's `HistorySpot` (`panels/history.rs:218-231`) made exact.
-        todo!()
+        self.revision
+    }
+
+    /// Ends the open grouping run, gesture or keyed.
+    fn end_run(&mut self) {
+        self.run = None;
+        self.closed = self.marks.load(Ordering::Relaxed);
+    }
+
+    /// Reports the states a clear set aside as dropped: the clear can no longer be undone. The
+    /// pin is not restored, so a pin that was set aside stays unpinned.
+    fn forget_cleared(&mut self) {
+        if let Some(cleared) = self.cleared.take() {
+            let keep = self.current_id();
+            self.dropped.extend(cleared.rows.iter().map(|row| row.id).filter(|id| *id != keep));
+        }
+    }
+
+    /// Removes row `at`, reports its id and keeps `current` on the same state (or the row before,
+    /// when the current state itself goes). A removed pinned state stays recorded as the pin, so
+    /// [`source`](Self::source) is `None` until a new one is set.
+    fn remove_row(&mut self, at: usize) {
+        let row = self.rows.remove(at);
+        self.dropped.push(row.id);
+        if at < self.current || (at == self.current && at > 0) {
+            self.current -= 1;
+        }
+    }
+
+    /// The oldest past row that is not the pinned source.
+    fn oldest_unpinned_past(&self) -> Option<usize> {
+        (0..self.current).find(|&at| Some(self.rows[at].id) != self.pinned)
+    }
+
+    /// Drops the oldest past states until at most `limit` are left. Returns whether any went.
+    fn trim_to_limit(&mut self) -> bool {
+        let mut dropped = false;
+        while self.current > self.limit {
+            let Some(at) = self.oldest_unpinned_past() else { break };
+            self.remove_row(at);
+            dropped = true;
+        }
+        dropped
     }
 }
 
@@ -327,37 +439,30 @@ impl StepList {
 /// `can_delete` every row but the oldest, `is_non_linear` from the list.
 impl StepRows for StepList {
     fn len(&self) -> usize {
-        // new: as `StepList::len`.
-        todo!()
+        self.rows.len()
     }
 
     fn id(&self, at: usize) -> StepId {
-        // new: `rows[at].id`.
-        todo!()
+        self.rows[at].id
     }
 
     fn label(&self, at: usize) -> Cow<'_, str> {
-        // new: `Cow::Borrowed(&rows[at].label)`.
-        todo!()
+        Cow::Borrowed(&self.rows[at].label)
     }
 
     fn icon(&self, at: usize) -> Option<Icon> {
-        // new: `rows[at].icon`.
-        todo!()
+        self.rows[at].icon
     }
 
     fn current(&self) -> usize {
-        // new: `current`.
-        todo!()
+        self.current
     }
 
     fn revision(&self) -> u64 {
-        // new: `revision`.
-        todo!()
+        self.revision
     }
 
     fn is_non_linear(&self) -> bool {
-        // new: `non_linear`.
-        todo!()
+        self.non_linear
     }
 }
