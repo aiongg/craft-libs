@@ -26,8 +26,8 @@ pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], total: Tick, rect: Re
 /// Pro Tools' Universe (SoundCraft): the runs, the visible window as a box (1.5-point outline
 /// in the `timeline.overview_view` colour), the playhead while playing; a click or drag centres
 /// the window at the pointer, changing `view.start` directly. Total time is the content end
-/// plus 10 seconds. Not a Tab stop (the panel scrolls by keys); AccessKit: an image named
-/// "Overview".
+/// plus 10 seconds. Not a Tab stop (the panel scrolls by keys); AccessKit: an `Image` named by
+/// [`TimelineLabels::overview`](super::TimelineLabels::overview).
 pub struct TimelineOverview<'a> {
     id_salt: IdSalt,
     runs: &'a [OverviewRun],
@@ -35,12 +35,18 @@ pub struct TimelineOverview<'a> {
     view_width: f32,
     end: Tick,
     playhead: Option<Tick>,
+    labels: Option<super::TimelineLabels>,
 }
 
 impl<'a> TimelineOverview<'a> {
     /// `view_width`: the timeline's time area in points (for the box's width).
     pub fn new(id_salt: impl AsIdSalt, runs: &'a [OverviewRun], view: &'a mut TimeView, view_width: f32, end: Tick) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), runs, view, view_width, end, playhead: None }
+        Self { id_salt: IdSalt::new(id_salt), runs, view, view_width, end, playhead: None, labels: None }
+    }
+
+    pub fn labels(mut self, labels: super::TimelineLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn playhead(mut self, t: Option<Tick>) -> Self {

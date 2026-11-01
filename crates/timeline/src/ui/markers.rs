@@ -7,20 +7,40 @@ use egui::{AsIdSalt, Context, IdSalt, Rect, Response, Ui};
 
 use super::LabelPalette;
 use crate::clips::SnapTargets;
-use crate::markers::{Marker, MarkerColor, MarkerEdit, MarkerId};
+use craft_ui::edit::EditEvent;
+
+use crate::markers::{Marker, MarkerColor, MarkerId};
 use crate::time::{Tick, TimeView};
 use crate::timecode::TimeFormat;
 
-/// A row of markers in `rect` (the ruler's marker band, a clip or layer bar): a flag 8 points
-/// wide pointing down at its time (the point at 60 % of the height), coloured by its label, a
-/// duration bar for range markers, the name beside it when there is room.
+/// What a marker gesture asks of the app.
+#[derive(Clone, Debug, PartialEq)]
+pub enum MarkerEdit {
+    /// A drag of the marker: its new time (snapped), as one gesture; Esc cancels.
+    Move { id: MarkerId, to: EditEvent<Tick> },
+    /// An Alt-drag: its new duration, as one gesture.
+    SetDuration { id: MarkerId, duration: EditEvent<Tick> },
+    /// Cmd-click (Ctrl-click on Windows and Linux), or Delete with the marker picked.
+    Delete(MarkerId),
+    /// Double-click or Enter: open the Marker dialog on it.
+    Open(MarkerId),
+    /// A marker dragged out of the marker bin and dropped at `at`, or Add Marker (M).
+    Add { at: Tick },
+}
+
+/// A row of markers in `rect` (the ruler's marker band, a clip or layer bar): a flag
+/// `style.marker_width` wide ([`TimelineStyle`](super::TimelineStyle)) pointing down at its time
+/// (the point at [`MARKER_POINT`] of the height), coloured by its label, a duration bar for
+/// range markers, the name beside it when there is room.
 ///
 /// After Effects' gestures (EffectCraft `markers_ui.rs:1`): drag moves (snapping to `snap`),
 /// Alt-drag sets the duration, Cmd-click (Ctrl-click on Windows and Linux) deletes, a
 /// double-click opens the dialog, a secondary click is reported for the app's menu (Settings,
 /// Convert, Delete). With [`bin`](Self::bin) a marker dragged out of the bin at the right end
 /// adds one where it is dropped. Tooltips show name and comment. Keyboard: the strip is one Tab
-/// stop, Left / Right pick the previous / next marker, Enter opens it, Delete deletes it.
+/// stop, Left / Right pick the previous / next marker, Enter opens it, Delete deletes it
+/// (claimed through [`KeyClaim`](craft_ui::behavior::KeyClaim)). AccessKit: a `ListBox` of
+/// markers named by name and time.
 pub struct MarkerStrip<'a> {
     id_salt: IdSalt,
     markers: &'a [Marker],
@@ -58,12 +78,16 @@ impl<'a> MarkerStrip<'a> {
     }
 }
 
-/// What the strip did this pass. Drags report their final `Move` / `SetDuration` on release;
-/// while dragging, `dragging` gives the live value for the preview.
+/// Where a marker's point sits, as a share of the strip's height (EffectCraft `markers_ui.rs:274`).
+/// A proportion of the strip, not a size.
+pub const MARKER_POINT: f32 = 0.6;
+
+/// What the strip did this pass. A drag reports its gesture in [`MarkerEdit::Move`] and
+/// [`MarkerEdit::SetDuration`]: the app previews `Update`s and applies the `Commit`.
 pub struct MarkerStripResponse {
     pub response: Response,
+    /// This pass's edits, in order.
     pub edits: Vec<MarkerEdit>,
-    pub dragging: Option<(MarkerId, Tick)>,
     pub context_menu: Option<MarkerId>,
 }
 
@@ -93,10 +117,27 @@ pub struct MarkerDraft {
     pub color: MarkerColor,
 }
 
+/// What the Marker dialog answers with.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MarkerDialogResult {
+    pub marker: MarkerId,
+    pub action: MarkerDialogAction,
+}
+
+/// OK with the edited values, Delete, or Previous / Next (Premiere's: the edits are kept and the
+/// app opens the dialog again on the neighbouring marker).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MarkerDialogAction {
+    Save(MarkerDraft),
+    Delete,
+    SaveAndPrevious(MarkerDraft),
+    SaveAndNext(MarkerDraft),
+}
+
 /// Premiere's Marker dialog on the dialog host: Name, Time and Duration (timecode fields),
 /// Comments (multi-line), Marker Color (the label swatches), Delete, and OK / Cancel. Enter in a
-/// single-line field is OK; Tab walks the fields. Result: the edited [`MarkerDraft`] on OK, or
-/// `None` in it when Delete was pressed.
+/// single-line field is OK; Tab walks the fields (the dialog's field Tab, decisions §4.1).
+/// Result: a [`MarkerDialogResult`].
 pub struct MarkerDialog {
     id: MarkerId,
     draft: MarkerDraft,
@@ -130,8 +171,7 @@ impl MarkerDialog {
 }
 
 impl StackDialog for MarkerDialog {
-    /// The marker and its new values, `None` for Delete.
-    type Result = (MarkerId, Option<MarkerDraft>);
+    type Result = MarkerDialogResult;
 
     fn id(&self) -> DialogId {
         craft_ui::dialog::dialog_id("timeline-marker")

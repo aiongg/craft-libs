@@ -37,18 +37,3 @@ impl Marker {
         self.duration > Tick::ZERO
     }
 }
-
-/// What a marker gesture asks of the app.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MarkerEdit {
-    /// Dragged to `to` (snapped).
-    Move { id: MarkerId, to: Tick },
-    /// Alt-dragged: its duration is now `duration`.
-    SetDuration { id: MarkerId, duration: Tick },
-    /// Cmd-click (Ctrl-click on Windows and Linux).
-    Delete(MarkerId),
-    /// Double-click: open the Marker dialog on it.
-    Open(MarkerId),
-    /// A marker dragged out of the marker bin and dropped at `at`, or Add Marker (M).
-    Add { at: Tick },
-}

@@ -9,9 +9,10 @@ use egui::{AsIdSalt, IdSalt, Rect, Response, Ui};
 
 use super::LabelPalette;
 use super::clips::TimelineTool;
+use super::markers::MarkerEdit;
 use crate::clips::ClipEdit;
 use crate::clock::FollowMode;
-use crate::markers::{MarkerColor, MarkerEdit};
+use crate::markers::MarkerColor;
 use crate::model::{ClipId, TimelineModel, TrackId, TrackInfo};
 use crate::time::{Tick, TimeRange};
 
@@ -33,6 +34,7 @@ craft_ui::words! {
         solo: "timeline.solo" = "Solo Track";
         no_label: "timeline.noLabel" = "None";
         empty: "timeline.empty" = "Drop media here to create sequence.";
+        overview: "timeline.overview" = "Overview";
     }
 }
 

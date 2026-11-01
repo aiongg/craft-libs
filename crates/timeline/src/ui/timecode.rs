@@ -10,8 +10,11 @@ use crate::timecode::{TimeDisplay, TimeFormat};
 
 /// Premiere's big timecode readout and the smaller timecode fields of dialogs.
 ///
-/// - Drag horizontally to scrub: one frame per point, Shift ×10 (FilmCraft `widgets.rs:130`);
-///   a gesture of `EditEvent<Tick>`s, Esc cancels it.
+/// - Drag horizontally to scrub through the kernel's [`Scrub`](craft_ui::behavior::Scrub) (the
+///   pointer travel and the screen-edge wrap, as [`NumberField`](craft_ui::controls::NumberField)
+///   scrubs): one frame per `style.scrub_step` of travel ([`TimelineStyle`](super::TimelineStyle)),
+///   Shift ×10 (FilmCraft `widgets.rs:130`); a gesture of `EditEvent<Tick>`s, Esc cancels it. A
+///   click without a drag edits (decisions §4.2, NumberField).
 /// - Click (or Enter when focused) to type: the text is selected; Enter or a click away commits
 ///   through [`parse_time`](crate::parse_time) relative to the current value; Esc cancels. A time
 ///   that doesn't parse keeps the field open with the error on `EditResponse` (the app shows a
@@ -97,7 +100,7 @@ pub enum TimecodeSource {
     Source,
 }
 
-/// A row's settings; the app keeps the list in its panel state.
+/// One row of the Timecode panel.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TimecodeRow {
     pub kind: TimecodeRowKind,
@@ -110,17 +113,17 @@ pub struct TimecodeRow {
 /// caption ("Current Time · Program"). The app gives each row's text (it knows the clip under
 /// the playhead). A secondary click on a row opens its menu (kind, source, display, Remove Row);
 /// "+" adds a row. Rows are read-only text (AccessKit labels); the menu items and "+" are the Tab
-/// stops.
+/// stops; the Menu key and Shift+F10 open a focused row's menu.
 pub struct TimecodePanel<'a> {
     id_salt: IdSalt,
-    rows: &'a mut Vec<TimecodeRow>,
+    settings: &'a mut TimecodePanelSettings,
     text: &'a dyn Fn(&TimecodeRow) -> String,
     labels: Option<TimecodePanelLabels>,
 }
 
 impl<'a> TimecodePanel<'a> {
-    pub fn new(id_salt: impl AsIdSalt, rows: &'a mut Vec<TimecodeRow>, text: &'a dyn Fn(&TimecodeRow) -> String) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), rows, text, labels: None }
+    pub fn new(id_salt: impl AsIdSalt, settings: &'a mut TimecodePanelSettings, text: &'a dyn Fn(&TimecodeRow) -> String) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), settings, text, labels: None }
     }
 
     pub fn labels(mut self, labels: TimecodePanelLabels) -> Self {
@@ -128,9 +131,24 @@ impl<'a> TimecodePanel<'a> {
         self
     }
 
-    /// Changes `rows` directly (panel settings, not document edits).
+    /// Changes the settings directly (a panel preference, not a document edit) and says so on
+    /// the output.
     // filmcraft: crates/ui-egui/src/panels/timecode.rs:104 `show`, `:21` `row_text`.
-    pub fn show(self, ui: &mut Ui) -> Response {
+    pub fn show(self, ui: &mut Ui) -> TimecodePanelOutput {
         todo!()
     }
+}
+
+/// The Timecode panel's rows, saved by the app with its panel state.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct TimecodePanelSettings {
+    pub rows: Vec<TimecodeRow>,
+}
+
+/// What the Timecode panel did this pass.
+#[must_use]
+pub struct TimecodePanelOutput {
+    pub response: Response,
+    /// A row was added, removed or changed; the app saves [`TimecodePanelSettings`].
+    pub settings_changed: bool,
 }

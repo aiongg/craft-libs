@@ -2,6 +2,7 @@
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
+use craft_ui::behavior::{Selection, SelectionChange};
 use craft_ui::edit::EditEvent;
 use egui::{AsIdSalt, Color32, IdSalt, Painter, Pos2, Rect, Response, Ui};
 
@@ -44,33 +45,39 @@ pub struct KeyframeMark {
     pub id: KeyframeId,
     pub time: Tick,
     pub interpolation: KeyframeInterpolation,
-    pub selected: bool,
 }
 
-/// Draws a keyframe glyph centred at `center`: a 9-point square for Hold, the diamond for
-/// Linear (15-point box), a circle of radius 5.5 for the Bezier kinds.
+/// Draws a keyframe glyph centred at `center` (Premiere's glyphs): a `style.keyframe_hold`
+/// square for Hold, the diamond filling the `style.keyframe_glyph` box for Linear, a circle of
+/// radius `style.keyframe_bezier` for the Bezier kinds ([`TimelineStyle`](super::TimelineStyle)).
 // filmcraft: crates/ui-egui/src/panels/effect_controls_selection.rs:256 `paint`.
-pub fn paint_keyframe(painter: &Painter, center: Pos2, interpolation: KeyframeInterpolation, color: Color32) {
+pub fn paint_keyframe(painter: &Painter, center: Pos2, interpolation: KeyframeInterpolation, color: Color32, style: &super::TimelineStyle) {
     todo!()
 }
 
 /// The keyframes of one property row on its lane.
 ///
-/// - A click selects a key (Shift adds, Cmd toggles); a drag on empty lane draws a marquee
-///   (Shift keeps the selection).
+/// - The selection is the app's [`Selection`] of keys in time order; clicks and keys change it
+///   with the kernel's [`ListSelection`](craft_ui::behavior::ListSelection) rules over that
+///   order, with Photoshop's and Premiere's picks: a click replaces, Shift+click and
+///   Cmd/Ctrl+click toggle the key; a drag on empty lane draws a marquee (Shift adds to the
+///   selection). Changes arrive as [`SelectionChange`]s.
 /// - Dragging a selected key moves every selected key by the same delta, snapped to frames of
 ///   `rate` and kept inside `bounds` (the clip); with Shift it snaps to the playhead and the
-///   other keys within 8 points. Reported as an `EditEvent<Tick>` (the delta) gesture; Esc
-///   cancels.
+///   other keys within `style.keyframe_snap`. Reported as an `EditEvent<Tick>` (the delta)
+///   gesture; Esc cancels.
 /// - A double-click and a secondary click on a key are reported (After Effects opens the
 ///   keyframe's dialog and menu, `timeline.rs:4083`, `:4101`).
 /// - Keyboard: one Tab stop when it has keys; Left and Right move the selection to the previous
-///   and next key, Shift+Left/Right nudge the selected keys one frame (a `Set`), Delete reports
-///   [`KeyframeLaneResponse::delete`]. AccessKit: a list named by
-///   [`KeyframeLabels::lane`], one item per key with its time.
+///   and next key, Shift+Left/Right nudge the selected keys one frame (a `Set` on
+///   [`KeyframeLaneResponse::moved`]), Delete reports [`KeyframeLaneResponse::delete`] (claimed
+///   through [`KeyClaim`](craft_ui::behavior::KeyClaim) so the app's Delete shortcut leaves it).
+///   AccessKit: a `ListBox` named by [`KeyframeLabels::lane`], one `ListBoxOption` per key named
+///   by its time as timecode of the lane's rate, `selected` set.
 pub struct KeyframeLane<'a> {
     id_salt: IdSalt,
     keys: &'a [KeyframeMark],
+    selection: &'a Selection<KeyframeId>,
     view: &'a TimeView,
     rate: FrameRate,
     playhead: Tick,
@@ -79,8 +86,8 @@ pub struct KeyframeLane<'a> {
 }
 
 impl<'a> KeyframeLane<'a> {
-    pub fn new(id_salt: impl AsIdSalt, keys: &'a [KeyframeMark], view: &'a TimeView, rate: FrameRate) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), keys, view, rate, playhead: Tick::ZERO, bounds: None, labels: None }
+    pub fn new(id_salt: impl AsIdSalt, keys: &'a [KeyframeMark], selection: &'a Selection<KeyframeId>, view: &'a TimeView, rate: FrameRate) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), keys, selection, view, rate, playhead: Tick::ZERO, bounds: None, labels: None }
     }
 
     pub fn playhead(mut self, t: Tick) -> Self {
@@ -110,8 +117,8 @@ impl<'a> KeyframeLane<'a> {
 /// What a keyframe lane did this pass.
 pub struct KeyframeLaneResponse {
     pub response: Response,
-    /// The selection after a click or marquee.
-    pub selection: Option<Vec<KeyframeId>>,
+    /// A click, marquee or key changed the selection.
+    pub selection: Option<SelectionChange<KeyframeId>>,
     /// The selected keys' move, as a delta.
     pub moved: Option<EditEvent<Tick>>,
     pub double_clicked: Option<KeyframeId>,
@@ -121,9 +128,11 @@ pub struct KeyframeLaneResponse {
 }
 
 /// Premiere's keyframe navigator at a property row: ◀ (previous key), ◆ (add a key at the
-/// playhead, or remove the one there), ▶ (next key). The arrows are 14 × 20 points, 16 points
+/// playhead, or remove the one there), ▶ (next key). The arrows are
+/// `style.keyframe_arrow_width` × `style.keyframe_arrow_height`, `style.keyframe_nav_step`
 /// either side of the diamond, dimmed without a key that way; the diamond is filled when a key is
-/// at the playhead, else an outline. Three Tab stops (buttons), Space or Enter presses.
+/// at the playhead, else an outline. Three Tab stops (buttons named by [`KeyframeLabels`]),
+/// Space or Enter presses.
 pub struct KeyframeNavigator {
     id_salt: IdSalt,
     animated: bool,
@@ -151,14 +160,15 @@ impl KeyframeNavigator {
     }
 
     // filmcraft: crates/ui-egui/src/panels/effect_controls.rs:487 `keyframe_nav`.
-    pub fn show(self, ui: &mut Ui) -> KeyframeNavigatorResponse {
+    pub fn show(self, ui: &mut Ui) -> KeyframeNavigatorOutput {
         todo!()
     }
 }
 
 /// Which navigator button was pressed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct KeyframeNavigatorResponse {
+#[must_use]
+pub struct KeyframeNavigatorOutput {
     pub previous: bool,
     pub next: bool,
     /// The diamond: add a key at the playhead, or remove the one there.

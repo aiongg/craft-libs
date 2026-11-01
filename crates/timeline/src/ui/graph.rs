@@ -2,6 +2,7 @@
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
+use craft_ui::behavior::{Selection, SelectionChange};
 use craft_ui::edit::EditEvent;
 use egui::{AsIdSalt, Color32, IdSalt, Rect, Response, Ui};
 
@@ -46,7 +47,6 @@ pub struct GraphKey {
     pub interpolation: KeyframeInterpolation,
     pub in_handle: Option<(Tick, f64)>,
     pub out_handle: Option<(Tick, f64)>,
-    pub selected: bool,
 }
 
 /// One curve: a property's dimension, sampled by the app (the app evaluates its own
@@ -106,9 +106,11 @@ pub struct HandleMove {
     pub broken: bool,
 }
 
-/// A bottom-bar button.
+/// A bottom-bar button, or a key on the plot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum GraphAction {
+    /// Delete with keys selected.
+    Delete,
     FitSelection,
     FitAll,
     Hold,
@@ -125,20 +127,26 @@ pub enum GraphAction {
 ///   timeline's ruler (`view`); the playhead as a vertical line.
 /// - Curves from the app's samples; keys as squares, selected ones filled with their handles
 ///   drawn (a line and a dot).
-/// - A click selects a key (Shift adds), a drag on empty graph box-selects; dragging selected
+/// - The selection is the app's [`Selection`] of keys (shared with the keyframe lanes): a click
+///   replaces, Shift+click toggles (After Effects'), a drag on empty graph box-selects (Shift
+///   adds), each reported as a [`SelectionChange`]; dragging selected
 ///   keys moves them in time and value (Shift constrains to the axis moved most), reported as an
 ///   `EditEvent<GraphKeyMove>` gesture; dragging a handle reports an `EditEvent<HandleMove>`.
 ///   Esc cancels a drag.
 /// - Wheel zooms the value range about the pointer (turns auto-zoom off); auto-zoom fits the
 ///   shown curves each frame ([`auto_range`]).
-/// - The bottom bar: Value / Speed graph, selected only, auto-zoom, fit selection, fit all,
-///   separate dimensions, Hold, Linear, Auto Bezier, Easy Ease, Ease In, Ease Out; buttons with
-///   the tooltips of [`GraphEditorLabels`], Tab stops in that order.
+/// - The bottom bar, a horizontal [`Toolbar`](craft_ui::patterns::Toolbar): Value / Speed graph,
+///   selected only, auto-zoom, fit selection, fit all, separate dimensions, Hold, Linear, Auto
+///   Bezier, Easy Ease, Ease In, Ease Out; buttons with the tooltips of [`GraphEditorLabels`].
 /// - Keyboard: the plot is one Tab stop; arrows move the selected keys (a frame / a value step),
-///   F9, Shift+F9 and Ctrl+Shift+F9 report the Easy Ease actions.
+///   F9, Shift+F9 and Ctrl+Shift+F9 report the Easy Ease actions; Delete is claimed through
+///   [`KeyClaim`](craft_ui::behavior::KeyClaim) and reported as [`GraphAction::Delete`].
+///   AccessKit: the plot is a `Group` named by [`GraphEditorLabels`]' title with the
+///   selected keys' count as its value.
 pub struct GraphEditor<'a> {
     id_salt: IdSalt,
     curves: &'a [GraphCurve],
+    selection: &'a Selection<KeyframeId>,
     view: &'a TimeView,
     range: &'a mut GraphRange,
     playhead: Tick,
@@ -146,8 +154,14 @@ pub struct GraphEditor<'a> {
 }
 
 impl<'a> GraphEditor<'a> {
-    pub fn new(id_salt: impl AsIdSalt, curves: &'a [GraphCurve], view: &'a TimeView, range: &'a mut GraphRange) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), curves, view, range, playhead: Tick::ZERO, labels: None }
+    pub fn new(
+        id_salt: impl AsIdSalt,
+        curves: &'a [GraphCurve],
+        selection: &'a Selection<KeyframeId>,
+        view: &'a TimeView,
+        range: &'a mut GraphRange,
+    ) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), curves, selection, view, range, playhead: Tick::ZERO, labels: None }
     }
 
     pub fn playhead(mut self, t: Tick) -> Self {
@@ -162,15 +176,16 @@ impl<'a> GraphEditor<'a> {
 
     // effectcraft: crates/ui-egui/src/panels/graph.rs:407 `show`, `:356` `box_select`, `:379`
     // `wheel_zoom`, `:611` `button_bar`, `:740` `fit_selection`, `:842` `HandleGrab`.
-    pub fn show(self, ui: &mut Ui, rect: Rect) -> GraphEditorResponse {
+    pub fn show(self, ui: &mut Ui, rect: Rect) -> GraphEditorOutput {
         todo!()
     }
 }
 
 /// What the graph editor did this pass.
-pub struct GraphEditorResponse {
+#[must_use]
+pub struct GraphEditorOutput {
     pub response: Response,
-    pub selection: Option<Vec<KeyframeId>>,
+    pub selection: Option<SelectionChange<KeyframeId>>,
     pub keys_moved: Option<EditEvent<GraphKeyMove>>,
     pub handle_moved: Option<EditEvent<HandleMove>>,
     pub action: Option<GraphAction>,

@@ -5,8 +5,9 @@
 use craft_ui::edit::EditEvent;
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
+use super::markers::MarkerEdit;
 use crate::clips::SnapTargets;
-use crate::markers::{Marker, MarkerEdit};
+use crate::markers::Marker;
 use crate::time::{Tick, TimeRange, TimeView};
 use crate::timecode::TimeFormat;
 
@@ -51,19 +52,20 @@ pub enum RulerScale<'a> {
 /// The ruler's two strides in frames, `(tick, label)`. `label` is the first of
 /// `[1, 2, 5, 10, base/2, base, 2·base, 5·base, 10·base, 15·base, 30·base, 60·base, 120·base,
 /// 300·base, 600·base, 1800·base, 3600·base]` frames whose width at `frame_points` (points per
-/// frame) is at least 110 points, so timestamps never touch; `tick` is the finest divisor
-/// `label / k` (k from 9 down to 1) that leaves ticks at least 12 points apart, so every label
-/// sits on a tick. Steps past `base` saturate (rates are file data).
+/// frame) is at least `label_gap` (`timeline.ruler_label_gap`), so timestamps never touch;
+/// `tick` is the finest divisor `label / k` (k from 9 down to 1) that leaves ticks at least
+/// `tick_gap` apart (`timeline.ruler_tick_gap`), so every label sits on a tick. Steps past
+/// `base` saturate (rates are file data).
 // filmcraft: crates/ui-egui/src/panels/timeline/ruler.rs:12 `ruler_steps`.
-pub fn ruler_steps(frame_points: f64, base: i64) -> (i64, i64) {
+pub fn ruler_steps(frame_points: f64, base: i64, label_gap: f32, tick_gap: f32) -> (i64, i64) {
     todo!()
 }
 
 /// The ticks of a [`RulerScale::Format`] ruler over a view `width` points wide: one every
 /// [`ruler_steps`] tick stride from the first one at or before the left edge, labelled every
-/// label stride with [`format_time`](crate::format_time).
+/// label stride with [`format_time`](crate::format_time); the gaps from `style`.
 // filmcraft: crates/ui-egui/src/panels/timeline/ruler.rs:24 `draw_top` (the tick loop).
-pub fn ruler_ticks(format: &TimeFormat, view: &TimeView, width: f32) -> Vec<RulerTick> {
+pub fn ruler_ticks(format: &TimeFormat, view: &TimeView, width: f32, style: &super::TimelineStyle) -> Vec<RulerTick> {
     todo!()
 }
 
@@ -75,13 +77,15 @@ pub fn ruler_ticks(format: &TimeFormat, view: &TimeView, width: f32) -> Vec<Rule
 ///   no targets are given, as After Effects), reported as an `EditEvent<Tick>` gesture; Esc
 ///   during a scrub cancels it back to where it began.
 /// - The work-area bar drags by its middle (moves) or an end (moves that end), Shift snaps
-///   (8 points; EffectCraft `timeline.rs:538`), reported as an `EditEvent<TimeRange>` gesture;
+///   (`style.work_area_grab`; EffectCraft `timeline.rs:538`), reported as an `EditEvent<TimeRange>` gesture;
 ///   double-clicking it sets it to the visible span.
 /// - Wheel over the ruler zooms about the pointer (Alt+wheel in Premiere zooms anywhere; the
 ///   panel decides), changing `view` directly.
 /// - Keyboard: one Tab stop. Left and Right step the playhead one frame (Shift: five), Home and
 ///   End go to the start and the end; each a `Set` event. Visible focus ring around the ruler.
-/// - AccessKit: a slider named by [`TimelineRulerLabels::ruler`], value the playhead's text.
+/// - AccessKit: a `Slider` named by [`TimelineRulerLabels::ruler`], value the playhead's text.
+/// - Sizes from [`TimelineStyle`](super::TimelineStyle): `style.ruler_height` unless
+///   [`height`](Self::height) says otherwise.
 pub struct TimelineRuler<'a> {
     id_salt: IdSalt,
     view: &'a mut TimeView,
@@ -161,8 +165,8 @@ impl<'a> TimelineRuler<'a> {
         self
     }
 
-    /// Height in points; the `timeline.ruler_height` token by default (spec: 44 pt from
-    /// FilmCraft's `RULER_H`).
+    /// Height in points, for a ruler stacked in a row of another height (SoundCraft's ruler
+    /// rows); `style.ruler_height` by default.
     pub fn height(mut self, height: f32) -> Self {
         self.height = Some(height);
         self
@@ -194,7 +198,7 @@ pub struct TimelineRulerResponse {
 
 /// Premiere's timeline scroll bar: the thumb spans the visible time over the view's extent
 /// ([`TimeView::max_start`]); dragging its middle scrolls, dragging an end zooms (that end moves,
-/// the other stays); the thumb is at least 34 points wide. Changes `view` directly (view changes
+/// the other stays); the thumb is at least `style.scroll_thumb_min` wide. Changes `view` directly (view changes
 /// are not edits). Not a Tab stop: the panel's `=` / `-` and arrow keys zoom and scroll.
 /// EffectCraft places it above the ruler as its time navigator (`timeline.rs:2245`).
 pub struct TimelineScrollBar<'a> {

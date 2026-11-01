@@ -3,6 +3,7 @@
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 use craft_ui::edit::EditEvent;
+use craft_ui::icons::Icon;
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
 craft_ui::words! {
@@ -33,7 +34,7 @@ craft_ui::words! {
 }
 
 /// A transport button. The app's own buttons (Toggle Proxies, a camera angle) are `Custom`
-/// with an icon name and a label.
+/// with an icon and a label in the app's words.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TransportButton {
     AddMarker,
@@ -54,7 +55,7 @@ pub enum TransportButton {
     Loop,
     Custom {
         id: String,
-        icon: String,
+        icon: Icon,
         label: String,
     },
 }
@@ -93,25 +94,28 @@ impl TransportButton {
     ];
 }
 
-/// What a transport press asks for.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TransportAction {
-    Pressed(TransportButton),
-    /// The button editor changed the hidden set.
-    Hidden(Vec<TransportButton>),
+/// The buttons a monitor's row leaves out, chosen in its button editor; the app saves one per
+/// monitor (Premiere keeps the Program and Source rows apart).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct TransportBarSettings {
+    pub hidden: Vec<TransportButton>,
 }
 
-/// A monitor's transport row: 28-point buttons centred under the picture, Pause in place of Play
-/// while playing, Loop pressed while on, and a "+" button editor at the right (a popup with a
-/// checkbox per button and Reset) when the row has room.
+/// A monitor's transport row (Premiere's, as FilmCraft draws it), through the kernel's
+/// horizontal [`Toolbar`](craft_ui::patterns::Toolbar): `style.transport_button` squares
+/// ([`TimelineStyle`](super::TimelineStyle)) centred under the picture, Pause in place of Play
+/// while playing, Loop pressed while on, and a "+" button editor at the right (a popover with a
+/// [`Checkbox`](craft_ui::controls::Checkbox) per button and Reset) when the row has room.
 ///
-/// - Every button is a Tab stop with its tooltip as its name; Space and Enter press it. The keys
-///   in the tooltips (Space, I, O, Left, Right…) are the app's shortcuts, not handled here.
-/// - Buttons in `hidden` are left out; the editor reports a new hidden set.
+/// - Keyboard and AccessKit are the toolbar's: a `Toolbar` whose buttons are named by their
+///   tooltips; Space and Enter press. The keys in the tooltips (Space, I, O, Left, Right…) are
+///   the app's shortcuts, not handled here.
+/// - Buttons in [`TransportBarSettings::hidden`] are left out; the editor changes the settings
+///   and sets [`TransportBarOutput::settings_changed`].
 pub struct TransportBar<'a> {
     id_salt: IdSalt,
     buttons: &'a [TransportButton],
-    hidden: &'a [TransportButton],
+    settings: Option<&'a mut TransportBarSettings>,
     playing: bool,
     looping: bool,
     editable: bool,
@@ -120,7 +124,7 @@ pub struct TransportBar<'a> {
 
 impl<'a> TransportBar<'a> {
     pub fn new(id_salt: impl AsIdSalt, buttons: &'a [TransportButton]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), buttons, hidden: &[], playing: false, looping: false, editable: true, labels: None }
+        Self { id_salt: IdSalt::new(id_salt), buttons, settings: None, playing: false, looping: false, editable: true, labels: None }
     }
 
     pub fn playing(mut self, playing: bool) -> Self {
@@ -133,8 +137,9 @@ impl<'a> TransportBar<'a> {
         self
     }
 
-    pub fn hidden(mut self, hidden: &'a [TransportButton]) -> Self {
-        self.hidden = hidden;
+    /// The row's saved settings; without them every button shows and the editor is off.
+    pub fn settings(mut self, settings: &'a mut TransportBarSettings) -> Self {
+        self.settings = Some(settings);
         self
     }
 
@@ -151,16 +156,29 @@ impl<'a> TransportBar<'a> {
 
     // filmcraft: crates/ui-egui/src/panels/monitor.rs:1003 `transport`, `:1146`
     // `transport_button`, `:1000` `TRANSPORT_BUTTON`.
-    pub fn show(self, ui: &mut Ui) -> (Response, Option<TransportAction>) {
+    pub fn show(self, ui: &mut Ui) -> TransportBarOutput {
         todo!()
     }
 }
 
+/// What the transport row did this pass.
+#[must_use]
+pub struct TransportBarOutput {
+    pub response: Response,
+    /// The button pressed this pass.
+    pub pressed: Option<TransportButton>,
+    /// The button editor changed [`TransportBarSettings`]; the app saves them.
+    pub settings_changed: bool,
+}
+
 /// PowerPoint's media controls under a video or sound on a slide (DeckCraft): play / pause,
 /// back and forward a quarter second, a seek track with the trim marks, and the time
-/// (`1:05.25` style, monospace). The seek track is a slider (one Tab stop; Left / Right a
-/// quarter second, Home / End) reporting an `EditEvent<f64>` gesture in seconds; the buttons are
-/// Tab stops. A press on the bar never reaches the canvas under it.
+/// (`1:05.25` style in the mono face, digits through `LocaleNumbers`). The seek track is the
+/// kernel's [`Slider`](craft_ui::controls::Slider) (one Tab stop; Left / Right a quarter
+/// second, Home / End) reporting an `EditEvent<f64>` gesture in seconds; the buttons are
+/// [`IconButton`](craft_ui::controls::IconButton) Tab stops. A press on the bar never reaches
+/// the canvas under it. AccessKit: the slider's value text is the time; the buttons are named by
+/// [`TransportLabels`].
 pub struct MediaControls {
     id_salt: IdSalt,
     position: f64,
@@ -193,13 +211,14 @@ impl MediaControls {
     }
 
     // deckcraft: crates/ui-egui/src/media.rs:472 `control_bar`, `:404` `clock`.
-    pub fn show(self, ui: &mut Ui) -> MediaControlsResponse {
+    pub fn show(self, ui: &mut Ui) -> MediaControlsOutput {
         todo!()
     }
 }
 
 /// What the media controls did this pass.
-pub struct MediaControlsResponse {
+#[must_use]
+pub struct MediaControlsOutput {
     pub response: Response,
     pub toggle: bool,
     /// −0.25 or +0.25 seconds.

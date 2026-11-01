@@ -22,7 +22,7 @@ pub use cache::{FrameCache, FrameCacheKey, FramePlayhead, FrameSize};
 pub use clips::{ClipEdge, ClipEdit, EdgeHit, EdgeZones, SnapTargets, TrimKind, edge_at, snap_time};
 pub use clock::{ClockEvent, Follow, FollowMode, PlaybackClock, PlaybackState};
 pub use frames::{CancelToken, FrameRenderer, FrameServer, FrameStats, PlaybackRequest, playback_plan, prefetch_depth};
-pub use markers::{Marker, MarkerColor, MarkerEdit, MarkerId};
+pub use markers::{Marker, MarkerColor, MarkerId};
 pub use model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
 pub use rates::{FrameRate, PixelAspect, SampleRate};
 pub use time::{TICKS_PER_SECOND, Tick, TimeRange, TimeView};
