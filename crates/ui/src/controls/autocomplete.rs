@@ -1,8 +1,25 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`Autocomplete`]: a suggestion list under a text editor the host owns, with keyboard selection,
 //! a description of the active suggestion, and an inline completion.
 
-use egui::{AsIdSalt, Galley, IdSalt, Rect, Response, Ui};
+use std::hash::{Hash, Hasher};
+
+use egui::accesskit::Role;
+use egui::{
+    Align2, Area, AsIdSalt, Frame, Galley, Id, IdSalt, Key, Label, Margin, Modifiers, Order, Pos2, Rect, Response, RichText, Shape, Ui, pos2, vec2,
+};
+
+use super::option_list::{Hover, OptionRow, OptionRows, option_id, text_galley};
+use super::{ControlSize, Select};
+use crate::behavior::Listbox;
+use crate::direction;
+use crate::localized::Labels as _;
+use crate::popup_list::edge_width;
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, apply_popup_style};
+
+/// The least width of the list in points (GridCraft's `min_size`); token `autocomplete.min_width`.
+const MIN_WIDTH: f32 = 220.0;
+/// Between the editor's bottom edge and the list.
+const GAP: f32 = 4.0;
 
 crate::words! {
     /// The list's words, English by default.
@@ -129,13 +146,137 @@ impl<'a> Autocomplete<'a> {
     /// Takes the list's keys from this pass's input; call before the editor is drawn.
     // gridcraft: crates/ui-egui/src/formula_bar.rs:538 (↑ ↓ over the list), :485 (Tab), :501 (Esc)
     pub fn take_keys(&self, ui: &mut Ui) -> AutocompleteKeys {
-        todo!()
+        let id = ui.make_persistent_id(self.id_salt);
+        let mut pass = self.load(ui, id);
+        let mut keys = AutocompleteKeys::default();
+        let count = self.suggestions.len();
+        if count > 0 && !pass.memory.dismissed {
+            let mut active = pass.listbox.active().filter(|&a| a < count).unwrap_or(0);
+            let mut moved = false;
+            ui.input_mut(|i| {
+                if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
+                    active = (active + 1) % count;
+                    moved = true;
+                }
+                if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
+                    active = (active + count - 1) % count;
+                    moved = true;
+                }
+                keys.accepted = i.consume_key(Modifiers::NONE, Key::Tab)
+                    || i.consume_key(Modifiers::SHIFT, Key::Tab)
+                    || (self.enter_accepts && i.consume_key(Modifiers::NONE, Key::Enter));
+                keys.dismissed = i.consume_key(Modifiers::NONE, Key::Escape);
+            });
+            if moved {
+                pass.listbox.reveal(Some(active), true);
+            }
+            pass.memory.dismissed |= keys.dismissed;
+        }
+        pass.store(ui, id);
+        keys
     }
 
     /// Draws the list under `anchor` (the editor's rect) and reports what was accepted.
     // gridcraft: crates/ui-egui/src/formula_bar.rs:858 show_editor_suggestions
     pub fn show(self, ui: &mut Ui, anchor: Rect, keys: AutocompleteKeys) -> AutocompleteResponse {
-        todo!()
+        let id = ui.make_persistent_id(self.id_salt);
+        let ctx = ui.ctx().clone();
+        let mut pass = self.load(ui, id);
+        let count = self.suggestions.len();
+        let mut out = AutocompleteResponse { popup: None, accepted: None, dismissed: keys.dismissed };
+        if let Some(focused) = ctx.memory(|m| m.focused()) {
+            let is_row = (0..count).any(|row| option_id(id, row) == focused);
+            if !is_row {
+                pass.memory.editor = Some(focused);
+            }
+        }
+        let showing = count > 0 && !pass.memory.dismissed;
+        out.dismissed |= pass.memory.shown && count == 0;
+        pass.memory.shown = showing;
+        if !showing {
+            pass.store(ui, id);
+            return out;
+        }
+
+        let labels = self.labels.unwrap_or_else(|| AutocompleteLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let style = Select::style(&tokens, ControlSize::Md);
+        let mut rows_style = style.list;
+        rows_style.label = craft_theme::TypeRole::Mono;
+        let texts: Vec<String> =
+            self.suggestions.iter().map(|s| s.mark.as_ref().map_or_else(|| s.text.clone(), |mark| format!("{mark}  {}", s.text))).collect();
+        let widest =
+            texts.iter().map(|t| text_galley(ui, rows_style.label, t, egui::Color32::PLACEHOLDER, f32::INFINITY).size().x).fold(0.0, f32::max);
+        let width = MIN_WIDTH.max(2.0 * rows_style.pad_x + rows_style.icon + rows_style.gap + widest);
+        let active = pass.listbox.active().filter(|&a| a < count).unwrap_or(0);
+        if pass.listbox.active() != Some(active) {
+            pass.listbox.reveal(Some(active), false);
+        }
+        let bounds = self.bounds.unwrap_or_else(|| ctx.content_rect());
+        let rtl = direction::is_rtl(ui);
+        let (origin, pivot) = if rtl {
+            (pos2(anchor.right(), anchor.bottom() + GAP), Align2::RIGHT_TOP)
+        } else {
+            (pos2(anchor.left(), anchor.bottom() + GAP), Align2::LEFT_TOP)
+        };
+        let mut clicked = None;
+        let shown = Area::new(id.with("popup"))
+            .order(Order::Tooltip)
+            .fixed_pos(origin)
+            .pivot(pivot)
+            .constrain_to(bounds)
+            .role(Role::ListBox)
+            .accessible_name(labels.suggestions.as_str())
+            .show(&ctx, |ui| {
+                apply_popup_style(ui);
+                let slot = ui.painter().add(Shape::Noop);
+                let margin = ui.spacing().menu_margin + Margin::same(edge_width(&style.popup).ceil() as i8);
+                let framed = Frame::NONE.inner_margin(margin).show(ui, |ui| {
+                    ui.set_width(width);
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    let rows = OptionRows::new(ui, &rows_style, ControlSize::Md, id, false, true, false).hover(Hover::Highlights);
+                    let reveal = if ui.is_sizing_pass() { None } else { pass.listbox.take_reveal() };
+                    egui::ScrollArea::vertical().max_height(style.list.max_height).auto_shrink([true, true]).show(ui, |ui| {
+                        for (row, text) in texts.iter().enumerate() {
+                            let outcome = rows.show(
+                                ui,
+                                &mut pass.listbox,
+                                &OptionRow { option: row, text, icon: None, leading: None, chosen: false, enabled: true, tooltip: None },
+                            );
+                            if outcome.picked {
+                                clicked = Some(row);
+                            }
+                            if reveal == Some(row) {
+                                ui.scroll_to_rect(outcome.rect, None);
+                            }
+                        }
+                    });
+                    if let Some(description) = self.suggestions[active].description.as_deref() {
+                        ui.add_space(rows_style.separator_pad);
+                        let (line, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), egui::Sense::hover());
+                        ui.painter().rect_filled(line, 0.0, rows_style.separator);
+                        ui.add_space(rows_style.separator_pad);
+                        let text = RichText::new(description).font(tokens.font(craft_theme::TypeRole::Caption)).color(rows_style.text);
+                        ui.add(Label::new(text).wrap());
+                    }
+                });
+                ui.painter().set(slot, Shape::Vec(style.popup.shapes(framed.response.rect, ui.pixels_per_point())));
+            });
+        out.popup = Some(shown.response);
+        if let Some(row) = clicked {
+            pass.listbox.reveal(Some(row), false);
+            out.accepted = Some(row);
+        } else if keys.accepted {
+            out.accepted = Some(active);
+        }
+        if let Some(editor) = pass.memory.editor {
+            if clicked.is_some() {
+                ctx.memory_mut(|m| m.request_focus(editor));
+            }
+            ctx.accesskit_node_builder(editor, |node| node.set_active_descendant(option_id(id, active).accesskit_id()));
+        }
+        pass.store(ui, id);
+        out
     }
 }
 
@@ -146,13 +287,70 @@ impl<'a> Autocomplete<'a> {
 /// this function checks itself).
 // gridcraft: crates/ui-egui/src/editor.rs:388 completion_rest
 pub fn completion_rest<'s>(full: &'s str, typed: &str) -> Option<&'s str> {
-    todo!()
+    let mut full_chars = full.char_indices();
+    for t in typed.chars() {
+        let (_, f) = full_chars.next()?;
+        if !f.to_lowercase().eq(t.to_lowercase()) {
+            return None;
+        }
+    }
+    let start = full_chars.next()?.0;
+    full.get(start..)
 }
 
 /// Paints `rest` as selected text right after `galley`, the editor's laid-out text drawn at
 /// `text_pos`: the `field.selection.fill` box and `field.selection.text`, in the galley's font
 /// (GridCraft's column AutoComplete: accent fill, on-accent text).
 // gridcraft: crates/ui-egui/src/formula_bar.rs:861 (inline completion)
-pub fn paint_inline_completion(ui: &Ui, text_pos: egui::Pos2, galley: &Galley, rest: &str) {
-    todo!()
+pub fn paint_inline_completion(ui: &Ui, text_pos: Pos2, galley: &Galley, rest: &str) {
+    let field = &Tokens::of(ui).component.field;
+    let (fill, ink) = (field.selection.to_egui(), field.selected_text.to_egui());
+    let font = galley.job.sections.first().map(|s| s.format.font_id.clone()).unwrap_or_default();
+    let pos = text_pos + vec2(galley.rect.right(), 0.0);
+    let painted = ui.painter().layout_no_wrap(rest.to_owned(), font, ink);
+    ui.painter().rect_filled(Rect::from_min_size(pos, painted.size()), 0.0, fill);
+    ui.painter().galley(pos, painted, ink);
+}
+
+/// What the list keeps between passes under its id.
+#[derive(Clone, Default)]
+struct Memory {
+    /// The suggestions the state below was made for; other suggestions start it again.
+    signature: u64,
+    dismissed: bool,
+    /// The list was showing in the last pass of `show`.
+    shown: bool,
+    /// The widget that had the focus, which a click on a row gives it back to.
+    editor: Option<Id>,
+}
+
+struct Pass {
+    memory: Memory,
+    listbox: Listbox,
+}
+
+impl Pass {
+    fn store(self, ui: &Ui, id: Id) {
+        ui.data_mut(|d| d.insert_temp(id.with("memory"), self.memory));
+        self.listbox.store(ui);
+    }
+}
+
+impl Autocomplete<'_> {
+    /// The state as the last pass left it, started again when the suggestions changed.
+    fn load(&self, ui: &Ui, id: Id) -> Pass {
+        let mut memory = ui.data(|d| d.get_temp::<Memory>(id.with("memory"))).unwrap_or_default();
+        let mut listbox = Listbox::load(ui, id.with("list"));
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for s in self.suggestions {
+            (&s.text, &s.mark, &s.description).hash(&mut hasher);
+        }
+        let signature = hasher.finish();
+        if memory.signature != signature {
+            memory.signature = signature;
+            memory.dismissed = false;
+            listbox.reveal(Some(0), false);
+        }
+        Pass { memory, listbox }
+    }
 }

@@ -1402,3 +1402,11 @@ directional = false
 lucide = "pilcrow-right"
 phosphor = "paragraph"  # near: no direction in Phosphor
 tabler = "pilcrow-right"
+
+[[icon]]
+name = "calendar"
+directional = false
+lucide = "calendar"
+phosphor = "calendar"
+carbon = "calendar"
+tabler = "calendar"
