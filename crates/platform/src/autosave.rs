@@ -19,6 +19,19 @@ pub const RECOVERY_DIR: &str = "Recovery";
 /// PhotoCraft's default interval, `fileHandling.autosaveMinutes = 10` (minimum 1).
 pub const DEFAULT_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
+/// The intervals Photoshop's File Handling page offers for "Automatically Save Recovery
+/// Information Every", in minutes; [`DEFAULT_INTERVAL`] is one of them. Apps offer them as a
+/// preferences row with `craft_ui::preferences::SettingRule::minutes(&INTERVAL_CHOICES_MINUTES)`
+/// and read the stored choice with [`interval_from_minutes`].
+pub const INTERVAL_CHOICES_MINUTES: [u32; 5] = [5, 10, 15, 30, 60];
+
+/// The interval for a stored choice ("10"); `None` when the text is not one of
+/// [`INTERVAL_CHOICES_MINUTES`].
+pub fn interval_from_minutes(text: &str) -> Option<Duration> {
+    let minutes: u32 = text.parse().ok()?;
+    INTERVAL_CHOICES_MINUTES.contains(&minutes).then(|| Duration::from_secs(u64::from(minutes) * 60))
+}
+
 /// The status text of a failed autosave (an error in the status bar; no notice, the next
 /// interval tries again). `{error}`: the write error. Catalog id `autosave.failed`.
 pub const AUTOSAVE_FAILED: &str = "Autosave failed: {error}";

@@ -218,6 +218,16 @@ impl SettingRule {
         self
     }
 
+    /// A choice of minute counts, stored as the count's decimal text ("10"). Labels read
+    /// "{n} minutes" and translate under `setting.<key>.<n>`, like any other choice. For
+    /// `craft_platform::autosave::INTERVAL_CHOICES_MINUTES`; the app reads the stored text with
+    /// `str::parse::<u64>()`.
+    pub fn minutes(self, counts: &[u32]) -> Self {
+        let labels: Vec<(String, String)> = counts.iter().map(|n| (n.to_string(), format!("{n} minutes"))).collect();
+        let options: Vec<(&str, &str)> = labels.iter().map(|(id, label)| (id.as_str(), label.as_str())).collect();
+        self.choices(&options)
+    }
+
     pub fn color(mut self) -> Self {
         self.kind = Some(RuleKind::Color);
         self

@@ -37,12 +37,13 @@ struct General {
     language: String,
     name: String,
     autosave: bool,
+    autosave_minutes: String,
     recent_files: i64,
 }
 
 impl Default for General {
     fn default() -> Self {
-        Self { language: "en".into(), name: "Studio".into(), autosave: true, recent_files: 20 }
+        Self { language: "en".into(), name: "Studio".into(), autosave: true, autosave_minutes: "10".into(), recent_files: 20 }
     }
 }
 
@@ -125,6 +126,7 @@ impl CustomSettings<Sample> for BrushShortcut {
 fn rules() -> Vec<SettingRule> {
     vec![
         SettingRule::new("general.language").choices(&[("en", "English"), ("de", "Deutsch"), ("fr", "Fran\u{e7}ais")]).restart(),
+        SettingRule::new("general.autosaveMinutes").minutes(&[5, 10, 15, 30, 60]),
         SettingRule::new("general.recentFiles").int(0..=100),
         SettingRule::new("interface.uiScale").float(0.5..=3.0, 2),
         SettingRule::new("interface.canvasColor").choices(&[("gray", "Gray"), ("black", "Black"), ("custom", "Custom")]),

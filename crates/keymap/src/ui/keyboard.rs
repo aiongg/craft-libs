@@ -284,7 +284,7 @@ fn cap_name(key: Key, mac: bool) -> &'static str {
         (Key::PageDown, false) => "PgDn",
         (Key::Delete, false) => "Del",
         (Key::Space, true) => "",
-        (Key::Up | Key::Down | Key::Left | Key::Right, _) => key.mac_symbol(ReturnGlyph::Enter),
+        (Key::Up | Key::Down | Key::Left | Key::Right, _) => key.mac_symbol(ReturnGlyph::default()),
         (k, _) => k.text_name(),
     }
 }

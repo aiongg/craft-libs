@@ -210,3 +210,13 @@ fn keys_are_sanitized() {
     assert_eq!(sanitize_key("../a b.c"), "___a_b_c");
     assert_eq!(sanitize_key(""), "untitled");
 }
+
+// The default is one of Photoshop's five choices, and a stored choice outside the list is refused.
+#[test]
+fn the_interval_choices_are_photoshops_and_include_the_default() {
+    assert_eq!(INTERVAL_CHOICES_MINUTES, [5, 10, 15, 30, 60]);
+    assert_eq!(interval_from_minutes("10"), Some(DEFAULT_INTERVAL));
+    assert_eq!(interval_from_minutes("60"), Some(Duration::from_secs(3600)));
+    assert_eq!(interval_from_minutes("7"), None);
+    assert_eq!(interval_from_minutes("ten"), None);
+}

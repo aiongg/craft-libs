@@ -642,7 +642,7 @@ impl DialogState {
         }
     }
 
-    /// Take It and Go to Conflict.
+    /// Accept and Go to Conflict.
     pub(crate) fn take_it_and_go(&mut self, env: &mut Env) {
         if let Some(c) = self.conflict.take() {
             let first = c.holders.first().map(|h| h.command.clone());

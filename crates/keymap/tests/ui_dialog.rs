@@ -346,7 +346,7 @@ fn go_to_conflict_selects_and_reveals_the_holder() {
     assert!(!has(&h, "Save: ⌘S"));
     click(&mut h, "Marquee Tool: M");
     press(&mut h, Modifiers::COMMAND, EguiKey::S);
-    click(&mut h, "Take It and Go to Conflict");
+    click(&mut h, "Accept and Go to Conflict");
     assert_eq!(h.state().bindings("tool.marquee"), ["Cmd+S"]);
     assert!(selected(&h, "Save (Changed)"), "the holder is selected");
     assert_eq!(h.get_by_label("Search:").value().unwrap_or_default(), "");
@@ -448,6 +448,19 @@ fn display_follows_the_keymap_platform() {
     assert!(has(&h, "Bold: ⌘B (Text)"), "a scope other than home is named");
     let h = open(Fx::new(fixture(Platform::Windows)));
     assert!(has(&h, "Save As…: Ctrl+Shift+S"));
+}
+
+#[test]
+fn the_conflict_bar_says_accept_and_go_to_conflict_and_return_is_drawn_as_the_apple_glyph() {
+    let mut h = mac();
+    click(&mut h, "Export…: ⌘E");
+    press(&mut h, Modifiers::COMMAND, EguiKey::S);
+    assert!(has(&h, "Accept and Go to Conflict") && !has(&h, "Take It and Go to Conflict"));
+    let mut h = mac();
+    click(&mut h, "Export…: ⌘E");
+    press(&mut h, Modifiers::COMMAND, EguiKey::Enter);
+    assert!(has(&h, "Export…: ⌘↩"), "Return is ↩");
+    assert!(!has(&h, "Export…: ⌘⏎"));
 }
 
 // ---- Labels, focus, small windows, RTL ----

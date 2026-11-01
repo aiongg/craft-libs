@@ -1420,7 +1420,7 @@ impl Draw<'_, '_> {
             if self.button(ui, true, &self.ui("Take It"), "shortcuts.conflict.take") {
                 act = 1;
             }
-            if self.button(ui, true, &self.ui("Take It and Go to Conflict"), "shortcuts.conflict.goto") {
+            if self.button(ui, true, &self.ui("Accept and Go to Conflict"), "shortcuts.conflict.goto") {
                 act = 2;
             }
             if self.env.options.allow_keep && self.button(ui, true, &self.ui("Keep Both"), "shortcuts.conflict.keep") {
