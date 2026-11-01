@@ -14,7 +14,7 @@ use craft_ui::localized::Labels as _;
 use craft_ui::localized::Words;
 use craft_ui::localized::words::Counted;
 use craft_ui::menu::{MenuEntry, MenuItem};
-use craft_ui::presets::{FooterEvent, PresetBrowser, PresetEvent, PresetFooter, PresetLabels, PresetReorder, PresetRow, PresetState};
+use craft_ui::presets::{PresetBrowser, PresetEvent, PresetFooter, PresetFooterEvent, PresetLabels, PresetReorder, PresetRow, PresetState};
 use egui::{AsIdSalt, Color32, Context, CornerRadius, Id, IdSalt, Ui};
 
 use super::PickedColor;
@@ -494,7 +494,11 @@ impl<'a> SwatchesPanel<'a> {
                 painter.rect_filled(rect, CornerRadius::ZERO, Color32::from(color));
             })
         };
-        let footer = PresetFooter::new(&mut st.browser, &browser_labels).thumb_range(THUMB_RANGE).can_delete(st.selected.is_some()).show(ui);
+        let footer = PresetFooter::new("swatches-footer", &mut st.browser)
+            .labels(&browser_labels)
+            .thumb_range(THUMB_RANGE)
+            .can_delete(st.selected.is_some())
+            .show(ui);
 
         let mut actions =
             Actions { library, st: &mut st, response: &mut response, foreground, template: &labels.swatch_n, group_name: &labels.group, cmyk };
@@ -777,16 +781,16 @@ impl Actions<'_> {
         }
     }
 
-    fn footer(&mut self, event: FooterEvent) {
+    fn footer(&mut self, event: PresetFooterEvent<Key>) {
         match event {
-            FooterEvent::New => self.new_swatch(),
-            FooterEvent::NewGroup => {
+            PresetFooterEvent::New => self.new_swatch(),
+            PresetFooterEvent::NewGroup => {
                 if let Some(at) = self.library.new_group(self.group_name) {
                     self.st.rename = Some(Key::Group(self.library.groups[at].name.clone()));
                     self.response.changed = true;
                 }
             }
-            FooterEvent::Delete => {
+            PresetFooterEvent::Delete => {
                 if let Some(key) = self.st.selected.clone() {
                     self.delete(&key);
                 }

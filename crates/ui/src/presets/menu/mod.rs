@@ -19,27 +19,6 @@ use super::model::PresetRow;
 use super::view::{MenuRequest, State};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 
-/// An entry the host adds to the context menu; choosing it reports [`PresetEvent::Extra`].
-#[derive(Clone, Debug)]
-pub struct PresetExtra {
-    pub(crate) id: &'static str,
-    pub(crate) label: String,
-    pub(crate) enabled: bool,
-}
-
-impl PresetExtra {
-    /// An entry named `label` that reports `id`.
-    pub fn new(id: &'static str, label: impl Into<String>) -> Self {
-        Self { id, label: label.into(), enabled: true }
-    }
-
-    /// Whether the entry can be chosen (default yes).
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-}
-
 /// A test the host gives for one key: may it be renamed, deleted, moved.
 pub(super) type KeyTest<'a, K> = Rc<dyn Fn(&K) -> bool + 'a>;
 
@@ -50,7 +29,7 @@ pub(super) struct Spec<'a, K> {
     pub can_rename: Option<&'a KeyTest<'a, K>>,
     pub can_delete: Option<&'a KeyTest<'a, K>>,
     pub can_move: Option<&'a KeyTest<'a, K>>,
-    pub extras: &'a [PresetExtra],
+    pub extras: &'a [MenuEntry<String>],
 }
 
 #[derive(Clone)]
@@ -58,7 +37,7 @@ enum Command<K> {
     Rename,
     Delete,
     MoveTo(K),
-    Extra(&'static str),
+    Extra(String),
 }
 
 /// The entries for the preset or group at `at`.
@@ -80,7 +59,7 @@ fn entries<K: Clone + Eq>(spec: &Spec<'_, K>, at: usize) -> Vec<MenuEntry<Comman
     }
     if !spec.extras.is_empty() {
         out.push(MenuEntry::Separator);
-        out.extend(spec.extras.iter().map(|e| MenuEntry::from(MenuItem::new(e.label.as_str(), Command::Extra(e.id)).enabled(e.enabled))));
+        out.extend(spec.extras.iter().map(|e| e.map(&|command: &String| Command::Extra(command.clone()))));
     }
     out
 }
@@ -133,7 +112,7 @@ where
         Some(Command::Rename) => state.renaming = Some(key),
         Some(Command::Delete) => events.push(PresetEvent::Delete(key)),
         Some(Command::MoveTo(group)) => events.push(PresetEvent::MoveTo { key, group }),
-        Some(Command::Extra(id)) => events.push(PresetEvent::Extra { key, id }),
+        Some(Command::Extra(command)) => events.push(PresetEvent::Menu { target: key, command }),
         None => {}
     }
     state.store(&ctx, browser);

@@ -1,6 +1,6 @@
 //! [`PresetStyle`]: the preset browser's sizes and colours from the `preset` tokens, with the
 //! selected ring from `swatch`, the insertion line from `list`, and the picker's, the named row's
-//! and the footer's sizes from the `size.preset.*` leaves.
+//! and the footer's sizes from the same family.
 
 use craft_theme::{Rgba, SwatchTokens};
 use egui::{Color32, CornerRadius, Stroke, Vec2};
@@ -63,18 +63,18 @@ pub struct PresetStyle {
     /// Side of a checkerboard cell: `swatch.checker_cell`.
     pub checker_cell: f32,
     /// A [`PickerThumb::Wide`](super::picker::PickerThumb::Wide) field's thumbnail (custom
-    /// shapes): `size.preset.picker_wide_width` by `size.preset.picker_wide_height`.
+    /// shapes): `preset.picker_wide_width` by `preset.picker_wide_height`.
     pub picker_wide: Vec2,
     /// A [`PickerThumb::Square`](super::picker::PickerThumb::Square) field's thumbnail
-    /// (patterns, contours): `size.preset.picker_square`.
+    /// (patterns, contours): `preset.picker_square`.
     pub picker_square: f32,
-    /// The side of a cell in the picker's popup: `size.preset.picker_cell`.
+    /// The side of a cell in the picker's popup: `preset.picker_cell`.
     pub picker_cell: f32,
-    /// The width of the named preset row's Name field: `size.preset.name_width`.
+    /// The width of the named preset row's Name field: `preset.name_width`.
     pub name_width: f32,
-    /// The greatest height of the picker's popup: `size.preset.popup_max_height`.
+    /// The greatest height of the picker's popup: `preset.popup_max_height`.
     pub popup_max_height: f32,
-    /// The gap between the browser's list and its own footer: `size.preset.footer_room`.
+    /// The gap between the browser's list and its own footer: `preset.footer_room`, which follows `space.gap.inline`.
     pub footer_room: f32,
     swatch: SwatchTokens,
 }
@@ -84,7 +84,6 @@ impl PresetStyle {
     pub fn from_tokens(tokens: &UiTokens) -> Self {
         let p = &tokens.component.preset;
         let (s, l) = (&tokens.component.swatch, &tokens.component.list);
-        let z = &tokens.size.preset;
         Self {
             header_height: p.header_height,
             grid_gap: p.grid_gap,
@@ -110,12 +109,12 @@ impl PresetStyle {
             insert_width: l.drop_width,
             checker: [s.checker_a.to_egui(), s.checker_b.to_egui()],
             checker_cell: s.checker_cell,
-            picker_wide: Vec2::new(z.picker_wide_width, z.picker_wide_height),
-            picker_square: z.picker_square,
-            picker_cell: z.picker_cell,
-            name_width: z.name_width,
-            popup_max_height: z.popup_max_height,
-            footer_room: z.footer_room,
+            picker_wide: Vec2::new(p.picker_wide_width, p.picker_wide_height),
+            picker_square: p.picker_square,
+            picker_cell: p.picker_cell,
+            name_width: p.name_width,
+            popup_max_height: p.popup_max_height,
+            footer_room: p.footer_room,
             swatch: *s,
         }
     }

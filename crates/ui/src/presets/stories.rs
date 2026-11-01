@@ -8,7 +8,8 @@ use egui::epaint::{Mesh, Shape};
 use egui::{Color32, Frame, Painter, Rect, Sense, Ui, vec2};
 
 use super::{
-    CellShape, DefaultOpen, FooterEvent, PresetBrowser, PresetEvent, PresetFooter, PresetLabels, PresetReorder, PresetRow, PresetState, PresetView,
+    CellShape, DefaultOpen, PresetBrowser, PresetEvent, PresetFooter, PresetFooterEvent, PresetLabels, PresetReorder, PresetRow, PresetState,
+    PresetView,
 };
 use crate::behavior::{DropPosition, ListDrag, Move};
 use crate::controls::checkbox::Checkbox;
@@ -218,19 +219,19 @@ impl Library {
         }
     }
 
-    fn footer_events(&mut self, events: Vec<FooterEvent>) {
+    fn footer_events(&mut self, events: Vec<PresetFooterEvent<u32>>) {
         for event in events {
             match event {
-                FooterEvent::New => {
+                PresetFooterEvent::New => {
                     let depth = self.rows.last().map_or(0, |r| if r.is_group() { r.depth + 1 } else { r.depth });
                     self.rows.push(PresetRow::item(self.next, format!("New preset {}", self.next), depth));
                     self.next += 1;
                 }
-                FooterEvent::NewGroup => {
+                PresetFooterEvent::NewGroup => {
                     self.rows.push(PresetRow::group(self.next, format!("New group {}", self.next), 0));
                     self.next += 1;
                 }
-                FooterEvent::Delete => {
+                PresetFooterEvent::Delete => {
                     if let Some(key) = self.selected.take() {
                         self.take(key);
                     }
@@ -305,7 +306,7 @@ fn show_swatches(ui: &mut Ui, args: &mut PresetArgs) {
             .reorder(PresetReorder::items_and_groups())
             .show(ui, |painter, rect, info| paint_solid(painter, rect, color_of(*info.key, true), &tokens));
         lib.apply(out.events);
-        let events = PresetFooter::new(&mut lib.state, &PresetLabels::of(ui)).thumb_range(16.0..=48.0).count(200).show(ui);
+        let events = PresetFooter::new("preset-footer", &mut lib.state).thumb_range(16.0..=48.0).count(200).show(ui);
         lib.footer_events(events);
         status(ui, lib);
     });
@@ -425,7 +426,7 @@ fn show_brushes(ui: &mut Ui, args: &mut PresetArgs) {
             .reorder(PresetReorder::items_and_groups().nest(1))
             .show(ui, |painter, rect, info| stroke_preview(painter, rect, *info.key));
         lib.apply(out.events);
-        let events = PresetFooter::new(&mut lib.state, &PresetLabels::of(ui)).thumb_range(24.0..=96.0).count(BRUSHES as usize).show(ui);
+        let events = PresetFooter::new("preset-footer", &mut lib.state).thumb_range(24.0..=96.0).count(BRUSHES as usize).show(ui);
         lib.footer_events(events);
         status(ui, lib);
     });
@@ -459,7 +460,8 @@ fn show_tools(ui: &mut Ui, args: &mut PresetArgs) {
         lib.state = browser_state;
         lib.apply(out.events);
         let labels = PresetLabels::of(ui);
-        let events = PresetFooter::new(&mut lib.state, &labels)
+        let events = PresetFooter::new("preset-footer", &mut lib.state)
+            .labels(&labels)
             .new_group(false)
             .can_delete(lib.selected.is_some())
             .leading(|ui| {

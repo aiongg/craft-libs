@@ -31,7 +31,7 @@ use egui::{Color32, Context, Painter, Pos2, Rect, Sense, StrokeKind, Ui, Vec2, p
 use super::menu::{NamedPresetEvent, NamedPresetRow, NamedPresetStyle, PresetExport, PresetFileEvent, PresetFiles};
 use super::model::{GroupPath, PresetError, PresetId, PresetKey, PresetLibrary};
 use super::picker::{PickerClose, PickerField, PickerThumb, PresetPicker};
-use super::{FooterEvent, PresetBrowser, PresetEvent, PresetFooterOptions, PresetReorder, PresetRow, PresetState, PresetView};
+use super::{PresetBrowser, PresetEvent, PresetFooterEvent, PresetFooterOptions, PresetReorder, PresetRow, PresetState, PresetView};
 use crate::controls::slider::with_values;
 use crate::localized::Labels as _;
 use crate::primitives::{Content, Text};
@@ -428,17 +428,20 @@ impl Shelf {
         }
     }
 
-    fn footer(&mut self, events: Vec<FooterEvent>, words: &PresetLibraryStoryLabels, nested: bool) {
-        for event in events {
+    fn footer<K>(&mut self, events: &[PresetEvent<K>], words: &PresetLibraryStoryLabels, nested: bool) {
+        for event in events.iter().filter_map(|event| match event {
+            PresetEvent::Footer(press) => Some(press),
+            _ => None,
+        }) {
             match event {
-                FooterEvent::New => {
+                PresetFooterEvent::New => {
                     let name = numbered(&words.preset, self.library.total() as u32 + 1);
                     match self.library.add(&self.target_group(), &name, 0) {
                         Ok(id) => self.selected = Some(PresetKey::Item(id)),
                         Err(_) => self.note = words.name_taken.clone(),
                     }
                 }
-                FooterEvent::NewGroup => {
+                PresetFooterEvent::NewGroup => {
                     let parent = if nested { self.target_group() } else { GroupPath::root() };
                     match self.library.new_group(&parent, &words.group) {
                         Ok(path) => self.selected = Some(PresetKey::Group(path)),
@@ -446,7 +449,7 @@ impl Shelf {
                         Err(_) => {}
                     }
                 }
-                FooterEvent::Delete => {
+                PresetFooterEvent::Delete => {
                     if let Some(key) = self.selected.clone() {
                         self.library.apply(&PresetEvent::Delete(key));
                     }
@@ -523,7 +526,7 @@ fn show_footer(ui: &mut Ui, args: &mut FooterArgs) {
             .footer(options)
             .show(ui, |painter, rect, info| Art::Swatch.paint(painter, rect, seed(info.key)));
         shelf.handle(&out.events, &words);
-        shelf.footer(out.footer, &words, false);
+        shelf.footer(&out.events, &words, false);
         shelf.status(ui, &words);
     });
 }
@@ -678,7 +681,7 @@ fn show_library(ui: &mut Ui, args: &mut LibraryArgs) {
             .footer(options)
             .show(ui, |painter, rect, info| Art::Swatch.paint(painter, rect, seed(info.key)));
         shelf.handle(&out.events, &words);
-        shelf.footer(out.footer, &words, true);
+        shelf.footer(&out.events, &words, true);
         shelf.status(ui, &words);
     });
 }

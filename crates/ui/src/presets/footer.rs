@@ -1,17 +1,18 @@
 //! `PresetFooter`: the size slider and action buttons (DS-44 task 4).
 
-use egui::{Ui, UiBuilder};
+use egui::{AsIdSalt, IdSalt, Ui, UiBuilder};
 
 use super::labels::PresetLabels;
 use super::state::PresetState;
 use super::style::PresetStyle;
-use crate::composites::PanelFooter;
+use crate::behavior::ListDrag;
+use crate::composites::{FooterAction, PanelFooter};
 use crate::controls::Slider;
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::Icon;
-use crate::localized::Words;
 use crate::localized::words::counts;
+use crate::localized::{Labels as _, Words};
 use crate::theme::{Tokens, TokensOf as _};
 use craft_theme::ControlSize;
 
@@ -21,18 +22,27 @@ use std::ops::RangeInclusive;
 
 use super::PresetBrowser;
 
-/// What a [`PresetFooter`] reports.
+/// What a [`PresetFooter`] reports. A browser's footer reports these as
+/// [`PresetEvent::Footer`](super::PresetEvent::Footer), in order with its other events.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum FooterEvent {
+pub enum PresetFooterEvent<K> {
     /// The New button.
     New,
     /// The New Group button.
     NewGroup,
     /// The Delete button.
     Delete,
-    /// A host action added with [`PresetFooter::action`], by its id.
+    /// A host action added with [`PresetFooter::action`] was pressed, by its id.
     Custom(&'static str),
+    /// Presets or groups dragged from a list were dropped on a host action that
+    /// [`accepts_drops`](FooterAction::accepts_drops), by its id.
+    CustomDrop {
+        /// The action's id.
+        id: &'static str,
+        /// The dragged keys.
+        keys: Vec<K>,
+    },
 }
 
 type Leading<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
@@ -41,13 +51,12 @@ type Leading<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 /// controls at the reading start, the action buttons at the reading end.
 ///
 /// ```
-/// use craft_ui::presets::{FooterEvent, PresetFooter, PresetLabels, PresetState};
+/// use craft_ui::presets::{PresetFooter, PresetFooterEvent, PresetState};
 /// # egui::__run_test_ui(|ui| {
 /// let mut state = PresetState::<u32>::new();
-/// let labels = PresetLabels::default();
-/// for event in PresetFooter::new(&mut state, &labels).can_delete(false).show(ui) {
+/// for event in PresetFooter::new("gradients", &mut state).can_delete(false).show(ui) {
 ///     match event {
-///         FooterEvent::New => { /* make a preset */ }
+///         PresetFooterEvent::New => { /* make a preset */ }
 ///         _ => {}
 ///     }
 /// }
@@ -57,29 +66,35 @@ type Leading<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 /// - **Placement.** Show it in the footer slot of a panel, or standalone: it draws the same
 ///   `PanelFooter` bar and rule.
 /// - **Buttons.** Added from the reading end: Delete (disabled by `can_delete(false)`), New, New
-///   Group (left out by `new_group(false)`), then the host's actions. Their tooltips and names
-///   come from [`PresetLabels`].
+///   Group (left out by `new_group(false)`), then the host's [`FooterAction`]s. Their tooltips and
+///   names come from [`PresetLabels`] ([`labels`](Self::labels); the theme's words otherwise).
+/// - **Host actions.** A disabled action takes no click. An action that
+///   [`accepts_drops`](FooterAction::accepts_drops) takes presets dragged from any list and
+///   reports [`PresetFooterEvent::CustomDrop`]; it reads enabled while such a drag is over it.
 /// - **Slider.** Writes [`PresetState::thumb`] within `thumb_range`; omitted by `slider(false)`.
-///   Its name is [`PresetLabels::thumb_size`].
+///   Its name is [`PresetLabels::thumb_size`], its id derives from `id_salt`.
 #[must_use = "show the footer with `show`"]
 pub struct PresetFooter<'a, K> {
+    id_salt: IdSalt,
     state: &'a mut PresetState<K>,
-    labels: &'a PresetLabels,
+    labels: Option<&'a PresetLabels>,
     thumb_range: RangeInclusive<f32>,
     slider: bool,
     count: Option<usize>,
     leading: Option<Leading<'a>>,
     can_delete: bool,
     new_group: bool,
-    actions: Vec<(&'static str, Icon, String)>,
+    actions: Vec<FooterAction>,
 }
 
 impl<'a, K> PresetFooter<'a, K> {
-    /// A footer writing the thumbnail size into `state`, with `labels`' words.
-    pub fn new(state: &'a mut PresetState<K>, labels: &'a PresetLabels) -> Self {
+    /// A footer writing the thumbnail size into `state`. `id_salt` is unique among the app's
+    /// footers.
+    pub fn new(id_salt: impl AsIdSalt, state: &'a mut PresetState<K>) -> Self {
         Self {
+            id_salt: IdSalt::new(id_salt),
             state,
-            labels,
+            labels: None,
             thumb_range: 16.0..=96.0,
             slider: true,
             count: None,
@@ -88,6 +103,12 @@ impl<'a, K> PresetFooter<'a, K> {
             new_group: true,
             actions: Vec::new(),
         }
+    }
+
+    /// The footer's words (default: the theme's).
+    pub fn labels(mut self, labels: &'a PresetLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// The range of the slider, in points (default 16 to 96): use the browser's.
@@ -127,31 +148,50 @@ impl<'a, K> PresetFooter<'a, K> {
         self
     }
 
-    /// A host button after New Group, reported as [`FooterEvent::Custom`] with `id`.
-    pub fn action(mut self, id: &'static str, icon: Icon, label: impl Into<String>) -> Self {
-        self.actions.push((id, icon, label.into()));
+    /// A host button after New Group, reported as [`PresetFooterEvent::Custom`] with its id.
+    pub fn action(mut self, action: FooterAction) -> Self {
+        self.actions.push(action);
         self
     }
+}
 
+impl<K: Clone + Send + Sync + 'static> PresetFooter<'_, K> {
     /// Shows the footer across the available width and returns what was pressed, in order.
-    pub fn show(self, ui: &mut Ui) -> Vec<FooterEvent> {
-        let Self { state, labels, thumb_range, slider, count, leading, can_delete, new_group, actions } = self;
+    pub fn show(self, ui: &mut Ui) -> Vec<PresetFooterEvent<K>> {
+        let Self { id_salt, state, labels, thumb_range, slider, count, leading, can_delete, new_group, actions } = self;
+        let owned;
+        let labels = match labels {
+            Some(labels) => labels,
+            None => {
+                owned = PresetLabels::of(ui);
+                &owned
+            }
+        };
+        let slider_salt = IdSalt::new((id_salt, "thumb-size"));
         let mut events = Vec::new();
         let style = PresetStyle::from_tokens(&Tokens::of(ui));
         PanelFooter::show(ui, |ui| {
             let delete = ui.add_enabled_ui(can_delete, |ui| PanelFooter::button(ui, Icon::Trash, &labels.delete_button)).inner;
             if delete.clicked() {
-                events.push(FooterEvent::Delete);
+                events.push(PresetFooterEvent::Delete);
             }
             if PanelFooter::button(ui, Icon::Plus, &labels.new).clicked() {
-                events.push(FooterEvent::New);
+                events.push(PresetFooterEvent::New);
             }
             if new_group && PanelFooter::button(ui, Icon::NewFolder, &labels.new_group).clicked() {
-                events.push(FooterEvent::NewGroup);
+                events.push(PresetFooterEvent::NewGroup);
             }
-            for (id, icon, label) in &actions {
-                if PanelFooter::button(ui, *icon, label).clicked() {
-                    events.push(FooterEvent::Custom(id));
+            for action in &actions {
+                if action.accepts_drops {
+                    let (button, dropped) =
+                        PanelFooter::drop_button::<ListDrag<K>>(ui, action.icon, &action.label, action.enabled, |drag| !drag.items.is_empty());
+                    if let Some(drag) = dropped {
+                        events.push(PresetFooterEvent::CustomDrop { id: action.id, keys: drag.items.clone() });
+                    } else if button.clicked() {
+                        events.push(PresetFooterEvent::Custom(action.id));
+                    }
+                } else if ui.add_enabled_ui(action.enabled, |ui| PanelFooter::button(ui, action.icon, &action.label)).inner.clicked() {
+                    events.push(PresetFooterEvent::Custom(action.id));
                 }
             }
             let rest = ui.available_rect_before_wrap();
@@ -164,7 +204,7 @@ impl<'a, K> PresetFooter<'a, K> {
                 let value = state.thumb_in(&thumb_range);
                 let range = *thumb_range.start()..=thumb_range.end().max(*thumb_range.start());
                 let edit =
-                    Slider::new("thumb-size", labels.thumb_size.as_str(), value, range).size(ControlSize::Md).width(style.slider_width).show(start);
+                    Slider::new(slider_salt, labels.thumb_size.as_str(), value, range).size(ControlSize::Md).width(style.slider_width).show(start);
                 if let Some(
                     EditEvent::Begin { value: Some(value), .. }
                     | EditEvent::Update { value, .. }
@@ -186,13 +226,13 @@ impl<'a, K> PresetFooter<'a, K> {
 /// The footer a [`PresetBrowser`] draws inside its own pass
 /// ([`PresetBrowser::footer`]): the same buttons, slider, count and
 /// leading slot as [`PresetFooter`], with the browser's state, words and thumbnail range. Its
-/// presses come back in `PresetOutput::footer`.
+/// presses come back in [`PresetEvent::Footer`](super::PresetEvent::Footer).
 ///
 /// ```ignore
 /// let out = PresetBrowser::new("gradients", "Gradients", &mut state, &rows)
 ///     .footer(PresetFooterOptions::new().count(library.total()).can_delete(selected.is_some()))
 ///     .show(ui, paint);
-/// for press in out.footer { /* FooterEvent::New, NewGroup, Delete, Custom */ }
+/// for event in out.events { /* PresetEvent::Footer(PresetFooterEvent::New), .. */ }
 /// ```
 #[must_use]
 pub struct PresetFooterOptions<'a> {
@@ -201,7 +241,7 @@ pub struct PresetFooterOptions<'a> {
     pub(super) leading: Option<Leading<'a>>,
     pub(super) can_delete: bool,
     pub(super) new_group: bool,
-    pub(super) actions: Vec<(&'static str, Icon, String)>,
+    pub(super) actions: Vec<FooterAction>,
 }
 
 impl Default for PresetFooterOptions<'_> {
@@ -247,8 +287,8 @@ impl<'a> PresetFooterOptions<'a> {
     }
 
     /// As [`PresetFooter::action`].
-    pub fn action(mut self, id: &'static str, icon: Icon, label: impl Into<String>) -> Self {
-        self.actions.push((id, icon, label.into()));
+    pub fn action(mut self, action: FooterAction) -> Self {
+        self.actions.push(action);
         self
     }
 }
@@ -269,16 +309,20 @@ pub(super) fn footer_height(ui: &Ui) -> f32 {
 /// is the list's plus [`footer_height`].
 pub(super) fn show_below<K>(
     ui: &mut Ui,
+    id_salt: IdSalt,
     options: PresetFooterOptions<'_>,
     state: &mut PresetState<K>,
     labels: &PresetLabels,
     thumb_range: RangeInclusive<f32>,
-) -> Vec<FooterEvent> {
+) -> Vec<PresetFooterEvent<K>>
+where
+    K: Clone + Send + Sync + 'static,
+{
     let room = PresetStyle::from_tokens(&Tokens::of(ui)).footer_room;
     ui.scope(|ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         ui.add_space(room);
-        show_options(ui, options, state, labels, thumb_range)
+        show_options(ui, id_salt, options, state, labels, thumb_range)
     })
     .inner
 }
@@ -287,21 +331,26 @@ pub(super) fn show_below<K>(
 /// writes `state.thumb` within `thumb_range` and returns the presses.
 pub(super) fn show_options<K>(
     ui: &mut Ui,
+    id_salt: IdSalt,
     options: PresetFooterOptions<'_>,
     state: &mut PresetState<K>,
     labels: &PresetLabels,
     thumb_range: RangeInclusive<f32>,
-) -> Vec<FooterEvent> {
+) -> Vec<PresetFooterEvent<K>>
+where
+    K: Clone + Send + Sync + 'static,
+{
     let PresetFooterOptions { slider, count, leading, can_delete, new_group, actions } = options;
-    let mut footer = PresetFooter::new(state, labels).thumb_range(thumb_range).slider(slider).can_delete(can_delete).new_group(new_group);
+    let mut footer =
+        PresetFooter::new(id_salt, state).labels(labels).thumb_range(thumb_range).slider(slider).can_delete(can_delete).new_group(new_group);
     if let Some(count) = count {
         footer = footer.count(count);
     }
     if let Some(add) = leading {
         footer.leading = Some(add);
     }
-    for (id, icon, label) in actions {
-        footer = footer.action(id, icon, label);
+    for action in actions {
+        footer = footer.action(action);
     }
     footer.show(ui)
 }
