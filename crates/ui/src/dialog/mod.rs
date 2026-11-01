@@ -152,7 +152,7 @@ pub use guides::{
 };
 pub use history::{LocalHistory, Step, take_step};
 pub use keys::{EnterRule, KeyInput, resolve_keys};
-pub use list_manager::{ActionEnabled, ListAction, ListChoice, ListEntry, ListManagerDialog, ListManagerLabels};
+pub use list_manager::{ActionEnabled, ListManagerAction, ListManagerChoice, ListManagerDialog, ListManagerEntry, ListManagerLabels};
 pub use new_document::{
     BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, DocumentOptions, DocumentPreset, NewDocumentDialog, NewDocumentLabels,
     Orientation, PresetCategory, push_recent, size_line,

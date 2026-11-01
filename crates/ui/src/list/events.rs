@@ -24,31 +24,31 @@ crate::words! {
     #[non_exhaustive]
     pub struct EventLogLabels {
         /// The level filter's name and its three choices (FilmCraft's Events panel).
-        filter: "events.filter" = "Show";
-        all: "events.all" = "All Events";
-        warnings: "events.warnings" = "Warnings and Errors";
-        errors: "events.errors" = "Errors Only";
-        clear_all: "events.clearAll" = "Clear All";
-        none: "events.none" = "No events.";
+        filter: "eventLog.filter" = "Show";
+        all: "eventLog.all" = "All Events";
+        warnings: "eventLog.warnings" = "Warnings and Errors";
+        errors: "eventLog.errors" = "Errors Only";
+        clear_all: "eventLog.clearAll" = "Clear All";
+        none: "eventLog.none" = "No events.";
         /// The name of the list of events.
-        list: "events.list" = "Events";
+        list: "eventLog.list" = "Events";
         /// An event that happened several times in a row: `{message}`, `{count}`.
-        repeated: "events.repeated" = "{message}  (×{count})";
-        info: "events.info" = "Info";
-        warning: "events.warning" = "Warning";
-        error: "events.error" = "Error";
+        repeated: "eventLog.repeated" = "{message}  (×{count})";
+        info: "eventLog.info" = "Info";
+        warning: "eventLog.warning" = "Warning";
+        error: "eventLog.error" = "Error";
         /// A row's accessible name: `{level}`, `{message}` and `{age}`.
-        row_name: "events.rowName" = "{level}: {message}, {age}";
+        row_name: "eventLog.rowName" = "{level}: {message}, {age}";
         /// The details line over the selected event's message: `{level}`, `{source}` and
         /// `{time}` (its age, [`relative_age`](crate::localized::relative_age)).
-        details: "events.details" = "{level} · {source} · {time}";
+        details: "eventLog.details" = "{level} · {source} · {time}";
         /// The count words beside the level glyphs, also their accessible names; each is a
         /// [`Counted`](crate::localized::words::Counted) word written with
         /// [`Words::counted`](crate::localized::Words::counted); their
         /// forms are in the kernel's [`COUNTS`](crate::localized::words::COUNTS).
-        error_count: "events.errorCount" = "{n} errors";
-        warning_count: "events.warningCount" = "{n} warnings";
-        message_count: "events.messageCount" = "{n} messages";
+        error_count: "eventLog.errorCount" = "{n} errors";
+        warning_count: "eventLog.warningCount" = "{n} warnings";
+        message_count: "eventLog.messageCount" = "{n} messages";
     }
 }
 
@@ -150,7 +150,7 @@ impl EventLogStyle {
 ///
 /// ```ignore
 /// let out = EventLog::new("events", &log_events, &mut panels.events, now_ms).show(ui);
-/// if out.clear_all { session.execute("events.clear", json!({})) }
+/// if out.clear_all { session.execute("eventLog.clear", json!({})) }
 /// ```
 ///
 /// - **Bar.** A [`Select`](crate::controls::Select) for the least level (All Events, Warnings and

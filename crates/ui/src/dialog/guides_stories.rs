@@ -61,7 +61,7 @@ pub(super) fn stories() -> Vec<Story> {
             "patterns/dialog/new-guide",
             Level::Patterns,
             "Dialog",
-            "New Guide",
+            "New guide",
             NewGuideArgs { open: true, ruler: RulerArg::Pixels },
             show_new_guide
         ),
@@ -69,7 +69,7 @@ pub(super) fn stories() -> Vec<Story> {
             "patterns/dialog/edit-guides",
             Level::Patterns,
             "Dialog",
-            "Edit Selected Guides",
+            "Edit selected guides",
             EditGuidesArgs { open: true, ruler: RulerArg::Pixels, horizontal: false },
             show_edit_guides
         ),
@@ -77,7 +77,7 @@ pub(super) fn stories() -> Vec<Story> {
             "patterns/dialog/guide-layout",
             Level::Patterns,
             "Dialog",
-            "New Guide Layout",
+            "New guide layout",
             GuideLayoutArgs { open: true, ruler: RulerArg::Pixels, existing: true, artboards: false },
             show_guide_layout
         ),

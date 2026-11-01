@@ -49,6 +49,11 @@ crate::words! {
         tools: "story.tools" = "Tools";
         width: "story.width" = "Width";
         working: "story.working" = "Working";
+        end: "story.end" = "End";
+        middle: "story.middle" = "Middle";
+        start: "story.start" = "Start";
+        elide_path: "story.elidePath" = "Path";
+        elide_rtl: "story.elideRtl" = "RTL";
     }
 }
 

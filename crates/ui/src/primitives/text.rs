@@ -266,12 +266,14 @@ fn show_elide(ui: &mut Ui, args: &mut ElideArgs) {
     let width = args.width.min(ui.available_width());
     let path = "/home/ada/Pictures/2026/summer holiday/IMG_2024_summer_holiday_final_edit.psd";
     let right_to_left = "שם קובץ ארוך מאוד שלא נכנס בשורה אחת של הפאנל.psd";
+    use crate::localized::Labels as _;
+    let words = crate::story::StoryLabels::of(ui);
     crate::story::variant_list(ui, "text-elide", |form| {
-        for (name, at) in [("End", ElideAt::End), ("Middle", ElideAt::Middle), ("Start", ElideAt::Start)] {
+        for (name, at) in [(&words.end, ElideAt::End), (&words.middle, ElideAt::Middle), (&words.start, ElideAt::Start)] {
             crate::story::variant_row(form, name, |ui| ui.add(Text::new(args.text.as_str()).elide(at).max_width(width)));
         }
-        crate::story::variant_row(form, "Path", |ui| ui.add(Text::new(path).elide_path().max_width(width)));
-        crate::story::variant_row(form, "RTL", |ui| ui.add(Text::new(right_to_left).elide(ElideAt::End).max_width(width)));
+        crate::story::variant_row(form, &words.elide_path, |ui| ui.add(Text::new(path).elide_path().max_width(width)));
+        crate::story::variant_row(form, &words.elide_rtl, |ui| ui.add(Text::new(right_to_left).elide(ElideAt::End).max_width(width)));
     });
 }
 

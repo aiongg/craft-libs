@@ -48,6 +48,7 @@ mod rename;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod reorder_tests;
 mod row;
+pub(crate) use row::ClippedLabels;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod row_tests;
 pub(crate) mod spans;
@@ -64,7 +65,7 @@ mod tree_tests;
 mod view;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ListRow", "List", "TreeRow", "FindingsList", "Table", "MetadataTable", "EventLog"];
+pub const COMPONENTS: &[&str] = &["ListRow", "List", "TreeRow", "FindingsList", "Table", "Metadata table", "Event log"];
 
 pub(crate) fn stories() -> Vec<crate::story::Story> {
     row::stories()

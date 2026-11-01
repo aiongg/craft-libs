@@ -23,18 +23,18 @@ use crate::theme::{ToEgui, Tokens, TokensOf as _, UiTokens, corner_radius, role_
 crate::words! {
     /// The chips' words, English by default.
     #[non_exhaustive]
-    pub struct ChipLabels {
+    pub struct ChipFieldLabels {
         /// A chip's remove button, for AccessKit and its tooltip: `{name}` the chip's full name
         /// (LightCraft's "Remove “{name}”").
-        remove: "chips.remove" = "Remove “{name}”";
+        remove: "chipField.remove" = "Remove “{name}”";
         /// The button for the chips that don't fit: `{n}` how many. A
         /// [`Counted`](crate::localized::words::Counted) word (one and other both "+{n} more" in
         /// English), written with [`Words::counted`](crate::localized::Words::counted); its
         /// forms are in the kernel's [`COUNTS`](crate::localized::words::COUNTS).
-        more: "chips.more" = "+{n} more";
-        clear_all: "chips.clearAll" = "Clear All";
+        more: "chipField.more" = "+{n} more";
+        clear_all: "chipField.clearAll" = "Clear All";
         /// A partial chip's accessible name (the asterisk is only drawn): `{name}`.
-        partial: "chips.partial" = "{name}, some of the selection";
+        partial: "chipField.partial" = "{name}, some of the selection";
     }
 }
 
@@ -123,7 +123,7 @@ pub struct ChipFieldResponse {
 ///   Backspace, Enter and Space ([`KeyClaim`](crate::behavior::KeyClaim)), so the app's Delete
 ///   command doesn't run while a chip has the focus. The focused chip draws the focus ring.
 /// - **AccessKit.** A `List` named by its label; each chip a `ListItem` named by its full name
-///   (and [`ChipLabels::partial`]), with a child `Button` [`ChipLabels::remove`].
+///   (and [`ChipFieldLabels::partial`]), with a child `Button` [`ChipFieldLabels::remove`].
 pub struct ChipField<'a> {
     id_salt: IdSalt,
     label: String,
@@ -132,7 +132,7 @@ pub struct ChipField<'a> {
     clear_all: bool,
     size: ControlSize,
     enabled: bool,
-    labels: Option<ChipLabels>,
+    labels: Option<ChipFieldLabels>,
 }
 
 impl<'a> ChipField<'a> {
@@ -151,7 +151,7 @@ impl<'a> ChipField<'a> {
     }
 
     /// Words other than the installed ones.
-    pub fn labels(mut self, labels: ChipLabels) -> Self {
+    pub fn labels(mut self, labels: ChipFieldLabels) -> Self {
         self.labels = Some(labels);
         self
     }
@@ -180,7 +180,7 @@ impl<'a> ChipField<'a> {
 
     // lightcraft: crates/ui-egui/src/panels/keywording.rs:80 chip, :243 chip_groups; lightcraft: crates/ui-egui/src/panels/chips.rs:92 show
     pub fn show(self, ui: &mut Ui) -> ChipFieldResponse {
-        let labels = self.labels.clone().unwrap_or_else(|| ChipLabels::of(ui));
+        let labels = self.labels.clone().unwrap_or_else(|| ChipFieldLabels::of(ui));
         let tokens = Tokens::of(ui);
         let enabled = self.enabled && ui.is_enabled();
         let look = Look::new(ui, &tokens, &labels, self.size, enabled);
@@ -321,7 +321,7 @@ fn arrangement_text(chip: &Chip<'_>) -> String {
 }
 
 /// "+N more" for `hidden` chips.
-fn more_text(ctx: &Context, labels: &ChipLabels, hidden: usize) -> String {
+fn more_text(ctx: &Context, labels: &ChipFieldLabels, hidden: usize) -> String {
     Words::of_ctx(ctx).counted(ctx, counts::MORE, &labels.more, hidden as u64)
 }
 
@@ -398,7 +398,7 @@ impl ChipField<'static> {
 /// Sizes and colours of one pass.
 struct Look<'a> {
     tokens: &'a UiTokens,
-    labels: &'a ChipLabels,
+    labels: &'a ChipFieldLabels,
     height: f32,
     /// Width of the × target.
     cross: f32,
@@ -421,7 +421,7 @@ struct Look<'a> {
 }
 
 impl<'a> Look<'a> {
-    fn new(ui: &Ui, tokens: &'a UiTokens, labels: &'a ChipLabels, size: ControlSize, enabled: bool) -> Self {
+    fn new(ui: &Ui, tokens: &'a UiTokens, labels: &'a ChipFieldLabels, size: ControlSize, enabled: bool) -> Self {
         let style = ChipField::style(tokens, size);
         Self {
             tokens,

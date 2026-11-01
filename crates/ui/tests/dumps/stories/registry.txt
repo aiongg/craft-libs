@@ -85,20 +85,21 @@ controls/number-field/event-log = Number field | Event log | Panel | update rate
 controls/angle-dial/dial = Angle dial | Angle dial | Panel | range=Choice { options: ["-180 to 180", "-360 to 360", "0 to 90"], index: 0 }; orientation=Choice { options: ["counter-clockwise", "clockwise"], index: 0 }; field=Bool(true); size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/angle-dial/dialog = Angle dial | Dialog (field scope) | Panel | 
 controls/point-picker/picker = Point picker | Point picker | Panel | pixels=Bool(false); disabled=Bool(false)
-controls/chips/keywords = Chip field | Keywords | Panel | size=Choice { options: ["sm", "md"], index: 1 }; limit lines=Bool(true); max lines=Number { value: 2.0, min: 1.0, max: 6.0 }; disabled=Bool(false)
-controls/chips/filters = Chip field | Filters | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/chip-field/keywords = Chip field | Keywords | Panel | size=Choice { options: ["sm", "md"], index: 1 }; limit lines=Bool(true); max lines=Number { value: 2.0, min: 1.0, max: 6.0 }; disabled=Bool(false)
+controls/chip-field/filters = Chip field | Filters | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/tree-picker/albums = Tree picker | Albums | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/icon-picker/icons = Icon picker | Icons | Panel | 
-controls/linked/size = Linked fields | Size | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
-controls/linked/margins = Linked fields | Margins | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/linked-fields/size = Linked fields | Size | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/linked-fields/clone-source = Linked fields | Clone source | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/linked-fields/margins = Linked fields | Margins | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/preview-select/underline = Preview select | Underline | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 controls/split-button/trace = Split button | Trace | Panel | variant=Choice { options: ["primary", "secondary", "ghost", "danger"], index: 1 }; size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/breadcrumb/path = Breadcrumb | Path | Panel | width=Number { value: 420.0, min: 120.0, max: 640.0 }
 controls/rating/stars = Rating | Stars | Panel | disabled=Bool(false)
-controls/date/picker = Date picker | Picker | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/date-picker/picker = Date picker | Picker | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/alt-text/field = Alt text | Field | Panel | mixed=Bool(false)
-controls/autocomplete/functions = Autocomplete | Functions | Panel | size=Choice { options: ["sm", "md"], index: 1 }
-controls/mixed/apply-rows = Apply row | Apply rows | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/autocomplete/functions = Autocomplete | Functions | Panel | 
+controls/apply-row/apply-rows = Apply row | Apply rows | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 controls/reset-dot/fields = Reset dot | Fields | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 composites/field/dialog = Field | Dialog | Panel | above=Bool(false); help=Bool(true); error=Bool(false)
 composites/form-grid/image-size = FormGrid | Image size | Panel | roomy=Bool(false); labels at start=Bool(false)
@@ -143,8 +144,8 @@ composites/list/reorder-refused = List | Refused targets | Panel |
 composites/list/reorder-copy = List | Copy with Alt | Panel | 
 composites/findings-list/list = FindingsList | List | Panel | errors=Number { value: 2.0, min: 0.0, max: 4.0 }; warnings=Number { value: 3.0, min: 0.0, max: 5.0 }; summary=Bool(true); width=Number { value: 420.0, min: 240.0, max: 640.0 }
 composites/table/files = Table | Files | Panel | striped=Bool(true); movable=Bool(true)
-composites/table/metadata = MetadataTable | Metadata | Panel | column picker=Bool(false)
-composites/table/events = EventLog | Events | Panel | 
+composites/metadata-table/metadata = Metadata table | Metadata | Panel | column picker=Bool(false)
+composites/event-log/events = Event log | Events | Panel | 
 composites/menu/menus = Menu | Menus | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true); rows=Number { value: 40.0, min: 5.0, max: 200.0 }
 composites/menu/context-menu = ContextMenu | Context menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true)
 composites/menu/press-menu = PressMenu | Press menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true)
@@ -194,9 +195,9 @@ patterns/dds-options-dialog/dialog = DdsOptionsDialog | Dialog | Panel | open=Bo
 composites/watermark-editor/group = WatermarkEditor | Group | Panel | style=Choice { options: ["text", "graphic"], index: 0 }; vertical=Bool(false); width=Number { value: 360.0, min: 240.0, max: 480.0 }
 composites/output-path-row/row = OutputPathRow | Row | Panel | templates=Bool(true); file chosen=Bool(false)
 patterns/recovery-dialog/dialog = RecoveryDialog | Dialog | Panel | open=Bool(true); age=Choice { options: ["seconds", "minutes", "hours", "days"], index: 1 }; recover blocked=Bool(false)
-patterns/dialog/new-guide = Dialog | New Guide | Panel | open=Bool(true); ruler=Choice { options: ["pixels", "inches", "millimetres"], index: 0 }
-patterns/dialog/edit-guides = Dialog | Edit Selected Guides | Panel | open=Bool(true); ruler=Choice { options: ["pixels", "inches", "millimetres"], index: 0 }; horizontal guide=Bool(false)
-patterns/dialog/guide-layout = Dialog | New Guide Layout | Panel | open=Bool(true); ruler=Choice { options: ["pixels", "inches", "millimetres"], index: 0 }; existing guides=Bool(true); artboards=Bool(false)
+patterns/dialog/new-guide = Dialog | New guide | Panel | open=Bool(true); ruler=Choice { options: ["pixels", "inches", "millimetres"], index: 0 }
+patterns/dialog/edit-guides = Dialog | Edit selected guides | Panel | open=Bool(true); ruler=Choice { options: ["pixels", "inches", "millimetres"], index: 0 }; horizontal guide=Bool(false)
+patterns/dialog/guide-layout = Dialog | New guide layout | Panel | open=Bool(true); ruler=Choice { options: ["pixels", "inches", "millimetres"], index: 0 }; existing guides=Bool(true); artboards=Bool(false)
 patterns/dialog/about = Dialog | About | Panel | open=Bool(true); tab=Choice { options: ["about", "contributors", "models"], index: 0 }; community button=Bool(true)
 patterns/dialog/password = Dialog | Password | Panel | open=Bool(true); purpose=Choice { options: ["open", "permissions", "set"], index: 0 }; wrong password=Bool(false)
 patterns/dialog/list-manager = Dialog | List manager | Panel | open=Bool(true); searchable=Bool(false); empty=Bool(false); note=Bool(true)
@@ -207,7 +208,7 @@ patterns/preferences/window = PreferencesWindow | Window | Panel | search=Text("
 patterns/settings-document/window = SettingsDocument | Window | Panel | search=Text(""); width=Number { value: 760.0, min: 560.0, max: 1040.0 }; height=Number { value: 480.0, min: 400.0, max: 800.0 }
 patterns/options-bar/brush-and-transform = OptionsBar | Brush and transform | Chrome | narrow=Bool(false); session=Bool(true); disabled=Bool(false); two_rows=Bool(false); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
 patterns/options-bar/cells = OptionsBar | Value cells | Chrome | narrow=Bool(false); expressions=Bool(true); digit keys=Bool(true)
-patterns/align-bar/bar = AlignBar | Align bar | Panel | distribute=Choice { options: ["menu", "row"], index: 0 }; distribute enabled=Bool(true)
+patterns/align-bar/bar = Align bar | Align bar | Panel | distribute=Choice { options: ["menu", "row"], index: 0 }; distribute enabled=Bool(true)
 patterns/status-bar/photocraft = StatusBar | PhotoCraft | Chrome | message=Text("Saved to Documents"); error=Bool(false); render_path=Bool(true); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
 patterns/status-bar/job = StatusBar | Job | Chrome | 
 patterns/status-bar/error = StatusBar | Error | Chrome | message=Text("Couldn't save: the disk is full"); error=Bool(true); render_path=Bool(true); width=Number { value: 640.0, min: 160.0, max: 1200.0 }

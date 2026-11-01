@@ -10,22 +10,27 @@ use crate::theme::{Base, install};
 
 struct App {
     host: DialogHost,
-    answers: Vec<DialogResult<ListChoice>>,
+    answers: Vec<DialogResult<ListManagerChoice>>,
 }
 
-fn entry(id: &str, name: &str, kind: u32) -> ListEntry {
-    ListEntry { id: id.into(), name: name.into(), detail: None, description: format!("About {name}"), kind }
+fn entry(id: &str, name: &str, kind: u32) -> ListManagerEntry {
+    ListManagerEntry { id: id.into(), name: name.into(), detail: None, description: format!("About {name}"), kind }
 }
 
-fn entries() -> Vec<ListEntry> {
-    vec![entry("a", "Alpha", 1), ListEntry { detail: Some("Ctrl+B".into()), ..entry("b", "Beta", 1) }, entry("g", "Gamma", 2)]
+fn entries() -> Vec<ListManagerEntry> {
+    vec![entry("a", "Alpha", 1), ListManagerEntry { detail: Some("Ctrl+B".into()), ..entry("b", "Beta", 1) }, entry("g", "Gamma", 2)]
 }
 
 fn dialog(searchable: bool) -> ListManagerDialog {
     let labels = ListManagerLabels::default();
     ListManagerDialog::new("macros", "Macros", "Macro name:")
         .entries(entries())
-        .actions(vec![ListAction::run(&labels), ListAction::edit(&labels).kind(1), ListAction::create(&labels), ListAction::delete(&labels)])
+        .actions(vec![
+            ListManagerAction::run(&labels),
+            ListManagerAction::edit(&labels).kind(1),
+            ListManagerAction::create(&labels),
+            ListManagerAction::delete(&labels),
+        ])
         .searchable(searchable)
 }
 
@@ -81,7 +86,7 @@ fn name_box_selects_and_enables_actions() {
     harness.key_press(Key::Enter);
     harness.run();
     let Some(DialogResult::Ok(choice)) = harness.state_mut().answers.pop() else { panic!("Enter runs the first action") };
-    assert_eq!(choice, ListChoice { action: "run".into(), entry: Some("a".into()), name: "Alpha".into() });
+    assert_eq!(choice, ListManagerChoice { action: "run".into(), entry: Some("a".into()), name: "Alpha".into() });
 
     let mut harness = self::harness(dialog(false));
     harness.run();
@@ -90,7 +95,7 @@ fn name_box_selects_and_enables_actions() {
     harness.get_by_label("Create").click();
     harness.run();
     let Some(DialogResult::Ok(choice)) = harness.state_mut().answers.pop() else { panic!("Create answers") };
-    assert_eq!(choice, ListChoice { action: "create".into(), entry: None, name: "brand new".into() });
+    assert_eq!(choice, ListManagerChoice { action: "create".into(), entry: None, name: "brand new".into() });
 
     let mut harness = self::harness(dialog(false));
     harness.run();

@@ -76,7 +76,7 @@ crate::words! {
 
 crate::words! {
     /// The description of a clipped row for a screen reader.
-    struct ClippedLabels {
+    pub(crate) struct ClippedLabels {
         clipped: "list.clipped" = "Clipped to the layer below";
     }
 }
