@@ -5,8 +5,8 @@
 //! halves and the divider are craft-ui's [`SplitViews`](craft_ui::canvas::SplitViews) with
 //! [`SplitLayout::Two`](craft_ui::canvas::SplitLayout::Two).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
+use craft_ui::canvas::{SplitLayout, SplitViews};
+use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::Ui;
 
 use super::view::{PageViewResponse, PageViewState};
@@ -53,8 +53,60 @@ impl<'a> SyncedViews<'a> {
         self,
         ui: &mut Ui,
         states: (&mut PageViewState, &mut PageViewState),
-        half: impl FnMut(&mut Ui, &mut PageViewState, Lead) -> PageViewResponse,
+        mut half: impl FnMut(&mut Ui, &mut PageViewState, Lead) -> PageViewResponse,
     ) -> (PageViewResponse, PageViewResponse) {
-        todo!()
+        let rect = ui.available_rect_before_wrap();
+        let rects = SplitLayout::Two.rects(Tokens::of(ui).component.split.gap, rect);
+        // `SplitLayout::Two` puts pane 0 (the main view) on the right.
+        if let Some(pointer) = ui.input(|i| i.pointer.hover_pos()) {
+            if rects[1].contains(pointer) {
+                self.state.lead = Lead::Left;
+            } else if rects[0].contains(pointer) {
+                self.state.lead = Lead::Right;
+            }
+        }
+        let lead = self.state.lead;
+        let last_offset = &mut self.state.last_offset;
+        let (left, right) = states;
+        let (leader, follower) = match lead {
+            Lead::Left => (left, right),
+            Lead::Right => (right, left),
+        };
+        let active = match lead {
+            Lead::Left => 1,
+            Lead::Right => 0,
+        };
+        let mut responses: [Option<PageViewResponse>; 2] = [None, None];
+        SplitViews::new(self.id_salt, SplitLayout::Two).active(active).first(active).show(ui, rect, |ui, pane, _| {
+            let this = if pane == 1 { Lead::Left } else { Lead::Right };
+            if this == lead {
+                responses[pane] = Some(half(ui, leader, this));
+            } else {
+                follow(leader, follower, last_offset);
+                responses[pane] = Some(half(ui, follower, this));
+            }
+        });
+        ui.advance_cursor_after_rect(rect);
+        let [Some(right), Some(left)] = responses else { unreachable!("SplitViews draws every pane") };
+        (left, right)
     }
+}
+
+/// The follower takes the leader's zoom and layout, and its scroll offset once the leader has
+/// moved since the last copy. Returns whether anything changed.
+// pdfcraft: crates/ui-egui/src/workflows/compare_ui.rs:362 `compare_area`.
+fn follow(leader: &PageViewState, follower: &mut PageViewState, last_offset: &mut Option<(f64, f64)>) -> bool {
+    let before = follower.clone();
+    follower.zoom = leader.zoom;
+    follower.fit = leader.fit;
+    follower.display = leader.display;
+    follower.continuous = leader.continuous;
+    follower.cover = leader.cover;
+    follower.page_gaps = leader.page_gaps;
+    follower.hide_white_space = leader.hide_white_space;
+    if *last_offset != Some(leader.offset) {
+        follower.offset = leader.offset;
+        *last_offset = Some(leader.offset);
+    }
+    *follower != before
 }

@@ -87,12 +87,13 @@ pub struct SplitViews {
     id_salt: IdSalt,
     layout: SplitLayout,
     active: usize,
+    first: Option<usize>,
     labels: Option<SplitLabels>,
 }
 
 impl SplitViews {
     pub fn new(id_salt: impl AsIdSalt, layout: SplitLayout) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), layout, active: 0, labels: None }
+        Self { id_salt: IdSalt::new(id_salt), layout, active: 0, first: None, labels: None }
     }
 
     /// The pane names, instead of the labels installed in the context.
@@ -105,6 +106,13 @@ impl SplitViews {
     /// when there is more than one pane.
     pub fn active(mut self, active: usize) -> Self {
         self.active = active;
+        self
+    }
+
+    /// Draw pane `first` before the others (its call to `pane` comes first); every pane keeps its
+    /// position, name and tab order. By default panes are drawn in reading order.
+    pub fn first(mut self, first: usize) -> Self {
+        self.first = Some(first);
         self
     }
 
@@ -126,7 +134,12 @@ impl SplitViews {
             ra.min.y.total_cmp(&rb.min.y).then(ra.min.x.total_cmp(&rb.min.x))
         });
         let numbers = LocaleNumbers::of(ui);
-        for (slot, &i) in order.iter().enumerate() {
+        let mut drawn = order.clone();
+        if let Some(at) = self.first.and_then(|f| drawn.iter().position(|&i| i == f)) {
+            drawn[..=at].rotate_right(1);
+        }
+        for &i in &drawn {
+            let slot = order.iter().position(|&o| o == i).unwrap_or(i);
             let r = rects[i];
             let taken = rects.len() > 1 && i != self.active && pressed && ui.rect_contains_pointer(r);
             let inactive = rects.len() > 1 && i != self.active;
