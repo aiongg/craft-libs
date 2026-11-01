@@ -8,7 +8,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use egui::accesskit::Action;
-use egui::{AsIdSalt, Context, Id, Rect, Response, Shape, Stroke, Ui, pos2};
+use egui::{AsIdSalt, Color32, Context, Id, Painter, Rect, Response, Shape, Stroke, Ui, pos2};
 
 use super::row::{ListRow, ListRowStyle, RowEvent, RowResponse};
 use crate::behavior::DisplayOrder;
@@ -190,16 +190,22 @@ pub(super) fn show_disclosure<K: Clone>(
         return;
     }
     let color = if response.hovered() { style.icon_hover } else { style.icon };
-    let s = TRIANGLE_HALF * style.disclosure;
+    paint_disclosure(ui.painter(), rect, branch.open, direction::is_rtl(ui), color);
+}
+
+/// Paints a disclosure triangle in `rect`, a column as wide as `list.disclosure`: down when
+/// `open`, else toward the reading end (left when `rtl`).
+pub fn paint_disclosure(painter: &Painter, rect: Rect, open: bool, rtl: bool, color: Color32) {
+    let s = TRIANGLE_HALF * rect.width();
     let c = rect.center();
-    let flip = if direction::is_rtl(ui) { -1.0 } else { 1.0 };
-    let points = if branch.open {
+    let flip = if rtl { -1.0 } else { 1.0 };
+    let points = if open {
         vec![pos2(c.x - s, c.y - s * TRIANGLE_DEPTH), pos2(c.x + s, c.y - s * TRIANGLE_DEPTH), pos2(c.x, c.y + s * TRIANGLE_DEPTH)]
     } else {
         let d = flip * s * TRIANGLE_DEPTH;
         vec![pos2(c.x - d, c.y - s), pos2(c.x + d, c.y), pos2(c.x - d, c.y + s)]
     };
-    ui.painter().add(Shape::convex_polygon(points, color, Stroke::NONE));
+    painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
 }
 
 /// The open groups of a tree, for a host without a model of its own: kept in egui memory under

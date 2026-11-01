@@ -788,7 +788,11 @@ fn marquee() {
 fn list_row() {
     check("list_row.txt", |d, t| {
         let s = ListRow::<u8>::style(t);
-        d.line("row_height", s.row_height).line("thumb.sm", s.thumb.sm).line("thumb.md", s.thumb.md).line("thumb.lg", s.thumb.lg);
+        d.line("row_height", s.row_height)
+            .line("row_height_dense", s.row_height_dense)
+            .line("thumb.sm", s.thumb.sm)
+            .line("thumb.md", s.thumb.md)
+            .line("thumb.lg", s.thumb.lg);
         d.line("thumb_pad", s.thumb_pad).line("thumb_row_min", s.thumb_row_min).line("pad_x", s.pad_x).line("gap", s.gap);
         d.line("indent", s.indent)
             .line("disclosure", s.disclosure)
