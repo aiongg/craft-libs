@@ -4,6 +4,15 @@
 
 use egui::{AsIdSalt, Galley, IdSalt, Rect, Response, Ui};
 
+crate::words! {
+    /// The list's words, English by default.
+    #[non_exhaustive]
+    pub struct AutocompleteLabels {
+        /// The popup's accessible name (a `ListBox`).
+        suggestions: "autocomplete.suggestions" = "Suggestions";
+    }
+}
+
 /// One suggestion: what it inserts, an optional mark before it (GridCraft's "ƒ" for a function)
 /// and an optional description shown while it is active.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,20 +85,32 @@ pub struct AutocompleteResponse {
 /// - **Keys** (in [`take_keys`](Self::take_keys), while the list shows): ↑ and ↓ move the active
 ///   row and wrap; Tab accepts it; Enter accepts it only with
 ///   [`enter_accepts`](Self::enter_accepts) (GridCraft: Enter commits the cell); Esc closes the
-///   list. Other keys stay the editor's. With the list closed nothing is taken.
+///   list. The keys are consumed in `take_keys`, before the editor and anything drawn after it
+///   read the pass's input, so the editor never sees them and a dialog's Esc doesn't cancel
+///   (the field reports no [`escaped`](crate::edit::EditResponse::escaped)). Other keys stay
+///   the editor's, in the same pass. With the list closed nothing is taken. The list is not a
+///   keyboard-owning popup: [`focus::key_owner`](crate::focus::key_owner) keeps reporting the
+///   focused text field.
 /// - **Pointer.** A click on a row accepts it.
-/// - **AccessKit.** The popup is a `ListBox` named by the label, with the active row as the
-///   editor's `active_descendant` while it shows.
+/// - **AccessKit.** The popup is a `ListBox` named [`AutocompleteLabels::suggestions`], with the
+///   active row as the editor's `active_descendant` while it shows.
 pub struct Autocomplete<'a> {
     id_salt: IdSalt,
     suggestions: &'a [Suggestion],
     enter_accepts: bool,
     bounds: Option<Rect>,
+    labels: Option<AutocompleteLabels>,
 }
 
 impl<'a> Autocomplete<'a> {
     pub fn new(id_salt: impl AsIdSalt, suggestions: &'a [Suggestion]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), suggestions, enter_accepts: false, bounds: None }
+        Self { id_salt: IdSalt::new(id_salt), suggestions, enter_accepts: false, bounds: None, labels: None }
+    }
+
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: AutocompleteLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// Enter accepts the active suggestion too (a code editor's); off by default.

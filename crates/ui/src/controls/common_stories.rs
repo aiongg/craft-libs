@@ -3,6 +3,11 @@
 //! `every_story_shows_with_its_default_args` would run the `todo!()` bodies; the stories fill
 //! task writes them, registers them, adds their components to the `COMPONENTS` list and
 //! regenerates the dump.
+//!
+//! Every string a story shows (chip names, album names, presets, paths, suggestions) goes
+//! through the story words, so the gallery's pseudo-locale test sees no stray English. No story
+//! reads the platform: the date story fixes today with `DatePicker::today`, the tree picker's
+//! and breadcrumb's data are fixed lists.
 
 #![expect(dead_code, clippy::todo, reason = "skeleton: removed when the bodies land")]
 

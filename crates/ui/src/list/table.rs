@@ -26,6 +26,9 @@ crate::words! {
         reset_columns: "table.resetColumns" = "Reset Columns";
         /// A header's tooltip (PdfCraft's, Title Case dropped: it is a sentence).
         header_tip: "table.headerTip" = "Click to sort, drag to move the column. Drag its edge to resize it.";
+        /// A column edge's accessible name (a `Splitter`): `{column}` the label of the column it
+        /// resizes.
+        resize_column: "table.resizeColumn" = "Resize {column}";
         /// What the body shows with no rows.
         empty: "table.empty" = "No items";
     }
@@ -216,11 +219,11 @@ pub struct TableStyle {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum TableEvent<K, C> {
-    /// A header was clicked: the layout's sort has changed to this; the host sorts its rows
-    /// ([`TableSort::apply`]) before the next pass.
+    /// A header was clicked, or Space or Enter pressed on one: the layout's sort has changed to
+    /// this; the host sorts its rows ([`TableSort::apply`]).
     Sort(TableSort<C>),
-    /// The user resized, moved, hid, showed or reset columns: the layout has changed; the host
-    /// saves it.
+    /// The user resized (pointer or keys), moved, hid, showed or reset columns: the layout has
+    /// changed; the host saves it.
     Layout,
     /// The selection changed, by the rules of [`ListSelection`](crate::behavior::ListSelection).
     Selection(SelectionChange<K>),
@@ -230,11 +233,15 @@ pub enum TableEvent<K, C> {
     ContextMenu(ContextMenuRequest<K>),
 }
 
-/// What [`Table::show`] returns.
+/// What [`Table::show`] returns: a composite of header, edges and body, as
+/// [`ListOutput`](super::ListOutput).
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct TableResponse<K, C> {
+#[must_use = "the host applies the table's events"]
+pub struct TableOutput<K, C> {
+    /// The body: its focus and its rect.
     pub response: Response,
+    /// What happened this pass, in order.
     pub events: Vec<TableEvent<K, C>>,
 }
 
@@ -266,8 +273,21 @@ pub struct TableResponse<K, C> {
 ///   marks the edge it would go to (the side of the target's centre the pointer is on), and the
 ///   release moves it. A drag on the edge between two headers resizes the column on its left
 ///   (on its right in a right-to-left interface) down to its least width; the cursor shows
-///   `ResizeColumn` over the edge. A double click on an edge fits the column to its widest
-///   shown cell (no app does; Photoshop's Shortcuts table does).
+///   `ResizeColumn` over the edge. Esc or focus loss during an edge drag puts back the width
+///   from before the drag (the dock's resize rule). A double click on an edge fits the column
+///   to its widest shown cell (no app does; Photoshop's Shortcuts table does).
+/// - **Edges.** Each shown column's trailing edge is a
+///   [`ResizeHandle`](crate::layout::ResizeHandle), the widget the split panes and the dock's
+///   column and stack dividers use, so a column resizes by the suite's keyboard rule: the edge
+///   is a Tab stop right after its column's header; ← and → (physical, as on every divider) move
+///   it by the handle's keyboard step (8 points), down to the column's least width and up to
+///   4000; the handle's `value(width, min..=4000)` exposes the width to AccessKit as a
+///   `Splitter` named [`TableLabels::resize_column`], with Increment, Decrement and SetValue;
+///   `reversed` is set in a right-to-left interface, where the edge is the column's left one and
+///   moving it left widens the column. A pointer drag focuses the edge only for the gesture,
+///   as on the dividers. Each step changes the layout's widths at once
+///   (the first one writes every shown column's width, as the first drag does) and reports
+///   [`TableEvent::Layout`] in the same pass.
 /// - **Header menu.** A secondary click on the header (on a cell or the empty part after the last
 ///   one) opens a [`ContextMenu`](crate::menu::ContextMenu): "Columns" over a keep-open check row
 ///   per hideable column ([`MenuItem::keep_open`](crate::menu::MenuItem::keep_open)), then
@@ -285,8 +305,12 @@ pub struct TableResponse<K, C> {
 /// - **Keys and focus.** One Tab stop for the body, as a [`List`](super::List): the list keys and
 ///   the selection rules of [`ListSelection`](crate::behavior::ListSelection), Enter activates.
 ///   The headers are buttons the Tab key visits after the body is left (Shift+Tab from the body
-///   reaches them); Space or Enter on one sorts, Shift+F10 opens the header menu, and
-///   Ctrl+← / Ctrl+→ (Cmd on macOS) move its column. Resizing has no key (no app has one).
+///   reaches them), each followed by its column's edge (above); Space or Enter on a header
+///   sorts, the Menu key and Shift+F10 open the header menu, and Ctrl+← / Ctrl+→ (Cmd on macOS)
+///   move its column. A focused header claims Space, Enter and those chords
+///   ([`KeyClaim`](crate::behavior::KeyClaim)), so the app's shortcuts don't take them
+///   ([`focus::key_owner`](crate::focus::key_owner) reports a focused widget); every event of
+///   the pass is handled in order in that pass.
 /// - **AccessKit.** The table is a `Table` named by its label with `row_count` and
 ///   `column_count`; each header a `ColumnHeader` named by its label, or by
 ///   [`TableLabels::header_sorted`] while it sorts, with `sort_direction`; each row a `Row`
@@ -366,7 +390,7 @@ where
     }
 
     // pdfcraft: crates/ui-egui/src/workflows/combine_ui/table.rs:32 table, :96 heading, :167 table_body
-    pub fn show(self, ui: &mut Ui, cell: impl FnMut(&mut Ui, &K, &C)) -> TableResponse<K, C> {
+    pub fn show(self, ui: &mut Ui, cell: impl FnMut(&mut Ui, &K, &C)) -> TableOutput<K, C> {
         todo!()
     }
 }

@@ -22,10 +22,11 @@ fn a_repeated_event_shows_its_count() {
     todo!()
 }
 
-// `event_age`: 4 s "just now", 12 s "12 s ago", 3 min, 2 h; a future time is "just now".
+// A row 3 minutes older than `now_ms` reads "3 minutes ago" (`relative_age`), one newer than
+// `now_ms` "less than a minute ago"; the bar reads "1 error" and "2 warnings".
 #[test]
 #[ignore = "skeleton"]
-fn ages_follow_filmcrafts_steps() {
+fn rows_show_their_age_and_the_bar_counts_in_plural_forms() {
     todo!()
 }
 

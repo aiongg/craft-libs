@@ -4,9 +4,10 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::{AsIdSalt, IdSalt, Ui};
 
 use super::ControlSize;
+use crate::edit::EditResponse;
 use crate::icons::Icon;
 
 crate::words! {
@@ -38,20 +39,11 @@ pub struct TreeEntry<K> {
     pub icon: Option<Icon>,
 }
 
-/// What the picker reported this pass.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct TreePickerResponse<K> {
-    pub response: Response,
-    /// The item picked this pass; the value is already set to it.
-    pub picked: Option<K>,
-}
-
 /// A drop-down tree, after LightCraft's album picker.
 ///
 /// ```ignore
 /// let out = TreePicker::new("target", "Album", &mut rule.album, &entries).show(ui);
-/// if out.picked.is_some() { save(rule) }
+/// if let Some(EditEvent::Set { value: album, .. }) = out.event { save(rule) }
 /// ```
 ///
 /// - **Field.** Looks and sizes as a closed [`Select`](crate::controls::Select): the chosen
@@ -67,7 +59,12 @@ pub struct TreePickerResponse<K> {
 ///   closes the popup and gives the focus back to the field. On the closed field Enter, Space
 ///   and Alt+↓ open it.
 /// - **Pointer.** A click on an item picks it and closes the popup; a click on a folder opens or
-///   closes it; a blocked item does nothing and shows its reason.
+///   closes it; a blocked item does nothing and shows its reason. The press that closes the
+///   popup outside it does nothing else (the menus' closing-press rule).
+/// - **Report.** A pick is a one-shot [`Set`](crate::edit::EditEvent::Set) of the new value in
+///   the [`EditResponse`], as a [`Select`](crate::controls::Select)'s; the value is already set.
+///   Browsing, searching and Esc report nothing. While the popup is open it owns the keys
+///   ([`focus::key_owner`](crate::focus::key_owner) reports a popup list).
 /// - **AccessKit.** The field is a `ComboBox` named by its label with the path as its value; the
 ///   rows are the list's `Tree` and `TreeItem`s.
 pub struct TreePicker<'a, K> {
@@ -78,12 +75,28 @@ pub struct TreePicker<'a, K> {
     placeholder: Option<String>,
     size: ControlSize,
     enabled: bool,
+    labels: Option<TreePickerLabels>,
 }
 
 impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K> {
     /// A picker named `label` (its accessible name) editing `value` over `entries` in tree order.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: &'a mut Option<K>, entries: &'a [TreeEntry<K>]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), label: label.into(), value, entries, placeholder: None, size: ControlSize::Md, enabled: true }
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
+            value,
+            entries,
+            placeholder: None,
+            size: ControlSize::Md,
+            enabled: true,
+            labels: None,
+        }
+    }
+
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: TreePickerLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// The field's text with nothing chosen (as shown, translated).
@@ -103,7 +116,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
     }
 
     // lightcraft: crates/ui-egui/src/widgets/album_picker.rs:201 show, :208 show_with_choices
-    pub fn show(self, ui: &mut Ui) -> TreePickerResponse<K> {
+    pub fn show(self, ui: &mut Ui) -> EditResponse<Option<K>> {
         todo!()
     }
 }

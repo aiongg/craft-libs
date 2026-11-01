@@ -32,10 +32,11 @@ pub struct IconPickerGroup<K> {
     pub items: Vec<IconPickerItem<K>>,
 }
 
-/// What the picker reported this pass.
+/// What the picker reported this pass: a composite of the search field and the grid.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct IconPickerResponse<K> {
+pub struct IconPickerOutput<K> {
+    /// The grid: its focus and its rect.
     pub response: Response,
     /// The cell clicked or activated with Enter this pass. A host showing the picker in a
     /// popover closes it.
@@ -67,7 +68,10 @@ type PaintCell<'a, K> = Box<dyn Fn(&Painter, Rect, &K, Color32) + 'a>;
 /// - **Keys.** ↓ from the search field moves into the grid; the arrows move the active cell
 ///   over every shown cell as one wrapped grid ([`GridNav`](crate::behavior::GridNav)); Enter
 ///   or Space picks it; ↑ from the first row goes back to the search field; typing a letter in
-///   the grid goes to the search field with it. The active cell draws the focus ring.
+///   the grid goes to the search field with it, in the same pass (the letter is typed after the
+///   focus moves). The grid is one Tab stop
+///   ([`GridNav::roving_move`](crate::behavior::GridNav::roving_move)); the active cell draws the
+///   focus ring.
 /// - **AccessKit.** The cells are a `Grid` named by the picker's label; each cell a `GridCell`
 ///   named by its label.
 pub struct IconPicker<'a, K> {
@@ -76,6 +80,7 @@ pub struct IconPicker<'a, K> {
     groups: &'a [IconPickerGroup<K>],
     paint: PaintCell<'a, K>,
     max_height: f32,
+    labels: Option<IconPickerLabels>,
 }
 
 impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
@@ -86,7 +91,7 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
         groups: &'a [IconPickerGroup<K>],
         paint: impl Fn(&Painter, Rect, &K, Color32) + 'a,
     ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), label: label.into(), groups, paint: Box::new(paint), max_height: 420.0 }
+        Self { id_salt: IdSalt::new(id_salt), label: label.into(), groups, paint: Box::new(paint), max_height: 420.0, labels: None }
     }
 
     /// The most the grid takes before it scrolls (default 420).
@@ -95,9 +100,15 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
         self
     }
 
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: IconPickerLabels) -> Self {
+        self.labels = Some(labels);
+        self
+    }
+
     // deckcraft: crates/ui-egui/src/ribbon/insert.rs:199 icon_library, :217 icon_cell
     // pdfcraft: crates/ui-egui/src/panels/all_tools_ui.rs:45 show (groups, search)
-    pub fn show(self, ui: &mut Ui) -> IconPickerResponse<K> {
+    pub fn show(self, ui: &mut Ui) -> IconPickerOutput<K> {
         todo!()
     }
 }

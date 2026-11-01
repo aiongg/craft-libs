@@ -22,7 +22,8 @@ fn linking_equal_fields_copies_the_first() {
     todo!()
 }
 
-// In a harness: a scrub of W with the ratio link reports Begin, Updates and one Commit, each with both values.
+// In a harness: a scrub of W with the ratio link reports Begin, Updates and one Commit, each with both values;
+// typing "100" digit by digit into W of 500×400 ends at 100×80 (the starting ratio, not one drifted per digit).
 #[test]
 #[ignore = "skeleton"]
 fn a_linked_scrub_moves_both_fields_in_one_gesture() {

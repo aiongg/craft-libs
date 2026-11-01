@@ -65,10 +65,13 @@ pub fn fit_font(painter: &Painter, text: &str, font: &FontId, room: f32) -> Opti
     todo!()
 }
 
-/// Black or white, whichever reads on `fill`: white below a luma (0.299 R + 0.587 G + 0.114 B)
-/// of 150, else black. For document colours (a cell fill, a label colour); interface colours
-/// take their `text.on_*` token.
-// gridcraft: crates/ui-egui/src/grid/cell_paint.rs:297 ink_on
+/// Black or white, whichever has the higher WCAG contrast on `fill`
+/// ([`craft_theme::contrast_ratio`]); a tie is white. For document colours (a cell fill, a label
+/// colour); interface colours take their `text.on_*` token. GridCraft's luma rule (white below
+/// 0.299 R + 0.587 G + 0.114 B = 150) disagrees on mid tones: on green `#00C800` it picks
+/// white at 2.3:1 where black has 9.3:1. The suite takes the contrast rule craft-update's
+/// prompt already uses (its private `ink_on` becomes a call to this one).
+// gridcraft: crates/ui-egui/src/grid/cell_paint.rs:296 ink_on; craft-update: crates/update/src/dialog.rs:436 ink_on
 pub fn ink_on(fill: Color32) -> Color32 {
     todo!()
 }

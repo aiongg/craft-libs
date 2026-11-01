@@ -36,7 +36,9 @@ pub struct SplitButtonResponse<T> {
 ///   the button's, the inner ones square.
 /// - **Menu.** A press on the arrow opens a [`PressMenu`](crate::menu::PressMenu) of `entries`
 ///   under the button, aligned to its start edge, so press-drag-release chooses in one gesture;
-///   a press on the main part runs the action and never opens the menu.
+///   a press on the main part runs the action and never opens the menu. While the menu is open,
+///   a press outside it (the main part included) only closes it (lead call L21: the closing
+///   press does nothing else); a press on the arrow closes it, as an anchor toggles its menu.
 /// - **Keys.** One Tab stop: Space and Enter run the action; Alt+↓ (and ↓) open the menu with
 ///   its first row active. Esc closes the menu and leaves the focus on the button.
 /// - **AccessKit.** The main part is a `Button` named by the label; the arrow a child `Button`

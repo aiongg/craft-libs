@@ -24,10 +24,16 @@ crate::words! {
         warning: "events.warning" = "Warning";
         error: "events.error" = "Error";
         /// The details line over the selected event's message: `{level}`, `{source}` and
-        /// `{time}` (its age).
+        /// `{time}` (its age, [`relative_age`](crate::localized::relative_age)).
         details: "events.details" = "{level} · {source} · {time}";
-        /// A level's count beside its glyph, for AccessKit: `{level}`, `{n}`.
-        count: "events.count" = "{level}: {n}";
+        /// The count words beside the level glyphs, also their accessible names; each is a
+        /// [`Counted`](crate::localized::words::Counted) word written with
+        /// [`Words::counted`](crate::localized::Words::counted). S5C-F9 adds
+        /// `Counted::new("events.errorCount", "{n} error", "{n} errors")` and the two below to the
+        /// kernel's `counts` and [`COUNTS`](crate::localized::words::COUNTS).
+        error_count: "events.errorCount" = "{n} errors";
+        warning_count: "events.warningCount" = "{n} warnings";
+        message_count: "events.messageCount" = "{n} messages";
     }
 }
 
@@ -52,7 +58,7 @@ pub struct LogEvent {
     /// How many times in a row it happened (1 for once).
     pub count: u32,
     /// When, in milliseconds since the Unix epoch (wasm has no `SystemTime::now`; the app reads
-    /// its clock, FilmCraft through `web_time`).
+    /// its own clock, FilmCraft through `web_time`).
     pub time_ms: u64,
 }
 
@@ -66,10 +72,11 @@ pub struct EventLogState {
     pub selected: Option<u64>,
 }
 
-/// What the log reported this pass.
+/// What the log reported this pass: a composite of the bar, the rows and the details box.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct EventLogResponse {
+pub struct EventLogOutput {
+    /// The rows: their focus and their rect.
     pub response: Response,
     /// Clear All was pressed: the app empties its log (FilmCraft runs `events.clear`). The
     /// selection is already dropped.
@@ -79,47 +86,53 @@ pub struct EventLogResponse {
 /// FilmCraft's Events panel as a component.
 ///
 /// ```ignore
-/// let out = EventLog::new("events", &log_events, &mut panels.events).now(now_ms).show(ui);
+/// let out = EventLog::new("events", &log_events, &mut panels.events, now_ms).show(ui);
 /// if out.clear_all { session.execute("events.clear", json!({})) }
 /// ```
 ///
 /// - **Bar.** A [`Select`](crate::controls::Select) for the least level (All Events, Warnings and
 ///   Errors, Errors Only), then each level's glyph and count (error, warning, info) in
-///   `text.muted`, then Clear All at the end.
+///   `text.muted` ([`EventLogLabels::error_count`], `warning_count`, `message_count`, with the locale's plural
+///   forms), then Clear All at the end.
 /// - **Rows** (newest first, those at or above the filter's level): a [`ListRow`](super::ListRow)
 ///   22 points high with the level glyph ([`paint_event_glyph`]) 10 points in, the message
 ///   (with "(×n)" for a repeated one, [`EventLogLabels::repeated`]) clipped before the age, and
-///   the age at the end in the `Caption` role and `text.faint` ([`event_age`]). Striped.
+///   the age at the end in the `Caption` role and `text.faint`
+///   ([`relative_age`](crate::localized::relative_age) of `now_ms - time_ms` in whole seconds; a
+///   time after `now_ms` is 0). Striped.
 ///   A click selects a row, a click on the selected one deselects it.
 /// - **Details.** With a row selected, a 70-point box under the rows in `field.fill.rest`:
 ///   [`EventLogLabels::details`] then the whole message, wrapping, selectable.
 /// - **Empty.** [`EventLogLabels::none`] in `text.faint`.
 /// - **Keys and AccessKit.** The rows are a [`List`](super::List) (one Tab stop, single
 ///   selection, ↑ ↓ move); each row reads "Warning: Disk almost full, 2 min ago".
-/// - The ages update while the log is shown: the log asks for a repaint after a second while the
-///   newest event is under a minute old, else after a minute.
+/// - The ages are whole minutes and up, so the log asks for a repaint a minute after the pass
+///   while it shows events; the host passes the new `now_ms` then. No timer runs while the log
+///   is hidden.
 pub struct EventLog<'a> {
     id_salt: IdSalt,
     events: &'a [LogEvent],
     state: &'a mut EventLogState,
-    now_ms: Option<u64>,
+    now_ms: u64,
+    labels: Option<EventLogLabels>,
 }
 
 impl<'a> EventLog<'a> {
-    /// The log of `events` in the order they happened (oldest first, as the app appends them).
-    pub fn new(id_salt: impl AsIdSalt, events: &'a [LogEvent], state: &'a mut EventLogState) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), events, state, now_ms: None }
+    /// The log of `events` in the order they happened (oldest first, as the app appends them),
+    /// with ages counted from `now_ms` (milliseconds since the Unix epoch, from the app's clock:
+    /// craft-ui reads no wall clock, and `SystemTime::now` panics on wasm).
+    pub fn new(id_salt: impl AsIdSalt, events: &'a [LogEvent], state: &'a mut EventLogState, now_ms: u64) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), events, state, now_ms, labels: None }
     }
 
-    /// The time the ages are counted from, in milliseconds since the Unix epoch; without it the
-    /// log reads `web_time::SystemTime::now()`.
-    pub fn now(mut self, now_ms: u64) -> Self {
-        self.now_ms = Some(now_ms);
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: EventLogLabels) -> Self {
+        self.labels = Some(labels);
         self
     }
 
     // filmcraft: crates/ui-egui/src/panels/events.rs:52 events
-    pub fn show(self, ui: &mut Ui) -> EventLogResponse {
+    pub fn show(self, ui: &mut Ui) -> EventLogOutput {
         todo!()
     }
 }
@@ -131,14 +144,5 @@ impl<'a> EventLog<'a> {
 /// 1 point lower).
 // filmcraft: crates/ui-egui/src/panels/events.rs:24 glyph
 pub fn paint_event_glyph(painter: &Painter, tokens: &UiTokens, center: Pos2, level: EventLevel) {
-    todo!()
-}
-
-/// How long ago `then_ms` was at `now_ms`, in the words of the interface language: "just now"
-/// under 5 seconds, then seconds, minutes and hours ("12 s ago", "3 min ago", "2 h ago"),
-/// FilmCraft's steps; a time after `now_ms` is "just now".
-// filmcraft: crates/ui-egui/src/panels/events.rs:41 ago
-// needs: services craft-i18n::format relative time (N11.02); the words come from there.
-pub fn event_age(now_ms: u64, then_ms: u64) -> String {
     todo!()
 }

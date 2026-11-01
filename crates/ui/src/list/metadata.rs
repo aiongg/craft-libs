@@ -36,10 +36,11 @@ pub struct MetadataGroup {
     pub rows: Vec<MetadataRow>,
 }
 
-/// What the table reported this pass.
+/// What the table reported this pass: a composite of the filter field, the checks and the rows.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct MetadataResponse {
+pub struct MetadataTableOutput {
+    /// The rows: their focus and their rect.
     pub response: Response,
     /// A check of the column picker changed: the chosen names have changed.
     pub chosen_changed: bool,
@@ -70,18 +71,21 @@ pub struct MetadataResponse {
 ///   filter hides them all, in `text.muted`.
 /// - **Keys and AccessKit.** The rows are one Tab stop, a `Table` with a `Row` per field and
 ///   `Cell`s for name and value; ↑ and ↓ move the focused row and scroll it into view. With
-///   the column picker, Space toggles the focused row's check.
+///   the column picker, Space toggles the focused row's check (claimed with
+///   [`KeyClaim`](crate::behavior::KeyClaim), so the app's Space hand doesn't take it). The
+///   filter's typing and the checks are handled in the pass they arrive, in order.
 pub struct MetadataTable<'a> {
     id_salt: IdSalt,
     groups: &'a [MetadataGroup],
     filter: Option<&'a mut String>,
     chosen: Option<&'a mut Vec<String>>,
     max_height: Option<f32>,
+    labels: Option<MetadataLabels>,
 }
 
 impl<'a> MetadataTable<'a> {
     pub fn new(id_salt: impl AsIdSalt, groups: &'a [MetadataGroup]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), groups, filter: None, chosen: None, max_height: None }
+        Self { id_salt: IdSalt::new(id_salt), groups, filter: None, chosen: None, max_height: None, labels: None }
     }
 
     /// A filter field over the rows, editing `text` (the host keeps it, so it survives the
@@ -103,9 +107,15 @@ impl<'a> MetadataTable<'a> {
         self
     }
 
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: MetadataLabels) -> Self {
+        self.labels = Some(labels);
+        self
+    }
+
     // lightcraft: crates/ui-egui/src/dialogs.rs:662 all_metadata_body
     // filmcraft: crates/ui-egui/src/panels/project_dialogs.rs:124 metadata_display
-    pub fn show(self, ui: &mut Ui) -> MetadataResponse {
+    pub fn show(self, ui: &mut Ui) -> MetadataTableOutput {
         todo!()
     }
 }

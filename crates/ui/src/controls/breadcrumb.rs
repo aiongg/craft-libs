@@ -25,7 +25,7 @@ pub struct Crumb<K> {
 /// What the bar reported this pass.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct BreadcrumbResponse<K> {
+pub struct BreadcrumbBarResponse<K> {
     pub response: Response,
     /// The segment clicked or activated: the app opens it. The last segment (where the user is)
     /// never reports.
@@ -48,25 +48,34 @@ pub struct BreadcrumbResponse<K> {
 ///   ones before them collapse into a "…" button whose tooltip is the whole path and which opens
 ///   a [`Menu`](crate::menu::Menu) of the hidden segments, nearest last. The shown segments share
 ///   the room left after the separators equally, each cut short in the middle with "…" when it
-///   is longer than its share, its whole label as the tooltip.
+///   is longer than its share (services' `text::elided_galley` with `ElideAt::Middle`), its
+///   whole label as the tooltip.
 /// - **Keys.** Each ancestor (and the "…" button) is a Tab stop; Enter and Space open it. The
-///   last segment is text, not a stop.
+///   last segment is text, not a stop. The press that closes the "…" menu outside it does
+///   nothing else (the menus' closing-press rule).
 /// - **AccessKit.** A `Navigation` group named [`BreadcrumbLabels::path`]; ancestors are `Link`s
 ///   named by their labels; the last is `Label` text with `current` page.
 pub struct BreadcrumbBar<'a, K> {
     id_salt: IdSalt,
     crumbs: &'a [Crumb<K>],
+    labels: Option<BreadcrumbLabels>,
 }
 
 impl<'a, K: Clone> BreadcrumbBar<'a, K> {
     /// A bar of `crumbs`, the root first.
     pub fn new(id_salt: impl AsIdSalt, crumbs: &'a [Crumb<K>]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), crumbs }
+        Self { id_salt: IdSalt::new(id_salt), crumbs, labels: None }
+    }
+
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: BreadcrumbLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     // lightcraft: crates/ui-egui/src/panels/grid.rs:1070 folder_breadcrumbs
-    // needs: services craft-ui::text::elide (N11.03) for the middle elision of a long segment.
-    pub fn show(self, ui: &mut Ui) -> BreadcrumbResponse<K> {
+    // needs: services craft-ui::text::elided_galley (N11.03) for the middle elision of a long segment.
+    pub fn show(self, ui: &mut Ui) -> BreadcrumbBarResponse<K> {
         todo!()
     }
 }

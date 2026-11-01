@@ -7,7 +7,8 @@
 //! Only painting is delayed: hit testing and editing use the real place at once.
 //!
 //! ```ignore
-//! // Once a frame, for the document's caret (kept in the host's state or egui memory):
+//! // Once a pass, after the editor applied this pass's events (a canvas tool's
+//! // `CanvasTool::each_pass`, or after `TextEditor::finish_pass`), for the document's caret:
 //! let look = caret.frame(CaretFrame { target, cause: hash((doc.revision, sel)), view: hash(zoom), shown, viewport, now, frame_nr, keys, pointer, since_blink });
 //! paint_caret(look.bar, look.opacity);
 //! if look.moving { ctx.request_repaint() }
@@ -90,7 +91,7 @@ pub struct CaretLook {
     pub bar: CaretBar,
     /// 0 (not drawn) to 1.
     pub opacity: f32,
-    /// It is gliding or fading in: repaint next frame.
+    /// It is gliding or fading in: the host asks for a repaint.
     pub moving: bool,
 }
 
@@ -108,8 +109,12 @@ pub struct CaretLook {
 /// - The target shifting under a glide (pixel snapping while scrolling) carries the glide along.
 /// - With [`glides_allowed`] false (or `secs` 0) it jumps and blinks on and off.
 ///
-/// The host's input (keys, pointer) is seen a frame late, because a canvas handles its keys at
-/// the end of a frame: the glide keeps last frame's `keys` and `pointer`.
+/// The host calls [`frame`](Self::frame) once a pass after its editor has handled the pass's
+/// events, with that pass's `keys` and `pointer` (read from the pass's input) and the caret's
+/// new target, so the move and its cause arrive together; nothing is carried to the next pass.
+/// WordCraft read the keys a frame late because its canvas handled them at the end of a frame;
+/// with `CanvasTool::each_pass` and `TextEditor::finish_pass` the editor's events are applied
+/// before the caret is placed.
 #[derive(Clone, Debug)]
 pub struct CaretGlide {
     secs: f64,
@@ -118,8 +123,6 @@ pub struct CaretGlide {
     opacity: f32,
     glide: Option<(CaretBar, CaretBar, f64)>,
     fade: Option<(f32, f64)>,
-    keys: bool,
-    pointer: bool,
     cause: u64,
     view: u64,
     frame_nr: u64,
@@ -137,12 +140,12 @@ impl CaretGlide {
     // wordcraft: crates/ui-egui/src/caret_glide.rs:140 with_secs
     pub fn with_secs(secs: f64) -> Self {
         let secs = if secs.is_finite() { secs.clamp(0.0, 10.0) } else { CARET_GLIDE_SECS };
-        Self { secs, target: None, drawn: None, opacity: 0.0, glide: None, fade: None, keys: false, pointer: false, cause: 0, view: 0, frame_nr: 0 }
+        Self { secs, target: None, drawn: None, opacity: 0.0, glide: None, fade: None, cause: 0, view: 0, frame_nr: 0 }
     }
 
-    /// Advances to this frame and says how to draw the caret. The host passes
+    /// Advances to this pass and says how to draw the caret. The host passes
     /// [`glides_allowed`] through `secs` by building the glide with `with_secs(0.0)` when it is
-    /// false.
+    /// false. Call it after the pass's events are applied (see the type's doc).
     // wordcraft: crates/ui-egui/src/caret_glide.rs:158 frame
     pub fn frame(&mut self, frame: CaretFrame) -> CaretLook {
         todo!()
@@ -153,7 +156,7 @@ impl CaretGlide {
         self.glide.is_some()
     }
 
-    /// Forgets the caret: it appears wherever it belongs next frame.
+    /// Forgets the caret: the next [`frame`](Self::frame) puts it at its target, with no glide.
     pub fn reset(&mut self) {
         *self = Self::with_secs(self.secs);
     }

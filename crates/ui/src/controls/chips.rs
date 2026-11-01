@@ -15,7 +15,10 @@ crate::words! {
         /// A chip's remove button, for AccessKit and its tooltip: `{name}` the chip's full name
         /// (LightCraft's "Remove “{name}”").
         remove: "chips.remove" = "Remove “{name}”";
-        /// The button for the chips that don't fit: `{n}` how many.
+        /// The button for the chips that don't fit: `{n}` how many. A
+        /// [`Counted`](crate::localized::words::Counted) word (one and other both "+{n} more" in
+        /// English), written with [`Words::counted`](crate::localized::Words::counted); S5C-F9
+        /// adds it to the kernel's `counts` and [`COUNTS`](crate::localized::words::COUNTS).
         more: "chips.more" = "+{n} more";
         clear_all: "chips.clearAll" = "Clear All";
         /// A partial chip's accessible name (the asterisk is only drawn): `{name}`.
@@ -62,14 +65,14 @@ impl<'a> Chip<'a> {
 /// What the chips reported this pass.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct ChipResponse {
+pub struct ChipFieldResponse {
     pub response: Response,
     /// The chip whose × was clicked, or which Delete or Backspace removed: the host removes it.
     pub removed: Option<usize>,
     /// The chip whose name was clicked or activated with Enter or Space.
     pub clicked: Option<usize>,
     /// The chip whose context menu was asked for (secondary click, Menu key, Shift+F10); the host
-    /// opens its menu on [`ChipResponse::response`] at the chip.
+    /// opens its menu on [`ChipFieldResponse::response`] at the chip.
     pub context_menu: Option<(usize, egui::Rect)>,
     /// Clear All was pressed.
     pub cleared: bool,
@@ -88,17 +91,25 @@ pub struct ChipResponse {
 ///   removable chip a × target 22 points wide at its end (`chip.remove_width`; arms 3.5, 1.5
 ///   wide, `text.muted`, `text.normal` under the pointer). Hovering the name fills the chip with
 ///   `state.hover` at half strength; hovering the × lights only the × end, so the user sees which
-///   part a click hits. A label too long for a line is cut short with "…" to fit.
+///   part a click hits. A label too long for a line is cut short at its end with "…" to fit
+///   (services' `text::elided_galley` with `ElideAt::End`), its full name as the tooltip.
 /// - **Lines.** Chips flow in lines 6 points apart (`chip.gap`), each moved whole to the next
 ///   line when it doesn't fit ([`chip_lines`]). With [`max_lines`](Self::max_lines), the chips
 ///   past the last line are counted on a "+N more" button there, which opens a
 ///   [`Menu`](crate::menu::Menu) with a row per hidden chip (its full name; choosing it removes
 ///   it). With [`clear_all`](Self::clear_all), a Clear All button ends the last line (the grid's
 ///   filter strip).
-/// - **Keys.** The field is one Tab stop; ← and → (mirrored in right-to-left) move the focused
-///   chip, Home and End go to the ends, Delete and Backspace remove the focused chip and the
-///   focus moves to the next one (the previous one at the end), Enter and Space click it, the
-///   Menu key and Shift+F10 ask for its menu. The focused chip draws the focus ring.
+/// - **Keys.** The field is one Tab stop over the chips (and the "+N more" and Clear All
+///   buttons after them) as a grid of the laid-out lines:
+///   [`GridNav::ragged`](crate::behavior::GridNav::ragged) of the line lengths with
+///   [`rtl`](crate::behavior::GridNav::rtl), the stop from
+///   [`GridNav::roving_move`](crate::behavior::GridNav::roving_move) (resting on the first chip).
+///   ← and → move along the reading order (mirrored in right-to-left), ↑ and ↓ to the
+///   neighbouring line, Home and End to the ends. Delete and Backspace remove the focused chip
+///   and the focus moves to the next one (the previous one at the end), Enter and Space click
+///   it, the Menu key and Shift+F10 ask for its menu. The focused chip claims Delete,
+///   Backspace, Enter and Space ([`KeyClaim`](crate::behavior::KeyClaim)), so the app's Delete
+///   command doesn't run while a chip has the focus. The focused chip draws the focus ring.
 /// - **AccessKit.** A `List` named by its label; each chip a `ListItem` named by its full name
 ///   (and [`ChipLabels::partial`]), with a child `Button` [`ChipLabels::remove`].
 pub struct ChipField<'a> {
@@ -109,11 +120,28 @@ pub struct ChipField<'a> {
     clear_all: bool,
     size: ControlSize,
     enabled: bool,
+    labels: Option<ChipLabels>,
 }
 
 impl<'a> ChipField<'a> {
+    /// A field named `label` (its accessible name) of `chips`.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, chips: &'a [Chip<'a>]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), label: label.into(), chips, max_lines: None, clear_all: false, size: ControlSize::Md, enabled: true }
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
+            chips,
+            max_lines: None,
+            clear_all: false,
+            size: ControlSize::Md,
+            enabled: true,
+            labels: None,
+        }
+    }
+
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: ChipLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// At most `lines` lines; the rest go behind "+N more".
@@ -139,7 +167,8 @@ impl<'a> ChipField<'a> {
     }
 
     // lightcraft: crates/ui-egui/src/panels/keywording.rs:80 chip, :243 chip_groups; lightcraft: crates/ui-egui/src/panels/chips.rs:92 show
-    pub fn show(self, ui: &mut Ui) -> ChipResponse {
+    // needs: services craft-ui::text::elided_galley (N11.03) for the cut label.
+    pub fn show(self, ui: &mut Ui) -> ChipFieldResponse {
         todo!()
     }
 }

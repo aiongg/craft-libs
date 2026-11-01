@@ -2,9 +2,10 @@
 //! [`Rating`]: one to five stars the user clicks, and [`paint_rating`] for stars drawn on
 //! thumbnails and captions.
 
-use egui::{AsIdSalt, Color32, IdSalt, Painter, Pos2, Response, Ui};
+use egui::{AsIdSalt, Color32, IdSalt, Painter, Pos2, Ui};
 
 use super::ControlSize;
+use crate::edit::EditResponse;
 
 crate::words! {
     /// The rating's words, English by default.
@@ -12,8 +13,11 @@ crate::words! {
     pub struct RatingLabels {
         /// The row's accessible name.
         rating: "rating.rating" = "Rating";
-        /// A star's accessible name: `{n}` its rating.
-        star: "rating.star" = "{n} ★";
+        /// A star's accessible name: `{n}` its rating. A
+        /// [`Counted`](crate::localized::words::Counted) word ("{n} star", "{n} stars"),
+        /// written with [`Words::counted`](crate::localized::Words::counted); S5C-F9 adds it to
+        /// the kernel's `counts` and [`COUNTS`](crate::localized::words::COUNTS).
+        stars: "rating.stars" = "{n} stars";
         /// The value read for no rating.
         unrated: "rating.unrated" = "Unrated";
     }
@@ -53,7 +57,7 @@ impl StarSize {
 /// A row of five stars, after LightCraft's `Rating`.
 ///
 /// ```ignore
-/// if let Some(r) = Rating::new("rating", "Rating", photo.rating).show(ui).changed { app.rate(r) }
+/// if let Some(EditEvent::Set { value, .. }) = Rating::new("rating", "Rating", &mut photo.rating).show(ui).event { app.rate(value) }
 /// ```
 ///
 /// - **Look.** Five [`Icon::Star`](crate::icons::Icon::Star) outlines, the first `rating` of them
@@ -64,30 +68,33 @@ impl StarSize {
 ///   the current rating's star clears it to 0 (LightCraft's `clicked_rating`).
 /// - **Keys.** One Tab stop: the star of the current rating, the first when unrated. ← and →
 ///   (mirrored) lower and raise the rating from 0 to 5, Home and End go to 0 and 5, the digits 0
-///   to 5 set it (Lightroom's); each a change reported at once.
+///   to 5 set it (Lightroom's). The focused row claims the digits
+///   ([`KeyClaim`](crate::behavior::KeyClaim)): a focused widget otherwise leaves digits to the
+///   app's tool and opacity keys ([`focus::key_owner`](crate::focus::key_owner)).
+/// - **Report.** Each click or key that changes the rating is a one-shot
+///   [`Set`](crate::edit::EditEvent::Set) of the new rating in the [`EditResponse`], in the pass
+///   it happened; the value is already set. Hovering previews and reports nothing.
 /// - **AccessKit.** A `RadioGroup` named by its label; each star a `RadioButton` named
-///   [`RatingLabels::star`], `checked` for the current rating's.
-pub struct Rating {
+///   [`RatingLabels::stars`], `checked` for the current rating's.
+pub struct Rating<'a> {
     id_salt: IdSalt,
     label: String,
-    rating: u8,
+    rating: &'a mut u8,
     size: ControlSize,
     enabled: bool,
+    labels: Option<RatingLabels>,
 }
 
-/// What the rating reported this pass.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct RatingResponse {
-    pub response: Response,
-    /// The new rating, 0 to 5, when a click or a key changed it.
-    pub changed: Option<u8>,
-}
+impl<'a> Rating<'a> {
+    /// A row named `label` editing `rating` (read as at most 5).
+    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, rating: &'a mut u8) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), label: label.into(), rating, size: ControlSize::Md, enabled: true, labels: None }
+    }
 
-impl Rating {
-    /// A row named `label` showing `rating` (clamped to 0 to 5).
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, rating: u8) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), label: label.into(), rating: rating.min(MAX_STARS), size: ControlSize::Md, enabled: true }
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: RatingLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn size(mut self, size: ControlSize) -> Self {
@@ -101,7 +108,7 @@ impl Rating {
     }
 
     // lightcraft: crates/ui-egui/src/widgets/rating.rs:129 show
-    pub fn show(self, ui: &mut Ui) -> RatingResponse {
+    pub fn show(self, ui: &mut Ui) -> EditResponse<u8> {
         todo!()
     }
 }

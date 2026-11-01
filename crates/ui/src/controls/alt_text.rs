@@ -53,11 +53,18 @@ pub struct AltTextField<'a> {
     value: &'a mut AltText,
     mixed: bool,
     enabled: bool,
+    labels: Option<AltTextLabels>,
 }
 
 impl<'a> AltTextField<'a> {
     pub fn new(id_salt: impl AsIdSalt, value: &'a mut AltText) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), value, mixed: false, enabled: true }
+        Self { id_salt: IdSalt::new(id_salt), value, mixed: false, enabled: true, labels: None }
+    }
+
+    /// Words other than the installed ones (WordCraft's pane has its own prompt).
+    pub fn labels(mut self, labels: AltTextLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// The selected objects' descriptions differ.

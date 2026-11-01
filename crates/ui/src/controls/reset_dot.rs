@@ -37,13 +37,20 @@ pub struct ResetDot {
     id_salt: IdSalt,
     changed: bool,
     default: String,
+    labels: Option<ResetDotLabels>,
 }
 
 impl ResetDot {
     /// A dot for a field that is `changed` from its default, which the tooltip names as
     /// `default` (as the field shows it, translated).
     pub fn new(id_salt: impl AsIdSalt, changed: bool, default: impl Into<String>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), changed, default: default.into() }
+        Self { id_salt: IdSalt::new(id_salt), changed, default: default.into(), labels: None }
+    }
+
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: ResetDotLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     // vectorcraft: crates/ui-egui/src/dialogs/revolve.rs:573 reset_dot, :564 dot

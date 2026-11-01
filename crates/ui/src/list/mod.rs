@@ -71,14 +71,14 @@ pub(crate) fn stories() -> Vec<crate::story::Story> {
 }
 
 pub use drag::{GhostThumb, paint_ghost};
-pub use events::{EventLevel, EventLog, EventLogLabels, EventLogResponse, EventLogState, LogEvent, event_age, paint_event_glyph};
+pub use events::{EventLevel, EventLog, EventLogLabels, EventLogOutput, EventLogState, LogEvent, paint_event_glyph};
 pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsListResponse, findings_summary};
-pub use metadata::{MetadataGroup, MetadataLabels, MetadataResponse, MetadataRow, MetadataTable, filter_metadata};
+pub use metadata::{MetadataGroup, MetadataLabels, MetadataRow, MetadataTableOutput, MetadataTable, filter_metadata};
 pub use row::{
     DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget, TrailingItem, drop_line,
     paint_drop_mark,
 };
-pub use table::{SortOrder, Table, TableColumn, TableEvent, TableLabels, TableLayout, TableResponse, TableSort, TableStyle};
+pub use table::{SortOrder, Table, TableColumn, TableEvent, TableLabels, TableLayout, TableOutput, TableSort, TableStyle};
 pub use toggle::{ToggleColumn, ToggleEdit};
 pub use tree::{OpenChange, TreeRow, TreeState, TreeText};
 pub use view::{ContextMenuRequest, List, ListEvent, ListOutput};

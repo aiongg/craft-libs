@@ -9,7 +9,9 @@
 //! [`MixedLabels::mixed`]). This module gives the host the value to feed them and PdfCraft's
 //! apply rows.
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::{AsIdSalt, IdSalt, Ui};
+
+use crate::edit::EditResponse;
 
 crate::words! {
     /// The words of mixed values, English by default.
@@ -79,23 +81,32 @@ impl<T: Clone + PartialEq> Apply<T> {
 /// [`Apply::apply`] on and off, the property's editor (enabled only while applied, in its own id
 /// scope so two editors of one kind don't share state), and [`MixedLabels::mixed`] in
 /// `text.muted` after it while the values differ. Lay rows out in a grid of three columns
-/// (PdfCraft's). Toggling the check is a `Set` of the whole [`Apply`]; the editor's edits go to
-/// `value` and report through it.
+/// (PdfCraft's). Toggling the check is the row's own edit: a `Set` of
+/// [`Apply::apply`] in the returned [`EditResponse`], as a [`Checkbox`](super::Checkbox)
+/// reports. The editor's edits go to `value`; the host reads them from the editor's own
+/// response inside `edit`.
 pub struct ApplyRow<'a, T> {
     id_salt: IdSalt,
     label: String,
     apply: &'a mut Apply<T>,
+    labels: Option<MixedLabels>,
 }
 
 impl<'a, T: Clone + PartialEq> ApplyRow<'a, T> {
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, apply: &'a mut Apply<T>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), label: label.into(), apply }
+        Self { id_salt: IdSalt::new(id_salt), label: label.into(), apply, labels: None }
+    }
+
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: MixedLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// Draws the row; `edit` draws the property's editor on the value. The response is the
     /// check's.
     // pdfcraft: crates/ui-egui/src/tools/bulk_fields.rs:205 row
-    pub fn show(self, ui: &mut Ui, edit: impl FnOnce(&mut Ui, &mut T)) -> Response {
+    pub fn show(self, ui: &mut Ui, edit: impl FnOnce(&mut Ui, &mut T)) -> EditResponse<bool> {
         todo!()
     }
 }

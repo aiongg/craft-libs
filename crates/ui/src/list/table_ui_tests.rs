@@ -35,3 +35,12 @@ fn a_header_dragged_onto_another_moves_the_column() {
 fn the_body_is_one_tab_stop_with_the_list_keys() {
     todo!()
 }
+
+// Tab from the first header reaches its edge; → widens the column by 8 points and ← narrows it,
+// not below its least width; each press reports `Layout` and writes the widths; the edge reads as
+// a `Splitter` "Resize Name" with the width as its value, and SetValue sets it.
+#[test]
+#[ignore = "skeleton"]
+fn arrow_keys_on_a_focused_column_edge_resize_the_column() {
+    todo!()
+}

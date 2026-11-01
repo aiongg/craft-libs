@@ -2,13 +2,14 @@
 //! [`DatePicker`]: a calendar button whose popup picks a year, a month or a day, and the
 //! [`PickedDate`] it edits.
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::{AsIdSalt, IdSalt, Ui};
 
 use super::ControlSize;
+use crate::edit::EditResponse;
 
 crate::words! {
-    /// The picker's words, English by default. Month and weekday names come from the interface
-    /// language's date formats.
+    /// The picker's words, English by default. Month and weekday names come from the region's
+    /// date format (services' `craft_i18n::DateFormat::{month_name, weekday_name}`).
     #[non_exhaustive]
     pub struct DateLabels {
         /// The calendar button's tooltip and accessible name (LightCraft's).
@@ -36,7 +37,10 @@ impl DatePrecision {
 }
 
 /// A year, a month of it or a day of that month: `2026`, `2026-08`, `2026-08-14`. A value keeps
-/// its precision: `2026` means the whole year.
+/// its precision: `2026` means the whole year. A day-precision value is one calendar date;
+/// conversions to and from services' `craft_i18n::CalendarDate` are added when the two parts
+/// merge, and the calendar arithmetic (days in a month, weekdays, paging by months) is
+/// `CalendarDate`'s, not a copy here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PickedDate {
     pub year: i32,
@@ -80,15 +84,16 @@ impl PickedDate {
         }
     }
 
-    /// The first day it covers, as (year, month, day).
+    /// The first day it covers, at day precision.
     // lightcraft: crates/ui-egui/src/widgets/date_picker.rs:104 first_day
-    pub fn first_day(&self) -> (i32, u8, u8) {
+    pub fn first_day(&self) -> PickedDate {
         todo!()
     }
 
-    /// The last day it covers.
+    /// The last day it covers, at day precision (`CalendarDate::days_in_month` for a month's).
     // lightcraft: crates/ui-egui/src/widgets/date_picker.rs:109 last_day
-    pub fn last_day(&self) -> (i32, u8, u8) {
+    // needs: services craft_i18n::CalendarDate::days_in_month (N11.02).
+    pub fn last_day(&self) -> PickedDate {
         todo!()
     }
 
@@ -99,16 +104,13 @@ impl PickedDate {
     }
 }
 
-/// The days of `month` (1 to 12) of `year` in the proleptic Gregorian calendar.
-// lightcraft: crates/ui-egui/src/widgets/date_picker.rs:116 days_in_month
-pub fn days_in_month(year: i32, month: u8) -> u8 {
-    todo!()
-}
-
 /// The month's days laid out in weeks starting on `first_weekday` (0 Monday to 6 Sunday): `None`
 /// before the 1st and after the last day, so the length is a multiple of 7. LightCraft always
-/// starts on Monday; the week start here is the interface locale's.
+/// starts on Monday; the picker passes the region's week start
+/// (`craft_i18n::DateFormat::first_weekday`). The lead's merge with the services part turns
+/// `first_weekday` into `craft_i18n::Weekday`.
 // lightcraft: crates/ui-egui/src/widgets/date_picker.rs:129 month_grid
+// needs: services craft_i18n::{Weekday, CalendarDate::weekday} (N11.02).
 pub fn month_grid(year: i32, month: u8, first_weekday: u8) -> Vec<Option<u8>> {
     todo!()
 }
@@ -116,12 +118,12 @@ pub fn month_grid(year: i32, month: u8, first_weekday: u8) -> Vec<Option<u8>> {
 /// A calendar button that edits an optional [`PickedDate`], after LightCraft's date picker.
 ///
 /// ```ignore
-/// if DatePicker::new("from", "Captured from", &mut rule.from).precisions(&[DatePrecision::Day]).show(ui).changed() { save() }
+/// if DatePicker::new("from", "Captured from", &mut rule.from).precisions(&[DatePrecision::Day]).show(ui).event.is_some() { save() }
 /// ```
 ///
 /// - **Button.** An [`IconButton`](crate::controls::IconButton) with the calendar icon (a new
 ///   `calendar` icon; LightCraft's 24 × 22) named [`DateLabels::pick`]; the host shows the value
-///   beside it in its own words (craft-i18n's date format).
+///   beside it in its own words (`craft_i18n::DateFormat::format`).
 /// - **Popup.** A [`Popover`](crate::popover::Popover) under the button. A
 ///   [`Segmented`](crate::controls::Segmented) of the allowed precisions (Year, Month, Day) when
 ///   more than one is allowed; under it Previous, the page's title and Next; then the page: Day
@@ -132,11 +134,17 @@ pub fn month_grid(year: i32, month: u8, first_weekday: u8) -> Vec<Option<u8>> {
 ///   outline ring in `accent.solid`, cells outside `min`/`max` are disabled. Below, Today and
 ///   Clear as link buttons.
 /// - **Choosing.** A click on a cell sets the value at the page's precision and closes the
-///   popup; Today sets today at the current precision; Clear sets `None`.
+///   popup; Today sets today at the current precision; Clear sets `None`. Each is a one-shot
+///   [`Set`](crate::edit::EditEvent::Set) in the [`EditResponse`], in the pass it happened; the
+///   value is already set. Paging, changing the precision and Esc report nothing. The press that
+///   closes the popup outside it does nothing else (the menus' closing-press rule).
 /// - **Keys.** In the grid the arrows move the active cell (a week up and down on the Day page),
 ///   Page Up and Page Down page, Home and End go to the row's ends, Enter and Space choose, Esc
 ///   closes and gives the focus back to the button. The popup opens with the value's cell (or
-///   today's) active.
+///   today's) active. The grid is one Tab stop
+///   ([`GridNav::wrapped`](crate::behavior::GridNav::wrapped) with 7 or 3 columns,
+///   [`roving_move`](crate::behavior::GridNav::roving_move)); while the popup is open it owns the
+///   keys ([`focus::key_owner`](crate::focus::key_owner)).
 /// - **AccessKit.** The page is a `Grid` named by its title; cells are `GridCell`s named by the
 ///   full date in the locale's long format, `selected` for the value.
 pub struct DatePicker<'a> {
@@ -149,6 +157,7 @@ pub struct DatePicker<'a> {
     today: Option<PickedDate>,
     size: ControlSize,
     enabled: bool,
+    labels: Option<DateLabels>,
 }
 
 impl<'a> DatePicker<'a> {
@@ -164,7 +173,14 @@ impl<'a> DatePicker<'a> {
             today: None,
             size: ControlSize::Md,
             enabled: true,
+            labels: None,
         }
+    }
+
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: DateLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// The precisions offered; the first is the popup's page when the value has none of them.
@@ -184,7 +200,8 @@ impl<'a> DatePicker<'a> {
         self
     }
 
-    /// What today is (tests and screenshots fix it); the local clock by default.
+    /// What today is (tests and screenshots fix it); by default the local date from services'
+    /// `craft_i18n::DateTime` in the local time zone.
     pub fn today(mut self, today: PickedDate) -> Self {
         self.today = Some(today);
         self
@@ -200,10 +217,10 @@ impl<'a> DatePicker<'a> {
         self
     }
 
-    /// The button; `changed()` when a cell, Today or Clear changed the value.
+    /// The button, and the popup while it is open.
     // lightcraft: crates/ui-egui/src/widgets/date_picker.rs:238 show
-    // needs: services craft-i18n::format (N11.02) for month and weekday names, the week start and the long date.
-    pub fn show(self, ui: &mut Ui) -> Response {
+    // needs: services craft_i18n::{DateFormat, DateTime, CalendarDate, NameLength} (N11.02) for month and weekday names, the week start, the long date and today.
+    pub fn show(self, ui: &mut Ui) -> EditResponse<Option<PickedDate>> {
         todo!()
     }
 }
