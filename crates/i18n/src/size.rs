@@ -202,10 +202,20 @@ mod tests {
     // with two decimals in GB (BINARY, smallest Kilo, unit_decimals Giga 2); DeckCraft's backstage
     // `512 bytes`, `1.2 MB` (BINARY, largest Mega).
     #[test]
-    #[ignore = "skeleton"]
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     fn the_apps_size_texts_are_styles() {
-        todo!()
+        let home = FileSize::BINARY.byte_symbol().unit_decimals(SizeUnit::Kilo, 0);
+        assert_eq!(en(12 * 1024, home), "12 KB");
+        assert_eq!(en(3_565_158, home), "3.4 MB");
+        assert_eq!(en(512, home), "512 B");
+        assert_eq!(en(12_300_000, FileSize::DECIMAL), "12.3 MB");
+        let project = FileSize::BINARY.smallest(SizeUnit::Kilo).unit_decimals(SizeUnit::Kilo, 0).unit_decimals(SizeUnit::Giga, 2);
+        assert_eq!(en(512 * 1024, project), "512 KB");
+        assert_eq!(en(100, project), "1 KB");
+        assert_eq!(en(3 << 29, project), "1.50 GB");
+        let backstage = FileSize::BINARY.largest(SizeUnit::Mega);
+        assert_eq!(en(512, backstage), "512 bytes");
+        assert_eq!(en(1_258_291, backstage), "1.2 MB");
+        assert_eq!(en(5 << 30, backstage), "5,120.0 MB");
     }
 
     #[test]

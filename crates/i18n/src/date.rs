@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Dates and times written for a formatting [`Region`] (N11.02), and fixed UTC stamps for logs
 //! and file names.
 //!
@@ -16,10 +15,32 @@
 //! Dates are proleptic Gregorian. Years outside ±9999 are kept, written with as many digits as
 //! they need (EffectCraft's and PdfCraft's 400-year-cycle rule), never collapsed to the epoch.
 
-use std::sync::Arc;
-use std::time::SystemTime;
+use std::fmt;
+use std::ops::Range;
+use std::sync::{Arc, OnceLock, PoisonError};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{I18n, Region};
+use chrono::{Datelike, Local, NaiveDate, Offset, TimeZone as _};
+use icu_calendar::week::WeekInformation;
+use icu_calendar::{Date, Gregorian};
+use icu_datetime::FixedCalendarDateTimeFormatter;
+use icu_datetime::fieldsets::{T, YMD, YMDE, YMDET, YMDT};
+use icu_datetime::options::{Length, TimePrecision as IcuPrecision};
+use icu_datetime::parts;
+use icu_datetime::pattern::{DateTimePattern, FixedCalendarDateTimeNames};
+use icu_locale_core::Locale;
+use icu_locale_core::extensions::unicode::{key, value};
+use icu_provider::buf::AsDeserializingBufferProvider;
+use icu_time::Time;
+use writeable::{Part, PartsWrite, TryWriteable, Writeable};
+
+use crate::{HourCycle, I18n, Region, data};
+
+/// Days in a 400-year Gregorian cycle, after which the calendar (and the weekday) repeats.
+const CYCLE_DAYS: i64 = 146_097;
+const CYCLE_SECS: i64 = CYCLE_DAYS * 86_400;
+/// `NaiveDate::num_days_from_ce` of 1970-01-01.
+const EPOCH_FROM_CE: i32 = 719_163;
 
 /// A day of the Gregorian calendar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -34,27 +55,36 @@ pub struct CalendarDate {
 impl CalendarDate {
     /// `None` when `month` or `day` is out of range for that year (`2026-02-29`).
     pub fn new(year: i64, month: u8, day: u8) -> Option<CalendarDate> {
-        todo!()
+        // Whole 400-year cycles leave month lengths, leap days and weekdays as they were.
+        NaiveDate::from_ymd_opt(year.rem_euclid(400) as i32, month.into(), day.into())?;
+        Some(CalendarDate { year, month, day })
     }
 
     /// The date `days` after 1970-01-01 (negative before it).
     // pdfcraft: crates/ui-egui/src/workflows/combine_ui/parts.rs:279 civil_from_days
     pub fn from_days(days: i64) -> CalendarDate {
-        todo!()
+        let cycles = days.div_euclid(CYCLE_DAYS);
+        let in_cycle = days.rem_euclid(CYCLE_DAYS) as i32;
+        let date = NaiveDate::from_num_days_from_ce_opt(in_cycle + EPOCH_FROM_CE).unwrap_or_default();
+        CalendarDate { year: i64::from(date.year()).saturating_add(cycles.saturating_mul(400)), month: date.month() as u8, day: date.day() as u8 }
     }
 
     /// Days since 1970-01-01; the inverse of [`from_days`](Self::from_days).
     pub fn days(self) -> i64 {
-        todo!()
+        let cycles = self.year.div_euclid(400);
+        let year = self.year.rem_euclid(400) as i32;
+        let date = NaiveDate::from_ymd_opt(year, self.month.into(), self.day.into()).unwrap_or_default();
+        i64::from(date.num_days_from_ce() - EPOCH_FROM_CE).saturating_add(cycles.saturating_mul(CYCLE_DAYS))
     }
 
     pub fn weekday(self) -> Weekday {
-        todo!()
+        // Day 0, 1970-01-01, was a Thursday.
+        Weekday::ALL[((self.days().rem_euclid(7) + 3) % 7) as usize]
     }
 
-    /// 28 to 31.
+    /// 28 to 31; 0 for a month outside 1 to 12.
     pub fn days_in_month(year: i64, month: u8) -> u8 {
-        todo!()
+        (28..=31).rev().find(|&day| CalendarDate::new(year, month, day).is_some()).unwrap_or(0)
     }
 
     /// `n` days later (earlier when negative).
@@ -65,7 +95,10 @@ impl CalendarDate {
     /// `n` months later, the day clamped to the new month's length (Jan 31 + 1 month is Feb 28
     /// or 29), as calendar pickers step months.
     pub fn add_months(self, n: i64) -> CalendarDate {
-        todo!()
+        let index = i128::from(self.year) * 12 + i128::from(self.month - 1) + i128::from(n);
+        let year = index.div_euclid(12).clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64;
+        let month = index.rem_euclid(12) as u8 + 1;
+        CalendarDate { year, month, day: self.day.min(CalendarDate::days_in_month(year, month)) }
     }
 }
 
@@ -111,12 +144,33 @@ impl DateTime {
     /// is the system's (chrono's `Local`; the browser's `Date` on wasm).
     // effectcraft: crates/ui-egui/src/panels/home.rs:74 utc_parts
     pub fn from_unix(unix: i64, zone: TimeZone) -> DateTime {
-        todo!()
+        let offset = match zone {
+            TimeZone::Utc => 0,
+            TimeZone::Local => local_offset(unix),
+        };
+        let on_clock = unix.saturating_add(offset);
+        let seconds = on_clock.rem_euclid(86_400);
+        DateTime {
+            date: CalendarDate::from_days(on_clock.div_euclid(86_400)),
+            hour: (seconds / 3600) as u8,
+            minute: (seconds % 3600 / 60) as u8,
+            second: (seconds % 60) as u8,
+        }
     }
 
     /// [`from_unix`](Self::from_unix) of a `SystemTime`; a time before 1970 counts back.
     pub fn from_system(time: SystemTime, zone: TimeZone) -> DateTime {
-        todo!()
+        let unix = match time.duration_since(UNIX_EPOCH) {
+            Ok(after) => i64::try_from(after.as_secs()).unwrap_or(i64::MAX),
+            Err(before) => {
+                let before = before.duration();
+                // Whole seconds round toward the earlier moment.
+                let secs = i64::try_from(before.as_secs()).unwrap_or(i64::MAX);
+                let part = i64::from(before.subsec_nanos() > 0);
+                -secs.saturating_add(part)
+            }
+        };
+        DateTime::from_unix(unix, zone)
     }
 }
 
@@ -178,18 +232,99 @@ pub enum NameLength {
 /// dates.month_name(10, NameLength::Wide);                                               // "October", "Oktober"
 /// dates.first_weekday();                                                                // Sunday in en-US, Monday in de-DE
 /// ```
+///
+/// Dates are Gregorian in every region (the calendar a date picker and a file list share), with
+/// the region's order, words, digits and clock.
 #[derive(Clone, Debug)]
 pub struct DateFormat {
     /// The time locale, BCP 47.
     locale: String,
     /// The region's clock where the system sets one apart from the locale.
     hour_cycle: Option<crate::HourCycle>,
+    /// Formatters and names, built on first use and shared by clones.
+    cache: Arc<Cache>,
+}
+
+/// One ICU formatter per field set the styles need.
+#[derive(Debug)]
+enum Formatter {
+    Date(FixedCalendarDateTimeFormatter<Gregorian, YMD>),
+    DateWeekday(FixedCalendarDateTimeFormatter<Gregorian, YMDE>),
+    DateTime(FixedCalendarDateTimeFormatter<Gregorian, YMDT>),
+    DateTimeWeekday(FixedCalendarDateTimeFormatter<Gregorian, YMDET>),
+    Time(FixedCalendarDateTimeFormatter<Gregorian, T>),
+}
+
+impl Formatter {
+    fn write(&self, at: &icu_time::DateTime<Gregorian>, sink: &mut Spliced) -> fmt::Result {
+        match self {
+            Formatter::Date(f) => f.format(at).write_to_parts(sink),
+            Formatter::DateWeekday(f) => f.format(at).write_to_parts(sink),
+            Formatter::DateTime(f) => f.format(at).write_to_parts(sink),
+            Formatter::DateTimeWeekday(f) => f.format(at).write_to_parts(sink),
+            Formatter::Time(f) => f.format(at).write_to_parts(sink),
+        }
+    }
+}
+
+/// Standalone month and weekday names, indexed by [`NameLength`] (narrow, abbreviated, wide)
+/// and then by month (January first) or weekday (Monday first).
+#[derive(Debug)]
+struct Names {
+    months: [[String; 12]; 3],
+    weekdays: [[String; 7]; 3],
+}
+
+/// Which field comes first, second and third in a numeric date.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Field {
+    Year,
+    Month,
+    Day,
+}
+
+#[derive(Debug, Default)]
+struct Cache {
+    /// By date length (none, short, medium, long, full) times time precision (none, minutes,
+    /// seconds); the slot with neither is unused.
+    formatters: [OnceLock<Option<Formatter>>; 15],
+    names: OnceLock<Option<Names>>,
+    first_weekday: OnceLock<Option<Weekday>>,
+    order: OnceLock<[Field; 3]>,
+}
+
+/// The text a formatter writes, with the byte range of its year: a year past what ICU4X holds is
+/// formatted four hundred years' cycles away and written back in place.
+#[derive(Default)]
+struct Spliced {
+    text: String,
+    year: Option<Range<usize>>,
+}
+
+impl fmt::Write for Spliced {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.text.push_str(s);
+        Ok(())
+    }
+}
+
+impl PartsWrite for Spliced {
+    type SubPartsWrite = Self;
+
+    fn with_part(&mut self, part: Part, mut f: impl FnMut(&mut Self) -> fmt::Result) -> fmt::Result {
+        let start = self.text.len();
+        let result = f(self);
+        if part == parts::YEAR && self.year.is_none() {
+            self.year = Some(start..self.text.len());
+        }
+        result
+    }
 }
 
 impl DateFormat {
     /// The format for `region`'s time locale and clock.
     pub fn new(region: &Region) -> DateFormat {
-        Self { locale: region.time.clone(), hour_cycle: region.hour_cycle }
+        Self { locale: region.time.clone(), hour_cycle: region.hour_cycle, cache: Arc::default() }
     }
 
     /// The format for a locale tag (`de-CH`), with the locale's clock.
@@ -197,35 +332,241 @@ impl DateFormat {
         Self::new(&Region::from_tag(tag))
     }
 
+    /// The time locale with the region's clock as a `-u-hc-` keyword.
+    fn icu_locale(&self, latin_digits: bool) -> Locale {
+        let mut locale = Locale::try_from_str(&self.locale).unwrap_or(Locale::UNKNOWN);
+        match self.hour_cycle {
+            Some(HourCycle::H12) => locale.extensions.unicode.keywords.set(key!("hc"), value!("h12")),
+            Some(HourCycle::H23) => locale.extensions.unicode.keywords.set(key!("hc"), value!("h23")),
+            None => None,
+        };
+        if latin_digits {
+            locale.extensions.unicode.keywords.set(key!("nu"), value!("latn"));
+        }
+        locale
+    }
+
+    fn load_formatter(&self, date: Option<DateLength>, time: Option<TimePrecision>, latin_digits: bool) -> Option<Formatter> {
+        let provider = data::dates_provider()?;
+        let locale = self.icu_locale(latin_digits);
+        let prefs = (&locale).into();
+        let length = |l: DateLength| match l {
+            DateLength::Short => Length::Short,
+            DateLength::Medium => Length::Medium,
+            DateLength::Long | DateLength::Full => Length::Long,
+        };
+        let precision = |t: TimePrecision| match t {
+            TimePrecision::Minutes => IcuPrecision::Minute,
+            TimePrecision::Seconds => IcuPrecision::Second,
+        };
+        match (date, time) {
+            (None, None) => None,
+            (None, Some(t)) => {
+                let set = match t {
+                    TimePrecision::Minutes => T::hm(),
+                    TimePrecision::Seconds => T::hms(),
+                };
+                FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(provider, prefs, set).ok().map(Formatter::Time)
+            }
+            (Some(DateLength::Full), None) => {
+                FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(provider, prefs, YMDE::long()).ok().map(Formatter::DateWeekday)
+            }
+            (Some(d), None) => FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(provider, prefs, YMD::medium().with_length(length(d)))
+                .ok()
+                .map(Formatter::Date),
+            (Some(DateLength::Full), Some(t)) => {
+                FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(provider, prefs, YMDE::long().with_time(precision(t)))
+                    .ok()
+                    .map(Formatter::DateTimeWeekday)
+            }
+            (Some(d), Some(t)) => FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(
+                provider,
+                prefs,
+                YMD::medium().with_length(length(d)).with_time(precision(t)),
+            )
+            .ok()
+            .map(Formatter::DateTime),
+        }
+    }
+
     /// `at` written as `style` says. A style with neither part is empty.
     // new: ICU4X DateTimeFormatter with the region's hour cycle; the apps write English only (lightcraft: crates/ui-egui/src/i18n.rs:445 display_time)
     pub fn format(&self, at: DateTime, style: DateStyle) -> String {
-        todo!()
+        if style.date.is_none() && style.time.is_none() {
+            return String::new();
+        }
+        let slot = style.date.map_or(0, |d| d as usize + 1) * 3 + style.time.map_or(0, |t| t as usize + 1);
+        let formatter =
+            self.cache.formatters.get(slot).and_then(|cell| cell.get_or_init(|| self.load_formatter(style.date, style.time, false)).as_ref());
+        let Some(((icu, true_year), formatter)) = to_icu(at).zip(formatter) else {
+            return plain(at, style);
+        };
+        let mut out = Spliced::default();
+        if formatter.write(&icu, &mut out).is_err() {
+            return plain(at, style);
+        }
+        if let (Some(year), Some(true_year)) = (out.year, true_year) {
+            out.text.replace_range(year, &true_year.to_string());
+        }
+        out.text
+    }
+
+    fn names(&self) -> Option<&Names> {
+        self.cache
+            .names
+            .get_or_init(|| {
+                let provider = data::dates_provider()?;
+                let provider = provider.as_deserializing();
+                let locale = self.icu_locale(false);
+                // One names object per pattern: ICU4X refuses two lengths of one field in one.
+                let name = |pattern: &str, date: CalendarDate| -> Option<String> {
+                    let pattern: DateTimePattern = pattern.parse().ok()?;
+                    let at = to_icu(DateTime { date, hour: 0, minute: 0, second: 0 })?.0;
+                    let mut names = FixedCalendarDateTimeNames::<Gregorian>::try_new_unstable(&provider, (&locale).into()).ok()?;
+                    let formatted = names.load_for_pattern(&provider, &pattern).ok()?.format(&at);
+                    Some(formatted.try_write_to_string().map_or_else(|(_, text)| text.into_owned(), |text| text.into_owned()))
+                };
+                let months = ["LLLLL", "LLL", "LLLL"].map(|pattern| {
+                    std::array::from_fn(|i| name(pattern, CalendarDate { year: 2026, month: i as u8 + 1, day: 1 }).unwrap_or_default())
+                });
+                // 2026-10-26 is a Monday.
+                let weekdays = ["ccccc", "ccc", "cccc"].map(|pattern| {
+                    std::array::from_fn(|i| name(pattern, CalendarDate { year: 2026, month: 10, day: 26 + i as u8 }).unwrap_or_default())
+                });
+                Some(Names { months, weekdays })
+            })
+            .as_ref()
     }
 
     /// The name of `month` (1 to 12) as it stands alone (a calendar's title): `October`,
     /// `październik`.
     pub fn month_name(&self, month: u8, length: NameLength) -> String {
-        todo!()
+        let index = usize::from(month.clamp(1, 12)) - 1;
+        match self.names() {
+            Some(names) => names.months[length as usize][index].clone(),
+            None => month.to_string(),
+        }
     }
 
-    /// The name of `day` as it stands alone: `Saturday`, `Sa`.
+    /// The name of `day` as it stands alone: `Saturday`, `Sat`, `S`.
     pub fn weekday_name(&self, day: Weekday, length: NameLength) -> String {
-        todo!()
+        match self.names() {
+            Some(names) => names.weekdays[length as usize][day as usize].clone(),
+            None => (day as u8 + 1).to_string(),
+        }
     }
 
     /// The day a week starts on in the region: Sunday in the United States, Monday in most of
     /// Europe, Saturday in parts of the Middle East.
     pub fn first_weekday(&self) -> Weekday {
-        todo!()
+        let first = self.cache.first_weekday.get_or_init(|| {
+            let provider = data::dates_provider()?;
+            let locale = self.icu_locale(false);
+            let info = WeekInformation::try_new_with_buffer_provider(provider, (&locale).into()).ok()?;
+            Some(from_icu_weekday(info.first_weekday))
+        });
+        first.unwrap_or(Weekday::Monday)
+    }
+
+    /// The order of the numeric fields in the region's short date, read off a date written in it.
+    fn field_order(&self) -> [Field; 3] {
+        *self.cache.order.get_or_init(|| {
+            const PROBE: DateTime = DateTime { date: CalendarDate { year: 2033, month: 11, day: 22 }, hour: 0, minute: 0, second: 0 };
+            let numeric = |length: DateLength| -> Option<[Field; 3]> {
+                let (icu, _) = to_icu(PROBE)?;
+                let formatter = self.load_formatter(Some(length), None, true)?;
+                let mut out = Spliced::default();
+                formatter.write(&icu, &mut out).ok()?;
+                let runs = digit_runs(&out.text);
+                let [a, b, c] = runs.as_slice() else { return None };
+                let field = |run: &str| match run.parse::<u32>().ok()? {
+                    11 => Some(Field::Month),
+                    22 => Some(Field::Day),
+                    33 | 2033 => Some(Field::Year),
+                    _ => None,
+                };
+                Some([field(a)?, field(b)?, field(c)?])
+            };
+            numeric(DateLength::Short).or_else(|| numeric(DateLength::Medium)).unwrap_or([Field::Month, Field::Day, Field::Year])
+        })
     }
 
     /// A date typed in the region's short or medium form (`10/31/2026`, `31.10.2026`,
-    /// `2026-10-31` always), for a date field. Two-digit years are 2000 to 2099. `None` when the
-    /// text isn't a valid date.
+    /// `2026-10-31` always), for a date field. Two-digit years are 2000 to 2099. Digits are
+    /// `0`–`9`. `None` when the text isn't a valid date.
     pub fn parse_date(&self, text: &str) -> Option<CalendarDate> {
-        todo!()
+        if text.chars().any(|c| c.is_alphanumeric() && !c.is_ascii_digit()) {
+            return None;
+        }
+        let runs = digit_runs(text);
+        let [a, b, c] = runs.as_slice() else { return None };
+        let order = if a.len() == 4 { [Field::Year, Field::Month, Field::Day] } else { self.field_order() };
+        let (mut year, mut month, mut day) = (None, None, None);
+        for (field, run) in order.into_iter().zip([a, b, c]) {
+            let value: i64 = run.parse().ok()?;
+            match field {
+                Field::Year => year = Some(if run.len() <= 2 { 2000 + value } else { value }),
+                Field::Month => month = Some(u8::try_from(value).ok()?),
+                Field::Day => day = Some(u8::try_from(value).ok()?),
+            }
+        }
+        CalendarDate::new(year?, month?, day?)
     }
+}
+
+/// The maximal runs of `0`–`9` in `text`.
+fn digit_runs(text: &str) -> Vec<&str> {
+    text.split(|c: char| !c.is_ascii_digit()).filter(|run| !run.is_empty()).collect()
+}
+
+/// `at` as ICU4X dates, with the true year when it had to be moved four hundred years' cycles to
+/// fit ICU4X's range.
+fn to_icu(at: DateTime) -> Option<(icu_time::DateTime<Gregorian>, Option<i64>)> {
+    let direct = i32::try_from(at.date.year).ok().and_then(|y| Date::try_new_gregorian(y, at.date.month, at.date.day).ok());
+    let (date, true_year) = match direct {
+        Some(date) => (date, None),
+        None => {
+            let year = 2000 + (at.date.year - 2000).rem_euclid(400) as i32;
+            (Date::try_new_gregorian(year, at.date.month, at.date.day).ok()?, Some(at.date.year))
+        }
+    };
+    let time = Time::try_new(at.hour, at.minute, at.second, 0).ok()?;
+    Some((icu_time::DateTime { date, time }, true_year))
+}
+
+/// `2026-10-31 14:05`: what a style writes when no locale data loads.
+fn plain(at: DateTime, style: DateStyle) -> String {
+    let CalendarDate { year, month, day } = at.date;
+    let mut parts = Vec::new();
+    if style.date.is_some() {
+        parts.push(format!("{year:04}-{month:02}-{day:02}"));
+    }
+    match style.time {
+        Some(TimePrecision::Minutes) => parts.push(format!("{:02}:{:02}", at.hour, at.minute)),
+        Some(TimePrecision::Seconds) => parts.push(format!("{:02}:{:02}:{:02}", at.hour, at.minute, at.second)),
+        None => {}
+    }
+    parts.join(" ")
+}
+
+fn from_icu_weekday(day: icu_calendar::types::Weekday) -> Weekday {
+    use icu_calendar::types::Weekday as W;
+    match day {
+        W::Monday => Weekday::Monday,
+        W::Tuesday => Weekday::Tuesday,
+        W::Wednesday => Weekday::Wednesday,
+        W::Thursday => Weekday::Thursday,
+        W::Friday => Weekday::Friday,
+        W::Saturday => Weekday::Saturday,
+        W::Sunday => Weekday::Sunday,
+    }
+}
+
+/// The system's offset from UTC in seconds at `unix`. A moment beyond chrono's range takes the
+/// offset of the same moment in the 400-year cycle that fits.
+fn local_offset(unix: i64) -> i64 {
+    let at = Local.timestamp_opt(unix, 0).single().or_else(|| Local.timestamp_opt(unix.rem_euclid(CYCLE_SECS), 0).single());
+    at.map_or(0, |t| i64::from(t.offset().fix().local_minus_utc()))
 }
 
 impl I18n {
@@ -233,17 +574,21 @@ impl I18n {
     /// [`I18n::reset_dates`].
     // new: the counterpart of I18n::format for numbers
     pub fn dates(&self) -> Arc<DateFormat> {
-        todo!()
+        if let Some(d) = self.dates.read().unwrap_or_else(PoisonError::into_inner).as_ref() {
+            return Arc::clone(d);
+        }
+        let mut slot = self.dates.write().unwrap_or_else(PoisonError::into_inner);
+        Arc::clone(slot.get_or_insert_with(|| Arc::new(DateFormat::new(&Region::system()))))
     }
 
     /// Write dates as `dates` does from now on: the user's region setting.
     pub fn set_dates(&self, dates: DateFormat) {
-        todo!()
+        *self.dates.write().unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(dates));
     }
 
     /// Write dates as the system region does again.
     pub fn reset_dates(&self) {
-        todo!()
+        *self.dates.write().unwrap_or_else(PoisonError::into_inner) = None;
     }
 }
 
@@ -252,34 +597,118 @@ impl I18n {
 /// (`{y:04}`, never `%Y`'s `+`).
 // effectcraft: crates/ui-egui/src/panels/home.rs:92 format_utc, crates/ui-egui/src/panels/render_queue.rs:62 utc_stamp
 pub fn utc_stamp(unix: i64, precision: TimePrecision) -> String {
-    todo!()
+    let at = DateTime::from_unix(unix, TimeZone::Utc);
+    let style = DateStyle { date: Some(DateLength::Short), time: Some(precision) };
+    plain(at, style)
 }
 
 #[cfg(test)]
 mod tests {
-    #![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+    use super::*;
+
+    fn region(tag: &str, hour_cycle: Option<HourCycle>) -> DateFormat {
+        DateFormat::new(&Region { hour_cycle, ..Region::from_tag(tag) })
+    }
+
+    /// CLDR separates the time from AM and PM with a narrow no-break space; the tests write a plain one.
+    fn plain_spaces(text: String) -> String {
+        text.replace('\u{202f}', " ")
+    }
+
+    const AFTERNOON: DateTime = DateTime { date: CalendarDate { year: 2026, month: 10, day: 31 }, hour: 14, minute: 5, second: 11 };
 
     // 1970-01-01 is day 0 and a Thursday; 2000-02-29 exists and 2100-02-29 doesn't; from_days
     // and days round-trip across ±400-year cycles and years past 9999; Jan 31 + 1 month is Feb 29
     // in 2028.
     #[test]
-    #[ignore = "skeleton"]
     fn calendar_dates_round_trip_and_step() {
-        todo!()
+        let epoch = CalendarDate::new(1970, 1, 1).unwrap();
+        assert_eq!((epoch.days(), epoch.weekday()), (0, Weekday::Thursday));
+        assert_eq!(CalendarDate::from_days(-1), CalendarDate { year: 1969, month: 12, day: 31 });
+        assert!(CalendarDate::new(2000, 2, 29).is_some());
+        assert!(CalendarDate::new(2100, 2, 29).is_none());
+        assert!(CalendarDate::new(2026, 4, 31).is_none());
+        assert!(CalendarDate::new(2026, 13, 1).is_none());
+        assert_eq!(CalendarDate::days_in_month(2024, 2), 29);
+        assert_eq!(CalendarDate::days_in_month(1900, 2), 28);
+        assert_eq!(CalendarDate::days_in_month(2026, 12), 31);
+        for days in [-1_000_000_000_000, -146_097 * 3 - 5, -719_528, -1, 0, 20_392, 146_097, 3_000_000, 4_000_000_000_000] {
+            let date = CalendarDate::from_days(days);
+            assert_eq!(date.days(), days, "{date:?}");
+            assert_eq!(CalendarDate::new(date.year, date.month, date.day), Some(date));
+        }
+        // The weekday repeats every 400 years.
+        let saturday = CalendarDate::new(2026, 10, 31).unwrap();
+        assert_eq!(saturday.weekday(), Weekday::Saturday);
+        assert_eq!(CalendarDate::new(2026 + 400 * 1000, 10, 31).unwrap().weekday(), Weekday::Saturday);
+        assert_eq!(CalendarDate::new(12_026, 10, 31).unwrap().days() - saturday.days(), 10_000 * 365 + 2425);
+        let jan31 = CalendarDate::new(2028, 1, 31).unwrap();
+        assert_eq!(jan31.add_months(1), CalendarDate::new(2028, 2, 29).unwrap());
+        assert_eq!(jan31.add_months(13), CalendarDate::new(2029, 2, 28).unwrap());
+        assert_eq!(jan31.add_months(-2), CalendarDate::new(2027, 11, 30).unwrap());
+        assert_eq!(saturday.add_days(1), CalendarDate::new(2026, 11, 1).unwrap());
     }
 
     // en-US writes "Oct 31, 2026, 2:05 PM", de-DE "31.10.2026, 14:05", en-US with HourCycle::H23
     // "14:05"; month and weekday names stand alone; en-US weeks start on Sunday and de-DE on Monday.
     #[test]
-    #[ignore = "skeleton"]
     fn dates_follow_the_region() {
-        todo!()
+        let us = region("en-US", None);
+        let de = region("de-DE", None);
+        let us24 = region("en-US", Some(HourCycle::H23));
+        assert_eq!(plain_spaces(us.format(AFTERNOON, DateStyle::DATE_TIME)), "Oct 31, 2026, 2:05 PM");
+        assert_eq!(de.format(AFTERNOON, DateStyle::DATE_TIME), "31.10.2026, 14:05");
+        assert_eq!(us24.format(AFTERNOON, DateStyle::DATE_TIME), "Oct 31, 2026, 14:05");
+        assert_eq!(us.format(AFTERNOON, DateStyle::DATE), "Oct 31, 2026");
+        assert_eq!(plain_spaces(us.format(AFTERNOON, DateStyle::TIME)), "2:05 PM");
+        assert_eq!(plain_spaces(us.format(AFTERNOON, DateStyle::LONG_DATE_TIME)), "October 31, 2026 at 2:05:11 PM");
+        assert_eq!(de.format(AFTERNOON, DateStyle { date: Some(DateLength::Full), time: None }), "Samstag, 31. Oktober 2026");
+        assert_eq!(us.format(AFTERNOON, DateStyle { date: Some(DateLength::Short), time: None }), "10/31/26");
+        assert_eq!(us.format(AFTERNOON, DateStyle { date: None, time: None }), "");
+        // A year past 9999 keeps its digits.
+        let far = DateTime { date: CalendarDate { year: 4_000_000_026, ..AFTERNOON.date }, ..AFTERNOON };
+        assert_eq!(us.format(far, DateStyle::DATE), "Oct 31, 4000000026");
+        assert_eq!(us.clone().month_name(10, NameLength::Wide), "October");
+
+        names_week_and_typed_dates(&us, &de);
+    }
+
+    fn names_week_and_typed_dates(us: &DateFormat, de: &DateFormat) {
+        assert_eq!(us.month_name(10, NameLength::Wide), "October");
+        assert_eq!(us.month_name(10, NameLength::Abbreviated), "Oct");
+        assert_eq!(us.month_name(10, NameLength::Narrow), "O");
+        assert_eq!(de.month_name(10, NameLength::Wide), "Oktober");
+        assert_eq!(region("pl-PL", None).month_name(10, NameLength::Wide), "październik");
+        assert_eq!(us.weekday_name(Weekday::Saturday, NameLength::Wide), "Saturday");
+        assert_eq!(us.weekday_name(Weekday::Saturday, NameLength::Abbreviated), "Sat");
+        assert_eq!(de.weekday_name(Weekday::Monday, NameLength::Wide), "Montag");
+        assert_eq!(us.first_weekday(), Weekday::Sunday);
+        assert_eq!(de.first_weekday(), Weekday::Monday);
+        assert_eq!(region("ar-EG", None).first_weekday(), Weekday::Saturday);
+
+        let date = CalendarDate::new(2026, 10, 31);
+        assert_eq!(us.parse_date("10/31/2026"), date);
+        assert_eq!(us.parse_date("10/31/26"), date);
+        assert_eq!(de.parse_date("31.10.2026"), date);
+        assert_eq!(de.parse_date("2026-10-31"), date);
+        assert_eq!(region("ja-JP", None).parse_date("2026/10/31"), date);
+        assert_eq!(us.parse_date("31/10/2026"), None, "month 31");
+        assert_eq!(us.parse_date("2/30/2026"), None);
+        assert_eq!(us.parse_date("Oct 31 2026"), None);
+        assert_eq!(us.parse_date("10/31"), None);
     }
 
     // 0 is "1970-01-01 00:00", seconds add ":00", a year past 9999 keeps its digits.
     #[test]
-    #[ignore = "skeleton"]
     fn utc_stamps_are_fixed_width_and_language_free() {
-        todo!()
+        assert_eq!(utc_stamp(0, TimePrecision::Minutes), "1970-01-01 00:00");
+        assert_eq!(utc_stamp(0, TimePrecision::Seconds), "1970-01-01 00:00:00");
+        assert_eq!(utc_stamp(1_791_036_300, TimePrecision::Minutes), "2026-10-03 14:05");
+        assert_eq!(utc_stamp(-1, TimePrecision::Seconds), "1969-12-31 23:59:59");
+        let year_12026 = CalendarDate::new(12_026, 10, 31).unwrap().days() * 86_400;
+        assert_eq!(utc_stamp(year_12026, TimePrecision::Minutes), "12026-10-31 00:00");
+        assert_eq!(DateTime::from_unix(1_791_036_300, TimeZone::Utc).hour, 14);
+        let before = UNIX_EPOCH - std::time::Duration::from_millis(1500);
+        assert_eq!(DateTime::from_system(before, TimeZone::Utc).second, 58);
     }
 }
