@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 
 use craft_ui::behavior::{DropPosition, ListDrag, Move, RowInfo, UniformSpans};
-use craft_ui::edit::{EditEvent, GestureId};
+use craft_ui::edit::{CancelReason, EditEvent, GestureId};
 use craft_ui::list::ListRow;
 use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
 use egui::{Context, DragAndDrop, Modifiers};
@@ -84,7 +84,7 @@ fn accepts_drop_refusal_shows_no_marker() {
     let spans = UniformSpans { origin: 0.0, extent: 20.0, gap: 0.0, rows: 3 };
     let output = ctx.run_ui(egui::RawInput::default(), |ui| {
         with_context(ui, &tree, |cx| {
-            let reorder = reorder(cx, &rows);
+            let reorder = reorder(cx);
             assert!(reorder.resolve(&rows[..], &spans, 55.0, &[Key::Layer(4)], Modifiers::NONE).is_none());
             let before = reorder.resolve(&rows[..], &spans, 45.0, &[Key::Layer(4)], Modifiers::NONE).expect("Before the Background");
             assert_eq!((before.mv.target, before.mv.position), (Key::Layer(9), DropPosition::Before));
@@ -140,7 +140,7 @@ fn effects_drag_onto_a_layer_outlines_it_and_reports_a_transfer() {
     let spans = UniformSpans { origin: 0.0, extent: 20.0, gap: 0.0, rows: 3 };
     let output = ctx.run_ui(egui::RawInput::default(), |ui| {
         with_context(ui, &tree, |cx| {
-            let reorder = reorder(cx, &rows);
+            let reorder = reorder(cx);
             let middle = reorder.resolve(&rows[..], &spans, 50.0, std::slice::from_ref(&effects), Modifiers::ALT).expect("Into the Title layer");
             assert_eq!((middle.mv.target.clone(), middle.mv.position, middle.mv.copy), (Key::Layer(4), DropPosition::Into, true));
             let layer = reorder.resolve(&rows[..], &spans, 50.0, &[Key::Layer(7)], Modifiers::NONE).expect("a half of the Title layer");
@@ -194,17 +194,40 @@ fn drop_preview_is_reported_only_when_the_setting_is_on() {
 fn drop_events_carry_the_layer_drop_of_the_move() {
     let id = GestureId::next();
     let good = mv(vec![Key::Layer(4)], Key::Layer(1), DropPosition::Before);
-    let nothing = mv(vec![Key::Layer(4)], Key::Effects(7, None), DropPosition::Before);
+    let nothing = mv(vec![Key::Layer(4)], Key::Effects(7, None), DropPosition::Into);
     let Some(LayersEvent::Drop(EditEvent::Commit { value: LayerDrop::Layers(m), changed: true, .. })) =
         drop_event(EditEvent::commit(id, good.clone(), true, Modifiers::NONE))
     else {
         panic!("a commit with the drop")
     };
     assert_eq!((m.layers, m.target), (vec![4], 1));
-    assert!(drop_event(EditEvent::commit(id, nothing.clone(), true, Modifiers::NONE)).is_none());
+    // A commit that means nothing still ends the gesture the app began.
+    assert!(matches!(
+        drop_event(EditEvent::commit(id, nothing.clone(), true, Modifiers::NONE)),
+        Some(LayersEvent::Drop(EditEvent::Cancel { reason: CancelReason::Dismissed, .. }))
+    ));
     assert!(drop_event(EditEvent::set(nothing, Modifiers::NONE)).is_none());
     assert!(matches!(drop_event(EditEvent::<Move<Key>>::begin(id)), Some(LayersEvent::Drop(EditEvent::Begin { value: None, .. }))));
     assert!(drop_event(EditEvent::update(id, good, Modifiers::NONE)).is_none());
+}
+
+// Layers dropped before or after one of a layer's effects or Smart Filter rows, or under the last
+// of them, land below that layer; onto one (`Into`) they go nowhere.
+#[test]
+fn layers_dropped_beside_sub_rows_land_after_their_layer() {
+    let tree = MockLayers::sample();
+    let landing = |target: Key, position| match layer_drop(&mv(vec![Key::Layer(4)], target, position)) {
+        Some(LayerDrop::Layers(m)) => Some((m.target, m.position)),
+        _ => None,
+    };
+    for target in [Key::Effects(7, None), Key::Effects(7, Some(1)), Key::Filters(6, Some(0))] {
+        let layer = *target.layer();
+        for position in [DropPosition::Before, DropPosition::After] {
+            assert_eq!(landing(target.clone(), position), Some((layer, DropPosition::After)), "{target:?} {position:?}");
+            assert!(accepts_move(&tree, &mv(vec![Key::Layer(4)], target.clone(), position), Modifiers::NONE));
+        }
+        assert_eq!(landing(target.clone(), DropPosition::Into), None);
+    }
 }
 
 // A mask drag's payload holds only the mask, labelled for the ghost.

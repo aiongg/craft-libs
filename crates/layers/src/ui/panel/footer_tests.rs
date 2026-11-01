@@ -16,11 +16,12 @@ use egui::{Context, Event, Id, IdSalt, Modifiers, PointerButton, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
+use super::LayersPanel;
 use super::context::{PanelContext, RowSink};
 use super::events::LayersEvent;
 use super::footer::{LayersFooterAction, LayersFooterButton, accepts_footer_drop, show_footer};
 use super::labels::LayersLabels;
-use super::menu::{LayersMenuAction, MenuRequest, SHOW_FILTERS, note_drawn, panel_menu, run_command, show_row_menus};
+use super::menu::{CLIP_THUMBNAILS, COLLAPSE_ALL, LayersMenuAction, MenuRequest, PANEL_OPTIONS, SHOW_FILTERS, note_drawn, show_row_menus};
 use super::style::LayersStyle;
 use crate::ui::mock::MockLayers;
 use crate::ui::options::{LayersOptions, LayersSettings};
@@ -55,7 +56,7 @@ fn footer() -> Harness<'static, App> {
                     trailing: None,
                     sink: RefCell::new(RowSink::default()),
                 };
-                app.events.extend(show_footer(ui, &cx));
+                app.events.extend(show_footer(ui, &cx, Id::unique("list")));
             },
             app,
         );
@@ -159,7 +160,7 @@ fn panel_menu_entries_and_commands_change_the_settings() {
             .map(|item| (item.label().to_owned(), item.command().cloned(), item.is_enabled(), item.item_kind().checked()))
             .collect()
     };
-    let entries = panel_menu(&ctx, "layers", &settings);
+    let entries = LayersPanel::<MockLayers>::panel_menu(&ctx, "layers", &settings);
     let top = rows(&entries);
     assert_eq!(
         top.iter().map(|r| r.0.as_str()).collect::<Vec<_>>(),
@@ -171,19 +172,19 @@ fn panel_menu_entries_and_commands_change_the_settings() {
     assert_eq!(top[3].3, Some(false));
 
     note_drawn(&ctx, IdSalt::new("layers"));
-    assert!(rows(&panel_menu(&ctx, "layers", &settings))[2].2);
-    assert!(!rows(&panel_menu(&ctx, "other", &settings))[2].2, "the mark belongs to its panel");
+    assert!(rows(&LayersPanel::<MockLayers>::panel_menu(&ctx, "layers", &settings))[2].2);
+    assert!(!rows(&LayersPanel::<MockLayers>::panel_menu(&ctx, "other", &settings))[2].2, "the mark belongs to its panel");
 
-    let run = |settings: &mut LayersSettings, command: &str| run_command(&ctx, "layers", settings, &command.to_owned());
+    let run = |settings: &mut LayersSettings, command: &str| LayersPanel::<MockLayers>::run_command(&ctx, "layers", settings, &command.to_owned());
     assert_eq!(run(&mut settings, SHOW_FILTERS), Some(LayersMenuAction::SettingsChanged));
     assert!(!settings.show_filters);
-    assert_eq!(run(&mut settings, super::menu::CLIP_THUMBNAILS), Some(LayersMenuAction::SettingsChanged));
+    assert_eq!(run(&mut settings, CLIP_THUMBNAILS), Some(LayersMenuAction::SettingsChanged));
     assert_eq!(settings.options.thumbnail_contents, ThumbContents::LayerBounds);
-    assert_eq!(rows(&panel_menu(&ctx, "layers", &settings))[3].3, Some(true));
-    assert_eq!(run(&mut settings, super::menu::CLIP_THUMBNAILS), Some(LayersMenuAction::SettingsChanged));
+    assert_eq!(rows(&LayersPanel::<MockLayers>::panel_menu(&ctx, "layers", &settings))[3].3, Some(true));
+    assert_eq!(run(&mut settings, CLIP_THUMBNAILS), Some(LayersMenuAction::SettingsChanged));
     assert_eq!(settings.options.thumbnail_contents, ThumbContents::EntireDocument);
-    assert_eq!(run(&mut settings, super::menu::PANEL_OPTIONS), Some(LayersMenuAction::OpenOptions));
-    assert_eq!(run(&mut settings, super::menu::COLLAPSE_ALL), Some(LayersMenuAction::CollapseAll));
+    assert_eq!(run(&mut settings, PANEL_OPTIONS), Some(LayersMenuAction::OpenOptions));
+    assert_eq!(run(&mut settings, COLLAPSE_ALL), Some(LayersMenuAction::CollapseAll));
     assert_eq!(run(&mut settings, "somebody.else"), None);
 }
 
@@ -202,11 +203,12 @@ fn footer_and_toggle_cells_are_named() {
 // Delete takes every kind of row and a mask; New Layer and New Group take layer rows only.
 #[test]
 fn footer_buttons_accept_the_drags_the_spec_names() {
-    let drag = |items: Vec<LayerRowKey<u32>>| ListDrag { list: Id::unique("list"), grabbed: items[0].clone(), items, label: String::new() };
+    let list = Id::unique("list");
+    let drag = |items: Vec<LayerRowKey<u32>>| ListDrag { list, grabbed: items[0].clone(), items, label: String::new() };
     let layers = drag(vec![LayerRowKey::Layer(1), LayerRowKey::Layer(2)]);
     let effects = drag(vec![LayerRowKey::Effects(1, Some(0))]);
     let mask = drag(vec![LayerRowKey::Mask(1, crate::ui::tree::LayerPart::LayerMask)]);
-    let accepts = |button, drag: &ListDrag<LayerRowKey<u32>>| accepts_footer_drop(button, drag);
+    let accepts = |button, drag: &ListDrag<LayerRowKey<u32>>| accepts_footer_drop(button, drag, list);
     for drag in [&layers, &effects, &mask] {
         assert!(accepts(LayersFooterButton::Delete, drag));
     }
@@ -215,7 +217,15 @@ fn footer_buttons_accept_the_drags_the_spec_names() {
         assert!(!accepts(button, &effects));
         assert!(!accepts(button, &mask));
     }
-    assert!(!accepts(LayersFooterButton::Delete, &drag(Vec::new())));
+}
+
+// A drag from another panel's list (a second document's Layers panel) is taken by no button.
+#[test]
+fn footer_buttons_refuse_a_drag_from_another_list() {
+    let drag = ListDrag { list: Id::unique("other"), grabbed: LayerRowKey::Layer(1u32), items: vec![LayerRowKey::Layer(1)], label: String::new() };
+    for button in [LayersFooterButton::Delete, LayersFooterButton::NewLayer, LayersFooterButton::NewGroup] {
+        assert!(!accepts_footer_drop(button, &drag, Id::unique("list")), "{button:?}");
+    }
 }
 
 // The eye menu lists None and the eleven colours with the current one checked, stays open over

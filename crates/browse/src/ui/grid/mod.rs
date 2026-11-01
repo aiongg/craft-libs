@@ -26,6 +26,7 @@ mod layout;
 #[cfg(test)]
 mod layout_tests;
 mod paint;
+mod rename;
 pub(crate) mod stories;
 mod style;
 mod zoom;
@@ -44,8 +45,9 @@ use craft_ui::controls::BadgeTone;
 use craft_ui::direction;
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
-use craft_ui::list::{ContextMenuRequest, drop_line};
+use craft_ui::list::{ContextMenuRequest, DropMark, RenameEnd, drop_line, paint_drop_mark};
 use craft_ui::localized::Labels as _;
+use craft_ui::patterns::ScrollBarLabels;
 use craft_ui::primitives::{FocusRing, Interactive};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::accesskit::{Action, Role};
@@ -57,9 +59,11 @@ use egui::{
 };
 
 use keys::{GridKeyAction, KeyGrid};
-use paint::{TileLook, accessible_name, paint_tile};
+use paint::accessible_name;
+use rename::Rename;
 
 pub use layout::{ArrangeSpacing, TileArrangement, TileGroup, TileLayout, TileRow, arrange, card_size, fit_name};
+pub use paint::{TileFace, TileLook, paint_tile, stack_text};
 pub use style::TileStyle;
 pub use zoom::{ThumbnailSlider, TileZoom, ZoomStep};
 
@@ -267,6 +271,11 @@ pub enum TileEvent<K> {
     ContextMenu(ContextMenuRequest<K>),
     /// A double click on the background (FilmCraft: import).
     EmptyActivated,
+    /// A rename was committed with `text`, different from the tile's name (with `.can_rename(..)`);
+    /// followed by `RenameEnded`.
+    Renamed { key: K, text: String },
+    /// A rename closed, and how.
+    RenameEnded { key: K, end: RenameEnd },
 }
 
 /// What [`TileGrid::show`] returns.
@@ -285,28 +294,32 @@ craft_ui::words! {
     pub struct TileLabels {
         /// A tile's accessible name: `{name}`, then `{details}` (the parts below that apply,
         /// joined with ", ").
-        tile_name: "browse.tileName" = "{name}, {details}";
-        /// `{n}` stars.
-        stars: "browse.stars" = "{n} stars";
-        one_star: "browse.oneStar" = "1 star";
-        picked: "browse.picked" = "picked";
-        rejected: "browse.rejected" = "rejected";
+        tile_name: "browse.tile.name" = "{name}, {details}";
+        picked: "browse.tile.picked" = "picked";
+        rejected: "browse.tile.rejected" = "rejected";
         /// `{label}` the app's label name.
-        label: "browse.label" = "{label} label";
-        offline: "browse.offline" = "Offline";
-        unreadable: "browse.unreadable" = "Unreadable";
-        failed: "browse.failed" = "Preview failed";
+        label: "browse.tile.label" = "{label} label";
+        offline: "browse.tile.offline" = "Offline";
+        /// An offline tile's accessible detail: `{offline}` (the word above), then the host's
+        /// `{message}`.
+        offline_with: "browse.tile.offlineWith" = "{offline}: {message}";
+        unreadable: "browse.tile.unreadable" = "Unreadable";
+        failed: "browse.tile.failed" = "Preview failed";
         /// The stack badge: `{n}` tiles.
-        stack: "browse.stack" = "×{n}";
+        stack: "browse.tile.stack" = "×{n}";
         /// The tile size slider's accessible name.
-        thumbnail_size: "browse.thumbnailSize" = "Thumbnail Size";
-        smaller: "browse.smaller" = "Smaller Thumbnails";
-        larger: "browse.larger" = "Larger Thumbnails";
+        thumbnail_size: "browse.tile.thumbnailSize" = "Thumbnail Size";
+        smaller: "browse.tile.smaller" = "Smaller Thumbnails";
+        larger: "browse.tile.larger" = "Larger Thumbnails";
+        /// The rename field's accessible name.
+        rename: "browse.tile.rename" = "Name";
     }
 }
 
 /// The thumbnails a widget draws with: the cache and the app's source, keyed by the widget's key.
 type ThumbPair<'a, K> = (&'a Thumbnails<K>, &'a dyn ThumbSource<K>);
+
+type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 
 /// A host's own drawing on a card (PdfCraft's hover bar, a page stack): called after the tile
 /// is painted, with the picture's rect.
@@ -345,9 +358,16 @@ pub type CardOverlay<'a, K> = Box<dyn FnMut(&mut Ui, &K, Rect) + 'a>;
 ///   or replaces it (not selected), `Drag(ListDrag)` is reported once and set as egui's payload;
 ///   the host shows the `DragBadge`. Esc cancels.
 /// - **Reorder** (`.reorder(Reorder)`): `grid_drop` over the arrangement picks the gap; the
-///   insert line is `list::drop_line` in the gap; `Reorder(Begin)`, then `Commit` on release or
+///   insert line is `list::drop_line` in the gap, and `list::paint_drop_mark(Into)` outlines the
+///   tile for an `Into` target; `Reorder(Begin)`, then `Commit` on release or
 ///   `Cancel` (Esc, focus lost, released outside); Alt (Option) copies
 ///   (`Reorder::copy_with_alt`); edge auto-scroll (`Reorder::auto_scroll`).
+/// - **Rename** (`.renamable(true)` or `.can_rename(..)`, tiles with a caption): F2 on the lead,
+///   a click on the caption of the only selected tile that no second click follows within
+///   egui's double-click interval, or `.start_rename(key)` opens a field in the caption
+///   (`TileLabels::rename` names it). Enter and focus loss commit (`Renamed` if the text
+///   changed, then `RenameEnded`); Esc cancels (`RenameEnded` alone). Starting another rename
+///   commits the open one.
 /// - **Marquee.** A primary drag from the background selects every enabled tile the rectangle
 ///   touches, live; Shift or Cmd/Ctrl adds to the selection the drag began with; Esc restores
 ///   it. Fill `tile.marquee.fill`, line `tile.marquee.line`.
@@ -359,8 +379,9 @@ pub type CardOverlay<'a, K> = Box<dyn FnMut(&mut Ui, &K, Rect) + 'a>;
 ///   header pushes it up; headers are not Tab stops.
 /// - **Check mode** (`.check_mode(true)`): a click toggles the tile's check (its selection);
 ///   Shift-click sets every enabled tile from the last clicked one to this one to this tile's new
-///   state; disabled tiles are skipped and can't be checked; the check box is drawn in the
-///   start-top corner (`tile.checkbox`, at `tile.inset + 2`, on `surface.scrim` at 60 %).
+///   state; disabled tiles are skipped and can't be checked; the check box is the library's
+///   (`paint_box` with `Checkbox::style`) in the start-top corner (`tile.checkbox`, at
+///   `tile.inset` + `tile.checkbox_backdrop`, on that margin of `surface.scrim` at 60 %).
 /// - **Look.** [`TileStyle`]: selected ring outside the picture (`tile.ring.selected` 2 pt with
 ///   the 1 pt `tile.ring.halo` outside it), hover ring 1 pt `tile.ring.hover`, the lead's focus
 ///   ring while focused, no cell fill; caption, badge bar, corner badges, offline band, veil, In
@@ -389,6 +410,8 @@ pub struct TileGrid<'a, K: TextureKey, S: ?Sized> {
     label: String,
     overlay: Option<CardOverlay<'a, K>>,
     labels: Option<TileLabels>,
+    can_rename: Option<CanRename<'a, K>>,
+    start_rename: Option<K>,
 }
 
 impl<'a, K, S> TileGrid<'a, K, S>
@@ -416,6 +439,8 @@ where
             label: String::new(),
             overlay: None,
             labels: None,
+            can_rename: None,
+            start_rename: None,
         }
     }
 
@@ -510,6 +535,30 @@ where
         self
     }
 
+    /// Whether tiles can be renamed in place (default false; needs a caption).
+    #[must_use]
+    pub fn renamable(mut self, renamable: bool) -> Self {
+        self.can_rename = renamable.then(|| Box::new(|_: &K| true) as CanRename<'a, K>);
+        self
+    }
+
+    /// Tiles can be renamed in place where `can_rename` says so: F2 on the lead, a slow click on
+    /// the caption of the only selected tile, or [`start_rename`](Self::start_rename). Enter and
+    /// blur commit (`Renamed` when the text changed, then `RenameEnded`); Esc cancels.
+    #[must_use]
+    pub fn can_rename(mut self, can_rename: impl Fn(&K) -> bool + 'a) -> Self {
+        self.can_rename = Some(Box::new(can_rename));
+        self
+    }
+
+    /// Opens the rename field of tile `key` (a context menu's Rename), committing any other open
+    /// rename, where the tile can be renamed.
+    #[must_use]
+    pub fn start_rename(mut self, key: K) -> Self {
+        self.start_rename = Some(key);
+        self
+    }
+
     /// The words (default: the installed `Words`).
     #[must_use]
     pub fn labels(mut self, labels: TileLabels) -> Self {
@@ -571,6 +620,11 @@ struct State<K> {
     /// Whether the window lost the focus in this pass.
     window_lost: bool,
     pinch: f32,
+    /// The open rename.
+    rename: Option<Rename<K>>,
+    /// A click on the caption of the only selected tile and when it happened: it opens the
+    /// rename once no second click came within the double-click interval.
+    slow_click: Option<(K, f64)>,
 }
 
 impl<K> Default for State<K> {
@@ -588,6 +642,8 @@ impl<K> Default for State<K> {
             window_focused: true,
             window_lost: false,
             pinch: 0.0,
+            rename: None,
+            slow_click: None,
         }
     }
 }
@@ -669,7 +725,11 @@ impl Mapper {
 
 /// What a pointer or an assistive technology did to one tile.
 enum HitKind {
-    Click(Modifiers),
+    /// A click; `on_caption` when it landed on the caption under the picture.
+    Click {
+        modifiers: Modifiers,
+        on_caption: bool,
+    },
     /// A click on the stars: the rating to set (0 clears).
     Rate(u8),
     Double,
@@ -786,6 +846,7 @@ struct Pass<'a, 's, K: TextureKey, S: ?Sized> {
     rating_keys: RatingKeys,
     badges: BadgeVisibility,
     hover_scrub: bool,
+    can_rename: Option<CanRename<'a, K>>,
     thumbnails: Option<ThumbPair<'a, K>>,
     reorder: Option<Reorder<'a, K>>,
     arr: Arc<TileArrangement>,
@@ -804,6 +865,8 @@ struct Drawn<K> {
     group_clicks: Vec<(usize, Modifiers)>,
     /// The id of the lead's tile when it was built this pass.
     lead_tile: Option<Id>,
+    /// What the rename field showed, when the renamed tile was built.
+    rename: Option<rename::Outcome>,
 }
 
 /// What one tile draws into while the rows are built.
@@ -813,6 +876,7 @@ struct Rows<K> {
     dragging: bool,
     hits: Vec<Hit<K>>,
     lead_tile: Option<Id>,
+    rename: Option<rename::Outcome>,
 }
 
 fn show_grid<K, S>(grid: TileGrid<'_, K, S>, ui: &mut Ui) -> TileGridOutput<K>
@@ -837,6 +901,8 @@ where
         label,
         mut overlay,
         labels,
+        can_rename,
+        start_rename,
     } = grid;
     // A grid whose host gives no selection keeps its own.
     let own_id = ui.make_persistent_id(id_salt).with("own selection");
@@ -852,10 +918,15 @@ where
     pass.space = space;
     pass.check_mode = check_mode;
     pass.hover_scrub = hover_scrub;
+    pass.can_rename = can_rename;
     pass.reorder = reorder;
     pass.gesture = pass.reorder.as_ref().map(|_| ReorderGesture::load(ui, pass.id));
 
     let menu_key = pass.keys(ui, type_ahead);
+    if let Some(key) = start_rename {
+        pass.start_rename(key);
+    }
+    pass.slow_click_due();
     let scroll_to = pass.scroll_request(ui);
     let dragging = DragAndDrop::payload::<ListDrag<K>>(&pass.ctx).is_some_and(|p| p.list == pass.id);
     let builder = UiBuilder::new()
@@ -865,8 +936,12 @@ where
         .accessibility_label(label)
         .layout(egui::Layout::top_down(egui::Align::Min));
     let scope = ui.scope_builder(builder, |ui| {
-        let mut area =
-            ScrollArea::vertical().id_salt("scroll").auto_shrink([false, false]).content_margin(0.0).scroll_source(ScrollSource::SCROLL_BAR);
+        let mut area = ScrollArea::vertical()
+            .id_salt("scroll")
+            .auto_shrink([false, false])
+            .content_margin(0.0)
+            .scroll_source(ScrollSource::SCROLL_BAR)
+            .vertical_scroll_bar_label(ScrollBarLabels::name(ui));
         if let Some(offset) = scroll_to {
             area = area.vertical_scroll_offset(offset);
         }
@@ -878,6 +953,7 @@ where
     let view = area.inner_rect;
     let drawn = area.inner;
     let lead_tile = drawn.lead_tile;
+    pass.rename_shown(drawn.rename);
 
     let modifiers = ui.input(|i| i.modifiers);
     for hit in drawn.hits {
@@ -908,7 +984,7 @@ where
     ) -> Self {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
-        let style = TileStyle::of(&tokens);
+        let style = TileStyle::style(&tokens);
         let id = ui.make_persistent_id(id_salt);
         let mut state = State::<K>::load(&ctx, id);
         let len = DisplayOrder::<K>::len(source);
@@ -952,6 +1028,7 @@ where
             rating_keys: RatingKeys::default(),
             badges: BadgeVisibility::default(),
             hover_scrub: false,
+            can_rename: None,
             thumbnails: None,
             reorder: None,
             arr,
@@ -1006,6 +1083,7 @@ where
             space: self.space,
             check_mode: self.check_mode,
             rating: self.rating_keys,
+            renamable: self.selection.lead.as_ref().is_some_and(|lead| self.renamable(lead)),
         };
         let stacks = self.reorder.is_some();
         let mac = self.mac;
@@ -1091,7 +1169,86 @@ where
                 }
             }
             GridKeyAction::Zoom(step) => self.events.push(TileEvent::Zoom(step)),
+            GridKeyAction::Rename => {
+                if let Some(lead) = self.selection.lead.clone() {
+                    self.start_rename(lead);
+                }
+            }
             GridKeyAction::Menu => {}
+        }
+    }
+
+    /// Whether tile `key` can be renamed here: the host allows it and the tile has a caption.
+    fn renamable(&self, key: &K) -> bool {
+        self.captioned
+            && self.can_rename.as_ref().is_some_and(|can| can(key))
+            && self.order.position(key).is_some_and(|at| !self.order.is_section(at))
+    }
+
+    /// Opens the rename of `key` where it can be renamed, committing another open one.
+    fn start_rename(&mut self, key: K) {
+        if !self.renamable(&key) || self.state.rename.as_ref().is_some_and(|open| open.key == key) {
+            return;
+        }
+        if let Some(open) = self.state.rename.take() {
+            self.end_rename(open, RenameEnd::Blur);
+        }
+        let at = self.order.position(&key);
+        let name = at.map(|at| content_at::<K, S>(self.source, at).name).unwrap_or_default();
+        self.state.rename = Some(Rename { key, text: name, fresh: true });
+        self.state.reveal = at;
+    }
+
+    /// Closes a rename with `end`: a changed text is reported unless Esc ended it.
+    fn end_rename(&mut self, open: Rename<K>, end: RenameEnd) {
+        let name = self.order.position(&open.key).map(|at| content_at::<K, S>(self.source, at).name);
+        if end != RenameEnd::Escape && end != RenameEnd::Removed && name.is_some_and(|name| name != open.text) {
+            self.events.push(TileEvent::Renamed { key: open.key.clone(), text: open.text });
+        }
+        self.events.push(TileEvent::RenameEnded { key: open.key, end });
+    }
+
+    /// Takes what the rename field showed this pass: the text typed, and its end.
+    fn rename_shown(&mut self, outcome: Option<rename::Outcome>) {
+        let Some(mut open) = self.state.rename.take() else { return };
+        let Some(shown) = outcome else {
+            // The tile is gone, or out of reach of the scroll area: the rename ends.
+            let end = if self.order.position(&open.key).is_some() { RenameEnd::Blur } else { RenameEnd::Removed };
+            self.end_rename(open, end);
+            return;
+        };
+        open.text = shown.text;
+        open.fresh = false;
+        match shown.end {
+            Some(end) => {
+                self.end_rename(open, end);
+                self.focus();
+            }
+            None => self.state.rename = Some(open),
+        }
+    }
+
+    /// Notes a click on the caption of the only selected tile (or clears the note).
+    fn slow_click(&mut self, key: Option<K>) {
+        let now = self.ctx.input(|i| i.time);
+        self.state.slow_click = key.map(|key| (key, now));
+    }
+
+    /// Opens the rename a slow click asked for, once the double-click interval passed without a
+    /// second click and the tile is still the only selected one.
+    fn slow_click_due(&mut self) {
+        let Some((key, at)) = self.state.slow_click.clone() else { return };
+        if self.selection.items != [key.clone()] {
+            self.state.slow_click = None;
+            return;
+        }
+        let delay = self.ctx.options(|o| o.input_options.max_double_click_delay);
+        let waited = self.ctx.input(|i| i.time) - at;
+        if waited >= delay {
+            self.state.slow_click = None;
+            self.start_rename(key);
+        } else {
+            self.ctx.request_repaint_after(std::time::Duration::from_secs_f64(delay - waited));
         }
     }
 
@@ -1200,7 +1357,7 @@ where
 
         // Tiles in view are drawn; those within a viewport of it are built, so their pictures are
         // asked for at `NEAR`.
-        let mut rows = Rows { mapper, modifiers: ui.input(|i| i.modifiers), dragging, hits: Vec::new(), lead_tile: None };
+        let mut rows = Rows { mapper, modifiers: ui.input(|i| i.modifiers), dragging, hits: Vec::new(), lead_tile: None, rename: None };
         let reach = viewport.height();
         for row_index in self.arr.rows_between(viewport.top() - reach, viewport.bottom() + reach) {
             let row = &self.arr.rows[row_index];
@@ -1213,7 +1370,7 @@ where
         if let Some((index, rect)) = groups::pinned_rect(&self.arr.headers, viewport, at_top) {
             self.group_header(ui, &mapper, index, rect, true, &mut group_clicks);
         }
-        Drawn { mapper, background, hits: rows.hits, group_clicks, lead_tile: rows.lead_tile }
+        Drawn { mapper, background, hits: rows.hits, group_clicks, lead_tile: rows.lead_tile, rename: rows.rename }
     }
 
     fn group_header(&self, ui: &mut Ui, mapper: &Mapper, index: usize, header: Rect, pinned: bool, clicks: &mut Vec<(usize, Modifiers)>) {
@@ -1244,7 +1401,7 @@ where
         }
         let tile = tile_id(self.id, &key);
         let selected = self.selection.contains(&key);
-        let response = Interactive::with_id(tile, Role::ListBoxOption, accessible_name(&content, &self.labels, None))
+        let response = Interactive::with_id(tile, Role::ListBoxOption, accessible_name(&self.ctx, &content, &self.labels, None))
             .sense(Sense::click_and_drag())
             .selected(selected)
             .position_in_set(at)
@@ -1265,10 +1422,11 @@ where
             rows.lead_tile = Some(tile);
         }
         let scrub = self.scrub_fraction(ui, rows, &response, picture, &content);
+        let renaming = self.state.rename.as_ref().filter(|r| r.key == key);
         let look = TileLook {
             content: &content,
             picture,
-            caption,
+            caption: caption.filter(|_| renaming.is_none()),
             selected,
             hovered: response.hovered() && !rows.dragging,
             lead_focused: self.focused && is_lead,
@@ -1276,8 +1434,13 @@ where
             badges: self.badges,
             scrub,
             rtl: self.rtl,
+            response: &response,
+            face: TileFace::Picture,
         };
-        let stars = paint_tile(ui, ui.painter(), &self.style, &self.labels, &look, self.thumbnails.map(|(t, _)| t), texture.as_ref());
+        let stars = paint_tile(ui, &self.style, &self.labels, &look, self.thumbnails.map(|(t, _)| t), texture.as_ref());
+        if let (Some(rename), Some(band)) = (renaming, caption) {
+            rows.rename = Some(rename::show(ui, tile, band, &self.labels.rename, rename));
+        }
         if let Some(overlay) = overlay.as_mut() {
             overlay(ui, &key, picture);
         }
@@ -1288,7 +1451,7 @@ where
         if let Some(fraction) = scrub {
             found.push(HitKind::Scrub(fraction));
         }
-        found.extend(self.pointer_hits(ui, &response, stars, content.rating, rows.modifiers));
+        found.extend(self.pointer_hits(ui, &response, stars, content.rating, caption, rows.modifiers));
         for kind in found {
             rows.hits.push(Hit { at, key: key.clone(), rect: cell, kind });
         }
@@ -1305,7 +1468,15 @@ where
     }
 
     /// What the pointer or an assistive technology did to a tile this pass.
-    fn pointer_hits(&self, ui: &Ui, response: &Response, stars: Option<Rect>, rating: Option<u8>, modifiers: Modifiers) -> Vec<HitKind> {
+    fn pointer_hits(
+        &self,
+        ui: &Ui,
+        response: &Response,
+        stars: Option<Rect>,
+        rating: Option<u8>,
+        caption: Option<Rect>,
+        modifiers: Modifiers,
+    ) -> Vec<HitKind> {
         let mut found = Vec::new();
         if response.double_clicked() {
             found.push(HitKind::Double);
@@ -1316,7 +1487,7 @@ where
                     let n = (((p.x - area.left()) / (area.width() / 5.0).max(1.0)).floor() as i32 + 1).clamp(1, 5) as u8;
                     HitKind::Rate(if n == current { 0 } else { n })
                 }
-                _ => HitKind::Click(modifiers),
+                _ => HitKind::Click { modifiers, on_caption: caption.zip(pointer).is_some_and(|(c, p)| c.contains(p)) },
             });
         }
         if response.secondary_clicked() {
@@ -1338,6 +1509,9 @@ where
     fn hit(&mut self, hit: Hit<K>, modifiers: Modifiers) {
         let Hit { at, key, rect, kind } = hit;
         let tile_enabled = !self.order.is_section(at);
+        if !matches!(kind, HitKind::Scrub(_) | HitKind::Focus) {
+            self.state.slow_click = None;
+        }
         match kind {
             HitKind::Scrub(fraction) => self.events.push(TileEvent::Scrub { key, fraction }),
             HitKind::Focus => {
@@ -1355,10 +1529,12 @@ where
                 let keys = if self.selection.contains(&key) { self.selection.items.clone() } else { vec![key] };
                 self.events.push(TileEvent::Rate { keys, rating });
             }
-            HitKind::Click(modifiers) => {
+            HitKind::Click { modifiers, on_caption } => {
                 self.focus();
                 self.state.goal = None;
                 if tile_enabled {
+                    let slow = on_caption && modifiers.is_none() && !self.check_mode && self.selection.items == [key.clone()] && self.renamable(&key);
+                    self.slow_click(slow.then(|| key.clone()));
                     self.click(at, key, modifiers);
                 }
             }
@@ -1567,9 +1743,13 @@ where
         }
         if let Some(((at, mv), pointer)) = target {
             let tile = mapper.rect(self.arr.tiles[at]);
-            let gap = self.style.gap / 2.0;
-            let x = if (mv.position == DropPosition::Before) != self.rtl { tile.left() - gap } else { tile.right() + gap };
-            drop_line(ui, pos2(x, tile.top()), pos2(x, tile.bottom()));
+            if mv.position == DropPosition::Into {
+                paint_drop_mark(ui, tile, DropMark::Into);
+            } else {
+                let gap = self.style.gap / 2.0;
+                let x = if (mv.position == DropPosition::Before) != self.rtl { tile.left() - gap } else { tile.right() + gap };
+                drop_line(ui, pos2(x, tile.top()), pos2(x, tile.bottom()));
+            }
             if let Some(reorder) = &self.reorder {
                 self.state.drift = reorder.auto_scroll(pointer, view, ui.input(|i| i.stable_dt));
             }

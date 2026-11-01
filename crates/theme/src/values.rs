@@ -1998,6 +1998,8 @@ pub const TILE_DOT: f32 = 10.0;
 pub const TILE_BAR: f32 = 24.0;
 /// Side of a media tile's check box in check mode (LightCraft `import/body.rs:417`).
 pub const TILE_CHECKBOX: f32 = 16.0;
+/// Margin of the scrim behind a media tile's check box (LightCraft `import/body.rs:417`).
+pub const TILE_CHECKBOX_BACKDROP: f32 = 2.0;
 /// Height of a media tile's badge pill (LightCraft).
 pub const TILE_BADGE_HEIGHT: f32 = 16.0;
 /// Height of a media tile's status band (FilmCraft).
@@ -2086,6 +2088,15 @@ pub const SCOPES_VECTOR_DOT_MAX: f32 = 3.0;
 pub const SCOPES_HOVER_BADGE_HEIGHT: f32 = 20.0;
 /// The hovered zone band's alpha (PhotoCraft `camera_raw_scope_ui.rs:417`).
 pub const SCOPES_ZONE_ALPHA: f32 = 0.055;
+/// The vectorscope's smallest default height (PhotoCraft `camera_raw_scope_ui.rs:511`).
+pub const SCOPES_VECTOR_HEIGHT_MIN: f32 = 100.0;
+/// The vectorscope's largest default height.
+pub const SCOPES_VECTOR_HEIGHT_MAX: f32 = 220.0;
+/// The vectorscope's margin between the outer ring and the plot's edge, which holds the hue
+/// letters (PhotoCraft `camera_raw_scope_ui.rs:443`).
+pub const SCOPES_VECTOR_MARGIN: f32 = 14.0;
+/// The inset of a clipping warning's triangle in its button (PhotoCraft `camera_raw_scope_ui.rs:352`).
+pub const SCOPES_WARNING_INSET: f32 = 3.0;
 
 /// A set header's height in the Actions panel (PhotoCraft `actions.rs:831`).
 pub const ACTIONS_SET_ROW_HEIGHT: f32 = 24.0;
@@ -2093,8 +2104,8 @@ pub const ACTIONS_SET_ROW_HEIGHT: f32 = 24.0;
 pub const ACTIONS_ROW_HEIGHT: f32 = 26.0;
 /// A step row's height in the Actions panel.
 pub const ACTIONS_STEP_ROW_HEIGHT: f32 = 20.0;
-/// The indent of an action inside a set.
-pub const ACTIONS_INDENT: f32 = 14.0;
+/// The radius of the dot on the action being recorded (PhotoCraft `actions.rs:1040`).
+pub const ACTIONS_RECORDING_DOT_RADIUS: f32 = 4.0;
 /// The Button Mode fills, red to violet (PhotoCraft `actions.rs:297-313`).
 pub const ACTIONS_COLORS: [Rgba; 6] = [
     Rgba::rgb(196, 64, 64),

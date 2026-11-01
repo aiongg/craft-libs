@@ -5,7 +5,9 @@ use std::ops::RangeInclusive;
 use craft_ui::controls::{ControlSize, IconButton, Slider};
 use craft_ui::edit::{EditEvent, EditResponse};
 use craft_ui::icons::Icon;
-use egui::{AsIdSalt, Ui};
+use egui::{AsIdSalt, IdSalt, Ui};
+
+use craft_ui::localized::Labels as _;
 
 use super::TileLabels;
 
@@ -72,12 +74,12 @@ impl TileZoom {
 /// [`TileZoom::range`] with a small picture glyph at its start and a large one at its end, each
 /// an `IconButton` that steps `Out` and `In`. The slider reports the gesture as `EditEvent<f64>`;
 /// Esc during the drag restores the size it started from (FilmCraft #580, the library slider's
-/// rule). Accessible name from `TileLabels::thumbnail_size`. Ladder steps are the slider's marks.
+/// rule). Words from `TileLabels` (`.labels(..)`, else the language of the `Ui`). Ladder steps are the slider's marks.
 pub struct ThumbnailSlider {
-    id_salt: egui::Id,
+    id_salt: IdSalt,
     value: f32,
     zoom: TileZoom,
-    label: String,
+    labels: Option<TileLabels>,
 }
 
 impl ThumbnailSlider {
@@ -88,38 +90,34 @@ impl ThumbnailSlider {
     /// The slider for `value` (the host's current size).
     pub fn new(id_salt: impl AsIdSalt, value: f32, zoom: TileZoom) -> Self {
         // filmcraft: crates/ui-egui/src/panels/project.rs:555 (`footer`: the zoom slider).
-        Self { id_salt: egui::Id::NULL.with(egui::IdSalt::new(id_salt)), value, zoom, label: TileLabels::default().thumbnail_size }
+        Self { id_salt: IdSalt::new(id_salt), value, zoom, labels: None }
     }
 
-    /// The accessible name (default `TileLabels::thumbnail_size`).
+    /// The words: the slider's name and the two end buttons' (default `TileLabels::of(ui)`).
     #[must_use]
-    pub fn label(self, label: impl Into<String>) -> Self {
+    pub fn labels(self, labels: &TileLabels) -> Self {
         // new: builder.
-        Self { label: label.into(), ..self }
+        Self { labels: Some(labels.clone()), ..self }
     }
 
     /// Draws the glyphs and the slider; the host applies `Update`, `Commit` and `Set`, and
     /// restores on `Cancel`.
     pub fn show(self, ui: &mut Ui) -> EditResponse<f64> {
         // new: Bridge's slider; composed of `IconButton`, `Slider`, `IconButton`.
-        let labels = TileLabels::default();
+        let labels = self.labels.clone().unwrap_or_else(|| TileLabels::of(ui));
+        let id = ui.make_persistent_id(self.id_salt);
         let range = self.zoom.range();
         let (low, high) = (*range.start(), *range.end());
         let mut step = None;
         let mut response = None;
         ui.horizontal(|ui| {
             let out = ui
-                .add(
-                    IconButton::new(Icon::GridSmall, labels.smaller.as_str())
-                        .size(ControlSize::Md)
-                        .enabled(self.value > low)
-                        .id_salt((self.id_salt, "out")),
-                )
+                .add(IconButton::new(Icon::GridSmall, labels.smaller.as_str()).size(ControlSize::Md).enabled(self.value > low).id_salt((id, "out")))
                 .clicked();
             if out {
                 step = Some(ZoomStep::Out);
             }
-            let mut slider = Slider::new(self.id_salt, self.label.as_str(), self.value, range.clone())
+            let mut slider = Slider::new(id, labels.thumbnail_size.as_str(), self.value, range.clone())
                 .size(ControlSize::Md)
                 .default_value(self.zoom.step(self.value, ZoomStep::Reset));
             slider = match self.zoom {
@@ -128,12 +126,7 @@ impl ThumbnailSlider {
             };
             response = Some(slider.show(ui));
             let more = ui
-                .add(
-                    IconButton::new(Icon::Grid, labels.larger.as_str())
-                        .size(ControlSize::Md)
-                        .enabled(self.value < high)
-                        .id_salt((self.id_salt, "in")),
-                )
+                .add(IconButton::new(Icon::Grid, labels.larger.as_str()).size(ControlSize::Md).enabled(self.value < high).id_salt((id, "in")))
                 .clicked();
             if more {
                 step = Some(ZoomStep::In);

@@ -877,7 +877,7 @@ families! {
     navigator: NavigatorTokens => Navigator(NavigatorField);
     /// The scope panel: warning buttons, statistics, All Channels plots and the vectorscope.
     scopes: ScopesTokens => Scopes(ScopesField);
-    /// The Actions panel: row heights, the indent and the Button Mode fills.
+    /// The Actions panel: row heights, the recording dot's radius and the Button Mode fills.
     actions: ActionsTokens => Actions(ActionsField);
     /// Angle dials: the round face and needle that point in a direction.
     angle_dial: AngleDialTokens => AngleDial(AngleDialField);

@@ -562,6 +562,22 @@ carbon = "misuse"  # near: circle with X, not slash
 tabler = "ban"
 
 [[icon]]
+name = "flag"
+directional = false
+lucide = "flag"
+phosphor = "flag"
+carbon = "flag"
+tabler = "flag"
+
+[[icon]]
+name = "refresh"
+directional = false
+lucide = "refresh-cw"
+phosphor = "arrows-clockwise"
+carbon = "renew"
+tabler = "refresh"
+
+[[icon]]
 name = "marquee_ellipse"
 directional = false
 lucide = "circle-dashed"

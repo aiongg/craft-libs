@@ -15,6 +15,7 @@ workspace = true
 screen-testing = ["craft-ui/screen-testing"]
 
 [dependencies]
+craft-theme = { workspace = true }
 craft-ui = { workspace = true }
 egui = { workspace = true }
 serde = { workspace = true }

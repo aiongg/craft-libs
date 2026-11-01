@@ -40,7 +40,7 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <compare::CompareLabels as craft_ui::localized::Labels>::WORDS,
     <relink::LinkListLabels as craft_ui::localized::Labels>::WORDS,
     <relink::RelinkLabels as craft_ui::localized::Labels>::WORDS,
-    <crate::thumbs::stories::FileThumbStoryWords as craft_ui::localized::Labels>::WORDS,
+    <crate::thumbs::stories::FileThumbStoryLabels as craft_ui::localized::Labels>::WORDS,
     <bin::stories::BinStoryLabels as craft_ui::localized::Labels>::WORDS,
     <grid::stories::GridStoryLabels as craft_ui::localized::Labels>::WORDS,
     <places::stories::PlacesStoryLabels as craft_ui::localized::Labels>::WORDS,

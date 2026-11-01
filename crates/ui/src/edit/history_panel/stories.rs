@@ -227,8 +227,8 @@ impl Doc {
                 self.panel.snapshot_selected(*id, self.steps.revision());
             }
             HistoryEvent::SetSource(source) => self.source.set(*source, &mut self.steps),
-            HistoryEvent::RenameSnapshot { id, name } => {
-                self.snapshots.rename(*id, name);
+            HistoryEvent::RenameSnapshot { id, text } => {
+                self.snapshots.rename(*id, text);
             }
             HistoryEvent::DeleteStep(id) => {
                 let _ = self.steps.delete(*id);
@@ -308,14 +308,12 @@ fn show_panel(ui: &mut Ui, doc: &mut Doc, words: &HistoryStoryLabels, options: &
     let source = doc.source.resolve(&doc.steps, &doc.snapshots);
     let mut events = Vec::new();
     ui.allocate_ui(vec2(options.width, options.height), |ui| {
+        let mut rename = None;
         if options.rename {
             let rename_once = ui.make_persistent_id(("craft_ui::edit::history_panel::stories::rename", options.salt));
             if ui.data(|d| d.get_temp::<bool>(rename_once)).is_none() {
                 ui.data_mut(|d| d.insert_temp(rename_once, true));
-                if let Some(snapshot) = doc.snapshots.iter().nth(1) {
-                    let list_id = ui.make_persistent_id(IdSalt::new(options.salt));
-                    ui.data_mut(|d| d.insert_temp(list_id.with("rename-snapshot"), snapshot.id));
-                }
+                rename = doc.snapshots.iter().nth(1).map(|snapshot| snapshot.id);
             }
         }
         let rows: &dyn StepRows = match &doc.rows {
@@ -329,6 +327,9 @@ fn show_panel(ui: &mut Ui, doc: &mut Doc, words: &HistoryStoryLabels, options: &
             .order(options.order);
         if options.thumbnails {
             panel = panel.thumbnails(&thumbnails, &pictures);
+        }
+        if let Some(id) = rename {
+            panel = panel.start_rename(id);
         }
         events = panel.show(ui).events;
     });
@@ -641,6 +642,7 @@ fn show_menu(ui: &mut Ui, _args: &mut NoArgs) {
         delete,
         can_clear,
         current,
+        rows_revision: 0,
     };
     let snapshot = SnapshotId::new(1);
     let mut selected = HistoryPanelState::new();

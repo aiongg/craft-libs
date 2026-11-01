@@ -2,7 +2,7 @@
 
 use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::list::ContextMenuRequest;
-use craft_ui::localized::SharedLabels as _;
+use craft_ui::localized::{LabelColorLabels, SharedLabels as _};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use egui::{Context, Id, Popup, Sense, Ui};
 
@@ -146,7 +146,7 @@ pub(super) fn show_context_menu(
         return None;
     };
     let entries = match open.action {
-        Some((_, color)) => action_entries(labels, open, color),
+        Some((_, color)) => action_entries(labels, &LabelColorLabels::shared(ui), open, color),
         None => open.set_entries(labels),
     };
     let widget = ui.interact(open.request.anchor, slot.with("anchor"), Sense::hover());
@@ -246,7 +246,7 @@ impl Pending {
 }
 
 /// The rows of an action's menu: Keyboard Shortcuts, then Color.
-fn action_entries(labels: &ActionsLabels, pending: &Pending, color: ActionColor) -> Vec<MenuEntry<MenuCommand>> {
+fn action_entries(labels: &ActionsLabels, color_names: &LabelColorLabels, pending: &Pending, color: ActionColor) -> Vec<MenuEntry<MenuCommand>> {
     let mut entries: Vec<MenuEntry<MenuCommand>> = vec![MenuItem::new(labels.keyboard_shortcuts.clone(), MenuCommand::Caption).enabled(false).into()];
     entries.push(MenuItem::new(labels.none.clone(), MenuCommand::Key(0)).radio(pending.key == 0).into());
     for key in 1..=12u8 {
@@ -257,18 +257,10 @@ fn action_entries(labels: &ActionsLabels, pending: &Pending, color: ActionColor)
     entries.push(MenuItem::new(labels.shift.clone(), MenuCommand::Shift).check(pending.shift).keep_open(true).enabled(has_key).into());
     entries.push(MenuItem::new(modifier.clone(), MenuCommand::Command).check(pending.command).keep_open(true).enabled(has_key).into());
     entries.push(MenuEntry::Separator);
-    let colors = [
-        (ActionColor::None, &labels.none),
-        (ActionColor::Red, &labels.red),
-        (ActionColor::Orange, &labels.orange),
-        (ActionColor::Yellow, &labels.yellow),
-        (ActionColor::Green, &labels.green),
-        (ActionColor::Blue, &labels.blue),
-        (ActionColor::Violet, &labels.violet),
-        (ActionColor::Gray, &labels.gray),
-    ];
-    let children =
-        colors.into_iter().map(|(each, label)| MenuItem::new(label.clone(), MenuCommand::Color(each)).radio(each == color).into()).collect();
+    let children = ActionColor::ALL
+        .into_iter()
+        .map(|each| MenuItem::new(color_names.name(each.label_color()).to_owned(), MenuCommand::Color(each)).radio(each == color).into())
+        .collect();
     entries.push(MenuItem::submenu(labels.color.clone(), children).into());
     entries
 }

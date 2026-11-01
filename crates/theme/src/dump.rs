@@ -2089,6 +2089,7 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
         flag,
         dot,
         checkbox,
+        checkbox_backdrop,
         badge_height,
         status_band,
         range_bar,
@@ -2127,6 +2128,7 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
     out.line("tile.flag", len(*flag));
     out.line("tile.dot", len(*dot));
     out.line("tile.checkbox", len(*checkbox));
+    out.line("tile.checkbox_backdrop", len(*checkbox_backdrop));
     out.line("tile.badge_height", len(*badge_height));
     out.line("tile.status_band", len(*status_band));
     out.line("tile.range_bar", len(*range_bar));
@@ -2183,6 +2185,10 @@ fn scopes_lines(out: &mut Lines, t: &ScopesTokens) {
         vector_dot_max,
         hover_badge_height,
         zone_alpha,
+        vector_height_min,
+        vector_height_max,
+        vector_margin,
+        warning_inset,
     } = t;
     out.line("scopes.warning_size", len(*warning_size));
     out.line("scopes.statistics_gap", len(*statistics_gap));
@@ -2192,14 +2198,18 @@ fn scopes_lines(out: &mut Lines, t: &ScopesTokens) {
     out.line("scopes.vector_dot_max", len(*vector_dot_max));
     out.line("scopes.hover_badge_height", len(*hover_badge_height));
     out.line("scopes.zone_alpha", len(*zone_alpha));
+    out.line("scopes.vector_height_min", len(*vector_height_min));
+    out.line("scopes.vector_height_max", len(*vector_height_max));
+    out.line("scopes.vector_margin", len(*vector_margin));
+    out.line("scopes.warning_inset", len(*warning_inset));
 }
 
 fn actions_lines(out: &mut Lines, t: &ActionsTokens) {
-    let ActionsTokens { set_row_height, row_height, step_row_height, indent, colors, label_on_color } = t;
+    let ActionsTokens { set_row_height, row_height, step_row_height, recording_dot_radius, colors, label_on_color } = t;
     out.line("actions.set_row_height", len(*set_row_height));
     out.line("actions.row_height", len(*row_height));
     out.line("actions.step_row_height", len(*step_row_height));
-    out.line("actions.indent", len(*indent));
+    out.line("actions.recording_dot_radius", len(*recording_dot_radius));
     for (name, c) in ["red", "orange", "yellow", "green", "blue", "violet"].into_iter().zip(colors) {
         out.line(&format!("actions.color.{name}"), hex(*c));
     }

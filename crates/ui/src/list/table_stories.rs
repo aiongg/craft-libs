@@ -8,9 +8,10 @@
 use egui::Ui;
 
 use super::{EventLevel, EventLog, EventLogState, LogEvent, MetadataGroup, MetadataRow, MetadataTable, Table, TableColumn, TableEvent, TableLayout};
-use crate::behavior::{RowInfo, Selection};
+use crate::behavior::{Axis, DropPosition, Move, Reorder, RowInfo, Selection};
 use crate::controls::Button;
 use crate::controls::slider::with_values;
+use crate::edit::EditEvent;
 use crate::localized::{AgeStyle, Labels as _, LocaleNumbers, relative_age};
 use crate::primitives::{Content, Text};
 use crate::story::{Level, NoArgs, Story, StoryArgs, StoryLabels};
@@ -123,13 +124,25 @@ fn warnings(n: usize) -> u64 {
 struct Files {
     layout: TableLayout<Column>,
     rows: Vec<RowInfo<usize>>,
+    /// Each file's name, by key.
+    names: Vec<String>,
     selection: Selection<usize>,
     events: Vec<String>,
 }
 
+/// Moves the rows of `mv` before or after its target, in the order shown.
+fn apply_move(rows: &mut Vec<RowInfo<usize>>, mv: &Move<usize>) {
+    let moved: Vec<RowInfo<usize>> = rows.iter().filter(|row| mv.items.contains(&row.key)).cloned().collect();
+    rows.retain(|row| !mv.items.contains(&row.key));
+    let Some(target) = rows.iter().position(|row| row.key == mv.target) else { return };
+    let at = if mv.position == DropPosition::After { target + 1 } else { target };
+    rows.splice(at..at, moved);
+}
+
 /// 200 files with sorting by a header click, resizing and moving of columns (pointer and keys),
-/// the header menu for hiding Size and Modified, and the selection; the last events are printed
-/// under the table.
+/// the header menu for hiding Size and Modified, and the selection. While no column sorts, rows
+/// drag to a new place (Cmd+] and Cmd+[ move them too); F2 or a slow click on a selected name
+/// renames the file. The last events are printed under the table.
 fn show_files(ui: &mut Ui, args: &mut FilesArgs) {
     let words = TableStoryLabels::of(ui);
     let shared = StoryLabels::of(ui);
@@ -145,19 +158,25 @@ fn show_files(ui: &mut Ui, args: &mut FilesArgs) {
     let initial = Files {
         layout: TableLayout::new(&columns),
         rows: (0..FILES).map(RowInfo::leaf).collect(),
+        names: (0..FILES).map(|file| format!("{} {:03}.pdf", words.report, file + 1)).collect(),
         selection: Selection::only(0),
         events: Vec::new(),
     };
     with_values(ui, "story-files", [initial], |ui, [files]| {
-        let Files { layout, rows, selection, events } = files;
+        let Files { layout, rows, names, selection, events } = files;
+        // Rows keep the user's order only while no column sorts.
+        let unsorted = layout.sort.is_none();
         let out = Table::new("story-files", &words.files, &columns, layout, rows.as_slice())
             .selection(selection)
             .striped(args.striped)
             .movable(args.movable)
             .max_height(320.0)
+            .row_name(|&file| names[file].clone())
+            .reorder(Reorder::new(Axis::Vertical).accepts(move |_, _| unsorted))
+            .renamable(Column::Name)
             .show(ui, |ui, &file, column, cx| match column {
                 Column::Name => {
-                    cx.label(ui, format!("{} {:03}.pdf", words.report, file + 1));
+                    cx.name(ui, names[file].as_str());
                 }
                 Column::Pages => {
                     cx.label(ui, numbers.format(pages(file) as f64, 0..=0));
@@ -178,6 +197,11 @@ fn show_files(ui: &mut Ui, args: &mut FilesArgs) {
         for event in out.events {
             if matches!(event, TableEvent::Unsorted) {
                 rows.sort_by_key(|row| row.key);
+            }
+            match &event {
+                TableEvent::Reorder(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => apply_move(rows, value),
+                TableEvent::Renamed { row, text } if !text.is_empty() => names[*row].clone_from(text),
+                _ => {}
             }
             if let TableEvent::Sort(sort) = &event {
                 sort.apply(rows, |a, b, column| match column {

@@ -1,7 +1,7 @@
 //! [`VectorscopePlot`]: graticule, targets and the hover target ([`scope_point`]).
 
 use craft_theme::{Mode, TypeRole};
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, tokens_in_mode};
 use egui::{Align2, AsIdSalt, Color32, IdSalt, Mesh, Pos2, Rect, Response, Role, Sense, Shape, Stroke, Ui, WidgetInfo, vec2};
 
@@ -24,9 +24,9 @@ pub struct VectorscopeFrame<'a> {
 
 impl VectorscopeFrame<'_> {
     /// The AccessKit value of the plot, [`ScopePanelLabels::vectorscope_value`] filled from the
-    /// counts ([`Vectorscope::summary`](crate::scopes::Vectorscope::summary)'s rules); `None`
+    /// counts, the numbers in `numbers`'s digits ([`Vectorscope::summary`](crate::scopes::Vectorscope::summary)'s rules); `None`
     /// when nothing was counted.
-    pub fn summary(&self, labels: &ScopePanelLabels) -> Option<String> {
+    pub fn summary(&self, labels: &ScopePanelLabels, numbers: &LocaleNumbers) -> Option<String> {
         // new: spec AccessKit "Vectorscope".
         if self.saturations < 2 || self.hues == 0 {
             return None;
@@ -44,16 +44,24 @@ impl VectorscopeFrame<'_> {
         }
         let peak_saturation = peak_saturation?;
         let mean_hue = if sin == 0.0 && cos == 0.0 { 0.0 } else { sin.atan2(cos).to_degrees().rem_euclid(360.0) };
-        Some(labels.vectorscope_value.replace("{saturation}", &format!("{:.0}", peak_saturation * 100.0)).replace("{hue}", &format!("{mean_hue:.0}")))
+        let saturation = craft_i18n::ltr(&numbers.format(f64::from(peak_saturation) * 100.0, 0..=0));
+        let hue = craft_i18n::ltr(&numbers.format(mean_hue, 0..=0));
+        Some(craft_i18n::fmt(&labels.vectorscope_value, &[("saturation", &saturation), ("hue", &hue)]))
     }
 }
 
+/// The radius of the rings' outer edge in a vectorscope drawn in `rect`: half the shorter side
+/// less `margin` (`scopes.vector_margin`), at least 1.
+fn ring_radius(rect: Rect, margin: f32) -> f32 {
+    (rect.width().min(rect.height()) * 0.5 - margin).max(1.0)
+}
+
 /// Where hue `hue` (turns) at `saturation` (0..=1) sits in a vectorscope drawn in `rect`: the
-/// radius is half the shorter side less 14, red at the 3 o'clock position when `red_right`, else
+/// radius is half the shorter side less `margin` (`scopes.vector_margin`), red at the 3 o'clock position when `red_right`, else
 /// at −100°, hue turning counter-clockwise. The cloud, the targets and the hover target use it.
-pub fn scope_point(rect: Rect, red_right: bool, hue: f32, saturation: f32) -> Pos2 {
+pub fn scope_point(rect: Rect, margin: f32, red_right: bool, hue: f32, saturation: f32) -> Pos2 {
     // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:443 `scope_point`.
-    let radius = (rect.width().min(rect.height()) * 0.5 - 14.0).max(1.0);
+    let radius = ring_radius(rect, margin);
     let offset = if red_right { 0.0 } else { -100.0f32.to_radians() };
     let angle = offset - hue * std::f32::consts::TAU;
     rect.center() + vec2(angle.cos(), angle.sin()) * saturation * radius
@@ -75,7 +83,9 @@ fn scope_hue(hue: f32, saturation: f32, level: f32) -> Color32 {
 /// **What the user sees.** On `data.scope`, rounded `shape.radius.control`: rings at 0.25, 0.5,
 /// 0.75 and 1 of the radius in `text.faint` × `scopes.vector_ring_alpha`, 0.7 pt; spokes to R, Y,
 /// G, C, B, M in `text.faint` × 0.4, 0.6 pt, each ending in a 2 pt dot and its letter in
-/// `scope_hue(h, 1)` (`data.*`); the skin-tone line at 23° in `text.muted` (unless off); the cloud
+/// `scope_hue(h, 1)` (`data.*`); the skin-tone line at 23° in `text.muted` (unless off); the
+/// rings, spokes and skin-tone line read the dark mode's `text.faint` and `text.muted`, as the
+/// plot is dark in every theme; the cloud
 /// as square dots of half-side `radius / (saturations − 1)` clamped to `scopes.vector_dot_min..=
 /// scopes.vector_dot_max`, coloured `scope_hue(h, s)` at alpha `0.2 + 0.8 × sqrt(count / peak)`;
 /// the hover target as a 5 pt circle and a 9 pt cross, a 3 pt `data.scope` stroke under a 1.2 pt
@@ -111,8 +121,8 @@ impl<'a> VectorscopePlot<'a> {
         self
     }
 
-    /// The plot's height; without a call 30 % of the available height clamped to 100..=220
-    /// (PhotoCraft's Camera Raw header).
+    /// The plot's height; without a call 30 % of the available height clamped to
+    /// `scopes.vector_height_min..=scopes.vector_height_max` (PhotoCraft's Camera Raw header).
     pub fn height(mut self, height: f32) -> Self {
         self.height = Some(height);
         self
@@ -133,10 +143,10 @@ impl<'a> VectorscopePlot<'a> {
         let style = ScopePanel::style(&tokens);
         let labels = self.labels.unwrap_or_else(|| ScopePanelLabels::of(ui));
         let frame = self.frame;
-        let height = self.height.unwrap_or_else(|| (ui.available_height() * 0.3).clamp(100.0, 220.0));
+        let height = self.height.unwrap_or_else(|| (ui.available_height() * 0.3).clamp(style.vector_height[0], style.vector_height[1]));
         let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
         let response = ui.interact(rect, ui.make_persistent_id(self.id_salt), Sense::click());
-        let value = frame.summary(&labels);
+        let value = frame.summary(&labels, &LocaleNumbers::of(ui));
         response.widget_info(|| {
             let mut info = WidgetInfo::labeled(Role::Image, ui.is_enabled(), &labels.vectorscope);
             info.current_text_value.clone_from(&value);
@@ -146,12 +156,12 @@ impl<'a> VectorscopePlot<'a> {
             return response;
         }
         let red_right = self.red_right;
-        let point = |hue: f32, saturation: f32| scope_point(rect, red_right, hue, saturation);
+        let point = |hue: f32, saturation: f32| scope_point(rect, style.vector_margin, red_right, hue, saturation);
         let center = rect.center();
-        let radius = (rect.width().min(rect.height()) * 0.5 - 14.0).max(1.0);
+        let radius = ring_radius(rect, style.vector_margin);
         let scope = dark.color.data.scope.to_egui();
         let level = f32::from(dark.color.data.red.to_egui().r()) / 255.0;
-        let faint = tokens.color.text.faint.to_egui();
+        let (faint, muted) = (dark.color.text.faint.to_egui(), dark.color.text.muted.to_egui());
         let painter = ui.painter();
         painter.rect_filled(rect, tokens.radius.control, scope);
         for ring in [0.25, 0.5, 0.75, 1.0] {
@@ -178,7 +188,7 @@ impl<'a> VectorscopePlot<'a> {
             painter.text(point(hue, 1.11), Align2::CENTER_CENTER, letter, letters.clone(), color);
         }
         if self.skin_tone {
-            painter.line_segment([center, point(23.0 / 360.0, 1.0)], Stroke::new(1.0, tokens.color.text.muted.to_egui()));
+            painter.line_segment([center, point(23.0 / 360.0, 1.0)], Stroke::new(1.0, muted));
         }
         if let Some([hue, saturation]) = frame.hover {
             let at = point(hue, saturation);
