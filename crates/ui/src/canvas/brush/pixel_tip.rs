@@ -1,5 +1,4 @@
 //! An aliased tip's cell on the pixel grid.
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 use kurbo::Rect;
 
@@ -11,5 +10,9 @@ use crate::canvas::CanvasView;
 /// is the axis-aligned box of the mapped corners.
 pub(super) fn pixel_cell(view: &CanvasView, cell: Rect, pixels_per_point: f32) -> egui::Rect {
     // pc: crates/ui-egui/src/canvas/cursors.rs:19 `pencil_cursor_rect`.
-    todo!()
+    let ppp = if pixels_per_point.is_finite() && pixels_per_point > 0.0 { pixels_per_point } else { 1.0 };
+    let snap = |v: f32| (v * ppp).round() / ppp;
+    let corners = view.quad(cell);
+    let bounds = corners.iter().skip(1).fold(egui::Rect::from_min_max(corners[0], corners[0]), |r, p| r.union(egui::Rect::from_min_max(*p, *p)));
+    egui::Rect::from_min_max(egui::pos2(snap(bounds.min.x), snap(bounds.min.y)), egui::pos2(snap(bounds.max.x), snap(bounds.max.y)))
 }
