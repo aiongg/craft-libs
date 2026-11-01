@@ -225,6 +225,14 @@ pub struct OverlayColors {
     pub grip_hot: Rgba,
     /// A grip's outline.
     pub grip_stroke: Rgba,
+    /// A Puppet Warp pin's fill.
+    pub pin: Rgba,
+    /// A pin's ring and the selected pin's core.
+    pub pin_ring: Rgba,
+    /// The fixed-rotation ring and its line.
+    pub pin_turn: Rgba,
+    /// The pin mesh's lines.
+    pub mesh: Rgba,
 }
 
 /// Chart and histogram colours.
@@ -336,6 +344,10 @@ impl ColorTokens {
                 grip_warm: c,
                 grip_hot: c,
                 grip_stroke: c,
+                pin: c,
+                pin_ring: c,
+                pin_turn: c,
+                mesh: c,
             },
             data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c, cyan: c, magenta: c, yellow: c, scope: c },
             caption: CaptionColors { close_hover: c, close_text: c, inactive: c },
@@ -544,6 +556,14 @@ color_tokens! {
     OverlayGripHot = "overlay.grip_hot" => overlay.grip_hot;
     /// `overlay.grip_stroke`
     OverlayGripStroke = "overlay.grip_stroke" => overlay.grip_stroke;
+    /// `overlay.pin`
+    OverlayPin = "overlay.pin" => overlay.pin;
+    /// `overlay.pin_ring`
+    OverlayPinRing = "overlay.pin_ring" => overlay.pin_ring;
+    /// `overlay.pin_turn`
+    OverlayPinTurn = "overlay.pin_turn" => overlay.pin_turn;
+    /// `overlay.mesh`
+    OverlayMesh = "overlay.mesh" => overlay.mesh;
     /// `data.series.0`
     DataSeries0 = "data.series.0" => data.series[0];
     /// `data.series.1`

@@ -23,11 +23,11 @@ pub struct MeasureStyle {
 
 impl MeasureStyle {
     /// The Ruler's look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `measure` lands in task TK2")]
     pub fn of(tokens: &UiTokens) -> Self {
         // pc: crates/ui-egui/src/tools/analysis_ui.rs:210 (7 / zoom), :408 `handle` (5 pt arms,
         // 3 pt black under 1 pt white), :489 `readout` (6 pt gap); the line from
         // `LineGuideStyle::of` (task TK1).
-        todo!()
+        let m = &tokens.component.measure;
+        Self { line: LineGuideStyle::of(tokens), hit: m.hit, handle_arm: m.handle_arm, readout_gap: m.readout_gap }
     }
 }

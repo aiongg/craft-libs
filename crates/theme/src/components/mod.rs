@@ -53,6 +53,7 @@ mod color_ramp;
 mod color_wheel;
 mod command_palette;
 mod constrain;
+mod corner;
 mod crop;
 mod cursor;
 mod curve;
@@ -98,6 +99,7 @@ mod list;
 mod list_manager;
 mod listbox;
 mod marquee;
+mod measure;
 mod menu;
 mod metadata;
 mod navigator;
@@ -138,8 +140,10 @@ mod split;
 mod split_button;
 mod start;
 mod status_bar;
+mod stroke_editor;
 mod swatch;
 mod swatch_palette;
+mod symmetry;
 mod tab;
 mod table;
 mod text_editor;
@@ -189,6 +193,7 @@ pub use color_ramp::{ColorRampField, ColorRampTokens};
 pub use color_wheel::{ColorWheelField, ColorWheelTokens};
 pub use command_palette::{CommandPaletteField, CommandPaletteTokens};
 pub use constrain::{ConstrainField, ConstrainTokens};
+pub use corner::{CornerField, CornerTokens};
 pub use crop::{CropField, CropTokens};
 pub use cursor::{CursorField, CursorTokens};
 pub use curve::{CurveField, CurveTokens};
@@ -233,6 +238,7 @@ pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
 pub use list_manager::{ListManagerField, ListManagerTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
+pub use measure::{MeasureField, MeasureTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
 pub use metadata::{MetadataField, MetadataTokens};
 pub use navigator::{NavigatorField, NavigatorTokens};
@@ -273,8 +279,10 @@ pub use split::{SplitField, SplitTokens};
 pub use split_button::{SplitButtonField, SplitButtonTokens};
 pub use start::{StartField, StartTokens};
 pub use status_bar::{StatusBarField, StatusBarTokens};
+pub use stroke_editor::{StrokeEditorField, StrokeEditorTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
+pub use symmetry::{SymmetryField, SymmetryTokens};
 pub use tab::{TabField, TabTokens};
 pub use table::{TableField, TableTokens};
 pub use text_editor::{TextEditorField, TextEditorTokens};
@@ -1049,6 +1057,14 @@ families! {
     brush: BrushTokens => Brush(BrushField);
     /// Full-window editors: the side column, canvas region, zoom bar and progress bar.
     full_window: FullWindowTokens => FullWindow(FullWindowField);
+    /// Corner widgets: the round marks at a rectangle's corners.
+    corner: CornerTokens => Corner(CornerField);
+    /// Stroke editors: the popover that edits a stroke, its opener and samples.
+    stroke_editor: StrokeEditorTokens => StrokeEditor(StrokeEditorField);
+    /// The Ruler tool: the reach of its ends and the arms of their crosses.
+    measure: MeasureTokens => Measure(MeasureField);
+    /// Symmetry guides: the axis lines and the Transform Symmetry handles' reach.
+    symmetry: SymmetryTokens => Symmetry(SymmetryField);
     /// Selection bars: the floating bar of actions beside a selection.
     selection_bar: SelectionBarTokens => SelectionBar(SelectionBarField);
     /// Sliders: a track filled to the value, with a thumb on it.

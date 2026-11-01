@@ -260,6 +260,11 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::OverlayGrip => Fixed(Rgba::rgb(0x2f, 0x6b, 0xff)),
         T::OverlayGripWarm => Fixed(Rgba::rgb(0xff, 0x7f, 0x9f)),
         T::OverlayGripHot => Fixed(Rgba::rgb(0xff, 0x3b, 0x3b)),
+        // Warp pins and mesh sit on the document, so one value in both modes (PhotoCraft `puppet_ui.rs:367-388`).
+        T::OverlayPin => Fixed(Rgba::rgb(0xff, 0xd6, 0x0a)),
+        T::OverlayPinRing => Fixed(Rgba::rgb(0x00, 0x00, 0x00)),
+        T::OverlayPinTurn => Fixed(Rgba::rgb(0xff, 0xff, 0xff)),
+        T::OverlayMesh => Fixed(Rgba([40, 40, 40, 150])),
         T::OverlayGripStroke => Fixed(Rgba::rgb(0x10, 0x30, 0x80)),
         T::DataSeries0 => series(0),
         T::DataSeries1 => series(1),
@@ -1091,6 +1096,22 @@ pub const TRANSFORM_WARP_ANCHOR: f32 = 5.0;
 pub const TRANSFORM_WARP_CONTROL: f32 = 5.5;
 /// Distance from the pointer within which a warp handle shows (PhotoCraft's `HANDLE_REVEAL_PX`).
 pub const TRANSFORM_WARP_REVEAL: f32 = 56.0;
+/// Diameter of a Puppet Warp pin's disc (PhotoCraft radius 5.5): `transform.pin`.
+pub const TRANSFORM_PIN: f32 = 11.0;
+/// Width of a pin's ring: `transform.pin_ring`.
+pub const TRANSFORM_PIN_RING: f32 = 1.25;
+/// Diameter of the selected pin's core (radius 2): `transform.pin_core`.
+pub const TRANSFORM_PIN_CORE: f32 = 4.0;
+/// Radius of the fixed-rotation ring and reach of the Option turn: `transform.pin_turn`.
+pub const TRANSFORM_PIN_TURN: f32 = 18.0;
+/// Width of the fixed-rotation ring and its line: `transform.pin_turn_line`.
+pub const TRANSFORM_PIN_TURN_LINE: f32 = 1.0;
+/// Width of the pin mesh's lines: `transform.mesh_line`.
+pub const TRANSFORM_MESH_LINE: f32 = 0.6;
+/// Diameter of a Perspective Warp plane's corner disc (radius 4.5): `transform.plane_corner`.
+pub const TRANSFORM_PLANE_CORNER: f32 = 9.0;
+/// Width of a plane corner's ring: `transform.plane_ring`.
+pub const TRANSFORM_PLANE_RING: f32 = 1.25;
 
 /// Width of a path's outline, in points, at every Size.
 pub const BEZIER_LINE: f32 = 1.0;
@@ -1533,6 +1554,10 @@ pub const CROP_PERSPECTIVE_CLICK_DOT: f32 = 4.0;
 pub const CROP_PERSPECTIVE_CLICK_MOVE: f32 = 3.0;
 /// Default reach of a perspective corner.
 pub const CROP_PERSPECTIVE_REACH: f32 = 8.0;
+/// Width of the options bar's overlay menu and gear popover: `crop.menu_width`.
+pub const CROP_MENU_WIDTH: f32 = 240.0;
+/// Widest the gear popover grows: `crop.menu_max_width`.
+pub const CROP_MENU_MAX_WIDTH: f32 = 300.0;
 
 /// Canvas grid line width.
 pub const GRID_WIDTH: f32 = 1.0;
@@ -2338,3 +2363,55 @@ pub(super) fn darkened(c: Rgba, share: f32) -> Rgba {
     let k = |v: u8| (f32::from(v) * share + 0.5) as u8;
     Rgba([k(r), k(g), k(b), a])
 }
+
+// --- corner ---
+/// The widget's diameter: `corner.widget`.
+pub const CORNER_WIDGET: f32 = 10.0;
+/// The inner dot's diameter: `corner.dot`.
+pub const CORNER_DOT: f32 = 5.0;
+/// The outline's width: `corner.line`.
+pub const CORNER_LINE: f32 = 1.5;
+/// The pointer's reach: `corner.hit`.
+pub const CORNER_HIT: f32 = 7.0;
+/// The least distance inside a corner: `corner.inset`.
+pub const CORNER_INSET: f32 = 10.0;
+/// The shortest side, on the screen, whose corners show widgets: `corner.min_side`.
+pub const CORNER_MIN_SIDE: f32 = 30.0;
+
+// --- stroke_editor ---
+/// The popover body's width: `stroke_editor.width`.
+pub const STROKE_EDITOR_WIDTH: f32 = 272.0;
+/// The room kept between the popover and the window's edge: `stroke_editor.screen_margin`.
+pub const STROKE_EDITOR_SCREEN_MARGIN: f32 = 24.0;
+/// The opener's width: `stroke_editor.opener_width`.
+pub const STROKE_EDITOR_OPENER_WIDTH: f32 = 138.0;
+/// The opener's height: `stroke_editor.opener_height`.
+pub const STROKE_EDITOR_OPENER_HEIGHT: f32 = 24.0;
+/// A preset row's height: `stroke_editor.preset_height`.
+pub const STROKE_EDITOR_PRESET_HEIGHT: f32 = 32.0;
+/// A choice select's width: `stroke_editor.choice_width`.
+pub const STROKE_EDITOR_CHOICE_WIDTH: f32 = 152.0;
+/// A number field's width: `stroke_editor.field_width`.
+pub const STROKE_EDITOR_FIELD_WIDTH: f32 = 74.0;
+/// The tall sample's height: `stroke_editor.sample_height`.
+pub const STROKE_EDITOR_SAMPLE_HEIGHT: f32 = 58.0;
+/// The samples' line width: `stroke_editor.sample_stroke`.
+pub const STROKE_EDITOR_SAMPLE_STROKE: f32 = 2.5;
+/// The tall sample's rectangle inset: `stroke_editor.sample_inset`.
+pub const STROKE_EDITOR_SAMPLE_INSET: f32 = 12.0;
+
+// --- measure ---
+/// A press within this many screen points of an end grabs it: `measure.hit`.
+pub const MEASURE_HIT: f32 = 7.0;
+/// Each arm of an end's cross, in screen points: `measure.handle_arm`.
+pub const MEASURE_HANDLE_ARM: f32 = 5.0;
+/// The gap after each readout in the options bar: `measure.readout_gap`.
+pub const MEASURE_READOUT_GAP: f32 = 6.0;
+
+// --- symmetry ---
+/// Width of each axis line: `symmetry.line`.
+pub const SYMMETRY_LINE: f32 = 1.0;
+/// A press within this many screen points of the centre or rotation handle takes it: `symmetry.hit`.
+pub const SYMMETRY_HIT: f32 = 8.0;
+/// The rotation handle's distance from the centre as a share of the document's shorter side (a ratio, not a size): `symmetry.handle_share`.
+pub const SYMMETRY_HANDLE_SHARE: f32 = 0.35;

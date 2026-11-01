@@ -1,14 +1,12 @@
 //! The looks of the pin warp, the perspective warp and the one mesh painter, from tokens (task
-//! TK2). The token leaves (`transform.pin`, `pin_ring`, `pin_core`, `pin_turn`, `pin_turn_line`,
-//! `mesh_line`, `plane_corner`, `plane_ring`; `overlay.pin`, `pin_ring`, `pin_turn`, `mesh`) are
-//! proposed in `step7-transform.md` "Proposed tokens" and land with TK2.
-
-#![expect(unused_variables, clippy::todo, reason = "skeleton: the token leaves land in task TK2")]
+//! TK2). The token leaves are `transform.pin`, `pin_ring`, `pin_core`, `pin_turn`,
+//! `pin_turn_line`, `mesh_line`, `plane_corner` and `plane_ring`, and the colours `overlay.pin`,
+//! `pin_ring`, `pin_turn` and `mesh`.
 
 use egui::{Color32, Stroke};
 
-use craft_ui::primitives::HandleStyle;
-use craft_ui::theme::UiTokens;
+use craft_ui::primitives::{FocusRing, Handle, HandleShape, HandleStyle};
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// The lines of a deformed mesh ([`paint_mesh`](super::paint_mesh)): Puppet Warp's pin mesh and
 /// Liquify's mesh, one look (S7-workspaces draws Liquify's with it).
@@ -24,7 +22,7 @@ impl MeshStyle {
     /// The mesh look in `tokens`.
     pub fn of(tokens: &UiTokens) -> MeshStyle {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:367.
-        todo!()
+        MeshStyle { line: Stroke::new(tokens.component.transform.mesh_line, tokens.color.overlay.mesh.to_egui()) }
     }
 }
 
@@ -60,7 +58,21 @@ impl PinWarpStyle {
     pub fn of(tokens: &UiTokens) -> PinWarpStyle {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:382 (disc, ring), :385 (core), :388 (turn ring
         // and line).
-        todo!()
+        let (t, o) = (&tokens.component.transform, &tokens.color.overlay);
+        let (focus, focus_halo) = focus_strokes(tokens);
+        PinWarpStyle {
+            pin: t.pin,
+            fill: o.pin.to_egui(),
+            ring: Stroke::new(t.pin_ring, o.pin_ring.to_egui()),
+            core: t.pin_core,
+            core_colour: o.pin_ring.to_egui(),
+            turn_radius: t.pin_turn,
+            turn: Stroke::new(t.pin_turn_line, o.pin_turn.to_egui()),
+            hit: t.hit,
+            focus,
+            focus_halo,
+            mesh: MeshStyle::of(tokens),
+        }
     }
 }
 
@@ -92,6 +104,28 @@ impl PerspectiveWarpStyle {
     pub fn of(tokens: &UiTokens) -> PerspectiveWarpStyle {
         // pc: crates/ui-egui/src/tools/perspective_ui.rs:284 (`draw`: thirds, outline, corners,
         // rubber band).
-        todo!()
+        let (t, o) = (&tokens.component.transform, &tokens.color.overlay);
+        let line = o.line.to_egui();
+        let (focus, focus_halo) = focus_strokes(tokens);
+        let mut corner = Handle::style(tokens, HandleShape::Round);
+        corner.size = t.plane_corner;
+        corner.fill = o.handle_fill.to_egui();
+        corner.stroke = Stroke::new(t.plane_ring, line);
+        PerspectiveWarpStyle {
+            line: Stroke::new(t.line, line),
+            thirds: Stroke::new(t.warp_minor, line.gamma_multiply(0.7)),
+            corner,
+            band: Stroke::new(t.line, line),
+            hit: t.hit,
+            focus,
+            focus_halo,
+        }
     }
+}
+
+/// The keyboard focus ring and the halo under it, as the transform box draws them.
+fn focus_strokes(tokens: &UiTokens) -> (Stroke, Stroke) {
+    let ring = FocusRing::style(tokens);
+    let halo = tokens.component.handle.halo;
+    (ring.stroke, Stroke::new(ring.stroke.width + 2.0 * halo, tokens.color.overlay.halo.to_egui()))
 }

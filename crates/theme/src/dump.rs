@@ -9,21 +9,21 @@ use crate::{
     AboutTokens, ActionsTokens, AlignTokens, AltTextTokens, AngleDialTokens, AppShellTokens, AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens,
     BadgeTone, BarSizes, BeforeAfterTokens, BezierTokens, BorderColors, BreadcrumbTokens, BrushTokens, ButtonColors, ButtonTokens, BySize,
     CanvasTokens, ChannelsTokens, CheckOffColors, CheckOnColors, CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens,
-    ColorRampTokens, ColorToken, ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ConstrainTokens, ControlSizes, CropTokens, CursorTokens,
-    CurveTokens, DateTokens, DialogTokens, Dimmed, DockTokens, DragTokens, DropVeilTokens, Easing, Edge, Elevation, ElevationTokens,
+    ColorRampTokens, ColorToken, ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ConstrainTokens, ControlSizes, CornerTokens, CropTokens,
+    CursorTokens, CurveTokens, DateTokens, DialogTokens, Dimmed, DockTokens, DragTokens, DropVeilTokens, Easing, Edge, Elevation, ElevationTokens,
     EmptyStateTokens, EventLogTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens, FindingsTokens, FloatTokens, FontPickerTokens,
     FontSlot, FormSpacing, FormTokens, FullWindowTokens, Gaps, GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens,
     GridTokens, GripTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, HistoryTokens, HoverTokens, IconButtonTokens,
     IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayersTokens, LevelsTokens, LineGuideTokens, LinkTokens,
-    ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, MetadataTokens, Motion, MotionTokens,
+    ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MeasureTokens, MenuHue, MenuTokens, MetadataTokens, Motion, MotionTokens,
     NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens,
     PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens,
     RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens, ScopesTokens,
     ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectTokens, SelectionBarTokens, SelectionFrameTokens, ShapeTokens,
     SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens,
-    SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens,
-    ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens,
-    ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens,
+    StrokeEditorTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, SymmetryTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens,
+    TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens,
+    Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -307,6 +307,10 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         before_after,
         brush,
         full_window,
+        corner,
+        stroke_editor,
+        measure,
+        symmetry,
         color_ramp,
         color_wheel,
         command_palette,
@@ -426,6 +430,10 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     before_after_lines(out, before_after);
     brush_lines(out, brush);
     full_window_lines(out, full_window);
+    corner_lines(out, corner);
+    stroke_editor_lines(out, stroke_editor);
+    measure_lines(out, measure);
+    symmetry_lines(out, symmetry);
     color_ramp_lines(out, color_ramp);
     color_wheel_lines(out, color_wheel);
     command_palette_lines(out, command_palette);
@@ -1588,6 +1596,8 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
         perspective_click_dot,
         perspective_click_move,
         perspective_reach,
+        menu_width,
+        menu_max_width,
     } = t;
     out.line("crop.hit", len(*hit));
     out.line("crop.line", len(*line));
@@ -1610,6 +1620,8 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
     out.line("crop.perspective_click_dot", len(*perspective_click_dot));
     out.line("crop.perspective_click_move", len(*perspective_click_move));
     out.line("crop.perspective_reach", len(*perspective_reach));
+    out.line("crop.menu_width", len(*menu_width));
+    out.line("crop.menu_max_width", len(*menu_max_width));
 }
 
 fn check_spelling_lines(out: &mut Lines, t: &CheckSpellingTokens) {
@@ -1717,6 +1729,14 @@ fn transform_lines(out: &mut Lines, t: &TransformTokens) {
         warp_anchor,
         warp_control,
         warp_reveal,
+        pin,
+        pin_ring,
+        pin_core,
+        pin_turn,
+        pin_turn_line,
+        mesh_line,
+        plane_corner,
+        plane_ring,
     } = t;
     out.line("transform.line", len(*line));
     out.line("transform.hit", len(*hit));
@@ -1733,6 +1753,18 @@ fn transform_lines(out: &mut Lines, t: &TransformTokens) {
     out.line("transform.warp_anchor", len(*warp_anchor));
     out.line("transform.warp_control", len(*warp_control));
     out.line("transform.warp_reveal", len(*warp_reveal));
+    for (name, v) in [
+        ("pin", pin),
+        ("pin_ring", pin_ring),
+        ("pin_core", pin_core),
+        ("pin_turn", pin_turn),
+        ("pin_turn_line", pin_turn_line),
+        ("mesh_line", mesh_line),
+        ("plane_corner", plane_corner),
+        ("plane_ring", plane_ring),
+    ] {
+        out.line(&format!("transform.{name}"), len(*v));
+    }
 }
 
 fn gradient_line_lines(out: &mut Lines, t: &GradientLineTokens) {
@@ -2882,4 +2914,53 @@ fn full_window_lines(out: &mut Lines, t: &FullWindowTokens) {
     out.line("full_window.side.divider", hex(*side_divider));
     out.line("full_window.canvas.fill", hex(*canvas_fill));
     out.line("full_window.canvas.outline", hex(*canvas_outline));
+}
+
+fn corner_lines(out: &mut Lines, t: &CornerTokens) {
+    let CornerTokens { widget, dot, line, hit, inset, min_side } = t;
+    out.line("corner.widget", len(*widget));
+    out.line("corner.dot", len(*dot));
+    out.line("corner.line", len(*line));
+    out.line("corner.hit", len(*hit));
+    out.line("corner.inset", len(*inset));
+    out.line("corner.min_side", len(*min_side));
+}
+
+fn stroke_editor_lines(out: &mut Lines, t: &StrokeEditorTokens) {
+    let StrokeEditorTokens {
+        width,
+        screen_margin,
+        opener_width,
+        opener_height,
+        preset_height,
+        choice_width,
+        field_width,
+        sample_height,
+        sample_stroke,
+        sample_inset,
+    } = t;
+    out.line("stroke_editor.width", len(*width));
+    out.line("stroke_editor.screen_margin", len(*screen_margin));
+    out.line("stroke_editor.opener_width", len(*opener_width));
+    out.line("stroke_editor.opener_height", len(*opener_height));
+    out.line("stroke_editor.preset_height", len(*preset_height));
+    out.line("stroke_editor.choice_width", len(*choice_width));
+    out.line("stroke_editor.field_width", len(*field_width));
+    out.line("stroke_editor.sample_height", len(*sample_height));
+    out.line("stroke_editor.sample_stroke", len(*sample_stroke));
+    out.line("stroke_editor.sample_inset", len(*sample_inset));
+}
+
+fn measure_lines(out: &mut Lines, t: &MeasureTokens) {
+    let MeasureTokens { hit, handle_arm, readout_gap } = t;
+    out.line("measure.hit", len(*hit));
+    out.line("measure.handle_arm", len(*handle_arm));
+    out.line("measure.readout_gap", len(*readout_gap));
+}
+
+fn symmetry_lines(out: &mut Lines, t: &SymmetryTokens) {
+    let SymmetryTokens { line, hit, handle_share } = t;
+    out.line("symmetry.line", len(*line));
+    out.line("symmetry.hit", len(*hit));
+    out.line("symmetry.handle_share", len(*handle_share));
 }
