@@ -1,12 +1,10 @@
 //! `FolderCache`: roots and subfolder listings made in jobs, kept until they go stale.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use craft_host::queue::JobQueue;
+use craft_host::queue::{JobQueue, Priority, QueueOptions};
 use craft_host::{Jobs, Wake};
 
 use super::{Directories, Folder, StandardFolder, Volume};
@@ -65,50 +63,130 @@ pub struct FolderCache {
     listings: HashMap<PathBuf, (Result<Vec<Folder>, String>, bool)>,
     unlisted: HashMap<PathBuf, Vec<PathBuf>>,
     stale_roots: bool,
+    /// What this pass asked for, for [`end_pass`](Self::end_pass).
+    asked: HashSet<Job>,
 }
 
 impl FolderCache {
     /// A cache over `directories`, running its jobs on `jobs` and calling `wake` when one ends.
     pub fn new(directories: Arc<dyn Directories>, jobs: Arc<dyn Jobs>, wake: Wake) -> Self {
         // lightcraft: crates/ui-egui/src/panels/left/local.rs:241 (`fs_cached`: listings on a worker, read in the pass).
-        todo!()
+        let options = QueueOptions { name: "folders", ..QueueOptions::default() };
+        Self {
+            directories,
+            queue: JobQueue::new(jobs, wake, options),
+            roots: None,
+            listings: HashMap::new(),
+            unlisted: HashMap::new(),
+            stale_roots: false,
+            asked: HashSet::new(),
+        }
     }
 
     /// The roots, once listed; queues the job the first time and after a refresh.
     pub fn roots(&mut self) -> Option<&Roots> {
         // lightcraft: crates/ui-egui/src/panels/left/local.rs:28 (the is-dir checks run off the UI thread).
-        todo!()
+        self.drain();
+        self.asked.insert(Job::Roots);
+        if self.roots.is_none() || self.stale_roots {
+            let priority = if self.roots.is_none() { Priority::VISIBLE } else { Priority::NEAR };
+            self.submit(Job::Roots, priority);
+        }
+        self.roots.as_ref()
     }
 
     /// `folder`'s subfolders (drains finished jobs first).
     pub fn subfolders(&mut self, folder: &Path) -> Listing<'_> {
         // lightcraft: crates/ui-egui/src/panels/left/local.rs:207 (`subfolders`, empty until the first listing).
-        todo!()
+        self.drain();
+        let job = Job::Subfolders(folder.to_path_buf());
+        self.asked.insert(job.clone());
+        match self.listings.get(folder).map(|(_, stale)| *stale) {
+            None => self.submit(job, Priority::VISIBLE),
+            Some(true) => self.submit(job, Priority::NEAR),
+            Some(false) => {}
+        }
+        match self.listings.get(folder) {
+            None => Listing::Loading,
+            Some((Ok(folders), _)) => Listing::Ready(folders),
+            Some((Err(message), _)) => Listing::Failed(message),
+        }
     }
 
     /// The hidden folders on the way to `path` ([`Directories::unlisted_ancestors`]); `None` until
     /// listed.
     pub fn unlisted(&mut self, path: &Path) -> Option<&[PathBuf]> {
         // lightcraft: crates/ui-egui/src/panels/left/local.rs:38 (`unlisted` through `fs_cached`).
-        todo!()
+        self.drain();
+        let job = Job::Unlisted(path.to_path_buf());
+        self.asked.insert(job.clone());
+        if !self.unlisted.contains_key(path) {
+            self.submit(job, Priority::VISIBLE);
+        }
+        self.unlisted.get(path).map(Vec::as_slice)
     }
 
     /// Marks every listing and the roots stale (the window regained focus).
     pub fn refresh(&mut self) {
         // new: replaces LightCraft's 2 s refresh (lead call 26).
-        todo!()
+        self.stale_roots = true;
+        for (_, stale) in self.listings.values_mut() {
+            *stale = true;
+        }
     }
 
     /// Marks one folder's listing stale.
     pub fn refresh_folder(&mut self, folder: &Path) {
         // new: the tree calls it when a row opens.
-        todo!()
+        if let Some((_, stale)) = self.listings.get_mut(folder) {
+            *stale = true;
+        }
     }
 
     /// Drops the listings of folders not asked for since the last call, and cancels their jobs
     /// (`JobQueue::reprioritize`). `PlacesTree` calls it at the end of its pass.
     pub fn end_pass(&mut self) {
         // new: a hidden tree lists nothing.
-        todo!()
+        let asked = std::mem::take(&mut self.asked);
+        self.listings.retain(|path, _| asked.contains(&Job::Subfolders(path.clone())));
+        self.unlisted.retain(|path, _| asked.contains(&Job::Unlisted(path.clone())));
+        self.queue.reprioritize(|job, priority| asked.contains(job).then_some(priority));
+    }
+
+    /// Queues `job` unless one for it is waiting or running.
+    fn submit(&self, job: Job, priority: Priority) {
+        if self.queue.contains(&job) {
+            return;
+        }
+        let directories = Arc::clone(&self.directories);
+        let key = job.clone();
+        self.queue.submit(key, priority, move |cancel| match job {
+            Job::Roots => Found::Roots(Roots { standard: directories.standard(), volumes: directories.volumes() }),
+            Job::Subfolders(folder) => Found::Subfolders(directories.subfolders(&folder, cancel).map_err(|e| e.to_string())),
+            Job::Unlisted(path) => Found::Unlisted(directories.unlisted_ancestors(&path)),
+        });
+    }
+
+    /// Takes in the jobs that finished since the last call.
+    fn drain(&mut self) {
+        // Without lanes (wasm32) the jobs run here, one per pass.
+        if QueueOptions::default_lanes() == 0 {
+            self.queue.run_inline(1);
+        }
+        while let Some(done) = self.queue.try_recv() {
+            match (done.key, done.result) {
+                (Job::Roots, Found::Roots(roots)) => {
+                    self.roots = Some(roots);
+                    self.stale_roots = false;
+                }
+                (Job::Subfolders(folder), Found::Subfolders(result)) => {
+                    self.listings.insert(folder, (result, false));
+                }
+                (Job::Unlisted(path), Found::Unlisted(found)) => {
+                    self.unlisted.insert(path, found);
+                }
+                _ => {}
+            }
+        }
     }
 }
