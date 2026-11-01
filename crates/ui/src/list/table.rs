@@ -15,11 +15,13 @@ use egui::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::row::ListRow;
+use super::row::{ListRow, RowEvent};
 use super::spans::Spans;
 use super::tree::{self, Branch, OpenChange, TreeText};
 use super::view::ContextMenuRequest;
-use crate::behavior::{ClaimedKey, DisplayOrder, KeyClaim, ListKey, ListSelection, Selection, SelectionChange, SelectionMode, first_item};
+use crate::behavior::{
+    ClaimedKey, DisplayOrder, KeyClaim, ListKey, ListSelection, Selection, SelectionChange, SelectionMode, TreeMove, first_item, tree_key,
+};
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
@@ -658,10 +660,12 @@ where
                     let top = ui.max_rect().min + vec2(0.0, viewport.min.y);
                     let header_rect = Rect::from_min_size(top, vec2(content_width, header_height));
                     let header = Header { id, style: &style, labels: &labels, columns, tokens: &tokens, movable, rtl, rect: header_rect };
+                    let first = shown.first().map(|&at| columns[at].key.clone());
                     let mut fit = |ui: &mut Ui, column: &TableColumn<C>| {
                         let Some(height) = viewport_height else { return 0.0 };
                         let visible = spans.in_view(offset..offset + height);
-                        widest_cell(ui, rows, visible, column, rtl, &style, &mut cell)
+                        let tree = is_tree && first.as_ref() == Some(&column.key);
+                        widest_cell(ui, rows, visible, column, rtl, tree, &style, &mut cell)
                     };
                     header.show(ui, layout, &mut shown, &mut widths, &mut state, &mut pass, &mut fit);
 
@@ -870,7 +874,6 @@ fn take_command(key: Key, modifiers: Modifiers, mac: bool, tree: bool) -> Option
 type RowName<'a, K> = Box<dyn Fn(&K) -> String + 'a>;
 
 /// A tree table's parts, set by [`Table::tree`].
-#[expect(dead_code, reason = "skeleton: read by `Body::tree_lead` when the bodies land")]
 struct TreeRows<'p, K> {
     /// A row's name for its disclosure triangle.
     name: &'p (dyn Fn(&K) -> String + 'p),
@@ -957,11 +960,46 @@ where
     /// over the lead (every group: the lead's topmost ancestor, `tree::topmost`; one group:
     /// `tree::is_below`) takes the lead in `self.selection.lead` without a selection event, and
     /// is revealed.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     fn tree_key(&mut self, toward_end: bool, all: bool) {
-        // craft-ui: crates/ui/src/list/view.rs:959-1003 (`Pass::tree_key` and `open_change`, with
-        // `ListEvent::LeadMoved` left out: a table reports no lead moves).
-        todo!()
+        let Some(at) = self.lead_at() else { return };
+        if all {
+            let row = self.rows.key(at).clone();
+            self.open_change(at, OpenChange { row, open: toward_end, all: true });
+            return;
+        }
+        match tree_key(self.rows, at, toward_end) {
+            Some(TreeMove::Open(at)) => {
+                let row = self.rows.key(at).clone();
+                self.open_change(at, OpenChange { row, open: true, all: false });
+            }
+            Some(TreeMove::Close(at)) => {
+                let row = self.rows.key(at).clone();
+                self.open_change(at, OpenChange { row, open: false, all: false });
+            }
+            Some(TreeMove::To(to)) => {
+                if let Some(change) = self.rules.click(self.selection, self.rows, to, Modifiers::NONE) {
+                    self.apply(change);
+                }
+                self.reveal = Some(self.rows.key(to).clone());
+            }
+            None => {}
+        }
+    }
+
+    /// Reports a group asked to open or close. The lead moves to the group that closes over it
+    /// (to the topmost one when all close), since the rows below it leave the display order; the
+    /// selection is unchanged.
+    fn open_change(&mut self, at: usize, change: OpenChange<K>) {
+        if !change.open
+            && let Some(lead) = self.selection.lead.as_ref().and_then(|lead| self.rows.position(lead))
+        {
+            let target = if change.all { Some(tree::topmost(self.rows, lead)) } else { tree::is_below(self.rows, at, lead).then_some(at) };
+            if let Some(target) = target.filter(|&t| t != lead) {
+                self.selection.lead = Some(self.rows.key(target).clone());
+                self.reveal = self.selection.lead.clone();
+            }
+        }
+        self.events.push(TableEvent::Open(change));
     }
 
     fn list_key(&mut self, key: ListKey, page: usize) {
@@ -1426,14 +1464,17 @@ fn cell_layout<C>(column: &TableColumn<C>, rtl: bool) -> Layout {
 }
 
 /// The widest `column`'s cell is among the rows `visible`, drawn without a width limit in a hidden
-/// `Ui` (no padding): what a double click on the column's edge fits the column to. A cell that
+/// `Ui` (no padding): what a double click on the column's edge fits the column to. In a tree table
+/// (`tree`) the column carrying the tree adds each row's indent and disclosure column. A cell that
 /// fills whatever width it is given has no natural width and measures the widest a column gets.
+#[expect(clippy::too_many_arguments, reason = "the pieces of one pass")]
 fn widest_cell<K, C, O>(
     ui: &mut Ui,
     rows: &O,
     visible: impl Iterator<Item = usize>,
     column: &TableColumn<C>,
     rtl: bool,
+    tree: bool,
     style: &TableStyle,
     cell: &mut impl FnMut(&mut Ui, &K, &C, &CellContext),
 ) -> f32
@@ -1441,7 +1482,8 @@ where
     K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
     O: DisplayOrder<K> + ?Sized,
 {
-    let text = ListRow::<'_, K>::style(&Tokens::of(ui)).text;
+    let list = ListRow::<'_, K>::style(&Tokens::of(ui));
+    let text = list.text;
     let context = CellContext { selected: false, text, numeric: column.align == Align::Max };
     let area = Rect::from_min_size(ui.max_rect().min, vec2(MAX_WIDTH, style.row_height));
     let mut widest: f32 = 0.0;
@@ -1449,7 +1491,13 @@ where
         let builder = UiBuilder::new().id_salt(("fit", at)).max_rect(area).layout(cell_layout(column, rtl)).invisible().sizing_pass();
         let mut child = ui.new_child(builder);
         cell(&mut child, rows.key(at), &column.key, &context);
-        widest = widest.max(child.min_rect().width());
+        let lead = if tree {
+            let branch = branch_at(rows, at);
+            branch.steps() as f32 * list.indent + if branch.group { list.disclosure } else { 0.0 }
+        } else {
+            0.0
+        };
+        widest = widest.max(child.min_rect().width() + lead);
     }
     widest
 }
@@ -1574,6 +1622,10 @@ where
             // The row's `Ui` took its bounds before its cells were laid out.
             node.set_bounds(egui::accesskit::Rect { x0: rect.min.x.into(), y0: rect.min.y.into(), x1: rect.max.x.into(), y1: rect.max.y.into() });
             node.set_selected(selected);
+            if let Some(tree) = tree {
+                // A tree item needs a name; a plain row's is its cells'.
+                node.set_label((tree.name)(&key));
+            }
             node.set_row_index(at);
             node.add_action(Action::Focus);
             node.add_action(Action::ScrollIntoView);
@@ -1617,8 +1669,7 @@ where
     /// for a group, named with `tree.name(key)` and `tree.text`; its `RowEvent::Open` reports are
     /// pushed to `opened` as `OpenChange`s. Mirrored in a right-to-left layout. Returns what is
     /// left of `inner` for the host's cell.
-    #[expect(unused_variables, clippy::ptr_arg, clippy::todo, reason = "skeleton: removed when the bodies land")]
-    fn tree_lead<K: Clone>(
+    fn tree_lead<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
         &self,
         ui: &mut Ui,
         tree: &TreeRows<'_, K>,
@@ -1627,18 +1678,45 @@ where
         key: &K,
         opened: &mut Vec<OpenChange<K>>,
     ) -> Rect {
-        // craft-ui: crates/ui/src/list/row.rs:1074 `Geometry::new` (the indent shrinks, the
-        // triangle column doesn't); crates/ui/src/list/tree.rs:164 `show_disclosure`.
-        todo!()
+        let list = ListRow::<'_, K>::style(&Tokens::of(ui));
+        let column = if branch.group { list.disclosure } else { 0.0 };
+        // The indent shrinks to keep the cell's least width; the triangle column doesn't.
+        let indent = (branch.steps() as f32 * list.indent).min((inner.width() - column - list.min_label).max(0.0));
+        let mut events = Vec::new();
+        let rect = if self.rtl {
+            let right = inner.right() - indent;
+            if branch.group {
+                let rect = Rect::from_min_max(pos2(right - column, inner.top()), pos2(right, inner.bottom()));
+                tree::show_disclosure(ui, &list, rect, branch, &tree.text, ui.scope_id(), key, &(tree.name)(key), &mut events);
+            }
+            Rect::from_min_max(inner.min, pos2((right - column).max(inner.left()), inner.bottom()))
+        } else {
+            let left = inner.left() + indent;
+            if branch.group {
+                let rect = Rect::from_min_max(pos2(left, inner.top()), pos2(left + column, inner.bottom()));
+                tree::show_disclosure(ui, &list, rect, branch, &tree.text, ui.scope_id(), key, &(tree.name)(key), &mut events);
+            }
+            Rect::from_min_max(pos2((left + column).min(inner.right()), inner.top()), inner.max)
+        };
+        opened.extend(events.into_iter().filter_map(|event| match event {
+            RowEvent::Open(change) => Some(change),
+            _ => None,
+        }));
+        rect
     }
 }
 
 /// A tree table row's AccessKit part: `level`, position among its siblings and the Expand or
 /// Collapse action (`tree::report`), plus `expanded` for a group; a screen reader's Expand or
 /// Collapse is pushed to `opened`.
-#[expect(unused_variables, clippy::ptr_arg, clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn tree_item<K: Clone>(ui: &Ui, response: &Response, branch: &Branch, key: &K, opened: &mut Vec<OpenChange<K>>) {
-    // craft-ui: crates/ui/src/list/tree.rs:131 `report` (its `RowEvent::Open` mapped to the
-    // `OpenChange`), crates/ui/src/list/row.rs:894 (`expanded`).
-    todo!()
+    let mut events = Vec::new();
+    tree::report(ui, response, branch, key, &mut events);
+    if branch.group {
+        ui.ctx().accesskit_node_builder(response.id, |node| node.set_expanded(branch.open));
+    }
+    opened.extend(events.into_iter().filter_map(|event| match event {
+        RowEvent::Open(change) => Some(change),
+        _ => None,
+    }));
 }
