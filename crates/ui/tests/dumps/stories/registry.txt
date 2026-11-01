@@ -85,6 +85,21 @@ controls/number-field/event-log = Number field | Event log | Panel | update rate
 controls/angle-dial/dial = Angle dial | Angle dial | Panel | range=Choice { options: ["-180 to 180", "-360 to 360", "0 to 90"], index: 0 }; orientation=Choice { options: ["counter-clockwise", "clockwise"], index: 0 }; field=Bool(true); size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/angle-dial/dialog = Angle dial | Dialog (field scope) | Panel | 
 controls/point-picker/picker = Point picker | Point picker | Panel | pixels=Bool(false); disabled=Bool(false)
+controls/chips/keywords = Chip field | Keywords | Panel | size=Choice { options: ["sm", "md"], index: 1 }; limit lines=Bool(true); max lines=Number { value: 2.0, min: 1.0, max: 6.0 }; disabled=Bool(false)
+controls/chips/filters = Chip field | Filters | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/tree-picker/albums = Tree picker | Albums | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/icon-picker/icons = Icon picker | Icons | Panel | 
+controls/linked/size = Linked fields | Size | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/linked/margins = Linked fields | Margins | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/preview-select/underline = Preview select | Underline | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/split-button/trace = Split button | Trace | Panel | variant=Choice { options: ["primary", "secondary", "ghost", "danger"], index: 1 }; size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/breadcrumb/path = Breadcrumb | Path | Panel | width=Number { value: 420.0, min: 120.0, max: 640.0 }
+controls/rating/stars = Rating | Stars | Panel | disabled=Bool(false)
+controls/date/picker = Date picker | Picker | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/alt-text/field = Alt text | Field | Panel | mixed=Bool(false)
+controls/autocomplete/functions = Autocomplete | Functions | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/mixed/apply-rows = Apply row | Apply rows | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/reset-dot/fields = Reset dot | Fields | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 composites/field/dialog = Field | Dialog | Panel | above=Bool(false); help=Bool(true); error=Bool(false)
 composites/form-grid/image-size = FormGrid | Image size | Panel | roomy=Bool(false); labels at start=Bool(false)
 composites/property-row/inspector = PropertyRow | Inspector | Panel | mixed=Bool(false); width=Number { value: 260.0, min: 60.0, max: 400.0 }
@@ -120,13 +135,16 @@ composites/tab-strip/drops = TabStrip | Drops | Panel | width=Number { value: 48
 composites/tab-strip/text = TabStrip | Text | Panel | width=Number { value: 640.0, min: 160.0, max: 1200.0 }
 composites/list-row/layers = ListRow | Layers | Panel | thumbnails=Choice { options: ["None", "Small", "Medium", "Large"], index: 0 }; detail=Bool(false); highlight second row=Bool(false); layer form=Bool(true); width=Number { value: 280.0, min: 60.0, max: 480.0 }
 composites/list-row/masks = ListRow | Mask thumbnail | Panel | linked=Bool(true); width=Number { value: 280.0, min: 120.0, max: 480.0 }
-composites/list/ten-thousand-rows = List | 10,000 rows | Panel | selection=Choice { options: ["Multiple", "Single"], index: 0 }; mixed heights=Bool(false); height=Number { value: 320.0, min: 120.0, max: 600.0 }
+composites/list/ten-thousand-rows = List | 10,000 rows | Panel | selection=Choice { options: ["Multiple", "Single"], index: 0 }; mixed heights=Bool(false); striped=Bool(false); height=Number { value: 320.0, min: 120.0, max: 600.0 }
 composites/list/tree = TreeRow | Layer groups | Panel | width=Number { value: 320.0, min: 120.0, max: 480.0 }; height=Number { value: 280.0, min: 120.0, max: 480.0 }
 composites/list/reorder = List | Reorder | Panel | 
 composites/list/reorder-tree = List | Reorder a tree | Panel | 
 composites/list/reorder-refused = List | Refused targets | Panel | 
 composites/list/reorder-copy = List | Copy with Alt | Panel | 
 composites/findings-list/list = FindingsList | List | Panel | errors=Number { value: 2.0, min: 0.0, max: 4.0 }; warnings=Number { value: 3.0, min: 0.0, max: 5.0 }; summary=Bool(true); width=Number { value: 420.0, min: 240.0, max: 640.0 }
+composites/table/files = Table | Files | Panel | striped=Bool(true); movable=Bool(true)
+composites/table/metadata = MetadataTable | Metadata | Panel | column picker=Bool(false)
+composites/table/events = EventLog | Events | Panel | 
 composites/menu/menus = Menu | Menus | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true); rows=Number { value: 40.0, min: 5.0, max: 200.0 }
 composites/menu/context-menu = ContextMenu | Context menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true)
 composites/menu/press-menu = PressMenu | Press menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true)

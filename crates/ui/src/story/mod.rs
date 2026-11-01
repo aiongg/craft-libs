@@ -313,6 +313,7 @@ register! {
     controls::number_field,
     controls::angle_dial,
     controls::point_picker,
+    controls,
     composites::field,
     composites::form_grid,
     composites::property_row,

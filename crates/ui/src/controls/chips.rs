@@ -14,15 +14,12 @@ use egui::{
 use super::{ControlSize, TooltipExt as _};
 use crate::behavior::{ClaimedKey, GridKey, GridNav, KeyClaim};
 use crate::direction;
-use crate::localized::words::Counted;
+use crate::localized::words::counts;
 use crate::localized::{Labels as _, Words};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::Interactive;
 use crate::text::{ElideAt, elided_galley};
 use crate::theme::{ToEgui, Tokens, TokensOf as _, UiTokens, corner_radius, role_format};
-
-/// The "+N more" button's word; S5C-F9 moves it to the kernel's `counts`.
-const MORE: Counted = Counted::new("chips.more", "+{n} more", "+{n} more");
 
 crate::words! {
     /// The chips' words, English by default.
@@ -33,8 +30,8 @@ crate::words! {
         remove: "chips.remove" = "Remove “{name}”";
         /// The button for the chips that don't fit: `{n}` how many. A
         /// [`Counted`](crate::localized::words::Counted) word (one and other both "+{n} more" in
-        /// English), written with [`Words::counted`](crate::localized::Words::counted); S5C-F9
-        /// adds it to the kernel's `counts` and [`COUNTS`](crate::localized::words::COUNTS).
+        /// English), written with [`Words::counted`](crate::localized::Words::counted); its
+        /// forms are in the kernel's [`COUNTS`](crate::localized::words::COUNTS).
         more: "chips.more" = "+{n} more";
         clear_all: "chips.clearAll" = "Clear All";
         /// A partial chip's accessible name (the asterisk is only drawn): `{name}`.
@@ -326,7 +323,7 @@ fn arrangement_text(chip: &Chip<'_>) -> String {
 
 /// "+N more" for `hidden` chips.
 fn more_text(ctx: &Context, labels: &ChipLabels, hidden: usize) -> String {
-    Words::of_ctx(ctx).counted(ctx, MORE, &labels.more, hidden as u64)
+    Words::of_ctx(ctx).counted(ctx, counts::MORE, &labels.more, hidden as u64)
 }
 
 /// The field's cells: which chips show, "+N more" after them when some don't, Clear All.

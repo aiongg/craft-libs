@@ -16,13 +16,9 @@ use egui::{Area, AsIdSalt, Context, CursorIcon, Frame, Id, IdSalt, LayerId, Marg
 
 use crate::composites::live::{Politeness, region};
 use crate::direction;
-use crate::localized::words::Counted;
+use crate::localized::words::counts;
 use crate::localized::{Labels as _, Words};
 use crate::theme::{ToEgui as _, corner_radius};
-
-/// The badge's text for a number of items. S5C-F9 moves it into the kernel's `counts` and
-/// [`COUNTS`](crate::localized::words::COUNTS).
-const COUNT: Counted = Counted::new("drag.count", "{n} item", "{n} items");
 
 fn hint_id() -> Id {
     Id::NULL.with("craft_ui::behavior::drag_feedback::hint")
@@ -39,8 +35,8 @@ crate::words! {
     pub struct DragFeedbackLabels {
         /// The badge's default text: `{n}` the number of items (LightCraft's "{n} photos"). A
         /// [`Counted`](crate::localized::words::Counted) word ("{n} item", "{n} items"), written
-        /// with [`Words::counted`](crate::localized::Words::counted); S5C-F9 adds it to the
-        /// kernel's `counts` and [`COUNTS`](crate::localized::words::COUNTS).
+        /// with [`Words::counted`](crate::localized::Words::counted); its forms are in the
+        /// kernel's [`COUNTS`](crate::localized::words::COUNTS).
         count: "drag.count" = "{n} items";
     }
 }
@@ -96,7 +92,7 @@ impl<'a> DragBadge<'a> {
         let Some(pointer) = ctx.input(|i| i.pointer.latest_pos()) else { return };
         let text = drop_hint(ctx).or_else(|| text.map(Cow::into_owned)).unwrap_or_else(|| {
             let labels = labels.unwrap_or_else(|| DragFeedbackLabels::of_ctx(ctx));
-            Words::of_ctx(ctx).counted(ctx, COUNT, &labels.count, count.unwrap_or(0) as u64)
+            Words::of_ctx(ctx).counted(ctx, counts::DRAG_ITEMS, &labels.count, count.unwrap_or(0) as u64)
         });
         let tokens = crate::theme::current(ctx);
         let (fill, ink) = (tokens.color.accent.solid.to_egui(), tokens.color.text.on_accent.to_egui());

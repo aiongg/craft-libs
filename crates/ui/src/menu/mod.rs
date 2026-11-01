@@ -105,6 +105,8 @@ pub(crate) enum Command {
     Fit,
     Mode(u8),
     Row(usize),
+    /// The context-menu story's check row that keeps the menu open.
+    Guides,
 }
 
 fn shortcut(modifiers: Modifiers, key: Key) -> Kbd {
@@ -185,14 +187,22 @@ fn show_menus(ui: &mut Ui, args: &mut MenusArgs) {
 }
 
 /// A focusable box with a context menu: secondary click, or Menu key and Shift+F10 once it has the
-/// focus (Tab to it).
+/// focus (Tab to it). The last row is a check row that keeps the menu open (a choice that changes a
+/// setting leaves the menu up for the next one).
 fn show_context_menu(ui: &mut Ui, args: &mut IconsArgs) {
     let size = args.size.control();
-    let entries = edit_menu(args.icons);
+    let mut entries = edit_menu(args.icons);
     let last = Id::unique("craft-ui-context-menu-story-last");
+    let guides = Id::unique("craft-ui-context-menu-story-guides");
+    let show_guides = ui.data(|d| d.get_temp::<bool>(guides)).unwrap_or(true);
+    entries.push(MenuEntry::Separator);
+    entries.push(MenuItem::new("Show Guides (stays open)", Command::Guides).check(show_guides).keep_open(true).into());
     Row::new(Gap::Section).show(ui, |ui| {
         let target = ui.add(Button::new("Right-click, or focus and press Shift+F10"));
         if let Some(command) = ContextMenu::new(&entries).size(size).show(ui, &target).chosen {
+            if command == Command::Guides {
+                ui.data_mut(|d| d.insert_temp(guides, !show_guides));
+            }
             ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
         }
         let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());

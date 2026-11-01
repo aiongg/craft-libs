@@ -88,7 +88,7 @@ mod chips_tests;
 pub(crate) mod combo_box;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod combo_box_tests;
-mod common_stories;
+pub(crate) mod common_stories;
 mod date;
 #[cfg(test)]
 mod date_tests;
@@ -222,6 +222,27 @@ pub(crate) fn salt(ui: &mut Ui, id_salt: Option<IdSalt>) -> IdSalt {
         ui.skip_ahead_auto_ids(1);
         IdSalt::new(id)
     })
+}
+
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &[
+    "Chip field",
+    "Tree picker",
+    "Icon picker",
+    "Linked fields",
+    "Preview select",
+    "Split button",
+    "Breadcrumb",
+    "Rating",
+    "Date picker",
+    "Alt text",
+    "Autocomplete",
+    "Apply row",
+    "Reset dot",
+];
+
+pub(crate) fn stories() -> Vec<crate::story::Story> {
+    common_stories::stories()
 }
 
 /// The args of the stories that only pick the size.
