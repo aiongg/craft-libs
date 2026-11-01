@@ -175,6 +175,37 @@ fn liquify_alt_right_drag_resizes_size_and_density_and_paints_nothing() {
     button(&mut h, PointerButton::Secondary, anchor + vec2(50.0, 0.0), false, Modifiers::ALT);
 }
 
+// Alt + primary paints with the alternate tool (the host gives the tool the primary press with Alt
+// held, as well as the secondary press that resizes).
+#[test]
+fn liquify_alt_primary_drag_paints_with_the_alternate_tool() {
+    let mut h = harness();
+    h.state_mut().workspace.settings.tool = LiquifyTool::TwirlClockwise;
+    let from = canvas_point(0.0, 0.0);
+    // The twirls act while the brush rests and keep repainting, so the pass is stepped, not run.
+    let mut step = |event: Event| {
+        h.event_modifiers(event, Modifiers::ALT);
+        h.step();
+    };
+    let to = from + vec2(40.0, 30.0);
+    step(Event::PointerMoved(from));
+    step(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::ALT });
+    step(Event::PointerMoved(from + (to - from) * 0.5));
+    step(Event::PointerMoved(to));
+    step(Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::ALT });
+    let tools: Vec<_> = h
+        .state()
+        .events
+        .iter()
+        .filter_map(|e| match e {
+            LiquifyEvent::Stroke(EditEvent::Commit { value, .. }) => Some(value.tool),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(tools, [LiquifyTool::TwirlCounterclockwise]);
+    assert!(!h.state().workspace.canvas.busy());
+}
+
 // With the Size number field focused, ⌘Z still undoes the last stroke (Replay is reported) and
 // the field keeps its text.
 #[test]

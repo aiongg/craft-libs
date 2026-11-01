@@ -14,6 +14,8 @@ pub struct WideAngleTokens {
     pub end: f32,
     /// How near a right-click must pass a curve to open its menu: `wide_angle.hit`.
     pub hit: f32,
+    /// A drag shorter than this many screen points adds no constraint: `wide_angle.min_drag`.
+    pub min_drag: f32,
     /// The extra width of the halo under each line: `wide_angle.halo_width`.
     pub halo_width: f32,
     /// The halo under each line: `wide_angle.halo`. Black at alpha 160 in every theme: it must darken whatever the image shows.
@@ -31,6 +33,7 @@ impl Family for WideAngleTokens {
         "line" 0.0..=16.0 => line;
         "end" 0.5..=32.0 => end;
         "hit" 0.0..=64.0 => hit;
+        "min_drag" 0.0..=64.0 => min_drag;
         "halo_width" 0.0..=16.0 => halo_width;
     };
 
@@ -39,6 +42,7 @@ impl Family for WideAngleTokens {
             line: values::WIDE_ANGLE_LINE,
             end: values::WIDE_ANGLE_END,
             hit: values::WIDE_ANGLE_HIT,
+            min_drag: values::WIDE_ANGLE_MIN_DRAG,
             halo_width: values::WIDE_ANGLE_HALO_WIDTH,
             halo: values::WIDE_ANGLE_HALO,
         }

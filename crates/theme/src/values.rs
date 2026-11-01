@@ -2587,6 +2587,8 @@ pub const WIDE_ANGLE_LINE: f32 = 2.0;
 pub const WIDE_ANGLE_END: f32 = 3.5;
 /// How near a right-click must pass a curve to open its menu: `wide_angle.hit`.
 pub const WIDE_ANGLE_HIT: f32 = 10.0;
+/// A drag shorter than this many screen points adds no constraint: `wide_angle.min_drag`.
+pub const WIDE_ANGLE_MIN_DRAG: f32 = 6.0;
 /// The extra width of the halo: `wide_angle.halo_width`.
 pub const WIDE_ANGLE_HALO_WIDTH: f32 = 2.5;
 /// The halo under each line, black at alpha 160: `wide_angle.halo`.

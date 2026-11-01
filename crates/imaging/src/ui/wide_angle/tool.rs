@@ -1,6 +1,6 @@
 //! [`ConstraintTool`]: Adaptive Wide Angle's Constraint tool (task WS-WA1).
 
-use egui::{Key, Modifiers, Painter, PointerButton, Pos2, Shape, Stroke, vec2};
+use egui::{Key, Modifiers, Painter, Pos2, Shape, Stroke, vec2};
 
 use craft_ui::behavior::nudge::NudgeKeys;
 use craft_ui::canvas::kurbo::Point;
@@ -12,10 +12,6 @@ use super::style::WideAngleStyle;
 
 /// Segments of the curve a constraint is drawn as (PhotoCraft's `Camera::arc(a, b, 24)`).
 const ARC_SEGMENTS: usize = 24;
-
-/// A drag shorter than this many screen points adds nothing (PhotoCraft's 6.0). No token: the
-/// threshold is a behaviour, not a mark.
-pub const MIN_DRAG: f32 = 6.0;
 
 /// The state of the Constraint tool between passes: the drag in progress, the constraint picked
 /// for the keyboard, the constraint a right-click opened the menu for, the edits not yet taken.
@@ -214,11 +210,6 @@ impl CanvasTool for ConstraintToolPass<'_> {
         ToolCursor::Crosshair { length, gap }
     }
 
-    fn button_for(&self, _modifiers: egui::Modifiers) -> PointerButton {
-        // new: the primary button draws; the secondary click comes through the canvas response.
-        PointerButton::Primary
-    }
-
     fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:289-290 (drag start). PhotoCraft's
         // interaction rect is the image, so a press on the pasteboard is not the tool's.
@@ -241,7 +232,7 @@ impl CanvasTool for ConstraintToolPass<'_> {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:297-308 (over 6 px; Shift orients).
         let Some((a, _)) = self.tool.drag.take() else { return };
         let b = pointer.doc;
-        if cx.view.to_screen(a).distance(cx.view.to_screen(b)) > MIN_DRAG {
+        if cx.view.to_screen(a).distance(cx.view.to_screen(b)) > self.style.min_drag {
             let constraint = WideAngleConstraint::from_drag(self.to_document(a), self.to_document(b), pointer.modifiers.shift);
             self.tool.edits.push(WideAngleConstraintEdit::Add(constraint));
         } else if let Some(index) = self.nearest(cx, pointer.screen) {

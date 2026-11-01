@@ -602,7 +602,8 @@ fn the_zoom_tool_zooms_while_the_press_is_held() {
     assert_eq!(h.state().view.zoom, held.zoom, "the release of a hold steps nothing");
 }
 
-/// A tool whose `button_for` is the secondary button while Alt is held (the brush resize chord).
+/// A tool that takes the secondary button while Alt is held, as well as the primary (the brush
+/// resize chord and Alt + click).
 struct AltResize {
     log: Log,
     overridden: bool,
@@ -632,8 +633,8 @@ impl CanvasTool for AltResize {
 
     fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
 
-    fn button_for(&self, modifiers: Modifiers) -> PointerButton {
-        if self.overridden && modifiers.alt { PointerButton::Secondary } else { self.button() }
+    fn takes(&self, button: PointerButton, modifiers: Modifiers) -> bool {
+        button == self.button() || (self.overridden && button == PointerButton::Secondary && modifiers.alt)
     }
 }
 
@@ -641,10 +642,10 @@ fn button_of(at: Pos2, button: PointerButton, pressed: bool, modifiers: Modifier
     Event::PointerButton { pos: at, button, pressed, modifiers }
 }
 
-// A tool whose `button_for` gives the secondary button while Alt is held begins its gesture with
-// an Alt + right press, and `ToolPointer::button` is `Secondary`.
+// A brush-type tool gets both the Alt + right press (the resize chord, `Secondary`) and the Alt +
+// primary press (`Primary`); without Alt the secondary press is not the tool's.
 #[test]
-fn button_for_takes_the_secondary_press_while_alt_is_held() {
+fn takes_gives_a_brush_type_tool_both_buttons_while_alt_is_held() {
     let calls = Log::default();
     let mut h = harness(Rig::new(AltResize { log: calls.clone(), overridden: true }), 0.05);
     let at = pos2(100.0, 100.0);
@@ -656,15 +657,22 @@ fn button_for_takes_the_secondary_press_while_alt_is_held() {
     h.event(button_of(at, PointerButton::Secondary, false, Modifiers::ALT));
     h.step();
     assert_eq!(log(&calls).last().map(String::as_str), Some("release Secondary x1"));
-    // The primary press without Alt is not the chord.
-    h.event(Event::ModifiersChanged(Modifiers::NONE));
-    press(&mut h, at, Modifiers::NONE);
+    h.event(button_of(at, PointerButton::Primary, true, Modifiers::ALT));
+    h.step();
     assert!(log(&calls).last().is_some_and(|c| c.starts_with("press Primary")), "{:?}", log(&calls));
+    h.event(button_of(at, PointerButton::Primary, false, Modifiers::ALT));
+    h.step();
+    // Without Alt the secondary press is not the tool's.
+    h.event(Event::ModifiersChanged(Modifiers::NONE));
+    let before = log(&calls).len();
+    h.event(button_of(at, PointerButton::Secondary, true, Modifiers::NONE));
+    h.step();
+    assert_eq!(log(&calls).len(), before, "{:?}", log(&calls));
 }
 
-// A tool that doesn't override `button_for` gets the same presses as before: its `button()`.
+// A tool that doesn't override `takes` gets only its `button()`, with or without Alt.
 #[test]
-fn button_for_default_is_the_tools_button() {
+fn takes_default_is_the_tools_button() {
     let calls = Log::default();
     let mut h = harness(Rig::new(AltResize { log: calls.clone(), overridden: false }), 0.05);
     let at = pos2(100.0, 100.0);

@@ -343,13 +343,16 @@ pub trait CanvasTool {
         PointerButton::Primary
     }
 
-    /// The button a press with `modifiers` held starts a gesture with: a brush takes the
-    /// secondary button while Alt is held (the resize chord Alt + right-drag) and the primary
-    /// otherwise. The host asks at each press with no gesture running; a gesture keeps the button
-    /// it began with until that button comes up, whatever happens to the keys meanwhile.
-    /// Default: [`button`](Self::button), so a tool that doesn't override it never changes.
-    fn button_for(&self, _modifiers: Modifiers) -> PointerButton {
-        self.button()
+    /// Whether a press of `button` with `modifiers` held starts a gesture with this tool. The host
+    /// asks at each press with no gesture running, for each button pressed in that pass (primary,
+    /// secondary, middle in that order), and begins with the first the tool takes;
+    /// [`ToolPointer::button`] then says which one it was. A gesture keeps its button until that
+    /// button comes up, whatever happens to the keys meanwhile. A brush takes the primary button
+    /// always and the secondary while Alt is held (the resize chord Alt + right-drag), so Alt +
+    /// click still paints (reversing the mode). Default: `button == self.button()`, so a tool that
+    /// doesn't override it never changes.
+    fn takes(&self, button: PointerButton, _modifiers: Modifiers) -> bool {
+        button == self.button()
     }
 
     /// The tool's keyboard parts this pass, or `None` (the default) for a tool without parts.
@@ -908,8 +911,8 @@ impl Run<'_, '_> {
         let ctx = self.ctx.clone();
         let canvas = self.pass.canvas;
         let claim = tool_claim_id(self.resp.id.id());
-        let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, self.pass.modifiers);
-        let (pos, origin, pressed, down, released, key_events) = ctx.input(|i| {
+        let (pos, origin, button, pressed, down, released, key_events) = ctx.input(|i| {
+            let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, self.pass.modifiers, |b| i.pointer.button_pressed(b));
             let key_events: Vec<ToolKey> = i
                 .events
                 .iter()
@@ -923,6 +926,7 @@ impl Run<'_, '_> {
             (
                 i.pointer.latest_pos(),
                 i.pointer.press_origin(),
+                button,
                 i.pointer.button_pressed(button),
                 i.pointer.button_down(button),
                 i.pointer.button_released(button),
@@ -1041,7 +1045,7 @@ impl Run<'_, '_> {
         match input {
             ToolInput::Down { doc, pressure, tilt, rotation, modifiers } if enabled && self.state.gesture.is_none() => {
                 let pen = PenSample { pressure, tilt, rotation, eraser: false, time_ms: 0.0 };
-                let button = gesture_button(None, &*self.tool, modifiers);
+                let button = gesture_button(None, &*self.tool, modifiers, |_| true);
                 let p = self.sample(Pos2::ZERO, Some(doc), modifiers, Some(pen), button, true);
                 let p = self.press_clicks(p);
                 self.begin(p, true);
@@ -1049,7 +1053,7 @@ impl Run<'_, '_> {
             ToolInput::Move { doc, pressure, tilt, rotation, modifiers } if enabled && own => {
                 let pen = PenSample { pressure, tilt, rotation, eraser: false, time_ms: 0.0 };
                 let gesture = self.state.gesture.is_some();
-                let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, modifiers);
+                let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, modifiers, |_| true);
                 let p = self.sample(Pos2::ZERO, Some(doc), modifiers, Some(pen), button, false);
                 if gesture {
                     self.drag(p);
@@ -1058,7 +1062,7 @@ impl Run<'_, '_> {
                 }
             }
             ToolInput::Up { doc, modifiers } if own && self.state.gesture.is_some() => {
-                let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, modifiers);
+                let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, modifiers, |_| true);
                 let p = self.sample(Pos2::ZERO, Some(doc), modifiers, None, button, false);
                 self.end(p);
             }
@@ -1112,13 +1116,19 @@ impl Run<'_, '_> {
     }
 }
 
+/// The buttons the host offers a press, in order.
+const PRESS_BUTTONS: [PointerButton; 3] = [PointerButton::Primary, PointerButton::Secondary, PointerButton::Middle];
+
+/// The first button of `PRESS_BUTTONS` that `tool` takes with `modifiers` and `wanted` accepts.
+fn taken_button(tool: &dyn CanvasTool, modifiers: Modifiers, wanted: impl Fn(PointerButton) -> bool) -> Option<PointerButton> {
+    PRESS_BUTTONS.into_iter().find(|b| wanted(*b) && tool.takes(*b, modifiers))
+}
+
 /// The button the host reads this pass: the button of `gesture` when one runs (a gesture keeps
-/// the button it began with, so releasing Alt mid-resize doesn't strand it), else
-/// `tool.button_for(modifiers)` for the next press. Automation's injected presses use it too.
-fn gesture_button(gesture: Option<&Active>, tool: &dyn CanvasTool, modifiers: Modifiers) -> PointerButton {
-    // new: step7-brush lead call 3 (`CanvasTool::button_for`); PhotoCraft arms the Alt+right
-    // resize at the press (`tools/brush_resize.rs:71` `pointer`, `armed`).
-    gesture.map_or_else(|| tool.button_for(modifiers), |g| g.button)
+/// the button it began with, so releasing Alt mid-resize doesn't strand it), else the first
+/// button pressed this pass that the tool takes (`pressed`), else the tool's own button.
+fn gesture_button(gesture: Option<&Active>, tool: &dyn CanvasTool, modifiers: Modifiers, pressed: impl Fn(PointerButton) -> bool) -> PointerButton {
+    gesture.map_or_else(|| taken_button(tool, modifiers, pressed).unwrap_or_else(|| tool.button()), |g| g.button)
 }
 
 /// How [`ToolHost::sample`] snaps: the gesture kind, the targets and the tolerance in document

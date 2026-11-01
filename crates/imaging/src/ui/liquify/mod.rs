@@ -232,7 +232,6 @@ impl LiquifyWorkspace {
         let mesh_style = MeshStyle::of(&tokens);
         let layers = source.layers();
         let title = FullWindowTitle::new(labels.name.as_str()).subject(self.subject.as_str()).zoom(self.view.zoom_percent()).text(ctx);
-        self.canvas.attach(ctx);
         let Self { dialog, session, history, settings, subject: _, size, view, last_used, canvas, asked } = self;
         let doc = Size::new(f64::from(size[0]), f64::from(size[1]));
         // The user's navigation options are the app's; Photoshop's defaults until it passes them.

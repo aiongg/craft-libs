@@ -1,7 +1,7 @@
 //! Tests of Select and Mask's tools (task WS-SM2), on a `ToolHost` with injected input.
 
 use craft_ui::canvas::kurbo::{Point, Size};
-use craft_ui::canvas::{CanvasId, CanvasTool as _, CanvasView, ToolHost, ToolInput};
+use craft_ui::canvas::{CanvasId, CanvasView, ToolHost, ToolInput};
 use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, install};
 use egui::{Event, Key, Modifiers, PointerButton, Sense, pos2, vec2};
@@ -57,6 +57,19 @@ fn drag_to(h: &mut Harness<'_, Rig>, at: (f64, f64), modifiers: Modifiers) {
 
 fn up(h: &mut Harness<'_, Rig>, at: (f64, f64), modifiers: Modifiers) {
     input(h, ToolInput::Up { doc: Point::new(at.0, at.1), modifiers });
+}
+
+/// A real pointer press or release (screen and document points coincide).
+fn press_button(h: &mut Harness<'_, Rig>, button: PointerButton, at: (f64, f64), pressed: bool, modifiers: Modifiers) {
+    let pos = pos2(at.0 as f32, at.1 as f32);
+    h.event_modifiers(Event::PointerMoved(pos), modifiers);
+    h.event_modifiers(Event::PointerButton { pos, button, pressed, modifiers }, modifiers);
+    h.step();
+}
+
+fn move_to(h: &mut Harness<'_, Rig>, at: (f64, f64), modifiers: Modifiers) {
+    h.event_modifiers(Event::PointerMoved(pos2(at.0 as f32, at.1 as f32)), modifiers);
+    h.step();
 }
 
 fn click(h: &mut Harness<'_, Rig>, at: (f64, f64)) {
@@ -208,16 +221,22 @@ fn select_mask_brush_sizes_are_per_tool_and_alt_reverses_the_mode() {
         assert_eq!(got, mode);
     }
 
-    // On the brush tools Alt takes the secondary button, so Alt + right-drag and Control + Alt +
-    // drag resize the tool's own size and paint nothing.
+    // On the brush tools Alt + right-drag and Control + Alt + drag resize the tool's own size and
+    // paint nothing; Alt + primary paints, reversed.
     let mut h = rig(SelectMaskTool::Quick, false);
-    let tool_button = |h: &mut Harness<'_, Rig>, modifiers| {
-        let Rig { canvas, options, tool, real_time, .. } = h.state_mut();
-        canvas.tool(*tool, options, *real_time).button_for(modifiers)
-    };
-    assert_eq!(tool_button(&mut h, Modifiers::ALT), PointerButton::Secondary);
-    assert_eq!(tool_button(&mut h, Modifiers::ALT | Modifiers::CTRL), PointerButton::Primary);
-    assert_eq!(tool_button(&mut h, NONE), PointerButton::Primary);
+    press_button(&mut h, PointerButton::Secondary, (100.0, 100.0), true, Modifiers::ALT);
+    assert!(h.state().canvas.busy());
+    move_to(&mut h, (110.0, 100.0), Modifiers::ALT);
+    press_button(&mut h, PointerButton::Secondary, (110.0, 100.0), false, Modifiers::ALT);
+    assert!(events(&mut h).is_empty());
+    assert!(!h.state().canvas.busy());
+    assert_eq!(h.state().options.sizes.quick, 50.0, "Alt + right-drag grew the brush");
+    h.state_mut().options.sizes.quick = 30.0;
+    press_button(&mut h, PointerButton::Primary, (100.0, 100.0), true, Modifiers::ALT);
+    press_button(&mut h, PointerButton::Primary, (100.0, 100.0), false, Modifiers::ALT);
+    let got = events(&mut h);
+    assert!(!got.is_empty(), "Alt + primary paints");
+    assert!(matches!(committed(&got), SelectMaskEdit::Quick { mode: EditMode::Subtract, .. }), "{got:?}");
     let chord = Modifiers::ALT | Modifiers::CTRL;
     down(&mut h, (100.0, 100.0), chord);
     assert!(h.state().canvas.busy());
