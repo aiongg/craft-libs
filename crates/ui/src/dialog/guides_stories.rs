@@ -96,9 +96,10 @@ fn picked_color() -> craft_theme::Srgba {
     Rgba::rgb(0xe0, 0x6c, 0x1f).into()
 }
 
+/// New Guide and Edit Selected Guides are one dialog with one fixed id, so they share one claim.
 /// New Guide: Orientation, Position in the ruler unit, Color with Custom… answered by the story.
 fn show_new_guide(ui: &mut Ui, args: &mut NewGuideArgs) {
-    if !claim(ui.ctx(), "new-guide", ui.scope_id()) {
+    if !claim(ui.ctx(), "new-guide-dialog", ui.scope_id()) {
         return;
     }
     let (ruler, words) = (args.ruler, StoryLabels::of(ui));
@@ -122,7 +123,7 @@ fn show_new_guide(ui: &mut Ui, args: &mut NewGuideArgs) {
 
 /// Edit Selected Guides: the same dialog over a guide that already exists.
 fn show_edit_guides(ui: &mut Ui, args: &mut EditGuidesArgs) {
-    if !claim(ui.ctx(), "edit-guides", ui.scope_id()) {
+    if !claim(ui.ctx(), "new-guide-dialog", ui.scope_id()) {
         return;
     }
     let (ruler, horizontal, words) = (args.ruler, args.horizontal, StoryLabels::of(ui));

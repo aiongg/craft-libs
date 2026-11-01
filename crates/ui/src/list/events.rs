@@ -27,6 +27,8 @@ crate::words! {
         errors: "events.errors" = "Errors Only";
         clear_all: "events.clearAll" = "Clear All";
         none: "events.none" = "No events.";
+        /// The name of the list of events.
+        list: "events.list" = "Events";
         /// An event that happened several times in a row: `{message}`, `{count}`.
         repeated: "events.repeated" = "{message}  (×{count})";
         info: "events.info" = "Info";
@@ -189,7 +191,7 @@ impl<'a> EventLog<'a> {
             let mut selection = state.selected.filter(|_| selected.is_some()).map_or_else(Selection::new, Selection::only);
             let caption = role_format(&tokens, TypeRole::Caption, Color32::PLACEHOLDER).font_id;
             let numbers = LocaleNumbers::of_ctx(&ctx);
-            let output = List::new("rows", "Events", rows.as_slice())
+            let output = List::new("rows", labels.list.as_str(), rows.as_slice())
                 .mode(SelectionMode::Single)
                 .selection(&mut selection)
                 .max_height((ui.available_height() - details_height).max(20.0))

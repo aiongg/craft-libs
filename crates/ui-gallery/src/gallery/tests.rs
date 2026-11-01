@@ -344,6 +344,11 @@ const FIXED_WIDTH: &[&str] = &[
     "patterns/shell/toolbar-drawer",
     "patterns/shell/start",
     "composites/path-field/field",
+    // A table has several columns, each with a width of its own.
+    "composites/table/files",
+    "composites/table/events",
+    // A dialog drawn in place, with a canvas for the layout preview beside its fields.
+    "patterns/dialog/guide-layout",
 ];
 
 /// Stories that draw in layers of their own (dialogs, windows) and are placed on the screen, not

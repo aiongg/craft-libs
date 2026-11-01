@@ -533,7 +533,11 @@ fn show_dates(ui: &mut Ui, args: &mut super::SizeDisabledArgs) {
 /// The alt text editor; `mixed` shows the placeholder for several descriptions.
 fn show_alt_text(ui: &mut Ui, args: &mut AltArgs) {
     state(ui, "story-alt", AltText::default(), |ui, value| {
-        let _ = AltTextField::new("story-alt", value).mixed(args.mixed).show(ui);
+        // The box is 340 points wide on its own; a tile is narrower, so there it takes the tile.
+        let layout = if crate::story::in_overview(ui.ctx()) { egui::Layout::top_down_justified(egui::Align::Min) } else { *ui.layout() };
+        ui.with_layout(layout, |ui| {
+            let _ = AltTextField::new("story-alt", value).mixed(args.mixed).show(ui);
+        });
     });
 }
 
@@ -609,6 +613,9 @@ fn show_autocomplete(ui: &mut Ui, _args: &mut super::SizeArgs) {
     });
 }
 
+/// The name field's width: with the check and the "Mixed" note the row fits a narrow tile.
+const NAME_WIDTH: f32 = 100.0;
+
 /// Three bulk-edit rows: a name that differs across the selection, an opacity and a rotation that
 /// differs.
 fn show_apply_rows(ui: &mut Ui, args: &mut super::SizeArgs) {
@@ -627,7 +634,7 @@ fn show_apply_rows(ui: &mut Ui, args: &mut super::SizeArgs) {
         |ui, (name, opacity, rotation)| {
             ui.horizontal(|ui| {
                 let _ = ApplyRow::new("story-apply-name", &shared.name, name).show(ui, |ui, value| {
-                    let edit = TextField::new("story-apply-name-text", &shared.name, value.as_str()).size(size).show(ui);
+                    let edit = TextField::new("story-apply-name-text", &shared.name, value.as_str()).size(size).width(NAME_WIDTH).show(ui);
                     if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
                         *value = v.clone();
                     }

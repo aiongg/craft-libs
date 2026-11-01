@@ -43,6 +43,18 @@ impl Fixture {
         self.frame(Vec::new()).expect("an AccessKit tree")
     }
 
+    /// Frames until the tile `key` has outlined its shapes. At most one story is probed per
+    /// frame, in tile order, so the frames needed grow with the tiles before it.
+    fn frames_until_highlighted(&mut self, key: &'static str) {
+        for _ in 0..200 {
+            if self.gallery.highlighted_tiles().contains(&key) {
+                return;
+            }
+            self.frame(Vec::new());
+        }
+        panic!("{key} never outlined: {:?}", self.gallery.highlighted_tiles());
+    }
+
     /// Frames until the scan has probed every component.
     fn scan_to_end(&mut self) {
         let total = self.gallery.scan_progress().map_or(0, |(_, total)| total);
@@ -124,8 +136,7 @@ fn tiles_that_paint_the_selected_token_are_outlined_and_none_is_without_a_select
     f.frames(3);
     assert!(f.gallery.highlighted_tiles().is_empty());
     f.gallery.select_token(ACCENT);
-    f.frames(3);
-    assert!(f.gallery.highlighted_tiles().contains(&"Button"), "{:?}", f.gallery.highlighted_tiles());
+    f.frames_until_highlighted("Button");
 }
 
 #[test]
@@ -171,7 +182,8 @@ fn the_outline_sits_on_the_primary_buttons_fill() {
     let mut f = Fixture::new();
     f.gallery.select_component("Button");
     f.gallery.select_token(ACCENT);
-    let tree = f.frames(4);
+    f.frames_until_highlighted("Button");
+    let tree = f.frames(2);
     let button = tree
         .walk(tree.root())
         .into_iter()
