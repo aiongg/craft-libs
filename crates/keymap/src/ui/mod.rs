@@ -83,7 +83,7 @@ pub enum Outcome {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ConflictMode {
-    /// Ask with the conflict bar: Take It, Take It and Go to Conflict, Keep Both, Cancel. Assign
+    /// Ask with the conflict bar: Take It, Accept and Go to Conflict, Keep Both, Cancel. Assign
     /// in the detail pane takes the chord without asking, as Steal does: the pane has already
     /// listed its holders under "Currently assigned to".
     #[default]

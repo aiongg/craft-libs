@@ -283,3 +283,35 @@ fn a_struct_without_a_toml_form_is_refused() {
     value.map.insert((1, 2), 3);
     assert!(SettingsDocument::new(value).is_err());
 }
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Files {
+    autosave_minutes: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+struct FilePrefs {
+    general: Files,
+}
+
+// The autosave row offers the five interval choices as "{n} minutes", with 10 selected by default.
+#[test]
+fn the_minutes_rule_offers_the_autosave_intervals_with_ten_selected() {
+    let prefs = FilePrefs { general: Files { autosave_minutes: "10".into() } };
+    let doc = SettingsDocument::new(prefs)
+        .expect("the prefs serialize")
+        .pages(StandardPage::ALL.map(PageInfo::from).to_vec())
+        .rules(vec![SettingRule::new("general.autosaveMinutes").minutes(&[5, 10, 15, 30, 60])]);
+    let pages = PreferencesModel::pages(&doc);
+    let row = pages
+        .iter()
+        .flat_map(|page| page.groups.iter().flat_map(|group| group.rows.iter()))
+        .find(|row| row.key == "general.autosaveMinutes")
+        .expect("a row");
+    let RowKind::Choice { value, options } = &row.kind else { panic!("not a choice") };
+    assert_eq!(*value, "10");
+    let options: Vec<_> = options.iter().map(|(id, label)| (id.to_string(), label.to_string())).collect();
+    let expected: Vec<_> = [5, 10, 15, 30, 60].map(|n| (n.to_string(), format!("{n} minutes"))).to_vec();
+    assert_eq!(options, expected);
+}

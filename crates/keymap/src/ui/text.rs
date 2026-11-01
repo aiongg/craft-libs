@@ -92,7 +92,7 @@ impl Say {
 
 fn key_name(words: &Words, k: Key, p: Platform) -> Option<String> {
     // Glyphs (⌫, ↑) need no translation.
-    if p.is_mac() && k.mac_symbol(ReturnGlyph::Enter) != k.text_name() {
+    if p.is_mac() && k.mac_symbol(ReturnGlyph::default()) != k.text_name() {
         return None;
     }
     let english = k.text_name();
@@ -104,9 +104,12 @@ fn key_name(words: &Words, k: Key, p: Platform) -> Option<String> {
 /// in the order of [`Chord::display`](crate::Chord::display).
 pub fn trigger_text(words: &Words, trigger: &Trigger, platform: Platform) -> String {
     let key = trigger.chord.key;
-    let Some(name) = key_name(words, key, platform) else { return trigger.display(platform) };
-    let base = if platform.is_mac() { key.mac_symbol(ReturnGlyph::Enter) } else { key.text_name() };
-    let one = trigger.chord.display(platform);
+    let glyph = ReturnGlyph::default();
+    let one = trigger.chord.display_with_return(platform, glyph);
+    let Some(name) = key_name(words, key, platform) else {
+        return if trigger.double { format!("{one} {one}") } else { one };
+    };
+    let base = if platform.is_mac() { key.mac_symbol(glyph) } else { key.text_name() };
     let one = match one.strip_suffix(base) {
         Some(mods) => format!("{mods}{name}"),
         None => one,
@@ -278,7 +281,7 @@ const STRING_WORDS: &[Word] = &[
     Word::plain("Too many shortcuts are assigned"),
     Word::plain("This command is unknown"),
     Word::plain("Take It"),
-    Word::plain("Take It and Go to Conflict"),
+    Word::plain("Accept and Go to Conflict"),
     Word::plain("Keep Both"),
     Word::plain("Go to Conflict"),
     Word::plain("Cancel the new shortcut"),
