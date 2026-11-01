@@ -1,5 +1,6 @@
 //! Startup update prompt dialog for egui frontends.
 
+use craft_ui::primitives::paint::ink_on;
 use egui::{Align, Align2, Color32, Layout, RichText, Vec2};
 
 use crate::app::App;
@@ -417,6 +418,7 @@ fn button_states(is_dark: bool) -> (Color32, Color32) {
 const DEFAULT_ACCENT: Color32 = Color32::from_rgb(52, 120, 246);
 
 /// WCAG relative luminance of `c`: 0 for black to 1 for white.
+#[cfg(test)]
 fn luminance(c: Color32) -> f32 {
     let channel = |v: u8| {
         let v = f32::from(v) / 255.0;
@@ -426,15 +428,10 @@ fn luminance(c: Color32) -> f32 {
 }
 
 /// WCAG contrast ratio of two colours: 1 (none) to 21 (black on white).
+#[cfg(test)]
 fn contrast(a: Color32, b: Color32) -> f32 {
     let (a, b) = (luminance(a), luminance(b));
     (a.max(b) + 0.05) / (a.min(b) + 0.05)
-}
-
-/// Text for a label on `fill`: white or black, whichever contrasts more. Every Craft app accent
-/// then reaches WCAG AA's 4.5:1 for the prompt's small labels (5:1 at the least).
-fn ink_on(fill: Color32) -> Color32 {
-    if contrast(fill, Color32::WHITE) >= contrast(fill, Color32::BLACK) { Color32::WHITE } else { Color32::BLACK }
 }
 
 /// The largest icon the prompt decodes, a side; app icons are 128 px.
