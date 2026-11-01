@@ -18,6 +18,7 @@ ui = ["dep:craft-ui", "dep:egui", "dep:kurbo"]
 screen-testing = ["ui", "craft-ui/screen-testing"]
 
 [dependencies]
+craft-host = { workspace = true }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true }
 craft-ui = { workspace = true, optional = true }
