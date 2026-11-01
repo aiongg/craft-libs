@@ -173,7 +173,7 @@ impl<'a> BlurPinsOverlay<'a> {
 
         let painter = ui.painter_at(view.rect);
         let ring = focus.keyboard.then(|| parts.iter().find(|p| Some(p.key) == picked).map(|p| p.rect)).flatten();
-        paint(&painter, &ctx, view, &shown, &style);
+        paint(&painter, view, &shown, &style);
         if let Some(rect) = ring {
             PartFocus::ring(&painter, rect);
         }
@@ -335,38 +335,12 @@ fn parts(view: &CanvasView, pins: &BlurPins, style: &BlurPinsStyle, labels: &Blu
         .collect()
 }
 
-/// The marks' line widths, from the handle tokens: a mark is a `handle.stroke` line over a halo
-/// `handle.halo` wider on each side; the amount arc is twice as heavy.
-struct Widths {
-    line: f32,
-    halo: f32,
-    arc: f32,
-    arc_halo: f32,
-    dash: f32,
-    gap: f32,
-}
-
-impl Widths {
-    fn of(ctx: &Context, style: &BlurPinsStyle) -> Widths {
-        let handle = current(ctx).component.handle;
-        let arc = 2.0 * handle.stroke;
-        Widths {
-            line: handle.stroke,
-            halo: handle.stroke + 2.0 * handle.halo,
-            arc,
-            arc_halo: arc + 2.0 * handle.halo,
-            dash: handle.size,
-            gap: style.ring_band,
-        }
-    }
-}
-
 /// A halo-edged line from `a` to `b`, dashed when `dash` is set.
-fn line(painter: &Painter, style: &BlurPinsStyle, w: &Widths, a: Pos2, b: Pos2, dash: bool) {
-    let (under, over) = (Stroke::new(w.halo, style.halo), Stroke::new(w.line, style.line));
+fn line(painter: &Painter, style: &BlurPinsStyle, w: &BlurPinsStyle, a: Pos2, b: Pos2, dash: bool) {
+    let (under, over) = (Stroke::new(w.line_halo, style.halo), Stroke::new(w.line_width, style.line));
     if dash {
-        painter.extend(Shape::dashed_line(&[a, b], under, w.dash, w.gap));
-        painter.extend(Shape::dashed_line(&[a, b], over, w.dash, w.gap));
+        painter.extend(Shape::dashed_line(&[a, b], under, w.dash, w.dash_gap));
+        painter.extend(Shape::dashed_line(&[a, b], over, w.dash, w.dash_gap));
     } else {
         painter.line_segment([a, b], under);
         painter.line_segment([a, b], over);
@@ -375,24 +349,24 @@ fn line(painter: &Painter, style: &BlurPinsStyle, w: &Widths, a: Pos2, b: Pos2, 
 
 /// The pins over the image: a dot per pin (filled when selected) and, round the selected one, its
 /// ring with the amount as an arc from the top, and its outline and handles or Tilt-Shift's lines.
-fn paint(painter: &Painter, ctx: &Context, view: &CanvasView, pins: &BlurPins, style: &BlurPinsStyle) {
+fn paint(painter: &Painter, view: &CanvasView, pins: &BlurPins, style: &BlurPinsStyle) {
     if !usable(pins) {
         return;
     }
-    let w = Widths::of(ctx, style);
+    let w = style;
     for (index, pin) in pins.pins.iter().enumerate() {
         let centre = view.to_screen(pins.to_document(pin));
         if pins.selected == Some(index) {
-            selected(painter, view, pins, pin, centre, style, &w);
+            selected(painter, view, pins, pin, centre, style, w);
         } else {
-            painter.circle_stroke(centre, style.dot, Stroke::new(w.halo, style.halo));
-            painter.circle_stroke(centre, style.dot, Stroke::new(w.line, style.line));
+            painter.circle_stroke(centre, style.dot, Stroke::new(w.line_halo, style.halo));
+            painter.circle_stroke(centre, style.dot, Stroke::new(w.line_width, style.line));
         }
     }
 }
 
-fn selected(painter: &Painter, view: &CanvasView, pins: &BlurPins, pin: &BlurPin, centre: Pos2, style: &BlurPinsStyle, w: &Widths) {
-    let edge = Stroke::new(w.line, style.halo);
+fn selected(painter: &Painter, view: &CanvasView, pins: &BlurPins, pin: &BlurPin, centre: Pos2, style: &BlurPinsStyle, w: &BlurPinsStyle) {
+    let edge = Stroke::new(w.handle_outline, style.halo);
     let screen = |p: Point| view.to_screen(p);
     if let Some(shape) = pin.iris {
         // Where the blur reaches its full amount (Iris) or where the spin ends.
@@ -405,17 +379,17 @@ fn selected(painter: &Painter, view: &CanvasView, pins: &BlurPins, pin: &BlurPin
                 screen(iris_point(pins, pin, shape, r * cos, r * sin))
             })
             .collect();
-        painter.add(PathShape::line(outline.clone(), Stroke::new(w.halo, style.halo)));
-        painter.add(PathShape::line(outline, Stroke::new(w.line, style.line)));
+        painter.add(PathShape::line(outline.clone(), Stroke::new(w.line_halo, style.halo)));
+        painter.add(PathShape::line(outline, Stroke::new(w.line_width, style.line)));
         for (u, v) in AXIS_HANDLES {
             painter.circle(screen(iris_point(pins, pin, shape, u, v)), style.handle, style.line, edge);
         }
         if pins.kind == BlurKind::Iris {
             let (u, v) = round_handle(shape);
             let square = Rect::from_center_size(screen(iris_point(pins, pin, shape, u, v)), Vec2::splat(2.0 * style.handle));
-            painter.rect(square, CornerRadius::ZERO, style.line, edge, StrokeKind::Middle);
+            painter.rect(square, CornerRadius::from(style.round_corner), style.line, edge, StrokeKind::Middle);
             for (u, v) in feather_handles(shape) {
-                painter.circle(screen(iris_point(pins, pin, shape, u, v)), style.handle, style.line, edge);
+                painter.circle(screen(iris_point(pins, pin, shape, u, v)), style.handle + style.feather_extra, style.line, edge);
             }
         }
     }
@@ -433,11 +407,11 @@ fn selected(painter: &Painter, view: &CanvasView, pins: &BlurPins, pin: &BlurPin
             }
         }
         for sign in [1.0, -1.0] {
-            painter.circle(screen(turn_handle(pins, pin, band, view, style, sign)), style.handle, style.line, edge);
+            painter.circle(screen(turn_handle(pins, pin, band, view, style, sign)), style.handle + style.turn_extra, style.line, edge);
         }
     }
-    painter.circle_stroke(centre, style.ring, Stroke::new(w.halo, style.halo));
-    painter.circle_stroke(centre, style.ring, Stroke::new(w.line, style.line));
+    painter.circle_stroke(centre, style.ring, Stroke::new(w.line_halo, style.halo));
+    painter.circle_stroke(centre, style.ring, Stroke::new(w.line_width, style.line));
     let fraction = (pin.amount / pins.kind.max()).clamp(0.0, 1.0) as f32;
     if fraction > 0.0 {
         let steps = (fraction * 64.0).ceil().max(1.0) as usize;

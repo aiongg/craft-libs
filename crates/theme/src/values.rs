@@ -2605,6 +2605,26 @@ pub const BLUR_PINS_RING_BAND: f32 = 5.0;
 pub const BLUR_PINS_HANDLE: f32 = 4.5;
 /// How near a press grabs a Tilt-Shift line: `blur_pins.line_grab`.
 pub const BLUR_PINS_LINE_GRAB: f32 = 5.0;
+/// A mark's line width: `blur_pins.line_width`.
+pub const BLUR_PINS_LINE_WIDTH: f32 = 1.5;
+/// The halo under a mark's line: `blur_pins.line_halo`.
+pub const BLUR_PINS_LINE_HALO: f32 = 3.0;
+/// The amount arc's width: `blur_pins.arc`.
+pub const BLUR_PINS_ARC: f32 = 2.5;
+/// The halo under the amount arc: `blur_pins.arc_halo`.
+pub const BLUR_PINS_ARC_HALO: f32 = 4.5;
+/// A dash of a Tilt-Shift transition line: `blur_pins.dash`.
+pub const BLUR_PINS_DASH: f32 = 6.0;
+/// The gap between dashes: `blur_pins.dash_gap`.
+pub const BLUR_PINS_DASH_GAP: f32 = 5.0;
+/// A handle's outline width: `blur_pins.handle_outline`.
+pub const BLUR_PINS_HANDLE_OUTLINE: f32 = 1.0;
+/// How much larger than a handle a feather dot is: `blur_pins.feather_extra`.
+pub const BLUR_PINS_FEATHER_EXTRA: f32 = 1.0;
+/// How much larger than a handle a Tilt-Shift turn dot is: `blur_pins.turn_extra`.
+pub const BLUR_PINS_TURN_EXTRA: f32 = 0.5;
+/// The rounding square's corner radius: `blur_pins.round_corner`.
+pub const BLUR_PINS_ROUND_CORNER: f32 = 1.0;
 
 // --- liquify ---
 /// The Freeze Lasso's line width: `liquify.lasso`.

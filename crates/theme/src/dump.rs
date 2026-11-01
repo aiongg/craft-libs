@@ -3159,13 +3159,40 @@ fn wide_angle_lines(out: &mut Lines, t: &WideAngleTokens) {
 }
 
 fn blur_pins_lines(out: &mut Lines, t: &BlurPinsTokens) {
-    let BlurPinsTokens { dot, grab, ring, ring_band, handle, line_grab } = t;
+    let BlurPinsTokens {
+        dot,
+        grab,
+        ring,
+        ring_band,
+        handle,
+        line_grab,
+        line_width,
+        line_halo,
+        arc,
+        arc_halo,
+        dash,
+        dash_gap,
+        handle_outline,
+        feather_extra,
+        turn_extra,
+        round_corner,
+    } = t;
     out.line("blur_pins.dot", len(*dot));
     out.line("blur_pins.grab", len(*grab));
     out.line("blur_pins.ring", len(*ring));
     out.line("blur_pins.ring_band", len(*ring_band));
     out.line("blur_pins.handle", len(*handle));
     out.line("blur_pins.line_grab", len(*line_grab));
+    out.line("blur_pins.line_width", len(*line_width));
+    out.line("blur_pins.line_halo", len(*line_halo));
+    out.line("blur_pins.arc", len(*arc));
+    out.line("blur_pins.arc_halo", len(*arc_halo));
+    out.line("blur_pins.dash", len(*dash));
+    out.line("blur_pins.dash_gap", len(*dash_gap));
+    out.line("blur_pins.handle_outline", len(*handle_outline));
+    out.line("blur_pins.feather_extra", len(*feather_extra));
+    out.line("blur_pins.turn_extra", len(*turn_extra));
+    out.line("blur_pins.round_corner", len(*round_corner));
 }
 
 fn liquify_lines(out: &mut Lines, t: &LiquifyTokens) {
