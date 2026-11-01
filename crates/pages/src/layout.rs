@@ -19,8 +19,6 @@
 //! let shown = if options.continuous { 0..sizes.len() } else { shown_row(sizes.len(), view.current, &options) };
 //! ```
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::ops::{Range, RangeInclusive};
 
 use kurbo::{Point, Rect, Size};
@@ -31,6 +29,27 @@ pub const SCREEN_POINTS_PER_POINT: f64 = 96.0 / 72.0;
 
 /// The zooms a page view shows, 8 % to 6400 % (Acrobat's range; PdfCraft clamps to it).
 pub const ZOOM_RANGE: RangeInclusive<f64> = 0.08..=64.0;
+
+/// The scales `place_pages` accepts (WordCraft's scale guard).
+const PLACEMENT_SCALE: RangeInclusive<f64> = 0.01..=10.0;
+
+/// The page size a non-finite or tiny page counts as, page points.
+const FALLBACK_PAGE: f64 = 72.0;
+
+/// The narrowest width a fit works with.
+const MIN_FIT_WIDTH: f64 = 100.0;
+
+fn sane_dim(v: f64) -> f64 {
+    if v.is_finite() && v >= 1.0 { v } else { FALLBACK_PAGE }
+}
+
+fn sane_scale(scale: f64) -> f64 {
+    if scale.is_finite() { scale.clamp(*PLACEMENT_SCALE.start(), *PLACEMENT_SCALE.end()) } else { SCREEN_POINTS_PER_POINT }
+}
+
+fn sane_extent(v: f64) -> f64 {
+    if v.is_finite() { v.max(0.0) } else { 0.0 }
+}
 
 /// How pages are placed across the view.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -148,7 +167,76 @@ pub struct PagedLayout {
 // pdfcraft: crates/ui-egui/src/canvas/zoom.rs:306 `layout`; wordcraft:
 // crates/ui-egui/src/canvas/geometry.rs:126 `columns_for`, :139 `place_pages`.
 pub fn place_pages(sizes: &[Size], scale: f64, viewport: Size, options: &LayoutOptions, spacing: &PageSpacing) -> PagedLayout {
-    todo!()
+    let scale = sane_scale(scale);
+    let vw = sane_extent(viewport.width);
+    let vh = sane_extent(viewport.height);
+    let gap = if options.page_gaps { spacing.gap } else { 0.0 };
+    let dims: Vec<Size> = sizes.iter().map(|s| Size::new(sane_dim(s.width), sane_dim(s.height))).collect();
+    let shown: Vec<Size> = dims
+        .iter()
+        .map(|d| {
+            let screen = Size::new(d.width * scale, d.height * scale);
+            // Without gaps, whole-point sizes keep neighbouring edges on the same pixel.
+            if options.page_gaps { screen } else { Size::new(screen.width.round(), screen.height.round()) }
+        })
+        .collect();
+    let mut rects = Vec::with_capacity(shown.len());
+    let mut y = spacing.margin;
+    let mut columns = 1;
+    let content_w;
+    match options.display {
+        PageDisplay::Single => {
+            let widest = shown.iter().map(|s| s.width).fold(0.0, f64::max);
+            content_w = (widest + 2.0 * spacing.side).max(vw);
+            for size in &shown {
+                rects.push(Rect::from_origin_size(Point::new(((content_w - size.width) / 2.0).max(spacing.side), y), *size));
+                y += size.height + gap;
+            }
+        }
+        PageDisplay::TwoUp => {
+            columns = if shown.len() > 1 { 2 } else { 1 };
+            let rows: Vec<&[Size]> = match shown.split_first() {
+                Some((_, rest)) if options.cover => std::iter::once(&shown[..1]).chain(rest.chunks(2)).collect(),
+                _ => shown.chunks(2).collect(),
+            };
+            let row_width = |row: &[Size]| row.iter().map(|s| s.width).sum::<f64>() + gap * (row.len() as f64 - 1.0);
+            content_w = (rows.iter().map(|r| row_width(r)).fold(0.0, f64::max) + 2.0 * spacing.side).max(vw);
+            for (index, row) in rows.into_iter().enumerate() {
+                let row_h = row.iter().map(|s| s.height).fold(0.0, f64::max);
+                let mut x = if options.cover && index == 0 {
+                    (content_w / 2.0 + gap / 2.0).max(spacing.side)
+                } else {
+                    ((content_w - row_width(row)) / 2.0).max(spacing.side)
+                };
+                for size in row {
+                    rects.push(Rect::from_origin_size(Point::new(x, y + (row_h - size.height) / 2.0), *size));
+                    x += size.width + gap;
+                }
+                y += row_h + gap;
+            }
+        }
+        PageDisplay::Columns => {
+            let markup = if options.markup.is_finite() { options.markup.max(0.0) } else { 0.0 };
+            let widest = dims.iter().map(|d| d.width).fold(0.0, f64::max);
+            let slot = (widest + markup) * scale;
+            let fit = ((vw - gap) / (slot + gap)).floor().max(1.0) as usize;
+            columns = fit.max(options.min_columns).min(dims.len().max(1)).max(1);
+            let row_w = columns as f64 * slot + (columns as f64 - 1.0) * gap;
+            content_w = (row_w + 2.0 * gap).max(vw);
+            for row in shown.chunks(columns).zip(dims.chunks(columns)) {
+                let row_h = row.0.iter().map(|s| s.height).fold(0.0, f64::max);
+                for (i, (size, dim)) in row.0.iter().zip(row.1).enumerate() {
+                    let centred = ((widest - dim.width) * scale / 2.0).max(0.0);
+                    let x = (content_w - row_w) / 2.0 + i as f64 * (slot + gap) + centred;
+                    rects.push(Rect::from_origin_size(Point::new(x, y), *size));
+                }
+                y += row_h + gap;
+            }
+        }
+    }
+    let bottom = if rects.is_empty() { 0.0 } else { y - gap + spacing.margin };
+    let bands = rects.iter().map(|r| (0.0, r.height())).collect();
+    PagedLayout { rects, size: Size::new(content_w, bottom.max(vh)), columns, bands }
 }
 
 impl PagedLayout {
@@ -162,14 +250,46 @@ impl PagedLayout {
     // wordcraft: crates/ui-egui/src/canvas/geometry.rs:28 `collapse_white_space` (its
     // `WHITE_SPACE_PAD` and `SEAM` are the spacing's pad and seam).
     pub fn hide_white_space(&mut self, bodies: &[(f64, f64)], scale: f64, viewport_height: f64, spacing: &PageSpacing) {
-        todo!()
+        let count = self.rects.len();
+        if self.columns != 1 || count < 2 {
+            return;
+        }
+        let scale = sane_scale(scale);
+        let mut cursor = self.rects[0].y0;
+        let mut rects = Vec::with_capacity(count);
+        let mut bands = Vec::with_capacity(count);
+        for (i, rect) in self.rects.iter().enumerate() {
+            let height = rect.height();
+            let (body_top, body_bottom) = bodies.get(i).copied().unwrap_or((0.0, height / scale));
+            let finite = |v: f64, fallback: f64| if v.is_finite() { v } else { fallback };
+            let pad = spacing.white_space_pad * scale;
+            let top = if i == 0 { 0.0 } else { (finite(body_top, 0.0) * scale - pad).clamp(0.0, height) };
+            let bottom = if i + 1 == count { height } else { (finite(body_bottom, 0.0) * scale + pad).clamp(top, height) };
+            let y = cursor - top;
+            rects.push(Rect::from_origin_size(Point::new(rect.x0, y), rect.size()));
+            bands.push((top, bottom));
+            cursor = y + bottom + spacing.seam;
+        }
+        self.rects = rects;
+        self.bands = bands;
+        self.size.height = (cursor - spacing.seam + spacing.margin).max(viewport_height);
     }
 
     /// Whether `p` (content points) is on the gap between two pages, or on the seam with white
     /// space hidden: a double-click there toggles Hide White Space, as in Word.
     // wordcraft: crates/ui-egui/src/canvas/geometry.rs:57 `on_page_gap`.
     pub fn on_page_gap(&self, p: Point) -> bool {
-        todo!()
+        self.rects.windows(2).zip(self.bands.windows(2)).any(|(pair, bands)| {
+            let (above, below) = (pair[0], pair[1]);
+            if p.x < above.x0.min(below.x0) || p.x > above.x1.max(below.x1) {
+                return false;
+            }
+            let (from, to) = (above.y0 + bands[0].1, below.y0 + bands[1].0);
+            // Overlapping rects mean Hide White Space cut them: the seam is a hairline, so the
+            // target is widened by its own width on each side.
+            let reach = if below.y0 < above.y1 { to - from } else { 0.0 };
+            p.y >= from - reach && p.y <= to + reach
+        })
     }
 }
 
@@ -177,7 +297,7 @@ impl PagedLayout {
 /// pages, and margins Hide White Space cuts, are no page.
 // wordcraft: crates/ui-egui/src/canvas/geometry.rs:72 `on_visible_page`.
 pub fn page_at(layout: &PagedLayout, p: Point) -> Option<usize> {
-    todo!()
+    layout.rects.iter().zip(&layout.bands).position(|(r, &(top, bottom))| Rect::new(r.x0, r.y0 + top, r.x1, r.y0 + bottom).contains(p))
 }
 
 /// The zoom a fit gives, as a scale (screen points per page point), or `None` for
@@ -192,7 +312,30 @@ pub fn page_at(layout: &PagedLayout, p: Point) -> Option<usize> {
 // pdfcraft: crates/ui-egui/src/canvas/zoom.rs:259 `fit_zoom`; wordcraft:
 // crates/ui-egui/src/canvas/geometry.rs:178 (pageWidth, onePage, multiplePages).
 pub fn fit_scale(sizes: &[Size], viewport: Size, fit: Fit, options: &LayoutOptions, spacing: &PageSpacing, current: Option<usize>) -> Option<f64> {
-    todo!()
+    if fit == Fit::None || sizes.is_empty() {
+        return None;
+    }
+    let dims = |s: &Size| (sane_dim(s.width), sane_dim(s.height));
+    let (width, height) = match current.and_then(|c| sizes.get(c)) {
+        Some(page) if options.display == PageDisplay::Single && !options.continuous => dims(page),
+        _ => sizes.iter().map(dims).fold((1.0_f64, 1.0_f64), |(w, h), (pw, ph)| (w.max(pw), h.max(ph))),
+    };
+    let per_row = match options.display {
+        PageDisplay::Single => 1.0,
+        PageDisplay::TwoUp => 2.0,
+        PageDisplay::Columns => options.min_columns.max(1) as f64,
+    };
+    let gap = if options.page_gaps { spacing.gap } else { 0.0 };
+    let available = (sane_extent(viewport.width) - 2.0 * spacing.side).max(MIN_FIT_WIDTH);
+    let by_width = (available - gap * (per_row - 1.0)) / ((width + options.markup.max(0.0)) * per_row);
+    let by_height = (sane_extent(viewport.height) - 2.0 * spacing.margin) / height;
+    let scale = match fit {
+        Fit::Width => by_width,
+        Fit::Page => by_width.min(by_height),
+        Fit::Height => by_height,
+        Fit::None => return None,
+    };
+    scale.is_finite().then(|| scale.clamp(ZOOM_RANGE.start() * SCREEN_POINTS_PER_POINT, ZOOM_RANGE.end() * SCREEN_POINTS_PER_POINT))
 }
 
 /// When not continuous, the pages of the row shown: the current page, or the current spread. With
@@ -200,13 +343,24 @@ pub fn fit_scale(sizes: &[Size], viewport: Size, fit: Fit, options: &LayoutOptio
 /// no pages.
 // pdfcraft: crates/ui-egui/src/canvas.rs:2831 `shown_row`.
 pub fn shown_row(count: usize, current: usize, options: &LayoutOptions) -> Range<usize> {
-    todo!()
+    if count == 0 {
+        return 0..0;
+    }
+    let current = current.min(count - 1);
+    match options.display {
+        PageDisplay::TwoUp if options.cover && current == 0 => 0..1,
+        PageDisplay::TwoUp => {
+            let first = spread_first(current, options.cover);
+            first..(first + 2).min(count)
+        }
+        PageDisplay::Single | PageDisplay::Columns => current..current + 1,
+    }
 }
 
 /// The first page of the spread page `page` is on (with or without a cover).
 // pdfcraft: crates/ui-egui/src/canvas/zoom.rs:255 `spread_first`.
 pub fn spread_first(page: usize, cover: bool) -> usize {
-    todo!()
+    if cover { page.saturating_sub((page + 1) % 2) } else { page - page % 2 }
 }
 
 /// The one token settings and the control channel use for a display and continuous scrolling:
@@ -214,14 +368,27 @@ pub fn spread_first(page: usize, cover: bool) -> usize {
 /// `columns`. PdfCraft's names, kept for its settings files.
 // pdfcraft: crates/ui-egui/src/canvas.rs:159 `display_token`.
 pub fn display_token(display: PageDisplay, continuous: bool) -> &'static str {
-    todo!()
+    match (display, continuous) {
+        (PageDisplay::Single, false) => "single",
+        (PageDisplay::Single, true) => "continuous",
+        (PageDisplay::TwoUp, true) => "two-up",
+        (PageDisplay::TwoUp, false) => "two-page",
+        (PageDisplay::Columns, _) => "columns",
+    }
 }
 
 /// The display and continuous flag a [`display_token`] names, in any case; `two-up-single` is
 /// `two-page`. `None` for anything else, so a typo is refused rather than switching silently.
 // pdfcraft: crates/ui-egui/src/canvas.rs:169 `parse_display_token`.
 pub fn parse_display_token(token: &str) -> Option<(PageDisplay, bool)> {
-    todo!()
+    match token.trim().to_ascii_lowercase().as_str() {
+        "single" => Some((PageDisplay::Single, false)),
+        "continuous" => Some((PageDisplay::Single, true)),
+        "two-up" => Some((PageDisplay::TwoUp, true)),
+        "two-page" | "two-up-single" => Some((PageDisplay::TwoUp, false)),
+        "columns" => Some((PageDisplay::Columns, true)),
+        _ => None,
+    }
 }
 
 /// How a newly opened document is shown (Preferences › Documents and view). A file that asks for
@@ -251,13 +418,30 @@ impl ViewDefaults {
     /// Height is saved as `fit-width`, as PdfCraft does.
     // pdfcraft: crates/ui-egui/src/canvas.rs:206 `ViewDefaults::zoom_name`.
     pub fn zoom_name(&self) -> String {
-        todo!()
+        match self.fit {
+            Fit::Page => "fit-page".into(),
+            Fit::None => format!("{}%", (self.zoom * 100.0).round()),
+            Fit::Width | Fit::Height => "fit-width".into(),
+        }
     }
 
     /// These defaults with the zoom a [`zoom_name`](Self::zoom_name) names, in any case. `None`
     /// for anything else, including a percentage outside 8–6400 %.
     // pdfcraft: crates/ui-egui/src/canvas.rs:216 `ViewDefaults::with_zoom`.
     pub fn with_zoom(self, name: &str) -> Option<Self> {
-        todo!()
+        let name = name.trim();
+        let (fit, zoom) = if name.eq_ignore_ascii_case("fit-width") {
+            (Fit::Width, self.zoom)
+        } else if name.eq_ignore_ascii_case("fit-page") {
+            (Fit::Page, self.zoom)
+        } else {
+            let percent = name.strip_suffix('%').unwrap_or(name).trim().parse::<f64>().ok()?;
+            let zoom = percent / 100.0;
+            if !ZOOM_RANGE.contains(&zoom) {
+                return None;
+            }
+            (Fit::None, zoom)
+        };
+        Some(Self { fit, zoom, ..self })
     }
 }

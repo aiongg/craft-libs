@@ -1,25 +1,31 @@
 //! Page range text and From/To ranges.
 
-// "5, 1-3; 2" in 9 pages is 0..=2 and 4; "3-1" reads forwards; "0" and "12" are out of range; "x" is not a page; blank is no pages; 20 000 bytes is too long.
+use super::*;
+
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn range_text_parses_sorted_unique_and_bounded() {
-    todo!()
+    assert_eq!(parse_pages("5, 1-3; 2", 9), Ok(vec![0, 1, 2, 4]));
+    assert_eq!(parse_pages("3-1", 9), Ok(vec![0, 1, 2]));
+    assert_eq!(parse_pages("0", 9), Err(PageRangeError::OutOfRange { page: 0, count: 9 }));
+    assert_eq!(parse_pages("12", 9), Err(PageRangeError::OutOfRange { page: 12, count: 9 }));
+    assert_eq!(parse_pages("x", 9), Err(PageRangeError::NotAPage("x".into())));
+    assert_eq!(parse_pages("  ", 9), Ok(vec![]));
+    assert_eq!(parse_pages(&"1,".repeat(10_000), 9), Err(PageRangeError::TooLong));
+    let overlaps = ["1-100000"; 11].join(",");
+    assert_eq!(parse_pages(&overlaps, 100_000), Err(PageRangeError::TooLong));
+    assert_eq!(PageRangeError::OutOfRange { page: 12, count: 9 }.to_string(), "page 12 is out of range (1\u{2013}9)");
 }
 
-// [0, 1, 2, 4, 7, 8] formats as "1-3, 5, 8-9" and parses back to itself.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn range_text_formats_runs() {
-    todo!()
+    let pages = [0, 1, 2, 4, 7, 8];
+    assert_eq!(format_pages(&pages), "1-3, 5, 8-9");
+    assert_eq!(parse_pages(&format_pages(&pages), 9), Ok(pages.to_vec()));
 }
 
-// All pages of 5 is 0..5; from 2 to 9 of 5 even is pages 2 and 4 (indices 1 and 3).
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn from_to_ranges_take_subsets() {
-    todo!()
+    assert_eq!(PageRange::default().pages(5), [0, 1, 2, 3, 4]);
+    let range = PageRange { all: false, from: 2, to: 9, subset: Subset::Even };
+    assert_eq!(range.pages(5), [1, 3]);
 }
