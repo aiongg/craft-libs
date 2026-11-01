@@ -16,12 +16,13 @@ use craft_host::{ManualJobs, Wake};
 use craft_ui::behavior::{DragBadge, ListDrag};
 use craft_ui::controls::Button;
 use craft_ui::localized::Labels as _;
+use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs};
 use craft_ui::typed_story;
 use egui::{DragAndDrop, Id, Sense, Ui, vec2};
 
-use super::{PlaceExtra, PlacesEvent, PlacesTree};
+use super::{PlacesEvent, PlacesTree};
 use crate::places::{Directories, Folder, FolderCache, PlaceGroupKind, Places, PlacesInput, PlacesSettings, StandardFolder, Volume};
 
 /// The components this module has stories for.
@@ -200,12 +201,12 @@ fn show_places(ui: &mut Ui, args: &mut PlacesArgs) {
         DragBadge::new("places-story-drag", words.photo.clone()).show(ui.ctx());
     }
 
-    let extras = [PlaceExtra::new("folder.rename", words.rename.clone())];
+    let rename = words.rename.clone();
     let out = {
         let Demo { cache, .. } = &mut *demo;
         let tree = PlacesTree::<u32>::new("places-story-tree", &places, cache)
             .current(current.as_deref())
-            .extras(&extras)
+            .row_menu(|_| vec![MenuEntry::from(MenuItem::new(rename.clone(), String::from("folder.rename")))])
             .accepts(|folder, _| folder.starts_with("/home/u/Photos"));
         ui.allocate_ui(vec2(ui.available_width(), args.height), |ui| {
             ui.set_min_height(args.height);
