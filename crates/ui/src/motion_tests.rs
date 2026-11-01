@@ -45,6 +45,17 @@ fn the_caret_glide_reads_the_tokens_easing() {
         glide.frame(frame(bar(200.0, 100.0), 2, 10.15, 3)).bar[0].x
     };
     assert!(halfway(Easing::Enter) > 150.0 && halfway(Easing::Exit) < 150.0);
+    // The themes' defaults keep the source curves: Word's (0, 0, 0, 1) for the caret, GridCraft's cubic ease-out for the outline.
+    let ctx = egui::Context::default();
+    crate::theme::install(&ctx, &crate::theme::Base::suite_default());
+    let tokens = crate::theme::current(&ctx);
+    assert_eq!(tokens.motion.caret.easing, Easing::Enter);
+    assert_eq!(tokens.motion.outline.easing, Easing::Standard);
+    let mut glide = CaretGlide::with_motion(tokens.motion.caret);
+    resting(&mut glide, 100.0);
+    glide.frame(CaretFrame { keys: true, ..frame(bar(200.0, 100.0), 2, 10.1, 2) });
+    let x = glide.frame(frame(bar(200.0, 100.0), 2, 10.15, 3)).bar[0].x;
+    assert!(x > 150.0, "Word's curve is past half way at half the time: {x}");
 }
 
 // `CaretGlide::reset`: a caret that reappears after being hidden, with no edit, is drawn in place.

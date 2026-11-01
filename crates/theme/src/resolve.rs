@@ -6,7 +6,7 @@ use super::app_sizes::AppSizes;
 use super::components::{ComponentField, ComponentTokens, Semantic};
 use super::derive::{self, ColorSteps, ContrastCheck};
 use super::ramp::Mode;
-use super::scale::Elevation;
+use super::scale::{Easing, Elevation};
 use super::sizes;
 use super::theme::{Appearance, Contrast, ContrastIntent, PinLayer, Pins, ThemeDef};
 use super::tokens::{ColorToken, Edge, ElevationTokens, Motion, MotionTokens, ShapeTokens, TokenRef, Tokens};
@@ -217,7 +217,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
 
     let motion = |d: super::scale::Duration| Motion { millis: if appearance.reduced_motion { 0 } else { d.millis() }, easing: values::MOTION_EASING };
     let (hover, open, move_) = values::MOTION_DURATIONS;
-    let motion_ms = |millis: u32| Motion { millis: if appearance.reduced_motion { 0 } else { millis }, easing: values::MOTION_EASING };
+    let motion_ms = |millis: u32, easing: Easing| Motion { millis: if appearance.reduced_motion { 0 } else { millis }, easing };
 
     let shape = ShapeTokens { radius, edge };
     let typography = preset.typography.scaled(sizes.text_steps.factor(appearance.text_size), values::TYPE_ROUNDING);
@@ -249,8 +249,8 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
             hover: motion(hover),
             open: motion(open),
             r#move: motion(move_),
-            caret: motion_ms(values::MOTION_CARET_MS),
-            outline: motion_ms(values::MOTION_OUTLINE_MS),
+            caret: motion_ms(values::MOTION_CARET_MS, values::MOTION_CARET_EASING),
+            outline: motion_ms(values::MOTION_OUTLINE_MS, values::MOTION_OUTLINE_EASING),
             reduced: appearance.reduced_motion,
         },
         component,

@@ -133,7 +133,24 @@ pub mod words {
         all.extend(craft_text::ui::WORDS);
         #[cfg(feature = "theme-store")]
         all.extend(craft_theme_store::ui::WORDS);
+        #[cfg(any(feature = "platform", feature = "dialogs"))]
+        all.push(service_messages());
         all
+    }
+
+    /// The messages the platform services and the save flow word with `PlatformText`, as one table
+    /// of words (the services have no catalog; the app looks the ids up in its own).
+    #[cfg(any(feature = "platform", feature = "dialogs"))]
+    fn service_messages() -> &'static [Word] {
+        static TABLE: std::sync::OnceLock<Vec<Word>> = std::sync::OnceLock::new();
+        TABLE.get_or_init(|| {
+            let mut words: Vec<Word> = Vec::new();
+            #[cfg(feature = "platform")]
+            words.extend(craft_platform::texts().iter().map(|t| Word::keyed(t.id, t.english)));
+            #[cfg(feature = "dialogs")]
+            words.extend(craft_dialogs::save::TEXTS.iter().map(|t| Word::keyed(t.id, t.english)));
+            words
+        })
     }
 
     /// The counted words (singular and plural forms) of every enabled crate that has them.
