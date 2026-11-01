@@ -185,6 +185,8 @@ pub mod words {
         all.push(craft_draw::ui::COUNTS);
         #[cfg(feature = "font-manager")]
         all.push(craft_font_manager::ui::COUNTS);
+        #[cfg(feature = "imaging")]
+        all.push(craft_imaging::ui::COUNTS);
         #[cfg(feature = "keymap")]
         all.push(craft_keymap::ui::COUNTS);
         #[cfg(feature = "text")]
