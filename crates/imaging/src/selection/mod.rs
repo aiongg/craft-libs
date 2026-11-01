@@ -6,13 +6,16 @@
 //! selection overlay (`craft_imaging::ui::selection::SelectionOverlay::preview`) builds its texture
 //! with these rules; an engine that composites the preview itself uses them directly.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use craft_theme::{Rgba, Srgba};
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
 mod tests;
+
+/// A 0..=1 value as a byte, rounded half up.
+fn byte(v: f32) -> u8 {
+    (v.clamp(0.0, 1.0) * 255.0 + 0.5) as u8
+}
 
 /// Channel Options › Color Indicates.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -72,9 +75,17 @@ impl PreviewMode {
     /// `quick_mask.pixel(c)` gives. Color Range's own Quick Mask passes
     /// [`QuickMaskLook::default()`]: red at 50 %, masked areas (PhotoCraft's fixed tint).
     pub fn pixel(self, coverage: f32, quick_mask: &QuickMaskLook) -> Rgba {
-        // pc: crates/ui-egui/src/dialogs/color_range_ui.rs:580-590 `overlay_pixel` (`q(v) = (v ·
-        // 255 + 0.5) as u8`; quick mask `(255, 0, 0, q(0.5 · (1 − c)))`).
-        todo!()
+        let c = coverage.clamp(0.0, 1.0);
+        match self {
+            PreviewMode::None => Rgba([0, 0, 0, 0]),
+            PreviewMode::Grayscale => {
+                let g = byte(c);
+                Rgba([g, g, g, 255])
+            }
+            PreviewMode::BlackMatte => Rgba([0, 0, 0, byte(1.0 - c)]),
+            PreviewMode::WhiteMatte => Rgba([255, 255, 255, byte(1.0 - c)]),
+            PreviewMode::QuickMask => quick_mask.pixel(c),
+        }
     }
 }
 
@@ -104,8 +115,12 @@ impl QuickMaskLook {
     /// [`ColorIndicates::SelectedAreas`], rounded as `(a · 255 + 0.5) as u8`; unmultiplied. The
     /// Type Mask tools use it with `c` the glyph's coverage.
     pub fn pixel(&self, coverage: f32) -> Rgba {
-        // pc: crates/ui-egui/src/tools/type_tool/overlay.rs:153-157 (`a · opacity`, clamped;
-        // PhotoCraft premultiplies for its mesh, the library returns straight alpha).
-        todo!()
+        let c = coverage.clamp(0.0, 1.0);
+        let covered = match self.indicates {
+            ColorIndicates::MaskedAreas => 1.0 - c,
+            ColorIndicates::SelectedAreas => c,
+        };
+        let alpha = (covered * self.opacity).clamp(0.0, 1.0);
+        Rgba([byte(self.color.r), byte(self.color.g), byte(self.color.b), byte(alpha)])
     }
 }
