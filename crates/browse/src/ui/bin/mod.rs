@@ -8,13 +8,13 @@
 //!     .columns(&columns)
 //!     .hover_scrub(prefs.hover_scrub)
 //!     .header(|ui| preview_area(ui))
-//!     .footer_actions(&[BinFooterAction::new("newItem", Icon::Plus, tr("New Item")).accepts_drops(true)])
+//!     .footer_actions(&[FooterAction::new("newItem", Icon::Plus, tr("New Item")).accepts_drops(true)])
 //!     .show(ui);
 //! for event in out.events {
 //!     match event {
-//!         BinEvent::Open(id) => open_source(id),
-//!         BinEvent::Rename { key, name } => cmd("project.rename", key, name),
-//!         BinEvent::FooterDrop { action: "newItem", items } => cmd("project.newSequence", items),
+//!         BinEvent::Activate(id) => open_source(id),
+//!         BinEvent::Rename { key, text } => cmd("project.rename", key, text),
+//!         BinEvent::FooterDrop { button: "newItem", rows } => cmd("project.newSequence", rows),
 //!         _ => {}
 //!     }
 //! }
@@ -39,16 +39,16 @@ use craft_theme::Rgba;
 use craft_theme::TypeRole;
 use craft_ui::behavior::{ListDrag, Move, Selection, SelectionChange};
 use craft_ui::canvas::textures::{TextureKey, ThumbSource, Thumbnails};
-use craft_ui::composites::PanelFooter;
+use craft_ui::composites::{FooterAction, PanelFooter};
 use craft_ui::controls::{BreadcrumbBar, Crumb, IconButton, SearchField};
 use craft_ui::direction;
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
-use craft_ui::list::{ContextMenuRequest, SortOrder, TableColumn, TableEvent, TableLayout, ThumbSize};
+use craft_ui::list::{ContextMenuRequest, OpenChange, SortOrder, TableColumn, TableEvent, TableLayout, ThumbSize};
 use craft_ui::localized::{Labels as _, Words};
 use craft_ui::theme::{Tokens, TokensOf as _, role_format};
 use egui::text::LayoutJob;
-use egui::{Align, AsIdSalt, Label, Layout, Ui, Vec2, vec2};
+use egui::{Align, AsIdSalt, IdSalt, Label, Layout, Ui, Vec2, vec2};
 
 use super::grid::{TileBadge, TileStatus};
 
@@ -62,7 +62,6 @@ const MAX_ICON_SIZE: f32 = 400.0;
 /// Bins nested deeper than this are not followed, so a model that contains itself ends.
 const MAX_DEPTH: usize = 64;
 
-pub use footer::BinFooterAction;
 pub use freeform::FreeformCard;
 pub use search::name_matches;
 pub use style::BinStyle;
@@ -208,11 +207,11 @@ impl<K: Clone + Eq + Hash> BinState<K> {
             BinEvent::Search(text) => self.search.clone_from(text),
             BinEvent::View(view) => self.settings.view = *view,
             BinEvent::Zoom(zoom) => self.zoom(zoom),
-            BinEvent::Expanded { key, open: true } => {
-                self.expanded.insert(key.clone());
+            BinEvent::Open(OpenChange { row, open: true, .. }) => {
+                self.expanded.insert(row.clone());
             }
-            BinEvent::Expanded { key, open: false } => {
-                self.expanded.remove(key);
+            BinEvent::Open(OpenChange { row, open: false, .. }) => {
+                self.expanded.remove(row);
             }
             // The List view's table keeps its own layout and sort; the Icon and Freeform views'
             // Sort Icons menu reports through the same events.
@@ -253,17 +252,18 @@ pub enum BinEvent<K> {
     /// The selection changed; already applied.
     Selection(SelectionChange<K>),
     /// Enter or a double click on an item.
-    Open(K),
+    Activate(K),
     /// Enter or a double click on a bin, with how.
     OpenBin { key: K, how: OpenHow },
     /// The breadcrumb, Up or a search result moved the shown bin.
     Navigate(Option<K>),
     /// A List-view bin opened or closed (→, ←, the triangle, a screen reader's Expand and
-    /// Collapse; with Alt, one per bin under the shown bin).
-    Expanded { key: K, open: bool },
-    /// A rename committed (Enter, a click elsewhere); a `Set`, one undo step. Esc cancels in the
-    /// editor and reports nothing.
-    Rename { key: K, name: String },
+    /// Collapse). With Alt the bin reports one change per bin under the shown bin, each with
+    /// `all` false, so [`BinState::apply`] needs no model.
+    Open(OpenChange<K>),
+    /// A rename committed (Enter, Tab, a click elsewhere) with non-empty text other than the
+    /// name; a `Set`, one undo step. Esc cancels in the editor and reports nothing.
+    Rename { key: K, text: String },
     /// Items dropped into a bin (`None`: the shown bin). A `Set`.
     Drop { items: Vec<K>, into: Option<K> },
     /// A reorder in a bin shown in User Order.
@@ -282,10 +282,18 @@ pub enum BinEvent<K> {
     Zoom(EditEvent<f64>),
     /// The List view's table: sort or column changes.
     Table(TableEvent<K, String>),
-    /// A click on a host footer action (its id).
-    Footer(&'static str),
-    /// A drop on a host footer action that accepts drops (`PanelFooter::drop_target`).
-    FooterDrop { action: &'static str, items: Vec<K> },
+    /// A click on a host footer action.
+    Footer {
+        /// The action's id.
+        button: &'static str,
+    },
+    /// A drop on a host footer action that accepts drops (`PanelFooter::drop_button`).
+    FooterDrop {
+        /// The action's id.
+        button: &'static str,
+        /// The dragged rows.
+        rows: Vec<K>,
+    },
     /// The footer's New Bin.
     NewBin,
     /// A Freeform drag committed: the cards' new positions.
@@ -308,27 +316,26 @@ craft_ui::words! {
     /// The bin's words, English by default.
     #[non_exhaustive]
     pub struct BinLabels {
-        search: "browse.binSearch" = "Search";
-        clear: "browse.binClear" = "Clear";
-        views: "browse.binViews" = "View";
-        up: "browse.binUp" = "Up One Level";
-        root: "browse.binRoot" = "Project";
+        search: "browse.bin.search" = "Search";
+        clear: "browse.bin.clear" = "Clear";
+        views: "browse.bin.views" = "View";
+        up: "browse.bin.up" = "Up One Level";
+        root: "browse.bin.root" = "Project";
         /// `{selected}` of `{total}`.
-        selected_of: "browse.binSelectedOf" = "{selected} of {total} items selected";
-        list_view: "browse.binListView" = "List View";
-        icon_view: "browse.binIconView" = "Icon View";
-        freeform_view: "browse.binFreeformView" = "Freeform View";
-        new_bin: "browse.binNew" = "New Bin";
-        sort_icons: "browse.binSortIcons" = "Sort Icons";
-        user_order: "browse.binUserOrder" = "User Order";
-        rename: "browse.binRename" = "Rename";
-        no_matches: "browse.binNoMatches" = "No items match the search";
-        empty: "browse.binEmpty" = "This bin is empty";
+        selected_of: "browse.bin.selectedOf" = "{selected} of {total} items selected";
+        list_view: "browse.bin.listView" = "List View";
+        icon_view: "browse.bin.iconView" = "Icon View";
+        freeform_view: "browse.bin.freeformView" = "Freeform View";
+        new_bin: "browse.bin.new" = "New Bin";
+        sort_icons: "browse.bin.sortIcons" = "Sort Icons";
+        user_order: "browse.bin.userOrder" = "User Order";
+        no_matches: "browse.bin.noMatches" = "No items match the search";
+        empty: "browse.bin.empty" = "This bin is empty";
     }
 }
 
 /// The bin's item count words: "{n} items".
-pub const ITEMS: craft_ui::localized::words::Counted = craft_ui::localized::words::Counted::new("browse.binItems", "{n} item", "{n} items");
+pub const ITEMS: craft_ui::localized::words::Counted = craft_ui::localized::words::Counted::new("browse.bin.items", "{n} item", "{n} items");
 
 /// A host slot drawn inside the widget.
 type Slot<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
@@ -340,29 +347,34 @@ type ThumbPair<'a, K> = (&'a Thumbnails<K>, &'a dyn ThumbSource<K>);
 ///
 /// - **Header.** A `BreadcrumbBar` of the shown bin's ancestors (`BinModel::parent`, the root
 ///   named [`BinLabels::root`]; ancestors `text.normal`, the last `BodyStrong`) after an Up
-///   `IconButton`; a `SearchField` (45 % of the width, 80–240); the item count in `Caption`
+///   `IconButton`; a `SearchField` that fills the row before the count; the item count in `Caption`
 ///   `text.faint` at the end ([`ITEMS`], or [`BinLabels::selected_of`] with a selection). Then
 ///   the host's `.header(..)` slot (FilmCraft's preview area).
 /// - **Search.** Typing filters live by [`name_matches`]; a non-empty search lists matches from
 ///   every sub-bin, flat; Esc clears, a second Esc leaves the field (the library's rule).
 /// - **List view** (`list.rs`): a tree `Table` (`Table::tree`, named by the row's name) over the
-///   shown bin's rows, bins before items, open bins' children under them; the table draws the
-///   first column's indent (`list.indent` per depth) and disclosure triangle, and the bin's cell
-///   closure draws the label chip 12 pt (radius 2.5), thumbnail (`ThumbSize`), icon and name;
-///   other columns `BinModel::cell` in `text.muted`; striped. Click, Shift range, Cmd toggle as
-///   the grid; Enter or double click: `Open` or `OpenBin { how }`; → and ← open and close bins,
-///   Alt for every level (the table's `TableEvent::Open`, reported as `Expanded`; one with `all`
-///   becomes one `Expanded` per bin under the shown bin, read from `BinModel::children`, so
-///   `BinState::apply` needs no model); F2 renames the lead; a click on a selected item's name
-///   starts a rename after the double-click time (FilmCraft's slow click); Cmd/Ctrl+] and [ move
-///   in User Order.
+///   shown bin's rows, bins before items (every bin is a group, so an empty bin has its
+///   disclosure triangle), open bins' children under them; the table draws the first column's
+///   indent (`list.indent` per depth) and disclosure triangle, and the bin's cell closure draws
+///   the label chip, thumbnail (`Table::thumbnails`), icon and the name through
+///   `CellContext::name`; other columns `BinModel::cell` in `text.muted`; striped. Selection,
+///   the double click, the context menu, the row drag and the rename are the table's. Enter or
+///   double click: `Activate` or `OpenBin { how }`; → and ← open and close bins, Alt for every
+///   level (the table's `TableEvent::Open`, reported as `Open`; one with `all` becomes one
+///   `Open` per bin under the shown bin, read from `BinModel::children`, so `BinState::apply`
+///   needs no model); F2 or a slow click on the selected row's name renames it (`Rename`);
+///   Delete and Backspace report `Remove`; Cmd/Ctrl + and − and 0 report `Zoom(Set)` steps of
+///   the footer slider's range; Cmd/Ctrl+] and [ move in User Order.
 /// - **Icon view** (`icon.rs`): a `TileGrid` in `Cards { side: icon_size, aspect: 16 / 9,
 ///   caption: true }`, bins as cards before the items, hover scrub, In and Out bars.
 /// - **Freeform view** (`freeform.rs`): cards at the host's [`FreeformCard`] positions.
 /// - **Drag and drop.** Rows and cards drag the selection (`Drag`); a bin row or card is a drop
 ///   target (outline `list.drop`, `Drop { into: Some(bin) }`), the view background takes drops
-///   into the shown bin (`into: None`); a footer action with `accepts_drops` reports
-///   `FooterDrop` through `PanelFooter::drop_target::<ListDrag<K>>`.
+///   into the shown bin (`into: None`). A drop reports nothing for items already in the target
+///   bin, and none into a bin that is, or lies inside, one of the dragged items. In User Order
+///   the List view's own rows also reorder (`Reorder`), by the table's targets; a drag from
+///   another list over an item row is a drop on the background, never a reorder. A footer action
+///   with `accepts_drops` reports `FooterDrop` through `PanelFooter::drop_button`.
 /// - **Footer** (`footer.rs`): a `PanelFooter` with the view `Segmented` (List, Icon,
 ///   Freeform), a `ThumbnailSlider` over `.zoom_range(..)` (Esc during the drag restores), Sort
 ///   Icons in Icon view, the host's actions, New Bin.
@@ -370,14 +382,8 @@ type ThumbPair<'a, K> = (&'a Thumbnails<K>, &'a dyn ThumbSource<K>);
 /// - **AccessKit.** The List view is the tree table's `TreeGrid` of `TreeItem`s (`level`,
 ///   `expanded`); the Icon view as `TileGrid`; the search, slider and footer buttons named.
 /// - **RTL.** Breadcrumb, columns and the footer mirror; the disclosure sits at the reading start.
-///
-/// Risk 7: `Table`'s cell closure gets a `Ui` clipped to the cell inside the row's `Ui`, whose
-/// click sense is registered before the cells, so the chip, thumbnail, icon and name draw in the
-/// first cell after the table's indent and triangle. The tree's keys (→ and ← open and close, Alt
-/// for every level) and the `TreeItem` role with `level` and `expanded` are `Table::tree`'s
-/// (`crates/ui/src/list/table.rs`, a shared-additions task B11 depends on).
 pub struct MediaBin<'a, K: TextureKey, M: ?Sized> {
-    id_salt: egui::Id,
+    id_salt: IdSalt,
     state: &'a mut BinState<K>,
     model: &'a M,
     selection: Option<&'a mut Selection<K>>,
@@ -385,7 +391,7 @@ pub struct MediaBin<'a, K: TextureKey, M: ?Sized> {
     columns: &'a [TableColumn<String>],
     hover_scrub: bool,
     header: Option<Slot<'a>>,
-    actions: &'a [BinFooterAction],
+    actions: &'a [FooterAction],
     freeform: &'a [FreeformCard<K>],
     snap: Option<f32>,
     zoom_range: (f32, f32),
@@ -401,7 +407,7 @@ where
     pub fn new(id_salt: impl AsIdSalt, state: &'a mut BinState<K>, model: &'a M) -> Self {
         // filmcraft: crates/ui-egui/src/panels/project.rs:276 (`show`).
         Self {
-            id_salt: egui::Id::NULL.with(egui::IdSalt::new(id_salt)),
+            id_salt: IdSalt::new(id_salt),
             state,
             model,
             selection: None,
@@ -454,7 +460,7 @@ where
 
     /// The host's footer buttons, after the view buttons and slider.
     #[must_use]
-    pub fn footer_actions(self, actions: &'a [BinFooterAction]) -> Self {
+    pub fn footer_actions(self, actions: &'a [FooterAction]) -> Self {
         // new: builder.
         Self { actions, ..self }
     }
@@ -490,11 +496,11 @@ where
     /// Draws the panel and reports what happened.
     pub fn show(self, ui: &mut Ui) -> BinOutput<K> {
         // filmcraft: crates/ui-egui/src/panels/project.rs:389 (`body`: breadcrumb, search, count, preview, view, footer).
-        let Self { id_salt: id, state, model, selection, thumbnails, columns, hover_scrub, header, actions, freeform, snap, zoom_range, labels } =
-            self;
+        let Self { id_salt, state, model, selection, thumbnails, columns, hover_scrub, header, actions, freeform, snap, zoom_range, labels } = self;
+        let id = ui.make_persistent_id(id_salt);
         let labels = labels.unwrap_or_else(|| BinLabels::of(ui));
         let tokens = Tokens::of(ui);
-        let style = BinStyle::of(&tokens);
+        let style = Self::style(&tokens);
         let mut events: Vec<BinEvent<K>> = Vec::new();
 
         // The selection is the host's; without one the bin keeps its own.
@@ -538,12 +544,12 @@ where
 
         // Search row: the field, then the item count at the end.
         let searching = !state.search.trim().is_empty();
+        let mut found = Vec::new();
+        if searching {
+            search::collect_matches(model, state.shown.as_ref(), &state.search, 0, &mut found);
+        }
         let total = match (&state.shown, searching) {
-            (_, true) => {
-                let mut found = Vec::new();
-                search::collect_matches(model, state.shown.as_ref(), &state.search, 0, &mut found);
-                found.len()
-            }
+            (_, true) => found.len(),
             (Some(bin), false) => model.count(bin),
             (None, false) => {
                 let mut children = Vec::new();
@@ -558,10 +564,13 @@ where
             }
         };
         let words = Words::of(ui);
-        let count_text = if selection.is_empty() {
+        // Only the selected keys the bin shows count: the rest sit in another bin or are not matches.
+        let selected =
+            selection.items.iter().filter(|key| if searching { found.contains(key) } else { list::within(model, key, state.shown.as_ref()) }).count();
+        let count_text = if selected == 0 {
             words.counted(ui.ctx(), ITEMS, &words.get(ITEMS.word), total as u64)
         } else {
-            craft_i18n::fmt(&labels.selected_of, &[("selected", &selection.items.len().to_string()), ("total", &total.to_string())])
+            craft_i18n::fmt(&labels.selected_of, &[("selected", &selected.to_string()), ("total", &total.to_string())])
         };
         ui.allocate_ui_with_layout(vec2(ui.available_width(), ui.spacing().interact_size.y), direction::trailing(ui), |ui| {
             let format = role_format(&tokens, TypeRole::Caption, style.count);
@@ -587,7 +596,17 @@ where
         let view = state.settings.view;
         let body = ui.allocate_ui_with_layout(vec2(ui.available_width(), body_height), Layout::top_down(Align::Min), |ui| match view {
             BinView::List => {
-                let input = list::ListInput { id, model, state: &mut *state, selection: &mut *selection, thumbnails, columns, labels: &labels };
+                let input = list::ListInput {
+                    id,
+                    model,
+                    state: &mut *state,
+                    selection: &mut *selection,
+                    thumbnails,
+                    columns,
+                    labels: &labels,
+                    zoom_range,
+                    default_size: DEFAULT_ICON_SIZE,
+                };
                 let (response, mut list_events) = list::list_view(ui, input);
                 events.append(&mut list_events);
                 Some(response)
