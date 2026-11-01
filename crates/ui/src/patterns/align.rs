@@ -3,7 +3,7 @@
 //! Photoshop shows them whenever the Move tool is active; they enable once enough layers are
 //! selected.
 
-use egui::{AsIdSalt, Id, Response, Ui};
+use egui::{AsIdSalt, IdSalt, Response, Ui};
 
 use crate::icons::Icon;
 
@@ -75,7 +75,11 @@ impl AlignAction {
         AlignAction::DistributeVertically,
     ];
 
-    /// `align_edge_left` … `distribute_vertical` in the library's icon set.
+    /// The action's icon: `align_left_edges`, `align_horizontal_centers`, …,
+    /// `distribute_horizontally`, `distribute_vertically` (the variant names in snake case). The
+    /// icon set has none of them yet: the icons task adds the 14 to `ui/icons/icons.toml` (Lucide's
+    /// `align-start-vertical` … `align-vertical-space-around`, Phosphor's `align-left` …, as the
+    /// file's other rows pair sets; PhotoCraft draws its own `align-edge-left` … `distribute-vertical`).
     pub fn icon(self) -> Icon {
         todo!()
     }
@@ -111,26 +115,36 @@ pub struct AlignBarResponse {
 
 /// The six align icon buttons (24 pt, 16 pt icons, no gaps), then a ⋯ button whose menu lists
 /// Align and Distribute as sections, each item with its icon and name; with
-/// [`DistributeButtons::Row`] the distribute buttons follow too.
+/// [`DistributeButtons::Row`] the distribute buttons follow too. The buttons are the library's
+/// icon buttons and the menu its `PressMenu` (the closing press reaches nothing else, lead call
+/// L21); a pick in the menu is reported in the pass it happens.
 ///
 /// Each button's tooltip and AccessKit name is "Align: Left Edges"; a disabled command's button
 /// and menu item are disabled. Every button is a Tab stop in the options bar's order; the menu
-/// opens on click, Enter or Down and closes on a pick or Esc (the library's `ContextMenu`).
+/// opens on click, Enter or Down and closes on a pick or Esc.
 ///
 /// ```ignore
 /// let bar = AlignBar::new("move-align").enabled(|a| session.is_enabled(command_of(a))).show(ui);
+/// // Words other than the installed catalog's: AlignBar::new(..).labels(AlignLabels { more: "More".into(), ..AlignLabels::of(ui) })
 /// if let Some(action) = bar.picked { app.run(command_of(action), json!({})); }
 /// ```
 #[must_use = "call show"]
 pub struct AlignBar<'a> {
-    id: Id,
+    id_salt: IdSalt,
     enabled: Box<dyn Fn(AlignAction) -> bool + 'a>,
     distribute: DistributeButtons,
+    labels: Option<AlignLabels>,
 }
 
 impl<'a> AlignBar<'a> {
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        todo!()
+        Self { id_salt: IdSalt::new(id_salt), enabled: Box::new(|_| true), distribute: DistributeButtons::Menu, labels: None }
+    }
+
+    /// The words; [`AlignLabels::of`] the `Ui` when not called.
+    pub fn labels(mut self, labels: AlignLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// Which commands are enabled now; all of them by default.

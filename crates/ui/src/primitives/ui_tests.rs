@@ -175,6 +175,16 @@ fn handles_are_in_the_accessibility_tree_but_not_the_tab_order() {
     assert_eq!(harness.state().0, 1);
 }
 
+// Text::elide(Middle) and elide_path in a 120 pt row: one line no wider than the row, "…" where
+// asked ("…/Pictures/Library" for a path), the AccessKit node and the tooltip carry the whole
+// text; max_width narrows a row that has more room.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn elided_text_keeps_the_full_text_where_it_cuts_elsewhere() {
+    todo!()
+}
+
 #[test]
 fn truncated_text_keeps_the_full_text_in_its_tooltip_and_accesskit_node() {
     const FULL: &str = "A long layer name that does not fit in the panel";

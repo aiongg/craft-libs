@@ -27,10 +27,11 @@ fn mail_temporary_copies_are_saved_elsewhere() {
     todo!()
 }
 
-// A second start while a picker, question or write is pending answers Busy; a pick answer for
-// another ticket goes back to the file service.
+// A second start while a picker, question or write is pending answers Busy; another feature's
+// answer stays with the file service; cancel forgets the flow's ticket, so its late answer is
+// never taken.
 #[test]
 #[ignore = "skeleton"]
-fn one_save_at_a_time_and_other_tickets_are_returned() {
+fn one_save_at_a_time_and_cancel_forgets_the_ticket() {
     todo!()
 }

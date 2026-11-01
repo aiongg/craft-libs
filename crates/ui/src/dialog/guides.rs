@@ -7,14 +7,16 @@
 //! is in the ruler unit. Percent is of the target's width for vertical guides, column widths and
 //! the left and right margins, and of its height for the rest.
 //!
-//! [`GuideLayout::lines`] is the layout calculation (PhotoCraft's engine `guide_layout`, pure),
-//! so the dialog's live preview and the app's command draw the same guides: the app reads
+//! [`GuideLayoutOptions::lines`] is the layout calculation (PhotoCraft's engine `guide_layout`,
+//! pure), so the dialog's live preview and the app's command draw the same guides: the app reads
 //! [`GuideLayoutDialog::preview`] each pass and draws it with `canvas::Guides` until OK or Cancel.
 
 use std::borrow::Cow;
 
+use craft_theme::Srgba;
 use egui::{Color32, Context};
 
+use super::ColorRequest;
 use super::dialog_host::{DialogResult, StackDialog};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use crate::canvas::{Guide, Orientation};
@@ -42,6 +44,10 @@ crate::words! {
         cyan: "guides.cyan" = "Cyan";
         light_gray: "guides.lightGray" = "Light Gray";
         black: "guides.black" = "Black";
+        /// New Guide's colour picker title ([`ColorRequest::title`]).
+        picker_title: "guides.pickerTitle" = "Color Picker (Guides)";
+        /// New Guide Layout's colour swatch name and its picker title.
+        layout_color: "guides.layoutColor" = "Guide color";
         /// The position field's error for text that isn't a length.
         bad_position: "guides.badPosition" = "Enter a position such as 2 cm, 50% or 100 px.";
         layout_title: "guides.layout" = "New Guide Layout";
@@ -78,6 +84,11 @@ crate::words! {
     }
 }
 
+/// The [`ColorRequest::key`] of New Guide's Custom… colour.
+pub const NEW_GUIDE_COLOR_KEY: &str = "guides.newGuide.color";
+/// The [`ColorRequest::key`] of New Guide Layout's colour swatch.
+pub const GUIDE_LAYOUT_COLOR_KEY: &str = "guides.layout.color";
+
 /// A guide colour: Photoshop's list (PhotoCraft's `GUIDE_COLORS`, Cyan by default) or Custom….
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum GuideColor {
@@ -91,7 +102,8 @@ pub enum GuideColor {
     Cyan,
     LightGray,
     Black,
-    /// Chosen with Custom…'s swatch (the app's colour picker).
+    /// Chosen with Custom…'s swatch (the app's colour picker). Its `#rrggbb` is written with
+    /// craft-theme's `Rgba::to_hex`, as every hex text in the suite.
     Custom([u8; 3]),
 }
 
@@ -153,9 +165,10 @@ impl GuideUnits {
     }
 }
 
-/// What New Guide or Edit Selected Guides answers.
+/// New Guide's values: what it opens with ([`NewGuideDialog::initial`]) and what it and Edit
+/// Selected Guides answer.
 #[derive(Clone, Debug, PartialEq)]
-pub struct NewGuide {
+pub struct NewGuideOptions {
     pub orientation: Orientation,
     /// As typed; a bare number got the ruler unit.
     pub position: Length,
@@ -190,11 +203,16 @@ struct NewGuideMemory {
 /// current ruler unit), else horizontal at 0 in Cyan, as Photoshop does; the app records a
 /// success with [`NewGuideDialog::remember`] after its command accepted the guide. A position the
 /// app refuses reopens the dialog with what was typed and the app's message:
-/// `dialogs.open(NewGuideDialog::again(answer, units).error(message))`.
+/// `dialogs.open(NewGuideDialog::new(units).initial(answer).error(message))`.
 ///
-/// Custom…'s swatch asks the app for a colour, as New Document does: the dialog sets
-/// [`wants_color`](Self::wants_color); the app opens its colour picker as a child dialog and
-/// answers with [`set_custom_color`](Self::set_custom_color) or
+/// The Position field is a [`unit_number_field`](crate::patterns::unit_number_field) in the ruler
+/// unit over the document's width (vertical) or height (horizontal), so "50%" and "2 cm" work and
+/// the field keeps the library's number-field keys.
+///
+/// Custom…'s swatch asks the app for a colour, as New Document does: in the pass Custom… is
+/// chosen (or the swatch clicked) [`pick_color`](Self::pick_color) returns a [`ColorRequest`]
+/// keyed [`NEW_GUIDE_COLOR_KEY`], titled [`GuidesLabels::picker_title`]; the app opens its
+/// colour picker as a child dialog and answers with [`set_color`](Self::set_color) or
 /// [`cancel_color`](Self::cancel_color).
 pub struct NewGuideDialog {
     id: DialogId,
@@ -205,7 +223,8 @@ pub struct NewGuideDialog {
     initial_color: GuideColor,
     edited: Option<u64>,
     error: Option<String>,
-    wants_color: bool,
+    /// The request to hand out once.
+    color_request: Option<ColorRequest>,
     /// Set once the remembered guide was read (first pass, which has the Host).
     recalled: bool,
 }
@@ -222,7 +241,7 @@ impl NewGuideDialog {
             initial_color: GuideColor::Cyan,
             edited: None,
             error: None,
-            wants_color: false,
+            color_request: None,
             recalled: false,
         }
     }
@@ -234,9 +253,11 @@ impl NewGuideDialog {
         todo!()
     }
 
-    /// The dialog again after the app refused `answer`, with its values as typed.
+    /// Opens with `options` instead of the remembered guide: the dialog again after the app
+    /// refused an answer, with its values as typed and its edited guide (automation, tests).
+    /// The position shows as typed, not converted to the ruler unit.
     // pc: crates/ui-egui/src/dialogs/new_guide_ui.rs:235 confirm (reopen with __error)
-    pub fn again(answer: &NewGuide, units: GuideUnits) -> Self {
+    pub fn initial(self, options: NewGuideOptions) -> Self {
         todo!()
     }
 
@@ -249,35 +270,37 @@ impl NewGuideDialog {
     /// Records `answer` as the guide the next New Guide opens with, through the Host's settings
     /// (`Remembered` scope `"guides.newGuide"`). Edit answers are not recorded.
     // pc: crates/ui-egui/src/dialogs/new_guide_ui.rs:215 confirm (the remembered value at :226)
-    pub fn remember(ctx: &Context, answer: &NewGuide) {
+    pub fn remember(ctx: &Context, answer: &NewGuideOptions) {
         todo!()
     }
 
-    /// Custom… was chosen and the dialog waits for a colour.
-    pub fn wants_color(&self) -> bool {
-        self.wants_color
+    /// Custom… was chosen (or its swatch clicked) in the pass since the last call: the colour to
+    /// ask the app's picker for, keyed [`NEW_GUIDE_COLOR_KEY`]. Returned once.
+    pub fn pick_color(&mut self) -> Option<ColorRequest> {
+        self.color_request.take()
     }
 
-    /// The colour the app's picker returned.
-    pub fn set_custom_color(&mut self, rgb: [u8; 3]) {
+    /// The colour the app's picker returned for `key`: Color becomes [`GuideColor::Custom`]
+    /// (rounded to 8 bits). Other keys are ignored.
+    pub fn set_color(&mut self, key: &str, color: Srgba) {
         todo!()
     }
 
-    /// The picker was cancelled: the colour stays what it was.
+    /// The picker was cancelled: the colour stays what it was before Custom….
     pub fn cancel_color(&mut self) {
         todo!()
     }
 }
 
 impl StackDialog for NewGuideDialog {
-    type Result = NewGuide;
+    type Result = NewGuideOptions;
 
     fn id(&self) -> DialogId {
         self.id
     }
 
     // pc: crates/ui-egui/src/dialogs/new_guide_ui.rs:151 body, :194 params
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<NewGuide>> {
+    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<NewGuideOptions>> {
         todo!()
     }
 }
@@ -339,7 +362,7 @@ impl GuideLayoutPreset {
     /// `layout` with this preset's columns, rows and gutters, no margin and Center Columns off;
     /// target, colour and Clear Existing Guides stay. Custom changes nothing.
     // pc: crates/ui-egui/src/dialogs/guide_layout_ui.rs:261 main_fields (the preset values at :278)
-    pub fn apply(self, layout: &mut GuideLayout) {
+    pub fn apply(self, layout: &mut GuideLayoutOptions) {
         todo!()
     }
 }
@@ -356,9 +379,10 @@ pub struct GuideAxis {
     pub gutter: Length,
 }
 
-/// New Guide Layout's settings.
+/// New Guide Layout's values: what it opens with ([`GuideLayoutDialog::initial`]), what it
+/// answers, and the calculation ([`lines`](Self::lines)).
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct GuideLayout {
+pub struct GuideLayoutOptions {
     pub preset: GuideLayoutPreset,
     pub target: GuideTarget,
     pub columns: GuideAxis,
@@ -372,7 +396,7 @@ pub struct GuideLayout {
     pub clear_existing: bool,
 }
 
-impl Default for GuideLayout {
+impl Default for GuideLayoutOptions {
     /// PhotoCraft's factory layout (Alt+Cancel resets to it): 8 columns with a 20 px gutter,
     /// rows off, no margin.
     // pc: crates/ui-egui/src/menus/view_cmds.rs:123 default_guide_layout
@@ -410,7 +434,7 @@ pub struct GuideLayoutLines {
     pub all: GuideLines,
 }
 
-impl GuideLayout {
+impl GuideLayoutOptions {
     /// The guides for `targets` (the document, or each selected artboard) over `existing`.
     /// Per target: the margin edges when any margin is not zero, then both edges of every
     /// column and row, Photoshop-style. Without a size, columns share the room after the
@@ -434,7 +458,7 @@ pub struct GuidePreview {
 /// What New Guide Layout answers.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GuideLayoutResult {
-    pub layout: GuideLayout,
+    pub options: GuideLayoutOptions,
     pub lines: GuideLayoutLines,
     /// The guide colour chosen; PhotoCraft stores it as the guide colour preference.
     pub color: [u8; 3],
@@ -445,8 +469,11 @@ pub struct GuideLayoutResult {
 /// box and Top, Left, Bottom, Right), Center Columns, Clear Existing Guides; OK, Cancel and
 /// Preview in a column at the right (`Footer::side()`).
 ///
-/// Every field takes a [`Length`] in any unit and shows the ruler unit. Width and Height may be
-/// left empty (tooltip "Leave empty for automatic size"). Typing in a layout field turns the
+/// Every field takes a [`Length`] in any unit and shows the ruler unit: Number is a
+/// [`NumberField`](crate::controls::NumberField) (1 to 1000), the lengths are
+/// [`unit_number_field`](crate::patterns::unit_number_field)s over the target's width or height.
+/// Width and Height may be left empty (tooltip "Leave empty for automatic size"), which needs a
+/// number field that takes an empty value (`// needs: controls NumberField empty value`). Typing in a layout field turns the
 /// preset to Custom; changing target, colour or Preview does not. A group whose box is off greys
 /// its fields and keeps their values; turning Columns or Rows on with Number 0 makes it 1.
 ///
@@ -455,11 +482,15 @@ pub struct GuideLayoutResult {
 /// dialog asks for a repaint when a field changes. An invalid layout keeps OK disabled and shows
 /// [`GuidesLabels::invalid`] with the reason as its tooltip; the canvas keeps the last valid
 /// preview. Enter is OK when valid; Esc cancels; Alt turns Cancel into Reset, which restores
-/// [`GuideLayout::default`]. The last committed layout opens next time (`Remembered`
+/// [`GuideLayoutOptions::default`]. The last committed layout opens next time (`Remembered`
 /// `"guides.layout"`).
+///
+/// The colour swatch asks the app for a colour: [`pick_color`](Self::pick_color) returns a
+/// [`ColorRequest`] keyed [`GUIDE_LAYOUT_COLOR_KEY`], titled [`GuidesLabels::layout_color`]; the
+/// app answers with [`set_color`](Self::set_color) or [`cancel_color`](Self::cancel_color).
 pub struct GuideLayoutDialog {
     id: DialogId,
-    layout: GuideLayout,
+    layout: GuideLayoutOptions,
     units: GuideUnits,
     document: GuideRect,
     artboards: Vec<GuideRect>,
@@ -470,7 +501,7 @@ pub struct GuideLayoutDialog {
     texts: Vec<(Cow<'static, str>, String)>,
     /// The last valid calculation, kept while a field is invalid.
     last_valid: Option<GuideLayoutLines>,
-    wants_color: bool,
+    color_request: Option<ColorRequest>,
     recalled: bool,
 }
 
@@ -480,7 +511,7 @@ impl GuideLayoutDialog {
     pub fn new(document: GuideRect, existing: GuideLines, units: GuideUnits, color: [u8; 3]) -> Self {
         Self {
             id: dialog_id("guides.layout"),
-            layout: GuideLayout::default(),
+            layout: GuideLayoutOptions::default(),
             units,
             document,
             artboards: Vec::new(),
@@ -489,7 +520,7 @@ impl GuideLayoutDialog {
             preview_on: true,
             texts: Vec::new(),
             last_valid: None,
-            wants_color: false,
+            color_request: None,
             recalled: false,
         }
     }
@@ -500,9 +531,9 @@ impl GuideLayoutDialog {
         self
     }
 
-    /// Opens with `layout` instead of the remembered one (automation, tests).
-    pub fn layout(mut self, layout: GuideLayout) -> Self {
-        self.layout = layout;
+    /// Opens with `options` instead of the remembered layout (automation, tests).
+    pub fn initial(mut self, options: GuideLayoutOptions) -> Self {
+        self.layout = options;
         self.recalled = true;
         self
     }
@@ -514,15 +545,19 @@ impl GuideLayoutDialog {
         todo!()
     }
 
-    /// The colour swatch was clicked and the dialog waits for a colour.
-    pub fn wants_color(&self) -> bool {
-        self.wants_color
+    /// The colour swatch was clicked in the pass since the last call: the colour to ask the
+    /// app's picker for, keyed [`GUIDE_LAYOUT_COLOR_KEY`]. Returned once.
+    pub fn pick_color(&mut self) -> Option<ColorRequest> {
+        self.color_request.take()
     }
 
-    pub fn set_custom_color(&mut self, rgb: [u8; 3]) {
+    /// The colour the app's picker returned for `key`: the layout's colour (the preview redraws
+    /// in it). Other keys are ignored.
+    pub fn set_color(&mut self, key: &str, color: Srgba) {
         todo!()
     }
 
+    /// The picker was cancelled: the colour stays.
     pub fn cancel_color(&mut self) {
         todo!()
     }

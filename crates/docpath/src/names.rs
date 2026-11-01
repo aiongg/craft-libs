@@ -39,28 +39,39 @@ pub fn is_plain_file_name(name: &str) -> bool {
 }
 
 /// Whether `stem` (a name without its extension, compared without case) is a Windows device
-/// name: `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, and the superscript digits
-/// `COM¹`–`COM³`, `LPT¹`–`LPT³` Windows also reserves.
+/// name: `CON`, `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`, `COM0`–`COM9`, `LPT0`–`LPT9`, and the
+/// superscript digits `COM¹`–`COM³`, `LPT¹`–`LPT³` Windows also reserves. The crate's path
+/// checks use the same rule (`is_dos_device` in `lib.rs`); the body calls it, so the two never
+/// drift apart.
 // pdfcraft: crates/ui-egui/src/workflows/files.rs:223 attachment_file_name (the device check at :234)
 pub fn is_reserved_device_name(stem: &str) -> bool {
     todo!()
 }
 
-/// `name`, or the first of `name 2.ext`, `name 3.ext`, … that `taken` says is free, as macOS
-/// Finder numbers copies (Windows Explorer writes `name (2).ext`; the app picks with `style`).
-/// The number goes before the last extension; a name that already ends in ` 2` counts on from
-/// it (`photo 2.jpg` → `photo 3.jpg`). Stops after 10 000 tries and returns the last candidate.
+/// `name`, or the first of `name 2.ext`, `name 3.ext`, … ([`CopyNumbering::Space`]) or
+/// `name (2).ext`, `name (3).ext`, … ([`CopyNumbering::Parenthesized`]) that `taken` says is
+/// free. The number goes before the last extension; a name that already ends in a copy number of
+/// `style`'s form counts on from it (`photo 2.jpg` → `photo 3.jpg`, `photo (2).jpg` →
+/// `photo (3).jpg`). Stops after 10 000 tries and returns the last candidate.
 // new: PdfCraft, DeckCraft and the export dialog (`numbered_paths`) each number names their own way
 pub fn unique_file_name(name: &str, style: CopyNumbering, taken: impl Fn(&str) -> bool) -> String {
     todo!()
 }
 
-/// How [`unique_file_name`] numbers a name that is taken.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+/// How [`unique_file_name`] numbers a name that is taken. Apps pass
+/// [`CopyNumbering::platform`] unless the user chose otherwise.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CopyNumbering {
     /// `photo 2.jpg` (macOS Finder).
-    #[default]
     Space,
     /// `photo (2).jpg` (Windows Explorer, GNOME Files).
-    Parenthesised,
+    Parenthesized,
+}
+
+impl CopyNumbering {
+    /// The platform's own file manager's style: [`Space`](Self::Space) on macOS,
+    /// [`Parenthesized`](Self::Parenthesized) elsewhere.
+    pub const fn platform() -> CopyNumbering {
+        if cfg!(target_os = "macos") { CopyNumbering::Space } else { CopyNumbering::Parenthesized }
+    }
 }

@@ -54,8 +54,12 @@ crate::words! {
         commits: "about.commits" = "Commits";
         share: "about.share" = "% of all commits";
         lines: "about.lines" = "Lines +/−";
-        /// A contributor's tooltip.
-        summary: "about.summary" = "@{login}: {prs} PRs, {commits} commits, +{added} / −{deleted} lines (Δ {delta}), +{binAdded} / −{binDeleted} binary assets, {first} – {last}";
+        /// A contributor's tooltip; `{prs}` and `{commits}` are the two counted words below.
+        summary: "about.summary" = "@{login}: {prs}, {commits}, +{added} / −{deleted} lines (Δ {delta}), +{binAdded} / −{binDeleted} binary assets, {first} – {last}";
+        /// Counted (`about.prs` count word): "1 PR", "3 PRs".
+        prs: "about.prs" = "{n} PRs";
+        /// Counted (`about.commitCount` count word): "1 commit", "12 commits".
+        commit_count: "about.commitCount" = "{n} commits";
     }
 }
 
@@ -112,9 +116,11 @@ impl Contributor {
         i128::from(self.lines_added) - i128::from(self.lines_deleted)
     }
 
-    /// The tooltip line ([`AboutLabels::summary`]), numbers grouped as the region writes them.
+    /// The tooltip line ([`AboutLabels::summary`]) in the interface language: PRs and commits
+    /// with the locale's plural forms (`Words::counted`), every number grouped as the region
+    /// writes them (`LocaleNumbers`).
     // pc: crates/ui-egui/src/dialogs/credits.rs:148 Contributor::summary
-    pub fn summary(&self, labels: &AboutLabels, group: impl Fn(u64) -> String) -> String {
+    pub fn summary(&self, ctx: &Context) -> String {
         todo!()
     }
 }
@@ -237,13 +243,15 @@ struct ContributorsView {
 /// The About window, 700 px wide on every tab so switching tabs doesn't resize it.
 ///
 /// - **About**: the blurb, "Version …", the community button and the link row centred, the
-///   built-with line faint.
+///   built-with line faint. The three tabs are the library's tab strip.
 /// - **Contributors**: Show (Username / Display name / Real name), Sort (the list) with ▲/▼ to
 ///   reverse, Grab bag / Table; the counts line; the names as links to `github.com/<login>`
-///   flowing as a grab bag (14 × 8 spacing) or a sortable table (`list::table`, the header click
-///   sorts). The list is 340 px tall on both views.
-/// - **Models**: a table of Company, Model, Version, Commits, % of all commits, Lines +/−, as
-///   tall as its rows up to 340 px; the model name takes the spare width.
+///   flowing as a grab bag (14 × 8 spacing) or a sortable table (the controls part's
+///   `list::Table` with `TableSort`, the header click sorts; `// needs: controls list::Table`).
+///   The list is 340 px tall on both views.
+/// - **Models**: a `list::Table` (columns not sortable) of Company, Model, Version, Commits,
+///   % of all commits, Lines +/−, as tall as its rows up to 340 px; the model name takes the
+///   spare width.
 ///
 /// The tabs are a tab strip (one Tab stop, arrows switch); every link and control is reachable
 /// with Tab; Esc and the close box close it. Numbers are grouped as the region writes them.

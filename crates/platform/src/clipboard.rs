@@ -13,13 +13,14 @@
 //!   something to take, so a slow clipboard owner never stalls a frame.
 //!
 //! No egui, except the two event helpers behind the `ui` feature
-//! ([`flavours_from_event`], [`copy_through_egui`]) that the web path uses.
+//! ([`flavors_from_event`], [`copy_through_egui`]) that the web path uses.
 
 use std::borrow::Cow;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
+
+use craft_host::Wake;
 
 use crate::PlatformText;
 
@@ -41,18 +42,18 @@ pub const URI_LIST: &str = "text/uri-list";
 /// [`ClipboardImage`]. Only for [`ClipboardBackend::has`] and [`Clipboard::has`].
 pub const BITMAP: &str = "image/*";
 /// A raw bitmap as [`EventClipboard`] carries it: width and height as little-endian `u32`s, then
-/// the straight RGBA8 pixels. What [`flavours_from_event`] makes of egui's `Event::PasteImage`.
+/// the straight RGBA8 pixels. What [`flavors_from_event`] makes of egui's `Event::PasteImage`.
 pub const RGBA8: &str = "image/x-rgba8";
 
 /// One representation of the clipboard's contents: its MIME type and bytes. A copy offers
 /// several, best first (VectorCraft: SVG, PDF, PNG, then text).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Flavour {
+pub struct Flavor {
     pub mime: Cow<'static, str>,
     pub data: Vec<u8>,
 }
 
-impl Flavour {
+impl Flavor {
     pub fn new(mime: impl Into<Cow<'static, str>>, data: Vec<u8>) -> Self {
         Self { mime: mime.into(), data }
     }
@@ -159,10 +160,10 @@ pub enum Written {
 /// [`Clipboard`]'s reads and writes, on a user's copy or paste.
 pub trait ClipboardBackend: Send {
     /// Replaces the clipboard's contents with `flavours`, best first; none empties it.
-    fn write(&mut self, flavours: &[Flavour]) -> Result<(), ClipboardError>;
+    fn write(&mut self, flavors: &[Flavor]) -> Result<(), ClipboardError>;
     /// The first of `mimes` the clipboard holds, at most `limit` bytes of it (more is
     /// [`ClipboardError::TooLarge`]). [`BITMAP`] matches any bitmap, returned as PNG.
-    fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavour>, ClipboardError>;
+    fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavor>, ClipboardError>;
     /// The clipboard's bitmap as RGBA8, at most `limit` bytes of pixels.
     fn read_image(&mut self, limit: u64) -> Result<Option<ClipboardImage>, ClipboardError>;
     /// Copied files (Finder, Explorer, GNOME Files), at most `limit` of them.
@@ -171,7 +172,7 @@ pub trait ClipboardBackend: Send {
     fn has(&mut self, mimes: &[&str]) -> bool;
     /// The flavours of a paste the host delivered as an event (the browser's Paste). Only
     /// [`EventClipboard`] keeps them; the system clipboard ignores them.
-    fn offer(&mut self, _flavours: Vec<Flavour>) {}
+    fn offer(&mut self, _flavors: Vec<Flavor>) {}
 }
 
 /// The desktop's clipboard through arboard: X11 and Wayland, macOS, Windows. Not on wasm.
@@ -222,12 +223,12 @@ impl Default for SystemClipboard {
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
 impl ClipboardBackend for SystemClipboard {
     // pc: apps/photocraft/src/services.rs:702 clipboard_set_image (open on first use, "clipboard is busy")
-    fn write(&mut self, flavours: &[Flavour]) -> Result<(), ClipboardError> {
+    fn write(&mut self, flavors: &[Flavor]) -> Result<(), ClipboardError> {
         todo!()
     }
 
     // vectorcraft: crates/ui-egui/src/sysclip.rs:27 SystemClipboard::read
-    fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavour>, ClipboardError> {
+    fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavor>, ClipboardError> {
         todo!()
     }
 
@@ -254,27 +255,27 @@ impl ClipboardBackend for SystemClipboard {
 ///
 /// [`offer`](Self::offer) holds one paste's flavours until the next offer; reads take from it.
 pub struct EventClipboard {
-    pasted: Vec<Flavour>,
+    pasted: Vec<Flavor>,
     out: CopyOut,
 }
 
 /// Where an [`EventClipboard`]'s writes go.
-type CopyOut = Box<dyn FnMut(&[Flavour]) -> Result<(), ClipboardError> + Send>;
+type CopyOut = Box<dyn FnMut(&[Flavor]) -> Result<(), ClipboardError> + Send>;
 
 impl EventClipboard {
-    pub fn new(out: impl FnMut(&[Flavour]) -> Result<(), ClipboardError> + Send + 'static) -> Self {
+    pub fn new(out: impl FnMut(&[Flavor]) -> Result<(), ClipboardError> + Send + 'static) -> Self {
         Self { pasted: Vec::new(), out: Box::new(out) }
     }
 }
 
 impl ClipboardBackend for EventClipboard {
     // new: the browser has no clipboard read; PhotoCraft's web shell maps Event::PasteImage (apps/photocraft-web/src/web.rs:344)
-    fn write(&mut self, flavours: &[Flavour]) -> Result<(), ClipboardError> {
+    fn write(&mut self, flavors: &[Flavor]) -> Result<(), ClipboardError> {
         todo!()
     }
 
     // new: first offered flavour among `mimes`, limit checked
-    fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavour>, ClipboardError> {
+    fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavor>, ClipboardError> {
         todo!()
     }
 
@@ -293,8 +294,8 @@ impl ClipboardBackend for EventClipboard {
     }
 
     /// Holds one paste's flavours, best first, until the next offer.
-    fn offer(&mut self, flavours: Vec<Flavour>) {
-        self.pasted = flavours;
+    fn offer(&mut self, flavors: Vec<Flavor>) {
+        self.pasted = flavors;
     }
 }
 
@@ -337,7 +338,7 @@ impl Clipboard {
     }
 
     pub fn write_text(&mut self, text: &str) -> Result<Written, ClipboardError> {
-        self.write(&[Flavour::text(text)])
+        self.write(&[Flavor::text(text)])
     }
 
     /// Puts a bitmap on the clipboard and remembers its [`image_signature`].
@@ -347,7 +348,7 @@ impl Clipboard {
     }
 
     /// Replaces the clipboard with `flavours`, best first, unless fenced.
-    pub fn write(&mut self, flavours: &[Flavour]) -> Result<Written, ClipboardError> {
+    pub fn write(&mut self, flavors: &[Flavor]) -> Result<Written, ClipboardError> {
         todo!()
     }
 
@@ -359,7 +360,7 @@ impl Clipboard {
 
     /// The first of `mimes` the clipboard holds, within [`ClipboardLimits::text_bytes`] for text
     /// types and [`ClipboardLimits::image_bytes`] for the rest.
-    pub fn read(&mut self, mimes: &[&str]) -> Result<Option<Flavour>, ClipboardError> {
+    pub fn read(&mut self, mimes: &[&str]) -> Result<Option<Flavor>, ClipboardError> {
         todo!()
     }
 
@@ -397,9 +398,9 @@ impl Clipboard {
     }
 
     /// A paste event's flavours for the backend ([`ClipboardBackend::offer`]); the web shell
-    /// calls it with [`flavours_from_event`] before the paste command runs.
-    pub fn offer_paste(&mut self, flavours: Vec<Flavour>) {
-        self.backend.offer(flavours);
+    /// calls it with [`flavors_from_event`] before the paste command runs.
+    pub fn offer_paste(&mut self, flavors: Vec<Flavor>) {
+        self.backend.offer(flavors);
     }
 
     /// Forgets the last write's signature (the in-app copy was cleared).
@@ -429,7 +430,8 @@ pub const PROBE_STOP_WAIT: Duration = Duration::from_millis(250);
 /// `has()` can block for seconds when the clipboard owner never answers (an unresponsive X11
 /// client), so it never runs on the thread that draws the window: the worker owns a second
 /// clipboard handle, looks every [`PROBE_INTERVAL`] while wanted (not at all otherwise), sends
-/// its verdict when it changes and calls `wake`. Dropping the probe stops the worker and waits
+/// its verdict when it changes and calls [`Wake::wake`], so the app runs a frame that reads it
+/// with [`pasteable`](Self::pasteable). Dropping the probe stops the worker and waits
 /// up to [`PROBE_STOP_WAIT`] for it to drop its handle (on X11 the last handle hands the copy to
 /// the clipboard manager before exit).
 pub struct ClipboardProbe {
@@ -446,7 +448,7 @@ impl ClipboardProbe {
     pub fn start(
         make: Box<dyn FnOnce() -> Box<dyn ClipboardBackend> + Send>,
         mimes: Vec<&'static str>,
-        wake: Arc<dyn Fn() + Send + Sync>,
+        wake: Wake,
     ) -> Option<Self> {
         todo!()
     }
@@ -472,7 +474,7 @@ impl Drop for ClipboardProbe {
 /// events. With the `ui` feature.
 #[cfg(feature = "ui")]
 // pc: crates/ui-egui/src/input/shortcuts.rs:231 Event::PasteImage
-pub fn flavours_from_event(event: &egui::Event) -> Option<Vec<Flavour>> {
+pub fn flavors_from_event(event: &egui::Event) -> Option<Vec<Flavor>> {
     todo!()
 }
 
@@ -480,7 +482,7 @@ pub fn flavours_from_event(event: &egui::Event) -> Option<Vec<Flavour>> {
 /// `ctx.copy_text`, the first image with `OutputCommand::CopyImage`. With the `ui` feature.
 #[cfg(feature = "ui")]
 // new: eframe's web integration owns navigator.clipboard
-pub fn copy_through_egui(ctx: &egui::Context, flavours: &[Flavour]) -> Result<(), ClipboardError> {
+pub fn copy_through_egui(ctx: &egui::Context, flavors: &[Flavor]) -> Result<(), ClipboardError> {
     todo!()
 }
 

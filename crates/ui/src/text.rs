@@ -5,7 +5,7 @@ pub mod elide;
 #[cfg(test)]
 mod elide_tests;
 
-pub use elide::{ELLIPSIS, ElideAt, Elided, ElidedLabel, elide, elide_chars, elide_path, elided_galley, text_width};
+pub use elide::{ELLIPSIS, ElideAt, Elided, elide, elide_chars, elide_path, elided_galley, text_width};
 
 use std::sync::Arc;
 

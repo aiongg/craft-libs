@@ -36,9 +36,9 @@ autosave = ["dep:serde", "dep:serde_json", "dep:craft-atomic"]
 # Screen capture for the screen colour picker (`craft_platform::screen`).
 screen = ["dep:craft-host", "dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", "dep:x11rb", "dep:core-graphics2", "dep:xcap"]
 # `clipboard`: the system clipboard with size limits, the synthetic-input fence and the paste probe.
-clipboard = ["dep:arboard"]
+clipboard = ["dep:arboard", "dep:craft-host"]
 # `watch`: open files that change on disk.
-watch = []
+watch = ["dep:craft-host"]
 # `default-app`: making the app the system default for its file types, and its launch arguments.
 default-app = []
 # `temp`: private temporary folders and files.

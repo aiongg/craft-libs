@@ -17,7 +17,8 @@ fn model_share_is_never_zero_for_a_credited_model() {
 }
 
 // The tabs switch with arrows; a contributor link click is handed out by take_link with
-// github.com/<login>, not opened; the window keeps its width across tabs.
+// github.com/<login>, not opened; the window keeps its width across tabs; a contributor's tooltip
+// says "1 PR, 12 commits" with the counted words.
 #[test]
 #[ignore = "skeleton"]
 fn about_tabs_and_links() {

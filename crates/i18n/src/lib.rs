@@ -53,7 +53,7 @@ use unicode_bidi::{BidiClass, bidi_class};
 
 #[cfg(feature = "collate")]
 pub use collate::Collator;
-pub use date::{CalendarDate, DateFormat, DateLength, DateStyle, DateTime, NameLength, RelativeStyle, TimePrecision, TimeZone, Weekday, utc_stamp};
+pub use date::{CalendarDate, DateFormat, DateLength, DateStyle, DateTime, NameLength, TimePrecision, TimeZone, Weekday, utc_stamp};
 pub use fold::{Folded, Folder};
 pub use format::{Digits, Format};
 pub use number::{NumberError, parse_number};

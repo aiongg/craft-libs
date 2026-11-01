@@ -5,7 +5,7 @@
 //!   window, with where they were dropped ([`DropTarget`]).
 //! - [`natural_cmp`], [`same_file`]: the order files open in and the check that keeps an open
 //!   file from opening twice.
-//! - [`OPEN_FAILED`] and the other [`OpenText`]s: the open errors every app words the same way.
+//! - [`OPEN_FAILED`] and the other [`PlatformText`]s: the open errors every app words the same way.
 //! - [`reveal`], [`open_external`]: show a file in the system file manager; open a file or URL
 //!   with the system's handler.
 //!
@@ -25,28 +25,22 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use craft_host::Wake;
 
-/// A user-visible message with its catalog id and English text; `{name}`-style placeholders.
-/// craft-platform has no catalog; the app looks the id up in its own.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct OpenText {
-    pub id: &'static str,
-    pub english: &'static str,
-}
+use crate::PlatformText;
 
 /// "Couldn't open {name}: {error}", shown in the status bar and as an error notice.
-pub const OPEN_FAILED: OpenText = OpenText { id: "open.failed", english: "Couldn't open {name}: {error}" };
+pub const OPEN_FAILED: PlatformText = PlatformText { id: "open.failed", english: "Couldn't open {name}: {error}" };
 /// "Couldn't place {name}: {error}", for a file dropped on the canvas.
-pub const PLACE_FAILED: OpenText = OpenText { id: "open.placeFailed", english: "Couldn't place {name}: {error}" };
+pub const PLACE_FAILED: PlatformText = PlatformText { id: "open.placeFailed", english: "Couldn't place {name}: {error}" };
 /// A path that isn't valid Unicode, when opening.
-pub const PATH_NOT_UNICODE_OPEN: OpenText =
-    OpenText { id: "open.pathNotUnicode", english: "{path}: the path is not valid Unicode; rename the file and open it again." };
+pub const PATH_NOT_UNICODE_OPEN: PlatformText =
+    PlatformText { id: "open.pathNotUnicode", english: "{path}: the path is not valid Unicode; rename the file and open it again." };
 /// A path that isn't valid Unicode, when saving.
-pub const PATH_NOT_UNICODE_SAVE: OpenText =
-    OpenText { id: "open.pathNotUnicodeSave", english: "{path}: the path is not valid Unicode; save under another name." };
+pub const PATH_NOT_UNICODE_SAVE: PlatformText =
+    PlatformText { id: "open.pathNotUnicodeSave", english: "{path}: the path is not valid Unicode; save under another name." };
 /// [`reveal`] of a file that was moved or deleted.
-pub const FILE_GONE: OpenText = OpenText { id: "open.fileGone", english: "The file no longer exists" };
+pub const FILE_GONE: PlatformText = PlatformText { id: "open.fileGone", english: "The file no longer exists" };
 /// [`reveal`] when no file manager answered.
-pub const REVEAL_FAILED: OpenText = OpenText { id: "open.revealFailed", english: "Could not reveal the file in the system file manager" };
+pub const REVEAL_FAILED: PlatformText = PlatformText { id: "open.revealFailed", english: "Could not reveal the file in the system file manager" };
 
 /// Where files dropped on the window land. winit's drops carry no position, so the app finds it
 /// from the pointer (PhotoCraft asks the OS while files hover); unknown counts as

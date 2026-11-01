@@ -24,7 +24,7 @@
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
-use craft_host::{FileFilter, Files, PickAnswer, PickId};
+use craft_host::{FileFilter, Files, PickId};
 use craft_platform::PlatformText;
 use craft_platform::watch::FileWatch;
 
@@ -61,7 +61,8 @@ pub struct SaveDocument<D> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[must_use = "a save step needs its answer"]
 pub enum SaveStep<D> {
-    /// The save picker is open; the answer comes from [`SaveFlow::take_pick`] on a later pass.
+    /// The save picker is open; [`SaveFlow::take_pick`] gives the next step once the user has
+    /// answered it (the native panel answers after the pass that opened it).
     Picking,
     /// `path` is the document's own file and another app changed it: ask, then answer with
     /// [`SaveFlow::replace`], [`SaveFlow::save_elsewhere`] or [`SaveFlow::cancel`].
@@ -126,19 +127,13 @@ impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
         todo!()
     }
 
-    /// The picker's answer, when it is this flow's: the next step (the changed-on-disk check
-    /// when the picked path is the document's own file, else [`SaveStep::Write`]; a cancelled
-    /// pick is [`SaveStep::Cancelled`]). An answer to another ticket goes back to `files` with
-    /// `return_pick` and this returns `None`.
+    /// The picker's answer, once it has come ([`Files::take_answer`] of the flow's own ticket;
+    /// other features' answers stay where they are): the changed-on-disk check when the picked
+    /// path is the document's own file, else [`SaveStep::Write`]; a cancelled pick is
+    /// [`SaveStep::Cancelled`]. `None` while the picker is still open or when no pick is pending.
+    /// Call it every pass while [`is_busy`](Self::is_busy).
     // pc: crates/ui-egui/src/app/files.rs:205 pick_save continuation
     pub fn take_pick(&mut self, files: &dyn Files, watch: &FileWatch<D>) -> Option<SaveStep<D>> {
-        todo!()
-    }
-
-    /// An answer the app took from the file service itself (it reads `take_pick` in one place
-    /// for every feature): the next step, or `None` when it isn't this flow's ticket (the answer
-    /// stays the caller's).
-    pub fn answer_pick(&mut self, answer: &PickAnswer, watch: &FileWatch<D>) -> Option<SaveStep<D>> {
         todo!()
     }
 
@@ -156,8 +151,10 @@ impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
     }
 
     /// Cancels the save in progress: [`SaveStep::Cancelled`] for its document; `None` when
-    /// nothing was running.
-    pub fn cancel(&mut self) -> Option<SaveStep<D>> {
+    /// nothing was running. A pending pick's ticket is dropped with [`Files::forget`], so its
+    /// answer never reaches another save. The app calls it when the changed-on-disk question
+    /// or a format options dialog is cancelled, and when the document closes mid-save.
+    pub fn cancel(&mut self, files: &dyn Files) -> Option<SaveStep<D>> {
         todo!()
     }
 

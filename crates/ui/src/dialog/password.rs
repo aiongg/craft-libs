@@ -110,6 +110,17 @@ impl PasswordAnswer {
     pub fn tag<T: Any>(&self) -> Option<&T> {
         self.tag.as_deref()?.downcast_ref()
     }
+
+    /// Takes the tag out, as `PromptAnswer::take_tag` does; `None` when it isn't a `T` (it stays).
+    pub fn take_tag<T: Any>(&mut self) -> Option<T> {
+        match self.tag.take()?.downcast::<T>() {
+            Ok(tag) => Some(*tag),
+            Err(other) => {
+                self.tag = Some(other);
+                None
+            }
+        }
+    }
 }
 
 impl fmt::Debug for PasswordAnswer {

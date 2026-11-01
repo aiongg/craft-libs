@@ -1,4 +1,4 @@
-//! `NewGuideDialog`, `GuideLayoutDialog` and `GuideLayout::lines`.
+//! `NewGuideDialog`, `GuideLayoutDialog` and `GuideLayoutOptions::lines`.
 #![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 // New Guide opens with the remembered orientation, colour and position in the current ruler unit;
@@ -11,7 +11,8 @@ fn new_guide_reads_any_unit_and_opens_with_the_last_guide() {
 }
 
 // Edit Selected Guides opens on the guide's orientation, position and colour; color_changed is
-// false until the colour list changes; Custom… sets wants_color and set_custom_color answers it.
+// false until the colour list changes; Custom… gives one ColorRequest keyed NEW_GUIDE_COLOR_KEY
+// in that pass, set_color answers it and cancel_color restores the colour before Custom….
 #[test]
 #[ignore = "skeleton"]
 fn edit_selected_guides_reports_only_a_changed_colour() {
@@ -30,7 +31,8 @@ fn layout_lines_match_photocraft() {
 
 // Preview gives the full set while valid, keeps the last valid set while a field is invalid, and
 // is None with Preview off; a typed edit turns a named preset to Custom, a target change doesn't;
-// Alt+Cancel resets to the default layout.
+// Alt+Cancel resets to the default layout; the swatch gives one ColorRequest keyed
+// GUIDE_LAYOUT_COLOR_KEY and set_color recolours the preview in the same pass.
 #[test]
 #[ignore = "skeleton"]
 fn layout_dialog_previews_live_and_tracks_the_preset() {

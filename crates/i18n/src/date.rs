@@ -1,14 +1,15 @@
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-//! Dates and times written for a formatting [`Region`] (N11.02), relative times in the
-//! interface language, and fixed UTC stamps for logs and file names.
+//! Dates and times written for a formatting [`Region`] (N11.02), and fixed UTC stamps for logs
+//! and file names.
 //!
 //! - [`DateFormat`]: dates, times, month and weekday names and the first day of the week in the
 //!   region's time locale ([`Region::time`]) and clock ([`Region::hour_cycle`]), from CLDR data
 //!   (ICU4X `icu_datetime`, data in `data/dates.postcard` from `data/generate.sh`). Build it once
 //!   per region and keep it; [`I18n::dates`] holds one, as [`I18n::format`] does for numbers.
-//! - [`I18n::relative_time`]: "Just now", "3 minutes ago", "Yesterday", "4 days ago", then the
-//!   date. The words are catalog rows in context `time` (plural rows `@plural`), so they follow
-//!   the interface language while the date follows the region.
+//! - Relative times ("3 minutes ago", "Yesterday", then the date) are craft-ui's
+//!   (`localized::relative_age`, `localized::relative_date`): their words are craft-ui word rows,
+//!   so they follow the interface language and the catalog extraction finds them, while the date
+//!   they fall back to comes from [`DateFormat`] and follows the region.
 //! - [`utc_stamp`]: `2026-10-08 14:05` (UTC), the same in every language: render-queue logs,
 //!   export file names, report headers.
 //!
@@ -18,10 +19,7 @@
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use crate::{I18n, Lang, Region};
-
-/// The context relative-time rows are in.
-const CONTEXT: &str = "time";
+use crate::{I18n, Region};
 
 /// A day of the Gregorian calendar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -230,30 +228,7 @@ impl DateFormat {
     }
 }
 
-/// How [`I18n::relative_time`] words its steps.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum RelativeStyle {
-    /// "Just now", "3 minutes ago", "2 hours ago", "Yesterday", "4 days ago" (EffectCraft's Home,
-    /// the recovery dialog).
-    #[default]
-    Long,
-    /// "just now", "3 min ago", "2 h ago", "yesterday", "4 days ago", for narrow columns
-    /// (PdfCraft's file list).
-    Short,
-}
-
 impl I18n {
-    /// How long before `now` the moment `then` was (both Unix seconds), in `lang`: under 60 s
-    /// (or in the future) "Just now"; under an hour whole minutes; under a day whole hours;
-    /// under two days "Yesterday"; under a week whole days; after that the date
-    /// ([`DateStyle::DATE`] on the local clock) from [`I18n::dates`]. EffectCraft's and PdfCraft's
-    /// steps. Counts use the catalog's plural forms (`{n} minute ago|{n} minutes ago`).
-    // effectcraft: crates/ui-egui/src/panels/home.rs:100 format_ago
-    // pdfcraft: crates/ui-egui/src/workflows/combine_ui/parts.rs:248 ago
-    pub fn relative_time(&self, lang: Lang, now: i64, then: i64, style: RelativeStyle) -> String {
-        todo!()
-    }
-
     /// How dates are written: [`Region::system`]'s until [`I18n::set_dates`], and again after
     /// [`I18n::reset_dates`].
     // new: the counterpart of I18n::format for numbers
@@ -298,14 +273,6 @@ mod tests {
     #[test]
     #[ignore = "skeleton"]
     fn dates_follow_the_region() {
-        todo!()
-    }
-
-    // 30 s "Just now", 61 s "1 minute ago", 7200 s "2 hours ago", 100 000 s "Yesterday",
-    // 3 days "3 days ago", 8 days the date; Short writes "3 min ago"; a French catalog row is used.
-    #[test]
-    #[ignore = "skeleton"]
-    fn relative_times_step_like_the_apps() {
         todo!()
     }
 

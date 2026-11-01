@@ -142,8 +142,9 @@ pub use footer::{DialogLabels, Footer, FooterFx, Reset};
 pub use frame::{DialogFrame, DialogFrameResponse, DialogFrameStyle};
 pub use full_window::{FullWindowDialog, FullWindowFx};
 pub use guides::{
-    GuideAxis, GuideColor, GuideLayout, GuideLayoutDialog, GuideLayoutError, GuideLayoutLines, GuideLayoutPreset, GuideLayoutResult, GuideLines,
-    GuidePreview, GuideRect, GuideTarget, GuideUnits, GuidesLabels, NewGuide, NewGuideDialog,
+    GUIDE_LAYOUT_COLOR_KEY, GuideAxis, GuideColor, GuideLayoutDialog, GuideLayoutError, GuideLayoutLines, GuideLayoutOptions, GuideLayoutPreset,
+    GuideLayoutResult, GuideLines, GuidePreview, GuideRect, GuideTarget, GuideUnits, GuidesLabels, NEW_GUIDE_COLOR_KEY, NewGuideDialog,
+    NewGuideOptions,
 };
 pub use history::{LocalHistory, Step, take_step};
 pub use keys::{EnterRule, KeyInput, resolve_keys};

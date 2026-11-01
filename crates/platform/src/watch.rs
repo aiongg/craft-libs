@@ -13,7 +13,8 @@
 //! and shows [`FILE_CHANGED_UNSAVED`] over one with unsaved changes; PhotoCraft does not watch
 //! and asks at Save time instead ([`FileWatch::disk_differs`], `craft_dialogs::save`).
 //!
-//! No egui: the worker calls the app's `wake` (its `request_repaint`).
+//! No egui: the worker calls the app's [`Wake`] when it finds a change, so the app runs a frame
+//! that reads it with [`FileWatch::take_changes`].
 
 use std::collections::HashMap;
 use std::fs::Metadata;
@@ -22,6 +23,8 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
+
+use craft_host::Wake;
 
 use crate::PlatformText;
 
@@ -118,7 +121,7 @@ type WatchEntry<K> = (K, PathBuf, Option<FileStamp>, u64);
 /// The app's side of the watcher, on the UI thread.
 ///
 /// ```ignore
-/// let mut watch = FileWatch::new(Arc::new(move || ctx.request_repaint()))
+/// let mut watch = FileWatch::new(Wake::new(move || ctx.request_repaint()))
 ///     .read(ReadPolicy::Whole { tail: 1024, complete: Arc::new(|tail| tail.windows(5).any(|w| w == b"%%EOF")) });
 /// // Each frame: the open documents that have a file (while the preference is on).
 /// watch.set(docs.iter().filter_map(|d| Some((d.id, d.path.clone()?))));
@@ -129,7 +132,7 @@ type WatchEntry<K> = (K, PathBuf, Option<FileStamp>, u64);
 /// watch.known_now(doc.id, &path);
 /// ```
 pub struct FileWatch<K> {
-    wake: Arc<dyn Fn() + Send + Sync>,
+    wake: Wake,
     policy: ReadPolicy,
     /// `None` until a file is watched; dropped to stop the worker.
     inbox: Option<Sender<Vec<WatchEntry<K>>>>,
@@ -146,8 +149,9 @@ pub struct FileWatch<K> {
 
 impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
     /// A watcher that reports changes by stamp only ([`ReadPolicy::Stamp`]). `wake` runs on the
-    /// worker when a change is found.
-    pub fn new(wake: Arc<dyn Fn() + Send + Sync>) -> Self {
+    /// worker when a change is found. An app that only asks [`disk_differs`](Self::disk_differs)
+    /// and never calls [`set`](Self::set) passes [`Wake::none`]: no worker starts.
+    pub fn new(wake: Wake) -> Self {
         Self {
             wake,
             policy: ReadPolicy::Stamp,

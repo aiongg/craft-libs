@@ -123,8 +123,10 @@ pub struct ListChoice {
 /// names containing the text (folded, as `craft_i18n::Folder` folds). Keys: Up and Down move the
 /// selection while the box or the list has focus, Enter runs the first action when enabled,
 /// Delete in the list presses Delete, Esc cancels. Double-clicking a row runs the first action.
-/// The list is a list box with one Tab stop; its rows are AccessKit list items with the detail
-/// in their description.
+/// The name box claims Up, Down and Enter ([`KeyClaim`](crate::behavior::KeyClaim)), so the app's
+/// shortcuts never take them while it has focus. The list is the library's
+/// [`List`](crate::list::List) with [`ListRow`](crate::list::ListRow)s (single selection, one Tab
+/// stop, the list keys); its rows are AccessKit list items with the detail in their description.
 ///
 /// The app replaces the rows while the dialog is open (a script deleted) with
 /// `dialogs.get_mut::<ListManagerDialog>().map(|d| d.set_entries(rows))`.

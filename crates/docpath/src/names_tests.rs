@@ -17,7 +17,7 @@ fn stems_drop_the_extension_the_app_adds() {
     todo!()
 }
 
-// "a.txt", "a 2.txt" taken: Space gives "a 3.txt", Parenthesised "a (2).txt" when only "a.txt"
+// "a.txt", "a 2.txt" taken: Space gives "a 3.txt", Parenthesized "a (2).txt" when only "a.txt"
 // is taken; "photo 2.jpg" counts on to "photo 3.jpg"; a name with no extension numbers its end.
 #[test]
 #[ignore = "skeleton"]
