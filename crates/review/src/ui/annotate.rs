@@ -55,7 +55,11 @@ pub type TextQuads = Box<dyn Fn(kurbo::Point, kurbo::Point) -> Vec<[kurbo::Point
 ///   the composer. Markup kinds select page text through the app's text hit test
 ///   ([`text_quads`](Self::text_quads)) and report the quads.
 /// - Eraser: a drag reports `Erase` for the Ink strokes it crosses.
-/// - Keys: Delete removes the selection, arrows nudge it one point (Shift: ten) as `Set`s.
+/// - Keys: Delete removes the selection, arrows nudge it through
+///   [`behavior::nudge`](craft_ui::behavior::nudge) (one point, Shift ten) as `Set`s.
+/// - A double-click (from [`ToolPointer::clicks`](craft_ui::canvas::ToolPointer)) on a note or
+///   text box opens its text for editing; the app's page text and selection reach the tool in
+///   [`CanvasTool::each_pass`](craft_ui::canvas::CanvasTool::each_pass) through the public fields.
 /// - Locked annotations are selected but never moved.
 pub struct AnnotateTool {
     pub tool: AnnotationTool,
@@ -118,7 +122,8 @@ impl CanvasTool for AnnotateTool {
 /// Draws a page's annotations over it: markups as translucent quads (highlight at the
 /// annotation's opacity, lines for underline and strike-out, a wave for squiggly), shapes and ink
 /// with their stroke, notes as their icon, text boxes with their text, and the handles of the
-/// selected ones (8-point squares; points as circles). Not interactive (the tool is).
+/// selected ones through the kernel's [`Handle`](craft_ui::primitives::Handle) (`handle.*`
+/// tokens: squares, points as circles). Not interactive (the tool is).
 pub struct AnnotationOverlay<'a> {
     annotations: &'a [Annotation],
     selected: &'a [AnnotationId],

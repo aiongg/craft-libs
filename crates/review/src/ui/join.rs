@@ -4,7 +4,7 @@
 
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
-use crate::collab::CollabTransport;
+use crate::collab::{CollabRequest, CollabTransport};
 
 craft_ui::words! {
     /// The field's words, English by default (FigCraft's).
@@ -26,21 +26,21 @@ craft_ui::words! {
 /// Try Again.
 pub struct JoinField<'a> {
     id_salt: IdSalt,
-    transport: &'a mut dyn CollabTransport,
+    transport: &'a dyn CollabTransport,
     typed: &'a mut String,
-    width: f32,
+    width: Option<f32>,
     focus: bool,
     labels: Option<JoinLabels>,
 }
 
 impl<'a> JoinField<'a> {
-    pub fn new(id_salt: impl AsIdSalt, transport: &'a mut dyn CollabTransport, typed: &'a mut String) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), transport, typed, width: 196.0, focus: false, labels: None }
+    pub fn new(id_salt: impl AsIdSalt, transport: &'a dyn CollabTransport, typed: &'a mut String) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), transport, typed, width: None, focus: false, labels: None }
     }
 
-    /// Width of the field (FigCraft's `JOIN_WIDTH`, 196 points).
+    /// Width of the field; `review.join_width` ([`ReviewStyle`](super::ReviewStyle)) by default.
     pub fn width(mut self, width: f32) -> Self {
-        self.width = width;
+        self.width = Some(width);
         self
     }
 
@@ -55,10 +55,19 @@ impl<'a> JoinField<'a> {
         self
     }
 
-    /// Calls the transport's `join` and `cancel_join`; `true` when a join started this pass.
+    /// Join, Cancel and Try Again come back as [`CollabRequest::Join`] and
+    /// [`CollabRequest::CancelJoin`]; the field reads the join's progress from
+    /// [`CollabTransport::join_state`].
     // figcraft: crates/ui-egui/src/live.rs:718 `join_field`, `:738` `start_join`, `:759`
     // `join_progress`, `:808` `retry_join`.
-    pub fn show(self, ui: &mut Ui) -> (Response, bool) {
+    pub fn show(self, ui: &mut Ui) -> JoinFieldOutput {
         todo!()
     }
+}
+
+/// What the join field did this pass.
+#[must_use]
+pub struct JoinFieldOutput {
+    pub response: Response,
+    pub requests: Vec<CollabRequest>,
 }

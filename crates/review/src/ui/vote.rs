@@ -4,7 +4,7 @@
 
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
-use crate::collab::CollabTransport;
+use crate::collab::{CollabRequest, CollabTransport};
 
 craft_ui::words! {
     /// The vote's words, English by default (FigCraft's).
@@ -31,13 +31,13 @@ craft_ui::words! {
 /// stops; the popover's fields too, Enter starts.
 pub struct VotePill<'a> {
     id_salt: IdSalt,
-    transport: &'a mut dyn CollabTransport,
+    transport: &'a dyn CollabTransport,
     editable: bool,
     labels: Option<VoteLabels>,
 }
 
 impl<'a> VotePill<'a> {
-    pub fn new(id_salt: impl AsIdSalt, transport: &'a mut dyn CollabTransport) -> Self {
+    pub fn new(id_salt: impl AsIdSalt, transport: &'a dyn CollabTransport) -> Self {
         Self { id_salt: IdSalt::new(id_salt), transport, editable: true, labels: None }
     }
 
@@ -51,10 +51,16 @@ impl<'a> VotePill<'a> {
         self
     }
 
-    /// Calls the transport's `start_vote` and `end_vote`; `true` in the bool when Results was
-    /// clicked (the app shows them).
-    // figcraft: crates/ui-egui/src/canvas/board_facilitate.rs:153 `vote_part`, `:185` `vote_popup`.
-    pub fn show(self, ui: &mut Ui) -> (Response, bool) {
+    /// Start vote, End vote and Results come back as [`CollabRequest`]s.
+    pub fn show(self, ui: &mut Ui) -> VotePillOutput {
         todo!()
     }
+}
+
+/// What the vote pill did this pass.
+#[must_use]
+pub struct VotePillOutput {
+    pub response: Response,
+    /// Start vote, End vote or Results, in order.
+    pub requests: Vec<CollabRequest>,
 }

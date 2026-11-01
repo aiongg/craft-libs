@@ -6,9 +6,6 @@
 pub const CHAT_HOLD_S: f64 = 5.0;
 /// Seconds it takes to fade out after that (`live.rs:77`).
 pub const CHAT_FADE_S: f64 = 1.0;
-/// The bubble's width in points (`live.rs:79`).
-pub const CHAT_WIDTH: f32 = 220.0;
-
 /// A cursor chat message and when it last changed (monotonic seconds).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CursorChat {

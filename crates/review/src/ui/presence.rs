@@ -4,7 +4,7 @@
 
 use egui::{AsIdSalt, Color32, IdSalt, Painter, Pos2, Rect, Response, Ui};
 
-use crate::collab::{CollabTransport, ParticipantId};
+use crate::collab::{CollabRequest, CollabTransport, ParticipantId};
 
 craft_ui::words! {
     /// The people bar's words, English by default (FigCraft's).
@@ -40,13 +40,13 @@ pub fn paint_pointer(painter: &Painter, tip: Pos2, fill: Color32) {
 /// by the person, Enter follows.
 pub struct PeopleBar<'a> {
     id_salt: IdSalt,
-    transport: &'a mut dyn CollabTransport,
+    transport: &'a dyn CollabTransport,
     following: Option<ParticipantId>,
     labels: Option<PresenceLabels>,
 }
 
 impl<'a> PeopleBar<'a> {
-    pub fn new(id_salt: impl AsIdSalt, transport: &'a mut dyn CollabTransport) -> Self {
+    pub fn new(id_salt: impl AsIdSalt, transport: &'a dyn CollabTransport) -> Self {
         Self { id_salt: IdSalt::new(id_salt), transport, following: None, labels: None }
     }
 
@@ -60,18 +60,20 @@ impl<'a> PeopleBar<'a> {
         self
     }
 
-    /// Calls the transport's `follow` and `spotlight`.
+    /// Follow and Spotlight come back as [`CollabRequest`]s.
     // figcraft: crates/ui-egui/src/live.rs:473 `people_bar`, `:569` `people_menu`, `:461`
     // `follow_frame`.
-    pub fn show(self, ui: &mut Ui) -> PeopleBarResponse {
+    pub fn show(self, ui: &mut Ui) -> PeopleBarOutput {
         todo!()
     }
 }
 
-pub struct PeopleBarResponse {
+/// What the people bar did this pass.
+#[must_use]
+pub struct PeopleBarOutput {
     pub response: Response,
-    /// Who is followed after this pass.
-    pub following: Option<ParticipantId>,
+    /// Follow and Spotlight, in order.
+    pub requests: Vec<CollabRequest>,
 }
 
 /// Other people's cursors over the canvas: a pointer and a name tag in their colour, gliding to

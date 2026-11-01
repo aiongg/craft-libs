@@ -102,13 +102,16 @@ pub enum CommentEdit {
 ///   the Sort by menu.
 /// - "Add a comment" box: Enter (Cmd+Enter in a multi-line draft) posts a sticky note.
 /// - Cards grouped by page under "Page N" headings (by [`sort_threads`](crate::comments::sort_threads)): an
-///   avatar with the kind's icon in the annotation colour, author, modified date (relative,
-///   `// needs: step5 craft_i18n::format`), the text; a status badge (Accepted: thumbs-up,
-///   green #2D9D5B; Rejected: thumbs-down, red #D32F2F; Cancelled: circle-x, grey #8E8E8E;
-///   Completed: check, green); the checkmark (a toggle on the selected card, a mark otherwise);
-///   a lock badge; replies under it, each with its own "…" (Edit, Copy text, Delete).
-/// - The selected card has the #0165DD accent bar, the reply box and "…" (Edit, Set status,
-///   Delete). Locked threads and `read_only` hide the editing items.
+///   avatar with the kind's icon in the annotation colour, author, modified date (relative
+///   under a week with [`relative_age`](craft_ui::localized::relative_age) in
+///   [`AgeStyle::Short`](craft_ui::localized::AgeStyle), then the date through craft-i18n's
+///   `I18n::dates()`, as `AGE_SHOWN_AS_DATE` describes), the text; a status badge (Accepted:
+///   thumbs-up; Rejected: thumbs-down; Cancelled: circle-x; Completed: check; colours
+///   `review.status_*` of [`ReviewStyle`](super::ReviewStyle)); the checkmark (a toggle on the
+///   selected card, a mark otherwise); a lock badge; replies under it, each with its own "…"
+///   ([`PressMenu`](craft_ui::menu::PressMenu): Edit, Copy text, Delete).
+/// - The selected card has the `review.card_accent` bar, the reply box and "…" (Edit, Set
+///   status, Delete). Locked threads and `read_only` hide the editing items.
 /// - Keyboard: Up / Down move between cards (selecting them), Enter focuses the reply box, Esc
 ///   leaves an inline edit; every button is a Tab stop. AccessKit: a list of cards, each named
 ///   by author and text.
@@ -141,7 +144,15 @@ impl<'a> CommentsPanel<'a> {
     // pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:115 `show`, `:311` `card`, `:541`
     // `inline_editor`, `:568` `reply_menu`, `:600` `avatar`, `:626` `header_controls`;
     // `tools/comments/menu.rs:368` `status_badge`; deckcraft: crates/ui-egui/src/panels/comments.rs:67.
-    pub fn show(self, ui: &mut Ui) -> (Response, Vec<CommentEdit>) {
+    pub fn show(self, ui: &mut Ui) -> CommentsPanelOutput {
         todo!()
     }
+}
+
+/// What the Comments panel did this pass.
+#[must_use]
+pub struct CommentsPanelOutput {
+    pub response: Response,
+    /// This pass's edits, in order.
+    pub edits: Vec<CommentEdit>,
 }

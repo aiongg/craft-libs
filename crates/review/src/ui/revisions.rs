@@ -22,10 +22,12 @@ craft_ui::words! {
 }
 
 /// PowerPoint's Compare pane (DeckCraft): "Compared with {name}" (and the by-position note),
-/// Accept All (n) and Reject All (n), then a card per change: a 4 × 16-point colour bar
-/// (inserted #2EA36F, deleted #D83F6B, changed #2E6FD8), the heading as a link (goes there),
-/// Accept and Reject at the right, up to eight detail lines with bullets. With no changes:
-/// "No differences left." and End Review. Every link and button is a Tab stop in reading order.
+/// Accept All (n) and Reject All (n), then a card per change: a colour bar
+/// (`review.revision_bar_*` in `review.revision_inserted`, `_deleted` or `_changed` of
+/// [`ReviewStyle`](super::ReviewStyle)), the heading as a [`Link`](craft_ui::controls::Link)
+/// (goes there), Accept and Reject at the right, up to eight detail lines with bullets. With no
+/// changes: "No differences left." and End Review. Every link and button is a Tab stop in reading
+/// order; counts through [`Counted`](craft_ui::localized::words::Counted) words.
 pub struct RevisionsPanel<'a> {
     id_salt: IdSalt,
     compared_with: &'a str,
@@ -51,7 +53,14 @@ impl<'a> RevisionsPanel<'a> {
     }
 
     // deckcraft: crates/ui-egui/src/panels/comments.rs:5 `revisions`.
-    pub fn show(self, ui: &mut Ui) -> (Response, Option<RevisionAction>) {
+    pub fn show(self, ui: &mut Ui) -> RevisionsPanelOutput {
         todo!()
     }
+}
+
+/// What the Revisions panel did this pass.
+#[must_use]
+pub struct RevisionsPanelOutput {
+    pub response: Response,
+    pub action: Option<RevisionAction>,
 }

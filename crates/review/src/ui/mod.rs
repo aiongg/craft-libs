@@ -9,6 +9,7 @@
 //! - [`signature`] has the [`SignaturePadDialog`] and [`paint_signature`].
 //! - [`versions`] has the [`VersionHistoryPanel`] and the [`VersionPreviewBanner`].
 //! - [`revisions`] has the [`RevisionsPanel`].
+//! - [`style`] has [`ReviewStyle`], every size the widgets read (`review.*` tokens).
 //! - Collaboration: [`presence`] ([`PeopleBar`], [`RemoteCursors`]), [`vote`] ([`VotePill`]),
 //!   [`chat`] ([`CursorChatBox`]) and [`join`] ([`JoinField`]).
 
@@ -16,6 +17,7 @@ pub mod annotate;
 pub mod comments;
 pub mod revisions;
 pub mod signature;
+pub mod style;
 pub mod thread;
 pub mod versions;
 
@@ -42,18 +44,20 @@ mod thread_tests;
 mod versions_tests;
 
 pub use annotate::{AnnotateLabels, AnnotateTool, AnnotationOverlay, AnnotationToolbar};
-pub use comments::{CommentEdit, CommentsLabels, CommentsPanel, CommentsPanelState};
-pub use revisions::{RevisionsLabels, RevisionsPanel};
+pub use comments::{CommentEdit, CommentsLabels, CommentsPanel, CommentsPanelOutput, CommentsPanelState};
+pub use revisions::{RevisionsLabels, RevisionsPanel, RevisionsPanelOutput};
 pub use signature::{SignatureLabels, SignaturePadDialog, SignatureSettings, paint_signature};
+pub use style::ReviewStyle;
 pub use thread::{
-    CommentComposer, CommentPins, PinCluster, REACTIONS, ThreadLabels, ThreadPopover, cluster, insert_mention, mention_matches, mention_query,
+    CommentComposer, CommentComposerResponse, CommentPins, CommentPinsOutput, PinCluster, PinMove, REACTIONS, ThreadLabels, ThreadPopover,
+    ThreadPopoverOutput, cluster, insert_mention, mention_matches, mention_query,
 };
-pub use versions::{VersionAction, VersionHistoryPanel, VersionPreviewBanner, VersionsLabels};
+pub use versions::{VersionAction, VersionHistoryPanel, VersionHistoryPanelOutput, VersionPreviewBanner, VersionsLabels};
 
-pub use chat::{CursorChatBox, paint_chat_bubble};
-pub use join::{JoinField, JoinLabels};
-pub use presence::{PeopleBar, PeopleBarResponse, PresenceLabels, RemoteCursors, paint_avatar, paint_pointer};
-pub use vote::{VoteLabels, VotePill};
+pub use chat::{CursorChatBox, CursorChatBoxOutput, paint_chat_bubble};
+pub use join::{JoinField, JoinFieldOutput, JoinLabels};
+pub use presence::{PeopleBar, PeopleBarOutput, PresenceLabels, RemoteCursors, paint_avatar, paint_pointer};
+pub use vote::{VoteLabels, VotePill, VotePillOutput};
 
 use craft_ui::localized::{Labels, Word};
 

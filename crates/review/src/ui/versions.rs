@@ -61,11 +61,16 @@ pub enum VersionAction {
 /// Figma's Version history panel in the left sidebar (FigCraft): the branches above (create,
 /// open, review and merge, archive), then Current version, then the history newest first
 /// ([`history_rows`](crate::versions::history_rows)) on a timeline line with a dot per row (the
-/// current one filled), each named version with its title, date and author (relative dates,
-/// `// needs: step5 craft_i18n::format`), autosave runs collapsed; per-row "…" with Restore,
-/// Rename (inline), Duplicate and Delete (an inline confirm). Save version opens an inline form
-/// (Title, Description; Enter saves, Esc cancels). Up / Down move between rows, Enter previews,
-/// every button is a Tab stop.
+/// current one filled), each named version with its title, date and author (relative under a
+/// week with [`relative_age`](craft_ui::localized::relative_age), then the date through
+/// craft-i18n's `I18n::dates()`), autosave runs collapsed; per-row "…" with Restore, Rename,
+/// Duplicate and Delete (an inline confirm). The history is the kernel's
+/// [`List`](craft_ui::list::List) of [`ListRow`](craft_ui::list::ListRow)s (title and the date and
+/// author as the detail line; the dot column painted in the row's leading slot at
+/// `review.version_dot_x`, text from `review.version_text_x`): one Tab stop, Up / Down move,
+/// Enter previews, F2 or Rename renames in place (`List::start_rename`), autosave groups are
+/// tree rows that open and close. Save version opens an inline form (Title, Description; Enter
+/// saves, Esc cancels). The branch and footer buttons are Tab stops.
 pub struct VersionHistoryPanel<'a> {
     id_salt: IdSalt,
     versions: &'a [Version],
@@ -92,9 +97,16 @@ impl<'a> VersionHistoryPanel<'a> {
     // figcraft: crates/ui-egui/src/panels/versions.rs:111 `panel`, `:317` `form`, `:374`
     // `timeline`, `:393` `current_row`, `:408` `version_row`, `:471` `branch_row`, `:557`
     // `autosave_group`, `:582` `confirm_row`.
-    pub fn show(self, ui: &mut Ui) -> (Response, Option<VersionAction>) {
+    pub fn show(self, ui: &mut Ui) -> VersionHistoryPanelOutput {
         todo!()
     }
+}
+
+/// What the Version history panel did this pass.
+#[must_use]
+pub struct VersionHistoryPanelOutput {
+    pub response: Response,
+    pub action: Option<VersionAction>,
 }
 
 /// The banner over the canvas while a version is previewed: "You're viewing {title}", Restore

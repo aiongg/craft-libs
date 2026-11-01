@@ -2,6 +2,7 @@
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
+use craft_ui::edit::EditEvent;
 use egui::{AsIdSalt, IdSalt, Pos2, Rect, Response, Ui};
 
 use super::comments::CommentEdit;
@@ -67,11 +68,14 @@ pub fn insert_mention(text: &mut String, range: (usize, usize), name: &str) -> u
     todo!()
 }
 
-/// Comment pins over a canvas (FigCraft): a 28-point pin per thread (the author's avatar in a
-/// speech-bubble shape with a square bottom-left corner), pins within 24 points gathered into a
-/// cluster showing the count; a click on a pin opens its thread, on a cluster zooms or lists it.
-/// Your own pin can be dragged (after 3 points) to another spot, reported as a move. Resolved
-/// threads are hidden unless shown. Each pin is a Tab stop in reading order, Enter opens it.
+/// Comment pins over a canvas (Figma's, as FigCraft draws them): a `review.pin` pin per thread
+/// ([`ReviewStyle`](super::ReviewStyle); the author's avatar in a speech-bubble shape with a
+/// square bottom-left corner), pins within `review.cluster_radius` gathered into a cluster
+/// showing the count; a click on a pin opens its thread, on a cluster zooms or lists it. Your own
+/// pin can be dragged (past egui's drag threshold) to another spot, reported as a
+/// [`PinMove`] gesture (Esc cancels). Resolved threads are hidden unless shown. Each pin is a
+/// Tab stop in reading order, Enter opens it; AccessKit `Button`s named by author and the
+/// thread's first words.
 pub struct CommentPins<'a> {
     id_salt: IdSalt,
     pins: &'a [(ThreadId, Pos2, &'a str)],
@@ -93,12 +97,30 @@ impl<'a> CommentPins<'a> {
 
     // figcraft: crates/ui-egui/src/canvas/comments.rs:242 `pins`, `:352` `paint_pin`, `:370`
     // `paint_cluster`, `:385` `draw`, `:419` `input`, `:119` `PinDrag`.
-    pub fn show(self, ui: &mut Ui) -> (Response, Option<ThreadId>, Option<(ThreadId, Pos2)>) {
+    pub fn show(self, ui: &mut Ui) -> CommentPinsOutput {
         todo!()
     }
 }
 
-/// The thread popover next to a pin (300 points wide): messages with avatar, author, age and
+/// A pin dragged to a new screen point; the app maps it to its anchor.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PinMove {
+    pub thread: ThreadId,
+    pub to: Pos2,
+}
+
+/// What the pins did this pass.
+#[must_use]
+pub struct CommentPinsOutput {
+    pub response: Response,
+    /// The thread whose pin or cluster entry was clicked.
+    pub opened: Option<ThreadId>,
+    /// A drag of your own pin, as one gesture.
+    pub moved: Option<EditEvent<PinMove>>,
+}
+
+/// The thread popover next to a pin (`review.popover_width` wide), on the kernel's
+/// [`Popover`](craft_ui::popover): messages with avatar, author, age and
 /// text (@mentions in the accent), reactions under each (click to toggle yours), your messages'
 /// Edit and Delete, the thread's Resolve / Reopen, Copy link and Mark as unread, and the reply
 /// composer at the bottom with @mention completion (up to six rows; Up / Down pick, Enter or Tab
@@ -124,12 +146,20 @@ impl<'a> ThreadPopover<'a> {
         self
     }
 
-    /// The edits, and whether it closed this pass.
     // figcraft: crates/ui-egui/src/canvas/comments.rs:497 `composer`, `:601` `Act`, the popover
     // after it.
-    pub fn show(self, ui: &mut Ui) -> (Vec<CommentEdit>, bool) {
+    pub fn show(self, ui: &mut Ui) -> ThreadPopoverOutput {
         todo!()
     }
+}
+
+/// What the thread popover did this pass.
+#[must_use]
+pub struct ThreadPopoverOutput {
+    /// This pass's edits, in order.
+    pub edits: Vec<CommentEdit>,
+    /// It closed this pass (Esc, a click outside).
+    pub closed: bool,
 }
 
 /// The floating composer card for a new comment at a point (PdfCraft's new note / text box,
@@ -147,9 +177,17 @@ impl<'a> CommentComposer<'a> {
         Self { id_salt: IdSalt::new(id_salt), anchor, draft, labels: None }
     }
 
-    /// `Some(text)` on Post, `None` otherwise; the bool is true when it closed (Post or Cancel).
     // pdfcraft: crates/ui-egui/src/tools/comments/composer.rs:9 `composer`.
-    pub fn show(self, ui: &mut Ui) -> (Option<String>, bool) {
+    pub fn show(self, ui: &mut Ui) -> CommentComposerResponse {
         todo!()
     }
+}
+
+/// What the composer did this pass.
+#[must_use]
+pub struct CommentComposerResponse {
+    /// The text on Post.
+    pub posted: Option<String>,
+    /// It closed this pass (Post or Cancel).
+    pub closed: bool,
 }
