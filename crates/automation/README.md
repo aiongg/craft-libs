@@ -5,7 +5,7 @@ Drive a running Craft app from tests, agents and the CLI, and record and play ac
 | Module | What it gives the app |
 | --- | --- |
 | `actions` | Recorded actions (every target): `ActionList` of `Action`s and `ActionStep`s, `ActionsFile`, playback with `ActionPlayer` and `ActionRunner` under a `PlaybackBudget`, and `Recording`. The app keeps the command table. |
-| `ui::actions` | `ActionsPanel` (every target): sets, actions and steps as a tree, include and dialog cells, rename, drag to move, Button Mode, the footer and the menus. It runs nothing; it reports `ActionsEvent`s. `ActionsLabels` and `COUNTS` hold its words. |
+| `ui::actions` | `ActionsPanel` (every target): sets, actions and steps as a tree, include and dialog cells, rename (`start_rename`), drag to move, Button Mode, the footer and the menus (`panel_menu` and `run_command`). It runs nothing; it reports `ActionsEvent`s. `ActionsPanelState` holds its view state. `ActionsLabels` and `COUNTS` hold its words. |
 | `args` | `ControlOptions`: the `--control <PORT>`, `--control-token`, `--control-token-file` values and their `<APP>_CONTROL_*` environment fallbacks, checked the way the apps' command lines report them (usage errors exit 2). |
 | `security` | Tokens (`generate_token`, `validate_token`, `server_token`, `client_token`), the `auth` handshake, bounded line reads, connection and request limits. |
 | `protocol` | The JSON-lines wire format: one `{"id", "method", "params"}` request per line, one `{"id", "ok", "result" | "error"}` reply per line; `Params` validators that name the bad parameter. |

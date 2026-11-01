@@ -8,7 +8,7 @@ With the `ui` feature, `craft_imaging::ui` has:
 
 - the `WarpGrid` (a warp's mesh on a canvas, with `WarpMesh`, `WarpEdit` and the press and release helpers);
 - the `LevelsEditor` (a channel's `Levels` over its histogram);
-- the `ChannelsPanel` (thumbnails, eyes, selection, rename, drag, the footer and the menus over plain `ChannelRow`s);
+- the `ChannelsPanel` (thumbnails, eyes, selection, rename in place with `start_rename`, drag, the footer (`ChannelsEvent::Footer` and `FooterDrop`) and the menus over plain `ChannelRow`s; `ChannelsPanel::style(&UiTokens)` gives the look);
 - the `ScopePanel` (histogram, statistics, tone zones and vectorscope) and the `ClippingOverlay` for a preview;
 - their stories and words (`craft_imaging::ui::stories()`, `craft_imaging::ui::WORDS`).
 

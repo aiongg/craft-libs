@@ -126,7 +126,7 @@ impl Family for PresetTokens {
             picker_wide_height: p.picker_wide_height,
             name_width: p.name_width,
             popup_max_height: p.popup_max_height,
-            footer_room: s.space.gap.inline,
+            footer_room: p.footer_room,
             thumb_list_min: values::PRESET_THUMB_LIST_MIN,
             thumb_list_max: values::PRESET_THUMB_LIST_MAX,
             ghost_thumb: values::PRESET_GHOST_THUMB,

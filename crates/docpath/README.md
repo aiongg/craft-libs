@@ -6,7 +6,8 @@ makes safe file names from user text. No dependencies beyond the standard librar
 | Item | Responsibility |
 | --- | --- |
 | `classify`, `is_local`, `resolve`, `resolve_absolute` | A lexical check of a stored path: local files, and files on the share the document came from, are followed; other computers, device paths and non-file URLs are refused (`PathKind`, `Refused`). It does no I/O and gives the same answer on every platform apart from colons. |
-| `names` | File names made from user text: a document title as the suggested name of an export, a page range as a set of file names, an attachment's stored name as a Save suggestion. The rules hold on every platform, so a name made on Linux also works on Windows. |
+| `links` | Linked files: `Link`, `LinkIdentity` and `LinkStatus`, `status` per link, `check_candidate` and `rank` for a file picked to replace a missing one, `derive_remap` and `Remap` to relink the others, `folder_matches`, and `LinkSearch` to search a folder tree as a job. File access goes only through `LinkFiles` (`SystemLinkFiles`; `FakeLinkFiles` in stories and tests). |
+| `names` | File names made from user text: a document title as the suggested name of an export, a page range as a set of file names, an attachment's stored name as a Save suggestion; `natural_cmp` is the order file names are listed in. The rules hold on every platform, so a name made on Linux also works on Windows. |
 
 ## Names
 

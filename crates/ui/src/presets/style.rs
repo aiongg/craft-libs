@@ -74,7 +74,7 @@ pub struct PresetStyle {
     pub name_width: f32,
     /// The greatest height of the picker's popup: `preset.popup_max_height`.
     pub popup_max_height: f32,
-    /// The gap between the browser's list and its own footer: `preset.footer_room`, which follows `space.gap.inline`.
+    /// The gap between the browser's list and its own footer: `preset.footer_room`.
     pub footer_room: f32,
     swatch: SwatchTokens,
 }

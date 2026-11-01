@@ -257,8 +257,8 @@ fn state_saved_with_the_removed_compare_fields_loads() {
 }
 
 /// Stories whose content has a width of its own and so cannot shrink to a narrow tile: pictures
-/// of a document or a window, rows of controls that do not wrap, event logs and floating
-/// layers. The tile's clip cuts them at the tile's edges.
+/// of a document or a window, rows of controls that do not wrap, event logs, floating layers and
+/// a panel shown at its least width. The tile's clip cuts them at the tile's edges.
 const FIXED_WIDTH: &[&str] = &[
     "controls/point-picker/picker",
     "specimens/icons/compare",
@@ -349,6 +349,8 @@ const FIXED_WIDTH: &[&str] = &[
     "composites/event-log/events",
     // A dialog drawn in place, with a canvas for the layout preview beside its fields.
     "patterns/dialog/guide-layout",
+    // The Layers panel at its least width: Comfortable rows with Large thumbnails need about 299 pt.
+    "composites/layers-panel/sizes",
 ];
 
 /// Stories that draw in layers of their own (dialogs, windows) and are placed on the screen, not
