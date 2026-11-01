@@ -55,5 +55,5 @@ a failing pin is kept and reported, with every component pair it makes fail; in 
 The `craft-theme check <file>... [--json]` binary parses and validates theme files and prints
 contrast warnings for every appearance. It exits 1 if any file has an error.
 
-Feature `serde` adds `Serialize`/`Deserialize` to the selection types and the enums they hold:
+The selection types and the enums they hold implement `Serialize`/`Deserialize`:
 colours as `"#rrggbb[aa]"`, ids as strings, enums in snake_case.

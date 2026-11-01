@@ -18,7 +18,7 @@ craft = { workspace = true, features = ["ui", "color", "draw", "imaging", "keyma
 
 - One feature per crate, named after the crate without `craft-`: `color` turns on `craft-color` and re-exports it as `craft::color`.
 - `ui` turns on `craft-ui` (`craft::ui`), re-exports `egui` (`craft::egui`, the egui the library is built with) and forwards `ui` to every enabled crate.
-- `screen-testing` implies `ui` and forwards to every enabled crate. `serde` forwards likewise.
+- `screen-testing` implies `ui` and forwards to every enabled crate.
 - Each crate feature is forwarded as `<crate>-<feature>` (`platform-appearance`, `text-hyphen`, `ui-window-frame`).
 - A crate whose `ui` needs another family's `ui` turns that family's feature on (`draw` turns on `color`).
 

@@ -642,7 +642,6 @@ fn float_rect_is_finite_and_inside_the_bounds() {
     assert_eq!(float_rect(None, bounds, min).size(), FLOAT_DEFAULT.min(bounds.size()));
 }
 
-#[cfg(feature = "serde")]
 #[test]
 /// A `PaneState` with a docked edge, size and float rect serializes to JSON and
 /// deserializes back unchanged.

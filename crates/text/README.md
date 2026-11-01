@@ -10,7 +10,7 @@ plain text and a language and return what layout needs before it shapes and plac
 | `bidi` | `bidi` (default) | Bidirectional text: embedding levels, line reordering, mirroring |
 | `linebreak` | `linebreak` (default) | Line breaking on a box/glue/penalty model |
 | `spell` | `spell` | Spelling with a bundled US English word list (SCOWL 50), suggestions and the user's words |
-| `quotes` | `quotes` | Smart quotes: typed straight quotes become the language's quotation marks |
+| `quotes` | always | Smart quotes: typed straight quotes become the language's quotation marks |
 | `ui::editor` | `ui` | `TextEditor` and `TextEditorTool`: the text editor on a canvas over a `TextEditorHost`; input methods through craft-ui's `Composer`. Caret and underline sizes are the `text_editor.*` tokens |
 | `ui::character` | `ui` | `CharacterControls` and `ParagraphControls`: Photoshop's Character and Paragraph panels |
 | `ui::style_panel` | `ui` | `TextStylesPanel`: the Character Styles and Paragraph Styles panels |

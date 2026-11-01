@@ -26,9 +26,8 @@ pub mod bidi;
 pub mod hyphen;
 #[cfg(feature = "linebreak")]
 pub mod linebreak;
-#[cfg(feature = "quotes")]
 pub mod quotes;
-#[cfg(all(test, feature = "quotes"))]
+#[cfg(test)]
 mod quotes_tests;
 #[cfg(feature = "segment")]
 pub mod segment;

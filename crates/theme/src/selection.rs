@@ -10,8 +10,8 @@ use super::theme::{Appearance, Contrast, Size, TextSize, ThemeDef, Variants};
 use crate::{AppId, ThemeId};
 
 /// Light, dark, or whatever the OS reports.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ModeChoice {
     Light,
     Dark,
@@ -20,8 +20,8 @@ pub enum ModeChoice {
 }
 
 /// Standard, high, or whatever the OS reports.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ContrastChoice {
     Standard,
     High,
@@ -31,8 +31,8 @@ pub enum ContrastChoice {
 }
 
 /// Motion as designed, reduced, or whatever the OS reports.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "snake_case"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MotionChoice {
     /// Motion as the theme designs it.
     Full,
@@ -56,8 +56,7 @@ impl MotionChoice {
 }
 
 /// A theme for each mode. Either slot may hold [`crate::APP_DEFAULT`].
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ThemePair {
     pub light: ThemeId,
     pub dark: ThemeId,
@@ -88,8 +87,7 @@ impl ThemePair {
 }
 
 /// What the user picked, every field concrete (after defaults are filled in).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct Selection {
     pub theme: ThemePair,
     pub mode: ModeChoice,
@@ -101,8 +99,8 @@ pub struct Selection {
 
 /// The suite's choice as `selection.json` holds it. Each field is set once a user picks it in
 /// some app; until then every app shows its own default for that field.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct SuiteChoice {
     pub theme_light: Option<ThemeId>,
     pub theme_dark: Option<ThemeId>,
@@ -177,8 +175,7 @@ pub struct AppDefaults {
 ///
 /// No `Default`: an app states what a fresh install and a legacy preference file each become, so
 /// a `#[serde(default)]` can't silently move existing users to the suite.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct AppChoice {
     pub theme: Option<ThemePair>,

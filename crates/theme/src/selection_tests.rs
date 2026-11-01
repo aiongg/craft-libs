@@ -157,7 +157,6 @@ fn single_variant_theme_in_the_other_slot_shows_its_own_variant() {
     assert_eq!(shown.notices, [Fallback::SystemSilent, Fallback::OnlyVariant(Mode::Dark)]);
 }
 
-#[cfg(feature = "serde")]
 #[test]
 fn serde_forms_round_trip() {
     let sel = Selection {
@@ -223,7 +222,6 @@ fn system_motion_follows_the_reading() {
 }
 
 /// `selection.json` files written before the motion choice have no such field.
-#[cfg(feature = "serde")]
 #[test]
 fn a_suite_choice_without_motion_still_parses() {
     let choice: SuiteChoice = serde_json::from_str(r#"{"mode":"dark","contrast":"high"}"#).unwrap();

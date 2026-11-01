@@ -16,35 +16,24 @@ dialogs = []
 appearance = ["dep:zbus", "dep:futures-lite", "dep:async-channel", "dep:async-io", "dep:async-process", "dep:web-sys"]
 browser = ["dep:wasm-bindgen", "dep:js-sys", "dep:web-sys"]
 ui = ["dep:egui"]
-theme = ["dep:craft-theme"]
 # Moving the system pointer (a scrub's screen-edge wrap).
 pointer = ["dep:core-graphics"]
-# `session`: the documents open at the last quit, stored with serde in the app's settings.
-session = ["dep:serde", "dep:serde_json"]
 # `usage`: the process's memory use.
 usage = ["dep:sysinfo"]
-# `clock`: the monotonic app clock tests can set by hand.
-clock = ["dep:web-time"]
 # `pacing`: frame-rate cap, window state and background work slices.
-pacing = ["clock", "dep:egui"]
-# `logs`: the app log file, the panic hook and its crash log.
-logs = ["clock", "dep:log", "dep:web-time"]
-# `open`: file intake, natural order, reveal in the file manager.
-open = ["dep:craft-host"]
-# `autosave`: the autosave timer and the recovery folder.
-autosave = ["dep:serde", "dep:serde_json", "dep:craft-atomic"]
+pacing = ["dep:egui"]
 # Screen capture for the screen colour picker (`craft_platform::screen`).
-screen = ["dep:craft-host", "dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", "dep:x11rb", "dep:core-graphics2", "dep:xcap"]
+screen = ["dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", "dep:x11rb", "dep:core-graphics2", "dep:xcap"]
 
 [dependencies]
 egui = { workspace = true, optional = true }
-craft-theme = { workspace = true, optional = true }
-log = { version = "0.4", optional = true }
-web-time = { version = "1.1", optional = true }
-craft-atomic = { workspace = true, optional = true }
-craft-host = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
+craft-theme = { workspace = true }
+log = "0.4"
+web-time = "1.1"
+craft-atomic = { workspace = true }
+craft-host = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))'.dependencies]
 zbus = { version = "5", default-features = false, features = ["async-io"], optional = true }

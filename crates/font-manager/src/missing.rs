@@ -119,8 +119,7 @@ pub struct MissingFontsResult {
 /// fonts opens or when the user picks Type › Manage Missing Fonts.
 ///
 /// A message with the count, then a table: Font (family and style, marked missing) and Replace
-/// With (a [`FontPicker`](crate::picker::FontPicker) per row when `font-picker` is on, else a
-/// `Select` of installed families), a Document Fonts expander listing every font with its status,
+/// With (a [`FontPicker`](crate::picker::FontPicker) per row), a Document Fonts expander listing every font with its status,
 /// and the footer Replace Fonts (default) / Don't Replace (Cancel). Tab walks the pickers; Enter
 /// is Replace Fonts. Result: [`MissingFontsResult`] on Replace; Cancel leaves the text on the
 /// default font with the names kept.
@@ -167,7 +166,6 @@ impl StackDialog for MissingFontsDialog {
         let missing = rows.iter().filter(|r| r.status == FontStatus::Missing).count();
         let message = Words::of_ctx(ctx).counted(ctx, MESSAGE, &labels.message, missing as u64);
         let footer = Footer::standard().ok(labels.replace.clone()).cancel(labels.dont_replace.clone());
-        let families = catalog.families();
         let shown = Dialog::new("missing-fonts", labels.title.clone()).stack(stack).width(Width::Wide).footer(footer).show(
             ctx,
             state,
@@ -180,7 +178,7 @@ impl StackDialog for MissingFontsDialog {
                     for (i, row) in rows.iter().enumerate().filter(|(_, r)| r.status == FontStatus::Missing) {
                         let name = font_name(&row.font);
                         form.row(craft_i18n::fmt(&labels.missing_font, &[("font", &name), ("status", &labels.missing)]).as_str(), |ui, _| {
-                            replacement_field(ui, catalog, &families, i, &mut replacements[i], default_family, &labels)
+                            replacement_field(ui, catalog, i, &mut replacements[i], default_family)
                         });
                     }
                 });
@@ -207,42 +205,14 @@ fn font_name(font: &DocumentFont) -> String {
     if font.style.is_empty() { font.family.clone() } else { format!("{} {}", font.family, font.style) }
 }
 
-/// The Replace With cell of row `i`: a font picker, or a `Select` of installed families without
-/// the `font-picker` feature.
-fn replacement_field(
-    ui: &mut Ui,
-    catalog: &Arc<Catalog>,
-    families: &Arc<[String]>,
-    i: usize,
-    chosen: &mut Option<String>,
-    default_family: &str,
-    labels: &MissingFontsLabels,
-) -> egui::Response {
+/// The Replace With cell of row `i`: a font picker.
+fn replacement_field(ui: &mut Ui, catalog: &Arc<Catalog>, i: usize, chosen: &mut Option<String>, default_family: &str) -> egui::Response {
     let mut current = chosen.clone().unwrap_or_else(|| default_family.to_owned());
-    #[cfg(feature = "font-picker")]
-    let response = {
-        let _ = (families, labels);
-        let out = crate::picker::FontPicker::new(("missing-fonts", i), catalog, &mut current).show(ui);
-        if let Some(picked) = out.picked {
-            *chosen = Some(picked);
-        }
-        out.response
-    };
-    #[cfg(not(feature = "font-picker"))]
-    let response = {
-        let _ = catalog;
-        let list = Arc::clone(families);
-        let value = Arc::clone(families);
-        let edit = craft_ui::controls::Select::new(("missing-fonts-select", i), labels.replace_with.clone(), &mut current)
-            .rows(families.len(), move |k| value[k].clone(), move |k| list[k].clone())
-            .placeholder(labels.default_replacement.clone())
-            .show(ui);
-        if edit.event.is_some() {
-            *chosen = Some(current);
-        }
-        edit.response
-    };
-    response
+    let out = crate::picker::FontPicker::new(("missing-fonts", i), catalog, &mut current).show(ui);
+    if let Some(picked) = out.picked {
+        *chosen = Some(picked);
+    }
+    out.response
 }
 
 /// The Document Fonts expander: every font with its status.

@@ -15,7 +15,7 @@ craft-fonts-build = { workspace = true }
 craft-host = { workspace = true, features = ["ui"] }
 craft-pdf = { workspace = true, default-features = false }
 craft-i18n = { workspace = true, features = ["collate"] }
-craft-theme = { workspace = true, features = ["ecolor"] }
+craft-theme = { workspace = true }
 craft-ui-macros = { workspace = true }
 craft-window = { workspace = true, features = ["ui"], optional = true }
 egui = { workspace = true }
@@ -64,8 +64,6 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 
 [features]
 default = []
-# Kept for apps that name it; serde is always on (docking layouts and workspaces, the dialog field map).
-serde = []
 # Floating windows may move to their own OS windows (desktop egui backends with viewports).
 native-windows = []
 # Draw colour glyphs (COLR, sbix, CBDT), e.g. colour emoji.

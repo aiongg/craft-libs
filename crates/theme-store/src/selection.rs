@@ -14,8 +14,8 @@ pub const MAX_SELECTION_BYTES: usize = 64 * 1024;
 /// `selection.json` as last read or written by this store. With feature `serde`, apps save it in
 /// their preferences (`last_suite`) and pass it back with
 /// [`StoreOptions::last_accepted`](crate::StoreOptions::last_accepted).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Accepted {
     /// Empty until some app writes a choice: no file, no `suite` key, or no field in it.
     pub suite: SuiteChoice,
@@ -480,7 +480,6 @@ mod tests {
         assert_eq!(salvage(Some(b"{ not json"), &base), base);
     }
 
-    #[cfg(feature = "serde")]
     #[test]
     fn accepted_round_trips_through_serde() {
         let suite =
@@ -533,7 +532,6 @@ mod tests {
         assert_eq!(parse_selection(&out).unwrap().accepted, next);
     }
 
-    #[cfg(feature = "serde")]
     #[test]
     fn choice_names_match_craft_themes_serde() {
         for (c, name) in MODES {

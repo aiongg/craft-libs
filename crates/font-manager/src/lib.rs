@@ -32,9 +32,9 @@ pub mod missing;
 mod missing_tests;
 #[cfg(feature = "ui")]
 mod panel;
-#[cfg(feature = "font-picker")]
+#[cfg(feature = "ui")]
 pub mod picker;
-#[cfg(all(test, feature = "font-picker"))]
+#[cfg(all(test, feature = "ui"))]
 mod picker_tests;
 #[cfg(feature = "ui")]
 mod text_stories;
