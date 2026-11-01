@@ -2,8 +2,8 @@
 
 use egui::Stroke;
 
-use craft_ui::primitives::HandleStyle;
-use craft_ui::theme::UiTokens;
+use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// What the symmetry guides and the Transform Symmetry handles draw. Every size is the same at
 /// every Size: they sit on the document.
@@ -25,10 +25,15 @@ pub struct SymmetryStyle {
 
 impl SymmetryStyle {
     /// The guides' look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `symmetry` lands in task TK2")]
     pub fn of(tokens: &UiTokens) -> Self {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:280 `draw` (1 pt accent), :111 `cursor` and
         // :233 `pointer` (8 / zoom), :227 `rotation_handle` (0.35).
-        todo!()
+        let s = &tokens.component.symmetry;
+        Self {
+            line: Stroke::new(s.line, tokens.color.overlay.line.to_egui()),
+            hit: s.hit,
+            handle_share: f64::from(s.handle_share),
+            handle: Handle::style(tokens, HandleShape::Square),
+        }
     }
 }

@@ -4,7 +4,7 @@
 use egui::Color32;
 
 use super::CornerWidgets;
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// What [`CornerWidgets`] draws and how far it reaches.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -30,10 +30,19 @@ pub struct CornerStyle {
 
 impl CornerWidgets<'_> {
     /// The corner widgets' look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `corner` lands in task TK2")]
     pub fn style(tokens: &UiTokens) -> CornerStyle {
         // pc: crates/ui-egui/src/tools/corner_radius.rs:325-326 (radius 5, white, 1.5 pt accent,
         // dot radius 2.5), :213 (7), :22 (10); vectorcraft: crates/tools/src/corners.rs:25 (30).
-        todo!()
+        let (k, o) = (&tokens.component.corner, &tokens.color.overlay);
+        CornerStyle {
+            widget: k.widget,
+            dot: k.dot,
+            line: k.line,
+            hit: k.hit,
+            inset: k.inset,
+            min_side: k.min_side,
+            fill: o.handle_fill.to_egui(),
+            color: o.line.to_egui(),
+        }
     }
 }

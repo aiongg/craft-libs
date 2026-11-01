@@ -16,10 +16,10 @@ pub struct CropBarStyle {
 
 impl CropOptionsBar<'_> {
     /// The menus' sizes in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the leaves `crop.menu_*` land in task TK2")]
     pub fn style(tokens: &UiTokens) -> CropBarStyle {
         // pc: crates/ui-egui/src/tools/crop_shield.rs:150 (240 and 300; the overlay menu's 220 at
         // crop_overlay.rs:285 is unified to 240, lead call 17).
-        todo!()
+        let c = &tokens.component.crop;
+        CropBarStyle { menu_width: c.menu_width, menu_max_width: c.menu_max_width }
     }
 }

@@ -39,6 +39,22 @@ pub struct TransformTokens {
     pub warp_control: f32,
     /// Distance from the pointer within which a warp handle and its arm show: `transform.warp_reveal`.
     pub warp_reveal: f32,
+    /// Diameter of a Puppet Warp pin's disc: `transform.pin`.
+    pub pin: f32,
+    /// Width of a pin's ring: `transform.pin_ring`.
+    pub pin_ring: f32,
+    /// Diameter of the selected pin's core: `transform.pin_core`.
+    pub pin_core: f32,
+    /// Radius of the fixed-rotation ring, and the reach of the Option turn: `transform.pin_turn`.
+    pub pin_turn: f32,
+    /// Width of the fixed-rotation ring and its line: `transform.pin_turn_line`.
+    pub pin_turn_line: f32,
+    /// Width of the pin mesh's lines: `transform.mesh_line`.
+    pub mesh_line: f32,
+    /// Diameter of a Perspective Warp plane's corner disc: `transform.plane_corner`.
+    pub plane_corner: f32,
+    /// Width of a plane corner's ring: `transform.plane_ring`.
+    pub plane_ring: f32,
 }
 
 /// Transform boxes have no overridable field: their sizes come from the code, as every size does.
@@ -64,6 +80,14 @@ impl Family for TransformTokens {
         "warp_anchor" 0.0..=1024.0 => warp_anchor;
         "warp_control" 0.0..=1024.0 => warp_control;
         "warp_reveal" 0.0..=1024.0 => warp_reveal;
+        "pin" 0.0..=1024.0 => pin;
+        "pin_ring" 0.0..=16.0 => pin_ring;
+        "pin_core" 0.0..=1024.0 => pin_core;
+        "pin_turn" 0.0..=1024.0 => pin_turn;
+        "pin_turn_line" 0.0..=16.0 => pin_turn_line;
+        "mesh_line" 0.0..=16.0 => mesh_line;
+        "plane_corner" 0.0..=1024.0 => plane_corner;
+        "plane_ring" 0.0..=16.0 => plane_ring;
     };
 
     fn defaults(_: &Semantic<'_>) -> TransformTokens {
@@ -83,6 +107,14 @@ impl Family for TransformTokens {
             warp_anchor: values::TRANSFORM_WARP_ANCHOR,
             warp_control: values::TRANSFORM_WARP_CONTROL,
             warp_reveal: values::TRANSFORM_WARP_REVEAL,
+            pin: values::TRANSFORM_PIN,
+            pin_ring: values::TRANSFORM_PIN_RING,
+            pin_core: values::TRANSFORM_PIN_CORE,
+            pin_turn: values::TRANSFORM_PIN_TURN,
+            pin_turn_line: values::TRANSFORM_PIN_TURN_LINE,
+            mesh_line: values::TRANSFORM_MESH_LINE,
+            plane_corner: values::TRANSFORM_PLANE_CORNER,
+            plane_ring: values::TRANSFORM_PLANE_RING,
         }
     }
 

@@ -4,7 +4,7 @@
 use egui::Color32;
 
 use super::StrokeEditor;
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// What [`StrokeEditor`], [`StrokeButton`](super::StrokeButton) and
 /// [`StrokePreview`](super::StrokePreview) draw. Fields, selects, checks and buttons keep their
@@ -31,7 +31,7 @@ pub struct StrokeEditorStyle {
     pub sample_stroke: f32,
     /// The tall sample's rectangle inset: `stroke_editor.sample_inset` (12).
     pub sample_inset: f32,
-    /// The samples' colour: `text.default` on `field.fill` (4.5:1 in High contrast).
+    /// The samples' colour: `text.normal` on `field.fill` (4.5:1 in High contrast).
     pub sample_color: Color32,
     pub sample_fill: Color32,
     /// The opener's sample while the stroke is off: a `text.faint` line crossed by a
@@ -44,11 +44,27 @@ pub struct StrokeEditorStyle {
 
 impl StrokeEditor<'_> {
     /// The stroke editor's look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `stroke_editor` lands in task TK2")]
     pub fn style(tokens: &UiTokens) -> StrokeEditorStyle {
         // pc: crates/ui-egui/src/tools/shape_stroke_ui/editor.rs:130 (272, `- 24`, `max(160)`),
         // :92 (138), :43 (24 and 32), :266 (152), :291 (74), :230 (58), :332 (2.5), :322 (12),
         // :70-71 (the off sample: 1 pt faint line, 1.5 pt danger slash), :235 (danger).
-        todo!()
+        let (s, c, field) = (&tokens.component.stroke_editor, &tokens.color, &tokens.component.field);
+        StrokeEditorStyle {
+            width: s.width,
+            screen_margin: s.screen_margin,
+            opener_width: s.opener_width,
+            opener_height: s.opener_height,
+            preset_height: s.preset_height,
+            choice_width: s.choice_width,
+            field_width: s.field_width,
+            sample_height: s.sample_height,
+            sample_stroke: s.sample_stroke,
+            sample_inset: s.sample_inset,
+            sample_color: c.text.normal.to_egui(),
+            sample_fill: field.fill.rest.to_egui(),
+            off_line: c.text.faint.to_egui(),
+            off_slash: c.status.bad.fg.to_egui(),
+            error: c.status.bad.fg.to_egui(),
+        }
     }
 }
