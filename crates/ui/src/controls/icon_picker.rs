@@ -2,22 +2,19 @@
 
 use std::ops::Range;
 
-use egui::accesskit::{Action, Role};
+use egui::accesskit::Role;
 use egui::{
-    AsIdSalt, Color32, CornerRadius, Event, EventFilter, Id, IdSalt, Key, Modifiers, Painter, Rect, Response, RichText, ScrollArea, Sense, Ui,
-    UiBuilder, pos2, vec2,
+    AsIdSalt, Color32, Event, EventFilter, Id, IdSalt, Key, Modifiers, Painter, Rect, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, pos2,
+    vec2,
 };
 
 use super::option_list::{load_kept, store_kept};
 use super::{SearchField, TooltipExt as _};
-use crate::behavior::{GridKey, GridNav};
+use crate::behavior::GridNav;
 use crate::direction;
 use crate::localized::Labels as _;
 use crate::primitives::Interactive;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
-
-/// The corners of a hovered cell (DeckCraft's `CornerRadius::same(4)`).
-const CELL_RADIUS: u8 = 4;
 
 crate::words! {
     /// The picker's words, English by default.
@@ -79,8 +76,9 @@ type PaintCell<'a, K> = Box<dyn Fn(&Painter, Rect, &K, Color32) + 'a>;
 /// - **Grid.** Each group's name in the `Caption` role and `text.muted`, then its cells in rows
 ///   that wrap: 36-point squares 3 points apart (DeckCraft's `icon_cell`; `icon_picker.cell`,
 ///   `icon_picker.gap`), the item painted 6 points in by the host's `paint` in `text.normal`
-///   (`text.disabled` in a disabled picker). Hover fills a cell with `state.hover` at 4-point
-///   corners and shows its label as the tooltip. The body scrolls past 420 points (DeckCraft).
+///   (`text.disabled` in a disabled picker). The cells take the state layer at `radius.control`
+///   corners and show their label as the tooltip. The body scrolls past `icon_picker.max_height`
+///   (DeckCraft's 420 points).
 /// - **Keys.** ↓ from the search field moves into the grid; the arrows move the active cell
 ///   over every shown cell ([`GridNav`](crate::behavior::GridNav)); Enter
 ///   or Space picks it; ↑ from the first row goes back to the search field; typing a letter in
@@ -96,7 +94,7 @@ pub struct IconPicker<'a, K> {
     label: String,
     groups: &'a [IconPickerGroup<K>],
     paint: PaintCell<'a, K>,
-    max_height: f32,
+    max_height: Option<f32>,
     labels: Option<IconPickerLabels>,
 }
 
@@ -108,12 +106,12 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
         groups: &'a [IconPickerGroup<K>],
         paint: impl Fn(&Painter, Rect, &K, Color32) + 'a,
     ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), label: label.into(), groups, paint: Box::new(paint), max_height: 420.0, labels: None }
+        Self { id_salt: IdSalt::new(id_salt), label: label.into(), groups, paint: Box::new(paint), max_height: None, labels: None }
     }
 
-    /// The most the grid takes before it scrolls (default 420).
+    /// The most the grid takes before it scrolls (`icon_picker.max_height` by default).
     pub fn max_height(mut self, height: f32) -> Self {
-        self.max_height = height;
+        self.max_height = Some(height);
         self
     }
 
@@ -135,10 +133,9 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
         let search_id = Interactive::id_in(ui, search_salt);
         let enabled = ui.is_enabled();
         let rtl = direction::is_rtl(ui);
-        let (cell, gap, inset) = {
-            let picker = &tokens.component.icon_picker;
-            (picker.cell, picker.gap, picker.inset)
-        };
+        let picker = &tokens.component.icon_picker;
+        let (cell, gap, inset) = (picker.cell, picker.gap, picker.inset);
+        let max_height = max_height.unwrap_or(picker.max_height);
         let columns = GridNav::columns(ui.available_width() - ui.spacing().scroll.allocated_width(), 0.0, gap, cell);
 
         let first = load_kept::<()>(ui, id.with("kept")).is_none();
@@ -163,27 +160,7 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
             if typed || (nav.row_of(from) == 0 && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp))) {
                 ctx.memory_mut(|m| m.request_focus(search_id));
             } else {
-                ctx.memory_mut(|m| {
-                    m.set_focus_lock_filter(ids[from], EventFilter { horizontal_arrows: true, vertical_arrows: true, ..EventFilter::default() })
-                });
-                ctx.input_mut(|i| {
-                    for (key, grid_key) in [
-                        (Key::ArrowRight, GridKey::Right),
-                        (Key::ArrowLeft, GridKey::Left),
-                        (Key::ArrowDown, GridKey::Down),
-                        (Key::ArrowUp, GridKey::Up),
-                        (Key::Home, GridKey::Home),
-                        (Key::End, GridKey::End),
-                    ] {
-                        if i.consume_key(Modifiers::NONE, key) {
-                            stop = nav.step(stop, grid_key, None).index;
-                            moved = true;
-                        }
-                    }
-                });
-                if moved {
-                    ctx.memory_mut(|m| m.request_focus(ids[stop]));
-                }
+                (stop, moved) = GridNav::roving_move_in(ui, &ids, &nav, None, enabled);
             }
         } else if enabled
             && !ids.is_empty()
@@ -193,10 +170,8 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
             ctx.memory_mut(|m| m.request_focus(ids[0]));
             stop = 0;
             moved = true;
-        }
-        if let Some(requested) = ids.iter().position(|&cell| ctx.input(|i| i.has_accesskit_action_request(cell, Action::Focus))) {
-            stop = requested;
-            ctx.memory_mut(|m| m.request_focus(ids[stop]));
+        } else {
+            (stop, moved) = GridNav::roving_move_in(ui, &ids, &nav, None, enabled);
         }
 
         let edit = SearchField::new(search_salt, labels.search.as_str(), &query, labels.clear_search.as_str())
@@ -241,18 +216,12 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
                             let rect =
                                 Rect::from_min_max(pos2(x.min(x + forward * cell), strip.top()), pos2(x.max(x + forward * cell), strip.bottom()));
                             let cell_id = ids[at];
-                            let mut cell = Interactive::with_id(cell_id, Role::GridCell, item.label.as_str())
-                                .corner_radius(CornerRadius::same(CELL_RADIUS))
-                                .state_layer(false)
-                                .enabled(enabled);
+                            let mut cell = Interactive::with_id(cell_id, Role::GridCell, item.label.as_str()).enabled(enabled);
                             if at != stop {
                                 cell = cell.sense(Sense::CLICK);
                             }
                             let response = cell.interact_at(ui, rect).finish(ui);
                             if ui.is_rect_visible(rect) {
-                                if response.hovered() && enabled {
-                                    ui.painter().rect_filled(rect, CornerRadius::same(CELL_RADIUS), tokens.color.state.hover.to_egui());
-                                }
                                 let color = if enabled { tokens.color.text.normal } else { tokens.color.text.disabled }.to_egui();
                                 paint(&ui.painter().with_clip_rect(rect), rect.shrink(inset), &item.key, color);
                             }

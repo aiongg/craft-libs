@@ -5,7 +5,8 @@ use std::hash::{Hash, Hasher};
 
 use egui::accesskit::Role;
 use egui::{
-    Align2, Area, AsIdSalt, Frame, Galley, Id, IdSalt, Key, Label, Margin, Modifiers, Order, Pos2, Rect, Response, RichText, Shape, Ui, pos2, vec2,
+    Align2, Area, AsIdSalt, EventFilter, Frame, Galley, Id, IdSalt, Key, Label, Margin, Modifiers, Order, Pos2, Rect, Response, RichText, Shape, Ui,
+    pos2, vec2,
 };
 
 use super::option_list::{Hover, OptionRow, OptionRows, option_id, text_galley};
@@ -79,16 +80,17 @@ pub struct AutocompleteResponse {
 /// editor sees them:
 ///
 /// ```ignore
-/// let ac = Autocomplete::new("formula", &suggestions);
+/// let ac = Autocomplete::new("formula", editor_id, &suggestions);
 /// let keys = ac.take_keys(ui);                       // ↑ ↓ Tab Esc, while the list shows
 /// let field = TextEdit::singleline(&mut text).show(ui);
 /// let out = ac.show(ui, field.response.rect, keys);  // the list under the editor
 /// if let Some(i) = out.accepted { complete_word(&mut text, &suggestions[i].text) }
 /// ```
 ///
-/// - **When.** The list shows while `suggestions` is not empty and has not been dismissed; the
-///   host decides what to suggest (it recomputes them as the user types). A dismissed list shows
-///   again when the suggestions change.
+/// - **When.** The list shows, and takes its keys, only while its editor (the id passed to
+///   [`new`](Self::new)) has the keyboard focus, `suggestions` is not empty and the list has not
+///   been dismissed; the host decides what to suggest (it recomputes them as the user types). A
+///   dismissed list shows again when the suggestions change.
 /// - **Look.** A popup surface 4 points under `anchor`, kept inside the window (or the host's
 ///   bounds, [`bounds`](Self::bounds)), on the tooltip layer so it is above the editor's panel.
 ///   Rows are list box rows (`listbox.*`) at least 220 points wide, the mark then the text in
@@ -108,6 +110,7 @@ pub struct AutocompleteResponse {
 ///   active row as the editor's `active_descendant` while it shows.
 pub struct Autocomplete<'a> {
     id_salt: IdSalt,
+    editor: Id,
     suggestions: &'a [Suggestion],
     enter_accepts: bool,
     bounds: Option<Rect>,
@@ -115,8 +118,9 @@ pub struct Autocomplete<'a> {
 }
 
 impl<'a> Autocomplete<'a> {
-    pub fn new(id_salt: impl AsIdSalt, suggestions: &'a [Suggestion]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), suggestions, enter_accepts: false, bounds: None, labels: None }
+    /// A list of `suggestions` for the text editor whose widget id is `editor`.
+    pub fn new(id_salt: impl AsIdSalt, editor: Id, suggestions: &'a [Suggestion]) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), editor, suggestions, enter_accepts: false, bounds: None, labels: None }
     }
 
     /// Words other than the installed ones.
@@ -145,7 +149,7 @@ impl<'a> Autocomplete<'a> {
         let mut pass = self.load(ui, id);
         let mut keys = AutocompleteKeys::default();
         let count = self.suggestions.len();
-        if count > 0 && !pass.memory.dismissed {
+        if count > 0 && !pass.memory.dismissed && self.has_focus(ui.ctx(), id) {
             let mut active = pass.listbox.active().filter(|&a| a < count).unwrap_or(0);
             let mut moved = false;
             ui.input_mut(|i| {
@@ -179,13 +183,7 @@ impl<'a> Autocomplete<'a> {
         let mut pass = self.load(ui, id);
         let count = self.suggestions.len();
         let mut out = AutocompleteResponse { popup: None, accepted: None, dismissed: keys.dismissed };
-        if let Some(focused) = ctx.memory(|m| m.focused()) {
-            let is_row = (0..count).any(|row| option_id(id, row) == focused);
-            if !is_row {
-                pass.memory.editor = Some(focused);
-            }
-        }
-        let showing = count > 0 && !pass.memory.dismissed;
+        let showing = count > 0 && !pass.memory.dismissed && self.has_focus(&ctx, id);
         out.dismissed |= pass.memory.shown && count == 0;
         pass.memory.shown = showing;
         if !showing {
@@ -193,6 +191,13 @@ impl<'a> Autocomplete<'a> {
             return out;
         }
 
+        // egui moves or drops the focus on Tab, Esc and ↑ ↓ at the start of the next pass, before
+        // `take_keys` runs; the filter keeps the focus on the editor while the list shows.
+        ctx.memory_mut(|m| {
+            if m.has_focus(self.editor) {
+                m.set_focus_lock_filter(self.editor, EventFilter { tab: true, escape: true, horizontal_arrows: true, vertical_arrows: true });
+            }
+        });
         let labels = self.labels.unwrap_or_else(|| AutocompleteLabels::of(ui));
         let tokens = Tokens::of(ui);
         let style = Select::style(&tokens, ControlSize::Md);
@@ -265,12 +270,10 @@ impl<'a> Autocomplete<'a> {
         } else if keys.accepted {
             out.accepted = Some(active);
         }
-        if let Some(editor) = pass.memory.editor {
-            if clicked.is_some() {
-                ctx.memory_mut(|m| m.request_focus(editor));
-            }
-            ctx.accesskit_node_builder(editor, |node| node.set_active_descendant(option_id(id, active).accesskit_id()));
+        if clicked.is_some() {
+            ctx.memory_mut(|m| m.request_focus(self.editor));
         }
+        ctx.accesskit_node_builder(self.editor, |node| node.set_active_descendant(option_id(id, active).accesskit_id()));
         pass.store(ui, id);
         out
     }
@@ -316,8 +319,6 @@ struct Memory {
     dismissed: bool,
     /// The list was showing in the last pass of `show`.
     shown: bool,
-    /// The widget that had the focus, which a click on a row gives it back to.
-    editor: Option<Id>,
 }
 
 struct Pass {
@@ -333,6 +334,11 @@ impl Pass {
 }
 
 impl Autocomplete<'_> {
+    /// The editor or one of the rows (just pressed) has the keyboard focus.
+    fn has_focus(&self, ctx: &egui::Context, id: Id) -> bool {
+        ctx.memory(|m| m.has_focus(self.editor) || (0..self.suggestions.len()).any(|row| m.has_focus(option_id(id, row))))
+    }
+
     /// The state as the last pass left it, started again when the suggestions changed.
     fn load(&self, ui: &Ui, id: Id) -> Pass {
         let mut memory = ui.data(|d| d.get_temp::<Memory>(id.with("memory"))).unwrap_or_default();

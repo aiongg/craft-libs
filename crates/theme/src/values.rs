@@ -1751,6 +1751,9 @@ pub const ICON_PICKER_GAP: f32 = 3.0;
 /// Between an icon picker's cell edge and its icon (DeckCraft).
 pub const ICON_PICKER_INSET: f32 = 6.0;
 
+/// Most an icon picker's grid takes before it scrolls (DeckCraft's `max_height(420.0)`).
+pub const ICON_PICKER_MAX_HEIGHT: f32 = 420.0;
+
 /// Width of a split button's arrow part (VectorCraft).
 pub const SPLIT_BUTTON_ARROW_WIDTH: f32 = 18.0;
 

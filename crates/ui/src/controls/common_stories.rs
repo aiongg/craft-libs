@@ -152,7 +152,7 @@ pub(super) fn stories() -> Vec<Story> {
         typed_story!("controls/rating/stars", Level::Controls, "Rating", "Stars", DisabledArgs { disabled: false }, show_stars),
         typed_story!("controls/date/picker", Level::Controls, "Date picker", "Picker", SizeDisabledArgs::default(), show_dates),
         typed_story!("controls/alt-text/field", Level::Controls, "Alt text", "Field", AltArgs { mixed: false }, show_alt_text),
-        typed_story!("controls/autocomplete/functions", Level::Controls, "Autocomplete", "Functions", SizeArgs::default(), show_autocomplete),
+        typed_story!("controls/autocomplete/functions", Level::Controls, "Autocomplete", "Functions", NoArgs {}, show_autocomplete),
         typed_story!("controls/mixed/apply-rows", Level::Controls, "Apply row", "Apply rows", SizeArgs::default(), show_apply_rows),
         typed_story!("controls/reset-dot/fields", Level::Controls, "Reset dot", "Fields", SizeArgs::default(), show_reset_dots),
     ]
@@ -558,7 +558,7 @@ fn caret_to_end(ui: &Ui, id: Id, len: usize) {
 
 /// A formula box with function suggestions and descriptions, and a column box that completes the
 /// name inline.
-fn show_autocomplete(ui: &mut Ui, _args: &mut super::SizeArgs) {
+fn show_autocomplete(ui: &mut Ui, _args: &mut NoArgs) {
     let words = ControlStoryLabels::of(ui);
     let functions = [
         ("SUM", &words.fn_sum_desc),
@@ -580,10 +580,10 @@ fn show_autocomplete(ui: &mut Ui, _args: &mut super::SizeArgs) {
                 .collect()
         };
         ui.label(words.formula.as_str());
-        let list = Autocomplete::new("story-formula", &suggestions);
-        let keys = list.take_keys(ui);
         let id = ui.make_persistent_id("story-formula-text");
-        let field = TextEdit::singleline(formula).id(id).desired_width(320.0).show(ui);
+        let list = Autocomplete::new("story-formula", id, &suggestions);
+        let keys = list.take_keys(ui);
+        let field = TextEdit::singleline(formula).id(id).show(ui);
         ui.ctx().accesskit_node_builder(id, |node| node.set_label(words.formula.as_str()));
         let out = list.show(ui, field.response.rect, keys);
         if let Some(at) = out.accepted {
@@ -594,7 +594,7 @@ fn show_autocomplete(ui: &mut Ui, _args: &mut super::SizeArgs) {
             ui.ctx().memory_mut(|m| m.request_focus(id));
         }
 
-        ui.add_space(8.0);
+        ui.add_space(ui.spacing().item_spacing.y);
         ui.label(words.column.as_str());
         let id = ui.make_persistent_id("story-column-text");
         let rest = (!column.is_empty())
@@ -607,7 +607,7 @@ fn show_autocomplete(ui: &mut Ui, _args: &mut super::SizeArgs) {
             *column = (*name).to_owned();
             caret_to_end(ui, id, column.chars().count());
         }
-        let field = TextEdit::singleline(column).id(id).desired_width(320.0).show(ui);
+        let field = TextEdit::singleline(column).id(id).show(ui);
         ui.ctx().accesskit_node_builder(id, |node| node.set_label(words.column.as_str()));
         if let Some((_, rest)) = rest.filter(|_| field.response.has_focus()) {
             paint_inline_completion(ui, field.galley_pos, &field.galley, &rest);
