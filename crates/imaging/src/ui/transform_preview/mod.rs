@@ -18,8 +18,6 @@
 //! # }
 //! ```
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TR-T10)")]
-
 mod maps;
 pub(crate) mod stories;
 mod styled;
@@ -32,11 +30,14 @@ mod styled_tests;
 #[cfg(test)]
 mod textures_tests;
 
-use egui::{AsIdSalt, IdSalt, Painter, Ui};
+use egui::epaint::Vertex;
+use egui::{AsIdSalt, Color32, IdSalt, Mesh, Painter, TextureId, Ui};
+use kurbo::Point;
 
 use craft_ui::canvas::CanvasView;
 
 pub use maps::PreviewMap;
+use maps::{PreviewMesh, clip_to_canvas};
 pub use styled::{StylePlan, StyledBudget, StyledContent, StyledPreview, StyledSource};
 pub use textures::{PreviewDisplay, PreviewMask, PreviewPixels, PreviewTextures, TextureChoice};
 
@@ -86,6 +87,7 @@ type Above<'a> = Box<dyn FnOnce(&Painter) + 'a>;
 ///   the mesh (quad maps only); otherwise the plain mesh.
 /// - No AccessKit node: image content.
 pub struct TransformPreview<'a> {
+    #[expect(dead_code, reason = "names the preview in the builder; it registers no widget")]
     id_salt: IdSalt,
     textures: &'a PreviewTextures,
     map: Option<PreviewMap<'a>>,
@@ -171,6 +173,59 @@ impl<'a> TransformPreview<'a> {
         // pick), :83 (`front_vertices`), :395 (`clip_to_canvas`);
         // crates/ui-egui/src/tools/perspective_ui.rs:263 (`draw_content`, function map);
         // crates/ui-egui/src/tools/puppet_ui.rs:348 (`draw_content`, pin mesh).
-        todo!()
+        let Some(map) = self.map else { return };
+        let ctx = ui.ctx();
+        let painter = ui.painter_at(view.rect);
+        let zoom = view.zoom as f32 * ctx.pixels_per_point();
+        let scale = map.source_scale(self.textures.size());
+        let tint = Color32::from_white_alpha((self.opacity.clamp(0.0, 1.0) * 255.0).round() as u8);
+
+        let styled = match (&self.styled, &map, self.clip) {
+            (Some((preview, source)), PreviewMap::Quad(quad), Some(canvas)) => {
+                let frame = styled::StyledFrame {
+                    textures: self.textures,
+                    quad: *quad,
+                    quad_scale: scale,
+                    nearest: self.nearest,
+                    zoom,
+                    dragging: self.dragging,
+                    canvas,
+                    budget: StyledBudget::default(),
+                };
+                preview.texture(ctx, &frame, *source, self.display)
+            }
+            _ => None,
+        };
+        if let Some((texture, rect)) = styled {
+            let corners = [(rect.x0, rect.y0, 0.0, 0.0), (rect.x1, rect.y0, 1.0, 0.0), (rect.x1, rect.y1, 1.0, 1.0), (rect.x0, rect.y1, 0.0, 1.0)];
+            let mesh = PreviewMesh {
+                points: corners.iter().map(|c| Point::new(c.0, c.1)).collect(),
+                rest: corners.iter().map(|c| Point::new(c.0, c.1)).collect(),
+                uv: corners.iter().map(|c| [c.2, c.3]).collect(),
+                indices: vec![0, 1, 2, 0, 2, 3],
+            };
+            painter.add(screen_mesh(mesh, texture, Color32::WHITE, self.clip, view));
+        } else {
+            let choice = PreviewTextures::choose(zoom, scale, self.nearest);
+            let (texture, uv) = self.textures.pick(ctx, choice, self.display);
+            let mesh = map.build(view.zoom * f64::from(ctx.pixels_per_point()), uv);
+            painter.add(screen_mesh(mesh, texture, tint, self.clip, view));
+        }
+        if let Some(above) = self.above {
+            above(&painter);
+        }
     }
+}
+
+/// `mesh` clipped to the canvas in document space and mapped through `view` to an egui mesh.
+fn screen_mesh(mesh: PreviewMesh, texture: TextureId, tint: Color32, canvas: Option<[u32; 2]>, view: &CanvasView) -> Mesh {
+    let mesh = match canvas {
+        Some(canvas) => clip_to_canvas(mesh, canvas),
+        None => mesh,
+    };
+    let mut out = Mesh::with_texture(texture);
+    out.vertices =
+        mesh.points.iter().zip(&mesh.uv).map(|(p, uv)| Vertex { pos: view.to_screen(*p), uv: egui::pos2(uv[0], uv[1]), color: tint }).collect();
+    out.indices = mesh.indices;
+    out
 }
