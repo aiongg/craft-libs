@@ -6,21 +6,22 @@
 use std::fmt::Write as _;
 
 use crate::{
-    AngleDialTokens, AppShellTokens, AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors,
-    BreadcrumbTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, CheckOffColors, CheckOnColors, CheckSpellingTokens, CheckSwitchColors,
-    CheckTokens, ChipTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ControlSizes,
-    CropTokens, CursorTokens, CurveTokens, DateTokens, DialogTokens, Dimmed, DockTokens, DragTokens, DropVeilTokens, Easing, Edge, Elevation,
-    ElevationTokens, EmptyStateTokens, EventLogTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens, FindingsTokens, FloatTokens,
-    FontPickerTokens, FontSlot, FormSpacing, FormTokens, Gaps, GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens,
-    GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, IconButtonTokens, IconPickerTokens, IconSizes,
-    InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens,
-    MetadataTokens, Motion, MotionTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens,
-    PanelHeaderTokens, PanelTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens,
-    PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens,
-    ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens,
-    SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens,
-    TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
-    ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    AboutTokens, AlignTokens, AltTextTokens, AngleDialTokens, AppShellTokens, AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone,
+    BarSizes, BezierTokens, BorderColors, BreadcrumbTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, CheckOffColors, CheckOnColors,
+    CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens,
+    CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DateTokens, DialogTokens, Dimmed, DockTokens,
+    DragTokens, DropVeilTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, EventLogTokens, ExportTokens, EyedropperTokens,
+    FieldTokens, FileListTokens, FindingsTokens, FloatTokens, FontPickerTokens, FontSlot, FormSpacing, FormTokens, Gaps, GlyphsTokens,
+    GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens,
+    HistogramTokens, IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens,
+    ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, MetadataTokens, Motion, MotionTokens,
+    NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens,
+    PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes,
+    RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens, ScrollTokens,
+    SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens,
+    SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens,
+    TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens,
+    Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -249,6 +250,12 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         event_log,
         autocomplete,
         metadata,
+        about,
+        password,
+        list_manager,
+        align,
+        tree_picker,
+        alt_text,
         export,
         file_list,
         findings,
@@ -351,6 +358,12 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     event_log_lines(out, event_log);
     autocomplete_lines(out, autocomplete);
     metadata_lines(out, metadata);
+    about_lines(out, about);
+    password_lines(out, password);
+    list_manager_lines(out, list_manager);
+    align_lines(out, align);
+    tree_picker_lines(out, tree_picker);
+    alt_text_lines(out, alt_text);
     export_lines(out, export);
     file_list_lines(out, file_list);
     findings_lines(out, findings);
@@ -2298,4 +2311,43 @@ fn file_list_lines(out: &mut Lines, t: &FileListTokens) {
     let FileListTokens { size, button_min } = t;
     out.line("file_list.size", format!("{} {}", len(size[0]), len(size[1])));
     out.line("file_list.button_min", len(*button_min));
+}
+
+fn about_lines(out: &mut Lines, t: &AboutTokens) {
+    let AboutTokens { width, list_height, bag_gap, community_width, flex_min } = t;
+    out.line("about.width", len(*width));
+    out.line("about.list_height", len(*list_height));
+    out.line("about.bag_gap", format!("{} {}", len(bag_gap[0]), len(bag_gap[1])));
+    out.line("about.community_width", len(*community_width));
+    out.line("about.flex_min", len(*flex_min));
+}
+
+fn password_lines(out: &mut Lines, t: &PasswordTokens) {
+    let PasswordTokens { width } = t;
+    out.line("password.width", len(*width));
+}
+
+fn list_manager_lines(out: &mut Lines, t: &ListManagerTokens) {
+    let ListManagerTokens { list, button_width, column_gap } = t;
+    out.line("list_manager.list", format!("{} {}", len(list[0]), len(list[1])));
+    out.line("list_manager.button_width", len(*button_width));
+    out.line("list_manager.column_gap", len(*column_gap));
+}
+
+fn align_lines(out: &mut Lines, t: &AlignTokens) {
+    let AlignTokens { button, icon } = t;
+    out.line("align.button", len(*button));
+    out.line("align.icon", len(*icon));
+}
+
+fn tree_picker_lines(out: &mut Lines, t: &TreePickerTokens) {
+    let TreePickerTokens { list_height, min_popup_width } = t;
+    out.line("tree_picker.list_height", len(*list_height));
+    out.line("tree_picker.min_popup_width", len(*min_popup_width));
+}
+
+fn alt_text_lines(out: &mut Lines, t: &AltTextTokens) {
+    let AltTextTokens { box_width, row_gap } = t;
+    out.line("alt_text.box_width", len(*box_width));
+    out.line("alt_text.row_gap", len(*row_gap));
 }

@@ -19,9 +19,6 @@ use crate::icons::{Icon, IconSize};
 use crate::localized::Labels as _;
 use crate::primitives::{Content, Icon as IconView, Text};
 
-/// The dialog's width in points (PdfCraft `dialogs/prompts.rs:311`).
-const WIDTH: f32 = 400.0;
-
 crate::words! {
     /// The password dialog's words, English by default (PdfCraft's, after Acrobat). `{name}` is
     /// the file's name.
@@ -259,7 +256,7 @@ impl StackDialog for PasswordDialog {
         let mut eye_pressed = false;
         let response = Dialog::with_id(id, title)
             .stack(stack)
-            .width(Width::Fixed(WIDTH))
+            .width(Width::Fixed(crate::theme::current(ctx).component.password.width))
             .footer(footer)
             .initial_focus(InitialFocus::FirstField)
             .show(ctx, state, &mut (), |ui, ()| {

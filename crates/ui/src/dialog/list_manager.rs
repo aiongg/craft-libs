@@ -18,13 +18,6 @@ use crate::primitives::{Content, Text};
 use crate::text::text_width;
 use crate::theme::{ToEgui, Tokens, TokensOf, role_format};
 
-/// The list's size in points (GridCraft `macro_ui.rs:407`).
-const LIST_SIZE: egui::Vec2 = vec2(330.0, 200.0);
-/// The action buttons' width (GridCraft `macro_ui.rs:440`).
-const BUTTON_WIDTH: f32 = 100.0;
-/// Between the list and the button column.
-const COLUMN_GAP: f32 = 12.0;
-
 crate::words! {
     /// The list manager's standard button words, English by default; the app's own actions
     /// bring their labels.
@@ -238,7 +231,10 @@ impl StackDialog for ListManagerDialog {
         let cancel_label = DialogLabels::of_ctx(ctx).cancel;
         let id = self.id;
         let Self { title, name_label, entries, actions, empty, note, searchable, name, pressed, state, .. } = self;
-        let width = LIST_SIZE.x + COLUMN_GAP + BUTTON_WIDTH;
+        let sizes = crate::theme::current(ctx).component.list_manager;
+        let list_size = vec2(sizes.list[0], sizes.list[1]);
+        let (column_gap, button_width) = (sizes.column_gap, sizes.button_width);
+        let width = list_size.x + column_gap + button_width;
         let mut chosen: Option<usize> = None;
         let mut cancelled = false;
         let response = Dialog::with_id(id, title.as_str())
@@ -252,9 +248,9 @@ impl StackDialog for ListManagerDialog {
                 let folder = craft_i18n::Folder::new("");
                 let mut label_height = 0.0;
                 ui.horizontal_top(|ui| {
-                    ui.spacing_mut().item_spacing.x = COLUMN_GAP;
+                    ui.spacing_mut().item_spacing.x = column_gap;
                     ui.vertical(|ui| {
-                        ui.set_width(LIST_SIZE.x);
+                        ui.set_width(list_size.x);
                         label_height = ui.add(Text::new(name_label.as_str())).rect.height() + ui.spacing().item_spacing.y;
                         // Up and Down move the selection while the box has the focus, Enter runs.
                         let boxed = ctx.memory(|m| m.has_focus(field_id));
@@ -298,9 +294,9 @@ impl StackDialog for ListManagerDialog {
                         let detail_font = role_format(&tokens, TypeRole::Body, Content::Faint.color(&tokens).to_egui()).font_id;
                         let detail_widths: Vec<f32> = entries
                             .iter()
-                            .map(|e| e.detail.as_deref().filter(|d| !d.is_empty()).map_or(0.0, |d| text_width(ui, d, &detail_font) + COLUMN_GAP))
+                            .map(|e| e.detail.as_deref().filter(|d| !d.is_empty()).map_or(0.0, |d| text_width(ui, d, &detail_font) + column_gap))
                             .collect();
-                        ui.allocate_ui(LIST_SIZE, |ui| {
+                        ui.allocate_ui(list_size, |ui| {
                             if entries.is_empty() {
                                 ui.add(Text::new(empty.as_str()).content(Content::Faint));
                                 return;
@@ -309,7 +305,7 @@ impl StackDialog for ListManagerDialog {
                                 .selection(&mut selection)
                                 .mode(SelectionMode::Single)
                                 .allow_empty(true)
-                                .max_height(LIST_SIZE.y);
+                                .max_height(list_size.y);
                             if let Some(key) = reveal {
                                 list = list.reveal(key);
                             }
@@ -361,7 +357,7 @@ impl StackDialog for ListManagerDialog {
                         for (index, action) in actions.iter().enumerate() {
                             let enabled = is_enabled(action, entries, &folder, name);
                             let response =
-                                ui.add(Button::new(action.label.as_str()).id_salt((id, "action", index)).min_width(BUTTON_WIDTH).enabled(enabled));
+                                ui.add(Button::new(action.label.as_str()).id_salt((id, "action", index)).min_width(button_width).enabled(enabled));
                             let response = match &action.tooltip {
                                 Some(tip) => response.on_hover_text(tip.as_str()).on_disabled_hover_text(tip.as_str()),
                                 None => response,
@@ -371,7 +367,7 @@ impl StackDialog for ListManagerDialog {
                             }
                         }
                         ui.add_space(ui.spacing().item_spacing.y);
-                        if ui.add(Button::new(cancel_label.as_str()).id_salt((id, "cancel")).min_width(BUTTON_WIDTH)).clicked() {
+                        if ui.add(Button::new(cancel_label.as_str()).id_salt((id, "cancel")).min_width(button_width)).clicked() {
                             cancelled = true;
                         }
                     });

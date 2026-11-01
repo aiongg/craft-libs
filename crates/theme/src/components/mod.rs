@@ -30,6 +30,9 @@ macro_rules! sizes {
     };
 }
 
+mod about;
+mod align;
+mod alt_text;
 mod angle_dial;
 mod app_shell;
 mod autocomplete;
@@ -80,6 +83,7 @@ mod inspector;
 mod kbd;
 mod levels;
 mod list;
+mod list_manager;
 mod listbox;
 mod marquee;
 mod menu;
@@ -91,6 +95,7 @@ mod paint_chip;
 mod panel;
 mod panel_footer;
 mod panel_header;
+mod password;
 mod pasteboard;
 mod popover;
 mod popup;
@@ -132,6 +137,7 @@ mod toolbar;
 mod tooltip;
 mod tour;
 mod transform;
+mod tree_picker;
 
 use std::fmt;
 
@@ -142,6 +148,9 @@ use identify::Identify;
 
 use super::tokens::{ColorTokens, ElevationTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
 
+pub use about::{AboutField, AboutTokens};
+pub use align::{AlignField, AlignTokens};
+pub use alt_text::{AltTextField, AltTextTokens};
 pub use angle_dial::{AngleDialField, AngleDialTokens};
 pub use app_shell::{AppShellField, AppShellTokens};
 pub use autocomplete::{AutocompleteField, AutocompleteTokens};
@@ -191,6 +200,7 @@ pub use inspector::{InspectorField, InspectorTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use levels::{LevelsField, LevelsTokens};
 pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
+pub use list_manager::{ListManagerField, ListManagerTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
@@ -202,6 +212,7 @@ pub use paint_chip::{PaintChipField, PaintChipTokens};
 pub use panel::{PanelField, PanelTokens};
 pub use panel_footer::{PanelFooterField, PanelFooterTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
+pub use password::{PasswordField, PasswordTokens};
 pub use pasteboard::{PasteboardField, PasteboardTokens};
 pub use popover::{PopoverField, PopoverTokens};
 pub use popup::{PopupField, PopupTokens};
@@ -243,6 +254,7 @@ pub use toolbar::{ToolbarField, ToolbarTokens};
 pub use tooltip::{TooltipField, TooltipTokens};
 pub use tour::{TourField, TourTokens};
 pub use transform::{TransformField, TransformTokens};
+pub use tree_picker::{TreePickerField, TreePickerTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
 /// family's defaults can depend on another's. Fields are added as families need them.
@@ -789,6 +801,18 @@ impl ComponentTokens {
 }
 
 families! {
+    /// About windows: the window width, the Contributors list height and the grab bag.
+    about: AboutTokens => About(AboutField);
+    /// Password prompts: the width of the dialog.
+    password: PasswordTokens => Password(PasswordField);
+    /// List managers: the list box, the buttons and the gap between them.
+    list_manager: ListManagerTokens => ListManager(ListManagerField);
+    /// Align bars: the icon buttons.
+    align: AlignTokens => Align(AlignField);
+    /// Tree pickers: the popup's list.
+    tree_picker: TreePickerTokens => TreePicker(TreePickerField);
+    /// Alternative text editors: the box.
+    alt_text: AltTextTokens => AltText(AltTextField);
     /// Tables: the header, the sort chevron, the column edges and the drop line.
     table: TableTokens => Table(TableField);
     /// Chips: pills with a remove cross.

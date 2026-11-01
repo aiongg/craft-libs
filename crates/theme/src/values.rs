@@ -1873,3 +1873,48 @@ pub const MOTION_CARET_MS: u32 = 100;
 
 /// Duration of a selection outline's glide, in milliseconds (GridCraft's `selection_glide.rs`).
 pub const MOTION_OUTLINE_MS: u32 = 120;
+
+/// Width of the About window (PhotoCraft).
+pub const ABOUT_WIDTH: f32 = 700.0;
+
+/// Height of the About window's Contributors list (PhotoCraft).
+pub const ABOUT_LIST_HEIGHT: f32 = 340.0;
+
+/// Gaps between the names of the About grab bag (PhotoCraft).
+pub const ABOUT_BAG_GAP: [f32; 2] = [14.0, 8.0];
+
+/// Width of the About window's community button (the module's constant).
+pub const ABOUT_COMMUNITY_WIDTH: f32 = 220.0;
+
+/// Least width of the About tables' flexible column (PhotoCraft).
+pub const ABOUT_FLEX_MIN: f32 = 110.0;
+
+/// Width of the password dialog (PdfCraft).
+pub const PASSWORD_WIDTH: f32 = 400.0;
+
+/// Size of a list manager's list box (GridCraft).
+pub const LIST_MANAGER_LIST: [f32; 2] = [330.0, 200.0];
+
+/// Least width of a list manager's buttons (GridCraft).
+pub const LIST_MANAGER_BUTTON_WIDTH: f32 = 100.0;
+
+/// Between a list manager's list and its buttons (the module's constant).
+pub const LIST_MANAGER_COLUMN_GAP: f32 = 12.0;
+
+/// Side of an align bar's buttons (PhotoCraft).
+pub const ALIGN_BUTTON: f32 = 24.0;
+
+/// Side of an align bar's icons (PhotoCraft).
+pub const ALIGN_ICON: f32 = 16.0;
+
+/// Most height of a tree picker's list (the module's constant).
+pub const TREE_PICKER_LIST_HEIGHT: f32 = 320.0;
+
+/// Least width of a tree picker's popup (the module's constant).
+pub const TREE_PICKER_MIN_POPUP_WIDTH: f32 = 220.0;
+
+/// Width of an alt text editor's box (the module's constant).
+pub const ALT_TEXT_BOX_WIDTH: f32 = 340.0;
+
+/// Least gap between an alt text editor's rows (the module's constant).
+pub const ALT_TEXT_ROW_GAP: f32 = 6.0;

@@ -23,11 +23,6 @@ use crate::popover::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use crate::primitives::Interactive;
 use crate::theme::{Tokens, TokensOf as _};
 
-/// The popup's list is at most this high (LightCraft's `MENU_HEIGHT`).
-const LIST_HEIGHT: f32 = 320.0;
-/// The popup is at least this wide.
-const MIN_POPUP_WIDTH: f32 = 220.0;
-
 crate::words! {
     /// The picker's words, English by default.
     #[non_exhaustive]
@@ -175,7 +170,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
             .toggle(id)
             .label(label.as_str())
             .show(ui, &mut open, |ui, pop| {
-                ui.set_width(width.max(MIN_POPUP_WIDTH));
+                ui.set_width(width.max(Tokens::of(ui).component.tree_picker.min_popup_width));
                 let mut state = ctx.data(|d| d.get_temp::<Browsing>(state_id)).unwrap_or_else(|| Browsing::opening(&index, chosen));
                 let found =
                     state.pick(ui, &Pass { entries, index: &index, chosen, labels: &labels, size, enabled }, |field| pop.initial_focus(field));
@@ -275,7 +270,7 @@ impl Browsing {
         if in_search {
             let (searching, rows) = self.rows(entries, index);
             let rules = ListSelection::new(SelectionMode::Single).allow_empty(false);
-            let page = (LIST_HEIGHT / row_style.height(ThumbSize::None, searching)) as usize;
+            let page = (tokens.component.tree_picker.list_height / row_style.height(ThumbSize::None, searching)) as usize;
             let mut moved = None;
             ui.input_mut(|i| {
                 for (key, step) in
@@ -337,7 +332,7 @@ impl Browsing {
         if searching && rows.is_empty() {
             ui.label(labels.no_match.as_str());
         } else {
-            let height = (rows.len() as f32 * row_height).clamp(row_height, LIST_HEIGHT);
+            let height = (rows.len() as f32 * row_height).clamp(row_height, Tokens::of(ui).component.tree_picker.list_height);
             let mut list = List::new(("craft-tree-picker-list", searching), labels.search.as_str(), rows.as_slice())
                 .selection(&mut self.selection)
                 .mode(SelectionMode::Single)

@@ -8,8 +8,6 @@ use crate::edit::{EditEvent, EditResponse};
 use crate::localized::Labels as _;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
-/// The box's width in a layout that doesn't stretch it (DeckCraft's `desired_width(340)`).
-const BOX_WIDTH: f32 = 340.0;
 /// The box's height in lines (DeckCraft's `desired_rows(4)`).
 const BOX_ROWS: usize = 4;
 
@@ -92,7 +90,7 @@ impl<'a> AltTextField<'a> {
         let tokens = Tokens::of(ui);
         let enabled = enabled && ui.is_enabled();
         ui.scope(|ui| {
-            ui.spacing_mut().item_spacing.y = ui.spacing().item_spacing.y.max(6.0);
+            ui.spacing_mut().item_spacing.y = ui.spacing().item_spacing.y.max(tokens.component.alt_text.row_gap);
             ui.add(
                 Label::new(
                     RichText::new(labels.prompt.as_str()).font(tokens.font(craft_theme::TypeRole::Body)).color(tokens.color.text.normal.to_egui()),
@@ -105,7 +103,7 @@ impl<'a> AltTextField<'a> {
                 .multiline(BOX_ROWS)
                 .enabled(enabled && !value.decorative);
             if !ui.layout().horizontal_justify() {
-                field = field.width(BOX_WIDTH);
+                field = field.width(tokens.component.alt_text.box_width);
             }
             let typed = field.show(ui);
             let mut event = typed.event.as_ref().map(|e| e.clone().map(|text| AltText { text, decorative: value.decorative }));

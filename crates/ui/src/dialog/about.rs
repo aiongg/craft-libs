@@ -421,19 +421,6 @@ impl DisplayOrder<usize> for RowOrder {
     }
 }
 
-/// The width of the window and of its tabs' bodies.
-const WIDTH: f32 = 700.0;
-/// Height of the Contributors list (grab bag or table, header included), the same on both views so
-/// switching between them doesn't resize the window; the Models table is as tall as its rows up
-/// to this.
-const LIST_HEIGHT: f32 = 340.0;
-/// The grab bag's gaps between names.
-const BAG_GAP: egui::Vec2 = egui::vec2(14.0, 8.0);
-/// The community button's width.
-const COMMUNITY_WIDTH: f32 = 220.0;
-/// The Name and Model columns' least width; they take the spare width.
-const FLEX_MIN_WIDTH: f32 = 110.0;
-
 /// The About window, 700 px wide on every tab so switching tabs doesn't resize it.
 ///
 /// - **About**: the blurb, "Version …", the community button and the link row centred, the
@@ -515,8 +502,11 @@ impl StackDialog for AboutDialog {
         let title = craft_i18n::fmt(&labels.title, &[("app", self.info.app_name.as_str())]);
         let strip_label = title.clone();
         let Self { info, credits, tab, view, contributor_layout, model_layout, state, clicked, .. } = self;
-        let response =
-            Dialog::with_id(id, title).stack(stack).width(Width::Fixed(WIDTH)).footer(Footer::none()).show(ctx, state, &mut (), |ui, ()| {
+        let response = Dialog::with_id(id, title)
+            .stack(stack)
+            .width(Width::Fixed(crate::theme::current(ctx).component.about.width))
+            .footer(Footer::none())
+            .show(ctx, state, &mut (), |ui, ()| {
                 let tabs = [
                     Tab::new(AboutTab::About, labels.about_tab.as_str()),
                     Tab::new(AboutTab::Contributors, labels.contributors_tab.as_str()),
@@ -550,7 +540,9 @@ fn about_tab(ui: &mut Ui, labels: &AboutLabels, info: &AboutInfo, clicked: &mut 
     ui.add_space(ui.spacing().item_spacing.y * 2.0);
     ui.vertical_centered(|ui| {
         if let Some(community) = &info.community
-            && ui.add(Button::new(community.label.as_str()).variant(ButtonVariant::Primary).min_width(COMMUNITY_WIDTH)).clicked()
+            && ui
+                .add(Button::new(community.label.as_str()).variant(ButtonVariant::Primary).min_width(Tokens::of(ui).component.about.community_width))
+                .clicked()
         {
             *clicked = Some(community.url.clone());
         }
@@ -611,6 +603,7 @@ fn contributors_tab(
     layout: &mut TableLayout<ContributorSort>,
     clicked: &mut Option<String>,
 ) {
+    let about = Tokens::of(ui).component.about;
     ui.horizontal_wrapped(|ui| {
         ui.add(Text::new(labels.show.as_str()));
         Segmented::new("about-names", labels.show.as_str(), &mut view.names)
@@ -653,10 +646,13 @@ fn contributors_tab(
     if view.table {
         contributors_table(ui, labels, list, order, view, layout, clicked);
     } else {
-        egui::ScrollArea::vertical().id_salt("about-bag").auto_shrink([false, false]).min_scrolled_height(LIST_HEIGHT).max_height(LIST_HEIGHT).show(
-            ui,
-            |ui| {
-                ui.spacing_mut().item_spacing = BAG_GAP;
+        egui::ScrollArea::vertical()
+            .id_salt("about-bag")
+            .auto_shrink([false, false])
+            .min_scrolled_height(about.list_height)
+            .max_height(about.list_height)
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(about.bag_gap[0], about.bag_gap[1]);
                 // Each name is one unit: a link that doesn't fit moves whole to the next line.
                 ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
                 ui.horizontal_wrapped(|ui| {
@@ -664,8 +660,7 @@ fn contributors_tab(
                         contributor_link(ui, &list[at], view.names, ("bag", at), clicked);
                     }
                 });
-            },
-        );
+            });
     }
 }
 
@@ -680,6 +675,7 @@ fn contributors_table(
     clicked: &mut Option<String>,
 ) {
     let numbers = LocaleNumbers::of_ctx(ui.ctx());
+    let about = Tokens::of(ui).component.about;
     let columns: Vec<TableColumn<ContributorSort>> = ContributorSort::ALL
         .into_iter()
         .map(|key| {
@@ -687,7 +683,7 @@ fn contributors_table(
             let column = TableColumn::new(key, head);
             let column = if key.numeric() { column.numeric() } else { column };
             if key == ContributorSort::Name {
-                column.min_width(FLEX_MIN_WIDTH)
+                column.min_width(about.flex_min)
             } else {
                 let width = column_width(ui, head, list.iter().map(|c| key.cell(c, &numbers)));
                 column.min_width(width).initial_width(width)
@@ -703,7 +699,7 @@ fn contributors_table(
     let names = view.names;
     let out = Table::new("about-contributors", labels.contributors_tab.as_str(), &columns, layout, &rows)
         .movable(false)
-        .max_height(LIST_HEIGHT - header)
+        .max_height(about.list_height - header)
         .show(ui, |ui, &at, column| {
             let c = &list[at];
             if *column == ContributorSort::Name {
@@ -724,7 +720,7 @@ fn contributors_table(
     }
 }
 
-/// The Models tab: a table that doesn't sort, as tall as its rows up to [`LIST_HEIGHT`].
+/// The Models tab: a table that doesn't sort, as tall as its rows up to `about.list_height`.
 fn models_tab(ui: &mut Ui, labels: &AboutLabels, credits: &Credits, layout: &mut TableLayout<ModelColumn>) {
     let models: &[ModelCredit] = &credits.models;
     if models.is_empty() {
@@ -733,6 +729,7 @@ fn models_tab(ui: &mut Ui, labels: &AboutLabels, credits: &Credits, layout: &mut
     }
     let numbers = LocaleNumbers::of_ctx(ui.ctx());
     let total = share_total(credits);
+    let about = Tokens::of(ui).component.about;
     let columns: Vec<TableColumn<ModelColumn>> = ModelColumn::ALL
         .into_iter()
         .map(|key| {
@@ -740,7 +737,7 @@ fn models_tab(ui: &mut Ui, labels: &AboutLabels, credits: &Credits, layout: &mut
             let column = TableColumn::new(key, head).sortable(false);
             let column = if key.numeric() { column.numeric() } else { column };
             if key == ModelColumn::Model {
-                column.min_width(FLEX_MIN_WIDTH)
+                column.min_width(about.flex_min)
             } else {
                 let width = column_width(ui, head, models.iter().map(|m| key.cell(m, total, &numbers)));
                 column.min_width(width).initial_width(width)
@@ -748,7 +745,7 @@ fn models_tab(ui: &mut Ui, labels: &AboutLabels, credits: &Credits, layout: &mut
         })
         .collect();
     let style = Table::style(&Tokens::of(ui));
-    let body = (models.len() as f32 * style.row_height).min(LIST_HEIGHT - style.header_height);
+    let body = (models.len() as f32 * style.row_height).min(about.list_height - style.header_height);
     let rows = RowOrder((0..models.len()).collect());
     let _ = Table::new("about-models", labels.models_tab.as_str(), &columns, layout, &rows).movable(false).max_height(body).show(
         ui,

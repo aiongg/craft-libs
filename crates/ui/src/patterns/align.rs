@@ -13,10 +13,6 @@ use crate::primitives::Divider;
 use crate::theme::{Tokens, TokensOf as _};
 use craft_theme::ControlSize;
 
-/// A button's side and its icon's side (`tools/align_bar.rs:38`, `:42`).
-const BUTTON: f32 = 24.0;
-const ICON: f32 = 16.0;
-
 crate::words! {
     /// The align bar's words, English by default (Photoshop's Layer › Align and Distribute
     /// menus). A button's tooltip is "Align: Left Edges".
@@ -197,12 +193,17 @@ impl<'a> AlignBar<'a> {
             let group = if action.is_align() { &labels.align } else { &labels.distribute };
             craft_i18n::fmt(&labels.tooltip, &[("group", group), ("action", action.label(&labels))])
         };
+        let sizes = Tokens::of(ui).component.align;
         let mut picked = None;
         let inner = ui.scope_builder(egui::UiBuilder::new().id_salt(ui.make_persistent_id(self.id_salt)), |ui| {
             direction::horizontal(ui, |ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 let button = |ui: &mut Ui, action: AlignAction, picked: &mut Option<AlignAction>| {
-                    let b = IconButton::new(action.icon(), name(action)).side(BUTTON).icon_size(ICON).enabled((self.enabled)(action)).id_salt(action);
+                    let b = IconButton::new(action.icon(), name(action))
+                        .side(sizes.button)
+                        .icon_size(sizes.icon)
+                        .enabled((self.enabled)(action))
+                        .id_salt(action);
                     if ui.add(b).clicked() {
                         *picked = Some(action);
                     }
@@ -211,13 +212,13 @@ impl<'a> AlignBar<'a> {
                     button(ui, action, &mut picked);
                 }
                 if self.distribute == DistributeButtons::Row {
-                    let (rect, _) = ui.allocate_exact_size(vec2(1.0, BUTTON), Sense::hover());
+                    let (rect, _) = ui.allocate_exact_size(vec2(1.0, sizes.button), Sense::hover());
                     Divider::paint(ui.painter(), rect.center_top(), rect.center_bottom(), &Tokens::of(ui));
                     for action in AlignAction::DISTRIBUTE {
                         button(ui, action, &mut picked);
                     }
                 }
-                let more = ui.add(IconButton::new(Icon::More, labels.more.clone()).side(BUTTON).icon_size(ICON).id_salt("more"));
+                let more = ui.add(IconButton::new(Icon::More, labels.more.clone()).side(sizes.button).icon_size(sizes.icon).id_salt("more"));
                 let item = |action: AlignAction| {
                     MenuItem::new(action.label(&labels), action)
                         .icon(action.icon())
