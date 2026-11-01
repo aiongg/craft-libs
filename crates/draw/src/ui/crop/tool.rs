@@ -2,17 +2,20 @@
 //! [`CropToolPass`] each pass from it and the pass's input ([`CropInput`]), so the snap closure can
 //! borrow the app's snap data (lead call 11).
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TO-C4)")]
+use egui::{Color32, CursorIcon, Key, Modifiers, Painter, Pos2};
+use kurbo::{Affine, Point, Rect, Vec2};
 
-use egui::{Color32, Modifiers, Painter};
-use kurbo::Vec2;
-
-use super::crop_frame::{CropBox, CropLabels, CropNames, CropPress};
+use super::crop_frame::{CropBox, CropFrame, CropKeyAction, CropLabels, CropNames, CropPress, CropPressKind, CropReadout, CropRelease};
 use super::options::{CropFill, CropSettings, CropTarget};
-use super::session::{CropDocument, CropKept, CropSession};
+use super::session::{CropDocument, CropKept, CropSession, LeaveFrame};
+use crate::ui::transform::transform_box::{key_part, part_key};
 use craft_ui::canvas::quad::BoxPart;
-use craft_ui::canvas::{CanvasTool, CanvasView, RulerUnits, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
-use craft_ui::edit::{EditEvent, GestureId};
+use craft_ui::canvas::{
+    CanvasTool, CanvasView, RulerUnits, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer, resize_cursor, turn_cursor,
+};
+use craft_ui::edit::{CancelReason, EditEvent, GestureId};
+use craft_ui::localized::Labels as _;
+use craft_ui::theme::ToEgui as _;
 
 /// The host's snapping of a dragged part or a Straighten line end, as
 /// [`CropFrame::snap`](super::CropFrame::snap) takes it: the offset to add to the part's point.
@@ -176,11 +179,16 @@ pub struct CropTool {
     session: CropSession,
     press: Option<CropPress>,
     gesture: Option<GestureId>,
+    /// The frame when the press began: the Commit's `changed`.
+    before: Option<CropBox>,
     /// The part the keys act on; `None` is the whole frame.
     picked: Option<BoxPart>,
     /// The frame the Image-mode view was last set for: a frame changed outside a gesture (undo,
     /// refit, keys) turns the view on the next pass.
     synced: Option<CropBox>,
+    /// The mode the last pass saw (Classic Mode on or off): a change brings the view to the new
+    /// mode's.
+    classic_seen: Option<bool>,
     /// The frame, box steps and view of the last Apply, until [`applied`](Self::applied).
     kept: Option<CropKept>,
 }
@@ -214,13 +222,22 @@ impl CropTool {
     /// view to match (the frame stays put on screen, #7088). `None` when there is nothing to undo.
     pub fn undo(&mut self) -> Option<CropBox> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:510 `step`.
-        todo!()
+        let frame = self.session.undo();
+        self.stepped(frame)
     }
 
     /// Edit › Redo while a crop is pending.
     pub fn redo(&mut self) -> Option<CropBox> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:510 `step`.
-        todo!()
+        let frame = self.session.redo();
+        self.stepped(frame)
+    }
+
+    fn stepped(&mut self, frame: Option<CropBox>) -> Option<CropBox> {
+        if frame.is_some() {
+            self.synced = None;
+        }
+        frame
     }
 
     /// The bar changed the ratio or W × H × Resolution ([`CropBarEvent::Ratio`](super::CropBarEvent)):
@@ -230,21 +247,45 @@ impl CropTool {
     pub fn refit(&mut self, settings: &CropSettings, document: &CropDocument, editing: bool) -> Option<CropEvent> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:243 `apply_ratio`, :254 `apply_ratio_from`, :228
         // `fitted_ratio`, :267 `fit_frame`.
-        todo!()
+        // The run ends even when nothing refits.
+        let base = self.session.ratio_base(editing);
+        if self.press.is_some() {
+            return None;
+        }
+        let (current, base) = (self.session.frame()?, base?);
+        let rect = fitted_ratio(base.rect, settings.ratio_value(document)?)?;
+        let next = CropBox { rect, angle: base.angle };
+        // W × H × Resolution can change the output size even when the frame already fits, so it
+        // makes the frame a pending crop.
+        let sized = settings.target(document).is_some();
+        if next == current && (editing || !sized) {
+            return None;
+        }
+        // #6750: fitting the untouched default frame to a ratio alone is not an edit.
+        let keep_default = !editing && !sized && self.session.is_default();
+        self.session.set(next, keep_default, false);
+        Some(CropEvent::Frame(EditEvent::set(next, Modifiers::NONE)))
     }
 
     /// ✓ in the bar or Image › Crop: [`CropEvent::Apply`] for a drawn frame (`view`: an Image-mode
     /// host's turned view, kept for a refused commit), `None` for the default frame or no frame.
     pub fn apply(&mut self, settings: &CropSettings, document: &CropDocument, view: Option<CanvasView>) -> Option<CropEvent> {
         // pc: crates/ui-egui/src/panels/options_bar.rs:539 (✓ calls `canvas::commit_crop`).
-        todo!()
+        if !self.session.pending() {
+            return None;
+        }
+        let frame = self.session.frame()?;
+        self.kept = Some(self.session.keep(view));
+        Some(CropEvent::Apply(CropCommit::new(frame, settings, document)))
     }
 
     /// ⊘ in the bar: [`CropEvent::Discard`] and the session cleared (the next pass makes a new
     /// default frame); `None` without a frame.
     pub fn discard(&mut self) -> Option<CropEvent> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:424 `cancel`.
-        todo!()
+        self.session.frame()?;
+        self.reset();
+        Some(CropEvent::Discard)
     }
 
     /// The app picked another tool (not a held temporary one): drops an untouched default frame
@@ -252,7 +293,22 @@ impl CropTool {
     /// running drag also keeps the frame). Disarms Straighten.
     pub fn leave(&mut self, settings: &CropSettings, document: &CropDocument, keeps_pending: bool) -> Option<CropEvent> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:350 `frame` (leave half), :408 `commit_on_leave`.
-        todo!()
+        match self.session.leave(keeps_pending) {
+            LeaveFrame::Kept => None,
+            LeaveFrame::Nothing => {
+                self.reset_gesture();
+                None
+            }
+            LeaveFrame::Dropped => {
+                self.reset();
+                None
+            }
+            LeaveFrame::Apply(frame) => {
+                self.reset_gesture();
+                self.kept = Some(self.session.keep(None));
+                Some(CropEvent::Apply(CropCommit::new(frame, settings, document)))
+            }
+        }
     }
 
     /// The app ran its crop command for the last [`CropEvent::Apply`]: `true` clears the session,
@@ -260,7 +316,31 @@ impl CropTool {
     /// for the host to adopt.
     pub fn applied(&mut self, accepted: bool) -> Option<CanvasView> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:457 `Kept`, :469 `restore`.
-        todo!()
+        let kept = self.kept.take();
+        if accepted {
+            self.reset();
+            return None;
+        }
+        let view = self.session.restore(kept?);
+        // The restored view comes with the frame: nothing to turn.
+        self.synced = self.session.frame();
+        view
+    }
+
+    /// The gesture and the picked part end.
+    fn reset_gesture(&mut self) {
+        self.press = None;
+        self.gesture = None;
+        self.before = None;
+        self.picked = None;
+    }
+
+    /// The session, the gesture and the view's sync are dropped; the next pass makes a new default
+    /// frame.
+    fn reset(&mut self) {
+        self.session.clear();
+        self.reset_gesture();
+        self.synced = None;
     }
 }
 
@@ -273,10 +353,86 @@ pub struct CropToolPass<'a> {
 
 impl CropToolPass<'_> {
     /// What the pass reported: its events in order, the frame, and the crop preview's state.
-    pub fn finish(self) -> CropOutput {
+    pub fn finish(mut self) -> CropOutput {
         // new: the output with `frame`, `shows_beyond_canvas` and `dragging` read from the session
         // and the press.
-        todo!()
+        self.output.frame = self.tool.session.frame();
+        self.output.shows_beyond_canvas = self.tool.session.editing();
+        self.output.dragging = self.tool.dragging();
+        self.output
+    }
+
+    /// The frame for `state` with this pass's options, as every call of the tool drives it.
+    fn frame<'f>(input: &'f CropInput<'_>, tool: &CropTool, state: &'f CropBox, modifiers: Modifiers, cx: &ToolContext<'_>) -> CropFrame<'f> {
+        let ctx = &cx.canvas.ctx;
+        let settings = input.settings;
+        let names = input.names.clone().unwrap_or_else(|| CropNames::of_ctx(ctx));
+        let mut frame = CropFrame::new("craft_draw::CropTool", state, names)
+            .ratio(settings.ratio_value(input.document))
+            .default_frame(tool.session.is_default())
+            .straighten(tool.session.straighten().on())
+            .modifiers(modifiers)
+            .image_mode(!settings.shield.classic_mode)
+            .auto_center(settings.shield.auto_center_preview)
+            .readout(input.readout.clone().unwrap_or_else(|| CropLabels::of_ctx(ctx)));
+        if let Some((x, y)) = input.units {
+            frame = frame.units(x, y);
+        }
+        if let Some(snap) = input.snap {
+            frame = frame.snap(snap);
+        }
+        frame
+    }
+
+    fn classic(&self) -> bool {
+        self.input.settings.shield.classic_mode
+    }
+
+    /// The view an Image-mode Apply keeps for a refused commit.
+    fn kept_view(&self, cx: &ToolContext<'_>) -> Option<CanvasView> {
+        (!self.classic()).then_some(*cx.view)
+    }
+
+    fn push(&mut self, event: CropEvent) {
+        self.output.events.push(event);
+    }
+
+    /// Hands the host the view a call moved, when it differs from the host's.
+    fn adopt(view: CanvasView, cx: &mut ToolContext<'_>) {
+        if view != *cx.view {
+            cx.set_view(view);
+        }
+    }
+
+    /// The pointer at `pointer` moves the running press: Begin on the first move, Update after;
+    /// in Image mode the view the track moved goes to the host.
+    fn track(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        let (Some(mut press), Some(frame)) = (self.tool.press, self.tool.session.frame()) else { return };
+        let space = cx.canvas.ctx.input(|i| i.key_down(Key::Space));
+        let mut view = *cx.view;
+        let track =
+            Self::frame(&self.input, self.tool, &frame, pointer.modifiers, cx).track(&mut view, &mut press, pointer.screen, pointer.modifiers, space);
+        self.tool.press = Some(press);
+        if press.kind() == CropPressKind::Straighten {
+            return;
+        }
+        let id = self.tool.gesture.unwrap_or_else(GestureId::next);
+        let event = match (track.begun, track.state) {
+            (true, Some(next)) => Some(EditEvent::begin_with(id, next)),
+            (true, None) => Some(EditEvent::begin(id)),
+            (false, Some(next)) => Some(EditEvent::update(id, next, pointer.modifiers)),
+            (false, None) => None,
+        };
+        if let Some(event) = event {
+            self.push(CropEvent::Frame(event));
+        }
+        if let Some(next) = track.state {
+            self.tool.session.set(next, false, true);
+            self.tool.synced = Some(next);
+        }
+        if !self.classic() {
+            Self::adopt(view, cx);
+        }
     }
 }
 
@@ -287,7 +443,37 @@ impl CanvasTool for CropToolPass<'_> {
     fn each_pass(&mut self, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:345 `ensure_frame`, :590 `cancel_stale`;
         // crop_straighten.rs:38 `set_held`; crop_mode.rs:93 `sync_frame`.
-        todo!()
+        let document = self.input.document;
+        if self.tool.session.for_document(document.key) {
+            self.tool.reset();
+            self.push(CropEvent::Discard);
+        }
+        self.tool.session.straighten_mut().set_held(cx.modifiers.command);
+        let dragging = self.tool.press.is_some();
+        let made = self.tool.session.ensure_frame(document, dragging);
+        if made {
+            self.tool.picked = None;
+            self.tool.synced = None;
+        }
+        if dragging {
+            return;
+        }
+        let classic = self.classic();
+        let mode_changed = self.tool.classic_seen != Some(classic);
+        if mode_changed {
+            self.tool.synced = None;
+            self.tool.classic_seen = Some(classic);
+        }
+        let Some(frame) = self.tool.session.frame() else { return };
+        if classic {
+            // The camera is upright and the frame turns on it (never back to a Rotate View turn).
+            if made || mode_changed {
+                Self::adopt(CanvasView { rotation: 0.0, ..*cx.view }, cx);
+            }
+        } else if self.tool.synced != Some(frame) {
+            Self::adopt(CropFrame::view_for(&frame, cx.view), cx);
+            self.tool.synced = Some(frame);
+        }
     }
 
     /// The frame's hover cursor ([`CropFrame::hit`](super::CropFrame::hit)): resize arrows along
@@ -295,7 +481,40 @@ impl CanvasTool for CropToolPass<'_> {
     /// default frame and while Straighten is on, the turn cursor outside.
     fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:990 `cursor`, :1020 `turn_cursor_dir`.
-        todo!()
+        let arrow = ToolCursor::System(CursorIcon::Default);
+        let crosshair = ToolCursor::System(CursorIcon::Crosshair);
+        let (Some(frame), Some(pointer)) = (self.tool.session.frame().filter(CropBox::is_finite), cx.pointer) else { return arrow };
+        let kind = self.tool.press.map(|p| p.kind());
+        let part = match kind {
+            Some(CropPressKind::Straighten | CropPressKind::Draw) => return crosshair,
+            Some(CropPressKind::Move) => BoxPart::Inside,
+            Some(CropPressKind::Resize(part)) => part,
+            Some(CropPressKind::Turn) => BoxPart::Outside,
+            None => {
+                let style = CropFrame::style(cx.tokens);
+                match Self::frame(&self.input, self.tool, &frame, Modifiers::NONE, cx).hit(cx.view, &style, pointer.screen) {
+                    Some(part) => part,
+                    // Straighten is on: every press draws its line.
+                    None => return crosshair,
+                }
+            }
+        };
+        match part {
+            BoxPart::Corner(_) | BoxPart::Edge(_) => {
+                let (hx, hy) = handle_of(part);
+                let (s, c) = frame.angle.to_radians().sin_cos();
+                let (x, y) = (f64::from(hx), f64::from(hy));
+                ToolCursor::System(resize_cursor(cx.view, Vec2::new(x * c - y * s, x * s + y * c)))
+            }
+            BoxPart::Outside => {
+                turn_cursor(&cx.canvas.ctx, pointer.screen, turn_toward(cx.view, &frame, pointer.screen));
+                ToolCursor::Hidden
+            }
+            // Inside the untouched default frame a drag draws a new one (#4461).
+            BoxPart::Inside if kind.is_none() && self.tool.session.is_default() => crosshair,
+            BoxPart::Inside => ToolCursor::System(CursorIcon::Move),
+            BoxPart::Pivot => arrow,
+        }
     }
 
     /// A press on the canvas: a Straighten line while Straighten is on, else
@@ -304,7 +523,30 @@ impl CanvasTool for CropToolPass<'_> {
     /// drawn frame ([`ToolPointer::clicks`] 2) applies.
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:817 `begin_drag`, :634 `commits_at`; :794 `straighten`.
-        todo!()
+        let Some(frame) = self.tool.session.frame().filter(CropBox::is_finite) else { return ToolAction::Ignored };
+        let style = CropFrame::style(cx.tokens);
+        let (double_click, press) = {
+            let host = Self::frame(&self.input, self.tool, &frame, pointer.modifiers, cx);
+            (pointer.clicks == 2 && host.double_click(cx.view, &style, pointer.screen), host.press(cx.view, &style, pointer.screen))
+        };
+        if double_click {
+            let view = self.kept_view(cx);
+            if let Some(event) = self.tool.apply(self.input.settings, self.input.document, view) {
+                self.push(event);
+            }
+            return ToolAction::Done;
+        }
+        let Some(press) = press else { return ToolAction::Ignored };
+        self.tool.session.press();
+        self.tool.picked = match press.kind() {
+            CropPressKind::Resize(part) => Some(part),
+            CropPressKind::Move => Some(BoxPart::Inside),
+            CropPressKind::Draw | CropPressKind::Turn | CropPressKind::Straighten => self.tool.picked,
+        };
+        self.tool.press = Some(press);
+        self.tool.gesture = Some(GestureId::next());
+        self.tool.before = Some(frame);
+        ToolAction::Claimed
     }
 
     /// [`CropFrame::track`](super::CropFrame::track) with Space from the modifiers; Begin on the
@@ -312,7 +554,7 @@ impl CanvasTool for CropToolPass<'_> {
     fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:909 `update`, :919 `follow_view_drag`, :949
         // `dragged_frame`.
-        todo!()
+        self.track(pointer, cx);
     }
 
     /// [`CropFrame::release`](super::CropFrame::release): Commit sets the session's frame (one box
@@ -320,14 +562,74 @@ impl CanvasTool for CropToolPass<'_> {
     fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:862 `release`, :900 `finish_frame`;
         // crop_straighten.rs:70 `pointer` (Up), :133 `apply`.
-        todo!()
+        // The host sends no move for the release point: the drag ends where the pointer is.
+        self.track(pointer, cx);
+        let Some(press) = self.tool.press.take() else { return };
+        let id = self.tool.gesture.take().unwrap_or_else(GestureId::next);
+        let before = self.tool.before.take();
+        let Some(frame) = self.tool.session.frame() else { return };
+        let style = CropFrame::style(cx.tokens);
+        let mut view = *cx.view;
+        let released = Self::frame(&self.input, self.tool, &frame, pointer.modifiers, cx).release(&mut view, &style, &press, Some(pointer.screen));
+        let image = !self.classic();
+        match released {
+            CropRelease::Commit(next) => {
+                let changed = before != Some(next);
+                self.tool.session.set(next, !changed, false);
+                self.tool.synced = Some(next);
+                self.push(CropEvent::Frame(EditEvent::commit(id, next, changed, pointer.modifiers)));
+            }
+            CropRelease::Cancel => {
+                self.tool.session.revert();
+                self.tool.synced = self.tool.session.frame();
+                self.push(CropEvent::Frame(EditEvent::cancel(id, CancelReason::Dismissed)));
+            }
+            CropRelease::Straighten(angle) => {
+                // One line per click of the button.
+                self.tool.session.straighten_mut().disarm();
+                if let Some(next) = frame.fitted(self.input.document.size, angle) {
+                    self.tool.session.set(next, false, false);
+                    if image {
+                        view = CropFrame::view_for(&next, cx.view);
+                    }
+                    self.tool.synced = Some(next);
+                    self.push(CropEvent::Frame(EditEvent::set(next, pointer.modifiers)));
+                    self.push(CropEvent::Straightened(angle));
+                }
+            }
+            CropRelease::Nothing => {
+                if press.kind() == CropPressKind::Straighten {
+                    self.tool.session.straighten_mut().disarm();
+                }
+            }
+        }
+        if image {
+            Self::adopt(view, cx);
+        }
     }
 
     /// Esc or a lost pointer during a drag: [`CropFrame::cancel`](super::CropFrame::cancel) puts an
     /// Image-mode view back; the frame reverts and the event is Cancel.
     fn cancel(&mut self, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:889 `restore_frame`.
-        todo!()
+        let Some(press) = self.tool.press.take() else { return };
+        let id = self.tool.gesture.take().unwrap_or_else(GestureId::next);
+        self.tool.before = None;
+        if press.kind() == CropPressKind::Straighten {
+            return;
+        }
+        if let Some(frame) = self.tool.session.frame() {
+            let mut view = *cx.view;
+            Self::frame(&self.input, self.tool, &frame, Modifiers::NONE, cx).cancel(&mut view, &press);
+            if !self.classic() {
+                Self::adopt(view, cx);
+            }
+        }
+        if press.began() {
+            self.tool.session.revert();
+            self.push(CropEvent::Frame(EditEvent::cancel(id, CancelReason::Escape)));
+        }
+        self.tool.synced = self.tool.session.frame();
     }
 
     /// Enter, Esc, arrows and X through [`CropFrame::key`](super::CropFrame::key); O, ⇧O, H, P and I
@@ -336,7 +638,27 @@ impl CanvasTool for CropToolPass<'_> {
     fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:743 `keys`; crop_overlay.rs:268 `keys`;
         // crop_shield.rs:126 `keys`; crop_size.rs:273 `keys`.
-        todo!()
+        if !key.pressed || self.tool.press.is_some() {
+            return false;
+        }
+        let (settings, document) = (self.input.settings, self.input.document);
+        let frame = self.tool.session.frame().filter(CropBox::is_finite);
+        // Shift counts: ⇧O is not O.
+        let plain = key.modifiers.matches_exact(Modifiers::NONE);
+        let mut next = settings.clone();
+        match key.key {
+            Key::I if plain => next.front_image(document),
+            Key::O if frame.is_some() && plain => next.cycle_guide(),
+            Key::O if frame.is_some() && key.modifiers.matches_exact(Modifiers::SHIFT) => next.cycle_orientation(),
+            // Show Cropped Area is taken but inert in Classic Mode, where it acts as on.
+            Key::H if frame.is_some() && plain => next.shield.show_cropped_area ^= !next.shield.classic_mode,
+            Key::P if frame.is_some() && plain => next.shield.classic_mode = !next.shield.classic_mode,
+            _ => return self.frame_key(key, frame, cx),
+        }
+        if next != *settings {
+            self.push(CropEvent::Settings(next));
+        }
+        true
     }
 
     /// The shield, frame, guide (by [`GuideShow`](super::GuideShow)) and brackets
@@ -345,22 +667,132 @@ impl CanvasTool for CropToolPass<'_> {
     fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/crop_straighten.rs:152 `draw`; the frame's look is the
         // library's (`CropFrame::paint`).
-        todo!()
+        let Some(frame) = self.tool.session.frame().filter(CropBox::is_finite) else { return };
+        let style = CropFrame::style(cx.tokens);
+        let settings = self.input.settings;
+        let dragging = self.tool.dragging();
+        let canvas = self.input.canvas_colour.unwrap_or_else(|| cx.tokens.color.surface.canvas.to_egui());
+        let guide = settings.guide_show.shows(dragging).then_some((settings.guide, settings.guide_orientation));
+        let host = Self::frame(&self.input, self.tool, &frame, Modifiers::NONE, cx).shield(settings.shield.fill(canvas, dragging)).guide(guide);
+        // The host draws the focus ring round the picked part.
+        host.paint(painter, cx.view, &style, &frame, None);
+        if let (Some(press), Some(pointer)) = (self.tool.press, cx.pointer) {
+            let labels = self.input.readout.clone().unwrap_or_else(|| CropLabels::of_ctx(&cx.canvas.ctx));
+            let readout = self.input.units.map(|(x, y)| CropReadout { labels: &labels, x, y });
+            host.paint_gesture(painter, &style, &press, pointer.screen, readout);
+        }
     }
 
     /// [`CropFrame::parts`](super::CropFrame::parts) of the session's frame; `None` without one.
     fn parts(&self, cx: &ToolContext<'_>) -> Option<ToolParts> {
         // new: lead call 33.
-        todo!()
+        let frame = self.tool.session.frame().filter(CropBox::is_finite)?;
+        let style = CropFrame::style(cx.tokens);
+        Some(Self::frame(&self.input, self.tool, &frame, Modifiers::NONE, cx).parts(cx.view, &style, &frame, self.tool.picked))
     }
 
     fn picked(&self) -> Option<u64> {
         // new: the picked `BoxPart` through `transform_box::part_key`.
-        todo!()
+        self.tool.picked.map(part_key)
     }
 
-    fn pick(&mut self, key: Option<u64>, cx: &mut ToolContext<'_>) {
+    fn pick(&mut self, key: Option<u64>, _cx: &mut ToolContext<'_>) {
         // new: `transform_box::key_part`.
-        todo!()
+        self.tool.picked = key.and_then(key_part);
     }
+}
+
+impl CropToolPass<'_> {
+    /// Enter, Esc, an arrow or X through the frame; `frame` is the session's.
+    fn frame_key(&mut self, key: &ToolKey, frame: Option<CropBox>, cx: &mut ToolContext<'_>) -> bool {
+        let Some(frame) = frame else { return false };
+        // Without the canvas's focus the parts group has the keyboard: the arrows move the picked part.
+        let picked = self.tool.picked.filter(|_| !cx.canvas.has_focus());
+        let mut view = *cx.view;
+        let action = Self::frame(&self.input, self.tool, &frame, key.modifiers, cx).key(key, &mut view, picked);
+        let (settings, document) = (self.input.settings, self.input.document);
+        match action {
+            None => false,
+            Some(CropKeyAction::Apply) => {
+                let view = self.kept_view(cx);
+                if let Some(event) = self.tool.apply(settings, document, view) {
+                    self.push(event);
+                }
+                true
+            }
+            Some(CropKeyAction::Discard) => {
+                if let Some(event) = self.tool.discard() {
+                    self.push(event);
+                }
+                true
+            }
+            Some(CropKeyAction::Set(mut next)) => {
+                if key.key == Key::X {
+                    // The ratio swaps with the frame, as in Photoshop (W with H in W × H × Resolution).
+                    let mut swapped = settings.clone();
+                    if swapped.swap(document) && swapped != *settings {
+                        if let Some(rect) = swapped.ratio_value(document).and_then(|k| fitted_ratio(next.rect, k)) {
+                            next.rect = rect;
+                        }
+                        self.push(CropEvent::Settings(swapped));
+                    }
+                }
+                self.tool.session.set(next, false, false);
+                self.tool.synced = Some(next);
+                self.push(CropEvent::Frame(EditEvent::set(next, key.modifiers)));
+                if !self.classic() {
+                    Self::adopt(view, cx);
+                }
+                true
+            }
+        }
+    }
+}
+
+impl CropTool {
+    /// A drag of the frame runs (not a Straighten line).
+    fn dragging(&self) -> bool {
+        self.press.is_some_and(|p| p.began() && p.kind() != CropPressKind::Straighten)
+    }
+}
+
+/// Largest centred rectangle of `ratio` (width over height) contained in `rect`; never adds
+/// area. `None` for a rect or a ratio that is not a positive finite number.
+fn fitted_ratio(rect: Rect, ratio: f64) -> Option<Rect> {
+    // pc: crates/ui-egui/src/tools/crop_ui.rs:228 `fitted_ratio`.
+    let r = rect.abs();
+    let (w, h) = (r.width(), r.height());
+    let finite = [r.x0, r.y0, r.x1, r.y1, ratio].iter().all(|v| v.is_finite());
+    if !finite || w <= 0.0 || h <= 0.0 || ratio <= 0.0 {
+        return None;
+    }
+    if ((w / h) / ratio - 1.0).abs() < 1e-12 {
+        return Some(r);
+    }
+    let c = r.center();
+    let (w, h) = if w / h > ratio { (h * ratio, h) } else { (w, w / ratio) };
+    let fitted = Rect::new(c.x - w / 2.0, c.y - h / 2.0, c.x + w / 2.0, c.y + h / 2.0);
+    (fitted.x1 > fitted.x0 && fitted.y1 > fitted.y0 && [fitted.x0, fitted.y0, fitted.x1, fitted.y1].iter().all(|v| v.is_finite())).then_some(fitted)
+}
+
+/// The handle (`hx`, `hy`) of a corner or edge part, -1 for left and top, 1 for right and bottom.
+fn handle_of(part: BoxPart) -> (i8, i8) {
+    match part {
+        BoxPart::Corner(i) => [(-1, -1), (1, -1), (1, 1), (-1, 1)][usize::from(i % 4)],
+        BoxPart::Edge(i) => [(0, -1), (1, 0), (0, 1), (-1, 0)][usize::from(i % 4)],
+        _ => (0, 0),
+    }
+}
+
+/// The screen direction the turn cursor's arc bends towards at screen point `pointer`: the frame
+/// corner of the pointer's quadrant, along the diagonal of the frame's own axes.
+fn turn_toward(view: &CanvasView, frame: &CropBox, pointer: Pos2) -> egui::Vec2 {
+    // pc: crates/ui-egui/src/tools/crop_ui.rs:1020 `turn_cursor_dir`.
+    let c = frame.center();
+    let turn = |p: Point, about: Point, degrees: f64| Affine::rotate_about(degrees.to_radians(), about) * p;
+    let local = turn(view.to_doc(pointer), c, -frame.angle);
+    let (sx, sy) = (if local.x < c.x { 1.0 } else { -1.0 }, if local.y < c.y { 1.0 } else { -1.0 });
+    let diagonal = std::f64::consts::FRAC_1_SQRT_2;
+    let toward = turn(Point::new(sx * diagonal, sy * diagonal), Point::ZERO, frame.angle);
+    view.map_vec(Vec2::new(toward.x, toward.y))
 }
