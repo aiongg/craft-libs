@@ -71,7 +71,7 @@ static TWO_SOURCES: [ScopeSource<'static>; 2] =
 // Compact has the plot only; Expanded has the Channel row and statistics; All Channels adds one
 // plot per colour channel; the Source row needs two sources.
 #[test]
-#[ignore = "runs against SC3's plot bodies"]
+
 fn scope_views_show_the_right_rows() {
     let compact = rig(ScopeView::Compact, &[], false);
     assert!(compact.query_by_label("Channel:").is_none());
@@ -94,7 +94,7 @@ fn scope_views_show_the_right_rows() {
 
 // Hover reports `hovered_level`; a drag reports `range` and stores it in the state.
 #[test]
-#[ignore = "runs against SC3's plot bodies"]
+
 fn scope_hover_and_drag_report_levels_and_range() {
     let mut harness = rig(ScopeView::Compact, &[], false);
     let rect = plot(&harness);
@@ -113,7 +113,7 @@ fn scope_hover_and_drag_report_levels_and_range() {
 
 // The refresh button, a click on the stale mark and a double-click on the plot report `refresh`.
 #[test]
-#[ignore = "runs against SC3's plot bodies"]
+
 fn scope_refresh_is_requested_three_ways() {
     let mut harness = rig(ScopeView::Expanded, &[], true);
     harness.get_by_role_and_label(Role::Button, "Uncached Refresh").click();
