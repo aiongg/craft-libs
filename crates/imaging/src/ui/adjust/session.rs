@@ -1,8 +1,6 @@
 //! [`AdjustSession`]: the Properties panel's memory of the settings it found on an adjustment
 //! layer, so Reset returns to them once the user edited (task AD-5).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 /// The settings an adjustment layer had when the Properties panel started showing it, and whether
 /// the panel edited them since (or since the last Reset). A plain value the app keeps per panel;
 /// the app chooses the kinds that use it (PhotoCraft: Color Balance only, the one kind measured
@@ -35,7 +33,13 @@ impl<T: Clone> AdjustSession<T> {
     pub fn track(&mut self, target: u64, pass: u64, committed: &T) {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/session.rs:31-42 `track_session` (kept while
         // `last + 1 >= pass` for the same document).
-        todo!()
+        match &mut self.start {
+            Some((kept_target, last, _)) if *kept_target == target && last.saturating_add(1) >= pass => *last = pass,
+            _ => {
+                self.start = Some((target, pass, committed.clone()));
+                self.edited = false;
+            }
+        }
     }
 
     /// The panel edited the settings.
@@ -51,13 +55,18 @@ impl<T: Clone> AdjustSession<T> {
     /// The settings the panel found, while edited.
     pub fn start(&self) -> Option<&T> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/session.rs:51-56 `session_start`.
-        todo!()
+        self.start.as_ref().filter(|_| self.edited).map(|(_, _, found)| found)
     }
 
     /// The Properties panel's Reset: the start settings if edited, else `defaults()`; clears
     /// `edited`.
     pub fn reset(&mut self, defaults: impl FnOnce() -> T) -> T {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/session.rs:58-80 `properties_reset`.
-        todo!()
+        let settings = match (self.edited, &self.start) {
+            (true, Some((_, _, found))) => found.clone(),
+            _ => defaults(),
+        };
+        self.edited = false;
+        settings
     }
 }
