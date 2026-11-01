@@ -246,13 +246,11 @@ impl LiquifyCanvas {
         self.recorder.end(self.at, Modifiers::NONE).map(LiquifyEvent::Stroke)
     }
 
-    /// A rest-time dab of the tool that acts while the brush is held still. The recorder skips a
-    /// point equal to the last, so the dab goes at the point's next representable neighbour.
+    /// A rest-time dab of the tool that acts while the brush is held still.
     fn hold(&mut self, at: Point, modifiers: Modifiers, time: f64) {
-        let held = [at.x.next_up(), at.y, 1.0];
-        if let Some(event) = self.recorder.extend(held, modifiers) {
+        if let Some(event) = self.recorder.hold([at.x, at.y, 1.0], modifiers) {
             self.events.push(LiquifyEvent::Stroke(event));
-            self.at = [held[0], held[1]];
+            self.at = [at.x, at.y];
             self.last_dab = time;
         }
     }

@@ -261,6 +261,17 @@ impl StrokeRecorder {
         Some(EditEvent::update(*id, stroke.clone(), modifiers))
     }
 
+    /// A held dab: adds `at` even when it equals the last point, because a tool that acts while
+    /// the brush rests dabs again in place (unlike [`extend`](Self::extend), which skips a
+    /// repeated point), and reports `Update` with the whole stroke. `None` with no stroke.
+    pub fn hold(&mut self, at: [f64; 3], modifiers: Modifiers) -> Option<EditEvent<LiquifyStroke>> {
+        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:1203-1207 (a stationary tool's `Move` at
+        // the same point, 30 a second).
+        let (id, stroke) = self.stroke.as_mut()?;
+        stroke.points.push(at);
+        Some(EditEvent::update(*id, stroke.clone(), modifiers))
+    }
+
     pub fn end(&mut self, at: [f64; 2], modifiers: Modifiers) -> Option<EditEvent<LiquifyStroke>> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:714-727 (`Up` adds the release point with
         // the last pressure, then `end`).
