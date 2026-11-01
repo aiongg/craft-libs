@@ -2,7 +2,7 @@
 //! image is reduced to fit it, the raster display's detail texture, and [`fit_image`] for any
 //! image past the limit.
 
-use egui::{ColorImage, Context};
+use egui::{Color32, ColorImage, Context};
 
 use crate::canvas::PixelRect;
 
@@ -87,9 +87,36 @@ impl DetailPlan {
 /// `size.div_ceil(factor)`, at least 1 × 1. A whole factor keeps every reduced texel on whole
 /// source pixels, so a later region update maps onto it exactly
 /// ([`TextureCache::put_region`](super::TextureCache::put_region)).
-#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 // deckcraft: crates/ui-egui/src/textures.rs:174 `shrink_to` (the same whole-factor box average);
 // designcraft: crates/ui-egui/src/widgets.rs:916 `fit_texture`.
 pub fn fit_image(image: ColorImage, max_side: u32) -> ColorImage {
-    todo!()
+    let size = image.size.map(|n| u32::try_from(n).unwrap_or(u32::MAX));
+    let factor = texture_factor(size, max_side);
+    if factor == 1 { image } else { reduce_image(&image, factor) }
+}
+
+/// `image` box-averaged by the whole `factor`, in premultiplied values.
+pub(super) fn reduce_image(image: &ColorImage, factor: u32) -> ColorImage {
+    let f = factor.max(1) as usize;
+    let [w, h] = image.size;
+    let (rw, rh) = (w.div_ceil(f).max(1), h.div_ceil(f).max(1));
+    let mut pixels = Vec::with_capacity(rw * rh);
+    for ry in 0..rh {
+        for rx in 0..rw {
+            let (x0, y0) = (rx * f, ry * f);
+            let (x1, y1) = ((x0 + f).min(w), (y0 + f).min(h));
+            let mut sum = [0u64; 4];
+            for y in y0..y1 {
+                for pixel in &image.pixels[y * w + x0..y * w + x1] {
+                    for (total, channel) in sum.iter_mut().zip(pixel.to_array()) {
+                        *total += u64::from(channel);
+                    }
+                }
+            }
+            let count = ((x1 - x0) * (y1 - y0)).max(1) as u64;
+            let mean = sum.map(|total| u8::try_from((total + count / 2) / count).unwrap_or(u8::MAX));
+            pixels.push(Color32::from_rgba_premultiplied(mean[0], mean[1], mean[2], mean[3]));
+        }
+    }
+    ColorImage::new([rw, rh], pixels)
 }

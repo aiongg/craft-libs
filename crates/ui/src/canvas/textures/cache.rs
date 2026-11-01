@@ -1,13 +1,14 @@
 //! [`TextureCache`]: keyed textures with revisions, budgets and eviction, living in the egui
 //! context.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::collections::HashMap;
-use std::hash::Hash;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
-use egui::{AsIdSalt, ColorImage, Context, TextureHandle, TextureId, TextureOptions, Vec2};
+use egui::{AsIdSalt, ColorImage, Context, Id, TextureHandle, TextureId, TextureOptions, Vec2};
+
+use super::limits::{fit_image, reduce_image, texture_factor, texture_side};
 
 /// What can key a cached texture: a layer id, a path, a `(document, page)` pair. Every type with
 /// these bounds is one.
@@ -26,8 +27,9 @@ impl Revision {
     /// one run of the app (std's `DefaultHasher` with its fixed keys), not across builds, so it is
     /// never stored.
     pub fn of(value: &impl Hash) -> Revision {
-        // pc: crates/ui-egui/src/app/thumbs.rs:138 `surface_fingerprint` (a hash of the content's identity).
-        todo!()
+        let mut hasher = DefaultHasher::new();
+        value.hash(&mut hasher);
+        Revision(hasher.finish())
     }
 }
 
@@ -244,12 +246,33 @@ const _: () = {
 };
 
 impl<K: TextureKey> TextureCache<K> {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Inner<K>> {
+        self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     /// The cache stored in `ctx` under `id_salt`, made with `options` the first time. Later calls
     /// with the same salt get the same cache and ignore `options`.
     pub fn in_context(ctx: &Context, id_salt: impl AsIdSalt, options: TextureCacheOptions) -> Self {
-        // new: egui memory under `Id::new(("craft_ui::canvas::TextureCache", id_salt))`, via
-        // `get_temp_mut_or_insert_with`; the debug name of each texture is the salt and a counter.
-        todo!()
+        let id = Id::unique("craft_ui::canvas::TextureCache").with(&id_salt);
+        let name = format!("{id_salt:?}");
+        ctx.memory_mut(|memory| {
+            memory
+                .data
+                .get_temp_mut_or_insert_with(id, || Self {
+                    inner: Arc::new(Mutex::new(Inner {
+                        options,
+                        entries: HashMap::new(),
+                        bytes: 0,
+                        upload_pass: 0,
+                        uploads: 0,
+                        upload_bytes: 0,
+                        evicted: 0,
+                        name,
+                        next_name: 0,
+                    })),
+                })
+                .clone()
+        })
     }
 
     /// What `key` shows for `revision` (see [`TextureState`]), and marks the entry seen this pass.
@@ -257,8 +280,20 @@ impl<K: TextureKey> TextureCache<K> {
     /// - The entry has a picture of another revision: `Loading { stand_in: Some(..) }`.
     /// - No entry, or an empty or failed one of another revision: `Missing`.
     pub fn state(&self, ctx: &Context, key: &K, revision: Revision) -> TextureState {
-        // pc: crates/ui-egui/src/app/thumbs.rs:118-134 (a hit at the same revision is reused).
-        todo!()
+        let pass = ctx.cumulative_pass_nr();
+        let mut inner = self.lock();
+        let Some(entry) = inner.entries.get_mut(key) else {
+            return TextureState::Missing;
+        };
+        entry.seen = pass;
+        let same = entry.revision == revision;
+        match &entry.picture {
+            Picture::Texture { handle, source, factor } if same => TextureState::Ready(cached(handle, *source, *factor)),
+            Picture::Texture { handle, source, factor } => TextureState::Loading { stand_in: Some(cached(handle, *source, *factor)) },
+            Picture::Empty if same => TextureState::Empty,
+            Picture::Failed(message) if same => TextureState::Failed { message: message.clone() },
+            Picture::Empty | Picture::Failed(_) => TextureState::Missing,
+        }
     }
 
     /// Stores `image` as `key`'s picture at `revision` and returns it: in place when the key has a
@@ -267,8 +302,36 @@ impl<K: TextureKey> TextureCache<K> {
     /// the entry seen, then evicts (see the type's doc). The image is sRGBA as egui's `ColorImage`
     /// holds it (built from unmultiplied values with `ColorImage::from_rgba_unmultiplied`).
     pub fn put(&self, ctx: &Context, key: K, revision: Revision, image: ColorImage) -> CachedTexture {
-        // pc: crates/ui-egui/src/app/thumbs.rs:118 `store_thumb`; deckcraft: crates/ui-egui/src/textures.rs:174 `shrink_to`.
-        todo!()
+        let pass = ctx.cumulative_pass_nr();
+        let side = texture_side(ctx);
+        let source = image.size;
+        let factor = texture_factor(texel_size(source), side);
+        let image = fit_image(image, side);
+        let size = image.size;
+        let mut inner = self.lock();
+        inner.roll_uploads(pass);
+        let filter = inner.options.filter;
+        let existing = inner.entries.get_mut(&key).and_then(|entry| match &mut entry.picture {
+            Picture::Texture { handle, .. } => Some(handle),
+            _ => None,
+        });
+        let handle = match existing {
+            Some(handle) => {
+                handle.set(image, filter);
+                handle.clone()
+            }
+            None => {
+                let name = inner.next_texture_name();
+                ctx.load_texture(name, image, filter)
+            }
+        };
+        let texture = CachedTexture { id: handle.id(), size };
+        let bytes = size[0] * size[1] * 4;
+        inner.uploads += 1;
+        inner.upload_bytes += bytes;
+        inner.store(key, Entry { revision, picture: Picture::Texture { handle, source, factor }, seen: pass });
+        inner.evict(pass);
+        texture
     }
 
     /// Updates part of `key`'s picture in place and moves the entry to `revision`: `image` goes at
@@ -281,8 +344,35 @@ impl<K: TextureKey> TextureCache<K> {
     /// image's own edges; it is box-averaged by `f` and written at `origin / f`. A region off that
     /// grid returns `None`, and the app puts the whole image.
     pub fn put_region(&self, ctx: &Context, key: &K, revision: Revision, origin: [usize; 2], image: ColorImage) -> Option<CachedTexture> {
-        // new: `TextureHandle::set_partial` (epaint/src/texture_handle.rs:78) with the reduction of `fit_image`.
-        todo!()
+        let pass = ctx.cumulative_pass_nr();
+        let mut inner = self.lock();
+        inner.roll_uploads(pass);
+        let filter = inner.options.filter;
+        let entry = inner.entries.get_mut(key)?;
+        let Picture::Texture { handle, source, factor } = &mut entry.picture else {
+            return None;
+        };
+        let [x, y] = origin;
+        let [w, h] = image.size;
+        if x.checked_add(w)? > source[0] || y.checked_add(h)? > source[1] {
+            return None;
+        }
+        let f = *factor as usize;
+        let on_grid = |start: usize, len: usize, whole: usize| start.is_multiple_of(f) && ((start + len).is_multiple_of(f) || start + len == whole);
+        if f > 1 && !(on_grid(x, w, source[0]) && on_grid(y, h, source[1])) {
+            return None;
+        }
+        let sent = if f > 1 { reduce_image(&image, *factor) } else { image };
+        let uploaded = sent.size[0] * sent.size[1] * 4;
+        if uploaded > 0 {
+            handle.set_partial([x / f, y / f], sent, filter);
+        }
+        entry.revision = revision;
+        entry.seen = pass;
+        let texture = cached(handle, *source, *factor);
+        inner.uploads += 1;
+        inner.upload_bytes += uploaded;
+        Some(texture)
     }
 
     /// `key`'s picture at `revision`, calling `make` and putting its image only when the entry
@@ -290,40 +380,65 @@ impl<K: TextureKey> TextureCache<K> {
     /// thumbnail, WordCraft's `Previews::get_or`). An `Empty` or `Failed` entry at `revision` is
     /// made again.
     pub fn get_or_put(&self, ctx: &Context, key: K, revision: Revision, make: impl FnOnce() -> ColorImage) -> CachedTexture {
-        // wordcraft: crates/ui-egui/src/previews.rs:276 `Previews::get_or`.
-        todo!()
+        let pass = ctx.cumulative_pass_nr();
+        {
+            let mut inner = self.lock();
+            if let Some(entry) = inner.entries.get_mut(&key)
+                && entry.revision == revision
+                && let Picture::Texture { handle, source, factor } = &entry.picture
+            {
+                entry.seen = pass;
+                return cached(handle, *source, *factor);
+            }
+        }
+        self.put(ctx, key, revision, make())
     }
 
     /// Records that `key` has no picture at `revision` (state `Empty`); frees its texture.
     pub fn put_empty(&self, ctx: &Context, key: K, revision: Revision) {
-        // new: group, adjustment and type rows (`ThumbRender::Blank`), unsupported files (`LoadedPicture::Blank`).
-        todo!()
+        let pass = ctx.cumulative_pass_nr();
+        let mut inner = self.lock();
+        inner.store(key, Entry { revision, picture: Picture::Empty, seen: pass });
+        inner.evict(pass);
     }
 
     /// Records that making `key`'s picture at `revision` failed (state `Failed`), so nothing asks
     /// for it again until the revision changes; frees its texture.
     pub fn put_failure(&self, ctx: &Context, key: K, revision: Revision, message: impl Into<String>) {
-        // pdfcraft: crates/ui-egui/src/workflows/combine_grid/thumbs.rs:193 (`ThumbState::Failed`, not retried per frame).
-        todo!()
+        let pass = ctx.cumulative_pass_nr();
+        let mut inner = self.lock();
+        inner.store(key, Entry { revision, picture: Picture::Failed(message.into()), seen: pass });
+        inner.evict(pass);
     }
 
     /// Drops `key`'s entry and frees its texture.
     pub fn forget(&self, key: &K) {
-        // new: a closed document's pages.
-        todo!()
+        let mut inner = self.lock();
+        if let Some(entry) = inner.entries.remove(key) {
+            inner.bytes -= picture_bytes(&entry.picture);
+        }
     }
 
     /// Keeps only the entries whose key `keep` accepts (PhotoCraft's `prune_thumbs` when the open
     /// documents change).
     pub fn retain(&self, keep: impl FnMut(&K) -> bool) {
-        // pc: crates/ui-egui/src/app/thumbs.rs:4-37 `prune_thumbs`.
-        todo!()
+        let mut keep = keep;
+        let mut inner = self.lock();
+        let Inner { entries, bytes, .. } = &mut *inner;
+        entries.retain(|key, entry| {
+            let kept = keep(key);
+            if !kept {
+                *bytes -= picture_bytes(&entry.picture);
+            }
+            kept
+        });
     }
 
     /// Drops every entry (another library opened).
     pub fn clear(&self) {
-        // lightcraft: crates/ui-egui/src/render.rs:705 `forget_all`.
-        todo!()
+        let mut inner = self.lock();
+        inner.entries.clear();
+        inner.bytes = 0;
     }
 
     /// Whether this pass's upload allowance has room for one more upload of `bytes`: fewer than
@@ -332,19 +447,96 @@ impl<K: TextureKey> TextureCache<K> {
     /// allowance still lands. A loader asks before each put and leaves the rest for later passes;
     /// [`put`](Self::put) itself always uploads.
     pub fn allow_upload(&self, ctx: &Context, bytes: usize) -> bool {
-        // pdfcraft: crates/ui-egui/src/canvas/cache.rs:46 (`UPLOAD_BYTES_PER_FRAME`), :48 (`RESULTS_PER_FRAME`).
-        todo!()
+        let mut inner = self.lock();
+        inner.roll_uploads(ctx.cumulative_pass_nr());
+        let budget = inner.options.budget;
+        inner.uploads == 0 || (inner.uploads < budget.uploads_per_pass && inner.upload_bytes.saturating_add(bytes) <= budget.upload_bytes_per_pass)
     }
 
     /// What the cache holds and uploaded this pass.
     pub fn statistics(&self) -> TextureStatistics {
-        // pdfcraft: crates/ui-egui/src/canvas/cache.rs:86 (`RasterMemory`).
-        todo!()
+        let inner = self.lock();
+        TextureStatistics {
+            entries: inner.entries.len(),
+            bytes: inner.bytes,
+            uploads: inner.uploads,
+            upload_bytes: inner.upload_bytes,
+            evicted: inner.evicted,
+        }
     }
 
     /// The options the cache was made with.
     pub fn options(&self) -> TextureCacheOptions {
-        // new: the loader reads the upload allowance.
-        todo!()
+        self.lock().options
+    }
+}
+
+fn texel_size(size: [usize; 2]) -> [u32; 2] {
+    size.map(|n| u32::try_from(n).unwrap_or(u32::MAX))
+}
+
+/// The texel size of a texture made from an image of size `source` reduced by `factor`. The
+/// texture manager's own size lags an in-place `set` until the pass ends.
+fn texture_size(source: [usize; 2], factor: u32) -> [usize; 2] {
+    if factor <= 1 { source } else { source.map(|n| n.div_ceil(factor as usize).max(1)) }
+}
+
+fn cached(handle: &TextureHandle, source: [usize; 2], factor: u32) -> CachedTexture {
+    CachedTexture { id: handle.id(), size: texture_size(source, factor) }
+}
+
+fn picture_bytes(picture: &Picture) -> usize {
+    match picture {
+        Picture::Texture { source, factor, .. } => {
+            let [w, h] = texture_size(*source, *factor);
+            w * h * 4
+        }
+        Picture::Empty | Picture::Failed(_) => 0,
+    }
+}
+
+impl<K: TextureKey> Inner<K> {
+    /// Starts the upload counters over when `pass` is a new pass.
+    fn roll_uploads(&mut self, pass: u64) {
+        if self.upload_pass != pass {
+            self.upload_pass = pass;
+            self.uploads = 0;
+            self.upload_bytes = 0;
+        }
+    }
+
+    fn next_texture_name(&mut self) -> String {
+        self.next_name += 1;
+        format!("{}/{}", self.name, self.next_name)
+    }
+
+    /// Replaces `key`'s entry, keeping the byte count.
+    fn store(&mut self, key: K, entry: Entry) {
+        self.bytes += picture_bytes(&entry.picture);
+        if let Some(old) = self.entries.insert(key, entry) {
+            self.bytes -= picture_bytes(&old.picture);
+        }
+    }
+
+    /// Drops the least recently seen entries until the budget holds, never one seen in `pass` or
+    /// the pass before.
+    fn evict(&mut self, pass: u64) {
+        let budget = self.options.budget;
+        if self.bytes <= budget.max_bytes && self.entries.len() <= budget.max_entries {
+            return;
+        }
+        let protected = pass.saturating_sub(1);
+        let mut candidates: Vec<(u64, K)> =
+            self.entries.iter().filter(|(_, entry)| entry.seen < protected).map(|(key, entry)| (entry.seen, key.clone())).collect();
+        candidates.sort_by_key(|(seen, _)| *seen);
+        for (_, key) in candidates {
+            if self.bytes <= budget.max_bytes && self.entries.len() <= budget.max_entries {
+                break;
+            }
+            if let Some(entry) = self.entries.remove(&key) {
+                self.bytes -= picture_bytes(&entry.picture);
+                self.evicted += 1;
+            }
+        }
     }
 }
