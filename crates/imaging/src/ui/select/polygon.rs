@@ -1,13 +1,27 @@
 //! [`PolygonLassoTool`]: the Polygonal Lasso, click by click (task SE-F9).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: task SE-F9")]
-
-use craft_ui::canvas::draft::{DraftKind, DraftReach, OutlineDraft};
+use craft_ui::canvas::draft::{DraftKind, DraftPoint, DraftReach, OutlineDraft};
+use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasTool, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer};
-use egui::{Modifiers, Painter};
+use egui::{Key, Modifiers, Painter};
 
-use super::drag::InsideDrag;
+use super::drag::{InsideDrag, PressRule, drag_kind};
+use super::lasso::{apply, begin_inside, cursor, outline_node, paint_outline, phase, sample};
+use super::style::SelectToolStyle;
 use super::{SelectEvent, SelectPhase, SelectToolPass};
+
+/// `point` turned about `from` to the nearest multiple of 45°, keeping its distance: the draft's
+/// own turn for a vertex, applied to the rubber band too.
+fn turn_to_45(from: Point, point: Point) -> Point {
+    // pc: crates/ui-egui/src/canvas/gesture.rs:157-169 `constrained_polygon_point`.
+    let delta = point - from;
+    let length = delta.hypot();
+    if !length.is_finite() || length == 0.0 {
+        return point;
+    }
+    let angle = (delta.y.atan2(delta.x) / std::f64::consts::FRAC_PI_4).round() * std::f64::consts::FRAC_PI_4;
+    Point::new(from.x + length * angle.cos(), from.y + length * angle.sin())
+}
 
 /// Photoshop's Polygonal Lasso: each click adds a vertex; the outline closes into a selection.
 ///
@@ -67,14 +81,13 @@ impl PolygonLassoTool {
 
     /// Drop the outline and any selection drag without an event (a tool switch).
     pub fn reset(&mut self) {
-        // new: `OutlineDraft::cancel`, drop `inside`.
-        todo!()
+        self.draft.cancel();
+        self.inside = None;
     }
 
     /// What the tool is doing.
     pub fn phase(&self) -> SelectPhase {
-        // new: as `LassoTool::phase`.
-        todo!()
+        phase(&self.draft, self.inside.as_ref())
     }
 
     /// Retract the last vertex (the last one cancels the outline); `false` when no outline is open
@@ -83,13 +96,13 @@ impl PolygonLassoTool {
     /// menu then.
     pub fn retract(&mut self) -> bool {
         // pc: crates/ui-egui/src/canvas/gesture.rs:197-207 `polygon_retract` (right-click, #1229).
-        todo!()
+        self.draft.retract().is_some()
     }
 
     /// An outline with the operation New is open: the app hides the selection's ants.
     pub fn replaces_selection(&self) -> bool {
         // pc: crates/ui-egui/src/canvas/gesture.rs:227-229 `polygon_replaces_selection`.
-        todo!()
+        self.draft.is_open() && self.operation == SelectionOperation::New
     }
 }
 
@@ -98,14 +111,28 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
     /// keys while an outline is open.
     fn each_pass(&mut self, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/canvas/gesture.rs:214-223 `polygon_cancel_stale`.
-        todo!()
+        let (tool, probe) = (&mut *self.tool, self.probe);
+        tool.draft.set_reach(SelectToolStyle::of(cx.tokens).reach());
+        if tool.draft.for_document(probe.document()).is_some() {
+            tool.inside = None;
+        }
+        if cx.modifiers != tool.modifiers {
+            tool.modifiers = cx.modifiers;
+            let event = tool.draft.modifiers_changed(cx.modifiers);
+            apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
+        }
+        if tool.draft.takes_retract() {
+            cx.keep_keys();
+        }
     }
 
-    /// The polygon lasso icon with the operation's badge; with ⌘ over the selection
+    /// The crosshair with the operation's badge; with ⌘ over the selection
     /// `drag::cursor_over`.
     fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
         // pc: crates/ui-egui/src/canvas.rs:1384-1408.
-        todo!()
+        let tool = &*self.tool;
+        let rule = PressRule::Clicks { outline_open: tool.draft.is_open() };
+        cursor(&tool.draft, tool.operation, tool.bar, tool.inside.as_ref(), rule, self.probe, cx)
     }
 
     /// ⌘ inside the selection with no outline open: a pixel drag. Otherwise the click goes to the
@@ -113,44 +140,104 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/canvas/gesture.rs:174-195 `polygon_click`;
         // crates/ui-egui/src/canvas/tool_input.rs:588-592 (click-driven tools need ⌘).
-        todo!()
+        let (tool, probe) = (&mut *self.tool, self.probe);
+        let open = tool.draft.is_open();
+        if let Some(kind) = drag_kind(probe, pointer.raw, pointer.modifiers, tool.bar, PressRule::Clicks { outline_open: open }) {
+            begin_inside(kind, pointer, cx, &mut tool.inside, &mut tool.events);
+            return ToolAction::Claimed;
+        }
+        if pointer.modifiers.command && !open {
+            return ToolAction::Ignored;
+        }
+        let event = if open && pointer.clicks >= 2 { tool.draft.close() } else { tool.draft.press(sample(pointer, cx), probe.has_selection()) };
+        apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
+        ToolAction::Claimed
     }
 
     /// An ⌥-drag adds freehand points; a selection drag moves.
     fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // new: `OutlineDraft::drag`; `InsideDrag::drag`.
-        todo!()
+        let (tool, probe) = (&mut *self.tool, self.probe);
+        if let Some(inside) = tool.inside.as_mut() {
+            if let Some(event) = inside.drag(pointer.doc, pointer.modifiers, cx.view.zoom) {
+                tool.events.push(event);
+            }
+            return;
+        }
+        let event = tool.draft.drag(sample(pointer, cx));
+        apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
     }
 
     /// Ends an ⌥-drag segment or a selection drag; the outline stays open.
     fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // new: `OutlineDraft::release`; `InsideDrag::end`.
-        todo!()
+        let (tool, probe) = (&mut *self.tool, self.probe);
+        if let Some(inside) = tool.inside.take() {
+            tool.events.push(inside.end(pointer.doc, pointer.modifiers, cx.view.zoom));
+            return;
+        }
+        let event = tool.draft.release(sample(pointer, cx));
+        apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
     }
 
     /// The rubber band follows the pointer, constrained to 45° with ⇧.
     fn hover(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/canvas/gesture.rs:155-169 `constrained_polygon_point`.
-        todo!()
+        let tool = &mut *self.tool;
+        let mut at = sample(pointer, cx);
+        if pointer.modifiers.shift
+            && !pointer.modifiers.alt
+            && let Some(&last) = tool.draft.points().last()
+        {
+            at = DraftPoint { at: turn_to_45(last, at.at), ..at };
+        }
+        if tool.draft.hover(at).is_some() {
+            cx.request_repaint();
+        }
     }
 
     /// Drops an ⌥-drag segment's gesture (the outline stays for Esc between clicks); a selection
     /// drag reports `Cancel`.
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
-        // new: `InsideDrag::cancel`.
-        todo!()
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+        // new: `InsideDrag::cancel`. An ⌥-drag segment ends where it is: the release keeps the outline.
+        let tool = &mut *self.tool;
+        if let Some(inside) = tool.inside.take() {
+            tool.events.push(inside.cancel());
+        }
+        if tool.draft.is_down()
+            && let Some(&last) = tool.draft.points().last()
+        {
+            tool.draft.release(DraftPoint::new(last, Modifiers::NONE, 1.0));
+        }
     }
 
     /// Enter closes, Esc cancels, Backspace and Delete retract.
-    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
         // pc: crates/ui-egui/src/canvas/gesture.rs:197-207 `polygon_retract`.
-        todo!()
+        let (tool, probe) = (&mut *self.tool, self.probe);
+        if !key.pressed || !tool.draft.takes_retract() {
+            return false;
+        }
+        match key.key {
+            Key::Enter if key.modifiers.is_none() => {
+                let event = tool.draft.close();
+                apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
+            }
+            Key::Escape => {
+                tool.draft.cancel();
+            }
+            Key::Backspace | Key::Delete if key.modifiers.is_none() => {
+                tool.draft.retract();
+            }
+            _ => return false,
+        }
+        true
     }
 
     /// The outline (`MarqueeLook::Drawing`) and its rubber band.
     fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
         // pc: crates/ui-egui/src/canvas/tool_feedback.rs:178-182.
-        todo!()
+        paint_outline(&self.tool.draft, painter, cx);
     }
 
     /// The outline being drawn as one AccessKit object: named `SelectLabels::outline`, valued
@@ -158,6 +245,6 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
     /// outline is open.
     fn node(&self, cx: &ToolContext<'_>) -> Option<ToolNode> {
         // new: SE deviation 3 (no `Ui` on the host); `ToolNode::new(..).value(..).bounds(..)`.
-        todo!()
+        outline_node(&self.tool.draft, cx)
     }
 }
