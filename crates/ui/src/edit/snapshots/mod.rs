@@ -7,3 +7,7 @@ mod list;
 mod source;
 #[cfg(test)]
 mod tests;
+
+pub use forms::{HistoryOptions, SnapshotOptions, history_options_form, new_snapshot_form};
+pub use list::{Snapshot, SnapshotId, SnapshotList};
+pub use source::{HistorySource, HistorySourceChoice};

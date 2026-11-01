@@ -397,3 +397,43 @@ fn the_minimum_height_holds_for_an_empty_and_a_short_list() {
     let (short, _) = browser_height(1, |b| b.shrink_to_content(true).min_height(120.0));
     assert!((short - 120.0).abs() < 1.0, "one row: {short}");
 }
+
+mod footer_and_drop_zone {
+    //! Step 6a skeleton tests of the footer, `hovered` and `drop_zone` (task PR2 fills them and drops this wrapper).
+    #![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+
+    // With `footer(..)` and `max_height(80.0)` the list and the footer fit 80 pt and the footer's buttons are visible.
+    #[test]
+    #[ignore = "skeleton"]
+    fn footer_inside_the_browser_leaves_the_list_the_remaining_height() {
+        todo!()
+    }
+
+    // Clicks on New, New Group and Delete come back in `out.footer` in order.
+    #[test]
+    #[ignore = "skeleton"]
+    fn footer_events_arrive_in_the_output() {
+        todo!()
+    }
+
+    // `out.hovered` follows the pointer over item cells and is `None` over a header and off the list.
+    #[test]
+    #[ignore = "skeleton"]
+    fn hovered_names_the_preset_under_the_pointer() {
+        todo!()
+    }
+
+    // A drag released inside `drop_zone` reports `Reorder(Cancel(Dismissed))`, then `DropAt` with the pointer position; the payload is cleared.
+    #[test]
+    #[ignore = "skeleton"]
+    fn release_over_the_drop_zone_reports_drop_at_and_ends_the_gesture() {
+        todo!()
+    }
+
+    // A drag released outside the browser and the zone reports no `DropAt`.
+    #[test]
+    #[ignore = "skeleton"]
+    fn release_outside_every_zone_reports_no_drop() {
+        todo!()
+    }
+}

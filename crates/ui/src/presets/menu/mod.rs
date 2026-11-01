@@ -4,6 +4,10 @@ mod files;
 mod named;
 mod panel;
 
+pub use files::{PresetExport, PresetFileEvent, PresetFileLabels, PresetFiles, PresetFilesOutput};
+pub use named::{NamedPresetEvent, NamedPresetLabels, NamedPresetOutput, NamedPresetRow, NamedPresetStyle};
+pub use panel::{PresetMenuAction, PresetMenuOptions, PresetPanelMenu};
+
 use std::hash::Hash;
 use std::rc::Rc;
 

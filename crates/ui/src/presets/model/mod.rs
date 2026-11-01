@@ -4,6 +4,8 @@
 mod apply;
 mod library;
 
+pub use library::{GroupPath, PresetChange, PresetError, PresetGroup, PresetId, PresetItem, PresetKey, PresetLibrary};
+
 use std::fmt;
 use std::sync::Arc;
 

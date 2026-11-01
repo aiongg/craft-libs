@@ -104,3 +104,30 @@ impl PresetStyle {
         self.swatch.inner_edge(color).to_egui()
     }
 }
+
+/// The sizes of the picker, the named preset row and the browser's own footer. Task TK2 adds the
+/// `size.preset.*` leaves (Compact values below; Comfortable scales the three picker sizes by
+/// the control height as `paint_chip.size` does, and `name_width` is 180) and replaces these
+/// constants with `PresetStyle` fields; the preset dump changes then, in RG2.
+pub(crate) mod sizes {
+    #![expect(dead_code, reason = "skeleton: read by the picker, named row and footer bodies (PR2, PR4, PR7)")]
+
+    /// `size.preset.picker_wide`: a `PickerThumb::Wide` field's thumbnail, PhotoCraft's shape
+    /// picker 36 × 22 (`panels/preset_panels/panels.rs:334`).
+    pub(crate) const PICKER_WIDE: [f32; 2] = [36.0, 22.0];
+    /// `size.preset.picker_square`: a `PickerThumb::Square` field's thumbnail, PhotoCraft's
+    /// pattern picker 40 (`panels/preset_panels.rs:257`); Contour's 36 takes it.
+    pub(crate) const PICKER_SQUARE: f32 = 40.0;
+    /// `size.preset.picker_cell`: a popup cell, PhotoCraft's pattern and Contour popups 40; the
+    /// shape popup's 32 takes it.
+    pub(crate) const PICKER_CELL: f32 = 40.0;
+    /// `size.preset.name_width`: the named row's Name field, the Contour Editor's 150
+    /// (`dialogs/layer_style/contour.rs:408`).
+    pub(crate) const NAME_WIDTH: f32 = 150.0;
+    /// `size.preset.popup_max_height`: the picker popup's greatest height, the shape picker's 320
+    /// (`panels/preset_panels/panels.rs:356`).
+    pub(crate) const POPUP_MAX_HEIGHT: f32 = 320.0;
+    /// `size.preset.footer_room`: the gap between the list and the browser's footer,
+    /// `space.gap.inline` (the port's `Space::S4`, `panels/preset_panels.rs:523`).
+    pub(crate) const FOOTER_ROOM: f32 = 4.0;
+}

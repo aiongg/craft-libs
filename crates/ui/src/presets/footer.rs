@@ -15,7 +15,11 @@ use crate::localized::words::counts;
 use crate::theme::{Tokens, TokensOf as _};
 use craft_theme::ControlSize;
 
+use std::fmt::Debug;
+use std::hash::Hash;
 use std::ops::RangeInclusive;
+
+use super::PresetBrowser;
 
 /// What a [`PresetFooter`] reports.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -176,5 +180,121 @@ impl<'a, K> PresetFooter<'a, K> {
             }
         });
         events
+    }
+}
+
+/// The footer a [`PresetBrowser`] draws inside its own pass
+/// ([`PresetBrowser::footer`]): the same buttons, slider, count and
+/// leading slot as [`PresetFooter`], with the browser's state, words and thumbnail range. Its
+/// presses come back in `PresetOutput::footer`.
+///
+/// ```ignore
+/// let out = PresetBrowser::new("gradients", "Gradients", &mut state, &rows)
+///     .footer(PresetFooterOptions::new().count(library.total()).can_delete(selected.is_some()))
+///     .show(ui, paint);
+/// for press in out.footer { /* FooterEvent::New, NewGroup, Delete, Custom */ }
+/// ```
+#[must_use]
+pub struct PresetFooterOptions<'a> {
+    pub(super) slider: bool,
+    pub(super) count: Option<usize>,
+    pub(super) leading: Option<Leading<'a>>,
+    pub(super) can_delete: bool,
+    pub(super) new_group: bool,
+    pub(super) actions: Vec<(&'static str, Icon, String)>,
+}
+
+impl Default for PresetFooterOptions<'_> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> PresetFooterOptions<'a> {
+    /// The footer with the slider, Delete, New and New Group, as [`PresetFooter::new`].
+    pub fn new() -> Self {
+        Self { slider: true, count: None, leading: None, can_delete: true, new_group: true, actions: Vec::new() }
+    }
+
+    /// As [`PresetFooter::slider`].
+    pub fn slider(mut self, slider: bool) -> Self {
+        self.slider = slider;
+        self
+    }
+
+    /// As [`PresetFooter::count`].
+    pub fn count(mut self, count: usize) -> Self {
+        self.count = Some(count);
+        self
+    }
+
+    /// As [`PresetFooter::leading`] (Tool Presets' "Current Tool Only" check box).
+    pub fn leading(mut self, add: impl FnOnce(&mut Ui) + 'a) -> Self {
+        self.leading = Some(Box::new(add));
+        self
+    }
+
+    /// As [`PresetFooter::can_delete`].
+    pub fn can_delete(mut self, can_delete: bool) -> Self {
+        self.can_delete = can_delete;
+        self
+    }
+
+    /// As [`PresetFooter::new_group`].
+    pub fn new_group(mut self, new_group: bool) -> Self {
+        self.new_group = new_group;
+        self
+    }
+
+    /// As [`PresetFooter::action`].
+    pub fn action(mut self, id: &'static str, icon: Icon, label: impl Into<String>) -> Self {
+        self.actions.push((id, icon, label.into()));
+        self
+    }
+}
+
+/// The height the browser keeps for its footer below the list: `PanelFooter::reserved_height`
+/// (from `panel_footer.*` tokens, not measured, so there is no one-pass lag and no
+/// `FOOTER_GUESS`) plus `size.preset.footer_room` (`style::sizes::FOOTER_ROOM` until TK2). The
+/// list takes `max_height.min(available) - footer_height`.
+#[expect(dead_code, reason = "skeleton: called by `view::show_with_extras` (task PR2)")]
+pub(super) fn footer_height(ui: &Ui) -> f32 {
+    // pc: crates/ui-egui/src/panels/preset_panels.rs:354 (`FOOTER_GUESS` 32, measured last frame); new: Lead call 4.
+    let style = PanelFooter::style(&Tokens::of(ui), ui.pixels_per_point());
+    PanelFooter::reserved_height(&style) + super::style::sizes::FOOTER_ROOM
+}
+
+/// Draws `options` as the browser's footer, below the list, with `PresetFooter`'s layout:
+/// writes `state.thumb` within `thumb_range` and returns the presses.
+#[expect(dead_code, reason = "skeleton: called by `view::show_with_extras` (task PR2)")]
+pub(super) fn show_options<K>(
+    ui: &mut Ui,
+    options: PresetFooterOptions<'_>,
+    state: &mut PresetState<K>,
+    labels: &PresetLabels,
+    thumb_range: RangeInclusive<f32>,
+) -> Vec<FooterEvent> {
+    let PresetFooterOptions { slider, count, leading, can_delete, new_group, actions } = options;
+    let mut footer = PresetFooter::new(state, labels).thumb_range(thumb_range).slider(slider).can_delete(can_delete).new_group(new_group);
+    if let Some(count) = count {
+        footer = footer.count(count);
+    }
+    if let Some(add) = leading {
+        footer.leading = Some(add);
+    }
+    for (id, icon, label) in actions {
+        footer = footer.action(id, icon, label);
+    }
+    footer.show(ui)
+}
+
+impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a, K> {
+    /// A footer drawn inside the browser's pass, below the list (`options` as
+    /// [`PresetFooter`]'s): the list takes the height left after it, with no one-pass lag, and
+    /// the presses come back in `PresetOutput::footer`. [`PresetFooter::new`] stays for hosts
+    /// that lay out the footer themselves (`SwatchesPanel`).
+    pub fn footer(mut self, options: PresetFooterOptions<'a>) -> Self {
+        self.footer = Some(options);
+        self
     }
 }
