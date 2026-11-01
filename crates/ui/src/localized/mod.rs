@@ -104,6 +104,11 @@ impl LocaleNumbers {
         self.format(n as f64, 0..=0)
     }
 
+    /// `ratio` as a whole percentage in the region's form: `50%`, `50 %`.
+    pub(crate) fn percent(&self, ratio: f64) -> String {
+        self.format.percent(ratio, 0)
+    }
+
     /// The error tooltips from `i18n`'s catalog in `lang`: the plain rows keyed by the English
     /// text ([`message`]), English where a row is missing.
     pub fn with_catalog(self, i18n: &I18n, lang: Lang) -> LocaleNumbers {
