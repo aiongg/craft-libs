@@ -2104,6 +2104,24 @@ pub const SHEET_FILTER_BUTTON_MIN: f32 = 10.0;
 pub const SHEET_FILTER_BUTTON_MAX: f32 = 18.0;
 /// The filter button's inset from the header cell's corner.
 pub const SHEET_FILTER_BUTTON_INSET: f32 = 2.0;
+/// A dashed chart line's dash.
+pub const SHEET_CHART_DASH: f32 = 4.0;
+/// The gap between a dashed chart line's dashes.
+pub const SHEET_CHART_DASH_GAP: f32 = 3.0;
+/// The gap between the error checking tag and its cell.
+pub const SHEET_ERROR_TAG_GAP: f32 = 2.0;
+/// The error checking tag's corner radius.
+pub const SHEET_ERROR_TAG_RADIUS: f32 = 3.0;
+/// The warning diamond's half-diagonal in the error checking tag.
+pub const SHEET_ERROR_TAG_MARK: f32 = 6.0;
+/// The exclamation mark's text size in the error checking tag.
+pub const SHEET_ERROR_TAG_MARK_TEXT: f32 = 10.0;
+/// The filter button's corner radius.
+pub const SHEET_FILTER_BUTTON_RADIUS: f32 = 2.0;
+/// The filter button's inset round its glyph.
+pub const SHEET_FILTER_BUTTON_GLYPH_INSET: f32 = 1.5;
+/// The gap between statistics in the status bar.
+pub const SHEET_STATS_GAP: f32 = 10.0;
 
 /// Between pages, and between rows.
 pub const PAGES_GAP: f32 = 14.0;

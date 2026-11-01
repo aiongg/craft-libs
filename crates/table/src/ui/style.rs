@@ -43,6 +43,24 @@ pub struct SheetStyle {
     pub filter_button_min: f32,
     pub filter_button_max: f32,
     pub filter_button_inset: f32,
+    /// The filter button's corner radius and its inset round the glyph: `sheet.filter_button_radius`,
+    /// `sheet.filter_button_glyph_inset`.
+    pub filter_button_radius: f32,
+    pub filter_button_glyph_inset: f32,
+    /// The error checking tag's gap to its cell, corner radius, warning diamond's half-diagonal and
+    /// exclamation mark's text size: `sheet.error_tag_gap`, `sheet.error_tag_radius`,
+    /// `sheet.error_tag_mark`, `sheet.error_tag_mark_text`.
+    pub error_tag_gap: f32,
+    pub error_tag_radius: f32,
+    pub error_tag_mark: f32,
+    pub error_tag_mark_text: f32,
+    /// A dashed chart line's dash and gap: `sheet.chart_dash`, `sheet.chart_dash_gap`.
+    pub chart_dash: f32,
+    pub chart_dash_gap: f32,
+    /// The gap between the status bar's statistics: `sheet.stats_gap`.
+    pub stats_gap: f32,
+    /// The type role of the status bar's statistics: the theme's label role.
+    pub stats_text: TypeRole,
 }
 
 impl SheetStyle {
@@ -69,6 +87,16 @@ impl SheetStyle {
             filter_button_min: t.filter_button_min,
             filter_button_max: t.filter_button_max,
             filter_button_inset: t.filter_button_inset,
+            chart_dash: t.chart_dash,
+            chart_dash_gap: t.chart_dash_gap,
+            error_tag_gap: t.error_tag_gap,
+            error_tag_radius: t.error_tag_radius,
+            error_tag_mark: t.error_tag_mark,
+            error_tag_mark_text: t.error_tag_mark_text,
+            filter_button_radius: t.filter_button_radius,
+            filter_button_glyph_inset: t.filter_button_glyph_inset,
+            stats_gap: t.stats_gap,
+            stats_text: TypeRole::Label,
         }
     }
 }
