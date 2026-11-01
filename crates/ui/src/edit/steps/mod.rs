@@ -7,27 +7,69 @@
 //! map keyed by [`StepId`]. It saves the document from before an edit when
 //! [`StepList::record`] adds a state, and removes the entries [`StepList::take_dropped`] reports.
 //!
-//! ```ignore
-//! // Recording one edit (inside the app's edit function).
-//! let before = doc.steps.current_id();
-//! let recorded = doc.steps.record(HistoryStep::new("Brush Tool").icon(Icon::Brush));
-//! if !recorded.extended { doc.states.insert(before, State::of(&old_doc)); }
-//! for id in doc.steps.take_dropped() { doc.states.remove(&id); }
+//! ```
+//! use std::collections::HashMap;
+//! use craft_ui::edit::steps::{HistoryStep, QuietMarks, StepId, StepList, StepMark};
+//! use craft_ui::edit::{EditEvent, GestureHost, GestureId, UndoMarks};
+//! use egui::Modifiers;
+//!
+//! #[derive(Clone, Default)]
+//! struct Brush { size: i32 }
+//!
+//! // The app's document: its value, the history list and the saved "before" values.
+//! struct Doc { value: i32, steps: StepList, states: HashMap<StepId, i32> }
+//!
+//! impl Doc {
+//!     // Recording one edit (inside the app's edit function).
+//!     fn set(&mut self, value: i32) {
+//!         let before = self.steps.current_id();
+//!         let old = self.value;
+//!         let recorded = self.steps.record(HistoryStep::new("Edit"));
+//!         if !recorded.extended { self.states.insert(before, old); }
+//!         for id in self.steps.take_dropped() { self.states.remove(&id); }
+//!         self.value = value;
+//!     }
+//!     fn drop_unused(&mut self) {
+//!         let live: Vec<StepId> = (0..self.steps.len()).filter_map(|at| self.steps.id_at(at)).collect();
+//!         self.states.retain(|id, _| live.contains(id));
+//!     }
+//! }
 //!
 //! // A gesture reaches the list through `GestureHost`; the document implements `UndoMarks`.
 //! impl UndoMarks for Doc {
 //!     type Mark = StepMark;
 //!     fn undo_mark(&self) -> StepMark { self.steps.mark() }
-//!     fn revert_to(&mut self, mark: StepMark) { self.restore(mark); self.steps.revert_to(mark); self.drop_unused(); }
+//!     fn revert_to(&mut self, mark: StepMark) {
+//!         self.steps.revert_to(mark);
+//!         if let Some(&old) = self.states.get(&self.steps.current_id()) { self.value = old; }
+//!         self.drop_unused();
+//!     }
 //!     fn squash_since(&mut self, mark: StepMark) { self.steps.squash_since(mark); }
 //! }
 //!
-//! // Tool options never become states: their host is a different type.
-//! let mut brush_host: GestureHost<QuietMarks<BrushSettings>> = GestureHost::new();
-//! ```
+//! let ctx = egui::Context::default();
+//! let mut doc = Doc { value: 0, steps: StepList::new(HistoryStep::new("Open")), states: HashMap::new() };
+//! let mut host = GestureHost::new();
+//! let apply = |doc: &mut Doc, v| doc.set(v);
 //!
-//! Task H2 turns the example into a running doc test
-//! (`a_host_over_a_document_makes_one_state_per_gesture_and_one_per_set`).
+//! // A drag with three updates is one state; a one-shot set is one more.
+//! let id = GestureId::next();
+//! for event in [EditEvent::begin(id), EditEvent::update(id, 1, Modifiers::NONE), EditEvent::update(id, 2, Modifiers::NONE), EditEvent::commit(id, 3, true, Modifiers::NONE)] {
+//!     host.handle(&ctx, &mut doc, event, apply);
+//! }
+//! assert_eq!(doc.steps.len(), 2);
+//! host.handle(&ctx, &mut doc, EditEvent::set(7, Modifiers::NONE), apply);
+//! assert_eq!(doc.steps.len(), 3);
+//!
+//! // Tool options never become states: their host is a different type.
+//! let mut brush = QuietMarks(Brush { size: 4 });
+//! let mut brush_host: GestureHost<QuietMarks<Brush>> = GestureHost::new();
+//! let id = GestureId::next();
+//! brush_host.handle(&ctx, &mut brush, EditEvent::begin(id), |b, v: i32| b.0.size = v);
+//! brush_host.handle(&ctx, &mut brush, EditEvent::update(id, 30, Modifiers::NONE), |b, v: i32| b.0.size = v);
+//! brush_host.handle(&ctx, &mut brush, EditEvent::cancel(id, craft_ui::edit::CancelReason::Escape), |b, v: i32| b.0.size = v);
+//! assert_eq!(brush.0.size, 4);
+//! ```
 
 mod group;
 #[cfg(test)]

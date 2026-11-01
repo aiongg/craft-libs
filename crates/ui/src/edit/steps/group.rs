@@ -4,9 +4,8 @@
 //! PhotoCraft's limit is 50 states, so one state per `Update` of a long drag would evict real
 //! history before the `Commit` could fold it (Lead call 5).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use std::hash::Hash;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::atomic::Ordering;
 
 use super::list::StepList;
 use super::{HistoryStep, Recorded, StepId};
@@ -52,6 +51,11 @@ impl Run {
 }
 
 impl StepList {
+    /// Whether `mark` is the newest one taken and not yet closed.
+    fn is_newest_open(&self, mark: StepMark) -> bool {
+        mark.serial == self.marks.load(Ordering::Relaxed) && mark.serial > self.closed
+    }
+
     /// Notes the current state and opens a gesture run: until the mark is closed, the first
     /// [`record`](Self::record) adds a state and every later one extends it (same id, the first
     /// record's label). Takes `&self` because `UndoMarks::undo_mark` does: it bumps the `marks`
@@ -59,7 +63,8 @@ impl StepList {
     /// gesture before the next begins).
     pub fn mark(&self) -> StepMark {
         // filmcraft: crates/engine/src/lib.rs:969-990 (`undo_mark`); new: the run inside the list (Lead call 5).
-        todo!()
+        let serial = self.marks.fetch_add(1, Ordering::Relaxed) + 1;
+        StepMark { at: self.current_id(), serial }
     }
 
     /// Closes the run of `mark` (a gesture's `Commit` that changed the value): the state the run
@@ -67,7 +72,9 @@ impl StepList {
     /// newest or whose state has left the list.
     pub fn squash_since(&mut self, mark: StepMark) {
         // vectorcraft: crates/engine/src/cmd/menucmds.rs:213 (`squash`); new: the run is one state already, so this only closes it.
-        todo!()
+        if self.is_newest_open(mark) {
+            self.end_run();
+        }
     }
 
     /// Closes the run of `mark` and takes back the state it made (a `Cancel`, or a `Commit` with
@@ -77,7 +84,17 @@ impl StepList {
     /// revision only when a state was taken back.
     pub fn revert_to(&mut self, mark: StepMark) {
         // pc: crates/ops/src/lib.rs:427-455 (`rollback`); filmcraft: crates/engine/src/lib.rs:978 (`revert_to`)
-        todo!()
+        if !self.is_newest_open(mark) {
+            return;
+        }
+        let made = self.run.filter(|run| run.kind == (RunKind::Gesture { serial: mark.serial })).map(|run| run.made);
+        self.end_run();
+        let (Some(made), Some(_)) = (made.and_then(|id| self.row_of(id)), self.row_of(mark.at)) else {
+            return;
+        };
+        self.remove_row(made);
+        self.current = self.row_of(mark.at).unwrap_or(0);
+        self.revision += 1;
     }
 
     /// [`record`](Self::record), but extends the previous state when the previous change to the
@@ -87,7 +104,24 @@ impl StepList {
     /// gesture run it behaves as `record`.
     pub fn record_keyed(&mut self, step: HistoryStep, key: impl Hash) -> Recorded {
         // pc: crates/engine/src/session/execute.rs:253-269 (same key and `can_undo` updates the current step)
-        todo!()
+        let mut hasher = DefaultHasher::new();
+        key.hash(&mut hasher);
+        let key = hasher.finish();
+        if self.marks.load(Ordering::Relaxed) > self.closed {
+            return self.record(step);
+        }
+        if let Some(run) = self.run
+            && run.kind == (RunKind::Keyed { key })
+            && run.revision == self.revision
+            && self.row_of(run.made) == Some(self.current)
+        {
+            self.revision += 1;
+            self.run = Some(Run { revision: self.revision, ..run });
+            return Recorded { id: run.made, extended: true };
+        }
+        let recorded = self.record(step);
+        self.run = Some(Run { kind: RunKind::Keyed { key }, made: recorded.id, revision: self.revision });
+        recorded
     }
 }
 
@@ -109,16 +143,15 @@ impl<T: Clone> UndoMarks for QuietMarks<T> {
 
     fn undo_mark(&self) -> T {
         // pc: crates/ui-egui/src/panels/brush_panel.rs:187-210 (`GESTURE`, `gesture()`: the hand-made gesture numbers this replaces)
-        todo!()
+        self.0.clone()
     }
 
     fn revert_to(&mut self, mark: T) {
         // new: `self.0 = mark`.
-        todo!()
+        self.0 = mark;
     }
 
-    fn squash_since(&mut self, mark: T) {
+    fn squash_since(&mut self, _mark: T) {
         // new: nothing to fold; no list.
-        todo!()
     }
 }
