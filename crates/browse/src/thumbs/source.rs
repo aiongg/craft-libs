@@ -43,17 +43,20 @@ enum Stage {
 ///   `full` is 1 once a quick preview has landed and the full picture is wanted (0 before, and
 ///   when the first job already made the full picture). So the first picture is never asked
 ///   twice, and after a quick preview the cache keeps it as the stand-in while the full job runs.
+/// - Stages are kept per `(key, side)`, and a job records its stage when its picture is made
+///   (after the buffer check), so a zoom change starts from the store and the quick preview again.
 /// - `render` always returns `ThumbRender::Later`: statting (length and modification time),
 ///   store reads, decoding and saving happen in the job, never on the UI thread. The first job
-///   stats the file with `std::fs::metadata` (missing: `Err` with the "missing" message), loads the store at
+///   stats the file with [`ThumbDecoder::stat`] (failure: that error, `Missing` is
+///   `LoadFailure::Missing`), loads the store at
 ///   `StoreKey { len, modified, side }` (a hit is final), else with `quick_previews` asks
 ///   `quick` (a picture: stage `NeedsFull`; the loader repaints when it stores the picture, so the next pass asks the
 ///   new revision), else decodes, saves, and is final. The second job (stage `NeedsFull`)
 ///   decodes and saves.
 /// - `ThumbError::Unsupported` ends the job with `Ok(LoadedPicture::Blank)`, which the cache
 ///   stores as `Empty` (the tile shows the host's own icon); `Failed(message)` is the failure
-///   tooltip; `Cancelled` is reported as the queue's
-///   cancel. A failure is remembered by the cache for its revision, so it is not retried until
+///   tooltip (`LoadFailure::Message`); a decoder's own `Cancelled` and a buffer that is not
+///   `width × height × 4` bytes are `LoadFailure::Unreadable`; a zero-sized picture is `Blank`. A failure is remembered by the cache for its revision, so it is not retried until
 ///   the file changes (`invalidate`) (risk 9: the widget asks `Thumbnails::state` before it
 ///   paints, the source never draws).
 #[derive(Clone)]
@@ -62,7 +65,7 @@ pub struct FileThumbSource {
     store: Option<Arc<dyn ThumbStore>>,
     options: FileThumbOptions,
     generations: Arc<Mutex<HashMap<PathBuf, u64>>>,
-    stages: Arc<Mutex<HashMap<FileThumbKey, Stage>>>,
+    stages: Arc<Mutex<HashMap<(FileThumbKey, u32), Stage>>>,
     epoch: Arc<Mutex<u64>>,
 }
 
@@ -92,7 +95,7 @@ impl FileThumbSource {
     pub fn invalidate(&self, path: &Path) {
         // lightcraft: crates/ui-egui/src/panels/grid.rs:759 (`skips_the_real_render`: a fresh render replaces the embedded one).
         *lock(&self.generations).entry(path.to_path_buf()).or_insert(0) += 1;
-        lock(&self.stages).retain(|key, _| key.path != path);
+        lock(&self.stages).retain(|(key, _), _| key.path != path);
     }
 
     /// Another library opened: every revision moves on and the stages are forgotten.
@@ -108,10 +111,10 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 impl FileThumbSource {
-    /// The key's generation (path count plus library count) and stage.
-    fn state_of(&self, key: &FileThumbKey) -> (u64, Stage) {
+    /// The key's generation (path count plus library count) and its stage at `side`.
+    fn state_of(&self, key: &FileThumbKey, side: u32) -> (u64, Stage) {
         let generation = self.state_of_generation(key);
-        let stage = lock(&self.stages).get(key).copied().unwrap_or(Stage::Fresh);
+        let stage = lock(&self.stages).get(&(key.clone(), side)).copied().unwrap_or(Stage::Fresh);
         (generation, stage)
     }
 }
@@ -131,7 +134,15 @@ struct Job {
 impl Job {
     fn run(self, cancel: &Cancel) -> Result<LoadedPicture, LoadFailure> {
         match self.pictures(cancel) {
-            Ok(thumb) => Ok(LoadedPicture::Image(to_image(thumb))),
+            Ok((thumb, stage)) => {
+                let picture = to_image(thumb);
+                // The stage moves with the picture, after the buffer check: a picture that fails
+                // leaves the key where it was.
+                if picture.is_ok() {
+                    self.set_stage(stage);
+                }
+                picture
+            }
             Err(ThumbError::Unsupported) => Ok(LoadedPicture::Blank),
             Err(ThumbError::Missing) => Err(LoadFailure::Missing),
             Err(ThumbError::Failed(message)) => Err(LoadFailure::Message(message)),
@@ -140,24 +151,23 @@ impl Job {
         }
     }
 
-    fn pictures(&self, cancel: &Cancel) -> Result<DecodedThumb, ThumbError> {
+    /// The picture and the stage the key reaches once it lands.
+    fn pictures(&self, cancel: &Cancel) -> Result<(DecodedThumb, Stage), ThumbError> {
         let cancelled = || if cancel.is_cancelled() { Err(ThumbError::Cancelled) } else { Ok(()) };
         cancelled()?;
-        let meta = std::fs::metadata(&self.key.path).map_err(|_| ThumbError::Missing)?;
-        let request = DecodeRequest { key: self.key.clone(), side: self.side, len: meta.len(), modified: meta.modified().ok() };
+        let stat = self.decoder.stat(&self.key.path)?;
+        let request = DecodeRequest { key: self.key.clone(), side: self.side, len: stat.len, modified: stat.modified };
         let store_key = StoreKey { key: self.key.clone(), len: request.len, modified: request.modified, side: self.side };
         if self.stage == Stage::Fresh {
             if let Some(thumb) = self.store.as_ref().and_then(|store| store.load(&store_key)) {
-                self.set_stage(Stage::Done);
-                return Ok(thumb);
+                return Ok((thumb, Stage::Done));
             }
             cancelled()?;
             if self.options.quick_previews
                 && let Some(thumb) = self.decoder.quick(&request, cancel)
             {
                 cancelled()?;
-                self.set_stage(Stage::NeedsFull);
-                return Ok(thumb);
+                return Ok((thumb, Stage::NeedsFull));
             }
         }
         cancelled()?;
@@ -168,17 +178,15 @@ impl Job {
         {
             store.save(&store_key, &thumb);
         }
-        if self.stage == Stage::Fresh {
-            self.set_stage(Stage::Done);
-        }
-        Ok(thumb)
+        // After a quick preview the stage stays `NeedsFull`: the full picture is that revision's.
+        Ok((thumb, if self.stage == Stage::Fresh { Stage::Done } else { self.stage }))
     }
 
     /// Records the key's stage unless `invalidate` or `clear` moved the generation meanwhile.
     fn set_stage(&self, stage: Stage) {
         let mut stages = lock(&self.source.stages);
         if self.source.state_of_generation(&self.key) == self.generation {
-            stages.insert(self.key.clone(), stage);
+            stages.insert((self.key.clone(), self.side), stage);
         }
     }
 }
@@ -189,23 +197,31 @@ impl FileThumbSource {
     }
 }
 
-/// Turns a finished [`DecodedThumb`] into the picture the cache uploads
-/// (`LoadedPicture::Image`; an unsupported file is `LoadedPicture::Blank`, never a picture).
-fn to_image(thumb: DecodedThumb) -> ColorImage {
-    // new: `ColorImage::from_rgba_unmultiplied`.
-    ColorImage::from_rgba_unmultiplied([thumb.width as usize, thumb.height as usize], &thumb.rgba)
+/// Turns a finished [`DecodedThumb`] into the picture the cache uploads. A zero-sized thumb is
+/// `Blank` (nothing to show); a buffer that is not `width × height × 4` bytes is
+/// [`LoadFailure::Unreadable`].
+pub(super) fn to_image(thumb: DecodedThumb) -> Result<LoadedPicture, LoadFailure> {
+    // new: `ColorImage::from_rgba_unmultiplied`, which asserts on the length, behind a check.
+    let (width, height) = (thumb.width as usize, thumb.height as usize);
+    if width == 0 || height == 0 {
+        return Ok(LoadedPicture::Blank);
+    }
+    if width.checked_mul(height).and_then(|pixels| pixels.checked_mul(4)) != Some(thumb.rgba.len()) {
+        return Err(LoadFailure::Unreadable);
+    }
+    Ok(LoadedPicture::Image(ColorImage::from_rgba_unmultiplied([width, height], &thumb.rgba)))
 }
 
 impl ThumbSource<FileThumbKey> for FileThumbSource {
-    fn revision(&self, key: &FileThumbKey, _: &ThumbRequest) -> Revision {
+    fn revision(&self, key: &FileThumbKey, request: &ThumbRequest) -> Revision {
         // new: as the type's doc says.
-        let (generation, stage) = self.state_of(key);
+        let (generation, stage) = self.state_of(key, request.side);
         Revision::of(&(generation, u8::from(stage == Stage::NeedsFull)))
     }
 
     fn render(&self, key: &FileThumbKey, request: &ThumbRequest) -> ThumbRender {
         // lightcraft: crates/ui-egui/src/panels/grid.rs:693 (`request_thumb`, now always a job).
-        let (generation, stage) = self.state_of(key);
+        let (generation, stage) = self.state_of(key, request.side);
         let job = Job {
             decoder: Arc::clone(&self.decoder),
             store: self.store.clone(),
