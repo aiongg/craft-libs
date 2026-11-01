@@ -301,6 +301,30 @@ fn navigator_zoom_row_steps_the_ladder() {
     assert!(near(h.state().view.center, 1000.0, 750.0), "the zoom is about the centre");
 }
 
+// A zoom change from outside during a field run ends the run without putting the start back;
+// only Esc does.
+#[test]
+fn navigator_zoom_row_restores_the_start_only_on_escape() {
+    let mut h = harness(Host::new(1.0, Point::new(1000.0, 750.0)));
+    h.get_by_role_and_label(Role::SpinButton, "Zoom").focus();
+    h.run();
+    h.event(Event::Text("2".into()));
+    h.run();
+    assert!((h.state().view.zoom - 0.02).abs() < 1e-9, "the typed value applies: {}", h.state().view.zoom);
+    h.state_mut().view.zoom = 0.5;
+    h.run_steps(3);
+    assert!((h.state().view.zoom - 0.5).abs() < 1e-9, "the outside change stays: {}", h.state().view.zoom);
+
+    let mut h = harness(Host::new(1.0, Point::new(1000.0, 750.0)));
+    h.get_by_role_and_label(Role::SpinButton, "Zoom").focus();
+    h.run();
+    h.event(Event::Text("2".into()));
+    h.run();
+    h.key_press(Key::Escape);
+    h.run_steps(3);
+    assert!((h.state().view.zoom - 1.0).abs() < 1e-9, "Esc restores the start: {}", h.state().view.zoom);
+}
+
 // The two AccessKit scroll bar nodes carry the percent value, and Increment moves the view.
 #[test]
 fn navigator_preview_scroll_bars_expose_the_view() {

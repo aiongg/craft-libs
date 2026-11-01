@@ -24,9 +24,6 @@ use crate::primitives::{FocusRing, Interactive};
 use crate::theme::{Tokens, TokensOf as _};
 use craft_theme::ControlSize;
 
-/// The outline under the proxy and the margin the proxy's edges are clipped to: one point.
-const HALO_WIDTH: f32 = 1.0;
-
 /// An arrow key moves the view by this share of the visible span, Shift by [`SHIFT_STEP`], Page
 /// Up and Page Down by [`PAGE_STEP`].
 const ARROW_STEP: f32 = 0.1;
@@ -460,8 +457,8 @@ fn scroll_bars(nodes: &Ui, response: &Response, frame: Rect, view: &mut CanvasVi
 /// with each edge clipped to the box less the halo's width. A halo outline under the coloured line.
 fn paint_proxy(painter: &Painter, view: &CanvasView, size: Size, fitted: Rect, frame: Rect, style: &NavigatorStyle, color: Color32) {
     let quad = proxy_quad(view, size, fitted);
-    let clip = frame.shrink(HALO_WIDTH);
-    let halo = Stroke::new(style.proxy_width + 2.0 * HALO_WIDTH, style.halo);
+    let clip = frame.shrink(style.halo_width);
+    let halo = Stroke::new(style.proxy_width + 2.0 * style.halo_width, style.halo);
     let line = Stroke::new(style.proxy_width, color);
     if view.axis_aligned() {
         let rect = Rect::from_points(&quad).intersect(clip);
