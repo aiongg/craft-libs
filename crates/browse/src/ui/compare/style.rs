@@ -3,8 +3,7 @@
 use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::Color32;
 
-/// The compare tile's look. Until task TK3 the values come from the tokens they will derive
-/// from and the spec's numbers.
+/// The compare tile's look. The `tile` family.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CompareStyle {
@@ -38,17 +37,18 @@ impl CompareStyle {
     /// The style of `tokens`.
     pub fn of(tokens: &UiTokens) -> CompareStyle {
         let c = &tokens.color;
+        let t = &tokens.component.tile;
         CompareStyle {
-            caption: 26.0,
-            margin: 18.0,
-            gap: 16.0,
-            name_room: 110.0,
+            caption: t.compare_caption,
+            margin: t.compare_margin,
+            gap: t.compare_gap,
+            name_room: t.compare_name_room,
             divider: c.line.divider.to_egui(),
-            ring: c.accent.solid.to_egui(),
-            ring_halo: c.overlay.halo.to_egui(),
-            veil: c.surface.scrim.to_egui().gamma_multiply(0.45),
-            pending_fill: c.surface.scrim.to_egui(),
-            pill_text: c.text.on_strong.to_egui(),
+            ring: t.ring_selected.to_egui(),
+            ring_halo: t.ring_halo.to_egui(),
+            veil: t.veil.to_egui(),
+            pending_fill: t.scrim.to_egui(),
+            pill_text: t.badge_text.to_egui(),
             failed_fill: c.status.bad.solid.to_egui(),
             failed_text: c.text.on_status.to_egui(),
         }

@@ -156,6 +156,12 @@
     "status_bar": {
       "field_width": 78.0
     },
+    "tile": {
+      "caption_gap": 3.0,
+      "gap": 8.0,
+      "group_header": 44.0,
+      "inset": 6.0
+    },
     "toast": {
       "inset": [
         20.0,

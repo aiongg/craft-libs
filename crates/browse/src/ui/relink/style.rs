@@ -3,8 +3,7 @@
 use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::{Color32, Vec2};
 
-/// The Links panel's and Link Media dialog's look. Until task TK3 the values come from the
-/// tokens they will derive from and the spec's numbers.
+/// The Links panel's and Link Media dialog's look. The sizes are the `link` family's.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct RelinkStyle {
@@ -46,14 +45,15 @@ impl RelinkStyle {
     /// The style of `tokens`.
     pub fn of(tokens: &UiTokens) -> RelinkStyle {
         let c = &tokens.color;
+        let l = &tokens.component.link;
         RelinkStyle {
-            badge: 16.0,
-            preview: Vec2::new(192.0, 108.0),
-            candidates_height: 108.0,
-            table_min: 90.0,
-            table_max: 320.0,
-            table_share: 0.3,
-            dialog_max_width: 760.0,
+            badge: l.badge,
+            preview: Vec2::new(l.preview[0], l.preview[1]),
+            candidates_height: l.candidates_height,
+            table_min: l.table_min,
+            table_max: l.table_max,
+            table_share: l.table_share,
+            dialog_max_width: l.dialog_max_width,
             bad: c.status.bad.solid.to_egui(),
             warn: c.status.warn.solid.to_egui(),
             on_status: c.text.on_status.to_egui(),

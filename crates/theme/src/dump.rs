@@ -14,15 +14,15 @@ use crate::{
     FieldTokens, FileListTokens, FindingsTokens, FloatTokens, FontPickerTokens, FontSlot, FormSpacing, FormTokens, Gaps, GlyphsTokens,
     GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens,
     HistogramTokens, HistoryTokens, IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayersTokens,
-    LevelsTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, MetadataTokens, Motion, MotionTokens,
-    NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens,
-    PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes,
-    RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens, ScrollTokens,
-    SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens,
-    SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens,
-    TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TitleBarTokens, ToastTokens,
-    ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole,
-    TypeStyle, TypeTokens,
+    LevelsTokens, LinkTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, MetadataTokens, Motion,
+    MotionTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens,
+    PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens,
+    RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens,
+    ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens,
+    SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens,
+    TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens,
+    TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens,
+    TreePickerTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -263,6 +263,8 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         new_document,
         theme_chip,
         thumbnail,
+        tile,
+        link,
         app_shell,
         badge,
         bezier,
@@ -447,6 +449,8 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     swatch_lines(out, swatch);
     swatch_palette_lines(out, swatch_palette);
     thumbnail_lines(out, thumbnail);
+    tile_lines(out, tile);
+    link_lines(out, link);
     channels_lines(out, channels);
     layers_lines(out, layers);
     history_lines(out, history);
@@ -2032,6 +2036,97 @@ fn thumbnail_lines(out: &mut Lines, t: &ThumbnailTokens) {
     out.line("thumbnail.checker_cell", len(*checker_cell));
     out.line("thumbnail.placeholder", hex(*placeholder));
     out.line("thumbnail.failed_icon", hex(*failed_icon));
+}
+
+fn tile_lines(out: &mut Lines, t: &TileTokens) {
+    let TileTokens {
+        gap,
+        inset,
+        group_header,
+        caption_gap,
+        bar,
+        flag,
+        dot,
+        checkbox,
+        badge_height,
+        status_band,
+        range_bar,
+        ring_width,
+        ring_hover_width,
+        ring_halo_width,
+        wheel_share,
+        compare_caption,
+        compare_margin,
+        compare_gap,
+        compare_name_room,
+        bin_chip,
+        bin_chip_radius,
+        ring_selected,
+        ring_halo,
+        ring_hover,
+        caption,
+        caption_selected,
+        detail,
+        group_text,
+        group_count,
+        group_pinned,
+        scrim,
+        badge_text,
+        veil,
+        range,
+        scrub,
+        marquee_fill,
+        marquee_line,
+    } = t;
+    out.line("tile.gap", len(*gap));
+    out.line("tile.inset", len(*inset));
+    out.line("tile.group_header", len(*group_header));
+    out.line("tile.caption_gap", len(*caption_gap));
+    out.line("tile.bar", len(*bar));
+    out.line("tile.flag", len(*flag));
+    out.line("tile.dot", len(*dot));
+    out.line("tile.checkbox", len(*checkbox));
+    out.line("tile.badge_height", len(*badge_height));
+    out.line("tile.status_band", len(*status_band));
+    out.line("tile.range_bar", len(*range_bar));
+    out.line("tile.ring_width", len(*ring_width));
+    out.line("tile.ring_hover_width", len(*ring_hover_width));
+    out.line("tile.ring_halo_width", len(*ring_halo_width));
+    out.line("tile.wheel_share", len(*wheel_share));
+    out.line("tile.compare_caption", len(*compare_caption));
+    out.line("tile.compare_margin", len(*compare_margin));
+    out.line("tile.compare_gap", len(*compare_gap));
+    out.line("tile.compare_name_room", len(*compare_name_room));
+    out.line("tile.bin_chip", len(*bin_chip));
+    out.line("tile.bin_chip_radius", len(*bin_chip_radius));
+    out.line("tile.ring.selected", hex(*ring_selected));
+    out.line("tile.ring.halo", hex(*ring_halo));
+    out.line("tile.ring.hover", hex(*ring_hover));
+    out.line("tile.caption", hex(*caption));
+    out.line("tile.caption_selected", hex(*caption_selected));
+    out.line("tile.detail", hex(*detail));
+    out.line("tile.group.text", hex(*group_text));
+    out.line("tile.group.count", hex(*group_count));
+    out.line("tile.group.pinned", hex(*group_pinned));
+    out.line("tile.scrim", hex(*scrim));
+    out.line("tile.badge.text", hex(*badge_text));
+    out.line("tile.veil", hex(*veil));
+    out.line("tile.range", hex(*range));
+    out.line("tile.scrub", hex(*scrub));
+    out.line("tile.marquee.fill", hex(*marquee_fill));
+    out.line("tile.marquee.line", hex(*marquee_line));
+}
+
+fn link_lines(out: &mut Lines, t: &LinkTokens) {
+    let LinkTokens { badge, preview, candidates_height, table_min, table_max, table_share, dialog_max_width } = t;
+    out.line("link.badge", len(*badge));
+    out.line("link.preview.width", len(preview[0]));
+    out.line("link.preview.height", len(preview[1]));
+    out.line("link.candidates_height", len(*candidates_height));
+    out.line("link.table_min", len(*table_min));
+    out.line("link.table_max", len(*table_max));
+    out.line("link.table_share", len(*table_share));
+    out.line("link.dialog_max_width", len(*dialog_max_width));
 }
 
 fn channels_lines(out: &mut Lines, t: &ChannelsTokens) {

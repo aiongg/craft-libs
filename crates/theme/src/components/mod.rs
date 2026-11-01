@@ -85,6 +85,7 @@ mod inspector;
 mod kbd;
 mod layers;
 mod levels;
+mod link;
 mod list;
 mod list_manager;
 mod listbox;
@@ -133,6 +134,7 @@ mod text_editor;
 mod text_styles;
 mod theme_chip;
 mod thumbnail;
+mod tile;
 mod title_bar;
 mod toast;
 mod toggle_button;
@@ -206,6 +208,7 @@ pub use inspector::{InspectorField, InspectorTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use layers::{LayersField, LayersTokens};
 pub use levels::{LevelsField, LevelsTokens};
+pub use link::{LinkField, LinkTokens};
 pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
 pub use list_manager::{ListManagerField, ListManagerTokens};
 pub use listbox::{ListboxField, ListboxTokens};
@@ -254,6 +257,7 @@ pub use text_editor::{TextEditorField, TextEditorTokens};
 pub use text_styles::{TextStylesField, TextStylesTokens};
 pub use theme_chip::{ThemeChipField, ThemeChipTokens};
 pub use thumbnail::{ThumbnailField, ThumbnailTokens};
+pub use tile::{TileField, TileTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
@@ -859,6 +863,10 @@ families! {
     theme_chip: ThemeChipTokens => ThemeChip(ThemeChipField);
     /// Picture thumbnails: the checkerboard, the empty cell and the failure icon.
     thumbnail: ThumbnailTokens => Thumbnail(ThumbnailField);
+    /// Media tiles: the grid, the compare tile and the media bin's label chip.
+    tile: TileTokens => Tile(TileField);
+    /// Link Media: the status badge, links table, candidate list and preview.
+    link: LinkTokens => Link(LinkField);
     /// Angle dials: the round face and needle that point in a direction.
     angle_dial: AngleDialTokens => AngleDial(AngleDialField);
     /// The app shell: the backdrop behind the document and the edge reveal zone.

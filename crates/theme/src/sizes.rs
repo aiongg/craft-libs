@@ -69,6 +69,14 @@ pub struct ComponentSizes {
     pub toast_inset: [f32; 2],
     /// `channels.thumb`: side of a Channels row's thumbnail when the app sets none.
     pub channels_thumb: f32,
+    /// `tile.gap`: between media tiles.
+    pub tile_gap: f32,
+    /// `tile.inset`: from the grid's edge to its first tile.
+    pub tile_inset: f32,
+    /// `tile.group_header`: height of a tile group's header.
+    pub tile_group_header: f32,
+    /// `tile.caption_gap`: between a tile's picture and its caption.
+    pub tile_caption_gap: f32,
 }
 
 /// A size set: what a [`Size`] choice stands for.
@@ -252,6 +260,10 @@ pub(crate) fn leaves<'a>(b: &'a mut Preset, c: &'a mut ComponentSizes) -> Vec<Le
         "components.toast.pad" Num 0.0..=32.0 => c.toast_pad;
         "components.toast.inset" Pair 0.0..=64.0 => c.toast_inset;
         "components.channels.thumb" Num 12.0..=96.0 => c.channels_thumb;
+        "components.tile.gap" Num 0.0..=32.0 => c.tile_gap;
+        "components.tile.inset" Num 0.0..=32.0 => c.tile_inset;
+        "components.tile.group_header" Num 16.0..=96.0 => c.tile_group_header;
+        "components.tile.caption_gap" Num 0.0..=16.0 => c.tile_caption_gap;
     }
     out
 }

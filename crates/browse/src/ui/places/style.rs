@@ -3,7 +3,7 @@
 use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::Color32;
 
-/// The tree's own colours; rows, headings and indent are the list's. No tokens of its own.
+/// The tree's own colours; rows, headings and indent are the list's. Colours only, from the semantic tokens.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PlacesStyle {
