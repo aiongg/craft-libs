@@ -1,12 +1,13 @@
 //! The Icon and Freeform views' keys, marquee, drops and rename through egui_kittest (FX6-31).
 
 use craft_ui::behavior::{ListDrag, Selection};
+use craft_ui::list::TableColumn;
 use craft_ui::testing::{HarnessExt as _, events};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{DragAndDrop, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2, pos2, vec2};
 use egui_kittest::Harness;
-use egui_kittest::kittest::{NodeT as _, Queryable as _};
+use egui_kittest::kittest::Queryable as _;
 
 use super::freeform::{Dir, neighbour};
 use super::{BinEntry, BinEvent, BinItem, BinModel, BinState, BinView, FreeformCard, MediaBin};
@@ -59,6 +60,7 @@ struct Host {
     events: Vec<BinEvent<u32>>,
     foreign: Option<ListDrag<u32>>,
     rename: Option<u32>,
+    columns: Vec<TableColumn<String>>,
 }
 
 fn host(view: BinView) -> Host {
@@ -72,6 +74,7 @@ fn host(view: BinView) -> Host {
         events: Vec::new(),
         foreign: None,
         rename: None,
+        columns: vec![TableColumn::new("name".to_owned(), "Name")],
     }
 }
 
@@ -79,7 +82,7 @@ fn show(ui: &mut Ui, host: &mut Host) {
     if let Some(drag) = host.foreign.take() {
         DragAndDrop::set_payload(ui.ctx(), drag);
     }
-    let mut bin = MediaBin::new("bin", &mut host.state, &Project).selection(&mut host.selection).freeform(&host.freeform);
+    let mut bin = MediaBin::new("bin", &mut host.state, &Project).selection(&mut host.selection).columns(&host.columns).freeform(&host.freeform);
     if let Some(key) = host.rename.take() {
         bin = bin.start_rename(key);
     }
@@ -181,7 +184,8 @@ fn a_background_drag_is_a_marquee() {
 // A drag from another list: onto the empty view it drops into the shown bin, except items already there (LC59).
 #[test]
 fn a_foreign_drag_released_in_freeform_drops_into_the_shown_bin_or_a_bin_card() {
-    let foreign = |items: Vec<u32>| ListDrag { list: Id::new("other-bin"), grabbed: items[0], items, label: "Other".to_owned() };
+    let foreign =
+        |items: Vec<u32>| ListDrag { list: Id::NULL.with(egui::IdSalt::new("other-bin")), grabbed: items[0], items, label: "Other".to_owned() };
     let mut harness = harness(host(BinView::Freeform));
     harness.state_mut().foreign = Some(foreign(vec![10]));
     harness.run();

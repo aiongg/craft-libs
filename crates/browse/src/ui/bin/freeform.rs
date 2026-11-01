@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+use craft_theme::TypeRole;
 use craft_ui::behavior::{ListDrag, ListSelection, Selection, SelectionChange, SelectionMode, SelectionPick};
 use craft_ui::canvas::textures::{Priority, TextureKey, ThumbRequest};
 use craft_ui::direction;
@@ -11,7 +12,6 @@ use craft_ui::list::{ContextMenuRequest, DropMark, paint_drop_mark};
 use craft_ui::localized::SharedLabels as _;
 use craft_ui::primitives::{FocusRing, Interactive};
 use craft_ui::theme::{Tokens, TokensOf as _};
-use craft_theme::TypeRole;
 use egui::accesskit::{Action, Role};
 use egui::containers::scroll_area::ScrollSource;
 use egui::{
@@ -22,7 +22,9 @@ use egui::{
 use super::icon::{ASPECT, CardList, entries_of};
 use super::list::{drop_items, inside_any, item_of, open_event};
 use super::{BinEvent, BinLabels, BinModel, BinState, MediaBin, ThumbPair};
-use crate::ui::grid::{BadgeVisibility, TileContent, TileFace, TileLabels, TileLook, TileSource as _, TileStyle, TileZoom, ZoomStep, card_size, paint_tile};
+use crate::ui::grid::{
+    BadgeVisibility, TileContent, TileFace, TileLabels, TileLook, TileSource as _, TileStyle, TileZoom, ZoomStep, card_size, paint_tile,
+};
 
 /// A card in the Freeform view, where the host stores it.
 #[derive(Clone, Debug, PartialEq)]
@@ -190,7 +192,6 @@ fn take_press(ctx: &egui::Context) -> Option<Press> {
     })
 }
 
-
 /// Draws the Freeform view: the shown bin's cards (the Icon view's order and search) at the
 /// host's [`FreeformCard`] positions in a scroll area; a card without a position takes the next
 /// free slot of a flow layout, and while searching every card does. Positions count from the
@@ -283,56 +284,10 @@ where
 
     // The keys of the focused list box, handled before the cards are drawn so they show them.
     let focused = ctx.memory(|m| m.has_focus(box_id));
-    let mut reveal: Option<usize> = None;
-    let mut menu_key = false;
+    let (mut reveal, mut menu_key) = (None, false);
     if focused {
-        ctx.memory_mut(|m| m.set_focus_lock_filter(box_id, EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false }));
-        let lead = selection.lead.as_ref().and_then(|lead| list.keys.iter().position(|key| key == lead));
-        match take_press(&ctx) {
-            Some(Press::Lead { dir, extend }) => {
-                let screen: Vec<Rect> = positions.iter().map(|pos| card_at(Rect::from_min_size(Pos2::ZERO, Vec2::ZERO), *pos, cell, rtl)).collect();
-                let to = lead.map_or((len > 0).then_some(0), |from| neighbour(&screen, from, dir));
-                if let Some(to) = to {
-                    let modifiers = Modifiers { shift: extend && lead.is_some(), ..Modifiers::NONE };
-                    if let Some(change) = rules.click(selection, &list, to, modifiers) {
-                        apply(selection, change, &mut events);
-                    }
-                    reveal = Some(to);
-                }
-            }
-            Some(Press::Edge { last, extend }) => {
-                if let Some(to) = if last { len.checked_sub(1) } else { (len > 0).then_some(0) } {
-                    if let Some(change) = rules.click(selection, &list, to, Modifiers { shift: extend, ..Modifiers::NONE }) {
-                        apply(selection, change, &mut events);
-                    }
-                    reveal = Some(to);
-                }
-            }
-            Some(Press::Nudge(by)) => {
-                let by = vec2(if rtl { -by.x } else { by.x }, by.y);
-                let moving: Vec<usize> = (0..len).filter(|&at| selection.contains(&list.keys[at])).collect();
-                if !moving.is_empty() {
-                    let keys = moving.iter().map(|&at| list.keys[at].clone()).collect();
-                    let to = moving.iter().map(|&at| (positions[at] + by).max(Vec2::ZERO)).collect();
-                    events.push(BinEvent::FreeformMoved { keys, to });
-                }
-            }
-            None => {}
-        }
-        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Space))
-            && let Some(change) = rules.toggle_lead(selection, &list)
-        {
-            apply(selection, change, &mut events);
-        }
-        menu_key = ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Menu) || i.consume_key(Modifiers::SHIFT, Key::F10));
-        let enter = ctx.input(|i| i.key_pressed(Key::Enter));
-        let modifiers = ctx.input(|i| i.modifiers);
-        if enter && let Some(lead) = selection.lead.clone().filter(|lead| list.keys.contains(lead)) {
-            events.push(open_event(model, lead, modifiers));
-        }
-        if ctx.input(|i| i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace)) && !selection.is_empty() {
-            events.push(BinEvent::Remove(selection.items.clone()));
-        }
+        let geometry = Geometry { positions: &positions, cell, rtl };
+        (reveal, menu_key) = handle_keys(&ctx, box_id, &list, &geometry, selection, &mut events);
     }
 
     let mut hits: Vec<(usize, Hit)> = Vec::new();
@@ -350,57 +305,16 @@ where
         .accessibility_label(labels.freeform_view.as_str())
         .layout(egui::Layout::top_down(egui::Align::Min));
     let scope = ui.scope_builder(builder, |ui| {
-        ScrollArea::both()
-            .id_salt((id, "scroll"))
-            .auto_shrink(false)
-            .scroll_source(ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL)
-            .show(ui, |ui| {
+        ScrollArea::both().id_salt((id, "scroll")).auto_shrink(false).scroll_source(ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL).show(
+            ui,
+            |ui| {
                 let available = ui.available_size();
                 let (area, background) = ui.allocate_exact_size(extent.max(available), Sense::click_and_drag());
                 let modifiers = ui.input(|i| i.modifiers);
                 let ppp = ui.pixels_per_point();
-                let cell_of = |at: usize| card_at(area, positions[at], cell, rtl);
 
-                // The marquee selects the cards it touches, live; Esc puts the selection back.
-                let primary_down = ctx.input(|i| i.pointer.primary_down());
-                let interact = ctx.input(|i| i.pointer.interact_pos());
-                if marquee.is_none()
-                    && drag.is_none()
-                    && background.drag_started_by(PointerButton::Primary)
-                    && let Some(p) = interact
-                {
-                    ctx.memory_mut(|m| m.request_focus(box_id));
-                    marquee = Some(Marquee { start: p - area.min, base: selection.clone(), additive: modifiers.shift || modifiers.command, cancelled: false });
-                }
-                let mut band: Option<Rect> = None;
-                if let Some(mut live) = marquee.take() {
-                    if !live.cancelled && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
-                        live.cancelled = true;
-                        let base = live.base.clone();
-                        if let Some(change) = change_of(selection, SelectionPick::Replace, base.lead.clone(), base) {
-                            apply(selection, change, &mut events);
-                        }
-                    }
-                    if let Some(p) = interact.filter(|_| !live.cancelled) {
-                        let rect = Rect::from_two_pos(area.min + live.start, p);
-                        let touched: Vec<K> = (0..len).filter(|&at| cell_of(at).intersects(rect)).map(|at| list.keys[at].clone()).collect();
-                        let mut items = if live.additive { live.base.items.clone() } else { Vec::new() };
-                        for key in &touched {
-                            if !items.contains(key) {
-                                items.push(key.clone());
-                            }
-                        }
-                        let lead = touched.last().cloned().or_else(|| live.base.lead.clone().filter(|_| live.additive));
-                        let anchor = touched.first().cloned().or_else(|| live.base.anchor.clone().filter(|_| live.additive));
-                        if let Some(change) = change_of(selection, SelectionPick::Range, lead.clone(), Selection { items, lead, anchor }) {
-                            apply(selection, change, &mut events);
-                        }
-                        band = Some(rect);
-                    }
-                    if primary_down {
-                        marquee = Some(live);
-                    }
-                }
+                let geometry = Geometry { positions: &positions, cell, rtl };
+                let band = marquee_step(&ctx, box_id, &mut marquee, &background, drag.is_some(), area, &list.keys, &geometry, selection, &mut events);
 
                 for &at in &order {
                     let key = &list.keys[at];
@@ -459,7 +373,14 @@ where
                         response: &response,
                         face,
                     };
-                    paint_tile::<K>(ui, &style, &tile_labels, &look, texture.as_ref().map(|(thumbs, _)| *thumbs), texture.as_ref().map(|(_, state)| state));
+                    paint_tile::<K>(
+                        ui,
+                        &style,
+                        &tile_labels,
+                        &look,
+                        texture.as_ref().map(|(thumbs, _)| *thumbs),
+                        texture.as_ref().map(|(_, state)| state),
+                    );
                     if drag.is_none() {
                         response.clone().on_hover_text(content.name);
                     }
@@ -485,7 +406,8 @@ where
                     painter.rect_stroke(rect, 0.0, Stroke::new(style.ring_width, style.marquee_line), StrokeKind::Inside);
                 }
                 (background, area)
-            })
+            },
+        )
     });
     let response = scope.response;
     let scroll = scope.inner;
@@ -511,7 +433,13 @@ where
                 if !was_selected && let Some(change) = rules.click(selection, &list, at, Modifiers::NONE) {
                     apply(selection, change, &mut events);
                 }
-                events.push(BinEvent::ContextMenu(ContextMenuRequest { row: Some(key), selected: was_selected, anchor: cell_of(at), pointer, toggle: None }));
+                events.push(BinEvent::ContextMenu(ContextMenuRequest {
+                    row: Some(key),
+                    selected: was_selected,
+                    anchor: cell_of(at),
+                    pointer,
+                    toggle: None,
+                }));
             }
             Hit::DragStart(modifiers) => {
                 if !selection.contains(&key) {
@@ -521,7 +449,8 @@ where
                     }
                 }
                 let stack = stack_of[at];
-                let moving: Vec<usize> = (0..len).filter(|&i| selection.contains(&list.keys[i]) || (stack.is_some() && stack_of[i] == stack)).collect();
+                let moving: Vec<usize> =
+                    (0..len).filter(|&i| selection.contains(&list.keys[i]) || (stack.is_some() && stack_of[i] == stack)).collect();
                 let grabbed = moving.iter().position(|&i| i == at).unwrap_or(0);
                 let keys: Vec<K> = moving.iter().map(|&i| list.keys[i].clone()).collect();
                 let press = ctx.input(|i| i.pointer.press_origin()).or(pointer).unwrap_or(area.min);
@@ -621,20 +550,9 @@ where
         }
     }
 
-    // A drag from another list: into the bin card it is over, else into the shown bin.
-    if let (Some(payload), Some(pointer)) = (DragAndDrop::payload::<ListDrag<K>>(&ctx).filter(|p| p.list != id), pointer.filter(|p| view.contains(*p)))
-        && !dropped
-    {
-        let over = bin_rects.iter().find(|(key, rect)| rect.contains(pointer) && !inside_any(model, key, &payload.items));
-        if released {
-            DragAndDrop::clear_payload(&ctx);
-            let into = over.map(|(key, _)| key.clone());
-            if let Some(items) = drop_items(model, into.as_ref().or(state.shown.as_ref()), &payload.items) {
-                events.push(BinEvent::Drop { items, into });
-            }
-        } else if let Some((_, rect)) = over {
-            paint_drop_mark(ui, *rect, DropMark::Into);
-        }
+    if !dropped {
+        let pointer = pointer.filter(|p| view.contains(*p));
+        foreign_drop(ui, model, id, state.shown.as_ref(), pointer, released, &bin_rects, &mut events);
     }
     ctx.data_mut(|d| {
         d.insert_temp(drag_slot, drag);
@@ -651,6 +569,173 @@ where
     });
     FocusRing::paint_if(ui, response.rect, CornerRadius::ZERO, focused && len == 0);
     (response, events)
+}
+
+/// Where the cards are, counted from the start edge.
+struct Geometry<'a> {
+    positions: &'a [Vec2],
+    cell: Vec2,
+    rtl: bool,
+}
+
+impl Geometry<'_> {
+    fn rect(&self, area: Rect, at: usize) -> Rect {
+        card_at(area, self.positions[at], self.cell, self.rtl)
+    }
+}
+
+/// The focused list box's keys: arrows, Home, End, Space, Enter, Delete, Cmd/Ctrl + arrows and
+/// the menu keys. Returns the card to scroll into view and whether the context menu was asked
+/// for.
+fn handle_keys<K, M>(
+    ctx: &egui::Context,
+    box_id: Id,
+    list: &CardList<'_, K, M>,
+    geometry: &Geometry<'_>,
+    selection: &mut Selection<K>,
+    events: &mut Vec<BinEvent<K>>,
+) -> (Option<usize>, bool)
+where
+    K: TextureKey + Debug,
+    M: BinModel<K> + ?Sized,
+{
+    let (len, cell, rtl, positions) = (list.keys.len(), geometry.cell, geometry.rtl, geometry.positions);
+    let rules = ListSelection::new(SelectionMode::Multiple);
+    let mut reveal = None;
+    ctx.memory_mut(|m| m.set_focus_lock_filter(box_id, EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false }));
+    let lead = selection.lead.as_ref().and_then(|lead| list.keys.iter().position(|key| key == lead));
+    let mut select = |to: usize, extend: bool, selection: &mut Selection<K>, events: &mut Vec<BinEvent<K>>| {
+        if let Some(change) = rules.click(selection, list, to, Modifiers { shift: extend, ..Modifiers::NONE }) {
+            apply(selection, change, events);
+        }
+        reveal = Some(to);
+    };
+    match take_press(ctx) {
+        Some(Press::Lead { dir, extend }) => {
+            let screen: Vec<Rect> = positions.iter().map(|pos| card_at(Rect::from_min_size(Pos2::ZERO, Vec2::ZERO), *pos, cell, rtl)).collect();
+            let to = lead.map_or((len > 0).then_some(0), |from| neighbour(&screen, from, dir));
+            if let Some(to) = to {
+                select(to, extend && lead.is_some(), selection, events);
+            }
+        }
+        Some(Press::Edge { last, extend }) => {
+            if let Some(to) = if last { len.checked_sub(1) } else { (len > 0).then_some(0) } {
+                select(to, extend, selection, events);
+            }
+        }
+        Some(Press::Nudge(by)) => {
+            let by = vec2(if rtl { -by.x } else { by.x }, by.y);
+            let moving: Vec<usize> = (0..len).filter(|&at| selection.contains(&list.keys[at])).collect();
+            if !moving.is_empty() {
+                let keys = moving.iter().map(|&at| list.keys[at].clone()).collect();
+                let to = moving.iter().map(|&at| (positions[at] + by).max(Vec2::ZERO)).collect();
+                events.push(BinEvent::FreeformMoved { keys, to });
+            }
+        }
+        None => {}
+    }
+    if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Space))
+        && let Some(change) = rules.toggle_lead(selection, list)
+    {
+        apply(selection, change, events);
+    }
+    let menu = ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Menu) || i.consume_key(Modifiers::SHIFT, Key::F10));
+    let modifiers = ctx.input(|i| i.modifiers);
+    if ctx.input(|i| i.key_pressed(Key::Enter))
+        && let Some(lead) = lead
+    {
+        events.push(open_event(list.model, list.keys[lead].clone(), modifiers));
+    }
+    if ctx.input(|i| i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace)) && !selection.is_empty() {
+        events.push(BinEvent::Remove(selection.items.clone()));
+    }
+    (reveal, menu)
+}
+
+/// The marquee: a drag from the background selects the cards it touches, live; Esc puts the
+/// selection back. Returns the band to draw.
+#[allow(clippy::too_many_arguments)]
+fn marquee_step<K: TextureKey>(
+    ctx: &egui::Context,
+    box_id: Id,
+    marquee: &mut Option<Marquee<K>>,
+    background: &Response,
+    card_drag: bool,
+    area: Rect,
+    keys: &[K],
+    geometry: &Geometry<'_>,
+    selection: &mut Selection<K>,
+    events: &mut Vec<BinEvent<K>>,
+) -> Option<Rect> {
+    let modifiers = ctx.input(|i| i.modifiers);
+    let primary_down = ctx.input(|i| i.pointer.primary_down());
+    let interact = ctx.input(|i| i.pointer.interact_pos());
+    if marquee.is_none()
+        && !card_drag
+        && background.drag_started_by(PointerButton::Primary)
+        && let Some(p) = interact
+    {
+        ctx.memory_mut(|m| m.request_focus(box_id));
+        *marquee = Some(Marquee { start: p - area.min, base: selection.clone(), additive: modifiers.shift || modifiers.command, cancelled: false });
+    }
+    let mut live = marquee.take()?;
+    if !live.cancelled && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+        live.cancelled = true;
+        let base = live.base.clone();
+        if let Some(change) = change_of(selection, SelectionPick::Replace, base.lead.clone(), base) {
+            apply(selection, change, events);
+        }
+    }
+    let mut band = None;
+    if let Some(p) = interact.filter(|_| !live.cancelled) {
+        let rect = Rect::from_two_pos(area.min + live.start, p);
+        let touched: Vec<K> = (0..keys.len()).filter(|&at| geometry.rect(area, at).intersects(rect)).map(|at| keys[at].clone()).collect();
+        let mut items = if live.additive { live.base.items.clone() } else { Vec::new() };
+        for key in &touched {
+            if !items.contains(key) {
+                items.push(key.clone());
+            }
+        }
+        let lead = touched.last().cloned().or_else(|| live.base.lead.clone().filter(|_| live.additive));
+        let anchor = touched.first().cloned().or_else(|| live.base.anchor.clone().filter(|_| live.additive));
+        if let Some(change) = change_of(selection, SelectionPick::Range, lead.clone(), Selection { items, lead, anchor }) {
+            apply(selection, change, events);
+        }
+        band = Some(rect);
+    }
+    if primary_down {
+        *marquee = Some(live);
+    }
+    band
+}
+
+/// A drag from another list: into the bin card it is over, else into the shown bin.
+#[allow(clippy::too_many_arguments)]
+fn foreign_drop<K, M>(
+    ui: &Ui,
+    model: &M,
+    id: Id,
+    shown: Option<&K>,
+    pointer: Option<Pos2>,
+    released: bool,
+    bins: &[(K, Rect)],
+    events: &mut Vec<BinEvent<K>>,
+) where
+    K: TextureKey + Debug,
+    M: BinModel<K> + ?Sized,
+{
+    let ctx = ui.ctx();
+    let (Some(payload), Some(pointer)) = (DragAndDrop::payload::<ListDrag<K>>(ctx).filter(|p| p.list != id), pointer) else { return };
+    let over = bins.iter().find(|(key, rect)| rect.contains(pointer) && !inside_any(model, key, &payload.items));
+    if released {
+        DragAndDrop::clear_payload(ctx);
+        let into = over.map(|(key, _)| key.clone());
+        if let Some(items) = drop_items(model, into.as_ref().or(shown), &payload.items) {
+            events.push(BinEvent::Drop { items, into });
+        }
+    } else if let Some((_, rect)) = over {
+        paint_drop_mark(ui, *rect, DropMark::Into);
+    }
 }
 
 /// Sets the selection a change gives and reports it.

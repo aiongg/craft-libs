@@ -22,10 +22,10 @@
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod bin_tests;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
-mod freeform_tests;
 mod footer;
 mod freeform;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod freeform_tests;
 mod icon;
 mod list;
 mod search;
@@ -510,7 +510,8 @@ where
     /// Draws the panel and reports what happened.
     pub fn show(self, ui: &mut Ui) -> BinOutput<K> {
         // filmcraft: crates/ui-egui/src/panels/project.rs:389 (`body`: breadcrumb, search, count, preview, view, footer).
-        let Self { id_salt, state, model, selection, thumbnails, columns, hover_scrub, header, actions, freeform, snap, zoom_range, labels, rename } = self;
+        let Self { id_salt, state, model, selection, thumbnails, columns, hover_scrub, header, actions, freeform, snap, zoom_range, labels, rename } =
+            self;
         let id = ui.make_persistent_id(id_salt);
         let labels = labels.unwrap_or_else(|| BinLabels::of(ui));
         let tokens = Tokens::of(ui);
