@@ -58,7 +58,7 @@ impl ActionsPanel<'_> {
 ///
 /// The current shortcut is parsed from [`ActionsHost::shortcut`] by the host's rule; the panel
 /// keeps the menu's ticks in egui memory under the menu's id while it is open.
-#[expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 pub(super) fn context_menu(
     ui: &mut Ui,
     request: &ContextMenuRequest<ActionSelection>,

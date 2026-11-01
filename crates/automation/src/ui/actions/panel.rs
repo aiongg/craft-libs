@@ -2,10 +2,23 @@
 //! Button Mode.
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use craft_ui::behavior::{Axis, DropPosition, Move, Reorder, Selection, SelectionMode};
+use craft_ui::composites::{EmptyState, PanelFooter};
+use craft_ui::edit::EditEvent;
+use craft_ui::icons::Icon;
+use craft_ui::list::{ContextMenuRequest, List, ListEvent, ListRow, OpenChange, RowEvent};
+use craft_ui::localized::SharedLabels as _;
+use craft_ui::primitives::Interactive;
+use craft_ui::theme::{Tokens, TokensOf as _, role_format};
+use egui::{Align2, AsIdSalt, CornerRadius, CursorIcon, Id, IdSalt, Key, Modifiers, Popup, Response, Role, ScrollArea, Sense, Ui, Vec2, vec2};
 
+use super::footer::footer;
 use super::labels::ActionsLabels;
+use super::menu::context_menu;
+use super::rows::{ActionRows, row, toggle_edit_event};
+use super::style::ActionsPanelStyle;
 use crate::actions::{Action, ActionColor, ActionList, ActionStep};
 
 /// What the panel asks of the app while it draws: words and state the list does not hold.
@@ -254,7 +267,6 @@ pub struct ActionsPanelOutput {
 /// **Direction.** The tree, disclosure and cells follow reading order (`List` rules); the counts
 /// and shortcut sit at the end side.
 #[must_use = "show the panel with `show`"]
-#[expect(dead_code, reason = "skeleton: removed when the bodies land")]
 pub struct ActionsPanel<'a> {
     pub(super) id_salt: IdSalt,
     pub(super) state: &'a mut ActionsState,
@@ -290,19 +302,302 @@ impl<'a> ActionsPanel<'a> {
 
     /// Draws the tree (or the buttons) and the footer, and reports this pass's events in order:
     /// the list's, the cells', the context menu's, the footer's.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn show(self, ui: &mut Ui) -> ActionsPanelOutput {
         // pc: crates/ui-egui/src/panels/actions.rs:906 `panel` (rows, selection, rename, play, drag, auto-scroll :1153);
         // new: on `List` in tree mode (L20), keys and AccessKit from the list.
-        todo!()
+        let Self { id_salt, state, list, host, labels, enabled } = self;
+        let tokens = Tokens::of(ui);
+        let labels = labels.map_or_else(|| ActionsLabels::shared(ui), Arc::new);
+        let style = ActionsPanel::style(&tokens);
+        let id = Id::NULL.with(id_salt);
+        let footer_height = PanelFooter::reserved_height(&PanelFooter::style(&tokens, ui.pixels_per_point()));
+        let height = (ui.available_height() - footer_height).max(0.0);
+        let inner = ui.scope(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            ui.add_enabled_ui(enabled, |ui| {
+                let mut events = show_body(ui, id, state, list, host, &labels, &style, height);
+                events.extend(footer(ui, state, list, host, &labels, &style));
+                events
+            })
+            .inner
+        });
+        ActionsPanelOutput { response: inner.response, events: inner.inner }
     }
+}
+
+/// The part of the panel above the footer, `height` tall: the empty state, Button Mode's buttons or
+/// the tree. Returns this pass's events.
+#[expect(clippy::too_many_arguments, reason = "the panel's pieces; a struct would only carry them")]
+pub(super) fn show_body(
+    ui: &mut Ui,
+    id: Id,
+    state: &mut ActionsState,
+    list: &ActionList,
+    host: Option<&dyn ActionsHost>,
+    labels: &ActionsLabels,
+    style: &ActionsPanelStyle,
+    height: f32,
+) -> Vec<ActionsEvent> {
+    if list.actions().is_empty() && list.sets().is_empty() {
+        let width = ui.available_width();
+        ui.allocate_ui(vec2(width, height), |ui| {
+            EmptyState::centred(labels.empty.clone()).icon(Icon::Circle).show(ui);
+        });
+        return Vec::new();
+    }
+    let recording = host.and_then(|host| host.recording());
+    if state.settings.button_mode && recording.is_none() {
+        let scroll = ScrollArea::vertical().id_salt((id, "buttons")).max_height(height).auto_shrink([false, false]);
+        return scroll.show(ui, |ui| button_mode(ui, list, style)).inner;
+    }
+    show_tree(ui, id, state, list, host, labels, style, height)
+}
+
+/// The tree on a [`List`] in tree mode, and the events of what happened on it.
+#[expect(clippy::too_many_arguments, reason = "the panel's pieces; a struct would only carry them")]
+fn show_tree(
+    ui: &mut Ui,
+    id: Id,
+    state: &mut ActionsState,
+    list: &ActionList,
+    host: Option<&dyn ActionsHost>,
+    labels: &ActionsLabels,
+    style: &ActionsPanelStyle,
+    height: f32,
+) -> Vec<ActionsEvent> {
+    let editable = !host.is_some_and(|host| host.playing());
+    let rows = ActionRows::build(list, state, host);
+    let mut selection = Selection { items: state.selected.iter().cloned().collect(), lead: state.selected.clone(), anchor: state.selected.clone() };
+    let mut widget = List::new((id, "list"), labels.name.clone(), &rows)
+        .tree(true)
+        .selection(&mut selection)
+        .mode(SelectionMode::Single)
+        .heights(|at| rows.height(at, style))
+        .max_height(height)
+        .can_rename(|key| editable && matches!(key, ActionSelection::Action(_)));
+    if editable {
+        widget = widget.reorder(Reorder::new(Axis::Vertical).accepts(|mv, _| accepts_move(list, mv)));
+        if let Some(index) = state.renaming {
+            widget = widget.start_rename(ActionSelection::Action(index));
+        }
+    }
+    if let Some(key) = reveal_key(ui, id, list, host, &rows) {
+        widget = widget.reveal(key);
+    }
+    let ctx = ui.ctx().clone();
+    let shown: &ActionsState = state;
+    let out = widget.show(ui, |_, key| row(&ctx, key, list, shown, host, labels, style));
+    let focused = out.response.has_focus();
+    let mut events = Vec::new();
+    let mut request = None;
+    let open_before = (state.expanded.len(), state.settings.collapsed_sets.len());
+    for event in &out.events {
+        match event {
+            ListEvent::Open(change) => apply_open(state, list, change),
+            ListEvent::Activate(key) => match key {
+                ActionSelection::Action(action) if host.is_some() => events.push(ActionsEvent::Play { action: *action, from: 0 }),
+                ActionSelection::Set(name) => {
+                    apply_open(state, list, &OpenChange { row: key.clone(), open: state.settings.collapsed_sets.contains(name), all: false })
+                }
+                _ => {}
+            },
+            ListEvent::Row(RowEvent::Toggle(edit)) if editable => events.extend(toggle_edit_event(edit, list)),
+            ListEvent::Row(RowEvent::Renamed { row: ActionSelection::Action(action), text }) if editable => {
+                if !text.trim().is_empty() && list.action(*action).is_some_and(|current| current.name != text.trim()) {
+                    events.push(ActionsEvent::Rename { action: *action, name: text.clone() });
+                }
+            }
+            ListEvent::Row(RowEvent::RenameEnded { .. }) => state.renaming = None,
+            ListEvent::Reorder(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) if editable => events.extend(move_event(list, value)),
+            ListEvent::ContextMenu(asked) => request = Some(asked.clone()),
+            _ => {}
+        }
+    }
+    if open_before != (state.expanded.len(), state.settings.collapsed_sets.len()) {
+        ui.ctx().request_repaint();
+    }
+    state.selected = selection.items.first().cloned();
+    if focused && editable && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Delete)) {
+        events.extend(state.selected.as_ref().and_then(|selected| delete_event(selected, host.is_some_and(|host| host.recording().is_some()))));
+    }
+    events.extend(show_context_menu(ui, id, request, list, host, labels));
+    events
+}
+
+/// The `Delete` event for `selected`: a step always; a set or an action not while recording.
+pub(super) fn delete_event(selected: &ActionSelection, recording: bool) -> Option<ActionsEvent> {
+    (!recording || matches!(selected, ActionSelection::Step(..))).then(|| ActionsEvent::Delete(selected.clone()))
+}
+
+/// Opens or closes what `change` names in `state`: an action's steps, a set's actions, or with
+/// `all` every one of them.
+fn apply_open(state: &mut ActionsState, list: &ActionList, change: &OpenChange<ActionSelection>) {
+    if change.all {
+        if change.open {
+            state.expanded.extend(list.actions().iter().map(|action| action.name.clone()));
+            state.settings.collapsed_sets.clear();
+        } else {
+            state.expanded.clear();
+            state.settings.collapsed_sets = list.sets().into_iter().map(str::to_owned).collect();
+        }
+        return;
+    }
+    match &change.row {
+        ActionSelection::Action(index) => {
+            if let Some(action) = list.action(*index) {
+                if change.open {
+                    state.expanded.insert(action.name.clone());
+                } else {
+                    state.expanded.remove(&action.name);
+                }
+            }
+        }
+        ActionSelection::Set(name) => {
+            state.settings.collapsed_sets.retain(|set| set != name);
+            if !change.open {
+                state.settings.collapsed_sets.push(name.clone());
+            }
+        }
+        ActionSelection::Step(..) => {}
+    }
+}
+
+/// The row to scroll into view while recording: the latest step, whenever the recording action
+/// or its step count differs from the last pass; `None` otherwise.
+fn reveal_key(ui: &Ui, id: Id, list: &ActionList, host: Option<&dyn ActionsHost>, rows: &ActionRows) -> Option<ActionSelection> {
+    let slot = id.with("revealed");
+    let Some(recording) = host.and_then(|host| host.recording()) else {
+        ui.data_mut(|data| data.remove::<(usize, usize)>(slot));
+        return None;
+    };
+    let total = list.step_count(recording) + host.map_or(0, |host| host.pending_steps(recording).len());
+    if ui.data(|data| data.get_temp::<(usize, usize)>(slot)) == Some((recording, total)) {
+        return None;
+    }
+    ui.data_mut(|data| data.insert_temp(slot, (recording, total)));
+    let key = if total > 0 { ActionSelection::Step(recording, total - 1) } else { ActionSelection::Action(recording) };
+    rows.rows.contains(&key).then_some(key)
+}
+
+/// Where dropping `source` at `position` of `target` lands in the list, or `None` when the drop
+/// is not allowed: an action goes before or after another action (into its set), into a set (as
+/// its first) or before the first set (loose); a step goes before or after a step of any action
+/// or into an action as its first.
+fn place(list: &ActionList, source: &ActionSelection, target: &ActionSelection, position: DropPosition) -> Option<ActionPlace> {
+    // pc: crates/ui-egui/src/panels/actions.rs:1153 (drag), `actions.assignSet`, `actions.moveStep`.
+    let len = list.actions().len();
+    match (source, target) {
+        (ActionSelection::Action(from), ActionSelection::Action(over)) if from != over && position != DropPosition::Into => {
+            let at = over + usize::from(position == DropPosition::After);
+            Some(ActionPlace::Action { index: at - usize::from(*from < at), set: list.set_of(*over).map(str::to_owned) })
+        }
+        (ActionSelection::Action(from), ActionSelection::Set(name)) => {
+            let at = match position {
+                DropPosition::Into => list.actions().iter().position(|action| action.set.as_deref() == Some(name.as_str())).unwrap_or(len),
+                DropPosition::Before => list.actions().iter().rposition(|action| action.set.is_none()).map_or(0, |last| last + 1),
+                DropPosition::After => return None,
+            };
+            let set = (position == DropPosition::Into).then(|| name.clone());
+            Some(ActionPlace::Action { index: at - usize::from(*from < at), set })
+        }
+        (ActionSelection::Step(from, step), ActionSelection::Step(over, at))
+            if position != DropPosition::Into && *step < list.step_count(*from) && *at < list.step_count(*over) =>
+        {
+            let to = at + usize::from(position == DropPosition::After);
+            Some(ActionPlace::Step { action: *over, index: to - usize::from(from == over && *step < to) })
+        }
+        (ActionSelection::Step(from, step), ActionSelection::Action(over)) if position == DropPosition::Into && *step < list.step_count(*from) => {
+            Some(ActionPlace::Step { action: *over, index: 0 })
+        }
+        _ => None,
+    }
+}
+
+/// Whether the list takes the move `mv`: one row, not a copy, to a place [`place`] knows.
+fn accepts_move(list: &ActionList, mv: &Move<ActionSelection>) -> bool {
+    !mv.copy && mv.items.len() == 1 && place(list, &mv.items[0], &mv.target, mv.position).is_some()
+}
+
+/// The `Move` event of a list move.
+fn move_event(list: &ActionList, mv: &Move<ActionSelection>) -> Option<ActionsEvent> {
+    let source = mv.items.first().filter(|_| !mv.copy)?.clone();
+    let to = place(list, &source, &mv.target, mv.position)?;
+    Some(ActionsEvent::Move { source, to })
+}
+
+/// Shows the context menu for `asked`, and keeps asking for it on the passes after (the request
+/// stays in egui memory) until a row is chosen or no popup is open any more.
+fn show_context_menu(
+    ui: &mut Ui,
+    id: Id,
+    asked: Option<ContextMenuRequest<ActionSelection>>,
+    list: &ActionList,
+    host: Option<&dyn ActionsHost>,
+    labels: &ActionsLabels,
+) -> Option<ActionsEvent> {
+    let slot = id.with("context-request");
+    let ctx = ui.ctx().clone();
+    let ctx = &ctx;
+    let kept = ctx.data(|data| data.get_temp::<ContextMenuRequest<ActionSelection>>(slot));
+    let request = match (asked, kept) {
+        (Some(asked), _) => asked,
+        (None, Some(kept)) if Popup::is_any_open(ctx) => kept,
+        _ => {
+            ctx.data_mut(|data| data.remove::<ContextMenuRequest<ActionSelection>>(slot));
+            return None;
+        }
+    };
+    ctx.data_mut(|data| data.insert_temp(slot, request.clone()));
+    let event = context_menu(ui, &request, list, host, labels);
+    if event.is_some() {
+        ctx.data_mut(|data| data.remove::<ContextMenuRequest<ActionSelection>>(slot));
+    }
+    event
 }
 
 /// Button Mode's body: each action of `list` in display order as a full-width button in its
 /// colour, set headers between; a click (not a double-click's second) reports `Play`. Returns
 /// the pass's events.
-#[expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-fn button_mode(ui: &mut Ui, list: &ActionList, style: &super::style::ActionsPanelStyle) -> Vec<ActionsEvent> {
+fn button_mode(ui: &mut Ui, list: &ActionList, style: &ActionsPanelStyle) -> Vec<ActionsEvent> {
     // pc: crates/ui-egui/src/panels/actions.rs:991-992 (filled row), :1045-1048 (click plays once, not on a double-click), :297-313 (fills).
-    todo!()
+    let tokens = craft_ui::theme::current(ui.ctx());
+    let row_style = ListRow::<ActionSelection>::style(&tokens);
+    let gap = tokens.space.gap.stack;
+    let rtl = craft_ui::direction::is_rtl(ui);
+    let radius = CornerRadius::same(row_style.radius.round().clamp(0.0, 255.0) as u8);
+    let mut events = Vec::new();
+    let order = list.display_order();
+    let mut shown: Vec<(Option<&str>, Vec<usize>)> = vec![(None, order.iter().copied().filter(|&index| list.set_of(index).is_none()).collect())];
+    for set in list.sets() {
+        shown.push((Some(set), order.iter().copied().filter(|&index| list.set_of(index) == Some(set)).collect()));
+    }
+    for (set, actions) in shown {
+        if let Some(name) = set {
+            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), style.set_row_height), Sense::hover());
+            let font = role_format(&tokens, row_style.label_role, style.label).font_id;
+            let (anchor, x) =
+                if rtl { (Align2::RIGHT_CENTER, rect.right() - row_style.pad_x) } else { (Align2::LEFT_CENTER, rect.left() + row_style.pad_x) };
+            ui.painter().text(egui::pos2(x, rect.center().y), anchor, name, font, style.label);
+        }
+        for index in actions {
+            let Some(action) = list.action(index) else { continue };
+            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), style.row_height), Sense::hover());
+            let sensed = Interactive::with_id(ui.scope_id().with(("button-mode", index)), Role::Button, action.name.clone())
+                .sense(Sense::click())
+                .state_layer(false)
+                .interact_at(ui, rect);
+            let response = sensed.finish(ui).on_hover_cursor(CursorIcon::PointingHand);
+            let color = style.label_color(action.color);
+            ui.painter().rect_filled(rect, radius, style.fill(action.color));
+            let font = role_format(&tokens, row_style.label_role, color).font_id;
+            let (anchor, x) =
+                if rtl { (Align2::RIGHT_CENTER, rect.right() - row_style.pad_x) } else { (Align2::LEFT_CENTER, rect.left() + row_style.pad_x) };
+            ui.painter().text(egui::pos2(x, rect.center().y), anchor, &action.name, font, color);
+            if response.clicked() && !response.double_clicked() && !response.triple_clicked() {
+                events.push(ActionsEvent::Play { action: index, from: 0 });
+            }
+            ui.add_space(gap);
+        }
+    }
+    events
 }

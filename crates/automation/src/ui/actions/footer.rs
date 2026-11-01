@@ -1,6 +1,6 @@
 //! The Actions footer (`PanelFooter`): Stop, Record, Play, New Set, New Action, Delete and the
 //! Button Mode toggle.
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 use egui::Ui;
 
