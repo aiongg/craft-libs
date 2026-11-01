@@ -7,6 +7,7 @@ use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Image, ImageSource, Rect
 
 use super::TooltipExt as _;
 use super::button::content_color;
+use super::common_stories::ControlStoryLabels;
 use super::{SizeDisabledArgs, salt};
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
@@ -336,8 +337,15 @@ impl Widget for IconButton<'_> {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Icon button"];
 
-const SAMPLES: [(Icon, &str); 5] =
-    [(Icon::Undo, "Undo"), (Icon::Redo, "Redo"), (Icon::Copy, "Copy"), (Icon::Trash, "Delete"), (Icon::Settings, "Settings")];
+fn samples(words: &ControlStoryLabels) -> [(Icon, String); 5] {
+    [
+        (Icon::Undo, words.icon_undo.clone()),
+        (Icon::Redo, words.icon_redo.clone()),
+        (Icon::Copy, words.icon_copy.clone()),
+        (Icon::Trash, words.delete.clone()),
+        (Icon::Settings, "Settings".to_owned()),
+    ]
+}
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct PlainArgs {
@@ -370,12 +378,17 @@ fn show_plain(ui: &mut Ui, args: &mut PlainArgs) {
     let size = args.size.control();
     let enabled = !args.disabled;
     let (tooltip, badge, tone) = (args.show_tooltip, args.badge, args.tone.tone());
+    let samples = samples(&ControlStoryLabels::of(ui));
     let state_id = ui.scope_id().with("icon-button-plain-count");
     let (mut count, mut tool) = ui.data(|d| d.get_temp::<(u32, usize)>(state_id).unwrap_or_default());
     Row::new(Gap::Inline).show(ui, |ui| {
-        for (icon, label) in SAMPLES {
-            let mut button =
-                IconButton::new(icon, label).size(size).tone(tone).enabled(enabled).show_tooltip(tooltip).id_salt(("icon-button-plain", label));
+        for (icon, label) in samples.iter().cloned() {
+            let mut button = IconButton::new(icon, label.clone())
+                .size(size)
+                .tone(tone)
+                .enabled(enabled)
+                .show_tooltip(tooltip)
+                .id_salt(("icon-button-plain", label));
             if badge {
                 button = button.badge(Srgba::new(0.9, 0.2, 0.2, 1.0));
             }
@@ -386,14 +399,14 @@ fn show_plain(ui: &mut Ui, args: &mut PlainArgs) {
     });
     ui.add(Text::new(format!("Clicked {count} times")).content(Content::Muted));
     Row::new(Gap::Inline).show(ui, |ui| {
-        for (i, (icon, label)) in SAMPLES.into_iter().enumerate() {
-            let button = IconButton::new(icon, label).size(size).tone(tone).enabled(enabled).selected(tool == i).show_tooltip(tooltip);
+        for (i, (icon, label)) in samples.iter().cloned().enumerate() {
+            let button = IconButton::new(icon, label.clone()).size(size).tone(tone).enabled(enabled).selected(tool == i).show_tooltip(tooltip);
             if ui.add(button.id_salt(("icon-button-tool", label))).clicked() {
                 tool = i;
             }
         }
     });
-    ui.add(Text::new(format!("Selected: {}", SAMPLES[tool].1)).content(Content::Muted));
+    ui.add(Text::new(format!("Selected: {}", samples[tool].1)).content(Content::Muted));
     ui.data_mut(|d| d.insert_temp(state_id, (count, tool)));
 }
 

@@ -7,6 +7,8 @@ use egui::epaint::RectShape;
 use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, Widget, pos2, vec2};
 
 use super::SizeArgs;
+use super::common_stories::ControlStoryLabels;
+use crate::localized::Labels as _;
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Text};
 use crate::story::{Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
@@ -325,12 +327,13 @@ pub(crate) fn stories() -> Vec<Story> {
 fn show_states(ui: &mut Ui, args: &mut SizeArgs) {
     let size = args.size.control();
     let panel = Tokens::of(ui).color.surface.panel;
+    let words = ControlStoryLabels::of(ui);
     let samples: [(&str, Swatch); 7] = [
         ("Opaque", Swatch::new("opaque", "Opaque", Rgba::rgb(0x3e, 0x63, 0xdd))),
         ("Translucent", Swatch::new("translucent", "Translucent", Rgba([0xe5, 0x48, 0x4d, 110]))),
-        ("Clear", Swatch::new("clear", "Clear", Rgba::TRANSPARENT)),
+        (words.clear.as_str(), Swatch::new("clear", &words.clear, Rgba::TRANSPARENT)),
         ("Panel colour", Swatch::new("panel", "Panel colour", panel)),
-        ("Mixed", Swatch::new("mixed", "Mixed", Rgba::BLACK).mixed(true)),
+        (words.mixed.as_str(), Swatch::new("mixed", &words.mixed, Rgba::BLACK).mixed(true)),
         ("Selected", Swatch::new("selected", "Selected", Rgba::rgb(0x30, 0xa4, 0x6c)).selected(true)),
         ("Disabled", Swatch::new("disabled", "Disabled", Rgba::rgb(0xf5, 0xa5, 0x24)).enabled(false)),
     ];

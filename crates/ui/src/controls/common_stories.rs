@@ -124,6 +124,24 @@ crate::words! {
         field_rotation: "controlStory.fieldRotation" = "Rotation";
         restore: "controlStory.restore" = "Restore";
         field_corner: "controlStory.fieldCorner" = "Corner size";
+        clear: "controlStory.clear" = "Clear";
+        delete: "controlStory.delete" = "Delete";
+        guides: "controlStory.guides" = "Guides";
+        mixed: "controlStory.mixed" = "Mixed";
+        not_a_number: "controlStory.notANumber" = "Not a number";
+        marks: "controlStory.marks" = "Marks";
+        minimum: "controlStory.minimum" = "Minimum";
+        range: "controlStory.range" = "Range";
+        mode_new: "controlStory.modeNew" = "New";
+        off: "controlStory.off" = "Off";
+        on: "controlStory.on" = "On";
+        os_other: "controlStory.osOther" = "Other";
+        password: "controlStory.password" = "Password";
+        zoom: "controlStory.zoom" = "Zoom";
+        unit_pixels: "controlStory.unitPixels" = "Pixels";
+        unit_inches: "controlStory.unitInches" = "Inches";
+        unit_points: "controlStory.unitPoints" = "Points";
+        unit_picas: "controlStory.unitPicas" = "Picas";
     }
 }
 

@@ -11,6 +11,7 @@ use super::SizeDisabledArgs;
 use super::button::content_color;
 use super::check::{IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
 use super::checkbox::LONG_LABEL;
+use super::common_stories::ControlStoryLabels;
 use crate::behavior::RadioSelection;
 use crate::direction;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
@@ -382,7 +383,9 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PreparedRadioSet<T> {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Radio"];
 
-const OPTIONS: [&str; 5] = ["Pixels", "Millimetres", "Inches", "Points", "Picas"];
+fn options(words: &ControlStoryLabels) -> [String; 5] {
+    [words.unit_pixels.clone(), "Millimetres".to_owned(), words.unit_inches.clone(), words.unit_points.clone(), words.unit_picas.clone()]
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -396,10 +399,11 @@ pub(crate) fn stories() -> Vec<Story> {
 fn show_states(ui: &mut Ui, args: &mut SizeDisabledArgs) {
     let size = args.size.control();
     let enabled = !args.disabled;
+    let story = ControlStoryLabels::of(ui);
     let state_id = ui.scope_id().with("radio-states");
     let mut choice = ui.data(|d| d.get_temp::<usize>(state_id).unwrap_or(0));
     Stack::new(Gap::Stack).show(ui, |ui| {
-        let mut set = RadioSet::new("radio-zoom", "Zoom", &mut choice).size(size).enabled(enabled);
+        let mut set = RadioSet::new("radio-zoom", &story.zoom, &mut choice).size(size).enabled(enabled);
         for i in 0..4 {
             set = set.item(i);
         }
@@ -426,19 +430,20 @@ fn show_states(ui: &mut Ui, args: &mut SizeDisabledArgs) {
 fn show_groups(ui: &mut Ui, args: &mut SizeDisabledArgs) {
     let size = args.size.control();
     let enabled = !args.disabled;
+    let options = options(&ControlStoryLabels::of(ui));
     let state_id = ui.scope_id().with("radio-groups");
     let mut choices = ui.data(|d| d.get_temp::<[usize; 2]>(state_id).unwrap_or([0, 2]));
     Stack::new(Gap::Stack).show(ui, |ui| {
         Row::new(Gap::Section).show(ui, |ui| {
             for (n, choice) in [3, 5].into_iter().zip(choices.iter_mut()) {
                 let mut group = RadioGroup::new(("radio-group", n), format!("Units ({n})"), choice).size(size).enabled(enabled);
-                for (i, label) in OPTIONS.iter().take(n).enumerate() {
-                    group = group.item(i, *label).item_enabled(i != 3);
+                for (i, label) in options.iter().take(n).enumerate() {
+                    group = group.item(i, label.as_str()).item_enabled(i != 3);
                 }
                 let _ = group.show(ui);
             }
         });
-        ui.add(Text::new(format!("Selected: {}, {}", OPTIONS[choices[0]], OPTIONS[choices[1]])).content(Content::Muted));
+        ui.add(Text::new(format!("Selected: {}, {}", options[choices[0]], options[choices[1]])).content(Content::Muted));
     });
     ui.data_mut(|d| d.insert_temp(state_id, choices));
 }

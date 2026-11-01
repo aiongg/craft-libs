@@ -5,8 +5,10 @@ use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, IdSalt, Response, Ui, Widget};
 
 use super::button::{ButtonStyle, Face, content_color};
+use super::common_stories::ControlStoryLabels;
 use super::salt;
 use crate::icons::Icon;
+use crate::localized::Labels as _;
 use crate::primitives::{Corner, Gap, Interactive, Row, StateColors, SurfaceKind};
 use crate::story::{Level, SizeArg, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -151,7 +153,13 @@ fn show(ui: &mut Ui, args: &mut ToggleArgs) {
     let (mut snap, mut guides) = ui.data(|d| d.get_temp::<(bool, bool)>(state_id).unwrap_or((false, true)));
     Row::new(Gap::Inline).show(ui, |ui| {
         ui.add(ToggleButton::new(label, &mut snap).size(size).enabled(enabled).id_salt("toggle-button-snap"));
-        ui.add(ToggleButton::new("Guides", &mut guides).icon(Icon::Eye).size(size).enabled(enabled).id_salt("toggle-button-guides"));
+        ui.add(
+            ToggleButton::new(ControlStoryLabels::of(ui).guides.as_str(), &mut guides)
+                .icon(Icon::Eye)
+                .size(size)
+                .enabled(enabled)
+                .id_salt("toggle-button-guides"),
+        );
     });
     ui.data_mut(|d| d.insert_temp(state_id, (snap, guides)));
 }

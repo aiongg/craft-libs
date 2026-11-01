@@ -16,10 +16,11 @@ use super::slider::{KEY_FILTER, PressTurn, Scale, press_turn, tap};
 use crate::behavior::FieldTab;
 use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::{self, EditPolicy, EditResponse, Gesture, parts};
+use crate::localized::Labels as _;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{FocusRing, Gap, Interactive, Row};
 use crate::story::NoArgs;
-use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
@@ -624,11 +625,12 @@ fn show_dialog(ui: &mut Ui, _: &mut NoArgs) {
     use crate::controls::TextField;
     use crate::primitives::Stack;
     let numbers = LocaleNumbers::from_tag("en");
+    let words = StoryLabels::of(ui);
     super::slider::with_values(ui, "angle-dial-dialog", [(String::from("Drop shadow"), 120.0, String::from("Soft"))], |ui, state| {
         let (name, angle, note) = &mut state[0];
         FieldTab::new("angle-dial-dialog").show(ui, |ui| {
             Stack::new(Gap::Stack).show(ui, |ui| {
-                if let Some(text) = TextField::new("angle-dial-dialog-name", "Name", name).show(ui).event.and_then(|e| e.value().cloned()) {
+                if let Some(text) = TextField::new("angle-dial-dialog-name", &words.name, name).show(ui).event.and_then(|e| e.value().cloned()) {
                     *name = text;
                 }
                 let dial = AngleDial::new("angle-dial-dialog-angle", "Angle", *angle, &numbers).show(ui);

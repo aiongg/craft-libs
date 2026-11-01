@@ -4,7 +4,9 @@ use egui::text::LayoutJob;
 use egui::{Frame, KeyboardShortcut, Label, Margin, Response, Shadow, Stroke, Ui};
 
 use super::Kbd;
+use super::common_stories::ControlStoryLabels;
 use crate::direction;
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Gap, Row, Text};
 use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs};
@@ -219,11 +221,12 @@ fn show_text(ui: &mut Ui, args: &mut TextArgs) {
 fn show_shortcut(ui: &mut Ui, _: &mut NoArgs) {
     use super::Button;
     use egui::{Key, Modifiers};
+    let words = ControlStoryLabels::of(ui);
     Row::new(Gap::Inline).show(ui, |ui| {
         let undo = KeyboardShortcut::new(Modifiers::COMMAND, Key::Z);
         let redo = KeyboardShortcut::new(Modifiers { command: true, shift: true, ..Modifiers::NONE }, Key::Z);
-        ui.add(Button::new("Undo").id_salt("tooltip-undo")).tooltip_with("Undo the last change", &undo);
-        ui.add(Button::new("Redo").id_salt("tooltip-redo")).tooltip_with("Redo the change you undid", &redo);
+        ui.add(Button::new(&words.icon_undo).id_salt("tooltip-undo")).tooltip_with("Undo the last change", &undo);
+        ui.add(Button::new(&words.icon_redo).id_salt("tooltip-redo")).tooltip_with("Redo the change you undid", &redo);
     });
 }
 
