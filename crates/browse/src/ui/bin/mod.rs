@@ -20,8 +20,6 @@
 //! }
 //! ```
 
-#![expect(dead_code, reason = "B12 reads `hover_scrub`, `freeform` and `snap` in the Icon and Freeform views")]
-
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod bin_tests;
 mod footer;
@@ -492,7 +490,8 @@ where
     /// Draws the panel and reports what happened.
     pub fn show(self, ui: &mut Ui) -> BinOutput<K> {
         // filmcraft: crates/ui-egui/src/panels/project.rs:389 (`body`: breadcrumb, search, count, preview, view, footer).
-        let Self { id_salt: id, state, model, selection, thumbnails, columns, header, actions, zoom_range, labels, .. } = self;
+        let Self { id_salt: id, state, model, selection, thumbnails, columns, hover_scrub, header, actions, freeform, snap, zoom_range, labels } =
+            self;
         let labels = labels.unwrap_or_else(|| BinLabels::of(ui));
         let tokens = Tokens::of(ui);
         let style = BinStyle::of(&tokens);
@@ -593,8 +592,38 @@ where
                 events.append(&mut list_events);
                 Some(response)
             }
-            // B12: the Icon and Freeform views draw here (`icon::icon_view`, `freeform::freeform_view`).
-            BinView::Icon | BinView::Freeform => None,
+            BinView::Icon => {
+                let input = icon::IconInput {
+                    id,
+                    model,
+                    state: &*state,
+                    selection: &mut *selection,
+                    thumbnails,
+                    hover_scrub,
+                    zoom_range,
+                    default_size: DEFAULT_ICON_SIZE,
+                    labels: &labels,
+                };
+                let (response, mut icon_events) = icon::icon_view(ui, input);
+                events.append(&mut icon_events);
+                Some(response)
+            }
+            BinView::Freeform => {
+                let input = freeform::FreeformInput {
+                    id,
+                    model,
+                    state: &*state,
+                    selection: &mut *selection,
+                    thumbnails,
+                    cards: freeform,
+                    snap,
+                    zoom_range,
+                    default_size: DEFAULT_ICON_SIZE,
+                };
+                let (response, mut freeform_events) = freeform::freeform_view(ui, input);
+                events.append(&mut freeform_events);
+                Some(response)
+            }
         });
         let response = body.inner.unwrap_or(body.response);
         let input = footer::FooterInput {

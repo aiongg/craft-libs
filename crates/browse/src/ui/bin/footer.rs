@@ -50,7 +50,7 @@ impl BinFooterAction {
 }
 
 /// The zoom slider's key step, in points.
-const ZOOM_STEP: f32 = 8.0;
+pub(super) const ZOOM_STEP: f32 = 8.0;
 
 /// What the footer shows and reads.
 pub(super) struct FooterInput<'a> {
