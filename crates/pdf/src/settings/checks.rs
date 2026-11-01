@@ -53,6 +53,21 @@ pub struct SettingsError {
     pub id: &'static str,
     /// The English message.
     pub message: String,
+    /// The values the message carries, by the name of their placeholder in an application's own
+    /// wording: `standard`, `version`, `name`, `limit`, `field`, `range`, `value`.
+    pub values: Vec<(&'static str, String)>,
+}
+
+impl SettingsError {
+    /// The value of placeholder `key`.
+    pub fn value(&self, key: &str) -> Option<&str> {
+        self.values.iter().find(|(k, _)| *k == key).map(|(_, v)| v.as_str())
+    }
+
+    fn with(mut self, key: &'static str, value: impl Into<String>) -> Self {
+        self.values.push((key, value.into()));
+        self
+    }
 }
 
 impl fmt::Display for SettingsError {
@@ -64,7 +79,7 @@ impl fmt::Display for SettingsError {
 impl std::error::Error for SettingsError {}
 
 fn refuse(id: &'static str, message: impl Into<String>) -> SettingsError {
-    SettingsError { id, message: message.into() }
+    SettingsError { id, message: message.into(), values: Vec::new() }
 }
 
 /// An option the writer accepts but doesn't apply.
@@ -74,15 +89,36 @@ pub struct SettingsWarning {
     pub id: &'static str,
     /// The English message.
     pub message: String,
+    /// The values the message carries, as in [`SettingsError::values`].
+    pub values: Vec<(&'static str, String)>,
+}
+
+impl SettingsWarning {
+    /// The value of placeholder `key`.
+    pub fn value(&self, key: &str) -> Option<&str> {
+        self.values.iter().find(|(k, _)| *k == key).map(|(_, v)| v.as_str())
+    }
+
+    fn with(mut self, key: &'static str, value: impl Into<String>) -> Self {
+        self.values.push((key, value.into()));
+        self
+    }
 }
 
 fn warn(id: &'static str, message: impl Into<String>) -> SettingsWarning {
-    SettingsWarning { id, message: message.into() }
+    SettingsWarning { id, message: message.into(), values: Vec::new() }
 }
 
 /// `v` lies in `lo..=hi` (and is a number).
 fn within(id: &'static str, name: &str, v: f64, lo: f64, hi: f64, unit: &str) -> Result<(), SettingsError> {
-    if (lo..=hi).contains(&v) { Ok(()) } else { Err(refuse(id, format!("{name} must be {lo}–{hi}{unit} (got {v})"))) }
+    if (lo..=hi).contains(&v) {
+        Ok(())
+    } else {
+        Err(refuse(id, format!("{name} must be {lo}–{hi}{unit} (got {v})"))
+            .with("field", name)
+            .with("range", format!("{lo}–{hi}{unit}"))
+            .with("value", v.to_string()))
+    }
 }
 
 /// The longest password (in bytes) revisions 2–4 use: longer ones are cut to this.
@@ -120,13 +156,17 @@ impl PdfSettings {
     pub fn check_values(&self) -> Result<(), SettingsError> {
         self.security.check(self.standard, self.compatibility)?;
         if !self.standard.allows(self.compatibility) {
-            return Err(refuse("standardVersion", format!("{} files can't be {}", self.standard.label(), self.compatibility.label())));
+            return Err(refuse("standardVersion", format!("{} files can't be {}", self.standard.label(), self.compatibility.label()))
+                .with("standard", self.standard.label())
+                .with("version", self.compatibility.label()));
         }
         if self.preserve_editing && self.standard != Standard::None {
-            return Err(refuse("standardEditing", format!("{} files can't carry editing data: turn off preserveEditing", self.standard.label())));
+            return Err(refuse("standardEditing", format!("{} files can't carry editing data: turn off preserveEditing", self.standard.label()))
+                .with("standard", self.standard.label()));
         }
         if self.create_layers && !self.standard.allows_layers() {
-            return Err(refuse("standardLayers", format!("{} files can't have PDF layers: turn off createLayers", self.standard.label())));
+            return Err(refuse("standardLayers", format!("{} files can't have PDF layers: turn off createLayers", self.standard.label()))
+                .with("standard", self.standard.label()));
         }
         let c = &self.compression;
         for (name, ppi, above) in
@@ -162,11 +202,13 @@ impl PdfSettings {
             (true, ColorMode::Cmyk) => profiles.cmyk(),
             (true, ColorMode::Rgb) => profiles.rgb(),
         };
-        let unknown = || refuse("destinationUnknown", format!("output.destination: no RGB or CMYK profile is called “{name}”"));
+        let unknown = || refuse("destinationUnknown", format!("output.destination: no RGB or CMYK profile is called “{name}”")).with("name", name);
         match profiles.kind(name).ok_or_else(unknown)? {
             ProfileKind::Gray => Err(unknown()),
             ProfileKind::Rgb if cmyk_only => {
-                Err(refuse("destinationRgb", format!("output.destination: {} files are CMYK, and “{name}” is an RGB profile", self.standard.label())))
+                Err(refuse("destinationRgb", format!("output.destination: {} files are CMYK, and “{name}” is an RGB profile", self.standard.label()))
+                    .with("standard", self.standard.label())
+                    .with("name", name))
             }
             ProfileKind::Rgb | ProfileKind::Cmyk => Ok(()),
         }
@@ -186,22 +228,26 @@ impl PdfSettings {
             Some(ProfileKind::Cmyk) => Ok(()),
             Some(ProfileKind::Rgb) if !self.standard.cmyk_only() => Ok(()),
             Some(ProfileKind::Rgb) => {
-                Err(refuse("intentRgb", format!("output.outputIntent: {std} files print in CMYK, and “{name}” is an RGB profile")))
+                Err(refuse("intentRgb", format!("output.outputIntent: {std} files print in CMYK, and “{name}” is an RGB profile")).with("standard", std).with("name", name))
             }
             Some(ProfileKind::Gray) => {
-                Err(refuse("intentGray", format!("output.outputIntent: “{name}” is a grey profile, which can't be a {std} output intent")))
+                Err(refuse("intentGray", format!("output.outputIntent: “{name}” is a grey profile, which can't be a {std} output intent")).with("standard", std).with("name", name))
             }
             None if !o.registry.trim().is_empty() && self.standard != Standard::PdfX4 => Ok(()),
             None if self.standard == Standard::PdfX4 => Err(refuse(
                 "intentUnknownX4",
                 format!("output.outputIntent: no profile is called “{name}”, and a {std} output intent embeds its profile"),
-            )),
+            )
+            .with("standard", std)
+            .with("name", name)),
             None => Err(refuse(
                 "intentUnknown",
                 format!(
                     "output.outputIntent: no profile is called “{name}”: a {std} output intent embeds a profile, or names a registered printing condition (outputConditionId and registry)"
                 ),
-            )),
+            )
+            .with("standard", std)
+            .with("name", name)),
         }
     }
 
@@ -245,19 +291,25 @@ impl PdfSettings {
         let c = self.compatibility;
         let mut out = vec![];
         if s.protected() && s.plaintext_metadata && revision(c) <= 3 {
-            out.push(warn(
-                "plaintextMetadataVersion",
-                format!("{} encryption covers the metadata too: plaintext metadata needs PDF 1.5 or later", c.label()),
-            ));
+            out.push(
+                warn(
+                    "plaintextMetadataVersion",
+                    format!("{} encryption covers the metadata too: plaintext metadata needs PDF 1.5 or later", c.label()),
+                )
+                .with("version", c.label()),
+            );
         }
         if s.protected() && c == Compatibility::Pdf13 {
-            out.push(warn(
-                "weakKey",
-                format!(
-                    "{} encrypts with a 40-bit key, which can be searched in minutes: choose PDF 1.6 or later for stronger protection",
-                    c.label()
-                ),
-            ));
+            out.push(
+                warn(
+                    "weakKey",
+                    format!(
+                        "{} encrypts with a 40-bit key, which can be searched in minutes: choose PDF 1.6 or later for stronger protection",
+                        c.label()
+                    ),
+                )
+                .with("version", c.label()),
+            );
         }
         out
     }
@@ -275,7 +327,10 @@ impl PdfSettings {
         }
         let name = o.output_intent.trim();
         if !name.is_empty() && profiles.kind(name).is_none() {
-            out.push(warn("intentNotEmbedded", format!("no profile is called “{name}”: the output intent names it without embedding it")));
+            out.push(
+                warn("intentNotEmbedded", format!("no profile is called “{name}”: the output intent names it without embedding it"))
+                    .with("name", name),
+            );
         }
         // PDF/X files always have an output intent.
         if !asks && !self.standard.is_pdfx() && (!o.output_condition.trim().is_empty() || !o.registry.trim().is_empty()) {
@@ -317,14 +372,16 @@ impl SecuritySettings {
             return Err(refuse(
                 "standardPassword",
                 format!("{} files can't be password-protected: remove the passwords or choose no standard", standard.label()),
-            ));
+            )
+            .with("standard", standard.label()));
         }
         // Revision 2 has one printing bit: it can't say "low resolution only".
         if revision(c) == 2 && self.printing == Printing::Low && !self.permissions_password.is_empty() {
             return Err(refuse(
                 "lowPrintingVersion",
                 format!("{} can't limit printing to low resolution: choose PDF 1.4 or later, or allow high-resolution printing", c.label()),
-            ));
+            )
+            .with("version", c.label()));
         }
         if self.open_password == self.permissions_password {
             return Err(refuse("passwordsEqual", "the open and permissions passwords must differ"));
@@ -335,10 +392,12 @@ impl SecuritySettings {
                     return Err(refuse(
                         "passwordLegacy",
                         format!("{} passwords can have up to {MAX_LEGACY_PASSWORD} ASCII characters (PDF 1.7 and later take any)", c.label()),
-                    ));
+                    )
+                    .with("version", c.label())
+                    .with("limit", MAX_LEGACY_PASSWORD.to_string()));
                 }
             } else if pw.len() > MAX_PASSWORD {
-                return Err(refuse("passwordLong", format!("passwords can have up to {MAX_PASSWORD} bytes")));
+                return Err(refuse("passwordLong", format!("passwords can have up to {MAX_PASSWORD} bytes")).with("limit", MAX_PASSWORD.to_string()));
             }
         }
         Ok(())

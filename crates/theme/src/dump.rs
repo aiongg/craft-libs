@@ -2118,11 +2118,26 @@ fn new_document_lines(out: &mut Lines, t: &NewDocumentTokens) {
 }
 
 fn export_lines(out: &mut Lines, t: &ExportTokens) {
-    let ExportTokens { web_width, web_field_width, settings_width, pane_gap } = t;
+    let ExportTokens {
+        web_width,
+        web_field_width,
+        settings_width,
+        pane_gap,
+        pdf_width,
+        pdf_list_width,
+        pdf_content_width,
+        pdf_content_height,
+        pdf_gap,
+    } = t;
     out.line("export.web_width", len(*web_width));
     out.line("export.web_field_width", len(*web_field_width));
     out.line("export.settings_width", len(*settings_width));
     out.line("export.pane_gap", len(*pane_gap));
+    out.line("export.pdf_width", len(*pdf_width));
+    out.line("export.pdf_list_width", len(*pdf_list_width));
+    out.line("export.pdf_content_width", len(*pdf_content_width));
+    out.line("export.pdf_content_height", len(*pdf_content_height));
+    out.line("export.pdf_gap", len(*pdf_gap));
 }
 
 fn theme_chip_lines(out: &mut Lines, t: &ThemeChipTokens) {

@@ -17,7 +17,7 @@ use crate::theme::{Base, install};
 
 /// A file service that records the requests and answers when the test says so.
 #[derive(Default)]
-struct StubFiles {
+pub(super) struct StubFiles {
     state: Mutex<StubState>,
 }
 
@@ -28,13 +28,13 @@ struct StubState {
 }
 
 impl StubFiles {
-    fn answer(&self, ticket: usize, picked: Picked) {
+    pub(super) fn answer(&self, ticket: usize, picked: Picked) {
         let mut state = self.state.lock().unwrap();
         let request = state.requests[ticket - 1].clone();
         state.answered.push(PickAnswer { id: PickId(ticket as u64), request, picked });
     }
 
-    fn requests(&self) -> Vec<PickRequest> {
+    pub(super) fn requests(&self) -> Vec<PickRequest> {
         self.state.lock().unwrap().requests.clone()
     }
 

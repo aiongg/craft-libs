@@ -11,6 +11,7 @@ use craft_host::{AppInfo, FileError, Files, Host, PickAnswer, PickId, PickKind, 
 use craft_settings::Remembered;
 use egui::{Color32, ColorImage, Context, Id, TextureHandle, TextureOptions, Ui};
 
+use super::export::pdf::PdfExportDialog;
 use super::export::{
     DdsOptionsDialog, ExportAsDialog, ExportOptions, ExportPreview, ExportSize, JpegOptionsDialog, OutputPathRow, SaveForWebDialog,
     SaveForWebOptions, SizeEstimate, TargaOptionsDialog, TiffOptionsDialog, Watermark, WatermarkEditor, WatermarkStyle, WebFormat, WebVariant,
@@ -21,7 +22,8 @@ use super::{
     Anchor, BackgroundContents, BitDepth, ColorMode, DocumentOptions, NewDocumentDialog, PixelSize, RecoveredDocument, RecoveryDialog, SizeUnit,
 };
 use crate::edit::EditEvent;
-use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::localized::Labels as _;
+use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::typed_story;
 
 #[derive(StoryArgs, Debug, PartialEq)]
@@ -62,6 +64,31 @@ struct ExportAsArgs {
     preview: bool,
     #[arg(name = "exact size")]
     exact: bool,
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum PdfPresetArg {
+    Default,
+    Press,
+    PdfX1a,
+    Smallest,
+}
+
+impl PdfPresetArg {
+    fn name(self, app: &str) -> String {
+        match self {
+            PdfPresetArg::Default => craft_pdf::settings::default_preset_name(app),
+            PdfPresetArg::Press => "Press Quality".to_owned(),
+            PdfPresetArg::PdfX1a => "PDF/X-1a:2001".to_owned(),
+            PdfPresetArg::Smallest => "Smallest File Size".to_owned(),
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct PdfExportArgs {
+    open: bool,
+    preset: PdfPresetArg,
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]
@@ -156,6 +183,14 @@ pub(super) fn stories() -> Vec<Story> {
             "Dialog",
             ExportAsArgs { open: true, format: ExportFormatArg::Jpg, preview: true, exact: false },
             show_export_as
+        ),
+        typed_story!(
+            "patterns/pdf-export-dialog/dialog",
+            Level::Patterns,
+            "PdfExportDialog",
+            "Dialog",
+            PdfExportArgs { open: true, preset: PdfPresetArg::Default },
+            show_pdf_export
         ),
         typed_story!(
             "patterns/save-for-web-dialog/dialog",
@@ -447,6 +482,51 @@ fn show_export_as(ui: &mut Ui, args: &mut ExportAsArgs) {
             }
         },
         |result| format!("OK, {} {} x {} px", result.options.format, result.width, result.height),
+    );
+}
+
+/// The two colour profiles the Save PDF story knows.
+struct StoryProfiles;
+
+impl craft_pdf::settings::ProfileCatalog for StoryProfiles {
+    fn kind(&self, name: &str) -> Option<craft_pdf::settings::ProfileKind> {
+        match name {
+            "sRGB IEC61966-2.1" => Some(craft_pdf::settings::ProfileKind::Rgb),
+            "Coated FOGRA39" => Some(craft_pdf::settings::ProfileKind::Cmyk),
+            _ => None,
+        }
+    }
+
+    fn rgb(&self) -> &str {
+        "sRGB IEC61966-2.1"
+    }
+
+    fn cmyk(&self) -> &str {
+        "Coated FOGRA39"
+    }
+}
+
+/// Save PDF of a poster in an RGB document, with two profiles. The file service answers every
+/// picker with Cancelled, so the dialog stays open on Save PDF.
+fn show_pdf_export(ui: &mut Ui, args: &mut PdfExportArgs) {
+    if !claim(ui.ctx(), "pdf-export", ui.scope_id()) {
+        return;
+    }
+    let words = StoryLabels::of(ui);
+    let preset = args.preset;
+    drive(
+        ui,
+        "pdf-export",
+        &mut args.open,
+        preset,
+        move || {
+            PdfExportDialog::new(words.app_name.as_str(), words.poster.as_str())
+                .preset(preset.name(&words.app_name))
+                .profiles(vec!["sRGB IEC61966-2.1".to_owned(), "Coated FOGRA39".to_owned()], std::sync::Arc::new(StoryProfiles))
+                .document_bleed([9.0; 4])
+        },
+        |_| {},
+        |result| format!("OK, {}", result.path.display()),
     );
 }
 

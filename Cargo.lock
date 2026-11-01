@@ -1394,6 +1394,7 @@ dependencies = [
  "craft-fonts-build",
  "craft-host",
  "craft-i18n",
+ "craft-pdf",
  "craft-quit",
  "craft-settings",
  "craft-theme",

@@ -16,6 +16,16 @@ pub struct ExportTokens {
     pub settings_width: f32,
     /// Between Export As's settings and its preview: `export.pane_gap`.
     pub pane_gap: f32,
+    /// Width of the Save PDF dialog: `export.pdf_width`.
+    pub pdf_width: f32,
+    /// Width of Save PDF's section list: `export.pdf_list_width`.
+    pub pdf_list_width: f32,
+    /// Width of Save PDF's section content: `export.pdf_content_width`.
+    pub pdf_content_width: f32,
+    /// Height of Save PDF's section content before it scrolls: `export.pdf_content_height`.
+    pub pdf_content_height: f32,
+    /// Between Save PDF's section list and its content: `export.pdf_gap`.
+    pub pdf_gap: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -30,6 +40,11 @@ impl Family for ExportTokens {
         "web_field_width" 0.0..=1024.0 => web_field_width;
         "settings_width" 0.0..=1024.0 => settings_width;
         "pane_gap" 0.0..=64.0 => pane_gap;
+        "pdf_width" 0.0..=4096.0 => pdf_width;
+        "pdf_list_width" 0.0..=1024.0 => pdf_list_width;
+        "pdf_content_width" 0.0..=2048.0 => pdf_content_width;
+        "pdf_content_height" 0.0..=2048.0 => pdf_content_height;
+        "pdf_gap" 0.0..=64.0 => pdf_gap;
     };
 
     fn defaults(_: &Semantic<'_>) -> ExportTokens {
@@ -38,6 +53,11 @@ impl Family for ExportTokens {
             web_field_width: values::EXPORT_WEB_FIELD_WIDTH,
             settings_width: values::EXPORT_SETTINGS_WIDTH,
             pane_gap: values::EXPORT_PANE_GAP,
+            pdf_width: values::EXPORT_PDF_WIDTH,
+            pdf_list_width: values::EXPORT_PDF_LIST_WIDTH,
+            pdf_content_width: values::EXPORT_PDF_CONTENT_WIDTH,
+            pdf_content_height: values::EXPORT_PDF_CONTENT_HEIGHT,
+            pdf_gap: values::EXPORT_PDF_GAP,
         }
     }
 

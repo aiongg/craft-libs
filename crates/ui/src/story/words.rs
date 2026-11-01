@@ -9,6 +9,7 @@ crate::words! {
         percent: "story.percent" = "{n}%";
         all: "story.all" = "All";
         amount: "story.amount" = "Amount";
+        app_name: "story.appName" = "Studio";
         applies_at_next_launch: "story.appliesAtNextLaunch" = "Applies at next launch.";
         color_table: "story.colorTable" = "Color Table";
         default: "story.default" = "Default";
@@ -20,6 +21,7 @@ crate::words! {
         none: "story.none" = "None";
         opacity: "story.opacity" = "Opacity";
         photo: "story.photo" = "Photo";
+        poster: "story.poster" = "Poster";
         play: "story.play" = "Play";
         preset: "story.preset" = "Preset";
         save: "story.save" = "Save";
