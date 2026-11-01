@@ -675,6 +675,11 @@ impl<'a> BezierOverlay<'a> {
         let Some(hit) = self.hit_at(pass, press.origin).filter(|hit| self.takes(hit)) else {
             return nothing;
         };
+        if matches!(self.tool, BezierTool::AddAnchor | BezierTool::DeleteAnchor | BezierTool::AutoAddDelete) {
+            // One click, reported on the press: no gesture, no drag, no selection change.
+            self.anchor_click(hit, mods, out);
+            return nothing;
+        }
         let part_key = |path: u64, knot: KnotRef, side: Option<HandleSide>| {
             parts.iter().find(|(_, r)| self.paths[r.path].key == path && r.knot == knot && r.side == side).map(|(p, _)| p.key)
         };
@@ -861,7 +866,7 @@ impl<'a> BezierOverlay<'a> {
             BezierTool::Direct => true,
             BezierTool::Convert => !matches!(hit, BezierHit::Segment { .. }),
             BezierTool::Show => false,
-            // Tasks PE-B1 and PE-C1 thread the pass's modifiers through `takes`.
+            // The anchor tools' takes does not depend on the modifiers (⌥ swaps what a press reports).
             BezierTool::AddAnchor | BezierTool::DeleteAnchor | BezierTool::AutoAddDelete | BezierTool::Curvature => {
                 self.tool_takes(hit, self.modifiers.unwrap_or_default())
             }
@@ -1033,7 +1038,12 @@ impl<'a> BezierOverlay<'a> {
                 painter.extend(Handle::shapes_with(&control, HandleShape::Rotate, s.at, ppp));
             }
         }
-        if let Some(hit) = self.highlight {
+        let hover = self.highlight.or_else(|| {
+            let pointer = pass.canvas.hover_pos().filter(|_| !pass.ctx.input(|i| i.pointer.primary_down()))?;
+            let mods = self.modifiers.unwrap_or_else(|| pass.ctx.input(|i| i.modifiers));
+            self.hover_mark(pass, pointer, mods)
+        });
+        if let Some(hit) = hover {
             self.paint_highlight(&painter, pass, hit);
         }
     }

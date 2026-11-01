@@ -9,7 +9,7 @@
 use egui::{Modifiers, Pos2, Ui};
 
 use super::{BezierHit, BezierOverlay, BezierResponse, BezierTool, Pass, PathEdit};
-use craft_ui::canvas::claim::PrimaryPress;
+use craft_ui::canvas::claim::{Claim, PrimaryPress};
 use craft_ui::edit::Gesture;
 
 impl BezierOverlay<'_> {
@@ -18,7 +18,11 @@ impl BezierOverlay<'_> {
     /// the host's, through [`PathMode`](crate::ui::pen::PathMode).)
     pub(super) fn acting_tool(&self, mods: Modifiers) -> BezierTool {
         // pc: crates/ui-egui/src/tools/anchor_tools.rs:27-35 `effective`.
-        todo!()
+        match (self.tool, mods.alt) {
+            (BezierTool::AddAnchor, true) => BezierTool::DeleteAnchor,
+            (BezierTool::DeleteAnchor, true) => BezierTool::AddAnchor,
+            (tool, _) => tool,
+        }
     }
 
     /// Whether the new tools take a press on `hit` (task PE-B1; PE-C1 adds Curvature):
@@ -33,7 +37,19 @@ impl BezierOverlay<'_> {
     pub(super) fn tool_takes(&self, hit: &BezierHit, mods: Modifiers) -> bool {
         // pc: crates/ui-egui/src/tools/anchor_tools.rs:37-48 `target`, :57-84 `pen_auto` (ends
         // excluded :74-78); crates/ui-egui/src/tools/direct_select.rs:368-376 `curvature_target`.
-        todo!()
+        match self.tool {
+            // The swap with ⌥ changes what a press reports, not what it takes.
+            BezierTool::AddAnchor | BezierTool::DeleteAnchor => !matches!(hit, BezierHit::Handle { .. }),
+            BezierTool::AutoAddDelete => match *hit {
+                BezierHit::Handle { .. } => false,
+                BezierHit::Segment { .. } => true,
+                BezierHit::Anchor { path, knot } => {
+                    self.subpath(path, knot.subpath).is_some_and(|s| s.closed || (knot.knot != 0 && knot.knot + 1 != s.knots.len()))
+                }
+            },
+            // Task PE-C1 takes anchors and segments.
+            _ => false,
+        }
     }
 
     /// A click of Add, Delete or Auto Add/Delete on `hit` (task PE-B1), reported on press as
@@ -44,7 +60,16 @@ impl BezierOverlay<'_> {
     /// path, under the key the host gave it.
     pub(super) fn anchor_click(&self, hit: BezierHit, mods: Modifiers, out: &mut BezierResponse) {
         // pc: crates/ui-egui/src/tools/anchor_tools.rs:88-114 `pointer`, `click`; :130-150 `apply`.
-        todo!()
+        let tool = self.acting_tool(mods);
+        match hit {
+            BezierHit::Segment { path, segment, t } if matches!(tool, BezierTool::AddAnchor | BezierTool::AutoAddDelete) => {
+                out.insert = Some((path, segment, t));
+            }
+            BezierHit::Anchor { path, knot } if matches!(tool, BezierTool::DeleteAnchor | BezierTool::AutoAddDelete) => {
+                out.delete = Some((path, vec![knot]));
+            }
+            _ => {}
+        }
     }
 
     /// The part the hover mark shows under `pointer` while no press is under way: what a press
@@ -54,7 +79,18 @@ impl BezierOverlay<'_> {
     pub(super) fn hover_mark(&self, pass: &Pass<'_>, pointer: Pos2, mods: Modifiers) -> Option<BezierHit> {
         // pc: crates/ui-egui/src/tools/anchor_tools.rs:152-169 `draw_hover`, `draw_pen_hover`;
         // crates/ui-egui/src/tools/direct_select.rs:378-389 `curvature_hover`.
-        todo!()
+        if !matches!(self.tool, BezierTool::AddAnchor | BezierTool::DeleteAnchor | BezierTool::AutoAddDelete) || mods.command {
+            return None;
+        }
+        if Claim::owner(&pass.ctx, pass.canvas.id).is_some_and(|owner| owner != pass.id) {
+            return None;
+        }
+        let hit = self.hit_at(pass, pointer).filter(|hit| self.tool_takes(hit, mods))?;
+        // Only what a press would edit: an anchor under Add and a segment under Delete are taken
+        // and do nothing (PhotoCraft draws no mark there).
+        let mut would = BezierResponse { id: pass.id, event: None, select: None, insert: None, delete: None, context: None, claimed: false };
+        self.anchor_click(hit, mods, &mut would);
+        (would.insert.is_some() || would.delete.is_some()).then_some(hit)
     }
 
     /// The Curvature tool's press (task PE-C1), the press's click count from
