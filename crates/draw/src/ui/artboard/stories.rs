@@ -3,12 +3,12 @@
 //! run on them as an app runs them. Sample words are story words; the plain strings are the status
 //! lines.
 //!
-//! - `draw/artboard-tool`: the boards on the pasteboard (`PageFrame::active` marks the selected
+//! - `primitives/artboard-tool/boards`: the boards on the pasteboard (`PageFrame::active` marks the selected
 //!   one) with the tool in a `ToolHost`: draw, move, resize, the "+" buttons (Photoshop rules), the
 //!   Illustrator rules (multiple selection, ⌥ copies, Esc leaves), a locked board. The pasteboard's
 //!   page names select a board.
-//! - `draw/artboard-bar`: the bar with and without a selected board, over a preset list.
-//! - `draw/artboard-properties`: the Properties section: preset, W and H, X and Y, background;
+//! - `patterns/artboard-options/bar`: the bar with and without a selected board, over a preset list.
+//! - `patterns/artboard-properties/section`: the Properties section: preset, W and H, X and Y, background;
 //!   Other… is answered by the story.
 //!
 //! RG2 registers `stories()` and the components `ArtboardTool`, `ArtboardBar` and
@@ -63,18 +63,18 @@ const PRESET_SIZES: [(f64, f64); 3] = [(612.0, 792.0), (768.0, 1024.0), (390.0, 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "draw/artboard-tool",
-            Level::Composites,
+            "primitives/artboard-tool/boards",
+            Level::Primitives,
             "ArtboardTool",
             "Tool",
             ToolArgs { view: ViewArgs { zoom: 75.0, ..ViewArgs::default() }, rules: RulesArg::Photoshop, locked_board: true },
             show_tool
         )
         .on(Surface::Canvas),
-        typed_story!("draw/artboard-bar", Level::Composites, "ArtboardBar", "Bar", BarArgs { selection: true, wide: true }, show_bar),
+        typed_story!("patterns/artboard-options/bar", Level::Patterns, "ArtboardBar", "Bar", BarArgs { selection: true, wide: true }, show_bar),
         typed_story!(
-            "draw/artboard-properties",
-            Level::Composites,
+            "patterns/artboard-properties/section",
+            Level::Patterns,
             "ArtboardProperties",
             "Properties",
             PropertiesArgs { background: BackgroundArg::White, x: 0.0, y: 0.0 },

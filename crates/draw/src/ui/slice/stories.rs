@@ -2,14 +2,14 @@
 //! auto and layer slices, and the tool, its options bar and the dialogs run on it as an app runs
 //! them. Sample words are story words; the plain strings are the status lines.
 //!
-//! - `draw/slice-tool`: Slice and Select modes in a `ToolHost` with the options bar below: draw a
+//! - `primitives/slice-tool/slices`: Slice and Select modes in a `ToolHost` with the options bar below: draw a
 //!   slice, move and resize a user slice (an auto or layer slice that moves becomes a user slice),
 //!   Promote, Delete, Hide Auto Slices, and a lock that refuses edits. Slice Options and Divide
 //!   are the dialogs' own stories; here those commands only report.
-//! - `draw/slice-bar`: the bar alone in both modes, for each kind of selected slice.
-//! - `draw/slice-options-dialog`: Image, No Image and HTML Text; the Background colour is answered
+//! - `patterns/slice-options/bar`: the bar alone in both modes, for each kind of selected slice.
+//! - `patterns/slice-options/dialog`: Image, No Image and HTML Text; the Background colour is answered
 //!   by the story.
-//! - `draw/divide-slices-dialog`: rows and columns by count or by size.
+//! - `patterns/divide-slices/dialog`: rows and columns by count or by size.
 //!
 //! RG2 registers `stories()` and the components `SliceTool`, `SliceBar`, `SliceOptionsDialog` and
 //! `DivideSlicesDialog`; RG1 adds [`SliceStoryLabels`] to `WORDS`.
@@ -51,8 +51,8 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "draw/slice-tool",
-            Level::Composites,
+            "primitives/slice-tool/slices",
+            Level::Primitives,
             "SliceTool",
             "Tool",
             ToolArgs { view: ViewArgs::default(), mode: ModeArg::Slice, rules: RulesArg::Photoshop, auto: true, locked: false },
@@ -60,15 +60,15 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "draw/slice-bar",
-            Level::Composites,
+            "patterns/slice-options/bar",
+            Level::Patterns,
             "SliceBar",
             "Bar",
             BarArgs { mode: ModeArg::Slice, selected: SelectedArg::None, locked: false },
             show_bar
         ),
         typed_story!(
-            "draw/slice-options-dialog",
+            "patterns/slice-options/dialog",
             Level::Patterns,
             "SliceOptionsDialog",
             "Slice Options",
@@ -76,7 +76,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_options
         ),
         typed_story!(
-            "draw/divide-slices-dialog",
+            "patterns/divide-slices/dialog",
             Level::Patterns,
             "DivideSlicesDialog",
             "Divide Slice",

@@ -2,7 +2,7 @@
 //! the buttons round it; the story shows what an app draws for the hovered side, a ghost of the
 //! board the button would add, and reports the click. Sample words are story words.
 //!
-//! - `draw/add-beside`: four buttons round a box; the ghost on hover (`AddBesideResponse::hovered`
+//! - `primitives/add-beside/buttons`: four buttons round a box; the ghost on hover (`AddBesideResponse::hovered`
 //!   is the side); a rectangle the buttons keep clear of (`clear_of`: the neighbouring board hides
 //!   the button that would sit on it); a box too small for buttons; Alt on a click asks for a copy.
 //!
@@ -44,7 +44,7 @@ const GAP: f64 = 40.0;
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "draw/add-beside",
+            "primitives/add-beside/buttons",
             Level::Primitives,
             "AddBesideHandles",
             "Buttons",

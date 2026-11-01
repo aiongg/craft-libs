@@ -3,9 +3,9 @@
 //! edit it as an app does: each field's `EditEvent` becomes a change of the fake, and a cancelled
 //! gesture restores it. Sample words are story words; the plain strings are the status lines.
 //!
-//! - `draw/shape-panel`: Appearance and Shape for Rect, Ellipse, Polygon, Star and Line; a locked
+//! - `patterns/shape-panel/sections`: Appearance and Shape for Rect, Ellipse, Polygon, Star and Line; a locked
 //!   layer disables every field.
-//! - `draw/shape-options-bar`: the bar for each Shape tool kind, over the tool settings.
+//! - `patterns/shape-options/bar`: the bar for each Shape tool kind, over the tool settings.
 //!
 //! RG2 registers `stories()` and the components `ShapePanel` and `ShapeOptionsBar`, and RG1 adds
 //! [`ShapeStoryLabels`] to `WORDS`.
@@ -45,16 +45,16 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "draw/shape-panel",
-            Level::Composites,
+            "patterns/shape-panel/sections",
+            Level::Patterns,
             "ShapePanel",
             "Panel",
             PanelArgs { shape: PanelShape::Rectangle, locked: false },
             show_panel
         ),
         typed_story!(
-            "draw/shape-options-bar",
-            Level::Composites,
+            "patterns/shape-options/bar",
+            Level::Patterns,
             "ShapeOptionsBar",
             "Options bar",
             BarArgs { kind: BarKind::Rectangle, locked: false },

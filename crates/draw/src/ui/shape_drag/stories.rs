@@ -2,11 +2,11 @@
 //! canvas view stands for the document and the tool runs in a `ToolHost` as an app runs it. Sample
 //! words are story words; the plain strings are the status lines.
 //!
-//! - `draw/shape-drag`: an interactive canvas for every kind and both rule sets (Photoshop and
+//! - `primitives/shape-drag/draw`: an interactive canvas for every kind and both rule sets (Photoshop and
 //!   Illustrator): ⇧ squares the box or snaps a line, ⌥ draws from the centre, Space moves the shape
 //!   being drawn, and a click or Enter opens Create Shape at that point. A committed drag or the
 //!   dialog's answer adds an outline to the page.
-//! - `draw/create-shape-dialog`: the dialog alone for Rectangle (four radii), Polygon and Star (a
+//! - `patterns/create-shape/dialog`: the dialog alone for Rectangle (four radii), Polygon and Star (a
 //!   star ratio), with the ruler unit of its size fields and a bad size on request.
 //!
 //! RG2 registers `stories()` and the components `ShapeDragTool` and `CreateShapeDialog`; RG1 adds
@@ -48,8 +48,8 @@ const TOLERANCE: f64 = 0.25;
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "draw/shape-drag",
-            Level::Composites,
+            "primitives/shape-drag/draw",
+            Level::Primitives,
             "ShapeDragTool",
             "Drag",
             DragArgs {
@@ -65,7 +65,7 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "draw/create-shape-dialog",
+            "patterns/create-shape/dialog",
             Level::Patterns,
             "CreateShapeDialog",
             "Create Shape",
