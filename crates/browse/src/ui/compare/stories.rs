@@ -1,19 +1,17 @@
-//! Stories of the compare tile: `patterns/browse/compare-pair` and
-//! `patterns/browse/compare-survey` (the spec's `browse/compare-*` under their level). Two tiles
+//! Stories of the compare tile: `patterns/compare-tile/pair` and
+//! `patterns/compare-tile/survey` (the spec's `browse/compare-*` as `<level>/<component>/<story>`). Two tiles
 //! with one shared zoom and pan, the render pills and the rejected veil; twelve tiles at 3:2 in
 //! the survey arrangement.
 //!
 //! The pictures are generated in the story (a gradient with a grid, so zoom and pan
 //! show). A click makes a pane active and a double click toggles Fit and 100 %, as an app would.
 
-use std::sync::{Arc, Mutex, PoisonError};
-
 use craft_theme::Rgba;
 use craft_ui::canvas::CanvasView;
 use craft_ui::canvas::textures::Revision;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, lock, shared};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use craft_ui::typed_story;
 use egui::ecolor::Hsva;
@@ -32,7 +30,6 @@ craft_ui::words! {
     pub struct CompareStoryLabels {
         select: "compareStory.select" = "Select";
         candidate: "compareStory.candidate" = "Candidate";
-        photo_n: "compareStory.photoN" = "Photo {n}";
         render_failed: "compareStory.renderFailed" = "The renderer stopped";
         active: "compareStory.active" = "Active pane: {label}";
     }
@@ -42,21 +39,14 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "patterns/browse/compare-pair",
+            "patterns/compare-tile/pair",
             Level::Patterns,
             "Compare tile",
             "Pair",
             PairArgs { right: RightState::Ready, rejected: false, flagged: true, rtl: false, height: 340.0 },
             show_pair
         ),
-        typed_story!(
-            "patterns/browse/compare-survey",
-            Level::Patterns,
-            "Compare tile",
-            "Survey",
-            SurveyArgs { count: 12, height: 360.0 },
-            show_survey
-        ),
+        typed_story!("patterns/compare-tile/survey", Level::Patterns, "Compare tile", "Survey", SurveyArgs { count: 12, height: 360.0 }, show_survey),
     ]
 }
 
@@ -119,11 +109,9 @@ struct Demo {
 
 fn show_pair(ui: &mut Ui, args: &mut PairArgs) {
     let words = CompareStoryLabels::of(ui);
-    let id = ui.make_persistent_id("craft-browse-compare-pair-story");
-    let state = ui.data_mut(|data| {
-        data.get_temp_mut_or_insert_with(id, || Arc::new(Mutex::new(Demo { view: CanvasView::new(Rect::ZERO, Point::ZERO, 0.0), active: 0 }))).clone()
-    });
-    let mut demo = state.lock().unwrap_or_else(PoisonError::into_inner);
+    let story = StoryLabels::of(ui);
+    let state = shared(ui, "pair", || Demo { view: CanvasView::new(Rect::ZERO, Point::ZERO, 0.0), active: 0 });
+    let mut demo = lock(&state);
     let style = CompareStyle::of(&Tokens::of(ui));
     let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), args.height), Sense::hover());
     let pair = ComparePair::new().rtl(args.rtl);
@@ -131,7 +119,7 @@ fn show_pair(ui: &mut Ui, args: &mut PairArgs) {
     ui.painter().rect_filled(pair.divider(area, &style).expand2(vec2(0.5, 0.0)), 0.0, style.divider);
 
     let labels = [words.select.clone(), words.candidate.clone()];
-    let names = [words.photo_n.replace("{n}", "1"), words.photo_n.replace("{n}", "2")];
+    let names = [craft_i18n::fmt(&story.photo_n, &[("n", "1")]), craft_i18n::fmt(&story.photo_n, &[("n", "2")])];
     let active = demo.active;
     let mut clicked = None;
     for (n, rect) in rects.into_iter().enumerate() {
@@ -162,13 +150,13 @@ fn show_pair(ui: &mut Ui, args: &mut PairArgs) {
     if let Some(n) = clicked {
         demo.active = n;
     }
-    ui.add(Text::new(words.active.replace("{label}", &labels[demo.active])).content(Content::Muted));
+    ui.add(Text::new(craft_i18n::fmt(&words.active, &[("label", labels[demo.active].as_str())])).content(Content::Muted));
 }
 
 fn show_survey(ui: &mut Ui, args: &mut SurveyArgs) {
-    let words = CompareStoryLabels::of(ui);
-    let id = ui.make_persistent_id("craft-browse-compare-survey-story");
-    let active = ui.data_mut(|data| *data.get_temp_mut_or_insert_with(id, || 0usize));
+    let story = StoryLabels::of(ui);
+    let state = shared(ui, "survey", || 0usize);
+    let active = *lock(&state);
     let style = CompareStyle::of(&Tokens::of(ui));
     let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), args.height), Sense::hover());
     let inner = area.shrink(style.margin);
@@ -181,7 +169,7 @@ fn show_survey(ui: &mut Ui, args: &mut SurveyArgs) {
     for n in 0..count {
         let (column, row) = (n % columns, n / columns);
         let min = inner.min + vec2(column as f32 * (cell.x + style.gap), row as f32 * (cell.y + style.gap));
-        let name = words.photo_n.replace("{n}", &(n + 1).to_string());
+        let name = craft_i18n::fmt(&story.photo_n, &[("n", &(n + 1).to_string())]);
         let mut view = CanvasView::new(Rect::ZERO, Point::ZERO, 0.0);
         let shown = CompareTile::new(("compare-survey", n), &mut view, image(n as u64))
             .caption(CompareCaption::new((n + 1).to_string(), name).rating(Some((n % 5 + 1) as u8)))
@@ -193,6 +181,6 @@ fn show_survey(ui: &mut Ui, args: &mut SurveyArgs) {
         }
     }
     if let Some(n) = clicked {
-        ui.data_mut(|data| data.insert_temp(id, n));
+        *lock(&state) = n;
     }
 }

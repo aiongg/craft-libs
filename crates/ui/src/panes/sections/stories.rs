@@ -13,7 +13,7 @@ use crate::icons::Icon;
 use crate::localized::Labels as _;
 use crate::menu::PressMenu;
 use crate::primitives::{Content, Text};
-use crate::story::{Level, Story, StoryArgs};
+use crate::story::{Level, Story, StoryArgs, StoryLabels, lock, shared};
 use crate::typed_story;
 
 /// The components this module has stories for.
@@ -35,8 +35,6 @@ crate::words! {
         album_n: "sectionsStory.albumN" = "Album {n}";
         row_n: "sectionsStory.rowN" = "{section} row {n}";
         menu: "sectionsStory.menu" = "Sections Menu";
-        last_event: "sectionsStory.lastEvent" = "Last event: {event}";
-        no_event: "sectionsStory.noEvent" = "No event yet";
     }
 }
 
@@ -99,7 +97,6 @@ impl SectionKey for Side {
 }
 
 /// What the story keeps between passes.
-#[derive(Clone)]
 struct Demo {
     layout: SectionLayout<Side>,
     albums: usize,
@@ -117,8 +114,9 @@ impl Demo {
 fn show_sidebar(ui: &mut Ui, args: &mut SidebarArgs) {
     let words = SectionsStoryLabels::of(ui);
     let labels = SectionsLabels::of(ui);
-    let id = ui.make_persistent_id("sections-story");
-    let mut demo = ui.data_mut(|data| data.get_temp_mut_or_insert_with(id, Demo::new).clone());
+    let story = StoryLabels::of(ui);
+    let state = shared(ui, "sidebar", Demo::new);
+    let mut demo = lock(&state);
 
     let rows = args.rows;
     let title = |side: Side| match side {
@@ -155,9 +153,9 @@ fn show_sidebar(ui: &mut Ui, args: &mut SidebarArgs) {
                 let rows = count(side);
                 for n in 1..=rows {
                     let text = if side == Side::Albums {
-                        words.album_n.replace("{n}", &n.to_string())
+                        craft_i18n::fmt(&words.album_n, &[("n", &n.to_string())])
                     } else {
-                        words.row_n.replace("{section}", &title(side)).replace("{n}", &n.to_string())
+                        craft_i18n::fmt(&words.row_n, &[("section", &title(side)), ("n", &n.to_string())])
                     };
                     ui.label(text);
                 }
@@ -172,9 +170,8 @@ fn show_sidebar(ui: &mut Ui, args: &mut SidebarArgs) {
         demo.last = Some(event);
     }
     let text = match &demo.last {
-        Some(event) => words.last_event.replace("{event}", &format!("{event:?}")),
-        None => words.no_event.clone(),
+        Some(event) => craft_i18n::fmt(&story.last_event, &[("event", &format!("{event:?}"))]),
+        None => story.no_event.clone(),
     };
     ui.add(Text::new(text).content(Content::Muted));
-    ui.data_mut(|data| data.insert_temp(id, demo));
 }
