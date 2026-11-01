@@ -1,0 +1,73 @@
+//! [`AdjustStyle`]: the adjustment editors' own sizes and colours, from the `adjust.*` tokens
+//! (task TK3). Sliders, histograms, Levels and Curves keep their own component tokens.
+//!
+//! Image tones stay constants in code, not tokens: the picker dots' greys (0, 128, 255) and the
+//! two-colour slider tracks show what the adjustment does to the image, as the Levels thumb faces
+//! do.
+
+#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+
+use egui::{Color32, FontId};
+
+use craft_ui::theme::UiTokens;
+
+/// What the adjustment editors draw besides their controls.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct AdjustStyle {
+    /// A Hue/Saturation spectrum bar's height: `adjust.spectrum_bar` (10, PhotoCraft
+    /// `hue_saturation.rs:149-150`).
+    pub spectrum_bar: f32,
+    /// The range band's height between the bars: `adjust.range_band` (6, `:166`, mid ± 3).
+    pub range_band: f32,
+    /// The height between the two bars that holds the range thumbs: `adjust.spectrum_master_extra`
+    /// (20: the 40 high area, `:147`, less the two bars).
+    pub spectrum_gap: f32,
+    /// A range thumb: 5 × 12 (`:177`), radius 1, 1 pt edge.
+    pub range_thumb: egui::Vec2,
+    /// The range band's outer (fall-off) and inner (fully affected) fills: `text.faint` and
+    /// `text.muted` (`:172-173`).
+    pub band_outer: Color32,
+    pub band_inner: Color32,
+    /// A range thumb's fill, inner thumbs and outer thumbs: `text.normal` and `surface.sunken`;
+    /// its edge `text.muted` (`:176-178`).
+    pub thumb_inner: Color32,
+    pub thumb_outer: Color32,
+    pub thumb_edge: Color32,
+    /// The degree readout under the bars: `type.mono` in `text.faint` (`:207`).
+    pub degrees_font: FontId,
+    pub degrees_colour: Color32,
+    /// A point picker's tone dot: radius `adjust.picker_dot` (3.5) centred `adjust.picker_dot_inset`
+    /// (5.5) in from the button's bottom-trailing corner, with a 1 pt ring in `field.border`
+    /// (PhotoCraft `adjust_dialog.rs:180-181`).
+    pub picker_dot: f32,
+    pub picker_dot_inset: f32,
+    pub picker_ring: Color32,
+    /// A point picker button's side: `icon_button` Md (28, `adjust_dialog.rs:178`).
+    pub picker_button: f32,
+    /// Threshold's histogram: `adjust.threshold_histogram` high (90) and at most
+    /// `adjust.threshold_width` wide (300) (`basic.rs:73-74`); the level marker 1 pt in
+    /// `accent.strong` (`:83`).
+    pub threshold_histogram: f32,
+    pub threshold_width: f32,
+    pub threshold_marker: Color32,
+    /// Channel Mixer's Total readout: `type.mono`, `text.normal`, and `status.warn.fg` above 100 %
+    /// (`basic.rs:271`).
+    pub total_font: FontId,
+    pub total_colour: Color32,
+    pub total_warn: Color32,
+    /// The Curves hint and the "Unavailable in this color mode" note: `type.caption` in
+    /// `text.faint` (`curves.rs:402`, `adjust_dialog.rs:206`).
+    pub note_font: FontId,
+    pub note_colour: Color32,
+}
+
+impl AdjustStyle {
+    /// The adjustment editors' look in `tokens`.
+    pub fn of(tokens: &UiTokens) -> AdjustStyle {
+        // pc: crates/ui-egui/src/dialogs/adjust_editors/hue_saturation.rs:147-207 (bars, band,
+        // thumbs), crates/ui-egui/src/dialogs/adjust_dialog.rs:177-183 `picker_button`,
+        // crates/ui-egui/src/dialogs/adjust_editors/basic.rs:71-85 (threshold), :271 (Total).
+        todo!()
+    }
+}
