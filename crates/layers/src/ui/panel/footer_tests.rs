@@ -202,7 +202,7 @@ fn footer_and_toggle_cells_are_named() {
 // Delete takes every kind of row and a mask; New Layer and New Group take layer rows only.
 #[test]
 fn footer_buttons_accept_the_drags_the_spec_names() {
-    let drag = |items: Vec<LayerRowKey<u32>>| ListDrag { list: Id::unique("list"), items, label: String::new() };
+    let drag = |items: Vec<LayerRowKey<u32>>| ListDrag { list: Id::unique("list"), grabbed: items[0].clone(), items, label: String::new() };
     let layers = drag(vec![LayerRowKey::Layer(1), LayerRowKey::Layer(2)]);
     let effects = drag(vec![LayerRowKey::Effects(1, Some(0))]);
     let mask = drag(vec![LayerRowKey::Mask(1, crate::ui::tree::LayerPart::LayerMask)]);

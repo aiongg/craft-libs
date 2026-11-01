@@ -1,13 +1,13 @@
 //! [`PanelFooter`]: a bar of buttons under a panel body.
 
-use craft_theme::ControlSize;
 use craft_theme::Stroke as Hairline;
+use craft_theme::{ControlSize, Tone};
 use egui::accesskit::HasPopup;
 use egui::emath::GuiRounding as _;
 use std::any::Any;
 use std::sync::Arc;
 
-use egui::{Rect, Response, Stroke, Ui, UiBuilder, pos2, vec2};
+use egui::{DragAndDrop, Rect, Response, Stroke, Ui, UiBuilder, pos2, vec2};
 
 use crate::behavior::set_drop_hint;
 use crate::controls::IconButton;
@@ -23,6 +23,45 @@ use crate::typed_story;
 /// A footer button's label, kept under its response id for the drop hint.
 #[derive(Clone)]
 struct ButtonLabel(String);
+
+/// A host's button on a panel footer, for panels that take buttons from the app (a media bin's
+/// Automate to Sequence, Find and New Item; a preset browser's own actions). The panel shows it
+/// with [`PanelFooter::drop_button`] when it takes drops, else with [`PanelFooter::button`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FooterAction {
+    /// The id the panel reports for a click or a drop on it.
+    pub id: &'static str,
+    /// The glyph.
+    pub icon: Icon,
+    /// The tooltip and accessible name, translated.
+    pub label: String,
+    /// Whether it takes clicks. A disabled action that takes drops still takes an accepted drop
+    /// (see [`PanelFooter::drop_button`]).
+    pub enabled: bool,
+    /// Whether the panel's drags may drop on it (FilmCraft's New Item makes a sequence from a
+    /// clip dropped on it).
+    pub accepts_drops: bool,
+}
+
+impl FooterAction {
+    /// An enabled action that takes no drops.
+    pub fn new(id: &'static str, icon: Icon, label: impl Into<String>) -> Self {
+        // filmcraft: crates/ui-egui/src/panels/project.rs:555 (`footer` buttons).
+        Self { id, icon, label: label.into(), enabled: true, accepts_drops: false }
+    }
+
+    /// Enables or disables it.
+    #[must_use]
+    pub fn enabled(self, on: bool) -> Self {
+        Self { enabled: on, ..self }
+    }
+
+    /// Lets the panel's drags drop on it.
+    #[must_use]
+    pub fn accepts_drops(self, on: bool) -> Self {
+        Self { accepts_drops: on, ..self }
+    }
+}
 
 /// A panel footer's bar, rule and buttons, from [`PanelFooter::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -63,8 +102,13 @@ pub struct PanelFooterStyle {
 /// - The first widget added is at the reading end; later ones follow towards the start. Buttons are
 ///   `panel_footer.button` squares ([`PanelFooter::button`]) `panel_footer.gap` apart.
 /// - **Drops.** A button takes things dragged onto it with
-///   [`drop_target`](PanelFooter::drop_target): a layer row onto Delete, a channel onto New, a
-///   history state onto the trash. The button shows the list's drop outline while it accepts.
+///   [`drop_target`](PanelFooter::drop_target): a layer row onto New Layer, a channel onto New.
+///   The button shows the list's drop outline while it accepts. A disabled button takes no drop.
+///   A button that acts on a dragged row even while it is disabled for a click (Delete with
+///   nothing selected, History's trash) is a [`drop_button`](PanelFooter::drop_button): it shows
+///   enabled while a drag it accepts is over it.
+/// - **Pressed buttons.** A button that shows a mode or a state the host owns (Actions' Button
+///   Mode and Record) is a [`pressed_button`](PanelFooter::pressed_button).
 /// - **Keyboard and AccessKit:** the host's widgets are Tab stops in the order added; the footer
 ///   adds no node.
 pub struct PanelFooter;
@@ -108,6 +152,60 @@ impl PanelFooter {
         PanelFooter::button_in(ui, icon, label, None)
     }
 
+    /// A footer button that shows the host's state, `pressed` (Actions' Button Mode while the
+    /// panel is in Button Mode, Record while recording): the
+    /// [`selected`](crate::controls::IconButton::selected) look, and AccessKit reports it toggled.
+    /// `tone` tints the icon in that tone's status colour for an alert state (Record while
+    /// recording, [`Tone::Bad`]); [`Tone::Neutral`] keeps the button's own colour. A click is
+    /// reported in the response; the host changes its state, or ignores the click (Record while
+    /// recording).
+    pub fn pressed_button(ui: &mut Ui, icon: Icon, label: &str, pressed: bool, tone: Tone) -> Response {
+        // pc: crates/ui-egui/src/panels/actions.rs:1110-1117 (Record: red dot while recording, still hovers).
+        let side = Tokens::of(ui).component.panel_footer.button;
+        let (_, square) = ui.allocate_space(vec2(side, side));
+        let response = IconButton::new(icon, label).size(ControlSize::Md).selected(pressed).tone(tone).show_at(ui, square);
+        ui.data_mut(|d| d.insert_temp(response.id, ButtonLabel(label.to_owned())));
+        response
+    }
+
+    /// A footer button that takes drops of egui drag payloads of type `P` and acts on a dragged
+    /// row even while it is disabled for a click: Layers' and Channels' Delete with nothing
+    /// selected, History's trash. Returns the button's response and the payload when it is
+    /// released over the button and `accepts` takes it.
+    ///
+    /// ```ignore
+    /// let (trash, dropped) = PanelFooter::drop_button::<ListDrag<StepId>>(ui, Icon::Trash, "Delete", can_delete, |drag| drag.list == list);
+    /// if let Some(drag) = dropped {
+    ///     events.push(HistoryEvent::DeleteStep(drag.grabbed.clone()));
+    /// }
+    /// ```
+    ///
+    /// - While the pointer is over the button's square with a `P` payload that `accepts` takes,
+    ///   the button is drawn enabled, whatever `enabled` says, and shows the drop outline and
+    ///   hint as with [`drop_target`](PanelFooter::drop_target). The payload is tested before the
+    ///   button is drawn, so its look and its AccessKit state follow the drag in the same pass.
+    /// - Otherwise it is enabled as `enabled` says; a refused payload shows nothing and is never
+    ///   returned. `accepts` runs once per pass.
+    /// - Pass the enabled state here rather than showing the button in a disabled `Ui`, which
+    ///   would keep it disabled under an accepted drag.
+    pub fn drop_button<P: Any + Send + Sync>(
+        ui: &mut Ui,
+        icon: Icon,
+        label: &str,
+        enabled: bool,
+        accepts: impl FnOnce(&P) -> bool,
+    ) -> (Response, Option<Arc<P>>) {
+        // pc: crates/ui-egui/src/panels/history.rs:118-143 (the trash is enabled for an acceptable drag);
+        // lead call 17: enabled only while the accepted drag is over it.
+        let side = Tokens::of(ui).component.panel_footer.button;
+        let (_, square) = ui.allocate_space(vec2(side, side));
+        let accepted = DragAndDrop::payload::<P>(ui.ctx()).filter(|_| ui.rect_contains_pointer(square)).filter(|payload| accepts(payload));
+        let response = IconButton::new(icon, label).size(ControlSize::Md).enabled(enabled || accepted.is_some()).show_at(ui, square);
+        ui.data_mut(|d| d.insert_temp(response.id, ButtonLabel(label.to_owned())));
+        let dropped = accepted.and_then(|_| PanelFooter::take_or_mark::<P>(ui, &response));
+        (response, dropped)
+    }
+
     /// A footer button that opens a menu (New Fill or Adjustment Layer, layer styles): the
     /// [`button`](PanelFooter::button) with a `rail.indicator` triangle at its bottom-end corner,
     /// as the rail's flyout buttons have, and a `Menu` popup in AccessKit. The host opens the menu
@@ -137,6 +235,9 @@ impl PanelFooter {
     ///   [drop hint](crate::behavior::set_drop_hint) to the button's label, the text given to
     ///   [`button`](PanelFooter::button) or [`menu_button`](PanelFooter::menu_button). A payload
     ///   `accepts` refuses shows nothing and is never returned. `accepts` runs once per pass.
+    /// - A disabled button takes nothing: no outline, no hint, no payload, and `accepts` doesn't
+    ///   run. A button that takes drops while disabled for a click is a
+    ///   [`drop_button`](PanelFooter::drop_button).
     /// - On the release over the button (`Response::dnd_release_payload`) it takes the payload and
     ///   returns it; a release elsewhere leaves the payload for the widget under the pointer.
     /// - A list's own drag released over the footer ends in that list as
@@ -148,12 +249,21 @@ impl PanelFooter {
     pub fn drop_target<P: Any + Send + Sync>(ui: &Ui, button: &Response, accepts: impl FnOnce(&P) -> bool) -> Option<Arc<P>> {
         // pc: crates/ui-egui/src/panels/layer_drag.rs:40 `dropped_on` (outline while over, true on release);
         // the label for the hint is kept by `button_in` in egui temp data under the response id.
+        if !button.enabled() {
+            return None;
+        }
         let hovered = button.dnd_hover_payload::<P>()?;
         if !accepts(&hovered) {
             return None;
         }
+        PanelFooter::take_or_mark::<P>(ui, button)
+    }
+
+    /// For an accepted payload over `button`: takes it on the release, else paints the drop
+    /// outline and sets the drop hint.
+    fn take_or_mark<P: Any + Send + Sync>(ui: &Ui, button: &Response) -> Option<Arc<P>> {
         if ui.input(|i| i.pointer.any_released()) {
-            return button.dnd_release_payload::<P>();
+            return DragAndDrop::take_payload::<P>(ui.ctx());
         }
         paint_drop_mark(ui, button.rect, DropMark::Into);
         if let Some(label) = ui.data(|d| d.get_temp::<ButtonLabel>(button.id)) {

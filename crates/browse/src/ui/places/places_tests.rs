@@ -130,7 +130,7 @@ fn the_tree_reveals_the_browsed_folder_once_and_collapse_sticks() {
 #[test]
 fn a_drop_on_an_accepted_row_reports_it() {
     let mut harness = harness(Some("/home/u/Photos"), home());
-    let payload = ListDrag { list: Id::NULL.with("source"), items: vec![7u32], label: "Seven".into() };
+    let payload = ListDrag { list: Id::NULL.with("source"), items: vec![7u32], grabbed: 7, label: "Seven".into() };
     egui::DragAndDrop::set_payload(&harness.ctx, payload.clone());
 
     let docs = row(&harness, "Docs").rect().center();

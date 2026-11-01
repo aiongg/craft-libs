@@ -141,6 +141,7 @@ pub(super) fn drop_preview<Id: Clone + PartialEq>(target: Option<&Move<LayerRowK
 pub(super) fn start_mask_drag<Id: Clone + Send + Sync + 'static>(ui: &Ui, list: egui::Id, layer: Id, part: LayerPart, label: &str) {
     // pc: crates/ui-egui/src/panels/layer_drag.rs:236-248 `starts_mask_drag`;
     // pc: crates/ui-egui/src/panels/layers.rs:357-363 (the mask's ghost label).
-    let payload = ListDrag { list, items: vec![LayerRowKey::Mask(layer, part)], label: label.to_owned() };
+    let mask = LayerRowKey::Mask(layer, part);
+    let payload = ListDrag { list, items: vec![mask.clone()], grabbed: mask, label: label.to_owned() };
     DragAndDrop::set_payload(ui.ctx(), payload);
 }

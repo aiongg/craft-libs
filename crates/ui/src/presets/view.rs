@@ -355,7 +355,7 @@ where
     if focused {
         ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false }));
     }
-    let drag = pass.st.drag.as_ref().map(|d| ListDrag { list: id, items: d.items.clone(), label: d.label.clone() });
+    let drag = pass.st.drag.as_ref().map(|d| ListDrag { list: id, items: d.items.clone(), grabbed: d.grabbed.clone(), label: d.label.clone() });
     let events = pass.events;
     let hovered = pass.hovered.take().filter(|_| drag.is_none());
     let footer = match footer {
@@ -870,8 +870,8 @@ where
         if !gesture.is_active() {
             return;
         }
-        let payload = ListDrag { list: self.id, items: vec![key.clone()], label: label.to_owned() };
-        self.st.drag = Some(Dragging { items: payload.items.clone(), label: payload.label.clone(), group });
+        let payload = ListDrag { list: self.id, items: vec![key.clone()], grabbed: key.clone(), label: label.to_owned() };
+        self.st.drag = Some(Dragging { items: payload.items.clone(), grabbed: payload.grabbed.clone(), label: payload.label.clone(), group });
         DragAndDrop::set_payload(&self.ctx, payload);
     }
 

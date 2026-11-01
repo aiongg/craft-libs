@@ -188,7 +188,7 @@ fn show_places(ui: &mut Ui, args: &mut PlacesArgs) {
         places
     };
 
-    let photo = ListDrag { list: Id::NULL.with("places-story"), items: vec![7u32], label: words.photo.clone() };
+    let photo = ListDrag { list: Id::NULL.with("places-story"), items: vec![7u32], grabbed: 7, label: words.photo.clone() };
     ui.horizontal(|ui| {
         let response = ui.add(egui::Label::new(words.photo.clone()).sense(Sense::drag()));
         if response.drag_started() {
