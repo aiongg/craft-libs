@@ -1943,3 +1943,29 @@ pub const ALT_TEXT_BOX_WIDTH: f32 = 340.0;
 
 /// Least gap between an alt text editor's rows (the module's constant).
 pub const ALT_TEXT_ROW_GAP: f32 = 6.0;
+
+/// Side of a checkerboard cell behind a translucent thumbnail (PhotoCraft `layer_row.rs:534`).
+pub const THUMBNAIL_CHECKER_CELL: f32 = 5.0;
+
+/// Side of a spot channel's ink swatch on its thumbnail (PhotoCraft `channels_panel.rs:245`).
+pub const CHANNELS_SPOT_SWATCH: f32 = 9.0;
+
+/// Side of a History snapshot's thumbnail (PhotoCraft `history.rs:284`).
+pub const HISTORY_SNAPSHOT_THUMB: f32 = 28.0;
+/// Width of the Undo list popup (WordCraft `chrome.rs:153`).
+pub const HISTORY_UNDO_LIST_WIDTH: f32 = 210.0;
+
+/// Box of a Layers indicator icon (PhotoCraft `layer_row_ui.rs`, `ICON_W` with its padding).
+pub const LAYERS_INDICATOR_ICON: f32 = 14.0;
+/// Width of the Layers effects triangle (PhotoCraft `TRIANGLE_W`).
+pub const LAYERS_INDICATOR_TRIANGLE: f32 = 10.0;
+/// Box of a Layers mask badge (PhotoCraft `mask_thumbs_ui.rs`).
+pub const LAYERS_MASK_BADGE: f32 = 9.0;
+/// Least width of the Layers blend select before the "Opacity:" label hides.
+pub const LAYERS_BLEND_MIN_WIDTH: f32 = 80.0;
+/// Width of the Layers Opacity and Fill fields, without the pop-up arrow.
+pub const LAYERS_PERCENT_FIELD_WIDTH: f32 = 66.0;
+/// Width of the Layers filter type select (PhotoCraft `layer_filter_ui.rs`).
+pub const LAYERS_FILTER_TYPE_WIDTH: f32 = 64.0;
+/// Panel Options' sample side as a factor of the row thumbnail.
+pub const LAYERS_OPTIONS_SAMPLE_SCALE: f32 = 2.0;

@@ -211,6 +211,7 @@ const FROM_BASE: &[(&str, &str)] = &[
     ("listbox.separator_pad", "space.gap.inline"),
     ("list.pad_x", "space.pad.control"),
     ("list.gap", "space.gap.inline"),
+    ("layers.filter.gap", "space.gap.inline"),
     ("preset.header_height", "size.preset.header_height"),
     ("preset.grid_gap", "size.preset.grid_gap"),
     ("preset.grid_inset", "size.preset.grid_inset"),

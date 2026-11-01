@@ -46,28 +46,26 @@ pub struct LayersStyle {
 }
 
 impl LayersStyle {
-    /// The style of `tokens`. Until the `layers` token family exists (task TK1), the sizes are
-    /// PhotoCraft's (`layer_row_ui.rs:20-28`, `layers.rs:39-46`, `layer_filter_ui.rs:124-126`,
-    /// `mask_thumbs_ui.rs:142-154`, `options_bar.rs:684`) and the colours come from the tokens they will derive from.
+    /// The style of `tokens`: the `layers` family.
     pub fn of(tokens: &UiTokens) -> LayersStyle {
-        let color = &tokens.color;
+        let l = &tokens.component.layers;
         LayersStyle {
-            indicator_icon: 14.0,
-            indicator_triangle: 10.0,
-            fx: color.text.muted.to_egui(),
-            blend: color.text.faint.to_egui(),
-            lock: color.text.faint.to_egui(),
-            link: color.text.faint.to_egui(),
-            warn: color.status.warn.fg.to_egui(),
-            mask_badge: 9.0,
-            mask_badge_fill: color.surface.raised.to_egui(),
-            mask_badge_glyph: color.text.normal.to_egui(),
-            mask_disabled: color.status.bad.fg.to_egui(),
-            blend_min_width: 80.0,
-            percent_field_width: 66.0,
-            filter_gap: tokens.space.gap.inline,
-            filter_type_width: 64.0,
-            sample_scale: 2.0,
+            indicator_icon: l.indicator_icon,
+            indicator_triangle: l.indicator_triangle,
+            fx: l.indicator_fx.to_egui(),
+            blend: l.indicator_blend.to_egui(),
+            lock: l.indicator_lock.to_egui(),
+            link: l.indicator_link.to_egui(),
+            warn: l.indicator_warn.to_egui(),
+            mask_badge: l.mask_badge,
+            mask_badge_fill: l.mask_badge_fill.to_egui(),
+            mask_badge_glyph: l.mask_badge_glyph.to_egui(),
+            mask_disabled: l.mask_disabled.to_egui(),
+            blend_min_width: l.blend_min_width,
+            percent_field_width: l.percent_field_width,
+            filter_gap: l.filter_gap,
+            filter_type_width: l.filter_type_width,
+            sample_scale: l.options_sample_scale,
         }
     }
 }

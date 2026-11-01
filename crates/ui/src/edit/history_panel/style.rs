@@ -17,10 +17,8 @@ pub struct HistoryPanelStyle {
 
 impl HistoryPanel<'_> {
     /// The panel's sizes: `history.snapshot_thumb` and `history.undo_list_width`.
-    #[expect(clippy::todo, reason = "skeleton: task TK1 adds the `history` tokens and reads them here")]
     pub fn style(tokens: &UiTokens) -> HistoryPanelStyle {
-        // pc: crates/ui-egui/src/panels/history.rs:284 (snapshot thumbnail); wordcraft: crates/ui-egui/src/chrome.rs:153 (`W`, the Undo list's width). Values in specs/step6a-history.md, "Proposed tokens".
-        let _ = tokens;
-        todo!()
+        let history = &tokens.component.history;
+        HistoryPanelStyle { snapshot_thumb: history.snapshot_thumb, undo_list_width: history.undo_list_width }
     }
 }

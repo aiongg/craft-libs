@@ -7,21 +7,22 @@ use std::fmt::Write as _;
 
 use crate::{
     AboutTokens, AlignTokens, AltTextTokens, AngleDialTokens, AppShellTokens, AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone,
-    BarSizes, BezierTokens, BorderColors, BreadcrumbTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, CheckOffColors, CheckOnColors,
-    CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens,
+    BarSizes, BezierTokens, BorderColors, BreadcrumbTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, ChannelsTokens, CheckOffColors,
+    CheckOnColors, CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens,
     CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DateTokens, DialogTokens, Dimmed, DockTokens,
     DragTokens, DropVeilTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, EventLogTokens, ExportTokens, EyedropperTokens,
     FieldTokens, FileListTokens, FindingsTokens, FloatTokens, FontPickerTokens, FontSlot, FormSpacing, FormTokens, Gaps, GlyphsTokens,
     GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens,
-    HistogramTokens, IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens,
-    ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, MetadataTokens, Motion, MotionTokens,
+    HistogramTokens, HistoryTokens, IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayersTokens,
+    LevelsTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, MetadataTokens, Motion, MotionTokens,
     NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens,
     PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes,
     RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens, ScrollTokens,
     SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens,
     SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens,
-    TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens,
-    Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens,
+    TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TitleBarTokens, ToastTokens,
+    ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole,
+    TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -261,11 +262,13 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         findings,
         new_document,
         theme_chip,
+        thumbnail,
         app_shell,
         badge,
         bezier,
         button,
         canvas,
+        channels,
         check,
         color_picker,
         color_ramp,
@@ -294,9 +297,11 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         handle,
         harmony,
         histogram,
+        history,
         icon_button,
         inspector,
         kbd,
+        layers,
         levels,
         list,
         listbox,
@@ -441,6 +446,10 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     status_bar_lines(out, status_bar);
     swatch_lines(out, swatch);
     swatch_palette_lines(out, swatch_palette);
+    thumbnail_lines(out, thumbnail);
+    channels_lines(out, channels);
+    layers_lines(out, layers);
+    history_lines(out, history);
     tab_lines(out, tab);
     text_editor_lines(out, text_editor);
     title_bar_lines(out, title_bar);
@@ -2014,6 +2023,64 @@ fn progress_lines(out: &mut Lines, p: &ProgressTokens) {
     out.line("progress.track", hex(*track));
     out.line("progress.edge", hex(*edge));
     out.line("progress.fill", hex(*fill));
+}
+
+fn thumbnail_lines(out: &mut Lines, t: &ThumbnailTokens) {
+    let ThumbnailTokens { checker_a, checker_b, checker_cell, placeholder, failed_icon } = t;
+    out.line("thumbnail.checker.a", hex(*checker_a));
+    out.line("thumbnail.checker.b", hex(*checker_b));
+    out.line("thumbnail.checker_cell", len(*checker_cell));
+    out.line("thumbnail.placeholder", hex(*placeholder));
+    out.line("thumbnail.failed_icon", hex(*failed_icon));
+}
+
+fn channels_lines(out: &mut Lines, t: &ChannelsTokens) {
+    let ChannelsTokens { thumb, spot_swatch } = t;
+    out.line("channels.thumb", len(*thumb));
+    out.line("channels.spot_swatch", len(*spot_swatch));
+}
+
+fn history_lines(out: &mut Lines, t: &HistoryTokens) {
+    let HistoryTokens { snapshot_thumb, undo_list_width } = t;
+    out.line("history.snapshot_thumb", len(*snapshot_thumb));
+    out.line("history.undo_list_width", len(*undo_list_width));
+}
+
+fn layers_lines(out: &mut Lines, t: &LayersTokens) {
+    let LayersTokens {
+        indicator_icon,
+        indicator_triangle,
+        indicator_fx,
+        indicator_blend,
+        indicator_lock,
+        indicator_link,
+        indicator_warn,
+        mask_badge,
+        mask_badge_fill,
+        mask_badge_glyph,
+        mask_disabled,
+        blend_min_width,
+        percent_field_width,
+        filter_gap,
+        filter_type_width,
+        options_sample_scale,
+    } = t;
+    out.line("layers.indicator.icon", len(*indicator_icon));
+    out.line("layers.indicator.triangle", len(*indicator_triangle));
+    out.line("layers.indicator.fx", hex(*indicator_fx));
+    out.line("layers.indicator.blend", hex(*indicator_blend));
+    out.line("layers.indicator.lock", hex(*indicator_lock));
+    out.line("layers.indicator.link", hex(*indicator_link));
+    out.line("layers.indicator.warn", hex(*indicator_warn));
+    out.line("layers.mask.badge", len(*mask_badge));
+    out.line("layers.mask.badge_fill", hex(*mask_badge_fill));
+    out.line("layers.mask.badge_glyph", hex(*mask_badge_glyph));
+    out.line("layers.mask.disabled", hex(*mask_disabled));
+    out.line("layers.blend.min_width", len(*blend_min_width));
+    out.line("layers.percent_field_width", len(*percent_field_width));
+    out.line("layers.filter.gap", len(*filter_gap));
+    out.line("layers.filter.type_width", len(*filter_type_width));
+    out.line("layers.options.sample_scale", len(*options_sample_scale));
 }
 
 fn swatch_palette_lines(out: &mut Lines, s: &SwatchPaletteTokens) {

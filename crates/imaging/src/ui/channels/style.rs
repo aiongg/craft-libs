@@ -15,11 +15,9 @@ pub struct ChannelsStyle {
 }
 
 impl ChannelsStyle {
-    /// The style of `tokens`. Until the `channels` token family exists (task TK1), the values are
-    /// PhotoCraft's Pro ones (`channels_panel.rs:375`, `:246`) at every Size; TK1 reads
-    /// `channels.thumb` (28 at Compact, 30 at Comfortable) and `channels.spot_swatch`.
+    /// The style of `tokens`: the `channels` family.
     pub fn of(tokens: &UiTokens) -> ChannelsStyle {
-        let _ = tokens;
-        ChannelsStyle { thumb: 28.0, spot_swatch: 9.0 }
+        let channels = &tokens.component.channels;
+        ChannelsStyle { thumb: channels.thumb, spot_swatch: channels.spot_swatch }
     }
 }

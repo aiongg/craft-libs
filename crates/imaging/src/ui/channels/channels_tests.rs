@@ -1,5 +1,4 @@
-//! Behaviour tests of the Channels panel over fake rows (XT, after CH1 and CH2; the thumbnail
-//! side test after TK1).
+//! Behaviour tests of the Channels panel over fake rows (XT, after CH1 and CH2).
 
 #![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 
@@ -57,11 +56,24 @@ fn channels_drop_on_footer_reports_button_and_key() {
 }
 
 // The thumbnail side is 28 at Compact and 30 at Comfortable; `.thumbnail_size` overrides it
-// (TK1: needs the `channels.thumb` token).
+// (the `.thumbnail_size` override is checked with the rows).
 #[test]
-#[ignore = "skeleton"]
 fn channels_thumbnail_side_follows_the_size_preset() {
-    todo!()
+    use craft_theme::{Appearance, Contrast, Mode, Size, TextSize, builtins, resolve};
+    use craft_ui::theme::{FontFamilies, UiTokens};
+
+    let side = |size| {
+        let appearance = Appearance { mode: Mode::Light, contrast: Contrast::Standard, size, text_size: TextSize::Small, reduced_motion: false };
+        let theme = builtins().iter().find(|t| t.id.as_str() == "craft.studio").cloned().unwrap();
+        let families = FontFamilies {
+            ui: egui::FontFamily::Proportional,
+            ui_semibold: egui::FontFamily::Proportional,
+            mono: egui::FontFamily::Monospace,
+            optical_size: false,
+        };
+        super::ChannelsStyle::of(&UiTokens::new(resolve(&theme, appearance, None).tokens, appearance, Mode::Light, families)).thumb
+    };
+    assert_eq!((side(Size::Compact), side(Size::Comfortable)), (28.0, 30.0));
 }
 
 // The chords read Cmd+2 for the composite, Cmd+3.. for colours, then alphas while at most 9; Quick

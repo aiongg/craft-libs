@@ -134,6 +134,9 @@
       },
       "pad_x": 18.0
     },
+    "channels": {
+      "thumb": 30.0
+    },
     "command_palette": {
       "row_height": 38.0
     },

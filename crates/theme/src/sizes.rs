@@ -67,6 +67,8 @@ pub struct ComponentSizes {
     pub toast_pad: f32,
     /// `toast.inset`: from the host's reading-end and bottom edges to the stack.
     pub toast_inset: [f32; 2],
+    /// `channels.thumb`: side of a Channels row's thumbnail when the app sets none.
+    pub channels_thumb: f32,
 }
 
 /// A size set: what a [`Size`] choice stands for.
@@ -249,6 +251,7 @@ pub(crate) fn leaves<'a>(b: &'a mut Preset, c: &'a mut ComponentSizes) -> Vec<Le
         "components.toolbar.overflow" Num 16.0..=64.0 => c.toolbar_overflow;
         "components.toast.pad" Num 0.0..=32.0 => c.toast_pad;
         "components.toast.inset" Pair 0.0..=64.0 => c.toast_inset;
+        "components.channels.thumb" Num 12.0..=96.0 => c.channels_thumb;
     }
     out
 }
