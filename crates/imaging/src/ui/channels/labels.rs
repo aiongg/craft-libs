@@ -1,7 +1,6 @@
 //! `ChannelsLabels`: every user-visible word of the Channels panel, and the shortcut chords
 //! the rows display.
 
-
 use craft_ui::controls::Kbd;
 use craft_ui::localized::Words;
 use egui::{Context, Key, KeyboardShortcut, Modifiers};

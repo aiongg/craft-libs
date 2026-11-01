@@ -1,6 +1,5 @@
 //! The footer buttons and their drops (`ChannelsFooterButton`).
 
-
 use std::fmt::Debug;
 use std::hash::Hash;
 
