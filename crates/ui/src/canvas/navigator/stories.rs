@@ -11,16 +11,12 @@
 //! | `patterns/navigator/whole-document` | the fit view: the proxy covers the preview |
 //! | `patterns/navigator/options-dialog` | Panel Options with the colour list and Custom… |
 
-use std::sync::{Arc, Mutex, PoisonError};
-
 use egui::{ColorImage, Context, Rect, Sense, Ui, UiBuilder, pos2, vec2};
 use kurbo::{Point, Size};
 
 use super::{Navigator, NavigatorLabels, NavigatorOptions, NavigatorOptionsDialog, NavigatorPreview, NavigatorSettings, ProxyColor};
 use crate::canvas::textures::{Revision, TextureCache, TextureCacheOptions};
 use crate::canvas::{CanvasView, NavigationOptions};
-use crate::controls::Button;
-use crate::dialog::{DialogHost, DialogLabels, DialogResult};
 use crate::localized::{Labels as _, LocaleNumbers, SharedLabels as _};
 use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
 use crate::typed_story;
@@ -30,7 +26,7 @@ use craft_theme::Rgba;
 const DOC: Size = Size::new(1600.0, 1000.0);
 /// The fake canvas the proxy shows, in points.
 const CANVAS: egui::Vec2 = vec2(960.0, 600.0);
-/// The panel the Navigator is shown in, in points.
+/// The panel the Navigator is shown in, in points; the width shrinks to the space the story gets.
 const PANEL: egui::Vec2 = vec2(280.0, 340.0);
 /// The generated preview picture, in pixels.
 const PICTURE: [usize; 2] = [320, 200];
@@ -177,7 +173,7 @@ fn show_navigator(ui: &mut Ui, name: &str, seeded: [f64; 4], seed: impl FnOnce(P
     let mut settings = NavigatorSettings { options: NavigatorOptions { proxy_color: proxy.proxy() } };
     let navigation = NavigationOptions::default();
     let preview = if waiting { NavigatorPreview::Waiting } else { NavigatorPreview::Texture(texture(&ctx)) };
-    let (panel, _) = ui.allocate_exact_size(PANEL, Sense::hover());
+    let (panel, _) = ui.allocate_exact_size(vec2(PANEL.x.min(ui.available_width()), PANEL.y), Sense::hover());
     ui.scope_builder(UiBuilder::new().max_rect(panel), |ui| {
         Navigator::new(("navigator-story", name), DOC, &numbers).preview(preview).navigation(&navigation).settings(&mut settings).show(ui, &mut view);
     });
@@ -208,58 +204,24 @@ fn show_whole(ui: &mut Ui, args: &mut WholeArgs) {
     show_navigator(ui, "whole", [0.0; 4], seed, args.proxy, args.waiting);
 }
 
-type SharedHost = Arc<Mutex<DialogHost>>;
-
-/// Panel Options on a [`DialogHost`] kept in egui memory. The colour picker is the story's: a
-/// request for Custom… is answered at once with a fixed colour. The answer shows as text under
-/// the tile.
+/// Panel Options through [`crate::story::drive`]. The colour picker is the story's: a request for
+/// Custom… is answered at once with a fixed colour. The answer shows as text under the tile.
 fn show_options(ui: &mut Ui, args: &mut OptionsArgs) {
     let ctx = ui.ctx().clone();
-    if !crate::story::claim(&ctx, "navigator-options", ui.scope_id()) {
-        return;
-    }
-    let host_key = ui.make_persistent_id("craft_ui::canvas::navigator::stories::host");
-    let (result_key, signature_key) = (host_key.with("result"), host_key.with("signature"));
-    let shared: SharedHost = ui.data_mut(|d| d.get_temp_mut_or_insert_with(host_key, SharedHost::default).clone());
-    let mut host = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let initial = args.proxy.proxy();
-    if crate::story::dialog_shown(ui, args.open) {
-        let previous: Option<ProxyColor> = ui.data(|d| d.get_temp::<Option<ProxyColor>>(signature_key)).flatten();
-        if previous.is_some_and(|previous| previous != initial) {
-            host.cancel::<NavigatorOptionsDialog>(&ctx);
-            host.take::<NavigatorOptionsDialog>();
-        }
-        ui.data_mut(|d| d.insert_temp(signature_key, Some(initial)));
-        if !host.is_open::<NavigatorOptionsDialog>() {
-            host.open(NavigatorOptionsDialog::new().initial(NavigatorOptions { proxy_color: initial }));
-            ui.data_mut(|d| d.remove_temp::<String>(result_key));
-        }
-        if let Some(dialog) = host.get_mut::<NavigatorOptionsDialog>()
-            && let Some(request) = dialog.pick_color()
-        {
-            dialog.set_color(&request.key, Rgba::rgb(0xe0, 0x6c, 0x1f).into());
-        }
-        host.show(&ctx);
-        if let Some(result) = host.take::<NavigatorOptionsDialog>() {
-            let text = match result {
-                DialogResult::Ok(options) => {
-                    let value = options.proxy_color.label(&NavigatorLabels::shared_ctx(&ctx)).to_owned();
-                    craft_i18n::fmt(&StoryLabels::of(ui).result_ok, &[("value", &value)])
-                }
-                DialogResult::Cancel => DialogLabels::of_ctx(&ctx).cancel.clone(),
-            };
-            ui.data_mut(|d| d.insert_temp(result_key, text));
-            crate::story::dialog_closed(ui, &mut args.open);
-        }
-    } else {
-        host.cancel::<NavigatorOptionsDialog>(&ctx);
-        host.take::<NavigatorOptionsDialog>();
-        ui.data_mut(|d| d.insert_temp(signature_key, None::<ProxyColor>));
-        if !crate::story::in_overview(&ctx) && ui.add(Button::new("Show dialog")).clicked() {
-            args.open = true;
-        }
-    }
-    if let Some(text) = ui.data(|d| d.get_temp::<String>(result_key)) {
-        ui.label(text);
-    }
+    let story = StoryLabels::of(ui);
+    let labels = NavigatorLabels::shared_ctx(&ctx);
+    crate::story::drive::<NavigatorOptionsDialog, _>(
+        ui,
+        "navigator-options",
+        &mut args.open,
+        initial,
+        || NavigatorOptionsDialog::new().initial(NavigatorOptions { proxy_color: initial }),
+        |dialog| {
+            if let Some(request) = dialog.pick_color() {
+                dialog.set_color(&request.key, Rgba::rgb(0xe0, 0x6c, 0x1f).into());
+            }
+        },
+        |options| craft_i18n::fmt(&story.result_ok, &[("value", options.proxy_color.label(&labels))]),
+    );
 }
