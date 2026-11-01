@@ -23,12 +23,18 @@
 //! }
 //! ```
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use std::cell::RefCell;
 
-use craft_ui::behavior::{Move, Selection, SelectionChange};
+use craft_ui::behavior::{Axis, ListDrag, Move, Reorder, RowInfo, Selection, SelectionChange};
+use craft_ui::composites::PanelFooter;
+use craft_ui::controls::{ControlSize, IconButton};
 use craft_ui::edit::EditEvent;
-use craft_ui::list::{ContextMenuRequest, ToggleEdit};
-use egui::{Response, Ui};
+use craft_ui::icons::Icon;
+use craft_ui::list::{ContextMenuRequest, List, ListEvent, ListRow, RowEvent, ToggleColumn, ToggleEdit};
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::theme::{Tokens, TokensOf as _, role_format};
+use egui::text::LayoutJob;
+use egui::{Key, Modifiers, PointerButton, Rect, Response, Ui};
 
 craft_ui::words! {
     /// The list's words (VectorCraft's strings).
@@ -134,6 +140,118 @@ impl<'a> PageList<'a> {
     // vectorcraft: crates/ui-egui/src/panels/artboards.rs:396 `show`, :297 `select_range`, :311
     // `toggle`, :243 `rename`, :371 `duplicate`.
     pub fn show(self, ui: &mut Ui) -> PageListOutput {
-        todo!()
+        let PageList { id_salt, rows, picked, active, rename, labels } = self;
+        let labels = labels.unwrap_or_default();
+        let tokens = Tokens::of(ui);
+        let style = ListRow::<usize>::style(&tokens);
+        let numbers = LocaleNumbers::of(ui);
+        let list_id = List::id_in(ui, id_salt);
+        if active < rows.len() {
+            picked.lead = Some(active);
+        }
+
+        let keys: Vec<RowInfo<usize>> = (0..rows.len()).map(RowInfo::leaf).collect();
+        let reserved = PanelFooter::reserved_height(&PanelFooter::style(&tokens, ui.pixels_per_point())) + ui.spacing().item_spacing.y;
+        let focused = ui.memory(|m| m.has_focus(list_id));
+        let delete_key = focused && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete));
+        let option_side = IconButton::style(&tokens, ControlSize::Sm).side;
+
+        let items = picked.items.clone();
+        let number_rects = RefCell::new(Vec::new());
+        let option_clicks = RefCell::new(Vec::new());
+        let mut list = List::new(id_salt, &labels.artboards, keys.as_slice())
+            .selection(&mut *picked)
+            .renamable(true)
+            .reorder(Reorder::new(Axis::Vertical))
+            .max_height((ui.available_height() - reserved).max(0.0));
+        if let Some(row) = rename {
+            list = list.start_rename(row);
+        }
+        let output = list.show(ui, |at, &row| {
+            let selected = items.contains(&row);
+            let number = numbers.format(row as f64 + 1.0, 0..=0);
+            let color = if selected { style.selected_detail } else { style.detail };
+            let format = role_format(&tokens, style.detail_role, color);
+            let (number_rects, option_clicks, options) = (&number_rects, &option_clicks, &labels.options);
+            ListRow::new(row, rows[at].name.as_str())
+                .rename_field_name(&labels.name)
+                .highlight(selected && row != active)
+                .toggle(ToggleColumn::lock(&labels.lock, rows[at].locked))
+                .glyph(move |painter, rect| {
+                    number_rects.borrow_mut().push((row, rect));
+                    let galley = painter.layout_job(LayoutJob::single_section(number, format));
+                    painter.galley(rect.center() - galley.size() / 2.0, galley, color);
+                })
+                .trailing_item(option_side, move |ui| {
+                    let response = ui.add(IconButton::new(Icon::Settings, options).size(ControlSize::Sm));
+                    if response.clicked() {
+                        option_clicks.borrow_mut().push((row, response.double_clicked()));
+                    }
+                })
+        });
+
+        let mut events = Vec::new();
+        let double_click = ui.input(|i| i.pointer.button_double_clicked(PointerButton::Primary).then(|| i.pointer.interact_pos())).flatten();
+        let on_number =
+            |row: usize| double_click.is_some_and(|at| number_rects.borrow().iter().any(|(r, rect): &(usize, Rect)| *r == row && rect.contains(at)));
+        // A key that moves the lead picks the row without a click; it becomes active too.
+        let mut moved = None;
+        for event in output.events {
+            if !matches!(event, ListEvent::Clicked(_)) {
+                events.extend(moved.take().map(PageListEvent::Activate));
+            }
+            match event {
+                ListEvent::Selection(change) => {
+                    moved = change.row.filter(|row| change.selection.contains(row));
+                    events.push(PageListEvent::Picked(change));
+                }
+                ListEvent::Clicked(row) => {
+                    moved = None;
+                    events.push(PageListEvent::Activate(row));
+                }
+                ListEvent::LeadMoved(row) => events.push(PageListEvent::Activate(row)),
+                ListEvent::Activate(row) if on_number(row) => events.push(PageListEvent::Fit(row)),
+                ListEvent::Activate(row) => events.push(PageListEvent::Activate(row)),
+                ListEvent::Row(RowEvent::Renamed { row, text }) => events.push(PageListEvent::Rename { row, text }),
+                ListEvent::Row(RowEvent::Toggle(edit)) => events.push(PageListEvent::Lock(edit)),
+                ListEvent::Reorder(edit) => events.push(PageListEvent::Reorder(edit)),
+                ListEvent::ContextMenu(request) => events.push(PageListEvent::ContextMenu(request)),
+                _ => {}
+            }
+        }
+        events.extend(moved.map(PageListEvent::Activate));
+
+        // A click on the active row's options icon opens them; on another row's it makes that row
+        // active, so a double click opens its options.
+        for (row, double) in option_clicks.into_inner() {
+            events.push(if double || row == active { PageListEvent::Options(row) } else { PageListEvent::Activate(row) });
+        }
+
+        let unlocked = |from: &[usize]| from.iter().copied().filter(|&row| rows.get(row).is_some_and(|r| !r.locked)).collect::<Vec<_>>();
+        let deletable = unlocked(&picked.items);
+        if delete_key && !deletable.is_empty() {
+            events.push(PageListEvent::Delete(deletable.clone()));
+        }
+
+        PanelFooter::show(ui, |ui| {
+            let mine = |drag: &ListDrag<usize>| drag.list == list_id;
+            let (delete, dropped) = PanelFooter::drop_button::<ListDrag<usize>>(ui, Icon::Trash, &labels.delete, !deletable.is_empty(), mine);
+            if let Some(drag) = dropped {
+                let dropped = unlocked(&drag.items);
+                if !dropped.is_empty() {
+                    events.push(PageListEvent::Delete(dropped));
+                }
+            } else if delete.clicked() {
+                events.push(PageListEvent::Delete(deletable));
+            }
+            let (new, dropped) = PanelFooter::drop_button::<ListDrag<usize>>(ui, Icon::NewFile, &labels.new_artboard, true, mine);
+            if let Some(drag) = dropped {
+                events.push(PageListEvent::New { duplicate: Some(drag.grabbed), options: false });
+            } else if new.clicked() {
+                events.push(PageListEvent::New { duplicate: None, options: ui.input(|i| i.modifiers.alt) });
+            }
+        });
+
+        PageListOutput { response: output.response, events }
     }
 }
