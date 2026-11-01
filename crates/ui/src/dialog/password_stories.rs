@@ -4,9 +4,9 @@
 
 use egui::Ui;
 
-use super::framework_stories::{claim, drive};
 use super::{PasswordDialog, PasswordLabels, PasswordPurpose};
 use crate::localized::Labels as _;
+use crate::story::drive;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::typed_story;
 
@@ -38,9 +38,6 @@ pub(super) fn stories() -> Vec<Story> {
 
 /// The password dialog; `wrong password` reopens Open and Permissions with the app's error text.
 fn show_password(ui: &mut Ui, args: &mut PasswordArgs) {
-    if !claim(ui.ctx(), "password", ui.scope_id()) {
-        return;
-    }
     let (purpose, wrong, words, labels) = (args.purpose, args.wrong, StoryLabels::of(ui), PasswordLabels::of(ui));
     drive(
         ui,

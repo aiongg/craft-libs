@@ -41,7 +41,7 @@ use craft_ui::list::ThumbSize;
 use craft_ui::localized::Labels as _;
 use craft_ui::menu::MenuItem;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, dialog_claim, dialog_closed, dialog_shown};
+use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, claim, dialog_closed, dialog_shown};
 use craft_ui::theme::scope;
 use craft_ui::typed_story;
 use egui::{Id, Sense, Ui, vec2};
@@ -924,7 +924,7 @@ fn show_options(ui: &mut Ui, args: &mut OptionsArgs) {
     let instance: Id = ui.make_persistent_id("craft_layers::stories::options");
     let (result_key, signature_key) = (instance.with("result"), instance.with("signature"));
     let mut host = lock(&host);
-    if dialog_shown(ui, args.open) && dialog_claim(&ctx, "layers-options", instance) {
+    if dialog_shown(ui, args.open) && claim(&ctx, "layers-options", instance) {
         let previous: Option<bool> = ui.data(|d| d.get_temp::<Option<bool>>(signature_key)).flatten();
         if previous.is_some_and(|previous| previous != args.large) {
             let _ = host.cancel::<LayersOptionsDialog>(&ctx);

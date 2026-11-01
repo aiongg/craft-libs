@@ -708,7 +708,7 @@ fn drive_form(ui: &mut Ui, name: &str, open: &mut bool, make: impl FnOnce(&Histo
     let host: Arc<Mutex<DialogHost>> = ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, Arc::<Mutex<DialogHost>>::default).clone());
     let ctx = ui.ctx().clone();
     // The form has one fixed id: only one instance shown in a pass draws it.
-    if !crate::story::dialog_claim(&ctx, &format!("history-form-{name}"), ui.scope_id()) {
+    if !crate::story::claim(&ctx, &format!("history-form-{name}"), ui.scope_id()) {
         return;
     }
     let mut host = host.lock().unwrap_or_else(PoisonError::into_inner);

@@ -25,7 +25,7 @@ use craft_ui::dialog::{DialogHost, DialogResult};
 use craft_ui::list::ThumbSize;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, dialog_claim, dialog_closed, dialog_shown};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, claim, dialog_closed, dialog_shown};
 use craft_ui::typed_story;
 use egui::{Context, Ui, vec2};
 
@@ -443,7 +443,7 @@ fn show_dialog(ui: &mut Ui, args: &mut DialogArgs) {
         ctx.request_repaint();
     }
 
-    if dialog_shown(ui, args.open) && dialog_claim(&ctx, "relink", ui.scope_id()) {
+    if dialog_shown(ui, args.open) && claim(&ctx, "relink", ui.scope_id()) {
         let signature = (args.relink_others, args.exact_names);
         if demo.signature.is_some_and(|previous| previous != signature) {
             demo.host.cancel::<RelinkDialog<u32>>(&ctx);

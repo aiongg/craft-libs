@@ -422,7 +422,7 @@ fn dialog_story<D: StackDialog>(
         answer: Option<String>,
         open: bool,
     }
-    if !craft_ui::story::dialog_claim(ui.ctx(), name, ui.scope_id()) {
+    if !craft_ui::story::claim(ui.ctx(), name, ui.scope_id()) {
         return;
     }
     let shared = state(ui, name, || Dialogs { host: DialogHost::new(), answer: None, open: true });

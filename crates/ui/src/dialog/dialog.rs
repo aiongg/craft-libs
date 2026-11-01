@@ -42,7 +42,9 @@ pub enum Outcome {
 }
 
 impl Outcome {
-    /// Whether the dialog is finished: it closes and the host takes it away.
+    /// Whether the outcome finishes the dialog: it closes and the host takes it away. `Ok` from a
+    /// footer that [keeps OK open](super::Footer::ok_stays_open) is the exception;
+    /// [`DialogResponse::closed`] says what a pass did.
     pub fn closes(self) -> bool {
         matches!(self, Outcome::Ok | Outcome::Cancel | Outcome::Close | Outcome::Alternate | Outcome::Answer(_))
     }
@@ -93,10 +95,13 @@ pub enum InitialFocus {
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub struct DialogResponse {
-    /// How the dialog was answered this pass, if it was. For an outcome that
-    /// [closes](Outcome::closes) the dialog, the state is closed again and focus returns to the
-    /// control that had it when the dialog opened.
+    /// How the dialog was answered this pass, if it was.
     pub outcome: Option<Outcome>,
+    /// Whether the outcome closed the dialog this pass: the state is closed again and focus
+    /// returns to the control that had it when the dialog opened. An outcome that
+    /// [closes](Outcome::closes) does, except `Ok` from a footer that
+    /// [keeps OK open](super::Footer::ok_stays_open).
+    pub closed: bool,
     /// The dialog's frame this pass.
     pub rect: Rect,
     /// The outer gesture, while the dialog has one. `opened` is true on the pass it begins: the
@@ -181,13 +186,17 @@ pub struct Dialog<'a> {
 }
 
 impl<'a> Dialog<'a> {
-    /// A modal dialog. `id` is the host's key for it: the id of its area. [`dialog_id`] gives the
-    /// [`DialogId`] a [`DialogStack`] knows it by.
+    /// A modal dialog. `id` is the host's key for it, in kebab case (`"layers-panel-options"`);
+    /// [`dialog_id`] turns it into the [`DialogId`] of the dialog's area, which a [`DialogStack`]
+    /// knows it by.
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>) -> Self {
         Self::with_id(dialog_id(id), title)
     }
 
-    pub(super) fn with_id(id: DialogId, title: impl Into<String>) -> Self {
+    /// A modal dialog under a [`DialogId`] the host already holds: one it built once with
+    /// [`dialog_id`] from a kebab-case key and pushed on a [`DialogStack`], or a
+    /// [`StackDialog`](super::StackDialog)'s stored id.
+    pub fn with_id(id: DialogId, title: impl Into<String>) -> Self {
         Self {
             id,
             title: title.into(),
@@ -437,7 +446,7 @@ impl<'a> Dialog<'a> {
         let remembered = resize.and_then(|_| place.remembered_size(ctx));
         let resize_sizes = resize.map(|r| (r, r.max_size(&t, window.size())));
         let footer_close = footer.host_close_label().map(str::to_owned);
-        let (has_footer, enter_rule) = (!footer.is_none(), footer.enter_rule());
+        let (has_footer, enter_rule, ok_stays_open) = (!footer.is_none(), footer.enter_rule(), footer.keeps_ok_open());
         let run_out = std::cell::RefCell::new(FooterRun::default());
         let (sizing_out, frame_out) = (std::cell::Cell::new(false), std::cell::Cell::new(None::<DialogFrameResponse>));
         let draw = |ui: &mut Ui| {
@@ -525,6 +534,7 @@ impl<'a> Dialog<'a> {
         let Some(frame) = frame_out.take() else {
             return DialogResponse {
                 outcome: None,
+                closed: false,
                 rect: response.rect,
                 outer,
                 opened,
@@ -677,7 +687,8 @@ impl<'a> Dialog<'a> {
                 }
                 initial_focus
             });
-        if outcome.is_some_and(Outcome::closes) {
+        let closed = outcome.is_some_and(|outcome| outcome.closes() && !(ok_stays_open && outcome == Outcome::Ok));
+        if closed {
             if let Some(focus) = state.return_focus() {
                 ctx.memory_mut(|m| m.request_focus(focus));
             }
@@ -685,6 +696,7 @@ impl<'a> Dialog<'a> {
         }
         DialogResponse {
             outcome,
+            closed,
             rect: response.rect,
             outer,
             opened,

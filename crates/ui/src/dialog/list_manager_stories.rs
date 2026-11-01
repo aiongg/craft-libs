@@ -4,9 +4,9 @@
 
 use egui::Ui;
 
-use super::framework_stories::{claim, drive};
 use super::{ListManagerAction, ListManagerDialog, ListManagerEntry, ListManagerLabels};
 use crate::localized::Labels as _;
+use crate::story::drive;
 use crate::story::{Level, Story, StoryArgs, StoryLabels};
 use crate::typed_story;
 
@@ -47,9 +47,6 @@ fn entries(words: &StoryLabels) -> Vec<ListManagerEntry> {
 /// Macros: Run and Edit close the dialog with the answer, Create needs a new name, Delete keeps
 /// the dialog open and removes the entry.
 fn show_list_manager(ui: &mut Ui, args: &mut ListManagerArgs) {
-    if !claim(ui.ctx(), "list-manager", ui.scope_id()) {
-        return;
-    }
     let (words, labels, ctx) = (StoryLabels::of(ui), ListManagerLabels::of(ui), ui.ctx().clone());
     let rows_key = ui.make_persistent_id("craft_ui::dialog::list_manager_stories::rows");
     let (searchable, empty, note) = (args.searchable, args.empty, args.note);

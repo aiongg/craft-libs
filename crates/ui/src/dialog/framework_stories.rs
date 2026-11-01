@@ -1,8 +1,6 @@
 //! Stories of the dialogs on the host, one per kind. Each keeps a [`DialogHost`] in egui memory,
 //! opens the real dialog on it and shows the result after the dialog answers.
 
-use std::sync::{Arc, Mutex};
-
 use craft_quit::CloseScope;
 use egui::{Context, Ui};
 
@@ -12,7 +10,7 @@ use super::{
     StandardPrompt, StartupStage, UnsavedChangesDialog, dialog_id,
 };
 use crate::localized::Labels as _;
-use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryChoice};
+use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryChoice, drive, lock, shared};
 use crate::typed_story;
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
@@ -134,83 +132,6 @@ pub(super) fn stories() -> Vec<Story> {
     ]
 }
 
-pub(super) type SharedHost = Arc<Mutex<DialogHost>>;
-
-pub(super) fn lock(host: &SharedHost) -> std::sync::MutexGuard<'_, DialogHost> {
-    host.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
-/// The story's host and its last result text, kept in egui memory under `name`.
-pub(super) fn state(ui: &Ui, name: &str) -> (SharedHost, egui::Id) {
-    let key = ui.make_persistent_id(("craft_ui::dialog::framework_stories", name));
-    let host: SharedHost = ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, SharedHost::default).clone());
-    (host, key.with("result"))
-}
-
-/// Whether this story instance may draw the dialog `name` in this pass. The size, prompt and
-/// unsaved dialogs have one fixed id each, so two instances of a story drawn in the same pass
-/// (a component tab and a variants view) must not both show it.
-pub(super) fn claim(ctx: &Context, name: &str, instance: egui::Id) -> bool {
-    let key = egui::Id::unique(("craft_ui::dialog::framework_stories::claim", name));
-    let pass = ctx.cumulative_pass_nr();
-    ctx.data_mut(|d| {
-        let (claimed_pass, owner) = d.get_temp::<(u64, egui::Id)>(key).unwrap_or((u64::MAX, instance));
-        if claimed_pass == pass && owner != instance {
-            return false;
-        }
-        d.insert_temp(key, (pass, instance));
-        true
-    })
-}
-
-/// Opens `D` while the story is shown and `open` is on, reopens it when `signature` changes (the
-/// arguments that build the dialog), and shows the answer as text under the tile once it closes.
-pub(super) fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
-    ui: &mut Ui,
-    name: &str,
-    open: &mut bool,
-    signature: S,
-    make: impl FnOnce() -> D,
-    tune: impl FnOnce(&mut D),
-    describe: impl FnOnce(D::Result) -> String,
-) {
-    let (host, result_key) = state(ui, name);
-    let signature_key = result_key.with("signature");
-    let ctx = ui.ctx().clone();
-    let mut host = lock(&host);
-    if crate::story::dialog_shown(ui, *open) {
-        let previous: Option<S> = ui.data(|d| d.get_temp::<Option<S>>(signature_key)).flatten();
-        if previous.is_some_and(|previous| previous != signature) {
-            host.cancel::<D>(&ctx);
-            host.take::<D>();
-        }
-        ui.data_mut(|d| d.insert_temp(signature_key, Some(signature)));
-        if !host.is_open::<D>() {
-            host.open(make());
-            ui.data_mut(|d| d.remove_temp::<String>(result_key));
-        }
-        if let Some(dialog) = host.get_mut::<D>() {
-            tune(dialog);
-        }
-        host.show(&ctx);
-        if let Some(result) = host.take::<D>() {
-            let text = match result {
-                DialogResult::Ok(value) => describe(value),
-                DialogResult::Cancel => "Cancelled".to_owned(),
-            };
-            ui.data_mut(|d| d.insert_temp(result_key, text));
-            crate::story::dialog_closed(ui, open);
-        }
-    } else {
-        host.cancel::<D>(&ctx);
-        host.take::<D>();
-        ui.data_mut(|d| d.insert_temp(signature_key, None::<S>));
-    }
-    if let Some(text) = ui.data(|d| d.get_temp::<String>(result_key)) {
-        ui.label(format!("Result: {text}"));
-    }
-}
-
 fn fields_text(fields: &super::DialogFields) -> String {
     let listed: Vec<String> = fields.iter().map(|(key, value)| format!("{key} = {value:?}")).collect();
     if listed.is_empty() { "no fields".to_owned() } else { listed.join(", ") }
@@ -259,9 +180,6 @@ const ORIGINAL: PixelSize = PixelSize { width: 1200, height: 800, pixels_per_inc
 
 /// Image Size or Canvas Size on the host.
 fn show_size(ui: &mut Ui, args: &mut SizeArgs) {
-    if !claim(ui.ctx(), "size", ui.scope_id()) {
-        return;
-    }
     match args.kind {
         SizeKindArg::Image => {
             let method = if args.resample { Resample::Automatic } else { Resample::None };
@@ -291,9 +209,6 @@ fn show_size(ui: &mut Ui, args: &mut SizeArgs) {
 
 /// The standard prompts and the unsaved-changes question.
 fn show_prompt(ui: &mut Ui, args: &mut PromptArgs) {
-    if !claim(ui.ctx(), "prompt", ui.scope_id()) {
-        return;
-    }
     let several = args.several;
     let kind = match args.kind {
         PromptKindArg::ConfirmDelete => Some(if several {
@@ -412,8 +327,8 @@ fn notice(key: (&'static str, egui::Id), title: &'static str, message: &'static 
 /// Three alerts enqueued in the ticked stages; they open one at a time in stage order.
 fn show_queue(ui: &mut Ui, args: &mut QueueArgs) {
     let salt = ui.scope_id();
-    let (host, result_key) = state(ui, "queue");
-    let signature_key = result_key.with("signature");
+    let host = shared(ui, "queue", DialogHost::new);
+    let signature_key = ui.make_persistent_id("craft_ui::dialog::framework_stories::queue-signature");
     let signature = (args.recovery, args.warning, args.update);
     let mut open = true;
     if !crate::story::dialog_shown(ui, open) {
