@@ -5,12 +5,12 @@ use craft_ui::controls::{Kbd, TooltipExt as _};
 use craft_ui::direction;
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::list::{ListRow, ToggleEdit};
+use craft_ui::list::{ListRow, ToggleEdit, paint_disclosure};
 use craft_ui::primitives::Interactive;
 use craft_ui::theme::{UiTokens, current, style_format};
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
-use egui::{Align2, Color32, Context, Key, KeyboardShortcut, Modifiers, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
+use egui::{Align2, Color32, Context, Key, KeyboardShortcut, Modifiers, Painter, Rect, Sense, Stroke, Ui, pos2, vec2};
 
 use super::context::PanelContext;
 use super::events::{LayerColumn, LayerToggle, LayersEvent};
@@ -95,7 +95,7 @@ pub(super) fn add_indicators<'r, T: LayerTree>(
                 .interact_at(ui, at)
                 .finish(ui);
             let color = if response.hovered() { cx.row_style.icon_hover } else { cx.row_style.icon };
-            paint_triangle(ui.painter(), at, effects_open, direction::is_rtl(ui), color);
+            paint_disclosure(ui.painter(), at, effects_open, direction::is_rtl(ui), color);
             if response.clicked() {
                 let all = ui.input(|i| i.modifiers.alt);
                 cx.sink.borrow_mut().events.push(LayersEvent::FxOpen { layer: id.clone(), open: !effects_open, all });
@@ -109,15 +109,16 @@ pub(super) fn add_indicators<'r, T: LayerTree>(
         let tip = cx.labels.smart_filters.clone();
         row = row.trailing_item(side, move |ui| {
             let at = cell(ui, side);
-            paint_rings(ui.painter(), at, color);
+            paint_rings(ui.painter(), at, color, style.indicator_ring_width);
             let response = ui.interact(at, ui.scope_id().with("smart-filters"), Sense::hover());
             let _ = response.tooltip(tip.as_str());
         });
     }
 
     if info.has_effects {
-        let (job, width) = text_job("fx", &tokens, true, style.fx, &cx.ctx);
-        row = row.trailing_item(width, move |ui| paint_text(ui, job));
+        // The mark sits at the item's reading start; the gap to the triangle is the item's extra width.
+        let (job, width) = text_job(&cx.labels.fx, &tokens, true, style.fx, &cx.ctx);
+        row = row.trailing_item(width + style.indicator_fx_gap, move |ui| paint_text(ui, job));
     }
 
     if info.linked {
@@ -131,15 +132,18 @@ pub(super) fn add_indicators<'r, T: LayerTree>(
     row
 }
 
+/// How much smaller than its badge a badge's glyph is (PhotoCraft: an 8 pt glyph in a 9 pt box).
+const BADGE_GLYPH_MARGIN: f32 = 1.0;
+
 /// Paints a mask thumbnail's marks over its picture in `rect`: the red cross of a disabled mask
-/// (`layers.mask.disabled`, 1.5 pt diagonals inset 1 pt) and, with `badges`, the
+/// (`layers.mask.disabled`, diagonals of `layers.mask.cross_width` inset `layers.mask.cross_inset`) and, with `badges`, the
 /// `layers.mask.badge` box at the bottom trailing corner with a pen (vector mask) or a dot
 /// (pixel mask) glyph.
 pub(super) fn paint_mask_marks(painter: &Painter, rect: Rect, mask: &MaskInfo, badges: bool, style: &LayersStyle) {
     // pc: crates/ui-egui/src/panels/mask_thumbs_ui.rs:142-154 (red X, 9 pt badge, 8 pt glyph).
     if !mask.enabled {
-        let stroke = Stroke::new(1.5, style.mask_disabled);
-        let inner = rect.shrink(1.0);
+        let stroke = Stroke::new(style.mask_cross_width, style.mask_disabled);
+        let inner = rect.shrink(style.mask_cross_inset);
         painter.line_segment([inner.left_top(), inner.right_bottom()], stroke);
         painter.line_segment([inner.right_top(), inner.left_bottom()], stroke);
     }
@@ -151,7 +155,7 @@ pub(super) fn paint_mask_marks(painter: &Painter, rect: Rect, mask: &MaskInfo, b
         painter.rect_filled(badge, 0.0, style.mask_badge_fill);
         let icon = if mask.part == LayerPart::VectorMask { Icon::PenTool } else { Icon::Circle };
         let set = icons::active(painter.ctx());
-        icons::paint_on(painter, badge, icon, set, (side - 1.0).max(0.0), IconSize::Sm.stroke(), style.mask_badge_glyph);
+        icons::paint_on(painter, badge, icon, set, (side - BADGE_GLYPH_MARGIN).max(0.0), IconSize::Sm.stroke(), style.mask_badge_glyph);
     }
 }
 
@@ -185,23 +189,14 @@ fn paint_text(ui: &mut Ui, job: LayoutJob) {
     ui.painter().galley(anchor.anchor_size(at, galley.size()).min, galley, Color32::PLACEHOLDER);
 }
 
-/// The effects disclosure triangle: down when open, towards the reading end when closed.
-fn paint_triangle(painter: &Painter, rect: Rect, open: bool, rtl: bool, color: Color32) {
-    let c = rect.center();
-    let s = rect.width() * 0.3;
-    let flip = if rtl { -1.0 } else { 1.0 };
-    let points: Vec<Pos2> = if open {
-        vec![pos2(c.x - s, c.y - s * 0.6), pos2(c.x + s, c.y - s * 0.6), pos2(c.x, c.y + s * 0.6)]
-    } else {
-        vec![pos2(c.x - flip * s * 0.6, c.y - s), pos2(c.x + flip * s * 0.6, c.y), pos2(c.x - flip * s * 0.6, c.y + s)]
-    };
-    painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
-}
+/// The rings' centre offset and radius as shares of the badge's box (drawing geometry).
+const RING_OFFSET_SHARE: f32 = 0.18;
+const RING_RADIUS_SHARE: f32 = 0.25;
 
-/// The Smart Filters badge: two rings side by side.
-fn paint_rings(painter: &Painter, rect: Rect, color: Color32) {
-    let (offset, radius) = (rect.width() * 0.18, rect.width() * 0.25);
+/// The Smart Filters badge: two rings side by side, stroked `width` wide.
+fn paint_rings(painter: &Painter, rect: Rect, color: Color32, width: f32) {
+    let (offset, radius) = (rect.width() * RING_OFFSET_SHARE, rect.width() * RING_RADIUS_SHARE);
     for dx in [-offset, offset] {
-        painter.circle_stroke(rect.center() + vec2(dx, 0.0), radius, Stroke::new(1.0, color));
+        painter.circle_stroke(rect.center() + vec2(dx, 0.0), radius, Stroke::new(width, color));
     }
 }

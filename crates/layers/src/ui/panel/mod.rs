@@ -28,7 +28,7 @@ mod style;
 pub use events::{ActivateOn, LayerColumn, LayerDrop, LayerMove, LayerSelect, LayerToggle, LayersEvent, MenuTarget, RowTransfer, SubRowMove};
 pub use footer::{LayersFooterAction, LayersFooterButton};
 pub use labels::LayersLabels;
-pub use menu::{CLIP_THUMBNAILS, COLLAPSE_ALL, LayersMenuAction, PANEL_OPTIONS, SHOW_FILTERS, panel_menu, run_command};
+pub use menu::LayersMenuAction;
 pub use style::LayersStyle;
 
 use std::cell::RefCell;
@@ -36,7 +36,7 @@ use std::cell::RefCell;
 use craft_ui::behavior::ListDrag;
 use craft_ui::canvas::textures::{ThumbSource, Thumbnails};
 use craft_ui::composites::PanelFooter;
-use craft_ui::list::{ListRow, paint_ghost};
+use craft_ui::list::{List, ListRow, paint_ghost};
 use craft_ui::localized::Labels as _;
 use craft_ui::menu::MenuEntry;
 use craft_ui::theme::{Tokens, TokensOf as _};
@@ -314,19 +314,20 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
 
             let rows = shared_display_rows(&cx.ctx, id, self.tree, filter);
             let list_height = (ui.available_height() - footer_height).max(0.0);
-            let body = ui
+            let (body, list_id) = ui
                 .scope(|ui| {
                     ui.set_max_height(list_height);
-                    let body = show_body(ui, &cx, &rows, Some(reorder(&cx, &rows)), self.reveal.clone());
-                    paint_mask_ghost(ui, &cx, ui.make_persistent_id(id.with("list")), body.response.rect.width());
-                    body
+                    let body = show_body(ui, &cx, &rows, Some(reorder(&cx)), self.reveal.clone());
+                    let list_id = List::id_in(ui, id.with("list"));
+                    paint_mask_ghost(ui, &cx, list_id, body.response.rect.width());
+                    (body, list_id)
                 })
                 .inner;
             preview = drop_preview(body.drop_target.as_ref(), cx.options);
             min = panel_min_width(ui, body.min_width);
             events.extend(body.events);
             events.extend(show_row_menus(ui, &cx, &body.response, self.row_menu.as_deref(), body.menu));
-            events.extend(show_footer(ui, &cx));
+            events.extend(show_footer(ui, &cx, list_id));
         });
 
         note_drawn(&cx.ctx, self.id_salt);

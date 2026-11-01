@@ -4,10 +4,11 @@
 use craft_theme::LabelColor;
 use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::localized::{LabelColorLabels, Labels as _};
-use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
+use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt, facts_id};
 use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::{AsIdSalt, Context, Id, IdSalt, Response, Ui};
+use egui::{AsIdSalt, Context, IdSalt, Response, Ui};
 
+use super::LayersPanel;
 use super::context::{PanelContext, RowMenu};
 use super::events::{LayersEvent, MenuTarget};
 use super::labels::LayersLabels;
@@ -16,13 +17,13 @@ use crate::ui::thumbs::ThumbContents;
 use crate::ui::tree::LayerTree;
 
 /// The panel menu's Filter Options › Show.
-pub const SHOW_FILTERS: &str = "layers.filter.show";
+pub(super) const SHOW_FILTERS: &str = "layers.filter.show";
 /// The panel menu's Panel Options….
-pub const PANEL_OPTIONS: &str = "layers.options";
+pub(super) const PANEL_OPTIONS: &str = "layers.options";
 /// The panel menu's Collapse All Groups.
-pub const COLLAPSE_ALL: &str = "layers.collapseAll";
+pub(super) const COLLAPSE_ALL: &str = "layers.collapseAll";
 /// The panel menu's Clip Thumbnails to Layer Bounds.
-pub const CLIP_THUMBNAILS: &str = "layers.clipThumbnails";
+pub(super) const CLIP_THUMBNAILS: &str = "layers.clipThumbnails";
 
 /// What a panel-menu command asks of the app, from [`run_command`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,66 +40,66 @@ pub enum LayersMenuAction {
     CollapseAll,
 }
 
-/// The panel menu's library rows, for the docking host's `panel_menu_entries` hook; the app puts
-/// its own rows first (New Layer…, New Group…, Flatten Image, Lock Layers…, …).
-///
-/// In PhotoCraft's order: Filter Options › Show (a check, `settings.show_filters`), Panel
-/// Options…, Collapse All Groups (enabled once the panel has been drawn; PhotoCraft: whenever a document is open),
-/// Clip Thumbnails to Layer Bounds (a check, Thumbnail Contents is Layer Bounds). Animation
-/// Options is not offered. `id_salt` is the panel's; before its first pass Collapse All Groups is
-/// disabled. Commands: [`SHOW_FILTERS`], [`PANEL_OPTIONS`], [`COLLAPSE_ALL`],
-/// [`CLIP_THUMBNAILS`].
-pub fn panel_menu(ctx: &Context, id_salt: impl AsIdSalt, settings: &LayersSettings) -> Vec<MenuEntry<PanelCommand>> {
-    // pc: crates/ui-egui/src/panels/layer_row_ui.rs:296-334 (Filter Options › Show, Panel Options…,
-    // Collapse All Groups, Clip Thumbnails to Layer Bounds); the facts the panel stores under its id
-    // as `TextStylesPanel::panel_menu` (craft-text `ui/style_panel.rs`) does.
-    let labels = LayersLabels::of_ctx(ctx);
-    let drawn = ctx.data(|d| d.get_temp::<Drawn>(drawn_key(IdSalt::new(id_salt)))).is_some();
-    let item = |text: &str, command: &str| MenuItem::new(text, command.to_owned());
-    vec![
-        MenuItem::submenu(labels.filter_options.as_str(), vec![item(&labels.show_filters, SHOW_FILTERS).check(settings.show_filters).into()]).into(),
-        item(&labels.panel_options, PANEL_OPTIONS).into(),
-        MenuEntry::Separator,
-        item(&labels.collapse_all, COLLAPSE_ALL).enabled(drawn).into(),
-        MenuEntry::Separator,
-        item(&labels.clip_thumbnails, CLIP_THUMBNAILS).check(settings.options.thumbnail_contents == ThumbContents::LayerBounds).into(),
-    ]
+impl<T: LayerTree> LayersPanel<'_, T> {
+    /// The panel menu's library rows, for the docking host's `panel_menu_entries` hook; the app
+    /// puts its own rows first (New Layer…, New Group…, Flatten Image, Lock Layers…, …).
+    ///
+    /// In PhotoCraft's order: Filter Options › Show (a check, `settings.show_filters`), Panel
+    /// Options…, Collapse All Groups (enabled once the panel has been drawn; PhotoCraft: whenever
+    /// a document is open), Clip Thumbnails to Layer Bounds (a check, Thumbnail Contents is Layer
+    /// Bounds). Animation Options is not offered. `id_salt` is the panel's; before its first pass
+    /// Collapse All Groups is disabled. [`run_command`](Self::run_command) carries the commands out.
+    pub fn panel_menu(ctx: &Context, id_salt: impl AsIdSalt, settings: &LayersSettings) -> Vec<MenuEntry<PanelCommand>> {
+        // pc: crates/ui-egui/src/panels/layer_row_ui.rs:296-334 (Filter Options › Show, Panel Options…,
+        // Collapse All Groups, Clip Thumbnails to Layer Bounds); the facts the panel stores under its id
+        // as `TextStylesPanel::panel_menu` (craft-text `ui/style_panel.rs`) does.
+        let labels = LayersLabels::of_ctx(ctx);
+        let drawn = ctx.data(|d| d.get_temp::<Drawn>(facts_id(IdSalt::new(id_salt)))).is_some();
+        let item = |text: &str, command: &str| MenuItem::new(text, command.to_owned());
+        vec![
+            MenuItem::submenu(labels.filter_options.as_str(), vec![item(&labels.show_filters, SHOW_FILTERS).check(settings.show_filters).into()])
+                .into(),
+            item(&labels.panel_options, PANEL_OPTIONS).into(),
+            MenuEntry::Separator,
+            item(&labels.collapse_all, COLLAPSE_ALL).enabled(drawn).into(),
+            MenuEntry::Separator,
+            item(&labels.clip_thumbnails, CLIP_THUMBNAILS).check(settings.options.thumbnail_contents == ThumbContents::LayerBounds).into(),
+        ]
+    }
+
+    /// Carries out a command of [`panel_menu`](Self::panel_menu): Show and Clip Thumbnails flip
+    /// their setting in `settings` and report [`LayersMenuAction::SettingsChanged`]; Panel
+    /// Options… and Collapse All Groups report what the app does. Any other command returns
+    /// `None`. `ctx` and `id_salt` are unused; every family's `run_command` takes them.
+    pub fn run_command(_ctx: &Context, _id_salt: impl AsIdSalt, settings: &mut LayersSettings, command: &PanelCommand) -> Option<LayersMenuAction> {
+        // pc: crates/ui-egui/src/panels/layer_row_ui.rs:296-334.
+        match command.as_str() {
+            SHOW_FILTERS => {
+                settings.show_filters = !settings.show_filters;
+                Some(LayersMenuAction::SettingsChanged)
+            }
+            CLIP_THUMBNAILS => {
+                settings.options.thumbnail_contents = match settings.options.thumbnail_contents {
+                    ThumbContents::LayerBounds => ThumbContents::EntireDocument,
+                    ThumbContents::EntireDocument => ThumbContents::LayerBounds,
+                };
+                Some(LayersMenuAction::SettingsChanged)
+            }
+            PANEL_OPTIONS => Some(LayersMenuAction::OpenOptions),
+            COLLAPSE_ALL => Some(LayersMenuAction::CollapseAll),
+            _ => None,
+        }
+    }
 }
 
-/// Marks the panel `id_salt` as drawn, which enables Collapse All Groups in [`panel_menu`].
+/// Marks the panel as drawn, which enables Collapse All Groups in the panel menu; stored under
+/// [`facts_id`] of the panel's salt.
 #[derive(Clone, Copy)]
 struct Drawn;
 
-fn drawn_key(salt: IdSalt) -> Id {
-    Id::NULL.with(salt)
-}
-
 /// Records that the panel `salt` has been drawn (`LayersPanel::show` calls it once per pass).
 pub(super) fn note_drawn(ctx: &Context, salt: IdSalt) {
-    ctx.data_mut(|d| d.insert_temp(drawn_key(salt), Drawn));
-}
-
-/// Carries out a command of [`panel_menu`]: Show and Clip Thumbnails flip their setting in
-/// `settings` and report [`LayersMenuAction::SettingsChanged`]; Panel Options… and Collapse All
-/// Groups report what the app does. Any other command returns `None`.
-pub fn run_command(_ctx: &Context, _id_salt: impl AsIdSalt, settings: &mut LayersSettings, command: &PanelCommand) -> Option<LayersMenuAction> {
-    // pc: crates/ui-egui/src/panels/layer_row_ui.rs:296-334.
-    match command.as_str() {
-        SHOW_FILTERS => {
-            settings.show_filters = !settings.show_filters;
-            Some(LayersMenuAction::SettingsChanged)
-        }
-        CLIP_THUMBNAILS => {
-            settings.options.thumbnail_contents = match settings.options.thumbnail_contents {
-                ThumbContents::LayerBounds => ThumbContents::EntireDocument,
-                ThumbContents::EntireDocument => ThumbContents::LayerBounds,
-            };
-            Some(LayersMenuAction::SettingsChanged)
-        }
-        PANEL_OPTIONS => Some(LayersMenuAction::OpenOptions),
-        COLLAPSE_ALL => Some(LayersMenuAction::CollapseAll),
-        _ => None,
-    }
+    ctx.data_mut(|d| d.insert_temp(facts_id(salt), Drawn));
 }
 
 /// A menu the body asks for this pass.
@@ -157,24 +158,35 @@ pub(super) fn show_row_menus<T: LayerTree>(
         _ => {}
     }
     let Some(open) = ctx.data(|d| d.get_temp::<OpenMenu<T::Id>>(key)) else { return Vec::new() };
-    let (events, keep): (Vec<LayersEvent<T::Id>>, bool) = match open {
+    // One menu for both kinds: the entries of each carry the pick they stand for.
+    let entries: Vec<MenuEntry<Pick>> = match &open {
         OpenMenu::Row(target) => {
-            let entries: Vec<MenuEntry<String>> = row_menu.map(|menu| menu(&target)).unwrap_or_default();
-            let shown = ContextMenu::new(&entries).own_gestures(false).open_at(at).show(ui, list);
-            let events = shown.chosen.map(|command| LayersEvent::Menu { target, command }).into_iter().collect();
-            (events, shown.open || at.is_some())
+            let host = row_menu.map(|menu| menu(target)).unwrap_or_default();
+            host.iter().map(|entry| entry.map(&|command: &String| Pick::Command(command.clone()))).collect()
         }
-        OpenMenu::Eye { rows, current } => {
-            let entries = eye_entries(ui, current);
-            let shown = ContextMenu::new(&entries).own_gestures(false).open_at(at).show(ui, list);
-            let events = shown.chosen.map(|color| LayersEvent::LabelColor { rows, color }).into_iter().collect();
-            (events, shown.open || at.is_some())
+        OpenMenu::Eye { current, .. } => {
+            eye_entries(ui, *current).iter().map(|entry| entry.map(&|color: &Option<LabelColor>| Pick::Color(*color))).collect()
         }
     };
-    if !keep || !events.is_empty() {
+    let shown = ContextMenu::new(&entries).own_gestures(false).open_at(at).show(ui, list);
+    let events: Vec<LayersEvent<T::Id>> = match (shown.chosen, open) {
+        (Some(Pick::Command(command)), OpenMenu::Row(target)) => vec![LayersEvent::Menu { target, command }],
+        (Some(Pick::Color(color)), OpenMenu::Eye { rows, .. }) => vec![LayersEvent::LabelColor { rows, color }],
+        _ => Vec::new(),
+    };
+    if !(shown.open || at.is_some()) || !events.is_empty() {
         ctx.data_mut(|d| d.remove::<OpenMenu<T::Id>>(key));
     }
     events
+}
+
+/// What a pick of the shared menu stands for.
+#[derive(Clone)]
+enum Pick {
+    /// The host's command in a row menu.
+    Command(String),
+    /// A label colour (or none) in an eye menu.
+    Color(Option<LabelColor>),
 }
 
 /// The menu kept open across passes, with what it acts on.

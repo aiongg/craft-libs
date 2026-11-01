@@ -4,7 +4,7 @@ use craft_ui::behavior::ListDrag;
 use craft_ui::composites::PanelFooter;
 use craft_ui::icons::Icon;
 use craft_ui::menu::PressMenu;
-use egui::Ui;
+use egui::{Id, Ui};
 
 use super::context::PanelContext;
 use super::events::LayersEvent;
@@ -63,7 +63,8 @@ pub enum LayersFooterAction {
     Style(String),
 }
 
-/// Draws the footer with [`PanelFooter`](craft_ui::composites::PanelFooter) and returns its
+/// Draws the footer for the panel whose list has the id `list` (a drop is taken only from that
+/// list's drags, not from another panel's) with [`PanelFooter`](craft_ui::composites::PanelFooter) and returns its
 /// events in order.
 ///
 /// - **Buttons**, from the reading start: Link, Layer Style (`fx`, a menu button), Mask, Fill or
@@ -78,12 +79,14 @@ pub enum LayersFooterAction {
 /// - **Menus** open on the press ([`PressMenu`](craft_ui::menu::PressMenu)) with the app's
 ///   `adjustment_menu` and `style_menu`; a release over an item picks it: `Adjustment(command)`,
 ///   `Style(command)`.
-/// - **Drops**: right after Delete, New Layer and New Group,
-///   `PanelFooter::drop_target::<ListDrag<LayerRowKey<Id>>>` with [`accepts_footer_drop`];
+/// - **Drops**: Delete is a [`drop_button`](PanelFooter::drop_button): enabled only while an
+///   accepted drag is over it when `delete_enabled` is off (Photoshop deletes dragged layers with
+///   nothing else selected). Right after New Layer and New Group,
+///   `PanelFooter::drop_target::<ListDrag<LayerRowKey<Id>>>`. Both use [`accepts_footer_drop`];
 ///   a drop reports [`LayersEvent::FooterDrop`] with the payload's items. The list's drag of
 ///   the same rows ends as `Cancel(Dismissed)` in the same pass.
 /// - Keyboard: each button is a Tab stop; the menu buttons open with Space and Enter.
-pub(super) fn show_footer<T: LayerTree>(ui: &mut Ui, cx: &PanelContext<'_, T>) -> Vec<LayersEvent<T::Id>> {
+pub(super) fn show_footer<T: LayerTree>(ui: &mut Ui, cx: &PanelContext<'_, T>, list: Id) -> Vec<LayersEvent<T::Id>> {
     // pc: crates/ui-egui/src/panels/layers.rs:371-503 (buttons, modifiers, menus, drops);
     // pc: crates/ui-egui/src/panels/layer_drag.rs:40-48 `dropped_on`.
     let state = cx.tree.footer();
@@ -92,18 +95,23 @@ pub(super) fn show_footer<T: LayerTree>(ui: &mut Ui, cx: &PanelContext<'_, T>) -
     let group_selection = (shift || cx.selection.layers.len() > 1) && cx.selection.active.is_some();
     let mut events = Vec::new();
     let drop_on = |ui: &Ui, button: &egui::Response, which: LayersFooterButton, events: &mut Vec<LayersEvent<T::Id>>| {
-        let accepts = |drag: &ListDrag<LayerRowKey<T::Id>>| accepts_footer_drop(which, drag);
+        let accepts = |drag: &ListDrag<LayerRowKey<T::Id>>| accepts_footer_drop(which, drag, list);
         if let Some(drag) = PanelFooter::drop_target::<ListDrag<LayerRowKey<T::Id>>>(ui, button, accepts) {
             events.push(LayersEvent::FooterDrop { button: which, rows: drag.items.clone() });
         }
     };
     PanelFooter::show(ui, |ui| {
         // The first button added sits at the reading end, so Delete goes first.
-        let delete = ui.add_enabled_ui(state.delete_enabled, |ui| PanelFooter::button(ui, Icon::Trash, &state.delete_label)).inner;
+        let (delete, dropped) =
+            PanelFooter::drop_button::<ListDrag<LayerRowKey<T::Id>>>(ui, Icon::Trash, &state.delete_label, state.delete_enabled, |drag| {
+                accepts_footer_drop(LayersFooterButton::Delete, drag, list)
+            });
         if delete.clicked() {
             events.push(LayersEvent::Footer(LayersFooterAction::Delete { confirm: !alt }));
         }
-        drop_on(ui, &delete, LayersFooterButton::Delete, &mut events);
+        if let Some(drag) = dropped {
+            events.push(LayersEvent::FooterDrop { button: LayersFooterButton::Delete, rows: drag.items.clone() });
+        }
 
         let new_layer = PanelFooter::button(ui, Icon::NewLayer, &labels.new_layer);
         if new_layer.clicked() {
@@ -141,12 +149,13 @@ pub(super) fn show_footer<T: LayerTree>(ui: &mut Ui, cx: &PanelContext<'_, T>) -
     events
 }
 
-/// Whether `button` takes a drop of `drag`: Delete takes every row kind and a mask; New Layer
-/// and New Group take layer rows only (no effects, filters or masks).
-pub(super) fn accepts_footer_drop<Id>(button: LayersFooterButton, drag: &ListDrag<LayerRowKey<Id>>) -> bool {
+/// Whether `button` takes a drop of `drag`: only a drag of the panel's own list (`list`); Delete
+/// takes every row kind and a mask; New Layer and New Group take layer rows only (no effects,
+/// filters or masks).
+pub(super) fn accepts_footer_drop<K>(button: LayersFooterButton, drag: &ListDrag<LayerRowKey<K>>, list: Id) -> bool {
     // pc: crates/ui-egui/src/panels/layers.rs:345-357 (which drags the footer reads);
     // pc: crates/ui-egui/src/panels/layer_drag.rs:32-62 (`footer_drop`, `fx_trash_drop`).
-    if drag.items.is_empty() {
+    if drag.list != list || drag.items.is_empty() {
         return false;
     }
     match button {
