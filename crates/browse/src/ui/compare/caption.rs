@@ -79,7 +79,7 @@ impl CompareCaption {
     pub(super) fn paint(&self, ui: &Ui, rect: Rect, style: &CompareStyle, labels: &CompareLabels) -> CaptionPainted {
         // lightcraft: crates/ui-egui/src/panels/compare.rs:345 (label 12 semibold, name 11.5, stars 13 apart, flag 14, dot 10).
         let tokens = Tokens::of(ui);
-        let tile = TileStyle::of(&tokens);
+        let tile = TileStyle::style(&tokens);
         let rating = Rating::style(&tokens, ControlSize::Md);
         let gap = tokens.space.gap.inline;
         let rtl = direction::is_rtl(ui);

@@ -1276,6 +1276,7 @@ tile.bar = 24
 tile.flag = 14
 tile.dot = 10
 tile.checkbox = 16
+tile.checkbox_backdrop = 2
 tile.badge_height = 16
 tile.status_band = 20
 tile.range_bar = 4

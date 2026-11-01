@@ -1998,6 +1998,8 @@ pub const TILE_DOT: f32 = 10.0;
 pub const TILE_BAR: f32 = 24.0;
 /// Side of a media tile's check box in check mode (LightCraft `import/body.rs:417`).
 pub const TILE_CHECKBOX: f32 = 16.0;
+/// Margin of the scrim behind a media tile's check box (LightCraft `import/body.rs:417`).
+pub const TILE_CHECKBOX_BACKDROP: f32 = 2.0;
 /// Height of a media tile's badge pill (LightCraft).
 pub const TILE_BADGE_HEIGHT: f32 = 16.0;
 /// Height of a media tile's status band (FilmCraft).

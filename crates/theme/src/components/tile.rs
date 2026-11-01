@@ -25,6 +25,8 @@ pub struct TileTokens {
     pub dot: f32,
     /// Side of the check box in check mode: [`values::TILE_CHECKBOX`].
     pub checkbox: f32,
+    /// Margin of the scrim behind the check box, around its side: [`values::TILE_CHECKBOX_BACKDROP`].
+    pub checkbox_backdrop: f32,
     /// Height of a badge pill: [`values::TILE_BADGE_HEIGHT`].
     pub badge_height: f32,
     /// Height of the status band: [`values::TILE_STATUS_BAND`].
@@ -101,6 +103,7 @@ impl Family for TileTokens {
         "flag" 4.0..=32.0 => flag;
         "dot" 4.0..=32.0 => dot;
         "checkbox" 8.0..=48.0 => checkbox;
+        "checkbox_backdrop" 0.0..=16.0 => checkbox_backdrop;
         "badge_height" 8.0..=48.0 => badge_height;
         "status_band" 8.0..=48.0 => status_band;
         "range_bar" 1.0..=16.0 => range_bar;
@@ -127,6 +130,7 @@ impl Family for TileTokens {
             flag: values::TILE_FLAG,
             dot: values::TILE_DOT,
             checkbox: values::TILE_CHECKBOX,
+            checkbox_backdrop: values::TILE_CHECKBOX_BACKDROP,
             badge_height: values::TILE_BADGE_HEIGHT,
             status_band: values::TILE_STATUS_BAND,
             range_bar: values::TILE_RANGE_BAR,
