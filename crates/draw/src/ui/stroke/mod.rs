@@ -92,10 +92,21 @@ pub struct StrokeMixed {
 impl StrokeMixed {
     /// The first of `styles` and which of its fields differ in the others (VectorCraft's panel
     /// over a multi-selection). `None` for no styles.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands (task PE-B3)")]
     pub fn of<'s>(styles: impl IntoIterator<Item = &'s StrokeStyle>) -> Option<(StrokeStyle, StrokeMixed)> {
         // vectorcraft: crates/ui-egui/src/panels/stroke.rs:169-172 (mixed values light no button), :225 (mixed dashes).
-        todo!()
+        let mut styles = styles.into_iter();
+        let first = styles.next()?;
+        let mut mixed = StrokeMixed::default();
+        for other in styles {
+            mixed.align |= other.align != first.align;
+            mixed.cap |= other.cap != first.cap;
+            mixed.join |= other.join != first.join;
+            mixed.miter_limit |= other.miter_limit != first.miter_limit;
+            mixed.dashes |= other.dashes != first.dashes;
+            mixed.dash_offset |= other.dash_offset != first.dash_offset;
+            mixed.opacity |= other.opacity != first.opacity;
+        }
+        Some((first.clone(), mixed))
     }
 }
 
