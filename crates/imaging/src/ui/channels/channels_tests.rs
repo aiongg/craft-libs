@@ -5,16 +5,17 @@
 use craft_theme::Srgba;
 use craft_ui::behavior::DropPosition;
 use craft_ui::canvas::SelectionOperation;
-use craft_ui::canvas::textures::{FakeThumbSource, Priority, ThumbRequest, ThumbnailOptions, Thumbnails};
+use craft_ui::canvas::textures::{FakeThumbSource, Priority, Revision, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails};
 use craft_ui::edit::EditEvent;
+use craft_ui::list::ThumbSize;
 use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, TextureId, vec2};
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::labels::{chord_text, shortcut_numbers};
-use super::{ChannelKind, ChannelRow, ChannelsEvent, ChannelsFooterButton, ChannelsPanel, ChannelsStyle, ColorIndicates};
+use super::{ChannelKind, ChannelRow, ChannelsEvent, ChannelsFooterButton, ChannelsPanel, ColorIndicates};
 
 struct App {
     rows: Vec<ChannelRow<u32>>,
@@ -24,6 +25,8 @@ struct App {
     textures: Vec<(u32, Option<TextureId>)>,
     /// Every text painted in the last pass, with whether its font is italic.
     texts: Vec<(String, bool)>,
+    /// A row to open the rename field of in the next pass.
+    start_rename: Option<u32>,
 }
 
 const COMPOSITE: u32 = 0;
@@ -57,15 +60,26 @@ fn target(rows: &mut [ChannelRow<u32>], key: u32) {
 }
 
 fn panel(rows: Vec<ChannelRow<u32>>) -> Harness<'static, App> {
-    let app = App { rows, events: Vec::new(), source: FakeThumbSource::new(), textures: Vec::new(), texts: Vec::new() };
+    panel_sized(rows, None)
+}
+
+fn panel_sized(rows: Vec<ChannelRow<u32>>, size: Option<ThumbSize>) -> Harness<'static, App> {
+    let app = App { rows, events: Vec::new(), source: FakeThumbSource::new(), textures: Vec::new(), texts: Vec::new(), start_rename: None };
     let mut harness = HarnessBuilder::default()
         .with_size(vec2(320.0, 400.0))
         .with_step_dt(0.05)
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui_state(
-            |ui, app: &mut App| {
+            move |ui, app: &mut App| {
                 let thumbs = Thumbnails::<u32>::in_context(ui.ctx(), "thumbs", ThumbnailOptions::default());
-                let out = ChannelsPanel::new("channels", &app.rows).thumbnails(&thumbs, &app.source).show(ui);
+                let mut panel = ChannelsPanel::new("channels", &app.rows).thumbnails(&thumbs, &app.source);
+                if let Some(size) = size {
+                    panel = panel.thumbnail_size(size);
+                }
+                if let Some(key) = app.start_rename.take() {
+                    panel = panel.start_rename(key);
+                }
+                let out = panel.show(ui);
                 for event in &out.events {
                     if let ChannelsEvent::Target(key) = event {
                         target(&mut app.rows, *key);
@@ -73,7 +87,7 @@ fn panel(rows: Vec<ChannelRow<u32>>) -> Harness<'static, App> {
                 }
                 app.events.extend(out.events);
                 app.texts = painted_texts(ui.ctx());
-                let side = ChannelsStyle::of(&Tokens::of(ui)).thumb;
+                let side = ChannelsPanel::<u32>::style(&Tokens::of(ui)).thumb;
                 let request = ThumbRequest::for_cell(side, ui.pixels_per_point());
                 app.textures = app
                     .rows
@@ -126,7 +140,7 @@ impl At<'_> {
             At::Name(name) => name_of(h, name),
             At::Thumb(name) => thumb_of(h, name),
             At::Eye(name) => h.get_by_label(&format!("Visibility {name}")).rect().center(),
-            At::Footer(label) => h.get_by_label(label).rect().center(),
+            At::Footer(label) => h.get_by_role_and_label(Role::Button, label).rect().center(),
             At::Bottom(name, dy) => Pos2::new(name_of(h, name).x, row_rect(h, name).bottom() + dy),
             At::Top(name, dy) => Pos2::new(name_of(h, name).x, row_rect(h, name).top() + dy),
         }
@@ -286,7 +300,7 @@ fn channels_double_click_name_renames_alpha_only() {
     h.get_by_role(Role::TextInput).type_text("Sketch");
     h.run();
     key(&mut h, Key::Enter, Modifiers::NONE);
-    assert!(take(&mut h).contains(&ChannelsEvent::Rename { key: ALPHA_1, name: "Sketch".to_owned() }));
+    assert!(take(&mut h).contains(&ChannelsEvent::Rename { key: ALPHA_1, text: "Sketch".to_owned() }));
 }
 
 // An alpha row dragged between alpha rows or above Quick Mask reports `Reorder`; over colour and
@@ -328,14 +342,14 @@ fn channels_drop_on_footer_reports_button_and_key() {
         ("Load channel as selection", ChannelsFooterButton::LoadSelection),
     ] {
         drag(&mut h, At::Name("Alpha 1"), At::Footer(label), true);
-        assert_eq!(drops(take(&mut h)), [ChannelsEvent::FooterDrop { button, key: ALPHA_1 }], "{label}");
+        assert_eq!(drops(take(&mut h)), [ChannelsEvent::FooterDrop { button, rows: vec![ALPHA_1] }], "{label}");
     }
     drag(&mut h, At::Name("Alpha 1"), At::Footer("Save selection as channel"), true);
     assert!(drops(take(&mut h)).is_empty(), "Save takes no drops");
     drag(&mut h, At::Name("Red"), At::Footer("Delete current channel"), true);
     assert!(drops(take(&mut h)).is_empty(), "a colour row is not deleted");
     drag(&mut h, At::Name("Red"), At::Footer("Create new channel"), true);
-    assert_eq!(drops(take(&mut h)), [ChannelsEvent::FooterDrop { button: ChannelsFooterButton::New, key: 1 }]);
+    assert_eq!(drops(take(&mut h)), [ChannelsEvent::FooterDrop { button: ChannelsFooterButton::New, rows: vec![1] }]);
 }
 
 /// Targets Alpha 2, so the footer's Delete is enabled.
@@ -352,14 +366,88 @@ fn channels_disabled_delete_reports_no_click() {
     assert!(!take(&mut h).iter().any(|event| matches!(event, ChannelsEvent::Footer { .. })));
 }
 
-// A disabled Delete (the composite is targeted) takes no drop either.
+// While the composite is targeted Delete is disabled for a click, but a dragged alpha channel
+// still deletes: Delete reads enabled during the hover and reports `FooterDrop`. A colour channel
+// is refused: Delete stays disabled and reports nothing.
 #[test]
-#[ignore = "bug in CH2 footer.rs: `PanelFooter::drop_target` on a disabled Delete still reports `FooterDrop { Delete }` (the button's disabled state is not checked)"]
 fn channels_disabled_delete_takes_no_drop() {
+    let delete_enabled = |h: &Harness<'_, App>| !h.get_by_role_and_label(Role::Button, "Delete current channel").accesskit_node().is_disabled();
     let mut h = panel(sample_rows());
-    drag(&mut h, At::Name("Alpha 1"), At::Footer("Delete current channel"), true);
+    assert!(!delete_enabled(&h));
+    drag(&mut h, At::Name("Alpha 1"), At::Footer("Delete current channel"), false);
+    assert!(delete_enabled(&h), "an accepted drag over Delete enables it");
+    let release = At::Footer("Delete current channel").pos(&h);
+    press(&mut h, release, false, Modifiers::NONE);
+    h.run_steps(2);
     let events = take(&mut h);
-    assert!(!events.iter().any(|event| matches!(event, ChannelsEvent::FooterDrop { .. })), "{events:?}");
+    assert!(events.contains(&ChannelsEvent::FooterDrop { button: ChannelsFooterButton::Delete, rows: vec![ALPHA_1] }), "{events:?}");
+    assert!(!delete_enabled(&h), "enabled only during the hover");
+
+    drag(&mut h, At::Name("Red"), At::Footer("Delete current channel"), false);
+    assert!(!delete_enabled(&h), "a refused drag leaves Delete disabled");
+    let release = At::Footer("Delete current channel").pos(&h);
+    press(&mut h, release, false, Modifiers::NONE);
+    h.run_steps(2);
+    assert!(!take(&mut h).iter().any(|event| matches!(event, ChannelsEvent::FooterDrop { .. })));
+}
+
+// With the composite targeted the list selects RGB, Red, Green and Blue; a drag of Green carries
+// all four and a drop acts on Green, the row grabbed.
+#[test]
+fn channels_footer_drop_acts_on_the_grabbed_row_while_the_composite_is_targeted() {
+    let mut h = panel(sample_rows());
+    drag(&mut h, At::Name("Green"), At::Footer("Create new channel"), true);
+    let drops: Vec<_> = take(&mut h).into_iter().filter(|event| matches!(event, ChannelsEvent::FooterDrop { .. })).collect();
+    assert_eq!(drops, [ChannelsEvent::FooterDrop { button: ChannelsFooterButton::New, rows: vec![2] }]);
+}
+
+// Rename Channel… from a row's context menu opens that row's rename field.
+#[test]
+fn rename_channel_from_the_row_menu_starts_the_rename() {
+    let mut h = panel(sample_rows());
+    let pos = At::Name("Alpha 1").pos(&h);
+    h.event(Event::PointerMoved(pos));
+    h.run();
+    for pressed in [true, false] {
+        h.event(Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE });
+    }
+    h.run_steps(3);
+    h.get_by_label("Rename Channel…").click();
+    h.run_steps(3);
+    assert!(h.query_by_role(Role::TextInput).is_some(), "the rename field is open");
+}
+
+// Rename Channel… from the docking host's panel menu opens the targeted row's rename field.
+#[test]
+fn rename_channel_from_the_panel_menu_starts_the_rename() {
+    let mut rows = sample_rows();
+    target(&mut rows, ALPHA_2);
+    let mut h = panel(rows);
+    assert!(h.query_by_role(Role::TextInput).is_none());
+    let rows = h.state().rows.clone();
+    let event = ChannelsPanel::run_command(&h.ctx, "channels", &rows, &"channels.rename".to_owned());
+    assert_eq!(event, None);
+    h.run_steps(3);
+    assert!(h.query_by_role(Role::TextInput).is_some(), "the rename field is open");
+}
+
+// `ChannelsPanel::start_rename` opens the row's field in the pass it is given.
+#[test]
+fn start_rename_opens_the_rename_field() {
+    let mut h = panel(sample_rows());
+    h.state_mut().start_rename = Some(SPOT);
+    h.run_steps(2);
+    assert!(h.query_by_role(Role::TextInput).is_some());
+}
+
+// The `.thumbnail_size` override sets the thumbnails, so the rows' height: larger for Large,
+// smaller with the thumbnails hidden.
+#[test]
+fn channels_thumbnail_size_override_sets_the_row_height() {
+    let height = |size| row_rect(&panel_sized(sample_rows(), size), "Alpha 1").height();
+    let default = height(None);
+    assert!(height(Some(ThumbSize::Large)) > default, "Large");
+    assert!(height(Some(ThumbSize::None)) < default, "None");
 }
 
 // The thumbnail side is 28 at Compact and 30 at Comfortable; `.thumbnail_size` overrides it
@@ -378,7 +466,7 @@ fn channels_thumbnail_side_follows_the_size_preset() {
             mono: egui::FontFamily::Monospace,
             optical_size: false,
         };
-        super::ChannelsStyle::of(&UiTokens::new(resolve(&theme, appearance, None).tokens, appearance, Mode::Light, families)).thumb
+        ChannelsPanel::<u32>::style(&UiTokens::new(resolve(&theme, appearance, None).tokens, appearance, Mode::Light, families)).thumb
     };
     assert_eq!((side(Size::Compact), side(Size::Comfortable)), (28.0, 30.0));
 }
@@ -452,4 +540,40 @@ fn channels_rows_update_in_place() {
         }
     }
     assert!(after.iter().any(|(key, texture)| *key == 40 && texture.is_some()));
+}
+
+/// A source that records the keys the panel asked pictures for.
+struct Asked {
+    inner: FakeThumbSource<u32>,
+    keys: std::sync::Mutex<Vec<u32>>,
+}
+
+impl ThumbSource<u32> for Asked {
+    fn revision(&self, key: &u32, request: &ThumbRequest) -> Revision {
+        self.keys.lock().expect("lock").push(*key);
+        self.inner.revision(key, request)
+    }
+
+    fn render(&self, key: &u32, request: &ThumbRequest) -> ThumbRender {
+        self.inner.render(key, request)
+    }
+}
+
+// A short panel draws the first rows; it also asks for the one row beyond the last drawn and no
+// further.
+#[test]
+fn channels_rows_ask_one_row_beyond_the_drawn_ones() {
+    let rows = sample_rows();
+    let source = Asked { inner: FakeThumbSource::new(), keys: std::sync::Mutex::new(Vec::new()) };
+    let mut h =
+        HarnessBuilder::default().with_size(vec2(320.0, 150.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(|ui| {
+            let thumbs = Thumbnails::<u32>::in_context(ui.ctx(), "thumbs", ThumbnailOptions::default());
+            let _ = ChannelsPanel::new("channels", &rows).thumbnails(&thumbs, &source).show(ui);
+        });
+    h.run();
+    let drawn = h.query_all_by_role(Role::ListBoxOption).count();
+    assert!((2..rows.len() - 2).contains(&drawn), "the panel draws some of the rows: {drawn}");
+    let asked = source.keys.lock().expect("lock").clone();
+    assert!(asked.contains(&(drawn as u32)), "one beyond: {asked:?}");
+    assert!(!asked.contains(&(drawn as u32 + 1)), "not two beyond: {asked:?}");
 }

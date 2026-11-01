@@ -253,22 +253,26 @@ fn apply(demo: &mut Demo, event: ChannelsEvent<Key>, words: &ChannelsStoryWords)
                 row.visible = toggle.on;
             }
         }
-        ChannelsEvent::Rename { key, name } => {
+        ChannelsEvent::Rename { key, text } => {
             if let Some(row) = demo.rows.iter_mut().find(|row| row.key == key) {
-                row.name = name;
+                row.name = text;
             }
         }
         ChannelsEvent::Reorder(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => move_rows(&mut demo.rows, &value),
-        ChannelsEvent::Footer { button, key } => match (button, key) {
+        ChannelsEvent::Footer { button, rows } => match (button, rows.into_iter().next()) {
             (ChannelsFooterButton::Delete, Some(key)) => remove(&mut demo.rows, key),
             (ChannelsFooterButton::New | ChannelsFooterButton::SaveSelection, _) => add_alpha(demo, words),
             _ => {}
         },
-        ChannelsEvent::FooterDrop { button, key } => match button {
-            ChannelsFooterButton::New => duplicate(demo, key, words),
-            ChannelsFooterButton::Delete => remove(&mut demo.rows, key),
-            ChannelsFooterButton::SaveSelection | ChannelsFooterButton::LoadSelection => {}
-        },
+        ChannelsEvent::FooterDrop { button, rows } => {
+            for key in rows {
+                match button {
+                    ChannelsFooterButton::New => duplicate(demo, key, words),
+                    ChannelsFooterButton::Delete => remove(&mut demo.rows, key),
+                    ChannelsFooterButton::SaveSelection | ChannelsFooterButton::LoadSelection => {}
+                }
+            }
+        }
         ChannelsEvent::Command { command, key } => run_command(demo, command, key, words),
         _ => {}
     }

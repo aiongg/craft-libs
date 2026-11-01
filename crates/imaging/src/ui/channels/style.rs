@@ -1,6 +1,4 @@
-//! `ChannelsStyle` from the `channels` tokens.
-
-use craft_ui::theme::UiTokens;
+//! `ChannelsStyle`, read from the `channels` tokens by `ChannelsPanel::style`.
 
 /// The Channels panel's own sizes, besides the list's (`list.*`) and the footer's.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -12,12 +10,4 @@ pub struct ChannelsStyle {
     /// A spot channel's ink swatch at the thumbnail's bottom trailing corner:
     /// `channels.spot_swatch` (9).
     pub spot_swatch: f32,
-}
-
-impl ChannelsStyle {
-    /// The style of `tokens`: the `channels` family.
-    pub fn of(tokens: &UiTokens) -> ChannelsStyle {
-        let channels = &tokens.component.channels;
-        ChannelsStyle { thumb: channels.thumb, spot_swatch: channels.spot_swatch }
-    }
 }

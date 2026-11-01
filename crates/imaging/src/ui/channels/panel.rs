@@ -1,5 +1,7 @@
 //! `ChannelsPanel`: list wiring, events, selection and thumbnails.
 
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -9,13 +11,13 @@ use craft_ui::canvas::textures::{ThumbSource, Thumbnails};
 use craft_ui::composites::PanelFooter;
 use craft_ui::list::{List, ListEvent, ListRow, ListRowStyle, RowEvent, ThumbSize};
 use craft_ui::localized::SharedLabels as _;
-use craft_ui::menu::OpenAt;
-use craft_ui::theme::{Tokens, TokensOf as _};
+use craft_ui::menu::{OpenAt, facts_id};
+use craft_ui::theme::{Tokens, TokensOf as _, UiTokens};
 use egui::{AsIdSalt, Context, Id, IdSalt, Key, Modifiers, Ui, Vec2};
 
 use super::footer::show_footer;
 use super::labels::{ChannelsLabels, shortcut_numbers};
-use super::menu::{menu_panel_id, show_row_menu, take_pending_rename};
+use super::menu::{show_row_menu, take_pending_rename};
 use super::model::{ChannelKind, ChannelRow, ChannelsEvent, ChannelsOutput, targeted_row};
 use super::rows::channel_row;
 use super::style::ChannelsStyle;
@@ -59,7 +61,7 @@ use super::style::ChannelsStyle;
 ///   marker shows before or after another alpha or spot row and before Quick Mask, and nowhere
 ///   else ([`Reorder::accepts`](craft_ui::behavior::Reorder::accepts));
 ///   [`Reorder`](super::ChannelsEvent::Reorder) reports it (Cmd/Ctrl+] and [ too). Any row drops
-///   on the footer's Delete, New and Load buttons. A release elsewhere does nothing; Esc cancels.
+///   on the footer's New and Load buttons, and an alpha or spot row on Delete; a drop acts on the row grabbed. A release elsewhere does nothing; Esc cancels.
 /// - **Menus**: a right-click or the Menu key opens the row's context menu
 ///   (`menu::row_menu_entries`); the panel menu is
 ///   [`panel_menu`](Self::panel_menu).
@@ -76,6 +78,7 @@ pub struct ChannelsPanel<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'stati
     thumbnails: Option<(&'a Thumbnails<K>, &'a dyn ThumbSource<K>)>,
     thumbnail_size: Option<ThumbSize>,
     labels: Option<ChannelsLabels>,
+    rename: Option<K>,
 }
 
 /// One pass's shared state of the panel, lent to the rows.
@@ -84,6 +87,10 @@ pub(super) struct ChannelsContext<'a, K: Clone + Eq + Hash + Send + Sync + 'stat
     pub(super) ctx: Context,
     /// The panel's id: the list, the menu and a pending rename keep state under it.
     pub(super) id: Id,
+    /// The panel's rows, for the neighbours a row asks thumbnails for.
+    pub(super) rows: &'a [ChannelRow<K>],
+    /// The rows this pass asked `Thumbnails::state` for at `Priority::VISIBLE`.
+    pub(super) asked_visible: RefCell<HashSet<K>>,
     /// The thumbnail cache and source; `None` draws placeholders only.
     pub(super) thumbnails: Option<(&'a Thumbnails<K>, &'a dyn ThumbSource<K>)>,
     /// The thumbnail side in points.
@@ -98,7 +105,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'a,
     /// The panel showing `rows` in their order; `id_salt` keeps its scroll position, rename, drag
     /// and menu.
     pub fn new(id_salt: impl AsIdSalt, rows: &'a [ChannelRow<K>]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), rows, thumbnails: None, thumbnail_size: None, labels: None }
+        Self { id_salt: IdSalt::new(id_salt), rows, thumbnails: None, thumbnail_size: None, labels: None, rename: None }
     }
 
     /// The thumbnail cache and the app's source of the channels' pictures, keyed by the rows'
@@ -122,20 +129,36 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'a,
         self
     }
 
+    /// Opens the rename field of the row `key` in this pass, as Rename Channel… in a menu does;
+    /// the app calls it in the pass it handles its own rename command. Rows that don't rename
+    /// (composite, colour, Quick Mask, layer mask) ignore it.
+    pub fn start_rename(mut self, key: K) -> Self {
+        self.rename = Some(key);
+        self
+    }
+
+    /// The panel's style from `tokens`: the `channels` family.
+    pub fn style(tokens: &UiTokens) -> ChannelsStyle {
+        let channels = &tokens.component.channels;
+        ChannelsStyle { thumb: channels.thumb, spot_swatch: channels.spot_swatch }
+    }
+
     /// Draws the panel over the available rect.
     pub fn show(self, ui: &mut Ui) -> ChannelsOutput<K> {
         // pc: crates/ui-egui/src/panels/channels_panel.rs:285-515 `show` (rows, clicks, drag, footer);
         // pc: crates/ui-egui/src/panels/channels_panel.rs:91-157 (click, Cmd-click, double click, rename);
         // pc: crates/ui-egui/src/panels/channels_panel.rs:207-215 `drop_insertion` (alpha targets).
-        let Self { id_salt, rows, thumbnails, thumbnail_size, labels } = self;
+        let Self { id_salt, rows, thumbnails, thumbnail_size, labels, rename } = self;
         let tokens = Tokens::of(ui);
         let labels = labels.map_or_else(|| ChannelsLabels::shared(ui), std::sync::Arc::new);
-        let style = ChannelsStyle::of(&tokens);
+        let style = Self::style(&tokens);
         let row_style = ListRow::<K>::style(&tokens);
-        let id = menu_panel_id(id_salt);
+        let id = facts_id(id_salt);
         let cx = ChannelsContext {
             ctx: ui.ctx().clone(),
             id,
+            rows,
+            asked_visible: RefCell::new(HashSet::new()),
             thumbnails,
             thumb_side: thumb_side(thumbnail_size, &style, &row_style),
             labels: &labels,
@@ -145,8 +168,8 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'a,
         let list_height = (ui.available_height() - footer).max(0.0);
         let inner = ui.scope(|ui| {
             ui.spacing_mut().item_spacing = Vec2::ZERO;
-            let mut events = show_list(ui, &cx, rows, list_height);
-            events.extend(show_footer(ui, rows, &labels));
+            let (mut events, list) = show_list(ui, &cx, rows, list_height, rename);
+            events.extend(show_footer(ui, rows, &labels, list));
             events
         });
         ChannelsOutput { events: inner.inner, response: inner.response }
@@ -177,7 +200,8 @@ fn show_list<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     cx: &ChannelsContext<'_, K>,
     rows: &[ChannelRow<K>],
     height: f32,
-) -> Vec<ChannelsEvent<K>> {
+    rename: Option<K>,
+) -> (Vec<ChannelsEvent<K>>, Id) {
     let order: Vec<RowInfo<K>> = rows.iter().map(|row| RowInfo::leaf(row.key.clone())).collect();
     let numbers = shortcut_numbers(rows);
     let lead = targeted_row(rows).map(|row| row.key.clone());
@@ -192,12 +216,11 @@ fn show_list<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
         .max_height(height)
         .can_rename(|key| kind_of(rows, key).is_some_and(ChannelKind::renames))
         .reorder(Reorder::new(Axis::Vertical).accepts(|mv, _| reorder_accepts(rows, mv)));
-    // Rename Channel… leaves the row under the panel's id (panel menu) or the list's (row menu).
-    let list_id = ui.make_persistent_id((cx.id, "list"));
-    if let Some(key) = take_pending_rename::<K>(&cx.ctx, list_id).or_else(|| take_pending_rename::<K>(&cx.ctx, cx.id)) {
+    // Rename Channel… in either menu leaves the row under the panel's id.
+    if let Some(key) = take_pending_rename::<K>(&cx.ctx, cx.id).or(rename) {
         list = list.start_rename(key);
     }
-    let out = list.show(ui, |at, _| channel_row(cx, &rows[at], numbers[at]));
+    let out = list.show(ui, |at, _| channel_row(cx, at, numbers[at]));
     let focused = out.response.has_focus();
     let mut events = list_events(ui, rows, &out.events);
     if focused
@@ -212,8 +235,8 @@ fn show_list<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
         }
         _ => None,
     });
-    events.extend(show_row_menu(ui, &out.response, rows, cx.labels, request));
-    events
+    events.extend(show_row_menu(ui, &out.response, cx.id, rows, cx.labels, request));
+    (events, out.response.id)
 }
 
 /// Cmd/Ctrl+Enter on the focused list: the operation of Shift and Alt held with it.
@@ -243,7 +266,7 @@ fn list_events<K: Clone + PartialEq>(ui: &Ui, rows: &[ChannelRow<K>], events: &[
             ListEvent::Row(RowEvent::Renamed { row, text }) => {
                 let name = text.trim();
                 if !name.is_empty() && rows.iter().find(|r| &r.key == row).is_some_and(|r| r.name != name) {
-                    out.push(ChannelsEvent::Rename { key: row.clone(), name: name.to_owned() });
+                    out.push(ChannelsEvent::Rename { key: row.clone(), text: name.to_owned() });
                 }
             }
             ListEvent::Reorder(edit) => out.push(ChannelsEvent::Reorder(edit.clone())),

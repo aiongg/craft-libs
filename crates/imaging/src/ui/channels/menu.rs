@@ -7,8 +7,8 @@ use std::hash::Hash;
 use craft_theme::Srgba;
 use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
-use egui::{AsIdSalt, Context, Id, Response, Ui};
+use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt, facts_id};
+use egui::{AsIdSalt, Context, Id, IdSalt, Response, Ui};
 
 use super::labels::ChannelsLabels;
 use super::model::{ChannelKind, ChannelRow, ChannelsEvent, ColorIndicates, OVERLAY_OPACITIES, OverlayPreset, targeted_row};
@@ -21,11 +21,6 @@ const OPTIONS: &str = "channels.options";
 /// The panel's list reads it with [`take_pending_rename`] and opens that row's rename field.
 fn pending_rename_id(panel: Id) -> Id {
     panel.with("pending-rename")
-}
-
-/// The panel id the panel menu's commands use: the one derived from the panel's `id_salt` alone.
-pub(super) fn menu_panel_id(id_salt: impl AsIdSalt) -> Id {
-    Id::NULL.with(id_salt)
 }
 
 /// The key of the row whose rename a menu asked for under `panel`, removed from memory.
@@ -254,7 +249,7 @@ fn preset_label(labels: &ChannelsLabels, preset: OverlayPreset) -> &str {
 }
 
 fn percent_label(labels: &ChannelsLabels, numbers: &LocaleNumbers, percent: u8) -> String {
-    labels.percent.replace("{value}", &numbers.format(f64::from(percent), 0..=0))
+    craft_i18n::fmt(&labels.percent, &[("value", &numbers.format(f64::from(percent), 0..=0))])
 }
 
 /// The event of a picked menu `command` on the row `key`: [`ChannelsEvent::Command`] for a
@@ -283,18 +278,18 @@ pub(super) fn command_event<K: Clone + Send + Sync + 'static>(
 }
 
 /// Shows the row context menu on the list's response: opens it for `request` (the row's key and
-/// where), keeps the row in egui memory under the panel's id while it is open, rebuilds
+/// where), keeps the row in egui memory under `panel` (the panel's id) while it is open, rebuilds
 /// [`row_menu_entries`] each pass and reports a pick through [`command_event`].
 pub(super) fn show_row_menu<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     ui: &Ui,
     list: &Response,
+    panel: Id,
     rows: &[ChannelRow<K>],
     labels: &ChannelsLabels,
     request: Option<(K, OpenAt)>,
 ) -> Vec<ChannelsEvent<K>> {
     // pc: crates/ui-egui/src/panels/channels_panel.rs:88 (the row's `context_menu`).
     let ctx = ui.ctx();
-    let panel = list.id;
     let slot = panel.with("menu-row");
     if let Some((key, _)) = &request {
         ctx.data_mut(|d| d.insert_temp(slot, key.clone()));
@@ -330,6 +325,6 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'_, K> 
     /// as a context-menu pick does (`menu::command_event`). `id_salt` is the panel's.
     pub fn run_command(ctx: &Context, id_salt: impl AsIdSalt, rows: &[ChannelRow<K>], command: &PanelCommand) -> Option<ChannelsEvent<K>> {
         // new: `command_event` with the targeted row's key.
-        command_event(ctx, menu_panel_id(id_salt), targeted_row(rows).map(|row| &row.key), command)
+        command_event(ctx, facts_id(IdSalt::new(id_salt)), targeted_row(rows).map(|row| &row.key), command)
     }
 }
