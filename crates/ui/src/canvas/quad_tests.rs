@@ -546,17 +546,41 @@ fn w_and_h_edits_on_a_distorted_box_keep_its_perspective() {
 
 // A ⇧ move inside the box still locks to eight directions once `drag` calls `lock_direction`.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn shift_move_inside_a_box_still_locks_to_eight_directions() {
-    todo!()
+    let mut s = session();
+    let shift = Modifiers { shift: true, ..Modifiers::NONE };
+    drag(&mut s, p(30.0, 25.0), p(50.0, 29.0), shift);
+    assert!(close(s.quad, corners(20.0, 0.0, 120.0, 50.0)), "{:?}", s.quad);
+    let mut s = session();
+    drag(&mut s, p(30.0, 25.0), p(50.0, 45.0), shift);
+    assert!(close(s.quad, corners(20.0, 20.0, 120.0, 70.0)), "{:?}", s.quad);
 }
 
 // `BoxRules::resize_only` refuses turning, skewing and distorting: the outside and ⌘-drags only
 // scale, corners stretch freely and ⇧ keeps the proportions.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn resize_only_rules_scale_and_move_but_never_turn() {
-    todo!()
+    let rules = BoxRules::resize_only();
+    assert_eq!(rules.effective_mode(), TransformMode::Free);
+    assert_eq!(rules.scale, ScaleRule::Free);
+    assert!(!rules.allow.rotate && !rules.allow.skew && !rules.allow.distort);
+    // A corner drag stretches freely.
+    let mut s = session();
+    drag_with(&mut s, p(100.0, 50.0), p(150.0, 60.0), Modifiers::NONE, &rules);
+    assert!(close(s.quad, corners(0.0, 0.0, 150.0, 60.0)), "{:?}", s.quad);
+    // ⇧ keeps the proportions.
+    let mut s = session();
+    drag_with(&mut s, p(100.0, 50.0), p(200.0, 60.0), Modifiers { shift: true, ..Modifiers::NONE }, &rules);
+    let w = s.quad[1].x - s.quad[0].x;
+    let h = s.quad[3].y - s.quad[0].y;
+    assert!(eq6(w / h, 2.0), "{:?}", s.quad);
+    // ⌘ on a corner would distort; here it scales and stays a rectangle.
+    let cmd = Modifiers { command: true, ctrl: true, ..Modifiers::NONE };
+    let mut s = session();
+    drag_with(&mut s, p(100.0, 50.0), p(150.0, 70.0), cmd, &rules);
+    assert!(close(s.quad, corners(0.0, 0.0, 150.0, 70.0)), "{:?}", s.quad);
+    // Outside the box scales rather than turns.
+    let mut s = session();
+    drag_with(&mut s, p(130.0, 25.0), p(160.0, 25.0), Modifiers::NONE, &rules);
+    assert!(s.quad.iter().all(|q| eq6(q.y, 0.0) || eq6(q.y, 50.0)), "{:?}", s.quad);
 }
