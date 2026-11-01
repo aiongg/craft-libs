@@ -1,16 +1,34 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`Table`]: rows of cells under a header of columns the user sorts, resizes, hides and moves.
 
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::Arc;
 
-use egui::{Align, AsIdSalt, Color32, IdSalt, Response, Ui};
+use egui::accesskit::{Action, Role, SortDirection};
+use egui::containers::scroll_area::ScrollSource;
+use egui::os::OperatingSystem;
+use egui::text::LayoutJob;
+use egui::{
+    Align, AsIdSalt, Color32, Context, CornerRadius, CursorIcon, DragAndDrop, Event, EventFilter, Id, IdSalt, Key, Layout, Modifiers, PointerButton,
+    Rect, Response, ScrollArea, Sense, Stroke, Ui, UiBuilder, Vec2, WidgetInfo, pos2, vec2,
+};
 use serde::{Deserialize, Serialize};
 
+use super::row::ListRow;
+use super::spans::Spans;
 use super::view::ContextMenuRequest;
-use crate::behavior::{DisplayOrder, Selection, SelectionChange, SelectionMode};
-use crate::theme::UiTokens;
+use crate::behavior::{ClaimedKey, DisplayOrder, KeyClaim, ListKey, ListSelection, Selection, SelectionChange, SelectionMode, first_item};
+use crate::direction;
+use crate::icons::{self, Icon, IconSize};
+use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
+use crate::localized::SharedLabels as _;
+use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
+use crate::patterns::panel::ScrollBarLabels;
+use crate::popup_list;
+use crate::primitives::{Content, FocusRing, Text};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
+use craft_theme::TypeRole;
 
 crate::words! {
     /// The table's words, English by default.
@@ -64,7 +82,10 @@ impl<C: PartialEq> TableSort<C> {
     /// column sorts ascending (EffectCraft's Project panel and PdfCraft's Combine Files table).
     // effectcraft: crates/ui-egui/src/panels/project.rs:559 (header click)
     pub fn clicked(current: Option<&Self>, column: C) -> Self {
-        todo!()
+        match current {
+            Some(sort) if sort.column == column => Self { column, order: sort.order.flipped() },
+            _ => Self { column, order: SortOrder::Ascending },
+        }
     }
 
     /// Sorts `rows` by this sort: `compare(a, b, column)` orders two rows ascending, and the
@@ -72,7 +93,13 @@ impl<C: PartialEq> TableSort<C> {
     /// that wants EffectCraft's fallback (ties by name) compares names in `compare`.
     // effectcraft: crates/ui-egui/src/panels/project.rs:86 sort_items
     pub fn apply<K>(&self, rows: &mut [K], compare: impl Fn(&K, &K, &C) -> Ordering) {
-        todo!()
+        rows.sort_by(|a, b| {
+            let ordering = compare(a, b, &self.column);
+            match self.order {
+                SortOrder::Ascending => ordering,
+                SortOrder::Descending => ordering.reverse(),
+            }
+        });
     }
 }
 
@@ -163,7 +190,35 @@ impl<C: Clone + PartialEq> TableLayout<C> {
     /// rest clamped to each column's least width and 4000 (PdfCraft's `Columns::from_json`).
     // pdfcraft: crates/ui-egui/src/workflows/combine_ui/files.rs:63 from_json
     pub fn repaired(self, columns: &[TableColumn<C>]) -> Self {
-        todo!()
+        let column = |key: &C| columns.iter().find(|c| c.key == *key);
+        let mut order: Vec<C> = Vec::new();
+        for key in self.order {
+            if column(&key).is_some() && !order.contains(&key) {
+                order.push(key);
+            }
+        }
+        for c in columns {
+            if !order.contains(&c.key) {
+                order.push(c.key.clone());
+            }
+        }
+        let mut hidden: Vec<C> = Vec::new();
+        for key in self.hidden {
+            if column(&key).is_some_and(|c| c.hideable) && !hidden.contains(&key) {
+                hidden.push(key);
+            }
+        }
+        let mut widths: Vec<(C, f32)> = Vec::new();
+        for (key, width) in self.widths {
+            if let Some(c) = column(&key)
+                && width.is_finite()
+                && !widths.iter().any(|(k, _)| *k == key)
+            {
+                widths.push((key, clamp_width(width, c.min_width)));
+            }
+        }
+        let sort = self.sort.filter(|sort| column(&sort.column).is_some());
+        Self { order, hidden, widths, sort }
     }
 
     /// Whether `column` is shown.
@@ -175,13 +230,21 @@ impl<C: Clone + PartialEq> TableLayout<C> {
     /// where it was (EffectCraft's `set_column` keeps the canonical order).
     // effectcraft: crates/ui-egui/src/panels/project.rs:1357 set_column
     pub fn set_visible(&mut self, column: &C, visible: bool) {
-        todo!()
+        self.hidden.retain(|c| c != column);
+        if !visible {
+            self.hidden.push(column.clone());
+        }
     }
 
     /// Moves `column` before `to` (after it with `after`), as a header dropped on another does.
     // pdfcraft: crates/ui-egui/src/workflows/combine_ui/table.rs:65 (HeadingEvent::Move)
     pub fn move_column(&mut self, column: &C, to: &C, after: bool) {
-        todo!()
+        if column == to || !self.order.contains(column) || !self.order.contains(to) {
+            return;
+        }
+        self.order.retain(|c| c != column);
+        let at = self.order.iter().position(|c| c == to).map_or(self.order.len(), |p| p + usize::from(after));
+        self.order.insert(at, column.clone());
     }
 }
 
@@ -390,8 +453,123 @@ where
     }
 
     // pdfcraft: crates/ui-egui/src/workflows/combine_ui/table.rs:32 table, :96 heading, :167 table_body
-    pub fn show(self, ui: &mut Ui, cell: impl FnMut(&mut Ui, &K, &C)) -> TableOutput<K, C> {
-        todo!()
+    pub fn show(self, ui: &mut Ui, mut cell: impl FnMut(&mut Ui, &K, &C)) -> TableOutput<K, C> {
+        let Table { id_salt, label, columns, layout, rows, selection, mode, striped, movable, max_height, labels } = self;
+        let labels = labels.map_or_else(|| TableLabels::shared(ui), Arc::new);
+        let tokens = Tokens::of(ui);
+        let style = table_style(&tokens);
+        let rules = ListSelection::new(mode);
+        let id = ui.make_persistent_id(id_salt);
+        let rtl = direction::is_rtl(ui);
+        let mac = matches!(ui.ctx().os(), OperatingSystem::Mac | OperatingSystem::IOS);
+        let mut state = State::<K, C>::load(ui.ctx(), id);
+        let mut own = std::mem::take(&mut state.own);
+        let selection: &mut Selection<K> = match selection {
+            Some(selection) => selection,
+            None => &mut own,
+        };
+        let focused = ui.memory(|m| m.has_focus(id));
+        let spans = Spans::uniform(style.row_height, rows.len());
+        let mut events: Vec<TableEvent<K, C>> = Vec::new();
+        let mut pass = Pass { rows, rules, selection, events: &mut events, focus: false, lead_row: None, reveal: state.reveal.take() };
+
+        if focused && !state.focused && FocusRing::visible(ui.ctx()) {
+            pass.reveal = pass.lead_at().map(|at| rows.key(at).clone());
+        }
+        let mut menu_key = false;
+        // An open popup (the header menu) takes the keys.
+        if focused && ui.is_enabled() && !popup_list::any_open(ui.ctx()) {
+            let page = state.viewport.map_or(1, |h| spans.page(state.offset..state.offset + h));
+            menu_key = pass.keys(ui, page, mac);
+        }
+        let scroll_to = pass.scroll_target(&spans, state.offset, state.viewport);
+
+        let mut shown = shown_columns(columns, layout);
+        let mut widths = resolve_widths(columns, &shown, layout, ui.available_width());
+        let header_height = style.header_height;
+        let builder = UiBuilder::new()
+            .scope_id(id)
+            .sense(Sense::CLICK | Sense::FOCUSABLE)
+            .accessibility_role(Role::Table)
+            .accessibility_label(label)
+            .layout(Layout::top_down(Align::Min));
+        let response = ui
+            .scope_builder(builder, |ui| {
+                let content_width = widths.iter().sum::<f32>().max(ui.available_width());
+                ScrollArea::horizontal()
+                    .id_salt("columns")
+                    .auto_shrink([false, true])
+                    .content_margin(0.0)
+                    .scroll_source(ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL)
+                    .show(ui, |ui| {
+                        ui.set_width(content_width);
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        let (header_rect, _) = ui.allocate_exact_size(vec2(content_width, header_height), Sense::hover());
+                        let header = Header { id, style: &style, labels: &labels, columns, tokens: &tokens, movable, rtl, rect: header_rect };
+                        header.show(ui, layout, &mut shown, &mut widths, &mut state, &mut pass);
+
+                        let mut scroll = ScrollArea::vertical()
+                            .id_salt("rows")
+                            .vertical_scroll_bar_label(ScrollBarLabels::name(ui))
+                            .auto_shrink([false, false])
+                            .content_margin(0.0)
+                            .scroll_source(ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL);
+                        if let Some(height) = max_height {
+                            scroll = scroll.max_height(height);
+                        }
+                        if let Some(offset) = scroll_to {
+                            scroll = scroll.vertical_scroll_offset(offset);
+                        }
+                        let body =
+                            Body { style: &style, labels: &labels, columns, shown: &shown, widths: &widths, striped, rtl, spans: &spans, focused };
+                        let out = scroll.show_viewport(ui, |ui, viewport| body.draw(ui, viewport, &mut pass, &mut cell));
+                        state.offset = out.state.clamped_offset().y;
+                        state.viewport = Some(out.inner_rect.height());
+                    });
+            })
+            .response;
+
+        pass.background(&response);
+        if menu_key {
+            pass.menu_for_lead(response.rect);
+        }
+        if pass.focus {
+            ui.memory_mut(|m| m.request_focus(id));
+        }
+        let focused = ui.memory(|m| m.has_focus(id));
+        let active = pass.lead_row.map(|(row, _)| row).filter(|_| focused);
+        let bounds = response.rect;
+        let (row_count, column_count) = (rows.len(), shown.len());
+        ui.ctx().accesskit_node_builder(id, |node| {
+            // The `Ui`'s node took its bounds before its rect was known.
+            node.set_bounds(egui::accesskit::Rect {
+                x0: bounds.min.x.into(),
+                y0: bounds.min.y.into(),
+                x1: bounds.max.x.into(),
+                y1: bounds.max.y.into(),
+            });
+            node.remove_action(Action::Click);
+            node.set_row_count(row_count);
+            node.set_column_count(column_count);
+            if mode == SelectionMode::Multiple {
+                node.set_multiselectable();
+            }
+            match active {
+                Some(row) => node.set_active_descendant(row.accesskit_id()),
+                None => node.clear_active_descendant(),
+            }
+        });
+        FocusRing::paint_if(ui, response.rect, CornerRadius::ZERO, focused && rows.is_empty());
+        if focused {
+            ui.memory_mut(|m| {
+                m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false });
+            });
+        }
+        state.focused = focused;
+        state.reveal = pass.reveal.take();
+        state.own = own;
+        state.store(ui.ctx(), id);
+        TableOutput { response, events }
     }
 }
 
@@ -399,6 +577,687 @@ impl Table<'static, (), (), [()]> {
     /// The table's look from the tokens.
     // new: the `table.*` tokens the spec proposes (header height from `tab.height`)
     pub fn style(tokens: &UiTokens) -> TableStyle {
-        todo!()
+        table_style(tokens)
+    }
+}
+
+/// The documented numbers of [`TableStyle`], until the `table.*` tokens exist.
+fn table_style(tokens: &UiTokens) -> TableStyle {
+    let list = &tokens.component.list;
+    TableStyle {
+        header_height: tokens.component.tab.height,
+        row_height: list.row_height,
+        cell_pad_x: list.pad_x,
+        sort_glyph: 12.0,
+        sort_gap: 8.0,
+        grip_width: 6.0,
+        header_text: tokens.color.text.muted.to_egui(),
+        header_text_sorted: tokens.color.text.normal.to_egui(),
+        header_hover: list.hover.to_egui(),
+        header_pressed: tokens.color.state.pressed.to_egui(),
+        drop_line: tokens.color.accent.solid.to_egui(),
+        drop_line_width: 2.5,
+        stripe: tokens.color.state.hover.to_egui(),
+    }
+}
+
+/// The widest a column gets.
+const MAX_WIDTH: f32 = 4000.0;
+
+fn clamp_width(width: f32, min: f32) -> f32 {
+    width.min(MAX_WIDTH).max(min)
+}
+
+/// The columns shown, as indices into the app's columns, in the layout's order: the layout's
+/// order first, then any column it doesn't list.
+fn shown_columns<C: Clone + PartialEq>(columns: &[TableColumn<C>], layout: &TableLayout<C>) -> Vec<usize> {
+    let mut all: Vec<usize> = layout.order.iter().filter_map(|key| columns.iter().position(|c| c.key == *key)).collect();
+    all.dedup();
+    for at in 0..columns.len() {
+        if !all.contains(&at) {
+            all.push(at);
+        }
+    }
+    all.retain(|&at| layout.is_visible(&columns[at].key));
+    all
+}
+
+/// The width of each shown column: the layout's where it has one, else the fit. The fit gives each
+/// column with an initial width that width and shares what is left in equal parts, none narrower
+/// than its least width.
+fn resolve_widths<C: Clone + PartialEq>(columns: &[TableColumn<C>], shown: &[usize], layout: &TableLayout<C>, available: f32) -> Vec<f32> {
+    let fixed: f32 = shown.iter().filter_map(|&at| columns[at].initial_width.map(|w| w.max(columns[at].min_width))).sum();
+    let free = shown.iter().filter(|&&at| columns[at].initial_width.is_none()).count();
+    let share = if free == 0 { 0.0 } else { (available - fixed).max(0.0) / free as f32 };
+    shown
+        .iter()
+        .map(|&at| {
+            let column = &columns[at];
+            let stored = layout.widths.iter().find(|(key, _)| *key == column.key).map(|(_, w)| *w).filter(|w| w.is_finite());
+            let fit = column.initial_width.unwrap_or(share);
+            clamp_width(stored.unwrap_or(fit), column.min_width)
+        })
+        .collect()
+}
+
+/// A header being dragged to another place.
+#[derive(Clone)]
+struct HeaderDrag<C> {
+    table: Id,
+    column: C,
+}
+
+/// What the table keeps between passes, in egui memory under its id.
+#[derive(Clone)]
+struct State<K, C> {
+    /// The selection of a table whose host gives none.
+    own: Selection<K>,
+    /// A row to scroll into view.
+    reveal: Option<K>,
+    offset: f32,
+    viewport: Option<f32>,
+    focused: bool,
+    /// The layout's widths before the edge drag under way, put back by Esc or focus loss.
+    widths_before_drag: Option<Vec<(C, f32)>>,
+}
+
+impl<K, C> Default for State<K, C> {
+    fn default() -> Self {
+        Self { own: Selection::default(), reveal: None, offset: 0.0, viewport: None, focused: false, widths_before_drag: None }
+    }
+}
+
+impl<K: Clone + Send + Sync + 'static, C: Clone + Send + Sync + 'static> State<K, C> {
+    fn load(ctx: &Context, id: Id) -> Self {
+        ctx.data(|d| d.get_temp::<Self>(id)).unwrap_or_default()
+    }
+
+    fn store(self, ctx: &Context, id: Id) {
+        ctx.data_mut(|d| d.insert_temp(id, self));
+    }
+}
+
+/// What a pressed key does in the focused body.
+enum Command {
+    List(ListKey),
+    Menu,
+}
+
+fn take_command(key: Key, modifiers: Modifiers, mac: bool) -> Option<Command> {
+    if (key == Key::Menu && modifiers.matches_exact(Modifiers::NONE)) || (key == Key::F10 && modifiers.matches_exact(Modifiers::SHIFT)) {
+        return Some(Command::Menu);
+    }
+    ListKey::from_key(key, modifiers, mac).filter(|key| *key != ListKey::Rename).map(Command::List)
+}
+
+/// The selection and the events of one pass, shared by the header and the body.
+struct Pass<'p, K, C, O: ?Sized> {
+    rows: &'p O,
+    rules: ListSelection,
+    selection: &'p mut Selection<K>,
+    events: &'p mut Vec<TableEvent<K, C>>,
+    /// The table takes the focus at the end of the pass.
+    focus: bool,
+    /// The lead row's id and rect, once drawn.
+    lead_row: Option<(Id, Rect)>,
+    reveal: Option<K>,
+}
+
+impl<K, C, O> Pass<'_, K, C, O>
+where
+    K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
+    O: DisplayOrder<K> + ?Sized,
+{
+    /// The lead's position, or the first row's when no lead is shown: where the focus sits.
+    fn lead_at(&self) -> Option<usize> {
+        self.selection
+            .lead
+            .as_ref()
+            .and_then(|lead| self.rows.position(lead))
+            .filter(|&at| !self.rows.is_section(at))
+            .or_else(|| first_item(self.rows))
+    }
+
+    fn keyed(&self) -> Selection<K> {
+        let mut keyed = self.selection.clone();
+        keyed.lead = self.lead_at().map(|at| self.rows.key(at).clone());
+        keyed
+    }
+
+    fn apply(&mut self, change: SelectionChange<K>) {
+        self.selection.clone_from(&change.selection);
+        self.events.push(TableEvent::Selection(change));
+    }
+
+    /// Takes the list keys of the focused body; true when the Menu key or Shift+F10 asked for the
+    /// lead's context menu.
+    fn keys(&mut self, ui: &Ui, page: usize, mac: bool) -> bool {
+        let mut commands = Vec::new();
+        ui.input_mut(|i| {
+            i.events.retain(|event| {
+                let Event::Key { key, pressed: true, modifiers, .. } = event else { return true };
+                match take_command(*key, *modifiers, mac) {
+                    Some(command) => {
+                        commands.push(command);
+                        false
+                    }
+                    None => true,
+                }
+            });
+        });
+        let mut menu = false;
+        for command in commands {
+            match command {
+                Command::List(key) => self.list_key(key, page),
+                Command::Menu => {
+                    self.reveal = self.lead_at().map(|at| self.rows.key(at).clone());
+                    menu = true;
+                }
+            }
+        }
+        menu
+    }
+
+    fn list_key(&mut self, key: ListKey, page: usize) {
+        let keyed = self.keyed();
+        let lead = keyed.lead.clone();
+        match key {
+            ListKey::Select { step, extend } => {
+                if let Some(change) = self.rules.select(&keyed, self.rows, step, page, extend) {
+                    self.apply(change);
+                }
+            }
+            ListKey::MoveLead(step) => {
+                if let Some(to) = self.rules.move_lead(&keyed, self.rows, step, page) {
+                    self.selection.lead = Some(to);
+                }
+            }
+            ListKey::ToggleLead => {
+                if let Some(change) = self.rules.toggle_lead(&keyed, self.rows) {
+                    self.apply(change);
+                }
+            }
+            ListKey::Activate => {
+                if let Some(lead) = lead.clone() {
+                    self.events.push(TableEvent::Activate(lead));
+                }
+            }
+            ListKey::Rename => {}
+        }
+        self.reveal = self.selection.lead.clone().or(lead);
+    }
+
+    fn scroll_target(&mut self, spans: &Spans, offset: f32, viewport: Option<f32>) -> Option<f32> {
+        let height = viewport?;
+        let key = self.reveal.take()?;
+        spans.reveal(self.rows.position(&key)?, offset, height)
+    }
+
+    /// A press on the empty space gives the table the focus; a click there clears the selection,
+    /// and a secondary click asks for a context menu without a row.
+    fn background(&mut self, response: &Response) {
+        if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
+            self.focus = true;
+        }
+        if response.clicked_by(PointerButton::Primary)
+            && let Some(change) = self.rules.click_empty(self.selection)
+        {
+            self.apply(change);
+        }
+        if response.secondary_clicked() {
+            self.focus = true;
+            let request = ContextMenuRequest { row: None, selected: false, anchor: response.rect, pointer: response.interact_pointer_pos() };
+            self.events.push(TableEvent::ContextMenu(request));
+        }
+    }
+
+    /// The Menu key or Shift+F10: the context menu of the lead, anchored at its row.
+    fn menu_for_lead(&mut self, table: Rect) {
+        let lead = self.lead_at().map(|at| self.rows.key(at).clone());
+        let anchor = self.lead_row.map_or(table, |(_, rect)| rect);
+        let selected = lead.as_ref().is_some_and(|k| self.selection.contains(k));
+        self.events.push(TableEvent::ContextMenu(ContextMenuRequest { row: lead, selected, anchor, pointer: None }));
+    }
+}
+
+/// What a header menu row does.
+#[derive(Clone, Debug, PartialEq)]
+enum HeaderCommand {
+    /// The "Columns" label row.
+    Label,
+    /// Show or hide the column at this index of the app's columns.
+    Toggle(usize),
+    Reset,
+}
+
+/// What the header's widgets ask for, applied in order once every header has been read.
+enum HeaderAction<C> {
+    Sort(C),
+    Move {
+        column: C,
+        to: C,
+        after: bool,
+    },
+    /// The column at this position of the shown columns changes by `delta` points.
+    Resize {
+        at: usize,
+        delta: f32,
+    },
+    /// Esc or focus loss during an edge drag.
+    CancelResize,
+}
+
+/// The header row: cells, edges and the menu.
+struct Header<'a, C> {
+    id: Id,
+    style: &'a TableStyle,
+    labels: &'a TableLabels,
+    columns: &'a [TableColumn<C>],
+    tokens: &'a UiTokens,
+    movable: bool,
+    rtl: bool,
+    rect: Rect,
+}
+
+impl<C> Header<'_, C>
+where
+    C: Clone + PartialEq + Debug + Send + Sync + 'static,
+{
+    /// The x range of a column that starts `from` points into the row and is `width` wide.
+    fn span(&self, from: f32, width: f32) -> (f32, f32) {
+        if self.rtl {
+            (self.rect.right() - from - width, self.rect.right() - from)
+        } else {
+            (self.rect.left() + from, self.rect.left() + from + width)
+        }
+    }
+
+    fn show<K, O>(
+        &self,
+        ui: &mut Ui,
+        layout: &mut TableLayout<C>,
+        shown: &mut Vec<usize>,
+        widths: &mut Vec<f32>,
+        state: &mut State<K, C>,
+        pass: &mut Pass<'_, K, C, O>,
+    ) where
+        K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
+        O: DisplayOrder<K> + ?Sized,
+    {
+        let ctx = ui.ctx().clone();
+        let style = self.style;
+        let strip = ui.interact(self.rect, self.id.with("strip"), Sense::CLICK);
+        let mut actions: Vec<HeaderAction<C>> = Vec::new();
+        let mut menu_at: Option<OpenAt> = strip.secondary_clicked().then(|| ctx.input(|i| i.pointer.interact_pos())).flatten().map(OpenAt::Pointer);
+        let dragging = DragAndDrop::payload::<HeaderDrag<C>>(&ctx).filter(|p| p.table == self.id);
+        let escape = ctx.input(|i| i.key_pressed(Key::Escape)) || crate::focus::lost(&ctx);
+        let mut from = 0.0;
+        let order = shown.clone();
+        for (position, (&at, &width)) in order.iter().zip(widths.iter()).enumerate() {
+            let column = &self.columns[at];
+            let (min_x, max_x) = self.span(from, width);
+            let rect = Rect::from_min_max(pos2(min_x, self.rect.top()), pos2(max_x, self.rect.bottom()));
+            from += width;
+            let sorting = layout.sort.as_ref().filter(|sort| sort.column == column.key).map(|sort| sort.order);
+            let header_id = self.id.with(("header", at));
+            // The edges own the strip either side of a column boundary.
+            let hit = rect.shrink2(vec2(style.grip_width / 2.0, 0.0));
+            let response = ui.interact(hit, header_id, if self.movable { Sense::click_and_drag() } else { Sense::click() });
+            let name = match sorting {
+                Some(order) => {
+                    let word = match order {
+                        SortOrder::Ascending => &self.labels.sorted_ascending,
+                        SortOrder::Descending => &self.labels.sorted_descending,
+                    };
+                    craft_i18n::fmt(&self.labels.header_sorted, &[("column", column.label.as_str()), ("order", word.as_str())])
+                }
+                None => column.label.clone(),
+            };
+            response.widget_info(|| WidgetInfo::labeled(egui::Role::Button, true, &name));
+            ctx.accesskit_node_builder(header_id, |node| {
+                node.set_role(Role::ColumnHeader);
+                node.set_column_index(position);
+                match sorting {
+                    Some(SortOrder::Ascending) => node.set_sort_direction(SortDirection::Ascending),
+                    Some(SortOrder::Descending) => node.set_sort_direction(SortDirection::Descending),
+                    None => node.clear_sort_direction(),
+                }
+            });
+
+            let being_dragged = dragging.as_ref().is_some_and(|p| p.column == column.key);
+            self.paint_cell(ui, rect, column, sorting, &response, being_dragged);
+
+            if self.movable && response.drag_started() {
+                DragAndDrop::set_payload(&ctx, HeaderDrag { table: self.id, column: column.key.clone() });
+            }
+            let after = |r: &Response| r.ctx.pointer_latest_pos().is_some_and(|p| (p.x > rect.center().x) != self.rtl);
+            if response.dnd_hover_payload::<HeaderDrag<C>>().is_some_and(|d| d.table == self.id && d.column != column.key) {
+                let leading = after(&response) == self.rtl;
+                let x = if leading { rect.left() } else { rect.right() };
+                ui.painter().with_clip_rect(rect.expand(3.0)).vline(x, rect.y_range(), Stroke::new(style.drop_line_width, style.drop_line));
+            }
+            if let Some(dragged) = response.dnd_release_payload::<HeaderDrag<C>>().filter(|d| d.table == self.id && d.column != column.key) {
+                actions.push(HeaderAction::Move { column: dragged.column.clone(), to: column.key.clone(), after: after(&response) });
+            }
+            let hover = response.clone().on_hover_cursor(if being_dragged { CursorIcon::Grabbing } else { CursorIcon::PointingHand });
+            hover.on_hover_text(self.labels.header_tip.as_str());
+            if response.secondary_clicked()
+                && let Some(pos) = ctx.input(|i| i.pointer.interact_pos())
+            {
+                menu_at = Some(OpenAt::Pointer(pos));
+            }
+            if response.clicked() && column.sortable {
+                actions.push(HeaderAction::Sort(column.key.clone()));
+            }
+            if response.has_focus() {
+                KeyClaim::claim(
+                    &ctx,
+                    header_id,
+                    &[
+                        ClaimedKey::exact(Modifiers::NONE, Key::Space),
+                        ClaimedKey::exact(Modifiers::NONE, Key::Enter),
+                        ClaimedKey::exact(Modifiers::COMMAND, Key::ArrowLeft),
+                        ClaimedKey::exact(Modifiers::COMMAND, Key::ArrowRight),
+                    ],
+                );
+                let (left, right, menu) = ctx.input_mut(|i| {
+                    (
+                        self.movable && i.consume_key(Modifiers::COMMAND, Key::ArrowLeft),
+                        self.movable && i.consume_key(Modifiers::COMMAND, Key::ArrowRight),
+                        i.consume_key(Modifiers::NONE, Key::Menu) || i.consume_key(Modifiers::SHIFT, Key::F10),
+                    )
+                });
+                if left || right {
+                    let forward = right != self.rtl;
+                    let neighbour = if forward { order.get(position + 1) } else { position.checked_sub(1).and_then(|p| order.get(p)) };
+                    if let Some(&to) = neighbour {
+                        actions.push(HeaderAction::Move { column: column.key.clone(), to: self.columns[to].key.clone(), after: forward });
+                    }
+                }
+                if menu {
+                    menu_at = Some(OpenAt::Rect(rect));
+                }
+            }
+
+            let edge_x = if self.rtl { rect.left() } else { rect.right() };
+            let edge = Rect::from_min_max(pos2(edge_x - style.grip_width / 2.0, rect.top()), pos2(edge_x + style.grip_width / 2.0, rect.bottom()));
+            let resize_name = craft_i18n::fmt(&self.labels.resize_column, &[("column", column.label.as_str())]);
+            let accent = self.tokens.color.accent.solid.to_egui();
+            let handle = ResizeHandle::new(
+                self.id.with(("edge", at)),
+                SplitAxis::Horizontal,
+                edge,
+                &resize_name,
+                ResizeHandleStyle { hovered: accent.gamma_multiply(0.5), dragged: accent, focused: self.tokens.color.line.focus.to_egui() },
+            )
+            .hit_margin(0.0)
+            .value(width, column.min_width..=MAX_WIDTH)
+            .reversed(self.rtl)
+            .show(ui);
+            if handle.response.hovered() || handle.response.dragged() {
+                ctx.set_cursor_icon(CursorIcon::ResizeColumn);
+            }
+            if handle.response.drag_started() {
+                state.widths_before_drag = Some(layout.widths.clone());
+            }
+            if handle.response.drag_stopped() {
+                state.widths_before_drag = None;
+            }
+            if handle.response.dragged() && escape {
+                actions.push(HeaderAction::CancelResize);
+                ctx.stop_dragging();
+            } else if handle.delta != 0.0 {
+                let physical = if self.rtl { -handle.delta } else { handle.delta };
+                actions.push(HeaderAction::Resize { at: position, delta: physical });
+            }
+        }
+
+        let entries = self.menu_entries(layout);
+        let chosen = ContextMenu::new(&entries).own_gestures(false).open_at(menu_at).show(ui, &strip).chosen;
+
+        self.apply(&ctx, actions, chosen, layout, shown, widths, &mut state.widths_before_drag, pass.events);
+    }
+
+    /// Draws one header cell: its fill, label, sort chevron and focus ring.
+    fn paint_cell(&self, ui: &Ui, rect: Rect, column: &TableColumn<C>, sorting: Option<SortOrder>, response: &Response, dragged: bool) {
+        let style = self.style;
+        let ctx = ui.ctx();
+        if dragged || response.is_pointer_button_down_on() {
+            ui.painter().rect_filled(rect, CornerRadius::ZERO, style.header_pressed);
+        } else if response.hovered() {
+            ui.painter().rect_filled(rect, CornerRadius::ZERO, style.header_hover);
+        }
+        let color = if sorting.is_some() { style.header_text_sorted } else { style.header_text };
+        let mut job = LayoutJob::single_section(column.label.clone(), role_format(self.tokens, TypeRole::Label, color));
+        job.wrap.max_width = f32::INFINITY;
+        let galley = ui.fonts_mut(|f| f.layout_job(job));
+        let text_width = galley.size().x;
+        let pad = style.cell_pad_x;
+        let text_x = if self.rtl { rect.right() - pad - text_width } else { rect.left() + pad };
+        let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+        painter.galley(pos2(text_x, rect.center().y - galley.size().y / 2.0), galley, color);
+        if let Some(order) = sorting {
+            let offset = text_width + style.sort_gap + style.sort_glyph / 2.0;
+            let x = if self.rtl { rect.right() - pad - offset } else { rect.left() + pad + offset };
+            let glyph = Rect::from_center_size(pos2(x, rect.center().y), Vec2::splat(style.sort_glyph));
+            let icon = match order {
+                SortOrder::Ascending => Icon::ChevronUp,
+                SortOrder::Descending => Icon::ChevronDown,
+            };
+            icons::paint_in(ui, glyph, icon, icons::active(ctx), style.sort_glyph, IconSize::Md.stroke(), color);
+        }
+        FocusRing::paint_if(ui, rect, CornerRadius::ZERO, response.has_focus());
+    }
+
+    /// Applies what the header asked for, in order, and reports `Layout` once if the layout changed.
+    #[expect(clippy::too_many_arguments, reason = "the pieces of one pass")]
+    fn apply<K>(
+        &self,
+        ctx: &Context,
+        actions: Vec<HeaderAction<C>>,
+        chosen: Option<HeaderCommand>,
+        layout: &mut TableLayout<C>,
+        shown: &mut Vec<usize>,
+        widths: &mut Vec<f32>,
+        widths_before_drag: &mut Option<Vec<(C, f32)>>,
+        events: &mut Vec<TableEvent<K, C>>,
+    ) {
+        let mut layout_changed = false;
+        for action in actions {
+            match action {
+                HeaderAction::Sort(column) => {
+                    let sort = TableSort::clicked(layout.sort.as_ref(), column);
+                    layout.sort = Some(sort.clone());
+                    events.push(TableEvent::Sort(sort));
+                }
+                HeaderAction::Move { column, to, after } => {
+                    let before = layout.order.clone();
+                    layout.move_column(&column, &to, after);
+                    layout_changed |= layout.order != before;
+                }
+                HeaderAction::Resize { at, delta } => {
+                    let Some(&column) = shown.get(at) else { continue };
+                    let min = self.columns[column].min_width;
+                    let width = clamp_width(widths[at] + delta, min);
+                    if (width - widths[at]).abs() < 1e-3 {
+                        continue;
+                    }
+                    widths[at] = width;
+                    layout.widths.retain(|(key, _)| !shown.iter().any(|&s| self.columns[s].key == *key));
+                    layout.widths.extend(shown.iter().zip(widths.iter()).map(|(&s, &w)| (self.columns[s].key.clone(), w)));
+                    layout_changed = true;
+                }
+                HeaderAction::CancelResize => {
+                    if let Some(before) = widths_before_drag.take() {
+                        layout_changed |= layout.widths != before;
+                        layout.widths = before;
+                        *widths = resolve_widths(self.columns, shown, layout, self.rect.width());
+                    }
+                }
+            }
+        }
+        match chosen {
+            Some(HeaderCommand::Toggle(at)) => {
+                let key = &self.columns[at].key;
+                layout.set_visible(key, !layout.is_visible(key));
+                layout_changed = true;
+            }
+            Some(HeaderCommand::Reset) => {
+                let fresh = TableLayout::new(self.columns);
+                layout.order = fresh.order;
+                layout.hidden = Vec::new();
+                layout.widths = Vec::new();
+                layout_changed = true;
+            }
+            Some(HeaderCommand::Label) | None => {}
+        }
+        if layout_changed {
+            events.push(TableEvent::Layout);
+            *shown = shown_columns(self.columns, layout);
+            *widths = resolve_widths(self.columns, shown, layout, self.rect.width());
+            ctx.request_repaint();
+        }
+    }
+
+    /// "Columns" over a keep-open check row per hideable column, then Reset Columns.
+    fn menu_entries(&self, layout: &TableLayout<C>) -> Vec<MenuEntry<HeaderCommand>> {
+        let mut entries = Vec::new();
+        let hideable: Vec<usize> = (0..self.columns.len()).filter(|&at| self.columns[at].hideable).collect();
+        if !hideable.is_empty() {
+            entries.push(MenuItem::new(self.labels.columns.as_str(), HeaderCommand::Label).enabled(false).into());
+            let mut ordered: Vec<usize> =
+                layout.order.iter().filter_map(|key| hideable.iter().copied().find(|&at| self.columns[at].key == *key)).collect();
+            let missing: Vec<usize> = hideable.iter().copied().filter(|at| !ordered.contains(at)).collect();
+            ordered.extend(missing);
+            for at in ordered {
+                let column = &self.columns[at];
+                entries.push(
+                    MenuItem::new(column.label.as_str(), HeaderCommand::Toggle(at)).check(layout.is_visible(&column.key)).keep_open(true).into(),
+                );
+            }
+            entries.push(MenuEntry::Separator);
+        }
+        entries.push(MenuItem::new(self.labels.reset_columns.as_str(), HeaderCommand::Reset).into());
+        entries
+    }
+}
+
+/// The rows below the header.
+struct Body<'a, C> {
+    style: &'a TableStyle,
+    labels: &'a TableLabels,
+    columns: &'a [TableColumn<C>],
+    shown: &'a [usize],
+    widths: &'a [f32],
+    striped: bool,
+    rtl: bool,
+    spans: &'a Spans,
+    focused: bool,
+}
+
+impl<C> Body<'_, C>
+where
+    C: Clone + PartialEq + Debug + Send + Sync + 'static,
+{
+    /// Lays out the rows in view, and the lead while the table has the focus (the active
+    /// descendant).
+    fn draw<K, O>(&self, ui: &mut Ui, viewport: Rect, pass: &mut Pass<'_, K, C, O>, cell: &mut impl FnMut(&mut Ui, &K, &C))
+    where
+        K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
+        O: DisplayOrder<K> + ?Sized,
+    {
+        let content = ui.max_rect();
+        let width: f32 = self.widths.iter().sum::<f32>().max(content.width());
+        ui.set_min_height(self.spans.total());
+        if pass.rows.is_empty() {
+            ui.add(Text::new(self.labels.empty.as_str()).content(Content::Muted));
+            return;
+        }
+        let lead = pass.lead_at();
+        let mut drawn: Vec<usize> = self.spans.in_view(viewport.min.y..viewport.max.y).collect();
+        drawn.extend(lead.filter(|_| self.focused));
+        drawn.sort_unstable();
+        drawn.dedup();
+        for at in drawn {
+            let rect = Rect::from_min_size(content.min + vec2(0.0, self.spans.top(at)), vec2(width, self.spans.bottom(at) - self.spans.top(at)));
+            self.row(ui, at, rect, lead == Some(at), pass, cell);
+        }
+    }
+
+    fn row<K, O>(&self, ui: &mut Ui, at: usize, rect: Rect, lead: bool, pass: &mut Pass<'_, K, C, O>, cell: &mut impl FnMut(&mut Ui, &K, &C))
+    where
+        K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
+        O: DisplayOrder<K> + ?Sized,
+    {
+        let key = pass.rows.key(at).clone();
+        let style = self.style;
+        let list = ListRow::<'_, K>::style(&Tokens::of(ui));
+        let selected = pass.selection.contains(&key);
+        let hovered = ui.rect_contains_pointer(rect);
+        let fill = match (selected, hovered) {
+            (true, true) => Some(list.selected_hover),
+            (true, false) => Some(list.selected),
+            (false, true) => Some(list.hover),
+            (false, false) => (self.striped && at % 2 == 1).then_some(style.stripe),
+        };
+        if let Some(fill) = fill {
+            ui.painter().rect_filled(rect, CornerRadius::ZERO, fill);
+        }
+        let text = if selected { list.selected_text } else { list.text };
+        let scope =
+            ui.scope_builder(UiBuilder::new().id_salt(("row", &key)).max_rect(rect).sense(Sense::CLICK).accessibility_role(Role::Row), |ui| {
+                let mut from = 0.0;
+                for (position, (&column, &width)) in self.shown.iter().zip(self.widths).enumerate() {
+                    let (min_x, max_x) =
+                        if self.rtl { (rect.right() - from - width, rect.right() - from) } else { (rect.left() + from, rect.left() + from + width) };
+                    from += width;
+                    let cell_rect = Rect::from_min_max(pos2(min_x, rect.top()), pos2(max_x, rect.bottom()));
+                    let inner = cell_rect.shrink2(vec2(style.cell_pad_x, 0.0));
+                    let column = &self.columns[column];
+                    // A numeric column ends where the reading direction ends.
+                    let toward_end = (column.align == Align::Max) != self.rtl;
+                    let layout = if toward_end { Layout::right_to_left(Align::Center) } else { Layout::left_to_right(Align::Center) };
+                    ui.scope_builder(
+                        UiBuilder::new().id_salt(("cell", position)).max_rect(inner).layout(layout).accessibility_role(Role::Cell),
+                        |ui| {
+                            ui.set_clip_rect(cell_rect.intersect(ui.clip_rect()));
+                            ui.visuals_mut().override_text_color = Some(text);
+                            ui.ctx().accesskit_node_builder(ui.scope_id(), |node| node.set_column_index(position));
+                            cell(ui, &key, &column.key);
+                        },
+                    );
+                }
+            });
+        let response = scope.response;
+        if lead {
+            pass.lead_row = Some((response.id, rect));
+            FocusRing::paint_if(ui, rect, CornerRadius::ZERO, self.focused);
+        }
+        ui.ctx().accesskit_node_builder(response.id, |node| {
+            node.set_selected(selected);
+            node.set_row_index(at);
+            node.add_action(Action::Focus);
+            node.add_action(Action::ScrollIntoView);
+        });
+        let modifiers = ui.input(|i| i.modifiers);
+        if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
+            pass.focus = true;
+        }
+        if response.double_clicked() {
+            pass.events.push(TableEvent::Activate(key.clone()));
+        } else if response.clicked()
+            && let Some(change) = pass.rules.click(pass.selection, pass.rows, at, modifiers)
+        {
+            pass.apply(change);
+        }
+        if response.secondary_clicked() {
+            pass.focus = true;
+            let request = ContextMenuRequest { row: Some(key.clone()), selected, anchor: rect, pointer: response.interact_pointer_pos() };
+            pass.events.push(TableEvent::ContextMenu(request));
+        }
+        if ui.input(|i| i.has_accesskit_action_request(response.id, Action::Focus)) && pass.selection.lead.as_ref() != Some(&key) {
+            pass.selection.lead = Some(key);
+            pass.focus = true;
+        }
     }
 }
