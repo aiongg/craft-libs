@@ -44,7 +44,7 @@ pub mod units;
 #[cfg(test)]
 mod units_tests;
 pub mod words;
-pub use age::{AgeLabels, AgeStyle, relative_age, relative_date};
+pub use age::{AGE_SHOWN_AS_DATE, AgeLabels, AgeStyle, relative_age};
 #[doc(hidden)]
 pub use egui as __egui;
 pub use words::{Labels, SharedLabels, Word, Words};
