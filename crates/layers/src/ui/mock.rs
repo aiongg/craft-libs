@@ -1,4 +1,4 @@
-//! `MockLayers`: a `LayerTree` for stories and tests.
+//! `FakeLayers`: a `LayerTree` for stories and tests.
 
 use std::cell::Cell;
 
@@ -10,9 +10,9 @@ use super::tree::{
     SubRowGroup, SubRows,
 };
 
-/// One layer of a [`MockLayers`] tree.
+/// One layer of a [`FakeLayers`] tree.
 #[derive(Clone, Debug)]
-pub(crate) struct MockLayer {
+pub(crate) struct FakeLayer {
     pub(crate) id: u32,
     pub(crate) parent: Option<u32>,
     pub(crate) info: LayerInfo,
@@ -25,21 +25,21 @@ pub(crate) struct MockLayer {
 /// A fake document's layers, kept in plain vectors: the tests' and stories' `LayerTree`. Ids are
 /// `u32`; the app's state (open groups, selection, effects open) is a field the test sets.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct MockLayers {
+pub(crate) struct FakeLayers {
     /// Every layer, each group before its children, topmost first among siblings.
-    pub(crate) layers: Vec<MockLayer>,
+    pub(crate) layers: Vec<FakeLayer>,
     pub(crate) selection: LayerSelection<u32>,
     pub(crate) hovered: Option<u32>,
     pub(crate) revision: Option<u64>,
     info_calls: Cell<usize>,
 }
 
-impl MockLayers {
+impl FakeLayers {
     /// A small tree for tests: a group with two pixel layers (one clipped, one with a pixel mask),
     /// a type layer, an adjustment with a disabled mask, a smart object with two Smart Filters,
     /// a pixel layer with effects, a hidden layer, and the Background; the top layer active.
     pub(crate) fn sample() -> Self {
-        // new: the spec's `MockLayers` (`step6a-layers.md`, Stories and tests).
+        // new: the spec's `FakeLayers` (`step6a-layers.md`, Stories and tests).
         let mut tree = Self::default();
         tree.push(1, None, LayerInfo::new("Group 1", LayerKind::Group), true);
         let mut clipped = LayerInfo::new("Clipped", LayerKind::Pixel);
@@ -83,7 +83,7 @@ impl MockLayers {
     /// The stories' 50-layer tree: groups nested three deep, a clipped run, linked layers, pixel
     /// mask, vector mask, both, a disabled mask, adjustment, solid and gradient fill, type, shape,
     /// smart object with Smart Filters, effects open and closed, a locked layer, the Background,
-    /// a hidden layer (story `composites/layers/panel/tree`).
+    /// a hidden layer (story `composites/layers-panel/tree`).
     pub(crate) fn fifty() -> Self {
         let mut tree = Self::default();
         let header = tree.add(None, named("Header", LayerKind::Group, |_| {}), true);
@@ -215,7 +215,7 @@ impl MockLayers {
     }
 }
 
-impl MockLayers {
+impl FakeLayers {
     /// Appends a layer under `parent` with the next id; returns the id.
     pub(crate) fn add(&mut self, parent: Option<u32>, info: LayerInfo, open: bool) -> u32 {
         let id = u32::try_from(self.layers.len() + 1).expect("the mock tree holds fewer than 2^32 layers");
@@ -224,16 +224,16 @@ impl MockLayers {
     }
 
     /// The layer with `id`; the mock tree has it.
-    pub(crate) fn layer_mut(&mut self, id: u32) -> &mut MockLayer {
+    pub(crate) fn layer_mut(&mut self, id: u32) -> &mut FakeLayer {
         let at = self.layers.iter().position(|layer| layer.id == id).expect("the layer is in the mock tree");
         &mut self.layers[at]
     }
 
     fn push(&mut self, id: u32, parent: Option<u32>, info: LayerInfo, open: bool) {
-        self.layers.push(MockLayer { id, parent, info, open, effects_open: false, effects: None, smart_filters: None });
+        self.layers.push(FakeLayer { id, parent, info, open, effects_open: false, effects: None, smart_filters: None });
     }
 
-    fn layer(&self, id: &u32) -> Option<&MockLayer> {
+    fn layer(&self, id: &u32) -> Option<&FakeLayer> {
         self.layers.iter().find(|layer| layer.id == *id)
     }
 }
@@ -264,7 +264,7 @@ fn command(label: &str, command: &str) -> MenuEntry<String> {
     MenuItem::new(label, command.to_owned()).into()
 }
 
-impl LayerTree for MockLayers {
+impl LayerTree for FakeLayers {
     type Id = u32;
 
     fn children(&self, parent: Option<&u32>) -> Vec<u32> {

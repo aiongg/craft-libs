@@ -1,4 +1,4 @@
-//! Behaviour tests of the whole panel over `MockLayers` (L9): input through `LayersPanel::show`.
+//! Behaviour tests of the whole panel over `FakeLayers` (L9): input through `LayersPanel::show`.
 
 #![allow(clippy::expect_used, clippy::indexing_slicing, reason = "tests")]
 
@@ -14,12 +14,12 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
 use super::{ActivateOn, LayerColumn, LayerDrop, LayerMove, LayersEvent, LayersFooterButton, LayersPanel};
-use crate::ui::mock::MockLayers;
+use crate::ui::mock::FakeLayers;
 use crate::ui::options::LayersSettings;
 use crate::ui::tree::{LayerInfo, LayerKind, LayerPart, LayerRowKey, LayerSelection};
 
 struct App {
-    tree: MockLayers,
+    tree: FakeLayers,
     settings: LayersSettings,
     lock_column: bool,
     events: Vec<LayersEvent<u32>>,
@@ -34,7 +34,7 @@ struct App {
 }
 
 impl App {
-    fn new(tree: MockLayers) -> Self {
+    fn new(tree: FakeLayers) -> Self {
         Self {
             tree,
             settings: LayersSettings::default(),
@@ -50,7 +50,7 @@ impl App {
 }
 
 /// Applies what the panel reported to the app's tree, as an app would.
-fn apply(tree: &mut MockLayers, event: &LayersEvent<u32>) {
+fn apply(tree: &mut FakeLayers, event: &LayersEvent<u32>) {
     match event {
         LayersEvent::Select(select) => match (select.pick, select.layer) {
             (SelectionPick::Clear, _) | (_, None) => tree.selection = LayerSelection::default(),
@@ -114,7 +114,7 @@ fn harness_of(app: App) -> Harness<'static, App> {
 }
 
 fn harness() -> Harness<'static, App> {
-    harness_of(App::new(MockLayers::sample()))
+    harness_of(App::new(FakeLayers::sample()))
 }
 
 fn take_(h: &mut Harness<'static, App>) -> Vec<LayersEvent<u32>> {
@@ -440,7 +440,7 @@ fn lock_icon_click_unlocks_without_selecting() {
 // The panel's minimum width holds a group row with one mask at each thumbnail size.
 #[test]
 fn panel_min_width_holds_a_group_row_with_one_mask() {
-    let mut tree = MockLayers::sample();
+    let mut tree = FakeLayers::sample();
     tree.layers[0].info.masks.push(crate::ui::tree::MaskInfo { part: LayerPart::LayerMask, enabled: true, linked: true });
     let mut widths = Vec::new();
     for size in [ThumbSize::None, ThumbSize::Small, ThumbSize::Medium, ThumbSize::Large] {
@@ -652,7 +652,7 @@ fn empty_space_click_clears_the_selection() {
 
 /// The preview option on, with the selection `layers` (active the first).
 fn previewing(layers: &[u32]) -> Harness<'static, App> {
-    let mut app = App::new(MockLayers::sample());
+    let mut app = App::new(FakeLayers::sample());
     app.settings.options.preview_on_canvas_when_reordering = true;
     app.tree.selection = LayerSelection { layers: layers.to_vec(), active: layers.first().copied(), target: LayerPart::Pixels };
     harness_of(app)
@@ -817,7 +817,7 @@ fn a_mask_drag_paints_its_ghost_beside_the_pointer() {
 // The list scrolls while a drag is near its top or bottom edge.
 #[test]
 fn edge_scroll_runs_while_a_drag_is_near_the_edge() {
-    let mut h = harness_of(App::new(MockLayers::flat(300)));
+    let mut h = harness_of(App::new(FakeLayers::flat(300)));
     let list = h.get_by_role(Role::Tree).rect();
     h.grab(at(&h, "Layer 1", 0.5));
     let bottom = Pos2::new(list.center().x, list.bottom() - 2.0);
@@ -837,7 +837,7 @@ fn edge_scroll_runs_while_a_drag_is_near_the_edge() {
 // `.lock_column(true)` adds a lock column whose clicks and sweeps report `Toggle` with `Lock`.
 #[test]
 fn lock_column_reports_toggle_events() {
-    let mut app = App::new(MockLayers::sample());
+    let mut app = App::new(FakeLayers::sample());
     app.lock_column = true;
     let mut h = harness_of(app);
     let cell = |h: &Harness<'static, App>, name: &str| h.get_by_label(&format!("Lock {name}")).rect().center();
@@ -876,7 +876,7 @@ fn rename_layer_from_the_row_menu_starts_the_rename() {
 // pass; later passes leave the scroll position alone.
 #[test]
 fn a_new_active_layer_in_a_closed_group_is_revealed_once() {
-    let mut tree = MockLayers::flat(40);
+    let mut tree = FakeLayers::flat(40);
     let group = tree.add(None, LayerInfo::new("Bottom Group", LayerKind::Group), false);
     let buried = tree.add(Some(group), LayerInfo::new("Buried", LayerKind::Pixel), false);
     let mut h = harness_of(App::new(tree));
@@ -907,7 +907,7 @@ fn a_new_active_layer_in_a_closed_group_is_revealed_once() {
 // layer's colour menu opens only from a layer's eye.
 #[test]
 fn right_click_on_a_sub_row_eye_opens_the_row_menu_with_the_sub_row() {
-    let mut tree = MockLayers::sample();
+    let mut tree = FakeLayers::sample();
     tree.layer_mut(7).effects_open = true;
     let mut h = harness_of(App::new(tree));
     h.get_by_label("Visibility Drop Shadow").click_secondary();
@@ -922,7 +922,7 @@ fn right_click_on_a_sub_row_eye_opens_the_row_menu_with_the_sub_row() {
 // The eye menu checks the colour the layers share and none when they differ.
 #[test]
 fn eye_menu_checks_only_a_colour_the_rows_share() {
-    let mut tree = MockLayers::sample();
+    let mut tree = FakeLayers::sample();
     tree.layer_mut(4).info.label = Some(LabelColor::Red);
     tree.layer_mut(5).info.label = Some(LabelColor::Red);
     let mut h = harness_of(App::new(tree));
