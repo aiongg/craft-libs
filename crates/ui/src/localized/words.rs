@@ -208,7 +208,7 @@ impl Counted {
 }
 
 /// The count words components write with [`Words::counted`].
-pub(crate) mod counts {
+pub mod counts {
     use super::Counted;
 
     pub(crate) const PRESETS: Counted = Counted::new("preset.count", "{n} preset", "{n} presets");
@@ -231,7 +231,7 @@ pub(crate) mod counts {
     pub(crate) const ABOUT_PRS: Counted = Counted::new("about.prs", "{n} PR", "{n} PRs");
     pub(crate) const ABOUT_COMMITS: Counted = Counted::new("about.commitCount", "{n} commit", "{n} commits");
     pub(crate) const MORE: Counted = Counted::new("chipField.more", "+{n} more", "+{n} more");
-    pub(crate) const STARS: Counted = Counted::new("rating.stars", "{n} star", "{n} stars");
+    pub const STARS: Counted = Counted::new("rating.stars", "{n} star", "{n} stars");
     pub(crate) const DRAG_ITEMS: Counted = Counted::new("drag.count", "{n} item", "{n} items");
     pub(crate) const EVENT_ERRORS: Counted = Counted::new("eventLog.errorCount", "{n} error", "{n} errors");
     pub(crate) const EVENT_WARNINGS: Counted = Counted::new("eventLog.warningCount", "{n} warning", "{n} warnings");

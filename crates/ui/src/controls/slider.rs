@@ -166,6 +166,7 @@ pub struct Slider {
     mark_labels: Vec<(f64, String)>,
     thumb: SliderThumb,
     ticks: usize,
+    value_text: Option<String>,
 }
 
 impl Slider {
@@ -197,6 +198,7 @@ impl Slider {
             mark_labels: Vec::new(),
             thumb: SliderThumb::Round,
             ticks: 0,
+            value_text: None,
         }
     }
 
@@ -259,6 +261,14 @@ impl Slider {
     /// Non-finite or non-positive steps are ignored.
     pub fn wheel_step(mut self, step: f64) -> Self {
         self.wheel_step = Some(step).filter(|s| s.is_finite() && *s > 0.0);
+        self
+    }
+
+    /// The value a screen reader reads after the label ("40 %"), in the words and numbers of the
+    /// user's locale, instead of the bare number. The numeric value, bounds and step are still
+    /// reported, so increment, decrement and set-value requests work as without it.
+    pub fn value_text(mut self, text: impl Into<String>) -> Self {
+        self.value_text = Some(text.into());
         self
     }
 
@@ -343,11 +353,12 @@ impl Slider {
         let labels = self.laid_out_labels(ui, &tokens);
         let label_height = labels.iter().map(|(_, galley)| galley.size().y).fold(0.0, f32::max);
         let below = if labels.is_empty() { 0.0 } else { label_height + 2.0 * style.mark };
-        let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
-            .sense(Sense::drag())
-            .enabled(self.enabled)
-            .state_layer(false)
-            .interact(ui, vec2(self.width.unwrap_or(style.width), style.height + below));
+        let mut element =
+            Interactive::salted(self.id_salt, Role::Slider, self.label.as_str()).sense(Sense::drag()).enabled(self.enabled).state_layer(false);
+        if let Some(text) = &self.value_text {
+            element = element.value(text.as_str());
+        }
+        let sensed = element.interact(ui, vec2(self.width.unwrap_or(style.width), style.height + below));
         let response = sensed.response().clone();
         let track = Track::new(Rect::from_min_size(response.rect.min, vec2(response.rect.width(), style.height)), &style, scale);
         let track = if self.track_colors.is_some() { track.with_height(style.gradient_height) } else { track };

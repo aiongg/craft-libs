@@ -348,20 +348,45 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PreparedRadioSet<T> {
     ///
     /// If the set has no option `index`.
     pub fn radio_named(&mut self, ui: &mut Ui, index: usize, label: &str, name: &str) -> Response {
+        self.radio_with(ui, index, RadioOption::new(label).name(name))
+    }
+
+    /// Draws option `index` as `option` describes it: its label, accessible name, accessible
+    /// description and content. The content is drawn after the label inside the option's hit
+    /// area, so the option stays one Tab stop and one `RadioButton` node.
+    ///
+    /// # Panics
+    ///
+    /// If the set has no option `index`.
+    pub fn radio_with(&mut self, ui: &mut Ui, index: usize, option: RadioOption<'_>) -> Response {
+        let RadioOption { label, name, description, content } = option;
+        let name = name.unwrap_or(label);
         let (id, enabled) = self.items[index];
         let selected = self.radios.selected() == Some(index);
         let (tokens, style) = (&self.tokens, &self.style);
         let response = ui
             .scope_builder(UiBuilder::new().accessibility_parent(self.id), |ui| {
                 let laid = Labelled::layout(ui, tokens, &style.layout(), label);
-                let sensed = Interactive::with_id(id, Role::RadioButton, name)
-                    .position_in_set(index)
-                    .state_layer(false)
-                    .enabled(enabled)
-                    .interact(ui, laid.size);
+                let element = Interactive::with_id(id, Role::RadioButton, name).position_in_set(index).state_layer(false).enabled(enabled);
+                let sensed = match content {
+                    None => element.interact(ui, laid.size),
+                    Some(content) => {
+                        let layout = direction::row(ui);
+                        let hit = ui.scope_builder(UiBuilder::new().layout(layout), |row| {
+                            row.spacing_mut().item_spacing.x = 0.0;
+                            row.allocate_space(laid.size);
+                            row.add_space(style.gap);
+                            content(row);
+                        });
+                        element.interact_at(ui, hit.response.rect)
+                    }
+                };
                 laid.tooltip(paint(ui, style, &laid, sensed, selected), label)
             })
             .inner;
+        if let Some(description) = description {
+            response.ctx.accesskit_node_builder(response.id, |node| node.set_description(description));
+        }
         self.responses.push(response.clone());
         response
     }
@@ -377,6 +402,56 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PreparedRadioSet<T> {
             response.mark_changed();
         }
         EditResponse::new(response, self.gesture.finish())
+    }
+}
+
+/// One option of a [`PreparedRadioSet`] for [`radio_with`](PreparedRadioSet::radio_with): its
+/// label, and what the label alone can't carry.
+#[must_use = "an option is drawn by `PreparedRadioSet::radio_with`"]
+pub struct RadioOption<'a> {
+    label: &'a str,
+    name: Option<&'a str>,
+    description: Option<&'a str>,
+    content: Option<OptionContent<'a>>,
+}
+
+type OptionContent<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
+
+impl<'a> RadioOption<'a> {
+    /// An option showing `label`, which is also its accessible name.
+    pub fn new(label: &'a str) -> Self {
+        Self { label, name: None, description: None, content: None }
+    }
+
+    /// The accessible name, for an option whose label is a short form ("H:" for "Hue").
+    pub fn name(mut self, name: &'a str) -> Self {
+        self.name = Some(name);
+        self
+    }
+
+    /// What a screen reader reads after the name: a sample's size, a hint.
+    pub fn description(mut self, description: &'a str) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    /// Content drawn after the label (a sample picture), inside the option's hit area, so a
+    /// click on it selects the option. It paints and senses nothing itself: a widget that senses
+    /// input would take the click from the option.
+    pub fn content(mut self, content: impl FnOnce(&mut Ui) + 'a) -> Self {
+        self.content = Some(Box::new(content));
+        self
+    }
+}
+
+impl std::fmt::Debug for RadioOption<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RadioOption")
+            .field("label", &self.label)
+            .field("name", &self.name)
+            .field("description", &self.description)
+            .field("content", &self.content.is_some())
+            .finish()
     }
 }
 

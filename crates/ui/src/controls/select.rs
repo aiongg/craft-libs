@@ -653,6 +653,12 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 }
 
 impl Select<'static, ()> {
+    /// The id a select made with `id_salt` has in `ui`: its box's id and its response's, for a
+    /// dialog that names it in [`InitialFocus::Field`](crate::dialog::InitialFocus::Field).
+    pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
+        Interactive::id_in(ui, id_salt)
+    }
+
     /// The select's sizes and colours at `size`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SelectStyle {
         let l = &tokens.component.listbox;

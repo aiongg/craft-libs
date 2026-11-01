@@ -40,13 +40,19 @@ mod words_tests;
 mod age;
 #[cfg(test)]
 mod age_tests;
+mod label_color;
+#[cfg(test)]
+mod label_color_tests;
 pub mod units;
 #[cfg(test)]
 mod units_tests;
 pub mod words;
 pub use age::{AGE_SHOWN_AS_DATE, AgeLabels, AgeStyle, relative_age};
+/// craft-i18n's placeholder formatter, for family crates that depend on craft-ui alone.
+pub use craft_i18n::fmt;
 #[doc(hidden)]
 pub use egui as __egui;
+pub use label_color::LabelColorLabels;
 pub use words::{Labels, SharedLabels, Word, Words};
 
 /// How long a [`LocalizedDragValue`] keeps marking text it could not read after reverting, in
