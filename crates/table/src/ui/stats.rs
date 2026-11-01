@@ -24,6 +24,7 @@ craft_ui::words! {
         minimum_item: "stats.minimumItem" = "Minimum";
         maximum_item: "stats.maximumItem" = "Maximum";
         sum_item: "stats.sumItem" = "Sum";
+        click_to_copy: "stats.clickToCopy" = "Click to copy";
     }
 }
 

@@ -117,7 +117,7 @@ impl LabelPalette {
     }
 }
 
-/// The stories of the timeline widgets (not registered yet; see the spec).
+/// The stories of the timeline widgets.
 pub fn stories() -> Vec<craft_ui::story::Story> {
     stories::stories()
 }
@@ -132,4 +132,5 @@ pub const WORDS: &[&[Word]] = &[
     <TimecodePanelLabels as Labels>::WORDS,
     <MarkerDialogLabels as Labels>::WORDS,
     <RenderQueueLabels as Labels>::WORDS,
+    <stories::TimelineStoryLabels as Labels>::WORDS,
 ];

@@ -69,7 +69,7 @@ pub use style::SheetStyle;
 
 use craft_ui::localized::{Labels, Word};
 
-/// The stories of the table widgets (not registered yet; see the spec).
+/// The stories of the table widgets.
 pub fn stories() -> Vec<craft_ui::story::Story> {
     stories::stories()
 }
@@ -83,4 +83,5 @@ pub const WORDS: &[&[Word]] = &[
     <SlicerLabels as Labels>::WORDS,
     <ErrorTagLabels as Labels>::WORDS,
     <FilterButtonLabels as Labels>::WORDS,
+    <stories::TableStoryLabels as Labels>::WORDS,
 ];

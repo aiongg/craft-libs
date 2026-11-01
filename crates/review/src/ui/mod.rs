@@ -54,14 +54,14 @@ pub use thread::{
 };
 pub use versions::{VersionAction, VersionHistoryPanel, VersionHistoryPanelOutput, VersionPreviewBanner, VersionsLabels};
 
-pub use chat::{CursorChatBox, CursorChatBoxOutput, paint_chat_bubble};
+pub use chat::{ChatLabels, CursorChatBox, CursorChatBoxOutput, paint_chat_bubble};
 pub use join::{JoinField, JoinFieldOutput, JoinLabels};
 pub use presence::{PeopleBar, PeopleBarOutput, PresenceLabels, RemoteCursors, paint_avatar, paint_pointer};
 pub use vote::{VoteLabels, VotePill, VotePillOutput};
 
 use craft_ui::localized::{Labels, Word};
 
-/// The stories of the review widgets (not registered yet; see the spec).
+/// The stories of the review widgets.
 pub fn stories() -> Vec<craft_ui::story::Story> {
     stories::stories()
 }
@@ -77,4 +77,6 @@ pub const WORDS: &[&[Word]] = &[
     <PresenceLabels as Labels>::WORDS,
     <VoteLabels as Labels>::WORDS,
     <JoinLabels as Labels>::WORDS,
+    <ChatLabels as Labels>::WORDS,
+    <stories::ReviewStoryLabels as Labels>::WORDS,
 ];

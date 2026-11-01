@@ -28,6 +28,7 @@ craft_ui::words! {
         title: "comments.title" = "Comments";
         replies: "comments.replies" = "{n} replies";
         search: "comments.search" = "Search comments";
+        clear_search: "comments.clearSearch" = "Clear search";
         sort_by: "comments.sortBy" = "Sort by";
         sort_page: "comments.sortPage" = "Page";
         sort_author: "comments.sortAuthor" = "Author";

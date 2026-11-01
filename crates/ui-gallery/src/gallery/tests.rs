@@ -292,6 +292,14 @@ const FIXED_WIDTH: &[&str] = &[
     "composites/text-ruler/word",
     "composites/text-ruler/tabs-panel",
     "patterns/page-preview/overlay",
+    "patterns/cell-grid/sheet",
+    "patterns/cell-grid/outline",
+    "patterns/condition-builder/rules",
+    "composites/slicer/tiles",
+    "patterns/timeline/panel",
+    "composites/timeline-ruler/ruler",
+    "patterns/graph-editor/editor",
+    "patterns/comments/thread",
     "primitives/gradient-line/edit",
     "primitives/gradient-line/with-editor",
     "foundations/edit/log",
@@ -372,6 +380,7 @@ const FLOATING: &[&str] = &[
     "patterns/font-picker/field",
     "patterns/font-picker/filters",
     "patterns/page-preview/overlay",
+    "patterns/comments/thread",
 ];
 
 /// How far a focus ring, edge or shadow may reach past its widget; the tile's margin takes it.

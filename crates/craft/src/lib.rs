@@ -55,13 +55,19 @@ pub use craft_prepress as prepress;
 pub use craft_print as print;
 #[cfg(feature = "quit")]
 pub use craft_quit as quit;
+#[cfg(feature = "review")]
+pub use craft_review as review;
 #[cfg(feature = "settings")]
 pub use craft_settings as settings;
+#[cfg(feature = "table")]
+pub use craft_table as table;
 #[cfg(feature = "text")]
 pub use craft_text as text;
 pub use craft_theme as theme;
 #[cfg(feature = "theme-store")]
 pub use craft_theme_store as theme_store;
+#[cfg(feature = "timeline")]
+pub use craft_timeline as timeline;
 #[cfg(feature = "ui")]
 pub use craft_ui as ui;
 #[cfg(feature = "update")]
@@ -110,10 +116,16 @@ pub mod story {
         all.extend(craft_layers::ui::stories());
         #[cfg(feature = "pages")]
         all.extend(craft_pages::ui::stories());
+        #[cfg(feature = "review")]
+        all.extend(craft_review::ui::stories());
+        #[cfg(feature = "table")]
+        all.extend(craft_table::ui::stories());
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::stories());
         #[cfg(feature = "theme-store")]
         all.extend(craft_theme_store::ui::stories());
+        #[cfg(feature = "timeline")]
+        all.extend(craft_timeline::ui::stories());
         all
     }
 }
@@ -151,10 +163,16 @@ pub mod words {
         all.extend(craft_pages::ui::WORDS);
         #[cfg(feature = "print")]
         all.extend(craft_print::ui::WORDS);
+        #[cfg(feature = "review")]
+        all.extend(craft_review::ui::WORDS);
+        #[cfg(feature = "table")]
+        all.extend(craft_table::ui::WORDS);
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::WORDS);
         #[cfg(feature = "theme-store")]
         all.extend(craft_theme_store::ui::WORDS);
+        #[cfg(feature = "timeline")]
+        all.extend(craft_timeline::ui::WORDS);
         #[cfg(any(feature = "platform", feature = "dialogs"))]
         all.push(service_messages());
         all

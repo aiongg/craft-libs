@@ -27,6 +27,8 @@ craft_ui::words! {
         add_rule_tip: "conditions.addRuleTip" = "Add a rule (⌥-click: a group)";
         remove_rule: "conditions.removeRule" = "Remove this rule";
         remove_group: "conditions.removeGroup" = "Remove this group";
+        unit: "conditions.unit" = "Unit";
+        bool_rule: "conditions.boolRule" = "Is set";
     }
 }
 
@@ -389,10 +391,10 @@ fn edit_value(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize], ch
             let units = cx.fields.choices(&rule.field);
             let mut unit_value = unit.clone();
             let unit_changed = if units.is_empty() {
-                let out = TextField::new(cx.id(path, "unit"), &labels.value, unit).show(ui);
+                let out = TextField::new(cx.id(path, "unit"), &labels.unit, unit).show(ui);
                 out.event.as_ref().and_then(|event| event.value()).map(|text| unit_value = text.clone()).is_some()
             } else {
-                let mut select = Select::new(cx.id(path, "unit"), &labels.value, &mut unit_value);
+                let mut select = Select::new(cx.id(path, "unit"), &labels.unit, &mut unit_value);
                 for (id, label) in units {
                     select = select.option(id, label);
                 }
@@ -402,7 +404,8 @@ fn edit_value(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize], ch
             (count.is_some() || unit_changed && unit_value != *unit).then(|| ConditionValue::Last { n: count.unwrap_or(*n), unit: unit_value })
         }
         ConditionValue::Bool(on) => {
-            let label = cx.fields.fields().into_iter().find(|(id, ..)| *id == rule.field).map_or_else(|| labels.value.clone(), |(_, label, _)| label);
+            let label =
+                cx.fields.fields().into_iter().find(|(id, ..)| *id == rule.field).map_or_else(|| labels.bool_rule.clone(), |(_, label, _)| label);
             let mut checked = *on;
             let out = Checkbox::bool(label, &mut checked).id_salt(cx.id(path, "value")).show(ui);
             settled(&out.event).map(|on| ConditionValue::Bool(*on))

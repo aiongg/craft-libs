@@ -42,7 +42,10 @@ craft-pages = { workspace = true, optional = true }
 craft-print = { workspace = true, optional = true }
 craft-quit = { workspace = true, optional = true }
 craft-settings = { workspace = true, optional = true }
+craft-review = { workspace = true, optional = true }
+craft-table = { workspace = true, optional = true }
 craft-text = { workspace = true, optional = true }
+craft-timeline = { workspace = true, optional = true }
 craft-theme-store = { workspace = true, optional = true }
 craft-update = { workspace = true, optional = true }
 craft-window = { workspace = true, optional = true }
@@ -64,8 +67,11 @@ ui = [
     "craft-platform?/ui",
     "craft-print?/ui",
     "craft-quit?/ui",
+    "craft-review?/ui",
+    "craft-table?/ui",
     "craft-text?/ui",
     "craft-theme-store?/ui",
+    "craft-timeline?/ui",
     "craft-update?/ui",
     "craft-window?/ui",
 ]
@@ -79,7 +85,10 @@ screen-testing = [
     "craft-imaging?/screen-testing",
     "craft-keymap?/screen-testing",
     "craft-layers?/screen-testing",
+    "craft-review?/screen-testing",
+    "craft-table?/screen-testing",
     "craft-theme-store?/screen-testing",
+    "craft-timeline?/screen-testing",
     "craft-ui?/screen-testing",
     "craft-update?/screen-testing",
 ]
@@ -156,7 +165,11 @@ print = ["dep:craft-print"]
 quit = ["dep:craft-quit"]
 quit-menu = ["quit", "craft-quit/menu"]
 
+review = ["dep:craft-review"]
+
 settings = ["dep:craft-settings"]
+
+table = ["dep:craft-table"]
 
 text = ["dep:craft-text"]
 text-afrikaans = ["text", "craft-text/afrikaans"]
@@ -222,6 +235,8 @@ text-turkmen = ["text", "craft-text/turkmen"]
 text-ukrainian = ["text", "craft-text/ukrainian"]
 
 theme-store = ["dep:craft-theme-store"]
+
+timeline = ["dep:craft-timeline"]
 
 ui-color_fonts = ["ui", "craft-ui/color_fonts"]
 ui-native-windows = ["ui", "craft-ui/native-windows"]
