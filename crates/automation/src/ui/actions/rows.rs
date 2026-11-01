@@ -10,7 +10,7 @@ use craft_ui::theme::{ToEgui as _, UiTokens, role_format};
 use egui::{Color32, Context, Key, KeyboardShortcut, Label, Modifiers, RichText, Sense, vec2};
 
 use super::labels::{ACTIONS, ActionsLabels, STEPS};
-use super::panel::{ActionSelection, ActionsEvent, ActionsHost, ActionsState};
+use super::panel::{ActionSelection, ActionsEvent, ActionsHost, ActionsPanelState};
 use super::style::ActionsPanelStyle;
 use crate::actions::{ActionInclude, ActionList};
 
@@ -26,13 +26,13 @@ pub(super) struct ActionRows {
 }
 
 /// Whether the set `name` shows its actions: not collapsed, or holding the action being recorded.
-fn set_open(list: &ActionList, state: &ActionsState, host: Option<&dyn ActionsHost>, name: &str) -> bool {
+fn set_open(list: &ActionList, state: &ActionsPanelState, host: Option<&dyn ActionsHost>, name: &str) -> bool {
     let recording = host.and_then(|host| host.recording());
     !state.settings.collapsed_sets.iter().any(|set| set == name) || recording.is_some_and(|action| list.set_of(action) == Some(name))
 }
 
 /// Whether the action `index` shows its steps: expanded, or being recorded.
-fn action_open(list: &ActionList, state: &ActionsState, host: Option<&dyn ActionsHost>, index: usize) -> bool {
+fn action_open(list: &ActionList, state: &ActionsPanelState, host: Option<&dyn ActionsHost>, index: usize) -> bool {
     host.and_then(|host| host.recording()) == Some(index) || list.action(index).is_some_and(|action| state.expanded.contains(&action.name))
 }
 
@@ -43,7 +43,7 @@ impl ActionRows {
     /// action at 0 (its steps at 1); every action is a group (it has a disclosure even with no
     /// steps, as PhotoCraft's), every set too. The recording action is expanded whatever `state`
     /// says.
-    pub(super) fn build(list: &ActionList, state: &ActionsState, host: Option<&dyn ActionsHost>) -> Self {
+    pub(super) fn build(list: &ActionList, state: &ActionsPanelState, host: Option<&dyn ActionsHost>) -> Self {
         // pc: crates/ui-egui/src/panels/actions.rs:962-981 (display order, set headers before their first action, collapsed sets);
         // pc: crates/ui-egui/src/panels/actions.rs:947-955 (the recording row expands and is revealed).
         let mut out = Self { rows: Vec::new(), depths: Vec::new(), groups: Vec::new(), opens: Vec::new() };
@@ -70,7 +70,7 @@ impl ActionRows {
         self.opens.push(open);
     }
 
-    fn push_action(&mut self, list: &ActionList, state: &ActionsState, host: Option<&dyn ActionsHost>, index: usize, depth: usize) {
+    fn push_action(&mut self, list: &ActionList, state: &ActionsPanelState, host: Option<&dyn ActionsHost>, index: usize, depth: usize) {
         let open = action_open(list, state, host, index);
         self.push(ActionSelection::Action(index), depth, true, open);
         if open {
@@ -116,7 +116,7 @@ impl DisplayOrder<ActionSelection> for ActionRows {
 /// The `ListRow` of `key`, wrapped by the panel in a `TreeRow`:
 /// - a set: `Icon::Folder` or `Icon::FolderOpen`, its name, "{n} actions" (`ACTIONS`) as a
 ///   trailing text in `text.faint`;
-/// - an action: `Icon::Play` glyph, its name (`renaming` when [`ActionsState::renaming`] is this
+/// - an action: `Icon::Play` glyph, its name (`renaming` when [`ActionsPanelState::renaming`] is this
 ///   action), the trailing text ([`ActionsLabels::shortcut_steps`] or the step count,
 ///   [`ActionsLabels::partial_steps`] when partial), the recording dot (a 4 pt
 ///   `status.bad.solid` circle) as a trailing item while recording into it, the accessible name
@@ -134,7 +134,7 @@ pub(super) fn row<'r>(
     ctx: &Context,
     key: &ActionSelection,
     list: &'r ActionList,
-    state: &ActionsState,
+    state: &ActionsPanelState,
     host: Option<&'r dyn ActionsHost>,
     labels: &ActionsLabels,
     style: &ActionsPanelStyle,
@@ -159,7 +159,7 @@ pub(super) fn row<'r>(
                 let enabled = action.enabled_steps().count();
                 text = labels.partial_steps.replace("{enabled}", &enabled.to_string()).replace("{steps}", &text);
             }
-            if let Some(shortcut) = host.and_then(|host| host.shortcut(action)) {
+            if let Some(shortcut) = host.and_then(|host| host.shortcut(action)).map(|choice| choice.text()) {
                 text = labels.shortcut_steps.replace("{shortcut}", &shortcut).replace("{steps}", &text);
             }
             row = trailing_text(row, ctx, &tokens, &row_style, text);

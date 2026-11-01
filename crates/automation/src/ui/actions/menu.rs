@@ -4,11 +4,11 @@ use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::list::ContextMenuRequest;
 use craft_ui::localized::SharedLabels as _;
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
-use egui::{AsIdSalt, Context, Id, IdSalt, Sense, Ui};
+use egui::{Context, Id, Popup, Sense, Ui};
 
 use super::footer::{play_target, selected_action};
 use super::labels::ActionsLabels;
-use super::panel::{ActionSelection, ActionsEvent, ActionsHost, ActionsPanel, ActionsState, ShortcutChoice, delete_event};
+use super::panel::{ActionSelection, ActionsEvent, ActionsHost, ActionsPanel, ActionsPanelState, ShortcutChoice, delete_event};
 use crate::actions::{ActionColor, ActionList};
 
 const NEW_ACTION: &str = "actions.newAction";
@@ -24,13 +24,18 @@ const LOAD: &str = "actions.load";
 const SAVE: &str = "actions.save";
 const BUTTON_MODE: &str = "actions.buttonMode";
 
-/// Whether the panel is recording, kept by `panel_menu` for `run_command` (which is not told).
-fn recording_slot(id_salt: impl AsIdSalt) -> Id {
-    Id::NULL.with(IdSalt::new(id_salt)).with("menu-recording")
+/// What a panel-menu command asks of the app, from [`ActionsPanel::run_command`].
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum ActionsMenuAction {
+    /// The row is one of the panel's events.
+    Event(ActionsEvent),
+    /// Button Mode toggled in the state: persist the [`ActionsSettings`](super::ActionsSettings).
+    SettingsChanged,
 }
 
 /// The set the selection is in: the selected set, or the selected action's (or step's) set.
-fn current_set(state: &ActionsState, list: &ActionList) -> Option<String> {
+fn current_set(state: &ActionsPanelState, list: &ActionList) -> Option<String> {
     match state.selected.as_ref()? {
         ActionSelection::Set(name) => Some(name.clone()),
         ActionSelection::Action(index) | ActionSelection::Step(index, _) => list.set_of(*index).map(str::to_owned),
@@ -45,16 +50,9 @@ impl ActionsPanel<'_> {
     /// (needs an action), a separator, Load Actions…, Save Actions… (needs an action), a separator,
     /// Button Mode (a check row, the footer button's state). Run the chosen row with
     /// [`run_command`](Self::run_command).
-    pub fn panel_menu(
-        ctx: &Context,
-        id_salt: impl AsIdSalt,
-        state: &ActionsState,
-        list: &ActionList,
-        recording: bool,
-    ) -> Vec<MenuEntry<PanelCommand>> {
+    pub fn panel_menu(ctx: &Context, state: &ActionsPanelState, list: &ActionList, recording: bool) -> Vec<MenuEntry<PanelCommand>> {
         // pc: crates/ui-egui/src/panels/actions.rs:624 `panel_menu`; vectorcraft: crates/ui-egui/src/panels/actions.rs:55-80 (New Set…, Set Options…, Batch…).
         let labels = ActionsLabels::shared_ctx(ctx);
-        ctx.data_mut(|data| data.insert_temp(recording_slot(id_salt), recording));
         let any = !list.actions().is_empty();
         let can_delete = state.selected.as_ref().is_some_and(|selected| delete_event(selected, recording).is_some());
         let on_row = matches!(state.selected, Some(ActionSelection::Action(_) | ActionSelection::Step(..)));
@@ -81,126 +79,104 @@ impl ActionsPanel<'_> {
         entries
     }
 
-    /// Runs a chosen panel-menu row: Button Mode toggles it in `state` and returns `None`; every
-    /// other row returns its event (New Action… is [`ActionsEvent::NewAction`]; Play plays the
-    /// selection as the footer's Play does). `None` too when the command is not the panel's.
-    pub fn run_command(
-        ctx: &Context,
-        id_salt: impl AsIdSalt,
-        state: &mut ActionsState,
-        command: &PanelCommand,
-        list: &ActionList,
-    ) -> Option<ActionsEvent> {
+    /// Runs a chosen panel-menu row: Button Mode toggles it in `state` and returns
+    /// [`ActionsMenuAction::SettingsChanged`]; every other row returns its event (New Action… is
+    /// [`ActionsEvent::NewAction`]; Play plays the selection as the footer's Play does; Delete is
+    /// refused during a recording as the footer's is). `None` when the command is not the
+    /// panel's. `recording` is what [`panel_menu`](Self::panel_menu) was given.
+    pub fn run_command(state: &mut ActionsPanelState, command: &PanelCommand, list: &ActionList, recording: bool) -> Option<ActionsMenuAction> {
         // new: as craft-color crates/color/src/ui/panel.rs:318 `ColorPanel::run_command`.
-        let recording = ctx.data(|data| data.get_temp::<bool>(recording_slot(id_salt))).unwrap_or(false);
         let selected = state.selected.as_ref();
-        match command.as_str() {
-            NEW_ACTION => Some(ActionsEvent::NewAction),
-            NEW_SET => Some(ActionsEvent::NewSet),
-            SET_OPTIONS => current_set(state, list).map(ActionsEvent::SetOptions),
-            PLAY => play_target(selected, list).map(|(action, from)| ActionsEvent::Play { action, from }),
-            RECORD => Some(ActionsEvent::BeginRecording { into: selected_action(selected, list) }),
-            STOP => Some(ActionsEvent::StopRecording),
-            DELETE => selected.and_then(|selected| delete_event(selected, recording)),
-            INSERT_STOP => selected_action(selected, list).map(|_| ActionsEvent::InsertStop),
-            BATCH => play_target(selected, list).map(|(action, _)| ActionsEvent::Batch(action)),
-            LOAD => Some(ActionsEvent::Load),
-            SAVE => Some(ActionsEvent::Save { set: None }),
+        let event = match command.as_str() {
+            NEW_ACTION => ActionsEvent::NewAction,
+            NEW_SET => ActionsEvent::NewSet,
+            SET_OPTIONS => ActionsEvent::SetOptions(current_set(state, list)?),
+            PLAY => {
+                let (action, from) = play_target(selected, list)?;
+                ActionsEvent::Play { action, from }
+            }
+            RECORD => ActionsEvent::BeginRecording { into: selected_action(selected, list) },
+            STOP => ActionsEvent::StopRecording,
+            DELETE => delete_event(selected?, recording)?,
+            INSERT_STOP => selected_action(selected, list).map(|_| ActionsEvent::InsertStop)?,
+            BATCH => ActionsEvent::Batch(play_target(selected, list)?.0),
+            LOAD => ActionsEvent::Load,
+            SAVE => ActionsEvent::Save { set: None },
             BUTTON_MODE => {
                 state.settings.button_mode = !state.settings.button_mode;
-                None
+                return Some(ActionsMenuAction::SettingsChanged);
             }
-            _ => None,
-        }
+            _ => return None,
+        };
+        Some(ActionsMenuAction::Event(event))
     }
 }
 
-/// The context menu the list asked for (`ListEvent::ContextMenu`), shown with
-/// [`ContextMenu`](craft_ui::menu::ContextMenu) at the request's pointer or anchor:
+/// Shows the context menu for `asked` (`ListEvent::ContextMenu`), and keeps it in egui memory
+/// under `slot` on the passes after, until its popup closes. A new request always starts a menu
+/// from the host's shortcut. At the request's pointer or anchor, with
+/// [`ContextMenu`](craft_ui::menu::ContextMenu):
 ///
 /// - On an action: Keyboard Shortcuts (a caption), None and F1 to F12 as radio rows (the current
 ///   key marked), then Shift and Command (Ctrl off macOS) check rows, enabled only with a key;
 ///   check rows keep the menu open so both can be ticked. A separator, then Color: a submenu of
 ///   None, Red, Orange, Yellow, Green, Blue, Violet, Gray (the current one marked). A row reports
-///   [`ActionsEvent::AssignShortcut`] or [`ActionsEvent::SetColor`].
+///   [`ActionsEvent::AssignShortcut`] or [`ActionsEvent::SetColor`]; each Shift or Command tick
+///   is reported as it is made, with the shortcut as it stands.
 /// - On a set: Save Set… ([`ActionsEvent::Save`] with the set).
 /// - On a step or nothing: no menu.
-///
-/// The current shortcut is parsed from [`ActionsHost::shortcut`] by the host's rule; the panel
-/// keeps the menu's ticks in egui memory under the menu's id while it is open.
-pub(super) fn context_menu(
+pub(super) fn show_context_menu(
     ui: &mut Ui,
-    request: &ContextMenuRequest<ActionSelection>,
+    slot: Id,
+    asked: Option<ContextMenuRequest<ActionSelection>>,
     list: &ActionList,
     host: Option<&dyn ActionsHost>,
     labels: &ActionsLabels,
 ) -> Option<ActionsEvent> {
     // pc: crates/ui-egui/src/panels/actions.rs:864 `action_context_menu`, :830 `draw_set_header` (Save Set…).
-    let (entries, action) = match request.row.as_ref()? {
-        ActionSelection::Set(name) => (vec![MenuItem::new(labels.save_set.clone(), MenuCommand::Save(name.clone())).into()], None),
-        ActionSelection::Action(index) => {
-            let current = list.action(*index)?.color;
-            (Vec::new(), Some((*index, current)))
-        }
-        ActionSelection::Step(..) => return None,
-    };
     let ctx = ui.ctx().clone();
-    let memory = ui.scope_id().with("context-menu");
-    let pass = ctx.cumulative_pass_nr();
-    let mut pending = match ctx.data(|data| data.get_temp::<Pending>(memory)) {
-        Some(kept) if kept.request == *request => kept,
-        _ => Pending::opened(request, action.and_then(|(index, _)| list.action(index)).and_then(|a| host?.shortcut(a)).as_deref(), pass),
+    let kept = ctx.data(|data| data.get_temp::<Pending>(slot));
+    let mut pending = match (asked, kept) {
+        (Some(asked), _) => Pending::opened(asked, list, host),
+        (None, Some(kept)) if Popup::is_any_open(&ctx) => Some(kept),
+        _ => None,
     };
-    if pending.closed {
-        // The pass after the menu closed, with another popup still open: not a new request.
-        let stale = pass <= pending.pass + 1;
-        pending.pass = pass;
-        ctx.data_mut(|data| data.insert_temp(memory, pending.clone()));
-        if stale {
-            return None;
-        }
-        pending = Pending::opened(request, None, pass);
-    }
-    let entries = match action {
-        Some((_, color)) => action_entries(labels, &pending, color),
-        None => entries,
+    let Some(open) = pending.as_mut() else {
+        ctx.data_mut(|data| data.remove::<Pending>(slot));
+        return None;
     };
-    let widget = ui.interact(request.anchor, memory.with("anchor"), Sense::hover());
-    let at = pending.fresh.then(|| request.pointer.map_or(OpenAt::Rect(request.anchor), OpenAt::Pointer));
-    pending.fresh = false;
+    let entries = match open.action {
+        Some((_, color)) => action_entries(labels, open, color),
+        None => open.set_entries(labels),
+    };
+    let widget = ui.interact(open.request.anchor, slot.with("anchor"), Sense::hover());
+    let at = open.fresh.then(|| open.request.pointer.map_or(OpenAt::Rect(open.request.anchor), OpenAt::Pointer));
+    open.fresh = false;
     let shown = ContextMenu::new(&entries).own_gestures(false).open_at(at).show(ui, &widget);
-    pending.seen_open |= shown.open;
-    pending.pass = pass;
+    open.seen_open |= shown.open;
     let mut event = None;
-    match (shown.chosen, action) {
+    match (shown.chosen, open.action) {
         (Some(MenuCommand::Save(set)), _) => event = Some(ActionsEvent::Save { set: Some(set) }),
         (Some(MenuCommand::Color(color)), Some((index, _))) => event = Some(ActionsEvent::SetColor { action: index, color }),
         (Some(MenuCommand::Key(key)), Some((index, _))) => {
-            pending.key = key;
-            pending.dirty = false;
-            event = Some(ActionsEvent::AssignShortcut { action: index, choice: pending.choice() });
+            open.key = key;
+            event = Some(ActionsEvent::AssignShortcut { action: index, choice: open.choice() });
         }
-        (Some(MenuCommand::Shift), _) => {
-            pending.shift = !pending.shift;
-            pending.dirty = true;
+        (Some(MenuCommand::Shift), Some((index, _))) => {
+            open.shift = !open.shift;
+            event = Some(ActionsEvent::AssignShortcut { action: index, choice: open.choice() });
         }
-        (Some(MenuCommand::Command), _) => {
-            pending.command = !pending.command;
-            pending.dirty = true;
+        (Some(MenuCommand::Command), Some((index, _))) => {
+            open.command = !open.command;
+            event = Some(ActionsEvent::AssignShortcut { action: index, choice: open.choice() });
         }
         _ => {}
     }
-    if !shown.open && pending.seen_open {
-        // Closed without a row of its own: the ticks stand (PhotoCraft applies them as they are made).
-        if event.is_none()
-            && pending.dirty
-            && let Some((index, _)) = action
-        {
-            event = Some(ActionsEvent::AssignShortcut { action: index, choice: pending.choice() });
-        }
-        pending.closed = true;
+    if !shown.open && open.seen_open {
+        ctx.data_mut(|data| data.remove::<Pending>(slot));
+    } else if let Some(open) = pending {
+        ctx.data_mut(|data| data.insert_temp(slot, open));
     }
-    ctx.data_mut(|data| data.insert_temp(memory, pending));
     event
 }
 
@@ -217,43 +193,55 @@ enum MenuCommand {
     Save(String),
 }
 
-/// What an open action menu keeps in egui memory: its ticks, until it closes.
+/// An open context menu, kept in egui memory while its popup is open: the request and, for an
+/// action, the shortcut as the menu has made it.
 #[derive(Clone, Debug)]
 struct Pending {
     request: ContextMenuRequest<ActionSelection>,
+    /// The action and its colour; `None` for a set.
+    action: Option<(usize, ActionColor)>,
+    /// The set's name for a set's menu.
+    set: Option<String>,
     /// 0 for none, else 1..=12.
     key: u8,
     shift: bool,
     command: bool,
-    /// A check row changed since the key was last chosen.
-    dirty: bool,
     /// Not opened yet: the next draw opens it.
     fresh: bool,
     seen_open: bool,
-    closed: bool,
-    /// The last pass that asked for this menu.
-    pass: u64,
 }
 
 impl Pending {
-    /// The menu for `request`, ticks from the action's `shortcut` text.
-    fn opened(request: &ContextMenuRequest<ActionSelection>, shortcut: Option<&str>, pass: u64) -> Self {
-        let current = shortcut.and_then(parse_shortcut);
-        Self {
-            request: request.clone(),
+    /// The menu for `request` with the ticks of the host's shortcut; `None` for a step, nothing
+    /// or an action the list no longer has.
+    fn opened(request: ContextMenuRequest<ActionSelection>, list: &ActionList, host: Option<&dyn ActionsHost>) -> Option<Self> {
+        let (action, set, current) = match request.row.as_ref()? {
+            ActionSelection::Set(name) => (None, Some(name.clone()), None),
+            ActionSelection::Action(index) => {
+                let action = list.action(*index)?;
+                (Some((*index, action.color)), None, host.and_then(|host| host.shortcut(action)))
+            }
+            ActionSelection::Step(..) => return None,
+        };
+        Some(Self {
+            request,
+            action,
+            set,
             key: current.map_or(0, |choice| choice.key),
             shift: current.is_some_and(|choice| choice.shift),
             command: current.is_some_and(|choice| choice.command),
-            dirty: false,
             fresh: true,
             seen_open: false,
-            closed: false,
-            pass,
-        }
+        })
     }
 
     fn choice(&self) -> Option<ShortcutChoice> {
         (self.key > 0).then_some(ShortcutChoice { key: self.key, shift: self.shift, command: self.command })
+    }
+
+    /// A set's menu: Save Set….
+    fn set_entries(&self, labels: &ActionsLabels) -> Vec<MenuEntry<MenuCommand>> {
+        self.set.iter().map(|name| MenuItem::new(labels.save_set.clone(), MenuCommand::Save(name.clone())).into()).collect()
     }
 }
 
@@ -283,24 +271,4 @@ fn action_entries(labels: &ActionsLabels, pending: &Pending, color: ActionColor)
         colors.into_iter().map(|(each, label)| MenuItem::new(label.clone(), MenuCommand::Color(each)).radio(each == color).into()).collect();
     entries.push(MenuItem::submenu(labels.color.clone(), children).into());
     entries
-}
-
-/// The function key and modifiers of the host's shortcut text: `F2`, `Shift+F2`, `Cmd+Shift+F2`,
-/// `Ctrl+F2`, or with the glyphs `⇧`, `⌘`, `⌃`. `None` for any other text or a key beyond F12.
-fn parse_shortcut(text: &str) -> Option<ShortcutChoice> {
-    let mut flags = [false; 2];
-    let mut rest = text.trim();
-    'strip: loop {
-        for (prefix, flag) in [("Shift+", 0), ("⇧", 0), ("Cmd+", 1), ("Ctrl+", 1), ("⌘", 1), ("⌃", 1)] {
-            if let Some(after) = rest.strip_prefix(prefix) {
-                flags[flag] = true;
-                rest = after;
-                continue 'strip;
-            }
-        }
-        break;
-    }
-    let [shift, command] = flags;
-    let key = rest.strip_prefix('F')?.parse::<u8>().ok().filter(|key| (1..=12).contains(key))?;
-    Some(ShortcutChoice { key, shift, command })
 }

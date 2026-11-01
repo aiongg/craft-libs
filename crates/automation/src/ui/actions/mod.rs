@@ -17,8 +17,8 @@
 //! | Part | Names |
 //! |---|---|
 //! | The panel | [`ActionsPanel`], [`ActionsPanelOutput`], [`ActionsEvent`], [`ActionPlace`], [`ActionSelection`], [`ShortcutChoice`] |
-//! | The app's side | [`ActionsHost`] |
-//! | State | [`ActionsState`], [`ActionsSettings`] (persisted) |
+//! | The app's side | [`ActionsHost`], [`ActionsMenuAction`] (from `run_command`) |
+//! | State | [`ActionsPanelState`], [`ActionsSettings`] (persisted) |
 //! | Look and words | [`ActionsPanelStyle`], [`ActionsLabels`], [`COUNTS`] |
 
 mod footer;
@@ -34,8 +34,9 @@ pub(crate) mod stories;
 mod style;
 
 pub use labels::ActionsLabels;
+pub use menu::ActionsMenuAction;
 pub use panel::{
-    ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsPanel, ActionsPanelOutput, ActionsSettings, ActionsState, ShortcutChoice,
+    ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsPanel, ActionsPanelOutput, ActionsPanelState, ActionsSettings, ShortcutChoice,
 };
 pub use style::ActionsPanelStyle;
 
