@@ -2,14 +2,14 @@
 
 use std::sync::Arc;
 
+use crate::canvas::textures::{TextureKey, TextureState, ThumbPaint, Thumbnails};
+use crate::controls::{Badge, BadgeStyle, BadgeTone, CheckState, Checkbox, ControlSize, Rating, paint_box, paint_rating};
+use crate::icons::{self, Icon, IconSize};
+use crate::localized::words::counts::STARS as STARS_WORD;
+use crate::localized::{LocaleNumbers, Words, fmt};
+use crate::primitives::FocusRing;
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use craft_theme::TypeRole;
-use craft_ui::canvas::textures::{TextureKey, TextureState, ThumbPaint, Thumbnails};
-use craft_ui::controls::{Badge, BadgeStyle, BadgeTone, CheckState, Checkbox, ControlSize, Rating, paint_box, paint_rating};
-use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::localized::words::counts::STARS as STARS_WORD;
-use craft_ui::localized::{LocaleNumbers, Words, fmt};
-use craft_ui::primitives::FocusRing;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::text::LayoutJob;
 use egui::{Color32, CornerRadius, Galley, Painter, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 

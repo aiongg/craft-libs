@@ -3,13 +3,13 @@
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 
-use craft_ui::behavior::{Axis, DropPosition, Move, Reorder, Selection};
-use craft_ui::canvas::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails};
-use craft_ui::controls::{ControlSize, Rating};
-use craft_ui::direction::{self, Direction};
-use craft_ui::edit::EditEvent;
-use craft_ui::testing::{HarnessExt as _, events};
-use craft_ui::theme::{Base, current, install};
+use crate::behavior::{Axis, DropPosition, Move, Reorder, Selection};
+use crate::canvas::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails};
+use crate::controls::{ControlSize, Rating};
+use crate::direction::{self, Direction};
+use crate::edit::EditEvent;
+use crate::testing::{HarnessExt as _, events};
+use crate::theme::{Base, current, install};
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Ui, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -619,7 +619,7 @@ fn renames(events: Vec<TileEvent<usize>>) -> Vec<TileEvent<usize>> {
 // F2 opens the lead's rename field in the caption; Enter commits the typed text, Esc cancels.
 #[test]
 fn f2_renames_the_lead_and_enter_commits_while_escape_cancels() {
-    use craft_ui::list::RenameEnd;
+    use crate::list::RenameEnd;
     let mut host = Host::new(8);
     host.renamable = true;
     let mut harness = harness(host);
@@ -707,7 +707,7 @@ fn the_scroll_bar_has_a_name() {
 fn the_accessible_name_counts_stars_with_the_plural_word() {
     use super::TileLabels;
     use super::paint::accessible_name;
-    use craft_ui::localized::Labels as _;
+    use crate::localized::Labels as _;
     let ctx = egui::Context::default();
     let labels = TileLabels::english();
     let mut content = TileContent { name: "Beach".to_owned(), ..TileContent::default() };

@@ -1,6 +1,6 @@
 //! The grid's keys: arrows, Home and End, page keys, rating keys, Space, Enter, Delete.
 
-use craft_ui::behavior::{GridKey, GridNav};
+use crate::behavior::{GridKey, GridNav};
 use egui::{Key, Modifiers};
 
 use super::{RatingKeys, SpaceAction, ZoomStep};

@@ -3,7 +3,7 @@
 
 use std::ops::Range;
 
-use craft_ui::behavior::GridNav;
+use crate::behavior::GridNav;
 use egui::{Rect, Vec2, pos2, vec2};
 
 /// How tiles are laid out.

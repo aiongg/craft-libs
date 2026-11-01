@@ -1,31 +1,41 @@
 //! The rename field of a tile's caption.
 
-use craft_ui::controls::{ControlSize, TextField};
-use craft_ui::edit::{CancelReason, EditEvent};
-use craft_ui::list::RenameEnd;
-use craft_ui::primitives::Interactive;
-use craft_ui::theme::{Tokens, TokensOf as _};
+use crate::controls::{ControlSize, TextField};
+use crate::edit::{CancelReason, EditEvent};
+use crate::list::RenameEnd;
+use crate::primitives::Interactive;
+use crate::theme::{Tokens, TokensOf as _};
 use egui::text::{CCursor, CCursorRange};
 use egui::text_edit::TextEditState;
 use egui::{Align, Id, Layout, Rect, Ui, UiBuilder, vec2};
 
-/// The open rename: the tile, the text typed so far and whether the field is new (it takes the
-/// focus and selects its text).
+/// The open rename of a tile's caption: the tile, the text typed so far and whether the field is
+/// new (it takes the focus and selects its text). [`TileGrid`](super::TileGrid) keeps one; a host
+/// that draws its own tiles with [`paint_tile`](super::paint_tile) (craft-browse's freeform bin)
+/// keeps its own and shows it with [`show_tile_rename`].
 #[derive(Clone, Debug)]
-pub(crate) struct Rename<K> {
+pub struct TileRename<K> {
+    /// The tile.
     pub key: K,
+    /// The text typed so far.
     pub text: String,
+    /// The field opened this pass: it takes the focus and selects its text.
     pub fresh: bool,
 }
 
-/// What the field showed this pass: the text, and how the rename ended, if it did.
-pub(crate) struct Outcome {
+/// What the rename field showed this pass: the text, and how the rename ended, if it did.
+#[derive(Clone, Debug)]
+pub struct TileRenameOutcome {
+    /// The field's text.
     pub text: String,
+    /// How the rename ended this pass, if it did.
     pub end: Option<RenameEnd>,
 }
 
-/// Shows the field for the tile `tile` in `band` (the caption's rect) with `rename`'s text.
-pub(crate) fn show<K>(ui: &mut Ui, tile: Id, band: Rect, label: &str, rename: &Rename<K>) -> Outcome {
+/// Shows the rename field for the tile `tile` in `band` (the caption's rect) with `rename`'s
+/// text, named `label` for AccessKit ([`TileLabels::rename`](super::TileLabels)). Enter commits,
+/// Esc cancels, focus loss commits.
+pub fn show_tile_rename<K>(ui: &mut Ui, tile: Id, band: Rect, label: &str, rename: &TileRename<K>) -> TileRenameOutcome {
     let height = TextField::style(&Tokens::of(ui), ControlSize::Sm).height.min(band.height());
     let band = Rect::from_center_size(band.center(), vec2(band.width(), height));
     // A child, not a scope: a scope would move the parent's cursor into the tile it was allocated.
@@ -60,5 +70,5 @@ pub(crate) fn show<K>(ui: &mut Ui, tile: Id, band: Rect, label: &str, rename: &R
     } else {
         None
     };
-    Outcome { text, end }
+    TileRenameOutcome { text, end }
 }

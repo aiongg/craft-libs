@@ -31,11 +31,11 @@ use craft_ui::typed_story;
 use egui::Ui;
 use egui::ecolor::Hsva;
 
-use super::fake::FakeTiles;
 use super::{
     BadgeKind, BadgeSlot, BadgeVisibility, RatingKeys, ThumbnailSlider, TileBadge, TileContent, TileEvent, TileFlag, TileGrid, TileGroup, TileLayout,
     TileStatus, TileZoom,
 };
+use craft_ui::list::FakeTiles;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Tile grid"];
