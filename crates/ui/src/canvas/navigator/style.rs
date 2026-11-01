@@ -5,9 +5,6 @@ use egui::{Color32, CornerRadius};
 use super::preview::Navigator;
 use crate::theme::{ToEgui as _, UiTokens};
 
-/// The width of the `overlay.halo` line.
-const HALO_WIDTH: f32 = 1.0;
-
 /// The Navigator's sizes and colours. [`Navigator::style`] reads them from the tokens; a widget
 /// never takes a literal size from app code.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -30,8 +27,7 @@ pub struct NavigatorStyle {
     pub proxy_radius: f32,
     /// The 1 pt outline under the proxy, so it reads on any image: `overlay.halo`.
     pub halo: Color32,
-    /// The halo's width, also the margin the proxy's edges are clipped to: the 1 pt line
-    /// `overlay.halo` is defined as (decisions §3.6; drawing geometry, no token holds it).
+    /// The halo's width, also the margin the proxy's edges are clipped to: `navigator.halo`.
     pub halo_width: f32,
     /// The side of a checkerboard square behind transparent pixels: `navigator.checker`.
     pub checker: f32,
@@ -54,7 +50,7 @@ impl Navigator<'_> {
             proxy_width: n.proxy_width,
             proxy_radius: n.proxy_radius,
             halo: tokens.color.overlay.halo.to_egui(),
-            halo_width: HALO_WIDTH,
+            halo_width: n.halo,
             checker: n.checker,
             checker_colors: crate::canvas::CheckerColors::default().colors(),
             row_gap: n.row_gap,

@@ -1308,6 +1308,7 @@ link.table_share = 0.3
 link.dialog_max_width = 760
 navigator.proxy = #ff5454ff
 navigator.proxy_width = 1.5
+navigator.halo = 1
 navigator.proxy_radius = 2
 navigator.inset = 8
 navigator.min_preview = 40
