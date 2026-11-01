@@ -17,11 +17,13 @@
 //! if r.open_tabs_dialog { dialogs.open(TabStopsDialog::new(values.stops.clone(), default_tab)); }
 //! ```
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::units::LengthUnit;
 use egui::{Rect, Response, Ui};
+
+mod items;
+mod paint;
+mod run;
 
 craft_ui::words! {
     /// The ruler's AccessKit names and tooltips (Word's).
@@ -62,7 +64,10 @@ impl TabAlign {
     /// The selector's next kind (`back`: the previous one), wrapping.
     // wordcraft: crates/ui-egui/src/ruler_tabs.rs:37 `next_kind`.
     pub fn next(self, back: bool) -> TabAlign {
-        todo!()
+        let count = TabAlign::ALL.len();
+        let at = TabAlign::ALL.iter().position(|kind| *kind == self).unwrap_or(0);
+        let to = if back { (at + count - 1) % count } else { (at + 1) % count };
+        TabAlign::ALL.get(to).copied().unwrap_or_default()
     }
 }
 
@@ -132,15 +137,20 @@ pub struct RulerValues {
 /// A position for a stop: snapped to `step` (unless `free`, Alt held), within `0..=width`.
 // wordcraft: crates/ui-egui/src/ruler_tabs.rs:57 `snap_tab`.
 pub fn snap_stop(position: f32, step: f32, width: f32, free: bool) -> f32 {
-    todo!()
+    let position = if position.is_finite() { position } else { 0.0 };
+    let snapped = if free || !step.is_finite() || step <= 0.0 { position } else { (position / step).round() * step };
+    snapped.clamp(0.0, if width.is_finite() { width.max(0.0) } else { 0.0 })
 }
 
 /// Whether a pointer at `y` is far enough above or below the ruler `strip` to take a dragged stop
 /// off: 18 screen points (WordCraft's `DROP_OFF`; DesignCraft's is 24).
 // wordcraft: crates/ui-egui/src/ruler_tabs.rs:64 `dropped_off`.
 pub fn dropped_off(y: f32, strip: Rect) -> bool {
-    todo!()
+    y > strip.max.y + DROP_OFF || y < strip.min.y - DROP_OFF
 }
+
+/// How far (screen points) past the strip a dragged stop must be to come off.
+const DROP_OFF: f32 = 18.0;
 
 /// What the ruler did this pass.
 #[derive(Debug)]
@@ -249,6 +259,6 @@ impl<'a> TextRuler<'a> {
     // crates/ui-egui/src/panels/tabs.rs:97 `ruler`; vectorcraft: crates/ui-egui/src/panels/tabs.rs:114
     // `hit_marker`.
     pub fn show(self, ui: &mut Ui, strip: Rect) -> TextRulerResponse {
-        todo!()
+        run::show(self, ui, strip)
     }
 }
