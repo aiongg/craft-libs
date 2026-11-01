@@ -1,48 +1,106 @@
 //! Tests of shape outlines and drags (task SH-T1).
-#![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+
+use std::f64::consts::{FRAC_PI_2, PI};
+
+use kurbo::{PathEl, Point, Rect, RoundedRect, Shape};
+
+use super::shape::{RadialFrame, STAR_RATIO, ShapeGeometry, box_drag, line_drag};
+
+fn near(a: f64, b: f64) -> bool {
+    (a - b).abs() < 1e-9
+}
 
 // `box_drag`: ⇧ gives both sides the larger extent with their signs kept; ⌥ doubles the box about
 // the press; the top left and size are whole pixels (PhotoCraft `shapes.rs:63-72`).
 #[test]
-#[ignore = "skeleton"]
 fn shape_drag_shift_makes_square_alt_draws_from_centre() {
-    todo!()
+    let start = Point::new(100.0, 100.0);
+    assert_eq!(box_drag(start, Point::new(130.0, 110.0), true, false), Some(Rect::new(100.0, 100.0, 130.0, 130.0)));
+    assert_eq!(box_drag(start, Point::new(90.0, 60.0), true, false), Some(Rect::new(60.0, 60.0, 100.0, 100.0)));
+    assert_eq!(box_drag(start, Point::new(110.0, 105.0), false, true), Some(Rect::new(90.0, 95.0, 110.0, 105.0)));
+    assert_eq!(box_drag(Point::new(0.4, 0.4), Point::new(10.4, 20.6), false, false), Some(Rect::new(0.0, 0.0, 10.0, 20.0)));
 }
 
 // `line_drag` with ⇧ turns (10, 3) to the 0° step and (7, 6) to 45°, each keeping its length.
 #[test]
-#[ignore = "skeleton"]
 fn line_drag_shift_snaps_to_45_degrees_and_keeps_length() {
-    todo!()
+    let from = Point::new(5.0, 5.0);
+    let Some(flat) = line_drag(from, Point::new(15.0, 8.0), true) else { panic!("a line") };
+    assert!(near(flat.y, 5.0) && near(flat.x - 5.0, 10.0_f64.hypot(3.0)));
+    let Some(diag) = line_drag(from, Point::new(12.0, 11.0), true) else { panic!("a line") };
+    assert!(near(diag.x - 5.0, diag.y - 5.0) && near((diag.x - 5.0).hypot(diag.y - 5.0), 7.0_f64.hypot(6.0)));
+    assert_eq!(line_drag(from, Point::new(15.0, 8.0), false), Some(Point::new(15.0, 8.0)));
 }
 
 // `box_drag` of 0.4 px wide and `line_drag` of 0.9 px long return `None`.
 #[test]
-#[ignore = "skeleton"]
 fn shape_drag_under_one_pixel_draws_nothing() {
-    todo!()
+    assert_eq!(box_drag(Point::new(10.0, 10.0), Point::new(10.4, 50.0), false, false), None);
+    assert_eq!(line_drag(Point::new(10.0, 10.0), Point::new(10.9, 10.0), false), None);
+}
+
+fn corners(path: &kurbo::BezPath) -> Vec<Point> {
+    path.elements()
+        .iter()
+        .filter_map(|e| match e {
+            PathEl::MoveTo(p) | PathEl::LineTo(p) => Some(*p),
+            _ => None,
+        })
+        .collect()
 }
 
 // `Polygon { sides: 3 }` has three corners with the base on the rect's bottom edge; a Rect with
 // four equal radii is kurbo's rounded rect of that radius.
 #[test]
-#[ignore = "skeleton"]
 fn triangle_is_three_sided_polygon_and_rounded_rectangle_has_four_equal_radii() {
-    todo!()
+    let rect = Rect::new(10.0, 20.0, 110.0, 80.0);
+    let path = ShapeGeometry::Polygon { rect, sides: 3, star_ratio: 1.0 }.to_path(0.1);
+    let points = corners(&path);
+    assert_eq!(points.len(), 3);
+    assert!(near(points[0].y, rect.y0) && near(points[0].x, 60.0));
+    assert!(near(points[1].y, rect.y1) && near(points[2].y, rect.y1));
+    assert!(near(points[1].x.min(points[2].x), rect.x0) && near(points[1].x.max(points[2].x), rect.x1));
+
+    let round = ShapeGeometry::Rect { rect, radii: [8.0; 4] }.to_path(0.1);
+    assert_eq!(round, RoundedRect::from_rect(rect, 8.0).to_path(0.1));
+    assert_eq!(ShapeGeometry::Rect { rect, radii: [0.0; 4] }.to_path(0.1), rect.to_path(0.1));
 }
 
 // A Rect with radii [1, 2, 3, 4] rounds top-left 1, top-right 2, bottom-right 3, bottom-left 4.
 #[test]
-#[ignore = "skeleton"]
 fn shape_geometry_to_path_matches_corner_order_tl_tr_br_bl() {
-    todo!()
+    let rect = Rect::new(0.0, 0.0, 100.0, 100.0);
+    let path = ShapeGeometry::Rect { rect, radii: [1.0, 2.0, 3.0, 4.0] }.to_path(0.01);
+    // The first line segment's start is where the top-left arc ends: x = its radius.
+    assert_eq!(path.elements()[0], PathEl::MoveTo(Point::new(0.0, 1.0)));
+    let bbox = path.bounding_box();
+    assert!(near(bbox.x0, 0.0) && near(bbox.x1, 100.0) && near(bbox.y1, 100.0));
+    // Each corner point is cut off by its radius: the path passes (100 - 2, 0) and (0, 100 - 4).
+    let on = |p: Point| path.segments().any(|s| kurbo::ParamCurveNearest::nearest(&s, p, 1e-6).distance_sq < 1e-8);
+    assert!(on(Point::new(98.0, 0.0)) && on(Point::new(100.0, 97.0)) && on(Point::new(4.0, 100.0)) && on(Point::new(1.0, 0.0)));
 }
 
 // `RadialFrame::drag` follows the pointer's direction; with `upright` the rotation is 0.
 // `ratio_holding` keeps the inner radius; `straight_shoulders(5)` is cos 72° / cos 36° and
 // `straight_shoulders(4)` is `None` (VectorCraft `straight_ratio`).
 #[test]
-#[ignore = "skeleton"]
 fn radial_frame_rotation_inner_radius_and_straight_shoulders() {
-    todo!()
+    let c = Point::new(50.0, 50.0);
+    let Some(up) = RadialFrame::drag(c, Point::new(50.0, 30.0), false) else { panic!("a frame") };
+    assert!(near(up.radius, 20.0) && near(up.rotation, 0.0));
+    let Some(right) = RadialFrame::drag(c, Point::new(70.0, 50.0), false) else { panic!("a frame") };
+    assert!(near(right.rotation, FRAC_PI_2));
+    let Some(upright) = RadialFrame::drag(c, Point::new(70.0, 50.0), true) else { panic!("a frame") };
+    assert!(near(upright.rotation, 0.0));
+    assert!(RadialFrame::drag(c, Point::new(50.4, 50.0), false).is_none());
+
+    assert!(near(right.ratio_holding(10.0), 0.5));
+    assert!(near(right.ratio_holding(100.0), *STAR_RATIO.end()));
+    assert!(near(RadialFrame::straight_shoulders(5).unwrap_or(0.0), (2.0 * PI / 5.0).cos() / (PI / 5.0).cos()));
+    assert_eq!(RadialFrame::straight_shoulders(4), None);
+
+    // The first outer point of a rotated polygon sits at the frame's direction.
+    let path = right.geometry(5, 1.0).to_path(0.1);
+    let first = corners(&path)[0];
+    assert!(near(first.x, 70.0) && near(first.y, 50.0));
 }

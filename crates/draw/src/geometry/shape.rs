@@ -6,11 +6,10 @@
 //! Document units throughout; y grows downwards. Corner radii run top-left, top-right,
 //! bottom-right, bottom-left (PhotoCraft's engine order).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
+use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use std::ops::RangeInclusive;
 
-use kurbo::{BezPath, Point, Rect};
+use kurbo::{BezPath, Ellipse, Point, Rect, RoundedRect, RoundedRectRadii, Shape, Vec2};
 
 /// The sides a polygon or the points a star may have (PhotoCraft's Sides field, 3–100).
 pub const SIDES: RangeInclusive<u32> = 3..=100;
@@ -69,7 +68,42 @@ impl ShapeGeometry {
         // equal radii, ellipse, a polygon of 3 sides for the Triangle, `polygon_sides.max(3)`).
         // new: PhotoCraft's engine draws the outline; here it is kurbo's `RoundedRect`, `Ellipse`
         // and a point list, so engines without one share it.
-        todo!()
+        let tolerance = tolerance.max(f64::EPSILON);
+        match *self {
+            Self::Rect { rect, radii } => {
+                let rect = rect.abs();
+                if radii.iter().all(|r| *r <= 0.0) {
+                    rect.to_path(tolerance)
+                } else {
+                    RoundedRect::from_rect(rect, RoundedRectRadii::new(radii[0], radii[1], radii[2], radii[3])).to_path(tolerance)
+                }
+            }
+            Self::Ellipse { rect } => Ellipse::from_rect(rect.abs()).to_path(tolerance),
+            Self::Polygon { rect, sides, star_ratio } => {
+                let rect = rect.abs();
+                let unit = polygon_points(Point::ZERO, 1.0, 0.0, sides, star_ratio);
+                let (mut lo, mut hi) = (Point::new(f64::MAX, f64::MAX), Point::new(f64::MIN, f64::MIN));
+                for p in &unit {
+                    lo = Point::new(lo.x.min(p.x), lo.y.min(p.y));
+                    hi = Point::new(hi.x.max(p.x), hi.y.max(p.y));
+                }
+                let scale =
+                    |from: f64, to: f64, a: f64, b: f64, v: f64| if to - from > 0.0 { a + (v - from) / (to - from) * (b - a) } else { (a + b) / 2.0 };
+                let points: Vec<Point> =
+                    unit.iter().map(|p| Point::new(scale(lo.x, hi.x, rect.x0, rect.x1, p.x), scale(lo.y, hi.y, rect.y0, rect.y1, p.y))).collect();
+                closed(&points)
+            }
+            Self::RadialPolygon { center, radius, rotation, sides, star_ratio } => {
+                closed(&polygon_points(center, radius, rotation, sides, star_ratio))
+            }
+            Self::Line { from, to, weight } => {
+                let v = to - from;
+                let len = v.hypot();
+                let n = if len > 0.0 { Vec2::new(-v.y, v.x) * (weight / 2.0 / len) } else { Vec2::ZERO };
+                closed(&[from + n, to + n, to - n, from - n])
+            }
+            Self::Custom { rect, .. } => rect.abs().to_path(tolerance),
+        }
     }
 
     /// The axis-aligned box the shape occupies: the rect of the box kinds, the circle's box of a
@@ -77,7 +111,11 @@ impl ShapeGeometry {
     /// `shape_bounds`).
     pub fn bounds(&self) -> Rect {
         // pc: crates/ui-egui/src/tools/vector_ui/shapes.rs:85-96 `shape_bounds` (a line's ends' box).
-        todo!()
+        match *self {
+            Self::Rect { rect, .. } | Self::Ellipse { rect } | Self::Polygon { rect, .. } | Self::Custom { rect, .. } => rect.abs(),
+            Self::RadialPolygon { center, radius, .. } => Rect::new(center.x - radius, center.y - radius, center.x + radius, center.y + radius),
+            Self::Line { from, to, .. } => Rect::from_points(from, to),
+        }
     }
 }
 
@@ -91,7 +129,15 @@ pub fn box_drag(start: Point, end: Point, square: bool, from_centre: bool) -> Op
     // pc: crates/ui-egui/src/tools/vector_ui/shapes.rs:63-72 (⇧: `m = w.abs().max(h.abs())` with the
     // signs kept; ⌥: origin `start - (w, h)`, size doubled; `[x0.min(x0 + w).round(), …,
     // w.abs().round(), …]`; `rect[2] < 1.0 || rect[3] < 1.0` draws nothing).
-    todo!()
+    let (mut w, mut h) = (end.x - start.x, end.y - start.y);
+    if square {
+        let m = w.abs().max(h.abs());
+        (w, h) = (m * sign(w), m * sign(h));
+    }
+    let (x0, y0) = if from_centre { (start.x - w, start.y - h) } else { (start.x, start.y) };
+    let (w, h) = if from_centre { (w * 2.0, h * 2.0) } else { (w, h) };
+    let (x, y, w, h) = (x0.min(x0 + w).round(), y0.min(y0 + h).round(), w.abs().round(), h.abs().round());
+    (w >= MIN_SIDE && h >= MIN_SIDE).then(|| Rect::new(x, y, x + w, y + h))
 }
 
 /// The end of a line dragged from `from` to `to`, or `None` when it is shorter than
@@ -99,7 +145,13 @@ pub fn box_drag(start: Point, end: Point, square: bool, from_centre: bool) -> Op
 pub fn line_drag(from: Point, to: Point, snap: bool) -> Option<Point> {
     // pc: crates/ui-egui/src/tools/vector_ui/shapes.rs:52-61 (angle `(dy.atan2(dx) / FRAC_PI_4).round()
     // * FRAC_PI_4`, length `dx.hypot(dy)`; shorter than 1 draws nothing).
-    todo!()
+    let (mut dx, mut dy) = (to.x - from.x, to.y - from.y);
+    if snap {
+        let a = (dy.atan2(dx) / FRAC_PI_4).round() * FRAC_PI_4;
+        let len = dx.hypot(dy);
+        (dx, dy) = (len * a.cos(), len * a.sin());
+    }
+    (dx.hypot(dy) >= MIN_SIDE).then(|| Point::new(from.x + dx, from.y + dy))
 }
 
 /// A radial drag's frame: the press is the centre, the pointer sets the radius and the turn
@@ -121,7 +173,13 @@ impl RadialFrame {
         // inv-vectorcraft: crates/tools/src/shape.rs:131-137 (polygon and star: the press is the
         // centre, `r = v.hypot()`, rotation `(v.atan2().to_degrees() + 90.0) % 360.0`; Shift keeps the
         // base orientation). VectorCraft's radius floor is 0.01; the library's is `MIN_SIDE`.
-        todo!()
+        let v = at - center;
+        let radius = v.hypot();
+        if radius < MIN_SIDE {
+            return None;
+        }
+        let rotation = if upright { 0.0 } else { (v.atan2() + FRAC_PI_2) % TAU };
+        Some(RadialFrame { center, radius, rotation })
     }
 
     /// The shape of this frame with `sides` points and `star_ratio`.
@@ -135,7 +193,7 @@ impl RadialFrame {
     pub fn ratio_holding(self, inner: f64) -> f64 {
         // inv-vectorcraft: crates/tools/src/shape.rs:5-7 (Ctrl/Cmd keeps the inner radius while the
         // outer one follows), :32-33 (`inner` held while Ctrl/Cmd is down).
-        todo!()
+        if self.radius > 0.0 { (inner / self.radius).clamp(*STAR_RATIO.start(), *STAR_RATIO.end()) } else { *STAR_RATIO.end() }
     }
 
     /// The star ratio whose shoulders are straight (⌥, five points or more): the line between
@@ -144,6 +202,45 @@ impl RadialFrame {
     pub fn straight_shoulders(sides: u32) -> Option<f64> {
         // inv-vectorcraft: crates/tools/src/shape.rs:42-48 `straight_ratio`: `(points >= 5).then(||
         // (2π / n).cos() / (π / n).cos())`.
-        todo!()
+        (sides >= 5).then(|| {
+            let n = f64::from(sides);
+            (TAU / n).cos() / (PI / n).cos()
+        })
     }
+}
+
+fn sign(v: f64) -> f64 {
+    if v < 0.0 { -1.0 } else { 1.0 }
+}
+
+/// The corners of a polygon or star about `center`, the first outer point `rotation` clockwise
+/// from straight up (y down); a star puts an inner point between each pair of outer ones.
+fn polygon_points(center: Point, radius: f64, rotation: f64, sides: u32, star_ratio: f64) -> Vec<Point> {
+    let n = sides.clamp(*SIDES.start(), *SIDES.end());
+    let step = TAU / f64::from(n);
+    let at = |angle: f64, r: f64| Point::new(center.x + r * (rotation + angle).sin(), center.y - r * (rotation + angle).cos());
+    let star = star_ratio < 1.0;
+    let inner = radius * star_ratio.max(*STAR_RATIO.start());
+    let mut points = Vec::with_capacity(if star { 2 * n as usize } else { n as usize });
+    for i in 0..n {
+        let angle = step * f64::from(i);
+        points.push(at(angle, radius));
+        if star {
+            points.push(at(angle + step / 2.0, inner));
+        }
+    }
+    points
+}
+
+fn closed(points: &[Point]) -> BezPath {
+    let mut path = BezPath::new();
+    for (i, p) in points.iter().enumerate() {
+        if i == 0 {
+            path.move_to(*p);
+        } else {
+            path.line_to(*p);
+        }
+    }
+    path.close_path();
+    path
 }
