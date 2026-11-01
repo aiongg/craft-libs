@@ -1,12 +1,14 @@
 //! The Navigator's geometry: where the document sits in the preview box, the proxy of the view,
 //! and the view a click or a Cmd/Ctrl-drag asks for. Pure functions, for tests and for apps that
 //! draw a preview of their own (VectorCraft's artboards-only preview).
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-use egui::{Pos2, Rect};
+use egui::{Pos2, Rect, pos2, vec2};
 use kurbo::{Point, Size};
 
-use crate::canvas::CanvasView;
+use crate::canvas::{CanvasView, ZoomLadder, zoom};
+
+/// A zoom rectangle under this many document units on a side steps one rung in instead.
+const MIN_ZOOM_BOX: f64 = 2.0;
 
 /// The document of `size` (document units) fitted inside `frame` with `inset` points on every
 /// side, centred and keeping its aspect: the rect the preview picture is drawn into.
@@ -16,7 +18,10 @@ use crate::canvas::CanvasView;
 pub fn preview_rect(frame: Rect, size: Size, inset: f32) -> Rect {
     // pc: crates/ui-egui/src/panels/navigator.rs:157 `navigator_fit` (inner = frame − 2 × 8, at least 1 × 1;
     // scale = min(inner.x / w, inner.y / h); centred on frame.center()).
-    todo!()
+    let inner = (frame.size() - vec2(2.0 * inset, 2.0 * inset)).max(vec2(1.0, 1.0));
+    let (w, h) = (size.width.max(1.0) as f32, size.height.max(1.0) as f32);
+    let scale = (inner.x / w).min(inner.y / h);
+    Rect::from_center_size(frame.center(), vec2(w * scale, h * scale))
 }
 
 /// The proxy of `view` in the preview: the canvas rectangle `view.rect` mapped into document
@@ -34,7 +39,12 @@ pub fn preview_rect(frame: Rect, size: Size, inset: f32) -> Rect {
 /// intersected with that box (PhotoCraft's `intersect(frame.shrink(1.0))`).
 pub fn proxy_quad(view: &CanvasView, size: Size, preview: Rect) -> [Pos2; 4] {
     // pc: crates/ui-egui/src/panels/navigator.rs:99-104 (point zoom, aspect, scale `s`, centre `c`).
-    todo!()
+    let s = preview_scale(preview, size);
+    let r = view.rect;
+    [r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom()].map(|corner| {
+        let doc = view.to_doc(corner);
+        pos2(preview.min.x + doc.x as f32 * s, preview.min.y + doc.y as f32 * s)
+    })
 }
 
 /// Zooms `view` so the document rectangle `doc_rect` (document units) fills the canvas
@@ -58,12 +68,45 @@ pub fn proxy_quad(view: &CanvasView, size: Size, preview: Rect) -> [Pos2; 4] {
 ///   `animate_zoom` false.
 pub fn zoom_to_document_rect(view: &mut CanvasView, doc_rect: kurbo::Rect, size: Size, pixels_per_point: f32) -> bool {
     // pc: crates/ui-egui/src/panels/navigator.rs:174-199 `navigator_zoom_to`.
-    todo!()
+    let edges = [doc_rect.x0, doc_rect.y0, doc_rect.x1, doc_rect.y1];
+    if !edges.iter().all(|v| v.is_finite()) {
+        return false;
+    }
+    // Not `kurbo::Rect::intersect`, which clamps a rectangle off the document to zero size.
+    let (x0, y0) = (doc_rect.x0.max(0.0), doc_rect.y0.max(0.0));
+    let (x1, y1) = (doc_rect.x1.min(size.width), doc_rect.y1.min(size.height));
+    let (width, height) = (x1 - x0, y1 - y0);
+    if width < 0.0 || height < 0.0 {
+        return false;
+    }
+    let aspect = if view.aspect.is_finite() && view.aspect > 0.0 { view.aspect } else { 1.0 };
+    let ppp = if pixels_per_point.is_finite() && pixels_per_point > 0.0 { pixels_per_point } else { 1.0 };
+    let canvas = view.rect.size();
+    let device = if width < MIN_ZOOM_BOX || height < MIN_ZOOM_BOX || canvas.x <= 0.0 || canvas.y <= 0.0 {
+        ZoomLadder::step(zoom::device_zoom(view, ppp), 1, size)
+    } else {
+        // Document columns shown across the canvas are `canvas.x / (point_zoom × aspect)`.
+        let point_zoom = (f64::from(canvas.x) / (width * aspect)).min(f64::from(canvas.y) / height);
+        point_zoom * f64::from(ppp)
+    };
+    if !device.is_finite() {
+        return false;
+    }
+    let before = *view;
+    view.zoom = CanvasView::points_per_unit(ZoomLadder::clamp(device, size), ppp);
+    view.center = Point::new(x0 + width / 2.0, y0 + height / 2.0);
+    *view != before
 }
 
 /// The document point under `at` in a preview drawn into `preview` for a document of `size`,
 /// clamped to the document `(0, 0)..=size`: the view centre a click or a drag at `at` asks for.
 pub fn view_center_for(preview: Rect, size: Size, at: Pos2) -> Point {
     // pc: crates/ui-egui/src/panels/navigator.rs:61-62 (`(pp − rect.min) / s`, clamped to the document).
-    todo!()
+    let s = f64::from(preview_scale(preview, size));
+    Point::new((f64::from(at.x - preview.min.x) / s).clamp(0.0, size.width), (f64::from(at.y - preview.min.y) / s).clamp(0.0, size.height))
+}
+
+/// Preview points per document unit.
+fn preview_scale(preview: Rect, size: Size) -> f32 {
+    preview.width() / size.width.max(1.0) as f32
 }

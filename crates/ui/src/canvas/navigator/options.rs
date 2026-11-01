@@ -1,12 +1,15 @@
 //! Panel Options: [`NavigatorSettings`], [`NavigatorOptions`], [`ProxyColor`] and
 //! [`NavigatorOptionsDialog`].
 
-use craft_theme::Srgba;
-use egui::{Color32, Context};
+use craft_theme::{Rgba, Srgba};
+use egui::{Color32, Context, Ui};
 
 use super::labels::NavigatorLabels;
-use crate::dialog::{ColorRequest, DialogId, DialogResult, DialogStack, StackDialog};
-use crate::theme::UiTokens;
+use crate::composites::FormGrid;
+use crate::controls::{Select, Swatch};
+use crate::dialog::{ColorRequest, Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, Outcome, StackDialog, Width, dialog_id};
+use crate::localized::SharedLabels as _;
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 
 /// The [`ColorRequest::key`] of Panel Options' Custom… colour.
 pub const NAVIGATOR_PROXY_COLOR_KEY: &str = "navigator.proxyColor";
@@ -47,20 +50,38 @@ impl ProxyColor {
     ];
 
     /// The colour's name in the dialog; `Custom` is [`NavigatorLabels::custom`].
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn label(self, labels: &NavigatorLabels) -> &str {
-        // new: one word per variant (`navigator.*`).
-        todo!()
+        match self {
+            ProxyColor::Default => &labels.default_color,
+            ProxyColor::Red => &labels.red,
+            ProxyColor::Orange => &labels.orange,
+            ProxyColor::Yellow => &labels.yellow,
+            ProxyColor::Green => &labels.green,
+            ProxyColor::Blue => &labels.blue,
+            ProxyColor::Violet => &labels.violet,
+            ProxyColor::Gray => &labels.gray,
+            ProxyColor::Custom(_) => &labels.custom,
+        }
     }
 
     /// The colour drawn: `Default` reads `navigator.proxy` from `tokens`; the named ones are the
     /// lead's data (red 255/84/84, orange 255/160/60, yellow 255/214/64, green 92/214/110, blue
     /// 84/160/255, violet 176/124/255, gray 200/200/200), moved into `values.rs` by TK2; `Custom`
     /// is its own value.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn color(self, tokens: &UiTokens) -> Color32 {
-        // new: lead call L1, L2; until TK2 `Default` is `Navigator::style(tokens).proxy`.
-        todo!()
+        let navigator = &tokens.component.navigator;
+        let named = |index: usize| navigator.proxy_colors[index].to_egui();
+        match self {
+            ProxyColor::Default => navigator.proxy.to_egui(),
+            ProxyColor::Red => named(0),
+            ProxyColor::Orange => named(1),
+            ProxyColor::Yellow => named(2),
+            ProxyColor::Green => named(3),
+            ProxyColor::Blue => named(4),
+            ProxyColor::Violet => named(5),
+            ProxyColor::Gray => named(6),
+            ProxyColor::Custom([r, g, b]) => Color32::from_rgb(r, g, b),
+        }
     }
 }
 
@@ -102,7 +123,6 @@ pub struct NavigatorSettings {
 /// // later, when it answers:
 /// if let DialogResult::Ok(options) = result { settings.options = options; persist(&settings); }
 /// ```
-#[expect(dead_code, reason = "skeleton: removed when the bodies land")]
 pub struct NavigatorOptionsDialog {
     pub(super) id: DialogId,
     pub(super) options: NavigatorOptions,
@@ -117,17 +137,24 @@ pub struct NavigatorOptionsDialog {
 
 impl NavigatorOptionsDialog {
     /// Panel Options with the default options.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn new() -> Self {
-        // new: `dialog_id("navigator.panelOptions")`, as `NewGuideDialog::new`.
-        todo!()
+        Self {
+            id: dialog_id(OPTIONS_DIALOG),
+            options: NavigatorOptions::default(),
+            custom: DEFAULT_CUSTOM,
+            color_request: None,
+            before_custom: None,
+            state: DialogState::new(),
+        }
     }
 
     /// Opens with `options` (the app's current settings).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-    pub fn initial(self, options: NavigatorOptions) -> Self {
-        // new: as `NewGuideDialog::initial`.
-        todo!()
+    pub fn initial(mut self, options: NavigatorOptions) -> Self {
+        self.options = options;
+        if let ProxyColor::Custom(rgb) = options.proxy_color {
+            self.custom = rgb;
+        }
+        self
     }
 
     /// The options shown now: what OK answers.
@@ -143,19 +170,80 @@ impl NavigatorOptionsDialog {
 
     /// The colour the app's picker returned for `key`: Color becomes [`ProxyColor::Custom`]
     /// (rounded to 8 bits). Other keys are ignored.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn set_color(&mut self, key: &str, color: Srgba) {
-        // new: as craft-ui crates/ui/src/dialog/guides.rs:462 `NewGuideDialog::set_color`.
-        todo!()
+        if key != NAVIGATOR_PROXY_COLOR_KEY {
+            return;
+        }
+        let [r, g, b, _] = color.to_rgba().0;
+        self.custom = [r, g, b];
+        self.options.proxy_color = ProxyColor::Custom(self.custom);
+        self.before_custom = None;
+        self.color_request = None;
     }
 
     /// The picker was cancelled: the colour goes back to what it was before Custom….
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn cancel_color(&mut self) {
-        // new: as craft-ui crates/ui/src/dialog/guides.rs:474 `NewGuideDialog::cancel_color`.
-        todo!()
+        if let Some(before) = self.before_custom.take() {
+            self.options.proxy_color = before;
+        }
+        self.color_request = None;
+    }
+
+    /// Chooses Custom…: the request for the picker, opening at the last custom colour (or the
+    /// colour already custom).
+    fn ask_color(&mut self, title: &str) {
+        if self.before_custom.is_none() {
+            self.before_custom = Some(self.options.proxy_color);
+        }
+        let rgb = match self.options.proxy_color {
+            ProxyColor::Custom(rgb) => rgb,
+            _ => self.custom,
+        };
+        self.options.proxy_color = ProxyColor::Custom(rgb);
+        let [r, g, b] = rgb;
+        self.color_request = Some(ColorRequest::new(NAVIGATOR_PROXY_COLOR_KEY, Rgba::rgb(r, g, b).into()).title(title));
+    }
+
+    /// The Color row: a list of [`ProxyColor::ALL`] with a swatch each, then Custom….
+    fn color_row(&mut self, ui: &mut Ui, labels: &NavigatorLabels) -> egui::Response {
+        let tokens = Tokens::of(ui);
+        let side = Swatch::style(&tokens, craft_theme::ControlSize::Md).side;
+        let mut choice = self.options.proxy_color;
+        let mut select = Select::new("navigator-proxy-color", labels.proxy_color.as_str(), &mut choice).row_content(
+            egui::vec2(side, side),
+            move |painter, rect, value| {
+                painter.rect_filled(rect, 0.0, value.color(&tokens));
+            },
+        );
+        for named in ProxyColor::ALL {
+            select = select.option(named, named.label(labels));
+        }
+        select = select.option(ProxyColor::Custom(self.custom), labels.custom.as_str());
+        let response = select.show(ui).response;
+        let mut asks = false;
+        if choice != self.options.proxy_color {
+            match choice {
+                ProxyColor::Custom(_) => asks = true,
+                named => self.options.proxy_color = named,
+            }
+        }
+        if let ProxyColor::Custom(rgb) = self.options.proxy_color {
+            let [r, g, b] = rgb;
+            // A click on the swatch asks again, also while the choice is already Custom….
+            asks |= ui.add(Swatch::new("navigator-proxy-swatch", labels.custom.as_str(), Rgba::rgb(r, g, b))).clicked();
+        }
+        if asks {
+            self.ask_color(&labels.picker_title);
+        }
+        response
     }
 }
+
+/// The dialog's key.
+const OPTIONS_DIALOG: &str = "navigator.panelOptions";
+
+/// The colour Custom… starts at before one was chosen: the default proxy red.
+const DEFAULT_CUSTOM: [u8; 3] = [255, 84, 84];
 
 impl Default for NavigatorOptionsDialog {
     fn default() -> Self {
@@ -172,9 +260,24 @@ impl StackDialog for NavigatorOptionsDialog {
 
     /// `Dialog` at `Width::Compact` with a `FormGrid` row Color (a `Select` with a swatch per
     /// option) and `Footer::standard()`; the list has the initial focus.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<NavigatorOptions>> {
-        // new: as craft-ui crates/ui/src/dialog/guides.rs:586 `NewGuideDialog::show` (title, width, footer, outcome).
-        todo!()
+        let labels = NavigatorLabels::shared_ctx(ctx);
+        let mut state = std::mem::take(&mut self.state);
+        let shown = Dialog::new(OPTIONS_DIALOG, labels.options_title.as_str()).stack(stack).width(Width::Compact).footer(Footer::standard()).show(
+            ctx,
+            &mut state,
+            &mut (),
+            |ui, ()| {
+                FormGrid::new("navigator-options").show(ui, |form| {
+                    form.row(labels.proxy_color.as_str(), |ui, _| self.color_row(ui, &labels));
+                });
+            },
+        );
+        self.state = state;
+        match shown.outcome {
+            Some(Outcome::Ok) => Some(DialogResult::Ok(self.options)),
+            Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
+            _ => None,
+        }
     }
 }
