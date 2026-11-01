@@ -1,4 +1,4 @@
-//! The page thumbnails panel and strip: cell sizes and the outlines of the current and picked pages. No theme overrides it.
+//! The page thumbnails panel and strip: the card width and the panel's inset (rings, insert line and spacing are the tile grid's `tile.*`). No theme overrides it.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
@@ -11,22 +11,6 @@ pub struct ThumbnailsTokens {
     pub usual_width: f32,
     /// What the panel keeps free beside the thumbnails: [`values::THUMBNAILS_PANEL_INSET`].
     pub panel_inset: f32,
-    /// A cell's padding around its thumbnail: [`values::THUMBNAILS_CELL_PAD`].
-    pub cell_pad: f32,
-    /// Between rows of cells: [`values::THUMBNAILS_ROW_GAP`].
-    pub row_gap: f32,
-    /// The current page's border: [`values::THUMBNAILS_CURRENT_BORDER`].
-    pub current_border: f32,
-    /// The border of the other pages: [`values::THUMBNAILS_BORDER`].
-    pub border: f32,
-    /// A picked page's outline: [`values::THUMBNAILS_PICKED_OUTLINE`].
-    pub picked_outline: f32,
-    /// The drop bar's width: [`values::THUMBNAILS_DROP_BAR`].
-    pub drop_bar: f32,
-    /// The outline round the current and picked slides of a strip: [`values::THUMBNAILS_STRIP_OUTLINE`].
-    pub strip_outline: f32,
-    /// How far outward the strip outline sits: [`values::THUMBNAILS_STRIP_OUTLINE_OFFSET`].
-    pub strip_outline_offset: f32,
 }
 
 /// Thumbnails tokens have no overridable field.
@@ -39,29 +23,10 @@ impl Family for ThumbnailsTokens {
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { ThumbnailsTokens;
         "usual_width" 16.0..=1024.0 => usual_width;
         "panel_inset" 0.0..=256.0 => panel_inset;
-        "cell_pad" 0.0..=64.0 => cell_pad;
-        "row_gap" 0.0..=64.0 => row_gap;
-        "current_border" 0.0..=16.0 => current_border;
-        "border" 0.0..=16.0 => border;
-        "picked_outline" 0.0..=16.0 => picked_outline;
-        "drop_bar" 0.0..=16.0 => drop_bar;
-        "strip_outline" 0.0..=16.0 => strip_outline;
-        "strip_outline_offset" 0.0..=16.0 => strip_outline_offset;
     };
 
     fn defaults(_: &Semantic<'_>) -> ThumbnailsTokens {
-        ThumbnailsTokens {
-            usual_width: values::THUMBNAILS_USUAL_WIDTH,
-            panel_inset: values::THUMBNAILS_PANEL_INSET,
-            cell_pad: values::THUMBNAILS_CELL_PAD,
-            row_gap: values::THUMBNAILS_ROW_GAP,
-            current_border: values::THUMBNAILS_CURRENT_BORDER,
-            border: values::THUMBNAILS_BORDER,
-            picked_outline: values::THUMBNAILS_PICKED_OUTLINE,
-            drop_bar: values::THUMBNAILS_DROP_BAR,
-            strip_outline: values::THUMBNAILS_STRIP_OUTLINE,
-            strip_outline_offset: values::THUMBNAILS_STRIP_OUTLINE_OFFSET,
-        }
+        ThumbnailsTokens { usual_width: values::THUMBNAILS_USUAL_WIDTH, panel_inset: values::THUMBNAILS_PANEL_INSET }
     }
 
     fn path(f: ThumbnailsField) -> String {

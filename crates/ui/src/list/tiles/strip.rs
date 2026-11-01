@@ -59,16 +59,15 @@ impl<K> Strip<'_, K> {
             || self.file_drops
     }
 
-    /// The strip parts, each where the grid's pass does the same for its own parts: the current
-    /// ring after the selection ring in `Pass::tile` (`tile.ring.current`, `accent.solid`) with
-    /// `set_aria_current` on the option node, and a reveal (`State::reveal`) when the current
-    /// key differs from the last pass's, except while dragging; the `Start` caption in `arrange`
-    /// (cards wider by `tile.start_caption_width`, no caption band) and in `paint_tile` (the
-    /// slash across the name, the marks); closed groups dropped from `arrange`, `GridNav` and
-    /// AccessKit, the chevron in `groups::group_header` (`paint_disclosure`) with Expand and
-    /// Collapse actions; group
-    /// menus from a secondary click in `Pass::group_picks`; the new item row after the last row
-    /// in `Pass::draw` (its own focusable `Button` node); file drops in `Pass::drag`'s manner over
+    /// The strip parts, each where the grid's pass does the same for its own parts: the current ring
+    /// after the selection ring in `Pass::tile` (`TileStyle::ring_current_width` in `ring_current`)
+    /// with `set_aria_current` on the option node, and a reveal (`State::reveal`) when the current key
+    /// differs from the last pass's, except while dragging; the `Start` caption in `arrange` (cards
+    /// wider by `TileStyle::start_caption_width`, no caption band) and in `paint_tile` (the slash
+    /// across the name, the marks); closed groups dropped from `arrange`, `GridNav` and AccessKit, the
+    /// chevron in `groups::group_header` (`paint_disclosure`) with Expand and Collapse actions; group
+    /// menus from a secondary click in `Pass::group_picks`; the new item row after the last row in
+    /// `Pass::draw` (its own focusable `Button` node); file drops in `Pass::drag`'s manner over
     /// `hovered_files` with `grid_drop`, filling `TileGridOutput::file_gap`.
     pub fn show_unbuilt(&self) {
         // pdfcraft: crates/ui-egui/src/panels/pages.rs:90 `pages` (current page border, file gap :277 `panel_gap`);

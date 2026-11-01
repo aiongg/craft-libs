@@ -37,6 +37,10 @@ pub struct TileStyle {
     pub ring_hover_width: f32,
     /// `tile.ring_halo_width` (1).
     pub ring_halo_width: f32,
+    /// `tile.ring_current_width` (2): the current tile's ring (`TileGrid::current`).
+    pub ring_current_width: f32,
+    /// `tile.start_caption_width` (30): the caption column of `CaptionPlace::Start`.
+    pub start_caption_width: f32,
     /// `tile.wheel_share` (a third of the grid's height per wheel notch).
     pub wheel_share: f32,
     /// `tile.ring.selected` (`accent.solid`).
@@ -45,6 +49,8 @@ pub struct TileStyle {
     pub ring_halo: Color32,
     /// `tile.ring.hover` (`text.muted`).
     pub ring_hover: Color32,
+    /// `tile.ring.current` (`accent.solid`).
+    pub ring_current: Color32,
     /// `tile.caption` (`text.muted`).
     pub caption: Color32,
     /// `tile.caption_selected` (`text.normal`).
@@ -93,10 +99,13 @@ impl TileStyle {
             ring_width: t.ring_width,
             ring_hover_width: t.ring_hover_width,
             ring_halo_width: t.ring_halo_width,
+            ring_current_width: t.ring_current_width,
+            start_caption_width: t.start_caption_width,
             wheel_share: t.wheel_share,
             ring_selected: t.ring_selected.to_egui(),
             ring_halo: t.ring_halo.to_egui(),
             ring_hover: t.ring_hover.to_egui(),
+            ring_current: t.ring_current.to_egui(),
             caption: t.caption.to_egui(),
             caption_selected: t.caption_selected.to_egui(),
             detail: t.detail.to_egui(),
