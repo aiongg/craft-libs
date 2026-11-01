@@ -160,7 +160,7 @@ impl<'a> OutlineBand<'a> {
             }
             let name = button.name(&labels, &numbers);
             let button_id = id.with(button.key());
-            let screen = geometry.mirror_rect(visible);
+            let screen = geometry.mirror_rect(visible.expand(frame.hit));
             let pressed = ui.interact(screen, button_id, Sense::click());
             pressed.widget_info(|| WidgetInfo::labeled(Role::Button, true, &name));
             if pressed.clicked() && action.is_none() {
@@ -168,12 +168,12 @@ impl<'a> OutlineBand<'a> {
             }
             let clipped = painter.with_clip_rect(geometry.mirror_rect(clip));
             let face = geometry.mirror_rect(button.rect);
-            clipped.rect_filled(face, CornerRadius::ZERO, colors.surface.chrome.to_egui());
-            clipped.rect_stroke(face, CornerRadius::ZERO, ink, StrokeKind::Inside);
+            clipped.rect_filled(face, frame.radius, colors.surface.chrome.to_egui());
+            clipped.rect_stroke(face, frame.radius, ink, StrokeKind::Inside);
             clipped.text(face.center(), Align2::CENTER_CENTER, button.action.glyph(), font.clone(), colors.text.muted.to_egui());
             if pressed.has_focus() {
                 let focus = Line::W2.egui(ui.ctx(), colors.line.focus.to_egui());
-                clipped.rect_stroke(face, CornerRadius::ZERO, focus, StrokeKind::Outside);
+                clipped.rect_stroke(face, frame.radius, focus, StrokeKind::Outside);
             }
         }
         OutlineBandOutput { response, action }
@@ -190,13 +190,6 @@ pub struct OutlineBandOutput {
     pub response: Response,
     pub action: Option<OutlineAction>,
 }
-
-/// The button's side as a share of a lane: GridCraft's lane less 4 points, of 15 (`outline.rs:197`).
-const BUTTON_SHARE: f32 = 11.0 / 15.0;
-
-/// The first lane's inset from the band's edge as a share of a lane: GridCraft's 2 of 15
-/// (`outline.rs:203`).
-const INSET_SHARE: f32 = 2.0 / 15.0;
 
 impl OutlineAction {
     /// The button's face: the level digit, − or +.
@@ -268,6 +261,9 @@ pub(super) struct Frame<'a> {
     step: f32,
     side: f32,
     inset: f32,
+    /// How far a button's hit area reaches past its square, and its corner radius.
+    hit: f32,
+    radius: CornerRadius,
     row_band: Rect,
     column_band: Rect,
 }
@@ -283,8 +279,10 @@ impl<'a> Frame<'a> {
             rows,
             columns,
             step,
-            side: step * BUTTON_SHARE,
-            inset: step * INSET_SHARE,
+            side: (step - style.outline_button_margin).max(style.outline_button_min),
+            inset: style.outline_inset,
+            hit: style.outline_hit,
+            radius: CornerRadius::same(style.outline_radius.round() as u8),
             row_band: Rect::from_min_max(min, pos2(min.x + band.x, cells.bottom())),
             column_band: Rect::from_min_max(min, pos2(cells.right(), min.y + band.y)),
         }

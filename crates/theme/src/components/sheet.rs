@@ -16,6 +16,16 @@ pub struct SheetTokens {
     pub row_header_padding: f32,
     /// One outline lane: [`values::SHEET_OUTLINE_LANE`].
     pub outline_lane: f32,
+    /// What an outline button's side is short of the lane: [`values::SHEET_OUTLINE_BUTTON_MARGIN`].
+    pub outline_button_margin: f32,
+    /// An outline button's least side: [`values::SHEET_OUTLINE_BUTTON_MIN`].
+    pub outline_button_min: f32,
+    /// The first outline lane's inset from the band's edge: [`values::SHEET_OUTLINE_INSET`].
+    pub outline_inset: f32,
+    /// How far an outline button's hit area reaches past its square: [`values::SHEET_OUTLINE_HIT`].
+    pub outline_hit: f32,
+    /// An outline button's corner radius: [`values::SHEET_OUTLINE_RADIUS`].
+    pub outline_radius: f32,
     /// A slicer's header: [`values::SHEET_SLICER_HEADER`].
     pub slicer_header: f32,
     /// A slicer's value tile: [`values::SHEET_SLICER_TILE`].
@@ -48,6 +58,11 @@ impl Family for SheetTokens {
         "row_header_digit" 2.0..=32.0 => row_header_digit;
         "row_header_padding" 0.0..=64.0 => row_header_padding;
         "outline_lane" 4.0..=64.0 => outline_lane;
+        "outline_button_margin" 0.0..=16.0 => outline_button_margin;
+        "outline_button_min" 2.0..=32.0 => outline_button_min;
+        "outline_inset" 0.0..=16.0 => outline_inset;
+        "outline_hit" 0.0..=8.0 => outline_hit;
+        "outline_radius" 0.0..=8.0 => outline_radius;
         "slicer_header" 8.0..=96.0 => slicer_header;
         "slicer_tile" 8.0..=96.0 => slicer_tile;
         "slicer_gap" 0.0..=32.0 => slicer_gap;
@@ -65,6 +80,11 @@ impl Family for SheetTokens {
             row_header_digit: values::SHEET_ROW_HEADER_DIGIT,
             row_header_padding: values::SHEET_ROW_HEADER_PADDING,
             outline_lane: values::SHEET_OUTLINE_LANE,
+            outline_button_margin: values::SHEET_OUTLINE_BUTTON_MARGIN,
+            outline_button_min: values::SHEET_OUTLINE_BUTTON_MIN,
+            outline_inset: values::SHEET_OUTLINE_INSET,
+            outline_hit: values::SHEET_OUTLINE_HIT,
+            outline_radius: values::SHEET_OUTLINE_RADIUS,
             slicer_header: values::SHEET_SLICER_HEADER,
             slicer_tile: values::SHEET_SLICER_TILE,
             slicer_gap: values::SHEET_SLICER_GAP,

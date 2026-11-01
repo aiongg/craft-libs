@@ -2444,6 +2444,11 @@ fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
         row_header_digit,
         row_header_padding,
         outline_lane,
+        outline_button_margin,
+        outline_button_min,
+        outline_inset,
+        outline_hit,
+        outline_radius,
         slicer_header,
         slicer_tile,
         slicer_gap,
@@ -2458,6 +2463,11 @@ fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
     out.line("sheet.row_header_digit", len(*row_header_digit));
     out.line("sheet.row_header_padding", len(*row_header_padding));
     out.line("sheet.outline_lane", len(*outline_lane));
+    out.line("sheet.outline_button_margin", len(*outline_button_margin));
+    out.line("sheet.outline_button_min", len(*outline_button_min));
+    out.line("sheet.outline_inset", len(*outline_inset));
+    out.line("sheet.outline_hit", len(*outline_hit));
+    out.line("sheet.outline_radius", len(*outline_radius));
     out.line("sheet.slicer_header", len(*slicer_header));
     out.line("sheet.slicer_tile", len(*slicer_tile));
     out.line("sheet.slicer_gap", len(*slicer_gap));

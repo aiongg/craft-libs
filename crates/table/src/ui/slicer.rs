@@ -5,11 +5,12 @@ use craft_ui::theme::scale::Stroke as Line;
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
 use egui::{
-    Align2, Color32, CornerRadius, EventFilter, FontId, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, TextStyle, Ui,
-    UiBuilder, WidgetInfo, pos2, vec2,
+    Align2, Color32, CornerRadius, EventFilter, FontId, IdSalt, Key, Modifiers, Rect, Response, Sense, StrokeKind, TextStyle, Ui, UiBuilder,
+    WidgetInfo, pos2, vec2,
 };
 
 use craft_ui::behavior::{GridKey, GridNav};
+use craft_ui::icons::{Icon, IconSize};
 
 use super::style::SheetStyle;
 
@@ -175,6 +176,8 @@ impl<'a> Slicer<'a> {
         painter.rect_stroke(rect, radius, line, StrokeKind::Inside);
         let header_radius = CornerRadius { sw: 0, se: 0, ..radius };
         painter.rect_filled(layout.header, header_radius, colors.accent.soft.to_egui());
+        let strong = tokens.font(style.slicer_caption);
+        let caption_font = FontId::new(strong.size * zoom, strong.family);
         let base = TextStyle::Body.resolve(ui.style());
         let font = FontId::new(base.size * zoom, base.family);
         let padding = style.slicer_padding * zoom;
@@ -183,11 +186,11 @@ impl<'a> Slicer<'a> {
             caption_at,
             Align2::LEFT_CENTER,
             caption,
-            font.clone(),
+            caption_font,
             colors.accent.text.to_egui(),
         );
         let funnel = if filtered { colors.accent.solid } else { colors.text.muted }.to_egui();
-        paint_funnel(ui, layout.clear, Stroke::new(Line::W1_5.width(ctx.pixels_per_point()), funnel));
+        craft_ui::icons::paint(ui, layout.clear, Icon::Funnel, IconSize::Sm, funnel);
         let painter = ui.painter();
         for &i in &shown {
             let (text, on) = &items[i];
@@ -217,11 +220,4 @@ impl<'a> Slicer<'a> {
 pub struct SlicerOutput {
     pub response: Response,
     pub action: Option<SlicerAction>,
-}
-
-/// A funnel outline filling `rect`.
-fn paint_funnel(ui: &Ui, rect: Rect, stroke: Stroke) {
-    const OUTLINE: [(f32, f32); 6] = [(0.1, 0.15), (0.9, 0.15), (0.58, 0.55), (0.58, 0.9), (0.42, 0.78), (0.42, 0.55)];
-    let points = OUTLINE.iter().map(|&(x, y)| pos2(rect.left() + rect.width() * x, rect.top() + rect.height() * y)).collect();
-    ui.painter().add(Shape::closed_line(points, stroke));
 }
