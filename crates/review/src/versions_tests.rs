@@ -1,10 +1,33 @@
 //! Version history rows.
 
-#![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+use crate::versions::*;
 
-// history_rows newest first, consecutive autosaves in one group.
+fn version(id: u64, created: i64, autosave: bool) -> Version {
+    Version {
+        id: VersionId(id),
+        title: if autosave { String::new() } else { format!("v{id}") },
+        description: String::new(),
+        created,
+        author: "Ana".into(),
+        autosave,
+    }
+}
+
 #[test]
-#[ignore = "skeleton"]
 fn autosave_runs_group_between_named_versions() {
-    todo!()
+    let versions = [
+        version(1, 10, false),
+        version(2, 20, true),
+        version(3, 30, true),
+        version(4, 40, false),
+        version(5, 50, true),
+        version(6, 60, true),
+        version(7, 70, true),
+    ];
+    assert_eq!(
+        history_rows(&versions),
+        vec![HistoryRow::Autosaves(vec![6, 5, 4]), HistoryRow::Version(3), HistoryRow::Autosaves(vec![2, 1]), HistoryRow::Version(0),]
+    );
+    let lone = [version(1, 10, false), version(2, 20, true), version(3, 30, false)];
+    assert_eq!(history_rows(&lone), vec![HistoryRow::Version(2), HistoryRow::Version(1), HistoryRow::Version(0)]);
 }

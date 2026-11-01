@@ -1398,6 +1398,7 @@ dependencies = [
  "craft-ui",
  "egui",
  "egui_kittest",
+ "image",
  "kurbo 0.13.1",
  "serde",
  "web-time",
@@ -3399,6 +3400,8 @@ dependencies = [
  "num-traits",
  "png 0.18.1",
  "tiff",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]

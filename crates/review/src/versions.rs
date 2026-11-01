@@ -1,7 +1,5 @@
 //! Saved versions and branches of a document (N5.06).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 pub struct VersionId(pub u64);
@@ -54,5 +52,20 @@ pub enum HistoryRow {
 /// own, each run of consecutive autosaves between them one group.
 // figcraft: crates/ui-egui/src/panels/versions.rs:111 `panel` (rows), `:557` `autosave_group`.
 pub fn history_rows(versions: &[Version]) -> Vec<HistoryRow> {
-    todo!()
+    let mut order: Vec<usize> = (0..versions.len()).collect();
+    order.sort_by(|&a, &b| (versions[b].created, versions[b].id).cmp(&(versions[a].created, versions[a].id)));
+    let mut rows = Vec::new();
+    let mut at = 0;
+    while at < order.len() {
+        let run = order[at..].iter().take_while(|&&i| versions[i].autosave).count();
+        // A lone autosave stays a row of its own; a group folds two or more (FigCraft's `run >= 2`).
+        if run >= 2 {
+            rows.push(HistoryRow::Autosaves(order[at..at + run].to_vec()));
+            at += run;
+        } else {
+            rows.push(HistoryRow::Version(order[at]));
+            at += 1;
+        }
+    }
+    rows
 }

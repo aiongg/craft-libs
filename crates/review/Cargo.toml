@@ -13,7 +13,7 @@ workspace = true
 [features]
 default = []
 # The review widgets (`craft_review::ui`).
-ui = ["dep:craft-ui", "dep:craft-host", "dep:craft-i18n", "dep:craft-theme", "dep:egui", "dep:web-time"]
+ui = ["dep:craft-ui", "dep:craft-host", "dep:craft-i18n", "dep:craft-theme", "dep:egui", "dep:image", "dep:web-time"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
 screen-testing = ["ui", "craft-ui/screen-testing"]
 
@@ -23,6 +23,7 @@ craft-i18n = { workspace = true, optional = true }
 craft-theme = { workspace = true, optional = true }
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"], optional = true }
 kurbo = { workspace = true, features = ["serde"] }
 serde = { workspace = true }
 web-time = { version = "1.1", optional = true }
