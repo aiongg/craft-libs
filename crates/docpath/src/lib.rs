@@ -75,6 +75,10 @@
 //! assert_eq!(resolve_absolute("img/logo.png", None), Err(Refused::Invalid));
 //! ```
 
+pub mod names;
+#[cfg(test)]
+mod names_tests;
+
 use std::fmt;
 use std::path::{MAIN_SEPARATOR, Path, PathBuf};
 

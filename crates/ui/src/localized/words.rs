@@ -226,6 +226,10 @@ pub(crate) mod counts {
     pub(crate) const DAYS_AGO: Counted = Counted::new("age.days", "{n} day ago", "{n} days ago");
     pub(crate) const MONTHS_AGO: Counted = Counted::new("age.months", "{n} month ago", "{n} months ago");
     pub(crate) const YEARS_AGO: Counted = Counted::new("age.years", "{n} year ago", "{n} years ago");
+    pub(crate) const MINUTES_AGO_SHORT: Counted = Counted::new("age.minutesShort", "{n} min ago", "{n} min ago");
+    pub(crate) const HOURS_AGO_SHORT: Counted = Counted::new("age.hoursShort", "{n} h ago", "{n} h ago");
+    pub(crate) const ABOUT_PRS: Counted = Counted::new("about.prs", "{n} PR", "{n} PRs");
+    pub(crate) const ABOUT_COMMITS: Counted = Counted::new("about.commitCount", "{n} commit", "{n} commits");
 }
 
 /// The kernel's count words: every one `craft-ui` writes with [`Words::counted`]. A facade lists
@@ -246,6 +250,10 @@ pub const COUNTS: &[Counted] = &[
     counts::DAYS_AGO,
     counts::MONTHS_AGO,
     counts::YEARS_AGO,
+    counts::MINUTES_AGO_SHORT,
+    counts::HOURS_AGO_SHORT,
+    counts::ABOUT_PRS,
+    counts::ABOUT_COMMITS,
 ];
 
 /// A labels struct: plain data whose every field is one [`Word`] of its table.

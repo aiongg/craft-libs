@@ -1024,6 +1024,7 @@ dependencies = [
  "craft-atomic",
  "craft-host",
  "craft-i18n",
+ "craft-platform",
  "craft-ui",
  "egui",
  "objc2 0.6.5",
@@ -1246,6 +1247,7 @@ dependencies = [
 name = "craft-platform"
 version = "0.1.0"
 dependencies = [
+ "arboard",
  "async-channel",
  "async-io",
  "async-process",

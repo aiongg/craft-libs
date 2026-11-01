@@ -5,6 +5,7 @@ use egui::text::{LayoutJob, TextFormat};
 use egui::{Label, Response, Ui, Widget};
 
 use super::{Content, ContentStoryArgs};
+use crate::text::elide::ElideAt;
 use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
@@ -16,17 +17,35 @@ use crate::typed_story;
 /// It is an egui [`Label`], so it wraps as labels do, can be selected, and its AccessKit node
 /// carries the text. With [`truncate`](Text::truncate) it stays on one line and ends in an
 /// ellipsis when it doesn't fit; the tooltip and the AccessKit node keep the full text.
+///
+/// [`elide`](Text::elide) and [`elide_path`](Text::elide_path) shorten it elsewhere than at the
+/// end, by craft-ui's [`text::elide`](crate::text::elide()) rules; the tooltip and AccessKit node
+/// keep the whole text there too:
+///
+/// ```ignore
+/// ui.add(Text::new(file_name).elide(ElideAt::Middle));     // "IMG_2024…_final.psd"
+/// ui.add(Text::new(folder).elide_path().max_width(240.0)); // "…/Pictures/Library"
+/// ```
 #[derive(Clone, Debug)]
 pub struct Text {
     text: String,
     role: TypeRole,
     content: Content,
     truncate: bool,
+    elide: Option<Elision>,
+    max_width: Option<f32>,
+}
+
+/// How [`Text`] shortens what doesn't fit, beyond egui's own end truncation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Elision {
+    At(ElideAt),
+    Path,
 }
 
 impl Text {
     pub fn new(text: impl Into<String>) -> Self {
-        Self { text: text.into(), role: TypeRole::Body, content: Content::Normal, truncate: false }
+        Self { text: text.into(), role: TypeRole::Body, content: Content::Normal, truncate: false, elide: None, max_width: None }
     }
 
     pub fn role(mut self, role: TypeRole) -> Self {
@@ -45,6 +64,28 @@ impl Text {
         self
     }
 
+    /// One line, shortened at `at` when too long ([`ElideAt::End`] keeps a right-to-left name's
+    /// logical start, where egui's [`truncate`](Text::truncate) cuts at the visual right).
+    pub fn elide(mut self, at: ElideAt) -> Self {
+        self.elide = Some(Elision::At(at));
+        self
+    }
+
+    /// One line, a path shortened by dropping leading folders first
+    /// ([`elide_path`](crate::text::elide_path)).
+    pub fn elide_path(mut self) -> Self {
+        self.elide = Some(Elision::Path);
+        self
+    }
+
+    /// At most this wide, even when the row has more room; with an elision, the width it
+    /// shortens to. Leaving room for what follows on the line is
+    /// `.max_width(ui.available_width() - after)`.
+    pub fn max_width(mut self, width: f32) -> Self {
+        self.max_width = Some(width);
+        self
+    }
+
     /// The format of `role` in `content`: the role's font and line height, the content colour.
     pub fn format(tokens: &UiTokens, role: TypeRole, content: Content) -> TextFormat {
         role_format(tokens, role, content.color(tokens).to_egui())
@@ -58,8 +99,24 @@ impl Widget for Text {
         // `Ui`'s, so in a row taller than the line it would sit below the centred widgets
         // beside it, such as a link.
         format.valign = ui.text_valign();
+        if self.elide.is_some() || self.max_width.is_some() {
+            return self.show_elided(ui, format);
+        }
         let label = Label::new(LayoutJob::single_section(self.text, format));
         ui.add(if self.truncate { label.truncate() } else { label })
+    }
+}
+
+impl Text {
+    /// One line no wider than `max_width` (else the room left), laid out with
+    /// [`elided_galley`](crate::text::elided_galley) (or the shortened path), drawn as a label
+    /// whose hover text and AccessKit node are the whole text when it was shortened. Without an
+    /// elision but with a width, egui's end truncation inside that width.
+    // pc: crates/ui-egui/src/widgets/fields.rs:26 elided_label_sensed
+    // lightcraft: crates/ui-egui/src/dialogs/settings/widgets.rs:31 path_label
+    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
+    fn show_elided(self, ui: &mut Ui, format: TextFormat) -> Response {
+        todo!()
     }
 }
 

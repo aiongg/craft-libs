@@ -197,6 +197,17 @@ mod tests {
         i18n.file_size(Lang::EN, bytes, style)
     }
 
+    // EffectCraft's three size texts are FileSize styles: Home `12 KB`/`3.4 MB` (BINARY,
+    // byte_symbol, whole kilobytes), Settings `12.3 MB` (DECIMAL), Project `512 KB` rounded up
+    // with two decimals in GB (BINARY, smallest Kilo, unit_decimals Giga 2); DeckCraft's backstage
+    // `512 bytes`, `1.2 MB` (BINARY, largest Mega).
+    #[test]
+    #[ignore = "skeleton"]
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    fn the_apps_size_texts_are_styles() {
+        todo!()
+    }
+
     #[test]
     fn binary_decimal_and_iec_steps() {
         assert_eq!(en(512, FileSize::BINARY), "512 bytes");
