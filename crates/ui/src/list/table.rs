@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use super::row::ListRow;
 use super::spans::Spans;
+use super::tree::{self, Branch, OpenChange, TreeText};
 use super::view::ContextMenuRequest;
 use crate::behavior::{ClaimedKey, DisplayOrder, KeyClaim, ListKey, ListSelection, Selection, SelectionChange, SelectionMode, first_item};
 use crate::direction;
@@ -370,6 +371,11 @@ pub enum TableEvent<K, C> {
     Activate(K),
     /// The row's context menu was asked for (secondary click, Menu key, Shift+F10).
     ContextMenu(ContextMenuRequest<K>),
+    /// In a [tree table](Table::tree), a group was asked to open or close (its triangle, ← and
+    /// →, Alt+← and Alt+→, a screen reader's Expand and Collapse); the host applies it to its
+    /// open state ([`TreeState::apply`](super::TreeState::apply) or its own model) and gives the
+    /// next pass the new display order.
+    Open(OpenChange<K>),
 }
 
 /// What [`Table::show`] returns: a composite of header, edges and body, as
@@ -462,6 +468,8 @@ pub struct TableOutput<K, C> {
 ///   `column_count`; each header a `ColumnHeader` named by its label, or by
 ///   [`TableLabels::header_sorted`] while it sorts, with `sort_direction`; each row a `Row`
 ///   (`selected`) and each cell a `Cell`.
+/// - **Tree.** [`tree`](Self::tree) indents the rows by their depth in the display order and adds
+///   the tree keys and roles; see there.
 pub struct Table<'a, K, C, O: ?Sized> {
     id_salt: IdSalt,
     label: String,
@@ -474,6 +482,9 @@ pub struct Table<'a, K, C, O: ?Sized> {
     movable: bool,
     max_height: Option<f32>,
     labels: Option<TableLabels>,
+    /// Set by [`tree`](Self::tree): each row's name for its disclosure triangle.
+    tree: Option<RowName<'a, K>>,
+    tree_text: Option<TreeText>,
 }
 
 impl<'a, K, C, O> Table<'a, K, C, O>
@@ -497,6 +508,8 @@ where
             movable: true,
             max_height: None,
             labels: None,
+            tree: None,
+            tree_text: None,
         }
     }
 
@@ -536,10 +549,50 @@ where
         self
     }
 
+    /// Makes the table a tree, as [`List::tree`](super::List::tree) makes a list one. The rows'
+    /// depths, groups and open states come from the display order ([`DisplayOrder::depth`],
+    /// [`has_children`](DisplayOrder::has_children), [`open`](DisplayOrder::open)), and
+    /// `row_name` names a row for its disclosure triangle ("Expand {row}", [`TreeText`]): a
+    /// table's rows have no label of their own, since the host draws every cell.
+    ///
+    /// - **Rows.** The first shown column (in the layout's order, whichever column that is)
+    ///   carries the tree: an indent of [`Branch::steps`] levels of `list.indent`, then the
+    ///   `list.disclosure` column with a group's triangle, then the cell. The indent shrinks
+    ///   before the cell gets narrower than `list.min_label`; the triangle column doesn't
+    ///   ([`ListRow`]'s rule). A double click on that column's edge fits the widest cell plus its
+    ///   indent and triangle column.
+    /// - **Triangle.** The list's: down when open, toward the reading end when closed, with the
+    ///   [`TreeText`] name and tooltip. A click opens or closes the group, with Alt every group.
+    /// - **Keys.** In the focused body, → opens a closed group or moves to its first child; ←
+    ///   closes an open group or moves to its parent (swapped in a right-to-left layout); Alt+→
+    ///   and Alt+← open or close every group. A move to a child or parent selects that row alone,
+    ///   as ↑ and ↓ do. A group that closes over the lead takes the lead, without a selection
+    ///   change. These are [`List`](super::List)'s tree keys and rules
+    ///   ([`tree_key`](crate::behavior::tree_key)).
+    /// - **Events.** Opening and closing are [`TableEvent::Open`]; the host owns the open state.
+    ///   Sorting stays the host's: it sorts each group's children among themselves and keeps them
+    ///   right after their group in the display order.
+    /// - **AccessKit.** The table is a `TreeGrid`; each row a `TreeItem` with `level` (its depth),
+    ///   `expanded` and the Expand or Collapse action for a group, and its position among its
+    ///   siblings (`position_in_set`, `size_of_set`); a screen reader's Expand and Collapse report
+    ///   [`TableEvent::Open`]. Cells stay `Cell`s.
+    pub fn tree(mut self, row_name: impl Fn(&K) -> String + 'a) -> Self {
+        self.tree = Some(Box::new(row_name));
+        self
+    }
+
+    /// The words of a tree table's disclosure triangles, translated by the host.
+    pub fn tree_text(mut self, text: TreeText) -> Self {
+        self.tree_text = Some(text);
+        self
+    }
+
     // pdfcraft: crates/ui-egui/src/workflows/combine_ui/table.rs:32 table, :96 heading, :167 table_body
     pub fn show(self, ui: &mut Ui, mut cell: impl FnMut(&mut Ui, &K, &C, &CellContext)) -> TableOutput<K, C> {
-        let Table { id_salt, label, columns, layout, rows, selection, mode, striped, movable, max_height, labels } = self;
+        let Table { id_salt, label, columns, layout, rows, selection, mode, striped, movable, max_height, labels, tree, tree_text } = self;
         let labels = labels.map_or_else(|| TableLabels::shared(ui), Arc::new);
+        let tree = tree.as_deref().map(|name| TreeRows { name, text: tree_text.map_or_else(|| TreeText::shared(ui), Arc::new) });
+        let is_tree = tree.is_some();
         let tokens = Tokens::of(ui);
         let style = table_style(&tokens);
         let rules = ListSelection::new(mode);
@@ -555,7 +608,7 @@ where
         let focused = ui.memory(|m| m.has_focus(id));
         let spans = Spans::uniform(style.row_height, rows.len());
         let mut events: Vec<TableEvent<K, C>> = Vec::new();
-        let mut pass = Pass { rows, rules, selection, events: &mut events, focus: false, lead_row: None, reveal: state.reveal.take() };
+        let mut pass = Pass { rows, rules, selection, events: &mut events, focus: false, lead_row: None, reveal: state.reveal.take(), tree };
 
         if focused && !state.focused && FocusRing::visible(ui.ctx()) {
             pass.reveal = pass.lead_at().map(|at| rows.key(at).clone());
@@ -578,7 +631,7 @@ where
         let builder = UiBuilder::new()
             .scope_id(id)
             .sense(Sense::CLICK | Sense::FOCUSABLE)
-            .accessibility_role(Role::Table)
+            .accessibility_role(if is_tree { Role::TreeGrid } else { Role::Table })
             .accessibility_label(label)
             .layout(Layout::top_down(Align::Min));
         let response = ui
@@ -794,13 +847,33 @@ impl<K: Clone + Send + Sync + 'static, C: Clone + Send + Sync + 'static> State<K
 enum Command {
     List(ListKey),
     Menu,
+    /// ← or →, with Alt for every group, in a tree table.
+    Tree {
+        right: bool,
+        all: bool,
+    },
 }
 
-fn take_command(key: Key, modifiers: Modifiers, mac: bool) -> Option<Command> {
+fn take_command(key: Key, modifiers: Modifiers, mac: bool, tree: bool) -> Option<Command> {
     if (key == Key::Menu && modifiers.matches_exact(Modifiers::NONE)) || (key == Key::F10 && modifiers.matches_exact(Modifiers::SHIFT)) {
         return Some(Command::Menu);
     }
+    if tree && matches!(key, Key::ArrowLeft | Key::ArrowRight) {
+        let all = modifiers.matches_exact(Modifiers::ALT);
+        return (all || modifiers.matches_exact(Modifiers::NONE)).then_some(Command::Tree { right: key == Key::ArrowRight, all });
+    }
     ListKey::from_key(key, modifiers, mac).filter(|key| *key != ListKey::Rename).map(Command::List)
+}
+
+/// A row's name in a tree table ([`Table::tree`]).
+type RowName<'a, K> = Box<dyn Fn(&K) -> String + 'a>;
+
+/// A tree table's parts, set by [`Table::tree`].
+#[expect(dead_code, reason = "skeleton: read by `Body::tree_lead` when the bodies land")]
+struct TreeRows<'p, K> {
+    /// A row's name for its disclosure triangle.
+    name: &'p (dyn Fn(&K) -> String + 'p),
+    text: Arc<TreeText>,
 }
 
 /// The selection and the events of one pass, shared by the header and the body.
@@ -814,6 +887,8 @@ struct Pass<'p, K, C, O: ?Sized> {
     /// The lead row's id and rect, once drawn.
     lead_row: Option<(Id, Rect)>,
     reveal: Option<K>,
+    /// Set in a tree table.
+    tree: Option<TreeRows<'p, K>>,
 }
 
 impl<K, C, O> Pass<'_, K, C, O>
@@ -846,10 +921,12 @@ where
     /// lead's context menu.
     fn keys(&mut self, ui: &Ui, page: usize, mac: bool) -> bool {
         let mut commands = Vec::new();
+        let tree = self.tree.is_some();
+        let rtl = direction::is_rtl(ui);
         ui.input_mut(|i| {
             i.events.retain(|event| {
                 let Event::Key { key, pressed: true, modifiers, .. } = event else { return true };
-                match take_command(*key, *modifiers, mac) {
+                match take_command(*key, *modifiers, mac, tree) {
                     Some(command) => {
                         commands.push(command);
                         false
@@ -866,9 +943,24 @@ where
                     self.reveal = self.lead_at().map(|at| self.rows.key(at).clone());
                     menu = true;
                 }
+                Command::Tree { right, all } => self.tree_key(right != rtl, all),
             }
         }
         menu
+    }
+
+    /// The tree keys on the lead ([`Table::tree`]): toward the end opens a closed group or moves
+    /// to its first child, toward the start closes an open group or moves to its parent; with
+    /// `all`, every group opens or closes ([`TableEvent::Open`] with `all`). A move selects the
+    /// row alone through `self.rules.click(.., Modifiers::NONE)` and reveals it. A group closing
+    /// over the lead (every group: the lead's topmost ancestor, `tree::topmost`; one group:
+    /// `tree::is_below`) takes the lead in `self.selection.lead` without a selection event, and
+    /// is revealed.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+    fn tree_key(&mut self, toward_end: bool, all: bool) {
+        // craft-ui: crates/ui/src/list/view.rs:959-1003 (`Pass::tree_key` and `open_change`, with
+        // `ListEvent::LeadMoved` left out: a table reports no lead moves).
+        todo!()
     }
 
     fn list_key(&mut self, key: ListKey, page: usize) {
@@ -919,7 +1011,7 @@ where
         }
         if response.secondary_clicked() {
             self.focus = true;
-            let request = ContextMenuRequest { row: None, selected: false, anchor: response.rect, pointer: response.interact_pointer_pos() };
+            let request = ContextMenuRequest { row: None, selected: false, anchor: response.rect, pointer: response.interact_pointer_pos(), toggle: None };
             self.events.push(TableEvent::ContextMenu(request));
         }
     }
@@ -929,7 +1021,7 @@ where
         let lead = self.lead_at().map(|at| self.rows.key(at).clone());
         let anchor = self.lead_row.map_or(table, |(_, rect)| rect);
         let selected = lead.as_ref().is_some_and(|k| self.selection.contains(k));
-        self.events.push(TableEvent::ContextMenu(ContextMenuRequest { row: lead, selected, anchor, pointer: None }));
+        self.events.push(TableEvent::ContextMenu(ContextMenuRequest { row: lead, selected, anchor, pointer: None, toggle: None }));
     }
 }
 
@@ -1437,15 +1529,24 @@ where
             ui.painter().rect_filled(rect, CornerRadius::ZERO, fill);
         }
         let text = if selected { list.selected_text } else { list.text };
+        let branch = pass.tree.as_ref().map(|_| branch_at(pass.rows, at));
+        let role = if branch.is_some() { Role::TreeItem } else { Role::Row };
+        let tree = pass.tree.as_ref();
+        let mut opened: Vec<OpenChange<K>> = Vec::new();
         let scope =
-            ui.scope_builder(UiBuilder::new().id_salt(("row", &key)).max_rect(rect).sense(Sense::CLICK).accessibility_role(Role::Row), |ui| {
+            ui.scope_builder(UiBuilder::new().id_salt(("row", &key)).max_rect(rect).sense(Sense::CLICK).accessibility_role(role), |ui| {
                 let mut from = 0.0;
                 for (position, (&column, &width)) in self.shown.iter().zip(self.widths).enumerate() {
                     let (min_x, max_x) =
                         if self.rtl { (rect.right() - from - width, rect.right() - from) } else { (rect.left() + from, rect.left() + from + width) };
                     from += width;
                     let cell_rect = Rect::from_min_max(pos2(min_x, rect.top()), pos2(max_x, rect.bottom()));
-                    let inner = cell_rect.shrink2(vec2(style.cell_pad_x, 0.0));
+                    let mut inner = cell_rect.shrink2(vec2(style.cell_pad_x, 0.0));
+                    if position == 0
+                        && let (Some(tree), Some(branch)) = (tree, &branch)
+                    {
+                        inner = self.tree_lead(ui, tree, inner, branch, &key, &mut opened);
+                    }
                     let column = &self.columns[column];
                     let context = CellContext { selected, text, numeric: column.align == Align::Max };
                     ui.scope_builder(
@@ -1464,6 +1565,10 @@ where
                 }
             });
         let response = scope.response;
+        if let Some(branch) = &branch {
+            tree_item(ui, &response, branch, &key, &mut opened);
+        }
+        pass.events.extend(opened.into_iter().map(TableEvent::Open));
         if lead {
             pass.lead_row = Some((response.id, rect));
             FocusRing::paint_if(ui, rect, CornerRadius::ZERO, self.focused);
@@ -1489,7 +1594,7 @@ where
         }
         if response.secondary_clicked() {
             pass.focus = true;
-            let request = ContextMenuRequest { row: Some(key.clone()), selected, anchor: rect, pointer: response.interact_pointer_pos() };
+            let request = ContextMenuRequest { row: Some(key.clone()), selected, anchor: rect, pointer: response.interact_pointer_pos(), toggle: None };
             pass.events.push(TableEvent::ContextMenu(request));
         }
         if ui.input(|i| i.has_accesskit_action_request(response.id, Action::Focus)) && pass.selection.lead.as_ref() != Some(&key) {
@@ -1497,4 +1602,37 @@ where
             pass.focus = true;
         }
     }
+}
+
+/// Where the row at `at` of a tree table sits, as [`List`](super::List)'s tree rows take it.
+fn branch_at<K>(rows: &(impl DisplayOrder<K> + ?Sized), at: usize) -> Branch {
+    Branch { depth: rows.depth(at), group: rows.has_children(at), open: rows.open(at), siblings: Some(tree::siblings(rows, at)) }
+}
+
+impl<C> Body<'_, C>
+where
+    C: Clone + PartialEq + Debug + Send + Sync + 'static,
+{
+    /// The tree part of a tree table's first shown cell ([`Table::tree`]): the indent of
+    /// `branch.steps()` levels of `list.indent` (shrunk so that `inner` keeps `list.min_label`),
+    /// then the `list.disclosure` column, whose triangle `tree::show_disclosure` senses and paints
+    /// for a group, named with `tree.name(key)` and `tree.text`; its `RowEvent::Open` reports are
+    /// pushed to `opened` as `OpenChange`s. Mirrored in a right-to-left layout. Returns what is
+    /// left of `inner` for the host's cell.
+    #[expect(unused_variables, clippy::ptr_arg, clippy::todo, reason = "skeleton: removed when the bodies land")]
+    fn tree_lead<K: Clone>(&self, ui: &mut Ui, tree: &TreeRows<'_, K>, inner: Rect, branch: &Branch, key: &K, opened: &mut Vec<OpenChange<K>>) -> Rect {
+        // craft-ui: crates/ui/src/list/row.rs:1074 `Geometry::new` (the indent shrinks, the
+        // triangle column doesn't); crates/ui/src/list/tree.rs:164 `show_disclosure`.
+        todo!()
+    }
+}
+
+/// A tree table row's AccessKit part: `level`, position among its siblings and the Expand or
+/// Collapse action (`tree::report`), plus `expanded` for a group; a screen reader's Expand or
+/// Collapse is pushed to `opened`.
+#[expect(unused_variables, clippy::ptr_arg, clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn tree_item<K: Clone>(ui: &Ui, response: &Response, branch: &Branch, key: &K, opened: &mut Vec<OpenChange<K>>) {
+    // craft-ui: crates/ui/src/list/tree.rs:131 `report` (its `RowEvent::Open` mapped to the
+    // `OpenChange`), crates/ui/src/list/row.rs:894 (`expanded`).
+    todo!()
 }

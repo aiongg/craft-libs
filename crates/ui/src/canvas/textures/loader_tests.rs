@@ -28,3 +28,10 @@ fn loader_discards_results_of_older_revisions() {
 fn loader_runs_one_job_per_pass_without_lanes() {
     todo!()
 }
+
+// A job that answers `LoadedPicture::Blank` leaves the key `Empty` at its revision, with no texture and no second job.
+#[test]
+#[ignore = "skeleton"]
+fn loader_stores_a_blank_answer_as_empty() {
+    todo!()
+}

@@ -15,11 +15,11 @@ craft_ui::words! {
         empty: "actions.empty" = "Record a sequence of edits, then play it on any document.";
         /// A recording action's accessible name: `{name}` is the action's.
         recording_suffix: "actions.recordingSuffix" = "{name}, recording";
-        /// The include cell's accessible name: `{label}` is the row's.
-        include: "actions.include" = "Include in playback: {label}";
+        /// The include cell's accessible name: `{row}` is the row's label.
+        include: "actions.include" = "Include in playback: {row}";
         include_tooltip: "actions.includeTooltip" = "Include in playback";
-        /// The dialog cell's accessible name: `{label}` is the row's.
-        dialog: "actions.dialog" = "Show dialog during playback: {label}";
+        /// The dialog cell's accessible name: `{row}` is the row's label.
+        dialog: "actions.dialog" = "Show dialog during playback: {row}";
         dialog_tooltip: "actions.dialogTooltip" = "Show dialog during playback";
         /// An action row's trailing text with some steps off: `{enabled}` of `{steps}` (the
         /// counted "3 steps"), PhotoCraft's "2/3 steps".

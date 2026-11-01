@@ -35,3 +35,10 @@ fn file_source_shows_the_quick_preview_first() {
 fn a_stored_thumbnail_needs_no_decode() {
     todo!()
 }
+
+// A decoder answering `ThumbError::Unsupported`: the state is Empty (not Failed), `paint` draws nothing, and no second job runs.
+#[test]
+#[ignore = "skeleton"]
+fn an_unsupported_file_shows_no_picture() {
+    todo!()
+}

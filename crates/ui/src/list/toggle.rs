@@ -1,17 +1,20 @@
-//! Toggle columns of a [`ListRow`](super::ListRow): an eye or lock cell per row, and the sweep.
+//! Toggle columns of a [`ListRow`](super::ListRow): an eye, lock or check cell per row, and the
+//! sweep.
 
 use craft_theme::LabelColor;
 use egui::accesskit::Role;
 use egui::{Id, KeyboardShortcut, Rect, Response, Sense, Ui};
 
 use super::row::{ListRowStyle, RowEvent};
+use crate::controls::{CheckState, TooltipExt as _};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, Gesture, GestureId};
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::Interactive;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
 /// One toggle column of a row: an icon when on, nothing when off (the off icon shows under the
-/// pointer), clickable either way.
+/// pointer), clickable either way; or a check box ([`check_box`](Self::check_box)). One
+/// component for the Layers eye, History's source and the Actions include and dialog cells.
 #[derive(Clone, Debug)]
 pub struct ToggleColumn {
     pub(super) name: String,
@@ -21,6 +24,11 @@ pub struct ToggleColumn {
     pub(super) key: Option<KeyboardShortcut>,
     pub(super) label: Option<LabelColor>,
     pub(super) exclusive: bool,
+    pub(super) mixed: bool,
+    pub(super) check: bool,
+    /// Drawn as a check box's box, not icons ([`check_box`](Self::check_box)).
+    pub(super) boxed: bool,
+    pub(super) tooltip: Option<String>,
 }
 
 impl ToggleColumn {
@@ -28,7 +36,22 @@ impl ToggleColumn {
     /// pointer while off. `name` is the cell's name for a screen reader, translated by the host as
     /// a whole pattern with `{row}` for the row's label: "Visibility {row}" (PhotoCraft).
     pub fn new(name: impl Into<String>, on_icon: Icon, off_icon: Icon, on: bool) -> Self {
-        Self { name: name.into(), on_icon, off_icon, on, key: None, label: None, exclusive: false }
+        Self { name: name.into(), on_icon, off_icon, on, key: None, label: None, exclusive: false, mixed: false, check: false, boxed: false, tooltip: None }
+    }
+
+    /// A check box column, as the Actions panel's include cell: [`check`](Self::check)`(true)`,
+    /// [`mixed`](Self::mixed) when `state` is [`CheckState::Mixed`], on when it is `Checked`.
+    /// The cell is drawn as the [`Checkbox`](crate::controls::Checkbox)'s box
+    /// (`controls::checkbox::paint_box` with `Checkbox::style(&tokens, ControlSize::Sm)`, centred
+    /// in the cell, in the box's colours for the cell's hover and press) instead of icons, and is
+    /// always shown: outline when off, the check when on, the dash when mixed. A label colour
+    /// ([`label`](Self::label)) fills the cell under the box. `name` as in [`new`](Self::new).
+    pub fn check_box(name: impl Into<String>, state: CheckState) -> Self {
+        let mut column = Self::new(name, Icon::Check, Icon::Check, state == CheckState::Checked);
+        column.mixed = state == CheckState::Mixed;
+        column.check = true;
+        column.boxed = true;
+        column
     }
 
     /// A key that toggles the column on the selected rows while a [`List`](super::List) has the
@@ -56,6 +79,42 @@ impl ToggleColumn {
     pub fn exclusive(mut self, exclusive: bool) -> Self {
         self.exclusive = exclusive;
         self
+    }
+
+    /// The cell is neither on nor off in this row (default false): some of what the row stands
+    /// for is on and some off, as an action with some of its steps switched off. It takes the
+    /// place of `on` for the look and for AccessKit (toggled mixed). A [check box](Self::check_box)
+    /// cell shows the dash; an icon cell shows its on icon in the row's dimmed text colour
+    /// (`list.text.dimmed`, `list.text.selected.dimmed` on a selected row). A press, a sweep that
+    /// starts on it and a screen reader's click set it on (`ToggleEdit { on: true }`), as a mixed
+    /// [`Checkbox`](crate::controls::Checkbox) becomes checked; a sweep it crosses sets it to
+    /// the sweep's state.
+    pub fn mixed(mut self, mixed: bool) -> Self {
+        self.mixed = mixed;
+        self
+    }
+
+    /// The cell is a check box for AccessKit (default false): a `CheckBox` toggled on, off or
+    /// mixed, where a plain column is a toggle `Button` with its checked state. For a setting the
+    /// row carries (the Actions panel's include and dialog cells, PhotoCraft's `CheckBox` and
+    /// selected `Button`), not an action on the row (show, lock). The look is unchanged; for the
+    /// box look use [`check_box`](Self::check_box).
+    pub fn check(mut self, check: bool) -> Self {
+        self.check = check;
+        self
+    }
+
+    /// The cell's tooltip, the same in every row ("Include in playback"); the name stays the
+    /// screen reader's.
+    pub fn tooltip(mut self, tooltip: impl Into<String>) -> Self {
+        self.tooltip = Some(tooltip.into());
+        self
+    }
+
+    /// The state a press, a sweep that starts on this cell, or a screen reader's click gives it:
+    /// on from off or mixed, off from on.
+    pub(super) fn pressed_state(&self) -> bool {
+        self.mixed || !self.on
     }
 
     /// The eye column of PhotoCraft's and DesignCraft's layer rows, `name` as in
@@ -113,6 +172,8 @@ pub(super) struct Cell<'a, K> {
     pub row_id: Id,
     pub key: &'a K,
     pub row_label: &'a str,
+    /// The row is selected (a mixed icon cell's colour).
+    pub selected: bool,
 }
 
 /// Senses and paints one cell in `rect`, whose column a sweep crosses anywhere in `reach`, reports its edits, and returns the cell's response.
@@ -129,12 +190,9 @@ pub(super) fn show<K: Clone>(
     }
     let id = cell.row_id.with(("toggle", cell.index));
     let name = super::tree::with_row(&column.name, cell.row_label);
-    let sensed = Interactive::with_id(id, Role::Button, name)
-        .sense(Sense::CLICK | Sense::DRAG)
-        .checked(column.on)
-        .state_layer(false)
-        .focus_ring(false)
-        .interact_at(ui, rect);
+    let sensed = Interactive::with_id(id, if column.check { Role::CheckBox } else { Role::Button }, name).sense(Sense::CLICK | Sense::DRAG);
+    let sensed = if column.mixed { sensed.mixed() } else { sensed.checked(column.on) };
+    let sensed = sensed.state_layer(false).focus_ring(false).interact_at(ui, rect);
     let response = sensed.response().clone();
     let scope = ui.scope_id();
     let edit = |on| ToggleEdit { column: cell.index, row: cell.key.clone(), on };
@@ -151,7 +209,7 @@ pub(super) fn show<K: Clone>(
         let mut swept = None;
         let on = match &sweep {
             Some(sweep) if !press => sweep.on,
-            _ => !column.on,
+            _ => column.pressed_state(),
         };
         if press {
             gesture.begin();
@@ -181,7 +239,7 @@ pub(super) fn show<K: Clone>(
         && passed_over(reach, pointer, delta)
     {
         sweep.seen.push(id);
-        if column.on != sweep.on {
+        if column.on != sweep.on || column.mixed {
             report(EditEvent::update(sweep.id, edit(sweep.on), modifiers));
         }
         ui.data_mut(|d| d.insert_temp(sweep_id(scope, cell.index), Some(sweep)));
@@ -189,13 +247,20 @@ pub(super) fn show<K: Clone>(
     // A pointer click takes part in a sweep; anything else is a screen reader's click.
     if response.clicked() && !owned {
         report(match edit::in_scope(ui) {
-            true => EditEvent::update(GestureId::next(), edit(!column.on), modifiers),
-            false => EditEvent::set(edit(!column.on), modifiers),
+            true => EditEvent::update(GestureId::next(), edit(column.pressed_state()), modifiers),
+            false => EditEvent::set(edit(column.pressed_state()), modifiers),
         });
     }
     let hovered = ui.rect_contains_pointer(rect);
-    let response = sensed.finish(ui);
-    paint(ui, response.rect, column, hovered, style);
+    let mut response = sensed.finish(ui);
+    if let Some(tooltip) = &column.tooltip {
+        response = response.tooltip(tooltip.as_str());
+    }
+    if column.boxed || column.mixed {
+        paint_check_or_mixed(ui, &response, column, cell.selected, style);
+    } else {
+        paint(ui, response.rect, column, hovered, style);
+    }
     response
 }
 
@@ -270,9 +335,22 @@ fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, hovered: bool, style: &List
     icons::paint_in(ui, rect, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), color);
 }
 
+/// A [check box](ToggleColumn::check_box) or [mixed](ToggleColumn::mixed) cell in `response.rect`:
+/// the label colour fill as `paint` draws it; then for a box cell the check box's box
+/// (`checkbox::paint_box` with `Checkbox::style(&Tokens::of(ui), ControlSize::Sm)`, its side
+/// centred in the cell, the state `CheckState::Mixed` when mixed, else from `on`, in the colours
+/// of `response`); for a mixed icon cell its on icon in `style.dimmed`, or `style.selected_dimmed`
+/// when `selected`, at `style.icon_size` as `paint` draws icons.
+#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn paint_check_or_mixed(ui: &Ui, response: &Response, column: &ToggleColumn, selected: bool, style: &ListRowStyle) {
+    // pc: crates/ui-egui/src/panels/actions.rs:315 `paint_check` (11-point box, check when on);
+    // craft-ui: crates/ui/src/controls/checkbox.rs:222 `paint_box` (the library's box, check and dash).
+    todo!()
+}
+
 /// An [exclusive](ToggleColumn::exclusive) cell in `rect`: the cell's `Interactive` (same id and
 /// name as a sweeping cell, `Sense::CLICK` only, `checked` from `column.on`), painted by `paint`
-/// as any cell; a click while off reports `RowEvent::Toggle(EditEvent::Set { value: ToggleEdit {
+/// as any cell, with the column's tooltip; a click while off reports `RowEvent::Toggle(EditEvent::Set { value: ToggleEdit {
 /// column: cell.index, row, on: true }, modifiers })`.
 #[expect(unused_variables, clippy::ptr_arg, clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn show_exclusive<K: Clone>(

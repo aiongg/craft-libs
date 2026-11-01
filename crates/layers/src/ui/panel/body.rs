@@ -89,8 +89,9 @@ pub(super) struct BodyOutput<Id> {
 ///   `Row` (also Enter).
 /// - `Row(LinkToggled)` → [`LayersEvent::MaskLink`] for the mask at that extra thumbnail.
 /// - `Open` → [`LayersEvent::Open`] for layer rows.
-/// - `ContextMenu` → `menu`: on the eye column (`// needs: A ContextMenuRequest::toggle`) the
-///   colour menu for the selection or the row; else the row menu with `part` from the thumbnail
+/// - `ContextMenu` → `menu`: with `toggle: Some(0)` (the eye column,
+///   [`ContextMenuRequest::toggle`](craft_ui::list::ContextMenuRequest::toggle)) the colour menu
+///   for the selection or the row; any other `toggle` reports nothing; else the row menu with `part` from the thumbnail
 ///   rects in `cx.sink.thumbs` under the pointer, `on_selection` from the request.
 /// - `Reorder` → [`drop_event`](super::drag::drop_event).
 /// - `Row(ThumbDrag)` → [`start_mask_drag`](super::drag::start_mask_drag).

@@ -195,7 +195,8 @@ pub enum BinEvent<K> {
     OpenBin { key: K, how: OpenHow },
     /// The breadcrumb, Up or a search result moved the shown bin.
     Navigate(Option<K>),
-    /// A List-view bin opened or closed (→, ←, the triangle).
+    /// A List-view bin opened or closed (→, ←, the triangle, a screen reader's Expand and
+    /// Collapse; with Alt, one per bin under the shown bin).
     Expanded { key: K, open: bool },
     /// A rename committed (Enter, a click elsewhere); a `Set`, one undo step. Esc cancels in the
     /// editor and reports nothing.
@@ -279,12 +280,15 @@ type ThumbPair<'a, K> = (&'a Thumbnails<K>, &'a dyn ThumbSource<K>);
 ///   the host's `.header(..)` slot (FilmCraft's preview area).
 /// - **Search.** Typing filters live by [`name_matches`]; a non-empty search lists matches from
 ///   every sub-bin, flat; Esc clears, a second Esc leaves the field (the library's rule).
-/// - **List view** (`list.rs`): a `Table` (risk 7, below) over the shown bin's rows, bins before
-///   items, open bins' children under them; first column indent `list.indent` per depth,
-///   disclosure triangle, label chip 12 pt (radius 2.5), thumbnail (`ThumbSize`), icon, name;
+/// - **List view** (`list.rs`): a tree `Table` (`Table::tree`, named by the row's name) over the
+///   shown bin's rows, bins before items, open bins' children under them; the table draws the
+///   first column's indent (`list.indent` per depth) and disclosure triangle, and the bin's cell
+///   closure draws the label chip 12 pt (radius 2.5), thumbnail (`ThumbSize`), icon and name;
 ///   other columns `BinModel::cell` in `text.muted`; striped. Click, Shift range, Cmd toggle as
-///   the grid; Enter or double click: `Open` or `OpenBin { how }`; → and ← open and close bins
-///   (`Expanded`), Alt for every level; F2 renames the lead; a click on a selected item's name
+///   the grid; Enter or double click: `Open` or `OpenBin { how }`; → and ← open and close bins,
+///   Alt for every level (the table's `TableEvent::Open`, reported as `Expanded`; one with `all`
+///   becomes one `Expanded` per bin under the shown bin, read from `BinModel::children`, so
+///   `BinState::apply` needs no model); F2 renames the lead; a click on a selected item's name
 ///   starts a rename after the double-click time (FilmCraft's slow click); Cmd/Ctrl+] and [ move
 ///   in User Order.
 /// - **Icon view** (`icon.rs`): a `TileGrid` in `Cards { side: icon_size, aspect: 16 / 9,
@@ -298,17 +302,15 @@ type ThumbPair<'a, K> = (&'a Thumbnails<K>, &'a dyn ThumbSource<K>);
 ///   Freeform), a `ThumbnailSlider` over `.zoom_range(..)` (Esc during the drag restores), Sort
 ///   Icons in Icon view, the host's actions, New Bin.
 /// - **Context menus.** `ContextMenu` for an item, a bin and the background.
-/// - **AccessKit.** The List view is a `Tree` of `TreeItem`s (`level`, `expanded`) once `Table`
-///   has its tree column (risk 7); the Icon view as `TileGrid`; the search, slider and footer
-///   buttons named.
+/// - **AccessKit.** The List view is the tree table's `TreeGrid` of `TreeItem`s (`level`,
+///   `expanded`); the Icon view as `TileGrid`; the search, slider and footer buttons named.
 /// - **RTL.** Breadcrumb, columns and the footer mirror; the disclosure sits at the reading start.
 ///
 /// Risk 7: `Table`'s cell closure gets a `Ui` clipped to the cell inside the row's `Ui`, whose
-/// click sense is registered before the cells, so a disclosure button drawn in the first cell
-/// takes its own clicks; indent, chip, thumbnail, icon and name draw there too. What the closure
-/// can't give is the tree's keys (→ and ← open and close, Alt for every level) and the
-/// `TreeItem` role with `level` and `expanded`: `Table` rows are `Row`s and Left and Right are not
-/// read. Task B11 adds a tree column to `Table` (`crates/ui/src/list/table.rs`).
+/// click sense is registered before the cells, so the chip, thumbnail, icon and name draw in the
+/// first cell after the table's indent and triangle. The tree's keys (→ and ← open and close, Alt
+/// for every level) and the `TreeItem` role with `level` and `expanded` are `Table::tree`'s
+/// (`crates/ui/src/list/table.rs`, a shared-additions task B11 depends on).
 pub struct MediaBin<'a, K: TextureKey, M: ?Sized> {
     id_salt: egui::Id,
     state: &'a mut BinState<K>,

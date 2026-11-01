@@ -136,3 +136,12 @@ fn a_keyboard_menu_opens_at_the_reading_start_of_the_row_right_to_left() {
     let rename = menu_item_rect(&harness, "Rename").expect("Shift+F10 opens it");
     assert!((rename.right() - lead_rect.right()).abs() < 24.0, "at the row's right edge: {rename:?} for {lead_rect:?}");
 }
+
+// A secondary click on a row's second toggle cell asks for the menu with `toggle: Some(1)`, the
+// row and its rect; on the label `toggle: None`; Shift+F10 on the lead `toggle: None`.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_secondary_click_on_a_toggle_cell_names_its_column() {
+    todo!()
+}

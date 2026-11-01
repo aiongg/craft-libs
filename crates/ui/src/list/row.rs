@@ -927,7 +927,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
 
         let mut toggles = Vec::with_capacity(columns.len());
         for (index, column) in columns.iter().enumerate() {
-            let cell = Cell { index, row_id, key: &key, row_label: &label };
+            let cell = Cell { index, row_id, key: &key, row_label: &label, selected };
             let offset = geometry.toggles_start + index as f32 * style.toggle_column;
             let at = geometry.span(rect, offset, style.toggle_column);
             // A sweep crosses an indented cell anywhere between the leading edge and the cell.

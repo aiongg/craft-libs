@@ -2,11 +2,11 @@
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 use craft_ui::behavior::DisplayOrder;
-use craft_ui::list::ListRow;
-use egui::{Response, Ui};
+use craft_ui::controls::CheckState;
+use craft_ui::list::{ListRow, ToggleColumn, ToggleEdit};
 
 use super::labels::ActionsLabels;
-use super::panel::{ActionSelection, ActionsHost, ActionsState};
+use super::panel::{ActionSelection, ActionsEvent, ActionsHost, ActionsState};
 use super::style::ActionsPanelStyle;
 use crate::actions::{ActionInclude, ActionList};
 
@@ -66,9 +66,13 @@ impl DisplayOrder<ActionSelection> for ActionRows {
 ///   with [`ActionsLabels::recording_suffix`] then;
 /// - a step: the host's label, dimmed when switched off.
 ///
-/// The include and dialog cells go in a leading slot of two `actions.check_size` + 5 wide cells
-/// before the tree's indent, drawn by [`check_cell`]: `// needs: A ListRow::leading_item(width,
-/// add)` (risk 6, see the spec's As built). Set rows leave the slot empty.
+/// The include and dialog cells are the row's [toggle columns](ToggleColumn), at the reading start
+/// before the tree's indent (lead call: one component with the Layers eye and History's source):
+/// - column 0, the include cell on action and step rows: [`include_column`];
+/// - column 1, the dialog cell on step rows: [`dialog_column`].
+///
+/// Set rows have no toggle columns, so their disclosure sits at the leading edge, as PhotoCraft's
+/// set header's triangle does.
 pub(super) fn row<'r>(
     key: &ActionSelection,
     list: &'r ActionList,
@@ -81,23 +85,40 @@ pub(super) fn row<'r>(
     todo!()
 }
 
-/// What a check cell shows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum CheckKind {
-    /// The include cell: a box `check_size` square, radius 2, 1 pt `text.faint` outline, a 1.5 pt
-    /// check in `text.normal` when on, a dash when partial.
-    Include(ActionInclude),
-    /// The dialog cell: `Icon::Note` (Lucide "message-square") at `check_size`, `icon` colour when
-    /// on, `text.faint` at 0.45 when off.
-    Dialog(bool),
+/// The include cell of an action or step row: a [`ToggleColumn::check_box`] named
+/// [`ActionsLabels::include`] with the row's label for `{row}`, tooltip
+/// [`ActionsLabels::include_tooltip`], key Space. The state of an action row is its
+/// [`ActionInclude`] (`All` checked, `Partial` mixed, `None` unchecked); of a step row, checked
+/// unless the step is in `Action::disabled`.
+pub(super) fn include_column(state: CheckState, labels: &ActionsLabels) -> ToggleColumn {
+    // pc: crates/ui-egui/src/panels/actions.rs:1225-1234 `draw_step_controls` (the check, `CheckBox`
+    // "Include in playback: {label}"), :315 `paint_check`.
+    todo!()
 }
 
-/// One include or dialog cell in `ui` (a 16-point square box): a click reports through the
-/// returned response. AccessKit: a `CheckBox` named `name` (the row's label filled into
-/// [`ActionsLabels::include`] or [`ActionsLabels::dialog`]), toggled on, off or `Mixed`; its
-/// tooltip is the matching `*_tooltip` word. A `ToggleColumn` is not used: it has no mixed state
-/// and is a `Button` (risk 6).
-pub(super) fn check_cell(ui: &mut Ui, kind: CheckKind, name: &str, tooltip: &str, style: &ActionsPanelStyle) -> Response {
-    // pc: crates/ui-egui/src/panels/actions.rs:1225-1251 `draw_step_controls`, :315 `paint_check`.
+/// The include cell's state for an action's [`ActionInclude`].
+pub(super) fn include_state(include: ActionInclude) -> CheckState {
+    // new: `All` → `Checked`, `Partial` → `Mixed`, `None` → `Unchecked`.
+    todo!()
+}
+
+/// The dialog cell of a step row: `ToggleColumn::new(name, Icon::Note, Icon::Note, on)` with
+/// [`check`](ToggleColumn::check)`(true)`, named [`ActionsLabels::dialog`] with the row's label
+/// for `{row}`, tooltip [`ActionsLabels::dialog_tooltip`]; `on` when the step is in
+/// `Action::dialogs`. Like every toggle column it shows its icon when on and under the pointer
+/// when off (PhotoCraft draws the off icon at `text.faint` × 0.45 at rest; the list's column look
+/// replaces it).
+pub(super) fn dialog_column(on: bool, labels: &ActionsLabels) -> ToggleColumn {
+    // pc: crates/ui-egui/src/panels/actions.rs:1236-1250 `draw_step_controls` (the "message-square" icon, "Show dialog during playback: {label}").
+    todo!()
+}
+
+/// The panel event for a toggle column edit of `edit.row` (an `Update` or `Set`; `Begin`,
+/// `Commit` and `Cancel` report nothing): column 0 on a step row [`ActionsEvent::ToggleStep`],
+/// on an action row [`ActionsEvent::ToggleAll`]; column 1 on a step row
+/// [`ActionsEvent::ToggleDialog`]. `None` when `edit.on` is the state the cell already shows (a
+/// sweep crossing a cell in its state), since the list's events toggle.
+pub(super) fn toggle_event(edit: &ToggleEdit<ActionSelection>, list: &ActionList) -> Option<ActionsEvent> {
+    // new: maps the list's toggle columns to the model's toggles (ActionList::{toggle_step, toggle_all, toggle_dialog}).
     todo!()
 }

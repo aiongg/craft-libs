@@ -51,8 +51,9 @@ enum Stage {
 ///   `quick` (a picture: stage `NeedsFull`, and the job wakes the host so the next pass asks the
 ///   new revision), else decodes, saves, and is final. The second job (stage `NeedsFull`)
 ///   decodes and saves.
-/// - `ThumbError::Unsupported` ends the job with an empty 0 × 0 picture the cache treats as
-///   `Empty`; `Failed(message)` is the failure tooltip; `Cancelled` is reported as the queue's
+/// - `ThumbError::Unsupported` ends the job with `Ok(LoadedPicture::Blank)`, which the cache
+///   stores as `Empty` (the tile shows the host's own icon); `Failed(message)` is the failure
+///   tooltip; `Cancelled` is reported as the queue's
 ///   cancel. A failure is remembered by the cache for its revision, so it is not retried until
 ///   the file changes (`invalidate`) (risk 9: the widget asks `Thumbnails::state` before it
 ///   paints, the source never draws).
@@ -101,7 +102,8 @@ impl FileThumbSource {
     }
 }
 
-/// Turns a finished [`DecodedThumb`] into the picture the cache uploads.
+/// Turns a finished [`DecodedThumb`] into the picture the cache uploads
+/// (`LoadedPicture::Image`; an unsupported file is `LoadedPicture::Blank`, never a picture).
 fn to_image(thumb: DecodedThumb) -> ColorImage {
     // new: `ColorImage::from_rgba_unmultiplied`.
     todo!()

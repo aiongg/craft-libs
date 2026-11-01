@@ -1357,3 +1357,21 @@ fn a_plain_row_can_draw_a_rule_under_itself() {
 fn a_drag_from_an_extra_thumbnail_reports_thumb_drag() {
     todo!()
 }
+
+// A mixed column: AccessKit toggled Mixed; a click reports `on: true`; a sweep from an off cell
+// across a mixed one sets it on too; a mixed icon cell paints its on icon in `list.text.dimmed`.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_mixed_toggle_cell_turns_on() {
+    todo!()
+}
+
+// `check(true)` makes the cell a CheckBox (a plain column stays a Button); `check_box` paints the
+// check box's box in every state (outline off, check on, dash mixed) and keeps it shown off hover.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_check_toggle_column_is_a_check_box() {
+    todo!()
+}

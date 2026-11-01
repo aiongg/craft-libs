@@ -33,7 +33,7 @@ mod thumb_tests;
 pub use cache::{CachedTexture, Revision, TextureBudget, TextureCache, TextureCacheOptions, TextureKey, TextureState, TextureStatistics};
 pub use craft_host::queue::Priority;
 pub use limits::{DetailPlan, MAX_TEXTURE, fit_image, texture_factor, texture_side};
-pub use loader::{LoaderOptions, TextureLoader};
+pub use loader::{LoadedPicture, LoaderOptions, TextureLoader};
 pub use style::ThumbnailStyle;
 pub use thumb::{
     FakeThumbSource, ThumbFit, ThumbJob, ThumbPaint, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails, fit_rect, thumb_image,

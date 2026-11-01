@@ -219,7 +219,8 @@ pub struct ActionsPanelOutput {
 /// are off; the recording action a `status.bad.solid` dot, expanded, its latest step scrolled
 /// into view), and an expanded action's steps (the host's labels, `text.muted`, `text.faint`
 /// when off), the pending steps of a recording after them. The include and dialog cells sit at
-/// the reading start of action and step rows. Row heights are `actions.set_row_height`,
+/// the reading start of action and step rows: the list's toggle columns (the include cell a check
+/// box, the dialog cell the `Icon::Note` column). Row heights are `actions.set_row_height`,
 /// `actions.row_height` and `actions.step_row_height`; an action in a set is indented
 /// `actions.indent`. With no actions: an [`EmptyState`](craft_ui::composites::EmptyState) with the
 /// Record glyph and [`ActionsLabels::empty`]. Under the list the footer ([`PanelFooter`](craft_ui::composites::PanelFooter)).
@@ -228,7 +229,8 @@ pub struct ActionsPanelOutput {
 /// closes all); a double-click on an action's name renames it in place (Enter commits, Esc
 /// cancels), elsewhere on an action row plays it, on a set toggles it. The include cell toggles a
 /// step, or every step of an action (all on unless all already are); the dialog cell toggles the
-/// step's dialog flag. A drag moves an action (into or out of a set) or a step (within or between
+/// step's dialog flag. A press on a cell sweeps down the column as on the Layers eye, one toggle
+/// event per row whose state changes. A drag moves an action (into or out of a set) or a step (within or between
 /// actions); the list auto-scrolls within 22 points of its edge, 8 per pass, and draws the drop
 /// line. Right-click on an action opens Keyboard Shortcuts and Color; on a set, Save Set….
 ///
@@ -245,8 +247,9 @@ pub struct ActionsPanelOutput {
 /// **AccessKit.** A `Tree` named [`ActionsLabels::name`]; rows are `TreeItem`s with level,
 /// expanded and Expand or Collapse, selected; `Default` on an action plays it; a recording
 /// action's name carries [`ActionsLabels::recording_suffix`]. The include and dialog cells are
-/// `CheckBox`es (lead call L23) named [`ActionsLabels::include`] and [`ActionsLabels::dialog`],
-/// the include cell of a partial action `Toggled::Mixed`.
+/// the rows' toggle columns as `CheckBox`es (lead call L23; [`ToggleColumn::check`](craft_ui::list::ToggleColumn::check))
+/// named [`ActionsLabels::include`] and [`ActionsLabels::dialog`], the include cell of a partial
+/// action `Toggled::Mixed` ([`ToggleColumn::mixed`](craft_ui::list::ToggleColumn::mixed)).
 ///
 /// **Direction.** The tree, disclosure and cells follow reading order (`List` rules); the counts
 /// and shortcut sit at the end side.

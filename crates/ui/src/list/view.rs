@@ -87,6 +87,14 @@ pub struct ContextMenuRequest<K> {
     pub anchor: Rect,
     /// Where the pointer was for a secondary click; `None` for a key.
     pub pointer: Option<Pos2>,
+    /// The [toggle column](super::ToggleColumn) a secondary click hit, as its index in the row's
+    /// [`ListRow::toggle`](super::ListRow::toggle) order (the Layers eye's colour menu is column
+    /// 0); `None` elsewhere on the row, for the empty space and for the menu keys. A toggle cell
+    /// senses its own clicks, so the row's response doesn't see them: [`List`] reads
+    /// [`RowResponse::toggles`](super::RowResponse::toggles) after the row and asks for the menu
+    /// with the column. `selected` and `anchor` are the row's. A [`Table`](super::Table) has no
+    /// toggle columns and reports `None`.
+    pub toggle: Option<usize>,
 }
 
 /// What [`List::show`] returns.
@@ -1024,14 +1032,17 @@ where
         if self.reorder.is_some() && self.state.drag.is_none() && !thumb_drag && response.drag_started_by(PointerButton::Primary) {
             self.start_drag(at, key);
         }
-        if response.secondary_clicked() {
+        // A toggle cell senses its own clicks, so its secondary click is read from its response.
+        let toggle = out.toggles.iter().position(Response::secondary_clicked);
+        if let Some(clicked) = toggle.map_or_else(|| response.secondary_clicked().then_some(response), |column| Some(&out.toggles[column])) {
             // egui drops the focus on a click outside the list's own widget, here on the release.
             self.focus = true;
             let request = ContextMenuRequest {
                 row: Some(key.clone()),
                 selected: self.selection.contains(key),
                 anchor: response.rect,
-                pointer: response.interact_pointer_pos(),
+                pointer: clicked.interact_pointer_pos(),
+                toggle,
             };
             self.events.push(ListEvent::ContextMenu(request));
         }
@@ -1088,7 +1099,7 @@ where
         }
         if response.secondary_clicked() {
             self.focus = true;
-            let request = ContextMenuRequest { row: None, selected: false, anchor: response.rect, pointer: response.interact_pointer_pos() };
+            let request = ContextMenuRequest { row: None, selected: false, anchor: response.rect, pointer: response.interact_pointer_pos(), toggle: None };
             self.events.push(ListEvent::ContextMenu(request));
         }
     }
@@ -1098,7 +1109,7 @@ where
         let lead = self.lead_at().map(|at| self.rows.key(at).clone());
         let anchor = self.lead_row.map_or(list, |(_, rect)| rect);
         let selected = lead.as_ref().is_some_and(|k| self.selection.contains(k));
-        self.events.push(ListEvent::ContextMenu(ContextMenuRequest { row: lead, selected, anchor, pointer: None }));
+        self.events.push(ListEvent::ContextMenu(ContextMenuRequest { row: lead, selected, anchor, pointer: None, toggle: None }));
     }
 
     /// A stacking key: the selected rows move one row, or to an end. The lead is revealed next

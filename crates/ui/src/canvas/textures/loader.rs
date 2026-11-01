@@ -39,8 +39,24 @@ impl std::fmt::Debug for LoaderOptions {
     }
 }
 
-/// What a loader job returns: the picture, or a message for the failure tooltip.
-pub(crate) type LoadResult = Result<ColorImage, String>;
+/// What a background job makes when it succeeds: a picture, or the answer that the key has none.
+#[derive(Debug)]
+pub enum LoadedPicture {
+    /// The picture to upload.
+    Image(ColorImage),
+    /// The key has no picture (a file the decoder doesn't read): stored with
+    /// [`TextureCache::put_empty`], so its state is `Empty` and the row paints its own tile.
+    Blank,
+}
+
+impl From<ColorImage> for LoadedPicture {
+    fn from(image: ColorImage) -> Self {
+        Self::Image(image)
+    }
+}
+
+/// What a loader job returns: a [`LoadedPicture`], or a message for the failure tooltip.
+pub(crate) type LoadResult = Result<LoadedPicture, String>;
 
 /// A key's job in flight: the revision it makes and when it was last asked for.
 struct Asked {
@@ -66,7 +82,7 @@ struct Inner<K> {
 /// let loader = TextureLoader::<PageKey>::in_context(ctx, "pages", LoaderOptions::default());
 /// let state = loader.request(ctx, &page, Revision::of(&doc.stamp()), Priority::VISIBLE, || {
 ///     let pdf = doc.clone_handle();
-///     move |cancel: &Cancel| pdf.render(page, cancel).map_err(|e| e.to_string())
+///     move |cancel: &Cancel| pdf.render(page, cancel).map(LoadedPicture::from).map_err(|e| e.to_string())
 /// });
 /// ```
 ///
@@ -75,7 +91,8 @@ struct Inner<K> {
 ///   they finished, while [`TextureCache::allow_upload`] allows (16 and 16 MiB per pass by
 ///   default). The rest wait for later passes and the loader calls `ctx.request_repaint()` for the
 ///   next one, an immediate repaint, never a timed one. A result for a revision other than the one
-///   last asked for is discarded; a failure is stored with [`TextureCache::put_failure`].
+///   last asked for is discarded; a [`LoadedPicture::Blank`] answer is stored with
+///   [`TextureCache::put_empty`] and a failure with [`TextureCache::put_failure`].
 /// - **Dropping.** In that first call, keys nobody asked for in this pass or the previous one are
 ///   dropped from the queue ([`JobQueue::reprioritize`]): rows scrolled away, a panel closed. A
 ///   pass that does not draw the list asks for nothing, so its jobs are dropped at the next pass
@@ -127,7 +144,7 @@ impl<K: TextureKey> TextureLoader<K> {
     /// [`submit`](Self::submit). `job` is called only when a job is queued.
     pub fn request<J>(&self, ctx: &Context, key: &K, revision: Revision, priority: Priority, job: impl FnOnce() -> J) -> TextureState
     where
-        J: FnOnce(&Cancel) -> Result<ColorImage, String> + Send + 'static,
+        J: FnOnce(&Cancel) -> Result<LoadedPicture, String> + Send + 'static,
     {
         // new: `self.ask(..).unwrap_or_else(|| self.submit(.., job()))`.
         todo!()
@@ -151,7 +168,7 @@ impl<K: TextureKey> TextureLoader<K> {
         key: K,
         revision: Revision,
         priority: Priority,
-        job: impl FnOnce(&Cancel) -> Result<ColorImage, String> + Send + 'static,
+        job: impl FnOnce(&Cancel) -> Result<LoadedPicture, String> + Send + 'static,
     ) -> TextureState {
         // lightcraft: crates/preview/src/pool.rs:182 `submit` (slot replace) through `JobQueue::submit`.
         todo!()

@@ -13,7 +13,7 @@ use craft_host::queue::{Cancel, Priority};
 use egui::{AsIdSalt, Color32, ColorImage, Context, Painter, Rect, Vec2};
 
 use super::cache::{Revision, TextureCache, TextureCacheOptions, TextureKey, TextureState};
-use super::loader::TextureLoader;
+use super::loader::{LoadedPicture, TextureLoader};
 use super::style::{self, ThumbnailStyle};
 use crate::theme::UiTokens;
 
@@ -39,9 +39,10 @@ impl ThumbRequest {
 }
 
 /// A background render: runs on a queue lane, checks the [`Cancel`] between steps, and returns the
-/// picture or a message for the failure tooltip. It owns what it reads (an `Arc` of the node, a
-/// path), never a borrow of the document.
-pub type ThumbJob = Box<dyn FnOnce(&Cancel) -> Result<ColorImage, String> + Send>;
+/// picture ([`LoadedPicture::Image`]), [`LoadedPicture::Blank`] when the key turns out to have no
+/// picture (state `Empty`, as [`ThumbRender::Blank`]), or a message for the failure tooltip. It
+/// owns what it reads (an `Arc` of the node, a path), never a borrow of the document.
+pub type ThumbJob = Box<dyn FnOnce(&Cancel) -> Result<LoadedPicture, String> + Send>;
 
 /// What a [`ThumbSource`] renders for a key.
 pub enum ThumbRender {
@@ -72,7 +73,7 @@ pub enum ThumbRender {
 ///     fn revision(&self, key: &NodeId, _: &ThumbRequest) -> Revision { Revision::of(&self.doc.node_stamp(*key)) }
 ///     fn render(&self, key: &NodeId, request: &ThumbRequest) -> ThumbRender {
 ///         let (node, side) = (self.doc.node_arc(*key), request.side);
-///         ThumbRender::Later(Box::new(move |cancel| draw_node(&node, side, cancel)))
+///         ThumbRender::Later(Box::new(move |cancel| draw_node(&node, side, cancel).map(LoadedPicture::from)))
 ///     }
 /// }
 /// ```

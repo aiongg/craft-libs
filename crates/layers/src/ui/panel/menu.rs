@@ -72,9 +72,7 @@ pub(super) enum MenuRequest<Id> {
         /// The pointer or the row's rect (Menu key, Shift+F10).
         at: OpenAt,
     },
-    /// The eye cell's colour menu.
-    // needs: A `ContextMenuRequest::toggle` (craft-ui `list/view.rs`): a secondary click on a
-    // toggle cell reports a context-menu request with the column, so the body knows it is the eye.
+    /// The eye cell's colour menu: a context-menu request with `toggle: Some(0)`.
     Eye {
         /// The layers it colours: the selection when the row is in it, else the row.
         rows: Vec<Id>,

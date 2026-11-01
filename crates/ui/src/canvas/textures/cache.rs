@@ -296,7 +296,7 @@ impl<K: TextureKey> TextureCache<K> {
 
     /// Records that `key` has no picture at `revision` (state `Empty`); frees its texture.
     pub fn put_empty(&self, ctx: &Context, key: K, revision: Revision) {
-        // new: group, adjustment and type rows (`ThumbRender::Blank`).
+        // new: group, adjustment and type rows (`ThumbRender::Blank`), unsupported files (`LoadedPicture::Blank`).
         todo!()
     }
 

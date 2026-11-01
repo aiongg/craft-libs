@@ -19,8 +19,6 @@ pub struct ActionsPanelStyle {
     pub step_row_height: f32,
     /// The indent of an action inside a set: `actions.indent` (14).
     pub indent: f32,
-    /// The include check's side and the dialog icon's: `actions.check_size` (11).
-    pub check_size: f32,
     /// Button Mode fills, red to violet: `actions.color.*`, the same in every theme.
     pub fills: [Color32; 6],
     /// Button Mode's gray fill: `text.muted`.
@@ -61,14 +59,13 @@ impl ActionsPanel<'_> {
     ///
     /// Skeleton values are PhotoCraft's literals; TK2 swaps them for the `actions.*` tokens.
     pub fn style(tokens: &UiTokens) -> ActionsPanelStyle {
-        // pc: crates/ui-egui/src/panels/actions.rs:297-313 `button_fill`, `button_label_color`; :831 (24), :316 (11), :1040 and :1114 (230/60/60).
+        // pc: crates/ui-egui/src/panels/actions.rs:297-313 `button_fill`, `button_label_color`; :831 (24), :1040 and :1114 (230/60/60).
         let rgb = Color32::from_rgb;
         ActionsPanelStyle {
             set_row_height: 24.0,
             row_height: 26.0,
             step_row_height: 20.0,
             indent: 14.0,
-            check_size: 11.0,
             fills: [rgb(196, 64, 64), rgb(204, 120, 40), rgb(196, 176, 48), rgb(56, 140, 72), rgb(48, 104, 176), rgb(120, 72, 168)],
             gray: tokens.color.text.muted.to_egui(),
             no_color: tokens.color.surface.raised.to_egui(),

@@ -498,3 +498,32 @@ fn wide_columns_keep_the_vertical_bar_in_view_and_the_header_in_place() {
     let first = rows(&harness)[0];
     assert!(first.top() < top + 60.0, "the rows scrolled under it: {first:?}");
 }
+
+// A tree table: the first shown column's cell starts `list.indent` per level plus the disclosure
+// column after the row's edge; a click on a closed group's triangle reports Open { open: true },
+// with Alt `all: true`; mirrored in a right-to-left layout.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_tree_table_indents_the_first_column_and_opens_by_its_triangle() {
+    todo!()
+}
+
+// Tree keys in the focused body: → on a closed group reports Open, → on an open one selects its
+// first child, ← on a child selects its parent, Alt+← reports Open { open: false, all: true } and
+// the lead moves to its topmost group; ←/→ are swapped right to left; without `tree` ←/→ do nothing.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_tree_table_takes_the_tree_keys() {
+    todo!()
+}
+
+// AccessKit: a tree table is a TreeGrid and its rows TreeItems with level, expanded on groups,
+// position_in_set and size_of_set among siblings; a screen reader's Expand reports Open.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_tree_table_exposes_tree_items() {
+    todo!()
+}
