@@ -12,13 +12,11 @@
 //! StraightLinePreview::new(last_stroke_end, pointer).paint(painter, view, &LineGuideStyle::of(tokens));
 //! # }
 //! ```
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use egui::{Color32, Painter};
+use egui::{Color32, Painter, Stroke};
 use kurbo::Point;
 
 use super::CanvasView;
-use crate::theme::UiTokens;
+use crate::theme::{ToEgui, UiTokens};
 
 /// The look of a guide line drawn on the document (the Shift-click line, the Ruler line and its
 /// protractor arm): a wide halo under a thin line, from the `line_guide` token family.
@@ -38,9 +36,8 @@ pub struct LineGuideStyle {
 impl LineGuideStyle {
     /// The style from `tokens`.
     pub fn of(tokens: &UiTokens) -> Self {
-        // new: token task TK1 adds `line_guide.width` and `line_guide.halo`; the colours are the
-        // existing `color.overlay.stroke` and `color.overlay.halo`.
-        todo!()
+        let (g, o) = (&tokens.component.line_guide, &tokens.color.overlay);
+        Self { width: g.width, halo: g.halo, line: o.stroke.to_egui(), halo_color: o.halo.to_egui() }
     }
 }
 
@@ -63,8 +60,12 @@ impl StraightLinePreview {
     /// the pointer is the cursor's, not this line's.
     pub fn paint(&self, painter: &Painter, view: &CanvasView, style: &LineGuideStyle) {
         // pc: crates/ui-egui/src/tools/stroke_constraint.rs:101 `draw_line_preview` (two segments, wide
-        // dark first; the footprint circle it adds for the Standard and Precise cursors is left to the
-        // app's cursor).
-        todo!()
+        // dark first; the footprint circle it adds is left to the app's cursor).
+        if !(self.from.x.is_finite() && self.from.y.is_finite() && self.to.x.is_finite() && self.to.y.is_finite()) {
+            return;
+        }
+        let ends = [view.to_screen(self.from), view.to_screen(self.to)];
+        painter.line_segment(ends, Stroke::new(style.halo, style.halo_color));
+        painter.line_segment(ends, Stroke::new(style.width, style.line));
     }
 }
