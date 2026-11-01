@@ -1,12 +1,13 @@
 //! Toggle columns of a [`ListRow`](super::ListRow): an eye, lock or check cell per row, and the
 //! sweep.
 
-use craft_theme::LabelColor;
+use craft_theme::{ControlSize, LabelColor};
 use egui::accesskit::Role;
 use egui::{Id, KeyboardShortcut, Rect, Response, Sense, Ui};
 
 use super::row::{ListRowStyle, RowEvent};
-use crate::controls::{CheckState, TooltipExt as _};
+use crate::controls::checkbox;
+use crate::controls::{CheckState, Checkbox, TooltipExt as _};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, Gesture, GestureId};
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::Interactive;
@@ -353,18 +354,35 @@ fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, hovered: bool, style: &List
 /// centred in the cell, the state `CheckState::Mixed` when mixed, else from `on`, in the colours
 /// of `response`); for a mixed icon cell its on icon in `style.dimmed`, or `style.selected_dimmed`
 /// when `selected`, at `style.icon_size` as `paint` draws icons.
-#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn paint_check_or_mixed(ui: &Ui, response: &Response, column: &ToggleColumn, selected: bool, style: &ListRowStyle) {
-    // pc: crates/ui-egui/src/panels/actions.rs:315 `paint_check` (11-point box, check when on);
-    // craft-ui: crates/ui/src/controls/checkbox.rs:222 `paint_box` (the library's box, check and dash).
-    todo!()
+    let rect = response.rect;
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    if let Some(color) = column.label {
+        ui.painter().rect_filled(rect, 0.0, Tokens::of(ui).component.list.label(color).fill.to_egui());
+    }
+    if column.boxed {
+        let box_style = Checkbox::style(&Tokens::of(ui), ControlSize::Sm);
+        let state = if column.mixed {
+            CheckState::Mixed
+        } else if column.on {
+            CheckState::Checked
+        } else {
+            CheckState::Unchecked
+        };
+        let side = box_style.side;
+        checkbox::paint_box(ui, &box_style, Rect::from_center_size(rect.center(), egui::Vec2::splat(side)), state, response);
+    } else {
+        let color = if selected { style.selected_dimmed } else { style.dimmed };
+        icons::paint_in(ui, rect, column.on_icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), color);
+    }
 }
 
 /// An [exclusive](ToggleColumn::exclusive) cell in `rect`: the cell's `Interactive` (same id and
 /// name as a sweeping cell, `Sense::CLICK` only, `checked` from `column.on`), painted by `paint`
 /// as any cell, with the column's tooltip; a click while off reports `RowEvent::Toggle(EditEvent::Set { value: ToggleEdit {
 /// column: cell.index, row, on: true }, modifiers })`.
-#[expect(unused_variables, clippy::ptr_arg, clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn show_exclusive<K: Clone>(
     ui: &mut Ui,
     cell: &Cell<'_, K>,
@@ -373,7 +391,19 @@ fn show_exclusive<K: Clone>(
     style: &ListRowStyle,
     events: &mut Vec<RowEvent<K>>,
 ) -> Response {
-    // pc: crates/ui-egui/src/panels/history.rs:198 `history_source_column` (`Sense::click()`, the
-    // icon on the source, faint under the pointer elsewhere).
-    todo!()
+    let id = cell.row_id.with(("toggle", cell.index));
+    let name = super::tree::with_row(&column.name, cell.row_label);
+    let sensed = Interactive::with_id(id, Role::Button, name).sense(Sense::CLICK).checked(column.on);
+    let sensed = sensed.state_layer(false).focus_ring(false).interact_at(ui, rect);
+    if sensed.response().clicked() && !column.on {
+        let edit = ToggleEdit { column: cell.index, row: cell.key.clone(), on: true };
+        events.push(RowEvent::Toggle(EditEvent::set(edit, ui.input(|i| i.modifiers))));
+    }
+    let hovered = ui.rect_contains_pointer(rect);
+    let mut response = sensed.finish(ui);
+    if let Some(tooltip) = &column.tooltip {
+        response = response.tooltip(tooltip.as_str());
+    }
+    paint(ui, response.rect, column, hovered, style);
+    response
 }

@@ -587,11 +587,63 @@ fn type_ahead_skips_sections() {
     assert_eq!(harness.state().selection, Selection::only(3));
 }
 
+/// A reordering list of three layer rows with an extra thumbnail each; the thumbnails' rects of
+/// the last pass and the events reported.
+type Dragging = (Vec<RowInfo<usize>>, std::cell::RefCell<Vec<Rect>>, Vec<ListEvent<usize>>);
+
 // In a reordering list, a ThumbDrag row event starts no row drag (no ListDrag payload, no Begin);
 // a drag from the row's label still does.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_thumbnail_drag_starts_no_row_drag() {
-    todo!()
+    use crate::behavior::{Axis, ListDrag, Reorder};
+    use egui::DragAndDrop;
+    let mut harness = Harness::<Dragging>::builder()
+        .with_size([320.0, 300.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, (rows, thumbs, events): &mut Dragging| {
+                thumbs.get_mut().clear();
+                let thumbs = &*thumbs;
+                let out = List::new("list", "Layers", rows.as_slice()).reorder(Reorder::new(Axis::Vertical)).show(ui, |_, &key| {
+                    ListRow::new(key, format!("Row {key}"))
+                        .thumb(ThumbSize::Medium, |_, _| {})
+                        .extra_thumb(|_, rect| thumbs.borrow_mut().push(rect))
+                        .thumb_drags(true)
+                });
+                events.extend(out.events);
+            },
+            ((0..3).map(RowInfo::leaf).collect(), std::cell::RefCell::default(), Vec::new()),
+        );
+    harness.run();
+    let drag = |harness: &mut Harness<'_, Dragging>, start: Pos2| {
+        harness.event(egui::Event::PointerMoved(start));
+        harness.run();
+        harness.event(egui::Event::PointerButton { pos: start, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+        harness.run();
+        for dy in [8.0, 20.0, 40.0] {
+            harness.event(egui::Event::PointerMoved(start + vec2(0.0, dy)));
+            harness.run();
+        }
+    };
+    let release = |harness: &mut Harness<'_, Dragging>| {
+        harness.event(egui::Event::PointerButton { pos: Pos2::ZERO, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+        harness.run();
+    };
+    let thumb = harness.state().1.borrow()[0].center();
+    drag(&mut harness, thumb);
+    assert!(DragAndDrop::payload::<ListDrag<usize>>(&harness.ctx).is_none(), "a thumbnail drag leaves the payload to the host");
+    assert!(
+        harness.state().2.iter().all(|e| !matches!(e, ListEvent::Reorder(_)))
+            && harness.state().2.iter().any(|e| matches!(e, ListEvent::Row(RowEvent::ThumbDrag { .. }))),
+        "{:?}",
+        harness.state().2
+    );
+    release(&mut harness);
+    harness.state_mut().2.clear();
+
+    let label = harness.get_by_label("Row 0").rect().center() + vec2(40.0, 0.0);
+    drag(&mut harness, label);
+    assert!(DragAndDrop::payload::<ListDrag<usize>>(&harness.ctx).is_some(), "a drag from the label starts the row drag");
+    assert!(harness.state().2.iter().any(|e| matches!(e, ListEvent::Reorder(_))));
 }

@@ -7,6 +7,8 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::drag::show_flat;
+use super::{ContextMenuRequest, List, ListEvent, ListRow, ToggleColumn};
+use crate::behavior::RowInfo;
 use crate::direction::{self, Direction};
 use crate::story::NoArgs;
 use crate::theme::{Base, install};
@@ -54,7 +56,7 @@ fn secondary_click(harness: &mut Harness<'_, NoArgs>, pos: Pos2) {
     harness.run_steps(3);
 }
 
-fn key(harness: &mut Harness<'_, NoArgs>, key: Key, modifiers: Modifiers) {
+fn key<S>(harness: &mut Harness<'_, S>, key: Key, modifiers: Modifiers) {
     for pressed in [true, false] {
         harness.event(Event::Key { key, physical_key: None, pressed, repeat: false, modifiers });
     }
@@ -137,11 +139,57 @@ fn a_keyboard_menu_opens_at_the_reading_start_of_the_row_right_to_left() {
     assert!((rename.right() - lead_rect.right()).abs() < 24.0, "at the row's right edge: {rename:?} for {lead_rect:?}");
 }
 
+type Requests = (Vec<RowInfo<usize>>, Vec<ContextMenuRequest<usize>>);
+
 // A secondary click on a row's second toggle cell asks for the menu with `toggle: Some(1)`, the
 // row and its rect; on the label `toggle: None`; Shift+F10 on the lead `toggle: None`.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_secondary_click_on_a_toggle_cell_names_its_column() {
-    todo!()
+    let mut harness = Harness::<Requests>::builder()
+        .with_size([420.0, 300.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, (rows, requests): &mut Requests| {
+                let out = List::new("list", "Layers", rows.as_slice()).show(ui, |_, &key| {
+                    ListRow::new(key, format!("Row {key}"))
+                        .toggle(ToggleColumn::eye("Visibility {row}", true))
+                        .toggle(ToggleColumn::lock("Lock {row}", false))
+                });
+                for event in out.events {
+                    if let ListEvent::ContextMenu(request) = event {
+                        requests.push(request);
+                    }
+                }
+            },
+            ((0..3).map(RowInfo::leaf).collect(), Vec::new()),
+        );
+    harness.run();
+    let lock = harness.get_by_label("Lock Row 1").rect();
+    let asked = |harness: &mut Harness<'_, Requests>, pos| {
+        harness.state_mut().1.clear();
+        harness.event(Event::PointerMoved(pos));
+        for pressed in [true, false] {
+            harness.event(Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE });
+            harness.run();
+        }
+        harness.run_steps(3);
+        harness.state().1.clone()
+    };
+    let [request] = &asked(&mut harness, lock.center())[..] else { panic!("one request") };
+    assert_eq!((request.row, request.toggle), (Some(1), Some(1)));
+    assert!(request.anchor.contains(lock.center()), "the anchor is the row's rect");
+
+    let label = harness.get_by_label("Row 1").rect().center();
+    let [request] = &asked(&mut harness, label)[..] else { panic!("one request") };
+    assert_eq!((request.row, request.toggle), (Some(1), None));
+
+    harness.key_press(Key::Escape);
+    harness.run();
+    harness.key_press(Key::Tab);
+    harness.run();
+    harness.state_mut().1.clear();
+    key(&mut harness, Key::F10, Modifiers::SHIFT);
+    let [request] = &harness.state().1[..] else { panic!("one request") };
+    assert_eq!(request.toggle, None);
 }
