@@ -1,6 +1,6 @@
 //! Stories of the selection frame, outlines, grips and range helpers (task KS1): not registered.
 //! Registering them (task RG2) adds `stories()` to the canvas stories, `COMPONENTS` to the
-//! component list and [`SelectionStoryLabels`] to `WORDS`, and regenerates the registry dump.
+//! component list and [`SelectionFrameStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!
 //! Every story draws its own fake objects on the canvas and keeps the edited boxes in the story's
 //! state, so the frame and the grips can be dragged and nudged. The host owns the box and applies
@@ -36,14 +36,14 @@ pub const COMPONENTS: &[&str] = &["SelectionFrame", "GripSet", "SelectionOutline
 crate::words! {
     /// The captions of the selection stories, English by default.
     #[non_exhaustive]
-    pub(crate) struct SelectionStoryLabels {
-        box_size: "selectionStory.boxSize" = "Box: {x}, {y}, {width} × {height}";
-        clicked: "selectionStory.clicked" = "Clicked grip {key}";
-        clicked_shift: "selectionStory.clickedShift" = "Shift-clicked grip {key}";
-        none: "selectionStory.none" = "No click yet.";
-        solid: "selectionStory.solid" = "Solid";
-        dashed: "selectionStory.dashed" = "Dashed";
-        range: "selectionStory.range" = "Range {width} × {height}";
+    pub(crate) struct SelectionFrameStoryLabels {
+        box_size: "selectionFrameStory.boxSize" = "Box: {x}, {y}, {width} × {height}";
+        clicked: "selectionFrameStory.clicked" = "Clicked grip {key}";
+        clicked_shift: "selectionFrameStory.clickedShift" = "Shift-clicked grip {key}";
+        none: "selectionFrameStory.none" = "No click yet.";
+        solid: "selectionFrameStory.solid" = "Solid";
+        dashed: "selectionFrameStory.dashed" = "Dashed";
+        range: "selectionFrameStory.range" = "Range {width} × {height}";
     }
 }
 
@@ -187,7 +187,7 @@ fn mapped(map: &Homography, base: Rect, r: Rect, view: &CanvasView) -> Vec<Pos2>
 /// resize it, and its inside, which moves it. The objects follow the box.
 fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
     let words = StoryLabels::of(ui);
-    let own = SelectionStoryLabels::of(ui);
+    let own = SelectionFrameStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let tokens = Tokens::of(ui);
     let key = ui.make_persistent_id("selection-frame-story");
@@ -280,7 +280,7 @@ fn fresh_grips(arrow: Vec2) -> Vec<Grip> {
 /// toggles hot; a drag moves a grip.
 fn show_grips(ui: &mut Ui, args: &mut GripsArgs) {
     let words = StoryLabels::of(ui);
-    let own = SelectionStoryLabels::of(ui);
+    let own = SelectionFrameStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let ctx = ui.ctx().clone();
     let key = ui.make_persistent_id("selection-grips-story");
@@ -362,7 +362,7 @@ fn outline_shapes() -> [BezPath; 4] {
 /// Solid outlines on the left and the same shapes dashed on the right, in two layer colours.
 fn show_outline(ui: &mut Ui, args: &mut PlainViewArgs) {
     let words = StoryLabels::of(ui);
-    let own = SelectionStoryLabels::of(ui);
+    let own = SelectionFrameStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let tokens = Tokens::of(ui);
     let layers = [tokens.color.accent.solid.to_egui(), tokens.color.status.good.solid.to_egui()];
@@ -405,7 +405,7 @@ const HUGE_WIDTH: f32 = 120.0;
 /// outline as four bands and its fill as the area round the active cell.
 fn show_bands(ui: &mut Ui, args: &mut BandsArgs) {
     let words = StoryLabels::of(ui);
-    let own = SelectionStoryLabels::of(ui);
+    let own = SelectionFrameStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let tokens = Tokens::of(ui);
     let view = canvas.view.rect;

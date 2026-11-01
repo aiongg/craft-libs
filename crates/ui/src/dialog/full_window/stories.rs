@@ -2,7 +2,7 @@
 //!
 //! The image is a generated scene (a gradient with a disc, a rectangle and a transparent corner)
 //! and the overlay a generated coverage mask at half resolution, so every state shows without an
-//! app. Sample text is plain English where no registered story word exists. The size
+//! app. Sample text is a story word. The size
 //! (Compact, Comfortable) is the gallery's appearance setting.
 //!
 //! - `patterns/full-window/frame`: title strip, options bar, a `ToolRail` with a group gap, one
@@ -33,6 +33,20 @@ use crate::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["FullWindowSide", "FullWindowCanvas"];
+
+crate::words! {
+    /// The captions of the full-window stories, English by default.
+    #[non_exhaustive]
+    pub(crate) struct FullWindowStoryLabels {
+        workspace: "fullWindowStory.workspace" = "Liquify";
+        properties: "fullWindowStory.properties" = "Properties";
+        preview: "fullWindowStory.preview" = "Preview";
+        preview_note: "fullWindowStory.previewNote" = "Preview 12 ms";
+        out_of_memory: "fullWindowStory.outOfMemory" = "out of memory";
+        pencil: "fullWindowStory.pencil" = "Pencil";
+        hand: "fullWindowStory.hand" = "Hand";
+    }
+}
 
 /// The generated image's size in pixels.
 const IMAGE: [u32; 2] = [192, 128];
@@ -188,24 +202,26 @@ fn workspace(ui: &mut Ui, name: &'static str, open: &mut bool, size: Vec2, title
 /// The title strip: the workspace's name, its subject and the view's zoom.
 fn title(ui: &Ui, view: &FullWindowView) -> String {
     let words = StoryLabels::of(ui);
-    FullWindowTitle::new("Liquify").subject(words.photo).zoom(view.zoom_percent()).text(ui.ctx())
+    let own = FullWindowStoryLabels::of(ui);
+    FullWindowTitle::new(own.workspace.as_str()).subject(words.photo).zoom(view.zoom_percent()).text(ui.ctx())
 }
 
 /// The slots of the rail stories: one letter shared by two tools, and a gap after them.
 fn slots(ui: &Ui) -> Vec<ToolSlot<Tool>> {
     let words = PatternStoryLabels::of(ui);
+    let own = FullWindowStoryLabels::of(ui);
     vec![
         ToolSlot::new(0, vec![RailTool::new("move", Icon::Move, words.move_tool.as_str()).shortcut("V")]),
         ToolSlot::new(
             1,
             vec![
                 RailTool::new("brush", Icon::Brush, words.brush.as_str()).shortcut("B"),
-                RailTool::new("pencil", Icon::Pencil, "Pencil").shortcut("B"),
+                RailTool::new("pencil", Icon::Pencil, own.pencil.as_str()).shortcut("B"),
             ],
         )
         .group_end(true),
         ToolSlot::new(2, vec![RailTool::new("eraser", Icon::Eraser, words.eraser.as_str()).shortcut("E")]),
-        ToolSlot::new(3, vec![RailTool::new("hand", Icon::Hand, "Hand").shortcut("H")]),
+        ToolSlot::new(3, vec![RailTool::new("hand", Icon::Hand, own.hand.as_str()).shortcut("H")]),
         ToolSlot::new(4, vec![RailTool::new("zoom", Icon::ZoomIn, words.zoom.as_str()).shortcut("Z")]),
     ]
 }
@@ -292,6 +308,7 @@ fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
     let navigation = NavigationOptions::default();
     let mut tools = Tools::of(ui, name, navigation);
     let words = StoryLabels::of(ui);
+    let own = FullWindowStoryLabels::of(ui);
     let patterns = PatternStoryLabels::of(ui);
     let (footer_top, second_side) = (args.footer_top, args.second_side);
     let levels_id = key(ui, "frame-levels");
@@ -305,7 +322,7 @@ fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
         let tool = rail(ui, "frame-tools", 1, true);
         let levels = ui.data(|d| d.get_temp::<[f64; 2]>(levels_id)).unwrap_or([50.0, 100.0]);
         let mut next = levels;
-        FullWindowSide::new("frame-properties").width(SideWidth::Wide).header("Properties").footer(footer(ui, footer_top)).show(ui, fx, |ui| {
+        FullWindowSide::new("frame-properties").width(SideWidth::Wide).header(own.properties.as_str()).footer(footer(ui, footer_top)).show(ui, fx, |ui| {
             for (level, label) in next.iter_mut().zip([&words.size, &words.opacity]) {
                 if let Some(&value) = Slider::new(label.as_str(), label.as_str(), *level, 1.0..=100.0).show(ui).event.as_ref().and_then(|e| e.value())
                 {
@@ -383,27 +400,28 @@ fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
     let title = title(ui, &view);
     let navigation = NavigationOptions::default();
     let mut tools = Tools::of(ui, name, navigation);
+    let own = FullWindowStoryLabels::of(ui);
     let mut status = PreviewStatus::new();
     let ticket = status.request();
     match args.preview {
         PreviewArg::Idle => drop(status.ready(ticket)),
         PreviewArg::Pending => {}
         PreviewArg::HalfDone => status.report_progress(ticket, 0.5),
-        PreviewArg::Failed => drop(status.failed(ticket, "out of memory")),
+        PreviewArg::Failed => drop(status.failed(ticket, own.out_of_memory.as_str())),
     }
     let (tool, checkerboard, overlay, tint, zoom_bar, note) =
         (args.tool.tool(), args.checkerboard, args.overlay, args.tint, args.zoom_bar, args.note);
     let words = StoryLabels::of(ui);
     let labels = FullWindowLabels::of(ui);
     workspace(ui, "story-canvas", &mut args.open, vec2(args.width, args.height), title, |ui, fx| {
-        FullWindowSide::new("canvas-preview").header("Preview").footer(footer(ui, false)).show(ui, fx, |ui| {
+        FullWindowSide::new("canvas-preview").header(own.preview.as_str()).footer(footer(ui, false)).show(ui, fx, |ui| {
             ui.label(&words.image);
             status.show(ui, &labels);
         });
         if zoom_bar {
             let mut bar = FullWindowZoomBar::new("canvas-zoom", &mut view).progress(status.progress());
             if note {
-                bar = bar.note("Preview 12 ms");
+                bar = bar.note(own.preview_note.as_str());
             }
             bar.show(ui);
         }
@@ -450,7 +468,7 @@ fn show_rail_in_dialog(ui: &mut Ui, args: &mut RailArgs) {
     let words = StoryLabels::of(ui);
     let chosen_id = key(ui, "rail-in-dialog-tool");
     let chosen = ui.data(|d| d.get_temp::<Tool>(chosen_id)).unwrap_or("move");
-    workspace(ui, "story-rail-in-dialog", &mut args.open, vec2(args.width, args.height), "Tools".to_owned(), |ui, fx| {
+    workspace(ui, "story-rail-in-dialog", &mut args.open, vec2(args.width, args.height), words.tools.clone(), |ui, fx| {
         let current = rail(ui, "rail-in-dialog-tools", columns, pick_by_key);
         ui.data_mut(|d| d.insert_temp(chosen_id, current));
         FullWindowSide::new("rail-side").footer(footer(ui, false)).show(ui, fx, |ui| {
