@@ -5,8 +5,15 @@ use std::ops::RangeInclusive;
 
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
+use craft_theme::{Rgba, Srgba};
+use craft_ui::composites::{FieldControl as _, FormGrid};
+use craft_ui::controls::{Checkbox, IconButton, NumberField, Swatch};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::edit::EditEvent;
+use craft_ui::icons::Icon;
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::popover::{Popover, PopoverAnchor, PopoverClose};
+use craft_ui::theme::{Tokens, TokensOf as _};
 
 craft_ui::words! {
     /// The words of [`PathOptionsPopover`], English by default (Photoshop's Pen gear popover).
@@ -90,9 +97,7 @@ pub struct PathOptionsPopoverResponse {
 ///   a button and a checkbox with their names.
 /// - The popover reports every change at once; there is no OK button.
 pub struct PathOptionsPopover<'a> {
-    #[expect(dead_code, reason = "skeleton: read by task PE-B5")]
     id_salt: IdSalt,
-    #[expect(dead_code, reason = "skeleton: read by task PE-B5")]
     settings: &'a PathOptionsSettings,
     labels: Option<PathOptionsLabels>,
 }
@@ -110,12 +115,54 @@ impl<'a> PathOptionsPopover<'a> {
     }
 
     /// Adds the gear button to `ui` and, while `open`, the popover under it. The host owns `open`.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands (task PE-B5)")]
     pub fn show(self, ui: &mut Ui, open: &mut bool) -> PathOptionsPopoverResponse {
         // new: Photoshop's Pen gear popover (Thickness, Color, Rubber Band); PhotoCraft has no
         // such options (step7-pen lead call 12). Built from `IconButton`, `Popover`,
         // `NumberField` (unit "pt"), `Checkbox` and a swatch `Button` asking through
         // `ColorRequest::new(PATH_OPTIONS_COLOR_KEY, ..).title(labels.color)`.
-        todo!()
+        let labels = self.labels.unwrap_or_else(|| PathOptionsLabels::of(ui));
+        let settings = *self.settings;
+        let id = ui.make_persistent_id(self.id_salt);
+
+        let response = ui.add(IconButton::new(Icon::Settings, labels.title.as_str()).id_salt((id, "gear")).selected(*open));
+        if response.clicked() {
+            *open = !*open;
+        }
+
+        let numbers = LocaleNumbers::of(ui);
+        let tokens = Tokens::of(ui);
+        let shown: Rgba = settings.color.map_or(tokens.color.overlay.line, |[r, g, b]| Rgba::rgb(r, g, b));
+        let (mut event, mut pick_color) = (None, None);
+        Popover::new((id, "popover"), PopoverAnchor::Control(response.clone()))
+            .close(PopoverClose::default().swallow_outside(true))
+            .toggle(response.id)
+            .label(labels.title.as_str())
+            .show(ui, open, |ui, _| {
+                let mut rubber_band = settings.rubber_band;
+                FormGrid::new((id, "grid")).show(ui, |form| {
+                    let range = PathOptionsSettings::THICKNESS_RANGE;
+                    let edit = form
+                        .row(&labels.thickness, |ui, _| {
+                            NumberField::optional((id, "thickness"), labels.thickness.as_str(), settings.thickness.map(f64::from), &numbers)
+                                .range(range)
+                                .step(0.5)
+                                .decimals(0..=1)
+                                .unit(Unit::new("{n} pt"))
+                                .show_optional(ui)
+                        })
+                        .inner;
+                    event = edit.event.map(|e| e.map(|v| PathOptionsSettings { thickness: v.map(|v| v as f32), ..settings }));
+                    let swatch = form.row(&labels.color, |ui, _| ui.add(Swatch::new((id, "color"), labels.color.as_str(), shown)).own_name()).inner;
+                    if swatch.control().clicked() {
+                        pick_color = Some(ColorRequest::new(PATH_OPTIONS_COLOR_KEY, Srgba::from(shown)).title(labels.color.as_str()));
+                    }
+                    let check =
+                        form.unlabelled(|ui| Checkbox::bool(labels.rubber_band.as_str(), &mut rubber_band).id_salt((id, "rubber")).show(ui)).inner;
+                    if event.is_none() {
+                        event = check.event.map(|e| e.map(|v| PathOptionsSettings { rubber_band: v, ..settings }));
+                    }
+                });
+            });
+        PathOptionsPopoverResponse { response, event, pick_color }
     }
 }

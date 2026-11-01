@@ -72,11 +72,32 @@ impl PathMode {
     /// [`remove_knot`](super::EditSubpath::remove_knot), [`PathEdit::apply`](super::PathEdit::apply)).
     /// The draft is not in the document, so these are draft changes, not document commands, and
     /// drawing goes on from the draft's last anchor.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands (task PE-B5)")]
     pub fn resolve(tool: PathTool, modifiers: Modifiers, drawing: bool, auto_add_delete: bool) -> PathMode {
         // pc: crates/ui-egui/src/tools/direct_select.rs:135-153 `direct`, `converting`,
         // `curvature_idle`; crates/ui-egui/src/tools/anchor_tools.rs:27-35 `effective`, :50-60
         // `pen_auto`.
-        todo!()
+        let draft_mode = match tool {
+            PathTool::Curvature => PenMode::Curvature,
+            _ => PenMode::Pen,
+        };
+        // The draft shows, without sensing, only while a path is being drawn.
+        let shown_only = drawing.then_some(draft_mode);
+        let overlay = |bezier| PathMode { bezier, draft: shown_only, draft_senses: false };
+        if modifiers.command {
+            return overlay(BezierTool::Direct);
+        }
+        let takes = |bezier, mode| PathMode { bezier, draft: Some(mode), draft_senses: true };
+        match tool {
+            PathTool::Pen if drawing => takes(BezierTool::Show, PenMode::Pen),
+            PathTool::Pen if modifiers.alt => takes(BezierTool::Convert, PenMode::Pen),
+            PathTool::Pen if auto_add_delete && !modifiers.shift => takes(BezierTool::AutoAddDelete, PenMode::Pen),
+            PathTool::Pen => takes(BezierTool::Show, PenMode::Pen),
+            PathTool::Curvature if drawing => takes(BezierTool::Show, PenMode::Curvature),
+            PathTool::Curvature => takes(BezierTool::Curvature, PenMode::Curvature),
+            PathTool::AddAnchor => overlay(BezierTool::AddAnchor),
+            PathTool::DeleteAnchor => overlay(BezierTool::DeleteAnchor),
+            PathTool::ConvertPoint => overlay(BezierTool::Convert),
+            PathTool::DirectSelection => overlay(BezierTool::Direct),
+        }
     }
 }
