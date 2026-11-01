@@ -2,12 +2,12 @@
 
 use craft_theme::TypeRole;
 use egui::text::{LayoutJob, TextFormat};
-use egui::{Label, Response, Ui, Widget};
+use egui::{Label, Response, Role, Sense, Ui, Widget, WidgetInfo};
 
 use super::{Content, ContentStoryArgs};
 use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
-use crate::text::elide::ElideAt;
+use crate::text::elide::{ElideAt, elide_path, elided_galley, text_width};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
@@ -114,9 +114,22 @@ impl Text {
     /// elision but with a width, egui's end truncation inside that width.
     // pc: crates/ui-egui/src/widgets/fields.rs:26 elided_label_sensed
     // lightcraft: crates/ui-egui/src/dialogs/settings/widgets.rs:31 path_label
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     fn show_elided(self, ui: &mut Ui, format: TextFormat) -> Response {
-        todo!()
+        let room = ui.available_width();
+        let max_width = self.max_width.map_or(room, |w| w.min(room)).max(1.0);
+        let color = format.color;
+        let font = format.font_id.clone();
+        let (shown, at) = match self.elide {
+            Some(Elision::Path) => (elide_path(&self.text, max_width, |s| text_width(ui, s, &font)), ElideAt::End),
+            Some(Elision::At(at)) => (std::borrow::Cow::Borrowed(self.text.as_str()), at),
+            None => (std::borrow::Cow::Borrowed(self.text.as_str()), ElideAt::End),
+        };
+        let shortened = shown != self.text;
+        let laid_out = elided_galley(ui, &shown, format, max_width, at);
+        let (rect, response) = ui.allocate_exact_size(laid_out.galley.size(), Sense::hover());
+        ui.painter().galley(rect.min, laid_out.galley, color);
+        response.widget_info(|| WidgetInfo::labeled(Role::Label, ui.is_enabled(), &self.text));
+        if shortened || laid_out.elided { response.on_hover_text(&self.text) } else { response }
     }
 }
 

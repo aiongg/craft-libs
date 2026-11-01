@@ -1409,6 +1409,7 @@ dependencies = [
  "skrifa 0.44.0",
  "toml",
  "toml_edit",
+ "unicode-bidi",
  "unicode-script",
  "wasm-bindgen",
  "wasm-bindgen-futures",

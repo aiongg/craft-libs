@@ -5,6 +5,7 @@ use egui_kittest::{Harness, HarnessBuilder};
 
 use super::*;
 use crate::testing::a11y;
+use crate::text::ElideAt;
 use crate::theme::{Base, ToEgui, TokensOf, install};
 
 fn harness<State>() -> HarnessBuilder<State> {
@@ -179,10 +180,40 @@ fn handles_are_in_the_accessibility_tree_but_not_the_tab_order() {
 // asked ("…/Pictures/Library" for a path), the AccessKit node and the tooltip carry the whole
 // text; max_width narrows a row that has more room.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn elided_text_keeps_the_full_text_where_it_cuts_elsewhere() {
-    todo!()
+    const NAME: &str = "IMG_2024_holiday_in_the_mountains_final.psd";
+    const PATH: &str = "/Users/someone/Documents/Pictures/Library";
+    let mut harness = harness()
+        .with_context_setup(|ctx| {
+            install(ctx, &Base::suite_default());
+            ctx.global_style_mut(|s| s.interaction.tooltip_delay = 0.0);
+        })
+        .build_ui(|ui| {
+            ui.allocate_ui(vec2(120.0, 80.0), |ui| {
+                ui.set_max_width(120.0);
+                ui.add(Text::new(NAME).elide(ElideAt::Middle));
+                ui.add(Text::new(PATH).elide_path());
+                ui.add(Text::new("Layer name that is long").elide(ElideAt::End).max_width(60.0));
+            });
+        });
+    harness.run();
+    for full in [NAME, PATH, "Layer name that is long"] {
+        let node = harness
+            .query_by(|n| n.label().as_deref() == Some(full) || n.value().as_deref() == Some(full))
+            .expect("the AccessKit node has the full text");
+        assert!(node.rect().width() <= 120.0, "{:?}", node.rect());
+    }
+    let narrow = harness
+        .query_by(|n| n.label().as_deref() == Some("Layer name that is long") || n.value().as_deref() == Some("Layer name that is long"))
+        .unwrap();
+    assert!(narrow.rect().width() <= 60.0, "max_width narrows a row that has more room: {:?}", narrow.rect());
+    let path = harness.query_by(|n| n.label().as_deref() == Some(PATH) || n.value().as_deref() == Some(PATH)).unwrap();
+    path.hover();
+    harness.run_steps(4);
+    assert!(
+        harness.query_all_by(|n| n.label().as_deref() == Some(PATH) || n.value().as_deref() == Some(PATH)).count() >= 2,
+        "the tooltip shows the whole path"
+    );
 }
 
 #[test]

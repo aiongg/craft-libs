@@ -33,6 +33,8 @@ craft-settings = { workspace = true }
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 # The field order of a settings struct (a `toml::Table` sorts its keys), for SettingsDocument.
 toml_edit = { version = "0.25", features = ["serde"] }
+# The first strong letter of a paragraph (`text::elide`): right-to-left names keep their logical start.
+unicode-bidi = { version = "0.3.18", default-features = false, features = ["std"] }
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
 # Inflating egui's default fonts, stored deflated (fonts::deflated_default_definitions).
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
