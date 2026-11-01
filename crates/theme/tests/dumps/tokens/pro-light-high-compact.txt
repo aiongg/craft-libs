@@ -655,6 +655,7 @@ stroke_editor.field_width = 74
 stroke_editor.sample_height = 58
 stroke_editor.sample_stroke = 2.5
 stroke_editor.sample_inset = 12
+stroke_editor.sample_margin = 4
 measure.hit = 7
 measure.handle_arm = 5
 measure.readout_gap = 6

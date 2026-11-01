@@ -2956,6 +2956,7 @@ fn stroke_editor_lines(out: &mut Lines, t: &StrokeEditorTokens) {
         sample_height,
         sample_stroke,
         sample_inset,
+        sample_margin,
     } = t;
     out.line("stroke_editor.width", len(*width));
     out.line("stroke_editor.screen_margin", len(*screen_margin));
@@ -2967,6 +2968,7 @@ fn stroke_editor_lines(out: &mut Lines, t: &StrokeEditorTokens) {
     out.line("stroke_editor.sample_height", len(*sample_height));
     out.line("stroke_editor.sample_stroke", len(*sample_stroke));
     out.line("stroke_editor.sample_inset", len(*sample_inset));
+    out.line("stroke_editor.sample_margin", len(*sample_margin));
 }
 
 fn measure_lines(out: &mut Lines, t: &MeasureTokens) {

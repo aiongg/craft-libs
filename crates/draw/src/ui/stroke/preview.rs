@@ -6,8 +6,6 @@ use kurbo::{BezPath, PathEl, Point};
 use super::StrokeStyle;
 use crate::stroke::{LineCap, LineJoin, StrokeAlign};
 
-/// An open sample line starts and ends this many points inside the rect.
-const LINE_MARGIN: f32 = 4.0;
 /// The largest distance a circle fan may lie inside the true circle, in points.
 const FAN_TOLERANCE: f64 = 0.1;
 
@@ -30,18 +28,26 @@ pub struct StrokePreview<'a> {
     color: Color32,
     closed: bool,
     inset: f32,
+    margin: f32,
 }
 
 impl<'a> StrokePreview<'a> {
     /// A sample of `value` drawn `width` points wide (`stroke_editor.sample_stroke`, 2.5) in
     /// `color` (`text.default`).
     pub fn new(value: &'a StrokeStyle, width: f32, color: Color32) -> Self {
-        Self { value, width, color, closed: false, inset: 12.0 }
+        Self { value, width, color, closed: false, inset: 12.0, margin: 4.0 }
     }
 
     /// Draws a closed rectangle in place of an open line.
     pub fn closed(mut self, closed: bool) -> Self {
         self.closed = closed;
+        self
+    }
+
+    /// The open line's distance from the rect's left and right edges, in points
+    /// (`stroke_editor.sample_margin`, 4 by default).
+    pub fn margin(mut self, margin: f32) -> Self {
+        self.margin = margin;
         self
     }
 
@@ -105,7 +111,7 @@ impl<'a> StrokePreview<'a> {
     fn outline(&self, rect: Rect, half: f64) -> Vec<Point> {
         if !self.closed {
             let y = f64::from(rect.center().y);
-            let margin = f64::from(LINE_MARGIN);
+            let margin = f64::from(self.margin);
             let (left, right) = (f64::from(rect.left()) + margin, f64::from(rect.right()) - margin);
             return if right > left { vec![Point::new(left, y), Point::new(right, y)] } else { Vec::new() };
         }
