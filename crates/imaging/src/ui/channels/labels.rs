@@ -1,7 +1,6 @@
 //! `ChannelsLabels`: every user-visible word of the Channels panel, and the shortcut chords
 //! the rows display.
 
-#![expect(dead_code, reason = "ChannelsPanel::show (CH1) is their caller: removed when it lands")]
 
 use craft_ui::controls::Kbd;
 use craft_ui::localized::Words;

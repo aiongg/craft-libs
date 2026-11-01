@@ -1,6 +1,5 @@
 //! The footer buttons and their drops (`ChannelsFooterButton`).
 
-#![expect(dead_code, reason = "ChannelsPanel::show (CH1) is their caller: removed when it lands")]
 
 use std::fmt::Debug;
 use std::hash::Hash;
