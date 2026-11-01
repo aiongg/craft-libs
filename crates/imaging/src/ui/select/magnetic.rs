@@ -4,7 +4,7 @@
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: task SE-F10")]
 
 use craft_ui::canvas::kurbo::Point;
-use craft_ui::canvas::{CanvasTool, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
+use craft_ui::canvas::{CanvasTool, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer};
 use egui::Painter;
 use serde::{Deserialize, Serialize};
 
@@ -277,6 +277,14 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
     /// The outline, the fastening points and the closing ring.
     fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:414-438 `draw`.
+        todo!()
+    }
+
+    /// The outline being drawn as one AccessKit object: named `SelectLabels::outline`, valued
+    /// `OUTLINE_POINTS` of its points ("5 points"), over the points' bounds; `None` while no
+    /// outline is open.
+    fn node(&self, cx: &ToolContext<'_>) -> Option<ToolNode> {
+        // new: SE deviation 3 (no `Ui` on the host); `ToolNode::new(..).value(..).bounds(..)`.
         todo!()
     }
 }

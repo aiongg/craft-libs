@@ -653,3 +653,12 @@ fn a_press_on_a_part_focuses_the_group_and_tools_without_parts_add_no_stop() {
 fn the_host_and_an_overlay_count_one_click_run() {
     todo!()
 }
+
+// A tool's `node` is one GraphicsObject under the canvas node with its name, value and screen
+// bounds; a tool returning `None` adds no node.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_tools_node_is_a_graphics_object_under_the_canvas() {
+    todo!()
+}

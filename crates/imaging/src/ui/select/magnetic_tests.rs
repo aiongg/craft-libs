@@ -47,3 +47,11 @@ fn magnetic_closes_along_edges_or_straight() {
 fn magnetic_stylus_pressure_narrows_width() {
     todo!()
 }
+
+// While the Magnetic Lasso's outline is open the tool's `node` is "Selection outline" with its
+// point count (fastening points and the live trace) and bounds.
+#[test]
+#[ignore = "skeleton"]
+fn magnetic_outline_being_drawn_is_one_accesskit_object() {
+    todo!()
+}

@@ -159,8 +159,8 @@ pub use grid::{CanvasGrid, GridLine, GridStyle};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::fields::{ConstraintFields, ConstraintFieldsOutput};
 pub use marquee::{
-    Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle, fixed_size_pixels, marquee_pixels,
-    square_pixels,
+    Constraint, Marquee, MarqueeDrag, MarqueeGesture, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle, fixed_size_pixels,
+    marquee_pixels, square_pixels,
 };
 pub use momentary::{MomentaryKeys, MomentaryTool, SpringTool};
 pub use navigate::{Autoscroll, HandTool, NavigationLabels, NavigationOptions, RotateView, RotateViewTool, ZoomTool};
@@ -179,7 +179,8 @@ pub use snap::{SNAP_PX, SnapGesture, SnapKind, SnapLine, SnapOptions, SnapTarget
 pub use split::{SplitLabels, SplitLayout, SplitPane, SplitResponse, SplitViews};
 pub use textures::{DetailPlan, MAX_TEXTURE, texture_factor, texture_side};
 pub use tool_host::{
-    CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolParts, ToolPointer,
+    CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolNode, ToolParts,
+    ToolPointer,
 };
 pub use tool_pill::{PillPlace, ToolPill, ToolPillLabels, ToolPillResponse};
 pub use turn::{

@@ -44,7 +44,7 @@
 //! ```
 
 use egui::{Context, CursorIcon, Event, Id, Key, Modifiers, Painter, PointerButton, Pos2, Response, Ui};
-use kurbo::{Point, Size, Vec2};
+use kurbo::{Point, Rect, Size, Vec2};
 
 use super::canvas_id::CanvasId;
 use super::claim::Claim;
@@ -134,6 +134,38 @@ impl ToolParts {
     /// The group's value for a screen reader.
     pub fn value(mut self, value: impl Into<String>) -> Self {
         self.value = Some(value.into());
+        self
+    }
+}
+
+/// A tool's drawing as one AccessKit object for one pass ([`CanvasTool::node`]): an outline being
+/// drawn, a ruler line. Tools on the host get no `Ui`, so the host adds the node for them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ToolNode {
+    /// The object's accessible name, e.g. "Selection outline", "Ruler" (the tool's words).
+    pub name: String,
+    /// Its value for a screen reader, e.g. "5 points", "120 px, 30°".
+    pub value: Option<String>,
+    /// The drawing's bounds in document units; the host maps them to the screen. `None` gives a
+    /// node of no size at the canvas centre.
+    pub bounds: Option<Rect>,
+}
+
+impl ToolNode {
+    /// An object named `name`, with no value and no bounds.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into(), value: None, bounds: None }
+    }
+
+    /// The object's value for a screen reader.
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
+    /// The drawing's bounds in document units.
+    pub fn bounds(mut self, bounds: Rect) -> Self {
+        self.bounds = Some(bounds);
         self
     }
 }
@@ -340,6 +372,16 @@ pub trait CanvasTool {
     /// `None` when the picked part is no longer among the parts. A press the tool claims on a part
     /// also gives the group focus; the tool picks that part itself. Default: nothing.
     fn pick(&mut self, _key: Option<u64>, _cx: &mut ToolContext<'_>) {}
+
+    /// The tool's drawing as one graphics object for screen readers this pass (an outline being
+    /// drawn, a ruler line), or `None` (the default) for a tool with nothing to describe. The host
+    /// adds it to the AccessKit tree as a child of the canvas node: role `GraphicsObject`,
+    /// hover-only, not a Tab stop, over [`ToolNode::bounds`] on the screen, as
+    /// [`Marquee`](super::Marquee) describes its ants. Called once per pass after
+    /// [`paint`](Self::paint), with the same context. Keyboard parts stay [`parts`](Self::parts).
+    fn node(&self, _cx: &ToolContext<'_>) -> Option<ToolNode> {
+        None
+    }
 }
 
 /// A pointer event from automation (PhotoCraft's `ui.pointer`), queued with
@@ -1040,6 +1082,9 @@ impl Run<'_, '_> {
         if let Some(rect) = self.parts.and_then(|p| p.ring) {
             PartFocus::ring(&painter, rect);
         }
+        if let Some(node) = self.tool.node(&self.pass.context(pointer)) {
+            show_node(ui, canvas, &self.pass.view, node);
+        }
         if let Some(readout) = self.pass.readout.take()
             && let Some(p) = pointer
         {
@@ -1115,6 +1160,19 @@ impl CanvasTool for NoTool {
 /// Alt as typed), so the app's chords (Cmd+Z, Cmd+S) still run.
 fn typed_keys() -> Vec<ClaimedKey> {
     Key::ALL.iter().map(|key| ClaimedKey::logical(Modifiers::NONE, *key)).collect()
+}
+
+/// Adds a tool's [`ToolNode`] to the AccessKit tree for this pass: a hover-only widget under the
+/// canvas node (`accessibility_parent(canvas.id)`), role `GraphicsObject`, labelled `node.name`
+/// with `node.value` as its current value, over `node.bounds` mapped through `view` and clipped to
+/// the canvas (no size at the canvas centre without bounds or off the canvas). Its id comes from
+/// the canvas id, so it stays the same from pass to pass.
+#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn show_node(ui: &mut Ui, canvas: &Response, view: &CanvasView, node: ToolNode) {
+    // new: as `Marquee::describe` (`marquee.rs`, `fn describe`):
+    // `ui.new_child(UiBuilder::new().max_rect(view.rect).accessibility_parent(canvas.id))`,
+    // `interact(rect, id, Sense::hover())`, `WidgetInfo::labeled(Role::GraphicsObject, ..)`.
+    todo!()
 }
 
 /// Lets the host's [`Claim`](super::Claim) name the tool as an overlay: the tool's claim id under the canvas.

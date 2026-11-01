@@ -3,7 +3,7 @@
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: task SE-F9")]
 
 use craft_ui::canvas::draft::{DraftKind, DraftReach, OutlineDraft};
-use craft_ui::canvas::{CanvasTool, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
+use craft_ui::canvas::{CanvasTool, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer};
 use egui::{Modifiers, Painter};
 
 use super::drag::InsideDrag;
@@ -150,6 +150,14 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
     /// The outline (`MarqueeLook::Drawing`) and its rubber band.
     fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
         // pc: crates/ui-egui/src/canvas/tool_feedback.rs:178-182.
+        todo!()
+    }
+
+    /// The outline being drawn as one AccessKit object: named `SelectLabels::outline`, valued
+    /// `OUTLINE_POINTS` of its points ("5 points"), over the points' bounds; `None` while no
+    /// outline is open.
+    fn node(&self, cx: &ToolContext<'_>) -> Option<ToolNode> {
+        // new: SE deviation 3 (no `Ui` on the host); `ToolNode::new(..).value(..).bounds(..)`.
         todo!()
     }
 }

@@ -3,9 +3,11 @@
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: task SE-F8")]
 
-use craft_ui::canvas::kurbo::{Point, Rect};
-use craft_ui::canvas::{CanvasTool, Constraint, SelectionOperation, SnapGesture, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
-use egui::{Modifiers, Painter};
+use craft_ui::canvas::kurbo::Rect;
+use craft_ui::canvas::{
+    CanvasTool, Constraint, MarqueeGesture, SelectionOperation, SnapGesture, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer,
+};
+use egui::Painter;
 
 use super::drag::InsideDrag;
 use super::{SelectEvent, SelectPhase, SelectToolPass};
@@ -27,21 +29,12 @@ pub enum MarqueeKind {
 /// The press of a marquee drag, kept until the release.
 #[derive(Clone, Copy, Debug)]
 struct MarqueePress {
-    /// Where the drag began and where the pointer is, in document units (Space moves both).
-    start: Point,
-    end: Point,
-    /// The pointer on screen at the press, for the click slop.
-    screen_start: egui::Pos2,
-    /// The drag left the click slop.
-    moved: bool,
-    /// The modifiers held at the press: ⇧ and ⌥ held then are the operation, not square and
-    /// centre, until released and pressed again.
-    at_press: Modifiers,
-    /// ⇧ and ⌥ have been released since the press.
-    released: Modifiers,
+    /// The kernel's marquee rules: the click slop, the fresh ⇧ and ⌥, Space moving the marquee
+    /// (the same rules `MarqueeDrag` runs on a `Ui`).
+    gesture: MarqueeGesture,
     /// The operation the press latched.
     operation: SelectionOperation,
-    /// Space is held: the drag moves the marquee instead of sizing it.
+    /// Space is held: the drag moves the marquee instead of sizing it (set by `key`).
     space: bool,
 }
 
@@ -125,7 +118,8 @@ impl MarqueeTool {
     }
 
     /// The pixel rectangle the release would select now, `None` while the drag is a click (not
-    /// for Fixed Size) or has no area. A one-pixel row or column is a selection.
+    /// for Fixed Size) or has no area. A one-pixel row or column is a selection. Square is
+    /// `MarqueeGesture::square_and_centre`'s ⇧, or a Fixed Ratio of 1 : 1.
     fn pixels(&self, size: [u32; 2]) -> Option<Rect> {
         // pc: crates/ui-egui/src/canvas/drag.rs:82-127 `marquee_mods`, `marquee_corners`,
         // `marquee_preview_px`; :146-153 `marquee_is_square`; :178-202 `single_line_px`
@@ -144,7 +138,8 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
     }
 
     /// A press inside the selection begins a selection drag; a ⌘ press outside is `Ignored`;
-    /// otherwise the marquee begins at `pointer.doc` with the operation latched.
+    /// otherwise the marquee begins at `pointer.doc` with the operation latched
+    /// (`MarqueeGesture::press(pointer.screen, pointer.doc, pointer.modifiers)`).
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/canvas/tool_input.rs:582-610 `selection_drag_kind`;
         // crates/ui-egui/src/canvas/tool_feedback.rs:88-99 `document_selection_mode`.
@@ -152,7 +147,9 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
     }
 
     /// Sizes (or with Space moves) the marquee, or moves the selection drag; sets the W and H
-    /// readout.
+    /// readout. The marquee runs `MarqueeGesture::{follow, begin_past, size_to}` with the
+    /// `marquee.click_slop` token (`Marquee::style(..).click_slop`), the tool's constraint and its Space flag; no rule is written
+    /// here.
     fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/canvas/drag.rs:88-127 (corners and the preview rectangle).
         todo!()
@@ -175,7 +172,7 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
     /// Space down and up during a drag (moves the marquee); taken so the app's Space (the Hand) does
     /// not run.
     fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
-        // new: as `craft_ui::canvas::MarqueeDrag` does it (crates/ui/src/canvas/marquee.rs:671-681).
+        // new: sets `MarqueePress::space`, which `drag` passes to `MarqueeGesture::size_to`.
         todo!()
     }
 
@@ -190,5 +187,12 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
     /// Corners snap to the document's snap targets (a point).
     fn snap_gesture(&self) -> Option<SnapGesture> {
         Some(SnapGesture::Point)
+    }
+
+    /// The marquee being dragged as one AccessKit object: named `SelectLabels::outline`, valued with
+    /// its pixel size (as the W and H readout), over the pixel rectangle; `None` with no marquee.
+    fn node(&self, cx: &ToolContext<'_>) -> Option<ToolNode> {
+        // new: SE deviation 3 (no `Ui` on the host); `ToolNode::new(..).value(..).bounds(..)`.
+        todo!()
     }
 }

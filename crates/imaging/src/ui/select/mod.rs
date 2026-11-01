@@ -59,6 +59,7 @@ mod polygon_tests;
 pub(crate) mod stories;
 mod style;
 
+pub use drag::{InsideDrag, PressRule, cursor_over, drag_kind};
 pub use lasso::LassoTool;
 pub use magnetic::{EdgeSearch, EdgeTracer, MagneticLassoTool, MagneticSettings};
 pub use marquee::{MarqueeKind, MarqueeTool};

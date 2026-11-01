@@ -40,3 +40,11 @@ fn lasso_press_inside_drags_selection() {
 fn lasso_dropped_on_reset_or_document_change() {
     todo!()
 }
+
+// While a freehand outline is open the tool's `node` is "Selection outline" with its point count
+// and bounds; after the commit it is `None`.
+#[test]
+#[ignore = "skeleton"]
+fn lasso_outline_being_drawn_is_one_accesskit_object() {
+    todo!()
+}

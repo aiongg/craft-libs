@@ -65,3 +65,11 @@ fn drag_selection_reports_whole_pixel_delta_and_cancel() {
 fn marquee_space_moves_the_marquee() {
     todo!()
 }
+
+// While a marquee is dragged the tool's `node` is "Selection outline" with its pixel size and
+// rectangle; with no drag it is `None`.
+#[test]
+#[ignore = "skeleton"]
+fn marquee_being_dragged_is_one_accesskit_object() {
+    todo!()
+}

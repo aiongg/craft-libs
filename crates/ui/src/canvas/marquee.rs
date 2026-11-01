@@ -1,5 +1,6 @@
 //! [`Marquee`]: selection outlines (marching ants, a selection band, an outline being drawn) and
-//! [`MarqueeDrag`], the press-drag-release gesture that sizes one.
+//! [`MarqueeDrag`], the press-drag-release gesture that sizes one, over the Ui-free rules of
+//! [`MarqueeGesture`].
 
 mod ants;
 pub mod fields;
@@ -455,6 +456,107 @@ pub fn square_pixels(r: Rect, start: Point, end: Point) -> Rect {
     Rect::new(x0, y0, x1, y1)
 }
 
+/// The rules of a marquee drag, without a `Ui`: the click slop, ⇧ and ⌥ counted only when pressed
+/// after the press (or released and pressed again), Space moving the whole marquee, and the
+/// options bar's [`Constraint`]. [`MarqueeDrag`] runs it on a canvas `Response`; a tool on the
+/// tool host (craft-imaging's `MarqueeTool`) runs it from its `press`, `drag` and `key` calls.
+///
+/// One press is one value: [`press`](Self::press) at the press, then each pass
+/// [`follow`](Self::follow) the pointer and modifiers, [`begin_past`](Self::begin_past) the slop,
+/// and once begun [`size_to`](Self::size_to) the pointer's document point. Esc, the release and
+/// the click are the caller's: a release before the gesture began is a click.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MarqueeGesture {
+    /// Where the press went down on the screen, and where the pointer is now.
+    origin: Pos2,
+    pointer: Pos2,
+    /// The modifiers held at the press, and now.
+    at_press: Modifiers,
+    live: Modifiers,
+    /// ⇧ and ⌥ have been up since the press.
+    released_shift: bool,
+    released_alt: bool,
+    /// The corner the drag started from, and where it is now, in document space.
+    start: Point,
+    end: Point,
+    begun: bool,
+}
+
+impl MarqueeGesture {
+    /// A press at `screen` (screen points) and `at` (document units, snapped by the host) with
+    /// `modifiers` held: they choose the selection mode, not square or centre.
+    pub fn press(screen: Pos2, at: Point, modifiers: Modifiers) -> Self {
+        Self {
+            origin: screen,
+            pointer: screen,
+            at_press: modifiers,
+            live: modifiers,
+            released_shift: false,
+            released_alt: false,
+            start: at,
+            end: at,
+            begun: false,
+        }
+    }
+
+    /// The modifiers held at the press, for the host's selection mode (add, subtract).
+    pub fn press_modifiers(&self) -> Modifiers {
+        self.at_press
+    }
+
+    /// The pointer on screen as last followed.
+    pub fn pointer(&self) -> Pos2 {
+        self.pointer
+    }
+
+    /// The gesture left the click slop (or began at the press with [`Constraint::Size`]).
+    pub fn has_begun(&self) -> bool {
+        self.begun
+    }
+
+    /// The pass's modifiers and pointer (`None` keeps the last one): records ⇧ and ⌥ being
+    /// released since the press.
+    pub fn follow(&mut self, screen: Option<Pos2>, modifiers: Modifiers) {
+        self.live = modifiers;
+        self.released_shift |= !modifiers.shift;
+        self.released_alt |= !modifiers.alt;
+        if let Some(screen) = screen {
+            self.pointer = screen;
+        }
+    }
+
+    /// Begins the gesture once the pointer is more than `slop` screen points from the press, or at
+    /// once with [`Constraint::Size`]. True on the call that begins it, so the caller begins its
+    /// edit gesture there.
+    pub fn begin_past(&mut self, slop: f32, constraint: Constraint) -> bool {
+        let at_press = matches!(constraint, Constraint::Size(..));
+        if !self.begun && (at_press || self.pointer.distance(self.origin) > slop) {
+            self.begun = true;
+            return true;
+        }
+        false
+    }
+
+    /// ⇧ (square) and ⌥ (from the centre) for the marquee: held now, and either not held at the
+    /// press or released since.
+    pub fn square_and_centre(&self) -> (bool, bool) {
+        (self.live.shift && (!self.at_press.shift || self.released_shift), self.live.alt && (!self.at_press.alt || self.released_alt))
+    }
+
+    /// Sizes the marquee to the pointer's document point `at` (the host's snap applied): with
+    /// `space` held the whole marquee moves by the pointer's step instead. Gives the corners
+    /// [`Constraint::corners`] makes of the drag with [`square_and_centre`](Self::square_and_centre).
+    pub fn size_to(&mut self, at: Point, space: bool, constraint: Constraint) -> MarqueeRect {
+        if space {
+            self.start += at - self.end;
+        }
+        self.end = at;
+        let (square, centre) = self.square_and_centre();
+        let (a, b) = constraint.corners(self.start, self.end, square, centre);
+        MarqueeRect { a, b }
+    }
+}
+
 /// What [`MarqueeDrag::show`] reports for a frame.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
@@ -508,28 +610,11 @@ pub struct MarqueeDrag<'a> {
 /// The press being tracked, in egui memory between frames.
 #[derive(Clone, Debug)]
 struct Press {
-    /// Where the press went down on the screen.
-    origin: Pos2,
-    modifiers: Modifiers,
-    live: Modifiers,
-    released_shift: bool,
-    released_alt: bool,
-    pointer: Pos2,
-    /// The corner the drag started from, and where it is now, in document space.
-    start: Point,
-    end: Point,
-    begun: bool,
+    gesture: MarqueeGesture,
     cancelled: bool,
     /// The press waits for another control's typing run to end ([`Claim::turn`]); the gesture
     /// has not begun and nothing is reported.
     waits: bool,
-}
-
-impl Press {
-    /// ⇧ and ⌥ for the marquee: held now, and either not held at the press or released since.
-    fn fresh(&self) -> (bool, bool) {
-        (self.live.shift && (!self.modifiers.shift || self.released_shift), self.live.alt && (!self.modifiers.alt || self.released_alt))
-    }
 }
 
 impl<'a> MarqueeDrag<'a> {
@@ -627,15 +712,7 @@ impl<'a> MarqueeDrag<'a> {
         {
             let start = self.snapped(view.to_doc(origin), modifiers);
             press = Some(Press {
-                origin,
-                modifiers,
-                live: modifiers,
-                released_shift: false,
-                released_alt: false,
-                pointer: origin,
-                start,
-                end: start,
-                begun: false,
+                gesture: MarqueeGesture::press(origin, start, modifiers),
                 cancelled: false,
                 waits: Claim::turn(&ctx, canvas.id, id) == Turn::Waits,
             });
@@ -650,38 +727,25 @@ impl<'a> MarqueeDrag<'a> {
         // own last report stands for the host's value (otherwise it would see an outside change).
         let shown = Gesture::<MarqueeRect>::reported(ui, id).map(|(_, value)| value).unwrap_or_default();
         let mut gesture = Gesture::load(ui, id, &shown, self.policy).focus_owners(&[]).enabled(canvas.enabled());
-        if press.begun && !gesture.is_active() {
+        if press.gesture.has_begun() && !gesture.is_active() {
             press.cancelled = true;
         }
-        press.live = modifiers;
-        press.released_shift |= !modifiers.shift;
-        press.released_alt |= !modifiers.alt;
-        if let Some(pointer) = pointer {
-            press.pointer = pointer;
-        }
+        press.gesture.follow(pointer, modifiers);
         let ended = released || !down;
         let mut rect = None;
         if !press.cancelled {
-            let at_press = matches!(self.constraint, Constraint::Size(..));
-            if !press.begun && (at_press || press.pointer.distance(press.origin) > slop) {
-                press.begun = true;
+            if press.gesture.begin_past(slop, self.constraint) {
                 gesture.begin();
             }
-            if press.begun {
+            if press.gesture.has_begun() {
                 // Space moves the marquee instead of sizing it; its key press must not click the
                 // focused canvas.
                 let space = ctx.input_mut(|i| {
                     i.consume_key(Modifiers::NONE, Key::Space);
                     i.key_down(Key::Space)
                 });
-                let end = self.snapped(view.to_doc(press.pointer), modifiers);
-                if space {
-                    press.start += end - press.end;
-                }
-                press.end = end;
-                let (square, centre) = press.fresh();
-                let (a, b) = self.constraint.corners(press.start, press.end, square, centre);
-                let value = MarqueeRect { a, b };
+                let end = self.snapped(view.to_doc(press.gesture.pointer()), modifiers);
+                let value = press.gesture.size_to(end, space, self.constraint);
                 rect = Some(value.rect());
                 gesture.update(value, modifiers);
                 if ended {
@@ -689,8 +753,8 @@ impl<'a> MarqueeDrag<'a> {
                 }
             }
         }
-        let clicked = ended && !press.begun && !press.cancelled;
-        let press_modifiers = press.modifiers;
+        let clicked = ended && !press.gesture.has_begun() && !press.cancelled;
+        let press_modifiers = press.gesture.press_modifiers();
         let event = gesture.finish();
         if ended {
             ctx.data_mut(|d| d.remove::<Press>(key));
