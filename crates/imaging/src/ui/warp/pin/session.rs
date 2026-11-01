@@ -1,11 +1,11 @@
 //! [`PinWarpSession`]: the pins of a Puppet Warp while it is open, and the [`PinSolver`] the app
 //! plugs in (task TR-T6).
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TR-T6)")]
+use std::collections::BTreeSet;
 
-use kurbo::Point;
+use kurbo::{Point, Rect};
 
-use craft_ui::dialog::LocalHistory;
+use craft_ui::dialog::{LocalHistory, Step};
 use craft_ui::edit::EditEvent;
 
 /// One pin: where it attaches on the rest mesh and where it holds that point now, in document
@@ -111,20 +111,48 @@ impl PinMeshView<'_> {
     /// coordinates (degenerate triangles skipped). `None` off the mesh (LC18).
     pub fn rest_of(&self, at: Point) -> Option<Point> {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:165 (`rest_of`).
-        todo!()
+        let vertex = |points: &[Point], i: u32| points.get(i as usize).copied();
+        for &t in self.order.iter().rev() {
+            let Some(tri) = self.triangles.get(t as usize) else { continue };
+            let (Some(a), Some(b), Some(c)) = (vertex(self.deformed, tri[0]), vertex(self.deformed, tri[1]), vertex(self.deformed, tri[2])) else {
+                continue;
+            };
+            let det = (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
+            if det.abs() < 1e-12 {
+                continue;
+            }
+            let l1 = ((at.x - a.x) * (c.y - a.y) - (c.x - a.x) * (at.y - a.y)) / det;
+            let l2 = ((b.x - a.x) * (at.y - a.y) - (at.x - a.x) * (b.y - a.y)) / det;
+            let l0 = 1.0 - l1 - l2;
+            if l0 >= 0.0 && l1 >= 0.0 && l2 >= 0.0 {
+                let (Some(ra), Some(rb), Some(rc)) = (vertex(self.rest, tri[0]), vertex(self.rest, tri[1]), vertex(self.rest, tri[2])) else {
+                    continue;
+                };
+                return Some(Point::new(l0 * ra.x + l1 * rb.x + l2 * rc.x, l0 * ra.y + l1 * rb.y + l2 * rc.y));
+            }
+        }
+        None
     }
 
     /// Every triangle edge once, as vertex index pairs (smaller first), for the mesh painter.
     pub fn edges(&self) -> Vec<[u32; 2]> {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:368 (each edge once).
-        todo!()
+        let mut seen = BTreeSet::new();
+        for tri in self.triangles {
+            for (a, b) in [(tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])] {
+                seen.insert([a.min(b), a.max(b)]);
+            }
+        }
+        seen.into_iter().collect()
     }
 
     /// The middle of the rest mesh's bounds: where Insert places a pin when the pointer is
     /// outside the canvas. `None` for an empty mesh.
     pub fn centre(&self) -> Option<Point> {
         // new: the keyboard path of LC14 (Insert).
-        todo!()
+        let first = *self.rest.first()?;
+        let bounds = self.rest.iter().fold(Rect::from_points(first, first), |r, p| r.union_pt(*p));
+        Some(bounds.center())
     }
 }
 
@@ -223,15 +251,32 @@ impl PinWarpSession {
     pub fn result(&self) -> Option<&[Pin]> {
         // pc: crates/algo/src/puppet.rs:116 (`is_identity`); crates/ui-egui/src/tools/puppet_ui.rs:236
         // (`commit`).
-        todo!()
+        let identity = self.pins.iter().all(|p| p.rest == p.at && p.angle.is_none_or(|a| a.rem_euclid(360.0) == 0.0));
+        (!identity).then_some(&self.pins)
     }
 
     /// Applies one edit at `now` (seconds), telling `solver` what changed. `Err` carries a refused
     /// remesh's text for the bar's notice; the options are then as before.
+    ///
+    /// A pin list that grows selects its last pin (a placed pin is selected, PhotoCraft); one that
+    /// shrinks keeps the selected pins that survive, matched in order by their rest point.
     pub fn apply(&mut self, edit: PinEdit, solver: &mut dyn PinSolver, now: f64) -> Result<(), String> {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:293 (`pointer`), :123 (`remesh_or_restore`),
         // :135 (`rebind`), :143 (`solve`), :86 (`delete_selected_pin`).
-        todo!()
+        let nudge = matches!(&edit, PinEdit::Pins(EditEvent::Set { value, .. }) if self.only_moves(value));
+        if !nudge {
+            // Whatever comes after a run of nudges ends the run: the nudges are their own step.
+            self.end_nudges();
+        }
+        match edit {
+            PinEdit::Pins(event) => self.pins_event(event, solver, now, nudge),
+            PinEdit::Select(indices) => {
+                self.selected = Self::clean(indices, self.pins.len());
+            }
+            PinEdit::Options(options) => return self.set_options(options, solver),
+            PinEdit::ShowMesh(show) => self.show_mesh = show,
+        }
+        Ok(())
     }
 
     /// Records an undo step when the pins have come to rest changed (as
@@ -239,7 +284,14 @@ impl PinWarpSession {
     pub fn settle(&mut self, now: f64, busy: bool) {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:53 (`record`: one step per drag that moved
         // something).
-        todo!()
+        let nudging = match (self.last_nudge, self.nudge_pause) {
+            (Some(at), Some(pause)) => now - at < pause,
+            _ => false,
+        };
+        if !nudging {
+            self.last_nudge = None;
+        }
+        self.history.settle(&self.pins, busy || self.dragging() || nudging);
     }
 
     /// Edit › Undo while the session is open (the app routes it here; the session reads no undo
@@ -247,13 +299,13 @@ impl PinWarpSession {
     /// undo.
     pub fn undo(&mut self, solver: &mut dyn PinSolver) -> bool {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:70 (`undo`), :61 (`restore`).
-        todo!()
+        self.step(Step::Undo, solver)
     }
 
     /// Steps forward one undone step and rebinds `solver`.
     pub fn redo(&mut self, solver: &mut dyn PinSolver) -> bool {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:78 (`redo`).
-        todo!()
+        self.step(Step::Redo, solver)
     }
 
     pub fn can_undo(&self) -> bool {
@@ -262,5 +314,119 @@ impl PinWarpSession {
 
     pub fn can_redo(&self) -> bool {
         self.history.can_redo()
+    }
+
+    /// Whether `pins` differ from the current pins only in where they are held (an arrow nudge).
+    fn only_moves(&self, pins: &[Pin]) -> bool {
+        pins.len() == self.pins.len()
+            && pins.iter().zip(&self.pins).all(|(n, o)| n.rest == o.rest && n.angle == o.angle && n.depth == o.depth)
+            && pins != self.pins
+    }
+
+    fn end_nudges(&mut self) {
+        if self.last_nudge.take().is_some() && !self.dragging() {
+            self.history.settle(&self.pins, false);
+        }
+    }
+
+    /// Indices in range, each once, in the order given.
+    fn clean(indices: Vec<usize>, len: usize) -> Vec<usize> {
+        let mut out = Vec::with_capacity(indices.len());
+        for i in indices {
+            if i < len && !out.contains(&i) {
+                out.push(i);
+            }
+        }
+        out
+    }
+
+    /// Tells the solver about `new` pins replacing the current ones: a rebind when the pin set or
+    /// a pin's fixed rotation changed, a solve otherwise.
+    fn replace(&mut self, new: Vec<Pin>, solver: &mut dyn PinSolver) {
+        if new == self.pins {
+            return;
+        }
+        let rebind =
+            new.len() != self.pins.len() || new.iter().zip(&self.pins).any(|(n, o)| n.rest != o.rest || n.angle.is_some() != o.angle.is_some());
+        if new.len() > self.pins.len() {
+            self.selected = vec![new.len() - 1];
+        } else if new.len() < self.pins.len() {
+            let mut kept = Vec::new();
+            let mut j = 0;
+            for (i, old) in self.pins.iter().enumerate() {
+                if new.get(j).is_some_and(|n| n.rest == old.rest) {
+                    if self.selected.contains(&i) {
+                        kept.push(j);
+                    }
+                    j += 1;
+                }
+            }
+            self.selected = kept;
+        }
+        self.pins = new;
+        if rebind {
+            solver.rebind(&self.pins, &self.options);
+        } else {
+            solver.solve(&self.pins, &self.options);
+        }
+    }
+
+    fn pins_event(&mut self, event: EditEvent<Vec<Pin>>, solver: &mut dyn PinSolver, now: f64, nudge: bool) {
+        match event {
+            EditEvent::Begin { value, .. } => {
+                self.before = Some(self.pins.clone());
+                if let Some(value) = value {
+                    self.replace(value, solver);
+                }
+            }
+            EditEvent::Update { value, .. } => self.replace(value, solver),
+            EditEvent::Commit { value, .. } => {
+                self.replace(value, solver);
+                self.before = None;
+            }
+            EditEvent::Cancel { .. } => {
+                if let Some(before) = self.before.take() {
+                    self.replace(before, solver);
+                }
+            }
+            EditEvent::Set { value, .. } => {
+                self.replace(value, solver);
+                if nudge {
+                    self.last_nudge = Some(now);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn set_options(&mut self, options: PinWarpOptions, solver: &mut dyn PinSolver) -> Result<(), String> {
+        if !options.expansion.is_finite() {
+            return Ok(());
+        }
+        let before = self.options;
+        self.options = options;
+        if options.density != before.density || options.expansion != before.expansion {
+            if let Err(text) = solver.remesh(&self.options) {
+                self.options = before;
+                return Err(text);
+            }
+            solver.rebind(&self.pins, &self.options);
+        } else if options != before {
+            solver.solve(&self.pins, &self.options);
+        }
+        Ok(())
+    }
+
+    fn step(&mut self, step: Step, solver: &mut dyn PinSolver) -> bool {
+        if self.dragging() {
+            return false;
+        }
+        self.last_nudge = None;
+        if !self.history.step(&mut self.pins, step) {
+            return false;
+        }
+        self.selected.retain(|i| *i < self.pins.len());
+        solver.rebind(&self.pins, &self.options);
+        true
     }
 }
