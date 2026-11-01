@@ -167,7 +167,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
 
         let mut picked = None;
         let popup_salt = (id, "popup");
-        let popup_id = ui.make_persistent_id(popup_salt);
+        let popup_id = Popover::id_in(ui, popup_salt);
         let state_id = id.with("state");
         let shown = Popover::new(popup_salt, PopoverAnchor::Control(response.clone()))
             .size(PopoverSize::Fit)
