@@ -2,11 +2,9 @@
 //! geometry its screens need (linking, snapping, straightening) (task TR-T7). The warp map itself
 //! (PhotoCraft's piecewise homography) stays the app's (LC20, LC21).
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TR-T7)")]
-
 use kurbo::{Point, Rect};
 
-use craft_ui::dialog::LocalHistory;
+use craft_ui::dialog::{LocalHistory, Step};
 use craft_ui::edit::EditEvent;
 
 /// Corners closer than this in the source (each axis) are one linked corner (PhotoCraft
@@ -34,7 +32,8 @@ impl Plane {
     /// or, with `target`, the target corners; the first corner for a degenerate quad.
     pub fn point(&self, u: f64, v: f64, target: bool) -> Point {
         // pc: crates/algo/src/perspective.rs:255 (`plane_point`).
-        todo!()
+        let corners = if target { &self.target } else { &self.source };
+        unit_to_quad(corners).map_or(corners[0], |h| h.apply(u, v))
     }
 }
 
@@ -70,13 +69,42 @@ pub enum Straighten {
 /// in plane and corner order.
 pub fn linked_corners(planes: &[Plane]) -> Vec<Vec<PlaneCorner>> {
     // pc: crates/algo/src/perspective.rs:47 (`linked_corners`).
-    todo!()
+    let mut groups: Vec<Vec<PlaneCorner>> = Vec::new();
+    for (plane, p) in planes.iter().enumerate() {
+        for (corner, c) in p.source.iter().enumerate() {
+            let group = groups.iter_mut().find(|g| {
+                let first = g[0];
+                let o = planes[first.plane].source[first.corner];
+                (o.x - c.x).abs() <= LINK_DISTANCE && (o.y - c.y).abs() <= LINK_DISTANCE
+            });
+            match group {
+                Some(g) => g.push(PlaneCorner { plane, corner }),
+                None => groups.push(vec![PlaneCorner { plane, corner }]),
+            }
+        }
+    }
+    groups
 }
 
 /// Moves each group of linked corners to one source and one target position, their means.
 pub fn unify(planes: &mut [Plane]) {
     // pc: crates/algo/src/perspective.rs:66 (`unify`).
-    todo!()
+    for group in linked_corners(planes) {
+        if group.len() < 2 {
+            continue;
+        }
+        let n = group.len() as f64;
+        let mean = |of: fn(&Plane) -> &[Point; 4], planes: &[Plane]| {
+            let sum = group.iter().fold(Point::ZERO, |a, c| a + of(&planes[c.plane])[c.corner].to_vec2());
+            Point::new(sum.x / n, sum.y / n)
+        };
+        let source = mean(|p| &p.source, planes);
+        let target = mean(|p| &p.target, planes);
+        for c in &group {
+            planes[c.plane].source[c.corner] = source;
+            planes[c.plane].target[c.corner] = target;
+        }
+    }
 }
 
 /// Makes target edges within 45° of horizontal exactly horizontal and/or those within 45° of
@@ -84,7 +112,32 @@ pub fn unify(planes: &mut [Plane]) {
 /// corners together. Unifies first.
 pub fn straighten(planes: &mut [Plane], how: Straighten) {
     // pc: crates/algo/src/perspective.rs:127 (`straighten`).
-    todo!()
+    unify(planes);
+    let groups = linked_corners(planes);
+    let group_of = |plane: usize, corner: usize| groups.iter().position(|g| g.contains(&PlaneCorner { plane, corner })).unwrap_or(0);
+    let mut position: Vec<Point> = groups.iter().map(|g| planes[g[0].plane].target[g[0].corner]).collect();
+    let edges: Vec<(usize, usize)> =
+        (0..planes.len()).flat_map(|p| (0..4).map(move |k| (p, k))).map(|(p, k)| (group_of(p, k), group_of(p, (k + 1) % 4))).collect();
+    let level = matches!(how, Straighten::Horizontal | Straighten::Both);
+    let upright = matches!(how, Straighten::Vertical | Straighten::Both);
+    for (a, b) in edges {
+        let (pa, pb) = (position[a], position[b]);
+        let (dx, dy) = ((pb.x - pa.x).abs(), (pb.y - pa.y).abs());
+        if dy <= dx && level {
+            let y = (pa.y + pb.y) / 2.0;
+            position[a].y = y;
+            position[b].y = y;
+        } else if dx < dy && upright {
+            let x = (pa.x + pb.x) / 2.0;
+            position[a].x = x;
+            position[b].x = x;
+        }
+    }
+    for (group, point) in groups.iter().zip(position) {
+        for c in group {
+            planes[c.plane].target[c.corner] = point;
+        }
+    }
 }
 
 /// An edit of the perspective session, from [`PerspectiveWarp`](super::PerspectiveWarp) or
@@ -164,14 +217,23 @@ impl PerspectiveSession {
     /// A plane covering the middle half of the bounds: what Insert adds in Layout mode.
     pub fn inserted_plane(&self) -> Plane {
         // new: the keyboard path (Insert) of the transform spec's key table.
-        todo!()
+        let b = self.bounds;
+        let (dx, dy) = (b.width() / 4.0, b.height() / 4.0);
+        Plane::identity([
+            Point::new(b.x0 + dx, b.y0 + dy),
+            Point::new(b.x1 - dx, b.y0 + dy),
+            Point::new(b.x1 - dx, b.y1 - dy),
+            Point::new(b.x0 + dx, b.y1 - dy),
+        ])
     }
 
     /// The planes to commit; `None` with no planes or when every target is its source.
     pub fn result(&self) -> Option<&[Plane]> {
         // pc: crates/ui-egui/src/tools/perspective_ui.rs:157 (`commit`); crates/algo/src/perspective.rs:232
         // (`is_identity`).
-        todo!()
+        let planes = &self.draft.planes;
+        let identity = planes.iter().all(|p| p.source.iter().zip(&p.target).all(|(a, b)| (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9));
+        (!planes.is_empty() && !identity).then_some(planes.as_slice())
     }
 
     /// Applies one edit at `now` (seconds). `Mode(Warp)` with no planes is refused; entering Warp
@@ -180,14 +242,44 @@ impl PerspectiveSession {
     pub fn apply(&mut self, edit: PerspectiveEdit, now: f64) {
         // pc: crates/ui-egui/src/tools/perspective_ui.rs:165 (`set_mode`), :108 (`set_corner`),
         // :310 (`options_bar`: Warp needs a plane).
-        todo!()
+        match edit {
+            PerspectiveEdit::Planes(event) => self.planes_event(event, now),
+            PerspectiveEdit::Mode(mode) => {
+                if self.dragging() || mode == self.draft.mode || (mode == PlaneMode::Warp && self.draft.planes.is_empty()) {
+                    return;
+                }
+                self.end_nudges();
+                self.draft.mode = mode;
+                if mode == PlaneMode::Warp {
+                    unify(&mut self.draft.planes);
+                }
+                self.history.settle(&self.draft, false);
+            }
+            PerspectiveEdit::Straighten(how) => {
+                if self.dragging() || self.draft.planes.is_empty() {
+                    return;
+                }
+                self.end_nudges();
+                straighten(&mut self.draft.planes, how);
+                self.history.settle(&self.draft, false);
+            }
+        }
     }
 
     /// Sets the planes from outside the widgets (the app's control channel), ends any drag and
     /// bumps the generation. One undo step.
     pub fn replace(&mut self, planes: Vec<Plane>) {
         // pc: crates/ui-egui/src/tools/perspective_ui.rs:190 (#952).
-        todo!()
+        if let Some(before) = self.before.take() {
+            self.draft = before;
+        }
+        self.end_nudges();
+        self.draft.planes = planes;
+        if self.draft.planes.is_empty() {
+            self.draft.mode = PlaneMode::Layout;
+        }
+        self.generation += 1;
+        self.history.settle(&self.draft, false);
     }
 
     /// Records an undo step when the draft has come to rest changed (as
@@ -195,20 +287,27 @@ impl PerspectiveSession {
     pub fn settle(&mut self, now: f64, busy: bool) {
         // new: PhotoCraft's Perspective Warp has no undo inside the session; the session's steps
         // follow the transform session's rule.
-        todo!()
+        let nudging = match (self.last_nudge, self.nudge_pause) {
+            (Some(at), Some(pause)) => now - at < pause,
+            _ => false,
+        };
+        if !nudging {
+            self.last_nudge = None;
+        }
+        self.history.settle(&self.draft, busy || self.dragging() || nudging);
     }
 
     /// Edit › Undo while the session is open (the app routes it here; the session reads no undo
     /// key): steps back one undo step; false while a drag runs or with nothing to undo.
     pub fn undo(&mut self) -> bool {
         // new: as `settle`.
-        todo!()
+        self.step(Step::Undo)
     }
 
     /// Steps forward one undone step.
     pub fn redo(&mut self) -> bool {
         // new: as `settle`.
-        todo!()
+        self.step(Step::Redo)
     }
 
     pub fn can_undo(&self) -> bool {
@@ -217,5 +316,104 @@ impl PerspectiveSession {
 
     pub fn can_redo(&self) -> bool {
         self.history.can_redo()
+    }
+
+    /// Ends a run of nudges: records them as their own step before the next edit.
+    fn end_nudges(&mut self) {
+        if self.last_nudge.take().is_some() && !self.dragging() {
+            self.history.settle(&self.draft, false);
+        }
+    }
+
+    /// One planes event. Begin takes the draft as `before`; Cancel restores it. In Warp mode the
+    /// sources are kept (the layout is kept) when the plane count is unchanged. A Set that keeps
+    /// the plane count is an arrow nudge and folds into the run; one that adds or removes planes
+    /// is a step of its own.
+    fn planes_event(&mut self, event: EditEvent<Vec<Plane>>, now: f64) {
+        match event {
+            EditEvent::Begin { value, .. } => {
+                self.end_nudges();
+                self.before = Some(self.draft.clone());
+                if let Some(value) = value {
+                    self.set_planes(value);
+                }
+            }
+            EditEvent::Update { value, .. } => self.set_planes(value),
+            EditEvent::Commit { value, .. } => {
+                self.set_planes(value);
+                self.before = None;
+            }
+            EditEvent::Cancel { .. } => {
+                if let Some(before) = self.before.take() {
+                    self.draft = before;
+                }
+            }
+            EditEvent::Set { value, .. } => {
+                if self.dragging() {
+                    return;
+                }
+                let nudge = value.len() == self.draft.planes.len();
+                if nudge {
+                    self.last_nudge = Some(now);
+                } else {
+                    self.end_nudges();
+                }
+                self.set_planes(value);
+                if !nudge {
+                    if self.draft.planes.is_empty() {
+                        self.draft.mode = PlaneMode::Layout;
+                    }
+                    self.history.settle(&self.draft, false);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn set_planes(&mut self, mut planes: Vec<Plane>) {
+        if self.draft.mode == PlaneMode::Warp && planes.len() == self.draft.planes.len() {
+            for (new, old) in planes.iter_mut().zip(&self.draft.planes) {
+                new.source = old.source;
+            }
+        }
+        self.draft.planes = planes;
+    }
+
+    /// Undo or redo one step; refused while a drag runs.
+    fn step(&mut self, step: Step) -> bool {
+        if self.dragging() {
+            return false;
+        }
+        self.last_nudge = None;
+        self.history.step(&mut self.draft, step)
+    }
+}
+
+/// The homography taking the unit square onto `quad` (corners clockwise from the top left);
+/// `None` for a degenerate quad (pc: `crates/algo/src/transform.rs:99`, `square_to_quad`).
+fn unit_to_quad(quad: &[Point; 4]) -> Option<Homography> {
+    let [p0, p1, p2, p3] = *quad;
+    let (sx, sy) = (p0.x - p1.x + p2.x - p3.x, p0.y - p1.y + p2.y - p3.y);
+    if sx.abs() < 1e-12 && sy.abs() < 1e-12 {
+        return Some(Homography([p1.x - p0.x, p3.x - p0.x, p0.x, p1.y - p0.y, p3.y - p0.y, p0.y, 0.0, 0.0]));
+    }
+    let (dx1, dx2, dy1, dy2) = (p1.x - p2.x, p3.x - p2.x, p1.y - p2.y, p3.y - p2.y);
+    let den = dx1 * dy2 - dx2 * dy1;
+    if den.abs() < 1e-12 {
+        return None;
+    }
+    let g = (sx * dy2 - dx2 * sy) / den;
+    let h = (dx1 * sy - sx * dy1) / den;
+    Some(Homography([p1.x - p0.x + g * p1.x, p3.x - p0.x + h * p3.x, p0.x, p1.y - p0.y + g * p1.y, p3.y - p0.y + h * p3.y, p0.y, g, h]))
+}
+
+/// Eight coefficients of `(a x + b y + c) / (g x + h y + 1)`, `(d x + e y + f) / (g x + h y + 1)`.
+struct Homography([f64; 8]);
+
+impl Homography {
+    fn apply(&self, x: f64, y: f64) -> Point {
+        let m = &self.0;
+        let w = m[6] * x + m[7] * y + 1.0;
+        Point::new((m[0] * x + m[1] * y + m[2]) / w, (m[3] * x + m[4] * y + m[5]) / w)
     }
 }
