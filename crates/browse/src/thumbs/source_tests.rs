@@ -1,6 +1,6 @@
 //! `FileThumbSource` through `Thumbnails` with `ManualJobs` and a fake decoder (task XT).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -9,7 +9,7 @@ use craft_host::queue::Cancel;
 use craft_ui::canvas::textures::{Priority, TextureState, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails};
 use egui::{Context, Rect, pos2, vec2};
 
-use super::{DecodeRequest, DecodedThumb, FileThumbKey, FileThumbSource, StoreKey, ThumbDecoder, ThumbError, ThumbStore};
+use super::{DecodeRequest, DecodedThumb, FileStat, FileThumbKey, FileThumbSource, StoreKey, ThumbDecoder, ThumbError, ThumbStore};
 
 /// What the fake decoder answers.
 #[derive(Clone)]
@@ -26,6 +26,11 @@ struct Decoder {
     quick_side: Option<u32>,
     decoded: Mutex<Vec<PathBuf>>,
     quick_calls: AtomicUsize,
+    /// Answer of the fake stat; the files the tests make are never read.
+    stat: Mutex<Result<FileStat, ThumbError>>,
+    /// Replaces the quick picture when set.
+    bad_quick: Mutex<Option<DecodedThumb>>,
+    requests: Mutex<Vec<DecodeRequest>>,
 }
 
 impl Decoder {
@@ -36,6 +41,9 @@ impl Decoder {
             quick_side,
             decoded: Mutex::default(),
             quick_calls: AtomicUsize::new(0),
+            stat: Mutex::new(Ok(FileStat { len: 7, modified: None })),
+            bad_quick: Mutex::default(),
+            requests: Mutex::default(),
         })
     }
 
@@ -49,7 +57,12 @@ fn picture(side: u32) -> DecodedThumb {
 }
 
 impl ThumbDecoder for Decoder {
+    fn stat(&self, _: &Path) -> Result<FileStat, ThumbError> {
+        self.stat.lock().unwrap().clone()
+    }
+
     fn decode(&self, request: &DecodeRequest, _: &Cancel) -> Result<DecodedThumb, ThumbError> {
+        self.requests.lock().unwrap().push(request.clone());
         self.decoded.lock().unwrap().push(request.key.path.clone());
         match self.answer.lock().unwrap().clone() {
             Answer::Picture => Ok(picture(self.full_side.load(Ordering::Relaxed))),
@@ -60,6 +73,9 @@ impl ThumbDecoder for Decoder {
 
     fn quick(&self, _: &DecodeRequest, _: &Cancel) -> Option<DecodedThumb> {
         self.quick_calls.fetch_add(1, Ordering::Relaxed);
+        if let Some(bad) = self.bad_quick.lock().unwrap().clone() {
+            return Some(bad);
+        }
         self.quick_side.map(picture)
     }
 }
@@ -255,4 +271,80 @@ fn an_unsupported_file_shows_no_picture() {
     });
     assert_eq!(setup.jobs.waiting(), 0);
     assert_eq!(decoder.decodes(), 1);
+}
+
+// The length and modification time come from the decoder's stat hook, not the file system.
+#[test]
+fn the_job_stats_through_the_decoder() {
+    let setup = Setup::new();
+    let decoder = Decoder::new(None);
+    let modified = std::time::UNIX_EPOCH + std::time::Duration::from_secs(99);
+    *decoder.stat.lock().unwrap() = Ok(FileStat { len: 1234, modified: Some(modified) });
+    let source = FileThumbSource::new(decoder.clone(), None);
+    let key = FileThumbKey::file(setup.dir.path().join("not-on-disk.png"));
+    setup.show(&source, &key);
+    setup.jobs.run_all();
+    assert!(matches!(setup.show(&source, &key), TextureState::Ready(_)));
+    let requests = decoder.requests.lock().unwrap();
+    assert_eq!((requests[0].len, requests[0].modified), (1234, Some(modified)));
+}
+
+// A stat that finds no file is the loader's "missing" reason, not a decode.
+#[test]
+fn a_failed_stat_is_missing() {
+    let setup = Setup::new();
+    let decoder = Decoder::new(None);
+    *decoder.stat.lock().unwrap() = Err(ThumbError::Missing);
+    let source = FileThumbSource::new(decoder.clone(), None);
+    let key = setup.file("a.png");
+    setup.show(&source, &key);
+    setup.jobs.run_all();
+    let state = setup.show(&source, &key);
+    assert!(matches!(state, TextureState::Failed { .. }), "{state:?}");
+    assert_eq!(decoder.decodes(), 0);
+}
+
+// A buffer that is not width x height x 4 fails as unreadable instead of panicking; a zero size shows no picture.
+#[test]
+fn a_malformed_decode_fails_and_a_zero_size_is_empty() {
+    let setup = Setup::new();
+    let key = setup.file("a.png");
+    super::source::to_image(DecodedThumb { width: 2, height: 2, rgba: vec![0; 3] }).expect_err("short buffer");
+    assert!(matches!(
+        super::source::to_image(DecodedThumb { width: 0, height: 3, rgba: vec![] }),
+        Ok(craft_ui::canvas::textures::LoadedPicture::Blank)
+    ));
+    assert!(matches!(
+        super::source::to_image(DecodedThumb { width: 2, height: 2, rgba: vec![0; 16] }),
+        Ok(craft_ui::canvas::textures::LoadedPicture::Image(_))
+    ));
+
+    let with_quick = Decoder::new(Some(2));
+    *with_quick.bad_quick.lock().unwrap() = Some(DecodedThumb { width: 2, height: 2, rgba: vec![0; 3] });
+    let source_quick = FileThumbSource::new(with_quick.clone(), None);
+    setup.show(&source_quick, &key);
+    setup.jobs.run_all();
+    let state = setup.show(&source_quick, &key);
+    assert!(matches!(state, TextureState::Failed { .. }), "{state:?}");
+    // The failed quick job did not move the key to `NeedsFull`: no full job is asked.
+    assert_eq!(setup.jobs.waiting(), 0);
+}
+
+// The stage is per (key, side): a second size starts from the quick preview again.
+#[test]
+fn stages_are_kept_per_side() {
+    let setup = Setup::new();
+    let decoder = Decoder::new(Some(2));
+    let source = FileThumbSource::new(decoder.clone(), None);
+    let key = setup.file("a.png");
+    setup.show(&source, &key);
+    setup.jobs.run_all();
+    setup.show(&source, &key);
+    setup.jobs.run_all();
+    assert_eq!(decoder.quick_calls.load(Ordering::Relaxed), 1);
+    setup.pass(|| {
+        setup.thumbs.state(&setup.ctx, &source, &key, &ThumbRequest::for_cell(128.0, 1.0), Priority::VISIBLE);
+    });
+    setup.jobs.run_all();
+    assert_eq!(decoder.quick_calls.load(Ordering::Relaxed), 2);
 }

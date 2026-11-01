@@ -16,7 +16,7 @@ mod source_tests;
 #[cfg(feature = "ui")]
 pub(crate) mod stories;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use craft_host::queue::Cancel;
@@ -55,6 +55,15 @@ pub struct DecodeRequest {
     pub modified: Option<SystemTime>,
 }
 
+/// A file's length and modification time, as the decode job's stat found them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FileStat {
+    /// The file's length.
+    pub len: u64,
+    /// Its modification time, when the platform has one.
+    pub modified: Option<SystemTime>,
+}
+
 /// A decoded picture: unmultiplied sRGBA rows, longest side at most the request's `side`, the
 /// file's aspect kept (no letterbox bars).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,6 +97,22 @@ pub trait ThumbDecoder: Send + Sync {
     /// The full thumbnail. Checks `cancel` between expensive steps and returns `Cancelled` when
     /// it is set.
     fn decode(&self, request: &DecodeRequest, cancel: &Cancel) -> Result<DecodedThumb, ThumbError>;
+
+    /// The file's length and modification time, asked in the job before `decode`. The default
+    /// reads the file system (`Missing` when the file can't be statted); on wasm32 it has no file
+    /// system and answers `Unsupported`, so a web app overrides it. Tests give a fake.
+    fn stat(&self, path: &Path) -> Result<FileStat, ThumbError> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let meta = std::fs::metadata(path).map_err(|_| ThumbError::Missing)?;
+            Ok(FileStat { len: meta.len(), modified: meta.modified().ok() })
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = path;
+            Err(ThumbError::Unsupported)
+        }
+    }
 
     /// An embedded preview to show first (a raw file's JPEG, LightCraft's `ThumbQuick`), when the
     /// file has one that is cheaper than `decode`. The default has none.
