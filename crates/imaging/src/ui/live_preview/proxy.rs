@@ -26,7 +26,14 @@ impl ProxyPlan {
         // as f32 * zoom <= 1.0`), :344 `PROXY_MIN_PIXELS` (4_000_000), :403 (`!reduced_previews`) and
         // :412 (`area() <= PROXY_MIN_PIXELS`) give no proxy; crates/ui-egui/src/proxy.rs:21
         // `reduced_previews`.
-        todo!()
+        if !reduced_previews || document_pixels <= Self::MIN_PIXELS || zoom.is_nan() || zoom <= 0.0 {
+            return 1;
+        }
+        let mut k = 1u32;
+        while k < Self::MAX_FACTOR && (k * 2) as f32 * zoom <= 1.0 {
+            k *= 2;
+        }
+        k
     }
 
     /// `region` in the pixels of a copy reduced by `k`: each edge divided by `k` rounding toward
@@ -34,6 +41,7 @@ impl ProxyPlan {
     /// every pixel the full one touches. The host clips it to the proxy's size.
     pub fn scaled(region: PixelRect, k: u32) -> PixelRect {
         // pc: crates/ui-egui/src/dialogs/adjust_preview.rs:432 (`div_euclid(k)`, `+ 1` on x1 and y1).
-        todo!()
+        let k = i32::try_from(k.max(1)).unwrap_or(i32::MAX);
+        PixelRect::new(region.x0.div_euclid(k), region.y0.div_euclid(k), region.x1.div_euclid(k) + 1, region.y1.div_euclid(k) + 1)
     }
 }

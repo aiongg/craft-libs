@@ -8,7 +8,7 @@
 pub fn settings_hash(parts: &[&[u8]]) -> u64 {
     // pc: crates/ui-egui/src/dialogs/adjust_preview.rs:198 `hash` (FNV-1a, `| 1`); :232 (session
     // parts), :233 (kind, params, Preview flag).
-    todo!()
+    parts.iter().flat_map(|p| p.iter()).fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3)) | 1
 }
 
 /// Which flow a [`LivePreview`](super::LivePreview) keys, so a key of one is never mistaken for
@@ -29,7 +29,10 @@ impl PreviewLane {
         // pc: crates/ui-egui/src/dialogs/adjust_preview.rs:52 `TAG` (1 << 59), :55 `SESSION_SHIFT`
         // (40), :272 (`session & 0x7_ffff`); :476 `LIVE_TAG` (1 << 58), :479, :481
         // `LIVE_SESSION_MASK` (18 bits).
-        todo!()
+        match self {
+            PreviewLane::Dialog => (59, 19),
+            PreviewLane::Properties => (58, 18),
+        }
     }
 }
 
@@ -44,6 +47,23 @@ impl PreviewLane {
 pub struct PreviewKey(u64);
 
 impl PreviewKey {
+    /// The bits from 40 up: the lane's tag and the session's low bits. Equal for the keys of one
+    /// session and lane.
+    pub(super) const SESSION_SHIFT: u32 = 40;
+
+    /// The key of `settings` in `session` of `lane`: the lane's tag bit, the session's low bits
+    /// from bit 40 up to the tag, and the low 40 bits of `settings`.
+    pub(super) fn compose(lane: PreviewLane, session: PreviewSession, settings: u64) -> Self {
+        let (tag_bit, session_bits) = lane.bits();
+        let mask = (1u64 << session_bits) - 1;
+        Self((1 << tag_bit) | ((session.0 & mask) << Self::SESSION_SHIFT) | (settings & ((1 << Self::SESSION_SHIFT) - 1)))
+    }
+
+    /// Whether `self` carries the lane and session bits of `prefix` (a key of the same session).
+    pub(super) fn same_session(self, prefix: PreviewKey) -> bool {
+        self.0 >> Self::SESSION_SHIFT == prefix.0 >> Self::SESSION_SHIFT
+    }
+
     /// The committed document, no preview (PhotoCraft's key 0). Also the key while the Preview
     /// check box is off.
     pub const NONE: PreviewKey = PreviewKey(0);
@@ -75,13 +95,13 @@ impl PreviewSession {
     pub fn new(document: u64, revision: u64, target: u64) -> Self {
         // pc: crates/ui-egui/src/dialogs/adjust_preview.rs:232 (document id, revision, target id,
         // channel-target flag); :514 `live_key` (document id, revision, layer id).
-        todo!()
+        Self(settings_hash(&[&document.to_le_bytes(), &revision.to_le_bytes(), &target.to_le_bytes()]))
     }
 
     /// Folds one more value into the session, one that starts a new session when it changes
     /// (PhotoCraft's dialog: whether the command targets a channel, the Quick Mask or a mask).
     pub fn and(self, part: u64) -> Self {
         // pc: crates/ui-egui/src/dialogs/adjust_preview.rs:229-232 (`channel_target`).
-        todo!()
+        Self(settings_hash(&[&self.0.to_le_bytes(), &part.to_le_bytes()]))
     }
 }

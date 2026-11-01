@@ -47,14 +47,17 @@ impl LivePreview {
     pub fn begin(&mut self, session: PreviewSession, region: PixelRect) {
         // pc: crates/ui-egui/src/dialogs/adjust_preview.rs:241-262 (a new session when document or
         // session differ), :136 `region`, :505 `live_region`, :514 `live_key`.
-        todo!()
+        if self.session == Some(session) {
+            return;
+        }
+        *self = Self { lane: self.lane, session: Some(session), region, last: None, covered: None };
     }
 
     /// Forgets the session (the document closed or the dialog's flow ended for good): every key
     /// is foreign until the next [`begin`](Self::begin).
     pub fn end(&mut self) {
         // pc: crates/ui-egui/src/dialogs/adjust_preview.rs:446 `retain_documents`.
-        todo!()
+        *self = Self::new(self.lane);
     }
 
     /// The current session, if any.
@@ -75,14 +78,23 @@ impl LivePreview {
         // pc: crates/ui-egui/src/dialogs/adjust_preview.rs:270 (`TAG | (session & 0x7_ffff) << 40 |
         // hash & (1 << 40) - 1`), :274 (`changed_ms`); :519 (`LIVE_TAG | (session & LIVE_SESSION_MASK)
         // << 40 | ..`).
-        todo!()
+        let Some(session) = self.session else {
+            self.last = Some((PreviewKey::NONE, now));
+            return PreviewKey::NONE;
+        };
+        let key = PreviewKey::compose(self.lane, session, settings);
+        if self.last.is_none_or(|(last, _)| last != key) {
+            self.last = Some((key, now));
+        }
+        key
     }
 
     /// Whether `key` is [`PreviewKey::NONE`] or one of the current session's keys.
     pub fn owns(&self, key: PreviewKey) -> bool {
         // pc: crates/ui-egui/src/dialogs/adjust_preview.rs:297-298 (`ours`: key 0 or the session's
-        // prefix above bit 40).
-        todo!()
+        // prefix above bit 40). Without a session nothing is owned, not even `NONE`.
+        let Some(session) = self.session else { return false };
+        key.is_none() || key.same_session(PreviewKey::compose(self.lane, session, 0))
     }
 
     /// True while the last key [`key`](Self::key) gave is not [`PreviewKey::NONE`] and changed
@@ -90,6 +102,6 @@ impl LivePreview {
     pub fn settling(&self, now: f64, within: f64) -> bool {
         // pc: crates/ui-egui/src/dialogs/adjust_preview.rs:339 `settling` (a preview is shown and
         // `now - changed < ms`); crates/ui-egui/src/canvas/navigator.rs:13 `NAVIGATOR_SETTLE_MS` (200).
-        todo!()
+        self.last.is_some_and(|(key, changed)| !key.is_none() && now - changed < within)
     }
 }
