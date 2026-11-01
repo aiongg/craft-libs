@@ -19,6 +19,26 @@ pub struct BlurPinsStyle {
     pub handle: f32,
     /// How near a press grabs a Tilt-Shift line: `.line_grab` (5).
     pub line_grab: f32,
+    /// `blur_pins.line_width`.
+    pub line_width: f32,
+    /// `blur_pins.line_halo`.
+    pub line_halo: f32,
+    /// `blur_pins.arc`.
+    pub arc: f32,
+    /// `blur_pins.arc_halo`.
+    pub arc_halo: f32,
+    /// `blur_pins.dash`.
+    pub dash: f32,
+    /// `blur_pins.dash_gap`.
+    pub dash_gap: f32,
+    /// `blur_pins.handle_outline`.
+    pub handle_outline: f32,
+    /// `blur_pins.feather_extra`.
+    pub feather_extra: f32,
+    /// `blur_pins.turn_extra`.
+    pub turn_extra: f32,
+    /// `blur_pins.round_corner`.
+    pub round_corner: f32,
     /// The marks' line and fill (`overlay.handle_fill`) and halo (`overlay.halo`).
     pub line: Color32,
     pub halo: Color32,
@@ -37,6 +57,16 @@ impl BlurPinsStyle {
             ring_band: b.ring_band,
             handle: b.handle,
             line_grab: b.line_grab,
+            line_width: b.line_width,
+            line_halo: b.line_halo,
+            arc: b.arc,
+            arc_halo: b.arc_halo,
+            dash: b.dash,
+            dash_gap: b.dash_gap,
+            handle_outline: b.handle_outline,
+            feather_extra: b.feather_extra,
+            turn_extra: b.turn_extra,
+            round_corner: b.round_corner,
             line: tokens.color.overlay.handle_fill.to_egui(),
             halo: tokens.color.overlay.halo.to_egui(),
             amount: tokens.color.accent.solid.to_egui(),
