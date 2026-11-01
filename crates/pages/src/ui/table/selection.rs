@@ -1,74 +1,33 @@
-//! The cell selection of a document table (N3.25): a rectangle of cells from an anchor to a head
-//! cell, drawn over the table as a tint with an accent outline, as InDesign and Word show selected
-//! cells; and the selection's rules (a merged cell counts as one, Esc toggles between the cells
-//! and the first cell's text).
+//! The selected cells of a document table (N3.25), drawn over the table as a tint with an accent
+//! outline, as InDesign and Word show selected cells.
 //!
-//! craft-table's spreadsheet grid needs the same model. [`CellRange`] and [`CellSelection`] are
-//! written here so this part compiles; they move down to `craft_ui::behavior::cell_selection`
-//! once craft-table lands, and both crates use them from there (rule 3 of the crate layout).
-//! needs: R2 `craft_ui::behavior::cells` (lead call; the shared model R2 writes, part "timeline,
-//! review, tables").
+//! The selection and its rules are craft-ui's shared cell model
+//! ([`craft_ui::behavior::cells`]), the one craft-table's sheet uses too. This module keeps what
+//! is a document table's own: where its rows and columns are on screen ([`TableGeometry`]) and the
+//! tint ([`CellSelectionOverlay`]). The app's table tool runs the input over the model:
+//!
+//! - the table as a [`CellSpace`]: `CellSpace::new(rows, columns).merges(&merges)`, each merge a
+//!   [`CellRange`] (a merged cell counts as one; ranges grow over the merges they cross,
+//!   [`CellRange::covering_merges`]);
+//! - a press in a cell [`CellSelection::select`]; a drag or ⇧-click
+//!   [`CellSelection::extend_to`]; ⇧-arrows [`CellSelection::extend`] with a [`CellDirection`];
+//! - Tab and ⇧-Tab: [`CellSpace::next_in_reading_order`] from the active cell, wrapping to the
+//!   next row; `None` past the last cell, where the app adds a row (InDesign, Word);
+//! - Esc toggles between the cells and the first cell's text (the app's text tool).
+//!
+//! [`CellSpace`]: craft_ui::behavior::cells::CellSpace
+//! [`CellRange`]: craft_ui::behavior::cells::CellRange
+//! [`CellRange::covering_merges`]: craft_ui::behavior::cells::CellRange::covering_merges
+//! [`CellSelection::select`]: craft_ui::behavior::cells::CellSelection::select
+//! [`CellSelection::extend_to`]: craft_ui::behavior::cells::CellSelection::extend_to
+//! [`CellSelection::extend`]: craft_ui::behavior::cells::CellSelection::extend
+//! [`CellDirection`]: craft_ui::behavior::cells::CellDirection
+//! [`CellSpace::next_in_reading_order`]: craft_ui::behavior::cells::CellSpace::next_in_reading_order
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
+use craft_ui::behavior::cells::{CellRange, CellRef, CellSelection};
 use egui::{Painter, Rect};
-
-/// A rectangle of cells, rows `r0..=r1` and columns `c0..=c1` (r0 ≤ r1, c0 ≤ c1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct CellRange {
-    pub r0: usize,
-    pub c0: usize,
-    pub r1: usize,
-    pub c1: usize,
-}
-
-impl CellRange {
-    pub fn cell(r: usize, c: usize) -> Self {
-        CellRange { r0: r, c0: c, r1: r, c1: c }
-    }
-
-    /// The range between two cells, either order.
-    pub fn between(a: (usize, usize), b: (usize, usize)) -> Self {
-        CellRange { r0: a.0.min(b.0), c0: a.1.min(b.1), r1: a.0.max(b.0), c1: a.1.max(b.1) }
-    }
-
-    pub fn contains(&self, r: usize, c: usize) -> bool {
-        (self.r0..=self.r1).contains(&r) && (self.c0..=self.c1).contains(&c)
-    }
-
-    /// The range grown until no merged cell (`merged`: each merge's range) crosses its edge, as
-    /// InDesign and Word extend a selection over a merged cell.
-    // designcraft: crates/doc/src/table/grid.rs:7 `CellRange` (and the merge expansion in
-    // crates/doc/src/table/merge.rs).
-    pub fn covering_merges(self, merged: &[CellRange]) -> CellRange {
-        todo!()
-    }
-}
-
-/// The selected cells: where the selection started and the cell it extends to.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct CellSelection {
-    pub anchor: (usize, usize),
-    pub head: (usize, usize),
-}
-
-impl CellSelection {
-    pub fn range(&self) -> CellRange {
-        CellRange::between(self.anchor, self.head)
-    }
-
-    /// ⇧-arrows: the head moves a cell, kept inside `rows` × `columns`.
-    pub fn extend(&mut self, dr: isize, dc: isize, rows: usize, columns: usize) {
-        todo!()
-    }
-
-    /// Tab / ⇧-Tab: the next (previous) cell in reading order, wrapping to the next row; `None`
-    /// past the last cell (the app adds a row there, as InDesign and Word do).
-    // designcraft: crates/engine/src/cmd/table/selection.rs:37 (Tab moves to the next cell).
-    pub fn next_cell(&self, back: bool, rows: usize, columns: usize) -> Option<(usize, usize)> {
-        todo!()
-    }
-}
 
 /// Where the table's rows and columns are on screen: the edges, top to bottom and left to right
 /// (n + 1 values for n rows).
@@ -79,12 +38,14 @@ pub struct TableGeometry {
 }
 
 impl TableGeometry {
-    /// The cell under a screen point, if any.
-    pub fn cell_at(&self, p: egui::Pos2) -> Option<(usize, usize)> {
+    /// The cell under a screen point, if any (a merged cell answers with the cell the point is
+    /// in; the model's `CellSpace::merge_at` maps it to the merge).
+    pub fn cell_at(&self, p: egui::Pos2) -> Option<CellRef> {
         todo!()
     }
 
-    /// The screen rectangle of a range.
+    /// The screen rectangle of a range: its first row's and column's leading edges to its last
+    /// row's and column's trailing edges.
     pub fn rect(&self, range: CellRange) -> Rect {
         todo!()
     }
@@ -92,18 +53,19 @@ impl TableGeometry {
 
 /// The overlay over selected cells, painted after the table.
 ///
-/// - Selected cells tint with [`CellSelectionStyle`](crate::ui::CellSelectionStyle)'s fill, the
-///   range outlined with its outline (accent); a caret or text selection inside one cell draws
-///   as text (InDesign; DesignCraft).
-/// - Paint only: the app's table tool runs clicks and drags (press in a cell and drag selects a
-///   range, ⇧-click extends) and calls [`CellSelection`]'s rules.
+/// - Every range of the selection ([`CellSelection::ranges`]) tints with
+///   [`CellSelectionStyle`](crate::ui::CellSelectionStyle)'s fill, the active cell included
+///   (InDesign tints it too, unlike Excel), and each range is outlined with its outline (accent).
+///   A caret or text selection inside one cell draws as text (InDesign; DesignCraft).
+/// - Paint only: the app's table tool runs clicks, drags and keys over the shared model (module
+///   docs).
 pub struct CellSelectionOverlay<'a> {
     geometry: &'a TableGeometry,
-    selection: CellSelection,
+    selection: &'a CellSelection,
 }
 
 impl<'a> CellSelectionOverlay<'a> {
-    pub fn new(geometry: &'a TableGeometry, selection: CellSelection) -> Self {
+    pub fn new(geometry: &'a TableGeometry, selection: &'a CellSelection) -> Self {
         CellSelectionOverlay { geometry, selection }
     }
 
