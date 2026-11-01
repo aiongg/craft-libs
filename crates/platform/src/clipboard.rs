@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! The system clipboard for copy and paste of text, rich text, images and files (N10.01).
 //!
 //! - [`Clipboard`]: the one write and read path every copy and paste command goes through. It
@@ -16,9 +15,10 @@
 //! ([`flavors_from_event`], [`copy_through_egui`]) that the web path uses.
 
 use std::borrow::Cow;
+use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, Sender};
-use std::time::Duration;
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, TryRecvError};
+use std::time::{Duration, Instant};
 
 use craft_host::Wake;
 
@@ -79,7 +79,8 @@ impl ClipboardImage {
     /// `import_os_clipboard`'s filter).
     // pc: crates/ui-egui/src/app/clipboard.rs:60 image.filter
     pub fn is_whole(&self) -> bool {
-        todo!()
+        let bytes = u64::from(self.width) * u64::from(self.height) * 4;
+        bytes != 0 && self.rgba.len() as u64 == bytes
     }
 }
 
@@ -127,7 +128,12 @@ pub enum ClipboardError {
 
 impl std::fmt::Display for ClipboardError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            Self::Unavailable => f.write_str("the system clipboard can't be reached"),
+            Self::Busy => f.write_str("the clipboard is busy"),
+            Self::TooLarge { limit } => write!(f, "the clipboard holds more than {limit} bytes"),
+            Self::Other(message) => f.write_str(message),
+        }
     }
 }
 
@@ -181,8 +187,10 @@ pub trait ClipboardBackend: Send {
 /// copied to the clipboard manager at exit). When no backend opens, every call answers
 /// [`ClipboardError::Unavailable`] and [`unreadable`](Self::unreadable) turns true. On Wayland a
 /// bitmap arboard can't read (it asks for `image/png` only; a screenshot tool may offer only
-/// `image/jpeg` or `image/bmp`, PhotoCraft #2546) is read through the compositor's offers in
-/// their order, decoded by the app's `decode` hook ([`SystemClipboard::decoder`]).
+/// `image/jpeg` or `image/bmp`, PhotoCraft #2546) reads as `None`.
+///
+/// arboard reaches text, HTML, one bitmap and copied files; other flavors ([`SVG`], [`PDF`],
+/// [`RTF`]) are not written or read here.
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
 pub struct SystemClipboard {
     handle: Option<arboard::Clipboard>,
@@ -200,8 +208,8 @@ impl SystemClipboard {
         Self { handle: None, unreadable: false, decode: None }
     }
 
-    /// Decodes encoded bitmaps (PNG, JPEG, BMP) the platform hands over as bytes. Without one,
-    /// only bitmaps arboard decodes itself are read.
+    /// Decodes a [`PNG`] flavor to pixels for [`ClipboardBackend::write`], which hands the
+    /// platform pixels only. Without one, a write offers no PNG.
     pub fn decoder(mut self, decode: impl Fn(&[u8]) -> Option<ClipboardImage> + Send + 'static) -> Self {
         self.decode = Some(Box::new(decode));
         self
@@ -211,6 +219,79 @@ impl SystemClipboard {
     pub fn unreadable(&self) -> bool {
         self.unreadable
     }
+
+    fn open(&mut self) -> Result<&mut arboard::Clipboard, ClipboardError> {
+        if self.handle.is_none() {
+            match arboard::Clipboard::new() {
+                Ok(handle) => {
+                    self.unreadable = false;
+                    self.handle = Some(handle);
+                }
+                Err(error) => {
+                    log::debug!("no system clipboard: {error}");
+                    self.unreadable = true;
+                }
+            }
+        }
+        self.handle.as_mut().ok_or(ClipboardError::Unavailable)
+    }
+}
+
+#[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
+fn system_error(error: arboard::Error) -> ClipboardError {
+    match error {
+        arboard::Error::ClipboardOccupied => ClipboardError::Busy,
+        arboard::Error::ClipboardNotSupported => ClipboardError::Unavailable,
+        error => ClipboardError::Other(error.to_string()),
+    }
+}
+
+/// A read's value, or `None` when the clipboard holds nothing in that format. `unconvertible`
+/// also counts content the format can't be converted from (text that isn't UTF-8) as nothing.
+#[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
+fn present<T>(read: Result<T, arboard::Error>, unconvertible: bool) -> Result<Option<T>, ClipboardError> {
+    match read {
+        Ok(value) => Ok(Some(value)),
+        Err(arboard::Error::ContentNotAvailable) => Ok(None),
+        Err(arboard::Error::ConversionFailure) if unconvertible => Ok(None),
+        Err(error) => Err(system_error(error)),
+    }
+}
+
+/// What a write puts on the system clipboard.
+#[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
+enum Put {
+    Clear,
+    Image(ClipboardImage),
+    Html { html: String, alt: Option<String> },
+    Text(String),
+}
+
+/// The first flavor the system clipboard can hold, as what to put there.
+#[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
+fn plan_write(flavors: &[Flavor], decode: Option<&Decode>) -> Result<Put, ClipboardError> {
+    if flavors.is_empty() {
+        return Ok(Put::Clear);
+    }
+    let text_of = |f: &Flavor| String::from_utf8_lossy(&f.data).into_owned();
+    for flavor in flavors {
+        match &*flavor.mime {
+            RGBA8 => {
+                if let Some(image) = rgba8_image(&flavor.data).filter(ClipboardImage::is_whole) {
+                    return Ok(Put::Image(image));
+                }
+            }
+            PNG => {
+                if let Some(image) = decode.and_then(|decode| decode(&flavor.data)).filter(ClipboardImage::is_whole) {
+                    return Ok(Put::Image(image));
+                }
+            }
+            HTML => return Ok(Put::Html { html: text_of(flavor), alt: flavors.iter().find(|f| f.mime == TEXT).map(text_of) }),
+            TEXT => return Ok(Put::Text(text_of(flavor))),
+            _ => {}
+        }
+    }
+    Err(ClipboardError::Other("none of the formats can be put on the system clipboard".to_owned()))
 }
 
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
@@ -224,27 +305,72 @@ impl Default for SystemClipboard {
 impl ClipboardBackend for SystemClipboard {
     // pc: apps/photocraft/src/services.rs:702 clipboard_set_image (open on first use, "clipboard is busy")
     fn write(&mut self, flavors: &[Flavor]) -> Result<(), ClipboardError> {
-        todo!()
+        let put = plan_write(flavors, self.decode.as_ref())?;
+        let handle = self.open()?;
+        match put {
+            Put::Clear => handle.clear(),
+            Put::Image(image) => {
+                handle.set_image(arboard::ImageData { width: image.width as usize, height: image.height as usize, bytes: Cow::Borrowed(&image.rgba) })
+            }
+            Put::Html { html, alt } => handle.set_html(html, alt),
+            Put::Text(text) => handle.set_text(text),
+        }
+        .map_err(system_error)
     }
 
     // vectorcraft: crates/ui-egui/src/sysclip.rs:27 SystemClipboard::read
     fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavor>, ClipboardError> {
-        todo!()
+        for &mime in mimes {
+            let found = match mime {
+                TEXT => present(self.open()?.get().text(), true)?.map(|text| Flavor::text(&text)),
+                HTML => present(self.open()?.get().html(), true)?.map(|html| Flavor::new(HTML, html.into_bytes())),
+                BITMAP | RGBA8 => self.read_image(limit)?.map(|image| rgba8_flavor(&image)),
+                URI_LIST => {
+                    let files = present(self.open()?.get().file_list(), false)?.filter(|files| !files.is_empty());
+                    files.map(|files| Flavor::new(URI_LIST, uri_list(&files).into_bytes()))
+                }
+                _ => None,
+            };
+            if let Some(flavor) = found {
+                if flavor.data.len() as u64 > limit {
+                    return Err(ClipboardError::TooLarge { limit });
+                }
+                return Ok(Some(flavor));
+            }
+        }
+        Ok(None)
     }
 
     // pc: apps/photocraft/src/services.rs:714 clipboard_get_image, :536 wayland_clipboard_image, :601 clipboard_read
     fn read_image(&mut self, limit: u64) -> Result<Option<ClipboardImage>, ClipboardError> {
-        todo!()
+        let Some(image) = present(self.open()?.get_image(), false)? else { return Ok(None) };
+        if image.bytes.len() as u64 > limit {
+            return Err(ClipboardError::TooLarge { limit });
+        }
+        Ok(Some(ClipboardImage { width: image.width as u32, height: image.height as u32, rgba: image.bytes.into_owned() }))
     }
 
     // pc: apps/photocraft/src/services.rs:506 image_from_files (trailing '\r' of text/uri-list lines trimmed)
     fn read_files(&mut self, limit: usize) -> Result<Option<Vec<PathBuf>>, ClipboardError> {
-        todo!()
+        let Some(files) = present(self.open()?.get().file_list(), false)? else { return Ok(None) };
+        // arboard splits a text/uri-list on LF only, so a path copied in GNOME Files keeps its CR.
+        let files: Vec<PathBuf> = files.into_iter().map(trim_cr).collect();
+        if files.len() > limit {
+            return Err(ClipboardError::TooLarge { limit: limit as u64 });
+        }
+        Ok((!files.is_empty()).then_some(files))
     }
 
     // vectorcraft: crates/ui-egui/src/sysclip.rs:29 SystemClipboard::has
     fn has(&mut self, mimes: &[&str]) -> bool {
-        todo!()
+        let Ok(handle) = self.open() else { return false };
+        mimes.iter().any(|&mime| match mime {
+            TEXT => handle.get().text().is_ok(),
+            HTML => handle.get().html().is_ok(),
+            BITMAP | RGBA8 => handle.get_image().is_ok(),
+            URI_LIST => handle.get().file_list().is_ok_and(|files| !files.is_empty()),
+            _ => false,
+        })
     }
 }
 
@@ -266,31 +392,49 @@ impl EventClipboard {
     pub fn new(out: impl FnMut(&[Flavor]) -> Result<(), ClipboardError> + Send + 'static) -> Self {
         Self { pasted: Vec::new(), out: Box::new(out) }
     }
+
+    /// The first of `mimes` the last paste offered; [`BITMAP`] is any offered `image/*`.
+    fn offered(&self, mimes: &[&str]) -> Option<&Flavor> {
+        mimes.iter().find_map(|&mime| self.pasted.iter().find(|f| if mime == BITMAP { f.mime.starts_with("image/") } else { f.mime == mime }))
+    }
 }
 
 impl ClipboardBackend for EventClipboard {
     // new: the browser has no clipboard read; PhotoCraft's web shell maps Event::PasteImage (apps/photocraft-web/src/web.rs:344)
     fn write(&mut self, flavors: &[Flavor]) -> Result<(), ClipboardError> {
-        todo!()
+        (self.out)(flavors)
     }
 
     // new: first offered flavour among `mimes`, limit checked
     fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavor>, ClipboardError> {
-        todo!()
+        let Some(flavor) = self.offered(mimes) else { return Ok(None) };
+        if flavor.data.len() as u64 > limit {
+            return Err(ClipboardError::TooLarge { limit });
+        }
+        Ok(Some(flavor.clone()))
     }
 
     // new: only an offered RGBA8 flavour reads (no codec here); an offered PNG is the app's to decode through `read`
     fn read_image(&mut self, limit: u64) -> Result<Option<ClipboardImage>, ClipboardError> {
-        todo!()
+        let Some(image) = self.offered(&[RGBA8]).and_then(|flavor| rgba8_image(&flavor.data)) else { return Ok(None) };
+        if image.rgba.len() as u64 > limit {
+            return Err(ClipboardError::TooLarge { limit });
+        }
+        Ok(Some(image))
     }
 
     // new: an offered text/uri-list, one file:// URI per line
     fn read_files(&mut self, limit: usize) -> Result<Option<Vec<PathBuf>>, ClipboardError> {
-        todo!()
+        let Some(flavor) = self.offered(&[URI_LIST]) else { return Ok(None) };
+        let files = parse_uri_list(&String::from_utf8_lossy(&flavor.data));
+        if files.len() > limit {
+            return Err(ClipboardError::TooLarge { limit: limit as u64 });
+        }
+        Ok((!files.is_empty()).then_some(files))
     }
 
     fn has(&mut self, mimes: &[&str]) -> bool {
-        todo!()
+        self.offered(mimes).is_some()
     }
 
     /// Holds one paste's flavours, best first, until the next offer.
@@ -314,8 +458,15 @@ pub struct Clipboard {
     backend: Box<dyn ClipboardBackend>,
     limits: ClipboardLimits,
     synthetic: bool,
-    /// [`image_signature`] or a text hash of what the last write put there.
-    ours: Option<u64>,
+    ours: Option<Ours>,
+}
+
+/// What the last write put on the clipboard, as a fingerprint.
+enum Ours {
+    /// [`image_signature`] of a bitmap.
+    Image(u64),
+    /// The first flavor written: its type and a hash of its bytes.
+    Flavor { mime: String, hash: u64 },
 }
 
 impl Clipboard {
@@ -344,34 +495,62 @@ impl Clipboard {
     /// Puts a bitmap on the clipboard and remembers its [`image_signature`].
     // pc: crates/ui-egui/src/app/clipboard.rs:13 export_os_clipboard
     pub fn write_image(&mut self, image: &ClipboardImage) -> Result<Written, ClipboardError> {
-        todo!()
+        if !image.is_whole() {
+            return Err(ClipboardError::Other("the image's pixels don't match its size".to_owned()));
+        }
+        let written = self.write(&[rgba8_flavor(image)])?;
+        if written == Written::Written {
+            self.ours = Some(Ours::Image(image_signature(image.width, image.height, &image.rgba)));
+        }
+        Ok(written)
     }
 
     /// Replaces the clipboard with `flavours`, best first, unless fenced.
     pub fn write(&mut self, flavors: &[Flavor]) -> Result<Written, ClipboardError> {
-        todo!()
+        if self.synthetic {
+            return Ok(Written::Fenced);
+        }
+        self.backend.write(flavors)?;
+        self.ours = flavors.first().map(|f| Ours::Flavor { mime: f.mime.to_string(), hash: hash_bytes(&f.data) });
+        Ok(Written::Written)
     }
 
     /// Clipboard text; text that isn't UTF-8 is `None` (PhotoCraft `clipboard_text`).
     // pc: apps/photocraft/src/services.rs:611 clipboard_text
     pub fn read_text(&mut self) -> Result<Option<String>, ClipboardError> {
-        todo!()
+        Ok(self.read(&[TEXT])?.and_then(|flavor| String::from_utf8(flavor.data).ok()))
     }
 
     /// The first of `mimes` the clipboard holds, within [`ClipboardLimits::text_bytes`] for text
     /// types and [`ClipboardLimits::image_bytes`] for the rest.
     pub fn read(&mut self, mimes: &[&str]) -> Result<Option<Flavor>, ClipboardError> {
-        todo!()
+        let limit = if mimes.iter().all(|mime| is_text(mime)) { self.limits.text_bytes } else { self.limits.image_bytes };
+        let Some(flavor) = self.backend.read(mimes, limit)? else { return Ok(None) };
+        let cap = if is_text(&flavor.mime) { self.limits.text_bytes } else { self.limits.image_bytes };
+        if flavor.data.len() as u64 > cap {
+            return Err(ClipboardError::TooLarge { limit: cap });
+        }
+        Ok(Some(flavor))
     }
 
     /// The clipboard's bitmap. An image that isn't [`ClipboardImage::is_whole`] reads as `None`.
     pub fn read_image(&mut self) -> Result<Option<ClipboardImage>, ClipboardError> {
-        todo!()
+        let limit = self.limits.image_bytes;
+        let Some(image) = self.backend.read_image(limit)? else { return Ok(None) };
+        if image.rgba.len() as u64 > limit {
+            return Err(ClipboardError::TooLarge { limit });
+        }
+        Ok(Some(image).filter(ClipboardImage::is_whole))
     }
 
     /// Copied files, in the order the file manager listed them.
     pub fn read_files(&mut self) -> Result<Option<Vec<PathBuf>>, ClipboardError> {
-        todo!()
+        let limit = self.limits.files;
+        let Some(files) = self.backend.read_files(limit)? else { return Ok(None) };
+        if files.len() > limit {
+            return Err(ClipboardError::TooLarge { limit: limit as u64 });
+        }
+        Ok(Some(files).filter(|files| !files.is_empty()))
     }
 
     /// Does the clipboard hold one of `mimes`? For Paste's enabled state on the web and in
@@ -386,7 +565,19 @@ impl Clipboard {
     /// already read, [`is_ours`](Self::is_ours) answers without another read.
     // vectorcraft: crates/ui-egui/src/sysclip.rs:25 SystemClipboard::holds_ours
     pub fn holds_ours(&mut self) -> bool {
-        todo!()
+        match &self.ours {
+            None => false,
+            Some(Ours::Image(signature)) => {
+                let signature = *signature;
+                let limit = self.limits.image_bytes;
+                matches!(self.backend.read_image(limit), Ok(Some(image)) if image_signature(image.width, image.height, &image.rgba) == signature)
+            }
+            Some(Ours::Flavor { mime, hash }) => {
+                let (mime, hash) = (mime.clone(), *hash);
+                let limit = if is_text(&mime) { self.limits.text_bytes } else { self.limits.image_bytes };
+                matches!(self.backend.read(&[mime.as_str()], limit), Ok(Some(flavor)) if hash_bytes(&flavor.data) == hash)
+            }
+        }
     }
 
     /// Whether `image`, already read, is the one this app wrote last: PhotoCraft's check that a
@@ -394,7 +585,7 @@ impl Clipboard {
     /// app's, without a second read.
     // pc: crates/ui-egui/src/app/clipboard.rs:69 import_os_clipboard (os_clip_sig == sig)
     pub fn is_ours(&self, image: &ClipboardImage) -> bool {
-        todo!()
+        matches!(self.ours, Some(Ours::Image(signature)) if signature == image_signature(image.width, image.height, &image.rgba))
     }
 
     /// A paste event's flavours for the backend ([`ClipboardBackend::offer`]); the web shell
@@ -417,7 +608,11 @@ impl Clipboard {
 /// `clip_signature`). Two images with the same signature are taken to be the same copy.
 // pc: crates/ui-egui/src/app/clipboard.rs:3 clip_signature
 pub fn image_signature(width: u32, height: u32, rgba: &[u8]) -> u64 {
-    todo!()
+    let mut signature = u64::from(width) << 32 | u64::from(height);
+    for byte in rgba.iter().step_by(997) {
+        signature = signature.rotate_left(5) ^ u64::from(*byte);
+    }
+    signature
 }
 
 /// How often the probe's worker looks at the clipboard while the UI wants to know: 250 ms.
@@ -446,7 +641,44 @@ impl ClipboardProbe {
     /// or when the thread can't be spawned: the app asks [`Clipboard::has`] in line instead.
     // vectorcraft: crates/ui-egui/src/clipboard_probe.rs:33 Probe::start
     pub fn start(make: Box<dyn FnOnce() -> Box<dyn ClipboardBackend> + Send>, mimes: Vec<&'static str>, wake: Wake) -> Option<Self> {
-        todo!()
+        if cfg!(target_arch = "wasm32") {
+            return None;
+        }
+        let (wants, wanted_rx) = std::sync::mpsc::channel();
+        let (verdict_tx, verdicts) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("craft-clipboard-probe".into())
+            .spawn(move || {
+                let mut backend = make();
+                let (mut wanted, mut sent) = (false, None);
+                loop {
+                    if wanted {
+                        // This thread may wait here for a slow owner; the UI's never does.
+                        let verdict = backend.has(&mimes);
+                        if sent != Some(verdict) {
+                            if verdict_tx.send(verdict).is_err() {
+                                break;
+                            }
+                            sent = Some(verdict);
+                            wake.wake();
+                        }
+                    }
+                    // Sleep until the next look (none while unwanted) or the UI's next word.
+                    let next =
+                        if wanted { wanted_rx.recv_timeout(PROBE_INTERVAL) } else { wanted_rx.recv().map_err(|_| RecvTimeoutError::Disconnected) };
+                    match next {
+                        Ok(w) => wanted = w,
+                        Err(RecvTimeoutError::Timeout) => {}
+                        Err(RecvTimeoutError::Disconnected) => break,
+                    }
+                }
+                // The handle goes before the probe's drop stops waiting: on X11 the last handle
+                // alive hands the app's copy to the clipboard manager, which must finish first.
+                drop(backend);
+                drop(verdict_tx);
+            })
+            .ok()?;
+        Some(Self { wants: Some(wants), wanted: false, verdicts, last: false })
     }
 
     /// Paste can take from the system clipboard: `wanted` (nothing copied in the app, a document
@@ -454,14 +686,26 @@ impl ClipboardProbe {
     /// gone.
     // vectorcraft: crates/ui-egui/src/clipboard_probe.rs:76 Probe::pasteable
     pub fn pasteable(&mut self, wanted: bool) -> Option<bool> {
-        todo!()
+        if wanted != self.wanted {
+            self.wants.as_ref()?.send(wanted).ok()?;
+            self.wanted = wanted;
+        }
+        loop {
+            match self.verdicts.try_recv() {
+                Ok(verdict) => self.last = verdict,
+                Err(TryRecvError::Empty) => return Some(wanted && self.last),
+                Err(TryRecvError::Disconnected) => return None,
+            }
+        }
     }
 }
 
 impl Drop for ClipboardProbe {
     // vectorcraft: crates/ui-egui/src/clipboard_probe.rs:94 Probe::drop
     fn drop(&mut self) {
-        todo!()
+        self.wants = None;
+        let end = Instant::now() + PROBE_STOP_WAIT;
+        while self.verdicts.recv_timeout(end.saturating_duration_since(Instant::now())).is_ok() {}
     }
 }
 
@@ -471,7 +715,15 @@ impl Drop for ClipboardProbe {
 #[cfg(feature = "ui")]
 // pc: crates/ui-egui/src/input/shortcuts.rs:231 Event::PasteImage
 pub fn flavors_from_event(event: &egui::Event) -> Option<Vec<Flavor>> {
-    todo!()
+    match event {
+        egui::Event::Paste(text) => Some(vec![Flavor::text(text)]),
+        egui::Event::PasteImage(image) => {
+            let [width, height] = image.size;
+            let rgba = image.pixels.iter().flat_map(|pixel| pixel.to_srgba_unmultiplied()).collect();
+            Some(vec![rgba8_flavor(&ClipboardImage { width: width as u32, height: height as u32, rgba })])
+        }
+        _ => None,
+    }
 }
 
 /// Writes `flavours` through egui's output (the web's clipboard): the first text flavour with
@@ -479,7 +731,104 @@ pub fn flavors_from_event(event: &egui::Event) -> Option<Vec<Flavor>> {
 #[cfg(feature = "ui")]
 // new: eframe's web integration owns navigator.clipboard
 pub fn copy_through_egui(ctx: &egui::Context, flavors: &[Flavor]) -> Result<(), ClipboardError> {
-    todo!()
+    let mut copied = flavors.is_empty();
+    if let Some(text) = flavors.iter().find(|f| f.mime == TEXT) {
+        ctx.copy_text(String::from_utf8_lossy(&text.data).into_owned());
+        copied = true;
+    }
+    let image = flavors.iter().find(|f| f.mime == RGBA8).and_then(|f| rgba8_image(&f.data)).filter(ClipboardImage::is_whole);
+    if let Some(image) = image {
+        ctx.copy_image(egui::ColorImage::from_rgba_unmultiplied([image.width as usize, image.height as usize], &image.rgba));
+        copied = true;
+    }
+    if copied { Ok(()) } else { Err(ClipboardError::Other("neither text nor a bitmap to copy".to_owned())) }
+}
+
+/// Text types read under [`ClipboardLimits::text_bytes`]: plain, HTML and RTF text and SVG markup.
+fn is_text(mime: &str) -> bool {
+    mime.starts_with("text/") || mime == SVG
+}
+
+fn hash_bytes(bytes: &[u8]) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// `image` as an [`RGBA8`] flavor.
+pub(crate) fn rgba8_flavor(image: &ClipboardImage) -> Flavor {
+    let mut data = Vec::with_capacity(8 + image.rgba.len());
+    data.extend_from_slice(&image.width.to_le_bytes());
+    data.extend_from_slice(&image.height.to_le_bytes());
+    data.extend_from_slice(&image.rgba);
+    Flavor::new(RGBA8, data)
+}
+
+/// The bitmap in an [`RGBA8`] flavor's bytes; `None` without the two-word header.
+pub(crate) fn rgba8_image(data: &[u8]) -> Option<ClipboardImage> {
+    let (header, rgba) = data.split_first_chunk::<8>()?;
+    let width = u32::from_le_bytes(header[..4].try_into().ok()?);
+    let height = u32::from_le_bytes(header[4..].try_into().ok()?);
+    Some(ClipboardImage { width, height, rgba: rgba.to_vec() })
+}
+
+/// Paths from a `text/uri-list`: `file:` URIs only, percent-decoded; comments and other schemes
+/// are skipped.
+fn parse_uri_list(list: &str) -> Vec<PathBuf> {
+    list.lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            let path = line.strip_prefix("file://")?;
+            let path = path.strip_prefix("localhost").unwrap_or(path);
+            path.starts_with('/').then(|| PathBuf::from(percent_decode(path)))
+        })
+        .collect()
+}
+
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = |b: u8| char::from(b).to_digit(16).map(|d| d as u8);
+        match (bytes[i], bytes.get(i + 1).copied().and_then(hex), bytes.get(i + 2).copied().and_then(hex)) {
+            (b'%', Some(high), Some(low)) => {
+                out.push(high << 4 | low);
+                i += 3;
+            }
+            (byte, _, _) => {
+                out.push(byte);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// `files` as a `text/uri-list` (CRLF line ends, RFC 2483).
+#[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
+fn uri_list(files: &[PathBuf]) -> String {
+    let mut list = String::new();
+    for file in files {
+        list.push_str("file://");
+        for &byte in file.to_string_lossy().as_bytes() {
+            if byte.is_ascii_alphanumeric() || b"/-._~".contains(&byte) {
+                list.push(char::from(byte));
+            } else {
+                list.push_str(&format!("%{byte:02X}"));
+            }
+        }
+        list.push_str("\r\n");
+    }
+    list
+}
+
+#[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
+fn trim_cr(path: PathBuf) -> PathBuf {
+    match path.to_str() {
+        Some(text) if text.ends_with('\r') => PathBuf::from(text.trim_end_matches('\r')),
+        _ => path,
+    }
 }
 
 // The probe's backend lives on its worker.
