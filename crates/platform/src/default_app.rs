@@ -1,4 +1,3 @@
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Making the app the system's default for its file types, and reading the paths the system
 //! hands it when it is (N10.04).
 //!
@@ -65,7 +64,63 @@ pub enum DefaultAppError {
 /// `xdg-mime` run (well under a second); call it from the button's click.
 // wordcraft: apps/wordcraft/src/default_apps.rs:23 hook, :90 open_default_apps, :107 make_default
 pub fn make_default(app: &AppIdentity) -> Result<DefaultApp, DefaultAppError> {
-    todo!()
+    if cfg!(windows) {
+        let uri = settings_uri(&app.registered_name);
+        crate::open::open_external(&uri).map_err(|e| DefaultAppError::Failed(cut(&format!("couldn't open Settings: {e}"))))?;
+        Ok(DefaultApp::SettingsOpened)
+    } else if cfg!(target_os = "macos") {
+        Err(DefaultAppError::Unsupported)
+    } else {
+        xdg_make_default(app)
+    }
+}
+
+/// The longest error text shown, in characters.
+const MAX_ERROR: usize = 200;
+
+fn cut(text: &str) -> String {
+    text.chars().take(MAX_ERROR).collect()
+}
+
+/// Settings › Default apps on the page of the app registered as `name` under
+/// `HKLM\Software\RegisteredApplications`.
+fn settings_uri(name: &str) -> String {
+    let mut uri = String::from("ms-settings:defaultapps?registeredAppMachine=");
+    for b in name.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            uri.push(char::from(b));
+        } else {
+            uri.push_str(&format!("%{b:02X}"));
+        }
+    }
+    uri
+}
+
+/// `xdg-mime default <desktop id> <types>`: one call sets every type.
+fn xdg_make_default(app: &AppIdentity) -> Result<DefaultApp, DefaultAppError> {
+    use std::process::Command;
+    if std::env::var_os("FLATPAK_ID").is_some() || std::path::Path::new("/.flatpak-info").exists() {
+        return Err(DefaultAppError::Sandboxed);
+    }
+    let var = |k: &str| std::env::var(k).ok();
+    let dirs = application_dirs(var("XDG_DATA_HOME").as_deref(), var("XDG_DATA_DIRS").as_deref(), var("HOME").as_deref());
+    if !dirs.iter().any(|d| d.join(&app.desktop_id).is_file()) {
+        return Err(DefaultAppError::NotInstalled);
+    }
+    let out = Command::new("xdg-mime").args(["default", app.desktop_id.as_str()]).args(&app.mime_types).output().map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => DefaultAppError::Failed("xdg-mime isn't installed (it comes with xdg-utils)".into()),
+        _ => DefaultAppError::Failed(cut(&format!("couldn't run xdg-mime: {e}"))),
+    })?;
+    if out.status.success() {
+        return Ok(DefaultApp::MadeDefault);
+    }
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let first = stderr.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
+    Err(DefaultAppError::Failed(cut(&if first.is_empty() {
+        format!("xdg-mime failed ({})", out.status)
+    } else {
+        format!("xdg-mime failed: {first}")
+    })))
 }
 
 /// The `applications` folders the desktop looks for entries in, from `XDG_DATA_HOME` (default
@@ -73,7 +128,19 @@ pub fn make_default(app: &AppIdentity) -> Result<DefaultApp, DefaultAppError> {
 /// are ignored, as the XDG Base Directory spec says.
 // wordcraft: apps/wordcraft/src/default_apps.rs:66 application_dirs
 pub fn application_dirs(data_home: Option<&str>, data_dirs: Option<&str>, home: Option<&str>) -> Vec<PathBuf> {
-    todo!()
+    use std::path::Path;
+    let absolute = |s: &&str| Path::new(s).is_absolute();
+    let home_dir = data_home
+        .filter(|s| !s.is_empty())
+        .filter(absolute)
+        .map(PathBuf::from)
+        .or_else(|| home.filter(|s| !s.is_empty()).filter(absolute).map(|h| Path::new(h).join(".local/share")));
+    let system = data_dirs.filter(|s| !s.is_empty()).unwrap_or("/usr/local/share:/usr/share");
+    home_dir
+        .into_iter()
+        .chain(system.split(':').filter(|s| !s.is_empty()).filter(absolute).map(PathBuf::from))
+        .map(|d| d.join("applications"))
+        .collect()
 }
 
 /// The path in one launch argument. A local `file://` URI (`file:///path`,
@@ -83,7 +150,27 @@ pub fn application_dirs(data_home: Option<&str>, data_dirs: Option<&str>, home: 
 /// does a URI whose decoded bytes aren't UTF-8.
 // pdfcraft: apps/pdfcraft/src/main.rs:141 path_from_arg
 pub fn path_from_arg(arg: String) -> String {
-    todo!()
+    let Some(rest) = arg.strip_prefix("file://") else { return arg };
+    let rest = rest.strip_prefix("localhost").unwrap_or(rest);
+    if !rest.starts_with('/') {
+        return arg;
+    }
+    // `rest` starts with the one-byte '/', so byte 1 is a char boundary.
+    let rest = if cfg!(windows) && rest.as_bytes().get(2) == Some(&b':') { &rest[1..] } else { rest };
+    let mut out = Vec::with_capacity(rest.len());
+    let mut bytes = rest.bytes();
+    while let Some(b) = bytes.next() {
+        if b == b'%' {
+            let hex = bytes.clone().take(2).collect::<Vec<u8>>();
+            if let Some(byte) = std::str::from_utf8(&hex).ok().filter(|h| h.len() == 2).and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                out.push(byte);
+                bytes.nth(1);
+                continue;
+            }
+        }
+        out.push(b);
+    }
+    String::from_utf8(out).unwrap_or(arg)
 }
 
 /// Launch arguments with unquoted paths put back together. Some programs start the default app
@@ -93,7 +180,28 @@ pub fn path_from_arg(arg: String) -> String {
 /// kept as given. Runs of several spaces can't be recovered.
 // pdfcraft: apps/pdfcraft/src/main.rs:171 rejoin_split_paths
 pub fn rejoin_split_paths(args: Vec<String>, exists: impl Fn(&str) -> bool) -> Vec<String> {
-    todo!()
+    let mut out = Vec::with_capacity(args.len());
+    let mut i = 0;
+    while let Some(first) = args.get(i) {
+        if exists(first) {
+            out.push(first.clone());
+            i += 1;
+            continue;
+        }
+        // The longest run starting here that names a file, capped so a long list stays cheap.
+        let end = (i + 2..=args.len().min(i + 32)).rev().find(|&j| args.get(i..j).is_some_and(|run| exists(&run.join(" "))));
+        match end.and_then(|j| Some((j, args.get(i..j)?.join(" ")))) {
+            Some((j, joined)) => {
+                out.push(joined);
+                i = j;
+            }
+            None => {
+                out.push(first.clone());
+                i += 1;
+            }
+        }
+    }
+    out
 }
 
 /// After [`DefaultApp::SettingsOpened`]; `{app}` is the app's name.

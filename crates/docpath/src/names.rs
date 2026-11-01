@@ -1,4 +1,3 @@
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! File names made from user text (N10.09): a document title becomes the suggested name of an
 //! export, a page range a set of file names, an attachment's stored name a Save suggestion.
 //!
@@ -18,7 +17,48 @@ pub const MAX_NAME_BYTES: usize = 200;
 /// it. `fallback` (`"attachment"`, `"Untitled"`) when nothing usable is left.
 // pdfcraft: crates/ui-egui/src/workflows/files.rs:223 attachment_file_name
 pub fn safe_file_name(text: &str, fallback: &str) -> String {
-    todo!()
+    let cleaned: String = text
+        .chars()
+        .filter(|c| !is_bidi_control(*c))
+        .map(|c| if c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') { '_' } else { c })
+        .collect();
+    let name = trim_name(&cleaned);
+    if name.is_empty() {
+        return fallback.to_string();
+    }
+    let name = if is_reserved_device_name(name) { format!("_{name}") } else { name.to_string() };
+    cut_keeping_extension(&name)
+}
+
+fn is_bidi_control(c: char) -> bool {
+    matches!(c, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+}
+
+/// No leading whitespace and no trailing dots or whitespace.
+fn trim_name(name: &str) -> &str {
+    name.trim_start().trim_end_matches(|c: char| c == '.' || c.is_whitespace())
+}
+
+/// `name` cut to [`MAX_NAME_BYTES`] at a character boundary. A short extension (under half the
+/// limit) stays and the stem before it is cut instead.
+fn cut_keeping_extension(name: &str) -> String {
+    if name.len() <= MAX_NAME_BYTES {
+        return name.to_string();
+    }
+    let cut = |text: &str, max: usize| -> String {
+        let mut end = text.len().min(max);
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        trim_name(text.get(..end).unwrap_or_default()).to_string()
+    };
+    match name.rfind('.') {
+        Some(dot) if dot > 0 && name.len() - dot < MAX_NAME_BYTES / 2 => {
+            let (stem, ext) = name.split_at(dot);
+            format!("{}{ext}", cut(stem, MAX_NAME_BYTES - ext.len()))
+        }
+        _ => cut(name, MAX_NAME_BYTES),
+    }
 }
 
 /// `text` made safe as the stem of a file whose extension the app adds (`extension` without the
@@ -27,7 +67,18 @@ pub fn safe_file_name(text: &str, fallback: &str) -> String {
 /// default.
 // pdfcraft: crates/ui-egui/src/workflows/files.rs:196 file_stem_from_user
 pub fn safe_file_stem(text: &str, extension: &str) -> String {
-    todo!()
+    let text = text.trim();
+    let stem = (!extension.is_empty())
+        .then(|| {
+            let ext_len = extension.len() + 1;
+            let split = text.len().checked_sub(ext_len)?;
+            let (head, tail) = (text.get(..split)?, text.get(split..)?);
+            let dotted = tail.strip_prefix('.')?;
+            dotted.eq_ignore_ascii_case(extension).then_some(head)
+        })
+        .flatten()
+        .unwrap_or(text);
+    safe_file_name(stem, "")
 }
 
 /// Whether `name` names a file directly inside a folder: not empty, no `/` or `\`, no drive
@@ -35,7 +86,8 @@ pub fn safe_file_stem(text: &str, extension: &str) -> String {
 /// is refused, which rules out alternate data streams.
 // pdfcraft: crates/ui-egui/src/workflows/files.rs:246 is_plain_file_name
 pub fn is_plain_file_name(name: &str) -> bool {
-    todo!()
+    let drive = matches!(name.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic());
+    !(name.is_empty() || name.ends_with(['.', ' ']) || name.contains(['/', '\\']) || drive || (cfg!(windows) && name.contains(':')))
 }
 
 /// Whether `stem` (a name without its extension, compared without case) is a Windows device
@@ -45,7 +97,7 @@ pub fn is_plain_file_name(name: &str) -> bool {
 /// drift apart.
 // pdfcraft: crates/ui-egui/src/workflows/files.rs:223 attachment_file_name (the device check at :234)
 pub fn is_reserved_device_name(stem: &str) -> bool {
-    todo!()
+    super::is_dos_device(stem)
 }
 
 /// `name`, or the first of `name 2.ext`, `name 3.ext`, … ([`CopyNumbering::Space`]) or
@@ -55,7 +107,42 @@ pub fn is_reserved_device_name(stem: &str) -> bool {
 /// `photo (3).jpg`). Stops after 10 000 tries and returns the last candidate.
 // new: PdfCraft, DeckCraft and the export dialog (`numbered_paths`) each number names their own way
 pub fn unique_file_name(name: &str, style: CopyNumbering, taken: impl Fn(&str) -> bool) -> String {
-    todo!()
+    const MAX_TRIES: u32 = 10_000;
+    if !taken(name) {
+        return name.to_string();
+    }
+    let (base, ext) = match name.rfind('.') {
+        Some(dot) if dot > 0 && dot + 1 < name.len() => name.split_at(dot),
+        _ => (name, ""),
+    };
+    let (root, last) = match split_copy_number(base, style) {
+        Some((root, n)) => (root, n),
+        None => (base, 1),
+    };
+    let mut candidate = String::new();
+    for n in (last + 1)..=last.saturating_add(MAX_TRIES) {
+        candidate = match style {
+            CopyNumbering::Space => format!("{root} {n}{ext}"),
+            CopyNumbering::Parenthesized => format!("{root} ({n}){ext}"),
+        };
+        if !taken(&candidate) {
+            break;
+        }
+    }
+    candidate
+}
+
+/// `base` without a trailing copy number of `style`'s form, and that number.
+fn split_copy_number(base: &str, style: CopyNumbering) -> Option<(&str, u32)> {
+    let (root, number) = base.rsplit_once(' ')?;
+    let digits = match style {
+        CopyNumbering::Space => number,
+        CopyNumbering::Parenthesized => number.strip_prefix('(')?.strip_suffix(')')?,
+    };
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    Some((root, digits.parse().ok()?))
 }
 
 /// How [`unique_file_name`] numbers a name that is taken. Apps pass

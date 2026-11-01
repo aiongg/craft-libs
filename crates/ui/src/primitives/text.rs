@@ -5,9 +5,9 @@ use egui::text::{LayoutJob, TextFormat};
 use egui::{Label, Response, Ui, Widget};
 
 use super::{Content, ContentStoryArgs};
-use crate::text::elide::ElideAt;
 use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::text::elide::ElideAt;
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
