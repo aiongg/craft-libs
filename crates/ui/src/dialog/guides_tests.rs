@@ -305,3 +305,43 @@ fn layout_dialog_previews_live_and_tracks_the_preset() {
     assert_eq!(reset, GuideLayoutOptions::default(), "Alt+Cancel restores the factory layout");
     assert!(harness.state().get::<GuideLayoutDialog>().is_some(), "Reset keeps the dialog");
 }
+
+// New Guide opens with Position focused, as Photoshop and PhotoCraft do.
+#[test]
+fn new_guide_opens_with_position_focused() {
+    let harness = open(NewGuideDialog::new(units()));
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Position").accesskit_node().is_focused());
+}
+
+// A typed percentage stays a percentage and resolves per artboard: 10 % of a 500 px and of a
+// 1000 px wide artboard are 50 px and 100 px in from each one's left edge.
+#[test]
+fn typed_percent_resolves_per_artboard() {
+    let boards = vec![GuideRect { x0: 0.0, y0: 0.0, x1: 500.0, y1: 400.0 }, GuideRect { x0: 600.0, y0: 0.0, x1: 1600.0, y1: 800.0 }];
+    let mut options = GuideLayoutOptions::default();
+    options.columns.enabled = false;
+    options.rows.enabled = false;
+    options.margin_enabled = true;
+    options.margin[1] = Length { value: 10.0, unit: LengthUnit::Percent };
+    options.target = GuideTarget::SelectedArtboards;
+    let made = lines(&options, &boards, &GuideLines::default()).expect("valid").added;
+    assert_eq!(made.vertical, [50.0, 500.0, 700.0, 1600.0], "left edge in by each artboard's own 10 %");
+
+    let dialog = GuideLayoutDialog::new(document(), GuideLines::default(), pixel_units(), GuideColor::Cyan.rgb()).artboards(boards);
+    let mut harness = open(dialog);
+    choose(&mut harness, "Target:", "Selected Artboards");
+    type_into(&mut harness, "Gutter", "10%");
+    assert_eq!(layout(&harness).columns.gutter, Length { value: 10.0, unit: LengthUnit::Percent }, "the dialog keeps the percentage");
+    type_into(&mut harness, "Gutter", "12");
+    assert_eq!(layout(&harness).columns.gutter, Length { value: 12.0, unit: LengthUnit::Pixels });
+}
+
+// An invalid layout shows its reason as text, not only as a tooltip.
+#[test]
+fn invalid_layout_shows_its_reason() {
+    let dialog = GuideLayoutDialog::new(document(), GuideLines::default(), pixel_units(), GuideColor::Cyan.rgb());
+    let mut harness = open(dialog);
+    type_into(&mut harness, "Width", "5000");
+    assert!(harness.query_by_label("Invalid guide layout").is_some());
+    assert!(harness.query_by_label(GuidesLabels::default().does_not_fit.as_str()).is_some());
+}

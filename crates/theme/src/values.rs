@@ -1901,11 +1901,8 @@ pub const LIST_MANAGER_BUTTON_WIDTH: f32 = 100.0;
 /// Between a list manager's list and its buttons (the module's constant).
 pub const LIST_MANAGER_COLUMN_GAP: f32 = 12.0;
 
-/// Side of an align bar's buttons (PhotoCraft).
-pub const ALIGN_BUTTON: f32 = 24.0;
-
-/// Side of an align bar's icons (PhotoCraft).
-pub const ALIGN_ICON: f32 = 16.0;
+/// Between an align bar's buttons and its ⋯ button at the Compact size (PhotoCraft's `add_space(6.0)`); scaled with the control height.
+pub const ALIGN_MENU_GAP: f32 = 6.0;
 
 /// Most height of a tree picker's list (the module's constant).
 pub const TREE_PICKER_LIST_HEIGHT: f32 = 320.0;

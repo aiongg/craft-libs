@@ -221,7 +221,13 @@ fn an_alternate_reports_which_one_was_pressed() {
 
 #[test]
 fn alt_turns_cancel_into_reset_and_esc_stays_cancel() {
-    let mut app = App::new(Shape::Standard);
+    for shape in [Shape::Standard, Shape::Side] {
+        alt_reset(shape);
+    }
+}
+
+fn alt_reset(shape: Shape) {
+    let mut app = App::new(shape);
     app.reset = true;
     let mut harness = harness(app, OperatingSystem::Nix);
     harness.run();

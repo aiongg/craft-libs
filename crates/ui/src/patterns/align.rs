@@ -218,6 +218,7 @@ impl<'a> AlignBar<'a> {
                         button(ui, action, &mut picked);
                     }
                 }
+                ui.add_space(sizes.menu_gap);
                 let more = ui.add(IconButton::new(Icon::More, labels.more.clone()).side(sizes.button).icon_size(sizes.icon).id_salt("more"));
                 let item = |action: AlignAction| {
                     MenuItem::new(action.label(&labels), action)

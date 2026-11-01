@@ -2335,9 +2335,10 @@ fn list_manager_lines(out: &mut Lines, t: &ListManagerTokens) {
 }
 
 fn align_lines(out: &mut Lines, t: &AlignTokens) {
-    let AlignTokens { button, icon } = t;
+    let AlignTokens { button, icon, menu_gap } = t;
     out.line("align.button", len(*button));
     out.line("align.icon", len(*icon));
+    out.line("align.menu_gap", len(*menu_gap));
 }
 
 fn tree_picker_lines(out: &mut Lines, t: &TreePickerTokens) {

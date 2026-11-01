@@ -7,7 +7,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::*;
 use crate::icons::IconSet;
-use crate::theme::{Base, install};
+use crate::theme::{Base, Tokens, TokensOf as _, install};
 
 #[derive(Default)]
 struct Host {
@@ -74,4 +74,22 @@ fn every_action_has_an_icon_and_a_label() {
             assert!(!action.icon().svg(set).is_empty(), "{action:?} in {set:?}");
         }
     }
+}
+
+// The ⋯ button sits `align.menu_gap` after the sixth align button.
+#[test]
+fn menu_button_keeps_the_token_gap() {
+    let mut h =
+        Harness::<f32>::builder().with_size([400.0, 400.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui: &mut Ui, gap: &mut f32| {
+                *gap = Tokens::of(ui).component.align.menu_gap;
+                AlignBar::new("test").show(ui);
+            },
+            0.0,
+        );
+    h.run();
+    let last = h.get_by_label("Align: Bottom Edges").rect();
+    let more = h.get_by_label("Align and distribute").rect();
+    let gap = *h.state();
+    assert!(gap > 0.0 && ((more.min.x - last.max.x) - gap).abs() < 0.5, "gap {} vs {gap}", more.min.x - last.max.x);
 }
