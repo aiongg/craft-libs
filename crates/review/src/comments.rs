@@ -1,8 +1,6 @@
 //! Comment threads: where they are, their messages, reactions and review status, and the
 //! panel's sort and search (N5.01, N5.02).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 pub struct ThreadId(pub u64);
@@ -28,6 +26,16 @@ impl CommentAnchor {
             CommentAnchor::Page { page, .. } => Some(*page),
             CommentAnchor::Slide { slide, .. } => Some(*slide),
             _ => None,
+        }
+    }
+
+    /// The position the Page sort orders by within a page: top to bottom, or earliest first on a
+    /// timeline.
+    fn vertical(&self) -> f64 {
+        match self {
+            CommentAnchor::Page { at, .. } | CommentAnchor::Canvas { at, .. } => at[1],
+            CommentAnchor::Slide { at, .. } => at.map_or(0.0, |at| at[1]),
+            CommentAnchor::Time { seconds } => *seconds,
         }
     }
 }
@@ -111,19 +119,36 @@ pub enum CommentSort {
 // pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:115 `show` (sorting),
 // `tools/comments/state.rs:297` `SortBy`.
 pub fn sort_threads(threads: &[CommentThread], sort: CommentSort) -> Vec<usize> {
-    todo!()
+    let mut order: Vec<usize> = (0..threads.len()).collect();
+    fn first(thread: &CommentThread) -> Option<&CommentMessage> {
+        thread.messages.first()
+    }
+    match sort {
+        CommentSort::Page => order.sort_by(|&a, &b| {
+            let (a, b) = (&threads[a], &threads[b]);
+            a.anchor.page().cmp(&b.anchor.page()).then_with(|| a.anchor.vertical().total_cmp(&b.anchor.vertical()))
+        }),
+        CommentSort::Author => order.sort_by_key(|&i| first(&threads[i]).map(|m| m.author.to_lowercase()).unwrap_or_default()),
+        CommentSort::Date => order.sort_by_key(|&i| std::cmp::Reverse(first(&threads[i]).map(|m| m.modified.unwrap_or(m.created)))),
+        CommentSort::Type => order.sort_by(|&a, &b| threads[a].kind.cmp(&threads[b].kind)),
+        CommentSort::Color => order.sort_by_key(|&i| threads[i].color),
+    }
+    order
 }
 
 /// Whether `thread` matches the search `query`: case-insensitive, in any message's text or
 /// author, or the kind.
 // pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:104 `matches`.
 pub fn matches(thread: &CommentThread, query: &str) -> bool {
-    todo!()
+    let query = query.to_lowercase();
+    let has = |text: &str| text.to_lowercase().contains(&query);
+    has(&thread.kind) || thread.messages.iter().any(|m| has(&m.text) || has(&m.author))
 }
 
 /// "Ana María Ruiz" → "AM": the first letters of the first two words, upper case; none gives
 /// "?".
 // pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:72 `initials`.
 pub fn initials(name: &str) -> String {
-    todo!()
+    let letters: String = name.split_whitespace().filter_map(|word| word.chars().next()).take(2).collect();
+    if letters.is_empty() { "?".into() } else { letters.to_uppercase() }
 }

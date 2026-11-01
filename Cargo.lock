@@ -1393,10 +1393,14 @@ name = "craft-review"
 version = "0.1.0"
 dependencies = [
  "craft-host",
+ "craft-i18n",
+ "craft-theme",
  "craft-ui",
  "egui",
+ "egui_kittest",
  "kurbo 0.13.1",
  "serde",
+ "web-time",
 ]
 
 [[package]]
