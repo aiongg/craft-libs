@@ -9,6 +9,8 @@
 //! in encoded sRGB, each segment bent so its midpoint gives the half mix.
 //!
 //! Colours are the `swatch.*` tokens; the bar's own are `gradient_editor.*`.
+//!
+//! [`map`]: Photoshop's Gradient Map adjustment ([`GradientMapEditor`]) over the bar.
 
 pub(crate) mod counts;
 mod editor;
@@ -17,6 +19,9 @@ mod editor_stories;
 mod editor_tests;
 pub mod gradient_line;
 pub mod gradient_overlay;
+pub mod map;
+#[cfg(test)]
+mod map_tests;
 mod palette;
 mod palette_stories;
 #[cfg(test)]
@@ -37,6 +42,8 @@ pub use ramp::{GradientRamp, GradientRampStyle};
 pub use stops::{Sampler, StopRules, default_sampler};
 pub use swatch::GradientSwatch;
 pub use value::{ColorStop, GradientStops, OpacityStop, StopRow, StopRows};
+
+pub use map::{GradientMap, GradientMapEditor, GradientMapLabels, GradientMapOutput};
 
 pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
 pub use gradient_overlay::{
