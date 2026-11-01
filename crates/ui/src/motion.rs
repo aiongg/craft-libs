@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Motion of text carets and selection outlines: [`CaretGlide`] slides a caret to its new place
 //! and fades its blink, [`OutlineGlide`] slides a selection outline to its new cells. Both are
 //! time-based, so they look the same at any frame rate, and both stand still when the appearance
@@ -14,7 +13,7 @@
 //! if look.moving { ctx.request_repaint() }
 //! ```
 
-use egui::{Context, Pos2, Rect};
+use egui::{Context, Pos2, Rect, pos2};
 
 /// How long a caret's glide, and each fade of its blink, takes: 100 ms (WordCraft, measured from
 /// Word for Windows 16.0 at 144 Hz).
@@ -36,14 +35,15 @@ pub const OFFSCREEN_SLACK: f32 = 48.0;
 /// flight).
 // new: the suite-wide switch; WordCraft's `look` and GridCraft's `animate` read their own settings.
 pub fn glides_allowed(ctx: &Context) -> bool {
-    todo!()
+    !crate::theme::current(ctx).motion.reduced && ctx.global_style().animation_time > 0.0
 }
 
 /// Word's glide curve, `cubic-bezier(0, 0, 0, 1)`, in closed form: `3 s^(2/3) − 2 s` for `s`
 /// clamped to 0–1 (a non-finite `s` is 1).
 // wordcraft: crates/ui-egui/src/caret_glide.rs:282 ease
 pub fn ease(s: f32) -> f32 {
-    todo!()
+    let s = if s.is_finite() { s.clamp(0.0, 1.0) } else { 1.0 };
+    3.0 * s.powf(2.0 / 3.0) - 2.0 * s
 }
 
 /// A resting caret's opacity `since` seconds after its blink restarted: 1 for the first
@@ -51,7 +51,13 @@ pub fn ease(s: f32) -> f32 {
 /// seconds (no fade at 0). A non-finite `since` is 1.
 // wordcraft: crates/ui-egui/src/caret_glide.rs:290 blink
 pub fn blink(since: f64, fade: f64) -> f32 {
-    todo!()
+    if !since.is_finite() || since < CARET_BLINK_SECS {
+        return 1.0;
+    }
+    let phase = since % (2.0 * CARET_BLINK_SECS);
+    let (into, turning_on) = if phase < CARET_BLINK_SECS { (phase, true) } else { (phase - CARET_BLINK_SECS, false) };
+    let done = if fade > 0.0 { (into / fade).clamp(0.0, 1.0) as f32 } else { 1.0 };
+    if turning_on { done } else { 1.0 - done }
 }
 
 /// A caret's bar: its two ends, in the space the host gives them in (WordCraft: content space,
@@ -119,8 +125,8 @@ pub struct CaretLook {
 pub struct CaretGlide {
     secs: f64,
     target: Option<CaretBar>,
-    drawn: Option<CaretBar>,
     opacity: f32,
+    /// From, to, and when it set off.
     glide: Option<(CaretBar, CaretBar, f64)>,
     fade: Option<(f32, f64)>,
     cause: u64,
@@ -140,15 +146,93 @@ impl CaretGlide {
     // wordcraft: crates/ui-egui/src/caret_glide.rs:140 with_secs
     pub fn with_secs(secs: f64) -> Self {
         let secs = if secs.is_finite() { secs.clamp(0.0, 10.0) } else { CARET_GLIDE_SECS };
-        Self { secs, target: None, drawn: None, opacity: 0.0, glide: None, fade: None, cause: 0, view: 0, frame_nr: 0 }
+        Self { secs, target: None, opacity: 0.0, glide: None, fade: None, cause: 0, view: 0, frame_nr: 0 }
     }
 
     /// Advances to this pass and says how to draw the caret. The host passes
     /// [`glides_allowed`] through `secs` by building the glide with `with_secs(0.0)` when it is
     /// false. Call it after the pass's events are applied (see the type's doc).
     // wordcraft: crates/ui-egui/src/caret_glide.rs:158 frame
-    pub fn frame(&mut self, frame: CaretFrame) -> CaretLook {
-        todo!()
+    pub fn frame(&mut self, f: CaretFrame) -> CaretLook {
+        let continuous = f.frame_nr.wrapping_sub(self.frame_nr) <= 1;
+        let was = self.target.filter(|_| continuous);
+        let was_opacity = if was.is_some() { self.opacity } else { 0.0 };
+        let edited = f.cause != self.cause;
+        let same_view = f.view == self.view;
+        self.cause = f.cause;
+        self.view = f.view;
+        self.frame_nr = f.frame_nr;
+        if !(f.shown && is_finite(f.target) && f.now.is_finite()) {
+            self.reset();
+            return CaretLook { bar: f.target, opacity: 0.0, moving: false };
+        }
+        if self.secs <= 0.0 {
+            self.glide = None;
+            self.fade = None;
+            let opacity = if blink(f.since_blink, 0.0) > 0.5 { 1.0 } else { 0.0 };
+            return self.draw(f.target, f.target, opacity);
+        }
+        if !same_view {
+            self.glide = None;
+        }
+        // Where the caret was heading: its place last frame, or the end of the glide under way.
+        let heading = self.glide.map(|g| g.1).or(was);
+        let moved = heading.is_none_or(|h| distance(h, f.target) >= MIN_MOVE);
+        if edited && moved && (f.keys || f.pointer) {
+            // A key or a click turns the caret on, from however visible it was.
+            self.fade = Some((was_opacity, f.now));
+            self.glide = match heading {
+                // Keys glide, from where the caret was heading (not from where it has got to).
+                Some(from) if f.keys && !f.pointer && same_view => {
+                    let seen = f.viewport.expand(OFFSCREEN_SLACK);
+                    let on_screen = |b: CaretBar| seen.intersects(Rect::from_two_pos(b[0], b[1]));
+                    (on_screen(from) && on_screen(f.target)).then_some((from, f.target, f.now))
+                }
+                _ => None,
+            };
+        } else if edited && moved {
+            // The host moved it: it is simply there.
+            self.glide = None;
+            self.fade = None;
+        }
+        // The target shifted under a glide (pixel snapping while scrolling): carry the glide along.
+        if let Some(g) = &mut self.glide
+            && g.1 != f.target
+        {
+            let d = f.target[0] - g.1[0];
+            g.0 = [g.0[0] + d, g.0[1] + d];
+            g.1 = f.target;
+        }
+        let bar = match self.glide {
+            Some((from, to, started)) => match progress(f.now, started, self.secs) {
+                Some(s) => lerp(from, to, ease(s)),
+                None => {
+                    self.glide = None;
+                    f.target
+                }
+            },
+            None => f.target,
+        };
+        let opacity = match self.fade {
+            Some((from, started)) => match progress(f.now, started, self.secs) {
+                Some(s) => from + (1.0 - from) * s,
+                None => {
+                    self.fade = None;
+                    1.0
+                }
+            },
+            // A gliding caret stays lit; a resting one blinks.
+            None if self.glide.is_some() => 1.0,
+            None => blink(f.since_blink, self.secs),
+        };
+        self.draw(f.target, bar, opacity)
+    }
+
+    fn draw(&mut self, target: CaretBar, bar: CaretBar, opacity: f32) -> CaretLook {
+        let opacity = if opacity.is_finite() { opacity.clamp(0.0, 1.0) } else { 1.0 };
+        self.target = Some(target);
+        self.opacity = opacity;
+        CaretLook { bar, opacity, moving: self.glide.is_some() || self.fade.is_some() }
     }
 
     /// The caret is on its way somewhere.
@@ -202,19 +286,87 @@ pub struct OutlineGlide {
     drawn: Option<Rect>,
     offset: [f32; 4],
     started: f64,
+    gliding: bool,
     frame_nr: u64,
 }
 
 impl OutlineGlide {
     /// Advances to this frame; returns where to draw the outline (screen points).
     // gridcraft: crates/ui-egui/src/selection_glide.rs:77 frame
-    pub fn frame(&mut self, frame: OutlineFrame) -> Rect {
-        todo!()
+    pub fn frame(&mut self, f: OutlineFrame) -> Rect {
+        let fresh = f.frame_nr.wrapping_sub(self.frame_nr) <= 1;
+        self.frame_nr = f.frame_nr;
+        if self.place != f.place || self.selection != f.selection {
+            // A new destination: set off from where the outline is drawn now (mid-glide or at rest).
+            self.offset = match self.drawn {
+                Some(drawn) if self.place == f.place && fresh => offset_between(drawn, f.target, f.view),
+                _ => [0.0; 4],
+            };
+            self.started = f.now;
+            self.place = f.place;
+            self.selection = f.selection;
+        }
+        if !f.animate {
+            self.offset = [0.0; 4];
+        }
+        // Arrived when the time is up (or the clock went backwards).
+        let progress = (f.now - self.started) / OUTLINE_GLIDE_SECS;
+        self.gliding = self.offset != [0.0; 4] && (0.0..1.0).contains(&progress);
+        let left = if self.gliding { 1.0 - ease_out(progress as f32) } else { 0.0 };
+        let [l, t, r, b] = self.offset.map(|o| o * left);
+        let drawn = Rect::from_min_max(pos2(f.target.min.x + l, f.target.min.y + t), pos2(f.target.max.x + r, f.target.max.y + b));
+        self.drawn = Some(drawn);
+        drawn
     }
 
     /// The outline is on its way: keep repainting.
     // gridcraft: crates/ui-egui/src/selection_glide.rs:101 is_gliding
     pub fn is_gliding(&self) -> bool {
-        todo!()
+        self.gliding
     }
+}
+
+/// How far along an animation that started at `started` and lasts `secs` is at `now`: 0 to 1, or
+/// `None` once it is over (or the clock went backwards).
+fn progress(now: f64, started: f64, secs: f64) -> Option<f32> {
+    let s = (now - started) / secs;
+    (0.0..1.0).contains(&s).then_some(s as f32)
+}
+
+fn lerp(a: CaretBar, b: CaretBar, t: f32) -> CaretBar {
+    [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+}
+
+/// How far the bar's farthest end moves.
+fn distance(a: CaretBar, b: CaretBar) -> f32 {
+    (b[0] - a[0]).length().max((b[1] - a[1]).length())
+}
+
+fn is_finite(b: CaretBar) -> bool {
+    b[0].x.is_finite() && b[0].y.is_finite() && b[1].x.is_finite() && b[1].y.is_finite()
+}
+
+/// Decelerating curve of the outline's glide: quick off the mark, soft landing.
+fn ease_out(t: f32) -> f32 {
+    let r = 1.0 - t.clamp(0.0, 1.0);
+    1.0 - r * r * r
+}
+
+/// Each edge's distance from `to` back to `from`. No glide (all zero) when either end is off the
+/// view or the numbers are not sane. An edge sets off at most one view away, so the far edge of a
+/// whole column or row slides in from the border of the view instead of popping in at the end.
+fn offset_between(from: Rect, to: Rect, view: Rect) -> [f32; 4] {
+    let seen = view.expand(OFFSCREEN_SLACK);
+    if !(seen.intersects(from) && seen.intersects(to)) {
+        return [0.0; 4];
+    }
+    let limit = |v: f32| if v.is_finite() { v.abs() } else { 0.0 };
+    let (lx, ly) = (limit(view.width()), limit(view.height()));
+    let offset = [
+        (from.min.x - to.min.x).clamp(-lx, lx),
+        (from.min.y - to.min.y).clamp(-ly, ly),
+        (from.max.x - to.max.x).clamp(-lx, lx),
+        (from.max.y - to.max.y).clamp(-ly, ly),
+    ];
+    if offset.iter().all(|o| o.is_finite()) { offset } else { [0.0; 4] }
 }
