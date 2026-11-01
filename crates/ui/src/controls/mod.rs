@@ -28,6 +28,23 @@
 //! - [`Select`]: one of a list of options, chosen from a popup list under a field-like box.
 //! - [`ComboBox`]: a line of text with a popup list of suggestions that the typed text filters.
 //!
+//! The long tail other apps built, in the same grammar:
+//!
+//! - [`ChipField`]: removable chips in lines, with "+N more" and Clear All.
+//! - [`TreePicker`]: a field that opens a tree of items with a search.
+//! - [`IconPicker`]: a searchable grid of icons or tool tiles in groups.
+//! - [`LinkedFields`] and [`LinkButton`]: number fields kept in proportion or equal by a link.
+//! - [`preview_select`]: line-style previews and [`SelectText`] for a [`Select`] whose options
+//!   are pictures.
+//! - [`SplitButton`]: an action button with an arrow part that opens a menu.
+//! - [`BreadcrumbBar`]: a path as clickable segments.
+//! - [`Rating`]: one to five stars, and [`paint_rating`] for stars on thumbnails.
+//! - [`DatePicker`]: a calendar popup that picks a year, a month or a day ([`PickedDate`]).
+//! - [`AltTextField`]: an object's description with Mark as decorative.
+//! - [`Autocomplete`]: a suggestion list under a text editor the host owns.
+//! - [`mixed`]: [`MixedValue`] and the [`ApplyRow`] of a bulk-edit dialog.
+//! - [`ResetDot`]: a dot beside a changed dialog field that resets it.
+//!
 //! Controls take semantic properties only (variant, [`ControlSize`], icon, state), never sizes or
 //! colours. Colours come from their component tokens (`button.*`, `icon_button.*`,
 //! `segmented.*`, `check.*`, `slider.*`, `angle_dial.*`, `swatch.*`, `badge.*`, `kbd.*`, `progress.*`, `field.*`, `listbox.*`), so a theme's component
@@ -49,16 +66,32 @@
 //! # });
 //! ```
 
+mod alt_text;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod alt_text_tests;
 pub(crate) mod angle_dial;
 #[cfg(test)]
 mod angle_dial_tests;
+mod autocomplete;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod autocomplete_tests;
 pub(crate) mod badge;
+mod breadcrumb;
+#[cfg(test)]
+mod breadcrumb_tests;
 pub(crate) mod button;
 mod check;
 pub(crate) mod checkbox;
+mod chips;
+#[cfg(test)]
+mod chips_tests;
 pub(crate) mod combo_box;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod combo_box_tests;
+mod common_stories;
+mod date;
+#[cfg(test)]
+mod date_tests;
 pub mod expr;
 #[cfg(test)]
 mod expr_tests;
@@ -69,8 +102,17 @@ mod field_options_tests;
 pub(crate) mod field_wheel;
 pub mod gradient_track;
 pub(crate) mod icon_button;
+mod icon_picker;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod icon_picker_tests;
 pub(crate) mod kbd;
 pub(crate) mod link;
+mod linked;
+#[cfg(test)]
+mod linked_tests;
+pub mod mixed;
+#[cfg(test)]
+mod mixed_tests;
 pub mod number_field;
 #[cfg(test)]
 mod number_field_tests;
@@ -78,9 +120,18 @@ mod option_list;
 pub mod point_picker;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod point_picker_tests;
+pub mod preview_select;
+#[cfg(test)]
+mod preview_select_tests;
 pub(crate) mod progress;
 pub(crate) mod radio;
 pub(crate) mod range_slider;
+mod rating;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod rating_tests;
+mod reset_dot;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod reset_dot_tests;
 pub(crate) mod segmented;
 pub(crate) mod select;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -91,6 +142,9 @@ mod slider_tests;
 #[cfg(test)]
 mod small_tests;
 pub(crate) mod spinner;
+mod split_button;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod split_button_tests;
 pub mod swatch;
 pub(crate) mod switch;
 #[cfg(test)]
@@ -101,37 +155,55 @@ mod text_field_tests;
 pub mod thumb_row;
 pub(crate) mod toggle_button;
 pub(crate) mod tooltip;
+mod tree_picker;
+#[cfg(test)]
+mod tree_picker_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod ui_tests;
 
 use egui::{IdSalt, Ui};
 
+pub use alt_text::{AltText, AltTextField, AltTextLabels, starts_decorative};
 pub use angle_dial::{AngleDial, AngleDialStyle, AngleOrientation};
+pub use autocomplete::{
+    Autocomplete, AutocompleteKeys, AutocompleteLabels, AutocompleteResponse, Suggestion, completion_rest, paint_inline_completion,
+};
 pub use badge::{Badge, BadgeLook, BadgeStyle, BadgeTone};
+pub use breadcrumb::{BreadcrumbBar, BreadcrumbBarResponse, BreadcrumbLabels, Crumb, path_crumbs};
 pub use button::{Button, ButtonStyle, ButtonTone};
 pub use check::IndicatorColors;
 pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle};
+pub use chips::{Chip, ChipField, ChipFieldResponse, ChipLabels, chip_lines};
 pub use combo_box::ComboBox;
 pub use craft_theme::{ButtonVariant, ControlSize};
+pub use date::{DateLabels, DatePicker, DatePrecision, PickedDate, month_grid};
 pub use icon_button::{IconButton, IconButtonStyle, IconSource};
+pub use icon_picker::{IconPicker, IconPickerGroup, IconPickerItem, IconPickerLabels, IconPickerOutput, icon_matches};
 pub use kbd::{Kbd, KbdStyle};
 pub use link::{Link, LinkStyle};
+pub use linked::{LinkButton, LinkMode, LinkedFields, LinkedLabels, LinkedLayout, follow_equal, follow_ratio};
+pub use mixed::{Apply, ApplyRow, MixedLabels, MixedValue};
 pub use number_field::{NumberField, NumberFieldStyle, Preset};
 pub(crate) use option_list::{pressed_on, released};
 pub use point_picker::{PointPicker, PointPickerStyle};
+pub use preview_select::{LineStyle, SelectText, paint_line_style};
 pub use progress::{Progress, ProgressStyle};
 pub use radio::{PreparedRadioSet, RadioGroup, RadioSet, RadioStyle};
 pub use range_slider::RangeSlider;
+pub use rating::{MAX_STARS, Rating, RatingLabels, StarSize, paint_rating};
+pub use reset_dot::{ResetDot, ResetDotLabels};
 pub use segmented::{Segmented, SegmentedStyle};
 pub use select::{ListboxStyle, Select, SelectStyle};
 pub use slider::{Slider, SliderScale, SliderStyle, SliderThumb};
 pub use spinner::Spinner;
+pub use split_button::{SplitButton, SplitButtonResponse};
 pub use swatch::{Swatch, SwatchStyle, checkerboard};
 pub use switch::{Switch, SwitchStyle};
 pub use text_field::{SearchField, TextField, TextFieldStyle};
 pub use thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowLabels, ThumbRowOutput, ThumbRowStyle};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
 pub use tooltip::{Tooltip, TooltipExt, TooltipStyle};
+pub use tree_picker::{TreeEntry, TreePicker, TreePickerLabels, tree_path, tree_search};
 
 use crate::icons::IconSize;
 

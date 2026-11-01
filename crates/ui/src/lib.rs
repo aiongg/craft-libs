@@ -32,6 +32,9 @@ pub mod layout;
 pub mod list;
 pub mod localized;
 pub mod menu;
+pub mod motion;
+#[cfg(test)]
+mod motion_tests;
 pub mod panes;
 pub mod patterns;
 pub mod popover;

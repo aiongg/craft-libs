@@ -56,7 +56,8 @@ use crate::theme::{Tokens, TokensOf as _, UiTokens};
 /// active. A level taller than the window scrolls, with ▲ / ▼ strips that scroll while the
 /// pointer rests on them.
 ///
-/// Pointer: a click on an enabled row runs it and closes every level; a click on a disabled row or
+/// Pointer: a click on an enabled row runs it and closes every level (a
+/// [keep-open](MenuItem::keep_open) row leaves them open); a click on a disabled row or
 /// a separator leaves the menu open; a click outside closes it. Submenus open on hover with no
 /// delay and stay open while the pointer heads for them (PhotoCraft's aim triangle, 24 pt of
 /// slack, let go after 0.3 s at rest). With [`pressing`](Menu::pressing), the release of the
@@ -99,7 +100,8 @@ pub struct Menu<'a, T> {
 #[non_exhaustive]
 pub struct MenuResponse<T> {
     /// The command of the row run this pass (clicked, released on, Enter, Space or its
-    /// mnemonic). The menu has closed.
+    /// mnemonic). The menu has closed, unless the row
+    /// [keeps it open](crate::menu::MenuItem::keep_open).
     pub chosen: Option<T>,
     /// The menu is open after this pass.
     pub open: bool,

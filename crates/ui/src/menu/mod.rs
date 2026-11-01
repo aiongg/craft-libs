@@ -3,7 +3,8 @@
 //!
 //! - [`MenuItem`] and [`MenuEntry`]: a menu's data. A row has a label, an optional icon, a check or
 //!   radio mark ([`ItemKind`]), a shortcut ([`Kbd`](crate::controls::Kbd)), an enabled state, a
-//!   preferred mnemonic, and a command (`T`) or a submenu of entries.
+//!   preferred mnemonic, and a command (`T`) or a submenu of entries. A check or radio row can
+//!   [keep the menu open](MenuItem::keep_open) when it runs, for panel menus of settings.
 //! - [`Menu`]: the popup. Its owner (a menu bar's title, a button, a secondary click) makes the
 //!   egui [`Popup`](egui::Popup) with its anchor and open state; the menu draws the rows in it,
 //!   tracks the highlight, the pointer heading for a submenu, and the keys, and returns the
@@ -22,6 +23,8 @@
 pub mod bar;
 mod context;
 mod item;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod keep_open_tests;
 mod mnemonic;
 mod nav;
 mod popup;

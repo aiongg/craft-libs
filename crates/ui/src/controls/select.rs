@@ -18,6 +18,7 @@ use super::option_list::{
     Leading, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
     text_galley,
 };
+use super::preview_select::SelectText;
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, SearchField, Swatch, TextField, TextFieldStyle, icon_size};
 use crate::behavior::{ListOptions, Listbox, take_composing_keys, take_key};
@@ -177,6 +178,7 @@ pub struct Select<'a, T> {
     wheel_steps: bool,
     fit: bool,
     content: Option<RowContent<'a, T>>,
+    text_shown: SelectText,
     highlighted: Option<&'a mut Option<T>>,
     placeholder: String,
     size: ControlSize,
@@ -246,6 +248,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             wheel_steps: false,
             fit: false,
             content: None,
+            text_shown: SelectText::Always,
             highlighted: None,
             placeholder: String::new(),
             size: ControlSize::Md,
@@ -359,6 +362,17 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
+    /// Where the options' text shows beside their [`row_content`](Select::row_content): in the
+    /// list and the closed box (default), the list only, or nowhere (a preview select, see
+    /// [`preview_select`](super::preview_select)). Hidden text stays each option's accessible
+    /// name and tooltip, and type-ahead and the search still match it. Without row content the
+    /// text always shows. A box or row without its text is as wide as its content plus the
+    /// padding, and a [`fit`](Select::fit) box fits the content alone.
+    pub fn text_shown(mut self, shown: SelectText) -> Self {
+        self.text_shown = shown;
+        self
+    }
+
     /// While the list is open, writes the option under the pointer to `out`, else `None`. It is
     /// not an edit: hovering sends no `Update` and leaves the value alone. A host that previews
     /// the option applies `*out` and restores its own value when `*out` becomes `None`, as the
@@ -406,6 +420,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             wheel_steps,
             fit,
             content,
+            // S5-F7 hides the text where this says.
+            text_shown: _,
             highlighted,
             placeholder,
             size,

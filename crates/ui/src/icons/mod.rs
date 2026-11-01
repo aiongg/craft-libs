@@ -9,7 +9,8 @@
 //!
 //! Stroke sets (Lucide, Tabler) are drawn with the suite's stroke width ([`IconSize::stroke`]),
 //! whatever the size; fill sets (Phosphor, Carbon) as drawn. [`Icon::directional`] icons mirror
-//! in a right-to-left interface ([`crate::direction`]).
+//! in a right-to-left interface ([`crate::direction`]). [`IconPen`] draws icons in code on the
+//! sets' 24-unit grid, for glyphs no set has.
 //!
 //! ```
 //! use craft_ui::icons::{self, Icon, IconSize};
@@ -20,6 +21,9 @@
 //! ```
 
 mod compare;
+pub mod pen;
+#[cfg(test)]
+mod pen_tests;
 mod raster;
 mod svg_set;
 #[cfg(test)]
@@ -37,6 +41,7 @@ use crate::direction;
 use crate::theme::{Tokens, TokensOf};
 
 pub use compare::stories;
+pub use pen::{IconPen, arc_points};
 #[allow(deprecated, reason = "re-export of the deprecated catalog")]
 pub use svg_set::{SvgIconSet, SvgStyle};
 pub use tools::ToolIcon;

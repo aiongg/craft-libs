@@ -21,18 +21,29 @@
 //! - [`FindingsList`]: problems a check found, with a summary line; activating one reports it so
 //!   the app shows its item.
 //!
+//! - [`Table`]: rows of cells under a header of columns the user sorts, resizes, hides and
+//!   moves, arranged by a [`TableLayout`] the app keeps in its settings.
+//! - [`MetadataTable`]: name and value rows in groups, with a filter field and a column picker.
+//! - [`EventLog`]: warnings and errors newest first, with a level filter, counts and details.
+//!
 //! Rows draw with the `list.*` component tokens; [`ListRow::style`] is a pure function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod context_menu_tests;
 pub(crate) mod drag;
+mod events;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod events_tests;
 mod findings;
 mod findings_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod findings_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod list_tests;
+mod metadata;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod metadata_tests;
 mod rename;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod reorder_tests;
@@ -40,6 +51,12 @@ mod row;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod row_tests;
 pub(crate) mod spans;
+mod table;
+mod table_stories;
+#[cfg(test)]
+mod table_tests;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod table_ui_tests;
 mod toggle;
 mod tree;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -54,11 +71,14 @@ pub(crate) fn stories() -> Vec<crate::story::Story> {
 }
 
 pub use drag::{GhostThumb, paint_ghost};
+pub use events::{EventLevel, EventLog, EventLogLabels, EventLogOutput, EventLogState, LogEvent, paint_event_glyph};
 pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsListResponse, findings_summary};
+pub use metadata::{MetadataGroup, MetadataLabels, MetadataRow, MetadataTable, MetadataTableOutput, filter_metadata};
 pub use row::{
     DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget, TrailingItem, drop_line,
     paint_drop_mark,
 };
+pub use table::{SortOrder, Table, TableColumn, TableEvent, TableLabels, TableLayout, TableOutput, TableSort, TableStyle};
 pub use toggle::{ToggleColumn, ToggleEdit};
 pub use tree::{OpenChange, TreeRow, TreeState, TreeText};
 pub use view::{ContextMenuRequest, List, ListEvent, ListOutput};
