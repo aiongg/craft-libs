@@ -37,6 +37,9 @@ pub struct TypingLook {
     pub caret: Color32,
 }
 
+/// A host's galley builder: the text and the wrap width in, the galley out.
+type Layouter<'a> = &'a dyn Fn(&Ui, &str, f32) -> Arc<Galley>;
+
 /// How a field writes its value as text and reads typed text back: [`PlainText`] for text,
 /// whose every text is a value; a number field's codec, whose typed text is a draft until the
 /// run commits.
@@ -193,6 +196,7 @@ pub struct Typing<'a, C: Codec = PlainText> {
     invalid: bool,
     keys: EventFilter,
     tabular: bool,
+    layouter: Option<Layouter<'a>>,
     keep_rejected: bool,
     multiline: Option<usize>,
     edit_menu: bool,
@@ -263,6 +267,7 @@ impl<'a, C: Codec> Typing<'a, C> {
             invalid: false,
             keys: EventFilter::default(),
             tabular: false,
+            layouter: None,
             keep_rejected: true,
             multiline: None,
             edit_menu: false,
@@ -299,6 +304,14 @@ impl<'a, C: Codec> Typing<'a, C> {
     /// digits change.
     pub fn tabular(mut self, tabular: bool) -> Self {
         self.tabular = tabular;
+        self
+    }
+
+    /// Lays the text out with the host's `layouter` (its text and the wrap width in, the galley
+    /// out) instead of the field's own, so a host can draw runs of different formats. It
+    /// replaces [`tabular`](Typing::tabular).
+    pub fn layouter(mut self, layouter: &'a dyn Fn(&Ui, &str, f32) -> Arc<Galley>) -> Self {
+        self.layouter = Some(layouter);
         self
     }
 
@@ -466,6 +479,10 @@ impl<'a, C: Codec> Typing<'a, C> {
         state.store(ui.ctx(), id);
 
         let mut layouter = |ui: &Ui, text: &dyn TextBuffer, _wrap: f32| tabular_line(ui, look, self.password, text.as_str());
+        let mut hosted = |ui: &Ui, text: &dyn TextBuffer, wrap: f32| match self.layouter {
+            Some(host) => host(ui, text.as_str(), wrap),
+            None => tabular_line(ui, look, self.password, text.as_str()),
+        };
         let edit = match self.multiline {
             Some(rows) => TextEdit::multiline(&mut buffer).desired_rows(rows).lock_focus(false),
             None => TextEdit::singleline(&mut buffer).return_key(None::<KeyboardShortcut>),
@@ -482,7 +499,9 @@ impl<'a, C: Codec> Typing<'a, C> {
             .interactive(enabled)
             .password(self.password)
             .char_limit(self.char_limit);
-        if self.tabular {
+        if self.layouter.is_some() {
+            edit = edit.layouter(&mut hosted);
+        } else if self.tabular {
             edit = edit.layouter(&mut layouter);
         }
         let filter = edit.get_event_filter();

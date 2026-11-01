@@ -3,6 +3,7 @@
 use craft_ui::theme::{Base, install};
 use egui::vec2;
 use egui_kittest::HarnessBuilder;
+use egui_kittest::kittest::Queryable as _;
 
 use super::notes::*;
 use crate::lists::ListMarker;
@@ -56,4 +57,28 @@ fn typing_keeps_the_formatting_around_it() {
     assert_eq!(cut.paragraphs[0].runs, vec![run("bol", true), run("ain", false)]);
 
     assert_eq!(notes.typed("BOLD PLAIN"), None);
+}
+
+// Typing into the editor reports the notes with the typed text in the bold run it landed in.
+#[test]
+fn the_editor_reports_typed_text_with_its_formatting() {
+    let notes = NotesText { paragraphs: vec![paragraph(vec![run("bold", true), run(" plain", false)])] };
+    let mut harness =
+        HarnessBuilder::default().with_size(vec2(400.0, 300.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, changed: &mut Vec<NotesText>| {
+                if let Some(n) = NotesEditor::new("notes", &notes).show(ui).changed {
+                    changed.push(n);
+                }
+            },
+            Vec::new(),
+        );
+    harness.run();
+    harness.get_by_role_and_label(egui::accesskit::Role::MultilineTextInput, "Notes").focus();
+    harness.run();
+    harness.key_press(egui::Key::Home);
+    harness.key_press(egui::Key::ArrowRight);
+    harness.event(egui::Event::Text("x".into()));
+    harness.run();
+    let last = harness.state().last().cloned().expect("a change");
+    assert_eq!(last.paragraphs[0].runs, vec![run("bxold", true), run(" plain", false)]);
 }

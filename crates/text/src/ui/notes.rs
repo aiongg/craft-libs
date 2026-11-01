@@ -6,10 +6,12 @@
 //!
 //! The notes are the app's; [`NotesText`] is the shape the editor reads and writes.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
+use std::cell::RefCell;
 use std::sync::Arc;
 
+use craft_ui::controls::{ControlSize, TextField};
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::Labels as _;
 use craft_ui::primitives::Content;
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, scale};
 use egui::text::{CCursor, LayoutJob, TextFormat};
@@ -47,6 +49,15 @@ pub struct NotesText {
 }
 
 impl NotesText {
+    /// Plain paragraphs, one per line of `text`.
+    fn from_plain(text: &str) -> NotesText {
+        let paragraph = |line: &str| NotesParagraph {
+            runs: if line.is_empty() { Vec::new() } else { vec![NotesRun { text: line.to_owned(), ..NotesRun::default() }] },
+            ..NotesParagraph::default()
+        };
+        NotesText { paragraphs: text.split('\n').map(paragraph).collect() }
+    }
+
     /// The plain text, paragraphs joined with `\n` (what the text field edits).
     pub fn plain(&self) -> String {
         let paragraphs: Vec<String> = self.paragraphs.iter().map(|p| p.runs.iter().map(|r| r.text.as_str()).collect()).collect();
@@ -211,7 +222,32 @@ impl<'a> NotesEditor<'a> {
     // deckcraft: crates/ui-egui/src/panels/notes.rs:189 `editor`, :117 `para_layout`, :143
     // `job`, :162 `galley`, :215 `paint_bullets`.
     pub fn show(self, ui: &mut Ui) -> NotesResponse {
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| NotesLabels::of_ctx(ui.ctx()));
+        let look = Look::of(ui, self.zoom);
+        let plain = self.notes.plain();
+        let rows = plain.split('\n').count();
+        // The notes the field's text stands for and their galley, for the markers.
+        let laid: RefCell<Option<(NotesText, Arc<Galley>)>> = RefCell::new(None);
+        let layouter = |ui: &Ui, text: &str, wrap: f32| {
+            let notes = self.notes.typed(text).unwrap_or_else(|| NotesText::from_plain(text));
+            let galley = look.galley(ui, &notes, wrap);
+            *laid.borrow_mut() = Some((notes, galley.clone()));
+            galley
+        };
+        let edit = TextField::new(self.id_salt, labels.notes.as_str(), &plain)
+            .placeholder(labels.placeholder.as_str())
+            .multiline(rows)
+            .layouter(&layouter)
+            .show(ui);
+        let changed = match edit.event.as_ref() {
+            Some(EditEvent::Commit { changed: false, .. }) | None => None,
+            Some(event) => event.value().map(|text| self.notes.typed(text).unwrap_or_else(|| NotesText::from_plain(text))),
+        };
+        if let Some((notes, galley)) = laid.into_inner() {
+            let origin = text_origin(ui, edit.response.rect);
+            look.paint_markers(&ui.painter().with_clip_rect(edit.response.rect), &notes, &galley, origin);
+        }
+        NotesResponse { changed, response: edit.response }
     }
 }
 
@@ -239,28 +275,34 @@ impl<'a> NotesView<'a> {
         let galley = look.galley(ui, self.notes, ui.available_width());
         ui.push_id(self.id_salt, |ui| {
             let response = ui.add(Label::new(WidgetText::Galley(galley.clone())).selectable(true));
-            look.paint_markers(ui, self.notes, &galley, response.rect.min);
+            look.paint_markers(ui.painter(), self.notes, &galley, response.rect.min);
             response
         })
         .inner
     }
 }
 
-/// The notes' type and measures: the body role's face at the pane's zoom, document points as
-/// logical pixels at that zoom.
+/// The size of the notes' default text, points: indents are in points and scale with the text
+/// size as `size / NOTES_POINTS` (deckcraft: `panels/notes.rs:118` `para_layout`, :216).
+const NOTES_POINTS: f32 = 12.0;
+
+/// The largest indent, points (deckcraft: `panels/notes.rs:51` `px`).
+const MAX_INDENT: f64 = 400.0;
+
+/// The notes' type and measures: the body role's face at the pane's zoom, document points
+/// scaled with the text size.
 struct Look {
     regular: FontId,
     strong: FontId,
     color: Color32,
-    zoom: f32,
+    scale: f32,
     underline: egui::Stroke,
 }
 
-/// One paragraph laid out: its lines start at `margin`, the first line's text at `text` (both
-/// logical pixels from the notes' start edge) and its marker at `first`.
+/// One paragraph laid out: its lines start at `margin` and the first line's text at `text` (both
+/// logical pixels from the notes' start edge).
 struct Layout {
     job: LayoutJob,
-    first: f32,
     margin: f32,
     text: f32,
 }
@@ -275,9 +317,14 @@ impl Look {
             regular: FontId::new(body.size * zoom, body.family),
             strong: FontId::new(body.size * zoom, strong.family),
             color,
-            zoom,
+            scale: body.size * zoom / NOTES_POINTS,
             underline: scale::Stroke::W1.egui(ui.ctx(), color),
         }
+    }
+
+    /// A length in points from the file, bounded, in logical pixels.
+    fn indent(&self, points: f64) -> f32 {
+        if points.is_finite() { points.clamp(0.0, MAX_INDENT) as f32 * self.scale } else { 0.0 }
     }
 
     fn format(&self, run: &NotesRun) -> TextFormat {
@@ -295,7 +342,7 @@ impl Look {
 
     fn layout(&self, ui: &Ui, p: &NotesParagraph, marker: Option<&str>, wrap: f32) -> Layout {
         let (first, margin) = line_starts(p.level, p.margin, p.indent);
-        let points = |v: f64| if v.is_finite() { v.max(0.0) as f32 * self.zoom } else { 0.0 };
+        let points = |v: f64| self.indent(v);
         let (first, margin) = (points(first), points(margin));
         let width = |text: &str| ui.painter().layout_no_wrap(text.to_owned(), self.regular.clone(), self.color).size().x;
         // The text starts at the margin, after the marker and one space if the marker is wider
@@ -314,7 +361,7 @@ impl Look {
         if job.text.is_empty() {
             job.append("", 0.0, self.format(&NotesRun::default()));
         }
-        Layout { job, first, margin, text }
+        Layout { job, margin, text }
     }
 
     fn markers(notes: &NotesText) -> Vec<Option<String>> {
@@ -365,14 +412,14 @@ impl Look {
 
     /// The markers at the start of each paragraph's first line of `galley` (laid out from
     /// `notes`), drawn at `origin`.
-    fn paint_markers(&self, ui: &Ui, notes: &NotesText, galley: &Galley, origin: Pos2) {
+    fn paint_markers(&self, painter: &egui::Painter, notes: &NotesText, galley: &Galley, origin: Pos2) {
         let mut at = 0;
         for (p, marker) in notes.paragraphs.iter().zip(Self::markers(notes)) {
             if let Some(marker) = marker {
                 let row = galley.pos_from_cursor(CCursor::new(at));
                 let (first, _) = line_starts(p.level, p.margin, p.indent);
-                let x = if first.is_finite() { first.max(0.0) as f32 * self.zoom } else { 0.0 };
-                ui.painter().text(origin + vec2(x, row.center().y), Align2::LEFT_CENTER, marker, self.regular.clone(), self.color);
+                let x = self.indent(first);
+                painter.text(origin + vec2(x, row.center().y), Align2::LEFT_CENTER, marker, self.regular.clone(), self.color);
             }
             at += p.runs.iter().map(|r| r.text.chars().count()).sum::<usize>() + 1;
         }
@@ -380,6 +427,17 @@ impl Look {
 }
 
 /// The notes laid out as the view and the editor draw them, wrapped to `width`.
+#[cfg(test)]
 pub(super) fn notes_galley(ui: &Ui, notes: &NotesText, zoom: f32, width: f32) -> Arc<Galley> {
     Look::of(ui, zoom).galley(ui, notes, width)
+}
+
+/// Where a multi-line text field of `rect` puts its text: `field.pad_x` in from the start edge
+/// and the field's first-line margin down (`TextField` aligns the text to the top left).
+fn text_origin(ui: &Ui, rect: egui::Rect) -> Pos2 {
+    let tokens = Tokens::of(ui);
+    let style = TextField::style(&tokens, ControlSize::Md);
+    let font = tokens.families().font_id(tokens.typography.get(style.role));
+    let line = ui.fonts_mut(|f| f.row_height(&font)) + ui.spacing().extra_text_line_spacing;
+    rect.min + vec2(style.pad_x, ((style.height - line) / 2.0).max(0.0).round())
 }
