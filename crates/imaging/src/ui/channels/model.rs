@@ -174,7 +174,7 @@ pub enum ChannelsEvent<K> {
         /// The channel.
         key: K,
         /// The new name, trimmed.
-        name: String,
+        text: String,
     },
     /// A double click on the thumbnail, Enter, or Channel Options… in a menu, on a row that
     /// [has options](ChannelKind::has_options): the app opens its Channel Options dialog.
@@ -182,20 +182,20 @@ pub enum ChannelsEvent<K> {
     /// An alpha or spot row moved: a drag (`Begin`, `Commit` or `Cancel`) or Cmd/Ctrl+] and [
     /// (`Set`). Targets: before or after another alpha or spot row, before Quick Mask.
     Reorder(EditEvent<Move<K>>),
-    /// A click on a footer button; `key` is [`targeted_row`] (`None` without rows).
+    /// A click on a footer button; `rows` holds [`targeted_row`]'s key (empty without rows).
     Footer {
         /// The button.
         button: ChannelsFooterButton,
-        /// The row it acts on.
-        key: Option<K>,
+        /// The rows it acts on.
+        rows: Vec<K>,
     },
     /// A row dropped on a footer button: New duplicates it, Delete deletes it (the app asks first
     /// for a layer mask), Load Channel as Selection loads it. Refused drops report nothing.
     FooterDrop {
         /// The button.
         button: ChannelsFooterButton,
-        /// The dragged row.
-        key: K,
+        /// The dropped rows: the row the pointer grabbed.
+        rows: Vec<K>,
     },
     /// A pick in a row's context menu or the panel menu.
     Command {
