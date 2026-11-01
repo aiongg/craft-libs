@@ -543,3 +543,20 @@ fn w_and_h_edits_on_a_distorted_box_keep_its_perspective() {
     let got = edit(1, 1.5);
     assert!((got[0].x + 25.153).abs() < 1e-3 && (got[0].y + 12.577).abs() < 1e-3, "{got:?}");
 }
+
+// A ⇧ move inside the box still locks to eight directions once `drag` calls `lock_direction`.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn shift_move_inside_a_box_still_locks_to_eight_directions() {
+    todo!()
+}
+
+// `BoxRules::resize_only` refuses turning, skewing and distorting: the outside and ⌘-drags only
+// scale, corners stretch freely and ⇧ keeps the proportions.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn resize_only_rules_scale_and_move_but_never_turn() {
+    todo!()
+}

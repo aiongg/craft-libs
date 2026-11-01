@@ -592,3 +592,64 @@ fn the_zoom_tool_zooms_while_the_press_is_held() {
     release(&mut h, at, Modifiers::NONE);
     assert_eq!(h.state().view.zoom, held.zoom, "the release of a hold steps nothing");
 }
+
+// A tool whose `button_for` gives the secondary button while Alt is held begins its gesture with
+// an Alt + right press, and `ToolPointer::button` is `Secondary`.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn button_for_takes_the_secondary_press_while_alt_is_held() {
+    todo!()
+}
+
+// A tool that doesn't override `button_for` gets the same presses as before: its `button()`.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn button_for_default_is_the_tools_button() {
+    todo!()
+}
+
+// Alt released mid-gesture: the gesture still ends on the secondary button's release, not the
+// primary's, and drags keep arriving meanwhile.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_gesture_keeps_its_button_after_alt_is_released() {
+    todo!()
+}
+
+// A tool with parts is one Tab stop: Tab focuses the group, Page Down picks through `pick`, the
+// arrows then reach the tool's `key` and the host draws the focus ring round the picked part.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_tool_with_parts_is_one_tab_stop_whose_page_keys_pick() {
+    todo!()
+}
+
+// The group and each part are in the AccessKit tree with the tool's names and values; the picked
+// part is the group's active descendant.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn tool_parts_reach_the_accesskit_tree() {
+    todo!()
+}
+
+// A claimed press released on a part gives the group focus; a tool without parts adds no Tab stop.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn a_press_on_a_part_focuses_the_group_and_tools_without_parts_add_no_stop() {
+    todo!()
+}
+
+// A press the host took and one an overlay took share one click run: `ToolPointer::clicks` and
+// `PrimaryPress::clicks` agree for a double click (after K8's `click_count`).
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+fn the_host_and_an_overlay_count_one_click_run() {
+    todo!()
+}
