@@ -172,6 +172,7 @@ pub use autocomplete::{
     Autocomplete, AutocompleteKeys, AutocompleteLabels, AutocompleteResponse, AutocompleteStyle, Suggestion, completion_rest, paint_inline_completion,
 };
 pub use badge::{Badge, BadgeLook, BadgeStyle, BadgeTone};
+pub use blend_choice::BlendChoice;
 pub use breadcrumb::{BreadcrumbBar, BreadcrumbBarResponse, BreadcrumbLabels, BreadcrumbStyle, Crumb, path_crumbs};
 pub use button::{Button, ButtonStyle, ButtonTone};
 pub use check::IndicatorColors;

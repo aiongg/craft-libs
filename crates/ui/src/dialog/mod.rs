@@ -157,7 +157,7 @@ pub use new_document::{
     BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, DocumentOptions, DocumentPreset, NewDocumentDialog, NewDocumentLabels,
     Orientation, PresetCategory, push_recent, size_line,
 };
-pub use params::{CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, PathKind, PathRequest};
+pub use params::{CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, ParamRows, ParamRowsResponse, PathKind, PathRequest};
 pub use pass::any_modal;
 pub use password::{PasswordAnswer, PasswordDialog, PasswordLabels, PasswordPurpose, PasswordStrength, Secret, password_strength};
 pub use placement::{PlaceKey, keep_on_screen, next_pin};

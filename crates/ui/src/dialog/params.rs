@@ -677,7 +677,6 @@ pub(super) fn draw_rows(params: &[Param], dialog: DialogId, form: &mut Form<'_>,
 }
 
 /// What [`ParamRows::show`] returns.
-#[allow(dead_code, reason = "reachable once dialog/mod.rs re-exports it (a root change for the lead)")]
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct ParamRowsResponse {
@@ -711,7 +710,6 @@ pub struct ParamRowsResponse {
 ///   [`LocalHistory`](super::LocalHistory) settled while no drag is in progress) and its own
 ///   Reset.
 /// - No first-field focus: a panel opens without taking the keyboard.
-#[allow(dead_code, reason = "reachable once dialog/mod.rs re-exports it (a root change for the lead)")]
 #[must_use = "show the rows with `show`"]
 pub struct ParamRows<'a> {
     id_salt: egui::IdSalt,
@@ -719,7 +717,6 @@ pub struct ParamRows<'a> {
     preview: Option<SizedTexture>,
 }
 
-#[allow(dead_code, reason = "reachable once dialog/mod.rs re-exports it (a root change for the lead)")]
 impl<'a> ParamRows<'a> {
     pub fn new(id_salt: impl egui::AsIdSalt, params: &'a [Param]) -> Self {
         Self { id_salt: egui::IdSalt::new(id_salt), params, preview: None }

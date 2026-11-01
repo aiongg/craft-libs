@@ -157,6 +157,7 @@ pub use crisp::{crisp, crisp_shape};
 pub use cursor::{CursorBadge, CursorHost, CursorOptions, CursorStyle, PaintingCursor, ToolCursor};
 pub use grid::{CanvasGrid, GridLine, GridStyle};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
+pub use marquee::fields::{ConstraintFields, ConstraintFieldsOutput};
 pub use marquee::{
     Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle, fixed_size_pixels, marquee_pixels,
     square_pixels,
@@ -177,7 +178,9 @@ pub use selection_operation::{SelectionOperation, SelectionOperationLabels};
 pub use snap::{SNAP_PX, SnapGesture, SnapKind, SnapLine, SnapOptions, SnapTarget, SnapTargets, union as snap_union};
 pub use split::{SplitLabels, SplitLayout, SplitPane, SplitResponse, SplitViews};
 pub use textures::{DetailPlan, MAX_TEXTURE, texture_factor, texture_side};
-pub use tool_host::{CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolPointer};
+pub use tool_host::{
+    CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolParts, ToolPointer,
+};
 pub use tool_pill::{PillPlace, ToolPill, ToolPillLabels, ToolPillResponse};
 pub use turn::{
     PointerInk, SelectionBadge, distort_cursor, selection_badge_at, selection_badge_beside_pointer, selection_cursor, skew_cursor, turn_cursor,
