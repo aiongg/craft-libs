@@ -3,8 +3,7 @@
 use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::Color32;
 
-/// The tile grid's and compare tile's look. Until the `tile` token family exists (task TK3) the
-/// values come from the tokens they will derive from and the spec's numbers at Compact.
+/// The tile grid's and compare tile's look: the `tile` family.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TileStyle {
@@ -75,39 +74,39 @@ pub struct TileStyle {
 impl TileStyle {
     /// The style of `tokens`.
     pub fn of(tokens: &UiTokens) -> TileStyle {
-        let c = &tokens.color;
+        let t = &tokens.component.tile;
         TileStyle {
-            gap: 6.0,
-            inset: 4.0,
-            group_header: 40.0,
-            caption_gap: 2.0,
-            bar: 24.0,
-            flag: 14.0,
-            dot: 10.0,
-            checkbox: 16.0,
-            badge_height: 16.0,
-            status_band: 20.0,
-            range_bar: 4.0,
-            ring_width: 2.0,
-            ring_hover_width: 1.0,
-            ring_halo_width: 1.0,
-            wheel_share: 1.0 / 3.0,
-            ring_selected: c.accent.solid.to_egui(),
-            ring_halo: c.overlay.halo.to_egui(),
-            ring_hover: c.text.muted.to_egui(),
-            caption: c.text.muted.to_egui(),
-            caption_selected: c.text.normal.to_egui(),
-            detail: c.text.faint.to_egui(),
-            group_text: c.text.normal.to_egui(),
-            group_count: c.text.faint.to_egui(),
-            group_pinned: c.surface.panel.to_egui(),
-            scrim: c.surface.scrim.to_egui(),
-            badge_text: c.text.on_strong.to_egui(),
-            veil: c.surface.scrim.to_egui().gamma_multiply(0.45),
-            range: c.accent.solid.to_egui(),
-            scrub: c.accent.solid.to_egui(),
-            marquee_fill: c.accent.soft.to_egui(),
-            marquee_line: c.accent.border.to_egui(),
+            gap: t.gap,
+            inset: t.inset,
+            group_header: t.group_header,
+            caption_gap: t.caption_gap,
+            bar: t.bar,
+            flag: t.flag,
+            dot: t.dot,
+            checkbox: t.checkbox,
+            badge_height: t.badge_height,
+            status_band: t.status_band,
+            range_bar: t.range_bar,
+            ring_width: t.ring_width,
+            ring_hover_width: t.ring_hover_width,
+            ring_halo_width: t.ring_halo_width,
+            wheel_share: t.wheel_share,
+            ring_selected: t.ring_selected.to_egui(),
+            ring_halo: t.ring_halo.to_egui(),
+            ring_hover: t.ring_hover.to_egui(),
+            caption: t.caption.to_egui(),
+            caption_selected: t.caption_selected.to_egui(),
+            detail: t.detail.to_egui(),
+            group_text: t.group_text.to_egui(),
+            group_count: t.group_count.to_egui(),
+            group_pinned: t.group_pinned.to_egui(),
+            scrim: t.scrim.to_egui(),
+            badge_text: t.badge_text.to_egui(),
+            veil: t.veil.to_egui(),
+            range: t.range.to_egui(),
+            scrub: t.scrub.to_egui(),
+            marquee_fill: t.marquee_fill.to_egui(),
+            marquee_line: t.marquee_line.to_egui(),
         }
     }
 }

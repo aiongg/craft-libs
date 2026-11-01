@@ -1969,3 +1969,55 @@ pub const LAYERS_PERCENT_FIELD_WIDTH: f32 = 66.0;
 pub const LAYERS_FILTER_TYPE_WIDTH: f32 = 64.0;
 /// Panel Options' sample side as a factor of the row thumbnail.
 pub const LAYERS_OPTIONS_SAMPLE_SCALE: f32 = 2.0;
+
+/// Side of a media tile's flag glyph in its badge bar (LightCraft `grid.rs`).
+pub const TILE_FLAG: f32 = 14.0;
+/// Side of a media tile's colour dot (LightCraft: radius 5).
+pub const TILE_DOT: f32 = 10.0;
+/// Height of a media tile's badge bar (LightCraft `grid.rs:878`).
+pub const TILE_BAR: f32 = 24.0;
+/// Side of a media tile's check box in check mode (LightCraft `import/body.rs:417`).
+pub const TILE_CHECKBOX: f32 = 16.0;
+/// Height of a media tile's badge pill (LightCraft).
+pub const TILE_BADGE_HEIGHT: f32 = 16.0;
+/// Height of a media tile's status band (FilmCraft).
+pub const TILE_STATUS_BAND: f32 = 20.0;
+/// Height of a media tile's In/Out range bar (FilmCraft).
+pub const TILE_RANGE_BAR: f32 = 4.0;
+/// Width of a media tile's selection ring (PhotoCraft preset ring).
+pub const TILE_RING_WIDTH: f32 = 2.0;
+/// Width of a media tile's hover ring (PhotoCraft preset ring).
+pub const TILE_RING_HOVER_WIDTH: f32 = 1.0;
+/// Width of the halo outside a media tile's selection ring (PhotoCraft preset ring).
+pub const TILE_RING_HALO_WIDTH: f32 = 1.0;
+/// Share of the grid's height one wheel notch scrolls (LightCraft `WHEEL_STRIP_SHARE`).
+pub const TILE_WHEEL_SHARE: f32 = 1.0 / 3.0;
+/// Opacity of the veil over a rejected tile, as a factor of `surface.scrim` (LightCraft alpha 110).
+pub const TILE_VEIL_ALPHA: f32 = 0.45;
+/// Height of the compare tile's caption strip (LightCraft `compare.rs:219`).
+pub const TILE_COMPARE_CAPTION: f32 = 26.0;
+/// Margin around the compare panes (LightCraft).
+pub const TILE_COMPARE_MARGIN: f32 = 18.0;
+/// Gap between the compare panes (LightCraft).
+pub const TILE_COMPARE_GAP: f32 = 16.0;
+/// Room the compare caption needs to keep the name (LightCraft).
+pub const TILE_COMPARE_NAME_ROOM: f32 = 110.0;
+/// Side of the media bin's label chip (FilmCraft `project_views.rs`).
+pub const TILE_BIN_CHIP: f32 = 12.0;
+/// Radius of the media bin's label chip (FilmCraft `project_views.rs`).
+pub const TILE_BIN_CHIP_RADIUS: f32 = 2.5;
+
+/// Side of a link status badge (VideoCraft).
+pub const LINK_BADGE: f32 = 16.0;
+/// Size of the Link Media preview box (FilmCraft `media_dialogs.rs`).
+pub const LINK_PREVIEW: [f32; 2] = [192.0, 108.0];
+/// Height of the Link Media candidate list (FilmCraft).
+pub const LINK_CANDIDATES_HEIGHT: f32 = 108.0;
+/// Least height of the Link Media table (FilmCraft).
+pub const LINK_TABLE_MIN: f32 = 90.0;
+/// Greatest height of the Link Media table (FilmCraft).
+pub const LINK_TABLE_MAX: f32 = 320.0;
+/// Share of the window's height the Link Media table takes before its clamp (FilmCraft).
+pub const LINK_TABLE_SHARE: f32 = 0.3;
+/// Greatest width of the Link Media dialog (FilmCraft).
+pub const LINK_DIALOG_MAX_WIDTH: f32 = 760.0;
