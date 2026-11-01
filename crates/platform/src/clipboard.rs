@@ -38,8 +38,9 @@ pub const SVG: &str = "image/svg+xml";
 pub const PDF: &str = "application/pdf";
 /// `text/uri-list`: copied files, one `file://` URI per line (CRLF line ends, RFC 2483).
 pub const URI_LIST: &str = "text/uri-list";
-/// Any bitmap the clipboard holds (`image/png`, `image/bmp`, a TIFF on macOS…), read as
-/// [`ClipboardImage`]. Only for [`ClipboardBackend::has`] and [`Clipboard::has`].
+/// Any bitmap the clipboard holds (`image/png`, `image/bmp`, a TIFF on macOS…). A read returns it
+/// as an [`RGBA8`] flavor (never PNG: this crate has no PNG encoder); [`ClipboardBackend::read_image`]
+/// returns it as [`ClipboardImage`]. Also for [`ClipboardBackend::has`] and [`Clipboard::has`].
 pub const BITMAP: &str = "image/*";
 /// A raw bitmap as [`EventClipboard`] carries it: width and height as little-endian `u32`s, then
 /// the straight RGBA8 pixels. What [`flavors_from_event`] makes of egui's `Event::PasteImage`.
@@ -168,7 +169,7 @@ pub trait ClipboardBackend: Send {
     /// Replaces the clipboard's contents with `flavours`, best first; none empties it.
     fn write(&mut self, flavors: &[Flavor]) -> Result<(), ClipboardError>;
     /// The first of `mimes` the clipboard holds, at most `limit` bytes of it (more is
-    /// [`ClipboardError::TooLarge`]). [`BITMAP`] matches any bitmap, returned as PNG.
+    /// [`ClipboardError::TooLarge`]). [`BITMAP`] matches any bitmap, returned as an [`RGBA8`] flavor.
     fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavor>, ClipboardError>;
     /// The clipboard's bitmap as RGBA8, at most `limit` bytes of pixels.
     fn read_image(&mut self, limit: u64) -> Result<Option<ClipboardImage>, ClipboardError>;

@@ -6,7 +6,8 @@
 //! `_`); no bidirectional controls (U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069,
 //! dropped: they make `gnp.exe` read as `exe.png`); no leading spaces and no trailing dots or
 //! spaces (Windows drops them, so `report.` would write `report`); Windows' device names (`CON`,
-//! `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, with any extension) get a leading `_`.
+//! `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`, `COM0`–`COM9`, `LPT0`–`LPT9` and the superscript forms,
+//! with any extension) get a leading `_`.
 
 /// The longest name [`safe_file_name`] and [`safe_file_stem`] return, in bytes: 200, so
 /// `" (page 12).pdf"` still fits the usual 255-byte limit (PdfCraft `file_stem_from_user`).
