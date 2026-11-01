@@ -19,5 +19,7 @@ craft_ui::words! {
         new_layer: "filterGallery.newLayer" = "New effect layer";
         delete_layer: "filterGallery.deleteLayer" = "Delete effect layer";
         visibility: "filterGallery.visibility" = "Visibility";
+        /// The line under the rows of a filter that uses the foreground and background colours.
+        uses_colors: "filterGallery.usesColors" = "Uses the foreground and background colours.";
     }
 }

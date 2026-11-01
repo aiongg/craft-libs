@@ -13,7 +13,7 @@
 //! ([`FilterGalleryWorkspace::visible`]) for each [`PreviewTicket`]. OK runs `filter.filterGallery`
 //! with the effects; a smart filter opened again passes its recorded effects.
 //!
-//! Files: `catalog` and `session` (task WS-FG1); `tree`, `stack`, `settings` and this file's
+//! Files: `catalog` and `session` (task WS-FG1); `tree`, `stack`, `parameters` and this file's
 //! bodies (WS-FG2).
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
@@ -40,11 +40,18 @@ pub use tree::{FilterTree, FilterTreeResponse};
 
 use egui::{Context, Rect};
 
-use craft_ui::canvas::RasterSource;
-use craft_ui::canvas::kurbo;
-use craft_ui::canvas::textures::Thumbnails;
-use craft_ui::dialog::full_window::{FullWindowView, PreviewStatus, PreviewTicket};
-use craft_ui::dialog::{ColorRequest, DialogState, LocalHistory, Outcome, Step};
+use craft_ui::canvas::kurbo::Size;
+use craft_ui::canvas::textures::{ThumbSource, Thumbnails};
+use craft_ui::canvas::{CanvasView, HandTool, NavigationOptions, RasterSource, kurbo};
+use craft_ui::dialog::full_window::{
+    FullWindowCanvas, FullWindowLabels, FullWindowSide, FullWindowTitle, FullWindowView, FullWindowZoomBar, PreviewStatus, PreviewTicket, SideFooter,
+};
+use craft_ui::dialog::{
+    ButtonRole, ColorRequest, DialogLabels, DialogState, FieldValue, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step,
+};
+use craft_ui::localized::Labels as _;
+use craft_ui::primitives::Gap;
+use craft_ui::theme::{Tokens, TokensOf as _};
 
 /// What opens the workspace.
 #[derive(Clone, Debug)]
@@ -93,7 +100,6 @@ pub struct FilterGalleryOutput {
 ///
 /// Keys: ⌘+, ⌘−, ⌘0, ⌘1 zoom the preview, never the canvas behind; ⌘Z, ⇧⌘Z the stack's history;
 /// Enter OK, Esc Cancel.
-#[expect(dead_code, reason = "skeleton: `show` (task WS-FG2) reads the fields")]
 pub struct FilterGalleryWorkspace {
     dialog: DialogState<FilterGallerySession>,
     session: FilterGallerySession,
@@ -106,10 +112,19 @@ pub struct FilterGalleryWorkspace {
     preview: PreviewStatus,
     /// "Preview N ms" in the zoom bar while no render runs (the app's timing).
     note: Option<String>,
+    /// The Hand tool: the preview's only tool, kept for its drag between passes.
+    hand: HandTool,
+    /// The canvas view of the last pass: what `visible` reads.
+    shown: Option<CanvasView>,
+    /// The stack changed outside `show` (an undo, a colour): the next pass asks for a preview.
+    dirty: bool,
+    /// Events from calls outside `show`, reported by the next pass.
+    queued: Vec<FilterGalleryEvent>,
 }
 
 impl FilterGalleryWorkspace {
     pub fn new(open: FilterGalleryOpen) -> Self {
+        let [width, height] = open.size;
         Self {
             dialog: DialogState::new(),
             history: LocalHistory::new(&open.session),
@@ -120,6 +135,10 @@ impl FilterGalleryWorkspace {
             view: FullWindowView::new(),
             preview: PreviewStatus::new(),
             note: None,
+            hand: HandTool::new(Size::new(f64::from(width), f64::from(height)), NavigationOptions::default()),
+            shown: None,
+            dirty: true,
+            queued: Vec::new(),
         }
     }
 
@@ -130,17 +149,116 @@ impl FilterGalleryWorkspace {
     /// visible part) with the `HandTool`. Changes go through [`FilterGallerySession::apply`], then
     /// the history settles (busy during a slider drag) and a change, a zoom or a pan asks for a
     /// ticket.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-FG2")]
+    ///
+    /// `thumb_source` renders the pictures `thumbs` asks for (one per filter, the filter applied
+    /// to a small crop of the layer).
     pub fn show(
         &mut self,
         ctx: &Context,
         catalog: &dyn FilterCatalog,
         thumbs: &Thumbnails<GalleryThumb>,
+        thumb_source: &dyn ThumbSource<GalleryThumb>,
         preview: &dyn RasterSource,
     ) -> FilterGalleryOutput {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:636 `show` (title :645-655, zoom bar
         // :673-700), :483 `keys`.
-        todo!()
+        let labels = FilterGalleryLabels::of_ctx(ctx);
+        let full = FullWindowLabels::of_ctx(ctx);
+        let dialog_labels = DialogLabels::of_ctx(ctx);
+        let categories = catalog.categories();
+        let filter_label = |key: &str| catalog.filter(key).map_or_else(|| key.to_owned(), |filter| filter.label);
+        let mut events = std::mem::take(&mut self.queued);
+        let mut changed = std::mem::take(&mut self.dirty);
+        let visible_before = self.visible();
+        let selected_before = self.selected;
+        self.selected = self.selected.min(self.session.effects.len().saturating_sub(1));
+
+        let name = self.session.effects.get(self.selected).map_or_else(|| labels.name.clone(), |effect| filter_label(&effect.filter));
+        let title = FullWindowTitle::new(name).subject(self.subject.as_str()).zoom(self.view.zoom_percent()).labels(full.clone()).text(ctx);
+        let footer = vec![
+            FooterButton::new(ButtonRole::Default, dialog_labels.ok.as_str()),
+            FooterButton::new(ButtonRole::Cancel, dialog_labels.cancel.as_str()),
+        ];
+
+        let mut busy = false;
+        let mut dialog_changes: Vec<EffectChange> = Vec::new();
+        let mut color_request = None;
+        let mut tree_pick = None;
+        let (selected, view, status, note, hand, shown) =
+            (&mut self.selected, &mut self.view, &self.preview, &self.note, &mut self.hand, &mut self.shown);
+        let response = FullWindowDialog::new("filter-gallery").title(title).labels(dialog_labels.clone()).show(
+            ctx,
+            &mut self.dialog,
+            &mut self.session,
+            |ui, session, fx| {
+                // The settings column sits at the end edge, the folders inwards of it.
+                let mut stack_pick = None;
+                FullWindowSide::new("settings").footer(SideFooter::top(footer)).show(ui, fx, |ui| {
+                    let current = *selected;
+                    if let Some(effect) = session.effects.get(current) {
+                        let filter = catalog.filter(&effect.filter);
+                        let parameters =
+                            EffectParameters::new("parameters", current, effect, filter.as_ref(), &categories, &filter_label, &labels).show(ui);
+                        busy = parameters.dragging;
+                        color_request = parameters.rows.and_then(|rows| rows.color);
+                        dialog_changes.extend(parameters.change);
+                    }
+                    ui.add_space(Gap::Row.points(&Tokens::of(ui)));
+                    let stack = EffectStack::new("stack", &session.effects, current, &filter_label, &labels).show(ui);
+                    stack_pick = stack.selected;
+                    dialog_changes.extend(stack.change);
+                    status.show(ui, &full);
+                });
+                for change in std::mem::take(&mut dialog_changes) {
+                    if session.apply(change.clone(), catalog, selected) {
+                        events.push(FilterGalleryEvent::Stack(change));
+                        changed = true;
+                    }
+                }
+                if let Some(pick) = stack_pick {
+                    *selected = pick.min(session.effects.len().saturating_sub(1));
+                }
+
+                let current = session.effects.get(*selected).map_or("", |effect| effect.filter.as_str());
+                FullWindowSide::new("filters").show(ui, fx, |ui| {
+                    let tree = FilterTree::new("tree", &categories, &filter_label, current, thumbs, thumb_source, &labels).show(ui);
+                    tree_pick = tree.picked;
+                });
+                if let Some(filter) = tree_pick.take() {
+                    let change = EffectChange::SetFilter { index: *selected, filter };
+                    if session.apply(change.clone(), catalog, selected) {
+                        events.push(FilterGalleryEvent::Stack(change));
+                        changed = true;
+                    }
+                }
+
+                let mut bar = FullWindowZoomBar::new("zoom", view).progress(status.progress());
+                if let Some(note) = note.as_deref() {
+                    bar = bar.note(note);
+                }
+                bar.show(ui);
+                let [width, height] = preview.size();
+                hand.size = Size::new(f64::from(width), f64::from(height));
+                let canvas = FullWindowCanvas::new("preview", view).source(preview).tool(hand).labels(full.clone()).show(ui);
+                *shown = Some(canvas.view);
+            },
+        );
+        if let Some(request) = color_request {
+            events.push(FilterGalleryEvent::PickColor(request));
+        }
+        if response.active
+            && let Some(step) = take_step(ctx)
+        {
+            self.step(step);
+        }
+        self.history.settle(&self.session, busy);
+        changed |= std::mem::take(&mut self.dirty);
+        events.append(&mut self.queued);
+        if self.selected != selected_before {
+            events.push(FilterGalleryEvent::Select(self.selected));
+        }
+        let preview_wanted = (changed || self.visible() != visible_before).then(|| self.preview.request());
+        FilterGalleryOutput { events, preview_wanted, outcome: response.outcome, rect: response.rect }
     }
 
     pub fn session(&self) -> &FilterGallerySession {
@@ -149,18 +267,28 @@ impl FilterGalleryWorkspace {
 
     /// The part of the document the preview shows and the zoom (screen pixels per document
     /// pixel): what the app's job renders, plus the filters' reach.
-    #[expect(clippy::todo, reason = "skeleton: task WS-FG2")]
     pub fn visible(&self) -> (kurbo::Rect, f64) {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:496 `view`.
-        todo!()
+        let image = kurbo::Rect::new(0.0, 0.0, f64::from(self.size[0]), f64::from(self.size[1]));
+        let part = self.shown.map_or(image, |view| view.visible().intersect(image));
+        (part.expand(), self.view.zoom())
     }
 
     /// The colour the app picked for a [`FilterGalleryEvent::PickColor`] request: written into the
     /// request's key of the selected effect (one undo step).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-FG2")]
     pub fn set_color(&mut self, request: &ColorRequest, rgb: [f32; 3]) {
         // new: `ParamRows` reports colour requests; the gallery's host answers them.
-        todo!()
+        let index = self.selected.min(self.session.effects.len().saturating_sub(1));
+        let Some(effect) = self.session.effects.get_mut(index) else { return };
+        let mut fields = effect.fields.clone();
+        fields.set(request.key.as_str(), FieldValue::Color(rgb));
+        if fields == effect.fields {
+            return;
+        }
+        effect.fields = fields.clone();
+        self.history.settle(&self.session, false);
+        self.queued.push(FilterGalleryEvent::Stack(EffectChange::Fields { index, fields }));
+        self.dirty = true;
     }
 
     pub fn preview_ready(&mut self, ticket: PreviewTicket) {
@@ -182,9 +310,17 @@ impl FilterGalleryWorkspace {
     }
 
     /// Undo or redo from the app's Edit menu; returns whether it stepped (the selection is clamped).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-FG2")]
     pub fn step(&mut self, step: Step) -> bool {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:158 `step`.
-        todo!()
+        if !self.history.step(&mut self.session, step) {
+            return false;
+        }
+        let last = self.session.effects.len().saturating_sub(1);
+        if self.selected > last {
+            self.selected = last;
+            self.queued.push(FilterGalleryEvent::Select(last));
+        }
+        self.dirty = true;
+        true
     }
 }
