@@ -4,8 +4,10 @@
 use egui::accesskit::Role;
 use egui::{Context, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, pos2, vec2};
 
-use super::{LinkMode, LinkedFields, follow_equal, follow_ratio};
-use crate::edit::EditEvent;
+use super::NumberField;
+use super::linked::{as_reported, reported_event};
+use super::{LinkMode, LinkedFields, LinkedLayout, LinkedSlot, follow_equal, follow_ratio};
+use crate::edit::{CancelReason, EditEvent, GestureId};
 use crate::localized::{LocaleNumbers, focus_first_field};
 use crate::theme::{Base, install};
 
@@ -39,6 +41,8 @@ struct Rig {
     mode: LinkMode,
     numbers: LocaleNumbers,
     events: Vec<EditEvent<[f64; 2]>>,
+    /// `None`: the fields in a grid with X and Y cells (`show_cells`); else the layout.
+    layout: Option<LinkedLayout>,
     /// Each AccessKit node's role, name and bounds in the last frame.
     nodes: Vec<(Role, String, Rect)>,
 }
@@ -48,7 +52,17 @@ impl Rig {
         let ctx = Context::default();
         install(&ctx, &Base::suite_default());
         ctx.enable_accesskit();
-        let mut rig = Self { ctx, time: 0.0, values, linked, mode, numbers: LocaleNumbers::from_tag("en"), events: Vec::new(), nodes: Vec::new() };
+        let mut rig = Self {
+            ctx,
+            time: 0.0,
+            values,
+            linked,
+            mode,
+            numbers: LocaleNumbers::from_tag("en"),
+            events: Vec::new(),
+            layout: Some(LinkedLayout::Row),
+            nodes: Vec::new(),
+        };
         rig.frame(vec![]);
         rig.frame(vec![]);
         rig
@@ -61,7 +75,31 @@ impl Rig {
         let ctx = self.ctx.clone();
         let numbers = self.numbers.clone();
         let output = ctx.run_ui(input, |ui| {
-            let out = LinkedFields::new("size", ["W:", "H:"], self.values, &mut self.linked, self.mode, &numbers).show(ui);
+            let fields = LinkedFields::new("size", ["W:", "H:"], self.values, &mut self.linked, self.mode, &numbers);
+            let out = match self.layout {
+                Some(layout) => fields.layout(layout).show(ui),
+                None => {
+                    let cell = |ui: &mut egui::Ui, name: &str| {
+                        let _ = NumberField::new(name, name, 0.0, &numbers).show(ui);
+                    };
+                    egui::Grid::new("clone")
+                        .show(ui, |ui| {
+                            fields.show_cells(ui, |ui, slot, add| match slot {
+                                LinkedSlot::Field(0) => {
+                                    cell(ui, "X:");
+                                    add(ui);
+                                }
+                                LinkedSlot::Link => {
+                                    add(ui);
+                                    ui.end_row();
+                                    cell(ui, "Y:");
+                                }
+                                LinkedSlot::Field(_) => add(ui),
+                            })
+                        })
+                        .inner
+                }
+            };
             if let Some(event) = out.event {
                 self.events.push(event.clone());
                 if let Some(value) = event.value() {
@@ -146,4 +184,69 @@ fn a_linked_scrub_moves_both_fields_in_one_gesture() {
     assert_eq!(rig.values, [100.0, 80.0]);
     rig.frame(vec![Event::Key { key: egui::Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
     assert!(matches!(rig.events.last(), Some(EditEvent::Commit { value: [100.0, 80.0], .. })), "{:?}", rig.events);
+}
+
+fn center_of(rig: &Rig, role: Role, name: &str) -> Pos2 {
+    rig.center(role, name)
+}
+
+// In a harness: `Columns` puts W, the link and H side by side on one line; `show_cells` puts X, W and the link on one grid row and Y, H under X and W.
+#[test]
+fn the_layouts_place_the_fields_as_the_apps_do() {
+    let mut rig = Rig::new([10.0, 20.0], true, LinkMode::Equal);
+    rig.layout = Some(LinkedLayout::Columns);
+    rig.frame(vec![]);
+    rig.frame(vec![]);
+    let (w, h) = (center_of(&rig, Role::SpinButton, "W:"), center_of(&rig, Role::SpinButton, "H:"));
+    let link = center_of(&rig, Role::Button, "Make all settings the same");
+    assert!(w.x < link.x && link.x < h.x, "{w:?} {link:?} {h:?}");
+    assert!((w.y - h.y).abs() < 1.0 && (link.y - w.y).abs() < 1.0, "one line: {w:?} {link:?} {h:?}");
+
+    rig.layout = None;
+    rig.frame(vec![]);
+    rig.frame(vec![]);
+    let at = |rig: &Rig, name: &str| center_of(rig, Role::SpinButton, name);
+    let (x, w, y, h) = (at(&rig, "X:"), at(&rig, "W:"), at(&rig, "Y:"), at(&rig, "H:"));
+    let link = center_of(&rig, Role::Button, "Make all settings the same");
+    assert!(x.x < w.x && w.x < link.x && (x.y - w.y).abs() < 1.0 && (link.y - w.y).abs() < 1.0, "first row: {x:?} {w:?} {link:?}");
+    assert!(y.y > x.y && (y.y - h.y).abs() < 1.0 && (y.x - x.x).abs() < 1.0 && (h.x - w.x).abs() < 1.0, "second row: {y:?} {h:?}");
+}
+
+// In a harness: digits typed into W of 400×300 keep the starting ratio (W 40 at H 30), and Esc ends the typing with one Cancel.
+#[test]
+fn typing_keeps_the_ratio_and_escape_cancels() {
+    let mut rig = Rig::new([400.0, 300.0], true, LinkMode::Ratio);
+    focus_first_field(&rig.ctx, true);
+    rig.frame(vec![]);
+    rig.frame(vec![]);
+    for digit in ["4", "0"] {
+        rig.frame(vec![Event::Text(digit.to_owned())]);
+    }
+    assert_eq!(rig.values, [40.0, 30.0]);
+    rig.frame(vec![Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
+    let cancels = rig.events.iter().filter(|e| matches!(e, EditEvent::Cancel { .. })).count();
+    assert_eq!(cancels, 1, "{:?}", rig.events);
+    assert!(matches!(rig.events.last(), Some(EditEvent::Cancel { .. })), "{:?}", rig.events);
+}
+
+// `as_reported` hands the host a `Begin` before an `Update` or `Commit` of a gesture whose own `Begin` another field's `Commit` displaced.
+#[test]
+fn a_gesture_the_host_never_saw_begin_is_reported_whole() {
+    let (a, b) = (GestureId::next(), GestureId::next());
+    let update = EditEvent::update(b, [1.0], Modifiers::NONE);
+    let (event, reported) = as_reported(update.clone(), Some(a));
+    assert!(matches!(event, Some(EditEvent::Begin { id, value: Some(_) }) if id == b), "{event:?}");
+    assert_eq!(reported, Some(b));
+    let (event, reported) = as_reported(update.clone(), Some(b));
+    assert_eq!((event, reported), (Some(update), Some(b)), "a begun gesture goes on");
+    let (event, reported) = as_reported(EditEvent::commit(b, [2.0], true, Modifiers::NONE), Some(a));
+    assert!(matches!(event, Some(EditEvent::Set { value: [2.0], .. })), "{event:?}");
+    assert_eq!(reported, None);
+    let (event, _) = as_reported(EditEvent::<[f64; 1]>::cancel(b, CancelReason::Escape), Some(a));
+    assert!(event.is_none());
+
+    let begin = (1, EditEvent::begin(b));
+    let commit = (0, EditEvent::commit(a, 5.0, true, Modifiers::NONE));
+    assert!(matches!(reported_event(&[begin.clone(), commit.clone()]), Some((0, EditEvent::Commit { .. }))), "an ending wins over a beginning");
+    assert!(matches!(reported_event(&[begin]), Some((1, EditEvent::Begin { .. }))));
 }

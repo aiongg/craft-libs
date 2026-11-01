@@ -156,12 +156,17 @@ mod picker {
         let at = harness.get_by_label("Family").rect().center();
         harness.hover_at(at);
         harness.run();
-        for pressed in [true, false] {
-            harness.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
-            harness.run();
-        }
+        harness.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::NONE });
         harness.run();
+        harness.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::NONE });
+        harness.step();
         assert_eq!(harness.state().value, Some(4));
+        assert_eq!(
+            harness.get_by_role(Role::ComboBox).accesskit_node().value().as_deref(),
+            Some("Library / Family"),
+            "the pass of the pick already shows and reports the new path"
+        );
+        harness.run();
         assert!(items(&harness).is_empty(), "the popup closed");
     }
 }

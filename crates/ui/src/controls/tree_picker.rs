@@ -139,7 +139,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
         let enabled = enabled && ui.is_enabled();
         let index = Index::of(&ctx, id, entries);
         let chosen = value.as_ref().and_then(|key| index.positions.get(key).copied());
-        let path = chosen.map(|at| index.path(entries, at, &labels.separator)).unwrap_or_default();
+        let mut path = chosen.map(|at| index.path(entries, at, &labels.separator)).unwrap_or_default();
 
         let open_id = id.with("open");
         let mut open = enabled && ctx.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
@@ -196,6 +196,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
         if let Some(at) = picked {
             let key = entries[at].key.clone();
             *value = Some(key.clone());
+            path = index.path(entries, at, &labels.separator);
             event = Some(EditEvent::set(Some(key), ui.input(|i| i.modifiers)));
             response.mark_changed();
             ctx.memory_mut(|m| m.request_focus(id));
@@ -361,6 +362,7 @@ impl Browsing {
         }
 
         let keyboard_enter = activate;
+        // Search results are items only (`tree_search` skips folders), so a folder row exists only in the tree.
         let mut act = |at: usize, this: &mut Self| {
             let entry = &entries[at];
             if entry.folder && !searching {

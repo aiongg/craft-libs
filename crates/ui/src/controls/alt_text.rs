@@ -35,8 +35,10 @@ pub struct AltText {
 /// Alt text's editor, after DeckCraft's Alt Text dialog and WordCraft's Alt Text pane.
 ///
 /// ```ignore
-/// let start = AltText { text: first.descr.clone(), decorative: starts_decorative(shapes.iter().map(|s| s.decorative)) };
-/// let out = AltTextField::new("alt", &mut dialog.alt).show(ui);
+/// let differ = shapes.iter().any(|s| s.descr != shapes[0].descr);
+/// let text = if differ { String::new() } else { shapes[0].descr.clone() };
+/// let start = AltText { text, decorative: starts_decorative(shapes.iter().map(|s| s.decorative)) };
+/// let out = AltTextField::new("alt", &mut dialog.alt).mixed(differ).show(ui);
 /// // On OK: app.run("shape.altText", dialog.alt)
 /// ```
 ///
@@ -46,8 +48,10 @@ pub struct AltText {
 ///   as decorative.
 /// - **Decorative.** While checked, the box is disabled and keeps its text (PowerPoint's): the
 ///   app stores the text and the flag; unchecking brings the text back.
-/// - **Mixed** ([`mixed`](Self::mixed)): the selection's descriptions differ; the box is empty
-///   with [`AltTextLabels::mixed`] as its placeholder until the user types.
+/// - **Mixed** ([`mixed`](Self::mixed)): the selection's descriptions differ. The box shows
+///   `value.text` as given and [`AltTextLabels::mixed`] as its placeholder, so the host starts
+///   it with an empty text (no object's description stands for the others) and the box stays
+///   empty until the user types.
 /// - **Report.** The box is one typing run per gesture, as a
 ///   [`TextField`](crate::controls::TextField); the check is a `Set`. Both report the whole
 ///   [`AltText`] in one [`EditResponse`].

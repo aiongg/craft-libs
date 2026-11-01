@@ -71,10 +71,9 @@ impl<T: Clone + PartialEq> Apply<T> {
     /// The first item's value, `mixed` when another differs, not applied; `None` for no items.
     // pdfcraft: crates/ui-egui/src/tools/bulk_fields.rs:18 from_values
     pub fn of(values: impl IntoIterator<Item = T>) -> Option<Self> {
-        let mut values = values.into_iter();
-        let value = values.next()?;
-        let mixed = values.any(|other| other != value);
-        Some(Apply { value, mixed, apply: false })
+        let values: Vec<T> = values.into_iter().collect();
+        let mixed = MixedValue::of(&values)?.is_mixed();
+        Some(Apply { value: values[0].clone(), mixed, apply: false })
     }
 
     /// The value to write when applied and different from `current`.
