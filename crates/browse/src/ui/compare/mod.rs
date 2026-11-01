@@ -7,7 +7,10 @@
 //!     .caption(CompareCaption::new(tr("Select"), &photo_a.name).rating(photo_a.rating).flag(photo_a.flag))
 //!     .active(active == 0)
 //!     .show(ui, left);
-//! if select.double_clicked { CompareTile::toggle_zoom(&mut state.view, photo_a.size, left, ui.ctx().pixels_per_point()) }
+//! if select.double_clicked {
+//!     let image_area = Rect::from_min_max(left.min, pos2(left.right(), left.bottom() - style.caption));
+//!     CompareTile::toggle_zoom(&mut state.view, photo_a.size, image_area, ui.ctx().pixels_per_point())
+//! }
 //! ```
 
 mod arrange;
@@ -31,10 +34,8 @@ craft_ui::words! {
     pub struct CompareLabels {
         rendering: "browse.compareRendering" = "Rendering…";
         render_failed: "browse.compareRenderFailed" = "Render failed";
-        /// The tile's accessible name: `{label}`: `{name}`, then `{details}` (stars, flag, label).
+        /// The tile's accessible name: `{label}`: `{name}`, then `{details}` (rating from `counts::STARS`, flag, label).
         tile_name: "browse.compareTileName" = "{label}: {name}{details}";
-        /// One entry of `{details}`: `{n}` the rating.
-        stars: "browse.compareStars" = "{n} of 5 stars";
         /// One entry of `{details}`: the pick flag.
         picked: "browse.comparePicked" = "picked";
         /// One entry of `{details}`: the reject flag.

@@ -106,8 +106,20 @@ fn the_caption_drops_the_name_when_narrow() {
         harness.run();
         let painted = harness.state().caption.clone().expect("painted");
         assert_eq!(painted.name_shown, shown, "{width} wide");
-        assert_eq!(painted.name, "Select: P1020.jpg, 3 of 5 stars, picked");
+        assert_eq!(painted.name, "Select: P1020.jpg, 3 stars, picked");
     }
+}
+
+// One star reads in the singular, as the grid's tiles do (`counts::STARS`).
+#[test]
+fn one_star_reads_in_the_singular() {
+    let mut harness = harness(move |ui, host| {
+        let style = CompareStyle::of(&Tokens::of(ui));
+        let strip = Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, style.caption));
+        host.caption = Some(CompareCaption::new("Select", "P1020.jpg").rating(Some(1)).paint(ui, strip, &style, &CompareLabels::default()));
+    });
+    harness.run();
+    assert_eq!(harness.state().caption.clone().expect("painted").name, "Select: P1020.jpg, 1 star");
 }
 
 // Pending not overdue: no pill; overdue: Rendering…; Failed: Render failed with the message as tooltip.
