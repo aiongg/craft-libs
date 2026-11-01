@@ -8,7 +8,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use super::*;
 use crate::behavior::{RowInfo, Selection};
 use crate::direction::{self, Direction};
-use crate::theme::{Base, ToEgui as _, install};
+use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
 
 type Col = &'static str;
 
@@ -18,6 +18,8 @@ struct Host {
     rows: Vec<RowInfo<usize>>,
     selection: Selection<usize>,
     events: Vec<TableEvent<usize, Col>>,
+    /// Shows the rows as a tree named "Row {key}".
+    tree: bool,
 }
 
 impl Host {
@@ -28,7 +30,7 @@ impl Host {
             TableColumn::new("size", "Size").min_width(50.0).hideable(true),
         ];
         let layout = TableLayout::new(&columns);
-        Host { columns, layout, rows: (0..5).map(RowInfo::leaf).collect(), selection: Selection::only(0), events: Vec::new() }
+        Host { columns, layout, rows: (0..5).map(RowInfo::leaf).collect(), selection: Selection::only(0), events: Vec::new(), tree: false }
     }
 
     fn take_events(&mut self) -> Vec<TableEvent<usize, Col>> {
@@ -37,8 +39,12 @@ impl Host {
 }
 
 fn show(ui: &mut egui::Ui, host: &mut Host) {
-    let Host { columns, layout, rows, selection, events } = host;
-    let out = Table::new("files", "Files", columns, layout, rows.as_slice()).selection(selection).show(ui, |ui, row, column, cx| {
+    let Host { columns, layout, rows, selection, events, tree } = host;
+    let mut table = Table::new("files", "Files", columns, layout, rows.as_slice()).selection(selection);
+    if *tree {
+        table = table.tree(|key| format!("Row {key}"));
+    }
+    let out = table.show(ui, |ui, row, column, cx| {
         cx.label(ui, format!("{column} {row}"));
     });
     events.extend(out.events);
@@ -499,31 +505,137 @@ fn wide_columns_keep_the_vertical_bar_in_view_and_the_header_in_place() {
     assert!(first.top() < top + 60.0, "the rows scrolled under it: {first:?}");
 }
 
+/// Row 0 is an open group with a leaf (1) and a closed group (2) inside it; row 3 is a top-level leaf.
+fn tree_host() -> Host {
+    let mut host = Host::new();
+    host.tree = true;
+    host.rows = vec![RowInfo::group(0, true), RowInfo::leaf(1).at_depth(1), RowInfo::group(2, false).at_depth(1), RowInfo::leaf(3)];
+    host
+}
+
+#[expect(clippy::unwrap_used, reason = "a test helper")]
+fn list_style() -> ListRowStyle {
+    let harness = Harness::builder().with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(|_| {});
+    let mut style = None;
+    harness.ctx.run_ui(egui::RawInput::default(), |ui| style = Some(ListRow::<usize>::style(&Tokens::of(ui)))).drop_without_applying_deltas();
+    style.unwrap()
+}
+
+#[expect(clippy::expect_used, reason = "a test helper")]
+fn name_x(harness: &Harness<'_, Host>, row: usize) -> f32 {
+    painted_x(harness, &format!("name {row}")).expect("the cell is painted")
+}
+
+fn request(harness: &Harness<'_, Host>, node: &egui_kittest::Node<'_>, action: egui::accesskit::Action) {
+    let (target_node, target_tree) = node.accesskit_node().locate();
+    harness.event(Event::AccessKitActionRequest(egui::accesskit::ActionRequest { action, target_tree, target_node, data: None }));
+}
+
+fn opens(events: Vec<TableEvent<usize, Col>>) -> Vec<OpenChange<usize>> {
+    events.into_iter().filter_map(|event| if let TableEvent::Open(change) = event { Some(change) } else { None }).collect()
+}
+
 // A tree table: the first shown column's cell starts `list.indent` per level plus the disclosure
 // column after the row's edge; a click on a closed group's triangle reports Open { open: true },
 // with Alt `all: true`; mirrored in a right-to-left layout.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_tree_table_indents_the_first_column_and_opens_by_its_triangle() {
-    todo!()
+    let style = list_style();
+    for (dir, sign) in [(Direction::Ltr, 1.0), (Direction::Rtl, -1.0)] {
+        let mut harness = harness_with(tree_host(), dir);
+        let base = name_x(&harness, 3);
+        let near = |got: f32, want: f32| assert!((got - base - sign * want).abs() < 1.5, "{dir:?}: {} vs {want}", got - base);
+        near(name_x(&harness, 0), style.disclosure);
+        near(name_x(&harness, 1), 2.0 * style.indent);
+        near(name_x(&harness, 2), style.indent + style.disclosure);
+        // Other columns carry no tree.
+        assert!((painted_x(&harness, "pages 1").unwrap() - painted_x(&harness, "pages 3").unwrap()).abs() < 0.5);
+
+        harness.state_mut().take_events();
+        harness.get_by_label("Expand Row 2").click();
+        harness.run();
+        assert_eq!(opens(harness.state_mut().take_events()), [OpenChange { row: 2, open: true, all: false }], "{dir:?}");
+        harness.get_by_label("Expand Row 2").click_modifiers(Modifiers::ALT);
+        harness.run();
+        assert_eq!(opens(harness.state_mut().take_events()), [OpenChange { row: 2, open: true, all: true }], "{dir:?}");
+    }
 }
 
 // Tree keys in the focused body: → on a closed group reports Open, → on an open one selects its
 // first child, ← on a child selects its parent, Alt+← reports Open { open: false, all: true } and
 // the lead moves to its topmost group; ←/→ are swapped right to left; without `tree` ←/→ do nothing.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_tree_table_takes_the_tree_keys() {
-    todo!()
+    let mut harness = harness_with(tree_host(), Direction::Ltr);
+    harness.get_by_role(Role::TreeGrid).focus();
+    harness.run();
+    let selected = |harness: &Harness<'_, Host>| harness.state().selection.clone();
+    harness.state_mut().take_events();
+    harness.key_press(Key::ArrowRight);
+    harness.run();
+    assert_eq!(selected(&harness), Selection::only(1), "→ on an open group enters its first child");
+    harness.key_press(Key::ArrowDown);
+    harness.run();
+    harness.state_mut().take_events();
+    harness.key_press(Key::ArrowRight);
+    harness.run();
+    assert_eq!(opens(harness.state_mut().take_events()), [OpenChange { row: 2, open: true, all: false }], "→ on a closed group opens it");
+    harness.key_press(Key::ArrowDown);
+    harness.key_press(Key::ArrowUp);
+    harness.key_press(Key::ArrowLeft);
+    harness.run();
+    assert_eq!(selected(&harness), Selection::only(0), "← on a closed row goes to its parent");
+    harness.state_mut().take_events();
+    harness.key_press_modifiers(Modifiers::ALT, Key::ArrowLeft);
+    harness.run();
+    assert_eq!(opens(harness.state_mut().take_events()), [OpenChange { row: 0, open: false, all: true }]);
+
+    // Right to left swaps the arrows.
+    let mut harness = harness_with(tree_host(), Direction::Rtl);
+    harness.get_by_role(Role::TreeGrid).focus();
+    harness.run();
+    harness.key_press(Key::ArrowLeft);
+    harness.run();
+    assert_eq!(harness.state().selection, Selection::only(1), "← enters in a right-to-left layout");
+
+    // A plain table leaves the arrows alone.
+    let mut harness = super::table_ui_tests::harness();
+    harness.get_by_role(Role::Table).focus();
+    harness.run();
+    harness.state_mut().take_events();
+    harness.key_press(Key::ArrowRight);
+    harness.key_press(Key::ArrowLeft);
+    harness.run();
+    assert!(harness.state_mut().take_events().is_empty());
+    assert_eq!(harness.state().selection, Selection::only(0));
 }
 
 // AccessKit: a tree table is a TreeGrid and its rows TreeItems with level, expanded on groups,
 // position_in_set and size_of_set among siblings; a screen reader's Expand reports Open.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_tree_table_exposes_tree_items() {
-    todo!()
+    let mut harness = harness_with(tree_host(), Direction::Ltr);
+    harness.get_by_role(Role::TreeGrid);
+    let items: Vec<_> = harness
+        .query_all_by_role(Role::TreeItem)
+        .map(|n| {
+            let node = n.accesskit_node();
+            (node.level(), node.data().is_expanded(), node.position_in_set(), node.size_of_set())
+        })
+        .collect();
+    assert_eq!(
+        items,
+        [
+            (Some(0), Some(true), Some(0), Some(2)),
+            (Some(1), None, Some(0), Some(2)),
+            (Some(1), Some(false), Some(1), Some(2)),
+            (Some(0), None, Some(1), Some(2))
+        ]
+    );
+    harness.state_mut().take_events();
+    let closed = harness.query_all_by_role(Role::TreeItem).nth(2).unwrap();
+    assert!(closed.accesskit_node().data().supports_action(egui::accesskit::Action::Expand));
+    request(&harness, &closed, egui::accesskit::Action::Expand);
+    harness.run();
+    assert_eq!(opens(harness.state_mut().take_events()), [OpenChange { row: 2, open: true, all: false }]);
 }
