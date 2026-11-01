@@ -3,13 +3,29 @@
 
 use std::ops::RangeInclusive;
 
+use craft_theme::{ControlSize, TypeRole};
+use craft_ui::behavior::{ClaimedKey, KeyClaim};
 use craft_ui::composites::ChannelColor;
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use craft_ui::controls::{IconButton, Select};
+use craft_ui::direction;
+use craft_ui::docking::panel_menu::PanelCommand;
+use craft_ui::focus::key_owner::{self, KeyOwner, OwnerGate};
+use craft_ui::icons::Icon;
+use craft_ui::localized::Labels as _;
+use craft_ui::menu::{ContextMenu, MenuEntry};
+use craft_ui::primitives::{Content, Corner, Text};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
+use egui::accesskit::Role;
+use egui::{AsIdSalt, Color32, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 
-use super::clipping::{ClippingDiagnostic, ClippingFrame, ClippingMode, ClippingWarnings};
+use super::clipping::{ClippingDiagnostic, ClippingFrame, ClippingMode, ClippingWarnings, warning_button};
 use super::labels::ScopePanelLabels;
-use super::vectorscope::VectorscopeFrame;
-use super::zones::{ScopeZoneEdit, ToneZone};
+use super::menu::ScopeMenuAction;
+use super::plot::{Shown, all_channels, main_plot, resolve_channel};
+use super::style::ScopePanelStyle;
+use super::vectorscope::{VectorscopeFrame, VectorscopePlot};
+use super::zones::{ScopeZoneEdit, ToneZone, zones};
+use crate::scopes::{HistogramStatistics, histogram_statistics};
 
 /// The Channel key of [`HistogramSet::colors`]'s overlay entry, kept in
 /// [`ScopeSettings::channel`].
@@ -221,10 +237,14 @@ impl Default for ScopeSettings {
 impl ScopeSettings {
     /// What the clipping overlay draws: `diagnostic` (an Alt-drag on a tone control, which the
     /// host recognises) wins; else the warnings that are on; else [`ClippingMode::None`].
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn clipping_mode(&self, diagnostic: Option<ClippingDiagnostic>) -> ClippingMode {
         // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:608-614 (`mode`).
-        todo!()
+        match diagnostic {
+            Some(ClippingDiagnostic::Shadows) => ClippingMode::ShadowChannels,
+            Some(ClippingDiagnostic::Highlights) => ClippingMode::HighlightChannels,
+            None if self.shadow_warning || self.highlight_warning => ClippingMode::Warnings(self.clipping_warnings()),
+            None => ClippingMode::None,
+        }
     }
 
     /// The warnings that are on.
@@ -294,7 +314,6 @@ pub struct ScopePanelState {
 /// **What the app gets back.** [`ScopePanelOutput`]; settings are edited in the state it was
 /// given and reported with `settings_changed`. The app recounts, persists and maps zone edits.
 #[must_use = "show the panel with `show`"]
-#[expect(dead_code, reason = "skeleton: removed when the bodies land")]
 pub struct ScopePanel<'a> {
     pub(super) id_salt: IdSalt,
     pub(super) state: &'a mut ScopePanelState,
@@ -374,12 +393,341 @@ impl<'a> ScopePanel<'a> {
     /// Draws the view the settings ask for and reads this pass's input, in order: the Channel
     /// row, the plot (with zones, warnings, badge), the vectorscope, the Source row, the
     /// statistics, the All Channels plots, then the U and O keys.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-    pub fn show(self, ui: &mut Ui) -> ScopePanelOutput {
+    pub fn show(mut self, ui: &mut Ui) -> ScopePanelOutput {
         // pc: crates/ui-egui/src/panels/histogram_panel.rs:735 `show`, :636 `graph`, :706 `statistics`;
         // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:498 `header`, :380 `graph`, :687 `shortcuts`.
-        todo!()
+        let tokens = Tokens::of(ui);
+        let style = ScopePanel::style(&tokens);
+        let labels = self.labels.clone().unwrap_or_else(|| ScopePanelLabels::of(ui));
+        let base = ui.make_persistent_id(self.id_salt);
+        let mut out = ScopePanelOutput {
+            response: ui.allocate_response(Vec2::ZERO, Sense::hover()),
+            settings_changed: false,
+            refresh: false,
+            source_changed: false,
+            channel_changed: false,
+            zone: None,
+            hovered_level: None,
+            range: None,
+            clipping_toggled: false,
+        };
+        let Some(frame) = self.frame else {
+            out.range = self.state.range.clone();
+            return out;
+        };
+        let set = &frame.histogram;
+        let Some(composite) = set.channels.first() else {
+            out.range = self.state.range.clone();
+            return out;
+        };
+        let menu_entries =
+            (frame.vectorscope.is_some() || frame.clipping.is_some()).then(|| ScopePanel::scope_menu(ui.ctx(), base, self.state, self.has_selection));
+        let scope = ui.scope(|ui| {
+            ui.add_enabled_ui(self.enabled, |ui| {
+                self.rows(
+                    ui,
+                    &Context { base, tokens: &tokens, style: &style, labels: &labels, composite, menu_entries: menu_entries.as_deref() },
+                    &mut out,
+                );
+            });
+        });
+        out.response = scope.response;
+        if self.enabled && frame.clipping.is_some() && panel_keys(ui, out.response.rect, &mut self.state.settings) {
+            out.clipping_toggled = true;
+            out.settings_changed = true;
+        }
+        out.range = self.state.range.clone();
+        out
     }
+
+    fn rows(&mut self, ui: &mut Ui, cx: &Context<'_>, out: &mut ScopePanelOutput) {
+        let Some(frame) = self.frame else { return };
+        let set = &frame.histogram;
+        let state = &mut *self.state;
+        let (labels, style) = (cx.labels, cx.style);
+        let view = state.settings.view;
+        let shown = resolve_channel(set, &state.settings.channel).unwrap_or(Shown::Channel(*cx.composite));
+        let shown_key = match shown {
+            Shown::Channel(channel) => channel.key,
+            Shown::Colors(_) => COLORS_CHANNEL,
+        };
+        let expanded = view != ScopeView::Compact;
+        let colored = !expanded || state.settings.show_channels_in_color;
+        let mut menu_widgets: Vec<Response> = Vec::new();
+
+        if expanded {
+            let mut picked = shown_key.to_owned();
+            direction::horizontal(ui, |ui| {
+                ui.add(Text::new(labels.channel.as_str()).role(TypeRole::Label).content(Content::Muted));
+                let mut select = Select::new((cx.base, "channel"), labels.channel.trim_end_matches(':'), &mut picked);
+                for channel in set.channels {
+                    select = select.option(channel.key.to_owned(), channel.label);
+                }
+                if set.colors.is_some() {
+                    select = select.option(COLORS_CHANNEL.to_owned(), labels.colors.as_str());
+                }
+                let _ = select.show(ui);
+                ui.with_layout(direction::trailing(ui), |ui| {
+                    if ui.add(IconButton::new(Icon::RotateCw, labels.uncached_refresh.as_str()).size(ControlSize::Sm)).clicked() {
+                        out.refresh = true;
+                    }
+                });
+            });
+            if picked != shown_key {
+                state.settings.channel = picked;
+                out.channel_changed = true;
+                out.settings_changed = true;
+            }
+        }
+        let shown = resolve_channel(set, &state.settings.channel).unwrap_or(shown);
+
+        let zoned = !self.zones.is_empty();
+        let plot = main_plot(
+            ui,
+            cx.base.with("plot"),
+            set,
+            shown,
+            colored,
+            style.plot_height,
+            self.markers,
+            (!zoned).then(|| state.range.clone()).flatten(),
+        );
+        let rect = plot.response.rect;
+        let mut plot_widget = plot.response.clone();
+        let mut hovered = plot.hovered_level;
+        if zoned {
+            let overlay = ui.interact(rect, cx.base.with("zones"), Sense::click_and_drag());
+            let bins = shown_bins(set, shown).len();
+            if bins > 0
+                && (overlay.hovered() || overlay.dragged())
+                && let Some(at) = overlay.interact_pointer_pos().or_else(|| overlay.hover_pos())
+            {
+                hovered = Some((((at.x - rect.left()) / rect.width().max(1.0)) * bins as f32).floor().clamp(0.0, bins as f32 - 1.0));
+            }
+            out.zone = zones(ui, &overlay, rect, self.zones, self.zone_values, labels, style);
+            plot_widget = overlay;
+        } else if let Some(selection) = plot.selection.clone() {
+            state.range = selection;
+        }
+        if plot.clicked || plot.response.double_clicked() || plot_widget.double_clicked() && !zoned {
+            out.refresh = true;
+        }
+        out.hovered_level = hovered;
+        menu_widgets.push(plot_widget);
+
+        if let Some(clipping) = frame.clipping {
+            let side = style.warning_size;
+            let settings = &mut state.settings;
+            let shadows = Rect::from_min_size(rect.min, vec2(side, side));
+            let highlights = Rect::from_min_size(pos2(rect.right() - side, rect.top()), vec2(side, side));
+            let toggled_shadows = warning_button(ui, shadows, clipping.shadows, &mut settings.shadow_warning, &labels.shadow_warning);
+            let toggled_highlights = warning_button(ui, highlights, clipping.highlights, &mut settings.highlight_warning, &labels.highlight_warning);
+            if toggled_shadows || toggled_highlights {
+                out.clipping_toggled = true;
+                out.settings_changed = true;
+            }
+        }
+        if let Some(readout) = frame.readout {
+            readout_badge(ui, cx, rect, readout);
+        }
+
+        if state.settings.vectorscope
+            && let Some(vectorscope) = frame.vectorscope.as_ref()
+        {
+            let response = VectorscopePlot::new((cx.base, "vectorscope"), vectorscope)
+                .red_right(state.settings.red_right)
+                .skin_tone(state.settings.skin_tone)
+                .labels(labels.clone())
+                .show(ui);
+            menu_widgets.push(response);
+        }
+
+        if expanded && self.sources.len() >= 2 {
+            let current = self.sources.iter().find(|s| s.key == state.settings.source).unwrap_or(&self.sources[0]).key;
+            let mut picked = current.to_owned();
+            direction::horizontal(ui, |ui| {
+                ui.add(Text::new(labels.source.as_str()).role(TypeRole::Label).content(Content::Muted));
+                let mut select = Select::new((cx.base, "source"), labels.source.trim_end_matches(':'), &mut picked);
+                for source in self.sources {
+                    select = select.option(source.key.to_owned(), source.label);
+                }
+                let _ = select.show(ui);
+            });
+            if picked != current {
+                state.settings.source = picked;
+                out.source_changed = true;
+                out.settings_changed = true;
+            }
+        }
+
+        if expanded && state.settings.show_statistics {
+            let levels = match &state.range {
+                Some(range) => Some([level_of(*range.start()), level_of(*range.end())]),
+                None => out.hovered_level.map(|level| [level_of(level); 2]),
+            };
+            if let Some(stats) = histogram_statistics(shown_bins(set, shown), levels) {
+                statistics(ui, cx, &stats, set.cache_level);
+            }
+        }
+
+        if view == ScopeView::AllChannels {
+            all_channels(ui, cx.base.with("channels"), set, colored, style.all_channels_height);
+        }
+
+        if let Some(entries) = cx.menu_entries {
+            for widget in &menu_widgets {
+                let chosen = ContextMenu::new(entries).show(ui, widget).chosen;
+                match chosen.and_then(|command| ScopePanel::run_command(ui.ctx(), cx.base, state, &command)) {
+                    Some(ScopeMenuAction::SettingsChanged) => out.settings_changed = true,
+                    Some(ScopeMenuAction::Refresh) => out.refresh = true,
+                    None => {}
+                }
+            }
+        }
+    }
+}
+
+/// What the rows of one pass share.
+struct Context<'a> {
+    base: Id,
+    tokens: &'a UiTokens,
+    style: &'a ScopePanelStyle,
+    labels: &'a ScopePanelLabels,
+    composite: &'a ScopeChannel<'a>,
+    menu_entries: Option<&'a [MenuEntry<PanelCommand>]>,
+}
+
+/// The counts of what the main plot shows: Colors counts the composite.
+fn shown_bins<'s>(set: &HistogramSet<'s>, shown: Shown<'s>) -> &'s [u32] {
+    match shown {
+        Shown::Channel(channel) => channel.bins,
+        Shown::Colors(_) => set.channels.first().map_or(&[], |channel| channel.bins),
+    }
+}
+
+/// The level a plot position names, as the statistics take it.
+fn level_of(level: f32) -> u8 {
+    level.round().clamp(0.0, 255.0) as u8
+}
+
+/// The statistics grid: two label and value pairs per row (Mean, Std Dev, Median, Pixels | Level,
+/// Count, Percentile, Cache Level), as a `Table` of `Row`s and `Cell`s.
+fn statistics(ui: &mut Ui, cx: &Context<'_>, stats: &HistogramStatistics, cache_level: u32) {
+    let labels = cx.labels;
+    let level = match stats.level {
+        Some([a, b]) if a == b => a.to_string(),
+        Some([a, b]) => format!("{a}..{b}"),
+        None => String::new(),
+    };
+    let rows = [
+        (&labels.mean, format!("{:.2}", stats.mean), &labels.level, level),
+        (
+            &labels.standard_deviation,
+            format!("{:.2}", stats.standard_deviation),
+            &labels.count,
+            stats.count.map(|c| c.to_string()).unwrap_or_default(),
+        ),
+        (&labels.median, stats.median.to_string(), &labels.percentile, stats.percentile.map(|p| format!("{p:.2}")).unwrap_or_default()),
+        (&labels.pixels, stats.pixels.to_string(), &labels.cache_level, cache_level.to_string()),
+    ];
+    let label_font = role_format(cx.tokens, TypeRole::Label, Color32::PLACEHOLDER).font_id;
+    let value_font = role_format(cx.tokens, TypeRole::Mono, Color32::PLACEHOLDER).font_id;
+    let (label_width, line) = ui.fonts_mut(|f| {
+        let widest = rows
+            .iter()
+            .flat_map(|(a, _, b, _)| [a, b])
+            .map(|label| f.layout_no_wrap(label.to_string(), label_font.clone(), Color32::PLACEHOLDER).size().x)
+            .fold(0.0, f32::max);
+        (widest.ceil(), f.row_height(&label_font).max(f.row_height(&value_font)))
+    });
+    let (gap, inline) = (cx.style.statistics_gap, cx.tokens.space.gap.inline);
+    let width = ui.available_width();
+    let pair = ((width - gap) / 2.0).max(0.0);
+    let value_width = (pair - label_width - inline).max(0.0);
+    let rtl = direction::is_rtl(ui);
+    let builder = UiBuilder::new().accessibility_role(Role::Table).accessibility_label(labels.statistics.clone());
+    ui.scope_builder(builder, |ui| {
+        for (row_at, (first, first_value, second, second_value)) in rows.iter().enumerate() {
+            let (rect, _) = ui.allocate_exact_size(vec2(width, line), Sense::hover());
+            let slot = |from: f32, wide: f32| {
+                let (min, max) =
+                    if rtl { (rect.right() - from - wide, rect.right() - from) } else { (rect.left() + from, rect.left() + from + wide) };
+                Rect::from_min_max(pos2(min, rect.top()), pos2(max, rect.bottom()))
+            };
+            ui.scope_builder(UiBuilder::new().id_salt(("row", row_at)).max_rect(rect).accessibility_role(Role::Row), |ui| {
+                for (column, (label, value)) in [(first, first_value), (second, second_value)].into_iter().enumerate() {
+                    let from = column as f32 * (pair + gap);
+                    ui.scope_builder(
+                        UiBuilder::new().max_rect(slot(from, label_width)).layout(direction::trailing(ui)).accessibility_role(Role::Cell),
+                        |ui| {
+                            ui.add(Text::new(label.as_str()).role(TypeRole::Label).content(Content::Muted));
+                        },
+                    );
+                    ui.scope_builder(
+                        UiBuilder::new()
+                            .max_rect(slot(from + label_width + inline, value_width))
+                            .layout(direction::row(ui))
+                            .accessibility_role(Role::Cell),
+                        |ui| {
+                            ui.add(Text::new(value.as_str()).role(TypeRole::Mono));
+                        },
+                    );
+                }
+            });
+        }
+    });
+}
+
+/// The hover readout badge in the plot's top centre: `R r  G g  B b` in 0..=255, or the Lab form
+/// with one decimal, between the two warning buttons.
+fn readout_badge(ui: &Ui, cx: &Context<'_>, plot: Rect, readout: ScopeReadout) {
+    let labels = cx.labels;
+    let text = match readout {
+        ScopeReadout::Rgb([r, g, b]) => {
+            let [r, g, b] = [r, g, b].map(|v| format!("{:.0}", v * 255.0));
+            craft_i18n::fmt(&labels.readout_rgb, &[("r", &r), ("g", &g), ("b", &b)])
+        }
+        ScopeReadout::Lab([l, a, b]) => {
+            let [l, a, b] = [l, a, b].map(|v| format!("{v:.1}"));
+            craft_i18n::fmt(&labels.readout_lab, &[("l", &l), ("a", &a), ("b", &b)])
+        }
+    };
+    let tokens = cx.tokens;
+    let painter = ui.painter();
+    let galley = painter.layout_no_wrap(text, tokens.font(TypeRole::Mono), tokens.color.text.normal.to_egui());
+    let pad = tokens.space.gap.inline;
+    let room = (plot.width() - 2.0 * cx.style.warning_size - 2.0 * pad).max(1.0);
+    let width = (galley.size().x + 2.0 * pad).min(room);
+    let badge = Rect::from_center_size(
+        pos2(plot.center().x, plot.top() + cx.style.hover_badge_height / 2.0 + pad / 2.0),
+        vec2(width, cx.style.hover_badge_height),
+    );
+    let radius = Corner::Control.radius(tokens);
+    painter.rect_filled(badge, radius, tokens.color.surface.raised.to_egui());
+    painter.rect_stroke(
+        badge,
+        radius,
+        Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), tokens.component.field.border.rest.to_egui()),
+        StrokeKind::Inside,
+    );
+    let text_at = badge.center() - galley.size() / 2.0;
+    painter.with_clip_rect(badge.shrink(pad / 2.0)).galley(text_at, galley, tokens.color.text.normal.to_egui());
+}
+
+/// U and O toggle the warnings while the panel has the keyboard focus and no text field, menu or
+/// dialog has the keys (the panel is the key owner through [`key_owner`]). The focused control
+/// claims both keys so the app's shortcuts leave them alone.
+fn panel_keys(ui: &Ui, panel: Rect, settings: &mut ScopeSettings) -> bool {
+    let ctx = ui.ctx();
+    let Some(focused) = ctx.memory(|m| m.focused()) else { return false };
+    if key_owner::owner(ctx, &OwnerGate::default()) != KeyOwner::Widget || !ctx.read_response(focused).is_some_and(|r| panel.contains_rect(r.rect)) {
+        return false;
+    }
+    KeyClaim::claim(ctx, focused, &[ClaimedKey::exact(Modifiers::NONE, Key::U), ClaimedKey::exact(Modifiers::NONE, Key::O)]);
+    let (shadows, highlights) = ui.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::U), i.consume_key(Modifiers::NONE, Key::O)));
+    settings.shadow_warning ^= shadows;
+    settings.highlight_warning ^= highlights;
+    shadows || highlights
 }
 
 /// What [`ScopePanel::show`] returns. The events of one pass, handled in that pass.
