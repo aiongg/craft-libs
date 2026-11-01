@@ -1,17 +1,20 @@
 //! [`ShapeOptionsBar`]: the Shape tools' options bar cells (task SH-T6).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_color::ui::{Paint, PaintChip};
+use craft_theme::{ControlSize, Srgba};
+use egui::{AsIdSalt, IdSalt, Ui, UiBuilder};
 
-use craft_color::ui::PaintChip;
-use craft_theme::Srgba;
-use egui::{AsIdSalt, IdSalt, Ui};
-
+use super::panel::{ChipDecor, Field, paint_chip, paint_events, stroke_width_field, style_button, width_events};
 use super::{ShapeAppearance, ShapeChange, ShapeLabels, ShapePaint, ShapeToolSettings};
 use crate::ui::shape_drag::ShapeKind;
+use craft_ui::controls::{Checkbox, TooltipExt as _};
 use craft_ui::edit::EditEvent;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::patterns::{CellWidth, OptionsBar};
+use craft_ui::theme::{Tokens, TokensOf as _};
 
-/// The app's decoration of a paint chip before it shows.
-type ChipDecor<'a> = dyn FnMut(ShapePaint, PaintChip<'a>) -> PaintChip<'a> + 'a;
+/// The kind's own cell: its field, width class and the change a value gives.
+type KindCell<'a> = (Field<'a>, CellWidth, fn(f64) -> ShapeChange);
 
 /// What [`ShapeOptionsBar::show`] reports.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -69,7 +72,7 @@ impl<'a> ShapeOptionsBar<'a> {
     }
 
     /// Decorates each paint chip before it shows (its Gradient, Pattern and Picture editors).
-    pub fn chips(mut self, decorate: impl FnMut(ShapePaint, PaintChip<'a>) -> PaintChip<'a> + 'a) -> Self {
+    pub fn chips(mut self, decorate: impl for<'b> FnMut(ShapePaint, PaintChip<'b>) -> PaintChip<'b> + 'a) -> Self {
         self.chips = Some(Box::new(decorate));
         self
     }
@@ -92,6 +95,73 @@ impl<'a> ShapeOptionsBar<'a> {
         // width field :71, Radius :100, Sides :113, Weight :121; the edit target :36-52, :173-191).
         // new: `OptionsBar` cells, `PaintChip`, `NumberField`, `craft_draw::ui::stroke::StrokeButton`
         // (its `EditEvent<StrokeStyle>` mapped to `ShapeChange::StrokeStyle`).
-        todo!()
+        let Self { id_salt, kind, settings, appearance, stroke_open, mut chips, fallbacks, labels } = self;
+        let labels = labels.unwrap_or_else(|| ShapeLabels::of(ui));
+        let numbers = LocaleNumbers::of(ui);
+        let width_box = OptionsBar::style(&Tokens::of(ui), false).fields[0];
+        let mut events = Vec::new();
+        let builder = UiBuilder::new().id_salt(id_salt).layout(*ui.layout());
+        ui.scope_builder(builder, |ui| {
+            ui.add_enabled_ui(!appearance.locked, |ui| {
+                let mut fill_on = !matches!(appearance.fill, Paint::None);
+                let check = Checkbox::bool(labels.fill.as_str(), &mut fill_on).id_salt("fill-on").size(ControlSize::Sm).show(ui);
+                events.extend(check.event.map(|e| e.map(ShapeChange::FillOn)));
+                let mut edit =
+                    paint_chip(ui, chips.as_deref_mut(), ShapePaint::Fill, "fill", &labels.fill_color, &appearance.fill, fallbacks.0, &numbers);
+                edit.response = edit.response.tooltip(labels.set_fill_type.as_str());
+                paint_events(&mut events, ShapePaint::Fill, edit.event, appearance.stroke_width);
+
+                let edit = OptionsBar::cell(ui, &labels.stroke, CellWidth::Content, |ui, _| {
+                    let mut edit = paint_chip(
+                        ui,
+                        chips.as_deref_mut(),
+                        ShapePaint::Stroke,
+                        "stroke",
+                        &labels.stroke_color,
+                        &appearance.stroke,
+                        fallbacks.1,
+                        &numbers,
+                    );
+                    edit.response = edit.response.tooltip(labels.set_stroke_type.as_str());
+                    edit
+                });
+                paint_events(&mut events, ShapePaint::Stroke, edit.event, appearance.stroke_width);
+
+                let field = stroke_width_field("stroke-width", &labels, appearance.stroke_width, &numbers);
+                let edit = field.size(ControlSize::Sm).width(width_box).show(ui);
+                width_events(&mut events, edit.event, appearance.stroke_width);
+
+                if let Some(open) = stroke_open {
+                    let corners = kind != ShapeKind::Ellipse;
+                    style_button(ui, &mut events, "stroke-style", appearance, corners, &numbers, open);
+                }
+
+                let cell: Option<KindCell<'_>> = match kind {
+                    ShapeKind::Rectangle | ShapeKind::RoundedRectangle => Some((
+                        Field::pixels("radius", &labels.radius, settings.corner_radius, 0.0..=10_000.0),
+                        CellWidth::Md,
+                        ShapeChange::CornerRadius,
+                    )),
+                    ShapeKind::Polygon | ShapeKind::Star => {
+                        let sides = Field {
+                            places: 0..=0,
+                            unit: Default::default(),
+                            ..Field::pixels("sides", &labels.sides, f64::from(settings.sides), 3.0..=100.0)
+                        };
+                        Some((sides, CellWidth::Sm, |n| ShapeChange::Sides(n.round().clamp(3.0, 100.0) as u32)))
+                    }
+                    ShapeKind::Line => {
+                        Some((Field::pixels("weight", &labels.weight, settings.line_weight, 1.0..=1_000.0), CellWidth::Md, ShapeChange::Weight))
+                    }
+                    ShapeKind::Ellipse | ShapeKind::Triangle | ShapeKind::Custom => None,
+                };
+                if let Some((field, width, change)) = cell {
+                    OptionsBar::divider(ui);
+                    let edit = OptionsBar::number_cell(ui, field.caption, width, field.number(&numbers));
+                    events.extend(edit.event.map(|e| e.map(change)));
+                }
+            });
+        });
+        ShapeOptionsOutput { events }
     }
 }
