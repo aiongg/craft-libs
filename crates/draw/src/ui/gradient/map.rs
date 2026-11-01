@@ -17,13 +17,14 @@ use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::popover::{Popover, PopoverAnchor};
 use craft_ui::primitives::{Gap, Stack};
 
-use super::stops::round_location;
 use super::{
     ColorStop, GradientEditor, GradientGroup, GradientLabels, GradientPalette, GradientRef, GradientStops, PaletteLayout, Sampler, StopRef, StopRows,
 };
 
 /// Most colour stops a Gradient Map keeps.
 const MAX_STOPS: usize = 64;
+/// The preset list's height before it scrolls (pc: `gradient_map.rs:166` `.height(420.0)`).
+const PRESET_LIST_HEIGHT: f32 = 420.0;
 /// Fewest colour stops a Gradient Map keeps.
 const MIN_STOPS: usize = 2;
 
@@ -43,8 +44,10 @@ craft_ui::words! {
     /// The Gradient Map editor's words, in the installed language unless set.
     #[non_exhaustive]
     pub struct GradientMapLabels {
-        /// The editor's group name (AccessKit) and the stop bar's label.
+        /// The editor's group name (AccessKit).
         gradient_map: "gradientMap.title" = "Gradient Map";
+        /// The stop bar's own name (AccessKit), distinct from the group's.
+        stops: "gradientMap.stops" = "Gradient stops";
         preset: "gradientMap.preset" = "Preset";
         /// The preset button's text while the stops match no preset (always: the editor keeps no
         /// preset identity).
@@ -204,7 +207,7 @@ impl<'a> GradientMapEditor<'a> {
 
                 // 2. The stop bar.
                 let numbers = self.numbers;
-                let mut bar = GradientEditor::new("stops", labels.gradient_map.as_str(), &self.value.stops, numbers)
+                let mut bar = GradientEditor::new("stops", labels.stops.as_str(), &self.value.stops, numbers)
                     .rows(StopRows::ColorOnly)
                     .stops(MIN_STOPS, MAX_STOPS)
                     .midpoints(false)
@@ -254,7 +257,6 @@ impl<'a> GradientMapEditor<'a> {
         }
         let mut pick = None;
         let mut import = false;
-        let max_height = ui.ctx().content_rect().height() / 2.0;
         Popover::new((id, "popover"), PopoverAnchor::Control(button.clone())).toggle(button.id).label(labels.preset.as_str()).show(
             ui,
             &mut open,
@@ -268,7 +270,7 @@ impl<'a> GradientMapEditor<'a> {
                 let mut palette = GradientPalette::new((id, "presets"), labels.preset.as_str(), self.presets)
                     .layout(PaletteLayout::List)
                     .rows(StopRows::ColorOnly)
-                    .max_height(max_height);
+                    .max_height(PRESET_LIST_HEIGHT);
                 if let Some(sampler) = self.sampler {
                     palette = palette.sampler(sampler);
                 }
@@ -296,7 +298,7 @@ fn color_only(stops: &GradientStops) -> Option<GradientStops> {
         .map(|s| {
             let mut color = s.color;
             color.a = 1.0;
-            ColorStop { location: round_location(s.location), color, midpoint: 0.5, ..*s }
+            ColorStop { color, midpoint: 0.5, ..*s }
         })
         .collect();
     (color.len() >= MIN_STOPS).then(|| GradientStops::new(color))

@@ -126,18 +126,22 @@ fn gradient_map_keeps_two_to_sixty_four_stops() {
     harness.run();
     assert!(harness.get_by_label("Delete stop").accesskit_node().is_disabled());
 
-    let mut harness = host(64);
-    // The editor's group and the stop bar share the name; the bar is the inner one.
-    let ramp = harness.get_all_by_role_and_label(Role::Group, "Gradient Map").last().map(|n| n.rect()).unwrap_or(egui::Rect::NOTHING);
-    let at = Pos2::new(ramp.center().x + 0.5, ramp.top() + 20.0);
-    harness.hover_at(at);
-    harness.step();
-    for pressed in [true, false] {
-        harness.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+    // The same click on an empty bar position adds a stop at 63 and none at 64.
+    let click_bar = |n: usize| {
+        let mut harness = host(n);
+        let ramp = harness.get_by_role_and_label(Role::Group, "Gradient stops").rect();
+        let at = Pos2::new(ramp.center().x + 0.5, ramp.top() + 20.0);
+        harness.hover_at(at);
         harness.step();
-    }
-    harness.run();
-    assert_eq!(harness.state().value.stops.color.len(), 64);
+        for pressed in [true, false] {
+            harness.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+            harness.step();
+        }
+        harness.run();
+        harness.state().value.stops.color.len()
+    };
+    assert_eq!(click_bar(63), 64);
+    assert_eq!(click_bar(64), 64);
 }
 
 // Reverse and Dither each report one `Set` with the flag toggled; Import .GRD sets `import_presets`
