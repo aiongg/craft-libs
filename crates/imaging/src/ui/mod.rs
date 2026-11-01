@@ -50,6 +50,6 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <LevelsLabels as craft_ui::localized::Labels>::WORDS,
     <ChannelsLabels as craft_ui::localized::Labels>::WORDS,
     <ScopePanelLabels as craft_ui::localized::Labels>::WORDS,
-    <channels::stories::ChannelsStoryWords as craft_ui::localized::Labels>::WORDS,
+    <channels::stories::ChannelsStoryLabels as craft_ui::localized::Labels>::WORDS,
     <scopes::stories::ScopeStoryLabels as craft_ui::localized::Labels>::WORDS,
 ];

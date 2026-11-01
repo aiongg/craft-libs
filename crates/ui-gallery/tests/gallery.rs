@@ -1367,7 +1367,7 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
             "patterns/channels/rgb",
             "primitives/surface/kind",
             "primitives/surface/surfaces",
-            "primitives/textures/thumbnails",
+            "primitives/thumbnails/thumbnails",
         ],
         "a story arg label and an option name of the story, not a catalog word",
     ),

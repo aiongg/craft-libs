@@ -5,11 +5,11 @@
 //! The spec's id `browse/thumbs/file-source` becomes `primitives/file-thumbnails/source`: the gallery
 //! requires a story id to start with its level.
 //!
-//! The story decodes nothing real. A job stats its file, so the tiles name the running executable
-//! (a file that exists) with a variant per tile; the decoder answers by variant. One tile names a
-//! path that does not exist. Jobs run on a `ManualJobs`, one per "Finish next".
+//! The story reads no file. The fake decoder answers `stat` itself, so the tiles name one sample
+//! path with a variant per tile; the decoder answers by variant. One tile names a path the decoder
+//! reports missing. Jobs run on a `ManualJobs`, one per "Finish next".
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use craft_host::ManualJobs;
@@ -17,20 +17,19 @@ use craft_host::queue::Cancel;
 use craft_ui::canvas::textures::{Priority, TextureState, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails};
 use craft_ui::controls::Button;
 use craft_ui::localized::Labels as _;
-use craft_ui::story::{Level, Story, StoryArgs};
+use craft_ui::story::{Level, Story, StoryArgs, StoryLabels};
 use craft_ui::typed_story;
 use egui::ecolor::Hsva;
 use egui::{Sense, Ui, vec2};
 
-use super::{DecodeRequest, DecodedThumb, FileThumbKey, FileThumbOptions, FileThumbSource, ThumbDecoder, ThumbError};
+use super::{DecodeRequest, DecodedThumb, FileStat, FileThumbKey, FileThumbOptions, FileThumbSource, ThumbDecoder, ThumbError};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["File thumbnails"];
 
 craft_ui::words! {
     /// The words of the file thumbnail story.
-    pub(crate) struct FileThumbStoryWords {
-        finish_next: "fileThumbStory.finishNext" = "Finish next";
+    pub(crate) struct FileThumbStoryLabels {
         reload: "fileThumbStory.reload" = "File changed";
         plain: "fileThumbStory.plain" = "Plain image";
         raw: "fileThumbStory.raw" = "Raw with preview";
@@ -66,6 +65,9 @@ struct SourceArgs {
     quick_previews: bool,
 }
 
+/// The side of a tile, in points.
+const TILE: f32 = 64.0;
+
 const PLAIN: u64 = 0;
 const RAW: u64 = 1;
 const UNSUPPORTED: u64 = 2;
@@ -92,7 +94,15 @@ fn picture(side: u32, variant: u64, quick: bool) -> DecodedThumb {
     DecodedThumb { width, height, rgba }
 }
 
+/// The sample file every tile but the last names, and the one the decoder reports missing.
+const SAMPLE: &str = "sample.raw";
+const MISSING: &str = "missing-file.raw";
+
 impl ThumbDecoder for FakeDecoder {
+    fn stat(&self, path: &Path) -> Result<FileStat, ThumbError> {
+        if path == Path::new(MISSING) { Err(ThumbError::Missing) } else { Ok(FileStat { len: 1 << 20, modified: None }) }
+    }
+
     fn decode(&self, request: &DecodeRequest, _cancel: &Cancel) -> Result<DecodedThumb, ThumbError> {
         match request.key.variant {
             UNSUPPORTED => Err(ThumbError::Unsupported),
@@ -113,13 +123,8 @@ struct Demo {
     jobs: Arc<ManualJobs>,
 }
 
-/// A file that exists wherever the story runs natively: the running program.
-fn existing_file() -> PathBuf {
-    std::env::current_exe().unwrap_or_else(|_| PathBuf::from("story-file"))
-}
-
 fn show_source(ui: &mut Ui, args: &mut SourceArgs) {
-    let words = FileThumbStoryWords::of(ui);
+    let words = FileThumbStoryLabels::of(ui);
     let ctx = ui.ctx().clone();
     let salt = ("file-thumb-story", args.quick_previews);
     let demo_id = ui.make_persistent_id(salt);
@@ -133,10 +138,10 @@ fn show_source(ui: &mut Ui, args: &mut SourceArgs) {
     });
     let options = ThumbnailOptions { lanes: 1, jobs: Some(demo.jobs.clone()), ..ThumbnailOptions::default() };
     let thumbs = Thumbnails::<FileThumbKey>::in_context(&ctx, salt, options);
-    let file = existing_file();
+    let file = PathBuf::from(SAMPLE);
 
     ui.horizontal(|ui| {
-        if ui.add(Button::new(words.finish_next.clone()).enabled(demo.jobs.waiting() > 0)).clicked() {
+        if ui.add(Button::new(StoryLabels::of(ui).finish_next).enabled(demo.jobs.waiting() > 0)).clicked() {
             demo.jobs.run_next();
         }
         if ui.add(Button::new(words.reload.clone())).clicked() {
@@ -148,29 +153,33 @@ fn show_source(ui: &mut Ui, args: &mut SourceArgs) {
         (FileThumbKey { path: file.clone(), variant: RAW }, words.raw.clone()),
         (FileThumbKey { path: file.clone(), variant: UNSUPPORTED }, words.unsupported.clone()),
         (FileThumbKey { path: file, variant: BROKEN }, words.broken.clone()),
-        (FileThumbKey::file(PathBuf::from("missing-file.raw")), words.missing_file.clone()),
+        (FileThumbKey::file(PathBuf::from(MISSING)), words.missing_file.clone()),
     ];
-    let request = ThumbRequest::for_cell(64.0, ui.pixels_per_point());
-    ui.horizontal_wrapped(|ui| {
-        for (key, caption) in &tiles {
-            ui.vertical(|ui| {
-                ui.set_width(64.0);
-                let (rect, response) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::hover());
-                let state = thumbs.state(&ctx, &demo.source, key, &request, Priority::VISIBLE);
-                thumbs.paint(ui.painter(), rect, &state, &ThumbPaint::default());
-                if let TextureState::Failed { message } = &state {
-                    response.on_hover_text(message);
-                }
-                ui.label(caption.clone());
-                ui.label(match &state {
-                    TextureState::Missing => &words.missing,
-                    TextureState::Loading { stand_in: None } => &words.loading,
-                    TextureState::Loading { stand_in: Some(_) } => &words.loading_stand_in,
-                    TextureState::Ready(_) => &words.ready,
-                    TextureState::Empty => &words.empty,
-                    TextureState::Failed { .. } => &words.failed,
+    let request = ThumbRequest::for_cell(TILE, ui.pixels_per_point());
+    let gap = ui.spacing().item_spacing.x;
+    let per_row = (((ui.available_width() + gap) / (TILE + gap)).floor() as usize).max(1);
+    for row in tiles.chunks(per_row) {
+        ui.horizontal_top(|ui| {
+            for (key, caption) in row {
+                ui.vertical(|ui| {
+                    ui.set_width(TILE);
+                    let (rect, response) = ui.allocate_exact_size(vec2(TILE, TILE), Sense::hover());
+                    let state = thumbs.state(&ctx, &demo.source, key, &request, Priority::VISIBLE);
+                    thumbs.paint(ui.painter(), rect, &state, &ThumbPaint::default());
+                    if let TextureState::Failed { message } = &state {
+                        response.on_hover_text(message);
+                    }
+                    ui.label(caption.clone());
+                    ui.label(match &state {
+                        TextureState::Missing => &words.missing,
+                        TextureState::Loading { stand_in: None } => &words.loading,
+                        TextureState::Loading { stand_in: Some(_) } => &words.loading_stand_in,
+                        TextureState::Ready(_) => &words.ready,
+                        TextureState::Empty => &words.empty,
+                        TextureState::Failed { .. } => &words.failed,
+                    });
                 });
-            });
-        }
-    });
+            }
+        });
+    }
 }
