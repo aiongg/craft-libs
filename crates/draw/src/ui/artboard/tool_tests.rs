@@ -12,6 +12,7 @@ use crate::ui::add_beside::AddSide;
 use craft_ui::canvas::{CanvasId, CanvasView, SnapKind, SnapTarget, SnapTargets, ToolHost, ToolInput};
 use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 use craft_ui::testing::canvas as rig;
 use craft_ui::theme::{Base, install};
 
@@ -447,6 +448,7 @@ fn guide(x: f64) -> SnapTargets {
 
 // A move reads the snapped pointer on every sample: the board's centre, 2 pixels short of a guide,
 // lands on it, so the offset is 10 and not the pointer's 8.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn artboard_move_snaps_to_a_guide() {
     let mut h = harness(vec![board("a", (100.0, 100.0, 200.0, 200.0), false)], &[0], photoshop());
@@ -466,6 +468,7 @@ fn artboard_move_snaps_to_a_guide() {
 
 // A resize measures from the handle, not from where the press landed on it: pressed 4 pixels
 // outside the right edge and dragged onto a guide, the edge ends on the guide.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn artboard_resize_lands_the_edge_on_a_guide() {
     let mut h = harness(vec![board("a", (100.0, 100.0, 200.0, 200.0), false)], &[0], photoshop());
@@ -475,6 +478,7 @@ fn artboard_resize_lands_the_edge_on_a_guide() {
 }
 
 // A double click inside a board opens its options only under `open_on_double_click`.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn artboard_double_click_opens_options_under_its_own_rule() {
     for (rules, opens) in

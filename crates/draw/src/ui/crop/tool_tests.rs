@@ -8,6 +8,7 @@ use kurbo::{Point, Rect, Size};
 use super::{CropBox, CropDocKey, CropDocument, CropEvent, CropGuide, CropInput, CropRatio, CropSettings, CropTool};
 use craft_ui::canvas::{CanvasId, CanvasTool as _, CanvasView, ToolGesture, ToolHost, ToolHostResponse};
 use craft_ui::edit::EditEvent;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 use craft_ui::testing::canvas as rig;
 use craft_ui::theme::{Base, install};
 
@@ -513,6 +514,7 @@ fn picked(h: &mut Harness<'_, Host>) -> Option<u64> {
 }
 
 // `leave` answers `None` while a drag runs and leaves the press to the host; once the drag ends the same call applies the frame (the app calls it again on later passes).
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn leaving_during_a_drag_waits_for_the_release() {
     let mut h = harness(host(classic()));
@@ -529,6 +531,7 @@ fn leaving_during_a_drag_waits_for_the_release() {
 }
 
 // An Apply from `leave` that the app refuses clears the session instead of leaving the frame pending under another tool; an Apply from ✓ gives the frame back.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn a_refused_apply_from_leave_clears_the_session() {
     let mut h = harness(host(classic()));
@@ -547,6 +550,7 @@ fn a_refused_apply_from_leave_clears_the_session() {
 }
 
 // A document switch between Apply and `applied(false)` drops the kept frame: the old document's frame does not come back.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn a_document_switch_drops_the_kept_frame() {
     let mut h = harness(host(classic()));
@@ -563,6 +567,7 @@ fn a_document_switch_drops_the_kept_frame() {
 }
 
 // Drawing a new frame clears the pick, so the arrows never move a corner of the new frame.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn a_draw_press_clears_the_pick() {
     let mut h = harness(host(classic()));
@@ -581,6 +586,7 @@ fn a_draw_press_clears_the_pick() {
 }
 
 // The tool's state after a pass is read from getters: the frame, the crop preview and a running drag.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn the_pass_state_is_read_from_the_tool() {
     let mut h = harness(host(classic()));
@@ -597,6 +603,7 @@ fn the_pass_state_is_read_from_the_tool() {
 }
 
 // With a nudge pause a run of arrow nudges is one box step and counts as owning Undo from the first nudge; without it each nudge is a step.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn nudges_within_the_pause_are_one_box_step() {
     let mut h = harness(host(classic()));
@@ -642,6 +649,7 @@ fn nudges_within_the_pause_are_one_box_step() {
 }
 
 // The hover cursor comes from `CropFrame::cursor`: resize arrows on a handle, the crosshair inside the default frame, Move inside a drawn one.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn the_cursor_comes_from_the_frame() {
     let mut h = harness(host(classic()));

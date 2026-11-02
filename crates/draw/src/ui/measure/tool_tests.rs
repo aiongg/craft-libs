@@ -7,6 +7,7 @@ use kurbo::Point;
 use super::{RulerInput, RulerLine, RulerTool};
 use craft_ui::canvas::{CanvasId, CanvasView, ToolHost, ToolInput};
 use craft_ui::edit::EditEvent;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 use craft_ui::testing::canvas;
 use craft_ui::theme::{Base, install};
 
@@ -156,6 +157,7 @@ fn a_press_near_an_end_grabs_it_and_alt_starts_the_protractor() {
 }
 
 // Shift moves a dragged end onto the nearest 45° ray about the fixed end, keeping the pointer's distance from it (PhotoCraft's `constrain`), and the protractor's end about the vertex.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn shift_keeps_the_pointer_distance_on_the_45_degree_ray() {
     let mut h = harness(line((100.0, 100.0), (200.0, 100.0)));
@@ -257,6 +259,7 @@ fn esc_cancels_a_drag() {
 }
 
 // With the canvas focused (no parts group), arrows move the whole line even when a press picked a part; with the parts group focused they move the pick.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn arrows_move_the_whole_line_unless_the_parts_group_has_the_keyboard() {
     let mut h = harness(line((100.0, 100.0), (200.0, 100.0)));
