@@ -12,10 +12,11 @@ use egui::epaint::RectShape;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{Color32, Galley, Id, Painter, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, ViewportId, pos2, vec2};
 
-use super::{ListboxStyle, TextFieldStyle, TooltipExt as _, icon_size};
+use super::{Kbd, ListboxStyle, TextFieldStyle, TooltipExt as _, icon_size};
 use crate::behavior::Listbox;
 use crate::direction;
 use crate::icons::{self, Icon};
+use crate::menu::MenuStyle;
 use crate::primitives::Interactive;
 use crate::theme::{Tokens, TokensOf, role_format};
 
@@ -35,9 +36,39 @@ pub(super) struct OptionRows<'r> {
     enabled: bool,
     /// The press that opened the list is still down, or ends in this pass.
     pressing: bool,
+    /// How a row's shortcut is drawn: the menu's shortcut column.
+    shortcut: ShortcutStyle,
     hover: Hover,
     pointer_moved: bool,
     released: bool,
+}
+
+/// The look of the shortcut at a row's end, as a menu draws it (`menu.shortcut`,
+/// `menu.shortcut_gap`, `kbd.label`).
+#[derive(Clone, Copy, Debug)]
+struct ShortcutStyle {
+    label: TypeRole,
+    color: Color32,
+    gap: f32,
+}
+
+/// A row's shortcut with the style it is drawn in.
+#[derive(Clone, Copy)]
+struct Shortcut<'r> {
+    kbd: &'r Kbd,
+    style: ShortcutStyle,
+}
+
+impl Shortcut<'_> {
+    fn galley(&self, ui: &Ui, color: Color32) -> Arc<Galley> {
+        let text = self.kbd.text_in(self.kbd.os_in(ui.ctx()), &crate::localized::Words::of(ui));
+        ui.painter().layout_job(LayoutJob::single_section(text, role_format(&Tokens::of(ui), self.style.label, color)))
+    }
+
+    /// The gap and the text.
+    fn width(&self, ui: &Ui) -> f32 {
+        self.style.gap + self.galley(ui, Color32::PLACEHOLDER).size().x
+    }
 }
 
 /// What the pointer over a row does, by what the control's value is.
@@ -86,6 +117,8 @@ pub(super) struct OptionRow<'t> {
     pub enabled: bool,
     /// A hover tooltip on the row; it is also the row's accessible description.
     pub tooltip: Option<&'t str>,
+    /// The key that chooses the option from outside the list, shown at the row's reading end.
+    pub shortcut: Option<&'t Kbd>,
 }
 
 /// What a row did in its pass.
@@ -102,7 +135,9 @@ pub(super) struct RowOutcome {
 impl<'r> OptionRows<'r> {
     pub(super) fn new(ui: &Ui, style: &'r ListboxStyle, size: ControlSize, owner: Id, icons: bool, enabled: bool, pressing: bool) -> Self {
         let (pointer_moved, released) = ui.input(|i| (i.pointer.delta() != Vec2::ZERO, i.pointer.primary_released()));
-        Self { style, size, owner, icons, enabled, pressing, hover: Hover::Activates, pointer_moved, released }
+        let menu = MenuStyle::new(&Tokens::of(ui), size);
+        let shortcut = ShortcutStyle { label: menu.shortcut_label, color: menu.shortcut, gap: menu.shortcut_gap };
+        Self { style, size, owner, icons, enabled, pressing, shortcut, hover: Hover::Activates, pointer_moved, released }
     }
 
     /// What the pointer over a row does; [`Hover::Activates`] by default.
@@ -116,7 +151,8 @@ impl<'r> OptionRows<'r> {
     /// a click or that press's release over it picks it.
     pub(super) fn show(&self, ui: &mut Ui, listbox: &mut Listbox, row: &OptionRow<'_>) -> RowOutcome {
         let enabled = self.enabled && row.enabled;
-        let size = vec2(ui.available_width().max(self.width(ui, row.text, row.leading)), self.style.height);
+        let shortcut = row.shortcut.map(|kbd| Shortcut { kbd, style: self.shortcut });
+        let size = vec2(ui.available_width().max(self.width(ui, row.text, row.leading, shortcut.as_ref())), self.style.height);
         let response = Interactive::with_id(option_id(self.owner, row.option), Role::ListBoxOption, row.text)
             .sense(Sense::CLICK)
             .selected(row.chosen)
@@ -125,6 +161,10 @@ impl<'r> OptionRows<'r> {
             .focus_ring(false)
             .interact(ui, size)
             .finish(ui);
+        if let Some(kbd) = row.shortcut {
+            let spoken = kbd.spoken(kbd.os_in(ui.ctx()));
+            ui.ctx().accesskit_node_builder(response.id, |n| n.set_keyboard_shortcut(spoken));
+        }
         let pointed = enabled && response.contains_pointer() && (self.pointer_moved || self.pressing);
         if pointed && self.hover == Hover::Activates {
             listbox.set_active(Some(row.option));
@@ -144,6 +184,7 @@ impl<'r> OptionRows<'r> {
             lit,
             focus: active && listbox.keyboard(),
             enabled,
+            shortcut,
         };
         paint_row(ui, self.style, self.size, response.rect, &look);
         let pointed = enabled && response.contains_pointer();
@@ -156,11 +197,11 @@ impl<'r> OptionRows<'r> {
 
     /// The width a row needs: its text, the check mark and the icon with their gaps, and the
     /// padding.
-    fn width(&self, ui: &Ui, text: &str, leading: Option<Leading<'_>>) -> f32 {
+    fn width(&self, ui: &Ui, text: &str, leading: Option<Leading<'_>>, shortcut: Option<&Shortcut<'_>>) -> f32 {
         let s = self.style;
         let galley = text_galley(ui, s.label, text, Color32::PLACEHOLDER, f32::INFINITY);
         let text = if leading.is_none_or(|l| l.text) { galley.size().x } else { 0.0 };
-        2.0 * s.pad_x + text_offset(s, self.icons, leading) + text
+        2.0 * s.pad_x + text_offset(s, self.icons, leading) + text + shortcut.map_or(0.0, |s| s.width(ui))
     }
 }
 
@@ -182,6 +223,7 @@ struct RowLook<'r> {
     /// The active row is the keyboard's focus cue.
     focus: bool,
     enabled: bool,
+    shortcut: Option<Shortcut<'r>>,
 }
 
 /// From a row's reading start to its text, inside the padding: the check mark and, when the list
@@ -231,6 +273,19 @@ fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &Ro
     }
     if look.leading.is_some_and(|l| !l.text) {
         return;
+    }
+    if let Some(shortcut) = &look.shortcut {
+        let color = if look.enabled && fill.is_some() {
+            ink
+        } else if look.enabled {
+            shortcut.style.color
+        } else {
+            s.text_disabled
+        };
+        let galley = shortcut.galley(ui, color);
+        let end = direction::end_x(ui, rect) - forward * s.pad_x;
+        let x = if direction::is_rtl(ui) { end } else { end - galley.size().x };
+        ui.painter().galley(pos2(x, rect.center().y - galley.size().y / 2.0).round_to_pixels(ppp), galley, color);
     }
     let offset = text_offset(s, look.icons, look.leading);
     let galley = text_galley(ui, s.label, look.text, text, f32::INFINITY);
@@ -348,7 +403,17 @@ mod tests {
         let mut out = ctx.run_ui(RawInput::default(), |ui| {
             let s = Select::style(&crate::theme::Tokens::of(ui), ControlSize::Md);
             let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(120.0, s.list.height));
-            let row = |chosen, lit| RowLook { text: "Normal", icon: None, leading: None, icons: false, chosen, lit, focus: false, enabled: true };
+            let row = |chosen, lit| RowLook {
+                text: "Normal",
+                icon: None,
+                leading: None,
+                icons: false,
+                chosen,
+                lit,
+                focus: false,
+                enabled: true,
+                shortcut: None,
+            };
             paint_row(ui, &s.list, ControlSize::Md, rect, &row(false, false));
             paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 40.0)), &row(true, false));
             paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 80.0)), &row(false, true));
@@ -395,7 +460,17 @@ mod tests {
             let mut out = ctx.run_ui(RawInput::default(), |ui| {
                 let s = Select::style(&crate::theme::Tokens::of(ui), ControlSize::Md);
                 let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(120.0, s.list.height));
-                let row = |chosen, lit| RowLook { text: "Normal", icon: None, leading: None, icons: false, chosen, lit, focus: false, enabled: true };
+                let row = |chosen, lit| RowLook {
+                    text: "Normal",
+                    icon: None,
+                    leading: None,
+                    icons: false,
+                    chosen,
+                    lit,
+                    focus: false,
+                    enabled: true,
+                    shortcut: None,
+                };
                 paint_row(ui, &s.list, ControlSize::Md, rect, &row(true, false));
                 paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 40.0)), &row(true, true));
                 paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 80.0)), &row(false, true));

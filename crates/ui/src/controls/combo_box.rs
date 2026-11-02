@@ -286,6 +286,7 @@ impl<'a> ComboBox<'a> {
                         chosen: checked == Some(option),
                         enabled: true,
                         tooltip: None,
+                        shortcut: None,
                     };
                     let outcome = rows.show(ui, &mut listbox, &row);
                     if outcome.picked {

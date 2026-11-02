@@ -37,6 +37,8 @@ struct Driver {
     shapes: Vec<egui::epaint::ClippedShape>,
     /// The button under the pointer's outside spot (700, 500) went down or was clicked.
     under: Under,
+    /// Passed to [`Menu::min_width`].
+    min_width: Option<f32>,
 }
 
 #[derive(Default)]
@@ -67,6 +69,7 @@ impl Driver {
             keyboard: false,
             shapes: Vec::new(),
             under: Under::default(),
+            min_width: None,
         };
         d.run(3);
         d
@@ -81,7 +84,7 @@ impl Driver {
             events: std::mem::take(&mut self.events),
             ..Default::default()
         };
-        let (entries, keyboard) = (&self.entries, self.keyboard);
+        let (entries, keyboard, min_width) = (&self.entries, self.keyboard, self.min_width);
         let mut shown = None;
         let mut popup = Id::NULL;
         let under = &mut self.under;
@@ -94,7 +97,11 @@ impl Driver {
             let toggle = button.clicked_by(egui::PointerButton::Primary).then_some(egui::SetOpenCommand::Toggle);
             let p = Popup::menu(&button).open_memory(toggle);
             popup = p.get_id();
-            shown = Some(Menu::new(entries).opened_by_keyboard(keyboard).show(ui, p));
+            let mut menu = Menu::new(entries).opened_by_keyboard(keyboard);
+            if let Some(width) = min_width {
+                menu = menu.min_width(width);
+            }
+            shown = Some(menu.show(ui, p));
         });
         full.textures_delta.clear();
         if let Some(update) = full.platform_output.accesskit_update {
@@ -515,6 +522,22 @@ fn rows_are_as_wide_as_the_widest_and_at_least_the_menus_width() {
         .drop_without_applying_deltas();
     let style = style.unwrap_or_else(|| panic!("no style"));
     assert_eq!(d.rect("A").size(), vec2(style.min_width, style.rows.height), "menu.min_width, and the list box row height");
+}
+
+#[test]
+fn min_width_sets_the_narrowest_level_and_a_wider_row_still_widens_it() {
+    let mut d = Driver::new(vec![item("A", "a"), item("A much longer row than the least width of a menu holds, and then some more text", "b")]);
+    d.min_width = Some(400.0);
+    d.click("Open");
+    assert!(d.rect("A").width() > 400.0, "the long row is wider than the least width");
+    let mut d = Driver::new(vec![item("A", "a")]);
+    d.min_width = Some(333.0);
+    d.click("Open");
+    assert_eq!(d.rect("A").width(), 333.0);
+    let mut d = Driver::new(vec![item("A", "a")]);
+    d.min_width = Some(10.0);
+    d.click("Open");
+    assert!(d.rect("A").width() < 100.0, "a lower least width replaces menu.min_width");
 }
 
 #[test]

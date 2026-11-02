@@ -245,7 +245,16 @@ impl<'a> Autocomplete<'a> {
                             let outcome = rows.show(
                                 ui,
                                 &mut pass.listbox,
-                                &OptionRow { option: row, text, icon: None, leading: None, chosen: false, enabled: true, tooltip: None },
+                                &OptionRow {
+                                    option: row,
+                                    text,
+                                    icon: None,
+                                    leading: None,
+                                    chosen: false,
+                                    enabled: true,
+                                    tooltip: None,
+                                    shortcut: None,
+                                },
                             );
                             if outcome.picked {
                                 clicked = Some(row);

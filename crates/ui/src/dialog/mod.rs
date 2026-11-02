@@ -19,7 +19,8 @@
 //! - [`DialogHost`], [`StackDialog`], [`DialogResult`]: the dialogs an app has open as values, one
 //!   `open` and one `take`, with the startup modal queue ([`StartupStage`]).
 //! - [`DialogFields`], [`Param`], [`ParamDialog`], [`CommandForm`]: a dialog from a parameter list,
-//!   its values by key for scripts and tests, last-used values and Reset.
+//!   its values by key for scripts and tests, last-used values and Reset; [`translated`], the
+//!   catalog lookup of a runtime label.
 //! - [`ImageSizeDialog`], [`CanvasSizeDialog`], [`LinkedSizeFields`], [`AnchorGrid`]: the size
 //!   dialogs.
 //! - [`StandardPrompt`], [`UnsavedChangesDialog`], [`PropertiesDialog`], [`ReportDialog`]: the
@@ -157,7 +158,9 @@ pub use new_document::{
     BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, DocumentOptions, DocumentPreset, NewDocumentDialog, NewDocumentLabels,
     Orientation, PresetCategory, push_recent, size_line,
 };
-pub use params::{CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, ParamRows, ParamRowsResponse, PathKind, PathRequest};
+pub use params::{
+    CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, ParamRows, ParamRowsResponse, PathKind, PathRequest, translated,
+};
 pub use pass::any_modal;
 pub use password::{PasswordAnswer, PasswordDialog, PasswordLabels, PasswordPurpose, PasswordStrength, Secret, password_strength};
 pub use placement::{PlaceKey, keep_on_screen, next_pin};

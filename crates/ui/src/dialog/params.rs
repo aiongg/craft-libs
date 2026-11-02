@@ -601,7 +601,7 @@ pub(super) fn encode(component: f32) -> u8 {
 /// [`Param::parse_list`], or the app's own words), which `Words` cannot look up (its words are
 /// `&'static`), so this reads the Host's `I18n` with the call `Words::from_i18n` makes for a word
 /// looked up by its English text.
-pub(super) fn translated(ctx: &Context, text: &str) -> String {
+pub fn translated(ctx: &Context, text: &str) -> String {
     match Host::try_of_ctx(ctx) {
         Some(host) => host.i18n().map_or(text, |i18n| i18n.t(host.lang(), text)).to_owned(),
         None => text.to_owned(),
