@@ -45,7 +45,7 @@ use egui::load::SizedTexture;
 use egui::{Context, Key, Modifiers, Rect};
 
 use craft_ui::canvas::kurbo::Size;
-use craft_ui::canvas::{CanvasId, Checkerboard, HandTool, NavigationOptions, RasterSource, ToolHost, ZoomTool};
+use craft_ui::canvas::{Checkerboard, HandTool, NavigationOptions, RasterSource, ToolHost, ZoomTool};
 use craft_ui::dialog::full_window::{FullWindowCanvas, FullWindowSide, FullWindowTitle, FullWindowView, PreviewTicket, SideFooter};
 use craft_ui::dialog::{ButtonRole, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step};
 use craft_ui::edit::CancelReason;
@@ -280,7 +280,7 @@ impl VanishingPointWorkspace {
             );
             if let Some(pick) = rail.select.filter(|pick| *pick != current) {
                 // A gesture in progress ends with the tool that began it.
-                let id = CanvasId::new(ui, CANVAS);
+                let id = FullWindowCanvas::canvas_id(ui, CANVAS);
                 match *strip {
                     VanishingPointStripTool::Hand => ToolHost::cancel(ctx, id, hand, CancelReason::Removed),
                     VanishingPointStripTool::Zoom => ToolHost::cancel(ctx, id, zoom, CancelReason::Removed),

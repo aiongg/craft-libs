@@ -48,7 +48,7 @@ use egui::{Color32, Context, Key, Modifiers, Rect};
 
 use craft_theme::Srgba;
 use craft_ui::canvas::kurbo::{self, Size};
-use craft_ui::canvas::{CanvasId, Checkerboard, HandTool, NavigationOptions, RasterSource, ToolHost, ZoomTool};
+use craft_ui::canvas::{Checkerboard, HandTool, NavigationOptions, RasterSource, ToolHost, ZoomTool};
 use craft_ui::dialog::full_window::{FullWindowCanvas, FullWindowSide, FullWindowTitle, FullWindowView, PreviewStatus, PreviewTicket, SideFooter};
 use craft_ui::dialog::{ButtonRole, ColorRequest, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step};
 use craft_ui::edit::CancelReason;
@@ -546,7 +546,7 @@ fn cancel_gesture(
     hand: &mut HandTool,
     zoom: &mut ZoomTool,
 ) {
-    let (ctx, id) = (ui.ctx(), CanvasId::new(ui, CANVAS));
+    let (ctx, id) = (ui.ctx(), FullWindowCanvas::canvas_id(ui, CANVAS));
     match tool {
         FillTool::Hand => ToolHost::cancel(ctx, id, hand, CancelReason::Removed),
         FillTool::Zoom => ToolHost::cancel(ctx, id, zoom, CancelReason::Removed),
