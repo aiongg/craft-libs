@@ -1,7 +1,4 @@
-//! Stories of Perspective Warp (task ST-TR2): not registered. Registering them (task RG2) adds
-//! `warp::perspective::stories` to the crate's `register!` list, `PerspectiveWarp` and
-//! `PerspectiveBar` to `COMPONENTS` and [`PerspectiveStoryLabels`] to `WORDS`, and regenerates the
-//! registry dump.
+//! Stories of Perspective Warp (task ST-TR2).
 //!
 //! The layer is `MockImage` on the shared stage of the transform preview stories
 //! (`transform_preview::stories::Document`), drawn by the real `TransformPreview` through
@@ -11,8 +8,8 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `primitives/perspective-warp/planes` | Layout with two linked planes; Warp with the picture following; a picked corner with keyboard focus (the story asks for the group's focus once; the ring shows once the keyboard is in use) |
-//! | `composites/perspective-warp/bar` | Layout (count "2 planes", Remove Planes) and Warp (Straighten, Level, Both); the plane count is an arg |
+//! | `composites/perspective-warp/planes` | Layout with two linked planes; Warp with the picture following; a picked corner with keyboard focus (the story asks for the group's focus once; the ring shows once the keyboard is in use) |
+//! | `patterns/perspective-bar/bar` | Layout (count "2 planes", Remove Planes) and Warp (Straighten, Level, Both); the plane count is an arg |
 
 use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::canvas::quad::Homography;
@@ -24,7 +21,7 @@ use craft_ui::typed_story;
 use egui::{IdSalt, Ui};
 
 use super::{PerspectiveBar, PerspectiveBarOutput, PerspectiveEdit, PerspectiveSession, PerspectiveWarp, Plane, PlaneMode};
-use crate::ui::transform_preview::stories::{Document, draw};
+use crate::ui::transform_preview::stories::{Document, Zoom, draw, grid, sensing};
 use crate::ui::transform_preview::{PreviewMap, PreviewQuality};
 
 /// The components this module has stories for.
@@ -46,15 +43,15 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "primitives/perspective-warp/planes",
-            Level::Primitives,
+            "composites/perspective-warp/planes",
+            Level::Composites,
             "PerspectiveWarp",
             "Planes",
             PlanesArgs { width: Document::DEFAULT_SIZE[0], height: Document::DEFAULT_SIZE[1], pull: 8.0 },
             show_planes
         )
         .on(Surface::Canvas),
-        typed_story!("composites/perspective-warp/bar", Level::Composites, "PerspectiveBar", "Bar", BarArgs { planes: 2 }, show_bar),
+        typed_story!("patterns/perspective-bar/bar", Level::Patterns, "PerspectiveBar", "Bar", BarArgs { planes: 2 }, show_bar),
     ]
 }
 
@@ -177,29 +174,27 @@ fn show_planes(ui: &mut Ui, args: &mut PlanesArgs) {
     let textures = textures.as_ref();
     let layer = doc.layer();
     let cases = [(Kind::Layout, "layout", &labels.layout), (Kind::Warp, "warp", &labels.warp), (Kind::Picked, "picked", &labels.picked)];
-    ui.columns(cases.len(), |columns| {
-        for (column, (kind, salt, text)) in columns.iter_mut().zip(cases) {
-            column.add(Text::new(text).content(Content::Muted));
-            let mut cell = PlaneCell::load(column, salt, kind, layer, 2, args.pull);
-            let width = column.available_width();
-            let (response, view) = doc.interactive_canvas(column, ("perspective-story", salt), width);
-            {
-                let map = warped_by(cell.session.planes());
-                draw(column, &view, &doc, textures, PreviewMap::function(layer, PreviewQuality::PLANE_CELLS, &map), 1.0, false);
-            }
-            if kind == Kind::Picked && !cell.focused {
-                let group = column.make_persistent_id(IdSalt::new(salt));
-                column.memory_mut(|m| m.request_focus(group));
-                cell.focused = true;
-            }
-            let now = column.input(|i| i.time);
-            let reported = PerspectiveWarp::new(salt, &cell.session).show(column, &response, &view);
-            if reported.discard {
-                cell.reset(args.pull);
-            }
-            cell.apply(reported.edits, now);
-            cell.store(column, salt);
+    grid(ui, Vec::from(cases), |column, (kind, salt, text)| {
+        column.add(Text::new(text).content(Content::Muted));
+        let mut cell = PlaneCell::load(column, salt, kind, layer, 2, args.pull);
+        let canvas = doc.canvas(column, text, Zoom::Fit, None);
+        let (response, view) = (sensing(column, &canvas), canvas.view);
+        {
+            let map = warped_by(cell.session.planes());
+            draw(column, &view, &doc, textures, PreviewMap::function(layer, PreviewQuality::PLANE_CELLS, &map), 1.0, false);
         }
+        if kind == Kind::Picked && !cell.focused {
+            let group = column.make_persistent_id(IdSalt::new(salt));
+            column.memory_mut(|m| m.request_focus(group));
+            cell.focused = true;
+        }
+        let now = column.input(|i| i.time);
+        let reported = PerspectiveWarp::new(salt, &cell.session).show(column, &response, &view);
+        if reported.discard {
+            cell.reset(args.pull);
+        }
+        cell.apply(reported.edits, now);
+        cell.store(column, salt);
     });
 }
 

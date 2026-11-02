@@ -22,6 +22,7 @@ use craft_ui::dialog::full_window::FullWindowCanvas;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, claim, dialog_closed, dialog_shown, lock, shared};
+use craft_ui::testing::canvas_story::{ViewArgs, document_with};
 use craft_ui::typed_story;
 use egui::{Key, Modifiers, Ui, vec2};
 
@@ -380,8 +381,12 @@ fn show_refine(ui: &mut Ui, args: &mut RefineArgs) {
         SelectMaskPanel::new("select-mask-story-refine", settings, &mut session.refine, view_state).error(error).show(&mut columns[0]);
         let ui = &mut columns[1];
         let image = MockImage::default();
-        let width = ui.available_width();
-        let (response, view) = image.canvas(ui, "select-mask-story-refine-picture", width, None, None);
-        SelectionOverlay::new("select-mask-story-refine-ants", &MockSubject(image)).labels(SelectionOverlayLabels::of(ui)).show(ui, &response, &view);
+        let picture = document_with(ui, ViewArgs::default(), "select-mask-story-refine-picture", 0.0, image.view(None, None));
+        image.show(ui, &picture);
+        SelectionOverlay::new("select-mask-story-refine-ants", &MockSubject(image)).labels(SelectionOverlayLabels::of(ui)).show(
+            ui,
+            &picture.response,
+            &picture.view,
+        );
     });
 }

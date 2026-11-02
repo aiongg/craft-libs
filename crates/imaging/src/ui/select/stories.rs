@@ -1,6 +1,4 @@
-//! Stories of the selection tools (task ST-SE1): not registered. Registering them (task RG2) adds
-//! `select::stories` to the crate's `register!` list and [`COMPONENTS`] to the registry's
-//! component list, and regenerates the registry dump.
+//! Stories of the selection tools (task ST-SE1).
 //!
 //! Each story runs one tool inside a `ToolHost` over [`MockImage`], as an app would: the tool is
 //! wrapped in a [`SelectToolPass`] with a [`SelectionProbe`] over the story's fake selection, and
@@ -12,28 +10,30 @@
 //! house's outline where the colour across it differs by the Contrast option.
 //!
 //! The Play button injects the same input a hand would (`ToolHost::inject`), so each story runs
-//! without a pointer. Button captions are story words; the status line under the picture is Debug text.
+//! without a pointer. Button captions and the status line under the picture (the tool's phase and
+//! the last event it reported) are story words.
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `patterns/select/marquee` | The four kinds; Normal, Fixed Ratio and Fixed Size; ⇧ and ⌥ after the press; a drag inside the selection; a click that deselects |
-//! | `patterns/select/lasso` | Freehand and ⌥ straight segments; Backspace retracts; the replaced selection hidden while drawing |
-//! | `patterns/select/polygon-lasso` | Click by click; ⇧ at 45°; closing on the first point; Backspace retracts |
-//! | `patterns/select/magnetic-lasso` | The tracer on the house's edges; Width, Contrast and Frequency from the options; fastening points, the closing ring |
+//! | `primitives/marquee-tool/marquee` | The four kinds; Normal, Fixed Ratio and Fixed Size; ⇧ and ⌥ after the press; a drag inside the selection; a click that deselects |
+//! | `primitives/lasso-tool/lasso` | Freehand and ⌥ straight segments; Backspace retracts; the replaced selection hidden while drawing |
+//! | `primitives/polygon-lasso-tool/polygon` | Click by click; ⇧ at 45°; closing on the first point; Backspace retracts |
+//! | `primitives/magnetic-lasso-tool/magnetic` | The tracer on the house's edges; Width, Contrast and Frequency from the options; fastening points, the closing ring |
 
 use craft_ui::canvas::kurbo::{Point, Rect, Size, Vec2};
 use craft_ui::canvas::{CanvasId, CanvasTool, Constraint, RasterSource as _, SelectionOperation, ToolHost, ToolInput};
 use craft_ui::controls::Button;
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, Words};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
+use craft_ui::testing::canvas_story::{ViewArgs, document_with};
 use craft_ui::typed_story;
-use egui::{Modifiers, Sense, Ui};
+use egui::{Modifiers, Ui};
 
 use super::{
-    EdgeSearch, EdgeTracer, LassoTool, MagneticLassoTool, MarqueeKind, MarqueeTool, PolygonLassoTool, SelectEvent, SelectPhase, SelectToolPass,
-    SelectionProbe, SelectionShape,
+    EdgeSearch, EdgeTracer, LassoTool, MagneticLassoTool, MarqueeKind, MarqueeTool, OUTLINE_POINTS, PolygonLassoTool, SelectEvent, SelectPhase,
+    SelectToolPass, SelectionProbe, SelectionShape,
 };
 use crate::trace::{MaskRect, MaskSource};
 use crate::ui::mock_image::MockImage;
@@ -47,6 +47,17 @@ craft_ui::words! {
     #[non_exhaustive]
     pub(crate) struct SelectToolStoryLabels {
         reset: "selectToolStory.reset" = "Reset selection";
+        /// The status line: the tool's phase and the last event it reported.
+        status: "selectToolStory.status" = "{phase}. Last event: {event}.";
+        idle: "selectToolStory.idle" = "Idle";
+        marquee: "selectToolStory.marquee" = "Dragging a marquee";
+        /// The outline phase; `{points}` is the point count ("5 points").
+        outline: "selectToolStory.outline" = "Drawing an outline, {points}";
+        dragging: "selectToolStory.dragging" = "Dragging the selection";
+        no_event: "selectToolStory.noEvent" = "none yet";
+        selected: "selectToolStory.selected" = "Selected";
+        deselected: "selectToolStory.deselected" = "Deselected";
+        dragged: "selectToolStory.dragged" = "Dragged the selection";
     }
 }
 
@@ -54,8 +65,8 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "patterns/select/marquee",
-            Level::Patterns,
+            "primitives/marquee-tool/marquee",
+            Level::Primitives,
             "MarqueeTool",
             "Marquee",
             MarqueeArgs {
@@ -76,8 +87,8 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "patterns/select/lasso",
-            Level::Patterns,
+            "primitives/lasso-tool/lasso",
+            Level::Primitives,
             "LassoTool",
             "Lasso",
             LassoArgs { width: 1600.0, operation: OperationArg::New, straight: false, seconds: 3.0 },
@@ -85,8 +96,8 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "patterns/select/polygon-lasso",
-            Level::Patterns,
+            "primitives/polygon-lasso-tool/polygon",
+            Level::Primitives,
             "PolygonLassoTool",
             "Polygonal Lasso",
             PolygonArgs { width: 1600.0, operation: OperationArg::New, constrain: false, seconds: 3.0 },
@@ -94,8 +105,8 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "patterns/select/magnetic-lasso",
-            Level::Patterns,
+            "primitives/magnetic-lasso-tool/magnetic",
+            Level::Primitives,
             "MagneticLassoTool",
             "Magnetic Lasso",
             MagneticArgs { width: 1600.0, edge_width: 10.0, contrast: 10.0, frequency: 57.0, operation: OperationArg::New, seconds: 4.0 },
@@ -627,19 +638,19 @@ where
     for<'a> SelectToolPass<'a, T>: CanvasTool,
 {
     session.tool.set_operation(operation);
-    let (response, view) = image.canvas(ui, ("select-story", salt, "picture"), ui.available_width(), None, None);
-    let id = CanvasId::new(ui, ("select-story", salt, "canvas"));
-    let canvas = id.interact(ui, response.rect, Sense::click_and_drag() | Sense::FOCUSABLE);
+    let picture = document_with(ui, ViewArgs::default(), salt, 0.0, image.view(None, None));
+    image.show(ui, &picture);
+    let (id, response, view) = (picture.id, &picture.response, picture.view);
     run_script(ui, id, &mut session.script);
 
     SelectionOverlay::new(("select-story", salt, "ants"), &session.selection)
         .labels(SelectionOverlayLabels::of(ui))
         .visible(!session.tool.replaces_selection())
         .offset(session.dragging.unwrap_or([0, 0]))
-        .show(ui, &response, &view);
+        .show(ui, response, &view);
     let [w, h] = image.size();
     let mut pass = SelectToolPass::new(&mut session.tool, &session.selection);
-    let _ = ToolHost::new(id).document(Size::new(f64::from(w), f64::from(h))).show(ui, &view, &canvas, &mut pass);
+    let _ = ToolHost::new(id).document(Size::new(f64::from(w), f64::from(h))).show(ui, &view, response, &mut pass);
 
     for event in session.tool.take_events() {
         match &event {
@@ -660,8 +671,30 @@ where
         session.last = Some(event);
         ui.ctx().request_repaint();
     }
-    let line = format!("{:?} | {:?}", session.tool.phase(), session.last);
+    let line = status_line(ui, session.tool.phase(), session.last.as_ref());
     ui.add(Text::new(line.as_str()).content(Content::Muted));
+}
+
+/// The line under the picture: the tool's phase and the last event, in words.
+fn status_line(ui: &Ui, phase: SelectPhase, last: Option<&SelectEvent>) -> String {
+    let labels = SelectToolStoryLabels::of(ui);
+    let phase = match phase {
+        SelectPhase::Idle => labels.idle,
+        SelectPhase::Marquee { .. } => labels.marquee,
+        SelectPhase::Outline { points } => {
+            let (ctx, words) = (ui.ctx(), Words::of_ctx(ui.ctx()));
+            let count = words.counted(ctx, OUTLINE_POINTS, &words.get(OUTLINE_POINTS.word), points as u64);
+            craft_i18n::fmt(&labels.outline, &[("points", count.as_str())])
+        }
+        SelectPhase::Dragging(_) => labels.dragging,
+    };
+    let event = match last {
+        None => &labels.no_event,
+        Some(SelectEvent::Commit { .. }) => &labels.selected,
+        Some(SelectEvent::Deselect) => &labels.deselected,
+        Some(SelectEvent::DragSelection(_)) => &labels.dragged,
+    };
+    craft_i18n::fmt(&labels.status, &[("phase", phase.as_str()), ("event", event.as_str())])
 }
 
 // ---- the stories ----

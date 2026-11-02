@@ -17,6 +17,7 @@ use craft_ui::canvas::RasterSource as _;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, Surface};
+use craft_ui::testing::canvas_story::{ViewArgs, document_with};
 use craft_ui::typed_story;
 use egui::{Sense, Ui};
 
@@ -139,8 +140,9 @@ fn show(ui: &mut Ui, salt: &'static str, signature: Vec<f64>, build: impl FnOnce
     });
     ui.columns(2, |columns| {
         let ui = &mut columns[0];
-        let width = ui.available_width();
-        let (area, view) = image.canvas(ui, ("blur-pins-story", salt), width, None, None);
+        let picture = document_with(ui, ViewArgs::default(), salt, 0.0, image.view(None, None));
+        image.show(ui, &picture);
+        let (area, view) = (&picture.response, picture.view);
         let canvas = ui.interact(area.rect, ui.make_persistent_id(("blur-pins-story-canvas", salt)), Sense::click_and_drag() - Sense::FOCUSABLE);
         let out = BlurPinsOverlay::new(("pins", salt), &mut kept.pins).labels(labels.clone()).show(ui, &canvas, &view);
         if let Some(edit) = &out.edit {
