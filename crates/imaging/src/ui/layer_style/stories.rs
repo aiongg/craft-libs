@@ -144,7 +144,7 @@ const SHADOW_LAYERS: u32 = 6;
 struct Rig {
     draft: LayerStyleDraft,
     /// The draft at `Begin` of the gesture in progress.
-    before: Option<LayerStyleDraft>,
+    before: Option<LayerStyle>,
     presets: PresetState<String>,
     rows: Vec<PresetRow<String>>,
     library: Vec<Contour>,
@@ -280,7 +280,8 @@ fn run_dialog(ui: &mut Ui, rig: &mut Rig, env: &Env) {
             .style_presets(thumbs)
             .show(ui)
     };
-    apply_edit(out.edit.event, &mut rig.draft, &mut rig.before);
+    out.apply_view(&mut rig.draft);
+    apply_edit(out.edit.event, &mut rig.draft.style, &mut rig.before);
     if let Some(request) = out.pick_color {
         // The colour picker is the host's: answer with the accent, or the error colour when the
         // swatch already shows the accent.
@@ -382,12 +383,13 @@ fn picture(ui: &mut Ui, draft: &mut LayerStyleDraft) {
     }
     painter.rect_filled(body, CornerRadius::same(round.clamp(0.0, 255.0) as u8), tokens.color.accent.strong.to_egui());
 
+    let defaults = draft.selected_kind().map(|kind| EffectSpec::photoshop(kind).defaults).unwrap_or_default();
     if response.drag_started() {
-        draft.drag_shadow(true, [0.0, 0.0]);
+        draft.drag_shadow(&defaults, true, [0.0, 0.0]);
     } else if response.dragged() {
         let total = ui.input(|i| i.pointer.latest_pos().zip(i.pointer.press_origin()).map(|(now, start)| now - start));
         if let Some(total) = total {
-            draft.drag_shadow(false, [f64::from(total.x) / scale, f64::from(total.y) / scale]);
+            draft.drag_shadow(&defaults, false, [f64::from(total.x) / scale, f64::from(total.y) / scale]);
         }
     }
     if response.drag_stopped() {

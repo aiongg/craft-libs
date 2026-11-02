@@ -11,7 +11,7 @@
 //! contours are point lists, which the UI turns into a curve for its editor (lead call L27).
 //!
 //! ```no_run
-//! use craft_imaging::layer_style::{EffectKind, LayerStyle, LayerStyleDraft, LayerStylePage};
+//! use craft_imaging::layer_style::{EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, LayerStylePage};
 //!
 //! // Layer › Layer Style › Drop Shadow…: the first Drop Shadow, turned on, or a new one.
 //! let mut draft = LayerStyleDraft::new(LayerStyle::default());
@@ -19,8 +19,9 @@
 //! assert!(matches!(draft.page, LayerStylePage::Effect(_)));
 //!
 //! // A drag on the image while the shadow's page shows: whole degrees and pixels.
-//! draft.drag_shadow(true, [0.0, 0.0]);
-//! draft.drag_shadow(false, [4.0, 3.0]);
+//! let defaults = EffectSpec::photoshop(EffectKind::DropShadow).defaults;
+//! draft.drag_shadow(&defaults, true, [0.0, 0.0]);
+//! draft.drag_shadow(&defaults, false, [4.0, 3.0]);
 //! ```
 
 mod contour;

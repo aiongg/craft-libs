@@ -8,11 +8,13 @@ use super::spec::EffectSpec;
 /// What the Layer Style dialog edits: the [`LayerStyle`] and the dialog's view state (the page,
 /// the Blend If channel shown, the Preview check, a shadow drag in progress).
 ///
-/// The app owns the draft for as long as the dialog is open. The dialog reports a changed copy
-/// (`EditEvent<LayerStyleDraft>`); the app keeps it, previews it while
-/// [`preview`](Self::preview) is on, applies [`style`](Self::style) as one history step on OK and
-/// drops it on Cancel. The view state never reaches the document, and
-/// [`render_hash`](Self::render_hash) ignores it, so a page change re-renders nothing.
+/// The app owns the draft for as long as the dialog is open. The dialog reports the style as the
+/// value of its edits (`EditEvent<LayerStyle>`) and the view state beside them (the page, the
+/// Blend If channel and Preview as `Option`s of what changed); the app keeps both, previews the
+/// style while [`preview`](Self::preview) is on, applies [`style`](Self::style) as one history
+/// step on OK and drops it on Cancel. Only the style is recorded by `Dialog::history`, so Undo
+/// never moves the view, the view state never reaches the document, and
+/// [`render_hash`](Self::render_hash) ignores it: a page change re-renders nothing.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayerStyleDraft {
     pub style: LayerStyle,
@@ -155,15 +157,17 @@ impl LayerStyleDraft {
         self.selected_kind().is_some_and(EffectKind::drags_shadow)
     }
 
-    /// A drag on the image with a shadow page selected. `start` is the press (it records the
-    /// shadow's angle, 120 when missing, and distance, 0 when missing); `total` is the pointer's
+    /// A drag on the image with a shadow page selected. `defaults` are the selected kind's spec
+    /// defaults, which a parameter the instance lacks takes ([`StyleParams::over`]). `start` is the
+    /// press (it records the shadow's angle, 120 when the defaults lack it too, and distance, 0 in
+    /// that case); `total` is the pointer's
     /// movement since, in document pixels. The new angle and distance ([`ShadowDrag::moved`]) go
     /// through [`set_param`](Self::set_param), so with Use Global Light the shared angle moves
     /// too. Returns whether the style changed; does nothing on other pages. The host calls it on
     /// every move (an `Update` of its outer gesture) and clears
     /// [`shadow_drag`](Self::shadow_drag) on release.
     // pc: crates/ui-egui/src/dialogs/layer_style.rs:508-527 `drag_shadow`.
-    pub fn drag_shadow(&mut self, start: bool, total: [f64; 2]) -> bool {
+    pub fn drag_shadow(&mut self, defaults: &StyleParams, start: bool, total: [f64; 2]) -> bool {
         let LayerStylePage::Effect(id) = self.page else {
             return false;
         };
@@ -174,8 +178,9 @@ impl LayerStyleDraft {
             return false;
         };
         if start || self.shadow_drag.is_none() {
-            let angle = instance.params.number("angle").unwrap_or(120.0);
-            let distance = instance.params.number("distance").unwrap_or(0.0);
+            let shown = instance.params.over(defaults);
+            let angle = shown.number("angle").unwrap_or(120.0);
+            let distance = shown.number("distance").unwrap_or(0.0);
             self.shadow_drag = Some(ShadowDrag::begin(angle, distance));
         }
         let Some((angle, distance)) = self.shadow_drag.and_then(|drag| drag.moved(total)) else {
