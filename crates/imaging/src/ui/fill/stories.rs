@@ -29,8 +29,8 @@ use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui, vec2};
 
 use super::{
-    ContentAwareFillWorkspace, FillAreaEdit, FillBar, FillCanvas, FillLabels, FillLimits, FillOpen, FillOverlay, FillSession, FillSettings,
-    FillSource, FillTool, FillToolOptions, SamplingMode, SamplingPlane,
+    ContentAwareFillWorkspace, FillAreaEdit, FillBar, FillCanvas, FillLimits, FillOpen, FillOverlay, FillSession, FillSettings, FillSource, FillTool,
+    FillToolOptions, SamplingMode, SamplingPlane,
 };
 use crate::ui::mock_image::MockImage;
 use crate::ui::select_mask::EditMode;
@@ -437,7 +437,6 @@ struct Lasso {
 
 fn show_lasso(ui: &mut Ui, args: &mut LassoArgs) {
     let words = FillStoryLabels::of(ui);
-    let labels = FillLabels::of(ui);
     let state = shared(ui, "lasso", || Lasso {
         session: FillSession::default(),
         options: FillToolOptions { brush_add: false, brush_size: 20.0, lasso: SelectionOperation::New, grow_by: 3.0 },
@@ -449,7 +448,7 @@ fn show_lasso(ui: &mut Ui, args: &mut LassoArgs) {
     options.lasso = args.operation.operation();
     options.grow_by = args.grow_by;
 
-    let bar = FillBar::new("fill-story-bar", FillTool::Lasso, options, &labels).show(ui);
+    let bar = FillBar::new("fill-story-bar", FillTool::Lasso, options).show(ui);
     if let Some(edit) = bar.edit {
         drop(session.add_fill_edit(edit, &LIMITS));
     }

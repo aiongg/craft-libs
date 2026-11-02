@@ -40,7 +40,8 @@ pub use overlay::{FillOverlay, SamplingPlane};
 pub use panel::{FillPanel, FillPanelOutput};
 pub use preview_pane::FillPreviewPane;
 pub use session::{
-    ColorAdaptation, FillCommand, FillLimits, FillOutputTo, FillReset, FillSession, FillSettings, RotationAdaptation, SamplingMode, SamplingStroke,
+    ColorAdaptation, FillCommand, FillLimit, FillLimits, FillOutputTo, FillReset, FillSession, FillSettings, RotationAdaptation, SamplingMode,
+    SamplingStroke,
 };
 pub use tool::{FillCanvas, FillCanvasTool, FillTool, FillToolOptions};
 
@@ -48,11 +49,10 @@ use egui::{Color32, Context, Key, Modifiers, Rect};
 
 use craft_theme::Srgba;
 use craft_ui::canvas::kurbo::{self, Size};
-use craft_ui::canvas::{Checkerboard, HandTool, NavigationOptions, RasterSource, ToolHost, ZoomTool};
+use craft_ui::canvas::{Checkerboard, CursorOptions, HandTool, NavigationOptions, RasterSource, ToolHost, ZoomTool};
 use craft_ui::dialog::full_window::{FullWindowCanvas, FullWindowSide, FullWindowTitle, FullWindowView, PreviewStatus, PreviewTicket, SideFooter};
-use craft_ui::dialog::{ButtonRole, ColorRequest, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step};
-use craft_ui::edit::CancelReason;
-use craft_ui::edit::EditEvent;
+use craft_ui::dialog::{ButtonRole, ColorRequest, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step};
+use craft_ui::edit::{CancelReason, EditEvent, GestureId};
 use craft_ui::icons::Icon;
 use craft_ui::localized::Labels as _;
 use craft_ui::patterns::{LastUsed, ToolRail};
@@ -124,8 +124,9 @@ pub enum FillEvent {
     FillArea(FillAreaEdit),
     /// A Reset or a new sampling option changed the session: the app re-plans.
     Reset(FillReset),
-    /// A stroke or edit the limits refused, with the message (also under the panel).
-    Refused(String),
+    /// A stroke or edit the limits refused, with the limit (worded under the panel,
+    /// [`FillLimit::message`]).
+    Refused(FillLimit),
 }
 
 /// What [`ContentAwareFillWorkspace::show`] reports.
@@ -146,7 +147,7 @@ pub struct FillOutput {
 
 /// The Content-Aware Fill workspace.
 ///
-/// Keys (none while a text field edits, except ⌘Z): B, L, H, Z (`ToolRail::pick_by_key`); `[` and
+/// Keys (none while a text field edits or a popup is open, except ⌘Z): B, L, H, Z (`ToolRail::pick_by_key`); `[` and
 /// `]` the brush size ([`FillToolOptions::step_size`]); ⌘H hides or shows the tint; ⌘+, ⌘−, ⌘0, ⌘1 the
 /// canvas's view; ⌘Z, ⇧⌘Z the session's history; Enter OK; Esc Cancel (a stroke or lasso in
 /// progress first).
@@ -165,10 +166,19 @@ pub struct ContentAwareFillWorkspace {
     last_used: LastUsed<FillTool>,
     options: FillToolOptions,
     canvas: FillCanvas,
+    /// The user's navigation options and transparency grid, the app's.
+    navigation: NavigationOptions,
+    checkerboard: Checkerboard,
     /// ⌘H: the tint hidden without changing Show Sampling Area.
     tint_hidden: bool,
     preview: PreviewStatus,
-    error: Option<String>,
+    error: Option<FillIssue>,
+    /// The gesture of a setting being dragged (the Opacity slider): the workspace is busy while
+    /// its control is drawn.
+    settings_gesture: Option<GestureId>,
+    /// [`set_color`](Self::set_color) changed the color since the last pass: the next
+    /// [`FillOutput::settings_changed`] says so.
+    color_owed: bool,
     // The library's Hand and Zoom tools, kept between passes for their gestures.
     hand: HandTool,
     zoom: ZoomTool,
@@ -200,13 +210,33 @@ impl ContentAwareFillWorkspace {
             tool: FillTool::SamplingBrush,
             last_used: LastUsed::default(),
             canvas: FillCanvas::new(),
+            navigation: NavigationOptions::default(),
+            checkerboard: Checkerboard::default(),
             tint_hidden: false,
             preview: PreviewStatus::new(),
             error: None,
+            settings_gesture: None,
+            color_owed: false,
             hand: HandTool::new(Size::new(f64::from(open.size[0]), f64::from(open.size[1])), NavigationOptions::default()),
             zoom: ZoomTool::new(Size::new(f64::from(open.size[0]), f64::from(open.size[1])), NavigationOptions::default()),
             stale: true,
         }
+    }
+
+    /// The user's navigation options (wheel, flick, animated zoom) for the canvas and the Preview
+    /// panel; Photoshop's by default.
+    pub fn navigation(&mut self, navigation: NavigationOptions) {
+        self.navigation = navigation;
+    }
+
+    /// The user's transparency grid under the image and the preview.
+    pub fn checkerboard(&mut self, checkerboard: Checkerboard) {
+        self.checkerboard = checkerboard;
+    }
+
+    /// The user's cursor preferences (the Sampling Brush's outline).
+    pub fn cursor_options(&mut self, cursor_options: CursorOptions) {
+        self.canvas.cursor_options(cursor_options);
     }
 
     /// Shows the workspace for this pass: the title, the keys, [`FillBar`], the strip, the two
@@ -242,47 +272,48 @@ impl ContentAwareFillWorkspace {
             hand,
             zoom,
             stale,
+            navigation,
+            checkerboard,
+            settings_gesture,
+            color_owed,
         } = self;
         let doc = Size::new(f64::from(size[0]), f64::from(size[1]));
-        // The user's navigation options are the app's; Photoshop's defaults until it passes them.
-        let navigation = NavigationOptions::default();
+        let (navigation, checkerboard) = (*navigation, *checkerboard);
         (hand.size, hand.prefs, zoom.size, zoom.prefs) = (doc, navigation, doc, navigation);
         let before = settings.clone();
 
         let mut events = Vec::new();
         let mut session_changed = false;
-        let mut panel_busy = false;
+        let mut panel_edit = None;
         let mut pick_color = None;
         let response = FullWindowDialog::new("fill").title(title).show(ctx, dialog, session, |ui, session, fx| {
-            // The history keys are read whatever has focus, so ⌘Z works while a number field has
-            // it, but only while this workspace is the top modal layer.
-            if ctx.memory(|m| m.top_modal_layer()) == Some(ui.layer_id()) {
-                if let Some(step) = take_step(ctx) {
-                    if canvas.busy() {
-                        cancel_gesture(ui, canvas, *tool, options, session, limits, hand, zoom);
-                        for event in canvas.take_events() {
-                            absorb(session, limits, error, &mut events, &mut session_changed, event);
-                        }
-                    }
-                    if history.step(session, step) {
-                        synced(session, settings, options, error);
-                        session_changed = true;
+            // The history keys are read before the body, whatever has focus, so ⌘Z works while a
+            // number field has it, but only while this workspace is the top modal layer.
+            if let Some(step) = fx.take_step(ui) {
+                if canvas.busy() {
+                    cancel_gesture(ui, canvas, *tool, options, session, limits, hand, zoom, CancelReason::UndoDuringGesture);
+                    for event in canvas.take_events() {
+                        absorb(session, limits, error, &mut events, &mut session_changed, event);
                     }
                 }
+                if history.step(session, step) {
+                    synced(session, settings, options, error);
+                    session_changed = true;
+                }
+            }
+            if fx.keys_free(ui) {
                 if ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::H)) {
                     *tint_hidden = !*tint_hidden;
                 }
-                if !ctx.text_edit_focused() {
-                    if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::OpenBracket)) {
-                        options.step_size(false);
-                    }
-                    if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::CloseBracket)) {
-                        options.step_size(true);
-                    }
+                if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::OpenBracket)) {
+                    options.step_size(false);
+                }
+                if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::CloseBracket)) {
+                    options.step_size(true);
                 }
             }
 
-            let bar = FillBar::new("fill-bar", *tool, options, &labels).show(ui);
+            let bar = FillBar::new("fill-bar", *tool, options).show(ui);
             if let Some(edit) = bar.edit {
                 session_changed |= add_edit(session, edit, limits, error, &mut events);
             }
@@ -296,7 +327,7 @@ impl ContentAwareFillWorkspace {
             let rail = ToolRail::new("fill-tools").label(labels.tools.as_str()).pick_by_key(true).show(ui, &slots, &*tool, last_used, |_, _| {});
             if let Some(picked) = rail.select.filter(|picked| picked != tool) {
                 if canvas.busy() {
-                    cancel_gesture(ui, canvas, *tool, options, session, limits, hand, zoom);
+                    cancel_gesture(ui, canvas, *tool, options, session, limits, hand, zoom, CancelReason::Removed);
                     for event in canvas.take_events() {
                         absorb(session, limits, error, &mut events, &mut session_changed, event);
                     }
@@ -313,13 +344,14 @@ impl ContentAwareFillWorkspace {
             .leading(|ui| {
                 reset_all = ui.add(craft_ui::controls::IconButton::new(Icon::Undo, dialog_labels.reset.as_str()).id_salt("reset-all")).clicked();
             });
-            let shown_error = error.clone().or_else(|| preview.error().map(str::to_owned));
+            // The preview's failure shows under the Preview panel, once.
+            let shown_error = error.as_ref().map(|issue| issue.text(ctx));
             let mut panel = None;
             FullWindowSide::new("fill-props").header(labels.name.as_str()).footer(footer).show(ui, fx, |ui| {
-                panel = Some(FillPanel::new("fill-panel", settings, session.sampling, &labels).error(shown_error.as_deref()).show(ui));
+                panel = Some(FillPanel::new("fill-panel", settings, session.sampling).error(shown_error.as_deref()).show(ui));
             });
             if let Some(panel) = panel {
-                panel_busy |= panel.dragging;
+                panel_edit = panel.edit;
                 if let Some(mode) = panel.sampling
                     && session.set_sampling(mode)
                 {
@@ -334,10 +366,7 @@ impl ContentAwareFillWorkspace {
                     session_changed |= what == FillReset::Sampling;
                     events.push(FillEvent::Reset(what));
                 }
-                if panel.pick_color {
-                    let [r, g, b] = settings.color;
-                    pick_color = Some(ColorRequest::new(OVERLAY_COLOR_KEY, Srgba::from(Color32::from_rgb(r, g, b))).title(labels.color.as_str()));
-                }
+                pick_color = panel.pick_color;
             }
             if reset_all {
                 // The footer's Reset sets the session and every setting back, whether or not the
@@ -348,9 +377,14 @@ impl ContentAwareFillWorkspace {
                 events.push(FillEvent::Reset(FillReset::All));
             }
 
-            FullWindowSide::new("fill-preview").header(labels.preview.as_str()).show(ui, fx, |ui| {
+            FullWindowSide::new("fill-preview").header(labels.preview.as_str()).scrolls(false).show(ui, fx, |ui| {
                 let image: &dyn RasterSource = source.preview().unwrap_or_else(|| source.image());
-                FillPreviewPane::new("fill-preview-pane", preview_view, preview).source(Some(image)).frame(source.sampling_window()).show(ui);
+                FillPreviewPane::new("fill-preview-pane", preview_view, preview)
+                    .source(Some(image))
+                    .frame(source.sampling_window())
+                    .navigation(navigation)
+                    .checkerboard(checkerboard)
+                    .show(ui);
             });
 
             let [r, g, b] = settings.color;
@@ -364,7 +398,7 @@ impl ContentAwareFillWorkspace {
             let ctx_for_marks = ctx.clone();
             let widget = FullWindowCanvas::new(CANVAS, view)
                 .source(source.image())
-                .checkerboard(Checkerboard::default())
+                .checkerboard(checkerboard)
                 .navigation(navigation)
                 .painter(move |painter, view| overlay.paint(&ctx_for_marks, painter, view, overlay_id));
             let shown = match *tool {
@@ -380,14 +414,21 @@ impl ContentAwareFillWorkspace {
                 absorb(session, limits, error, &mut events, &mut session_changed, event);
             }
         });
-        let busy = canvas.busy() || panel_busy;
+        let busy = canvas.busy() || settings_busy(ctx, settings_gesture, panel_edit.as_ref());
         history.settle(session, busy);
         *stale |= session_changed || fill_params(settings) != fill_params(&before);
         let preview_wanted = (*stale && !busy && response.outcome.is_none()).then(|| {
             *stale = false;
             preview.request()
         });
-        FillOutput { events, preview_wanted, outcome: response.outcome, rect: response.rect, settings_changed: *settings != before, pick_color }
+        FillOutput {
+            events,
+            preview_wanted,
+            outcome: response.outcome,
+            rect: response.rect,
+            settings_changed: *settings != before || std::mem::take(color_owed),
+            pick_color,
+        }
     }
 
     /// The app's colour picker answered a [`FillOutput::pick_color`] request. A key this workspace
@@ -395,7 +436,10 @@ impl ContentAwareFillWorkspace {
     pub fn set_color(&mut self, key: &str, color: Srgba) {
         if key == OVERLAY_COLOR_KEY {
             let [r, g, b, _] = Color32::from(color).to_array();
-            self.settings.color = [r, g, b];
+            if self.settings.color != [r, g, b] {
+                self.settings.color = [r, g, b];
+                self.color_owed = true;
+            }
         }
     }
 
@@ -424,35 +468,18 @@ impl ContentAwareFillWorkspace {
 
     /// The app's Apply or OK failed: the message shows under the panel and the workspace stays.
     pub fn apply_failed(&mut self, message: String) {
-        self.error = Some(message);
+        self.error = Some(FillIssue::Message(message));
     }
 
     /// The app found that the last fill-area edit empties the fill area: the edit is taken back
     /// (no redo of it) and `message` shows under the panel.
     pub fn refuse_fill_edit(&mut self, message: String) {
         // pc: crates/ui-egui/src/dialogs/caf_ui/lifecycle.rs:211-219.
-        // The history has no way to drop its last step and the redo it leaves, so it is rebuilt
-        // from the steps before the edit.
-        let mut walker = self.history.clone();
-        let mut probe = self.session.clone();
-        let mut earlier = Vec::new();
-        while walker.step(&mut probe, Step::Undo) {
-            earlier.push(probe.clone());
-        }
-        if let Some(before_edit) = earlier.first() {
-            self.session = before_edit.clone();
-            if let Some(oldest) = earlier.last() {
-                let mut rebuilt = LocalHistory::new(oldest);
-                for state in earlier.iter().rev().skip(1) {
-                    rebuilt.settle(state, false);
-                }
-                self.history = rebuilt;
-            }
-        } else {
+        if !self.history.drop_last(&mut self.session) {
             self.session.fill_edits.pop();
         }
         synced(&self.session, &mut self.settings, &mut self.options, &mut self.error);
-        self.error = Some(message);
+        self.error = Some(FillIssue::Message(message));
         self.stale = true;
     }
 
@@ -481,7 +508,7 @@ impl ContentAwareFillWorkspace {
 
 /// What the session's sampling option sets in the settings and the bar after undo, redo or a
 /// reset: the option is remembered and Custom makes the brush add. A stale error goes.
-fn synced(session: &FillSession, settings: &mut FillSettings, options: &mut FillToolOptions, error: &mut Option<String>) {
+fn synced(session: &FillSession, settings: &mut FillSettings, options: &mut FillToolOptions, error: &mut Option<FillIssue>) {
     settings.sampling = session.sampling;
     options.brush_add = session.sampling.brush_adds();
     *error = None;
@@ -493,16 +520,16 @@ fn fill_params(settings: &FillSettings) -> (bool, ColorAdaptation, RotationAdapt
 }
 
 /// Records a fill-area edit within the limits, or sets the reason as the error and reports it.
-fn add_edit(session: &mut FillSession, edit: FillAreaEdit, limits: &FillLimits, error: &mut Option<String>, events: &mut Vec<FillEvent>) -> bool {
+fn add_edit(session: &mut FillSession, edit: FillAreaEdit, limits: &FillLimits, error: &mut Option<FillIssue>, events: &mut Vec<FillEvent>) -> bool {
     match session.add_fill_edit(edit.clone(), limits) {
         Ok(()) => {
             *error = None;
             events.push(FillEvent::FillArea(edit));
             true
         }
-        Err(message) => {
-            *error = Some(message.clone());
-            events.push(FillEvent::Refused(message));
+        Err(limit) => {
+            *error = Some(FillIssue::Limit(limit));
+            events.push(FillEvent::Refused(limit));
             false
         }
     }
@@ -512,7 +539,7 @@ fn add_edit(session: &mut FillSession, edit: FillAreaEdit, limits: &FillLimits, 
 fn absorb(
     session: &mut FillSession,
     limits: &FillLimits,
-    error: &mut Option<String>,
+    error: &mut Option<FillIssue>,
     out: &mut Vec<FillEvent>,
     changed: &mut bool,
     event: FillEvent,
@@ -526,7 +553,7 @@ fn absorb(
                     *error = None;
                     *changed = true;
                 }
-                FillEvent::Refused(message) => *error = Some(message.clone()),
+                FillEvent::Refused(limit) => *error = Some(FillIssue::Limit(*limit)),
                 _ => {}
             }
             out.push(event);
@@ -534,7 +561,8 @@ fn absorb(
     }
 }
 
-/// Cancels the gesture of `tool` on the canvas (a tool switch or an undo during a stroke).
+/// Cancels the gesture of `tool` on the canvas with `reason`: `Removed` for a tool switch,
+/// `UndoDuringGesture` before an undo step.
 #[expect(clippy::too_many_arguments, reason = "the canvas and everything its per-pass tool borrows")]
 fn cancel_gesture(
     ui: &egui::Ui,
@@ -545,11 +573,46 @@ fn cancel_gesture(
     limits: &FillLimits,
     hand: &mut HandTool,
     zoom: &mut ZoomTool,
+    reason: CancelReason,
 ) {
     let (ctx, id) = (ui.ctx(), FullWindowCanvas::canvas_id(ui, CANVAS));
     match tool {
-        FillTool::Hand => ToolHost::cancel(ctx, id, hand, CancelReason::Removed),
-        FillTool::Zoom => ToolHost::cancel(ctx, id, zoom, CancelReason::Removed),
-        _ => ToolHost::cancel(ctx, id, &mut canvas.tool(tool, options, session, limits), CancelReason::Removed),
+        FillTool::Hand => ToolHost::cancel(ctx, id, hand, reason),
+        FillTool::Zoom => ToolHost::cancel(ctx, id, zoom, reason),
+        _ => ToolHost::cancel(ctx, id, &mut canvas.tool(tool, options, session, limits), reason),
     };
+}
+
+/// What shows under the panel: the limit a stroke or edit ran into, or the app's message (a failed
+/// Apply, an edit that emptied the fill area).
+#[derive(Clone, Debug, PartialEq)]
+enum FillIssue {
+    Limit(FillLimit),
+    Message(String),
+}
+
+impl FillIssue {
+    fn text(&self, ctx: &Context) -> String {
+        match self {
+            FillIssue::Limit(limit) => limit.message(ctx),
+            FillIssue::Message(message) => message.clone(),
+        }
+    }
+}
+
+/// Whether a setting is being dragged after this pass's `edit`: a `Begin` or `Update` is, and a
+/// gesture whose control is still drawn is, until its `Commit` or `Cancel`.
+fn settings_busy(ctx: &Context, gesture: &mut Option<GestureId>, edit: Option<&EditEvent<FillSettings>>) -> bool {
+    match edit {
+        Some(EditEvent::Begin { id, .. } | EditEvent::Update { id, .. }) => {
+            *gesture = Some(*id);
+            return true;
+        }
+        Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. }) => *gesture = None,
+        _ => {}
+    }
+    if gesture.is_some_and(|id| !craft_ui::edit::is_live(ctx, id)) {
+        *gesture = None;
+    }
+    gesture.is_some()
 }

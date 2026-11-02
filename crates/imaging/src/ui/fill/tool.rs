@@ -3,21 +3,20 @@
 use egui::{CursorIcon, Key, Modifiers, Painter, PointerButton};
 
 use craft_ui::canvas::brush::{BrushCursor, BrushDimensions, BrushResize, BrushResizeLabels, BrushResizeOptions, BrushStyle, BrushTip, TipFalloff};
-use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, OutlineDraft};
+use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{
     CanvasTool, CursorOptions, Marquee, MarqueeLook, Readout, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer,
 };
 use craft_ui::edit::{CancelReason, EditEvent, GestureId};
 use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, Unit};
+use craft_ui::localized::{Labels as _, Units};
 use craft_ui::patterns::{RailTool, ToolSlot};
 
 use super::FillEvent;
 use super::FillLabels;
 use super::lasso::FillAreaEdit;
-use super::session::{FillLimits, FillSession, SamplingStroke};
-use crate::ui::select::SelectToolStyle;
+use super::session::{FillLimit, FillLimits, FillSession, SamplingStroke};
 use crate::ui::select_mask::EditMode;
 
 /// The tools of Content-Aware Fill's strip: Sampling Brush (B), Lasso (L), Hand (H), Zoom (Z).
@@ -122,6 +121,8 @@ pub struct FillCanvas {
     events: Vec<FillEvent>,
     /// The points limit was reported for the stroke in progress.
     refused: bool,
+    /// Preferences › Cursors: the brush outline's look.
+    cursor_options: CursorOptions,
 }
 
 impl FillCanvas {
@@ -141,6 +142,12 @@ impl FillCanvas {
         FillCanvasTool { canvas: self, tool, options, session, limits }
     }
 
+    /// The user's cursor preferences (the brush outline, Caps Lock precise cursor); the library's
+    /// defaults until the app passes them.
+    pub fn cursor_options(&mut self, cursor_options: CursorOptions) {
+        self.cursor_options = cursor_options;
+    }
+
     pub fn take_events(&mut self) -> Vec<FillEvent> {
         std::mem::take(&mut self.events)
     }
@@ -155,8 +162,9 @@ impl FillCanvas {
 /// - **Sampling Brush**: press, drag, release is one [`SamplingStroke`] (the bar's mode, reversed
 ///   by Alt at the press; points equal to the last are skipped), reported as
 ///   [`FillEvent::Stroke`] Begin, Update with each new point (the app paints its sampling plane
-///   as the stroke goes), Commit. A stroke the limits refuse ([`FillSession::may_begin_stroke`])
-///   does not begin: `FillEvent::Refused` with the message. A stroke that reaches the points
+///   as the stroke goes; each `Update` carries only the points added since the last event, so
+///   the cost of a stroke stays linear), Commit with the whole stroke. A stroke the limits refuse
+///   ([`FillSession::may_begin_stroke`]) does not begin: `FillEvent::Refused` with the limit. A stroke that reaches the points
 ///   limit stops taking points.
 /// - **Lasso**: an [`OutlineDraft`] of `DraftKind::Freehand`; the operation is the bar's, or
 ///   Shift (Add), Alt (Subtract), Shift+Alt (Intersect) at the press; the release reports
@@ -197,20 +205,20 @@ impl FillCanvasTool<'_> {
         if self.session.points_used(Some(stroke)) >= self.limits.points {
             if !canvas.refused {
                 canvas.refused = true;
-                canvas.events.push(FillEvent::Refused(self.limits.points_message()));
+                canvas.events.push(FillEvent::Refused(FillLimit::Points(self.limits.points)));
             }
             return;
         }
         stroke.points.push(point);
-        canvas.events.push(FillEvent::Stroke(EditEvent::update(*id, stroke.clone(), modifiers)));
+        let added = SamplingStroke { mode: stroke.mode, size: stroke.size, points: vec![point] };
+        canvas.events.push(FillEvent::Stroke(EditEvent::update(*id, added, modifiers)));
     }
 
     /// The resize's readout beside the pointer: the diameter only (the brush has no hardness).
     fn show_readout(&self, cx: &mut ToolContext<'_>) {
         let Some(dimensions) = self.canvas.resize.dimensions() else { return };
         let labels = BrushResizeLabels::of_ctx(&cx.canvas.ctx);
-        let unit = Unit::new("{n} px");
-        let pixels = format!("{}{}{}", unit.prefix(), cx.numbers.format(dimensions.diameter.round().max(0.0), 0..=0), unit.suffix());
+        let pixels = Units::of_ctx(&cx.canvas.ctx).pixels(dimensions.diameter.round().max(0.0));
         cx.readout(Readout::new("fill-brush-resize").row(labels.diameter.as_str(), pixels));
     }
 }
@@ -227,13 +235,12 @@ impl CanvasTool for FillCanvasTool<'_> {
                 if self.canvas.resize.active() {
                     return ToolCursor::Hidden;
                 }
-                // A hard round brush: the 50 % contour is the edge. The preferences are the
-                // library's defaults (the workspace has no cursor options of its own).
+                // A hard round brush: the 50 % contour is the edge.
                 let size = self.options.brush_size;
                 let tip = BrushTip::round(size, size / 2.0);
                 BrushCursor::new(&tip).painting(self.canvas.stroke.is_some()).cursor(
                     &BrushStyle::of(cx.tokens),
-                    &CursorOptions::default(),
+                    &self.canvas.cursor_options,
                     cx.view,
                     cx.caps_lock,
                 )
@@ -244,9 +251,12 @@ impl CanvasTool for FillCanvasTool<'_> {
     }
 
     fn takes(&self, button: PointerButton, modifiers: Modifiers) -> bool {
-        // new: the brush resize chord (`BrushResize::chord`): the primary button always, the
-        // secondary while Alt is held on the sampling brush.
-        button == PointerButton::Primary || (self.tool == FillTool::SamplingBrush && button == PointerButton::Secondary && modifiers.alt)
+        // new: the brush takes the resize chord's buttons (`BrushResize::takes`); the lasso only
+        // the primary button.
+        match self.tool {
+            FillTool::SamplingBrush => BrushResize::takes(button, modifiers),
+            _ => button == PointerButton::Primary,
+        }
     }
 
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
@@ -262,8 +272,8 @@ impl CanvasTool for FillCanvasTool<'_> {
                     self.show_readout(cx);
                     return ToolAction::Claimed;
                 }
-                if let Err(message) = self.session.may_begin_stroke(self.limits) {
-                    self.canvas.events.push(FillEvent::Refused(message));
+                if let Err(limit) = self.session.may_begin_stroke(self.limits) {
+                    self.canvas.events.push(FillEvent::Refused(limit));
                     return ToolAction::Done;
                 }
                 // Alt at the press reverses the bar's mode.
@@ -276,7 +286,7 @@ impl CanvasTool for FillCanvasTool<'_> {
                 ToolAction::Claimed
             }
             FillTool::Lasso => {
-                let mut draft = OutlineDraft::new(DraftKind::Freehand, SelectToolStyle::of(cx.tokens).reach());
+                let mut draft = OutlineDraft::new(DraftKind::Freehand, DraftReach::of(cx.tokens));
                 // The fill area always has something to combine with: Shift adds, Alt subtracts,
                 // both intersect, else the bar's operation.
                 match draft.press(sample(pointer, cx), true) {

@@ -1,16 +1,20 @@
 //! Tests of Content-Aware Fill's panels and workspace (task WS-CA2).
 
 use egui::os::OperatingSystem;
-use egui::{Color32, ColorImage, Key, Modifiers, Shape, TextureId, vec2};
+use egui::{Color32, ColorImage, Event, Key, Modifiers, PointerButton, Shape, TextureId, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::overlay::tint_image;
-use super::{ContentAwareFillWorkspace, FillEvent, FillLimits, FillOpen, FillOutput, FillSource, SamplingPlane};
+use super::{
+    ContentAwareFillWorkspace, FillAreaEdit, FillEvent, FillLimits, FillOpen, FillOutput, FillSource, FillTool, OVERLAY_COLOR_KEY, SamplingPlane,
+};
+use craft_theme::Srgba;
 use craft_ui::canvas::kurbo::Rect as DocRect;
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::dialog::Outcome;
 use craft_ui::dialog::full_window::PreviewTicket;
+use craft_ui::edit::{CancelReason, EditEvent};
 use craft_ui::theme::{Base, install};
 
 const WINDOW: egui::Vec2 = vec2(1200.0, 800.0);
@@ -73,6 +77,7 @@ struct App {
     outcomes: Vec<Outcome>,
     events: Vec<FillEvent>,
     tickets: Vec<PreviewTicket>,
+    settings_changes: usize,
 }
 
 fn harness(os: OperatingSystem) -> Harness<'static, App> {
@@ -90,6 +95,7 @@ fn harness(os: OperatingSystem) -> Harness<'static, App> {
         outcomes: Vec::new(),
         events: Vec::new(),
         tickets: Vec::new(),
+        settings_changes: 0,
     };
     let mut h =
         HarnessBuilder::default().with_size(WINDOW).with_os(os).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
@@ -98,6 +104,7 @@ fn harness(os: OperatingSystem) -> Harness<'static, App> {
                 app.outcomes.extend(out.outcome);
                 app.events.extend(out.events.iter().cloned());
                 app.tickets.extend(out.preview_wanted);
+                app.settings_changes += usize::from(out.settings_changed);
                 app.last = Some(out);
             },
             app,
@@ -215,8 +222,102 @@ fn fill_bar_spans_the_window_and_footer_follows_the_platform_order() {
         // Reset is the footer's leading button: the lowest of the Reset buttons on the screen.
         let reset = h.get_all_by_label("Reset").map(|node| bounds(&node)).max_by(|a, b| a.y0.total_cmp(&b.y0));
         let Some(reset) = reset else { panic!("a Reset button") };
-        // At Standard width the three buttons fill the row, so Reset starts where the first one
-        // does (the kernel's footer leaves it no room of its own).
-        assert!(reset.x0 <= x(order[0]).min(x(order[1])).min(x(order[2])), "{os:?}: Reset leads the footer");
+        // Reset is laid out first and the three buttons share the rest of the row: they don't
+        // overlap it.
+        assert!(reset.x1 <= x(order[0]).min(x(order[1])).min(x(order[2])), "{os:?}: Reset leads the footer without overlapping a button");
     }
+}
+
+/// Presses the primary button at `at` (over the canvas) and lets the pass run.
+fn press_canvas(h: &mut Harness<'_, App>, at: egui::Pos2) {
+    h.event(Event::PointerMoved(at));
+    h.run_steps(2);
+    h.event(Event::PointerButton { pos: at, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.run_steps(2);
+}
+
+/// The reasons of the stroke cancels the workspace reported.
+fn cancels(h: &Harness<'_, App>) -> Vec<CancelReason> {
+    h.state()
+        .events
+        .iter()
+        .filter_map(|event| match event {
+            FillEvent::Stroke(EditEvent::Cancel { reason, .. }) => Some(*reason),
+            _ => None,
+        })
+        .collect()
+}
+
+// A tool letter pressed mid-stroke cancels the stroke with `Removed`, leaves the workspace not
+// busy (so the history settles again) and gives the new tool no part of the gesture.
+#[test]
+fn fill_letter_mid_stroke_cancels_the_stroke_and_ends_busy() {
+    let mut h = harness(OperatingSystem::Nix);
+    press_canvas(&mut h, pos2(300.0, 400.0));
+    assert!(h.state().workspace.canvas.busy(), "the press began a stroke");
+    h.key_press(Key::H);
+    h.run_steps(3);
+    assert_eq!(cancels(&h), [CancelReason::Removed]);
+    assert!(!h.state().workspace.canvas.busy());
+    assert_eq!(h.state().workspace.tool, FillTool::Hand);
+    assert!(h.state().workspace.session().strokes.is_empty(), "a cancelled stroke is not recorded");
+}
+
+// ⌘Z mid-stroke cancels the stroke with `UndoDuringGesture` before the history steps.
+#[test]
+fn fill_undo_mid_stroke_cancels_the_stroke() {
+    let mut h = harness(OperatingSystem::Nix);
+    press_canvas(&mut h, pos2(300.0, 400.0));
+    assert!(h.state().workspace.canvas.busy());
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(3);
+    assert_eq!(cancels(&h), [CancelReason::UndoDuringGesture]);
+    assert!(!h.state().workspace.canvas.busy());
+    assert!(h.state().workspace.session().strokes.is_empty());
+}
+
+// A preview failure shows under the Preview panel and not again under the settings.
+#[test]
+fn fill_preview_failure_shows_once() {
+    let mut h = harness(OperatingSystem::Nix);
+    let ticket = h.state().tickets[0];
+    h.state_mut().workspace.preview_failed(ticket, "nothing to sample from".to_owned());
+    h.run_steps(5);
+    assert_eq!(h.query_all_by_label_contains("nothing to sample from").count(), 1);
+}
+
+// A color the app's picker answers is reported by the next pass, once; a setting the user changes
+// is reported in its pass and asks for a new preview.
+#[test]
+fn fill_settings_changes_are_reported_by_the_pass_that_sees_them() {
+    let mut h = harness(OperatingSystem::Nix);
+    let before = h.state().settings_changes;
+    h.state_mut().workspace.set_color(OVERLAY_COLOR_KEY, Srgba::new(0.0, 0.0, 1.0, 1.0));
+    h.step();
+    assert_eq!(h.state().settings_changes, before + 1);
+    h.step();
+    assert_eq!(h.state().settings_changes, before + 1, "reported once");
+    // The same color again changes nothing.
+    h.state_mut().workspace.set_color(OVERLAY_COLOR_KEY, Srgba::new(0.0, 0.0, 1.0, 1.0));
+    h.step();
+    assert_eq!(h.state().settings_changes, before + 1);
+
+    let tickets = h.state().tickets.len();
+    h.get_by_label("Sample All Layers").click();
+    h.run_steps(3);
+    assert!(h.state().workspace.settings().sample_all_layers);
+    assert_eq!(h.state().settings_changes, before + 2);
+    assert_eq!(h.state().tickets.len(), tickets + 1, "a fill setting asks for a preview");
+}
+
+// The Lasso's Expand takes the amount from the bar's field (a number cell captioned "By").
+#[test]
+fn fill_expand_uses_the_bars_amount() {
+    let mut h = harness(OperatingSystem::Nix);
+    h.key_press(Key::L);
+    h.run_steps(3);
+    assert!(h.query_all_by_label("By").count() > 0, "the amount is a captioned field");
+    h.get_by_label("Expand").click();
+    h.run_steps(3);
+    assert!(h.state().events.contains(&FillEvent::FillArea(FillAreaEdit::grow(true, 3.0))));
 }
