@@ -164,6 +164,6 @@ fn cards_mirror_in_right_to_left() {
 fn the_row_names_the_size_in_the_given_numbers() {
     use craft_ui::localized::LocaleNumbers;
     let labels = BrushCardLabels::default();
-    let row = BrushPresetCards::row(1u32, "Soft", 0, 30.4, &labels, &craft_ui::localized::LocaleNumbers::from_tag("en"));
+    let row = BrushPresetCards::row(1u32, "Soft", 0, 30.4, &labels, &LocaleNumbers::from_tag("en"));
     assert_eq!(row.accessible_name.as_deref(), Some("Soft, 30 px"));
 }
