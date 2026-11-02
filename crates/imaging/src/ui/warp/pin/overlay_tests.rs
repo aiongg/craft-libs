@@ -12,9 +12,10 @@ use craft_ui::canvas::CanvasView;
 use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, install};
 
-/// A solver whose mesh is the 400 × 300 canvas, undeformed.
+/// A solver whose mesh is the 400 × 300 canvas, undeformed unless a test turns it.
 struct Flat {
     rest: Vec<Point>,
+    deformed: Vec<Point>,
     triangles: Vec<[u32; 3]>,
     order: Vec<u32>,
 }
@@ -22,7 +23,7 @@ struct Flat {
 impl Flat {
     fn new() -> Self {
         let rest = vec![Point::new(0.0, 0.0), Point::new(400.0, 0.0), Point::new(400.0, 300.0), Point::new(0.0, 300.0)];
-        Self { rest, triangles: vec![[0, 1, 2], [0, 2, 3]], order: vec![0, 1] }
+        Self { deformed: rest.clone(), rest, triangles: vec![[0, 1, 2], [0, 2, 3]], order: vec![0, 1] }
     }
 }
 
@@ -33,7 +34,7 @@ impl PinSolver for Flat {
         Ok(())
     }
     fn mesh(&self) -> PinMeshView<'_> {
-        PinMeshView { rest: &self.rest, deformed: &self.rest, triangles: &self.triangles, order: &self.order }
+        PinMeshView { rest: &self.rest, deformed: &self.deformed, triangles: &self.triangles, order: &self.order }
     }
 }
 
@@ -204,7 +205,7 @@ fn alt_drag_near_a_selected_pin_turns_it_and_fixes_its_rotation() {
     let turn = craft_ui::theme::current(&h.ctx).component.transform.pin_turn;
     drag(&mut h, (200.0 + f64::from(turn) - 2.0, 150.0), (200.0, 190.0), Modifiers::ALT);
     let turned = h.state().session.pins()[0];
-    assert_eq!(turned.angle, Some(90.0));
+    assert!((turned.angle.expect("fixed") - 90.0).abs() < 1e-9, "{:?}", turned.angle);
     assert_eq!(turned.at, Point::new(200.0, 150.0), "the pin stays where it is");
     assert_eq!(pins_events(&h), ["begin", "commit"]);
 
@@ -319,7 +320,7 @@ fn pins_draw_in_depth_order_with_the_selected_core_and_turn_ring() {
     let discs: Vec<Pos2> = circles.iter().filter(|c| c.fill == style.fill && (c.radius - style.pin / 2.0).abs() <= 1.0).map(|c| c.center).collect();
     let want = [at(&h, 200.0, 100.0), at(&h, 300.0, 100.0), at(&h, 100.0, 100.0)];
     assert!(discs.len() == 3 && discs.iter().zip(want).all(|(a, b)| near(*a, b)), "the deepest first, the highest on top: {discs:?}");
-    let cores: Vec<Pos2> = circles.iter().filter(|c| c.fill == style.core_colour && c.radius == style.core / 2.0).map(|c| c.center).collect();
+    let cores: Vec<Pos2> = circles.iter().filter(|c| c.fill == style.core_color && c.radius == style.core / 2.0).map(|c| c.center).collect();
     assert!(cores.len() == 1 && near(cores[0], at(&h, 300.0, 100.0)), "only the selected pin has a core: {cores:?}");
     let rings = circles.iter().filter(|c| c.radius == style.turn_radius && c.stroke == style.turn).count();
     assert_eq!(rings, 1, "and only a fixed one a turn ring");
@@ -372,4 +373,65 @@ fn every_pin_is_named_and_valued_for_assistive_technology() {
     assert_eq!(second.accesskit_node().is_selected(), Some(true));
     assert_eq!(h.get_by_label("Pin 3 of 3").accesskit_node().value().as_deref(), Some("300.0 px, 100.0 px, turn 30°"));
     assert_eq!(h.get_by_label("Pin 1 of 3").accesskit_node().is_selected(), Some(false));
+}
+
+// ⌥-drag turns by the angle swept from the press: a pin fixed at 30° pressed at 90° and dragged to
+// 180° ends at 120°, not 180°.
+#[test]
+fn alt_drag_turns_a_fixed_pin_by_the_swept_angle() {
+    let mut fixed = pin(200.0, 150.0);
+    fixed.angle = Some(30.0);
+    let mut h = harness(vec![fixed], vec![0]);
+    drag(&mut h, (200.0, 164.0), (186.0, 150.0), Modifiers::ALT);
+    let angle = h.state().session.pins()[0].angle.expect("fixed");
+    assert!((angle - 120.0).abs() < 1e-9, "{angle}");
+}
+
+// An Auto pin starts its turn from the deformed mesh's turn under it, so a press does not jump.
+#[test]
+fn alt_drag_turns_an_auto_pin_from_the_meshs_turn() {
+    let mut h = harness(vec![pin(200.0, 150.0)], vec![0]);
+    let (sin, cos) = 20f64.to_radians().sin_cos();
+    let centre = Point::new(200.0, 150.0);
+    h.state_mut().solver.deformed = h
+        .state()
+        .solver
+        .rest
+        .iter()
+        .map(|p| {
+            let (x, y) = (p.x - centre.x, p.y - centre.y);
+            Point::new(centre.x + x * cos - y * sin, centre.y + x * sin + y * cos)
+        })
+        .collect();
+    h.run_steps(2);
+    drag(&mut h, (200.0, 164.0), (186.0, 150.0), Modifiers::ALT);
+    let angle = h.state().session.pins()[0].angle.expect("fixed");
+    assert!((angle - 110.0).abs() < 1e-9, "{angle}");
+}
+
+// Page Down past the last pin picks none, then the first; Page Up from the first picks none.
+#[test]
+fn page_keys_cycle_through_every_pin_and_then_none() {
+    let mut h = harness(vec![pin(100.0, 100.0), pin(200.0, 100.0)], vec![]);
+    click(&mut h, (100.0, 100.0), Modifiers::NONE);
+    let mut picks = Vec::new();
+    for key in [Key::PageDown, Key::PageDown, Key::PageDown, Key::PageUp] {
+        h.key_press(key);
+        h.run_steps(2);
+        picks.push(selected(&h));
+    }
+    assert_eq!(picks, [vec![1], vec![], vec![0], vec![]]);
+}
+
+// Insert places nothing where the mesh has no rest position, not even at its centre.
+#[test]
+fn insert_places_no_pin_where_the_mesh_has_no_rest_position() {
+    let mut h = harness(vec![pin(100.0, 100.0)], vec![]);
+    click(&mut h, (100.0, 100.0), Modifiers::NONE);
+    h.state_mut().solver.triangles.clear();
+    h.event(Event::PointerMoved(Pos2::new(3.0, 3.0)));
+    h.run_steps(2);
+    h.key_press(Key::Insert);
+    h.run_steps(2);
+    assert_eq!(places(&h), vec![Point::new(100.0, 100.0)]);
 }

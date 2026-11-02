@@ -22,8 +22,7 @@ use craft_ui::typed_story;
 use egui::Ui;
 
 use super::{
-    Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpBarLabels, PinWarpBarOutput, PinWarpOptions, PinWarpSession,
-    PinWarpSettings,
+    Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpBarOutput, PinWarpOptions, PinWarpSession, PinWarpSettings,
 };
 use crate::ui::transform_preview::PreviewMap;
 use crate::ui::transform_preview::stories::{Document, draw};
@@ -296,7 +295,7 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         let mut cell = PinCell::load(ui, salt, kind, layer, &labels.refusal);
         let mut out = PinWarpBarOutput::default();
         OptionsBar::new(salt).label(text.as_str()).show(ui, |slots| {
-            slots.body(|ui| out = PinWarpBar::new("bar", &cell.session).labels(PinWarpBarLabels::of(ui)).notice(cell.notice.as_deref()).show(ui));
+            PinWarpBar::new("bar", &cell.session).notice(cell.notice.as_deref()).output(&mut out).add_to(slots);
         });
         if out.discard {
             cell.reset();

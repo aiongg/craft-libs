@@ -39,15 +39,17 @@ words! {
 /// - A press on a pin selects it and drags it; Shift-click adds it to the selection or takes it
 ///   out; dragging a selected pin moves every selected pin.
 /// - ⌥-click on a pin deletes it (one step).
-/// - ⌥-drag within `transform.pin_turn` of a selected pin, not on it, turns it: the drag's angle
-///   about the pin becomes its fixed rotation, which it keeps (Photoshop; VectorCraft).
+/// - ⌥-drag within `transform.pin_turn` of a selected pin, not on it, turns it: the pin's turn at
+///   the press (its fixed rotation, or an Auto pin's turn in the deformed mesh,
+///   [`PinMeshView::turn_at`]) changes by the angle the pointer sweeps about the pin, and the
+///   result is its fixed rotation, which it keeps (Photoshop; VectorCraft).
 /// - Esc during a drag puts the pins back (Cancel); with no drag it discards the session.
 ///
 /// Keys (one Tab stop, `PartFocus`): Page Down and Up pick the next and previous pin (every pin,
 /// then none); Home and End the first and last; arrows move the picked pin (⇧ ten, through
 /// `behavior::nudge`); Delete or Backspace removes the selected pins; Insert places a pin at the
 /// rest position under the pointer, or at the [mesh's centre](PinMeshView::centre) when the
-/// pointer is outside; ⌘A selects every pin; Enter applies.
+/// pointer is outside, and nothing where the mesh has no rest position; ⌘A selects every pin; Enter applies.
 ///
 /// AccessKit: a group named [`PinWarpLabels::group`]; each pin a graphics object "Pin 2 of 5"
 /// with value "x, y" (and "turn N°" when fixed) and its selected state. The mesh lines are
@@ -184,7 +186,8 @@ impl<'a> PinWarp<'a> {
         let shown: Vec<Pin> = gesture.shown().clone();
         let parts = self.parts(ui, view, &labels, &shown, &selected);
         let picked = selected.first().copied().filter(|&i| i < shown.len());
-        let focus = PartFocus::new(id, labels.group.clone()).parts(&parts).picked(picked.map(|i| i as u64)).focusable(enabled).show(ui, canvas);
+        let focus =
+            PartFocus::new(id, labels.group.clone()).parts(&parts).picked(picked.map(|i| i as u64)).focusable(enabled).wrap(true).show(ui, canvas);
         match focus.pick {
             Some(Some(key)) => select_edit(&mut selected, &mut before, vec![key as usize]),
             Some(None) => select_edit(&mut selected, &mut before, Vec::new()),
@@ -199,7 +202,7 @@ impl<'a> PinWarp<'a> {
         let dragging = drag.as_ref().filter(|d| d.began && !d.cancelled);
         let other = Claim::owner(&ctx, canvas.id).is_some_and(|owner| owner != id);
         if let Some(d) = dragging {
-            ctx.set_cursor_icon(if matches!(d.kind, Kind::Turn(_)) { CursorIcon::Alias } else { CursorIcon::Move });
+            ctx.set_cursor_icon(if matches!(d.kind, Kind::Turn { .. }) { CursorIcon::Alias } else { CursorIcon::Move });
         } else if drag.is_none()
             && !other
             && let Some(pointer) = canvas.hover_pos()
@@ -283,7 +286,11 @@ impl<'a> PinWarp<'a> {
                 Kind::Move(vec![i])
             }
         } else if mods.alt {
-            Kind::Turn(nearest_selected(view, pins, selected, press.origin, style.turn_radius)?)
+            let i = nearest_selected(view, pins, selected, press.origin, style.turn_radius)?;
+            let pin = pins[i];
+            let base = pin.angle.or_else(|| mesh.turn_at(pin.rest))?;
+            let from = angle_of(view.to_doc(press.origin) - pin.at)?;
+            Kind::Turn { pin: i, base, from }
         } else {
             mesh.rest_of(view.to_doc(press.origin))?;
             Kind::Place
@@ -415,8 +422,8 @@ impl<'a> PinWarp<'a> {
         if take_exact(ui, Modifiers::NONE, Key::Insert) > 0 {
             let under = canvas.hover_pos().map(|p| view.to_doc(p));
             let placed = under.and_then(|at| mesh.rest_of(at).map(|rest| Pin { rest, at, angle: None, depth: 0 })).or_else(|| {
-                let c = mesh.centre()?;
-                Some(Pin { rest: mesh.rest_of(c).unwrap_or(c), at: c, angle: None, depth: 0 })
+                let at = mesh.centre()?;
+                Some(Pin { rest: mesh.rest_of(at)?, at, angle: None, depth: 0 })
             });
             if let Some(pin) = placed {
                 let mut grown = shown.to_vec();
@@ -475,8 +482,10 @@ enum Kind {
     Move(Vec<usize>),
     /// Places a pin under the press and moves it.
     Place,
-    /// Turns this pin about its position.
-    Turn(usize),
+    /// Turns this pin about its position: the pin's turn when pressed (its fixed angle, else the
+    /// deformed mesh's turn under its rest point) and the pointer's angle about the pin then, in
+    /// degrees.
+    Turn { pin: usize, base: f64, from: f64 },
     /// Deletes this pin.
     Delete(usize),
     /// Only changed the selection.
@@ -521,12 +530,11 @@ impl Drag {
                     pin.at += by;
                 }
             }
-            Kind::Turn(i) => {
-                if let Some(pin) = pins.get_mut(*i) {
-                    let v: Vec2 = view.to_doc(pointer) - pin.at;
-                    if v.hypot() > 0.0 {
-                        pin.angle = Some(v.y.atan2(v.x).to_degrees());
-                    }
+            Kind::Turn { pin, base, from } => {
+                if let Some(pin) = pins.get_mut(*pin)
+                    && let Some(now) = angle_of(view.to_doc(pointer) - pin.at)
+                {
+                    pin.angle = Some(wrap_degrees(base + (now - from)));
                 }
             }
             Kind::Delete(_) | Kind::Click => {}
@@ -539,6 +547,17 @@ impl Drag {
 struct Pressed {
     drag: Drag,
     select: Option<Vec<usize>>,
+}
+
+/// The angle of `v` in degrees, `None` for the zero vector.
+fn angle_of(v: Vec2) -> Option<f64> {
+    (v.hypot() > 0.0).then(|| v.y.atan2(v.x).to_degrees())
+}
+
+/// `degrees` in (−180, 180].
+fn wrap_degrees(degrees: f64) -> f64 {
+    let wrapped = (degrees + 180.0).rem_euclid(360.0) - 180.0;
+    if wrapped == -180.0 { 180.0 } else { wrapped }
 }
 
 fn drag_key(id: Id) -> Id {
@@ -589,7 +608,7 @@ fn paint_pins(painter: &Painter, tokens: &UiTokens, style: &PinWarpStyle, view: 
         let at = view.to_screen(pin.at);
         painter.extend(Handle::shapes_with(&look, HandleShape::Round, at, ppp));
         if selected.contains(&i) {
-            painter.add(Shape::circle_filled(at, style.core / 2.0, style.core_colour));
+            painter.add(Shape::circle_filled(at, style.core / 2.0, style.core_color));
             if let Some(angle) = pin.angle {
                 let dir = view.map_vec(Vec2::from_angle(angle.to_radians())).normalized();
                 painter.add(Shape::circle_stroke(at, style.turn_radius, style.turn));

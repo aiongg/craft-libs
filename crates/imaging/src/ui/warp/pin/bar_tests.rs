@@ -7,6 +7,7 @@ use kurbo::Point;
 
 use super::*;
 use craft_ui::edit::EditEvent;
+use craft_ui::patterns::OptionsBar;
 use craft_ui::theme::{Base, install};
 
 struct Quiet;
@@ -42,7 +43,9 @@ fn harness(selected: bool, notice: Option<&str>) -> Harness<'static, Host> {
     let host = Host { session, notice: notice.map(str::to_owned), out: Vec::new(), apply: false, discard: false };
     let mut h = Harness::builder().with_size([1700.0, 80.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
-            let r = ui.horizontal(|ui| PinWarpBar::new("bar", &host.session).notice(host.notice.as_deref()).show(ui)).inner;
+            let mut r = PinWarpBarOutput::default();
+            OptionsBar::new("options")
+                .show(ui, |slots| PinWarpBar::new("bar", &host.session).notice(host.notice.as_deref()).output(&mut r).add_to(slots));
             host.apply |= r.apply;
             host.discard |= r.discard;
             host.out.extend(r.edits);
