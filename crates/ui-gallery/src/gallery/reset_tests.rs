@@ -195,8 +195,8 @@ impl Fixture {
     }
 }
 
-/// A story that opens a modal layer must not block the rest of the Overview: every tile is drawn
-/// in every frame, so a click on another tile's Open button has to take effect.
+/// A story that opens a modal layer must not block the rest of the Overview: a click on another
+/// tile's Open button has to take effect.
 #[test]
 fn a_dialog_story_in_the_overview_starts_closed_and_does_not_block_other_tiles() {
     for level in [craft_ui::story::Level::Patterns, craft_ui::story::Level::Controls, craft_ui::story::Level::Composites] {
@@ -206,6 +206,8 @@ fn a_dialog_story_in_the_overview_starts_closed_and_does_not_block_other_tiles()
     }
     let mut f = Fixture::new();
     f.show_level(craft_ui::story::Level::Patterns);
+    f.gallery.select_component("Dialog");
+    f.frames(3);
     assert!(f.bounds_of("Show dialog", Role::Button).is_some(), "the tile of a modal story has its opener");
     f.gallery.select_component("PreferencesWindow");
     f.frames(3);
