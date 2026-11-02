@@ -2,7 +2,7 @@
 //! the buttons round it; the story shows what an app draws for the hovered side, a ghost of the
 //! board the button would add, and reports the click. Sample words are story words.
 //!
-//! - `primitives/add-beside/buttons`: four buttons round a box; the ghost on hover (`AddBesideResponse::hovered`
+//! - `primitives/add-beside-handles/buttons`: four buttons round a box; the ghost on hover (`AddBesideResponse::hovered`
 //!   is the side); a rectangle the buttons keep clear of (`clear_of`: the neighbouring board hides
 //!   the button that would sit on it); a box too small for buttons; Alt on a click asks for a copy.
 //!
@@ -43,11 +43,11 @@ const GAP: f64 = 40.0;
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "primitives/add-beside/buttons",
+            "primitives/add-beside-handles/buttons",
             Level::Primitives,
             "AddBesideHandles",
             "Buttons",
-            AddBesideArgs { view: ViewArgs::default(), width: 200.0, height: 140.0, neighbour: false, hidden: false },
+            AddBesideArgs { view: ViewArgs::default(), width: 200.0, height: 140.0, neighbour: false, hidden: false, connecting: false },
             show
         )
         .on(Surface::Canvas),
@@ -67,6 +67,8 @@ struct AddBesideArgs {
     neighbour: bool,
     /// Hides the buttons, as during a drag.
     hidden: bool,
+    /// Names the group for adding a connected shape, as beside a connector's source.
+    connecting: bool,
 }
 
 fn side_name(labels: &AddBesideLabels, side: AddSide) -> String {
@@ -117,7 +119,7 @@ fn show(ui: &mut Ui, args: &mut AddBesideArgs) {
     let ghost = |painter: &egui::Painter, side: AddSide| {
         painter.add(Shape::closed_line(view.quad(beside(object, side).abs()).to_vec(), accent));
     };
-    let mut handles = AddBesideHandles::new("add-beside", object).hidden(args.hidden).ghost(ghost).labels(labels.clone());
+    let mut handles = AddBesideHandles::new("add-beside", object).hidden(args.hidden).connecting(args.connecting).ghost(ghost);
     if args.neighbour {
         handles = handles.clear_of(&clear);
     }

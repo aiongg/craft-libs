@@ -6,10 +6,10 @@
 //!   slice, move and resize a user slice (an auto or layer slice that moves becomes a user slice),
 //!   Promote, Delete, Hide Auto Slices, and a lock that refuses edits. Slice Options and Divide
 //!   are the dialogs' own stories; here those commands only report.
-//! - `patterns/slice-options/bar`: the bar alone in both modes, for each kind of selected slice.
-//! - `patterns/slice-options/dialog`: Image, No Image and HTML Text; the Background colour is answered
+//! - `patterns/slice-bar/bar`: the bar alone in both modes, for each kind of selected slice.
+//! - `patterns/slice-options-dialog/dialog`: Image, No Image and HTML Text; the Background colour is answered
 //!   by the story.
-//! - `patterns/divide-slices/dialog`: rows and columns by count or by size.
+//! - `patterns/divide-slices-dialog/dialog`: rows and columns by count or by size.
 //!
 //! RG2 registers `stories()` and the components `SliceTool`, `SliceBar`, `SliceOptionsDialog` and
 //! `DivideSlicesDialog`; RG1 adds [`SliceStoryLabels`] to `WORDS`.
@@ -59,7 +59,7 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "patterns/slice-options/bar",
+            "patterns/slice-bar/bar",
             Level::Patterns,
             "SliceBar",
             "Bar",
@@ -67,7 +67,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_bar
         ),
         typed_story!(
-            "patterns/slice-options/dialog",
+            "patterns/slice-options-dialog/dialog",
             Level::Patterns,
             "SliceOptionsDialog",
             "Slice Options",
@@ -75,7 +75,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_options
         ),
         typed_story!(
-            "patterns/divide-slices/dialog",
+            "patterns/divide-slices-dialog/dialog",
             Level::Patterns,
             "DivideSlicesDialog",
             "Divide Slice",
@@ -372,14 +372,14 @@ struct OptionsArgs {
 }
 
 /// The colour the story's picker answers the Background row with.
-fn picked_colour(ui: &Ui) -> Srgba {
+fn picked_color(ui: &Ui) -> Srgba {
     Srgba::from(Tokens::of(ui).color.accent.solid)
 }
 
 fn show_options(ui: &mut Ui, args: &mut OptionsArgs) {
     let story = StoryLabels::of(ui);
     let (kind, background_row) = (args.kind.kind(), args.background_row);
-    let colour = picked_colour(ui);
+    let color = picked_color(ui);
     drive(
         ui,
         "slice-options",
@@ -392,7 +392,7 @@ fn show_options(ui: &mut Ui, args: &mut OptionsArgs) {
         },
         |dialog| {
             if let Some(request) = dialog.pick_color() {
-                dialog.set_color(&request.key, colour);
+                dialog.set_color(&request.key, color);
             }
         },
         |options| {

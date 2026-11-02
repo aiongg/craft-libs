@@ -449,7 +449,6 @@ fn paint_head(tokens: &UiTokens, start: bool) -> impl Fn(&Painter, ScreenRect, &
     }
 }
 
-#[derive(Clone)]
 struct BarKept {
     start: String,
     end: String,
@@ -459,9 +458,8 @@ struct BarKept {
 fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let own = ConnectorStoryLabels::of(ui);
     let tokens = Tokens::of(ui);
-    let key = ui.make_persistent_id("craft_draw::connector::stories::bar");
-    let mut kept: BarKept =
-        ui.data(|d| d.get_temp(key)).unwrap_or_else(|| BarKept { start: "none".into(), end: "arrow".into(), chose: String::new() });
+    let state = shared(ui, "bar", || BarKept { start: "none".into(), end: "arrow".into(), chose: String::new() });
+    let mut kept = lock(&state);
     let choices = heads(&own);
     let label = ConnectorToolLabels::of(ui).group;
     let routing = args.routing.routing();
@@ -503,5 +501,4 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     if !kept.chose.is_empty() {
         ui.add(Text::new(craft_i18n::fmt(&own.chose, &[("choice", &kept.chose)])).content(Content::Muted));
     }
-    ui.data_mut(|d| d.insert_temp(key, kept));
 }
