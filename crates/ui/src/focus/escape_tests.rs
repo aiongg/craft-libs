@@ -44,7 +44,7 @@ fn escape_on_a_control_that_had_focus_is_seen_and_other_ways_of_losing_focus_are
 /// Whether an `IconButton` holds the focus after a pointer click, from raw egui input and through
 /// kittest's `click`.
 #[test]
-fn a_pointer_click_focuses_an_icon_button_in_raw_input_and_in_kittest() {
+fn a_pointer_click_does_not_focus_an_icon_button_in_raw_input_or_in_kittest() {
     use crate::icons::Icon;
     use egui::{PointerButton, Ui};
     use egui_kittest::Harness;
