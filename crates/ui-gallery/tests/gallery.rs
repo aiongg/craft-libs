@@ -368,6 +368,84 @@ fn click(ctx: &Context, gallery: &mut Gallery, name: &str, role: egui::accesskit
     frame(ctx, gallery);
 }
 
+/// Sends `action` to the one control named `name` with `role`, as a screen reader would.
+fn request_on(ctx: &Context, gallery: &mut Gallery, name: &str, role: egui::accesskit::Role, action: egui::accesskit::Action) {
+    use egui::accesskit::{ActionRequest, TreeId};
+    let tree = settled_tree(ctx, gallery);
+    let nodes = named(&tree, name, role);
+    assert_eq!(nodes.len(), 1, "one control named {name:?}");
+    let mut raw = input();
+    raw.events.push(egui::Event::AccessKitActionRequest(ActionRequest { action, target_tree: TreeId::ROOT, target_node: nodes[0], data: None }));
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    frame(ctx, gallery);
+}
+
+/// Focuses the Components filter and types `text` into it, or with an empty `text` clears it.
+fn type_filter(ctx: &Context, gallery: &mut Gallery, text: &str) {
+    use egui::accesskit::{Action, Role};
+    request_on(ctx, gallery, "Filter components", Role::SearchInput, Action::Focus);
+    let mut raw = input();
+    if text.is_empty() {
+        raw.events.push(egui::Event::Key {
+            key: egui::Key::A,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::COMMAND,
+        });
+        raw.events.push(egui::Event::Key {
+            key: egui::Key::Backspace,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+    } else {
+        raw.events.push(egui::Event::Text(text.to_owned()));
+    }
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    frame(ctx, gallery);
+}
+
+/// Opens the level of `component` in the Components list when it is closed.
+fn expand_level_of(ctx: &Context, gallery: &mut Gallery, component: &str) {
+    use egui::accesskit::{Action, Role};
+    let level = gallery.stories().iter().find(|s| s.component == component).expect("a story").level.title();
+    let tree = settled_tree(ctx, gallery);
+    let row = named(&tree, level, Role::TreeItem);
+    assert_eq!(row.len(), 1, "one row for the level {level}");
+    if tree.node(row[0]).is_some_and(|n| n.is_expanded() == Some(false)) {
+        request_on(ctx, gallery, level, Role::TreeItem, Action::Expand);
+    }
+}
+
+#[test]
+fn a_level_opens_and_closes_from_its_row_and_a_filter_shows_the_matches_of_a_closed_level() {
+    use egui::accesskit::{Action, Role};
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, _) = component_with_stories(&gallery);
+    let level = gallery.stories().iter().find(|s| s.component == component).unwrap().level.title();
+    // Nothing is selected, so every level starts closed.
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert_eq!(named(&tree, level, Role::TreeItem).len(), 1);
+    assert!(named(&tree, component, Role::TreeItem).is_empty(), "a closed level hides its components");
+    request_on(&ctx, &mut gallery, level, Role::TreeItem, Action::Expand);
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert_eq!(named(&tree, component, Role::TreeItem).len(), 1, "an open level lists its components");
+    request_on(&ctx, &mut gallery, level, Role::TreeItem, Action::Collapse);
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert!(named(&tree, component, Role::TreeItem).is_empty());
+    // Typing a filter opens every level with matches; clearing it returns to the closed level.
+    type_filter(&ctx, &mut gallery, component);
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert_eq!(named(&tree, component, Role::TreeItem).len(), 1, "the filter shows the match of a closed level");
+    type_filter(&ctx, &mut gallery, "");
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert!(named(&tree, component, Role::TreeItem).is_empty());
+}
+
 #[test]
 fn variants_show_one_card_per_value_and_mark_the_current_one() {
     use craft_theme::builtins;
@@ -729,7 +807,8 @@ fn a_list_row_click_selects_the_component_in_the_overview_without_opening_a_tab(
     let other = gallery.stories().iter().find(|s| s.component != component).unwrap().component;
     gallery.open_component(other);
     assert_eq!(gallery.front_tab(), PanelId::Component(other));
-    click(&ctx, &mut gallery, component, Role::ListBoxOption);
+    expand_level_of(&ctx, &mut gallery, component);
+    click(&ctx, &mut gallery, component, Role::TreeItem);
     assert_eq!(gallery.overview_selected(), Some(component));
     assert_eq!(gallery.front_tab(), PanelId::View);
     assert_eq!(gallery.open_tabs(), [other], "no tab was added or replaced");
@@ -742,7 +821,8 @@ fn open_on_a_row_and_open_on_a_tile_open_one_tab_between_them() {
     ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
     let (component, _) = component_with_stories(&gallery);
-    click(&ctx, &mut gallery, component, Role::ListBoxOption);
+    expand_level_of(&ctx, &mut gallery, component);
+    click(&ctx, &mut gallery, component, Role::TreeItem);
     let open = format!("Open {component}");
     let tree = settled_tree(&ctx, &mut gallery);
     assert_eq!(named(&tree, &open, Role::Button).len(), 2, "the selected row and its tile each have Open");
@@ -1020,7 +1100,7 @@ fn a_pointer_click_on_the_row_of_the_component_whose_tab_is_in_front_selects_it_
     gallery.open_component(component);
     assert_eq!(gallery.front_tab(), PanelId::Component(component));
     let tree = settled_tree(&ctx, &mut gallery);
-    let row = named(&tree, component, Role::ListBoxOption);
+    let row = named(&tree, component, Role::TreeItem);
     assert_eq!(row.len(), 1);
     pointer_click(&ctx, &mut gallery, center_of(&tree, row[0]));
     assert_eq!(gallery.front_tab(), PanelId::View, "the highlighted row still answers a click");
@@ -1690,7 +1770,7 @@ fn gallery_chrome(tree: &craft_ui::inspect::AccessTree, node: egui::accesskit::N
         ancestors.len() > 1 && ancestors[..ancestors.len() - 1].iter().all(|a| matches!(a.as_str(), "Window:" | "GenericContainer:" | "Pane:"));
     (data.role() == Role::Tab && own_tab_bar)
         || (data.role() == Role::Label && data.supports_action(Action::Click) && titles.contains(&name))
-        || ancestors.iter().any(|a| matches!(a.as_str(), "ListBox:Components" | "ListBox:Stories"))
+        || ancestors.iter().any(|a| matches!(a.as_str(), "Tree:Components" | "ListBox:Stories"))
         // The name on a tile, which is the name of a component or story.
         || (data.role() == Role::Label && ancestors.iter().any(|a| *a == format!("Button:Select {name}")))
         // The gallery's own workspace switch in its options bar.
