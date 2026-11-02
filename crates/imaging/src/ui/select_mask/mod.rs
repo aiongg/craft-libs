@@ -43,6 +43,7 @@ mod session;
 #[cfg(test)]
 mod session_tests;
 pub(crate) mod stories;
+mod style;
 mod tools;
 #[cfg(test)]
 mod tools_tests;
@@ -52,6 +53,7 @@ pub use edits::{EditMode, ObjectTarget, RefineStroke, SelectMaskEdit, round_poin
 pub use labels::SelectMaskLabels;
 pub use panel::{OVERLAY_COLOR_KEY, SelectMaskPanel, SelectMaskPanelOutput};
 pub use session::{OutputTo, RefineSettings, SelectMaskCommand, SelectMaskLimits, SelectMaskSession, SelectMaskSettings};
+pub use style::SelectMaskStyle;
 pub use tools::{BrushSizes, SelectMaskCanvas, SelectMaskCanvasTool, SelectMaskTool, SelectMaskToolOptions};
 
 use egui::{Context, Event, Key, Modifiers, Popup, Rect};
@@ -429,12 +431,16 @@ impl SelectMaskWorkspace {
 
     /// The preview job for `ticket` finished; an older ticket is ignored.
     pub fn preview_ready(&mut self, ticket: PreviewTicket) {
-        self.preview.ready(ticket);
+        if self.preview.ready(ticket) {
+            self.canvas.drop_trail();
+        }
     }
 
     /// The preview job for `ticket` failed; the message shows under the panel.
     pub fn preview_failed(&mut self, ticket: PreviewTicket, message: String) {
-        self.preview.failed(ticket, message);
+        if self.preview.failed(ticket, message) {
+            self.canvas.drop_trail();
+        }
     }
 
     /// Undo or redo from the app's Edit menu. Returns whether it stepped; a preview is then asked
