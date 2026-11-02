@@ -13,10 +13,11 @@
 use egui::{Painter, Pos2, Rect, Stroke, Ui};
 
 use super::{PatternColors, PatternFillDialog, PatternFillEditor, PatternFillOptions, PatternSwatch};
+use crate::ui::stroke::stories::EventKindLabels;
 use craft_theme::Srgba;
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, lock, reset_on, shared};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use craft_ui::typed_story;
 
@@ -172,7 +173,6 @@ fn start(ui: &Ui, mode: ModeArg, first: &str) -> PatternFillOptions {
 
 #[derive(Clone)]
 struct EditorKept {
-    mode: ModeArg,
     options: PatternFillOptions,
     event: Option<String>,
 }
@@ -181,19 +181,16 @@ fn show_editor(ui: &mut Ui, args: &mut EditorArgs) {
     let words = StoryLabels::of(ui);
     let library = if args.library { swatches(ui) } else { Vec::new() };
     let first = library.first().map_or_else(String::new, |s| s.id.clone());
-    let key = ui.make_persistent_id("craft_draw::pattern::stories::editor");
-    let mut kept: EditorKept = ui.data(|d| d.get_temp(key)).filter(|k: &EditorKept| k.mode == args.mode).unwrap_or_else(|| EditorKept {
-        mode: args.mode,
-        options: start(ui, args.mode, &first),
-        event: None,
-    });
+    reset_on(ui, "editor", &args.mode);
+    let kept = shared(ui, "editor", || EditorKept { options: start(ui, args.mode, &first), event: None });
+    let mut kept = lock(&kept);
     let tokens = Tokens::of(ui);
     let mut editor = PatternFillEditor::new("pattern-story", &kept.options, &library);
     if args.thumbnails {
         editor = editor.thumbnails(paint(&tokens));
     }
     if let Some(event) = editor.show(ui).event {
-        kept.event = Some(craft_ui::edit::describe(&event));
+        kept.event = Some(EventKindLabels::of(ui).kind(&event));
         if let Some(value) = event.value() {
             kept.options = value.clone();
         }
@@ -203,13 +200,12 @@ fn show_editor(ui: &mut Ui, args: &mut EditorArgs) {
         None => words.no_event.clone(),
     };
     ui.add(Text::new(note).content(Content::Muted));
-    ui.data_mut(|d| d.insert_temp(key, kept));
 }
 
 // --- dialog ---
 
-fn describe(own: &PatternStoryLabels, options: &PatternFillOptions) -> String {
-    let number = |v: f64| v.to_string();
+fn describe(own: &PatternStoryLabels, numbers: &LocaleNumbers, options: &PatternFillOptions) -> String {
+    let number = |v: f64| numbers.format(v, 0..=2);
     craft_i18n::fmt(
         &own.values,
         &[
@@ -230,8 +226,9 @@ fn show_dialog(ui: &mut Ui, args: &mut DialogArgs) {
     let mut live = None;
     {
         let own = own.clone();
+        let numbers = LocaleNumbers::of(ui);
         let (library, options, painter) = (swatches(ui), start_for(ui, mode), paint(&Tokens::of(ui)));
-        let describe_ok = move |options: PatternFillOptions| describe(&own, &options);
+        let describe_ok = move |options: PatternFillOptions| describe(&own, &numbers, &options);
         craft_ui::story::drive(
             ui,
             "pattern-fill-dialog",
@@ -243,7 +240,7 @@ fn show_dialog(ui: &mut Ui, args: &mut DialogArgs) {
         );
     }
     if let Some(options) = live {
-        ui.add(Text::new(describe(&own, &options)).content(Content::Muted));
+        ui.add(Text::new(describe(&own, &LocaleNumbers::of(ui), &options)).content(Content::Muted));
     }
 }
 

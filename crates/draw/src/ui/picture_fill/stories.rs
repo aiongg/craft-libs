@@ -15,10 +15,11 @@ use std::sync::{Arc, Mutex};
 use egui::Ui;
 
 use super::{PictureFill, PictureFillEditor, PictureFillEvent, PictureMode};
+use crate::ui::stroke::stories::EventKindLabels;
 use craft_host::{FileError, Files, PickId, PickRequest, Picked};
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, ensure_files, lock, shared};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, ensure_files, lock, reset_on, shared};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
@@ -121,8 +122,6 @@ impl Files for StoryFiles {
 
 #[derive(Clone)]
 struct Kept {
-    mode: ModeArg,
-    source: bool,
     fill: PictureFill,
     note: String,
 }
@@ -137,7 +136,7 @@ fn start(words: &PictureStoryLabels, args: &EditorArgs) -> Kept {
             mirror: super::TileMirror::None,
         };
     }
-    Kept { mode: args.mode, source: args.source, fill, note: String::new() }
+    Kept { fill, note: String::new() }
 }
 
 fn show_editor(ui: &mut Ui, args: &mut EditorArgs) {
@@ -147,14 +146,14 @@ fn show_editor(ui: &mut Ui, args: &mut EditorArgs) {
     let files: Arc<StoryFiles> = lock(&files).clone();
     *lock(&files.name) = words.inserted.clone();
     let _scope = ensure_files(ui.ctx(), files);
-    let key = ui.make_persistent_id("craft_draw::picture_fill::stories");
-    let mut kept: Kept =
-        ui.data(|d| d.get_temp(key)).filter(|k: &Kept| (k.mode, k.source) == (args.mode, args.source)).unwrap_or_else(|| start(&words, args));
+    reset_on(ui, "editor", &(args.mode, args.source));
+    let kept = shared(ui, "editor", || start(&words, args));
+    let mut kept = lock(&kept);
     let events = PictureFillEditor::new("picture-story", &kept.fill).show(ui).events;
     for event in events {
         match event {
             PictureFillEvent::Edit(edit) => {
-                kept.note = craft_i18n::fmt(&story.last_event, &[("event", &craft_ui::edit::describe(&edit))]);
+                kept.note = craft_i18n::fmt(&story.last_event, &[("event", &EventKindLabels::of(ui).kind(&edit))]);
                 if let Some(fill) = edit.value() {
                     kept.fill = fill.clone();
                 }
@@ -170,5 +169,4 @@ fn show_editor(ui: &mut Ui, args: &mut EditorArgs) {
     }
     let note = if kept.note.is_empty() { words.files_note.clone() } else { kept.note.clone() };
     ui.add(Text::new(note).content(Content::Muted));
-    ui.data_mut(|d| d.insert_temp(key, kept));
 }

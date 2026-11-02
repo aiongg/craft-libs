@@ -6,7 +6,7 @@
 //! | Story id | Shows |
 //! |---|---|
 //! | `composites/stroke-editor/panel` | The docked body; args: closed, dashed, mixed, sections (panel, popover), unit (widths, document) |
-//! | `composites/stroke-editor/popover` | The opener and the popover; args: stroke on or off |
+//! | `composites/stroke-button/popover` | The opener and the popover; args: stroke on or off |
 //! | `composites/stroke-editor/choice-rows` | Arrowhead start and end and profile rows with painted previews |
 
 use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Ui, vec2};
@@ -19,7 +19,7 @@ use craft_ui::controls::{Button, MixedValue};
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, lock, shared};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_ui::typed_story;
 
@@ -38,6 +38,34 @@ craft_ui::words! {
         uniform: "strokeStory.uniform" = "Uniform";
         taper: "strokeStory.taper" = "Taper";
         bulge: "strokeStory.bulge" = "Bulge";
+        /// The last-event line after a choice row picks: the row's name and the choice's.
+        row_choice: "strokeStory.rowChoice" = "{row}: {choice}";
+    }
+}
+
+craft_ui::words! {
+    /// The names of the edit event kinds the draw stories' last-event lines show, English by
+    /// default.
+    #[non_exhaustive]
+    pub(crate) struct EventKindLabels {
+        begin: "drawStory.eventBegin" = "Begin";
+        update: "drawStory.eventUpdate" = "Update";
+        commit: "drawStory.eventCommit" = "Commit";
+        cancel: "drawStory.eventCancel" = "Cancel";
+        set: "drawStory.eventSet" = "Set";
+    }
+}
+
+impl EventKindLabels {
+    /// The word for the kind of `event`.
+    pub(crate) fn kind<T>(&self, event: &EditEvent<T>) -> String {
+        match event {
+            EditEvent::Begin { .. } => self.begin.clone(),
+            EditEvent::Update { .. } => self.update.clone(),
+            EditEvent::Commit { .. } => self.commit.clone(),
+            EditEvent::Cancel { .. } => self.cancel.clone(),
+            EditEvent::Set { .. } => self.set.clone(),
+        }
     }
 }
 
@@ -60,7 +88,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_panel
         ),
         typed_story!(
-            "composites/stroke-editor/popover",
+            "composites/stroke-button/popover",
             Level::Composites,
             "StrokeButton",
             "Popover",
@@ -186,8 +214,8 @@ impl PanelState {
 /// settles it.
 fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
     let words = StoryLabels::of(ui);
-    let key = ui.scope_id().with("stroke-panel");
-    let mut state: PanelState = ui.data(|d| d.get_temp(key)).unwrap_or_else(PanelState::new);
+    let kept = shared(ui, "panel", PanelState::new);
+    let mut state = lock(&kept);
     state.style.width = args.stroke_width;
     state.style.dash_unit = match args.unit {
         UnitArg::Widths => DashUnit::Widths,
@@ -214,16 +242,15 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
     }
     if let (Some(event), Some(field)) = (&response.event, response.field) {
         settle(&mut state.mixed, field);
-        state.last = Some(format!("{field:?}: {}", craft_ui::edit::describe(event).split_whitespace().next().unwrap_or_default()));
+        state.last = Some(EventKindLabels::of(ui).kind(event));
     }
     ui.horizontal(|ui| {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
-            state = PanelState::new();
+            *state = PanelState::new();
             args.dashed = false;
         }
         last_event(ui, &words, &state.last);
     });
-    ui.data_mut(|d| d.insert_temp(key, state));
 }
 
 // --- popover ---
@@ -245,9 +272,8 @@ struct PopoverState {
 /// The opener of an options bar and its popover.
 fn show_popover(ui: &mut Ui, args: &mut PopoverArgs) {
     let words = StoryLabels::of(ui);
-    let key = ui.scope_id().with("stroke-popover");
-    let mut state: PopoverState =
-        ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PopoverState { style: StrokeStyle::default(), open: false, last: None });
+    let kept = shared(ui, "popover", || PopoverState { style: StrokeStyle::default(), open: false, last: None });
+    let mut state = lock(&kept);
     let numbers = LocaleNumbers::of(ui);
     let response =
         StrokeButton::new("stroke-editor-popover", &state.style, &numbers).enabled(args.stroke).closed(args.closed).show(ui, &mut state.open);
@@ -258,10 +284,9 @@ fn show_popover(ui: &mut Ui, args: &mut PopoverArgs) {
         if field == StrokeField::Preset {
             args.stroke = true;
         }
-        state.last = Some(format!("{field:?}: {}", craft_ui::edit::describe(event).split_whitespace().next().unwrap_or_default()));
+        state.last = Some(EventKindLabels::of(ui).kind(event));
     }
     last_event(ui, &words, &state.last);
-    ui.data_mut(|d| d.insert_temp(key, state));
 }
 
 // --- choice rows ---
@@ -335,14 +360,14 @@ fn paint_profile(painter: &Painter, rect: Rect, id: &str, color: Color32) {
 /// The editor with the app's rows: arrowheads at the start and end and a width profile.
 fn show_rows(ui: &mut Ui, args: &mut RowsArgs) {
     let words = StoryLabels::of(ui);
-    let key = ui.scope_id().with("stroke-rows");
-    let mut state: RowsState = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| RowsState {
+    let kept = shared(ui, "rows", || RowsState {
         style: StrokeStyle::default(),
         start: "none".into(),
         end: "arrow".into(),
         profile: "uniform".into(),
         last: None,
     });
+    let mut state = lock(&kept);
     let numbers = LocaleNumbers::of(ui);
     let tokens = Tokens::of(ui);
     let look = StrokeEditorStyle { width: args.width, ..StrokeEditor::style(&tokens) };
@@ -380,7 +405,13 @@ fn show_rows(ui: &mut Ui, args: &mut RowsArgs) {
         state.style = value.clone();
     }
     if let Some((row, choice)) = response.choice {
-        state.last = Some(format!("{row}: {choice}"));
+        let row_name = match row.as_str() {
+            START => words.start.as_str(),
+            END => words.end.as_str(),
+            _ => own.profile.as_str(),
+        };
+        let choice_name = heads.iter().chain(&profiles).find(|c| c.id == choice).map_or(choice.as_str(), |c| c.label.as_str());
+        state.last = Some(craft_i18n::fmt(&words.row_choice, &[("row", row_name), ("choice", choice_name)]));
         match row.as_str() {
             START => state.start = choice,
             END => state.end = choice,
@@ -391,5 +422,4 @@ fn show_rows(ui: &mut Ui, args: &mut RowsArgs) {
         }
     }
     last_event(ui, &words, &state.last);
-    ui.data_mut(|d| d.insert_temp(key, state));
 }

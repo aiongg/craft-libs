@@ -117,11 +117,34 @@ pub fn document_at(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32, center
 /// [`document_at`] under the view `make` gives for the canvas rectangle and the pixels per point,
 /// for a story that keeps its own view.
 pub fn document_with(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32, make: impl FnOnce(egui::Rect, f64) -> CanvasView) -> StoryCanvas {
+    draw_document(ui, view, label, margin, Sense::click_and_drag() | Sense::FOCUSABLE, make)
+}
+
+/// [`document`] whose canvas senses clicks and drags but takes no keyboard focus, for a story of
+/// a parts widget that owns the Tab stop itself (a focusable canvas would take it first).
+pub fn document_unfocusable(ui: &mut Ui, view: ViewArgs, label: &str) -> StoryCanvas {
+    draw_document(ui, view, label, 0.0, Sense::click_and_drag(), |rect, ppp| CanvasView {
+        rect,
+        center: DOC.center(),
+        zoom: view.zoom / 100.0 / ppp,
+        rotation: view.rotation,
+        flip_x: view.flip,
+        aspect: view.aspect,
+    })
+}
+
+fn draw_document(
+    ui: &mut Ui,
+    view: ViewArgs,
+    label: &str,
+    margin: f32,
+    sense: Sense,
+    make: impl FnOnce(egui::Rect, f64) -> CanvasView,
+) -> StoryCanvas {
     if let Some(ppp) = view.ppp.pixels_per_point() {
         story::request_pixels_per_point(ui.ctx(), ppp);
     }
     let size = vec2((ui.available_width() - margin).clamp(240.0, 720.0), 360.0);
-    let sense = Sense::click_and_drag() | Sense::FOCUSABLE;
     let id = story_canvas_id(ui, label);
     let (full, rect, response) = if margin > 0.0 {
         let (full, _) = ui.allocate_exact_size(size + vec2(margin, margin), Sense::hover());

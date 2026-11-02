@@ -10,7 +10,7 @@ use crate::ui::pen::bezier::{BezierNames, BezierOverlay, BezierTool, EditPath, E
 use craft_ui::canvas::RulerUnits;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
-use craft_ui::story::{Level, Story, StoryArgs, Surface};
+use craft_ui::story::{Level, Story, StoryArgs, Surface, lock, reset_on, shared};
 use craft_ui::testing::canvas_story::{PlainArgs, ViewArgs};
 use craft_ui::typed_story;
 use egui::Color32;
@@ -18,7 +18,7 @@ use egui::Color32;
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Pen draft", "Path options"];
 
-#[derive(StoryArgs, Debug, PartialEq)]
+#[derive(StoryArgs, Debug, Default, PartialEq)]
 struct CurvatureArgs {
     #[arg(flatten)]
     view: ViewArgs,
@@ -29,12 +29,6 @@ struct CurvatureArgs {
     rubber_band: bool,
 }
 
-impl Default for CurvatureArgs {
-    fn default() -> Self {
-        Self { view: ViewArgs::default(), closed: false, corners: false, rubber_band: true }
-    }
-}
-
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!("primitives/pen-draft/draw", Level::Primitives, "Pen draft", "Draw", PlainArgs::default(), show_pen).on(Surface::Canvas),
@@ -42,7 +36,7 @@ pub(crate) fn stories() -> Vec<Story> {
             .on(Surface::Canvas),
         typed_story!("primitives/pen-draft/auto-add-delete", Level::Primitives, "Pen draft", "Auto add/delete", PlainArgs::default(), show_auto)
             .on(Surface::Canvas),
-        typed_story!("primitives/path-options/popover", Level::Primitives, "Path options", "Popover", PlainArgs::default(), show_options)
+        typed_story!("composites/path-options/popover", Level::Composites, "Path options", "Popover", PlainArgs::default(), show_options)
             .on(Surface::Canvas),
     ]
 }
@@ -134,8 +128,8 @@ pub(crate) fn finished_paths() -> Vec<EditPath> {
 /// handle to move it alone; click the first anchor to close; press on an open path's end to carry
 /// on with it. Enter or Esc ends the path, Backspace removes the last anchor, ⌘Z does too.
 fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
-    let key = ui.scope_id().with("pen-story");
-    let mut host: PenHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PenHost::new(finished_paths()));
+    let kept = shared(ui, "draw", || PenHost::new(finished_paths()));
+    let mut host = lock(&kept);
     let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
     let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
@@ -153,7 +147,6 @@ fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
     let response =
         PenDraft::new("story-pen", host.draft.as_ref(), names).ends(&ends).units(&px, &px).remove_last(undo).show(ui, &canvas.response, &canvas.view);
     host.apply(&response);
-    ui.data_mut(|d| d.insert_temp(key, host));
 }
 
 /// A draft of `points`: smooth anchors the Curvature Pen's handles flow through, the second one a
@@ -179,24 +172,22 @@ fn curvature_draft(points: &[(f64, f64)], closed: bool, corner: bool) -> EditSub
 /// arguments starts it again.
 fn show_curvature(ui: &mut Ui, args: &mut CurvatureArgs) {
     const POINTS: [(f64, f64); 5] = [(110.0, 280.0), (180.0, 150.0), (280.0, 110.0), (380.0, 200.0), (470.0, 140.0)];
-    let key = ui.scope_id().with("pen-curvature-story");
-    let shape = (args.closed, args.corners);
-    let (mut host, seen): (PenHost, (bool, bool)) = ui.data(|d| d.get_temp(key)).filter(|(_, seen)| *seen == shape).unwrap_or_else(|| {
+    reset_on(ui, "curvature", &(args.closed, args.corners));
+    let kept = shared(ui, "curvature", || {
         let mut host = PenHost::new(Vec::new());
         host.draft = Some(curvature_draft(&POINTS, args.closed, args.corners));
-        (host, shape)
+        host
     });
+    let mut host = lock(&kept);
     let options = PathOptionsSettings { rubber_band: args.rubber_band, ..PathOptionsSettings::default() };
     run_pen(ui, &mut host, args.view, "story-pen-curvature", PenMode::Curvature, false, Some(&options));
-    ui.data_mut(|d| d.insert_temp(key, (host, seen)));
 }
 
 /// The Pen with Auto Add/Delete on an open draft: hover a segment of the draft to see the add
 /// look and click to add an anchor, hover an inner anchor to see the delete look and click to
 /// remove it; the first and last anchors are left to the pen, and ⇧ turns the behaviour off.
 fn show_auto(ui: &mut Ui, args: &mut PlainArgs) {
-    let key = ui.scope_id().with("pen-auto-story");
-    let mut host: PenHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| {
+    let kept = shared(ui, "auto", || {
         let mut host = PenHost::new(Vec::new());
         host.draft = Some(EditSubpath {
             knots: vec![
@@ -209,8 +200,8 @@ fn show_auto(ui: &mut Ui, args: &mut PlainArgs) {
         });
         host
     });
+    let mut host = lock(&kept);
     run_pen(ui, &mut host, args.view, "story-pen-auto", PenMode::Pen, true, None);
-    ui.data_mut(|d| d.insert_temp(key, host));
 }
 
 /// The colours the story's stand-in for the app's colour picker cycles through.
@@ -220,31 +211,39 @@ const PICKS: [Color32; 3] = [Color32::from_rgb(230, 110, 20), Color32::from_rgb(
 /// colour and rubber band reach both. The colour swatch cycles through a few colours, where an
 /// app opens its picker.
 fn show_options(ui: &mut Ui, args: &mut PlainArgs) {
-    let key = ui.scope_id().with("pen-options-story");
-    let (mut host, mut settings, mut open, mut picks): (PenHost, PathOptionsSettings, bool, usize) =
-        ui.data(|d| d.get_temp(key)).unwrap_or_else(|| {
-            let mut host = PenHost::new(finished_paths());
-            host.draft = Some(EditSubpath {
-                knots: vec![
-                    Knot::corner(Point::new(80.0, 120.0)),
-                    Knot::smooth(Point::new(160.0, 60.0), Point::new(210.0, 60.0)),
-                    Knot::corner(Point::new(280.0, 110.0)),
-                ],
-                closed: false,
-            });
-            (host, PathOptionsSettings { rubber_band: true, ..PathOptionsSettings::default() }, false, 0)
+    let kept = shared(ui, "options", || {
+        let mut host = PenHost::new(finished_paths());
+        host.draft = Some(EditSubpath {
+            knots: vec![
+                Knot::corner(Point::new(80.0, 120.0)),
+                Knot::smooth(Point::new(160.0, 60.0), Point::new(210.0, 60.0)),
+                Knot::corner(Point::new(280.0, 110.0)),
+            ],
+            closed: false,
         });
-    let response = PathOptionsPopover::new("story-path-options", &settings).show(ui, &mut open);
+        OptionsKept { host, settings: PathOptionsSettings::default(), open: false, picks: 0 }
+    });
+    let mut kept = lock(&kept);
+    let OptionsKept { host, settings, open, picks } = &mut *kept;
+    let response = PathOptionsPopover::new("story-path-options", settings).show(ui, open);
     if let Some(value) = response.event.as_ref().and_then(EditEvent::value) {
-        settings = *value;
+        *settings = *value;
     }
     if response.pick_color.is_some() {
-        let pick = PICKS[picks % PICKS.len()];
+        let pick = PICKS[*picks % PICKS.len()];
         settings.color = Some([pick.r(), pick.g(), pick.b()]);
-        picks += 1;
+        *picks += 1;
     }
-    run_pen(ui, &mut host, args.view, "story-pen-options", PenMode::Pen, false, Some(&settings));
-    ui.data_mut(|d| d.insert_temp(key, (host, settings, open, picks)));
+    run_pen(ui, host, args.view, "story-pen-options", PenMode::Pen, false, Some(settings));
+}
+
+/// What the Path Options story keeps: the host, the settings, whether the popover is open and how
+/// many colors the swatch has picked.
+struct OptionsKept {
+    host: PenHost,
+    settings: PathOptionsSettings,
+    open: bool,
+    picks: usize,
 }
 
 /// One pass of the pen over the host's finished paths: the paths in the Show tool, then the draft

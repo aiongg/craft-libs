@@ -12,19 +12,29 @@ use kurbo::{Point, Vec2};
 
 use super::{CornerKind, CornerPoint, CornerTarget, CornerWidgets};
 use crate::geometry::fillet::fillet;
+use crate::ui::stroke::stories::EventKindLabels;
 use craft_ui::canvas::CanvasView;
 use craft_ui::canvas::RulerUnits;
 use craft_ui::controls::Button;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryLabels};
-use craft_ui::testing::canvas_story::{DOC, ViewArgs, document};
+use craft_ui::story::{Level, Story, StoryArgs, StoryLabels, lock, shared};
+use craft_ui::testing::canvas_story::{DOC, ViewArgs, document_unfocusable};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["CornerWidgets"];
+
+craft_ui::words! {
+    /// The last-event words of the corner story, English by default.
+    #[non_exhaustive]
+    pub(crate) struct CornerStoryLabels {
+        cycled: "cornerStory.cycled" = "Kind changed";
+        activated: "cornerStory.activated" = "Activated";
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -153,10 +163,11 @@ impl CornerState {
 /// kind, a double-click reports activation.
 fn show_corners(ui: &mut Ui, args: &mut CornerArgs) {
     let words = StoryLabels::of(ui);
-    let key = ui.scope_id().with("corner-story");
-    let mut state: CornerState = ui.data(|d| d.get_temp(key)).unwrap_or_else(CornerState::new);
+    let kept = shared(ui, "corners", CornerState::new);
+    let mut state = lock(&kept);
     state.shapes[2].individual = args.individual;
-    let canvas = document(ui, args.view, &words.document);
+    // The corner group is the Tab stop, so the canvas takes none.
+    let canvas = document_unfocusable(ui, args.view, &words.document);
     let tokens = Tokens::of(ui);
     let painter = ui.painter_at(canvas.view.rect);
     let (line, fill) = (tokens.color.accent.solid.to_egui(), tokens.color.accent.solid.to_egui().gamma_multiply(0.25));
@@ -167,6 +178,9 @@ fn show_corners(ui: &mut Ui, args: &mut CornerArgs) {
     let units = RulerUnits::pixels(LocaleNumbers::of(ui).as_ref().clone());
     let response =
         CornerWidgets::new("corner-story", &targets, &units).kinds(args.kinds).hide_above(args.hide_above).show(ui, &canvas.response, &canvas.view);
+    if let Some(event) = &response.event {
+        state.last = Some(EventKindLabels::of(ui).kind(event));
+    }
     match &response.event {
         Some(EditEvent::Begin { .. }) => state.before = Some(state.shapes.clone()),
         Some(EditEvent::Cancel { .. }) => {
@@ -188,14 +202,14 @@ fn show_corners(ui: &mut Ui, args: &mut CornerArgs) {
         && let Some(shape) = state.shapes.iter_mut().find(|s| s.key == corner.target)
     {
         shape.kinds[corner.corner] = kind;
-        state.last = Some(format!("{corner:?}: {kind:?}"));
+        state.last = Some(CornerStoryLabels::of(ui).cycled);
     }
-    if let Some(corner) = response.activate {
-        state.last = Some(format!("Activate {corner:?}"));
+    if response.activate.is_some() {
+        state.last = Some(CornerStoryLabels::of(ui).activated);
     }
     ui.horizontal(|ui| {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
-            state = CornerState::new();
+            *state = CornerState::new();
         }
         let text = match &state.last {
             Some(event) => craft_i18n::fmt(&words.last_event, &[("event", event)]),
@@ -203,5 +217,4 @@ fn show_corners(ui: &mut Ui, args: &mut CornerArgs) {
         };
         ui.add(Text::new(text).content(Content::Muted));
     });
-    ui.data_mut(|d| d.insert_temp(key, state));
 }

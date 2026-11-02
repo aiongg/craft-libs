@@ -12,7 +12,7 @@ use super::{
 use craft_ui::canvas::RulerUnits;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
-use craft_ui::story::{Level, Story, StoryChoice, Surface};
+use craft_ui::story::{Level, Story, StoryChoice, Surface, lock, shared};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
@@ -241,8 +241,8 @@ pub(crate) fn curvature_paths() -> Vec<EditPath> {
 /// arrows move, Insert and Delete add and remove anchors, Esc deselects. The preview anchor shows
 /// the highlight a host draws for a hit it chooses.
 fn show_paths(ui: &mut Ui, args: &mut EditArgs) {
-    let key = ui.scope_id().with("bezier-story");
-    let mut host: PathHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PathHost::new(sample_paths()));
+    let kept = shared(ui, "paths", || PathHost::new(sample_paths()));
+    let mut host = lock(&kept);
     let tool = match args.tool {
         ToolArg::Convert => BezierTool::Convert,
         ToolArg::Show => BezierTool::Show,
@@ -271,15 +271,14 @@ fn show_paths(ui: &mut Ui, args: &mut EditArgs) {
         .highlight(highlight)
         .show(ui, &canvas.response, &canvas.view);
     host.apply(&response);
-    ui.data_mut(|d| d.insert_temp(key, host));
 }
 
 /// Two curvature paths under the Curvature tool: drag an anchor and the handles of every smooth
 /// anchor follow, click a segment to add an anchor (drag to place it), double-click an anchor to
 /// toggle it between smooth and corner; the arrows move the selected anchors and Enter toggles.
 fn show_curvature(ui: &mut Ui, args: &mut PlainArgs) {
-    let key = ui.scope_id().with("bezier-curvature-story");
-    let mut host: PathHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PathHost::new(curvature_paths()));
+    let kept = shared(ui, "curvature", || PathHost::new(curvature_paths()));
+    let mut host = lock(&kept);
     let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
     let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
@@ -290,5 +289,4 @@ fn show_curvature(ui: &mut Ui, args: &mut PlainArgs) {
         &canvas.view,
     );
     host.apply(&response);
-    ui.data_mut(|d| d.insert_temp(key, host));
 }
