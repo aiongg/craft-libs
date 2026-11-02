@@ -159,7 +159,8 @@ fn show_nudge(ui: &mut Ui, args: &mut NudgeArgs) {
         let keys = NudgeKeys::new().steps(args.step, args.big_step).base(base).alt(args.alt_copies).layer(ui.layer_id());
         if let Some(nudge) = keys.read(&ctx) {
             if nudge.alt {
-                state.copies.push(state.origin);
+                let origin = state.origin;
+                state.copies.push(origin);
             }
             state.origin += nudge.by;
             state.last = Some(nudge);
