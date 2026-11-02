@@ -418,6 +418,10 @@ impl Popover {
                 state.focus_tries = u8::MAX;
             }
             let rect = framed.response.rect;
+            // The area's Dialog node has no bounds of its own: give it the surface's.
+            ctx.accesskit_node_builder(ui.unique_id(), |node| {
+                node.set_bounds(egui::accesskit::Rect { x0: rect.min.x.into(), y0: rect.min.y.into(), x1: rect.max.x.into(), y1: rect.max.y.into() });
+            });
             ui.painter().set(slot, Shape::Vec(surface.shapes(rect, ui.pixels_per_point())));
             let (inner, used) = framed.inner;
             let resized = match size {

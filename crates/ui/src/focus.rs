@@ -7,6 +7,9 @@
 //! input for a long time while egui reports it unfocused, at first launch until the user
 //! switches to another application and back. Gestures in such a window still run.
 
+mod escape;
+#[cfg(test)]
+mod escape_tests;
 pub mod key_owner;
 #[cfg(test)]
 pub(crate) mod key_owner_tests;
@@ -14,6 +17,7 @@ mod region;
 #[cfg(test)]
 mod region_tests;
 
+pub use escape::escaped;
 pub use region::{NEXT_REGION_COMMAND, PREVIOUS_REGION_COMMAND, Region, RegionFocus};
 
 use egui::{Context, Id};

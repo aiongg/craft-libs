@@ -20,7 +20,7 @@ use super::option_list::{
 };
 use super::preview_select::SelectText;
 use super::text_field::{BoxState, field_box};
-use super::{IconButton, SearchField, Swatch, TextField, TextFieldStyle, icon_size};
+use super::{IconButton, Kbd, SearchField, Swatch, TextField, TextFieldStyle, icon_size};
 use crate::behavior::{ListOptions, Listbox, take_composing_keys, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
@@ -232,6 +232,7 @@ struct Choice<T> {
     icon: Option<Icon>,
     enabled: bool,
     tooltip: Option<String>,
+    shortcut: Option<Kbd>,
 }
 
 impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
@@ -261,13 +262,13 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 
     /// An option showing `text`, which chooses `value`.
     pub fn option(mut self, value: T, text: impl Into<String>) -> Self {
-        self.entries.push(Entry::Option(Choice { value, text: text.into(), icon: None, enabled: true, tooltip: None }));
+        self.entries.push(Entry::Option(Choice { value, text: text.into(), icon: None, enabled: true, tooltip: None, shortcut: None }));
         self
     }
 
     /// An option showing `icon` before `text`, which chooses `value`.
     pub fn option_icon(mut self, value: T, icon: Icon, text: impl Into<String>) -> Self {
-        self.entries.push(Entry::Option(Choice { value, text: text.into(), icon: Some(icon), enabled: true, tooltip: None }));
+        self.entries.push(Entry::Option(Choice { value, text: text.into(), icon: Some(icon), enabled: true, tooltip: None, shortcut: None }));
         self
     }
 
@@ -284,6 +285,16 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     pub fn option_tooltip(mut self, text: impl Into<String>) -> Self {
         if let Some(Entry::Option(choice)) = self.entries.iter_mut().rev().find(|e| matches!(e, Entry::Option(_))) {
             choice.tooltip = Some(text.into());
+        }
+        self
+    }
+
+    /// The key that chooses the last option added from outside the list (a tool's letter),
+    /// shown at the reading end of its row in the menu's shortcut look. The app reads the key;
+    /// the list only shows it, and widens to fit it.
+    pub fn option_shortcut(mut self, shortcut: Kbd) -> Self {
+        if let Some(Entry::Option(choice)) = self.entries.iter_mut().rev().find(|e| matches!(e, Entry::Option(_))) {
+            choice.shortcut = Some(shortcut);
         }
         self
     }
@@ -1198,6 +1209,10 @@ impl<'s, 'a, T: Clone + PartialEq> Options<'s, 'a, T> {
         self.choices.get(option).and_then(|c| c.icon)
     }
 
+    fn shortcut(&self, option: usize) -> Option<&'s Kbd> {
+        self.choices.get(option).and_then(|c| c.shortcut.as_ref())
+    }
+
     fn tooltip(&self, option: usize) -> Option<&'s str> {
         self.choices.get(option).and_then(|c| c.tooltip.as_deref())
     }
@@ -1453,6 +1468,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
                 chosen: self.chosen == Some(option),
                 enabled: options.enabled(option),
                 tooltip: options.tooltip(option).or_else(|| (!self.row_text).then_some(text.as_ref())),
+                shortcut: options.shortcut(option),
             };
             let outcome = rows.show(ui, listbox, &row);
             if outcome.picked {

@@ -222,6 +222,22 @@ fn labels_and_option_labels_show_through_the_hosts_catalog() {
     assert_eq!(select.accesskit_node().value().as_deref(), Some("Vergrößern"));
 }
 
+// `translated` is the lookup the dialogs use for runtime labels, public for the hosts' own.
+#[test]
+fn translated_looks_a_runtime_label_up_in_the_hosts_catalog() {
+    let (i18n, problems) = craft_i18n::I18n::new(&[("de", "\tZoom\tVergrößern\n", "")], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let de = i18n.from_code("de").expect("de");
+    let ctx = egui::Context::default();
+    assert_eq!(super::translated(&ctx, "Zoom"), "Zoom", "no Host: the text");
+    craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" })
+        .i18n(std::sync::Arc::new(i18n))
+        .lang(de)
+        .install(&ctx);
+    assert_eq!(super::translated(&ctx, "Zoom"), "Vergrößern");
+    assert_eq!(super::translated(&ctx, "Not in the catalog"), "Not in the catalog");
+}
+
 // A parsed `color=#808080` default shows as that hex: colour values are sRGB in 0..=1, as
 // PhotoCraft keeps them.
 #[test]

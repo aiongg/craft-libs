@@ -96,6 +96,42 @@ fn d_modes() -> Harness<'static, Host> {
     )
 }
 
+/// "Rectangle", "Ellipse" and "Polygon" with a chord on the second; the list is as narrow as the
+/// box allows, so a row's width is its content's.
+fn with_shortcut(chord: bool) -> Harness<'static, Host> {
+    harness().build_ui_state(
+        move |ui, host: &mut Host| {
+            let mut select = Select::new("shapes", "Shape", &mut host.value).width(60.0);
+            for (i, name) in ["Rectangle", "Ellipse", "Polygon"].into_iter().enumerate() {
+                select = select.option(i, name);
+                if chord && i == 1 {
+                    select = select.option_shortcut(crate::controls::Kbd::new(&egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::E)));
+                }
+            }
+            let _ = select.show(ui);
+        },
+        Host::default(),
+    )
+}
+
+#[test]
+fn an_option_shortcut_is_named_for_accesskit_and_widens_the_list() {
+    let width = |chord: bool| {
+        let mut h = with_shortcut(chord);
+        h.get_by_role(Role::ComboBox).click();
+        h.run();
+        h.run();
+        let name = option(&h, "Ellipse").accesskit_node().data().keyboard_shortcut().map(str::to_owned);
+        let rect = option(&h, "Ellipse").rect();
+        (name, rect.width())
+    };
+    let (plain_name, plain) = width(false);
+    let (name, with) = width(true);
+    assert_eq!(plain_name, None);
+    assert!(name.as_deref().is_some_and(|n| n.contains('E')), "{name:?}");
+    assert!(with > plain, "the row keeps room for the chord: {with} against {plain}");
+}
+
 #[test]
 fn a_repeated_letter_moves_through_the_options_with_that_initial_and_other_text_is_a_prefix() {
     let mut harness = d_modes();

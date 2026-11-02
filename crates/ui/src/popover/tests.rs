@@ -481,6 +481,19 @@ fn the_anchor_has_a_popup_and_the_popover_is_a_named_dialog() {
 }
 
 #[test]
+fn the_dialog_node_has_the_popovers_rect() {
+    let mut h = host(Host::default());
+    h.state_mut().open = true;
+    h.run();
+    h.run();
+    let rect = h.get_by_role_and_label(Role::Dialog, "Picker").rect();
+    let shown = h.state().rect;
+    assert!(rect.width() > 0.0 && rect.height() > 0.0, "{rect:?}");
+    assert_eq!(rect.size(), shown.size());
+    assert_eq!(rect.min, shown.min);
+}
+
+#[test]
 fn the_stories_are_labelled_in_both_directions() {
     for story in crate::story::registry().into_iter().filter(|s| s.id.starts_with("patterns/popover/")) {
         for rtl in [false, true] {
