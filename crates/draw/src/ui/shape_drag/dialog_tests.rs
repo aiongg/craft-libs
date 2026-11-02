@@ -232,7 +232,7 @@ fn create_polygon_has_a_star_ratio() {
     let again = open(CreateShapeOptions::initial(ShapeKind::Polygon, Point::ZERO), &store);
     assert!((shown(&again).star_ratio - 0.4).abs() < 1e-9, "recalled");
     let triangle = open(CreateShapeOptions::initial(ShapeKind::Triangle, Point::ZERO), &store);
-    assert_eq!(triangle.get_all_by_role_and_label(Role::SpinButton, "Star Ratio").count(), 0);
+    assert_eq!(triangle.query_all_by_role_and_label(Role::SpinButton, "Star Ratio").count(), 0);
 }
 
 // A click more than 300,000 px from the origin shows the position error and disables OK.

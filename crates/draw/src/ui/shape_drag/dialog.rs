@@ -13,7 +13,7 @@ use crate::geometry::shape::{SIDES, ShapeGeometry};
 use craft_host::Host;
 use craft_settings::Remembered;
 use craft_ui::canvas::unit_entries;
-use craft_ui::composites::{FormGrid, Notice, Tone};
+use craft_ui::composites::{FieldControl as _, FormGrid, Notice, Tone};
 use craft_ui::controls::expr::ExprUnits;
 use craft_ui::controls::{Checkbox, ControlSize, LinkMode, LinkedFields, LinkedFieldsLabels, LinkedSlot, NumberField};
 use craft_ui::dialog::{
@@ -390,7 +390,8 @@ impl CreateShapeDialog {
                     {
                         self.options.radii = [top_left, top_right, bottom_right, bottom_left];
                     }
-                    edit
+                    // The row's label must not replace the Top Left field's corner name.
+                    edit.own_name()
                 });
             }
             if matches!(kind, ShapeKind::Polygon | ShapeKind::Star) {
@@ -404,7 +405,8 @@ impl CreateShapeDialog {
                         let rounded = value.round().clamp(f64::from(*SIDES.start()), f64::from(*SIDES.end()));
                         self.options.sides = rounded as u32;
                     }
-                    edit
+                    // The row's label must not replace the Top Left field's corner name.
+                    edit.own_name()
                 });
             }
             if matches!(kind, ShapeKind::Polygon | ShapeKind::Star) {

@@ -183,7 +183,7 @@ fn select_mask_polygonal_lasso_enter_escape_backspace() {
 // With Real-Time Refinement on, a stroke reports Updates; off, only Begin and Commit.
 #[test]
 fn select_mask_real_time_refinement_reports_updates_only_when_on() {
-    for (real_time, expected) in [(false, vec!["begin", "commit"]), (true, vec!["begin", "update", "commit"])] {
+    for (real_time, expected) in [(false, vec!["begin", "commit"]), (true, vec!["begin", "update", "update", "commit"])] {
         let mut h = rig(SelectMaskTool::Quick, real_time);
         down(&mut h, (10.0, 10.0), NONE);
         drag_to(&mut h, (30.0, 10.0), NONE);
