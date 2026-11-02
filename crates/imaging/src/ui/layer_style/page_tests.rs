@@ -74,7 +74,8 @@ fn page_rig_of(kind: EffectKind, params: Option<StyleParams>, apply: bool, patte
                 enabled: true,
             };
             let style = rig.draft.style.clone();
-            let (out, event) = edit_style(ui, Id::unique("page-rig"), &style, EditPolicy::default(), true, |ui, edits| effect_page(ui, &input, edits));
+            let (out, event) =
+                edit_style(ui, Id::unique("page-rig"), &style, EditPolicy::default(), true, |ui, edits| effect_page(ui, &input, edits));
             if let Some(event) = event {
                 if let (true, Some(style)) = (rig.apply, event.value()) {
                     rig.draft.style = style.clone();
