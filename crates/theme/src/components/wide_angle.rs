@@ -19,7 +19,7 @@ pub struct WideAngleTokens {
     pub min_drag: f32,
     /// The extra width of the halo under each line: `wide_angle.halo_width`.
     pub halo_width: f32,
-    /// The halo under each line: `wide_angle.halo`. Black at alpha 160 unless a theme pins it: it must darken whatever the image shows.
+    /// The halo under each line: `wide_angle.halo`. `surface.panel`, the colour the line colours are already held against, so a dark accent still separates from it.
     pub halo: Rgba,
     /// The constraint being drawn: `wide_angle.drawing`, the semantic `accent.soft` (PhotoCraft's `accent_soft`).
     pub drawing: Rgba,
@@ -63,7 +63,7 @@ impl Family for WideAngleTokens {
             hit: values::WIDE_ANGLE_HIT,
             min_drag: values::WIDE_ANGLE_MIN_DRAG,
             halo_width: values::WIDE_ANGLE_HALO_WIDTH,
-            halo: values::WIDE_ANGLE_HALO,
+            halo: s.color.surface.panel,
             drawing: s.color.accent.soft,
         }
     }

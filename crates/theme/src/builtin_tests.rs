@@ -136,7 +136,7 @@ fn builtin_menu_text_meets_its_minimum() {
     }
 }
 
-/// A list row's labels, dimmed labels and detail lines read on the panel and on the fills a row
+/// A list row's labels, dimmed and muted labels and detail lines read on the panel and on the fills a row
 /// takes (a hidden layer that is selected), the ghost's label on its fill, and the drop marker on
 /// its halo, in every built-in, pins included. Standard contrast reports the pairs it misses.
 #[test]
@@ -145,7 +145,7 @@ fn builtin_list_text_and_drop_marker_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::List(_)))).collect();
-            assert_eq!(pairs.len(), 21, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 22, "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }

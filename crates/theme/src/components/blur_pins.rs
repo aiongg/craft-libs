@@ -41,7 +41,7 @@ pub struct BlurPinsTokens {
     pub turn_extra: f32,
     /// The rounding square's corner radius: `blur_pins.round_corner`.
     pub round_corner: f32,
-    /// The halo under the marks: `blur_pins.halo`, the semantic `overlay.halo`.
+    /// The halo under the marks: `blur_pins.halo`, the semantic `surface.panel` the accent is already held against.
     pub halo: Rgba,
 }
 
@@ -92,7 +92,7 @@ impl Family for BlurPinsTokens {
             feather_extra: values::BLUR_PINS_FEATHER_EXTRA,
             turn_extra: values::BLUR_PINS_TURN_EXTRA,
             round_corner: values::BLUR_PINS_ROUND_CORNER,
-            halo: s.color.overlay.halo,
+            halo: s.color.surface.panel,
         }
     }
 
