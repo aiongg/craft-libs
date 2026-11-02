@@ -12,17 +12,21 @@ use super::{CreateShapeLabels, ShapeKind};
 use crate::geometry::shape::{SIDES, ShapeGeometry};
 use craft_host::Host;
 use craft_settings::Remembered;
+use craft_ui::canvas::unit_entries;
 use craft_ui::composites::{FormGrid, Notice, Tone};
 use craft_ui::controls::expr::ExprUnits;
-use craft_ui::controls::{Checkbox, ControlSize, LinkMode, LinkedFields, LinkedFieldsLabels, LinkedLayout, NumberField};
+use craft_ui::controls::{Checkbox, ControlSize, LinkMode, LinkedFields, LinkedFieldsLabels, LinkedSlot, NumberField};
 use craft_ui::dialog::{
     Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, GuideUnits, InitialFocus, Outcome, StackDialog, Width, dialog_id,
 };
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::units::{LengthUnit, LengthUnitLabels, UnitContext};
+use craft_ui::localized::units::{LengthUnit, UnitContext};
 use craft_ui::localized::{Labels as _, LocaleNumbers, SharedLabels as _, Unit};
-use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::patterns::unit_number_field;
+
+/// The farthest the click may lie from the origin on either axis, in pixels: the same bound as
+/// a side (PhotoCraft's `MAX_PX`, `shape_dialog.rs:19`, checked at `:111`).
+const MAX_POSITION: f64 = 300_000.0;
 
 /// The largest radius a field takes, in pixels (PhotoCraft's `value_field` range,
 /// `shape_dialog.rs:223`); the shape clamps each radius to half its shorter side.
@@ -50,7 +54,8 @@ pub struct CreateShapeOptions {
     pub link_radii: bool,
     /// A polygon's sides or a star's points (from the tool).
     pub sides: u32,
-    /// A star's inner over outer radius (1 for a plain polygon; the dialog shows 1–100 %).
+    /// A polygon's or star's inner over outer radius (1 for a plain polygon; the dialog shows
+    /// 1–100 % for Polygon and Star).
     pub star_ratio: f64,
     pub from_center: bool,
     /// The remembered values are already in (a reopened dialog, a test).
@@ -104,7 +109,8 @@ impl CreateShapeOptions {
 #[non_exhaustive]
 pub struct CreatedShape {
     pub kind: ShapeKind,
-    /// The shape at the click (centred on it with From Center): its top left is a whole pixel.
+    /// The shape at the click (centred on it with From Center, which may leave its top left on a
+    /// half pixel, as PhotoCraft's).
     pub geometry: ShapeGeometry,
     pub from_center: bool,
 }
@@ -115,12 +121,15 @@ pub struct CreatedShape {
 /// - Fields in a `FormGrid` (labels right-aligned): Width and Height (`unit_number_field` in the
 ///   ruler unit; a secondary click on a field picks that field's unit, which is not remembered,
 ///   PhotoCraft #7786). Rectangle and Rounded Rectangle: four radii Top Left, Top Right, Bottom
-///   Right, Bottom Left with a "Link radii" `LinkedFields` toggle (`LinkMode::Equal`, on by
-///   default). Polygon and Star: Sides (3–100); Star also Star Ratio (1–100 %, default 100). A
-///   Polygon answers star ratio 1, as the Polygon drag does. Then "From Center".
+///   Right, Bottom Left, as PhotoCraft's 2×2 grid (Top Left, Top Right / Bottom Left, Bottom
+///   Right) under one "Radius" label with the corner names as the fields' accessible names, and a
+///   "Link radii" `LinkedFields` toggle between the top two fields (`LinkMode::Equal`, on by
+///   default). Polygon and Star: Sides (3–100) and Star Ratio (1–100 %, default 100); the
+///   Polygon drag keeps ratio 1. Then "From Center".
 /// - A width or height outside [`CreateShapeOptions::SIZE`] shows
-///   [`CreateShapeLabels::bad_size`] under the fields and disables OK.
-/// - OK answers [`CreatedShape`] at the click (centred on it with From Center) and remembers
+///   [`CreateShapeLabels::bad_size`] under the fields and disables OK; so does a click farther
+///   than 300,000 px from the origin ([`CreateShapeLabels::bad_position`]).
+/// - OK answers [`CreatedShape`] at the click (centred on it with From Center, unrounded) and remembers
 ///   width, height, From Center and the star ratio under `shape.create.<kind>` (keys `width`,
 ///   `height`, `fromCenter`, `starRatio`, the ratio in percent); Cancel answers nothing and
 ///   remembers nothing.
@@ -206,8 +215,10 @@ impl CreateShapeDialog {
         };
         let (w, h) = (side(o.size.0, &labels.width)?, side(o.size.1, &labels.height)?);
         let at = Point::new(o.at.x.round(), o.at.y.round());
-        let at = if at.x.is_finite() && at.y.is_finite() { at } else { Point::ZERO };
-        let (x0, y0) = if o.from_center { ((at.x - w / 2.0).round(), (at.y - h / 2.0).round()) } else { (at.x, at.y) };
+        if !(at.x.abs() <= MAX_POSITION && at.y.abs() <= MAX_POSITION) {
+            return Err(labels.bad_position.clone());
+        }
+        let (x0, y0) = if o.from_center { (at.x - w / 2.0, at.y - h / 2.0) } else { (at.x, at.y) };
         let rect = Rect::new(x0, y0, x0 + w, y0 + h);
         let sides = o.sides.clamp(*SIDES.start(), *SIDES.end());
         let geometry = match o.kind {
@@ -218,8 +229,7 @@ impl CreateShapeDialog {
             }
             ShapeKind::Ellipse => ShapeGeometry::Ellipse { rect },
             ShapeKind::Triangle => ShapeGeometry::Polygon { rect, sides: 3, star_ratio: 1.0 },
-            ShapeKind::Polygon => ShapeGeometry::Polygon { rect, sides, star_ratio: 1.0 },
-            ShapeKind::Star => {
+            ShapeKind::Polygon | ShapeKind::Star => {
                 let ratio = if o.star_ratio.is_finite() { o.star_ratio.clamp(0.01, 1.0) } else { 1.0 };
                 ShapeGeometry::Polygon { rect, sides, star_ratio: ratio }
             }
@@ -261,7 +271,7 @@ impl CreateShapeDialog {
             self.options.from_center = from_center;
         }
         // PhotoCraft applies a remembered value only for a kind that has the field.
-        if self.options.kind == ShapeKind::Star
+        if matches!(self.options.kind, ShapeKind::Polygon | ShapeKind::Star)
             && let Some(percent) = memory.star_ratio.filter(|v| v.is_finite() && (1.0..=100.0).contains(v))
         {
             self.options.star_ratio = percent / 100.0;
@@ -301,9 +311,7 @@ impl CreateShapeDialog {
         let pixels = if axis == 0 { self.options.size.0 } else { self.options.size.1 };
         let shown = context.from_pixels(pixels, unit).unwrap_or(0.0);
         let menu: Vec<LengthUnit> = LengthUnit::ALL.into_iter().filter(|u| self.options.units.is_some() || *u != LengthUnit::Percent).collect();
-        let names = LengthUnitLabels::of(ui);
-        let entries: Vec<MenuEntry<usize>> =
-            menu.iter().enumerate().map(|(i, &u)| MenuItem::new(u.label(&names), i).radio(u == unit).into()).collect();
+        let entries = unit_entries(ui, &menu, unit);
         let mut picked = None;
         let units = ExprUnits { unit: Some(unit), suffix: unit.suffix(), context };
         let mut field = unit_number_field(("create-shape-size", axis), caption, shown, numbers, &units).unit_menu(&entries, &mut picked);
@@ -341,21 +349,46 @@ impl CreateShapeDialog {
                 form.row(labels.radius.as_str(), |ui, _| {
                     let mut link_words = LinkedFieldsLabels::of(ui);
                     link_words.same_values = labels.link_radii.clone();
-                    let units = ExprUnits { unit: Some(LengthUnit::Pixels), suffix: "px", context: UnitContext::default() };
-                    let captions = [labels.top_left.as_str(), labels.top_right.as_str(), labels.bottom_right.as_str(), labels.bottom_left.as_str()];
-                    let radii = &mut self.options.radii;
-                    let edit = LinkedFields::new("create-shape-radii", captions, *radii, &mut self.options.link_radii, LinkMode::Equal, numbers)
-                        .units(&units)
-                        .range(0.0..=MAX_RADIUS)
-                        .layout(LinkedLayout::Column)
-                        .size(ControlSize::Sm)
-                        .labels(link_words)
-                        .show(ui);
+                    let units = ExprUnits { unit: Some(LengthUnit::Pixels), suffix: LengthUnit::Pixels.suffix(), context: UnitContext::default() };
+                    // The radii are top-left, top-right, bottom-right, bottom-left; the grid reads
+                    // top-left, top-right, bottom-left, bottom-right.
+                    let [top_left, top_right, bottom_right, bottom_left] = self.options.radii;
+                    let captions = [labels.top_left.as_str(), labels.top_right.as_str(), labels.bottom_left.as_str(), labels.bottom_right.as_str()];
+                    let linked = &mut self.options.link_radii;
+                    // Columns: first field, link, second field; the second row leaves the link's cell empty.
+                    let edit = egui::Grid::new("create-shape-radii-grid")
+                        .show(ui, |ui| {
+                            LinkedFields::new(
+                                "create-shape-radii",
+                                captions,
+                                [top_left, top_right, bottom_left, bottom_right],
+                                linked,
+                                LinkMode::Equal,
+                                numbers,
+                            )
+                            .units(&units)
+                            .range(0.0..=MAX_RADIUS)
+                            .captions_as_names()
+                            .size(ControlSize::Sm)
+                            .labels(link_words)
+                            .show_cells(ui, |ui, slot, add| match slot {
+                                LinkedSlot::Field(1) => {
+                                    add(ui);
+                                    ui.end_row();
+                                }
+                                LinkedSlot::Field(2) => {
+                                    add(ui);
+                                    ui.allocate_space(egui::Vec2::ZERO);
+                                }
+                                LinkedSlot::Field(_) | LinkedSlot::Link => add(ui),
+                            })
+                        })
+                        .inner;
                     if let Some(event) = &edit.event
                         && !matches!(event, EditEvent::Commit { changed: false, .. })
-                        && let Some(value) = event.value()
+                        && let Some([top_left, top_right, bottom_left, bottom_right]) = event.value().copied()
                     {
-                        *radii = *value;
+                        self.options.radii = [top_left, top_right, bottom_right, bottom_left];
                     }
                     edit
                 });
@@ -374,7 +407,7 @@ impl CreateShapeDialog {
                     edit
                 });
             }
-            if kind == ShapeKind::Star {
+            if matches!(kind, ShapeKind::Polygon | ShapeKind::Star) {
                 form.row(labels.star_ratio.as_str(), |ui, _| {
                     let percent = (self.options.star_ratio * 100.0).clamp(1.0, 100.0);
                     let field = NumberField::new("create-shape-ratio", labels.star_ratio.as_str(), percent, numbers)

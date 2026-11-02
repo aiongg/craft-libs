@@ -4,7 +4,7 @@
 use egui::{Key, Modifiers, Painter, Pos2, Shape};
 use kurbo::{PathEl, Point, Rect, Vec2};
 
-use super::{CreateShapeLabels, ShapeDragEvent, ShapeDragOptions, ShapeDragRules, ShapeDragToolLabels, ShapeFrame, ShapeKind};
+use super::{ShapeDragEvent, ShapeDragOptions, ShapeDragRules, ShapeDragToolLabels, ShapeFrame, ShapeKind};
 use crate::geometry::shape::{RadialFrame, SIDES, ShapeGeometry, box_drag, line_drag};
 use craft_ui::canvas::{CanvasTool, CursorHost, Readout, SnapGesture, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer};
 use craft_ui::edit::{CancelReason, EditEvent, GestureId};
@@ -116,6 +116,11 @@ impl ShapeDragTool {
         std::mem::take(&mut self.events)
     }
 
+    /// The words: the given ones, else the installed ones.
+    fn words(&self, ctx: &egui::Context) -> ShapeDragToolLabels {
+        self.labels.clone().unwrap_or_else(|| ShapeDragToolLabels::of_ctx(ctx))
+    }
+
     /// Whether the drag draws a Polygon or Star from its centre.
     fn radial(&self, kind: ShapeKind) -> bool {
         self.rules.frame(kind) == ShapeFrame::Radial
@@ -211,7 +216,7 @@ impl ShapeDragTool {
                 self.events.push(ShapeDragEvent::Gesture(EditEvent::update(drag.id, shape.clone(), modifiers)));
             }
             let size = shape.bounds();
-            let labels = CreateShapeLabels::of_ctx(&cx.canvas.ctx);
+            let labels = self.words(&cx.canvas.ctx);
             let (w, h) = (cx.numbers.format(size.width(), 0..=0), cx.numbers.format(size.height(), 0..=0));
             cx.readout(Readout::new("craft_draw::shape_drag").row(labels.width, w).row(labels.height, h));
         }
@@ -284,7 +289,8 @@ impl CanvasTool for ShapeDragTool {
     fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         // inv-vectorcraft: crates/tools/src/shape.rs:5-7 (↑/↓ change the count during a drag).
         // new: Enter without a drag reports `Click` at the view centre (keyboard route, lead call
-        // 11); Space and the modifiers re-run `drag` with the last pointer.
+        // 11). Space only records where it went down: the host calls `drag` every pass while the
+        // button is down, and that call applies the move.
         match key.key {
             Key::Space => {
                 let Some(drag) = self.drag.as_mut() else { return false };
@@ -360,7 +366,7 @@ impl CanvasTool for ShapeDragTool {
     fn node(&self, cx: &ToolContext<'_>) -> Option<ToolNode> {
         let drag = self.drag.as_ref().filter(|d| d.began)?;
         let bounds = drag.shape.as_ref()?.bounds();
-        let labels = self.labels.clone().unwrap_or_else(|| ShapeDragToolLabels::of_ctx(&cx.canvas.ctx));
+        let labels = self.words(&cx.canvas.ctx);
         let (w, h) = (cx.numbers.format(bounds.width(), 0..=0), cx.numbers.format(bounds.height(), 0..=0));
         Some(ToolNode::new(craft_i18n::fmt(&labels.drawing, &[("width", &w), ("height", &h)])).value(labels.hint.clone()).bounds(bounds))
     }

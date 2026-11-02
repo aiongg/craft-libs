@@ -5,6 +5,10 @@ craft_ui::words! {
     /// keyboard route is Enter, which reports a click at the view centre.
     #[non_exhaustive]
     pub struct ShapeDragToolLabels {
+        /// The readout's first row label: the shape's width.
+        width: "shapeDragTool.width" = "Width";
+        /// The readout's second row label: the shape's height.
+        height: "shapeDragTool.height" = "Height";
         /// The canvas value while a shape is being drawn: `{width}` and `{height}` in the ruler unit.
         drawing: "shapeDragTool.drawing" = "Drawing {width} by {height}";
         /// The status hint while a Shape tool is active.
@@ -33,6 +37,8 @@ craft_ui::words! {
         sides: "createShape.sides" = "Sides";
         star_ratio: "createShape.starRatio" = "Star Ratio";
         from_center: "createShape.fromCenter" = "From Center";
+        /// The click lies more than 300,000 px from the origin on an axis.
+        bad_position: "createShape.badPosition" = "The shape's position is out of range";
         /// A width or height outside 1–300,000 px; `{field}` is the field's label, `{max}` the limit.
         bad_size: "createShape.badSize" = "{field} must be between 1 and {max} pixels";
     }
