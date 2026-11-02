@@ -107,7 +107,7 @@ pub struct PenStyle {
 #[derive(Clone, Debug, PartialEq)]
 #[must_use = "keep the draft the events carry, end it when finished and continue the resumed path"]
 pub struct PenResponse {
-    /// The overlay's id, for [`PenDraft::remove_last`].
+    /// The overlay's id.
     pub id: Id,
     /// The draft's edits, each value the whole draft: Begin at its first change (a draft the host
     /// hands in, a resumed path's, begins at once), Update on each change, Commit when the pen
@@ -135,13 +135,13 @@ pub struct PenResponse {
     pub closes: bool,
 }
 
-/// What a press drags.
 /// The looks of one Pen pass.
 struct Looks {
     pen: PenStyle,
     bezier: BezierStyle,
 }
 
+/// What a press drags.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Kind {
     /// A new last anchor: a drag pulls out its handles, symmetric.
@@ -241,6 +241,7 @@ pub struct PenDraft<'a> {
     look: Option<PenStyle>,
     mode: PenMode,
     sensing: bool,
+    remove_last: bool,
     auto_add_delete: bool,
     path_options: Option<&'a PathOptionsSettings>,
 }
@@ -258,6 +259,7 @@ impl<'a> PenDraft<'a> {
             look: None,
             mode: PenMode::default(),
             sensing: true,
+            remove_last: false,
             auto_add_delete: false,
             path_options: None,
         }
@@ -361,12 +363,13 @@ impl<'a> PenDraft<'a> {
         self.sensing && !down && pointer.is_some_and(|p| view.rect.contains(p) && canvas.contains_pointer() && self.closes_at(draft, p, view, style))
     }
 
-    /// Removes the draft's last anchor on the overlay `id` ([`PenResponse::id`]) in its next
-    /// pass: the host's Undo while a draft is open (PhotoCraft ⌘Z). The only anchor discards the
-    /// draft.
-    pub fn remove_last(ctx: &Context, id: Id) {
-        ctx.data_mut(|d| d.insert_temp(remove_key(id), true));
-        ctx.request_repaint();
+    /// Removes the draft's last anchor in this pass when `remove` is true: the host's Undo while a
+    /// draft is open (PhotoCraft ⌘Z). The only anchor discards the draft. The host cancels a
+    /// running press with `CancelReason::UndoDuringGesture` before it routes Undo, because the
+    /// pass ignores the request while a press is held.
+    pub fn remove_last(mut self, remove: bool) -> Self {
+        self.remove_last = remove;
+        self
     }
 
     /// Draws the draft over `view` and senses through the host's `canvas` response.
@@ -374,8 +377,7 @@ impl<'a> PenDraft<'a> {
         let style = self.styled(ui);
         self.look = Some(style);
         if self.mode == PenMode::Curvature {
-            let closes = self.closes_now(ui, canvas, view, &self.draft.cloned().unwrap_or_default(), &style);
-            return PenResponse { closes, ..self.show_curvature(ui, canvas, view) };
+            return self.show_curvature(ui, canvas, view);
         }
         let looks = Looks { pen: style, bezier: BezierOverlay::style(&Tokens::of(ui)) };
         let ctx = ui.ctx().clone();
@@ -408,9 +410,8 @@ impl<'a> PenDraft<'a> {
         if let Some(d) = drag.take() {
             drag = if d.waits.is_some() { Some(d) } else { self.track(&ctx, view, &style, d, &mut gesture, &mut out) };
         }
-        let undo = ctx.data_mut(|d| d.remove_temp::<bool>(remove_key(id))).unwrap_or(false);
         if editing && drag.is_none() {
-            out.finished |= self.keys(ui, undo, &mut gesture);
+            out.finished |= self.keys(ui, self.remove_last, &mut gesture);
         }
 
         let draft = gesture.shown().clone();
@@ -729,10 +730,6 @@ fn discard(gesture: &mut Gesture<EditSubpath>, reason: CancelReason, mods: Modif
     } else {
         gesture.cancel(reason);
     }
-}
-
-fn remove_key(id: Id) -> Id {
-    id.with("craft_ui::canvas::PenDraft::remove_last")
 }
 
 #[cfg(test)]

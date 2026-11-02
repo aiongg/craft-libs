@@ -4,7 +4,7 @@
 use egui::{Context, Modifiers, Response, Shape, Stroke, Ui, vec2};
 use kurbo::{BezPath, PathEl};
 
-use super::{EditSubpath, Knot, PenDraft, PenResponse, PenStyle, drag_key, outline, remove_key};
+use super::{EditSubpath, Knot, PenDraft, PenResponse, PenStyle, drag_key, outline};
 use craft_ui::canvas::claim::PrimaryPress;
 use craft_ui::canvas::{CanvasView, Claim, PartFocus, hit};
 use craft_ui::edit::order::Turn;
@@ -81,10 +81,9 @@ impl PenDraft<'_> {
         if let Some(g) = grab.take() {
             grab = if g.waits.is_some() { Some(g) } else { self.curve_track(&ctx, view, &style, g, &mut gesture) };
         }
-        let undo = ctx.data_mut(|d| d.remove_temp::<bool>(remove_key(id))).unwrap_or(false);
         if editing && grab.is_none() {
             let before = gesture.shown().knots.len();
-            out.finished |= self.keys(ui, undo, &mut gesture);
+            out.finished |= self.keys(ui, self.remove_last, &mut gesture);
             // Removing the last anchor changes the curve through the rest.
             if !out.finished && gesture.shown().knots.len() < before {
                 let mut draft = gesture.shown().clone();
@@ -94,6 +93,7 @@ impl PenDraft<'_> {
         }
 
         let draft = gesture.shown().clone();
+        out.closes = self.closes_now(ui, canvas, view, &draft, &style);
         let parts = self.parts(&draft, view, &style);
         PartFocus::new(id, &self.names.group).parts(&parts).focusable(false).picked(parts.last().map(|p| p.key)).show(ui, canvas);
 
@@ -222,7 +222,7 @@ impl PenDraft<'_> {
         let painter = ui.painter_at(view.rect);
         let ppp = ui.pixels_per_point();
         let to_screen = view.affine();
-        let pointer = ui.input(|i| i.pointer.latest_pos()).filter(|p| view.rect.contains(*p) && canvas.contains_pointer());
+        let pointer = ui.input(|i| i.pointer.latest_pos()).filter(|p| view.rect.contains(*p) && canvas.contains_pointer() && self.sensing);
         outline(&painter, to_screen * draft.bez_path(), f64::from(style.flatten), Stroke::new(style.draft_line, style.color));
         if let Some(pointer) = pointer
             && !pressing

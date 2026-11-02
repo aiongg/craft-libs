@@ -34,6 +34,8 @@ struct Host {
     options: Option<PathOptionsSettings>,
     auto: bool,
     sensing: bool,
+    /// The host's Undo, passed to the next pass only.
+    remove_last: bool,
 }
 
 fn open_path() -> EditPath {
@@ -58,6 +60,7 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
         options: None,
         auto: false,
         sensing: true,
+        remove_last: false,
     };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
@@ -81,8 +84,12 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
             }
             let ends = host.pen.ends();
             let names = PenNames::new("Path being drawn", |i, n| format!("Anchor {i} of {n}"));
-            let mut pen =
-                PenDraft::new("pen", host.pen.draft.as_ref(), names).ends(&ends).units(&px, &px).sensing(host.sensing).auto_add_delete(host.auto);
+            let mut pen = PenDraft::new("pen", host.pen.draft.as_ref(), names)
+                .ends(&ends)
+                .units(&px, &px)
+                .sensing(host.sensing)
+                .auto_add_delete(host.auto)
+                .remove_last(std::mem::take(&mut host.remove_last));
             if let Some(options) = host.options.as_ref() {
                 pen = pen.path_options(options);
             }
@@ -324,16 +331,26 @@ fn backspace_removes_the_last_anchor_and_the_only_one_cancels() {
 #[test]
 fn remove_last_is_the_hosts_undo() {
     let mut h = three();
-    let id = h.state().last.as_ref().expect("shown").id;
-    PenDraft::remove_last(&h.ctx, id);
+    h.state_mut().remove_last = true;
     h.run();
     assert_eq!(draft(&h).knots.len(), 2);
-    PenDraft::remove_last(&h.ctx, id);
+    h.state_mut().remove_last = true;
     h.run();
-    PenDraft::remove_last(&h.ctx, id);
+    h.state_mut().remove_last = true;
     h.run();
     assert!(h.state().pen.draft.is_none());
     assert!(matches!(h.state().events.last(), Some(EditEvent::Cancel { .. })));
+}
+
+// The request is read in the pass it is made in: with no press held it never waits for a later pass.
+#[test]
+fn remove_last_is_read_in_its_own_pass() {
+    let mut h = three();
+    h.state_mut().remove_last = true;
+    h.step();
+    assert_eq!(draft(&h).knots.len(), 2);
+    h.run();
+    assert_eq!(draft(&h).knots.len(), 2, "one request removes one anchor");
 }
 
 /// The strokes and fills of the last frame, flattened.

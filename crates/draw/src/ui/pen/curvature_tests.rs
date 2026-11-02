@@ -21,10 +21,23 @@ struct Host {
     view: Option<CanvasView>,
     events: Vec<EditEvent<EditSubpath>>,
     finished: bool,
+    sensing: bool,
+    remove_last: bool,
+    /// [`PenResponse::closes`] of the last pass.
+    closes: bool,
 }
 
 fn empty() -> Harness<'static, Host> {
-    let host = Host { pen: PenHost::new(Vec::new()), options: None, view: None, events: Vec::new(), finished: false };
+    let host = Host {
+        pen: PenHost::new(Vec::new()),
+        options: None,
+        view: None,
+        events: Vec::new(),
+        finished: false,
+        sensing: true,
+        remove_last: false,
+        closes: false,
+    };
     // A small step keeps two presses in one spot within the double-click delay.
     let mut h = Harness::<Host>::builder()
         .with_size([480.0, 400.0])
@@ -38,13 +51,18 @@ fn empty() -> Harness<'static, Host> {
                 host.view = Some(view);
                 let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
                 let names = PenNames::new("Path being drawn", |i, n| format!("Anchor {i} of {n}"));
-                let mut pen = PenDraft::new("pen", host.pen.draft.as_ref(), names).mode(PenMode::Curvature).units(&px, &px);
+                let mut pen = PenDraft::new("pen", host.pen.draft.as_ref(), names)
+                    .mode(PenMode::Curvature)
+                    .units(&px, &px)
+                    .sensing(host.sensing)
+                    .remove_last(std::mem::take(&mut host.remove_last));
                 if let Some(options) = &host.options {
                     pen = pen.path_options(options);
                 }
                 let response: PenResponse = pen.show(ui, &canvas, &view);
                 host.events.extend(response.event.clone());
                 host.finished |= response.finished;
+                host.closes = response.closes;
                 host.pen.apply(&response);
             },
             host,
@@ -255,6 +273,37 @@ fn curvature_draft_backspace_removes_the_last_anchor_and_reflows() {
     let path = h.state().pen.paths.last().cloned().expect("filed");
     assert_eq!(path.subpaths[0].knots.len(), 3);
     assert!(!path.subpaths[0].closed);
+}
+
+// The host's Undo removes the last anchor and reflows, in its own pass.
+#[test]
+fn curvature_remove_last_removes_the_last_anchor_and_reflows() {
+    let mut h = three();
+    click(&mut h, 260.0, 160.0);
+    h.state_mut().remove_last = true;
+    h.run();
+    let d = draft(&h);
+    assert_eq!(d.knots.len(), 3);
+    let mut fresh = d.clone();
+    fresh.reflow();
+    assert_eq!(d, fresh);
+}
+
+// `sensing(false)` hides the hover cues (the dashed preview and the close cue) and `closes`, as
+// the Pen does; sensing again brings them back.
+#[test]
+fn curvature_hover_cues_follow_sensing() {
+    let mut h = three();
+    let (middle, first) = (screen(&h, 100.0, 100.0), screen(&h, 60.0, 60.0));
+    move_to(&mut h, middle);
+    assert!(!dashes(&h).is_empty(), "the preview shows while sensing");
+    move_to(&mut h, first);
+    assert!(h.state().closes);
+    h.state_mut().sensing = false;
+    move_to(&mut h, middle);
+    assert!(dashes(&h).is_empty(), "no preview without sensing");
+    move_to(&mut h, first);
+    assert!(!h.state().closes);
 }
 
 /// The two ends of every dash of the preview: the dashed segments are `bezier.line` wide and no

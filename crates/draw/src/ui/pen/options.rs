@@ -11,7 +11,7 @@ use craft_ui::controls::{Checkbox, IconButton, NumberField, Swatch};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
 use craft_ui::popover::{Popover, PopoverAnchor, PopoverClose};
 use craft_ui::theme::{Tokens, TokensOf as _};
 
@@ -118,7 +118,7 @@ impl<'a> PathOptionsPopover<'a> {
     pub fn show(self, ui: &mut Ui, open: &mut bool) -> PathOptionsPopoverResponse {
         // new: Photoshop's Pen gear popover (Thickness, Color, Rubber Band); PhotoCraft has no
         // such options (step7-pen lead call 12). Built from `IconButton`, `Popover`,
-        // `NumberField` (unit "pt"), `Checkbox` and a swatch `Button` asking through
+        // `NumberField` (unit [`UnitKind::Points`]), `Checkbox` and a `Swatch` asking through
         // `ColorRequest::new(PATH_OPTIONS_COLOR_KEY, ..).title(labels.color)`.
         let labels = self.labels.unwrap_or_else(|| PathOptionsLabels::of(ui));
         let settings = *self.settings;
@@ -130,6 +130,7 @@ impl<'a> PathOptionsPopover<'a> {
         }
 
         let numbers = LocaleNumbers::of(ui);
+        let units = Units::of(ui);
         let tokens = Tokens::of(ui);
         let shown: Rgba = settings.color.map_or(tokens.color.overlay.line, |[r, g, b]| Rgba::rgb(r, g, b));
         let (mut event, mut pick_color) = (None, None);
@@ -147,7 +148,7 @@ impl<'a> PathOptionsPopover<'a> {
                                 .range(range)
                                 .step(0.5)
                                 .decimals(0..=1)
-                                .unit(Unit::new("{n} pt"))
+                                .unit(units.unit(UnitKind::Points))
                                 .show_optional(ui)
                         })
                         .inner;
