@@ -6,7 +6,7 @@ use kurbo::Point;
 use super::{BrushStyle, TipFalloff};
 use crate::canvas::{CanvasView, Readout};
 use crate::edit::{CancelReason, EditEvent, GestureId};
-use crate::localized::{LocaleNumbers, Unit};
+use crate::localized::{UnitKind, Units};
 
 /// What the vertical travel of a resize changes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -107,14 +107,22 @@ impl BrushResize {
 
     /// Whether a press of `button` with `modifiers` is a resize: Alt with the secondary button
     /// (Photoshop on Windows), or Ctrl + Alt with the primary (Control + Option on a Mac), on every
-    /// platform. Alt with the primary alone is not (the painting tools' eyedropper). The tool
-    /// takes the secondary button with Alt through
-    /// [`CanvasTool::takes`](crate::canvas::CanvasTool::takes).
+    /// platform. Alt with the primary alone is not (the painting tools' eyedropper).
+    /// [`takes`](Self::takes) lets the secondary button through.
     pub fn chord(button: PointerButton, modifiers: Modifiers) -> bool {
         // pc: crates/ui-egui/src/tools/brush_resize.rs:47 `is_gesture` (ctrl && alt), :53 `is_right_gesture` (alt).
         let alt_secondary = button == PointerButton::Secondary && modifiers.alt;
         let ctrl_alt_primary = button == PointerButton::Primary && modifiers.alt && modifiers.ctrl;
         alt_secondary || ctrl_alt_primary
+    }
+
+    /// Whether the tool host hands a press of `button` with `modifiers` to a brush tool: the
+    /// primary button always, the secondary only with Alt (Photoshop's Alt + right-drag resize),
+    /// so a plain right-click stays the canvas menu's. Pass it to
+    /// [`CanvasTool::takes`](crate::canvas::CanvasTool::takes) beside [`chord`](Self::chord).
+    pub fn takes(button: PointerButton, modifiers: Modifiers) -> bool {
+        // pc: crates/ui-egui/src/tools/brush_resize.rs:53 `is_right_gesture` (alt).
+        button == PointerButton::Primary || (button == PointerButton::Secondary && modifiers.alt)
     }
 
     /// Starts a resize at the screen point `at` from the brush's `start` values. A resize whose
@@ -201,20 +209,20 @@ impl BrushResize {
     }
 
     /// The readout beside the pointer: `labels.diameter` with the diameter as whole pixels
-    /// ("37 px", the region's digits) and the level's label (`hardness`, `opacity` or `density`)
-    /// with a whole percentage (`LocaleNumbers::percent`). `None` when no resize runs. The tool
-    /// hands it to [`ToolContext::readout`](crate::canvas::ToolContext::readout).
-    pub fn readout(&self, numbers: &LocaleNumbers, labels: &BrushResizeLabels) -> Option<Readout> {
+    /// ([`Units::pixels`]) and the level's label (`hardness`, `opacity` or `density`) with a whole
+    /// percentage. `None` when no resize runs. The tool hands it to
+    /// [`ToolContext::readout`](crate::canvas::ToolContext::readout).
+    pub fn readout(&self, units: &Units, labels: &BrushResizeLabels) -> Option<Readout> {
         // pc: crates/ui-egui/src/tools/brush_resize.rs:153 (`Diameter:` "{size} px", `Hardness:` or `Opacity:` "{n}%").
         let run = self.run.as_ref()?;
-        let (label, level) = match run.options.level {
-            BrushLevel::Hardness => (&labels.hardness, run.now.level),
-            BrushLevel::Opacity => (&labels.opacity, run.now.level),
-            BrushLevel::Density => (&labels.density, run.now.level),
+        let label = match run.options.level {
+            BrushLevel::Hardness => &labels.hardness,
+            BrushLevel::Opacity => &labels.opacity,
+            BrushLevel::Density => &labels.density,
         };
-        let unit = Unit::new("{n} px");
-        let pixels = format!("{}{}{}", unit.prefix(), numbers.count(run.now.diameter.round().max(0.0) as u64), unit.suffix());
-        Some(Readout::new("brush-resize-readout").row(labels.diameter.as_str(), pixels).row(label.as_str(), numbers.percent(level)))
+        let pixels = units.pixels(run.now.diameter.round().max(0.0));
+        let level = units.text(UnitKind::Percent, run.now.level * 100.0, 0..=0);
+        Some(Readout::new("brush-resize-readout").row(labels.diameter.as_str(), pixels).row(label.as_str(), level))
     }
 }
 

@@ -6,7 +6,7 @@ use egui::{Painter, Stroke, StrokeKind, Vec2};
 
 use super::pixel_tip::pixel_cell;
 use super::{BrushStyle, BrushTip, BrushTipOutline, TipPose};
-use crate::canvas::{CanvasView, CursorOptions, PaintingCursor, ToolCursor};
+use crate::canvas::{CanvasView, CursorBadge, CursorOptions, PaintingCursor, ToolCursor};
 use crate::icons::Icon;
 
 /// The pointer of a brush tool: built each pass from the app's [`BrushTip`] and turned into a
@@ -34,6 +34,9 @@ use crate::icons::Icon;
 /// 6. An outline whose farthest point is nearer than `brush.tip_min_radius` to the hotspot: the
 ///    crosshair `brush.tip_min_crosshair` with no gap.
 ///
+/// A [`badge`](Self::badge) is drawn centred on the hotspot over whichever of rules 1 to 6 gives a
+/// pointer (the Standard icon carries it in its own slot); a pixel tip's hidden pointer has none.
+///
 /// The centre mark follows [`centre`](Self::centre). NaN, infinite, negative and zero sizes
 /// never panic and never give a non-finite ring (they fall to rule 6).
 #[derive(Clone, Debug)]
@@ -44,12 +47,13 @@ pub struct BrushCursor<'a> {
     painting: bool,
     icon: Icon,
     inner_ring: Option<f64>,
+    badge: Option<CursorBadge>,
 }
 
 impl<'a> BrushCursor<'a> {
     /// The cursor of `tip`, upright, no centre mark, not painting, the Brush icon for Standard.
     pub fn new(tip: &'a BrushTip) -> Self {
-        Self { tip, pose: TipPose::upright(), centre: false, painting: false, icon: Icon::Brush, inner_ring: None }
+        Self { tip, pose: TipPose::upright(), centre: false, painting: false, icon: Icon::Brush, inner_ring: None, badge: None }
     }
 
     /// The pen's pose this pass ([`TipPose::pen`]); default upright.
@@ -84,9 +88,28 @@ impl<'a> BrushCursor<'a> {
         self
     }
 
+    /// A mark centred on the hotspot: the + or − of the selection mode (Quick Selection and the
+    /// Select and Mask brushes), asked for by the host. Default none. Its size is the cursor
+    /// family's `cursor.badge`.
+    pub fn badge(mut self, badge: Option<CursorBadge>) -> Self {
+        self.badge = badge;
+        self
+    }
+
     /// The pointer for this pass, by the rules above. `caps_lock` is
     /// [`ToolContext::caps_lock`](crate::canvas::ToolContext::caps_lock).
     pub fn cursor(&self, style: &BrushStyle, prefs: &CursorOptions, view: &CanvasView, caps_lock: bool) -> ToolCursor {
+        let cursor = self.outline_cursor(style, prefs, view, caps_lock);
+        match (self.badge, cursor) {
+            (None, cursor) => cursor,
+            (Some(_), ToolCursor::Hidden) => ToolCursor::Hidden,
+            (Some(badge), ToolCursor::Tool { icon, hotspot, .. }) => ToolCursor::Tool { icon, hotspot, badge: Some(badge) },
+            (Some(badge), cursor) => ToolCursor::Badged { cursor: Box::new(cursor), badge },
+        }
+    }
+
+    /// [`cursor`](Self::cursor) before the badge.
+    fn outline_cursor(&self, style: &BrushStyle, prefs: &CursorOptions, view: &CanvasView, caps_lock: bool) -> ToolCursor {
         // pc: crates/ui-egui/src/canvas.rs:1455, crates/ui-egui/src/tools/brush_cursor.rs:102 `cursor`.
         let precise = ToolCursor::Crosshair { length: style.cursor.precise_reach, gap: 0.0 };
         let min_crosshair = ToolCursor::Crosshair { length: style.tip_min_crosshair, gap: 0.0 };
