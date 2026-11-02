@@ -1,6 +1,7 @@
 //! [`MaskViewKeys`]: the view keys of Select and Mask (task SE-F6).
 
-use egui::{Context, Event, Key, Popup};
+use craft_ui::focus::key_owner;
+use egui::{Event, Key, Ui};
 
 use super::{MaskViewChange, MaskViewMode, MaskViewState};
 
@@ -9,15 +10,18 @@ use super::{MaskViewChange, MaskViewMode, MaskViewState};
 /// With no ⌘, Ctrl or ⌥ held, on a press (not a repeat): a view's letter (O M V A T K Y) picks
 /// it, F picks the next view, J toggles Show Edge, P toggles Show Original; X held hides the view
 /// until it is released. Nothing is read while a text field has the keyboard or a popup is open
-/// (the View Mode drop-down, a menu): `hide_view` is then cleared. R, `[` and `]` (the Refine Edge
+/// (the View Mode drop-down, a menu, a popover) or the workspace is not the top modal layer
+/// ([`key_owner::keys_free`], the gate of `FullWindowFx::keys_free`): `hide_view` is then cleared. R, `[` and `]` (the Refine Edge
 /// Brush) are the workspace's.
 pub struct MaskViewKeys;
 
 impl MaskViewKeys {
-    /// Applies this pass's keys to `state` and returns the changes, in order.
-    pub fn read(ctx: &Context, state: &mut MaskViewState) -> Vec<MaskViewChange> {
+    /// Applies this pass's keys to `state` and returns the changes, in order. `ui` is the
+    /// workspace's: its layer must be the top modal layer for the keys to be free.
+    pub fn read(ui: &Ui, state: &mut MaskViewState) -> Vec<MaskViewChange> {
+        let ctx = ui.ctx();
         let mut changes = Vec::new();
-        if ctx.text_edit_focused() || Popup::is_any_open(ctx) {
+        if !key_owner::keys_free(ctx, ui.layer_id()) {
             if state.hide_view {
                 state.apply(MaskViewChange::HideView(false));
                 changes.push(MaskViewChange::HideView(false));

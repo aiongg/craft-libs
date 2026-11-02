@@ -248,3 +248,37 @@ fn selection_overlay_accessible_value() {
     let empty = Disc::new([200, 100], [60, 40], 0);
     assert_eq!(value(&empty, PreviewMode::None), "No selection");
 }
+
+// Without a ruler unit the value is in pixels through the unit word.
+#[test]
+fn selection_overlay_value_defaults_to_pixels() {
+    let ctx = context();
+    let disc = Disc::new([200, 100], [60, 40], 20);
+    let p = show_disc(&ctx, &view([60.0, 40.0], 1.0), &disc, |o| o);
+    let found = p.nodes.iter().find(|(role, ..)| *role == Role::GraphicsObject).map(|(_, _, v)| v.clone());
+    assert_eq!(found.as_deref(), Some("40 px × 40 px at 40 px, 20 px"));
+}
+
+// `Segments` with empty `bounds` still draw their ants.
+#[test]
+fn segments_draw_ants_without_bounds() {
+    let ctx = context();
+    let segments: [Segment; 1] = [([100, 100], [160, 100])];
+    let p = pass(&ctx, &view([200.0, 150.0], 1.0), |ui, canvas, view| {
+        SelectionOverlay::new("seg", OutlineSource::Segments { segments: &segments, bounds: MaskRect::default() }).show(ui, canvas, view)
+    });
+    assert!(p.ants_bounds().is_positive());
+    assert_eq!(p.response.bounds, None);
+}
+
+// A mask that lies off-screen and is drawn at an offset into view is traced where it is, not where
+// it is drawn.
+#[test]
+fn offset_selection_is_traced_where_the_mask_is() {
+    let ctx = context();
+    let disc = Disc::new([8000, 8000], [6000, 6000], 60);
+    let v = view([100.0, 100.0], 1.0);
+    let moved = show_disc(&ctx, &v, &disc, |o| o.offset([-5900, -5900]));
+    let b = moved.ants_bounds();
+    assert!(b.is_positive() && Rect::from_min_max(egui::pos2(130.0, 80.0), egui::pos2(270.0, 220.0)).contains_rect(b), "{b:?}");
+}

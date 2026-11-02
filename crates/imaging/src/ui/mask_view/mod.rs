@@ -14,7 +14,7 @@
 //! - [`MaskViewControls`]: the View Mode block of the Properties panel.
 //!
 //! ```ignore
-//! MaskViewKeys::read(ctx, &mut state.view);
+//! MaskViewKeys::read(ui, &mut state.view);
 //! let out = MaskViewControls::new("view", &mut state.view).show(ui);
 //! if out.changed.is_some() { app.request_preview(state.view.recipe()) }   // the engine re-renders
 //! SelectionOverlay::new(("sam", id), &proxy_mask).visible(state.view.recipe().ants).reduction(k).show(ui, &canvas, &view);
@@ -35,7 +35,9 @@ craft_ui::words! {
     /// The words of the mask views, English by default.
     #[non_exhaustive]
     pub struct MaskViewLabels {
-        /// The view drop-down's label and accessible name.
+        /// The row label beside the view drop-down.
+        view: "maskView.view" = "View";
+        /// The view drop-down's accessible name.
         view_mode: "maskView.viewMode" = "View Mode";
         /// The opacity of the current view.
         opacity: "maskView.opacity" = "Opacity";

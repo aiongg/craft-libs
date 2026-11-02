@@ -144,7 +144,7 @@ fn show_modes(ui: &mut Ui, _: &mut NoArgs) {
     let labels = MaskViewLabels::of(ui);
     let id = ui.make_persistent_id("mask-view-story-state");
     let mut state = ui.data(|d| d.get_temp::<MaskViewState>(id)).unwrap_or_default();
-    MaskViewKeys::read(ui.ctx(), &mut state);
+    MaskViewKeys::read(ui, &mut state);
     MaskViewControls::new("mask-view-story", &mut state).labels(labels.clone()).show(ui);
     let width = ui.available_width();
     view(ui, "large", LARGE, state.recipe(), width);

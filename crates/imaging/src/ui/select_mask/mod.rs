@@ -305,7 +305,7 @@ impl SelectMaskWorkspace {
                 }
             }
             if top {
-                run.view |= !MaskViewKeys::read(&ctx, mask_view).is_empty();
+                run.view |= !MaskViewKeys::read(ui, mask_view).is_empty();
             }
 
             let mut bar = None;

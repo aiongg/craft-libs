@@ -11,7 +11,7 @@ fn pass(ctx: &Context, state: &mut MaskViewState, events: Vec<Event>, modifiers:
     let mut all = vec![Event::ModifiersChanged(modifiers)];
     all.extend(events);
     let mut output = ctx.run_ui(RawInput { events: all, ..Default::default() }, |ui| {
-        changes = MaskViewKeys::read(ui.ctx(), state);
+        changes = MaskViewKeys::read(ui, state);
     });
     output.textures_delta.clear();
     changes
@@ -57,6 +57,23 @@ fn mask_view_keys_pick_cycle_and_hold() {
     let before = state.clone();
     pass(&ctx, &mut state, vec![key(Key::O, true, Modifiers::COMMAND)], Modifiers::COMMAND);
     assert_eq!(state, before, "⌘O is not a view key");
+}
+
+// While a modal layer other than the reading one is on top, no view key is read.
+#[test]
+fn mask_view_keys_wait_for_the_top_modal_layer() {
+    let ctx = Context::default();
+    let mut state = MaskViewState::default();
+    let mut changes = Vec::new();
+    for pressed in [false, true] {
+        let events = if pressed { vec![key(Key::M, true, Modifiers::NONE)] } else { vec![] };
+        let mut output = ctx.run_ui(RawInput { events, ..Default::default() }, |ui| {
+            egui::Modal::new(egui::Id::unique("dialog")).show(ui.ctx(), |_| {});
+            changes = MaskViewKeys::read(ui, &mut state);
+        });
+        output.textures_delta.clear();
+    }
+    assert!(changes.is_empty() && state.mode == MaskViewMode::OnionSkin, "{changes:?}");
 }
 
 // Each view keeps its own opacity: set Overlay to 30, switch to On Black (100) and back, Overlay
@@ -162,7 +179,7 @@ fn mask_view_controls_report_changes() {
 
     harness.get_by_role(Role::ComboBox).click();
     harness.run();
-    harness.get_by(|n| n.role() == Role::ListBoxOption && n.label().as_deref() == Some("Marching Ants (M)")).click();
+    harness.get_by(|n| n.role() == Role::ListBoxOption && n.label().as_deref().is_some_and(|l| l.starts_with("Marching Ants"))).click();
     harness.run();
     assert_eq!(harness.state().last, Some(MaskViewChange::Mode(MaskViewMode::MarchingAnts)));
     assert_eq!(harness.state().state.mode, MaskViewMode::MarchingAnts);
