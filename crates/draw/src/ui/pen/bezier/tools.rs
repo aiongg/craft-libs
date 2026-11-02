@@ -7,7 +7,7 @@
 use egui::{Key, Modifiers, Pos2, Ui};
 use kurbo::Point;
 
-use super::{BezierHit, BezierOverlay, BezierResponse, BezierTool, Drag, KnotRef, Part, PartRef, Pass, PathEdit, PathSelection, Target};
+use super::{BezierHit, BezierOverlay, BezierResponse, BezierTool, Drag, Part, PartRef, Pass, PathEdit, PathSelection, Target};
 use crate::geometry::curvature::CURVATURE_T_RANGE;
 use craft_ui::behavior::nudge;
 use craft_ui::canvas::Claim;
@@ -90,8 +90,13 @@ impl BezierOverlay<'_> {
         }
         let hit = self.hit_at(pass, pointer).filter(|hit| self.tool_takes(hit, mods))?;
         if self.tool == BezierTool::Curvature {
-            // Every part it takes is one a press edits.
-            return Some(hit);
+            // Every part it takes is one a press edits, at the `t` the press clamps to.
+            return Some(match hit {
+                BezierHit::Segment { path, segment, t } => {
+                    BezierHit::Segment { path, segment, t: t.clamp(*CURVATURE_T_RANGE.start(), *CURVATURE_T_RANGE.end()) }
+                }
+                other => other,
+            });
         }
         // Only what a press would edit: an anchor under Add and a segment under Delete are taken
         // and do nothing (PhotoCraft draws no mark there).
@@ -107,8 +112,8 @@ impl BezierOverlay<'_> {
     ///   `ToggleCurvature` Set on release, no drag;
     /// - an anchor: picks it and selects it alone; past `bezier.click_slop` a drag reports
     ///   `MoveCurvature { anchors: [it], by }` (Begin, Update, Commit; Esc cancels);
-    /// - a segment: an insert at the hit's `t` clamped to [`CURVATURE_T_RANGE`], selecting the
-    ///   new anchor; a drag reports `InsertCurvature { segment, t, by }` as one gesture, a click
+    /// - a segment: an insert at the hit's `t` clamped to [`CURVATURE_T_RANGE`]; the new
+    ///   anchor is selected in the pass of the insert's first Set or Update; a drag reports `InsertCurvature { segment, t, by }` as one gesture, a click
     ///   without drag one Set with `by` zero.
     ///
     /// Returns the press the pass keeps.
@@ -140,9 +145,7 @@ impl BezierOverlay<'_> {
                 let t = t.clamp(*CURVATURE_T_RANGE.start(), *CURVATURE_T_RANGE.end());
                 let from =
                     self.subpath(path, segment.subpath).and_then(|s| s.segment(segment.knot)).map_or(Point::ZERO, |c| kurbo::ParamCurve::eval(&c, t));
-                let new = KnotRef::new(segment.subpath, segment.knot + 1);
                 *picked = None;
-                out.select = Some(PathSelection { path: Some(path), anchors: vec![new], segment: None });
                 drag(Target::CurvatureInsert { path, segment, t, from })
             }
         }

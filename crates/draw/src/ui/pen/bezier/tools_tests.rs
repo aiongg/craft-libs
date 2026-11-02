@@ -21,6 +21,8 @@ struct Host {
     inserts: Vec<(u64, KnotRef, f64)>,
     deletes: Vec<(u64, Vec<KnotRef>)>,
     selects: usize,
+    /// Selections reported in a pass that reported no edit event.
+    lone_selects: usize,
     claimed: bool,
     events: Vec<EditEvent<PathEdit>>,
 }
@@ -46,6 +48,7 @@ fn harness(tool: BezierTool) -> Harness<'static, Host> {
         inserts: Vec::new(),
         deletes: Vec::new(),
         selects: 0,
+        lone_selects: 0,
         claimed: false,
         events: Vec::new(),
     };
@@ -63,6 +66,7 @@ fn harness(tool: BezierTool) -> Harness<'static, Host> {
                 let response = BezierOverlay::new("paths", &host.paths, &host.selection, &px, &px, names).tool(host.tool).show(ui, &canvas, &view);
                 host.claimed |= response.claimed;
                 host.selects += usize::from(response.select.is_some());
+                host.lone_selects += usize::from(response.select.is_some() && response.event.is_none());
                 if let Some(select) = response.select {
                     host.selection = select;
                 }
@@ -366,4 +370,80 @@ fn curvature_tool_keys_move_and_toggle() {
     key(&mut h, Modifiers::NONE, Key::Enter);
     assert_eq!(last_value(&h), Some(PathEdit::ToggleCurvature { path: 1, knot: KnotRef::new(0, 1) }));
     assert_eq!(kinds(&h), ["set", "set", "set"]);
+}
+
+/// Selects anchor 1 of path 1, whose in handle lies on the first segment, so a handle is shown
+/// over the segment.
+fn with_handle_over_the_segment(h: &mut Harness<'_, Host>) {
+    h.state_mut().paths[0].subpaths[0].knots[1].in_ctrl = Point::new(110.0, 60.0);
+    h.state_mut().selection = PathSelection { path: Some(1), anchors: vec![KnotRef::new(0, 1)], segment: None };
+    h.run();
+}
+
+// PE-C1 fix (pen H1). A shown handle does not hide the segment under it for the anchor tools and
+// Curvature: the press inserts instead of being left to the pen draft.
+#[test]
+fn a_shown_handle_does_not_hide_the_segment_for_the_anchor_tools_and_curvature() {
+    let mut h = harness(BezierTool::Curvature);
+    with_handle_over_the_segment(&mut h);
+    assert!(click(&mut h, 110.0, 60.0, Modifiers::NONE), "Curvature claims the press");
+    assert_eq!(last_value(&h).map(|v| matches!(v, PathEdit::InsertCurvature { .. })), Some(true), "{:?}", last_value(&h));
+
+    for tool in [BezierTool::AddAnchor, BezierTool::AutoAddDelete] {
+        let mut h = harness(tool);
+        with_handle_over_the_segment(&mut h);
+        assert!(click(&mut h, 110.0, 60.0, Modifiers::NONE), "{tool:?} claims the press");
+        assert_eq!(h.state().inserts.len(), 1, "{tool:?}");
+    }
+
+    // Direct still grabs the handle.
+    let mut h = harness(BezierTool::Direct);
+    with_handle_over_the_segment(&mut h);
+    let at = screen(&h, 110.0, 60.0);
+    drag(&mut h, at, vec2(0.0, 30.0));
+    assert!(matches!(last_value(&h), Some(PathEdit::MoveHandle { .. })), "{:?}", last_value(&h));
+}
+
+// PE-C1 fix. A Curvature press on a segment reports the new anchor's selection in the pass of the
+// insert's Set, never alone before it.
+#[test]
+fn curvature_insert_selects_with_its_first_set() {
+    let mut h = harness(BezierTool::Curvature);
+    click(&mut h, 110.0, 60.0, Modifiers::NONE);
+    assert_eq!(kinds(&h), ["set"]);
+    assert_eq!(h.state().lone_selects, 0, "the selection came with the insert");
+    assert_eq!(h.state().selection, PathSelection { path: Some(1), anchors: vec![KnotRef::new(0, 1)], segment: None });
+
+    let mut h = harness(BezierTool::Curvature);
+    let at = screen(&h, 110.0, 60.0);
+    drag(&mut h, at, vec2(0.0, 30.0));
+    assert_eq!(kinds(&h).first(), Some(&"begin"));
+    assert_eq!(h.state().lone_selects, 0, "the selection came with the first Update");
+    assert_eq!(h.state().selection.anchors, vec![KnotRef::new(0, 1)]);
+}
+
+// pen L6. Arrows, ⌘A and Esc belong to Direct, Convert and Curvature; Add, Delete and Auto
+// Add/Delete have none of them.
+#[test]
+fn arrows_and_escape_act_only_under_direct_convert_and_curvature() {
+    for (tool, acts) in [
+        (BezierTool::Direct, true),
+        (BezierTool::Convert, true),
+        (BezierTool::Curvature, true),
+        (BezierTool::AddAnchor, false),
+        (BezierTool::DeleteAnchor, false),
+        (BezierTool::AutoAddDelete, false),
+    ] {
+        let mut h = harness(tool);
+        h.state_mut().selection = PathSelection { path: Some(1), anchors: vec![KnotRef::new(0, 1)], segment: None };
+        h.run();
+        h.key_press(Key::Tab);
+        h.run();
+        h.key_press(Key::ArrowRight);
+        h.run();
+        assert_eq!(!h.state().events.is_empty(), acts, "{tool:?} arrows");
+        h.key_press(Key::Escape);
+        h.run();
+        assert_eq!(h.state().selection == PathSelection::default(), acts, "{tool:?} Esc");
+    }
 }
