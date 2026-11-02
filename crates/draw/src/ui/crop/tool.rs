@@ -286,7 +286,7 @@ impl CropTool {
         }
     }
 
-    /// The bar changed the ratio or W × H × Resolution ([`CropBarEvent::Ratio`](super::CropBarEvent)):
+    /// The bar changed the ratio or W × H × Resolution ([`CropBarOutput::ratio`](super::CropBarOutput::ratio)):
     /// the frame refits to [`CropSettings::ratio_value`] about its centre, from the frame the
     /// field edit began with while `editing` (#7752), as one box step. Returns the frame's `Set`
     /// for the host's mirror and the view to adopt (in Image mode turned with the frame), or

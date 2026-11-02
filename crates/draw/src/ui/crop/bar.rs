@@ -1,7 +1,10 @@
-//! [`CropOptionsBar`]: the Crop tool's options in the body and trailing slots of
+//! [`CropBar`]: the Crop tool's options in the body and trailing slots of
 //! [`OptionsBar`](craft_ui::patterns::OptionsBar).
 
-use egui::{AsIdSalt, IdSalt, Ui};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use egui::{AsIdSalt, IdSalt, Ui, UiBuilder};
 use kurbo::Size;
 
 use super::menus::{CropOptionsMenu, CropOverlayMenu};
@@ -10,8 +13,8 @@ use super::options::{
     RATIO_MAX, ResolutionUnit,
 };
 use super::session::{CropDocKey, CropDocument};
-use craft_theme::ControlSize;
 use craft_ui::controls::{Button, Checkbox, IconButton, NumberField, Select, TextField};
+use craft_ui::dialog::ColorRequest;
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
@@ -68,13 +71,19 @@ craft_ui::words! {
         auto_center: "cropBar.autoCenter" = "Auto Center Preview";
         shield: "cropBar.shield" = "Enable Crop Shield";
         color: "cropBar.color" = "Color:";
+        /// The shield colour radio group's accessible name.
+        color_name: "cropBar.colorName" = "Color";
         match_canvas: "cropBar.matchCanvas" = "Match Canvas";
         custom: "cropBar.custom" = "Custom…";
         shield_color: "cropBar.shieldColor" = "Crop Shield color";
         opacity: "cropBar.opacity" = "Opacity:";
+        /// The shield opacity row's accessible name.
+        opacity_name: "cropBar.opacityName" = "Opacity";
         auto_adjust: "cropBar.autoAdjust" = "Auto Adjust Opacity";
         delete_pixels: "cropBar.deletePixels" = "Delete Cropped Pixels";
         fill: "cropBar.fill" = "Fill:";
+        /// The Fill select's accessible name.
+        fill_name: "cropBar.fillName" = "Fill";
         fill_background: "cropBar.fillBackground" = "Background (Default)";
         fill_content_aware: "cropBar.fillContentAware" = "Content-Aware Fill";
         commit: "cropBar.commit" = "Commit current crop operation";
@@ -82,96 +91,103 @@ craft_ui::words! {
     }
 }
 
-/// What the bar asks of the app or the tool. Edits of the options go straight into the settings
-/// the bar was given; these are the rest.
+/// The ratio, a ratio field, a preset or W × H × Resolution changed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CropBarEvent {
-    /// The ratio, a ratio field, a preset or W × H × Resolution changed: the app calls
-    /// [`CropTool::refit`](super::CropTool::refit). `editing` is true while a ratio field still has
-    /// the focus or is scrubbed, so the frame refits from the frame the edit began with (#7752).
-    Ratio { editing: bool },
-    /// The Straighten button: [`CropTool::toggle_straighten`](super::CropTool::toggle_straighten).
-    Straighten,
-    /// ✓: [`CropTool::apply`](super::CropTool::apply).
-    Commit,
-    /// ⊘: [`CropTool::discard`](super::CropTool::discard).
-    Cancel,
-    /// New Crop Preset…: the app opens its dialog with [`CropSettings::preset_name`].
-    NewPreset,
-    /// Delete Crop Preset…: the app opens its dialog.
-    DeletePreset,
-    /// The gear menu's Custom… or the shield swatch: the app asks for a colour
-    /// ([`ColorRequest`](craft_ui::dialog::ColorRequest)) and sets
-    /// [`CropShield::custom_color`](super::CropShield::custom_color).
-    PickShieldColor,
+pub struct CropRatioChange {
+    /// True while a ratio field still has the focus or is scrubbed, so the frame refits from the
+    /// frame the edit began with (#7752). A typed edit reports once, when the typing run ends
+    /// (every `NumberField` reports typed text so), so typing never refits live.
+    pub editing: bool,
 }
 
-/// What the bar reported this pass, in order: the body's events, then ✓ or ⊘.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// What the bar reported this pass. Edits of the options go straight into the settings the bar was
+/// given ([`settings_changed`](Self::settings_changed) says they changed); these are the rest.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
+#[must_use = "the app refits the frame, ends the session or opens a dialog for each field that is set"]
 pub struct CropBarOutput {
-    /// The body's events.
-    pub events: Vec<CropBarEvent>,
-    /// The trailing slot's [`CropBarEvent::Commit`] or [`CropBarEvent::Cancel`].
-    pub end: Option<CropBarEvent>,
-}
-
-impl CropBarOutput {
-    /// Every event of the pass in order, emptying the output.
-    pub fn take(&mut self) -> Vec<CropBarEvent> {
-        let mut events = std::mem::take(&mut self.events);
-        events.extend(self.end.take());
-        events
-    }
+    /// The ratio changed: the app calls [`CropTool::refit`](super::CropTool::refit) with
+    /// [`CropRatioChange::editing`].
+    pub ratio: Option<CropRatioChange>,
+    /// The Straighten button: [`CropTool::toggle_straighten`](super::CropTool::toggle_straighten).
+    pub straighten: bool,
+    /// ✓: [`CropTool::apply`](super::CropTool::apply).
+    pub apply: bool,
+    /// ⊘: [`CropTool::discard`](super::CropTool::discard).
+    pub discard: bool,
+    /// New Crop Preset…: the app opens its dialog with [`CropSettings::preset_name`].
+    pub new_preset: bool,
+    /// Delete Crop Preset…: the app opens its dialog.
+    pub delete_preset: bool,
+    /// The gear menu's Custom… or the shield swatch: the app opens its colour picker with this
+    /// request and sets [`CropShield::custom_color`](super::CropShield::custom_color) from the
+    /// answer.
+    pub pick_color: Option<ColorRequest>,
+    /// Any option of the settings changed this pass: the app persists them.
+    pub settings_changed: bool,
 }
 
 /// The Crop tool's options bar body and trailing slot.
 ///
 /// ```no_run
-/// use craft_draw::ui::crop::{CropBarOutput, CropOptionsBar, CropSettings};
+/// use craft_draw::ui::crop::{CropBar, CropBarOutput, CropSettings};
 /// use craft_ui::patterns::OptionsBar;
 /// # fn demo(ui: &mut egui::Ui, settings: &mut CropSettings, armed: bool) {
 /// let mut out = CropBarOutput::default();
 /// OptionsBar::new("options").show(ui, |bar| {
-///     CropOptionsBar::new("crop", settings).straighten(armed).output(&mut out).add_to(bar);
+///     CropBar::new("crop", settings).straighten(armed).output(&mut out).add_to(bar);
 /// });
-/// for event in out.take() {
-///     // CropBarEvent::{Ratio, Straighten, Commit, Cancel, NewPreset, DeletePreset, PickShieldColor}
-///     # let _ = event;
+/// if out.apply {
+///     // CropTool::apply
 /// }
 /// # }
 /// ```
 ///
 /// - Order (PhotoCraft's): the preset list (Ratio, W x H x Resolution, the ratio presets, the size
 ///   presets, the user's presets, Front Image, a separator, New Crop Preset…, Delete Crop
-///   Preset…; `CellWidth::Content`, PhotoCraft's 140 wide); the W and H
+///   Preset…; `crop.preset_width` wide, 140); the W and H
 ///   ratio fields (`CellWidth::Sm`, 0 to 99,999 with 3 decimals) with ⇄ between them, or in
 ///   W × H × Resolution mode the W, H and Resolution text fields with the px/in or px/cm select;
 ///   a divider; Clear; the Straighten toggle (`Icon::Ruler`, pressed while armed); the overlay menu
 ///   ([`CropOverlayMenu`](super::CropOverlayMenu)); the gear menu
-///   ([`CropOptionsMenu`](super::CropOptionsMenu)); the Delete Cropped Pixels check box; Fill and
+///   ([`CropOptionsMenu`](super::CropOptionsMenu), open flag through
+///   [`options_open`](Self::options_open)); the Delete Cropped Pixels check box; Fill and
 ///   its select (`CellWidth::Content`). The trailing slot holds ⊘ and ✓
 ///   ([`OptionsBar::commit_cancel`](craft_ui::patterns::OptionsBar::commit_cancel)).
+/// - Every control is at [`OptionsBar::CONTROL_SIZE`].
 /// - Length fields keep what is typed while they have the focus and normalise it when the typing
 ///   run ends ([`CropSizeFields::normalize_length`](super::CropSizeFields::normalize_length)).
+/// - Typed ratio edits refit when the typing run ends; steps and scrubs refit live
+///   ([`CropRatioChange::editing`]).
 /// - Delete Crop Preset… is disabled when no user preset is given; New Crop Preset… when
 ///   [`CropSettings::preset_name`] is `None`.
 /// - **Keyboard and AccessKit:** cells in reading order; the list is a `Select` named "Crop ratio"
 ///   with the chosen entry as its value; the fields are named Width, Height and Resolution; the
 ///   Straighten toggle has its pressed state; the menus open with Enter or Space.
-pub struct CropOptionsBar<'a> {
+pub struct CropBar<'a> {
     id_salt: IdSalt,
     settings: &'a mut CropSettings,
     labels: Option<CropBarLabels>,
     document: Option<&'a CropDocument>,
     user_presets: &'a [CropUserPreset],
     straighten: bool,
+    options_open: Option<&'a mut bool>,
     output: Option<&'a mut CropBarOutput>,
 }
 
-impl<'a> CropOptionsBar<'a> {
+impl<'a> CropBar<'a> {
     /// The bar editing `settings`.
     pub fn new(id_salt: impl AsIdSalt, settings: &'a mut CropSettings) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), settings, labels: None, document: None, user_presets: &[], straighten: false, output: None }
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            settings,
+            labels: None,
+            document: None,
+            user_presets: &[],
+            straighten: false,
+            options_open: None,
+            output: None,
+        }
     }
 
     /// The words; default: [`CropBarLabels`] of the installed words.
@@ -199,7 +215,13 @@ impl<'a> CropOptionsBar<'a> {
         self
     }
 
-    /// Where the bar reports its events.
+    /// The gear popover's open flag. Without it the bar keeps the flag itself, per viewer.
+    pub fn options_open(mut self, open: &'a mut bool) -> Self {
+        self.options_open = Some(open);
+        self
+    }
+
+    /// Where the bar reports what happened.
     pub fn output(mut self, output: &'a mut CropBarOutput) -> Self {
         self.output = Some(output);
         self
@@ -209,33 +231,26 @@ impl<'a> CropOptionsBar<'a> {
     pub fn add_to(self, slots: &mut OptionsBarSlots<'a>) {
         // pc: crates/ui-egui/src/panels/options_bar.rs:465-555 (the Crop branch); crop_presets.rs:137
         // `dropdown`; crop_size.rs:316 `fields`, :287 `text_field`; crop_straighten.rs:166
-        // `options_button`. The two slots get disjoint halves of the output (`events` to the body,
-        // `end` to the trailing slot).
-        let Self { id_salt, settings, labels, document, user_presets, straighten, output } = self;
-        let (events, end) = match output {
-            Some(CropBarOutput { events, end }) => (Some(events), Some(end)),
-            None => (None, None),
-        };
+        // `options_button`. Both slots report into the one output.
+        let Self { id_salt, settings, labels, document, user_presets, straighten, options_open, output } = self;
+        let output = Rc::new(RefCell::new(output));
+        let trailing_output = Rc::clone(&output);
         let trailing_labels = labels.clone();
         slots.body(move |ui| {
             let labels = labels.unwrap_or_else(|| CropBarLabels::of(ui));
-            let mut scratch = Vec::new();
-            let events = events.unwrap_or(&mut scratch);
-            let bar = Body { settings, labels: &labels, document, user_presets, straighten };
-            ui.push_id(id_salt, |ui| bar.show(ui, events));
+            let bar = Body { settings, labels: &labels, document, user_presets, straighten, options_open };
+            let builder = UiBuilder::new().id_salt(id_salt).layout(*ui.layout());
+            ui.scope_builder(builder, |ui| match output.borrow_mut().as_deref_mut() {
+                Some(out) => bar.show(ui, out),
+                None => bar.show(ui, &mut CropBarOutput::default()),
+            });
         });
         slots.trailing(move |ui| {
             let labels = trailing_labels.unwrap_or_else(|| CropBarLabels::of(ui));
             let pressed = OptionsBar::commit_cancel(ui, &labels.commit, &labels.cancel);
-            let event = if pressed.commit {
-                Some(CropBarEvent::Commit)
-            } else if pressed.cancel {
-                Some(CropBarEvent::Cancel)
-            } else {
-                None
-            };
-            if let (Some(end), Some(event)) = (end, event) {
-                *end = Some(event);
+            if let Some(out) = trailing_output.borrow_mut().as_deref_mut() {
+                out.apply |= pressed.commit;
+                out.discard |= pressed.cancel;
             }
         });
     }
@@ -256,40 +271,51 @@ struct Body<'a, 'l> {
     document: Option<&'a CropDocument>,
     user_presets: &'a [CropUserPreset],
     straighten: bool,
+    options_open: Option<&'a mut bool>,
 }
 
 impl Body<'_, '_> {
-    fn show(self, ui: &mut Ui, events: &mut Vec<CropBarEvent>) {
-        let Self { settings, labels, document, user_presets, straighten } = self;
-        let sm = ControlSize::Sm;
+    fn show(self, ui: &mut Ui, out: &mut CropBarOutput) {
+        let Self { settings, labels, document, user_presets, straighten, options_open } = self;
+        let sm = OptionsBar::CONTROL_SIZE;
         let numbers = LocaleNumbers::of(ui);
         let tokens = Tokens::of(ui);
         let field_width = OptionsBar::style(&tokens, false).fields[0];
+        let preset_width = CropBar::style(&tokens).preset_width;
         let doc = document.copied().unwrap_or_else(|| CropDocument::new(CropDocKey(0), Size::ZERO));
         let has_document = document.is_some();
+        let before = settings.clone();
 
-        preset_list(ui, settings, labels, &doc, has_document, user_presets, events);
+        preset_list(ui, settings, labels, &doc, has_document, user_presets, preset_width, out);
         if settings.ratio == CropRatio::Size {
-            size_fields(ui, settings, labels, &numbers, field_width, events);
+            size_fields(ui, settings, labels, &numbers, field_width, out);
         } else {
-            ratio_fields(ui, settings, labels, &doc, has_document, &numbers, field_width, events);
+            ratio_fields(ui, settings, labels, &doc, has_document, &numbers, field_width, out);
         }
         OptionsBar::divider(ui);
         if ui.add(Button::new(labels.clear.as_str()).size(sm)).clicked() {
             settings.clear();
-            events.push(CropBarEvent::Ratio { editing: false });
+            out.ratio = Some(CropRatioChange { editing: false });
         }
         if ui.add(IconButton::new(Icon::Ruler, labels.straighten.as_str()).size(sm).selected(straighten).id_salt("straighten")).clicked() {
-            events.push(CropBarEvent::Straighten);
+            out.straighten = true;
         }
-        CropOverlayMenu::new("overlay", settings).labels(labels).show(ui);
-        if CropOptionsMenu::new("options", &mut settings.shield).labels(labels).show(ui).pick_color {
-            events.push(CropBarEvent::PickShieldColor);
+        CropOverlayMenu::new("overlay", settings).labels(labels.clone()).show(ui);
+        let kept_id = ui.make_persistent_id("options-open");
+        let mut kept = ui.data(|d| d.get_temp::<bool>(kept_id)).unwrap_or(false);
+        let own = options_open.is_none();
+        let open = options_open.unwrap_or(&mut kept);
+        let menu = CropOptionsMenu::new("options", &mut settings.shield).labels(labels.clone()).show(ui, open);
+        if own {
+            ui.data_mut(|d| d.insert_temp(kept_id, kept));
+        }
+        if menu.pick_color.is_some() {
+            out.pick_color = menu.pick_color;
         }
         let _ = Checkbox::bool(labels.delete_pixels.as_str(), &mut settings.delete_pixels).size(sm).show(ui).response;
         OptionsBar::cell(ui, &labels.fill, CellWidth::Content, |ui, _| {
             let mut fill = settings.fill;
-            let pick = Select::new("fill", labels.fill.trim_end_matches(':'), &mut fill)
+            let pick = Select::new("fill", labels.fill_name.as_str(), &mut fill)
                 .option(CropFill::Background, labels.fill_background.as_str())
                 .option(CropFill::ContentAware, labels.fill_content_aware.as_str())
                 .size(sm)
@@ -298,6 +324,7 @@ impl Body<'_, '_> {
                 settings.fill = value;
             }
         });
+        out.settings_changed |= *settings != before;
     }
 }
 
@@ -327,6 +354,7 @@ fn size_name(labels: &CropBarLabels, i: usize) -> String {
 
 /// The preset list: Ratio, W x H x Resolution, the ratio presets, the size presets, the user's
 /// presets, Front Image, then New Crop Preset… and Delete Crop Preset….
+#[expect(clippy::too_many_arguments, reason = "the bar's inputs")]
 fn preset_list(
     ui: &mut Ui,
     settings: &mut CropSettings,
@@ -334,7 +362,8 @@ fn preset_list(
     doc: &CropDocument,
     has_document: bool,
     user_presets: &[CropUserPreset],
-    events: &mut Vec<CropBarEvent>,
+    width: f32,
+    out: &mut CropBarOutput,
 ) {
     let current = settings.choice(user_presets);
     let mut shown = current;
@@ -361,15 +390,16 @@ fn preset_list(
         .option_enabled(settings.preset_name(labels).is_some())
         .option(CropPresetChoice::DeletePreset, labels.delete_preset.as_str())
         .option_enabled(!user_presets.is_empty())
-        .size(ControlSize::Sm);
+        .size(OptionsBar::CONTROL_SIZE)
+        .width(width);
     let pick = select.show(ui);
     let Some(EditEvent::Commit { value: choice, .. } | EditEvent::Set { value: choice, .. }) = pick.event else { return };
     match choice {
-        CropPresetChoice::NewPreset => events.push(CropBarEvent::NewPreset),
-        CropPresetChoice::DeletePreset => events.push(CropBarEvent::DeletePreset),
+        CropPresetChoice::NewPreset => out.new_preset = true,
+        CropPresetChoice::DeletePreset => out.delete_preset = true,
         choice => {
             if settings.choose(choice, doc, user_presets) {
-                events.push(CropBarEvent::Ratio { editing: false });
+                out.ratio = Some(CropRatioChange { editing: false });
             }
         }
     }
@@ -385,14 +415,19 @@ fn ratio_fields(
     has_document: bool,
     numbers: &LocaleNumbers,
     width: f32,
-    events: &mut Vec<CropBarEvent>,
+    out: &mut CropBarOutput,
 ) {
     let shown = settings.shown_ratio_fields(doc);
     let mut pass = RatioPass::default();
     ratio_field(ui, 0, &labels.width, shown, settings, numbers, width, &mut pass);
     let original = settings.ratio == CropRatio::Original;
     let swap = ui
-        .add(IconButton::new(Icon::SwapHorizontal, labels.swap.as_str()).size(ControlSize::Sm).enabled(has_document || !original).id_salt("swap"))
+        .add(
+            IconButton::new(Icon::SwapHorizontal, labels.swap.as_str())
+                .size(OptionsBar::CONTROL_SIZE)
+                .enabled(has_document || !original)
+                .id_salt("swap"),
+        )
         .clicked();
     ratio_field(ui, 1, &labels.height, shown, settings, numbers, width, &mut pass);
     if swap {
@@ -404,7 +439,7 @@ fn ratio_fields(
         pass.changed = true;
     }
     if pass.changed {
-        events.push(CropBarEvent::Ratio { editing: pass.active });
+        out.ratio = Some(CropRatioChange { editing: pass.active });
     }
 }
 
@@ -424,7 +459,7 @@ fn ratio_field(
     let edit = NumberField::optional(("ratio-field", side), name, (current > 0.0).then_some(current), numbers)
         .range(0.0..=RATIO_MAX)
         .decimals(0..=RATIO_DECIMALS)
-        .size(ControlSize::Sm)
+        .size(OptionsBar::CONTROL_SIZE)
         .width(width)
         .show_optional(ui);
     pass.active |= edit.response.has_focus() || edit.response.dragged();
@@ -461,15 +496,8 @@ fn ratio_field(
 }
 
 /// W, ⇄, H, Resolution and its unit, in W × H × Resolution mode.
-fn size_fields(
-    ui: &mut Ui,
-    settings: &mut CropSettings,
-    labels: &CropBarLabels,
-    numbers: &LocaleNumbers,
-    width: f32,
-    events: &mut Vec<CropBarEvent>,
-) {
-    let sm = ControlSize::Sm;
+fn size_fields(ui: &mut Ui, settings: &mut CropSettings, labels: &CropBarLabels, numbers: &LocaleNumbers, width: f32, out: &mut CropBarOutput) {
+    let sm = OptionsBar::CONTROL_SIZE;
     let mut changed = false;
     changed |= length_field(ui, "width", &labels.width, &mut settings.size.width, width);
     if ui.add(IconButton::new(Icon::SwapHorizontal, labels.swap.as_str()).size(sm).id_salt("swap")).clicked() {
@@ -514,7 +542,7 @@ fn size_fields(
         changed = true;
     }
     if changed {
-        events.push(CropBarEvent::Ratio { editing: false });
+        out.ratio = Some(CropRatioChange { editing: false });
     }
 }
 
@@ -523,8 +551,12 @@ fn size_fields(
 fn length_field(ui: &mut Ui, salt: &'static str, name: &str, value: &mut String, width: f32) -> bool {
     let typed_id = ui.scope_id().with((salt, "typed"));
     let typed = ui.data(|d| d.get_temp::<String>(typed_id));
-    let edit =
-        TextField::new(salt, name, typed.as_deref().unwrap_or(value)).placeholder(name).size(ControlSize::Sm).width(width).char_limit(32).show(ui);
+    let edit = TextField::new(salt, name, typed.as_deref().unwrap_or(value))
+        .placeholder(name)
+        .size(OptionsBar::CONTROL_SIZE)
+        .width(width)
+        .char_limit(32)
+        .show(ui);
     match edit.event {
         Some(EditEvent::Begin { value: Some(text), .. } | EditEvent::Update { value: text, .. }) => {
             ui.data_mut(|d| d.insert_temp(typed_id, text));
