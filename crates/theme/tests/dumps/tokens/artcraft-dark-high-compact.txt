@@ -78,6 +78,7 @@ overlay.grid = #8c8c8cff
 overlay.grip = #2f6bffff
 overlay.grip_warm = #ff7f9fff
 overlay.grip_hot = #ff3b3bff
+overlay.grip_dyn = #26c6e8ff
 overlay.grip_stroke = #103080ff
 overlay.pin = #ffd60aff
 overlay.pin_ring = #000000ff

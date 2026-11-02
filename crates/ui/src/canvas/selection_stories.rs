@@ -9,12 +9,12 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `primitives/selection/frame` | One object, several (the union box), the key object, a rotated view, a content frame with the item frame's grips off, grow 0–7, a rule that refuses the edges |
+//! | `primitives/selection/frame` | One object, several (the union box), the key object, a rotated view, a content frame (the host's own colour) with its own eight grips while the item frame's are off, grow 0–7, a rule that refuses the edges |
 //! | `primitives/selection/grips` | Square, midpoint, arrow and triangle grips; cold, warm under the pointer, hot after a ⇧-click |
 //! | `primitives/selection/outline` | Solid and dashed outlines over a list of shapes in two layer colours |
 //! | `primitives/selection/range-bands` | A range with the active cell cut out; a 20-million-point column scrolled to its middle |
 
-use egui::{Painter, Pos2, Shape, Stroke, Ui};
+use egui::{Color32, Painter, Pos2, Shape, Stroke, Ui};
 use kurbo::{Affine, BezPath, Ellipse, Point, Rect, Shape as _, Vec2};
 
 use super::CanvasView;
@@ -90,6 +90,10 @@ pub(crate) fn stories() -> Vec<Story> {
 const OBJECTS: [Rect; 3] = [Rect::new(80.0, 90.0, 220.0, 190.0), Rect::new(260.0, 140.0, 380.0, 280.0), Rect::new(160.0, 240.0, 300.0, 330.0)];
 /// Opacity of the story's translucent fills.
 const FILL: f32 = 0.25;
+/// The content frame's colour: the host's own, DesignCraft's brown (`frames.rs:196`), not a token.
+const CONTENT_COLOR: Color32 = Color32::from_rgb(0xc4, 0x6f, 0x2b);
+/// How far the placed graphic's box sits inside the item's, in document units.
+const CONTENT_INSET: f64 = 14.0;
 /// The largest grow step count `SelectionFrame::grow` is shown with.
 const GROW_MAX: u32 = 7;
 
@@ -160,13 +164,15 @@ struct FrameArgs {
 }
 
 /// The frame story's state: the base box of the picked objects, the box now and the one a
-/// cancelled gesture returns to.
+/// cancelled gesture returns to, and the content frame's box with its own pre-gesture value.
 #[derive(Clone, Copy, Debug)]
 struct FrameState {
     objects: Objects,
     base: Rect,
     state: BoxState,
     before: Option<BoxState>,
+    content: BoxState,
+    content_before: Option<BoxState>,
 }
 
 fn union(rects: &[Rect]) -> Rect {
@@ -192,7 +198,9 @@ fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
     let ctx = ui.ctx().clone();
     let mut st: FrameState = ctx.data(|d| d.get_temp(key)).filter(|s: &FrameState| s.objects == args.objects).unwrap_or_else(|| {
         let base = union(args.objects.picked());
-        FrameState { objects: args.objects, base, state: BoxState::from_rect(base), before: None }
+        let content =
+            BoxState::from_rect(Rect::new(base.x0 + CONTENT_INSET, base.y0 + CONTENT_INSET, base.x1 - CONTENT_INSET, base.y1 - CONTENT_INSET));
+        FrameState { objects: args.objects, base, state: BoxState::from_rect(base), before: None, content, content_before: None }
     });
     let painter = ui.painter_at(canvas.view.rect);
     let object_fill = tokens.color.accent.solid.to_egui().gamma_multiply(FILL);
@@ -206,18 +214,28 @@ fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
         // Distort refuses the edges: only corners, the inside and the reference point act.
         rules = BoxRules { mode: TransformMode::Distort, allow: BoxAllow { rotate: false, skew: false, distort: true }, ..rules };
     }
-    let state = st.state;
+    let (state, content) = (st.state, st.content);
+    // A placed graphic's content frame has the eight grips and the item frame has none, so the
+    // content frame is shown first and takes the presses inside it.
+    let mut content_event = None;
+    if args.content_frame {
+        let out = SelectionFrame::new("selection-content-story", &content).rules(rules).color(CONTENT_COLOR).show(ui, &canvas.response, &canvas.view);
+        content_event = out.event;
+    }
     let mut frame = SelectionFrame::new("selection-frame-story", &state)
         .rules(rules)
         .key_object(args.key_object)
         .centre_mark(args.objects == Objects::Several)
         .grow(args.grow.min(GROW_MAX) as u8);
     if args.content_frame {
-        frame = frame.grips(false).colour(tokens.color.status.warn.solid.to_egui());
+        frame = frame.grips(false);
     }
     let out = frame.show(ui, &canvas.response, &canvas.view);
     if let Some(event) = &out.event {
         fold(event, &mut st.state, &mut st.before);
+    }
+    if let Some(event) = &content_event {
+        fold(event, &mut st.content, &mut st.content_before);
     }
     let numbers = LocaleNumbers::of(ui);
     let q = st.state.quad;
@@ -268,7 +286,9 @@ fn fresh_grips(arrow: Vec2) -> Vec<Grip> {
     for (row, y) in GRIP_ROWS.iter().enumerate() {
         for (column, x) in GRIP_COLUMNS.iter().enumerate() {
             let key = (row * GRIP_COLUMNS.len() + column) as u64 + 1;
-            grips.push(Grip::new(key, Point::new(*x, *y), GRIP_SHAPES[column](arrow)).hot(row == 1));
+            let shape = GRIP_SHAPES[column](arrow);
+            let dynamic = matches!(shape, GripShape::Arrow { .. } | GripShape::Triangle);
+            grips.push(Grip::new(key, Point::new(*x, *y), shape).dynamic(dynamic).hot(row == 1));
         }
     }
     grips
@@ -371,7 +391,7 @@ fn show_outline(ui: &mut Ui, args: &mut PlainViewArgs) {
         for (layer, pair) in shapes.chunks(2).enumerate() {
             let moved: Vec<BezPath> = pair.iter().map(|p| offset * p.clone()).collect();
             let outline = if dashed { SelectionOutline::dashed(&moved) } else { SelectionOutline::solid(&moved) };
-            outline.colour(layers[layer]).paint(&painter, &canvas.view);
+            outline.color(layers[layer]).paint(&painter, &canvas.view);
         }
     }
     status(ui, format!("{} · {}", own.solid, own.dashed));

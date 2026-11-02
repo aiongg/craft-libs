@@ -260,6 +260,7 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::OverlayGrip => Fixed(Rgba::rgb(0x2f, 0x6b, 0xff)),
         T::OverlayGripWarm => Fixed(Rgba::rgb(0xff, 0x7f, 0x9f)),
         T::OverlayGripHot => Fixed(Rgba::rgb(0xff, 0x3b, 0x3b)),
+        T::OverlayGripDyn => Fixed(Rgba::rgb(0x26, 0xc6, 0xe8)),
         // Warp pins and mesh sit on the document, so one value in both modes (PhotoCraft `puppet_ui.rs:367-388`).
         T::OverlayPin => Fixed(Rgba::rgb(0xff, 0xd6, 0x0a)),
         T::OverlayPinRing => Fixed(Rgba::rgb(0x00, 0x00, 0x00)),

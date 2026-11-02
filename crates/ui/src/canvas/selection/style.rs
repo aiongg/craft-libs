@@ -12,7 +12,7 @@ use crate::theme::{ToEgui, UiTokens};
 #[non_exhaustive]
 pub struct SelectionFrameStyle {
     /// The default line colour when the host gives none: `overlay.line`.
-    pub colour: Color32,
+    pub color: Color32,
     /// The box line and a solid outline: `selection_frame.line` (1, DesignCraft).
     pub line: f32,
     /// The key object's box line: `selection_frame.key_line` (3, DesignCraft; VectorCraft 2.5).
@@ -27,7 +27,7 @@ pub struct SelectionFrameStyle {
     /// What one [`grow`](SelectionFrame::grow) step adds to a grip: `selection_frame.grow_step`
     /// (1, VectorCraft's Size steps).
     pub grow_step: f32,
-    /// The grips: `Handle::style(tokens, HandleShape::Square)` (`handle.size` 7, `handle.hit` 14);
+    /// The grips: `Handle::style(tokens, HandleShape::Square)` (`handle.size` 7, `handle.hit` 14, a square's side);
     /// the frame replaces the outline colour with its own.
     pub handle: HandleStyle,
 }
@@ -51,6 +51,8 @@ pub struct GripSetStyle {
     pub cold: Color32,
     pub warm: Color32,
     pub hot: Color32,
+    /// A dynamic grip at rest: `overlay.grip_dyn` (#26c6e8, CadCraft's `grip_dyn`).
+    pub dynamic: Color32,
     /// The outline colour: `overlay.grip_stroke` (#103080).
     pub outline: Color32,
 }
@@ -63,7 +65,7 @@ impl SelectionFrame<'_> {
         // `Handle::style(tokens, HandleShape::Square)`.
         let f = &tokens.component.selection_frame;
         SelectionFrameStyle {
-            colour: tokens.color.overlay.line.to_egui(),
+            color: tokens.color.overlay.line.to_egui(),
             line: f.line,
             key_line: f.key_line,
             centre: f.centre,
@@ -91,6 +93,7 @@ impl GripSet<'_> {
             cold: o.grip.to_egui(),
             warm: o.grip_warm.to_egui(),
             hot: o.grip_hot.to_egui(),
+            dynamic: o.grip_dyn.to_egui(),
             outline: o.grip_stroke.to_egui(),
         }
     }

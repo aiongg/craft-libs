@@ -223,6 +223,8 @@ pub struct OverlayColors {
     pub grip_warm: Rgba,
     /// A grip being dragged.
     pub grip_hot: Rgba,
+    /// A dynamic grip (an arrow, a triangle or a dynamic point) at rest (CadCraft's cyan).
+    pub grip_dyn: Rgba,
     /// A grip's outline.
     pub grip_stroke: Rgba,
     /// A Puppet Warp pin's fill.
@@ -353,6 +355,7 @@ impl ColorTokens {
                 grip: c,
                 grip_warm: c,
                 grip_hot: c,
+                grip_dyn: c,
                 grip_stroke: c,
                 pin: c,
                 pin_ring: c,
@@ -569,6 +572,8 @@ color_tokens! {
     OverlayGripWarm = "overlay.grip_warm" => overlay.grip_warm;
     /// `overlay.grip_hot`
     OverlayGripHot = "overlay.grip_hot" => overlay.grip_hot;
+    /// `overlay.grip_dyn`
+    OverlayGripDyn = "overlay.grip_dyn" => overlay.grip_dyn;
     /// `overlay.grip_stroke`
     OverlayGripStroke = "overlay.grip_stroke" => overlay.grip_stroke;
     /// `overlay.pin`

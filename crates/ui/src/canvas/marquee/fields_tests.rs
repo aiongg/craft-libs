@@ -124,6 +124,22 @@ fn constraint_fields_fixed_size_converts_units() {
     assert_eq!(h.state().picked, Some(LengthUnit::Millimetres));
 }
 
+// Without units (no `size_units`) a secondary click on a Fixed Size field opens no menu.
+#[test]
+fn constraint_fields_fixed_size_without_units_has_no_menu() {
+    let mut h = harness(Host::new(Constraint::Size(300.0, 150.0)));
+    let at = h.get_by_role_and_label(Role::SpinButton, "Height").rect().center();
+    h.event(egui::Event::PointerMoved(at));
+    h.run();
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Secondary, pressed, modifiers: egui::Modifiers::NONE });
+        h.run();
+    }
+    h.run_steps(3);
+    assert!(h.query_by_label("Millimeters").is_none(), "no units menu");
+    assert_eq!(h.state().picked, None);
+}
+
 // Free greys Width, swap and Height; `enabled(false)` greys every cell and reports nothing.
 #[test]
 fn constraint_fields_grey_for_normal_and_when_disabled() {

@@ -1,4 +1,4 @@
-//! Grips: the squares and midpoint bars of a selected object. The same at every Size (they sit on the document). Their fills are the semantic `overlay.grip`, `overlay.grip_warm`, `overlay.grip_hot` and `overlay.grip_stroke`.
+//! Grips: the squares and midpoint bars of a selected object. The same at every Size (they sit on the document). Their fills are the semantic `overlay.grip`, `overlay.grip_warm`, `overlay.grip_hot`, `overlay.grip_dyn` and `overlay.grip_stroke`.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;

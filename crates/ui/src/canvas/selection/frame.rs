@@ -5,7 +5,7 @@ use kurbo::{Point, Vec2};
 
 use crate::behavior::nudge;
 use crate::canvas::claim::PrimaryPress;
-use crate::canvas::quad::{self, BoxPart, BoxRules, BoxState};
+use crate::canvas::quad::{self, BoxPart, BoxRules, BoxState, bisector, outset};
 use crate::canvas::{CanvasView, Claim, Part, PartFocus, RulerUnits, resize_cursor};
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
@@ -59,8 +59,8 @@ pub struct SelectionFrameResponse {
 /// use craft_ui::canvas::CanvasView;
 /// use craft_ui::canvas::quad::BoxState;
 /// use craft_ui::canvas::selection::SelectionFrame;
-/// # fn demo(ui: &mut egui::Ui, canvas: &egui::Response, view: &CanvasView, bounds: &BoxState, colour: egui::Color32) {
-/// let out = SelectionFrame::new("frame", bounds).colour(colour).key_object(true).centre_mark(true).show(ui, canvas, view);
+/// # fn demo(ui: &mut egui::Ui, canvas: &egui::Response, view: &CanvasView, bounds: &BoxState, color: egui::Color32) {
+/// let out = SelectionFrame::new("frame", bounds).color(color).key_object(true).centre_mark(true).show(ui, canvas, view);
 /// if let Some(event) = out.event {
 ///     // The host's gesture host previews Update, applies Commit and Set as one undo step each.
 ///     # let _ = event;
@@ -68,7 +68,7 @@ pub struct SelectionFrameResponse {
 /// # }
 /// ```
 ///
-/// - Look: the box line `selection_frame.line` (1 pt) in [`colour`](Self::colour), else
+/// - Look: the box line `selection_frame.line` (1 pt) in [`color`](Self::color) (the layer colour), else
 ///   `overlay.line`; with [`key_object`](Self::key_object) `selection_frame.key_line` (3 pt);
 ///   with [`centre_mark`](Self::centre_mark) a filled square `selection_frame.centre` (3.5 pt) at
 ///   the centre; grips are [`Handle`](crate::primitives::Handle)s
@@ -76,8 +76,9 @@ pub struct SelectionFrameResponse {
 ///   `overlay.handle_fill` and outlined in the frame's colour, each grown by
 ///   [`grow`](Self::grow) steps of `selection_frame.grow_step`.
 /// - Pointer, through the host's canvas response and [`Claim`](crate::canvas::Claim) first: a
-///   press within `handle.hit` of a grip takes that corner or edge, a press inside takes the
-///   inside, a press outside is not the frame's. A drag begins on the first move and follows
+///   press within half of `handle.hit` (the side of the square a handle takes) of a grip's
+///   centre, or of half its grown size if that is more, takes that corner or edge; a press inside takes the
+///   inside; a press outside is not the frame's. A drag begins on the first move and follows
 ///   [`quad::drag`](crate::canvas::quad::drag) with the [rules](Self::rules) (resize only by
 ///   default: corners stretch freely and ⇧ keeps the proportions, ⌥ scales about the centre, an
 ///   edge stretches its one axis, the inside moves and ⇧ locks it to the axes). Parts the rules
@@ -98,7 +99,7 @@ pub struct SelectionFrame<'a> {
     state: &'a BoxState,
     labels: Option<SelectionFrameLabels>,
     rules: Option<BoxRules>,
-    colour: Option<Color32>,
+    color: Option<Color32>,
     key_object: bool,
     centre_mark: bool,
     grips: bool,
@@ -118,7 +119,7 @@ impl<'a> SelectionFrame<'a> {
             state,
             labels: None,
             rules: None,
-            colour: None,
+            color: None,
             key_object: false,
             centre_mark: false,
             grips: true,
@@ -148,8 +149,8 @@ impl<'a> SelectionFrame<'a> {
 
     /// The colour of the box line and the grip outlines: the selected object's layer colour.
     /// `overlay.line` by default.
-    pub fn colour(mut self, colour: Color32) -> Self {
-        self.colour = Some(colour);
+    pub fn color(mut self, color: Color32) -> Self {
+        self.color = Some(color);
         self
     }
 
@@ -351,12 +352,18 @@ impl<'a> SelectionFrame<'a> {
         self.modifiers.unwrap_or(held)
     }
 
+    /// The distance from a grip's centre within which a press takes it: half the square
+    /// `handle.hit` names, or half the grip's grown side if that is larger.
+    fn reach(&self, style: &SelectionFrameStyle) -> f32 {
+        style.handle.hit.max(style.handle.size + f32::from(self.grow) * style.grow_step) / 2.0
+    }
+
     /// The part a press at screen point `p` takes from the box mapped to the screen; `None` where
     /// the press is the tool's (outside, a part the rules refuse).
     fn takes(&self, screen: &BoxState, p: Pos2, style: &SelectionFrameStyle, rules: &BoxRules) -> Option<BoxPart> {
         // Grips off: no tolerance, so only the inside is left. The frame has no reference point:
         // it is moved out of reach.
-        let reach = if self.grips { f64::from(style.handle.hit) } else { 0.0 };
+        let reach = if self.grips { f64::from(self.reach(style)) } else { 0.0 };
         let far = Point::new(f64::INFINITY, f64::INFINITY);
         let part = BoxState { pivot: far, ..*screen }.part_at(Point::new(f64::from(p.x), f64::from(p.y)), reach);
         match part {
@@ -444,7 +451,7 @@ impl<'a> SelectionFrame<'a> {
     /// The keyboard parts: the whole frame, then (with grips) the corners and the edges, without
     /// those the rules refuse.
     fn parts(&self, screen: &BoxState, shown: &BoxState, rules: &BoxRules, labels: &SelectionFrameLabels, style: &SelectionFrameStyle) -> Vec<Part> {
-        let reach = egui::Vec2::splat(2.0 * style.handle.hit);
+        let side = egui::Vec2::splat(self.reach(style) * 2.0);
         let q = &shown.quad;
         let mut out = Vec::with_capacity(9);
         let bounds = egui::Rect::from_points(&screen.quad.map(pos));
@@ -467,7 +474,7 @@ impl<'a> SelectionFrame<'a> {
                 }
                 let value = self.units.map(|(x, y)| format!("{}, {}", x.format_value(at.x, 0.0), y.format_value(at.y, 0.0)));
                 let centre = pos(screen_point(screen, part).unwrap_or(Point::ZERO));
-                out.push(Part { key: part_key(part), name: name.clone(), value, rect: egui::Rect::from_center_size(centre, reach), selected: false });
+                out.push(Part { key: part_key(part), name: name.clone(), value, rect: egui::Rect::from_center_size(centre, side), selected: false });
             }
         }
         out
@@ -508,16 +515,16 @@ impl<'a> SelectionFrame<'a> {
         keyboard: bool,
     ) {
         let painter = ui.painter_at(view.rect);
-        let colour = self.colour.unwrap_or(style.colour);
+        let color = self.color.unwrap_or(style.color);
         let width = if self.key_object { style.key_line } else { style.line };
         let corners = screen.quad.map(pos);
-        painter.add(Shape::closed_line(corners.to_vec(), Stroke::new(width, colour)));
+        painter.add(Shape::closed_line(corners.to_vec(), Stroke::new(width, color)));
         if self.centre_mark {
             let centre = pos(screen.quad[0].midpoint(screen.quad[2]));
-            painter.rect_filled(egui::Rect::from_center_size(centre, egui::Vec2::splat(style.centre)), 0.0, colour);
+            painter.rect_filled(egui::Rect::from_center_size(centre, egui::Vec2::splat(style.centre)), 0.0, color);
         }
         let mut handle = style.handle;
-        handle.stroke.color = colour;
+        handle.stroke.color = color;
         handle.size += f32::from(self.grow) * style.grow_step;
         let ppp = ui.pixels_per_point();
         if self.grips {
@@ -647,37 +654,4 @@ fn screen_point(screen: &BoxState, part: BoxPart) -> Option<Point> {
         BoxPart::Edge(i) => Some(q[usize::from(i % 4)].midpoint(q[usize::from(i + 1) % 4])),
         BoxPart::Inside | BoxPart::Outside | BoxPart::Pivot => None,
     }
-}
-
-/// Corner `i`'s bisector on screen, into the box; zero for a collapsed corner.
-fn bisector(screen: &BoxState, i: usize) -> egui::Vec2 {
-    let q = &screen.quad;
-    let unit = |to: Point| {
-        let d = to - q[i];
-        let l = d.hypot();
-        if l.is_finite() && l > 1e-9 { d / l } else { Vec2::ZERO }
-    };
-    let s = unit(q[(i + 1) % 4]) + unit(q[(i + 3) % 4]);
-    let l = s.hypot();
-    if l.is_finite() && l > 1e-6 { vec2((s.x / l) as f32, (s.y / l) as f32) } else { egui::Vec2::ZERO }
-}
-
-/// The closed polygon `corners` moved `by` points outward, each corner along its mitre (kept
-/// within four times `by` at a sharp corner).
-fn outset(corners: &[Pos2; 4], by: f32) -> [Pos2; 4] {
-    let area: f32 = (0..4).map(|i| corners[i].x * corners[(i + 1) % 4].y - corners[(i + 1) % 4].x * corners[i].y).sum();
-    let side = if area >= 0.0 { 1.0 } else { -1.0 };
-    let normal = |a: Pos2, b: Pos2| {
-        let d = (b - a).normalized();
-        vec2(d.y, -d.x) * side
-    };
-    std::array::from_fn(|i| {
-        let (prev, here, next) = (corners[(i + 3) % 4], corners[i], corners[(i + 1) % 4]);
-        let (n1, n2) = (normal(prev, here), normal(here, next));
-        let sum = n1 + n2;
-        let k = 1.0 + n1.dot(n2);
-        let mitre = if k > 1e-3 && sum.is_finite() { sum * (by / k) } else { n1 * by };
-        let mitre = if mitre.length() > 4.0 * by { mitre.normalized() * 4.0 * by } else { mitre };
-        here + mitre
-    })
 }

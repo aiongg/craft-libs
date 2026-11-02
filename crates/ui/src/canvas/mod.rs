@@ -170,7 +170,7 @@ pub use pointer::{CanvasButtons, PenFeed, PenInput, PenSample};
 pub use raster::{CheckerColors, CheckerSize, Checkerboard, PixelRect, RasterDisplay, RasterResponse, RasterSource};
 pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
-pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
+pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse, unit_entries};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
 pub use selection_bar::{SelectionBar, SelectionBarLabels, SelectionBarResponse};
 pub use selection_operation::{SelectionOperation, SelectionOperationLabels};
