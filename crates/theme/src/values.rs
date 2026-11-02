@@ -2480,10 +2480,6 @@ pub const LAYER_STYLE_LIST_WIDTH: f32 = 190.0;
 pub const LAYER_STYLE_PAGE_WIDTH: f32 = 330.0;
 /// A Styles page thumbnail's side: `layer_style.preset_thumb`.
 pub const LAYER_STYLE_PRESET_THUMB: f32 = 32.0;
-/// The gap between Styles page thumbnails: `layer_style.preset_gap`.
-pub const LAYER_STYLE_PRESET_GAP: f32 = 4.0;
-/// A Styles page thumbnail's corner radius: `layer_style.preset_radius`.
-pub const LAYER_STYLE_PRESET_RADIUS: f32 = 2.0;
 /// The Styles page's scroll height: `layer_style.presets_height`.
 pub const LAYER_STYLE_PRESETS_HEIGHT: f32 = 340.0;
 /// The contour field's thumbnail side: `layer_style.contour_thumb`.

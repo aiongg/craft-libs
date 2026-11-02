@@ -114,8 +114,8 @@ craft_ui::words! {
         blend_if: "layerStyle.blendIf" = "Blend If:";
         /// The Blend If entry of a colour document's composite.
         gray: "layerStyle.gray" = "Gray";
-        this_layer: "layerStyle.thisLayer" = "This Layer:";
-        underlying_layer: "layerStyle.underlyingLayer" = "Underlying Layer:";
+        this_layer: "layerStyle.thisLayer" = "This Layer";
+        underlying_layer: "layerStyle.underlyingLayer" = "Underlying Layer";
     }
 }
 
@@ -232,6 +232,11 @@ craft_ui::words! {
         /// A handle's name: `{handle}` is one of the four above, `{layer}` the bar's name ("This
         /// Layer").
         handle: "blendIf.handle" = "{handle}, {layer}";
+        /// A split side's levels in the readout: `{low}` and `{high}`.
+        split_levels: "blendIf.splitLevels" = "{low} / {high}";
+        /// The readout over the bar: `{black}` is the black handles' side, `{white}` the white
+        /// handles'.
+        readout: "blendIf.readout" = "{black}    {white}";
     }
 }
 
@@ -249,14 +254,14 @@ craft_ui::words! {
         replace_contours: "contourField.replaceContours" = "Replace Contours…";
         save_contours: "contourField.saveContours" = "Save Contours…";
         delete_contour: "contourField.deleteContour" = "Delete Contour";
-        preset: "contourField.preset" = "Preset:";
+        preset: "contourField.preset" = "Preset";
         input: "contourField.input" = "Input:";
         output: "contourField.output" = "Output:";
         corner: "contourField.corner" = "Corner";
         new: "contourField.new" = "New…";
         load: "contourField.load" = "Load…";
         save: "contourField.save" = "Save…";
-        name: "contourField.name" = "Name:";
+        name: "contourField.name" = "Name";
         ok: "" = "OK";
         cancel: "" = "Cancel";
     }

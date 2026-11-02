@@ -10,7 +10,8 @@ use egui::{Align, AsIdSalt, IdSalt, Layout, RichText, Sense, Ui, UiBuilder, vec2
 use craft_ui::controls::{BlendChoice, Checkbox};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
-use craft_ui::edit::{EditEvent, EditResponse};
+use craft_ui::edit::parts::Edits;
+use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Divider, Gap, Stack};
 use craft_ui::theme::{Tokens, TokensOf as _};
@@ -18,8 +19,8 @@ use craft_ui::theme::{Tokens, TokensOf as _};
 use super::blending::{BlendingInput, blending_page};
 use super::contour::ContourAction;
 use super::labels::{BlendIfBarLabels, ContourFieldLabels, LayerStyleLabels};
-use super::list::{ListAction, effect_list};
-use super::page::{PageInput, PatternChoice, effect_page};
+use super::list::{ListAction, ListOp, effect_list};
+use super::page::{PageInput, PatternChoice, StyleOp, apply_op, edit_style, effect_page};
 use super::styles::{StylePresets, styles_page};
 use crate::layer_style::{Contour, EffectId, EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, LayerStylePage, StyleParams, StyleValue};
 
@@ -60,11 +61,17 @@ pub struct LayerStyleOutput {
     pub reset_to_default: Option<EffectId>,
     /// A request for the host's contour library from a contour field.
     pub contour_action: Option<ContourAction>,
+    /// A parameter value the page shows from a default the draft lacks (a Pattern Overlay with no
+    /// pattern shows the first one): the instance, the parameter's key and the value. It is not an
+    /// edit: [`apply_view`](LayerStyleOutput::apply_view) writes it into the draft without an undo
+    /// step, and the report stops.
+    pub fill_default: Option<(EffectId, String, StyleValue)>,
 }
 
 impl LayerStyleOutput {
-    /// Writes the view state this pass reported (page, Preview, Blend If channel) into `draft`.
-    /// The style edit is the host's, as its history rules apply it.
+    /// Writes the view state this pass reported (page, Preview, Blend If channel) and the
+    /// [`fill_default`](LayerStyleOutput::fill_default) into `draft`. The style edit is the host's,
+    /// as its history rules apply it.
     pub fn apply_view(&self, draft: &mut LayerStyleDraft) {
         if let Some(page) = self.page {
             draft.page = page;
@@ -74,6 +81,9 @@ impl LayerStyleOutput {
         }
         if let Some(channel) = self.blend_if_channel {
             draft.blend_if_channel = channel;
+        }
+        if let Some((id, key, value)) = &self.fill_default {
+            draft.set_param(*id, key, value.clone());
         }
     }
 }
@@ -122,6 +132,7 @@ pub struct LayerStyleDialog<'a> {
     user_contours: &'a [Contour],
     style_presets: Option<StylePresets<'a>>,
     labels: Option<LayerStyleLabels>,
+    policy: EditPolicy,
     enabled: bool,
 }
 
@@ -141,6 +152,7 @@ impl<'a> LayerStyleDialog<'a> {
             user_contours: &[],
             style_presets: None,
             labels: None,
+            policy: EditPolicy::default(),
             enabled: true,
         }
     }
@@ -191,6 +203,12 @@ impl<'a> LayerStyleDialog<'a> {
         self
     }
 
+    /// How a drag or a typing run in a page reports; realtime by default.
+    pub fn policy(mut self, policy: EditPolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -218,6 +236,7 @@ impl<'a> LayerStyleDialog<'a> {
             user_contours,
             mut style_presets,
             labels,
+            policy,
             enabled,
         } = self;
         let id = ui.make_persistent_id(id_salt);
@@ -243,49 +262,55 @@ impl<'a> LayerStyleDialog<'a> {
         if !enabled {
             builder = builder.disabled();
         }
-        let mut work = Work { next: draft.clone(), shown: draft.page, event: None, list_changed: false, extras: Extras::default() };
+        let mut work = Work { next: draft.clone(), shown: draft.page, extras: Extras::default() };
         let scope = ui.scope_builder(builder, |ui| {
             let layout = if direction::is_rtl(ui) { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) };
-            ui.with_layout(layout, |ui| {
-                let list = ui.scope(|ui| effect_list(ui, draft, specs, &labels, numbers, enabled));
-                if let Some(action) = list.inner {
-                    work.list_action(action, specs);
-                }
-                let (slot, _) = ui.allocate_exact_size(vec2(ui.spacing().item_spacing.x, 0.0), Sense::hover());
-                let page = ui.scope(|ui| {
-                    ui.set_width(style.page_width);
-                    let page_id = ("page", work.shown);
-                    let title = page_title(work.shown, &work.next, &labels);
-                    let group = UiBuilder::new().id_salt(page_id).accessibility_role(Role::Group).accessibility_label(title);
-                    ui.scope_builder(group, |ui| {
-                        Stack::new(Gap::Row).show(ui, |ui| {
-                            let env = PageEnv {
-                                specs,
-                                blend_modes,
-                                patterns,
-                                user_contours,
-                                channel_names,
-                                numbers,
-                                labels: &labels,
-                                contour_labels: &contour_labels,
-                                bar_labels: &bar_labels,
-                                enabled,
-                            };
-                            work.page(ui, &env, style_presets.as_mut());
+            let ((), event) = edit_style(ui, id.with("style"), &draft.style, policy, enabled, |ui, edits| {
+                ui.with_layout(layout, |ui| {
+                    let list = ui.scope(|ui| effect_list(ui, draft, specs, &labels, numbers, enabled));
+                    // The list's change goes first: the page is built on the style it leaves.
+                    let op = list.inner.and_then(|action| work.list_action(action, specs));
+                    let ops = op.clone().map(StyleOp::List);
+                    let event = ops.as_ref().map(|_| EditEvent::set(draft.style.clone(), egui::Modifiers::NONE));
+                    let change = EditResponse::new(list.response.clone(), event);
+                    edits.push(&change, ops, apply_op, |_, base| match &op {
+                        Some(op) => apply_op(&StyleOp::List(op.clone()), base).unwrap_or_else(|| base.clone()),
+                        None => base.clone(),
+                    });
+                    let (slot, _) = ui.allocate_exact_size(vec2(ui.spacing().item_spacing.x, 0.0), Sense::hover());
+                    let page = ui.scope(|ui| {
+                        ui.set_width(style.page_width);
+                        let page_id = ("page", work.shown);
+                        let title = page_title(work.shown, &work.next, &labels);
+                        let group = UiBuilder::new().id_salt(page_id).accessibility_role(Role::Group).accessibility_label(title);
+                        ui.scope_builder(group, |ui| {
+                            Stack::new(Gap::Row).show(ui, |ui| {
+                                let env = PageEnv {
+                                    specs,
+                                    blend_modes,
+                                    patterns,
+                                    user_contours,
+                                    channel_names,
+                                    numbers,
+                                    labels: &labels,
+                                    contour_labels: &contour_labels,
+                                    bar_labels: &bar_labels,
+                                    enabled,
+                                };
+                                work.page(ui, &env, style_presets.as_mut(), edits);
+                            });
                         });
                     });
+                    let top = list.response.rect.top();
+                    let bottom = list.response.rect.bottom().max(page.response.rect.bottom());
+                    Divider::paint(ui.painter(), egui::pos2(slot.center().x, top), egui::pos2(slot.center().x, bottom), &tokens);
                 });
-                let top = list.response.rect.top();
-                let bottom = list.response.rect.bottom().max(page.response.rect.bottom());
-                Divider::paint(ui.painter(), egui::pos2(slot.center().x, top), egui::pos2(slot.center().x, bottom), &tokens);
             });
+            event
         });
-        let Work { next, event, list_changed, extras, .. } = work;
-        // A list change reaches the host as its own `Set` unless a page edit of the pass already
-        // carries it: the page edits are built on the copy the list action changed.
-        let event = event.or_else(|| list_changed.then(|| EditEvent::set(next.style.clone(), egui::Modifiers::NONE)));
+        let Work { next, extras, .. } = work;
         LayerStyleOutput {
-            edit: EditResponse::new(scope.response, event),
+            edit: EditResponse::new(scope.response, scope.inner),
             page: (next.page != draft.page).then_some(next.page),
             preview: (next.preview != draft.preview).then_some(next.preview),
             blend_if_channel: (next.blend_if_channel != draft.blend_if_channel).then_some(next.blend_if_channel),
@@ -295,6 +320,7 @@ impl<'a> LayerStyleDialog<'a> {
             make_default: extras.make_default,
             reset_to_default: extras.reset_to_default,
             contour_action: extras.contour_action,
+            fill_default: extras.fill_default,
         }
     }
 
@@ -337,56 +363,55 @@ struct Extras {
     make_default: Option<(EffectKind, StyleParams)>,
     reset_to_default: Option<EffectId>,
     contour_action: Option<ContourAction>,
+    fill_default: Option<(EffectId, String, StyleValue)>,
 }
 
-/// The pass's working copy of the draft and what it has reported so far.
+/// The pass's working copy of the draft, for the view state the pass changes. The style is the
+/// edit queue's.
 struct Work {
     next: LayerStyleDraft,
     /// The page the pass draws: the draft's, whatever a list action in this pass chose.
     shown: LayerStylePage,
-    /// The first style edit of a page.
-    event: Option<EditEvent<LayerStyle>>,
-    /// A list action changed the style of the copy.
-    list_changed: bool,
     extras: Extras,
 }
 
 impl Work {
-    /// Applies a list action to the copy; a style change is reported after the page is drawn.
-    fn list_action(&mut self, action: ListAction, specs: &[EffectSpec]) {
-        let before = self.next.style.clone();
+    /// Applies a list action to the copy (its view state: the page an added effect opens on) and
+    /// returns its change to the style, which the edit queue applies.
+    fn list_action(&mut self, action: ListAction, specs: &[EffectSpec]) -> Option<ListOp> {
         match action {
-            ListAction::Select(page) => self.next.page = page,
-            ListAction::Toggle(id) => self.next.toggle(id),
+            ListAction::Select(page) => {
+                self.next.page = page;
+                None
+            }
+            ListAction::Toggle(id) => {
+                self.next.toggle(id);
+                Some(ListOp::Toggle(id))
+            }
             ListAction::Add(kind) => {
                 let defaults = specs.iter().find(|spec| spec.kind == kind).map(|spec| spec.defaults.clone()).unwrap_or_default();
                 self.next.add_instance(kind, &defaults);
+                Some(ListOp::Add { kind, defaults })
             }
-            ListAction::Remove(id) => self.next.remove_instance(id),
-        }
-        self.list_changed = self.next.style != before;
-    }
-
-    /// Keeps the first event of the pass.
-    fn report(&mut self, event: EditEvent<LayerStyle>) {
-        if self.event.is_none() {
-            self.event = Some(event);
+            ListAction::Remove(id) => {
+                self.next.remove_instance(id);
+                Some(ListOp::Remove(id))
+            }
         }
     }
 
-    /// Draws the page of the copy.
-    fn page(&mut self, ui: &mut Ui, env: &PageEnv<'_>, presets: Option<&mut StylePresets<'_>>) {
+    /// Draws the page of the pass; its controls push their edits to `edits`.
+    fn page(&mut self, ui: &mut Ui, env: &PageEnv<'_>, presets: Option<&mut StylePresets<'_>>, edits: &mut Edits<LayerStyle, StyleOp>) {
         let labels = env.labels;
         let page = self.shown;
         let instance = match page {
-            LayerStylePage::Effect(id) => self.next.style.effect(id).cloned(),
+            LayerStylePage::Effect(id) => edits.value().effect(id).cloned(),
             _ => None,
         };
         match (page, instance) {
             (LayerStylePage::Blending, _) => {
                 self.title_with_preview(ui, labels, &labels.blending_options);
                 let input = BlendingInput {
-                    blending: &self.next.style.blending,
                     blend_if_channel: self.next.blend_if_channel,
                     channel_names: env.channel_names,
                     blend_modes: env.blend_modes,
@@ -395,11 +420,7 @@ impl Work {
                     numbers: env.numbers,
                     enabled: env.enabled,
                 };
-                let out = blending_page(ui, &input);
-                if let Some(event) = out.edit {
-                    let base = self.next.style.clone();
-                    self.report(event.map(|blending| LayerStyle { blending, ..base }));
-                }
+                let out = blending_page(ui, &input, edits);
                 if let Some(channel) = out.blend_if_channel {
                     self.next.blend_if_channel = channel;
                 }
@@ -418,20 +439,12 @@ impl Work {
                     numbers: env.numbers,
                     enabled: env.enabled,
                 };
-                let out = effect_page(ui, &input);
-                if let Some(edit) = out.edit {
-                    let base = self.next.clone();
-                    let key = edit.key;
-                    self.report(edit.event.map(|value| {
-                        let mut draft = base;
-                        draft.set_param(id, &key, value);
-                        draft.style
-                    }));
-                }
+                let out = effect_page(ui, &input, edits);
                 self.extras.pick_color = out.pick_color;
                 self.extras.contour_action = out.contour_action;
                 self.extras.make_default = out.make_default.map(|params| (instance.kind, params));
                 self.extras.reset_to_default = out.reset_to_default.then_some(id);
+                self.extras.fill_default = out.fill_default.map(|(key, value)| (id, key, value));
             }
             (LayerStylePage::Effect(_), None) => {}
             (LayerStylePage::Styles, _) => {
@@ -468,7 +481,7 @@ fn page_title(page: LayerStylePage, draft: &LayerStyleDraft, labels: &LayerStyle
 pub(super) fn title_row<R>(ui: &mut Ui, title: &str, end: impl FnOnce(&mut Ui) -> R) -> R {
     let style = LayerStyleDialog::style(&Tokens::of(ui));
     direction::horizontal(ui, |ui| {
-        ui.label(RichText::new(title).font(style.title_font.clone()).color(style.title_colour));
+        ui.label(RichText::new(title).font(style.title_font.clone()).color(style.title_color));
         ui.with_layout(direction::trailing(ui), end).inner
     })
     .inner

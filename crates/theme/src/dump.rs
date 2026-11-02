@@ -3065,28 +3065,26 @@ fn layer_style_lines(out: &mut Lines, t: &LayerStyleTokens) {
         list_width,
         page_width,
         preset_thumb,
-        preset_gap,
-        preset_radius,
         presets_height,
         contour_thumb,
         contour_arrow,
         contour_cell,
         contour_graph,
+        contour_border,
     } = t;
     out.line("layer_style.list_width", len(*list_width));
     out.line("layer_style.page_width", len(*page_width));
     out.line("layer_style.preset_thumb", len(*preset_thumb));
-    out.line("layer_style.preset_gap", len(*preset_gap));
-    out.line("layer_style.preset_radius", len(*preset_radius));
     out.line("layer_style.presets_height", len(*presets_height));
     out.line("layer_style.contour_thumb", len(*contour_thumb));
     out.line("layer_style.contour_arrow", len(*contour_arrow));
     out.line("layer_style.contour_cell", len(*contour_cell));
     out.line("layer_style.contour_graph", len(*contour_graph));
+    out.line("layer_style.contour_border", hex(*contour_border));
 }
 
 fn blend_if_lines(out: &mut Lines, t: &BlendIfTokens) {
-    let BlendIfTokens { width_min, width_max, height, ramp, inset, handle_width, handle_height } = t;
+    let BlendIfTokens { width_min, width_max, height, ramp, inset, handle_width, handle_height, ramp_border } = t;
     out.line("blend_if.width_min", len(*width_min));
     out.line("blend_if.width_max", len(*width_max));
     out.line("blend_if.height", len(*height));
@@ -3094,6 +3092,7 @@ fn blend_if_lines(out: &mut Lines, t: &BlendIfTokens) {
     out.line("blend_if.inset", len(*inset));
     out.line("blend_if.handle_width", len(*handle_width));
     out.line("blend_if.handle_height", len(*handle_height));
+    out.line("blend_if.ramp_border", hex(*ramp_border));
 }
 
 fn add_beside_lines(out: &mut Lines, t: &AddBesideTokens) {

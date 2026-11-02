@@ -6,7 +6,7 @@ use egui::{AsIdSalt, Color32, EventFilter, Id, IdSalt, Key, Modifiers, Pos2, Rec
 
 use craft_ui::direction;
 use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::Interactive;
 use craft_ui::theme::{Tokens, TokensOf as _};
 
@@ -26,7 +26,7 @@ pub(crate) const WHITE_FACE: Color32 = Color32::from_gray(240);
 
 /// A Blend If slider: a black-to-white ramp (`blend_if.ramp` high, `blend_if.inset` in from each
 /// side, the bar's width the available width clamped to `blend_if.width_min..=width_max`,
-/// 120..=320; a 32-strip grey ramp with a `field.border` outline) with a black and a white
+/// 120..=320; a 32-strip grey ramp with a `blend_if.ramp_border` outline) with a black and a white
 /// handle under it, each split into two halves by Alt (the layer fades between them). A split
 /// pair shows two half triangles; an unsplit pair one whole triangle (`blend_if.handle_width` ×
 /// `blend_if.handle_height`, faces grey 20 and grey 240, edges `text.muted`). The
@@ -48,20 +48,35 @@ pub struct BlendIfBar {
     layer: String,
     range: BlendIfRange,
     labels: Option<BlendIfBarLabels>,
+    numbers: Option<LocaleNumbers>,
     policy: EditPolicy,
     enabled: bool,
 }
 
 impl BlendIfBar {
-    /// A bar named `layer` ("This Layer", "Underlying Layer": the host's words without the colon)
-    /// over `range`.
+    /// A bar named `layer` ("This Layer", "Underlying Layer") over `range`.
     pub fn new(id_salt: impl AsIdSalt, layer: impl Into<String>, range: BlendIfRange) -> Self {
-        BlendIfBar { id_salt: IdSalt::new(id_salt), layer: layer.into(), range, labels: None, policy: EditPolicy::default(), enabled: true }
+        BlendIfBar {
+            id_salt: IdSalt::new(id_salt),
+            layer: layer.into(),
+            range,
+            labels: None,
+            numbers: None,
+            policy: EditPolicy::default(),
+            enabled: true,
+        }
     }
 
     /// The handles' accessible names; the installed words by default.
     pub fn labels(mut self, labels: BlendIfBarLabels) -> Self {
         self.labels = Some(labels);
+        self
+    }
+
+    /// How the levels are written (readout and accessible values); the installed region's by
+    /// default.
+    pub fn numbers(mut self, numbers: &LocaleNumbers) -> Self {
+        self.numbers = Some(numbers.clone());
         self
     }
 
@@ -81,10 +96,11 @@ impl BlendIfBar {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:1333-1344 (readout above the bar),
         // :1368-1454 `blend_if_bar` (ramp, nearest handle, drag rules, triangles).
         // new: keys, Tab stops and AccessKit (lead call L17); look from `BlendIfBar::style`.
-        let Self { id_salt, layer, range, labels, policy, enabled } = self;
+        let Self { id_salt, layer, range, labels, numbers, policy, enabled } = self;
         let tokens = Tokens::of(ui);
         let style = BlendIfBar::style(&tokens);
         let labels = labels.unwrap_or_else(|| BlendIfBarLabels::of(ui));
+        let numbers = numbers.unwrap_or_else(|| (*LocaleNumbers::of(ui)).clone());
         let id = ui.make_persistent_id(id_salt);
         let enabled = enabled && ui.is_enabled();
         let mut gesture = Gesture::load(ui, id, &range, policy).enabled(enabled);
@@ -92,7 +108,7 @@ impl BlendIfBar {
         let width = ui.available_width().clamp(style.width_min, style.width_max);
         // The readout's line is as high as its text; the text itself is painted once the drag of
         // this pass has moved the handles.
-        let line = ui.painter().layout_no_wrap(readout(&range), style.readout_font.clone(), style.readout_colour).size().y;
+        let line = ui.painter().layout_no_wrap(readout(&range, &numbers, &labels), style.readout_font.clone(), style.readout_color).size().y;
         let (readout_rect, _) = ui.allocate_exact_size(vec2(width, line), Sense::hover());
         let (rect, _) = ui.allocate_exact_size(vec2(width, style.height), Sense::hover());
         let response = ui.interact(rect, id, Sense::CLICK | Sense::DRAG);
@@ -108,26 +124,30 @@ impl BlendIfBar {
         }
         let value = *gesture.shown();
 
-        paint_readout(ui, &style, readout_rect, &value);
+        paint_readout(ui, &style, readout_rect, readout(&value, &numbers, &labels));
         paint_ramp(ui, &style, ramp);
-        paint_handles(ui, &style, &labels, &layer, ramp, value, &handle_id, enabled);
+        paint_handles(ui, &style, &labels, &numbers, &layer, ramp, value, &handle_id, enabled);
 
         let event = gesture.finish();
         EditResponse::new(response, event)
     }
 }
 
-/// "0 / 20    255": a split side as "low / high", an unsplit one as its level.
-fn readout(range: &BlendIfRange) -> String {
-    let side = |low: u8, high: u8| if low == high { low.to_string() } else { format!("{low} / {high}") };
+/// "0 / 20    255": a split side as "low / high", an unsplit one as its level, in the region's digits
+/// and the words' layout.
+fn readout(range: &BlendIfRange, numbers: &LocaleNumbers, labels: &BlendIfBarLabels) -> String {
+    let level = |level: u8| numbers.format(f64::from(level), 0..=0);
+    let side = |low: u8, high: u8| {
+        if low == high { level(low) } else { craft_i18n::fmt(&labels.split_levels, &[("low", level(low).as_str()), ("high", level(high).as_str())]) }
+    };
     let [a, b, c, d] = range.0;
-    format!("{}    {}", side(a, b), side(c, d))
+    craft_i18n::fmt(&labels.readout, &[("black", side(a, b).as_str()), ("white", side(c, d).as_str())])
 }
 
-fn paint_readout(ui: &Ui, style: &BlendIfBarStyle, rect: Rect, range: &BlendIfRange) {
+fn paint_readout(ui: &Ui, style: &BlendIfBarStyle, rect: Rect, text: String) {
     let align = if direction::is_rtl(ui) { egui::Align2::LEFT_TOP } else { egui::Align2::RIGHT_TOP };
     let at = if direction::is_rtl(ui) { rect.left_top() } else { rect.right_top() };
-    ui.painter().text(at, align, readout(range), style.readout_font.clone(), style.readout_colour);
+    ui.painter().text(at, align, text, style.readout_font.clone(), style.readout_color);
 }
 
 /// The black-to-white ramp as vertical strips with an outline. It never mirrors: it is a tone
@@ -247,6 +267,7 @@ fn paint_handles(
     ui: &mut Ui,
     style: &BlendIfBarStyle,
     labels: &BlendIfBarLabels,
+    numbers: &LocaleNumbers,
     layer: &str,
     ramp: Rect,
     value: BlendIfRange,
@@ -272,14 +293,14 @@ fn paint_handles(
                 (x, x + half)
             };
             let rect = Rect::from_x_y_ranges(left..=right, top..=top + style.handle_height);
-            let name = labels.handle.replace("{handle}", names[h]).replace("{layer}", layer);
+            let name = craft_i18n::fmt(&labels.handle, &[("handle", names[h]), ("layer", layer)]);
             let sensed = Interactive::with_id(handle_id(h), Role::Slider, name)
                 .sense(Sense::focusable_noninteractive())
                 .enabled(enabled)
                 .state_layer(false)
                 .interact_at(ui, rect)
                 .numeric(f64::from(q[h]), 0.0..=255.0, 1.0)
-                .value(q[h].to_string());
+                .value(numbers.format(f64::from(q[h]), 0..=0));
             sensed.finish(ui);
             // Draw a whole triangle once, from the pair's first handle.
             if whole && side > 0.0 {
