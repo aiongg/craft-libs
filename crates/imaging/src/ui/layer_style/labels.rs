@@ -262,6 +262,22 @@ craft_ui::words! {
         load: "contourField.load" = "Load…";
         save: "contourField.save" = "Save…";
         name: "contourField.name" = "Name";
+        /// The name New… suggests for the edited curve.
+        suggested_name: "contourField.suggestedName" = "Contour";
+        /// The built-in presets' names (Photoshop's), and the name of an edited preset.
+        preset_linear: "contourField.presetLinear" = "Linear";
+        preset_cone: "contourField.presetCone" = "Cone";
+        preset_cone_inverted: "contourField.presetConeInverted" = "Cone - Inverted";
+        preset_cove_deep: "contourField.presetCoveDeep" = "Cove - Deep";
+        preset_cove_shallow: "contourField.presetCoveShallow" = "Cove - Shallow";
+        preset_gaussian: "contourField.presetGaussian" = "Gaussian";
+        preset_half_round: "contourField.presetHalfRound" = "Half Round";
+        preset_ring: "contourField.presetRing" = "Ring";
+        preset_ring_double: "contourField.presetRingDouble" = "Ring - Double";
+        preset_rolling_slope: "contourField.presetRollingSlope" = "Rolling Slope - Descending";
+        preset_rounded_steps: "contourField.presetRoundedSteps" = "Rounded Steps";
+        preset_sawtooth: "contourField.presetSawtooth" = "Sawtooth 1";
+        preset_custom: "contourField.presetCustom" = "Custom";
         ok: "" = "OK";
         cancel: "" = "Cancel";
     }

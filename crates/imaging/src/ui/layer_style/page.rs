@@ -3,7 +3,7 @@
 use egui::{AsIdSalt, Id, Modifiers, Ui, UiBuilder};
 
 use craft_theme::{Srgba, TypeRole};
-use craft_ui::composites::SliderRow;
+use craft_ui::composites::{Sampler, SliderRow};
 use craft_ui::controls::{AngleDial, BlendChoice, Button, Checkbox, Select, Swatch};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
@@ -15,7 +15,7 @@ use craft_ui::theme::{Tokens, TokensOf as _, role_format};
 
 use super::LayerStyleDialog;
 use super::blending::BlendingOp;
-use super::contour::{ContourAction, ContourField};
+use super::contour::{ContourAction, ContourField, ContourRequest};
 use super::labels::{ContourFieldLabels, LayerStyleLabels};
 use super::list::ListOp;
 use crate::layer_style::{
@@ -37,6 +37,7 @@ pub(super) struct PageInput<'a> {
     pub blend_modes: &'a [BlendChoice],
     pub patterns: &'a [PatternChoice],
     pub user_contours: &'a [Contour],
+    pub sampler: Option<&'a Sampler>,
     pub labels: &'a LayerStyleLabels,
     pub contour_labels: &'a ContourFieldLabels,
     pub numbers: &'a LocaleNumbers,
@@ -124,7 +125,11 @@ pub(super) struct PageOutput {
     /// A colour swatch was clicked: key `"{instance id}/{parameter key}"` (`"fx2/color"`),
     /// titled [`LayerStyleLabels::color_picker_title`].
     pub pick_color: Option<ColorRequest>,
+    /// A library request from a contour field.
     pub contour_action: Option<ContourAction>,
+    /// A click on a contour field's thumbnail: the key `"{instance id}/{parameter key}"` and the
+    /// contour, for a [`ContourEditorDialog`](super::ContourEditorDialog).
+    pub edit_contour: Option<ContourRequest>,
     /// Make Default: the page's shown values (the defaults under the instance's).
     pub make_default: Option<StyleParams>,
     /// Reset to Default was pressed.
@@ -360,12 +365,15 @@ fn field_row(
                 _ => Contour::linear(),
             };
             let aa = anti_alias.as_deref().map(|k| shown.bool(k).unwrap_or(false));
-            let response = ContourField::new(salt, label.as_str(), &contour)
+            let mut field = ContourField::new(salt, label.as_str(), &contour)
                 .anti_alias(aa)
                 .user_contours(input.user_contours)
                 .labels(input.contour_labels.clone())
-                .enabled(enabled)
-                .show(ui);
+                .enabled(enabled);
+            if let Some(sampler) = input.sampler {
+                field = field.sampler(sampler);
+            }
+            let response = field.show(ui);
             let edit = EditResponse::new(response.response.clone(), response.edit);
             push_param(edits, &edit, edit.response.id, target, false, |v: &Contour| StyleValue::Contour(v.clone()));
             if let Some(aa_key) = anti_alias.as_deref() {
@@ -373,8 +381,12 @@ fn field_row(
                 let edit = EditResponse::new(response.response.clone(), set);
                 push_param(edits, &edit, edit.response.id.with("antiAlias"), (input.instance.id, aa_key), false, |v: &bool| StyleValue::Bool(*v));
             }
-            if response.action.is_some() {
-                out.contour_action = response.action;
+            match response.action {
+                Some(ContourAction::Edit(contour)) => {
+                    out.edit_contour = Some(ContourRequest { key: format!("{}/{key}", input.instance.id.key()), contour });
+                }
+                Some(action) => out.contour_action = Some(action),
+                None => {}
             }
         }
         FieldKind::Check => {

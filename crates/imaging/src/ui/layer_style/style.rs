@@ -76,11 +76,6 @@ pub struct ContourFieldStyle {
     pub cell: f32,
     /// The Contour Editor's graph: `layer_style.contour_graph` (220, `:358`).
     pub graph: f32,
-    /// The curve in a thumbnail: `text.normal`; the thumbnail's border `layer_style.contour_border`;
-    /// its fill `surface.sunken`.
-    pub curve: Color32,
-    pub border: Color32,
-    pub fill: Color32,
 }
 
 impl LayerStyleDialog<'_> {
@@ -132,15 +127,7 @@ impl ContourField<'_> {
     pub fn style(tokens: &UiTokens) -> ContourFieldStyle {
         // pc: crates/ui-egui/src/dialogs/layer_style/contour.rs:111 (36), :119 (14), :142 (40),
         // :358 (220).
-        let (l, c) = (&tokens.component.layer_style, &tokens.color);
-        ContourFieldStyle {
-            thumb: l.contour_thumb,
-            arrow: l.contour_arrow,
-            cell: l.contour_cell,
-            graph: l.contour_graph,
-            curve: c.text.normal.to_egui(),
-            border: l.contour_border.to_egui(),
-            fill: c.surface.sunken.to_egui(),
-        }
+        let l = &tokens.component.layer_style;
+        ContourFieldStyle { thumb: l.contour_thumb, arrow: l.contour_arrow, cell: l.contour_cell, graph: l.contour_graph }
     }
 }

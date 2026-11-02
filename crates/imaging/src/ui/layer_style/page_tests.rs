@@ -12,9 +12,10 @@ use craft_ui::localized::LocaleNumbers;
 use craft_ui::theme::{Base, install};
 
 use super::blending::{BlendingInput, blend_if_entry_label, blending_page};
+use super::contour::ContourRequest;
 use super::labels::{BlendIfBarLabels, ContourFieldLabels, LayerStyleLabels};
 use super::page::{PageInput, PatternChoice, edit_style, effect_page, first_invalid};
-use crate::layer_style::{Blending, EffectId, EffectInstance, EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, StyleParams, StyleValue};
+use crate::layer_style::{Blending, Contour, EffectId, EffectInstance, EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, StyleParams, StyleValue};
 
 const SIZE: [f32; 2] = [360.0, 1800.0];
 
@@ -31,6 +32,7 @@ struct PageRig {
     patterns: Vec<PatternChoice>,
     edits: Vec<EditEvent<LayerStyle>>,
     requests: Vec<ColorRequest>,
+    contour_requests: Vec<ContourRequest>,
     made: Vec<StyleParams>,
     fills: Vec<(String, StyleValue)>,
 }
@@ -44,7 +46,17 @@ fn page_rig_of(kind: EffectKind, params: Option<StyleParams>, apply: bool, patte
     let params = params.unwrap_or_else(|| spec.defaults.clone());
     let effects = vec![EffectInstance { id: EffectId(1), kind, on: true, params }];
     let draft = LayerStyleDraft::new(LayerStyle { effects, ..LayerStyle::default() });
-    let state = PageRig { spec, draft, apply, patterns, edits: Vec::new(), requests: Vec::new(), made: Vec::new(), fills: Vec::new() };
+    let state = PageRig {
+        spec,
+        draft,
+        apply,
+        patterns,
+        edits: Vec::new(),
+        requests: Vec::new(),
+        contour_requests: Vec::new(),
+        made: Vec::new(),
+        fills: Vec::new(),
+    };
     let mut h = Harness::builder().with_size(SIZE).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, rig: &mut PageRig| {
             let (labels, contour_labels, numbers) = (LayerStyleLabels::default(), ContourFieldLabels::default(), LocaleNumbers::from_tag("en"));
@@ -55,6 +67,7 @@ fn page_rig_of(kind: EffectKind, params: Option<StyleParams>, apply: bool, patte
                 blend_modes: &[],
                 patterns: &rig.patterns,
                 user_contours: &[],
+                sampler: None,
                 labels: &labels,
                 contour_labels: &contour_labels,
                 numbers: &numbers,
@@ -69,6 +82,7 @@ fn page_rig_of(kind: EffectKind, params: Option<StyleParams>, apply: bool, patte
                 rig.edits.push(event);
             }
             rig.requests.extend(out.pick_color);
+            rig.contour_requests.extend(out.edit_contour);
             rig.made.extend(out.make_default);
             rig.fills.extend(out.fill_default);
         },
@@ -89,6 +103,19 @@ fn color_field_reports_a_colour_request_with_the_effect_and_key() {
     let requests = &h.state().requests;
     let [request] = requests.as_slice() else { panic!("one request: {}", requests.len()) };
     assert_eq!((&request.key, &request.title, request.color), (&expected.key, &expected.title, expected.color));
+}
+
+// A click on Drop Shadow's Contour thumbnail reports a ContourRequest keyed "fx1/contour" with the
+// stored contour (Linear by default) and opens nothing itself.
+#[test]
+fn contour_thumbnail_reports_a_contour_request_with_the_effect_and_key() {
+    let mut h = page_rig(None, false);
+    h.get_by_role_and_label(Role::Button, "Contour Editor").click();
+    h.run_steps(3);
+    let requests = &h.state().contour_requests;
+    let [request] = requests.as_slice() else { panic!("one request: {}", requests.len()) };
+    assert_eq!((request.key.as_str(), &request.contour), ("fx1/contour", &Contour::linear()));
+    assert!(h.query_by_role_and_label(Role::Button, "OK").is_none(), "the page opens no dialog");
 }
 
 // With Use Global Light on, dragging the Angle dial changes `global_light` and every globally lit

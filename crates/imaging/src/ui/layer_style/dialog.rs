@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use egui::{Align, AsIdSalt, IdSalt, Layout, RichText, Sense, Ui, UiBuilder, vec2};
 
+use craft_ui::composites::Sampler;
 use craft_ui::controls::{BlendChoice, Checkbox};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
@@ -17,7 +18,7 @@ use craft_ui::primitives::{Divider, Gap, Stack};
 use craft_ui::theme::{Tokens, TokensOf as _};
 
 use super::blending::{BlendingInput, blending_page};
-use super::contour::ContourAction;
+use super::contour::{ContourAction, ContourRequest};
 use super::labels::{BlendIfBarLabels, ContourFieldLabels, LayerStyleLabels};
 use super::list::{ListAction, ListOp, effect_list};
 use super::page::{PageInput, PatternChoice, StyleOp, apply_op, edit_style, effect_page};
@@ -61,6 +62,11 @@ pub struct LayerStyleOutput {
     pub reset_to_default: Option<EffectId>,
     /// A request for the host's contour library from a contour field.
     pub contour_action: Option<ContourAction>,
+    /// A contour field's thumbnail was clicked: the host opens a
+    /// [`ContourEditorDialog`](super::ContourEditorDialog) over the request as a child of the
+    /// Layer Style dialog, previews from its [`current`](super::ContourEditorDialog::current)
+    /// and answers with [`LayerStyleDialog::set_contour`].
+    pub edit_contour: Option<ContourRequest>,
     /// A parameter value the page shows from a default the draft lacks (a Pattern Overlay with no
     /// pattern shows the first one): the instance, the parameter's key and the value. It is not an
     /// edit: [`apply_view`](LayerStyleOutput::apply_view) writes it into the draft without an undo
@@ -130,6 +136,7 @@ pub struct LayerStyleDialog<'a> {
     blend_modes: &'a [BlendChoice],
     patterns: &'a [PatternChoice],
     user_contours: &'a [Contour],
+    sampler: Option<&'a Sampler>,
     style_presets: Option<StylePresets<'a>>,
     labels: Option<LayerStyleLabels>,
     policy: EditPolicy,
@@ -150,6 +157,7 @@ impl<'a> LayerStyleDialog<'a> {
             blend_modes: &[],
             patterns: &[],
             user_contours: &[],
+            sampler: None,
             style_presets: None,
             labels: None,
             policy: EditPolicy::default(),
@@ -188,6 +196,14 @@ impl<'a> LayerStyleDialog<'a> {
     /// The host's contour library, after the built-in presets in every contour picker.
     pub fn user_contours(mut self, contours: &'a [Contour]) -> Self {
         self.user_contours = contours;
+        self
+    }
+
+    /// The host's interpolation of a contour's points, so the contour fields draw the curve the
+    /// engine renders ([`ContourField::sampler`](super::ContourField::sampler)); a monotone cubic
+    /// by default.
+    pub fn sampler(mut self, sampler: &'a Sampler) -> Self {
+        self.sampler = Some(sampler);
         self
     }
 
@@ -234,6 +250,7 @@ impl<'a> LayerStyleDialog<'a> {
             blend_modes,
             patterns,
             user_contours,
+            sampler,
             mut style_presets,
             labels,
             policy,
@@ -290,6 +307,7 @@ impl<'a> LayerStyleDialog<'a> {
                                     blend_modes,
                                     patterns,
                                     user_contours,
+                                    sampler,
                                     channel_names,
                                     numbers,
                                     labels: &labels,
@@ -320,6 +338,7 @@ impl<'a> LayerStyleDialog<'a> {
             make_default: extras.make_default,
             reset_to_default: extras.reset_to_default,
             contour_action: extras.contour_action,
+            edit_contour: extras.edit_contour,
             fill_default: extras.fill_default,
         }
     }
@@ -330,12 +349,23 @@ impl<'a> LayerStyleDialog<'a> {
     pub fn set_color(draft: &mut LayerStyleDraft, key: &str, color: Srgba) -> bool {
         // pc: crates/ui-egui/src/dialogs/layer_style/color_picker.rs:128-136 `confirm` (the answer
         // written through `set_param` into the effect and field the request named).
+        Self::set_param_by_key(draft, key, StyleValue::Color(color))
+    }
+
+    /// Answers a [`ContourRequest`] the dialog made: sets the contour parameter its key names to
+    /// `contour` (the editor's live values and its OK; Cancel writes the editor's initial
+    /// contour). Returns false, changing nothing, for a key that names no instance of `draft`.
+    pub fn set_contour(draft: &mut LayerStyleDraft, key: &str, contour: Contour) -> bool {
+        Self::set_param_by_key(draft, key, StyleValue::Contour(contour))
+    }
+
+    fn set_param_by_key(draft: &mut LayerStyleDraft, key: &str, value: StyleValue) -> bool {
         let Some((id, field)) = key.split_once('/') else { return false };
         let Some(id) = EffectId::from_key(id).filter(|id| draft.style.effect(*id).is_some()) else { return false };
         if field.is_empty() {
             return false;
         }
-        draft.set_param(id, field, StyleValue::Color(color));
+        draft.set_param(id, field, value);
         true
     }
 }
@@ -346,6 +376,7 @@ struct PageEnv<'a> {
     blend_modes: &'a [BlendChoice],
     patterns: &'a [PatternChoice],
     user_contours: &'a [Contour],
+    sampler: Option<&'a Sampler>,
     channel_names: &'a [String],
     numbers: &'a LocaleNumbers,
     labels: &'a LayerStyleLabels,
@@ -363,6 +394,7 @@ struct Extras {
     make_default: Option<(EffectKind, StyleParams)>,
     reset_to_default: Option<EffectId>,
     contour_action: Option<ContourAction>,
+    edit_contour: Option<ContourRequest>,
     fill_default: Option<(EffectId, String, StyleValue)>,
 }
 
@@ -434,6 +466,7 @@ impl Work {
                     blend_modes: env.blend_modes,
                     patterns: env.patterns,
                     user_contours: env.user_contours,
+                    sampler: env.sampler,
                     labels,
                     contour_labels: env.contour_labels,
                     numbers: env.numbers,
@@ -442,6 +475,7 @@ impl Work {
                 let out = effect_page(ui, &input, edits);
                 self.extras.pick_color = out.pick_color;
                 self.extras.contour_action = out.contour_action;
+                self.extras.edit_contour = out.edit_contour;
                 self.extras.make_default = out.make_default.map(|params| (instance.kind, params));
                 self.extras.reset_to_default = out.reset_to_default.then_some(id);
                 self.extras.fill_default = out.fill_default.map(|(key, value)| (id, key, value));

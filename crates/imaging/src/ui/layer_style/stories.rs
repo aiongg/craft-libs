@@ -23,6 +23,7 @@ use craft_theme::Srgba;
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasView, Checkerboard};
 use craft_ui::controls::BlendChoice;
+use craft_ui::dialog::{DialogHost, DialogResult};
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::presets::{PresetRow, PresetState};
@@ -30,9 +31,11 @@ use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, lock, shared};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use craft_ui::typed_story;
-use egui::{Color32, CornerRadius, Painter, Rect, Sense, Stroke, StrokeKind, Ui, vec2};
+use egui::{Color32, Context, CornerRadius, Painter, Rect, Sense, Stroke, StrokeKind, Ui, vec2};
 
-use super::{BlendIfBar, ContourAction, ContourField, LayerStyleDialog, LayerStyleLabels, PatternChoice, StylePresets};
+use super::{
+    BlendIfBar, ContourAction, ContourEditorDialog, ContourField, ContourRequest, LayerStyleDialog, LayerStyleLabels, PatternChoice, StylePresets,
+};
 use crate::layer_style::{
     BlendIf, BlendIfRange, Blending, Contour, ContourPoint, EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, LayerStylePage, StyleParams,
     StyleValue,
@@ -148,6 +151,8 @@ struct Rig {
     presets: PresetState<String>,
     rows: Vec<PresetRow<String>>,
     library: Vec<Contour>,
+    /// The Contour Editor, opened on the story's own dialog stack.
+    dialogs: DialogHost,
     note: String,
 }
 
@@ -159,7 +164,7 @@ impl Rig {
             PresetRow::item("1".to_owned(), words.preset_outline.as_str(), 1),
             PresetRow::item("2".to_owned(), words.preset_raised.as_str(), 1),
         ];
-        Rig { draft, before: None, presets: PresetState::new(), rows, library: library(words), note: String::new() }
+        Rig { draft, before: None, presets: PresetState::new(), rows, library: library(words), dialogs: DialogHost::new(), note: String::new() }
     }
 }
 
@@ -282,6 +287,15 @@ fn run_dialog(ui: &mut Ui, rig: &mut Rig, env: &Env) {
     };
     out.apply_view(&mut rig.draft);
     apply_edit(out.edit.event, &mut rig.draft.style, &mut rig.before);
+    if let Some(request) = out.edit_contour {
+        drop(rig.dialogs.open_unless_open(ContourEditorDialog::new(request)));
+    }
+    {
+        let Rig { draft, dialogs, library, note, .. } = &mut *rig;
+        drive_editor(ui.ctx(), dialogs, &env.words, library, note, |key, contour| {
+            LayerStyleDialog::set_contour(draft, key, contour);
+        });
+    }
     if let Some(request) = out.pick_color {
         // The colour picker is the host's: answer with the accent, or the error colour when the
         // swatch already shows the accent.
@@ -308,6 +322,35 @@ fn run_dialog(ui: &mut Ui, rig: &mut Rig, env: &Env) {
     }
 }
 
+/// Shows the Contour Editor on the story's dialog stack and answers it as a host does: the live
+/// values go to `write` while it changes, OK writes its answer and Cancel the contour it opened
+/// with; Load…, Save… and New… are worded in `note`.
+fn drive_editor(
+    ctx: &Context,
+    dialogs: &mut DialogHost,
+    words: &LayerStyleStoryLabels,
+    library: &mut Vec<Contour>,
+    note: &mut String,
+    mut write: impl FnMut(&str, Contour),
+) {
+    let opened = dialogs.get::<ContourEditorDialog>().map(|dialog| (dialog.key().to_owned(), dialog.initial().clone()));
+    dialogs.show(ctx);
+    if let Some(dialog) = dialogs.get_mut::<ContourEditorDialog>() {
+        if dialog.changed() {
+            write(dialog.key(), dialog.current().clone());
+        }
+        if let Some(action) = dialog.take_action() {
+            *note = contour_note(words, action, library);
+        }
+    }
+    let Some((key, initial)) = opened else { return };
+    match dialogs.take::<ContourEditorDialog>() {
+        Some(DialogResult::Ok(contour)) => write(&key, contour),
+        Some(DialogResult::Cancel) => write(&key, initial),
+        None => {}
+    }
+}
+
 /// Answers a contour library request and words it.
 fn contour_note(words: &LayerStyleStoryLabels, action: ContourAction, library: &mut Vec<Contour>) -> String {
     match action {
@@ -323,6 +366,7 @@ fn contour_note(words: &LayerStyleStoryLabels, action: ContourAction, library: &
             library.push(contour);
             text
         }
+        // The thumbnail's request opens the editor; the story's host does that, not the note.
         _ => String::new(),
     }
 }
@@ -483,9 +527,9 @@ fn show_styles(ui: &mut Ui, _args: &mut NoArgs) {
 /// The contour story's state.
 struct ContourRig {
     contour: Contour,
-    before: Option<Contour>,
     anti_alias: bool,
     library: Vec<Contour>,
+    dialogs: DialogHost,
     note: String,
 }
 
@@ -494,21 +538,31 @@ fn show_contour(ui: &mut Ui, _args: &mut NoArgs) {
     let labels = LayerStyleLabels::of(ui);
     let state = shared(ui, "contour", || ContourRig {
         contour: Contour::presets().into_iter().nth(1).unwrap_or_else(Contour::linear),
-        before: None,
         anti_alias: false,
         library: library(&words),
+        dialogs: DialogHost::new(),
         note: String::new(),
     });
     let mut guard = lock(&state);
     let rig = &mut *guard;
     let out =
         ContourField::new("contour", labels.contour.as_str(), &rig.contour).anti_alias(Some(rig.anti_alias)).user_contours(&rig.library).show(ui);
-    apply_edit(out.edit, &mut rig.contour, &mut rig.before);
+    if let Some(EditEvent::Set { value, .. }) = out.edit {
+        rig.contour = value;
+    }
     if let Some(on) = out.anti_alias {
         rig.anti_alias = on;
     }
-    if let Some(action) = out.action {
-        rig.note = contour_note(&words, action, &mut rig.library);
+    match out.action {
+        Some(ContourAction::Edit(contour)) => {
+            drop(rig.dialogs.open_unless_open(ContourEditorDialog::new(ContourRequest { key: "contour".to_owned(), contour })));
+        }
+        Some(action) => rig.note = contour_note(&words, action, &mut rig.library),
+        None => {}
+    }
+    {
+        let ContourRig { contour, dialogs, library, note, .. } = &mut *rig;
+        drive_editor(ui.ctx(), dialogs, &words, library, note, |_, next| *contour = next);
     }
     let points = rig.contour.points.len().to_string();
     let now = craft_i18n::fmt(&words.contour_now, &[("name", rig.contour.name.as_str()), ("n", points.as_str())]);
@@ -531,7 +585,7 @@ fn show_bars(ui: &mut Ui, _args: &mut NoArgs) {
     let mut guard = lock(&state);
     let rig = &mut *guard;
     ui.add(Text::new(words.bars_hint.as_str()).content(Content::Muted));
-    let layer = labels.this_layer.trim_end_matches([':', '\u{ff1a}']).to_owned();
+    let layer = labels.this_layer.clone();
     for (index, caption) in [&words.unsplit, &words.split].into_iter().enumerate() {
         ui.add(Text::new(caption.as_str()).content(Content::Muted));
         let out = BlendIfBar::new(("bar", index), layer.as_str(), rig.ranges[index]).show(ui);
