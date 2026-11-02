@@ -271,6 +271,7 @@ fn curve_square(ui: &mut Ui, contour: &Contour, side: f32, sampler: Option<&Samp
 }
 
 /// The thumbnail: a button named "Contour Editor" valued by the contour's name.
+#[expect(clippy::too_many_arguments, reason = "one call site; every argument is a different part of the field's state")]
 fn thumbnail(
     ui: &mut Ui,
     id: Id,

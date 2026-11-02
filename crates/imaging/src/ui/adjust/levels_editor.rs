@@ -717,8 +717,8 @@ fn show_field(ui: &mut Ui, rect: Rect, salt: &str, field: NumberField<'_>) -> Ed
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "composites/levels-editor/levels",
-            Level::Composites,
+            "patterns/levels-editor/levels",
+            Level::Patterns,
             "LevelsEditor",
             "Levels",
             LevelsArgs {
@@ -733,8 +733,8 @@ pub(crate) fn stories() -> Vec<Story> {
             show_levels
         ),
         typed_story!(
-            "composites/levels-editor/event-log",
-            Level::Composites,
+            "patterns/levels-editor/event-log",
+            Level::Patterns,
             "LevelsEditor",
             "Event log",
             craft_ui::testing::edit_story::PolicyArgs::default(),

@@ -210,6 +210,8 @@ pub(crate) fn tiles_view(
                         inspector.overlay(ui, "Canvas".to_owned(), body.response.rect, body.inner.accesskit_id(), tokens.size.control.sm, rtl);
                     }
                 });
+                #[cfg(test)]
+                used_width::record(ui.ctx(), story.id, used.response.rect.width(), tile_width);
                 if config.scroll_to.is_some_and(|key| key == tile.key) {
                     cell.scroll_to_rect(used.response.rect, Some(Align::TOP));
                     *config.scroll_to = None;
@@ -254,4 +256,26 @@ pub(crate) fn tiles_view(
         }
     });
     events
+}
+
+/// The widest the tiles of a test pass came out, for the test that no tile outgrows its column.
+#[cfg(test)]
+pub(super) mod used_width {
+    use egui::{Context, Id};
+
+    fn key(story: &str) -> Id {
+        Id::unique(("tile-used-width", story))
+    }
+
+    /// Notes the width the tile of `story` took, when it is wider than the `column` it was given.
+    pub(super) fn record(ctx: &Context, story: &str, used: f32, column: f32) {
+        if used > column + 0.01 {
+            ctx.data_mut(|d| d.insert_temp(key(story), used - column));
+        }
+    }
+
+    /// How far the tile of `story` outgrew its column in the last pass, if it did.
+    pub(in crate::gallery) fn excess(ctx: &Context, story: &str) -> Option<f32> {
+        ctx.data(|d| d.get_temp(key(story)))
+    }
 }

@@ -208,7 +208,7 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
     let seed = (args.shape, args.locked);
     reset_on(ui, "panel", &seed);
     let fresh = || FakeShape::new(args.shape.shape(), args.locked).themed(&tokens);
-    let state = shared(ui, "panel", &fresh);
+    let state = shared(ui, "panel", fresh);
     let mut guard = lock(&state);
     let fake = &mut *guard;
 
@@ -284,7 +284,7 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let story = StoryLabels::of(ui);
     let tokens = Tokens::of(ui);
     let fresh = || BarKept { settings: ShapeToolSettings::default(), fake: FakeShape::new(LiveShape::Line { weight: 3.0 }, false).themed(&tokens) };
-    let state = shared(ui, "bar", &fresh);
+    let state = shared(ui, "bar", fresh);
     let mut guard = lock(&state);
     let kept = &mut *guard;
     kept.fake.look.locked = args.locked;

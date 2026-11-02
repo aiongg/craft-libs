@@ -859,7 +859,7 @@ fn inside_a_dialog_scope_the_editor_reports_updates_only_and_disabling_mid_drag_
 
 #[test]
 fn the_stories_name_every_control() {
-    for story in craft_ui::story::registry().into_iter().filter(|s| s.id.starts_with("composites/levels-editor/")) {
+    for story in craft_ui::story::registry().into_iter().filter(|s| s.id.starts_with("patterns/levels-editor/")) {
         let mut args = (story.args)();
         let mut harness = Harness::builder()
             .with_size([480.0, 640.0])

@@ -24,6 +24,7 @@ use super::{SelectionOverlay, SelectionOverlayLabels};
 use crate::selection::{ColorIndicates, PreviewMode, QuickMaskLook};
 use crate::trace::{MaskRect, MaskSource};
 use crate::ui::mock_image::{MockImage, MockSubject};
+use crate::ui::transform_preview::stories::grid;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["SelectionOverlay"];
@@ -249,14 +250,10 @@ fn show_preview(ui: &mut Ui, args: &mut PreviewArgs) {
     };
     let look = QuickMaskLook { color, opacity: (args.opacity / 100.0) as f32, indicates };
     // The look applies to the Quick Mask mode only.
-    for modes in PreviewMode::ALL.chunks(2) {
-        ui.columns(2, |columns| {
-            for (column, &mode) in columns.iter_mut().zip(modes) {
-                let text = mode_caption(mode, &labels, &names);
-                cell(column, &text, mode.id(), &image, None, None, |ui, response, view| {
-                    SelectionOverlay::new(("preview", mode.id()), &subject).labels(names.clone()).preview(mode, look).show(ui, response, view);
-                });
-            }
+    grid(ui, PreviewMode::ALL.to_vec(), |column, mode| {
+        let text = mode_caption(mode, &labels, &names);
+        cell(column, &text, mode.id(), &image, None, None, |ui, response, view| {
+            SelectionOverlay::new(("preview", mode.id()), &subject).labels(names.clone()).preview(mode, look).show(ui, response, view);
         });
-    }
+    });
 }

@@ -64,7 +64,7 @@ fn registered_labels_localized_with_identity_equal_their_english() {
 #[test]
 fn counted_words_are_registered() {
     let all: Vec<_> = crate::ui::WORDS.iter().flat_map(|table| table.iter().copied()).collect();
-    assert_eq!(crate::ui::COUNTS.len(), 3);
+    assert_eq!(crate::ui::COUNTS.len(), 10);
     for count in crate::ui::COUNTS {
         assert!(all.contains(&count.word), "{:?} is not a registered word", count.word);
     }

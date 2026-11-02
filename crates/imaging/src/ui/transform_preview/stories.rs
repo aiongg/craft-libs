@@ -318,11 +318,14 @@ pub(crate) fn grid<T>(ui: &mut Ui, items: Vec<T>, mut show: impl FnMut(&mut Ui, 
 }
 
 /// One canvas of [`show_maps`]: its caption, zoom, centre and what draws into the view.
+/// What a case draws into its view.
+type Paint<'a> = Box<dyn Fn(&Ui, &CanvasView) + 'a>;
+
 struct Case<'a> {
     text: String,
     zoom: Zoom,
     centre: Option<Point>,
-    paint: Box<dyn Fn(&Ui, &CanvasView) + 'a>,
+    paint: Paint<'a>,
 }
 
 impl<'a> Case<'a> {

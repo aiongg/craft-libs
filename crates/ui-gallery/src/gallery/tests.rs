@@ -313,49 +313,49 @@ const FIXED_WIDTH: &[&str] = &[
     "primitives/bezier-paths/curvature",
     "primitives/pen-draft/curvature",
     "primitives/pen-draft/auto-add-delete",
-    "primitives/path-options/popover",
+    "composites/path-options/popover",
     "composites/transform-session/session",
-    "composites/transform-session/bar",
+    "patterns/transform-bar/bar",
     "primitives/corner-widgets/edit",
     "primitives/crop-tool/default-frame",
     "primitives/crop-tool/image-mode",
     "primitives/crop-tool/ratio-and-size",
     "primitives/crop-tool/straighten",
     "primitives/crop-tool/box-undo",
-    "patterns/crop-options/bar",
-    "patterns/crop-options/overlay-menu",
+    "patterns/crop-bar/bar",
+    "patterns/crop-overlay-menu/menu",
     "primitives/ruler-tool/line",
     "primitives/ruler-tool/protractor",
     "patterns/ruler-bar/readouts",
     "primitives/box-distances/cases",
     "primitives/symmetry/modes",
-    "primitives/symmetry/transform",
-    "composites/brush-settings-panel/panel",
+    "primitives/symmetry-transform/transform",
+    "patterns/brush-settings-panel/panel",
     "composites/brush-stroke-strip/strip",
-    "patterns/shape-options/bar",
-    "primitives/shape-drag/draw",
+    "patterns/shape-bar/bar",
+    "primitives/shape-drag-tool/draw",
     "primitives/slice-tool/slices",
-    "patterns/slice-options/bar",
+    "patterns/slice-bar/bar",
     "primitives/artboard-tool/boards",
-    "patterns/artboard-options/bar",
-    "primitives/add-beside/buttons",
+    "patterns/artboard-bar/bar",
+    "primitives/add-beside-handles/buttons",
     "composites/picture-fill-editor/editor",
     "primitives/connector-tool/tool",
     "primitives/connector-tool/routes",
     "patterns/connector-bar/bar",
-    "composites/levels-panel/states",
-    "composites/curves-panel/states",
-    "composites/hue-saturation-editor/ranges",
-    "composites/color-balance-editor/tones",
-    "composites/photo-filter-editor/sources",
-    "composites/channel-mixer-editor/outputs",
-    "composites/selective-color-editor/methods",
-    "composites/adjust-session/properties-panel",
-    "primitives/transform-preview/maps",
-    "composites/warp-fields/group",
-    "composites/pin-warp/bar",
-    "composites/perspective-warp/bar",
-    "primitives/selection/ants",
+    "patterns/levels-panel/states",
+    "patterns/curves-panel/states",
+    "patterns/hue-saturation-editor/ranges",
+    "patterns/color-balance-editor/tones",
+    "patterns/photo-filter-editor/sources",
+    "patterns/channel-mixer-editor/outputs",
+    "patterns/selective-color-editor/methods",
+    "patterns/adjust-session/properties-panel",
+    "composites/transform-preview/maps",
+    "patterns/warp-fields/group",
+    "patterns/pin-warp-bar/bar",
+    "patterns/perspective-bar/bar",
+    "composites/selection-overlay/ants",
     "composites/live-preview/live",
     "patterns/layer-style/dialog",
     "patterns/layer-style/blending",
@@ -375,6 +375,10 @@ const FIXED_WIDTH: &[&str] = &[
     "patterns/vanishing-point/planes",
     "patterns/vanishing-point/stamp",
     "composites/blur-pins/tilt",
+    "composites/blur-pins/field",
+    "composites/blur-pins/iris",
+    "composites/blur-pins/spin",
+    "patterns/mask-view-controls/modes",
     "controls/select/wheel-steps",
     "controls/combo-box/font-size",
     "controls/slider/event-log",
@@ -388,7 +392,7 @@ const FIXED_WIDTH: &[&str] = &[
     "composites/form-grid/image-size",
     "composites/gradient/dialog",
     "composites/transform-fields/box",
-    "composites/levels-editor/event-log",
+    "patterns/levels-editor/event-log",
     "composites/list/ten-thousand-rows",
     "composites/list/reorder",
     "composites/list/reorder-tree",
@@ -397,7 +401,7 @@ const FIXED_WIDTH: &[&str] = &[
     "composites/menu/context-menu",
     "composites/color/full",
     "patterns/color/swatches",
-    "patterns/color/eyedropper-options",
+    "patterns/color/eyedropper-bar",
     "patterns/color/samplers",
     "patterns/color/harmony",
     "patterns/preferences/window",
@@ -455,10 +459,20 @@ const FLOATING: &[&str] = &[
 /// How far a focus ring, edge or shadow may reach past its widget; the tile's margin takes it.
 const DECORATION_SLACK: f32 = 2.5;
 
+/// The stories a pass of [`drawn_past_their_tile`] found out of bounds.
+struct Tried {
+    /// A shape beyond the tile's left or right edge before any clip.
+    painted: Vec<&'static str>,
+    /// A shape whose clip rect reaches past the tile.
+    clipped: Vec<&'static str>,
+    /// A tile that took more width than its column.
+    wider: Vec<(&'static str, f32)>,
+}
+
 /// Draws every story in an Overview tile at the narrowest tile width.
 /// Returns the ids of the stories with a shape beyond the tile's left or right edge before any
 /// clip, and the ids with a shape whose clip rect reaches past the tile.
-fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
+fn drawn_past_their_tile(width: f32) -> Tried {
     use super::story_state::StoryStates;
     use super::tiles::{Tile, Tiles, tiles_view};
     use craft_theme::SystemAppearance;
@@ -467,7 +481,7 @@ fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
     let gallery = Gallery::new(None);
     let appearance = gallery.appearance.clone();
     let system = SystemAppearance::default();
-    let (mut painted, mut clipped) = (Vec::new(), Vec::new());
+    let (mut painted, mut clipped, mut wider) = (Vec::new(), Vec::new(), Vec::new());
     for story in gallery.stories().to_vec() {
         let ctx = egui::Context::default();
         let base = appearance.configure(&ctx, None, false, system);
@@ -502,6 +516,9 @@ fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
             shapes = std::mem::take(&mut out.shapes);
             out.drop_without_applying_deltas();
         }
+        if let Some(excess) = super::tiles::used_width::excess(&ctx, story.id) {
+            wider.push((story.id, excess));
+        }
         let outside = |r: Rect| r.min.x < -DECORATION_SLACK || r.max.x > width + DECORATION_SLACK;
         let bounds = |c: &egui::epaint::ClippedShape| {
             let r = c.shape.visual_bounding_rect();
@@ -514,14 +531,22 @@ fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
             clipped.push(story.id);
         }
     }
-    (painted, clipped)
+    Tried { painted, clipped, wider }
 }
 
 #[test]
 fn no_story_paints_past_its_overview_tile() {
-    let (painted, clipped) = drawn_past_their_tile(super::tiles::TILE_MIN_WIDTH);
+    let Tried { painted, clipped, .. } = drawn_past_their_tile(super::tiles::TILE_MIN_WIDTH);
     let clipped: Vec<_> = clipped.into_iter().filter(|id| !FLOATING.contains(id)).collect();
     assert!(clipped.is_empty(), "stories visible outside a {} pt tile: {clipped:?}", super::tiles::TILE_MIN_WIDTH);
     let painted: Vec<_> = painted.into_iter().filter(|id| !FIXED_WIDTH.contains(id)).collect();
     assert!(painted.is_empty(), "stories that paint outside a {} pt tile: {painted:?}", super::tiles::TILE_MIN_WIDTH);
+}
+
+/// The slack allowed above does not apply here: a story that takes even one point more than its
+/// column makes the tile wider than the column beside it.
+#[test]
+fn no_overview_tile_is_wider_than_its_column() {
+    let wider: Vec<_> = drawn_past_their_tile(super::tiles::TILE_MIN_WIDTH).wider.into_iter().filter(|(id, _)| !FIXED_WIDTH.contains(id)).collect();
+    assert!(wider.is_empty(), "stories whose tile outgrows a {} pt column: {wider:?}", super::tiles::TILE_MIN_WIDTH);
 }

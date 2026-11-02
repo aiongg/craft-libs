@@ -6,7 +6,7 @@ Vector and shape tools for Craft apps. With the `ui` feature, `craft_draw::ui` h
 - `shape` and `shape_drag`: `ShapePanel`, `ShapeBar`, `ShapeDragTool` and `CreateShapeDialog`; `slice`: `SliceTool`, `SliceOverlay`, `SliceBar` and the Slice Options and Divide Slices dialogs; `artboard` and `add_beside`: `ArtboardTool`, `ArtboardBar`, `ArtboardProperties` and the add-beside buttons; `connector`: `ConnectorTool`, `ConnectorOverlay` and `ConnectorBar`;
 - `pattern` and `picture_fill`: `PatternFillEditor`, `PatternFillDialog` and `PictureFillEditor`;
 - `transform`: `TransformSession` with `TransformOverlay`, `TransformBar` and the Transform menu words; `crop`: `CropTool`, `CropSession` and `CropBar` beside the `CropFrame`; `measure`: `RulerTool`, `RulerBar` and `box_distances`; `symmetry`: `Symmetry` with `SymmetryOverlay`, `SymmetryMenu` and `SymmetryTransform`;
-- `brush_presets` and `brush_settings`: `BrushPresetPicker`, `BrushPresetChip` and `BrushSettingsPanel`.
+- `brush_presets` and `brush_settings`: `BrushPresetPicker`, `BrushPresetChip` and `BrushSettingsPanel` (its answer is `BrushSettingsPanelOutput`).
 
 The main types of every module are re-exported at `craft_draw::ui`. Stories and words: `craft_draw::ui::stories()`, `craft_draw::ui::WORDS`.
 

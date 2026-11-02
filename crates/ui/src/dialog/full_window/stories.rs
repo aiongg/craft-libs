@@ -294,15 +294,14 @@ impl Kept {
 fn tool_label(ui: &Ui, tool: Tool) -> String {
     let words = PatternStoryLabels::of(ui);
     let own = FullWindowStoryLabels::of(ui);
-    let label = match tool {
+    match tool {
         "brush" => words.brush,
         "pencil" => own.pencil,
         "eraser" => words.eraser,
         "hand" => own.hand,
         "zoom" => words.zoom,
         _ => words.move_tool,
-    };
-    label
+    }
 }
 
 // --- frame ---

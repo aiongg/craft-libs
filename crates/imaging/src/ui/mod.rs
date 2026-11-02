@@ -67,8 +67,8 @@ pub use channels::{
     ColorIndicates, OVERLAY_OPACITIES, OverlayPreset, targeted_row,
 };
 pub use fill::{
-    ContentAwareFillWorkspace, FillBar, FillBarOutput, FillEvent, FillLabels, FillOpen, FillOutput, FillOverlay, FillPanel, FillPanelOutput,
-    FillSession, FillSettings, FillSource, FillTool,
+    ContentAwareFillWorkspace, FillBar, FillBarOutput, FillEvent, FillLabels, FillLimit, FillLimits, FillOpen, FillOutput, FillOverlay, FillPanel,
+    FillPanelOutput, FillSession, FillSettings, FillSource, FillTool,
 };
 pub use filter_gallery::{
     EffectParameters, EffectStack, FilterCatalog, FilterGalleryEvent, FilterGalleryLabels, FilterGalleryOpen, FilterGalleryOutput,
@@ -93,15 +93,15 @@ pub use select::{
     LassoTool, MagneticLassoTool, MagneticSettings, MarqueeKind, MarqueeTool, PolygonLassoTool, SelectEvent, SelectToolStyle, SelectionShape,
 };
 pub use select_mask::{
-    SelectMaskBar, SelectMaskBarOutput, SelectMaskEdit, SelectMaskEvent, SelectMaskLabels, SelectMaskOpen, SelectMaskOutput, SelectMaskPanel,
-    SelectMaskPanelOutput, SelectMaskSession, SelectMaskSettings, SelectMaskSource, SelectMaskWorkspace,
+    LimitRefused, SelectMaskBar, SelectMaskBarOutput, SelectMaskEdit, SelectMaskEvent, SelectMaskLabels, SelectMaskLimits, SelectMaskOpen,
+    SelectMaskOutput, SelectMaskPanel, SelectMaskPanelOutput, SelectMaskSession, SelectMaskSettings, SelectMaskSource, SelectMaskWorkspace,
 };
 pub use selection::{OutlineSource, SelectionOverlay, SelectionOverlayLabels, SelectionOverlayResponse};
 pub use transform_preview::{PreviewMap, PreviewQuality, StyledPreview, TransformPreview};
 pub use vanishing_point::{
-    VanishingPlane, VanishingPointBar, VanishingPointBarOutput, VanishingPointEditor, VanishingPointEvent, VanishingPointLabels, VanishingPointOpen,
-    VanishingPointOutput, VanishingPointSession, VanishingPointSettings, VanishingPointSource, VanishingPointStyle, VanishingPointWorkspace,
-    VanishingScene,
+    StampLimits, StampSettings, VanishingPlane, VanishingPointBar, VanishingPointBarOutput, VanishingPointEditor, VanishingPointEvent,
+    VanishingPointLabels, VanishingPointOpen, VanishingPointOutput, VanishingPointSession, VanishingPointSettings, VanishingPointSource,
+    VanishingPointStyle, VanishingPointWorkspace, VanishingScene,
 };
 pub use warp::perspective::{
     PerspectiveBar, PerspectiveBarLabels, PerspectiveBarOutput, PerspectiveEdit, PerspectiveSession, PerspectiveWarp, PerspectiveWarpLabels,
@@ -152,10 +152,32 @@ pub fn stories() -> Vec<craft_ui::story::Story> {
 
 /// The count words of the imaging widgets: their plural forms are in [`WORDS`], these give the
 /// singular forms a catalog extraction needs.
-pub const COUNTS: &[craft_ui::localized::words::Counted] = &[select::OUTLINE_POINTS, warp::perspective::PLANES, wide_angle::CONSTRAINTS];
+pub const COUNTS: &[craft_ui::localized::words::Counted] = &[
+    select::OUTLINE_POINTS,
+    warp::perspective::PLANES,
+    wide_angle::CONSTRAINTS,
+    fill::STROKE_LIMIT,
+    fill::LASSO_EDIT_LIMIT,
+    fill::POINT_LIMIT,
+    select_mask::LIMIT_EDITS,
+    select_mask::LIMIT_EDIT_POINTS,
+    select_mask::LIMIT_STROKES,
+    select_mask::LIMIT_STROKE_POINTS,
+];
 
 /// The plural forms of [`COUNTS`], as a words table.
-const COUNT_WORDS: &[craft_ui::localized::Word] = &[select::OUTLINE_POINTS.word, warp::perspective::PLANES.word, wide_angle::CONSTRAINTS.word];
+const COUNT_WORDS: &[craft_ui::localized::Word] = &[
+    select::OUTLINE_POINTS.word,
+    warp::perspective::PLANES.word,
+    wide_angle::CONSTRAINTS.word,
+    fill::STROKE_LIMIT.word,
+    fill::LASSO_EDIT_LIMIT.word,
+    fill::POINT_LIMIT.word,
+    select_mask::LIMIT_EDITS.word,
+    select_mask::LIMIT_EDIT_POINTS.word,
+    select_mask::LIMIT_STROKES.word,
+    select_mask::LIMIT_STROKE_POINTS.word,
+];
 
 /// The labels tables of the imaging widgets, for the words registry.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[

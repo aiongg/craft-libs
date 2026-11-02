@@ -20,6 +20,7 @@ use egui::{Color32, ColorImage, Ui};
 use super::{MaskCoverage, MaskViewControls, MaskViewKeys, MaskViewLabels, MaskViewMode, MaskViewRecipe, MaskViewState, VeilMask};
 use crate::ui::mock_image::{MockImage, MockSubject};
 use crate::ui::selection::{SelectionOverlay, SelectionOverlayLabels};
+use crate::ui::transform_preview::stories::grid;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["MaskViewControls"];
@@ -149,15 +150,11 @@ fn show_modes(ui: &mut Ui, _: &mut NoArgs) {
     MaskViewControls::new("mask-view-story", &mut state).labels(labels.clone()).show(ui);
     view(ui, "large", LARGE, state.recipe());
 
-    // Two to a row: the story canvas is at least 240 points wide.
-    for modes in MaskViewMode::ALL.chunks(2) {
-        ui.columns(2, |columns| {
-            for (column, &mode) in columns.iter_mut().zip(modes) {
-                column.add(Text::new(mode.label(&labels)).content(Content::Muted));
-                let each = MaskViewState { mode, hide_view: false, ..state.clone() };
-                view(column, mode.id(), SMALL, each.recipe());
-            }
-        });
-    }
+    // Two to a row where the tile holds two story canvases (each at least 240 points wide).
+    grid(ui, MaskViewMode::ALL.to_vec(), |column, mode| {
+        column.add(Text::new(mode.label(&labels)).content(Content::Muted));
+        let each = MaskViewState { mode, hide_view: false, ..state.clone() };
+        view(column, mode.id(), SMALL, each.recipe());
+    });
     ui.data_mut(|d| d.insert_temp(id, state));
 }

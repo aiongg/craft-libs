@@ -117,4 +117,6 @@ fn registered_labels_localized_with_identity_equal_their_english() {
     identity_holds::<crate::ui::shape::stories::ShapeStoryLabels>();
     identity_holds::<crate::ui::add_beside::AddBesideLabels>();
     identity_holds::<crate::ui::corner::CornerWidgetsLabels>();
+    identity_holds::<crate::ui::corner::stories::CornerStoryLabels>();
+    identity_holds::<crate::ui::stroke::stories::EventKindLabels>();
 }

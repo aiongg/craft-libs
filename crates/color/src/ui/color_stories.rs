@@ -39,7 +39,7 @@ use crate::{AreaMode, CmykModel};
 ///   `DialogHost`, args for Only Web Colors, preview; the eyedropper answers from a fake capture; prints the result.
 /// - `patterns/color/panel`: `ColorPanel` with a mode and a ramp arg, the panel menu beside it.
 /// - `patterns/color/swatches`: `SwatchesPanel` on the default library, the panel menu beside it.
-/// - `patterns/color/eyedropper-options`: `EyedropperBar` in an `OptionsBar`.
+/// - `patterns/color/eyedropper-bar`: `EyedropperBar` in an `OptionsBar`.
 /// - `patterns/color/samplers`: four points on a gradient image in a `CanvasView`, readouts under it.
 /// - `patterns/color/paint-chip`: `PaintChip` for each paint kind, with and without No Color.
 /// - `patterns/color/choice`: `ColorChoice` with PhotoCraft's pasteboard rows.
@@ -51,7 +51,7 @@ pub(super) const IDS: [&str; 10] = [
     "patterns/color/picker-dialog",
     "patterns/color/panel",
     "patterns/color/swatches",
-    "patterns/color/eyedropper-options",
+    "patterns/color/eyedropper-bar",
     "patterns/color/samplers",
     "patterns/color/paint-chip",
     "patterns/color/choice",
@@ -80,7 +80,7 @@ pub(super) fn stories() -> Vec<Story> {
             show_panel
         ),
         typed_story!("patterns/color/swatches", Level::Patterns, "SwatchesPanel", "Panel", NoArgs {}, show_swatches),
-        typed_story!("patterns/color/eyedropper-options", Level::Patterns, "EyedropperBar", "Options bar", NoArgs {}, show_eyedropper_options)
+        typed_story!("patterns/color/eyedropper-bar", Level::Patterns, "EyedropperBar", "Options bar", NoArgs {}, show_eyedropper_options)
             .on(Surface::Chrome),
         typed_story!("patterns/color/samplers", Level::Patterns, "ColorSamplers", "Sample points", NoArgs {}, show_samplers).on(Surface::Canvas),
         typed_story!(
@@ -260,7 +260,7 @@ impl StoryChoice for Harmony {
 
 /// Per-instance state kept in egui memory under `name`.
 fn shared<T: Send + 'static>(ui: &Ui, name: &str, init: impl FnOnce() -> T) -> Arc<Mutex<T>> {
-    let key = ui.make_persistent_id(("craft_color::colour_stories", name));
+    let key = ui.make_persistent_id(("craft_color::color_stories", name));
     ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, || Arc::new(Mutex::new(init()))).clone())
 }
 
@@ -291,7 +291,7 @@ fn panel_menu(ui: &mut Ui, entries: &[MenuEntry<String>]) -> Option<String> {
 /// fixed id each, so two instances drawn in the same pass (a component tab and a variants view)
 /// must not both show it.
 fn claim(ctx: &Context, name: &str, instance: Id) -> bool {
-    let key = Id::unique(("craft_color::colour_stories::claim", name));
+    let key = Id::unique(("craft_color::color_stories::claim", name));
     let pass = ctx.cumulative_pass_nr();
     ctx.data_mut(|d| {
         let (claimed_pass, owner) = d.get_temp::<(u64, Id)>(key).unwrap_or((u64::MAX, instance));
@@ -316,7 +316,7 @@ fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
     describe: impl FnOnce(D::Result) -> String,
 ) {
     let host = shared(ui, name, DialogHost::new);
-    let result_key = ui.make_persistent_id(("craft_color::colour_stories::result", name));
+    let result_key = ui.make_persistent_id(("craft_color::color_stories::result", name));
     let signature_key = result_key.with("signature");
     let ctx = ui.ctx().clone();
     let mut host = lock(&host);
@@ -458,7 +458,7 @@ fn show_swatches(ui: &mut Ui, _: &mut NoArgs) {
 }
 
 fn show_eyedropper_options(ui: &mut Ui, _: &mut NoArgs) {
-    let options = shared(ui, "eyedropper-options", EyedropperOptions::default);
+    let options = shared(ui, "eyedropper-bar", EyedropperOptions::default);
     let mut options = lock(&options);
     OptionsBar::new("eyedropper-bar").show(ui, |slots| EyedropperBar::new(&mut options).add_to(slots));
 }
@@ -475,12 +475,12 @@ fn image_pixel(x: usize, y: usize) -> Srgba {
 }
 
 fn image_texture(ctx: &Context) -> TextureHandle {
-    let key = Id::unique("craft_color::colour_stories::sampler-image");
+    let key = Id::unique("craft_color::color_stories::sampler-image");
     if let Some(texture) = ctx.data(|d| d.get_temp::<TextureHandle>(key)) {
         return texture;
     }
     let pixels = (0..IMAGE[1]).flat_map(|y| (0..IMAGE[0]).map(move |x| Color32::from(image_pixel(x, y)))).collect();
-    let texture = ctx.load_texture("craft_color::colour_stories::sampler-image", egui::ColorImage::new(IMAGE, pixels), TextureOptions::NEAREST);
+    let texture = ctx.load_texture("craft_color::color_stories::sampler-image", egui::ColorImage::new(IMAGE, pixels), TextureOptions::NEAREST);
     ctx.data_mut(|d| d.insert_temp(key, texture.clone()));
     texture
 }
