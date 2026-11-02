@@ -1,14 +1,16 @@
 //! [`VanishingPointBar`]: Vanishing Point's options bar (task WS-VP2).
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::{AsIdSalt, IdSalt, Modifiers, Response, Ui};
 
 use craft_theme::ControlSize;
 use craft_ui::controls::{Checkbox, NumberField};
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::Labels as _;
 use craft_ui::localized::{LocaleNumbers, Unit};
 use craft_ui::patterns::{CellWidth, OptionsBar};
 
 use super::VanishingPointLabels;
-use super::editor::{PasteImage, VanishingPointOptions, VanishingTool};
+use super::editor::{PasteImage, StampSettings, VanishingPointSettings, VanishingTool};
 
 /// Diameter, in pixels.
 const DIAMETER: std::ops::RangeInclusive<f64> = 1.0..=5000.0;
@@ -22,8 +24,9 @@ const PASTE_WIDTH: std::ops::RangeInclusive<f64> = 1.0..=1000.0;
 #[non_exhaustive]
 pub struct VanishingPointBarOutput {
     pub response: Response,
-    /// An option changed (written to the options).
-    pub changed: bool,
+    /// The setting the user changed this pass, with every setting as it is now (written to the
+    /// settings): a number field's gesture (`Begin`, `Update`, `Commit`) or a checkbox's `Set`.
+    pub edit: Option<EditEvent<VanishingPointSettings>>,
     /// The paste's Width changed (a session change: one undo step when the field settles).
     pub paste: Option<PasteImage>,
 }
@@ -33,42 +36,58 @@ pub struct VanishingPointBarOutput {
 /// Paste and Width (percent of the plane); New Layer. PhotoCraft's tool pills and its ✓ and ⊘
 /// buttons go: the strip holds the tools and the side column's footer OK and Cancel.
 ///
-/// Width shows while Paste is on, and New Layer always (PhotoCraft hid it until there was a paste,
-/// a stroke or the Stamp tool; the bar does not know the strokes). Every field is an ordinary
-/// focusable control of the library's `OptionsBar` cells; the bar changes the options and reports
-/// the paste, nothing else.
+/// Width shows while Paste is on. New Layer shows with an image on the clipboard, with strokes
+/// ([`has_strokes`](Self::has_strokes)) or with the Stamp tool, as PhotoCraft's bar does. Every
+/// field is an ordinary focusable control of the library's `OptionsBar` cells; the bar changes the
+/// settings and reports the paste.
 pub struct VanishingPointBar<'a> {
     id_salt: IdSalt,
     tool: VanishingTool,
-    options: &'a mut VanishingPointOptions,
+    settings: &'a mut VanishingPointSettings,
     paste: PasteImage,
     has_clip: bool,
-    labels: &'a VanishingPointLabels,
+    has_strokes: bool,
+    labels: Option<VanishingPointLabels>,
 }
 
 impl<'a> VanishingPointBar<'a> {
-    pub fn new(
-        id_salt: impl AsIdSalt,
-        tool: VanishingTool,
-        options: &'a mut VanishingPointOptions,
-        paste: PasteImage,
-        has_clip: bool,
-        labels: &'a VanishingPointLabels,
-    ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), tool, options, paste, has_clip, labels }
+    pub fn new(id_salt: impl AsIdSalt, tool: VanishingTool, settings: &'a mut VanishingPointSettings, paste: PasteImage, has_clip: bool) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), tool, settings, paste, has_clip, has_strokes: false, labels: None }
+    }
+
+    /// Whether the session has clone strokes (default no): they show New Layer.
+    pub fn has_strokes(mut self, has_strokes: bool) -> Self {
+        self.has_strokes = has_strokes;
+        self
+    }
+
+    /// The words (default: the installed words).
+    pub fn labels(mut self, labels: VanishingPointLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn show(self, ui: &mut Ui) -> VanishingPointBarOutput {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:1230 `options_bar`.
-        let Self { id_salt, tool, options, paste, has_clip, labels } = self;
+        let Self { id_salt, tool, settings, paste, has_clip, has_strokes, labels } = self;
+        let labels = labels.unwrap_or_else(|| VanishingPointLabels::of(ui));
         let numbers = LocaleNumbers::of(ui);
-        let mut changed = false;
+        let mut edit = None;
         let mut pasted = None;
+        // A number field's event with the settings it wrote, or a checkbox's change.
+        let report = |edit: &mut Option<EditEvent<VanishingPointSettings>>, settings: &VanishingPointSettings, event: EditEvent<f64>| {
+            *edit = Some(event.map(|_| *settings));
+        };
+        let toggled = |edit: &mut Option<EditEvent<VanishingPointSettings>>, settings: &VanishingPointSettings, changed: bool| {
+            if changed {
+                *edit = Some(EditEvent::set(*settings, Modifiers::NONE));
+            }
+        };
         let response = OptionsBar::new(id_salt).show(ui, |bar| {
             bar.row(|ui| {
                 if tool == VanishingTool::Stamp {
-                    let stamp = &mut options.stamp;
-                    let edit = OptionsBar::number_cell(
+                    let stamp = &mut settings.stamp;
+                    let cell = OptionsBar::number_cell(
                         ui,
                         &labels.diameter,
                         CellWidth::Md,
@@ -77,40 +96,50 @@ impl<'a> VanishingPointBar<'a> {
                             .decimals(0..=0)
                             .unit(Unit::new("{n} px")),
                     );
-                    if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
-                        stamp.diameter = *v;
-                        changed = true;
+                    if let Some(event) = cell.event {
+                        if let Some(v) = event.value() {
+                            stamp.diameter = *v;
+                        }
+                        report(&mut edit, settings, event);
                     }
-                    for (salt, caption, value) in
-                        [("hardness", &labels.hardness, &mut stamp.hardness), ("opacity", &labels.opacity, &mut stamp.opacity)]
-                    {
-                        let edit = OptionsBar::percent_cell(ui, salt, caption, *value, &numbers);
-                        if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
-                            *value = *v;
-                            changed = true;
+                    let percents: [(&str, &String, fn(&mut StampSettings) -> &mut f64); 2] =
+                        [("hardness", &labels.hardness, |s| &mut s.hardness), ("opacity", &labels.opacity, |s| &mut s.opacity)];
+                    for (salt, caption, field) in percents {
+                        let value = field(&mut settings.stamp);
+                        let cell = OptionsBar::percent_cell(ui, salt, caption, *value, &numbers);
+                        if let Some(event) = cell.event {
+                            if let Some(v) = event.value() {
+                                *value = *v;
+                            }
+                            report(&mut edit, settings, event);
                         }
                     }
-                    changed |= Checkbox::bool(labels.aligned.as_str(), &mut stamp.aligned).size(ControlSize::Sm).show(ui).response.changed();
+                    let changed =
+                        Checkbox::bool(labels.aligned.as_str(), &mut settings.stamp.aligned).size(ControlSize::Sm).show(ui).response.changed();
+                    toggled(&mut edit, settings, changed);
                     OptionsBar::divider(ui);
                 }
-                let edit = OptionsBar::number_cell(
+                let cell = OptionsBar::number_cell(
                     ui,
                     &labels.grid_size,
                     CellWidth::Md,
-                    NumberField::new("grid-size", labels.grid_size.as_str(), options.grid_size, &numbers)
+                    NumberField::new("grid-size", labels.grid_size.as_str(), settings.grid_size, &numbers)
                         .range(GRID_SIZE)
                         .decimals(0..=0)
                         .unit(Unit::new("{n} px")),
                 );
-                if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
-                    options.grid_size = *v;
-                    changed = true;
+                if let Some(event) = cell.event {
+                    if let Some(v) = event.value() {
+                        settings.grid_size = *v;
+                    }
+                    report(&mut edit, settings, event);
                 }
                 if has_clip {
                     OptionsBar::divider(ui);
-                    changed |= Checkbox::bool(labels.paste.as_str(), &mut options.paste).size(ControlSize::Sm).show(ui).response.changed();
-                    if options.paste {
-                        let edit = OptionsBar::number_cell(
+                    let changed = Checkbox::bool(labels.paste.as_str(), &mut settings.paste).size(ControlSize::Sm).show(ui).response.changed();
+                    toggled(&mut edit, settings, changed);
+                    if settings.paste {
+                        let cell = OptionsBar::number_cell(
                             ui,
                             &labels.width,
                             CellWidth::Md,
@@ -119,15 +148,19 @@ impl<'a> VanishingPointBar<'a> {
                                 .decimals(0..=0)
                                 .unit(Unit::new("{n}%")),
                         );
-                        if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
+                        if let Some(v) = cell.event.as_ref().and_then(|e| e.value()) {
                             pasted = Some(PasteImage { width: *v / 100.0, ..paste });
                         }
                     }
                 }
-                OptionsBar::divider(ui);
-                changed |= Checkbox::bool(labels.new_layer.as_str(), &mut options.new_layer).size(ControlSize::Sm).show(ui).response.changed();
+                if has_clip || has_strokes || tool == VanishingTool::Stamp {
+                    OptionsBar::divider(ui);
+                    let changed =
+                        Checkbox::bool(labels.new_layer.as_str(), &mut settings.new_layer).size(ControlSize::Sm).show(ui).response.changed();
+                    toggled(&mut edit, settings, changed);
+                }
             });
         });
-        VanishingPointBarOutput { response, changed, paste: pasted }
+        VanishingPointBarOutput { response, edit, paste: pasted }
     }
 }

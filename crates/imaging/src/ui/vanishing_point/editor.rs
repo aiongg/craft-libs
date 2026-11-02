@@ -1,23 +1,34 @@
 //! [`VanishingPointEditor`]: the plane tools, the paste and the stamp, without a frame (task
 //! WS-VP1).
 
-use egui::{CursorIcon, Modifiers, Painter, Rect, vec2};
+use std::borrow::Cow;
+
+use egui::{CursorIcon, Modifiers, Painter, Rect, Vec2, vec2};
 use serde::{Deserialize, Serialize};
 
 use craft_ui::behavior::nudge::NudgeKeys;
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::quad::Homography;
-use craft_ui::canvas::{CanvasTool, CursorHost, Part, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
+use craft_ui::canvas::{CanvasTool, CursorHost, CursorOptions, Part, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
 use craft_ui::edit::{CancelReason, EditEvent, GestureId};
+use craft_ui::localized::Labels as _;
+use craft_ui::theme::UiTokens;
 
 use super::planes::{PlaneEdge, TornPlane, VanishingPlane, VanishingScene, fit_torn, slide_edge};
 use super::style::VanishingPointStyle;
 use super::{VanishingPointEvent, VanishingPointLabels, VanishingPointSource};
 
-/// The most clone strokes and dabs a session holds (PhotoCraft `MAX_CLONE_STROKES`,
-/// `MAX_CLONE_DABS`, engine `vp_cmds.rs:19-20`).
-const MAX_STROKES: usize = 4096;
-const MAX_DABS: usize = 200_000;
+/// The engine's limits on the clone strokes, given by the app (PhotoCraft `MAX_CLONE_STROKES`
+/// 4096 and `MAX_CLONE_DABS` 200 000, engine `vp_cmds.rs:19-20`). The Stamp tool stops there, so
+/// OK and the preview never fail on what was painted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StampLimits {
+    /// The most strokes in a session.
+    pub strokes: usize,
+    /// The most dabs, over all strokes.
+    pub dabs: usize,
+}
+
 /// A stroke's dabs lie a tenth of the diameter apart, at least one document pixel (`stamp_to`).
 const DAB_SPACING: f64 = 0.1;
 const MIN_DAB_STEP: f64 = 1.0;
@@ -35,7 +46,7 @@ pub enum VanishingTool {
 /// The Stamp tool's options.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
-pub struct StampOptions {
+pub struct StampSettings {
     /// The brush's diameter in pixels where a stroke starts.
     pub diameter: f64,
     /// 0..=100.
@@ -46,7 +57,7 @@ pub struct StampOptions {
     pub aligned: bool,
 }
 
-impl Default for StampOptions {
+impl Default for StampSettings {
     fn default() -> Self {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:826.
         Self { diameter: 40.0, hardness: 50.0, opacity: 100.0, aligned: true }
@@ -115,18 +126,18 @@ impl Default for VanishingPointSession {
 /// (off), the stamp options.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
-pub struct VanishingPointOptions {
+pub struct VanishingPointSettings {
     /// Grid cell size in pixels at the plane's nearest edge.
     pub grid_size: f64,
     pub paste: bool,
     pub new_layer: bool,
-    pub stamp: StampOptions,
+    pub stamp: StampSettings,
 }
 
-impl Default for VanishingPointOptions {
+impl Default for VanishingPointSettings {
     fn default() -> Self {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:819-826.
-        Self { grid_size: 100.0, paste: false, new_layer: false, stamp: StampOptions::default() }
+        Self { grid_size: 100.0, paste: false, new_layer: false, stamp: StampSettings::default() }
     }
 }
 
@@ -146,6 +157,13 @@ pub struct VanishingPointEditor {
     pointer: Option<[f64; 2]>,
     picked: Option<u64>,
     events: Vec<VanishingPointEvent>,
+    limits: StampLimits,
+    /// The message of the last refused Stamp press, for the app's status line.
+    status: Option<String>,
+    /// The words; the installed words while `None`.
+    labels: Option<VanishingPointLabels>,
+    /// Preferences › Cursors: Other Cursors Precise swaps the arrow for the crosshair.
+    cursor_options: CursorOptions,
 }
 
 /// A drag in progress.
@@ -182,21 +200,6 @@ enum Grab {
     Paste { offset: [f64; 2] },
 }
 
-impl Default for VanishingPointEditor {
-    fn default() -> Self {
-        Self {
-            tool: VanishingTool::CreatePlane,
-            pending: Vec::new(),
-            selected: None,
-            drag: None,
-            before: None,
-            pointer: None,
-            picked: None,
-            events: Vec::new(),
-        }
-    }
-}
-
 fn at(p: [f64; 2]) -> Point {
     Point::new(p[0], p[1])
 }
@@ -206,8 +209,45 @@ fn is_unset(plane: &VanishingPlane) -> bool {
 }
 
 impl VanishingPointEditor {
-    pub fn new() -> Self {
-        Self::default()
+    /// A editor with Create Plane picked and the app's clone `limits`.
+    pub fn new(limits: StampLimits) -> Self {
+        Self {
+            tool: VanishingTool::CreatePlane,
+            pending: Vec::new(),
+            selected: None,
+            drag: None,
+            before: None,
+            pointer: None,
+            picked: None,
+            events: Vec::new(),
+            limits,
+            status: None,
+            labels: None,
+            cursor_options: CursorOptions::default(),
+        }
+    }
+
+    /// The words (default: the installed words).
+    pub fn labels(&mut self, labels: VanishingPointLabels) -> &mut Self {
+        self.labels = Some(labels);
+        self
+    }
+
+    /// The user's Preferences › Cursors (default: Photoshop's).
+    pub fn cursor_options(&mut self, options: CursorOptions) -> &mut Self {
+        self.cursor_options = options;
+        self
+    }
+
+    /// The marks' look from the theme's tokens.
+    pub fn style(tokens: &UiTokens) -> VanishingPointStyle {
+        VanishingPointStyle::of(tokens)
+    }
+
+    /// The message of a refused Stamp press (no clone source, too many strokes), translated, for
+    /// the app's status line; `None` when there is none since the last call.
+    pub fn take_status(&mut self) -> Option<String> {
+        self.status.take()
     }
 
     pub fn tool(&self) -> VanishingTool {
@@ -227,6 +267,12 @@ impl VanishingPointEditor {
         self.selected
     }
 
+    /// Selects plane `index` of `session`; none when it is out of range.
+    pub fn select(&mut self, index: Option<usize>, session: &VanishingPointSession) -> &mut Self {
+        self.selected = index.filter(|i| *i < session.planes.len());
+        self
+    }
+
     /// Esc: drops the pending corners; returns whether there were any (else the workspace
     /// cancels).
     pub fn drop_pending(&mut self) -> bool {
@@ -238,9 +284,12 @@ impl VanishingPointEditor {
 
     /// Delete or Backspace: removes the selected plane from `session`; planes torn off it keep
     /// their place as drawn planes, later parents' indices shift down. Returns the edit, which is
-    /// also reported (a `Planes` `Set`).
+    /// also reported (a `Planes` `Set`). Nothing while a drag runs: the gesture ends first.
     pub fn delete_selected(&mut self, session: &mut VanishingPointSession, scene: &dyn VanishingScene) -> Option<PlaneEdit> {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:398 `delete_selected`.
+        if self.drag.is_some() {
+            return None;
+        }
         let i = self.selected.take().filter(|i| *i < session.planes.len())?;
         session.torn.resize(session.planes.len(), None);
         session.planes.remove(i);
@@ -255,19 +304,17 @@ impl VanishingPointEditor {
         if !session.planes.is_empty() {
             session.planes = scene.resolve(&session.planes, &session.torn);
         }
-        self.drag = None;
-        self.before = None;
         self.picked = self.picked.filter(|k| usize::try_from(*k / 4).is_ok_and(|p| p < session.planes.len()));
         let edit = PlaneEdit { planes: session.planes.clone(), torn: session.torn.clone() };
         self.events.push(VanishingPointEvent::Planes(EditEvent::set(edit.clone(), Modifiers::NONE)));
         Some(edit)
     }
 
-    /// After undo or redo: no drag, no pending corners, the selection clamped.
+    /// After undo or redo: no pending corners, the selection clamped. A drag in progress ended
+    /// before the step (`ToolHost::cancel` with `CancelReason::UndoDuringGesture`, which reports
+    /// its `Cancel`), and the app does not step while [`busy`](Self::busy).
     pub fn after_step(&mut self, session: &VanishingPointSession) {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:383-396 `step`.
-        self.drag = None;
-        self.before = None;
         self.pending.clear();
         let n = session.planes.len();
         self.selected = self.selected.filter(|i| *i < n);
@@ -279,13 +326,12 @@ impl VanishingPointEditor {
     pub fn pass<'a>(
         &'a mut self,
         session: &'a mut VanishingPointSession,
-        options: &'a VanishingPointOptions,
+        settings: &'a VanishingPointSettings,
         scene: &'a dyn VanishingScene,
         source: &'a dyn VanishingPointSource,
         style: &'a VanishingPointStyle,
-        labels: &'a VanishingPointLabels,
     ) -> VanishingPointPass<'a> {
-        VanishingPointPass { editor: self, session, options, scene, source, style, labels }
+        VanishingPointPass { editor: self, session, settings, scene, source, style }
     }
 
     pub fn take_events(&mut self) -> Vec<VanishingPointEvent> {
@@ -298,9 +344,9 @@ impl VanishingPointEditor {
     }
 }
 
-/// [`VanishingPointEditor`] as the `CanvasTool` of one pass. Node presses reach half of
-/// `vanishing_point.node` plus `handle.hit` screen points from a node's centre; the selected
-/// plane's nodes win.
+/// [`VanishingPointEditor`] as the `CanvasTool` of one pass. Node presses reach
+/// `vanishing_point.press_reach` screen points from a node's centre; the selected plane's nodes
+/// win.
 ///
 /// - **Create Plane**: four clicks in any order make a plane ([`VanishingScene::normalized`]),
 ///   selected; then Edit Plane takes over (as Photoshop). A rubber band runs from the last corner
@@ -312,29 +358,39 @@ impl VanishingPointEditor {
 ///   a perpendicular plane (angle 90, depth 0.5) and drags its far edge (with either plane tool).
 ///   A press on the pasted image moves it on the plane.
 /// - **Stamp**: Alt-click sets the source; a press, drag, release paints a [`StampStroke`] with the
-///   options (Aligned keeps the first stroke's offset).
+///   settings (Aligned keeps the first stroke's offset). A press the stroke limits or a missing
+///   source refuse reports its message through [`VanishingPointEditor::take_status`].
 /// - Events: [`VanishingPointEvent::Planes`](super::VanishingPointEvent::Planes) Begin, Update,
 ///   Commit for a drag (a tear-off included: Begin carries the new plane) and `Set` for a click
 ///   that made or deleted a plane; `Paste` for the image's drag; `Stamp` for a stroke (each
 ///   Update carries the stroke so far). Esc during a drag reports Cancel and puts back what the
 ///   press found. The Alt-click that sets the clone source is a session change with no event.
 /// - Keyboard parts: each plane's four corners ("Plane 1, top-left corner"); Page picks (and
-///   selects the plane), arrows move one document pixel (Shift ten), Delete removes the plane.
+///   selects the plane), arrows move the picked corner one document pixel (Shift ten) only while
+///   the group has the keyboard (`ToolContext::parts_focused`) and otherwise do nothing; Delete
+///   removes the plane.
 /// - Paint: [`draw::paint_editor`](super::draw::paint_editor).
 pub struct VanishingPointPass<'a> {
     editor: &'a mut VanishingPointEditor,
     session: &'a mut VanishingPointSession,
-    options: &'a VanishingPointOptions,
+    settings: &'a VanishingPointSettings,
     scene: &'a dyn VanishingScene,
     source: &'a dyn VanishingPointSource,
     style: &'a VanishingPointStyle,
-    labels: &'a VanishingPointLabels,
 }
 
 impl VanishingPointPass<'_> {
     /// How far from a node's centre a press reaches, in document units.
     fn reach(&self, cx: &ToolContext<'_>) -> f64 {
-        cx.view.doc_len((self.style.node + cx.tokens.component.handle.hit) / 2.0)
+        cx.view.doc_len(self.style.press_reach)
+    }
+
+    /// The editor's words, or the installed ones.
+    fn words(&self, cx: &ToolContext<'_>) -> Cow<'_, VanishingPointLabels> {
+        match &self.editor.labels {
+            Some(labels) => Cow::Borrowed(labels),
+            None => Cow::Owned(VanishingPointLabels::of_ctx(&cx.canvas.ctx)),
+        }
     }
 
     fn plane_edit(&self) -> PlaneEdit {
@@ -367,21 +423,13 @@ impl VanishingPointPass<'_> {
         (lu.is_finite() && lv.is_finite() && lu > 1e-12 && lv > 1e-12).then_some((h, lu, lv))
     }
 
-    /// The plane the paste lands on: the selected one, else the first.
     fn paste_plane(&self) -> Option<usize> {
-        if !self.options.paste || self.source.paste().is_none() {
-            return None;
-        }
-        let n = self.session.planes.len();
-        self.editor.selected.filter(|i| *i < n).or((n > 0).then_some(0))
+        paste_plane(self.settings, self.source, self.session.planes.len(), self.editor.selected)
     }
 
     /// The pasted image's size in plane coordinates (it keeps its metric aspect).
     fn paste_extent(&self, lu: f64, lv: f64) -> Option<[f64; 2]> {
-        let size = self.source.paste()?.size;
-        let (w, h) = (f64::from(size.x), f64::from(size.y));
-        let width = self.session.paste.width;
-        Some([width, width * lu / lv * h / w.max(1.0)])
+        Some(paste_extent(self.source.paste()?.size, self.session.paste.width, lu, lv))
     }
 
     /// What a press at `p` lands on, in PhotoCraft's order: with ⌘ an edge node tears off; Create
@@ -477,22 +525,27 @@ impl VanishingPointPass<'_> {
         });
     }
 
-    fn stamp_press(&mut self, p: [f64; 2], pointer: &ToolPointer) -> ToolAction {
-        // pc: crates/ui-egui/src/dialogs/vp_ui.rs:469 `stamp_press` (its status messages have no
-        // channel here).
+    /// Stamp's press: Alt sets the source, otherwise a stroke starts. `Err` is the message of a
+    /// refused press.
+    fn stamp_press(&mut self, p: [f64; 2], pointer: &ToolPointer, cx: &ToolContext<'_>) -> Result<ToolAction, String> {
+        // pc: crates/ui-egui/src/dialogs/vp_ui.rs:469 `stamp_press`.
         if pointer.modifiers.alt {
-            if self.on_plane(p) {
-                self.session.source = Some(p);
-                self.session.aligned_from = None;
+            if !self.on_plane(p) {
+                return Err(self.words(cx).stamp_no_source.clone());
             }
-            return ToolAction::Done;
+            self.session.source = Some(p);
+            self.session.aligned_from = None;
+            return Ok(ToolAction::Done);
         }
-        let Some(source) = self.session.source else { return ToolAction::Done };
+        let Some(source) = self.session.source else { return Err(self.words(cx).stamp_no_source.clone()) };
+        if !self.on_plane(p) {
+            return Ok(ToolAction::Done);
+        }
         let dabs: usize = self.session.strokes.iter().map(|s| s.points.len()).sum();
-        if !self.on_plane(p) || self.session.strokes.len() >= MAX_STROKES || dabs >= MAX_DABS {
-            return ToolAction::Done;
+        if self.session.strokes.len() >= self.editor.limits.strokes || dabs >= self.editor.limits.dabs {
+            return Err(self.words(cx).stamp_too_many.clone());
         }
-        let aligned = self.session.aligned_from.filter(|_| self.options.stamp.aligned);
+        let aligned = self.session.aligned_from.filter(|_| self.settings.stamp.aligned);
         let src = match aligned {
             Some((s0, a0)) => self.scene.clone_source(&self.session.planes, s0, a0, p).filter(|s| self.on_plane(*s)).unwrap_or(source),
             None => source,
@@ -501,17 +554,17 @@ impl VanishingPointPass<'_> {
         if before.is_none() {
             self.session.aligned_from = Some((src, p));
         }
-        let o = self.options.stamp;
+        let o = self.settings.stamp;
         let stroke = StampStroke { source: src, points: vec![p], size: o.diameter, hardness: o.hardness / 100.0, opacity: o.opacity / 100.0 };
         self.session.strokes.push(stroke.clone());
         self.begin(VanishingDrag::Stamp, DragStart::Stamp(before), |id| VanishingPointEvent::Stamp(EditEvent::begin_with(id, stroke)));
-        ToolAction::Claimed
+        Ok(ToolAction::Claimed)
     }
 
     /// Extends the running stroke to `p` with dabs a tenth of the brush apart.
     fn stamp_to(&mut self, p: [f64; 2]) -> bool {
         let used: usize = self.session.strokes.iter().map(|s| s.points.len()).sum();
-        let room = MAX_DABS.saturating_sub(used);
+        let room = self.editor.limits.dabs.saturating_sub(used);
         let Some(stroke) = self.session.strokes.last_mut() else { return false };
         let Some(last) = stroke.points.last().copied() else { return false };
         let step = (stroke.size * DAB_SPACING).max(MIN_DAB_STEP);
@@ -559,7 +612,7 @@ impl VanishingPointPass<'_> {
                     _ => None,
                 }
             }
-            VanishingDrag::Edge { plane, edge, at_press } => match slide_edge(&at_press, edge, p) {
+            VanishingDrag::Edge { plane, edge, at_press } => match slide_edge(self.scene, &at_press, edge, p) {
                 Some(slid) if self.session.planes.get(plane).is_some_and(|pl| pl.corners != slid.corners) => {
                     self.session.planes[plane].corners = slid.corners;
                     self.resolve();
@@ -589,9 +642,9 @@ impl VanishingPointPass<'_> {
         self.editor.events.extend(event);
     }
 
-    /// The click-versus-drag distance of a torn plane's far edge node, in document units.
-    fn dead_zone(&self, cx: &ToolContext<'_>) -> f64 {
-        cx.view.doc_len(self.style.node / 2.0)
+    /// The click-versus-drag distance of a torn plane's far edge node, in document pixels.
+    fn dead_zone(&self) -> f64 {
+        f64::from(self.style.click_slop)
     }
 
     /// Whether `key` is a plane's corner that arrows may move: a drawn plane's.
@@ -610,6 +663,8 @@ impl CanvasTool for VanishingPointPass<'_> {
             let (length, gap) = CursorHost::style(cx.tokens).crosshair;
             ToolCursor::Crosshair { length, gap }
         };
+        // Other Cursors Precise: the arrow of Edit Plane is the crosshair too.
+        let arrow = || if self.editor.cursor_options.other_precise { crosshair() } else { ToolCursor::System(CursorIcon::Default) };
         let Some(pointer) = cx.pointer else { return crosshair() };
         let p = [pointer.doc.x, pointer.doc.y];
         match self.editor.tool {
@@ -622,7 +677,7 @@ impl CanvasTool for VanishingPointPass<'_> {
                 } else if tool == VanishingTool::CreatePlane {
                     crosshair()
                 } else {
-                    ToolCursor::System(CursorIcon::Default)
+                    arrow()
                 }
             }
         }
@@ -636,8 +691,15 @@ impl CanvasTool for VanishingPointPass<'_> {
             return ToolAction::Done;
         }
         self.editor.pointer = Some(p);
+        self.editor.status = None;
         if self.editor.tool == VanishingTool::Stamp {
-            return self.stamp_press(p, pointer);
+            return match self.stamp_press(p, pointer, cx) {
+                Ok(action) => action,
+                Err(message) => {
+                    self.editor.status = Some(message);
+                    ToolAction::Done
+                }
+            };
         }
         match self.grab_at(p, self.reach(cx), pointer.modifiers.command) {
             Some(Grab::Tear { plane, edge }) => {
@@ -674,23 +736,23 @@ impl CanvasTool for VanishingPointPass<'_> {
         ToolAction::Claimed
     }
 
-    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+    fn drag(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:718 `drag_to`, :501 `stamp_to`.
         let p = [pointer.doc.x, pointer.doc.y];
         if p.iter().all(|v| v.is_finite()) {
             self.editor.pointer = Some(p);
-            let dead = self.dead_zone(cx);
+            let dead = self.dead_zone();
             self.drag_to(p, pointer.modifiers, dead);
         }
     }
 
-    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+    fn release(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:1025 `pointer` (Up ends the drag; the history
         // settles).
         let p = [pointer.doc.x, pointer.doc.y];
         if p.iter().all(|v| v.is_finite()) {
             self.editor.pointer = Some(p);
-            let dead = self.dead_zone(cx);
+            let dead = self.dead_zone();
             self.drag_to(p, pointer.modifiers, dead);
         }
         let Some((id, drag)) = self.editor.drag.take() else { return };
@@ -744,7 +806,7 @@ impl CanvasTool for VanishingPointPass<'_> {
         self.editor.events.extend(event);
     }
 
-    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:1045 `keys` (Delete, Backspace); arrows on the
         // picked corner are new (lead call 49).
         if !key.pressed || self.editor.drag.is_some() {
@@ -752,6 +814,10 @@ impl CanvasTool for VanishingPointPass<'_> {
         }
         if matches!(key.key, egui::Key::Delete | egui::Key::Backspace) && key.modifiers.matches_exact(Modifiers::NONE) {
             return self.editor.delete_selected(self.session, self.scene).is_some();
+        }
+        // The arrows move the picked corner only while the corners' group has the keyboard.
+        if !cx.parts_focused {
+            return false;
         }
         let Some(nudge) = NudgeKeys::new().from_key(key) else { return false };
         let Some((plane, corner)) = self.editor.picked.and_then(|k| self.corner_of(k)) else { return false };
@@ -764,7 +830,7 @@ impl CanvasTool for VanishingPointPass<'_> {
     }
 
     fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
-        super::draw::paint_editor(painter, cx.view, self.editor, self.session, self.options, self.scene, self.source, self.style);
+        super::draw::paint_editor(painter, cx.view, self.editor, self.session, self.settings, self.scene, self.source, self.style);
     }
 
     fn parts(&self, cx: &ToolContext<'_>) -> Option<ToolParts> {
@@ -772,7 +838,8 @@ impl CanvasTool for VanishingPointPass<'_> {
         if self.session.planes.is_empty() {
             return None;
         }
-        let corners = [&self.labels.top_left, &self.labels.top_right, &self.labels.bottom_right, &self.labels.bottom_left];
+        let labels = self.words(cx);
+        let corners = [&labels.top_left, &labels.top_right, &labels.bottom_right, &labels.bottom_left];
         let size = cx.tokens.component.handle.hit;
         let parts = self
             .session
@@ -786,14 +853,14 @@ impl CanvasTool for VanishingPointPass<'_> {
                 let centre = cx.view.to_screen(at(corner));
                 Part {
                     key,
-                    name: craft_i18n::fmt(&self.labels.corner_part, &[("n", &(i + 1).to_string()), ("corner", name)]),
+                    name: craft_i18n::fmt(&labels.corner_part, &[("n", &(i + 1).to_string()), ("corner", name)]),
                     value: Some(format!("{}, {}", cx.numbers.format(corner[0], 0..=1), cx.numbers.format(corner[1], 0..=1))),
                     rect: Rect::from_center_size(centre, vec2(size, size)),
                     selected: self.editor.picked == Some(key),
                 }
             })
             .collect();
-        Some(ToolParts::new(self.labels.name.clone(), parts))
+        Some(ToolParts::new(labels.parts.clone(), parts))
     }
 
     fn picked(&self) -> Option<u64> {
@@ -818,4 +885,26 @@ impl VanishingPointEditor {
     pub(super) fn pointer(&self) -> Option<[f64; 2]> {
         self.pointer
     }
+}
+
+/// The plane the paste lands on while Paste is on and the app has an image: the selected plane,
+/// else the first. `selected` is the editor's selection; one rule for the tool and the drawing.
+pub(super) fn paste_plane(
+    settings: &VanishingPointSettings,
+    source: &dyn VanishingPointSource,
+    planes: usize,
+    selected: Option<usize>,
+) -> Option<usize> {
+    if !settings.paste || source.paste().is_none() {
+        return None;
+    }
+    selected.filter(|i| *i < planes).or((planes > 0).then_some(0))
+}
+
+/// The pasted image's size in plane coordinates: `width` of the plane's width, the height from
+/// the image's aspect in the plane's metric (`lu`, `lv` its sides' lengths). One rule for the tool
+/// and the drawing.
+pub(super) fn paste_extent(image: Vec2, width: f64, lu: f64, lv: f64) -> [f64; 2] {
+    let (w, h) = (f64::from(image.x), f64::from(image.y));
+    [width, width * lu / lv * h / w.max(1.0)]
 }

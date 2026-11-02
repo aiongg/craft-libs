@@ -2614,6 +2614,14 @@ pub const VANISHING_POINT_HALO_WIDTH: f32 = 2.5;
 pub const VANISHING_POINT_SOURCE_ARM: f32 = 7.0;
 /// The halo under lines, the ring and the cross, black at alpha 160: `vanishing_point.halo`.
 pub const VANISHING_POINT_HALO: Rgba = Rgba::rgb(0, 0, 0).with_alpha(160);
+/// How far from a node's centre a press reaches, in points (PhotoCraft `SNAP_PX`): `vanishing_point.press_reach`.
+pub const VANISHING_POINT_PRESS_REACH: f32 = 8.0;
+/// The click-versus-drag distance of a torn plane's far edge node, in document pixels (PhotoCraft `vp_ui.rs:728`): `vanishing_point.click_slop`.
+pub const VANISHING_POINT_CLICK_SLOP: f32 = 2.0;
+/// The white line of the stamp ring and the source cross: `vanishing_point.ring_line`.
+pub const VANISHING_POINT_RING_LINE: f32 = 1.0;
+/// The alpha of the pasted image's white tint, 0 to 1 (PhotoCraft draws it at 230 of 255): `vanishing_point.paste_alpha`.
+pub const VANISHING_POINT_PASTE_ALPHA: f32 = 230.0 / 255.0;
 
 // --- wide_angle ---
 /// A constraint line's width: `wide_angle.line`.

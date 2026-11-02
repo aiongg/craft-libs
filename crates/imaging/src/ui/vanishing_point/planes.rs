@@ -93,6 +93,8 @@ pub trait VanishingScene {
     /// cannot be rebuilt has all-zero corners). `planes[0]` is always drawn.
     fn resolve(&self, planes: &[VanishingPlane], torn: &[Option<TornPlane>]) -> Vec<VanishingPlane>;
 
+    /// How believable plane `index` is. [`PlaneCheck::Invalid`] depends on the plane alone, not on
+    /// the others or the camera ([`slide_edge`] asks it of a lone plane).
     fn check(&self, planes: &[VanishingPlane], index: usize) -> PlaneCheck;
 
     /// The topmost plane under `at`.
@@ -153,8 +155,11 @@ pub fn fit_torn(
 }
 
 /// The plane after dragging edge node `edge` to `at`: the edge slides along the plane's own
-/// perspective as it was at the press (`at_press`, the plane's map then).
-pub fn slide_edge(at_press: &Homography, edge: usize, at: [f64; 2]) -> Option<VanishingPlane> {
+/// perspective as it was at the press (`at_press`, the plane's map then). `None` when part of the
+/// plane would lie on or beyond its horizon, or when the scene's [`VanishingScene::check`] calls
+/// the result [`PlaneCheck::Invalid`] (PhotoCraft's `slid_quad` asks `VpPlane::check`; the test is
+/// the scene's, not a copy).
+pub fn slide_edge(scene: &dyn VanishingScene, at_press: &Homography, edge: usize, at: [f64; 2]) -> Option<VanishingPlane> {
     // pc: crates/ui-egui/src/dialogs/vp_ui.rs:770 `slid_quad`, :718 `drag_to` (Edge).
     let inv = at_press.inverse()?;
     let p = inv.apply(Point::new(at[0], at[1]));
@@ -178,28 +183,6 @@ pub fn slide_edge(at_press: &Homography, edge: usize, at: [f64; 2]) -> Option<Va
         let at = at_press.apply(Point::new(q[0], q[1]));
         [at.x, at.y]
     });
-    (!corners_invalid(&corners)).then_some(VanishingPlane { corners })
-}
-
-/// PhotoCraft's `VpPlane::check` is `Invalid` (crates/algo/src/vanishing.rs:139): a corner that is
-/// not finite or beyond 1e9, an edge under a pixel, corners that do not all turn the same way, a
-/// corner sharper than 1 degree, or no map. The scene's [`VanishingScene::check`] cannot be asked
-/// here (`slide_edge` has no scene).
-fn corners_invalid(q: &[[f64; 2]; 4]) -> bool {
-    if q.iter().flatten().any(|v| !v.is_finite() || v.abs() > 1e9) {
-        return true;
-    }
-    let e = |i: usize| [q[(i + 1) % 4][0] - q[i][0], q[(i + 1) % 4][1] - q[i][1]];
-    let mut turns = [0.0; 4];
-    for (i, t) in turns.iter_mut().enumerate() {
-        let (a, b) = (e(i), e((i + 1) % 4));
-        let (la, lb) = (a[0].hypot(a[1]), b[0].hypot(b[1]));
-        if la < 1.0 || lb < 1.0 {
-            return true;
-        }
-        *t = (a[0] * b[1] - a[1] * b[0]) / (la * lb);
-    }
-    let same_sign = turns.iter().all(|v| *v > 0.0) || turns.iter().all(|v| *v < 0.0);
-    let min = turns.iter().fold(f64::MAX, |m, v| m.min(v.abs()));
-    !same_sign || min < 1f64.to_radians().sin() || Homography::unit_to_quad(q.map(|c| Point::new(c[0], c[1]))).is_none()
+    let slid = VanishingPlane { corners };
+    (scene.check(&[slid], 0) != PlaneCheck::Invalid).then_some(slid)
 }
