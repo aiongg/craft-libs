@@ -8,10 +8,10 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `primitives/hover/outline` | `HoverShape::Rect`, a `Path` in a layer colour and a `Mask` tint, on a light and a dark image |
-//! | `primitives/hover/lookup` | A fake finder whose job takes 300 ms: debounce, pending, hit, miss, a cached hit inside a found object, cleared by a press, the empty-layer hint |
+//! | `primitives/hover-outline/outline` | `HoverShape::Rect`, a `Path` in a layer colour and a `Mask` tint, on a light and a dark image |
+//! | `primitives/hover-lookup/lookup` | A fake finder whose job takes 300 ms: debounce, pending, hit, miss, a cached hit inside a found object, cleared by a press, the empty-layer hint |
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use craft_host::ManualJobs;
 use craft_host::queue::Cancel;
@@ -22,9 +22,9 @@ use super::CanvasView;
 use super::hover::{HoverAnswer, HoverHint, HoverLookup, HoverMask, HoverOutline, HoverQuery, HoverShape};
 use super::story::{DOC, ViewArgs, document};
 use crate::controls::Button;
-use crate::localized::Labels as _;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
-use crate::story::{Level, Story, StoryArgs, StoryLabels, Surface};
+use crate::story::{Level, Story, StoryArgs, StoryLabels, Surface, harness};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use crate::typed_story;
 
@@ -38,6 +38,7 @@ crate::words! {
         rect: "hoverStory.rect" = "Rectangle";
         path: "hoverStory.path" = "Path in a layer color";
         mask: "hoverStory.mask" = "Mask tint";
+        shapes: "hoverStory.shapes" = "{rect} · {path} · {mask}";
         finish: "hoverStory.finish" = "Finish next";
         nothing_asked: "hoverStory.nothingAsked" = "No lookup yet.";
         waiting: "hoverStory.waiting" = "Looking up… ({n} waiting)";
@@ -53,7 +54,7 @@ crate::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "primitives/hover/outline",
+            "primitives/hover-outline/outline",
             Level::Primitives,
             "HoverOutline",
             "Outline",
@@ -62,7 +63,7 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "primitives/hover/lookup",
+            "primitives/hover-lookup/lookup",
             Level::Primitives,
             "HoverLookup",
             "Lookup",
@@ -187,7 +188,7 @@ fn show_outline(ui: &mut Ui, args: &mut OutlineArgs) {
     HoverOutline::new("hover-story-rect", Some(fakes[0].shape.clone())).show(ui, &canvas.view);
     HoverOutline::new("hover-story-path", Some(fakes[1].shape.clone())).color(layer).show(ui, &canvas.view);
     HoverOutline::new("hover-story-mask", Some(fakes[2].shape.clone())).color(layer).show(ui, &canvas.view);
-    status(ui, format!("{} · {} · {}", own.rect, own.path, own.mask));
+    status(ui, craft_i18n::fmt(&own.shapes, &[("rect", &own.rect), ("path", &own.path), ("mask", &own.mask)]));
 }
 
 // --- lookup ---
@@ -207,8 +208,6 @@ struct LookupState {
     fakes: [Fake; 3],
 }
 
-type Shared = Arc<Mutex<LookupState>>;
-
 /// The pointer rests over the fake objects: the lookup waits out the debounce, then its job waits
 /// for "Finish next". A found object is outlined and stays shown while the pointer moves inside
 /// it; a miss is remembered; a press clears.
@@ -218,16 +217,12 @@ fn show_lookup(ui: &mut Ui, args: &mut LookupArgs) {
     let canvas = document(ui, args.view, &words.document);
     let tokens = Tokens::of(ui);
     let ctx = ui.ctx().clone();
-    let key = ui.make_persistent_id("hover-lookup-story");
-    let shared: Shared = ctx.data_mut(|d| {
-        d.get_temp_mut_or_insert_with(key, || {
-            let jobs = Arc::new(ManualJobs::new());
-            let lookup = HoverLookup::new(&ctx, Some(jobs.clone()));
-            Arc::new(Mutex::new(LookupState { lookup, jobs, fakes: fakes() }))
-        })
-        .clone()
+    let shared = harness::shared(ui, "lookup", || {
+        let jobs = Arc::new(ManualJobs::new());
+        let lookup = HoverLookup::new(&ctx, Some(jobs.clone()));
+        LookupState { lookup, jobs, fakes: fakes() }
     });
-    let Ok(mut guard) = shared.lock() else { return };
+    let mut guard = harness::lock(&shared);
     let LookupState { lookup, jobs, fakes } = &mut *guard;
     paint_objects(ui, &canvas.view, &tokens, None, fakes);
 
@@ -249,6 +244,7 @@ fn show_lookup(ui: &mut Ui, args: &mut LookupArgs) {
         HoverOutline::new("hover-lookup-outline", Some(fakes[found].shape.clone())).show(ui, &canvas.view);
     }
     let waiting = jobs.waiting();
+    let numbers = LocaleNumbers::of(ui);
     ui.horizontal(|ui| {
         if ui.add(Button::new(own.finish.as_str())).clicked() {
             jobs.run_next();
@@ -256,8 +252,8 @@ fn show_lookup(ui: &mut Ui, args: &mut LookupArgs) {
         }
         let line = match (shown, hint, pending) {
             (_, Some(HoverHint::EmptySampledLayer), _) => own.empty_layer.clone(),
-            (Some(found), _, _) => own.found.replace("{name}", names[found]),
-            (None, None, true) => own.waiting.replace("{n}", &waiting.to_string()),
+            (Some(found), _, _) => craft_i18n::fmt(&own.found, &[("name", names[found])]),
+            (None, None, true) => craft_i18n::fmt(&own.waiting, &[("n", &numbers.format(waiting as f64, 0..=0))]),
             (None, None, false) if at.is_some() => own.miss.clone(),
             _ => own.nothing_asked.clone(),
         };

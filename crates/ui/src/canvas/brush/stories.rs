@@ -3,11 +3,11 @@
 //! [`ToolCursor`] the library returns with the painter (the host would show it as a bitmap), so
 //! the shapes show on any backend.
 //!
-//! - `primitives/brush/cursor`: round, traced (a star), thin ellipse and pixel tips; Normal and
+//! - `primitives/brush-cursor/cursor`: round, traced (a star), thin ellipse and pixel tips; Normal and
 //!   Full Size; view rotation, flip and aspect sliders; Caps Lock, painting and centre toggles;
 //!   the second ring.
-//! - `primitives/brush/resize`: a canvas on a [`ToolHost`] where Ctrl + Alt + drag resizes the
-//!   brush, and a Play button that injects the same drag: diameter, the hardness, opacity and
+//! - `primitives/brush-resize/resize`: a canvas on a [`ToolHost`] where Ctrl + Alt + drag and Alt +
+//!   right-drag resize the brush, and a Play button that injects either drag: diameter, the hardness, opacity and
 //!   density levels, tint, hard and soft falloff, the readout.
 
 use egui::{Color32, Modifiers, Painter, Pos2, Shape, Stroke, Ui, vec2};
@@ -25,7 +25,7 @@ use crate::controls::Button;
 use crate::edit::CancelReason;
 use crate::edit::EditEvent;
 use crate::localized::{Labels as _, Units};
-use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, harness};
 use crate::theme::{Tokens, TokensOf as _};
 use crate::typed_story;
 
@@ -38,7 +38,7 @@ const STAR_POINTS: usize = 5;
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "primitives/brush/cursor",
+            "primitives/brush-cursor/cursor",
             Level::Primitives,
             "BrushCursor",
             "Cursor",
@@ -54,14 +54,14 @@ pub(crate) fn stories() -> Vec<Story> {
                 caps_lock: false,
                 painting: false,
                 crosshair_only_while_painting: true,
-                centre: false,
+                center: false,
                 second_ring: false,
             },
             show_cursor
         )
         .on(Surface::Canvas),
         typed_story!(
-            "primitives/brush/resize",
+            "primitives/brush-resize/resize",
             Level::Primitives,
             "BrushResize",
             "Resize",
@@ -74,6 +74,7 @@ pub(crate) fn stories() -> Vec<Story> {
                 start_level: 0.5,
                 max_diameter: 200.0,
                 drag_seconds: 2.0,
+                drag: DragArg::CtrlAlt,
             },
             show_resize
         )
@@ -134,7 +135,7 @@ struct CursorArgs {
     painting: bool,
     #[arg(name = "crosshair only while painting")]
     crosshair_only_while_painting: bool,
-    centre: bool,
+    center: bool,
     #[arg(name = "second ring")]
     second_ring: bool,
 }
@@ -215,7 +216,7 @@ fn show_cursor(ui: &mut Ui, args: &mut CursorArgs) {
     let (style, cursor_style) = (BrushStyle::of(&tokens), CursorHost::style(&tokens));
     let at = canvas.response.hover_pos().unwrap_or_else(|| view.to_screen(DOC.center()));
     let (tip, pose) = tip_of(args, view.to_doc(at));
-    let mut cursor = BrushCursor::new(&tip).pose(pose).centre(args.centre).painting(args.painting);
+    let mut cursor = BrushCursor::new(&tip).pose(pose).centre(args.center).painting(args.painting);
     if args.second_ring {
         cursor = cursor.inner_ring(args.diameter / 4.0);
     }
@@ -261,6 +262,31 @@ enum TintArg {
     Green,
 }
 
+/// The drag Play injects.
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum DragArg {
+    #[choice(name = "Ctrl + Alt + drag")]
+    CtrlAlt,
+    #[choice(name = "Alt + right-drag")]
+    AltRight,
+}
+
+impl DragArg {
+    fn button(self) -> egui::PointerButton {
+        match self {
+            DragArg::CtrlAlt => egui::PointerButton::Primary,
+            DragArg::AltRight => egui::PointerButton::Secondary,
+        }
+    }
+
+    fn modifiers(self) -> Modifiers {
+        match self {
+            DragArg::CtrlAlt => Modifiers { ctrl: true, alt: true, ..Modifiers::NONE },
+            DragArg::AltRight => Modifiers::ALT,
+        }
+    }
+}
+
 #[derive(StoryArgs, Debug, PartialEq)]
 struct ResizeArgs {
     #[arg(flatten)]
@@ -278,6 +304,8 @@ struct ResizeArgs {
     max_diameter: f64,
     #[arg(name = "drag seconds", range = 0.5..=6.0)]
     drag_seconds: f64,
+    /// The drag the Play button injects.
+    drag: DragArg,
 }
 
 /// The resize tool of the story: the brush's values, the gesture and the args' look.
@@ -311,6 +339,10 @@ impl ResizeTool {
 }
 
 impl CanvasTool for ResizeTool {
+    fn takes(&self, button: egui::PointerButton, modifiers: Modifiers) -> bool {
+        BrushResize::takes(button, modifiers)
+    }
+
     fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
         if self.resize.active() { ToolCursor::Hidden } else { ToolCursor::System(egui::CursorIcon::Crosshair) }
     }
@@ -351,24 +383,23 @@ impl CanvasTool for ResizeTool {
     }
 }
 
-/// A scripted drag in progress: when it began and whether the press went out.
+/// A scripted drag in progress: when it began, whether the press went out and which drag it is.
 #[derive(Clone, Copy, Debug)]
 struct Script {
     start: f64,
     pressed: bool,
+    drag: DragArg,
 }
 
 /// What the story keeps between passes.
 #[derive(Clone, Debug)]
 struct ResizeState {
     tool: ResizeTool,
-    /// The args the brush was last set from: diameter and level.
-    seeded: (f64, f64),
     script: Option<Script>,
 }
 
 /// Feeds the scripted drag to the host: a press in the document's middle, moves right and down,
-/// the release, with Ctrl and Alt held. One input per pass.
+/// the release, with the modifiers and button of the script's drag. One input per pass.
 fn run_script(ui: &Ui, canvas: &StoryCanvas, script: &mut Option<Script>, seconds: f64) {
     let Some(run) = script else { return };
     let ctx = ui.ctx();
@@ -376,10 +407,10 @@ fn run_script(ui: &Ui, canvas: &StoryCanvas, script: &mut Option<Script>, second
     let from = DOC.center();
     let to = from + Vec2::new(DOC.width() * 0.15, DOC.height() * 0.15); // design: allow(a share of the document, not a size)
     let doc = from + (to - from) * t;
-    let modifiers = Modifiers { ctrl: true, alt: true, ..Modifiers::NONE };
+    let (button, modifiers) = (run.drag.button(), run.drag.modifiers());
     let input = if !run.pressed {
         run.pressed = true;
-        ToolInput::Down { button: egui::PointerButton::Primary, doc: from, pressure: 1.0, tilt: [0.0, 0.0], rotation: 0.0, modifiers }
+        ToolInput::Down { button, doc: from, pressure: 1.0, tilt: [0.0, 0.0], rotation: 0.0, modifiers }
     } else if t < 1.0 {
         ToolInput::Move { doc, pressure: 1.0, tilt: [0.0, 0.0], rotation: 0.0, modifiers }
     } else {
@@ -389,24 +420,17 @@ fn run_script(ui: &Ui, canvas: &StoryCanvas, script: &mut Option<Script>, second
     ToolHost::inject(ctx, canvas.id, input);
 }
 
-/// Ctrl + Alt + drag on the document resizes the brush: left and right set the diameter, up and
+/// Ctrl + Alt + drag or Alt + right-drag on the document resizes the brush: left and right set the diameter, up and
 /// down the level, with the falloff drawn at the press and the readout beside the pointer. Play
 /// runs the same drag by injected pointer events.
 fn show_resize(ui: &mut Ui, args: &mut ResizeArgs) {
     let document_name = StoryLabels::of(ui).document;
     let canvas = document(ui, args.view, &document_name);
     let ctx = ui.ctx().clone();
-    let key = ui.scope_id().with("brush-resize-story");
-    let seeded = (args.diameter, args.start_level);
-    let mut state: ResizeState = ctx.data(|d| d.get_temp(key)).unwrap_or_else(|| ResizeState {
-        tool: ResizeTool { dims: BrushDimensions { diameter: seeded.0, level: seeded.1 }, ..ResizeTool::default() },
-        seeded,
-        script: None,
-    });
-    if state.seeded != seeded {
-        state.seeded = seeded;
-        state.tool.dims = BrushDimensions { diameter: seeded.0, level: seeded.1 };
-    }
+    let seeded = BrushDimensions { diameter: args.diameter, level: args.start_level };
+    harness::reset_on(ui, "resize", &(args.diameter, args.start_level));
+    let shared = harness::shared(ui, "resize", || ResizeState { tool: ResizeTool { dims: seeded, ..ResizeTool::default() }, script: None });
+    let mut state = harness::lock(&shared);
     state.tool.level = args.level.level();
     state.tool.max_diameter = args.max_diameter;
     state.tool.soft = (args.falloff == FalloffArg::Soft).then_some(args.start_level);
@@ -416,10 +440,9 @@ fn show_resize(ui: &mut Ui, args: &mut ResizeArgs) {
     let _ = ToolHost::new(canvas.id).document(DOC.size()).show(ui, &canvas.view, &canvas.response, &mut state.tool);
     let play = StoryLabels::of(ui).play;
     if ui.add(Button::new(play.as_str())).clicked() && state.script.is_none() {
-        state.script = Some(Script { start: ctx.input(|i| i.time), pressed: false });
+        state.script = Some(Script { start: ctx.input(|i| i.time), pressed: false, drag: args.drag });
     }
     if state.script.is_some() {
         ctx.request_repaint();
     }
-    ctx.data_mut(|d| d.insert_temp(key, state));
 }

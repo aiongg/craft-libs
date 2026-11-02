@@ -9,7 +9,7 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `patterns/marquee/constraint-fields` | Normal (fields greyed), Fixed Ratio 1 : 1 after the switch, Fixed Size 64 × 64 px, swap, a picked unit (in), the whole group disabled (single row marquee) |
+//! | `patterns/constraint-fields/constraint-fields` | Normal (fields greyed), Fixed Ratio 1 : 1 after the switch, Fixed Size 64 × 64 px, swap, a picked unit (in), the whole group disabled (single row marquee) |
 
 use egui::Ui;
 
@@ -19,7 +19,7 @@ use crate::localized::units::{LengthUnit, UnitContext};
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::patterns::OptionsBar;
 use crate::primitives::{Content, Text};
-use crate::story::{Level, Story, StoryArgs, Surface};
+use crate::story::{Level, Story, StoryArgs, Surface, harness};
 use crate::typed_story;
 
 /// The components this module has stories for.
@@ -32,13 +32,14 @@ crate::words! {
         value: "constraintFieldsStory.value" = "{style}: {width} × {height}";
         pixels: "constraintFieldsStory.pixels" = "{value} px";
         unit: "constraintFieldsStory.unit" = "Unit: {unit}";
+        none: "constraintFieldsStory.none" = "–";
     }
 }
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "patterns/marquee/constraint-fields",
+            "patterns/constraint-fields/constraint-fields",
             Level::Patterns,
             "ConstraintFields",
             "Constraint fields",
@@ -70,8 +71,8 @@ struct FieldsState {
 /// The cells of the Marquee options bar. Pick a style, type, swap or pick a unit from the menu of
 /// a Fixed Size cell; the line under the bar shows the constraint in pixels.
 fn show_fields(ui: &mut Ui, args: &mut FieldsArgs) {
-    let key = ui.make_persistent_id("constraint-fields-story");
-    let mut st: FieldsState = ui.data(|d| d.get_temp(key)).unwrap_or(FieldsState { constraint: Constraint::Free, unit: LengthUnit::Pixels });
+    let shared = harness::shared(ui, "constraint-fields", || FieldsState { constraint: Constraint::Free, unit: LengthUnit::Pixels });
+    let mut st = harness::lock(&shared);
     let labels = ConstraintFieldsLabels::of(ui);
     let own = ConstraintFieldsStoryLabels::of(ui);
     let width = UnitContext { pixels_per_inch: DOCUMENT_PPI, extent: Some(DOCUMENT_SIZE[0]), ..UnitContext::default() };
@@ -96,16 +97,14 @@ fn show_fields(ui: &mut Ui, args: &mut FieldsArgs) {
     }
     let numbers = LocaleNumbers::of(ui);
     let number = |v: f64| numbers.format(v, 0..=3);
+    let pixels = |v: f64| craft_i18n::fmt(&own.pixels, &[("value", &number(v))]);
     let (style, w, h) = match st.constraint {
         Constraint::Free => (labels.normal.as_str(), None, None),
         Constraint::Ratio(w, h) => (labels.fixed_ratio.as_str(), Some(number(w)), Some(number(h))),
-        Constraint::Size(w, h) => {
-            (labels.fixed_size.as_str(), Some(own.pixels.replace("{value}", &number(w))), Some(own.pixels.replace("{value}", &number(h))))
-        }
+        Constraint::Size(w, h) => (labels.fixed_size.as_str(), Some(pixels(w)), Some(pixels(h))),
     };
-    let dash = "–".to_string();
-    let line = own.value.replace("{style}", style).replace("{width}", w.as_ref().unwrap_or(&dash)).replace("{height}", h.as_ref().unwrap_or(&dash));
+    let line =
+        craft_i18n::fmt(&own.value, &[("style", style), ("width", w.as_deref().unwrap_or(&own.none)), ("height", h.as_deref().unwrap_or(&own.none))]);
     ui.add(Text::new(line).content(Content::Muted));
-    ui.add(Text::new(own.unit.replace("{unit}", st.unit.suffix())).content(Content::Muted));
-    ui.data_mut(|d| d.insert_temp(key, st));
+    ui.add(Text::new(craft_i18n::fmt(&own.unit, &[("unit", st.unit.suffix())])).content(Content::Muted));
 }
