@@ -476,7 +476,11 @@ fn hue_cell(ui: &mut Ui, salt: &'static str, context: AdjustContext, shown: usiz
     with_doc(
         ui,
         salt,
-        |ui| ui.data_mut(|d| d.insert_temp(HueSaturationEditor::id_in(ui, salt).with("range"), shown)),
+        |ui| {
+            ui.data_mut(|d| {
+                let _ = d.insert_temp(HueSaturationEditor::id_in(ui, salt).with("range"), shown);
+            })
+        },
         move || start,
         |ui, doc| {
             // The adjusted spectrum: the input turned by the Master hue.
@@ -517,7 +521,11 @@ fn balance_cell(ui: &mut Ui, salt: &'static str, context: AdjustContext, tone: C
     with_doc(
         ui,
         salt,
-        |ui| ui.data_mut(|d| d.insert_temp(ColorBalanceEditor::id_in(ui, salt).with("tone"), tone)),
+        |ui| {
+            ui.data_mut(|d| {
+                let _ = d.insert_temp(ColorBalanceEditor::id_in(ui, salt).with("tone"), tone);
+            })
+        },
         move || start,
         |ui, doc| {
             let edit = ColorBalanceEditor::new(salt, &doc.value, &numbers).context(context).show(ui);
@@ -649,7 +657,11 @@ fn selective_cell(ui: &mut Ui, salt: &'static str, context: AdjustContext, shown
     with_doc(
         ui,
         salt,
-        |ui| ui.data_mut(|d| d.insert_temp(SelectiveColorEditor::id_in(ui, salt).with("range"), shown)),
+        |ui| {
+            ui.data_mut(|d| {
+                let _ = d.insert_temp(SelectiveColorEditor::id_in(ui, salt).with("range"), shown);
+            })
+        },
         move || start,
         |ui, doc| {
             let edit = SelectiveColorEditor::new(salt, &doc.value, &numbers).context(context).show(ui);
