@@ -8,7 +8,7 @@ use super::{SelectionFrame, range_bands, rect_around};
 use crate::canvas::CanvasView;
 use crate::canvas::quad::{self, BoxAllow, BoxPart, BoxRules, BoxState, TransformMode};
 use crate::edit::{CancelReason, EditEvent};
-use crate::theme::{Base, install};
+use crate::theme::{Base, current, install};
 
 /// The box before any drag.
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
@@ -23,6 +23,7 @@ struct Host {
     picked: Option<BoxPart>,
     hovered: Option<BoxPart>,
     claimed: bool,
+    hit: f32,
 }
 
 fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
@@ -36,6 +37,7 @@ fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
         picked: None,
         hovered: None,
         claimed: false,
+        hit: 0.0,
     };
     setup(&mut host);
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
@@ -44,6 +46,7 @@ fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
             let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
             host.view = Some(view);
+            host.hit = SelectionFrame::style(&current(ui.ctx())).handle.hit;
             let state = host.state;
             let mut frame = SelectionFrame::new("frame", &state).grips(host.grips);
             if let Some(rules) = host.rules {
@@ -261,6 +264,69 @@ fn frame_press_outside_is_the_tools() {
     assert!(!h.state().claimed);
     assert_eq!(h.state().hovered, None);
     assert!(h.state().events.is_empty());
+}
+
+// `handle.hit` is a square's side: a press takes a grip within half of it of the grip's centre.
+#[test]
+fn frame_grip_reach_is_half_of_handle_hit() {
+    let mut h = harness(|_| {});
+    h.run();
+    let reach = h.state().hit / 2.0;
+    let left = screen(&h, Point::new(RECT.x0, 150.0));
+    h.event(Event::PointerMoved(left - vec2(reach - 1.0, 0.0)));
+    h.run();
+    assert_eq!(h.state().hovered, Some(BoxPart::Edge(3)));
+    h.event(Event::PointerMoved(left - vec2(reach + 1.0, 0.0)));
+    h.run();
+    assert_eq!(h.state().hovered, None, "past the reach and outside the box");
+}
+
+/// The item's frame without grips and the content frame inside it, each with its own box.
+struct Content {
+    item: BoxState,
+    content: BoxState,
+    view: Option<CanvasView>,
+}
+
+// A placed graphic's content frame (own colour, eight grips) inside the item's frame (grips off)
+// takes the presses at its corners; the item's frame keeps moving by its inside.
+#[test]
+fn content_frame_carries_its_own_grips() {
+    let host = Content {
+        item: BoxState::from_rect(RECT),
+        content: BoxState::from_rect(Rect::new(RECT.x0 + 20.0, RECT.y0 + 20.0, RECT.x1 - 20.0, RECT.y1 - 20.0)),
+        view: None,
+    };
+    let mut h =
+        Harness::<Content>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, host: &mut Content| {
+                let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
+                let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
+                host.view = Some(view);
+                let (item, content) = (host.item, host.content);
+                let own = SelectionFrame::new("content", &content).color(egui::Color32::from_rgb(0xc4, 0x6f, 0x2b)).show(ui, &canvas, &view);
+                if let Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. }) = own.event {
+                    host.content = value;
+                }
+                let frame = SelectionFrame::new("item", &item).grips(false).show(ui, &canvas, &view);
+                if let Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. }) = frame.event {
+                    host.item = value;
+                }
+            },
+            host,
+        );
+    h.run();
+    let to_screen = |h: &Harness<'_, Content>, p: Point| h.state().view.map_or(Pos2::ZERO, |v| v.to_screen(p));
+    let corner = to_screen(&h, Point::new(RECT.x1 - 20.0, RECT.y1 - 20.0));
+    h.event(Event::PointerMoved(corner));
+    h.event(button(corner, true, Modifiers::NONE));
+    h.event(Event::PointerMoved(corner + vec2(5.0, 5.0)));
+    h.event(Event::PointerMoved(corner + vec2(10.0, 10.0)));
+    h.event(button(corner + vec2(10.0, 10.0), false, Modifiers::NONE));
+    h.run();
+    let content = h.state().content.quad;
+    assert!(near(content[2], Point::new(RECT.x1 - 10.0, RECT.y1 - 10.0)), "the content corner followed: {content:?}");
+    assert_eq!(h.state().item, BoxState::from_rect(RECT), "the item's frame did not move");
 }
 
 // `range_bands` gives the four sides cut to the clip, none for non-finite input; `rect_around` never

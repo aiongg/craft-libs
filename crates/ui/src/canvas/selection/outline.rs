@@ -25,23 +25,23 @@ pub enum SelectionOutlineLook {
 pub struct SelectionOutline<'a> {
     paths: &'a [BezPath],
     look: SelectionOutlineLook,
-    colour: Option<Color32>,
+    color: Option<Color32>,
 }
 
 impl<'a> SelectionOutline<'a> {
     /// A solid outline of `paths` (document units).
     pub fn solid(paths: &'a [BezPath]) -> Self {
-        Self { paths, look: SelectionOutlineLook::Solid, colour: None }
+        Self { paths, look: SelectionOutlineLook::Solid, color: None }
     }
 
     /// A dashed outline of `paths` (document units).
     pub fn dashed(paths: &'a [BezPath]) -> Self {
-        Self { paths, look: SelectionOutlineLook::Dashed, colour: None }
+        Self { paths, look: SelectionOutlineLook::Dashed, color: None }
     }
 
     /// The line colour; `overlay.line` by default.
-    pub fn colour(mut self, colour: Color32) -> Self {
-        self.colour = Some(colour);
+    pub fn color(mut self, color: Color32) -> Self {
+        self.color = Some(color);
         self
     }
 
@@ -56,7 +56,7 @@ impl<'a> SelectionOutline<'a> {
             SelectionOutlineLook::Solid => (style.line, false),
             SelectionOutlineLook::Dashed => (style.outline, true),
         };
-        let stroke = Stroke::new(width, self.colour.unwrap_or(style.colour));
+        let stroke = Stroke::new(width, self.color.unwrap_or(style.color));
         let line = |mut points: Vec<Pos2>, closed: bool| {
             if points.len() < 2 {
                 return;

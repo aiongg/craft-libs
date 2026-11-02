@@ -50,7 +50,8 @@ pub struct HandleStyle {
     /// The outline outside `size`: `handle.halo` of `overlay.halo` in high contrast, so the handle
     /// reads on any image; none otherwise.
     pub halo: Stroke,
-    /// Side of the square that takes the pointer, centred on the handle: `handle.hit`.
+    /// Side of the square that takes the pointer, centred on the handle: `handle.hit`. A test by
+    /// distance from the centre (a box's grips) reads half of it.
     pub hit: f32,
     /// The pointer over the handle.
     pub cursor: CursorIcon,

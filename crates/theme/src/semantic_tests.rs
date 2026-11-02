@@ -634,6 +634,7 @@ fn grip_overlay_colours_are_fixed() {
             assert_eq!(c.overlay.grip_warm, hex("#ff7f9f"));
             assert_eq!(c.overlay.grip_hot, hex("#ff3b3b"));
             assert_eq!(c.overlay.grip_stroke, hex("#103080"));
+            assert_eq!(c.overlay.grip_dyn, hex("#26c6e8"));
         }
     }
 }

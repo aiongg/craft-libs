@@ -61,7 +61,7 @@ pub enum GripShape {
 /// The state a grip is drawn in.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum GripState {
-    /// At rest: `overlay.grip`.
+    /// At rest: `overlay.grip`, or `overlay.grip_dyn` for a [dynamic](Grip::dynamic) grip.
     #[default]
     Cold,
     /// The pointer is within `grip.warm_pad` of its bounds (`grip.hit_pad` for an arrow or a
@@ -82,12 +82,21 @@ pub struct Grip {
     pub shape: GripShape,
     /// Whether the host has made it hot (CadCraft's ⇧-click list, the grip being edited).
     pub hot: bool,
+    /// Whether it is a dynamic grip (CadCraft's arrows, triangles and dynamic points): its cold
+    /// fill is `overlay.grip_dyn`.
+    pub dynamic: bool,
 }
 
 impl Grip {
     /// A cold grip keyed `key` at `at`.
     pub fn new(key: u64, at: Point, shape: GripShape) -> Self {
-        Self { key, at, shape, hot: false }
+        Self { key, at, shape, hot: false, dynamic: false }
+    }
+
+    /// Makes the grip a dynamic one.
+    pub fn dynamic(mut self, dynamic: bool) -> Self {
+        self.dynamic = dynamic;
+        self
     }
 
     /// Makes the grip hot.
@@ -363,6 +372,7 @@ impl<'a> GripSet<'a> {
             }
             let state = Self::state(g, bounds(i), hover, &style);
             let fill = match state {
+                GripState::Cold if g.dynamic => style.dynamic,
                 GripState::Cold => style.cold,
                 GripState::Warm => style.warm,
                 GripState::Hot => style.hot,

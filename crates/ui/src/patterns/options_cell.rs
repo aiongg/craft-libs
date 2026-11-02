@@ -124,7 +124,7 @@ impl OptionsBar {
     /// ([`expr::parse_with_units`](crate::controls::expr::parse_with_units)). The edit reports
     /// pixels, clamped to `range` (pixels). Leaving the field re-reads the rounded text it showed,
     /// which is not an edit: the pixels stay exact unless the shown value changed. A secondary
-    /// click on the field opens the units menu of `units`, as on the rulers
+    /// click on the field opens the units menu of `units` (no menu when it is empty), as on the rulers
     /// ([`LengthUnitLabels`](crate::localized::units::LengthUnitLabels) names); the pick comes
     /// back in [`UnitCellResponse::unit_picked`]. Width [`CellWidth::Md`].
     // pc: crates/ui-egui/src/panels/options_bar.rs:758 `fixed_size_field`, :747 `fixed_size_units`.
@@ -156,7 +156,12 @@ impl OptionsBar {
         let units_of_field = ExprUnits { unit: Some(unit), suffix: unit.suffix(), context };
         let edit = Self::cell(ui, caption, CellWidth::Md, |ui, label| {
             let area = scrub_area(ui, label, label.id);
-            unit_number_field(salt, caption, shown, &numbers, &units_of_field).range(bounds).unit_menu(&entries, &mut picked).scrub_by(&area).show(ui)
+            let mut field = unit_number_field(salt, caption, shown, &numbers, &units_of_field).range(bounds).scrub_by(&area);
+            // Without units there is nothing to pick, so a secondary click opens no menu.
+            if !entries.is_empty() {
+                field = field.unit_menu(&entries, &mut picked);
+            }
+            field.show(ui)
         });
         let to_pixels = |value: f64| {
             let exact = if (round(value) - shown).abs() < 0.5 / scale { pixels } else { context.to_pixels(value, unit).unwrap_or(pixels) };
