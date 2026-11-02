@@ -1,6 +1,6 @@
 //! [`SliceStyle`]: the slice overlay's look, from tokens (task TK3).
 
-use egui::{Color32, FontId, Vec2, vec2};
+use egui::{Color32, FontId, Stroke, Vec2, vec2};
 
 use super::SliceTool;
 use craft_theme::TypeRole;
@@ -17,7 +17,7 @@ pub struct SliceStyle {
     /// The selected slice's outline width: `slice.selected_outline` (2).
     pub selected_outline: f32,
     /// The slice colour: `overlay.slice` (#38b5ff), unless the preference overrides it.
-    pub colour: Color32,
+    pub color: Color32,
     /// `overlay.slice_selected` (#ffb000).
     pub selected: Color32,
     /// An auto slice's badge fill: `overlay.slice_auto` (grey 110).
@@ -49,6 +49,9 @@ pub struct SliceStyle {
     pub handle_hit: f32,
     /// A handle's fill: `overlay.handle_fill`.
     pub handle_fill: Color32,
+    /// A handle's edge: the `Handle` painter's stroke width in `overlay.slice_selected`, as the
+    /// artboard handles use theirs.
+    pub handle_edge: Stroke,
 }
 
 impl SliceTool {
@@ -61,7 +64,7 @@ impl SliceTool {
         SliceStyle {
             outline: s.outline,
             selected_outline: s.selected_outline,
-            colour: o.slice.to_egui(),
+            color: o.slice.to_egui(),
             selected: o.slice_selected.to_egui(),
             auto_fill: o.slice_auto.to_egui(),
             text: o.slice_text.to_egui(),
@@ -77,6 +80,7 @@ impl SliceTool {
             handle: handle.size,
             handle_hit: handle.hit,
             handle_fill: handle.fill,
+            handle_edge: Stroke::new(handle.stroke.width, o.slice_selected.to_egui()),
         }
     }
 }

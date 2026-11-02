@@ -6,10 +6,12 @@ use egui_kittest::Harness;
 use kurbo::{Point, Rect};
 
 use super::{SliceCommand, SliceEvent, SliceItem, SliceMode, SliceOrigin, SliceOverlay, SliceRefusal, SliceTool, SliceToolSettings};
-use craft_ui::canvas::{CanvasId, CanvasView, Constraint, ToolHost};
+use craft_ui::canvas::{CanvasId, CanvasView, Constraint, SnapKind, SnapTarget, SnapTargets, ToolHost};
 use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
+use craft_ui::testing::canvas;
 use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
 
 struct Host {
@@ -22,6 +24,8 @@ struct Host {
     settings: SliceToolSettings,
     view: CanvasView,
     canvas: Option<CanvasId>,
+    /// The host's snap targets for the whole run.
+    targets: Option<SnapTargets>,
     focus: bool,
     /// Every event of every pass.
     events: Vec<SliceEvent>,
@@ -49,6 +53,7 @@ fn harness(mode: SliceMode, items: Vec<SliceItem>, selected: Option<usize>) -> H
         settings: SliceToolSettings::default(),
         view: CanvasView::new(rect, Point::new(200.0, 150.0), 1.0),
         canvas: None,
+        targets: None,
         focus: false,
         events: Vec::new(),
         taken: Vec::new(),
@@ -72,7 +77,11 @@ fn harness(mode: SliceMode, items: Vec<SliceItem>, selected: Option<usize>) -> H
                     .locked(host.locked)
                     .hide_auto(host.hide_auto)
                     .settings(host.settings);
-                let response = ToolHost::new(id).show(ui, &host.view, &canvas, &mut host.tool);
+                let mut tool_host = ToolHost::new(id);
+                if let Some(targets) = &host.targets {
+                    tool_host = tool_host.snap(targets);
+                }
+                let response = tool_host.show(ui, &host.view, &canvas, &mut host.tool);
                 host.taken.extend(response.took_key.map(|k| k.key));
                 for event in host.tool.take_events() {
                     match &event {
@@ -270,13 +279,20 @@ fn slice_delete_key_deletes_the_slice_not_the_layer() {
     key(&mut h, Key::Delete, Modifiers::NONE);
     assert!(commands(&h).is_empty() && h.state().taken.is_empty());
 
+    // A layer slice is stored, so it deletes like a user slice.
+    let mut h = harness(SliceMode::Select, vec![item(1, [0.0, 0.0, 50.0, 50.0], SliceOrigin::Layer)], Some(1));
+    focus(&mut h);
+    key(&mut h, Key::Delete, Modifiers::NONE);
+    assert_eq!(commands(&h), [SliceCommand::Delete]);
+
     let mut h = harness(SliceMode::Slice, items, Some(1));
     focus(&mut h);
     key(&mut h, Key::Backspace, Modifiers::NONE);
     assert!(commands(&h).is_empty() && h.state().taken.is_empty());
 }
 
-// Locked: a press in either mode reports `Refused(Locked)` and nothing else.
+// Locked: a press in either mode clears the selection (`Select { number: None }`, as PhotoCraft)
+// and reports `Refused(Locked)`, and nothing else.
 #[test]
 fn locked_slices_refuse_every_gesture() {
     for mode in [SliceMode::Slice, SliceMode::Select] {
@@ -284,7 +300,9 @@ fn locked_slices_refuse_every_gesture() {
         h.state_mut().locked = true;
         h.step();
         drag(&mut h, pos2(50.0, 50.0), pos2(80.0, 80.0));
-        assert_eq!(h.state().events, [SliceEvent::Refused(SliceRefusal::Locked)], "{mode:?}");
+        let select = SliceEvent::Select { number: None, add: false, modifiers: Modifiers::NONE };
+        assert_eq!(h.state().events, [select, SliceEvent::Refused(SliceRefusal::Locked)], "{mode:?}");
+        assert_eq!(h.state().selected, None, "{mode:?}");
     }
 }
 
@@ -381,4 +399,28 @@ fn slice_cancels_on_escape_and_on_tool_switch() {
             assert!(draws(&h).iter().chain(&moves(&h)).chain(&resizes(&h)).all(|e| phase(e) != "commit"));
         }
     }
+}
+
+// A snapped resize ends the edge on the guide, whatever the press's offset from the handle: the
+// press is 5 pt right of the handle point, the guide at x = 230.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
+#[test]
+fn a_snapped_resize_lands_the_edge_on_the_guide() {
+    let mut h = harness(SliceMode::Select, vec![user(1, [100.0, 100.0, 200.0, 200.0])], Some(1));
+    let mut targets = SnapTargets::new();
+    targets.add(SnapTarget { vertical: true, position: 230.0, kind: SnapKind::Guide, span: None });
+    h.state_mut().targets = Some(targets);
+    h.step();
+    canvas::drag(&mut h, pos2(205.0, 150.0), pos2(228.0, 150.0), Modifiers::NONE);
+    assert_eq!(committed(&resizes(&h)), Some(Rect::new(100.0, 100.0, 230.0, 200.0)), "{:?}", h.state().events);
+}
+
+// A click on a handle, off its centre, resizes nothing.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
+#[test]
+fn a_click_on_a_handle_resizes_nothing() {
+    let mut h = harness(SliceMode::Select, vec![user(1, [100.0, 100.0, 200.0, 200.0])], Some(1));
+    canvas::press(&mut h, pos2(205.0, 150.0), Modifiers::NONE);
+    canvas::release(&mut h, pos2(205.0, 150.0), Modifiers::NONE);
+    assert!(resizes(&h).is_empty(), "{:?}", h.state().events);
 }

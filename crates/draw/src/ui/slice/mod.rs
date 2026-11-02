@@ -61,8 +61,17 @@ pub enum SliceOrigin {
     /// Made by the app to fill the space between user slices: drawn dashed, never moves, hidden
     /// with Hide Auto Slices.
     Auto,
-    /// Follows a layer's bounds: never moves; its badge carries "▪".
+    /// Follows a layer's bounds: never moves; its badge carries a small painted square (the
+    /// installed fonts lack "▪", U+25AA).
     Layer,
+}
+
+impl SliceOrigin {
+    /// Whether the app stores the slice (user and layer slices, which have an id) and so can
+    /// delete it. An auto slice goes when the slices around it do.
+    pub fn stored(self) -> bool {
+        !matches!(self, SliceOrigin::Auto)
+    }
 }
 
 /// One slice as the tool sees it this pass: a read-only snapshot of the app's resolved slices.
@@ -70,7 +79,9 @@ pub enum SliceOrigin {
 pub struct SliceItem {
     /// The slice's display number (1, 2, …), how events and the badge name it.
     pub number: usize,
-    /// The stored slice's id; `None` for an auto slice.
+    /// The id of the stored slice, for user and layer slices alike (PhotoCraft's
+    /// `ResolvedSlice::id`: a layer slice is a stored slice that follows a layer); `None` for an
+    /// auto slice.
     pub id: Option<u32>,
     /// In document pixels.
     pub rect: Rect,
@@ -104,7 +115,8 @@ impl Default for SliceRules {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SliceCommand {
-    /// Delete the selected slice (Delete or Backspace in Select, or the bar's Delete).
+    /// Delete the selected stored (user or layer) slice (Delete or Backspace in Select, or the
+    /// bar's Delete).
     Delete,
     /// Open [`SliceOptionsDialog`] for the selected slice (double click, Enter, the bar's button).
     Options,

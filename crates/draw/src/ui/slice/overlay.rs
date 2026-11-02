@@ -15,7 +15,7 @@ const LAYER_MARK: f32 = 0.45;
 /// when View › Show › Slices is on and the document has slices (the app draws it itself then).
 ///
 /// - User and layer slices: a `slice.outline` (1 pt) line inside the edge in the slice colour
-///   ([`colour`](Self::colour), `overlay.slice` by default); the selected slice
+///   ([`color`](Self::color), `overlay.slice` by default); the selected slice
 ///   `slice.selected_outline` (2 pt) in `overlay.slice_selected`.
 /// - Auto slices (only with [`auto`](Self::auto)): dashed `slice.auto_dash` / `slice.auto_gap`
 ///   (3 / 3) at `slice.auto_alpha` (0.7) of the slice colour.
@@ -29,7 +29,7 @@ const LAYER_MARK: f32 = 0.45;
 pub struct SliceOverlay<'a> {
     items: &'a [SliceItem],
     selected: Option<usize>,
-    colour: Option<Srgba>,
+    color: Option<Srgba>,
     numbers: bool,
     auto: bool,
 }
@@ -37,7 +37,7 @@ pub struct SliceOverlay<'a> {
 impl<'a> SliceOverlay<'a> {
     /// The overlay of `items`, numbers and auto slices shown.
     pub fn new(items: &'a [SliceItem]) -> Self {
-        SliceOverlay { items, selected: None, colour: None, numbers: true, auto: true }
+        SliceOverlay { items, selected: None, color: None, numbers: true, auto: true }
     }
 
     /// The selected slice's number.
@@ -47,8 +47,8 @@ impl<'a> SliceOverlay<'a> {
     }
 
     /// The slice colour preference; `overlay.slice` when `None`.
-    pub fn colour(mut self, colour: Option<Srgba>) -> Self {
-        self.colour = colour;
+    pub fn color(mut self, color: Option<Srgba>) -> Self {
+        self.color = color;
         self
     }
 
@@ -70,7 +70,7 @@ impl<'a> SliceOverlay<'a> {
         // dashed 3/3 at × 0.7 :264, outlines :266-269, the badge rule `sr.width() > 18.0 &&
         // sr.height() > 12.0` :285, the badge at (2, 2) grown (6, 2) :292, 2 pt radius :300, text at
         // (3, 1) :301).
-        let colour = self.colour.map_or(style.colour, Color32::from);
+        let color = self.color.map_or(style.color, Color32::from);
         // Auto slices first (dashed, underneath), then user and layer slices.
         for auto_pass in [true, false] {
             if auto_pass && !self.auto {
@@ -81,11 +81,11 @@ impl<'a> SliceOverlay<'a> {
                 let quad = view.quad(item.rect);
                 let screen = Rect::from_points(&quad);
                 if auto_pass {
-                    let stroke = Stroke::new(style.outline, colour.gamma_multiply(style.auto_alpha));
+                    let stroke = Stroke::new(style.outline, color.gamma_multiply(style.auto_alpha));
                     let points = [quad[0], quad[1], quad[2], quad[3], quad[0]];
                     painter.add(Shape::dashed_line(&points, stroke, style.auto_dash.0, style.auto_dash.1));
                 } else {
-                    outline(painter, view, item.rect, Stroke::new(style.outline, colour));
+                    outline(painter, view, item.rect, Stroke::new(style.outline, color));
                 }
                 if selected {
                     outline(painter, view, item.rect, Stroke::new(style.selected_outline, style.selected));
@@ -97,10 +97,11 @@ impl<'a> SliceOverlay<'a> {
                     } else if selected {
                         style.selected
                     } else {
-                        colour
+                        color
                     };
                     let galley = painter.layout_no_wrap(number_text(numbers, item.number), style.badge_font.clone(), style.text);
-                    // The layer mark is drawn, not typed: the installed fonts have no "▪".
+                    // pc: `slice_ui.rs:287` types "{:02} ▪"; the installed fonts have no "▪" (U+25AA) and egui
+                    // panics on a missing glyph, so the mark is a square painted at `LAYER_MARK` of the number's height.
                     let mark = if layer { galley.size().y * LAYER_MARK } else { 0.0 };
                     let gap = if layer { galley.size().y * LAYER_MARK } else { 0.0 };
                     let size = vec2(galley.size().x + gap + mark, galley.size().y) + style.badge_pad * 2.0;
