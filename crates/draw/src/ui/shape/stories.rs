@@ -5,7 +5,7 @@
 //!
 //! - `patterns/shape-panel/sections`: Appearance and Shape for Rect, Ellipse, Polygon, Star and Line; a locked
 //!   layer disables every field.
-//! - `patterns/shape-options/bar`: the bar for each Shape tool kind, over the tool settings.
+//! - `patterns/shape-bar/bar`: the bar for each Shape tool kind, over the tool settings.
 //!
 //! RG2 registers `stories()` and the components `ShapePanel` and `ShapeBar`, and RG1 adds
 //! [`ShapeStoryLabels`] to `WORDS`.
@@ -22,6 +22,7 @@ use craft_ui::localized::Labels as _;
 use craft_ui::patterns::OptionsBar;
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
+use craft_ui::story::{lock, reset_on, shared};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use craft_ui::typed_story;
 
@@ -52,7 +53,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_panel
         ),
         typed_story!(
-            "patterns/shape-options/bar",
+            "patterns/shape-bar/bar",
             Level::Patterns,
             "ShapeBar",
             "Options bar",
@@ -163,10 +164,6 @@ fn status(ui: &mut Ui, text: String) {
     ui.add(Text::new(text).content(Content::Muted));
 }
 
-fn kept_key(ui: &Ui, name: &str) -> egui::Id {
-    ui.make_persistent_id(("craft_draw::shape::stories", name))
-}
-
 fn show_note(ui: &mut Ui, words: &ShapeStoryLabels, note: &str) {
     if !note.is_empty() {
         status(ui, craft_i18n::fmt(&words.change, &[("change", note)]));
@@ -207,16 +204,13 @@ struct PanelArgs {
 fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
     let words = ShapeStoryLabels::of(ui);
     let story = StoryLabels::of(ui);
-    let ctx = ui.ctx().clone();
-    let key = kept_key(ui, "panel");
     let tokens = Tokens::of(ui);
     let seed = (args.shape, args.locked);
+    reset_on(ui, "panel", &seed);
     let fresh = || FakeShape::new(args.shape.shape(), args.locked).themed(&tokens);
-    let mut kept: (PanelArgsSeed, FakeShape) = ctx
-        .data(|d| d.get_temp(key))
-        .filter(|(s, _): &(PanelArgsSeed, FakeShape)| s.0 == seed.0 && s.1 == seed.1)
-        .unwrap_or_else(|| (PanelArgsSeed(seed.0, seed.1), fresh()));
-    let fake = &mut kept.1;
+    let state = shared(ui, "panel", &fresh);
+    let mut guard = lock(&state);
+    let fake = &mut *guard;
 
     let events = ui
         .scope(|ui| {
@@ -237,12 +231,7 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
         }
     });
     show_note(ui, &words, &fake.note);
-    ctx.data_mut(|d| d.insert_temp(key, kept));
 }
-
-/// What the panel story was built from, to start over when an arg changes.
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct PanelArgsSeed(PanelShape, bool);
 
 // --- options bar ---
 
@@ -293,13 +282,13 @@ struct BarKept {
 fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let words = ShapeStoryLabels::of(ui);
     let story = StoryLabels::of(ui);
-    let ctx = ui.ctx().clone();
-    let key = kept_key(ui, "bar");
     let tokens = Tokens::of(ui);
     let fresh = || BarKept { settings: ShapeToolSettings::default(), fake: FakeShape::new(LiveShape::Line { weight: 3.0 }, false).themed(&tokens) };
-    let mut kept: BarKept = ctx.data(|d| d.get_temp(key)).unwrap_or_else(fresh);
+    let state = shared(ui, "bar", &fresh);
+    let mut guard = lock(&state);
+    let kept = &mut *guard;
     kept.fake.look.locked = args.locked;
-    let BarKept { settings, fake } = &mut kept;
+    let BarKept { settings, fake } = &mut *kept;
     // The bar shows the settings: Fill is on when the paint is, and the width is the tool's.
     let fill = fake.look.fill.clone();
     let mut look = fake.look.clone();
@@ -334,9 +323,8 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     }
     ui.horizontal(|ui| {
         if ui.add(Button::new(story.reset.as_str())).clicked() {
-            kept = fresh();
+            *kept = fresh();
         }
     });
     show_note(ui, &words, &kept.fake.note);
-    ctx.data_mut(|d| d.insert_temp(key, kept));
 }

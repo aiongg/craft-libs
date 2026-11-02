@@ -7,7 +7,7 @@
 //!   one) with the tool in a `ToolHost`: draw, move, resize, the "+" buttons (Photoshop rules), the
 //!   Illustrator rules (multiple selection, ⌥ copies, Esc leaves), a locked board. The pasteboard's
 //!   page names select a board.
-//! - `patterns/artboard-options/bar`: the bar with and without a selected board, over a preset list.
+//! - `patterns/artboard-bar/bar`: the bar with and without a selected board, over a preset list.
 //! - `patterns/artboard-properties/section`: the Properties section: preset, W and H, X and Y, background;
 //!   Other… is answered by the story.
 //!
@@ -27,7 +27,7 @@ use craft_ui::edit::EditEvent;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::patterns::OptionsBar;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, lock, shared};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, lock, reset_on, shared};
 use craft_ui::testing::canvas_story::{ViewArgs, document_at};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use craft_ui::typed_story;
@@ -72,7 +72,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_tool
         )
         .on(Surface::Canvas),
-        typed_story!("patterns/artboard-options/bar", Level::Patterns, "ArtboardBar", "Bar", BarArgs { selection: true, wide: true }, show_bar),
+        typed_story!("patterns/artboard-bar/bar", Level::Patterns, "ArtboardBar", "Bar", BarArgs { selection: true, wide: true }, show_bar),
         typed_story!(
             "patterns/artboard-properties/section",
             Level::Patterns,
@@ -103,7 +103,7 @@ fn fill(background: ArtboardBackground) -> Option<Color32> {
         ArtboardBackground::White => Some(Color32::WHITE),
         ArtboardBackground::Black => Some(Color32::BLACK),
         ArtboardBackground::Transparent => None,
-        ArtboardBackground::Custom(colour) => Some(Color32::from(colour)),
+        ArtboardBackground::Custom(color) => Some(Color32::from(color)),
     }
 }
 
@@ -255,7 +255,7 @@ fn show_tool(ui: &mut Ui, args: &mut ToolArgs) {
         .enumerate()
         .map(|(i, board)| {
             let page = PageFrame::new(board.rect.abs()).name(board.name.clone()).active(kept.selected.contains(&i));
-            fill(board.background).map_or(page.clone(), |colour| page.fill(colour))
+            fill(board.background).map_or(page.clone(), |color| page.fill(color))
         })
         .collect();
     let sensed = Pasteboard::new("artboard-pasteboard", &pages).canvas(canvas.id).show(ui, &canvas.view);
@@ -300,6 +300,7 @@ struct BarKept {
 fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let words = ArtboardStoryLabels::of(ui);
     let sample = if args.wide { Size::new(BOARD.height, BOARD.width) } else { BOARD };
+    reset_on(ui, "bar", &args.wide);
     let state = shared(ui, "bar", || BarKept { size: sample, added: 0 });
     let mut kept = lock(&state);
     let list = presets(&words);
@@ -359,19 +360,17 @@ fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
     let seed = (args.background, args.x.to_bits(), args.y.to_bits());
     let fresh =
         || ArtboardItem { name: board_name(&words, 1), rect: Rect::from_origin_size(Point::new(args.x, args.y), BOARD), locked: false, background };
-    let state = shared(ui, "properties", || (seed, fresh()));
+    reset_on(ui, "properties", &seed);
+    let state = shared(ui, "properties", fresh);
     let mut kept = lock(&state);
-    if kept.0 != seed {
-        *kept = (seed, fresh());
-    }
-    let out = ArtboardProperties::new("artboard-properties", &kept.1, &list).show(ui);
+    let out = ArtboardProperties::new("artboard-properties", &kept, &list).show(ui);
     if let Some(rect) = out.rect.as_ref().and_then(ToolKept::done) {
-        kept.1.rect = rect;
+        kept.rect = rect;
     }
     if let Some(background) = out.background {
-        kept.1.background = background;
+        kept.background = background;
     }
     if out.pick_color.is_some() {
-        kept.1.background = ArtboardBackground::Custom(accent);
+        kept.background = ArtboardBackground::Custom(accent);
     }
 }
