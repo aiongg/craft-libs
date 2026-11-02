@@ -2973,6 +2973,9 @@ fn stroke_editor_lines(out: &mut Lines, t: &StrokeEditorTokens) {
     let StrokeEditorTokens {
         width,
         screen_margin,
+        screen_margin_y,
+        min_width,
+        min_height,
         opener_width,
         opener_height,
         preset_height,
@@ -2982,9 +2985,14 @@ fn stroke_editor_lines(out: &mut Lines, t: &StrokeEditorTokens) {
         sample_stroke,
         sample_inset,
         sample_margin,
+        off_stroke,
+        off_slash_stroke,
     } = t;
     out.line("stroke_editor.width", len(*width));
     out.line("stroke_editor.screen_margin", len(*screen_margin));
+    out.line("stroke_editor.screen_margin_y", len(*screen_margin_y));
+    out.line("stroke_editor.min_width", len(*min_width));
+    out.line("stroke_editor.min_height", len(*min_height));
     out.line("stroke_editor.opener_width", len(*opener_width));
     out.line("stroke_editor.opener_height", len(*opener_height));
     out.line("stroke_editor.preset_height", len(*preset_height));
@@ -2994,6 +3002,8 @@ fn stroke_editor_lines(out: &mut Lines, t: &StrokeEditorTokens) {
     out.line("stroke_editor.sample_stroke", len(*sample_stroke));
     out.line("stroke_editor.sample_inset", len(*sample_inset));
     out.line("stroke_editor.sample_margin", len(*sample_margin));
+    out.line("stroke_editor.off_stroke", len(*off_stroke));
+    out.line("stroke_editor.off_slash_stroke", len(*off_slash_stroke));
 }
 
 fn measure_lines(out: &mut Lines, t: &MeasureTokens) {

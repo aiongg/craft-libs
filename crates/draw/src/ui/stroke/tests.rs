@@ -30,6 +30,8 @@ struct Host {
     choices: Vec<(String, String)>,
     /// Presses that reached the strip beside the button.
     canvas_clicks: usize,
+    /// Whether the opener is disabled.
+    disable: bool,
 }
 
 impl Host {
@@ -49,6 +51,7 @@ impl Host {
             fields: Vec::new(),
             choices: Vec::new(),
             canvas_clicks: 0,
+            disable: false,
         }
     }
 
@@ -59,12 +62,16 @@ impl Host {
         let rows = [StrokeChoiceRow::new("arrow", "Arrowhead", &choices).selected(MixedValue::Same("open")).paint(|_, _, _| {})];
         let (event, field, choice) = if self.button {
             ui.horizontal_top(|ui| {
-                let r = StrokeButton::new("stroke", &style, &numbers)
-                    .enabled(self.enabled)
-                    .closed(self.closed)
-                    .corners(self.corners)
-                    .target(self.target)
-                    .show(ui, &mut self.open);
+                let r = ui
+                    .add_enabled_ui(!self.disable, |ui| {
+                        StrokeButton::new("stroke", &style, &numbers)
+                            .enabled(self.enabled)
+                            .closed(self.closed)
+                            .corners(self.corners)
+                            .target(self.target)
+                            .show(ui, &mut self.open)
+                    })
+                    .inner;
                 ui.add_space(400.0);
                 let (rect, canvas) = ui.allocate_exact_size(vec2(100.0, 100.0), Sense::click());
                 canvas.widget_info(|| egui::WidgetInfo::labeled(Role::Button, true, "Canvas"));
@@ -250,6 +257,15 @@ fn stroke_editor_shows_the_error_for_an_invalid_pattern_and_reports_nothing() {
     type_into(&mut harness, "Gap", "0");
     assert!(harness.state().events.iter().all(|e| e.value().is_none()), "the pattern [0, 0] is not reported: {:?}", harness.state().events);
     assert_eq!(harness.state().style.dashes, [0.0, 2.0]);
+    assert!(
+        harness.query_by_label("Use finite lengths and a positive pattern total").is_some(),
+        "the typed edit stays pending and shows the message"
+    );
+
+    // A valid edit on the pending style reports and clears the message.
+    type_into(&mut harness, "Gap", "3");
+    assert_eq!(harness.state().style.dashes, [0.0, 3.0]);
+    assert!(harness.query_by_label("Use finite lengths and a positive pattern total").is_none());
 }
 
 // With `mixed.cap` no cap button or select value is lit; picking one reports a Set for all.
@@ -325,6 +341,30 @@ fn stroke_button_closes_on_target_change_and_escape_returns_focus() {
     settle(&mut harness);
     assert!(!harness.state().open);
     assert!(node(&harness, Role::Button, "Stroke Options").accesskit_node().is_focused(), "focus returns to the opener");
+}
+
+// An outside width change keeps the popover open (the editor never edits it); an outside cap
+// change closes it.
+#[test]
+fn stroke_button_ignores_the_width_when_comparing_the_value() {
+    let mut harness = open_button(Host::new(StrokeStyle::default()));
+    harness.state_mut().style.width = 9.0;
+    settle(&mut harness);
+    assert!(harness.state().open, "a width change from outside");
+
+    harness.state_mut().style.cap = LineCap::Square;
+    settle(&mut harness);
+    assert!(!harness.state().open, "a cap change from outside");
+}
+
+// The popover closes when the opener is disabled.
+#[test]
+fn stroke_button_closes_when_disabled() {
+    let mut harness = open_button(Host::new(StrokeStyle::default()));
+    assert!(harness.state().open);
+    harness.state_mut().disable = true;
+    settle(&mut harness);
+    assert!(!harness.state().open);
 }
 
 fn press_on_canvas(harness: &mut Harness<'_, Host>) {

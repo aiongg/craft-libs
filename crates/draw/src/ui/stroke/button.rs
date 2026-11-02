@@ -176,23 +176,30 @@ impl<'a> StrokeButton<'a> {
                 ui.painter().extend(preview.shapes(sample));
             } else {
                 let painter = ui.painter();
-                painter.line_segment([sample.left_center(), sample.right_center()], Stroke::new(look.sample_stroke * OFF_LINE, look.off_line));
+                painter.line_segment([sample.left_center(), sample.right_center()], Stroke::new(look.off_stroke, look.off_line));
                 let half = sample.height() / 2.0;
                 painter.line_segment(
                     [sample.center() + vec2(-half / 2.0, half), sample.center() + vec2(half / 2.0, -half)],
-                    Stroke::new(look.sample_stroke * OFF_SLASH, look.off_slash),
+                    Stroke::new(look.off_slash_stroke, look.off_slash),
                 );
             }
             icons::paint(ui, chevron, Icon::ChevronDown, IconSize::Sm, color);
         }
 
         // The popover closes when the target or the value changes from outside: what it opened
-        // with, or what the editor last reported, is what the host holds next.
+        // with, or what the editor last reported, is what the host holds next. The width is the
+        // host's own (the editor never edits it), so a width change leaves it open.
         let key = id.with("opened");
+        let pending = id.with("pending");
+        if !ui.is_enabled() {
+            *open = false;
+        }
         if *open {
             let seen = ui.data(|d| d.get_temp::<Opened>(key));
             match seen {
-                Some(opened) if opened.target != self.target || opened.value != *self.value => *open = false,
+                Some(opened) if opened.target != self.target || (StrokeStyle { width: self.value.width, ..opened.value.clone() }) != *self.value => {
+                    *open = false;
+                }
                 Some(_) => {}
                 None => ui.data_mut(|d| {
                     d.insert_temp(key, Opened { target: self.target, value: self.value.clone() });
@@ -200,12 +207,15 @@ impl<'a> StrokeButton<'a> {
             }
         }
         if !*open {
-            ui.data_mut(|d| d.remove::<Opened>(key));
+            ui.data_mut(|d| {
+                d.remove::<Opened>(key);
+                d.remove::<super::editor::Pending>(pending);
+            });
         }
 
         let value = if self.value.validate().is_ok() { self.value.clone() } else { StrokeStyle::default() };
         let width = body_width(ui, &look);
-        let height = ui.ctx().content_rect().height() - 2.0 * look.screen_margin;
+        let height = (ui.ctx().content_rect().height() - look.screen_margin_y).max(look.min_height);
         let popover = Popover::new((id, "popover"), PopoverAnchor::Control(response.clone()))
             .close(PopoverClose::default().swallow_outside(true))
             .toggle(response.id)
@@ -219,7 +229,8 @@ impl<'a> StrokeButton<'a> {
                     .corners(self.corners)
                     .labels(labels.clone())
                     .look(look)
-                    .report_same_preset(!self.enabled);
+                    .report_same_preset(!self.enabled)
+                    .pending_key(pending);
                 ScrollArea::vertical().max_height(height).auto_shrink([false, true]).show(ui, |ui| editor.show(ui)).inner
             });
         let (mut event, mut field) = (None, None);
@@ -236,11 +247,6 @@ impl<'a> StrokeButton<'a> {
         StrokeButtonResponse { response, event, field }
     }
 }
-
-/// The off sample's line and slash widths, as shares of the sample stroke (PhotoCraft 1 and 1.5
-/// beside 2.5).
-const OFF_LINE: f32 = 0.4;
-const OFF_SLASH: f32 = 0.6;
 
 /// What the popover opened with, or last reported.
 #[derive(Clone)]

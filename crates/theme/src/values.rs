@@ -2396,6 +2396,12 @@ pub const CORNER_MIN_SIDE: f32 = 30.0;
 pub const STROKE_EDITOR_WIDTH: f32 = 272.0;
 /// The room kept between the popover and the window's edge: `stroke_editor.screen_margin`.
 pub const STROKE_EDITOR_SCREEN_MARGIN: f32 = 24.0;
+/// The room kept above and below the popover: `stroke_editor.screen_margin_y`.
+pub const STROKE_EDITOR_SCREEN_MARGIN_Y: f32 = 40.0;
+/// The narrowest the body gets in a small window: `stroke_editor.min_width`.
+pub const STROKE_EDITOR_MIN_WIDTH: f32 = 160.0;
+/// The shortest the popover's scrolling body gets: `stroke_editor.min_height`.
+pub const STROKE_EDITOR_MIN_HEIGHT: f32 = 80.0;
 /// The opener's width: `stroke_editor.opener_width`.
 pub const STROKE_EDITOR_OPENER_WIDTH: f32 = 138.0;
 /// The opener's height: `stroke_editor.opener_height`.
@@ -2414,6 +2420,10 @@ pub const STROKE_EDITOR_SAMPLE_STROKE: f32 = 2.5;
 pub const STROKE_EDITOR_SAMPLE_INSET: f32 = 12.0;
 /// The open sample line's distance from the sample's ends: `stroke_editor.sample_margin`.
 pub const STROKE_EDITOR_SAMPLE_MARGIN: f32 = 4.0;
+/// The off opener's line width: `stroke_editor.off_stroke`.
+pub const STROKE_EDITOR_OFF_STROKE: f32 = 1.0;
+/// The off opener's slash width: `stroke_editor.off_slash_stroke`.
+pub const STROKE_EDITOR_OFF_SLASH_STROKE: f32 = 1.5;
 
 // --- measure ---
 /// A press within this many screen points of an end grabs it: `measure.hit`.
