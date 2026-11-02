@@ -115,6 +115,7 @@ mod navigator;
 mod new_document;
 mod notice;
 mod options_bar;
+mod outline_draft;
 mod paint_chip;
 mod panel;
 mod panel_footer;
@@ -268,6 +269,7 @@ pub use navigator::{NavigatorField, NavigatorTokens};
 pub use new_document::{NewDocumentField, NewDocumentTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
+pub use outline_draft::{OutlineDraftField, OutlineDraftTokens};
 pub use paint_chip::{PaintChipField, PaintChipTokens};
 pub use panel::{PanelField, PanelTokens};
 pub use panel_footer::{PanelFooterField, PanelFooterTokens};
@@ -1073,6 +1075,8 @@ families! {
     select_mask: SelectMaskTokens => SelectMask(SelectMaskField);
     /// Hover outlines: the object under the pointer.
     hover: HoverTokens => Hover(HoverField);
+    /// Outlines being drawn: the close reach and the same-point reach.
+    outline_draft: OutlineDraftTokens => OutlineDraft(OutlineDraftField);
     /// Selection frames: the box, key object line, centre mark and dashed outline.
     selection_frame: SelectionFrameTokens => SelectionFrame(SelectionFrameField);
     /// Grips: the squares and midpoint bars of an object's selection.

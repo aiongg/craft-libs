@@ -36,7 +36,7 @@ crate::words! {
     #[non_exhaustive]
     pub(crate) struct HoverStoryLabels {
         rect: "hoverStory.rect" = "Rectangle";
-        path: "hoverStory.path" = "Path in a layer colour";
+        path: "hoverStory.path" = "Path in a layer color";
         mask: "hoverStory.mask" = "Mask tint";
         finish: "hoverStory.finish" = "Finish next";
         nothing_asked: "hoverStory.nothingAsked" = "No lookup yet.";
@@ -185,8 +185,8 @@ fn show_outline(ui: &mut Ui, args: &mut OutlineArgs) {
     paint_objects(ui, &canvas.view, &tokens, Some(if args.dark { DARK_PICTURE } else { LIGHT_PICTURE }), &fakes);
     let layer = tokens.color.status.good.solid.to_egui();
     HoverOutline::new("hover-story-rect", Some(fakes[0].shape.clone())).show(ui, &canvas.view);
-    HoverOutline::new("hover-story-path", Some(fakes[1].shape.clone())).colour(layer).show(ui, &canvas.view);
-    HoverOutline::new("hover-story-mask", Some(fakes[2].shape.clone())).colour(layer).show(ui, &canvas.view);
+    HoverOutline::new("hover-story-path", Some(fakes[1].shape.clone())).color(layer).show(ui, &canvas.view);
+    HoverOutline::new("hover-story-mask", Some(fakes[2].shape.clone())).color(layer).show(ui, &canvas.view);
     status(ui, format!("{} · {} · {}", own.rect, own.path, own.mask));
 }
 

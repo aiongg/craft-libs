@@ -2182,6 +2182,12 @@ pub const HOVER_DEBOUNCE_MS: f32 = 120.0;
 /// Repaint interval while a lookup runs, in milliseconds: `hover.busy_ms`.
 pub const HOVER_BUSY_MS: f32 = 40.0;
 
+// --- outline_draft ---
+/// A press this near the first point closes an outline, in screen points: `outline_draft.close`.
+pub const OUTLINE_DRAFT_CLOSE: f32 = 8.0;
+/// A press this near the last point is the same click again: `outline_draft.same_point`.
+pub const OUTLINE_DRAFT_SAME_POINT: f32 = 3.0;
+
 // --- selection_frame ---
 /// The box line and a solid outline: `selection_frame.line`.
 pub const SELECTION_FRAME_LINE: f32 = 1.0;

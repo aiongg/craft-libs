@@ -872,6 +872,40 @@ impl Homography {
     }
 }
 
+/// Corner `i` of `screen`'s unit bisector, pointing into the box; zero for a collapsed corner. The
+/// box is in screen points, so an overlay can set a handle off its corner along it.
+pub fn bisector(screen: &BoxState, i: usize) -> egui::Vec2 {
+    let q = &screen.quad;
+    let unit = |to: Point| {
+        let d = to - q[i];
+        let l = d.hypot();
+        if l.is_finite() && l > 1e-9 { d / l } else { Vec2::ZERO }
+    };
+    let s = unit(q[(i + 1) % 4]) + unit(q[(i + 3) % 4]);
+    let l = s.hypot();
+    if l.is_finite() && l > 1e-6 { egui::vec2((s.x / l) as f32, (s.y / l) as f32) } else { egui::Vec2::ZERO }
+}
+
+/// The closed polygon `corners` moved `by` points outward, each corner along its mitre (kept
+/// within four times `by` at a sharp corner). Either winding works.
+pub fn outset(corners: &[egui::Pos2; 4], by: f32) -> [egui::Pos2; 4] {
+    let area: f32 = (0..4).map(|i| corners[i].x * corners[(i + 1) % 4].y - corners[(i + 1) % 4].x * corners[i].y).sum();
+    let side = if area >= 0.0 { 1.0 } else { -1.0 };
+    let normal = |a: egui::Pos2, b: egui::Pos2| {
+        let d = (b - a).normalized();
+        egui::vec2(d.y, -d.x) * side
+    };
+    std::array::from_fn(|i| {
+        let (prev, here, next) = (corners[(i + 3) % 4], corners[i], corners[(i + 1) % 4]);
+        let (n1, n2) = (normal(prev, here), normal(here, next));
+        let sum = n1 + n2;
+        let k = 1.0 + n1.dot(n2);
+        let mitre = if k > 1e-3 && sum.is_finite() { sum * (by / k) } else { n1 * by };
+        let mitre = if mitre.length() > 4.0 * by { mitre.normalized() * 4.0 * by } else { mitre };
+        here + mitre
+    })
+}
+
 #[cfg(test)]
 #[path = "quad_tests.rs"]
 mod tests;

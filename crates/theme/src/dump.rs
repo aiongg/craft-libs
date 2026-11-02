@@ -17,15 +17,16 @@ use crate::{
     GridTokens, GripTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, HistoryTokens, HoverTokens, IconButtonTokens,
     IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayerStyleTokens, LayersTokens, LevelsTokens, LineGuideTokens,
     LinkTokens, LiquifyTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MeasureTokens, MenuHue, MenuTokens,
-    MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
-    PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes,
-    PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens,
-    Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectMaskTokens, SelectTokens,
-    SelectionBarTokens, SelectionFrameTokens, ShapeDragTokens, ShapeTokens, SizeTokens, SliceTokens, SliderRowTokens, SliderTokens, SpaceTokens,
-    SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, StrokeEditorTokens, SwatchColor, SwatchPaletteTokens,
-    SwatchTokens, SymmetryTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes,
-    ThumbnailTokens, TileTokens, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens,
-    TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens, VanishingPointTokens, WideAngleTokens,
+    MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, OutlineDraftTokens, Pads,
+    PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens,
+    PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens,
+    RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens,
+    SelectMaskTokens, SelectTokens, SelectionBarTokens, SelectionFrameTokens, ShapeDragTokens, ShapeTokens, SizeTokens, SliceTokens, SliderRowTokens,
+    SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, StrokeEditorTokens, SwatchColor,
+    SwatchPaletteTokens, SwatchTokens, SymmetryTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens,
+    ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens,
+    ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens, VanishingPointTokens,
+    WideAngleTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -302,6 +303,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         color_picker,
         select,
         hover,
+        outline_draft,
         selection_frame,
         grip,
         constrain,
@@ -439,6 +441,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     color_picker_lines(out, color_picker);
     select_lines(out, select);
     hover_lines(out, hover);
+    outline_draft_lines(out, outline_draft);
     selection_frame_lines(out, selection_frame);
     grip_lines(out, grip);
     constrain_lines(out, constrain);
@@ -2760,6 +2763,12 @@ fn hover_lines(out: &mut Lines, t: &HoverTokens) {
     out.line("hover.edge_alpha", len(*edge_alpha));
     out.line("hover.debounce_ms", len(*debounce_ms));
     out.line("hover.busy_ms", len(*busy_ms));
+}
+
+fn outline_draft_lines(out: &mut Lines, t: &OutlineDraftTokens) {
+    let OutlineDraftTokens { close, same_point } = t;
+    out.line("outline_draft.close", len(*close));
+    out.line("outline_draft.same_point", len(*same_point));
 }
 
 fn selection_frame_lines(out: &mut Lines, t: &SelectionFrameTokens) {

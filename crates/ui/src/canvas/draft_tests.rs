@@ -201,3 +201,10 @@ fn resolve_alt_without_selection_is_new() {
     assert_eq!(SelectionOperation::resolve(Intersect, NONE, false), Intersect);
     assert_eq!(SelectionOperation::resolve(Subtract, ALT, false), Subtract);
 }
+
+#[test]
+fn reach_reads_the_outline_draft_tokens() {
+    let ctx = egui::Context::default();
+    crate::theme::install(&ctx, &crate::theme::Base::suite_default());
+    assert_eq!(DraftReach::of(&crate::theme::current(&ctx)), REACH);
+}

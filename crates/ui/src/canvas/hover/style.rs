@@ -14,7 +14,7 @@ use crate::theme::{ToEgui, UiTokens};
 pub struct HoverStyle {
     /// The default colour of a rect, path and mask tint: `overlay.line` (the accent as a bare
     /// line, as PhotoCraft's rollover and Object Finder use it).
-    pub colour: Color32,
+    pub color: Color32,
     /// The line width of a rect or path: `hover.outline` (1.5, PhotoCraft `move_hover.rs:130`).
     pub outline: f32,
     /// A mask texel's alpha per unit of coverage: `hover.fill_alpha` (0.42).
@@ -35,7 +35,7 @@ impl HoverOutline {
         // crates/ui-egui/src/tools/object_finder.rs:26 (0.12 s), :166 (0.95, 0.42), :206 (40 ms).
         let h = &tokens.component.hover;
         HoverStyle {
-            colour: tokens.color.overlay.line.to_egui(),
+            color: tokens.color.overlay.line.to_egui(),
             outline: h.outline,
             fill_alpha: h.fill_alpha,
             edge_alpha: h.edge_alpha,

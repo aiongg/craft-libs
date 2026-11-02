@@ -33,7 +33,8 @@ pub struct PartFocusResponse {
     pub focused: bool,
     /// A new picked part for the host: `Some(Some(key))` from Page Up, Page Down, Home or End, or
     /// the first part when the group gains focus from the keyboard with none picked; `Some(None)`
-    /// when the picked part is no longer among the parts.
+    /// when the picked part is no longer among the parts, or, with [`PartFocus::wrap`], when Page
+    /// Down passes the last part or Page Up the first.
     pub pick: Option<Option<u64>>,
     /// Whether the group has focus and the last input came from the keyboard: the overlay draws
     /// [`PartFocus::ring`] round the picked part only then.
@@ -60,7 +61,9 @@ pub struct PartFocusResponse {
 ///   a hover-only child, a `GraphicsObject` with its name, value and `selected`. The picked part
 ///   is the group's active descendant.
 /// - While the group has focus, Page Down and Page Up pick the next and previous part, Home and
-///   End the first and last, in the order of [`parts`](Self::parts) (the overlay's order). The
+///   End the first and last, in the order of [`parts`](Self::parts) (the overlay's order). They
+///   stop at the ends, or with [`wrap`](Self::wrap) go past them to "none picked" and then round to
+///   the other end. The
 ///   arrows and Esc stay with the group (its focus lock filter); Enter, Delete, Backspace and
 ///   Insert are the overlay's to read.
 /// - The release of a press the overlay owns ([`Claim`], taken with the same id) that began on a
@@ -74,13 +77,14 @@ pub struct PartFocus<'a> {
     parts: &'a [Part],
     picked: Option<u64>,
     focusable: bool,
+    wrap: bool,
 }
 
 impl<'a> PartFocus<'a> {
     /// The overlay `id` (the one it claims presses with) as a group named `group`, e.g. "Free
     /// Transform".
     pub fn new(id: Id, group: impl Into<String>) -> Self {
-        Self { id, group: group.into(), value: None, parts: &[], picked: None, focusable: true }
+        Self { id, group: group.into(), value: None, parts: &[], picked: None, focusable: true, wrap: false }
     }
 
     /// The parts, in keyboard order.
@@ -108,6 +112,14 @@ impl<'a> PartFocus<'a> {
         self
     }
 
+    /// Whether Page Down past the last part picks none, and the next press the first part (Page Up
+    /// the other way round), as Puppet Warp's pins go; false by default, where the keys stop at
+    /// the ends.
+    pub fn wrap(mut self, wrap: bool) -> Self {
+        self.wrap = wrap;
+        self
+    }
+
     /// Senses the keys over the host's `canvas` response, and adds the group and its parts to the
     /// AccessKit tree.
     pub fn show(self, ui: &mut Ui, canvas: &Response) -> PartFocusResponse {
@@ -128,7 +140,7 @@ impl<'a> PartFocus<'a> {
         let current = self.picked.and_then(|k| self.parts.iter().position(|p| p.key == k));
         let mut pick = None;
         if focused {
-            pick = self.keys(ui, current).map(|i| Some(self.parts[i].key));
+            pick = self.keys(ui, current).map(|i| i.map(|i| self.parts[i].key));
             // Focus from the keyboard picks a part to act on; the pointer picks its own.
             if pick.is_none() && current.is_none() && group.gained_focus() && !by_pointer {
                 pick = Some(Some(self.parts[0].key));
@@ -172,8 +184,9 @@ impl<'a> PartFocus<'a> {
             && Claim::owned_press(ui.ctx(), canvas.id, id).is_some_and(|press| self.parts.iter().any(|p| p.rect.contains(press.origin)))
     }
 
-    /// Page Up, Page Down, Home and End with no modifier: the index of the part they pick.
-    fn keys(&self, ui: &Ui, current: Option<usize>) -> Option<usize> {
+    /// Page Up, Page Down, Home and End with no modifier: the index of the part they pick, or
+    /// `Some(None)` for none when [`wrap`](Self::wrap) takes them past an end.
+    fn keys(&self, ui: &Ui, current: Option<usize>) -> Option<Option<usize>> {
         let last = self.parts.len().checked_sub(1)?;
         let take = |key: Key| {
             ui.input_mut(|i| {
@@ -184,13 +197,16 @@ impl<'a> PartFocus<'a> {
             })
         };
         let (up, down, home, end) = (take(Key::PageUp), take(Key::PageDown), take(Key::Home), take(Key::End));
+        let wrap = self.wrap;
         match (up, down, home, end, current) {
-            (_, _, true, false, _) => Some(0),
-            (_, _, false, true, _) => Some(last),
-            (true, false, _, _, Some(c)) => Some(c.saturating_sub(1)),
-            (true, false, _, _, None) => Some(last),
-            (false, true, _, _, Some(c)) => Some((c + 1).min(last)),
-            (false, true, _, _, None) => Some(0),
+            (_, _, true, false, _) => Some(Some(0)),
+            (_, _, false, true, _) => Some(Some(last)),
+            (true, false, _, _, Some(0)) if wrap => Some(None),
+            (true, false, _, _, Some(c)) => Some(Some(c.saturating_sub(1))),
+            (true, false, _, _, None) => Some(Some(last)),
+            (false, true, _, _, Some(c)) if wrap && c == last => Some(None),
+            (false, true, _, _, Some(c)) => Some(Some((c + 1).min(last))),
+            (false, true, _, _, None) => Some(Some(0)),
             _ => None,
         }
     }

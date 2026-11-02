@@ -9,6 +9,7 @@ use egui::{Context, Event, PointerButton, RawInput};
 use kurbo::{Point, Rect};
 
 use super::*;
+use crate::canvas::CanvasView;
 use crate::theme::{Base, install};
 
 /// A context with the suite theme, a lookup over manual jobs, and a pass runner.
@@ -220,4 +221,32 @@ fn hover_mask_texture_is_reduced_to_768() {
     assert!(small.is_edge(90, 50) && small.is_edge(189, 100) && small.is_edge(100, 40) && small.is_edge(100, 139));
     assert!(!small.is_edge(100, 100) && !small.is_edge(89, 100));
     assert!(wide.is_edge(0, 0) && wide.is_edge(666, 166) && !wide.is_edge(5, 5));
+}
+
+// Two outlines with one salt in two canvases keep two texture entries: the key is made in the
+// canvas's own id scope.
+#[test]
+fn hover_mask_textures_are_keyed_per_canvas_scope() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let masks = [HoverMask::sampled(Rect::new(0.0, 0.0, 8.0, 8.0), |_, _| 1.0), HoverMask::sampled(Rect::new(0.0, 0.0, 6.0, 6.0), |_, _| 1.0)];
+    let view = CanvasView::new(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(100.0, 100.0)), Point::new(4.0, 4.0), 1.0);
+    let mut ids = Vec::new();
+    for time in [0.0, 0.1] {
+        ids.clear();
+        let mut output = ctx.run_ui(RawInput { time: Some(time), ..RawInput::default() }, |ui| {
+            for (canvas, mask) in ["left", "right"].into_iter().zip(&masks) {
+                ui.push_id(canvas, |ui| {
+                    ids.push(ui.make_persistent_id(egui::IdSalt::new("same")));
+                    HoverOutline::new("same", Some(HoverShape::Mask(mask.clone()))).show(ui, &view);
+                });
+            }
+        });
+        output.textures_delta.clear();
+    }
+    assert_ne!(ids[0], ids[1]);
+    for (id, mask) in ids.iter().zip(&masks) {
+        let kept = ctx.data(|d| d.get_temp::<(u64, egui::Color32, TextureHandle)>(*id));
+        assert_eq!(kept.map(|k| k.0), Some(mask.generation), "each canvas keeps its own mask");
+    }
 }

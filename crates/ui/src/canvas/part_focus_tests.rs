@@ -23,9 +23,13 @@ fn centre(key: u64) -> Pos2 {
 }
 
 fn harness() -> Harness<'static, Host> {
+    harness_wrapping(false)
+}
+
+fn harness_wrapping(wrap: bool) -> Harness<'static, Host> {
     let host = Host { picked: None, selected: 20, keyboard: false, focused: false };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
-        |ui, host: &mut Host| {
+        move |ui, host: &mut Host| {
             ui.add_space(40.0);
             let (_, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
             let parts: Vec<Part> = KEYS
@@ -44,7 +48,7 @@ fn harness() -> Harness<'static, Host> {
             {
                 Claim::take(ui.ctx(), canvas.id, id);
             }
-            let r = PartFocus::new(id, "Points").parts(&parts).picked(host.picked).value("3 points").show(ui, &canvas);
+            let r = PartFocus::new(id, "Points").parts(&parts).wrap(wrap).picked(host.picked).value("3 points").show(ui, &canvas);
             if let Some(pick) = r.pick {
                 host.picked = pick;
             }
@@ -94,6 +98,21 @@ fn parts_are_one_tab_stop_picked_with_the_page_keys() {
     key(&mut h, none, Key::ArrowLeft);
     key(&mut h, none, Key::Escape);
     assert!(h.state().focused, "arrows and Esc keep the focus");
+}
+
+#[test]
+fn wrapping_page_keys_pass_through_none_to_the_other_end() {
+    let mut h = harness_wrapping(true);
+    h.run();
+    h.key_press(Key::Tab);
+    h.run();
+    let none = Modifiers::NONE;
+    assert_eq!(h.state().picked, Some(10));
+    assert_eq!(key(&mut h, none, Key::PageUp), None, "past the first part comes none");
+    assert_eq!(key(&mut h, none, Key::PageUp), Some(30), "then the last");
+    assert_eq!(key(&mut h, none, Key::PageDown), None, "past the last part comes none");
+    assert_eq!(key(&mut h, none, Key::PageDown), Some(10), "then the first");
+    assert_eq!(key(&mut h, none, Key::PageDown), Some(20));
 }
 
 #[test]

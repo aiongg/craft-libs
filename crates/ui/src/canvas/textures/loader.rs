@@ -175,6 +175,15 @@ fn default_jobs() -> Arc<dyn Jobs> {
     Arc::new(InlineJobs)
 }
 
+/// `jobs`, or the installed host's [`Jobs`](craft_host::Host::jobs_shared), or a thread per job
+/// (inline on wasm32) when no host is installed.
+pub(crate) fn jobs_or_default(ctx: &Context, jobs: Option<Arc<dyn Jobs>>) -> Arc<dyn Jobs> {
+    jobs.unwrap_or_else(|| match Host::try_of_ctx(ctx) {
+        Some(host) => Arc::clone(host.jobs_shared()),
+        None => default_jobs(),
+    })
+}
+
 impl<K: TextureKey> TextureLoader<K> {
     /// The loader stored in `ctx` under `id_salt`, made with `options` the first time; its cache is
     /// [`TextureCache::in_context`] under the same salt. The queue's wake is
@@ -185,10 +194,7 @@ impl<K: TextureKey> TextureLoader<K> {
             return loader;
         }
         let cache = TextureCache::in_context(ctx, &id_salt, options.cache);
-        let jobs = options.jobs.unwrap_or_else(|| match Host::try_of_ctx(ctx) {
-            Some(host) => Arc::clone(host.jobs_shared()),
-            None => default_jobs(),
-        });
+        let jobs = jobs_or_default(ctx, options.jobs);
         let wake = {
             let ctx = ctx.clone();
             Wake::new(move || ctx.request_repaint())
