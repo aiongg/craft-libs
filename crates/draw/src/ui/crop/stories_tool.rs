@@ -15,6 +15,8 @@
 //! | `primitives/crop-tool/straighten` | The armed button and the temporary Command line |
 //! | `primitives/crop-tool/box-undo` | Edit › Undo and Redo buttons stepping the box |
 
+use std::sync::{Arc, Mutex};
+
 use egui::{Color32, Painter, Shape, Stroke, Ui};
 use kurbo::{Point, Rect};
 
@@ -27,13 +29,13 @@ use craft_ui::controls::Button;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::patterns::OptionsBar;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryLabels, Surface};
+use craft_ui::story::{Level, Story, StoryArgs, StoryLabels, Surface, lock, shared};
 use craft_ui::testing::canvas_story::{DOC, ViewArgs, document_with};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Crop tool"];
+pub const COMPONENTS: &[&str] = &["CropTool"];
 
 craft_ui::words! {
     /// The buttons, status lines and sample names of the Crop stories, English by default.
@@ -69,6 +71,10 @@ craft_ui::words! {
         orientation: "cropStory.orientation" = "orientation {n}";
         narrow: "cropStory.narrow" = "narrow";
         wide: "cropStory.wide" = "wide";
+        frame_line: "cropStory.frameLine" = "{w} × {h} px · {angle}°";
+        ratio_line: "cropStory.ratioLine" = "{target} · {frame}";
+        overlay_line: "cropStory.overlayLine" = "{guide} · {show} · {orientation}";
+        gear_line: "cropStory.gearLine" = "{color} · {event}";
     }
 }
 
@@ -80,7 +86,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "primitives/crop-tool/default-frame",
             Level::Primitives,
-            "Crop tool",
+            "CropTool",
             "Default frame",
             DefaultArgs { view: ViewArgs::default(), selection: true },
             show_default_frame
@@ -89,7 +95,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "primitives/crop-tool/image-mode",
             Level::Primitives,
-            "Crop tool",
+            "CropTool",
             "Image mode",
             ImageModeArgs { view: ViewArgs::default(), auto_center: true, shield: 75.0 },
             show_image_mode
@@ -98,7 +104,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "primitives/crop-tool/ratio-and-size",
             Level::Primitives,
-            "Crop tool",
+            "CropTool",
             "Ratio and size",
             RatioArgs { view: ViewArgs::default(), resolution: 300.0 },
             show_ratio_and_size
@@ -107,7 +113,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "primitives/crop-tool/straighten",
             Level::Primitives,
-            "Crop tool",
+            "CropTool",
             "Straighten",
             StraightenArgs { view: ViewArgs::default(), armed: true, tilt: 6.0 },
             show_straighten
@@ -116,7 +122,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "primitives/crop-tool/box-undo",
             Level::Primitives,
-            "Crop tool",
+            "CropTool",
             "Box undo",
             UndoArgs { view: ViewArgs::default() },
             show_box_undo
@@ -189,21 +195,19 @@ impl Pane {
     }
 }
 
-fn kept_key(ui: &Ui, name: &str) -> egui::Id {
-    ui.make_persistent_id(("craft_draw::crop::tool_story", name))
-}
-
-fn load(ui: &Ui, name: &str, classic: bool, view: ViewArgs) -> Kept {
-    let mut kept: Kept = ui.data(|d| d.get_temp(kept_key(ui, name))).unwrap_or_else(|| Kept::new(classic, view));
+/// The pane's shared state and a copy of it to work on; `store` writes the copy back.
+fn load(ui: &Ui, name: &str, classic: bool, view: ViewArgs) -> (Arc<Mutex<Kept>>, Kept) {
+    let slot = shared(ui, name, || Kept::new(classic, view));
+    let mut kept = lock(&slot).clone();
     if kept.view_args != view {
         kept.view_args = view;
         kept.view = None;
     }
-    kept
+    (slot, kept)
 }
 
-fn store(ui: &Ui, name: &str, kept: Kept) {
-    ui.data_mut(|d| d.insert_temp(kept_key(ui, name), kept));
+fn store(slot: &Mutex<Kept>, kept: Kept) {
+    *lock(slot) = kept;
 }
 
 /// The fake picture: sky, a sun and a ground whose horizon is turned by `tilt` degrees.
@@ -318,9 +322,9 @@ fn run(ui: &mut Ui, kept: &mut Kept, pane: &Pane) -> Option<CropBox> {
         return None;
     }
     let px = RulerUnits::pixels(LocaleNumbers::clone(&numbers).ungrouped());
-    let canvas_colour = Tokens::of(ui).color.surface.canvas.to_egui();
+    let canvas_color = Tokens::of(ui).color.surface.canvas.to_egui();
     let input =
-        CropInput::new(&kept.settings, &document).units(&px, &px).names(CropNames::of(ui)).readout(CropLabels::of(ui)).canvas_colour(canvas_colour);
+        CropInput::new(&kept.settings, &document).units(&px, &px).names(CropNames::of(ui)).readout(CropLabels::of(ui)).canvas_colour(canvas_color);
     let mut pass = kept.tool.pass(input);
     let host = ToolHost::new(canvas.id).document(document.size).show(ui, &canvas.view, &canvas.response, &mut pass);
     let out = pass.finish();
@@ -351,13 +355,15 @@ fn last_event(ui: &mut Ui, kept: &Kept) {
 }
 
 /// The frame as the status line shows it: size and turn.
-fn frame_line(numbers: &LocaleNumbers, frame: Option<CropBox>) -> String {
+fn frame_line(numbers: &LocaleNumbers, labels: &CropStoryLabels, frame: Option<CropBox>) -> String {
     match frame {
-        Some(frame) => format!(
-            "{} × {} px · {}°",
-            numbers.format(frame.rect.width(), 0..=1),
-            numbers.format(frame.rect.height(), 0..=1),
-            numbers.format(frame.angle, 0..=1)
+        Some(frame) => craft_i18n::fmt(
+            &labels.frame_line,
+            &[
+                ("w", &numbers.format(frame.rect.width(), 0..=1)),
+                ("h", &numbers.format(frame.rect.height(), 0..=1)),
+                ("angle", &numbers.format(frame.angle, 0..=1)),
+            ],
         ),
         None => String::new(),
     }
@@ -378,7 +384,7 @@ struct DefaultArgs {
 /// another tool" drops an untouched default frame and applies a drawn one.
 fn show_default_frame(ui: &mut Ui, args: &mut DefaultArgs) {
     let words = StoryLabels::of(ui);
-    let mut kept = load(ui, "default-frame", false, args.view);
+    let (slot, mut kept) = load(ui, "default-frame", false, args.view);
     let mut pane = Pane::new(words.document.clone(), args.view);
     pane.key = CropDocKey(if args.selection { 2 } else { 1 });
     pane.selection = args.selection.then_some(SELECTION);
@@ -401,10 +407,10 @@ fn show_default_frame(ui: &mut Ui, args: &mut DefaultArgs) {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             kept = Kept::new(false, args.view);
         }
-        status(ui, frame_line(&numbers, out));
+        status(ui, frame_line(&numbers, &own, out));
     });
     last_event(ui, &kept);
-    store(ui, "default-frame", kept);
+    store(&slot, kept);
 }
 
 // --- image mode ---
@@ -428,7 +434,7 @@ fn show_image_mode(ui: &mut Ui, args: &mut ImageModeArgs) {
     ui.columns(2, |columns| {
         for (index, ui) in columns.iter_mut().enumerate() {
             let name = if index == 0 { "image" } else { "classic" };
-            let mut kept = load(ui, name, index == 1, args.view);
+            let (slot, mut kept) = load(ui, name, index == 1, args.view);
             kept.settings.shield.auto_center_preview = args.auto_center;
             kept.settings.shield.opacity = args.shield;
             let label = craft_i18n::fmt(&words.photo_n, &[("n", &(index + 1).to_string())]);
@@ -440,11 +446,11 @@ fn show_image_mode(ui: &mut Ui, args: &mut ImageModeArgs) {
                 }
                 let mode = if kept.settings.shield.classic_mode { &own.classic_mode } else { &own.image_mode };
                 let view = kept.view.map_or(args.view.rotation, |v| v.rotation);
-                let frame = frame_line(&numbers, out);
+                let frame = frame_line(&numbers, &own, out);
                 status(ui, craft_i18n::fmt(&own.mode_line, &[("mode", mode), ("frame", &frame), ("angle", &numbers.format(view, 0..=1))]));
             });
             last_event(ui, &kept);
-            store(ui, name, kept);
+            store(&slot, kept);
         }
     });
 }
@@ -465,7 +471,7 @@ struct RatioArgs {
 /// `CropTarget`.
 fn show_ratio_and_size(ui: &mut Ui, args: &mut RatioArgs) {
     let words = StoryLabels::of(ui);
-    let mut kept = load(ui, "ratio-and-size", false, args.view);
+    let (slot, mut kept) = load(ui, "ratio-and-size", false, args.view);
     let mut pane = Pane::new(words.document.clone(), args.view);
     pane.resolution = args.resolution;
     pane.bar = true;
@@ -482,9 +488,10 @@ fn show_ratio_and_size(ui: &mut Ui, args: &mut RatioArgs) {
         }
         None => own.free_crop.clone(),
     };
-    status(ui, format!("{target} · {}", frame_line(&numbers, out)));
+    let frame = frame_line(&numbers, &own, out);
+    status(ui, craft_i18n::fmt(&own.ratio_line, &[("target", &target), ("frame", &frame)]));
     last_event(ui, &kept);
-    store(ui, "ratio-and-size", kept);
+    store(&slot, kept);
 }
 
 // --- straighten ---
@@ -504,7 +511,7 @@ struct StraightenArgs {
 /// without arming it. The release levels the frame and fits it to the page.
 fn show_straighten(ui: &mut Ui, args: &mut StraightenArgs) {
     let words = StoryLabels::of(ui);
-    let mut kept = load(ui, "straighten", false, args.view);
+    let (slot, mut kept) = load(ui, "straighten", false, args.view);
     if args.armed != kept.tool.straighten_armed() {
         kept.tool.toggle_straighten();
     }
@@ -514,10 +521,11 @@ fn show_straighten(ui: &mut Ui, args: &mut StraightenArgs) {
     let out = run(ui, &mut kept, &pane);
     args.armed = kept.tool.straighten_armed();
     let numbers = LocaleNumbers::of(ui);
-    status(ui, CropStoryLabels::of(ui).straighten_hint.clone());
-    status(ui, frame_line(&numbers, out));
+    let own = CropStoryLabels::of(ui);
+    status(ui, own.straighten_hint.clone());
+    status(ui, frame_line(&numbers, &own, out));
     last_event(ui, &kept);
-    store(ui, "straighten", kept);
+    store(&slot, kept);
 }
 
 // --- box undo ---
@@ -532,7 +540,7 @@ struct UndoArgs {
 /// move, resize, turn or key step is one box step.
 fn show_box_undo(ui: &mut Ui, args: &mut UndoArgs) {
     let words = StoryLabels::of(ui);
-    let mut kept = load(ui, "box-undo", false, args.view);
+    let (slot, mut kept) = load(ui, "box-undo", false, args.view);
     let pane = Pane::new(words.document.clone(), args.view);
     let out = run(ui, &mut kept, &pane);
     let numbers = LocaleNumbers::of(ui);
@@ -554,7 +562,7 @@ fn show_box_undo(ui: &mut Ui, args: &mut UndoArgs) {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             kept = Kept::new(false, args.view);
         }
-        status(ui, frame_line(&numbers, out));
+        status(ui, frame_line(&numbers, &own, out));
     });
-    store(ui, "box-undo", kept);
+    store(&slot, kept);
 }
