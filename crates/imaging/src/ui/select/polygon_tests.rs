@@ -2,9 +2,12 @@
 
 use craft_ui::canvas::SelectionOperation;
 use craft_ui::canvas::kurbo::{Point, Rect};
-use egui::{Key, Modifiers};
+use craft_ui::edit::CancelReason;
+use craft_ui::testing::canvas;
+use egui::{Key, Modifiers, PointerButton, pos2};
+use egui_kittest::Harness;
 
-use super::lasso_tests::{Fake, NONE, click, down, drag_to, press_key, rig, tags, up};
+use super::lasso_tests::{Fake, NONE, Rig, cancel_with, click, down, drag_to, press_key, rig, tags, up};
 use super::{DragKind, SelectEvent, SelectPhase, SelectionShape};
 
 // ⇧ turns a segment to 45° steps from the last vertex, not for the first vertex and not with ⌥.
@@ -54,24 +57,56 @@ fn polygon_click_driven_needs_command_to_drag() {
     assert_eq!(h.state().phase(), SelectPhase::Idle);
 }
 
-// `retract` (the app's secondary click), Backspace and Delete remove the last vertex; the last one
-// cancels with no event.
+// A secondary click while an outline is open (the tool takes the button then), Backspace and
+// Delete remove the last vertex; the last one cancels with no event. With no outline open the
+// secondary button starts nothing.
 #[test]
-fn polygon_retract_removes_last_vertex_then_cancels() {
+fn polygon_secondary_click_removes_last_vertex_then_cancels() {
     let mut h = rig(true, Fake::empty());
     h.state_mut().focus = true;
     h.step();
-    assert!(!h.state_mut().polygon.retract(), "nothing open");
+    let secondary = |h: &mut Harness<'_, Rig>| {
+        canvas::press_button(h, pos2(10.0, 10.0), PointerButton::Secondary, NONE);
+        canvas::release_button(h, pos2(10.0, 10.0), PointerButton::Secondary, NONE);
+    };
+    secondary(&mut h);
+    assert_eq!(h.state().phase(), SelectPhase::Idle, "nothing open");
     for at in [(50.0, 50.0), (150.0, 50.0), (150.0, 150.0)] {
-        click(&mut h, at, NONE);
+        canvas::press(&mut h, pos2(at.0 as f32, at.1 as f32), NONE);
+        canvas::release(&mut h, pos2(at.0 as f32, at.1 as f32), NONE);
     }
-    assert!(h.state_mut().polygon.retract());
+    secondary(&mut h);
     assert_eq!(h.state().phase(), SelectPhase::Outline { points: 2 });
     press_key(&mut h, Key::Backspace);
     assert_eq!(h.state().phase(), SelectPhase::Outline { points: 1 });
-    press_key(&mut h, Key::Delete);
+    secondary(&mut h);
     assert_eq!(h.state().phase(), SelectPhase::Idle);
     assert!(h.state_mut().events().is_empty());
+}
+
+// Esc during a press drops the whole outline; a cancel for another reason (a tool switch) keeps it
+// for the app's `reset`.
+#[test]
+fn polygon_escape_during_press_drops_outline() {
+    let mut h = rig(true, Fake::empty());
+    h.state_mut().focus = true;
+    h.step();
+    for at in [(50.0, 50.0), (150.0, 50.0), (150.0, 150.0)] {
+        click(&mut h, at, NONE);
+    }
+    canvas::press(&mut h, pos2(100.0, 150.0), NONE);
+    assert_eq!(h.state().phase(), SelectPhase::Outline { points: 4 });
+    canvas::key(&mut h, Key::Escape, NONE);
+    assert_eq!(h.state().phase(), SelectPhase::Idle);
+    canvas::release(&mut h, pos2(100.0, 150.0), NONE);
+    assert!(h.state_mut().events().is_empty());
+
+    for at in [(50.0, 50.0), (150.0, 50.0)] {
+        click(&mut h, at, NONE);
+    }
+    canvas::press(&mut h, pos2(100.0, 150.0), NONE);
+    cancel_with(&mut h, CancelReason::Removed);
+    assert_eq!(h.state().phase(), SelectPhase::Outline { points: 3 }, "a tool switch keeps the outline");
 }
 
 // `replaces_selection` is true only while a New outline is open.

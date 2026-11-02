@@ -8,12 +8,11 @@ use craft_ui::canvas::{
     ToolPointer, selection_cursor,
 };
 use craft_ui::edit::CancelReason;
-use craft_ui::localized::{Labels as _, Words};
+use craft_ui::localized::Words;
 use egui::{CursorIcon, Key, Modifiers, Painter};
 
 use super::drag::{InsideDrag, PressRule, cursor_over, drag_kind};
-use super::style::SelectToolStyle;
-use super::{OUTLINE_POINTS, SelectEvent, SelectLabels, SelectPhase, SelectToolPass, SelectionProbe, SelectionShape};
+use super::{OUTLINE_POINTS, SelectEvent, SelectLabels, SelectPhase, SelectToolPass, SelectionProbe, SelectionShape, labels_in};
 
 /// Turns a draft's answer into the tool's events: `Started` latches the operation from the
 /// press's intent, `Closed` is the commit. Shared by the Lasso and the Polygonal Lasso.
@@ -81,13 +80,13 @@ pub(super) fn paint_outline(draft: &OutlineDraft, painter: &Painter, cx: &ToolCo
 }
 
 /// The open outline as one AccessKit object; `None` with no outline.
-pub(super) fn outline_node(draft: &OutlineDraft, cx: &ToolContext<'_>) -> Option<ToolNode> {
+pub(super) fn outline_node(draft: &OutlineDraft, labels: Option<&SelectLabels>, cx: &ToolContext<'_>) -> Option<ToolNode> {
     let points = draft.points();
     let first = *points.first()?;
     let bounds = points.iter().fold(Rect::from_points(first, first), |rect, &p| rect.union_pt(p));
     let (ctx, words) = (&cx.canvas.ctx, Words::of_ctx(&cx.canvas.ctx));
     let value = words.counted(ctx, OUTLINE_POINTS, &words.get(OUTLINE_POINTS.word), points.len() as u64);
-    Some(ToolNode::new(SelectLabels::of_ctx(ctx).outline).value(value).bounds(bounds))
+    Some(ToolNode::new(labels_in(labels, ctx).outline).value(value).bounds(bounds))
 }
 
 /// Starts the selection drag for `kind` at the press.
@@ -114,8 +113,8 @@ pub(super) fn sample(pointer: &ToolPointer, cx: &ToolContext<'_>) -> DraftPoint 
 /// switches to straight segments (each click adds a vertex, a drag draws freehand again), and
 /// releasing ⌥ with the button up closes; ⌥ held at the press subtracts (the operation) until it
 /// is released and pressed again, except with nothing selected, where it starts straight
-/// segments. Between clicks the outline closes on a click within `select.close_radius` (8 pt) of
-/// the first point (3 or more points), on a click within `select.same_point` (3 pt) of the last,
+/// segments. Between clicks the outline closes on a click within `outline_draft.close` (8 pt) of
+/// the first point (3 or more points), on a click within `outline_draft.same_point` (3 pt) of the last,
 /// on Enter or on a double-click. Backspace or Delete (no modifier) retract the last vertex (the
 /// last one cancels); the tool keeps those keys from Edit › Clear (`ToolContext::keep_keys`) while
 /// [`OutlineDraft::takes_retract`]. Esc cancels. The outline is dropped when the document changes
@@ -136,6 +135,7 @@ pub struct LassoTool {
     /// The modifiers of the last pass, to report changes to the draft.
     modifiers: Modifiers,
     inside: Option<InsideDrag>,
+    labels: Option<SelectLabels>,
     events: Vec<SelectEvent>,
 }
 
@@ -155,13 +155,27 @@ impl LassoTool {
             operation: SelectionOperation::New,
             modifiers: Modifiers::NONE,
             inside: None,
+            labels: None,
             events: Vec::new(),
         }
     }
 
     /// The options bar's operation for outlines begun from now on.
-    pub fn set_operation(&mut self, bar: SelectionOperation) {
+    pub fn operation(&mut self, bar: SelectionOperation) -> &mut Self {
         self.bar = bar;
+        self
+    }
+
+    /// The words of the outline's accessible name and value. Without them the tool reads the
+    /// installed ones.
+    pub fn labels(&mut self, labels: SelectLabels) -> &mut Self {
+        self.labels = Some(labels);
+        self
+    }
+
+    /// The tool as the `CanvasTool` for one pass, asking `probe` about the document.
+    pub fn pass<'a>(&'a mut self, probe: &'a dyn SelectionProbe) -> SelectToolPass<'a, Self> {
+        SelectToolPass::new(self, probe)
     }
 
     /// The events since the last call, in order.
@@ -183,14 +197,14 @@ impl LassoTool {
 }
 
 impl CanvasTool for SelectToolPass<'_, LassoTool> {
-    /// Takes the reach from `SelectToolStyle::of(cx.tokens).reach()`, checks the document
+    /// Takes the reach from `DraftReach::of(cx.tokens)`, checks the document
     /// (`OutlineDraft::for_document`), and passes a change of `cx.modifiers` to
     /// `OutlineDraft::modifiers_changed` (⌥ released with the button up closes: `Commit`). Keeps
     /// the keys while the draft takes retract.
     fn each_pass(&mut self, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:95-100 `cancel_stale`, :108-125 `modifiers`.
         let (tool, probe) = (&mut *self.tool, self.probe);
-        tool.draft.set_reach(SelectToolStyle::of(cx.tokens).reach());
+        tool.draft.set_reach(DraftReach::of(cx.tokens));
         if tool.draft.for_document(probe.document()).is_some() {
             tool.inside = None;
         }
@@ -249,8 +263,9 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
         apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
     }
 
-    /// The release closes a freehand outline (`Commit`) unless straight segments are on; ends a
-    /// selection drag.
+    /// The release closes a freehand outline (`Commit`) unless straight segments are on; a
+    /// freehand outline of fewer than 3 points (a click) is [`SelectEvent::Deselect`], as in
+    /// PhotoCraft. Ends a selection drag.
     fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:237-239.
         let (tool, probe) = (&mut *self.tool, self.probe);
@@ -259,6 +274,11 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
             return;
         }
         let event = tool.draft.release(sample(pointer, cx));
+        if event == Some(DraftEvent::Cancelled) {
+            // pc: crates/ui-egui/src/canvas/gesture.rs:118-131 (fewer than 3 points deselects).
+            tool.events.push(SelectEvent::Deselect);
+            return;
+        }
         apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.events);
     }
 
@@ -271,8 +291,8 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
         }
     }
 
-    /// Esc during a drag, a lost pointer or `ToolHost::cancel`: drops the outline (no event); a
-    /// selection drag reports `Cancel`.
+    /// Esc during a drag, a lost pointer or `ToolHost::cancel`, whatever the reason: drops the
+    /// outline (no event); a selection drag reports `Cancel`.
     fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:272-276 (window focus lost drops it).
         let tool = &mut *self.tool;
@@ -317,6 +337,6 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
     /// outline is open.
     fn node(&self, cx: &ToolContext<'_>) -> Option<ToolNode> {
         // new: SE deviation 3 (no `Ui` on the host); `ToolNode::new(..).value(..).bounds(..)`.
-        outline_node(&self.tool.draft, cx)
+        outline_node(&self.tool.draft, self.tool.labels.as_ref(), cx)
     }
 }

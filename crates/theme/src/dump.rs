@@ -2750,14 +2750,14 @@ fn alt_text_lines(out: &mut Lines, t: &AltTextTokens) {
 }
 
 fn select_lines(out: &mut Lines, t: &SelectTokens) {
-    let SelectTokens { close_radius, same_point, fastening, ring_radius, ring_offset, ring_halo, ring_line } = t;
-    out.line("select.close_radius", len(*close_radius));
-    out.line("select.same_point", len(*same_point));
+    let SelectTokens { fastening, ring_radius, ring_offset, ring_halo, ring_line, width_ring_min, width_ring_gap } = t;
     out.line("select.fastening", len(*fastening));
     out.line("select.ring_radius", len(*ring_radius));
     out.line("select.ring_offset", len(*ring_offset));
     out.line("select.ring_halo", len(*ring_halo));
     out.line("select.ring_line", len(*ring_line));
+    out.line("select.width_ring_min", len(*width_ring_min));
+    out.line("select.width_ring_gap", len(*width_ring_gap));
 }
 
 fn hover_lines(out: &mut Lines, t: &HoverTokens) {

@@ -15,7 +15,6 @@ use craft_ui::theme::ToEgui as _;
 use super::SelectMaskEvent;
 use super::SelectMaskLabels;
 use super::edits::{EditMode, ObjectTarget, RefineStroke, SelectMaskEdit, round_point};
-use crate::ui::select::SelectToolStyle;
 
 /// The distance between the points of a freehand Lasso, in document pixels: a sampling step of the
 /// edit's points, not a size on screen (PhotoCraft's).
@@ -436,10 +435,7 @@ impl SelectMaskCanvasTool<'_> {
 
     fn press_polygon(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:590-603 `begin` (PolygonalLasso), :1796-1802.
-        let reach = DraftReach {
-            close: f64::from(cx.tokens.component.select_mask.close_reach),
-            same_point: SelectToolStyle::of(cx.tokens).reach().same_point,
-        };
+        let reach = DraftReach { close: f64::from(cx.tokens.component.select_mask.close_reach), same_point: DraftReach::of(cx.tokens).same_point };
         let add = self.options.add;
         let canvas = &mut *self.canvas;
         let draft = canvas.polygon.get_or_insert_with(|| OutlineDraft::new(DraftKind::Polygonal, reach));

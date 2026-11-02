@@ -5,7 +5,7 @@ use egui::{Color32, ColorImage, Modifiers, Painter, PointerButton, Pos2, Shape, 
 use craft_ui::canvas::brush::{
     BrushCursor, BrushDimensions, BrushLevel, BrushResize, BrushResizeLabels, BrushResizeOptions, BrushStyle, BrushTip, TipFalloff,
 };
-use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, OutlineDraft};
+use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};
 use craft_ui::canvas::kurbo::{Point, Size};
 use craft_ui::canvas::{
     CanvasTool, CanvasView, CursorHost, CursorOptions, HandTool, NavigationOptions, PixelRect, RasterSource, ToolAction, ToolContext, ToolCursor,
@@ -18,7 +18,6 @@ use super::LiquifyEvent;
 use super::session::{BackdropMode, LiquifySettings, LiquifyStroke};
 use super::style::LiquifyStyle;
 use super::tools::{LiquifyBrush, LiquifyTool, StrokeRecorder};
-use crate::ui::select::SelectToolStyle;
 
 /// The seconds between the dabs of a tool that acts while the brush rests (PhotoCraft: 30 a
 /// second).
@@ -258,8 +257,8 @@ fn acts_at_rest(tool: LiquifyTool) -> bool {
 ///   press paints with [`LiquifyTool::alternate`](super::LiquifyTool::alternate)), reported as
 ///   [`LiquifyEvent::Stroke`] Begin, Update with each new point, Commit. Esc or a lost pointer
 ///   reports Cancel, then a Replay (the workspace adds it from the session).
-/// - The Freeze Lasso: an [`OutlineDraft`] of `DraftKind::Freehand` (`DraftReach` from the
-///   select tokens through `SelectToolStyle::reach`); the release closes it into a stroke with
+/// - The Freeze Lasso: an [`OutlineDraft`] of `DraftKind::Freehand` (`DraftReach::of` from the
+///   `outline_draft` tokens); the release closes it into a stroke with
 ///   `amount` 1, or 0 when Alt was held at the press; drawn in `liquify.freeze` (thaw:
 ///   `liquify.thaw`).
 /// - Alt + right-drag, or Control + Alt + drag ([`BrushResize::chord`]; `takes` accepts the
@@ -367,7 +366,7 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         }
         let tool = self.settings.tool;
         if tool == LiquifyTool::FreezeLasso {
-            let mut draft = OutlineDraft::new(DraftKind::Freehand, SelectToolStyle::of(cx.tokens).reach());
+            let mut draft = OutlineDraft::new(DraftKind::Freehand, DraftReach::of(cx.tokens));
             draft.press(DraftPoint::new(pointer.doc, pointer.modifiers, cx.view.zoom), false);
             self.canvas.lasso = Some((draft, pointer.modifiers.alt));
             return ToolAction::Claimed;

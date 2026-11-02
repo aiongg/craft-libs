@@ -6,6 +6,7 @@ use craft_ui::canvas::kurbo::{Point, Rect, Size};
 use craft_ui::canvas::{CanvasId, CanvasView, Constraint, SelectionOperation, ToolHost, ToolInput, ToolKey};
 use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
+use craft_ui::testing::canvas;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, Sense, pos2, vec2};
@@ -161,11 +162,11 @@ fn marquee_corners_follow_constraint_and_modifiers() {
     let events = stroke(&mut h, (100.0, 100.0), (110.0, 120.0), NONE, Modifiers::ALT);
     assert_eq!(events, [commit((90.0, 80.0, 110.0, 120.0), SelectionOperation::New)], "⌥ after the press centres");
 
-    h.state_mut().tool.set_constraint(Constraint::Ratio(2.0, 1.0));
+    h.state_mut().tool.constraint(Constraint::Ratio(2.0, 1.0));
     let events = stroke(&mut h, (10.0, 10.0), (50.0, 12.0), NONE, NONE);
     assert_eq!(events, [commit((10.0, 10.0, 50.0, 30.0), SelectionOperation::New)]);
 
-    h.state_mut().tool.set_constraint(Constraint::Size(10.0, 10.0));
+    h.state_mut().tool.constraint(Constraint::Size(10.0, 10.0));
     let events = stroke(&mut h, (20.0, 20.0), (40.4, 60.4), NONE, NONE);
     assert_eq!(events, [commit((40.0, 60.0, 50.0, 70.0), SelectionOperation::New)], "the box follows the pointer");
 }
@@ -186,6 +187,17 @@ fn marquee_single_row_and_column_follow_pointer() {
     let mut h = rig(MarqueeKind::SingleColumn, Fake::default());
     let events = stroke(&mut h, (10.5, 20.0), (450.0, 20.0), NONE, NONE);
     assert_eq!(events, [commit((399.0, 0.0, 400.0, 300.0), SelectionOperation::New)]);
+
+    // A press inside the selection draws the line; it never drags the selection (the other
+    // marquees do).
+    let selection = Some(Rect::new(100.0, 100.0, 200.0, 200.0));
+    for (kind, line) in [(MarqueeKind::SingleRow, (0.0, 150.0, 400.0, 151.0)), (MarqueeKind::SingleColumn, (150.0, 0.0, 151.0, 300.0))] {
+        let mut h = rig(kind, Fake { selection, piece: None });
+        canvas::press(&mut h, pos2(150.0, 150.0), NONE);
+        assert_eq!(h.state().tool.phase(), SelectPhase::Marquee { rect: Some(Rect::new(line.0, line.1, line.2, line.3)) }, "{kind:?}");
+        canvas::release(&mut h, pos2(150.0, 150.0), NONE);
+        assert_eq!(h.state_mut().tool.take_events(), [commit(line, SelectionOperation::New)], "{kind:?}");
+    }
 }
 
 // A release within the click slop reports `Deselect`; with Fixed Size the click commits the box at
@@ -196,7 +208,7 @@ fn marquee_click_deselects_and_fixed_size_click_places() {
     assert_eq!(stroke(&mut h, (30.0, 30.0), (31.0, 31.0), NONE, NONE), [SelectEvent::Deselect]);
     assert_eq!(h.state().tool.phase(), SelectPhase::Idle);
 
-    h.state_mut().tool.set_constraint(Constraint::Size(10.0, 10.0));
+    h.state_mut().tool.constraint(Constraint::Size(10.0, 10.0));
     down(&mut h, (30.2, 30.2), NONE);
     up(&mut h, (30.2, 30.2), NONE);
     assert_eq!(h.state_mut().tool.take_events(), [commit((30.0, 30.0, 40.0, 40.0), SelectionOperation::New)]);
@@ -219,7 +231,7 @@ fn press_inside_selection_drags_outline_only_for_new() {
     let events = stroke(&mut h, (150.0, 150.0), (190.0, 190.0), Modifiers::ALT, Modifiers::ALT);
     assert_eq!(events, [commit((150.0, 150.0, 190.0, 190.0), SelectionOperation::Subtract)]);
 
-    h.state_mut().tool.set_operation(SelectionOperation::Add);
+    h.state_mut().tool.operation(SelectionOperation::Add);
     let events = stroke(&mut h, (150.0, 150.0), (190.0, 190.0), NONE, NONE);
     assert_eq!(events, [commit((150.0, 150.0, 190.0, 190.0), SelectionOperation::Add)]);
 }
@@ -311,7 +323,7 @@ fn marquee_being_dragged_is_one_accesskit_object() {
     h.run();
     let node = h.get_by_label("Selection outline");
     assert_eq!(node.accesskit_node().role(), Role::GraphicsObject);
-    assert_eq!(node.accesskit_node().value().as_deref(), Some("30 × 20 px"));
+    assert_eq!(node.accesskit_node().value().as_deref(), Some("30 px × 20 px"));
     up(&mut h, (40.0, 30.0), NONE);
     h.run();
     assert!(h.query_by_label("Selection outline").is_none());

@@ -2156,10 +2156,6 @@ pub const ACTIONS_COLORS: [Rgba; 6] = [
 pub const ACTIONS_LABEL_ON_COLOR: Rgba = Rgba::rgb(20, 20, 20);
 
 // --- select ---
-/// A press this near the first point closes an outline, in screen points: `select.close_radius`.
-pub const SELECT_CLOSE_RADIUS: f32 = 8.0;
-/// A press this near the last point is the same click again: `select.same_point`.
-pub const SELECT_SAME_POINT: f32 = 3.0;
 /// Side of a Magnetic Lasso fastening point: `select.fastening`.
 pub const SELECT_FASTENING: f32 = 5.0;
 /// Radius of the Magnetic Lasso closing ring: `select.ring_radius`.
@@ -2170,6 +2166,10 @@ pub const SELECT_RING_OFFSET: f32 = 12.0;
 pub const SELECT_RING_HALO: f32 = 3.0;
 /// Width of the ring line: `select.ring_line`.
 pub const SELECT_RING_LINE: f32 = 1.2;
+/// Smallest radius of the Magnetic Lasso width circle: `select.width_ring_min`.
+pub const SELECT_WIDTH_RING_MIN: f32 = 2.0;
+/// Gap between the width circle's two rings: `select.width_ring_gap`.
+pub const SELECT_WIDTH_RING_GAP: f32 = 0.5;
 
 // --- hover ---
 /// Line width of a rect or path outline: `hover.outline`.

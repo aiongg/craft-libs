@@ -4,7 +4,8 @@
 
 use craft_ui::canvas::kurbo::{Point, Rect, Size};
 use craft_ui::canvas::{CanvasId, CanvasView, SelectionOperation, ToolHost, ToolInput, ToolKey};
-use craft_ui::edit::EditEvent;
+use craft_ui::edit::{CancelReason, EditEvent};
+use craft_ui::testing::canvas;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, Sense, pos2, vec2};
@@ -286,4 +287,63 @@ fn lasso_outline_being_drawn_is_one_accesskit_object() {
     up(&mut h, (150.0, 150.0), NONE);
     h.run();
     assert!(h.query_by_label("Selection outline").is_none());
+}
+
+/// Cancels the gesture the rig's tool holds with `reason`, as the app does on a tool switch.
+pub(super) fn cancel_with(h: &mut Harness<'_, Rig>, reason: CancelReason) {
+    let id = h.state().id.expect("a pass ran");
+    let ctx = h.ctx.clone();
+    let rig = h.state_mut();
+    let probe = Fake::empty();
+    let _ = if rig.use_polygon {
+        ToolHost::cancel(&ctx, id, &mut SelectToolPass::new(&mut rig.polygon, &probe), reason)
+    } else {
+        ToolHost::cancel(&ctx, id, &mut SelectToolPass::new(&mut rig.lasso, &probe), reason)
+    };
+    h.step();
+}
+
+// A press and release that draw fewer than 3 points (a click, or a two-point drag) deselect, as in
+// PhotoCraft; Esc during the press drops the outline and reports nothing.
+#[test]
+fn lasso_click_deselects() {
+    let mut h = rig(false, Fake::empty());
+    h.state_mut().focus = true;
+    h.step();
+    canvas::press(&mut h, pos2(50.0, 50.0), NONE);
+    canvas::release(&mut h, pos2(50.0, 50.0), NONE);
+    assert_eq!(h.state_mut().events(), [SelectEvent::Deselect]);
+    assert_eq!(h.state().phase(), SelectPhase::Idle);
+
+    canvas::press(&mut h, pos2(50.0, 50.0), NONE);
+    canvas::move_to(&mut h, pos2(90.0, 60.0));
+    canvas::release(&mut h, pos2(90.0, 60.0), NONE);
+    assert_eq!(h.state_mut().events(), [SelectEvent::Deselect], "two points are no outline");
+
+    canvas::press(&mut h, pos2(50.0, 50.0), NONE);
+    canvas::move_to(&mut h, pos2(90.0, 60.0));
+    canvas::key(&mut h, Key::Escape, NONE);
+    canvas::release(&mut h, pos2(90.0, 60.0), NONE);
+    assert!(h.state_mut().events().is_empty(), "Esc is not a click");
+    assert_eq!(h.state().phase(), SelectPhase::Idle);
+}
+
+// Esc during a press drops the Lasso's outline; so does every other cancel reason.
+#[test]
+fn lasso_escape_during_press_drops_outline() {
+    let mut h = rig(false, Fake::empty());
+    h.state_mut().focus = true;
+    h.step();
+    canvas::press(&mut h, pos2(50.0, 50.0), NONE);
+    canvas::move_to(&mut h, pos2(150.0, 50.0));
+    assert_eq!(h.state().phase(), SelectPhase::Outline { points: 2 });
+    canvas::key(&mut h, Key::Escape, NONE);
+    assert_eq!(h.state().phase(), SelectPhase::Idle);
+    canvas::release(&mut h, pos2(150.0, 50.0), NONE);
+    assert!(h.state_mut().events().is_empty());
+
+    canvas::press(&mut h, pos2(50.0, 50.0), NONE);
+    canvas::move_to(&mut h, pos2(150.0, 50.0));
+    cancel_with(&mut h, CancelReason::Removed);
+    assert_eq!(h.state().phase(), SelectPhase::Idle);
 }

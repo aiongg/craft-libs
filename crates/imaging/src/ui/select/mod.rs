@@ -15,8 +15,8 @@
 //!
 //! ```ignore
 //! let probe = DocSelection { doc: &doc };                  // the app's SelectionProbe
-//! self.lasso.set_operation(bar.operation);                 // the options bar's mode
-//! let mut pass = SelectToolPass::new(&mut self.lasso, &probe);
+//! self.lasso.operation(bar.operation);                     // the options bar's mode
+//! let mut pass = self.lasso.pass(&probe);
 //! let _ = ToolHost::new(canvas_id).show(ui, &view, &canvas, &mut pass);
 //! for event in self.lasso.take_events() {
 //!     match event {
@@ -27,6 +27,11 @@
 //!     }
 //! }
 //! ```
+//!
+//! Every tool has the setters `operation(..)` and `labels(..)` (the words default to the installed
+//! ones), and the marquee `kind(..)` and `constraint(..)`; each returns the tool. The Polygonal
+//! Lasso takes the secondary button while its outline is open and retracts the last vertex on it,
+//! so the app needs no call for the right click.
 //!
 //! A press inside the selection drags it instead of drawing (Photoshop): the outline with a plain
 //! press and the operation New, the selected pixels with ⌘ (⌘⌥ a copy), a floating piece with a
@@ -39,6 +44,7 @@
 use craft_ui::canvas::SelectionOperation;
 use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::edit::EditEvent;
+use craft_ui::localized::Labels as _;
 use craft_ui::localized::words::Counted;
 
 mod drag;
@@ -78,7 +84,14 @@ craft_ui::words! {
         width: "select.width" = "W:";
         /// The marquee readout's height row.
         height: "select.height" = "H:";
+        /// The marquee's accessible value: its width and height, each already with its unit.
+        size: "select.size" = "{w} × {h}";
     }
+}
+
+/// The words a tool shows: the ones the app gave it, else the installed ones.
+fn labels_in(own: Option<&SelectLabels>, ctx: &egui::Context) -> SelectLabels {
+    own.cloned().unwrap_or_else(|| SelectLabels::of_ctx(ctx))
 }
 
 /// The selection a tool made, in document units. Anti-alias and Feather are the app's options and
@@ -184,7 +197,7 @@ pub trait SelectionProbe {
 /// `ToolHost::show`. Built every pass; the tool keeps its state, the probe borrows the document.
 ///
 /// ```
-/// use craft_imaging::ui::select::{LassoTool, SelectToolPass, SelectionProbe};
+/// use craft_imaging::ui::select::{LassoTool, SelectionProbe};
 /// use craft_ui::canvas::CanvasTool;
 /// use craft_ui::canvas::kurbo::Point;
 ///
@@ -197,7 +210,7 @@ pub trait SelectionProbe {
 /// }
 ///
 /// let mut lasso = LassoTool::new();
-/// let mut pass = SelectToolPass::new(&mut lasso, &Nothing);
+/// let mut pass = lasso.pass(&Nothing);
 /// let _: &mut dyn CanvasTool = &mut pass;
 /// ```
 ///
@@ -208,7 +221,7 @@ pub struct SelectToolPass<'a, T> {
 }
 
 impl<'a, T> SelectToolPass<'a, T> {
-    /// `tool` asking `probe` this pass.
+    /// `tool` asking `probe` this pass. Each tool also builds it as `tool.pass(probe)`.
     pub fn new(tool: &'a mut T, probe: &'a dyn SelectionProbe) -> Self {
         Self { tool, probe }
     }

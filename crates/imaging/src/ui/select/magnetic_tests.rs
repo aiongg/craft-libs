@@ -6,6 +6,8 @@ use std::rc::Rc;
 
 use craft_ui::canvas::kurbo::{Point, Size, Vec2};
 use craft_ui::canvas::{CanvasId, CanvasView, SelectionOperation, ToolHost, ToolInput, ToolKey};
+use craft_ui::edit::CancelReason;
+use craft_ui::testing::canvas;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, Sense, pos2, vec2};
@@ -270,6 +272,27 @@ fn magnetic_remove_last_point_and_cancel() {
     assert!(h.state_mut().events().is_empty());
 }
 
+// Esc during a press drops the whole outline; a cancel for another reason (a tool switch) keeps it
+// for the app's `reset`.
+#[test]
+fn magnetic_escape_during_press_drops_outline() {
+    let mut h = rig();
+    click_at(&mut h, on(0.0), NONE);
+    canvas::press(&mut h, pos2(on(1.0).x as f32, on(1.0).y as f32), NONE);
+    assert!(matches!(h.state().tool.phase(), SelectPhase::Outline { .. }));
+    canvas::key(&mut h, Key::Escape, NONE);
+    assert_eq!(h.state().tool.phase(), SelectPhase::Idle);
+    canvas::release(&mut h, pos2(on(1.0).x as f32, on(1.0).y as f32), NONE);
+    assert!(h.state_mut().events().is_empty());
+
+    click_at(&mut h, on(0.0), NONE);
+    canvas::press(&mut h, pos2(on(1.0).x as f32, on(1.0).y as f32), NONE);
+    let (id, ctx) = (h.state().id.expect("a pass ran"), h.ctx.clone());
+    let rig = h.state_mut();
+    let _ = ToolHost::cancel(&ctx, id, &mut SelectToolPass::new(&mut rig.tool, &rig.probe), CancelReason::Removed);
+    assert!(matches!(h.state().tool.phase(), SelectPhase::Outline { .. }), "a tool switch keeps the outline");
+}
+
 // `[` and `]` change the width by 1 within 1..=256, with or without an outline open.
 #[test]
 fn magnetic_bracket_keys_change_width_within_range() {
@@ -298,7 +321,7 @@ fn magnetic_closes_along_edges_or_straight() {
     let start = on(0.0);
     // Enter: along the circle, every point on it.
     let mut h = rig();
-    h.state_mut().tool.set_operation(SelectionOperation::Add);
+    h.state_mut().tool.operation(SelectionOperation::Add);
     down(&mut h, start, NONE);
     up(&mut h, start, NONE);
     click_at(&mut h, on(1.5), NONE);

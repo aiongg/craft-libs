@@ -3,7 +3,7 @@
 use egui::{CursorIcon, Key, Modifiers, Painter, PointerButton};
 
 use craft_ui::canvas::brush::{BrushCursor, BrushDimensions, BrushResize, BrushResizeLabels, BrushResizeOptions, BrushStyle, BrushTip, TipFalloff};
-use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, OutlineDraft};
+use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{
     CanvasTool, CursorOptions, Marquee, MarqueeLook, Readout, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer,
@@ -17,7 +17,6 @@ use super::FillEvent;
 use super::FillLabels;
 use super::lasso::FillAreaEdit;
 use super::session::{FillLimits, FillSession, SamplingStroke};
-use crate::ui::select::SelectToolStyle;
 use crate::ui::select_mask::EditMode;
 
 /// The tools of Content-Aware Fill's strip: Sampling Brush (B), Lasso (L), Hand (H), Zoom (Z).
@@ -276,7 +275,7 @@ impl CanvasTool for FillCanvasTool<'_> {
                 ToolAction::Claimed
             }
             FillTool::Lasso => {
-                let mut draft = OutlineDraft::new(DraftKind::Freehand, SelectToolStyle::of(cx.tokens).reach());
+                let mut draft = OutlineDraft::new(DraftKind::Freehand, DraftReach::of(cx.tokens));
                 // The fill area always has something to combine with: Shift adds, Alt subtracts,
                 // both intersect, else the bar's operation.
                 match draft.press(sample(pointer, cx), true) {
