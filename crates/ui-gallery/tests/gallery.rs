@@ -1117,7 +1117,7 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
             "controls/segmented/icons",
             "controls/segmented/text",
             "patterns/app-preview/photo-editor",
-            "patterns/full-window/rail-in-dialog",
+            "patterns/tool-rail/rail-in-dialog",
             "patterns/rail/tool",
             "patterns/toolbar/horizontal-overflow",
             "patterns/toolbar/vertical-liquify",

@@ -10,14 +10,14 @@
 //! | Story id | Shows |
 //! |---|---|
 //! | `primitives/before-after/modes` | The six modes over the two fakes, captions on and off |
-//! | `primitives/before-after/divider` | A Split and a SplitStacked view with the fraction readout, the keys, `drag_anywhere` on and off, hold Backslash for the original |
+//! | `primitives/before-after/split-view` | A Split and a SplitStacked view with the fraction readout, the keys, `drag_anywhere` on and off, hold Backslash for the original |
 
 use egui::{Color32, Key, Mesh, Painter, Rect, Shape, Ui, vec2};
 
 use super::{BeforeAfter, BeforeAfterMode, BeforeAfterPane, BeforeAfterSide};
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
-use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
+use crate::story::{self, Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 use crate::typed_story;
 
@@ -52,7 +52,7 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "primitives/before-after/divider",
+            "primitives/before-after/split-view",
             Level::Primitives,
             "BeforeAfter",
             "Split view",
@@ -139,22 +139,21 @@ struct ModesArgs {
 /// One view in the chosen mode over the fakes. The divider modes can be dragged and keyed here too.
 fn show_modes(ui: &mut Ui, args: &mut ModesArgs) {
     let own = BeforeAfterStoryLabels::of(ui);
-    let key = ui.make_persistent_id("before-after-modes-story");
-    let mut fraction: f32 = ui.data(|d| d.get_temp(key)).unwrap_or(0.5);
+    let shared = story::shared(ui, "modes", || 0.5_f32);
+    let mut fraction = story::lock(&shared);
     let (area, _) = ui.allocate_exact_size(vec2(AREA[0].min(ui.available_width()), AREA[1]), egui::Sense::hover());
     let tokens = Tokens::of(ui);
-    let view = BeforeAfter::new("before-after-modes-story", args.mode.mode()).fraction(fraction).captions(args.captions);
+    let view = BeforeAfter::new("before-after-modes-story", args.mode.mode()).fraction(*fraction).captions(args.captions);
     // The picture sits in the middle of the after pane.
     let after = view.panes(ui, area)[1];
     let out = view.show(ui, area, picture_in(after), |painter, pane| paint_fake(painter, &tokens, pane));
     if let Some(event) = &out.fraction
         && let Some(value) = event.value()
     {
-        fraction = *value;
+        *fraction = *value;
     }
-    let line = own.shown.replace("{mode}", mode_name(out.mode, &own));
+    let line = craft_i18n::fmt(&own.shown, &[("mode", mode_name(out.mode, &own))]);
     ui.add(Text::new(line).content(Content::Muted));
-    ui.data_mut(|d| d.insert_temp(key, fraction));
 }
 
 // --- divider ---
@@ -171,13 +170,13 @@ struct DividerArgs {
 /// to; Backslash held shows the original. The readout is the fraction the host stores.
 fn show_divider(ui: &mut Ui, args: &mut DividerArgs) {
     let own = BeforeAfterStoryLabels::of(ui);
-    let key = ui.make_persistent_id("before-after-divider-story");
-    let mut fraction: f32 = ui.data(|d| d.get_temp(key)).unwrap_or(0.5);
+    let shared = story::shared(ui, "split-view", || 0.5_f32);
+    let mut fraction = story::lock(&shared);
     let (area, _) = ui.allocate_exact_size(vec2(AREA[0].min(ui.available_width()), AREA[1]), egui::Sense::hover());
     let tokens = Tokens::of(ui);
     let mode = if args.stacked { BeforeAfterMode::SplitStacked } else { BeforeAfterMode::Split };
     let view = BeforeAfter::new("before-after-divider-story", mode)
-        .fraction(fraction)
+        .fraction(*fraction)
         .captions(args.captions)
         .drag_anywhere(args.drag_anywhere)
         .original_while(Key::Backslash);
@@ -186,11 +185,10 @@ fn show_divider(ui: &mut Ui, args: &mut DividerArgs) {
     if let Some(event) = &out.fraction
         && let Some(value) = event.value()
     {
-        fraction = *value;
+        *fraction = *value;
     }
     let numbers = LocaleNumbers::of(ui);
-    let percent = numbers.format(f64::from((fraction * 100.0).round()), 0..=0);
-    ui.add(Text::new(own.fraction.replace("{n}", &percent)).content(Content::Muted));
+    let percent = numbers.format(f64::from((*fraction * 100.0).round()), 0..=0);
+    ui.add(Text::new(craft_i18n::fmt(&own.fraction, &[("n", &percent)])).content(Content::Muted));
     ui.add(Text::new(own.hold.clone()).content(Content::Muted));
-    ui.data_mut(|d| d.insert_temp(key, fraction));
 }

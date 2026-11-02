@@ -1,12 +1,12 @@
 //! Stories of the nudge, the move gesture and the stroke constraints (task KS2). A fake page with rectangles and strokes, so every state shows without an app.
 //! Sample text and the axis and flag names of the status lines are story words.
 //!
-//! - `primitives/nudge/arrows`: a rectangle on a fake page; arrows move it 1 unit, ⇧ 10, a ⌘ base
+//! - `primitives/nudge-keys/arrows`: a rectangle on a fake page; arrows move it 1 unit, ⇧ 10, a ⌘ base
 //!   toggle, the ⌥ copy flag in a status line; a text field beside it takes the arrows when focused.
 //! - `primitives/move-gesture/layers`: the four-direction ⇧ lock with a locked-axis readout and the
 //!   ⌥ copy flag.
 //! - `primitives/move-gesture/pixels`: the eight-direction lock.
-//! - `primitives/move-gesture/stroke`: `StrokeLock` and the Gradient tool's `snap_ray` over a drawn
+//! - `primitives/stroke-lock/stroke`: `StrokeLock` and the Gradient tool's `snap_ray` over a drawn
 //!   stroke, with the Shift-click `StraightLinePreview`.
 
 use egui::{Modifiers, Painter, Shape, Stroke, Ui};
@@ -22,7 +22,7 @@ use crate::edit::CancelReason;
 use crate::edit::EditEvent;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
-use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
+use crate::story::{self, Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use crate::typed_story;
 
@@ -46,7 +46,7 @@ crate::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "primitives/nudge/arrows",
+            "primitives/nudge-keys/arrows",
             Level::Primitives,
             "NudgeKeys",
             "Arrows",
@@ -81,7 +81,7 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "primitives/move-gesture/stroke",
+            "primitives/stroke-lock/stroke",
             Level::Primitives,
             "StrokeLock",
             "Stroke",
@@ -103,11 +103,6 @@ fn fill(tokens: &UiTokens, strength: f32) -> egui::Color32 {
 fn paint_rect(painter: &Painter, view: &CanvasView, tokens: &UiTokens, rect: Rect, strength: f32) {
     let stroke = Stroke::new(tokens.component.line_guide.width, tokens.color.accent.solid.to_egui());
     painter.add(Shape::convex_polygon(view.quad(rect).to_vec(), fill(tokens, strength), stroke));
-}
-
-/// Remembers the story's state under a name of this module's id space.
-fn state_key(ui: &Ui, name: &str) -> egui::Id {
-    ui.make_persistent_id(("craft_ui::behavior::story", name))
 }
 
 /// A muted status line.
@@ -152,13 +147,13 @@ fn show_nudge(ui: &mut Ui, args: &mut NudgeArgs) {
     let labels = MoveStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let ctx = ui.ctx().clone();
-    let key = state_key(ui, "nudge");
-    let mut state: NudgeState = ctx.data(|d| d.get_temp(key)).unwrap_or_else(|| NudgeState {
+    let shared = story::shared(ui, "nudge", || NudgeState {
         origin: DOC.center() - Vec2::new(args.width / 2.0, args.height / 2.0),
         copies: Vec::new(),
         text: words.photo.clone(),
         last: None,
     });
+    let mut state = story::lock(&shared);
     if canvas.response.has_focus() {
         let base = if args.command_base { Modifiers::COMMAND } else { Modifiers::NONE };
         let keys = NudgeKeys::new().steps(args.step, args.big_step).base(base).alt(args.alt_copies).layer(ui.layer_id());
@@ -196,7 +191,6 @@ fn show_nudge(ui: &mut Ui, args: &mut NudgeArgs) {
         }
         status(ui, line);
     });
-    ctx.data_mut(|d| d.insert_temp(key, state));
 }
 
 // --- move ---
@@ -308,19 +302,20 @@ fn show_move(ui: &mut Ui, args: &MoveArgs, name: &str, directions: Directions, c
     let labels = MoveStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let ctx = ui.ctx().clone();
-    let key = state_key(ui, name);
+    story::reset_on(ui, name, &(args.width, args.height));
     let size = Vec2::new(args.width, args.height).to_size();
     let fresh = || {
         let first = Rect::from_origin_size(DOC.center() - Vec2::new(args.width, args.height / 2.0), size);
         let offset = Vec2::new(args.width / 2.0, args.height / 2.0);
         MoveTool::new(directions, (0..count).map(|i| first + offset * i as f64).collect())
     };
-    let mut tool: MoveTool = ctx.data(|d| d.get_temp(key)).unwrap_or_else(fresh);
-    let _ = ToolHost::new(canvas.id).document(DOC.size()).show(ui, &canvas.view, &canvas.response, &mut tool);
+    let shared = story::shared(ui, name, fresh);
+    let mut tool = story::lock(&shared);
+    let _ = ToolHost::new(canvas.id).document(DOC.size()).show(ui, &canvas.view, &canvas.response, &mut *tool);
     let shift = ctx.input(|i| i.modifiers.shift);
     ui.horizontal(|ui| {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
-            tool = fresh();
+            *tool = fresh();
         }
         let mut line = axis(&labels, tool.value.delta, shift).to_owned();
         if tool.value.copy {
@@ -329,7 +324,6 @@ fn show_move(ui: &mut Ui, args: &MoveArgs, name: &str, directions: Directions, c
         }
         status(ui, line);
     });
-    ctx.data_mut(|d| d.insert_temp(key, tool));
 }
 
 /// Two overlapping layers, four directions under ⇧.
@@ -449,12 +443,12 @@ impl CanvasTool for StrokeDemo {
     }
 
     fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
-        let colour = cx.tokens.color.accent.solid.to_egui();
+        let color = cx.tokens.color.accent.solid.to_egui();
         let width = self.width as f32 * cx.view.zoom as f32;
         for line in self.lines.iter().chain(std::iter::once(&self.current)) {
             let points = line.iter().map(|p| cx.view.to_screen(*p)).collect::<Vec<_>>();
             if points.len() > 1 {
-                painter.add(Shape::line(points, Stroke::new(width, colour)));
+                painter.add(Shape::line(points, Stroke::new(width, color)));
             }
         }
         let guide = LineGuideStyle::of(cx.tokens);
@@ -477,9 +471,7 @@ fn show_stroke(ui: &mut Ui, args: &mut StrokeArgs) {
     let words = StoryLabels::of(ui);
     let labels = MoveStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
-    let ctx = ui.ctx().clone();
-    let key = state_key(ui, "stroke");
-    let mut tool: StrokeDemo = ctx.data(|d| d.get_temp(key)).unwrap_or_else(|| StrokeDemo {
+    let shared = story::shared(ui, "stroke", || StrokeDemo {
         tool: args.tool,
         width: args.width,
         lock: None,
@@ -489,12 +481,13 @@ fn show_stroke(ui: &mut Ui, args: &mut StrokeArgs) {
         hover: None,
         shift: false,
     });
+    let mut tool = story::lock(&shared);
     tool.width = args.width;
     if tool.tool != args.tool {
         tool.tool = args.tool;
         tool.gradient = None;
     }
-    let _ = ToolHost::new(canvas.id).document(DOC.size()).show(ui, &canvas.view, &canvas.response, &mut tool);
+    let _ = ToolHost::new(canvas.id).document(DOC.size()).show(ui, &canvas.view, &canvas.response, &mut *tool);
     ui.horizontal(|ui| {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             tool.lines.clear();
@@ -505,5 +498,4 @@ fn show_stroke(ui: &mut Ui, args: &mut StrokeArgs) {
         let locked = tool.lock.as_ref().is_some_and(StrokeLock::locked);
         status(ui, if locked { labels.locked.clone() } else { labels.free.clone() });
     });
-    ctx.data_mut(|d| d.insert_temp(key, tool));
 }
