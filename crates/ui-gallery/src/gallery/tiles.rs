@@ -50,6 +50,9 @@ pub(crate) struct Tiles<'a> {
     /// Whether these are Overview tiles, in which a story with a modal dialog starts it closed
     /// ([`craft_ui::story::in_overview`]).
     pub overview: bool,
+    /// Whether rows of tiles far outside the visible area of the enclosing scroll area are left
+    /// undrawn (their remembered height is allocated instead). Only for tiles in a scroll area.
+    pub cull: bool,
     /// Whether the headers have the Reset and Open buttons.
     pub buttons: bool,
     /// The key of the tile to scroll to; cleared once its tile has been drawn.
@@ -116,6 +119,24 @@ pub(crate) fn tiles_view(
         let reach = area.height();
         for row in tiles.chunks(columns) {
             let top = ui.cursor().min.y;
+            let row_id = ui.scope_id().with(("tiles-row", row.iter().map(|t| (t.key, config.states.generation(t.story.id))).collect::<Vec<_>>()));
+            // The scroll target and the selected tile (which the side panels and the inspector
+            // follow) are always drawn.
+            let needed = |key: Option<&'static str>| key.is_some_and(|key| row.iter().any(|t| t.key == key));
+            if config.cull && !needed(*config.scroll_to) && !needed(config.selected) {
+                let known: Option<(f32, f32)> = ui.ctx().data(|d| d.get_temp(row_id));
+                if let Some((_, height)) = known.filter(|(w, _)| (*w - tile_width).abs() < 0.01) {
+                    // A margin of one viewport on each side keeps the rows near the edge drawn, so
+                    // they are ready when they scroll in.
+                    let view = ui.clip_rect();
+                    let near = view.expand2(vec2(0.0, view.height()));
+                    if !near.intersects(Rect::from_min_size(pos2(area.min.x, top), vec2(width, height))) {
+                        ui.allocate_rect(Rect::from_min_size(pos2(area.min.x, top), vec2(width, height)), Sense::hover());
+                        ui.add_space(gap);
+                        continue;
+                    }
+                }
+            }
             let mut bottom = top;
             let mut placed = Vec::new();
             for (i, tile) in row.iter().enumerate() {
@@ -252,6 +273,7 @@ pub(crate) fn tiles_view(
                 ui.painter().set(slot, Shape::Vec(shapes));
             }
             ui.allocate_rect(Rect::from_min_max(pos2(area.min.x, top), pos2(area.max.x, bottom)), Sense::hover());
+            ui.ctx().data_mut(|d| d.insert_temp(row_id, (tile_width, bottom - top)));
             ui.add_space(gap);
         }
     });
