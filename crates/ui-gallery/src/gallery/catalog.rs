@@ -52,7 +52,7 @@ mod tests {
                 let mut chars = c.chars();
                 !(chars.next().is_some_and(|f| f.is_ascii_uppercase()) && chars.all(|c| c.is_ascii_alphanumeric()))
             })
-            .map(|c| format!("{c}"))
+            .map(str::to_owned)
             .collect();
         assert!(bad.is_empty(), "component names that are not PascalCase identifiers: {bad:?}");
     }
