@@ -81,6 +81,10 @@ pub struct TransformBarOutput<W> {
     /// The edits in the order they happened; the app applies each with
     /// [`TransformSession::apply`].
     pub edits: Vec<TransformEdit<W>>,
+    /// The ✓ button was pressed: the app calls [`TransformSession::commit`] after the edits.
+    pub apply: bool,
+    /// The ⊘ button was pressed: the app calls [`TransformSession::discard`] after the edits.
+    pub discard: bool,
     /// Reset warp was pressed (Warp phase): the app answers with its identity warp for the box,
     /// `TransformEdit::Warp(identity)`, one undo step (PhotoCraft `reset_warp`).
     pub reset_warp: bool,
@@ -201,7 +205,7 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
         } = self;
         let id = ui.make_persistent_id(id_salt);
         let warping = session.phase() == TransformPhase::Warp;
-        let mut out = TransformBarOutput { edits: Vec::new(), reset_warp: false, size_unit: None };
+        let mut out = TransformBarOutput { edits: Vec::new(), apply: false, discard: false, reset_warp: false, size_unit: None };
         let small = ControlSize::Sm;
 
         if warping {
@@ -277,12 +281,8 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
         let (commit, cancel) =
             if warping { (&labels.commit_warp, &labels.cancel_warp) } else { (&labels.commit_transform, &labels.cancel_transform) };
         let pressed = OptionsBar::commit_cancel(ui, commit, cancel);
-        if pressed.cancel {
-            out.edits.push(TransformEdit::Cancel);
-        }
-        if pressed.commit {
-            out.edits.push(TransformEdit::Commit);
-        }
+        out.discard = pressed.cancel;
+        out.apply = pressed.commit;
         if warping && ui.add(IconButton::new(Icon::Undo, labels.reset_warp.clone()).size(small)).clicked() {
             out.reset_warp = true;
         }

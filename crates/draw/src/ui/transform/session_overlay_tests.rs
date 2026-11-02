@@ -2,7 +2,7 @@
 
 use egui::accesskit::Role;
 use egui::epaint::ColorMode;
-use egui::{Color32, Event, Key, Modifiers, PointerButton, Pos2, Sense, Shape, vec2};
+use egui::{Color32, Event, Id, IdSalt, Key, Modifiers, PointerButton, Pos2, Sense, Shape, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect};
@@ -23,12 +23,14 @@ struct Host {
     claimed: bool,
     picked: Option<BoxPart>,
     pass: f64,
+    id: Option<Id>,
+    expected_id: Option<Id>,
 }
 
 fn harness(shown: bool, setup: impl FnOnce(&mut TransformSession<()>)) -> Harness<'static, Host> {
     let mut session = TransformSession::new(RECT).settings(&TransformSettings { show_reference_point: shown, ..TransformSettings::default() });
     setup(&mut session);
-    let host = Host { session, view: None, edits: Vec::new(), hovered: None, claimed: false, picked: None, pass: 0.0 };
+    let host = Host { session, view: None, edits: Vec::new(), hovered: None, claimed: false, picked: None, pass: 0.0, id: None, expected_id: None };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
             ui.add_space(40.0);
@@ -43,7 +45,15 @@ fn harness(shown: bool, setup: impl FnOnce(&mut TransformSession<()>)) -> Harnes
                 edits.push(kind(&edit));
                 host.session.apply(edit, host.pass);
             }
+            if r.apply {
+                edits.push("commit");
+            }
+            if r.discard {
+                edits.push("cancel");
+            }
             host.edits.extend(edits);
+            host.id = Some(r.id);
+            host.expected_id = Some(ui.make_persistent_id(IdSalt::new("overlay")));
             (host.hovered, host.claimed, host.picked) = (r.hovered, r.claimed, r.picked);
             host.pass += 1.0;
         },
@@ -59,8 +69,6 @@ fn kind(edit: &TransformEdit<()>) -> &'static str {
         TransformEdit::Box(EditEvent::Commit { .. }) => "end",
         TransformEdit::Box(EditEvent::Cancel { .. }) => "cancel drag",
         TransformEdit::Box(EditEvent::Set { .. }) => "set",
-        TransformEdit::Commit => "commit",
-        TransformEdit::Cancel => "cancel",
         _ => "other",
     }
 }
@@ -174,8 +182,8 @@ fn in_the_warp_phase_the_overlay_claims_nothing() {
     assert_eq!(h.state().session.state().quad, BoxState::from_rect(RECT).quad);
 }
 
-// Enter, a click outside and a double click inside each report TransformEdit::Commit; Esc with no
-// drag reports TransformEdit::Cancel.
+// Enter, a click outside and a double click inside each report `apply`; Esc with no drag reports
+// `discard`.
 #[test]
 fn enter_applies_a_click_outside_applies_a_double_click_inside_applies() {
     let mut h = harness(false, |_| {});
@@ -226,4 +234,20 @@ fn every_overlay_part_is_reachable_from_the_keyboard() {
     h.run();
     assert_eq!(h.state().edits, ["set"]);
     assert_eq!(h.state().session.state().pivot.x, 201.0, "the picked reference point moved");
+}
+
+// The response id is the host's `make_persistent_id` of the overlay's salt in both phases.
+#[test]
+fn the_response_id_is_the_same_in_the_box_and_warp_phases() {
+    let mut boxed = harness(false, |_| {});
+    boxed.run();
+    let mut warping = harness(false, |s| {
+        s.apply(TransformEdit::Warp(()), 0.0);
+    });
+    warping.run();
+    assert_eq!(warping.state().session.phase(), TransformPhase::Warp);
+    let (a, b) = (boxed.state(), warping.state());
+    assert!(a.id.is_some() && a.id == a.expected_id, "the box phase");
+    assert_eq!(b.id, b.expected_id, "the warp phase");
+    assert_eq!(a.id, b.id);
 }

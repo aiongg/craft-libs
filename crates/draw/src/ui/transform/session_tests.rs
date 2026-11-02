@@ -54,15 +54,15 @@ fn an_untouched_session_has_no_result_and_a_moved_one_has() {
     s.apply(TransformEdit::Mode(TransformMode::Rotate), 0.0);
     s.apply(TransformEdit::Interpolation(Interpolation::Bilinear), 0.0);
     assert!(s.is_untouched());
-    assert_eq!(s.apply(TransformEdit::Commit, 0.0), Some(TransformRequest::CloseUntouched));
+    assert_eq!(s.commit(), TransformRequest::CloseUntouched);
 
     drag(&mut s, moved(Vec2::new(10.0, 0.0)), 0.0);
-    let Some(TransformRequest::Apply(result)) = s.apply(TransformEdit::Commit, 1.0) else { panic!("expected Apply") };
+    let TransformRequest::Apply(result) = s.commit() else { panic!("expected Apply") };
     assert_eq!(result, TransformResult { rect: FRAME, state: moved(Vec2::new(10.0, 0.0)), interpolation: Interpolation::Bilinear, warp: None });
 }
 
-// Box Begin, Update, then Cancel restores the box taken at Begin and requests nothing; a Cancel
-// edit with no drag running requests Discard.
+// Box Begin, Update, then Cancel restores the box taken at Begin and requests nothing; discard
+// with no drag running requests Discard.
 #[test]
 fn esc_during_a_drag_restores_the_box_and_a_second_esc_discards() {
     let mut s = session();
@@ -73,7 +73,49 @@ fn esc_during_a_drag_restores_the_box_and_a_second_esc_discards() {
     assert_eq!(s.apply(TransformEdit::Box(EditEvent::cancel(id, CancelReason::Escape)), 0.0), None);
     assert!(!s.dragging());
     assert_eq!(*s.state(), BoxState::from_rect(FRAME));
-    assert_eq!(s.apply(TransformEdit::Cancel, 0.1), Some(TransformRequest::Discard));
+    assert_eq!(s.discard(), TransformRequest::Discard);
+}
+
+// Discard during a running gesture puts back the box the gesture began on.
+#[test]
+fn discard_ends_a_running_gesture_on_the_box_it_began_on() {
+    let mut s = session();
+    let id = GestureId::next();
+    s.apply(TransformEdit::Box(EditEvent::begin(id)), 0.0);
+    s.apply(TransformEdit::Box(EditEvent::update(id, moved(Vec2::new(5.0, 5.0)), Modifiers::NONE)), 0.0);
+    assert_eq!(s.discard(), TransformRequest::Discard);
+    assert!(!s.dragging());
+    assert_eq!(*s.state(), BoxState::from_rect(FRAME));
+}
+
+// In the Warp phase the warp holds the box: after a move and a reset to an identity warp, a commit
+// closes untouched; a warp that changes something applies with the warp.
+#[test]
+fn a_commit_in_the_warp_phase_decides_from_the_warp_alone() {
+    let mut s = session();
+    drag(&mut s, moved(Vec2::new(10.0, 0.0)), 0.0);
+    s.apply(TransformEdit::Warp(Warp(false)), 1.0);
+    s.apply(TransformEdit::Warp(Warp(true)), 2.0);
+    assert!(s.is_untouched());
+    assert_eq!(s.commit(), TransformRequest::CloseUntouched);
+
+    s.apply(TransformEdit::Warp(Warp(false)), 3.0);
+    let TransformRequest::Apply(result) = s.commit() else { panic!("expected Apply") };
+    assert_eq!(result.warp, Some(Warp(false)));
+}
+
+// Mode and interpolation are not undo steps: changing one records nothing, and Undo leaves them.
+#[test]
+fn mode_and_interpolation_stay_outside_the_undo_steps() {
+    let mut s = session();
+    drag(&mut s, moved(Vec2::new(10.0, 0.0)), 0.0);
+    s.apply(TransformEdit::Mode(TransformMode::Skew), 1.0);
+    s.apply(TransformEdit::Interpolation(Interpolation::Bilinear), 1.0);
+    s.settle(1.0, false);
+    assert!(s.undo());
+    assert!(!s.can_undo());
+    assert_eq!((s.current_mode(), s.interpolation()), (TransformMode::Skew, Interpolation::Bilinear));
+    assert_eq!(*s.state(), BoxState::from_rect(FRAME));
 }
 
 // A Fields typing run (Begin, Updates, Commit) sets the box and the V skew from each report, which

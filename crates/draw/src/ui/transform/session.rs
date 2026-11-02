@@ -3,10 +3,14 @@
 //!
 //! The session is a plain value the app owns. Widgets ([`TransformOverlay`](super::TransformOverlay),
 //! [`TransformBar`](super::TransformBar)) never change it: they report [`TransformEdit`]s, and
-//! the app hands each to [`TransformSession::apply`] in the order they came. The session keeps its
-//! own Undo and Redo ([`LocalHistory`]); the app routes Edit › Undo and Redo to
-//! [`undo`](TransformSession::undo) and [`redo`](TransformSession::redo) while it is open. It never
-//! touches the document: a commit gives the app a [`TransformResult`] to run as its own command.
+//! the app hands each to [`TransformSession::apply`] in the order they came. They also report
+//! `apply` and `discard` (Enter, the bar's ✓ and ⊘): the app answers them after the edits with
+//! [`commit`](TransformSession::commit) and [`discard`](TransformSession::discard). The session
+//! keeps its own Undo and Redo ([`LocalHistory`]); the app routes Edit › Undo and Redo to
+//! [`undo`](TransformSession::undo) and [`redo`](TransformSession::redo) while it is open, and
+//! cancels a running drag with [`CancelReason::UndoDuringGesture`](craft_ui::edit::CancelReason)
+//! first (the box reports that cancel as an edit). It never touches the document: a commit gives
+//! the app a [`TransformResult`] to run as its own command.
 //!
 //! The warp of the Warp phase is the app's type `W` (decisions §2.1: the drawing library cannot
 //! name the imaging library's mesh). The session only stores, clones and compares it, and asks
@@ -19,8 +23,8 @@
 //! // A session over a layer's bounds, without a warp type.
 //! let session: TransformSession = TransformSession::new(Rect::new(0.0, 0.0, 200.0, 100.0));
 //! assert!(!session.dragging());
-//! # let _ = |s: &mut TransformSession, now: f64| match s.apply(TransformEdit::Commit, now) {
-//! #     Some(TransformRequest::Apply(_result)) => {}
+//! # let _ = |s: &mut TransformSession, _now: f64| match s.commit() {
+//! #     TransformRequest::Apply(_result) => {}
 //! #     _ => {}
 //! # };
 //! ```
@@ -81,7 +85,8 @@ pub enum TransformEdit<W> {
     /// the open box about the reference point without committing it (Photoshop; PhotoCraft
     /// `intercept`).
     Preset(TransformPreset),
-    /// The bar's interpolation select. Session state: it joins the next undo step with the box.
+    /// The bar's interpolation select. Session state, not an undo step (PhotoCraft's steps hold
+    /// the box and the warp only).
     Interpolation(Interpolation),
     /// The bar's Show Reference Point check. View state, not an undo step.
     ReferencePoint(bool),
@@ -97,22 +102,18 @@ pub enum TransformEdit<W> {
     /// The switch from the Warp phase: drops the warp; the box stays as it was (PhotoCraft
     /// `leave_warp`).
     LeaveWarp,
-    /// Enter, a click outside, a double click inside, or the bar's commit button.
-    Commit,
-    /// Esc with no drag running, or the bar's cancel button.
-    Cancel,
 }
 
-/// What the app does after an edit.
+/// What the app does after an edit, a commit or a discard.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TransformRequest<W> {
-    /// Commit with something to apply: the app runs its transform command with the result and
+    /// [`TransformSession::commit`] with something to apply: the app runs its transform command with the result and
     /// closes the session.
     Apply(TransformResult<W>),
-    /// Commit of an untouched session: the app closes it without a document step. What the
+    /// [`TransformSession::commit`] of an untouched session: the app closes it without a document step. What the
     /// session began with (a ⌥⌘T copy, a placed file) stays (PhotoCraft `commit.rs:71`).
     CloseUntouched,
-    /// Cancel: the app closes the session and takes back what it made for it.
+    /// [`TransformSession::discard`]: the app closes the session and takes back what it made for it.
     Discard,
     /// [`TransformEdit::WarpRequested`]: the app builds its warp from the box (`rect` mapped onto
     /// `state`, a smart object's own warp first) and answers [`TransformEdit::Warp`].
@@ -125,7 +126,9 @@ pub enum TransformRequest<W> {
 pub struct TransformResult<W> {
     /// The source frame the session began on (the layer's bounds).
     pub rect: Rect,
-    /// The box: `rect`'s corners moved, and the reference point.
+    /// The box: `rect`'s corners moved, and the reference point. In the Warp phase the
+    /// [`warp`](Self::warp) already holds the box (PhotoCraft builds it from the box when the
+    /// phase opens), so the app applies the warp and ignores this box.
     pub state: BoxState,
     pub interpolation: Interpolation,
     /// The app's warp, when the session ended in the Warp phase.
@@ -259,26 +262,26 @@ words! {
     }
 }
 
-/// What one undo step of the session holds: everything Undo restores together. View state (the
-/// reference point's visibility, the picked part, the zoom) stays outside it, so Undo never moves
-/// the view.
+/// What one undo step of the session holds: everything Undo restores together (PhotoCraft's
+/// `Step`: the box, and the warp). View-like state (the mode, the interpolation, the reference
+/// point's visibility, the picked part, the zoom) stays outside it, so Undo never moves the view
+/// and changing one of them is no undo step of its own.
 #[derive(Clone, Debug, PartialEq)]
 struct TransformDraft<W> {
     state: BoxState,
     skew_v: f64,
-    mode: TransformMode,
-    interpolation: Interpolation,
     warp: Option<W>,
 }
 
-/// The draft of one Free Transform: the source frame, the box, its mode and V skew, the
-/// interpolation, the app's warp in the Warp phase, and the session's undo steps.
+/// The draft of one Free Transform: the source frame, the box and its V skew, the app's warp in
+/// the Warp phase, the mode and interpolation, and the session's undo steps.
 ///
 /// - Changes only through [`apply`](Self::apply). [`settle`](Self::settle), once per pass, records
 ///   an undo step whenever the draft has come to rest changed: once per drag, typing run or run
 ///   of arrow nudges within the [nudge pause](Self::nudge_pause).
 /// - [`undo`](Self::undo) and [`redo`](Self::redo) are the app's Edit commands while the session is
-///   open; both are refused while a drag runs. The session binds no key.
+///   open; both are refused while a drag runs, so the app cancels the drag first (`UndoDuringGesture`).
+///   The session binds no key.
 /// - No serde (LC7): the app builds its own record from the getters.
 #[derive(Clone, Debug)]
 pub struct TransformSession<W = ()> {
@@ -287,6 +290,10 @@ pub struct TransformSession<W = ()> {
     /// What the content allows (type refuses distort and perspective).
     allow: BoxAllow,
     draft: TransformDraft<W>,
+    /// The current mode (view-like state: not an undo step).
+    mode: TransformMode,
+    /// The interpolation (view-like state: not an undo step).
+    interpolation: Interpolation,
     history: LocalHistory<TransformDraft<W>>,
     /// The draft when the running gesture began: a Cancel restores it.
     before: Option<TransformDraft<W>>,
@@ -308,12 +315,14 @@ impl<W: TransformWarp> TransformSession<W> {
     /// A session on `rect` whose box starts at `state`: Content-Aware Move's placed box, a box
     /// reopened after a failed commit.
     pub fn with_state(rect: Rect, state: BoxState) -> Self {
-        let draft = TransformDraft { state, skew_v: 0.0, mode: TransformMode::Free, interpolation: Interpolation::default(), warp: None };
+        let draft = TransformDraft { state, skew_v: 0.0, warp: None };
         Self {
             rect,
             allow: BoxAllow::default(),
             history: LocalHistory::new(&draft),
             draft,
+            mode: TransformMode::Free,
+            interpolation: Interpolation::default(),
             before: None,
             reference_point: false,
             nudge_pause: None,
@@ -323,8 +332,7 @@ impl<W: TransformWarp> TransformSession<W> {
 
     /// The mode the session opens in (Edit › Transform › Rotate opens in Rotate).
     pub fn mode(mut self, mode: TransformMode) -> Self {
-        self.draft.mode = mode;
-        self.history = LocalHistory::new(&self.draft);
+        self.mode = mode;
         self
     }
 
@@ -337,9 +345,8 @@ impl<W: TransformWarp> TransformSession<W> {
     /// The persisted section the session opens with: its interpolation and whether the reference
     /// point shows.
     pub fn settings(mut self, settings: &TransformSettings) -> Self {
-        self.draft.interpolation = settings.interpolation;
+        self.interpolation = settings.interpolation;
         self.reference_point = settings.show_reference_point;
-        self.history = LocalHistory::new(&self.draft);
         self
     }
 
@@ -378,7 +385,7 @@ impl<W: TransformWarp> TransformSession<W> {
 
     /// The current mode.
     pub fn current_mode(&self) -> TransformMode {
-        self.draft.mode
+        self.mode
     }
 
     /// What the content allows.
@@ -387,7 +394,7 @@ impl<W: TransformWarp> TransformSession<W> {
     }
 
     pub fn interpolation(&self) -> Interpolation {
-        self.draft.interpolation
+        self.interpolation
     }
 
     /// Whether the reference point shows (Show Reference Point).
@@ -439,23 +446,20 @@ impl<W: TransformWarp> TransformSession<W> {
     pub fn box_rules(&self, settings: &TransformSettings) -> BoxRules {
         // new: one place maps the session and the settings to `BoxRules` (the PhotoCraft port maps
         // its preferences in its own `transform_tool/pointer.rs`).
-        BoxRules {
-            mode: self.draft.mode,
-            scale: settings.scale_rule(),
-            aspect_linked: settings.aspect_linked,
-            allow: self.allow,
-            ..BoxRules::default()
-        }
+        BoxRules { mode: self.mode, scale: settings.scale_rule(), aspect_linked: settings.aspect_linked, allow: self.allow, ..BoxRules::default() }
     }
 
-    /// Whether committing now would change nothing: the box on the frame's corners and, in the
-    /// Warp phase, an [identity](TransformWarp::is_identity) warp. Mode and interpolation alone
-    /// change nothing.
+    /// Whether committing now would change nothing. In the Box phase: the box on the frame's
+    /// corners. In the Warp phase the warp holds the box, so the warp alone decides: an
+    /// [identity](TransformWarp::is_identity) warp changes nothing wherever the box was moved
+    /// before. Mode and interpolation alone change nothing.
     pub fn is_untouched(&self) -> bool {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:65 (warp identity), :70 (box on
         // the frame's corners).
-        let identity = self.draft.warp.as_ref().is_none_or(TransformWarp::is_identity);
-        identity && self.draft.state.quad == BoxState::from_rect(self.rect).quad
+        match &self.draft.warp {
+            Some(warp) => warp.is_identity(),
+            None => self.draft.state.quad == BoxState::from_rect(self.rect).quad,
+        }
     }
 
     /// What a commit applies; `None` when [untouched](Self::is_untouched).
@@ -464,9 +468,7 @@ impl<W: TransformWarp> TransformSession<W> {
         if self.is_untouched() {
             return None;
         }
-        // An identity warp over a moved box is the box alone; the app applies a box transform.
-        let warp = self.draft.warp.clone().filter(|warp| !warp.is_identity());
-        Some(TransformResult { rect: self.rect, state: self.draft.state, interpolation: self.draft.interpolation, warp })
+        Some(TransformResult { rect: self.rect, state: self.draft.state, interpolation: self.interpolation, warp: self.draft.warp.clone() })
     }
 
     /// Applies one edit; `now` is the pass's input time in seconds (the nudge pause reads it).
@@ -481,11 +483,9 @@ impl<W: TransformWarp> TransformSession<W> {
     ///   phase, as PhotoCraft refuses it ("Commit or cancel the transform first").
     /// - `WarpRequested` in the Box phase answers [`TransformRequest::NeedWarp`] with the current
     ///   box; `Warp(w)` stores the warp (entering the Warp phase); `LeaveWarp` drops it.
-    /// - `Commit` answers [`TransformRequest::Apply`] with [`result`](Self::result), or
-    ///   [`TransformRequest::CloseUntouched`]; `Cancel` answers [`TransformRequest::Discard`].
-    ///   While a gesture runs, `Commit` and `Cancel` first end it as the box does (a Cancel of the
-    ///   gesture restores `before`; the box reports that itself, so a lone `Cancel` here means
-    ///   discard).
+    ///
+    /// Ending the session is [`commit`](Self::commit) or [`discard`](Self::discard), which the app
+    /// calls after the pass's edits when a widget reported `apply` or `discard`.
     pub fn apply(&mut self, edit: TransformEdit<W>, now: f64) -> Option<TransformRequest<W>> {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:352 (`intercept`: presets, warp
         // refusal), :13 (`commit`); begin.rs:736 (`leave_warp`).
@@ -500,14 +500,14 @@ impl<W: TransformWarp> TransformSession<W> {
                 draft.state = row.state;
                 draft.skew_v = row.skew_v;
             }),
-            TransformEdit::Mode(mode) => self.draft.mode = mode,
+            TransformEdit::Mode(mode) => self.mode = mode,
             TransformEdit::Preset(preset) => {
                 if self.draft.warp.is_none() {
                     let (kx, ky, angle) = preset.scale_and_turn();
                     self.draft.state = self.draft.state.scaled_about_pivot(kx, ky).turned_about_pivot(angle);
                 }
             }
-            TransformEdit::Interpolation(interpolation) => self.draft.interpolation = interpolation,
+            TransformEdit::Interpolation(interpolation) => self.interpolation = interpolation,
             TransformEdit::ReferencePoint(show) => self.reference_point = show,
             TransformEdit::Pivot(anchor) => self.draft.state.pivot = self.draft.state.point_at(anchor),
             TransformEdit::WarpRequested => {
@@ -517,18 +517,27 @@ impl<W: TransformWarp> TransformSession<W> {
             }
             TransformEdit::Warp(warp) => self.draft.warp = Some(warp),
             TransformEdit::LeaveWarp => self.draft.warp = None,
-            TransformEdit::Commit => {
-                self.before = None;
-                return Some(self.result().map_or(TransformRequest::CloseUntouched, TransformRequest::Apply));
-            }
-            TransformEdit::Cancel => {
-                if let Some(before) = self.before.take() {
-                    self.draft = before;
-                }
-                return Some(TransformRequest::Discard);
-            }
         }
         None
+    }
+
+    /// Enter, a click outside, a double click inside or the bar's ✓: ends any running gesture and
+    /// answers [`TransformRequest::Apply`] with [`result`](Self::result), or
+    /// [`TransformRequest::CloseUntouched`] when the session is [untouched](Self::is_untouched).
+    /// The app closes the session.
+    pub fn commit(&mut self) -> TransformRequest<W> {
+        // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:13 (`commit`).
+        self.before = None;
+        self.result().map_or(TransformRequest::CloseUntouched, TransformRequest::Apply)
+    }
+
+    /// Esc with no drag running or the bar's ⊘: puts back the draft a running gesture began on and
+    /// answers [`TransformRequest::Discard`]. The app closes the session.
+    pub fn discard(&mut self) -> TransformRequest<W> {
+        if let Some(before) = self.before.take() {
+            self.draft = before;
+        }
+        TransformRequest::Discard
     }
 
     /// Records an undo step when the draft has come to rest changed. Call once per pass after the
@@ -550,8 +559,9 @@ impl<W: TransformWarp> TransformSession<W> {
     }
 
     /// Edit › Undo while the session is open (the app routes it here; the session reads no undo
-    /// key): steps back one undo step: the box, the reference point, the V skew, the mode, the
-    /// interpolation and the warp together. False while a gesture runs or with nothing to undo.
+    /// key): steps back one undo step: the box, the V skew and the warp together. The mode, the
+    /// interpolation and the reference point stay. False while a gesture runs (the app cancels it
+    /// with `UndoDuringGesture` before it routes Undo) or with nothing to undo.
     pub fn undo(&mut self) -> bool {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:376 (`step`).
         self.step(Step::Undo)
@@ -584,15 +594,15 @@ impl<W: TransformWarp> TransformSession<W> {
         let mode = |label: &str, mode: TransformMode, allowed: bool, checked: bool| {
             MenuEntry::from(MenuItem::new(label, TransformChoice::Mode(mode)).radio(checked && !warping).enabled(allowed))
         };
-        let free = self.draft.mode == TransformMode::Free;
+        let free = self.mode == TransformMode::Free;
         let preset = |label: &str, preset: TransformPreset| MenuEntry::from(MenuItem::new(label, TransformChoice::Preset(preset)).enabled(!warping));
         vec![
             mode(&labels.free_transform, TransformMode::Free, true, free),
             mode(&labels.scale, TransformMode::Free, true, false),
-            mode(&labels.rotate, TransformMode::Rotate, allow.rotate, self.draft.mode == TransformMode::Rotate),
-            mode(&labels.skew, TransformMode::Skew, allow.skew, self.draft.mode == TransformMode::Skew),
-            mode(&labels.distort, TransformMode::Distort, allow.distort, self.draft.mode == TransformMode::Distort),
-            mode(&labels.perspective, TransformMode::Perspective, allow.distort, self.draft.mode == TransformMode::Perspective),
+            mode(&labels.rotate, TransformMode::Rotate, allow.rotate, self.mode == TransformMode::Rotate),
+            mode(&labels.skew, TransformMode::Skew, allow.skew, self.mode == TransformMode::Skew),
+            mode(&labels.distort, TransformMode::Distort, allow.distort, self.mode == TransformMode::Distort),
+            mode(&labels.perspective, TransformMode::Perspective, allow.distort, self.mode == TransformMode::Perspective),
             MenuEntry::from(MenuItem::new(&labels.warp, TransformChoice::Warp).radio(warping)),
             MenuEntry::Separator,
             preset(&labels.rotate_180, TransformPreset::Rotate180),

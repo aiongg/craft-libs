@@ -7,6 +7,7 @@ use kurbo::Point;
 use craft_ui::canvas::quad::{BoxPart, BoxRules};
 use craft_ui::canvas::{CanvasView, RulerUnits};
 use craft_ui::edit::EditPolicy;
+use craft_ui::localized::Labels;
 
 use super::{TransformBox, TransformEdit, TransformLabels, TransformNames, TransformPhase, TransformSession, TransformSettings, TransformWarp};
 
@@ -20,8 +21,9 @@ type Snap<'a> = Box<dyn Fn(BoxPart, Point, Modifiers) -> Point + 'a>;
 ///   reference point hidden unless the session [shows it](TransformSession::reference_point),
 ///   and reports every box event as [`TransformEdit::Box`]: a corner drag as Begin, Update and
 ///   Commit, Esc during a drag as Cancel, an arrow key as Set. The box's apply (Enter, a click
-///   outside, a double click inside) is [`TransformEdit::Commit`]; its discard (Esc with no drag)
-///   is [`TransformEdit::Cancel`].
+///   outside, a double click inside) is [`TransformOverlayResponse::apply`]; its discard (Esc
+///   with no drag) is [`discard`](TransformOverlayResponse::discard). The app answers them with
+///   [`TransformSession::commit`] and [`discard`](TransformSession::discard) after the edits.
 /// - Warp phase: draws nothing, senses nothing and claims nothing; the app's warp widgets own
 ///   the canvas.
 /// - Keyboard, AccessKit and RTL are the box's: one Tab stop, the group "Free Transform" with its
@@ -33,7 +35,7 @@ pub struct TransformOverlay<'a, W> {
     session: &'a TransformSession<W>,
     rules: Option<BoxRules>,
     settings: Option<&'a TransformSettings>,
-    names: TransformNames,
+    names: Option<TransformNames>,
     units: Option<(&'a RulerUnits, &'a RulerUnits)>,
     readout: Option<TransformLabels>,
     pixel_grid: bool,
@@ -51,6 +53,11 @@ pub struct TransformOverlayResponse<W> {
     /// The edits in the order they happened; the app applies each with
     /// [`TransformSession::apply`].
     pub edits: Vec<TransformEdit<W>>,
+    /// Enter, a click outside or a double click inside: the app calls [`TransformSession::commit`]
+    /// after the edits.
+    pub apply: bool,
+    /// Esc with no drag running: the app calls [`TransformSession::discard`] after the edits.
+    pub discard: bool,
     /// The box took this pass's press.
     pub claimed: bool,
     /// The part under the pointer (the app sets the cursor from it).
@@ -67,7 +74,7 @@ impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
             session,
             rules: None,
             settings: None,
-            names: TransformNames::default(),
+            names: None,
             units: None,
             readout: None,
             pixel_grid: false,
@@ -91,9 +98,10 @@ impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
         self
     }
 
-    /// The box's AccessKit names; English by default.
+    /// The box's AccessKit names; the words installed in the context by default
+    /// ([`TransformNames::of`]).
     pub fn names(mut self, names: TransformNames) -> Self {
-        self.names = names;
+        self.names = Some(names);
         self
     }
 
@@ -140,7 +148,7 @@ impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
         // (`accepts_outside_click`). The box's own behaviour is `TransformBox::show`.
         let id = ui.make_persistent_id(self.id_salt);
         if self.session.phase() == TransformPhase::Warp {
-            return TransformOverlayResponse { id, edits: Vec::new(), claimed: false, hovered: None, picked: None };
+            return TransformOverlayResponse { id, edits: Vec::new(), apply: false, discard: false, claimed: false, hovered: None, picked: None };
         }
         let session = self.session;
         let defaults = TransformSettings::default();
@@ -148,7 +156,9 @@ impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
         // The session's mode and what it allows win over the app's rules.
         rules.mode = session.current_mode();
         rules.allow = session.allows();
-        let mut tbox = TransformBox::new(self.id_salt, session.state(), self.names)
+        let names = self.names.unwrap_or_else(|| TransformNames::of(ui));
+        // The box takes the stored salt as it is, so both phases give one id.
+        let mut tbox = TransformBox::salted(self.id_salt, session.state(), names)
             .rules(rules)
             .reference_point(session.reference_point())
             .pixel_grid(self.pixel_grid)
@@ -171,11 +181,14 @@ impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
         if let Some(event) = shown.event {
             edits.push(TransformEdit::Box(event));
         }
-        if shown.apply {
-            edits.push(TransformEdit::Commit);
-        } else if shown.discard {
-            edits.push(TransformEdit::Cancel);
+        TransformOverlayResponse {
+            id: shown.id,
+            edits,
+            apply: shown.apply,
+            discard: shown.discard,
+            claimed: shown.claimed,
+            hovered: shown.hovered,
+            picked: shown.picked,
         }
-        TransformOverlayResponse { id: shown.id, edits, claimed: shown.claimed, hovered: shown.hovered, picked: shown.picked }
     }
 }
