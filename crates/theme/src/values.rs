@@ -1611,6 +1611,10 @@ pub const SCREEN_PICKER_ZOOM_STEP: u32 = 2;
 pub const PAINT_CHIP_WIDTH: f32 = 30.0;
 /// Compact height of a paint chip.
 pub const PAINT_CHIP_HEIGHT: f32 = 22.0;
+/// Inset of the No Color diagonal's ends from the chip's edge (PhotoCraft's `shrink(3.0)`).
+pub const PAINT_CHIP_NONE_INSET: f32 = 3.0;
+/// Width of the No Color diagonal (PhotoCraft's 1.5 stroke).
+pub const PAINT_CHIP_NONE_LINE: f32 = 1.5;
 
 /// Compact side of the Color Guide's base colour button (VectorCraft's).
 pub const HARMONY_BASE: f32 = 26.0;

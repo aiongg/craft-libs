@@ -60,6 +60,12 @@ pub enum PictureMode {
     Tile { offset: [f64; 2], scale: [f64; 2], alignment: TileAlignment, mirror: TileMirror },
 }
 
+impl PictureMode {
+    /// The smallest tile scale in percent: DeckCraft's smallest step (its picture-fill fields show
+    /// one decimal), so a scale is never zero or negative. There is no upper limit.
+    pub const SCALE: std::ops::RangeInclusive<f64> = 0.1..=f64::INFINITY;
+}
+
 impl Default for PictureMode {
     /// Stretched with no offsets.
     fn default() -> Self {

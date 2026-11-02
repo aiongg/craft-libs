@@ -251,3 +251,40 @@ fn paint_list_rename_and_remove_are_set_events() {
     plain.run();
     assert!(matches!(plain.state().events.as_slice(), [PaintListEvent::Rename { row: 0, name }] if name == "Crimson"), "{:?}", plain.state().events);
 }
+
+/// A chip that was Solid, then None, switches back to the colour it had, not the fallback.
+#[test]
+fn switching_back_to_solid_restores_the_last_solid_colour() {
+    let mut harness = chip(Paint::Solid(Srgba::rgb(1.0, 0.0, 0.0)), true);
+    open(&mut harness);
+    tab(&harness, "No Color").click();
+    harness.run();
+    tab(&harness, "Solid").click();
+    harness.run();
+    assert_eq!(harness.state().paint, Paint::Solid(Srgba::rgb(1.0, 0.0, 0.0)));
+}
+
+/// A row that was never solid switches to Solid at the list's `fallback`, not at black.
+#[test]
+fn paint_list_row_switches_to_the_host_fallback() {
+    const HOST_DEFAULT: Srgba = Srgba::rgb(0.0, 1.0, 0.0);
+    let paints = vec![("Nothing".to_owned(), Paint::None)];
+    let mut harness =
+        Harness::<ListHost>::builder().with_size([720.0, 320.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, host: &mut ListHost| {
+                let shown = PaintList::new("paints", "Paints", &host.paints).options(host.options).fallback(HOST_DEFAULT).show(ui);
+                host.events.extend(shown.events);
+            },
+            ListHost { paints, rows: Vec::new(), options: PaintListOptions { edit: true, ..PaintListOptions::default() }, events: Vec::new() },
+        );
+    harness.run();
+    by_label(&harness, Role::ColorWell, "Edit color", 0).click();
+    harness.run();
+    tab(&harness, "Solid").click();
+    harness.run();
+    assert!(
+        matches!(harness.state().events.last(), Some(PaintListEvent::Edit { row: 0, event }) if event.value() == Some(&Paint::Solid(HOST_DEFAULT))),
+        "{:?}",
+        harness.state().events
+    );
+}

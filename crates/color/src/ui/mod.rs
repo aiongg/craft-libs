@@ -110,8 +110,7 @@ pub use wheel::{ColorWheel, ColorWheelResponse, ColorWheelStyle, WheelGeometry, 
 pub use choice::{ChosenColor, ColorChoice, ColorChoiceLabels, ColorChoiceResponse, NamedColor};
 pub use droppers::{DropperButton, DropperButtonResponse, DropperKind, DropperState, DropperTool};
 pub use eyedropper::{
-    EyedropperLabels, EyedropperOptions, EyedropperOptionsBar, EyedropperPick, EyedropperTool, SampleSize, SampleSource, SamplingRingStyle,
-    eyedropper_ring,
+    EyedropperBar, EyedropperLabels, EyedropperOptions, EyedropperPick, EyedropperTool, SampleSize, SampleSource, SamplingRingStyle, eyedropper_ring,
 };
 pub use harmony::{
     HARMONY_WORDS, HarmonyLabels, HarmonyMenuAction, HarmonyPanel, HarmonyPanelResponse, HarmonyPanelState, HarmonyWheel, HarmonyWheelResponse,
@@ -290,7 +289,7 @@ pub const COMPONENTS: &[&str] = &[
     "ColorRamp",
     "ColorSamplers",
     "ColorWheel",
-    "EyedropperOptionsBar",
+    "EyedropperBar",
     "HarmonyPanel",
     "HexField",
     "LutPicker",

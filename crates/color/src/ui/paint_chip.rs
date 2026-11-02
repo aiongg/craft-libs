@@ -62,7 +62,6 @@ craft_ui::words! {
         detach_style: "paintList.detachStyle" = "Detach style";
         detach_variable: "paintList.detachVariable" = "Detach variable";
         styles: "paintList.styles" = "Color styles";
-        variables: "paintList.variables" = "Color variables";
         select_users: "paintList.selectUsers" = "Select layers with this color";
         add: "paintList.add" = "Add";
         remove: "paintList.remove" = "Remove";
@@ -259,8 +258,8 @@ impl<'a> PaintChip<'a> {
             _ => fallback,
         };
         let well = match paint {
-            Paint::Solid(color) => Swatch::new(id_salt, label.as_str(), color.to_rgba()),
-            _ => Swatch::new(id_salt, label.as_str(), solid.to_rgba()).mixed(true),
+            Paint::Solid(color) => Swatch::new((&id_salt, "chip"), label.as_str(), color.to_rgba()),
+            _ => Swatch::new((&id_salt, "chip"), label.as_str(), solid.to_rgba()).mixed(true),
         };
         let response = ui.add(well.dimensions(chip.size[0], chip.size[1]).enabled(enabled));
         if !matches!(paint, Paint::Solid(_)) {
@@ -316,7 +315,7 @@ impl<'a> PaintChip<'a> {
             .surface(Surface::style(&tokens, SurfaceKind::Popup))
             .show_ui(|ui| {
                 let mut tab = current;
-                let mut tabs = Segmented::new("tabs", label.as_str(), &mut tab);
+                let mut tabs = Segmented::new((&id_salt, "tabs"), label.as_str(), &mut tab);
                 if none_allowed {
                     tabs = tabs.item(Tab::None, labels.no_color.as_str());
                 }
@@ -344,9 +343,10 @@ impl<'a> PaintChip<'a> {
                 match paint {
                     Paint::None => {}
                     Paint::Solid(color) => {
-                        let picker_id = Interactive::id_in(ui, "picker");
+                        let picker_id = Interactive::id_in(ui, (&id_salt, "picker"));
                         let screen_label = ScreenPickerLabels::of(ui).button;
-                        let mut picker = ColorPicker::new("picker", label.as_str(), *color, numbers).layout(ColorPickerLayout::Compact).alpha(true);
+                        let mut picker =
+                            ColorPicker::new((&id_salt, "picker"), label.as_str(), *color, numbers).layout(ColorPickerLayout::Compact).alpha(true);
                         if ScreenColorPicker::available(&ctx) {
                             picker = picker.eyedropper(screen_label);
                         }
@@ -466,8 +466,9 @@ fn paint_paint(painter: &Painter, rect: Rect, paint: &Paint, style: &SwatchStyle
         }
         Paint::None => {
             painter.rect_filled(rect, style.radius, tokens.component.field.fill.get(enabled).to_egui());
-            let inner = rect.shrink(2.0);
-            painter.line_segment([inner.left_bottom(), inner.right_top()], Stroke::new(1.5, tokens.color.status.bad.fg.to_egui()));
+            let (inset, line) = (tokens.component.paint_chip.none_inset, tokens.component.paint_chip.none_line);
+            let inner = rect.shrink(inset);
+            painter.line_segment([inner.left_bottom(), inner.right_top()], Stroke::new(line, tokens.color.status.bad.fg.to_egui()));
             outline(painter);
         }
         Paint::Pattern(preview) | Paint::Picture(preview) => paint_image(painter, rect, paint, preview, style, tokens, enabled, ppp),
@@ -673,6 +674,7 @@ pub struct PaintList<'a> {
     selected: Option<usize>,
     options: PaintListOptions,
     rows: &'a [PaintRow],
+    fallback: Option<Srgba>,
 }
 
 /// What [`PaintList::show`] returns.
@@ -687,8 +689,19 @@ pub struct PaintListResponse {
 }
 
 impl<'a> PaintList<'a> {
+    /// Black: a switch to Solid in a list with no solid paint and no [`fallback`](Self::fallback).
+    pub const DEFAULT_SOLID: Srgba = Srgba::rgb(0.0, 0.0, 0.0);
+
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, paints: &'a [(String, Paint)]) -> PaintList<'a> {
-        PaintList { id_salt: IdSalt::new(id_salt), label: label.into(), paints, selected: None, options: PaintListOptions::default(), rows: &[] }
+        PaintList {
+            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
+            paints,
+            selected: None,
+            options: PaintListOptions::default(),
+            rows: &[],
+            fallback: None,
+        }
     }
 
     pub fn selected(mut self, selected: Option<usize>) -> PaintList<'a> {
@@ -699,6 +712,14 @@ impl<'a> PaintList<'a> {
     /// The row actions offered; none by default.
     pub fn options(mut self, options: PaintListOptions) -> PaintList<'a> {
         self.options = options;
+        self
+    }
+
+    /// The solid colour a row's switch to Solid starts from when the row was never solid: the
+    /// host's default. Without it, the list's last solid paint, else [`DEFAULT_SOLID`](Self::DEFAULT_SOLID).
+    /// A row that was solid before starts from its last solid colour whatever this is.
+    pub fn fallback(mut self, color: Srgba) -> PaintList<'a> {
+        self.fallback = Some(color);
         self
     }
 
@@ -722,7 +743,7 @@ impl<'a> PaintList<'a> {
         let enabled = ui.is_enabled();
         let rows: Vec<RowInfo<usize>> = (0..paints.len()).map(RowInfo::leaf).collect();
         let mut selection = selected.filter(|&i| i < paints.len()).map_or_else(Selection::new, Selection::only);
-        let output = List::new(id_salt, label, rows.as_slice()).selection(&mut selection).renamable(true).show(ui, |_, &index| {
+        let output = List::new((&id_salt, "list"), label, rows.as_slice()).selection(&mut selection).renamable(true).show(ui, |_, &index| {
             let (name, paint) = &paints[index];
             let (style, tokens) = (&style, &tokens);
             ListRow::new(index, name.as_str()).thumb_sized(egui::vec2(chip.size[0], chip.size[1]), move |painter, rect| {
@@ -753,7 +774,10 @@ impl<'a> PaintList<'a> {
         // trailing item too (a `PaintChip`, which owns the picker), so a row with `edit` has no
         // painted thumbnail; hex and opacity are for solid paints, and other rows keep their
         // columns empty.
-        let Self { id_salt, label, paints, selected, options, rows: row_data } = self;
+        let Self { id_salt, label, paints, selected, options, rows: row_data, fallback } = self;
+        let fallback = fallback
+            .or_else(|| paints.iter().rev().find_map(|(_, paint)| if let Paint::Solid(color) = paint { Some(*color) } else { None }))
+            .unwrap_or(PaintList::DEFAULT_SOLID);
         let tokens = Tokens::of(ui);
         let labels = PaintListLabels::of(ui);
         let ctx = ui.ctx().clone();
@@ -779,7 +803,7 @@ impl<'a> PaintList<'a> {
                 add_clicked = ui.add(Button::new(labels.add.as_str()).icon(Icon::Plus).enabled(enabled)).clicked();
             }
             ui.with_layout(Layout::top_down(Align::Min), |ui| {
-                listed = Some(List::new(id_salt, label, rows.as_slice()).selection(&mut selection).renamable(true).show(ui, |_, &row| {
+                listed = Some(List::new((&id_salt, "list"), label, rows.as_slice()).selection(&mut selection).renamable(true).show(ui, |_, &row| {
                     let (name, paint) = &paints[row];
                     let (style, tokens, acted, labels, numbers) = (&style, &tokens, &acted, &labels, &*numbers);
                     let solid = match paint {
@@ -798,14 +822,15 @@ impl<'a> PaintList<'a> {
                     // The first item added is the outermost, so they go in from the trailing end.
                     if options.remove {
                         item = item.trailing_item(side, move |ui| {
-                            if ui.add(IconButton::new(Icon::Minus, labels.remove.as_str()).id_salt(("remove", row))).clicked() {
+                            if ui.add(IconButton::new(Icon::Minus, labels.remove.as_str()).id_salt((&id_salt, "remove", row))).clicked() {
                                 acted.borrow_mut().push(PaintListEvent::Remove { row });
                             }
                         });
                     }
                     if options.select_users {
                         item = item.trailing_item(side, move |ui| {
-                            if ui.add(IconButton::new(Icon::Layers, labels.select_users.as_str()).id_salt(("select-users", row))).clicked() {
+                            if ui.add(IconButton::new(Icon::Layers, labels.select_users.as_str()).id_salt((&id_salt, "select-users", row))).clicked()
+                            {
                                 acted.borrow_mut().push(PaintListEvent::SelectUsers { row });
                             }
                         });
@@ -818,12 +843,12 @@ impl<'a> PaintList<'a> {
                                     PaintLinkKind::Style => labels.detach_style.as_str(),
                                     PaintLinkKind::Variable => labels.detach_variable.as_str(),
                                 };
-                                if ui.add(IconButton::new(Icon::Unlink, text).id_salt(("detach", row))).clicked() {
+                                if ui.add(IconButton::new(Icon::Unlink, text).id_salt((&id_salt, "detach", row))).clicked() {
                                     acted.borrow_mut().push(PaintListEvent::Detach { row });
                                 }
                             }
                             None => {
-                                if ui.add(IconButton::new(Icon::Palette, labels.styles.as_str()).id_salt(("bind", row))).clicked() {
+                                if ui.add(IconButton::new(Icon::Palette, labels.styles.as_str()).id_salt((&id_salt, "bind", row))).clicked() {
                                     acted.borrow_mut().push(PaintListEvent::Bind { row });
                                 }
                             }
@@ -832,7 +857,7 @@ impl<'a> PaintList<'a> {
                     if options.opacity {
                         item = item.trailing_item(percent_width, move |ui| {
                             let Some(color) = solid else { return };
-                            let shown = NumberField::new(("opacity", row), labels.opacity.as_str(), f64::from(color.a) * 100.0, numbers)
+                            let shown = NumberField::new((&id_salt, "opacity", row), labels.opacity.as_str(), f64::from(color.a) * 100.0, numbers)
                                 .range(0.0..=100.0)
                                 .decimals(0..=0)
                                 .unit(Unit::new("{n}%"))
@@ -847,7 +872,7 @@ impl<'a> PaintList<'a> {
                     if options.hex {
                         item = item.trailing_item(hex_width, move |ui| {
                             let Some(color) = solid else { return };
-                            let shown = HexField::new(("hex", row), labels.hex.as_str(), color.to_rgba())
+                            let shown = HexField::new((&id_salt, "hex", row), labels.hex.as_str(), color.to_rgba())
                                 .reason(labels.invalid.as_str())
                                 .width(hex_width)
                                 .policy(EditPolicy::default().on_release_only(true))
@@ -862,8 +887,9 @@ impl<'a> PaintList<'a> {
                     }
                     if options.edit {
                         item = item.trailing_item(chip.size[0], move |ui| {
-                            let fallback = solid.unwrap_or(Srgba::rgb(0.0, 0.0, 0.0));
-                            let shown = PaintChip::new(("chip", row), labels.edit.as_str(), paint, fallback, numbers).enabled(enabled).show(ui);
+                            let fallback = solid.unwrap_or(fallback);
+                            let shown =
+                                PaintChip::new((&id_salt, "chip", row), labels.edit.as_str(), paint, fallback, numbers).enabled(enabled).show(ui);
                             if let Some(event) = shown.event {
                                 acted.borrow_mut().push(PaintListEvent::Edit { row, event });
                             }

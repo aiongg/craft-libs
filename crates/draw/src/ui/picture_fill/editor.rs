@@ -1,5 +1,6 @@
 //! [`PictureFillEditor`] (task SH-T13).
 
+use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -103,18 +104,28 @@ impl<'a> PictureFillEditor<'a> {
 
             match fill.mode {
                 PictureMode::Tile { offset, scale, alignment, mirror } => {
-                    let mut number = |form: &mut Form<'_>, key: &str, label: &str, value: f64, unit: &'static str, set: fn(&mut PictureMode, f64)| {
+                    let mut number = |form: &mut Form<'_>,
+                                      key: &str,
+                                      label: &str,
+                                      value: f64,
+                                      unit: &'static str,
+                                      range: RangeInclusive<f64>,
+                                      set: fn(&mut PictureMode, f64)| {
                         let edit = form
                             .row(label.to_owned(), |ui, _| {
-                                NumberField::new(id.with(key), label.to_owned(), value, &numbers).unit(Unit::new(unit)).decimals(0..=1).show(ui)
+                                NumberField::new(id.with(key), label.to_owned(), value, &numbers)
+                                    .unit(Unit::new(unit))
+                                    .range(range)
+                                    .decimals(0..=1)
+                                    .show(ui)
                             })
                             .inner;
                         out.take(edit, |v| edited(fill, |f| set(&mut f.mode, v)));
                     };
-                    number(form, "offset-x", &labels.offset_x, offset[0], "{n} pt", |m, v| tile_set(m, |o, _| o[0] = v));
-                    number(form, "offset-y", &labels.offset_y, offset[1], "{n} pt", |m, v| tile_set(m, |o, _| o[1] = v));
-                    number(form, "scale-x", &labels.scale_x, scale[0], "{n} %", |m, v| tile_set(m, |_, s| s[0] = v));
-                    number(form, "scale-y", &labels.scale_y, scale[1], "{n} %", |m, v| tile_set(m, |_, s| s[1] = v));
+                    number(form, "offset-x", &labels.offset_x, offset[0], "{n} pt", OFFSET, |m, v| tile_set(m, |o, _| o[0] = v));
+                    number(form, "offset-y", &labels.offset_y, offset[1], "{n} pt", OFFSET, |m, v| tile_set(m, |o, _| o[1] = v));
+                    number(form, "scale-x", &labels.scale_x, scale[0], "{n} %", PictureMode::SCALE, |m, v| tile_set(m, |_, s| s[0] = v));
+                    number(form, "scale-y", &labels.scale_y, scale[1], "{n} %", PictureMode::SCALE, |m, v| tile_set(m, |_, s| s[1] = v));
 
                     let mut value = alignment;
                     let edit = form
@@ -300,6 +311,9 @@ enum Load {
 }
 
 /// The purpose of the picture picker: its folder is remembered under it.
+/// Offsets have no limit.
+const OFFSET: RangeInclusive<f64> = f64::NEG_INFINITY..=f64::INFINITY;
+
 const PICK_PURPOSE: &str = "picture";
 
 /// Image types the picker offers.
