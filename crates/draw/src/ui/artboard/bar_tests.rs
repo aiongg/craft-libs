@@ -8,6 +8,7 @@ use kurbo::{Rect, Size};
 
 use super::{ArtboardBackground, ArtboardBar, ArtboardBarOutput, ArtboardItem, ArtboardPreset, ArtboardProperties, ArtboardPropertiesOutput};
 use craft_ui::edit::EditEvent;
+use craft_ui::patterns::OptionsBar;
 use craft_ui::theme::{Base, install};
 
 fn board(width: f64, height: f64) -> ArtboardItem {
@@ -28,7 +29,8 @@ fn bar_harness(board: ArtboardItem) -> Harness<'static, BarHost> {
     let mut h = Harness::builder().with_size(vec2(1200.0, 200.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut BarHost| {
             let presets = presets();
-            let out = ui.horizontal(|ui| ArtboardBar::new("bar", Some(&host.board), &presets).show(ui)).inner;
+            let mut out = ArtboardBarOutput::default();
+            OptionsBar::new("bar").show(ui, |slots| ArtboardBar::new("bar", Some(&host.board), &presets).output(&mut out).add_to(slots));
             if out.size.is_some() || out.add_new {
                 host.out = out;
             }
@@ -80,16 +82,39 @@ struct PropertiesHost {
     out: ArtboardPropertiesOutput,
 }
 
+// W and H in the bar and W, H, X and Y in the Properties section show their pixel unit.
+#[test]
+fn artboard_fields_show_the_pixel_unit() {
+    let h = bar_harness(board(200.0, 100.0));
+    for name in ["Width", "Height"] {
+        let value = h.get_by_role_and_label(Role::SpinButton, name).accesskit_node().value();
+        assert!(value.is_some_and(|v| v.contains("px")), "bar {name}");
+    }
+    let host = PropertiesHost { board: board(100.0, 60.0), out: ArtboardPropertiesOutput::default() };
+    let mut h = Harness::builder().with_size(vec2(400.0, 500.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, host: &mut PropertiesHost| {
+            let presets = presets();
+            host.out = ArtboardProperties::new("props", &host.board, &presets).show(ui);
+        },
+        host,
+    );
+    h.run_steps(3);
+    for name in ["Width", "Height", "X", "Y"] {
+        let value = h.get_by_role_and_label(Role::SpinButton, name).accesskit_node().value();
+        assert!(value.is_some_and(|v| v.contains("px")), "properties {name}");
+    }
+}
+
 // Other… in the Properties background reports a `ColorRequest`; X and Y fields report the moved
 // rect.
 #[test]
-fn artboard_properties_background_other_asks_for_a_colour() {
+fn artboard_properties_background_other_asks_for_a_color() {
     let host = PropertiesHost { board: board(100.0, 60.0), out: ArtboardPropertiesOutput::default() };
     let mut h = Harness::builder().with_size(vec2(400.0, 500.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut PropertiesHost| {
             let presets = presets();
             let out = ArtboardProperties::new("props", &host.board, &presets).show(ui);
-            if out.rect.is_some() || out.color_request.is_some() {
+            if out.rect.is_some() || out.pick_color.is_some() {
                 host.out = out;
             }
         },
@@ -100,9 +125,9 @@ fn artboard_properties_background_other_asks_for_a_colour() {
     h.run_steps(3);
     h.get_by_role_and_label(Role::ListBoxOption, "Other…").click();
     h.run_steps(3);
-    let Some(request) = h.state().out.color_request.clone() else { panic!("Other… asks for a colour") };
+    let Some(request) = h.state().out.pick_color.clone() else { panic!("Other… asks for a color") };
     assert_eq!(request.title.as_deref(), Some("Artboard Background Color"));
-    assert!(h.state().out.background.is_none(), "the background changes once the colour comes back");
+    assert!(h.state().out.background.is_none(), "the background changes once the color comes back");
 
     h.state_mut().out = ArtboardPropertiesOutput::default();
     h.get_by_role_and_label(Role::SpinButton, "X").focus();

@@ -9,6 +9,17 @@ craft_ui::words! {
         board: "artboardTool.board" = "Artboard {index}, {width} by {height} at {x}, {y}";
         /// The "+" buttons' group.
         add_beside: "artboardTool.addBeside" = "Add artboard beside";
+        /// A handle part's names, one per handle of the active board.
+        handle_top_left: "artboardTool.handleTopLeft" = "Top left handle";
+        handle_top: "artboardTool.handleTop" = "Top handle";
+        handle_top_right: "artboardTool.handleTopRight" = "Top right handle";
+        handle_right: "artboardTool.handleRight" = "Right handle";
+        handle_bottom_right: "artboardTool.handleBottomRight" = "Bottom right handle";
+        handle_bottom: "artboardTool.handleBottom" = "Bottom handle";
+        handle_bottom_left: "artboardTool.handleBottomLeft" = "Bottom left handle";
+        handle_left: "artboardTool.handleLeft" = "Left handle";
+        /// A handle part's value: `{x}`, `{y}` in pixels.
+        handle_at: "artboardTool.handleAt" = "{x}, {y}";
     }
 }
 
@@ -35,7 +46,7 @@ craft_ui::words! {
         black: "artboard.black" = "Black";
         transparent: "artboard.transparent" = "Transparent";
         other: "artboard.other" = "Other…";
-        /// The colour picker's title for Other….
+        /// The color picker's title for Other….
         background_color: "artboard.backgroundColor" = "Artboard Background Color";
     }
 }
