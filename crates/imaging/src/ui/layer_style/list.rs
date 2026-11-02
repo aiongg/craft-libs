@@ -15,7 +15,18 @@ use craft_ui::theme::{Tokens, TokensOf as _};
 
 use super::LayerStyleDialog;
 use super::labels::LayerStyleLabels;
-use crate::layer_style::{EffectId, EffectKind, EffectSpec, LayerStyleDraft, LayerStylePage};
+use crate::layer_style::{EffectId, EffectKind, EffectSpec, LayerStyleDraft, LayerStylePage, StyleParams};
+
+/// A list action's change to the style, as the dialog's edit queue replays it.
+#[derive(Clone, Debug)]
+pub(super) enum ListOp {
+    /// [`LayerStyleDraft::toggle`].
+    Toggle(EffectId),
+    /// [`LayerStyleDraft::add_instance`] from `defaults`.
+    Add { kind: EffectKind, defaults: StyleParams },
+    /// [`LayerStyleDraft::remove_instance`].
+    Remove(EffectId),
+}
 
 /// What the list asked for in one pass; the dialog applies it to a copy of the draft.
 #[derive(Clone, Debug, PartialEq)]

@@ -21,20 +21,18 @@ pub struct LayerStyleDialogStyle {
     pub divider: Color32,
     /// A page title (the effect's name): `type.title` (PhotoCraft semibold 14, `:987`).
     pub title_font: FontId,
-    pub title_colour: Color32,
+    pub title_color: Color32,
     /// The label of an absent or switched-off effect: `text.faint` (absent), `text.muted` (off,
     /// #2288).
-    pub absent_colour: Color32,
-    pub off_colour: Color32,
-    /// The Styles page's thumbnails: `layer_style.preset_thumb` (32, `:962`), gap
-    /// `layer_style.preset_gap` (4, `:959`), radius `layer_style.preset_radius` (2, `:969`); the
-    /// page's scroll height `layer_style.presets_height` (340, `:954`).
+    pub absent_color: Color32,
+    pub off_color: Color32,
+    /// The Styles page's thumbnails: `layer_style.preset_thumb` (32, `:962`); the page's scroll
+    /// height `layer_style.presets_height` (340, `:954`). The grid's gap and radius are the preset
+    /// browser's.
     pub preset_thumb: f32,
-    pub preset_gap: f32,
-    pub preset_radius: f32,
     pub presets_height: f32,
     /// The invalid-value line: `status.bad.fg`.
-    pub invalid_colour: Color32,
+    pub invalid_color: Color32,
 }
 
 /// The Blend If bar's sizes and colours. The handle faces (grey 20 and 240) are image tones and
@@ -55,7 +53,7 @@ pub struct BlendIfBarStyle {
     /// (10 and 10, `:1432-1440`).
     pub handle_width: f32,
     pub handle_height: f32,
-    /// The ramp's border: `field.border.rest` (`:1383`).
+    /// The ramp's border: `blend_if.ramp_border` (`:1383`).
     pub ramp_border: Color32,
     /// The handles' edge: `text.muted` (3:1 against the panel, as `levels.thumb_edge`).
     pub handle_edge: Color32,
@@ -63,7 +61,7 @@ pub struct BlendIfBarStyle {
     pub focus: Color32,
     /// The readout over the bar ("0 / 20    255"): `type.body`, `text.normal`.
     pub readout_font: FontId,
-    pub readout_colour: Color32,
+    pub readout_color: Color32,
 }
 
 /// The contour field's sizes.
@@ -78,8 +76,8 @@ pub struct ContourFieldStyle {
     pub cell: f32,
     /// The Contour Editor's graph: `layer_style.contour_graph` (220, `:358`).
     pub graph: f32,
-    /// The curve in a thumbnail: `text.normal`; the thumbnail's border `field.border`; its
-    /// fill `surface.sunken`.
+    /// The curve in a thumbnail: `text.normal`; the thumbnail's border `layer_style.contour_border`;
+    /// its fill `surface.sunken`.
     pub curve: Color32,
     pub border: Color32,
     pub fill: Color32,
@@ -96,14 +94,12 @@ impl LayerStyleDialog<'_> {
             page_width: l.page_width,
             divider: c.line.divider.to_egui(),
             title_font: tokens.font(TypeRole::Title),
-            title_colour: c.text.normal.to_egui(),
-            absent_colour: c.text.faint.to_egui(),
-            off_colour: c.text.muted.to_egui(),
+            title_color: c.text.normal.to_egui(),
+            absent_color: c.text.faint.to_egui(),
+            off_color: c.text.muted.to_egui(),
             preset_thumb: l.preset_thumb,
-            preset_gap: l.preset_gap,
-            preset_radius: l.preset_radius,
             presets_height: l.presets_height,
-            invalid_colour: c.status.bad.fg.to_egui(),
+            invalid_color: c.status.bad.fg.to_egui(),
         }
     }
 }
@@ -122,11 +118,11 @@ impl BlendIfBar {
             inset: b.inset,
             handle_width: b.handle_width,
             handle_height: b.handle_height,
-            ramp_border: tokens.component.field.border.rest.to_egui(),
+            ramp_border: b.ramp_border.to_egui(),
             handle_edge: c.text.muted.to_egui(),
             focus: c.line.focus.to_egui(),
             readout_font: tokens.font(TypeRole::Body),
-            readout_colour: c.text.normal.to_egui(),
+            readout_color: c.text.normal.to_egui(),
         }
     }
 }
@@ -143,7 +139,7 @@ impl ContourField<'_> {
             cell: l.contour_cell,
             graph: l.contour_graph,
             curve: c.text.normal.to_egui(),
-            border: tokens.component.field.border.rest.to_egui(),
+            border: l.contour_border.to_egui(),
             fill: c.surface.sunken.to_egui(),
         }
     }

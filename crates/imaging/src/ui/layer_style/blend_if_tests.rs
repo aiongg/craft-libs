@@ -2,18 +2,19 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use egui::accesskit::Role;
-use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect};
+use egui::{Event, Id, Key, Modifiers, PointerButton, Pos2, Rect};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use craft_ui::edit::EditEvent;
+use craft_ui::edit::{EditEvent, EditPolicy};
 use craft_ui::localized::LocaleNumbers;
 use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
 
 use super::blending::{BlendingInput, blending_page};
 use super::labels::{BlendIfBarLabels, LayerStyleLabels};
+use super::page::edit_style;
 use super::{BlendIfBar, BlendIfBarStyle};
-use crate::layer_style::{BlendIf, BlendIfRange, Blending};
+use crate::layer_style::{BlendIf, BlendIfRange, Blending, LayerStyle};
 
 /// A host that applies every value the bar reports and keeps the events.
 struct Host {
@@ -154,22 +155,21 @@ fn blend_if_bar_arrow_keys_move_the_focused_handle_and_alt_arrow_moves_one_half(
 }
 
 struct PageHost {
-    blending: Blending,
+    style: LayerStyle,
     names: Vec<String>,
+    blend_if_channel: usize,
 }
 
-// The Blending Options page shows the Blend If select and, under it, a bar for This Layer and one
-// for Underlying Layer; a key on a bar reports the page's whole Blending.
-#[test]
-fn blending_page_shows_the_blend_if_select_with_both_bars() {
-    let blending = Blending { blend_if: vec![BlendIf::default(); 4], ..Blending::default() };
-    let host = PageHost { blending, names: ["R", "G", "B"].map(String::from).to_vec() };
+/// The Blending Options page with `entries` Blend If entries, drawn as the dialog draws it.
+fn page_rig(entries: usize) -> Harness<'static, (PageHost, Vec<Blending>)> {
+    let blending = Blending { blend_if: vec![BlendIf::default(); entries], ..Blending::default() };
+    let host =
+        PageHost { style: LayerStyle { blending, ..LayerStyle::default() }, names: ["R", "G", "B"].map(String::from).to_vec(), blend_if_channel: 0 };
     let mut h = Harness::builder().with_size([400.0, 1800.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, (host, edits): &mut (PageHost, Vec<Blending>)| {
             let (labels, bar_labels, numbers) = (LayerStyleLabels::default(), BlendIfBarLabels::default(), LocaleNumbers::from_tag("en"));
             let input = BlendingInput {
-                blending: &host.blending,
-                blend_if_channel: 0,
+                blend_if_channel: host.blend_if_channel,
                 channel_names: &host.names,
                 blend_modes: &[],
                 labels: &labels,
@@ -177,26 +177,69 @@ fn blending_page_shows_the_blend_if_select_with_both_bars() {
                 numbers: &numbers,
                 enabled: true,
             };
-            let out = blending_page(ui, &input);
-            if let Some(value) = out.edit.as_ref().and_then(|e| e.value()) {
-                host.blending = value.clone();
-                edits.push(value.clone());
+            let style = host.style.clone();
+            let (_, event) = edit_style(ui, Id::new("page"), &style, EditPolicy::default(), true, |ui, edits| blending_page(ui, &input, edits));
+            if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+                host.style = value.clone();
+                edits.push(value.blending.clone());
             }
         },
         (host, Vec::new()),
     );
     h.run_steps(3);
-    let _ = h.get_by_role_and_label(Role::ComboBox, "Blend If:");
-    for layer in ["This Layer", "Underlying Layer"] {
-        for handle in ["Black low", "Black high", "White low", "White high"] {
-            let _ = h.get_by_role_and_label(Role::Slider, &format!("{handle}, {layer}"));
-        }
+    h
+}
+
+// The Blending Options page shows the Blend If select and, under it, a bar for This Layer and one
+// for Underlying Layer, each with four named handles inside the page's width and one below the
+// other; a key on a bar reports the page's whole Blending.
+#[test]
+fn blending_page_shows_the_blend_if_select_with_both_bars() {
+    let mut h = page_rig(4);
+    let select = h.get_by_role_and_label(Role::ComboBox, "Blend If:").rect();
+    let rects = |h: &Harness<'_, (PageHost, Vec<Blending>)>, layer: &str| {
+        ["Black low", "Black high", "White low", "White high"]
+            .map(|handle| h.get_by_role_and_label(Role::Slider, &format!("{handle}, {layer}")).rect())
+    };
+    let (this, under) = (rects(&h, "This Layer"), rects(&h, "Underlying Layer"));
+    for handle in this.iter().chain(&under) {
+        assert!(
+            handle.top() >= select.bottom() && handle.left() >= 0.0 && handle.right() <= 400.0,
+            "{handle:?} under the select {select:?}, in the page"
+        );
+        assert!(handle.width() > 0.0 && handle.height() > 0.0, "{handle:?} has an area");
     }
+    assert!(under.iter().all(|u| this.iter().all(|t| u.top() > t.top())), "Underlying Layer is under This Layer");
     h.get_by_role_and_label(Role::Slider, "White high, Underlying Layer").focus();
     h.run_steps(2);
     h.key_press(Key::ArrowLeft);
     h.run_steps(3);
     let (host, edits) = h.state();
     assert_eq!(edits.len(), 1);
-    assert_eq!(host.blending.blend_if[0].underlying, BlendIfRange([0, 0, 254, 254]), "the unsplit white pair moves together");
+    assert_eq!(host.style.blending.blend_if[0].underlying, BlendIfRange([0, 0, 254, 254]), "the unsplit white pair moves together");
+}
+
+// Each Blend If entry's bar has its own focus: switching the shown entry does not leave the
+// handle that had the focus focused on the other entry's bar.
+#[test]
+fn blend_if_bars_of_two_entries_do_not_share_focus() {
+    let mut h = page_rig(4);
+    h.get_by_role_and_label(Role::Slider, "White high, This Layer").focus();
+    h.run_steps(2);
+    assert!(h.get_by_role_and_label(Role::Slider, "White high, This Layer").is_focused());
+    h.state_mut().0.blend_if_channel = 1;
+    h.run_steps(3);
+    assert!(!h.get_by_role_and_label(Role::Slider, "White high, This Layer").is_focused());
+}
+
+// The readout and the handles' values use the region's digits: Arabic-Indic digits for ar-EG.
+#[test]
+fn blend_if_readout_values_follow_the_locale() {
+    let mut h = Harness::builder().with_size([400.0, 200.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(|ui| {
+        let numbers = LocaleNumbers::from_tag("ar-EG");
+        let _ = BlendIfBar::new("bar", "This Layer", BlendIfRange([0, 20, 255, 255])).numbers(&numbers).show(ui);
+    });
+    h.run_steps(3);
+    let high = h.get_by_role_and_label(Role::Slider, "White high, This Layer");
+    assert_eq!(high.accesskit_node().value().as_deref(), Some("٢٥٥"));
 }
