@@ -221,7 +221,7 @@ fn set_value(ui: &Ui, response: &egui::Response) -> Option<f64> {
                 Some(ActionData::NumericValue(v)) if v.is_finite() => Some(v),
                 _ => None,
             })
-            .next_back()
+            .last()
     })
 }
 

@@ -178,7 +178,7 @@ fn page_rig(entries: usize) -> Harness<'static, (PageHost, Vec<Blending>)> {
                 enabled: true,
             };
             let style = host.style.clone();
-            let (_, event) = edit_style(ui, Id::new("page"), &style, EditPolicy::default(), true, |ui, edits| blending_page(ui, &input, edits));
+            let (_, event) = edit_style(ui, Id::unique("page"), &style, EditPolicy::default(), true, |ui, edits| blending_page(ui, &input, edits));
             if let Some(value) = event.as_ref().and_then(EditEvent::value) {
                 host.style = value.clone();
                 edits.push(value.blending.clone());

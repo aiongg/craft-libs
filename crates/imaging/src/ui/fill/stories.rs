@@ -450,7 +450,7 @@ fn show_lasso(ui: &mut Ui, args: &mut LassoArgs) {
 
     let bar = FillBar::new("fill-story-bar", FillTool::Lasso, options).show(ui);
     if let Some(edit) = bar.edit {
-        drop(session.add_fill_edit(edit, &LIMITS));
+        let _ = session.add_fill_edit(edit, &LIMITS);
     }
     if bar.reset_fill_area {
         session.fill_edits.clear();
@@ -467,7 +467,7 @@ fn show_lasso(ui: &mut Ui, args: &mut LassoArgs) {
     });
     for event in canvas.take_events() {
         if let super::FillEvent::FillArea(edit) = event {
-            drop(session.add_fill_edit(edit, &LIMITS));
+            let _ = session.add_fill_edit(edit, &LIMITS);
         }
     }
 }

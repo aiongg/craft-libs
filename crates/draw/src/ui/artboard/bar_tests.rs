@@ -87,7 +87,7 @@ struct PropertiesHost {
 fn artboard_fields_show_the_pixel_unit() {
     let h = bar_harness(board(200.0, 100.0));
     for name in ["Width", "Height"] {
-        let value = h.get_by_role_and_label(Role::SpinButton, name).accesskit_node().value();
+        let value = h.get_by_role_and_label(Role::SpinButton, name).value();
         assert!(value.is_some_and(|v| v.contains("px")), "bar {name}");
     }
     let host = PropertiesHost { board: board(100.0, 60.0), out: ArtboardPropertiesOutput::default() };
@@ -100,7 +100,7 @@ fn artboard_fields_show_the_pixel_unit() {
     );
     h.run_steps(3);
     for name in ["Width", "Height", "X", "Y"] {
-        let value = h.get_by_role_and_label(Role::SpinButton, name).accesskit_node().value();
+        let value = h.get_by_role_and_label(Role::SpinButton, name).value();
         assert!(value.is_some_and(|v| v.contains("px")), "properties {name}");
     }
 }

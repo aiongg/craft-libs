@@ -137,7 +137,7 @@ fn artboard_edges_are_accent_when_active_and_overlay_otherwise() {
         let boards = vec![PageFrame { active: Some(active), ..PageFrame::new(Rect::new(50.0, 40.0, 150.0, 140.0)) }];
         let mut colors = None;
         let output = ctx.run_ui(input, |ui| {
-            let tokens = crate::theme::Tokens::of(ui);
+            let tokens = <crate::theme::Tokens as crate::theme::TokensOf>::of(ui);
             colors = Some((tokens.color.accent.solid.to_egui(), tokens.color.overlay.artboard.to_egui(), tokens.component.pasteboard.outline_width));
             let _ = Pasteboard::new("pb", &boards).show(ui, &view());
         });

@@ -61,7 +61,7 @@ fn page_rig_of(kind: EffectKind, params: Option<StyleParams>, apply: bool, patte
                 enabled: true,
             };
             let style = rig.draft.style.clone();
-            let (out, event) = edit_style(ui, Id::new("page-rig"), &style, EditPolicy::default(), true, |ui, edits| effect_page(ui, &input, edits));
+            let (out, event) = edit_style(ui, Id::unique("page-rig"), &style, EditPolicy::default(), true, |ui, edits| effect_page(ui, &input, edits));
             if let Some(event) = event {
                 if let (true, Some(style)) = (rig.apply, event.value()) {
                     rig.draft.style = style.clone();
@@ -134,7 +134,7 @@ fn blending_rig(blending: Blending, names: &[&str]) -> Harness<'static, Blending
             };
             let style = rig.style.clone();
             let (_, event) =
-                edit_style(ui, Id::new("blending-rig"), &style, EditPolicy::default(), true, |ui, edits| blending_page(ui, &input, edits));
+                edit_style(ui, Id::unique("blending-rig"), &style, EditPolicy::default(), true, |ui, edits| blending_page(ui, &input, edits));
             if let Some(value) = event.as_ref().and_then(EditEvent::value) {
                 rig.style = value.clone();
                 rig.edits.push(value.blending.clone());

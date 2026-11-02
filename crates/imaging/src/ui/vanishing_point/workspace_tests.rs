@@ -10,7 +10,6 @@ use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::quad::Homography;
 use craft_ui::canvas::{CanvasView, PixelRect, RasterSource};
 use craft_ui::dialog::Outcome;
-use craft_ui::localized::Labels as _;
 use craft_ui::theme::{Base, current, install};
 
 use super::planes::{PlaneCheck, TornPlane, VanishingPlane, VanishingScene};

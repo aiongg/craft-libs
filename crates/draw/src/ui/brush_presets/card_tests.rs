@@ -115,7 +115,7 @@ fn tip_thumbnails_scale_with_the_preset_size() {
 #[test]
 fn card_rows_are_named_with_their_size() {
     let labels = BrushCardLabels::default();
-    let row = BrushPresetCards::<u32>::row(7, "Soft Round", 1, 29.6, &labels);
+    let row = BrushPresetCards::<u32>::row(7, "Soft Round", 1, 29.6, &labels, &craft_ui::localized::LocaleNumbers::from_tag("en"));
     assert_eq!(row.label, "Soft Round");
     assert_eq!(row.accessible_name.as_deref(), Some("Soft Round, 30 px"));
     assert_eq!(row.depth, 1);
@@ -164,6 +164,6 @@ fn cards_mirror_in_right_to_left() {
 fn the_row_names_the_size_in_the_given_numbers() {
     use craft_ui::localized::LocaleNumbers;
     let labels = BrushCardLabels::default();
-    let row = BrushPresetCards::row(1u32, "Soft", 0, 30.4, &labels, &LocaleNumbers::from_tag("en"));
+    let row = BrushPresetCards::row(1u32, "Soft", 0, 30.4, &labels, &craft_ui::localized::LocaleNumbers::from_tag("en"));
     assert_eq!(row.accessible_name.as_deref(), Some("Soft, 30 px"));
 }

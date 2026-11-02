@@ -14,7 +14,7 @@
 use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Ui, vec2};
 
 use super::{
-    BrushCardLabels, BrushCardLayout, BrushCardParts, BrushCardStyle, BrushCardsState, BrushPick, BrushPickerLabels, BrushPickerState,
+    BrushCardLabels, BrushCardLayout, BrushCardParts, BrushCardsState, BrushPick, BrushPickerLabels, BrushPickerState,
     BrushPickerValues, BrushPresetCards, BrushPresetChip, BrushPresetPicker,
 };
 use craft_ui::localized::{Labels as _, LocaleNumbers};
