@@ -24,7 +24,7 @@ use super::story::{DOC, ViewArgs, document};
 use crate::controls::Button;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
-use crate::story::{Level, Story, StoryArgs, StoryLabels, Surface, harness};
+use crate::story::{self, Level, Story, StoryArgs, StoryLabels, Surface};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use crate::typed_story;
 
@@ -217,12 +217,12 @@ fn show_lookup(ui: &mut Ui, args: &mut LookupArgs) {
     let canvas = document(ui, args.view, &words.document);
     let tokens = Tokens::of(ui);
     let ctx = ui.ctx().clone();
-    let shared = harness::shared(ui, "lookup", || {
+    let shared = story::shared(ui, "lookup", || {
         let jobs = Arc::new(ManualJobs::new());
         let lookup = HoverLookup::new(&ctx, Some(jobs.clone()));
         LookupState { lookup, jobs, fakes: fakes() }
     });
-    let mut guard = harness::lock(&shared);
+    let mut guard = story::lock(&shared);
     let LookupState { lookup, jobs, fakes } = &mut *guard;
     paint_objects(ui, &canvas.view, &tokens, None, fakes);
 

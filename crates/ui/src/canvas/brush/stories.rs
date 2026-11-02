@@ -25,7 +25,7 @@ use crate::controls::Button;
 use crate::edit::CancelReason;
 use crate::edit::EditEvent;
 use crate::localized::{Labels as _, Units};
-use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, harness};
+use crate::story::{self, Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
 use crate::theme::{Tokens, TokensOf as _};
 use crate::typed_story;
 
@@ -428,9 +428,9 @@ fn show_resize(ui: &mut Ui, args: &mut ResizeArgs) {
     let canvas = document(ui, args.view, &document_name);
     let ctx = ui.ctx().clone();
     let seeded = BrushDimensions { diameter: args.diameter, level: args.start_level };
-    harness::reset_on(ui, "resize", &(args.diameter, args.start_level));
-    let shared = harness::shared(ui, "resize", || ResizeState { tool: ResizeTool { dims: seeded, ..ResizeTool::default() }, script: None });
-    let mut state = harness::lock(&shared);
+    story::reset_on(ui, "resize", &(args.diameter, args.start_level));
+    let shared = story::shared(ui, "resize", || ResizeState { tool: ResizeTool { dims: seeded, ..ResizeTool::default() }, script: None });
+    let mut state = story::lock(&shared);
     state.tool.level = args.level.level();
     state.tool.max_diameter = args.max_diameter;
     state.tool.soft = (args.falloff == FalloffArg::Soft).then_some(args.start_level);

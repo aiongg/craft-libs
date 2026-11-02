@@ -27,7 +27,7 @@ use crate::direction::{self, Direction};
 use crate::icons::Icon;
 use crate::localized::Labels as _;
 use crate::patterns::{LastUsed, OptionsBar, RailTool, ToolRail, ToolSlot};
-use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryChoice, StoryLabels, harness};
+use crate::story::{self, Level, PatternStoryLabels, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::typed_story;
 
 /// The components this module has stories for.
@@ -324,8 +324,8 @@ struct FrameArgs {
 /// The whole frame: options bar, tool rail, a Wide column with its footer (at the top or the
 /// bottom), optionally a second Standard column, and the canvas with the rail's tool.
 fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
-    let shared = harness::shared(ui, "frame", Kept::new);
-    let mut kept = harness::lock(&shared);
+    let shared = story::shared(ui, "frame", Kept::new);
+    let mut kept = story::lock(&shared);
     let Kept { dialog, view, tools, rail: rail_state, levels, rtl } = &mut *kept;
     apply_direction(ui.ctx(), rtl, args.rtl);
     let title = title(ui, view);
@@ -416,8 +416,8 @@ struct CanvasArgs {
 /// the real workspaces. The preview arg builds a `PreviewStatus` the way an app's request
 /// bookkeeping would, and the zoom bar shows its progress or, when idle, the note.
 fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
-    let shared = harness::shared(ui, "canvas", Kept::new);
-    let mut kept = harness::lock(&shared);
+    let shared = story::shared(ui, "canvas", Kept::new);
+    let mut kept = story::lock(&shared);
     let Kept { dialog, view, tools, .. } = &mut *kept;
     let title = title(ui, view);
     let own = FullWindowStoryLabels::of(ui);
@@ -484,8 +484,8 @@ struct RailArgs {
 fn show_rail_in_dialog(ui: &mut Ui, args: &mut RailArgs) {
     let (columns, pick_by_key) = (args.columns, args.pick_by_key);
     let words = StoryLabels::of(ui);
-    let shared = harness::shared(ui, "rail-in-dialog", Kept::new);
-    let mut kept = harness::lock(&shared);
+    let shared = story::shared(ui, "rail-in-dialog", Kept::new);
+    let mut kept = story::lock(&shared);
     let Kept { dialog, rail: rail_state, .. } = &mut *kept;
     workspace(ui, "story-rail-in-dialog", dialog, &mut args.open, vec2(args.width, args.height), words.tools.clone(), |ui, fx| {
         let current = rail(ui, "rail-in-dialog-tools", rail_state, columns, pick_by_key);

@@ -19,7 +19,7 @@ use crate::localized::units::{LengthUnit, UnitContext};
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::patterns::OptionsBar;
 use crate::primitives::{Content, Text};
-use crate::story::{Level, Story, StoryArgs, Surface, harness};
+use crate::story::{self, Level, Story, StoryArgs, Surface};
 use crate::typed_story;
 
 /// The components this module has stories for.
@@ -71,8 +71,8 @@ struct FieldsState {
 /// The cells of the Marquee options bar. Pick a style, type, swap or pick a unit from the menu of
 /// a Fixed Size cell; the line under the bar shows the constraint in pixels.
 fn show_fields(ui: &mut Ui, args: &mut FieldsArgs) {
-    let shared = harness::shared(ui, "constraint-fields", || FieldsState { constraint: Constraint::Free, unit: LengthUnit::Pixels });
-    let mut st = harness::lock(&shared);
+    let shared = story::shared(ui, "constraint-fields", || FieldsState { constraint: Constraint::Free, unit: LengthUnit::Pixels });
+    let mut st = story::lock(&shared);
     let labels = ConstraintFieldsLabels::of(ui);
     let own = ConstraintFieldsStoryLabels::of(ui);
     let width = UnitContext { pixels_per_inch: DOCUMENT_PPI, extent: Some(DOCUMENT_SIZE[0]), ..UnitContext::default() };

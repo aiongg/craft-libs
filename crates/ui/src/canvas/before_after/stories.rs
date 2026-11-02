@@ -17,7 +17,7 @@ use egui::{Color32, Key, Mesh, Painter, Rect, Shape, Ui, vec2};
 use super::{BeforeAfter, BeforeAfterMode, BeforeAfterPane, BeforeAfterSide};
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
-use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface, harness};
+use crate::story::{self, Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 use crate::typed_story;
 
@@ -139,8 +139,8 @@ struct ModesArgs {
 /// One view in the chosen mode over the fakes. The divider modes can be dragged and keyed here too.
 fn show_modes(ui: &mut Ui, args: &mut ModesArgs) {
     let own = BeforeAfterStoryLabels::of(ui);
-    let shared = harness::shared(ui, "modes", || 0.5_f32);
-    let mut fraction = harness::lock(&shared);
+    let shared = story::shared(ui, "modes", || 0.5_f32);
+    let mut fraction = story::lock(&shared);
     let (area, _) = ui.allocate_exact_size(vec2(AREA[0].min(ui.available_width()), AREA[1]), egui::Sense::hover());
     let tokens = Tokens::of(ui);
     let view = BeforeAfter::new("before-after-modes-story", args.mode.mode()).fraction(*fraction).captions(args.captions);
@@ -170,8 +170,8 @@ struct DividerArgs {
 /// to; Backslash held shows the original. The readout is the fraction the host stores.
 fn show_divider(ui: &mut Ui, args: &mut DividerArgs) {
     let own = BeforeAfterStoryLabels::of(ui);
-    let shared = harness::shared(ui, "split-view", || 0.5_f32);
-    let mut fraction = harness::lock(&shared);
+    let shared = story::shared(ui, "split-view", || 0.5_f32);
+    let mut fraction = story::lock(&shared);
     let (area, _) = ui.allocate_exact_size(vec2(AREA[0].min(ui.available_width()), AREA[1]), egui::Sense::hover());
     let tokens = Tokens::of(ui);
     let mode = if args.stacked { BeforeAfterMode::SplitStacked } else { BeforeAfterMode::Split };

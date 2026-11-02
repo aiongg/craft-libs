@@ -22,7 +22,7 @@ use crate::edit::CancelReason;
 use crate::edit::EditEvent;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
-use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, harness};
+use crate::story::{self, Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use crate::typed_story;
 
@@ -147,13 +147,13 @@ fn show_nudge(ui: &mut Ui, args: &mut NudgeArgs) {
     let labels = MoveStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let ctx = ui.ctx().clone();
-    let shared = harness::shared(ui, "nudge", || NudgeState {
+    let shared = story::shared(ui, "nudge", || NudgeState {
         origin: DOC.center() - Vec2::new(args.width / 2.0, args.height / 2.0),
         copies: Vec::new(),
         text: words.photo.clone(),
         last: None,
     });
-    let mut state = harness::lock(&shared);
+    let mut state = story::lock(&shared);
     if canvas.response.has_focus() {
         let base = if args.command_base { Modifiers::COMMAND } else { Modifiers::NONE };
         let keys = NudgeKeys::new().steps(args.step, args.big_step).base(base).alt(args.alt_copies).layer(ui.layer_id());
@@ -302,15 +302,15 @@ fn show_move(ui: &mut Ui, args: &MoveArgs, name: &str, directions: Directions, c
     let labels = MoveStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
     let ctx = ui.ctx().clone();
-    harness::reset_on(ui, name, &(args.width, args.height));
+    story::reset_on(ui, name, &(args.width, args.height));
     let size = Vec2::new(args.width, args.height).to_size();
     let fresh = || {
         let first = Rect::from_origin_size(DOC.center() - Vec2::new(args.width, args.height / 2.0), size);
         let offset = Vec2::new(args.width / 2.0, args.height / 2.0);
         MoveTool::new(directions, (0..count).map(|i| first + offset * i as f64).collect())
     };
-    let shared = harness::shared(ui, name, fresh);
-    let mut tool = harness::lock(&shared);
+    let shared = story::shared(ui, name, fresh);
+    let mut tool = story::lock(&shared);
     let _ = ToolHost::new(canvas.id).document(DOC.size()).show(ui, &canvas.view, &canvas.response, &mut *tool);
     let shift = ctx.input(|i| i.modifiers.shift);
     ui.horizontal(|ui| {
@@ -471,7 +471,7 @@ fn show_stroke(ui: &mut Ui, args: &mut StrokeArgs) {
     let words = StoryLabels::of(ui);
     let labels = MoveStoryLabels::of(ui);
     let canvas = document(ui, args.view, &words.document);
-    let shared = harness::shared(ui, "stroke", || StrokeDemo {
+    let shared = story::shared(ui, "stroke", || StrokeDemo {
         tool: args.tool,
         width: args.width,
         lock: None,
@@ -481,7 +481,7 @@ fn show_stroke(ui: &mut Ui, args: &mut StrokeArgs) {
         hover: None,
         shift: false,
     });
-    let mut tool = harness::lock(&shared);
+    let mut tool = story::lock(&shared);
     tool.width = args.width;
     if tool.tool != args.tool {
         tool.tool = args.tool;
