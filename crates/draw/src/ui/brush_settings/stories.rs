@@ -7,10 +7,12 @@
 //! | Story id | Shows |
 //! |---|---|
 //! | `composites/brush-section-list/sections` | The list with enable boxes, locks, switch rows and the link row; every section off |
-//! | `composites/brush-settings-panel/panel` | The whole panel with fake bodies for three sections and the strip; an off section greyed |
+//! | `patterns/brush-settings-panel/panel` | The whole panel with fake bodies for three sections and the strip; an off section greyed |
 //! | `composites/tip-ellipse/ellipse` | The angle and roundness widget with its value readout |
 //! | `composites/dynamic-control-row/dynamics` | `DynamicControlRow` with and without Fade, the curve toggle lit and plain; `BrushSizeField` with and without restore |
 //! | `composites/brush-stroke-strip/strip` | The strip with the S-curve of a fake stroke at three widths |
+
+use std::sync::{Arc, Mutex};
 
 use egui::{Color32, ColorImage, Ui, vec2};
 
@@ -21,7 +23,7 @@ use super::{
 use craft_ui::canvas::textures::Revision;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs};
+use craft_ui::story::{Level, Story, StoryArgs, lock, shared};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_ui::typed_story;
 
@@ -79,8 +81,8 @@ pub(crate) fn stories() -> Vec<Story> {
             show_sections
         ),
         typed_story!(
-            "composites/brush-settings-panel/panel",
-            Level::Composites,
+            "patterns/brush-settings-panel/panel",
+            Level::Patterns,
             "BrushSettingsPanel",
             "Panel",
             PanelArgs { link: true, can_update: true, height: 420.0, diameter: 24.0 },
@@ -229,7 +231,7 @@ fn apply(brush: &mut Brush, event: BrushSectionEvent<Key>, words: &BrushSettings
         BrushSectionEvent::Select(key) => {
             brush.selected = key;
             let name = position(brush, key).map(|at| brush.sections[at].name.clone()).unwrap_or_default();
-            brush.note = words.selected_note.replace("{name}", &name);
+            brush.note = craft_i18n::fmt(&words.selected_note, &[("name", &name)]);
         }
         BrushSectionEvent::Enable { key, on } | BrushSectionEvent::Switch { key, on } => {
             if let Some(at) = position(brush, key) {
@@ -357,38 +359,36 @@ fn stroke_color(ui: &Ui) -> Color32 {
     Tokens::of(ui).color.accent.solid.to_egui()
 }
 
-fn kept_id(ui: &Ui, name: &str) -> egui::Id {
-    ui.make_persistent_id(("craft_draw::brush_settings::stories", name))
-}
-
 /// A muted status line.
 fn status(ui: &mut Ui, text: String) {
     ui.add(Text::new(text).content(Content::Muted));
 }
 
 /// The brush kept for `name`, rebuilt (keeping the selection) when the all-off arg changes.
-fn load_brush(ui: &Ui, name: &str, words: &BrushSettingsStoryLabels, all_off: bool) -> (egui::Id, Brush) {
-    let key = kept_id(ui, name);
-    let mut brush: Brush = ui.ctx().data(|d| d.get_temp(key)).unwrap_or_else(|| Brush::new(words, all_off));
-    if brush.all_off != all_off {
-        let selected = brush.selected;
-        brush = Brush::new(words, all_off);
-        brush.selected = selected;
+fn load_brush(ui: &Ui, name: &str, words: &BrushSettingsStoryLabels, all_off: bool) -> Arc<Mutex<Brush>> {
+    let kept = shared(ui, name, || Brush::new(words, all_off));
+    {
+        let mut brush = lock(&kept);
+        if brush.all_off != all_off {
+            let selected = brush.selected;
+            *brush = Brush::new(words, all_off);
+            brush.selected = selected;
+        }
     }
-    (key, brush)
+    kept
 }
 
 // --- sections ---
 
 fn show_sections(ui: &mut Ui, args: &mut SectionsArgs) {
     let words = BrushSettingsStoryLabels::of(ui);
-    let (key, mut brush) = load_brush(ui, "sections", &words, args.all_off);
+    let kept = load_brush(ui, "sections", &words, args.all_off);
+    let mut brush = lock(&kept);
     let out = BrushSectionList::new("brush-sections", &brush.sections).selected(Some(&brush.selected)).link(args.link).show(ui);
     for event in out.events {
         apply(&mut brush, event, &words);
     }
     status(ui, brush.note.clone());
-    ui.ctx().data_mut(|d| d.insert_temp(key, brush));
 }
 
 // --- panel ---
@@ -419,7 +419,8 @@ fn show_body(ui: &mut Ui, section: Key, brush: &mut Brush, words: &BrushSettings
 
 fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
     let words = BrushSettingsStoryLabels::of(ui);
-    let (key, mut brush) = load_brush(ui, "panel", &words, false);
+    let kept = load_brush(ui, "panel", &words, false);
+    let mut brush = lock(&kept);
     let style = BrushSettingsStyle::of(&Tokens::of(ui));
     let color = stroke_color(ui);
     let ppp = ui.pixels_per_point();
@@ -449,7 +450,6 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
         _ => {}
     }
     status(ui, brush.note.clone());
-    ui.ctx().data_mut(|d| d.insert_temp(key, brush));
 }
 
 // --- ellipse ---
@@ -469,10 +469,10 @@ fn show_ellipse(ui: &mut Ui, args: &mut EllipseArgs) {
     };
     status(
         ui,
-        words
-            .angle_note
-            .replace("{angle}", &numbers.format(shown.degrees, 0..=0))
-            .replace("{roundness}", &numbers.format((shown.roundness * 100.0).round(), 0..=0)),
+        craft_i18n::fmt(
+            &words.angle_note,
+            &[("angle", &numbers.format(shown.degrees, 0..=0)), ("roundness", &numbers.format((shown.roundness * 100.0).round(), 0..=0))],
+        ),
     );
 }
 
@@ -481,13 +481,14 @@ fn show_ellipse(ui: &mut Ui, args: &mut EllipseArgs) {
 fn show_dynamics(ui: &mut Ui, args: &mut DynamicsArgs) {
     let words = BrushSettingsStoryLabels::of(ui);
     let list = controls(&words);
-    let key = kept_id(ui, "dynamics");
-    let (mut fade, mut curve): (RowState, RowState) =
-        ui.ctx().data(|d| d.get_temp(key)).unwrap_or_else(|| (RowState::new(Control::Fade), RowState::new(Control::PenPressure)));
-    fade.show(ui, "dynamics-fade", &list, false);
-    curve.show(ui, "dynamics-curve", &list, args.curve_shaped);
-    status(ui, if curve.curve_open { words.curve_open.clone() } else { String::new() });
-    ui.ctx().data_mut(|d| d.insert_temp(key, (fade, curve)));
+    let kept = shared(ui, "dynamics", || (RowState::new(Control::Fade), RowState::new(Control::PenPressure)));
+    {
+        let mut rows = lock(&kept);
+        let (fade, curve) = &mut *rows;
+        fade.show(ui, "dynamics-fade", &list, false);
+        curve.show(ui, "dynamics-curve", &list, args.curve_shaped);
+        status(ui, if curve.curve_open { words.curve_open.clone() } else { String::new() });
+    }
 
     ui.add_space(ui.spacing().item_spacing.y * 2.0);
     ui.add(Text::new(words.with_restore.as_str()).content(Content::Muted));

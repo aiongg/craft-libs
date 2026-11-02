@@ -8,7 +8,7 @@
 //! | `composites/brush-preset-picker/open` | The picker open on 40 fake presets in three groups: part boxes (gear menu), scale, search; Rename and Delete act on the fake library |
 //! | `composites/brush-preset-picker/sampled-tip` | A sampled tip: no Hardness slider |
 //! | `composites/brush-preset-picker/empty` | An empty library |
-//! | `composites/brush-cards/parts` | The card in all seven part combinations at one of the scales 0.15, 0.7, 1 and 2 |
+//! | `composites/brush-preset-cards/parts` | The card in all seven part combinations at one of the scales 0.15, 0.7, 1 and 2 |
 //! | `controls/brush-preset-chip/states` | Closed, open, a four-digit size |
 
 use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Ui, vec2};
@@ -21,7 +21,7 @@ use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::popover::PopoverAnchor;
 use craft_ui::presets::{PresetEvent, PresetRow};
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, lock, shared};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_ui::typed_story;
 
@@ -82,7 +82,14 @@ pub(crate) fn stories() -> Vec<Story> {
             PickerArgs { diameter: 30.0, hardness: 80.0, import: true },
             show_empty
         ),
-        typed_story!("composites/brush-cards/parts", Level::Composites, "BrushPresetCards", "Parts", CardsArgs { scale: ScaleArg::One }, show_cards),
+        typed_story!(
+            "composites/brush-preset-cards/parts",
+            Level::Composites,
+            "BrushPresetCards",
+            "Parts",
+            CardsArgs { scale: ScaleArg::One },
+            show_cards
+        ),
         typed_story!("controls/brush-preset-chip/states", Level::Controls, "BrushPresetChip", "States", ChipArgs { diameter: 30.0 }, show_chip)
             .on(Surface::Chrome),
     ]
@@ -235,7 +242,7 @@ impl Library {
         let mut groups: Vec<Group> = names.iter().zip(0u32..).map(|(name, i)| (GROUP_BASE + i, (*name).clone(), Vec::new())).collect();
         for key in 0..count {
             let group = (key * 3 / PRESETS.max(1)).min(2) as usize;
-            groups[group].2.push((key, words.preset.replace("{n}", &(key + 1).to_string())));
+            groups[group].2.push((key, craft_i18n::fmt(&words.preset, &[("n", &(key + 1).to_string())])));
         }
         Self { groups }
     }
@@ -286,16 +293,18 @@ fn show_picker(ui: &mut Ui, id: &str, count: u32, diameter: &mut f64, hardness: 
     let words = BrushPresetStoryLabels::of(ui);
     let card_labels = BrushCardLabels::of(ui);
     let labels = BrushPickerLabels::of(ui);
-    let key = ui.make_persistent_id(("craft_draw::brush_presets::stories", id));
-    let mut kept: Kept = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| Kept {
+    let in_overview = craft_ui::story::in_overview(ui.ctx());
+    let kept = shared(ui, id, || Kept {
         state: BrushPickerState::new(),
         library: Library::new(&words, count),
         // An Overview tile starts closed: an open popover is a layer of its own that the tile cannot
         // clip, and its outside press would swallow clicks on the other tiles.
-        open: !craft_ui::story::in_overview(ui.ctx()),
+        open: !in_overview,
         current: None,
         note: String::new(),
     });
+    let mut kept = lock(&kept);
+    let kept = &mut *kept;
     let color = ink(ui);
     let chip = BrushPresetChip::new((id, "chip")).diameter(*diameter).open(kept.open).labels(labels.clone()).show(ui, |p, r| {
         paint_tip(p, r, Tip::Hard, color);
@@ -328,18 +337,18 @@ fn show_picker(ui: &mut Ui, id: &str, count: u32, diameter: &mut f64, hardness: 
         match pick {
             BrushPick::List(PresetEvent::Select { key, .. }) => {
                 kept.current = Some(key);
-                kept.note = words.picked.replace("{name}", &kept.library.name_of(key));
+                kept.note = craft_i18n::fmt(&words.picked, &[("name", &kept.library.name_of(key))]);
             }
             BrushPick::List(PresetEvent::Activate { key, .. }) => {
                 kept.current = Some(key);
-                kept.note = words.activated.replace("{name}", &kept.library.name_of(key));
+                kept.note = craft_i18n::fmt(&words.activated, &[("name", &kept.library.name_of(key))]);
             }
             BrushPick::List(PresetEvent::Rename { key, text }) => {
                 kept.library.rename(key, &text);
-                kept.note = words.renamed.replace("{name}", &text);
+                kept.note = craft_i18n::fmt(&words.renamed, &[("name", &text)]);
             }
             BrushPick::List(PresetEvent::Delete(key)) => {
-                kept.note = words.deleted.replace("{name}", &kept.library.name_of(key));
+                kept.note = craft_i18n::fmt(&words.deleted, &[("name", &kept.library.name_of(key))]);
                 kept.library.delete(key);
                 if kept.current == Some(key) {
                     kept.current = None;
@@ -353,7 +362,6 @@ fn show_picker(ui: &mut Ui, id: &str, count: u32, diameter: &mut f64, hardness: 
     }
     let note = if kept.note.is_empty() { words.nothing.clone() } else { kept.note.clone() };
     ui.add(Text::new(note).content(Content::Muted));
-    ui.data_mut(|d| d.insert_temp(key, kept));
 }
 
 fn show_open(ui: &mut Ui, args: &mut PickerArgs) {
@@ -386,7 +394,7 @@ fn show_cards(ui: &mut Ui, args: &mut CardsArgs) {
     let scale = args.scale.scale();
     let numbers = LocaleNumbers::of(ui);
     let rows: Vec<PresetRow<u32>> = (0..3)
-        .map(|k| BrushPresetCards::row(k, words.preset.replace("{n}", &(k + 1).to_string()), 0, diameter_of(k), &card_labels, &numbers))
+        .map(|k| BrushPresetCards::row(k, craft_i18n::fmt(&words.preset, &[("n", &(k + 1).to_string())]), 0, diameter_of(k), &card_labels, &numbers))
         .collect();
     let style = BrushPresetCards::<u32>::style(&Tokens::of(ui));
     for (i, parts) in combos().enumerate() {
@@ -401,19 +409,18 @@ fn show_cards(ui: &mut Ui, args: &mut CardsArgs) {
             names.push(labels.part_name.as_str());
         }
         ui.add(Text::new(names.join(&words.parts_join)).content(Content::Muted));
-        let key = ui.make_persistent_id(("craft_draw::brush_presets::stories::cards", i));
-        let mut state: BrushCardsState<u32> = ui.data(|d| d.get_temp(key)).unwrap_or_default();
+        let kept = shared(ui, &format!("cards-{i}"), BrushCardsState::<u32>::default);
+        let mut state = lock(&kept);
         state.parts = parts;
         state.scale = scale;
         let height = BrushCardLayout::cell_size(parts, scale, ui.available_width(), &style).y + 2.0 * style.inset;
-        let _events = BrushPresetCards::new(("brush-cards", i), &mut state, &rows)
+        let _events = BrushPresetCards::new(("brush-cards", i), &mut *state, &rows)
             .height(height)
             .labels(card_labels.clone())
             .tip(move |p, r, k| paint_tip(p, r, tip_of(*k), color))
             .stroke(move |p, r, k| paint_stroke(p, r, *k, color))
             .diameter_of(|k| Some(diameter_of(*k)))
             .show(ui);
-        ui.data_mut(|d| d.insert_temp(key, state));
     }
 }
 

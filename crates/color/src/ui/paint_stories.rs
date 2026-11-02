@@ -234,8 +234,12 @@ fn show_list(ui: &mut Ui, args: &mut ListArgs) {
     let mut options = if args.actions { PaintListOptions::SELECTION_COLORS } else { PaintListOptions::default() };
     options.add = args.add && args.actions;
     options.remove = args.remove && args.actions;
-    let response =
-        PaintList::new("paint-list-story", own.fill.clone(), &kept.paints).selected(kept.selected).options(options).rows(&kept.rows).show(ui);
+    let response = PaintList::new("paint-list-story", own.fill.clone(), &kept.paints)
+        .selected(kept.selected)
+        .options(options)
+        .rows(&kept.rows)
+        .fallback(accent(ui))
+        .show(ui);
     kept.selected = response.selected.or(kept.selected);
     let act = |note: &str, row: usize, kept: &mut Kept| {
         kept.note = craft_i18n::fmt(&own.action, &[("action", note), ("row", &(row + 1).to_string())]);

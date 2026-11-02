@@ -64,5 +64,7 @@ pub mod edit_story {
 /// The story canvas every canvas overlay story draws on: a checkerboard document under a
 /// [`CanvasView`](crate::canvas::CanvasView) set by the story's [`ViewArgs`].
 pub mod canvas_story {
-    pub use crate::canvas::story::{DOC, PlainArgs, PppArg, StoryCanvas, ViewArgs, document, document_at, document_in, document_with};
+    pub use crate::canvas::story::{
+        DOC, PlainArgs, PppArg, StoryCanvas, ViewArgs, document, document_at, document_in, document_unfocusable, document_with,
+    };
 }
