@@ -77,23 +77,54 @@ fn box_undo_redo_steps_committed_gestures_only() {
     for x in [10.0, 20.0, 30.0] {
         session.set(boxed(x, 0.0, 100.0, 100.0), false, true);
     }
-    assert!(!session.can_undo(), "a drag in progress is no step");
+    assert!(session.can_undo(), "an unrecorded change counts, so Undo never falls through to the document");
     session.set(boxed(30.0, 0.0, 100.0, 100.0), false, false);
     assert!(session.pending());
     session.set(boxed(31.0, 0.0, 100.0, 100.0), false, false);
 
-    assert_eq!(session.undo(), Some(boxed(30.0, 0.0, 100.0, 100.0)));
-    assert_eq!(session.undo(), start);
+    assert!(session.undo());
+    assert_eq!(session.frame(), Some(boxed(30.0, 0.0, 100.0, 100.0)));
+    assert!(session.undo());
+    assert_eq!(session.frame(), start);
     assert!(session.is_default(), "the default mark comes back with the step");
     assert!(!session.can_undo());
-    assert_eq!(session.undo(), None);
+    assert!(!session.undo());
     assert!(session.can_redo());
-    assert_eq!(session.redo(), Some(boxed(30.0, 0.0, 100.0, 100.0)));
+    assert!(session.redo());
+    assert_eq!(session.frame(), Some(boxed(30.0, 0.0, 100.0, 100.0)));
     assert!(!session.is_default());
 
     session.set(boxed(5.0, 5.0, 60.0, 60.0), false, false);
     assert!(!session.can_redo(), "a new step drops the redo side");
-    assert_eq!(session.redo(), None);
+    assert!(!session.redo());
+}
+
+// After Undo back to the untouched default frame the box still owns Undo and Redo (`pending` is false there), so Redo steps the box and not the document; with nothing either way the box owns neither.
+#[test]
+fn the_box_owns_undo_after_undoing_back_to_the_default_frame() {
+    let mut session = CropSession::new();
+    session.ensure_frame(&document(1, 200.0, 100.0), false);
+    assert!(!session.owns_undo());
+    session.set(boxed(10.0, 10.0, 80.0, 60.0), false, false);
+    assert!(session.owns_undo());
+    assert!(session.undo());
+    assert!(session.is_default() && !session.pending());
+    assert!(session.owns_undo(), "Redo is still the box's");
+    assert!(session.redo());
+    assert_eq!(session.frame(), Some(boxed(10.0, 10.0, 80.0, 60.0)));
+}
+
+// `revert` goes back to the latest recorded step while a drag runs, without a copy of it in the session.
+#[test]
+fn revert_goes_back_to_the_latest_step() {
+    let mut session = CropSession::new();
+    session.ensure_frame(&document(1, 200.0, 100.0), false);
+    let first = boxed(10.0, 10.0, 80.0, 60.0);
+    session.set(first, false, false);
+    session.set(boxed(20.0, 20.0, 90.0, 70.0), false, true);
+    session.revert();
+    assert_eq!(session.frame(), Some(first));
+    assert!(session.pending());
 }
 
 // `leave`: Dropped for the untouched default frame, Apply for a drawn one, Kept while a gesture runs or the eraser stands in, Nothing without a frame; Straighten disarms.
@@ -113,6 +144,11 @@ fn leaving_drops_a_default_frame_and_applies_a_drawn_one() {
     session.set(drawn, false, false);
     assert_eq!(session.leave(true), LeaveFrame::Kept);
     assert_eq!(session.frame(), Some(drawn));
+    session.clear();
+    session.ensure_frame(&document(1, 200.0, 100.0), false);
+    assert_eq!(session.leave(true), LeaveFrame::Dropped, "an untouched default frame goes even while the tool is kept");
+    session.ensure_frame(&document(1, 200.0, 100.0), false);
+    session.set(drawn, false, false);
     assert_eq!(session.leave(false), LeaveFrame::Apply(drawn));
     assert_eq!(session.frame(), Some(drawn), "the app clears or restores");
     session.clear();
@@ -139,7 +175,7 @@ fn a_refused_commit_gives_frame_and_steps_back() {
     assert!(session.pending());
     assert!(session.editing());
     assert!(session.can_undo());
-    assert!(session.undo().is_some());
+    assert!(session.undo());
     assert!(session.is_default());
 }
 

@@ -8,7 +8,7 @@ use crate::ui::transform::transform_box::{fixed, key_part, part_key, pos};
 use craft_ui::behavior::nudge::{self, NudgeKeys};
 use craft_ui::canvas::claim::PrimaryPress;
 use craft_ui::canvas::quad::BoxPart;
-use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, ToolKey, ToolParts, crisp, resize_cursor, turn_cursor};
+use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, ToolCursor, ToolKey, ToolParts, crisp, resize_cursor, turn_cursor};
 use craft_ui::edit::order::Turn;
 use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::{Labels, Unit, Word, Words};
@@ -707,7 +707,7 @@ impl<'a> CropFrame<'a> {
         if let Some(d) = dragging
             && let Some(pointer) = pointer
         {
-            self.cursor(&ctx, view, &shown, d.core.kind, pointer);
+            self.drag_cursor(&ctx, view, &shown, d.core.kind, pointer);
             self.show_readout(&ctx, id, d.core.kind, &shown, pointer, self.readout_values());
             out.dragging = true;
             match d.core.kind {
@@ -789,6 +789,31 @@ impl<'a> CropFrame<'a> {
             return None;
         }
         Some(if self.framed { self.state.part_at(view.to_doc(point), view.doc_len(style.hit)) } else { BoxPart::Inside })
+    }
+
+    /// The pointer for `part` of this frame, as a hover over it or a drag of it shows it (what
+    /// [`show`](Self::show) sets on the context): resize arrows along the frame's own axes on a
+    /// corner or an edge, Move inside a drawn frame, the crosshair inside the
+    /// [default frame](Self::default_frame) and for `None` (Straighten, or a frame being drawn),
+    /// and for [`BoxPart::Outside`] the turn pointer, which is drawn on `ctx` at `pointer`, so the
+    /// host hides its own. The app must not turn Space into the Hand pointer during a Crop drag:
+    /// Space moves a frame being drawn.
+    pub fn cursor(&self, ctx: &Context, view: &CanvasView, part: Option<BoxPart>, pointer: Pos2) -> ToolCursor {
+        let crosshair = ToolCursor::System(CursorIcon::Crosshair);
+        let Some(part) = part else { return crosshair };
+        match part {
+            BoxPart::Corner(_) | BoxPart::Edge(_) => {
+                let (hx, hy) = part_handle(part).unwrap_or_default();
+                ToolCursor::System(self.resize_icon(view, hx, hy))
+            }
+            BoxPart::Outside => {
+                self.turn_pointer(ctx, view, self.state, pointer);
+                ToolCursor::Hidden
+            }
+            BoxPart::Inside if self.default_frame => crosshair,
+            BoxPart::Inside => ToolCursor::System(CursorIcon::Move),
+            BoxPart::Pivot => ToolCursor::System(CursorIcon::Default),
+        }
     }
 
     /// A press at canvas point `origin`: the press to track, a Straighten line while that is
@@ -1202,7 +1227,7 @@ impl<'a> CropFrame<'a> {
     }
 
     /// The pointer during a drag of `kind`.
-    fn cursor(&self, ctx: &Context, view: &CanvasView, shown: &CropBox, kind: Kind, pointer: Pos2) {
+    fn drag_cursor(&self, ctx: &Context, view: &CanvasView, shown: &CropBox, kind: Kind, pointer: Pos2) {
         match kind {
             Kind::Draw { .. } => ctx.set_cursor_icon(CursorIcon::Crosshair),
             Kind::Move => ctx.set_cursor_icon(CursorIcon::Move),
