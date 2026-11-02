@@ -10,19 +10,21 @@ use craft_ui::theme::{Base, install};
 #[derive(Default)]
 struct Host {
     settings: CropSettings,
-    pick_color: bool,
+    pick_color: Option<craft_ui::dialog::ColorRequest>,
+    open: bool,
 }
 
 fn harness(settings: CropSettings, gear: bool) -> Harness<'static, Host> {
     let mut h = Harness::builder().with_size([480.0, 600.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         move |ui, host: &mut Host| {
             if gear {
-                host.pick_color |= CropOptionsMenu::new("gear", &mut host.settings.shield).show(ui).pick_color;
+                let out = CropOptionsMenu::new("gear", &mut host.settings.shield).show(ui, &mut host.open);
+                host.pick_color = host.pick_color.take().or(out.pick_color);
             } else {
                 CropOverlayMenu::new("overlay", &mut host.settings).show(ui);
             }
         },
-        Host { settings, pick_color: false },
+        Host { settings, pick_color: None, open: false },
     );
     h.run_steps(3);
     h
@@ -78,9 +80,10 @@ fn gear_menu_greys_two_rows_in_classic_mode() {
     assert_eq!(area.accesskit_node().toggled(), Some(Toggled::True), "it acts as on");
     assert!(row(&h, Role::CheckBox, "Auto Center Preview").accesskit_node().is_disabled());
     assert!(!row(&h, Role::CheckBox, "Use Classic Mode").accesskit_node().is_disabled());
-    assert!(!h.state().pick_color);
+    assert!(h.state().pick_color.is_none());
 
     row(&h, Role::RadioButton, "Custom…").click();
     h.run_steps(3);
-    assert!(h.state().pick_color);
+    assert!(h.state().pick_color.is_some());
+    assert!(h.state().open, "the popover stays open on a click inside");
 }

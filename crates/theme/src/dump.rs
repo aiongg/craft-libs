@@ -1635,6 +1635,7 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
         perspective_reach,
         menu_width,
         menu_max_width,
+        preset_width,
     } = t;
     out.line("crop.hit", len(*hit));
     out.line("crop.line", len(*line));
@@ -1659,6 +1660,7 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
     out.line("crop.perspective_reach", len(*perspective_reach));
     out.line("crop.menu_width", len(*menu_width));
     out.line("crop.menu_max_width", len(*menu_max_width));
+    out.line("crop.preset_width", len(*preset_width));
 }
 
 fn check_spelling_lines(out: &mut Lines, t: &CheckSpellingTokens) {

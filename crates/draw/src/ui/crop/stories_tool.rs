@@ -19,8 +19,8 @@ use egui::{Color32, Painter, Shape, Stroke, Ui};
 use kurbo::{Point, Rect};
 
 use super::{
-    CropBarEvent, CropBarOutput, CropBox, CropDocKey, CropDocument, CropEvent, CropInput, CropLabels, CropNames, CropOptionsBar, CropRatio,
-    CropSettings, CropSizeFields, CropTool, CropUserPreset,
+    CropBar, CropBarOutput, CropBox, CropDocKey, CropDocument, CropEvent, CropInput, CropLabels, CropNames, CropRatio, CropSettings, CropSizeFields,
+    CropTool, CropUserPreset,
 };
 use craft_ui::canvas::{CanvasView, RulerUnits, ToolHost};
 use craft_ui::controls::Button;
@@ -272,45 +272,37 @@ fn run(ui: &mut Ui, kept: &mut Kept, pane: &Pane) -> Option<CropBox> {
         let mut out = CropBarOutput::default();
         let armed = kept.tool.straighten_armed();
         OptionsBar::new(("crop-story-bar", &pane.label)).show(ui, |bar| {
-            CropOptionsBar::new("crop-story", &mut kept.settings)
-                .document(&document)
-                .user_presets(&users)
-                .straighten(armed)
-                .output(&mut out)
-                .add_to(bar);
+            CropBar::new("crop-story", &mut kept.settings).document(&document).user_presets(&users).straighten(armed).output(&mut out).add_to(bar);
         });
-        for event in out.take() {
-            let tool_event = match event {
-                CropBarEvent::Ratio { editing } => kept.shown.and_then(|view| {
-                    let (event, next) = kept.tool.refit(&view, &kept.settings, &document, editing)?;
-                    kept.view = Some(next);
-                    Some(event)
-                }),
-                CropBarEvent::Straighten => {
-                    kept.tool.toggle_straighten();
-                    None
-                }
-                CropBarEvent::Commit => kept.tool.apply(&kept.settings, &document, kept.view),
-                CropBarEvent::Cancel => kept.tool.discard(),
-                CropBarEvent::NewPreset => {
-                    kept.last = kept
-                        .settings
-                        .preset_name(&super::CropBarLabels::of(ui))
-                        .map(|name| craft_i18n::fmt(&own.new_preset_named, &[("name", &name)]));
-                    None
-                }
-                CropBarEvent::DeletePreset => {
-                    kept.last = Some(own.delete_preset.clone());
-                    None
-                }
-                CropBarEvent::PickShieldColor => {
-                    kept.last = Some(own.shield_requested.clone());
-                    None
-                }
-            };
-            if let Some(event) = tool_event {
-                handle(kept, &numbers, &own, event);
-            }
+        let mut tool_events = Vec::new();
+        if let Some(change) = out.ratio
+            && let Some(view) = kept.shown
+            && let Some((event, next)) = kept.tool.refit(&view, &kept.settings, &document, change.editing)
+        {
+            kept.view = Some(next);
+            tool_events.push(event);
+        }
+        if out.straighten {
+            kept.tool.toggle_straighten();
+        }
+        if out.new_preset {
+            kept.last =
+                kept.settings.preset_name(&super::CropBarLabels::of(ui)).map(|name| craft_i18n::fmt(&own.new_preset_named, &[("name", &name)]));
+        }
+        if out.delete_preset {
+            kept.last = Some(own.delete_preset.clone());
+        }
+        if out.pick_color.is_some() {
+            kept.last = Some(own.shield_requested.clone());
+        }
+        if out.apply {
+            tool_events.extend(kept.tool.apply(&kept.settings, &document, kept.view));
+        }
+        if out.discard {
+            tool_events.extend(kept.tool.discard());
+        }
+        for event in tool_events {
+            handle(kept, &numbers, &own, event);
         }
     }
     let saved = kept.view;

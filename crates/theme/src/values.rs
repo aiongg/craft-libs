@@ -1565,6 +1565,8 @@ pub const CROP_PERSPECTIVE_REACH: f32 = 8.0;
 pub const CROP_MENU_WIDTH: f32 = 240.0;
 /// Widest the gear popover grows: `crop.menu_max_width`.
 pub const CROP_MENU_MAX_WIDTH: f32 = 300.0;
+/// Width of the options bar's ratio preset select: `crop.preset_width` (PhotoCraft's 140).
+pub const CROP_PRESET_WIDTH: f32 = 140.0;
 
 /// Canvas grid line width.
 pub const GRID_WIDTH: f32 = 1.0;
