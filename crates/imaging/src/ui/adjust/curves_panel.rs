@@ -265,7 +265,8 @@ impl<'a> CurvesPanel<'a> {
     ///   rounded; the point goes in through [`CurveRules::insert`](craft_ui::composites::CurveRules::insert),
     ///   so a point already at that input is reused and the 16-point limit holds.
     /// - Does nothing and returns `None` in pencil mode, for Lab and CMYK channels, for an
-    ///   isolated channel (a mask holds its own grey levels) and when `sample` is off the image
+    ///   isolated mask or saved channel ([`ToneChannel::Named`]: it holds its own grey levels;
+    ///   an isolated Red, Green or Blue channel takes the point) and when `sample` is off the image
     ///   (the host doesn't call it then). `every_channel` is ignored for a grey document.
     pub fn add_point_from_sample(
         curves: &mut ToneCurves,
@@ -277,7 +278,7 @@ impl<'a> CurvesPanel<'a> {
     ) -> Option<usize> {
         // pc: crates/ui-egui/src/dialogs/adjust_dialog.rs:95-175 `add_point_at` (pencil, mode, isolated
         // checks; the tone per channel; the output from the curve's table, rounded; insert).
-        if curves.mode == CurvesMode::Pencil || channels.is_isolated() {
+        if curves.mode == CurvesMode::Pencil {
             return None;
         }
         let list = channels.as_slice();
@@ -346,8 +347,6 @@ impl<'a> CurvesPanel<'a> {
             labels.points_hint.replace("{key}", &modifier_words(ui, Modifiers::COMMAND))
         };
         let editor_salt = (self.id_salt, "curve");
-        let editor_id = CurveEditor::id_in(ui, editor_salt);
-        ui.data_mut(|d| d.insert_temp(id.with(EDITOR), editor_id));
 
         let mut builder = UiBuilder::new().scope_id(id).accessibility_role(Role::Group).accessibility_label(labels.curves.as_str());
         if !enabled {
@@ -406,11 +405,14 @@ impl<'a> CurvesPanel<'a> {
                         editor = editor.labels(curve_labels.clone());
                     }
                     let edit = editor.show(ui);
+                    // The editor's id as drawn: it sits in this group's scope, not the caller's.
+                    ui.data_mut(|d| d.insert_temp(id.with(EDITOR), edit.response.id));
                     let mut change = None;
                     if self.pickers {
                         let mut row = TonePickerRow::new((self.id_salt, "pickers"), self.picker).unavailable(self.unavailable).labels(labels.clone());
                         for picker in TonePicker::ALL {
-                            let usable = self.picker_enabled[picker as usize] && !(picker == TonePicker::Gray && self.context.is_gray());
+                            let usable = self.picker_enabled[picker as usize]
+                                && !(picker == TonePicker::Gray && (self.channels.is_gray() || self.context.is_gray()));
                             row = row.enabled(picker, usable);
                         }
                         change = row.show(ui).change;

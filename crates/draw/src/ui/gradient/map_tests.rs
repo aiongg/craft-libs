@@ -17,6 +17,7 @@ struct Host {
     groups: Vec<GradientGroup>,
     events: Vec<EditEvent<GradientMap>>,
     imports: usize,
+    requests: Vec<craft_ui::dialog::ColorRequest>,
 }
 
 impl Host {
@@ -25,6 +26,7 @@ impl Host {
         let value = self.value.clone();
         let out = GradientMapEditor::new("map", &value, &numbers).presets(&self.groups).show(ui);
         self.imports += usize::from(out.import_presets);
+        self.requests.extend(out.pick_color);
         if let Some(event) = out.edit.event {
             if let Some(v) = event.value() {
                 self.value = v.clone();
@@ -48,6 +50,7 @@ fn host(n: usize) -> Harness<'static, Host> {
         groups: vec![GradientGroup::new("Basics", vec![GradientItem::new("Warm", preset)])],
         events: Vec::new(),
         imports: 0,
+        requests: Vec::new(),
     };
     let mut harness = Harness::builder()
         .with_size([400.0, 400.0])
@@ -166,4 +169,36 @@ fn gradient_map_reverse_dither_and_import() {
     harness.run();
     assert_eq!(harness.state().imports, 1);
     assert_eq!(harness.state().events.len(), 2);
+}
+
+// A preset pick selects stop 0, also when another stop was selected.
+#[test]
+fn gradient_map_preset_pick_selects_stop_zero() {
+    let mut harness = host(3);
+    harness.get_all_by_role(Role::GraphicsObject).nth(2).expect("a marker").click();
+    harness.run();
+    let selected = |harness: &Harness<'static, Host>| {
+        harness.get_all_by_role(Role::GraphicsObject).map(|m| m.accesskit_node().is_selected() == Some(true)).collect::<Vec<_>>()
+    };
+    assert_eq!(selected(&harness), [false, false, true]);
+    harness.get_by_label("Custom").click();
+    harness.run();
+    harness.get_by_label("Warm").click();
+    harness.run();
+    assert_eq!(selected(&harness), [true, false]);
+}
+
+// Enter on the focused bar with a stop selected asks the host for that stop's colour once, keyed
+// by the stop's index.
+#[test]
+fn gradient_map_enter_on_a_stop_requests_its_colour() {
+    let mut harness = host(3);
+    harness.get_all_by_role(Role::GraphicsObject).nth(1).expect("a marker").click();
+    harness.run();
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    let requests = &harness.state().requests;
+    assert_eq!(requests.len(), 1, "{requests:?}");
+    assert_eq!(GradientMapEditor::stop_of_key(&requests[0].key), Some(1));
+    assert_eq!(requests[0].color, stops(3).color[1].color);
 }

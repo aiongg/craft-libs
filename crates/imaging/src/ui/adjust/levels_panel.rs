@@ -236,9 +236,8 @@ impl<'a> LevelsPanel<'a> {
                                 .clicked();
                         });
                     });
-                    let mut editor = LevelsEditor::new((self.id_salt, "levels", channel), labels.levels.as_str(), &value, self.numbers)
+                    let mut editor = LevelsEditor::new((self.id_salt, "levels", channel), shown_name.as_str(), &value, self.numbers)
                         .channel(color)
-                        .value(shown_name.as_str())
                         .stale(self.stale)
                         .policy(self.policy)
                         .enabled(enabled);
@@ -254,7 +253,8 @@ impl<'a> LevelsPanel<'a> {
                         let mut row = TonePickerRow::new((self.id_salt, "pickers"), self.picker).unavailable(self.unavailable).labels(labels.clone());
                         for picker in TonePicker::ALL {
                             // A grey document has no Neutral Gray point.
-                            let usable = self.picker_enabled[picker as usize] && !(picker == TonePicker::Gray && self.context.is_gray());
+                            let usable = self.picker_enabled[picker as usize]
+                                && !(picker == TonePicker::Gray && (self.channels.is_gray() || self.context.is_gray()));
                             row = row.enabled(picker, usable);
                         }
                         change = row.show(ui).change;

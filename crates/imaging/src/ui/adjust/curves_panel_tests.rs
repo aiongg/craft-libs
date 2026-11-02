@@ -16,14 +16,16 @@ struct Host {
     curves: ToneCurves,
     modes: Vec<CurvesMode>,
     events: Vec<EditEvent<Curve>>,
+    id: Option<egui::Id>,
 }
 
 fn rig(curves: ToneCurves) -> Harness<'static, Host> {
-    let state = Host { curves, modes: Vec::new(), events: Vec::new() };
+    let state = Host { curves, modes: Vec::new(), events: Vec::new(), id: None };
     let mut h = Harness::builder().with_size([480.0, 720.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
             let numbers = LocaleNumbers::from_tag("en");
             let out = CurvesPanel::new("curves-panel", &host.curves, ToneChannels::of(ToneSpace::Rgb, false), &numbers).show(ui);
+            host.id = Some(CurvesPanel::id_in(ui, "curves-panel"));
             host.modes.extend(out.mode);
             host.events.extend(out.edit.event);
         },
@@ -144,4 +146,29 @@ fn curves_add_point_from_sample_does_nothing_in_pencil_mode() {
     let before = curves.clone();
     assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &isolated, 0, grey(0.5), false, &sampler), None);
     assert_eq!(curves, before);
+}
+
+// An isolated colour channel takes the point at its own value; only a mask or saved channel (`Named`) refuses.
+#[test]
+fn curves_add_point_from_sample_works_on_an_isolated_colour_channel() {
+    let sampler = monotone();
+    let isolated = ToneChannels::isolated(ToneChannel::Red);
+    let mut curves = ToneCurves::identity(&isolated);
+    let sample = Srgba { r: 0.2, g: 0.4, b: 0.6, a: 1.0 };
+    assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &isolated, 0, sample, true, &sampler), Some(1));
+    assert_eq!(curves.curves[0].points().map(<[_]>::len), Some(3));
+}
+
+// A point added from a sample and selected through `select_point` is the editor's selected point.
+#[test]
+fn curves_select_point_selects_the_added_point_in_the_editor() {
+    let mut h = rig(ToneCurves::identity(&rgb()));
+    let sampler = monotone();
+    let at = CurvesPanel::add_point_from_sample(&mut h.state_mut().curves, &rgb(), 0, grey(0.5), false, &sampler).expect("a point");
+    let id = h.state().id.expect("drawn");
+    CurvesPanel::select_point(&h.ctx, id, at);
+    h.run_steps(3);
+    let selected: Vec<bool> =
+        h.get_all_by(|n| n.label().is_some_and(|l| l.starts_with("Point "))).map(|n| n.accesskit_node().is_selected() == Some(true)).collect();
+    assert_eq!(selected, [false, true, false], "the new middle point is selected");
 }
