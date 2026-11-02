@@ -22,6 +22,7 @@ use crate::canvas::{
     CanvasTool, CursorHost, CursorOptions, CursorStyle, PaintingCursor, ToolAction, ToolContext, ToolCursor, ToolHost, ToolInput, ToolPointer,
 };
 use crate::controls::Button;
+use crate::edit::CancelReason;
 use crate::edit::EditEvent;
 use crate::localized::{Labels as _, Units};
 use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
@@ -340,7 +341,7 @@ impl CanvasTool for ResizeTool {
         self.keep(event);
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         self.resize.cancel();
     }
 

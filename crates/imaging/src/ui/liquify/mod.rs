@@ -66,6 +66,7 @@ use craft_ui::canvas::kurbo::Size;
 use craft_ui::canvas::{CanvasId, Checkerboard, NavigationOptions, RasterSource, ToolHost};
 use craft_ui::dialog::full_window::{FullWindowCanvas, FullWindowSide, FullWindowTitle, FullWindowView, RasterOverlay, SideFooter};
 use craft_ui::dialog::{ButtonRole, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step};
+use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::Labels as _;
 use craft_ui::patterns::{LastUsed, ToolRail};
@@ -267,9 +268,9 @@ impl LiquifyWorkspace {
                 if canvas.busy() {
                     let id = CanvasId::new(ui, CANVAS);
                     match settings.tool {
-                        LiquifyTool::Hand => ToolHost::cancel(ctx, id, canvas.hand(doc, navigation)),
-                        LiquifyTool::Zoom => ToolHost::cancel(ctx, id, canvas.zoom(doc, navigation)),
-                        _ => ToolHost::cancel(ctx, id, &mut canvas.tool(settings, &style)),
+                        LiquifyTool::Hand => ToolHost::cancel(ctx, id, canvas.hand(doc, navigation), CancelReason::Removed),
+                        LiquifyTool::Zoom => ToolHost::cancel(ctx, id, canvas.zoom(doc, navigation), CancelReason::Removed),
+                        _ => ToolHost::cancel(ctx, id, &mut canvas.tool(settings, &style), CancelReason::Removed),
                     };
                     for event in canvas.take_events() {
                         absorb(session, event, &mut events);

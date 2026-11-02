@@ -334,9 +334,9 @@ impl CanvasTool for FillCanvasTool<'_> {
         // brush circle; the host draws the cursor from `cursor`, so nothing to track.
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: Esc or a lost pointer drops the stroke or lasso.
-        self.drop_gesture(CancelReason::Escape);
+        self.drop_gesture(reason);
     }
 
     fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {

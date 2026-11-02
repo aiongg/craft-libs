@@ -9,6 +9,7 @@ use kurbo::{Point, Rect, Vec2};
 use super::{ArtboardBackground, ArtboardEvent, ArtboardItem, ArtboardRules, ArtboardTool};
 use crate::ui::add_beside::AddSide;
 use craft_ui::canvas::{CanvasId, CanvasView, ToolHost, ToolInput};
+use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, install};
 
@@ -411,7 +412,7 @@ fn artboard_cancels_on_escape_and_on_tool_switch() {
     down(&mut h, (60.0, 60.0), none());
     to(&mut h, (80.0, 70.0), none());
     let (ctx, id) = (h.ctx.clone(), h.state().canvas.expect("a pass ran"));
-    ToolHost::cancel(&ctx, id, &mut h.state_mut().tool);
+    ToolHost::cancel(&ctx, id, &mut h.state_mut().tool, CancelReason::Removed);
     h.step();
     assert_eq!(cancels(&mut h), ["move"]);
     assert_eq!(h.state().items[0].rect, rect(20.0, 30.0, 120.0, 110.0));

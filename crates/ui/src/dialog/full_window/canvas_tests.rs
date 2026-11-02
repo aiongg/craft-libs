@@ -15,6 +15,7 @@ use crate::canvas::{
     CanvasTool, CanvasView, Checkerboard, HandTool, NavigationOptions, PixelRect, RasterSource, ToolAction, ToolContext, ToolPointer, ZoomTool,
 };
 use crate::dialog::{DialogState, FullWindowDialog};
+use crate::edit::CancelReason;
 use crate::localized::LocaleNumbers;
 use crate::theme::{Base, install};
 
@@ -57,7 +58,7 @@ impl CanvasTool for Pen {
 
     fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
 
     fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
 }

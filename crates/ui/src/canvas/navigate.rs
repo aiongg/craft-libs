@@ -29,6 +29,7 @@ use super::scrollbars::CanvasScrollbars;
 use super::tool_host::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
 use super::view::CanvasView;
 use super::zoom::{self, ZoomAnimation, ZoomLadder};
+use crate::edit::CancelReason;
 use crate::focus::key_owner::{canvas_keys_free, claimed_presses};
 use crate::localized::Labels;
 use crate::theme::{ToEgui, UiTokens};
@@ -1040,7 +1041,7 @@ impl CanvasTool for HandTool {
         cx.set_view(next);
     }
 
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, cx: &mut ToolContext<'_>) {
         if let Some((view, _)) = self.start.take() {
             cx.set_view(view);
         }
@@ -1182,7 +1183,7 @@ impl CanvasTool for ZoomTool {
         self.advance(pointer, cx);
     }
 
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, cx: &mut ToolContext<'_>) {
         self.hold = None;
         self.drag = None;
         if let Some((view, _, _)) = self.press.take() {
@@ -1252,7 +1253,7 @@ impl CanvasTool for RotateViewTool {
         true
     }
 
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, cx: &mut ToolContext<'_>) {
         if let Some((_, view)) = self.drag.take() {
             cx.set_view(view);
         }

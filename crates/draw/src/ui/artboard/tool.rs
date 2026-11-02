@@ -111,7 +111,7 @@ enum Phase {
     Update,
     /// `changed`: the value differs from the start.
     Commit(bool),
-    Cancel,
+    Cancel(CancelReason),
 }
 
 fn edit<T>(phase: Phase, id: GestureId, modifiers: Modifiers, value: Option<T>) -> Option<EditEvent<T>> {
@@ -119,7 +119,7 @@ fn edit<T>(phase: Phase, id: GestureId, modifiers: Modifiers, value: Option<T>) 
         Phase::Begin => EditEvent::begin(id),
         Phase::Update => EditEvent::update(id, value?, modifiers),
         Phase::Commit(changed) => EditEvent::commit(id, value?, changed, modifiers),
-        Phase::Cancel => EditEvent::cancel(id, CancelReason::Escape),
+        Phase::Cancel(reason) => EditEvent::cancel(id, reason),
     })
 }
 
@@ -438,7 +438,7 @@ impl CanvasTool for ArtboardTool {
                 self.events.push(ArtboardEvent::Select { indices, modifiers: m });
             }
             // A board dragged to nothing wide or tall is no board.
-            _ if value.is_none() => self.events.extend(event(&d, Phase::Cancel, None)),
+            _ if value.is_none() => self.events.extend(event(&d, Phase::Cancel(CancelReason::Escape), None)),
             _ => self.events.extend(event(&d, Phase::Commit(changed), value)),
         }
     }
@@ -448,12 +448,12 @@ impl CanvasTool for ArtboardTool {
         self.hovered_plus = if self.rules.plus_buttons { self.active().and_then(|i| self.plus_at(i, pointer.screen, cx)) } else { None };
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: the running `Draw`, `Move` or `Resize` reports `Cancel`; drops the drag.
         if let Some(d) = self.drag.take()
             && d.began
         {
-            self.events.extend(event(&d, Phase::Cancel, None));
+            self.events.extend(event(&d, Phase::Cancel(reason), None));
         }
     }
 

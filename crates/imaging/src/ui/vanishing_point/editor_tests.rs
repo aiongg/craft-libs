@@ -10,6 +10,7 @@ use craft_ui::canvas::{
     ToolPointer,
 };
 use craft_ui::dialog::{LocalHistory, Step};
+use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::Labels as _;
 use craft_ui::theme::{Base, current, install};
@@ -139,8 +140,8 @@ impl CanvasTool for Quiet<'_> {
     fn hover(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         self.0.hover(pointer, cx);
     }
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
-        self.0.cancel(cx);
+    fn cancel(&mut self, reason: CancelReason, cx: &mut ToolContext<'_>) {
+        self.0.cancel(reason, cx);
     }
     fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         self.0.key(key, cx)

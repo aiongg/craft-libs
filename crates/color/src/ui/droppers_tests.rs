@@ -1,5 +1,6 @@
 //! Behaviour tests of `droppers`: one armed dropper, the pass rule, and the button's toggle.
 
+use craft_ui::edit::CancelReason;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::{Node, Role, Toggled};
 use egui::{Context, Event, Id, Modifiers, PointerButton, Pos2, RawInput, Rect, vec2};
@@ -129,7 +130,7 @@ fn the_canvas_tool_samples_for_the_armed_dropper() {
     send(&mut h, ToolInput::Move { doc: Point::new(30.0, 10.0), pressure: 1.0, tilt, rotation: 0.0, modifiers: m });
     assert_eq!(DropperState::take(&h.ctx, owner), Some(Srgba::rgb(0.1, 0.0, 0.0)), "a drag resamples");
     DropperState::arm(&h.ctx, owner);
-    ToolHost::cancel(&h.ctx.clone(), id.get(), &mut *tool.borrow_mut());
+    ToolHost::cancel(&h.ctx.clone(), id.get(), &mut *tool.borrow_mut(), CancelReason::Removed);
     h.step();
     assert_eq!(DropperState::armed(&h.ctx), None);
 }

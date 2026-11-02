@@ -7,6 +7,7 @@ use craft_ui::canvas::{
     CanvasTool, Marquee, MarqueeLook, PointerInk, SelectionBadge, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode,
     ToolPointer, selection_cursor,
 };
+use craft_ui::edit::CancelReason;
 use craft_ui::localized::{Labels as _, Words};
 use egui::{CursorIcon, Key, Modifiers, Painter};
 
@@ -272,7 +273,7 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
 
     /// Esc during a drag, a lost pointer or `ToolHost::cancel`: drops the outline (no event); a
     /// selection drag reports `Cancel`.
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:272-276 (window focus lost drops it).
         let tool = &mut *self.tool;
         if let Some(inside) = tool.inside.take() {

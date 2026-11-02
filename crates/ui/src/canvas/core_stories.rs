@@ -20,6 +20,7 @@ use super::{
     ToolHost, ToolPointer, ViewHistory, ViewPlace, ZoomTool,
 };
 use crate::controls::Button;
+use crate::edit::CancelReason;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
 use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
@@ -480,7 +481,7 @@ impl CanvasTool for MarqueeDemo {
         self.start = None;
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         self.start = None;
     }
 
@@ -538,7 +539,7 @@ fn show_tool_host(ui: &mut Ui, args: &mut ToolHostArgs) {
     if tools.shown != args.tool {
         let old = tools.shown;
         tools.shown = args.tool;
-        if let Some(v) = ToolHost::cancel(&ctx, canvas.id, tools.pick(old)) {
+        if let Some(v) = ToolHost::cancel(&ctx, canvas.id, tools.pick(old), CancelReason::Removed) {
             view = CanvasView { rect: view.rect, ..v };
         }
     }

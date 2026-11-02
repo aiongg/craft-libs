@@ -17,6 +17,7 @@ use super::{
 };
 use super::{Part, ToolHostResponse, ToolInput, ToolKey, ToolNode, ToolParts, ToolPointer};
 use crate::behavior::KeyClaim;
+use crate::edit::CancelReason;
 use crate::theme::{Base, install};
 
 type Log = Rc<RefCell<Vec<String>>>;
@@ -28,11 +29,13 @@ struct Probe {
     snap: Option<SnapGesture>,
     autoscrolls: bool,
     takes_key: bool,
+    /// The reason of each `cancel` call.
+    reasons: Rc<RefCell<Vec<CancelReason>>>,
 }
 
 impl Probe {
     fn new(log: &Log) -> Self {
-        Self { log: log.clone(), action: ToolAction::Claimed, snap: None, autoscrolls: true, takes_key: false }
+        Self { log: log.clone(), action: ToolAction::Claimed, snap: None, autoscrolls: true, takes_key: false, reasons: Rc::default() }
     }
 
     fn note(&self, what: &str, p: Option<&ToolPointer>) {
@@ -55,7 +58,8 @@ impl CanvasTool for Probe {
         self.note("release", Some(pointer));
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
+        self.reasons.borrow_mut().push(reason);
         self.note("cancel", None);
     }
 
@@ -348,7 +352,7 @@ fn cancel_from_the_app_runs_the_tools_cancel() {
     press(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
     let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
     assert!(ToolHost::in_gesture(&ctx, id));
-    ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool);
+    ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool, CancelReason::Removed);
     assert_eq!(log(&calls).iter().filter(|c| *c == "cancel").count(), 1, "{:?}", log(&calls));
     assert!(!ToolHost::in_gesture(&ctx, id));
     h.step();
@@ -368,7 +372,7 @@ fn a_tool_switch_mid_drag_cancels_the_old_tool_not_the_new_one() {
     press(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
     move_to(&mut h, pos2(120.0, 110.0));
     let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
-    ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool);
+    ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool, CancelReason::Removed);
     h.state_mut().tool = Box::new(Probe::new(&new));
     move_to(&mut h, pos2(140.0, 120.0));
     release(&mut h, pos2(140.0, 120.0), Modifiers::NONE);
@@ -387,9 +391,9 @@ fn cancelling_a_hand_drag_returns_the_view_it_started_from() {
     move_to(&mut h, pos2(260.0, 190.0));
     assert!((h.state().view.center - start.center).hypot() > 1.0, "the drag pans");
     let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
-    let back = ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool).expect("the Hand asks for its press view");
+    let back = ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool, CancelReason::Removed).expect("the Hand asks for its press view");
     assert_eq!(back.center, start.center);
-    assert_eq!(ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool), None, "no gesture is left");
+    assert_eq!(ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool, CancelReason::Removed), None, "no gesture is left");
 }
 
 // A flick released with the Hand glides on after the app passes another tool (Space came up).
@@ -429,7 +433,7 @@ impl CanvasTool for Counter {
 
     fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
 
     fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
 }
@@ -466,7 +470,7 @@ impl CanvasTool for Typist {
 
     fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
 
     fn key(&mut self, _key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         cx.keep_keys();
@@ -629,7 +633,7 @@ impl CanvasTool for AltResize {
         self.note("release", pointer);
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
 
     fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
 
@@ -722,11 +726,13 @@ struct Parted {
     parts: bool,
     node: Option<ToolNode>,
     keys: Log,
+    /// `ToolContext::parts_focused` at each `key` call.
+    focus: Rc<RefCell<Vec<bool>>>,
 }
 
 impl Parted {
     fn new(parts: bool, keys: &Log) -> Self {
-        Self { picked: None, parts, node: None, keys: keys.clone() }
+        Self { picked: None, parts, node: None, keys: keys.clone(), focus: Rc::default() }
     }
 }
 
@@ -739,9 +745,10 @@ impl CanvasTool for Parted {
 
     fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
 
-    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+        self.focus.borrow_mut().push(cx.parts_focused);
         self.keys.borrow_mut().push(format!("{:?} on {:?}", key.key, self.picked));
         true
     }
@@ -794,6 +801,52 @@ fn a_tool_with_parts_is_one_tab_stop_whose_page_keys_pick() {
     assert_eq!(log(&keys).last().map(String::as_str), Some("ArrowRight on Some(2)"), "Tab picked the first part, Page Down the second");
 }
 
+// The keys the group used to pick a part do not reach the tool a second time, and
+// `ToolContext::parts_focused` is true only while the group has the keyboard.
+#[test]
+fn page_keys_that_pick_a_part_do_not_reach_the_tool_and_parts_focused_follows_the_group() {
+    let keys = Log::default();
+    let parted = Parted::new(true, &keys);
+    let focus = parted.focus.clone();
+    let mut h = harness(Rig::new(parted), 0.05);
+    focused(&mut h);
+    key(&mut h, Key::ArrowRight);
+    assert_eq!(*focus.borrow(), [false], "the canvas has the focus, the group does not: {:?}", log(&keys));
+    h.key_press(Key::Tab);
+    h.run();
+    key(&mut h, Key::PageDown);
+    key(&mut h, Key::Home);
+    key(&mut h, Key::ArrowRight);
+    let keys = log(&keys);
+    assert!(!keys.iter().any(|k| k.starts_with("PageDown") || k.starts_with("Home")), "{keys:?}");
+    assert_eq!(keys.last().map(String::as_str), Some("ArrowRight on Some(1)"), "{keys:?}");
+    assert_eq!(focus.borrow().last(), Some(&true), "{:?}", focus.borrow());
+}
+
+// Esc reaches the tool's `cancel` as `Escape`, and the app's own reason through `ToolHost::cancel`
+// as given. (A lost pointer, `FocusLost`, cannot be produced with kittest's input.)
+#[test]
+fn each_cancel_reason_reaches_the_tool() {
+    let one = |act: &dyn Fn(&mut Harness<'static, Rig>)| {
+        let probe = Probe::new(&Log::default());
+        let reasons = probe.reasons.clone();
+        let mut h = harness(Rig::new(probe), 0.05);
+        focused(&mut h);
+        press(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
+        move_to(&mut h, pos2(140.0, 120.0));
+        act(&mut h);
+        reasons.borrow().clone()
+    };
+    assert_eq!(one(&|h| key(h, Key::Escape)), [CancelReason::Escape]);
+    assert_eq!(
+        one(&|h| {
+            let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
+            ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool, CancelReason::UndoDuringGesture);
+        }),
+        [CancelReason::UndoDuringGesture]
+    );
+}
+
 // The group and each part are in the AccessKit tree with the tool's names and values; the picked
 // part is the group's active descendant.
 #[test]
@@ -826,7 +879,7 @@ fn a_press_on_a_part_focuses_the_group_and_tools_without_parts_add_no_stop() {
         }
         fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
         fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
-        fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+        fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
         fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
             self.0.key(key, cx)
         }

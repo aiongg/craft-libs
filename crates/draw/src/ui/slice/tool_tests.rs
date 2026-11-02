@@ -7,6 +7,7 @@ use kurbo::{Point, Rect};
 
 use super::{SliceCommand, SliceEvent, SliceItem, SliceMode, SliceOrigin, SliceOverlay, SliceRefusal, SliceTool, SliceToolSettings};
 use craft_ui::canvas::{CanvasId, CanvasView, Constraint, ToolHost};
+use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
 use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
@@ -368,7 +369,7 @@ fn slice_cancels_on_escape_and_on_tool_switch() {
                 h.run();
             } else {
                 let (ctx, Some(id)) = (h.ctx.clone(), h.state().canvas) else { panic!("the canvas was shown") };
-                ToolHost::cancel(&ctx, id, &mut h.state_mut().tool);
+                ToolHost::cancel(&ctx, id, &mut h.state_mut().tool, CancelReason::Removed);
                 h.step();
             }
             let state = h.state();

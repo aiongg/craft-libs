@@ -297,12 +297,12 @@ impl CanvasTool for SymmetryTransformPass<'_> {
         }
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: the drag's Cancel; the preview goes back to the press.
         self.session.drag = None;
         if let Some((id, before)) = self.session.gesture.take() {
             self.session.preview = before;
-            self.push(SymmetryEvent::Preview(EditEvent::cancel(id, CancelReason::Escape)));
+            self.push(SymmetryEvent::Preview(EditEvent::cancel(id, reason)));
         }
     }
 

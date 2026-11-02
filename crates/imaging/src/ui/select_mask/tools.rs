@@ -300,7 +300,7 @@ enum Phase {
     Begin,
     Update,
     Commit,
-    Cancel,
+    Cancel(CancelReason),
 }
 
 /// The event of `phase` for `value`: `Update` and `Commit` need a value.
@@ -309,7 +309,7 @@ fn make<T>(id: GestureId, phase: Phase, value: Option<T>, modifiers: Modifiers) 
         Phase::Begin => Some(value.map_or_else(|| EditEvent::begin(id), |value| EditEvent::begin_with(id, value))),
         Phase::Update => value.map(|value| EditEvent::update(id, value, modifiers)),
         Phase::Commit => value.map(|value| EditEvent::commit(id, value, true, modifiers)),
-        Phase::Cancel => Some(EditEvent::cancel(id, CancelReason::Escape)),
+        Phase::Cancel(reason) => Some(EditEvent::cancel(id, reason)),
     }
 }
 
@@ -583,7 +583,7 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         self.extend(pointer, cx);
         let Some((id, tool, add, points)) = self.canvas.gesture.take() else { return };
         let built = self.built(add, &points, cx);
-        let phase = if built.is_some() { Phase::Commit } else { Phase::Cancel };
+        let phase = if built.is_some() { Phase::Commit } else { Phase::Cancel(CancelReason::Escape) };
         report(&mut self.canvas.events, tool == SelectMaskTool::RefineEdge, id, phase, built, pointer.modifiers);
     }
 
@@ -603,13 +603,13 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         }
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: Esc or a lost pointer drops the gesture without an edit.
         let event = self.canvas.resize.cancel();
         self.apply_resize(event);
         self.canvas.resize_start = None;
         if let Some((id, tool, _, _)) = self.canvas.gesture.take() {
-            report(&mut self.canvas.events, tool == SelectMaskTool::RefineEdge, id, Phase::Cancel, None, Modifiers::NONE);
+            report(&mut self.canvas.events, tool == SelectMaskTool::RefineEdge, id, Phase::Cancel(reason), None, Modifiers::NONE);
         }
         // A click that was cut short leaves the polygon open: Esc between clicks is the dialog's.
         if let Some(draft) = self.canvas.polygon.as_mut()

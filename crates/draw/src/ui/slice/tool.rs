@@ -435,9 +435,8 @@ impl CanvasTool for SliceTool {
         }
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: the running `Draw`, `Move` or `Resize` reports `Cancel`; drops the drag.
-        let reason = CancelReason::Escape;
         match self.drag.take() {
             Some(Drag::New { id, began: true, .. }) => self.push(SliceEvent::Draw(EditEvent::cancel(id, reason))),
             Some(Drag::Move { id, number, began: true, .. }) => self.push(SliceEvent::Move { number, event: EditEvent::cancel(id, reason) }),
