@@ -94,7 +94,7 @@ pub struct SymmetryMenu<'a> {
     current: Option<&'a SymmetryChoice>,
     paths: &'a [SymmetryPathRow],
     can_transform: bool,
-    labels: Option<&'a SymmetryLabels>,
+    labels: Option<SymmetryLabels>,
 }
 
 impl<'a> SymmetryMenu<'a> {
@@ -122,7 +122,7 @@ impl<'a> SymmetryMenu<'a> {
     }
 
     /// The words; default: [`SymmetryLabels`] of the installed words.
-    pub fn labels(mut self, labels: &'a SymmetryLabels) -> Self {
+    pub fn labels(mut self, labels: SymmetryLabels) -> Self {
         self.labels = Some(labels);
         self
     }
@@ -131,7 +131,7 @@ impl<'a> SymmetryMenu<'a> {
     pub fn show(self, ui: &mut Ui) -> SymmetryMenuResponse {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:168 `menu`, :151 `mode_button` (min width 220,
         // the menu token's).
-        let labels = self.labels.cloned().unwrap_or_else(|| SymmetryLabels::of(ui));
+        let labels = self.labels.clone().unwrap_or_else(|| SymmetryLabels::of(ui));
         let current = self.current.unwrap_or(&SymmetryChoice::Off);
         let is_off = matches!(current, SymmetryChoice::Off);
 
