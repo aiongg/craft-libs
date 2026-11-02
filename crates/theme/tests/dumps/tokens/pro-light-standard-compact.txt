@@ -646,6 +646,7 @@ corner.widget = 10
 corner.dot = 5
 corner.line = 1.5
 corner.hit = 7
+corner.click_slop = 1
 corner.inset = 10
 corner.min_side = 30
 stroke_editor.width = 272

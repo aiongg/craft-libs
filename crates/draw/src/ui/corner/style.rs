@@ -18,6 +18,8 @@ pub struct CornerStyle {
     pub line: f32,
     /// The pointer's reach: `corner.hit` (7).
     pub hit: f32,
+    /// Farthest a press may move and still be a click: `corner.click_slop` (1).
+    pub click_slop: f32,
     /// The least distance inside a corner: `corner.inset` (10).
     pub inset: f32,
     /// The shortest side, on the screen, whose corners show widgets: `corner.min_side` (30).
@@ -39,6 +41,7 @@ impl CornerWidgets<'_> {
             dot: k.dot,
             line: k.line,
             hit: k.hit,
+            click_slop: k.click_slop,
             inset: k.inset,
             min_side: k.min_side,
             fill: o.handle_fill.to_egui(),

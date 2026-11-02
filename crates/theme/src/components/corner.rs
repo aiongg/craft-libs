@@ -15,6 +15,8 @@ pub struct CornerTokens {
     pub line: f32,
     /// The pointer's reach: `corner.hit`.
     pub hit: f32,
+    /// Farthest a press may move and still be a click: `corner.click_slop`.
+    pub click_slop: f32,
     /// The least distance inside a corner: `corner.inset`.
     pub inset: f32,
     /// The shortest side, on the screen, whose corners show widgets: `corner.min_side`.
@@ -33,6 +35,7 @@ impl Family for CornerTokens {
         "dot" 0.0..=512.0 => dot;
         "line" 0.0..=16.0 => line;
         "hit" 0.0..=64.0 => hit;
+        "click_slop" 0.0..=64.0 => click_slop;
         "inset" 0.0..=512.0 => inset;
         "min_side" 0.0..=4096.0 => min_side;
     };
@@ -43,6 +46,7 @@ impl Family for CornerTokens {
             dot: values::CORNER_DOT,
             line: values::CORNER_LINE,
             hit: values::CORNER_HIT,
+            click_slop: values::CORNER_CLICK_SLOP,
             inset: values::CORNER_INSET,
             min_side: values::CORNER_MIN_SIDE,
         }

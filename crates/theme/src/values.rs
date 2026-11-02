@@ -2384,6 +2384,8 @@ pub const CORNER_DOT: f32 = 5.0;
 pub const CORNER_LINE: f32 = 1.5;
 /// The pointer's reach: `corner.hit`.
 pub const CORNER_HIT: f32 = 7.0;
+/// Farthest a press on a widget may move and still be a click (the value of `bezier.click_slop`): `corner.click_slop`.
+pub const CORNER_CLICK_SLOP: f32 = 1.0;
 /// The least distance inside a corner: `corner.inset`.
 pub const CORNER_INSET: f32 = 10.0;
 /// The shortest side, on the screen, whose corners show widgets: `corner.min_side`.

@@ -19,7 +19,7 @@ use craft_ui::theme::{Tokens, TokensOf as _};
 pub struct CornerWidgetsResponse {
     /// The overlay's id, also its Tab stop's.
     pub id: Id,
-    /// The radii: a drag reports Begin past `bezier.click_slop`, Update every move, Commit on
+    /// The radii: a drag reports Begin past `corner.click_slop`, Update every move, Commit on
     /// release (Esc cancels, the rest of the press does nothing), each value every changed
     /// target's radii from the press; an arrow key a Set. The host makes one history step for
     /// every target in the value.
@@ -67,12 +67,15 @@ pub struct CornerWidgetsResponse {
 ///   [`cycle_kind`](CornerWidgetsResponse::cycle_kind) with [`kinds`](Self::kinds); a
 ///   double-click (`PrimaryPress::clicks`) reports [`activate`](CornerWidgetsResponse::activate).
 ///   A press with ⌘ is not taken.
-/// - Keyboard: one Tab stop (`PartFocus`). Page Down and Page Up pick the next and previous
+/// - Keyboard: one Tab stop (`PartFocus`). The host's `canvas` response must not be focusable
+///   (`Sense::click_and_drag() - Sense::FOCUSABLE`): a focusable canvas takes the Tab stop
+///   itself and the group never gets keyboard focus. Page Down and Page Up pick the next and previous
 ///   widget; the arrows change the radius of the picked widget's corner on every target by
 ///   [`steps`](Self::steps) (1, ⇧ 10; up and right grow it), ⌥ that corner only; Enter reports
 ///   `activate`; Esc leaves the group.
 /// - AccessKit: a group named [`CornerWidgetsLabels::group`] with one object per widget named
-///   "Corner i of n", valued "radius 12 px".
+///   "Corner i of n", valued "radius 12 px". While the Tab stop has focus, AccessKit reports the
+///   picked widget's object as the focused node (the group's active descendant).
 /// - Geometry is in document space and does not mirror right to left.
 pub struct CornerWidgets<'a> {
     id_salt: IdSalt,
@@ -147,7 +150,6 @@ impl<'a> CornerWidgets<'a> {
         let ctx = ui.ctx().clone();
         let id = ui.make_persistent_id(self.id_salt);
         let tokens = Tokens::of(ui);
-        let slop = tokens.component.bezier.click_slop;
         let style = self.look.unwrap_or_else(|| CornerWidgets::style(&tokens));
         let labels = self.labels.clone().unwrap_or_else(|| CornerWidgetsLabels::of(ui));
         let editing = ui.is_enabled();
@@ -182,7 +184,7 @@ impl<'a> CornerWidgets<'a> {
             grab = self.press(&ctx, canvas, view, &widgets, &style, id);
         }
         if let Some(g) = grab.take() {
-            grab = if g.waits.is_some() { Some(g) } else { self.track(&ctx, view, slop, g, &mut gesture, &mut out) };
+            grab = if g.waits.is_some() { Some(g) } else { self.track(&ctx, view, style.click_slop, g, &mut gesture, &mut out) };
         }
         if let Some(g) = &grab {
             ctx.data_mut(|d| d.insert_temp(picked_key(id), Some(g.corner)));

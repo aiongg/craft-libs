@@ -2964,11 +2964,12 @@ fn full_window_lines(out: &mut Lines, t: &FullWindowTokens) {
 }
 
 fn corner_lines(out: &mut Lines, t: &CornerTokens) {
-    let CornerTokens { widget, dot, line, hit, inset, min_side } = t;
+    let CornerTokens { widget, dot, line, hit, click_slop, inset, min_side } = t;
     out.line("corner.widget", len(*widget));
     out.line("corner.dot", len(*dot));
     out.line("corner.line", len(*line));
     out.line("corner.hit", len(*hit));
+    out.line("corner.click_slop", len(*click_slop));
     out.line("corner.inset", len(*inset));
     out.line("corner.min_side", len(*min_side));
 }
