@@ -6,6 +6,7 @@ use craft_ui::canvas::kurbo::{Point, Rect, Size};
 use craft_ui::canvas::{CanvasId, CanvasView, Constraint, SelectionOperation, ToolHost, ToolInput, ToolKey};
 use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 use craft_ui::testing::canvas;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
@@ -173,6 +174,7 @@ fn marquee_corners_follow_constraint_and_modifiers() {
 
 // Single Row and Single Column select the one-pixel line under the pointer across the whole
 // document, follow the pointer until the release, and stay on the canvas past its edge.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn marquee_single_row_and_column_follow_pointer() {
     let mut h = rig(MarqueeKind::SingleRow, Fake::default());

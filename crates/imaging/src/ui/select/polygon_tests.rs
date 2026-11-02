@@ -3,6 +3,7 @@
 use craft_ui::canvas::SelectionOperation;
 use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::edit::CancelReason;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 use craft_ui::testing::canvas;
 use egui::{Key, Modifiers, PointerButton, pos2};
 use egui_kittest::Harness;
@@ -60,6 +61,7 @@ fn polygon_click_driven_needs_command_to_drag() {
 // A secondary click while an outline is open (the tool takes the button then), Backspace and
 // Delete remove the last vertex; the last one cancels with no event. With no outline open the
 // secondary button starts nothing.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn polygon_secondary_click_removes_last_vertex_then_cancels() {
     let mut h = rig(true, Fake::empty());
@@ -86,6 +88,7 @@ fn polygon_secondary_click_removes_last_vertex_then_cancels() {
 
 // Esc during a press drops the whole outline; a cancel for another reason (a tool switch) keeps it
 // for the app's `reset`.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn polygon_escape_during_press_drops_outline() {
     let mut h = rig(true, Fake::empty());

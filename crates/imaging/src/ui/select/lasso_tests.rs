@@ -5,6 +5,7 @@
 use craft_ui::canvas::kurbo::{Point, Rect, Size};
 use craft_ui::canvas::{CanvasId, CanvasView, SelectionOperation, ToolHost, ToolInput, ToolKey};
 use craft_ui::edit::{CancelReason, EditEvent};
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 use craft_ui::testing::canvas;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
@@ -305,6 +306,7 @@ pub(super) fn cancel_with(h: &mut Harness<'_, Rig>, reason: CancelReason) {
 
 // A press and release that draw fewer than 3 points (a click, or a two-point drag) deselect, as in
 // PhotoCraft; Esc during the press drops the outline and reports nothing.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn lasso_click_deselects() {
     let mut h = rig(false, Fake::empty());
@@ -329,6 +331,7 @@ fn lasso_click_deselects() {
 }
 
 // Esc during a press drops the Lasso's outline; so does every other cancel reason.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn lasso_escape_during_press_drops_outline() {
     let mut h = rig(false, Fake::empty());
