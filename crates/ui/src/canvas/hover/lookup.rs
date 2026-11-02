@@ -4,16 +4,13 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
-#[cfg(target_arch = "wasm32")]
-use craft_host::InlineJobs;
-#[cfg(not(target_arch = "wasm32"))]
-use craft_host::ThreadJobs;
 use craft_host::queue::{Cancel, JobQueue, Priority, QueueOptions};
-use craft_host::{Host, Jobs, Wake};
+use craft_host::{Jobs, Wake};
 use egui::Context;
 use kurbo::Point;
 
 use super::HoverOutline;
+use crate::canvas::textures::jobs_or_default;
 use crate::theme::current;
 
 /// A miss suppresses new lookups within this many document pixels of it, on each axis.
@@ -120,10 +117,7 @@ impl<R: Send + 'static> HoverLookup<R> {
     /// wasm32) with no host. One lane; the wake is `ctx.request_repaint()`. Stories and tests pass
     /// a [`ManualJobs`](craft_host::ManualJobs).
     pub fn new(ctx: &Context, jobs: Option<Arc<dyn Jobs>>) -> Self {
-        let jobs = jobs.unwrap_or_else(|| match Host::try_of_ctx(ctx) {
-            Some(host) => Arc::clone(host.jobs_shared()),
-            None => default_jobs(),
-        });
+        let jobs = jobs_or_default(ctx, jobs);
         let wake = {
             let ctx = ctx.clone();
             Wake::new(move || ctx.request_repaint())
@@ -222,14 +216,4 @@ impl<R: Send + 'static> HoverLookup<R> {
 /// The document pixel containing `p`.
 fn pixel_of(p: Point) -> [i64; 2] {
     [p.x.floor() as i64, p.y.floor() as i64]
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn default_jobs() -> Arc<dyn Jobs> {
-    Arc::new(ThreadJobs)
-}
-
-#[cfg(target_arch = "wasm32")]
-fn default_jobs() -> Arc<dyn Jobs> {
-    Arc::new(InlineJobs)
 }

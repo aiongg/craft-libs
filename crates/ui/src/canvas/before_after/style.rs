@@ -15,7 +15,7 @@ pub struct BeforeAfterStyle {
     pub line: f32,
     /// The divider line's colour: the overlay's light mark, white in every theme
     /// (`overlay.handle_fill`; LightCraft's white line).
-    pub line_colour: Color32,
+    pub line_color: Color32,
     /// The halo under the line, `before_after.halo` wider on each side: `overlay.halo`.
     pub halo: Color32,
     pub halo_width: f32,
@@ -32,7 +32,7 @@ pub struct BeforeAfterStyle {
     pub caption_gap: f32,
     /// The captions: `type.label` in `text.muted`.
     pub caption_font: FontId,
-    pub caption_colour: Color32,
+    pub caption_color: Color32,
 }
 
 impl BeforeAfter {
@@ -43,7 +43,7 @@ impl BeforeAfter {
         let (b, c) = (&tokens.component.before_after, &tokens.color);
         BeforeAfterStyle {
             line: b.line,
-            line_colour: c.overlay.handle_fill.to_egui(),
+            line_color: c.overlay.handle_fill.to_egui(),
             halo: c.overlay.halo.to_egui(),
             halo_width: b.halo,
             knob: b.knob,
@@ -53,7 +53,7 @@ impl BeforeAfter {
             gap_stacked: b.gap_stacked,
             caption_gap: b.caption_gap,
             caption_font: tokens.font(TypeRole::Label),
-            caption_colour: c.text.muted.to_egui(),
+            caption_color: c.text.muted.to_egui(),
         }
     }
 }

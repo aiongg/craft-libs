@@ -10,6 +10,8 @@
 use egui::Modifiers;
 use kurbo::Point;
 
+use crate::theme::UiTokens;
+
 /// Which tool's rules an [`OutlineDraft`] follows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -29,9 +31,10 @@ pub enum DraftKind {
     Polygonal,
 }
 
-/// How near a press must be to close an outline, in screen points. The tool reads both from its
-/// style (`select.close_radius` 8 and `select.same_point` 3 for the selection tools; Select and
-/// Mask's Polygonal Lasso closes within 6); the draft divides them by [`DraftPoint::zoom`].
+/// How near a press must be to close an outline, in screen points. [`DraftReach::of`] reads both
+/// from the kernel's `outline_draft` tokens (`close` 8 and `same_point` 3, PhotoCraft's); a tool
+/// with its own reach (Select and Mask's Polygonal Lasso closes within 6) builds the struct from
+/// its own tokens. The draft divides them by [`DraftPoint::zoom`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DraftReach {
     /// A press this near the first vertex closes an outline of 3 or more points (a grab: the
@@ -41,6 +44,15 @@ pub struct DraftReach {
     /// an aiming radius: a vertex placed further away is the next vertex, however short the
     /// segment).
     pub same_point: f64,
+}
+
+impl DraftReach {
+    /// The reach in `tokens`: `outline_draft.close` and `outline_draft.same_point`.
+    pub fn of(tokens: &UiTokens) -> Self {
+        // pc: crates/ui-egui/src/tools/lasso_ui.rs:48 (`SAME_POINT` 3), :170 (the close grab, 8).
+        let t = &tokens.component.outline_draft;
+        Self { close: f64::from(t.close), same_point: f64::from(t.same_point) }
+    }
 }
 
 /// One pointer sample for an [`OutlineDraft`].

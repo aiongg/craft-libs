@@ -34,6 +34,7 @@ pub use cache::{CachedTexture, Revision, TextureBudget, TextureCache, TextureCac
 pub use craft_host::queue::Priority;
 pub use limits::{DetailPlan, MAX_TEXTURE, fit_image, texture_factor, texture_side};
 pub(crate) use loader::LoadFailureLabels;
+pub(crate) use loader::jobs_or_default;
 pub use loader::{LoadFailure, LoadedPicture, LoaderOptions, TextureLoader};
 pub use style::ThumbnailStyle;
 pub use thumb::{

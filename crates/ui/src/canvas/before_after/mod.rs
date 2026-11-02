@@ -322,7 +322,7 @@ impl BeforeAfter {
             let line = wipe.line(style.line);
             let across = if stacked { vec2(0.0, style.halo_width) } else { vec2(style.halo_width, 0.0) };
             painter.rect_filled(line.expand2(across), 0.0, style.halo);
-            painter.rect_filled(line, 0.0, style.line_colour);
+            painter.rect_filled(line, 0.0, style.line_color);
             let centre = wipe.knob_centre();
             painter.circle_filled(centre, style.knob / 2.0, style.knob_fill);
             let glyph = if stacked { Icon::SwapVertical } else { Icon::SwapHorizontal };
@@ -419,7 +419,7 @@ impl BeforeAfter {
         let painter = ui.painter();
         let (start, end) = (direction::align2(ui, Align2::LEFT_TOP), direction::align2(ui, Align2::RIGHT_TOP));
         let put = |text: &str, x: f32, top: f32, align: Align2| {
-            painter.text(pos2(x, top), align, text, style.caption_font.clone(), style.caption_colour);
+            painter.text(pos2(x, top), align, text, style.caption_font.clone(), style.caption_color);
         };
         if let Some(wipe) = sides.wipe {
             let top = wipe.pane.min.y - strip;

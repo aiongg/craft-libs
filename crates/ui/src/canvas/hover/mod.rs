@@ -29,7 +29,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use egui::epaint::{PathShape, PathStroke, Vertex};
-use egui::{AsIdSalt, Color32, ColorImage, Id, IdSalt, Mesh, Shape, Stroke, TextureHandle, TextureOptions, Ui, pos2};
+use egui::{AsIdSalt, Color32, ColorImage, IdSalt, Mesh, Shape, Stroke, TextureHandle, TextureOptions, Ui, pos2};
 use kurbo::{BezPath, PathEl, Rect};
 
 use super::CanvasView;
@@ -148,7 +148,7 @@ impl HoverMask {
 /// - No shape draws nothing; the host passes `None` while a button is down, another tool is up,
 ///   the pointer is off the canvas or the option is off (PhotoCraft's Auto-Select rollover, Object
 ///   Finder; VectorCraft's Object Highlighting).
-/// - Colour: [`colour`](Self::colour) (VectorCraft and DesignCraft: the object's layer colour),
+/// - Colour: [`color`](Self::color) (VectorCraft and DesignCraft: the object's layer colour),
 ///   else `overlay.line` (the accent as a bare line, PhotoCraft's).
 /// - It never takes the pointer or the keyboard and adds nothing to the AccessKit tree; the
 ///   lookup's hint is the host's to announce through its status line.
@@ -156,18 +156,18 @@ impl HoverMask {
 pub struct HoverOutline {
     id_salt: IdSalt,
     shape: Option<HoverShape>,
-    colour: Option<Color32>,
+    color: Option<Color32>,
 }
 
 impl HoverOutline {
     /// The outline of `shape`; `id_salt` keys a mask's texture.
     pub fn new(id_salt: impl AsIdSalt, shape: Option<HoverShape>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), shape, colour: None }
+        Self { id_salt: IdSalt::new(id_salt), shape, color: None }
     }
 
     /// The outline's colour (a layer colour); `overlay.line` by default.
-    pub fn colour(mut self, colour: Color32) -> Self {
-        self.colour = Some(colour);
+    pub fn color(mut self, color: Color32) -> Self {
+        self.color = Some(color);
         self
     }
 
@@ -182,9 +182,9 @@ impl HoverOutline {
         // vectorcraft: crates/ui-egui/src/canvas/overlays.rs:20-24 (the path in its layer colour, 1.5).
         let Some(shape) = &self.shape else { return };
         let style = Self::style(&current(ui.ctx()));
-        let colour = self.colour.unwrap_or(style.colour);
+        let color = self.color.unwrap_or(style.color);
         let painter = ui.painter().with_clip_rect(view.rect);
-        let stroke = Stroke::new(style.outline, colour);
+        let stroke = Stroke::new(style.outline, color);
         match shape {
             HoverShape::Rect(rect) => {
                 // The line sits outside the rectangle: grow it by half the width.
@@ -219,13 +219,13 @@ impl HoverOutline {
                 emit(&mut points, false);
             }
             HoverShape::Mask(mask) => {
-                let id = Id::unique("craft_ui::canvas::HoverOutline").with(self.id_salt);
+                let id = ui.make_persistent_id(self.id_salt);
                 let cached = ui.ctx().data(|d| d.get_temp::<(u64, Color32, TextureHandle)>(id));
                 let texture = match cached {
-                    Some((generation, c, texture)) if generation == mask.generation && c == colour => texture,
+                    Some((generation, c, texture)) if generation == mask.generation && c == color => texture,
                     _ => {
-                        let texture = ui.ctx().load_texture("craft-hover-mask", mask_image(mask, colour, &style), TextureOptions::LINEAR);
-                        ui.ctx().data_mut(|d| d.insert_temp(id, (mask.generation, colour, texture.clone())));
+                        let texture = ui.ctx().load_texture("craft-hover-mask", mask_image(mask, color, &style), TextureOptions::LINEAR);
+                        ui.ctx().data_mut(|d| d.insert_temp(id, (mask.generation, color, texture.clone())));
                         texture
                     }
                 };
@@ -242,8 +242,8 @@ impl HoverOutline {
     }
 }
 
-/// The tint image of `mask` in `colour`: coverage × `fill_alpha`, edge texels at `edge_alpha`.
-fn mask_image(mask: &HoverMask, colour: Color32, style: &HoverStyle) -> ColorImage {
+/// The tint image of `mask` in `color`: coverage × `fill_alpha`, edge texels at `edge_alpha`.
+fn mask_image(mask: &HoverMask, color: Color32, style: &HoverStyle) -> ColorImage {
     let [w, h] = mask.size;
     let mut pixels = Vec::with_capacity(w * h);
     for y in 0..h {
@@ -256,7 +256,7 @@ fn mask_image(mask: &HoverMask, colour: Color32, style: &HoverStyle) -> ColorIma
             } else {
                 style.fill_alpha * c
             };
-            pixels.push(Color32::from_rgba_unmultiplied(colour.r(), colour.g(), colour.b(), (alpha.clamp(0.0, 1.0) * 255.0).round() as u8));
+            pixels.push(Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), (alpha.clamp(0.0, 1.0) * 255.0).round() as u8));
         }
     }
     ColorImage::new([w, h], pixels)

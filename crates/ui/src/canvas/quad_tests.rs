@@ -3,7 +3,10 @@
 use egui::Modifiers;
 use kurbo::{Point, Rect, Vec2};
 
-use super::{Anchor9, BoxAllow, BoxPart, BoxRules, BoxState, Frame, Homography, Parts, ScaleRule, TransformMode, carry_pivot, keep_convex, turns};
+use super::{
+    Anchor9, BoxAllow, BoxPart, BoxRules, BoxState, Frame, Homography, Parts, ScaleRule, TransformMode, bisector, carry_pivot, keep_convex, outset,
+    turns,
+};
 
 const ALT_SHIFT: Modifiers = Modifiers { alt: true, shift: true, ctrl: false, mac_cmd: false, command: false };
 const PERSPECTIVE: Modifiers = Modifiers { alt: true, shift: true, ctrl: true, mac_cmd: false, command: true };
@@ -583,4 +586,20 @@ fn resize_only_rules_scale_and_move_but_never_turn() {
     let mut s = session();
     drag_with(&mut s, p(130.0, 25.0), p(160.0, 25.0), Modifiers::NONE, &rules);
     assert!(s.quad.iter().all(|q| eq6(q.y, 0.0) || eq6(q.y, 50.0)), "{:?}", s.quad);
+}
+
+#[test]
+fn outset_grows_either_winding_and_bisector_points_inward() {
+    let square = [egui::pos2(0.0, 0.0), egui::pos2(10.0, 0.0), egui::pos2(10.0, 10.0), egui::pos2(0.0, 10.0)];
+    let grown = outset(&square, 2.0);
+    assert_eq!(grown[0], egui::pos2(-2.0, -2.0));
+    assert_eq!(grown[2], egui::pos2(12.0, 12.0));
+    let mut reversed = square;
+    reversed.reverse();
+    assert_eq!(outset(&reversed, 2.0)[3], egui::pos2(-2.0, -2.0));
+    let screen = BoxState::from_rect(Rect::new(0.0, 0.0, 10.0, 10.0));
+    let b = bisector(&screen, 0);
+    assert!((b.x - 0.5f32.sqrt()).abs() < 1e-6 && (b.y - 0.5f32.sqrt()).abs() < 1e-6);
+    let collapsed = BoxState { quad: [p(1.0, 1.0); 4], pivot: p(1.0, 1.0) };
+    assert_eq!(bisector(&collapsed, 0), egui::Vec2::ZERO);
 }
