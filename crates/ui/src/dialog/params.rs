@@ -964,6 +964,7 @@ pub enum ParamLayout {
 ///   the previous one (PhotoCraft).
 pub struct ParamDialog {
     id: DialogId,
+    instance: Option<DialogId>,
     key: String,
     title: String,
     params: Vec<Param>,
@@ -993,6 +994,7 @@ impl ParamDialog {
         let key = key.into();
         Self {
             id: dialog_id(key.as_str()),
+            instance: None,
             key,
             title: title.into(),
             params,
@@ -1021,10 +1023,12 @@ impl ParamDialog {
     /// Names this dialog among others made with the same `key`. The dialog's window, focus,
     /// colour and path requests are kept under its id, made from the key and `instance`, so two
     /// dialogs of one command (one per document, say) keep separate state. Without it the id
-    /// comes from the key alone. A [`DialogHost`](super::DialogHost) still holds one `ParamDialog`
-    /// at a time; the app that shows several shows them itself.
+    /// comes from the key alone. A [`DialogHost`](super::DialogHost) keeps dialogs of different
+    /// instances open together and replaces only one of the same instance; reach one with its
+    /// `_by_id` calls and the id [`open`](super::DialogHost::open) returns.
     pub fn instance(mut self, instance: impl std::hash::Hash + fmt::Debug) -> Self {
         self.id = dialog_id((self.key.as_str(), instance));
+        self.instance = Some(self.id);
         self
     }
 
@@ -1342,6 +1346,10 @@ impl StackDialog for ParamDialog {
 
     fn key(&self) -> Option<&str> {
         Some(&self.key)
+    }
+
+    fn instance(&self) -> Option<DialogId> {
+        self.instance
     }
 
     fn confirm(&mut self, ctx: &Context) -> Option<ParamResult> {
