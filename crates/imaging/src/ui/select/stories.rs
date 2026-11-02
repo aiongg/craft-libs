@@ -552,7 +552,7 @@ macro_rules! story_tool {
     ($tool:ty $(, $replaces:ident)?) => {
         impl StoryTool for $tool {
             fn set_operation(&mut self, bar: SelectionOperation) {
-                <$tool>::set_operation(self, bar);
+                <$tool>::operation(self, bar);
             }
 
             fn take_events(&mut self) -> Vec<SelectEvent> {
@@ -675,8 +675,8 @@ fn show_marquee(ui: &mut Ui, args: &mut MarqueeArgs) {
         KindArg::SingleColumn => MarqueeKind::SingleColumn,
     };
     let (id, mut s) = session(ui, "marquee", &image, || MarqueeTool::new(kind));
-    s.tool.set_kind(kind);
-    s.tool.set_constraint(match args.style {
+    s.tool.kind(kind);
+    s.tool.constraint(match args.style {
         StyleArg::Normal => Constraint::Free,
         StyleArg::FixedRatio => Constraint::Ratio(args.ratio_width, args.ratio_height),
         StyleArg::FixedSize => Constraint::Size(args.size_width, args.size_height),

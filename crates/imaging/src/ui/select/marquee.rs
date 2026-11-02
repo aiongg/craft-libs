@@ -8,11 +8,11 @@ use craft_ui::canvas::{
     ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer, fixed_size_pixels, marquee_pixels, selection_cursor, square_pixels,
 };
 use craft_ui::edit::CancelReason;
-use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::localized::Units;
 use egui::{CursorIcon, Key, Painter};
 
 use super::drag::{InsideDrag, PressRule, cursor_over, drag_kind};
-use super::{SelectEvent, SelectLabels, SelectPhase, SelectToolPass, SelectionShape};
+use super::{SelectEvent, SelectLabels, SelectPhase, SelectToolPass, SelectionProbe, SelectionShape, labels_in};
 
 /// Which marquee.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -52,7 +52,7 @@ struct MarqueePress {
 ///
 /// Pointer, in document units through the host:
 /// - A drag sizes the marquee from the press: [`Constraint`] (Normal, Fixed Ratio, Fixed Size) from
-///   [`set_constraint`](Self::set_constraint), ⇧ square (circle), ⌥ from the centre, each only when
+///   [`constraint`](Self::constraint), ⇧ square (circle), ⌥ from the centre, each only when
 ///   pressed after the press (or released and pressed again: ⇧ and ⌥ held at the press are the
 ///   operation). Space held moves the whole marquee. The rectangle is on whole pixels:
 ///   `marquee_pixels` of the corners, `square_pixels` when it is square (⇧, or a Fixed Ratio of
@@ -64,7 +64,8 @@ struct MarqueePress {
 ///   under the pointer across the whole document ([`SelectionProbe::size`](super::SelectionProbe::size)),
 ///   kept on the canvas, following the pointer until the release; a click selects too.
 /// - A press inside the selection drags it ([`SelectEvent::DragSelection`], module docs); a ⌘
-///   press outside it is [`ToolAction::Ignored`].
+///   press outside it is [`ToolAction::Ignored`]. The Single Row and Single Column Marquees never
+///   drag the selection: a press inside it draws the line (PhotoCraft).
 /// - Esc cancels the drag (the host calls `cancel`): no event.
 ///
 /// The operation is latched at the press ([`SelectionOperation::resolve`]) and the cursor shows
@@ -78,6 +79,7 @@ pub struct MarqueeTool {
     constraint: Constraint,
     press: Option<MarqueePress>,
     inside: Option<InsideDrag>,
+    labels: Option<SelectLabels>,
     events: Vec<SelectEvent>,
 }
 
@@ -87,28 +89,43 @@ impl MarqueeTool {
         Self { kind, ..Self::default() }
     }
 
-    /// Which marquee.
-    pub fn kind(&self) -> MarqueeKind {
+    /// Which marquee is set.
+    pub fn marquee_kind(&self) -> MarqueeKind {
         self.kind
     }
 
     /// Switch marquee (Shift+M, the tool flyout); a drag in progress is dropped without an event.
-    pub fn set_kind(&mut self, kind: MarqueeKind) {
+    pub fn kind(&mut self, kind: MarqueeKind) -> &mut Self {
         // new: drop `press` and `inside` when the kind changes.
         if kind != self.kind {
             self.reset();
         }
         self.kind = kind;
+        self
     }
 
     /// The options bar's operation (New, Add, Subtract, Intersect) for presses from now on.
-    pub fn set_operation(&mut self, bar: SelectionOperation) {
+    pub fn operation(&mut self, bar: SelectionOperation) -> &mut Self {
         self.bar = bar;
+        self
     }
 
     /// The options bar's Style for drags from now on (`ConstraintFields` edits it).
-    pub fn set_constraint(&mut self, constraint: Constraint) {
+    pub fn constraint(&mut self, constraint: Constraint) -> &mut Self {
         self.constraint = constraint;
+        self
+    }
+
+    /// The words of the W and H readout and the marquee's accessible name and value. Without them
+    /// the tool reads the installed ones.
+    pub fn labels(&mut self, labels: SelectLabels) -> &mut Self {
+        self.labels = Some(labels);
+        self
+    }
+
+    /// The tool as the `CanvasTool` for one pass, asking `probe` about the document.
+    pub fn pass<'a>(&'a mut self, probe: &'a dyn SelectionProbe) -> SelectToolPass<'a, Self> {
+        SelectToolPass::new(self, probe)
     }
 
     /// The events since the last call, in order.
@@ -184,8 +201,9 @@ impl MarqueeTool {
     /// The W and H readout beside the pointer.
     fn show_readout(&self, cx: &mut ToolContext<'_>) {
         let Some(rect) = self.press.as_ref().and_then(|press| self.pixels(press.size)) else { return };
-        let labels = SelectLabels::of_ctx(&cx.canvas.ctx);
-        let (width, height) = (pixels_text(cx.numbers, rect.width()), pixels_text(cx.numbers, rect.height()));
+        let labels = labels_in(self.labels.as_ref(), &cx.canvas.ctx);
+        let units = Units::of_ctx(&cx.canvas.ctx);
+        let (width, height) = (units.pixels(rect.width()), units.pixels(rect.height()));
         cx.readout(Readout::new("craft_imaging::select::marquee").row(labels.width, width).row(labels.height, height));
     }
 }
@@ -209,11 +227,6 @@ fn single_line(kind: MarqueeKind, size: [u32; 2], at: Point) -> Option<Rect> {
     }
 }
 
-/// A length in whole pixels, as the readout shows it.
-fn pixels_text(numbers: &LocaleNumbers, length: f64) -> String {
-    format!("{} px", numbers.format(length, 0..=0))
-}
-
 impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
     /// The crosshair with the operation's badge (`SelectionOperation::badge`, live modifiers);
     /// over the selection the cursors of `drag::cursor_over`.
@@ -224,7 +237,9 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
         let crosshair = ToolCursor::System(CursorIcon::Crosshair);
         let Some(pointer) = cx.pointer else { return crosshair };
         let dragging = tool.inside.as_ref().map(InsideDrag::kind);
+        let draws_a_line = matches!(tool.kind, MarqueeKind::SingleRow | MarqueeKind::SingleColumn);
         if tool.press.is_none()
+            && !draws_a_line
             && let Some(cursor) = cursor_over(probe, pointer.raw, cx.modifiers, tool.bar, PressRule::Drags, dragging)
         {
             return cursor;
@@ -247,7 +262,9 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
         // crates/ui-egui/src/canvas/tool_feedback.rs:88-99 `document_selection_mode`.
         let (tool, probe) = (&mut *self.tool, self.probe);
         tool.reset();
-        if let Some(kind) = drag_kind(probe, pointer.raw, pointer.modifiers, tool.bar, PressRule::Drags) {
+        // pc: crates/ui-egui/src/canvas/tool_input.rs:590 (the single row and column never drag).
+        let draws_a_line = matches!(tool.kind, MarqueeKind::SingleRow | MarqueeKind::SingleColumn);
+        if !draws_a_line && let Some(kind) = drag_kind(probe, pointer.raw, pointer.modifiers, tool.bar, PressRule::Drags) {
             let style = ConstrainStyle::of(cx.tokens);
             let (drag, event) = InsideDrag::begin(&style, kind, pointer.doc, pointer.modifiers);
             tool.inside = Some(drag);
@@ -352,8 +369,9 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
     fn node(&self, cx: &ToolContext<'_>) -> Option<ToolNode> {
         // new: SE deviation 3 (no `Ui` on the host); `ToolNode::new(..).value(..).bounds(..)`.
         let rect = self.tool.press.as_ref().and_then(|press| self.tool.pixels(press.size))?;
-        let labels = SelectLabels::of_ctx(&cx.canvas.ctx);
-        let value = format!("{} × {} px", cx.numbers.format(rect.width(), 0..=0), cx.numbers.format(rect.height(), 0..=0));
+        let labels = labels_in(self.tool.labels.as_ref(), &cx.canvas.ctx);
+        let units = Units::of_ctx(&cx.canvas.ctx);
+        let value = craft_i18n::fmt(&labels.size, &[("w", &units.pixels(rect.width())), ("h", &units.pixels(rect.height()))]);
         Some(ToolNode::new(labels.outline).value(value).bounds(rect))
     }
 }
