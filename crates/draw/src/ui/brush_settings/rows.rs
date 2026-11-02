@@ -62,7 +62,7 @@ impl<C> DynamicControl<C> {
 ///   field the number field's default width, the toggle an icon button; RTL mirrors.
 /// - **Keys.** Three Tab stops (select, field, toggle).
 /// - **AccessKit.** The select named "Control:", the field a `SpinButton` "Fade steps", the toggle
-///   a `Button` "Response curve" with `selected` while lit.
+///   a `Button` "Response curve" with `toggled` while lit.
 #[must_use = "show the row with `show`"]
 pub struct DynamicControlRow<'a, C> {
     id_salt: IdSalt,

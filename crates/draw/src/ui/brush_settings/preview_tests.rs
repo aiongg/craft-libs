@@ -58,3 +58,29 @@ fn strip_renders_once_per_revision() {
     pass(Revision::of(&2));
     assert_eq!(runs.get(), 2);
 }
+
+// Two strips with the same salt in different parents keep their own pictures: each renders once
+// per revision, and neither re-renders the other.
+#[test]
+fn strips_with_one_salt_in_two_parents_do_not_share_a_slot() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let runs = Cell::new(0);
+    let pass = || {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 400.0))), ..Default::default() };
+        let result = ctx.run_ui(input, |ui| {
+            for parent in ["a", "b"] {
+                ui.push_id(parent, |ui| {
+                    BrushStrokeStrip::new("strip", Revision::of(&1)).show(ui, |[w, h]| {
+                        runs.set(runs.get() + 1);
+                        ColorImage::filled([w, h], Color32::WHITE)
+                    });
+                });
+            }
+        });
+        result.drop_without_applying_deltas();
+    };
+    pass();
+    pass();
+    assert_eq!(runs.get(), 2, "one render per strip");
+}

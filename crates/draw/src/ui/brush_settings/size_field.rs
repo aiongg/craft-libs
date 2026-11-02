@@ -1,11 +1,12 @@
 //! The brush Size row ([`BrushSizeField`]): a value field over a log slider.
 
 use craft_ui::controls::{IconButton, NumberField, Slider, SliderScale};
+use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditResponse};
 use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
 use craft_ui::primitives::{Content, Text};
-use egui::{Align, AsIdSalt, IdSalt, Layout, Ui};
+use egui::{AsIdSalt, IdSalt, Ui};
 
 use super::labels::BrushSettingsLabels;
 
@@ -63,13 +64,13 @@ impl BrushSizeField {
         let field = ui
             .horizontal(|ui| {
                 ui.add(Text::new(self.label.as_str()).content(Content::Muted));
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.with_layout(direction::trailing(ui), |ui| {
                     let field = NumberField::new((&self.id_salt, "field"), self.label.as_str(), shown, &numbers)
                         .range(1.0..=max)
                         .step(1.0)
                         .decimals(0..=0)
                         .snap_typed(true)
-                        .unit(Unit::new("{n} px"))
+                        .unit(Units::of(ui).unit(UnitKind::Pixels))
                         .show(ui);
                     if let Some(original) = self.restore
                         && original.is_finite()

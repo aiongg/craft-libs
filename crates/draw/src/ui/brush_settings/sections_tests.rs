@@ -188,3 +188,19 @@ fn section_rows_have_their_accessible_roles_and_names() {
         assert_eq!(toggled, Some(if on { Toggled::True } else { Toggled::False }));
     }
 }
+
+// The gaps are spacer rows: no AccessKit node. The switch rows can't be selected, so the list's
+// own End and Page Down key move the lead onto one without a `Select`.
+#[test]
+fn gaps_have_no_node_and_keys_pass_over_switch_rows() {
+    let mut harness = harness(Host::new());
+    assert_eq!(harness.query_all_by_role(Role::Heading).count(), 0, "gap rows add no nodes");
+    key(&mut harness, Modifiers::NONE, Key::Tab);
+    key(&mut harness, Modifiers::NONE, Key::End);
+    assert!(harness.state_mut().take_events().is_empty(), "the lead on a switch row selects nothing");
+    key(&mut harness, Modifiers::NONE, Key::PageUp);
+    assert!(
+        harness.state_mut().take_events().iter().all(|e| matches!(e, Event::Select(_))),
+        "Page Up reaches the list's own keys and only ever selects a pane row"
+    );
+}

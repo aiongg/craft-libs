@@ -72,12 +72,6 @@ pub struct BrushTokens {
     pub section_list_width: f32,
     /// A section row's height: `brush.section_row`.
     pub section_row: f32,
-    /// The enable box's side: `brush.section_box`.
-    pub section_box: f32,
-    /// The lock's hit area then its icon: `brush.section_lock`.
-    pub section_lock: [f32; 2],
-    /// Where section names start: `brush.section_name_inset`.
-    pub section_name_inset: f32,
     /// Before the first switch row: `brush.section_switch_gap`.
     pub section_switch_gap: f32,
     /// The stroke strip's height: `brush.strip_height`.
@@ -110,6 +104,14 @@ pub struct BrushTokens {
     pub preview_tint: Rgba,
     /// A preset card's tile: `brush.card_fill`, `surface.raised` darkened to 90 % in gamma space.
     pub card_fill: Rgba,
+    /// The stroke strip's fill: `brush.strip_fill`, the semantic color `field` rests on (`surface.sunken`).
+    pub strip_fill: Rgba,
+    /// The stroke strip's border: `brush.strip_border`, `line.control_edge`.
+    pub strip_border: Rgba,
+    /// The tip ellipse's disc fill: `brush.ellipse_disc_fill`, `surface.sunken`.
+    pub ellipse_disc_fill: Rgba,
+    /// The tip ellipse's disc border: `brush.ellipse_disc_border`, `line.control_edge`.
+    pub ellipse_disc_border: Rgba,
 }
 
 impl BrushTokens {
@@ -117,17 +119,29 @@ impl BrushTokens {
         match f {
             BrushField::PreviewTint => &mut self.preview_tint,
             BrushField::CardFill => &mut self.card_fill,
+            BrushField::StripFill => &mut self.strip_fill,
+            BrushField::StripBorder => &mut self.strip_border,
+            BrushField::EllipseDiscFill => &mut self.ellipse_disc_fill,
+            BrushField::EllipseDiscBorder => &mut self.ellipse_disc_border,
         }
     }
 }
 
-/// An overridable brush token. Paths: `preview_tint`, `card_fill`, e.g. `brush.preview_tint`.
+/// An overridable brush token. Paths: `preview_tint`, `card_fill`, `strip_fill`, `strip_border`, `ellipse_disc_fill`, `ellipse_disc_border`, e.g. `brush.preview_tint`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BrushField {
     /// `brush.preview_tint`
     PreviewTint,
     /// `brush.card_fill`
     CardFill,
+    /// `brush.strip_fill`
+    StripFill,
+    /// `brush.strip_border`
+    StripBorder,
+    /// `brush.ellipse_disc_fill`
+    EllipseDiscFill,
+    /// `brush.ellipse_disc_border`
+    EllipseDiscBorder,
 }
 
 impl BrushField {
@@ -135,13 +149,24 @@ impl BrushField {
         match self {
             BrushField::PreviewTint => "preview_tint",
             BrushField::CardFill => "card_fill",
+            BrushField::StripFill => "strip_fill",
+            BrushField::StripBorder => "strip_border",
+            BrushField::EllipseDiscFill => "ellipse_disc_fill",
+            BrushField::EllipseDiscBorder => "ellipse_disc_border",
         }
     }
 }
 
 impl Family for BrushTokens {
     type Field = BrushField;
-    const FIELDS: &'static [BrushField] = &[BrushField::PreviewTint, BrushField::CardFill];
+    const FIELDS: &'static [BrushField] = &[
+        BrushField::PreviewTint,
+        BrushField::CardFill,
+        BrushField::StripFill,
+        BrushField::StripBorder,
+        BrushField::EllipseDiscFill,
+        BrushField::EllipseDiscBorder,
+    ];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { BrushTokens;
         "resize_travel" 0.0..=1024.0 => resize_travel;
         "tip_min_radius" 0.0..=64.0 => tip_min_radius;
@@ -180,10 +205,6 @@ impl Family for BrushTokens {
         "panel_width" 0.0..=1024.0 => panel_width;
         "section_list_width" 0.0..=1024.0 => section_list_width;
         "section_row" 0.0..=1024.0 => section_row;
-        "section_box" 0.0..=64.0 => section_box;
-        "section_lock.0" 0.0..=128.0 => section_lock[0];
-        "section_lock.1" 0.0..=128.0 => section_lock[1];
-        "section_name_inset" 0.0..=128.0 => section_name_inset;
         "section_switch_gap" 0.0..=64.0 => section_switch_gap;
         "strip_height" 0.0..=1024.0 => strip_height;
         "control_select" 0.0..=1024.0 => control_select;
@@ -237,9 +258,6 @@ impl Family for BrushTokens {
             panel_width: values::BRUSH_PANEL_WIDTH,
             section_list_width: values::BRUSH_SECTION_LIST_WIDTH,
             section_row: values::BRUSH_SECTION_ROW,
-            section_box: values::BRUSH_SECTION_BOX,
-            section_lock: values::BRUSH_SECTION_LOCK,
-            section_name_inset: values::BRUSH_SECTION_NAME_INSET,
             section_switch_gap: values::BRUSH_SECTION_SWITCH_GAP,
             strip_height: values::BRUSH_STRIP_HEIGHT,
             control_select: values::BRUSH_CONTROL_SELECT,
@@ -256,6 +274,10 @@ impl Family for BrushTokens {
             tip_grid_max: values::BRUSH_TIP_GRID_MAX,
             preview_tint: Rgba::rgb(0xff, 0x00, 0x00).with_alpha(values::BRUSH_PREVIEW_ALPHA),
             card_fill: values::darkened(c.surface.raised, values::BRUSH_CARD_FILL_SHARE),
+            strip_fill: c.surface.sunken,
+            strip_border: c.line.control_edge,
+            ellipse_disc_fill: c.surface.sunken,
+            ellipse_disc_border: c.line.control_edge,
         }
     }
 

@@ -2308,12 +2308,6 @@ pub const BRUSH_PANEL_WIDTH: f32 = 540.0;
 pub const BRUSH_SECTION_LIST_WIDTH: f32 = 150.0;
 /// A section row's height: `brush.section_row`.
 pub const BRUSH_SECTION_ROW: f32 = 23.0;
-/// The enable box's side: `brush.section_box`.
-pub const BRUSH_SECTION_BOX: f32 = 13.0;
-/// The lock's hit area then its icon: `brush.section_lock`.
-pub const BRUSH_SECTION_LOCK: [f32; 2] = [18.0, 12.0];
-/// Where section names start: `brush.section_name_inset`.
-pub const BRUSH_SECTION_NAME_INSET: f32 = 20.0;
 /// Before the first switch row: `brush.section_switch_gap`.
 pub const BRUSH_SECTION_SWITCH_GAP: f32 = 6.0;
 /// The stroke strip's height: `brush.strip_height`.

@@ -42,6 +42,7 @@ fn ellipse_drag_sets_angle_and_roundness() {
 
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 mod widget {
+    use egui::accesskit::{Action, ActionData, ActionRequest, TreeId};
     use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, vec2};
 
     use super::tip;
@@ -159,5 +160,35 @@ mod widget {
         assert_eq!(set(rig.key(Key::ArrowLeft, Modifiers::NONE)), tip(165.0, 0.5));
         assert_eq!(set(rig.key(Key::ArrowUp, Modifiers::ALT)), tip(165.0, 0.51));
         assert_eq!(set(rig.key(Key::ArrowDown, Modifiers::ALT)), tip(165.0, 0.5));
+    }
+
+    // The grab is the part under the press, not the part under the pointer when the drag began:
+    // a press on a roundness dot that moves 8 pt sideways before the drag starts still squashes.
+    #[test]
+    fn ellipse_grab_follows_the_press_origin() {
+        let mut rig = Rig::new(tip(0.0, 0.5));
+        let centre = rig.rect.center();
+        let dot = centre + vec2(0.0, -17.0);
+        rig.frame(vec![Event::PointerMoved(dot), Rig::button(dot, true)]);
+        let moved = dot + vec2(8.0, 0.0);
+        rig.frame(vec![Event::PointerMoved(moved)]);
+        rig.frame(vec![Rig::button(moved, false)]);
+        assert_eq!(rig.value, tip(0.0, 0.5));
+    }
+
+    // A screen reader's SetValue sets the angle in whole degrees and keeps the roundness.
+    #[test]
+    fn ellipse_set_value_sets_the_angle() {
+        let mut rig = Rig::new(tip(10.0, 0.5));
+        let target_node = rig.id.accesskit_id();
+        rig.events.clear();
+        rig.frame(vec![Event::AccessKitActionRequest(ActionRequest {
+            action: Action::SetValue,
+            target_tree: TreeId::ROOT,
+            target_node,
+            data: Some(ActionData::NumericValue(-47.4)),
+        })]);
+        assert_eq!(rig.value, tip(-47.0, 0.5));
+        assert!(matches!(rig.events.last(), Some(EditEvent::Set { .. })), "{:?}", rig.events);
     }
 }
