@@ -1,5 +1,6 @@
 //! [`OptionsBar`]: the bar of the active tool's options.
 
+use craft_theme::ControlSize;
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, Id, IdSalt, Key, KeyboardShortcut, Modifiers, Rect, Response, ScrollArea, Sense, Ui, UiBuilder, Vec2, vec2};
 
@@ -133,6 +134,10 @@ pub struct OptionsBar {
 }
 
 impl OptionsBar {
+    /// The size of every control on the bar ([`ControlSize::Sm`]): number cells, check boxes,
+    /// combo boxes and buttons a tool puts in its slots take it.
+    pub const CONTROL_SIZE: ControlSize = ControlSize::Sm;
+
     /// A bar; `id_salt` keeps its scroll position and slot widths.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id_salt: IdSalt::new(id_salt), narrow: false, label: "Tool options".into() }

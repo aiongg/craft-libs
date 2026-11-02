@@ -43,6 +43,8 @@ struct Rig {
     events: Vec<EditEvent<[f64; 2]>>,
     /// `None`: the fields in a grid with X and Y cells (`show_cells`); else the layout.
     layout: Option<LinkedLayout>,
+    captions: [&'static str; 2],
+    names_only: bool,
     /// Each AccessKit node's role, name and bounds in the last frame.
     nodes: Vec<(Role, String, Rect)>,
 }
@@ -61,6 +63,8 @@ impl Rig {
             numbers: LocaleNumbers::from_tag("en"),
             events: Vec::new(),
             layout: Some(LinkedLayout::Row),
+            captions: ["W:", "H:"],
+            names_only: false,
             nodes: Vec::new(),
         };
         rig.frame(vec![]);
@@ -75,7 +79,8 @@ impl Rig {
         let ctx = self.ctx.clone();
         let numbers = self.numbers.clone();
         let output = ctx.run_ui(input, |ui| {
-            let fields = LinkedFields::new("size", ["W:", "H:"], self.values, &mut self.linked, self.mode, &numbers);
+            let fields = LinkedFields::new("size", self.captions, self.values, &mut self.linked, self.mode, &numbers);
+            let fields = if self.names_only { fields.captions_as_names() } else { fields };
             let out = match self.layout {
                 Some(layout) => fields.layout(layout).show(ui),
                 None => {
@@ -115,7 +120,7 @@ impl Rig {
                     let b = n.bounds()?;
                     Some((
                         n.role(),
-                        n.label().unwrap_or_default().to_owned(),
+                        n.label().or_else(|| n.value()).unwrap_or_default().to_owned(),
                         Rect::from_min_max(pos2(b.x0 as f32, b.y0 as f32), pos2(b.x1 as f32, b.y1 as f32)),
                     ))
                 })
@@ -210,6 +215,43 @@ fn the_layouts_place_the_fields_as_the_apps_do() {
     let link = center_of(&rig, Role::Button, "Make all settings the same");
     assert!(x.x < w.x && w.x < link.x && (x.y - w.y).abs() < 1.0 && (link.y - w.y).abs() < 1.0, "first row: {x:?} {w:?} {link:?}");
     assert!(y.y > x.y && (y.y - h.y).abs() < 1.0 && (y.x - x.x).abs() < 1.0 && (h.x - w.x).abs() < 1.0, "second row: {y:?} {h:?}");
+}
+
+// In a harness: a column with the corner names as captions lays out the same in every pass (the captions sit
+// before the boxes, so the text keeps its room) and the boxes line up.
+#[test]
+fn a_column_with_long_captions_keeps_its_layout() {
+    let mut rig = Rig::new([10.0, 20.0], false, LinkMode::Equal);
+    rig.captions = ["Top Left", "Bottom Right"];
+    rig.layout = Some(LinkedLayout::Column);
+    let boxes = |rig: &Rig| {
+        let at = |name| rig.nodes.iter().find(|(r, n, _)| *r == Role::SpinButton && n == name).map(|node| node.2).expect("the field is in the tree");
+        [at("Top Left"), at("Bottom Right")]
+    };
+    rig.frame(vec![]);
+    let first = boxes(&rig);
+    for _ in 0..4 {
+        rig.frame(vec![]);
+        assert_eq!(boxes(&rig), first, "the layout is stable across passes");
+    }
+    assert_eq!(first[0].left(), first[1].left(), "the boxes line up");
+    assert_eq!(first[0].width(), first[1].width());
+}
+
+// In a harness: `captions_as_names` shows no caption text, and the field keeps its name.
+#[test]
+fn captions_as_names_leaves_the_captions_out() {
+    let mut rig = Rig::new([10.0, 20.0], false, LinkMode::Equal);
+    rig.captions = ["Top Left", "Bottom Right"];
+    rig.layout = Some(LinkedLayout::Column);
+    rig.frame(vec![]);
+    let outside = rig.nodes.iter().filter(|(r, n, _)| *r == Role::Label && n.contains("Left")).count();
+    assert_eq!(outside, 1, "the caption is a label of its own in a column");
+    rig.names_only = true;
+    rig.frame(vec![]);
+    rig.frame(vec![]);
+    assert!(rig.nodes.iter().all(|(r, n, _)| *r != Role::Label || !n.contains("Left")), "{:?}", rig.nodes);
+    assert!(rig.nodes.iter().any(|(r, n, _)| *r == Role::SpinButton && n == "Top Left"), "the name stays");
 }
 
 // In a harness: digits typed into W of 400×300 keep the starting ratio (W 40 at H 30), and Esc ends the typing with one Cancel.

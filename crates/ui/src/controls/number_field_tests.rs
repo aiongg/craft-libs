@@ -1726,3 +1726,32 @@ fn an_optional_field_reads_none_when_emptied_and_shows_auto() {
     assert!(matches!(rig.events.last(), Some(EditEvent::Commit { value: None, changed: true, .. })), "{:?}", rig.events);
     assert!(rig.painted.iter().any(|text| text == "Auto"), "{:?}", rig.painted);
 }
+
+/// The box's width in two successive passes for a field 72 points wide with `label` inside.
+fn box_widths(label: &str) -> [f32; 2] {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut widths = [0.0; 2];
+    for (pass, width) in widths.iter_mut().enumerate() {
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 200.0))), time: Some(pass as f64 / 60.0), ..Default::default() };
+        let output = ctx.run_ui(input, |ui| {
+            let field = NumberField::new("long-label", "Radius", 5.0, &numbers).width(72.0).unit(Unit::new("{n} px")).scrub_label(label);
+            *width = field.show(ui).response.rect.width();
+        });
+        output.drop_without_applying_deltas();
+    }
+    widths
+}
+
+// A scrub label longer than the box leaves room for the text: the box widens by the shortfall, and
+// the same width holds on the next pass (a text rect narrower than the caret flips its offset).
+#[test]
+fn a_long_scrub_label_still_leaves_text_room() {
+    let short = box_widths("W");
+    assert_eq!(short[0], 72.0);
+    let long = box_widths("Bottom Right Corner Radius");
+    assert!(long[0] > 72.0, "{long:?}");
+    assert_eq!(long[0], long[1], "stable across passes");
+}

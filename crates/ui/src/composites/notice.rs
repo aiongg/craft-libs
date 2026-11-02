@@ -134,15 +134,31 @@ impl Notice {
             let id = ui.make_persistent_id(salt);
             live::region(ui, id, role, politeness, body).response
         } else {
-            let mut ignored = live::Labels::default();
-            ui.scope_builder(UiBuilder::new().accessibility_role(Role::Note), |ui| body(ui, &mut ignored)).response
+            let mut labels = live::Labels::default();
+            let mut note_id = None;
+            let note = ui
+                .scope_builder(UiBuilder::new().accessibility_role(Role::Note), |ui| {
+                    note_id = Some(ui.unique_id());
+                    body(ui, &mut labels)
+                })
+                .response;
+            if let Some(id) = note_id {
+                let name = labels.announcement();
+                ui.ctx().accesskit_node_builder(id, |node| node.set_label(name));
+            }
+            note
         }
     }
 }
 
 /// Wrapping, selectable text in `role` and `color`.
+///
+/// The text has no node of its own: the notice's node carries it as its label, so a screen reader
+/// reads it once.
 pub(super) fn text(ui: &mut Ui, tokens: &UiTokens, role: TypeRole, color: Color32, text: &str) -> Response {
-    ui.add(Label::new(LayoutJob::single_section(text.to_owned(), role_format(tokens, role, color))).wrap())
+    let response = ui.add(Label::new(LayoutJob::single_section(text.to_owned(), role_format(tokens, role, color))).wrap());
+    ui.ctx().accesskit_node_builder(response.id, |node| node.set_hidden());
+    response
 }
 
 /// The icon that marks `tone`; neutral has none.
