@@ -26,8 +26,8 @@ use craft_ui::typed_story;
 use egui::{Key, Modifiers, Ui, vec2};
 
 use super::{
-    BrushSizes, OutputTo, SelectMaskBar, SelectMaskCanvas, SelectMaskEvent, SelectMaskLabels, SelectMaskLimits, SelectMaskOpen, SelectMaskPanel,
-    SelectMaskSession, SelectMaskSettings, SelectMaskSource, SelectMaskTool, SelectMaskToolOptions, SelectMaskWorkspace,
+    BrushSizes, OutputTo, SelectMaskBar, SelectMaskCanvas, SelectMaskEvent, SelectMaskLimits, SelectMaskOpen, SelectMaskPanel, SelectMaskSession,
+    SelectMaskSettings, SelectMaskSource, SelectMaskTool, SelectMaskToolOptions, SelectMaskWorkspace,
 };
 use crate::trace::MaskSource;
 use crate::ui::mask_view::stories::Composite;
@@ -199,6 +199,10 @@ impl MockSelectMask {
 }
 
 impl SelectMaskSource for MockSelectMask {
+    fn image(&self) -> &dyn RasterSource {
+        &self.composite.image
+    }
+
     fn view(&self) -> &dyn RasterSource {
         &self.composite
     }
@@ -266,7 +270,6 @@ struct Tools {
 
 fn show_tools(ui: &mut Ui, args: &mut ToolsArgs) {
     let words = SelectMaskStoryLabels::of(ui);
-    let labels = SelectMaskLabels::of(ui);
     let state = shared(ui, "tools", || {
         let settings = SelectMaskSettings::default();
         Tools {
@@ -286,7 +289,7 @@ fn show_tools(ui: &mut Ui, args: &mut ToolsArgs) {
         canvas.drop_polygon();
     }
 
-    let bar = SelectMaskBar::new("select-mask-story-bar", tool, options, &labels).show(ui);
+    let bar = SelectMaskBar::new("select-mask-story-bar", tool, options).show(ui);
     if bar.select_subject {
         let edit = super::SelectMaskEdit::Subject { sample_all_layers: options.sample_all_layers };
         record(session, error, &words, |session| session.add_edit(edit, &LIMITS));
@@ -331,9 +334,7 @@ fn show_tools(ui: &mut Ui, args: &mut ToolsArgs) {
         let text = craft_i18n::fmt(&words.edits, &[("n", count.as_str())]);
         columns[0].add(Text::new(text).content(Content::Muted));
 
-        SelectMaskPanel::new("select-mask-story-panel", settings, &mut session.refine, view_state, &labels)
-            .error(error.as_deref())
-            .show(&mut columns[1]);
+        SelectMaskPanel::new("select-mask-story-panel", settings, &mut session.refine, view_state).error(error.as_deref()).show(&mut columns[1]);
     });
 }
 
@@ -342,7 +343,7 @@ fn record(
     session: &mut SelectMaskSession,
     error: &mut Option<String>,
     words: &SelectMaskStoryLabels,
-    add: impl FnOnce(&mut SelectMaskSession) -> Result<(), String>,
+    add: impl FnOnce(&mut SelectMaskSession) -> Result<(), super::LimitRefused>,
 ) {
     match add(session) {
         Ok(()) => *error = None,
@@ -359,7 +360,6 @@ struct Refine {
 
 fn show_refine(ui: &mut Ui, args: &mut RefineArgs) {
     let words = SelectMaskStoryLabels::of(ui);
-    let labels = SelectMaskLabels::of(ui);
     let state = shared(ui, "refine", || {
         let settings = SelectMaskSettings::default();
         Refine { view_state: settings.view_state(), session: SelectMaskSession::default(), settings }
@@ -377,7 +377,7 @@ fn show_refine(ui: &mut Ui, args: &mut RefineArgs) {
     let message = craft_i18n::fmt(&words.limit, &[("n", LIMITS.edits.to_string().as_str())]);
     let error = args.limit_message.then_some(message.as_str());
     ui.columns(2, |columns| {
-        SelectMaskPanel::new("select-mask-story-refine", settings, &mut session.refine, view_state, &labels).error(error).show(&mut columns[0]);
+        SelectMaskPanel::new("select-mask-story-refine", settings, &mut session.refine, view_state).error(error).show(&mut columns[0]);
         let ui = &mut columns[1];
         let image = MockImage::default();
         let width = ui.available_width();

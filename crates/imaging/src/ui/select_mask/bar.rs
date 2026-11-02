@@ -1,11 +1,12 @@
 //! [`SelectMaskBar`]: Select and Mask's options bar (task WS-SM2).
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::{AsIdSalt, IdSalt, Modifiers, Response, Ui};
 
 use craft_theme::ControlSize;
 use craft_ui::controls::{Button, Checkbox, IconButton, NumberField, TooltipExt as _};
+use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
-use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
 use craft_ui::patterns::{CellWidth, OptionsBar};
 
 use super::SelectMaskLabels;
@@ -16,8 +17,11 @@ use super::tools::{BrushSizes, SelectMaskTool, SelectMaskToolOptions};
 #[non_exhaustive]
 pub struct SelectMaskBarOutput {
     pub response: Response,
-    /// An option changed (written to the options). Sample All Layers asks for a new preview.
-    pub changed: bool,
+    /// The edit lifecycle of the option the user changed this pass, with the options after it
+    /// (already written to the options passed in).
+    pub edit: Option<EditEvent<SelectMaskToolOptions>>,
+    /// Sample All Layers changed: the preview is asked for again.
+    pub sample_all_layers: bool,
     /// Select Subject pressed: the workspace records `SelectMaskEdit::Subject`.
     pub select_subject: bool,
 }
@@ -32,20 +36,29 @@ pub struct SelectMaskBar<'a> {
     id_salt: IdSalt,
     tool: SelectMaskTool,
     options: &'a mut SelectMaskToolOptions,
-    labels: &'a SelectMaskLabels,
+    labels: Option<SelectMaskLabels>,
 }
 
 impl<'a> SelectMaskBar<'a> {
-    pub fn new(id_salt: impl AsIdSalt, tool: SelectMaskTool, options: &'a mut SelectMaskToolOptions, labels: &'a SelectMaskLabels) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), tool, options, labels }
+    pub fn new(id_salt: impl AsIdSalt, tool: SelectMaskTool, options: &'a mut SelectMaskToolOptions) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), tool, options, labels: None }
+    }
+
+    /// The words; the installed ones by default.
+    pub fn labels(mut self, labels: SelectMaskLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn show(self, ui: &mut Ui) -> SelectMaskBarOutput {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1497 `options_bar`.
         let Self { id_salt, tool, options, labels } = self;
-        let mut changed = false;
+        let labels = labels.unwrap_or_else(|| SelectMaskLabels::of(ui));
+        let labels = &labels;
+        let mut edit = None;
+        let mut sample_all_layers = false;
         let mut select_subject = false;
-        let (changed_ref, subject_ref) = (&mut changed, &mut select_subject);
+        let (edit_ref, sample_ref, subject_ref) = (&mut edit, &mut sample_all_layers, &mut select_subject);
         let response = OptionsBar::new(id_salt).show(ui, move |bar| {
             bar.leading(move |ui| {
                 OptionsBar::tool_icon(ui, tool.icon(), tool.label(labels));
@@ -58,7 +71,7 @@ impl<'a> SelectMaskBar<'a> {
                         let button = IconButton::new(icon, name.as_str()).size(sm).selected(options.add == add).id_salt(salt);
                         if ui.add(button).clicked() && options.add != add {
                             options.add = add;
-                            *changed_ref = true;
+                            *edit_ref = Some(EditEvent::set(*options, Modifiers::NONE));
                         }
                     }
                     OptionsBar::divider(ui);
@@ -69,29 +82,28 @@ impl<'a> SelectMaskBar<'a> {
                         .range(BrushSizes::RANGE)
                         .decimals(0..=0)
                         .unit(Unit::new("{n} px"));
-                    if let Some(value) =
-                        OptionsBar::number_cell(ui, &labels.size, CellWidth::Md, field).event.as_ref().and_then(|e| e.value()).copied()
-                        && value != size
-                    {
-                        options.sizes.set(tool, value);
-                        *changed_ref = true;
+                    if let Some(event) = OptionsBar::number_cell(ui, &labels.size, CellWidth::Md, field).event {
+                        if let Some(&value) = event.value()
+                            && value != size
+                        {
+                            options.sizes.set(tool, value);
+                        }
+                        *edit_ref = Some(event.map(|_| *options));
                     }
                 }
                 if tool == SelectMaskTool::Brush
-                    && let Some(value) = OptionsBar::percent_cell(ui, "hardness", &labels.hardness, options.hardness, &numbers)
-                        .event
-                        .as_ref()
-                        .and_then(|e| e.value())
-                        .copied()
-                    && value != options.hardness
+                    && let Some(event) = OptionsBar::percent_cell(ui, "hardness", &labels.hardness, options.hardness, &numbers).event
                 {
-                    options.hardness = value.clamp(0.0, 100.0);
-                    *changed_ref = true;
+                    if let Some(&value) = event.value() {
+                        options.hardness = value.clamp(0.0, 100.0);
+                    }
+                    *edit_ref = Some(event.map(|_| *options));
                 }
                 if matches!(tool, SelectMaskTool::Quick | SelectMaskTool::RefineEdge | SelectMaskTool::Object)
                     && Checkbox::bool(labels.sample_all_layers.as_str(), &mut options.sample_all_layers).size(sm).show(ui).response.changed()
                 {
-                    *changed_ref = true;
+                    *sample_ref = true;
+                    *edit_ref = Some(EditEvent::set(*options, Modifiers::NONE));
                 }
                 if tool.edits() {
                     OptionsBar::divider(ui);
@@ -103,6 +115,6 @@ impl<'a> SelectMaskBar<'a> {
                 }
             });
         });
-        SelectMaskBarOutput { response, changed, select_subject }
+        SelectMaskBarOutput { response, edit, sample_all_layers, select_subject }
     }
 }
