@@ -1,9 +1,9 @@
 //! Stories of the Filter Gallery workspace (task ST-WS1): not registered. Registering them (task
 //! RG2) adds `filter_gallery::stories` to the crate's `register!` list, `FilterGalleryWorkspace`
-//! to `COMPONENTS` and [`GalleryStoryLabels`] to `WORDS`, and regenerates the registry dump.
+//! to `COMPONENTS` and [`FilterGalleryStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!
 //! The stories use `MockGallery`: a six-filter catalog in two folders with `Param` lists (a Range,
-//! a Choice, a Bool, a colour), thumbnails from `FakeThumbSource`, and a preview that is
+//! a Choice, a Bool, a color), thumbnails from `FakeThumbSource`, and a preview that is
 //! `MockImage` tinted per visible effect (no engine). The workspace covers the gallery window, as
 //! it does in an app; the `open` arg (or the Overview tile's button) shows it. Every string goes
 //! through story words.
@@ -14,7 +14,6 @@
 //! | `patterns/filter-gallery/rendering` | The zoom bar with a progress bar (arg), then the note |
 
 use std::f64::consts::TAU;
-use std::sync::{Arc, Mutex};
 
 use craft_theme::Srgba;
 use craft_ui::canvas::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
@@ -22,7 +21,7 @@ use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::dialog::full_window::PreviewTicket;
 use craft_ui::dialog::{Outcome, Param, ParamKind};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, claim, dialog_closed, dialog_shown};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, claim, dialog_closed, dialog_shown, lock, reset_on, shared};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui};
 
@@ -37,29 +36,29 @@ pub const COMPONENTS: &[&str] = &["FilterGalleryWorkspace"];
 craft_ui::words! {
     /// The names and captions of the Filter Gallery stories, English by default.
     #[non_exhaustive]
-    pub(crate) struct GalleryStoryLabels {
-        artistic: "galleryStory.artistic" = "Artistic";
-        sketch: "galleryStory.sketch" = "Sketch";
-        cutout: "galleryStory.cutout" = "Cutout";
-        sponge: "galleryStory.sponge" = "Sponge";
-        neon_glow: "galleryStory.neonGlow" = "Neon Glow";
-        chalk: "galleryStory.chalk" = "Chalk & Charcoal";
-        photocopy: "galleryStory.photocopy" = "Photocopy";
-        note_paper: "galleryStory.notePaper" = "Note Paper";
-        levels: "galleryStory.levels" = "Number of Levels";
-        simplicity: "galleryStory.simplicity" = "Edge Simplicity";
-        fidelity: "galleryStory.fidelity" = "Edge Fidelity";
-        low: "galleryStory.low" = "Low";
-        medium: "galleryStory.medium" = "Medium";
-        high: "galleryStory.high" = "High";
-        brush_size: "galleryStory.brushSize" = "Brush Size";
-        smooth: "galleryStory.smooth" = "Smooth edges";
-        glow_size: "galleryStory.glowSize" = "Glow Size";
-        glow_color: "galleryStory.glowColor" = "Glow Colour";
-        detail: "galleryStory.detail" = "Detail";
-        darkness: "galleryStory.darkness" = "Darkness";
-        image_balance: "galleryStory.imageBalance" = "Image Balance";
-        preview_ms: "galleryStory.previewMs" = "Preview {n} ms";
+    pub(crate) struct FilterGalleryStoryLabels {
+        artistic: "filterGalleryStory.artistic" = "Artistic";
+        sketch: "filterGalleryStory.sketch" = "Sketch";
+        cutout: "filterGalleryStory.cutout" = "Cutout";
+        sponge: "filterGalleryStory.sponge" = "Sponge";
+        neon_glow: "filterGalleryStory.neonGlow" = "Neon Glow";
+        chalk: "filterGalleryStory.chalk" = "Chalk & Charcoal";
+        photocopy: "filterGalleryStory.photocopy" = "Photocopy";
+        note_paper: "filterGalleryStory.notePaper" = "Note Paper";
+        levels: "filterGalleryStory.levels" = "Number of Levels";
+        simplicity: "filterGalleryStory.simplicity" = "Edge Simplicity";
+        fidelity: "filterGalleryStory.fidelity" = "Edge Fidelity";
+        low: "filterGalleryStory.low" = "Low";
+        medium: "filterGalleryStory.medium" = "Medium";
+        high: "filterGalleryStory.high" = "High";
+        brush_size: "filterGalleryStory.brushSize" = "Brush Size";
+        smooth: "filterGalleryStory.smooth" = "Smooth edges";
+        glow_size: "filterGalleryStory.glowSize" = "Glow Size";
+        glow_color: "filterGalleryStory.glowColor" = "Glow Color";
+        detail: "filterGalleryStory.detail" = "Detail";
+        darkness: "filterGalleryStory.darkness" = "Darkness";
+        image_balance: "filterGalleryStory.imageBalance" = "Image Balance";
+        preview_ms: "filterGalleryStory.previewMs" = "Preview {n} ms";
     }
 }
 
@@ -120,7 +119,7 @@ struct RenderingArgs {
 
 /// The app's catalog: six filters in two folders.
 struct MockGallery {
-    labels: GalleryStoryLabels,
+    labels: FilterGalleryStoryLabels,
 }
 
 impl MockGallery {
@@ -250,7 +249,6 @@ impl RasterSource for Preview {
 
 /// The workspace a story keeps between passes.
 struct Kept {
-    seed: Option<RenderState>,
     workspace: FilterGalleryWorkspace,
     /// The ticket asked for and not answered.
     pending: Option<PreviewTicket>,
@@ -258,29 +256,26 @@ struct Kept {
     revision: u64,
 }
 
-type Slot = Arc<Mutex<Option<Kept>>>;
-
 /// Shows the workspace while the story is open. `state` is `None` for a preview that answers at
 /// once; `Some` holds a ticket while it is `Rendering` (at `progress` percent) and answers it, with
 /// the note, once `Done`. A changed `state` opens a fresh workspace, which asks for a new ticket.
 fn show_workspace(ui: &mut Ui, open: &mut bool, name: &'static str, state: Option<(RenderState, f64)>) {
-    let id = ui.make_persistent_id(("craft_imaging::filter_gallery::story", name));
-    let slot: Slot = ui.data_mut(|d| d.get_temp_mut_or_insert_with::<Slot>(id, Slot::default).clone());
-    let Ok(mut kept) = slot.lock() else { return };
+    let seed = state.map(|(state, _)| state);
+    reset_on(ui, name, &seed);
+    let slot = shared(ui, name, || None::<Kept>);
+    let mut kept = lock(&slot);
     if !(dialog_shown(ui, *open) && claim(ui.ctx(), "filter_gallery", ui.scope_id())) {
         *kept = None;
         return;
     }
     let ctx = ui.ctx().clone();
     let image = MockImage::default();
-    let catalog = MockGallery { labels: GalleryStoryLabels::of(ui) };
-    let seed = state.map(|(state, _)| state);
-    if kept.as_ref().is_none_or(|k| k.seed != seed) {
+    let catalog = MockGallery { labels: FilterGalleryStoryLabels::of(ui) };
+    let kept = kept.get_or_insert_with(|| {
         let subject = StoryLabels::of(ui).photo;
         let open = FilterGalleryOpen::new(image.size(), subject, start(&catalog));
-        *kept = Some(Kept { seed, workspace: FilterGalleryWorkspace::new(open), pending: None, revision: 1 });
-    }
-    let Some(kept) = kept.as_mut() else { return };
+        Kept { workspace: FilterGalleryWorkspace::new(open), pending: None, revision: 1 }
+    });
     let thumbs = Thumbnails::<GalleryThumb>::in_context(&ctx, "gallery-story-thumbs", ThumbnailOptions::default());
     let preview = Preview::of(kept.workspace.session(), image, kept.revision);
     let out = kept.workspace.show(&ctx, &catalog, &thumbs, &FakeThumbSource::<GalleryThumb>::new(), &preview);

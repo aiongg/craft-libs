@@ -29,7 +29,7 @@ fn registered_labels_localized_with_identity_equal_their_english() {
     identity_holds::<crate::ui::liquify::LiquifyLabels>();
     identity_holds::<crate::ui::liquify::stories::LiquifyStoryLabels>();
     identity_holds::<crate::ui::filter_gallery::FilterGalleryLabels>();
-    identity_holds::<crate::ui::filter_gallery::stories::GalleryStoryLabels>();
+    identity_holds::<crate::ui::filter_gallery::stories::FilterGalleryStoryLabels>();
     identity_holds::<crate::ui::wide_angle::WideAngleLabels>();
     identity_holds::<crate::ui::layer_style::LayerStyleLabels>();
     identity_holds::<crate::ui::layer_style::BlendIfBarLabels>();

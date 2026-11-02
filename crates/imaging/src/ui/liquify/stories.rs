@@ -15,13 +15,11 @@
 //! | `patterns/liquify/tools` | The tools in their groups; the picked tool and the brush (args) |
 //! | `patterns/liquify/view-options` | The mesh at the three sizes, the mask overlay, the backdrop in the three modes |
 
-use std::sync::{Arc, Mutex};
-
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::dialog::Outcome;
 use craft_ui::localized::Labels as _;
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, claim, dialog_closed, dialog_shown};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, claim, dialog_closed, dialog_shown, lock, reset_on, shared};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui};
 
@@ -72,7 +70,7 @@ pub(crate) fn stories() -> Vec<Story> {
             Level::Patterns,
             "LiquifyWorkspace",
             "View options",
-            ViewArgs {
+            LiquifyViewArgs {
                 open: true,
                 show_mesh: true,
                 mesh_size: MeshArg::Medium,
@@ -174,7 +172,7 @@ struct ToolsArgs {
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]
-struct ViewArgs {
+struct LiquifyViewArgs {
     /// Whether the workspace is open.
     open: bool,
     show_mesh: bool,
@@ -273,13 +271,13 @@ impl LiquifySource for StorySource {
         let columns = (width / spacing).ceil() as usize + 1;
         let rows = (height / spacing).ceil() as usize + 1;
         let bounds = self.image.subject_bounds();
-        let centre = Point::new(f64::from(bounds.x0 + bounds.x1) / 2.0, f64::from(bounds.y0 + bounds.y1) / 2.0);
+        let center = Point::new(f64::from(bounds.x0 + bounds.x1) / 2.0, f64::from(bounds.y0 + bounds.y1) / 2.0);
         let (bulge, reach) = (BULGE * width, BULGE_REACH * width);
         // A Bloat over the house: the nodes move away from its middle, most near it.
         let points = (0..rows * columns)
             .map(|i| {
                 let p = Point::new((i % columns) as f64 * spacing, (i / columns) as f64 * spacing);
-                let (dx, dy) = (p.x - centre.x, p.y - centre.y);
+                let (dx, dy) = (p.x - center.x, p.y - center.y);
                 let pull = (-(dx * dx + dy * dy) / (2.0 * reach * reach)).exp();
                 let length = dx.hypot(dy).max(1.0);
                 Point::new(p.x + dx / length * bulge * pull, p.y + dy / length * bulge * pull)
@@ -299,36 +297,25 @@ impl LiquifySource for StorySource {
 
 // --- the kept workspace ---
 
-/// The workspace a story keeps between passes, with the settings it was opened with: other
-/// settings open a fresh one.
-struct Kept {
-    seed: LiquifySettings,
-    workspace: LiquifyWorkspace,
-}
-
-type Slot = Arc<Mutex<Option<Kept>>>;
-
-/// Shows the workspace with `settings` while the story is open.
+/// Shows the workspace with `settings` while the story is open. The workspace is the story's
+/// shared state; other settings open a fresh one.
 fn show_workspace(ui: &mut Ui, open: &mut bool, name: &'static str, settings: LiquifySettings) {
-    let id = ui.make_persistent_id(("craft_imaging::liquify::story", name));
-    let slot: Slot = ui.data_mut(|d| d.get_temp_mut_or_insert_with::<Slot>(id, Slot::default).clone());
-    let Ok(mut kept) = slot.lock() else { return };
+    reset_on(ui, name, &settings);
+    let state = shared(ui, name, || None::<LiquifyWorkspace>);
+    let mut kept = lock(&state);
     if !(dialog_shown(ui, *open) && claim(ui.ctx(), "liquify", ui.scope_id())) {
         *kept = None;
         return;
     }
     let image = MockImage::default();
-    if kept.as_ref().is_none_or(|k| k.seed != settings) {
+    let workspace = kept.get_or_insert_with(|| {
         let subject = StoryLabels::of(ui).photo;
-        let open = LiquifyOpen::new(image.size(), subject).settings(settings.clone());
-        *kept = Some(Kept { seed: settings, workspace: LiquifyWorkspace::new(open) });
-    }
+        LiquifyWorkspace::new(LiquifyOpen::new(image.size(), subject).settings(settings))
+    });
     let source = StorySource::new(image, &LiquifyStoryLabels::of(ui));
-    if let Some(kept) = kept.as_mut() {
-        let out = kept.workspace.show(ui.ctx(), &source);
-        if out.outcome.is_some_and(Outcome::closes) {
-            dialog_closed(ui, open);
-        }
+    let out = workspace.show(ui.ctx(), &source);
+    if out.outcome.is_some_and(Outcome::closes) {
+        dialog_closed(ui, open);
     }
 }
 
@@ -341,7 +328,7 @@ fn show_tools(ui: &mut Ui, args: &mut ToolsArgs) {
     show_workspace(ui, &mut args.open, "tools", settings);
 }
 
-fn show_view_options(ui: &mut Ui, args: &mut ViewArgs) {
+fn show_view_options(ui: &mut Ui, args: &mut LiquifyViewArgs) {
     let settings = LiquifySettings {
         show_mesh: args.show_mesh,
         mesh_size: match args.mesh_size {

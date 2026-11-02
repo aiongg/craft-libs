@@ -171,7 +171,7 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <liquify::LiquifyLabels as craft_ui::localized::Labels>::WORDS,
     <liquify::stories::LiquifyStoryLabels as craft_ui::localized::Labels>::WORDS,
     <filter_gallery::FilterGalleryLabels as craft_ui::localized::Labels>::WORDS,
-    <filter_gallery::stories::GalleryStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <filter_gallery::stories::FilterGalleryStoryLabels as craft_ui::localized::Labels>::WORDS,
     <wide_angle::WideAngleLabels as craft_ui::localized::Labels>::WORDS,
     <layer_style::LayerStyleLabels as craft_ui::localized::Labels>::WORDS,
     <layer_style::BlendIfBarLabels as craft_ui::localized::Labels>::WORDS,

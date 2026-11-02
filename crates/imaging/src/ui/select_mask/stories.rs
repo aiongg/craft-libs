@@ -17,18 +17,20 @@
 //! | `patterns/select-mask/tools` | Each tool's options bar, a Polygonal Lasso in progress, Refine Hair and Object Aware disabled with their reasons |
 //! | `patterns/select-mask/refine` | Edge Detection and Global Refinements, Output To with Decontaminate Colors, the limit message |
 
-use craft_ui::canvas::{Checkerboard, RasterSource};
+use craft_ui::canvas::kurbo::{Point, Vec2};
+use craft_ui::canvas::{CanvasView, Checkerboard, RasterSource};
 use craft_ui::dialog::full_window::FullWindowCanvas;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, claim, dialog_closed, dialog_shown, lock, shared};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, claim, dialog_closed, dialog_shown, lock, reset_on, shared};
 use craft_ui::testing::canvas_story::{ViewArgs, document_with};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use craft_ui::typed_story;
-use egui::{Key, Modifiers, Ui, vec2};
+use egui::{Key, Modifiers, Painter, Pos2, Shape, Stroke, Ui, vec2};
 
 use super::{
-    BrushSizes, OutputTo, SelectMaskBar, SelectMaskCanvas, SelectMaskEvent, SelectMaskLimits, SelectMaskOpen, SelectMaskPanel, SelectMaskSession,
-    SelectMaskSettings, SelectMaskSource, SelectMaskTool, SelectMaskToolOptions, SelectMaskWorkspace,
+    BrushSizes, EditMode, ObjectTarget, OutputTo, SelectMaskBar, SelectMaskCanvas, SelectMaskEvent, SelectMaskLimits, SelectMaskOpen,
+    SelectMaskPanel, SelectMaskSession, SelectMaskSettings, SelectMaskSource, SelectMaskTool, SelectMaskToolOptions, SelectMaskWorkspace,
 };
 use crate::trace::MaskSource;
 use crate::ui::mask_view::stories::Composite;
@@ -49,6 +51,7 @@ craft_ui::words! {
         edits: "selectMaskStory.edits" = "Edits recorded: {n}";
         hint_polygon: "selectMaskStory.hintPolygon" = "Click to add corners; Enter closes the polygon, Esc drops it.";
         hint_draw: "selectMaskStory.hintDraw" = "Drag on the picture to draw an edit.";
+        picture: "selectMaskStory.picture" = "Refined picture";
     }
 }
 
@@ -213,18 +216,17 @@ impl SelectMaskSource for MockSelectMask {
     }
 }
 
-/// What the views story keeps: the workspace, the source, and what they were built from.
+/// What the views story keeps: the workspace and the source.
 struct Held {
     workspace: SelectMaskWorkspace,
     source: MockSelectMask,
-    signature: (MaskViewMode, u64, bool, bool),
 }
 
 impl Held {
-    fn new(settings: SelectMaskSettings, subject: &str, signature: (MaskViewMode, u64, bool, bool)) -> Self {
+    fn new(settings: SelectMaskSettings, subject: &str) -> Self {
         let recipe = settings.view_state().recipe();
         let workspace = SelectMaskWorkspace::new(SelectMaskOpen::new(MockImage::default().size(), subject, LIMITS).settings(settings));
-        Held { workspace, source: MockSelectMask::new(recipe), signature }
+        Held { workspace, source: MockSelectMask::new(recipe) }
     }
 }
 
@@ -240,20 +242,18 @@ fn show_views(ui: &mut Ui, args: &mut ViewsArgs) {
     settings.take_view(&state);
     let signature = (mode, args.opacity.to_bits(), args.show_edge, args.show_original);
 
-    let held = shared(ui, "views", || Held::new(settings.clone(), &words.subject, signature));
+    reset_on(ui, "views", &signature);
+    let held = shared(ui, "views", || Held::new(settings.clone(), &words.subject));
     let mut held = lock(&held);
-    if held.signature != signature {
-        *held = Held::new(settings.clone(), &words.subject, signature);
-    }
     let ctx = ui.ctx().clone();
-    let Held { workspace, source, .. } = &mut *held;
+    let Held { workspace, source } = &mut *held;
     let out = workspace.show(&ctx, source);
     if let Some(ticket) = out.preview_wanted {
         workspace.preview_ready(ticket);
     }
     source.follow(workspace.recipe());
     if out.outcome.is_some() {
-        *held = Held::new(settings, &words.subject, signature);
+        *held = Held::new(settings, &words.subject);
         dialog_closed(ui, &mut args.open);
     }
 }
@@ -300,6 +300,7 @@ fn show_tools(ui: &mut Ui, args: &mut ToolsArgs) {
 
     let image = MockImage::default();
     let subject = MockSubject(image);
+    let tokens = Tokens::of(ui);
     ui.columns(2, |columns| {
         let ui = &mut columns[0];
         let width = ui.available_width();
@@ -319,6 +320,7 @@ fn show_tools(ui: &mut Ui, args: &mut ToolsArgs) {
                 .tool(&mut active)
                 .show(ui);
             SelectionOverlay::new("select-mask-story-ants", &subject).labels(SelectionOverlayLabels::of(ui)).show(ui, &shown.response, &shown.view);
+            paint_edits(&ui.painter_at(shown.response.rect), &shown.view, session, &tokens);
         });
         for event in canvas.take_events() {
             match event {
@@ -337,6 +339,52 @@ fn show_tools(ui: &mut Ui, args: &mut ToolsArgs) {
 
         SelectMaskPanel::new("select-mask-story-panel", settings, &mut session.refine, view_state).error(error.as_deref()).show(&mut columns[1]);
     });
+}
+
+/// Draws the session's recorded edits over the picture: additions in the accent, subtractions in
+/// the bad status color; the Refine Edge Brush strokes in the same two. Select Subject,
+/// Clear and Invert have nothing to draw.
+fn paint_edits(painter: &Painter, view: &CanvasView, session: &SelectMaskSession, tokens: &UiTokens) {
+    const FILL_SHARE: f32 = 0.35;
+    const HAIRLINE: f32 = 1.0;
+    let color = |mode: EditMode| match mode {
+        EditMode::Add => tokens.color.accent.strong.to_egui(),
+        EditMode::Subtract => tokens.color.status.bad.fg.to_egui(),
+    };
+    let screen = |points: &[[f64; 2]]| -> Vec<Pos2> { points.iter().map(|p| view.to_screen(Point::new(p[0], p[1]))).collect() };
+    let length = |size: f64| view.map_vec(Vec2::new(size, 0.0)).length();
+    let trail = |points: Vec<Pos2>, width: f32, color: egui::Color32| match points.as_slice() {
+        [] => {}
+        [only] => {
+            painter.circle_filled(*only, width / 2.0, color);
+        }
+        _ => {
+            painter.add(Shape::line(points, Stroke::new(width, color)));
+        }
+    };
+    for edit in &session.edits {
+        match edit {
+            super::SelectMaskEdit::Quick { points, size, mode, .. } | super::SelectMaskEdit::Brush { points, size, mode, .. } => {
+                trail(screen(points), length(*size), color(*mode).gamma_multiply(FILL_SHARE));
+            }
+            super::SelectMaskEdit::Lasso { points, mode } => {
+                painter.add(Shape::closed_line(screen(points), Stroke::new(HAIRLINE, color(*mode))));
+            }
+            super::SelectMaskEdit::Object { target, mode, .. } => match target {
+                ObjectTarget::Point(at) => {
+                    painter.circle_stroke(view.to_screen(Point::new(at[0], at[1])), HAIRLINE * 4.0, Stroke::new(HAIRLINE, color(*mode)));
+                }
+                ObjectTarget::Rect([x, y, w, h]) => {
+                    let corners = [[*x, *y], [x + w, *y], [x + w, y + h], [*x, y + h]];
+                    painter.add(Shape::closed_line(screen(&corners), Stroke::new(HAIRLINE, color(*mode))));
+                }
+            },
+            super::SelectMaskEdit::Subject { .. } | super::SelectMaskEdit::Clear | super::SelectMaskEdit::Invert => {}
+        }
+    }
+    for stroke in &session.strokes {
+        trail(screen(&stroke.points), length(stroke.size), color(stroke.mode).gamma_multiply(FILL_SHARE));
+    }
 }
 
 /// Records an edit in the session; a refusal becomes the limit message.
@@ -381,7 +429,7 @@ fn show_refine(ui: &mut Ui, args: &mut RefineArgs) {
         SelectMaskPanel::new("select-mask-story-refine", settings, &mut session.refine, view_state).error(error).show(&mut columns[0]);
         let ui = &mut columns[1];
         let image = MockImage::default();
-        let picture = document_with(ui, ViewArgs::default(), "select-mask-story-refine-picture", 0.0, image.view(None, None));
+        let picture = document_with(ui, ViewArgs::default(), words.picture.as_str(), 0.0, image.view(None, None));
         image.show(ui, &picture);
         SelectionOverlay::new("select-mask-story-refine-ants", &MockSubject(image)).labels(SelectionOverlayLabels::of(ui)).show(
             ui,
