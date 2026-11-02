@@ -51,9 +51,9 @@ fn rows_follow_the_param_list_and_the_first_field_is_focused() {
     let mut harness = harness(form());
     harness.run();
     let top = |harness: &Harness<'_, App>, role, label: &str| harness.get_by_role_and_label(role, label).rect().top();
-    let (width, name) = (top(&harness, Role::SpinButton, "Width:"), top(&harness, Role::TextInput, "Name:"));
+    let (width, name) = (top(&harness, Role::SpinButton, "Width"), top(&harness, Role::TextInput, "Name"));
     assert!(width < name && name < harness.get_by_label("Sharpen").rect().top());
-    assert!(harness.get_by_role_and_label(Role::SpinButton, "Width:").accesskit_node().is_focused());
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Width").accesskit_node().is_focused());
     harness.event(Event::Text("1200".to_owned()));
     harness.run();
     harness.get_by_label("Fit").click();
@@ -87,7 +87,7 @@ fn ok_can_be_disabled_by_the_host() {
 fn alt_cancel_resets_the_form() {
     let mut harness = harness(form().values(DialogFields::from_pairs([("name", FieldValue::Text("given".into()))])));
     harness.run();
-    harness.get_by_role_and_label(Role::TextInput, "Name:").focus();
+    harness.get_by_role_and_label(Role::TextInput, "Name").focus();
     harness.run();
     harness.event(Event::Text("x".to_owned()));
     harness.run();
@@ -131,12 +131,12 @@ fn a_number_row_is_unbounded_on_open_sides_and_clamped_on_bounded_ones() {
     let mut harness = harness(CommandForm::new("shift", "Shift", rows));
     harness.run();
     assert!(harness.query_by_role(Role::Slider).is_none());
-    harness.get_by_role_and_label(Role::SpinButton, "Offset:").focus();
+    harness.get_by_role_and_label(Role::SpinButton, "Offset").focus();
     harness.run();
     harness.event(Event::Text("-5000.25".to_owned()));
     harness.key_press(Key::Tab);
     harness.run();
-    harness.get_by_role_and_label(Role::SpinButton, "Count:").focus();
+    harness.get_by_role_and_label(Role::SpinButton, "Count").focus();
     harness.run();
     harness.event(Event::Text("99".to_owned()));
     harness.key_press(Key::Tab);
@@ -155,7 +155,7 @@ fn a_fit_form_takes_its_rows_height_and_scrolls_only_past_the_window() {
     let ok_bottom = |n: usize, body: Body| {
         let mut harness = harness(CommandForm::new("fit", "Fit", rows(n)).body(body));
         harness.run();
-        (harness.get_by_label("OK").rect().bottom(), harness.get_by_label(&format!("Row {}:", n - 1)).rect().top())
+        (harness.get_by_label("OK").rect().bottom(), harness.get_by_label(&format!("Row {}", n - 1)).rect().top())
     };
     let (few_ok, _) = ok_bottom(2, Body::Fit);
     let (more_ok, _) = ok_bottom(6, Body::Fit);

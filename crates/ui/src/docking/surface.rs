@@ -29,6 +29,9 @@ pub struct DockStyle {
     pub move_group_label: String,
     /// Tooltip and accessible name of the panel-menu button ([`Self::panel_menu_button`]).
     pub panel_menu_label: String,
+    /// The app's own words for the dock's menu rows; `None`: the installed words
+    /// ([`DockConfig::panel_menu`]).
+    pub panel_menu: Option<std::sync::Arc<crate::docking::panel_menu::PanelMenuLabels>>,
     /// Minimum width of the drag bar left of the group header. Tabs shrink, then overflow,
     /// before the bar narrows; a strip narrower than the header plus this width narrows it.
     pub drag_bar_width: f32,
@@ -178,6 +181,7 @@ impl DockStyle {
             resize_window_label: c.resize_window_label,
             move_group_label: c.move_group_label,
             panel_menu_label: c.panel_menu_label,
+            panel_menu: c.panel_menu,
             drag_bar_width: look.drag_bar_width,
             min_tab_width: config.tab_width_floor(look),
             floating_background: look.floating_background,
@@ -266,6 +270,7 @@ impl DockStyle {
             resize_window_label: self.resize_window_label.clone(),
             move_group_label: self.move_group_label.clone(),
             panel_menu_label: self.panel_menu_label.clone(),
+            panel_menu: self.panel_menu.clone(),
             min_tab_width: (self.min_tab_width != derived).then_some(self.min_tab_width),
             edge_band: self.edge_band,
             side_edge_zones: self.side_edge_zones,

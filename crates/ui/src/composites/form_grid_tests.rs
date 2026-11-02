@@ -52,7 +52,7 @@ fn labels_end_against_one_control_column_a_column_gap_away() {
     let harness = shown(Direction::Ltr, FormGrid::new("form"));
     let style = harness.state().expect("style");
     let (short, long) = (text_input(&harness, "short").rect(), text_input(&harness, "long").rect());
-    let (name, res) = (label(&harness, "Name:"), label(&harness, "Resolution:"));
+    let (name, res) = (label(&harness, "Name"), label(&harness, "Resolution"));
     assert!((short.left() - long.left()).abs() < 0.5, "{short:?} {long:?}");
     assert!((res.right() + style.column_gap - long.left()).abs() < 1.0, "column gap {}: {res:?} {long:?}", style.column_gap);
     assert!((name.right() - res.right()).abs() < 0.5 && name.width() < res.width(), "{name:?} {res:?}");
@@ -74,7 +74,7 @@ fn a_spanning_row_starts_at_the_left_edge_and_leaves_the_label_column_alone() {
         None,
     );
     let (check, name, field) =
-        (harness.get_by_label("A much longer check box name than any label").rect(), label(&harness, "Name:"), text_input(&harness, "short").rect());
+        (harness.get_by_label("A much longer check box name than any label").rect(), label(&harness, "Name"), text_input(&harness, "short").rect());
     assert!((check.left() - name.left()).abs() < 0.5, "{check:?} {name:?}");
     assert!(field.left() > name.right(), "{field:?} {name:?}");
 }
@@ -82,7 +82,7 @@ fn a_spanning_row_starts_at_the_left_edge_and_leaves_the_label_column_alone() {
 #[test]
 fn a_label_starts_at_the_reading_start_when_asked() {
     let harness = shown(Direction::Ltr, FormGrid::new("form").label_align(LabelAlign::Start));
-    let (name, res) = (label(&harness, "Name:"), label(&harness, "Resolution:"));
+    let (name, res) = (label(&harness, "Name"), label(&harness, "Resolution"));
     assert!((name.left() - res.left()).abs() < 0.5, "{name:?} {res:?}");
 }
 
@@ -98,7 +98,7 @@ fn the_roomy_grid_has_the_wider_gaps_and_the_label_column_minimum() {
         None,
     );
     let style = harness.state().expect("style");
-    let (name, field) = (label(&harness, "Name:"), text_input(&harness, "short").rect());
+    let (name, field) = (label(&harness, "Name"), text_input(&harness, "short").rect());
     assert!(style.label_min >= 150.0 && style.column_gap > 12.0 && style.row_gap > 6.0, "{style:?}");
     assert!(
         (field.left() - name.right() - style.column_gap).abs() < 1.0 && field.left() >= style.label_min + style.column_gap - 1.0,
@@ -118,7 +118,7 @@ fn the_min_label_width_widens_the_label_column() {
 fn right_to_left_the_label_column_is_at_the_right() {
     let harness = shown(Direction::Rtl, FormGrid::new("form"));
     let (short, long) = (text_input(&harness, "short").rect(), text_input(&harness, "long").rect());
-    let (name, res) = (label(&harness, "Name:"), label(&harness, "Resolution:"));
+    let (name, res) = (label(&harness, "Name"), label(&harness, "Resolution"));
     let check = harness.get_by_label("Resample").rect();
     assert!((short.right() - long.right()).abs() < 0.5 && (check.right() - short.right()).abs() < 0.5, "{short:?} {long:?} {check:?}");
     assert!((name.left() - res.left()).abs() < 0.5 && res.left() > long.right(), "{name:?} {res:?}");
@@ -127,7 +127,7 @@ fn right_to_left_the_label_column_is_at_the_right() {
 #[test]
 fn a_label_is_centred_on_its_control() {
     let harness = shown(Direction::Ltr, FormGrid::new("form"));
-    let (name, short) = (label(&harness, "Name:"), text_input(&harness, "short").rect());
+    let (name, short) = (label(&harness, "Name"), text_input(&harness, "short").rect());
     assert!((name.center().y - short.center().y).abs() < 0.5, "{name:?} {short:?}");
 }
 
@@ -147,7 +147,7 @@ fn a_label_is_centred_on_a_small_control_and_on_a_control_pushed_down_by_a_talle
             },
             None,
         );
-        for (name, value) in [("Small:", "sm"), ("Mixed:", "first")] {
+        for (name, value) in [("Small", "sm"), ("Mixed", "first")] {
             let (label, field) = (label(&harness, name), text_input(&harness, value).rect());
             assert!((label.center().y - field.center().y).abs() < 0.5, "{dir:?} {name} {label:?} {field:?}");
         }
@@ -160,8 +160,8 @@ fn the_label_names_its_control_and_a_value_names_nothing() {
     let id = |value: &str| harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some(value)).accesskit_node().locate().0;
     let node = text_input(&harness, "short");
     let node = node.accesskit_node();
-    assert_eq!(node.data().labelled_by(), [id("Name:")]);
-    assert_eq!(node.label().as_deref(), Some("Name:"));
+    assert_eq!(node.data().labelled_by(), [id("Name")]);
+    assert_eq!(node.label().as_deref(), Some("Name"));
     let check = harness.get_by_label("Resample");
     assert!(check.accesskit_node().data().labelled_by().is_empty(), "a row without a label keeps the control's name");
     let value = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("3.7M"));
@@ -180,8 +180,8 @@ fn the_image_size_story_is_labelled_and_mirrors() {
             })
             .build_ui_state(|ui, args: &mut ImageSizeArgs| show_image_size(ui, args), ImageSizeArgs { roomy: false, labels_at_start: false });
         a11y::assert_labelled(&harness);
-        let width = label(&harness, "Width:");
-        let field = harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Width:")).rect();
+        let width = label(&harness, "Width");
+        let field = harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Width")).rect();
         match dir {
             Direction::Ltr => assert!(field.left() > width.right(), "{width:?} {field:?}"),
             Direction::Rtl => assert!(field.right() < width.left(), "{width:?} {field:?}"),
@@ -212,7 +212,7 @@ fn a_label_scrubs_its_field_in_the_grid() {
             },
             4.0,
         );
-    let from = label(&harness, "Radius:").center();
+    let from = label(&harness, "Radius").center();
     let button = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
     harness.event(egui::Event::PointerMoved(from));
     harness.event(button(from, true));
@@ -244,9 +244,9 @@ fn a_cell_of_several_controls_is_a_group_named_by_the_label() {
         });
     let id = |value: &str| harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some(value)).accesskit_node().locate().0;
     let group = harness.get_by_role(Role::Group);
-    assert_eq!(group.accesskit_node().data().labelled_by(), [id("Actions:")]);
+    assert_eq!(group.accesskit_node().data().labelled_by(), [id("Actions")]);
     assert_eq!(harness.query_all_by_role(Role::Group).count(), 1, "a row of one control adds no group");
-    assert_eq!(text_input(&harness, "short").accesskit_node().data().labelled_by(), [id("Name:")]);
+    assert_eq!(text_input(&harness, "short").accesskit_node().data().labelled_by(), [id("Name")]);
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn a_cell_of_several_controls_puts_them_in_a_row_and_names_the_first() {
         });
     let (first, second) = (text_input(&harness, "first"), text_input(&harness, "second"));
     assert!((second.rect().left() - first.rect().right() - gap.get()).abs() < 0.5, "{:?} {:?}", first.rect(), second.rect());
-    let label = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Mode:")).accesskit_node().locate().0;
+    let label = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Mode")).accesskit_node().locate().0;
     assert_eq!(first.accesskit_node().data().labelled_by(), [label]);
     assert!(second.accesskit_node().data().labelled_by().is_empty());
 }
@@ -281,12 +281,12 @@ fn a_control_marked_own_name_keeps_its_name_and_is_described_by_the_label() {
     );
     harness.run();
     let swatch = harness.get_by_label("Fill color");
-    let label = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Color:")).accesskit_node().locate().0;
+    let label = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Color")).accesskit_node().locate().0;
     assert!(swatch.accesskit_node().data().labelled_by().is_empty());
     assert_eq!(swatch.accesskit_node().data().described_by(), [label]);
     let name = text_input(&harness, "short");
-    assert_eq!(name.accesskit_node().label().as_deref(), Some("Name:"));
-    let (swatch, label) = (swatch.rect(), harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Color:")).rect());
+    assert_eq!(name.accesskit_node().label().as_deref(), Some("Name"));
+    let (swatch, label) = (swatch.rect(), harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Color")).rect());
     assert!((swatch.center().y - label.center().y).abs() < 0.5, "{swatch:?} {label:?}");
 }
 
@@ -335,8 +335,8 @@ fn linked_rows_get_a_named_toggle_that_a_click_and_space_flip() {
 fn the_toggle_sits_past_the_controls_between_the_two_rows_centres_and_mirrors_right_to_left() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         let harness = linked_pair(dir);
-        let width = label(&harness, "Width:");
-        let (w, h) = (spin_button(&harness, "Width:"), spin_button(&harness, "Height:"));
+        let width = label(&harness, "Width");
+        let (w, h) = (spin_button(&harness, "Width"), spin_button(&harness, "Height"));
         let toggle = harness.get_by_label("Constrain proportions").rect();
         let middle = (w.center().y + h.center().y) / 2.0;
         assert!((toggle.center().y - middle).abs() < 0.5, "{dir:?}: {toggle:?} {w:?} {h:?}");
