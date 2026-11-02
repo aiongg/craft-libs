@@ -1,11 +1,11 @@
 //! Photoshop's four small adjustments: Brightness/Contrast, Threshold, Color Balance and Photo
 //! Filter (task AD-3).
 
-use craft_theme::{ControlSize, Srgba, TypeRole};
+use craft_theme::{Srgba, TypeRole};
 use egui::{AsIdSalt, Context, Id, IdSalt, Stroke, Ui, UiBuilder, pos2, vec2};
 
 use craft_ui::composites::{ChannelColor, Histogram, HistogramData};
-use craft_ui::controls::{Checkbox, RadioSet, Select, Slider, Swatch};
+use craft_ui::controls::{Checkbox, RadioSet, Select, Swatch};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
@@ -215,7 +215,7 @@ impl<'a> ThresholdEditor<'a> {
         let fields = [AdjustField::new("level", labels.threshold_level.as_str(), level_range, THRESHOLD_DEFAULT)];
         let group = Stack::new(Gap::Stack).show(ui, |ui| {
             // The plot spans the slider's thumb travel, so the marker stands over the thumb.
-            let inset = Slider::style(&tokens, ControlSize::Md).thumb_width / 2.0;
+            let inset = style.threshold_inset;
             let width = ui.available_width().min(style.threshold_width);
             let (_, outer) = ui.allocate_space(vec2(width, style.threshold_histogram));
             let plot = outer.shrink2(vec2(inset, 0.0));
@@ -226,7 +226,7 @@ impl<'a> ThresholdEditor<'a> {
             }
             let shown = ui.scope_builder(UiBuilder::new().max_rect(plot), |ui| histogram.show(ui)).inner;
             let x = marker_x(shown.response.rect, level);
-            let marker = Stroke::new(Histogram::style(&tokens).marker_width, style.threshold_marker);
+            let marker = Stroke::new(style.threshold_marker_width, style.threshold_marker);
             ui.painter().line_segment([pos2(x, shown.response.rect.top()), pos2(x, shown.response.rect.bottom())], marker);
             AdjustSliders::new((self.id_salt, "rows"), &fields, &[level], self.numbers)
                 .context(self.context)
@@ -399,9 +399,9 @@ impl<'a> ColorBalanceEditor<'a> {
         let magenta_green = [rgb8(210, 40, 190), rgb8(40, 190, 60)];
         let yellow_blue = [rgb8(230, 210, 30), rgb8(40, 80, 230)];
         let rows = [
-            ("cyanRed", format!("{} · {}", labels.cyan, labels.red), cyan_red),
-            ("magentaGreen", format!("{} · {}", labels.magenta, labels.green), magenta_green),
-            ("yellowBlue", format!("{} · {}", labels.yellow, labels.blue), yellow_blue),
+            ("cyanRed", labels.cyan_red.clone(), cyan_red),
+            ("magentaGreen", labels.magenta_green.clone(), magenta_green),
+            ("yellowBlue", labels.yellow_blue.clone(), yellow_blue),
         ];
         let fields: Vec<AdjustField> = rows
             .into_iter()

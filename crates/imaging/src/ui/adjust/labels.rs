@@ -63,6 +63,10 @@ craft_ui::words! {
         midtones: "adjust.midtones" = "Midtones";
         highlights: "adjust.highlights" = "Highlights";
         preserve_luminosity: "adjust.preserveLuminosity" = "Preserve Luminosity";
+        /// The Color Balance rows' captions: the two ends of each slider, in the translator's order.
+        cyan_red: "adjust.cyanRed" = "Cyan · Red";
+        magenta_green: "adjust.magentaGreen" = "Magenta · Green";
+        yellow_blue: "adjust.yellowBlue" = "Yellow · Blue";
 
         // Colour ranges (Hue/Saturation, Black & White, Selective Color).
         master: "adjust.master" = "Master";
@@ -79,6 +83,8 @@ craft_ui::words! {
 
         // Hue/Saturation.
         hue: "adjust.hue" = "Hue";
+        /// The Hue/Saturation editor's group name (AccessKit).
+        hue_saturation: "adjust.hueSaturation" = "Hue/Saturation";
         lightness: "adjust.lightness" = "Lightness";
         colorize: "adjust.colorize" = "Colorize";
         spectrum_before: "adjust.spectrumBefore" = "Hue spectrum, before";
@@ -87,8 +93,13 @@ craft_ui::words! {
         full_start: "adjust.fullStart" = "Fully affected start";
         full_end: "adjust.fullEnd" = "Fully affected end";
         range_end: "adjust.rangeEnd" = "Range end";
+        /// The degrees readout under the spectrum bars: the range's outer start, inner start, inner
+        /// end and outer end, "{a} / {b}  ·  {c} \\ {d}".
+        range_readout: "adjust.rangeReadout" = "{a} / {b}  ·  {c} \\ {d}";
 
         // Black & White.
+        /// The Black & White editor's group name (AccessKit).
+        black_white: "adjust.blackWhite" = "Black & White";
         tint: "adjust.tint" = "Tint";
         tint_color: "adjust.tintColor" = "Tint Color";
         default_button: "adjust.default" = "Default";
@@ -115,16 +126,24 @@ craft_ui::words! {
         underwater: "adjust.underwater" = "Underwater";
 
         // Channel Mixer.
+        /// The Channel Mixer editor's group name (AccessKit).
+        channel_mixer: "adjust.channelMixer" = "Channel Mixer";
         output_channel: "adjust.outputChannel" = "Output Channel";
         total: "adjust.total" = "Total";
+        /// A non-negative number with its sign, "+{n}"; the Total readout writes it before the percent.
+        plus: "adjust.plus" = "+{n}";
         /// The Total readout's accessible value above 100 %: "{value}, over 100 percent".
         total_over: "adjust.totalOver" = "{value}, over 100 percent";
         constant: "adjust.constant" = "Constant";
         monochrome: "adjust.monochrome" = "Monochrome";
 
         // Selective Color.
+        /// The Selective Color editor's group name (AccessKit).
+        selective_color: "adjust.selectiveColor" = "Selective Color";
         colors: "adjust.colors" = "Colors";
         relative: "adjust.relative" = "Relative";
         absolute: "adjust.absolute" = "Absolute";
+        /// The Relative and Absolute radios' group name (AccessKit).
+        relative_absolute: "adjust.relativeAbsolute" = "Relative / Absolute";
     }
 }

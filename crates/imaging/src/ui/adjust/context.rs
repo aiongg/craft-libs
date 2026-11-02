@@ -2,6 +2,9 @@
 //! Levels and Curves ([`ToneSpace`], [`ToneChannel`], [`ToneChannels`]) (task AD-1).
 
 use craft_theme::Srgba;
+use egui::accesskit::Role;
+use egui::{Id, InnerResponse, Ui, UiBuilder};
+
 use craft_ui::composites::ChannelColor;
 
 use super::AdjustLabels;
@@ -226,4 +229,18 @@ impl ToneChannels {
     pub fn is_composite(&self, index: usize) -> bool {
         matches!(self.channels.get(index), Some(ToneChannel::Composite(_)))
     }
+}
+
+/// Draws `add` in a group node named `name` for screen readers, disabled when `enabled` is false.
+/// The group's node gets its bounds from the scope, which egui does not give a `Ui`'s node.
+pub(super) fn named_group<R>(ui: &mut Ui, id: Id, name: &str, enabled: bool, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
+    let mut builder = UiBuilder::new().scope_id(id).accessibility_role(Role::Group).accessibility_label(name);
+    if !enabled {
+        builder = builder.disabled();
+    }
+    let group = ui.scope_builder(builder, add);
+    let rect = group.response.rect;
+    let bounds = egui::accesskit::Rect { x0: rect.min.x.into(), y0: rect.min.y.into(), x1: rect.max.x.into(), y1: rect.max.y.into() };
+    ui.ctx().accesskit_node_builder(id, |node| node.set_bounds(bounds));
+    group
 }

@@ -5,25 +5,24 @@ use craft_theme::{Hsb, Srgba, TypeRole};
 use egui::accesskit::{Action, ActionData, Role};
 use egui::{
     AsIdSalt, Color32, Context, CornerRadius, EventFilter, Id, IdSalt, Key, Label, Mesh, Modifiers, Rect, RichText, Sense, Stroke, StrokeKind, Ui,
-    UiBuilder, pos2, vec2,
+    pos2, vec2,
 };
 
 use craft_ui::composites::SliderRow;
 use craft_ui::controls::{Checkbox, Select};
 use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy, EditResponse, Gesture};
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, UnitKind, Units};
 use craft_ui::primitives::{Content, FocusRing, Gap, Interactive, Stack, Text};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 
+use super::context::named_group;
 use super::{AdjustContext, AdjustLabels, AdjustStyle};
 
 /// The shown range in egui memory under the editor's id: 0 Master, 1 Reds … 6 Magentas.
 pub(super) const RANGE: &str = "range";
 const EDIT: &str = "edit";
 
-/// How near a press must be to a range thumb to grab it, in points (the spec's rule).
-const GRAB: f32 = 10.0;
 /// Hues sampled on each spectrum bar: every 10°, 0 to 360.
 const SAMPLES: usize = 37;
 /// Colorize keeps Saturation at or above this (Photoshop's 25 %).
@@ -232,12 +231,7 @@ impl<'a> HueSaturationEditor<'a> {
         let range = shown.checked_sub(1);
         let names = [&labels.reds, &labels.yellows, &labels.greens, &labels.cyans, &labels.blues, &labels.magentas];
 
-        let name = format!("{}/{}", labels.hue, labels.saturation);
-        let mut builder = UiBuilder::new().scope_id(id).accessibility_role(Role::Group).accessibility_label(name);
-        if !enabled {
-            builder = builder.disabled();
-        }
-        let group = ui.scope_builder(builder, |ui| {
+        let group = named_group(ui, id, labels.hue_saturation.as_str(), enabled, |ui| {
             Stack::new(Gap::Stack)
                 .show(ui, |ui| {
                     let mut picked = shown;
@@ -310,10 +304,6 @@ impl<'a> HueSaturationEditor<'a> {
                 })
                 .inner
         });
-        let rect = group.response.rect;
-        // A `Ui`'s node gets no bounds of its own from egui.
-        let bounds = egui::accesskit::Rect { x0: rect.min.x.into(), y0: rect.min.y.into(), x1: rect.max.x.into(), y1: rect.max.y.into() };
-        ui.ctx().accesskit_node_builder(id, |node| node.set_bounds(bounds));
         let (events, picked, submitted, escaped) = group.inner;
         // An edit belongs to the range it was drawn for; a switch shows from the next pass.
         ui.data_mut(|d| d.insert_temp(id.with(RANGE), if value.colorize { 0 } else { picked }));
@@ -387,7 +377,7 @@ impl<'a> HueSaturationEditor<'a> {
             && let Some(pos) = ui.input(|i| i.pointer.press_origin())
         {
             let xs = HueRangeValue::canonical_bounds(gesture.shown().ranges[r].bounds).map(xof);
-            grabbed = nearest(&xs, pos.x).filter(|&k| (xs[k] - pos.x).abs() < GRAB);
+            grabbed = nearest(&xs, pos.x).filter(|&k| (xs[k] - pos.x).abs() < style.hue_grab);
             if let Some(k) = grabbed {
                 ui.memory_mut(|m| m.request_focus(thumb_ids[k]));
                 gesture.begin_with_value();
@@ -455,14 +445,16 @@ impl<'a> HueSaturationEditor<'a> {
                 .numeric(bounds[k].rem_euclid(360.0), 0.0..=360.0, 1.0)
                 .finish(ui);
             let fill = if k == 1 || k == 2 { style.thumb_inner } else { style.thumb_outer };
-            ui.painter().rect_filled(thumb_rect, 1.0, fill);
-            ui.painter().rect_stroke(thumb_rect, 1.0, Stroke::new(1.0, style.thumb_edge), StrokeKind::Inside);
+            ui.painter().rect_filled(thumb_rect, style.range_thumb_radius, fill);
+            ui.painter().rect_stroke(thumb_rect, style.range_thumb_radius, Stroke::new(1.0, style.thumb_edge), StrokeKind::Inside);
             FocusRing::paint_radius(ui, thumb_rect, CornerRadius::ZERO, &response);
         }
 
         let [a, b, c, d] = bounds.map(|degrees| degrees.rem_euclid(360.0));
-        let readout = format!("{a:.0}° / {b:.0}°  ·  {c:.0}° \\ {d:.0}°");
-        ui.add(Label::new(RichText::new(readout).font(style.degrees_font.clone()).color(style.degrees_colour)).selectable(false));
+        let units = Units::of(ui);
+        let [a, b, c, d] = [a, b, c, d].map(|degrees| units.text(UnitKind::Degrees, degrees, 0..=0));
+        let readout = craft_i18n::fmt(&labels.range_readout, &[("a", &a), ("b", &b), ("c", &c), ("d", &d)]);
+        ui.add(Label::new(RichText::new(readout).font(style.degrees_font.clone()).color(style.degrees_color)).selectable(false));
         gesture.finish()
     }
 }

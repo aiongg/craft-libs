@@ -7,10 +7,11 @@ use craft_ui::controls::{Button, Checkbox, RadioSet, Select, Swatch};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, UnitKind, Units};
 use craft_ui::primitives::{Content, Gap, Stack, Text};
 use craft_ui::theme::{Tokens, TokensOf as _};
 
+use super::context::named_group;
 use super::sliders::{PERCENT, is_ending, pick};
 use super::{AdjustContext, AdjustField, AdjustLabels, AdjustSliders, AdjustStyle, AdjustTrack};
 
@@ -152,25 +153,30 @@ impl<'a> BlackWhiteEditor<'a> {
             })
             .collect();
         let mut pick_color = None;
-        let group = Stack::new(Gap::Stack).show(ui, |ui| {
-            let sliders = AdjustSliders::new((self.id_salt, "rows"), &fields, &value.weights, self.numbers)
-                .context(self.context)
-                .policy(self.policy)
-                .enabled(enabled)
-                .show(ui);
-            let mut tint = value.tint;
-            let mut check = None;
-            let mut default = false;
-            direction::horizontal(ui, |ui| {
-                check = Some(Checkbox::bool(labels.tint.as_str(), &mut tint).id_salt((self.id_salt, "tint")).enabled(enabled).show(ui));
-                let swatch =
-                    Swatch::new((self.id_salt, "swatch"), labels.tint_color.as_str(), value.tint_color.to_rgba()).enabled(enabled && value.tint);
-                if ui.add(swatch).clicked() {
-                    pick_color = Some(ColorRequest::new(TINT_KEY, value.tint_color).title(labels.tint_color.as_str()));
-                }
-                default = ui.add(Button::new(labels.default_button.as_str()).enabled(enabled).id_salt((self.id_salt, "default"))).clicked();
-            });
-            (sliders, check, default)
+        let id = ui.make_persistent_id(self.id_salt);
+        let group = named_group(ui, id, labels.black_white.as_str(), enabled, |ui| {
+            Stack::new(Gap::Stack)
+                .show(ui, |ui| {
+                    let sliders = AdjustSliders::new((self.id_salt, "rows"), &fields, &value.weights, self.numbers)
+                        .context(self.context)
+                        .policy(self.policy)
+                        .enabled(enabled)
+                        .show(ui);
+                    let mut tint = value.tint;
+                    let mut check = None;
+                    let mut default = false;
+                    direction::horizontal(ui, |ui| {
+                        check = Some(Checkbox::bool(labels.tint.as_str(), &mut tint).id_salt((self.id_salt, "tint")).enabled(enabled).show(ui));
+                        let swatch = Swatch::new((self.id_salt, "swatch"), labels.tint_color.as_str(), value.tint_color.to_rgba())
+                            .enabled(enabled && value.tint);
+                        if ui.add(swatch).clicked() {
+                            pick_color = Some(ColorRequest::new(TINT_KEY, value.tint_color).title(labels.tint_color.as_str()));
+                        }
+                        default = ui.add(Button::new(labels.default_button.as_str()).enabled(enabled).id_salt((self.id_salt, "default"))).clicked();
+                    });
+                    (sliders, check, default)
+                })
+                .inner
         });
         let (sliders, check, default) = group.inner;
         let (submitted, escaped) = (sliders.submitted, sliders.escaped);
@@ -240,9 +246,12 @@ impl ChannelMixer {
     }
 }
 
-/// The Total readout's text: the sum with its sign and a percent sign (PhotoCraft `{total:+.0}%`).
-pub(super) fn total_text(total: f64) -> String {
-    format!("{total:+.0}%")
+/// The Total readout's text: the sum with its sign and a percent sign (PhotoCraft `{total:+.0}%`),
+/// in the user's digits and word order.
+pub(super) fn total_text(units: &Units, labels: &AdjustLabels, total: f64) -> String {
+    let whole = total.round();
+    let text = units.text(UnitKind::Percent, whole, 0..=0);
+    if whole < 0.0 { text } else { craft_i18n::fmt(&labels.plus, &[("n", &text)]) }
 }
 
 /// Whether the Total is over 100 %, where the readout turns to the warning colour.
@@ -310,6 +319,7 @@ impl<'a> ChannelMixerEditor<'a> {
         // select :245-255, rows :262-266, Total :267-272, Monochrome :280-288).
         let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
         let style = AdjustStyle::of(&Tokens::of(ui));
+        let units = Units::of(ui);
         let enabled = self.enabled && ui.is_enabled();
         let id = ui.make_persistent_id(self.id_salt);
         let value = *self.value;
@@ -337,44 +347,50 @@ impl<'a> ChannelMixerEditor<'a> {
         // Each output has its own slider state.
         let shown = if mono { 3 } else { out };
         let mut picked = out;
-        let group = Stack::new(Gap::Stack).show(ui, |ui| {
-            direction::horizontal(ui, |ui| {
-                ui.add(Text::new(labels.output_channel.as_str()).role(TypeRole::Label).content(Content::Muted));
-                let mut select = Select::new((self.id_salt, "output"), labels.output_channel.as_str(), &mut picked);
-                if mono {
-                    select = select.option(0, labels.gray.as_str());
-                } else {
-                    for (i, name) in [&labels.red, &labels.green, &labels.blue].into_iter().enumerate() {
-                        select = select.option(i, name.as_str());
-                    }
-                }
-                let _ = select.enabled(enabled).show(ui);
-            });
-            let table = AdjustSliders::new((self.id_salt, "rows", shown), &fields, &row[..3], self.numbers)
-                .context(self.context)
-                .policy(self.policy)
-                .enabled(enabled)
-                .show(ui);
-            let total = ChannelMixer::total(row);
-            let warn = total_warns(total);
-            direction::horizontal(ui, |ui| {
-                ui.add(Text::new(labels.total.as_str()).role(TypeRole::Label).content(Content::Muted));
-                let color = if warn { style.total_warn } else { style.total_colour };
-                let readout = ui.add(Label::new(RichText::new(total_text(total)).font(style.total_font.clone()).color(color)).selectable(false));
-                let named = if warn { labels.total_over.replace("{value}", &total_text(total)) } else { total_text(total) };
-                ui.ctx().accesskit_node_builder(readout.id, |node| {
-                    node.set_label(labels.total.as_str());
-                    node.set_value(named);
-                });
-            });
-            let offset = AdjustSliders::new((self.id_salt, "constant", shown), &constant, &row[3..], self.numbers)
-                .context(self.context)
-                .policy(self.policy)
-                .enabled(enabled)
-                .show(ui);
-            let mut monochrome = mono;
-            let check = Checkbox::bool(labels.monochrome.as_str(), &mut monochrome).id_salt((self.id_salt, "monochrome")).enabled(enabled).show(ui);
-            (table, offset, check)
+        let group = named_group(ui, id, labels.channel_mixer.as_str(), enabled, |ui| {
+            Stack::new(Gap::Stack)
+                .show(ui, |ui| {
+                    direction::horizontal(ui, |ui| {
+                        ui.add(Text::new(labels.output_channel.as_str()).role(TypeRole::Label).content(Content::Muted));
+                        let mut select = Select::new((self.id_salt, "output"), labels.output_channel.as_str(), &mut picked);
+                        if mono {
+                            select = select.option(0, labels.gray.as_str());
+                        } else {
+                            for (i, name) in [&labels.red, &labels.green, &labels.blue].into_iter().enumerate() {
+                                select = select.option(i, name.as_str());
+                            }
+                        }
+                        let _ = select.enabled(enabled).show(ui);
+                    });
+                    let table = AdjustSliders::new((self.id_salt, "rows", shown), &fields, &row[..3], self.numbers)
+                        .context(self.context)
+                        .policy(self.policy)
+                        .enabled(enabled)
+                        .show(ui);
+                    let total = ChannelMixer::total(row);
+                    let warn = total_warns(total);
+                    direction::horizontal(ui, |ui| {
+                        ui.add(Text::new(labels.total.as_str()).role(TypeRole::Label).content(Content::Muted));
+                        let color = if warn { style.total_warn } else { style.total_color };
+                        let shown = total_text(&units, &labels, total);
+                        let readout = ui.add(Label::new(RichText::new(shown.as_str()).font(style.total_font.clone()).color(color)).selectable(false));
+                        let named = if warn { craft_i18n::fmt(&labels.total_over, &[("value", &shown)]) } else { shown.clone() };
+                        ui.ctx().accesskit_node_builder(readout.id, |node| {
+                            node.set_label(labels.total.as_str());
+                            node.set_value(named);
+                        });
+                    });
+                    let offset = AdjustSliders::new((self.id_salt, "constant", shown), &constant, &row[3..], self.numbers)
+                        .context(self.context)
+                        .policy(self.policy)
+                        .enabled(enabled)
+                        .show(ui);
+                    let mut monochrome = mono;
+                    let check =
+                        Checkbox::bool(labels.monochrome.as_str(), &mut monochrome).id_salt((self.id_salt, "monochrome")).enabled(enabled).show(ui);
+                    (table, offset, check)
+                })
+                .inner
         });
         ui.data_mut(|d| d.insert_temp(id.with(OUTPUT), picked));
         let (table, offset, check) = group.inner;
@@ -491,32 +507,35 @@ impl<'a> SelectiveColorEditor<'a> {
             .map(|(key, label)| AdjustField::new(key, label.as_str(), -100.0..=100.0, 0.0).unit(Unit::new(PERCENT)))
             .collect();
         let mut picked = range;
-        let group = Stack::new(Gap::Stack).show(ui, |ui| {
-            direction::horizontal(ui, |ui| {
-                ui.add(Text::new(labels.colors.as_str()).role(TypeRole::Label).content(Content::Muted));
-                let mut select = Select::new((self.id_salt, "colors"), labels.colors.as_str(), &mut picked);
-                for (i, name) in names.into_iter().enumerate() {
-                    select = select.option(i, name.as_str());
-                }
-                let _ = select.enabled(enabled).show(ui);
-            });
-            let table = AdjustSliders::new((self.id_salt, "rows", range), &fields, &value.ranges[range], self.numbers)
-                .context(self.context)
-                .policy(self.policy)
-                .enabled(enabled)
-                .show(ui);
-            let mut method = value.method;
-            let method_name = format!("{} / {}", labels.relative, labels.absolute);
-            let mut set = RadioSet::new((self.id_salt, "method"), method_name.as_str(), &mut method)
-                .item(SelectiveMethod::Relative)
-                .item(SelectiveMethod::Absolute)
-                .enabled(enabled)
-                .begin(ui);
-            direction::horizontal(ui, |ui| {
-                set.radio(ui, 0, &labels.relative);
-                set.radio(ui, 1, &labels.absolute);
-            });
-            (table, set.end(ui))
+        let group = named_group(ui, id, labels.selective_color.as_str(), enabled, |ui| {
+            Stack::new(Gap::Stack)
+                .show(ui, |ui| {
+                    direction::horizontal(ui, |ui| {
+                        ui.add(Text::new(labels.colors.as_str()).role(TypeRole::Label).content(Content::Muted));
+                        let mut select = Select::new((self.id_salt, "colors"), labels.colors.as_str(), &mut picked);
+                        for (i, name) in names.into_iter().enumerate() {
+                            select = select.option(i, name.as_str());
+                        }
+                        let _ = select.enabled(enabled).show(ui);
+                    });
+                    let table = AdjustSliders::new((self.id_salt, "rows", range), &fields, &value.ranges[range], self.numbers)
+                        .context(self.context)
+                        .policy(self.policy)
+                        .enabled(enabled)
+                        .show(ui);
+                    let mut method = value.method;
+                    let mut set = RadioSet::new((self.id_salt, "method"), labels.relative_absolute.as_str(), &mut method)
+                        .item(SelectiveMethod::Relative)
+                        .item(SelectiveMethod::Absolute)
+                        .enabled(enabled)
+                        .begin(ui);
+                    direction::horizontal(ui, |ui| {
+                        set.radio(ui, 0, &labels.relative);
+                        set.radio(ui, 1, &labels.absolute);
+                    });
+                    (table, set.end(ui))
+                })
+                .inner
         });
         // An edit belongs to the range it was drawn for; a switch shows from the next pass.
         ui.data_mut(|d| d.insert_temp(id.with(RANGE), picked));

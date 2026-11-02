@@ -2442,6 +2442,10 @@ pub const ADJUST_SPECTRUM_MASTER_EXTRA: f32 = 20.0;
 pub const ADJUST_RANGE_THUMB_WIDTH: f32 = 5.0;
 /// A range thumb's height: `adjust.range_thumb_height`.
 pub const ADJUST_RANGE_THUMB_HEIGHT: f32 = 12.0;
+/// A range thumb's corner radius (PhotoCraft `hue_saturation.rs:177`): `adjust.range_thumb_radius`.
+pub const ADJUST_RANGE_THUMB_RADIUS: f32 = 1.0;
+/// Distance from a press within which a range thumb is grabbed (PhotoCraft `hue_saturation.rs:25`): `adjust.hue_grab`.
+pub const ADJUST_HUE_GRAB: f32 = 10.0;
 /// A point picker's tone dot radius: `adjust.picker_dot`.
 pub const ADJUST_PICKER_DOT: f32 = 3.5;
 /// The tone dot's centre, in from the button's bottom-trailing corner: `adjust.picker_dot_inset`.
@@ -2450,6 +2454,12 @@ pub const ADJUST_PICKER_DOT_INSET: f32 = 5.5;
 pub const ADJUST_THRESHOLD_HISTOGRAM: f32 = 90.0;
 /// Threshold's histogram widest width: `adjust.threshold_width`.
 pub const ADJUST_THRESHOLD_WIDTH: f32 = 300.0;
+/// Threshold's level marker inset from the histogram's edges (PhotoCraft `basic.rs:78`): `adjust.threshold_inset`.
+pub const ADJUST_THRESHOLD_INSET: f32 = 6.0;
+/// Width of Threshold's level marker (PhotoCraft `basic.rs:83`): `adjust.threshold_marker_width`.
+pub const ADJUST_THRESHOLD_MARKER_WIDTH: f32 = 1.0;
+/// The alpha multiplier of a disabled picker's tone dot and ring (PhotoCraft `adjust_dialog.rs:181`): `adjust.disabled_alpha`.
+pub const ADJUST_DISABLED_ALPHA: f32 = 0.4;
 
 // --- layer_style ---
 /// The effect list's width: `layer_style.list_width`.

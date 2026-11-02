@@ -1,6 +1,8 @@
 //! Tests of Black & White, Channel Mixer and Selective Color (task AD-5), and the AccessKit test over every
 //! adjustment editor, which needs the bodies of tasks AD-1 to AD-5.
 
+use std::sync::Arc;
+
 use egui::Ui;
 use egui::accesskit::{Role, Toggled};
 use egui_kittest::Harness;
@@ -17,7 +19,7 @@ use super::{
 use craft_theme::Srgba;
 use craft_ui::dialog::ColorRequest;
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::LocaleNumbers;
+use craft_ui::localized::{LocaleNumbers, Units, Words};
 use craft_ui::theme::{Base, install};
 
 /// A host of one value: applies every event and keeps them, with the colour requests.
@@ -132,7 +134,9 @@ fn channel_mixer_total_turns_warn_above_one_hundred_percent() {
     let h = channel_mixer(over);
     assert!(label_values(&h).iter().any(|value| value == "+120%, over 100 percent"), "{:?}", label_values(&h));
     assert!(total_warns(120.0));
-    assert_eq!(total_text(120.0), "+120%");
+    let (units, labels) = (Units::new(Arc::new(LocaleNumbers::from_tag("en")), Arc::new(Words::english())), AdjustLabels::default());
+    assert_eq!(total_text(&units, &labels, 120.0), "+120%");
+    assert_eq!(total_text(&units, &labels, -30.0), "-30%");
 
     let at = ChannelMixer { red: [60.0, 40.0, 0.0, 0.0], ..ChannelMixer::default() };
     let h = channel_mixer(at);
@@ -161,9 +165,9 @@ fn selective_color_edits_the_shown_range_only() {
     assert_eq!(*value, want);
 }
 
-/// Whether a node with `role` and `name` is in the tree (a panel and its editor may share a name).
+/// Whether exactly one node with `role` and `name` is in the tree.
 fn present(h: &Harness<'_>, role: Role, name: &str) {
-    assert!(h.get_all_by_role_and_label(role, name).next().is_some(), "{role:?} {name}");
+    assert_eq!(h.query_all_by_role_and_label(role, name).count(), 1, "{role:?} {name}");
 }
 
 fn button_toggle(h: &Harness<'_>, name: &str) -> Option<Toggled> {
@@ -268,6 +272,7 @@ fn adjust_editors_have_accesskit_names_and_values() {
     let h = tree([420.0, 560.0], move |ui| {
         let _ = BlackWhiteEditor::new("bw", &BlackWhite::default(), &n).show(ui);
     });
+    present(&h, Role::Group, "Black & White");
     has_value(&h, Role::Slider, "Reds");
     present(&h, Role::CheckBox, "Tint");
     present(&h, Role::ColorWell, "Tint Color");
@@ -276,6 +281,7 @@ fn adjust_editors_have_accesskit_names_and_values() {
     let h = tree([420.0, 560.0], move |ui| {
         let _ = ChannelMixerEditor::new("cm", &ChannelMixer::default(), &n).show(ui);
     });
+    present(&h, Role::Group, "Channel Mixer");
     assert!(h.get_by_role_and_label(Role::ComboBox, "Output Channel").accesskit_node().value().is_some());
     has_value(&h, Role::Slider, "Constant");
     assert!(h.get_all_by_role(Role::Label).any(|node| node.accesskit_node().value().as_deref() == Some("+100%")));
@@ -284,6 +290,8 @@ fn adjust_editors_have_accesskit_names_and_values() {
         let _ = SelectiveColorEditor::new("sc", &SelectiveColor::default(), &n).show(ui);
     });
     assert_eq!(h.get_by_role_and_label(Role::ComboBox, "Colors").accesskit_node().value().as_deref(), Some("Reds"));
+    present(&h, Role::Group, "Selective Color");
+    present(&h, Role::RadioGroup, "Relative / Absolute");
     has_value(&h, Role::Slider, "Cyan");
     present(&h, Role::RadioButton, "Relative");
 }
