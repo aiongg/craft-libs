@@ -2,12 +2,11 @@
 
 use egui::{AsIdSalt, IdSalt, ModifierNames, Modifiers, Response, Ui};
 
-use craft_theme::ControlSize;
 use craft_ui::canvas::SelectionOperation;
 use craft_ui::controls::{IconButton, NumberField};
 use craft_ui::dialog::DialogLabels;
 use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
 use craft_ui::patterns::{CellWidth, OptionsBar};
 
 use super::FillLabels;
@@ -36,17 +35,25 @@ pub struct FillBar<'a> {
     id_salt: IdSalt,
     tool: FillTool,
     options: &'a mut FillToolOptions,
-    labels: &'a FillLabels,
+    labels: Option<FillLabels>,
 }
 
 impl<'a> FillBar<'a> {
-    pub fn new(id_salt: impl AsIdSalt, tool: FillTool, options: &'a mut FillToolOptions, labels: &'a FillLabels) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), tool, options, labels }
+    pub fn new(id_salt: impl AsIdSalt, tool: FillTool, options: &'a mut FillToolOptions) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), tool, options, labels: None }
+    }
+
+    /// The bar's words; [`FillLabels::of`] when not set.
+    pub fn labels(mut self, labels: FillLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn show(self, ui: &mut Ui) -> FillBarOutput {
         // pc: crates/ui-egui/src/dialogs/caf_ui/view.rs:33 `caf_options_bar`.
         let Self { id_salt, tool, options, labels } = self;
+        let labels = labels.unwrap_or_else(|| FillLabels::of(ui));
+        let labels = &labels;
         let reset_label = DialogLabels::of(ui).reset;
         let mac = ui.ctx().os().is_mac();
         let mut edit = None;
@@ -63,8 +70,9 @@ impl<'a> FillBar<'a> {
                 OptionsBar::tool_icon(ui, icon, label.as_str());
             });
             bar.body(move |ui| {
-                let sm = ControlSize::Sm;
+                let sm = OptionsBar::CONTROL_SIZE;
                 let numbers = LocaleNumbers::of(ui);
+                let pixels = Units::of(ui).unit(UnitKind::Pixels);
                 match tool {
                     FillTool::SamplingBrush => {
                         for (add, icon, name, salt) in [(true, Icon::Plus, &labels.add, "add"), (false, Icon::Minus, &labels.subtract, "subtract")] {
@@ -77,7 +85,7 @@ impl<'a> FillBar<'a> {
                         let field = NumberField::new("size", labels.size.as_str(), options.brush_size, &numbers)
                             .range(1.0..=FillToolOptions::SIZE_MAX)
                             .decimals(0..=0)
-                            .unit(Unit::new("{n} px"));
+                            .unit(pixels);
                         if let Some(value) =
                             OptionsBar::number_cell(ui, &labels.size, CellWidth::Md, field).event.as_ref().and_then(|e| e.value()).copied()
                         {
@@ -105,20 +113,15 @@ impl<'a> FillBar<'a> {
                         OptionsBar::divider(ui);
                         let by = options.grow_by;
                         let (min, max) = FillAreaEdit::GROW_RANGE;
-                        let unit = Unit::new("{n} px");
-                        let width = NumberField::fit_width(ui, sm, &numbers, min..=max, 0, &unit);
                         for (expand, name, salt) in [(true, &labels.expand, "expand"), (false, &labels.contract, "contract")] {
                             if ui.add(craft_ui::controls::Button::new(name.as_str()).size(sm).id_salt(salt)).clicked() {
                                 *edit_ref = Some(FillAreaEdit::grow(expand, by));
                             }
                         }
-                        let field = NumberField::new("grow-by", labels.expand.as_str(), by, &numbers)
-                            .range(min..=max)
-                            .decimals(0..=0)
-                            .unit(unit)
-                            .size(sm)
-                            .width(width);
-                        if let Some(value) = field.show(ui).event.as_ref().and_then(|e| e.value()).copied() {
+                        let field = NumberField::new("grow-by", labels.grow_by.as_str(), by, &numbers).range(min..=max).decimals(0..=0).unit(pixels);
+                        if let Some(value) =
+                            OptionsBar::number_cell(ui, &labels.grow_by, CellWidth::Md, field).event.as_ref().and_then(|e| e.value()).copied()
+                        {
                             options.grow_by = value.clamp(min, max);
                         }
                         let button = IconButton::new(Icon::Undo, reset_label.as_str()).size(sm).id_salt("reset");

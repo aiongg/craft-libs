@@ -3,6 +3,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use craft_ui::localized::Words;
+
+use super::labels::{LASSO_EDIT_LIMIT, POINT_LIMIT, STROKE_LIMIT};
 use super::lasso::FillAreaEdit;
 use crate::ui::select_mask::EditMode;
 
@@ -84,11 +87,34 @@ pub struct FillLimits {
     pub points: usize,
 }
 
-impl FillLimits {
-    /// The message for a stroke or edit that would pass `points`.
-    pub fn points_message(&self) -> String {
-        // pc: crates/ui-egui/src/dialogs/caf_ui/preview.rs:84 `points_limit`.
-        format!("at most {} points in all sampling strokes and lasso edits: undo some, or reset", self.points)
+/// The limit a stroke or edit ran into, with the number it is. The workspace words it
+/// ([`FillLimit::message`]) under the panel; the app gets it in [`FillEvent::Refused`].
+///
+/// [`FillEvent::Refused`]: super::FillEvent::Refused
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum FillLimit {
+    /// At most this many sampling strokes.
+    Strokes(usize),
+    /// At most this many lasso edits.
+    LassoEdits(usize),
+    /// At most this many points in all strokes and lasso edits.
+    Points(usize),
+}
+
+impl FillLimit {
+    /// The limit as a sentence in the installed language ("at most 2 sampling strokes: undo some,
+    /// or reset the sampling area"), the count in the locale's digits and plural form.
+    pub fn message(&self, ctx: &egui::Context) -> String {
+        // pc: crates/ui-egui/src/dialogs/caf_ui/preview.rs:84 `points_limit`, caf_ui.rs:353
+        // `begin_stroke`, caf_ui/lifecycle.rs:196 `fill_edit` (the texts).
+        let (counted, n) = match *self {
+            FillLimit::Strokes(n) => (STROKE_LIMIT, n),
+            FillLimit::LassoEdits(n) => (LASSO_EDIT_LIMIT, n),
+            FillLimit::Points(n) => (POINT_LIMIT, n),
+        };
+        let words = Words::of_ctx(ctx);
+        words.counted(ctx, counted, &words.get(counted.word), n as u64)
     }
 }
 
@@ -126,17 +152,15 @@ impl FillSession {
         strokes + lassos
     }
 
-    /// Whether a new stroke may begin (or a stroke in progress take another point): `Err` with "at
-    /// most N sampling strokes: undo some, or reset the sampling area" or the points message ("at
-    /// most N points in all sampling strokes and lasso edits: undo some, or reset").
-    pub fn may_begin_stroke(&self, limits: &FillLimits) -> Result<(), String> {
+    /// Whether a new stroke may begin: `Err` with the stroke limit or the points limit it ran into.
+    pub fn may_begin_stroke(&self, limits: &FillLimits) -> Result<(), FillLimit> {
         // pc: crates/ui-egui/src/dialogs/caf_ui.rs:353 `begin_stroke` (the checks), :371
         // `extend_stroke`; caf_ui/preview.rs:84 `points_limit`.
         if self.strokes.len() >= limits.edits {
-            return Err(format!("at most {} sampling strokes: undo some, or reset the sampling area", limits.edits));
+            return Err(FillLimit::Strokes(limits.edits));
         }
         if self.points_used(None) >= limits.points {
-            return Err(limits.points_message());
+            return Err(FillLimit::Points(limits.points));
         }
         Ok(())
     }
@@ -147,17 +171,17 @@ impl FillSession {
         self.strokes.push(stroke);
     }
 
-    /// Records a fill-area edit within `limits`, or returns why not ("at most N lasso edits: undo
-    /// some, or reset the fill area"; the points message). An edit the app then finds empties the
-    /// fill area is taken back by the workspace (`ContentAwareFillWorkspace::refuse_fill_edit`).
-    pub fn add_fill_edit(&mut self, edit: FillAreaEdit, limits: &FillLimits) -> Result<(), String> {
+    /// Records a fill-area edit within `limits`, or returns the limit it ran into. An edit the app
+    /// then finds empties the fill area is taken back by the workspace
+    /// (`ContentAwareFillWorkspace::refuse_fill_edit`).
+    pub fn add_fill_edit(&mut self, edit: FillAreaEdit, limits: &FillLimits) -> Result<(), FillLimit> {
         // pc: crates/ui-egui/src/dialogs/caf_ui/lifecycle.rs:196 `fill_edit` (the count first,
         // then the points; a total equal to the limit passes).
         if self.fill_edits.len() >= limits.edits {
-            return Err(format!("at most {} lasso edits: undo some, or reset the fill area", limits.edits));
+            return Err(FillLimit::LassoEdits(limits.edits));
         }
         if self.points_used(None) + edit.points_len() > limits.points {
-            return Err(limits.points_message());
+            return Err(FillLimit::Points(limits.points));
         }
         self.fill_edits.push(edit);
         Ok(())

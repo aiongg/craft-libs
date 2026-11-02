@@ -10,9 +10,9 @@ use craft_ui::theme::{Base, install};
 use egui::{Event, Modifiers, PointerButton, Sense, pos2, vec2};
 use egui_kittest::Harness;
 
-use super::session::{FillCommand, FillLimits, FillReset, FillSession, FillSettings, SamplingMode, SamplingStroke};
+use super::session::{FillCommand, FillLimit, FillLimits, FillReset, FillSession, FillSettings, SamplingMode, SamplingStroke};
 use super::tool::{FillCanvas, FillTool, FillToolOptions};
-use super::{ContentAwareFillWorkspace, FillAreaEdit, FillEvent, FillOpen};
+use super::{ContentAwareFillWorkspace, FillAreaEdit, FillEvent, FillIssue, FillOpen};
 use crate::ui::select_mask::EditMode;
 
 const NONE: Modifiers = Modifiers::NONE;
@@ -292,8 +292,7 @@ fn fill_limits_refuse_at_the_brush() {
     session.add_stroke(stroke(&[[0.0, 0.0]]));
     assert_eq!(session.may_begin_stroke(&limits), Ok(()));
     session.add_stroke(stroke(&[[0.0, 0.0], [1.0, 1.0]]));
-    let Err(message) = session.may_begin_stroke(&limits) else { panic!("two strokes are the limit") };
-    assert_eq!(message, "at most 2 sampling strokes: undo some, or reset the sampling area");
+    assert_eq!(session.may_begin_stroke(&limits), Err(FillLimit::Strokes(2)), "two strokes are the limit");
 
     // Points are counted over strokes and lasso edits; a total equal to the limit passes an edit.
     let limits = FillLimits { edits: 10, points: 5 };
@@ -303,11 +302,11 @@ fn fill_limits_refuse_at_the_brush() {
     assert_eq!(session.add_fill_edit(triangle(), &limits), Ok(()));
     assert_eq!(session.points_used(None), 5);
     assert_eq!(session.points_used(Some(&stroke(&[[9.0, 9.0]]))), 6);
-    assert_eq!(session.may_begin_stroke(&limits), Err("at most 5 points in all sampling strokes and lasso edits: undo some, or reset".to_owned()));
-    assert_eq!(session.add_fill_edit(triangle(), &limits), Err(limits.points_message()));
+    assert_eq!(session.may_begin_stroke(&limits), Err(FillLimit::Points(5)));
+    assert_eq!(session.add_fill_edit(triangle(), &limits), Err(FillLimit::Points(5)));
     assert_eq!(session.fill_edits.len(), 1, "a refused edit records nothing");
     let tight = FillLimits { edits: 1, points: 100 };
-    assert_eq!(session.add_fill_edit(triangle(), &tight), Err("at most 1 lasso edits: undo some, or reset the fill area".to_owned()));
+    assert_eq!(session.add_fill_edit(triangle(), &tight), Err(FillLimit::LassoEdits(1)));
 
     // The brush: no stroke begins at the stroke limit.
     let mut full = FillSession::default();
@@ -315,7 +314,7 @@ fn fill_limits_refuse_at_the_brush() {
     let mut h = rig(FillTool::SamplingBrush, true, full, FillLimits { edits: 1, points: 100 });
     down(&mut h, (10.0, 10.0), NONE);
     up(&mut h, (10.0, 10.0));
-    assert_eq!(events(&mut h), [FillEvent::Refused("at most 1 sampling strokes: undo some, or reset the sampling area".to_owned())]);
+    assert_eq!(events(&mut h), [FillEvent::Refused(FillLimit::Strokes(1))]);
     assert!(!h.state().canvas.busy());
 
     // A stroke at the points limit stops taking points; the message comes once.
@@ -328,7 +327,7 @@ fn fill_limits_refuse_at_the_brush() {
     up(&mut h, (60.0, 10.0));
     let all = events(&mut h);
     let refusals: Vec<_> = all.iter().filter(|e| matches!(e, FillEvent::Refused(_))).collect();
-    assert_eq!(refusals, [&FillEvent::Refused(limits.points_message())]);
+    assert_eq!(refusals, [&FillEvent::Refused(FillLimit::Points(3))]);
     assert_eq!(committed(&all).0.points, [[10.0, 10.0], [20.0, 10.0], [30.0, 10.0]]);
 }
 
@@ -387,5 +386,50 @@ fn fill_rebase_clears_history_and_a_refused_edit_is_taken_back() {
     assert!(w.session.fill_edits.is_empty());
     assert_eq!(w.session.strokes.len(), 1);
     assert!(!w.history.can_redo(), "a refused edit leaves no redo");
-    assert_eq!(w.error.as_deref(), Some("the fill area is empty"));
+    assert_eq!(w.error, Some(FillIssue::Message("the fill area is empty".to_owned())));
+
+    // Earlier steps stay: the refused edit is the only one dropped, and undo reaches the one
+    // before it.
+    let first = FillAreaEdit::grow(true, 3.0);
+    let mut w = ContentAwareFillWorkspace::new(FillOpen::new([100, 100], "Layer 1", GENEROUS));
+    assert_eq!(w.session.add_fill_edit(first.clone(), &GENEROUS), Ok(()));
+    w.history.settle(&w.session, false);
+    assert_eq!(w.session.add_fill_edit(FillAreaEdit::grow(false, 2.0), &GENEROUS), Ok(()));
+    w.history.settle(&w.session, false);
+    w.refuse_fill_edit("the fill area is empty".to_owned());
+    assert_eq!(w.session.fill_edits, [first]);
+    assert!(w.history.can_undo() && !w.history.can_redo());
+    assert!(w.history.step(&mut w.session, Step::Undo));
+    assert!(w.session.fill_edits.is_empty());
+}
+
+// The limits are worded in the installed language with the count's plural form.
+#[test]
+fn fill_limits_are_worded_with_counts() {
+    let ctx = egui::Context::default();
+    assert_eq!(FillLimit::Strokes(1).message(&ctx), "at most 1 sampling stroke: undo some, or reset the sampling area");
+    assert_eq!(FillLimit::Strokes(1000).message(&ctx), "at most 1,000 sampling strokes: undo some, or reset the sampling area");
+    assert_eq!(FillLimit::LassoEdits(2).message(&ctx), "at most 2 lasso edits: undo some, or reset the fill area");
+    assert_eq!(FillLimit::Points(200_000).message(&ctx), "at most 200,000 points in all sampling strokes and lasso edits: undo some, or reset");
+}
+
+// An `Update` carries the points added since the last event, so a long stroke costs no more per
+// point than a short one; `Commit` carries the whole stroke.
+#[test]
+fn fill_stroke_updates_carry_only_the_new_points() {
+    let mut h = rig(FillTool::SamplingBrush, true, FillSession::default(), GENEROUS);
+    down(&mut h, (10.0, 10.0), NONE);
+    drag_to(&mut h, (20.0, 10.0));
+    drag_to(&mut h, (30.0, 10.0));
+    up(&mut h, (40.0, 10.0));
+    let all = events(&mut h);
+    let updates: Vec<_> = all
+        .iter()
+        .filter_map(|e| match e {
+            FillEvent::Stroke(EditEvent::Update { value, .. }) => Some(value.points.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(updates, [vec![[20.0, 10.0]], vec![[30.0, 10.0]], vec![[40.0, 10.0]]]);
+    assert_eq!(committed(&all).0.points, [[10.0, 10.0], [20.0, 10.0], [30.0, 10.0], [40.0, 10.0]]);
 }
