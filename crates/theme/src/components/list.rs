@@ -67,12 +67,18 @@ pub struct ListTokens {
     pub ghost_offset: [f32; 2],
     /// Type role of the label.
     pub label: TypeRole,
+    /// Type role of the label of a strong row (a heading-like row among plain ones): the label's
+    /// size at the strong weight.
+    pub label_strong: TypeRole,
     /// Type role of the detail line under the label.
     pub detail_role: TypeRole,
     /// The label: `text.normal`.
     pub text: Rgba,
     /// The label of a dimmed row (a hidden layer): `text.faint`.
     pub dimmed: Rgba,
+    /// The label of a muted row (a row that is on but secondary): `text.muted`. A selected muted
+    /// row draws `selected_dimmed`.
+    pub muted: Rgba,
     /// The label of the selected row: `text.on_selected`, moved to read on the moved fills.
     pub selected_text: Rgba,
     /// The label of a dimmed row that is selected: `text.on_selected` moved toward the selected
@@ -339,6 +345,7 @@ impl ListTokens {
             }
             ListField::Text => &mut self.text,
             ListField::Dimmed => &mut self.dimmed,
+            ListField::Muted => &mut self.muted,
             ListField::SelectedText => &mut self.selected_text,
             ListField::SelectedDimmed => &mut self.selected_dimmed,
             ListField::Detail => &mut self.detail,
@@ -366,7 +373,7 @@ impl ListTokens {
     }
 }
 
-/// An overridable list token. Paths: `radius`, `text`, `text.dimmed`, `text.selected`,
+/// An overridable list token. Paths: `radius`, `text`, `text.dimmed`, `text.muted`, `text.selected`,
 /// `text.selected.dimmed`, `detail`, `detail.selected`, `icon`, `icon.hover`, `hover`,
 /// `selected`, `selected.hover`, `stripe`, `divider`, `thumb.border`, `thumb.border.selected`, `thumb.radius`,
 /// `layer.hover`, `layer.selected`, `layer.outline`, `layer.radius`, `layer.text.selected`,
@@ -380,6 +387,8 @@ pub enum ListField {
     Text,
     /// `list.text.dimmed`
     Dimmed,
+    /// `list.text.muted`
+    Muted,
     /// `list.text.selected`
     SelectedText,
     /// `list.text.selected.dimmed`
@@ -441,6 +450,7 @@ impl ListField {
             ListField::Radius => "radius",
             ListField::Text => "text",
             ListField::Dimmed => "text.dimmed",
+            ListField::Muted => "text.muted",
             ListField::SelectedText => "text.selected",
             ListField::SelectedDimmed => "text.selected.dimmed",
             ListField::Detail => "detail",
@@ -470,10 +480,11 @@ impl ListField {
     }
 }
 
-const BASE_FIELDS: [ListField; 28] = [
+const BASE_FIELDS: [ListField; 29] = [
     ListField::Radius,
     ListField::Text,
     ListField::Dimmed,
+    ListField::Muted,
     ListField::SelectedText,
     ListField::SelectedDimmed,
     ListField::Detail,
@@ -570,9 +581,11 @@ impl Family for ListTokens {
             bracket_arm: values::LIST_BRACKET_ARM,
             ghost_offset: values::LIST_GHOST_OFFSET,
             label: TypeRole::Body,
+            label_strong: TypeRole::BodyStrong,
             detail_role: TypeRole::Caption,
             text: c.text.normal,
             dimmed: c.text.faint,
+            muted: c.text.muted,
             selected_text: look.text,
             selected_dimmed: look.quiet,
             detail: c.text.faint,
@@ -665,6 +678,7 @@ impl Family for ListTokens {
             pair(ListField::Text, component(ListField::Hover), values::TEXT_MIN),
             pair(ListField::Text, component(ListField::GhostFill), values::TEXT_MIN),
             pair(ListField::Dimmed, panel, values::TEXT_MIN),
+            pair(ListField::Muted, panel, values::TEXT_MIN),
             pair(ListField::Detail, panel, values::TEXT_MIN),
             pair(ListField::SelectedText, component(ListField::Selected), values::TEXT_MIN),
             pair(ListField::SelectedText, component(ListField::SelectedHover), values::TEXT_MIN),

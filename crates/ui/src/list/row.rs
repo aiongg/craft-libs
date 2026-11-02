@@ -276,6 +276,8 @@ pub struct ListRowStyle {
     pub icon_size: f32,
     /// Type role of the label: `list.label`.
     pub label_role: TypeRole,
+    /// Type role of the label of a [strong](ListRow::strong) row: `list.label_strong`.
+    pub label_strong_role: TypeRole,
     /// Type role of the detail line: `list.detail_role`.
     pub detail_role: TypeRole,
     /// Line height of the label and of the detail line.
@@ -284,6 +286,8 @@ pub struct ListRowStyle {
     /// `list.text`, `list.text.dimmed`, `list.text.selected` and `list.text.selected.dimmed`.
     pub text: Color32,
     pub dimmed: Color32,
+    /// `list.text.muted`: the label of a [muted](ListRow::muted) row.
+    pub muted: Color32,
     pub selected_text: Color32,
     pub selected_dimmed: Color32,
     /// `list.detail` and `list.detail.selected`.
@@ -418,6 +422,10 @@ pub struct ListRow<'a, K> {
     selected: bool,
     focused: bool,
     dimmed: bool,
+    muted: bool,
+    strong: bool,
+    selectable: bool,
+    spacer: bool,
     highlight: bool,
     layer: bool,
     clipped: bool,
@@ -474,6 +482,10 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             selected: false,
             focused: false,
             dimmed: false,
+            muted: false,
+            strong: false,
+            selectable: true,
+            spacer: false,
             highlight: false,
             layer: false,
             clipped: false,
@@ -491,6 +503,47 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             branch: None,
             tree_text: None,
         }
+    }
+
+    /// Empty room in a list: a row that takes its height but draws nothing, answers no pointer
+    /// and has no AccessKit node. Give its position [`DisplayOrder::is_section`] so that keys and
+    /// clicks skip it, and its height through [`List::heights`].
+    pub fn spacer(key: K) -> Self {
+        let mut row = Self::new(key, String::new());
+        row.spacer = true;
+        row
+    }
+
+    /// Whether the row is a [spacer](ListRow::spacer).
+    pub fn is_spacer(&self) -> bool {
+        self.spacer
+    }
+
+    /// Whether keys and clicks select the row (default true). A row that is not selectable is
+    /// still a stop for the lead: Up, Down, Home, End, Page Up and Page Down move the lead onto
+    /// it without changing the selection, a click makes it the lead without selecting it, and
+    /// Space on it selects nothing. Enter and a double click still activate it.
+    pub fn selectable(mut self, selectable: bool) -> Self {
+        self.selectable = selectable;
+        self
+    }
+
+    /// Whether the row is [selectable](ListRow::selectable).
+    pub fn is_selectable(&self) -> bool {
+        self.selectable
+    }
+
+    /// The label in the strong weight (`list.label_strong`), for a row that heads the others.
+    pub fn strong(mut self, strong: bool) -> Self {
+        self.strong = strong;
+        self
+    }
+
+    /// The label in `text.muted`: a secondary row that is still on. A [dimmed](ListRow::dimmed)
+    /// row (`text.faint`) wins over it; a selected muted row takes the selected dimmed color.
+    pub fn muted(mut self, muted: bool) -> Self {
+        self.muted = muted;
+        self
     }
 
     /// The row is clipped to the layer below: it is indented one step and shows the down-right
@@ -840,11 +893,13 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             bracket_arm: l.bracket_arm,
             icon_size: tokens.size.icon.md,
             label_role: l.label,
+            label_strong_role: l.label_strong,
             detail_role: l.detail_role,
             label_line: tokens.typography.get(l.label).line_height,
             detail_line: tokens.typography.get(l.detail_role).line_height,
             text: l.text.to_egui(),
             dimmed: l.dimmed.to_egui(),
+            muted: l.muted.to_egui(),
             selected_text: l.selected_text.to_egui(),
             selected_dimmed: l.selected_dimmed.to_egui(),
             detail: l.detail.to_egui(),
@@ -898,6 +953,10 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             selected,
             focused,
             dimmed,
+            muted,
+            strong,
+            selectable: _,
+            spacer: _,
             highlight,
             layer,
             clipped,
@@ -1049,21 +1108,12 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         }
 
         let band = geometry.label_band(rect);
-        let (selected_text, selected_dimmed, selected_detail) = if layer {
-            (style.layer_selected_text, style.layer_selected_dimmed, style.layer_selected_detail)
-        } else {
-            (style.selected_text, style.selected_dimmed, style.selected_detail)
-        };
-        let (text, detail_text) = match (selected, dimmed) {
-            (true, true) => (selected_dimmed, selected_detail),
-            (true, false) => (selected_text, selected_detail),
-            (false, true) => (style.dimmed, style.detail),
-            (false, false) => (style.text, style.detail),
-        };
+        let (text, detail_text) = label_colors(&style, (selected, dimmed, muted), layer);
+        let label_role = if strong { style.label_strong_role } else { style.label_role };
         if renaming {
             rename::show(ui, row_id, &key, &label, rename_field_name.as_deref().unwrap_or(&label), band, &mut events);
         } else if visible {
-            paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), (text, italic));
+            paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), (text, italic, label_role));
         }
         for (item, at) in trailing.into_iter().zip(&geometry.items) {
             let Some((start, width)) = *at else { continue };
@@ -1329,6 +1379,23 @@ fn show_link<K: Clone>(
     let _ = response.on_hover_text(name);
 }
 
+/// The label's color and the detail line's for a row's state: dimmed (`text.faint`) wins over
+/// muted, and a selected muted row takes the selected dimmed color.
+fn label_colors(style: &ListRowStyle, (selected, dimmed, muted): (bool, bool, bool), layer: bool) -> (Color32, Color32) {
+    let (selected_text, selected_dimmed, selected_detail) = if layer {
+        (style.layer_selected_text, style.layer_selected_dimmed, style.layer_selected_detail)
+    } else {
+        (style.selected_text, style.selected_dimmed, style.selected_detail)
+    };
+    match (selected, dimmed, muted) {
+        (true, true, _) | (true, false, true) => (selected_dimmed, selected_detail),
+        (true, false, false) => (selected_text, selected_detail),
+        (false, true, _) => (style.dimmed, style.detail),
+        (false, false, true) => (style.muted, style.detail),
+        (false, false, false) => (style.text, style.detail),
+    }
+}
+
 /// The colour of the target brackets: the row's text colour.
 fn bracket_color(style: &ListRowStyle, selected: bool, layer: bool) -> Color32 {
     match (selected, layer) {
@@ -1388,7 +1455,7 @@ fn paint_label(
     band: Rect,
     label: &str,
     detail: Option<(&str, Color32)>,
-    (color, italic): (Color32, bool),
+    (color, italic, label_role): (Color32, bool, TypeRole),
 ) {
     if band.width() < 1.0 {
         return;
@@ -1408,7 +1475,7 @@ fn paint_label(
         let x = if direction::is_rtl(ui) { at.right() - galley.size().x } else { at.left() };
         ui.painter().galley(pos2(x, at.center().y - galley.size().y / 2.0), galley, color);
     };
-    line(ui, top, style.label_line, label, style.label_role, color, italic);
+    line(ui, top, style.label_line, label, label_role, color, italic);
     if let Some((detail, detail_color)) = detail {
         line(ui, top + style.label_line, style.detail_line, detail, style.detail_role, detail_color, false);
     }
