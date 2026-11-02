@@ -1,6 +1,4 @@
-//! Stories of the selection overlay (task ST-SE2): not registered. Registering them (task RG2)
-//! adds `selection::stories` to the crate's `register!` list, `SelectionOverlay` to `COMPONENTS`
-//! and [`SelectionStoryLabels`] to `WORDS`, and regenerates the registry dump.
+//! Stories of the selection overlay (task ST-SE2).
 //!
 //! Every story draws `MockImage` (`ui::mock_image`) under the overlay of a fake `MaskSource`: the
 //! picture's subject (the house, [`MockSubject`]), and for the large case a soft-edged disc in a
@@ -9,8 +7,8 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `primitives/selection/ants` | The subject at four zooms; the large mask at 12 %; a floating offset; a mapped (turned) outline; hidden |
-//! | `primitives/selection/preview` | The five preview modes; the Quick Mask colour, opacity and Color Indicates |
+//! | `composites/selection-overlay/ants` | The subject at four zooms; the large mask at 12 %; a floating offset; a mapped (turned) outline; hidden |
+//! | `composites/selection-overlay/preview` | The five preview modes; the Quick Mask colour, opacity and Color Indicates |
 
 use craft_theme::Srgba;
 use craft_ui::canvas::CanvasView;
@@ -18,6 +16,7 @@ use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface};
+use craft_ui::testing::canvas_story::{ViewArgs, document_with};
 use craft_ui::typed_story;
 use egui::{Response, Sense, Ui, vec2};
 
@@ -45,11 +44,11 @@ craft_ui::words! {
 /// The two stories above.
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("primitives/selection/ants", Level::Primitives, "SelectionOverlay", "Ants", AntsArgs { turn: 20.0 }, show_ants)
+        typed_story!("composites/selection-overlay/ants", Level::Composites, "SelectionOverlay", "Ants", AntsArgs { turn: 20.0 }, show_ants)
             .on(Surface::Canvas),
         typed_story!(
-            "primitives/selection/preview",
-            Level::Primitives,
+            "composites/selection-overlay/preview",
+            Level::Composites,
             "SelectionOverlay",
             "Preview",
             PreviewArgs { tint: Tint::Red, opacity: 50.0, indicates: Indicates::MaskedAreas },
@@ -155,8 +154,9 @@ fn cell(
     overlay: impl FnOnce(&mut Ui, &Response, &CanvasView),
 ) {
     ui.add(Text::new(caption).content(Content::Muted));
-    let (response, view) = image.canvas(ui, ("selection-story", salt), ui.available_width(), zoom, centre);
-    overlay(ui, &response, &view);
+    let canvas = document_with(ui, ViewArgs::default(), salt, 0.0, image.view(zoom, centre));
+    image.show(ui, &canvas);
+    overlay(ui, &canvas.response, &canvas.view);
 }
 
 fn percent(numbers: &LocaleNumbers, n: f64) -> String {

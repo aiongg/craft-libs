@@ -12,18 +12,21 @@
 //!   size (the shapes scale with the width, the hills and the horizon with the height), so a small
 //!   one is cheap for a thumbnail and a huge one costs nothing until it is read.
 //! - It is a [`RasterSource`]: `RasterDisplay::new(salt).show(ui, &view, &image)`, or
-//!   [`MockImage::canvas`], which allocates a canvas of a given width and shows the picture on it.
+//!   [`MockImage::show`], which draws it into a story canvas (`document_with(.., image.view(zoom,
+//!   centre))`).
 //! - [`MockSubject`] is the subject as a [`MaskSource`] (a selection of the house): use it for the
 //!   selection overlay, a Select and Mask preview or a fake mask source.
 //!   [`MockImage::subject_bounds`] gives its pixels.
 //! - Everything is a pure function of the coordinates: no randomness, no clock. Every method takes
 //!   document pixels as `f64`; an integer pixel's centre is `+ 0.5`.
-//! - Nothing here uses egui except `read`'s output type and `canvas`.
+//! - Nothing here uses egui except `read`'s output type and the canvas it draws into.
 
-use egui::{AsIdSalt, Color32, ColorImage, Response, Sense, Ui, vec2};
+use egui::{Color32, ColorImage, Ui};
 
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasView, Checkerboard, PixelRect, RasterDisplay, RasterSource};
+use craft_ui::testing::canvas_story::StoryCanvas;
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 
 use crate::trace::{MaskRect, MaskSource};
 
@@ -230,32 +233,30 @@ impl MockImage {
         smoothstep(0.5 - self.subject_distance(x, y) / (EDGE * k)) as f32
     }
 
-    /// Allocates a canvas `width` points wide with the picture's aspect and shows the picture on
-    /// it through a view of `zoom` percent (device pixels per picture pixel; `None` fits the whole
-    /// picture) centred on `centre` (`None`: the middle). Returns the canvas's response and the
-    /// view, for an overlay to draw with. `id_salt` must differ between the canvases of a story.
-    pub(crate) fn canvas(&self, ui: &mut Ui, id_salt: impl AsIdSalt, width: f32, zoom: Option<f64>, centre: Option<Point>) -> (Response, CanvasView) {
-        self.canvas_of(ui, id_salt, width, zoom, centre, self)
+    /// The view that shows the picture on a story canvas, for `document_with`: `zoom` percent
+    /// (device pixels per picture pixel; `None` fits the whole picture in the canvas) centred on
+    /// `centre` (`None`: the middle).
+    pub(crate) fn view(self, zoom: Option<f64>, centre: Option<Point>) -> impl FnOnce(egui::Rect, f64) -> CanvasView {
+        let (w, h) = self.extent();
+        move |rect, pixels_per_point| {
+            let fit = (f64::from(rect.width()) / w).min(f64::from(rect.height()) / h);
+            let per_unit = zoom.map_or(fit, |percent| percent / 100.0 / pixels_per_point);
+            CanvasView::new(rect, centre.unwrap_or_else(|| Point::new(w / 2.0, h / 2.0)), per_unit)
+        }
     }
 
-    /// [`canvas`](Self::canvas) showing `source` (a composite of the picture, the same size) over a
+    /// Draws the picture into `canvas` under its view, over the canvas colour (the story document
+    /// the canvas draws is `DOC`-sized, not the picture's).
+    pub(crate) fn show(&self, ui: &mut Ui, canvas: &StoryCanvas) {
+        self.show_source(ui, canvas, self);
+    }
+
+    /// [`show`](Self::show) drawing `source` (a composite of the picture, the same size) over a
     /// checkerboard.
-    pub(crate) fn canvas_of(
-        &self,
-        ui: &mut Ui,
-        id_salt: impl AsIdSalt,
-        width: f32,
-        zoom: Option<f64>,
-        centre: Option<Point>,
-        source: &dyn RasterSource,
-    ) -> (Response, CanvasView) {
-        let (w, h) = self.extent();
-        let width = width.max(1.0);
-        let (rect, response) = ui.allocate_exact_size(vec2(width, (f64::from(width) * h / w) as f32), Sense::hover());
-        let per_unit = zoom.map_or(f64::from(rect.width()) / w, |percent| CanvasView::points_per_unit(percent / 100.0, ui.pixels_per_point()));
-        let view = CanvasView::new(rect, centre.unwrap_or_else(|| Point::new(w / 2.0, h / 2.0)), per_unit);
-        let _ = RasterDisplay::new(id_salt).checkerboard(Checkerboard::default()).show(ui, &view, source);
-        (response, view)
+    pub(crate) fn show_source(&self, ui: &mut Ui, canvas: &StoryCanvas, source: &dyn RasterSource) {
+        let canvas_color = Tokens::of(ui).color.surface.canvas.to_egui();
+        ui.painter_at(canvas.view.rect).rect_filled(canvas.view.rect, 0.0, canvas_color);
+        let _ = RasterDisplay::new(canvas.response.id).checkerboard(Checkerboard::default()).show(ui, &canvas.view, source);
     }
 }
 
@@ -333,5 +334,19 @@ mod tests {
         assert!((6..=14).contains(&soft), "{soft} soft pixels across the wall's two edges");
         let mask = MockSubject(a);
         assert!(mask.content_bounds().width() > 100 && mask.at(800, 650) > 0.99 && mask.at(10, 10) < 0.001);
+    }
+
+    // The story canvas is a fixed height: the picture fits by its tighter side, and a zoom is
+    // device pixels per picture pixel whatever the interface scale.
+    #[test]
+    fn the_view_fits_the_picture_or_zooms_in_percent() {
+        let image = MockImage::default();
+        let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(720.0, 360.0));
+        let fit = image.view(None, None)(rect, 2.0);
+        assert!((fit.zoom - 360.0 / 1067.0).abs() < 1e-9);
+        assert_eq!(fit.center, Point::new(800.0, 533.5));
+        let zoomed = image.view(Some(200.0), Some(Point::new(1.0, 2.0)))(rect, 2.0);
+        assert!((zoomed.zoom - 1.0).abs() < 1e-9);
+        assert_eq!(zoomed.center, Point::new(1.0, 2.0));
     }
 }

@@ -1,6 +1,4 @@
-//! Stories of Puppet Warp (task ST-TR2): not registered. Registering them (task RG2) adds
-//! `warp::pin::stories` to the crate's `register!` list, `PinWarp` and `PinWarpBar` to
-//! `COMPONENTS` and [`PinWarpStoryLabels`] to `WORDS`, and regenerates the registry dump.
+//! Stories of Puppet Warp (task ST-TR2).
 //!
 //! The layer is `MockImage` on the shared stage of the transform preview stories
 //! (`transform_preview::stories::Document`), drawn by the real `TransformPreview` through
@@ -10,8 +8,8 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `primitives/pin-warp/pins` | Empty mesh, several pins, a selected pin, a fixed rotation ring, several selected, mesh hidden |
-//! | `composites/pin-warp/bar` | The bar with and without a selected pin (with Fixed rotation on request); a refused remesh notice |
+//! | `composites/pin-warp/pins` | Empty mesh, several pins, a selected pin, a fixed rotation ring, several selected, mesh hidden |
+//! | `patterns/pin-warp-bar/bar` | The bar with and without a selected pin (with Fixed rotation on request); a refused remesh notice |
 
 use craft_ui::canvas::kurbo::{Point, Rect, Vec2};
 use craft_ui::localized::Labels as _;
@@ -25,7 +23,7 @@ use super::{
     Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpBarOutput, PinWarpOptions, PinWarpSession, PinWarpSettings,
 };
 use crate::ui::transform_preview::PreviewMap;
-use crate::ui::transform_preview::stories::{Document, draw};
+use crate::ui::transform_preview::stories::{Document, Zoom, draw, grid, sensing};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["PinWarp", "PinWarpBar"];
@@ -51,15 +49,15 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "primitives/pin-warp/pins",
-            Level::Primitives,
+            "composites/pin-warp/pins",
+            Level::Composites,
             "PinWarp",
             "Pins",
             PinsArgs { width: Document::DEFAULT_SIZE[0], height: Document::DEFAULT_SIZE[1] },
             show_pins
         )
         .on(Surface::Canvas),
-        typed_story!("composites/pin-warp/bar", Level::Composites, "PinWarpBar", "Bar", BarArgs { fixed: false }, show_bar),
+        typed_story!("patterns/pin-warp-bar/bar", Level::Patterns, "PinWarpBar", "Bar", BarArgs { fixed: false }, show_bar),
     ]
 }
 
@@ -261,24 +259,20 @@ fn show_pins(ui: &mut Ui, args: &mut PinsArgs) {
         (Kind::Multiple, "multiple", &labels.multiple),
         (Kind::Hidden, "hidden", &labels.hidden),
     ];
-    for row in cases.chunks(2) {
-        ui.columns(2, |columns| {
-            for (column, &(kind, salt, text)) in columns.iter_mut().zip(row) {
-                column.add(Text::new(text).content(Content::Muted));
-                let mut cell = PinCell::load(column, salt, kind, layer, &labels.refusal);
-                let width = column.available_width();
-                let (response, view) = doc.interactive_canvas(column, ("pin-story", salt), width);
-                draw(column, &view, &doc, textures, PreviewMap::pins(cell.solver.view(), layer), 1.0, false);
-                let now = column.input(|i| i.time);
-                let reported = PinWarp::new(salt, &cell.session).show(column, &response, &view, cell.solver.view());
-                if reported.discard {
-                    cell.reset();
-                }
-                cell.apply(reported.edits, now);
-                cell.store(column, salt);
-            }
-        });
-    }
+    grid(ui, Vec::from(cases), |column, (kind, salt, text)| {
+        column.add(Text::new(text).content(Content::Muted));
+        let mut cell = PinCell::load(column, salt, kind, layer, &labels.refusal);
+        let canvas = doc.canvas(column, text, Zoom::Fit, None);
+        let (response, view) = (sensing(column, &canvas), canvas.view);
+        draw(column, &view, &doc, textures, PreviewMap::pins(cell.solver.view(), layer), 1.0, false);
+        let now = column.input(|i| i.time);
+        let reported = PinWarp::new(salt, &cell.session).show(column, &response, &view, cell.solver.view());
+        if reported.discard {
+            cell.reset();
+        }
+        cell.apply(reported.edits, now);
+        cell.store(column, salt);
+    });
 }
 
 fn show_bar(ui: &mut Ui, args: &mut BarArgs) {

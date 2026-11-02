@@ -1,6 +1,4 @@
-//! Stories of the mask views (task ST-SE2): not registered. Registering them (task RG2) adds
-//! `mask_view::stories` to the crate's `register!` list and `MaskViewControls` to `COMPONENTS`, and
-//! regenerates the registry dump. The story has no words of its own: its captions are
+//! Stories of the mask views (task ST-SE2). The story has no words of its own: its captions are
 //! `MaskViewLabels`.
 //!
 //! The story composites the recipe itself over `MockImage` with `MockImage::subject` as the soft
@@ -9,12 +7,13 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `patterns/mask-view/modes` | The seven views over the picture; the opacity kept per view; Show Edge; Show Original; hold X |
+//! | `patterns/mask-view-controls/modes` | The seven views over the picture; the opacity kept per view; Show Edge; Show Original; hold X |
 
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, NoArgs, Story, Surface};
+use craft_ui::testing::canvas_story::{ViewArgs, document_with};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui};
 
@@ -27,7 +26,7 @@ pub const COMPONENTS: &[&str] = &["MaskViewControls"];
 
 /// The story.
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!("patterns/mask-view/modes", Level::Patterns, "MaskViewControls", "Modes", NoArgs {}, show_modes).on(Surface::Canvas)]
+    vec![typed_story!("patterns/mask-view-controls/modes", Level::Patterns, "MaskViewControls", "Modes", NoArgs {}, show_modes).on(Surface::Canvas)]
 }
 
 /// The size of the large view and of each of the seven small ones (the picture drawn at that
@@ -126,16 +125,18 @@ fn revision_of(ui: &Ui, id: impl egui::AsIdSalt, recipe: &MaskViewRecipe) -> u64
 }
 
 /// A canvas of the recipe's view over a picture of `size`, with the ants when the recipe has them.
-fn view(ui: &mut Ui, salt: &'static str, size: [u32; 2], recipe: MaskViewRecipe, width: f32) {
+fn view(ui: &mut Ui, salt: &'static str, size: [u32; 2], recipe: MaskViewRecipe) {
     let image = MockImage::new(size);
     let revision = revision_of(ui, ("mask-view-story", salt), &recipe);
     let ants = recipe.ants && !recipe.hidden;
     let composite = Composite { image, recipe, revision };
-    let (response, view) = image.canvas_of(ui, ("mask-view-story", salt), width, None, None, &composite);
-    SelectionOverlay::new(("mask-view-story", salt), &MockSubject(image))
-        .labels(SelectionOverlayLabels::of(ui))
-        .visible(ants)
-        .show(ui, &response, &view);
+    let canvas = document_with(ui, ViewArgs::default(), salt, 0.0, image.view(None, None));
+    image.show_source(ui, &canvas, &composite);
+    SelectionOverlay::new(("mask-view-story", salt), &MockSubject(image)).labels(SelectionOverlayLabels::of(ui)).visible(ants).show(
+        ui,
+        &canvas.response,
+        &canvas.view,
+    );
 }
 
 /// The View Mode controls and keys drive one large view; the seven views show small below, each
@@ -146,16 +147,15 @@ fn show_modes(ui: &mut Ui, _: &mut NoArgs) {
     let mut state = ui.data(|d| d.get_temp::<MaskViewState>(id)).unwrap_or_default();
     MaskViewKeys::read(ui, &mut state);
     MaskViewControls::new("mask-view-story", &mut state).labels(labels.clone()).show(ui);
-    let width = ui.available_width();
-    view(ui, "large", LARGE, state.recipe(), width);
+    view(ui, "large", LARGE, state.recipe());
 
-    for modes in MaskViewMode::ALL.chunks(4) {
-        ui.columns(4, |columns| {
+    // Two to a row: the story canvas is at least 240 points wide.
+    for modes in MaskViewMode::ALL.chunks(2) {
+        ui.columns(2, |columns| {
             for (column, &mode) in columns.iter_mut().zip(modes) {
                 column.add(Text::new(mode.label(&labels)).content(Content::Muted));
                 let each = MaskViewState { mode, hide_view: false, ..state.clone() };
-                let width = column.available_width();
-                view(column, mode.id(), SMALL, each.recipe(), width);
+                view(column, mode.id(), SMALL, each.recipe());
             }
         });
     }

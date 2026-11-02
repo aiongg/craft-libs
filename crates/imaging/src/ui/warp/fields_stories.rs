@@ -1,6 +1,4 @@
-//! Stories of the Warp options-bar group (task ST-TR2): not registered. Registering them (task
-//! RG2) adds `warp::fields_stories` to the crate's `register!` list, `WarpFields` to `COMPONENTS`
-//! and [`WarpFieldsStoryLabels`] to `WORDS`, and regenerates the registry dump.
+//! Stories of the Warp options-bar group (task ST-TR2).
 //!
 //! The real group in an options bar, over a fake style list. Every case keeps its own values and
 //! applies the edits the group reports, as the draw library's `TransformBar` host does. Every
@@ -8,7 +6,7 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `composites/warp-fields/group` | The group with a preset and with Custom; an armed split; the type-layer variant (Split and Grid disabled, no Custom) |
+//! | `patterns/warp-fields/group` | The group with a preset and with Custom; an armed split; the type-layer variant (Split and Grid disabled, no Custom) |
 
 use craft_ui::localized::Labels as _;
 use craft_ui::patterns::OptionsBar;
@@ -40,7 +38,7 @@ craft_ui::words! {
 
 /// The story above.
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!("composites/warp-fields/group", Level::Composites, "WarpFields", "Group", GroupArgs { bend: 50.0 }, show_group)]
+    vec![typed_story!("patterns/warp-fields/group", Level::Patterns, "WarpFields", "Group", GroupArgs { bend: 50.0 }, show_group)]
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]

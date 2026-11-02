@@ -1,6 +1,4 @@
-//! Stories of the transform preview (task ST-TR2): not registered. Registering them (task RG2) adds
-//! `transform_preview::stories` to the crate's `register!` list, `TransformPreview` to `COMPONENTS`
-//! and [`TransformPreviewStoryLabels`] to `WORDS`, and regenerates the registry dump.
+//! Stories of the transform preview (task ST-TR2).
 //!
 //! The moving layer is `MockImage` (`ui::mock_image`) uploaded as a mip pyramid in which every
 //! level below the first has its own tint, so the level the preview picks shows. It sits in the
@@ -8,7 +6,7 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `primitives/transform-preview/maps` | The layer through a quad (rotate, skew, distort past the horizon, perspective), a warp mesh, a pin mesh (fake solver) and a function map; Bicubic and Nearest at three zooms; opacity; clip to the canvas; a styled variant with a fake `StyledSource` (a drop shadow drawn by the story) |
+//! | `composites/transform-preview/maps` | The layer through a quad (rotate, skew, distort past the horizon, perspective), a warp mesh, a pin mesh (fake solver) and a function map; Bicubic and Nearest at three zooms; opacity; clip to the canvas; a styled variant with a fake `StyledSource` (a drop shadow drawn by the story) |
 //!
 //! [`Document`] (the blank document, its canvas and the layer's textures) is the one stage the
 //! other warp stories (`warp::pin::stories`, `warp::perspective::stories`) share.
@@ -20,8 +18,9 @@ use craft_ui::canvas::{CanvasView, PixelRect, RasterSource};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, Surface};
+use craft_ui::testing::canvas_story::{StoryCanvas, ViewArgs, document_with};
 use craft_ui::typed_story;
-use egui::{AsIdSalt, Color32, ColorImage, Response, Sense, Ui};
+use egui::{Color32, ColorImage, Response, Sense, Ui};
 
 use super::{PreviewMap, PreviewPixels, PreviewQuality, PreviewTextures, StylePlan, StyledContent, StyledPreview, StyledSource, TransformPreview};
 use crate::ui::mock_image::MockImage;
@@ -54,8 +53,8 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "primitives/transform-preview/maps",
-            Level::Primitives,
+            "composites/transform-preview/maps",
+            Level::Composites,
             "TransformPreview",
             "Maps",
             MapsArgs {
@@ -99,8 +98,7 @@ struct MapsArgs {
 }
 
 /// The zooms of the interpolation cases, in percent: the first is far enough out for a mip level.
-const ZOOMS: [(&str, &str, f64); 3] =
-    [("bicubic-25", "nearest-25", 25.0), ("bicubic-100", "nearest-100", 100.0), ("bicubic-400", "nearest-400", 400.0)];
+const ZOOMS: [f64; 3] = [25.0, 100.0, 400.0];
 /// The zoom of the clip case, as a fraction of the zoom that fits the document in the canvas.
 const CLIP_FIT: f64 = 0.5;
 /// How far the clipped box reaches past the layer on each side, as a fraction of the document's size.
@@ -168,22 +166,21 @@ impl Document {
         [layer.width().round().max(1.0) as u32, layer.height().round().max(1.0) as u32]
     }
 
-    /// A canvas `width` points wide showing the document, with the layer drawn by the caller.
-    pub(crate) fn canvas(&self, ui: &mut Ui, id_salt: impl AsIdSalt, width: f32, zoom: Zoom, centre: Option<Point>) -> (Response, CanvasView) {
-        let fit = f64::from(width) / f64::from(self.size[0]) * 100.0 * f64::from(ui.pixels_per_point());
-        let percent = match zoom {
-            Zoom::Fit => None,
-            Zoom::Percent(percent) => Some(percent),
-            Zoom::OfFit(fraction) => Some(fit * fraction),
-        };
-        MockImage::new(self.size).canvas_of(ui, id_salt, width, percent, centre, &Blank(self.size))
-    }
-
-    /// [`canvas`](Self::canvas) whose response senses presses and drags, for an overlay.
-    pub(crate) fn interactive_canvas(&self, ui: &mut Ui, id_salt: impl AsIdSalt, width: f32) -> (Response, CanvasView) {
-        let (response, view) = self.canvas(ui, id_salt, width, Zoom::Fit, None);
-        let sensing = ui.interact(response.rect, response.id.with("sense"), Sense::click_and_drag() - Sense::FOCUSABLE);
-        (sensing, view)
+    /// A story canvas labelled `label` showing the document under `zoom`, centred on `centre`
+    /// (`None`: the middle), with the layer drawn by the caller.
+    pub(crate) fn canvas(&self, ui: &mut Ui, label: &str, zoom: Zoom, centre: Option<Point>) -> StoryCanvas {
+        let (w, h) = (f64::from(self.size[0]), f64::from(self.size[1]));
+        let canvas = document_with(ui, ViewArgs::default(), label, 0.0, |rect, pixels_per_point| {
+            let fit = (f64::from(rect.width()) / w).min(f64::from(rect.height()) / h);
+            let per_unit = match zoom {
+                Zoom::Fit => fit,
+                Zoom::Percent(percent) => percent / 100.0 / pixels_per_point,
+                Zoom::OfFit(fraction) => fit * fraction,
+            };
+            CanvasView::new(rect, centre.unwrap_or_else(|| Point::new(w / 2.0, h / 2.0)), per_unit)
+        });
+        MockImage::new(self.size).show_source(ui, &canvas, &Blank(self.size));
+        canvas
     }
 
     /// The layer's textures, uploaded once per layer size: `MockImage` at every mip level, each
@@ -292,12 +289,61 @@ fn caption(text: &str, n: &str) -> String {
     craft_i18n::fmt(text, &[("n", n)])
 }
 
-/// A caption and a canvas under it; `paint` draws the preview into the canvas's view.
-fn cell(ui: &mut Ui, doc: &Document, text: &str, salt: &'static str, zoom: Zoom, centre: Option<Point>, paint: impl FnOnce(&Ui, &CanvasView)) {
-    ui.add(Text::new(text).content(Content::Muted));
-    let width = ui.available_width();
-    let (_, view) = doc.canvas(ui, ("transform-story", salt), width, zoom, centre);
-    paint(ui, &view);
+/// The response an overlay senses through: presses and drags on the canvas, without taking
+/// keyboard focus (the overlay's own parts are the focus stops).
+pub(crate) fn sensing(ui: &Ui, canvas: &StoryCanvas) -> Response {
+    ui.interact(canvas.response.rect, canvas.response.id.with("sense"), Sense::click_and_drag() - Sense::FOCUSABLE)
+}
+
+/// The most story canvases side by side: three columns of the tile overflow it by a point.
+const ACROSS: usize = 2;
+/// The narrowest story canvas, in points (`document_with` clamps its width to this).
+const MIN_CANVAS: f32 = 240.0;
+
+/// `items` in rows of up to [`ACROSS`] columns, fewer where the tile is too narrow for that many
+/// story canvases; `show` draws one in its column.
+pub(crate) fn grid<T>(ui: &mut Ui, items: Vec<T>, mut show: impl FnMut(&mut Ui, T)) {
+    let gap = ui.spacing().item_spacing.x;
+    let fit = ((ui.available_width() + gap) / (MIN_CANVAS + gap)).floor() as usize;
+    let across = fit.clamp(1, ACROSS);
+    let mut items = items.into_iter().peekable();
+    while items.peek().is_some() {
+        let row: Vec<T> = items.by_ref().take(across).collect();
+        ui.columns(across, |columns| {
+            for (column, item) in columns.iter_mut().zip(row) {
+                show(column, item);
+            }
+        });
+    }
+}
+
+/// One canvas of [`show_maps`]: its caption, zoom, centre and what draws into the view.
+struct Case<'a> {
+    text: String,
+    zoom: Zoom,
+    centre: Option<Point>,
+    paint: Box<dyn Fn(&Ui, &CanvasView) + 'a>,
+}
+
+impl<'a> Case<'a> {
+    fn new(text: impl Into<String>, paint: impl Fn(&Ui, &CanvasView) + 'a) -> Self {
+        Self { text: text.into(), zoom: Zoom::Fit, centre: None, paint: Box::new(paint) }
+    }
+
+    fn zoom(mut self, zoom: Zoom, centre: Option<Point>) -> Self {
+        self.zoom = zoom;
+        self.centre = centre;
+        self
+    }
+}
+
+/// The cases as a grid: a caption and a canvas under it, labelled with the caption.
+fn show_cases(ui: &mut Ui, doc: &Document, cases: Vec<Case<'_>>) {
+    grid(ui, cases, |ui, case| {
+        ui.add(Text::new(case.text.as_str()).content(Content::Muted));
+        let canvas = doc.canvas(ui, &case.text, case.zoom, case.centre);
+        (case.paint)(ui, &canvas.view);
+    });
 }
 
 /// The layer through `map`, clipped to the document.
@@ -365,16 +411,14 @@ fn show_maps(ui: &mut Ui, args: &mut MapsArgs) {
 
     // The four boxes of Free Transform.
     let boxes = [
-        [(&labels.rotate, "rotate", rotated(layer, turn)), (&labels.skew, "skew", skewed(layer, args.skew))],
-        [(&labels.distort, "distort", crossed(layer)), (&labels.perspective, "perspective", narrowed(layer, args.perspective))],
+        (&labels.rotate, rotated(layer, turn)),
+        (&labels.skew, skewed(layer, args.skew)),
+        (&labels.distort, crossed(layer)),
+        (&labels.perspective, narrowed(layer, args.perspective)),
     ];
-    for row in boxes {
-        ui.columns(2, |columns| {
-            for (column, (text, salt, quad)) in columns.iter_mut().zip(row) {
-                cell(column, &doc, text, salt, Zoom::Fit, None, |ui, view| draw(ui, view, &doc, textures, PreviewMap::quad(quad), 1.0, false));
-            }
-        });
-    }
+    let cases =
+        boxes.into_iter().map(|(text, quad)| Case::new(text, move |ui, view| draw(ui, view, &doc, textures, PreviewMap::quad(quad), 1.0, false)));
+    show_cases(ui, &doc, cases.collect());
 
     // The other maps: a warp mesh, a pin mesh on the fake solver and a function.
     let mesh = bent(layer, args.bend);
@@ -383,49 +427,42 @@ fn show_maps(ui: &mut Ui, args: &mut MapsArgs) {
         let wave = (p.y - layer.y0) / layer.height() * std::f64::consts::TAU * 1.5;
         Point::new(p.x + layer.width() * 0.05 * wave.sin(), p.y)
     };
-    ui.columns(3, |columns| {
-        cell(&mut columns[0], &doc, &labels.warp, "warp", Zoom::Fit, None, |ui, view| {
-            draw(ui, view, &doc, textures, PreviewMap::mesh(&mesh, layer), 1.0, false);
-        });
-        cell(&mut columns[1], &doc, &labels.pins, "pins", Zoom::Fit, None, |ui, view| {
-            draw(ui, view, &doc, textures, PreviewMap::pins(solver.view(), layer), 1.0, false);
-        });
-        cell(&mut columns[2], &doc, &labels.function, "function", Zoom::Fit, None, |ui, view| {
+    let maps = vec![
+        Case::new(&labels.warp, |ui, view| draw(ui, view, &doc, textures, PreviewMap::mesh(&mesh, layer), 1.0, false)),
+        Case::new(&labels.pins, |ui, view| draw(ui, view, &doc, textures, PreviewMap::pins(solver.view(), layer), 1.0, false)),
+        Case::new(&labels.function, |ui, view| {
             draw(ui, view, &doc, textures, PreviewMap::function(layer, PreviewQuality::PLANE_CELLS, &ripple), 1.0, false);
-        });
-    });
+        }),
+    ];
+    show_cases(ui, &doc, maps);
 
-    // Interpolation at three zooms: the pyramid's tints show at the farthest.
+    // Interpolation at three zooms, Bicubic beside Nearest Neighbor: the pyramid's tints show at
+    // the farthest.
     let turned = PreviewMap::quad(rotated(layer, turn));
-    for nearest in [false, true] {
-        let text = if nearest { &labels.nearest } else { &labels.bicubic };
-        ui.columns(ZOOMS.len(), |columns| {
-            for (column, (bicubic_salt, nearest_salt, zoom)) in columns.iter_mut().zip(ZOOMS) {
-                let salt = if nearest { nearest_salt } else { bicubic_salt };
-                let text = caption(text, &percent(&numbers, zoom));
-                cell(column, &doc, &text, salt, Zoom::Percent(zoom), Some(centre), |ui, view| {
-                    draw(ui, view, &doc, textures, turned, 1.0, nearest);
-                });
-            }
-        });
+    let mut interpolation = Vec::new();
+    for zoom in ZOOMS {
+        for nearest in [false, true] {
+            let text = caption(if nearest { &labels.nearest } else { &labels.bicubic }, &percent(&numbers, zoom));
+            interpolation
+                .push(Case::new(text, move |ui, view| draw(ui, view, &doc, textures, turned, 1.0, nearest)).zoom(Zoom::Percent(zoom), Some(centre)));
+        }
     }
+    show_cases(ui, &doc, interpolation);
 
     // Opacity, the clip to the canvas and a styled layer.
     let styled_id = ui.make_persistent_id("transform-story-styled");
     let styled = ui.data_mut(|d| Arc::clone(d.get_temp_mut_or_insert_with(styled_id, || Arc::new(StyledPreview::new("transform-story-styled")))));
     let shadow = Shadow { offset: f64::from(doc.size[0]) * SHADOW_OFFSET };
     let reach = layer.inflate(f64::from(doc.size[0]) * CLIP_REACH, f64::from(doc.size[1]) * CLIP_REACH);
-    ui.columns(3, |columns| {
-        let text = caption(&labels.opacity, &percent(&numbers, args.opacity));
-        cell(&mut columns[0], &doc, &text, "opacity", Zoom::Fit, None, |ui, view| {
-            draw(ui, view, &doc, textures, turned, (args.opacity / 100.0) as f32, false);
-        });
-        cell(&mut columns[1], &doc, &labels.clip, "clip", Zoom::OfFit(CLIP_FIT), None, |ui, view| {
-            draw(ui, view, &doc, textures, PreviewMap::quad(rotated(reach, turn)), 1.0, false);
-        });
-        cell(&mut columns[2], &doc, &labels.styled, "styled", Zoom::Fit, None, |ui, view| {
+    let opacity = caption(&labels.opacity, &percent(&numbers, args.opacity));
+    let last = vec![
+        Case::new(opacity, |ui, view| draw(ui, view, &doc, textures, turned, (args.opacity / 100.0) as f32, false)),
+        Case::new(&labels.clip, |ui, view| draw(ui, view, &doc, textures, PreviewMap::quad(rotated(reach, turn)), 1.0, false))
+            .zoom(Zoom::OfFit(CLIP_FIT), None),
+        Case::new(&labels.styled, |ui, view| {
             let map = PreviewMap::quad(rotated(layer, turn));
             TransformPreview::new("transform-story", textures).map(map).clip(doc.size).styled(&styled, &shadow).show(ui, view);
-        });
-    });
+        }),
+    ];
+    show_cases(ui, &doc, last);
 }
