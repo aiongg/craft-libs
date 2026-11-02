@@ -15,8 +15,8 @@ use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::popover::{CloseReason, Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use craft_ui::presets::{PresetEvent, PresetLabels, PresetReorder, PresetRow};
 use craft_ui::primitives::Divider;
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::{AsIdSalt, Id, IdSalt, Painter, Rect, Ui, pos2, vec2};
+use craft_ui::theme::{Tokens, TokensOf as _, UiTokens};
+use egui::{AsIdSalt, Id, IdSalt, Painter, Rect, Ui, Vec2, vec2};
 
 use super::card::{BrushCardPart, BrushCardsState, BrushPresetCards};
 use super::labels::{BrushCardLabels, BrushPickerLabels};
@@ -66,8 +66,6 @@ impl<K> BrushPick<K> {
 pub struct BrushPickerState<K> {
     /// The cards' state; [`BrushCardsState::settings`] is what persists.
     pub cards: BrushCardsState<K>,
-    /// A rename the gear asked for, started on the cards in the next pass the picker shows.
-    rename: Option<K>,
 }
 
 impl<K> Default for BrushPickerState<K> {
@@ -79,7 +77,7 @@ impl<K> Default for BrushPickerState<K> {
 impl<K> BrushPickerState<K> {
     /// Every card part on, scale 1, an empty search.
     pub fn new() -> Self {
-        Self { cards: BrushCardsState::new(), rename: None }
+        Self { cards: BrushCardsState::new() }
     }
 }
 
@@ -218,6 +216,21 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetPicker
         self
     }
 
+    /// The sizes of the picker from `tokens`.
+    pub fn style(tokens: &UiTokens) -> BrushPickerStyle {
+        // pc: crates/ui-egui/src/tools/brush_picker.rs:33-55.
+        let b = &tokens.component.brush;
+        BrushPickerStyle {
+            size: Vec2::new(b.picker_width, b.picker_height),
+            min_size: Vec2::new(b.picker_min_width, b.picker_min_height),
+            head_max: b.picker_head_max,
+            list_min: b.picker_list_min,
+            gap: b.picker_gap,
+            grip_room: b.picker_grip_room,
+            field_min: b.picker_field_min,
+        }
+    }
+
     /// The cards' words; the installed language's by default.
     pub fn card_labels(mut self, labels: BrushCardLabels) -> Self {
         self.card_labels = Some(labels);
@@ -268,30 +281,25 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetPicker
             stroke,
             diameter_of,
         } = self;
-        let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
-        let style = BrushPickerStyle::of(&tokens);
+        let style = Self::style(&tokens);
         let labels = labels.unwrap_or_else(|| BrushPickerLabels::of(ui));
         let card_labels = card_labels.unwrap_or_else(|| BrushCardLabels::of(ui));
         let clear_label = PresetLabels::of(ui).clear;
         let numbers = LocaleNumbers::of(ui);
         let slider_height = Slider::style(&tokens, ControlSize::Md).height;
         let button_side = IconButton::style(&tokens, ControlSize::Md).side;
-        let region_id = ui.make_persistent_id((&id_salt, "cards-region"));
-        // A rename bar is open when a text field inside the cards' rect holds the keyboard focus:
-        // Esc and Enter belong to it then, not to the popover. Judged at the end of the pass
-        // before, because egui drops the focus on the Esc press before the pass runs.
-        let renaming_id = region_id.with("renaming");
-        let renaming = ctx.data(|d| d.get_temp::<bool>(renaming_id)).unwrap_or(false);
-        // The gear's Rename starts the bar one pass later: the closing menu gives the focus back
-        // to where it was in the pass it closes.
-        let start_rename = state.rename.take();
+        // The gear's Rename opens the rename bar in this pass, after the menu: the bar's focus
+        // request comes after the closing menu's hand-back to its anchor and wins.
+        let mut start_rename: Option<K> = None;
         let has_current = current.is_some_and(|key| rows.iter().any(|r| r.key == *key && !r.is_group()));
 
         let mut out = BrushPresetPickerOutput { diameter: None, hardness: None, picks: Vec::new(), settings: None, closed_by: None };
-        let mut popover = Popover::new(id_salt, anchor)
+        // Enter and Escape reach the popover only when no rename bar took them: the bar consumes
+        // the key that ends the rename.
+        let mut popover = Popover::new((&id_salt, "popover"), anchor)
             .size(PopoverSize::Resizable { default: style.size, min: style.min_size })
-            .close(PopoverClose::default().enter(!renaming).escape(!renaming))
+            .close(PopoverClose::default().enter(true))
             .label(labels.picker.as_str());
         if let Some(id) = toggle {
             popover = popover.toggle(id);
@@ -324,7 +332,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetPicker
                 let parts = state.cards.parts.normalised();
                 direction::horizontal(ui, |ui| {
                     let buttons = 3.0 * (button_side + ui.spacing().item_spacing.x);
-                    let width = (ui.available_width() - buttons).max(60.0);
+                    let width = (ui.available_width() - buttons).max(style.field_min);
                     ui.allocate_ui_with_layout(vec2(width, ui.spacing().interact_size.y), direction::row(ui), |ui| {
                         filter = SearchField::new((&id_salt, "search"), labels.search.as_str(), &state.cards.browser.filter, clear_label.as_str())
                             .placeholder(labels.search.as_str())
@@ -362,8 +370,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetPicker
                     match PressMenu::new(&entries).show(ui, &gear).chosen {
                         Some(Gear::New) => out.picks.push(BrushPick::NewPreset),
                         Some(Gear::Rename) => {
-                            state.rename = current.cloned();
-                            ctx.request_repaint();
+                            start_rename = current.cloned();
                         }
                         Some(Gear::Delete) => out.picks.extend(current.map(|key| BrushPick::List(PresetEvent::Delete(key.clone())))),
                         Some(Gear::Part(part)) => {
@@ -384,7 +391,6 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetPicker
                 // Cards: the height the head and the footer leave.
                 let gap = ui.spacing().item_spacing.y;
                 let list = (pop.content_size().y - (ui.cursor().min.y - top) - slider_height - gap).max(style.list_min);
-                let cards_top = ui.cursor().min.y;
                 let mut cards = BrushPresetCards::new((&id_salt, "cards"), &mut state.cards, rows).selected(current).height(list).labels(card_labels);
                 if let Some(key) = start_rename {
                     cards = cards.start_rename(key);
@@ -414,14 +420,9 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetPicker
                         out.picks.push(BrushPick::List(event));
                     }
                 }
-                let area = ui.max_rect();
-                let region = Rect::from_min_max(pos2(area.left(), cards_top), pos2(area.right(), ui.cursor().min.y));
-                let typing = ctx.text_edit_focused()
-                    && ctx.memory(|m| m.focused()).and_then(|id| ctx.read_response(id)).is_some_and(|focused| region.contains_rect(focused.rect));
-                ctx.data_mut(|d| d.insert_temp(renaming_id, typing));
 
                 // Footer: the card scale, clear of the grip.
-                let width = (ui.available_width() - style.grip_room).max(60.0);
+                let width = (ui.available_width() - style.grip_room).max(style.field_min);
                 let range = BrushPickerSettings::SCALE_RANGE;
                 let shown = f64::from(if state.cards.scale.is_finite() { state.cards.scale } else { 1.0 }.clamp(*range.start(), *range.end()));
                 let slider = ui

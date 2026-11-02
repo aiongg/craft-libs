@@ -2832,12 +2832,16 @@ fn brush_lines(out: &mut Lines, t: &BrushTokens) {
         picker_list_min,
         picker_gap,
         picker_grip_room,
+        picker_field_min,
         card_pad,
         card_inset,
         card_tip_width,
         card_tip_base,
         card_name_height,
         card_name_inset,
+        card_tip_compact_inset,
+        card_number_gap,
+        card_tip_gap,
         card_stroke_inset,
         card_stroke_min,
         card_stroke_max,
@@ -2850,6 +2854,8 @@ fn brush_lines(out: &mut Lines, t: &BrushTokens) {
         chip_tip,
         chip_tip_at,
         chip_chevron,
+        chip_number_at,
+        chip_chevron_inset,
         panel_width,
         section_list_width,
         section_row,
@@ -2885,12 +2891,16 @@ fn brush_lines(out: &mut Lines, t: &BrushTokens) {
     out.line("brush.picker_list_min", len(*picker_list_min));
     out.line("brush.picker_gap", len(*picker_gap));
     out.line("brush.picker_grip_room", len(*picker_grip_room));
+    out.line("brush.picker_field_min", len(*picker_field_min));
     out.line("brush.card_pad", len(*card_pad));
     out.line("brush.card_inset", len(*card_inset));
     out.line("brush.card_tip_width", len(*card_tip_width));
     out.line("brush.card_tip_base", len(*card_tip_base));
     out.line("brush.card_name_height", len(*card_name_height));
     out.line("brush.card_name_inset", len(*card_name_inset));
+    out.line("brush.card_tip_compact_inset", len(*card_tip_compact_inset));
+    out.line("brush.card_number_gap", len(*card_number_gap));
+    out.line("brush.card_tip_gap", len(*card_tip_gap));
     out.line("brush.card_stroke_inset", len(*card_stroke_inset));
     out.line("brush.card_stroke_min", len(*card_stroke_min));
     out.line("brush.card_stroke_max", len(*card_stroke_max));
@@ -2903,6 +2913,8 @@ fn brush_lines(out: &mut Lines, t: &BrushTokens) {
     out.line("brush.chip_tip", len(*chip_tip));
     out.line("brush.chip_tip_at", format!("{} {}", len(chip_tip_at[0]), len(chip_tip_at[1])));
     out.line("brush.chip_chevron", len(*chip_chevron));
+    out.line("brush.chip_number_at", len(*chip_number_at));
+    out.line("brush.chip_chevron_inset", len(*chip_chevron_inset));
     out.line("brush.panel_width", len(*panel_width));
     out.line("brush.section_list_width", len(*section_list_width));
     out.line("brush.section_row", len(*section_row));

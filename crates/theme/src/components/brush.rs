@@ -1,7 +1,8 @@
 //! Brushes: the cursor's thresholds, the resize gesture, the preset cards, the picker, the options-bar chip, the Brush Settings panel and the tip ellipse. PhotoCraft's values, the same at every Size.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
+use crate::tokens::{ColorToken, TokenRef};
 use crate::values;
 
 /// Brushes: the cursor, resize gesture, preset cards, picker, chip, settings panel and tip ellipse.
@@ -30,6 +31,8 @@ pub struct BrushTokens {
     pub picker_gap: f32,
     /// Room the footer slider leaves for the grip: `brush.picker_grip_room`.
     pub picker_grip_room: f32,
+    /// The search field's and the card scale slider's least width: `brush.picker_field_min`.
+    pub picker_field_min: f32,
     /// Padding inside a card's tile: `brush.card_pad`.
     pub card_pad: f32,
     /// The tile's inset in its cell, at both ends: `brush.card_inset`.
@@ -42,6 +45,12 @@ pub struct BrushTokens {
     pub card_name_height: f32,
     /// The name's inset from the row's ends: `brush.card_name_inset`.
     pub card_name_inset: f32,
+    /// A compact card's tip thumbnail sits this far inside its cell's shorter side: `brush.card_tip_compact_inset`.
+    pub card_tip_compact_inset: f32,
+    /// The size number's distance from the bottom of the tip cell: `brush.card_number_gap`.
+    pub card_number_gap: f32,
+    /// The tip thumbnail's distance above the size number: `brush.card_tip_gap`.
+    pub card_tip_gap: f32,
     /// The stroke's inset from the tip cell: `brush.card_stroke_inset`.
     pub card_stroke_inset: f32,
     /// The stroke's least width: `brush.card_stroke_min`.
@@ -66,6 +75,10 @@ pub struct BrushTokens {
     pub chip_tip_at: [f32; 2],
     /// The chip's chevron side: `brush.chip_chevron`.
     pub chip_chevron: f32,
+    /// The chip's size number, its centre's distance from the chip's top: `brush.chip_number_at`.
+    pub chip_number_at: f32,
+    /// The chevron's centre, its distance from the chip's trailing end: `brush.chip_chevron_inset`.
+    pub chip_chevron_inset: f32,
     /// The Brush Settings panel's preferred width: `brush.panel_width`.
     pub panel_width: f32,
     /// The section list's width: `brush.section_list_width`.
@@ -179,12 +192,16 @@ impl Family for BrushTokens {
         "picker_list_min" 0.0..=1024.0 => picker_list_min;
         "picker_gap" 0.0..=64.0 => picker_gap;
         "picker_grip_room" 0.0..=128.0 => picker_grip_room;
+        "picker_field_min" 0.0..=1024.0 => picker_field_min;
         "card_pad" 0.0..=64.0 => card_pad;
         "card_inset" 0.0..=64.0 => card_inset;
         "card_tip_width" 0.0..=1024.0 => card_tip_width;
         "card_tip_base" 0.0..=1024.0 => card_tip_base;
         "card_name_height" 0.0..=1024.0 => card_name_height;
         "card_name_inset" 0.0..=64.0 => card_name_inset;
+        "card_tip_compact_inset" 0.0..=64.0 => card_tip_compact_inset;
+        "card_number_gap" 0.0..=64.0 => card_number_gap;
+        "card_tip_gap" 0.0..=64.0 => card_tip_gap;
         "card_stroke_inset" 0.0..=64.0 => card_stroke_inset;
         "card_stroke_min" 0.0..=1024.0 => card_stroke_min;
         "card_stroke_max" 0.0..=1024.0 => card_stroke_max;
@@ -202,6 +219,8 @@ impl Family for BrushTokens {
         "chip_tip_at.0" 0.0..=1024.0 => chip_tip_at[0];
         "chip_tip_at.1" 0.0..=1024.0 => chip_tip_at[1];
         "chip_chevron" 0.0..=128.0 => chip_chevron;
+        "chip_number_at" 0.0..=1024.0 => chip_number_at;
+        "chip_chevron_inset" 0.0..=1024.0 => chip_chevron_inset;
         "panel_width" 0.0..=1024.0 => panel_width;
         "section_list_width" 0.0..=1024.0 => section_list_width;
         "section_row" 0.0..=1024.0 => section_row;
@@ -237,12 +256,16 @@ impl Family for BrushTokens {
             picker_list_min: values::BRUSH_PICKER_LIST_MIN,
             picker_gap: values::BRUSH_PICKER_GAP,
             picker_grip_room: values::BRUSH_PICKER_GRIP_ROOM,
+            picker_field_min: values::BRUSH_PICKER_FIELD_MIN,
             card_pad: values::BRUSH_CARD_PAD,
             card_inset: values::BRUSH_CARD_INSET,
             card_tip_width: values::BRUSH_CARD_TIP_WIDTH,
             card_tip_base: values::BRUSH_CARD_TIP_BASE,
             card_name_height: values::BRUSH_CARD_NAME_HEIGHT,
             card_name_inset: values::BRUSH_CARD_NAME_INSET,
+            card_tip_compact_inset: values::BRUSH_CARD_TIP_COMPACT_INSET,
+            card_number_gap: values::BRUSH_CARD_NUMBER_GAP,
+            card_tip_gap: values::BRUSH_CARD_TIP_GAP,
             card_stroke_inset: values::BRUSH_CARD_STROKE_INSET,
             card_stroke_min: values::BRUSH_CARD_STROKE_MIN,
             card_stroke_max: values::BRUSH_CARD_STROKE_MAX,
@@ -255,6 +278,8 @@ impl Family for BrushTokens {
             chip_tip: values::BRUSH_CHIP_TIP,
             chip_tip_at: values::BRUSH_CHIP_TIP_AT,
             chip_chevron: values::BRUSH_CHIP_CHEVRON,
+            chip_number_at: values::BRUSH_CHIP_NUMBER_AT,
+            chip_chevron_inset: values::BRUSH_CHIP_CHEVRON_INSET,
             panel_width: values::BRUSH_PANEL_WIDTH,
             section_list_width: values::BRUSH_SECTION_LIST_WIDTH,
             section_row: values::BRUSH_SECTION_ROW,
@@ -304,8 +329,14 @@ impl Family for BrushTokens {
         }
     }
 
-    // No contrast pairs: these are fills and lines on the document or beside it.
+    /// The card's name text on its tile: 4.5:1 (7:1 with high contrast). The size number
+    /// (`text.faint`) is not a required pair.
     fn pairs() -> Vec<ContrastPair> {
-        Vec::new()
+        vec![ContrastPair {
+            fg: TokenRef::Color(ColorToken::TextMuted),
+            bg: TokenRef::Component(ComponentField::Brush(BrushField::CardFill)),
+            minimum: values::TEXT_MIN,
+            alternate: None,
+        }]
     }
 }

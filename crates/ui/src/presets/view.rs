@@ -95,6 +95,21 @@ impl<K> Default for State<K> {
     }
 }
 
+/// The width the grid lays its cells across in a browser shown in `ui`: what is available less
+/// the scroll bar.
+fn grid_width(ui: &Ui) -> f32 {
+    (ui.available_width() - ui.spacing().scroll.allocated_width()).max(1.0)
+}
+
+/// The width one grid cell may take in a [`PresetBrowser`](super::PresetBrowser) about to be
+/// shown in `ui`: the grid's width less its inset at both ends (none when `flush`). A host that
+/// sizes cells to the room (cards that share a row) reads it here instead of repeating the
+/// arithmetic.
+pub fn grid_room(ui: &Ui, flush: bool) -> f32 {
+    let inset = if flush { 0.0 } else { PresetStyle::from_tokens(&Tokens::of(ui)).grid_inset };
+    (grid_width(ui) - 2.0 * inset).max(1.0)
+}
+
 impl<K: Clone + Send + Sync + 'static> State<K> {
     /// The state of the browser with id `id`.
     pub(crate) fn load(ctx: &Context, id: Id) -> Self {
@@ -226,7 +241,7 @@ where
     let avail = ui.available_width();
     let width = match st.width {
         Some((was, measured)) if (was - avail).abs() < 0.5 => measured,
-        _ => (avail - ui.spacing().scroll.allocated_width()).max(1.0),
+        _ => grid_width(ui),
     };
     let columns = metrics.columns(width);
     let shown_rows = shown(rows, pstate, default_open);

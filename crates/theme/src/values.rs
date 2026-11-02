@@ -2270,6 +2270,8 @@ pub const BRUSH_PICKER_LIST_MIN: f32 = 80.0;
 pub const BRUSH_PICKER_GAP: f32 = 6.0;
 /// Room the footer slider leaves for the grip: `brush.picker_grip_room`.
 pub const BRUSH_PICKER_GRIP_ROOM: f32 = 20.0;
+/// The search field's and the card scale slider's least width: `brush.picker_field_min`.
+pub const BRUSH_PICKER_FIELD_MIN: f32 = 60.0;
 /// Padding inside a card's tile: `brush.card_pad`.
 pub const BRUSH_CARD_PAD: f32 = 4.0;
 /// The tile's inset in its cell, at both ends: `brush.card_inset`.
@@ -2282,6 +2284,12 @@ pub const BRUSH_CARD_TIP_BASE: f32 = 44.8;
 pub const BRUSH_CARD_NAME_HEIGHT: f32 = 20.0;
 /// The name's inset from the row's ends: `brush.card_name_inset`.
 pub const BRUSH_CARD_NAME_INSET: f32 = 6.0;
+/// A compact card's tip thumbnail sits this far inside its cell's shorter side: `brush.card_tip_compact_inset`.
+pub const BRUSH_CARD_TIP_COMPACT_INSET: f32 = 2.0;
+/// The size number's distance from the bottom of the tip cell: `brush.card_number_gap`.
+pub const BRUSH_CARD_NUMBER_GAP: f32 = 1.0;
+/// The tip thumbnail's distance above the size number: `brush.card_tip_gap`.
+pub const BRUSH_CARD_TIP_GAP: f32 = 2.0;
 /// The stroke's inset from the tip cell: `brush.card_stroke_inset`.
 pub const BRUSH_CARD_STROKE_INSET: f32 = 8.0;
 /// The stroke's least width: `brush.card_stroke_min`.
@@ -2306,6 +2314,10 @@ pub const BRUSH_CHIP_TIP: f32 = 14.0;
 pub const BRUSH_CHIP_TIP_AT: [f32; 2] = [14.0, 11.0];
 /// The chip's chevron side: `brush.chip_chevron`.
 pub const BRUSH_CHIP_CHEVRON: f32 = 10.0;
+/// The chip's size number, its centre's distance from the chip's top: `brush.chip_number_at`.
+pub const BRUSH_CHIP_NUMBER_AT: f32 = 25.0;
+/// The chevron's centre, its distance from the chip's trailing end: `brush.chip_chevron_inset`.
+pub const BRUSH_CHIP_CHEVRON_INSET: f32 = 9.0;
 /// The Brush Settings panel's preferred width: `brush.panel_width`.
 pub const BRUSH_PANEL_WIDTH: f32 = 540.0;
 /// The section list's width: `brush.section_list_width`.

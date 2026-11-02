@@ -1,6 +1,5 @@
 //! The look of the brush preset cards, the picker and the chip, from the `brush` token family.
 
-use craft_ui::theme::{ToEgui, UiTokens};
 use egui::{Color32, CornerRadius, Vec2};
 
 /// The sizes and colours of a brush preset card at scale 1 (the card multiplies the sizes by its
@@ -20,6 +19,13 @@ pub struct BrushCardStyle {
     pub name_height: f32,
     /// The name's inset from the row's ends: `brush.card_name_inset` (6).
     pub name_inset: f32,
+    /// A compact card's tip thumbnail sits this far inside its cell's shorter side:
+    /// `brush.card_tip_compact_inset` (2).
+    pub tip_compact_inset: f32,
+    /// The size number's distance from the bottom of the tip cell: `brush.card_number_gap` (1).
+    pub number_gap: f32,
+    /// The tip thumbnail's distance above the size number: `brush.card_tip_gap` (2).
+    pub tip_gap: f32,
     /// The stroke's inset from the tip cell: `brush.card_stroke_inset` (8).
     pub stroke_inset: f32,
     /// The stroke's least and greatest width: `brush.card_stroke_min`, `brush.card_stroke_max`
@@ -47,34 +53,6 @@ pub struct BrushCardStyle {
     pub number: Color32,
 }
 
-impl BrushCardStyle {
-    /// The style from `tokens`.
-    pub fn of(tokens: &UiTokens) -> Self {
-        // pc: crates/ui-egui/src/panels/brushes_tab.rs:438-465.
-        let (b, c) = (&tokens.component.brush, &tokens.color);
-        BrushCardStyle {
-            pad: b.card_pad,
-            inset: b.card_inset,
-            tip_width: b.card_tip_width,
-            tip_base: b.card_tip_base,
-            name_height: b.card_name_height,
-            name_inset: b.card_name_inset,
-            stroke_inset: b.card_stroke_inset,
-            stroke_width: [b.card_stroke_min, b.card_stroke_max],
-            stroke_height: b.card_stroke_height,
-            max: Vec2::from(b.card_max),
-            tip_only: Vec2::from(b.card_tip_only),
-            tip_name: Vec2::from(b.card_tip_name),
-            radius: CornerRadius::same(b.card_radius.round() as u8),
-            fill: b.card_fill.to_egui(),
-            hover: c.state.hover.to_egui(),
-            selected: c.state.selected.to_egui(),
-            name: c.text.muted.to_egui(),
-            number: c.text.faint.to_egui(),
-        }
-    }
-}
-
 /// The sizes of the Brush Preset picker. The frame, padding and grip are the `Popover`'s.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -92,22 +70,8 @@ pub struct BrushPickerStyle {
     pub gap: f32,
     /// Room the footer slider leaves for the grip: `brush.picker_grip_room` (20).
     pub grip_room: f32,
-}
-
-impl BrushPickerStyle {
-    /// The style from `tokens`.
-    pub fn of(tokens: &UiTokens) -> Self {
-        // pc: crates/ui-egui/src/tools/brush_picker.rs:33-55.
-        let b = &tokens.component.brush;
-        BrushPickerStyle {
-            size: Vec2::new(b.picker_width, b.picker_height),
-            min_size: Vec2::new(b.picker_min_width, b.picker_min_height),
-            head_max: b.picker_head_max,
-            list_min: b.picker_list_min,
-            gap: b.picker_gap,
-            grip_room: b.picker_grip_room,
-        }
-    }
+    /// The search field's and the card scale slider's least width: `brush.picker_field_min` (60).
+    pub field_min: f32,
 }
 
 /// The sizes and colours of the options-bar chip.
@@ -122,6 +86,10 @@ pub struct BrushPresetChipStyle {
     pub tip_at: Vec2,
     /// The chevron's side: `brush.chip_chevron` (10).
     pub chevron: f32,
+    /// The size number's centre from the chip's top: `brush.chip_number_at` (25).
+    pub number_at: f32,
+    /// The chevron's centre from the chip's trailing end: `brush.chip_chevron_inset` (9).
+    pub chevron_inset: f32,
     /// The hover and open fill: `state.hover`.
     pub hover: Color32,
     /// The size number: `text.muted`, `caption` role.
@@ -130,22 +98,4 @@ pub struct BrushPresetChipStyle {
     pub chevron_color: Color32,
     /// The corners: `radius.control`.
     pub radius: CornerRadius,
-}
-
-impl BrushPresetChipStyle {
-    /// The style from `tokens`.
-    pub fn of(tokens: &UiTokens) -> Self {
-        // pc: crates/ui-egui/src/panels/brush_controls.rs:96-108.
-        let (b, c) = (&tokens.component.brush, &tokens.color);
-        BrushPresetChipStyle {
-            size: Vec2::from(b.chip),
-            tip: b.chip_tip,
-            tip_at: Vec2::from(b.chip_tip_at),
-            chevron: b.chip_chevron,
-            hover: c.state.hover.to_egui(),
-            number: c.text.muted.to_egui(),
-            chevron_color: c.text.faint.to_egui(),
-            radius: tokens.radius.control,
-        }
-    }
 }

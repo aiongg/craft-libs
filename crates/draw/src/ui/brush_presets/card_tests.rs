@@ -9,7 +9,7 @@ use super::*;
 fn style() -> BrushCardStyle {
     let ctx = egui::Context::default();
     install(&ctx, &Base::suite_default());
-    BrushCardStyle::of(&tokens_in_mode(&ctx, Mode::Dark))
+    BrushPresetCards::<u32>::style(&tokens_in_mode(&ctx, Mode::Dark))
 }
 
 fn parts(name: bool, stroke: bool, tip: bool) -> BrushCardParts {
@@ -119,4 +119,51 @@ fn card_rows_are_named_with_their_size() {
     assert_eq!(row.label, "Soft Round");
     assert_eq!(row.accessible_name.as_deref(), Some("Soft Round, 30 px"));
     assert_eq!(row.depth, 1);
+}
+
+// The tip is at the leading end of a card and the stroke after it, in both directions.
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
+#[test]
+fn cards_mirror_in_right_to_left() {
+    use craft_ui::direction::{self, Direction};
+    use craft_ui::localized::LocaleNumbers;
+    use egui_kittest::Harness;
+
+    let centres = |dir: Direction| {
+        let seen = std::rc::Rc::new(std::cell::Cell::new((None, None)));
+        let sink = seen.clone();
+        let (tip_sink, stroke_sink) = (seen.clone(), seen.clone());
+        let mut state = BrushCardsState::<u32>::new();
+        let rows = vec![BrushPresetCards::row(1, "Soft", 0, 30.0, &BrushCardLabels::default(), &LocaleNumbers::from_tag("en"))];
+        let mut harness = Harness::builder()
+            .with_size([400.0, 200.0])
+            .with_context_setup(move |ctx: &egui::Context| {
+                install(ctx, &Base::suite_default());
+                direction::apply(ctx, dir);
+            })
+            .build_ui(move |ui| {
+                let _ = &sink;
+                BrushPresetCards::new("cards", &mut state, &rows)
+                    .diameter_of(|_| Some(30.0))
+                    .tip(|_, rect, _| tip_sink.set((Some(rect.center().x), stroke_sink.get().1)))
+                    .stroke(|_, rect, _| stroke_sink.set((tip_sink.get().0, Some(rect.center().x))))
+                    .show(ui);
+            });
+        harness.run();
+        let (tip, stroke) = seen.get();
+        (tip.expect("the tip was painted"), stroke.expect("the stroke was painted"))
+    };
+    let (tip, stroke) = centres(Direction::Ltr);
+    assert!(tip < stroke, "left to right: the tip leads {tip} {stroke}");
+    let (tip, stroke) = centres(Direction::Rtl);
+    assert!(tip > stroke, "right to left: the tip leads {tip} {stroke}");
+}
+
+// The accessible name writes the size in the given number format.
+#[test]
+fn the_row_names_the_size_in_the_given_numbers() {
+    use craft_ui::localized::LocaleNumbers;
+    let labels = BrushCardLabels::default();
+    let row = BrushPresetCards::row(1u32, "Soft", 0, 30.4, &labels, &LocaleNumbers::from_tag("en"));
+    assert_eq!(row.accessible_name.as_deref(), Some("Soft, 30 px"));
 }
