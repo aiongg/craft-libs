@@ -1,10 +1,11 @@
 //! [`MaskViewControls`]: the View Mode block of Select and Mask's Properties panel (task SE-F6).
 
 use craft_theme::TypeRole;
-use craft_ui::controls::{Checkbox, Select, Slider};
+use craft_ui::controls::{Checkbox, Kbd, Select, Slider};
 use craft_ui::direction;
+use craft_ui::localized::{Labels, Units};
 use craft_ui::primitives::{Content, Text};
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::{AsIdSalt, IdSalt, KeyboardShortcut, Modifiers, Response, Ui};
 
 use super::{MaskViewChange, MaskViewLabels, MaskViewMode, MaskViewState};
 
@@ -18,8 +19,8 @@ pub struct MaskViewResponse {
     pub changed: Option<MaskViewChange>,
 }
 
-/// The View Mode controls: a `Select` named "View Mode" with the seven views (each option shows its
-/// key letter as its shortcut, `Kbd`), the current view's Opacity slider in percent (0..=100, only
+/// The View Mode controls: a "View" row with a `Select` named "View Mode" and the seven views (each
+/// option shows its key letter as its shortcut, `Kbd`), the current view's Opacity slider in percent (0..=100, only
 /// for the four views that have one), the Show Edge and Show Original checkboxes, and the hint line
 /// in the caption role. Remember Settings and the Refine Edge Brush controls are the workspace's.
 ///
@@ -29,33 +30,35 @@ pub struct MaskViewResponse {
 pub struct MaskViewControls<'a> {
     id_salt: IdSalt,
     state: &'a mut MaskViewState,
-    labels: MaskViewLabels,
+    labels: Option<MaskViewLabels>,
 }
 
 impl<'a> MaskViewControls<'a> {
     /// The controls of `state`, under `id_salt`.
     pub fn new(id_salt: impl AsIdSalt, state: &'a mut MaskViewState) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), state, labels: MaskViewLabels::default() }
+        Self { id_salt: IdSalt::new(id_salt), state, labels: None }
     }
 
-    /// Translated words (English by default).
+    /// Translated words; without them [`MaskViewLabels::of`] the context.
     pub fn labels(mut self, labels: MaskViewLabels) -> Self {
-        self.labels = labels;
+        self.labels = Some(labels);
         self
     }
 
     /// Shows the controls in `ui`'s layout.
     pub fn show(self, ui: &mut Ui) -> MaskViewResponse {
         let Self { id_salt, state, labels } = self;
+        let labels = labels.unwrap_or_else(|| MaskViewLabels::of(ui));
+        let units = Units::of(ui);
         let mut changed = None;
         let outer = ui.scope(|ui| {
             direction::horizontal(ui, |ui| {
-                ui.add(Text::new(labels.view_mode.as_str()).role(TypeRole::Label).content(Content::Muted));
+                ui.add(Text::new(labels.view.as_str()).role(TypeRole::Label).content(Content::Muted));
                 let mut picked = state.mode;
                 let mut select = Select::new((&id_salt, "mode"), labels.view_mode.as_str(), &mut picked);
                 for mode in MaskViewMode::ALL {
-                    let letter = mode.key().name();
-                    select = select.option(mode, format!("{} ({letter})", mode.label(&labels)));
+                    let key = KeyboardShortcut::new(Modifiers::NONE, mode.key());
+                    select = select.option(mode, mode.label(&labels)).option_shortcut(Kbd::new(&key));
                 }
                 let _ = select.show(ui);
                 if picked != state.mode {
@@ -68,7 +71,7 @@ impl<'a> MaskViewControls<'a> {
             if let Some(percent) = state.opacity(mode) {
                 let out = Slider::new((&id_salt, "opacity", mode.id()), labels.opacity.as_str(), percent, 0.0..=100.0)
                     .step(1.0)
-                    .value_text(format!("{percent:.0} %"))
+                    .value_text(units.percent(f64::from(percent)))
                     .show(ui);
                 if let Some(value) = out.event.as_ref().and_then(|e| e.value()) {
                     let value = (*value as f32).round();

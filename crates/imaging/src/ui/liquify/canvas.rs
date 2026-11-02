@@ -12,7 +12,7 @@ use craft_ui::canvas::{
     ToolKey, ToolPointer, ZoomTool,
 };
 use craft_ui::edit::{CancelReason, EditEvent, GestureId};
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, Units};
 
 use super::LiquifyEvent;
 use super::session::{BackdropMode, LiquifySettings, LiquifyStroke};
@@ -288,7 +288,7 @@ impl LiquifyCanvasTool<'_> {
 
     fn show_readout(&self, cx: &mut ToolContext<'_>) {
         let labels = BrushResizeLabels::of_ctx(&cx.canvas.ctx);
-        if let Some(readout) = self.canvas.resize.readout(cx.numbers, &labels) {
+        if let Some(readout) = self.canvas.resize.readout(&Units::of_ctx(&cx.canvas.ctx), &labels) {
             cx.readout(readout);
         }
     }

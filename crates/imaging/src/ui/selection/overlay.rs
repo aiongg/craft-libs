@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasView, Marquee, MarqueeLook};
-use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::localized::{Labels, LocaleNumbers, Unit, Units};
 use egui::accesskit::Role;
 use egui::epaint::Vertex;
 use egui::{
@@ -94,7 +94,8 @@ pub struct SelectionOverlayResponse {
 ///
 /// The trace, for a mask source: step [`trace_step`](crate::trace::trace_step) of the view's
 /// device zoom (`view.zoom · pixels_per_point`) and the [`reduction`](Self::reduction); region
-/// [`quantised_region`](crate::trace::quantised_region) of the view's visible bounds, so a small
+/// [`quantised_region`](crate::trace::quantised_region) of the view's visible bounds shifted back by
+/// the [`offset`](Self::offset), so a small
 /// pan reuses the trace; bounds the mask's content bounds (the whole canvas when
 /// [`MaskSource::outside`] is above 0) within the region. With a [`mapped`](Self::mapped) outline
 /// the whole selection is traced instead (a Free Transform may carry parts from outside the view
@@ -120,7 +121,7 @@ pub struct SelectionOverlay<'a> {
     preview: PreviewMode,
     look: QuickMaskLook,
     value_in: Option<(&'a LocaleNumbers, &'a Unit)>,
-    labels: SelectionOverlayLabels,
+    labels: Option<SelectionOverlayLabels>,
 }
 
 impl<'a> SelectionOverlay<'a> {
@@ -137,7 +138,7 @@ impl<'a> SelectionOverlay<'a> {
             preview: PreviewMode::None,
             look: QuickMaskLook::default(),
             value_in: None,
-            labels: SelectionOverlayLabels::default(),
+            labels: None,
         }
     }
 
@@ -188,9 +189,9 @@ impl<'a> SelectionOverlay<'a> {
         self
     }
 
-    /// Translated words (English by default).
+    /// Translated words; without them [`SelectionOverlayLabels::of`] the context.
     pub fn labels(mut self, labels: SelectionOverlayLabels) -> Self {
-        self.labels = labels;
+        self.labels = Some(labels);
         self
     }
 
@@ -199,6 +200,7 @@ impl<'a> SelectionOverlay<'a> {
     pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> SelectionOverlayResponse {
         let id = canvas.id.with("craft_imaging::ui::SelectionOverlay").with_salt(self.id_salt);
         let k = self.reduction.max(1);
+        let labels = self.labels.clone().unwrap_or_else(|| SelectionOverlayLabels::of(ui));
         let mut retraced = false;
         let bounds = match self.source {
             OutlineSource::Mask(mask) => content_bounds(mask, k),
@@ -212,7 +214,11 @@ impl<'a> SelectionOverlay<'a> {
         }
 
         // pc: canvas.rs:236-244 draws the ants only when the selection has an outline to draw.
-        if self.visible && bounds.is_some() {
+        let has_outline = match self.source {
+            OutlineSource::Mask(_) => bounds.is_some(),
+            OutlineSource::Segments { segments, .. } => !segments.is_empty(),
+        };
+        if self.visible && has_outline {
             let traced;
             let segments: &[Segment] = match self.source {
                 OutlineSource::Mask(mask) => {
@@ -233,7 +239,7 @@ impl<'a> SelectionOverlay<'a> {
             Marquee::segments(lines, "").paint(&ui.painter_at(view.rect), view, MarqueeLook::Ants, time);
         }
 
-        self.describe(ui, canvas, view, id, bounds);
+        self.describe(ui, canvas, view, id, bounds, &labels);
         SelectionOverlayResponse { id, bounds, retraced }
     }
 
@@ -248,8 +254,11 @@ impl<'a> SelectionOverlay<'a> {
             let far = 1 << 30;
             MaskRect::new(-far, -far, far, far)
         } else {
+            // The mask lies `offset` from where it is drawn, so the part of it in view is the
+            // visible area shifted back.
             let v = view.visible();
-            quantised_region([v.x0, v.y0, v.x1, v.y1], step, k)
+            let [dx, dy] = self.offset.map(f64::from);
+            quantised_region([v.x0 - dx, v.y0 - dy, v.x1 - dx, v.y1 - dy], step, k)
         };
         let content = if mask.outside() > 0.0 { MaskRect::of_size(mask.size()) } else { mask.content_bounds() };
         let bounds = content.intersect(&region);
@@ -326,8 +335,8 @@ impl<'a> SelectionOverlay<'a> {
     }
 
     /// The AccessKit node: one graphics object inside the canvas node, hover-only.
-    fn describe(&self, ui: &mut Ui, canvas: &Response, view: &CanvasView, id: Id, bounds: Option<MaskRect>) {
-        let value = self.value(ui, bounds);
+    fn describe(&self, ui: &mut Ui, canvas: &Response, view: &CanvasView, id: Id, bounds: Option<MaskRect>, labels: &SelectionOverlayLabels) {
+        let value = self.value(ui, bounds, labels);
         let rect = bounds
             .map(|b| {
                 let side = |v: i32| f64::from(v);
@@ -340,34 +349,31 @@ impl<'a> SelectionOverlay<'a> {
         let nodes = ui.new_child(UiBuilder::new().max_rect(view.rect).accessibility_parent(canvas.id));
         let response = nodes.interact(rect, id, Sense::hover());
         response.widget_info(|| {
-            let mut info = WidgetInfo::labeled(Role::GraphicsObject, nodes.is_enabled(), &self.labels.name);
+            let mut info = WidgetInfo::labeled(Role::GraphicsObject, nodes.is_enabled(), &labels.name);
             info.current_text_value = Some(value.clone());
             info
         });
     }
 
     /// The accessible value: the bounds in the unit (or "No selection"), plus the preview's name.
-    fn value(&self, ui: &Ui, bounds: Option<MaskRect>) -> String {
-        let l = &self.labels;
+    fn value(&self, ui: &Ui, bounds: Option<MaskRect>, l: &SelectionOverlayLabels) -> String {
+        let units = Units::of(ui);
         let base = match bounds {
             None => l.nothing.clone(),
             Some(b) => {
-                let default_numbers;
-                let default_unit;
-                let (numbers, unit) = match self.value_in {
-                    Some(pair) => pair,
-                    None => {
-                        default_numbers = LocaleNumbers::of(ui);
-                        default_unit = Unit::new("{n} px");
-                        (&*default_numbers, &default_unit)
-                    }
+                let n = |v: f64| match self.value_in {
+                    Some((numbers, unit)) => format!("{}{}{}", unit.prefix(), numbers.format(v, 0..=2), unit.suffix()),
+                    None => units.pixels(v),
                 };
-                let n = |v: f64| format!("{}{}{}", unit.prefix(), numbers.format(v, 0..=2), unit.suffix());
-                l.bounds
-                    .replace("{width}", &n(f64::from(b.width())))
-                    .replace("{height}", &n(f64::from(b.height())))
-                    .replace("{x}", &n(f64::from(b.x0)))
-                    .replace("{y}", &n(f64::from(b.y0)))
+                craft_i18n::fmt(
+                    &l.bounds,
+                    &[
+                        ("width", &n(f64::from(b.width()))),
+                        ("height", &n(f64::from(b.height()))),
+                        ("x", &n(f64::from(b.x0))),
+                        ("y", &n(f64::from(b.y0))),
+                    ],
+                )
             }
         };
         let mode = match self.preview {
@@ -377,7 +383,7 @@ impl<'a> SelectionOverlay<'a> {
             PreviewMode::WhiteMatte => &l.white_matte,
             PreviewMode::QuickMask => &l.quick_mask,
         };
-        l.with_mode.replace("{value}", &base).replace("{mode}", mode)
+        craft_i18n::fmt(&l.with_mode, &[("value", &base), ("mode", mode)])
     }
 }
 
