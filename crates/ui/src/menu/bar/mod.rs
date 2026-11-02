@@ -28,6 +28,7 @@ use egui::{
 
 use super::item::{MenuEntry, MenuItem};
 use super::{Menu, MenuStep, MenuStyle, mnemonic};
+use crate::behavior::opening_press_keeps_focus;
 use crate::controls::Kbd;
 use crate::direction;
 use crate::localized::Labels as _;
@@ -398,7 +399,11 @@ impl<'a, T: Clone> MenuBar<'a, T> {
                     .scroll_labels(labels.scroll_up.as_str(), labels.scroll_down.as_str());
                 let out = match header {
                     Some(search) => {
-                        let mut draw = |ui: &mut Ui| search.field(ui, &style, &tokens, self.size, labels);
+                        let opening = state.pressing;
+                        let mut draw = |ui: &mut Ui| {
+                            let ctx = ui.ctx().clone();
+                            opening_press_keeps_focus(&ctx, opening, || search.field(ui, &style, &tokens, self.size, labels))
+                        };
                         let out = menu.header(&mut draw).show(ui, popup);
                         if out.chosen.is_none() && out.open && search.submitted() {
                             // Enter in the field with no row lit runs the first match.

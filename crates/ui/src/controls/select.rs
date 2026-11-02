@@ -21,7 +21,7 @@ use super::option_list::{
 use super::preview_select::SelectText;
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, Kbd, SearchField, Swatch, TextField, TextFieldStyle, icon_size};
-use crate::behavior::{ListOptions, Listbox, take_composing_keys, take_key};
+use crate::behavior::{ListOptions, Listbox, opening_press_keeps_focus, take_composing_keys, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
@@ -1415,6 +1415,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
                 });
                 span(start, end - forward * (side + self.style.list.gap))
             });
+            let opening_press = pass.state.pressing;
             let mut search_row = |ui: &mut Ui| {
                 let Some((label, clear)) = self.search else { return };
                 let salt = "craft-select-search";
@@ -1425,12 +1426,16 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
                     ui.memory_mut(|m| m.request_focus_with_filter(field, keys));
                     focused_search = true;
                 }
-                let edit = SearchField::new(salt, label.as_str(), &query, clear.as_str())
-                    .placeholder(label.as_str())
-                    .size(self.size)
-                    .keys(keys)
-                    .edit_menu(false)
-                    .show(ui);
+                // Without it the field would lose the focus to that release and the list close.
+                let ctx = ui.ctx().clone();
+                let edit = opening_press_keeps_focus(&ctx, opening_press, || {
+                    SearchField::new(salt, label.as_str(), &query, clear.as_str())
+                        .placeholder(label.as_str())
+                        .size(self.size)
+                        .keys(keys)
+                        .edit_menu(false)
+                        .show(ui)
+                });
                 if let Some(text) = edit.event.as_ref().and_then(|e| e.value()) {
                     query.clone_from(text);
                 }

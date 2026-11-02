@@ -1479,3 +1479,23 @@ fn id_in_is_the_id_of_the_select_a_dialog_names_in_initial_focus() {
     let (named, shown) = harness.state().expect("the select was shown");
     assert_eq!(named, shown);
 }
+
+// A mouse click on a searchable select's box (press, release over the box a few frames later,
+// quick enough to be a click) leaves the list open, as on a plain select: the search field keeps
+// the focus it took when the list opened.
+#[test]
+fn a_click_on_a_searchable_select_leaves_its_list_open() {
+    let mut harness = fonts();
+    harness.run();
+    let at = harness.get_by_role(Role::ComboBox).rect().center();
+    harness.event(Event::PointerMoved(at));
+    harness.run();
+    harness.event(press(at, true));
+    for _ in 0..3 {
+        harness.step();
+    }
+    harness.event(press(at, false));
+    harness.step();
+    harness.step();
+    assert_eq!(expanded(&harness), Some(true), "the list stays open after the click");
+}

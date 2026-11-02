@@ -8,8 +8,8 @@ use egui::accesskit::{Invalid, Role};
 use egui::text::{CCursorRange, LayoutJob};
 use egui::text_edit::TextEditState;
 use egui::{
-    Align2, Color32, Event, EventFilter, FontId, Frame, Galley, Id, ImeEvent, InputState, Key, KeyboardShortcut, Margin, Modifiers, PointerButton,
-    Rect, Response, SurrenderFocusOn, TextBuffer, TextEdit, Ui, Vec2, ViewportId,
+    Align2, Color32, Context, Event, EventFilter, FontId, Frame, Galley, Id, ImeEvent, InputState, Key, KeyboardShortcut, Margin, Modifiers,
+    PointerButton, Rect, Response, SurrenderFocusOn, TextBuffer, TextEdit, Ui, Vec2, ViewportId,
 };
 
 use super::edit_menu;
@@ -220,6 +220,19 @@ impl<'a> Typing<'a> {
 /// [`Typing::composing`], also taking the keys the input method owns in this pass out of the
 /// input, as the field's `show` does: for an embedding control whose own gesture would read Esc
 /// before the field runs (a select's search field, drawn later in its popup).
+/// Runs `show` (a text field in a popup that opened on a press) with egui's click-away rule off
+/// while `opening` is true: the release of the press that opened the popup, over its opener, is no
+/// click away from the field, which keeps the focus it took when the popup opened.
+pub(crate) fn opening_press_keeps_focus<R>(ctx: &Context, opening: bool, show: impl FnOnce() -> R) -> R {
+    let surrender = ctx.options(|o| o.input_options.surrender_focus_on);
+    if opening {
+        ctx.options_mut(|o| o.input_options.surrender_focus_on = SurrenderFocusOn::Never);
+    }
+    let out = show();
+    ctx.options_mut(|o| o.input_options.surrender_focus_on = surrender);
+    out
+}
+
 pub(crate) fn take_composing_keys(ui: &Ui, id: Id) -> bool {
     ime_pass(ui, id, true)
 }

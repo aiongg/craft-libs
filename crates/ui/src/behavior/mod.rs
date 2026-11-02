@@ -95,4 +95,4 @@ pub use reorder::{
 };
 pub use scrub::Scrub;
 pub use typing::{Codec, Escape, NotAValue, PlainText, Typed, Typing, TypingLook};
-pub(crate) use typing::{take_composing_keys, take_enter};
+pub(crate) use typing::{opening_press_keeps_focus, take_composing_keys, take_enter};
