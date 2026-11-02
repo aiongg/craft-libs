@@ -8,7 +8,7 @@ use kurbo::Point;
 
 use super::{CornerEdit, CornerKind, CornerPoint, CornerRef, CornerTarget, CornerWidgets};
 use craft_ui::canvas::{CanvasView, RulerUnits};
-use craft_ui::edit::EditEvent;
+use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::LocaleNumbers;
 use craft_ui::theme::{Base, install};
 
@@ -23,6 +23,12 @@ struct Host {
     activate: Vec<CornerRef>,
     claimed: bool,
     hovered: bool,
+    /// A text field's typing run beside the canvas, begun in its first pass.
+    typing: bool,
+    typing_began: bool,
+    /// Passes run, and the one in which the typing run committed.
+    passes: usize,
+    committed: Option<usize>,
 }
 
 fn quad(key: u64, (x0, y0, x1, y1): (f64, f64, f64, f64), radius: f64, individual: bool) -> CornerTarget {
@@ -51,6 +57,10 @@ fn harness(radius: f64, kinds: bool) -> Harness<'static, Host> {
         activate: Vec::new(),
         claimed: false,
         hovered: false,
+        typing: false,
+        typing_began: false,
+        passes: 0,
+        committed: None,
     };
     // A small step keeps two presses in one spot within the double-click delay.
     let mut h = Harness::<Host>::builder()
@@ -59,6 +69,23 @@ fn harness(radius: f64, kinds: bool) -> Harness<'static, Host> {
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui_state(
             |ui, host: &mut Host| {
+                host.passes += 1;
+                if host.typing {
+                    let field = ui.make_persistent_id("typing field");
+                    let response = ui.interact(egui::Rect::from_min_size(egui::pos2(420.0, 320.0), vec2(20.0, 20.0)), field, Sense::click());
+                    let first = !host.typing_began;
+                    host.typing_began = true;
+                    if first {
+                        response.request_focus();
+                    }
+                    let mut run = Gesture::load(ui, field, &0, EditPolicy::default());
+                    if first {
+                        run.begin();
+                    }
+                    if matches!(run.finish(), Some(EditEvent::Commit { .. })) {
+                        host.committed = Some(host.passes);
+                    }
+                }
                 let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
                 let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
                 host.view = Some(view);
@@ -214,6 +241,9 @@ fn corner_keyboard_steps_the_radius() {
     let mut h = harness(0.0, false);
     h.key_press(Key::Tab);
     h.run();
+    // AccessKit reports the group's picked part as the focused node (its active descendant).
+    let focused = h.query_by(|n| n.is_focused()).map(|n| (n.accesskit_node().role(), n.accesskit_node().label().unwrap_or_default()));
+    assert_eq!(focused, Some((Role::GraphicsObject, "Corner 1 of 8".to_owned())));
     h.key_press(Key::PageDown);
     h.run();
     h.key_press(Key::ArrowUp);
@@ -284,4 +314,41 @@ fn corner_accesskit_group_and_values() {
     move_to(&mut h, from + vec2(5.0, 5.0));
     move_to(&mut h, from + vec2(13.0, 13.0));
     h.get_by_label("R: 25.0 px");
+}
+
+// A press on a widget during another control's typing run waits for the run's Commit, then the
+// drag begins from the press; a click released meanwhile still reports once the run has ended.
+#[test]
+fn corner_press_during_a_typing_run_waits_for_the_runs_commit() {
+    let mut h = harness(0.0, false);
+    h.state_mut().typing = true;
+    h.run();
+    let from = screen(&h, 60.0, 60.0);
+    press(&mut h, from, Modifiers::NONE);
+    assert!(h.state().claimed, "the widgets hold the press while it waits");
+    assert!(h.state().events.is_empty(), "nothing before the run's Commit");
+    for i in 0..5 {
+        move_to(&mut h, from + vec2(10.0, 10.0 + i as f32));
+        let waiting = h.state().committed.is_none_or(|c| c >= h.state().passes);
+        assert!(!waiting || h.state().events.is_empty(), "{:?}", h.state().events);
+    }
+    release(&mut h, from + vec2(10.0, 14.0), Modifiers::NONE);
+    assert!(h.state().committed.is_some(), "the run ended");
+    let k = kinds(&h);
+    assert_eq!(k.first(), Some(&"begin"), "{k:?}");
+    assert_eq!(k.last(), Some(&"commit"), "{k:?}");
+
+    let mut h = harness(0.0, false);
+    h.state_mut().typing = true;
+    h.run();
+    let corner = CornerRef { target: 1, corner: 0 };
+    press(&mut h, from, Modifiers::NONE);
+    release(&mut h, from, Modifiers::NONE);
+    press(&mut h, from, Modifiers::NONE);
+    release(&mut h, from, Modifiers::NONE);
+    for _ in 0..6 {
+        h.run();
+    }
+    assert!(h.state().events.is_empty(), "a click changes nothing");
+    assert_eq!(h.state().activate, [corner], "and its double-click activates once");
 }
