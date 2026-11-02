@@ -15,7 +15,7 @@ use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::canvas::{CanvasView, PixelRect, RasterSource as _};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs};
+use craft_ui::story::{Level, Story, StoryArgs, lock, shared};
 use craft_ui::testing::canvas_story::{ViewArgs, document_with};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_ui::typed_story;
@@ -36,6 +36,7 @@ craft_ui::words! {
         uncovered: "previewStory.uncovered" = "Uncovered after the view moved";
         covered: "previewStory.covered" = "Covered by the shown key";
         key: "previewStory.key" = "Key {key}";
+        region: "previewStory.region" = "{caption}: {x0}, {y0}, {x1}, {y1}";
         no_key: "previewStory.noKey" = "No preview: the committed document";
         settling: "previewStory.settling" = "Settling: secondary views wait";
         settled: "previewStory.settled" = "Settled";
@@ -112,6 +113,8 @@ const TARGET_LAYER: u64 = 1;
 const SETTLE_SECONDS: f64 = 0.2;
 /// The legend's sample line, in points (a story-local size: no token names a legend).
 const LEGEND_LINE: f32 = 24.0;
+/// The part of a preview key the story shows, so the number is exact as a float and still changes with the settings.
+const KEY_SHOWN_MASK: u64 = 0xFFFF_FFFF;
 /// The slider a draft scale times.
 const DRAG_CONTROL: &str = "amount";
 
@@ -129,11 +132,12 @@ fn show_live(ui: &mut Ui, args: &mut LiveArgs) {
     let numbers = LocaleNumbers::of(ui);
     let tokens = Tokens::of(ui);
     let colors = &tokens.color;
-    let (target_colour, switch_colour, uncovered_colour, covered_colour): (Color32, Color32, Color32, Color32) =
+    let (target_color, switch_color, uncovered_color, covered_color): (Color32, Color32, Color32, Color32) =
         (colors.text.muted.to_egui(), colors.accent.strong.to_egui(), colors.status.warn.fg.to_egui(), colors.text.faint.to_egui());
     let line = ui.visuals().widgets.active.fg_stroke.width;
-    let id = ui.scope_id().with("live-preview-story");
-    let mut state = ui.data(|d| d.get_temp::<LiveState>(id)).unwrap_or_default();
+    let kept = shared(ui, "live-preview", LiveState::default);
+    let mut guard = lock(&kept);
+    let state = &mut *guard;
     let now = ui.input(|i| i.time);
 
     // The document and the view: the pan moves the view's middle.
@@ -165,37 +169,44 @@ fn show_live(ui: &mut Ui, args: &mut LiveArgs) {
     state.shown = key;
 
     let painter = ui.painter_at(view.rect);
-    let stroke = |colour| Stroke::new(line, colour);
-    outline(&painter, &view, region, stroke(target_colour));
+    let stroke = |color| Stroke::new(line, color);
+    outline(&painter, &view, region, stroke(target_color));
     if let Some((_, covered)) = state.live.covered {
-        outline(&painter, &view, covered, stroke(covered_colour));
+        outline(&painter, &view, covered, stroke(covered_color));
     }
     if let Some(rect) = state.switched {
-        outline(&painter, &view, rect, stroke(switch_colour));
+        outline(&painter, &view, rect, stroke(switch_color));
     }
     if let Some(rect) = state.uncovered {
-        outline(&painter, &view, rect, stroke(uncovered_colour));
+        outline(&painter, &view, rect, stroke(uncovered_color));
     }
 
     // The legend: each outline's colour names what it is.
-    let legend = |ui: &mut Ui, caption: &str, colour: Color32, rect: Option<PixelRect>| {
+    let legend = |ui: &mut Ui, caption: &str, color: Color32, rect: Option<PixelRect>| {
         let text = match rect {
-            Some(r) => format!("{caption}: {}, {}, {}, {}", r.x0, r.y0, r.x1, r.y1),
+            Some(r) => {
+                let [x0, y0, x1, y1] = [r.x0, r.y0, r.x1, r.y1].map(|n| numbers.format(f64::from(n), 0..=0));
+                fill(&labels.region, &[("caption", caption), ("x0", x0.as_str()), ("y0", y0.as_str()), ("x1", x1.as_str()), ("y1", y1.as_str())])
+            }
             None => caption.to_owned(),
         };
         ui.horizontal(|ui| {
             let (rect, _) = ui.allocate_exact_size(vec2(LEGEND_LINE, ui.spacing().interact_size.y), Sense::hover());
-            ui.painter().hline(rect.x_range(), rect.center().y, Stroke::new(line, colour));
+            ui.painter().hline(rect.x_range(), rect.center().y, Stroke::new(line, color));
             ui.add(Text::new(text.as_str()));
         });
     };
-    legend(ui, &labels.target, target_colour, Some(region));
-    legend(ui, &labels.covered, covered_colour, state.live.covered.map(|(_, rect)| rect));
-    legend(ui, &labels.switched, switch_colour, state.switched);
-    legend(ui, &labels.uncovered, uncovered_colour, state.uncovered);
+    legend(ui, &labels.target, target_color, Some(region));
+    legend(ui, &labels.covered, covered_color, state.live.covered.map(|(_, rect)| rect));
+    legend(ui, &labels.switched, switch_color, state.switched);
+    legend(ui, &labels.uncovered, uncovered_color, state.uncovered);
 
     // The readouts.
-    let key_text = if key.is_none() { labels.no_key.clone() } else { fill(&labels.key, &[("key", &format!("{:x}", key.raw()))]) };
+    let key_text = if key.is_none() {
+        labels.no_key.clone()
+    } else {
+        fill(&labels.key, &[("key", &numbers.format((key.raw() & KEY_SHOWN_MASK) as f64, 0..=0))])
+    };
     ui.add(Text::new(key_text.as_str()).content(Content::Muted));
     let settling = state.live.settling(now, SETTLE_SECONDS);
     ui.add(Text::new(if settling { labels.settling.as_str() } else { labels.settled.as_str() }).content(Content::Muted));
@@ -234,8 +245,6 @@ fn show_live(ui: &mut Ui, args: &mut LiveArgs) {
         None => labels.no_drag.clone(),
     };
     ui.add(Text::new(draft_text.as_str()).content(Content::Muted));
-
-    ui.data_mut(|d| d.insert_temp(id, state));
 }
 
 #[cfg(test)]

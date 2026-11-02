@@ -9,18 +9,18 @@
 //!
 //! | Story id | Component | Shows |
 //! |---|---|---|
-//! | `composites/levels-panel/states` | `LevelsPanel` | RGB with a fake histogram, Auto pressed, a picker armed, a grey document |
-//! | `composites/curves-panel/states` | `CurvesPanel` | Points; pencil with Smooth; the overlays on the composite; an isolated mask channel |
-//! | `composites/adjust-sliders/tables` | `AdjustSliders` | Exposure, Vibrance, Posterize, and a VectorCraft-style table with colour tracks |
-//! | `composites/brightness-contrast-editor/modes` | `BrightnessContrastEditor` | Normal and Use Legacy |
-//! | `composites/threshold-editor/marker` | `ThresholdEditor` | The marker on a fake histogram |
-//! | `composites/hue-saturation-editor/ranges` | `HueSaturationEditor` | Master, a range with its thumbs, Colorize, a range wrapping through 0° |
-//! | `composites/color-balance-editor/tones` | `ColorBalanceEditor` | The three tones |
-//! | `composites/black-white-editor/tint` | `BlackWhiteEditor` | Default and tinted |
-//! | `composites/photo-filter-editor/sources` | `PhotoFilterEditor` | A preset and a custom colour |
-//! | `composites/channel-mixer-editor/outputs` | `ChannelMixerEditor` | Colour, Monochrome, Total over 100 % |
-//! | `composites/selective-color-editor/methods` | `SelectiveColorEditor` | Relative, Absolute, Neutrals |
-//! | `composites/adjust-session/properties-panel` | `AdjustSession` | Color Balance with Reset, Hue/Saturation and Brightness/Contrast with `AdjustContext::properties` (no wheel) |
+//! | `patterns/levels-panel/states` | `LevelsPanel` | RGB with a fake histogram, Auto pressed, a picker armed, a grey document |
+//! | `patterns/curves-panel/states` | `CurvesPanel` | Points; pencil with Smooth; the overlays on the composite; an isolated mask channel |
+//! | `patterns/adjust-sliders/tables` | `AdjustSliders` | Exposure, Vibrance, Posterize, and a VectorCraft-style table with colour tracks |
+//! | `patterns/brightness-contrast-editor/modes` | `BrightnessContrastEditor` | Normal and Use Legacy |
+//! | `patterns/threshold-editor/marker` | `ThresholdEditor` | The marker on a fake histogram |
+//! | `patterns/hue-saturation-editor/ranges` | `HueSaturationEditor` | Master, a range with its thumbs, Colorize, a range wrapping through 0° |
+//! | `patterns/color-balance-editor/tones` | `ColorBalanceEditor` | The three tones |
+//! | `patterns/black-white-editor/tint` | `BlackWhiteEditor` | Default and tinted |
+//! | `patterns/photo-filter-editor/sources` | `PhotoFilterEditor` | A preset and a custom colour |
+//! | `patterns/channel-mixer-editor/outputs` | `ChannelMixerEditor` | Colour, Monochrome, Total over 100 % |
+//! | `patterns/selective-color-editor/methods` | `SelectiveColorEditor` | Relative, Absolute, Neutrals |
+//! | `patterns/adjust-session/properties-panel` | `AdjustSession` | Color Balance with Reset, Hue/Saturation and Brightness/Contrast with `AdjustContext::properties` (no wheel) |
 //!
 //! The first eleven take the arguments `dialog` (`AdjustContext::dialog` or `properties`) and
 //! `dynamic_colors` (Preferences › Interface › Dynamic Color Sliders). The point pickers are
@@ -31,13 +31,12 @@ use craft_ui::composites::curve_editor::story_bins;
 use craft_ui::composites::{ChannelColor, Curve};
 use craft_ui::controls::Button;
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs};
+use craft_ui::story::{Level, Story, StoryArgs, lock, shared};
 use craft_ui::typed_story;
-use egui::{Context, Ui};
+use egui::Ui;
 
-use super::sliders::PERCENT;
 use super::{
     AdjustContext, AdjustField, AdjustLabels, AdjustSession, AdjustSliders, AdjustTrack, BlackWhite, BlackWhiteEditor, BlackWhiteOutput,
     BrightnessContrast, BrightnessContrastEditor, ChannelMixer, ChannelMixerEditor, ColorBalance, ColorBalanceEditor, ColorBalanceTone, CurvesMode,
@@ -60,21 +59,17 @@ craft_ui::words! {
         curves_isolated: "adjustStory.curvesIsolated" = "One isolated mask channel";
         mask_name: "adjustStory.maskName" = "Layer mask";
         posterize: "adjustStory.posterize" = "Posterize";
-        table: "adjustStory.table" = "Table with colour tracks";
-        cyan_red: "adjustStory.cyanRed" = "Cyan / Red";
-        magenta_green: "adjustStory.magentaGreen" = "Magenta / Green";
-        yellow_blue: "adjustStory.yellowBlue" = "Yellow / Blue";
+        table: "adjustStory.table" = "Table with color tracks";
         normal: "adjustStory.normal" = "Normal";
         range_thumbs: "adjustStory.rangeThumbs" = "A range with its thumbs";
         range_wrap: "adjustStory.rangeWrap" = "A range through 0°";
         tinted: "adjustStory.tinted" = "Tinted";
         photo_preset: "adjustStory.photoPreset" = "A filter preset";
-        photo_custom: "adjustStory.photoCustom" = "A custom colour";
+        photo_custom: "adjustStory.photoCustom" = "A custom color";
         mixer_over: "adjustStory.mixerOver" = "Total over 100 %";
         properties_balance: "adjustStory.propertiesBalance" = "Color Balance with Reset";
         properties_reset: "adjustStory.propertiesReset" = "Reset";
         properties_brightness: "adjustStory.propertiesBrightness" = "Brightness/Contrast";
-        properties_hue: "adjustStory.propertiesHue" = "Hue/Saturation";
     }
 }
 
@@ -84,48 +79,41 @@ const DEFAULTS: ContextArgs = ContextArgs { dialog: true, dynamic_colors: true }
 /// The stories above.
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("composites/levels-panel/states", Level::Composites, "LevelsPanel", "Levels panel", DEFAULTS, show_levels),
-        typed_story!("composites/curves-panel/states", Level::Composites, "CurvesPanel", "Curves panel", DEFAULTS, show_curves),
-        typed_story!("composites/adjust-sliders/tables", Level::Composites, "AdjustSliders", "Slider tables", DEFAULTS, show_sliders),
+        typed_story!("patterns/levels-panel/states", Level::Patterns, "LevelsPanel", "Levels panel", DEFAULTS, show_levels),
+        typed_story!("patterns/curves-panel/states", Level::Patterns, "CurvesPanel", "Curves panel", DEFAULTS, show_curves),
+        typed_story!("patterns/adjust-sliders/tables", Level::Patterns, "AdjustSliders", "Slider tables", DEFAULTS, show_sliders),
         typed_story!(
-            "composites/brightness-contrast-editor/modes",
-            Level::Composites,
+            "patterns/brightness-contrast-editor/modes",
+            Level::Patterns,
             "BrightnessContrastEditor",
             "Brightness/Contrast",
             DEFAULTS,
             show_brightness_contrast
         ),
-        typed_story!("composites/threshold-editor/marker", Level::Composites, "ThresholdEditor", "Threshold", DEFAULTS, show_threshold),
+        typed_story!("patterns/threshold-editor/marker", Level::Patterns, "ThresholdEditor", "Threshold", DEFAULTS, show_threshold),
         typed_story!(
-            "composites/hue-saturation-editor/ranges",
-            Level::Composites,
+            "patterns/hue-saturation-editor/ranges",
+            Level::Patterns,
             "HueSaturationEditor",
             "Hue/Saturation",
             DEFAULTS,
             show_hue_saturation
         ),
-        typed_story!("composites/color-balance-editor/tones", Level::Composites, "ColorBalanceEditor", "Color Balance", DEFAULTS, show_color_balance),
-        typed_story!("composites/black-white-editor/tint", Level::Composites, "BlackWhiteEditor", "Black & White", DEFAULTS, show_black_white),
-        typed_story!("composites/photo-filter-editor/sources", Level::Composites, "PhotoFilterEditor", "Photo Filter", DEFAULTS, show_photo_filter),
+        typed_story!("patterns/color-balance-editor/tones", Level::Patterns, "ColorBalanceEditor", "Color Balance", DEFAULTS, show_color_balance),
+        typed_story!("patterns/black-white-editor/tint", Level::Patterns, "BlackWhiteEditor", "Black & White", DEFAULTS, show_black_white),
+        typed_story!("patterns/photo-filter-editor/sources", Level::Patterns, "PhotoFilterEditor", "Photo Filter", DEFAULTS, show_photo_filter),
+        typed_story!("patterns/channel-mixer-editor/outputs", Level::Patterns, "ChannelMixerEditor", "Channel Mixer", DEFAULTS, show_channel_mixer),
         typed_story!(
-            "composites/channel-mixer-editor/outputs",
-            Level::Composites,
-            "ChannelMixerEditor",
-            "Channel Mixer",
-            DEFAULTS,
-            show_channel_mixer
-        ),
-        typed_story!(
-            "composites/selective-color-editor/methods",
-            Level::Composites,
+            "patterns/selective-color-editor/methods",
+            Level::Patterns,
             "SelectiveColorEditor",
             "Selective Color",
             DEFAULTS,
             show_selective_color
         ),
         typed_story!(
-            "composites/adjust-session/properties-panel",
-            Level::Composites,
+            "patterns/adjust-session/properties-panel",
+            Level::Patterns,
             "AdjustSession",
             "Properties panel",
             PropertiesArgs { dynamic_colors: true },
@@ -182,27 +170,22 @@ impl<D: Clone> Doc<D> {
     }
 }
 
-/// Runs `body` on the cell `salt`'s kept [`Doc`], made by `init` the first time.
-fn with_doc<D: Clone + Send + Sync + 'static, R>(
+/// Runs `body` on the cell `salt`'s kept [`Doc`], made by `init` the first time; `seed` runs
+/// then too, and sets the editor's view state (the shown range or tone).
+fn with_doc<D: Clone + Send + 'static, R>(
     ui: &mut Ui,
     salt: &str,
+    seed: impl FnOnce(&Ui),
     init: impl FnOnce() -> D,
     body: impl FnOnce(&mut Ui, &mut Doc<D>) -> R,
 ) -> R {
-    let id = ui.scope_id().with(("adjust-story", salt));
-    let mut doc = ui.data(|d| d.get_temp::<Doc<D>>(id)).unwrap_or_else(|| Doc { value: init(), before: None });
-    let out = body(ui, &mut doc);
-    ui.data_mut(|d| d.insert_temp(id, doc));
-    out
-}
-
-/// Runs `f` once for the cell `salt`: it sets the editor's view state (the shown range or tone).
-fn once(ui: &Ui, salt: &str, f: impl FnOnce(&Context)) {
-    let id = ui.scope_id().with(("adjust-story-seed", salt));
-    if !ui.data(|d| d.get_temp::<bool>(id).unwrap_or(false)) {
-        f(ui.ctx());
-        ui.data_mut(|d| d.insert_temp(id, true));
-    }
+    let shown: &Ui = ui;
+    let state = shared(shown, salt, || {
+        seed(shown);
+        Doc { value: init(), before: None }
+    });
+    let mut doc = lock(&state);
+    body(ui, &mut doc)
 }
 
 type Cell<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
@@ -247,7 +230,7 @@ fn rgb() -> ToneChannels {
 }
 
 /// A story-local hue at full saturation and brightness.
-fn hue_colour(degrees: f64) -> Srgba {
+fn hue_color(degrees: f64) -> Srgba {
     Srgba::from_hsb(Hsb { h: degrees.rem_euclid(360.0) as f32, s: 1.0, b: 1.0 })
 }
 
@@ -272,6 +255,7 @@ fn levels_cell(
     with_doc(
         ui,
         salt,
+        |_| {},
         move || LevelsState { levels, armed },
         |ui, doc| {
             let out = LevelsPanel::new(salt, &doc.value.levels, channels, &numbers)
@@ -347,6 +331,7 @@ fn curves_cell(ui: &mut Ui, salt: &'static str, channels: ToneChannels, context:
     with_doc(
         ui,
         salt,
+        |_| {},
         move || curves,
         |ui, doc| {
             let out = CurvesPanel::new(salt, &doc.value, channels, &numbers).histograms(histograms).context(context).show(ui);
@@ -397,6 +382,7 @@ fn table_cell(ui: &mut Ui, salt: &'static str, fields: Vec<AdjustField>, context
     with_doc(
         ui,
         salt,
+        |_| {},
         || fields.iter().map(|field| field.default).collect::<Vec<f64>>(),
         |ui, doc| {
             let edit = AdjustSliders::new(salt, &fields, &doc.value, &numbers).context(context).show(ui);
@@ -407,9 +393,9 @@ fn table_cell(ui: &mut Ui, salt: &'static str, fields: Vec<AdjustField>, context
 
 /// A VectorCraft-style table: the colour effects' rows, each over a two-colour track. The track
 /// ends are the colours the rows name (data, not theme colours).
-fn colour_table(labels: &AdjustStoryLabels) -> Vec<AdjustField> {
+fn color_table(labels: &AdjustLabels, units: &Units) -> Vec<AdjustField> {
     let row = |key, label: &str, from: Srgba, to: Srgba| {
-        AdjustField::new(key, label, -100.0..=100.0, 0.0).unit(Unit::new(PERCENT)).track(AdjustTrack::Colors(vec![from, to]))
+        AdjustField::new(key, label, -100.0..=100.0, 0.0).unit(units.unit(UnitKind::Percent)).track(AdjustTrack::Colors(vec![from, to]))
     };
     vec![
         row("cyan-red", &labels.cyan_red, Srgba::rgb(0.0, 1.0, 1.0), Srgba::rgb(1.0, 0.0, 0.0)),
@@ -421,15 +407,16 @@ fn colour_table(labels: &AdjustStoryLabels) -> Vec<AdjustField> {
 fn show_sliders(ui: &mut Ui, args: &mut ContextArgs) {
     let labels = AdjustStoryLabels::of(ui);
     let names = AdjustLabels::of(ui);
+    let units = Units::of(ui);
     let context = args.context();
     grid(
         ui,
         2,
         vec![
             cell(&names.exposure, |ui| table_cell(ui, "sliders-exposure", AdjustField::exposure(&names), context)),
-            cell(&names.vibrance, |ui| table_cell(ui, "sliders-vibrance", AdjustField::vibrance(&names), context)),
+            cell(&names.vibrance, |ui| table_cell(ui, "sliders-vibrance", AdjustField::vibrance(&names, &units), context)),
             cell(&labels.posterize, |ui| table_cell(ui, "sliders-posterize", AdjustField::posterize(&names), context)),
-            cell(&labels.table, |ui| table_cell(ui, "sliders-table", colour_table(&labels), context)),
+            cell(&labels.table, |ui| table_cell(ui, "sliders-table", color_table(&names, &units), context)),
         ],
     );
 }
@@ -441,6 +428,7 @@ fn brightness_cell(ui: &mut Ui, salt: &'static str, context: AdjustContext, star
     with_doc(
         ui,
         salt,
+        |_| {},
         move || start,
         |ui, doc| {
             let edit = BrightnessContrastEditor::new(salt, &doc.value, &numbers).context(context).show(ui);
@@ -471,6 +459,7 @@ fn show_threshold(ui: &mut Ui, args: &mut ContextArgs) {
     with_doc(
         ui,
         "threshold",
+        |_| {},
         || 128.0,
         |ui, doc| {
             let edit = ThresholdEditor::new("threshold", doc.value, &numbers).histogram(&histogram).context(context).show(ui);
@@ -484,18 +473,15 @@ fn show_threshold(ui: &mut Ui, args: &mut ContextArgs) {
 fn hue_cell(ui: &mut Ui, salt: &'static str, context: AdjustContext, shown: usize, start: HueSaturation) {
     let numbers = LocaleNumbers::of(ui);
     // The shown range is view state in memory: 0 Master, 1 Reds ... 6 Magentas.
-    once(ui, salt, |ctx| {
-        let id = HueSaturationEditor::id_in(ui, salt);
-        ctx.data_mut(|d| d.insert_temp(id.with("range"), shown));
-    });
     with_doc(
         ui,
         salt,
+        |ui| ui.data_mut(|d| d.insert_temp(HueSaturationEditor::id_in(ui, salt).with("range"), shown)),
         move || start,
         |ui, doc| {
             // The adjusted spectrum: the input turned by the Master hue.
             let shift = doc.value.hue;
-            let adjusted = move |hue: f64| hue_colour(hue + shift);
+            let adjusted = move |hue: f64| hue_color(hue + shift);
             let edit = HueSaturationEditor::new(salt, &doc.value, &numbers).adjusted_spectrum(&adjusted).context(context).show(ui);
             doc.apply(edit.event, |value, new| *value = new);
         },
@@ -528,13 +514,10 @@ fn show_hue_saturation(ui: &mut Ui, args: &mut ContextArgs) {
 
 fn balance_cell(ui: &mut Ui, salt: &'static str, context: AdjustContext, tone: ColorBalanceTone, start: ColorBalance) {
     let numbers = LocaleNumbers::of(ui);
-    once(ui, salt, |ctx| {
-        let id = ColorBalanceEditor::id_in(ui, salt);
-        ctx.data_mut(|d| d.insert_temp(id.with("tone"), tone));
-    });
     with_doc(
         ui,
         salt,
+        |ui| ui.data_mut(|d| d.insert_temp(ColorBalanceEditor::id_in(ui, salt).with("tone"), tone)),
         move || start,
         |ui, doc| {
             let edit = ColorBalanceEditor::new(salt, &doc.value, &numbers).context(context).show(ui);
@@ -566,6 +549,7 @@ fn black_white_cell(ui: &mut Ui, salt: &'static str, context: AdjustContext, sta
     with_doc(
         ui,
         salt,
+        |_| {},
         move || start,
         |ui, doc| {
             // The swatch's colour request needs a colour dialog, which a story does not open.
@@ -597,6 +581,7 @@ fn photo_filter_cell(ui: &mut Ui, salt: &'static str, context: AdjustContext, st
     with_doc(
         ui,
         salt,
+        |_| {},
         move || start,
         |ui, doc| {
             // The swatch's colour request needs a colour dialog, which a story does not open.
@@ -629,6 +614,7 @@ fn mixer_cell(ui: &mut Ui, salt: &'static str, context: AdjustContext, start: Ch
     with_doc(
         ui,
         salt,
+        |_| {},
         move || start,
         |ui, doc| {
             let edit = ChannelMixerEditor::new(salt, &doc.value, &numbers).context(context).show(ui);
@@ -641,14 +627,14 @@ fn show_channel_mixer(ui: &mut Ui, args: &mut ContextArgs) {
     let labels = AdjustStoryLabels::of(ui);
     let names = AdjustLabels::of(ui);
     let context = args.context();
-    let colour = ChannelMixer { red: [80.0, 20.0, 0.0, 0.0], ..ChannelMixer::default() };
+    let color = ChannelMixer { red: [80.0, 20.0, 0.0, 0.0], ..ChannelMixer::default() };
     let monochrome = ChannelMixer { gray: Some(ChannelMixer::MONOCHROME_START), ..ChannelMixer::default() };
     let over = ChannelMixer { red: [70.0, 50.0, 0.0, 0.0], ..ChannelMixer::default() };
     grid(
         ui,
         3,
         vec![
-            cell(&names.color, |ui| mixer_cell(ui, "mixer-colour", context, colour)),
+            cell(&names.color, |ui| mixer_cell(ui, "mixer-color", context, color)),
             cell(&names.monochrome, |ui| mixer_cell(ui, "mixer-monochrome", context, monochrome)),
             cell(&labels.mixer_over, |ui| mixer_cell(ui, "mixer-over", context, over)),
         ],
@@ -660,13 +646,10 @@ fn show_channel_mixer(ui: &mut Ui, args: &mut ContextArgs) {
 fn selective_cell(ui: &mut Ui, salt: &'static str, context: AdjustContext, shown: usize, start: SelectiveColor) {
     let numbers = LocaleNumbers::of(ui);
     // The shown range is view state in memory: 0 Reds ... 8 Blacks.
-    once(ui, salt, |ctx| {
-        let id = SelectiveColorEditor::id_in(ui, salt);
-        ctx.data_mut(|d| d.insert_temp(id.with("range"), shown));
-    });
     with_doc(
         ui,
         salt,
+        |ui| ui.data_mut(|d| d.insert_temp(SelectiveColorEditor::id_in(ui, salt).with("range"), shown)),
         move || start,
         |ui, doc| {
             let edit = SelectiveColorEditor::new(salt, &doc.value, &numbers).context(context).show(ui);
@@ -709,6 +692,7 @@ const SESSION_TARGET: u64 = 1;
 
 fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
     let labels = AdjustStoryLabels::of(ui);
+    let names = AdjustLabels::of(ui);
     let context = AdjustContext::properties(args.dynamic_colors);
     let found = ColorBalance { midtones: [20.0, -10.0, 15.0], ..ColorBalance::default() };
     grid(
@@ -722,6 +706,7 @@ fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
                 with_doc(
                     ui,
                     "props-balance",
+                    |_| {},
                     move || state,
                     |ui, doc| {
                         let value = doc.value.value;
@@ -738,7 +723,7 @@ fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
                     },
                 );
             }),
-            cell(&labels.properties_hue, |ui| {
+            cell(&names.hue_saturation, |ui| {
                 let start = HueSaturation { saturation: 20.0, ..HueSaturation::default() };
                 hue_cell(ui, "props-hue", context, 0, start);
             }),

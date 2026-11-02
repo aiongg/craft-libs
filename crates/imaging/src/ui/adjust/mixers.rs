@@ -7,12 +7,12 @@ use craft_ui::controls::{Button, Checkbox, RadioSet, Select, Swatch};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, UnitKind, Units};
+use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
 use craft_ui::primitives::{Content, Gap, Stack, Text};
 use craft_ui::theme::{Tokens, TokensOf as _};
 
 use super::context::named_group;
-use super::sliders::{PERCENT, PartSet, edit_parts, push_part};
+use super::sliders::{PartSet, edit_parts, push_part};
 use super::{AdjustContext, AdjustField, AdjustLabels, AdjustSliders, AdjustStyle, AdjustTrack};
 
 /// Where Channel Mixer keeps its Output Channel and Selective Color its Colors choice, under the
@@ -138,12 +138,13 @@ impl<'a> BlackWhiteEditor<'a> {
             ("magentas", &labels.magentas, rgb8(220, 50, 210)),
         ];
         let black = rgb8(0, 0, 0);
+        let units = Units::of(ui);
         let fields: Vec<AdjustField> = names
             .iter()
             .enumerate()
             .map(|(i, (key, label, color))| {
                 AdjustField::new(key, label.as_str(), -200.0..=300.0, BlackWhite::DEFAULT_WEIGHTS[i])
-                    .unit(Unit::new(PERCENT))
+                    .unit(units.unit(UnitKind::Percent))
                     .track(AdjustTrack::Colors(vec![black, *color]))
             })
             .collect();
@@ -336,11 +337,11 @@ impl<'a> ChannelMixerEditor<'a> {
                 .enumerate()
                 .map(|(i, (key, label, color))| {
                     AdjustField::new(key, label.as_str(), -200.0..=200.0, identity[i])
-                        .unit(Unit::new(PERCENT))
+                        .unit(units.unit(UnitKind::Percent))
                         .track(AdjustTrack::Colors(vec![black, *color]))
                 })
                 .collect();
-            let constant = [AdjustField::new("constant", labels.constant.as_str(), -200.0..=200.0, 0.0).unit(Unit::new(PERCENT))];
+            let constant = [AdjustField::new("constant", labels.constant.as_str(), -200.0..=200.0, 0.0).unit(units.unit(UnitKind::Percent))];
             // Each output has its own slider state.
             let shown = if mono { 3 } else { out };
             let mut picked = out;
@@ -509,9 +510,10 @@ impl<'a> SelectiveColorEditor<'a> {
             &labels.neutrals,
             &labels.blacks,
         ];
+        let units = Units::of(ui);
         let fields: Vec<AdjustField> = [("cyan", &labels.cyan), ("magenta", &labels.magenta), ("yellow", &labels.yellow), ("black", &labels.black)]
             .into_iter()
-            .map(|(key, label)| AdjustField::new(key, label.as_str(), -100.0..=100.0, 0.0).unit(Unit::new(PERCENT)))
+            .map(|(key, label)| AdjustField::new(key, label.as_str(), -100.0..=100.0, 0.0).unit(units.unit(UnitKind::Percent)))
             .collect();
         let mut picked = range;
         let (group, event) = edit_parts(ui, id, &value, self.policy, enabled, |ui, edits, inner| {
