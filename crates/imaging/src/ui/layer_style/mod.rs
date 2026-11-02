@@ -52,7 +52,7 @@ mod style;
 mod styles;
 
 pub use blend_if::BlendIfBar;
-pub use contour::{ContourAction, ContourField, ContourFieldResponse};
+pub use contour::{ContourAction, ContourEditorDialog, ContourField, ContourFieldResponse, ContourRequest};
 pub use dialog::{LayerStyleDialog, LayerStyleOutput};
 pub use labels::{BlendIfBarLabels, ContourFieldLabels, LayerStyleLabels};
 pub use page::PatternChoice;

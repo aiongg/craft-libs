@@ -6,10 +6,11 @@ use egui::accesskit::Role;
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
+use craft_ui::dialog::{DialogHost, DialogResult};
 use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, install};
 
-use super::{ContourAction, ContourField};
+use super::{ContourAction, ContourEditorDialog, ContourField, ContourRequest};
 use crate::layer_style::Contour;
 
 /// A host that applies every contour the field reports and keeps the events.
@@ -64,11 +65,10 @@ fn rig(user: Vec<Contour>) -> Harness<'static, Host> {
     h
 }
 
-// Picking Gaussian in the picker reports one Set with the preset; a click on the thumbnail opens
-// the editor with the contour's points (as levels) and reports Begin; OK reports Commit named
-// "Custom" after an edit, Cancel reports Cancel.
+// Picking Gaussian in the picker reports one Set with the preset; a click on the thumbnail reports
+// `ContourAction::Edit` with the contour and draws no editor of its own.
 #[test]
-fn contour_field_picks_a_preset_and_opens_the_editor_with_its_points() {
+fn contour_field_picks_a_preset_and_reports_an_edit_request() {
     let mut h = rig(Vec::new());
     h.get_by_role_and_label(Role::Button, "Contour presets").click();
     h.run_steps(4);
@@ -80,29 +80,79 @@ fn contour_field_picks_a_preset_and_opens_the_editor_with_its_points() {
 
     h.get_by_role_and_label(Role::Button, "Contour Editor").click();
     h.run_steps(4);
-    assert_eq!(h.state().kinds(), ["Set", "Begin"]);
+    assert_eq!(h.state().actions, [ContourAction::Edit(gaussian)]);
+    assert!(h.query_by_role_and_label(Role::Button, "OK").is_none(), "the field opens no dialog");
+}
+
+/// A host of the Contour Editor on a dialog host: the live values and answers the dialog gave.
+struct EditorHost {
+    host: DialogHost,
+    live: Vec<Contour>,
+    actions: Vec<ContourAction>,
+    result: Option<DialogResult<Contour>>,
+}
+
+fn editor(contour: Contour) -> Harness<'static, EditorHost> {
+    let mut host = DialogHost::new();
+    host.open(ContourEditorDialog::new(ContourRequest { key: "fx1/contour".into(), contour }));
+    let state = EditorHost { host, live: Vec::new(), actions: Vec::new(), result: None };
+    let mut h = Harness::builder().with_size([800.0, 900.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, state: &mut EditorHost| {
+            state.host.show(ui.ctx());
+            if let Some(dialog) = state.host.get_mut::<ContourEditorDialog>() {
+                if dialog.changed() {
+                    state.live.push(dialog.current().clone());
+                }
+                state.actions.extend(dialog.take_action());
+            }
+            if let Some(result) = state.host.take::<ContourEditorDialog>() {
+                state.result = Some(result);
+            }
+        },
+        state,
+    );
+    h.run_steps(3);
+    h
+}
+
+// An edit in the Contour Editor moves `current()` (named "Custom") and sets `changed()` that pass;
+// OK answers the edited contour.
+#[test]
+fn contour_editor_reports_live_values_and_ok_answers_the_contour() {
+    let Some(gaussian) = Contour::preset("Gaussian") else { panic!("Gaussian ships") };
+    let mut h = editor(gaussian.clone());
+    assert!(h.state().live.is_empty());
     let graph = h.get_by(|n| n.role() == Role::Group && n.label().as_deref() == Some("Gaussian"));
     assert!(graph.value().is_some_and(|v| v.contains(&format!("{} points", gaussian.points.len()))), "{:?}", graph.value());
-
     graph.focus();
     h.run_steps(2);
     h.key_press(Key::Insert);
     h.run_steps(4);
-    assert_eq!(h.state().kinds().last(), Some(&"Update"), "{:?}", h.state().kinds());
-    let edited = h.state().contour.clone();
+    let Some(edited) = h.state().live.last().cloned() else { panic!("a live value") };
     assert_eq!((edited.name.as_str(), edited.points.len()), ("Custom", gaussian.points.len() + 1));
 
     h.get_by_role_and_label(Role::Button, "OK").click();
     h.run_steps(4);
-    let Some(EditEvent::Commit { value, changed, .. }) = h.state().events.last() else { panic!("{:?}", h.state().kinds()) };
-    assert_eq!((value.name.as_str(), *changed), ("Custom", true));
-    assert!(h.query_by_role_and_label(Role::Button, "OK").is_none(), "the editor closed");
+    assert_eq!(h.state().result, Some(DialogResult::Ok(edited)));
+}
 
-    h.get_by_role_and_label(Role::Button, "Contour Editor").click();
-    h.run_steps(4);
+// Cancel answers nothing; the dialog keeps the contour it opened with for the host to put back.
+#[test]
+fn contour_editor_cancel_answers_nothing() {
+    let mut h = editor(Contour::linear());
     h.get_by_role_and_label(Role::Button, "Cancel").click();
     h.run_steps(4);
-    assert_eq!(h.state().kinds().last(), Some(&"Cancel"), "{:?}", h.state().kinds());
+    assert_eq!(h.state().result, Some(DialogResult::Cancel));
+}
+
+// New… asks for a name and suggests the "Contour" word.
+#[test]
+fn contour_editor_new_suggests_the_contour_word() {
+    let mut h = editor(Contour::linear());
+    h.get_by_role_and_label(Role::Button, "New…").click();
+    h.run_steps(4);
+    let name = h.get_by_role_and_label(Role::TextInput, "Name");
+    assert_eq!(name.value().as_deref(), Some("Contour"));
 }
 
 // `to_curve` then `from_curve` returns the same points (within a level) and corners; a drawn
