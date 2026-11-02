@@ -31,7 +31,7 @@ mod styled_tests;
 mod textures_tests;
 
 use egui::epaint::Vertex;
-use egui::{AsIdSalt, Color32, IdSalt, Mesh, Painter, TextureId, Ui};
+use egui::{AsIdSalt, Color32, Mesh, Painter, TextureId, Ui};
 use kurbo::Point;
 
 use craft_ui::canvas::CanvasView;
@@ -87,8 +87,6 @@ type Above<'a> = Box<dyn FnOnce(&Painter) + 'a>;
 ///   the mesh (quad maps only); otherwise the plain mesh.
 /// - No AccessKit node: image content.
 pub struct TransformPreview<'a> {
-    #[expect(dead_code, reason = "names the preview in the builder; it registers no widget")]
-    id_salt: IdSalt,
     textures: &'a PreviewTextures,
     map: Option<PreviewMap<'a>>,
     opacity: f32,
@@ -97,14 +95,15 @@ pub struct TransformPreview<'a> {
     display: Option<&'a PreviewDisplay>,
     styled: Option<(&'a StyledPreview, &'a dyn StyledSource)>,
     dragging: bool,
+    budget: StyledBudget,
     above: Option<Above<'a>>,
 }
 
 impl<'a> TransformPreview<'a> {
-    /// The preview of `textures`; nothing is drawn until a [`map`](Self::map) is set.
-    pub fn new(id_salt: impl AsIdSalt, textures: &'a PreviewTextures) -> Self {
+    /// The preview of `textures`; nothing is drawn until a [`map`](Self::map) is set. The preview
+    /// registers no widget, so `id_salt` only keeps the builder's usual first parameter.
+    pub fn new(_id_salt: impl AsIdSalt, textures: &'a PreviewTextures) -> Self {
         Self {
-            id_salt: IdSalt::new(id_salt),
             textures,
             map: None,
             opacity: 1.0,
@@ -113,6 +112,7 @@ impl<'a> TransformPreview<'a> {
             display: None,
             styled: None,
             dragging: false,
+            budget: StyledBudget::default(),
             above: None,
         }
     }
@@ -161,6 +161,12 @@ impl<'a> TransformPreview<'a> {
         self
     }
 
+    /// How long a styled rebuild may take; PhotoCraft's times by default.
+    pub fn styled_budget(mut self, budget: StyledBudget) -> Self {
+        self.budget = budget;
+        self
+    }
+
     /// Draws the app's layers above the moving one after it, in the same clip.
     pub fn above(mut self, paint: impl FnOnce(&Painter) + 'a) -> Self {
         self.above = Some(Box::new(paint));
@@ -190,7 +196,7 @@ impl<'a> TransformPreview<'a> {
                     zoom,
                     dragging: self.dragging,
                     canvas,
-                    budget: StyledBudget::default(),
+                    budget: self.budget,
                 };
                 preview.texture(ctx, &frame, *source, self.display)
             }

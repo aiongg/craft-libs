@@ -468,7 +468,7 @@ impl<'a> ScopePanel<'a> {
             let mut picked = shown_key.to_owned();
             direction::horizontal(ui, |ui| {
                 ui.add(Text::new(labels.channel.as_str()).role(TypeRole::Label).content(Content::Muted));
-                let mut select = Select::new((cx.base, "channel"), labels.channel.trim_end_matches(':'), &mut picked);
+                let mut select = Select::new((cx.base, "channel"), labels.channel_name.as_str(), &mut picked);
                 for channel in set.channels {
                     select = select.option(channel.key.to_owned(), channel.label);
                 }
@@ -542,7 +542,7 @@ impl<'a> ScopePanel<'a> {
             let mut picked = current.to_owned();
             direction::horizontal(ui, |ui| {
                 ui.add(Text::new(labels.source.as_str()).role(TypeRole::Label).content(Content::Muted));
-                let mut select = Select::new((cx.base, "source"), labels.source.trim_end_matches(':'), &mut picked);
+                let mut select = Select::new((cx.base, "source"), labels.source_name.as_str(), &mut picked);
                 for source in self.sources {
                     select = select.option(source.key.to_owned(), source.label);
                 }

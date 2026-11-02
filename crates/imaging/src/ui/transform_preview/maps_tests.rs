@@ -140,9 +140,23 @@ fn an_unwarped_mesh_stays_cheap() {
     let mesh = WarpMesh::identity(Rect::new(0.0, 0.0, 20.0, 20.0), 2, 2);
     let (us, vs) = samples(&mesh, 1.0);
     assert_eq!((us.len(), vs.len()), (9, 9));
-    let drawn = PreviewMap::mesh(&mesh).build(1.0, [1.0, 1.0]);
+    let drawn = PreviewMap::mesh(&mesh, Rect::new(0.0, 0.0, 20.0, 20.0)).build(1.0, [1.0, 1.0]);
     assert_eq!(drawn.points.len(), 81);
     assert!(drawn.points.iter().zip(&drawn.rest).all(|(p, r)| (*p - *r).hypot() < 1e-9));
+}
+
+// A warp mesh's rest is the unwarped frame, also when only the corner controls moved: pulling the
+// top-left corner out leaves its rest on the frame's corner, so the pull ranks as a displacement.
+#[test]
+fn a_warp_meshs_rest_is_the_frame() {
+    let frame = Rect::new(10.0, 20.0, 50.0, 60.0);
+    let mut mesh = WarpMesh::identity(frame, 2, 2);
+    mesh.points[0] = pt(0.0, 0.0);
+    let drawn = PreviewMap::mesh(&mesh, frame).build(1.0, [1.0, 1.0]);
+    assert!((drawn.rest[0] - pt(10.0, 20.0)).hypot() < 1e-9);
+    assert!((drawn.points[0] - pt(0.0, 0.0)).hypot() < 1e-9);
+    let last = drawn.rest.len() - 1;
+    assert!((drawn.rest[last] - pt(50.0, 60.0)).hypot() < 1e-9);
 }
 
 // Opacity 0.5 tints every vertex white at alpha 128.
@@ -188,7 +202,7 @@ fn a_box_reports_how_much_it_enlarges_the_source() {
     let quad = PreviewMap::quad([pt(0.0, 0.0), pt(200.0, 0.0), pt(200.0, 50.0), pt(0.0, 50.0)]);
     assert!((quad.source_scale([100, 100]) - 2.0).abs() < 1e-6);
     let mesh = WarpMesh::identity(Rect::new(0.0, 0.0, 10.0, 10.0), 1, 1);
-    assert!((PreviewMap::mesh(&mesh).source_scale([100, 100]) - 1.0).abs() < 1e-6);
+    assert!((PreviewMap::mesh(&mesh, Rect::new(0.0, 0.0, 100.0, 100.0)).source_scale([100, 100]) - 1.0).abs() < 1e-6);
 }
 
 #[test]

@@ -15,10 +15,14 @@ craft_ui::words! {
         entire_image: "scopes.entireImage" = "Entire Image";
         /// The Channel row's caption.
         channel: "scopes.channel" = "Channel:";
+        /// The Channel list's accessible name.
+        channel_name: "scopes.channelName" = "Channel";
         /// The Channel list's entry that overlays the colour channels.
         colors: "scopes.colors" = "Colors";
         /// The Source row's caption.
         source: "scopes.source" = "Source:";
+        /// The Source list's accessible name.
+        source_name: "scopes.sourceName" = "Source";
         /// The panel menu row and the refresh button's name.
         uncached_refresh: "scopes.uncachedRefresh" = "Uncached Refresh";
         /// The cached-data mark's tooltip and name.

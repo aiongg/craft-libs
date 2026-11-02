@@ -25,7 +25,8 @@ const COORD_LIMIT: f64 = 5.0e8;
 const ROUNDS: u32 = 6;
 
 /// How long a styled rebuild may take (LC25, LC26): the work pixels a composite may have are the
-/// time over the source's [cost per pixel](StyledSource::pixel_cost_ns), clamped. Separate from
+/// time over the source's [cost per pixel](StyledSource::pixel_cost_ns) plus the library's own
+/// resample cost per pixel, clamped. Separate from
 /// S7-adjust's live-preview damage tracking (different inputs).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StyledBudget {
@@ -37,6 +38,9 @@ pub struct StyledBudget {
     pub min_pixels: f64,
     /// The most work pixels in a composite.
     pub max_pixels: f64,
+    /// Nanoseconds the library's single-threaded resample takes per content pixel, added to the
+    /// source's cost.
+    pub resample_ns: f64,
 }
 
 impl StyledBudget {
@@ -48,19 +52,28 @@ impl StyledBudget {
     pub const MIN_PIXELS: f64 = 0.25e6;
     /// 8 million work pixels.
     pub const MAX_PIXELS: f64 = 8.0e6;
+    /// A bilinear resample of one texel through the homography, on one thread (new: PhotoCraft's
+    /// cost model has no term for it, its resample runs on Rayon).
+    pub const RESAMPLE_NS: f64 = 15.0;
 
-    /// The work pixels for a style costing `cost_ns` per pixel: `ms × 10⁶ / cost_ns` with the drag
-    /// or rest time, clamped to `min_pixels..=max_pixels`.
+    /// The work pixels for a style costing `cost_ns` per pixel: `ms × 10⁶ / (cost_ns +
+    /// resample_ns)` with the drag or rest time, clamped to `min_pixels..=max_pixels`.
     pub fn pixels(&self, cost_ns: f64, dragging: bool) -> f64 {
         // pc: crates/ui-egui/src/tools/transform_fx.rs:94 (`budget`).
         let ms = if dragging { self.drag_ms } else { self.rest_ms };
-        (ms * 1.0e6 / cost_ns).clamp(self.min_pixels, self.max_pixels)
+        (ms * 1.0e6 / (cost_ns + self.resample_ns)).clamp(self.min_pixels, self.max_pixels)
     }
 }
 
 impl Default for StyledBudget {
     fn default() -> Self {
-        Self { drag_ms: Self::DRAG_MS, rest_ms: Self::REST_MS, min_pixels: Self::MIN_PIXELS, max_pixels: Self::MAX_PIXELS }
+        Self {
+            drag_ms: Self::DRAG_MS,
+            rest_ms: Self::REST_MS,
+            min_pixels: Self::MIN_PIXELS,
+            max_pixels: Self::MAX_PIXELS,
+            resample_ns: Self::RESAMPLE_NS,
+        }
     }
 }
 
@@ -271,6 +284,9 @@ struct Shown {
 #[derive(Default)]
 struct StyledState {
     shown: Option<Shown>,
+    /// The key whose composite could not be made (the source gave nothing or an image of the
+    /// wrong size): the source is not asked again until the key changes.
+    failed: Option<StyledKey>,
     builds: u64,
 }
 
@@ -323,16 +339,19 @@ impl StyledPreview {
         if let Some(shown) = state.shown.as_ref().filter(|s| s.key == key) {
             return Some((shown.texture.id(), shown.rect));
         }
+        if state.failed.as_ref() == Some(&key) {
+            return None;
+        }
         let (image, uv) = frame.textures.level_image(level)?;
         let s = plan.scale;
         let to_unit = Homography::unit_to_quad(frame.quad.map(|p| Point::new(p.x * s, p.y * s)))?.inverse()?;
         let inside = Point::new(frame.quad.iter().map(|p| p.x * s / 4.0).sum(), frame.quad.iter().map(|p| p.y * s / 4.0).sum());
         let content = resample(&image, uv, &to_unit, inside, plan.content, frame.nearest);
-        let composed = source.compose(&plan, &content)?;
         let expected = [plan.shown.width() as usize, plan.shown.height() as usize];
-        if composed.size != expected {
+        let Some(composed) = source.compose(&plan, &content).filter(|c| c.size == expected) else {
+            state.failed = Some(key);
             return None;
-        }
+        };
         let pixels = match display {
             Some(d) => (d.convert)(&composed),
             None => composed,
@@ -340,6 +359,7 @@ impl StyledPreview {
         let options = if crisp { TextureOptions::NEAREST } else { TextureOptions::LINEAR };
         let texture = ctx.load_texture(self.name.clone(), pixels, options);
         let (id, rect) = (texture.id(), plan.document_rect());
+        state.failed = None;
         state.shown = Some(Shown { key, texture, rect });
         state.builds += 1;
         Some((id, rect))

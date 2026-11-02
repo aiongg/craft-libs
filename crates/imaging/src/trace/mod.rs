@@ -254,13 +254,39 @@ pub struct CoverageGrid {
     origin: [i32; 2],
     size: [u32; 2],
     cells: Vec<bool>,
+    /// Hash of the origin, size and cells, computed once in `new`.
+    hash: u64,
+    /// The bounds of the inside cells; empty when none is inside.
+    bounds: MaskRect,
 }
 
 impl CoverageGrid {
     /// A grid of `size` cells whose top-left cell is document pixel `origin`; `cells` row by row,
     /// `size[0] · size[1]` of them. Missing cells are outside, extra ones are ignored.
     pub fn new(origin: [i32; 2], size: [u32; 2], cells: Vec<bool>) -> Self {
-        Self { origin, size, cells }
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        origin.hash(&mut hasher);
+        size.hash(&mut hasher);
+        cells.hash(&mut hasher);
+        let hash = hasher.finish();
+        let width = size[0] as usize;
+        let mut found: Option<[usize; 4]> = None;
+        if width > 0 {
+            let rows = cells.chunks(width).take(size[1] as usize);
+            for (gy, row) in rows.enumerate() {
+                let mut inside = row.iter().enumerate().filter(|(_, c)| **c).map(|(gx, _)| gx);
+                let (Some(first), Some(last)) = (inside.clone().next(), inside.next_back()) else { continue };
+                found = Some(match found {
+                    None => [first, gy, last, gy],
+                    Some([x0, y0, x1, _]) => [x0.min(first), y0, x1.max(last), gy],
+                });
+            }
+        }
+        let at = |o: i32, n: usize| i32::try_from((i64::from(o) + n as i64).clamp(i64::from(i32::MIN), i64::from(i32::MAX))).unwrap_or(i32::MAX);
+        let bounds = found.map_or_else(MaskRect::default, |[x0, y0, x1, y1]| {
+            MaskRect::new(at(origin[0], x0), at(origin[1], y0), at(origin[0], x1 + 1), at(origin[1], y1 + 1))
+        });
+        Self { origin, size, cells, hash, bounds }
     }
 
     /// The document pixel of the top-left cell.
@@ -285,8 +311,9 @@ impl CoverageGrid {
     }
 }
 
-/// A grid as a mask: inside cells read 1, the rest 0. Its revision is a hash of the cells, so an
-/// overlay retraces only when they change.
+/// A grid as a mask: inside cells read 1, the rest 0. Its revision is a hash of the cells, taken
+/// once when the grid is built, so an overlay retraces only when they change. Its content bounds
+/// are those of the inside cells, empty when none is inside.
 impl MaskSource for CoverageGrid {
     fn size(&self) -> [u32; 2] {
         let far = |o: i32, n: u32| u32::try_from((i64::from(o) + i64::from(n)).max(0)).unwrap_or(u32::MAX);
@@ -294,16 +321,11 @@ impl MaskSource for CoverageGrid {
     }
 
     fn revision(&self) -> u64 {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.origin.hash(&mut hasher);
-        self.size.hash(&mut hasher);
-        self.cells.hash(&mut hasher);
-        hasher.finish()
+        self.hash
     }
 
     fn content_bounds(&self) -> MaskRect {
-        let far = |o: i32, n: u32| i32::try_from((i64::from(o) + i64::from(n)).min(i64::from(i32::MAX))).unwrap_or(i32::MAX);
-        MaskRect::new(self.origin[0], self.origin[1], far(self.origin[0], self.size[0]), far(self.origin[1], self.size[1]))
+        self.bounds
     }
 
     fn read_row(&self, y: i32, x0: i32, step: u32, out: &mut [f32]) {
