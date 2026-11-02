@@ -4,6 +4,7 @@
 
 use kurbo::{Point, Rect};
 
+use craft_ui::canvas::quad::Homography;
 use craft_ui::dialog::{LocalHistory, Step};
 use craft_ui::edit::EditEvent;
 
@@ -33,7 +34,7 @@ impl Plane {
     pub fn point(&self, u: f64, v: f64, target: bool) -> Point {
         // pc: crates/algo/src/perspective.rs:255 (`plane_point`).
         let corners = if target { &self.target } else { &self.source };
-        unit_to_quad(corners).map_or(corners[0], |h| h.apply(u, v))
+        Homography::unit_to_quad(*corners).map_or(corners[0], |h| h.apply(Point::new(u, v)))
     }
 }
 
@@ -297,14 +298,18 @@ impl PerspectiveSession {
         self.history.settle(&self.draft, busy || self.dragging() || nudging);
     }
 
-    /// Edit › Undo while the session is open (the app routes it here; the session reads no undo
-    /// key): steps back one undo step; false while a drag runs or with nothing to undo.
+    /// Edit › Undo while the session is open (the app routes it here whatever
+    /// [`can_undo`](Self::can_undo) says, and the session reads no undo key): steps back one undo
+    /// step; false with nothing to undo.
+    ///
+    /// The app cancels a running drag first (`ToolHost::cancel` with `CancelReason::UndoDuringGesture`)
+    /// and then calls this. A call during a drag steps nothing and returns false.
     pub fn undo(&mut self) -> bool {
         // new: as `settle`.
         self.step(Step::Undo)
     }
 
-    /// Steps forward one undone step.
+    /// Steps forward one undone step, routed as [`undo`](Self::undo) is.
     pub fn redo(&mut self) -> bool {
         // new: as `settle`.
         self.step(Step::Redo)
@@ -379,41 +384,12 @@ impl PerspectiveSession {
         self.draft.planes = planes;
     }
 
-    /// Undo or redo one step; refused while a drag runs.
+    /// Undo or redo one step; refused while a drag runs (the app cancels the drag first).
     fn step(&mut self, step: Step) -> bool {
         if self.dragging() {
             return false;
         }
         self.last_nudge = None;
         self.history.step(&mut self.draft, step)
-    }
-}
-
-/// The homography taking the unit square onto `quad` (corners clockwise from the top left);
-/// `None` for a degenerate quad (pc: `crates/algo/src/transform.rs:99`, `square_to_quad`).
-fn unit_to_quad(quad: &[Point; 4]) -> Option<Homography> {
-    let [p0, p1, p2, p3] = *quad;
-    let (sx, sy) = (p0.x - p1.x + p2.x - p3.x, p0.y - p1.y + p2.y - p3.y);
-    if sx.abs() < 1e-12 && sy.abs() < 1e-12 {
-        return Some(Homography([p1.x - p0.x, p3.x - p0.x, p0.x, p1.y - p0.y, p3.y - p0.y, p0.y, 0.0, 0.0]));
-    }
-    let (dx1, dx2, dy1, dy2) = (p1.x - p2.x, p3.x - p2.x, p1.y - p2.y, p3.y - p2.y);
-    let den = dx1 * dy2 - dx2 * dy1;
-    if den.abs() < 1e-12 {
-        return None;
-    }
-    let g = (sx * dy2 - dx2 * sy) / den;
-    let h = (dx1 * sy - sx * dy1) / den;
-    Some(Homography([p1.x - p0.x + g * p1.x, p3.x - p0.x + h * p3.x, p0.x, p1.y - p0.y + g * p1.y, p3.y - p0.y + h * p3.y, p0.y, g, h]))
-}
-
-/// Eight coefficients of `(a x + b y + c) / (g x + h y + 1)`, `(d x + e y + f) / (g x + h y + 1)`.
-struct Homography([f64; 8]);
-
-impl Homography {
-    fn apply(&self, x: f64, y: f64) -> Point {
-        let m = &self.0;
-        let w = m[6] * x + m[7] * y + 1.0;
-        Point::new((m[0] * x + m[1] * y + m[2]) / w, (m[3] * x + m[4] * y + m[5]) / w)
     }
 }

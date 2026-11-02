@@ -6,9 +6,10 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::Rect;
 
 use craft_ui::edit::EditEvent;
+use craft_ui::patterns::OptionsBar;
 use craft_ui::theme::{Base, install};
 
-use super::{WarpFieldValues, WarpFields, WarpFieldsEdit, WarpGridChoice, WarpMesh, WarpSplit, WarpStyleEntry};
+use super::{WarpFieldValues, WarpFields, WarpFieldsEdit, WarpFieldsLabels, WarpFieldsOutput, WarpGridChoice, WarpMesh, WarpSplit, WarpStyleEntry};
 
 const RECT: Rect = Rect::new(0.0, 0.0, 100.0, 100.0);
 
@@ -17,6 +18,7 @@ struct Host {
     values: WarpFieldValues,
     split: Option<WarpSplit>,
     on_type: bool,
+    labels: Option<WarpFieldsLabels>,
     edits: Vec<WarpFieldsEdit>,
 }
 
@@ -37,6 +39,7 @@ fn host(style: &str) -> Host {
         },
         split: None,
         on_type: false,
+        labels: None,
         edits: Vec::new(),
     }
 }
@@ -44,9 +47,15 @@ fn host(style: &str) -> Host {
 fn harness(host: Host) -> Harness<'static, Host> {
     let mut h = Harness::builder().with_size([900.0, 120.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
-            let out = ui
-                .horizontal(|ui| WarpFields::new("warp-fields", &host.styles, host.values.clone()).split(host.split).on_type(host.on_type).show(ui))
-                .inner;
+            let mut out = WarpFieldsOutput::default();
+            OptionsBar::new("bar").label("Options").show(ui, |slots| {
+                let mut fields =
+                    WarpFields::new("warp-fields", &host.styles, host.values.clone()).split(host.split).on_type(host.on_type).output(&mut out);
+                if let Some(labels) = host.labels.clone() {
+                    fields = fields.labels(labels);
+                }
+                fields.add_to(slots);
+            });
             for edit in out.edits {
                 if let WarpFieldsEdit::Split(split) = &edit {
                     host.split = *split;
@@ -142,4 +151,15 @@ fn an_armed_split_tool_is_reported_and_toggles_off() {
     h.run_steps(3);
     assert_eq!(h.state().edits.last(), Some(&WarpFieldsEdit::Split(None)));
     assert_eq!(h.state().split, None);
+}
+
+// The Bend field is named by its own word, not by its caption with the colon cut off.
+#[test]
+fn the_bend_field_is_named_by_its_name_word() {
+    let labels = WarpFieldsLabels { bend: "Courbure :".into(), bend_name: "Courbure".into(), ..WarpFieldsLabels::default() };
+    let mut with_words = host("arc");
+    with_words.labels = Some(labels);
+    let h = harness(with_words);
+    assert!(h.query_by_role_and_label(Role::SpinButton, "Courbure").is_some());
+    assert!(h.query_by_role_and_label(Role::SpinButton, "Courbure :").is_none());
 }

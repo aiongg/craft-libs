@@ -211,9 +211,7 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         ui.add(Text::new(text).content(Content::Muted));
         let mut cell = PlaneCell::load(ui, salt, kind, layer, args.planes, BAR_PULL);
         let mut out = PerspectiveBarOutput::default();
-        OptionsBar::new(salt).label(text.as_str()).show(ui, |slots| {
-            slots.body(|ui| out = PerspectiveBar::new("bar", &cell.session).show(ui));
-        });
+        OptionsBar::new(salt).label(text.as_str()).show(ui, |slots| PerspectiveBar::new("bar", &cell.session).output(&mut out).add_to(slots));
         if out.discard {
             cell.reset(BAR_PULL);
         }

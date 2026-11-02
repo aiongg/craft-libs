@@ -2,12 +2,11 @@
 
 use egui::{AsIdSalt, IdSalt, Modifiers, Ui};
 
-use craft_theme::ControlSize;
 use craft_ui::controls::{Button, Segmented, TooltipExt as _};
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::Words;
 use craft_ui::localized::words::Counted;
-use craft_ui::patterns::OptionsBar;
+use craft_ui::localized::{Labels as _, Words};
+use craft_ui::patterns::{OptionsBar, OptionsBarSlots};
 use craft_ui::words;
 
 use super::{PerspectiveEdit, PerspectiveSession, PlaneMode, Straighten};
@@ -36,12 +35,13 @@ words! {
 /// Perspective Warp's options bar, in Tab order: the Layout and Warp tabs (`Segmented`, LC30;
 /// Warp disabled with no plane); in Layout the plane count ("2 planes", through [`Counted`]) and
 /// Remove Planes; in Warp Straighten, Level and Both with their tooltips; then cancel and commit at
-/// the reading end (`OptionsBar::commit_cancel`). Every control is an ordinary focusable control;
-/// the bar never changes the session.
+/// the reading end (`OptionsBar::commit_cancel`, in the trailing slot). Every control is an ordinary
+/// focusable control; the bar never changes the session.
 pub struct PerspectiveBar<'a> {
     id_salt: IdSalt,
     session: &'a PerspectiveSession,
-    labels: PerspectiveBarLabels,
+    labels: Option<PerspectiveBarLabels>,
+    output: Option<&'a mut PerspectiveBarOutput>,
 }
 
 /// What the bar reported this pass.
@@ -58,60 +58,82 @@ pub struct PerspectiveBarOutput {
 impl<'a> PerspectiveBar<'a> {
     /// The bar of `session`.
     pub fn new(id_salt: impl AsIdSalt, session: &'a PerspectiveSession) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), session, labels: PerspectiveBarLabels::default() }
+        Self { id_salt: IdSalt::new(id_salt), session, labels: None, output: None }
     }
 
+    /// The words; the installed ones ([`PerspectiveBarLabels::of`]) when not given.
     pub fn labels(mut self, labels: PerspectiveBarLabels) -> Self {
-        self.labels = labels;
+        self.labels = Some(labels);
         self
     }
 
-    /// Draws the bar into the options bar's `ui`.
-    pub fn show(self, ui: &mut Ui) -> PerspectiveBarOutput {
+    /// Where the bar reports its edits and its Commit and Cancel.
+    pub fn output(mut self, output: &'a mut PerspectiveBarOutput) -> Self {
+        self.output = Some(output);
+        self
+    }
+
+    /// Fills the bar's body slot (the tabs and the mode's controls) and its trailing slot (cancel
+    /// and commit).
+    pub fn add_to(self, slots: &mut OptionsBarSlots<'a>) {
         // pc: crates/ui-egui/src/tools/perspective_ui.rs:310 (`options_bar`).
-        let Self { id_salt, session, labels } = self;
-        let sm = ControlSize::Sm;
-        let planes = session.planes().len();
-        let mut out = PerspectiveBarOutput::default();
-        ui.push_id(id_salt, |ui| {
-            let mut mode = session.mode();
-            let tabs = Segmented::new("mode", labels.mode.as_str(), &mut mode)
-                .item(PlaneMode::Layout, labels.layout.as_str())
-                .item(PlaneMode::Warp, labels.warp.as_str())
-                .item_enabled(planes > 0)
-                .size(sm)
-                .show(ui);
-            if tabs.changed() {
-                out.edits.push(PerspectiveEdit::Mode(mode));
-            }
-            OptionsBar::divider(ui);
-            match session.mode() {
-                PlaneMode::Warp => {
-                    for (label, tip, how) in [
-                        (&labels.straighten, &labels.straighten_tip, Straighten::Vertical),
-                        (&labels.level, &labels.level_tip, Straighten::Horizontal),
-                        (&labels.both, &labels.both_tip, Straighten::Both),
-                    ] {
-                        if ui.add(Button::new(label.as_str()).size(sm)).tooltip(tip.as_str()).clicked() {
-                            out.edits.push(PerspectiveEdit::Straighten(how));
-                        }
-                    }
-                }
-                PlaneMode::Layout => {
-                    let words = Words::of(ui);
-                    let text = words.get(PLANES.word);
-                    let count = words.counted(ui.ctx(), PLANES, &text, planes as u64);
-                    OptionsBar::hint(ui, &count);
-                    if ui.add_enabled(planes > 0, Button::new(labels.remove_planes.as_str()).size(sm)).clicked() {
-                        out.edits.push(PerspectiveEdit::Planes(EditEvent::set(Vec::new(), Modifiers::NONE)));
-                    }
-                }
-            }
-            OptionsBar::divider(ui);
-            let pressed = OptionsBar::commit_cancel(ui, &labels.commit, &labels.cancel);
-            out.discard = pressed.cancel;
-            out.apply = pressed.commit;
+        let Self { id_salt, session, labels, output } = self;
+        let (edits, end) = match output {
+            Some(PerspectiveBarOutput { edits, apply, discard }) => (Some(edits), Some((apply, discard))),
+            None => (None, None),
+        };
+        let trailing_labels = labels.clone();
+        slots.body(move |ui| {
+            let labels = labels.unwrap_or_else(|| PerspectiveBarLabels::of(ui));
+            let mut scratch = Vec::new();
+            let edits = edits.unwrap_or(&mut scratch);
+            ui.push_id(id_salt, |ui| body(ui, session, &labels, edits));
         });
-        out
+        slots.trailing(move |ui| {
+            let labels = trailing_labels.unwrap_or_else(|| PerspectiveBarLabels::of(ui));
+            let pressed = OptionsBar::commit_cancel(ui, &labels.commit, &labels.cancel);
+            if let Some((apply, discard)) = end {
+                *apply |= pressed.commit;
+                *discard |= pressed.cancel;
+            }
+        });
+    }
+}
+
+fn body(ui: &mut Ui, session: &PerspectiveSession, labels: &PerspectiveBarLabels, edits: &mut Vec<PerspectiveEdit>) {
+    let sm = OptionsBar::CONTROL_SIZE;
+    let planes = session.planes().len();
+    let mut mode = session.mode();
+    let tabs = Segmented::new("mode", labels.mode.as_str(), &mut mode)
+        .item(PlaneMode::Layout, labels.layout.as_str())
+        .item(PlaneMode::Warp, labels.warp.as_str())
+        .item_enabled(planes > 0)
+        .size(sm)
+        .show(ui);
+    if tabs.changed() {
+        edits.push(PerspectiveEdit::Mode(mode));
+    }
+    OptionsBar::divider(ui);
+    match session.mode() {
+        PlaneMode::Warp => {
+            for (label, tip, how) in [
+                (&labels.straighten, &labels.straighten_tip, Straighten::Vertical),
+                (&labels.level, &labels.level_tip, Straighten::Horizontal),
+                (&labels.both, &labels.both_tip, Straighten::Both),
+            ] {
+                if ui.add(Button::new(label.as_str()).size(sm)).tooltip(tip.as_str()).clicked() {
+                    edits.push(PerspectiveEdit::Straighten(how));
+                }
+            }
+        }
+        PlaneMode::Layout => {
+            let words = Words::of(ui);
+            let text = words.get(PLANES.word);
+            let count = words.counted(ui.ctx(), PLANES, &text, planes as u64);
+            OptionsBar::hint(ui, &count);
+            if ui.add_enabled(planes > 0, Button::new(labels.remove_planes.as_str()).size(sm)).clicked() {
+                edits.push(PerspectiveEdit::Planes(EditEvent::set(Vec::new(), Modifiers::NONE)));
+            }
+        }
     }
 }

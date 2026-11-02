@@ -144,7 +144,7 @@ fn replacing_the_planes_in_the_middle_of_a_corner_drag_ends_the_drag() {
 }
 
 // Insert adds the middle-half plane, Page keys pick corners, arrows move them, Delete removes the
-// picked corner's plane.
+// picked corner's plane, and so does Backspace (a Mac laptop's delete key).
 #[test]
 fn the_keyboard_adds_a_plane_picks_corners_and_removes_a_plane() {
     let mut h = harness(vec![square(100.0, 100.0, 200.0, 200.0)], PlaneMode::Layout);
@@ -169,6 +169,13 @@ fn the_keyboard_adds_a_plane_picks_corners_and_removes_a_plane() {
     h.key_press(Key::Delete);
     h.run_steps(2);
     assert_eq!(planes(&h).len(), 1, "the new plane held the picked corner");
+
+    h.key_press(Key::Insert);
+    h.run_steps(2);
+    assert_eq!(planes(&h).len(), 2);
+    h.key_press(Key::Backspace);
+    h.run_steps(2);
+    assert_eq!(planes(&h).len(), 1, "Backspace removes the picked corner's plane as Delete does");
     h.key_press(Key::Enter);
     h.run_steps(2);
 }

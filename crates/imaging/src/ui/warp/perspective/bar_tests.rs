@@ -8,11 +8,14 @@ use kurbo::{Point, Rect};
 
 use super::*;
 use craft_ui::edit::EditEvent;
+use craft_ui::patterns::OptionsBar;
 use craft_ui::theme::{Base, install};
 
 struct Host {
     session: PerspectiveSession,
     out: Vec<PerspectiveEdit>,
+    apply: bool,
+    discard: bool,
 }
 
 fn plane(x: f64) -> Plane {
@@ -28,10 +31,13 @@ fn harness(count: usize, mode: PlaneMode) -> Harness<'static, Host> {
     session.apply(PerspectiveEdit::Mode(mode), 0.0);
     let mut h = Harness::builder().with_size([1200.0, 80.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
-            let r = ui.horizontal(|ui| PerspectiveBar::new("bar", &host.session).show(ui)).inner;
+            let mut r = PerspectiveBarOutput::default();
+            OptionsBar::new("options").label("Options").show(ui, |slots| PerspectiveBar::new("bar", &host.session).output(&mut r).add_to(slots));
             host.out.extend(r.edits);
+            host.apply |= r.apply;
+            host.discard |= r.discard;
         },
-        Host { session, out: Vec::new() },
+        Host { session, out: Vec::new(), apply: false, discard: false },
     );
     h.run_steps(3);
     h
@@ -65,4 +71,16 @@ fn the_bar_shows_each_modes_controls() {
 
     let empty = harness(0, PlaneMode::Layout);
     assert!(empty.get_by_role_and_label(Role::RadioButton, "Warp").accesskit_node().is_disabled());
+}
+
+// Commit and Cancel sit in the trailing slot and report `apply` and `discard`.
+#[test]
+fn commit_and_cancel_report_through_the_output() {
+    let mut h = harness(1, PlaneMode::Layout);
+    h.get_by_label("Commit Perspective Warp").click();
+    h.run_steps(3);
+    assert!(h.state().apply && !h.state().discard);
+    h.get_by_label("Cancel Perspective Warp").click();
+    h.run_steps(3);
+    assert!(h.state().discard);
 }
