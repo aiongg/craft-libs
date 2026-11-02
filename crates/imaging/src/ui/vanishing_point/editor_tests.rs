@@ -174,6 +174,8 @@ struct Host {
     view: CanvasView,
     canvas: Option<CanvasId>,
     events: Vec<VanishingPointEvent>,
+    /// Gives the canvas the keyboard in the next pass (a press does not: the app focuses it).
+    focus_canvas: bool,
 }
 
 fn harness(tool: VanishingTool, session: VanishingPointSession) -> Harness<'static, Host> {
@@ -188,6 +190,7 @@ fn harness(tool: VanishingTool, session: VanishingPointSession) -> Harness<'stat
         view: CanvasView::new(rect, Point::new(200.0, 150.0), 1.0),
         canvas: None,
         events: Vec::new(),
+        focus_canvas: false,
     };
     let mut h = Harness::builder()
         .with_size(vec2(400.0, 300.0))
@@ -198,6 +201,9 @@ fn harness(tool: VanishingTool, session: VanishingPointSession) -> Harness<'stat
                 let id = CanvasId::new(ui, "vp");
                 host.canvas = Some(id);
                 let canvas = id.interact(ui, host.view.rect, Sense::click_and_drag() | Sense::FOCUSABLE);
+                if std::mem::take(&mut host.focus_canvas) {
+                    canvas.request_focus();
+                }
                 let style = VanishingPointStyle::of(&current(ui.ctx()));
                 {
                     let mut pass = Quiet(host.editor.pass(&mut host.session, &host.settings, &Flat, &Blank, &style));
@@ -573,11 +579,11 @@ fn vp_a_gesture_the_app_cancels_reports_its_reason_and_ends() {
 fn vp_arrows_move_the_picked_corner_only_while_the_corners_have_the_keyboard() {
     let plane = rect_plane(100.0, 100.0, 300.0, 200.0);
     let mut h = harness(VanishingTool::EditPlane, with_planes(vec![plane]));
-    // Focus the canvas on an empty spot, move the keyboard to the group and pick the first corner.
-    rig::press(&mut h, pos2(350.0, 280.0), Modifiers::NONE);
-    rig::release(&mut h, pos2(350.0, 280.0), Modifiers::NONE);
-    h.key_press(Key::Tab);
+    // Focus the canvas, move the keyboard to the group (the next Tab stop) and pick the first corner.
+    h.state_mut().focus_canvas = true;
     h.step();
+    h.key_press(Key::Tab);
+    h.run();
     rig::key(&mut h, Key::PageDown, Modifiers::NONE);
     rig::key(&mut h, Key::Home, Modifiers::NONE);
     let before = h.state().session.planes[0].corners;
@@ -589,8 +595,8 @@ fn vp_arrows_move_the_picked_corner_only_while_the_corners_have_the_keyboard() {
     let one = moved(&h);
     assert!(matches!(one.as_slice(), [(_, [1.0, 0.0])]), "the group has the keyboard: one corner, one pixel: {one:?}");
     // The canvas takes the focus back: the pick stays, the arrows are not aimed at it.
-    rig::press(&mut h, pos2(350.0, 280.0), Modifiers::NONE);
-    rig::release(&mut h, pos2(350.0, 280.0), Modifiers::NONE);
+    h.state_mut().focus_canvas = true;
+    h.step();
     rig::key(&mut h, Key::ArrowRight, Modifiers::NONE);
     assert_eq!(moved(&h), one, "the canvas has the focus: nothing moves further");
 }
