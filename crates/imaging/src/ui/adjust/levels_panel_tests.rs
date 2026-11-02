@@ -145,3 +145,27 @@ fn levels_auto_follows_the_clip_rule_at_both_ends() {
     let auto = start.auto(&counts);
     assert_eq!((auto.in_black, auto.in_white), (1.0, 253.0));
 }
+
+// The panel's group and its editor have different names: the editor is named by the shown channel.
+#[test]
+fn levels_panel_names_the_inner_editor_by_the_channel() {
+    let h = rig(vec![IDENTITY; 4], flat());
+    assert_eq!(h.query_all_by_role_and_label(Role::Group, "Levels").count(), 1);
+    assert_eq!(h.query_all_by_role_and_label(Role::Group, "RGB").count(), 1);
+}
+
+// A grey document's channel list disables the Neutral Gray picker without the context saying so.
+#[test]
+fn levels_panel_disables_the_gray_picker_for_gray_channels() {
+    let levels = vec![IDENTITY];
+    let mut h = Harness::builder().with_size([480.0, 640.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, levels: &mut Vec<Levels>| {
+            let numbers = LocaleNumbers::from_tag("en");
+            LevelsPanel::new("levels-panel", levels, ToneChannels::of(ToneSpace::Rgb, true), &numbers).show(ui);
+        },
+        levels,
+    );
+    h.run_steps(3);
+    assert!(h.get_by_label("Set Neutral Gray Point").accesskit_node().is_disabled());
+    assert!(!h.get_by_label("Set Black Point").accesskit_node().is_disabled());
+}

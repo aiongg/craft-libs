@@ -10,7 +10,9 @@ use egui::{AsIdSalt, Id, IdSalt, Modifiers, Sense, Ui, UiBuilder};
 
 use craft_theme::ControlSize;
 use craft_ui::controls::{Button, Checkbox, IconButton};
-use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
+use craft_ui::dialog::ColorRequest;
+use craft_ui::edit::parts::{self, Pushed};
+use craft_ui::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
 use craft_ui::icons::Icon;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
@@ -27,6 +29,27 @@ use super::{
 const MAX_STOPS: usize = 64;
 /// Fewest colour stops a Gradient Map keeps.
 const MIN_STOPS: usize = 2;
+
+/// The [`ColorRequest`] key of a colour stop, before its index.
+const STOP_KEY: &str = "gradientMap.stop";
+
+/// What a part of the editor did to the map: the operation a held event replays.
+#[derive(Clone, Debug)]
+enum MapOp {
+    Stops(GradientStops),
+    Reverse(bool),
+    Dither(bool),
+}
+
+fn apply(op: &MapOp, value: &GradientMap) -> Option<GradientMap> {
+    let mut next = value.clone();
+    match op {
+        MapOp::Stops(stops) => next.stops = stops.clone(),
+        MapOp::Reverse(reverse) => next.reverse = *reverse,
+        MapOp::Dither(dither) => next.dither = *dither,
+    }
+    (next != *value).then_some(next)
+}
 
 /// A Gradient Map value: the map from tone (0 black … 1 white) to colour.
 #[derive(Clone, Debug, PartialEq)]
@@ -66,13 +89,11 @@ pub struct GradientMapOutput {
     /// The map's edit: the stop bar's gestures and sets with the stops replaced, a preset pick,
     /// Reverse and Dither as `Set`s. The response is the editor's group.
     pub edit: EditResponse<GradientMap>,
-    /// Without [`color_popover`](GradientMapEditor::color_popover): the colour stop whose colour
-    /// the host is asked to edit ([`GradientEditorResponse::color_requested`](super::GradientEditorResponse::color_requested)).
-    pub color_requested: Option<usize>,
-    /// With the popover: its eyedropper was pressed, and the popover's picker id while shown
-    /// (as [`GradientEditorResponse`](super::GradientEditorResponse) reports them).
-    pub eyedropper_requested: bool,
-    pub picker_id: Option<Id>,
+    /// The colour stop whose colour the host is asked to edit (a double-click on it, Enter or
+    /// Space while it is selected, or a click on the Color well), for the one pass in which the
+    /// user asked. The request's key is [`GradientMapEditor::stop_key`] of the stop's index; its
+    /// colour is the stop's.
+    pub pick_color: Option<ColorRequest>,
     /// The user chose Import .GRD in the preset menu: the host opens its gradient-file dialog
     /// and adds the file's presets to its library; the value is unchanged.
     pub import_presets: bool,
@@ -101,7 +122,6 @@ pub struct GradientMapEditor<'a> {
     numbers: &'a LocaleNumbers,
     presets: &'a [GradientGroup],
     sampler: Option<&'a Sampler>,
-    color_popover: bool,
     policy: EditPolicy,
     labels: Option<GradientMapLabels>,
     stop_labels: Option<GradientLabels>,
@@ -117,7 +137,6 @@ impl<'a> GradientMapEditor<'a> {
             numbers,
             presets: &[],
             sampler: None,
-            color_popover: false,
             policy: EditPolicy::default(),
             labels: None,
             stop_labels: None,
@@ -135,13 +154,6 @@ impl<'a> GradientMapEditor<'a> {
     /// The host's colour mixing for the bar and the presets ([`GradientEditor::sampler`](super::GradientEditor::sampler)).
     pub fn sampler(mut self, sampler: &'a Sampler) -> Self {
         self.sampler = Some(sampler);
-        self
-    }
-
-    /// Edits a stop's colour in the bar's own colour popover ([`GradientEditor::color_popover`](super::GradientEditor::color_popover))
-    /// instead of asking the host; off by default (PhotoCraft opens its Color Picker).
-    pub fn color_popover(mut self, popover: bool) -> Self {
-        self.color_popover = popover;
         self
     }
 
@@ -168,6 +180,16 @@ impl<'a> GradientMapEditor<'a> {
         self
     }
 
+    /// The key of the [`ColorRequest`] for colour stop `index`.
+    pub fn stop_key(index: usize) -> String {
+        format!("{STOP_KEY}.{index}")
+    }
+
+    /// The colour stop a [`ColorRequest`] key names; `None` for a key of another request.
+    pub fn stop_of_key(key: &str) -> Option<usize> {
+        key.strip_prefix(STOP_KEY)?.strip_prefix('.')?.parse().ok()
+    }
+
     /// Draws the editor and reports the map's edit.
     pub fn show(self, ui: &mut Ui) -> GradientMapOutput {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/gradient_map.rs:151-269 `gradient_map` (preset
@@ -185,35 +207,39 @@ impl<'a> GradientMapEditor<'a> {
     }
 
     fn show_inside(&self, ui: &mut Ui, id: Id, labels: &GradientMapLabels, enabled: bool) -> GradientMapOutput {
-        let mut event: Option<EditEvent<GradientMap>> = None;
         let mut import_presets = false;
-        let mut output = GradientMapOutput {
-            edit: EditResponse::new(ui.response(), None),
-            color_requested: None,
-            eyedropper_requested: false,
-            picker_id: None,
-            import_presets: false,
-        };
-        let bar_id = GradientEditor::id_in(ui, "stops");
+        let mut pick_color = None;
+        let parts_id = id.with("parts");
+        let mut state: parts::State<MapOp> = ui.data(|d| d.get_temp(parts_id)).unwrap_or_default();
+        // Esc is the parts': each cancels its own gesture, which cancels this one.
+        let outer = Gesture::load(ui, id.with("edit"), self.value, self.policy.cancellable(false)).enabled(enabled);
+        let mut edits = parts::Edits::<GradientMap, MapOp>::new(id, &state, &outer, edit::in_scope(ui));
+        edits.replay(ui.ctx(), apply);
+        // The parts draw from and map onto the map the replay and the parts before them leave.
+        let shown = edits.value().clone();
         Stack::new(Gap::Stack).show(ui, |ui| {
             ui.add_enabled_ui(enabled, |ui| {
+                // The bar's id in the ui that draws it.
+                let bar_id = GradientEditor::id_in(ui, "stops");
+
                 // 1. Preset.
-                let (pick, import) = self.preset_row(ui, id, labels);
+                let (pick, import, button) = self.preset_row(ui, id, labels);
                 import_presets = import;
-                if let Some(pick) = pick {
+                let picked = EditResponse::new(button, pick.clone().map(|stops| EditEvent::set(stops, Modifiers::NONE)));
+                let ops = pick.into_iter().map(MapOp::Stops);
+                let pushed = edits.push(&picked, ops, apply, |stops, base| GradientMap { stops, ..base.clone() });
+                if pushed != Pushed::Nothing && picked.event.is_some() {
                     GradientEditor::select(ui.ctx(), bar_id, Some(StopRef::Color(0)));
-                    event = Some(EditEvent::set(GradientMap { stops: pick, ..self.value.clone() }, Modifiers::NONE));
                 }
 
                 // 2. The stop bar.
                 let numbers = self.numbers;
-                let mut bar = GradientEditor::new("stops", labels.stops.as_str(), &self.value.stops, numbers)
+                let mut bar = GradientEditor::new("stops", labels.stops.as_str(), &shown.stops, numbers)
                     .rows(StopRows::ColorOnly)
                     .stops(MIN_STOPS, MAX_STOPS)
                     .midpoints(false)
                     .location_decimals(1)
                     .policy(self.policy)
-                    .color_popover(self.color_popover)
                     .enabled(enabled);
                 if let Some(sampler) = self.sampler {
                     bar = bar.sampler(sampler);
@@ -222,32 +248,30 @@ impl<'a> GradientMapEditor<'a> {
                     bar = bar.labels(stop_labels.clone());
                 }
                 let response = bar.show(ui);
-                output.color_requested = response.color_requested;
-                output.eyedropper_requested = response.eyedropper_requested;
-                output.picker_id = response.picker_id;
-                let value = self.value.clone();
-                let bar_event = response.edit.map(|stops| GradientMap { stops, ..value }).event;
-                event = event.take().or(bar_event);
+                pick_color =
+                    response.color_requested.and_then(|i| shown.stops.color.get(i).map(|stop| ColorRequest::new(Self::stop_key(i), stop.color)));
+                let ops = response.edit.event.as_ref().and_then(EditEvent::value).cloned().map(MapOp::Stops);
+                edits.push(&response.edit, ops, apply, |stops, base| GradientMap { stops, ..base.clone() });
 
                 // 3. Reverse and Dither.
-                let mut reverse = self.value.reverse;
+                let mut reverse = shown.reverse;
                 let toggled = Checkbox::bool(labels.reverse.as_str(), &mut reverse).id_salt((id, "reverse")).show(ui);
-                let value = self.value.clone();
-                event = event.take().or(toggled.map(|reverse| GradientMap { reverse, ..value }).event);
-                let mut dither = self.value.dither;
+                let ops = toggled.event.as_ref().and_then(EditEvent::value).copied().map(MapOp::Reverse);
+                edits.push(&toggled, ops, apply, |reverse, base| GradientMap { reverse, ..base.clone() });
+                let mut dither = shown.dither;
                 let toggled = Checkbox::bool(labels.dither.as_str(), &mut dither).id_salt((id, "dither")).show(ui);
-                let value = self.value.clone();
-                event = event.take().or(toggled.map(|dither| GradientMap { dither, ..value }).event);
+                let ops = toggled.event.as_ref().and_then(EditEvent::value).copied().map(MapOp::Dither);
+                edits.push(&toggled, ops, apply, |dither, base| GradientMap { dither, ..base.clone() });
             });
         });
-        output.edit.event = event;
-        output.import_presets = import_presets;
-        output
+        let event = edits.feed(outer, &mut state).finish();
+        ui.data_mut(|d| d.insert_temp(parts_id, state));
+        GradientMapOutput { edit: EditResponse::new(ui.response(), event), pick_color, import_presets }
     }
 
     /// The preset button, its popover with the gear menu and the list. Returns a picked preset's
-    /// colour stops and whether Import .GRD was chosen.
-    fn preset_row(&self, ui: &mut Ui, id: Id, labels: &GradientMapLabels) -> (Option<GradientStops>, bool) {
+    /// colour stops, whether Import .GRD was chosen and the button's response.
+    fn preset_row(&self, ui: &mut Ui, id: Id, labels: &GradientMapLabels) -> (Option<GradientStops>, bool, egui::Response) {
         let button =
             ui.add_enabled(!self.presets.is_empty(), Button::new(labels.custom.as_str()).trailing_icon(Icon::ChevronDown).id_salt((id, "preset")));
         let open_id = id.with("open");
@@ -286,7 +310,7 @@ impl<'a> GradientMapEditor<'a> {
             },
         );
         ui.data_mut(|d| d.insert_temp(open_id, open));
-        (pick, import)
+        (pick, import, button)
     }
 }
 
