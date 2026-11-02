@@ -2347,6 +2347,8 @@ pub const BRUSH_TIP_GRID_MAX: f32 = 104.0;
 pub const FULL_WINDOW_SIDE_WIDTH: f32 = 300.0;
 /// A wide side column: `full_window.side.width_wide`.
 pub const FULL_WINDOW_SIDE_WIDTH_WIDE: f32 = 350.0;
+/// A narrow side column: `full_window.side.width_narrow`.
+pub const FULL_WINDOW_SIDE_WIDTH_NARROW: f32 = 220.0;
 /// The padding inside a side column, across: `full_window.side.pad_x`.
 pub const FULL_WINDOW_SIDE_PAD_X: f32 = 14.0;
 /// The padding inside a side column, along: `full_window.side.pad_y`.
@@ -2361,8 +2363,6 @@ pub const FULL_WINDOW_ZOOM_BAR_PAD_X: f32 = 10.0;
 pub const FULL_WINDOW_ZOOM_BAR_PAD_Y: f32 = 3.0;
 /// The zoom bar's progress bar width: `full_window.progress.width`.
 pub const FULL_WINDOW_PROGRESS_WIDTH: f32 = 90.0;
-/// The progress bar's height: `full_window.progress.height`.
-pub const FULL_WINDOW_PROGRESS_HEIGHT: f32 = 6.0;
 
 /// Alpha (of 255) of the brush resize preview's default tint (PhotoCraft's).
 pub const BRUSH_PREVIEW_ALPHA: u8 = 110;

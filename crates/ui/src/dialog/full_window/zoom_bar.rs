@@ -149,10 +149,10 @@ impl<'a> FullWindowZoomBar<'a> {
 
                     match progress {
                         Some(Some(fraction)) => {
-                            ui.add(Progress::new(fraction).width(style.progress.x).label(labels.updating.as_str()));
+                            ui.add(Progress::new(fraction).width(style.progress_width).label(labels.updating.as_str()));
                         }
                         Some(None) => {
-                            ui.add(Progress::indeterminate().width(style.progress.x).label(labels.updating.as_str()));
+                            ui.add(Progress::indeterminate().width(style.progress_width).label(labels.updating.as_str()));
                         }
                         None => {
                             if let Some(note) = note.as_deref().filter(|n| !n.is_empty()) {

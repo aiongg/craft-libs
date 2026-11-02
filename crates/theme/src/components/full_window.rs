@@ -12,6 +12,8 @@ pub struct FullWindowTokens {
     pub side_width: f32,
     /// A wide side column: `full_window.side.width_wide`.
     pub side_width_wide: f32,
+    /// A narrow side column: `full_window.side.width_narrow`.
+    pub side_width_narrow: f32,
     /// The padding inside a side column, across: `full_window.side.pad_x`.
     pub side_pad_x: f32,
     /// The padding inside a side column, along: `full_window.side.pad_y`.
@@ -28,8 +30,6 @@ pub struct FullWindowTokens {
     pub zoom_bar_pad_y: f32,
     /// The zoom bar's progress bar width: `full_window.progress.width`.
     pub progress_width: f32,
-    /// The progress bar's height: `full_window.progress.height`.
-    pub progress_height: f32,
     /// A side column's fill: `full_window.side.fill`, `surface.panel`.
     pub side_fill: Rgba,
     /// The line on a side column's inner edge: `full_window.side.divider`, `line.divider`.
@@ -82,6 +82,7 @@ impl Family for FullWindowTokens {
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { FullWindowTokens;
         "side.width" 0.0..=1024.0 => side_width;
         "side.width_wide" 0.0..=1024.0 => side_width_wide;
+        "side.width_narrow" 0.0..=1024.0 => side_width_narrow;
         "side.pad_x" 0.0..=128.0 => side_pad_x;
         "side.pad_y" 0.0..=128.0 => side_pad_y;
         "footer.gap" 0.0..=64.0 => footer_gap;
@@ -90,7 +91,6 @@ impl Family for FullWindowTokens {
         "zoom_bar.pad_x" 0.0..=128.0 => zoom_bar_pad_x;
         "zoom_bar.pad_y" 0.0..=128.0 => zoom_bar_pad_y;
         "progress.width" 0.0..=1024.0 => progress_width;
-        "progress.height" 0.0..=128.0 => progress_height;
     };
 
     fn defaults(s: &Semantic<'_>) -> FullWindowTokens {
@@ -98,6 +98,7 @@ impl Family for FullWindowTokens {
         FullWindowTokens {
             side_width: values::FULL_WINDOW_SIDE_WIDTH,
             side_width_wide: values::FULL_WINDOW_SIDE_WIDTH_WIDE,
+            side_width_narrow: values::FULL_WINDOW_SIDE_WIDTH_NARROW,
             side_pad_x: values::FULL_WINDOW_SIDE_PAD_X,
             side_pad_y: values::FULL_WINDOW_SIDE_PAD_Y,
             footer_gap: s.space.gap.inline,
@@ -106,7 +107,6 @@ impl Family for FullWindowTokens {
             zoom_bar_pad_x: values::FULL_WINDOW_ZOOM_BAR_PAD_X,
             zoom_bar_pad_y: values::FULL_WINDOW_ZOOM_BAR_PAD_Y,
             progress_width: values::FULL_WINDOW_PROGRESS_WIDTH,
-            progress_height: values::FULL_WINDOW_PROGRESS_HEIGHT,
             side_fill: c.surface.panel,
             side_divider: c.line.divider,
             canvas_fill: c.surface.canvas,

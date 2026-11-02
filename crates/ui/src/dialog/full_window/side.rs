@@ -25,6 +25,9 @@ pub enum SideWidth {
     Standard,
     /// `full_window.side.width_wide` (350): Select and Mask's Properties.
     Wide,
+    /// `full_window.side.width_narrow`: a column that carries only the footer buttons (Vanishing
+    /// Point).
+    Narrow,
 }
 
 /// The dialog's footer buttons in a side column: at its bottom (Liquify, Select and Mask,
@@ -87,10 +90,14 @@ pub struct FullWindowSideOutput {
 ///   optional [`PanelHeader`](crate::composites::PanelHeader) at the top (no menu); the body
 ///   padded by `full_window.side.pad_x` and `pad_y`.
 /// - **Body.** Scrolls vertically when taller than the room; the footer stays in view.
+///   [`scrolls(false)`](FullWindowSide::scrolls) leaves the scroll area out for a pane that
+///   bounds itself.
 /// - **Footer.** Placed with [`FullWindowFx::buttons`] in the full padded width, at the bottom or
-///   top, `full_window.footer.gap` from the body; the leading slot at the reading start. Only one
+///   top, `full_window.footer.gap` from the body; the leading slot at the reading start, laid out first, and the buttons in the rest of the
+///   row (they overflow towards the leading slot when the rest is narrower than they are). Only one
 ///   column of a dialog has the footer.
-/// - **Keyboard and AccessKit.** A `Group` named by the header (or `fullWindow.side`); Tab goes
+/// - **Keyboard and AccessKit.** A `Group` named by [`name`](FullWindowSide::name), else the header
+///   (else `fullWindow.side`); Tab goes
 ///   top to bottom, the footer buttons last (first for the top footer). The column takes no keys
 ///   of its own.
 #[must_use = "show the column with `show`"]
@@ -98,15 +105,17 @@ pub struct FullWindowSide<'a> {
     id_salt: IdSalt,
     width: SideWidth,
     header: Option<String>,
+    name: Option<String>,
+    scrolls: bool,
     footer: Option<SideFooter<'a>>,
 }
 
 impl<'a> FullWindowSide<'a> {
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), width: SideWidth::Standard, header: None, footer: None }
+        Self { id_salt: IdSalt::new(id_salt), width: SideWidth::Standard, header: None, name: None, scrolls: true, footer: None }
     }
 
-    /// Standard (default) or Wide.
+    /// Standard (default), Wide or Narrow.
     pub fn width(mut self, width: SideWidth) -> Self {
         self.width = width;
         self
@@ -116,6 +125,20 @@ impl<'a> FullWindowSide<'a> {
     /// also the column's accessible name: "Properties", "Preview", "Content-Aware Fill".
     pub fn header(mut self, title: impl Into<String>) -> Self {
         self.header = Some(title.into());
+        self
+    }
+
+    /// The column's accessible name (translated), when the header is not it or there is no header:
+    /// two columns of one dialog need two names.
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Whether the body scrolls (default `true`). A pane that bounds itself (a preview that fits
+    /// its room) passes `false` and gets the padded room as its `max_rect` with no scroll area.
+    pub fn scrolls(mut self, scrolls: bool) -> Self {
+        self.scrolls = scrolls;
         self
     }
 
@@ -132,16 +155,17 @@ impl<'a> FullWindowSide<'a> {
         // `t.dock`), :1070 (the footer row at the bottom, 14 pt in), gallery_ui.rs:756-770 (the
         // footer at the top of the right column, 12 × 10 padding), select_mask_ui.rs:1886 (the
         // footer at the bottom, 10 pt in).
-        let FullWindowSide { id_salt, width, header, footer } = self;
+        let FullWindowSide { id_salt, width, header, name, scrolls, footer } = self;
         let tokens = Tokens::of(ui);
         let style = FullWindowStyle::of(&tokens);
         let button_height = tokens.component.button.height.get(ControlSize::Md);
         let id = ui.make_persistent_id(id_salt);
-        let name = header.clone().unwrap_or_else(|| FullWindowLabels::shared(ui).side.clone());
+        let name = name.or_else(|| header.clone()).unwrap_or_else(|| FullWindowLabels::shared(ui).side.clone());
         let scroll_bar_label = ScrollBarLabels::name(ui);
         let width = match width {
             SideWidth::Standard => style.side_width,
             SideWidth::Wide => style.side_width_wide,
+            SideWidth::Narrow => style.side_width_narrow,
         };
         // The column is at the left in a right-to-left interface, so its inner edge is the right one.
         let inner_start = direction::is_rtl(ui);
@@ -177,11 +201,20 @@ impl<'a> FullWindowSide<'a> {
                     // The top footer comes first in the focus order, the bottom one last.
                     let place = |ui: &mut Ui, fx: &mut FullWindowFx, footer: SideFooter<'a>, row: Rect| {
                         let SideFooter { buttons, leading, .. } = footer;
+                        // The leading slot is laid out first (AccessKit lists it first); the buttons
+                        // get what is left of the row.
+                        let mut room = row;
                         if let Some(leading) = leading {
                             let mut lead = ui.new_child(UiBuilder::new().max_rect(row).layout(direction::row(ui)));
                             leading(&mut lead);
+                            let used = lead.min_rect();
+                            if used.width() > 0.0 {
+                                let from = direction::end_x(ui, used) + direction::forward(ui) * style.footer_gap;
+                                let to = direction::end_x(ui, row);
+                                room = Rect::from_x_y_ranges(from.min(to)..=from.max(to), row.y_range());
+                            }
                         }
-                        fx.buttons(ui, row, buttons)
+                        fx.buttons(ui, room, buttons)
                     };
                     let (mut top_footer, mut bottom_footer) = (None, None);
                     if let Some(f) = footer {
@@ -192,11 +225,15 @@ impl<'a> FullWindowSide<'a> {
                     }
                     let area = Rect::from_min_max(pos2(left, top), pos2(right, bottom.max(top)));
                     let mut content = ui.new_child(UiBuilder::new().max_rect(area));
-                    ScrollArea::vertical()
-                        .id_salt(id.with("body"))
-                        .auto_shrink([false, false])
-                        .vertical_scroll_bar_label(&scroll_bar_label)
-                        .show(&mut content, body);
+                    if scrolls {
+                        ScrollArea::vertical()
+                            .id_salt(id.with("body"))
+                            .auto_shrink([false, false])
+                            .vertical_scroll_bar_label(&scroll_bar_label)
+                            .show(&mut content, body);
+                    } else {
+                        body(&mut content);
+                    }
                     if let (Some(f), Some(row)) = (bottom_footer, footer_rect) {
                         footer_response = Some(place(ui, fx, f, row));
                     }

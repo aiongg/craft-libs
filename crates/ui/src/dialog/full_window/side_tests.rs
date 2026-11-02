@@ -21,6 +21,10 @@ struct App {
     two: bool,
     rows: usize,
     header: Option<&'static str>,
+    name: Option<&'static str>,
+    width: Option<SideWidth>,
+    three: bool,
+    fixed: bool,
     footer: Option<Rect>,
     columns: Vec<Rect>,
     body_bottom: f32,
@@ -28,6 +32,12 @@ struct App {
 
 fn buttons() -> Vec<FooterButton> {
     vec![FooterButton::new(ButtonRole::Default, "OK"), FooterButton::new(ButtonRole::Cancel, "Cancel")]
+}
+
+// Content-Aware Fill's Reset: a 24 pt icon button named "Reset".
+fn reset_icon(ui: &mut egui::Ui) {
+    let response = ui.allocate_response(vec2(24.0, 24.0), egui::Sense::click());
+    response.widget_info(|| egui::WidgetInfo::labeled(Role::Button, true, "Reset"));
 }
 
 fn harness(app: App) -> Harness<'static, App> {
@@ -42,13 +52,25 @@ fn harness(app: App) -> Harness<'static, App> {
                 let App { state, .. } = app;
                 let mut seen = (None, Vec::new(), 0.0);
                 let (top_footer, two, rows, header) = (app.top_footer, app.two, app.rows, app.header);
+                let (name, width, three, fixed) = (app.name, app.width, app.three, app.fixed);
                 FullWindowDialog::new("side").show(&ctx, state, &mut (), |ui, (), fx| {
-                    let mut side = FullWindowSide::new("a").width(SideWidth::Wide);
+                    let mut side = FullWindowSide::new("a").width(width.unwrap_or(SideWidth::Wide)).scrolls(!fixed);
+                    if let Some(name) = name {
+                        side = side.name(name);
+                    }
                     if let Some(header) = header {
                         side = side.header(header);
                     }
-                    let footer =
-                        if top_footer { SideFooter::top(buttons()) } else { SideFooter::bottom(buttons()).leading(|ui| drop(ui.button("Reset"))) };
+                    let list = if three {
+                        vec![
+                            FooterButton::new(ButtonRole::Default, "OK"),
+                            FooterButton::new(ButtonRole::Apply, "Apply"),
+                            FooterButton::new(ButtonRole::Cancel, "Cancel"),
+                        ]
+                    } else {
+                        buttons()
+                    };
+                    let footer = if top_footer { SideFooter::top(list) } else { SideFooter::bottom(list).leading(reset_icon) };
                     let out = side.footer(footer).show(ui, fx, |ui| {
                         for n in 0..rows {
                             ui.label(format!("row {n}"));
@@ -121,4 +143,49 @@ fn side_column_is_a_group_named_by_its_header() {
     let mut plain = harness(App::default());
     plain.run();
     plain.get_by_role_and_label(Role::Group, "Settings");
+}
+
+// K15: the leading Reset and the footer buttons share the row without overlapping at Standard
+// width, in both directions.
+#[test]
+fn side_footer_leading_slot_and_buttons_do_not_overlap() {
+    for (rtl, three) in [(false, false), (true, false), (false, true)] {
+        let mut harness = harness(App { width: Some(SideWidth::Standard), rtl, three, ..App::default() });
+        harness.run();
+        let (reset, buttons) = (harness.get_by_label("Reset").rect(), harness.state().footer.unwrap());
+        assert!(!reset.intersects(buttons), "rtl {rtl}: {reset:?} over {buttons:?}");
+        let (reset_first, left_of) = if rtl { (reset.left() > buttons.right(), "right") } else { (reset.right() < buttons.left(), "left") };
+        assert!(reset_first, "rtl {rtl}: Reset at the reading start ({left_of} of the buttons)");
+    }
+}
+
+// The accessible name overrides the header and also names a column without one.
+#[test]
+fn side_column_name_reaches_accesskit() {
+    let mut named = harness(App { header: Some("Properties"), name: Some("Fill settings"), ..App::default() });
+    named.run();
+    named.get_by_role_and_label(Role::Group, "Fill settings");
+    assert!(named.query_by_role_and_label(Role::Group, "Properties").is_none());
+}
+
+// A body that bounds itself gets no scroll area: a tall one draws past the window and no scroll
+// bar node exists, where the scrolling body has one.
+#[test]
+fn side_body_without_scrolling_has_no_scroll_area() {
+    let mut scrolling = harness(App { rows: 200, ..App::default() });
+    scrolling.run();
+    assert!(scrolling.query_by_role(Role::ScrollBar).is_some(), "the scrolling body has a bar");
+    let mut fixed = harness(App { rows: 200, fixed: true, ..App::default() });
+    fixed.run();
+    assert!(fixed.query_by_role(Role::ScrollBar).is_none(), "no scroll area, no bar");
+}
+
+// `SideWidth::Narrow` reads `full_window.side.width_narrow`.
+#[test]
+fn narrow_side_column_takes_its_token_width() {
+    let mut narrow = harness(App { width: Some(SideWidth::Narrow), ..App::default() });
+    narrow.run();
+    let style = FullWindowStyle::of(&current(&narrow.ctx));
+    let column = narrow.state().columns[0];
+    assert!((column.width() - style.side_width_narrow).abs() < 1.5 && style.side_width_narrow < style.side_width, "{column:?}");
 }

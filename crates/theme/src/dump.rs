@@ -2924,6 +2924,7 @@ fn full_window_lines(out: &mut Lines, t: &FullWindowTokens) {
     let FullWindowTokens {
         side_width,
         side_width_wide,
+        side_width_narrow,
         side_pad_x,
         side_pad_y,
         footer_gap,
@@ -2932,7 +2933,6 @@ fn full_window_lines(out: &mut Lines, t: &FullWindowTokens) {
         zoom_bar_pad_x,
         zoom_bar_pad_y,
         progress_width,
-        progress_height,
         side_fill,
         side_divider,
         canvas_fill,
@@ -2940,6 +2940,7 @@ fn full_window_lines(out: &mut Lines, t: &FullWindowTokens) {
     } = t;
     out.line("full_window.side.width", len(*side_width));
     out.line("full_window.side.width_wide", len(*side_width_wide));
+    out.line("full_window.side.width_narrow", len(*side_width_narrow));
     out.line("full_window.side.pad_x", len(*side_pad_x));
     out.line("full_window.side.pad_y", len(*side_pad_y));
     out.line("full_window.footer.gap", len(*footer_gap));
@@ -2948,7 +2949,6 @@ fn full_window_lines(out: &mut Lines, t: &FullWindowTokens) {
     out.line("full_window.zoom_bar.pad_x", len(*zoom_bar_pad_x));
     out.line("full_window.zoom_bar.pad_y", len(*zoom_bar_pad_y));
     out.line("full_window.progress.width", len(*progress_width));
-    out.line("full_window.progress.height", len(*progress_height));
     out.line("full_window.side.fill", hex(*side_fill));
     out.line("full_window.side.divider", hex(*side_divider));
     out.line("full_window.canvas.fill", hex(*canvas_fill));
