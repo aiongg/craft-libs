@@ -8,7 +8,7 @@
 //! - [`stroke`]: the [`StrokeEditor`], the [`StrokeButton`] that opens it and the [`StrokePreview`].
 //! - [`corner`]: the [`CornerWidgets`] for corner radii.
 //! - [`crop`]: the [`CropFrame`] of the Crop tool, its composition guides, the [`PerspectiveCropQuad`],
-//!   the [`CropTool`] with its [`CropSession`], and the [`CropOptionsBar`].
+//!   the [`CropTool`] with its [`CropSession`], and the [`CropBar`].
 //! - [`transform`]: the [`TransformBox`] of Free Transform, the options bar's [`TransformFields`],
 //!   the [`TransformSession`] with its [`TransformOverlay`] and the [`TransformBar`].
 //! - [`measure`]: the [`RulerTool`] with its [`RulerBar`], and [`box_distances`] between boxes.
@@ -70,8 +70,8 @@ pub use connector::{
 };
 pub use corner::{CornerEdit, CornerKind, CornerRadii, CornerStyle, CornerWidgets, CornerWidgetsLabels, CornerWidgetsResponse};
 pub use crop::{
-    CropBarEvent, CropBarLabels, CropBarOutput, CropBarStyle, CropCommit, CropDocument, CropEvent, CropFill, CropInput, CropOptionsBar,
-    CropOptionsMenu, CropOptionsMenuResponse, CropOutput, CropOverlayMenu, CropPresetChoice, CropRatio, CropSession, CropSettings, CropSizePreset,
+    CropBar, CropBarLabels, CropBarOutput, CropBarStyle, CropCommit, CropDocument, CropEvent, CropFill, CropInput, CropOptionsMenu,
+    CropOptionsMenuResponse, CropOutput, CropOverlayMenu, CropPresetChoice, CropRatio, CropRatioChange, CropSession, CropSettings, CropSizePreset,
     CropTarget, CropTool, CropToolPass, CropUserPreset, ResolutionUnit,
 };
 pub use crop::{

@@ -857,6 +857,7 @@ crop.perspective_click_move = 3
 crop.perspective_reach = 8
 crop.menu_width = 240
 crop.menu_max_width = 300
+crop.preset_width = 140
 cursor.crosshair_reach = 8
 cursor.crosshair_gap = 2
 cursor.precise_reach = 6

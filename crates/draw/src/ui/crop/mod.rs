@@ -1,6 +1,6 @@
 //! The Crop tool: the [`CropFrame`] overlay with its composition guides and the shield outside
 //! it, the tool on the canvas tool host ([`CropTool`]) with its pending frame ([`CropSession`]) and
-//! options ([`CropSettings`]), the options bar ([`CropOptionsBar`]) with its overlay and gear menus,
+//! options ([`CropSettings`]), the options bar ([`CropBar`]) with its overlay and gear menus,
 //! and the Perspective Crop tool's [`PerspectiveCropQuad`].
 //!
 //! The tool reports events and never crops the document: the app crops on
@@ -28,7 +28,7 @@ mod tool;
 #[cfg(test)]
 mod tool_tests;
 
-pub use bar::{CropBarEvent, CropBarLabels, CropBarOutput, CropOptionsBar};
+pub use bar::{CropBar, CropBarLabels, CropBarOutput, CropRatioChange};
 pub use crop_frame::{
     CropBox, CropFrame, CropKeyAction, CropLabels, CropNames, CropPress, CropPressKind, CropReadout, CropRelease, CropResponse, CropStyle, CropTrack,
     hit_rect,
