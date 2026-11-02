@@ -13,7 +13,7 @@ use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, NoArgs, Story, Surface};
-use craft_ui::testing::canvas_story::{ViewArgs, document_with};
+use craft_ui::testing::canvas_story::{ViewArgs, document_over};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui};
 
@@ -131,7 +131,7 @@ fn view(ui: &mut Ui, salt: &'static str, size: [u32; 2], recipe: MaskViewRecipe)
     let revision = revision_of(ui, ("mask-view-story", salt), &recipe);
     let ants = recipe.ants && !recipe.hidden;
     let composite = Composite { image, recipe, revision };
-    let canvas = document_with(ui, ViewArgs::default(), salt, 0.0, image.view(None, None));
+    let canvas = document_over(ui, ViewArgs::default(), salt, 0.0, image.view(None, None));
     image.show_source(ui, &canvas, &composite);
     SelectionOverlay::new(("mask-view-story", salt), &MockSubject(image)).labels(SelectionOverlayLabels::of(ui)).visible(ants).show(
         ui,

@@ -18,7 +18,7 @@ use craft_ui::canvas::{CanvasView, PixelRect, RasterSource};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, Surface};
-use craft_ui::testing::canvas_story::{StoryCanvas, ViewArgs, document_with};
+use craft_ui::testing::canvas_story::{StoryCanvas, ViewArgs, document_over};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Response, Sense, Ui};
 
@@ -170,7 +170,7 @@ impl Document {
     /// (`None`: the middle), with the layer drawn by the caller.
     pub(crate) fn canvas(&self, ui: &mut Ui, label: &str, zoom: Zoom, centre: Option<Point>) -> StoryCanvas {
         let (w, h) = (f64::from(self.size[0]), f64::from(self.size[1]));
-        let canvas = document_with(ui, ViewArgs::default(), label, 0.0, |rect, pixels_per_point| {
+        let canvas = document_over(ui, ViewArgs::default(), label, 0.0, |rect, pixels_per_point| {
             let fit = (f64::from(rect.width()) / w).min(f64::from(rect.height()) / h);
             let per_unit = match zoom {
                 Zoom::Fit => fit,
@@ -297,7 +297,7 @@ pub(crate) fn sensing(ui: &Ui, canvas: &StoryCanvas) -> Response {
 
 /// The most story canvases side by side: three columns of the tile overflow it by a point.
 const ACROSS: usize = 2;
-/// The narrowest story canvas, in points (`document_with` clamps its width to this).
+/// The narrowest story canvas, in points (`document_over` clamps its width to this).
 const MIN_CANVAS: f32 = 240.0;
 
 /// `items` in rows of up to [`ACROSS`] columns, fewer where the tile is too narrow for that many

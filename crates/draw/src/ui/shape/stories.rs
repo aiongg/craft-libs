@@ -214,7 +214,7 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
 
     let events = ui
         .scope(|ui| {
-            ui.set_max_width(PANEL_WIDTH);
+            ui.set_max_width(PANEL_WIDTH.min(ui.available_width()));
             let FakeShape { shape, look, stroke_open, .. } = fake;
             ShapePanel::new("shape-panel", shape, look).stroke_open(stroke_open).show(ui).events
         })

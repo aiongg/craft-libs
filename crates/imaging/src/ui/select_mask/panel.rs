@@ -203,7 +203,7 @@ fn output_label(labels: &SelectMaskLabels, target: OutputTo) -> &str {
         OutputTo::NewLayer => &labels.output_new_layer,
         OutputTo::NewLayerWithMask => &labels.output_new_layer_with_mask,
         OutputTo::NewDocument => &labels.output_new_document,
-        OutputTo::NewDocumentWithMask => &labels.output_new_document_with_mask,
+        OutputTo::NewDocumentWithMask => &labels.output_new_document_over_mask,
     }
 }
 

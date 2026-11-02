@@ -94,6 +94,6 @@ craft_ui::words! {
         output_new_layer: "selectMask.outputNewLayer" = "New Layer";
         output_new_layer_with_mask: "selectMask.outputNewLayerWithMask" = "New Layer with Layer Mask";
         output_new_document: "selectMask.outputNewDocument" = "New Document";
-        output_new_document_with_mask: "selectMask.outputNewDocumentWithMask" = "New Document with Layer Mask";
+        output_new_document_over_mask: "selectMask.outputNewDocumentWithMask" = "New Document with Layer Mask";
     }
 }

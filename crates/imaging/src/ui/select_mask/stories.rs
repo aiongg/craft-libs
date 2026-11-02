@@ -23,7 +23,7 @@ use craft_ui::dialog::full_window::FullWindowCanvas;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, claim, dialog_closed, dialog_shown, lock, reset_on, shared};
-use craft_ui::testing::canvas_story::{ViewArgs, document_with};
+use craft_ui::testing::canvas_story::{ViewArgs, document_over};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use craft_ui::typed_story;
 use egui::{Key, Modifiers, Painter, Pos2, Shape, Stroke, Ui, vec2};
@@ -438,7 +438,7 @@ fn show_refine(ui: &mut Ui, args: &mut RefineArgs) {
         }
         RefinePart::Picture => {
             let image = MockImage::default();
-            let picture = document_with(ui, ViewArgs::default(), words.picture.as_str(), 0.0, image.view(None, None));
+            let picture = document_over(ui, ViewArgs::default(), words.picture.as_str(), 0.0, image.view(None, None));
             image.show(ui, &picture);
             SelectionOverlay::new("select-mask-story-refine-ants", &MockSubject(image)).labels(SelectionOverlayLabels::of(ui)).show(
                 ui,

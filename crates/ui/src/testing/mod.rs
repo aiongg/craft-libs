@@ -65,6 +65,6 @@ pub mod edit_story {
 /// [`CanvasView`](crate::canvas::CanvasView) set by the story's [`ViewArgs`].
 pub mod canvas_story {
     pub use crate::canvas::story::{
-        DOC, PlainArgs, PppArg, StoryCanvas, ViewArgs, document, document_at, document_in, document_unfocusable, document_with,
+        DOC, PlainArgs, PppArg, StoryCanvas, ViewArgs, document, document_at, document_in, document_over, document_unfocusable, document_with,
     };
 }

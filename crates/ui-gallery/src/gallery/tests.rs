@@ -378,7 +378,6 @@ const FIXED_WIDTH: &[&str] = &[
     "composites/blur-pins/field",
     "composites/blur-pins/iris",
     "composites/blur-pins/spin",
-    "patterns/mask-view-controls/modes",
     "controls/select/wheel-steps",
     "controls/combo-box/font-size",
     "controls/slider/event-log",

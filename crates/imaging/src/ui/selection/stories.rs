@@ -16,7 +16,7 @@ use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface};
-use craft_ui::testing::canvas_story::{ViewArgs, document_with};
+use craft_ui::testing::canvas_story::{ViewArgs, document_over};
 use craft_ui::typed_story;
 use egui::{Response, Sense, Ui, vec2};
 
@@ -155,7 +155,7 @@ fn cell(
     overlay: impl FnOnce(&mut Ui, &Response, &CanvasView),
 ) {
     ui.add(Text::new(caption).content(Content::Muted));
-    let canvas = document_with(ui, ViewArgs::default(), salt, 0.0, image.view(zoom, centre));
+    let canvas = document_over(ui, ViewArgs::default(), salt, 0.0, image.view(zoom, centre));
     image.show(ui, &canvas);
     overlay(ui, &canvas.response, &canvas.view);
 }
