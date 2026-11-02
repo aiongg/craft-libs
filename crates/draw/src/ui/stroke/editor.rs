@@ -16,7 +16,8 @@ use craft_ui::controls::mixed::ApplyRowLabels;
 use craft_ui::controls::{Button, CheckState, Checkbox, NumberField, RadioOption, RadioSet, Segmented, Select};
 use craft_ui::direction;
 use craft_ui::edit::{CancelReason, EditEvent, EditResponse};
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::icons::Icon;
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, UnitKind, Units};
 use craft_ui::primitives::{Content, Divider, Interactive, SurfaceKind, Text};
 use craft_ui::theme::{Tokens, TokensOf as _, role_format};
 
@@ -66,8 +67,8 @@ pub struct StrokeEditorResponse {
 ///   [`StrokeSections::ICONS`]. Under the rows of an open path: "Open paths use centered strokes".
 /// - Dashes ([`StrokeSections::DASHES`]): a "Dashed line" check (setting it applies the Dashed
 ///   preset, clearing it Solid); while dashed, a hint by [`StrokeStyle::dash_unit`], then one row
-///   per pair ([`StrokeStyle::dash_pairs`]) of Dash and Gap number fields (0–10000, suffix `×` or
-///   the document unit, `stroke_editor.field_width` wide); "Add pair" (enabled under 32 entries:
+///   per pair ([`StrokeStyle::dash_pairs`]) of Dash and Gap number fields (0–10000, suffix `×`, or
+///   `pt` for document units, `stroke_editor.field_width` wide); "Add pair" (enabled under 32 entries:
 ///   appends `[4, 2]`, or `2` to complete an odd pattern) and "Remove pair" (enabled over 2
 ///   entries: drops the last two); "Dash offset" (±1,000,000).
 /// - Sample ([`StrokeSections::SAMPLE`]): a `stroke_editor.sample_height` tall
@@ -93,6 +94,7 @@ pub struct StrokeEditor<'a> {
     labels: Option<StrokeLabels>,
     look: Option<StrokeEditorStyle>,
     report_same_preset: bool,
+    pending_key: Option<Id>,
 }
 
 impl<'a> StrokeEditor<'a> {
@@ -110,6 +112,7 @@ impl<'a> StrokeEditor<'a> {
             labels: None,
             look: None,
             report_same_preset: false,
+            pending_key: None,
         }
     }
 
@@ -164,6 +167,12 @@ impl<'a> StrokeEditor<'a> {
         self
     }
 
+    /// Where the pending invalid edit is kept, so the host can drop it when it closes the editor.
+    pub(super) fn pending_key(mut self, key: Id) -> Self {
+        self.pending_key = Some(key);
+        self
+    }
+
     /// Adds the editor to `ui`, `stroke_editor.width` wide.
     pub fn show(self, ui: &mut Ui) -> StrokeEditorResponse {
         // pc: crates/ui-egui/src/tools/shape_stroke_ui/editor.rs:128-248 (the popup body: presets
@@ -178,10 +187,14 @@ impl<'a> StrokeEditor<'a> {
         let mixed_word = ApplyRowLabels::of(ui).mixed;
         let select = Select::style(&tokens, ControlSize::Md);
         let width = body_width(ui, &look);
+        let id = ui.make_persistent_id(self.id_salt);
+        let key = self.pending_key.unwrap_or_else(|| id.with("pending"));
+        let pending = ui.data(|d| d.get_temp::<Pending>(key)).filter(|p| p.base == *self.value);
         let mut body = Body {
-            id: ui.make_persistent_id(self.id_salt),
-            value: self.value,
+            id,
+            value: pending.map_or_else(|| self.value.clone(), |p| p.style),
             numbers: self.numbers,
+            units: Units::of(ui),
             sections: self.sections,
             closed: self.closed,
             corners: self.corners,
@@ -196,6 +209,7 @@ impl<'a> StrokeEditor<'a> {
             event: None,
             field: None,
             choice: None,
+            invalid: None,
         };
         let builder = UiBuilder::new().id_salt(self.id_salt).layout(direction::column(ui));
         let response = ui
@@ -204,6 +218,15 @@ impl<'a> StrokeEditor<'a> {
                 body.show(ui);
             })
             .response;
+        match body.invalid {
+            Some(style) => ui.data_mut(|d| {
+                d.insert_temp(key, Pending { base: self.value.clone(), style });
+            }),
+            None if body.event.is_some() => ui.data_mut(|d| {
+                d.remove::<Pending>(key);
+            }),
+            None => {}
+        }
         StrokeEditorResponse { response, event: body.event, field: body.field, choice: body.choice }
     }
 }
@@ -211,11 +234,8 @@ impl<'a> StrokeEditor<'a> {
 /// The body's width: `stroke_editor.width`, less in a window narrower than that plus the margin.
 pub(super) fn body_width(ui: &Ui, look: &StrokeEditorStyle) -> f32 {
     let room = ui.ctx().content_rect().width() - look.screen_margin;
-    look.width.min(room).max(MIN_WIDTH)
+    look.width.min(room).max(look.min_width)
 }
-
-/// The narrowest the body gets in a small window (PhotoCraft `editor.rs:130`).
-const MIN_WIDTH: f32 = 160.0;
 
 /// `value`, or `None` while the field is mixed: nothing is lit.
 fn unless<T>(mixed: bool, value: T) -> Option<T> {
@@ -239,8 +259,10 @@ pub(super) fn line_style_name<'l>(labels: &'l StrokeLabels, style: &StrokeStyle)
 /// One pass of the editor: what it draws from and what it found.
 struct Body<'a> {
     id: Id,
-    value: &'a StrokeStyle,
+    /// The host's value, or the pending invalid edit made on it.
+    value: StrokeStyle,
     numbers: &'a LocaleNumbers,
+    units: Units,
     sections: StrokeSections,
     closed: bool,
     corners: bool,
@@ -257,6 +279,16 @@ struct Body<'a> {
     event: Option<EditEvent<StrokeStyle>>,
     field: Option<StrokeField>,
     choice: Option<(String, String)>,
+    /// The last edit of the pass that fails [`StrokeStyle::validate`].
+    invalid: Option<StrokeStyle>,
+}
+
+/// The invalid edit the user last made on `base`, kept until the host's value or a valid edit
+/// replaces it (PhotoCraft's draft): the fields show it and the message names it.
+#[derive(Clone)]
+pub(super) struct Pending {
+    base: StrokeStyle,
+    style: StrokeStyle,
 }
 
 /// The event as the editor reports it: a style that fails [`StrokeStyle::validate`] is never
@@ -288,7 +320,7 @@ impl Body<'_> {
         if self.sections.contains(StrokeSections::SAMPLE) {
             self.sample(ui);
         }
-        if self.value.validate().is_err() {
+        if self.invalid.is_some() || self.value.validate().is_err() {
             ui.label(LayoutJob::single_section(self.labels.invalid.clone(), self.error.clone()));
         }
     }
@@ -296,10 +328,15 @@ impl Body<'_> {
     /// Takes the first event of the pass; a field's gesture is the only thing that reports twice.
     fn push(&mut self, field: StrokeField, event: Option<EditEvent<StrokeStyle>>) {
         if self.event.is_none()
-            && let Some(event) = event.and_then(checked)
+            && let Some(event) = event
         {
-            self.event = Some(event);
-            self.field = Some(field);
+            if let Some(style) = event.value().filter(|style| style.validate().is_err()) {
+                self.invalid = Some(style.clone());
+            }
+            if let Some(event) = checked(event) {
+                self.event = Some(event);
+                self.field = Some(field);
+            }
         }
     }
 
@@ -343,12 +380,24 @@ impl Body<'_> {
     }
 
     fn grid(&mut self, ui: &mut Ui) {
-        let (style, mixed, labels) = (self.value, self.mixed, self.labels.clone());
+        let (style, mixed, labels) = (&self.value.clone(), self.mixed, self.labels.clone());
         let solid_closed = self.closed && style.dashes.is_empty() && !mixed.dashes;
         FormGrid::new((self.id, "grid")).show(ui, |form| {
-            let align = [(StrokeAlign::Inside, &labels.inside), (StrokeAlign::Center, &labels.center), (StrokeAlign::Outside, &labels.outside)];
-            let cap = [(LineCap::Butt, &labels.butt), (LineCap::Round, &labels.round_cap), (LineCap::Square, &labels.square)];
-            let join = [(LineJoin::Miter, &labels.miter), (LineJoin::Round, &labels.round_join), (LineJoin::Bevel, &labels.bevel)];
+            let align = [
+                (StrokeAlign::Inside, Icon::StrokeAlignInside, &labels.inside),
+                (StrokeAlign::Center, Icon::StrokeAlignCenter, &labels.center),
+                (StrokeAlign::Outside, Icon::StrokeAlignOutside, &labels.outside),
+            ];
+            let cap = [
+                (LineCap::Butt, Icon::StrokeCapButt, &labels.butt),
+                (LineCap::Round, Icon::StrokeCapRound, &labels.round_cap),
+                (LineCap::Square, Icon::StrokeCapSquare, &labels.square),
+            ];
+            let join = [
+                (LineJoin::Miter, Icon::StrokeJoinMiter, &labels.miter),
+                (LineJoin::Round, Icon::StrokeJoinRound, &labels.round_join),
+                (LineJoin::Bevel, Icon::StrokeJoinBevel, &labels.bevel),
+            ];
             if let Some(v) = self.choice(form, &labels.alignment, "align", unless(mixed.align, style.align), &align, self.closed) {
                 self.set(StrokeField::Align, StrokeStyle { align: v, ..style.clone() });
             }
@@ -363,7 +412,7 @@ impl Body<'_> {
             form.set_disabled(!miter);
             let edit = form
                 .row(&labels.miter_limit, |ui, _| {
-                    let unit = Unit::new("{n}×");
+                    let unit = self.units.unit(UnitKind::Times);
                     self.number(
                         ui,
                         "miter-limit",
@@ -380,7 +429,7 @@ impl Body<'_> {
             if self.sections.contains(StrokeSections::OPACITY) {
                 let edit = form
                     .row(&labels.opacity, |ui, _| {
-                        let unit = Unit::new("{n}%");
+                        let unit = self.units.unit(UnitKind::Percent);
                         self.number(ui, "opacity", &labels.opacity, f64::from(style.opacity) * 100.0, 0.0..=100.0, unit, mixed.opacity)
                     })
                     .inner;
@@ -397,7 +446,7 @@ impl Body<'_> {
         label: &str,
         salt: &'static str,
         current: Option<T>,
-        items: &[(T, &String)],
+        items: &[(T, Icon, &String)],
         enabled: bool,
     ) -> Option<T> {
         form.set_disabled(!enabled);
@@ -407,8 +456,8 @@ impl Body<'_> {
         form.row(label, |ui, _| {
             if self.sections.contains(StrokeSections::ICONS) {
                 let mut segmented = Segmented::new(id, label, &mut value);
-                for (item, name) in items {
-                    segmented = segmented.item(Some(*item), name.as_str());
+                for (item, icon, name) in items {
+                    segmented = segmented.icon_item(Some(*item), *icon, name.as_str());
                 }
                 let response = segmented.show(ui);
                 if response.changed() {
@@ -417,7 +466,7 @@ impl Body<'_> {
                 response
             } else {
                 let mut select = Select::new(id, label, &mut value).width(self.look.choice_width).placeholder(self.mixed_word.as_str());
-                for (item, name) in items {
+                for (item, _, name) in items {
                     select = select.option(Some(*item), name.as_str());
                 }
                 let edit = select.show(ui);
@@ -485,13 +534,13 @@ impl Body<'_> {
 
     fn dash_unit(&self) -> Unit {
         match self.value.dash_unit {
-            DashUnit::Widths => Unit::new("{n}×"),
-            DashUnit::Document => Unit::default(),
+            DashUnit::Widths => self.units.unit(UnitKind::Times),
+            DashUnit::Document => self.units.unit(UnitKind::Points),
         }
     }
 
     fn dashes(&mut self, ui: &mut Ui) {
-        let style = self.value;
+        let style = &self.value.clone();
         let mut state = if self.mixed.dashes {
             CheckState::Mixed
         } else if style.dashes.is_empty() {
@@ -562,7 +611,7 @@ impl Body<'_> {
     }
 
     fn sample(&self, ui: &mut Ui) {
-        let name = line_style_name(&self.labels, self.value);
+        let name = line_style_name(&self.labels, &self.value);
         let size = vec2(ui.available_width(), self.look.sample_height);
         let id = (self.id, "sample");
         let response = Interactive::salted(IdSalt::new(id), Role::Image, name)
@@ -573,7 +622,7 @@ impl Body<'_> {
             .show(ui, size);
         if ui.is_rect_visible(response.rect) {
             let look = &self.look;
-            let preview = StrokePreview::new(self.value, look.sample_stroke, look.sample_color)
+            let preview = StrokePreview::new(&self.value, look.sample_stroke, look.sample_color)
                 .closed(self.closed)
                 .inset(look.sample_inset)
                 .margin(look.sample_margin);
