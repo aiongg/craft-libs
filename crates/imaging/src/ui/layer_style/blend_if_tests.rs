@@ -2,7 +2,8 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use egui::accesskit::Role;
-use egui::{Event, Id, Key, Modifiers, PointerButton, Pos2, Rect};
+use egui::epaint::text::{FontInsert, FontPriority, InsertFontFamily};
+use egui::{Event, FontData, FontFamily, Id, Key, Modifiers, PointerButton, Pos2, Rect};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -232,10 +233,19 @@ fn blend_if_bars_of_two_entries_do_not_share_focus() {
     assert!(!h.get_by_role_and_label(Role::Slider, "White high, This Layer").is_focused());
 }
 
+/// Noto Sans Arabic cut to the Arabic-Indic digits and separators (U+0660..=U+066C), which egui's
+/// default faces lack.
+const ARABIC_DIGITS: &[u8] = include_bytes!("../../../tests/fonts/NotoSansArabic-digits.ttf");
+
 // The readout and the handles' values use the region's digits: Arabic-Indic digits for ar-EG.
 #[test]
 fn blend_if_readout_values_follow_the_locale() {
-    let mut h = Harness::builder().with_size([400.0, 200.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(|ui| {
+    let setup = |ctx: &egui::Context| {
+        install(ctx, &Base::suite_default());
+        let families = [FontFamily::Proportional, FontFamily::Monospace].map(|family| InsertFontFamily { family, priority: FontPriority::Lowest });
+        ctx.add_font(FontInsert::new("Noto Sans Arabic digits", FontData::from_static(ARABIC_DIGITS), families.into()));
+    };
+    let mut h = Harness::builder().with_size([400.0, 200.0]).with_context_setup(setup).build_ui(|ui| {
         let numbers = LocaleNumbers::from_tag("ar-EG");
         let _ = BlendIfBar::new("bar", "This Layer", BlendIfRange([0, 20, 255, 255])).numbers(&numbers).show(ui);
     });

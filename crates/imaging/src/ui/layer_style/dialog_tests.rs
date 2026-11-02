@@ -118,7 +118,7 @@ fn absent_effect_row_adds_the_effect_on() {
     h.run_steps(3);
     assert_eq!(effects(&h), [(1, EffectKind::DropShadow, true), (2, EffectKind::Satin, true)]);
     assert_eq!(h.state().draft.page, LayerStylePage::Effect(EffectId(2)));
-    assert!(h.state().events.is_empty(), "Preview is view state: nothing for the dialog's history to record");
+    assert!(matches!(h.state().events.as_slice(), [EditEvent::Set { .. }]), "one Set for the added effect");
 }
 
 // A list click changes the page without a style edit, so `Dialog::history` has nothing to record
@@ -276,5 +276,5 @@ fn preview_check_box_flips_the_drafts_preview() {
     h.run_steps(3);
     assert!(!h.state().draft.preview);
     assert_eq!(h.state().draft.render_hash(), hash);
-    assert!(matches!(h.state().events.as_slice(), [EditEvent::Set { .. }]));
+    assert!(h.state().events.is_empty(), "Preview is view state: nothing for the dialog's history to record");
 }
