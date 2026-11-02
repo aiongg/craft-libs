@@ -18,6 +18,7 @@ use super::{
 use super::{Part, ToolHostResponse, ToolInput, ToolKey, ToolNode, ToolParts, ToolPointer};
 use crate::behavior::KeyClaim;
 use crate::edit::CancelReason;
+use crate::testing::canvas;
 use crate::theme::{Base, install};
 
 type Log = Rc<RefCell<Vec<String>>>;
@@ -31,11 +32,24 @@ struct Probe {
     takes_key: bool,
     /// The reason of each `cancel` call.
     reasons: Rc<RefCell<Vec<CancelReason>>>,
+    /// Also takes the secondary button while Alt is held.
+    alt_secondary: bool,
+    /// The button and click count of each `press`.
+    presses: Rc<RefCell<Vec<(PointerButton, u32)>>>,
 }
 
 impl Probe {
     fn new(log: &Log) -> Self {
-        Self { log: log.clone(), action: ToolAction::Claimed, snap: None, autoscrolls: true, takes_key: false, reasons: Rc::default() }
+        Self {
+            log: log.clone(),
+            action: ToolAction::Claimed,
+            snap: None,
+            autoscrolls: true,
+            takes_key: false,
+            reasons: Rc::default(),
+            alt_secondary: false,
+            presses: Rc::default(),
+        }
     }
 
     fn note(&self, what: &str, p: Option<&ToolPointer>) {
@@ -47,7 +61,12 @@ impl Probe {
 impl CanvasTool for Probe {
     fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
         self.note("press", Some(pointer));
+        self.presses.borrow_mut().push((pointer.button, pointer.clicks));
         self.action
+    }
+
+    fn takes(&self, button: PointerButton, modifiers: Modifiers) -> bool {
+        button == PointerButton::Primary || (self.alt_secondary && button == PointerButton::Secondary && modifiers.alt)
     }
 
     fn drag(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
@@ -333,7 +352,11 @@ fn injected_input_drives_the_tool_like_the_pointer() {
     let view = h.state().view;
     let (da, db) = (view.to_doc(a), view.to_doc(b));
     let m = Modifiers::NONE;
-    ToolHost::inject(&h.ctx, id, ToolInput::Down { doc: da, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m });
+    ToolHost::inject(
+        &h.ctx,
+        id,
+        ToolInput::Down { button: egui::PointerButton::Primary, doc: da, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m },
+    );
     h.step();
     assert!(ToolHost::in_gesture(&h.ctx, id));
     ToolHost::inject(&h.ctx, id, ToolInput::Move { doc: db, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m });
@@ -824,7 +847,7 @@ fn page_keys_that_pick_a_part_do_not_reach_the_tool_and_parts_focused_follows_th
 }
 
 // Esc reaches the tool's `cancel` as `Escape`, and the app's own reason through `ToolHost::cancel`
-// as given. (A lost pointer, `FocusLost`, cannot be produced with kittest's input.)
+// as given; a button that went up unseen reaches it as `FocusLost`.
 #[test]
 fn each_cancel_reason_reaches_the_tool() {
     let one = |act: &dyn Fn(&mut Harness<'static, Rig>)| {
@@ -845,6 +868,44 @@ fn each_cancel_reason_reaches_the_tool() {
         }),
         [CancelReason::UndoDuringGesture]
     );
+    assert_eq!(one(&|h| canvas::lose_pointer(h, pos2(140.0, 120.0), PointerButton::Primary)), [CancelReason::FocusLost]);
+}
+
+// An injected press of a button the tool does not take (here the secondary one without Alt) starts
+// nothing; with Alt the tool takes it and the press carries the button.
+#[test]
+fn an_injected_press_of_an_untaken_button_starts_nothing() {
+    let calls = Log::default();
+    let probe = Probe { alt_secondary: true, ..Probe::new(&calls) };
+    let presses = probe.presses.clone();
+    let mut h = harness(Rig::new(probe), 0.05);
+    let id = h.state().id.expect("a pass ran");
+    let down = |button, modifiers| ToolInput::Down { button, doc: Point::new(120.0, 90.0), pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers };
+    ToolHost::inject(&h.ctx, id, down(PointerButton::Secondary, Modifiers::NONE));
+    h.step();
+    assert!(log(&calls).is_empty(), "{:?}", log(&calls));
+    assert!(!ToolHost::in_gesture(&h.ctx, id));
+    ToolHost::inject(&h.ctx, id, down(PointerButton::Secondary, Modifiers::ALT));
+    h.step();
+    assert!(ToolHost::in_gesture(&h.ctx, id));
+    assert_eq!(*presses.borrow(), [(PointerButton::Secondary, 1)]);
+}
+
+// Alt + right press, then a left press within the double-click time: the left press begins a new
+// click run.
+#[test]
+fn a_press_of_another_button_starts_a_new_click_run() {
+    let probe = Probe { alt_secondary: true, ..Probe::new(&Log::default()) };
+    let presses = probe.presses.clone();
+    let mut h = harness(Rig::new(probe), 0.05);
+    let at = pos2(100.0, 100.0);
+    canvas::press_button(&mut h, at, PointerButton::Secondary, Modifiers::ALT);
+    canvas::release_button(&mut h, at, PointerButton::Secondary, Modifiers::ALT);
+    canvas::press(&mut h, at, Modifiers::NONE);
+    canvas::release(&mut h, at, Modifiers::NONE);
+    canvas::press(&mut h, at, Modifiers::NONE);
+    canvas::release(&mut h, at, Modifiers::NONE);
+    assert_eq!(*presses.borrow(), [(PointerButton::Secondary, 1), (PointerButton::Primary, 1), (PointerButton::Primary, 2)]);
 }
 
 // The group and each part are in the AccessKit tree with the tool's names and values; the picked

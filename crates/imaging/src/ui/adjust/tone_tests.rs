@@ -106,14 +106,34 @@ fn tone_pick_tool_reports_the_sample_for_the_armed_picker() {
         h.step();
     };
     let at = Point::new(100.0, 50.0);
-    input(&mut h, ToolInput::Down { doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: egui::Modifiers::NONE });
+    input(
+        &mut h,
+        ToolInput::Down {
+            button: egui::PointerButton::Primary,
+            doc: at,
+            pressure: 1.0,
+            tilt: [0.0; 2],
+            rotation: 0.0,
+            modifiers: egui::Modifiers::NONE,
+        },
+    );
     input(&mut h, ToolInput::Up { doc: at, modifiers: egui::Modifiers::NONE });
     let Some(pick) = h.state_mut().tool.take() else { panic!("a press on the image reports a pick") };
     assert_eq!((pick.picker, pick.at, pick.color), (TonePicker::White, [100.0, 50.0], Srgba::rgb(0.25, 0.0, 0.0)));
     assert_eq!(h.state_mut().tool.take(), None::<TonePick>, "a pick is taken once");
 
     let off = Point::new(350.0, 50.0);
-    input(&mut h, ToolInput::Down { doc: off, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: egui::Modifiers::NONE });
+    input(
+        &mut h,
+        ToolInput::Down {
+            button: egui::PointerButton::Primary,
+            doc: off,
+            pressure: 1.0,
+            tilt: [0.0; 2],
+            rotation: 0.0,
+            modifiers: egui::Modifiers::NONE,
+        },
+    );
     input(&mut h, ToolInput::Up { doc: off, modifiers: egui::Modifiers::NONE });
     assert_eq!(h.state_mut().tool.take(), None, "off the image nothing is reported");
 }

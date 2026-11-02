@@ -120,7 +120,7 @@ fn point(x: f64, y: f64) -> Point {
 }
 
 fn down<T>(h: &mut Harness<'_, Rig<T>>, at: Point, modifiers: Modifiers) {
-    input(h, ToolInput::Down { doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
+    input(h, ToolInput::Down { button: egui::PointerButton::Primary, doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
 }
 
 fn move_to<T>(h: &mut Harness<'_, Rig<T>>, at: Point, modifiers: Modifiers) {

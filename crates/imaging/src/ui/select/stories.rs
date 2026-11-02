@@ -459,7 +459,14 @@ impl Step {
 
     fn input(self) -> ToolInput {
         match self.phase {
-            Phase::Down => ToolInput::Down { doc: self.at, pressure: 1.0, tilt: [0.0, 0.0], rotation: 0.0, modifiers: self.modifiers },
+            Phase::Down => ToolInput::Down {
+                button: egui::PointerButton::Primary,
+                doc: self.at,
+                pressure: 1.0,
+                tilt: [0.0, 0.0],
+                rotation: 0.0,
+                modifiers: self.modifiers,
+            },
             Phase::Move => ToolInput::Move { doc: self.at, pressure: 1.0, tilt: [0.0, 0.0], rotation: 0.0, modifiers: self.modifiers },
             Phase::Up => ToolInput::Up { doc: self.at, modifiers: self.modifiers },
         }

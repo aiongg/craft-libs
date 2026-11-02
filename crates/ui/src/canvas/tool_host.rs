@@ -400,9 +400,27 @@ pub trait CanvasTool {
 /// [`ToolHost::inject`] and delivered on the next pass as if the OS pointer did it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ToolInput {
-    Down { doc: Point, pressure: f32, tilt: [f32; 2], rotation: f32, modifiers: Modifiers },
-    Move { doc: Point, pressure: f32, tilt: [f32; 2], rotation: f32, modifiers: Modifiers },
-    Up { doc: Point, modifiers: Modifiers },
+    /// A press of `button`. The host starts nothing when the tool takes no such button with
+    /// `modifiers` ([`CanvasTool::takes`]), as for the OS pointer.
+    Down {
+        button: PointerButton,
+        doc: Point,
+        pressure: f32,
+        tilt: [f32; 2],
+        rotation: f32,
+        modifiers: Modifiers,
+    },
+    Move {
+        doc: Point,
+        pressure: f32,
+        tilt: [f32; 2],
+        rotation: f32,
+        modifiers: Modifiers,
+    },
+    Up {
+        doc: Point,
+        modifiers: Modifiers,
+    },
 }
 
 /// The gesture a tool owns: its button, the last sample it got and the raw document point of
@@ -802,11 +820,12 @@ impl Run<'_, '_> {
     }
 
     /// `press` with its place in the click run: it continues the last press's run when it comes
-    /// soon and near enough (egui's double-click delay and distance), else it starts a new one.
+    /// soon and near enough (egui's double-click delay and distance) with the same button, else it
+    /// starts a new one.
     /// The count comes from the context's one click run ([`super::claim::click_count`]), which
     /// overlays share.
     fn press_clicks(&self, press: ToolPointer) -> ToolPointer {
-        ToolPointer { clicks: super::claim::click_count(&self.ctx, press.time, press.screen), ..press }
+        ToolPointer { clicks: super::claim::click_count(&self.ctx, press.button, press.time, press.screen), ..press }
     }
 
     fn call<R>(&mut self, pointer: Option<ToolPointer>, run: impl FnOnce(&mut dyn CanvasTool, &mut ToolContext<'_>) -> R) -> R {
@@ -1059,9 +1078,11 @@ impl Run<'_, '_> {
     fn injected(&mut self, input: ToolInput, enabled: bool) {
         let own = self.state.gesture.is_none_or(|g| g.injected);
         match input {
-            ToolInput::Down { doc, pressure, tilt, rotation, modifiers } if enabled && self.state.gesture.is_none() => {
+            ToolInput::Down { button, doc, pressure, tilt, rotation, modifiers } if enabled && self.state.gesture.is_none() => {
+                if taken_button(&*self.tool, modifiers, |b| b == button).is_none() {
+                    return;
+                }
                 let pen = PenSample { pressure, tilt, rotation, eraser: false, time_ms: 0.0 };
-                let button = gesture_button(None, &*self.tool, modifiers, |_| true);
                 let p = self.sample(Pos2::ZERO, Some(doc), modifiers, Some(pen), button, true);
                 let p = self.press_clicks(p);
                 self.begin(p, true);
