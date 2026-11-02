@@ -147,12 +147,11 @@ fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
         &canvas.view,
     );
     let _ = shown;
-    if host.draft.is_some() && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
-        PenDraft::remove_last(ui.ctx(), ui.make_persistent_id("story-pen"));
-    }
+    let undo = host.draft.is_some() && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z));
     let ends = host.ends();
     let names = PenNames::of(ui);
-    let response = PenDraft::new("story-pen", host.draft.as_ref(), names).ends(&ends).units(&px, &px).show(ui, &canvas.response, &canvas.view);
+    let response =
+        PenDraft::new("story-pen", host.draft.as_ref(), names).ends(&ends).units(&px, &px).remove_last(undo).show(ui, &canvas.response, &canvas.view);
     host.apply(&response);
     ui.data_mut(|d| d.insert_temp(key, host));
 }
@@ -261,13 +260,10 @@ fn run_pen(ui: &mut Ui, host: &mut PenHost, view: ViewArgs, salt: &str, mode: Pe
         shown = shown.path_options(options);
     }
     let _ = shown.show(ui, &canvas.response, &canvas.view);
-    let id = ui.make_persistent_id(salt);
-    if host.draft.is_some() && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
-        PenDraft::remove_last(ui.ctx(), id);
-    }
+    let undo = host.draft.is_some() && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z));
     let ends = host.ends();
     let names = PenNames::of(ui);
-    let mut pen = PenDraft::new(salt, host.draft.as_ref(), names).mode(mode).auto_add_delete(auto).ends(&ends).units(&px, &px);
+    let mut pen = PenDraft::new(salt, host.draft.as_ref(), names).mode(mode).auto_add_delete(auto).ends(&ends).units(&px, &px).remove_last(undo);
     if let Some(options) = options {
         pen = pen.path_options(options);
     }
