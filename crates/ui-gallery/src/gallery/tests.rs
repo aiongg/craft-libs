@@ -499,6 +499,7 @@ fn drawn_past_their_tile(width: f32) -> Tried {
                 let config = Tiles {
                     one_column: false,
                     overview: true,
+                    cull: false,
                     selectable: false,
                     selected: None,
                     buttons: false,
@@ -548,4 +549,48 @@ fn no_story_paints_past_its_overview_tile() {
 fn no_overview_tile_is_wider_than_its_column() {
     let wider: Vec<_> = drawn_past_their_tile(super::tiles::TILE_MIN_WIDTH).wider.into_iter().filter(|(id, _)| !FIXED_WIDTH.contains(id)).collect();
     assert!(wider.is_empty(), "stories whose tile outgrows a {} pt column: {wider:?}", super::tiles::TILE_MIN_WIDTH);
+}
+
+/// The names of the Overview's "Select ..." tiles in a frame, with the top of each.
+fn drawn_tiles(ctx: &egui::Context, gallery: &mut Gallery, height: f32) -> Vec<(String, f32)> {
+    let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, height))), ..Default::default() };
+    let output = ctx.run_ui(input, |ui| gallery.show(ui));
+    let tree = output.platform_output.accesskit_update.as_ref().and_then(craft_ui::inspect::AccessTree::from_update);
+    output.drop_without_applying_deltas();
+    let tree = tree.unwrap();
+    tree.walk(tree.root())
+        .into_iter()
+        .filter_map(|(id, _)| {
+            let name = tree.name(id)?;
+            let name = name.strip_prefix("Select ")?.to_owned();
+            Some((name, tree.node(id)?.bounds()?.y0 as f32))
+        })
+        .collect()
+}
+
+#[test]
+fn an_overview_tile_far_below_the_fold_is_not_drawn_until_it_is_scrolled_to() {
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    // The first frame has no remembered row heights, so it draws every tile.
+    let first = drawn_tiles(&ctx, &mut gallery, 300.0);
+    let (last, _) = first.iter().max_by(|a, b| a.1.total_cmp(&b.1)).cloned().unwrap();
+    let mut later = Vec::new();
+    for _ in 0..3 {
+        later = drawn_tiles(&ctx, &mut gallery, 300.0);
+    }
+    assert!(later.len() < first.len(), "tiles far outside the window are skipped: {} of {}", later.len(), first.len());
+    assert!(later.iter().all(|(name, _)| *name != last), "{last} is far below the fold");
+    let component = gallery.stories.iter().find(|s| s.component == last).unwrap().component;
+    gallery.select_component(component);
+    let mut after = Vec::new();
+    for _ in 0..60 {
+        after = drawn_tiles(&ctx, &mut gallery, 300.0);
+    }
+    assert!(
+        after.iter().any(|(name, _)| *name == last),
+        "{last} is drawn once it is scrolled to: {:?}",
+        after.iter().map(|a| a.1).collect::<Vec<_>>()
+    );
 }

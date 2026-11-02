@@ -361,6 +361,7 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
                             selectable: false,
                             selected: None,
                             overview: false,
+                            cull: false,
                             buttons: false,
                             scale_of_selected: false,
                             scroll_to: &mut scroll_to,
