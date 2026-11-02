@@ -217,7 +217,7 @@ fn show_constraints(ui: &mut Ui, args: &mut ConstraintsArgs) {
     let out = kept.workspace.show(ui.ctx(), &Geometry(lens), &source);
     // The fake solve is instant: every ticket is answered in the pass that asked it.
     if let Some(ticket) = out.preview_wanted {
-        kept.workspace.preview_ready(ticket);
+        kept.workspace.preview_ready(ticket, None);
     }
     if out.outcome.is_some_and(Outcome::closes) {
         dialog_closed(ui, &mut args.open);

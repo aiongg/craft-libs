@@ -6,6 +6,7 @@ use craft_ui::behavior::nudge::NudgeKeys;
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasTool, CursorHost, Part, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
 use craft_ui::edit::CancelReason;
+use craft_ui::theme::UiTokens;
 
 use super::WideAngleLabels;
 use super::session::{ConstraintOrientation, WideAngleConstraint, WideAngleConstraintEdit, WideAngleGeometry, WideAngleSession};
@@ -30,6 +31,11 @@ pub struct ConstraintTool {
 impl ConstraintTool {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The marks' look and reach in `tokens`.
+    pub fn style(tokens: &UiTokens) -> WideAngleStyle {
+        WideAngleStyle::of(tokens)
     }
 
     /// The tool for this pass over `session` (read only: edits are reported) and the app's
@@ -93,14 +99,15 @@ impl ConstraintTool {
 
 /// [`ConstraintTool`] as the `CanvasTool` of one pass (A).
 ///
-/// - A drag draws a constraint from the press to the pointer (a 2 pt line in the accent while it
+/// - A drag draws a constraint from the press to the pointer (a 2 pt line in `wide_angle.drawing` while it
 ///   runs); on release it is added when longer than 6 screen points
 ///   ([`WideAngleConstraint::from_drag`](super::WideAngleConstraint::from_drag) with Shift at
 ///   the release).
 /// - A secondary click opens the menu for the constraint whose curve passes nearest the click
 ///   within `wide_angle.hit` (10 points): `menu_for` is set; elsewhere nothing.
 /// - Keyboard parts: each constraint is a part ("Constraint 2, Horizontal"); Page picks, arrows
-///   move it one document pixel (Shift ten) as `WideAngleConstraintEdit::Move`, Delete and
+///   move it one document pixel (Shift ten) while the parts group has the keyboard
+///   (`ToolContext::parts_focused`) and do nothing otherwise, as `WideAngleConstraintEdit::Move`, Delete and
 ///   Backspace delete it.
 /// - Paint: each constraint as its curve ([`WideAngleGeometry::arc`], 24 segments; through
 ///   [`WideAngleGeometry::corrected`] over the corrected preview), `wide_angle.line` (2) in the
@@ -263,8 +270,9 @@ impl CanvasTool for ConstraintToolPass<'_> {
         self.tool.drag = None;
     }
 
-    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
-        // new: arrows move and Delete removes the picked constraint (lead call 49).
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+        // new: arrows move the picked constraint while the parts group has the keyboard, and Delete
+        // removes it (lead call 49); with the canvas focused instead, arrows do nothing.
         let count = self.session.constraints.len();
         let Some(index) = self.tool.picked.filter(|&i| i < count) else { return false };
         if !key.pressed || self.tool.drag.is_some() {
@@ -274,6 +282,9 @@ impl CanvasTool for ConstraintToolPass<'_> {
             self.tool.edits.push(WideAngleConstraintEdit::Delete(index));
             self.tool.picked = (count > 1).then(|| index.min(count - 2));
             return true;
+        }
+        if !cx.parts_focused {
+            return false;
         }
         let Some(nudge) = NudgeKeys::new().from_key(key) else { return false };
         self.tool.edits.push(WideAngleConstraintEdit::Move { index, by: [nudge.by.x, nudge.by.y] });
@@ -302,7 +313,7 @@ impl CanvasTool for ConstraintToolPass<'_> {
                     .map(|q| Point::new(q.x / self.scale[0], q.y / self.scale[1]))
                     .collect(),
             );
-            self.line(painter, points, self.style.free);
+            self.line(painter, points, self.style.drawing);
         }
     }
 

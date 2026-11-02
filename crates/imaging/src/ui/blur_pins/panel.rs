@@ -6,7 +6,7 @@ use egui::{AsIdSalt, IdSalt, Response, Ui, UiBuilder};
 use craft_theme::TypeRole;
 use craft_ui::composites::SliderRow;
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
 use craft_ui::primitives::{Content, Gap, Stack, Text};
 
 use super::BlurPinsLabels;
@@ -28,18 +28,26 @@ pub struct BlurPinsPanelOutput {
 pub struct BlurPinsPanel<'a> {
     id_salt: IdSalt,
     pins: &'a mut BlurPins,
-    labels: &'a BlurPinsLabels,
+    labels: Option<BlurPinsLabels>,
 }
 
 impl<'a> BlurPinsPanel<'a> {
-    pub fn new(id_salt: impl AsIdSalt, pins: &'a mut BlurPins, labels: &'a BlurPinsLabels) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), pins, labels }
+    pub fn new(id_salt: impl AsIdSalt, pins: &'a mut BlurPins) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), pins, labels: None }
+    }
+
+    /// The words; default [`BlurPinsLabels::of`] the context's language.
+    pub fn labels(mut self, labels: BlurPinsLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn show(self, ui: &mut Ui) -> BlurPinsPanelOutput {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:398 `body` (the slider, the hints).
         let Self { id_salt, pins, labels } = self;
         let id = ui.make_persistent_id(id_salt);
+        let labels = labels.unwrap_or_else(|| BlurPinsLabels::of(ui));
+        let units = Units::of(ui);
         let numbers = LocaleNumbers::of(ui);
         let kind = pins.kind;
         let mut edit = None;
@@ -49,11 +57,12 @@ impl<'a> BlurPinsPanel<'a> {
                 let selected = pins.selected.and_then(|index| pins.pins.get(index).map(|pin| (index, pin.amount)));
                 match selected {
                     Some((index, amount)) => {
-                        let (label, unit) = if kind == BlurKind::Spin { (&labels.blur_angle, "{n}°") } else { (&labels.blur, "{n} px") };
+                        let (label, unit) =
+                            if kind == BlurKind::Spin { (&labels.blur_angle, UnitKind::Degrees) } else { (&labels.blur, UnitKind::Pixels) };
                         let row = SliderRow::new((id, "amount"), label.as_str(), amount, 0.0..=kind.max(), &numbers)
                             .decimals(0)
                             .step(1.0)
-                            .unit(Unit::new(unit))
+                            .unit(units.unit(unit))
                             .show(ui);
                         for event in row.edits() {
                             if let Some(&value) = event.value() {

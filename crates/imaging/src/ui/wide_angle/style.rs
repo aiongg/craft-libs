@@ -24,13 +24,16 @@ pub struct WideAngleStyle {
     pub horizontal: Color32,
     pub vertical: Color32,
     /// The halo under each line (the cue's contrast against the image): `wide_angle.halo`, black
-    /// at 160 alpha, 2.5 wider than the line (as Vanishing Point's).
+    /// at 160 alpha unless a theme pins it, 2.5 wider than the line (as Vanishing Point's).
     pub halo: Color32,
     pub halo_width: f32,
+    /// The constraint being drawn: `wide_angle.drawing`, the semantic `accent.soft` (PhotoCraft's
+    /// `accent_soft`).
+    pub drawing: Color32,
 }
 
 impl WideAngleStyle {
-    pub fn of(tokens: &UiTokens) -> WideAngleStyle {
+    pub(crate) fn of(tokens: &UiTokens) -> WideAngleStyle {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:331-356 (2 pt lines, 3.5 pt dots, the
         // three colours).
         let w = &tokens.component.wide_angle;
@@ -44,6 +47,7 @@ impl WideAngleStyle {
             vertical: tokens.color.status.bad.fg.to_egui(),
             halo: w.halo.to_egui(),
             halo_width: w.halo_width,
+            drawing: w.drawing.to_egui(),
         }
     }
 }

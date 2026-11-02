@@ -1,6 +1,8 @@
-//! The blur pins' marks: dots, the amount ring, shape handles and the grab reach. The same at every Size (they sit on the image). The colours are the semantic `overlay.handle_fill`, `overlay.halo` and `accent`.
+//! The blur pins' marks: dots, the amount ring, shape handles and the grab reach. The same at every Size (they sit on the image). The marks are the semantic `overlay.handle_fill` and the amount arc `accent`; the halo under them is overridable.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
+use crate::color::Rgba;
+use crate::tokens::{ColorToken as T, TokenRef};
 use crate::values;
 
 /// The blur pins' marks.
@@ -39,15 +41,20 @@ pub struct BlurPinsTokens {
     pub turn_extra: f32,
     /// The rounding square's corner radius: `blur_pins.round_corner`.
     pub round_corner: f32,
+    /// The halo under the marks: `blur_pins.halo`, the semantic `overlay.halo`.
+    pub halo: Rgba,
 }
 
-/// This family has no overridable field: its sizes come from the code, as every size does.
+/// An overridable blur pins field. Path: `halo`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum BlurPinsField {}
+pub enum BlurPinsField {
+    /// `blur_pins.halo`
+    Halo,
+}
 
 impl Family for BlurPinsTokens {
     type Field = BlurPinsField;
-    const FIELDS: &'static [BlurPinsField] = &[];
+    const FIELDS: &'static [BlurPinsField] = &[BlurPinsField::Halo];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { BlurPinsTokens;
         "dot" 0.5..=32.0 => dot;
         "grab" 0.0..=64.0 => grab;
@@ -67,7 +74,7 @@ impl Family for BlurPinsTokens {
         "round_corner" 0.0..=64.0 => round_corner;
     };
 
-    fn defaults(_: &Semantic<'_>) -> BlurPinsTokens {
+    fn defaults(s: &Semantic<'_>) -> BlurPinsTokens {
         BlurPinsTokens {
             dot: values::BLUR_PINS_DOT,
             grab: values::BLUR_PINS_GRAB,
@@ -85,31 +92,45 @@ impl Family for BlurPinsTokens {
             feather_extra: values::BLUR_PINS_FEATHER_EXTRA,
             turn_extra: values::BLUR_PINS_TURN_EXTRA,
             round_corner: values::BLUR_PINS_ROUND_CORNER,
+            halo: s.color.overlay.halo,
         }
     }
 
     fn path(f: BlurPinsField) -> String {
-        match f {}
+        match f {
+            BlurPinsField::Halo => "halo".to_owned(),
+        }
     }
 
-    fn from_path(_: &str) -> Option<BlurPinsField> {
-        None
+    fn from_path(path: &str) -> Option<BlurPinsField> {
+        (path == "halo").then_some(BlurPinsField::Halo)
     }
 
-    fn kind(f: BlurPinsField) -> FieldKind {
-        match f {}
+    fn kind(_: BlurPinsField) -> FieldKind {
+        FieldKind::Color
     }
 
     fn get(&self, f: BlurPinsField) -> OverrideValue {
-        match f {}
+        match f {
+            BlurPinsField::Halo => OverrideValue::Color(self.halo),
+        }
     }
 
-    fn set(&mut self, f: BlurPinsField, _: OverrideValue) {
-        match f {}
+    fn set(&mut self, f: BlurPinsField, v: OverrideValue) {
+        if let OverrideValue::Color(c) = v {
+            match f {
+                BlurPinsField::Halo => self.halo = c,
+            }
+        }
     }
 
-    // No colours of its own: it draws in semantic tokens.
+    /// The amount arc is the accent over the halo: 3:1 (4.5:1 with high contrast).
     fn pairs() -> Vec<ContrastPair> {
-        Vec::new()
+        vec![ContrastPair {
+            fg: TokenRef::Color(T::AccentSolid),
+            bg: TokenRef::Component(ComponentField::BlurPins(BlurPinsField::Halo)),
+            minimum: values::NON_TEXT_MIN,
+            alternate: None,
+        }]
     }
 }

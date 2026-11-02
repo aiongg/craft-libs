@@ -3183,13 +3183,14 @@ fn vanishing_point_lines(out: &mut Lines, t: &VanishingPointTokens) {
 }
 
 fn wide_angle_lines(out: &mut Lines, t: &WideAngleTokens) {
-    let WideAngleTokens { line, end, hit, min_drag, halo_width, halo } = t;
+    let WideAngleTokens { line, end, hit, min_drag, halo_width, halo, drawing } = t;
     out.line("wide_angle.line", len(*line));
     out.line("wide_angle.end", len(*end));
     out.line("wide_angle.hit", len(*hit));
     out.line("wide_angle.min_drag", len(*min_drag));
     out.line("wide_angle.halo_width", len(*halo_width));
     out.line("wide_angle.halo", hex(*halo));
+    out.line("wide_angle.drawing", hex(*drawing));
 }
 
 fn blur_pins_lines(out: &mut Lines, t: &BlurPinsTokens) {
@@ -3210,6 +3211,7 @@ fn blur_pins_lines(out: &mut Lines, t: &BlurPinsTokens) {
         feather_extra,
         turn_extra,
         round_corner,
+        halo,
     } = t;
     out.line("blur_pins.dot", len(*dot));
     out.line("blur_pins.grab", len(*grab));
@@ -3227,6 +3229,7 @@ fn blur_pins_lines(out: &mut Lines, t: &BlurPinsTokens) {
     out.line("blur_pins.feather_extra", len(*feather_extra));
     out.line("blur_pins.turn_extra", len(*turn_extra));
     out.line("blur_pins.round_corner", len(*round_corner));
+    out.line("blur_pins.halo", hex(*halo));
 }
 
 fn liquify_lines(out: &mut Lines, t: &LiquifyTokens) {

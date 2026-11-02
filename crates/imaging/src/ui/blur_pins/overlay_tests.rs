@@ -10,7 +10,7 @@ use craft_ui::canvas::kurbo::Point;
 use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, install};
 
-use super::{BlurKind, BlurPin, BlurPins, BlurPinsLabels, BlurPinsOverlay, BlurPinsPanel};
+use super::{BlurKind, BlurPin, BlurPins, BlurPinsOverlay, BlurPinsPanel};
 
 const BOUNDS: [f64; 4] = [0.0, 0.0, 400.0, 300.0];
 
@@ -170,20 +170,26 @@ fn blur_pins_are_keyboard_parts() {
     assert!((h.state().pins.pins[1].x - x - 11.0 / 400.0).abs() < 1e-9, "Shift moves ten");
 }
 
+// A Spin Blur pin's part is named with its angle and the degree unit.
+#[test]
+fn spin_pins_are_named_with_their_angle() {
+    let h = overlay(pins_of(BlurKind::Spin, &[90.0]));
+    assert!(h.query_by_label("Pin 1, Blur Angle 90°").is_some());
+}
+
 struct PanelHost {
     pins: BlurPins,
-    labels: BlurPinsLabels,
     edits: usize,
 }
 
 fn panel(pins: BlurPins) -> Harness<'static, PanelHost> {
-    let host = PanelHost { pins, labels: BlurPinsLabels::default(), edits: 0 };
+    let host = PanelHost { pins, edits: 0 };
     let mut h = Harness::<PanelHost>::builder()
         .with_size([320.0, 400.0])
         .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
         .build_ui_state(
             |ui, host: &mut PanelHost| {
-                host.edits += usize::from(BlurPinsPanel::new("rows", &mut host.pins, &host.labels).show(ui).edit.is_some());
+                host.edits += usize::from(BlurPinsPanel::new("rows", &mut host.pins).show(ui).edit.is_some());
             },
             host,
         );

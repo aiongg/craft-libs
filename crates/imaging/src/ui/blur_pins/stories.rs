@@ -142,7 +142,7 @@ fn show(ui: &mut Ui, salt: &'static str, signature: Vec<f64>, build: impl FnOnce
         let width = ui.available_width();
         let (area, view) = image.canvas(ui, ("blur-pins-story", salt), width, None, None);
         let canvas = ui.interact(area.rect, ui.make_persistent_id(("blur-pins-story-canvas", salt)), Sense::click_and_drag() - Sense::FOCUSABLE);
-        let out = BlurPinsOverlay::new(("pins", salt), &mut kept.pins).labels(&labels).show(ui, &canvas, &view);
+        let out = BlurPinsOverlay::new(("pins", salt), &mut kept.pins).labels(labels.clone()).show(ui, &canvas, &view);
         if let Some(edit) = &out.edit {
             kept.edit = Some(match edit {
                 craft_ui::edit::EditEvent::Begin { .. } => "begin",
@@ -154,7 +154,7 @@ fn show(ui: &mut Ui, salt: &'static str, signature: Vec<f64>, build: impl FnOnce
         }
 
         let ui = &mut columns[1];
-        BlurPinsPanel::new(("pin-rows", salt), &mut kept.pins, &labels).show(ui);
+        BlurPinsPanel::new(("pin-rows", salt), &mut kept.pins).labels(labels).show(ui);
         let what = match kept.edit {
             Some("begin") => &words.begin,
             Some("update") => &words.update,

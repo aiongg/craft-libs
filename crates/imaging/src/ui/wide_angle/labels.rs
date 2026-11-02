@@ -10,13 +10,14 @@ craft_ui::words! {
         constraint_tool: "wideAngle.constraintTool" = "Constraint Tool";
         hand: "wideAngle.hand" = "Hand Tool";
         zoom: "wideAngle.zoom" = "Zoom Tool";
-        settings: "wideAngle.settings" = "Settings";
         correction: "wideAngle.correction" = "Correction";
         auto: "wideAngle.auto" = "Auto";
         fisheye: "wideAngle.fisheye" = "Fisheye";
         perspective: "wideAngle.perspective" = "Perspective";
         full_spherical: "wideAngle.fullSpherical" = "Full Spherical";
         scale: "wideAngle.scale" = "Scale";
+        /// Focal Length's unit; `{n}` the length.
+        millimetres: "wideAngle.millimetres" = "{n} mm";
         focal_length: "wideAngle.focalLength" = "Focal Length";
         crop_factor: "wideAngle.cropFactor" = "Crop Factor";
         orientation: "wideAngle.orientation" = "Orientation";
