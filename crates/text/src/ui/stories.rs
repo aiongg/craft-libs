@@ -33,14 +33,14 @@ struct EditorArgs {
 }
 
 /// `patterns/text-editor/canvas`, `patterns/character/controls`, `patterns/character/paragraph`,
-/// `patterns/text-styles/panel`, `patterns/check-spelling/dialog`.
+/// `patterns/text-styles-panel/panel`, `patterns/check-spelling-dialog/dialog`.
 pub fn stories() -> Vec<Story> {
     vec![
-        typed_story!("patterns/text-editor/canvas", Level::Patterns, "Text editor", "Canvas", EditorArgs { marked: false }, text_editor),
+        typed_story!("patterns/text-editor/canvas", Level::Patterns, "TextEditor", "Canvas", EditorArgs { marked: false }, text_editor),
         typed_story!("patterns/character/controls", Level::Patterns, "Character", "Controls", NoArgs {}, character_controls),
         typed_story!("patterns/character/paragraph", Level::Patterns, "Character", "Paragraph", NoArgs {}, paragraph_controls),
-        typed_story!("patterns/text-styles/panel", Level::Patterns, "Text styles", "Panel", NoArgs {}, text_styles),
-        typed_story!("patterns/check-spelling/dialog", Level::Patterns, "Check spelling", "Dialog", NoArgs {}, check_spelling),
+        typed_story!("patterns/text-styles-panel/panel", Level::Patterns, "TextStylesPanel", "Panel", NoArgs {}, text_styles),
+        typed_story!("patterns/check-spelling-dialog/dialog", Level::Patterns, "CheckSpellingDialog", "Dialog", NoArgs {}, check_spelling),
     ]
 }
 

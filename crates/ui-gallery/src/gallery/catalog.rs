@@ -44,6 +44,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_component_name_is_a_pascal_case_identifier() {
+        let bad: std::collections::BTreeSet<String> = stories()
+            .iter()
+            .map(|s| s.component)
+            .filter(|c| {
+                let mut chars = c.chars();
+                !(chars.next().is_some_and(|f| f.is_ascii_uppercase()) && chars.all(|c| c.is_ascii_alphanumeric()))
+            })
+            .map(|c| format!("{c}"))
+            .collect();
+        assert!(bad.is_empty(), "component names that are not PascalCase identifiers: {bad:?}");
+    }
+
+    #[test]
     fn the_nav_lists_each_levels_components_alphabetically() {
         let mut stories = craft::story::all();
         stories.extend(faces::stories());

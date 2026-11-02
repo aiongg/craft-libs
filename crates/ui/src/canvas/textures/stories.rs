@@ -29,7 +29,7 @@ use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Texture cache", "Thumbnails", "Texture queue"];
+pub const COMPONENTS: &[&str] = &["TextureCache", "Thumbnails", "TextureQueue"];
 
 crate::words! {
     /// The words of the texture stories.
@@ -64,7 +64,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "primitives/texture-cache/cache",
             Level::Primitives,
-            "Texture cache",
+            "TextureCache",
             "Cache",
             CacheArgs { entries: 4.0, visible: 3.0 },
             show_cache
@@ -77,7 +77,7 @@ pub(crate) fn stories() -> Vec<Story> {
             ThumbnailsArgs { background: true, fit: FitArg::Contain, checker: true, hold: false },
             show_thumbnails
         ),
-        typed_story!("primitives/texture-queue/queue", Level::Primitives, "Texture queue", "Queue", QueueArgs { prefetch: true }, show_queue),
+        typed_story!("primitives/texture-queue/queue", Level::Primitives, "TextureQueue", "Queue", QueueArgs { prefetch: true }, show_queue),
     ]
 }
 

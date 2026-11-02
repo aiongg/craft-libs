@@ -335,7 +335,7 @@ impl Widget for IconButton<'_> {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Icon button"];
+pub const COMPONENTS: &[&str] = &["IconButton"];
 
 fn samples(words: &ControlStoryLabels) -> [(Icon, String); 5] {
     [
@@ -362,13 +362,13 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "controls/icon-button/plain",
             Level::Controls,
-            "Icon button",
+            "IconButton",
             "Plain",
             PlainArgs { size: SizeArg::Md, tone: ToneArg::Neutral, disabled: false, show_tooltip: true, badge: false },
             show_plain
         ),
-        typed_story!("controls/icon-button/app-icon", Level::Controls, "Icon button", "App icon", SizeDisabledArgs::default(), show_app_icon),
-        typed_story!("controls/icon-button/toggle", Level::Controls, "Icon button", "Toggle", SizeDisabledArgs::default(), show_toggle),
+        typed_story!("controls/icon-button/app-icon", Level::Controls, "IconButton", "App icon", SizeDisabledArgs::default(), show_app_icon),
+        typed_story!("controls/icon-button/toggle", Level::Controls, "IconButton", "Toggle", SizeDisabledArgs::default(), show_toggle),
     ]
 }
 

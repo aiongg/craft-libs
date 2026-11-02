@@ -28,7 +28,7 @@ use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["RulerTool", "RulerBar", "box_distances"];
+pub const COMPONENTS: &[&str] = &["RulerTool", "RulerBar", "BoxDistances"];
 
 craft_ui::words! {
     /// The status lines of the Ruler stories, English by default.
@@ -106,7 +106,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "primitives/box-distances/cases",
             Level::Primitives,
-            "box_distances",
+            "BoxDistances",
             "Cases",
             DistanceArgs { view: ViewArgs::default(), case: CaseArg::Apart, gap: 60.0, width: 100.0, height: 70.0 },
             show_distances

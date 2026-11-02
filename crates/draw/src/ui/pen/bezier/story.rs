@@ -16,7 +16,7 @@ use craft_ui::story::{Level, Story, StoryChoice, Surface, lock, shared};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Bezier paths"];
+pub const COMPONENTS: &[&str] = &["BezierTool"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum ToolArg {
@@ -74,8 +74,8 @@ impl Default for EditArgs {
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("primitives/bezier-paths/edit", Level::Primitives, "Bezier paths", "Edit", EditArgs::default(), show_paths).on(Surface::Canvas),
-        typed_story!("primitives/bezier-paths/curvature", Level::Primitives, "Bezier paths", "Curvature", PlainArgs::default(), show_curvature)
+        typed_story!("primitives/bezier-tool/edit", Level::Primitives, "BezierTool", "Edit", EditArgs::default(), show_paths).on(Surface::Canvas),
+        typed_story!("primitives/bezier-tool/curvature", Level::Primitives, "BezierTool", "Curvature", PlainArgs::default(), show_curvature)
             .on(Surface::Canvas),
     ]
 }

@@ -17,7 +17,7 @@ Fonts tab; the standalone app
 | `axes` | `ui` | `read_axes`, `read_named_instances` and `AxisSliders`: a variable face's axes as sliders with a Style list of its named instances |
 | `picker` | `ui` | `FontPicker`: the family field with its list (stars, recents, class and feature filters, similar fonts, previews) |
 
-The stories (`patterns/font-picker/*`, `patterns/glyphs-panel/panel`, `patterns/missing-fonts/dialog`, `composites/font-axes/sliders`) use the two faces egui ships.
+The stories (`patterns/font-picker/*`, `patterns/glyphs-panel/panel`, `patterns/missing-fonts-dialog/dialog`, `composites/axis-sliders/sliders`) use the two faces egui ships.
 
 ## The panel
 

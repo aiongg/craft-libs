@@ -16,7 +16,7 @@ use craft_ui::typed_story;
 use egui::Color32;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Pen draft", "Path options"];
+pub const COMPONENTS: &[&str] = &["PenDraft", "PathOptionsPopover"];
 
 #[derive(StoryArgs, Debug, Default, PartialEq)]
 struct CurvatureArgs {
@@ -31,13 +31,20 @@ struct CurvatureArgs {
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("primitives/pen-draft/draw", Level::Primitives, "Pen draft", "Draw", PlainArgs::default(), show_pen).on(Surface::Canvas),
-        typed_story!("primitives/pen-draft/curvature", Level::Primitives, "Pen draft", "Curvature", CurvatureArgs::default(), show_curvature)
+        typed_story!("primitives/pen-draft/draw", Level::Primitives, "PenDraft", "Draw", PlainArgs::default(), show_pen).on(Surface::Canvas),
+        typed_story!("primitives/pen-draft/curvature", Level::Primitives, "PenDraft", "Curvature", CurvatureArgs::default(), show_curvature)
             .on(Surface::Canvas),
-        typed_story!("primitives/pen-draft/auto-add-delete", Level::Primitives, "Pen draft", "Auto add/delete", PlainArgs::default(), show_auto)
+        typed_story!("primitives/pen-draft/auto-add-delete", Level::Primitives, "PenDraft", "Auto add/delete", PlainArgs::default(), show_auto)
             .on(Surface::Canvas),
-        typed_story!("composites/path-options/popover", Level::Composites, "Path options", "Popover", PlainArgs::default(), show_options)
-            .on(Surface::Canvas),
+        typed_story!(
+            "composites/path-options-popover/popover",
+            Level::Composites,
+            "PathOptionsPopover",
+            "Popover",
+            PlainArgs::default(),
+            show_options
+        )
+        .on(Surface::Canvas),
     ]
 }
 

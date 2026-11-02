@@ -151,40 +151,40 @@ pub(super) fn stories() -> Vec<Story> {
         typed_story!(
             "controls/chip-field/keywords",
             Level::Controls,
-            "Chip field",
+            "ChipField",
             "Keywords",
             KeywordArgs { size: SizeArg::Md, limit_lines: true, max_lines: 2, disabled: false },
             show_keywords
         ),
-        typed_story!("controls/chip-field/filters", Level::Controls, "Chip field", "Filters", SizeDisabledArgs::default(), show_filters),
-        typed_story!("controls/tree-picker/albums", Level::Controls, "Tree picker", "Albums", SizeDisabledArgs::default(), show_albums),
-        typed_story!("controls/icon-picker/icons", Level::Controls, "Icon picker", "Icons", NoArgs {}, show_icons),
-        typed_story!("controls/linked-fields/size", Level::Controls, "Linked fields", "Size", SizeDisabledArgs::default(), show_size),
+        typed_story!("controls/chip-field/filters", Level::Controls, "ChipField", "Filters", SizeDisabledArgs::default(), show_filters),
+        typed_story!("controls/tree-picker/albums", Level::Controls, "TreePicker", "Albums", SizeDisabledArgs::default(), show_albums),
+        typed_story!("controls/icon-picker/icons", Level::Controls, "IconPicker", "Icons", NoArgs {}, show_icons),
+        typed_story!("controls/linked-fields/size", Level::Controls, "LinkedFields", "Size", SizeDisabledArgs::default(), show_size),
         typed_story!(
             "controls/linked-fields/clone-source",
             Level::Controls,
-            "Linked fields",
+            "LinkedFields",
             "Clone source",
             SizeDisabledArgs::default(),
             show_clone_source
         ),
-        typed_story!("controls/linked-fields/margins", Level::Controls, "Linked fields", "Margins", SizeDisabledArgs::default(), show_margins),
-        typed_story!("controls/preview-select/underline", Level::Controls, "Preview select", "Underline", SizeArgs::default(), show_underline),
+        typed_story!("controls/linked-fields/margins", Level::Controls, "LinkedFields", "Margins", SizeDisabledArgs::default(), show_margins),
+        typed_story!("controls/preview-select/underline", Level::Controls, "PreviewSelect", "Underline", SizeArgs::default(), show_underline),
         typed_story!(
             "controls/split-button/trace",
             Level::Controls,
-            "Split button",
+            "SplitButton",
             "Trace",
             TraceArgs { variant: VariantArg::Secondary, size: SizeArg::Md, disabled: false },
             show_trace
         ),
         typed_story!("controls/breadcrumb/path", Level::Controls, "Breadcrumb", "Path", PathArgs { width: 420.0 }, show_path),
         typed_story!("controls/rating/stars", Level::Controls, "Rating", "Stars", DisabledArgs { disabled: false }, show_stars),
-        typed_story!("controls/date-picker/picker", Level::Controls, "Date picker", "Picker", SizeDisabledArgs::default(), show_dates),
-        typed_story!("controls/alt-text/field", Level::Controls, "Alt text", "Field", AltArgs { mixed: false }, show_alt_text),
+        typed_story!("controls/date-picker/picker", Level::Controls, "DatePicker", "Picker", SizeDisabledArgs::default(), show_dates),
+        typed_story!("controls/alt-text/field", Level::Controls, "AltText", "Field", AltArgs { mixed: false }, show_alt_text),
         typed_story!("controls/autocomplete/functions", Level::Controls, "Autocomplete", "Functions", NoArgs {}, show_autocomplete),
-        typed_story!("controls/apply-row/apply-rows", Level::Controls, "Apply row", "Apply rows", SizeArgs::default(), show_apply_rows),
-        typed_story!("controls/reset-dot/fields", Level::Controls, "Reset dot", "Fields", SizeArgs::default(), show_reset_dots),
+        typed_story!("controls/apply-row/apply-rows", Level::Controls, "ApplyRow", "Apply rows", SizeArgs::default(), show_apply_rows),
+        typed_story!("controls/reset-dot/fields", Level::Controls, "ResetDot", "Fields", SizeArgs::default(), show_reset_dots),
     ]
 }
 

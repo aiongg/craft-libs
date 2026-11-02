@@ -46,26 +46,26 @@ craft_ui::words! {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Scope panel"];
+pub const COMPONENTS: &[&str] = &["ScopePanel"];
 
 /// The eight stories above.
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("patterns/scope-panel/compact", Level::Patterns, "Scope panel", "Compact", ModeArgs::default(), show_compact),
-        typed_story!("patterns/scope-panel/expanded", Level::Patterns, "Scope panel", "Expanded", ModeArgs::default(), show_expanded),
-        typed_story!("patterns/scope-panel/all-channels", Level::Patterns, "Scope panel", "All channels", ModeArgs::default(), show_all_channels),
-        typed_story!("patterns/scope-panel/colors-overlay", Level::Patterns, "Scope panel", "Colors overlay", NoArgs {}, show_colors_overlay),
+        typed_story!("patterns/scope-panel/compact", Level::Patterns, "ScopePanel", "Compact", ModeArgs::default(), show_compact),
+        typed_story!("patterns/scope-panel/expanded", Level::Patterns, "ScopePanel", "Expanded", ModeArgs::default(), show_expanded),
+        typed_story!("patterns/scope-panel/all-channels", Level::Patterns, "ScopePanel", "All channels", ModeArgs::default(), show_all_channels),
+        typed_story!("patterns/scope-panel/colors-overlay", Level::Patterns, "ScopePanel", "Colors overlay", NoArgs {}, show_colors_overlay),
         typed_story!(
             "patterns/scope-panel/adjusted-over-original",
             Level::Patterns,
-            "Scope panel",
+            "ScopePanel",
             "Adjusted over original",
             ModeArgs::default(),
             show_adjusted
         ),
-        typed_story!("patterns/scope-panel/tone-zones", Level::Patterns, "Scope panel", "Tone zones", NoArgs {}, show_tone_zones),
-        typed_story!("patterns/scope-panel/vectorscope", Level::Patterns, "Scope panel", "Vectorscope", VectorscopeArgs::default(), show_vectorscope),
-        typed_story!("patterns/scope-panel/clipping", Level::Patterns, "Scope panel", "Clipping", ClippingArgs::default(), show_clipping),
+        typed_story!("patterns/scope-panel/tone-zones", Level::Patterns, "ScopePanel", "Tone zones", NoArgs {}, show_tone_zones),
+        typed_story!("patterns/scope-panel/vectorscope", Level::Patterns, "ScopePanel", "Vectorscope", VectorscopeArgs::default(), show_vectorscope),
+        typed_story!("patterns/scope-panel/clipping", Level::Patterns, "ScopePanel", "Clipping", ClippingArgs::default(), show_clipping),
     ]
 }
 

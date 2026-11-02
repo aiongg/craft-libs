@@ -22,7 +22,7 @@ use super::{CompareCaption, CompareImage, ComparePair, CompareStyle, CompareTile
 use crate::ui::grid::TileFlag;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Compare tile"];
+pub const COMPONENTS: &[&str] = &["CompareTile"];
 
 craft_ui::words! {
     /// The sample text of the compare stories, English by default.
@@ -41,12 +41,12 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/compare-tile/pair",
             Level::Patterns,
-            "Compare tile",
+            "CompareTile",
             "Pair",
             PairArgs { right: RightState::Ready, rejected: false, flagged: true, rtl: false, height: 340.0 },
             show_pair
         ),
-        typed_story!("patterns/compare-tile/survey", Level::Patterns, "Compare tile", "Survey", SurveyArgs { count: 12, height: 360.0 }, show_survey),
+        typed_story!("patterns/compare-tile/survey", Level::Patterns, "CompareTile", "Survey", SurveyArgs { count: 12, height: 360.0 }, show_survey),
     ]
 }
 

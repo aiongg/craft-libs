@@ -1,8 +1,8 @@
-//! Stories of file thumbnails: `primitives/file-thumbnails/source`
+//! Stories of file thumbnails: `primitives/file-thumb-source/source`
 //! (`Thumbnails` over a `FileThumbSource` with a fake decoder: loading, quick preview as stand-in,
 //! stand-in during reload, Failed, Ready).
 //!
-//! The spec's id `browse/thumbs/file-source` becomes `primitives/file-thumbnails/source`: the gallery
+//! The spec's id `browse/thumbs/file-source` becomes `primitives/file-thumb-source/source`: the gallery
 //! requires a story id to start with its level.
 //!
 //! The story reads no file. The fake decoder answers `stat` itself, so the tiles name one sample
@@ -25,7 +25,7 @@ use egui::{Sense, Ui, vec2};
 use super::{DecodeRequest, DecodedThumb, FileStat, FileThumbKey, FileThumbOptions, FileThumbSource, ThumbDecoder, ThumbError};
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["File thumbnails"];
+pub const COMPONENTS: &[&str] = &["FileThumbSource"];
 
 craft_ui::words! {
     /// The words of the file thumbnail story.
@@ -49,9 +49,9 @@ craft_ui::words! {
 /// The story above.
 pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
-        "primitives/file-thumbnails/source",
+        "primitives/file-thumb-source/source",
         Level::Primitives,
-        "File thumbnails",
+        "FileThumbSource",
         "Source",
         SourceArgs { quick_previews: true },
         show_source

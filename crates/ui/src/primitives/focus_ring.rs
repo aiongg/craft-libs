@@ -219,12 +219,12 @@ fn last_modality(events: &[Event]) -> Option<bool> {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Focus ring"];
+pub const COMPONENTS: &[&str] = &["FocusRing"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("primitives/focus-ring/focus", Level::Primitives, "Focus ring", "Focus", FocusArgs { items: 4 }, show_focus),
-        typed_story!("primitives/focus-ring/ring", Level::Primitives, "Focus ring", "Ring", NoArgs {}, show_ring),
+        typed_story!("primitives/focus-ring/focus", Level::Primitives, "FocusRing", "Focus", FocusArgs { items: 4 }, show_focus),
+        typed_story!("primitives/focus-ring/ring", Level::Primitives, "FocusRing", "Ring", NoArgs {}, show_ring),
     ]
 }
 

@@ -52,14 +52,14 @@ craft_ui::words! {
 
 /// The four stories above.
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Actions panel"];
+pub const COMPONENTS: &[&str] = &["ActionsPanel"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("patterns/actions-panel/sets", Level::Patterns, "Actions panel", "Sets", NoArgs {}, show_sets),
-        typed_story!("patterns/actions-panel/recording", Level::Patterns, "Actions panel", "Recording", NoArgs {}, show_recording),
-        typed_story!("patterns/actions-panel/button-mode", Level::Patterns, "Actions panel", "Button Mode", NoArgs {}, show_button_mode),
-        typed_story!("patterns/actions-panel/empty", Level::Patterns, "Actions panel", "Empty", NoArgs {}, show_empty),
+        typed_story!("patterns/actions-panel/sets", Level::Patterns, "ActionsPanel", "Sets", NoArgs {}, show_sets),
+        typed_story!("patterns/actions-panel/recording", Level::Patterns, "ActionsPanel", "Recording", NoArgs {}, show_recording),
+        typed_story!("patterns/actions-panel/button-mode", Level::Patterns, "ActionsPanel", "Button Mode", NoArgs {}, show_button_mode),
+        typed_story!("patterns/actions-panel/empty", Level::Patterns, "ActionsPanel", "Empty", NoArgs {}, show_empty),
     ]
 }
 

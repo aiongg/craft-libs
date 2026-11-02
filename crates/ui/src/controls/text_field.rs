@@ -666,7 +666,7 @@ fn border_color(surface: &SurfaceStyle) -> Color32 {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Text field", "Search field"];
+pub const COMPONENTS: &[&str] = &["TextField", "SearchField"];
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct StatesArgs {
@@ -687,16 +687,16 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "controls/text-field/states",
             Level::Controls,
-            "Text field",
+            "TextField",
             "States",
             StatesArgs { size: SizeArg::Md, placeholder: "Layer name".into(), edit_menu: true },
             show_states
         ),
-        typed_story!("controls/text-field/event-log", Level::Controls, "Text field", "Event log", PolicyArgs::default(), show_event_log),
+        typed_story!("controls/text-field/event-log", Level::Controls, "TextField", "Event log", PolicyArgs::default(), show_event_log),
         typed_story!(
             "controls/search-field/states",
             Level::Controls,
-            "Search field",
+            "SearchField",
             "States",
             SearchArgs { size: SizeArg::Md, placeholder: "Search".into() },
             show_search_states
@@ -704,7 +704,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "controls/search-field/filter",
             Level::Controls,
-            "Search field",
+            "SearchField",
             "Filter",
             SearchArgs { size: SizeArg::Md, placeholder: "Search".into() },
             show_filter

@@ -1039,7 +1039,7 @@ pub(crate) fn fixed(v: f64, places: i32) -> f64 {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Transform box"];
+pub const COMPONENTS: &[&str] = &["TransformBox"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum ModeArg {
@@ -1104,7 +1104,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "primitives/transform-box/free-transform",
             Level::Primitives,
-            "Transform box",
+            "TransformBox",
             "Free transform",
             FreeTransformArgs::default(),
             show_transform_box
