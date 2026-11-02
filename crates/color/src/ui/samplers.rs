@@ -15,6 +15,7 @@ use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasTool, CanvasView, ToolAction, ToolContext, ToolCursor, ToolPointer};
 use craft_ui::composites::{StatusLine, Tone};
 use craft_ui::controls::Button;
+use craft_ui::edit::CancelReason;
 use craft_ui::localized::SharedLabels;
 use craft_ui::patterns::OptionsBar;
 use craft_ui::primitives::{Content, Text};
@@ -247,7 +248,7 @@ impl CanvasTool for ColorSamplerTool<'_> {
         let _ = self.samplers.move_point(index, to, self.size);
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         self.moving = None;
     }
 

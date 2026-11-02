@@ -4,6 +4,7 @@
 
 use craft_ui::canvas::kurbo::{Point, Rect, Size};
 use craft_ui::canvas::{CanvasId, CanvasView, Constraint, SelectionOperation, ToolHost, ToolInput, ToolKey};
+use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
@@ -71,7 +72,7 @@ fn rig(kind: MarqueeKind, probe: Fake) -> Harness<'static, Rig> {
             }
             let mut pass = SelectToolPass::new(&mut rig.tool, &rig.probe);
             if std::mem::take(&mut rig.cancel) {
-                let _ = ToolHost::cancel(ui.ctx(), canvas_id, &mut pass);
+                let _ = ToolHost::cancel(ui.ctx(), canvas_id, &mut pass, CancelReason::Removed);
             }
             let r = ToolHost::new(canvas_id).document(Size::new(400.0, 300.0)).show(ui, &view, &canvas, &mut pass);
             rig.id = Some(r.id);

@@ -13,6 +13,7 @@ use egui::{Color32, Context, Painter, Pos2, Shape, Stroke, vec2};
 
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolPointer};
 use craft_ui::controls::{Checkbox, Select};
+use craft_ui::edit::CancelReason;
 use craft_ui::icons::Icon;
 use craft_ui::localized::SharedLabels;
 use craft_ui::patterns::{CellWidth, OptionsBar, OptionsBarSlots};
@@ -343,7 +344,7 @@ impl CanvasTool for EyedropperTool<'_> {
         self.held = None;
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         self.held = None;
         self.picked = None;
     }

@@ -21,6 +21,7 @@
 use craft_theme::{ControlSize, Srgba};
 use craft_ui::canvas::{CanvasTool, CanvasView, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
 use craft_ui::controls::IconButton;
+use craft_ui::edit::CancelReason;
 use craft_ui::icons::Icon;
 use egui::{AsIdSalt, Context, Id, IdSalt, Key, Painter, Rect, Response, Ui};
 
@@ -254,7 +255,7 @@ impl CanvasTool for DropperTool<'_> {
         self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y]);
     }
 
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, cx: &mut ToolContext<'_>) {
         disarm_armed(&cx.canvas.ctx);
     }
 

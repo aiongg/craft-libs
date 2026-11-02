@@ -51,6 +51,7 @@ use craft_ui::canvas::kurbo::{self, Size};
 use craft_ui::canvas::{CanvasId, Checkerboard, HandTool, NavigationOptions, RasterSource, ToolHost, ZoomTool};
 use craft_ui::dialog::full_window::{FullWindowCanvas, FullWindowSide, FullWindowTitle, FullWindowView, PreviewStatus, PreviewTicket, SideFooter};
 use craft_ui::dialog::{ButtonRole, ColorRequest, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step};
+use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
 use craft_ui::localized::Labels as _;
@@ -547,8 +548,8 @@ fn cancel_gesture(
 ) {
     let (ctx, id) = (ui.ctx(), CanvasId::new(ui, CANVAS));
     match tool {
-        FillTool::Hand => ToolHost::cancel(ctx, id, hand),
-        FillTool::Zoom => ToolHost::cancel(ctx, id, zoom),
-        _ => ToolHost::cancel(ctx, id, &mut canvas.tool(tool, options, session, limits)),
+        FillTool::Hand => ToolHost::cancel(ctx, id, hand, CancelReason::Removed),
+        FillTool::Zoom => ToolHost::cancel(ctx, id, zoom, CancelReason::Removed),
+        _ => ToolHost::cancel(ctx, id, &mut canvas.tool(tool, options, session, limits), CancelReason::Removed),
     };
 }

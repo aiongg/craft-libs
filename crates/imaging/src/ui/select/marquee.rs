@@ -7,6 +7,7 @@ use craft_ui::canvas::{
     CanvasTool, Constraint, Marquee, MarqueeGesture, MarqueeLook, MarqueeRect, PointerInk, Readout, SelectionBadge, SelectionOperation, SnapGesture,
     ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer, fixed_size_pixels, marquee_pixels, selection_cursor, square_pixels,
 };
+use craft_ui::edit::CancelReason;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use egui::{CursorIcon, Key, Painter};
 
@@ -310,7 +311,7 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
 
     /// Esc, a lost pointer or a tool switch: the marquee is dropped silently; a selection drag
     /// reports its `Cancel`.
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: `InsideDrag::cancel` for a drag; nothing for a marquee.
         let tool = &mut *self.tool;
         if let Some(inside) = tool.inside.take() {

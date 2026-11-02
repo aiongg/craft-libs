@@ -12,6 +12,7 @@ use craft_theme::TypeRole;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolPointer};
 use craft_ui::controls::IconButton;
 use craft_ui::direction;
+use craft_ui::edit::CancelReason;
 use craft_ui::icons::Icon;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
@@ -239,7 +240,7 @@ impl CanvasTool for TonePickTool<'_> {
         // new: nothing to commit.
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: drops a pick not yet taken.
         self.picked = None;
     }

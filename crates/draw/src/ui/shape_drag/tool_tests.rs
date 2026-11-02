@@ -231,7 +231,7 @@ fn shape_drag_cancels_on_escape_and_on_tool_switch() {
     to(&mut h, (160.0, 140.0), Modifiers::NONE);
     let Some(id) = h.state().canvas else { panic!("a pass ran") };
     let ctx = h.ctx.clone();
-    let _ = ToolHost::cancel(&ctx, id, &mut h.state_mut().tool);
+    let _ = ToolHost::cancel(&ctx, id, &mut h.state_mut().tool, CancelReason::Removed);
     let events = h.state_mut().tool.take_events();
     assert!(matches!(events.last(), Some(ShapeDragEvent::Gesture(EditEvent::Cancel { .. }))), "{events:?}");
 

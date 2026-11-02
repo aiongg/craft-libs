@@ -230,12 +230,12 @@ impl CanvasTool for RulerPass<'_> {
     }
 
     /// Esc: Cancel; the app puts the line of the press back.
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: the edit lifecycle (decisions §2.5).
         self.tool.drag = None;
         let before = self.tool.before.take();
         if let Some(id) = self.tool.gesture.take() {
-            self.report(before, EditEvent::cancel(id, CancelReason::Escape));
+            self.report(before, EditEvent::cancel(id, reason));
         }
     }
 

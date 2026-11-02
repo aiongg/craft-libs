@@ -719,25 +719,25 @@ impl CanvasTool for VanishingPointPass<'_> {
         self.editor.pointer = p.iter().all(|v| v.is_finite()).then_some(p);
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: Esc or a lost pointer abandons the drag and puts back what the press found.
         let Some((id, drag)) = self.editor.drag.take() else { return };
         let event = match (drag, self.editor.before.take()) {
             (VanishingDrag::Stamp, Some(DragStart::Stamp(aligned))) => {
                 self.session.strokes.pop();
                 self.session.aligned_from = aligned;
-                Some(VanishingPointEvent::Stamp(EditEvent::cancel(id, CancelReason::Escape)))
+                Some(VanishingPointEvent::Stamp(EditEvent::cancel(id, reason)))
             }
             (VanishingDrag::Paste { .. }, Some(DragStart::Paste(before))) => {
                 self.session.paste = before;
-                Some(VanishingPointEvent::Paste(EditEvent::cancel(id, CancelReason::Escape)))
+                Some(VanishingPointEvent::Paste(EditEvent::cancel(id, reason)))
             }
             (_, Some(DragStart::Planes(before))) => {
                 self.session.planes = before.planes;
                 self.session.torn = before.torn;
                 let n = self.session.planes.len();
                 self.editor.selected = self.editor.selected.filter(|i| *i < n);
-                Some(VanishingPointEvent::Planes(EditEvent::cancel(id, CancelReason::Escape)))
+                Some(VanishingPointEvent::Planes(EditEvent::cancel(id, reason)))
             }
             _ => None,
         };

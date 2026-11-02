@@ -437,9 +437,9 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         }
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: Esc or a lost pointer ends the stroke without recording it (PhotoCraft has no cancel).
-        if let Some(event) = self.canvas.recorder.cancel(CancelReason::Escape) {
+        if let Some(event) = self.canvas.recorder.cancel(reason) {
             self.canvas.events.push(LiquifyEvent::Stroke(event));
         }
         if let Some((mut draft, _)) = self.canvas.lasso.take() {

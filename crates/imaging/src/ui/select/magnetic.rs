@@ -6,6 +6,7 @@ use craft_ui::canvas::{
     CanvasTool, Marquee, MarqueeLook, PointerInk, SelectionBadge, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode,
     ToolPointer, selection_cursor,
 };
+use craft_ui::edit::CancelReason;
 use craft_ui::localized::{Labels as _, Words};
 use egui::{CursorIcon, Key, Modifiers, Painter, Stroke, StrokeKind, vec2};
 use serde::{Deserialize, Serialize};
@@ -532,7 +533,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
 
     /// A lost pointer or `ToolHost::cancel` during a press: the outline stays (Esc between clicks
     /// cancels it through `key`).
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: ends an ⌥-drag as `release` would; the outline stays.
         self.tool.end_gesture();
     }

@@ -272,12 +272,12 @@ impl CanvasTool for ShapeDragTool {
         self.events.push(event);
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
-        // new: `Cancel { reason: Escape }` when a drag had begun; drops the drag.
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
+        // new: `Cancel` with the reason given when a drag had begun; drops the drag.
         if let Some(drag) = self.drag.take()
             && drag.began
         {
-            self.events.push(ShapeDragEvent::Gesture(EditEvent::cancel(drag.id, CancelReason::Escape)));
+            self.events.push(ShapeDragEvent::Gesture(EditEvent::cancel(drag.id, reason)));
         }
     }
 

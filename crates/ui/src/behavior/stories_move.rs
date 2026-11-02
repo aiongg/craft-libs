@@ -18,6 +18,7 @@ use crate::canvas::story::{DOC, ViewArgs, document};
 use crate::canvas::straight_line::{LineGuideStyle, StraightLinePreview};
 use crate::canvas::{CanvasTool, CanvasView, ToolAction, ToolContext, ToolCursor, ToolHost, ToolPointer};
 use crate::controls::{Button, TextField};
+use crate::edit::CancelReason;
 use crate::edit::EditEvent;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
@@ -269,7 +270,7 @@ impl CanvasTool for MoveTool {
         }
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         if let Some(gesture) = self.gesture.take() {
             gesture.cancel();
         }
@@ -439,7 +440,7 @@ impl CanvasTool for StrokeDemo {
         self.shift = pointer.modifiers.shift;
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         self.current.clear();
         self.gradient = None;
         if let Some(lock) = &mut self.lock {

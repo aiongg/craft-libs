@@ -2,6 +2,7 @@
 
 use craft_ui::canvas::draft::{DraftKind, DraftPoint, DraftReach, OutlineDraft, turn_to_45};
 use craft_ui::canvas::{CanvasTool, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer};
+use craft_ui::edit::CancelReason;
 use egui::{Key, Modifiers, Painter};
 
 use super::drag::{InsideDrag, PressRule, drag_kind};
@@ -184,7 +185,7 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
 
     /// Drops an ⌥-drag segment's gesture (the outline stays for Esc between clicks); a selection
     /// drag reports `Cancel`.
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: `InsideDrag::cancel`. An ⌥-drag segment ends where it is: the release keeps the outline.
         let tool = &mut *self.tool;
         if let Some(inside) = tool.inside.take() {

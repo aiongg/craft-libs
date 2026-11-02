@@ -5,6 +5,7 @@ use egui::{Key, Modifiers, Painter, Pos2, Shape, Stroke, vec2};
 use craft_ui::behavior::nudge::NudgeKeys;
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasTool, CursorHost, Part, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
+use craft_ui::edit::CancelReason;
 
 use super::WideAngleLabels;
 use super::session::{ConstraintOrientation, WideAngleConstraint, WideAngleConstraintEdit, WideAngleGeometry, WideAngleSession};
@@ -257,7 +258,7 @@ impl CanvasTool for ConstraintToolPass<'_> {
         }
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: Esc or a lost pointer drops the drag.
         self.tool.drag = None;
     }

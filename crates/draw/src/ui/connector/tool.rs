@@ -114,7 +114,7 @@ enum Phase {
     Begin,
     Update,
     Commit,
-    Cancel,
+    Cancel(CancelReason),
 }
 
 /// What a press on the selected connector took.
@@ -197,7 +197,7 @@ fn edit<T: Clone>(d: &Drag, phase: Phase, value: Option<&T>) -> Option<EditEvent
         Phase::Begin => EditEvent::begin(d.id),
         Phase::Update => EditEvent::update(d.id, value?.clone(), d.modifiers),
         Phase::Commit => EditEvent::commit(d.id, value?.clone(), d.changed, d.modifiers),
-        Phase::Cancel => EditEvent::cancel(d.id, CancelReason::Escape),
+        Phase::Cancel(reason) => EditEvent::cancel(d.id, reason),
     })
 }
 
@@ -547,7 +547,7 @@ impl CanvasTool for ConnectorTool {
             return;
         }
         // A route that can't be placed there (a reshape the geometry refuses) makes nothing.
-        let phase = if d.value.is_some() { Phase::Commit } else { Phase::Cancel };
+        let phase = if d.value.is_some() { Phase::Commit } else { Phase::Cancel(CancelReason::Escape) };
         self.events.extend(event(&d, phase));
     }
 
@@ -559,13 +559,13 @@ impl CanvasTool for ConnectorTool {
         self.plus = self.plus_at(pointer.screen, cx);
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
         // new: the running `Draw`, `Reattach` or `Reshape` reports `Cancel`; drops the drag.
         self.hover = None;
         if let Some(d) = self.drag.take()
             && d.began
         {
-            self.events.extend(event(&d, Phase::Cancel));
+            self.events.extend(event(&d, Phase::Cancel(reason)));
         }
     }
 

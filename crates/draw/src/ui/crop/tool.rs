@@ -610,7 +610,7 @@ impl CanvasTool for CropToolPass<'_> {
 
     /// Esc or a lost pointer during a drag: [`CropFrame::cancel`](super::CropFrame::cancel) puts an
     /// Image-mode view back; the frame reverts and the event is Cancel.
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:889 `restore_frame`.
         let Some(press) = self.tool.press.take() else { return };
         let id = self.tool.gesture.take().unwrap_or_else(GestureId::next);
@@ -627,7 +627,7 @@ impl CanvasTool for CropToolPass<'_> {
         }
         if press.began() {
             self.tool.session.revert();
-            self.push(CropEvent::Frame(EditEvent::cancel(id, CancelReason::Escape)));
+            self.push(CropEvent::Frame(EditEvent::cancel(id, reason)));
         }
         self.tool.synced = self.tool.session.frame();
     }

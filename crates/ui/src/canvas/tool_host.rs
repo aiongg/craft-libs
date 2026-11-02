@@ -56,6 +56,7 @@ use super::snap::{SNAP_PX, SnapGesture, SnapTargets};
 use super::view::CanvasView;
 use super::{Readout, Turn};
 use crate::behavior::{ClaimedKey, KeyClaim};
+use crate::edit::CancelReason;
 use crate::localized::LocaleNumbers;
 use crate::theme::{Tokens, TokensOf as _, UiTokens};
 
@@ -232,6 +233,11 @@ pub struct ToolContext<'a> {
     /// Caps Lock is on ([`CursorHost::caps_lock`]): the precise cursors of
     /// [`ToolCursor::brush`] and [`ToolCursor::tool`] take it.
     pub caps_lock: bool,
+    /// The tool's parts group ([`CanvasTool::parts`]) has the keyboard, as [`PartFocus`] says:
+    /// a tool uses its picked part for keys only while this is true, and otherwise treats them
+    /// as aimed at the whole object (or ignores them). Always `false` for a tool without parts
+    /// and outside a pass.
+    pub parts_focused: bool,
     requests: ToolRequests,
 }
 
@@ -309,9 +315,12 @@ pub trait CanvasTool {
     /// outlines). Default: nothing.
     fn hover(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    /// The gesture ends without a commit: Esc, the pointer lost, the host disabled, or the
-    /// app's [`ToolHost::cancel`] (a tool switch). The tool drops its drag state.
-    fn cancel(&mut self, cx: &mut ToolContext<'_>);
+    /// The gesture ends without a commit. `reason` says why: [`Escape`](CancelReason::Escape)
+    /// for Esc, [`FocusLost`](CancelReason::FocusLost) for a pointer the host lost,
+    /// [`Disabled`](CancelReason::Disabled) when the host was disabled, or the app's own reason
+    /// for [`ToolHost::cancel`] (a tool switch is [`Removed`](CancelReason::Removed)). The tool
+    /// drops its drag state and reports `reason` on the gesture's events.
+    fn cancel(&mut self, reason: CancelReason, cx: &mut ToolContext<'_>);
 
     /// A key while the canvas has the keyboard and no text field claims it. Return `true` to
     /// take it from the app's shortcuts (the pen's Delete, a marquee's arrows). Esc during a
@@ -519,6 +528,7 @@ impl<'a> ToolHost<'a> {
                 time: 0.0,
                 dt: 0.0,
                 caps_lock: CursorHost::caps_lock(&ctx),
+                parts_focused: false,
                 cursor: None,
                 readout: None,
                 keep_keys: false,
@@ -569,7 +579,7 @@ impl<'a> ToolHost<'a> {
     /// app to adopt. `None` when no gesture ran, or when the canvas was not shown in the last
     /// pass (nothing to run the tool against; the gesture is dropped).
     // pc: crates/ui-egui/src/state.rs drag = None on tool switch; tool_memory.rs.
-    pub fn cancel(ctx: &Context, canvas: CanvasId, tool: &mut dyn CanvasTool) -> Option<CanvasView> {
+    pub fn cancel(ctx: &Context, canvas: CanvasId, tool: &mut dyn CanvasTool, reason: CancelReason) -> Option<CanvasView> {
         let id = canvas.id();
         let (active, view) = ctx.data_mut(|d| {
             let stored = d.get_temp_mut_or_default::<HostState>(id);
@@ -590,11 +600,12 @@ impl<'a> ToolHost<'a> {
             time: ctx.input(|i| i.time),
             dt: ctx.input(|i| i.unstable_dt),
             caps_lock: CursorHost::caps_lock(ctx),
+            parts_focused: false,
             cursor: None,
             readout: None,
             keep_keys: false,
         };
-        pass.call(Some(active.last), |cx| tool.cancel(cx));
+        pass.call(Some(active.last), |cx| tool.cancel(reason, cx));
         pass.view_changed.then_some(pass.view)
     }
 
@@ -691,6 +702,7 @@ struct Pass<'p> {
     time: f64,
     dt: f32,
     caps_lock: bool,
+    parts_focused: bool,
     cursor: Option<ToolCursor>,
     readout: Option<Readout>,
     keep_keys: bool,
@@ -712,6 +724,7 @@ impl Pass<'_> {
             tokens: self.tokens,
             numbers: self.numbers,
             caps_lock: self.caps_lock,
+            parts_focused: self.parts_focused,
             requests: ToolRequests::default(),
         }
     }
@@ -836,10 +849,10 @@ impl Run<'_, '_> {
         }
     }
 
-    fn cancel(&mut self) {
+    fn cancel(&mut self, reason: CancelReason) {
         self.state.waiting = None;
         if let Some(active) = self.state.gesture.take() {
-            self.call(Some(active.last), |tool, cx| tool.cancel(cx));
+            self.call(Some(active.last), |tool, cx| tool.cancel(reason, cx));
             self.report(ToolGesture::Cancel);
         }
     }
@@ -911,6 +924,17 @@ impl Run<'_, '_> {
         let ctx = self.ctx.clone();
         let canvas = self.pass.canvas;
         let claim = tool_claim_id(self.resp.id.id());
+        let kept_keys = self.state.keep_keys;
+        if !enabled {
+            self.cancel(CancelReason::Disabled);
+        }
+        self.call(None, |tool, cx| tool.each_pass(cx));
+        self.glide();
+        // Before the key events are copied: the group takes its Page Up, Page Down, Home and End
+        // out of the input, so the tool does not see them a second time.
+        self.parts = self.parts_focus(ui, enabled);
+        self.pass.parts_focused = self.parts.is_some_and(|p| p.focused);
+
         let (pos, origin, button, pressed, down, released, key_events) = ctx.input(|i| {
             let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, self.pass.modifiers, |b| i.pointer.button_pressed(b));
             let key_events: Vec<ToolKey> = i
@@ -935,14 +959,6 @@ impl Run<'_, '_> {
         });
         let modifiers = self.pass.modifiers;
         let pen = self.pen;
-        let kept_keys = self.state.keep_keys;
-
-        if !enabled {
-            self.cancel();
-        }
-        self.call(None, |tool, cx| tool.each_pass(cx));
-        self.glide();
-        self.parts = self.parts_focus(ui, enabled);
 
         // A press that waited for another control's typing run.
         let waited = self.state.waiting.is_some();
@@ -984,7 +1000,7 @@ impl Run<'_, '_> {
         // The OS pointer's gesture.
         if let Some(active) = self.state.gesture.filter(|g| !g.injected) {
             if !down && !released {
-                self.cancel();
+                self.cancel(CancelReason::FocusLost);
             } else {
                 let at = pos.unwrap_or(active.last.screen);
                 let finished = released || !down;
@@ -1009,7 +1025,7 @@ impl Run<'_, '_> {
 
         // Keys. Esc ends a gesture whoever has the keyboard; other keys need the canvas to have it.
         let mut took = None;
-        let parts_focused = self.parts.is_some_and(|p| p.focused);
+        let parts_focused = self.pass.parts_focused;
         let keyboard = enabled && keys && (canvas.has_focus() || parts_focused) && !ctx.text_edit_focused();
         if keyboard {
             // egui drops the focus on Esc and moves it on the arrows unless the widget asks for them.
@@ -1018,7 +1034,7 @@ impl Run<'_, '_> {
         }
         for key in key_events {
             if enabled && keys && key.pressed && key.key == Key::Escape && self.state.gesture.is_some() {
-                self.cancel();
+                self.cancel(CancelReason::Escape);
                 took = Some(key);
             } else if keyboard {
                 let pointer = self.state.gesture.map(|g| g.last);
@@ -1154,7 +1170,7 @@ impl CanvasTool for NoTool {
 
     fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
 
     fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
 

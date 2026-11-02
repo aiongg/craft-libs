@@ -7,6 +7,7 @@ use kurbo::{Point, Rect};
 use super::{ConnectionSite, ConnectionTarget, ConnectorDraft, ConnectorEnd, ConnectorEndKind, ConnectorEvent, ConnectorItem, ConnectorTool};
 use crate::geometry::connector::{ConnectionSide, ConnectorPath, RouteEnd, Routing, route_along};
 use craft_ui::canvas::{CanvasId, CanvasView, ToolHost, ToolInput};
+use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, current, install};
 
@@ -326,7 +327,7 @@ fn connector_cancels_on_escape_and_on_tool_switch() {
     to(&mut h, (180.0, 100.0));
     let Some(id) = h.state().canvas else { panic!("a pass ran") };
     let ctx = h.ctx.clone();
-    ToolHost::cancel(&ctx, id, &mut h.state_mut().tool);
+    ToolHost::cancel(&ctx, id, &mut h.state_mut().tool, CancelReason::Removed);
     h.step();
     assert_eq!(cancels(&mut h), ["reshape"]);
 }
