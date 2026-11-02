@@ -156,3 +156,42 @@ fn the_flag_and_refresh_icons_are_drawn_in_every_set() {
         }
     }
 }
+
+/// The stroke editor's align, cap and join segments, the connector bar's routing, the Brush Settings footer (LC92) and Liquify's Twirl
+/// Counterclockwise and Push Left (LC93). Only the glyphs that stay put in right-to-left are non-directional: the canvas does not mirror.
+#[test]
+fn the_stroke_routing_footer_and_liquify_icons_resolve() {
+    let fixed = [
+        (Icon::StrokeAlignInside, "stroke_align_inside"),
+        (Icon::StrokeAlignCenter, "stroke_align_center"),
+        (Icon::StrokeAlignOutside, "stroke_align_outside"),
+        (Icon::StrokeCapButt, "stroke_cap_butt"),
+        (Icon::StrokeCapRound, "stroke_cap_round"),
+        (Icon::StrokeCapSquare, "stroke_cap_square"),
+        (Icon::StrokeJoinMiter, "stroke_join_miter"),
+        (Icon::StrokeJoinRound, "stroke_join_round"),
+        (Icon::StrokeJoinBevel, "stroke_join_bevel"),
+        (Icon::RouteStraight, "route_straight"),
+        (Icon::RouteElbow, "route_elbow"),
+        (Icon::RouteCurved, "route_curved"),
+        (Icon::SquarePlus, "square_plus"),
+        (Icon::RotateCcw, "rotate_ccw"),
+        (Icon::ArrowLeftFixed, "arrow_left_fixed"),
+    ];
+    for (icon, name) in fixed {
+        assert_eq!(icon.name(), name);
+        assert!(!icon.directional(), "{name}");
+        assert!(icon.drawn_in(IconSet::BASE), "{name}");
+    }
+    assert_eq!(Icon::Undo2.name(), "undo_2");
+    assert!(Icon::Undo2.directional());
+}
+
+#[test]
+fn liquify_and_footer_icons_are_drawn_in_every_set() {
+    for icon in [Icon::SquarePlus, Icon::Undo2, Icon::RotateCcw, Icon::ArrowLeftFixed] {
+        for set in IconSet::ALL {
+            assert!(icon.drawn_in(set), "{} in {}", icon.name(), set.id());
+        }
+    }
+}
