@@ -16,6 +16,7 @@
 use std::f64::consts::TAU;
 use std::sync::{Arc, Mutex};
 
+use craft_theme::Srgba;
 use craft_ui::canvas::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::dialog::full_window::PreviewTicket;
@@ -26,8 +27,7 @@ use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui};
 
 use super::{
-    EffectChange, FilterCatalog, FilterCategory, FilterGalleryEvent, FilterGalleryOpen, FilterGallerySession, FilterGalleryWorkspace, GalleryFilter,
-    GalleryThumb,
+    EffectChange, FilterCatalog, FilterCategory, FilterGalleryOpen, FilterGallerySession, FilterGalleryWorkspace, GalleryFilter, GalleryThumb,
 };
 use crate::ui::mock_image::MockImage;
 
@@ -284,11 +284,9 @@ fn show_workspace(ui: &mut Ui, open: &mut bool, name: &'static str, state: Optio
     let thumbs = Thumbnails::<GalleryThumb>::in_context(&ctx, "gallery-story-thumbs", ThumbnailOptions::default());
     let preview = Preview::of(kept.workspace.session(), image, kept.revision);
     let out = kept.workspace.show(&ctx, &catalog, &thumbs, &FakeThumbSource::<GalleryThumb>::new(), &preview);
-    for event in out.events {
-        // A swatch press asks the app for a colour; the story has no picker.
-        if let FilterGalleryEvent::PickColor(request) = event {
-            kept.workspace.set_color(&request, [0.2, 0.7, 0.9]);
-        }
+    // A swatch press asks the app for a color; the story has no picker.
+    if let Some(request) = out.pick_color {
+        kept.workspace.set_color(&request.key, Srgba::from_rgb_array([0.2, 0.7, 0.9]));
     }
     if let Some(ticket) = out.preview_wanted {
         kept.pending = Some(ticket);

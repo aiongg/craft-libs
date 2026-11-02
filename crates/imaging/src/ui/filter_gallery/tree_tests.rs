@@ -192,3 +192,48 @@ fn gallery_preview_shows_progress_and_drops_stale_results() {
     assert!(harness.query_by_role(Role::ProgressIndicator).is_none());
     assert!(harness.query_by_label("Preview 12 ms").is_some());
 }
+
+// ⌘Z steps the stack while a number field has the keyboard, and the field keeps its text: the
+// workspace reads the key before the body.
+#[test]
+fn gallery_undo_works_while_a_number_field_has_focus() {
+    let mut harness = harness(true);
+    harness.get_by_role_and_label(Role::Button, "SPONGE").click();
+    harness.run();
+    assert_eq!(harness.state().workspace.session().effects[0].filter, "sponge");
+
+    harness.get_by_role_and_label(Role::SpinButton, "Size").click();
+    harness.run();
+    let before = harness.get_by_role_and_label(Role::SpinButton, "Size").accesskit_node().value();
+    assert!(harness.ctx.text_edit_focused(), "the number field has the keyboard");
+
+    harness.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    harness.run();
+    assert_eq!(harness.state().workspace.session().effects[0].filter, "cutout", "the pick is undone");
+    assert_eq!(harness.get_by_role_and_label(Role::SpinButton, "Size").accesskit_node().value(), before, "the field keeps its text");
+
+    harness.key_press_modifiers(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z);
+    harness.run();
+    assert_eq!(harness.state().workspace.session().effects[0].filter, "sponge", "redo brings it back");
+}
+
+// The two columns have their own names, and the stack's footer buttons are Tab stops in reading
+// order: Move up, Move down, New, Delete.
+#[test]
+fn gallery_columns_are_named_and_footer_buttons_tab_in_reading_order() {
+    let mut harness = harness(true);
+    assert!(harness.query_all_by_label("Settings").next().is_some() && harness.query_all_by_label("Filters").next().is_some());
+    // With the new top layer selected, Move up is disabled and skipped by Tab.
+    harness.get_by_role_and_label(Role::Button, "New effect layer").click();
+    harness.run();
+    let names = ["Move effect layer up", "Move effect layer down", "New effect layer", "Delete effect layer"];
+    let rects: Vec<_> = names.iter().map(|name| harness.get_by_label(name).rect()).collect();
+    assert!(rects.windows(2).all(|pair| pair[0].left() < pair[1].left()), "left to right: {rects:?}");
+    harness.get_by_label(names[1]).focus();
+    harness.run();
+    for name in &names[2..] {
+        harness.key_press(Key::Tab);
+        harness.run();
+        assert!(harness.get_by_label(*name).accesskit_node().is_focused(), "Tab reaches {name}");
+    }
+}
