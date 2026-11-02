@@ -4,7 +4,7 @@ use egui::{Context, Rect as ScreenRect, Vec2, pos2};
 use kurbo::{Point, Rect};
 
 use super::{BrushCursor, BrushStyle, BrushTip, BrushTipOutline, TipPose, TipRings};
-use crate::canvas::{CanvasView, CursorOptions, PaintingCursor, ToolCursor};
+use crate::canvas::{CanvasView, CursorBadge, CursorOptions, PaintingCursor, ToolCursor};
 use crate::icons::Icon;
 use crate::theme::{Base, current, install};
 
@@ -231,4 +231,28 @@ fn pixel_tips_hide_the_pointer_and_small_cells_show_a_crosshair() {
     assert!(matches!(cursor(&pixels(10.0), true, 1.0), ToolCursor::Crosshair { length, gap } if length == style.tip_min_crosshair && gap == 0.0));
     assert!(matches!(cursor(&pixels(2.0), false, 1.0), ToolCursor::Crosshair { .. }));
     assert!(matches!(cursor(&pixels(2.0), false, 4.0), ToolCursor::Hidden));
+}
+
+// A badge wraps the outline, crosshair and icon pointers, goes into the icon's own slot for Standard, and never shows on a hidden pointer.
+#[test]
+fn a_badge_rides_on_whichever_pointer_the_rules_give() {
+    let (style, view, tip) = (style(), view(1.0), BrushTip::round(100.0, 40.0));
+    let plain = BrushCursor::new(&tip).cursor(&style, &prefs(), &view, false);
+    assert!(matches!(plain, ToolCursor::Circle { .. }));
+    let badged = BrushCursor::new(&tip).badge(Some(CursorBadge::Add)).cursor(&style, &prefs(), &view, false);
+    assert!(
+        matches!(&badged, ToolCursor::Badged { cursor, badge: CursorBadge::Add } if matches!(**cursor, ToolCursor::Circle { radius, .. } if radius == 40.0)),
+        "{badged:?}"
+    );
+
+    let caps = BrushCursor::new(&tip).badge(Some(CursorBadge::Subtract)).cursor(&style, &prefs(), &view, true);
+    assert!(matches!(&caps, ToolCursor::Badged { cursor, .. } if matches!(**cursor, ToolCursor::Crosshair { .. })), "{caps:?}");
+
+    let standard = CursorOptions { painting: PaintingCursor::Standard, ..prefs() };
+    let icon = BrushCursor::new(&tip).badge(Some(CursorBadge::Subtract)).cursor(&style, &standard, &view, false);
+    assert!(matches!(icon, ToolCursor::Tool { badge: Some(CursorBadge::Subtract), .. }), "{icon:?}");
+
+    let pixels = BrushTip { diameter: 40.0, outline: BrushTipOutline::Pixels { cell: Rect::new(0.0, 0.0, 40.0, 40.0), round: false } };
+    let hidden = BrushCursor::new(&pixels).badge(Some(CursorBadge::Add)).cursor(&style, &prefs(), &view, false);
+    assert!(matches!(hidden, ToolCursor::Hidden), "{hidden:?}");
 }

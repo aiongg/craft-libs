@@ -43,6 +43,9 @@ mod age_tests;
 mod label_color;
 #[cfg(test)]
 mod label_color_tests;
+pub mod unit_words;
+#[cfg(test)]
+mod unit_words_tests;
 pub mod units;
 #[cfg(test)]
 mod units_tests;
@@ -53,6 +56,7 @@ pub use craft_i18n::fmt;
 #[doc(hidden)]
 pub use egui as __egui;
 pub use label_color::LabelColorLabels;
+pub use unit_words::{UNIT_WORDS, UnitKind, Units};
 pub use words::{Labels, SharedLabels, Word, Words};
 
 /// How long a [`LocalizedDragValue`] keeps marking text it could not read after reverting, in

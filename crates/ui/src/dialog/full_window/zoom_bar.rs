@@ -10,7 +10,7 @@ use super::view::{FullWindowView, FullWindowZoom};
 use crate::controls::{IconButton, Progress, Select};
 use crate::direction;
 use crate::icons::Icon;
-use crate::localized::{LocaleNumbers, SharedLabels as _, Unit};
+use crate::localized::{SharedLabels as _, UnitKind, Units};
 use crate::primitives::{Content, Text};
 use crate::theme::{Tokens, TokensOf as _};
 use craft_theme::{ControlSize, TypeRole};
@@ -98,7 +98,7 @@ impl<'a> FullWindowZoomBar<'a> {
         let tokens = Tokens::of(ui);
         let style = FullWindowStyle::of(&tokens);
         let labels = labels.map_or_else(|| FullWindowLabels::shared(ui), Arc::new);
-        let numbers = LocaleNumbers::of(ui);
+        let units = Units::of(ui);
         let id = ui.make_persistent_id(id_salt);
         let mut changed = false;
 
@@ -131,11 +131,10 @@ impl<'a> FullWindowZoomBar<'a> {
                         zooms.push(value);
                         zooms.sort_unstable();
                     }
-                    let unit = Unit::new("{n}%");
                     let mut select = Select::new(id.with("zoom"), labels.zoom.as_str(), &mut value).size(ControlSize::Sm).fit(true);
                     select = select.option(FIT, labels.fit_in_view.as_str());
                     for zoom in zooms {
-                        let text = format!("{}{}{}", unit.prefix(), numbers.format(zoom as f64 / 10.0, 0..=1), unit.suffix());
+                        let text = units.text(UnitKind::Percent, zoom as f64 / 10.0, 0..=1);
                         select = select.option(zoom, text);
                     }
                     let edit = select.show(ui);

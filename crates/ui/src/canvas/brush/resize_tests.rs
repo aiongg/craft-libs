@@ -1,12 +1,14 @@
 //! Tests of the brush resize gesture and the tip falloff.
 
+use std::sync::Arc;
+
 use egui::{Color32, Context, LayerId, Modifiers, Painter, PointerButton, Pos2, Rect as ScreenRect, Shape, Vec2, pos2};
 use kurbo::Point;
 
 use super::{BrushDimensions, BrushLevel, BrushResize, BrushResizeLabels, BrushResizeOptions, BrushStyle, TipFalloff};
 use crate::canvas::CanvasView;
 use crate::edit::{CancelReason, EditEvent, GestureHost, UndoMarks};
-use crate::localized::{Labels, LocaleNumbers};
+use crate::localized::{Labels, LocaleNumbers, Units, Words};
 use crate::theme::{Base, current, install};
 
 fn style() -> BrushStyle {
@@ -93,9 +95,9 @@ fn vary_hardness_off_moves_opacity() {
     resize.begin(&view, pos2(200.0, 200.0), start(), &options().level(BrushLevel::Opacity));
     resize.track(&view, pos2(200.0, 240.0), Modifiers::NONE);
     assert!((resize.dimensions().unwrap().level - 0.7).abs() < 1e-9);
-    let numbers = LocaleNumbers::from_tag("en-US");
-    let text = format!("{:?}", resize.readout(&numbers, &BrushResizeLabels::english()).unwrap());
-    assert!(text.contains("Opacity:") && !text.contains("Hardness:"), "{text}");
+    let readout = resize.readout(&english_units(), &BrushResizeLabels::english()).unwrap();
+    let labels: Vec<&str> = readout.rows().iter().map(|(label, _)| label.as_str()).collect();
+    assert_eq!(labels, ["Diameter:", "Opacity:"]);
 }
 
 // Begin, Update per change and Commit share one id; an unmoved click commits with `changed` false.
@@ -197,8 +199,6 @@ fn mesh_of(falloff: &TipFalloff, tint: Color32) -> egui::Mesh {
         .expect("a mesh")
 }
 
-use std::sync::Arc;
-
 // The preview mesh's first ring has the full tint and its last is transparent (PhotoCraft's `the_tip_preview_follows_the_brush_falloff`).
 #[test]
 fn falloff_mesh_is_solid_to_the_core_and_clear_at_the_reach() {
@@ -232,10 +232,39 @@ fn readout_lists_diameter_and_the_level() {
     let view = view();
     let mut resize = running(&view);
     resize.track(&view, pos2(217.0, 200.0), Modifiers::NONE);
-    let numbers = LocaleNumbers::from_tag("en-US");
-    let text = format!("{:?}", resize.readout(&numbers, &BrushResizeLabels::english()).unwrap());
-    for expected in ["Diameter:", "74 px", "Hardness:", "50%"] {
-        assert!(text.contains(expected), "{expected} in {text}");
-    }
-    assert!(BrushResize::default().readout(&numbers, &BrushResizeLabels::english()).is_none());
+    let units = english_units();
+    let readout = resize.readout(&units, &BrushResizeLabels::english()).unwrap();
+    let rows: Vec<(&str, &str)> = readout.rows().iter().map(|(label, value)| (label.as_str(), value.as_str())).collect();
+    assert_eq!(rows, [("Diameter:", "74 px"), ("Hardness:", "50%")]);
+    assert!(BrushResize::default().readout(&units, &BrushResizeLabels::english()).is_none());
+}
+
+// A translated pixel word and the region's digits reach the readout (the pseudo-locale's marker stands for a catalog row).
+#[test]
+fn readout_values_use_the_unit_words_and_digits() {
+    let view = view();
+    let mut resize = running(&view);
+    resize.track(&view, pos2(217.0, 200.0), Modifiers::NONE);
+    let words = Words::new(|word| (word.english == "{n} px").then(|| "⟦{n} px⟧".to_owned()));
+    let units = Units::new(Arc::new(LocaleNumbers::from_tag("ar-EG")), Arc::new(words));
+    let readout = resize.readout(&units, &BrushResizeLabels::english()).unwrap();
+    let rows = readout.rows();
+    assert!(rows[0].1.starts_with('⟦') && rows[0].1.contains("٧٤"), "{rows:?}");
+    // The percent word is untranslated here: English template, Arabic-Indic digits.
+    assert!(rows[1].1.contains("٥٠") && rows[1].1.ends_with('%'), "{rows:?}");
+}
+
+// The primary button always starts a brush gesture; the secondary only with Alt.
+#[test]
+fn takes_the_primary_button_and_the_secondary_with_alt() {
+    assert!(BrushResize::takes(PointerButton::Primary, Modifiers::NONE));
+    assert!(BrushResize::takes(PointerButton::Primary, Modifiers::ALT));
+    assert!(BrushResize::takes(PointerButton::Secondary, Modifiers::ALT));
+    assert!(!BrushResize::takes(PointerButton::Secondary, Modifiers::NONE));
+    assert!(!BrushResize::takes(PointerButton::Secondary, Modifiers::CTRL));
+    assert!(!BrushResize::takes(PointerButton::Middle, Modifiers::ALT));
+}
+
+fn english_units() -> Units {
+    Units::new(Arc::new(LocaleNumbers::from_tag("en-US")), Arc::new(Words::english()))
 }

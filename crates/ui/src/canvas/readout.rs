@@ -91,6 +91,11 @@ impl Readout {
         self
     }
 
+    /// The rows as (label, value), in order.
+    pub fn rows(&self) -> &[(String, String)] {
+        &self.rows
+    }
+
     pub fn style(tokens: &UiTokens) -> ReadoutStyle {
         let (r, c) = (&tokens.component.readout, &tokens.color);
         ReadoutStyle {

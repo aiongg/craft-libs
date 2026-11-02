@@ -118,6 +118,9 @@ pub enum ToolCursor {
     Tool { icon: Icon, hotspot: Vec2, badge: Option<CursorBadge> },
     /// The system arrow with a badge beside it.
     Arrow { badge: Option<CursorBadge> },
+    /// `cursor` with `badge` centred on the hotspot: the + or − inside a brush circle
+    /// ([`BrushCursor::badge`](crate::canvas::BrushCursor::badge)).
+    Badged { cursor: Box<ToolCursor>, badge: CursorBadge },
     /// No pointer: the tool paints its own (a text caret, a transform box's turn arrow).
     Hidden,
 }
@@ -248,6 +251,11 @@ impl CursorHost {
                     Self::paint_badge(&tooltip_painter(ctx), pointer + style.badge_beside, *badge, style);
                 }
                 CursorIcon::Default
+            }
+            ToolCursor::Badged { cursor, badge } => {
+                let icon = Self::set(ctx, painter, pointer, cursor, style);
+                Self::paint_badge(&tooltip_painter(ctx), pointer, *badge, style);
+                icon
             }
             ToolCursor::Hidden => CursorIcon::None,
         };

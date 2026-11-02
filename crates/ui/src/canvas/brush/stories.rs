@@ -23,7 +23,7 @@ use crate::canvas::{
 };
 use crate::controls::Button;
 use crate::edit::EditEvent;
-use crate::localized::Labels as _;
+use crate::localized::{Labels as _, Units};
 use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
 use crate::theme::{Tokens, TokensOf as _};
 use crate::typed_story;
@@ -330,7 +330,7 @@ impl CanvasTool for ResizeTool {
 
     fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         self.resize.track(cx.view, pointer.screen, pointer.modifiers);
-        if let Some(readout) = self.resize.readout(cx.numbers, &self.labels) {
+        if let Some(readout) = self.resize.readout(&Units::of_ctx(&cx.canvas.ctx), &self.labels) {
             cx.readout(readout);
         }
     }
