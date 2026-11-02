@@ -12,8 +12,6 @@ craft_ui::words! {
         end_free: "connectorTool.endFree" = "End, free";
         /// A path handle: `{index}` from 1 of `{count}`.
         bend: "connectorTool.bend" = "Bend {index} of {count}";
-        /// The "+" buttons' group.
-        add_connected: "connectorTool.addConnected" = "Add a connected shape";
     }
 }
 

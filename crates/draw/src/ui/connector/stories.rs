@@ -17,7 +17,7 @@ use egui::{Color32, Painter, Pos2, Rect as ScreenRect, Shape, Stroke, Ui};
 use kurbo::{Point, Rect, Size, Vec2};
 
 use super::{
-    ConnectionSite, ConnectionTarget, ConnectorBar, ConnectorBarEvent, ConnectorEnd, ConnectorEndKind, ConnectorEvent, ConnectorItem, ConnectorLine,
+    ConnectionSite, ConnectionTarget, ConnectorBar, ConnectorBarOutput, ConnectorEnd, ConnectorEndKind, ConnectorEvent, ConnectorItem, ConnectorLine,
     ConnectorTool, ConnectorToolLabels,
 };
 use crate::geometry::connector::{ConnectionSide, RouteEnd, Routing, route, route_along};
@@ -466,45 +466,39 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let label = ConnectorToolLabels::of(ui).group;
     let routing = args.routing.routing();
     let line = ConnectorLine { dashed: args.dashed, weight: args.weight };
-    let mut events = Vec::new();
+    let mut out = ConnectorBarOutput::default();
     OptionsBar::new("connector-story-options").label(label).show(ui, |slots| {
-        slots.body(|ui| {
-            let mut bar = ConnectorBar::new("connector-story-bar", routing, line);
-            if args.caps {
-                let selected = |id: &'static str, mixed: bool| if mixed { MixedValue::Mixed } else { MixedValue::Same(id) };
-                let start_id = HEADS.iter().copied().find(|h| *h == kept.start).unwrap_or("none");
-                let end_id = HEADS.iter().copied().find(|h| *h == kept.end).unwrap_or("none");
-                let start = StrokeChoiceRow::new("start", "", &choices).selected(selected(start_id, args.mixed)).paint(paint_head(&tokens, true));
-                let end = StrokeChoiceRow::new("end", "", &choices).selected(selected(end_id, args.mixed)).paint(paint_head(&tokens, false));
-                bar = bar.caps(start, end);
-            }
-            events = bar.show(ui).events;
-        });
+        let mut bar = ConnectorBar::new("connector-story-bar", routing, line);
+        if args.caps {
+            let selected = |id: &'static str, mixed: bool| if mixed { MixedValue::Mixed } else { MixedValue::Same(id) };
+            let start_id = HEADS.iter().copied().find(|h| *h == kept.start).unwrap_or("none");
+            let end_id = HEADS.iter().copied().find(|h| *h == kept.end).unwrap_or("none");
+            let start = StrokeChoiceRow::new("start", "", &choices).selected(selected(start_id, args.mixed)).paint(paint_head(&tokens, true));
+            let end = StrokeChoiceRow::new("end", "", &choices).selected(selected(end_id, args.mixed)).paint(paint_head(&tokens, false));
+            bar = bar.caps(start, end);
+        }
+        bar.output(&mut out).add_to(slots);
     });
-    for event in events {
-        kept.chose = match event {
-            ConnectorBarEvent::Routing(r) => {
-                args.routing = match r {
-                    Routing::Straight => RoutingArg::Straight,
-                    Routing::Elbow => RoutingArg::Elbow,
-                    Routing::Curved => RoutingArg::Curved,
-                };
-                format!("{r:?}")
-            }
-            ConnectorBarEvent::StartCap(id) => {
-                kept.start.clone_from(&id);
-                id
-            }
-            ConnectorBarEvent::EndCap(id) => {
-                kept.end.clone_from(&id);
-                id
-            }
-            ConnectorBarEvent::Line(l) => {
-                args.dashed = l.dashed;
-                args.weight = l.weight;
-                format!("{l:?}")
-            }
+    if let Some(r) = out.routing {
+        args.routing = match r {
+            Routing::Straight => RoutingArg::Straight,
+            Routing::Elbow => RoutingArg::Elbow,
+            Routing::Curved => RoutingArg::Curved,
         };
+        kept.chose = format!("{r:?}");
+    }
+    if let Some(id) = out.start_cap {
+        kept.start.clone_from(&id);
+        kept.chose = id;
+    }
+    if let Some(id) = out.end_cap {
+        kept.end.clone_from(&id);
+        kept.chose = id;
+    }
+    if let Some(l) = out.line {
+        args.dashed = l.dashed;
+        args.weight = l.weight;
+        kept.chose = format!("{l:?}");
     }
     if !kept.chose.is_empty() {
         ui.add(Text::new(craft_i18n::fmt(&own.chose, &[("choice", &kept.chose)])).content(Content::Muted));

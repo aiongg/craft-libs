@@ -1,6 +1,5 @@
 //! [`ConnectorBar`]: the connector part of a style bar (task SH-T11).
 
-use craft_theme::ControlSize;
 use egui::{AsIdSalt, Color32, IdSalt, Painter, Rect, Stroke, Ui, UiBuilder, pos2, vec2};
 
 use super::ConnectorBarLabels;
@@ -8,8 +7,9 @@ use crate::geometry::connector::Routing;
 use crate::ui::stroke::{StrokeChoiceRow, StrokeEditor};
 use craft_ui::controls::mixed::ApplyRowLabels;
 use craft_ui::controls::{Segmented, Select, SelectText};
+use craft_ui::icons::Icon;
 use craft_ui::localized::Labels as _;
-use craft_ui::patterns::OptionsBar;
+use craft_ui::patterns::{OptionsBar, OptionsBarSlots};
 use craft_ui::theme::{Tokens, TokensOf as _};
 
 /// A connector's line style as the bar's menu offers it.
@@ -35,44 +35,43 @@ impl Default for ConnectorLine {
     }
 }
 
-/// One choice made in the bar; each is one undo step (`Set`).
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum ConnectorBarEvent {
-    Routing(Routing),
-    /// The start cap picked: the [`StrokeChoice`](crate::ui::stroke::StrokeChoice) id from the
-    /// app's start row.
-    StartCap(String),
-    /// The end cap picked: the choice's id from the app's end row.
-    EndCap(String),
-    Line(ConnectorLine),
-}
-
-/// What [`ConnectorBar::show`] reports.
+/// What [`ConnectorBar`] reported this pass: one field per control, `Some` when that control was
+/// changed. Each change is one undo step (`Set`).
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 #[must_use = "the app applies each choice to the selected connectors"]
 pub struct ConnectorBarOutput {
-    pub events: Vec<ConnectorBarEvent>,
+    /// The routing button picked.
+    pub routing: Option<Routing>,
+    /// The start cap picked: the [`StrokeChoice`](crate::ui::stroke::StrokeChoice) id from the
+    /// app's start row.
+    pub start_cap: Option<String>,
+    /// The end cap picked: the choice's id from the app's end row.
+    pub end_cap: Option<String>,
+    /// The line style menu's pick, as the whole new line.
+    pub line: Option<ConnectorLine>,
 }
 
 /// The connector part of a style bar, in FigCraft's order: three routing buttons (Straight, Elbow,
-/// Curved; a radio group, the current one on), the start and end cap menus (the app's
+/// Curved, drawn as icons; a radio group, the current one on), the start and end cap menus (the app's
 /// [`StrokeChoiceRow`]s from [`caps`](Self::caps), with its arrowheads and their painted previews;
 /// the library holds no arrowhead data; no menus without them), and the line style menu (Solid, Dash, then the [weights](ConnectorLine::WEIGHTS)).
-/// Each control is a Tab stop; the menus are keyboard operable as `Select`s.
+/// `add_to` fills the bar's body slot; the choices go to the [`ConnectorBarOutput`] of
+/// [`output`](Self::output). Each control is a Tab stop; the menus are keyboard operable as
+/// `Select`s.
 pub struct ConnectorBar<'a> {
     id_salt: IdSalt,
     routing: Routing,
     line: ConnectorLine,
     caps: Option<(StrokeChoiceRow<'a>, StrokeChoiceRow<'a>)>,
     labels: Option<ConnectorBarLabels>,
+    output: Option<&'a mut ConnectorBarOutput>,
 }
 
 impl<'a> ConnectorBar<'a> {
     /// The bar for a connector routed `routing` with `line`.
     pub fn new(id_salt: impl AsIdSalt, routing: Routing, line: ConnectorLine) -> Self {
-        ConnectorBar { id_salt: IdSalt::new(id_salt), routing, line, caps: None, labels: None }
+        ConnectorBar { id_salt: IdSalt::new(id_salt), routing, line, caps: None, labels: None, output: None }
     }
 
     /// The start and end cap menus: the app's rows of arrowheads, each with its picked choice
@@ -88,38 +87,47 @@ impl<'a> ConnectorBar<'a> {
         self
     }
 
-    /// Adds the controls to the bar's row `ui`.
-    pub fn show(self, ui: &mut Ui) -> ConnectorBarOutput {
-        let Self { id_salt, routing, line, caps, labels } = self;
+    /// Where the bar reports its choices.
+    pub fn output(mut self, output: &'a mut ConnectorBarOutput) -> Self {
+        self.output = Some(output);
+        self
+    }
+
+    /// Fills the bar's body slot.
+    pub fn add_to(self, slots: &mut OptionsBarSlots<'a>) {
+        slots.body(move |ui| self.cells(ui));
+    }
+
+    fn cells(self, ui: &mut Ui) {
+        let Self { id_salt, routing, line, caps, labels, output } = self;
         let labels = labels.unwrap_or_else(|| ConnectorBarLabels::of(ui));
         let tokens = Tokens::of(ui);
         let bar = OptionsBar::style(&tokens, false);
         let ink = StrokeEditor::style(&tokens).sample_color;
-        let preview = vec2(bar.fields[1], Select::style(&tokens, ControlSize::Sm).field.icon);
+        let preview = vec2(bar.fields[1], Select::style(&tokens, OptionsBar::CONTROL_SIZE).field.icon);
         let mixed_word = ApplyRowLabels::of(ui).mixed;
-        let mut events = Vec::new();
+        let mut out = ConnectorBarOutput::default();
         let builder = UiBuilder::new().id_salt(id_salt).layout(*ui.layout());
         ui.scope_builder(builder, |ui| {
             let mut picked = routing;
             let segmented = Segmented::new("routing", labels.routing.as_str(), &mut picked)
-                .size(ControlSize::Sm)
-                .item(Routing::Straight, labels.straight.as_str())
-                .item(Routing::Elbow, labels.elbow.as_str())
-                .item(Routing::Curved, labels.curved.as_str());
+                .size(OptionsBar::CONTROL_SIZE)
+                .icon_item(Routing::Straight, Icon::RouteStraight, labels.straight.as_str())
+                .icon_item(Routing::Elbow, Icon::RouteElbow, labels.elbow.as_str())
+                .icon_item(Routing::Curved, Icon::RouteCurved, labels.curved.as_str());
             if segmented.show(ui).changed() {
-                events.push(ConnectorBarEvent::Routing(picked));
+                out.routing = Some(picked);
             }
 
             if let Some((start, end)) = &caps {
                 OptionsBar::divider(ui);
-                for (row, name, salt, event) in [
-                    (start, labels.start.as_str(), "start-cap", ConnectorBarEvent::StartCap as fn(String) -> ConnectorBarEvent),
-                    (end, labels.end.as_str(), "end-cap", ConnectorBarEvent::EndCap),
-                ] {
+                for (row, name, salt, slot) in
+                    [(start, labels.start.as_str(), "start-cap", &mut out.start_cap), (end, labels.end.as_str(), "end-cap", &mut out.end_cap)]
+                {
                     let mixed = row.selected.is_some_and(|m| m.is_mixed());
                     let mut value: Option<String> = row.selected.and_then(|m| m.same()).map(str::to_owned);
                     let mut select = Select::new(salt, name, &mut value)
-                        .size(ControlSize::Sm)
+                        .size(OptionsBar::CONTROL_SIZE)
                         .width(bar.fields[2])
                         .text_shown(SelectText::InList)
                         .placeholder(if mixed { mixed_word.as_str() } else { "" });
@@ -134,7 +142,7 @@ impl<'a> ConnectorBar<'a> {
                         });
                     }
                     if let Some(id) = select.show(ui).committed().cloned().flatten() {
-                        events.push(event(id));
+                        *slot = Some(id);
                     }
                 }
             }
@@ -142,7 +150,7 @@ impl<'a> ConnectorBar<'a> {
             OptionsBar::divider(ui);
             let mut value = LinePick::Style(line.dashed);
             let mut select = Select::new("line-style", labels.line_style.as_str(), &mut value)
-                .size(ControlSize::Sm)
+                .size(OptionsBar::CONTROL_SIZE)
                 .width(bar.fields[1])
                 .text_shown(SelectText::InList)
                 .option(LinePick::Style(false), labels.solid.as_str())
@@ -164,10 +172,12 @@ impl<'a> ConnectorBar<'a> {
                     LinePick::Style(dashed) => ConnectorLine { dashed, ..line },
                     LinePick::Weight(index) => ConnectorLine { weight: ConnectorLine::WEIGHTS[index], ..line },
                 };
-                events.push(ConnectorBarEvent::Line(line));
+                out.line = Some(line);
             }
         });
-        ConnectorBarOutput { events }
+        if let Some(output) = output {
+            *output = out;
+        }
     }
 }
 
