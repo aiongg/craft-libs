@@ -4,7 +4,7 @@ use craft_ui::dialog::{LocalHistory, Step};
 use serde_json::json;
 
 use super::edits::{EditMode, ObjectTarget, RefineStroke, SelectMaskEdit};
-use super::session::{OutputTo, SelectMaskLimits, SelectMaskSession, SelectMaskSettings};
+use super::session::{LimitRefused, OutputTo, SelectMaskLimits, SelectMaskSession, SelectMaskSettings};
 use crate::ui::mask_view::MaskViewMode;
 
 const LIMITS: SelectMaskLimits = SelectMaskLimits { edits: 3, edit_points: 10, strokes: 2, stroke_points: 4 };
@@ -61,24 +61,32 @@ fn select_mask_limits_refuse_at_the_brush_with_a_message() {
     for _ in 0..3 {
         assert!(session.add_edit(SelectMaskEdit::Clear, &LIMITS).is_ok());
     }
-    assert_eq!(session.add_edit(SelectMaskEdit::Clear, &LIMITS), Err("at most 3 edits: undo some, or reset".to_owned()));
+    assert_eq!(session.add_edit(SelectMaskEdit::Clear, &LIMITS), Err(LimitRefused::Edits(3)));
     assert_eq!(session.edits.len(), 3);
 
     let mut session = SelectMaskSession::default();
     assert!(session.add_edit(quick(8), &LIMITS).is_ok());
-    assert_eq!(session.add_edit(quick(3), &LIMITS), Err("at most 10 points in all edits: undo some, or reset".to_owned()));
+    assert_eq!(session.add_edit(quick(3), &LIMITS), Err(LimitRefused::EditPoints(10)));
     assert!(session.add_edit(quick(2), &LIMITS).is_ok(), "exactly the limit is allowed");
     assert_eq!(session.edits.len(), 2);
 
     let mut session = SelectMaskSession::default();
     assert!(session.add_stroke(refine_stroke(3), &LIMITS).is_ok());
-    assert_eq!(
-        session.add_stroke(refine_stroke(2), &LIMITS),
-        Err("at most 4 points in all Refine Edge Brush strokes: undo some, or reset".to_owned())
-    );
+    assert_eq!(session.add_stroke(refine_stroke(2), &LIMITS), Err(LimitRefused::StrokePoints(4)));
     assert!(session.add_stroke(refine_stroke(1), &LIMITS).is_ok());
-    assert_eq!(session.add_stroke(refine_stroke(0), &LIMITS), Err("at most 2 Refine Edge Brush strokes: undo some, or reset".to_owned()));
+    assert_eq!(session.add_stroke(refine_stroke(0), &LIMITS), Err(LimitRefused::Strokes(2)));
     assert_eq!(session.strokes.len(), 2);
+}
+
+// The refusal is worded with the count: "1 edit" and "3 edits" take their own forms.
+#[test]
+fn select_mask_limit_messages_are_counted_words() {
+    let ctx = egui::Context::default();
+    craft_ui::theme::install(&ctx, &craft_ui::theme::Base::suite_default());
+    assert_eq!(LimitRefused::Edits(1).message(&ctx), "at most 1 edit: undo some, or reset");
+    assert_eq!(LimitRefused::Edits(3).message(&ctx), "at most 3 edits: undo some, or reset");
+    assert_eq!(LimitRefused::EditPoints(100).message(&ctx), "at most 100 points in all edits: undo some, or reset");
+    assert_eq!(LimitRefused::StrokePoints(4).message(&ctx), "at most 4 points in all Refine Edge Brush strokes: undo some, or reset");
 }
 
 // Reset clears edits, strokes and the refinement values in one step; undo gives all of them back.

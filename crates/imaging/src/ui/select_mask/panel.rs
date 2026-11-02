@@ -13,7 +13,7 @@ use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::text::LayoutJob;
-use egui::{AsIdSalt, IdSalt, Label, Response, Ui};
+use egui::{AsIdSalt, IdSalt, Label, Modifiers, Response, Ui};
 
 use crate::selection::ColorIndicates;
 use crate::ui::mask_view::{MaskViewControls, MaskViewLabels, MaskViewState};
@@ -31,15 +31,15 @@ pub const OVERLAY_COLOR_KEY: &str = "selectMask.overlayColor";
 #[non_exhaustive]
 pub struct SelectMaskPanelOutput {
     pub response: Response,
-    /// The refinement values changed (a session change: the history settles it, a preview is
-    /// asked for).
-    pub refine_changed: bool,
+    /// The edit lifecycle of the refinement values the user changed this pass, with the values
+    /// after it (already written to the refinement passed in): a slider's `Begin`, `Update` and
+    /// `Commit`, a check box's or the Output To choice's `Set`. A refinement change is a session
+    /// change: the history settles it and a preview is asked for.
+    pub edit: Option<EditEvent<RefineSettings>>,
     /// The view or a view option changed (no undo step; a preview is asked for).
     pub view_changed: bool,
-    /// A slider is being dragged.
-    pub dragging: bool,
     /// Clear Selection or Invert pressed.
-    pub edit: Option<SelectMaskEdit>,
+    pub selection_edit: Option<SelectMaskEdit>,
     /// The Overlay colour swatch was pressed: the app opens its colour picker with this request
     /// (keyed [`OVERLAY_COLOR_KEY`]) and answers with `SelectMaskWorkspace::set_color`. Once.
     pub pick_color: Option<ColorRequest>,
@@ -70,18 +70,18 @@ pub struct SelectMaskPanel<'a> {
     refine: &'a mut RefineSettings,
     view: &'a mut MaskViewState,
     error: Option<&'a str>,
-    labels: &'a SelectMaskLabels,
+    labels: Option<SelectMaskLabels>,
 }
 
 impl<'a> SelectMaskPanel<'a> {
-    pub fn new(
-        id_salt: impl AsIdSalt,
-        settings: &'a mut SelectMaskSettings,
-        refine: &'a mut RefineSettings,
-        view: &'a mut MaskViewState,
-        labels: &'a SelectMaskLabels,
-    ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), settings, refine, view, error: None, labels }
+    pub fn new(id_salt: impl AsIdSalt, settings: &'a mut SelectMaskSettings, refine: &'a mut RefineSettings, view: &'a mut MaskViewState) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), settings, refine, view, error: None, labels: None }
+    }
+
+    /// The words; the installed ones by default.
+    pub fn labels(mut self, labels: SelectMaskLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// The error line under the panel.
@@ -93,13 +93,14 @@ impl<'a> SelectMaskPanel<'a> {
     pub fn show(self, ui: &mut Ui) -> SelectMaskPanelOutput {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1540 `properties`.
         let Self { id_salt, settings, refine, view, error, labels } = self;
+        let labels = labels.unwrap_or_else(|| SelectMaskLabels::of(ui));
+        let labels = &labels;
         let id = ui.make_persistent_id(id_salt);
         let numbers = LocaleNumbers::of(ui);
         let view_labels = MaskViewLabels::of(ui);
         let refine_before = refine.clone();
-        let drag_key = id.with("dragging");
-        let mut dragging = ui.data(|d| d.get_temp::<bool>(drag_key)).unwrap_or(false);
-        let (mut view_changed, mut edit, mut pick_color) = (false, None, None);
+        let mut last = None;
+        let (mut view_changed, mut selection_edit, mut pick_color) = (false, None, None);
         let response = ui
             .scope(|ui| {
                 let _ = Checkbox::bool(labels.remember.as_str(), &mut settings.remember).id_salt((id, "remember")).show(ui);
@@ -144,21 +145,21 @@ impl<'a> SelectMaskPanel<'a> {
                 });
 
                 SectionHeader::new((id, "edge"), labels.edge_detection.as_str()).show(ui, |ui| {
-                    slider(ui, (id, "radius"), &labels.radius, &mut refine.radius, 0.0..=250.0, "{n} px", true, &numbers, &mut dragging);
+                    slider(ui, (id, "radius"), &labels.radius, &mut refine.radius, 0.0..=250.0, "{n} px", true, &numbers, &mut last);
                     let _ = Checkbox::bool(labels.smart_radius.as_str(), &mut refine.smart_radius).id_salt((id, "smart-radius")).show(ui);
                 });
 
                 SectionHeader::new((id, "global"), labels.global_refinements.as_str()).show(ui, |ui| {
-                    slider(ui, (id, "smooth"), &labels.smooth, &mut refine.smooth, 0.0..=100.0, "{n}", true, &numbers, &mut dragging);
-                    slider(ui, (id, "feather"), &labels.feather, &mut refine.feather, 0.0..=1000.0, "{n} px", true, &numbers, &mut dragging);
-                    slider(ui, (id, "contrast"), &labels.contrast, &mut refine.contrast, 0.0..=100.0, "{n}%", true, &numbers, &mut dragging);
-                    slider(ui, (id, "shift"), &labels.shift_edge, &mut refine.shift_edge, -100.0..=100.0, "{n}%", true, &numbers, &mut dragging);
+                    slider(ui, (id, "smooth"), &labels.smooth, &mut refine.smooth, 0.0..=100.0, "{n}", true, &numbers, &mut last);
+                    slider(ui, (id, "feather"), &labels.feather, &mut refine.feather, 0.0..=1000.0, "{n} px", true, &numbers, &mut last);
+                    slider(ui, (id, "contrast"), &labels.contrast, &mut refine.contrast, 0.0..=100.0, "{n}%", true, &numbers, &mut last);
+                    slider(ui, (id, "shift"), &labels.shift_edge, &mut refine.shift_edge, -100.0..=100.0, "{n}%", true, &numbers, &mut last);
                     direction::horizontal(ui, |ui| {
                         if ui.add(Button::new(labels.clear_selection.as_str()).id_salt((id, "clear"))).clicked() {
-                            edit = Some(SelectMaskEdit::Clear);
+                            selection_edit = Some(SelectMaskEdit::Clear);
                         }
                         if ui.add(Button::new(labels.invert.as_str()).id_salt((id, "invert"))).clicked() {
-                            edit = Some(SelectMaskEdit::Invert);
+                            selection_edit = Some(SelectMaskEdit::Invert);
                         }
                     });
                 });
@@ -166,7 +167,7 @@ impl<'a> SelectMaskPanel<'a> {
                 SectionHeader::new((id, "output"), labels.output_settings.as_str()).show(ui, |ui| {
                     let _ = Checkbox::bool(labels.decontaminate.as_str(), &mut refine.decontaminate).id_salt((id, "decontaminate")).show(ui);
                     let decontaminate = refine.decontaminate;
-                    slider(ui, (id, "amount"), &labels.amount, &mut refine.amount, 0.0..=100.0, "{n}%", decontaminate, &numbers, &mut dragging);
+                    slider(ui, (id, "amount"), &labels.amount, &mut refine.amount, 0.0..=100.0, "{n}%", decontaminate, &numbers, &mut last);
                     refine.follow_decontaminate();
                     direction::horizontal(ui, |ui| {
                         ui.add(Text::new(labels.output_to.as_str()).role(TypeRole::Label).content(Content::Muted));
@@ -187,8 +188,11 @@ impl<'a> SelectMaskPanel<'a> {
                 }
             })
             .response;
-        ui.data_mut(|d| d.insert_temp(drag_key, dragging));
-        SelectMaskPanelOutput { response, refine_changed: *refine != refine_before, view_changed, dragging, edit, pick_color }
+        // A check box or the Output To choice has no gesture: it is one `Set`.
+        let edit = last
+            .map(|event: EditEvent<f64>| event.map(|_| refine.clone()))
+            .or_else(|| (*refine != refine_before).then(|| EditEvent::set(refine.clone(), Modifiers::NONE)));
+        SelectMaskPanelOutput { response, edit, view_changed, selection_edit, pick_color }
     }
 }
 
@@ -203,8 +207,7 @@ fn output_label(labels: &SelectMaskLabels, target: OutputTo) -> &str {
     }
 }
 
-/// One slider row: the events set `value`; `dragging` follows the gesture (true from its first
-/// event until its commit, set or cancel), so a drag that pauses is still one drag.
+/// One slider row: the events set `value`; `last` takes the pass's last event.
 #[expect(clippy::too_many_arguments, reason = "a private helper over one panel's rows")]
 fn slider(
     ui: &mut Ui,
@@ -215,13 +218,13 @@ fn slider(
     unit: &str,
     enabled: bool,
     numbers: &LocaleNumbers,
-    dragging: &mut bool,
+    last: &mut Option<EditEvent<f64>>,
 ) {
     let row = SliderRow::new(id_salt, label, *value, range, numbers).unit(Unit::new(unit)).enabled(enabled).show(ui);
     for event in row.edits() {
-        *dragging = matches!(event, EditEvent::Begin { .. } | EditEvent::Update { .. });
         if let Some(next) = event.value() {
             *value = *next;
         }
+        *last = Some(event);
     }
 }

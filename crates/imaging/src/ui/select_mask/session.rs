@@ -21,6 +21,20 @@ pub struct SelectMaskLimits {
     pub stroke_points: usize,
 }
 
+/// Which limit refused an edit or a stroke, with the number it passed. The workspace words it
+/// ([`SelectMaskLimitWords`](super::SelectMaskLimitWords) through [`LimitRefused::message`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LimitRefused {
+    /// At most this many edits.
+    Edits(usize),
+    /// At most this many points in all edits.
+    EditPoints(usize),
+    /// At most this many Refine Edge Brush strokes.
+    Strokes(usize),
+    /// At most this many points in all Refine Edge Brush strokes.
+    StrokePoints(usize),
+}
+
 /// Output Settings › Output To.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -131,32 +145,30 @@ pub struct SelectMaskCommand {
 }
 
 impl SelectMaskSession {
-    /// Adds a tool edit within `limits`, or returns why not ("at most 4096 edits: undo some, or
-    /// reset"; "at most 100000 points in all edits: undo some, or reset") and changes nothing.
-    pub fn add_edit(&mut self, edit: SelectMaskEdit, limits: &SelectMaskLimits) -> Result<(), String> {
+    /// Adds a tool edit within `limits`, or returns which limit refused it and changes nothing.
+    pub fn add_edit(&mut self, edit: SelectMaskEdit, limits: &SelectMaskLimits) -> Result<(), LimitRefused> {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:522 `add_edit`.
         if self.edits.len() >= limits.edits {
-            return Err(format!("at most {} edits: undo some, or reset", limits.edits));
+            return Err(LimitRefused::Edits(limits.edits));
         }
         let held: usize = self.edits.iter().map(SelectMaskEdit::points_len).sum();
         if held + edit.points_len() > limits.edit_points {
-            return Err(format!("at most {} points in all edits: undo some, or reset", limits.edit_points));
+            return Err(LimitRefused::EditPoints(limits.edit_points));
         }
         self.edits.push(edit);
         Ok(())
     }
 
-    /// Adds a Refine Edge Brush stroke within `limits`, or returns why not ("at most 4096 Refine
-    /// Edge Brush strokes: undo some, or reset"; "at most 100000 points in all Refine Edge Brush
-    /// strokes: undo some, or reset").
-    pub fn add_stroke(&mut self, stroke: RefineStroke, limits: &SelectMaskLimits) -> Result<(), String> {
+    /// Adds a Refine Edge Brush stroke within `limits`, or returns which limit refused it and
+    /// changes nothing.
+    pub fn add_stroke(&mut self, stroke: RefineStroke, limits: &SelectMaskLimits) -> Result<(), LimitRefused> {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:538 `add_stroke`.
         if self.strokes.len() >= limits.strokes {
-            return Err(format!("at most {} Refine Edge Brush strokes: undo some, or reset", limits.strokes));
+            return Err(LimitRefused::Strokes(limits.strokes));
         }
         let held: usize = self.strokes.iter().map(|s| s.points.len()).sum();
         if held + stroke.points.len() > limits.stroke_points {
-            return Err(format!("at most {} points in all Refine Edge Brush strokes: undo some, or reset", limits.stroke_points));
+            return Err(LimitRefused::StrokePoints(limits.stroke_points));
         }
         self.strokes.push(stroke);
         Ok(())

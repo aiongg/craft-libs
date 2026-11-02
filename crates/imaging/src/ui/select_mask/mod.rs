@@ -16,7 +16,7 @@
 //! under it.
 //!
 //! ```ignore
-//! let out = w.show(ctx, &PcSelectMaskSource { view: app.sm_preview.view(), ants: app.sm_preview.ants() });
+//! let out = w.show(ctx, &PcSelectMaskSource { view: app.sm_preview.view(), image: app.image(), ants: app.sm_preview.ants() });
 //! if let Some(t) = out.preview_wanted { app.sm_job = SmJob::spawn(t, w.session().clone(), w.recipe(), w.settings().high_quality) }
 //! if let Some(r) = app.sm_job.poll() { match r.result { Ok(v) => { app.sm_preview.set(v); w.preview_ready(r.ticket); } Err(e) => w.preview_failed(r.ticket, e) } }
 //! match out.outcome {
@@ -51,33 +51,37 @@ pub use bar::{SelectMaskBar, SelectMaskBarOutput};
 pub use edits::{EditMode, ObjectTarget, RefineStroke, SelectMaskEdit, round_point};
 pub use labels::SelectMaskLabels;
 pub use panel::{OVERLAY_COLOR_KEY, SelectMaskPanel, SelectMaskPanelOutput};
-pub use session::{OutputTo, RefineSettings, SelectMaskCommand, SelectMaskLimits, SelectMaskSession, SelectMaskSettings};
+pub use session::{LimitRefused, OutputTo, RefineSettings, SelectMaskCommand, SelectMaskLimits, SelectMaskSession, SelectMaskSettings};
 pub use tools::{BrushSizes, SelectMaskCanvas, SelectMaskCanvasTool, SelectMaskTool, SelectMaskToolOptions};
 
-use egui::{Context, Event, Key, Modifiers, Popup, Rect};
+use egui::{Context, Event, Key, Modifiers, Rect, Ui};
 
 use craft_theme::Srgba;
 use craft_ui::canvas::kurbo::Size;
-use craft_ui::canvas::{CanvasTool, Checkerboard, HandTool, NavigationOptions, RasterSource, ZoomTool};
+use craft_ui::canvas::{CanvasTool, Checkerboard, CursorOptions, HandTool, NavigationOptions, RasterSource, ToolHost, ZoomTool};
 use craft_ui::controls::IconButton;
 use craft_ui::dialog::full_window::{
     FullWindowCanvas, FullWindowLabels, FullWindowSide, FullWindowTitle, FullWindowView, PreviewStatus, PreviewTicket, SideFooter, SideWidth,
 };
-use craft_ui::dialog::{ButtonRole, ColorRequest, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step};
-use craft_ui::edit::{CancelReason, EditEvent};
+use craft_ui::dialog::{ButtonRole, ColorRequest, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step};
+use craft_ui::edit::{CancelReason, EditEvent, GestureId};
 use craft_ui::icons::Icon;
 use craft_ui::localized::Labels as _;
-use craft_ui::patterns::{LastUsed, OptionsBar, ToolRail};
+use craft_ui::patterns::{LastUsed, ToolRail};
 
 use crate::trace::MaskSource;
-use crate::ui::mask_view::{MaskViewKeys, MaskViewRecipe, MaskViewState};
-use crate::ui::selection::{OutlineSource, SelectionOverlay, SelectionOverlayLabels};
+use crate::ui::mask_view::{MaskViewChange, MaskViewKeys, MaskViewRecipe, MaskViewState};
+use crate::ui::selection::{OutlineSource, SelectionOverlay};
 
 /// What the app gives the workspace to show each pass.
 pub trait SelectMaskSource {
     /// The view as the engine composited it for the last ready preview (the recipe of
     /// [`SelectMaskWorkspace::recipe`]), in document pixels.
     fn view(&self) -> &dyn RasterSource;
+
+    /// The document's image as it is, in document pixels, with no view applied: the workspace
+    /// draws it while X is held ([`MaskViewRecipe::hidden`]), without waiting for a preview.
+    fn image(&self) -> &dyn RasterSource;
 
     /// The refined selection for Marching Ants and its reduction factor (document pixels per mask
     /// pixel; 1 with High Quality Preview), drawn by `SelectionOverlay` with `reduction(k)`.
@@ -98,11 +102,26 @@ pub struct SelectMaskOpen {
     pub limits: SelectMaskLimits,
     /// The targeted layer mask is refined (`"target": "mask"`), not the selection.
     pub target_mask: bool,
+    /// The user's wheel, flick and animated-zoom options.
+    pub navigation: NavigationOptions,
+    /// The user's transparency grid under the image.
+    pub checkerboard: Checkerboard,
+    /// Preferences › Cursors, which shape the brush outline.
+    pub cursor_options: CursorOptions,
 }
 
 impl SelectMaskOpen {
     pub fn new(size: [u32; 2], subject: impl Into<String>, limits: SelectMaskLimits) -> Self {
-        Self { size, subject: subject.into(), settings: SelectMaskSettings::default(), limits, target_mask: false }
+        Self {
+            size,
+            subject: subject.into(),
+            settings: SelectMaskSettings::default(),
+            limits,
+            target_mask: false,
+            navigation: NavigationOptions::default(),
+            checkerboard: Checkerboard::default(),
+            cursor_options: CursorOptions::default(),
+        }
     }
 
     pub fn settings(mut self, settings: SelectMaskSettings) -> Self {
@@ -112,6 +131,24 @@ impl SelectMaskOpen {
 
     pub fn target_mask(mut self, target_mask: bool) -> Self {
         self.target_mask = target_mask;
+        self
+    }
+
+    /// The user's navigation options; Photoshop's by default.
+    pub fn navigation(mut self, navigation: NavigationOptions) -> Self {
+        self.navigation = navigation;
+        self
+    }
+
+    /// The user's transparency grid.
+    pub fn checkerboard(mut self, checkerboard: Checkerboard) -> Self {
+        self.checkerboard = checkerboard;
+        self
+    }
+
+    /// The user's Preferences › Cursors.
+    pub fn cursor_options(mut self, cursor_options: CursorOptions) -> Self {
+        self.cursor_options = cursor_options;
         self
     }
 }
@@ -169,8 +206,11 @@ pub struct SelectMaskWorkspace {
     options: SelectMaskToolOptions,
     canvas: SelectMaskCanvas,
     preview: PreviewStatus,
-    /// The limit message, until the next accepted edit.
-    error: Option<String>,
+    /// The limit that refused an edit, until the next accepted edit; worded each pass.
+    error: Option<LimitRefused>,
+    /// The refinement slider gesture the panel last reported open; it ends with the control's
+    /// own gesture ([`craft_ui::edit::is_live`]).
+    panel_gesture: Option<GestureId>,
     /// The Hand and Zoom strip tools (they keep their drag between passes).
     hand: HandTool,
     zoom: ZoomTool,
@@ -184,6 +224,8 @@ impl SelectMaskWorkspace {
     /// A workspace over `open`; its first pass asks for a preview.
     pub fn new(open: SelectMaskOpen) -> Self {
         let session = SelectMaskSession { refine: open.settings.refine.clone(), ..SelectMaskSession::default() };
+        let mut canvas = SelectMaskCanvas::new();
+        canvas.cursor_options(open.cursor_options);
         Self {
             dialog: DialogState::new(),
             history: LocalHistory::new(&session),
@@ -198,25 +240,34 @@ impl SelectMaskWorkspace {
             tool: SelectMaskTool::Quick,
             last_used: LastUsed::default(),
             options: SelectMaskToolOptions::default(),
-            canvas: SelectMaskCanvas::new(),
+            canvas,
             preview: PreviewStatus::new(),
             error: None,
+            panel_gesture: None,
             hand: HandTool::default(),
-            zoom: ZoomTool::new(Size::new(f64::from(open.size[0]), f64::from(open.size[1])), NavigationOptions::default()),
-            navigation: NavigationOptions::default(),
-            checkerboard: Checkerboard::default(),
+            zoom: ZoomTool::new(Size::new(f64::from(open.size[0]), f64::from(open.size[1])), open.navigation),
+            navigation: open.navigation,
+            checkerboard: open.checkerboard,
             owed: true,
         }
     }
 
     /// The user's navigation options (wheel, flick, animated zoom); Photoshop's by default.
-    pub fn navigation(&mut self, navigation: NavigationOptions) {
+    pub fn navigation(&mut self, navigation: NavigationOptions) -> &mut Self {
         self.navigation = navigation;
+        self
     }
 
     /// The user's transparency grid under the image.
-    pub fn checkerboard(&mut self, checkerboard: Checkerboard) {
+    pub fn checkerboard(&mut self, checkerboard: Checkerboard) -> &mut Self {
         self.checkerboard = checkerboard;
+        self
+    }
+
+    /// The user's Preferences › Cursors, which shape the brush outline.
+    pub fn cursor_options(&mut self, cursor_options: CursorOptions) -> &mut Self {
+        self.canvas.cursor_options(cursor_options);
+        self
     }
 
     /// The app's colour picker answered a [`SelectMaskOutput::pick_color`] request. A key this
@@ -246,7 +297,6 @@ impl SelectMaskWorkspace {
         let frame_labels = FullWindowLabels::of_ctx(ctx);
         let title = FullWindowTitle::new(labels.name.as_str()).subject(self.subject.as_str()).zoom(self.view.zoom_percent()).text(ctx);
         let settings_before = self.settings.clone();
-        let sample_before = self.options.sample_all_layers;
         let document = Size::new(f64::from(self.size[0]), f64::from(self.size[1]));
         for (size, prefs) in [(&mut self.hand.size, &mut self.hand.prefs), (&mut self.zoom.size, &mut self.zoom.prefs)] {
             *size = document;
@@ -266,6 +316,7 @@ impl SelectMaskWorkspace {
             canvas,
             preview,
             error,
+            panel_gesture,
             hand,
             zoom,
             navigation,
@@ -279,16 +330,16 @@ impl SelectMaskWorkspace {
         let mut reset = false;
         let response = FullWindowDialog::new("select-mask").title(title).labels(words.clone()).show(ctx, dialog, session, |ui, session, fx| {
             let ctx = ui.ctx().clone();
-            let top = ctx.memory(|m| m.top_modal_layer()) == Some(ui.layer_id());
-            let free = top && !ctx.text_edit_focused() && !Popup::is_any_open(&ctx);
-            if top && let Some(step) = take_step(&ctx) {
+            if let Some(step) = fx.take_step(ui) {
+                // A stroke under way ends first, so its Commit never lands on the restored session.
+                cancel_gesture(ui, *tool, canvas, options, settings.real_time, (&mut *hand, &mut *zoom), view, CancelReason::UndoDuringGesture);
                 canvas.drop_polygon();
                 if history.step(session, step) {
                     *error = None;
                     run.session = true;
                 }
             }
-            if free {
+            if fx.keys_free(ui) {
                 if tool.brushes() {
                     for (key, larger) in [(Key::OpenBracket, false), (Key::CloseBracket, true)] {
                         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, key)) {
@@ -304,15 +355,12 @@ impl SelectMaskWorkspace {
                     }
                 }
             }
-            if top {
-                run.view |= !MaskViewKeys::read(ui, mask_view).is_empty();
-            }
+            // Holding X shows the document's image at once: it changes no preview.
+            run.view |= MaskViewKeys::read(ui, mask_view).iter().any(|change| !matches!(change, MaskViewChange::HideView(_)));
 
-            let mut bar = None;
-            OptionsBar::new("select-mask-bar").show(ui, |slots| {
-                slots.body(|ui| bar = Some(SelectMaskBar::new("select-mask-bar-body", *tool, options, &labels).show(ui)));
-            });
-            if bar.is_some_and(|b| b.select_subject) {
+            let bar = SelectMaskBar::new("select-mask-bar", *tool, options).show(ui);
+            run.sample = bar.sample_all_layers;
+            if bar.select_subject {
                 let edit = SelectMaskEdit::Subject { sample_all_layers: options.sample_all_layers };
                 run.absorb_edit(session, limits, error, edit);
             }
@@ -322,9 +370,8 @@ impl SelectMaskWorkspace {
             if let Some(next) = rail.select
                 && next != *tool
             {
-                if *tool == SelectMaskTool::PolygonalLasso {
-                    canvas.drop_polygon();
-                }
+                cancel_gesture(ui, *tool, canvas, options, settings.real_time, (&mut *hand, &mut *zoom), view, CancelReason::Removed);
+                canvas.drop_polygon();
                 *tool = next;
             }
 
@@ -337,13 +384,21 @@ impl SelectMaskWorkspace {
                 ui,
                 fx,
                 |ui| {
+                    let message = error.map(|why| why.message(ui.ctx()));
+                    let refine_before = session.refine.clone();
                     let panel =
-                        SelectMaskPanel::new("select-mask-panel", settings, &mut session.refine, mask_view, &labels).error(error.as_deref()).show(ui);
-                    run.session |= panel.refine_changed;
+                        SelectMaskPanel::new("select-mask-panel", settings, &mut session.refine, mask_view).error(message.as_deref()).show(ui);
+                    run.session |= session.refine != refine_before;
                     run.view |= panel.view_changed;
-                    run.dragging = panel.dragging;
+                    if let Some(event) = &panel.edit {
+                        *panel_gesture = match event {
+                            EditEvent::Begin { id, .. } | EditEvent::Update { id, .. } => Some(*id),
+                            _ => None,
+                        };
+                    }
+                    run.dragging = panel_gesture.is_some_and(|id| craft_ui::edit::is_live(ui.ctx(), id));
                     run.pick_color = panel.pick_color;
-                    run.panel_edit = panel.edit;
+                    run.panel_edit = panel.selection_edit;
                     preview.show(ui, &frame_labels);
                 },
             );
@@ -361,8 +416,9 @@ impl SelectMaskWorkspace {
                 Some(navigation_tool) => navigation_tool,
                 None => &mut brush,
             };
-            let shown = FullWindowCanvas::new("select-mask-canvas", view)
-                .source(source.view())
+            let recipe = mask_view.recipe();
+            let shown = FullWindowCanvas::new(CANVAS, view)
+                .source(if recipe.hidden { source.image() } else { source.view() })
                 .checkerboard(checkerboard)
                 .navigation(navigation)
                 .tool(active)
@@ -371,15 +427,11 @@ impl SelectMaskWorkspace {
                 // The Esc that cancelled a stroke is not the dialog's Cancel.
                 ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
             }
-            let recipe = mask_view.recipe();
             if recipe.ants
                 && !recipe.hidden
                 && let Some((mask, reduction)) = source.ants()
             {
-                SelectionOverlay::new("select-mask-ants", OutlineSource::Mask(mask))
-                    .labels(SelectionOverlayLabels::of(ui))
-                    .reduction(reduction)
-                    .show(ui, &shown.response, &shown.view);
+                SelectionOverlay::new("select-mask-ants", OutlineSource::Mask(mask)).reduction(reduction).show(ui, &shown.response, &shown.view);
             }
             run.absorb_canvas(canvas, session, limits, error, settings.real_time);
         });
@@ -396,8 +448,7 @@ impl SelectMaskWorkspace {
         history.settle(session, canvas.busy() || run.dragging);
         settings.take_view(mask_view);
         settings.refine = session.refine.clone();
-        let sample_changed = options.sample_all_layers != sample_before;
-        let wanted = std::mem::take(owed) | run.session | run.view | run.stream | run.refused | sample_changed;
+        let wanted = std::mem::take(owed) | run.session | run.view | run.stream | run.refused | run.sample;
         SelectMaskOutput {
             events: run.events,
             preview_wanted: wanted.then(|| preview.request()),
@@ -452,6 +503,33 @@ impl SelectMaskWorkspace {
     }
 }
 
+/// The canvas's id salt.
+const CANVAS: &str = "select-mask-canvas";
+
+/// Ends the gesture the active `tool` holds on the canvas, without a commit: the tool reports
+/// `Cancel` with `reason` through `canvas`'s events, and the Hand's view is put back.
+#[expect(clippy::too_many_arguments, reason = "the tool, its state and the view are separate fields of the workspace")]
+fn cancel_gesture(
+    ui: &Ui,
+    tool: SelectMaskTool,
+    canvas: &mut SelectMaskCanvas,
+    options: &mut SelectMaskToolOptions,
+    real_time: bool,
+    (hand, zoom): (&mut HandTool, &mut ZoomTool),
+    view: &mut FullWindowView,
+    reason: CancelReason,
+) {
+    let (ctx, id) = (ui.ctx(), FullWindowCanvas::canvas_id(ui, CANVAS));
+    let back = match tool {
+        SelectMaskTool::Hand => ToolHost::cancel(ctx, id, hand, reason),
+        SelectMaskTool::Zoom => ToolHost::cancel(ctx, id, zoom, reason),
+        _ => ToolHost::cancel(ctx, id, &mut canvas.tool(tool, options, real_time), reason),
+    };
+    if let Some(back) = back {
+        view.take(&back, ctx.pixels_per_point());
+    }
+}
+
 /// What one pass of [`SelectMaskWorkspace::show`] collected.
 #[derive(Default)]
 struct Run {
@@ -464,15 +542,17 @@ struct Run {
     stream: bool,
     /// The limits refused an edit.
     refused: bool,
-    /// A slider is being dragged.
+    /// A refinement slider's gesture is open.
     dragging: bool,
+    /// Sample All Layers changed.
+    sample: bool,
     pick_color: Option<ColorRequest>,
     panel_edit: Option<SelectMaskEdit>,
 }
 
 impl Run {
     /// Records a button's edit (Select Subject, Clear Selection, Invert) as a `Set`.
-    fn absorb_edit(&mut self, session: &mut SelectMaskSession, limits: &SelectMaskLimits, error: &mut Option<String>, edit: SelectMaskEdit) {
+    fn absorb_edit(&mut self, session: &mut SelectMaskSession, limits: &SelectMaskLimits, error: &mut Option<LimitRefused>, edit: SelectMaskEdit) {
         match session.add_edit(edit.clone(), limits) {
             Ok(()) => {
                 *error = None;
@@ -493,7 +573,7 @@ impl Run {
         canvas: &mut SelectMaskCanvas,
         session: &mut SelectMaskSession,
         limits: &SelectMaskLimits,
-        error: &mut Option<String>,
+        error: &mut Option<LimitRefused>,
         real_time: bool,
     ) {
         for event in canvas.take_events() {
@@ -521,7 +601,7 @@ impl Run {
     }
 
     /// `commit` when it was recorded, else the refusal as a `Cancel`.
-    fn settle<T>(&mut self, recorded: bool, error: &mut Option<String>, commit: EditEvent<T>, id: craft_ui::edit::GestureId) -> EditEvent<T> {
+    fn settle<T>(&mut self, recorded: bool, error: &mut Option<LimitRefused>, commit: EditEvent<T>, id: craft_ui::edit::GestureId) -> EditEvent<T> {
         if recorded {
             if matches!(commit, EditEvent::Commit { changed: true, .. }) {
                 *error = None;

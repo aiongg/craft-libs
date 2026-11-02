@@ -1,6 +1,44 @@
 //! [`SelectMaskLabels`]: Select and Mask's words. The view controls' words are
 //! `MaskViewLabels`; OK, Cancel and Reset the dialog's (`DialogLabels`).
 
+use craft_ui::localized::Words;
+use craft_ui::localized::words::Counted;
+use egui::Context;
+
+use super::session::LimitRefused;
+
+pub(crate) const LIMIT_EDITS: Counted =
+    Counted::new("selectMask.limitEdits", "at most {n} edit: undo some, or reset", "at most {n} edits: undo some, or reset");
+pub(crate) const LIMIT_EDIT_POINTS: Counted = Counted::new(
+    "selectMask.limitEditPoints",
+    "at most {n} point in all edits: undo some, or reset",
+    "at most {n} points in all edits: undo some, or reset",
+);
+pub(crate) const LIMIT_STROKES: Counted = Counted::new(
+    "selectMask.limitStrokes",
+    "at most {n} Refine Edge Brush stroke: undo some, or reset",
+    "at most {n} Refine Edge Brush strokes: undo some, or reset",
+);
+pub(crate) const LIMIT_STROKE_POINTS: Counted = Counted::new(
+    "selectMask.limitStrokePoints",
+    "at most {n} point in all Refine Edge Brush strokes: undo some, or reset",
+    "at most {n} points in all Refine Edge Brush strokes: undo some, or reset",
+);
+
+impl LimitRefused {
+    /// The message under the panel, in the installed words and numbers of `ctx`.
+    pub fn message(self, ctx: &Context) -> String {
+        let (count, n) = match self {
+            LimitRefused::Edits(n) => (LIMIT_EDITS, n),
+            LimitRefused::EditPoints(n) => (LIMIT_EDIT_POINTS, n),
+            LimitRefused::Strokes(n) => (LIMIT_STROKES, n),
+            LimitRefused::StrokePoints(n) => (LIMIT_STROKE_POINTS, n),
+        };
+        let words = Words::of_ctx(ctx);
+        words.counted(ctx, count, &words.get(count.word), n as u64)
+    }
+}
+
 craft_ui::words! {
     /// Select and Mask's words, English by default (Photoshop's names).
     #[non_exhaustive]
