@@ -3,10 +3,11 @@
 use std::f64::consts::FRAC_PI_4;
 
 use egui::{Modifiers, Painter, Pos2, Stroke, vec2};
-use kurbo::{Point, Vec2};
+use kurbo::Point;
 
 use super::model::{MIN_LINE, RulerLine, RulerPart};
 use super::style::MeasureStyle;
+use craft_ui::behavior::move_gesture::snap_direction;
 use craft_ui::behavior::nudge::NudgeKeys;
 use craft_ui::canvas::straight_line::StraightLinePreview;
 use craft_ui::canvas::{CanvasTool, CursorHost, Part, RulerUnits, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
@@ -122,13 +123,10 @@ impl RulerPass<'_> {
     /// it is on `fixed` or not finite).
     fn on_ray(fixed: Point, to: Point) -> Point {
         // pc: crates/ui-egui/src/tools/analysis_ui.rs:219 `constrain`.
-        let d = to - fixed;
-        let length = d.hypot();
-        if !length.is_finite() || length < 1e-9 {
-            return to;
+        match snap_direction(fixed, to, FRAC_PI_4) {
+            Some(dir) => fixed + dir * (to - fixed).hypot(),
+            None => to,
         }
-        let angle = (d.atan2() / FRAC_PI_4).round() * FRAC_PI_4;
-        fixed + Vec2::new(angle.cos(), angle.sin()) * length
     }
 
     /// The line with the grabbed `part` moved to `to`, ⇧ on 45° rays about the fixed point: the end
