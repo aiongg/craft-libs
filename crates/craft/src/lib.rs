@@ -23,6 +23,8 @@ pub use craft_dialogs as dialogs;
 pub use craft_docpath as docpath;
 #[cfg(feature = "draw")]
 pub use craft_draw as draw;
+#[cfg(feature = "ecproj-format")]
+pub use craft_ecproj_format as ecproj_format;
 #[cfg(feature = "font-catalog")]
 pub use craft_font_catalog as font_catalog;
 #[cfg(feature = "font-manager")]
@@ -64,6 +66,8 @@ pub use craft_theme_store as theme_store;
 pub use craft_ui as ui;
 #[cfg(feature = "update")]
 pub use craft_update as update;
+#[cfg(feature = "vectorcraft-format")]
+pub use craft_vectorcraft_format as vectorcraft_format;
 #[cfg(feature = "window")]
 pub use craft_window as window;
 #[cfg(feature = "ui")]
