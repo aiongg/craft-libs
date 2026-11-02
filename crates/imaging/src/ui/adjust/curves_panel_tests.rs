@@ -172,3 +172,19 @@ fn curves_select_point_selects_the_added_point_in_the_editor() {
         h.get_all_by(|n| n.label().is_some_and(|l| l.starts_with("Point "))).map(|n| n.accesskit_node().is_selected() == Some(true)).collect();
     assert_eq!(selected, [false, true, false], "the new middle point is selected");
 }
+
+// The output at the sampled input is the curve's as drawn: each run between corner points is sampled on its own.
+#[test]
+fn curves_add_point_from_sample_samples_each_corner_run_on_its_own() {
+    // A sampler that draws the chord from a run's first to its last point.
+    let chord: Box<Sampler> = Box::new(|points: &[[f32; 2]]| {
+        let (a, b) = (points[0], points[points.len() - 1]);
+        (0..=255).map(|x| if x as f32 <= a[0] { a[1] } else { a[1] + (b[1] - a[1]) * ((x as f32 - a[0]) / (b[0] - a[0])).min(1.0) }).collect()
+    });
+    let mut curves = ToneCurves::identity(&rgb());
+    curves.curves[0] = Curve::from_parts(vec![[0.0, 0.0], [100.0, 200.0], [255.0, 255.0]], vec![false, true, false]);
+    let at = CurvesPanel::add_point_from_sample(&mut curves, &rgb(), 0, grey(0.5), false, &chord);
+    assert_eq!(at, Some(2));
+    let Some(points) = curves.curves[0].points() else { panic!("still a point curve") };
+    assert_eq!(points[2], [128.0, 210.0], "the chord of the run from the corner at 100, not of the whole curve");
+}

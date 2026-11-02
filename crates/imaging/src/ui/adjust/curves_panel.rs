@@ -261,7 +261,7 @@ impl<'a> CurvesPanel<'a> {
     /// - The tone, 0..=255 rounded to a whole level: Red, Green, Blue read their channel; the
     ///   composite reads Rec. 709 luma (0.2126 R + 0.7152 G + 0.0722 B); a grey document the mean
     ///   of R, G, B.
-    /// - The output is the curve's at that input (through `sampler`, the host's interpolation),
+    /// - The output is the curve's at that input (through `sampler`, the host's interpolation, run by run between corner points),
     ///   rounded; the point goes in through [`CurveRules::insert`](craft_ui::composites::CurveRules::insert),
     ///   so a point already at that input is reused and the 16-point limit holds.
     /// - Does nothing and returns `None` in pencil mode, for Lab and CMYK channels, for an
@@ -305,8 +305,8 @@ impl<'a> CurvesPanel<'a> {
             let Some(tone) = list.get(index).and_then(level) else { continue };
             let input = (tone.clamp(0.0, 1.0) * 255.0).round();
             let Some(Curve::Points { points, corners }) = curves.curves.get_mut(index) else { continue };
-            let output = sampler(points).get(input as usize).copied().unwrap_or(input).round();
             corners.resize(points.len(), false);
+            let output = Curve::through(points, corners, sampler).get(input as usize).copied().unwrap_or(input).round();
             let before = points.len();
             let Some(at) = RULES.insert(points, [input, output]) else { continue };
             if points.len() > before {
