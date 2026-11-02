@@ -73,16 +73,38 @@ pub enum ParamKind {
     Custom(CustomRow),
 }
 
-/// What draws a [`ParamKind::Custom`] row: it gets the row's control cell and the dialog's values
-/// and returns the response the row label names and centres on. Equal only to itself.
+/// What draws a [`ParamKind::Custom`] row: it gets the row's control cell, the dialog's values and
+/// the row's [`CustomContext`], and returns the response the row label names and centres on.
+/// Equal only to itself.
 #[derive(Clone)]
 pub struct CustomRow(Arc<CustomDraw>);
 
-type CustomDraw = dyn Fn(&mut Ui, &mut DialogFields) -> Response + Send + Sync;
+type CustomDraw = dyn Fn(&mut Ui, &mut DialogFields, &CustomContext) -> Response + Send + Sync;
 
 impl CustomRow {
-    pub fn new(draw: impl Fn(&mut Ui, &mut DialogFields) -> Response + Send + Sync + 'static) -> Self {
+    pub fn new(draw: impl Fn(&mut Ui, &mut DialogFields, &CustomContext) -> Response + Send + Sync + 'static) -> Self {
         Self(Arc::new(draw))
+    }
+}
+
+/// What a [`Param::custom`] row can ask of the host besides editing the values.
+pub struct CustomContext {
+    ctx: Context,
+    dialog: DialogId,
+    title: String,
+    colors: DialogFields,
+}
+
+impl CustomContext {
+    /// Asks the host for its colour picker for the value under `key`, which needs no row of its
+    /// own. The picker opens at the colour the dialog holds under `key` (black without one), titled
+    /// with the row's label. The request is reported once, as a Colour row's press is
+    /// ([`ParamDialog::pick_color`], [`ParamRowsResponse::color`]); the host answers with
+    /// [`ParamDialog::set_color`] for `key`.
+    pub fn pick_color(&self, key: &str) {
+        let color = Srgba::from_rgb_array(self.colors.color(key).unwrap_or([0.0; 3]));
+        let request = ColorRequest::new(key, color).title(self.title.as_str());
+        self.ctx.data_mut(|d| d.insert_temp(color_press_id(self.dialog), request));
     }
 }
 
@@ -99,12 +121,24 @@ impl PartialEq for CustomRow {
 }
 
 /// What a text row's Browse button picks.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum PathKind {
     #[default]
     Folder,
-    OpenFile,
+    /// An existing file. `extensions` are the ones the file dialog offers, without the dot and in
+    /// any letter case (`["cube", "3dl"]`); empty offers every file. The host passes them to its
+    /// file dialog as one filter (craft-dialogs' `Filter`).
+    OpenFile {
+        extensions: Vec<String>,
+    },
     SaveFile,
+}
+
+impl PathKind {
+    /// An existing file of one of `extensions`.
+    pub fn open_file(extensions: &[&str]) -> Self {
+        Self::OpenFile { extensions: extensions.iter().map(|e| (*e).to_owned()).collect() }
+    }
 }
 
 /// A pressed Browse button: the host opens its file dialog for `kind` and writes the answer with
@@ -249,13 +283,14 @@ impl Param {
     }
 
     /// A row the host draws (PhotoCraft's Zoom center picker, Indexed Color's color count). `draw`
-    /// gets the control cell and the dialog's values; the row label names the response it returns.
+    /// gets the control cell, the dialog's values and the row's [`CustomContext`] (to ask for the
+    /// host's colour picker); the row label names the response it returns.
     /// The row has no default and nothing remembered; `draw` reads and writes
     /// [`DialogFields`] under whatever keys it likes.
     pub fn custom(
         key: impl Into<String>,
         label: impl Into<String>,
-        draw: impl Fn(&mut Ui, &mut DialogFields) -> Response + Send + Sync + 'static,
+        draw: impl Fn(&mut Ui, &mut DialogFields, &CustomContext) -> Response + Send + Sync + 'static,
     ) -> Self {
         Self::new(key, label, ParamKind::Custom(CustomRow::new(draw)))
     }
@@ -601,7 +636,7 @@ impl Param {
                         if let Some(v) = edited(&text) {
                             fields.set(key, FieldValue::Text(v));
                         }
-                        let browse = self.browse.map(|kind| {
+                        let browse = self.browse.clone().map(|kind| {
                             let words = DialogLabels::of_ctx(&ctx);
                             let button = ui.add(Button::new(words.browse.as_str()).id_salt((key, "browse")));
                             if button.clicked() {
@@ -649,10 +684,12 @@ impl Param {
                 });
             }
             ParamKind::Custom(row) => {
+                let custom =
+                    CustomContext { ctx: ctx.clone(), dialog, title: label.trim_end_matches([':', '：']).to_owned(), colors: fields.clone() };
                 if self.option().full_width {
-                    form.spanning(|ui| (row.0)(ui, fields));
+                    form.spanning(|ui| (row.0)(ui, fields, &custom));
                 } else {
-                    form.row(label.as_str(), |ui, _| (row.0)(ui, fields));
+                    form.row(label.as_str(), |ui, _| (row.0)(ui, fields, &custom));
                 }
             }
         }
@@ -748,9 +785,12 @@ pub(super) fn take_color_press(ctx: &Context, dialog: DialogId) -> Option<ColorR
     })
 }
 
-/// Writes `color` into the colour parameter `key` of `params`; other keys are ignored.
+/// Writes `color` into the colour parameter `key` of `params`, or into a key no parameter has when
+/// a [`Param::custom`] row can have asked for it; other keys are ignored.
 pub(super) fn set_color_field(params: &[Param], fields: &mut DialogFields, key: &str, color: Srgba) {
-    if params.iter().any(|param| param.key == key && matches!(param.kind, ParamKind::Color { .. })) {
+    let colour_row = params.iter().any(|param| param.key == key && matches!(param.kind, ParamKind::Color { .. }));
+    let custom_request = params.iter().any(|param| matches!(param.kind, ParamKind::Custom(_))) && params.iter().all(|param| param.key != key);
+    if colour_row || custom_request {
         fields.set(key, FieldValue::Color(color.to_rgb_array()));
     }
 }
@@ -1077,6 +1117,7 @@ pub enum ParamLayout {
 ///   the previous one (PhotoCraft).
 pub struct ParamDialog {
     id: DialogId,
+    instance: Option<DialogId>,
     key: String,
     title: String,
     params: Vec<Param>,
@@ -1111,6 +1152,7 @@ impl ParamDialog {
         let key = key.into();
         Self {
             id: dialog_id(key.as_str()),
+            instance: None,
             key,
             title: title.into(),
             params,
@@ -1136,6 +1178,18 @@ impl ParamDialog {
     /// The key the dialog was made with: which command it answers for. The result carries it.
     pub fn key(&self) -> &str {
         &self.key
+    }
+
+    /// Names this dialog among others made with the same `key`. The dialog's window, focus,
+    /// colour and path requests are kept under its id, made from the key and `instance`, so two
+    /// dialogs of one command (one per document, say) keep separate state. Without it the id
+    /// comes from the key alone. A [`DialogHost`](super::DialogHost) keeps dialogs of different
+    /// instances open together and replaces only one of the same instance; reach one with its
+    /// `_by_id` calls and the id [`open`](super::DialogHost::open) returns.
+    pub fn instance(mut self, instance: impl std::hash::Hash + fmt::Debug) -> Self {
+        self.id = dialog_id((self.key.as_str(), instance));
+        self.instance = Some(self.id);
+        self
     }
 
     /// Opening values that override the defaults (a document's current setting). Remembered
@@ -1252,7 +1306,8 @@ impl ParamDialog {
         self.picked_color.take()
     }
 
-    /// The colour picker's answer for the parameter `key`; other keys are ignored.
+    /// The colour picker's answer for the parameter `key`, or for a key a [`Param::custom`] row
+    /// asked for with [`CustomContext::pick_color`]; other keys are ignored.
     pub fn set_color(&mut self, key: &str, color: Srgba) {
         set_color_field(&self.params, &mut self.fields, key, color);
     }
@@ -1277,7 +1332,7 @@ impl ParamDialog {
     }
 
     /// The Browse button of a [`Param::browse`] row the user pressed, once: the host opens its
-    /// file dialog and writes the path with `fields_mut().set(key, FieldValue::Text(..))`.
+    /// file dialog (for [`PathKind::OpenFile`], with the extensions the request names) and writes the path with `fields_mut().set(key, FieldValue::Text(..))`.
     pub fn pick_path(&mut self) -> Option<PathRequest> {
         self.picked_path.take()
     }
@@ -1474,6 +1529,10 @@ impl StackDialog for ParamDialog {
 
     fn key(&self) -> Option<&str> {
         Some(&self.key)
+    }
+
+    fn instance(&self) -> Option<DialogId> {
+        self.instance
     }
 
     fn confirm(&mut self, ctx: &Context) -> Option<ParamResult> {

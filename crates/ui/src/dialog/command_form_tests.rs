@@ -104,7 +104,7 @@ fn alt_cancel_resets_the_form() {
 // A section under the rows reads the values; Browse reports the pressed row; confirm answers OK.
 #[test]
 fn the_form_draws_a_read_only_section_and_reports_browse() {
-    let rows = vec![Param::new("dest", "Destination:", ParamKind::Text { default: "out".into() }).browse(PathKind::OpenFile)];
+    let rows = vec![Param::new("dest", "Destination:", ParamKind::Text { default: "out".into() }).browse(PathKind::open_file(&["cube", "3dl"]))];
     let mut harness = harness(CommandForm::new("info", "File Info", rows).below(|ui, fields| {
         ui.label(format!("Camera: {}", fields.text("dest").unwrap_or_default()));
     }));
@@ -114,7 +114,7 @@ fn the_form_draws_a_read_only_section_and_reports_browse() {
     harness.run();
     assert_eq!(
         harness.state_mut().host.get_mut::<CommandForm>().unwrap().pick_path(),
-        Some(PathRequest { key: "dest".into(), kind: PathKind::OpenFile })
+        Some(PathRequest { key: "dest".into(), kind: PathKind::open_file(&["cube", "3dl"]) })
     );
 
     let ctx = harness.ctx.clone();

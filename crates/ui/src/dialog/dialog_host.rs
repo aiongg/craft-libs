@@ -66,6 +66,13 @@ pub trait StackDialog: Any + Send {
         None
     }
 
+    /// Which of several dialogs of this type this is, when the app keeps more than one open
+    /// ([`ParamDialog::instance`](super::ParamDialog::instance)). The host replaces an open dialog
+    /// only by one of the same type and instance; `None` (the default) is one dialog per type.
+    fn instance(&self) -> Option<DialogId> {
+        None
+    }
+
     /// Answers OK as a click on the default button would, without drawing: runs what OK runs
     /// (storing remembered values) and returns the answer. `None` when OK is disabled or the
     /// dialog has no programmatic OK (the default). Used by [`DialogHost::confirm`].
@@ -100,6 +107,7 @@ trait AnyStackDialog: Send {
     fn id(&self) -> DialogId;
     fn result_type(&self) -> TypeId;
     fn key(&self) -> Option<String>;
+    fn instance(&self) -> Option<DialogId>;
     fn confirm_erased(&mut self, ctx: &Context) -> Option<Box<dyn Any + Send>>;
     fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send>>;
     /// `DialogResult::<D::Result>::Cancel`, boxed, for a dialog closed from outside.
@@ -121,6 +129,10 @@ impl<D: StackDialog> AnyStackDialog for D {
 
     fn key(&self) -> Option<String> {
         StackDialog::key(self).map(str::to_owned)
+    }
+
+    fn instance(&self) -> Option<DialogId> {
+        StackDialog::instance(self)
     }
 
     fn confirm_erased(&mut self, ctx: &Context) -> Option<Box<dyn Any + Send>> {
@@ -167,11 +179,17 @@ impl<D: StackDialog> AnyStackDialog for D {
 /// - Startup modals [`enqueue`](DialogHost::enqueue) in [`StartupStage`] order and open one at a
 ///   time, each when the stack is empty, so the GPU warning and the update prompt never overlap
 ///   (gap 75).
-/// - A result stays until [`take`](DialogHost::take)n or until a dialog of the same type is
-///   opened again. One open dialog per type: [`open`](DialogHost::open) of a second
-///   `ParamDialog` while one is open cancels the first and drops any untaken result of the type
-///   (the new dialog's result replaces it); [`open_unless_open`](DialogHost::open_unless_open)
-///   refuses instead and leaves the open one alone (PhotoCraft's `confirmationPending`).
+/// - A result stays until [`take`](DialogHost::take)n or until a dialog of the same type and
+///   instance is opened again. One open dialog per type and instance: [`open`](DialogHost::open)
+///   of a second `ParamDialog` while one with the same [`instance`](StackDialog::instance) is
+///   open cancels the first and drops any untaken result of that type and instance (the new
+///   dialog's result replaces it). A dialog without an instance is one per type. Dialogs of one
+///   type with different instances stay open together, and the `_by_id` calls
+///   ([`get_mut_by_id`](DialogHost::get_mut_by_id), [`confirm_by_id`](DialogHost::confirm_by_id),
+///   [`cancel_by_id`](DialogHost::cancel_by_id), [`take_by_id`](DialogHost::take_by_id)) reach
+///   one of them; the per-type calls reach the most recently opened `D`.
+///   [`open_unless_open`](DialogHost::open_unless_open) refuses while any `D` is open and leaves
+///   it alone (PhotoCraft's `confirmationPending`).
 /// - Automation: [`get`](DialogHost::get) and [`get_mut`](DialogHost::get_mut) reach the open
 ///   dialog's value, so a script sets fields and a test reads them like a user would.
 #[derive(Default)]
@@ -188,6 +206,8 @@ pub struct DialogHost {
 /// A finished dialog's answer, with the key the dialog had.
 struct StoredResult {
     type_id: TypeId,
+    id: DialogId,
+    instance: Option<DialogId>,
     key: Option<String>,
     result: Box<dyn Any + Send>,
 }
@@ -277,7 +297,18 @@ impl DialogHost {
     /// `Cancel` after a replace-by-open needs to tell which command it was. `None` key for a
     /// dialog without one.
     pub fn take_keyed<D: StackDialog>(&mut self) -> Option<(DialogResult<D::Result>, Option<String>)> {
-        let at = self.results.iter().position(|stored| stored.type_id == TypeId::of::<D>())?;
+        let at = self.results.iter().rposition(|stored| stored.type_id == TypeId::of::<D>())?;
+        self.take_at::<D>(at)
+    }
+
+    /// [`take`](DialogHost::take) for the dialog `id` names, among several `D` of different
+    /// instances.
+    pub fn take_by_id<D: StackDialog>(&mut self, id: DialogId) -> Option<DialogResult<D::Result>> {
+        let at = self.results.iter().rposition(|stored| stored.type_id == TypeId::of::<D>() && stored.id == id)?;
+        self.take_at::<D>(at).map(|(result, _)| result)
+    }
+
+    fn take_at<D: StackDialog>(&mut self, at: usize) -> Option<(DialogResult<D::Result>, Option<String>)> {
         let stored = self.results.remove(at);
         let result = stored.result.downcast::<DialogResult<D::Result>>().ok()?;
         Some((*result, stored.key))
@@ -288,7 +319,21 @@ impl DialogHost {
     /// [`take`](DialogHost::take). `false` when no `D` is open, OK is disabled, or `D` has no
     /// programmatic OK.
     pub fn confirm<D: StackDialog>(&mut self, ctx: &Context) -> bool {
-        let Some(at) = self.position::<D>() else { return false };
+        match self.position::<D>() {
+            Some(at) => self.confirm_at(ctx, at),
+            None => false,
+        }
+    }
+
+    /// [`confirm`](DialogHost::confirm) for the open `D` that `id` names.
+    pub fn confirm_by_id<D: StackDialog>(&mut self, ctx: &Context, id: DialogId) -> bool {
+        match self.position_by_id::<D>(id) {
+            Some(at) => self.confirm_at(ctx, at),
+            None => false,
+        }
+    }
+
+    fn confirm_at(&mut self, ctx: &Context, at: usize) -> bool {
         let Some(result) = self.open[at].confirm_erased(ctx) else { return false };
         let id = self.open[at].id();
         let dialog = self.open.remove(at);
@@ -301,7 +346,21 @@ impl DialogHost {
     /// Closes the open `D` with [`DialogResult::Cancel`] (and its children), as Esc would, and runs
     /// [`StackDialog::cancelled`] on each.
     pub fn cancel<D: StackDialog>(&mut self, ctx: &Context) -> bool {
-        let Some(at) = self.position::<D>() else { return false };
+        match self.position::<D>() {
+            Some(at) => self.cancel_at(ctx, at),
+            None => false,
+        }
+    }
+
+    /// [`cancel`](DialogHost::cancel) for the open `D` that `id` names.
+    pub fn cancel_by_id<D: StackDialog>(&mut self, ctx: &Context, id: DialogId) -> bool {
+        match self.position_by_id::<D>(id) {
+            Some(at) => self.cancel_at(ctx, at),
+            None => false,
+        }
+    }
+
+    fn cancel_at(&mut self, ctx: &Context, at: usize) -> bool {
         let id = self.open[at].id();
         let mut dialog = self.open.remove(at);
         dialog.release(ctx);
@@ -334,27 +393,37 @@ impl DialogHost {
 
     /// The open `D`, for the app to feed (a preview image) or a script to read.
     pub fn get<D: StackDialog>(&self) -> Option<&D> {
-        self.open.iter().find(|dialog| dialog.result_type() == TypeId::of::<D>())?.as_any().downcast_ref()
+        self.open.iter().rfind(|dialog| dialog.result_type() == TypeId::of::<D>())?.as_any().downcast_ref()
     }
 
     pub fn get_mut<D: StackDialog>(&mut self) -> Option<&mut D> {
-        self.open.iter_mut().find(|dialog| dialog.result_type() == TypeId::of::<D>())?.as_any_mut().downcast_mut()
+        self.open.iter_mut().rfind(|dialog| dialog.result_type() == TypeId::of::<D>())?.as_any_mut().downcast_mut()
     }
 
+    /// [`get_mut`](DialogHost::get_mut) for the open `D` that `id` names.
+    pub fn get_mut_by_id<D: StackDialog>(&mut self, id: DialogId) -> Option<&mut D> {
+        self.get_dyn_mut(id)?.downcast_mut()
+    }
+
+    /// The most recently opened `D`.
     fn position<D: StackDialog>(&self) -> Option<usize> {
-        self.open.iter().position(|dialog| dialog.result_type() == TypeId::of::<D>())
+        self.open.iter().rposition(|dialog| dialog.result_type() == TypeId::of::<D>())
+    }
+
+    fn position_by_id<D: StackDialog>(&self, id: DialogId) -> Option<usize> {
+        self.open.iter().position(|dialog| dialog.id() == id && dialog.result_type() == TypeId::of::<D>())
     }
 
     fn store_result(&mut self, dialog: &dyn AnyStackDialog, result: Box<dyn Any + Send>) {
-        let type_id = dialog.result_type();
-        self.results.retain(|stored| stored.type_id != type_id);
-        self.results.push(StoredResult { type_id, key: dialog.key(), result });
+        let (type_id, instance) = (dialog.result_type(), dialog.instance());
+        self.results.retain(|stored| stored.type_id != type_id || stored.instance != instance);
+        self.results.push(StoredResult { type_id, id: dialog.id(), instance, key: dialog.key(), result });
     }
 
     fn open_with_parent(&mut self, dialog: Box<dyn AnyStackDialog>, parent: Option<DialogId>) -> DialogId {
-        let type_id = dialog.result_type();
-        self.results.retain(|stored| stored.type_id != type_id);
-        if let Some(at) = self.open.iter().position(|open| open.result_type() == type_id) {
+        let (type_id, instance) = (dialog.result_type(), dialog.instance());
+        self.results.retain(|stored| stored.type_id != type_id || stored.instance != instance);
+        if let Some(at) = self.open.iter().position(|open| open.result_type() == type_id && open.instance() == instance) {
             let old = self.open.remove(at);
             self.stack.remove_tree(old.id());
             self.store_result(old.as_ref(), old.cancelled());

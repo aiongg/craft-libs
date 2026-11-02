@@ -195,6 +195,33 @@ fn confirm_answers_ok_for_automation() {
     assert!(!host.confirm::<ParamDialog>(&ctx), "nothing open");
 }
 
+// Dialogs of one key and different instances are open together; each is reached, confirmed and
+// taken by id with its own fields. A second open of the same instance replaces the first, and
+// without an instance one per type holds (`opening_the_same_dialog_type_again_cancels_the_open_one`).
+#[test]
+fn dialogs_of_different_instances_stay_open_and_answer_by_id() {
+    let ctx = Context::default();
+    let mut host = DialogHost::new();
+    let first = host.open(blur().instance("action 1"));
+    let second = host.open(blur().instance("action 2"));
+    assert_ne!(first, second);
+    host.get_mut_by_id::<ParamDialog>(first).unwrap().fields_mut().set("radius", 4_i64);
+    host.get_mut_by_id::<ParamDialog>(second).unwrap().fields_mut().set("radius", 9_i64);
+    assert!(host.confirm_by_id::<ParamDialog>(&ctx, first));
+    assert!(host.is_open::<ParamDialog>(), "the second stays open");
+    assert!(host.confirm_by_id::<ParamDialog>(&ctx, second));
+    let Some(DialogResult::Ok(answer)) = host.take_by_id::<ParamDialog>(second) else { panic!("second answered OK") };
+    assert_eq!(answer.fields.int("radius"), Some(9));
+    let Some(DialogResult::Ok(answer)) = host.take_by_id::<ParamDialog>(first) else { panic!("first answered OK") };
+    assert_eq!(answer.fields.int("radius"), Some(4));
+    assert!(host.take_by_id::<ParamDialog>(first).is_none());
+
+    host.open(blur().instance("action 1"));
+    host.open(blur().instance("action 1"));
+    assert!(host.cancel_by_id::<ParamDialog>(&ctx, first));
+    assert!(!host.is_open::<ParamDialog>(), "the same instance was replaced, not added");
+}
+
 /// Counts the times the host told it that it was closed from outside.
 struct Releasing {
     key: &'static str,
