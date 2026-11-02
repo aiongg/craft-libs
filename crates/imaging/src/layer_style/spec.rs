@@ -2,6 +2,7 @@
 //! the effect's factory defaults.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 use craft_theme::Srgba;
 
@@ -87,6 +88,21 @@ pub struct EffectSpec {
 }
 
 impl EffectSpec {
+    /// The spec with every Blend field's default renamed through `map` (English name to the
+    /// host's blend key); names `map` lacks stay as they are.
+    pub fn with_blend_keys(mut self, map: &HashMap<String, String>) -> Self {
+        for field in self.fields.iter().filter(|field| matches!(field.kind, FieldKind::Blend)) {
+            let mapped = match self.defaults.get(&field.key) {
+                Some(StyleValue::Text(name)) => map.get(name).cloned(),
+                _ => None,
+            };
+            if let Some(key) = mapped {
+                self.defaults.set(field.key.to_string(), StyleValue::Text(key));
+            }
+        }
+        self
+    }
+
     /// Photoshop's table and factory defaults for `kind`, as PhotoCraft has them. Keys and labels,
     /// ranges in the field's unit (Slider min..max unit):
     ///

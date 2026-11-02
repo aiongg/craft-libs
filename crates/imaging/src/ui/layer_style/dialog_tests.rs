@@ -1,8 +1,8 @@
 //! Tests of the Layer Style dialog body: the effect list, the Styles page, colour answers (task
 //! AD-8).
 //!
-//! The specs here list no fields, so the effect pages draw only their title and Preview check box:
-//! the field pages are AD-9's.
+//! Most specs here list no fields, so their effect pages draw only their title, Preview check box,
+//! Make Default and Reset to Default.
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::borrow::Cow;
@@ -13,7 +13,10 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
 use super::{LayerStyleDialog, StylePresets};
-use crate::layer_style::{EffectId, EffectInstance, EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, LayerStylePage, StyleParams, StyleValue};
+use crate::layer_style::{
+    EffectField, EffectId, EffectInstance, EffectKind, EffectSpec, FieldKind, FieldUnit, LayerStyle, LayerStyleDraft, LayerStylePage, StyleParams,
+    StyleValue,
+};
 use craft_theme::Srgba;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
@@ -24,7 +27,7 @@ use craft_ui::theme::{Base, install};
 struct Host {
     draft: LayerStyleDraft,
     specs: Vec<EffectSpec>,
-    events: Vec<EditEvent<LayerStyleDraft>>,
+    events: Vec<EditEvent<LayerStyle>>,
     applied: Vec<String>,
     state: PresetState<String>,
     rows: Vec<PresetRow<String>>,
@@ -44,19 +47,16 @@ fn rig() -> Harness<'static, Host> {
     style.effects.push(shadow(1, true));
     let mut draft = LayerStyleDraft::new(style);
     draft.page = LayerStylePage::Styles;
+    rig_of(draft, vec![spec(EffectKind::DropShadow), spec(EffectKind::Satin)])
+}
+
+fn rig_of(draft: LayerStyleDraft, specs: Vec<EffectSpec>) -> Harness<'static, Host> {
     let rows = vec![
         PresetRow::group("g".to_owned(), "Basics", 0),
         PresetRow::item("Soft".to_owned(), "Soft", 1),
         PresetRow::item("Hard".to_owned(), "Hard", 1),
     ];
-    let host = Host {
-        draft,
-        specs: vec![spec(EffectKind::DropShadow), spec(EffectKind::Satin)],
-        events: Vec::new(),
-        applied: Vec::new(),
-        state: PresetState::new(),
-        rows,
-    };
+    let host = Host { draft, specs, events: Vec::new(), applied: Vec::new(), state: PresetState::new(), rows };
     let mut h = Harness::builder().with_size([640.0, 480.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
             let numbers = LocaleNumbers::from_tag("en");
@@ -66,9 +66,10 @@ fn rig() -> Harness<'static, Host> {
                 painter.rect_filled(rect, 0.0, egui::Color32::GRAY);
             });
             let out = LayerStyleDialog::new("layer-style", draft, &channels, &numbers).specs(specs).style_presets(presets).show(ui);
+            out.apply_view(draft);
             if let Some(event) = out.edit.event {
                 if let Some(value) = event.value() {
-                    *draft = value.clone();
+                    draft.style = value.clone();
                 }
                 events.push(event);
             }
@@ -117,7 +118,57 @@ fn absent_effect_row_adds_the_effect_on() {
     h.run_steps(3);
     assert_eq!(effects(&h), [(1, EffectKind::DropShadow, true), (2, EffectKind::Satin, true)]);
     assert_eq!(h.state().draft.page, LayerStylePage::Effect(EffectId(2)));
-    assert!(matches!(h.state().events.as_slice(), [EditEvent::Set { .. }]));
+    assert!(h.state().events.is_empty(), "Preview is view state: nothing for the dialog's history to record");
+}
+
+// A list click changes the page without a style edit, so `Dialog::history` has nothing to record
+// and Undo never moves the page.
+#[test]
+fn a_page_switch_reports_the_page_and_no_edit() {
+    let mut h = rig();
+    row(&h, "Blending Options").click();
+    h.run_steps(3);
+    assert_eq!(h.state().draft.page, LayerStylePage::Blending);
+    assert!(h.state().events.is_empty());
+}
+
+fn size_spec() -> EffectSpec {
+    let field = EffectField { key: "size".into(), label: "Size".into(), kind: FieldKind::Slider { min: 0.0, max: 250.0, unit: FieldUnit::Pixels } };
+    let mut defaults = StyleParams::default();
+    defaults.set("size", StyleValue::Number(5.0));
+    EffectSpec { kind: EffectKind::DropShadow, label: Cow::Borrowed(""), fields: vec![field], defaults }
+}
+
+// Typing in Size and then clicking another effect's row commits the typing: the page the click
+// leaves is drawn in the click's pass, so its field sees the focus loss.
+#[test]
+fn a_list_click_commits_the_typing_of_the_page_it_leaves() {
+    let mut style = LayerStyle::default();
+    style.effects.push(shadow(1, true));
+    style.effects.push(EffectInstance { id: EffectId(2), kind: EffectKind::Satin, on: true, params: StyleParams::default() });
+    let mut draft = LayerStyleDraft::new(style);
+    draft.page = LayerStylePage::Effect(EffectId(1));
+    let mut h = rig_of(draft, vec![size_spec(), spec(EffectKind::Satin)]);
+    let size = h.get_by_role_and_label(Role::SpinButton, "Size");
+    size.click();
+    h.run_steps(3);
+    h.get_by_role_and_label(Role::SpinButton, "Size").type_text("42");
+    h.run_steps(3);
+    row(&h, "Satin").click();
+    h.run_steps(4);
+    let typed = h.state().draft.style.effect(EffectId(1)).and_then(|e| e.params.number("size"));
+    assert_eq!(typed, Some(42.0));
+    assert_eq!(h.state().draft.page, LayerStylePage::Effect(EffectId(2)), "the chosen page shows once the host applied it");
+}
+
+// A spec without fields still shows Make Default and Reset to Default.
+#[test]
+fn a_fieldless_spec_shows_make_default_and_reset() {
+    let mut h = rig();
+    row(&h, "Drop Shadow").click();
+    h.run_steps(3);
+    h.get_by_label("Make Default");
+    h.get_by_label("Reset to Default");
 }
 
 // `+` on Drop Shadow adds a second instance after the first; `−` shows only with two and removes
@@ -134,14 +185,17 @@ fn plus_and_minus_add_and_remove_instances_of_multi_effects() {
     h.run_steps(3);
     assert!(h.query_by_label("Add another Satin").is_none() && h.query_by_label("Remove this Satin").is_none());
 
-    let Some(minus) = h.get_all_by_label("Remove this Drop Shadow").next() else { panic!("two instances show a minus") };
-    minus.click();
+    // Two instances are numbered, so no two buttons share a name.
+    assert!(h.query_by_label("Add another Drop Shadow").is_none());
+    h.get_by_label("Add another Drop Shadow 2");
+    h.get_by_label("Remove this Drop Shadow 2");
+    h.get_by_label("Remove this Drop Shadow 1").click();
     h.run_steps(3);
     assert_eq!(effects(&h), [(2, EffectKind::DropShadow, true), (3, EffectKind::Satin, true)]);
 }
 
-// Tab reaches the list once; ↑ and ↓ move the lead, Space toggles, Enter selects the page; the
-// AccessKit tree has a ListBox of CheckBox rows with positions.
+// Tab reaches the list once; ↑ and ↓ move the lead and show the page of a selectable row, Space
+// toggles, Enter selects the page; the AccessKit tree has a ListBox of CheckBox rows with positions.
 #[test]
 fn effect_list_is_one_tab_stop_with_arrow_navigation() {
     let mut h = rig();
@@ -152,12 +206,14 @@ fn effect_list_is_one_tab_stop_with_arrow_navigation() {
     h.key_press(Key::Tab);
     h.run_steps(3);
     assert!(h.ctx.memory(|m| m.focused().is_some()), "Tab focuses the list");
-    // Styles, Blending Options, then over the gap to Drop Shadow.
+    // Styles, Blending Options, then over the spacer to Drop Shadow: each selectable row shows its
+    // page.
     h.key_press(Key::ArrowDown);
-    h.run_steps(2);
+    h.run_steps(3);
+    assert_eq!(h.state().draft.page, LayerStylePage::Blending);
     h.key_press(Key::ArrowDown);
-    h.run_steps(2);
-    assert_eq!(h.state().draft.page, LayerStylePage::Styles, "the arrows move the lead only");
+    h.run_steps(3);
+    assert_eq!(h.state().draft.page, LayerStylePage::Effect(EffectId(1)));
     h.key_press(Key::Enter);
     h.run_steps(3);
     assert_eq!(h.state().draft.page, LayerStylePage::Effect(EffectId(1)));
@@ -167,8 +223,10 @@ fn effect_list_is_one_tab_stop_with_arrow_navigation() {
     h.run_steps(3);
     assert_eq!(effects(&h), [(1, EffectKind::DropShadow, false)]);
 
+    // The absent Satin row is not selectable: ↓ moves the lead onto it and the page stays.
     h.key_press(Key::ArrowDown);
-    h.run_steps(2);
+    h.run_steps(3);
+    assert_eq!(h.state().draft.page, LayerStylePage::Effect(EffectId(1)));
     h.key_press(Key::Space);
     h.run_steps(3);
     assert_eq!(effects(&h), [(1, EffectKind::DropShadow, false), (2, EffectKind::Satin, true)], "Space on an absent row adds it");
@@ -206,7 +264,7 @@ fn set_color_writes_the_named_parameter_and_ignores_unknown_keys() {
     assert_eq!(draft, before);
 }
 
-// The Preview check box at the title's end flips `draft.preview` as a Set; the render hash stays.
+// The Preview check box at the title's end reports `preview`, not an edit; the render hash stays.
 #[test]
 fn preview_check_box_flips_the_drafts_preview() {
     let mut h = rig();

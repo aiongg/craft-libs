@@ -28,6 +28,8 @@ craft_ui::words! {
         add_instance: "layerStyle.addInstance" = "Add another {effect}";
         /// The `−` button's accessible name.
         remove_instance: "layerStyle.removeInstance" = "Remove this {effect}";
+        /// The name of the instance `{number}` of an effect that has several: "Drop Shadow 2".
+        instance_name: "layerStyle.instanceName" = "{effect} {number}";
         preview: "layerStyle.preview" = "Preview";
         new_style: "layerStyle.newStyle" = "New Style…";
         make_default: "layerStyle.makeDefault" = "Make Default";

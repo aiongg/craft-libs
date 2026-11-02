@@ -161,22 +161,52 @@ fn global_light_angle_is_shared_by_effects_that_use_it() {
 fn shadow_drag_uses_whole_degrees_and_pixels_and_moves_the_global_angle() {
     let mut draft = LayerStyleDraft::new(style_with(&[(1, EffectKind::DropShadow)]));
     assert!(draft.drags_shadow());
-    assert!(draft.drag_shadow(true, [0.0, 0.0]) || draft.shadow_drag.is_some());
+    let defaults = EffectSpec::photoshop(EffectKind::DropShadow).defaults;
+    assert!(draft.drag_shadow(&defaults, true, [0.0, 0.0]) || draft.shadow_drag.is_some());
 
-    assert!(draft.drag_shadow(false, [4.5, -2.2]));
+    assert!(draft.drag_shadow(&defaults, false, [4.5, -2.2]));
     let params = &draft.style.effects[0].params;
     assert_eq!((params.number("angle"), params.number("distance")), (Some(163.0), Some(7.0)));
     assert_eq!(draft.style.global_light, 163.0);
 
     // Back to the press point: the offset is under 0.5 px, so the start angle returns.
-    assert!(draft.drag_shadow(false, [-2.5, -4.330_127]));
+    assert!(draft.drag_shadow(&defaults, false, [-2.5, -4.330_127]));
     let params = &draft.style.effects[0].params;
     assert_eq!((params.number("angle"), params.number("distance")), (Some(120.0), Some(0.0)));
     assert_eq!(draft.style.global_light, 120.0);
 
     // Other pages are not dragged.
     draft.page = LayerStylePage::Blending;
-    assert!(!draft.drag_shadow(true, [10.0, 10.0]));
+    assert!(!draft.drag_shadow(&defaults, true, [10.0, 10.0]));
+}
+
+// An instance without angle and distance starts the drag from the spec's defaults, not from 120°
+// and 0.
+#[test]
+fn shadow_drag_starts_from_the_defaults_under_the_instances_values() {
+    let mut style = style_with(&[(1, EffectKind::DropShadow)]);
+    style.effects[0].params = StyleParams::default();
+    let mut draft = LayerStyleDraft::new(style);
+    let mut defaults = StyleParams::default();
+    defaults.set("angle", StyleValue::Number(30.0));
+    defaults.set("distance", StyleValue::Number(10.0));
+    assert!(draft.drag_shadow(&defaults, true, [0.0, 0.0]));
+    assert_eq!(draft.shadow_drag, Some(ShadowDrag::begin(30.0, 10.0)));
+    let params = &draft.style.effects[0].params;
+    assert_eq!((params.number("angle"), params.number("distance")), (Some(30.0), Some(10.0)));
+}
+
+// The blend defaults of a spec become the host's keys; unknown names stay. Bevel & Emboss has two
+// Blend fields: only the one defaulting to Multiply is renamed.
+#[test]
+fn blend_keys_remap_the_blend_defaults_only() {
+    let map: std::collections::HashMap<String, String> = [("Multiply".to_owned(), "mul".to_owned())].into();
+    let spec = EffectSpec::photoshop(EffectKind::DropShadow).with_blend_keys(&map);
+    assert_eq!(spec.defaults.get("blend"), Some(&StyleValue::Text("mul".to_owned())));
+    let bevel = EffectSpec::photoshop(EffectKind::BevelEmboss);
+    let mapped = bevel.clone().with_blend_keys(&map);
+    assert_eq!(mapped.defaults.get("shadowBlend"), Some(&StyleValue::Text("mul".to_owned())));
+    assert_eq!(mapped.defaults.get("highlightBlend"), bevel.defaults.get("highlightBlend"));
 }
 
 // `BlendIfRange::ordered` and `moved` always give black low ≤ black high ≤ white low ≤ white

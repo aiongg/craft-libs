@@ -2,10 +2,12 @@
 //! Blending Options page with its [`BlendIfBar`]s, and the effect pages drawn from the
 //! [`EffectSpec`](crate::layer_style::EffectSpec) tables, with [`ContourField`]s for contours.
 //!
-//! The value is a [`LayerStyleDraft`](crate::layer_style::LayerStyleDraft) (the model in
+//! The dialog reads a [`LayerStyleDraft`](crate::layer_style::LayerStyleDraft) (the model in
 //! [`crate::layer_style`], without egui). The host owns the dialog frame, the draft, the engine
-//! and the preview; the dialog reports a changed draft and asks for colours, presets and contour
-//! files.
+//! and the preview; the dialog reports the edits and asks for colours, presets and contour
+//! files. The edits' value is the [`LayerStyle`](crate::layer_style::LayerStyle) alone; the page,
+//! the Preview check and the Blend If channel are reported beside it
+//! ([`LayerStyleOutput::page`] and the other two), so the host's undo never moves them.
 //!
 //! ```no_run
 //! use craft_imaging::layer_style::LayerStyleDraft;
@@ -13,11 +15,12 @@
 //! use craft_ui::edit::EditEvent;
 //! # fn demo(ui: &mut egui::Ui, draft: &mut LayerStyleDraft, channels: &[String], modes: &[craft_ui::controls::BlendChoice], numbers: &craft_ui::localized::LocaleNumbers) {
 //! let out = LayerStyleDialog::new("layer-style", draft, channels, numbers).blend_modes(modes).show(ui);
+//! out.apply_view(draft); // the page, Preview and Blend If channel are the draft's view state
 //! match out.edit.event {
-//!     Some(EditEvent::Cancel { .. }) => { /* restore the draft kept at Begin */ }
+//!     Some(EditEvent::Cancel { .. }) => { /* restore the style kept at Begin */ }
 //!     Some(event) => {
 //!         if let Some(value) = event.value() {
-//!             *draft = value.clone();
+//!             draft.style = value.clone();
 //!         }
 //!     }
 //!     None => {}

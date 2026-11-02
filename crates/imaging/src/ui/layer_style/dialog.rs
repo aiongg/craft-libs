@@ -2,6 +2,9 @@
 
 use craft_theme::Srgba;
 use egui::accesskit::Role;
+use std::borrow::Cow;
+use std::collections::HashMap;
+
 use egui::{Align, AsIdSalt, IdSalt, Layout, RichText, Sense, Ui, UiBuilder, vec2};
 
 use craft_ui::controls::{BlendChoice, Checkbox};
@@ -18,18 +21,28 @@ use super::labels::{BlendIfBarLabels, ContourFieldLabels, LayerStyleLabels};
 use super::list::{ListAction, effect_list};
 use super::page::{PageInput, PatternChoice, effect_page};
 use super::styles::{StylePresets, styles_page};
-use crate::layer_style::{Contour, EffectId, EffectKind, EffectSpec, LayerStyleDraft, LayerStylePage, StyleParams, StyleValue};
+use crate::layer_style::{Contour, EffectId, EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, LayerStylePage, StyleParams, StyleValue};
 
 /// What [`LayerStyleDialog::show`] reports.
 #[derive(Debug)]
 #[non_exhaustive]
 #[must_use = "the host applies the edit and answers the requests"]
 pub struct LayerStyleOutput {
-    /// The draft after this pass's change: a slider drag is a gesture (`Begin`, `Update`…,
-    /// `Commit`, Esc `Cancel`); a check, select, list action, page change or preset is a `Set`.
-    /// The host keeps the value and previews it while its `preview` is on; everything stays
-    /// inside the dialog's outer gesture, and OK makes the one "Layer Style" history step.
-    pub edit: EditResponse<LayerStyleDraft>,
+    /// The style after this pass's change: a slider drag is a gesture (`Begin`, `Update`…,
+    /// `Commit`, Esc `Cancel`); a check, select or an instance added, removed or turned on or off
+    /// is a `Set`. Only style changes are edits, so `Dialog::history` never records a page
+    /// switch. The host keeps the value and previews it while the draft's `preview` is on;
+    /// everything stays inside the dialog's outer gesture, and OK makes the one "Layer Style"
+    /// history step.
+    pub edit: EditResponse<LayerStyle>,
+    /// The page the user chose this pass (a list row, an added or removed instance); the host
+    /// keeps it in [`LayerStyleDraft::page`], and the dialog draws it from then on.
+    pub page: Option<LayerStylePage>,
+    /// The Preview check box changed to this; the host keeps it in [`LayerStyleDraft::preview`].
+    pub preview: Option<bool>,
+    /// The Blend If entry chosen this pass, an index into `blending.blend_if`; the host keeps it
+    /// in [`LayerStyleDraft::blend_if_channel`].
+    pub blend_if_channel: Option<usize>,
     /// A colour swatch was clicked: the host opens its colour picker and answers with
     /// [`LayerStyleDialog::set_color`].
     pub pick_color: Option<ColorRequest>,
@@ -49,13 +62,33 @@ pub struct LayerStyleOutput {
     pub contour_action: Option<ContourAction>,
 }
 
+impl LayerStyleOutput {
+    /// Writes the view state this pass reported (page, Preview, Blend If channel) into `draft`.
+    /// The style edit is the host's, as its history rules apply it.
+    pub fn apply_view(&self, draft: &mut LayerStyleDraft) {
+        if let Some(page) = self.page {
+            draft.page = page;
+        }
+        if let Some(preview) = self.preview {
+            draft.preview = preview;
+        }
+        if let Some(channel) = self.blend_if_channel {
+            draft.blend_if_channel = channel;
+        }
+    }
+}
+
 /// The Layer Style dialog's body: the effect list on the left, the selected page on the right
 /// (`layer_style.page_width`, a vertical divider between), as Photoshop lays it out. The host owns
 /// the frame (`Dialog` with OK, Cancel and Alt+Cancel Reset), the draft, the engine and the
 /// preview.
 ///
-/// - The list: Styles, Blending Options, the effects (one Tab stop, ↑ and ↓, Space toggles, Enter
-///   shows the page; absent effects dimmed, `+` and `−` for kinds that allow several).
+/// - The list: Styles, Blending Options, the effects (one Tab stop, ↑ and ↓ show the page of a row
+///   that is selectable, Space toggles, Enter shows the page; effects that are off muted, absent
+///   ones dimmed, `+` and `−` for kinds that allow several).
+/// - A page change is reported in [`LayerStyleOutput::page`] and drawn once the host has applied
+///   it. The page drawn in the pass of a click is the one the click left, so its fields see their
+///   focus loss and commit what was typed before the page changes.
 /// - The page title is the effect's name (`type.title`) with the Preview check box at its end
 ///   (it flips [`LayerStyleDraft::preview`]; the Styles page has none).
 /// - The Styles page ([`StylePresets`]), the Blending Options page, or an effect page drawn from
@@ -70,8 +103,9 @@ pub struct LayerStyleOutput {
 /// use craft_imaging::ui::layer_style::LayerStyleDialog;
 /// # fn demo(ui: &mut egui::Ui, draft: &mut LayerStyleDraft, channels: &[String], numbers: &craft_ui::localized::LocaleNumbers) {
 /// let out = LayerStyleDialog::new("layer-style", draft, channels, numbers).show(ui);
+/// out.apply_view(draft);
 /// if let Some(value) = out.edit.event.and_then(|e| e.value().cloned()) {
-///     *draft = value; // and re-render the preview when `draft.render_hash()` changed
+///     draft.style = value; // and re-render the preview when `draft.render_hash()` changed
 /// }
 /// # }
 /// ```
@@ -82,6 +116,7 @@ pub struct LayerStyleDialog<'a> {
     channel_names: &'a [String],
     numbers: &'a LocaleNumbers,
     specs: Option<&'a [EffectSpec]>,
+    blend_keys: Option<&'a HashMap<String, String>>,
     blend_modes: &'a [BlendChoice],
     patterns: &'a [PatternChoice],
     user_contours: &'a [Contour],
@@ -100,6 +135,7 @@ impl<'a> LayerStyleDialog<'a> {
             channel_names,
             numbers,
             specs: None,
+            blend_keys: None,
             blend_modes: &[],
             patterns: &[],
             user_contours: &[],
@@ -113,6 +149,15 @@ impl<'a> LayerStyleDialog<'a> {
     /// [`EffectKind::ALL`]) by default. A kind without a spec is not listed.
     pub fn specs(mut self, specs: &'a [EffectSpec]) -> Self {
         self.specs = Some(specs);
+        self
+    }
+
+    /// Renames the blend defaults of every spec, the built-in ones included, from Photoshop's
+    /// English names to the host's [`BlendChoice`] keys (`"Multiply"` to the host's key). Effects
+    /// added in the dialog start from the renamed defaults, so their Blend selects show the
+    /// host's entry; instances already in the draft are the host's to key.
+    pub fn blend_keys(mut self, map: &'a HashMap<String, String>) -> Self {
+        self.blend_keys = Some(map);
         self
     }
 
@@ -151,21 +196,23 @@ impl<'a> LayerStyleDialog<'a> {
         self
     }
 
-    /// Draws the list and the page and reports this pass's change. List actions, field edits and
-    /// page changes are applied to a copy of the draft with the [`LayerStyleDraft`] rules and
-    /// reported as that copy.
+    /// Draws the list and the page and reports this pass's change. List actions and field edits
+    /// are applied to a copy of the draft with the [`LayerStyleDraft`] rules; the copy's style is
+    /// the edit's value and its page, Preview and Blend If channel are reported beside it.
     pub fn show(self, ui: &mut Ui) -> LayerStyleOutput {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:831-1185 `body` (list, divider at 330, title
         // with Preview, Styles page, Blending Options page, field pages, Make Default and Reset to
         // Default, the contour editor).
         // new: the body keeps no history and reads no undo key; the host's `Dialog` frame owns the
-        // draft's undo (the dialog is one outer gesture, OK one step).
+        // style's undo (the dialog is one outer gesture, OK one step), and the view state is not
+        // part of the value it records.
         let LayerStyleDialog {
             id_salt,
             draft,
             channel_names,
             numbers,
             specs,
+            blend_keys,
             blend_modes,
             patterns,
             user_contours,
@@ -177,8 +224,18 @@ impl<'a> LayerStyleDialog<'a> {
         let labels = labels.unwrap_or_else(|| LayerStyleLabels::of(ui));
         let contour_labels = ContourFieldLabels::of(ui);
         let bar_labels = BlendIfBarLabels::of(ui);
-        let builtin: Vec<EffectSpec> = if specs.is_none() { EffectKind::ALL.into_iter().map(EffectSpec::photoshop).collect() } else { Vec::new() };
-        let specs: &[EffectSpec] = specs.unwrap_or(&builtin);
+        let base: Cow<'_, [EffectSpec]> = match specs {
+            Some(specs) => Cow::Borrowed(specs),
+            None => Cow::Owned(EffectKind::ALL.into_iter().map(EffectSpec::photoshop).collect()),
+        };
+        let keyed: Vec<EffectSpec>;
+        let specs: &[EffectSpec] = match blend_keys {
+            Some(map) => {
+                keyed = base.iter().cloned().map(|spec| spec.with_blend_keys(map)).collect();
+                &keyed
+            }
+            None => &base,
+        };
         let tokens = Tokens::of(ui);
         let style = LayerStyleDialog::style(&tokens);
 
@@ -186,19 +243,19 @@ impl<'a> LayerStyleDialog<'a> {
         if !enabled {
             builder = builder.disabled();
         }
-        let mut work = Work { next: draft.clone(), event: None, extras: Extras::default() };
+        let mut work = Work { next: draft.clone(), shown: draft.page, event: None, list_changed: false, extras: Extras::default() };
         let scope = ui.scope_builder(builder, |ui| {
             let layout = if direction::is_rtl(ui) { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) };
             ui.with_layout(layout, |ui| {
-                let list = ui.scope(|ui| effect_list(ui, draft, specs, &labels, enabled));
+                let list = ui.scope(|ui| effect_list(ui, draft, specs, &labels, numbers, enabled));
                 if let Some(action) = list.inner {
                     work.list_action(action, specs);
                 }
                 let (slot, _) = ui.allocate_exact_size(vec2(ui.spacing().item_spacing.x, 0.0), Sense::hover());
                 let page = ui.scope(|ui| {
                     ui.set_width(style.page_width);
-                    let page_id = ("page", work.next.page);
-                    let title = page_title(&work.next, &labels);
+                    let page_id = ("page", work.shown);
+                    let title = page_title(work.shown, &work.next, &labels);
                     let group = UiBuilder::new().id_salt(page_id).accessibility_role(Role::Group).accessibility_label(title);
                     ui.scope_builder(group, |ui| {
                         Stack::new(Gap::Row).show(ui, |ui| {
@@ -223,9 +280,15 @@ impl<'a> LayerStyleDialog<'a> {
                 Divider::paint(ui.painter(), egui::pos2(slot.center().x, top), egui::pos2(slot.center().x, bottom), &tokens);
             });
         });
-        let Work { event, extras, .. } = work;
+        let Work { next, event, list_changed, extras, .. } = work;
+        // A list change reaches the host as its own `Set` unless a page edit of the pass already
+        // carries it: the page edits are built on the copy the list action changed.
+        let event = event.or_else(|| list_changed.then(|| EditEvent::set(next.style.clone(), egui::Modifiers::NONE)));
         LayerStyleOutput {
             edit: EditResponse::new(scope.response, event),
+            page: (next.page != draft.page).then_some(next.page),
+            preview: (next.preview != draft.preview).then_some(next.preview),
+            blend_if_channel: (next.blend_if_channel != draft.blend_if_channel).then_some(next.blend_if_channel),
             pick_color: extras.pick_color,
             apply_style: extras.apply_style,
             new_style: extras.new_style,
@@ -279,13 +342,19 @@ struct Extras {
 /// The pass's working copy of the draft and what it has reported so far.
 struct Work {
     next: LayerStyleDraft,
-    event: Option<EditEvent<LayerStyleDraft>>,
+    /// The page the pass draws: the draft's, whatever a list action in this pass chose.
+    shown: LayerStylePage,
+    /// The first style edit of a page.
+    event: Option<EditEvent<LayerStyle>>,
+    /// A list action changed the style of the copy.
+    list_changed: bool,
     extras: Extras,
 }
 
 impl Work {
-    /// Applies a list action to the copy and reports the copy as a `Set`.
+    /// Applies a list action to the copy; a style change is reported after the page is drawn.
     fn list_action(&mut self, action: ListAction, specs: &[EffectSpec]) {
+        let before = self.next.style.clone();
         match action {
             ListAction::Select(page) => self.next.page = page,
             ListAction::Toggle(id) => self.next.toggle(id),
@@ -295,11 +364,11 @@ impl Work {
             }
             ListAction::Remove(id) => self.next.remove_instance(id),
         }
-        self.report(EditEvent::set(self.next.clone(), egui::Modifiers::NONE));
+        self.list_changed = self.next.style != before;
     }
 
     /// Keeps the first event of the pass.
-    fn report(&mut self, event: EditEvent<LayerStyleDraft>) {
+    fn report(&mut self, event: EditEvent<LayerStyle>) {
         if self.event.is_none() {
             self.event = Some(event);
         }
@@ -308,7 +377,7 @@ impl Work {
     /// Draws the page of the copy.
     fn page(&mut self, ui: &mut Ui, env: &PageEnv<'_>, presets: Option<&mut StylePresets<'_>>) {
         let labels = env.labels;
-        let page = self.next.page;
+        let page = self.shown;
         let instance = match page {
             LayerStylePage::Effect(id) => self.next.style.effect(id).cloned(),
             _ => None,
@@ -328,22 +397,16 @@ impl Work {
                 };
                 let out = blending_page(ui, &input);
                 if let Some(event) = out.edit {
-                    let base = self.next.clone();
-                    self.report(event.map(|blending| {
-                        let mut draft = base;
-                        draft.style.blending = blending;
-                        draft
-                    }));
+                    let base = self.next.style.clone();
+                    self.report(event.map(|blending| LayerStyle { blending, ..base }));
                 }
                 if let Some(channel) = out.blend_if_channel {
-                    let mut draft = self.next.clone();
-                    draft.blend_if_channel = channel;
-                    self.report(EditEvent::set(draft, egui::Modifiers::NONE));
+                    self.next.blend_if_channel = channel;
                 }
             }
             (LayerStylePage::Effect(id), Some(instance)) => {
                 self.title_with_preview(ui, labels, labels.effect(instance.kind));
-                let Some(spec) = env.specs.iter().find(|spec| spec.kind == instance.kind).filter(|spec| !spec.fields.is_empty()) else { return };
+                let Some(spec) = env.specs.iter().find(|spec| spec.kind == instance.kind) else { return };
                 let input = PageInput {
                     spec,
                     instance: &instance,
@@ -362,7 +425,7 @@ impl Work {
                     self.report(edit.event.map(|value| {
                         let mut draft = base;
                         draft.set_param(id, &key, value);
-                        draft
+                        draft.style
                     }));
                 }
                 self.extras.pick_color = out.pick_color;
@@ -370,7 +433,8 @@ impl Work {
                 self.extras.make_default = out.make_default.map(|params| (instance.kind, params));
                 self.extras.reset_to_default = out.reset_to_default.then_some(id);
             }
-            _ => {
+            (LayerStylePage::Effect(_), None) => {}
+            (LayerStylePage::Styles, _) => {
                 let out = styles_page(ui, presets, labels);
                 self.extras.apply_style = out.apply_style;
                 self.extras.new_style = out.new_style;
@@ -382,17 +446,15 @@ impl Work {
     fn title_with_preview(&mut self, ui: &mut Ui, labels: &LayerStyleLabels, title: &str) {
         let mut preview = self.next.preview;
         let edit = title_row(ui, title, |ui| Checkbox::bool(labels.preview.as_str(), &mut preview).id_salt("preview").show(ui));
-        if let Some(event) = edit.event {
-            let mut draft = self.next.clone();
-            draft.preview = preview;
-            self.report(event.map(|_| draft));
+        if edit.event.is_some() {
+            self.next.preview = preview;
         }
     }
 }
 
-/// The title of `draft`'s page, for the page's AccessKit group.
-fn page_title(draft: &LayerStyleDraft, labels: &LayerStyleLabels) -> String {
-    match draft.page {
+/// The title of `page` of `draft`, for the page's AccessKit group.
+fn page_title(page: LayerStylePage, draft: &LayerStyleDraft, labels: &LayerStyleLabels) -> String {
+    match page {
         LayerStylePage::Blending => labels.blending_options.clone(),
         LayerStylePage::Effect(id) => match draft.style.effect(id) {
             Some(instance) => labels.effect(instance.kind).to_owned(),
