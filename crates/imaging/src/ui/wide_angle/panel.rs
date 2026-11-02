@@ -109,7 +109,7 @@ impl<'a> WideAnglePanel<'a> {
                         key: "focal",
                         label: labels.focal_length.as_str(),
                         range: 0.0..=200.0,
-                        unit: Some(Unit::new(labels.millimetres.as_str())),
+                        unit: Some(Unit::new(labels.millimeters.as_str())),
                         get: |s| s.focal_length,
                         set: |s, v| s.focal_length = v,
                     },

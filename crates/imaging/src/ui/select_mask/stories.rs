@@ -23,7 +23,7 @@ use craft_ui::dialog::full_window::FullWindowCanvas;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, claim, dialog_closed, dialog_shown, lock, reset_on, shared};
-use craft_ui::testing::canvas_story::{ViewArgs, document_with};
+use craft_ui::testing::canvas_story::{ViewArgs, document_over};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use craft_ui::typed_story;
 use egui::{Key, Modifiers, Painter, Pos2, Shape, Stroke, Ui, vec2};
@@ -37,6 +37,7 @@ use crate::ui::mask_view::stories::Composite;
 use crate::ui::mask_view::{MaskViewMode, MaskViewRecipe, MaskViewState};
 use crate::ui::mock_image::{MockImage, MockSubject};
 use crate::ui::selection::{SelectionOverlay, SelectionOverlayLabels};
+use crate::ui::transform_preview::stories::grid;
 use craft_ui::edit::EditEvent;
 
 /// The components this module has stories for.
@@ -407,6 +408,12 @@ struct Refine {
     view_state: MaskViewState,
 }
 
+/// The two halves of the Refine story: the panel and the picture it refines.
+enum RefinePart {
+    Panel,
+    Picture,
+}
+
 fn show_refine(ui: &mut Ui, args: &mut RefineArgs) {
     let words = SelectMaskStoryLabels::of(ui);
     let state = shared(ui, "refine", || {
@@ -425,16 +432,19 @@ fn show_refine(ui: &mut Ui, args: &mut RefineArgs) {
     }
     let message = craft_i18n::fmt(&words.limit, &[("n", LIMITS.edits.to_string().as_str())]);
     let error = args.limit_message.then_some(message.as_str());
-    ui.columns(2, |columns| {
-        SelectMaskPanel::new("select-mask-story-refine", settings, &mut session.refine, view_state).error(error).show(&mut columns[0]);
-        let ui = &mut columns[1];
-        let image = MockImage::default();
-        let picture = document_with(ui, ViewArgs::default(), words.picture.as_str(), 0.0, image.view(None, None));
-        image.show(ui, &picture);
-        SelectionOverlay::new("select-mask-story-refine-ants", &MockSubject(image)).labels(SelectionOverlayLabels::of(ui)).show(
-            ui,
-            &picture.response,
-            &picture.view,
-        );
+    grid(ui, vec![RefinePart::Panel, RefinePart::Picture], |ui, part| match part {
+        RefinePart::Panel => {
+            SelectMaskPanel::new("select-mask-story-refine", settings, &mut session.refine, view_state).error(error).show(ui);
+        }
+        RefinePart::Picture => {
+            let image = MockImage::default();
+            let picture = document_over(ui, ViewArgs::default(), words.picture.as_str(), 0.0, image.view(None, None));
+            image.show(ui, &picture);
+            SelectionOverlay::new("select-mask-story-refine-ants", &MockSubject(image)).labels(SelectionOverlayLabels::of(ui)).show(
+                ui,
+                &picture.response,
+                &picture.view,
+            );
+        }
     });
 }

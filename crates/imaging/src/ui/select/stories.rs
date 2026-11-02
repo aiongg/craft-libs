@@ -27,7 +27,7 @@ use craft_ui::edit::EditEvent;
 use craft_ui::localized::{Labels as _, Words};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
-use craft_ui::testing::canvas_story::{ViewArgs, document_with};
+use craft_ui::testing::canvas_story::{ViewArgs, document_over};
 use craft_ui::typed_story;
 use egui::{Modifiers, Ui};
 
@@ -638,7 +638,7 @@ where
     for<'a> SelectToolPass<'a, T>: CanvasTool,
 {
     session.tool.set_operation(operation);
-    let picture = document_with(ui, ViewArgs::default(), salt, 0.0, image.view(None, None));
+    let picture = document_over(ui, ViewArgs::default(), salt, 0.0, image.view(None, None));
     image.show(ui, &picture);
     let (id, response, view) = (picture.id, &picture.response, picture.view);
     run_script(ui, id, &mut session.script);

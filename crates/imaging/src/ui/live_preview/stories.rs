@@ -16,7 +16,7 @@ use craft_ui::canvas::{CanvasView, PixelRect, RasterSource as _};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, lock, shared};
-use craft_ui::testing::canvas_story::{ViewArgs, document_with};
+use craft_ui::testing::canvas_story::{ViewArgs, document_over};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_ui::typed_story;
 use egui::{Color32, Sense, Shape, Stroke, Ui, vec2};
@@ -146,7 +146,7 @@ fn show_live(ui: &mut Ui, args: &mut LiveArgs) {
     let subject = image.subject_bounds();
     let region = PixelRect::new(subject.x0, subject.y0, subject.x1, subject.y1);
     let centre = Point::new(f64::from(size[0]) / 2.0 + args.pan, f64::from(size[1]) / 2.0);
-    let picture = document_with(ui, ViewArgs::default(), "live-preview", 0.0, image.view(Some(args.zoom), Some(centre)));
+    let picture = document_over(ui, ViewArgs::default(), "live-preview", 0.0, image.view(Some(args.zoom), Some(centre)));
     image.show(ui, &picture);
     let view = picture.view;
     let visible = PixelRect::visible(&view, size);

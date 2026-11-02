@@ -17,7 +17,7 @@ use craft_ui::canvas::RasterSource as _;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, Surface, lock, reset_on, shared};
-use craft_ui::testing::canvas_story::{ViewArgs, document_with};
+use craft_ui::testing::canvas_story::{ViewArgs, document_over};
 use craft_ui::typed_story;
 use egui::{Sense, Ui};
 
@@ -137,7 +137,7 @@ fn show(ui: &mut Ui, salt: &'static str, signature: Vec<f64>, build: impl FnOnce
     let kept = &mut *kept;
     ui.columns(2, |columns| {
         let ui = &mut columns[0];
-        let picture = document_with(ui, ViewArgs::default(), words.canvas.as_str(), 0.0, image.view(None, None));
+        let picture = document_over(ui, ViewArgs::default(), words.canvas.as_str(), 0.0, image.view(None, None));
         image.show(ui, &picture);
         let (area, view) = (&picture.response, picture.view);
         let canvas = ui.interact(area.rect, ui.make_persistent_id(("blur-pins-story-canvas", salt)), Sense::click_and_drag() - Sense::FOCUSABLE);

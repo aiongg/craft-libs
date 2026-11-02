@@ -12,7 +12,7 @@
 //!   size (the shapes scale with the width, the hills and the horizon with the height), so a small
 //!   one is cheap for a thumbnail and a huge one costs nothing until it is read.
 //! - It is a [`RasterSource`]: `RasterDisplay::new(salt).show(ui, &view, &image)`, or
-//!   [`MockImage::show`], which draws it into a story canvas (`document_with(.., image.view(zoom,
+//!   [`MockImage::show`], which draws it into a story canvas (`document_over(.., image.view(zoom,
 //!   centre))`).
 //! - [`MockSubject`] is the subject as a [`MaskSource`] (a selection of the house): use it for the
 //!   selection overlay, a Select and Mask preview or a fake mask source.
@@ -233,7 +233,7 @@ impl MockImage {
         smoothstep(0.5 - self.subject_distance(x, y) / (EDGE * k)) as f32
     }
 
-    /// The view that shows the picture on a story canvas, for `document_with`: `zoom` percent
+    /// The view that shows the picture on a story canvas, for `document_over`: `zoom` percent
     /// (device pixels per picture pixel; `None` fits the whole picture in the canvas) centred on
     /// `centre` (`None`: the middle).
     pub(crate) fn view(self, zoom: Option<f64>, centre: Option<Point>) -> impl FnOnce(egui::Rect, f64) -> CanvasView {

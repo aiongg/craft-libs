@@ -123,5 +123,6 @@ pub(super) const TABLES: &[&[Word]] = &[
     <crate::canvas::selection_stories::SelectionFrameStoryLabels as Labels>::WORDS,
     <crate::canvas::marquee::fields_stories::ConstraintFieldsStoryLabels as Labels>::WORDS,
     <crate::canvas::before_after::stories::BeforeAfterStoryLabels as Labels>::WORDS,
+    crate::localized::UNIT_WORDS,
     super::super::ERROR_WORDS,
 ];

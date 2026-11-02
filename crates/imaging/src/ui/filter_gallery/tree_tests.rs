@@ -234,6 +234,6 @@ fn gallery_columns_are_named_and_footer_buttons_tab_in_reading_order() {
     for name in &names[2..] {
         harness.key_press(Key::Tab);
         harness.run();
-        assert!(harness.get_by_label(*name).accesskit_node().is_focused(), "Tab reaches {name}");
+        assert!(harness.get_by_label(name).accesskit_node().is_focused(), "Tab reaches {name}");
     }
 }

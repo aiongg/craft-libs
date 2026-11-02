@@ -35,6 +35,7 @@ mod tool;
 
 pub use bar::{FillBar, FillBarOutput};
 pub use labels::FillLabels;
+pub(crate) use labels::{LASSO_EDIT_LIMIT, POINT_LIMIT, STROKE_LIMIT};
 pub use lasso::FillAreaEdit;
 pub use overlay::{FillOverlay, SamplingPlane};
 pub use panel::{FillPanel, FillPanelOutput};

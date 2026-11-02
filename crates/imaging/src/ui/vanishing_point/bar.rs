@@ -102,7 +102,8 @@ impl<'a> VanishingPointBar<'a> {
                         }
                         report(&mut edit, settings, event);
                     }
-                    let percents: [(&str, &String, fn(&mut StampSettings) -> &mut f64); 2] =
+                    type Percent<'a> = (&'a str, &'a String, fn(&mut StampSettings) -> &mut f64);
+                    let percents: [Percent; 2] =
                         [("hardness", &labels.hardness, |s| &mut s.hardness), ("opacity", &labels.opacity, |s| &mut s.opacity)];
                     for (salt, caption, field) in percents {
                         let value = field(&mut settings.stamp);

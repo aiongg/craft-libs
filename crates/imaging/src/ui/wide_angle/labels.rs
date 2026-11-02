@@ -17,7 +17,7 @@ craft_ui::words! {
         full_spherical: "wideAngle.fullSpherical" = "Full Spherical";
         scale: "wideAngle.scale" = "Scale";
         /// Focal Length's unit; `{n}` the length.
-        millimetres: "wideAngle.millimetres" = "{n} mm";
+        millimeters: "wideAngle.millimeters" = "{n} mm";
         focal_length: "wideAngle.focalLength" = "Focal Length";
         crop_factor: "wideAngle.cropFactor" = "Crop Factor";
         orientation: "wideAngle.orientation" = "Orientation";

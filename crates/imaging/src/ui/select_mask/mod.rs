@@ -51,6 +51,7 @@ mod tools_tests;
 pub use bar::{SelectMaskBar, SelectMaskBarOutput};
 pub use edits::{EditMode, ObjectTarget, RefineStroke, SelectMaskEdit, round_point};
 pub use labels::SelectMaskLabels;
+pub(crate) use labels::{LIMIT_EDIT_POINTS, LIMIT_EDITS, LIMIT_STROKE_POINTS, LIMIT_STROKES};
 pub use panel::{OVERLAY_COLOR_KEY, SelectMaskPanel, SelectMaskPanelOutput};
 pub use session::{LimitRefused, OutputTo, RefineSettings, SelectMaskCommand, SelectMaskLimits, SelectMaskSession, SelectMaskSettings};
 pub use style::SelectMaskStyle;

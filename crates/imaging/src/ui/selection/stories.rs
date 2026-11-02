@@ -16,7 +16,7 @@ use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface};
-use craft_ui::testing::canvas_story::{ViewArgs, document_with};
+use craft_ui::testing::canvas_story::{ViewArgs, document_over};
 use craft_ui::typed_story;
 use egui::{Response, Sense, Ui, vec2};
 
@@ -24,6 +24,7 @@ use super::{SelectionOverlay, SelectionOverlayLabels};
 use crate::selection::{ColorIndicates, PreviewMode, QuickMaskLook};
 use crate::trace::{MaskRect, MaskSource};
 use crate::ui::mock_image::{MockImage, MockSubject};
+use crate::ui::transform_preview::stories::grid;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["SelectionOverlay"];
@@ -154,7 +155,7 @@ fn cell(
     overlay: impl FnOnce(&mut Ui, &Response, &CanvasView),
 ) {
     ui.add(Text::new(caption).content(Content::Muted));
-    let canvas = document_with(ui, ViewArgs::default(), salt, 0.0, image.view(zoom, centre));
+    let canvas = document_over(ui, ViewArgs::default(), salt, 0.0, image.view(zoom, centre));
     image.show(ui, &canvas);
     overlay(ui, &canvas.response, &canvas.view);
 }
@@ -249,14 +250,10 @@ fn show_preview(ui: &mut Ui, args: &mut PreviewArgs) {
     };
     let look = QuickMaskLook { color, opacity: (args.opacity / 100.0) as f32, indicates };
     // The look applies to the Quick Mask mode only.
-    for modes in PreviewMode::ALL.chunks(2) {
-        ui.columns(2, |columns| {
-            for (column, &mode) in columns.iter_mut().zip(modes) {
-                let text = mode_caption(mode, &labels, &names);
-                cell(column, &text, mode.id(), &image, None, None, |ui, response, view| {
-                    SelectionOverlay::new(("preview", mode.id()), &subject).labels(names.clone()).preview(mode, look).show(ui, response, view);
-                });
-            }
+    grid(ui, PreviewMode::ALL.to_vec(), |column, mode| {
+        let text = mode_caption(mode, &labels, &names);
+        cell(column, &text, mode.id(), &image, None, None, |ui, response, view| {
+            SelectionOverlay::new(("preview", mode.id()), &subject).labels(names.clone()).preview(mode, look).show(ui, response, view);
         });
-    }
+    });
 }
