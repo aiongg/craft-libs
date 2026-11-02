@@ -421,6 +421,7 @@ where
             can_rename: can_rename.as_deref(),
             can_drag: can_drag.as_deref(),
             row_rects: Vec::new(),
+            spacers: Vec::new(),
             focus: false,
             lead_row: None,
             drag: RowDrag::load(ui, id, reorder.as_ref(), dragging),
@@ -632,6 +633,8 @@ struct Pass<'p, K, O: ?Sized, F> {
     can_drag: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
     /// The rows drawn this frame.
     row_rects: Vec<(K, Rect)>,
+    /// The spacers drawn this frame: a press on one is not a press on the empty space.
+    spacers: Vec<Rect>,
     /// The list takes the focus at the end of the frame.
     focus: bool,
     /// The lead row's id and rect, once drawn.
@@ -780,18 +783,26 @@ where
         let lead = keyed.lead.clone();
         match key {
             ListKey::Select { step, extend } => {
-                if let Some(change) = self.rules.select(&keyed, self.rows, step, page, extend) {
+                let onto_unselectable = self.rules.target(&keyed, self.rows, step, page).is_some_and(|at| !self.selectable_at(at));
+                if onto_unselectable {
+                    if let Some(to) = self.rules.move_lead(&keyed, self.rows, step, page) {
+                        self.set_lead(to);
+                    }
+                } else if let Some(mut change) = self.rules.select(&keyed, self.rows, step, page, extend) {
+                    if extend {
+                        self.drop_unselectable(&mut change);
+                    }
                     self.apply(change);
                 }
             }
             ListKey::MoveLead(step) => {
                 if let Some(to) = self.rules.move_lead(&keyed, self.rows, step, page) {
-                    self.selection.lead = Some(to.clone());
-                    self.events.push(ListEvent::LeadMoved(to));
+                    self.set_lead(to);
                 }
             }
             ListKey::ToggleLead => {
-                if let Some(change) = self.rules.toggle_lead(&keyed, self.rows) {
+                let selectable = self.lead_at().is_none_or(|at| self.selectable_at(at));
+                if selectable && let Some(change) = self.rules.toggle_lead(&keyed, self.rows) {
                     self.apply(change);
                 }
             }
@@ -807,6 +818,36 @@ where
             }
         }
         self.state.reveal = self.selection.lead.clone().or(lead);
+    }
+
+    /// Makes `to` the lead without changing the selection.
+    fn set_lead(&mut self, to: K) {
+        self.selection.lead = Some(to.clone());
+        self.events.push(ListEvent::LeadMoved(to));
+    }
+
+    /// Whether the row at `at` can be selected: what the host's row says.
+    fn selectable_at(&mut self, at: usize) -> bool {
+        let key = self.rows.key(at).clone();
+        (self.build)(at, &key).is_selectable()
+    }
+
+    /// Takes the rows that cannot be selected out of a range the keys picked.
+    fn drop_unselectable(&mut self, change: &mut SelectionChange<K>) {
+        let items = std::mem::take(&mut change.selection.items);
+        change.selection.items = items.into_iter().filter(|key| self.rows.position(key).is_none_or(|at| self.selectable_at(at))).collect();
+    }
+
+    /// A click, or a type-ahead landing, on the row at `at`: it is selected as `rules` say, or only
+    /// made the lead when the row is not selectable.
+    fn pick_row(&mut self, at: usize, modifiers: Modifiers, selectable: bool) {
+        if selectable {
+            if let Some(change) = self.rules.click(self.selection, self.rows, at, modifiers) {
+                self.apply(change);
+            }
+        } else if self.selection.lead.as_ref() != Some(self.rows.key(at)) {
+            self.set_lead(self.rows.key(at).clone());
+        }
     }
 
     /// The keys of the lead row's toggle columns, by column.
@@ -864,9 +905,8 @@ where
         if listbox.type_ahead(ui, &labels)
             && let Some(at) = listbox.active()
         {
-            if let Some(change) = self.rules.click(self.selection, self.rows, at, Modifiers::NONE) {
-                self.apply(change);
-            }
+            let selectable = self.selectable_at(at);
+            self.pick_row(at, Modifiers::NONE, selectable);
             self.state.reveal = Some(self.rows.key(at).clone());
         }
     }
@@ -911,9 +951,15 @@ where
         let key = self.rows.key(at).clone();
         let mut row = (self.build)(at, &key);
         if self.rows.is_section(at) {
-            self.section_row(ui, &key, row.label(), rect);
+            if row.is_spacer() {
+                self.spacers.push(rect);
+            } else {
+                self.section_row(ui, &key, row.label(), rect);
+            }
             return;
         }
+        debug_assert!(!row.is_spacer(), "the spacer at {at} must be a section of the display order");
+        let selectable = row.is_selectable();
         if self.tree {
             row = row.tree_text(self.tree_text.clone()).branch(Branch {
                 depth: self.rows.depth(at),
@@ -943,7 +989,7 @@ where
             node.add_action(Action::Focus);
             node.add_action(Action::ScrollIntoView);
         });
-        self.row_pointer(ui, at, &key, &out);
+        self.row_pointer(ui, (at, selectable), &key, &out);
         for event in out.events {
             if let RowEvent::Open(change) = event {
                 self.focus = true;
@@ -1026,7 +1072,7 @@ where
         self.events.push(ListEvent::Open(change));
     }
 
-    fn row_pointer(&mut self, ui: &Ui, at: usize, key: &K, out: &RowResponse<K>) {
+    fn row_pointer(&mut self, ui: &Ui, (at, selectable): (usize, bool), key: &K, out: &RowResponse<K>) {
         let response = &out.response;
         let modifiers = ui.input(|i| i.modifiers);
         if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
@@ -1043,9 +1089,7 @@ where
                 self.events.push(ListEvent::Activate(key.clone()));
             }
         } else if response.clicked() {
-            if let Some(change) = self.rules.click(self.selection, self.rows, at, modifiers) {
-                self.apply(change);
-            }
+            self.pick_row(at, modifiers, selectable);
             self.events.push(ListEvent::Clicked(key.clone()));
         }
         // A drag from a thumbnail of a row with `thumb_drags` is the host's, not a row drag.
@@ -1113,7 +1157,9 @@ where
         if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
             self.focus = true;
         }
+        let on_spacer = response.interact_pointer_pos().is_some_and(|pos| self.spacers.iter().any(|spacer| spacer.contains(pos)));
         if response.clicked_by(PointerButton::Primary)
+            && !on_spacer
             && let Some(change) = self.rules.click_empty(self.selection)
         {
             self.apply(change);

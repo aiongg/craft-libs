@@ -156,6 +156,43 @@ fn dividers_belong_to_the_layer_form_in_compact_and_a_dimmed_label_and_detail_ta
     }
 }
 
+#[test]
+fn a_muted_label_takes_the_muted_color_unless_dimmed_or_selected_and_a_strong_one_the_strong_role() {
+    let ctx = context();
+    let s = style();
+    let drawn = |row: fn(ListRow<'static, u8>) -> ListRow<'static, u8>| {
+        shapes(&ctx, |ui| {
+            panel(ui, 240.0, |ui| {
+                let _ = row(ListRow::new(1u8, "Layer")).show(ui);
+            })
+        })
+    };
+    let color = |row| label_colors(&drawn(row))[0];
+    assert_eq!(color(|r| r.muted(true)), s.muted);
+    assert_eq!(color(|r| r.muted(true).dimmed(true)), s.dimmed, "dimmed wins over muted");
+    assert_eq!(color(|r| r.muted(true).selected(true)), s.selected_dimmed);
+    assert_ne!(s.muted, s.text);
+    // No font stack is installed here, so the two faces resolve to one family: the test reads the
+    // role's slot and the font the row painted against the role's font.
+    let mut roles = None;
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        let tokens = Tokens::of(ui);
+        let slot = |role| tokens.typography.get(role).font;
+        roles = Some((slot(s.label_role) != slot(s.label_strong_role), tokens.font(s.label_role), tokens.font(s.label_strong_role)));
+    })
+    .drop_without_applying_deltas();
+    let (slots_differ, plain, strong) = roles.expect("tokens");
+    assert!(slots_differ, "the strong role is another font slot");
+    let font = |row| {
+        drawn(row)
+            .iter()
+            .find_map(|s| if let Shape::Text(t) = s { t.galley.job.sections.first().map(|s| s.format.font_id.clone()) } else { None })
+            .expect("label")
+    };
+    assert_eq!(font(|r| r.strong(true)), strong);
+    assert_eq!(font(|r| r), plain);
+}
+
 fn to_rgba(c: egui::Color32) -> craft_theme::color::Rgba {
     craft_theme::color::Rgba([c.r(), c.g(), c.b(), c.a()])
 }

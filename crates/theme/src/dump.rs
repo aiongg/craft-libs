@@ -875,9 +875,11 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         bracket_arm,
         ghost_offset,
         label,
+        label_strong,
         detail_role,
         text,
         dimmed,
+        muted,
         selected_text,
         selected_dimmed,
         detail,
@@ -930,10 +932,12 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
     out.line("list.bracket_arm", len(*bracket_arm));
     out.line("list.ghost_offset", format!("{} {}", len(ghost_offset[0]), len(ghost_offset[1])));
     out.line("list.label", role(*label));
+    out.line("list.label_strong", role(*label_strong));
     out.line("list.detail_role", role(*detail_role));
     for (k, c) in [
         ("text", text),
         ("text.dimmed", dimmed),
+        ("text.muted", muted),
         ("text.selected", selected_text),
         ("text.selected.dimmed", selected_dimmed),
         ("detail", detail),
