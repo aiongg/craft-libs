@@ -139,10 +139,11 @@ fn fields_text(fields: &super::DialogFields) -> String {
 
 const FILTER_SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom","angle":angle=30,"monochromatic":bool,"seed":u32=0,"tint":color=#ff8000}"#;
 
-/// [`FILTER_SPEC`] with the row options: one decimal on Radius, Random on the seed, a pipette on
-/// the tint.
+/// [`FILTER_SPEC`] with the row options (one decimal on Radius, Random on the seed, a pipette on
+/// the tint), a look-up file row that offers `.cube` and `.3dl` files, and a custom row that asks
+/// the host for a colour stored under a key with no row of its own.
 fn filter_params() -> Vec<Param> {
-    Param::parse_list(FILTER_SPEC)
+    let mut params: Vec<Param> = Param::parse_list(FILTER_SPEC)
         .into_iter()
         .map(|param| match param.key.as_str() {
             "radius" => param.decimals(1),
@@ -150,13 +151,7 @@ fn filter_params() -> Vec<Param> {
             "tint" => param.eyedropper(),
             _ => param,
         })
-        .collect()
-}
-
-/// The spec's rows, a look-up file row that offers `.cube` and `.3dl` files, and a custom row that
-/// asks the host for a colour stored under a key with no row of its own.
-fn filter_params() -> Vec<Param> {
-    let mut params = Param::parse_list(FILTER_SPEC);
+        .collect();
     params.push(
         Param::new("lookup", "Look-up table:", super::ParamKind::Text { default: String::new() })
             .browse(super::PathKind::open_file(&["cube", "3dl"])),
