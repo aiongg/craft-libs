@@ -3,7 +3,7 @@
 use egui::accesskit::{Action, ActionRequest, Role};
 use egui::{Context, Event, Key, Modifiers, Pos2, RawInput, Rect, vec2};
 
-use super::{EyedropperLabels, EyedropperOptions, EyedropperOptionsBar, EyedropperPick, EyedropperTool, SampleSize, SampleSource};
+use super::{EyedropperBar, EyedropperLabels, EyedropperOptions, EyedropperPick, EyedropperTool, SampleSize, SampleSource};
 use craft_theme::Srgba;
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasTool, CanvasView, ToolHost, ToolInput};
@@ -66,7 +66,7 @@ impl Rig {
         let ctx = self.ctx.clone();
         let options = &mut self.options;
         let output = ctx.run_ui(input, |ui| {
-            OptionsBar::new("eyedropper-bar").show(ui, |slots| EyedropperOptionsBar::new(options).add_to(slots));
+            OptionsBar::new("eyedropper-bar").show(ui, |slots| EyedropperBar::new(options).add_to(slots));
         });
         if let Some(update) = output.platform_output.accesskit_update.clone() {
             self.nodes = update.nodes;

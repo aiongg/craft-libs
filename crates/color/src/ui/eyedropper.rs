@@ -1,5 +1,5 @@
 //! The Eyedropper tool (F04.07): its options ([`EyedropperOptions`]: Sample Size, Sample, Show
-//! Sampling Ring), its options bar ([`EyedropperOptionsBar`]), the sampling ring drawn while the
+//! Sampling Ring), its options bar ([`EyedropperBar`]), the sampling ring drawn while the
 //! button is held ([`eyedropper_ring`]) and the canvas tool ([`EyedropperTool`]).
 //!
 //! The Sample Size is shared with the dialog droppers ([`DropperTool`](super::DropperTool)) and
@@ -153,13 +153,13 @@ impl Default for EyedropperOptions {
 /// Size:" and its [`Select`](craft_ui::controls::Select) (130 points wide in PhotoCraft),
 /// "Sample:" and its Select (190 points), the Show Sampling Ring check box, a divider, then the
 /// hint in faint text. Edits write `options` directly.
-pub struct EyedropperOptionsBar<'a> {
+pub struct EyedropperBar<'a> {
     options: &'a mut EyedropperOptions,
 }
 
-impl<'a> EyedropperOptionsBar<'a> {
-    pub fn new(options: &'a mut EyedropperOptions) -> EyedropperOptionsBar<'a> {
-        EyedropperOptionsBar { options }
+impl<'a> EyedropperBar<'a> {
+    pub fn new(options: &'a mut EyedropperOptions) -> EyedropperBar<'a> {
+        EyedropperBar { options }
     }
 
     /// Fills the bar's body slot.

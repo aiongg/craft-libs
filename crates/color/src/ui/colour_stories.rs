@@ -27,9 +27,9 @@ use egui::{Color32, Context, Id, Rect, Sense, TextureHandle, TextureOptions, Ui,
 use super::picker_dialog::MEMORY_SCOPE;
 use super::{
     ChosenColor, ColorChoice, ColorPanel, ColorPanelMode, ColorPanelRamp, ColorPanelState, ColorPickerDialog, ColorPickerMemory, ColorSamplerLabels,
-    ColorSamplerTool, ColorSamplers, EyedropperOptions, EyedropperOptionsBar, GradientPreview, HarmonyPanel, HarmonyPanelState, HarmonyWheel,
-    LutChoice, LutPicker, NamedColor, Paint, PaintChip, PanelTarget, ProfileMismatchDialog, ProfileMode, ProfileQuestion, SamplerReadout,
-    SamplerReadouts, ScreenColorPicker, StillCapture, SwatchLibrary, SwatchesPanel, sampler_options,
+    ColorSamplerTool, ColorSamplers, EyedropperBar, EyedropperOptions, GradientPreview, HarmonyPanel, HarmonyPanelState, HarmonyWheel, LutChoice,
+    LutPicker, NamedColor, Paint, PaintChip, PanelTarget, ProfileMismatchDialog, ProfileMode, ProfileQuestion, SamplerReadout, SamplerReadouts,
+    ScreenColorPicker, StillCapture, SwatchLibrary, SwatchesPanel, sampler_options,
 };
 use crate::harmony::{Harmony, move_on_wheel};
 use crate::{AreaMode, CmykModel};
@@ -39,7 +39,7 @@ use crate::{AreaMode, CmykModel};
 ///   `DialogHost`, args for Only Web Colors, preview; the eyedropper answers from a fake capture; prints the result.
 /// - `patterns/color/panel`: `ColorPanel` with a mode and a ramp arg, the panel menu beside it.
 /// - `patterns/color/swatches`: `SwatchesPanel` on the default library, the panel menu beside it.
-/// - `patterns/color/eyedropper-options`: `EyedropperOptionsBar` in an `OptionsBar`.
+/// - `patterns/color/eyedropper-options`: `EyedropperBar` in an `OptionsBar`.
 /// - `patterns/color/samplers`: four points on a gradient image in a `CanvasView`, readouts under it.
 /// - `patterns/color/paint-chip`: `PaintChip` for each paint kind, with and without No Color.
 /// - `patterns/color/choice`: `ColorChoice` with PhotoCraft's pasteboard rows.
@@ -80,7 +80,7 @@ pub(super) fn stories() -> Vec<Story> {
             show_panel
         ),
         typed_story!("patterns/color/swatches", Level::Patterns, "SwatchesPanel", "Panel", NoArgs {}, show_swatches),
-        typed_story!("patterns/color/eyedropper-options", Level::Patterns, "EyedropperOptionsBar", "Options bar", NoArgs {}, show_eyedropper_options)
+        typed_story!("patterns/color/eyedropper-options", Level::Patterns, "EyedropperBar", "Options bar", NoArgs {}, show_eyedropper_options)
             .on(Surface::Chrome),
         typed_story!("patterns/color/samplers", Level::Patterns, "ColorSamplers", "Sample points", NoArgs {}, show_samplers).on(Surface::Canvas),
         typed_story!(
@@ -460,7 +460,7 @@ fn show_swatches(ui: &mut Ui, _: &mut NoArgs) {
 fn show_eyedropper_options(ui: &mut Ui, _: &mut NoArgs) {
     let options = shared(ui, "eyedropper-options", EyedropperOptions::default);
     let mut options = lock(&options);
-    OptionsBar::new("eyedropper-bar").show(ui, |slots| EyedropperOptionsBar::new(&mut options).add_to(slots));
+    OptionsBar::new("eyedropper-bar").show(ui, |slots| EyedropperBar::new(&mut options).add_to(slots));
 }
 
 /// The sampler story's image, in pixels: hue across, brightness down.

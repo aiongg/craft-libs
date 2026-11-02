@@ -15,6 +15,9 @@ use egui::{Align2, AsIdSalt, IdSalt, Label, Modifiers, Painter, Rect, Ui};
 
 use super::{PatternFillLabels, PatternFillOptions, PatternSwatch};
 
+/// Cells per row of the pattern picker's grid (a count, not a length; PhotoCraft's `pattern_grid`).
+const PICKER_COLUMNS: usize = 6;
+
 /// The app's painter of a swatch's tile.
 type Thumbnails<'a> = dyn FnMut(&Painter, Rect, &PatternSwatch) + 'a;
 
@@ -94,6 +97,7 @@ impl<'a> PatternFillEditor<'a> {
                     let picker = PresetPicker::new(id.with("picker"), labels.pattern.clone(), &rows)
                         .selected(Some(&options.pattern))
                         .field(PickerField::Thumbnail(PickerThumb::Square))
+                        .columns(PICKER_COLUMNS)
                         .labels(words)
                         .show(ui, |painter, rect, info: ThumbInfo<'_, String>| {
                             if let Some(swatch) = swatches.iter().find(|s| s.id == *info.key) {

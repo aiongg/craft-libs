@@ -26,6 +26,7 @@ craft_ui::words! {
         right: "addBeside.right" = "Add right";
         below: "addBeside.below" = "Add below";
         left: "addBeside.left" = "Add left";
+        add_connected: "addBeside.addConnected" = "Add a connected shape";
     }
 }
 
@@ -92,13 +93,15 @@ type Ghost<'a> = dyn Fn(&Painter, AddSide) + 'a;
 /// - Hover: the pointing hand cursor, the hot look, and the host's [`ghost`](Self::ghost) of what
 ///   would be added.
 /// - Keyboard ([`show`](Self::show) only): the group is one Tab stop named by
-///   [`AddBesideLabels::group`]; arrows pick a side, Enter or Space adds; each button is an
+///   [`AddBesideLabels::group`] (or [`add_connected`](AddBesideLabels::add_connected) after
+///   [`connecting`](Self::connecting)); arrows pick the button that lies in their screen direction, Enter or Space adds; each button is an
 ///   AccessKit `Button` ("Add above", …).
 pub struct AddBesideHandles<'a> {
     id_salt: IdSalt,
     object: Rect,
     clear_of: &'a [egui::Rect],
     hidden: bool,
+    connecting: bool,
     ghost: Option<Box<Ghost<'a>>>,
     labels: Option<AddBesideLabels>,
 }
@@ -106,7 +109,7 @@ pub struct AddBesideHandles<'a> {
 impl<'a> AddBesideHandles<'a> {
     /// The buttons around `object`, in document units.
     pub fn new(id_salt: impl AsIdSalt, object: Rect) -> Self {
-        AddBesideHandles { id_salt: IdSalt::new(id_salt), object, clear_of: &[], hidden: false, ghost: None, labels: None }
+        AddBesideHandles { id_salt: IdSalt::new(id_salt), object, clear_of: &[], hidden: false, connecting: false, ghost: None, labels: None }
     }
 
     /// Screen rectangles no button may cover.
@@ -118,6 +121,13 @@ impl<'a> AddBesideHandles<'a> {
     /// Hides every button (while a drag runs).
     pub fn hidden(mut self, hidden: bool) -> Self {
         self.hidden = hidden;
+        self
+    }
+
+    /// Names the group for adding a connected shape ([`AddBesideLabels::add_connected`]), as the
+    /// connector tools do.
+    pub fn connecting(mut self, connecting: bool) -> Self {
+        self.connecting = connecting;
         self
     }
 
@@ -181,6 +191,18 @@ impl<'a> AddBesideHandles<'a> {
             .collect()
     }
 
+    /// The button whose screen direction from `centre` is closest to `direction` (a unit vector),
+    /// none when every button points away from it. A turned view turns the sides, so an arrow
+    /// picks by where the button is on screen, not by its side.
+    fn toward(buttons: &[(AddSide, Pos2)], centre: Pos2, direction: egui::Vec2) -> Option<AddSide> {
+        buttons
+            .iter()
+            .map(|&(side, at)| (side, (at - centre).normalized().dot(direction)))
+            .filter(|(_, alignment)| *alignment > 0.0)
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(side, _)| side)
+    }
+
     /// The button at the screen point `at`, within its radius.
     pub fn at(&self, view: &CanvasView, style: &AddBesideStyle, at: Pos2) -> Option<AddSide> {
         // pc: crates/ui-egui/src/tools/artboard_tool.rs:107-112 `plus_at`.
@@ -214,7 +236,7 @@ impl<'a> AddBesideHandles<'a> {
         let bounds = buttons.iter().fold(disc(first), |acc, &(_, c)| acc.union(disc(c)));
         let painter = ui.painter_at(view.rect);
         let group = ui.interact(bounds, group_id, Sense::FOCUSABLE);
-        group.widget_info(|| WidgetInfo::labeled(Role::Group, ui.is_enabled(), &labels.group));
+        group.widget_info(|| WidgetInfo::labeled(Role::Group, ui.is_enabled(), if self.connecting { &labels.add_connected } else { &labels.group }));
 
         let picked_id = group_id.with("picked");
         let stored: Option<Option<AddSide>> = ui.data(|d| d.get_temp(picked_id));
@@ -227,10 +249,17 @@ impl<'a> AddBesideHandles<'a> {
             if picked.is_none() {
                 picked = buttons.first().map(|b| b.0);
             }
-            let keys =
-                [(Key::ArrowUp, AddSide::Top), (Key::ArrowRight, AddSide::Right), (Key::ArrowDown, AddSide::Bottom), (Key::ArrowLeft, AddSide::Left)];
-            for (key, side) in keys {
-                if buttons.iter().any(|(s, _)| *s == side) && ui.input_mut(|i| i.consume_key(Modifiers::NONE, key)) {
+            let centre = view.quad(self.object.abs()).iter().fold(Pos2::ZERO, |sum, p| sum + p.to_vec2() * 0.25);
+            let arrows = [
+                (Key::ArrowUp, vec2(0.0, -1.0)),
+                (Key::ArrowRight, vec2(1.0, 0.0)),
+                (Key::ArrowDown, vec2(0.0, 1.0)),
+                (Key::ArrowLeft, vec2(-1.0, 0.0)),
+            ];
+            for (key, direction) in arrows {
+                if let Some(side) = Self::toward(&buttons, centre, direction)
+                    && ui.input_mut(|i| i.consume_key(Modifiers::NONE, key))
+                {
                     picked = Some(side);
                 }
             }

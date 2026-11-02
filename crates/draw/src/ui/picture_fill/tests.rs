@@ -140,6 +140,17 @@ fn picture_editor_tile_fields_and_stretch_offsets() {
     assert!(harness.state().events.iter().all(|e| matches!(e, PictureFillEvent::Edit(_))));
 }
 
+// A typed 0 or negative tile scale snaps to the floor, never to zero.
+#[test]
+fn picture_editor_tile_scale_has_a_floor() {
+    let mut harness = editor(PictureFill::new("photo.png"), None);
+    toggle_tile(&mut harness);
+    type_into(&mut harness, "Scale X", "0");
+    type_into(&mut harness, "Scale Y", "-50");
+    let PictureMode::Tile { scale, .. } = harness.state().fill.mode else { panic!("tile mode") };
+    assert_eq!(scale, [*PictureMode::SCALE.start(); 2]);
+}
+
 fn scripted(answer: Picked) -> Arc<Scripted> {
     Arc::new(Scripted { answer, asked: Mutex::new(Vec::new()), waiting: Mutex::new(Vec::new()) })
 }

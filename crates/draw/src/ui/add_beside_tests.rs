@@ -74,6 +74,40 @@ fn add_beside_keys_and_alt_click() {
     assert_eq!((h.state().out.clicked, h.state().out.copy), (Some(AddSide::Bottom), true));
 }
 
+// On a view turned a quarter, ↑ picks the button that sits highest on screen, not the document's
+// top side.
+#[test]
+fn add_beside_arrows_follow_screen_direction_on_a_turned_view() {
+    let mut turned = view();
+    turned.rotation = 90.0;
+    let object = Rect::new(150.0, 100.0, 250.0, 200.0);
+    let highest = AddBesideHandles::new("ab", object)
+        .buttons(&turned, &style())
+        .into_iter()
+        .min_by(|a, b| a.1.y.total_cmp(&b.1.y))
+        .map(|b| b.0)
+        .expect("four buttons");
+    assert_ne!(highest, AddSide::Top, "the quarter turn moved the top side");
+    let state = Keys { view: turned, out: AddBesideResponse::default() };
+    let mut h = Harness::builder().with_size(vec2(400.0, 300.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, state: &mut Keys| {
+            let out = AddBesideHandles::new("ab", Rect::new(150.0, 100.0, 250.0, 200.0)).show(ui, &state.view);
+            if out.clicked.is_some() {
+                state.out = out;
+            }
+        },
+        state,
+    );
+    h.run_steps(2);
+    h.key_press(Key::Tab);
+    h.run_steps(3);
+    h.key_press(Key::ArrowUp);
+    h.run_steps(3);
+    h.key_press(Key::Enter);
+    h.run_steps(3);
+    assert_eq!(h.state().out.clicked, Some(highest));
+}
+
 struct Tool {
     tool: ArtboardTool,
     items: Vec<ArtboardItem>,

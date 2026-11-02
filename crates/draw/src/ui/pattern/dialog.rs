@@ -18,8 +18,9 @@ type Thumbnails = dyn Fn(&Painter, Rect, &PatternSwatch) + Send + Sync;
 /// [`current`](Self::current) while [`changed`](Self::changed) says the values moved this pass
 /// (PhotoCraft's proxy preview), or with `Preview` and an outer gesture.
 ///
-/// OK answers the options; OK with the values it opened with answers them too, and the app makes
-/// no step for an unchanged edit (PhotoCraft's `unchanged`). Cancel answers nothing. Enter is OK,
+/// OK answers the options; OK with the values it opened with answers them too. When the dialog
+/// edits an existing fill the app makes no step for an unchanged edit ([`unchanged`](Self::unchanged));
+/// a new fill layer is made whatever the values (PhotoCraft). Cancel answers nothing. Enter is OK,
 /// Esc Cancel.
 pub struct PatternFillDialog {
     id: DialogId,
@@ -76,7 +77,8 @@ impl PatternFillDialog {
         self.changed == Some(self.pass)
     }
 
-    /// Whether the current values equal the ones it opened with.
+    /// Whether the current values equal the ones it opened with. Only the edit of an existing fill
+    /// (PhotoCraft's SET) skips its history step on this; creating a new fill layer ignores it.
     pub fn unchanged(&self) -> bool {
         self.current == self.initial
     }

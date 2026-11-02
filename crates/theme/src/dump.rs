@@ -2479,8 +2479,10 @@ fn screen_picker_lines(out: &mut Lines, t: &ScreenPickerTokens) {
 }
 
 fn paint_chip_lines(out: &mut Lines, t: &PaintChipTokens) {
-    let PaintChipTokens { size } = t;
+    let PaintChipTokens { size, none_inset, none_line } = t;
     out.line("paint_chip.size", format!("{} {}", len(size[0]), len(size[1])));
+    out.line("paint_chip.none_inset", len(*none_inset));
+    out.line("paint_chip.none_line", len(*none_line));
 }
 
 fn harmony_lines(out: &mut Lines, t: &HarmonyTokens) {
