@@ -159,7 +159,8 @@ pub use new_document::{
     Orientation, PresetCategory, push_recent, size_line,
 };
 pub use params::{
-    CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, ParamRows, ParamRowsResponse, PathKind, PathRequest, translated,
+    CustomContext, CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, ParamRows, ParamRowsResponse, PathKind, PathRequest,
+    translated,
 };
 pub use pass::any_modal;
 pub use password::{PasswordAnswer, PasswordDialog, PasswordLabels, PasswordPurpose, PasswordStrength, Secret, password_strength};

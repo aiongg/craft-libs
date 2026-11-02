@@ -139,6 +139,24 @@ fn fields_text(fields: &super::DialogFields) -> String {
 
 const FILTER_SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom","angle":angle=30,"monochromatic":bool,"seed":u32=0}"#;
 
+/// The spec's rows, a look-up file row that offers `.cube` and `.3dl` files, and a custom row that
+/// asks the host for a colour stored under a key with no row of its own.
+fn filter_params() -> Vec<Param> {
+    let mut params = Param::parse_list(FILTER_SPEC);
+    params.push(
+        Param::new("lookup", "Look-up table:", super::ParamKind::Text { default: String::new() })
+            .browse(super::PathKind::open_file(&["cube", "3dl"])),
+    );
+    params.push(Param::custom("result", "Result:", |ui, _, custom| {
+        let response = ui.button("Pick color…");
+        if response.clicked() {
+            custom.pick_color("resultColor");
+        }
+        response
+    }));
+    params
+}
+
 /// Gaussian Blur-style parameters on the host; OK shows the fields.
 fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
     let salt = ui.scope_id();
@@ -152,8 +170,16 @@ fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
         "params",
         &mut args.open,
         (args.layout, preview),
-        || ParamDialog::new(format!("story-params-{}", salt.value()), "Radial Blur", Param::parse_list(FILTER_SPEC)).preview(preview).layout(layout),
-        |_| {},
+        || ParamDialog::new(format!("story-params-{}", salt.value()), "Radial Blur", filter_params()).preview(preview).layout(layout),
+        |dialog| {
+            // The story stands in for the host's colour picker and file dialog.
+            if let Some(request) = dialog.pick_color() {
+                dialog.set_color(&request.key, craft_theme::Srgba::from_rgb_array([0.9, 0.4, 0.1]));
+            }
+            if let Some(request) = dialog.pick_path() {
+                dialog.fields_mut().set(request.key, "lookup.cube");
+            }
+        },
         |done| format!("OK, {}", fields_text(&done.fields)),
     );
 }

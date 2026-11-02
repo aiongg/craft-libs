@@ -393,7 +393,7 @@ fn a_row_is_enabled_only_while_its_condition_holds() {
 // A custom row draws the host's control and writes the dialog's values.
 #[test]
 fn a_custom_row_writes_the_fields() {
-    let rows = vec![Param::custom("center", "Center:", |ui, fields| {
+    let rows = vec![Param::custom("center", "Center:", |ui, fields, _| {
         let response = ui.button("Set center");
         if response.clicked() {
             fields.set("center", FieldValue::Point([25.0, 75.0]));
@@ -579,4 +579,76 @@ fn param_rows_draw_range_choice_bool_and_colour() {
     harness.get_by_label("Tint:").click();
     harness.run_steps(1);
     assert_eq!(harness.state().color.as_deref(), Some("tint"));
+}
+
+// A custom row asks the host for a colour under a key with no row; the answer lands under it and
+// is read back as the dialog's value.
+#[test]
+fn a_custom_row_asks_for_a_colour_under_its_own_key() {
+    let rows = vec![Param::custom("result", "Result:", |ui, _, custom| {
+        let response = ui.button("Pick color…");
+        if response.clicked() {
+            custom.pick_color("resultColor");
+        }
+        response
+    })];
+    let mut harness = harness(ParamDialog::new("replace", "Replace Color", rows));
+    harness.run();
+    harness.get_by_label("Result:").click();
+    harness.run();
+    let dialog = open_dialog(&mut harness).expect("open");
+    let request = dialog.pick_color().expect("the press is reported");
+    assert_eq!(request.key, "resultColor");
+    assert_eq!(request.title.as_deref(), Some("Result"));
+    assert_eq!(dialog.pick_color(), None, "once");
+    dialog.set_color("resultColor", craft_theme::Srgba::from_rgb_array([0.0, 1.0, 0.0]));
+    assert_eq!(dialog.fields().color("resultColor"), Some([0.0, 1.0, 0.0]));
+}
+
+// Browse on an open-file row reports the extensions the host's file dialog filters by.
+#[test]
+fn an_open_file_row_reports_its_extensions() {
+    let rows = vec![Param::new("lut", "Look-up table:", ParamKind::Text { default: String::new() }).browse(PathKind::open_file(&["cube", "3dl"]))];
+    let mut harness = harness(ParamDialog::new("lookup", "Lookup", rows));
+    harness.run();
+    harness.get_by_label("Browse…").click();
+    harness.run();
+    let request = open_dialog(&mut harness).expect("open").pick_path().expect("reported");
+    assert_eq!(request.kind, PathKind::OpenFile { extensions: vec!["cube".into(), "3dl".into()] });
+}
+
+// Two dialogs of one command, told apart by `instance`, are open together and a swatch press in
+// one (the later, drawn on top) is reported to that one only.
+#[test]
+fn two_dialogs_of_one_command_keep_separate_state() {
+    use super::{DialogStack, StackDialog as _};
+    let make = |label: &str, instance: u32| {
+        let tint = Param::new("tint", label, ParamKind::Color { default: Some([1.0, 0.0, 0.0]) });
+        ParamDialog::new("tint-command", label.trim_end_matches(" tint:"), vec![tint]).instance(instance)
+    };
+    let mut harness = HarnessBuilder::default()
+        .with_size(vec2(900.0, 600.0))
+        .with_os(OperatingSystem::Nix)
+        .with_context_setup(|ctx| {
+            install(ctx, &Base::suite_default());
+            craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" }).install(ctx);
+        })
+        .build_ui_state(
+            |ui, dialogs: &mut Vec<ParamDialog>| {
+                let stack = DialogStack::default();
+                for dialog in dialogs {
+                    dialog.show(ui.ctx(), &stack);
+                }
+            },
+            vec![make("Beta tint:", 2), make("Alpha tint:", 1)],
+        );
+    harness.run();
+    assert_eq!(harness.query_all_by_role(Role::Dialog).count(), 2);
+    harness.state_mut()[1].fields_mut().set("tint", FieldValue::Color([0.0, 0.0, 1.0]));
+    harness.get_by_label("Alpha tint:").click();
+    harness.run();
+    let [beta, alpha] = &mut harness.state_mut()[..] else { unreachable!() };
+    assert_eq!(alpha.pick_color().map(|r| r.key), Some("tint".to_owned()));
+    assert_eq!(beta.pick_color(), None);
+    assert_eq!(beta.fields().color("tint"), Some([1.0, 0.0, 0.0]));
 }

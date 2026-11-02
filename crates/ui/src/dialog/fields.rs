@@ -1,6 +1,7 @@
 //! [`DialogFields`]: a dialog's values by key, so scripts and tests set and read them like a user,
 //! the dialog reopens with its last-used values, and Reset restores the opening ones.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,11 @@ pub enum FieldValue {
     Point([f64; 2]),
     /// A row-major grid of integers (Custom filter's 5×5 kernel).
     Grid(Vec<i64>),
+    /// A list of values of any kind: Color Table's colours, Replace Color's sampled points. Last
+    /// so an untagged read keeps the fixed-shape variants above; a list of integers or of two or
+    /// three numbers reads back as `Grid`, `Point` or `Color`, which [`DialogFields::list`] turns
+    /// back into the list.
+    List(Vec<FieldValue>),
 }
 
 impl From<bool> for FieldValue {
@@ -164,6 +170,19 @@ impl DialogFields {
             FieldValue::Grid(g) => Some(g),
             _ => None,
         }
+    }
+
+    /// A `List`, or a `Grid`, `Point` or `Color` as the list of its numbers (the shapes an
+    /// untagged read gives a stored list of numbers, and an empty list). The key may have no
+    /// parameter row: a host keeps its own data under it (a key without a row is not remembered).
+    pub fn list(&self, key: &str) -> Option<Cow<'_, [FieldValue]>> {
+        Some(match self.values.get(key)? {
+            FieldValue::List(items) => Cow::Borrowed(items.as_slice()),
+            FieldValue::Grid(cells) => Cow::Owned(cells.iter().map(|c| FieldValue::Int(*c)).collect()),
+            FieldValue::Point(p) => Cow::Owned(p.iter().map(|n| FieldValue::Number(*n)).collect()),
+            FieldValue::Color(c) => Cow::Owned(c.iter().map(|n| FieldValue::Number(f64::from(*n))).collect()),
+            _ => return None,
+        })
     }
 
     /// Every `(key, value)` in key order.

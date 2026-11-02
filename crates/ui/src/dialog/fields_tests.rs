@@ -76,6 +76,24 @@ fn the_map_round_trips_through_toml() {
     assert_eq!(back, fields, "{text}");
 }
 
+// A list keeps its items through TOML; a list of integers or of numbers that an untagged read
+// gives back as a grid, point or colour still reads as the list.
+#[test]
+fn lists_round_trip_and_read_back_as_lists() {
+    let colours = FieldValue::List(vec![FieldValue::Text("#ff0000".into()), FieldValue::Text("#00ff00".into())]);
+    let points = FieldValue::List(vec![FieldValue::Int(1), FieldValue::Int(2), FieldValue::Int(3), FieldValue::Int(4)]);
+    let empty = FieldValue::List(Vec::new());
+    let fields = DialogFields::from_pairs([("colours", colours.clone()), ("points", points.clone()), ("none", empty)]);
+
+    let text = toml::to_string(&fields).expect("serialises");
+    let back: DialogFields = toml::from_str(&text).expect("parses");
+    assert_eq!(back.list("colours").as_deref(), fields.list("colours").as_deref(), "{text}");
+    assert_eq!(back.list("points").as_deref(), fields.list("points").as_deref(), "{text}");
+    assert_eq!(back.list("none").map(|l| l.len()), Some(0), "{text}");
+    assert_eq!(back.list("absent"), None);
+    assert_eq!(DialogFields::from_pairs([("n", 1_i64)]).list("n"), None, "a scalar is no list");
+}
+
 // Equality compares the values; the opening snapshot is not part of it.
 #[test]
 fn equality_ignores_the_opening_snapshot() {
