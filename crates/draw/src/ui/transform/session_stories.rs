@@ -5,15 +5,15 @@
 //! - `composites/transform-session/session`: the overlay and the bar over a fake picture: modes,
 //!   the scale rule, the reference point shown or hidden, the readout, the interpolation. Apply
 //!   and Discard close the session and reopen a box on the applied result.
-//! - `composites/transform-session/bar`: the bar alone in its phases: Free, the Content-Aware
+//! - `patterns/transform-bar/bar`: the bar alone in its phases: Free, the Content-Aware
 //!   subset (`BarGroups`, no switch) and Warp with a stub warp group.
 
 use egui::{Shape, Stroke, Ui};
 use kurbo::{Rect, Size};
 
 use super::{
-    BarGroups, Interpolation, TransformBar, TransformBarLabels, TransformBarOutput, TransformEdit, TransformFieldLabels, TransformLabels,
-    TransformNames, TransformOverlay, TransformPhase, TransformRequest, TransformSession, TransformSettings,
+    BarGroups, Interpolation, TransformBar, TransformBarOutput, TransformEdit, TransformLabels, TransformNames, TransformOverlay, TransformPhase,
+    TransformRequest, TransformSession, TransformSettings,
 };
 use craft_ui::canvas::RulerUnits;
 use craft_ui::canvas::quad::{BoxState, TransformMode};
@@ -22,7 +22,7 @@ use craft_ui::localized::units::UnitContext;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::patterns::OptionsBar;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, lock, shared};
 use craft_ui::testing::canvas_story::{DOC, ViewArgs, document};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_ui::typed_story;
@@ -40,6 +40,7 @@ craft_ui::words! {
         warp: "transformSessionStory.warp" = "Warp";
         box_phase: "transformSessionStory.box" = "Box";
         warp_options: "transformSessionStory.warpOptions" = "Warp options";
+        phase_note: "transformSessionStory.phaseNote" = "{phase} · {note}";
     }
 }
 
@@ -82,8 +83,8 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "composites/transform-session/bar",
-            Level::Composites,
+            "patterns/transform-bar/bar",
+            Level::Patterns,
             "TransformBar",
             "Bar",
             BarArgs { phase: PhaseArg::Free, size_menu: true, width: 240.0, height: 160.0 },
@@ -309,10 +310,6 @@ fn open(snap: Snap, settings: &TransformSettings, state: BoxState, now: f64) -> 
     session
 }
 
-fn kept_key(ui: &Ui, name: &str) -> egui::Id {
-    ui.make_persistent_id(("craft_draw::transform::session_stories", name))
-}
-
 /// A muted status line.
 fn status(ui: &mut Ui, text: String) {
     ui.add(Text::new(text).content(Content::Muted));
@@ -320,8 +317,6 @@ fn status(ui: &mut Ui, text: String) {
 
 /// The bar of `kept` in an options bar, with the groups its phase shows; applies its edits.
 fn show_options_bar(ui: &mut Ui, kept: &mut Kept, phase: PhaseArg, size_menu: bool, now: f64) {
-    let labels = TransformBarLabels::of(ui);
-    let field_labels = TransformFieldLabels::of(ui);
     let label = TransformNames::of(ui).group;
     let groups = match phase {
         PhaseArg::ContentAware => BarGroups { reference: false, angle: false, skew: false, interpolation: false, ..BarGroups::ALL },
@@ -333,8 +328,6 @@ fn show_options_bar(ui: &mut Ui, kept: &mut Kept, phase: PhaseArg, size_menu: bo
         let Kept { session, settings, .. } = kept;
         OptionsBar::new("transform-session-options").label(label).show(ui, |slots| {
             let mut bar = TransformBar::new("transform-session-bar", session)
-                .labels(labels)
-                .field_labels(field_labels)
                 .groups(groups)
                 .mode_switch(phase != PhaseArg::ContentAware)
                 .settings(settings)
@@ -374,8 +367,8 @@ fn show_session(ui: &mut Ui, args: &mut SessionArgs) {
         width: args.width,
         height: args.height,
     };
-    let key = kept_key(ui, "session");
-    let mut kept: Kept = ctx.data(|d| d.get_temp(key)).unwrap_or_else(|| Kept::new(snap));
+    let slot = shared(ui, "session", || Kept::new(snap));
+    let mut kept = lock(&slot).clone();
     kept.sync(snap, now);
 
     let tokens = Tokens::of(ui);
@@ -388,10 +381,7 @@ fn show_session(ui: &mut Ui, args: &mut SessionArgs) {
 
     let numbers = LocaleNumbers::of(ui).as_ref().clone();
     let pixels = RulerUnits::pixels(numbers);
-    let mut overlay = TransformOverlay::new("transform-session-overlay", &kept.session)
-        .settings(&kept.settings)
-        .names(TransformNames::of(ui))
-        .units(&pixels, &pixels);
+    let mut overlay = TransformOverlay::new("transform-session-overlay", &kept.session).settings(&kept.settings).units(&pixels, &pixels);
     if args.readout {
         overlay = overlay.readout(TransformLabels::of(ui));
     }
@@ -407,10 +397,14 @@ fn show_session(ui: &mut Ui, args: &mut SessionArgs) {
             kept = Kept::new(snap);
         }
         let phase = if kept.session.phase() == TransformPhase::Warp { &story.warp } else { &story.box_phase };
-        status(ui, kept.note.map_or_else(|| phase.clone(), |note| format!("{phase} · {}", note.text(&story))));
+        status(
+            ui,
+            kept.note
+                .map_or_else(|| phase.clone(), |note| craft_i18n::fmt(&story.phase_note, &[("phase", phase.as_str()), ("note", note.text(&story))])),
+        );
     });
     kept.settle(ui);
-    ctx.data_mut(|d| d.insert_temp(key, kept));
+    *lock(&slot) = kept;
 }
 
 // --- bar ---
@@ -431,8 +425,8 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         width: args.width,
         height: args.height,
     };
-    let key = kept_key(ui, "bar");
-    let mut kept: Kept = ctx.data(|d| d.get_temp(key)).unwrap_or_else(|| Kept::new(snap));
+    let slot = shared(ui, "bar", || Kept::new(snap));
+    let mut kept = lock(&slot).clone();
     kept.sync(snap, now);
     show_options_bar(ui, &mut kept, args.phase, args.size_menu, now);
     ui.horizontal(|ui| {
@@ -444,5 +438,5 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         }
     });
     kept.settle(ui);
-    ctx.data_mut(|d| d.insert_temp(key, kept));
+    *lock(&slot) = kept;
 }

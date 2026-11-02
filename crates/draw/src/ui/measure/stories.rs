@@ -15,14 +15,14 @@
 use egui::{Painter, Shape, Stroke, Ui};
 use kurbo::{Point, Rect, Size, Vec2};
 
-use super::{RulerBar, RulerBarLabels, RulerBarOutput, RulerInput, RulerLine, RulerTool, RulerToolLabels, box_distances};
+use super::{RulerBar, RulerBarOutput, RulerInput, RulerLine, RulerTool, RulerToolLabels, box_distances};
 use craft_ui::canvas::{CanvasView, RulerUnits, SmartGuides, ToolHost};
 use craft_ui::controls::Button;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::patterns::OptionsBar;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, lock, reset_on, shared};
 use craft_ui::testing::canvas_story::{DOC, ViewArgs, document};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use craft_ui::typed_story;
@@ -45,6 +45,7 @@ craft_ui::words! {
         straighten_layer: "measureStory.straightenLayer" = "Straighten Layer";
         clear: "measureStory.clear" = "Clear";
         distances: "measureStory.distances" = "{lines} lines · {distances} distances";
+        with_note: "measureStory.withNote" = "{text} · {note}";
     }
 }
 
@@ -116,11 +117,6 @@ pub(crate) fn stories() -> Vec<Story> {
 
 // --- shared parts ---
 
-/// Remembers the story's state under a name of this module's id space.
-fn state_key(ui: &Ui, name: &str) -> egui::Id {
-    ui.make_persistent_id(("craft_draw::measure::stories", name))
-}
-
 /// A muted status line.
 fn status(ui: &mut Ui, text: String) {
     ui.add(Text::new(text).content(Content::Muted));
@@ -172,19 +168,18 @@ struct ProtractorArgs {
 }
 
 /// What a Ruler story keeps: the tool, the line as an app stores it, the line before the running
-/// gesture, the last event's name, and the args the line was made from.
+/// gesture and the last event's name.
 #[derive(Clone, Debug)]
 struct RulerKept {
     tool: RulerTool,
     line: Option<RulerLine>,
     saved: Option<RulerLine>,
     note: Option<Note>,
-    seed: Vec<f64>,
 }
 
 impl RulerKept {
-    fn new(line: Option<RulerLine>, seed: Vec<f64>) -> Self {
-        Self { tool: RulerTool::new(), line, saved: None, note: None, seed }
+    fn new(line: Option<RulerLine>) -> Self {
+        Self { tool: RulerTool::new(), line, saved: None, note: None }
     }
 
     /// Stores what the tool reported, as the app does: the line is document state outside the
@@ -221,18 +216,15 @@ fn show_ruler(ui: &mut Ui, view: ViewArgs, name: &str, size: Size, initial: Opti
     let words = StoryLabels::of(ui);
     let own = MeasureStoryLabels::of(ui);
     let canvas = document(ui, view, &words.document);
-    let ctx = ui.ctx().clone();
-    let key = state_key(ui, name);
-    let mut kept: RulerKept =
-        ctx.data(|d| d.get_temp(key)).filter(|kept: &RulerKept| kept.seed == seed).unwrap_or_else(|| RulerKept::new(initial, seed.clone()));
+    reset_on(ui, name, &seed);
+    let slot = shared(ui, name, || RulerKept::new(initial));
+    let mut kept = lock(&slot).clone();
 
     let tokens = Tokens::of(ui);
     paint_rect(&ui.painter_at(canvas.view.rect), &canvas.view, &tokens, picture(size.width, size.height), 0.25);
 
     let numbers = LocaleNumbers::of(ui).as_ref().clone();
     let pixels = RulerUnits::pixels(numbers);
-    let labels = RulerToolLabels::of(ui);
-    kept.tool.labels(labels);
     let mut pass = kept.tool.pass(RulerInput::new(kept.line).units(&pixels, &pixels));
     let _ = ToolHost::new(canvas.id).document(DOC.size()).show(ui, &canvas.view, &canvas.response, &mut pass);
     let events = kept.tool.take_events();
@@ -242,7 +234,7 @@ fn show_ruler(ui: &mut Ui, view: ViewArgs, name: &str, size: Size, initial: Opti
 
     ui.horizontal(|ui| {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
-            kept = RulerKept::new(initial, seed.clone());
+            kept = RulerKept::new(initial);
         }
         let numbers = LocaleNumbers::of(ui);
         let text = match kept.line {
@@ -251,18 +243,21 @@ fn show_ruler(ui: &mut Ui, view: ViewArgs, name: &str, size: Size, initial: Opti
                 let r = line.reading();
                 let angle = numbers.format(r.angle, 1..=1);
                 match r.l2 {
-                    Some(l2) => own
-                        .two_lines
-                        .replace("{l1}", &numbers.format(r.l1, 1..=1))
-                        .replace("{l2}", &numbers.format(l2, 1..=1))
-                        .replace("{angle}", &angle),
-                    None => own.one_line.replace("{l1}", &numbers.format(r.l1, 1..=1)).replace("{angle}", &angle),
+                    Some(l2) => craft_i18n::fmt(
+                        &own.two_lines,
+                        &[("l1", &numbers.format(r.l1, 1..=1)), ("l2", &numbers.format(l2, 1..=1)), ("angle", &angle)],
+                    ),
+                    None => craft_i18n::fmt(&own.one_line, &[("l1", &numbers.format(r.l1, 1..=1)), ("angle", &angle)]),
                 }
             }
         };
-        status(ui, kept.note.map_or_else(|| text.clone(), |note| format!("{text} · {}", note.text(&own))));
+        let line = match kept.note {
+            Some(note) => craft_i18n::fmt(&own.with_note, &[("text", &text), ("note", note.text(&own))]),
+            None => text,
+        };
+        status(ui, line);
     });
-    ctx.data_mut(|d| d.insert_temp(key, kept));
+    *lock(&slot) = kept;
 }
 
 fn show_line(ui: &mut Ui, args: &mut LineArgs) {
@@ -309,12 +304,11 @@ struct BarArgs {
     angle: f64,
 }
 
-/// What the bar story keeps: the scale check box, the last button and the args it began from.
+/// What the bar story keeps: the scale check box and the last button.
 #[derive(Clone, Debug)]
 struct BarKept {
     use_scale: bool,
     note: Option<Note>,
-    seed: (bool, ShownArg),
 }
 
 /// The bar in an options bar over a line made from the args. Straighten Layer and Clear report
@@ -322,11 +316,9 @@ struct BarKept {
 fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let words = StoryLabels::of(ui);
     let own = MeasureStoryLabels::of(ui);
-    let ctx = ui.ctx().clone();
-    let key = state_key(ui, "bar");
-    let seed = (args.use_scale, args.shown);
-    let mut kept: BarKept =
-        ctx.data(|d| d.get_temp(key)).filter(|kept: &BarKept| kept.seed == seed).unwrap_or(BarKept { use_scale: args.use_scale, note: None, seed });
+    reset_on(ui, "bar", &(args.use_scale, args.shown));
+    let slot = shared(ui, "bar", || BarKept { use_scale: args.use_scale, note: None });
+    let mut kept = lock(&slot).clone();
 
     let turn = args.angle.to_radians();
     let start = Point::new(100.0, 100.0);
@@ -336,10 +328,10 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         ShownArg::Line => Some(RulerLine::new(start, end)),
         ShownArg::Protractor => Some(RulerLine { start, end, protractor: Some(start + Vec2::new(args.length, 0.0)) }),
     };
-    let labels = RulerBarLabels::of(ui);
+    let pixels = RulerUnits::pixels(LocaleNumbers::of(ui).as_ref().clone());
     let mut out = RulerBarOutput::default();
     OptionsBar::new("ruler-bar").label(RulerToolLabels::of(ui).group).show(ui, |bar| {
-        RulerBar::new(line, &mut kept.use_scale).scale(args.factor).labels(labels).output(&mut out).add_to(bar);
+        RulerBar::new(line, &mut kept.use_scale).scale(args.factor).units(&pixels, &pixels).output(&mut out).add_to(bar);
     });
     if out.straighten_layer {
         kept.note = Some(Note::StraightenLayer);
@@ -356,7 +348,7 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
             status(ui, note.text(&own).to_owned());
         }
     });
-    ctx.data_mut(|d| d.insert_temp(key, kept));
+    *lock(&slot) = kept;
 }
 
 // --- distances ---
@@ -422,5 +414,7 @@ fn show_distances(ui: &mut Ui, args: &mut DistanceArgs) {
     let pixels = RulerUnits::pixels(LocaleNumbers::of(ui).as_ref().clone());
     let (lines, measures) = box_distances(a, b, |len, _| pixels.format_value(len, 0.0));
     SmartGuides::new(&lines, &measures).bounds(a).show(ui, &canvas.view);
-    status(ui, own.distances.replace("{lines}", &lines.len().to_string()).replace("{distances}", &measures.len().to_string()));
+    let numbers = LocaleNumbers::of(ui);
+    let (lines_n, measures_n) = (numbers.format(lines.len() as f64, 0..=0), numbers.format(measures.len() as f64, 0..=0));
+    status(ui, craft_i18n::fmt(&own.distances, &[("lines", &lines_n), ("distances", &measures_n)]));
 }
