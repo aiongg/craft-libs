@@ -33,7 +33,7 @@ pub struct VanishingPointTokens {
     pub ring_line: f32,
     /// The alpha of the pasted image's white tint, 0 to 1: `vanishing_point.paste_alpha`.
     pub paste_alpha: f32,
-    /// The halo under lines, the ring and the cross: `vanishing_point.halo`. Black at alpha 160 by default: it darkens whatever the image shows.
+    /// The halo under lines, the ring and the cross: `vanishing_point.halo`. `surface.panel` by default, the colour the plane colours are already held against.
     pub halo: Rgba,
 }
 
@@ -62,7 +62,7 @@ impl Family for VanishingPointTokens {
         "paste_alpha" 0.0..=1.0 => paste_alpha;
     };
 
-    fn defaults(_: &Semantic<'_>) -> VanishingPointTokens {
+    fn defaults(s: &Semantic<'_>) -> VanishingPointTokens {
         VanishingPointTokens {
             line: values::VANISHING_POINT_LINE,
             line_selected: values::VANISHING_POINT_LINE_SELECTED,
@@ -76,7 +76,7 @@ impl Family for VanishingPointTokens {
             click_slop: values::VANISHING_POINT_CLICK_SLOP,
             ring_line: values::VANISHING_POINT_RING_LINE,
             paste_alpha: values::VANISHING_POINT_PASTE_ALPHA,
-            halo: values::VANISHING_POINT_HALO,
+            halo: s.color.surface.panel,
         }
     }
 

@@ -701,7 +701,6 @@ layer_style.contour_thumb = 36
 layer_style.contour_arrow = 14
 layer_style.contour_cell = 40
 layer_style.contour_graph = 220
-layer_style.contour_border = #636363ff
 blend_if.width_min = 120
 blend_if.width_max = 320
 blend_if.height = 26

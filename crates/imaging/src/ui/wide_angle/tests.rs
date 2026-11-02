@@ -323,9 +323,8 @@ fn wide_angle_constraints_are_keyboard_parts() {
     drag(&mut h, at, at, Modifiers::NONE);
     assert_eq!(h.state().workspace.constraint.picked(), Some(0));
     assert!(h.state().constraints().len() == 2, "a click adds nothing");
-    // Tab moves the keyboard from the canvas to the constraints group, whose arrows move a part.
-    h.key_press(Key::Tab);
-    h.run();
+    // The release on the part gave the constraints group the keyboard, whose Page keys pick and
+    // whose arrows move the picked part.
     h.key_press(Key::PageDown);
     h.run();
     let Some(picked) = h.state().workspace.constraint.picked() else { panic!("Page Down picks a constraint") };
@@ -352,12 +351,13 @@ fn wide_angle_constraints_are_keyboard_parts() {
     assert_eq!(h.state().constraints()[0].orientation, ConstraintOrientation::Free);
 }
 
-// With the canvas, not the constraints group, holding the keyboard, arrows do nothing: the pick a
-// click made is not the keys' to move.
+// With the canvas, not the constraints group, holding the keyboard, arrows do nothing: a click on
+// the constraint away from its part picks it without giving the group the keyboard (a release on
+// the part does).
 #[test]
 fn wide_angle_arrows_do_nothing_while_the_canvas_has_the_keyboard() {
     let mut h = harness(App::new(session_with(vec![line([100.0, 60.0], [300.0, 60.0])])));
-    let at = screen(&h, [200.0, 60.0]);
+    let at = screen(&h, [130.0, 60.0]);
     drag(&mut h, at, at, Modifiers::NONE);
     assert_eq!(h.state().workspace.constraint.picked(), Some(0));
     let before = h.state().constraints().to_vec();

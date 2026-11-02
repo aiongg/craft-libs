@@ -3075,17 +3075,7 @@ fn adjust_lines(out: &mut Lines, t: &AdjustTokens) {
 }
 
 fn layer_style_lines(out: &mut Lines, t: &LayerStyleTokens) {
-    let LayerStyleTokens {
-        list_width,
-        page_width,
-        preset_thumb,
-        presets_height,
-        contour_thumb,
-        contour_arrow,
-        contour_cell,
-        contour_graph,
-        contour_border,
-    } = t;
+    let LayerStyleTokens { list_width, page_width, preset_thumb, presets_height, contour_thumb, contour_arrow, contour_cell, contour_graph } = t;
     out.line("layer_style.list_width", len(*list_width));
     out.line("layer_style.page_width", len(*page_width));
     out.line("layer_style.preset_thumb", len(*preset_thumb));
@@ -3094,7 +3084,6 @@ fn layer_style_lines(out: &mut Lines, t: &LayerStyleTokens) {
     out.line("layer_style.contour_arrow", len(*contour_arrow));
     out.line("layer_style.contour_cell", len(*contour_cell));
     out.line("layer_style.contour_graph", len(*contour_graph));
-    out.line("layer_style.contour_border", hex(*contour_border));
 }
 
 fn blend_if_lines(out: &mut Lines, t: &BlendIfTokens) {

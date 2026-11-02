@@ -2624,8 +2624,6 @@ pub const VANISHING_POINT_PENDING: f32 = 6.0;
 pub const VANISHING_POINT_HALO_WIDTH: f32 = 2.5;
 /// An arm of the source cross: `vanishing_point.source_arm`.
 pub const VANISHING_POINT_SOURCE_ARM: f32 = 7.0;
-/// The halo under lines, the ring and the cross, black at alpha 160: `vanishing_point.halo`.
-pub const VANISHING_POINT_HALO: Rgba = Rgba::rgb(0, 0, 0).with_alpha(160);
 /// How far from a node's centre a press reaches, in points (PhotoCraft `SNAP_PX`): `vanishing_point.press_reach`.
 pub const VANISHING_POINT_PRESS_REACH: f32 = 8.0;
 /// The click-versus-drag distance of a torn plane's far edge node, in document pixels (PhotoCraft `vp_ui.rs:728`): `vanishing_point.click_slop`.
@@ -2646,8 +2644,6 @@ pub const WIDE_ANGLE_HIT: f32 = 10.0;
 pub const WIDE_ANGLE_MIN_DRAG: f32 = 6.0;
 /// The extra width of the halo: `wide_angle.halo_width`.
 pub const WIDE_ANGLE_HALO_WIDTH: f32 = 2.5;
-/// The halo under each line, black at alpha 160: `wide_angle.halo`.
-pub const WIDE_ANGLE_HALO: Rgba = Rgba::rgb(0, 0, 0).with_alpha(160);
 
 // --- blur_pins ---
 /// A pin's dot radius: `blur_pins.dot`.
