@@ -1,28 +1,29 @@
 //! [`SymmetryOverlay`]: the symmetry axes drawn on the canvas.
 
-use egui::{Painter, Pos2, Rect, vec2};
+use egui::{Painter, Pos2, Rect, Stroke, vec2};
 use kurbo::Size;
 
 use super::model::Symmetry;
 use super::style::SymmetryStyle;
-use craft_ui::canvas::{CanvasView, PartFocus};
+use craft_ui::canvas::CanvasView;
 use craft_ui::primitives::{Handle, HandleShape};
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// The guides of a painting symmetry: each axis clipped to the document, a bare line in
 /// `overlay.line`, drawn while a painting tool is picked or the symmetry is being transformed;
 /// while [editing](Self::editing) also the centre anchor and a handle line to the rotation
-/// handle. Drawing only: the transform's keyboard parts are [`SymmetryTransform`](super::SymmetryTransform)'s.
+/// handle. Drawing only: the transform's keyboard parts and their focus ring (the host's) are
+/// [`SymmetryTransform`](super::SymmetryTransform)'s.
 pub struct SymmetryOverlay<'a> {
     symmetry: &'a Symmetry,
     size: Size,
     editing: bool,
-    ring: Option<u64>,
 }
 
 impl<'a> SymmetryOverlay<'a> {
     /// The guides of `symmetry` over a document of `size`.
     pub fn new(symmetry: &'a Symmetry, size: Size) -> Self {
-        Self { symmetry, size, editing: false, ring: None }
+        Self { symmetry, size, editing: false }
     }
 
     /// Transform Symmetry is open: the centre anchor and the rotation handle show.
@@ -31,11 +32,17 @@ impl<'a> SymmetryOverlay<'a> {
         self
     }
 
-    /// The picked part (the transform's [`Part::key`](craft_ui::canvas::Part::key)) to ring while
-    /// the keyboard has it.
-    pub fn ring(mut self, part: Option<u64>) -> Self {
-        self.ring = part;
-        self
+    /// The guides' look in `tokens`: also the reach of the transform's handles.
+    pub fn style(tokens: &UiTokens) -> SymmetryStyle {
+        // pc: crates/ui-egui/src/tools/symmetry_ui.rs:280 `draw` (1 pt accent), :111 `cursor` and
+        // :233 `pointer` (8 / zoom), :227 `rotation_handle` (0.35).
+        let s = &tokens.component.symmetry;
+        SymmetryStyle {
+            line: Stroke::new(s.line, tokens.color.overlay.line.to_egui()),
+            hit: s.hit,
+            handle_share: f64::from(s.handle_share),
+            handle: Handle::style(tokens, HandleShape::Square),
+        }
     }
 
     /// Paints the guides over `view`, clipped to the view's rect.
@@ -55,11 +62,6 @@ impl<'a> SymmetryOverlay<'a> {
         let ppp = painter.ctx().pixels_per_point();
         painter.extend(Handle::shapes_with(&style.handle, HandleShape::Square, center, ppp));
         painter.extend(Handle::shapes_with(&style.handle, HandleShape::Round, handle, ppp));
-        for (key, at) in [(0, center), (1, handle)] {
-            if self.ring == Some(key) {
-                PartFocus::ring(&painter, part_rect(at, style));
-            }
-        }
     }
 }
 

@@ -5,8 +5,8 @@
 //! - `primitives/symmetry/modes`: the four modes at the page centre and off-centre, with the
 //!   handles of Transform Symmetry on request; the axes clip to the page.
 //! - `primitives/symmetry/transform`: Transform Symmetry in a `ToolHost`: move the centre, turn the
-//!   axes (⇧ in 15° steps), Enter and Esc, the keyboard parts. Commit stores the symmetry and
-//!   reopens the session on it; Cancel reopens it on the stored one.
+//!   axes (⇧ in 15° steps), Enter and Esc, the keyboard parts. Apply stores the symmetry and
+//!   reopens the session on it; Discard reopens it on the stored one.
 //! - `patterns/symmetry-menu/menu`: the menu with paths, Off, and Transform Symmetry disabled and
 //!   enabled.
 
@@ -15,7 +15,7 @@ use kurbo::Vec2;
 
 use super::{
     Symmetry, SymmetryChoice, SymmetryCommand, SymmetryEvent, SymmetryInput, SymmetryLabels, SymmetryMenu, SymmetryMode, SymmetryOverlay,
-    SymmetryPathRow, SymmetryStyle, SymmetryTransform,
+    SymmetryPathRow, SymmetryTransform,
 };
 use craft_ui::canvas::{RulerUnits, ToolHost};
 use craft_ui::controls::Button;
@@ -145,7 +145,7 @@ fn show_modes(ui: &mut Ui, args: &mut ModesArgs) {
     let Some(symmetry) = symmetry(args.mode, args.x, args.y, args.angle) else {
         return;
     };
-    let style = SymmetryStyle::of(&Tokens::of(ui));
+    let style = SymmetryOverlay::style(&Tokens::of(ui));
     SymmetryOverlay::new(&symmetry, DOC.size()).editing(args.handles).paint(&ui.painter_at(canvas.view.rect), &canvas.view, &style);
     status(ui, craft_i18n::fmt(&own.axes, &[("n", &symmetry.segments(DOC.size()).len().to_string())]));
 }
@@ -182,23 +182,23 @@ impl Kept {
         Self { session: SymmetryTransform::begin(stored), stored, note: None, seed }
     }
 
-    /// Answers an event as the app does: Commit stores the symmetry, and either end drops the
+    /// Answers an event as the app does: Apply stores the symmetry, and either end drops the
     /// session, which the story reopens on the stored symmetry.
     fn apply(&mut self, event: SymmetryEvent) {
         match event {
             SymmetryEvent::Preview(_) => return,
-            SymmetryEvent::Commit(symmetry) => {
+            SymmetryEvent::Apply(symmetry) => {
                 self.stored = symmetry;
                 self.note = Some(Ended::Stored);
             }
-            SymmetryEvent::Cancel => self.note = Some(Ended::Cancelled),
+            SymmetryEvent::Discard => self.note = Some(Ended::Cancelled),
         }
         self.session = SymmetryTransform::begin(self.stored);
     }
 }
 
 /// The session over the page, with its bar (title, ✓ and ⊘) above the status line. Click the page
-/// to give it the keyboard: Tab picks a part, the arrows step it, Enter commits and Esc cancels.
+/// to give it the keyboard: Tab picks a part, the arrows step it, Enter applies and Esc discards.
 fn show_transform(ui: &mut Ui, args: &mut TransformArgs) {
     let words = StoryLabels::of(ui);
     let labels = SymmetryLabels::of(ui);
@@ -213,11 +213,11 @@ fn show_transform(ui: &mut Ui, args: &mut TransformArgs) {
 
     let mut clicked = Vec::new();
     OptionsBar::new("symmetry-transform").label(labels.transform.clone()).show(ui, |bar| {
-        let session = &kept.session;
+        let session = &mut kept.session;
         bar.trailing(|ui| {
             let pressed = OptionsBar::commit_cancel(ui, &labels.commit, &labels.cancel);
             if pressed.cancel {
-                clicked.push(session.cancel());
+                clicked.push(session.discard());
             }
             if pressed.commit {
                 clicked.push(session.commit());
@@ -230,20 +230,17 @@ fn show_transform(ui: &mut Ui, args: &mut TransformArgs) {
 
     let canvas = document(ui, args.view, &words.document);
     let pixels = RulerUnits::pixels(LocaleNumbers::of(ui).as_ref().clone());
-    let mut pass = kept.session.pass(SymmetryInput::new(DOC.size(), true).units(&pixels, &pixels).labels(labels));
+    kept.session.labels(labels);
+    let mut pass = kept.session.pass(SymmetryInput::new(DOC.size(), true).units(&pixels, &pixels));
     let _ = ToolHost::new(canvas.id).document(DOC.size()).show(ui, &canvas.view, &canvas.response, &mut pass);
     let events = pass.finish().events;
     for event in events {
         kept.apply(event);
     }
 
-    let style = SymmetryStyle::of(&Tokens::of(ui));
+    let style = SymmetryOverlay::style(&Tokens::of(ui));
     let preview = kept.session.preview();
-    SymmetryOverlay::new(&preview, DOC.size()).editing(true).ring(kept.session.picked()).paint(
-        &ui.painter_at(canvas.view.rect),
-        &canvas.view,
-        &style,
-    );
+    SymmetryOverlay::new(&preview, DOC.size()).editing(true).paint(&ui.painter_at(canvas.view.rect), &canvas.view, &style);
     ui.horizontal(|ui| {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             kept = Kept::new(initial, seed);
@@ -332,7 +329,8 @@ fn show_menu(ui: &mut Ui, args: &mut MenuArgs) {
     ];
     let paths: &[SymmetryPathRow] = if args.paths { &rows } else { &[] };
     ui.horizontal(|ui| {
-        let shown = SymmetryMenu::new("symmetry-menu").current(&kept.choice).paths(paths).can_transform(args.can_transform).labels(&labels).show(ui);
+        let shown =
+            SymmetryMenu::new("symmetry-menu").current(&kept.choice).paths(paths).can_transform(args.can_transform).labels(labels.clone()).show(ui);
         if let Some(command) = shown.command {
             let name = match &command {
                 SymmetryCommand::Off => labels.off.clone(),
