@@ -143,7 +143,7 @@ fn cards_mirror_in_right_to_left() {
             })
             .build_ui(move |ui| {
                 let _ = &sink;
-                BrushPresetCards::new("cards", &mut state, &rows)
+                let _ = BrushPresetCards::new("cards", &mut state, &rows)
                     .diameter_of(|_| Some(30.0))
                     .tip(|_, rect, _| tip_sink.set((Some(rect.center().x), stroke_sink.get().1)))
                     .stroke(|_, rect, _| stroke_sink.set((tip_sink.get().0, Some(rect.center().x))))
