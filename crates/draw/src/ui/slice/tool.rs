@@ -30,7 +30,7 @@ use craft_ui::localized::Labels as _;
 ///   pixels, made by a click (`fixed_size_pixels`), previewed from the press. Normal uses
 ///   `Constraint::corners` and `marquee_pixels`. With [`SliceRules::modifiers`] ⇧ is square and ⌥
 ///   from the centre.
-/// - Snaps the pointer (`SnapGesture::Point`).
+/// - Snaps the pointer (`SnapGesture::Point`), the press included in both modes.
 ///
 /// Select mode:
 /// - Click selects: stored slices win over auto slices, the latest on top; hidden auto slices
@@ -40,14 +40,15 @@ use craft_ui::localized::Labels as _;
 ///   layer slices don't move (the press only selects).
 /// - A handle of a selected user slice (8: corners first, `handle.hit` reach, as
 ///   [`handle_at`](crate::geometry::slice::handle_at)) resizes it with
-///   [`resized_rect`](crate::geometry::slice::resized_rect).
-/// - Delete or Backspace without modifiers, with a slice selected, reports
+///   [`resized_rect`](crate::geometry::slice::resized_rect), the travel measured from the handle's
+///   own point so a snapped pointer is where the edge ends up.
+/// - Delete or Backspace without modifiers, with a stored (user or layer) slice selected, reports
 ///   `Command(Delete)` and takes the key, so Layer › Delete never sees it (an auto slice: nothing,
 ///   the key is not taken). Double click and Enter report `Command(Options)`. Arrows move a
 ///   selected user slice by `NudgeKeys::from_key` while the canvas has the focus.
 ///
-/// Locked ([`locked`](Self::locked)): a press selects, draws and moves nothing and reports
-/// `Refused(Locked)`.
+/// Locked ([`locked`](Self::locked)): a press draws and moves nothing, clears the selection
+/// (`Select { number: None }`, as PhotoCraft) and reports `Refused(Locked)`.
 ///
 /// Keyboard parts: the slices are one Tab stop (`CanvasTool::parts`), group [`SliceToolLabels::group`],
 /// each slice a part named as [`SliceToolLabels::slice`] ("Slice 03, user slice, 120 by 80 at 40, 40");
@@ -62,7 +63,7 @@ pub struct SliceTool {
     items: Vec<SliceItem>,
     selected: Option<usize>,
     locked: bool,
-    colour: Option<Srgba>,
+    color: Option<Srgba>,
     numbers: bool,
     hide_auto: bool,
     settings: SliceToolSettings,
@@ -137,8 +138,8 @@ impl SliceTool {
     }
 
     /// The slice colour preference (Guides, Grid & Slices); `overlay.slice` when `None`.
-    pub fn colour(&mut self, colour: Option<Srgba>) -> &mut Self {
-        self.colour = colour;
+    pub fn color(&mut self, color: Option<Srgba>) -> &mut Self {
+        self.color = color;
         self
     }
 
@@ -273,6 +274,12 @@ impl SliceTool {
         Point::new(at(rect.x0, rect.x1, handle[0]), at(rect.y0, rect.y1, handle[1]))
     }
 
+    /// `rect` with `handle` dragged to the pointer at `to`: the travel is measured from the handle's
+    /// own point, so a snapped pointer is where the edge ends up, not the press's offset from it.
+    fn resized(rect: Rect, handle: [i8; 2], to: Point) -> Rect {
+        resized_rect(rect, handle, to - Self::handle_point(rect, handle))
+    }
+
     fn resize_cursor(handle: [i8; 2], cx: &ToolContext<'_>) -> ToolCursor {
         ToolCursor::System(resize_cursor(cx.view, Vec2::new(f64::from(handle[0]), f64::from(handle[1]))))
     }
@@ -305,6 +312,9 @@ impl CanvasTool for SliceTool {
         // pc: crates/ui-egui/src/tools/slice_ui.rs:152-200 `pointer` (`Down`: locked at :161-166,
         // Slice starts `New`, Select picks, a handle starts `Resize`).
         if self.locked {
+            // PhotoCraft clears the selection on a locked press (`slice_ui.rs:161-163`).
+            self.selected = None;
+            self.push(SliceEvent::Select { number: None, add: false, modifiers: pointer.modifiers });
             self.push(SliceEvent::Refused(SliceRefusal::Locked));
             return ToolAction::Done;
         }
@@ -364,8 +374,10 @@ impl CanvasTool for SliceTool {
                 self.drag = Some(Drag::Move { id, number, rect, start, at: to, began: began || by != Vec2::ZERO });
             }
             Drag::Resize { id, number, rect, handle, start, at, began } => {
-                let (now, before) = (resized_rect(rect, handle, to - start), resized_rect(rect, handle, at - start));
-                if now != rect || began {
+                let (now, before) = (Self::resized(rect, handle, to), Self::resized(rect, handle, at));
+                // A press on a handle off its centre resizes only once the pointer moves.
+                let moved = to != start;
+                if (moved && now != rect) || began {
                     if !began {
                         self.push(SliceEvent::Resize { number, event: EditEvent::begin(id) });
                     }
@@ -373,7 +385,7 @@ impl CanvasTool for SliceTool {
                         self.push(SliceEvent::Resize { number, event: EditEvent::update(id, now, pointer.modifiers) });
                     }
                 }
-                self.drag = Some(Drag::Resize { id, number, rect, handle, start, at: to, began: began || now != rect });
+                self.drag = Some(Drag::Resize { id, number, rect, handle, start, at: to, began: began || (moved && now != rect) });
             }
             Drag::Hold => {}
         }
@@ -420,12 +432,13 @@ impl CanvasTool for SliceTool {
                 }
             }
             Drag::Resize { id, number, rect, handle, start, began, .. } => {
-                let now = resized_rect(rect, handle, to - start);
-                if began || now != rect {
+                let now = Self::resized(rect, handle, to);
+                let changed = to != start && now != rect;
+                if began || changed {
                     if !began {
                         self.push(SliceEvent::Resize { number, event: EditEvent::begin(id) });
                     }
-                    self.push(SliceEvent::Resize { number, event: EditEvent::commit(id, now, now != rect, modifiers) });
+                    self.push(SliceEvent::Resize { number, event: EditEvent::commit(id, now, changed, modifiers) });
                 }
             }
             Drag::Hold => options = true,
@@ -458,7 +471,7 @@ impl CanvasTool for SliceTool {
             match key.key {
                 Key::Delete | Key::Backspace => {
                     // An auto slice is made from the user slices around it: it goes when they do.
-                    if !user {
+                    if !item.origin.stored() {
                         return false;
                     }
                     self.push(if self.locked { SliceEvent::Refused(SliceRefusal::Locked) } else { SliceEvent::Command(SliceCommand::Delete) });
@@ -492,7 +505,7 @@ impl CanvasTool for SliceTool {
         let style = Self::style(cx.tokens);
         SliceOverlay::new(&self.items)
             .selected(self.selected)
-            .colour(self.colour)
+            .color(self.color)
             .numbers(self.numbers)
             .auto(!self.hide_auto)
             .paint(painter, cx.view, &style, cx.numbers);
@@ -500,31 +513,35 @@ impl CanvasTool for SliceTool {
             for handle in HANDLES {
                 let body = egui::Rect::from_center_size(cx.view.to_screen(Self::handle_point(item.rect, handle)), vec2(style.handle, style.handle));
                 painter.rect_filled(body, 0.0, style.handle_fill);
-                painter.rect_stroke(body, 0.0, Stroke::new(style.outline, style.selected), StrokeKind::Inside);
+                painter.rect_stroke(body, 0.0, style.handle_edge, StrokeKind::Inside);
             }
         }
         let selected = Stroke::new(style.selected_outline, style.selected);
         match &self.drag {
             Some(Drag::New { start, at, modifiers, .. }) => {
                 let quad = cx.view.quad(self.new_rect(*start, *at, *modifiers));
-                let colour = self.colour.map_or(style.colour, Color32::from);
+                let color = self.color.map_or(style.color, Color32::from);
                 painter.add(Shape::closed_line(quad.to_vec(), Stroke::new(style.outline, Color32::WHITE)));
                 let points = [quad[0], quad[1], quad[2], quad[3], quad[0]];
-                painter.add(Shape::dashed_line(&points, Stroke::new(style.outline, colour), style.drag_dash.0, style.drag_dash.1));
+                painter.add(Shape::dashed_line(&points, Stroke::new(style.outline, color), style.drag_dash.0, style.drag_dash.1));
             }
             Some(Drag::Move { rect, start, at, .. }) => outline(painter, cx.view, *rect + Self::whole(*at - *start), selected),
-            Some(Drag::Resize { rect, handle, start, at, .. }) => outline(painter, cx.view, resized_rect(*rect, *handle, *at - *start), selected),
+            Some(Drag::Resize { rect, handle, start, at, .. }) => {
+                let now = if at == start { *rect } else { Self::resized(*rect, *handle, *at) };
+                outline(painter, cx.view, now, selected);
+            }
             Some(Drag::Hold) | None => {}
         }
     }
 
     fn snap_gesture(&self) -> Option<SnapGesture> {
-        // new: `Point` while drawing or resizing, `Rect { at_press }` while moving.
+        // new: `Point` while drawing or resizing and before a press in either mode (a Select press
+        // can start a resize, whose handle point is the snapped pointer), `Rect { at_press }` while
+        // moving.
         match &self.drag {
-            Some(Drag::New { .. } | Drag::Resize { .. }) => Some(SnapGesture::Point),
+            Some(Drag::New { .. } | Drag::Resize { .. }) | None => Some(SnapGesture::Point),
             Some(Drag::Move { rect, .. }) => Some(SnapGesture::Rect { at_press: *rect }),
             Some(Drag::Hold) => None,
-            None => (self.mode == SliceMode::Slice).then_some(SnapGesture::Point),
         }
     }
 

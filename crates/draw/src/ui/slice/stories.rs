@@ -18,7 +18,7 @@ use egui::Ui;
 use kurbo::Rect;
 
 use super::{
-    DivideBy, DivideSlices, DivideSlicesDialog, SliceBar, SliceCommand, SliceEvent, SliceItem, SliceKind, SliceMode, SliceOptions,
+    DivideBy, DivideSlices, DivideSlicesDialog, SliceBar, SliceBarOutput, SliceCommand, SliceEvent, SliceItem, SliceKind, SliceMode, SliceOptions,
     SliceOptionsDialog, SliceOrigin, SliceRefusal, SliceRules, SliceTool, SliceToolLabels, SliceToolSettings,
 };
 use craft_theme::Srgba;
@@ -257,14 +257,11 @@ fn show_tool(ui: &mut Ui, args: &mut ToolArgs) {
         kept.apply(event, &words, &tool_words);
     }
 
-    let mut shown = None;
+    let mut out = SliceBarOutput::default();
     OptionsBar::new("slice-tool-options").label(words.bar.clone()).show(ui, |slots| {
-        slots.body(|ui| {
-            let bar = SliceBar::new("slice-tool-bar", args.mode.mode(), &kept.settings).selected(kept.origin()).locked(args.locked);
-            shown = Some(bar.show(ui));
-        });
+        SliceBar::new("slice-tool-bar", args.mode.mode(), &kept.settings).selected(kept.origin()).locked(args.locked).output(&mut out).add_to(slots);
     });
-    if let Some(out) = shown {
+    {
         if let Some(event) = out.style
             && let Some(style) = event.value()
         {
@@ -321,13 +318,11 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let state = shared(ui, "bar", || (SliceToolSettings::new(Constraint::Free), String::new()));
     let mut kept = lock(&state);
     let (settings, note) = &mut *kept;
-    let mut shown = None;
+    let mut out = SliceBarOutput::default();
     OptionsBar::new("slice-bar-options").label(words.bar.clone()).show(ui, |slots| {
-        slots.body(|ui| {
-            shown = Some(SliceBar::new("slice-bar", args.mode.mode(), settings).selected(args.selected.origin()).locked(args.locked).show(ui));
-        });
+        SliceBar::new("slice-bar", args.mode.mode(), settings).selected(args.selected.origin()).locked(args.locked).output(&mut out).add_to(slots);
     });
-    if let Some(out) = shown {
+    {
         if let Some(event) = out.style
             && let Some(style) = event.value()
         {
