@@ -289,8 +289,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetPicker
         let numbers = LocaleNumbers::of(ui);
         let slider_height = Slider::style(&tokens, ControlSize::Md).height;
         let button_side = IconButton::style(&tokens, ControlSize::Md).side;
-        // The gear's Rename opens the rename bar in this pass, after the menu: the bar's focus
-        // request comes after the closing menu's hand-back to its anchor and wins.
+        // The gear's Rename opens the rename bar in this pass: the cards are drawn after the menu.
         let mut start_rename: Option<K> = None;
         let has_current = current.is_some_and(|key| rows.iter().any(|r| r.key == *key && !r.is_group()));
 

@@ -14,8 +14,8 @@
 use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Ui, vec2};
 
 use super::{
-    BrushCardLabels, BrushCardLayout, BrushCardParts, BrushCardsState, BrushPick, BrushPickerLabels, BrushPickerState,
-    BrushPickerValues, BrushPresetCards, BrushPresetChip, BrushPresetPicker,
+    BrushCardLabels, BrushCardLayout, BrushCardParts, BrushCardsState, BrushPick, BrushPickerLabels, BrushPickerState, BrushPickerValues,
+    BrushPresetCards, BrushPresetChip, BrushPresetPicker,
 };
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::popover::PopoverAnchor;
