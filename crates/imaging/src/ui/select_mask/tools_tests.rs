@@ -183,7 +183,7 @@ fn select_mask_polygonal_lasso_enter_escape_backspace() {
 // With Real-Time Refinement on, a stroke reports Updates; off, only Begin and Commit.
 #[test]
 fn select_mask_real_time_refinement_reports_updates_only_when_on() {
-    for (real_time, expected) in [(false, vec!["begin", "commit"]), (true, vec!["begin", "update", "update", "commit"])] {
+    for (real_time, expected) in [(false, vec!["begin", "commit"]), (true, vec!["begin", "update", "commit"])] {
         let mut h = rig(SelectMaskTool::Quick, real_time);
         down(&mut h, (10.0, 10.0), NONE);
         drag_to(&mut h, (30.0, 10.0), NONE);
@@ -256,4 +256,69 @@ fn select_mask_brush_sizes_are_per_tool_and_alt_reverses_the_mode() {
     assert!(!h.state().canvas.busy());
     let sizes = h.state().options.sizes;
     assert_eq!((sizes.quick, sizes.refine, sizes.brush), (50.0, 30.0, 30.0));
+}
+
+// The release builds its value from the tool the stroke began with and reports it under that
+// tool's kind, however the strip changed since the press.
+#[test]
+fn select_mask_release_uses_the_gestures_own_tool() {
+    let mut h = rig(SelectMaskTool::Quick, true);
+    down(&mut h, (100.0, 100.0), NONE);
+    h.state_mut().tool = SelectMaskTool::Brush;
+    drag_to(&mut h, (160.0, 100.0), NONE);
+    h.state_mut().tool = SelectMaskTool::RefineEdge;
+    up(&mut h, (160.0, 100.0), NONE);
+    let got = events(&mut h);
+    assert_eq!(tags(&got), ["begin", "update", "commit"], "{got:?}");
+    assert!(got.iter().all(|e| matches!(e, SelectMaskEvent::Edit(_))), "{got:?}");
+    assert!(matches!(committed(&got), SelectMaskEdit::Quick { .. }), "{got:?}");
+
+    let mut h = rig(SelectMaskTool::RefineEdge, false);
+    down(&mut h, (100.0, 100.0), NONE);
+    h.state_mut().tool = SelectMaskTool::Quick;
+    up(&mut h, (160.0, 100.0), NONE);
+    let got = events(&mut h);
+    assert_eq!(tags(&got), ["begin", "commit"], "{got:?}");
+    assert!(got.iter().all(|e| matches!(e, SelectMaskEvent::Refine(_))), "{got:?}");
+
+    // A stroke begun on a brush ends even when the strip moved to the Polygonal Lasso.
+    let mut h = rig(SelectMaskTool::Brush, false);
+    down(&mut h, (100.0, 100.0), NONE);
+    h.state_mut().tool = SelectMaskTool::PolygonalLasso;
+    up(&mut h, (160.0, 100.0), NONE);
+    assert!(matches!(committed(&events(&mut h)), SelectMaskEdit::Brush { .. }));
+    assert!(!h.state().canvas.busy());
+}
+
+// The released stroke stays painted until the workspace says the preview shows it.
+#[test]
+fn select_mask_stroke_trail_stays_until_the_preview_shows_it() {
+    let mut h = rig(SelectMaskTool::Quick, false);
+    down(&mut h, (100.0, 100.0), NONE);
+    drag_to(&mut h, (160.0, 100.0), NONE);
+    assert!(!h.state().canvas.trail_shown(), "painted as the gesture while it is open");
+    up(&mut h, (160.0, 100.0), NONE);
+    assert!(h.state().canvas.trail_shown());
+    h.state_mut().canvas.drop_trail();
+    assert!(!h.state().canvas.trail_shown());
+    // A new press drops the old trail.
+    down(&mut h, (100.0, 100.0), NONE);
+    up(&mut h, (100.0, 100.0), NONE);
+    assert!(h.state().canvas.trail_shown());
+    down(&mut h, (20.0, 20.0), NONE);
+    assert!(!h.state().canvas.trail_shown());
+}
+
+// Only the brush tools take Alt + right; the others take the primary button alone.
+#[test]
+fn select_mask_secondary_button_is_taken_by_brushes_with_alt_only() {
+    use craft_ui::canvas::CanvasTool as _;
+    let mut canvas = SelectMaskCanvas::new();
+    let mut options = SelectMaskToolOptions::default();
+    for (tool, brush) in [(SelectMaskTool::Quick, true), (SelectMaskTool::Lasso, false), (SelectMaskTool::Object, false)] {
+        let pass = canvas.tool(tool, &mut options, false);
+        assert!(pass.takes(PointerButton::Primary, NONE));
+        assert!(!pass.takes(PointerButton::Secondary, NONE));
+        assert_eq!(pass.takes(PointerButton::Secondary, Modifiers::ALT), brush);
+    }
 }

@@ -8,7 +8,7 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SelectMaskTokens {
-    /// A click this near the Polygonal Lasso's first vertex closes it, in screen points: `select_mask.close_reach`.
+    /// A click this near the Polygonal Lasso's first vertex closes it, in screen points: `select_mask.close_reach` (6, PhotoCraft's `select_mask_ui.rs:603`; the kernel's `outline_draft.close` is 8 and stays apart: this reach is Select and Mask's own).
     pub close_reach: f32,
     /// An Object Selection drag shorter than this many screen points is a click: `select_mask.click_reach`.
     pub click_reach: f32,

@@ -3,19 +3,18 @@
 use egui::{CursorIcon, Key, Modifiers, Painter, PointerButton, Shape, Stroke};
 
 use craft_ui::canvas::brush::{BrushCursor, BrushDimensions, BrushResize, BrushResizeLabels, BrushResizeOptions, BrushStyle, BrushTip, TipFalloff};
-use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft, turn_to_45};
+use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, OutlineDraft, turn_to_45};
 use craft_ui::canvas::kurbo::{Point, Rect};
-use craft_ui::canvas::{CanvasTool, CursorOptions, Marquee, MarqueeLook, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
+use craft_ui::canvas::{CanvasTool, CursorBadge, CursorOptions, Marquee, MarqueeLook, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
 use craft_ui::edit::{CancelReason, EditEvent, GestureId};
 use craft_ui::icons::Icon;
 use craft_ui::localized::{Labels as _, Units};
 use craft_ui::patterns::{RailTool, ToolSlot};
-use craft_ui::theme::ToEgui as _;
 
 use super::SelectMaskEvent;
 use super::SelectMaskLabels;
+use super::SelectMaskStyle;
 use super::edits::{EditMode, ObjectTarget, RefineStroke, SelectMaskEdit, round_point};
-use crate::ui::select::SelectToolStyle;
 
 /// The distance between the points of a freehand Lasso, in document pixels: a sampling step of the
 /// edit's points, not a size on screen (PhotoCraft's).
@@ -218,6 +217,9 @@ pub struct SelectMaskCanvas {
     resize_start: Option<(f64, f64)>,
     /// Preferences › Cursors for the brush outline.
     cursor_options: CursorOptions,
+    /// The brush stroke just released, painted until the preview shows it
+    /// ([`drop_trail`](Self::drop_trail)).
+    trail: Option<(SelectMaskTool, Vec<Point>)>,
     events: Vec<SelectMaskEvent>,
 }
 
@@ -263,6 +265,17 @@ impl SelectMaskCanvas {
     pub fn drop_polygon(&mut self) -> bool {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:881 `escape`.
         self.polygon.take().is_some()
+    }
+
+    /// The preview shows the released stroke (or failed to): stops painting it. A new press or a
+    /// cancel drops it too.
+    pub fn drop_trail(&mut self) {
+        self.trail = None;
+    }
+
+    /// A released brush stroke is still painted, waiting for the preview.
+    pub fn trail_shown(&self) -> bool {
+        self.trail.is_some()
     }
 
     /// A gesture, a polygon or a resize is in progress: the history waits.
@@ -364,7 +377,7 @@ fn build(tool: SelectMaskTool, options: &SelectMaskToolOptions, add: bool, point
 /// - **Lasso**: a freehand outline (points 0.5 px apart), committed as `SelectMaskEdit::Lasso`
 ///   when it has 3 points or more.
 /// - **Polygonal Lasso**: an [`OutlineDraft`] of `DraftKind::Polygonal` with a close reach of 6
-///   screen points: a click adds a vertex, a click on the first vertex or a double click closes;
+///   screen points (`SelectMaskStyle::reach`, PhotoCraft's): a click adds a vertex, a click on the first vertex or a double click closes;
 ///   Backspace and Delete remove the last vertex (`ToolContext::keep_keys` while it is open).
 /// - **Object Selection**: a click, or a drag shorter than 4 screen points, picks the object under
 ///   the press (`ObjectTarget::Point`); a longer drag gives `ObjectTarget::Rect` from the press
@@ -387,8 +400,8 @@ impl SelectMaskCanvasTool<'_> {
     }
 
     /// What the gesture over `points` makes now.
-    fn built(&self, add: bool, points: &[Point], cx: &ToolContext<'_>) -> Option<Built> {
-        build(self.tool, self.options, add, points, cx.view.zoom, f64::from(cx.tokens.component.select_mask.click_reach))
+    fn built(&self, tool: SelectMaskTool, add: bool, points: &[Point], cx: &ToolContext<'_>) -> Option<Built> {
+        build(tool, self.options, add, points, cx.view.zoom, SelectMaskStyle::of(cx.tokens).click_reach)
     }
 
     /// Writes the values of a resize to the options; a cancelled resize puts the start back.
@@ -436,10 +449,7 @@ impl SelectMaskCanvasTool<'_> {
 
     fn press_polygon(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:590-603 `begin` (PolygonalLasso), :1796-1802.
-        let reach = DraftReach {
-            close: f64::from(cx.tokens.component.select_mask.close_reach),
-            same_point: SelectToolStyle::of(cx.tokens).reach().same_point,
-        };
+        let reach = SelectMaskStyle::of(cx.tokens).reach;
         let add = self.options.add;
         let canvas = &mut *self.canvas;
         let draft = canvas.polygon.get_or_insert_with(|| OutlineDraft::new(DraftKind::Polygonal, reach));
@@ -472,9 +482,9 @@ impl SelectMaskCanvasTool<'_> {
             points.push(at);
         }
         if self.real_time {
-            let (id, add, points) = (*id, *add, points.clone());
-            let built = self.built(add, &points, cx);
-            report(&mut self.canvas.events, self.tool == SelectMaskTool::RefineEdge, id, Phase::Update, built, pointer.modifiers);
+            let (id, add, points, tool) = (*id, *add, points.clone(), *tool);
+            let built = self.built(tool, add, &points, cx);
+            report(&mut self.canvas.events, tool == SelectMaskTool::RefineEdge, id, Phase::Update, built, pointer.modifiers);
         }
     }
 }
@@ -502,7 +512,9 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
             tool if tool.brushes() => {
                 let size = self.options.sizes.get(tool);
                 let tip = BrushTip::round(size, size / 2.0);
-                BrushCursor::new(&tip).painting(self.canvas.gesture.is_some()).cursor(
+                // The bar's mode, reversed while Alt is held (the press reads it the same way).
+                let badge = if self.options.add != cx.modifiers.alt { CursorBadge::Add } else { CursorBadge::Subtract };
+                BrushCursor::new(&tip).painting(self.canvas.gesture.is_some()).badge(Some(badge)).cursor(
                     &BrushStyle::of(cx.tokens),
                     &self.canvas.cursor_options,
                     cx.view,
@@ -516,9 +528,9 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
     }
 
     fn takes(&self, button: PointerButton, modifiers: Modifiers) -> bool {
-        // new: the brush resize chord (`BrushResize::chord`), as Liquify's: the primary button
-        // always, the secondary while Alt is held on a brush.
-        button == PointerButton::Primary || (self.tool.brushes() && button == PointerButton::Secondary && modifiers.alt)
+        // The brush resize chord's secondary button is the brushes' only (a plain right-click stays
+        // the canvas menu's).
+        if self.tool.brushes() { BrushResize::takes(button, modifiers) } else { button == PointerButton::Primary }
     }
 
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
@@ -536,7 +548,8 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         let add = self.options.add != pointer.modifiers.alt;
         let id = GestureId::next();
         let points = vec![pointer.doc];
-        let built = self.built(add, &points, cx);
+        let built = self.built(tool, add, &points, cx);
+        self.canvas.trail = None;
         self.canvas.gesture = Some((id, tool, add, points));
         report(&mut self.canvas.events, tool == SelectMaskTool::RefineEdge, id, Phase::Begin, built, pointer.modifiers);
         ToolAction::Claimed
@@ -550,7 +563,7 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
             self.resize_readout(cx);
             return;
         }
-        if self.tool == SelectMaskTool::PolygonalLasso {
+        if self.tool == SelectMaskTool::PolygonalLasso && self.canvas.gesture.is_none() {
             if let Some(draft) = self.canvas.polygon.as_mut()
                 && draft.drag(DraftPoint::new(pointer.doc, pointer.modifiers, cx.view.zoom)).is_some()
             {
@@ -570,7 +583,7 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
             self.canvas.resize_start = None;
             return;
         }
-        if self.tool == SelectMaskTool::PolygonalLasso {
+        if self.tool == SelectMaskTool::PolygonalLasso && self.canvas.gesture.is_none() {
             let canvas = &mut *self.canvas;
             if let Some(draft) = canvas.polygon.as_mut()
                 && let Some(DraftEvent::Closed { points, .. }) = draft.release(DraftPoint::new(pointer.doc, pointer.modifiers, cx.view.zoom))
@@ -582,8 +595,12 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         }
         self.extend(pointer, cx);
         let Some((id, tool, add, points)) = self.canvas.gesture.take() else { return };
-        let built = self.built(add, &points, cx);
+        // The value comes from the gesture's own tool: the strip may have changed since the press.
+        let built = self.built(tool, add, &points, cx);
         let phase = if built.is_some() { Phase::Commit } else { Phase::Cancel(CancelReason::Escape) };
+        if built.is_some() && tool.brushes() {
+            self.canvas.trail = Some((tool, points));
+        }
         report(&mut self.canvas.events, tool == SelectMaskTool::RefineEdge, id, phase, built, pointer.modifiers);
     }
 
@@ -608,6 +625,7 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         let event = self.canvas.resize.cancel();
         self.apply_resize(event);
         self.canvas.resize_start = None;
+        self.canvas.trail = None;
         if let Some((id, tool, _, _)) = self.canvas.gesture.take() {
             report(&mut self.canvas.events, tool == SelectMaskTool::RefineEdge, id, Phase::Cancel(reason), None, Modifiers::NONE);
         }
@@ -636,19 +654,26 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
     fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1658 `paint_canvas` (trail, polygon).
         let canvas = &*self.canvas;
+        let stroke = |tool: SelectMaskTool, points: &[Point]| {
+            let ink = SelectMaskStyle::of(cx.tokens).trail;
+            let radius = (self.options.sizes.get(tool) / 2.0 * cx.view.zoom) as f32;
+            let line: Vec<_> = points.iter().map(|p| cx.view.to_screen(*p)).collect();
+            for &at in &line {
+                painter.circle_filled(at, radius, ink);
+            }
+            if line.len() > 1 {
+                painter.add(Shape::line(line, Stroke::new(2.0 * radius, ink)));
+            }
+        };
+        // The released stroke stays until the preview shows it.
+        if canvas.gesture.is_none()
+            && let Some((tool, points)) = &canvas.trail
+        {
+            stroke(*tool, points);
+        }
         if let Some((_, tool, _, points)) = &canvas.gesture {
             match tool {
-                SelectMaskTool::Quick | SelectMaskTool::Brush | SelectMaskTool::RefineEdge => {
-                    let ink = cx.tokens.component.select_mask.trail.to_egui();
-                    let radius = (self.options.sizes.get(*tool) / 2.0 * cx.view.zoom) as f32;
-                    let line: Vec<_> = points.iter().map(|p| cx.view.to_screen(*p)).collect();
-                    for &at in &line {
-                        painter.circle_filled(at, radius, ink);
-                    }
-                    if line.len() > 1 {
-                        painter.add(Shape::line(line, Stroke::new(2.0 * radius, ink)));
-                    }
-                }
+                SelectMaskTool::Quick | SelectMaskTool::Brush | SelectMaskTool::RefineEdge => stroke(*tool, points),
                 SelectMaskTool::Lasso if points.len() >= 2 => {
                     Marquee::polyline(points.iter().copied(), "").paint(painter, cx.view, MarqueeLook::Drawing, cx.time);
                 }
