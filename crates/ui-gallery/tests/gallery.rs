@@ -1602,7 +1602,7 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
     ("White", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
     ("Width", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
     ("Width", &["specimens/type/faces"], "sample text of the type specimen"),
-    ("Width", &["composites/font-axes/sliders"], "the sample axis name, as a font's name table gives it"),
+    ("Width", &["composites/axis-sliders/sliders"], "the sample axis name, as a font's name table gives it"),
     ("Workspace", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
     ("Yellow", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
     ("Yellow", &["composites/color/palette", "composites/color/palette-table"], "a swatch name in the story's sample palette"),

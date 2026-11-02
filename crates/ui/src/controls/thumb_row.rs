@@ -998,7 +998,7 @@ fn paint_triangle(ui: &Ui, style: &ThumbRowStyle, tip: Pos2, half: Option<Half>,
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Thumb row"];
+pub const COMPONENTS: &[&str] = &["ThumbRow"];
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct RowsArgs {
@@ -1006,7 +1006,7 @@ struct RowsArgs {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!("controls/thumb-row/rows", Level::Controls, "Thumb row", "Rows", RowsArgs { disabled: false }, show)]
+    vec![typed_story!("controls/thumb-row/rows", Level::Controls, "ThumbRow", "Rows", RowsArgs { disabled: false }, show)]
 }
 
 /// Two free thumbs, a split black and a split white thumb (Alt-drag moves a half alone), a

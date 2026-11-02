@@ -16,7 +16,7 @@ use craft_ui::story::{Level, Story, StoryChoice, Surface};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Gradient line"];
+pub const COMPONENTS: &[&str] = &["GradientLine"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum RowsArg {
@@ -114,11 +114,11 @@ impl Default for WithEditorArgs {
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("primitives/gradient-line/edit", Level::Primitives, "Gradient line", "Edit", EditArgs::default(), show_edit).on(Surface::Canvas),
+        typed_story!("primitives/gradient-line/edit", Level::Primitives, "GradientLine", "Edit", EditArgs::default(), show_edit).on(Surface::Canvas),
         typed_story!(
             "primitives/gradient-line/with-editor",
             Level::Primitives,
-            "Gradient line",
+            "GradientLine",
             "With editor",
             WithEditorArgs::default(),
             show_with_editor

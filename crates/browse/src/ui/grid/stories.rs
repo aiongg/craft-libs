@@ -38,7 +38,7 @@ use super::{
 };
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Tile grid"];
+pub const COMPONENTS: &[&str] = &["TileGrid"];
 
 craft_ui::words! {
     /// The sample text of the tile grid stories, English by default.
@@ -300,7 +300,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/tile-grid/justified",
             Level::Patterns,
-            "Tile grid",
+            "TileGrid",
             "Justified",
             JustifiedArgs { row_height: 110.0, groups: true, badges: BadgesArg::Auto, height: 420.0 },
             show_justified
@@ -308,13 +308,13 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/tile-grid/cards",
             Level::Patterns,
-            "Tile grid",
+            "TileGrid",
             "Cards",
             CardsArgs { caption: true, check_mode: false, keys: KeysArg::Digits, height: 420.0 },
             show_cards
         ),
-        typed_story!("patterns/tile-grid/states", Level::Patterns, "Tile grid", "States", StatesArgs { rtl: false, height: 420.0 }, show_states),
-        typed_story!("patterns/tile-grid/reorder", Level::Patterns, "Tile grid", "Reorder", ReorderArgs { rtl: false, height: 360.0 }, show_reorder),
+        typed_story!("patterns/tile-grid/states", Level::Patterns, "TileGrid", "States", StatesArgs { rtl: false, height: 420.0 }, show_states),
+        typed_story!("patterns/tile-grid/reorder", Level::Patterns, "TileGrid", "Reorder", ReorderArgs { rtl: false, height: 360.0 }, show_reorder),
     ]
 }
 

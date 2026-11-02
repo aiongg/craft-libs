@@ -1,4 +1,4 @@
-//! `foundations/edit/log`: a fake slider and a fake text field wired to [`Gesture`], the same two
+//! `foundations/edit-policy/log`: a fake slider and a fake text field wired to [`Gesture`], the same two
 //! as one fake composite on `edit::parts`, their events in a log, and a [`GestureHost`] keeping
 //! undo steps for two documents.
 
@@ -42,7 +42,7 @@ impl Default for PolicyArgs {
     }
 }
 
-/// The args of `foundations/edit/log`: the policy args and the composite's field order.
+/// The args of `foundations/edit-policy/log`: the policy args and the composite's field order.
 #[derive(StoryArgs, Debug, PartialEq)]
 struct LogArgs {
     #[arg(flatten)]
@@ -59,9 +59,9 @@ pub(super) const SLIDER_MAX: f32 = 100.0;
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
-        "foundations/edit/log",
+        "foundations/edit-policy/log",
         Level::Foundations,
-        "Edit lifecycle",
+        "EditPolicy",
         "Event log",
         LogArgs { policy: PolicyArgs::default(), field_first: false },
         show

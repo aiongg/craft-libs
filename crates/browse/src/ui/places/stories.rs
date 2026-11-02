@@ -25,7 +25,7 @@ use super::{PlacesEvent, PlacesTree};
 use crate::places::{FakeDirectories, FolderCache, PlaceGroupKind, Places, PlacesInput, PlacesSettings, StandardFolder, Volume};
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Places tree"];
+pub const COMPONENTS: &[&str] = &["PlacesTree"];
 
 craft_ui::words! {
     /// The sample text of the places story, English by default.
@@ -45,7 +45,7 @@ pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
         "patterns/places-tree/places",
         Level::Patterns,
-        "Places tree",
+        "PlacesTree",
         "Places",
         PlacesArgs { slow_listings: false, favorites: true, volumes: true, recent: true, height: 380.0 },
         show_places

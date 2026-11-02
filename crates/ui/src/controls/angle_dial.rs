@@ -534,7 +534,7 @@ fn wrapped(scale: &Scale, wraps: bool, value: f64) -> f64 {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Angle dial"];
+pub const COMPONENTS: &[&str] = &["AngleDial"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum RangeArg {
@@ -586,12 +586,12 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "controls/angle-dial/dial",
             Level::Controls,
-            "Angle dial",
+            "AngleDial",
             "Angle dial",
             DialArgs { range: RangeArg::Half, orientation: OrientationArg::CounterClockwise, field: true, size: SizeArg::Md, disabled: false },
             show_dial
         ),
-        typed_story!("controls/angle-dial/dialog", Level::Controls, "Angle dial", "Dialog (field scope)", NoArgs {}, show_dialog),
+        typed_story!("controls/angle-dial/dialog", Level::Controls, "AngleDial", "Dialog (field scope)", NoArgs {}, show_dialog),
     ]
 }
 

@@ -322,7 +322,7 @@ fn dragged(track: &Track, scale: &Scale, part: Part, anchor: (f64, f64), start: 
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Range slider"];
+pub const COMPONENTS: &[&str] = &["RangeSlider"];
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct RangeArgs {
@@ -331,14 +331,7 @@ struct RangeArgs {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!(
-        "controls/range-slider/range",
-        Level::Controls,
-        "Range slider",
-        "Range",
-        RangeArgs { size: SizeArg::Md, disabled: false },
-        show
-    )]
+    vec![typed_story!("controls/range-slider/range", Level::Controls, "RangeSlider", "Range", RangeArgs { size: SizeArg::Md, disabled: false }, show)]
 }
 
 /// A continuous range and one in steps of 5.

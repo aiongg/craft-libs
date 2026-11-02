@@ -13,10 +13,10 @@ use craft_ui::story::{Level, NoArgs, Story, StoryLabels};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Keyboard Shortcuts"];
+pub const COMPONENTS: &[&str] = &["ShortcutsDialog"];
 
 pub(super) fn stories() -> Vec<Story> {
-    vec![typed_story!("patterns/keyboard-shortcuts/dialog", Level::Patterns, "Keyboard Shortcuts", "Dialog", NoArgs {}, show)]
+    vec![typed_story!("patterns/shortcuts-dialog/dialog", Level::Patterns, "ShortcutsDialog", "Dialog", NoArgs {}, show)]
 }
 
 #[allow(clippy::panic, reason = "the story's own fixed chords are valid")]

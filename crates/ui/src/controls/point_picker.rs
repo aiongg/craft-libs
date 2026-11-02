@@ -354,7 +354,7 @@ fn nudge(ui: &Ui, response: &egui::Response, dragging: bool) -> Option<[f64; 2]>
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Point picker"];
+pub const COMPONENTS: &[&str] = &["PointPicker"];
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct PickerArgs {
@@ -367,7 +367,7 @@ pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
         "controls/point-picker/picker",
         Level::Controls,
-        "Point picker",
+        "PointPicker",
         "Point picker",
         PickerArgs { pixels: false, disabled: false },
         show_picker

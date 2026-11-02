@@ -16,7 +16,7 @@ use craft_ui::theme::{ToEgui, Tokens, TokensOf};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Crop frame"];
+pub const COMPONENTS: &[&str] = &["CropFrame"];
 
 /// The frame before any gesture.
 const START: Rect = Rect::new(120.0, 70.0, 420.0, 290.0);
@@ -137,12 +137,12 @@ impl Default for ImageModeArgs {
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("primitives/crop-frame/upright", Level::Primitives, "Crop frame", "Upright", UprightArgs::default(), show_upright)
+        typed_story!("primitives/crop-frame/upright", Level::Primitives, "CropFrame", "Upright", UprightArgs::default(), show_upright)
             .on(Surface::Canvas),
-        typed_story!("primitives/crop-frame/ratio", Level::Primitives, "Crop frame", "Ratio", RatioArgs::default(), show_ratio).on(Surface::Canvas),
-        typed_story!("primitives/crop-frame/straighten", Level::Primitives, "Crop frame", "Straighten", StraightenArgs::default(), show_straighten)
+        typed_story!("primitives/crop-frame/ratio", Level::Primitives, "CropFrame", "Ratio", RatioArgs::default(), show_ratio).on(Surface::Canvas),
+        typed_story!("primitives/crop-frame/straighten", Level::Primitives, "CropFrame", "Straighten", StraightenArgs::default(), show_straighten)
             .on(Surface::Canvas),
-        typed_story!("primitives/crop-frame/image-mode", Level::Primitives, "Crop frame", "Image mode", ImageModeArgs::default(), show_image_mode)
+        typed_story!("primitives/crop-frame/image-mode", Level::Primitives, "CropFrame", "Image mode", ImageModeArgs::default(), show_image_mode)
             .on(Surface::Canvas),
     ]
 }

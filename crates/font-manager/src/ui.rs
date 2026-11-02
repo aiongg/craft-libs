@@ -14,7 +14,7 @@ use crate::store::FakeStore;
 use crate::{Catalog, FontEnv, FontsPanel, Options, Source};
 
 /// The components the stories cover.
-pub const COMPONENTS: &[&str] = &["Fonts panel", "Font picker", "Glyphs panel", "Missing fonts", "Font axes"];
+pub const COMPONENTS: &[&str] = &["FontsPanel", "FontPicker", "GlyphsPanel", "MissingFontsDialog", "AxisSliders"];
 
 const APP: AppInfo = AppInfo { id: "fonts-story", name: "Fonts story", version: "1.0" };
 
@@ -33,7 +33,7 @@ pub const COUNTS: &[craft_ui::localized::words::Counted] = &[crate::missing::MES
 
 /// The stories of the font manager's panel.
 pub fn stories() -> Vec<Story> {
-    let mut stories = vec![typed_story!("patterns/fonts-panel/panel", Level::Patterns, "Fonts panel", "Panel", NoArgs {}, show)];
+    let mut stories = vec![typed_story!("patterns/fonts-panel/panel", Level::Patterns, "FontsPanel", "Panel", NoArgs {}, show)];
     stories.extend(crate::text_stories::stories());
     stories
 }

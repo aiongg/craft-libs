@@ -1594,7 +1594,7 @@ fn report(ctx: &Context, typed: &Typed<Numbers<'_>>, (lo, hi): (f64, f64), unit:
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Number field"];
+pub const COMPONENTS: &[&str] = &["NumberField"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, Default, PartialEq)]
 enum LocaleArg {
@@ -1634,23 +1634,23 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "controls/number-field/states",
             Level::Controls,
-            "Number field",
+            "NumberField",
             "States",
             StatesArgs { size: SizeArg::Md, locale: LocaleArg::En, edit_menu: true },
             show_states
         ),
-        typed_story!("controls/number-field/scrub", Level::Controls, "Number field", "Scrub", LocaleSizeArgs::default(), show_scrub),
+        typed_story!("controls/number-field/scrub", Level::Controls, "NumberField", "Scrub", LocaleSizeArgs::default(), show_scrub),
         typed_story!(
             "controls/number-field/right-to-left",
             Level::Controls,
-            "Number field",
+            "NumberField",
             "Right to left",
             LocaleSizeArgs::default(),
             show_right_to_left
         ),
-        typed_story!("controls/number-field/unit-menu", Level::Controls, "Number field", "Unit menu", LocaleSizeArgs::default(), show_unit_menu),
-        typed_story!("controls/number-field/presets", Level::Controls, "Number field", "Presets", LocaleSizeArgs::default(), show_presets),
-        typed_story!("controls/number-field/event-log", Level::Controls, "Number field", "Event log", PolicyArgs::default(), show_event_log),
+        typed_story!("controls/number-field/unit-menu", Level::Controls, "NumberField", "Unit menu", LocaleSizeArgs::default(), show_unit_menu),
+        typed_story!("controls/number-field/presets", Level::Controls, "NumberField", "Presets", LocaleSizeArgs::default(), show_presets),
+        typed_story!("controls/number-field/event-log", Level::Controls, "NumberField", "Event log", PolicyArgs::default(), show_event_log),
     ]
 }
 

@@ -749,7 +749,7 @@ pub(crate) fn english_names() -> PerspectiveCropNames {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Perspective crop quad"];
+pub const COMPONENTS: &[&str] = &["PerspectiveCropQuad"];
 
 #[derive(craft_ui::story::StoryArgs, Debug, PartialEq)]
 struct PerspectiveArgs {
@@ -769,7 +769,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "primitives/canvas/perspective-crop",
             Level::Primitives,
-            "Perspective crop quad",
+            "PerspectiveCropQuad",
             "Perspective crop",
             PerspectiveArgs::default(),
             show_story

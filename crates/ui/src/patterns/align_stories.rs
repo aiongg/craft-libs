@@ -10,7 +10,7 @@ use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Align bar"];
+pub const COMPONENTS: &[&str] = &["AlignBar"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum DistributeArg {
@@ -29,7 +29,7 @@ pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
         "patterns/align-bar/bar",
         Level::Patterns,
-        "Align bar",
+        "AlignBar",
         "Align bar",
         AlignBarArgs { distribute: DistributeArg::Menu, distribute_enabled: true },
         show_align_bar

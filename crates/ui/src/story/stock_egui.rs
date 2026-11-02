@@ -9,7 +9,7 @@ use crate::localized::Labels as _;
 use crate::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Stock egui"];
+pub const COMPONENTS: &[&str] = &["StockEgui"];
 
 #[derive(StoryArgs)]
 struct StockArgs {
@@ -17,7 +17,7 @@ struct StockArgs {
 }
 
 pub(super) fn stories() -> Vec<Story> {
-    vec![typed_story!("foundations/stock-egui/widgets", Level::Foundations, "Stock egui", "Widgets", StockArgs { enabled: true }, show)]
+    vec![typed_story!("foundations/stock-egui/widgets", Level::Foundations, "StockEgui", "Widgets", StockArgs { enabled: true }, show)]
 }
 
 /// A value that lives in the context between frames, keyed under `ui`.
