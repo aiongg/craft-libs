@@ -125,3 +125,37 @@ fn the_menu_keys_open_the_colour_menu_from_the_focused_canvas() {
     assert_eq!(run(true, key(Key::Menu, Modifiers::NONE)).context_at, Some(centre));
     assert_eq!(run(true, key(Key::F10, Modifiers::SHIFT)).context_at, Some(centre));
 }
+
+// An active artboard's edge is a 1 pt `accent.solid` outline and another board's is
+// `overlay.artboard`; the other's colour is never drawn on it.
+#[test]
+fn artboard_edges_are_accent_when_active_and_overlay_otherwise() {
+    use egui::Shape;
+    let ctx = context();
+    let strokes = |active: bool| {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0))), ..RawInput::default() };
+        let boards = vec![PageFrame { active: Some(active), ..PageFrame::new(Rect::new(50.0, 40.0, 150.0, 140.0)) }];
+        let mut colors = None;
+        let output = ctx.run_ui(input, |ui| {
+            let tokens = crate::theme::Tokens::of(ui);
+            colors = Some((tokens.color.accent.solid.to_egui(), tokens.color.overlay.artboard.to_egui(), tokens.component.pasteboard.outline_width));
+            let _ = Pasteboard::new("pb", &boards).show(ui, &view());
+        });
+        let strokes: Vec<egui::Stroke> = output
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                Shape::Rect(rect) => Some(rect.stroke),
+                _ => None,
+            })
+            .collect();
+        output.drop_without_applying_deltas();
+        (strokes, colors.expect("a pass ran"))
+    };
+    let (active, (accent, overlay, width)) = strokes(true);
+    assert!(active.iter().any(|s| s.color == accent && s.width == width), "{active:?}");
+    assert!(active.iter().all(|s| s.color != overlay), "{active:?}");
+    let (other, _) = strokes(false);
+    assert!(other.iter().any(|s| s.color == overlay && s.width == width), "{other:?}");
+    assert!(other.iter().all(|s| s.color != accent), "{other:?}");
+}

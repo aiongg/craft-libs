@@ -84,6 +84,9 @@ pub struct ArtboardRules {
     /// ⇧-click toggles a board in the selection; ⇧-drag on the pasteboard is a marquee over
     /// boards; ⇧-drag inside a board draws a new one.
     pub multi_select: bool,
+    /// A double click inside a board reports `OpenOptions` (Illustrator's Artboard Options).
+    /// PhotoCraft has no double click on a board.
+    pub open_on_double_click: bool,
     /// A click on an object outside the boards fits an artboard to it (`FitObject`).
     pub fit_object: bool,
     /// ⌥-drag inside a board moves a copy.
@@ -96,12 +99,26 @@ pub struct ArtboardRules {
 
 impl ArtboardRules {
     /// Photoshop's (PhotoCraft's): "+" buttons, one board selected.
-    pub const PHOTOSHOP: ArtboardRules =
-        ArtboardRules { plus_buttons: true, multi_select: false, fit_object: false, alt_copies: false, escape_leaves: false, arrow_step: 1.0 };
-    /// Illustrator's (VectorCraft's): no "+" buttons, multi-select and marquee, fit to an object,
-    /// ⌥ copies, Esc leaves.
-    pub const ILLUSTRATOR: ArtboardRules =
-        ArtboardRules { plus_buttons: false, multi_select: true, fit_object: true, alt_copies: true, escape_leaves: true, arrow_step: 1.0 };
+    pub const PHOTOSHOP: ArtboardRules = ArtboardRules {
+        plus_buttons: true,
+        multi_select: false,
+        open_on_double_click: false,
+        fit_object: false,
+        alt_copies: false,
+        escape_leaves: false,
+        arrow_step: 1.0,
+    };
+    /// Illustrator's (VectorCraft's): no "+" buttons, multi-select and marquee, double click opens
+    /// Options, fit to an object, ⌥ copies, Esc leaves.
+    pub const ILLUSTRATOR: ArtboardRules = ArtboardRules {
+        plus_buttons: false,
+        multi_select: true,
+        open_on_double_click: true,
+        fit_object: true,
+        alt_copies: true,
+        escape_leaves: true,
+        arrow_step: 1.0,
+    };
 
     /// These rules with the app's keyboard increment.
     pub fn arrow_step(mut self, step: f64) -> Self {
@@ -134,7 +151,8 @@ pub enum ArtboardEvent {
     Select { indices: Vec<usize>, modifiers: Modifiers },
     /// Delete removed the selected boards.
     Delete { indices: Vec<usize> },
-    /// Enter, or a double click on an empty part of a board: Artboard Options.
+    /// Enter, or a double click inside a board under [`ArtboardRules::open_on_double_click`]:
+    /// Artboard Options.
     OpenOptions { index: usize },
     /// Illustrator: a click on an object outside the boards: fit a board to the object at `at`.
     FitObject { at: Point },

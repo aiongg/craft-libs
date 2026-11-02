@@ -10,7 +10,7 @@ use craft_ui::composites::{PropertyGroup, PropertyLabel, PropertyRow, SectionHea
 use craft_ui::controls::{NumberField, Select, Swatch};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::localized::{Labels as _, UnitKind, Units};
 
 /// The range of X and Y, pixels.
 const OFFSET: std::ops::RangeInclusive<f64> = -300_000.0..=300_000.0;
@@ -34,12 +34,13 @@ pub struct ArtboardPropertiesOutput {
     /// A background picked from the dropdown (White, Black, Transparent, or Other… once its colour
     /// came back).
     pub background: Option<ArtboardBackground>,
-    /// Other… was chosen (or its swatch clicked): the app opens its colour picker with this request
-    /// (titled "Artboard Background Color") and sets `Custom(colour)` from the answer.
-    pub color_request: Option<ColorRequest>,
+    /// Other… was chosen (or its swatch clicked): the app opens its color picker with this request
+    /// (titled "Artboard Background Color") and sets `Custom(color)` from the answer.
+    pub pick_color: Option<ColorRequest>,
 }
 
-/// The Artboard section: Size preset, W and H (1–300,000 px), X and Y (±300,000 px), Background
+/// The Artboard section: Size preset, W and H (1–300,000 px), X and Y (±300,000 px, all four with
+/// their pixel unit), Background
 /// (White, Black, Transparent, Other… with a swatch of the custom colour). A collapsible
 /// `SectionHeader` titled "Artboard"; every field a Tab stop in reading order; the grid mirrors
 /// right to left.
@@ -67,7 +68,9 @@ impl<'a> ArtboardProperties<'a> {
         // Y :167, the background dropdown :174-184, Other… :182).
         // new: `SectionHeader`, `NumberField`, `Select`, `Swatch`; `ColorRequest` as `NewGuideDialog`.
         let labels = self.labels.clone().unwrap_or_else(|| ArtboardLabels::of(ui));
-        let numbers = LocaleNumbers::of(ui);
+        let units = Units::of(ui);
+        let numbers = units.numbers();
+        let pixels = units.unit(UnitKind::Pixels);
         let id = ui.make_persistent_id(self.id_salt);
         let mut out = ArtboardPropertiesOutput::default();
         let rect = self.board.rect.abs();
@@ -91,7 +94,7 @@ impl<'a> ArtboardProperties<'a> {
                     pick
                 });
                 let field = |ui: &mut Ui, salt: &str, name: &str, value: f64, range: &std::ops::RangeInclusive<f64>| {
-                    NumberField::new((id, salt), name, value, &numbers).range(range.clone()).decimals(0..=0).show(ui)
+                    NumberField::new((id, salt), name, value, numbers).range(range.clone()).decimals(0..=0).unit(pixels.clone()).show(ui)
                 };
                 let (w, h) = PropertyRow::pair(PropertyLabel::glyph(labels.width.as_str()), PropertyLabel::glyph(labels.height.as_str()))
                     .show(ui, |ui, _| field(ui, "w", &labels.width_name, width, &SIDE), |ui, _| field(ui, "h", &labels.height_name, height, &SIDE))
@@ -113,8 +116,8 @@ impl<'a> ArtboardProperties<'a> {
                     ArtboardBackground::Custom(c) => Some(c),
                     _ => None,
                 };
-                let request = |colour: Option<Srgba>| {
-                    ColorRequest::new("artboard-background", colour.unwrap_or(Srgba::rgb(1.0, 1.0, 1.0))).title(labels.background_color.as_str())
+                let request = |color: Option<Srgba>| {
+                    ColorRequest::new("artboard-background", color.unwrap_or(Srgba::rgb(1.0, 1.0, 1.0))).title(labels.background_color.as_str())
                 };
                 PropertyRow::word(labels.background.as_str()).show(ui, |ui, _| {
                     let mut now = match background {
@@ -131,10 +134,10 @@ impl<'a> ArtboardProperties<'a> {
                                 .option(Choice::Transparent, labels.transparent.as_str())
                                 .option(Choice::Other, labels.other.as_str())
                                 .show(ui);
-                            if let Some(colour) = custom
-                                && ui.add(Swatch::new((id, "swatch"), labels.background_color.as_str(), colour)).clicked()
+                            if let Some(color) = custom
+                                && ui.add(Swatch::new((id, "swatch"), labels.background_color.as_str(), color)).clicked()
                             {
-                                out.color_request = Some(request(Some(colour)));
+                                out.pick_color = Some(request(Some(color)));
                             }
                             pick
                         })
@@ -144,7 +147,7 @@ impl<'a> ArtboardProperties<'a> {
                             Choice::White => out.background = Some(ArtboardBackground::White),
                             Choice::Black => out.background = Some(ArtboardBackground::Black),
                             Choice::Transparent => out.background = Some(ArtboardBackground::Transparent),
-                            Choice::Other => out.color_request = Some(request(custom)),
+                            Choice::Other => out.pick_color = Some(request(custom)),
                         }
                     }
                     pick

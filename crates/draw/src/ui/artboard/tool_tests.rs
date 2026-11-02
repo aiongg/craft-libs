@@ -2,15 +2,17 @@
 //! "+" button press needs `AddBesideHandles::at` (SH-T8): these tests set
 //! `ArtboardRules::plus_buttons` off; the "+" test is in `add_beside_tests.rs`.
 
-use egui::{CursorIcon, Event, Key, Modifiers, Sense, vec2};
+use egui::{CursorIcon, Event, Key, Modifiers, Sense, pos2, vec2};
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable as _;
 use kurbo::{Point, Rect, Vec2};
 
 use super::{ArtboardBackground, ArtboardEvent, ArtboardItem, ArtboardRules, ArtboardTool};
 use crate::ui::add_beside::AddSide;
-use craft_ui::canvas::{CanvasId, CanvasView, ToolHost, ToolInput};
+use craft_ui::canvas::{CanvasId, CanvasView, SnapKind, SnapTarget, SnapTargets, ToolHost, ToolInput};
 use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
+use craft_ui::testing::canvas as rig;
 use craft_ui::theme::{Base, install};
 
 /// The app: the boards, the selection and what the tool reported, with every commit applied as
@@ -25,6 +27,8 @@ struct Host {
     focus: bool,
     cursor: CursorIcon,
     events: Vec<ArtboardEvent>,
+    /// The snap targets the host snaps the pointer with, when a test sets some.
+    snap: Option<SnapTargets>,
 }
 
 fn photoshop() -> ArtboardRules {
@@ -64,6 +68,7 @@ fn harness(items: Vec<ArtboardItem>, selected: &[usize], rules: ArtboardRules) -
         focus: false,
         cursor: CursorIcon::Default,
         events: Vec::new(),
+        snap: None,
     };
     let mut h = Harness::builder()
         .with_size(vec2(400.0, 300.0))
@@ -78,7 +83,11 @@ fn harness(items: Vec<ArtboardItem>, selected: &[usize], rules: ArtboardRules) -
                     canvas.request_focus();
                 }
                 host.tool.items(&host.items).selected(&host.selected).rules(host.rules);
-                let r = ToolHost::new(id).show(ui, &host.view, &canvas, &mut host.tool);
+                let mut tool_host = ToolHost::new(id);
+                if let Some(targets) = &host.snap {
+                    tool_host = tool_host.snap(targets);
+                }
+                let r = tool_host.show(ui, &host.view, &canvas, &mut host.tool);
                 host.cursor = r.cursor;
                 for event in host.tool.take_events() {
                     apply(host, &event);
@@ -427,4 +436,76 @@ fn artboard_cancels_on_escape_and_on_tool_switch() {
     h.step();
     assert_eq!(cancels(&mut h), ["move"]);
     assert_eq!(h.state().items[0].rect, rect(20.0, 30.0, 120.0, 110.0));
+}
+
+/// A vertical guide at `x`.
+fn guide(x: f64) -> SnapTargets {
+    let mut targets = SnapTargets::new();
+    targets.add(SnapTarget { vertical: true, position: x, kind: SnapKind::Guide, span: None });
+    targets
+}
+
+// A move reads the snapped pointer on every sample: the board's centre, 2 pixels short of a guide,
+// lands on it, so the offset is 10 and not the pointer's 8.
+#[test]
+fn artboard_move_snaps_to_a_guide() {
+    let mut h = harness(vec![board("a", (100.0, 100.0, 200.0, 200.0), false)], &[0], photoshop());
+    h.state_mut().snap = Some(guide(160.0));
+    rig::drag(&mut h, pos2(150.0, 150.0), pos2(158.0, 150.0), Modifiers::NONE);
+    let moved: Vec<Vec2> = h
+        .state()
+        .events
+        .iter()
+        .filter_map(|e| match e {
+            ArtboardEvent::Move { event: EditEvent::Commit { value, .. }, .. } => Some(*value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(moved, [Vec2::new(10.0, 0.0)], "{:?}", h.state().events);
+}
+
+// A resize measures from the handle, not from where the press landed on it: pressed 4 pixels
+// outside the right edge and dragged onto a guide, the edge ends on the guide.
+#[test]
+fn artboard_resize_lands_the_edge_on_a_guide() {
+    let mut h = harness(vec![board("a", (100.0, 100.0, 200.0, 200.0), false)], &[0], photoshop());
+    h.state_mut().snap = Some(guide(300.0));
+    rig::drag(&mut h, pos2(204.0, 150.0), pos2(298.0, 150.0), Modifiers::NONE);
+    assert_eq!(committed_rect(&h.state().events), Some(rect(100.0, 100.0, 300.0, 200.0)), "{:?}", h.state().events);
+}
+
+// A double click inside a board opens its options only under `open_on_double_click`.
+#[test]
+fn artboard_double_click_opens_options_under_its_own_rule() {
+    for (rules, opens) in
+        [(ArtboardRules { multi_select: true, ..photoshop() }, false), (ArtboardRules { open_on_double_click: true, ..photoshop() }, true)]
+    {
+        let mut h = harness(vec![board("a", (0.0, 0.0, 100.0, 100.0), false)], &[0], rules);
+        for _ in 0..2 {
+            rig::press(&mut h, pos2(50.0, 50.0), Modifiers::NONE);
+            rig::release(&mut h, pos2(50.0, 50.0), Modifiers::NONE);
+        }
+        let opened = h.state().events.iter().any(|e| matches!(e, ArtboardEvent::OpenOptions { index: 0 }));
+        assert_eq!(opened, opens, "{rules:?}: {:?}", h.state().events);
+    }
+}
+
+// The active board's 8 handles are named parts for a screen reader; a locked board has none.
+#[test]
+fn artboard_handles_are_named_parts() {
+    let h = harness(vec![board("a", (100.0, 100.0, 200.0, 200.0), false)], &[0], photoshop());
+    for name in [
+        "Top left handle",
+        "Top handle",
+        "Top right handle",
+        "Right handle",
+        "Bottom right handle",
+        "Bottom handle",
+        "Bottom left handle",
+        "Left handle",
+    ] {
+        assert!(h.query_by_label(name).is_some(), "{name}");
+    }
+    let locked = harness(vec![board("a", (100.0, 100.0, 200.0, 200.0), true)], &[0], photoshop());
+    assert!(locked.query_by_label("Right handle").is_none());
 }

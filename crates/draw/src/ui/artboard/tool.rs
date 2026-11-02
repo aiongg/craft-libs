@@ -34,8 +34,8 @@ use craft_ui::localized::Labels as _;
 /// Illustrator's rules ([`ArtboardRules::ILLUSTRATOR`]) add: ⇧-click toggles a board in the
 /// selection; ⇧-drag inside a board draws a new one; ⇧-drag on the pasteboard is a marquee that
 /// selects the boards it touches; ⌥-drag moves a copy; a click on an object outside the boards
-/// reports `FitObject`; Esc with no drag reports `Leave`; a double click on an empty part of a
-/// board reports `OpenOptions`.
+/// reports `FitObject`; Esc with no drag reports `Leave`. [`ArtboardRules::open_on_double_click`]
+/// (Illustrator's) makes a double click inside a board report `OpenOptions`.
 ///
 /// Keys while the canvas has the focus and the tool is active: arrows move the selected boards by
 /// [`ArtboardRules::arrow_step`] (⇧ ten times, `NudgeKeys::from_key`), ⌥+arrows resize from the
@@ -44,7 +44,9 @@ use craft_ui::localized::Labels as _;
 ///
 /// Keyboard parts: the boards are one Tab stop, group [`ArtboardToolLabels::group`], each board a part
 /// named as [`ArtboardToolLabels::board`] ("Artboard 2, 1080 by 1920 at 0, 0") with its selected state;
-/// Page keys pick a board.
+/// then the 8 handles of the active board when it is not locked, each named by its side ("Top left
+/// handle") with its position as the value. Page keys pick a part; a picked handle is read, not
+/// dragged: the keys still act on the active board.
 ///
 /// Cursor: resize arrows over the selected board's handles, turned with the view
 /// (`resize_cursor`); the pointing hand over a "+" button; the move arrow inside a board.
@@ -63,6 +65,8 @@ pub struct ArtboardTool {
     drag: Option<Drag>,
     /// The "+" button under the pointer, for the cursor and the hover look.
     hovered_plus: Option<AddSide>,
+    /// The handle (an index into `HANDLES`) a Page key picked, for a screen reader.
+    picked_handle: Option<usize>,
 }
 
 /// A gesture between passes: what the press took, and where the pointer is now.
@@ -72,8 +76,8 @@ struct Drag {
     id: GestureId,
     /// The press on screen, for the click slop.
     press: Pos2,
-    /// The press in document units: the snapped point, or for a move the raw one (the host snaps
-    /// the moving rectangle against it).
+    /// The press in document units: the snapped point, or for a move the raw one (the host
+    /// snaps the moving rectangle from it, and every later sample's `doc` carries that snap).
     start: Point,
     at: Point,
     /// The modifiers of the latest sample: ⇧ and ⌥ may change mid-drag.
@@ -160,6 +164,19 @@ fn handle_point(rect: Rect, handle: [i8; 2]) -> Point {
         _ => (lo + hi) / 2.0,
     };
     Point::new(axis(rect.x0, rect.x1, handle[0]), axis(rect.y0, rect.y1, handle[1]))
+}
+
+/// Handle parts' keys start here, above any board index.
+const HANDLE_KEY: u64 = 1 << 32;
+
+/// The part key of handle `h` (an index into `HANDLES`).
+fn handle_key(h: usize) -> u64 {
+    HANDLE_KEY + h as u64
+}
+
+/// The handle index a part key stands for, or `None` for a board's key.
+fn handle_of_key(key: u64) -> Option<usize> {
+    key.checked_sub(HANDLE_KEY).and_then(|h| usize::try_from(h).ok()).filter(|&h| h < HANDLES.len())
 }
 
 fn contains(rect: Rect, at: Point) -> bool {
@@ -252,7 +269,8 @@ impl ArtboardTool {
             }
             Kind::Resize { rect, handle, .. } => {
                 // ⇧ is read every pass, so it may go down or up mid-drag; ⌥ resizes about the centre.
-                let by = d.at - d.start;
+                // The travel is measured from the handle, so a snapped pointer is where the edge ends.
+                let by = d.at - handle_point(*rect, *handle);
                 let (keep, centre) = (d.modifiers.shift, d.modifiers.alt);
                 Some(Val::Rect(if keep { resized_keep_ratio(*rect, *handle, by, centre) } else { resized_rect(*rect, *handle, by, centre) }))
             }
@@ -263,7 +281,8 @@ impl ArtboardTool {
     /// Takes the pointer's sample into the drag: begins it past the click slop, and reports the
     /// new value when `update`.
     fn advance(&mut self, d: &mut Drag, pointer: &ToolPointer, slop: f32, update: bool) {
-        let at = if matches!(d.kind, Kind::Move { .. }) { pointer.raw } else { pointer.doc };
+        // `doc` carries the host's snap on every sample; only the press of a move is raw.
+        let at = pointer.doc;
         if !at.is_finite() {
             return;
         }
@@ -289,6 +308,31 @@ impl ArtboardTool {
             (Kind::Move { indices, .. }, Some(Val::By(by))) => indices.iter().filter_map(|&i| self.items.get(i)).map(|b| b.rect + by).collect(),
             (Kind::Marquee, _) => vec![Rect::from_points(d.start, d.at)],
             _ => Vec::new(),
+        }
+    }
+
+    /// Handle `h` (an index into `HANDLES`) of board `index`, for a part: its square on screen.
+    fn handle_part(&self, index: usize, h: usize, cx: &ToolContext<'_>, labels: &ArtboardToolLabels) -> Part {
+        let handle = HANDLES[h];
+        let at = handle_point(self.items[index].rect.abs(), handle);
+        let n = |v: f64| cx.numbers.format(v, 0..=0);
+        let name = match handle {
+            [-1, -1] => &labels.handle_top_left,
+            [1, -1] => &labels.handle_top_right,
+            [-1, 1] => &labels.handle_bottom_left,
+            [1, 1] => &labels.handle_bottom_right,
+            [0, -1] => &labels.handle_top,
+            [0, 1] => &labels.handle_bottom,
+            [-1, 0] => &labels.handle_left,
+            _ => &labels.handle_right,
+        };
+        let side = Self::style(cx.tokens).handle_hit;
+        Part {
+            key: handle_key(h),
+            name: name.clone(),
+            value: Some(craft_i18n::fmt(&labels.handle_at, &[("x", &n(at.x)), ("y", &n(at.y))])),
+            rect: egui::Rect::from_center_size(cx.view.to_screen(at), vec2(side, side)),
+            selected: false,
         }
     }
 
@@ -361,7 +405,7 @@ impl CanvasTool for ArtboardTool {
             self.drag = Some(drag(Kind::New { toggle: Some(i) }, at));
             return ToolAction::Claimed;
         }
-        if self.rules.multi_select && pointer.clicks >= 2 {
+        if self.rules.open_on_double_click && pointer.clicks >= 2 {
             self.events.push(ArtboardEvent::OpenOptions { index: i });
             return ToolAction::Done;
         }
@@ -561,16 +605,25 @@ impl CanvasTool for ArtboardTool {
             return None;
         }
         let labels = self.labels.clone().unwrap_or_else(|| ArtboardToolLabels::of_ctx(&cx.canvas.ctx));
-        let parts = (0..self.items.len()).filter_map(|i| self.board_part(i, cx, &labels)).collect();
+        let mut parts: Vec<Part> = (0..self.items.len()).filter_map(|i| self.board_part(i, cx, &labels)).collect();
+        if let Some(index) = self.active().filter(|&i| !self.items[i].locked) {
+            parts.extend((0..HANDLES.len()).map(|h| self.handle_part(index, h, cx, &labels)));
+        }
         Some(ToolParts::new(labels.group.clone(), parts))
     }
 
     fn picked(&self) -> Option<u64> {
-        self.selected.first().map(|&i| i as u64)
+        // A handle stays picked only while it exists (the active board is unlocked).
+        let handle = self.picked_handle.filter(|_| self.active().is_some_and(|i| !self.items[i].locked));
+        handle.map(handle_key).or_else(|| self.selected.first().map(|&i| i as u64))
     }
 
     fn pick(&mut self, key: Option<u64>, _cx: &mut ToolContext<'_>) {
-        // new: reports `Select { indices: [picked] }`.
+        // new: a board reports `Select { indices: [picked] }`; a handle is remembered for `picked`.
+        self.picked_handle = key.and_then(handle_of_key);
+        if self.picked_handle.is_some() {
+            return;
+        }
         let Some(i) = key.and_then(|k| usize::try_from(k).ok()).filter(|&i| i < self.items.len()) else { return };
         if self.selected != [i] {
             self.events.push(ArtboardEvent::Select { indices: vec![i], modifiers: Modifiers::NONE });

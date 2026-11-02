@@ -17,7 +17,9 @@
 use egui::{Color32, Ui};
 use kurbo::{Point, Rect, Size, Vec2};
 
-use super::{ArtboardBackground, ArtboardBar, ArtboardEvent, ArtboardItem, ArtboardPreset, ArtboardProperties, ArtboardRules, ArtboardTool};
+use super::{
+    ArtboardBackground, ArtboardBar, ArtboardBarOutput, ArtboardEvent, ArtboardItem, ArtboardPreset, ArtboardProperties, ArtboardRules, ArtboardTool,
+};
 use crate::ui::add_beside::AddSide;
 use craft_ui::canvas::{PageFrame, Pasteboard, ToolHost};
 use craft_ui::controls::Button;
@@ -307,18 +309,14 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         locked: false,
         background: ArtboardBackground::White,
     };
-    let mut shown = None;
-    OptionsBar::new("artboard-bar-options").label(words.bar.clone()).show(ui, |slots| {
-        slots.body(|ui| {
-            shown = Some(ArtboardBar::new("artboard-bar", args.selection.then_some(&board), &list).show(ui));
-        });
-    });
-    if let Some(out) = shown {
-        if let Some(size) = out.size.as_ref().and_then(EditEvent::value).copied() {
-            kept.size = size;
-        }
-        kept.added += usize::from(out.add_new);
+    let mut out = ArtboardBarOutput::default();
+    OptionsBar::new("artboard-bar-options")
+        .label(words.bar.clone())
+        .show(ui, |slots| ArtboardBar::new("artboard-bar", args.selection.then_some(&board), &list).output(&mut out).add_to(slots));
+    if let Some(size) = out.size.as_ref().and_then(EditEvent::value).copied() {
+        kept.size = size;
     }
+    kept.added += usize::from(out.add_new);
     let numbers = LocaleNumbers::of(ui);
     let size =
         craft_i18n::fmt(&words.size, &[("width", &numbers.format(kept.size.width, 0..=0)), ("height", &numbers.format(kept.size.height, 0..=0))]);
@@ -373,7 +371,7 @@ fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
     if let Some(background) = out.background {
         kept.1.background = background;
     }
-    if out.color_request.is_some() {
+    if out.pick_color.is_some() {
         kept.1.background = ArtboardBackground::Custom(accent);
     }
 }
