@@ -610,7 +610,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             ),
         };
         let label =
-            if column.iconic { PanelMenuLabels::in_dock(ui).expand_panels.clone() } else { PanelMenuLabels::in_dock(ui).collapse_to_icons.clone() };
+            if column.iconic { PanelMenuLabels::in_dock(ui, self.config).expand_panels.clone() } else { PanelMenuLabels::in_dock(ui, self.config).collapse_to_icons.clone() };
         if usable(button) {
             let response = ui.interact(button, self.id.with(("column-collapse", Some(first))), Sense::click());
             self.register_interaction(ui.ctx(), response.id);

@@ -16,6 +16,9 @@ pub struct DockConfig {
     pub move_group_label: String,
     /// Tooltip and accessible name of the panel-menu button ([`Self::panel_menu_button`]).
     pub panel_menu_label: String,
+    /// The app's own words for the dock's menu rows ("Close Panel", "Float Panel", …). `None`:
+    /// the installed words. Set it with [`Self::panel_menu`].
+    pub panel_menu: Option<std::sync::Arc<crate::docking::panel_menu::PanelMenuLabels>>,
     /// Narrowest a tab gets before the tabs that do not fit go to the overflow menu. `None`:
     /// about three characters and the "…" at the look's font size, plus the tab's padding (52.75 pt
     /// in Compact: the Label role's 11.5 pt font and 24 pt padding), so it
@@ -122,6 +125,7 @@ impl Default for DockConfig {
             resize_window_label: String::new(),
             move_group_label: String::new(),
             panel_menu_label: String::new(),
+            panel_menu: None,
             min_tab_width: None,
             edge_band: 28.0,
             side_edge_zones: false,
@@ -157,6 +161,14 @@ impl Default for DockConfig {
 }
 
 impl DockConfig {
+    /// Words for the dock's menu rows other than the installed ones. The dock's panel, tab-group,
+    /// column and frame menus use them in place of the installed words.
+    #[must_use]
+    pub fn panel_menu(mut self, labels: crate::docking::panel_menu::PanelMenuLabels) -> Self {
+        self.panel_menu = Some(std::sync::Arc::new(labels));
+        self
+    }
+
     /// The narrowest tab: [`Self::min_tab_width`], or the default that follows `look`'s font.
     pub(super) fn tab_width_floor(&self, look: &super::DockLook) -> f32 {
         self.min_tab_width.unwrap_or(look.font.size * 2.5 + look.tab_padding)
