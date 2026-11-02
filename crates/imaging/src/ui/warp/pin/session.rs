@@ -134,6 +134,42 @@ impl PinMeshView<'_> {
         None
     }
 
+    /// The turn in degrees of the deformed mesh at the rest position `rest`: the rotation of the
+    /// triangle containing it (searched from the top of the draw order), by the polar
+    /// decomposition of the map from the rest triangle to the deformed one, so a stretch does not
+    /// count as a turn. It is the turn an Auto pin has, from which a turn drag starts. `None` off
+    /// the rest mesh.
+    pub fn turn_at(&self, rest: Point) -> Option<f64> {
+        let vertex = |points: &[Point], i: u32| points.get(i as usize).copied();
+        for &t in self.order.iter().rev() {
+            let Some(tri) = self.triangles.get(t as usize) else { continue };
+            let (Some(a), Some(b), Some(c)) = (vertex(self.rest, tri[0]), vertex(self.rest, tri[1]), vertex(self.rest, tri[2])) else {
+                continue;
+            };
+            let (e1, e2) = (b - a, c - a);
+            let det = e1.x * e2.y - e2.x * e1.y;
+            if det.abs() < 1e-12 {
+                continue;
+            }
+            let p = rest - a;
+            let l1 = (p.x * e2.y - e2.x * p.y) / det;
+            let l2 = (e1.x * p.y - p.x * e1.y) / det;
+            if l1 < 0.0 || l2 < 0.0 || 1.0 - l1 - l2 < 0.0 {
+                continue;
+            }
+            let (Some(a), Some(b), Some(c)) = (vertex(self.deformed, tri[0]), vertex(self.deformed, tri[1]), vertex(self.deformed, tri[2])) else {
+                continue;
+            };
+            let (d1, d2) = (b - a, c - a);
+            let m11 = (d1.x * e2.y - d2.x * e1.y) / det;
+            let m12 = (d2.x * e1.x - d1.x * e2.x) / det;
+            let m21 = (d1.y * e2.y - d2.y * e1.y) / det;
+            let m22 = (d2.y * e1.x - d1.y * e2.x) / det;
+            return Some((m21 - m12).atan2(m11 + m22).to_degrees());
+        }
+        None
+    }
+
     /// Every triangle edge once, as vertex index pairs (smaller first), for the mesh painter.
     pub fn edges(&self) -> Vec<[u32; 2]> {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:368 (each edge once).

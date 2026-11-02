@@ -249,3 +249,17 @@ fn edges_are_unique_and_the_centre_is_the_middle_of_the_rest_bounds() {
     let empty = PinMeshView { rest: &[], deformed: &[], triangles: &[], order: &[] };
     assert_eq!(empty.centre(), None);
 }
+
+// The turn at a rest point is the rotation of its triangle; a stretch is not a turn, and a point
+// off the mesh has none.
+#[test]
+fn turn_at_reads_the_rotation_of_the_triangle_under_a_rest_point() {
+    let rest = vec![Point::new(0.0, 0.0), Point::new(100.0, 0.0), Point::new(0.0, 100.0)];
+    let (sin, cos) = 25f64.to_radians().sin_cos();
+    // Stretched 2 × along x, then rotated 25°.
+    let deformed: Vec<Point> = rest.iter().map(|p| Point::new(2.0 * p.x * cos - p.y * sin, 2.0 * p.x * sin + p.y * cos)).collect();
+    let fake = Fake { rest, deformed, triangles: vec![[0, 1, 2]], order: vec![0], ..Fake::default() };
+    let turn = fake.mesh().turn_at(Point::new(20.0, 20.0)).expect("on the mesh");
+    assert!((turn - 25.0).abs() < 1e-9, "{turn}");
+    assert!(fake.mesh().turn_at(Point::new(90.0, 90.0)).is_none());
+}
