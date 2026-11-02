@@ -8,7 +8,7 @@ use egui_kittest::kittest::Queryable as _;
 use super::{AdjustContext, AdjustField, AdjustLabels, AdjustSliders, AdjustTrack};
 use craft_theme::Srgba;
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::localized::{LocaleNumbers, Unit, Units, Words};
 use craft_ui::theme::{Base, install};
 
 /// A host of Exposure's table that applies every value and records the events.
@@ -100,7 +100,8 @@ fn adjust_sliders_round_to_the_fields_decimals() {
     assert_eq!(exposure.round(1.23456), 1.23);
     assert_eq!(offset.round(0.123456), 0.1235);
     assert_eq!(gamma.round(2.3456), 2.35, "a range 10 wide or less rounds to 0.01");
-    let vibrance = &AdjustField::vibrance(&AdjustLabels::default())[0];
+    let units = Units::new(std::sync::Arc::new(LocaleNumbers::from_tag("en")), std::sync::Arc::new(Words::english()));
+    let vibrance = &AdjustField::vibrance(&AdjustLabels::default(), &units)[0];
     assert_eq!(vibrance.round(33.6), 34.0, "wider ranges keep whole numbers");
     let many = AdjustField::new("x", "X", 0.0..=1.0, 0.0).decimals(9);
     assert_eq!(many.round(0.123_456_789), 0.123_457, "at most six places");

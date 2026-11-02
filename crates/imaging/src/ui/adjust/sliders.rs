@@ -12,12 +12,9 @@ use egui::{AsIdSalt, Id, IdSalt, Response, Ui};
 use craft_ui::composites::SliderRow;
 use craft_ui::edit::parts::{self, Pushed};
 use craft_ui::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
-use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::localized::{LocaleNumbers, Unit, UnitKind, Units};
 
 use super::{AdjustContext, AdjustLabels};
-
-/// The percent unit of the sliders that show one.
-pub(super) const PERCENT: &str = "{n} %";
 
 /// The most decimal places a field keeps.
 const MAX_DECIMALS: usize = 6;
@@ -125,11 +122,11 @@ impl AdjustField {
 
     /// Vibrance's rows: Vibrance and Saturation, −100..100 %, default 0; keys `vibrance`,
     /// `saturation`.
-    pub fn vibrance(labels: &AdjustLabels) -> Vec<AdjustField> {
+    pub fn vibrance(labels: &AdjustLabels, units: &Units) -> Vec<AdjustField> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors.rs:155.
         vec![
-            AdjustField::new("vibrance", labels.vibrance.as_str(), -100.0..=100.0, 0.0).unit(Unit::new(PERCENT)),
-            AdjustField::new("saturation", labels.saturation.as_str(), -100.0..=100.0, 0.0).unit(Unit::new(PERCENT)),
+            AdjustField::new("vibrance", labels.vibrance.as_str(), -100.0..=100.0, 0.0).unit(units.unit(UnitKind::Percent)),
+            AdjustField::new("saturation", labels.saturation.as_str(), -100.0..=100.0, 0.0).unit(units.unit(UnitKind::Percent)),
         ]
     }
 

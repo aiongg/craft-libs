@@ -9,11 +9,11 @@ use craft_ui::controls::{Checkbox, RadioSet, Select, Swatch};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
 use craft_ui::edit::{EditPolicy, EditResponse};
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units};
 use craft_ui::primitives::{Content, Gap, Stack, Text};
 use craft_ui::theme::{Tokens, TokensOf as _};
 
-use super::sliders::{PERCENT, edit_parts, push_part};
+use super::sliders::{edit_parts, push_part};
 use super::{AdjustContext, AdjustField, AdjustLabels, AdjustSliders, AdjustStyle, AdjustTrack};
 
 // ---------------------------------------------------------------------------------------------
@@ -679,7 +679,8 @@ impl<'a> PhotoFilterEditor<'a> {
         let stored = *self.value;
         // Filter (false) or Color (true): view state; the colour of no preset starts on Color.
         let mut use_color = ui.data(|d| d.get_temp::<bool>(id.with(MODE))).unwrap_or(PhotoFilterPreset::of(stored.color).is_none());
-        let density = [AdjustField::new("density", labels.density.as_str(), 0.0..=100.0, DENSITY_DEFAULT).unit(Unit::new(PERCENT))];
+        let units = Units::of(ui);
+        let density = [AdjustField::new("density", labels.density.as_str(), 0.0..=100.0, DENSITY_DEFAULT).unit(units.unit(UnitKind::Percent))];
         let mut pick_color = None;
         let (group, event) = edit_parts(ui, id, &stored, self.policy, enabled, |ui, edits, inner| {
             let value = *edits.value();
