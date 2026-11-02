@@ -258,7 +258,8 @@ fn show_navigation(ui: &mut Ui, args: &mut NavigationArgs) {
     tools.zoom.out = temporary == Some(MomentaryTool::ZoomOut);
     let before = view;
     let tool: &mut dyn CanvasTool = if zooming { &mut tools.zoom } else { &mut tools.hand };
-    let hosted = ToolHost::new(canvas.id).document(size).navigation(prefs).show(ui, &shown, response, tool);
+    // The host works on the target view: a pan that begins while the zoom eases keeps the target zoom.
+    let hosted = ToolHost::new(canvas.id).document(size).navigation(prefs).show(ui, &view, response, tool);
     if let Some(v) = hosted.view {
         view = CanvasView { rect: view.rect, ..v };
     }
@@ -549,7 +550,7 @@ fn show_tool_host(ui: &mut Ui, args: &mut ToolHostArgs) {
     if args.snap {
         host = host.snap(&targets);
     }
-    let hosted = host.show(ui, &shown, response, tools.pick(args.tool));
+    let hosted = host.show(ui, &view, response, tools.pick(args.tool));
     ctx.data_mut(|d| d.insert_temp(key, tools));
     if let Some(v) = hosted.view {
         view = CanvasView { rect: view.rect, ..v };

@@ -3,13 +3,13 @@
 
 use egui::accesskit::Role;
 use egui::epaint::StrokeKind;
-use egui::{AsIdSalt, Color32, ColorImage, CursorIcon, EventFilter, IdSalt, Painter, PointerButton, Rect, Response, Sense, Ui, WidgetInfo};
+use egui::{AsIdSalt, Color32, ColorImage, EventFilter, IdSalt, Painter, PointerButton, Rect, Response, Sense, Ui, WidgetInfo};
 use kurbo::{Point, Size};
 
 use super::labels::FullWindowLabels;
 use super::style::FullWindowStyle;
 use super::view::{FullWindowView, FullWindowZoomKeys};
-use crate::canvas::navigate::{WheelNavigation, pan};
+use crate::canvas::navigate::{PageKey, WheelNavigation};
 use crate::canvas::{
     CanvasId, CanvasTool, CanvasView, Checkerboard, HandTool, MomentaryKeys, MomentaryTool, NavigationOptions, NoTool, PixelRect, RasterDisplay,
     RasterSource, ToolGesture, ToolHost, ToolKey, ZoomAnimation, ZoomTool,
@@ -176,6 +176,14 @@ impl<'a> FullWindowCanvas<'a> {
         self
     }
 
+    /// The id of the canvas that [`new`](Self::new) with `id_salt` runs in `ui`: the one
+    /// [`ToolHost::cancel`](crate::canvas::ToolHost::cancel), [`ToolHost::inject`] and
+    /// [`ZoomAnimation`] calls from the workspace use. `ui` is the one the canvas is shown in
+    /// (the dialog's body).
+    pub fn canvas_id(ui: &Ui, id_salt: impl AsIdSalt) -> CanvasId {
+        CanvasId::from_id(ui.make_persistent_id(IdSalt::new(id_salt)))
+    }
+
     /// Draws the canvas in the rest of `ui` (the dialog's body after the other regions).
     pub fn show(self, ui: &mut Ui) -> FullWindowCanvasOutput {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1912-1936 (the area on `t.canvas`, fit
@@ -189,7 +197,7 @@ impl<'a> FullWindowCanvas<'a> {
         let ppp = ui.pixels_per_point();
         let rect = ui.available_rect_before_wrap();
         ui.allocate_rect(rect, Sense::hover());
-        let canvas = CanvasId::new(ui, id_salt);
+        let canvas = CanvasId::from_id(ui.make_persistent_id(id_salt));
         let response = canvas.interact(ui, rect, Sense::click_and_drag() | Sense::FOCUSABLE);
         // The arrow keys belong to the tool on the canvas instead of moving focus.
         let arrows = EventFilter { horizontal_arrows: true, vertical_arrows: true, ..EventFilter::default() };
@@ -208,13 +216,22 @@ impl<'a> FullWindowCanvas<'a> {
             let at = response.hover_pos().unwrap_or(rect.center());
             WheelNavigation::apply(&mut view, action, at, doc, &navigation, ppp);
         }
-        if response.dragged_by(PointerButton::Middle) {
-            pan(&mut view, response.drag_delta());
-            ctx.set_cursor_icon(CursorIcon::Grabbing);
-        }
+        // The keys are free for this dialog's layer, which is the top modal layer.
+        let free = crate::focus::key_owner::keys_free(&ctx, ui.layer_id());
+        let over = response.hovered() || response.has_focus();
+        // Page keys stay with a focused control that is not the canvas (a tool's parts).
+        let page_keys = free && over && ctx.memory(|m| m.focused()).is_none_or(|id| id == response.id);
+        PageKey::handle_where(&ctx, &mut view, doc, navigation.overscroll, page_keys);
         window_view.take(&view, ppp);
 
-        let temporary = Self::temporary_tool(&ctx, &response, canvas);
+        let temporary = MomentaryKeys::default().read_where(&ctx, canvas, false, free && over);
+        if temporary.is_some()
+            && let Some(focused) = ctx.memory(|m| m.focused()).filter(|id| *id != response.id)
+        {
+            // A focused button would take Space as a click.
+            ctx.memory_mut(|m| m.surrender_focus(focused));
+        }
+        let panning = Self::middle_pan(&ctx, &response, canvas);
         let tools_key = canvas.with("navigation-tools");
         let mut tools = ctx
             .data(|d| d.get_temp::<NavigationTools>(tools_key))
@@ -250,50 +267,42 @@ impl<'a> FullWindowCanvas<'a> {
         let active: &mut dyn CanvasTool = match (temporary, tool) {
             (Some(MomentaryTool::Hand), _) => &mut tools.hand,
             (Some(MomentaryTool::ZoomIn | MomentaryTool::ZoomOut), _) => &mut tools.zoom,
+            (None, _) if panning => &mut tools.hand,
             (None, Some(tool)) => tool,
             (None, None) => &mut none,
         };
-        let hosted = ToolHost::new(canvas).document(doc).navigation(navigation).keys(!ctx.text_edit_focused()).show(ui, &shown, &response, active);
+        // The host works on the target view, so a pan that begins while the zoom eases keeps the
+        // target zoom; `shown` is only what is painted.
+        let hosted = ToolHost::new(canvas).document(doc).navigation(navigation).keys(!ctx.text_edit_focused()).show(ui, &view, &response, active);
         ctx.data_mut(|d| d.insert_temp(tools_key, tools));
-        if let Some(changed) = hosted.view {
-            view = CanvasView { rect: view.rect, ..changed };
+        let changed = hosted.view.is_some();
+        if let Some(next) = hosted.view {
+            view = CanvasView { rect: view.rect, ..next };
             window_view.take(&view, ppp);
         }
+        // What the canvas drew with, unless the tool moved the view after it was drawn.
+        let drawn = if changed { view } else { shown };
 
         let name = labels.canvas.clone();
         response.widget_info(|| WidgetInfo::labeled(Role::Canvas, true, name.as_str()));
         let percent = LocaleNumbers::of(ui).percent(window_view.zoom());
         ctx.accesskit_node_builder(response.id, |node| node.set_value(percent.as_str()));
 
-        let hover = response.hover_pos().filter(|_| response.hovered()).map(|at| view.to_doc(at));
-        FullWindowCanvasOutput { view, response, gesture: hosted.gesture, hover, took_key: hosted.took_key }
+        let hover = response.hover_pos().filter(|_| response.hovered()).map(|at| drawn.to_doc(at));
+        FullWindowCanvasOutput { view: drawn, response, gesture: hosted.gesture, hover, took_key: hosted.took_key }
     }
 
-    /// The temporary tool this pass: Space the Hand, Cmd+Space Zoom In, Alt+Space Zoom Out, while
-    /// the pointer is over the canvas or it has the focus and no text field has the keyboard. A
-    /// tool in effect when the primary button went down stays until the button is up, and a
-    /// drag that began without one finishes without one. The keys are read here, not through
-    /// [`MomentaryKeys::read`], which stands aside while a modal layer is open.
-    fn temporary_tool(ctx: &egui::Context, response: &Response, canvas: CanvasId) -> Option<MomentaryTool> {
-        let keys = MomentaryKeys::default();
-        let (down, released, pressed) = ctx.input(|i| (i.pointer.primary_down(), i.pointer.primary_released(), i.pointer.primary_pressed()));
-        let latch = canvas.with("momentary-latch");
-        let latched = ctx.data(|d| d.get_temp::<Option<MomentaryTool>>(latch)).flatten();
-        let tool = if (down || released) && !pressed {
-            latched
-        } else if (response.hovered() || response.has_focus()) && !ctx.text_edit_focused() {
-            ctx.input(|i| keys.held(i))
-        } else {
-            None
-        };
-        if tool.is_some()
-            && let Some(focused) = ctx.memory(|m| m.focused()).filter(|id| *id != response.id)
-        {
-            // A focused button would take Space as a click.
-            ctx.memory_mut(|m| m.surrender_focus(focused));
-        }
-        ctx.data_mut(|d| d.insert_temp(latch, if down { tool } else { None }));
-        tool
+    /// Whether the middle button pans this pass: it went down over the canvas while no gesture
+    /// ran, and it stays so until it is up (the pass of its release included, for the Hand's
+    /// release and glide). The Hand takes the middle button whatever the app's tool is.
+    fn middle_pan(ctx: &egui::Context, response: &Response, canvas: CanvasId) -> bool {
+        let (pressed, down, released) = ctx
+            .input(|i| (i.pointer.button_pressed(PointerButton::Middle), i.pointer.middle_down(), i.pointer.button_released(PointerButton::Middle)));
+        let latch = canvas.with("middle-pan");
+        let latched = ctx.data(|d| d.get_temp::<bool>(latch)).unwrap_or(false);
+        let on = if pressed { response.hovered() && !ToolHost::in_gesture(ctx, canvas) } else { latched && (down || released) };
+        ctx.data_mut(|d| d.insert_temp(latch, on && down));
+        on
     }
 }
 

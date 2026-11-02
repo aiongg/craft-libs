@@ -63,7 +63,7 @@ pub use tools::{LiquifyBrush, LiquifyTool, StrokeRecorder};
 use egui::{Context, Key, Modifiers, Rect};
 
 use craft_ui::canvas::kurbo::Size;
-use craft_ui::canvas::{CanvasId, Checkerboard, NavigationOptions, RasterSource, ToolHost};
+use craft_ui::canvas::{Checkerboard, NavigationOptions, RasterSource, ToolHost};
 use craft_ui::dialog::full_window::{FullWindowCanvas, FullWindowSide, FullWindowTitle, FullWindowView, RasterOverlay, SideFooter};
 use craft_ui::dialog::{ButtonRole, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step};
 use craft_ui::edit::CancelReason;
@@ -266,7 +266,7 @@ impl LiquifyWorkspace {
                 ToolRail::new("liquify-tools").label(labels.tools.as_str()).pick_by_key(true).show(ui, &slots, &settings.tool, last_used, |_, _| {});
             if let Some(tool) = rail.select.filter(|tool| *tool != settings.tool) {
                 if canvas.busy() {
-                    let id = CanvasId::new(ui, CANVAS);
+                    let id = FullWindowCanvas::canvas_id(ui, CANVAS);
                     match settings.tool {
                         LiquifyTool::Hand => ToolHost::cancel(ctx, id, canvas.hand(doc, navigation), CancelReason::Removed),
                         LiquifyTool::Zoom => ToolHost::cancel(ctx, id, canvas.zoom(doc, navigation), CancelReason::Removed),

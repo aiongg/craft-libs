@@ -12,7 +12,8 @@ use kurbo::Size;
 use super::canvas::{Tinted, overlay_view};
 use super::{FullWindowCanvas, FullWindowView, RasterOverlay};
 use crate::canvas::{
-    CanvasTool, CanvasView, Checkerboard, HandTool, NavigationOptions, PixelRect, RasterSource, ToolAction, ToolContext, ToolPointer, ZoomTool,
+    CanvasId, CanvasTool, CanvasView, Checkerboard, HandTool, NavigationOptions, PixelRect, RasterSource, ToolAction, ToolContext, ToolHost,
+    ToolPointer, ZoomAnimation, ZoomTool,
 };
 use crate::dialog::{DialogState, FullWindowDialog};
 use crate::edit::CancelReason;
@@ -46,6 +47,7 @@ impl RasterSource for Solid {
 #[derive(Default)]
 struct Pen {
     presses: usize,
+    cancels: usize,
 }
 
 impl CanvasTool for Pen {
@@ -58,7 +60,9 @@ impl CanvasTool for Pen {
 
     fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
+        self.cancels += 1;
+    }
 
     fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
 }
@@ -80,6 +84,9 @@ struct App {
     shown: Option<CanvasView>,
     /// A zoom key left over for code below the dialog.
     leaked: bool,
+    /// The canvas id the workspace gets from `FullWindowCanvas::canvas_id`, and the id of the
+    /// canvas widget the pass drew.
+    ids: Option<(CanvasId, egui::Id)>,
 }
 
 impl App {
@@ -100,6 +107,7 @@ impl App {
             focus_text: false,
             shown: None,
             leaked: false,
+            ids: None,
         }
     }
 
@@ -110,14 +118,21 @@ impl App {
 }
 
 fn harness(app: App) -> Harness<'static, App> {
-    let mut h = HarnessBuilder::default()
-        .with_size(WINDOW)
-        .with_os(OperatingSystem::Nix)
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
-        .build_ui_state(
+    harness_stepping(app, None)
+}
+
+/// A harness whose passes advance `step_dt` seconds each (the default is a quarter second, which
+/// finishes a zoom animation in one pass).
+fn harness_stepping(app: App, step_dt: Option<f32>) -> Harness<'static, App> {
+    let mut builder = HarnessBuilder::default();
+    if let Some(dt) = step_dt {
+        builder = builder.with_step_dt(dt);
+    }
+    let mut h =
+        builder.with_size(WINDOW).with_os(OperatingSystem::Nix).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
             |ui, app: &mut App| {
                 let ctx = ui.ctx().clone();
-                let App { state, view, image, overlay, navigation, pen, hand, zoom, tool, text, focus_text, shown, .. } = app;
+                let App { state, view, image, overlay, navigation, pen, hand, zoom, tool, text, focus_text, shown, ids, .. } = app;
                 FullWindowDialog::new("work").show(&ctx, state, &mut (), |ui, (), _fx| {
                     let edit = ui.add(egui::TextEdit::singleline(text));
                     edit.widget_info(|| egui::WidgetInfo::labeled(Role::TextInput, true, "Name"));
@@ -134,7 +149,10 @@ fn harness(app: App) -> Harness<'static, App> {
                         3 => canvas.tool(zoom),
                         _ => canvas,
                     };
-                    *shown = Some(canvas.show(ui).view);
+                    let id = FullWindowCanvas::canvas_id(ui, "view");
+                    let out = canvas.show(ui);
+                    *ids = Some((id, out.response.id));
+                    *shown = Some(out.view);
                 });
                 app.leaked = ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Num0));
             },
@@ -374,4 +392,79 @@ fn canvas_is_one_tab_stop_named_image_with_the_zoom() {
     h.key_press(Key::Tab);
     h.run();
     assert!(!h.get_by_role_and_label(Role::Canvas, "Image").accesskit_node().is_focused(), "the canvas holds no further stops");
+}
+
+// The workspaces cancel a gesture under `FullWindowCanvas::canvas_id`: it is the id the canvas runs
+// its host under, so the tool's `cancel` runs.
+#[test]
+fn host_cancel_under_canvas_id_reaches_the_tool() {
+    let mut app = App::new();
+    app.tool = 1;
+    let mut h = harness(app);
+    let from = centre(&h);
+    pointer(&mut h, from);
+    button(&mut h, PointerButton::Primary, from, true, Modifiers::NONE);
+    pointer(&mut h, from + vec2(10.0, 0.0));
+    let (id, widget) = h.state().ids.expect("a pass ran");
+    assert_eq!(id.id(), widget, "canvas_id is the canvas widget's id");
+
+    let ctx = h.ctx.clone();
+    ToolHost::cancel(&ctx, id, &mut h.state_mut().pen, CancelReason::Removed);
+    assert_eq!(h.state().pen.cancels, 1);
+}
+
+// A pan that begins while Animated Zoom eases works on the target view: the zoom stays the target
+// one, not the in-between value that was drawn.
+#[test]
+fn a_pan_during_the_zoom_animation_keeps_the_target_zoom() {
+    let mut app = App::new();
+    app.navigation.animated_zoom = true;
+    app.tool = 2;
+    let mut h = harness_stepping(app, Some(0.02));
+    h.run();
+    let ctx = h.ctx.clone();
+    let (id, _) = h.state().ids.expect("a pass ran");
+    let before = h.state().view();
+    ZoomAnimation::begin(&ctx, id, &before, None);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Num1);
+    h.step();
+    let target = h.state().view.zoom();
+    assert!(ZoomAnimation::running(&ctx, id), "the zoom is easing");
+    assert!((h.state().view().zoom - target).abs() > 1e-6, "the drawn zoom is not yet the target");
+
+    let from = centre(&h);
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.step();
+    h.event(Event::PointerMoved(from + vec2(-20.0, 0.0)));
+    h.step();
+    assert_eq!(h.state().view.zoom(), target, "the pan left the zoom at the target");
+}
+
+// Page keys scroll the view inside the modal (the canvas's own copy of the check had none), and a
+// text field keeps them.
+#[test]
+fn page_keys_scroll_the_view_inside_the_modal() {
+    let mut app = App::new();
+    app.navigation.overscroll = true;
+    let mut h = harness(app);
+    let start = h.state().view().center;
+    let at = centre(&h);
+    pointer(&mut h, at);
+    h.key_press(Key::PageDown);
+    h.run();
+    assert!(h.state().view().center.y > start.y + 1.0, "Page Down scrolled the image up: {start:?} {:?}", h.state().view().center);
+
+    let mut app = App::new();
+    app.navigation.overscroll = true;
+    app.focus_text = true;
+    let mut h = harness(app);
+    h.run();
+    let start = h.state().view().center;
+    let at = centre(&h);
+    pointer(&mut h, at);
+    h.key_press(Key::PageDown);
+    h.run();
+    assert_eq!(h.state().view().center, start, "a text field keeps the page keys");
 }

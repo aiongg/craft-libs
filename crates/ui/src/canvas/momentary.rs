@@ -126,12 +126,20 @@ impl MomentaryKeys {
     /// latch lives in egui memory under `canvas`.
     // pc: crates/ui-egui/src/input/hold_keys.rs:240 `for_frame`, :232 `latch_id`.
     pub fn read(&self, ctx: &Context, canvas: CanvasId, drawing: bool) -> Option<MomentaryTool> {
+        self.read_where(ctx, canvas, drawing, canvas_keys_free(ctx))
+    }
+
+    /// [`read`](Self::read) with the keys' gate given by the caller: `free` replaces the
+    /// "nothing but a widget has the keyboard" check, for a canvas that is itself in a modal layer
+    /// (a full-window workspace asks [`keys_free`](crate::focus::key_owner::keys_free) for its
+    /// layer).
+    pub fn read_where(&self, ctx: &Context, canvas: CanvasId, drawing: bool, free: bool) -> Option<MomentaryTool> {
         let (down, released, pressed) = ctx.input(|i| (i.pointer.primary_down(), i.pointer.primary_released(), i.pointer.primary_pressed()));
         let latch = canvas.with("momentary-latch");
         let latched = ctx.data(|d| d.get_temp::<Option<MomentaryTool>>(latch)).flatten();
         let tool = if (down || released) && !pressed {
             latched
-        } else if drawing || !canvas_keys_free(ctx) {
+        } else if drawing || !free {
             None
         } else {
             ctx.input(|i| self.held(i)).filter(|tool| !KeyClaim::claimed(ctx, &self.shortcut_of(*tool)))
