@@ -5,10 +5,10 @@ use craft_ui::direction;
 use craft_ui::icons::{self, Icon, IconSize};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::Interactive;
-use craft_ui::theme::{Tokens, TokensOf as _, role_format};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::accesskit::Role;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{AsIdSalt, Color32, IdSalt, Painter, Rect, Response, Ui, pos2};
+use egui::{AsIdSalt, Color32, IdSalt, Painter, Rect, Response, Ui, Vec2, pos2};
 
 use super::labels::BrushPickerLabels;
 use super::style::BrushPresetChipStyle;
@@ -19,8 +19,9 @@ use super::style::BrushPresetChipStyle;
 /// press on the chip never counts as outside the picker.
 ///
 /// - **Look.** The tip image (`brush.chip_tip`, 14) centred at `brush.chip_tip_at` from the
-///   leading top corner, the size number (`caption` role, `text.muted`) centred under it 5 pt
-///   off the bottom, the chevron at the trailing end; the hover fill while hovered or open.
+///   leading top corner, the size number (`caption` role, `text.muted`) centred at
+///   `brush.chip_number_at` (25) from the top, the chevron centred `brush.chip_chevron_inset` (9)
+///   from the trailing end; the hover fill while hovered or open.
 /// - **Keys.** One Tab stop; Space and Enter toggle, as a button.
 /// - **AccessKit.** A `Button` named "Brush Preset picker" with `has_popup` and `expanded` (the
 ///   `Popover` sets them on its control anchor); the same text as tooltip.
@@ -52,6 +53,24 @@ impl BrushPresetChip {
         self
     }
 
+    /// The sizes and colors of the chip from `tokens`.
+    pub fn style(tokens: &UiTokens) -> BrushPresetChipStyle {
+        // pc: crates/ui-egui/src/panels/brush_controls.rs:96-108.
+        let (b, c) = (&tokens.component.brush, &tokens.color);
+        BrushPresetChipStyle {
+            size: Vec2::from(b.chip),
+            tip: b.chip_tip,
+            tip_at: Vec2::from(b.chip_tip_at),
+            chevron: b.chip_chevron,
+            number_at: b.chip_number_at,
+            chevron_inset: b.chip_chevron_inset,
+            hover: c.state.hover.to_egui(),
+            number: c.text.muted.to_egui(),
+            chevron_color: c.text.faint.to_egui(),
+            radius: tokens.radius.control,
+        }
+    }
+
     /// The words (shared with the picker); the installed language's by default.
     pub fn labels(mut self, labels: BrushPickerLabels) -> Self {
         self.labels = Some(labels);
@@ -64,11 +83,13 @@ impl BrushPresetChip {
         // pc: crates/ui-egui/src/panels/brush_controls.rs:94-119 `brush_preset_chip` (44 × 30, tip 14 at (14, 11), number 5 pt off the bottom, chevron 9 pt in from the end)
         let Self { id_salt, diameter, open, labels } = self;
         let tokens = Tokens::of(ui);
-        let style = BrushPresetChipStyle::of(&tokens);
+        let style = Self::style(&tokens);
         let labels = labels.unwrap_or_else(|| BrushPickerLabels::of(ui));
         let rtl = direction::is_rtl(ui);
-        let response =
-            Interactive::new(id_salt, Role::Button, labels.picker.as_str()).state_layer(false).corner_radius(style.radius).show(ui, style.size);
+        let response = Interactive::new((&id_salt, "chip"), Role::Button, labels.picker.as_str())
+            .state_layer(false)
+            .corner_radius(style.radius)
+            .show(ui, style.size);
         let rect = response.rect;
         if ui.is_rect_visible(rect) {
             let painter = ui.painter();
@@ -83,15 +104,11 @@ impl BrushPresetChip {
             let mut job = LayoutJob::single_section(numbers.format(diameter.round(), 0..=0), role_format(&tokens, TypeRole::Caption, style.number));
             job.wrap = TextWrapping::truncate_at_width(style.size.x);
             let galley = painter.layout_job(job);
-            let at = pos2(tip_centre.x - galley.size().x / 2.0, rect.top() + style.tip_at.y + style.tip - galley.size().y / 2.0);
+            let at = pos2(tip_centre.x - galley.size().x / 2.0, rect.top() + style.number_at - galley.size().y / 2.0);
             painter.galley(at, galley, Color32::PLACEHOLDER);
 
-            // The chevron keeps the tip's distance from the top edge as its distance from the end.
-            let edge_inset = style.tip_at.y - style.tip / 2.0;
-            let chevron = Rect::from_center_size(
-                pos2(x_at(style.size.x - edge_inset - style.chevron / 2.0), tip_centre.y),
-                egui::vec2(style.chevron, style.chevron),
-            );
+            let chevron =
+                Rect::from_center_size(pos2(x_at(style.size.x - style.chevron_inset), tip_centre.y), egui::vec2(style.chevron, style.chevron));
             icons::paint_on(painter, chevron, Icon::ChevronDown, icons::active(ui.ctx()), style.chevron, IconSize::Sm.stroke(), style.chevron_color);
         }
         let clicked = response.clicked();

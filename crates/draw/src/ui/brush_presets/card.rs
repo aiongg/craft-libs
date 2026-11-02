@@ -1,15 +1,17 @@
 //! The brush preset card and the card view of a preset library ([`BrushPresetCards`]).
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 
 use craft_theme::TypeRole;
 use craft_ui::direction;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::presets::{CellShape, PresetBrowser, PresetOutput, PresetReorder, PresetRow, PresetState, PresetStyle, PresetView};
-use craft_ui::theme::{Tokens, TokensOf as _, role_format};
+use craft_ui::presets::view::grid_room;
+use craft_ui::presets::{CellShape, PresetBrowser, PresetOutput, PresetReorder, PresetRow, PresetState, PresetView};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{AsIdSalt, Color32, IdSalt, Painter, Rect, Ui, Vec2, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Painter, Rect, Ui, Vec2, pos2, vec2};
 use serde::{Deserialize, Serialize};
 
 use super::BrushPickerSettings;
@@ -176,15 +178,18 @@ impl BrushCardLayout {
             let tip_rect = Rect::from_min_size(top.left_top(), vec2(width, top_h));
             tip_cell = Some(tip_rect);
             if compact {
-                tip = Some(Rect::from_center_size(tip_rect.center(), Vec2::splat((tip_rect.width().min(tip_rect.height()) - 2.0).max(1.0))));
+                tip = Some(Rect::from_center_size(
+                    tip_rect.center(),
+                    Vec2::splat((tip_rect.width().min(tip_rect.height()) - style.tip_compact_inset).max(1.0)),
+                ));
             } else {
                 let band = number_height.max(0.0);
-                let bottom = tip_rect.bottom() - 1.0;
+                let bottom = tip_rect.bottom() - style.number_gap;
                 number = Some(Rect::from_min_max(
                     pos2(tip_rect.left(), (bottom - band).max(tip_rect.top())),
                     pos2(tip_rect.right(), bottom.max(tip_rect.top())),
                 ));
-                let room = Rect::from_min_max(tip_rect.min, pos2(tip_rect.right(), (tip_rect.bottom() - band - 2.0).max(tip_rect.top())));
+                let room = Rect::from_min_max(tip_rect.min, pos2(tip_rect.right(), (tip_rect.bottom() - band - style.tip_gap).max(tip_rect.top())));
                 let fit = (style.tip_base * scale).min(room.width().min(room.height())).max(0.0);
                 let side = fit * diameter.map_or(1.0, tip_thumb_scale);
                 tip = Some(Rect::from_center_size(room.center(), Vec2::splat(if side.is_finite() { side.max(1.0) } else { 1.0 })));
@@ -339,14 +344,43 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetCards<
     }
 
     /// A preset row named for AccessKit as "{name}, {size} px" ([`BrushCardLabels::preset_size`],
-    /// the size rounded to a whole pixel in the installed number format); the label stays `name`,
-    /// which a rename starts from.
-    pub fn row(key: K, name: impl Into<String>, depth: usize, diameter: f64, labels: &BrushCardLabels) -> PresetRow<K> {
+    /// the size rounded to a whole pixel in `numbers`, the installed number format
+    /// (`LocaleNumbers::of`)); the label stays `name`, which a rename starts from.
+    pub fn row(key: K, name: impl Into<String>, depth: usize, diameter: f64, labels: &BrushCardLabels, numbers: &LocaleNumbers) -> PresetRow<K> {
         // new: the browser reads `accessible_name` from the host's rows.
         let name = name.into();
-        let size = if diameter.is_finite() { (diameter.round() as i64).to_string() } else { "0".to_owned() };
-        let accessible = labels.preset_size.replace("{name}", &name).replace("{size}", &size);
+        let size = numbers.clone().ungrouped().format(if diameter.is_finite() { diameter.round() } else { 0.0 }, 0..=0);
+        let accessible = craft_i18n::fmt(&labels.preset_size, &[("name", &name), ("size", &size)]);
         PresetRow::item(key, name, depth).accessible_name(accessible)
+    }
+
+    /// The sizes and colors of a card from `tokens`.
+    pub fn style(tokens: &UiTokens) -> BrushCardStyle {
+        // pc: crates/ui-egui/src/panels/brushes_tab.rs:438-465.
+        let (b, c) = (&tokens.component.brush, &tokens.color);
+        BrushCardStyle {
+            pad: b.card_pad,
+            inset: b.card_inset,
+            tip_width: b.card_tip_width,
+            tip_base: b.card_tip_base,
+            name_height: b.card_name_height,
+            name_inset: b.card_name_inset,
+            tip_compact_inset: b.card_tip_compact_inset,
+            number_gap: b.card_number_gap,
+            tip_gap: b.card_tip_gap,
+            stroke_inset: b.card_stroke_inset,
+            stroke_width: [b.card_stroke_min, b.card_stroke_max],
+            stroke_height: b.card_stroke_height,
+            max: Vec2::from(b.card_max),
+            tip_only: Vec2::from(b.card_tip_only),
+            tip_name: Vec2::from(b.card_tip_name),
+            radius: CornerRadius::same(b.card_radius.round() as u8),
+            fill: b.card_fill.to_egui(),
+            hover: c.state.hover.to_egui(),
+            selected: c.state.selected.to_egui(),
+            name: c.text.muted.to_egui(),
+            number: c.text.faint.to_egui(),
+        }
     }
 
     /// The current preset: drawn selected.
@@ -408,18 +442,16 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetCards<
         // pc: crates/ui-egui/src/panels/brushes_tab.rs:493 `darker` (in gamma space, opaque; now the `brush.card_fill` token)
         let Self { id_salt, state, rows, selected, height, reorder, start_rename, labels, mut tip, mut stroke, diameter_of } = self;
         let tokens = Tokens::of(ui);
-        let style = BrushCardStyle::of(&tokens);
+        let style = Self::style(&tokens);
         let labels = labels.unwrap_or_else(|| BrushCardLabels::of(ui));
         let numbers = LocaleNumbers::of(ui).as_ref().clone().ungrouped();
         let rtl = direction::is_rtl(ui);
         let parts = state.parts.normalised();
         let scale = sane_scale(state.scale);
-        let grid_inset = PresetStyle::from_tokens(&tokens).grid_inset;
-        let room = ui.available_width() - ui.spacing().scroll.allocated_width() - 2.0 * grid_inset;
-        let cell = BrushCardLayout::cell_size(parts, scale, room, &style);
+        let cell = BrushCardLayout::cell_size(parts, scale, grid_room(ui, false), &style);
         state.browser.thumb = cell.x;
 
-        let mut browser = PresetBrowser::new(id_salt, labels.presets.as_str(), &mut state.browser, rows)
+        let mut browser = PresetBrowser::new((&id_salt, "browser"), labels.presets.as_str(), &mut state.browser, rows)
             .selected(selected)
             .cell_shape(CellShape::Ratio(cell.x / cell.y.max(1.0)))
             .thumb_range(cell.x..=cell.x)
@@ -433,6 +465,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetCards<
         if let Some(key) = start_rename {
             browser = browser.start_rename(key);
         }
+        let names: HashMap<&K, &str> = rows.iter().filter(|r| !r.is_group()).map(|r| (&r.key, r.label.as_str())).collect();
         let name_format = role_format(&tokens, TypeRole::Label, style.name);
         let number_format = role_format(&tokens, TypeRole::Caption, style.number);
         browser.show(ui, |painter, rect, info| {
@@ -465,7 +498,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetCards<
             }
             if let Some(name_rect) = layout.name {
                 let name_rect = at(name_rect);
-                let label = rows.iter().find(|r| r.key == *key).map_or("", |r| r.label.as_str());
+                let label = names.get(key).copied().unwrap_or("");
                 let galley = text(label.to_owned(), &name_format, name_rect.width());
                 let x = if rtl { name_rect.right() - galley.size().x } else { name_rect.left() };
                 painter.galley(pos2(x, name_rect.center().y - galley.size().y / 2.0), galley, Color32::PLACEHOLDER);

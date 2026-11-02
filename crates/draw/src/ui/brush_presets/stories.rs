@@ -17,7 +17,7 @@ use super::{
     BrushCardLabels, BrushCardLayout, BrushCardParts, BrushCardStyle, BrushCardsState, BrushPick, BrushPickerLabels, BrushPickerState,
     BrushPickerValues, BrushPresetCards, BrushPresetChip, BrushPresetPicker,
 };
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::popover::PopoverAnchor;
 use craft_ui::presets::{PresetEvent, PresetRow};
 use craft_ui::primitives::{Content, Text};
@@ -240,12 +240,12 @@ impl Library {
         Self { groups }
     }
 
-    fn rows(&self, labels: &BrushCardLabels) -> Vec<PresetRow<u32>> {
+    fn rows(&self, labels: &BrushCardLabels, numbers: &LocaleNumbers) -> Vec<PresetRow<u32>> {
         let mut rows = Vec::new();
         for (key, name, presets) in &self.groups {
             rows.push(PresetRow::group(*key, name.clone(), 0).count(presets.len()));
             for (preset, label) in presets {
-                rows.push(BrushPresetCards::row(*preset, label.clone(), 1, diameter_of(*preset), labels));
+                rows.push(BrushPresetCards::row(*preset, label.clone(), 1, diameter_of(*preset), labels, numbers));
             }
         }
         rows
@@ -300,7 +300,7 @@ fn show_picker(ui: &mut Ui, id: &str, count: u32, diameter: &mut f64, hardness: 
     let chip = BrushPresetChip::new((id, "chip")).diameter(*diameter).open(kept.open).labels(labels.clone()).show(ui, |p, r| {
         paint_tip(p, r, Tip::Hard, color);
     });
-    let rows = kept.library.rows(&card_labels);
+    let rows = kept.library.rows(&card_labels, &LocaleNumbers::of(ui));
     let current = kept.current;
     let mut open = kept.open;
     let out = BrushPresetPicker::new((id, "picker"), PopoverAnchor::Control(chip.response.clone()), &mut kept.state, &rows)
@@ -384,9 +384,11 @@ fn show_cards(ui: &mut Ui, args: &mut CardsArgs) {
     let card_labels = BrushCardLabels::of(ui);
     let color = ink(ui);
     let scale = args.scale.scale();
-    let rows: Vec<PresetRow<u32>> =
-        (0..3).map(|k| BrushPresetCards::row(k, words.preset.replace("{n}", &(k + 1).to_string()), 0, diameter_of(k), &card_labels)).collect();
-    let style = BrushCardStyle::of(&Tokens::of(ui));
+    let numbers = LocaleNumbers::of(ui);
+    let rows: Vec<PresetRow<u32>> = (0..3)
+        .map(|k| BrushPresetCards::row(k, words.preset.replace("{n}", &(k + 1).to_string()), 0, diameter_of(k), &card_labels, &numbers))
+        .collect();
+    let style = BrushPresetCards::<u32>::style(&Tokens::of(ui));
     for (i, parts) in combos().enumerate() {
         let mut names = Vec::new();
         if parts.tip {

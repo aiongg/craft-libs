@@ -1,6 +1,7 @@
 //! Tests of the options-bar brush chip (task BR-BP3).
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
+use craft_ui::direction::{self, Direction};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Context, Key};
@@ -42,4 +43,35 @@ fn chip_click_and_keys_report_clicked() {
         harness.run();
         assert_eq!(*harness.state(), n, "{key:?} reports clicked");
     }
+}
+
+// The tip sits at the leading end and the chevron's room at the trailing end: the tip's distance
+// from the chip's leading edge is the same in both directions.
+#[test]
+fn chip_mirrors_in_right_to_left() {
+    let lead = |dir: Direction| {
+        let seen = std::rc::Rc::new(std::cell::Cell::new(None));
+        let tip = seen.clone();
+        let mut harness = Harness::builder()
+            .with_size([200.0, 80.0])
+            .with_context_setup(move |ctx: &Context| {
+                install(ctx, &Base::suite_default());
+                direction::apply(ctx, dir);
+            })
+            .build_ui(move |ui| {
+                let mut tip_rect = None;
+                let response = BrushPresetChip::new("chip").diameter(30.0).show(ui, |_, rect| tip_rect = Some(rect)).response;
+                if let Some(rect) = tip_rect {
+                    tip.set(Some((rect, response.rect)));
+                }
+            });
+        harness.run();
+        let (tip, chip) = seen.get().expect("the chip was shown");
+        match dir {
+            Direction::Ltr => tip.center().x - chip.left(),
+            Direction::Rtl => chip.right() - tip.center().x,
+        }
+    };
+    let (ltr, rtl) = (lead(Direction::Ltr), lead(Direction::Rtl));
+    assert!((ltr - 14.0).abs() < 0.5 && (rtl - 14.0).abs() < 0.5, "tip 14 pt from the leading edge: {ltr} / {rtl}");
 }

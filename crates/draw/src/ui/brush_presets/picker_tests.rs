@@ -1,7 +1,9 @@
 //! Tests of the Brush Preset picker (task BR-BP2).
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
+use craft_ui::direction::{self, Direction};
 use craft_ui::edit::EditEvent;
+use craft_ui::localized::LocaleNumbers;
 use craft_ui::popover::{CloseReason, Popover, PopoverAnchor, any_open};
 use craft_ui::presets::{PresetEvent, PresetRow};
 use craft_ui::theme::{Base, install};
@@ -34,7 +36,8 @@ struct Host {
 impl Host {
     fn new() -> Self {
         let labels = BrushCardLabels::default();
-        let row = |key, name: &str, diameter| BrushPresetCards::row(key, name, 1, diameter, &labels);
+        let numbers = LocaleNumbers::from_tag("en");
+        let row = |key, name: &str, diameter| BrushPresetCards::row(key, name, 1, diameter, &labels, &numbers);
         let rows = vec![
             PresetRow::group(100, "Round", 0),
             row(1, "Soft Round", 30.0),
@@ -65,7 +68,7 @@ impl Host {
 fn app(ui: &mut Ui, host: &mut Host) {
     let chip = ui.button("Chip");
     host.chip = chip.rect;
-    host.popover = Popover::id_in(ui, egui::IdSalt::new("picker"));
+    host.popover = Popover::id_in(ui, (&egui::IdSalt::new("picker"), "popover"));
     if chip.clicked() {
         host.open = !host.open;
     }
@@ -85,14 +88,27 @@ fn app(ui: &mut Ui, host: &mut Host) {
 }
 
 fn harness(host: Host) -> Harness<'static, Host> {
-    let mut h =
-        Harness::<Host>::builder().with_size([480.0, 640.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(app, host);
+    harness_in(host, Direction::Ltr)
+}
+
+fn harness_in(host: Host, dir: Direction) -> Harness<'static, Host> {
+    let mut h = Harness::<Host>::builder()
+        .with_size([480.0, 640.0])
+        .with_context_setup(move |ctx| {
+            install(ctx, &Base::suite_default());
+            direction::apply(ctx, dir);
+        })
+        .build_ui_state(app, host);
     h.run();
     h
 }
 
 fn opened(host: Host) -> Harness<'static, Host> {
-    let mut h = harness(host);
+    opened_in(host, Direction::Ltr)
+}
+
+fn opened_in(host: Host, dir: Direction) -> Harness<'static, Host> {
+    let mut h = harness_in(host, dir);
     h.state_mut().open = true;
     h.run_steps(4);
     h
@@ -246,12 +262,13 @@ fn hardness_hides_for_a_sampled_tip() {
     sampled.run();
 
     let mut h = opened(Host::new());
-    let slider = centre(&h, Role::Slider, "Hardness");
-    click(&mut h, slider);
+    h.get_by_role_and_label(Role::Slider, "Hardness").focus();
+    h.run();
     key(&mut h, Key::ArrowRight);
-    let value = h.state().hardness;
-    assert!(h.state().hardness_events.iter().all(|e| e.value().is_none_or(|v| (0.0..=1.0).contains(v))), "{:?}", h.state().hardness_events);
-    assert!(value.is_some_and(|v| (0.0..=1.0).contains(&v) && ((v * 100.0).round() - v * 100.0).abs() < 1e-6), "{value:?}");
+    assert_eq!(h.state().hardness_events.len(), 1, "one arrow press is one hardness event: {:?}", h.state().hardness_events);
+    assert!(h.state().hardness_events.iter().all(|e| e.value().is_some_and(|v| (0.0..=1.0).contains(v))), "{:?}", h.state().hardness_events);
+    let value = h.state().hardness.expect("the host keeps a hardness");
+    assert!((value - 0.81).abs() < 1e-9, "80 % plus one step is 81 %: {value}");
 }
 
 // Typing "SOFT" shows the presets whose names contain "soft" and opens their groups.
@@ -310,6 +327,24 @@ fn gear_rename_and_delete_act_on_the_current_preset() {
 
     gear_row(&mut h, Role::MenuItem, "Rename Brush…");
     assert!(h.query_by_role_and_label(Role::TextInput, "Name").is_some(), "the rename bar opens on the current card");
+    assert!(
+        h.get_by_role_and_label(Role::TextInput, "Name").accesskit_node().is_focused(),
+        "the rename field has the focus the closing menu did not take back"
+    );
+}
+
+// The head, the search row and the card parts mirror: the buttons follow the search field at the
+// trailing end, the size field sits at the trailing end of its row.
+#[test]
+fn the_picker_head_and_search_row_mirror_in_right_to_left() {
+    let ltr = opened_in(Host::new(), Direction::Ltr);
+    let rtl = opened_in(Host::new(), Direction::Rtl);
+    let dialog = |h: &Harness<'_, Host>| h.ctx.memory(|m| m.area_rect(h.state().popover)).unwrap_or(egui::Rect::NOTHING);
+    let side = |h: &Harness<'_, Host>, role, label| centre(h, role, label).x - dialog(h).center().x;
+    assert!(side(&ltr, Role::SpinButton, "Size") > 0.0, "left to right: the size field ends the row");
+    assert!(side(&rtl, Role::SpinButton, "Size") < 0.0, "right to left: the size field ends the row on the left");
+    let apart = |h: &Harness<'_, Host>| centre(h, Role::Button, "Brush Preset Options").x - centre(h, Role::Button, "Brush Settings…").x;
+    assert!(apart(&ltr) > 0.0 && apart(&rtl) < 0.0, "the gear follows Brush Settings: {} / {}", apart(&ltr), apart(&rtl));
 }
 
 // Gear part boxes: clearing the last checked box leaves it on; a change reports `settings`.

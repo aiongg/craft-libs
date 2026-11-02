@@ -64,6 +64,9 @@ pub(super) fn show(ui: &mut Ui, bar: Id, owner: Id, current: &str, labels: &Pres
             ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
         }
         if cancelled || edit.escaped {
+            // The Escape ends the rename only: a popover or dialog around the browser must not
+            // read the same press as its own close.
+            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
             ended = Some(Ended::Cancel);
         } else if edit.submitted || (edit.response.lost_focus() && !fresh) {
             ended = Some(Ended::Commit(text.clone()));

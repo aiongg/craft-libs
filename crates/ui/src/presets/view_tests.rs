@@ -553,3 +553,21 @@ mod footer_and_drop_zone {
         assert!(!events.iter().any(|e| matches!(e, PresetEvent::DropAt { .. })), "{events:?}");
     }
 }
+
+// A host that sizes its cells to the room reads `grid_room`: the grid's width less the scroll bar
+// and the inset at both ends, and the whole width less the scroll bar when the grid is flush.
+#[test]
+fn grid_room_is_the_grid_width_less_the_inset_at_both_ends() {
+    use crate::theme::{Tokens, TokensOf as _};
+    let seen = std::cell::Cell::new(None);
+    let mut h = Harness::builder().with_size([300.0, 100.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(|ui| {
+        let inset = super::style::PresetStyle::from_tokens(&Tokens::of(ui)).grid_inset;
+        let width = ui.available_width() - ui.spacing().scroll.allocated_width();
+        seen.set(Some((super::view::grid_room(ui, false), super::view::grid_room(ui, true), width, inset)));
+    });
+    h.run();
+    let (room, flush, width, inset) = seen.get().expect("the ui ran");
+    assert!(inset > 0.0);
+    assert!((flush - width).abs() < 0.01, "{flush} vs {width}");
+    assert!((room - (width - 2.0 * inset)).abs() < 0.01, "{room} vs {}", width - 2.0 * inset);
+}
