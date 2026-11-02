@@ -322,6 +322,15 @@ impl Param {
         self
     }
 
+    /// The value the row opens with: its kind's default, stored by the same rule as an edit
+    /// (a Range row's [`decimals`](Param::decimals)).
+    pub(super) fn default_value(&self) -> Option<FieldValue> {
+        match (&self.kind, self.option().range_decimals) {
+            (ParamKind::Range { default, .. }, Some(places)) => Some(rounded(*default, Some(places))),
+            _ => self.kind.default_value(),
+        }
+    }
+
     fn option(&self) -> RowOptions {
         self.options.as_deref().cloned().unwrap_or_default()
     }
@@ -778,7 +787,7 @@ pub(super) fn take_path_press(ctx: &Context, dialog: DialogId) -> Option<PathReq
 pub(super) fn open_fields(ctx: &Context, id: DialogId, params: &[Param], fields: &mut DialogFields) {
     for param in params {
         if !fields.contains(&param.key)
-            && let Some(value) = param.kind.default_value()
+            && let Some(value) = param.default_value()
         {
             fields.set(param.key.as_str(), value);
         }
@@ -873,7 +882,7 @@ impl<'a> ParamRows<'a> {
         let id = ui.make_persistent_id(self.id_salt);
         for param in self.params {
             if !fields.contains(&param.key)
-                && let Some(value) = param.kind.default_value()
+                && let Some(value) = param.default_value()
             {
                 fields.set(param.key.as_str(), value);
             }

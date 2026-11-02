@@ -599,6 +599,12 @@ fn a_range_row_stores_the_value_rounded_to_its_decimals() {
         let [DialogResult::Ok(ParamResult { fields, .. })] = &harness.state().answers[..] else { panic!("one OK") };
         assert_eq!(fields.get("v"), Some(&expected));
     }
+    let row = |places| Param::new("v", "V:", ParamKind::Range { min: 0.0, max: 10.0, default: 2.67, scale: SliderScale::Linear }).decimals(places);
+    for (places, expected) in [(1, FieldValue::Number(2.7)), (0, FieldValue::Int(3))] {
+        let mut harness = harness(ParamDialog::new("untouched", "Untouched", vec![row(places)]));
+        harness.run();
+        assert_eq!(open_dialog(&mut harness).expect("open").fields().get("v"), Some(&expected));
+    }
 }
 
 // Random sets an Int row to a value within its bounds; the pipette toggle reports its state.
