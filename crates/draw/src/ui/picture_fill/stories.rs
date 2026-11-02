@@ -153,7 +153,9 @@ fn show_editor(ui: &mut Ui, args: &mut EditorArgs) {
     for event in events {
         match event {
             PictureFillEvent::Edit(edit) => {
-                kept.note = craft_i18n::fmt(&story.last_event, &[("event", &EventKindLabels::of(ui).kind(&edit))]);
+                if let Some(kind) = EventKindLabels::of(ui).kind(&edit) {
+                    kept.note = craft_i18n::fmt(&story.last_event, &[("event", &kind)]);
+                }
                 if let Some(fill) = edit.value() {
                     kept.fill = fill.clone();
                 }

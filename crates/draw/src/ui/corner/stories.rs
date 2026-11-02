@@ -179,7 +179,7 @@ fn show_corners(ui: &mut Ui, args: &mut CornerArgs) {
     let response =
         CornerWidgets::new("corner-story", &targets, &units).kinds(args.kinds).hide_above(args.hide_above).show(ui, &canvas.response, &canvas.view);
     if let Some(event) = &response.event {
-        state.last = Some(EventKindLabels::of(ui).kind(event));
+        state.last = EventKindLabels::of(ui).kind(event);
     }
     match &response.event {
         Some(EditEvent::Begin { .. }) => state.before = Some(state.shapes.clone()),

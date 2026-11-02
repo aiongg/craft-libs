@@ -57,14 +57,15 @@ craft_ui::words! {
 }
 
 impl EventKindLabels {
-    /// The word for the kind of `event`.
-    pub(crate) fn kind<T>(&self, event: &EditEvent<T>) -> String {
+    /// The word for the kind of `event`; `None` for a kind this story has no word for.
+    pub(crate) fn kind<T>(&self, event: &EditEvent<T>) -> Option<String> {
         match event {
-            EditEvent::Begin { .. } => self.begin.clone(),
-            EditEvent::Update { .. } => self.update.clone(),
-            EditEvent::Commit { .. } => self.commit.clone(),
-            EditEvent::Cancel { .. } => self.cancel.clone(),
-            EditEvent::Set { .. } => self.set.clone(),
+            EditEvent::Begin { .. } => Some(self.begin.clone()),
+            EditEvent::Update { .. } => Some(self.update.clone()),
+            EditEvent::Commit { .. } => Some(self.commit.clone()),
+            EditEvent::Cancel { .. } => Some(self.cancel.clone()),
+            EditEvent::Set { .. } => Some(self.set.clone()),
+            _ => None,
         }
     }
 }
@@ -242,7 +243,7 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
     }
     if let (Some(event), Some(field)) = (&response.event, response.field) {
         settle(&mut state.mixed, field);
-        state.last = Some(EventKindLabels::of(ui).kind(event));
+        state.last = EventKindLabels::of(ui).kind(event);
     }
     ui.horizontal(|ui| {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
@@ -273,7 +274,8 @@ struct PopoverState {
 fn show_popover(ui: &mut Ui, args: &mut PopoverArgs) {
     let words = StoryLabels::of(ui);
     let kept = shared(ui, "popover", || PopoverState { style: StrokeStyle::default(), open: false, last: None });
-    let mut state = lock(&kept);
+    let mut guard = lock(&kept);
+    let state = &mut *guard;
     let numbers = LocaleNumbers::of(ui);
     let response =
         StrokeButton::new("stroke-editor-popover", &state.style, &numbers).enabled(args.stroke).closed(args.closed).show(ui, &mut state.open);
@@ -284,7 +286,7 @@ fn show_popover(ui: &mut Ui, args: &mut PopoverArgs) {
         if field == StrokeField::Preset {
             args.stroke = true;
         }
-        state.last = Some(EventKindLabels::of(ui).kind(event));
+        state.last = EventKindLabels::of(ui).kind(event);
     }
     last_event(ui, &words, &state.last);
 }
@@ -411,7 +413,7 @@ fn show_rows(ui: &mut Ui, args: &mut RowsArgs) {
             _ => own.profile.as_str(),
         };
         let choice_name = heads.iter().chain(&profiles).find(|c| c.id == choice).map_or(choice.as_str(), |c| c.label.as_str());
-        state.last = Some(craft_i18n::fmt(&words.row_choice, &[("row", row_name), ("choice", choice_name)]));
+        state.last = Some(craft_i18n::fmt(&own.row_choice, &[("row", row_name), ("choice", choice_name)]));
         match row.as_str() {
             START => state.start = choice,
             END => state.end = choice,

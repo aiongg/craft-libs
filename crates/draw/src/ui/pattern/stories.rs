@@ -190,7 +190,7 @@ fn show_editor(ui: &mut Ui, args: &mut EditorArgs) {
         editor = editor.thumbnails(paint(&tokens));
     }
     if let Some(event) = editor.show(ui).event {
-        kept.event = Some(EventKindLabels::of(ui).kind(&event));
+        kept.event = EventKindLabels::of(ui).kind(&event);
         if let Some(value) = event.value() {
             kept.options = value.clone();
         }

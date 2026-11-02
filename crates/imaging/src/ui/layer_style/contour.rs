@@ -490,7 +490,7 @@ impl StackDialog for ContourEditorDialog {
         let numbers = LocaleNumbers::of_ctx(ctx);
         *pass = ctx.cumulative_pass_nr();
         let before = current.clone();
-        let base = Id::new("contourEditor");
+        let base = id.with("contourEditor");
         let mut name_done = false;
         let focus_name = std::mem::take(name_focus);
         let footer = Footer::side()
