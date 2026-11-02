@@ -29,5 +29,11 @@ craft_ui::words! {
         /// The canvas's description of a plane's check.
         questionable: "vanishingPoint.questionable" = "This plane's perspective is questionable";
         invalid: "vanishingPoint.invalid" = "This plane's perspective is invalid";
+        /// The keyboard group of the planes' corners.
+        parts: "vanishingPoint.parts" = "Plane corners";
+        /// The message of a Stamp press with no clone source, or Alt-clicked off every plane.
+        stamp_no_source: "vanishingPoint.stampNoSource" = "Alt-click a plane to set the clone source";
+        /// The message of a Stamp press past the engine's stroke limits.
+        stamp_too_many: "vanishingPoint.stampTooMany" = "Too many clone strokes: apply Vanishing Point first";
     }
 }

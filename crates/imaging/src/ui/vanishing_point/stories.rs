@@ -28,8 +28,8 @@ use egui::load::SizedTexture;
 use egui::{Color32, ColorImage, TextureHandle, TextureOptions, Ui, vec2};
 
 use super::{
-    PlaneCheck, PlaneEdge, TornPlane, VanishingPlane, VanishingPointBar, VanishingPointEditor, VanishingPointLabels, VanishingPointOptions,
-    VanishingPointSession, VanishingPointSource, VanishingPointStyle, VanishingScene, VanishingTool,
+    PlaneCheck, PlaneEdge, StampLimits, TornPlane, VanishingPlane, VanishingPointBar, VanishingPointEditor, VanishingPointSession,
+    VanishingPointSettings, VanishingPointSource, VanishingPointStyle, VanishingScene, VanishingTool,
 };
 use crate::ui::mock_image::MockImage;
 
@@ -241,14 +241,20 @@ struct State {
     session: VanishingPointSession,
     editor: VanishingPointEditor,
     view: FullWindowView,
-    options: VanishingPointOptions,
+    options: VanishingPointSettings,
     texture: TextureHandle,
 }
 
 impl State {
     fn new(ui: &Ui, session: VanishingPointSession) -> Self {
         let texture = ui.ctx().load_texture("vanishing-point-story-paste", paste_image(), TextureOptions::NEAREST);
-        Self { session, editor: VanishingPointEditor::new(), view: FullWindowView::new(), options: VanishingPointOptions::default(), texture }
+        Self {
+            session,
+            editor: VanishingPointEditor::new(StampLimits { strokes: 4096, dabs: 200_000 }),
+            view: FullWindowView::new(),
+            options: VanishingPointSettings::default(),
+            texture,
+        }
     }
 }
 
@@ -263,17 +269,18 @@ fn planes_session() -> VanishingPointSession {
 
 /// The bar above and the canvas under it, with the editor as the canvas's tool.
 fn editor(ui: &mut Ui, state: &mut State, salt: &'static str, tool: VanishingTool, hint: &str) {
-    let labels = VanishingPointLabels::of(ui);
     let style = VanishingPointStyle::of(&current(ui.ctx()));
     let image = MockImage::default();
     let source = MockSource { image, paste: SizedTexture::new(state.texture.id(), vec2(PASTE as f32, PASTE as f32)) };
     state.editor.set_tool(tool);
     let has_clip = true;
-    VanishingPointBar::new(("vanishing-point-story-bar", salt), tool, &mut state.options, state.session.paste, has_clip, &labels).show(ui);
+    VanishingPointBar::new(("vanishing-point-story-bar", salt), tool, &mut state.options, state.session.paste, has_clip)
+        .has_strokes(!state.session.strokes.is_empty())
+        .show(ui);
     ui.add(Text::new(hint).content(Content::Muted));
     let width = ui.available_width();
     ui.allocate_ui(vec2(width, width * FRAME_RATIO), |ui| {
-        let mut pass = state.editor.pass(&mut state.session, &state.options, &MockScene, &source, &style, &labels);
+        let mut pass = state.editor.pass(&mut state.session, &state.options, &MockScene, &source, &style);
         let _ = FullWindowCanvas::new(("vanishing-point-story", salt), &mut state.view)
             .source(&source.image)
             .checkerboard(Checkerboard::default())

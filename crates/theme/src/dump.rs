@@ -3170,7 +3170,21 @@ fn connector_lines(out: &mut Lines, t: &ConnectorTokens) {
 }
 
 fn vanishing_point_lines(out: &mut Lines, t: &VanishingPointTokens) {
-    let VanishingPointTokens { line, line_selected, grid, grid_alpha, node, pending, halo_width, source_arm, halo } = t;
+    let VanishingPointTokens {
+        line,
+        line_selected,
+        grid,
+        grid_alpha,
+        node,
+        pending,
+        halo_width,
+        source_arm,
+        press_reach,
+        click_slop,
+        ring_line,
+        paste_alpha,
+        halo,
+    } = t;
     out.line("vanishing_point.line", len(*line));
     out.line("vanishing_point.line_selected", len(*line_selected));
     out.line("vanishing_point.grid", len(*grid));
@@ -3179,6 +3193,10 @@ fn vanishing_point_lines(out: &mut Lines, t: &VanishingPointTokens) {
     out.line("vanishing_point.pending", len(*pending));
     out.line("vanishing_point.halo_width", len(*halo_width));
     out.line("vanishing_point.source_arm", len(*source_arm));
+    out.line("vanishing_point.press_reach", len(*press_reach));
+    out.line("vanishing_point.click_slop", len(*click_slop));
+    out.line("vanishing_point.ring_line", len(*ring_line));
+    out.line("vanishing_point.paste_alpha", len(*paste_alpha));
     out.line("vanishing_point.halo", hex(*halo));
 }
 

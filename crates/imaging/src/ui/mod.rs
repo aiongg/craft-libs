@@ -100,7 +100,8 @@ pub use selection::{OutlineSource, SelectionOverlay, SelectionOverlayLabels, Sel
 pub use transform_preview::{PreviewMap, PreviewQuality, StyledPreview, TransformPreview};
 pub use vanishing_point::{
     VanishingPlane, VanishingPointBar, VanishingPointBarOutput, VanishingPointEditor, VanishingPointEvent, VanishingPointLabels, VanishingPointOpen,
-    VanishingPointOutput, VanishingPointSession, VanishingPointSource, VanishingPointStyle, VanishingPointWorkspace, VanishingScene,
+    VanishingPointOutput, VanishingPointSession, VanishingPointSettings, VanishingPointSource, VanishingPointStyle, VanishingPointWorkspace,
+    VanishingScene,
 };
 pub use warp::perspective::{
     PerspectiveBar, PerspectiveBarLabels, PerspectiveBarOutput, PerspectiveEdit, PerspectiveSession, PerspectiveWarp, PerspectiveWarpLabels,
