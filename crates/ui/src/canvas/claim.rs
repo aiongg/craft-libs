@@ -131,38 +131,40 @@ impl Claim {
     }
 }
 
-/// The context's one click run: the count, time and screen point of the last press counted. The
+/// The context's one click run: the count, button, time and screen point of the last press counted. The
 /// tool host's [`ToolPointer::clicks`](super::ToolPointer::clicks) and
 /// [`PrimaryPress::clicks`] both read it, so a double click counts the same for a tool and an
 /// overlay.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct ClickRun {
     count: u32,
+    button: PointerButton,
     time: f64,
     at: Pos2,
 }
 
-/// The place of a press at `time` (egui input time) and `at` (screen) in the context's one click
-/// run, stored in egui temp memory under one id for the context: the same press asked again (same
+/// The place of a press of `button` at `time` (egui input time) and `at` (screen) in the context's
+/// one click run, stored in egui temp memory under one id for the context: the same press asked again (same
 /// time and point) gets the count it got; a press later than the last counted one by less than
-/// egui's `InputOptions::max_double_click_delay` and nearer than `max_click_dist` continues the
-/// run (`count + 1`, saturating); any other press starts a new run of 1. A press nobody asks about
+/// egui's `InputOptions::max_double_click_delay` and nearer than `max_click_dist` with the same
+/// button continues the run (`count + 1`, saturating); any other press, including one of another
+/// button, starts a new run of 1. A press nobody asks about
 /// is not counted. The tool host counts its presses here too (task K4 replaces its own
 /// `HostState::clicks` with this), injected presses at their screen point.
-pub(crate) fn click_count(ctx: &Context, time: f64, at: Pos2) -> u32 {
+pub(crate) fn click_count(ctx: &Context, button: PointerButton, time: f64, at: Pos2) -> u32 {
     // new: the rule of `tool_host.rs:675` `Run::press_clicks`, moved to one counter (step7-pen lead call 30).
     let key = Id::unique("craft-ui-click-run");
     let (delay, distance) = ctx.options(|o| (o.input_options.max_double_click_delay, o.input_options.max_click_dist));
     ctx.data_mut(|d| {
         let last = d.get_temp::<ClickRun>(key);
-        if let Some(run) = last.filter(|r| r.time == time && r.at == at) {
+        if let Some(run) = last.filter(|r| r.button == button && r.time == time && r.at == at) {
             return run.count;
         }
         let count = match last {
-            Some(r) if (0.0..delay).contains(&(time - r.time)) && at.distance(r.at) < distance => r.count.saturating_add(1),
+            Some(r) if r.button == button && (0.0..delay).contains(&(time - r.time)) && at.distance(r.at) < distance => r.count.saturating_add(1),
             _ => 1,
         };
-        d.insert_temp(key, ClickRun { count, time, at });
+        d.insert_temp(key, ClickRun { count, button, time, at });
         count
     })
 }
@@ -214,7 +216,7 @@ impl PrimaryPress {
     /// mode reads it for its double click; nothing else changes egui's own double-click state.
     pub fn clicks(self, ctx: &Context) -> u32 {
         // new: step7-pen lead call 30.
-        click_count(ctx, self.time, self.origin)
+        click_count(ctx, PointerButton::Primary, self.time, self.origin)
     }
 
     /// The queue key of `overlay`'s input for this press: a later press of the same overlay never

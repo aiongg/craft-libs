@@ -454,7 +454,8 @@ fn tool_host_claims_inside_and_ignores_outside() {
     let _ = step(&mut editor, &mut host, &[]);
     let m = Modifiers::NONE;
     let at = |x: f64, y: f64| Point::new(x, y);
-    let down = |p: Point| ToolInput::Down { doc: p, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m };
+    let down =
+        |p: Point| ToolInput::Down { button: egui::PointerButton::Primary, doc: p, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m };
     let mv = |p: Point| ToolInput::Move { doc: p, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m };
     let up = |p: Point| ToolInput::Up { doc: p, modifiers: m };
 
@@ -509,7 +510,14 @@ fn tool_host_updates_each_pass_and_counts_clicks() {
     assert_eq!(host.text, "helloX world");
 
     let m = Modifiers::NONE;
-    let down = ToolInput::Down { doc: Point::new(3.0, 0.5), pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m };
+    let down = ToolInput::Down {
+        button: egui::PointerButton::Primary,
+        doc: Point::new(3.0, 0.5),
+        pressure: 1.0,
+        tilt: [0.0; 2],
+        rotation: 0.0,
+        modifiers: m,
+    };
     let up = ToolInput::Up { doc: Point::new(3.0, 0.5), modifiers: m };
     let _ = step(&mut editor, &mut host, &[down, up, down], Vec::new());
     assert_eq!(editor.selection(), TextSelection { anchor: 0, caret: 6 }, "the second press of the run selects the word");

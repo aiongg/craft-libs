@@ -379,7 +379,7 @@ fn run_script(ui: &Ui, canvas: &StoryCanvas, script: &mut Option<Script>, second
     let modifiers = Modifiers { ctrl: true, alt: true, ..Modifiers::NONE };
     let input = if !run.pressed {
         run.pressed = true;
-        ToolInput::Down { doc: from, pressure: 1.0, tilt: [0.0, 0.0], rotation: 0.0, modifiers }
+        ToolInput::Down { button: egui::PointerButton::Primary, doc: from, pressure: 1.0, tilt: [0.0, 0.0], rotation: 0.0, modifiers }
     } else if t < 1.0 {
         ToolInput::Move { doc, pressure: 1.0, tilt: [0.0, 0.0], rotation: 0.0, modifiers }
     } else {

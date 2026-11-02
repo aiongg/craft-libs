@@ -16,6 +16,8 @@
 //!   window, at a size and scale.
 //! - [`HarnessExt`] (`screen-testing` feature, desktop): clicks, drags, keys and typing one event
 //!   per frame on a kittest harness, and pumps that wait for the app's background work.
+//! - [`canvas`] (`screen-testing` feature and craft-ui's own tests, desktop): pointer and key input for a tool under a
+//!   [`ToolHost`](crate::canvas::ToolHost) on any kittest harness.
 //! - [`events`]: the one definition of a click's, drag's, key press's and typing's event frames.
 //! - [`i18n_audit`]: interface text drawn without going through translation, found in the pseudo
 //!   locale.
@@ -30,6 +32,8 @@ pub use typing_field::TypingField;
 
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub mod a11y;
+#[cfg(all(any(feature = "screen-testing", test), not(target_arch = "wasm32")))]
+pub mod canvas;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 mod frame;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -47,6 +51,8 @@ pub use screens::*;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub mod symbols;
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod canvas_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tests;
 

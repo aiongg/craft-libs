@@ -37,8 +37,19 @@ fn primary_press_counts_its_click_run() {
 fn asking_again_for_a_press_keeps_its_count() {
     let ctx = Context::default();
     let at = pos2(10.0, 10.0);
-    assert_eq!(click_count(&ctx, 1.0, at), 1);
-    assert_eq!(click_count(&ctx, 1.1, at), 2);
-    assert_eq!(click_count(&ctx, 1.1, at), 2);
-    assert_eq!(click_count(&ctx, 1.1, at), 2);
+    assert_eq!(click_count(&ctx, PointerButton::Primary, 1.0, at), 1);
+    assert_eq!(click_count(&ctx, PointerButton::Primary, 1.1, at), 2);
+    assert_eq!(click_count(&ctx, PointerButton::Primary, 1.1, at), 2);
+    assert_eq!(click_count(&ctx, PointerButton::Primary, 1.1, at), 2);
+}
+
+// A press of another button starts a new click run; a run counts only its own button.
+#[test]
+fn a_run_counts_only_presses_of_one_button() {
+    let ctx = Context::default();
+    let at = pos2(10.0, 10.0);
+    assert_eq!(click_count(&ctx, PointerButton::Secondary, 1.0, at), 1);
+    assert_eq!(click_count(&ctx, PointerButton::Primary, 1.1, at), 1);
+    assert_eq!(click_count(&ctx, PointerButton::Primary, 1.2, at), 2);
+    assert_eq!(click_count(&ctx, PointerButton::Secondary, 1.3, at), 1);
 }

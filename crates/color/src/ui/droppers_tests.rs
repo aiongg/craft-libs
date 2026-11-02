@@ -122,7 +122,10 @@ fn the_canvas_tool_samples_for_the_armed_dropper() {
     };
     let (m, tilt) = (Modifiers::NONE, [0.0; 2]);
     DropperState::arm(&h.ctx, owner);
-    send(&mut h, ToolInput::Down { doc: Point::new(150.0, 10.0), pressure: 1.0, tilt, rotation: 0.0, modifiers: m });
+    send(
+        &mut h,
+        ToolInput::Down { button: egui::PointerButton::Primary, doc: Point::new(150.0, 10.0), pressure: 1.0, tilt, rotation: 0.0, modifiers: m },
+    );
     assert_eq!(DropperState::take(&h.ctx, owner), Some(Srgba::rgb(0.5, 0.0, 0.0)));
     DropperState::arm(&h.ctx, owner);
     send(&mut h, ToolInput::Move { doc: Point::new(350.0, 10.0), pressure: 1.0, tilt, rotation: 0.0, modifiers: m });

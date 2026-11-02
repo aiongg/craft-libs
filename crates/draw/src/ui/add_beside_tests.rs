@@ -109,7 +109,11 @@ fn artboard_plus_button_reports_add_beside_and_alt_copies() {
     for alt in [false, true] {
         let modifiers = if alt { Modifiers::ALT } else { Modifiers::NONE };
         let Some(id) = h.state().canvas else { panic!("a pass ran") };
-        ToolHost::inject(&h.ctx, id, ToolInput::Down { doc: right, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
+        ToolHost::inject(
+            &h.ctx,
+            id,
+            ToolInput::Down { button: egui::PointerButton::Primary, doc: right, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers },
+        );
         h.step();
         ToolHost::inject(&h.ctx, id, ToolInput::Up { doc: right, modifiers });
         h.step();

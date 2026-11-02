@@ -75,7 +75,18 @@ fn input(h: &mut Harness<'_, Host>, input: impl FnOnce(Modifiers) -> ToolInput, 
 }
 
 fn down(h: &mut Harness<'_, Host>, at: (f64, f64), m: Modifiers) {
-    input(h, |modifiers| ToolInput::Down { doc: Point::new(at.0, at.1), pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers }, m);
+    input(
+        h,
+        |modifiers| ToolInput::Down {
+            button: egui::PointerButton::Primary,
+            doc: Point::new(at.0, at.1),
+            pressure: 1.0,
+            tilt: [0.0; 2],
+            rotation: 0.0,
+            modifiers,
+        },
+        m,
+    );
 }
 
 fn to(h: &mut Harness<'_, Host>, at: (f64, f64), m: Modifiers) {

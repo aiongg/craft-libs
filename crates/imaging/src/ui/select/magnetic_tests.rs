@@ -149,7 +149,7 @@ fn sample(at: Point, modifiers: Modifiers) -> (Point, f32, [f32; 2], Modifiers) 
 
 fn down(h: &mut Harness<'_, Rig>, at: Point, modifiers: Modifiers) {
     let (doc, pressure, tilt, modifiers) = sample(at, modifiers);
-    input(h, ToolInput::Down { doc, pressure, tilt, rotation: 0.0, modifiers });
+    input(h, ToolInput::Down { button: egui::PointerButton::Primary, doc, pressure, tilt, rotation: 0.0, modifiers });
 }
 
 fn up(h: &mut Harness<'_, Rig>, at: Point, modifiers: Modifiers) {
