@@ -5,9 +5,10 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 use kurbo::{Point, Rect, Size};
 
-use super::{CropBox, CropDocKey, CropDocument, CropEvent, CropGuide, CropInput, CropOutput, CropRatio, CropSettings, CropTool};
-use craft_ui::canvas::{CanvasId, CanvasView, ToolGesture, ToolHost, ToolHostResponse};
+use super::{CropBox, CropDocKey, CropDocument, CropEvent, CropGuide, CropInput, CropRatio, CropSettings, CropTool};
+use craft_ui::canvas::{CanvasId, CanvasTool as _, CanvasView, ToolGesture, ToolHost, ToolHostResponse};
 use craft_ui::edit::EditEvent;
+use craft_ui::testing::canvas as rig;
 use craft_ui::theme::{Base, install};
 
 struct Host {
@@ -17,11 +18,11 @@ struct Host {
     view: CanvasView,
     /// Every event of every pass, `Settings` already applied to `settings`.
     events: Vec<CropEvent>,
-    out: CropOutput,
     responses: Vec<ToolHostResponse>,
     /// The keys the tool took, since the last `key`.
     taken: Vec<Key>,
     focus: bool,
+    nudge_pause: Option<f64>,
 }
 
 fn document() -> CropDocument {
@@ -36,10 +37,10 @@ fn host(settings: CropSettings) -> Host {
         document: document(),
         view: CanvasView::new(rect, Point::new(200.0, 150.0), 1.0),
         events: Vec::new(),
-        out: CropOutput::default(),
         responses: Vec::new(),
         taken: Vec::new(),
         focus: false,
+        nudge_pause: None,
     }
 }
 
@@ -67,7 +68,7 @@ fn harness(host: Host) -> Harness<'static, Host> {
                 if std::mem::take(&mut host.focus) {
                     canvas.request_focus();
                 }
-                let mut pass = host.tool.pass(CropInput::new(&host.settings, &host.document));
+                let mut pass = host.tool.pass(CropInput::new(&host.settings, &host.document).nudge_pause(host.nudge_pause));
                 let response = ToolHost::new(id).document(host.document.size).show(ui, &host.view, &canvas, &mut pass);
                 let out = pass.finish();
                 for event in &out.events {
@@ -76,7 +77,6 @@ fn harness(host: Host) -> Harness<'static, Host> {
                     }
                 }
                 host.events.extend(out.events.iter().cloned());
-                host.out = out;
                 if let Some(view) = response.view {
                     host.view = view;
                 }
@@ -134,7 +134,7 @@ fn key(h: &mut Harness<'_, Host>, key: Key, modifiers: Modifiers) {
 }
 
 fn frame(h: &Harness<'_, Host>) -> CropBox {
-    let Some(frame) = h.state().out.frame else { panic!("the tool shows a frame") };
+    let Some(frame) = h.state().tool.frame() else { panic!("the tool shows a frame") };
     frame
 }
 
@@ -293,7 +293,7 @@ fn o_h_p_i_act_only_with_a_frame_and_no_drag() {
     empty.document = CropDocument::new(CropDocKey(1), Size::ZERO);
     let mut h = harness(empty);
     focused(&mut h);
-    assert_eq!(h.state().out.frame, None);
+    assert_eq!(h.state().tool.frame(), None);
     for letter in [Key::O, Key::H, Key::P] {
         key(&mut h, letter, Modifiers::NONE);
         assert_eq!(took(&h), None, "{letter:?}");
@@ -303,7 +303,7 @@ fn o_h_p_i_act_only_with_a_frame_and_no_drag() {
     assert_eq!(settings_events(&h).len(), 1);
 }
 
-// In Image mode a turn sets the turned view through `set_view` and the frame stays upright; Classic Mode turns the frame; an undo step turns the view on the next pass.
+// In Image mode a turn sets the turned view through `set_view` and the frame stays upright; Classic Mode turns the frame; an undo step returns the turned view.
 #[test]
 fn image_mode_requests_the_turned_view() {
     let mut h = harness(host(image()));
@@ -317,10 +317,12 @@ fn image_mode_requests_the_turned_view() {
     assert_eq!(turned.rect, Rect::new(100.0, 80.0, 300.0, 220.0));
     assert!((h.state().view.rotation - 90.0).abs() < 1e-6, "the view turns against the frame: {}", h.state().view.rotation);
 
-    let Some(back) = h.state_mut().tool.undo() else { panic!("a turn is one box step") };
-    assert_eq!(back, upright(100.0, 80.0, 300.0, 220.0));
-    h.step();
-    assert!(h.state().view.rotation.abs() < 1e-6, "an undo turns the view on the next pass: {}", h.state().view.rotation);
+    // The view comes back with the call, not on the next pass.
+    let view = h.state().view;
+    let Some(back) = h.state_mut().tool.undo(&view) else { panic!("a turn is one box step") };
+    assert_eq!(h.state().tool.frame(), Some(upright(100.0, 80.0, 300.0, 220.0)));
+    assert!(back.rotation.abs() < 1e-6, "undo returns the view turned back: {}", back.rotation);
+    assert!((h.state().view.rotation - 90.0).abs() < 1e-6, "the host's view is still the old one until the app adopts it");
 
     // Classic Mode turns the frame over a fixed image.
     let mut h = harness(host(classic()));
@@ -346,10 +348,11 @@ fn straighten_one_shot_and_temporary_command() {
     let Some(fitted) = canvas.fitted(Size::new(400.0, 300.0), angle) else { panic!("the frame fits") };
     assert!(near(&frame(&h), &fitted), "{:?}", frame(&h));
     assert!(!h.state().tool.straighten_armed(), "one line per click of the button");
-    let Some(before) = h.state_mut().tool.undo() else { panic!("one box step") };
-    assert_eq!(before, canvas);
-    assert_eq!(h.state_mut().tool.undo(), None, "Straighten is one step");
-    h.state_mut().tool.redo();
+    let view = h.state().view;
+    assert!(h.state_mut().tool.undo(&view).is_some(), "one box step");
+    assert_eq!(h.state().tool.frame(), Some(canvas));
+    assert_eq!(h.state_mut().tool.undo(&view), None, "Straighten is one step");
+    h.state_mut().tool.redo(&view);
     h.step();
 
     // Command held: a temporary Straighten that never arms.
@@ -384,7 +387,8 @@ fn editing_a_ratio_refits_from_the_frame_the_edit_began_with() {
     let mut settings = h.state().settings.clone();
     let mut refit = |h: &mut Harness<'_, Host>, width: f64, height: f64, editing: bool| {
         settings.ratio = CropRatio::Sides { width, height };
-        let event = h.state_mut().tool.refit(&settings, &document, editing);
+        let view = h.state().view;
+        let event = h.state_mut().tool.refit(&view, &settings, &document, editing).map(|(event, _)| event);
         let Some(CropEvent::Frame(EditEvent::Set { value, .. })) = event else { return None };
         Some(value)
     };
@@ -445,7 +449,7 @@ fn parts_name_every_corner_edge_and_the_whole_frame() {
     assert_eq!(frame(&h), upright(1.0, 0.0, 400.0, 300.0), "Tab picked the whole frame, Page Down the top left corner");
 }
 
-// `leave` gives Apply for a drawn frame and nothing for the default; `applied(false)` gives the frame, its steps and the kept view back.
+// `leave` gives Apply for a drawn frame and nothing for the default; a refused ✓ gives the frame, its steps and the kept view back, a refused leave clears the session.
 #[test]
 fn leaving_applies_a_drawn_frame_and_a_refused_commit_restores_it() {
     let mut h = harness(host(classic()));
@@ -459,17 +463,19 @@ fn leaving_applies_a_drawn_frame_and_a_refused_commit_restores_it() {
     assert_eq!(h.state_mut().tool.leave(&settings, &document, true), None, "a kept frame stays");
     let Some(CropEvent::Apply(commit)) = h.state_mut().tool.leave(&settings, &document, false) else { panic!("a drawn frame applies") };
     assert_eq!(commit.frame, drawn);
-    // The app's command changed the box history; the refusal gives it back.
-    assert_eq!(h.state_mut().tool.undo(), Some(upright(0.0, 0.0, 400.0, 300.0)));
+    // A refusal of the Apply from leaving clears the session: the next tool does not retry it.
     assert_eq!(h.state_mut().tool.applied(false), None);
-    assert_eq!(h.state().tool.session().frame(), Some(drawn));
-    assert!(h.state().tool.session().can_undo());
+    assert_eq!(h.state().tool.session().frame(), None);
+    h.step();
+    drag(&mut h, pos2(100.0, 80.0), pos2(300.0, 220.0));
 
     let view = h.state().view;
     let Some(CropEvent::Apply(_)) = h.state_mut().tool.apply(&settings, &document, Some(view)) else { panic!("a drawn frame applies") };
-    h.state_mut().tool.undo();
+    // The app's command changed the box history; the refusal gives it back.
+    h.state_mut().tool.undo(&view);
     assert_eq!(h.state_mut().tool.applied(false), Some(view), "the kept view comes back");
     assert_eq!(h.state().tool.session().frame(), Some(drawn));
+    assert!(h.state().tool.session().can_undo());
 }
 
 // A second click of a run inside a drawn frame gives Apply; on the default frame or a handle it does not.
@@ -498,4 +504,153 @@ fn a_double_click_inside_a_drawn_frame_applies() {
     assert_eq!(applies(&h), 1, "the second click of the run applies");
     release(&mut h, pos2(200.0, 150.0));
     assert_eq!(applies(&h), 1);
+}
+
+fn picked(h: &mut Harness<'_, Host>) -> Option<u64> {
+    let (settings, document) = (h.state().settings.clone(), h.state().document);
+    let pass = h.state_mut().tool.pass(CropInput::new(&settings, &document));
+    pass.picked()
+}
+
+// `leave` answers `None` while a drag runs and leaves the press to the host; once the drag ends the same call applies the frame (the app calls it again on later passes).
+#[test]
+fn leaving_during_a_drag_waits_for_the_release() {
+    let mut h = harness(host(classic()));
+    let (settings, document) = (h.state().settings.clone(), h.state().document);
+    rig::press(&mut h, pos2(100.0, 80.0), Modifiers::NONE);
+    rig::move_to(&mut h, pos2(300.0, 220.0));
+    assert!(h.state().tool.dragging());
+    assert_eq!(h.state_mut().tool.leave(&settings, &document, false), None, "the drag keeps the frame");
+    assert!(h.state().tool.dragging(), "the press the host drives is still there");
+    rig::release(&mut h, pos2(300.0, 220.0), Modifiers::NONE);
+    assert!(!h.state().tool.dragging());
+    let Some(CropEvent::Apply(commit)) = h.state_mut().tool.leave(&settings, &document, false) else { panic!("the drawn frame applies") };
+    assert_eq!(commit.frame, upright(100.0, 80.0, 300.0, 220.0));
+}
+
+// An Apply from `leave` that the app refuses clears the session instead of leaving the frame pending under another tool; an Apply from ✓ gives the frame back.
+#[test]
+fn a_refused_apply_from_leave_clears_the_session() {
+    let mut h = harness(host(classic()));
+    let (settings, document) = (h.state().settings.clone(), h.state().document);
+    rig::drag(&mut h, pos2(100.0, 80.0), pos2(300.0, 220.0), Modifiers::NONE);
+    let Some(CropEvent::Apply(_)) = h.state_mut().tool.leave(&settings, &document, false) else { panic!("a drawn frame applies") };
+    assert_eq!(h.state_mut().tool.applied(false), None);
+    assert_eq!(h.state().tool.frame(), None, "no pending crop under the next tool");
+    assert!(!h.state().tool.session().pending());
+
+    h.step();
+    rig::drag(&mut h, pos2(100.0, 80.0), pos2(300.0, 220.0), Modifiers::NONE);
+    let Some(CropEvent::Apply(_)) = h.state_mut().tool.apply(&settings, &document, None) else { panic!("a drawn frame applies") };
+    h.state_mut().tool.applied(false);
+    assert_eq!(h.state().tool.frame(), Some(upright(100.0, 80.0, 300.0, 220.0)), "a refused ✓ restores it");
+}
+
+// A document switch between Apply and `applied(false)` drops the kept frame: the old document's frame does not come back.
+#[test]
+fn a_document_switch_drops_the_kept_frame() {
+    let mut h = harness(host(classic()));
+    let (settings, document) = (h.state().settings.clone(), h.state().document);
+    rig::drag(&mut h, pos2(100.0, 80.0), pos2(300.0, 220.0), Modifiers::NONE);
+    let Some(CropEvent::Apply(_)) = h.state_mut().tool.apply(&settings, &document, None) else { panic!("a drawn frame applies") };
+    h.state_mut().document = CropDocument::new(CropDocKey(2), Size::new(400.0, 300.0));
+    h.step();
+    h.state_mut().events.clear();
+    assert_eq!(h.state_mut().tool.applied(false), None);
+    h.step();
+    assert!(!h.state().tool.session().pending(), "the old frame is not restored");
+    assert!(!h.state().events.contains(&CropEvent::Discard));
+}
+
+// Drawing a new frame clears the pick, so the arrows never move a corner of the new frame.
+#[test]
+fn a_draw_press_clears_the_pick() {
+    let mut h = harness(host(classic()));
+    h.run();
+    h.key_press(Key::Tab);
+    h.run();
+    h.key_press(Key::Tab);
+    h.run();
+    h.key_press(Key::PageDown);
+    h.run();
+    assert!(picked(&mut h).is_some(), "Page Down picked the top left corner");
+    // Inside the default frame a press draws.
+    rig::press(&mut h, pos2(200.0, 150.0), Modifiers::NONE);
+    assert_eq!(picked(&mut h), None, "a Draw press clears the pick");
+    rig::release(&mut h, pos2(200.0, 150.0), Modifiers::NONE);
+}
+
+// The tool's state after a pass is read from getters: the frame, the crop preview and a running drag.
+#[test]
+fn the_pass_state_is_read_from_the_tool() {
+    let mut h = harness(host(classic()));
+    assert!(!h.state().tool.shows_beyond_canvas());
+    assert!(!h.state().tool.dragging());
+    rig::press(&mut h, pos2(100.0, 80.0), Modifiers::NONE);
+    rig::move_to(&mut h, pos2(200.0, 150.0));
+    assert!(h.state().tool.dragging());
+    assert!(h.state().tool.shows_beyond_canvas());
+    rig::release(&mut h, pos2(200.0, 150.0), Modifiers::NONE);
+    assert!(!h.state().tool.dragging());
+    assert!(h.state().tool.shows_beyond_canvas(), "the frame has been pressed since it was made");
+    assert_eq!(frame(&h), upright(100.0, 80.0, 200.0, 150.0));
+}
+
+// With a nudge pause a run of arrow nudges is one box step and counts as owning Undo from the first nudge; without it each nudge is a step.
+#[test]
+fn nudges_within_the_pause_are_one_box_step() {
+    let mut h = harness(host(classic()));
+    h.state_mut().nudge_pause = Some(30.0);
+    focused(&mut h);
+    rig::drag(&mut h, pos2(100.0, 80.0), pos2(300.0, 220.0), Modifiers::NONE);
+    focused(&mut h);
+    let drawn = upright(100.0, 80.0, 300.0, 220.0);
+    rig::key(&mut h, Key::ArrowRight, Modifiers::NONE);
+    rig::key(&mut h, Key::ArrowRight, Modifiers::NONE);
+    rig::key(&mut h, Key::ArrowDown, Modifiers::NONE);
+    assert_eq!(frame(&h), upright(102.0, 81.0, 302.0, 221.0));
+    assert!(h.state().tool.session().owns_undo());
+    let view = h.state().view;
+    assert!(h.state_mut().tool.undo(&view).is_some());
+    assert_eq!(frame(&h), drawn, "one Undo takes back the whole run");
+
+    // The pause ends the run.
+    let mut h = harness(host(classic()));
+    h.state_mut().nudge_pause = Some(0.01);
+    focused(&mut h);
+    rig::drag(&mut h, pos2(100.0, 80.0), pos2(300.0, 220.0), Modifiers::NONE);
+    focused(&mut h);
+    rig::key(&mut h, Key::ArrowRight, Modifiers::NONE);
+    for _ in 0..4 {
+        h.step();
+    }
+    rig::key(&mut h, Key::ArrowRight, Modifiers::NONE);
+    let view = h.state().view;
+    assert!(h.state_mut().tool.undo(&view).is_some());
+    assert_eq!(frame(&h), upright(101.0, 80.0, 301.0, 220.0), "the second nudge was its own step");
+
+    // No pause: every nudge is a step.
+    let mut h = harness(host(classic()));
+    focused(&mut h);
+    rig::drag(&mut h, pos2(100.0, 80.0), pos2(300.0, 220.0), Modifiers::NONE);
+    focused(&mut h);
+    rig::key(&mut h, Key::ArrowRight, Modifiers::NONE);
+    rig::key(&mut h, Key::ArrowRight, Modifiers::NONE);
+    let view = h.state().view;
+    assert!(h.state_mut().tool.undo(&view).is_some());
+    assert_eq!(frame(&h), upright(101.0, 80.0, 301.0, 220.0));
+}
+
+// The hover cursor comes from `CropFrame::cursor`: resize arrows on a handle, the crosshair inside the default frame, Move inside a drawn one.
+#[test]
+fn the_cursor_comes_from_the_frame() {
+    let mut h = harness(host(classic()));
+    let icon = |h: &Harness<'_, Host>| h.state().responses.last().map(|r| r.cursor);
+    rig::move_to(&mut h, pos2(200.0, 150.0));
+    assert_eq!(icon(&h), Some(egui::CursorIcon::Crosshair), "inside the default frame");
+    rig::drag(&mut h, pos2(100.0, 80.0), pos2(300.0, 220.0), Modifiers::NONE);
+    rig::move_to(&mut h, pos2(200.0, 150.0));
+    assert_eq!(icon(&h), Some(egui::CursorIcon::Move));
+    rig::move_to(&mut h, pos2(300.0, 220.0));
+    assert_eq!(icon(&h), Some(egui::CursorIcon::ResizeNwSe));
 }

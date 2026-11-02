@@ -19,8 +19,8 @@ use egui::{Color32, Painter, Shape, Stroke, Ui};
 use kurbo::{Point, Rect};
 
 use super::{
-    CropBarEvent, CropBarOutput, CropDocKey, CropDocument, CropEvent, CropInput, CropLabels, CropNames, CropOptionsBar, CropRatio, CropSettings,
-    CropSizeFields, CropTool, CropUserPreset,
+    CropBarEvent, CropBarOutput, CropBox, CropDocKey, CropDocument, CropEvent, CropInput, CropLabels, CropNames, CropOptionsBar, CropRatio,
+    CropSettings, CropSizeFields, CropTool, CropUserPreset,
 };
 use craft_ui::canvas::{CanvasView, RulerUnits, ToolHost};
 use craft_ui::controls::Button;
@@ -149,6 +149,8 @@ struct Kept {
     /// The view the tool turned, until the view args change.
     view: Option<CanvasView>,
     view_args: ViewArgs,
+    /// The view the canvas showed in the last pass (what Undo and a refit turn from).
+    shown: Option<CanvasView>,
     /// The tool is the picked tool: off after "Pick another tool".
     picked: bool,
     /// The app's last handling of an event, as the status line shows it.
@@ -159,7 +161,7 @@ impl Kept {
     fn new(classic: bool, view_args: ViewArgs) -> Self {
         let mut settings = CropSettings::default();
         settings.shield.classic_mode = classic;
-        Self { tool: CropTool::new(), settings, view: None, view_args, picked: true, last: None }
+        Self { tool: CropTool::new(), settings, view: None, shown: None, view_args, picked: true, last: None }
     }
 }
 
@@ -261,7 +263,7 @@ fn handle(kept: &mut Kept, numbers: &LocaleNumbers, labels: &CropStoryLabels, ev
 
 /// One pass of the tool in a pane: the bar when the pane has one, the picture, and the tool over
 /// it. Returns the tool's output while the tool is picked.
-fn run(ui: &mut Ui, kept: &mut Kept, pane: &Pane) -> Option<super::CropOutput> {
+fn run(ui: &mut Ui, kept: &mut Kept, pane: &Pane) -> Option<CropBox> {
     let numbers = LocaleNumbers::of(ui);
     let own = CropStoryLabels::of(ui);
     let document = pane.document();
@@ -279,7 +281,11 @@ fn run(ui: &mut Ui, kept: &mut Kept, pane: &Pane) -> Option<super::CropOutput> {
         });
         for event in out.take() {
             let tool_event = match event {
-                CropBarEvent::Ratio { editing } => kept.tool.refit(&kept.settings, &document, editing),
+                CropBarEvent::Ratio { editing } => kept.shown.and_then(|view| {
+                    let (event, next) = kept.tool.refit(&view, &kept.settings, &document, editing)?;
+                    kept.view = Some(next);
+                    Some(event)
+                }),
                 CropBarEvent::Straighten => {
                     kept.tool.toggle_straighten();
                     None
@@ -329,10 +335,12 @@ fn run(ui: &mut Ui, kept: &mut Kept, pane: &Pane) -> Option<super::CropOutput> {
     if let Some(view) = host.view {
         kept.view = Some(view);
     }
-    for event in out.events.clone() {
+    kept.shown = Some(host.view.unwrap_or(canvas.view));
+    let frame = kept.tool.frame();
+    for event in out.events {
         handle(kept, &numbers, &own, event);
     }
-    Some(out)
+    frame
 }
 
 /// A muted status line.
@@ -351,8 +359,8 @@ fn last_event(ui: &mut Ui, kept: &Kept) {
 }
 
 /// The frame as the status line shows it: size and turn.
-fn frame_line(numbers: &LocaleNumbers, out: Option<&super::CropOutput>) -> String {
-    match out.and_then(|o| o.frame) {
+fn frame_line(numbers: &LocaleNumbers, frame: Option<CropBox>) -> String {
+    match frame {
         Some(frame) => format!(
             "{} × {} px · {}°",
             numbers.format(frame.rect.width(), 0..=1),
@@ -401,7 +409,7 @@ fn show_default_frame(ui: &mut Ui, args: &mut DefaultArgs) {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             kept = Kept::new(false, args.view);
         }
-        status(ui, frame_line(&numbers, out.as_ref()));
+        status(ui, frame_line(&numbers, out));
     });
     last_event(ui, &kept);
     store(ui, "default-frame", kept);
@@ -440,7 +448,7 @@ fn show_image_mode(ui: &mut Ui, args: &mut ImageModeArgs) {
                 }
                 let mode = if kept.settings.shield.classic_mode { &own.classic_mode } else { &own.image_mode };
                 let view = kept.view.map_or(args.view.rotation, |v| v.rotation);
-                let frame = frame_line(&numbers, out.as_ref());
+                let frame = frame_line(&numbers, out);
                 status(ui, craft_i18n::fmt(&own.mode_line, &[("mode", mode), ("frame", &frame), ("angle", &numbers.format(view, 0..=1))]));
             });
             last_event(ui, &kept);
@@ -482,7 +490,7 @@ fn show_ratio_and_size(ui: &mut Ui, args: &mut RatioArgs) {
         }
         None => own.free_crop.clone(),
     };
-    status(ui, format!("{target} · {}", frame_line(&numbers, out.as_ref())));
+    status(ui, format!("{target} · {}", frame_line(&numbers, out)));
     last_event(ui, &kept);
     store(ui, "ratio-and-size", kept);
 }
@@ -515,7 +523,7 @@ fn show_straighten(ui: &mut Ui, args: &mut StraightenArgs) {
     args.armed = kept.tool.straighten_armed();
     let numbers = LocaleNumbers::of(ui);
     status(ui, CropStoryLabels::of(ui).straighten_hint.clone());
-    status(ui, frame_line(&numbers, out.as_ref()));
+    status(ui, frame_line(&numbers, out));
     last_event(ui, &kept);
     store(ui, "straighten", kept);
 }
@@ -528,7 +536,7 @@ struct UndoArgs {
     view: ViewArgs,
 }
 
-/// Edit › Undo and Redo, as the app routes them to the tool while a crop is pending: each draw,
+/// Edit › Undo and Redo, as the app routes them to the tool while the box owns Undo: each draw,
 /// move, resize, turn or key step is one box step.
 fn show_box_undo(ui: &mut Ui, args: &mut UndoArgs) {
     let words = StoryLabels::of(ui);
@@ -539,17 +547,22 @@ fn show_box_undo(ui: &mut Ui, args: &mut UndoArgs) {
     let own = CropStoryLabels::of(ui);
     ui.horizontal(|ui| {
         let session = kept.tool.session();
-        let (can_undo, can_redo) = (session.pending() && session.can_undo(), session.can_redo());
-        if ui.add_enabled(can_undo, Button::new(own.undo.as_str())).clicked() {
-            kept.tool.undo();
+        let (can_undo, can_redo) = (session.owns_undo() && session.can_undo(), session.owns_undo() && session.can_redo());
+        let shown = kept.shown;
+        if ui.add_enabled(can_undo, Button::new(own.undo.as_str())).clicked()
+            && let Some(view) = shown.and_then(|view| kept.tool.undo(&view))
+        {
+            kept.view = Some(view);
         }
-        if ui.add_enabled(can_redo, Button::new(own.redo.as_str())).clicked() {
-            kept.tool.redo();
+        if ui.add_enabled(can_redo, Button::new(own.redo.as_str())).clicked()
+            && let Some(view) = shown.and_then(|view| kept.tool.redo(&view))
+        {
+            kept.view = Some(view);
         }
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             kept = Kept::new(false, args.view);
         }
-        status(ui, frame_line(&numbers, out.as_ref()));
+        status(ui, frame_line(&numbers, out));
     });
     store(ui, "box-undo", kept);
 }

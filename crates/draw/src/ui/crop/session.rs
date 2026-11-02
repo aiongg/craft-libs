@@ -136,10 +136,12 @@ pub struct CropKept {
 ///   gets its own default frame.
 /// - Box Undo and Redo: a [`LocalHistory`] of [`CropStep`]s. Each committed gesture, key step,
 ///   ratio refit and Straighten is one step ([`set`](Self::set) with `busy` false settles it);
-///   the app routes Edit › Undo and Redo here while a crop is [`pending`](Self::pending).
+///   the app routes Edit › Undo and Redo here while the box [owns Undo](Self::owns_undo).
 ///   The view is not in the steps: Undo never moves it.
 /// - Leaving the tool ([`leave`](Self::leave)) drops an untouched default frame and applies a
 ///   drawn one.
+/// - [`CropTool`](super::CropTool) is the one writer: the session has no edit type, since a
+///   second caller would be the only reason for one (LC76).
 #[derive(Clone, Debug, Default)]
 pub struct CropSession {
     frame: Option<CropBox>,
@@ -152,9 +154,6 @@ pub struct CropSession {
     straighten: StraightenState,
     /// The frame a ratio-field edit began with (#7752).
     ratio_base: Option<CropBox>,
-    /// The latest settled step: what [`revert`](Self::revert) goes back to while a drag runs
-    /// ([`LocalHistory`] does not expose it).
-    settled: CropStep,
 }
 
 impl CropSession {
@@ -232,8 +231,7 @@ impl CropSession {
         self.default_frame = true;
         self.frame_for = made_for;
         self.editing = false;
-        self.settled = self.current();
-        self.history = Some(LocalHistory::new(&self.settled));
+        self.history = Some(LocalHistory::new(&self.current()));
         true
     }
 
@@ -256,7 +254,7 @@ impl CropSession {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:862 `release` (`changed`), :879 `push_press_step`,
         // :675 `keyed`; dialog/history.rs `LocalHistory::settle`.
         if self.history.is_none() {
-            self.history = Some(LocalHistory::new(&self.settled));
+            self.history = Some(LocalHistory::new(&CropStep::default()));
         }
         self.frame = Some(frame);
         if !keep_default {
@@ -265,12 +263,15 @@ impl CropSession {
         if !self.default_frame {
             self.editing = true;
         }
+        self.settle(busy);
+    }
+
+    /// Records the change since the last step as one box step, unless `busy`: ends a run of
+    /// arrow nudges that [`set`](Self::set) left open.
+    pub fn settle(&mut self, busy: bool) {
         let now = self.current();
         if let Some(history) = &mut self.history {
             history.settle(&now, busy);
-        }
-        if !busy {
-            self.settled = now;
         }
     }
 
@@ -278,60 +279,75 @@ impl CropSession {
     /// the last step.
     pub fn revert(&mut self) {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:889 `restore_frame`.
-        let back = self.settled;
+        let back = self.history.as_ref().map(|h| *h.settled()).unwrap_or_default();
         self.adopt(back);
     }
 
-    /// Edit › Undo while a crop is pending: the frame one box step back, or `None` when there is
-    /// nothing to undo.
-    pub fn undo(&mut self) -> Option<CropBox> {
+    /// Edit › Undo while the box owns Undo ([`owns_undo`](Self::owns_undo)): the frame one box
+    /// step back, read through [`frame`](Self::frame). False, and nothing changed, when there is
+    /// nothing to undo. The app cancels a running drag with `UndoDuringGesture` before it routes
+    /// Undo here.
+    pub fn undo(&mut self) -> bool {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:510 `step` (the view half is the tool's).
         self.step(Step::Undo)
     }
 
-    /// Edit › Redo while a crop is pending: as [`undo`](Self::undo), forward.
-    pub fn redo(&mut self) -> Option<CropBox> {
+    /// Edit › Redo while the box owns Undo: as [`undo`](Self::undo), forward.
+    pub fn redo(&mut self) -> bool {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:510 `step`.
         self.step(Step::Redo)
     }
 
-    fn step(&mut self, step: Step) -> Option<CropBox> {
+    fn step(&mut self, step: Step) -> bool {
         let mut now = self.current();
-        if !self.history.as_mut()?.step(&mut now, step) {
-            return None;
+        let Some(history) = self.history.as_mut() else { return false };
+        if !history.step(&mut now, step) {
+            return false;
         }
         self.adopt(now);
-        self.settled = now;
-        now.frame
+        true
     }
 
-    /// Whether Edit › Undo and Redo have a box step to go to (their menu items' enabled state).
+    /// Whether Edit › Undo has a box step to go to: a step on the stack, or a change not yet
+    /// recorded (a run of arrow nudges within the pause).
     pub fn can_undo(&self) -> bool {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:483 `is_enabled`.
-        self.history.as_ref().is_some_and(LocalHistory::can_undo)
+        self.history.as_ref().is_some_and(|h| h.can_undo() || *h.settled() != self.current())
     }
 
+    /// Whether Edit › Redo has a box step to go to.
     pub fn can_redo(&self) -> bool {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:483 `is_enabled`.
         self.history.as_ref().is_some_and(LocalHistory::can_redo)
     }
 
+    /// The app routes Edit › Undo and Redo to the box, not the document, while either has a step
+    /// (PhotoCraft `crop_ui.rs:483-492`). It is not [`pending`](Self::pending): after Undo back to
+    /// the default frame Redo still steps the box, and a stack with nothing left greys the item
+    /// out instead of offering the document's step.
+    pub fn owns_undo(&self) -> bool {
+        self.can_undo() || self.can_redo()
+    }
+
     /// Another tool was picked. `keeps_pending`: a gesture on the frame still runs, or the pen's
     /// eraser end stands in for the Crop tool; the held temporary tools (Space, ⌘) never count as
-    /// leaving and never call this. Disarms Straighten.
+    /// leaving and never call this. Disarms Straighten. An untouched default frame is dropped
+    /// whatever `keeps_pending` says. For [`LeaveFrame::Kept`] the app calls `leave` again on
+    /// later passes until it returns something else.
     pub fn leave(&mut self, keeps_pending: bool) -> LeaveFrame {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:350 `frame` (the leave half), :401 `keeps_pending`,
         // :408 `commit_on_leave`.
         self.straighten.disarm();
         let Some(frame) = self.frame else { return LeaveFrame::Nothing };
-        if keeps_pending {
-            return LeaveFrame::Kept;
-        }
-        self.editing = false;
+        // An untouched default frame goes whatever keeps the tool (PhotoCraft `crop_ui.rs:354-358`).
         if self.default_frame {
             self.clear();
             return LeaveFrame::Dropped;
         }
+        if keeps_pending {
+            return LeaveFrame::Kept;
+        }
+        self.editing = false;
         LeaveFrame::Apply(frame)
     }
 
@@ -355,7 +371,6 @@ impl CropSession {
     pub fn restore(&mut self, kept: CropKept) -> Option<CanvasView> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:469 `restore`.
         self.adopt(kept.step);
-        self.settled = kept.step;
         self.history = kept.history;
         self.frame_for = kept.frame_for;
         self.editing = kept.editing;
