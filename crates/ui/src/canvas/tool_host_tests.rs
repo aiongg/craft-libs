@@ -835,8 +835,7 @@ fn each_cancel_reason_reaches_the_tool() {
         press(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
         move_to(&mut h, pos2(140.0, 120.0));
         act(&mut h);
-        let seen = reasons.borrow().clone();
-        seen
+        reasons.borrow().clone()
     };
     assert_eq!(one(&|h| key(h, Key::Escape)), [CancelReason::Escape]);
     assert_eq!(
