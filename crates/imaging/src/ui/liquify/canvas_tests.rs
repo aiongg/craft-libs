@@ -8,11 +8,12 @@ use egui_kittest::{Harness, HarnessBuilder};
 
 use super::canvas::LayeredImage;
 use super::{
-    BackdropLayering, BackdropMode, BackdropUse, LiquifyEvent, LiquifyMesh, LiquifyOpen, LiquifySource, LiquifyTool, LiquifyWorkspace, MeshSize,
+    BackdropLayering, BackdropMode, BackdropUse, LiquifyEvent, LiquifyMesh, LiquifyOpen, LiquifySource, LiquifyTiming, LiquifyTool, LiquifyWorkspace,
+    MeshSize,
 };
 use craft_ui::canvas::{PixelRect, RasterSource};
-use craft_ui::dialog::Outcome;
-use craft_ui::edit::EditEvent;
+use craft_ui::dialog::{Outcome, Step};
+use craft_ui::edit::{CancelReason, EditEvent};
 use craft_ui::theme::{Base, install};
 
 const WINDOW: egui::Vec2 = vec2(1000.0, 900.0);
@@ -71,6 +72,9 @@ struct App {
     source: Source,
     events: Vec<LiquifyEvent>,
     outcome: Option<Outcome>,
+    /// Whether any pass reported `settings_changed`, since the test last cleared it.
+    changed: bool,
+    timing: Option<LiquifyTiming>,
 }
 
 fn harness() -> Harness<'static, App> {
@@ -80,6 +84,8 @@ fn harness() -> Harness<'static, App> {
         source: Source { image: Solid { size, colour: Color32::from_rgb(40, 120, 200) }, backdrop: None },
         events: Vec::new(),
         outcome: None,
+        changed: false,
+        timing: None,
     };
     let mut h = HarnessBuilder::default()
         .with_size(WINDOW)
@@ -90,6 +96,8 @@ fn harness() -> Harness<'static, App> {
                 let out = app.workspace.show(&ui.ctx().clone(), &app.source);
                 app.events.extend(out.events);
                 app.outcome = app.outcome.or(out.outcome);
+                app.changed |= out.settings_changed;
+                app.timing = out.timing;
             },
             app,
         );
@@ -383,4 +391,94 @@ fn liquify_freeze_lasso_commits_a_polygon_and_alt_thaws() {
     assert_eq!(amounts, [(LiquifyTool::FreezeLasso, Some(1.0), true), (LiquifyTool::FreezeLasso, Some(0.0), true)]);
     assert_eq!(strokes(&h.state().events), 2, "a lasso reports only its Commit");
     assert_eq!(h.state().workspace.session.len(), 2);
+}
+
+// A tool letter pressed mid-stroke cancels the stroke through the host with `Removed`, then the app's
+// field is rebuilt by a Replay; the canvas is idle, so the history settles, and the release that
+// follows records nothing.
+#[test]
+fn liquify_a_letter_mid_stroke_cancels_the_stroke_and_leaves_the_canvas_idle() {
+    let mut h = harness();
+    let from = canvas_point(0.0, 0.0);
+    pointer(&mut h, from);
+    button(&mut h, PointerButton::Primary, from, true, Modifiers::NONE);
+    pointer(&mut h, from + vec2(30.0, 0.0));
+    assert!(h.state().workspace.canvas.busy());
+    h.state_mut().events.clear();
+
+    h.key_press(Key::R);
+    h.run();
+    assert_eq!(h.state().workspace.settings.tool, LiquifyTool::Reconstruct, "the letter picked the tool");
+    assert!(!h.state().workspace.canvas.busy(), "the stroke ended with the old tool");
+    let events = &h.state().events;
+    assert!(
+        matches!(
+            events.as_slice(),
+            [LiquifyEvent::Stroke(EditEvent::Cancel { reason: CancelReason::Removed, .. }), LiquifyEvent::Replay(steps)] if steps.is_empty()
+        ),
+        "{events:?}"
+    );
+
+    button(&mut h, PointerButton::Primary, from + vec2(30.0, 0.0), false, Modifiers::NONE);
+    assert!(!h.state().events.iter().any(|e| matches!(e, LiquifyEvent::Stroke(EditEvent::Commit { .. }))), "the new tool got no release");
+    assert!(h.state().workspace.session.is_empty());
+}
+
+// ⌘Z mid-stroke cancels the stroke with `UndoDuringGesture`, then steps the history: one Replay of
+// the stepped session follows the Cancel.
+#[test]
+fn liquify_undo_mid_stroke_cancels_the_stroke_then_steps() {
+    let mut h = harness();
+    drag(&mut h, PointerButton::Primary, canvas_point(-40.0, 0.0), canvas_point(40.0, 10.0), Modifiers::NONE);
+    assert_eq!(h.state().workspace.session.len(), 1);
+    let from = canvas_point(0.0, 40.0);
+    pointer(&mut h, from);
+    button(&mut h, PointerButton::Primary, from, true, Modifiers::NONE);
+    pointer(&mut h, from + vec2(30.0, 0.0));
+    assert!(h.state().workspace.canvas.busy());
+    h.state_mut().events.clear();
+
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run();
+    let events = &h.state().events;
+    assert!(
+        matches!(
+            events.as_slice(),
+            [LiquifyEvent::Stroke(EditEvent::Cancel { reason: CancelReason::UndoDuringGesture, .. }), LiquifyEvent::Replay(steps)] if steps.is_empty()
+        ),
+        "{events:?}"
+    );
+    assert!(h.state().workspace.session.is_empty(), "the earlier stroke is undone");
+    assert!(!h.state().workspace.canvas.busy());
+}
+
+// `step` from the app's Edit menu reports whether it stepped and queues the Replay for the next
+// pass.
+#[test]
+fn liquify_step_from_the_menu_queues_the_replay_for_the_next_pass() {
+    let mut h = harness();
+    drag(&mut h, PointerButton::Primary, canvas_point(-40.0, 0.0), canvas_point(40.0, 10.0), Modifiers::NONE);
+    h.state_mut().events.clear();
+
+    assert!(h.state_mut().workspace.step(Step::Undo));
+    assert!(h.state().workspace.session.is_empty());
+    assert!(!h.state_mut().workspace.step(Step::Undo), "nothing left to undo");
+    h.run();
+    let events = &h.state().events;
+    assert!(matches!(events.as_slice(), [LiquifyEvent::Replay(steps)] if steps.is_empty()), "{events:?}");
+}
+
+// A brush resize writes the brush, which the output reports as a settings change; a stroke
+// reports its timing.
+#[test]
+fn liquify_output_reports_resize_changes_and_the_stroke_timing() {
+    let mut h = harness();
+    assert!(!h.state().changed, "nothing changed yet");
+    let from = canvas_point(0.0, 0.0);
+    drag(&mut h, PointerButton::Secondary, from, from + vec2(40.0, 0.0), Modifiers::ALT);
+    assert!(h.state().changed, "Alt + right-drag changed the brush");
+    assert_eq!(h.state().timing, None, "a resize is not a stroke");
+
+    drag(&mut h, PointerButton::Primary, canvas_point(-40.0, 0.0), canvas_point(40.0, 10.0), Modifiers::NONE);
+    assert!(h.state().timing.is_some_and(|t| t.dabs >= 2), "{:?}", h.state().timing);
 }

@@ -15,8 +15,8 @@ use super::session::{LiquifyGlobal, LiquifySettings};
 /// | ⌘I | [`LiquifyGlobal::InvertAll`] |
 /// | ⌘D | [`LiquifyGlobal::MaskNone`] |
 ///
-/// Read only while the workspace is the top modal layer and no text field edits
-/// (`focus::key_owner`); each key is consumed.
+/// The caller reads them only while `FullWindowFx::keys_free` says the workspace's single keys are
+/// free (top modal layer, no text field editing, no popup open); each key is consumed.
 pub struct LiquifyKeys;
 
 impl LiquifyKeys {
@@ -27,9 +27,6 @@ impl LiquifyKeys {
         // brackets :765-771).
         let mut changed = false;
         let mut globals = Vec::new();
-        if ctx.text_edit_focused() {
-            return (changed, globals);
-        }
         if ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::H)) {
             settings.show_mask = !settings.show_mask;
             changed = true;

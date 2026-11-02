@@ -1,8 +1,11 @@
-//! [`LiquifyStyle`]: Liquify's marks on the canvas, from tokens (task TK4).
+//! [`LiquifyStyle`]: Liquify's marks on the canvas, from tokens (task TK4), read through
+//! [`LiquifyWorkspace::style`].
 
 use egui::Color32;
 
 use craft_ui::theme::{ToEgui, UiTokens};
+
+use super::LiquifyWorkspace;
 
 /// What Liquify draws on the canvas besides the mesh (`warp::MeshStyle`) and the brush outline
 /// (`craft_ui::canvas::brush::BrushStyle`).
@@ -20,8 +23,9 @@ pub struct LiquifyStyle {
     pub mask_opacity: f32,
 }
 
-impl LiquifyStyle {
-    pub fn of(tokens: &UiTokens) -> LiquifyStyle {
+impl LiquifyWorkspace {
+    /// The marks Liquify draws on the canvas, from `tokens`.
+    pub fn style(tokens: &UiTokens) -> LiquifyStyle {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:1142-1149 (lasso colours).
         let l = &tokens.component.liquify;
         LiquifyStyle { freeze: l.freeze.to_egui(), thaw: l.thaw.to_egui(), lasso_width: l.lasso, mask_opacity: l.mask_opacity }

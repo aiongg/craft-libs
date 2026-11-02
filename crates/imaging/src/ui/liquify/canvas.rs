@@ -5,7 +5,7 @@ use egui::{Color32, ColorImage, Modifiers, Painter, PointerButton, Pos2, Shape, 
 use craft_ui::canvas::brush::{
     BrushCursor, BrushDimensions, BrushLevel, BrushResize, BrushResizeLabels, BrushResizeOptions, BrushStyle, BrushTip, TipFalloff,
 };
-use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, OutlineDraft};
+use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};
 use craft_ui::canvas::kurbo::{Point, Size};
 use craft_ui::canvas::{
     CanvasTool, CanvasView, CursorHost, CursorOptions, HandTool, NavigationOptions, PixelRect, RasterSource, ToolAction, ToolContext, ToolCursor,
@@ -18,7 +18,6 @@ use super::LiquifyEvent;
 use super::session::{BackdropMode, LiquifySettings, LiquifyStroke};
 use super::style::LiquifyStyle;
 use super::tools::{LiquifyBrush, LiquifyTool, StrokeRecorder};
-use crate::ui::select::SelectToolStyle;
 
 /// The seconds between the dabs of a tool that acts while the brush rests (PhotoCraft: 30 a
 /// second).
@@ -159,6 +158,18 @@ impl RasterSource for LayeredImage<'_> {
     }
 }
 
+/// How long the latest brush stroke has run and how many dabs it has made, measured in input
+/// time (the diagnostics PhotoCraft's stats line showed; the app adds its own field and preview
+/// times). It stays after the stroke ends, until the next press starts a new one.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct LiquifyTiming {
+    /// The dabs so far: the press, each new point and each rest-time dab.
+    pub dabs: usize,
+    /// Seconds from the press to the latest dab.
+    pub seconds: f64,
+}
+
 /// The state of Liquify's canvas between passes: the stroke being recorded, the Freeze Lasso
 /// being drawn, the brush resize, and the events not yet taken. The workspace hands
 /// [`LiquifyCanvasTool`] to its `FullWindowCanvas` while a Liquify tool is current, and the
@@ -175,6 +186,11 @@ pub struct LiquifyCanvas {
     at: [f64; 2],
     /// The input time of the stroke's latest dab, for the tools that act while the brush rests.
     last_dab: f64,
+    /// The input time of the press of the latest stroke, and the stroke's dabs.
+    began: f64,
+    timing: Option<LiquifyTiming>,
+    /// The user's cursor options, for the brush outline.
+    cursor_options: CursorOptions,
     hand: HandTool,
     zoom: ZoomTool,
 }
@@ -189,6 +205,9 @@ impl Default for LiquifyCanvas {
             resize_from: None,
             at: [0.0; 2],
             last_dab: 0.0,
+            began: 0.0,
+            timing: None,
+            cursor_options: CursorOptions::default(),
             hand: HandTool::default(),
             zoom: ZoomTool::new(Size::ZERO, NavigationOptions::default()),
         }
@@ -206,6 +225,16 @@ impl LiquifyCanvas {
         LiquifyCanvasTool { canvas: self, settings, style }
     }
 
+    /// The user's cursor options (the brush outline's look); Photoshop's by default.
+    pub fn cursor_options(&mut self, options: CursorOptions) {
+        self.cursor_options = options;
+    }
+
+    /// The timing of the latest brush stroke; `None` before the first.
+    pub fn timing(&self) -> Option<LiquifyTiming> {
+        self.timing
+    }
+
     /// The events since the last call, in order.
     pub fn take_events(&mut self) -> Vec<LiquifyEvent> {
         std::mem::take(&mut self.events)
@@ -216,17 +245,21 @@ impl LiquifyCanvas {
         self.recorder.is_active() || self.lasso.is_some() || self.resize.active()
     }
 
-    /// The Hand tool for a document of `size`.
-    pub(super) fn hand(&mut self, size: Size, prefs: NavigationOptions) -> &mut HandTool {
+    /// Sets the document size and the user's navigation options the Hand and Zoom tools run with.
+    pub(super) fn navigate(&mut self, size: Size, prefs: NavigationOptions) {
         self.hand.size = size;
         self.hand.prefs = prefs;
+        self.zoom.size = size;
+        self.zoom.prefs = prefs;
+    }
+
+    /// The Hand tool.
+    pub(super) fn hand(&mut self) -> &mut HandTool {
         &mut self.hand
     }
 
-    /// The Zoom tool for a document of `size`.
-    pub(super) fn zoom(&mut self, size: Size, prefs: NavigationOptions) -> &mut ZoomTool {
-        self.zoom.size = size;
-        self.zoom.prefs = prefs;
+    /// The Zoom tool.
+    pub(super) fn zoom(&mut self) -> &mut ZoomTool {
         &mut self.zoom
     }
 
@@ -240,8 +273,17 @@ impl LiquifyCanvas {
     fn hold(&mut self, at: Point, modifiers: Modifiers, time: f64) {
         if let Some(event) = self.recorder.hold([at.x, at.y, 1.0], modifiers) {
             self.events.push(LiquifyEvent::Stroke(event));
-            self.at = [at.x, at.y];
-            self.last_dab = time;
+            self.dabbed([at.x, at.y], time);
+        }
+    }
+
+    /// A dab at `at` at input time `time`.
+    fn dabbed(&mut self, at: [f64; 2], time: f64) {
+        self.at = at;
+        self.last_dab = time;
+        if let Some(timing) = self.timing.as_mut() {
+            timing.dabs += 1;
+            timing.seconds = (time - self.began).max(0.0);
         }
     }
 }
@@ -256,14 +298,15 @@ fn acts_at_rest(tool: LiquifyTool) -> bool {
 ///
 /// - Press, drag, release with a brush tool: one stroke through [`StrokeRecorder`] (Alt at the
 ///   press paints with [`LiquifyTool::alternate`](super::LiquifyTool::alternate)), reported as
-///   [`LiquifyEvent::Stroke`] Begin, Update with each new point, Commit. Esc or a lost pointer
+///   [`LiquifyEvent::Stroke`] Begin, Update with each new point (the new points only), Commit
+///   with the whole stroke. Esc or a lost pointer
 ///   reports Cancel, then a Replay (the workspace adds it from the session).
-/// - The Freeze Lasso: an [`OutlineDraft`] of `DraftKind::Freehand` (`DraftReach` from the
-///   select tokens through `SelectToolStyle::reach`); the release closes it into a stroke with
+/// - The Freeze Lasso: an [`OutlineDraft`] of `DraftKind::Freehand` (`DraftReach::of` the
+///   tokens); the release closes it into a stroke with
 ///   `amount` 1, or 0 when Alt was held at the press; drawn in `liquify.freeze` (thaw:
 ///   `liquify.thaw`).
-/// - Alt + right-drag, or Control + Alt + drag ([`BrushResize::chord`]; `takes` accepts the
-///   secondary button while Alt is held): a
+/// - Alt + right-drag, or Control + Alt + drag ([`BrushResize::chord`]; [`BrushResize::takes`]
+///   accepts the secondary button while Alt is held): a
 ///   [`BrushResize`] with `BrushLevel::Density`, `max_diameter` 15000; horizontal travel sets the
 ///   size, vertical the density over `brush.resize_travel`; the outline stays at the anchor; no
 ///   stroke. Each update writes `settings.brush`.
@@ -278,6 +321,24 @@ pub struct LiquifyCanvasTool<'a> {
 }
 
 impl LiquifyCanvasTool<'_> {
+    /// Ends the stroke, the lasso and the resize in progress without recording them (the host's
+    /// `cancel`, and the workspace when the host has no gesture to cancel).
+    pub(super) fn abandon(&mut self, reason: CancelReason) {
+        // new: Esc, a lost pointer, a tool switch or ⌘Z ends the stroke without recording it
+        // (PhotoCraft has no cancel).
+        if let Some(event) = self.canvas.recorder.cancel(reason) {
+            self.canvas.events.push(LiquifyEvent::Stroke(event));
+        }
+        if let Some((mut draft, _)) = self.canvas.lasso.take() {
+            draft.cancel();
+        }
+        if self.canvas.resize.cancel().is_some()
+            && let Some(brush) = self.canvas.resize_from.take()
+        {
+            self.settings.brush = brush;
+        }
+    }
+
     /// Writes a resize's values to the brush.
     fn apply_resize(&mut self, event: Option<EditEvent<BrushDimensions>>) {
         if let Some(BrushDimensions { diameter, level }) = event.as_ref().and_then(EditEvent::value).copied() {
@@ -344,7 +405,7 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         let size = self.settings.brush.size;
         BrushCursor::new(&BrushTip::round(size, size / 2.0)).painting(self.canvas.recorder.is_active()).cursor(
             &BrushStyle::of(cx.tokens),
-            &CursorOptions::default(),
+            &self.canvas.cursor_options,
             cx.view,
             cx.caps_lock,
         )
@@ -354,7 +415,7 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:676 `brush_resize_gesture` (Alt with the
         // secondary button, or Ctrl and Alt). The primary button always paints (Alt reverses to
         // the alternate tool); the secondary starts the resize chord while Alt is held.
-        button == PointerButton::Primary || (button == PointerButton::Secondary && modifiers.alt)
+        BrushResize::takes(button, modifiers)
     }
 
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
@@ -367,7 +428,7 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         }
         let tool = self.settings.tool;
         if tool == LiquifyTool::FreezeLasso {
-            let mut draft = OutlineDraft::new(DraftKind::Freehand, SelectToolStyle::of(cx.tokens).reach());
+            let mut draft = OutlineDraft::new(DraftKind::Freehand, DraftReach::of(cx.tokens));
             draft.press(DraftPoint::new(pointer.doc, pointer.modifiers, cx.view.zoom), false);
             self.canvas.lasso = Some((draft, pointer.modifiers.alt));
             return ToolAction::Claimed;
@@ -384,6 +445,8 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         self.canvas.events.push(LiquifyEvent::Stroke(event));
         self.canvas.at = [at[0], at[1]];
         self.canvas.last_dab = cx.time;
+        self.canvas.began = cx.time;
+        self.canvas.timing = Some(LiquifyTiming { dabs: 1, seconds: 0.0 });
         cx.request_repaint();
         ToolAction::Claimed
     }
@@ -408,8 +471,7 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         let at = [pointer.doc.x, pointer.doc.y, 1.0];
         if let Some(event) = self.canvas.recorder.extend(at, pointer.modifiers) {
             self.canvas.events.push(LiquifyEvent::Stroke(event));
-            self.canvas.at = [at[0], at[1]];
-            self.canvas.last_dab = cx.time;
+            self.canvas.dabbed([at[0], at[1]], cx.time);
         } else if acts_at_rest(self.settings.tool) && cx.time - self.canvas.last_dab > HOLD_INTERVAL {
             self.canvas.hold(pointer.doc, pointer.modifiers, cx.time);
         }
@@ -438,18 +500,7 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
     }
 
     fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
-        // new: Esc or a lost pointer ends the stroke without recording it (PhotoCraft has no cancel).
-        if let Some(event) = self.canvas.recorder.cancel(reason) {
-            self.canvas.events.push(LiquifyEvent::Stroke(event));
-        }
-        if let Some((mut draft, _)) = self.canvas.lasso.take() {
-            draft.cancel();
-        }
-        if self.canvas.resize.cancel().is_some()
-            && let Some(brush) = self.canvas.resize_from.take()
-        {
-            self.settings.brush = brush;
-        }
+        self.abandon(reason);
     }
 
     fn key(&mut self, _key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
@@ -466,9 +517,9 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         if let Some((draft, thaw)) = &self.canvas.lasso
             && draft.points().len() > 1
         {
-            let colour = if *thaw { self.style.thaw } else { self.style.freeze };
+            let color = if *thaw { self.style.thaw } else { self.style.freeze };
             let line: Vec<Pos2> = draft.points().iter().map(|p| cx.view.to_screen(*p)).collect();
-            painter.add(Shape::line(line, Stroke::new(self.style.lasso_width, colour)));
+            painter.add(Shape::line(line, Stroke::new(self.style.lasso_width, color)));
         }
         if let Some(BrushDimensions { diameter, level }) = self.canvas.resize.dimensions() {
             let falloff = TipFalloff::from_hardness(diameter / 2.0, level);

@@ -80,7 +80,7 @@ pub use layer_style::{
 };
 pub use liquify::{
     LiquifyEvent, LiquifyLabels, LiquifyOpen, LiquifyOutput, LiquifyPanel, LiquifyPanelOutput, LiquifySession, LiquifySettings, LiquifySource,
-    LiquifyStyle, LiquifyTool, LiquifyWorkspace,
+    LiquifyStyle, LiquifyTiming, LiquifyTool, LiquifyWorkspace,
 };
 pub use live_preview::{DraftScale, LivePreview, PreviewKey, PreviewLane, PreviewSession, ProxyPlan};
 pub use mask_view::{MaskViewControls, MaskViewKeys, MaskViewMode, MaskViewRecipe, MaskViewResponse, MaskViewState};

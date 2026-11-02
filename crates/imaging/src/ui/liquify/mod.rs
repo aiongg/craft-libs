@@ -52,7 +52,7 @@ pub(crate) mod stories;
 mod style;
 mod tools;
 
-pub use canvas::{BackdropLayering, LiquifyCanvas, LiquifyCanvasTool, LiquifyMesh};
+pub use canvas::{BackdropLayering, LiquifyCanvas, LiquifyCanvasTool, LiquifyMesh, LiquifyTiming};
 pub use keys::LiquifyKeys;
 pub use labels::LiquifyLabels;
 pub use panel::{LiquifyPanel, LiquifyPanelOutput};
@@ -63,11 +63,10 @@ pub use tools::{LiquifyBrush, LiquifyTool, StrokeRecorder};
 use egui::{Context, Key, Modifiers, Rect};
 
 use craft_ui::canvas::kurbo::Size;
-use craft_ui::canvas::{Checkerboard, NavigationOptions, RasterSource, ToolHost};
+use craft_ui::canvas::{CanvasId, CanvasView, Checkerboard, CursorOptions, NavigationOptions, RasterSource, ToolHost};
 use craft_ui::dialog::full_window::{FullWindowCanvas, FullWindowSide, FullWindowTitle, FullWindowView, RasterOverlay, SideFooter};
-use craft_ui::dialog::{ButtonRole, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step};
-use craft_ui::edit::CancelReason;
-use craft_ui::edit::EditEvent;
+use craft_ui::dialog::{ButtonRole, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step};
+use craft_ui::edit::{CancelReason, EditEvent, GestureId, is_live};
 use craft_ui::localized::Labels as _;
 use craft_ui::patterns::{LastUsed, ToolRail};
 use craft_ui::theme::current;
@@ -113,6 +112,12 @@ pub struct LiquifyOpen {
     pub settings: LiquifySettings,
     /// The recorded steps of a smart filter opened again; empty for a new Liquify.
     pub steps: Vec<LiquifyStep>,
+    /// The user's navigation options (wheel, flick, animated zoom); Photoshop's by default.
+    pub navigation: NavigationOptions,
+    /// The user's transparency grid under the image.
+    pub checkerboard: Checkerboard,
+    /// The user's cursor options (the brush outline).
+    pub cursor_options: CursorOptions,
 }
 
 impl LiquifyOpen {
@@ -131,6 +136,25 @@ impl LiquifyOpen {
         self.steps = steps;
         self
     }
+
+    /// The user's navigation options (wheel, flick, animated zoom), for the canvas and the Hand
+    /// and Zoom tools.
+    pub fn navigation(mut self, navigation: NavigationOptions) -> Self {
+        self.navigation = navigation;
+        self
+    }
+
+    /// The user's transparency grid under the image.
+    pub fn checkerboard(mut self, checkerboard: Checkerboard) -> Self {
+        self.checkerboard = checkerboard;
+        self
+    }
+
+    /// The user's cursor options for the brush outline.
+    pub fn cursor_options(mut self, options: CursorOptions) -> Self {
+        self.cursor_options = options;
+        self
+    }
 }
 
 /// What the workspace reports to the app, in the order it happened this pass.
@@ -138,10 +162,12 @@ impl LiquifyOpen {
 #[non_exhaustive]
 pub enum LiquifyEvent {
     /// A brush stroke or a Freeze Lasso polygon. `Begin` carries the stroke with its first point,
-    /// `Update` the stroke with every point so far (the app applies the points it has not seen
-    /// to its field), `Commit` the whole stroke, now recorded in the session; `Cancel` (Esc or a
-    /// lost pointer during a stroke) is followed by a [`Replay`](Self::Replay), since the app's
-    /// field already took the dabs. A lasso reports only `Commit`.
+    /// `Update` the stroke's tool and brush with only the points added since the last event (the
+    /// app applies them to its field), `Commit` the whole stroke, now recorded in the session
+    /// (the app applies the points it has not seen: at least the release point); `Cancel` (Esc, a
+    /// lost pointer, a tool switch or ⌘Z during a stroke) is followed by a
+    /// [`Replay`](Self::Replay), since the app's field already took the dabs. A lasso reports only
+    /// `Commit`.
     Stroke(EditEvent<LiquifyStroke>),
     /// Reconstruct, Mask All, None, Invert All (the panel's buttons, ⌘I, ⌘D): recorded in the
     /// session, then reported for the app to apply.
@@ -163,19 +189,28 @@ pub struct LiquifyOutput {
     pub outcome: Option<Outcome>,
     /// The workspace's rect.
     pub rect: Rect,
-    /// The settings changed this pass; the app may persist them.
+    /// The settings changed this pass (compared before and after, whatever changed them: the
+    /// panel, the keys, the strip or a brush resize); the app may persist them.
     pub settings_changed: bool,
+    /// The timing of the latest brush stroke, for the app's diagnostics (PhotoCraft's stats line
+    /// is not drawn; lead call 14); `None` before the first stroke.
+    pub timing: Option<LiquifyTiming>,
 }
 
 /// The Liquify workspace: the dialog, the session and its history, the settings, the view and the
 /// canvas tool, as one value the app keeps while Liquify is open.
 ///
-/// Keys (none while a text field edits, except ⌘Z): W R E C S B O F D L pick the Liquify tools and
+/// Keys (single keys only while `FullWindowFx::keys_free`; ⌘Z whatever has focus): W R E C S B O F D L pick the Liquify tools and
 /// H, Z the Hand and Zoom tools ([`ToolRail::pick_by_key`](craft_ui::patterns::ToolRail::pick_by_key));
 /// `[` and `]` scale the brush, ⌘H shows or hides the mask, ⌘I inverts the mask, ⌘D clears it
 /// ([`LiquifyKeys`]); ⌘+, ⌘−, ⌘0, ⌘1 zoom the workspace's view; ⌘Z and ⇧⌘Z step the session's
 /// history, also while a number field has focus; Enter is OK and Esc Cancel (Esc during a stroke
-/// cancels the stroke only).
+/// cancels the stroke only). A tool switch or ⌘Z during a stroke cancels it first
+/// (`CancelReason::Removed`, `CancelReason::UndoDuringGesture`); the app's field is rebuilt by the
+/// [`LiquifyEvent::Replay`] that follows.
+///
+/// The side column's header is "Properties", as Photoshop's Liquify panel is headed (lead call 89:
+/// the one editor with a header besides Select and Mask and Content-Aware Fill).
 pub struct LiquifyWorkspace {
     dialog: DialogState<LiquifySession>,
     session: LiquifySession,
@@ -190,6 +225,15 @@ pub struct LiquifyWorkspace {
     canvas: LiquifyCanvas,
     /// The backdrop the app was last asked for, while Show Backdrop is on.
     asked: Option<Option<u64>>,
+    /// The panel's gesture while a slider runs: the history waits while its control is drawn.
+    gesture: Option<GestureId>,
+    /// Events that happened between passes ([`step`](Self::step)), reported by the next `show`.
+    queued: Vec<LiquifyEvent>,
+    /// A step the app asked for while a stroke was open; the next `show` cancels the stroke, then
+    /// steps.
+    requested: Vec<Step>,
+    navigation: NavigationOptions,
+    checkerboard: Checkerboard,
 }
 
 impl LiquifyWorkspace {
@@ -200,28 +244,55 @@ impl LiquifyWorkspace {
             dialog: DialogState::new(),
             history: LocalHistory::new(&session),
             session,
-            canvas: LiquifyCanvas::new(),
+            canvas: {
+                let mut canvas = LiquifyCanvas::new();
+                canvas.cursor_options(open.cursor_options);
+                canvas
+            },
             settings: open.settings,
             subject: open.subject,
             size: open.size,
             view: FullWindowView::new(),
             last_used: LastUsed::default(),
             asked: None,
+            gesture: None,
+            queued: Vec::new(),
+            requested: Vec::new(),
+            navigation: open.navigation,
+            checkerboard: open.checkerboard,
         }
+    }
+
+    /// The user's navigation options (wheel, flick, animated zoom); Photoshop's by default.
+    pub fn navigation(&mut self, navigation: NavigationOptions) {
+        self.navigation = navigation;
+    }
+
+    /// The user's transparency grid under the image.
+    pub fn checkerboard(&mut self, checkerboard: Checkerboard) {
+        self.checkerboard = checkerboard;
+    }
+
+    /// The user's cursor options for the brush outline.
+    pub fn cursor_options(&mut self, options: CursorOptions) {
+        self.canvas.cursor_options(options);
     }
 
     /// Shows the workspace for this pass.
     ///
-    /// In order: the title ([`FullWindowTitle`](craft_ui::dialog::full_window::FullWindowTitle)
-    /// with the subject and the zoom); [`LiquifyKeys`] and the history keys (`take_step`, read
-    /// whatever has focus, so ⌘Z works while a number field has focus); the tool strip (a
-    /// `ToolRail` with `pick_by_key(true)` over [`LiquifyTool::slots`]); the side column
-    /// ([`LiquifyPanel`], footer `SideFooter::bottom` with OK and Cancel); the canvas
+    /// In order: the events [`step`](Self::step) queued; the title
+    /// ([`FullWindowTitle`](craft_ui::dialog::full_window::FullWindowTitle) with the subject and
+    /// the zoom); the history keys (`FullWindowFx::take_step`, read before the body whatever has
+    /// focus, so ⌘Z works while a number field has focus; a stroke or other gesture is cancelled
+    /// with `UndoDuringGesture` first); [`LiquifyKeys`] while `FullWindowFx::keys_free`; the tool
+    /// strip (a `ToolRail` with `pick_by_key(true)` over [`LiquifyTool::slots`]; a pick cancels
+    /// the old tool's gesture with `Removed`); the side column ([`LiquifyPanel`], footer
+    /// `SideFooter::bottom` with OK and Cancel); the canvas
     /// ([`FullWindowCanvas`](craft_ui::dialog::full_window::FullWindowCanvas)) with the source's
     /// image under [`BackdropLayering`], the freeze mask as a `RasterOverlay` tinted
     /// `liquify.freeze` while Show Mask is on, the mesh through `warp::paint_mesh` while Show Mesh
     /// is on, and [`LiquifyCanvas`] as its tool. Then `LocalHistory::settle(&session, busy)` with
-    /// `busy` while a stroke or a slider drag runs. Undo and redo report
+    /// `busy` while a stroke runs or the panel's gesture is live. Undo and redo report
     /// [`LiquifyEvent::Replay`] in the same pass.
     pub fn show(&mut self, ctx: &Context, source: &dyn LiquifySource) -> LiquifyOutput {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:950 `show` (title, strip, panel, footer,
@@ -229,33 +300,57 @@ impl LiquifyWorkspace {
         let labels = LiquifyLabels::of_ctx(ctx);
         let dialog_labels = DialogLabels::of_ctx(ctx);
         let tokens = current(ctx);
-        let style = LiquifyStyle::of(&tokens);
+        let style = Self::style(&tokens);
         let mesh_style = MeshStyle::of(&tokens);
         let layers = source.layers();
         let title = FullWindowTitle::new(labels.name.as_str()).subject(self.subject.as_str()).zoom(self.view.zoom_percent()).text(ctx);
-        let Self { dialog, session, history, settings, subject: _, size, view, last_used, canvas, asked } = self;
+        let Self {
+            dialog,
+            session,
+            history,
+            settings,
+            subject: _,
+            size,
+            view,
+            last_used,
+            canvas,
+            asked,
+            gesture,
+            queued,
+            requested,
+            navigation,
+            checkerboard,
+        } = self;
+        let (navigation, checkerboard) = (*navigation, *checkerboard);
         let doc = Size::new(f64::from(size[0]), f64::from(size[1]));
-        // The user's navigation options are the app's; Photoshop's defaults until it passes them.
-        let navigation = NavigationOptions::default();
+        canvas.navigate(doc, navigation);
+        let settings_before = settings.clone();
+        let asked_steps = std::mem::take(requested);
 
-        let mut events = Vec::new();
-        let mut changed = false;
+        let mut events = std::mem::take(queued);
         let mut panel_busy = false;
         let response = FullWindowDialog::new("liquify").title(title).show(ctx, dialog, session, |ui, session, fx| {
-            // The history keys are read whatever has focus, so ⌘Z works while a number field has
-            // it, but only while this workspace is the top modal layer.
-            if ctx.memory(|m| m.top_modal_layer()) == Some(ui.layer_id()) {
-                if let Some(step) = take_step(ctx) {
-                    // An open stroke ends first; the replay that follows rebuilds the field.
-                    if let Some(event) = canvas.end_stroke() {
-                        absorb(session, event, &mut Vec::new());
-                    }
-                    if history.step(session, step) {
-                        events.push(LiquifyEvent::Replay(session.steps().to_vec()));
-                    }
+            // The id the canvas runs its `ToolHost` under, taken in the scope that shows it.
+            let canvas_id = FullWindowCanvas::canvas_id(ui, CANVAS);
+            // The history keys are read before the body, whatever has focus, but only while this
+            // workspace is the top modal layer; the app's own requests ([`Self::step`]) go first.
+            for step in asked_steps.into_iter().chain(fx.take_step(ui)) {
+                // An open stroke is cancelled first; the replay of the step supersedes the one the
+                // cancel reports.
+                let pending = cancel_gesture(ctx, canvas_id, canvas, settings, &style, CancelReason::UndoDuringGesture);
+                adopt(view, ui, pending);
+                for event in canvas.take_events() {
+                    absorb(session, event, &mut events);
                 }
-                let (keys_changed, globals) = LiquifyKeys::read(ctx, settings);
-                changed |= keys_changed;
+                if history.step(session, step) {
+                    if matches!(events.last(), Some(LiquifyEvent::Replay(_))) {
+                        events.pop();
+                    }
+                    events.push(LiquifyEvent::Replay(session.steps().to_vec()));
+                }
+            }
+            if fx.keys_free(ui) {
+                let (_, globals) = LiquifyKeys::read(ctx, settings);
                 for op in globals {
                     record_global(canvas, session, op, &mut events);
                 }
@@ -265,19 +360,12 @@ impl LiquifyWorkspace {
             let rail =
                 ToolRail::new("liquify-tools").label(labels.tools.as_str()).pick_by_key(true).show(ui, &slots, &settings.tool, last_used, |_, _| {});
             if let Some(tool) = rail.select.filter(|tool| *tool != settings.tool) {
-                if canvas.busy() {
-                    let id = FullWindowCanvas::canvas_id(ui, CANVAS);
-                    match settings.tool {
-                        LiquifyTool::Hand => ToolHost::cancel(ctx, id, canvas.hand(doc, navigation), CancelReason::Removed),
-                        LiquifyTool::Zoom => ToolHost::cancel(ctx, id, canvas.zoom(doc, navigation), CancelReason::Removed),
-                        _ => ToolHost::cancel(ctx, id, &mut canvas.tool(settings, &style), CancelReason::Removed),
-                    };
-                    for event in canvas.take_events() {
-                        absorb(session, event, &mut events);
-                    }
+                let pending = cancel_gesture(ctx, canvas_id, canvas, settings, &style, CancelReason::Removed);
+                adopt(view, ui, pending);
+                for event in canvas.take_events() {
+                    absorb(session, event, &mut events);
                 }
                 settings.tool = tool;
-                changed = true;
             }
 
             let footer = SideFooter::bottom(vec![
@@ -286,11 +374,14 @@ impl LiquifyWorkspace {
             ]);
             let mut panel = None;
             FullWindowSide::new("liquify-props").header(labels.properties.as_str()).footer(footer).show(ui, fx, |ui| {
-                panel = Some(LiquifyPanel::new("liquify-panel", settings, &labels).layers(&layers).show(ui));
+                panel = Some(LiquifyPanel::new("liquify-panel", settings).layers(&layers).show(ui));
             });
             if let Some(panel) = panel {
-                changed |= panel.changed;
-                panel_busy |= panel.dragging;
+                match &panel.edit {
+                    Some(EditEvent::Begin { id, .. } | EditEvent::Update { id, .. }) => *gesture = Some(*id),
+                    Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. }) => *gesture = None,
+                    _ => {}
+                }
                 if let Some(op) = panel.global {
                     record_global(canvas, session, op, &mut events);
                 }
@@ -304,6 +395,11 @@ impl LiquifyWorkspace {
                     *asked = Some(of);
                 }
             }
+            // A slider whose control is no longer drawn has ended its gesture.
+            if gesture.is_some_and(|id| !is_live(ctx, id)) {
+                *gesture = None;
+            }
+            panel_busy = gesture.is_some();
             if !settings.show_backdrop {
                 *asked = None;
             } else if asked.is_none() {
@@ -320,9 +416,9 @@ impl LiquifyWorkspace {
                 Some(layered) => layered,
                 None => source.image(),
             };
-            let mut widget = FullWindowCanvas::new(CANVAS, view).source(image).checkerboard(Checkerboard::default()).navigation(navigation);
+            let mut widget = FullWindowCanvas::new(CANVAS, view).source(image).checkerboard(checkerboard).navigation(navigation);
             if let Some((mask, texel)) = source.freeze_mask().filter(|_| settings.show_mask) {
-                // The mask is white with the frozen amount as alpha: the tint carries the colour.
+                // The mask is white with the frozen amount as alpha: the tint carries the color.
                 let [r, g, b, a] = style.freeze.to_srgba_unmultiplied();
                 let tint = egui::Color32::from_rgba_premultiplied(r, g, b, (f32::from(a) * style.mask_opacity).round() as u8);
                 widget = widget.overlay(RasterOverlay::new(mask, texel).tint(tint));
@@ -334,8 +430,8 @@ impl LiquifyWorkspace {
                 }
             });
             let shown = match settings.tool {
-                LiquifyTool::Hand => widget.tool(canvas.hand(doc, navigation)).show(ui),
-                LiquifyTool::Zoom => widget.tool(canvas.zoom(doc, navigation)).show(ui),
+                LiquifyTool::Hand => widget.tool(canvas.hand()).show(ui),
+                LiquifyTool::Zoom => widget.tool(canvas.zoom()).show(ui),
                 _ => widget.tool(&mut canvas.tool(settings, &style)).show(ui),
             };
             // The Esc that cancelled a stroke is not the dialog's Cancel.
@@ -347,7 +443,13 @@ impl LiquifyWorkspace {
             }
         });
         history.settle(session, canvas.busy() || panel_busy);
-        LiquifyOutput { events, outcome: response.outcome, rect: response.rect, settings_changed: changed }
+        LiquifyOutput {
+            events,
+            outcome: response.outcome,
+            rect: response.rect,
+            settings_changed: *settings != settings_before,
+            timing: canvas.timing(),
+        }
     }
 
     /// What OK applies.
@@ -360,16 +462,24 @@ impl LiquifyWorkspace {
         &self.settings
     }
 
-    /// Undo or redo from the app's Edit menu: steps the history and returns the
-    /// [`LiquifyEvent::Replay`] to apply, or `None` with nothing to step. A stroke in progress ends
-    /// first. The workspace reads ⌘Z itself while it is the top modal layer.
-    pub fn step(&mut self, step: Step) -> Option<LiquifyEvent> {
-        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:340 `undo`, :351 `redo` (a stroke still
-        // open ends first).
-        if let Some(event) = self.canvas.end_stroke() {
-            absorb(&mut self.session, event, &mut Vec::new());
+    /// Undo or redo from the app's Edit menu. Returns whether a step will happen; its
+    /// [`LiquifyEvent::Replay`] comes with the next [`show`](Self::show)'s events. With a stroke
+    /// open the step waits for that pass, which cancels the stroke (`UndoDuringGesture`) first.
+    /// The workspace reads ⌘Z itself while it is the top modal layer.
+    pub fn step(&mut self, step: Step) -> bool {
+        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:340 `undo`, :351 `redo`.
+        if self.canvas.busy() {
+            self.requested.push(step);
+            return match step {
+                Step::Undo => self.history.can_undo(),
+                Step::Redo => self.history.can_redo(),
+            };
         }
-        self.history.step(&mut self.session, step).then(|| LiquifyEvent::Replay(self.session.steps().to_vec()))
+        let stepped = self.history.step(&mut self.session, step);
+        if stepped {
+            self.queued.push(LiquifyEvent::Replay(self.session.steps().to_vec()));
+        }
+        stepped
     }
 }
 
@@ -394,6 +504,35 @@ fn absorb(session: &mut LiquifySession, event: LiquifyEvent, out: &mut Vec<Liqui
             out.push(LiquifyEvent::Replay(session.steps().to_vec()));
         }
         other => out.push(other),
+    }
+}
+
+/// Cancels the gesture the current tool holds (a Liquify tool's stroke, lasso or resize, or the
+/// Hand's or Zoom's drag) through the host, and the tool's own state if the host held none. Returns
+/// the view the Hand puts back, for the workspace's view to adopt.
+fn cancel_gesture(
+    ctx: &Context,
+    id: CanvasId,
+    canvas: &mut LiquifyCanvas,
+    settings: &mut LiquifySettings,
+    style: &LiquifyStyle,
+    reason: CancelReason,
+) -> Option<CanvasView> {
+    let pending = match settings.tool {
+        LiquifyTool::Hand => ToolHost::cancel(ctx, id, canvas.hand(), reason),
+        LiquifyTool::Zoom => ToolHost::cancel(ctx, id, canvas.zoom(), reason),
+        _ => ToolHost::cancel(ctx, id, &mut canvas.tool(settings, style), reason),
+    };
+    if canvas.busy() {
+        canvas.tool(settings, style).abandon(reason);
+    }
+    pending
+}
+
+/// Takes the view a cancelled tool put back.
+fn adopt(view: &mut FullWindowView, ui: &egui::Ui, pending: Option<CanvasView>) {
+    if let Some(pending) = pending {
+        view.take(&pending, ui.pixels_per_point());
     }
 }
 
