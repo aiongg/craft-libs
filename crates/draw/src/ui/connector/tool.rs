@@ -46,7 +46,7 @@ use craft_ui::localized::Labels as _;
 /// - Esc cancels the drag; Delete is the app's.
 ///
 /// Keyboard parts: group [`ConnectorToolLabels::group`]; the end handles ("Start, attached to
-/// 12", "End, free") and path handles ("Bend 1 of 2") are parts; Page keys pick, arrows
+/// Rectangle 2", "End, free") and path handles ("Bend 1 of 2") are parts; Page keys pick, arrows
 /// move a path handle by the nudge step or move a picked end to the next target in the group's
 /// order.
 #[derive(Debug, Default)]
@@ -235,6 +235,9 @@ impl ConnectorTool {
 
     /// The selected connector, whose ends and path handles the tool edits.
     pub fn selected(&mut self, connector: Option<&ConnectorItem>) -> &mut Self {
+        if self.selected.as_ref().map(|c| c.id) != connector.map(|c| c.id) {
+            self.picked = None;
+        }
         self.selected = connector.cloned();
         self
     }
@@ -547,7 +550,7 @@ impl CanvasTool for ConnectorTool {
             return;
         }
         // A route that can't be placed there (a reshape the geometry refuses) makes nothing.
-        let phase = if d.value.is_some() { Phase::Commit } else { Phase::Cancel(CancelReason::Escape) };
+        let phase = if d.value.is_some() { Phase::Commit } else { Phase::Cancel(CancelReason::External) };
         self.events.extend(event(&d, phase));
     }
 
@@ -572,7 +575,7 @@ impl CanvasTool for ConnectorTool {
     fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         // new: arrows move the picked path handle (`NudgeKeys::from_key`) or move the picked end to
         // the next target (AccessKit keyboard path).
-        if !key.pressed || self.drag.is_some() || key.key == Key::Escape {
+        if !key.pressed || !cx.parts_focused || self.drag.is_some() || key.key == Key::Escape {
             return false;
         }
         let (Some(picked), Some(nudge)) = (self.picked, NudgeKeys::new().from_key(key)) else { return false };
@@ -651,7 +654,10 @@ impl CanvasTool for ConnectorTool {
         let reach = style.handle_reach;
         let around = |p: Point| egui::Rect::from_center_size(view.to_screen(p), egui::vec2(2.0 * reach, 2.0 * reach));
         let end_name = |end: &ConnectorEnd, attached: &str, free: &str| match end {
-            ConnectorEnd::Glued { target, .. } => craft_i18n::fmt(attached, &[("target", &target.to_string())]),
+            ConnectorEnd::Glued { target, .. } => {
+                let name = self.targets.iter().find(|t| t.id == *target).and_then(|t| t.name.clone()).unwrap_or_else(|| target.to_string());
+                craft_i18n::fmt(attached, &[("target", &name)])
+            }
             ConnectorEnd::Free(_) => free.to_owned(),
         };
         let mut parts = Vec::new();

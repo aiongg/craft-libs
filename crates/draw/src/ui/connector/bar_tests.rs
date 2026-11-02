@@ -5,17 +5,18 @@ use egui::{Context, Painter, Rect};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-use super::{ConnectorBar, ConnectorBarEvent, ConnectorLine};
+use super::{ConnectorBar, ConnectorBarOutput, ConnectorLine};
 use crate::geometry::connector::Routing;
 use crate::ui::stroke::{StrokeChoice, StrokeChoiceRow};
 use craft_ui::controls::MixedValue;
+use craft_ui::patterns::OptionsBar;
 use craft_ui::theme::{Base, install};
 
 struct Host {
     routing: Routing,
     line: ConnectorLine,
     choices: Vec<StrokeChoice>,
-    events: Vec<ConnectorBarEvent>,
+    events: Vec<ConnectorBarOutput>,
 }
 
 fn bar() -> Harness<'static, Host> {
@@ -27,20 +28,22 @@ fn bar() -> Harness<'static, Host> {
         .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
         .build_ui_state(
             |ui, host: &mut Host| {
-                ui.horizontal(|ui| {
+                let mut out = ConnectorBarOutput::default();
+                OptionsBar::new("bar-options").show(ui, |slots| {
                     let paint = |_: &Painter, _: Rect, _: &StrokeChoice| {};
                     let start = StrokeChoiceRow::new("start", "Start", &host.choices).selected(MixedValue::Same("none")).paint(paint);
                     let end = StrokeChoiceRow::new("end", "End", &host.choices).selected(MixedValue::Same("arrow")).paint(paint);
-                    let out = ConnectorBar::new("bar", host.routing, host.line).caps(start, end).show(ui);
-                    for event in out.events {
-                        match &event {
-                            ConnectorBarEvent::Routing(routing) => host.routing = *routing,
-                            ConnectorBarEvent::Line(line) => host.line = *line,
-                            _ => {}
-                        }
-                        host.events.push(event);
-                    }
+                    ConnectorBar::new("bar", host.routing, host.line).caps(start, end).output(&mut out).add_to(slots);
                 });
+                if let Some(routing) = out.routing {
+                    host.routing = routing;
+                }
+                if let Some(line) = out.line {
+                    host.line = line;
+                }
+                if out != ConnectorBarOutput::default() {
+                    host.events.push(out);
+                }
             },
             host,
         );
@@ -57,8 +60,8 @@ fn pick(harness: &mut Harness<'_, Host>, menu: &str, option: &str) {
     harness.run_steps(4);
 }
 
-// Clicking Elbow reports `Routing(Elbow)`; picking an end cap reports `EndCap` with its choice id; Dash then
-// weight 4 report `Line { dashed: true, weight: 4 }`.
+// Clicking Elbow sets `routing` to Elbow; picking an end cap sets `end_cap` to its choice id; Dash then
+// weight 4 set `line` to `{ dashed: true, weight: 4 }`.
 #[test]
 fn connector_bar_routing_caps_and_line_style_events() {
     let mut harness = bar();
@@ -67,13 +70,10 @@ fn connector_bar_routing_caps_and_line_style_events() {
     pick(&mut harness, "End point", "Dot");
     pick(&mut harness, "Stroke style", "Dash");
     pick(&mut harness, "Stroke style", "Stroke weight 4");
-    assert_eq!(
-        harness.state().events,
-        [
-            ConnectorBarEvent::Routing(Routing::Elbow),
-            ConnectorBarEvent::EndCap("dot".to_owned()),
-            ConnectorBarEvent::Line(ConnectorLine { dashed: true, weight: 2.0 }),
-            ConnectorBarEvent::Line(ConnectorLine { dashed: true, weight: 4.0 }),
-        ]
-    );
+    let events = &harness.state().events;
+    assert_eq!(events.len(), 4);
+    assert_eq!(events[0].routing, Some(Routing::Elbow));
+    assert_eq!(events[1].end_cap.as_deref(), Some("dot"));
+    assert_eq!(events[2].line, Some(ConnectorLine { dashed: true, weight: 2.0 }));
+    assert_eq!(events[3].line, Some(ConnectorLine { dashed: true, weight: 4.0 }));
 }

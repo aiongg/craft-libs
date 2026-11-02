@@ -37,7 +37,7 @@ mod tool;
 #[cfg(test)]
 mod tool_tests;
 
-pub use bar::{ConnectorBar, ConnectorBarEvent, ConnectorBarOutput, ConnectorLine};
+pub use bar::{ConnectorBar, ConnectorBarOutput, ConnectorLine};
 pub use labels::{ConnectorBarLabels, ConnectorToolLabels};
 pub use overlay::ConnectorOverlay;
 pub use style::ConnectorStyle;
@@ -55,11 +55,14 @@ pub struct ConnectionSite {
     pub index: u32,
 }
 
-/// An object a connector may glue to, as the app gives it this pass.
+/// An object a connector may glue to, as the app gives it this pass. The app passes the selected
+/// connector's end objects among the targets, or the tool has no route for it and no handles.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConnectionTarget {
     /// The app's id of the object.
     pub id: u64,
+    /// The object's name for screen readers ("Rectangle 2"); `None` reads the number.
+    pub name: Option<String>,
     /// Its bounds, document units.
     pub bounds: Rect,
     /// Its sites; empty means the four side middles ([`ConnectionTarget::side_sites`]).
@@ -69,7 +72,13 @@ pub struct ConnectionTarget {
 impl ConnectionTarget {
     /// The target `id` with the four side middles of `bounds` as its sites.
     pub fn new(id: u64, bounds: Rect) -> Self {
-        ConnectionTarget { id, bounds, sites: Vec::new() }
+        ConnectionTarget { id, name: None, bounds, sites: Vec::new() }
+    }
+
+    /// The target named `name` for screen readers.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// The sites a connector may glue to: [`sites`](Self::sites), or the four side middles.

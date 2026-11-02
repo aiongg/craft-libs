@@ -65,8 +65,8 @@ pub use brush_settings::{
     BrushSettingsPanel, BrushSettingsStyle, BrushSizeField, BrushStrokeStrip, DynamicControl, TipEllipse,
 };
 pub use connector::{
-    ConnectionSite, ConnectionTarget, ConnectorBar, ConnectorBarEvent, ConnectorBarLabels, ConnectorBarOutput, ConnectorDraft, ConnectorEnd,
-    ConnectorEndKind, ConnectorEvent, ConnectorItem, ConnectorLine, ConnectorOverlay, ConnectorStyle, ConnectorTool, ConnectorToolLabels,
+    ConnectionSite, ConnectionTarget, ConnectorBar, ConnectorBarLabels, ConnectorBarOutput, ConnectorDraft, ConnectorEnd, ConnectorEndKind,
+    ConnectorEvent, ConnectorItem, ConnectorLine, ConnectorOverlay, ConnectorStyle, ConnectorTool, ConnectorToolLabels,
 };
 pub use corner::{CornerEdit, CornerKind, CornerRadii, CornerStyle, CornerWidgets, CornerWidgetsLabels, CornerWidgetsResponse};
 pub use crop::{

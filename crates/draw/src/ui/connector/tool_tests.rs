@@ -2,11 +2,12 @@
 
 use egui::{CursorIcon, Key, Modifiers, Sense, vec2};
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable as _;
 use kurbo::{Point, Rect};
 
 use super::{ConnectionSite, ConnectionTarget, ConnectorDraft, ConnectorEnd, ConnectorEndKind, ConnectorEvent, ConnectorItem, ConnectorTool};
 use crate::geometry::connector::{ConnectionSide, ConnectorPath, RouteEnd, Routing, route_along};
-use craft_ui::canvas::{CanvasId, CanvasView, ToolHost, ToolInput};
+use craft_ui::canvas::{CanvasId, CanvasTool as _, CanvasView, ToolHost, ToolInput};
 use craft_ui::edit::CancelReason;
 use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, current, install};
@@ -233,6 +234,7 @@ fn connector_reattach_to_target_or_free_point() {
 fn connector_sites_accept_side_middles_and_numbered_sites() {
     let numbered = ConnectionTarget {
         id: 4,
+        name: None,
         bounds: Rect::new(150.0, 200.0, 250.0, 260.0),
         sites: vec![
             ConnectionSite { point: Point::new(160.0, 210.0), side: ConnectionSide::Top, index: 7 },
@@ -337,4 +339,65 @@ fn connector_cancels_on_escape_and_on_tool_switch() {
     ToolHost::cancel(&ctx, id, &mut h.state_mut().tool, CancelReason::Removed);
     h.step();
     assert_eq!(cancels(&mut h), ["reshape"]);
+}
+
+// The arrows move a picked part only while the parts group has the keyboard; the pick is
+// forgotten when another connector is selected.
+#[test]
+fn connector_arrows_need_the_parts_focused_and_the_pick_follows_the_connector() {
+    let straight = item(glued(1, ConnectionSide::Right), glued(2, ConnectionSide::Left), Routing::Straight);
+    let mut h = harness(boxes(), Some(straight.clone()));
+    // A press and release on the end handle picks it, with no drag.
+    down(&mut h, (250.0, 150.0));
+    up(&mut h, (250.0, 150.0));
+    assert_eq!(h.state().tool.picked(), Some(1));
+    drained(&mut h);
+    h.key_press(Key::ArrowRight);
+    h.run();
+    assert!(drained(&mut h).is_empty(), "the canvas has the keyboard, not the parts group: arrows do nothing");
+
+    let other = ConnectorItem { id: 10, ..straight };
+    h.state_mut().selected = Some(other);
+    h.step();
+    assert_eq!(h.state().tool.picked(), None, "another connector: nothing is picked");
+}
+
+// A release the geometry refuses (an end the route can't be placed at) reports `Cancel` with
+// `External`: no Esc was pressed.
+#[test]
+fn connector_refused_release_cancels_as_external() {
+    let mut h = harness(boxes(), None);
+    down(&mut h, (60.0, 250.0));
+    to(&mut h, (200.0, 250.0));
+    drained(&mut h);
+    up(&mut h, (f64::NAN, f64::NAN));
+    let events = drained(&mut h);
+    assert!(
+        events.iter().any(|e| matches!(e, ConnectorEvent::Draw(EditEvent::Cancel { reason: CancelReason::External, .. }))),
+        "an External cancel in {events:?}"
+    );
+}
+
+// Over an end handle of the selected connector the cursor is the move arrow, elsewhere the
+// crosshair; read through real pointer events.
+#[cfg(feature = "screen-testing")]
+#[test]
+fn connector_cursor_follows_the_pointer_through_the_rig() {
+    use craft_ui::testing::canvas::move_to;
+    let selected = item(glued(1, ConnectionSide::Right), glued(2, ConnectionSide::Left), Routing::Straight);
+    let mut h = harness(boxes(), Some(selected));
+    move_to(&mut h, egui::pos2(250.0, 150.0));
+    assert_eq!(h.state().cursor, CursorIcon::Move);
+    move_to(&mut h, egui::pos2(60.0, 270.0));
+    assert_eq!(h.state().cursor, CursorIcon::Crosshair);
+}
+
+// A glued end is named by its target's name, else by its number.
+#[test]
+fn connector_end_part_uses_the_target_name() {
+    let named = vec![ConnectionTarget::new(1, rect(A)).named("Rectangle 1"), target(2, (250.0, 100.0, 330.0, 200.0))];
+    let selected = item(glued(1, ConnectionSide::Right), glued(2, ConnectionSide::Left), Routing::Straight);
+    let h = harness(named, Some(selected));
+    assert!(h.query_by_label("Start, attached to Rectangle 1").is_some());
+    assert!(h.query_by_label("End, attached to 2").is_some());
 }
