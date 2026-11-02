@@ -16,6 +16,9 @@ pub struct FullWindowStyle {
     /// A [`SideWidth::Wide`](super::SideWidth::Wide) column: `full_window.side.width_wide`
     /// (Select and Mask's Properties, 350).
     pub side_width_wide: f32,
+    /// A [`SideWidth::Narrow`](super::SideWidth::Narrow) column: `full_window.side.width_narrow`
+    /// (Vanishing Point's, which carries only OK and Cancel).
+    pub side_width_narrow: f32,
     /// The padding inside a side column, x then y: `full_window.side.pad_x`, `pad_y` (14, 12).
     pub side_pad: Vec2,
     /// A side column's fill: `full_window.side.fill` (`surface.panel`).
@@ -37,8 +40,9 @@ pub struct FullWindowStyle {
     pub zoom_bar_pad: Vec2,
     /// The zoom bar's fill: `full_window.side.fill`, as PhotoCraft fills it with the dock colour.
     pub zoom_bar_fill: Color32,
-    /// The zoom bar's progress bar: `full_window.progress.width` × `.height` (90 × 6).
-    pub progress: Vec2,
+    /// The zoom bar's progress bar length: `full_window.progress.width` (90). Its thickness is
+    /// the library `Progress`'s own, as PhotoCraft's 6 pt bar is.
+    pub progress_width: f32,
     /// The zoom bar's note and other hints: `text.faint`.
     pub note: Color32,
     /// A preview's error line: `status.bad.fg`.
@@ -56,6 +60,7 @@ impl FullWindowStyle {
         FullWindowStyle {
             side_width: w.side_width,
             side_width_wide: w.side_width_wide,
+            side_width_narrow: w.side_width_narrow,
             side_pad: Vec2::new(w.side_pad_x, w.side_pad_y),
             side_fill: w.side_fill.to_egui(),
             side_divider: hairline(w.side_divider),
@@ -66,7 +71,7 @@ impl FullWindowStyle {
             zoom_bar_height: w.zoom_bar_height,
             zoom_bar_pad: Vec2::new(w.zoom_bar_pad_x, w.zoom_bar_pad_y),
             zoom_bar_fill: w.side_fill.to_egui(),
-            progress: Vec2::new(w.progress_width, w.progress_height),
+            progress_width: w.progress_width,
             note: c.text.faint.to_egui(),
             error: c.status.bad.fg.to_egui(),
         }
