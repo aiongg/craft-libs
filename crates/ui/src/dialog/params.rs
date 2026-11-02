@@ -683,8 +683,7 @@ impl Param {
                 });
             }
             ParamKind::Custom(row) => {
-                let custom =
-                    CustomContext { ctx: ctx.clone(), dialog, title: label.trim_end_matches([':', '：']).to_owned(), colors: fields.clone() };
+                let custom = CustomContext { ctx: ctx.clone(), dialog, title: name.clone(), colors: fields.clone() };
                 if self.option().full_width {
                     form.spanning(|ui| (row.0)(ui, fields, &custom));
                 } else {

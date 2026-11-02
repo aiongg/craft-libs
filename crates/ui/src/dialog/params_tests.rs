@@ -639,9 +639,9 @@ fn a_full_width_custom_row_has_no_label_and_below_draws_a_note() {
         ui.label("Monitor note");
     }));
     harness.run();
-    assert!(harness.query_by_label("Center:").is_none());
+    assert!(harness.query_by_label("Center").is_none());
     assert!(harness.query_by_label("Pick center").is_some());
-    assert!(harness.query_by_label("Plain:").is_some());
+    assert!(harness.query_by_label("Plain").is_some());
     assert!(harness.query_by_label("Monitor note").is_some());
 }
 
@@ -658,7 +658,7 @@ fn a_custom_row_asks_for_a_colour_under_its_own_key() {
     })];
     let mut harness = harness(ParamDialog::new("replace", "Replace Color", rows));
     harness.run();
-    harness.get_by_label("Result:").click();
+    harness.get_by_label("Result").click();
     harness.run();
     let dialog = open_dialog(&mut harness).expect("open");
     let request = dialog.pick_color().expect("the press is reported");
@@ -709,7 +709,7 @@ fn two_dialogs_of_one_command_keep_separate_state() {
     harness.run();
     assert_eq!(harness.query_all_by_role(Role::Dialog).count(), 2);
     harness.state_mut()[1].fields_mut().set("tint", FieldValue::Color([0.0, 0.0, 1.0]));
-    harness.get_by_label("Alpha tint:").click();
+    harness.get_by_label("Alpha tint").click();
     harness.run();
     let [beta, alpha] = &mut harness.state_mut()[..] else { unreachable!() };
     assert_eq!(alpha.pick_color().map(|r| r.key), Some("tint".to_owned()));
