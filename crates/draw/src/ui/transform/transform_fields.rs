@@ -2,7 +2,7 @@
 
 use craft_theme::ControlSize;
 use craft_ui::testing::canvas_story::ViewArgs;
-use egui::{Align, Layout, Response, Ui, UiBuilder, vec2};
+use egui::{Align, Layout, Ui, UiBuilder, vec2};
 use kurbo::{Rect, Vec2};
 
 use craft_ui::canvas::quad::{BoxState, SKEW_LIMIT};
@@ -417,13 +417,6 @@ enum Form {
     Bar,
 }
 
-/// How a field's value is scrubbed: by nothing, by the caption beside it, or by an icon in it.
-enum Scrub<'r> {
-    No,
-    Caption(&'r Response),
-    Icon(Icon),
-}
-
 impl<'a> TransformFields<'a> {
     /// The fields of `state`, a box that was `start_rect` before the transform.
     pub fn new(id_salt: impl std::hash::Hash + std::fmt::Debug, state: &'a BoxState, start_rect: Rect, labels: TransformFieldLabels) -> Self {
@@ -536,7 +529,7 @@ impl<'a> TransformFields<'a> {
     /// are the reference point, X and Y, a divider, W, the aspect link and H, a divider, the angle
     /// (scrubbed by an icon), H and V skew, and with [`interpolation`](Self::interpolation) a
     /// divider and the select. A pick on the reference point reports a Set of the box with
-    /// its reference point moved. The cells are [`Sm`](ControlSize::Sm) fields whatever
+    /// its reference point moved. The cells are `OptionsBar::CONTROL_SIZE` fields whatever
     /// [`size`](Self::size) says. Put it in the bar's body.
     pub fn show_bar(self, ui: &mut Ui) -> EditResponse<TransformRow> {
         self.show_in(ui, Form::Bar)
@@ -601,12 +594,7 @@ impl<'a> TransformFields<'a> {
         edits.replay(ui.ctx(), apply);
         let shown = *edits.value();
 
-        let field = |ui: &mut Ui,
-                     which: TransformField,
-                     label: &FieldLabel,
-                     size: ControlSize,
-                     scrub: Scrub,
-                     menu: Option<(&[MenuEntry<usize>], &mut Option<usize>)>| {
+        let field = |which: TransformField, label: &FieldLabel, size: ControlSize| {
             let (unit, decimals) = format(which);
             let bound = convert.bound(which);
             let current = reads(which, &shown);
@@ -623,17 +611,9 @@ impl<'a> TransformFields<'a> {
                     matches!(which, TransformField::W | TransformField::H).then(|| convert.per_factor(usize::from(which == TransformField::H)));
                 field = field.or_parse(move |text| parser(which, text, ParseContext { shown: current, whole }));
             }
-            field = match scrub {
-                Scrub::No => field,
-                Scrub::Caption(caption) => field.scrub_by(caption),
-                Scrub::Icon(icon) => field.scrub_icon(icon),
-            };
-            if let Some((entries, picked)) = menu {
-                field = field.unit_menu(entries, picked);
-            }
-            field.show(ui)
+            field
         };
-        let plain = |ui: &mut Ui, which: TransformField, label: &FieldLabel| field(ui, which, label, size, Scrub::No, None);
+        let plain = |ui: &mut Ui, which: TransformField, label: &FieldLabel| field(which, label, size).show(ui);
         let glyph = |label: &FieldLabel| PropertyLabel::glyph(label.glyph.clone());
         let group = |ui: &mut Ui, width: f32, add: &mut dyn FnMut(&mut Ui)| {
             ui.allocate_ui(vec2(width, 0.0), |ui| {
@@ -659,7 +639,7 @@ impl<'a> TransformFields<'a> {
                         |ui, _| plain(ui, TransformField::W, &labels.w),
                         |ui| {
                             let icon = if *linked { Icon::Link } else { Icon::Unlink };
-                            ui.add(IconButton::new(icon, labels.link.clone()).size(ControlSize::Sm).enabled(enabled).toggle(linked))
+                            ui.add(IconButton::new(icon, labels.link.clone()).size(OptionsBar::CONTROL_SIZE).enabled(enabled).toggle(linked))
                         },
                         |ui, _| plain(ui, TransformField::H, &labels.h),
                     )
@@ -688,7 +668,6 @@ impl<'a> TransformFields<'a> {
                     anchor = Some((picked, modifiers));
                 }
             }
-            let sm = ControlSize::Sm;
             let wide = if matches!(convert.size, SizeUnit::Length { .. }) { CellWidth::Lg } else { CellWidth::Md };
             let menu = size_menu.as_ref().map(|(entries, _)| *entries);
             let cell = |ui: &mut Ui,
@@ -697,9 +676,11 @@ impl<'a> TransformFields<'a> {
                         width: CellWidth,
                         menu: Option<&[MenuEntry<usize>]>,
                         pick: &mut Option<usize>| {
-                OptionsBar::cell(ui, &label.glyph, width, |ui, caption| {
-                    field(ui, which, label, sm, Scrub::Caption(caption), menu.map(|entries| (entries, pick)))
-                })
+                let mut number = field(which, label, OptionsBar::CONTROL_SIZE);
+                if let Some(entries) = menu {
+                    number = number.unit_menu(entries, pick);
+                }
+                OptionsBar::number_cell(ui, &label.glyph, width, number)
             };
             let mut none = None;
             // A divider separates the blocks shown; the reference point and position, and the angle
@@ -720,7 +701,7 @@ impl<'a> TransformFields<'a> {
             if block(ui, groups.size) {
                 fields.push((TransformField::W, cell(ui, TransformField::W, &labels.w, wide, menu, &mut size_pick)));
                 let icon = if *linked { Icon::Link } else { Icon::Unlink };
-                ui.add(IconButton::new(icon, labels.link.clone()).size(sm).enabled(enabled).toggle(linked));
+                ui.add(IconButton::new(icon, labels.link.clone()).size(OptionsBar::CONTROL_SIZE).enabled(enabled).toggle(linked));
                 fields.push((TransformField::H, cell(ui, TransformField::H, &labels.h, wide, menu, &mut size_pick)));
             }
             if block(ui, groups.angle || groups.skew) {
@@ -730,7 +711,7 @@ impl<'a> TransformFields<'a> {
                     let turn = ui
                         .allocate_ui_with_layout(vec2(side, ui.available_height()), direction::row(ui).with_main_justify(true), |ui| {
                             ui.set_width(side);
-                            field(ui, TransformField::Angle, &labels.angle, sm, Scrub::Icon(Icon::RotateCw), None)
+                            field(TransformField::Angle, &labels.angle, OptionsBar::CONTROL_SIZE).scrub_icon(Icon::RotateCw).show(ui)
                         })
                         .inner;
                     fields.push((TransformField::Angle, turn));
@@ -746,7 +727,7 @@ impl<'a> TransformFields<'a> {
                     let select = options
                         .iter()
                         .fold(Select::new((id, "interpolation"), caption.clone(), value), |select, (v, text)| select.option(v.clone(), text.clone()));
-                    let _ = select.size(sm).enabled(enabled).show(ui);
+                    let _ = select.size(OptionsBar::CONTROL_SIZE).enabled(enabled).show(ui);
                 });
             }
         };
