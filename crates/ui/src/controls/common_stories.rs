@@ -419,7 +419,9 @@ fn show_clone_source(ui: &mut Ui, args: &mut super::SizeDisabledArgs) {
     let numbers = LocaleNumbers::of(ui);
     let (size, enabled) = (args.size.control(), !args.disabled);
     state(ui, "story-clone-source", ([100.0, 100.0], true, [0.0, 0.0]), |ui, (scale, linked, offset)| {
-        egui::Grid::new("story-clone-source-grid").show(ui, |ui| {
+        // The captions are single letters: the grid's default minimum column width (the interact
+        // size) would pad them and push the row past a narrow column.
+        egui::Grid::new("story-clone-source-grid").min_col_width(0.0).show(ui, |ui| {
             let offset_field = |ui: &mut Ui, axis: usize, caption: &str, offset: &mut [f64; 2]| {
                 ui.add(Text::new(caption));
                 let edit = NumberField::new(("story-clone-offset", axis), caption, offset[axis], &numbers).size(size).enabled(enabled).show(ui);
