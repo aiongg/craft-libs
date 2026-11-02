@@ -24,4 +24,4 @@ pub use bar::{RulerBar, RulerBarLabels, RulerBarOutput};
 pub use distances::box_distances;
 pub use model::{MIN_LINE, RulerLine, RulerPart, RulerReading};
 pub use style::MeasureStyle;
-pub use tool::{RulerInput, RulerOutput, RulerPass, RulerTool, RulerToolLabels};
+pub use tool::{RulerInput, RulerPass, RulerTool, RulerToolLabels};

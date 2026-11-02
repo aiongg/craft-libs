@@ -2218,7 +2218,7 @@ pub const GRIP_HIT_PAD: f32 = 3.0;
 pub const GRIP_WARM_PAD: f32 = 2.0;
 
 // --- constrain ---
-/// Screen points within which a press copies instead of moves: `constrain.copy_reach`.
+/// Screen points of travel after which ⌥ held at the press copies: `constrain.copy_reach`.
 pub const CONSTRAIN_COPY_REACH: f32 = 2.0;
 /// Screen points a stroke travels before its direction locks: `constrain.stroke_lock`.
 pub const CONSTRAIN_STROKE_LOCK: f32 = 3.0;
