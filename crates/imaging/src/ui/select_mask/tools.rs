@@ -8,7 +8,7 @@ use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::canvas::{CanvasTool, CursorOptions, Marquee, MarqueeLook, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
 use craft_ui::edit::{CancelReason, EditEvent, GestureId};
 use craft_ui::icons::Icon;
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, Units};
 use craft_ui::patterns::{RailTool, ToolSlot};
 use craft_ui::theme::ToEgui as _;
 
@@ -417,7 +417,7 @@ impl SelectMaskCanvasTool<'_> {
             return;
         }
         let labels = BrushResizeLabels::of_ctx(&cx.canvas.ctx);
-        if let Some(readout) = self.canvas.resize.readout(cx.numbers, &labels) {
+        if let Some(readout) = self.canvas.resize.readout(&Units::of_ctx(&cx.canvas.ctx), &labels) {
             cx.readout(readout);
         }
     }
