@@ -19,8 +19,9 @@ pub enum PreviewMap<'a> {
     Quad([Point; 4]),
     /// Warp: the source frame's unit square through a warp mesh's surface, sampled finer where the
     /// warp pulls hard (about every `SEGMENT_PX` screen points, `MIN_PER_CELL` to `MAX_PER_CELL`
-    /// per patch, at most `MAX_PER_AXIS` per axis).
-    Mesh(&'a WarpMesh),
+    /// per patch, at most `MAX_PER_AXIS` per axis). The displacement order measures from `source`,
+    /// the unwarped frame.
+    Mesh { mesh: &'a WarpMesh, source: Rect },
     /// Puppet Warp: the solver's triangles, each vertex at its deformed position and its texel at
     /// its rest position within `source` (the layer's bounds), drawn in the solver's order.
     Pins { mesh: PinMeshView<'a>, source: Rect },
@@ -33,7 +34,7 @@ impl std::fmt::Debug for PreviewMap<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PreviewMap::Quad(quad) => f.debug_tuple("Quad").field(quad).finish(),
-            PreviewMap::Mesh(mesh) => f.debug_tuple("Mesh").field(mesh).finish(),
+            PreviewMap::Mesh { mesh, source } => f.debug_struct("Mesh").field("mesh", mesh).field("source", source).finish(),
             PreviewMap::Pins { mesh, source } => f.debug_struct("Pins").field("mesh", mesh).field("source", source).finish(),
             PreviewMap::Function { source, cells, .. } => {
                 f.debug_struct("Function").field("source", source).field("cells", cells).finish_non_exhaustive()
@@ -48,9 +49,9 @@ impl<'a> PreviewMap<'a> {
         PreviewMap::Quad(quad)
     }
 
-    /// A warp mesh over the source frame.
-    pub fn mesh(mesh: &'a WarpMesh) -> Self {
-        PreviewMap::Mesh(mesh)
+    /// A warp mesh over `source`, the source frame.
+    pub fn mesh(mesh: &'a WarpMesh, source: Rect) -> Self {
+        PreviewMap::Mesh { mesh, source }
     }
 
     /// A pin solver's mesh over `source`, the layer's bounds.
@@ -84,7 +85,7 @@ impl<'a> PreviewMap<'a> {
         // crates/ui-egui/src/tools/puppet_ui.rs:348 (pins); perspective_ui.rs:263 (function).
         match self {
             PreviewMap::Quad(quad) => quad_mesh(quad, uv),
-            PreviewMap::Mesh(mesh) => warp_mesh(mesh, zoom, uv),
+            PreviewMap::Mesh { mesh, source } => warp_mesh(mesh, *source, zoom, uv),
             PreviewMap::Pins { mesh, source } => pin_mesh(mesh, *source, uv),
             PreviewMap::Function { source, cells, map } => function_mesh(*source, *cells, map, uv),
         }
@@ -137,24 +138,18 @@ fn quad_mesh(quad: &[Point; 4], uv: [f32; 2]) -> PreviewMesh {
     mesh
 }
 
-fn warp_mesh(mesh: &WarpMesh, zoom: f64, uv: [f32; 2]) -> PreviewMesh {
+fn warp_mesh(mesh: &WarpMesh, source: Rect, zoom: f64, uv: [f32; 2]) -> PreviewMesh {
     if !mesh.is_valid() {
         return PreviewMesh::default();
     }
     let (us, vs) = samples(mesh, zoom);
-    // The library's mesh does not carry its frame. Its rest is the straight surface between the
-    // four corner control points, so the displacement order ranks a pulled part by how far it
-    // bulges from it (PhotoCraft measured from the frame's rectangle).
-    let (w, h) = (mesh.width(), mesh.height());
-    let corner = |i: usize, j: usize| mesh.point(i, j).to_vec2();
-    let (c00, c10, c01, c11) = (corner(0, 0), corner(w - 1, 0), corner(0, h - 1), corner(w - 1, h - 1));
+    // The rest is the unwarped frame, so the displacement order ranks a pulled part by how far it
+    // moved from where the picture was (PhotoCraft's rest grid).
     let mut out = PreviewMesh::default();
     for &t in &vs {
         for &s in &us {
             out.points.push(surface_point(mesh, s, t));
-            let top = c00 * (1.0 - s) + c10 * s;
-            let bottom = c01 * (1.0 - s) + c11 * s;
-            out.rest.push((top * (1.0 - t) + bottom * t).to_point());
+            out.rest.push(Point::new(source.x0 + s * source.width(), source.y0 + t * source.height()));
             out.uv.push([s as f32 * uv[0], t as f32 * uv[1]]);
         }
     }

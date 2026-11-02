@@ -85,6 +85,38 @@ fn the_styled_frame_is_rebuilt_only_when_its_key_changes() {
     expect_build(&preview, &nearest, &source, Some(&display), "filter");
 }
 
+// A composite of the wrong size, or none, is asked for once per key; a new key asks again.
+#[test]
+fn a_failed_composite_is_not_asked_for_again_until_the_key_changes() {
+    struct Wrong(Cell<u32>);
+    impl StyledSource for Wrong {
+        fn revision(&self) -> u64 {
+            1
+        }
+        fn pixel_cost_ns(&self) -> f64 {
+            20.0
+        }
+        fn reach(&self, _scale: f64) -> i32 {
+            2
+        }
+        fn compose(&self, _plan: &StylePlan, _content: &StyledContent) -> Option<ColorImage> {
+            self.0.set(self.0.get() + 1);
+            Some(ColorImage::new([1, 1], vec![Color32::WHITE]))
+        }
+    }
+    let ctx = Context::default();
+    let textures = textures(&ctx);
+    let source = Wrong(Cell::new(0));
+    let preview = StyledPreview::new("styled-wrong");
+    for _ in 0..3 {
+        assert!(preview.texture(&ctx, &frame(&textures, square(10.0, 10.0, 40.0), 1.0), &source, None).is_none());
+    }
+    assert_eq!(source.0.get(), 1);
+    assert!(preview.texture(&ctx, &frame(&textures, square(11.0, 10.0, 40.0), 1.0), &source, None).is_none());
+    assert_eq!(source.0.get(), 2);
+    assert_eq!(preview.builds(), 0);
+}
+
 // A costly style shrinks the work scale until the content's area fits the budget, in up to 6
 // rounds; a box off the canvas gives None.
 #[test]
@@ -111,11 +143,14 @@ fn the_budget_shrinks_the_work_scale_until_the_composite_fits() {
     assert_eq!(StylePlan::new(big, canvas, 1.0, 1.0e6, |_| 100_000), None);
 }
 
-// The budget is 30 ms dragging and 120 ms at rest over the cost per pixel, clamped to 0.25 to 8
-// million pixels.
+// The budget is 30 ms dragging and 120 ms at rest over the cost per pixel plus the resample's,
+// clamped to 0.25 to 8 million pixels.
 #[test]
 fn the_budget_follows_what_the_style_costs() {
-    let budget = StyledBudget::default();
+    let dear = StyledBudget::default();
+    assert_eq!(dear.pixels(45.0, true), 0.5e6, "the resample's cost is in the sum");
+    assert!(dear.pixels(60.0, true) < 0.5e6);
+    let budget = StyledBudget { resample_ns: 0.0, ..StyledBudget::default() };
     assert_eq!(budget.pixels(60.0, true), 0.5e6);
     assert_eq!(budget.pixels(60.0, false), 2.0e6);
     assert_eq!(budget.pixels(1000.0, true), StyledBudget::MIN_PIXELS);

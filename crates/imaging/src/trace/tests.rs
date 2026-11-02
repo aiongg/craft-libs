@@ -104,6 +104,22 @@ fn trace_grid_edges_match_unit_edges() {
     assert_eq!(grid.at(11, 20), 0.0);
 }
 
+// A grid's content bounds are those of its inside cells (empty with none), and its revision is
+// stable and follows the cells.
+#[test]
+fn trace_grid_bounds_hug_inside_cells() {
+    // ...
+    // .X.
+    // .XX
+    let cells = vec![false, false, false, false, true, false, false, true, true];
+    let grid = CoverageGrid::new([10, 20], [3, 3], cells.clone());
+    assert_eq!(grid.content_bounds(), MaskRect::new(11, 21, 13, 23));
+    assert_eq!(grid.revision(), CoverageGrid::new([10, 20], [3, 3], cells).revision());
+    let empty = CoverageGrid::new([10, 20], [3, 3], vec![false; 9]);
+    assert!(empty.content_bounds().is_empty());
+    assert_ne!(empty.revision(), grid.revision());
+}
+
 // `trace_step` at 100 %, 50 %, 12 % and 1 % (with a reduction of 2), and `quantised_region` keeps
 // the region for a pan of less than `256 · step` and changes it past that.
 #[test]

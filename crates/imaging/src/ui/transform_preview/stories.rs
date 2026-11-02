@@ -385,7 +385,7 @@ fn show_maps(ui: &mut Ui, args: &mut MapsArgs) {
     };
     ui.columns(3, |columns| {
         cell(&mut columns[0], &doc, &labels.warp, "warp", Zoom::Fit, None, |ui, view| {
-            draw(ui, view, &doc, textures, PreviewMap::mesh(&mesh), 1.0, false);
+            draw(ui, view, &doc, textures, PreviewMap::mesh(&mesh, layer), 1.0, false);
         });
         cell(&mut columns[1], &doc, &labels.pins, "pins", Zoom::Fit, None, |ui, view| {
             draw(ui, view, &doc, textures, PreviewMap::pins(solver.view(), layer), 1.0, false);
