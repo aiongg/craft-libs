@@ -11,12 +11,13 @@ use egui::{
 use craft_ui::composites::SliderRow;
 use craft_ui::controls::{Checkbox, Select};
 use craft_ui::direction;
-use craft_ui::edit::{EditEvent, EditPolicy, EditResponse, Gesture};
+use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
 use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, UnitKind, Units};
 use craft_ui::primitives::{Content, FocusRing, Gap, Interactive, Stack, Text};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 
 use super::context::named_group;
+use super::sliders::{PartEdits, edit_parts, push_part};
 use super::{AdjustContext, AdjustLabels, AdjustStyle};
 
 /// The shown range in egui memory under the editor's id: 0 Master, 1 Reds … 6 Magentas.
@@ -224,122 +225,151 @@ impl<'a> HueSaturationEditor<'a> {
         let style = AdjustStyle::of(&Tokens::of(ui));
         let id = ui.make_persistent_id(self.id_salt);
         let enabled = self.enabled && ui.is_enabled();
-        let value = *self.value;
         let stored = ui.data(|d| d.get_temp::<usize>(id.with(RANGE))).unwrap_or(0).min(6);
-        // Colorize works on the master only.
-        let shown = if value.colorize { 0 } else { stored };
-        let range = shown.checked_sub(1);
         let names = [&labels.reds, &labels.yellows, &labels.greens, &labels.cyans, &labels.blues, &labels.magentas];
 
-        let group = named_group(ui, id, labels.hue_saturation.as_str(), enabled, |ui| {
-            Stack::new(Gap::Stack)
-                .show(ui, |ui| {
-                    let mut picked = shown;
-                    direction::horizontal(ui, |ui| {
-                        ui.add(Text::new(labels.range.as_str()).role(TypeRole::Label).content(Content::Muted));
-                        let mut select = Select::new((self.id_salt, "range"), labels.range.as_str(), &mut picked).option(0, labels.master.as_str());
-                        for (i, name) in names.iter().enumerate() {
-                            select = select.option(i + 1, name.as_str());
-                        }
-                        let _ = select.enabled(enabled && !value.colorize).show(ui);
-                    });
-
-                    let mut events = Vec::new();
-                    let (mut submitted, mut escaped) = (false, false);
-                    let stops = hue_stops();
-                    let hue_track = self.context.track(&stops);
-                    let mut rows: Vec<(Row, RowSpec<'_>)> = Vec::new();
-                    match range {
-                        None => {
-                            let (hue_range, saturation_low) = if value.colorize { (0.0..=360.0, 0.0) } else { (-180.0..=180.0, -100.0) };
-                            let hue = value.hue.clamp(*hue_range.start(), *hue_range.end());
-                            let saturation_stops = saturation_track(hue);
-                            let lightness_stops = lightness_track();
-                            let saturation_default = if value.colorize { COLORIZE_SATURATION } else { 0.0 };
-                            rows.push((Row::Hue, RowSpec::new(&labels.hue, hue, hue_range, Unit::new("{n}°"), 0.0).track(hue_track)));
-                            rows.push((
-                                Row::Saturation,
-                                RowSpec::new(
-                                    &labels.saturation,
-                                    value.saturation.clamp(saturation_low, 100.0),
-                                    saturation_low..=100.0,
-                                    Unit::new("{n} %"),
-                                    saturation_default,
-                                )
-                                .track(self.context.track(&saturation_stops)),
-                            ));
-                            rows.push((
-                                Row::Lightness,
-                                RowSpec::new(&labels.lightness, value.lightness, -100.0..=100.0, Unit::new("{n} %"), 0.0)
-                                    .track(self.context.track(&lightness_stops)),
-                            ));
-                            for (row, spec) in rows {
-                                let out = self.row(ui, ("master", row as usize), spec, enabled);
-                                (submitted, escaped) = (submitted | out.submitted, escaped | out.escaped);
-                                events.push(out.event.map(|e| e.map(|v| value.with_row(None, row, v))));
+        let ((group, colorize, picked), event) = edit_parts(ui, id, self.value, self.policy, enabled, |ui, edits, inner| {
+            let value = *edits.value();
+            // Colorize works on the master only.
+            let shown = if value.colorize { 0 } else { stored };
+            let range = shown.checked_sub(1);
+            let mut picked = shown;
+            let group = named_group(ui, id, labels.hue_saturation.as_str(), enabled, |ui| {
+                Stack::new(Gap::Stack)
+                    .show(ui, |ui| {
+                        direction::horizontal(ui, |ui| {
+                            ui.add(Text::new(labels.range.as_str()).role(TypeRole::Label).content(Content::Muted));
+                            let mut select =
+                                Select::new((self.id_salt, "range"), labels.range.as_str(), &mut picked).option(0, labels.master.as_str());
+                            for (i, name) in names.iter().enumerate() {
+                                select = select.option(i + 1, name.as_str());
                             }
-                        }
-                        Some(r) => {
-                            let current = value.ranges[r];
-                            rows.push((Row::Hue, RowSpec::new(&labels.hue, current.hue, -180.0..=180.0, Unit::new("{n}°"), 0.0).track(hue_track)));
-                            rows.push((
-                                Row::Saturation,
-                                RowSpec::new(&labels.saturation, current.saturation, -100.0..=100.0, Unit::new("{n} %"), 0.0),
-                            ));
-                            rows.push((Row::Lightness, RowSpec::new(&labels.lightness, current.lightness, -100.0..=100.0, Unit::new("{n} %"), 0.0)));
-                            for (row, spec) in rows {
-                                let out = self.row(ui, ("range", r * 3 + row as usize), spec, enabled);
-                                (submitted, escaped) = (submitted | out.submitted, escaped | out.escaped);
-                                events.push(out.event.map(|e| e.map(|v| value.with_row(Some(r), row, v))));
+                            let _ = select.enabled(enabled && !value.colorize).show(ui);
+                        });
+
+                        let (mut submitted, mut escaped) = (false, false);
+                        let stops = hue_stops();
+                        let hue_track = self.context.track(&stops);
+                        let mut rows: Vec<(Row, RowSpec<'_>)> = Vec::new();
+                        let salt = match range {
+                            None => {
+                                let (hue_range, saturation_low) = if value.colorize { (0.0..=360.0, 0.0) } else { (-180.0..=180.0, -100.0) };
+                                let hue = value.hue.clamp(*hue_range.start(), *hue_range.end());
+                                let saturation_default = if value.colorize { COLORIZE_SATURATION } else { 0.0 };
+                                rows.push((Row::Hue, RowSpec::new(&labels.hue, hue, hue_range, Unit::new("{n}°"), 0.0).track(hue_track)));
+                                rows.push((
+                                    Row::Saturation,
+                                    RowSpec::new(
+                                        &labels.saturation,
+                                        value.saturation.clamp(saturation_low, 100.0),
+                                        saturation_low..=100.0,
+                                        Unit::new("{n} %"),
+                                        saturation_default,
+                                    )
+                                    .colors(saturation_track(hue)),
+                                ));
+                                rows.push((
+                                    Row::Lightness,
+                                    RowSpec::new(&labels.lightness, value.lightness, -100.0..=100.0, Unit::new("{n} %"), 0.0)
+                                        .colors(lightness_track()),
+                                ));
+                                ("master", 0)
                             }
+                            Some(r) => {
+                                let current = value.ranges[r];
+                                rows.push((
+                                    Row::Hue,
+                                    RowSpec::new(&labels.hue, current.hue, -180.0..=180.0, Unit::new("{n}°"), 0.0).track(hue_track),
+                                ));
+                                rows.push((
+                                    Row::Saturation,
+                                    RowSpec::new(&labels.saturation, current.saturation, -100.0..=100.0, Unit::new("{n} %"), 0.0),
+                                ));
+                                rows.push((
+                                    Row::Lightness,
+                                    RowSpec::new(&labels.lightness, current.lightness, -100.0..=100.0, Unit::new("{n} %"), 0.0),
+                                ));
+                                ("range", r * 3)
+                            }
+                        };
+                        for (row, spec) in rows {
+                            let out = self.row(ui, edits, inner, (salt.0, salt.1 + row as usize), spec, enabled, range, row);
+                            (submitted, escaped) = (submitted | out.0, escaped | out.1);
                         }
-                    }
 
-                    let mut colorize = value.colorize;
-                    let check = Checkbox::bool(labels.colorize.as_str(), &mut colorize).id_salt((self.id_salt, "colorize")).enabled(enabled).show(ui);
-                    events.push(check.event.map(|e| e.map(|on| value.colorized(on))));
+                        let mut colorize = value.colorize;
+                        let check =
+                            Checkbox::bool(labels.colorize.as_str(), &mut colorize).id_salt((self.id_salt, "colorize")).enabled(enabled).show(ui);
+                        push_part(edits, &check, false, |on, now: &HueSaturation| now.colorized(on));
 
-                    events.push(self.bars(ui, id, &style, &labels, range, enabled));
-                    (events, picked, submitted, escaped)
-                })
-                .inner
+                        if let Some(bars) = self.bars(ui, id, &value, inner, &style, &labels, range, enabled) {
+                            let r = range.unwrap_or_default();
+                            push_part(edits, &bars, false, move |dragged: HueSaturation, now: &HueSaturation| {
+                                let mut next = *now;
+                                next.ranges[r].bounds = dragged.ranges[r].bounds;
+                                next
+                            });
+                        }
+                        (submitted, escaped)
+                    })
+                    .inner
+            });
+            (group, value.colorize, picked)
         });
-        let (events, picked, submitted, escaped) = group.inner;
         // An edit belongs to the range it was drawn for; a switch shows from the next pass.
-        ui.data_mut(|d| d.insert_temp(id.with(RANGE), if value.colorize { 0 } else { picked }));
-        let event = events.into_iter().flatten().next();
+        ui.data_mut(|d| d.insert_temp(id.with(RANGE), if colorize { 0 } else { picked }));
+        let (submitted, escaped) = group.inner;
         EditResponse::new(group.response, event).submitted(submitted).escaped(escaped)
     }
 
-    /// One slider row: the number field's and the slider's first event.
-    fn row(&self, ui: &mut Ui, salt: (&'static str, usize), spec: RowSpec<'_>, enabled: bool) -> RowOut {
+    /// One slider row, its field and slider pushed as parts of `edits`; whether the field was
+    /// submitted or passed on an Esc press.
+    #[allow(clippy::too_many_arguments)]
+    fn row(
+        &self,
+        ui: &mut Ui,
+        edits: &mut PartEdits<HueSaturation>,
+        policy: EditPolicy,
+        salt: (&'static str, usize),
+        spec: RowSpec<'_>,
+        enabled: bool,
+        range: Option<usize>,
+        which: Row,
+    ) -> (bool, bool) {
         let mut row = SliderRow::new((self.id_salt, salt), spec.label, spec.value, spec.range, self.numbers)
             .unit(spec.unit)
             .decimals(0)
             .step(1.0)
             .default_value(spec.default)
             .wheel(self.context.wheel())
-            .policy(self.policy)
+            .policy(policy)
             .enabled(enabled);
         if let Some(stops) = spec.track {
             row = row.track_colors(stops.iter().copied());
+        } else if let Some(stops) = spec.colors.as_deref().and_then(|stops| self.context.track(stops)) {
+            row = row.track_colors(stops.iter().copied());
         }
         let response = row.show(ui);
-        let (submitted, escaped) = (response.submitted(), response.field.escaped || response.slider.escaped);
-        RowOut { event: response.edits().next(), submitted, escaped }
+        let map = move |v: f64, now: &HueSaturation| now.with_row(range, which, v);
+        push_part(edits, &response.field, true, map);
+        push_part(edits, &response.slider, false, map);
+        (response.submitted(), response.field.escaped || response.slider.escaped)
     }
 
     /// The two spectrum bars with the range thumbs between them and the degree readout; the
     /// thumbs' edit.
+    #[allow(clippy::too_many_arguments)]
     fn bars(
         &self,
         ui: &mut Ui,
         id: Id,
+        value: &HueSaturation,
+        policy: EditPolicy,
         style: &AdjustStyle,
         labels: &AdjustLabels,
         range: Option<usize>,
         enabled: bool,
-    ) -> Option<EditEvent<HueSaturation>> {
+    ) -> Option<EditResponse<HueSaturation>> {
         let width = ui.available_width();
         let (rect, _) = ui.allocate_exact_size(vec2(width, style.spectrum_bar * 2.0 + style.spectrum_gap), Sense::hover());
         let top = Rect::from_min_size(rect.min, vec2(width, style.spectrum_bar));
@@ -362,7 +392,7 @@ impl<'a> HueSaturationEditor<'a> {
         let thumb_ids: [Id; 4] = std::array::from_fn(|k| id.with(("thumb", k)));
         // ← and → belong to the focused thumb, not to egui's focus movement.
         let keys = EventFilter { horizontal_arrows: true, vertical_arrows: false, tab: false, escape: false };
-        let mut gesture = Gesture::load(ui, id.with(EDIT), self.value, self.policy).focus_owners(&thumb_ids).event_filter(keys).enabled(enabled);
+        let mut gesture = Gesture::load(ui, id.with(EDIT), value, policy).focus_owners(&thumb_ids).event_filter(keys).enabled(enabled);
         let xof = |degrees: f64| rect.left() + degrees.rem_euclid(360.0) as f32 / 360.0 * width;
 
         // Pointer: a press near a thumb grabs it, and the thumb follows the pointer until release.
@@ -455,7 +485,7 @@ impl<'a> HueSaturationEditor<'a> {
         let [a, b, c, d] = [a, b, c, d].map(|degrees| units.text(UnitKind::Degrees, degrees, 0..=0));
         let readout = craft_i18n::fmt(&labels.range_readout, &[("a", &a), ("b", &b), ("c", &c), ("d", &d)]);
         ui.add(Label::new(RichText::new(readout).font(style.degrees_font.clone()).color(style.degrees_color)).selectable(false));
-        gesture.finish()
+        Some(EditResponse::new(bars, gesture.finish()))
     }
 }
 
@@ -475,24 +505,24 @@ struct RowSpec<'a> {
     unit: Unit,
     default: f64,
     track: Option<&'a [Srgba]>,
+    /// Colour stops of the row's own, drawn while dynamic tracks are on.
+    colors: Option<Vec<Srgba>>,
 }
 
 impl<'a> RowSpec<'a> {
     fn new(label: &'a str, value: f64, range: std::ops::RangeInclusive<f64>, unit: Unit, default: f64) -> Self {
-        Self { label, value, range, unit, default, track: None }
+        Self { label, value, range, unit, default, track: None, colors: None }
     }
 
     fn track(mut self, track: Option<&'a [Srgba]>) -> Self {
         self.track = track;
         self
     }
-}
 
-/// A slider row's first event and flags.
-struct RowOut {
-    event: Option<EditEvent<f64>>,
-    submitted: bool,
-    escaped: bool,
+    fn colors(mut self, stops: impl Into<Vec<Srgba>>) -> Self {
+        self.colors = Some(stops.into());
+        self
+    }
 }
 
 impl HueSaturation {

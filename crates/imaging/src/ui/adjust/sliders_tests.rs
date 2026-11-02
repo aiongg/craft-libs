@@ -132,3 +132,53 @@ fn dynamic_tracks_off_draws_plain_tracks() {
     assert_eq!(colour_meshes(AdjustContext::dialog(true)), 1, "dynamic tracks on: one gradient");
     assert_eq!(colour_meshes(AdjustContext::dialog(false)), 0, "off: the plain track");
 }
+
+// A press on Exposure's slider while Offset's field types: in that pass the slider begins and the field (drawn after it) commits on the focus loss. Both reach the host, the commit first, and the slider's updates follow its own Begin (con "ending event wins", adj M7).
+#[test]
+fn two_controls_in_one_pass_keep_both_begins() {
+    let mut h = rig(vec![0.0, 0.0, 1.0], AdjustContext::dialog(true));
+    let offset = h.get_by_role_and_label(Role::SpinButton, "Offset").rect().center();
+    h.event(Event::PointerMoved(offset));
+    for pressed in [true, false] {
+        h.event(Event::PointerButton { pos: offset, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        h.run_steps(2);
+    }
+    h.event(Event::Text("0.25".into()));
+    h.run_steps(2);
+    h.state_mut().events.clear();
+    let track = exposure_slider(&h);
+    let (from, to) = (pos2(track.center().x, track.center().y), pos2(track.left() + track.width() * 0.75, track.center().y));
+    h.event(Event::PointerMoved(from));
+    h.event(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.run_steps(2);
+    for step in 1..=4 {
+        h.event(Event::PointerMoved(from + (to - from) * (step as f32 / 4.0)));
+        h.run_steps(2);
+    }
+    h.event(Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    h.run_steps(3);
+
+    let events = &h.state().events;
+    let kinds: Vec<&str> = events
+        .iter()
+        .map(|e| match e {
+            EditEvent::Begin { .. } => "Begin",
+            EditEvent::Update { .. } => "Update",
+            EditEvent::Commit { .. } => "Commit",
+            _ => "Other",
+        })
+        .collect();
+    assert!(matches!(kinds.first(), Some(&"Commit")), "the field's run commits first: {kinds:?}");
+    let mut begun = None;
+    for event in &events[1..] {
+        match event {
+            EditEvent::Begin { id, .. } => begun = Some(*id),
+            EditEvent::Update { id, .. } | EditEvent::Commit { id, .. } => assert_eq!(begun, Some(*id), "every update follows its Begin: {kinds:?}"),
+            _ => {}
+        }
+    }
+    assert!(begun.is_some() && kinds.last() == Some(&"Commit"), "the drag begins and commits: {kinds:?}");
+    let values = &h.state().values;
+    assert_eq!(values[1], 0.25, "the typed Offset is kept");
+    assert!(values[0] > 5.0, "the drag moved Exposure: {values:?}");
+}

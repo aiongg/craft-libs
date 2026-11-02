@@ -8,19 +8,13 @@ use craft_ui::composites::{ChannelColor, Histogram, HistogramData};
 use craft_ui::controls::{Checkbox, RadioSet, Select, Swatch};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
-use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
+use craft_ui::edit::{EditPolicy, EditResponse};
 use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
 use craft_ui::primitives::{Content, Gap, Stack, Text};
 use craft_ui::theme::{Tokens, TokensOf as _};
 
-use super::sliders::{PERCENT, is_ending, pick};
+use super::sliders::{PERCENT, edit_parts, push_part};
 use super::{AdjustContext, AdjustField, AdjustLabels, AdjustSliders, AdjustStyle, AdjustTrack};
-
-/// The edit of a table beside the edit of a check box: the first that ends a gesture, as in
-/// [`pick`].
-fn either<T>(first: Option<EditEvent<T>>, second: Option<EditEvent<T>>) -> Option<EditEvent<T>> {
-    pick(first.into_iter().chain(second).collect(), is_ending)
-}
 
 // ---------------------------------------------------------------------------------------------
 // Brightness/Contrast
@@ -97,33 +91,36 @@ impl<'a> BrightnessContrastEditor<'a> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:53-66 `brightness_contrast`.
         let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
         let enabled = self.enabled && ui.is_enabled();
-        let value = *self.value;
-        let lowest = if value.legacy { LEGACY_CONTRAST_MIN } else { CONTRAST_MIN };
-        let fields = [
-            AdjustField::new("brightness", labels.brightness.as_str(), -150.0..=150.0, 0.0),
-            AdjustField::new("contrast", labels.contrast.as_str(), lowest..=100.0, 0.0),
-        ];
-        let group = Stack::new(Gap::Stack).show(ui, |ui| {
-            let sliders = AdjustSliders::new((self.id_salt, "rows"), &fields, &[value.brightness, value.contrast], self.numbers)
-                .context(self.context)
-                .policy(self.policy)
-                .enabled(enabled)
-                .show(ui);
-            let mut legacy = value.legacy;
-            let check = Checkbox::bool(labels.use_legacy.as_str(), &mut legacy).id_salt((self.id_salt, "legacy")).enabled(enabled).show(ui);
-            (sliders, check)
+        let id = ui.make_persistent_id(self.id_salt);
+        let (group, event) = edit_parts(ui, id, self.value, self.policy, enabled, |ui, edits, inner| {
+            let value = *edits.value();
+            let lowest = if value.legacy { LEGACY_CONTRAST_MIN } else { CONTRAST_MIN };
+            let fields = [
+                AdjustField::new("brightness", labels.brightness.as_str(), -150.0..=150.0, 0.0),
+                AdjustField::new("contrast", labels.contrast.as_str(), lowest..=100.0, 0.0),
+            ];
+            Stack::new(Gap::Stack).show(ui, |ui| {
+                let rows =
+                    AdjustSliders::new((self.id_salt, "rows"), &fields, &[value.brightness, value.contrast], self.numbers)
+                        .context(self.context)
+                        .policy(inner)
+                        .enabled(enabled)
+                        .parts(ui, edits, |now: &BrightnessContrast, i, x| {
+                            if i == 0 { BrightnessContrast { brightness: x, ..*now } } else { BrightnessContrast { contrast: x, ..*now } }
+                        });
+                let mut legacy = value.legacy;
+                let check = Checkbox::bool(labels.use_legacy.as_str(), &mut legacy).id_salt((self.id_salt, "legacy")).enabled(enabled).show(ui);
+                // Turning Use Legacy off puts a Contrast below the plain range back in it in the same `Set`.
+                push_part(edits, &check, false, |legacy, now: &BrightnessContrast| BrightnessContrast {
+                    legacy,
+                    contrast: if legacy { now.contrast } else { now.contrast.max(CONTRAST_MIN) },
+                    ..*now
+                });
+                (rows.submitted, rows.escaped)
+            })
         });
-        let (sliders, check) = group.inner;
-        let (submitted, escaped) = (sliders.submitted, sliders.escaped);
-        let sliders_event = sliders.event.map(|e| e.map(|row| BrightnessContrast { brightness: row[0], contrast: row[1], legacy: value.legacy }));
-        // Turning Use Legacy off puts a Contrast below the plain range back in it in the same `Set`.
-        let check_event = check.event.map(|e| {
-            e.map(|legacy| BrightnessContrast { legacy, contrast: if legacy { value.contrast } else { value.contrast.max(CONTRAST_MIN) }, ..value })
-        });
-        let mut edit = EditResponse::new(group.response, either(sliders_event, check_event));
-        edit.submitted = submitted;
-        edit.escaped = escaped;
-        edit
+        let (submitted, escaped) = group.inner;
+        EditResponse::new(group.response, event).submitted(submitted).escaped(escaped)
     }
 }
 
@@ -407,40 +404,44 @@ impl<'a> ColorBalanceEditor<'a> {
             .into_iter()
             .map(|(key, label, stops)| AdjustField::new(key, label, -100.0..=100.0, 0.0).track(AdjustTrack::Colors(stops.to_vec())))
             .collect();
-        let group = Stack::new(Gap::Stack).show(ui, |ui| {
-            direction::horizontal(ui, |ui| {
-                ui.add(Text::new(labels.tone.as_str()).role(TypeRole::Label).content(Content::Muted));
-                let mut set = RadioSet::new((self.id_salt, "tone"), labels.tone.as_str(), &mut tone)
-                    .item(ColorBalanceTone::Shadows)
-                    .item(ColorBalanceTone::Midtones)
-                    .item(ColorBalanceTone::Highlights)
+        let (group, event) = edit_parts(ui, id, &value, self.policy, enabled, |ui, edits, inner| {
+            Stack::new(Gap::Stack).show(ui, |ui| {
+                direction::horizontal(ui, |ui| {
+                    ui.add(Text::new(labels.tone.as_str()).role(TypeRole::Label).content(Content::Muted));
+                    let mut set = RadioSet::new((self.id_salt, "tone"), labels.tone.as_str(), &mut tone)
+                        .item(ColorBalanceTone::Shadows)
+                        .item(ColorBalanceTone::Midtones)
+                        .item(ColorBalanceTone::Highlights)
+                        .enabled(enabled)
+                        .begin(ui);
+                    set.radio(ui, 0, &labels.shadows);
+                    set.radio(ui, 1, &labels.midtones);
+                    set.radio(ui, 2, &labels.highlights);
+                    // The tone is view state: the set's `Set` is not an edit.
+                    let _ = set.end(ui);
+                });
+                let now = *edits.value();
+                // The rows of the tone drawn: a switch shows from the radio's pass.
+                let shown = tone;
+                let rows = AdjustSliders::new((self.id_salt, "rows", shown), &fields, &now.of_tone(shown), self.numbers)
+                    .context(self.context)
+                    .policy(inner)
                     .enabled(enabled)
-                    .begin(ui);
-                set.radio(ui, 0, &labels.shadows);
-                set.radio(ui, 1, &labels.midtones);
-                set.radio(ui, 2, &labels.highlights);
-                // The tone is view state: the set's `Set` is not an edit.
-                let _ = set.end(ui);
-            });
-            let sliders = AdjustSliders::new((self.id_salt, "rows", tone), &fields, &value.of_tone(tone), self.numbers)
-                .context(self.context)
-                .policy(self.policy)
-                .enabled(enabled)
-                .show(ui);
-            let mut preserve = value.preserve_luminosity;
-            let check =
-                Checkbox::bool(labels.preserve_luminosity.as_str(), &mut preserve).id_salt((self.id_salt, "preserve")).enabled(enabled).show(ui);
-            (sliders, check)
+                    .parts(ui, edits, move |now: &ColorBalance, i, x| {
+                        let mut shifts = now.of_tone(shown);
+                        shifts[i] = x;
+                        now.with_tone(shown, shifts)
+                    });
+                let mut preserve = now.preserve_luminosity;
+                let check =
+                    Checkbox::bool(labels.preserve_luminosity.as_str(), &mut preserve).id_salt((self.id_salt, "preserve")).enabled(enabled).show(ui);
+                push_part(edits, &check, false, |preserve_luminosity, now: &ColorBalance| ColorBalance { preserve_luminosity, ..*now });
+                (rows.submitted, rows.escaped)
+            })
         });
         ui.data_mut(|d| d.insert_temp(id.with(TONE), tone));
-        let (sliders, check) = group.inner;
-        let (submitted, escaped) = (sliders.submitted, sliders.escaped);
-        let shifted = sliders.event.map(|e| e.map(|row| value.with_tone(tone, [row[0], row[1], row[2]])));
-        let preserved = check.event.map(|e| e.map(|preserve_luminosity| ColorBalance { preserve_luminosity, ..value }));
-        let mut edit = EditResponse::new(group.response, either(shifted, preserved));
-        edit.submitted = submitted;
-        edit.escaped = escaped;
-        edit
+        let (submitted, escaped) = group.inner;
+        EditResponse::new(group.response, event).submitted(submitted).escaped(escaped)
     }
 }
 
@@ -675,60 +676,62 @@ impl<'a> PhotoFilterEditor<'a> {
         let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
         let enabled = self.enabled && ui.is_enabled();
         let id = ui.make_persistent_id(self.id_salt);
-        let value = *self.value;
-        let preset = PhotoFilterPreset::of(value.color);
+        let stored = *self.value;
         // Filter (false) or Color (true): view state; the colour of no preset starts on Color.
-        let mut use_color = ui.data(|d| d.get_temp::<bool>(id.with(MODE))).unwrap_or(preset.is_none());
+        let mut use_color = ui.data(|d| d.get_temp::<bool>(id.with(MODE))).unwrap_or(PhotoFilterPreset::of(stored.color).is_none());
         let density = [AdjustField::new("density", labels.density.as_str(), 0.0..=100.0, DENSITY_DEFAULT).unit(Unit::new(PERCENT))];
         let mut pick_color = None;
-        let group = Stack::new(Gap::Stack).show(ui, |ui| {
-            let mut set =
-                RadioSet::new((self.id_salt, "mode"), labels.filter.as_str(), &mut use_color).item(false).item(true).enabled(enabled).begin(ui);
-            // The radio's change is already in `use_color` for the rows below.
-            let color_mode = use_color;
-            let mut chosen = preset;
-            let mut picked = None;
-            direction::horizontal(ui, |ui| {
-                set.radio(ui, 0, &labels.filter);
-                let mut select = Select::new((self.id_salt, "preset"), labels.filter.as_str(), &mut chosen).fit(true);
-                if preset.is_none() {
-                    select = select.option(None, labels.custom.as_str());
+        let (group, event) = edit_parts(ui, id, &stored, self.policy, enabled, |ui, edits, inner| {
+            let value = *edits.value();
+            let preset = PhotoFilterPreset::of(value.color);
+            Stack::new(Gap::Stack).show(ui, |ui| {
+                let mut set =
+                    RadioSet::new((self.id_salt, "mode"), labels.filter.as_str(), &mut use_color).item(false).item(true).enabled(enabled).begin(ui);
+                // The radio's change is already in `use_color` for the rows below.
+                let color_mode = use_color;
+                let mut chosen = preset;
+                let mut picked = None;
+                direction::horizontal(ui, |ui| {
+                    set.radio(ui, 0, &labels.filter);
+                    let mut select = Select::new((self.id_salt, "preset"), labels.filter.as_str(), &mut chosen).fit(true);
+                    if preset.is_none() {
+                        select = select.option(None, labels.custom.as_str());
+                    }
+                    for entry in PhotoFilterPreset::ALL {
+                        select = select.option(Some(entry), entry.label(&labels));
+                    }
+                    picked = Some(select.enabled(enabled && !color_mode).show(ui));
+                });
+                if let Some(picked) = &picked {
+                    push_part(edits, picked, false, |entry: Option<PhotoFilterPreset>, now: &PhotoFilter| PhotoFilter {
+                        color: entry.map_or(now.color, PhotoFilterPreset::color),
+                        ..*now
+                    });
                 }
-                for entry in PhotoFilterPreset::ALL {
-                    select = select.option(Some(entry), entry.label(&labels));
-                }
-                picked = Some(select.enabled(enabled && !color_mode).show(ui));
-            });
-            direction::horizontal(ui, |ui| {
-                set.radio(ui, 1, &labels.color);
-                let swatch =
-                    Swatch::new((self.id_salt, "swatch"), labels.filter_color.as_str(), value.color.to_rgba()).enabled(enabled && color_mode);
-                if ui.add(swatch).clicked() {
-                    pick_color = Some(ColorRequest::new(COLOR_KEY, value.color).title(labels.filter_color.as_str()));
-                }
-            });
-            let _ = set.end(ui);
-            let sliders = AdjustSliders::new((self.id_salt, "density"), &density, &[value.density], self.numbers)
-                .context(self.context)
-                .policy(self.policy)
-                .enabled(enabled)
-                .show(ui);
-            let mut preserve = value.preserve_luminosity;
-            let check =
-                Checkbox::bool(labels.preserve_luminosity.as_str(), &mut preserve).id_salt((self.id_salt, "preserve")).enabled(enabled).show(ui);
-            (picked, sliders, check)
+                direction::horizontal(ui, |ui| {
+                    set.radio(ui, 1, &labels.color);
+                    let swatch =
+                        Swatch::new((self.id_salt, "swatch"), labels.filter_color.as_str(), value.color.to_rgba()).enabled(enabled && color_mode);
+                    if ui.add(swatch).clicked() {
+                        pick_color = Some(ColorRequest::new(COLOR_KEY, value.color).title(labels.filter_color.as_str()));
+                    }
+                });
+                let _ = set.end(ui);
+                let rows = AdjustSliders::new((self.id_salt, "density"), &density, &[value.density], self.numbers)
+                    .context(self.context)
+                    .policy(inner)
+                    .enabled(enabled)
+                    .parts(ui, edits, |now: &PhotoFilter, _, density| PhotoFilter { density, ..*now });
+                let mut preserve = value.preserve_luminosity;
+                let check =
+                    Checkbox::bool(labels.preserve_luminosity.as_str(), &mut preserve).id_salt((self.id_salt, "preserve")).enabled(enabled).show(ui);
+                push_part(edits, &check, false, |preserve_luminosity, now: &PhotoFilter| PhotoFilter { preserve_luminosity, ..*now });
+                (rows.submitted, rows.escaped)
+            })
         });
         ui.data_mut(|d| d.insert_temp(id.with(MODE), use_color));
-        let (picked, sliders, check) = group.inner;
-        let (submitted, escaped) = (sliders.submitted, sliders.escaped);
-        let preset_event =
-            picked.and_then(|p| p.event).map(|e| e.map(|entry| PhotoFilter { color: entry.map_or(value.color, PhotoFilterPreset::color), ..value }));
-        let density_event = sliders.event.map(|e| e.map(|row| PhotoFilter { density: row[0], ..value }));
-        let preserve_event = check.event.map(|e| e.map(|preserve_luminosity| PhotoFilter { preserve_luminosity, ..value }));
-        let event = pick([preset_event, density_event, preserve_event].into_iter().flatten().collect(), is_ending);
-        let mut edit = EditResponse::new(group.response, event);
-        edit.submitted = submitted;
-        edit.escaped = escaped;
+        let (submitted, escaped) = group.inner;
+        let edit = EditResponse::new(group.response, event).submitted(submitted).escaped(escaped);
         PhotoFilterOutput { edit, pick_color }
     }
 }
