@@ -61,8 +61,8 @@ pub use brush_presets::{
     BrushPresetCards, BrushPresetChip, BrushPresetChipResponse, BrushPresetChipStyle, BrushPresetPicker, BrushPresetPickerOutput,
 };
 pub use brush_settings::{
-    BrushPanelAction, BrushSection, BrushSectionEvent, BrushSectionKind, BrushSectionList, BrushSettingsLabels, BrushSettingsOutput,
-    BrushSettingsPanel, BrushSettingsStyle, BrushSizeField, BrushStrokeStrip, DynamicControl, TipEllipse,
+    BrushPanelAction, BrushSection, BrushSectionEvent, BrushSectionKind, BrushSectionList, BrushSettingsLabels, BrushSettingsPanel,
+    BrushSettingsPanelOutput, BrushSettingsStyle, BrushSizeField, BrushStrokeStrip, DynamicControl, TipEllipse,
 };
 pub use connector::{
     ConnectionSite, ConnectionTarget, ConnectorBar, ConnectorBarLabels, ConnectorBarOutput, ConnectorDraft, ConnectorEnd, ConnectorEndKind,

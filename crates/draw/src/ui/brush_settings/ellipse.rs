@@ -1,11 +1,11 @@
 //! Photoshop's tip angle and roundness widget ([`TipEllipse`]) and its geometry.
 
-use craft_ui::controls::slider::{KEY_FILTER, tap};
+use craft_ui::controls::slider::{KEY_FILTER, pointer, tap};
 use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
-use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::localized::{Labels as _, Units};
 use craft_ui::primitives::{FocusRing, Interactive};
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::accesskit::{Action, Role};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
+use egui::accesskit::{Action, ActionData, Role};
 use egui::{AsIdSalt, CornerRadius, IdSalt, Key, Modifiers, PointerButton, Pos2, Sense, Shape, Stroke, Ui, Vec2, vec2};
 
 use super::labels::BrushSettingsLabels;
@@ -79,7 +79,7 @@ pub fn ellipse_drag(grab: TipEllipseGrab, at: Vec2, angle: TipAngle, radius: f32
 /// click on the disc is a `Set`.
 ///
 /// - **Look.** `brush.ellipse_size` (84) square; the disc radius `brush.ellipse_disc` (40) on
-///   `field.fill` with a 1 pt `field.border` and `line.divider` cross lines; the ellipse
+///   `brush.ellipse_disc_fill` with a 1 pt `brush.ellipse_disc_border` and `line.divider` cross lines; the ellipse
 ///   `brush.ellipse_radius` (34) filled `text.default` at 18 % with a `brush.ellipse_line` (1.5)
 ///   `text.default` outline (48 segments); an `accent` arrow of the same width to
 ///   `brush.ellipse_arrow_reach` (5) past the ellipse, its head `brush.ellipse_head` (7 long, 8
@@ -88,8 +88,10 @@ pub fn ellipse_drag(grab: TipEllipseGrab, at: Vec2, angle: TipAngle, radius: f32
 /// - **Keys.** One Tab stop. Up and Right turn the angle 1° counter-clockwise, Down and Left 1°
 ///   clockwise (Shift: 15°), wrapping at ±180; Alt with the arrows changes the roundness by 1 %
 ///   (Up and Right rounder). Each press is a `Set`.
-/// - **AccessKit.** A group "Tip angle and roundness" with the value "{angle}°, {roundness} %";
-///   the arrow keys as Increment and Decrement of the angle.
+/// - **AccessKit.** A slider "Tip angle and roundness" with the value "{angle}, {roundness}"
+///   (the angle in degrees, the roundness in percent, through the unit words); the arrow keys as
+///   Increment and Decrement of the angle, and SetValue sets the angle in whole degrees within
+///   ±180, keeping the roundness.
 /// - **RTL.** Not mirrored: it shows document geometry.
 #[must_use = "show the widget with `show`"]
 pub struct TipEllipse {
@@ -110,12 +112,34 @@ impl TipEllipse {
         self
     }
 
+    /// The sizes and colors of the widget from `tokens`.
+    pub fn style(tokens: &UiTokens) -> TipEllipseStyle {
+        // pc: crates/ui-egui/src/panels/brush_sections.rs:192-242.
+        let (b, c) = (&tokens.component.brush, &tokens.color);
+        TipEllipseStyle {
+            size: b.ellipse_size,
+            disc: b.ellipse_disc,
+            radius: b.ellipse_radius,
+            dot: b.ellipse_dot,
+            grab: b.ellipse_grab,
+            line: b.ellipse_line,
+            arrow_reach: b.ellipse_arrow_reach,
+            head: Vec2::from(b.ellipse_head),
+            disc_fill: b.ellipse_disc_fill.to_egui(),
+            disc_border: Stroke::new(1.0, b.ellipse_disc_border.to_egui()),
+            cross: Stroke::new(1.0, c.line.divider.to_egui()),
+            ellipse: c.text.normal.to_egui(),
+            accent: c.accent.solid.to_egui(),
+            dot_fill: c.overlay.handle_fill.to_egui(),
+        }
+    }
+
     /// Shows the widget.
     pub fn show(self, ui: &mut Ui) -> EditResponse<TipAngle> {
         // pc: crates/ui-egui/src/panels/brush_sections.rs:190-246 `ellipse_widget` (84 square, disc 40, ellipse 34 at 18 %, arrow +5 with a head 7 long and 8 wide, dots 4)
         let labels = self.labels.unwrap_or_else(|| BrushSettingsLabels::of(ui));
         let tokens = Tokens::of(ui);
-        let style = TipEllipseStyle::of(&tokens);
+        let style = Self::style(&tokens);
         let enabled = ui.is_enabled();
         let sensed = Interactive::salted(self.id_salt, Role::Slider, labels.tip_angle.as_str())
             .sense(Sense::drag())
@@ -136,8 +160,9 @@ impl TipEllipse {
         let grab_of = |ui: &Ui| ui.data(|d| d.get_temp::<TipEllipseGrab>(grab_key)).unwrap_or(TipEllipseGrab::Angle);
         if response.drag_started_by(PointerButton::Primary) {
             response.request_focus();
-            if let Some(pos) = response.interact_pointer_pos() {
-                let grab = ellipse_grab(pos - center, *gesture.shown(), style.radius, style.grab);
+            // The grab is decided where the button went down, not where the drag was first noticed.
+            if let Some((_, origin)) = pointer(ui, &response) {
+                let grab = ellipse_grab(origin - center, *gesture.shown(), style.radius, style.grab);
                 ui.data_mut(|d| d.insert_temp(grab_key, grab));
             }
             gesture.begin();
@@ -162,10 +187,18 @@ impl TipEllipse {
         {
             gesture.set(to);
         }
+        if !response.dragged()
+            && let Some(degrees) = set_value(ui, &response)
+        {
+            gesture.set(TipAngle { degrees: degrees.round().clamp(-180.0, 180.0), ..*gesture.shown() });
+        }
 
         let shown = *gesture.shown();
-        let numbers = LocaleNumbers::of(ui);
-        let text = format!("{}°, {} %", numbers.format(shown.degrees, 0..=0), numbers.format((shown.roundness * 100.0).round(), 0..=0));
+        let units = Units::of(ui);
+        let text = craft_i18n::fmt(
+            &labels.tip_angle_value,
+            &[("angle", &units.degrees(shown.degrees)), ("roundness", &units.percent((shown.roundness * 100.0).round()))],
+        );
         let response = sensed.numeric(shown.degrees, -180.0..=180.0, 1.0).value(text).finish(ui);
         if ui.is_rect_visible(response.rect) {
             paint(ui, &style, center, shown, enabled);
@@ -175,6 +208,21 @@ impl TipEllipse {
         let _ = response.clone().on_hover_text(labels.tip_angle_tip.as_str());
         EditResponse::new(response, gesture.finish())
     }
+}
+
+/// The last finite SetValue a screen reader sent to the enabled widget this frame.
+fn set_value(ui: &Ui, response: &egui::Response) -> Option<f64> {
+    if !response.enabled() {
+        return None;
+    }
+    ui.input(|i| {
+        i.accesskit_action_requests(response.id, Action::SetValue)
+            .filter_map(|r| match r.data {
+                Some(ActionData::NumericValue(v)) if v.is_finite() => Some(v),
+                _ => None,
+            })
+            .next_back()
+    })
 }
 
 /// The value after this frame's keys and screen-reader steps on the focused widget, or `None`.

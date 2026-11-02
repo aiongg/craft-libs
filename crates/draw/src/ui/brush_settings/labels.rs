@@ -28,6 +28,8 @@ craft_ui::words! {
         tip_angle: "brushSettings.tipAngle" = "Tip angle and roundness";
         /// The angle and roundness widget's tooltip.
         tip_angle_tip: "brushSettings.tipAngleTip" = "Drag the arrow to set the angle, the dots to set the roundness";
+        /// The tip angle widget's value: "{angle}, {roundness}", each through the unit words.
+        tip_angle_value: "brushSettings.tipAngleValue" = "{angle}, {roundness}";
         /// The restore button of the size field (sampled tips).
         restore_size: "brushSettings.restoreSize" = "Restore original size";
         /// The dynamic control row's label.

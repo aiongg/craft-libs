@@ -115,12 +115,12 @@ impl BrushStrokeStrip {
         let labels = labels.map(Arc::new).unwrap_or_else(|| BrushSettingsLabels::shared(ui));
         let tokens = Tokens::of(ui);
         let style = BrushSettingsStyle::of(&tokens);
-        let radius = tokens.radius.control;
+        let radius = style.strip_radius;
         let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), style.strip_height), Sense::hover());
         let ppp = ui.ctx().pixels_per_point();
         let pixels = [rect.width(), rect.height()].map(|side| (side * ppp).round().max(1.0) as usize);
         if ui.is_rect_visible(rect) {
-            let cache = TextureCache::<()>::in_context(ui.ctx(), id_salt, TextureCacheOptions::frames());
+            let cache = TextureCache::<()>::in_context(ui.ctx(), ui.make_persistent_id(id_salt), TextureCacheOptions::frames());
             let picture = cache.get_or_put(ui.ctx(), (), Revision::of(&(revision, pixels)), || make(pixels));
             let painter = ui.painter();
             painter.rect_filled(rect, radius, style.strip_fill);

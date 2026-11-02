@@ -7,6 +7,7 @@ use std::sync::Arc;
 use craft_ui::behavior::{RowInfo, Selection};
 use craft_ui::controls::CheckState;
 use craft_ui::edit::EditEvent;
+use craft_ui::icons::Icon;
 use craft_ui::list::{List, ListEvent, ListRow, RowEvent, ToggleColumn};
 use craft_ui::localized::SharedLabels as _;
 use craft_ui::theme::{Tokens, TokensOf as _};
@@ -111,20 +112,21 @@ pub enum BrushSectionEvent<K> {
 /// [`always_visible`](craft_ui::list::ToggleColumn::always_visible).
 ///
 /// - **Look.** `brush.section_list_width` (150) wide, rows `brush.section_row` (23) high; the
-///   enable box `brush.section_box` (13); names from `brush.section_name_inset` (20), truncated
-///   with a tooltip, Brush Tip Shape in the strong weight; the lock icon (`brush.section_lock`:
-///   12 in an 18 pt hit area) at the row's end, `text.default` when locked and `text.faint` when
-///   open; 4 pt after the first row and `brush.section_switch_gap` (6) before the first switch
-///   row; the link row, a hairline and 3 pt gaps above the sections. Selected row
-///   `list.selected`, hover `list.hover`.
+///   enable box, the lock and the names are the list row's own, truncated with a tooltip, Brush
+///   Tip Shape in the strong weight; 4 pt after the first row and `brush.section_switch_gap` (6)
+///   before the first switch row, as spacer rows that take room and have no AccessKit node; the
+///   link row (with the brush icon) and a gap above the sections. Selected row `list.selected`,
+///   hover `list.hover`. The link row and the switch rows can't be selected: keys move the lead
+///   over them without selecting.
 /// - **Pointer.** A click on a pane row reports `Select` and, if its box is clear, `Enable { on:
 ///   true }`; the box toggles only the flag; the lock toggles only the lock; a click on a switch row
 ///   toggles it (`Switch`). A press on the row (not its lock) shows the box pressed.
-/// - **Keys.** One Tab stop. Up and Down, Home and End move the lead (onto a pane row: also
-///   `Select`); Space toggles the lead's box or switch; Shift+Space its lock; Enter selects a pane
-///   row and turns it on.
+/// - **Keys.** One Tab stop. The list's own keys (Up, Down, Home, End, Page Up and Page Down) move
+///   the lead; onto a pane row it also reports `Select`. Space toggles the lead's box or switch
+///   (rows that can't be selected have no list key for it); Shift+Space its lock; Enter selects a
+///   pane row and turns it on.
 /// - **AccessKit.** A list named "Brush settings sections"; a pane row is a `Button` with
-///   `selected`; its box a `CheckBox` "Enable {name}"; its lock a `Button` with `selected` named
+///   `selected`; its box a `CheckBox` "Enable {name}"; its lock a `Button` with `toggled` named
 ///   "Lock: {name}"; a switch row one `CheckBox`.
 /// - **RTL.** Mirrors: the box at the reading start, the lock at the reading end.
 #[must_use = "show the list with `show`"]
@@ -185,56 +187,29 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushSectionList<
             slots.iter().position(|slot| matches!(slot, Slot::Section(i) if sections[*i].key == *key && sections[*i].kind == BrushSectionKind::Pane))
         });
 
-        let list_id = List::<(), [()]>::id_in(ui, id_salt);
+        let list_salt = (&id_salt, "list");
+        let list_id = List::<(), [()]>::id_in(ui, list_salt);
         let lead_id = list_id.with("brush-section-lead");
         let remembered = ui.data(|d| d.get_temp::<Option<usize>>(lead_id)).flatten();
         let is_row = |at: &usize| slots.get(*at).is_some_and(|slot| !matches!(slot, Slot::Gap(_)));
         let first_row = slots.iter().position(|slot| !matches!(slot, Slot::Gap(_)));
-        let mut lead = remembered.filter(is_row).or(shown).or(first_row);
+        let lead = remembered.filter(is_row).or(shown).or(first_row);
 
         let mut events = Vec::new();
-        let mut reveal = None;
         if ui.is_enabled()
             && ui.memory(|m| m.has_focus(list_id))
             && let Some(command) = Command::take(ui)
+            && let Some(Slot::Section(i)) = lead.map(|at| slots[at])
         {
-            let rows: Vec<usize> = (0..slots.len()).filter(is_row).collect();
-            let place = lead.and_then(|at| rows.iter().position(|&row| row == at));
-            match command {
-                Command::Move(to) => {
-                    let target = match (to, place) {
-                        (Move::First, _) => 0,
-                        (Move::Last, _) => rows.len().saturating_sub(1),
-                        (Move::Next, Some(place)) => (place + 1).min(rows.len().saturating_sub(1)),
-                        (Move::Previous, Some(place)) => place.saturating_sub(1),
-                        (_, None) => 0,
-                    };
-                    if let Some(&at) = rows.get(target)
-                        && Some(at) != lead
-                    {
-                        lead = Some(at);
-                        reveal = Some(at);
-                        if let Slot::Section(i) = slots[at]
-                            && sections[i].kind == BrushSectionKind::Pane
-                        {
-                            events.push(BrushSectionEvent::Select(sections[i].key.clone()));
-                        }
-                    }
+            let section = &sections[i];
+            let (key, on) = (section.key.clone(), section.enabled.unwrap_or(false));
+            match (command, section.kind, section.locked) {
+                (Command::Toggle, BrushSectionKind::Switch, _) => events.push(BrushSectionEvent::Switch { key, on: !on }),
+                (Command::Toggle, BrushSectionKind::Pane, _) if section.enabled.is_some() => {
+                    events.push(BrushSectionEvent::Enable { key, on: !on });
                 }
-                Command::Toggle | Command::Lock => {
-                    if let Some(Slot::Section(i)) = lead.map(|at| slots[at]) {
-                        let section = &sections[i];
-                        let (key, on) = (section.key.clone(), section.enabled.unwrap_or(false));
-                        match (command, section.kind, section.locked) {
-                            (Command::Toggle, BrushSectionKind::Switch, _) => events.push(BrushSectionEvent::Switch { key, on: !on }),
-                            (Command::Toggle, BrushSectionKind::Pane, _) if section.enabled.is_some() => {
-                                events.push(BrushSectionEvent::Enable { key, on: !on });
-                            }
-                            (Command::Lock, BrushSectionKind::Pane, Some(locked)) => events.push(BrushSectionEvent::Lock { key, on: !locked }),
-                            _ => {}
-                        }
-                    }
-                }
+                (Command::Lock, BrushSectionKind::Pane, Some(locked)) => events.push(BrushSectionEvent::Lock { key, on: !locked }),
+                _ => {}
             }
         }
 
@@ -243,24 +218,22 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushSectionList<
         let mut selection = Selection { items: shown.into_iter().collect(), lead, anchor: lead };
         let (response, list_events) = {
             {
-                let mut list = List::new(id_salt, labels.sections.clone(), order.as_slice())
+                let list = List::new(list_salt, labels.sections.clone(), order.as_slice())
                     .selection(&mut selection)
                     .mode(craft_ui::behavior::SelectionMode::Single)
                     .allow_empty(false)
                     .heights(|at| heights[at])
                     .max_height(total.min(ui.available_height()));
-                if let Some(at) = reveal {
-                    list = list.reveal(at);
-                }
                 let out = list.show(ui, |at, &key| match slots[at] {
-                    Slot::Link => ListRow::new(key, labels.brushes.clone()).role(Role::Button).rule(true),
-                    Slot::Gap(_) => ListRow::new(key, ""),
+                    Slot::Link => ListRow::new(key, labels.brushes.clone()).role(Role::Button).icon(Icon::Brush).selectable(false).rule(true),
+                    Slot::Gap(_) => ListRow::spacer(key),
                     Slot::Section(i) => {
                         let section = &sections[i];
                         let on = section.enabled.unwrap_or(false);
-                        let mut row = ListRow::new(key, section.name.clone());
+                        let mut row = ListRow::new(key, section.name.clone()).strong(i == 0 && section.kind == BrushSectionKind::Pane);
                         match section.kind {
                             BrushSectionKind::Switch => {
+                                row = row.selectable(false);
                                 let state = if on { CheckState::Checked } else { CheckState::Unchecked };
                                 row = row.toggle(ToggleColumn::check_box("{row}", state));
                             }
@@ -286,6 +259,16 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushSectionList<
         let mut clicked = None;
         for event in list_events {
             match event {
+                ListEvent::Selection(change) => {
+                    for at in change.selection.items {
+                        if let Some(Slot::Section(i)) = slots.get(at).copied()
+                            && sections[i].kind == BrushSectionKind::Pane
+                            && shown != Some(at)
+                        {
+                            events.push(BrushSectionEvent::Select(sections[i].key.clone()));
+                        }
+                    }
+                }
                 ListEvent::Row(RowEvent::Toggle(EditEvent::Update { value, .. } | EditEvent::Set { value, .. })) => {
                     let Some(Slot::Section(i)) = slots.get(value.row).copied() else { continue };
                     let section = &sections[i];
@@ -311,7 +294,10 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushSectionList<
                             let key = section.key.clone();
                             match section.kind {
                                 BrushSectionKind::Pane => {
-                                    events.push(BrushSectionEvent::Select(key.clone()));
+                                    let select = BrushSectionEvent::Select(key.clone());
+                                    if !events.contains(&select) {
+                                        events.push(select);
+                                    }
                                     if section.is_off() {
                                         events.push(BrushSectionEvent::Enable { key, on: true });
                                     }
@@ -337,7 +323,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushSectionList<
 enum Slot {
     /// The "Brushes" link row.
     Link,
-    /// Empty space of this height (a section row of the list, so keys and clicks skip it).
+    /// Empty space of this height (a spacer row in a section position, so keys and clicks skip it).
     Gap(f32),
     /// The section at this index.
     Section(usize),
@@ -366,19 +352,9 @@ impl Slot {
     }
 }
 
-#[derive(Clone, Copy)]
-enum Move {
-    Previous,
-    Next,
-    First,
-    Last,
-}
-
-/// The keys the list reads itself: the lead moves over pane and switch rows without selecting a
-/// switch, which the generic list would select.
+/// The keys the list reads itself: the list has no key that toggles a row it can't select.
 #[derive(Clone, Copy)]
 enum Command {
-    Move(Move),
     /// Space: the lead's box or switch.
     Toggle,
     /// Shift+Space: the lead's lock.
@@ -390,14 +366,7 @@ impl Command {
     fn take(ui: &Ui) -> Option<Command> {
         ui.input_mut(|i| {
             // Shift+Space first: Space alone also matches it.
-            let keys = [
-                (Modifiers::SHIFT, Key::Space, Command::Lock),
-                (Modifiers::NONE, Key::ArrowUp, Command::Move(Move::Previous)),
-                (Modifiers::NONE, Key::ArrowDown, Command::Move(Move::Next)),
-                (Modifiers::NONE, Key::Home, Command::Move(Move::First)),
-                (Modifiers::NONE, Key::End, Command::Move(Move::Last)),
-                (Modifiers::NONE, Key::Space, Command::Toggle),
-            ];
+            let keys = [(Modifiers::SHIFT, Key::Space, Command::Lock), (Modifiers::NONE, Key::Space, Command::Toggle)];
             keys.into_iter().find_map(|(modifiers, key, command)| i.consume_key(modifiers, key).then_some(command))
         })
     }

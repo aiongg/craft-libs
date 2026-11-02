@@ -1,9 +1,10 @@
 //! Tests of the Brush Settings panel frame (task BR-BS6).
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
+use craft_ui::direction::{self, Direction};
 use craft_ui::theme::{Base, install};
-use egui::Ui;
 use egui::accesskit::Role;
+use egui::{Context, Ui};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
@@ -61,10 +62,17 @@ fn show(ui: &mut Ui, host: &mut Host) {
 }
 
 fn harness(host: Host) -> Harness<'static, Host> {
+    harness_in(host, Direction::Ltr, [540.0, 420.0])
+}
+
+fn harness_in(host: Host, dir: Direction, size: [f32; 2]) -> Harness<'static, Host> {
     let mut harness = Harness::<Host>::builder()
-        .with_size([540.0, 420.0])
+        .with_size(size)
         .with_step_dt(0.05)
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .with_context_setup(move |ctx: &Context| {
+            install(ctx, &Base::suite_default());
+            direction::apply(ctx, dir);
+        })
         .build_ui_state(show, host);
     harness.run();
     harness
@@ -139,4 +147,32 @@ fn section_events_pass_through_in_order() {
     assert_eq!(harness.state().events, [Event::Select("dyn"), Event::Enable { key: "dyn", on: true }]);
     harness.run();
     assert_eq!(harness.state().body.map(|(key, _)| key), Some("dyn"), "the pane follows the selection");
+}
+
+// Right to left mirrors the panel: the list sits at the right, and the buttons are left of the
+// strip, as the mirror image of left to right.
+#[test]
+fn the_panel_mirrors_in_right_to_left() {
+    let ltr = harness_in(Host::new(), Direction::Ltr, [540.0, 420.0]);
+    let rtl = harness_in(Host::new(), Direction::Rtl, [540.0, 420.0]);
+    let (list_ltr, list_rtl) = (ltr.get_by_role(Role::ListBox).rect(), rtl.get_by_role(Role::ListBox).rect());
+    assert!(list_ltr.center().x < 270.0 && list_rtl.center().x > 270.0, "{list_ltr:?} {list_rtl:?}");
+    let new = "Create new brush from these settings";
+    let (strip_ltr, strip_rtl) = (named(&ltr, Role::Image, "Stroke preview").rect(), named(&rtl, Role::Image, "Stroke preview").rect());
+    let (button_ltr, button_rtl) = (named(&ltr, Role::Button, new).rect(), named(&rtl, Role::Button, new).rect());
+    assert!(button_ltr.center().x > strip_ltr.center().x, "left to right: buttons after the strip");
+    assert!(button_rtl.center().x < strip_rtl.center().x, "right to left: buttons before the strip");
+}
+
+// In a host of bounded height the whole panel fits: the buttons, taller than the strip at the
+// default size, are not cut off.
+#[test]
+fn the_panel_fits_a_bounded_height() {
+    for height in [200.0, 300.0, 420.0] {
+        let harness = harness_in(Host::new(), Direction::Ltr, [540.0, height]);
+        let update = named(&harness, Role::Button, "Update the current brush with these settings").rect();
+        let strip = named(&harness, Role::Image, "Stroke preview").rect();
+        assert!(update.bottom() <= height + 0.5, "the Update button is inside the host: {update:?} in {height}");
+        assert!(strip.bottom() <= height + 0.5, "the strip is inside the host: {strip:?} in {height}");
+    }
 }

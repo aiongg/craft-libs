@@ -50,7 +50,7 @@ mod style;
 
 pub use ellipse::{TipAngle, TipEllipse, TipEllipseGrab, ellipse_drag, ellipse_grab, ellipse_handles};
 pub use labels::BrushSettingsLabels;
-pub use panel::{BrushPanelAction, BrushSettingsOutput, BrushSettingsPanel};
+pub use panel::{BrushPanelAction, BrushSettingsPanel, BrushSettingsPanelOutput};
 pub use preview::{BrushStrokeStrip, PreviewSample, PreviewStroke};
 pub use rows::{DynamicControl, DynamicControlRow, DynamicControlRowResponse};
 pub use sections::{BrushSection, BrushSectionEvent, BrushSectionKind, BrushSectionList, BrushSectionListResponse};

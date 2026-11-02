@@ -2853,9 +2853,6 @@ fn brush_lines(out: &mut Lines, t: &BrushTokens) {
         panel_width,
         section_list_width,
         section_row,
-        section_box,
-        section_lock,
-        section_name_inset,
         section_switch_gap,
         strip_height,
         control_select,
@@ -2872,6 +2869,10 @@ fn brush_lines(out: &mut Lines, t: &BrushTokens) {
         tip_grid_max,
         preview_tint,
         card_fill,
+        strip_fill,
+        strip_border,
+        ellipse_disc_fill,
+        ellipse_disc_border,
     } = t;
     out.line("brush.resize_travel", len(*resize_travel));
     out.line("brush.tip_min_radius", len(*tip_min_radius));
@@ -2905,9 +2906,6 @@ fn brush_lines(out: &mut Lines, t: &BrushTokens) {
     out.line("brush.panel_width", len(*panel_width));
     out.line("brush.section_list_width", len(*section_list_width));
     out.line("brush.section_row", len(*section_row));
-    out.line("brush.section_box", len(*section_box));
-    out.line("brush.section_lock", format!("{} {}", len(section_lock[0]), len(section_lock[1])));
-    out.line("brush.section_name_inset", len(*section_name_inset));
     out.line("brush.section_switch_gap", len(*section_switch_gap));
     out.line("brush.strip_height", len(*strip_height));
     out.line("brush.control_select", len(*control_select));
@@ -2924,6 +2922,10 @@ fn brush_lines(out: &mut Lines, t: &BrushTokens) {
     out.line("brush.tip_grid_max", len(*tip_grid_max));
     out.line("brush.preview_tint", hex(*preview_tint));
     out.line("brush.card_fill", hex(*card_fill));
+    out.line("brush.strip_fill", hex(*strip_fill));
+    out.line("brush.strip_border", hex(*strip_border));
+    out.line("brush.ellipse_disc_fill", hex(*ellipse_disc_fill));
+    out.line("brush.ellipse_disc_border", hex(*ellipse_disc_border));
 }
 
 fn full_window_lines(out: &mut Lines, t: &FullWindowTokens) {

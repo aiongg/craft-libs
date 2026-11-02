@@ -95,7 +95,7 @@ fn dynamic_row_shows_fade_steps_only_for_fade() {
     assert_eq!(*value, 30.0);
 }
 
-// The curve toggle shows only for `curve` entries and is `selected` while the curve is open or
+// The curve toggle shows only for `curve` entries and is `toggled` while the curve is open or
 // shaped (AccessKit toggled); a click reports `curve_toggled`.
 #[test]
 fn curve_toggle_lights_when_the_curve_is_not_linear() {

@@ -1,7 +1,7 @@
 //! The look of the Brush Settings panel and its shared rows, from the `brush` token family.
 
 use craft_ui::theme::{ToEgui, UiTokens};
-use egui::{Color32, Stroke, Vec2};
+use egui::{Color32, CornerRadius, Stroke, Vec2};
 
 /// The sizes of the Brush Settings panel, its section list, its stroke strip and the Brush Tip
 /// Shape grid of tips. The same at every Size: PhotoCraft's values.
@@ -19,26 +19,16 @@ pub struct BrushSettingsStyle {
     pub section_list_width: f32,
     /// A section row's height: `brush.section_row` (23).
     pub section_row: f32,
-    /// The enable box's side: `brush.section_box` (13).
-    pub section_box: f32,
-    /// The lock's hit area and icon: `brush.section_lock` (18, 12).
-    pub section_lock: [f32; 2],
-    /// Where the names start: `brush.section_name_inset` (20).
-    pub section_name_inset: f32,
     /// Before the first switch row: `brush.section_switch_gap` (6).
     pub section_switch_gap: f32,
-    /// The lock icon when locked: `text.default`.
-    pub lock_on: Color32,
-    /// The lock icon when open: `text.faint`.
-    pub lock_off: Color32,
     /// The stroke strip's height: `brush.strip_height` (76).
     pub strip_height: f32,
-    /// The strip's fill: `field.fill`.
+    /// The strip's corner radius: `radius.control`.
+    pub strip_radius: CornerRadius,
+    /// The strip's fill: `brush.strip_fill`.
     pub strip_fill: Color32,
-    /// The strip's border: 1 pt `field.border`.
+    /// The strip's border: 1 pt `brush.strip_border`.
     pub strip_border: Stroke,
-    /// The line between the list and the pane, and the hairline above the strip: `line.divider`.
-    pub divider: Stroke,
     /// The Control select's width in a [`DynamicControlRow`](super::DynamicControlRow):
     /// `brush.control_select` (130).
     pub control_select: f32,
@@ -54,21 +44,16 @@ impl BrushSettingsStyle {
     /// The style from `tokens`.
     pub fn of(tokens: &UiTokens) -> Self {
         // pc: crates/ui-egui/src/panels/brush_panel.rs:56-57, :250-330; brush_sections.rs:266-282.
-        let (b, c, field) = (&tokens.component.brush, &tokens.color, &tokens.component.field);
+        let b = &tokens.component.brush;
         BrushSettingsStyle {
             panel_width: b.panel_width,
             section_list_width: b.section_list_width,
             section_row: b.section_row,
-            section_box: b.section_box,
-            section_lock: b.section_lock,
-            section_name_inset: b.section_name_inset,
             section_switch_gap: b.section_switch_gap,
-            lock_on: c.text.normal.to_egui(),
-            lock_off: c.text.faint.to_egui(),
             strip_height: b.strip_height,
-            strip_fill: field.fill.rest.to_egui(),
-            strip_border: Stroke::new(1.0, field.border.rest.to_egui()),
-            divider: Stroke::new(1.0, c.line.divider.to_egui()),
+            strip_radius: tokens.radius.control,
+            strip_fill: b.strip_fill.to_egui(),
+            strip_border: Stroke::new(1.0, b.strip_border.to_egui()),
             control_select: b.control_select,
             tip_grid_cell: Vec2::from(b.tip_grid_cell),
             tip_grid_thumb: b.tip_grid_thumb,
@@ -97,7 +82,7 @@ pub struct TipEllipseStyle {
     pub arrow_reach: f32,
     /// The arrow head's length and width: `brush.ellipse_head` (7, 8).
     pub head: Vec2,
-    /// The disc: `field.fill`, with a 1 pt `field.border`.
+    /// The disc: `brush.ellipse_disc_fill`, with a 1 pt `brush.ellipse_disc_border`.
     pub disc_fill: Color32,
     /// The disc's border.
     pub disc_border: Stroke,
@@ -109,28 +94,4 @@ pub struct TipEllipseStyle {
     pub accent: Color32,
     /// The dots: `overlay.handle_fill`.
     pub dot_fill: Color32,
-}
-
-impl TipEllipseStyle {
-    /// The style from `tokens`.
-    pub fn of(tokens: &UiTokens) -> Self {
-        // pc: crates/ui-egui/src/panels/brush_sections.rs:192-242.
-        let (b, c, field) = (&tokens.component.brush, &tokens.color, &tokens.component.field);
-        TipEllipseStyle {
-            size: b.ellipse_size,
-            disc: b.ellipse_disc,
-            radius: b.ellipse_radius,
-            dot: b.ellipse_dot,
-            grab: b.ellipse_grab,
-            line: b.ellipse_line,
-            arrow_reach: b.ellipse_arrow_reach,
-            head: Vec2::from(b.ellipse_head),
-            disc_fill: field.fill.rest.to_egui(),
-            disc_border: Stroke::new(1.0, field.border.rest.to_egui()),
-            cross: Stroke::new(1.0, c.line.divider.to_egui()),
-            ellipse: c.text.normal.to_egui(),
-            accent: c.accent.solid.to_egui(),
-            dot_fill: c.overlay.handle_fill.to_egui(),
-        }
-    }
 }
