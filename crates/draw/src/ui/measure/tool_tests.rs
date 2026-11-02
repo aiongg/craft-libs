@@ -7,6 +7,7 @@ use kurbo::Point;
 use super::{RulerInput, RulerLine, RulerTool};
 use craft_ui::canvas::{CanvasId, CanvasView, ToolHost, ToolInput};
 use craft_ui::edit::EditEvent;
+use craft_ui::testing::canvas;
 use craft_ui::theme::{Base, install};
 
 type Line = Option<RulerLine>;
@@ -43,7 +44,7 @@ fn harness(line: Line) -> Harness<'static, Host> {
                 let canvas = id.interact(ui, host.view.rect, Sense::click_and_drag() | Sense::FOCUSABLE);
                 let mut pass = host.tool.pass(RulerInput::new(host.line));
                 let _ = ToolHost::new(id).show(ui, &host.view, &canvas, &mut pass);
-                for event in pass.finish().events {
+                for event in host.tool.take_events() {
                     match &event {
                         EditEvent::Begin { value, .. } => {
                             host.saved = host.line;
@@ -154,33 +155,36 @@ fn a_press_near_an_end_grabs_it_and_alt_starts_the_protractor() {
     assert!(near(l.start, (50.0, 250.0)) && near(l.end, (90.0, 250.0)) && l.protractor.is_none(), "{l:?}");
 }
 
-// Shift keeps a dragged end on 45° rays about the other end, and the protractor's end about the vertex.
+// Shift moves a dragged end onto the nearest 45° ray about the fixed end, keeping the pointer's distance from it (PhotoCraft's `constrain`), and the protractor's end about the vertex.
 #[test]
-fn shift_constrains_to_45_degrees_about_the_fixed_end() {
+fn shift_keeps_the_pointer_distance_on_the_45_degree_ray() {
     let mut h = harness(line((100.0, 100.0), (200.0, 100.0)));
     let shift = Modifiers::SHIFT;
+    let fixed = Point::new(100.0, 100.0);
 
-    down(&mut h, (200.0, 100.0), Modifiers::NONE);
-    to(&mut h, (260.0, 150.0), shift);
-    assert!(near(current(&h).end, (260.0, 100.0)), "{:?}", current(&h));
-    to(&mut h, (260.0, 230.0), shift);
-    assert!(near(current(&h).end, (245.0, 245.0)), "{:?}", current(&h));
-    up(&mut h, (260.0, 230.0), shift);
+    canvas::press(&mut h, pos2(200.0, 100.0), Modifiers::NONE);
+    canvas::set_modifiers(&mut h, shift);
+    canvas::move_to(&mut h, pos2(260.0, 150.0));
+    // d = (160, 50): 17° snaps to 0°, the length stays 167.63.
+    let end = current(&h).end;
+    assert!((end.distance(fixed) - 160.0_f64.hypot(50.0)).abs() < 1e-6 && (end.y - 100.0).abs() < 1e-6, "{end:?}");
+    canvas::move_to(&mut h, pos2(260.0, 230.0));
+    // d = (160, 130): 39° snaps to 45°, the length stays 206.15 (a projection would give 205.1).
+    let end = current(&h).end;
+    let length = 160.0_f64.hypot(130.0);
+    assert!((end.distance(fixed) - length).abs() < 1e-6, "{end:?}");
+    assert!(((end.x - 100.0) - (end.y - 100.0)).abs() < 1e-6, "{end:?}");
+    canvas::release(&mut h, pos2(260.0, 230.0), shift);
+    let end = current(&h).end;
+    assert!((end.distance(fixed) - length).abs() < 1e-6, "{end:?}");
 
-    // The start end is constrained about the end.
-    down(&mut h, (100.0, 100.0), Modifiers::NONE);
-    to(&mut h, (30.0, 180.0), shift);
-    let l = current(&h);
-    // About the end (245, 245): d = (-215, -65) is 197° → 180°, projected length 215.
-    assert!(near(l.start, (30.0, 245.0)), "{l:?}");
-    up(&mut h, (30.0, 180.0), shift);
-
-    // The protractor arm is constrained about the vertex.
+    // The protractor arm is constrained about the vertex, keeping the pointer's distance.
     let vertex = current(&h).start;
-    down(&mut h, (vertex.x, vertex.y), Modifiers::ALT);
-    to(&mut h, (vertex.x + 10.0, vertex.y + 90.0), shift);
+    canvas::press(&mut h, pos2(vertex.x as f32, vertex.y as f32), Modifiers::ALT);
+    canvas::set_modifiers(&mut h, Modifiers::ALT | shift);
+    canvas::move_to(&mut h, pos2(vertex.x as f32 + 10.0, vertex.y as f32 + 90.0));
     let Some(q) = current(&h).protractor else { panic!("a protractor") };
-    assert!(near(q, (vertex.x, vertex.y + 90.0)), "{q:?} about {vertex:?}");
+    assert!(((q - vertex).hypot() - 10.0_f64.hypot(90.0)).abs() < 1e-3 && (q.x - vertex.x).abs() < 1e-3, "{q:?} about {vertex:?}");
 }
 
 // A new line under 0.5 document units commits `None`; a short drag of an existing end does not clear.
@@ -250,4 +254,31 @@ fn esc_cancels_a_drag() {
     h.run();
     assert_eq!(h.state().line, before);
     assert_eq!(phases(&h).last(), Some(&"cancel"));
+}
+
+// With the canvas focused (no parts group), arrows move the whole line even when a press picked a part; with the parts group focused they move the pick.
+#[test]
+fn arrows_move_the_whole_line_unless_the_parts_group_has_the_keyboard() {
+    let mut h = harness(line((100.0, 100.0), (200.0, 100.0)));
+    // Grabbing the end picks it. Shift snaps the end away from the pointer, so the release is not
+    // on a part and the canvas keeps the keyboard.
+    canvas::press(&mut h, pos2(200.0, 100.0), Modifiers::NONE);
+    canvas::set_modifiers(&mut h, Modifiers::SHIFT);
+    canvas::move_to(&mut h, pos2(260.0, 140.0));
+    canvas::release(&mut h, pos2(260.0, 140.0), Modifiers::SHIFT);
+    let end = current(&h).end;
+    // The canvas is the first Tab stop.
+    h.key_press(Key::Tab);
+    h.run();
+    canvas::key(&mut h, Key::ArrowRight, Modifiers::NONE);
+    let l = current(&h);
+    assert!(near(l.start, (101.0, 100.0)) && (l.end.x - end.x - 1.0).abs() < 1e-6, "{l:?}");
+    let end = l.end;
+
+    // The parts group is the second Tab stop: the arrows move the picked end only.
+    h.key_press(Key::Tab);
+    h.run();
+    canvas::key(&mut h, Key::ArrowDown, Modifiers::NONE);
+    let l = current(&h);
+    assert!(near(l.start, (101.0, 100.0)) && (l.end.y - end.y - 1.0).abs() < 1e-6 && (l.end.x - end.x).abs() < 1e-6, "{l:?}");
 }

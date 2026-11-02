@@ -232,9 +232,10 @@ fn show_ruler(ui: &mut Ui, view: ViewArgs, name: &str, size: Size, initial: Opti
     let numbers = LocaleNumbers::of(ui).as_ref().clone();
     let pixels = RulerUnits::pixels(numbers);
     let labels = RulerToolLabels::of(ui);
-    let mut pass = kept.tool.pass(RulerInput::new(kept.line).units(&pixels, &pixels).labels(labels));
+    kept.tool.labels(labels);
+    let mut pass = kept.tool.pass(RulerInput::new(kept.line).units(&pixels, &pixels));
     let _ = ToolHost::new(canvas.id).document(DOC.size()).show(ui, &canvas.view, &canvas.response, &mut pass);
-    let events = pass.finish().events;
+    let events = kept.tool.take_events();
     for event in &events {
         kept.apply(event);
     }

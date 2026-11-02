@@ -7,7 +7,7 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ConstrainTokens {
-    /// Screen points within which a press copies instead of moves: `constrain.copy_reach`.
+    /// Screen points of travel after which ⌥ held at the press copies: `constrain.copy_reach`.
     pub copy_reach: f32,
     /// Screen points a stroke travels before its direction locks: `constrain.stroke_lock`.
     pub stroke_lock: f32,

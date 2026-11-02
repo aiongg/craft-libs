@@ -277,9 +277,10 @@ pub fn snap_ray(origin: Point, p: Point, step: f64) -> Point {
     }
 }
 
-/// The unit direction from `origin` towards `p` snapped to the nearest multiple of `step`; `None`
-/// when the points coincide, a coordinate is not finite or `step` is not positive.
-fn snap_direction(origin: Point, p: Point, step: f64) -> Option<Vec2> {
+/// The unit direction from `origin` towards `p` snapped to the nearest multiple of `step` (π/4
+/// for 45° rays); `None` when the points coincide, a coordinate is not finite or `step` is not
+/// positive.
+pub fn snap_direction(origin: Point, p: Point, step: f64) -> Option<Vec2> {
     let d = p - origin;
     if !(d.x.is_finite() && d.y.is_finite()) || d.hypot() < 1e-9 || step.is_nan() || step <= 0.0 {
         return None;

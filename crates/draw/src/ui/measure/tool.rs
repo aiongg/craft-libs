@@ -7,7 +7,7 @@ use kurbo::Point;
 
 use super::model::{MIN_LINE, RulerLine, RulerPart};
 use super::style::MeasureStyle;
-use craft_ui::behavior::move_gesture::snap_ray;
+use craft_ui::behavior::move_gesture::snap_direction;
 use craft_ui::behavior::nudge::NudgeKeys;
 use craft_ui::canvas::straight_line::StraightLinePreview;
 use craft_ui::canvas::{CanvasTool, CursorHost, Part, RulerUnits, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
@@ -31,13 +31,12 @@ craft_ui::words! {
 pub struct RulerInput<'a> {
     line: Option<RulerLine>,
     units: Option<(&'a RulerUnits, &'a RulerUnits)>,
-    labels: Option<RulerToolLabels>,
 }
 
 impl<'a> RulerInput<'a> {
     /// The pass over `line`, the document's Ruler line (`None`: no line yet).
     pub fn new(line: Option<RulerLine>) -> Self {
-        Self { line, units: None, labels: None }
+        Self { line, units: None }
     }
 
     /// The ruler units of the parts' values ("x, y") and of the group's length; default: document
@@ -46,21 +45,6 @@ impl<'a> RulerInput<'a> {
         self.units = Some((x, y));
         self
     }
-
-    /// The AccessKit names; default: [`RulerToolLabels`] of the installed words.
-    pub fn labels(mut self, labels: RulerToolLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-}
-
-/// What a pass of the Ruler tool reports, from [`RulerPass::finish`].
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct RulerOutput {
-    /// The line's changes, in order: a drag (Begin, Update, Commit; Cancel on Esc, which puts the
-    /// line back), an arrow press or Delete (`Set`; `None` clears). The app stores the value; it
-    /// is not an undo step.
-    pub events: Vec<EditEvent<Option<RulerLine>>>,
 }
 
 /// The Ruler tool, kept by the app while the tool is picked.
@@ -68,14 +52,20 @@ pub struct RulerOutput {
 /// - Pointer: a press within `measure.hit` screen points of an end grabs it (the protractor's end
 ///   first, then the end, then the start); ⌥-press at an end starts the protractor arm at that
 ///   vertex (when the far end was hit, start and end swap first); elsewhere a new line starts.
-///   ⇧ keeps the moving point on 45° steps about the fixed end (about the vertex for the
-///   protractor arm, `snap_ray` with π/4). A new line shorter than [`MIN_LINE`](super::MIN_LINE)
+///   ⇧ moves the point onto the nearest 45° ray about the fixed end (about the vertex for the
+///   protractor arm), keeping its distance from that end as PhotoCraft does (Gradient projects
+///   instead, [`snap_ray`](craft_ui::behavior::move_gesture::snap_ray)). A new line shorter than [`MIN_LINE`](super::MIN_LINE)
 ///   document units is cleared on release. The reach is in screen points at every zoom.
 /// - Keyboard: the line is one Tab stop through the host with the parts Start point, End point
 ///   and, with a protractor, Protractor point (values "x, y" in the ruler unit; the group's value
 ///   "Length L, angle A°"); Page Up and Down pick a part, the arrows move it 1 unit and ⇧ 10
 ///   ([`NudgeKeys::from_key`](craft_ui::behavior::nudge::NudgeKeys::from_key)); Delete or
-///   Backspace clears the line.
+///   Backspace clears the line. The pick moves only while the parts group has the keyboard
+///   ([`ToolContext::parts_focused`]); with the canvas focused the arrows move the whole line.
+/// - Events: the line's changes, in order, from [`take_events`](Self::take_events) after
+///   `ToolHost::show`: a drag (Begin, Update, Commit; Cancel on Esc, which puts the line back),
+///   an arrow press or Delete (`Set`; `None` clears). The app stores the value; it is not an
+///   undo step.
 /// - Look: each arm as the line guide (halo, then line) and a cross at each end
 ///   (`measure.handle_arm`), the picked part ringed while the keyboard has it.
 /// - Cursor: the crosshair.
@@ -87,6 +77,8 @@ pub struct RulerTool {
     /// The line at the press, for Esc.
     before: Option<RulerLine>,
     picked: Option<RulerPart>,
+    labels: Option<RulerToolLabels>,
+    events: Vec<EditEvent<Option<RulerLine>>>,
 }
 
 impl RulerTool {
@@ -94,10 +86,21 @@ impl RulerTool {
         Self::default()
     }
 
+    /// The AccessKit names; default: [`RulerToolLabels`] of the installed words.
+    pub fn labels(&mut self, labels: RulerToolLabels) -> &mut Self {
+        self.labels = Some(labels);
+        self
+    }
+
+    /// The line's changes since the last call, in order.
+    pub fn take_events(&mut self) -> Vec<EditEvent<Option<RulerLine>>> {
+        std::mem::take(&mut self.events)
+    }
+
     /// This pass's tool for the host.
     pub fn pass<'a>(&'a mut self, input: RulerInput<'a>) -> RulerPass<'a> {
         let line = input.line.filter(RulerLine::is_finite);
-        RulerPass { tool: self, input, line, output: RulerOutput::default() }
+        RulerPass { tool: self, input, line }
     }
 }
 
@@ -107,25 +110,29 @@ pub struct RulerPass<'a> {
     input: RulerInput<'a>,
     /// The line as this pass's events leave it: the input's, then every change the tool reported.
     line: Option<RulerLine>,
-    output: RulerOutput,
 }
 
 impl RulerPass<'_> {
-    /// The pass's events.
-    pub fn finish(self) -> RulerOutput {
-        self.output
-    }
-
     /// `line` becomes the line and `event` goes out.
     fn report(&mut self, line: Option<RulerLine>, event: EditEvent<Option<RulerLine>>) {
         self.line = line;
-        self.output.events.push(event);
+        self.tool.events.push(event);
+    }
+
+    /// `to` on the nearest 45° ray from `fixed`, at its distance from `fixed` (`to` itself when
+    /// it is on `fixed` or not finite).
+    fn on_ray(fixed: Point, to: Point) -> Point {
+        // pc: crates/ui-egui/src/tools/analysis_ui.rs:219 `constrain`.
+        match snap_direction(fixed, to, FRAC_PI_4) {
+            Some(dir) => fixed + dir * (to - fixed).hypot(),
+            None => to,
+        }
     }
 
     /// The line with the grabbed `part` moved to `to`, ⇧ on 45° rays about the fixed point: the end
     /// for the start, the start for the end and the protractor.
     fn moved(line: RulerLine, part: RulerPart, to: Point, shift: bool) -> RulerLine {
-        let constrain = |fixed: Point| if shift { snap_ray(fixed, to, FRAC_PI_4) } else { to };
+        let constrain = |fixed: Point| if shift { Self::on_ray(fixed, to) } else { to };
         let mut line = line;
         match part {
             RulerPart::Start => line.start = constrain(line.end),
@@ -143,11 +150,12 @@ impl RulerPass<'_> {
         }
     }
 
-    /// Moves the picked part, or the whole line, by a key's nudge.
-    fn nudge(&mut self, key: &ToolKey, line: RulerLine) -> bool {
+    /// Moves the picked part (while the parts group has the keyboard), or the whole line, by a
+    /// key's nudge.
+    fn nudge(&mut self, key: &ToolKey, line: RulerLine, parts_focused: bool) -> bool {
         let Some(nudge) = NudgeKeys::new().from_key(key) else { return false };
         let mut next = line;
-        match self.tool.picked.filter(|&part| line.point(part).is_some()) {
+        match self.tool.picked.filter(|&part| parts_focused && line.point(part).is_some()) {
             Some(RulerPart::Start) => next.start += nudge.by,
             Some(RulerPart::End) => next.end += nudge.by,
             Some(RulerPart::Protractor) => next.protractor = line.protractor.map(|q| q + nudge.by),
@@ -202,10 +210,9 @@ impl CanvasTool for RulerPass<'_> {
         ToolAction::Claimed
     }
 
-    /// Moves the grabbed point, ⇧ on 45° rays about the fixed end (Update).
+    /// Moves the grabbed point, ⇧ onto 45° rays about the fixed end (Update).
     fn drag(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
-        // pc: crates/ui-egui/src/tools/analysis_ui.rs:273 (Move), :219 `constrain`; here
-        // `craft_ui::behavior::move_gesture::snap_ray` with π/4 (task K2).
+        // pc: crates/ui-egui/src/tools/analysis_ui.rs:273 (Move), :219 `constrain`.
         let (Some((part, _)), Some(id), Some(line)) = (self.tool.drag, self.tool.gesture, self.line) else { return };
         if !pointer.doc.is_finite() {
             return;
@@ -239,8 +246,8 @@ impl CanvasTool for RulerPass<'_> {
         }
     }
 
-    /// Arrows move the picked part (no pick: the whole line); Delete and Backspace clear.
-    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
+    /// Arrows move the picked part while the parts group has the keyboard, else the whole line; Delete and Backspace clear.
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         // new: lead call 25 (PhotoCraft has no keyboard path).
         let Some(line) = self.line else { return false };
         if !key.pressed || self.tool.drag.is_some() {
@@ -251,7 +258,7 @@ impl CanvasTool for RulerPass<'_> {
             self.tool.picked = None;
             return true;
         }
-        self.nudge(key, line)
+        self.nudge(key, line, cx.parts_focused)
     }
 
     /// The arms and the end crosses in `MeasureStyle`.
@@ -281,7 +288,7 @@ impl CanvasTool for RulerPass<'_> {
     fn parts(&self, cx: &ToolContext<'_>) -> Option<ToolParts> {
         // new: lead call 33; values through the units, the group's value from `RulerLine::reading`.
         let line = self.line?;
-        let labels = self.input.labels.clone().unwrap_or_else(|| RulerToolLabels::of_ctx(&cx.canvas.ctx));
+        let labels = self.tool.labels.clone().unwrap_or_else(|| RulerToolLabels::of_ctx(&cx.canvas.ctx));
         let (x, y) = self.units(cx);
         let size = 2.0 * MeasureStyle::of(cx.tokens).hit;
         let parts = [(RulerPart::Start, &labels.start), (RulerPart::End, &labels.end), (RulerPart::Protractor, &labels.protractor)]

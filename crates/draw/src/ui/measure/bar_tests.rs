@@ -4,6 +4,8 @@ use egui::accesskit::{Action, ActionRequest, Node, NodeId, Role};
 use egui::{Context, Event, Pos2, RawInput, Rect, vec2};
 
 use super::{RulerBar, RulerBarOutput, RulerLine};
+use craft_ui::canvas::RulerUnits;
+use craft_ui::localized::LocaleNumbers;
 use craft_ui::patterns::OptionsBar;
 use craft_ui::theme::{Base, install};
 use kurbo::Point;
@@ -13,6 +15,7 @@ struct Rig {
     line: Option<RulerLine>,
     use_scale: bool,
     factor: f64,
+    units: Option<RulerUnits>,
     output: RulerBarOutput,
     nodes: Vec<(NodeId, Node)>,
 }
@@ -22,7 +25,7 @@ impl Rig {
         let ctx = Context::default();
         install(&ctx, &Base::suite_default());
         ctx.enable_accesskit();
-        let mut rig = Rig { ctx, line, use_scale, factor, output: RulerBarOutput::default(), nodes: Vec::new() };
+        let mut rig = Rig { ctx, line, use_scale, factor, units: None, output: RulerBarOutput::default(), nodes: Vec::new() };
         rig.frame(vec![]);
         rig
     }
@@ -32,10 +35,18 @@ impl Rig {
         let ctx = self.ctx.clone();
         let (line, factor) = (self.line, self.factor);
         let use_scale = &mut self.use_scale;
+        let units = self.units.clone();
         self.output = RulerBarOutput::default();
         let output = &mut self.output;
         let result = ctx.run_ui(input, |ui| {
-            OptionsBar::new("ruler-bar").show(ui, |slots| RulerBar::new(line, use_scale).scale(factor).output(output).add_to(slots));
+            OptionsBar::new("ruler-bar").show(ui, |slots| {
+                let bar = RulerBar::new(line, use_scale).scale(factor).output(output);
+                let bar = match &units {
+                    Some(units) => bar.units(units, units),
+                    None => bar,
+                };
+                bar.add_to(slots);
+            });
         });
         if let Some(update) = result.platform_output.accesskit_update.clone() {
             self.nodes = update.nodes;
@@ -103,4 +114,23 @@ fn buttons_are_disabled_without_a_line() {
     assert_eq!(some.output, RulerBarOutput { straighten_layer: true, clear: false });
     some.click("Clear");
     assert_eq!(some.output, RulerBarOutput { straighten_layer: false, clear: true });
+}
+
+// With ruler units the position and length readouts are written in them (millimetres: 2 decimals and the unit), the angle stays a plain number; a measurement scale turns them back to plain numbers.
+#[test]
+fn readouts_show_the_ruler_units() {
+    let mm =
+        RulerUnits { per_doc: 0.5, decimals: 2, unit: craft_ui::localized::Unit::new("{n} mm"), ..RulerUnits::pixels(LocaleNumbers::from_tag("en")) };
+    let mut rig = Rig::new(Some(line()), false, 1.0);
+    rig.units = Some(mm);
+    rig.frame(vec![]);
+    let reading = line().reading();
+    assert!(rig.has_text(&format!("{:.2} mm", reading.l1 * 0.5)), "no length in mm");
+    assert!(rig.has_text(&format!("{:.2}", reading.angle)), "no plain angle");
+
+    rig.use_scale = true;
+    rig.factor = 2.0;
+    rig.frame(vec![]);
+    assert!(rig.has_text(&format!("{:.2}", reading.l1 * 2.0)));
+    assert!(!rig.has_text(&format!("{:.2} mm", reading.l1)));
 }
