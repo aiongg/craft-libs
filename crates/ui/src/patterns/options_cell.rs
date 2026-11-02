@@ -17,7 +17,7 @@ use crate::localized::{LocaleNumbers, Unit, Word, Words};
 use crate::primitives::{Content, FocusRing, Text};
 use crate::story::{PatternStoryLabels, StoryArgs, StoryLabels};
 use crate::theme::{Tokens, TokensOf};
-use craft_theme::{ControlSize, TypeRole};
+use craft_theme::TypeRole;
 
 /// How wide a cell's control is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -83,7 +83,7 @@ impl OptionsBar {
         ui.add(Text::new(text).content(Content::Faint))
     }
 
-    /// A number cell: [`cell`](Self::cell) with `field` at [`ControlSize::Sm`](craft_theme::ControlSize::Sm), scrubbed by
+    /// A number cell: [`cell`](Self::cell) with `field` at [`OptionsBar::CONTROL_SIZE`], scrubbed by
     /// dragging the caption ([`NumberField::scrub_by`]), as Photoshop's "Size:" or "Tolerance:".
     /// The drag area is the caption, the gap after it (up to 24 points) and nothing of the box,
     /// whose own text scrubs.
@@ -91,7 +91,7 @@ impl OptionsBar {
     pub fn number_cell(ui: &mut Ui, caption: &str, width: CellWidth, field: NumberField<'_>) -> EditResponse<f64> {
         Self::cell(ui, caption, width, |ui, label| {
             let area = scrub_area(ui, label, label.id);
-            field.size(ControlSize::Sm).scrub_by(&area).show(ui)
+            field.size(OptionsBar::CONTROL_SIZE).scrub_by(&area).show(ui)
         })
     }
 
@@ -110,7 +110,7 @@ impl OptionsBar {
                 .range(0.0..=100.0)
                 .decimals(0..=0)
                 .unit(Unit::new("{n}%"))
-                .size(ControlSize::Sm)
+                .size(OptionsBar::CONTROL_SIZE)
                 .scrub_by(&area)
                 .scrub_rate(PERCENT_PER_POINT)
                 .popup_slider(caption)
@@ -199,7 +199,7 @@ pub fn unit_number_field<'a>(
     let reader = move |text: &str| {
         if suffix.is_empty() { expr::parse(text) } else { expr::parse_with_units(text, &ExprUnits { unit, suffix: &suffix, context }) }
     };
-    NumberField::new(id_salt, caption, shown, numbers).decimals(0..=places).unit(Unit::new(&template)).or_parse(reader).size(ControlSize::Sm)
+    NumberField::new(id_salt, caption, shown, numbers).decimals(0..=places).unit(Unit::new(&template)).or_parse(reader).size(OptionsBar::CONTROL_SIZE)
 }
 
 /// Percentage points a caption drag adds per screen point ([`NumberField::scrub_rate`]).
@@ -254,7 +254,7 @@ fn brush_cells(ui: &mut Ui, numbers: &LocaleNumbers, size: &mut f64, opacity: &m
         let edit = NumberField::new("demo-size", &words.size, *size, numbers)
             .range(1.0..=5000.0)
             .unit(Unit::new("{n} px"))
-            .size(ControlSize::Sm)
+            .size(OptionsBar::CONTROL_SIZE)
             .scrub_by(caption)
             .show(ui);
         if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
@@ -265,7 +265,7 @@ fn brush_cells(ui: &mut Ui, numbers: &LocaleNumbers, size: &mut f64, opacity: &m
         let edit = NumberField::new("demo-opacity", &words.opacity, *opacity, numbers)
             .range(1.0..=100.0)
             .unit(Unit::new("{n}%"))
-            .size(ControlSize::Sm)
+            .size(OptionsBar::CONTROL_SIZE)
             .scrub_by(caption)
             .show(ui);
         if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
@@ -277,14 +277,14 @@ fn brush_cells(ui: &mut Ui, numbers: &LocaleNumbers, size: &mut f64, opacity: &m
             .option("Normal".to_owned(), "Normal")
             .option("Multiply".to_owned(), "Multiply")
             .option("Screen".to_owned(), "Screen")
-            .size(ControlSize::Sm)
+            .size(OptionsBar::CONTROL_SIZE)
             .show(ui);
     });
 }
 
 fn sample_group(ui: &mut Ui, state: &mut CheckState, disabled: bool) {
     OptionsBar::group(ui, !disabled, |ui| {
-        let _ = Checkbox::new("Sample all layers", state).size(ControlSize::Sm).show(ui);
+        let _ = Checkbox::new("Sample all layers", state).size(OptionsBar::CONTROL_SIZE).show(ui);
         OptionsBar::hint(ui, "Samples the visible image");
     });
 }

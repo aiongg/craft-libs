@@ -148,3 +148,24 @@ fn a_message_under_a_title_is_muted_and_a_lone_message_has_the_tone_colour() {
     assert_eq!(text_colors(Some("The title")), [style.fg, style.body]);
     assert_eq!(text_colors(None), [style.fg]);
 }
+
+// The message is in one AccessKit node (the region's label), not also in the text's own node.
+#[test]
+fn the_text_is_in_one_node() {
+    for announce in [true, false] {
+        let mut harness = harness(Direction::Ltr, move |ui| {
+            Notice::new("The unique message").title("The unique title").announce(announce).show(ui);
+        });
+        harness.run();
+        let carrying = harness
+            .root()
+            .children_recursive()
+            .filter(|n| !n.accesskit_node().is_hidden())
+            .filter(|n| {
+                let node = n.accesskit_node();
+                node.label().is_some_and(|l| l.contains("unique message")) || node.value().is_some_and(|v| v.contains("unique message"))
+            })
+            .count();
+        assert_eq!(carrying, 1, "announce {announce}");
+    }
+}
