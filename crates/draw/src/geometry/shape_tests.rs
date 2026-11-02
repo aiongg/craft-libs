@@ -49,17 +49,24 @@ fn corners(path: &kurbo::BezPath) -> Vec<Point> {
         .collect()
 }
 
-// `Polygon { sides: 3 }` has three corners with the base on the rect's bottom edge; a Rect with
-// four equal radii is kurbo's rounded rect of that radius.
+// `Polygon` puts its points on the ellipse of the rect, the first at the top (PhotoCraft
+// `vector/src/shapes.rs:96-112`): a triangle's base sits at cy + ry/2, a pentagon's points follow
+// `-90° + 360° i / 5`; a Rect with four equal radii is kurbo's rounded rect of that radius.
 #[test]
-fn triangle_is_three_sided_polygon_and_rounded_rectangle_has_four_equal_radii() {
+fn polygon_points_lie_on_the_rect_ellipse_and_rounded_rectangle_has_four_equal_radii() {
     let rect = Rect::new(10.0, 20.0, 110.0, 80.0);
-    let path = ShapeGeometry::Polygon { rect, sides: 3, star_ratio: 1.0 }.to_path(0.1);
-    let points = corners(&path);
-    assert_eq!(points.len(), 3);
-    assert!(near(points[0].y, rect.y0) && near(points[0].x, 60.0));
-    assert!(near(points[1].y, rect.y1) && near(points[2].y, rect.y1));
-    assert!(near(points[1].x.min(points[2].x), rect.x0) && near(points[1].x.max(points[2].x), rect.x1));
+    let (cx, cy, rx, ry) = (60.0, 50.0, 50.0, 30.0);
+    for sides in [3_u32, 5] {
+        let path = ShapeGeometry::Polygon { rect, sides, star_ratio: 1.0 }.to_path(0.1);
+        let points = corners(&path);
+        assert_eq!(points.len(), sides as usize);
+        for (i, p) in points.iter().enumerate() {
+            let a = -FRAC_PI_2 + 2.0 * PI * i as f64 / f64::from(sides);
+            assert!(near(p.x, cx + rx * a.cos()) && near(p.y, cy + ry * a.sin()), "{sides} sides, point {i}: {p:?}");
+        }
+    }
+    let triangle = corners(&ShapeGeometry::Polygon { rect, sides: 3, star_ratio: 1.0 }.to_path(0.1));
+    assert!(near(triangle[0].y, rect.y0) && near(triangle[1].y, cy + ry / 2.0));
 
     let round = ShapeGeometry::Rect { rect, radii: [8.0; 4] }.to_path(0.1);
     assert_eq!(round, RoundedRect::from_rect(rect, 8.0).to_path(0.1));
@@ -88,6 +95,9 @@ fn radial_frame_rotation_inner_radius_and_straight_shoulders() {
     let c = Point::new(50.0, 50.0);
     let Some(up) = RadialFrame::drag(c, Point::new(50.0, 30.0), false) else { panic!("a frame") };
     assert!(near(up.radius, 20.0) && near(up.rotation, 0.0));
+    // A pointer left of the centre gives a rotation in 0..TAU, not a negative turn.
+    let Some(left) = RadialFrame::drag(c, Point::new(30.0, 50.0), false) else { panic!("a frame") };
+    assert!(near(left.rotation, 3.0 * FRAC_PI_2));
     let Some(right) = RadialFrame::drag(c, Point::new(70.0, 50.0), false) else { panic!("a frame") };
     assert!(near(right.rotation, FRAC_PI_2));
     let Some(upright) = RadialFrame::drag(c, Point::new(70.0, 50.0), true) else { panic!("a frame") };

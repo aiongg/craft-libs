@@ -7,12 +7,12 @@
 //!   layer disables every field.
 //! - `patterns/shape-options/bar`: the bar for each Shape tool kind, over the tool settings.
 //!
-//! RG2 registers `stories()` and the components `ShapePanel` and `ShapeOptionsBar`, and RG1 adds
+//! RG2 registers `stories()` and the components `ShapePanel` and `ShapeBar`, and RG1 adds
 //! [`ShapeStoryLabels`] to `WORDS`.
 
 use egui::Ui;
 
-use super::{LiveShape, ShapeAppearance, ShapeChange, ShapeOptionsBar, ShapePanel, ShapeToolSettings};
+use super::{LiveShape, ShapeAppearance, ShapeBar, ShapeBarOutput, ShapeChange, ShapePanel, ShapeToolSettings};
 use crate::ui::shape_drag::ShapeKind;
 use craft_color::ui::Paint;
 use craft_theme::Srgba;
@@ -26,7 +26,7 @@ use craft_ui::theme::{Tokens, TokensOf as _};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ShapePanel", "ShapeOptionsBar"];
+pub const COMPONENTS: &[&str] = &["ShapePanel", "ShapeBar"];
 
 /// The panel's width: the Properties column an app docks it in, which no token names.
 const PANEL_WIDTH: f32 = 280.0;
@@ -54,7 +54,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/shape-options/bar",
             Level::Patterns,
-            "ShapeOptionsBar",
+            "ShapeBar",
             "Options bar",
             BarArgs { kind: BarKind::Rectangle, locked: false },
             show_bar
@@ -114,9 +114,15 @@ impl FakeShape {
         match change {
             ShapeChange::Fill(paint) => self.look.fill = paint,
             ShapeChange::FillOn(_) => {}
-            ShapeChange::Stroke(paint) => self.look.stroke = paint,
+            ShapeChange::Stroke { paint, width } => {
+                self.look.stroke = paint;
+                self.look.stroke_width = width.unwrap_or(self.look.stroke_width);
+            }
             ShapeChange::StrokeWidth(width) => self.look.stroke_width = width,
-            ShapeChange::StrokeStyle(style) => self.look.stroke_style = style,
+            ShapeChange::StrokeStyle { style, width } => {
+                self.look.stroke_style = style;
+                self.look.stroke_width = width.unwrap_or(self.look.stroke_width);
+            }
             ShapeChange::Size { width: w, height: h } => match &mut self.shape {
                 LiveShape::Rect { width, height, .. } | LiveShape::Ellipse { width, height } | LiveShape::Polygon { width, height, .. } => {
                     (*width, *height) = (w, h)
@@ -302,15 +308,16 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         look.fill = Paint::None;
     }
 
-    let mut events = Vec::new();
+    let mut out = ShapeBarOutput::default();
     OptionsBar::new("shape-options").label(words.bar.clone()).show(ui, |slots| {
-        slots.body(|ui| {
-            events = ShapeOptionsBar::new("shape-options-bar", args.kind.kind(), settings, &look).stroke_open(&mut fake.stroke_open).show(ui).events;
-        });
+        ShapeBar::new("shape-options-bar", args.kind.kind(), settings, &look).stroke_open(&mut fake.stroke_open).output(&mut out).add_to(slots);
     });
-    for event in events {
+    for event in out.events {
         if let Some(change) = event.value() {
             fake.note = format!("{change:?}");
+            if let ShapeChange::Stroke { width: Some(w), .. } | ShapeChange::StrokeStyle { width: Some(w), .. } = change {
+                settings.stroke_width = *w;
+            }
             match change.clone() {
                 ShapeChange::FillOn(on) => settings.fill_on = on,
                 ShapeChange::CornerRadius(r) => settings.corner_radius = r,

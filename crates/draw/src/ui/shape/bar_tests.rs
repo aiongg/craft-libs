@@ -7,9 +7,10 @@ use egui::{Context, Event, Key};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use super::{ShapeAppearance, ShapeChange, ShapeOptionsBar, ShapeToolSettings};
+use super::{ShapeAppearance, ShapeBar, ShapeBarOutput, ShapeChange, ShapeToolSettings};
 use crate::ui::shape_drag::ShapeKind;
 use craft_ui::edit::EditEvent;
+use craft_ui::patterns::OptionsBar;
 use craft_ui::theme::{Base, install};
 
 struct Host {
@@ -28,10 +29,9 @@ fn bar(kind: ShapeKind) -> Harness<'static, Host> {
         .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
         .build_ui_state(
             |ui, host: &mut Host| {
-                ui.horizontal(|ui| {
-                    let out = ShapeOptionsBar::new("bar", host.kind, &host.settings, &host.look).show(ui);
-                    host.events.extend(out.events);
-                });
+                let mut out = ShapeBarOutput::default();
+                OptionsBar::new("bar").show(ui, |slots| ShapeBar::new("bar", host.kind, &host.settings, &host.look).output(&mut out).add_to(slots));
+                host.events.extend(out.events);
             },
             host,
         );
@@ -69,4 +69,16 @@ fn shape_options_bar_shows_the_field_of_each_kind() {
         assert_eq!(changes.last(), Some(&change), "{kind:?}");
     }
     assert_eq!(fields(&bar(ShapeKind::Ellipse)), ["Stroke width"]);
+}
+
+// Choosing Solid on the Stroke chip at width 0 reports one change that carries the width 3.
+#[test]
+fn shape_bar_turning_the_stroke_on_is_one_change() {
+    let mut harness = bar(ShapeKind::Rectangle);
+    harness.get_by(|n| n.label().as_deref() == Some("Stroke color")).click();
+    harness.run_steps(4);
+    harness.get_by(|n| n.role() == Role::RadioButton && n.label().as_deref() == Some("Solid")).click();
+    harness.run_steps(4);
+    let changes: Vec<_> = harness.state().events.iter().filter_map(EditEvent::value).cloned().collect();
+    assert!(matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w) }] if *w == 3.0), "{changes:?}");
 }

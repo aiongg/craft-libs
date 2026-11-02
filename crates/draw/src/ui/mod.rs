@@ -14,7 +14,7 @@
 //! - [`measure`]: the [`RulerTool`] with its [`RulerBar`], and [`box_distances`] between boxes.
 //! - [`symmetry`]: the [`Symmetry`] guides with their [`SymmetryOverlay`], [`SymmetryMenu`] and
 //!   the [`SymmetryTransform`] that mirrors a stroke.
-//! - [`shape`] and [`shape_drag`]: the shape layer's [`ShapePanel`] and [`ShapeOptionsBar`]; the
+//! - [`shape`] and [`shape_drag`]: the shape layer's [`ShapePanel`] and [`ShapeBar`]; the
 //!   [`ShapeDragTool`] and its [`CreateShapeDialog`].
 //! - [`mod@slice`]: the [`SliceTool`], its [`SliceOverlay`], [`SliceBar`] and dialogs.
 //! - [`artboard`] and [`add_beside`]: the [`ArtboardTool`], its [`ArtboardBar`] and
@@ -98,8 +98,7 @@ pub use pen::{
 };
 pub use picture_fill::{PictureFill, PictureFillEditor, PictureFillEvent, PictureFillLabels, PictureFillOutput, PictureMode};
 pub use shape::{
-    LiveShape, ShapeAppearance, ShapeChange, ShapeLabels, ShapeOptionsBar, ShapeOptionsOutput, ShapePaint, ShapePanel, ShapePanelOutput,
-    ShapeToolSettings,
+    LiveShape, ShapeAppearance, ShapeBar, ShapeBarOutput, ShapeChange, ShapeLabels, ShapePaint, ShapePanel, ShapePanelOutput, ShapeToolSettings,
 };
 pub use shape_drag::{
     CreateShapeDialog, CreateShapeLabels, CreateShapeOptions, CreatedShape, ShapeDragEvent, ShapeDragOptions, ShapeDragStyle, ShapeDragTool,

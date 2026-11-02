@@ -2,7 +2,7 @@
 //! (PhotoCraft's, without colons; US spelling).
 
 craft_ui::words! {
-    /// The words of [`ShapePanel`](super::ShapePanel) and [`ShapeOptionsBar`](super::ShapeOptionsBar).
+    /// The words of [`ShapePanel`](super::ShapePanel) and [`ShapeBar`](super::ShapeBar).
     #[non_exhaustive]
     pub struct ShapeLabels {
         /// The panel's accessible name.
