@@ -711,7 +711,7 @@ fn two_dialogs_of_one_command_keep_separate_state() {
     harness.state_mut()[1].fields_mut().set("tint", FieldValue::Color([0.0, 0.0, 1.0]));
     harness.get_by_label("Alpha tint").click();
     harness.run();
-    let [beta, alpha] = &mut harness.state_mut()[..] else { unreachable!() };
+    let [beta, alpha] = &mut harness.state_mut()[..] else { panic!("two dialogs") };
     assert_eq!(alpha.pick_color().map(|r| r.key), Some("tint".to_owned()));
     assert_eq!(beta.pick_color(), None);
     assert_eq!(beta.fields().color("tint"), Some([1.0, 0.0, 0.0]));
