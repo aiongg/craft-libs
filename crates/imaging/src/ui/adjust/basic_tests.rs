@@ -57,13 +57,15 @@ fn threshold_marker_follows_the_level() {
         level: f64,
         events: Vec<EditEvent<f64>>,
         height: f32,
+        inset: f32,
     }
-    let state = Host { level: 64.0, events: Vec::new(), height: 0.0 };
+    let state = Host { level: 64.0, events: Vec::new(), height: 0.0, inset: 0.0 };
     let counts = [3u32; 256];
     let mut h = builder().build_ui_state(
         |ui, host: &mut Host| {
             let numbers = LocaleNumbers::from_tag("en");
-            host.height = AdjustStyle::of(&Tokens::of(ui)).threshold_histogram;
+            let style = AdjustStyle::of(&Tokens::of(ui));
+            (host.height, host.inset) = (style.threshold_histogram, style.threshold_inset);
             if let Some(event) = ThresholdEditor::new("th", host.level, &numbers).histogram(&counts).show(ui).event {
                 applied(&mut host.level, &event);
                 host.events.push(event);
@@ -74,7 +76,7 @@ fn threshold_marker_follows_the_level() {
     h.run_steps(3);
     let plot = h.get_by_role_and_label(Role::Image, "Histogram").rect();
     assert!((plot.height() - h.state().height).abs() < 0.5, "the plot is the style's height: {plot:?}");
-    assert!(plot.width() <= 300.0, "at most the style's width: {plot:?}");
+    assert!(plot.width() <= 300.0 - 2.0 * h.state().inset + 0.5, "at most the style's width less the inset at each side: {plot:?}");
     assert!((super::basic::marker_x(plot, 255.0) - plot.right()).abs() < 1e-3);
     assert!((super::basic::marker_x(plot, 64.0) - (plot.left() + plot.width() * 64.0 / 255.0)).abs() < 1e-3);
 

@@ -3046,20 +3046,32 @@ fn adjust_lines(out: &mut Lines, t: &AdjustTokens) {
         spectrum_master_extra,
         range_thumb_width,
         range_thumb_height,
+        range_thumb_radius,
+        hue_grab,
         picker_dot,
         picker_dot_inset,
+        picker_ring,
+        disabled_alpha,
         threshold_histogram,
         threshold_width,
+        threshold_inset,
+        threshold_marker_width,
     } = t;
     out.line("adjust.spectrum_bar", len(*spectrum_bar));
     out.line("adjust.range_band", len(*range_band));
     out.line("adjust.spectrum_master_extra", len(*spectrum_master_extra));
     out.line("adjust.range_thumb_width", len(*range_thumb_width));
     out.line("adjust.range_thumb_height", len(*range_thumb_height));
+    out.line("adjust.range_thumb_radius", len(*range_thumb_radius));
+    out.line("adjust.hue_grab", len(*hue_grab));
     out.line("adjust.picker_dot", len(*picker_dot));
     out.line("adjust.picker_dot_inset", len(*picker_dot_inset));
+    out.line("adjust.picker_ring", hex(*picker_ring));
+    out.line("adjust.disabled_alpha", len(*disabled_alpha));
     out.line("adjust.threshold_histogram", len(*threshold_histogram));
     out.line("adjust.threshold_width", len(*threshold_width));
+    out.line("adjust.threshold_inset", len(*threshold_inset));
+    out.line("adjust.threshold_marker_width", len(*threshold_marker_width));
 }
 
 fn layer_style_lines(out: &mut Lines, t: &LayerStyleTokens) {

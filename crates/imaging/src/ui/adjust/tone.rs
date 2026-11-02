@@ -13,6 +13,7 @@ use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolPoin
 use craft_ui::controls::IconButton;
 use craft_ui::direction;
 use craft_ui::edit::CancelReason;
+use craft_ui::focus;
 use craft_ui::icons::Icon;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
@@ -135,7 +136,7 @@ impl TonePickerRow {
         let mut change = None;
         let row = direction::horizontal(ui, |ui| {
             ui.add(Text::new(labels.eyedroppers.as_str()).role(TypeRole::Label).content(Content::Muted));
-            let mut focused = false;
+            let mut escaped = false;
             for picker in TonePicker::ALL {
                 let is_armed = armed == Some(picker);
                 let usable = enabled[picker as usize] && !unavailable;
@@ -151,21 +152,24 @@ impl TonePickerRow {
                     response.rect.right_bottom() - vec2(style.picker_dot_inset, style.picker_dot_inset)
                 };
                 let dot = Color32::from_gray(picker.tone());
-                let (dot, ring) = if usable { (dot, style.picker_ring) } else { (dot.gamma_multiply(0.4), style.picker_ring.gamma_multiply(0.4)) };
+                let (dot, ring) = if usable {
+                    (dot, style.picker_ring)
+                } else {
+                    (dot.gamma_multiply(style.disabled_alpha), style.picker_ring.gamma_multiply(style.disabled_alpha))
+                };
                 ui.painter().circle_filled(corner, style.picker_dot, dot);
                 ui.painter().circle_stroke(corner, style.picker_dot, Stroke::new(1.0, ring));
-                // egui drops focus on the Esc press itself, so the frame of the press reports it as lost.
-                focused |= response.has_focus() || response.lost_focus();
+                escaped |= focus::escaped(&response);
                 if response.clicked() {
                     change = Some(if is_armed { None } else { Some(picker) });
                 }
             }
             // Esc on a picker button disarms and keeps the press, so the dialog stays open.
-            if change.is_none() && armed.is_some() && focused && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+            if change.is_none() && armed.is_some() && escaped && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
                 change = Some(None);
             }
             if unavailable {
-                ui.label(RichText::new(labels.unavailable_mode.as_str()).font(style.note_font.clone()).color(style.note_colour));
+                ui.label(RichText::new(labels.unavailable_mode.as_str()).font(style.note_font.clone()).color(style.note_color));
             }
         });
         TonePickerResponse { response: row.response, change }
