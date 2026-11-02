@@ -6,8 +6,9 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 use kurbo::Rect;
 
-use super::{BarGroups, Interpolation, TransformBar, TransformEdit, TransformSession, TransformSettings};
+use super::{BarGroups, Interpolation, TransformBar, TransformBarOutput, TransformEdit, TransformSession, TransformSettings};
 use craft_ui::localized::units::{LengthUnit, UnitContext};
+use craft_ui::patterns::OptionsBar;
 use craft_ui::theme::{Base, install};
 
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
@@ -20,6 +21,7 @@ struct Host {
     edits: Vec<String>,
     reset: bool,
     context: Option<UnitContext>,
+    width: f32,
 }
 
 fn host(session: TransformSession<()>) -> Host {
@@ -31,26 +33,28 @@ fn host(session: TransformSession<()>) -> Host {
         edits: Vec::new(),
         reset: false,
         context: None,
+        width: 1800.0,
     }
 }
 
 fn harness(host: Host) -> Harness<'static, Host> {
-    let mut h = Harness::<Host>::builder()
-        .with_size([1800.0, 320.0])
-        .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
-        .build_ui_state(
+    let width = host.width;
+    let mut h =
+        Harness::<Host>::builder().with_size([width, 320.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
             |ui, host: &mut Host| {
                 let context = host.context;
-                let out = ui
-                    .horizontal(|ui| {
-                        let mut bar =
-                            TransformBar::new("bar", &host.session).groups(host.groups).mode_switch(host.mode_switch).settings(&mut host.settings);
-                        if let Some(context) = context {
-                            bar = bar.unit_context(context);
-                        }
-                        bar.show(ui)
-                    })
-                    .inner;
+                let mut out = TransformBarOutput::default();
+                OptionsBar::new("options").show(ui, |slots| {
+                    let mut bar = TransformBar::new("bar", &host.session)
+                        .groups(host.groups)
+                        .mode_switch(host.mode_switch)
+                        .settings(&mut host.settings)
+                        .output(&mut out);
+                    if let Some(context) = context {
+                        bar = bar.unit_context(context);
+                    }
+                    bar.add_to(slots);
+                });
                 host.reset |= out.reset_warp;
                 for edit in out.edits {
                     host.edits.push(match &edit {
@@ -198,4 +202,16 @@ fn a_unit_picked_in_the_size_menu_is_written_to_the_settings() {
     }
     h.run_steps(2);
     assert_eq!(h.state().settings.size_unit, Some(LengthUnit::Millimetres));
+}
+
+// The trailing slot stays in view when the body is wider than the bar.
+#[test]
+fn commit_and_cancel_stay_in_view_in_a_narrow_bar() {
+    let mut narrow = host(TransformSession::new(RECT));
+    narrow.width = 420.0;
+    let h = harness(narrow);
+    for label in ["Cancel transform", "Commit transform"] {
+        let rect = h.get_all_by_label(label).next().unwrap_or_else(|| panic!("{label}")).rect();
+        assert!(rect.right() <= 420.0, "{label} at {rect:?}");
+    }
 }

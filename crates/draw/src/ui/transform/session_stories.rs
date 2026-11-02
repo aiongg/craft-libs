@@ -12,8 +12,8 @@ use egui::{Shape, Stroke, Ui};
 use kurbo::{Rect, Size};
 
 use super::{
-    BarGroups, Interpolation, TransformBar, TransformBarLabels, TransformEdit, TransformFieldLabels, TransformLabels, TransformNames,
-    TransformOverlay, TransformPhase, TransformRequest, TransformSession, TransformSettings,
+    BarGroups, Interpolation, TransformBar, TransformBarLabels, TransformBarOutput, TransformEdit, TransformFieldLabels, TransformLabels,
+    TransformNames, TransformOverlay, TransformPhase, TransformRequest, TransformSession, TransformSettings,
 };
 use craft_ui::canvas::RulerUnits;
 use craft_ui::canvas::quad::{BoxState, TransformMode};
@@ -328,34 +328,31 @@ fn show_options_bar(ui: &mut Ui, kept: &mut Kept, phase: PhaseArg, size_menu: bo
         PhaseArg::Free | PhaseArg::Warp => BarGroups::ALL,
     };
     let warp_label = TransformSessionStoryLabels::of(ui).warp_options.clone();
-    let mut shown = None;
+    let mut out = TransformBarOutput::default();
     {
         let Kept { session, settings, .. } = kept;
         OptionsBar::new("transform-session-options").label(label).show(ui, |slots| {
-            slots.body(|ui| {
-                let mut bar = TransformBar::new("transform-session-bar", session)
-                    .labels(labels)
-                    .field_labels(field_labels)
-                    .groups(groups)
-                    .mode_switch(phase != PhaseArg::ContentAware)
-                    .settings(settings)
-                    .warp_fields(|ui| status(ui, warp_label));
-                if size_menu {
-                    bar = bar.unit_context(UnitContext::default());
-                }
-                shown = Some(bar.show(ui));
-            });
+            let mut bar = TransformBar::new("transform-session-bar", session)
+                .labels(labels)
+                .field_labels(field_labels)
+                .groups(groups)
+                .mode_switch(phase != PhaseArg::ContentAware)
+                .settings(settings)
+                .warp_fields(|ui| status(ui, warp_label))
+                .output(&mut out);
+            if size_menu {
+                bar = bar.unit_context(UnitContext::default());
+            }
+            bar.add_to(slots);
         });
     }
-    if let Some(out) = shown {
-        for edit in out.edits {
-            kept.apply(edit, now);
-        }
-        if out.reset_warp {
-            kept.apply(TransformEdit::Warp(()), now);
-        }
-        kept.finish(out.apply, out.discard, now);
+    for edit in out.edits {
+        kept.apply(edit, now);
     }
+    if out.reset_warp {
+        kept.apply(TransformEdit::Warp(()), now);
+    }
+    kept.finish(out.apply, out.discard, now);
 }
 
 // --- session ---

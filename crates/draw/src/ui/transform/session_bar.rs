@@ -1,15 +1,16 @@
 //! [`TransformBar`]: the options bar of an open Free Transform session.
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use egui::{AsIdSalt, IdSalt, Ui};
 
-use craft_theme::ControlSize;
-use craft_ui::canvas::{RulerUnits, Ticks};
+use craft_ui::canvas::{RulerUnits, Ticks, unit_entries};
 use craft_ui::controls::{Checkbox, IconButton};
 use craft_ui::icons::Icon;
-use craft_ui::localized::units::{LengthUnit, LengthUnitLabels, UnitContext};
+use craft_ui::localized::units::{LengthUnit, UnitContext};
 use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
-use craft_ui::menu::{MenuEntry, MenuItem};
-use craft_ui::patterns::OptionsBar;
+use craft_ui::patterns::{OptionsBar, OptionsBarSlots};
 use craft_ui::words;
 
 use super::{
@@ -46,6 +47,10 @@ words! {
 
 /// The options bar of an open [`TransformSession`].
 ///
+/// - Fill the app's [`OptionsBar`] with [`add_to`](Self::add_to) and read
+///   [`output`](Self::output) afterwards. The fields and groups go in the body; cancel and commit
+///   at the reading end (`OptionsBar::commit_cancel`), Reset warp and the switch go in the trailing
+///   slot, which stays in view when the body scrolls.
 /// - Box phase, in Tab order: the [`TransformFields`](super::TransformFields) row (reference point
 ///   picker, X, Y, W, link, H, angle, H and V skew), the interpolation select, the Show Reference
 ///   Point check, the app's [`extra`](Self::extra) group, then cancel and commit at the reading
@@ -62,8 +67,8 @@ words! {
 pub struct TransformBar<'a, W> {
     id_salt: IdSalt,
     session: &'a TransformSession<W>,
-    labels: TransformBarLabels,
-    field_labels: TransformFieldLabels,
+    labels: Option<TransformBarLabels>,
+    field_labels: Option<TransformFieldLabels>,
     units: Option<(&'a RulerUnits, &'a RulerUnits)>,
     parser: Option<Parser<'a>>,
     groups: BarGroups,
@@ -73,9 +78,11 @@ pub struct TransformBar<'a, W> {
     mode_switch: bool,
     size_unit: Option<LengthUnit>,
     unit_context: Option<UnitContext>,
+    output: Option<&'a mut TransformBarOutput<W>>,
 }
 
-/// What the bar reported this pass.
+/// What the bar reported this pass. A host passes a fresh [`Default`] each pass; the bar adds its
+/// edits and sets its flags.
 #[derive(Debug)]
 pub struct TransformBarOutput<W> {
     /// The edits in the order they happened; the app applies each with
@@ -100,8 +107,8 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
         Self {
             id_salt: IdSalt::new(id_salt),
             session,
-            labels: TransformBarLabels::default(),
-            field_labels: TransformFieldLabels::default(),
+            labels: None,
+            field_labels: None,
             units: None,
             parser: None,
             groups: BarGroups::ALL,
@@ -111,17 +118,25 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
             mode_switch: true,
             size_unit: None,
             unit_context: None,
+            output: None,
         }
     }
 
+    /// The bar's words; default: [`TransformBarLabels::of`] the installed words.
     pub fn labels(mut self, labels: TransformBarLabels) -> Self {
-        self.labels = labels;
+        self.labels = Some(labels);
         self
     }
 
-    /// The fields' labels; English by default.
+    /// The fields' labels; default: [`TransformFieldLabels::of`] the installed words.
     pub fn field_labels(mut self, labels: TransformFieldLabels) -> Self {
-        self.field_labels = labels;
+        self.field_labels = Some(labels);
+        self
+    }
+
+    /// Where the bar reports its edits and buttons.
+    pub fn output(mut self, output: &'a mut TransformBarOutput<W>) -> Self {
+        self.output = Some(output);
         self
     }
 
@@ -184,8 +199,9 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
         self
     }
 
-    /// Draws the bar into the options bar's `ui`.
-    pub fn show(self, ui: &mut Ui) -> TransformBarOutput<W> {
+    /// Fills the app's options bar: the body slot gets the fields and the app's groups, the
+    /// trailing slot (pinned at the reading end) gets cancel, commit, Reset warp and the switch.
+    pub fn add_to(self, slots: &mut OptionsBarSlots<'a>) {
         // pc: crates/ui-egui/src/tools/transform_tool/options_bar.rs:189 (`options_bar`), :241
         // (interpolation), :532 (`transform_actions`: commit, cancel, reset, switch).
         let Self {
@@ -202,105 +218,121 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
             mode_switch,
             size_unit,
             unit_context,
+            output,
         } = self;
-        let id = ui.make_persistent_id(id_salt);
         let warping = session.phase() == TransformPhase::Warp;
-        let mut out = TransformBarOutput { edits: Vec::new(), apply: false, discard: false, reset_warp: false, size_unit: None };
-        let small = ControlSize::Sm;
+        // Both slots report into the one output.
+        let output = Rc::new(RefCell::new(output));
+        let trailing_labels = labels.clone();
+        let trailing_output = Rc::clone(&output);
 
-        if warping {
-            if let Some(show) = warp_fields {
-                show(ui);
-            }
-        } else {
-            let mut linked = settings.as_ref().map(|s| s.aspect_linked);
-            let mut interpolation = session.interpolation().id().to_owned();
-            let options: Vec<(String, String)> = Interpolation::ALL
-                .into_iter()
-                .map(|choice| {
-                    let text = match choice {
-                        Interpolation::Bicubic => &labels.bicubic,
-                        Interpolation::Bilinear => &labels.bilinear,
-                        Interpolation::NearestNeighbor => &labels.nearest_neighbor,
-                    };
-                    (choice.id().to_owned(), text.clone())
-                })
-                .collect();
-            let unit = size_unit.or_else(|| settings.as_ref().and_then(|s| s.size_unit)).unwrap_or(LengthUnit::Percent);
-            let (entries, mut picked) = (unit_context.map(|_| unit_entries(ui, unit)), None);
-            let mut fields = TransformFields::new((id, "fields"), session.state(), session.rect(), field_labels)
-                .skew_v(session.skew_v())
-                .groups(groups)
-                .interpolation(labels.interpolation.clone(), &mut interpolation, &options);
-            if let Some((x, y)) = units {
-                fields = fields.units(x, y);
-            }
-            fields = fields.size_unit(size_unit_of(ui, unit, unit_context.unwrap_or_default()));
-            if let Some(entries) = &entries {
-                fields = fields.size_menu(entries, &mut picked);
-            }
-            if let Some(linked) = linked.as_mut() {
-                fields = fields.linked(linked);
-            }
-            if let Some(parser) = &parser {
-                fields = fields.parser(|field, text, context| parser(field, text, context));
-            }
-            if let Some(event) = fields.show_bar(ui).event {
-                out.edits.push(TransformEdit::Fields(event));
-            }
-            if let Some(new) = picked.and_then(|i| LengthUnit::ALL.get(i)).copied().filter(|new| *new != unit) {
-                out.size_unit = Some(new);
-                if let Some(settings) = settings.as_mut() {
-                    settings.size_unit = Some(new);
+        slots.body(move |ui| {
+            let labels = labels.unwrap_or_else(|| TransformBarLabels::of(ui));
+            let field_labels = field_labels.unwrap_or_else(|| TransformFieldLabels::of(ui));
+            let mut edits = Vec::new();
+            let mut new_unit = None;
+            if warping {
+                if let Some(show) = warp_fields {
+                    show(ui);
                 }
-            }
-            if let (Some(settings), Some(linked)) = (settings.as_mut(), linked) {
-                settings.aspect_linked = linked;
-            }
-            if let Some(choice) = Interpolation::from_id(&interpolation).filter(|choice| *choice != session.interpolation()) {
-                out.edits.push(TransformEdit::Interpolation(choice));
-                if let Some(settings) = settings.as_mut() {
-                    settings.interpolation = choice;
+            } else {
+                let mut linked = settings.as_ref().map(|s| s.aspect_linked);
+                let mut interpolation = session.interpolation().id().to_owned();
+                let options: Vec<(String, String)> = Interpolation::ALL
+                    .into_iter()
+                    .map(|choice| {
+                        let text = match choice {
+                            Interpolation::Bicubic => &labels.bicubic,
+                            Interpolation::Bilinear => &labels.bilinear,
+                            Interpolation::NearestNeighbor => &labels.nearest_neighbor,
+                        };
+                        (choice.id().to_owned(), text.clone())
+                    })
+                    .collect();
+                let unit = size_unit.or_else(|| settings.as_ref().and_then(|s| s.size_unit)).unwrap_or(LengthUnit::Percent);
+                let (entries, mut picked) = (unit_context.map(|_| unit_entries(ui, &LengthUnit::ALL, unit)), None);
+                let mut fields = TransformFields::new((&id_salt, "fields"), session.state(), session.rect(), field_labels)
+                    .skew_v(session.skew_v())
+                    .groups(groups)
+                    .interpolation(labels.interpolation.clone(), &mut interpolation, &options);
+                if let Some((x, y)) = units {
+                    fields = fields.units(x, y);
                 }
-            }
-            if groups.reference {
-                let mut shown = session.reference_point();
-                if Checkbox::bool(labels.show_reference_point.clone(), &mut shown).size(small).show(ui).response.changed() {
-                    out.edits.push(TransformEdit::ReferencePoint(shown));
+                fields = fields.size_unit(size_unit_of(ui, unit, unit_context.unwrap_or_default()));
+                if let Some(entries) = &entries {
+                    fields = fields.size_menu(entries, &mut picked);
+                }
+                if let Some(linked) = linked.as_mut() {
+                    fields = fields.linked(linked);
+                }
+                if let Some(parser) = &parser {
+                    fields = fields.parser(|field, text, context| parser(field, text, context));
+                }
+                if let Some(event) = fields.show_bar(ui).event {
+                    edits.push(TransformEdit::Fields(event));
+                }
+                if let Some(new) = picked.and_then(|i| LengthUnit::ALL.get(i)).copied().filter(|new| *new != unit) {
+                    new_unit = Some(new);
                     if let Some(settings) = settings.as_mut() {
-                        settings.show_reference_point = shown;
+                        settings.size_unit = Some(new);
                     }
                 }
+                if let (Some(settings), Some(linked)) = (settings.as_mut(), linked) {
+                    settings.aspect_linked = linked;
+                }
+                if let Some(choice) = Interpolation::from_id(&interpolation).filter(|choice| *choice != session.interpolation()) {
+                    edits.push(TransformEdit::Interpolation(choice));
+                    if let Some(settings) = settings.as_mut() {
+                        settings.interpolation = choice;
+                    }
+                }
+                if groups.reference {
+                    let mut shown = session.reference_point();
+                    if Checkbox::bool(labels.show_reference_point.clone(), &mut shown).size(OptionsBar::CONTROL_SIZE).show(ui).response.changed() {
+                        edits.push(TransformEdit::ReferencePoint(shown));
+                        if let Some(settings) = settings.as_mut() {
+                            settings.show_reference_point = shown;
+                        }
+                    }
+                }
+                if let Some(show) = extra {
+                    show(ui);
+                }
             }
-            if let Some(show) = extra {
-                show(ui);
+            if let Some(out) = output.borrow_mut().as_deref_mut() {
+                out.edits.extend(edits);
+                out.size_unit = out.size_unit.or(new_unit);
             }
-        }
+        });
 
-        OptionsBar::divider(ui);
-        let (commit, cancel) =
-            if warping { (&labels.commit_warp, &labels.cancel_warp) } else { (&labels.commit_transform, &labels.cancel_transform) };
-        let pressed = OptionsBar::commit_cancel(ui, commit, cancel);
-        out.discard = pressed.cancel;
-        out.apply = pressed.commit;
-        if warping && ui.add(IconButton::new(Icon::Undo, labels.reset_warp.clone()).size(small)).clicked() {
-            out.reset_warp = true;
-        }
-        if mode_switch {
-            OptionsBar::divider(ui);
-            if ui.add(IconButton::new(Icon::Grid, labels.switch_warp.clone()).size(small).selected(warping)).clicked() {
-                out.edits.push(if warping { TransformEdit::LeaveWarp } else { TransformEdit::WarpRequested });
+        slots.trailing(move |ui| {
+            let labels = trailing_labels.unwrap_or_else(|| TransformBarLabels::of(ui));
+            let (commit, cancel) =
+                if warping { (&labels.commit_warp, &labels.cancel_warp) } else { (&labels.commit_transform, &labels.cancel_transform) };
+            let pressed = OptionsBar::commit_cancel(ui, commit, cancel);
+            let reset = warping && ui.add(IconButton::new(Icon::Undo, labels.reset_warp.clone()).size(OptionsBar::CONTROL_SIZE)).clicked();
+            let mut switch = None;
+            if mode_switch {
+                OptionsBar::divider(ui);
+                let button = IconButton::new(Icon::Grid, labels.switch_warp.clone()).size(OptionsBar::CONTROL_SIZE).selected(warping);
+                if ui.add(button).clicked() {
+                    switch = Some(if warping { TransformEdit::LeaveWarp } else { TransformEdit::WarpRequested });
+                }
             }
-        }
-        out
+            if let Some(out) = trailing_output.borrow_mut().as_deref_mut() {
+                out.discard |= pressed.cancel;
+                out.apply |= pressed.commit;
+                out.reset_warp |= reset;
+                out.edits.extend(switch);
+            }
+        });
     }
 }
 
-/// The W and H menu: every unit in the rulers' order, `current` marked. A row's command is the
-/// unit's index in [`LengthUnit::ALL`].
-fn unit_entries(ui: &Ui, current: LengthUnit) -> Vec<MenuEntry<usize>> {
-    let labels = LengthUnitLabels::of(ui);
-    LengthUnit::ALL.iter().enumerate().map(|(i, &unit)| MenuItem::new(unit.label(&labels), i).radio(unit == current).into()).collect()
+impl<W> Default for TransformBarOutput<W> {
+    fn default() -> Self {
+        Self { edits: Vec::new(), apply: false, discard: false, reset_warp: false, size_unit: None }
+    }
 }
 
 /// How W and H show in `unit`: percent of the original side, or a length of the document's
