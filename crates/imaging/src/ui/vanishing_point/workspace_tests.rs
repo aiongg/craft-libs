@@ -292,8 +292,9 @@ fn first_corner(h: &Harness<'_, App>) -> egui::Pos2 {
     h.get_by_label_contains("Plane 1, top-left corner").rect().center()
 }
 
-/// A workspace on Edit Plane with one plane, a corner press and a drag in progress.
-fn mid_drag() -> Harness<'static, App> {
+/// A workspace on Edit Plane with one plane, a corner press and a drag in progress, with the plane
+/// as it was before the press.
+fn mid_drag() -> (Harness<'static, App>, VanishingPlane) {
     let mut open = VanishingPointOpen::new([800, 600], "Layer 1", LIMITS);
     let plane = VanishingPlane { corners: [[400.0, 300.0], [600.0, 300.0], [600.0, 500.0], [400.0, 500.0]] };
     open.session = VanishingPointSession { planes: vec![plane], torn: vec![None], ..VanishingPointSession::default() };
@@ -308,7 +309,7 @@ fn mid_drag() -> Harness<'static, App> {
     h.event(Event::PointerMoved(at + vec2(30.0, 20.0)));
     h.run();
     assert!(h.state().workspace.editor.busy(), "the corner drag runs");
-    h
+    (h, plane)
 }
 
 // A letter that picks another tool mid-drag, and ⌘Z, end the drag with a Cancel carrying the
@@ -321,8 +322,8 @@ fn vp_a_tool_letter_or_undo_mid_drag_cancels_the_gesture() {
             _ => None,
         })
     };
-    let mut h = mid_drag();
-    let before = h.state().workspace.session.planes[0];
+    let (mut h, before) = mid_drag();
+    assert_ne!(h.state().workspace.session.planes[0], before, "the drag moved the corner");
     h.key_press(Key::S);
     h.run();
     assert_eq!(cancelled(&h), Some(craft_ui::edit::CancelReason::Removed));
@@ -330,7 +331,7 @@ fn vp_a_tool_letter_or_undo_mid_drag_cancels_the_gesture() {
     assert_eq!(h.state().workspace.editor.tool(), VanishingTool::Stamp);
     assert_eq!(h.state().workspace.session.planes[0], before, "the plane is back");
 
-    let mut h = mid_drag();
+    let (mut h, _) = mid_drag();
     h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
     h.run();
     assert_eq!(cancelled(&h), Some(craft_ui::edit::CancelReason::UndoDuringGesture));
