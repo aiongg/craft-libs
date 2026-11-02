@@ -100,7 +100,9 @@ impl LiquifyTool {
         }
     }
 
-    /// The strip icon, from the library's set (PhotoCraft's `tool_icon` names, by meaning).
+    /// The strip icon, from the library's set (PhotoCraft's `tool_icon` names, by meaning). The
+    /// twirl and Push Left icons are drawn without a built-in direction: the canvas does not
+    /// mirror under right-to-left, so a mirrored arrow would point the wrong way.
     fn icon(self) -> Icon {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:791 `tool_icon`.
         match self {
@@ -108,10 +110,10 @@ impl LiquifyTool {
             LiquifyTool::Reconstruct => Icon::BrushCleaning,
             LiquifyTool::Smooth => Icon::Droplet,
             LiquifyTool::TwirlClockwise => Icon::RotateCw,
-            LiquifyTool::TwirlCounterclockwise => Icon::Undo,
+            LiquifyTool::TwirlCounterclockwise => Icon::RotateCcw,
             LiquifyTool::Pucker => Icon::Scan,
             LiquifyTool::Bloat => Icon::Maximize2,
-            LiquifyTool::PushLeft => Icon::ChevronsLeft,
+            LiquifyTool::PushLeft => Icon::ArrowLeftFixed,
             LiquifyTool::Freeze => Icon::Lock,
             LiquifyTool::Thaw => Icon::LockOpen,
             LiquifyTool::FreezeLasso => Icon::Lasso,
@@ -218,10 +220,10 @@ impl LiquifyBrush {
 /// - [`begin`](Self::begin) starts a stroke of `tool` (its [`alternate`](LiquifyTool::alternate)
 ///   with Alt) with the brush at the press, and reports `Begin` with the one-point stroke.
 /// - [`extend`](Self::extend) adds a point (skipped when equal to the last) and reports `Update`
-///   with the whole stroke so far.
+///   with the brush of the stroke and that one new point.
 /// - [`end`](Self::end) adds the release point when it differs from the last, so a short stroke is
 ///   recorded whole (PhotoCraft #8055: a stroke shorter than the drag threshold still paints), and
-///   reports `Commit` (`changed: true`).
+///   reports `Commit` (`changed: true`) with the whole stroke.
 /// - [`cancel`](Self::cancel) drops the stroke and reports `Cancel`.
 ///
 /// The Freeze Lasso is not recorded here: the canvas tool draws it with an `OutlineDraft` and
@@ -258,18 +260,18 @@ impl StrokeRecorder {
             return None;
         }
         stroke.points.push(at);
-        Some(EditEvent::update(*id, stroke.clone(), modifiers))
+        Some(EditEvent::update(*id, stroke.with_points(vec![at]), modifiers))
     }
 
     /// A held dab: adds `at` even when it equals the last point, because a tool that acts while
     /// the brush rests dabs again in place (unlike [`extend`](Self::extend), which skips a
-    /// repeated point), and reports `Update` with the whole stroke. `None` with no stroke.
+    /// repeated point), and reports `Update` with that one point. `None` with no stroke.
     pub fn hold(&mut self, at: [f64; 3], modifiers: Modifiers) -> Option<EditEvent<LiquifyStroke>> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:1203-1207 (a stationary tool's `Move` at
         // the same point, 30 a second).
         let (id, stroke) = self.stroke.as_mut()?;
         stroke.points.push(at);
-        Some(EditEvent::update(*id, stroke.clone(), modifiers))
+        Some(EditEvent::update(*id, stroke.with_points(vec![at]), modifiers))
     }
 
     pub fn end(&mut self, at: [f64; 2], modifiers: Modifiers) -> Option<EditEvent<LiquifyStroke>> {

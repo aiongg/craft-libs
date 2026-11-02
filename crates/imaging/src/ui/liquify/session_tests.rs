@@ -47,8 +47,9 @@ fn liquify_tool_letters_and_alt_swaps() {
     assert_eq!(ends, [LiquifyTool::Smooth, LiquifyTool::PushLeft, LiquifyTool::Thaw, LiquifyTool::FreezeLasso]);
 }
 
-// A press, two drags and a release report Begin, Update, Update, Commit with every point; a
-// press and release one pixel apart (under the drag threshold) is recorded whole with both points.
+// A press, two drags and a release report Begin, Update, Update, Commit; each Update carries only
+// its new point and the Commit the whole stroke; a press and release one pixel apart (under the
+// drag threshold) is recorded whole with both points.
 #[test]
 fn liquify_stroke_events_begin_update_commit_and_short_strokes_are_recorded_whole() {
     let mut recorder = StrokeRecorder::default();
@@ -59,13 +60,14 @@ fn liquify_stroke_events_begin_update_commit_and_short_strokes_are_recorded_whol
     assert_eq!(first.tool, LiquifyTool::Bloat);
     assert_eq!(first.points.len(), 1);
     let Some(EditEvent::Update { value: two, .. }) = recorder.extend([20.0, 10.0, 0.5], Modifiers::NONE) else { panic!("Update") };
-    assert_eq!(two.points.len(), 2);
+    assert_eq!(two.points, [[20.0, 10.0, 0.5]], "an Update carries the new point only");
+    assert_eq!(two.tool, LiquifyTool::Bloat, "and the stroke's tool and brush");
     assert!(recorder.extend([20.0, 10.0, 0.9], Modifiers::NONE).is_none(), "an equal point is skipped");
     let Some(EditEvent::Update { value: three, .. }) = recorder.extend([30.0, 12.0, 0.5], Modifiers::NONE) else { panic!("Update") };
-    assert_eq!(three.points.len(), 3);
+    assert_eq!(three.points, [[30.0, 12.0, 0.5]]);
     for held in [4, 5] {
         let Some(EditEvent::Update { value, .. }) = recorder.hold([30.0, 12.0, 0.5], Modifiers::NONE) else { panic!("Update") };
-        assert_eq!(value.points.len(), held, "a held dab at the same point is recorded each time");
+        assert_eq!(value.points, [[30.0, 12.0, 0.5]], "a held dab {held} is its own point");
     }
     let Some(EditEvent::Commit { value, changed, id, .. }) = recorder.end([40.0, 12.0], Modifiers::NONE) else { panic!("Commit") };
     assert!(changed && !recorder.is_active());
@@ -194,9 +196,13 @@ fn liquify_settings_round_trip_with_serde_defaults() {
     wild.brush.pressure = f64::NAN;
     wild.reconstruct_amount = 250.0;
     wild.backdrop_opacity = f64::INFINITY;
-    let tame = wild.clamped();
-    assert_eq!((tame.brush.size, tame.brush.density, tame.brush.pressure), (LiquifyBrush::SIZE_MAX, 0.0, 100.0));
-    assert_eq!((tame.reconstruct_amount, tame.backdrop_opacity), (100.0, 50.0));
+    // A non-finite number keeps the value in force, not the default.
+    let mut old = LiquifySettings::default();
+    old.brush.pressure = 70.0;
+    old.backdrop_opacity = 20.0;
+    let tame = wild.clamped(&old);
+    assert_eq!((tame.brush.size, tame.brush.density, tame.brush.pressure), (LiquifyBrush::SIZE_MAX, 0.0, 70.0));
+    assert_eq!((tame.reconstruct_amount, tame.backdrop_opacity), (100.0, 20.0));
 }
 
 // A stroke serialises with the engine's names (`twirlCw`, `lassoMask`, `points` as triples).

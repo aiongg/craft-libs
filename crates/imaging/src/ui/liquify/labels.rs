@@ -23,7 +23,7 @@ craft_ui::words! {
         freeze_lasso: "liquify.freezeLasso" = "Freeze Lasso: drag to freeze an area, Alt-drag to thaw it";
         hand: "liquify.hand" = "Hand Tool";
         zoom: "liquify.zoom" = "Zoom Tool";
-        /// The side column's accessible name.
+        /// The side column's header (Photoshop heads Liquify's panel "Properties") and accessible name.
         properties: "liquify.properties" = "Properties";
         brush_options: "liquify.brushOptions" = "Brush Tool Options";
         size: "liquify.size" = "Size";

@@ -28,6 +28,22 @@ pub struct LiquifyStroke {
     pub amount: Option<f64>,
 }
 
+impl LiquifyStroke {
+    /// The same brush and tool over `points`: what an `Update` carries (only the points added
+    /// since the last event, so a long stroke costs no more per dab than a short one).
+    pub(super) fn with_points(&self, points: Vec<[f64; 3]>) -> LiquifyStroke {
+        LiquifyStroke {
+            tool: self.tool,
+            size: self.size,
+            density: self.density,
+            pressure: self.pressure,
+            rate: self.rate,
+            points,
+            amount: self.amount,
+        }
+    }
+}
+
 /// A whole-field operation, recorded and replayed like a stroke.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -198,19 +214,20 @@ impl Default for LiquifySettings {
 }
 
 impl LiquifySettings {
-    /// The settings with every number in its range (size 1..=15000, the others 0..=100) and
-    /// non-finite numbers back to their defaults: what the app calls after loading a record.
-    pub fn clamped(mut self) -> Self {
-        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:97 `LiquifyOpts::apply` (the clamps).
-        let defaults = Self::default();
-        let size = |n: f64, default: f64| if n.is_finite() { n.clamp(1.0, LiquifyBrush::SIZE_MAX) } else { default };
-        let percent = |n: f64, default: f64| if n.is_finite() { n.clamp(0.0, 100.0) } else { default };
-        self.brush.size = size(self.brush.size, defaults.brush.size);
-        self.brush.density = percent(self.brush.density, defaults.brush.density);
-        self.brush.pressure = percent(self.brush.pressure, defaults.brush.pressure);
-        self.brush.rate = percent(self.brush.rate, defaults.brush.rate);
-        self.reconstruct_amount = percent(self.reconstruct_amount, defaults.reconstruct_amount);
-        self.backdrop_opacity = percent(self.backdrop_opacity, defaults.backdrop_opacity);
+    /// The settings with every number in its range (size 1..=15000, the others 0..=100); a
+    /// non-finite number keeps its value in `old` (the settings in force, `Self::default()` at
+    /// start-up): what the app calls after loading a record.
+    pub fn clamped(mut self, old: &LiquifySettings) -> Self {
+        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:97 `LiquifyOpts::apply` (the clamps; a
+        // non-finite number is skipped, so the old value stays).
+        let size = |n: f64, old: f64| if n.is_finite() { n.clamp(1.0, LiquifyBrush::SIZE_MAX) } else { old };
+        let percent = |n: f64, old: f64| if n.is_finite() { n.clamp(0.0, 100.0) } else { old };
+        self.brush.size = size(self.brush.size, old.brush.size);
+        self.brush.density = percent(self.brush.density, old.brush.density);
+        self.brush.pressure = percent(self.brush.pressure, old.brush.pressure);
+        self.brush.rate = percent(self.brush.rate, old.brush.rate);
+        self.reconstruct_amount = percent(self.reconstruct_amount, old.reconstruct_amount);
+        self.backdrop_opacity = percent(self.backdrop_opacity, old.backdrop_opacity);
         self
     }
 }
