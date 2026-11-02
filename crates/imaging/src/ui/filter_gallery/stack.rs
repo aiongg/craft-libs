@@ -1,6 +1,6 @@
 //! [`EffectStack`]: the effect-layer stack under the settings (task WS-FG2).
 
-use egui::{AsIdSalt, IdSalt, Key, KeyboardShortcut, Modifiers, Response, Ui};
+use egui::{AsIdSalt, IdSalt, Key, KeyboardShortcut, Modifiers, Rect, Response, Ui, UiBuilder};
 
 use craft_ui::behavior::{Axis, DropPosition, Move, Reorder, RowInfo, Selection, SelectionMode};
 use craft_ui::composites::PanelFooter;
@@ -9,8 +9,11 @@ use craft_ui::icons::Icon;
 use craft_ui::list::{List, ListEvent, ListRow, RowEvent, ToggleColumn};
 use craft_ui::theme::{Tokens, TokensOf as _};
 
+use craft_ui::localized::Labels as _;
+
 use super::FilterGalleryLabels;
 use super::session::{EffectChange, EffectLayer};
+use super::style::FilterGalleryStyle;
 
 /// What [`EffectStack::show`] reports.
 #[derive(Clone, Debug)]
@@ -26,8 +29,8 @@ pub struct EffectStackResponse {
 /// The stack (lead call 39): a library `List` `filter_gallery.stack_height` high, top row last
 /// applied (so the rows show `effects` in reverse), each row with an eye column
 /// (`ToggleColumn::eye`) and the filter's name; the selected row is the list's selection. Under it
-/// a `PanelFooter` with Move up, Move down, New effect layer, Delete effect layer (disabled with
-/// one layer). Rows reorder by drag (`Reorder`). The rows are as high as the list's rows.
+/// a `PanelFooter` with Move up and Move down at the reading start and New effect layer and Delete
+/// effect layer (disabled with one layer) at the reading end; Tab visits them in that order. Rows reorder by drag (`Reorder`). The rows are as high as the list's rows.
 ///
 /// Keyboard: Up and Down select, Space toggles the eye, ⌘] and ⌘[ move the row. AccessKit: a
 /// list named "Effect Layers"; rows named by their filter with the eye as a toggle.
@@ -37,31 +40,33 @@ pub struct EffectStack<'a> {
     effects: &'a [EffectLayer],
     selected: usize,
     labels_of: &'a dyn Fn(&str) -> String,
-    labels: &'a FilterGalleryLabels,
+    labels: Option<FilterGalleryLabels>,
 }
 
 impl<'a> EffectStack<'a> {
-    pub fn new(
-        id_salt: impl AsIdSalt,
-        effects: &'a [EffectLayer],
-        selected: usize,
-        labels_of: &'a dyn Fn(&str) -> String,
-        labels: &'a FilterGalleryLabels,
-    ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), effects, selected, labels_of, labels }
+    pub fn new(id_salt: impl AsIdSalt, effects: &'a [EffectLayer], selected: usize, labels_of: &'a dyn Fn(&str) -> String) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), effects, selected, labels_of, labels: None }
+    }
+
+    /// The words (default: [`FilterGalleryLabels::of`]).
+    pub fn labels(mut self, labels: FilterGalleryLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn show(self, ui: &mut Ui) -> EffectStackResponse {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:780, :832-881 (list 190 high, rows 24 with the eye,
         // the four buttons).
         let Self { id_salt, effects, selected, labels_of, labels } = self;
+        let labels = labels.unwrap_or_else(|| FilterGalleryLabels::of(ui));
         let count = effects.len();
         let id = ui.make_persistent_id(id_salt);
-        let height = Tokens::of(ui).component.filter_gallery.stack_height;
+        let tokens = Tokens::of(ui);
+        let height = FilterGalleryStyle::of(&tokens).stack_height;
         // The top row is applied last: the display order runs from the last effect to the first.
         let order: Vec<RowInfo<usize>> = (0..count).rev().map(RowInfo::leaf).collect();
         let mut selection = Selection::only(selected.min(count.saturating_sub(1)));
-        let eye_name = format!("{} {{row}}", labels.visibility);
+        let eye_name = labels.visibility_of.as_str();
         let space = KeyboardShortcut::new(Modifiers::NONE, Key::Space);
 
         let out = List::new(id.with("list"), labels.effect_layers.as_str(), order.as_slice())
@@ -74,7 +79,7 @@ impl<'a> EffectStack<'a> {
                 let effect = effects.get(index);
                 let visible = effect.is_none_or(|e| e.visible);
                 let name = effect.map_or_else(String::new, |e| labels_of(&e.filter));
-                ListRow::new(index, name).dimmed(!visible).toggle(ToggleColumn::eye(eye_name.clone(), visible).key(space))
+                ListRow::new(index, name).dimmed(!visible).toggle(ToggleColumn::eye(eye_name, visible).key(space))
             });
 
         let mut change = None;
@@ -100,22 +105,34 @@ impl<'a> EffectStack<'a> {
 
         let current = selected.min(count.saturating_sub(1));
         let footer = PanelFooter::show(ui, |ui| {
-            let mut footer = None;
-            // The row runs from the trailing end: Delete first, Move up last.
-            let delete = ui.add_enabled_ui(count > 1, |ui| PanelFooter::button(ui, Icon::Trash, &labels.delete_layer)).inner;
-            let add = PanelFooter::button(ui, Icon::NewLayer, &labels.new_layer);
-            let down = ui.add_enabled_ui(current > 0, |ui| PanelFooter::button(ui, Icon::ChevronDown, &labels.move_down)).inner;
-            let up = ui.add_enabled_ui(current + 1 < count, |ui| PanelFooter::button(ui, Icon::ChevronUp, &labels.move_up)).inner;
+            // Move up and Move down at the reading start, New and Delete at the reading end, as
+            // PhotoCraft lays them out. Each group is a row in reading order, created in turn, so
+            // Tab and AccessKit visit up, down, new, delete.
+            let style = PanelFooter::style(&tokens, ui.pixels_per_point());
+            let bar = ui.max_rect();
+            let width = 2.0 * style.button + style.gap;
+            let end = if craft_ui::direction::is_rtl(ui) {
+                Rect::from_x_y_ranges(bar.left()..=bar.left() + width, bar.y_range())
+            } else {
+                Rect::from_x_y_ranges(bar.right() - width..=bar.right(), bar.y_range())
+            };
+            let mut start_row = ui.new_child(UiBuilder::new().max_rect(bar).layout(craft_ui::direction::row(ui)));
+            let up = start_row.add_enabled_ui(current + 1 < count, |ui| PanelFooter::button(ui, Icon::ChevronUp, &labels.move_up)).inner;
+            let down = start_row.add_enabled_ui(current > 0, |ui| PanelFooter::button(ui, Icon::ChevronDown, &labels.move_down)).inner;
+            let mut end_row = ui.new_child(UiBuilder::new().max_rect(end).layout(craft_ui::direction::row(ui)));
+            let add = PanelFooter::button(&mut end_row, Icon::NewLayer, &labels.new_layer);
+            let delete = end_row.add_enabled_ui(count > 1, |ui| PanelFooter::button(ui, Icon::Trash, &labels.delete_layer)).inner;
             if delete.clicked() {
-                footer = Some(EffectChange::Delete);
+                Some(EffectChange::Delete)
             } else if add.clicked() {
-                footer = Some(EffectChange::Add);
+                Some(EffectChange::Add)
             } else if down.clicked() {
-                footer = Some(EffectChange::Move { from: current, to: current - 1 });
+                Some(EffectChange::Move { from: current, to: current - 1 })
             } else if up.clicked() {
-                footer = Some(EffectChange::Move { from: current, to: current + 1 });
+                Some(EffectChange::Move { from: current, to: current + 1 })
+            } else {
+                None
             }
-            footer
         });
 
         let picked = selection.lead.filter(|&lead| lead != selected && lead < count);

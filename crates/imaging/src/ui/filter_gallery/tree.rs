@@ -11,8 +11,11 @@ use craft_ui::composites::SectionHeader;
 use craft_ui::primitives::{Content, Corner, Gap, Interactive, Text};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 
+use craft_ui::localized::Labels as _;
+
 use super::FilterGalleryLabels;
 use super::catalog::{FilterCategory, GalleryThumb};
+use super::style::FilterGalleryStyle;
 
 /// Thumbnails in a row of a folder.
 const COLUMNS: usize = 3;
@@ -45,7 +48,7 @@ pub struct FilterTree<'a> {
     selected: &'a str,
     thumbs: &'a Thumbnails<GalleryThumb>,
     source: &'a dyn ThumbSource<GalleryThumb>,
-    labels: &'a FilterGalleryLabels,
+    labels: Option<FilterGalleryLabels>,
 }
 
 impl<'a> FilterTree<'a> {
@@ -58,15 +61,21 @@ impl<'a> FilterTree<'a> {
         selected: &'a str,
         thumbs: &'a Thumbnails<GalleryThumb>,
         source: &'a dyn ThumbSource<GalleryThumb>,
-        labels: &'a FilterGalleryLabels,
     ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), categories, labels_of, selected, thumbs, source, labels }
+        Self { id_salt: IdSalt::new(id_salt), categories, labels_of, selected, thumbs, source, labels: None }
+    }
+
+    /// The words (default: [`FilterGalleryLabels::of`]).
+    pub fn labels(mut self, labels: FilterGalleryLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn show(self, ui: &mut Ui) -> FilterTreeResponse {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:702-754 (folders, thumbnails 80 × 56, three
         // a row, names under them), :616 `update_thumbs`.
         let Self { id_salt, categories, labels_of, selected, thumbs, source, labels } = self;
+        let labels = labels.unwrap_or_else(|| FilterGalleryLabels::of(ui));
         let id = ui.make_persistent_id(id_salt);
         let mut picked = None;
         let group = UiBuilder::new().id_salt(id).accessibility_role(Role::Group).accessibility_label(labels.filters.as_str());
@@ -112,7 +121,7 @@ impl Folder<'_> {
     /// Draws the thumbnails; returns the filter picked.
     fn show(&self, ui: &mut Ui) -> Option<String> {
         let tokens = Tokens::of(ui);
-        let sizes = tokens.component.filter_gallery;
+        let sizes = FilterGalleryStyle::of(&tokens);
         let gap = Gap::Row.points(&tokens);
         let ppp = ui.pixels_per_point();
         let name_format = Text::format(&tokens, TypeRole::Caption, Content::Normal);

@@ -18,8 +18,9 @@ craft_ui::words! {
         move_down: "filterGallery.moveDown" = "Move effect layer down";
         new_layer: "filterGallery.newLayer" = "New effect layer";
         delete_layer: "filterGallery.deleteLayer" = "Delete effect layer";
-        visibility: "filterGallery.visibility" = "Visibility";
-        /// The line under the rows of a filter that uses the foreground and background colours.
-        uses_colors: "filterGallery.usesColors" = "Uses the foreground and background colours.";
+        /// The eye cell's accessible name; `{row}` stands for the effect layer's filter name.
+        visibility_of: "filterGallery.visibilityOf" = "Visibility {row}";
+        /// The line under the rows of a filter that uses the foreground and background colors.
+        uses_colors: "filterGallery.usesColors" = "Uses the foreground and background colors.";
     }
 }

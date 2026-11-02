@@ -1,9 +1,11 @@
 //! Tests of Filter Gallery's catalog and stack (task WS-FG1).
 
+use craft_theme::Srgba;
 use craft_ui::dialog::{DialogFields, FieldValue, LocalHistory, Param, ParamKind, Step};
 
 use super::catalog::{FilterCatalog, FilterCategory, GalleryFilter};
 use super::session::{EffectChange, FilterGallerySession};
+use super::{FilterGalleryOpen, FilterGalleryWorkspace};
 
 struct Catalog;
 
@@ -132,4 +134,37 @@ fn gallery_undo_restores_the_stack_and_clamps_the_selection() {
     assert!(history.step(&mut session, Step::Undo));
     selected = selected.min(session.effects.len() - 1);
     assert_eq!((filters(&session), selected), (vec!["cutout"], 0));
+}
+
+// The workspace's `step` clamps the selection to the layers that remain and leaves the `Select` event
+// to the pass's comparison with the selection the app knows: nothing is queued twice.
+#[test]
+fn gallery_workspace_step_clamps_the_selection_without_queuing_select() {
+    let session = FilterGallerySession::new("cutout", &Catalog);
+    let mut workspace = FilterGalleryWorkspace::new(FilterGalleryOpen::new([10, 10], "Layer", session));
+    assert!(workspace.session.apply(EffectChange::Add, &Catalog, &mut workspace.selected));
+    workspace.history.settle(&workspace.session, false);
+    // The pass that made the layer reported its selection.
+    workspace.reported = workspace.selected;
+    assert_eq!(workspace.selected, 1);
+
+    assert!(workspace.step(Step::Undo));
+    assert_eq!(workspace.session.effects.len(), 1);
+    assert_eq!(workspace.selected, 0, "the selection moves onto the layer that remains");
+    assert!(workspace.queued.is_empty(), "the next pass reports `Select` from its comparison, once");
+    assert_ne!(workspace.selected, workspace.reported);
+    assert!(!workspace.step(Step::Undo), "nothing left to undo");
+}
+
+// The app answers a color request by key and `Srgba`: the selected effect's field takes it as one
+// undo step.
+#[test]
+fn gallery_set_color_writes_the_selected_effects_field_as_one_undo_step() {
+    let session = FilterGallerySession::new("neon", &Catalog);
+    let mut workspace = FilterGalleryWorkspace::new(FilterGalleryOpen::new([10, 10], "Layer", session));
+    workspace.set_color("glowColor", Srgba::from_rgb_array([0.2, 0.7, 0.9]));
+    assert_eq!(workspace.session.effects[0].fields.get("glowColor"), Some(&FieldValue::Color([0.2, 0.7, 0.9])));
+    assert!(matches!(workspace.queued.as_slice(), [super::FilterGalleryEvent::Stack(EffectChange::Fields { index: 0, .. })]));
+    assert!(workspace.step(Step::Undo));
+    assert_eq!(workspace.session.effects[0].fields.get("glowColor"), Some(&FieldValue::Color([1.0, 0.0, 0.5])));
 }

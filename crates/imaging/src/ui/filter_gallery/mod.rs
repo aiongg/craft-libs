@@ -27,6 +27,7 @@ mod session;
 mod session_tests;
 mod stack;
 pub(crate) mod stories;
+mod style;
 mod tree;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tree_tests;
@@ -36,18 +37,20 @@ pub use labels::FilterGalleryLabels;
 pub use parameters::{EffectParameters, EffectParametersResponse};
 pub use session::{EffectChange, EffectLayer, FilterGallerySession};
 pub use stack::{EffectStack, EffectStackResponse};
+pub use style::FilterGalleryStyle;
 pub use tree::{FilterTree, FilterTreeResponse};
 
 use egui::{Context, Rect};
 
+use craft_theme::Srgba;
 use craft_ui::canvas::kurbo::Size;
 use craft_ui::canvas::textures::{ThumbSource, Thumbnails};
-use craft_ui::canvas::{CanvasView, HandTool, NavigationOptions, RasterSource, kurbo};
+use craft_ui::canvas::{CanvasView, Checkerboard, HandTool, NavigationOptions, RasterSource, kurbo};
 use craft_ui::dialog::full_window::{
     FullWindowCanvas, FullWindowLabels, FullWindowSide, FullWindowTitle, FullWindowView, FullWindowZoomBar, PreviewStatus, PreviewTicket, SideFooter,
 };
 use craft_ui::dialog::{
-    ButtonRole, ColorRequest, DialogLabels, DialogState, FieldValue, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step,
+    ButtonRole, ColorRequest, DialogLabels, DialogState, FieldValue, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, translated,
 };
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::Gap;
@@ -63,11 +66,27 @@ pub struct FilterGalleryOpen {
     /// The stack to start from: one layer of the last filter used, or a smart filter's recorded
     /// effects.
     pub session: FilterGallerySession,
+    /// The user's navigation options (wheel, flick, animated zoom); Photoshop's by default.
+    pub navigation: NavigationOptions,
+    /// The user's transparency grid under the preview; none draws the picture on the canvas fill.
+    pub checkerboard: Option<Checkerboard>,
 }
 
 impl FilterGalleryOpen {
     pub fn new(size: [u32; 2], subject: impl Into<String>, session: FilterGallerySession) -> Self {
-        Self { size, subject: subject.into(), session }
+        Self { size, subject: subject.into(), session, navigation: NavigationOptions::default(), checkerboard: None }
+    }
+
+    /// The user's navigation options.
+    pub fn navigation(mut self, navigation: NavigationOptions) -> Self {
+        self.navigation = navigation;
+        self
+    }
+
+    /// The user's transparency grid under the preview.
+    pub fn checkerboard(mut self, checkerboard: Checkerboard) -> Self {
+        self.checkerboard = Some(checkerboard);
+        self
     }
 }
 
@@ -79,9 +98,6 @@ pub enum FilterGalleryEvent {
     Stack(EffectChange),
     /// Another effect layer selected.
     Select(usize),
-    /// A colour parameter's swatch pressed: the app answers into that effect's fields
-    /// ([`FilterGalleryWorkspace::set_color`]).
-    PickColor(ColorRequest),
 }
 
 /// What [`FilterGalleryWorkspace::show`] reports.
@@ -94,6 +110,9 @@ pub struct FilterGalleryOutput {
     pub preview_wanted: Option<PreviewTicket>,
     pub outcome: Option<Outcome>,
     pub rect: Rect,
+    /// A color parameter's swatch pressed: the app opens its picker and answers into the selected
+    /// effect's fields ([`FilterGalleryWorkspace::set_color`]).
+    pub pick_color: Option<ColorRequest>,
 }
 
 /// The Filter Gallery workspace.
@@ -114,6 +133,11 @@ pub struct FilterGalleryWorkspace {
     note: Option<String>,
     /// The Hand tool: the preview's only tool, kept for its drag between passes.
     hand: HandTool,
+    /// The user's navigation options and transparency grid.
+    navigation: NavigationOptions,
+    checkerboard: Option<Checkerboard>,
+    /// The selection the app has been told of (the open one, then each `Select` event).
+    reported: usize,
     /// The canvas view of the last pass: what `visible` reads.
     shown: Option<CanvasView>,
     /// The stack changed outside `show` (an undo, a colour): the next pass asks for a preview.
@@ -125,17 +149,21 @@ pub struct FilterGalleryWorkspace {
 impl FilterGalleryWorkspace {
     pub fn new(open: FilterGalleryOpen) -> Self {
         let [width, height] = open.size;
+        let selected = open.session.effects.len().saturating_sub(1);
         Self {
             dialog: DialogState::new(),
             history: LocalHistory::new(&open.session),
-            selected: open.session.effects.len().saturating_sub(1),
+            selected,
+            reported: selected,
+            navigation: open.navigation,
+            checkerboard: open.checkerboard,
             session: open.session,
             subject: open.subject,
             size: open.size,
             view: FullWindowView::new(),
             preview: PreviewStatus::new(),
             note: None,
-            hand: HandTool::new(Size::new(f64::from(width), f64::from(height)), NavigationOptions::default()),
+            hand: HandTool::new(Size::new(f64::from(width), f64::from(height)), open.navigation),
             shown: None,
             dirty: true,
             queued: Vec::new(),
@@ -165,12 +193,13 @@ impl FilterGalleryWorkspace {
         let labels = FilterGalleryLabels::of_ctx(ctx);
         let full = FullWindowLabels::of_ctx(ctx);
         let dialog_labels = DialogLabels::of_ctx(ctx);
-        let categories = catalog.categories();
-        let filter_label = |key: &str| catalog.filter(key).map_or_else(|| key.to_owned(), |filter| filter.label);
+        // The catalog's labels are English; the app's I18n translates them like `Param` labels.
+        let categories: Vec<FilterCategory> =
+            catalog.categories().into_iter().map(|category| FilterCategory { label: translated(ctx, &category.label), ..category }).collect();
+        let filter_label = |key: &str| catalog.filter(key).map_or_else(|| key.to_owned(), |filter| translated(ctx, &filter.label));
         let mut events = std::mem::take(&mut self.queued);
         let mut changed = std::mem::take(&mut self.dirty);
         let visible_before = self.visible();
-        let selected_before = self.selected;
         self.selected = self.selected.min(self.session.effects.len().saturating_sub(1));
 
         let name = self.session.effects.get(self.selected).map_or_else(|| labels.name.clone(), |effect| filter_label(&effect.filter));
@@ -184,27 +213,36 @@ impl FilterGalleryWorkspace {
         let mut dialog_changes: Vec<EffectChange> = Vec::new();
         let mut color_request = None;
         let mut tree_pick = None;
-        let (selected, view, status, note, hand, shown) =
-            (&mut self.selected, &mut self.view, &self.preview, &self.note, &mut self.hand, &mut self.shown);
+        self.hand.prefs = self.navigation;
+        let (selected, view, status, note, hand, shown, history) =
+            (&mut self.selected, &mut self.view, &self.preview, &self.note, &mut self.hand, &mut self.shown, &mut self.history);
+        let (navigation, checkerboard) = (self.navigation, self.checkerboard);
         let response = FullWindowDialog::new("filter-gallery").title(title).labels(dialog_labels.clone()).show(
             ctx,
             &mut self.dialog,
             &mut self.session,
             |ui, session, fx| {
+                // Undo and Redo first, so a number field never sees ⌘Z: the stack has one history.
+                if let Some(step) = fx.take_step(ui)
+                    && step_stack(history, session, selected, step)
+                {
+                    changed = true;
+                }
                 // The settings column sits at the end edge, the folders inwards of it.
                 let mut stack_pick = None;
-                FullWindowSide::new("settings").footer(SideFooter::top(footer)).show(ui, fx, |ui| {
+                FullWindowSide::new("settings").name(labels.settings.as_str()).footer(SideFooter::top(footer)).show(ui, fx, |ui| {
                     let current = *selected;
                     if let Some(effect) = session.effects.get(current) {
                         let filter = catalog.filter(&effect.filter);
-                        let parameters =
-                            EffectParameters::new("parameters", current, effect, filter.as_ref(), &categories, &filter_label, &labels).show(ui);
+                        let parameters = EffectParameters::new("parameters", current, effect, filter.as_ref(), &categories, &filter_label)
+                            .labels(labels.clone())
+                            .show(ui);
                         busy = parameters.dragging;
                         color_request = parameters.rows.and_then(|rows| rows.color);
                         dialog_changes.extend(parameters.change);
                     }
                     ui.add_space(Gap::Row.points(&Tokens::of(ui)));
-                    let stack = EffectStack::new("stack", &session.effects, current, &filter_label, &labels).show(ui);
+                    let stack = EffectStack::new("stack", &session.effects, current, &filter_label).labels(labels.clone()).show(ui);
                     stack_pick = stack.selected;
                     dialog_changes.extend(stack.change);
                     status.show(ui, &full);
@@ -220,8 +258,8 @@ impl FilterGalleryWorkspace {
                 }
 
                 let current = session.effects.get(*selected).map_or("", |effect| effect.filter.as_str());
-                FullWindowSide::new("filters").show(ui, fx, |ui| {
-                    let tree = FilterTree::new("tree", &categories, &filter_label, current, thumbs, thumb_source, &labels).show(ui);
+                FullWindowSide::new("filters").name(labels.filters.as_str()).show(ui, fx, |ui| {
+                    let tree = FilterTree::new("tree", &categories, &filter_label, current, thumbs, thumb_source).labels(labels.clone()).show(ui);
                     tree_pick = tree.picked;
                 });
                 if let Some(filter) = tree_pick.take() {
@@ -239,26 +277,23 @@ impl FilterGalleryWorkspace {
                 bar.show(ui);
                 let [width, height] = preview.size();
                 hand.size = Size::new(f64::from(width), f64::from(height));
-                let canvas = FullWindowCanvas::new("preview", view).source(preview).tool(hand).labels(full.clone()).show(ui);
+                let mut canvas = FullWindowCanvas::new("preview", view).source(preview).tool(hand).navigation(navigation).labels(full.clone());
+                if let Some(checkerboard) = checkerboard {
+                    canvas = canvas.checkerboard(checkerboard);
+                }
+                let canvas = canvas.show(ui);
                 *shown = Some(canvas.view);
             },
         );
-        if let Some(request) = color_request {
-            events.push(FilterGalleryEvent::PickColor(request));
-        }
-        if response.active
-            && let Some(step) = take_step(ctx)
-        {
-            self.step(step);
-        }
         self.history.settle(&self.session, busy);
         changed |= std::mem::take(&mut self.dirty);
         events.append(&mut self.queued);
-        if self.selected != selected_before {
+        if self.selected != self.reported {
+            self.reported = self.selected;
             events.push(FilterGalleryEvent::Select(self.selected));
         }
         let preview_wanted = (changed || self.visible() != visible_before).then(|| self.preview.request());
-        FilterGalleryOutput { events, preview_wanted, outcome: response.outcome, rect: response.rect }
+        FilterGalleryOutput { events, preview_wanted, outcome: response.outcome, rect: response.rect, pick_color: color_request }
     }
 
     pub fn session(&self) -> &FilterGallerySession {
@@ -274,14 +309,14 @@ impl FilterGalleryWorkspace {
         (part.expand(), self.view.zoom())
     }
 
-    /// The colour the app picked for a [`FilterGalleryEvent::PickColor`] request: written into the
-    /// request's key of the selected effect (one undo step).
-    pub fn set_color(&mut self, request: &ColorRequest, rgb: [f32; 3]) {
+    /// The color the app picked for a [`FilterGalleryOutput::pick_color`] request: written into
+    /// the request's `key` of the selected effect (one undo step).
+    pub fn set_color(&mut self, key: &str, color: Srgba) {
         // new: `ParamRows` reports colour requests; the gallery's host answers them.
         let index = self.selected.min(self.session.effects.len().saturating_sub(1));
         let Some(effect) = self.session.effects.get_mut(index) else { return };
         let mut fields = effect.fields.clone();
-        fields.set(request.key.as_str(), FieldValue::Color(rgb));
+        fields.set(key, FieldValue::Color(color.to_rgb_array()));
         if fields == effect.fields {
             return;
         }
@@ -309,18 +344,23 @@ impl FilterGalleryWorkspace {
         self.note = note;
     }
 
-    /// Undo or redo from the app's Edit menu; returns whether it stepped (the selection is clamped).
+    /// Undo or redo from the app's Edit menu; returns whether it stepped. The next pass clamps the
+    /// selection and reports it as a `Select` event when it moved.
     pub fn step(&mut self, step: Step) -> bool {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:158 `step`.
-        if !self.history.step(&mut self.session, step) {
+        if !step_stack(&mut self.history, &mut self.session, &mut self.selected, step) {
             return false;
-        }
-        let last = self.session.effects.len().saturating_sub(1);
-        if self.selected > last {
-            self.selected = last;
-            self.queued.push(FilterGalleryEvent::Select(last));
         }
         self.dirty = true;
         true
     }
+}
+
+/// Steps the history and keeps `selected` on a layer that exists.
+fn step_stack(history: &mut LocalHistory<FilterGallerySession>, session: &mut FilterGallerySession, selected: &mut usize, step: Step) -> bool {
+    if !history.step(session, step) {
+        return false;
+    }
+    *selected = (*selected).min(session.effects.len().saturating_sub(1));
+    true
 }

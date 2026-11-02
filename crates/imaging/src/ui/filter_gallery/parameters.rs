@@ -9,6 +9,8 @@ use craft_ui::dialog::{ParamRows, ParamRowsResponse};
 use craft_ui::primitives::{Content, Gap, Text};
 use craft_ui::theme::{Tokens, TokensOf as _};
 
+use craft_ui::localized::Labels as _;
+
 use super::FilterGalleryLabels;
 use super::catalog::{FilterCategory, GalleryFilter};
 use super::session::{EffectChange, EffectLayer};
@@ -38,7 +40,7 @@ pub struct EffectParameters<'a> {
     filter: Option<&'a GalleryFilter>,
     categories: &'a [FilterCategory],
     labels_of: &'a dyn Fn(&str) -> String,
-    labels: &'a FilterGalleryLabels,
+    labels: Option<FilterGalleryLabels>,
 }
 
 impl<'a> EffectParameters<'a> {
@@ -52,14 +54,20 @@ impl<'a> EffectParameters<'a> {
         filter: Option<&'a GalleryFilter>,
         categories: &'a [FilterCategory],
         labels_of: &'a dyn Fn(&str) -> String,
-        labels: &'a FilterGalleryLabels,
     ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), index, effect, filter, categories, labels_of, labels }
+        Self { id_salt: IdSalt::new(id_salt), index, effect, filter, categories, labels_of, labels: None }
+    }
+
+    /// The words (default: [`FilterGalleryLabels::of`]).
+    pub fn labels(mut self, labels: FilterGalleryLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn show(self, ui: &mut Ui) -> EffectParametersResponse {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:774-831 (the select, the parameter rows).
         let Self { id_salt, index, effect, filter, categories, labels_of, labels } = self;
+        let labels = labels.unwrap_or_else(|| FilterGalleryLabels::of(ui));
         let id = ui.make_persistent_id(id_salt).with(index);
         let gap = Gap::Row.points(&Tokens::of(ui));
         let mut change = None;
