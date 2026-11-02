@@ -4,7 +4,7 @@ use egui::{Color32, Context, CursorIcon, Event, Id, IdSalt, Key, Mesh, Modifiers
 use kurbo::{Point, Rect, Vec2};
 
 use super::crop_guides::CropGuide;
-use crate::ui::transform::transform_box::{fixed, key_part, outset, part_key, pos};
+use crate::ui::transform::transform_box::{fixed, key_part, part_key, pos};
 use craft_ui::behavior::nudge::{self, NudgeKeys};
 use craft_ui::canvas::claim::PrimaryPress;
 use craft_ui::canvas::quad::BoxPart;
@@ -1334,7 +1334,7 @@ impl<'a> CropFrame<'a> {
                 PartFocus::ring(painter, egui::Rect::from_center_size(centre, egui::Vec2::splat(size)));
             }
             _ => {
-                let line = outset(&q, style.frame.width / 2.0 + style.focus_offset + style.focus.width / 2.0);
+                let line = craft_ui::canvas::quad::outset(&q, style.frame.width / 2.0 + style.focus_offset + style.focus.width / 2.0);
                 painter.add(Shape::closed_line(line.to_vec(), style.focus_halo));
                 painter.add(Shape::closed_line(line.to_vec(), style.focus));
             }

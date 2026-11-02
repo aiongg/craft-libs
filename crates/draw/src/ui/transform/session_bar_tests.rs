@@ -59,11 +59,15 @@ fn harness(host: Host) -> Harness<'static, Host> {
                         TransformEdit::ReferencePoint(on) => format!("reference {on}"),
                         TransformEdit::WarpRequested => "warp".to_owned(),
                         TransformEdit::LeaveWarp => "leave warp".to_owned(),
-                        TransformEdit::Commit => "commit".to_owned(),
-                        TransformEdit::Cancel => "cancel".to_owned(),
                         _ => "other".to_owned(),
                     });
                     host.session.apply(edit, 0.0);
+                }
+                if out.apply {
+                    host.edits.push("commit".to_owned());
+                }
+                if out.discard {
+                    host.edits.push("cancel".to_owned());
                 }
             },
             host,

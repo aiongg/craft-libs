@@ -226,7 +226,24 @@ impl Kept {
 
     /// Sends `edit` to the session and answers what it asks for, as an app does.
     fn apply(&mut self, edit: TransformEdit<()>, now: f64) {
-        match self.session.apply(edit, now) {
+        let request = self.session.apply(edit, now);
+        self.answer(request, now);
+    }
+
+    /// Ends the session as a widget's ✓ or ⊘ asks.
+    fn finish(&mut self, apply: bool, discard: bool, now: f64) {
+        let request = if apply {
+            Some(self.session.commit())
+        } else if discard {
+            Some(self.session.discard())
+        } else {
+            None
+        };
+        self.answer(request, now);
+    }
+
+    fn answer(&mut self, request: Option<TransformRequest<()>>, now: f64) {
+        match request {
             Some(TransformRequest::Apply(result)) => {
                 self.applied = result.state;
                 self.note = Some(Note::Applied);
@@ -337,6 +354,7 @@ fn show_options_bar(ui: &mut Ui, kept: &mut Kept, phase: PhaseArg, size_menu: bo
         if out.reset_warp {
             kept.apply(TransformEdit::Warp(()), now);
         }
+        kept.finish(out.apply, out.discard, now);
     }
 }
 
@@ -384,6 +402,7 @@ fn show_session(ui: &mut Ui, args: &mut SessionArgs) {
     for edit in shown.edits {
         kept.apply(edit, now);
     }
+    kept.finish(shown.apply, shown.discard, now);
 
     show_options_bar(ui, &mut kept, PhaseArg::Free, true, now);
     ui.horizontal(|ui| {

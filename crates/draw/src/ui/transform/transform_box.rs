@@ -331,8 +331,14 @@ pub struct TransformBox<'a> {
 impl<'a> TransformBox<'a> {
     /// The host's box `state`, named `names` in the AccessKit tree.
     pub fn new(id_salt: impl AsIdSalt, state: &'a BoxState, names: TransformNames) -> Self {
+        Self::salted(IdSalt::new(id_salt), state, names)
+    }
+
+    /// The box under an `id_salt` a host already built: used as it is, not hashed again, so the
+    /// host's own `ui.make_persistent_id(id_salt)` is this box's id.
+    pub(crate) fn salted(id_salt: IdSalt, state: &'a BoxState, names: TransformNames) -> Self {
         Self {
-            id_salt: IdSalt::new(id_salt),
+            id_salt,
             state,
             names,
             rules: BoxRules::default(),
@@ -847,7 +853,7 @@ impl<'a> TransformBox<'a> {
             _ => false,
         };
         if rotating {
-            turn_cursor(ctx, pointer, bisector(screen, nearest_corner(screen, pointer).0));
+            turn_cursor(ctx, pointer, quad::bisector(screen, nearest_corner(screen, pointer).0));
             return;
         }
         let q = &screen.quad;
@@ -855,7 +861,7 @@ impl<'a> TransformBox<'a> {
         let icon = match part {
             BoxPart::Corner(i) => {
                 // Along the corner's bisector on screen, out of the box.
-                let out = -bisector(screen, usize::from(i));
+                let out = -quad::bisector(screen, usize::from(i));
                 resize_cursor(view, view.unmap_vec(out))
             }
             BoxPart::Edge(i) => {
@@ -935,7 +941,7 @@ impl<'a> TransformBox<'a> {
                 }
             }
             None => {
-                let line = outset(&corners, style.line.width / 2.0 + style.focus_offset + style.focus.width / 2.0);
+                let line = quad::outset(&corners, style.line.width / 2.0 + style.focus_offset + style.focus.width / 2.0);
                 painter.add(Shape::closed_line(line.to_vec(), style.focus_halo));
                 painter.add(Shape::closed_line(line.to_vec(), style.focus));
             }
@@ -1023,39 +1029,6 @@ fn nearest_corner(screen: &BoxState, p: Pos2) -> (usize, f32) {
 fn in_band(screen: &BoxState, p: Pos2, style: &TransformStyle) -> bool {
     let d = nearest_corner(screen, p).1;
     !screen.contains(Point::new(f64::from(p.x), f64::from(p.y))) && (style.band_inner..=style.band_outer).contains(&d)
-}
-
-/// Corner `i`'s bisector on screen, into the box; zero for a collapsed corner.
-fn bisector(screen: &BoxState, i: usize) -> egui::Vec2 {
-    let q = &screen.quad;
-    let unit = |to: Point| {
-        let d = to - q[i];
-        let l = d.hypot();
-        if l.is_finite() && l > 1e-9 { d / l } else { Vec2::ZERO }
-    };
-    let s = unit(q[(i + 1) % 4]) + unit(q[(i + 3) % 4]);
-    let l = s.hypot();
-    if l.is_finite() && l > 1e-6 { egui::vec2((s.x / l) as f32, (s.y / l) as f32) } else { egui::Vec2::ZERO }
-}
-
-/// The closed polygon `corners` moved `by` points outward, each corner along its mitre (kept
-/// within four times `by` at a sharp corner).
-pub(crate) fn outset(corners: &[Pos2; 4], by: f32) -> [Pos2; 4] {
-    let area: f32 = (0..4).map(|i| corners[i].x * corners[(i + 1) % 4].y - corners[(i + 1) % 4].x * corners[i].y).sum();
-    let side = if area >= 0.0 { 1.0 } else { -1.0 };
-    let normal = |a: Pos2, b: Pos2| {
-        let d = (b - a).normalized();
-        vec2(d.y, -d.x) * side
-    };
-    std::array::from_fn(|i| {
-        let (prev, here, next) = (corners[(i + 3) % 4], corners[i], corners[(i + 1) % 4]);
-        let (n1, n2) = (normal(prev, here), normal(here, next));
-        let sum = n1 + n2;
-        let k = 1.0 + n1.dot(n2);
-        let mitre = if k > 1e-3 && sum.is_finite() { sum * (by / k) } else { n1 * by };
-        let mitre = if mitre.length() > 4.0 * by { mitre.normalized() * 4.0 * by } else { mitre };
-        here + mitre
-    })
 }
 
 /// `v` rounded to `places` decimals, with no negative zero (a hair below zero never reads "-0").
