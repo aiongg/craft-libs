@@ -20,8 +20,11 @@ use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
 use crate::composites::{FieldControl as _, Form, FormGrid};
 use crate::controls::text_field::{BoxState, TextField, field_box};
-use crate::controls::{AngleDial, Button, Checkbox, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, TooltipExt as _, checkerboard};
+use crate::controls::{
+    AngleDial, Button, Checkbox, IconButton, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, TooltipExt as _, checkerboard,
+};
 use crate::edit::{self, EditResponse};
+use crate::icons::Icon;
 use crate::localized::{Labels as _, LocaleNumbers, Unit, focus_first_field};
 use crate::theme::{Tokens, TokensOf};
 
@@ -112,6 +115,15 @@ pub struct PathRequest {
     pub kind: PathKind,
 }
 
+/// The eyedropper toggle of a [`Param::eyedropper`] row after a press: the host arms its dropper
+/// for the colour parameter `key` when `armed`, and disarms it otherwise; the picked colour is
+/// written with [`ParamDialog::set_color`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EyedropperRequest {
+    pub key: String,
+    pub armed: bool,
+}
+
 impl ParamKind {
     /// Fields per row of a [`ParamKind::Grid`] of `cells`: `round(sqrt(cells))`, at least 1.
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:973 (`Kind::Grid` draw).
@@ -196,6 +208,18 @@ pub struct Param {
     pub browse: Option<PathKind>,
     /// The hint and tooltip ([`Param::hint`], [`Param::tooltip`]), boxed so rows without them stay small.
     texts: Option<Box<RowTexts>>,
+    /// The named options ([`Param::decimals`], [`Param::randomize`], [`Param::eyedropper`],
+    /// [`Param::full_width`]), boxed for the same reason.
+    options: Option<Box<RowOptions>>,
+}
+
+/// Options a row may carry beyond its kind.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct RowOptions {
+    range_decimals: Option<u32>,
+    randomize: bool,
+    eyedropper: bool,
+    full_width: bool,
 }
 
 /// Texts a row may carry beyond its label.
@@ -207,7 +231,7 @@ struct RowTexts {
 
 impl Param {
     pub fn new(key: impl Into<String>, label: impl Into<String>, kind: ParamKind) -> Self {
-        Self { key: key.into(), label: label.into(), kind, unit: None, enabled_when: None, browse: None, texts: None }
+        Self { key: key.into(), label: label.into(), kind, unit: None, enabled_when: None, browse: None, texts: None, options: None }
     }
 
     /// A bare number row: a [`ParamKind::Number`] open on both sides. Bound it with
@@ -262,13 +286,44 @@ impl Param {
         self
     }
 
-    /// The most digits shown after the decimal mark on a [`ParamKind::OptionalNumber`] row
-    /// (`0` for an integer such as Batch quality); other kinds are unchanged.
+    /// The most digits shown after the decimal mark on a [`ParamKind::OptionalNumber`] or
+    /// [`ParamKind::Range`] row (`0` for an integer such as Batch quality); other kinds are
+    /// unchanged. A Range row stores its value rounded to these digits, and `0` stores a
+    /// [`FieldValue::Int`].
     pub fn decimals(mut self, places: u32) -> Self {
-        if let ParamKind::OptionalNumber { decimals, .. } = &mut self.kind {
-            *decimals = places;
+        match &mut self.kind {
+            ParamKind::OptionalNumber { decimals, .. } => *decimals = places,
+            ParamKind::Range { .. } => self.options.get_or_insert_default().range_decimals = Some(places),
+            _ => {}
         }
         self
+    }
+
+    /// A Random button after the field of a [`ParamKind::Int`] row (a seed): it sets a random
+    /// value within the row's bounds (an open side is `0` or `i32::MAX`); other kinds are unchanged.
+    pub fn randomize(mut self) -> Self {
+        self.options.get_or_insert_default().randomize = true;
+        self
+    }
+
+    /// A pipette toggle after the swatch of a [`ParamKind::Color`] row. A press is reported by
+    /// [`ParamDialog::pick_eyedropper`] / [`CommandForm::pick_eyedropper`](super::CommandForm::pick_eyedropper)
+    /// / [`ParamRowsResponse::eyedropper`], and the host arms or disarms its own dropper from it;
+    /// other kinds are unchanged.
+    pub fn eyedropper(mut self) -> Self {
+        self.options.get_or_insert_default().eyedropper = true;
+        self
+    }
+
+    /// For a [`Param::custom`] row: no label, and the body spans both columns of the form; other
+    /// kinds are unchanged.
+    pub fn full_width(mut self) -> Self {
+        self.options.get_or_insert_default().full_width = true;
+        self
+    }
+
+    fn option(&self) -> RowOptions {
+        self.options.as_deref().cloned().unwrap_or_default()
     }
 
     fn enabled(&self, fields: &DialogFields) -> bool {
@@ -329,14 +384,19 @@ impl Param {
         match &self.kind {
             ParamKind::Range { min, max, scale, .. } => {
                 let value = fields.number(key).or_else(|| number_of(default.as_ref())).unwrap_or(*min);
-                let (places, step) = if (max - min).abs() <= 10.0 { (0..=2, 0.01) } else { (0..=1, 1.0) };
+                let shown = self.option().range_decimals;
+                let (places, step) = match shown {
+                    Some(n) => (0..=n as usize, 10f64.powi(-(n as i32))),
+                    None if (max - min).abs() <= 10.0 => (0..=2, 0.01),
+                    None => (0..=1, 1.0),
+                };
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
                         let slider = Slider::new((key, "slider"), label.as_str(), value, *min..=*max).scale(*scale).show(ui);
                         let field = NumberField::new((key, "field"), label.as_str(), value, numbers).range(*min..=*max).step(step).decimals(places);
                         let field = with_unit(field, unit).show(ui);
                         if let Some(v) = edited(&field).or_else(|| edited(&slider)) {
-                            fields.set(key, FieldValue::Number(v));
+                            fields.set(key, rounded(v, shown));
                         }
                         (slider, field)
                     })
@@ -369,7 +429,16 @@ impl Param {
                         if let Some(v) = edited(&field) {
                             fields.set(key, FieldValue::Int(v.round() as i64));
                         }
-                        field
+                        let random = self.option().randomize.then(|| {
+                            let words = DialogLabels::of_ctx(&ctx);
+                            let button = ui.add(Button::new(words.randomize.as_str()).id_salt((key, "random")));
+                            if button.clicked() {
+                                let (lo, hi) = (min.unwrap_or(0), max.unwrap_or(i32::MAX as i64));
+                                fields.set(key, FieldValue::Int(random_in(&ctx, lo, hi)));
+                            }
+                            button
+                        });
+                        (field, random)
                     })
                     .inner
                 });
@@ -427,6 +496,19 @@ impl Param {
                         let request =
                             ColorRequest::new(key, Srgba::from_rgb_array(color.unwrap_or([0.0; 3]))).title(label.trim_end_matches([':', '：']));
                         ui.ctx().data_mut(|d| d.insert_temp(color_press_id(dialog), request));
+                    }
+                    if self.option().eyedropper {
+                        let name = DialogLabels::of_ctx(&ctx).eyedropper.clone();
+                        let state = eyedropper_state_id(dialog, key);
+                        let mut armed = ui.ctx().data(|d| d.get_temp::<bool>(state)).unwrap_or(false);
+                        let button = ui.add(IconButton::new(Icon::Eyedropper, name).selected(armed).id_salt((key, "eyedropper")));
+                        if button.clicked() {
+                            armed = !armed;
+                            ui.ctx().data_mut(|d| {
+                                d.insert_temp(state, armed);
+                                d.insert_temp(eyedropper_press_id(dialog), EyedropperRequest { key: key.to_owned(), armed });
+                            });
+                        }
                     }
                     swatch
                 });
@@ -558,10 +640,44 @@ impl Param {
                 });
             }
             ParamKind::Custom(row) => {
-                form.row(label.as_str(), |ui, _| (row.0)(ui, fields));
+                if self.option().full_width {
+                    form.spanning(|ui| (row.0)(ui, fields));
+                } else {
+                    form.row(label.as_str(), |ui, _| (row.0)(ui, fields));
+                }
             }
         }
     }
+}
+
+/// `value` rounded to `places` digits (`None`: as is); no digits stores an integer.
+fn rounded(value: f64, places: Option<u32>) -> FieldValue {
+    match places {
+        None => FieldValue::Number(value),
+        Some(0) => FieldValue::Int(value.round() as i64),
+        Some(n) => {
+            let scale = 10f64.powi(n as i32);
+            FieldValue::Number((value * scale).round() / scale)
+        }
+    }
+}
+
+/// A pseudo-random integer in `lo..=hi` (SplitMix64 over the frame time and a per-context
+/// counter), for a Random button; a seed needs no better source.
+fn random_in(ctx: &Context, lo: i64, hi: i64) -> i64 {
+    let counter_id = Id::unique("craft_ui::dialog::params::random");
+    let count = ctx.data_mut(|d| {
+        let count = d.get_temp::<u64>(counter_id).unwrap_or(0).wrapping_add(1);
+        d.insert_temp(counter_id, count);
+        count
+    });
+    let mut z = ctx.input(|i| i.time).to_bits() ^ count.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^= z >> 31;
+    let (lo, hi) = if lo <= hi { (lo, hi) } else { (hi, lo) };
+    let span = (hi as i128 - lo as i128 + 1) as u128;
+    (lo as i128 + (z as u128 % span) as i128) as i64
 }
 
 fn with_unit<'a>(field: NumberField<'a>, unit: &Option<Unit>) -> NumberField<'a> {
@@ -630,6 +746,25 @@ pub(super) fn set_color_field(params: &[Param], fields: &mut DialogFields, key: 
     }
 }
 
+fn eyedropper_press_id(dialog: DialogId) -> Id {
+    Id::unique(("craft_ui::dialog::params::eyedropper_press", dialog))
+}
+
+fn eyedropper_state_id(dialog: DialogId, key: &str) -> Id {
+    Id::unique(("craft_ui::dialog::params::eyedropper_state", dialog, key))
+}
+
+/// The eyedropper toggle's press, once.
+pub(super) fn take_eyedropper_press(ctx: &Context, dialog: DialogId) -> Option<EyedropperRequest> {
+    ctx.data_mut(|d| d.remove_temp::<EyedropperRequest>(eyedropper_press_id(dialog)))
+}
+
+/// Sets the eyedropper toggle of the Color row `key` of `dialog` (the host disarms it when its
+/// dropper ends).
+pub(super) fn set_eyedropper_state(ctx: &Context, dialog: DialogId, key: &str, armed: bool) {
+    ctx.data_mut(|d| d.insert_temp(eyedropper_state_id(dialog, key), armed));
+}
+
 fn path_press_id(dialog: DialogId) -> Id {
     Id::unique(("craft_ui::dialog::params::path_press", dialog))
 }
@@ -691,6 +826,9 @@ pub struct ParamRowsResponse {
     /// The Browse button pressed this pass: the host picks a path and writes it into the
     /// request's key as a [`FieldValue::Text`].
     pub path: Option<PathRequest>,
+    /// The eyedropper toggle pressed this pass ([`Param::eyedropper`]): the host arms or disarms
+    /// its dropper for the request's key.
+    pub eyedropper: Option<EyedropperRequest>,
 }
 
 /// The rows of a parameter list outside a [`ParamDialog`]: one form row per [`Param`], as the
@@ -744,7 +882,13 @@ impl<'a> ParamRows<'a> {
         let preview = self.preview.as_ref();
         let shown = FormGrid::new(id).show(ui, |form| draw_rows(self.params, id, form, fields, preview));
         let ctx = ui.ctx();
-        ParamRowsResponse { response: shown.response, changed: *fields != before, color: take_color_press(ctx, id), path: take_path_press(ctx, id) }
+        ParamRowsResponse {
+            response: shown.response,
+            changed: *fields != before,
+            color: take_color_press(ctx, id),
+            path: take_path_press(ctx, id),
+            eyedropper: take_eyedropper_press(ctx, id),
+        }
     }
 }
 
@@ -935,6 +1079,8 @@ pub struct ParamDialog {
     remember_key: Option<String>,
     picked_color: Option<ColorRequest>,
     picked_path: Option<PathRequest>,
+    picked_eyedropper: Option<EyedropperRequest>,
+    below: Option<Below>,
     reset_target: Option<DialogFields>,
     ok_enabled: bool,
     history: bool,
@@ -944,6 +1090,9 @@ pub struct ParamDialog {
 }
 
 /// What a dialog draws before its buttons ([`ParamDialog::footer_extra`]).
+/// A section drawn under the rows ([`ParamDialog::below`]).
+type Below = Box<dyn Fn(&mut Ui, &DialogFields) + Send>;
+
 pub(super) type FooterExtra = Box<dyn FnMut(&mut Ui) + Send>;
 
 impl ParamDialog {
@@ -964,6 +1113,8 @@ impl ParamDialog {
             remember_key: None,
             picked_color: None,
             picked_path: None,
+            picked_eyedropper: None,
+            below: None,
             reset_target: None,
             ok_enabled: true,
             history: false,
@@ -1095,6 +1246,25 @@ impl ParamDialog {
     /// The colour picker's answer for the parameter `key`; other keys are ignored.
     pub fn set_color(&mut self, key: &str, color: Srgba) {
         set_color_field(&self.params, &mut self.fields, key, color);
+    }
+
+    /// A note or section under the rows that only reads the values (Color Settings' monitor
+    /// note), as [`CommandForm::below`](super::CommandForm::below).
+    pub fn below(mut self, draw: impl Fn(&mut Ui, &DialogFields) + Send + 'static) -> Self {
+        self.below = Some(Box::new(draw));
+        self
+    }
+
+    /// The eyedropper toggle of a [`Param::eyedropper`] row the user pressed, once: the host arms
+    /// its dropper for the request's key when `armed` and disarms it otherwise, and answers a
+    /// pick with [`set_color`](Self::set_color).
+    pub fn pick_eyedropper(&mut self) -> Option<EyedropperRequest> {
+        self.picked_eyedropper.take()
+    }
+
+    /// Pops the eyedropper toggle of the row `key` back up, once the host's dropper has ended.
+    pub fn set_eyedropper(&self, ctx: &Context, key: &str, armed: bool) {
+        set_eyedropper_state(ctx, self.id, key, armed);
     }
 
     /// The Browse button of a [`Param::browse`] row the user pressed, once: the host opens its
@@ -1242,7 +1412,7 @@ impl StackDialog for ParamDialog {
             }
         };
         let image = self.preview_image.as_ref();
-        let (params, id) = (&self.params, self.id);
+        let (params, id, below) = (&self.params, self.id, &self.below);
         let mut dialog =
             Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).history(self.history);
         if let Some(label) = &self.close_label {
@@ -1256,6 +1426,9 @@ impl StackDialog for ParamDialog {
                 first_field_focused(ui, id, |ui| {
                     FormGrid::new("params").show(ui, |form| draw_rows(params, id, form, fields, image));
                 });
+                if let Some(below) = below {
+                    below(ui, fields);
+                }
             },
             |ui, _| {
                 if let Some(image) = image {
@@ -1269,6 +1442,7 @@ impl StackDialog for ParamDialog {
         }
         self.picked_color = take_color_press(ctx, self.id).or(self.picked_color.take());
         self.picked_path = take_path_press(ctx, self.id).or(self.picked_path.take());
+        self.picked_eyedropper = take_eyedropper_press(ctx, self.id).or(self.picked_eyedropper.take());
         match shown.outcome? {
             Outcome::Ok => Some(DialogResult::Ok(self.answer(ctx))),
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),

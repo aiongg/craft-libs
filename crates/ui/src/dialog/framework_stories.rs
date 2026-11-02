@@ -137,7 +137,21 @@ fn fields_text(fields: &super::DialogFields) -> String {
     if listed.is_empty() { "no fields".to_owned() } else { listed.join(", ") }
 }
 
-const FILTER_SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom","angle":angle=30,"monochromatic":bool,"seed":u32=0}"#;
+const FILTER_SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom","angle":angle=30,"monochromatic":bool,"seed":u32=0,"tint":color=#ff8000}"#;
+
+/// [`FILTER_SPEC`] with the row options: one decimal on Radius, Random on the seed, a pipette on
+/// the tint.
+fn filter_params() -> Vec<Param> {
+    Param::parse_list(FILTER_SPEC)
+        .into_iter()
+        .map(|param| match param.key.as_str() {
+            "radius" => param.decimals(1),
+            "seed" => param.randomize(),
+            "tint" => param.eyedropper(),
+            _ => param,
+        })
+        .collect()
+}
 
 /// Gaussian Blur-style parameters on the host; OK shows the fields.
 fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
@@ -152,7 +166,13 @@ fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
         "params",
         &mut args.open,
         (args.layout, preview),
-        || ParamDialog::new(format!("story-params-{}", salt.value()), "Radial Blur", Param::parse_list(FILTER_SPEC)).preview(preview).layout(layout),
+        || {
+            ParamDialog::new(format!("story-params-{}", salt.value()), "Radial Blur", filter_params()).preview(preview).layout(layout).below(
+                |ui, _| {
+                    ui.label("The seed repeats the same result.");
+                },
+            )
+        },
         |_| {},
         |done| format!("OK, {}", fields_text(&done.fields)),
     );

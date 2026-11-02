@@ -7,7 +7,10 @@ use egui::{Event, Key, Modifiers, TextureId, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::{CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamDialog, ParamKind, ParamResult, PathKind, PathRequest};
+use super::{
+    CommandForm, DialogFields, DialogHost, DialogResult, EyedropperRequest, FieldValue, Param, ParamDialog, ParamKind, ParamResult, PathKind,
+    PathRequest,
+};
 use crate::controls::SliderScale;
 use crate::localized::Unit;
 use crate::theme::{Base, install};
@@ -579,4 +582,59 @@ fn param_rows_draw_range_choice_bool_and_colour() {
     harness.get_by_label("Tint:").click();
     harness.run_steps(1);
     assert_eq!(harness.state().color.as_deref(), Some("tint"));
+}
+
+// A Range row stores its value rounded to the decimals shown; none stores an integer.
+#[test]
+fn a_range_row_stores_the_value_rounded_to_its_decimals() {
+    for (places, text, expected) in [(1, "2.345", FieldValue::Number(2.3)), (0, "4.6", FieldValue::Int(5))] {
+        let row = Param::new("v", "V:", ParamKind::Range { min: 0.0, max: 10.0, default: 1.0, scale: SliderScale::Linear }).decimals(places);
+        let mut harness = harness(ParamDialog::new("round", "Round", vec![row]));
+        harness.run();
+        harness.event(Event::Text(text.to_owned()));
+        harness.run();
+        harness.key_press(Key::Enter);
+        harness.run();
+        harness.run();
+        let [DialogResult::Ok(ParamResult { fields, .. })] = &harness.state().answers[..] else { panic!("one OK") };
+        assert_eq!(fields.get("v"), Some(&expected));
+    }
+}
+
+// Random sets an Int row to a value within its bounds; the pipette toggle reports its state.
+#[test]
+fn the_random_button_and_the_eyedropper_toggle_report_on_their_rows() {
+    let rows = vec![
+        Param::new("seed", "Seed:", ParamKind::Int { min: Some(10), max: Some(12), default: 0 }).randomize(),
+        Param::new("from", "From:", ParamKind::Color { default: None }).eyedropper(),
+    ];
+    let mut harness = harness(ParamDialog::new("seeded", "Seeded", rows));
+    harness.run();
+    harness.get_by_label("Random").click();
+    harness.run();
+    let seed = open_dialog(&mut harness).expect("open").fields().int("seed").expect("seed");
+    assert!((10..=12).contains(&seed), "{seed}");
+    harness.get_by_label("Eyedropper").click();
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").pick_eyedropper(), Some(EyedropperRequest { key: "from".into(), armed: true }));
+    harness.get_by_label("Eyedropper").click();
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").pick_eyedropper(), Some(EyedropperRequest { key: "from".into(), armed: false }));
+}
+
+// A full-width custom row has no library label; ParamDialog::below draws a note under the rows.
+#[test]
+fn a_full_width_custom_row_has_no_label_and_below_draws_a_note() {
+    let rows = vec![
+        Param::custom("center", "Center:", |ui, _| ui.button("Pick center")).full_width(),
+        Param::custom("plain", "Plain:", |ui, _| ui.button("Pick plain")),
+    ];
+    let mut harness = harness(ParamDialog::new("wide", "Wide", rows).below(|ui, _| {
+        ui.label("Monitor note");
+    }));
+    harness.run();
+    assert!(harness.query_by_label("Center:").is_none());
+    assert!(harness.query_by_label("Pick center").is_some());
+    assert!(harness.query_by_label("Plain:").is_some());
+    assert!(harness.query_by_label("Monitor note").is_some());
 }

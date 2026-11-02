@@ -29,6 +29,10 @@ crate::words! {
         close: "dialog.close" = "Close";
         /// The button after a text row that picks a file or folder.
         browse: "dialog.browse" = "Browse…";
+        /// The button after an integer row that sets a random value.
+        randomize: "dialog.randomize" = "Random";
+        /// The accessible name of the pipette toggle after a colour row.
+        eyedropper: "dialog.eyedropper" = "Eyedropper";
         /// The check box that switches an optional number on.
         custom: "dialog.custom" = "Custom";
     }
