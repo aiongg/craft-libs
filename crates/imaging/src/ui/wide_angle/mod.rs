@@ -31,15 +31,17 @@ pub use session::{ConstraintOrientation, WideAngleConstraint, WideAngleConstrain
 pub use style::WideAngleStyle;
 pub use tool::{ConstraintTool, ConstraintToolPass};
 
+use std::time::Duration;
+
 use egui::{Context, Key, Modifiers, Rect};
 
 use craft_ui::canvas::kurbo::Size;
-use craft_ui::canvas::{HandTool, NavigationOptions, RasterSource, ZoomTool};
+use craft_ui::canvas::{HandTool, NavigationOptions, RasterSource, ToolHost, ZoomTool};
 use craft_ui::dialog::full_window::{
     FullWindowCanvas, FullWindowLabels, FullWindowSide, FullWindowTitle, FullWindowView, PreviewStatus, PreviewTicket, SideFooter,
 };
-use craft_ui::dialog::{ButtonRole, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step, take_step};
-use craft_ui::edit::EditEvent;
+use craft_ui::dialog::{ButtonRole, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step};
+use craft_ui::edit::{self, CancelReason, EditEvent, GestureId};
 use craft_ui::icons::Icon;
 use craft_ui::localized::Labels as _;
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
@@ -107,6 +109,9 @@ pub struct WideAngleOutput {
     pub preview_wanted: Option<PreviewTicket>,
     pub outcome: Option<Outcome>,
     pub rect: Rect,
+    /// How long the solve and warp of the preview now shown took, as the app reported it with
+    /// [`WideAngleWorkspace::preview_ready`]; the app may show it in its status bar.
+    pub timing: Option<Duration>,
 }
 
 /// The Adaptive Wide Angle workspace.
@@ -132,7 +137,16 @@ pub struct WideAngleWorkspace {
     preview: PreviewStatus,
     /// The session the latest preview ticket was asked for.
     asked: WideAngleSession,
+    /// The correction slider gesture in progress, from the panel's events.
+    panel_gesture: Option<GestureId>,
+    /// What the app reported for the preview now shown.
+    timing: Option<Duration>,
+    /// The user's navigation options for the canvas, Hand and Zoom.
+    navigation: NavigationOptions,
 }
+
+/// The id salt of the canvas, shared by the canvas and the cancels that end its gesture.
+const CANVAS: &str = "wide-angle-view";
 
 /// A command of the constraint menu.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -165,7 +179,15 @@ impl WideAngleWorkspace {
             zoom: ZoomTool::new(Size::ZERO, NavigationOptions::default()),
             preview_on: true,
             preview: PreviewStatus::new(),
+            panel_gesture: None,
+            timing: None,
+            navigation: NavigationOptions::default(),
         }
+    }
+
+    /// The user's navigation options (wheel, flick, animated zoom); Photoshop's by default.
+    pub fn navigation(&mut self, navigation: NavigationOptions) {
+        self.navigation = navigation;
     }
 
     /// Shows the workspace for this pass: the title, the strip, the side column ([`WideAnglePanel`],
@@ -179,31 +201,52 @@ impl WideAngleWorkspace {
     pub fn show(&mut self, ctx: &Context, geometry: &dyn WideAngleGeometry, source: &dyn WideAngleSource) -> WideAngleOutput {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:256 `show` (title :272, the image and
         // constraints, the panel), :232 `constraint_menu`.
-        let Self { dialog, session, history, subject, size, view, tool, last_used, constraint, hand, zoom, preview_on, preview, asked } = self;
+        let Self {
+            dialog,
+            session,
+            history,
+            subject,
+            size,
+            view,
+            tool,
+            last_used,
+            constraint,
+            hand,
+            zoom,
+            preview_on,
+            preview,
+            asked,
+            panel_gesture,
+            timing,
+            navigation,
+        } = self;
+        let navigation = *navigation;
         let labels = WideAngleLabels::of_ctx(ctx);
         let dialog_labels = DialogLabels::of_ctx(ctx);
         let window_labels = FullWindowLabels::of_ctx(ctx);
-        let style = WideAngleStyle::of(&current(ctx));
+        let style = ConstraintTool::style(&current(ctx));
         let title = FullWindowTitle::new(labels.name.as_str()).subject(subject.as_str()).zoom(view.zoom_percent()).text(ctx);
         let image = source.source();
         let corrected = source.corrected().filter(|_| *preview_on && !constraint.dragging());
         let shown: &dyn RasterSource = corrected.unwrap_or(image);
         let (canvas_size, document) = (shown.size(), *size);
         let navigation_size = Size::new(f64::from(canvas_size[0]), f64::from(canvas_size[1]));
-        hand.size = navigation_size;
-        zoom.size = navigation_size;
+        for (size, prefs) in [(&mut hand.size, &mut hand.prefs), (&mut zoom.size, &mut zoom.prefs)] {
+            *size = navigation_size;
+            *prefs = navigation;
+        }
 
         let mut events = Vec::new();
         let mut busy = false;
         let response = FullWindowDialog::new("wide-angle").title(title).show(ctx, dialog, session, |ui, session, fx| {
             let ctx = ui.ctx().clone();
-            // The history, while this dialog is the top modal layer (a number field keeps ⌘Z too).
-            if ctx.memory(|m| m.top_modal_layer()) == Some(ui.layer_id())
-                && let Some(step) = take_step(&ctx)
-                && history.step(session, step)
-            {
-                constraint.drop_drag();
-                constraint.sync(session.constraints.len());
+            // The history, while this dialog is the top modal layer (a number field keeps ⌘Z too):
+            // a drag in progress ends first.
+            if let Some(step) = fx.take_step(ui) {
+                end_gesture(ui, *tool, constraint, session, geometry, &style, &labels, hand, zoom, CancelReason::UndoDuringGesture);
+                if history.step(session, step) {
+                    constraint.sync(session.constraints.len());
+                }
             }
 
             let slots = [
@@ -219,7 +262,7 @@ impl WideAngleWorkspace {
             if let Some(next) = rail.select
                 && next != *tool
             {
-                constraint.drop_drag();
+                end_gesture(ui, *tool, constraint, session, geometry, &style, &labels, hand, zoom, CancelReason::Removed);
                 *tool = next;
             }
 
@@ -227,17 +270,23 @@ impl WideAngleWorkspace {
                 FooterButton::new(ButtonRole::Default, dialog_labels.ok.as_str()),
                 FooterButton::new(ButtonRole::Cancel, dialog_labels.cancel.as_str()),
             ];
-            FullWindowSide::new("wide-angle-side").header(labels.settings.as_str()).footer(SideFooter::bottom(buttons)).show(ui, fx, |ui| {
-                let panel = WideAnglePanel::new("wide-angle-panel", session, preview_on, &labels).show(ui);
-                busy |= panel.dragging;
-                if let Some(edit) = panel.edit {
+            FullWindowSide::new("wide-angle-side").footer(SideFooter::bottom(buttons)).show(ui, fx, |ui| {
+                let panel = WideAnglePanel::new("wide-angle-panel", session, preview_on).labels(labels.clone()).show(ui);
+                match &panel.edit {
+                    Some(EditEvent::Begin { id, .. }) => *panel_gesture = Some(*id),
+                    Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. } | EditEvent::Set { .. }) => *panel_gesture = None,
+                    Some(_) | None => {}
+                }
+                *panel_gesture = panel_gesture.filter(|&id| edit::is_live(&ctx, id));
+                busy |= panel_gesture.is_some();
+                if let Some(edit) = panel.constraint {
                     record(session, &mut events, edit);
                 }
                 preview.show(ui, &window_labels);
             });
 
             let mut pass = constraint.pass(session, geometry, &style, &labels).image(canvas_size, document).corrected(corrected.is_some());
-            let canvas = FullWindowCanvas::new("wide-angle-view", view).source(shown);
+            let canvas = FullWindowCanvas::new(CANVAS, view).source(shown).navigation(navigation);
             let canvas = match *tool {
                 WideAngleTool::Constraint => canvas.tool(&mut pass),
                 WideAngleTool::Hand => canvas.tool(hand),
@@ -286,22 +335,27 @@ impl WideAngleWorkspace {
             *asked = session.clone();
             preview.request()
         });
-        WideAngleOutput { events, preview_wanted, outcome: response.outcome, rect: response.rect }
+        WideAngleOutput { events, preview_wanted, outcome: response.outcome, rect: response.rect, timing: *timing }
     }
 
     pub fn session(&self) -> &WideAngleSession {
         &self.session
     }
 
-    pub fn preview_ready(&mut self, ticket: PreviewTicket) {
-        self.preview.ready(ticket);
+    /// The app's corrected preview for `ticket` is ready; `timing` is how long its solve and warp
+    /// took, if the app measured it. A result older than the latest ticket is dropped.
+    pub fn preview_ready(&mut self, ticket: PreviewTicket, timing: Option<Duration>) {
+        if self.preview.ready(ticket) {
+            self.timing = timing;
+        }
     }
 
     pub fn preview_failed(&mut self, ticket: PreviewTicket, message: String) {
         self.preview.failed(ticket, message);
     }
 
-    /// Undo or redo from the app's Edit menu; returns whether it stepped.
+    /// Undo or redo from the app's Edit menu; returns whether it stepped. A drag in progress ends
+    /// first.
     pub fn step(&mut self, step: Step) -> bool {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:566 (the test: ⌘Z steps the dialog, not
         // the document).
@@ -312,4 +366,27 @@ impl WideAngleWorkspace {
         }
         stepped
     }
+}
+
+/// Ends the gesture the active `tool` holds on the canvas, through the host that runs it, before
+/// the app replaces the tool or steps the history.
+#[expect(clippy::too_many_arguments, reason = "the tool state and the app's inputs one pass builds the active tool from")]
+fn end_gesture(
+    ui: &egui::Ui,
+    tool: WideAngleTool,
+    constraint: &mut ConstraintTool,
+    session: &WideAngleSession,
+    geometry: &dyn WideAngleGeometry,
+    style: &WideAngleStyle,
+    labels: &WideAngleLabels,
+    hand: &mut HandTool,
+    zoom: &mut ZoomTool,
+    reason: CancelReason,
+) {
+    let (ctx, id) = (ui.ctx(), FullWindowCanvas::canvas_id(ui, CANVAS));
+    match tool {
+        WideAngleTool::Constraint => ToolHost::cancel(ctx, id, &mut constraint.pass(session, geometry, style, labels), reason),
+        WideAngleTool::Hand => ToolHost::cancel(ctx, id, hand, reason),
+        WideAngleTool::Zoom => ToolHost::cancel(ctx, id, zoom, reason),
+    };
 }

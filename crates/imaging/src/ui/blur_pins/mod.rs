@@ -10,7 +10,7 @@
 //! ```ignore
 //! let out = BlurPinsOverlay::new("pins", &mut app.blur_pins).show(ui, &canvas, &view);
 //! if let Some(edit) = out.edit { app.blur_preview_stale(edit) }
-//! BlurPinsPanel::new("pin-rows", &mut app.blur_pins, &labels).show(body_ui);
+//! BlurPinsPanel::new("pin-rows", &mut app.blur_pins).show(body_ui);
 //! ```
 //!
 //! Files: `model` and `grab` (task WS-BP1); `draw` and `panel` (WS-BP2); `style` (TK4).

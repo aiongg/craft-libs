@@ -6,8 +6,10 @@ craft_ui::words! {
     pub struct BlurPinsLabels {
         /// The pins' group on the canvas.
         pins: "blurPins.pins" = "Blur pins";
-        /// A pin as a keyboard part: `{n}` its number, `{amount}` its amount with the unit.
-        pin_part: "blurPins.pinPart" = "Pin {n}, {amount}";
+        /// A pin as a keyboard part: `{n}` its number, `{amount}` its blur in pixels with the unit.
+        pin_part: "blurPins.pinPart" = "Pin {n}, Blur {amount}";
+        /// A Spin Blur pin as a keyboard part: `{n}` its number, `{amount}` its angle with the unit.
+        pin_part_angle: "blurPins.pinPartAngle" = "Pin {n}, Blur Angle {amount}";
         blur: "blurPins.blur" = "Blur";
         blur_angle: "blurPins.blurAngle" = "Blur Angle";
         no_pin: "blurPins.noPin" = "No pin selected";

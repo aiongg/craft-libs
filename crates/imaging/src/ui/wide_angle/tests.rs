@@ -1,6 +1,7 @@
 //! Tests of the Adaptive Wide Angle workspace (task WS-WA1).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 use egui::accesskit::Role;
 use egui::os::OperatingSystem;
@@ -10,12 +11,14 @@ use egui_kittest::{Harness, HarnessBuilder};
 
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{PixelRect, RasterSource};
+use craft_ui::dialog::full_window::PreviewTicket;
 use craft_ui::dialog::{Outcome, Step};
+use craft_ui::testing::canvas;
 use craft_ui::theme::{Base, install};
 
 use super::{
     ConstraintOrientation, WideAngleConstraint, WideAngleConstraintEdit, WideAngleEvent, WideAngleGeometry, WideAngleOpen, WideAngleSession,
-    WideAngleSource, WideAngleWorkspace,
+    WideAngleSource, WideAngleTool, WideAngleWorkspace,
 };
 
 const WINDOW: Vec2 = vec2(900.0, 600.0);
@@ -88,6 +91,8 @@ struct App {
     events: Vec<WideAngleEvent>,
     outcome: Option<Outcome>,
     tickets: usize,
+    ticket: Option<PreviewTicket>,
+    timing: Option<Duration>,
 }
 
 impl App {
@@ -102,6 +107,8 @@ impl App {
             events: Vec::new(),
             outcome: None,
             tickets: 0,
+            ticket: None,
+            timing: None,
         }
     }
 
@@ -129,6 +136,8 @@ fn harness(app: App) -> Harness<'static, App> {
                 let out = app.workspace.show(ui.ctx(), &app.geometry, &app.sources);
                 app.events.extend(out.events);
                 app.tickets += usize::from(out.preview_wanted.is_some());
+                app.ticket = out.preview_wanted.or(app.ticket);
+                app.timing = out.timing;
                 app.outcome = app.outcome.or(out.outcome);
             },
             app,
@@ -314,6 +323,9 @@ fn wide_angle_constraints_are_keyboard_parts() {
     drag(&mut h, at, at, Modifiers::NONE);
     assert_eq!(h.state().workspace.constraint.picked(), Some(0));
     assert!(h.state().constraints().len() == 2, "a click adds nothing");
+    // Tab moves the keyboard from the canvas to the constraints group, whose arrows move a part.
+    h.key_press(Key::Tab);
+    h.run();
     h.key_press(Key::PageDown);
     h.run();
     let Some(picked) = h.state().workspace.constraint.picked() else { panic!("Page Down picks a constraint") };
@@ -338,4 +350,59 @@ fn wide_angle_constraints_are_keyboard_parts() {
     h.run();
     assert_eq!(h.state().constraints().len(), 1);
     assert_eq!(h.state().constraints()[0].orientation, ConstraintOrientation::Free);
+}
+
+// With the canvas, not the constraints group, holding the keyboard, arrows do nothing: the pick a
+// click made is not the keys' to move.
+#[test]
+fn wide_angle_arrows_do_nothing_while_the_canvas_has_the_keyboard() {
+    let mut h = harness(App::new(session_with(vec![line([100.0, 60.0], [300.0, 60.0])])));
+    let at = screen(&h, [200.0, 60.0]);
+    drag(&mut h, at, at, Modifiers::NONE);
+    assert_eq!(h.state().workspace.constraint.picked(), Some(0));
+    let before = h.state().constraints().to_vec();
+    h.key_press(Key::ArrowRight);
+    h.run();
+    assert_eq!(h.state().constraints(), before, "the arrow moved nothing");
+}
+
+// A letter that switches the tool mid-drag ends the drag through the host: the tool is not busy,
+// and the release adds no constraint.
+#[test]
+fn wide_angle_tool_switch_mid_drag_cancels_it() {
+    let mut h = harness(App::new(WideAngleSession::default()));
+    let from = screen(&h, [100.0, 100.0]);
+    canvas::press(&mut h, from, Modifiers::NONE);
+    canvas::move_to(&mut h, from + vec2(80.0, 0.0));
+    assert!(h.state().workspace.constraint.dragging());
+    canvas::key(&mut h, Key::H, Modifiers::NONE);
+    assert_eq!(h.state().workspace.tool, WideAngleTool::Hand);
+    assert!(!h.state().workspace.constraint.dragging(), "the drag ended with the tool");
+    canvas::release(&mut h, from + vec2(80.0, 0.0), Modifiers::NONE);
+    assert!(h.state().constraints().is_empty(), "no constraint from the cancelled drag");
+}
+
+// ⌘Z mid-drag ends the drag before it steps.
+#[test]
+fn wide_angle_undo_mid_drag_cancels_it() {
+    let mut h = harness(App::new(WideAngleSession::default()));
+    let from = screen(&h, [100.0, 100.0]);
+    canvas::press(&mut h, from, Modifiers::NONE);
+    canvas::move_to(&mut h, from + vec2(80.0, 0.0));
+    assert!(h.state().workspace.constraint.dragging());
+    canvas::key(&mut h, Key::Z, Modifiers::COMMAND);
+    assert!(!h.state().workspace.constraint.dragging(), "the drag ended before the step");
+    canvas::release(&mut h, from + vec2(80.0, 0.0), Modifiers::NONE);
+    assert!(h.state().constraints().is_empty());
+}
+
+// The output carries the time the app reported for the preview now shown.
+#[test]
+fn wide_angle_output_reports_the_previews_timing() {
+    let mut h = harness(App::new(WideAngleSession::default()));
+    assert_eq!(h.state().timing, None);
+    let Some(ticket) = h.state().ticket else { panic!("opening asked for a preview") };
+    h.state_mut().workspace.preview_ready(ticket, Some(Duration::from_millis(42)));
+    h.run();
+    assert_eq!(h.state().timing, Some(Duration::from_millis(42)));
 }

@@ -39,7 +39,7 @@ pub struct BlurPinsStyle {
     pub turn_extra: f32,
     /// `blur_pins.round_corner`.
     pub round_corner: f32,
-    /// The marks' line and fill (`overlay.handle_fill`) and halo (`overlay.halo`).
+    /// The marks' line and fill (`overlay.handle_fill`) and halo (`blur_pins.halo`, the semantic `overlay.halo` unless a theme pins it).
     pub line: Color32,
     pub halo: Color32,
     /// The ring's amount arc: `accent`.
@@ -47,7 +47,7 @@ pub struct BlurPinsStyle {
 }
 
 impl BlurPinsStyle {
-    pub fn of(tokens: &UiTokens) -> BlurPinsStyle {
+    pub(crate) fn of(tokens: &UiTokens) -> BlurPinsStyle {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:44-51 (the sizes), :689 `draw` (the colours).
         let b = &tokens.component.blur_pins;
         BlurPinsStyle {
@@ -68,7 +68,7 @@ impl BlurPinsStyle {
             turn_extra: b.turn_extra,
             round_corner: b.round_corner,
             line: tokens.color.overlay.handle_fill.to_egui(),
-            halo: tokens.color.overlay.halo.to_egui(),
+            halo: b.halo.to_egui(),
             amount: tokens.color.accent.solid.to_egui(),
         }
     }

@@ -1,7 +1,8 @@
-//! Adaptive Wide Angle's constraint marks. The same at every Size (they sit on the image). The line colours are the semantic `accent`, `status.warn.fg` and `status.bad.fg`.
+//! Adaptive Wide Angle's constraint marks. The same at every Size (they sit on the image). The line colours are the semantic `accent`, `status.warn.fg` and `status.bad.fg`; the halo under them and the colour of a constraint being drawn are overridable.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
+use crate::tokens::{ColorToken as T, TokenRef};
 use crate::values;
 
 /// Adaptive Wide Angle's constraint marks.
@@ -18,17 +19,35 @@ pub struct WideAngleTokens {
     pub min_drag: f32,
     /// The extra width of the halo under each line: `wide_angle.halo_width`.
     pub halo_width: f32,
-    /// The halo under each line: `wide_angle.halo`. Black at alpha 160 in every theme: it must darken whatever the image shows.
+    /// The halo under each line: `wide_angle.halo`. Black at alpha 160 unless a theme pins it: it must darken whatever the image shows.
     pub halo: Rgba,
+    /// The constraint being drawn: `wide_angle.drawing`, the semantic `accent.soft` (PhotoCraft's `accent_soft`).
+    pub drawing: Rgba,
 }
 
-/// This family has no overridable field: its sizes come from the code, as every size does.
+/// An overridable Wide Angle field. Paths: `halo`, `drawing`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum WideAngleField {}
+pub enum WideAngleField {
+    /// `wide_angle.halo`
+    Halo,
+    /// `wide_angle.drawing`
+    Drawing,
+}
+
+impl WideAngleField {
+    const ALL: [WideAngleField; 2] = [WideAngleField::Halo, WideAngleField::Drawing];
+
+    const fn name(self) -> &'static str {
+        match self {
+            WideAngleField::Halo => "halo",
+            WideAngleField::Drawing => "drawing",
+        }
+    }
+}
 
 impl Family for WideAngleTokens {
     type Field = WideAngleField;
-    const FIELDS: &'static [WideAngleField] = &[];
+    const FIELDS: &'static [WideAngleField] = &WideAngleField::ALL;
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { WideAngleTokens;
         "line" 0.0..=16.0 => line;
         "end" 0.5..=32.0 => end;
@@ -37,7 +56,7 @@ impl Family for WideAngleTokens {
         "halo_width" 0.0..=16.0 => halo_width;
     };
 
-    fn defaults(_: &Semantic<'_>) -> WideAngleTokens {
+    fn defaults(s: &Semantic<'_>) -> WideAngleTokens {
         WideAngleTokens {
             line: values::WIDE_ANGLE_LINE,
             end: values::WIDE_ANGLE_END,
@@ -45,31 +64,48 @@ impl Family for WideAngleTokens {
             min_drag: values::WIDE_ANGLE_MIN_DRAG,
             halo_width: values::WIDE_ANGLE_HALO_WIDTH,
             halo: values::WIDE_ANGLE_HALO,
+            drawing: s.color.accent.soft,
         }
     }
 
     fn path(f: WideAngleField) -> String {
-        match f {}
+        f.name().to_owned()
     }
 
-    fn from_path(_: &str) -> Option<WideAngleField> {
-        None
+    fn from_path(path: &str) -> Option<WideAngleField> {
+        WideAngleField::ALL.into_iter().find(|f| f.name() == path)
     }
 
-    fn kind(f: WideAngleField) -> FieldKind {
-        match f {}
+    fn kind(_: WideAngleField) -> FieldKind {
+        FieldKind::Color
     }
 
     fn get(&self, f: WideAngleField) -> OverrideValue {
-        match f {}
+        OverrideValue::Color(match f {
+            WideAngleField::Halo => self.halo,
+            WideAngleField::Drawing => self.drawing,
+        })
     }
 
-    fn set(&mut self, f: WideAngleField, _: OverrideValue) {
-        match f {}
+    fn set(&mut self, f: WideAngleField, v: OverrideValue) {
+        if let OverrideValue::Color(c) = v {
+            match f {
+                WideAngleField::Halo => self.halo = c,
+                WideAngleField::Drawing => self.drawing = c,
+            }
+        }
     }
 
-    // The halo is pinned black, not a theme colour; the line colours are semantic tokens.
+    /// The line colours mark the constraint's orientation on top of the halo: 3:1 (4.5:1 with high contrast).
     fn pairs() -> Vec<ContrastPair> {
-        Vec::new()
+        [T::AccentSolid, T::StatusWarnFg, T::StatusBadFg]
+            .into_iter()
+            .map(|fg| ContrastPair {
+                fg: TokenRef::Color(fg),
+                bg: TokenRef::Component(ComponentField::WideAngle(WideAngleField::Halo)),
+                minimum: values::NON_TEXT_MIN,
+                alternate: None,
+            })
+            .collect()
     }
 }

@@ -9,7 +9,8 @@ use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, PartFocusResponse, Turn};
 use craft_ui::composites::curve_editor::take_exact;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
-use craft_ui::theme::current;
+use craft_ui::localized::{Labels as _, Units};
+use craft_ui::theme::{UiTokens, current};
 
 use super::grab::{AXIS_HANDLES, feather_handles, iris_point, round_handle, tilt_point, turn_handle};
 use super::model::{BlurKind, BlurPin, BlurPins};
@@ -46,7 +47,7 @@ pub struct BlurPinsResponse {
 pub struct BlurPinsOverlay<'a> {
     id_salt: IdSalt,
     pins: &'a mut BlurPins,
-    labels: Option<&'a BlurPinsLabels>,
+    labels: Option<BlurPinsLabels>,
 }
 
 /// A press the overlay owns, kept between passes.
@@ -89,9 +90,15 @@ impl<'a> BlurPinsOverlay<'a> {
         Self { id_salt: IdSalt::new(id_salt), pins, labels: None }
     }
 
-    pub fn labels(mut self, labels: &'a BlurPinsLabels) -> Self {
+    /// The words; default [`BlurPinsLabels::of`] the context's language.
+    pub fn labels(mut self, labels: BlurPinsLabels) -> Self {
         self.labels = Some(labels);
         self
+    }
+
+    /// The marks' look and reach in `tokens`.
+    pub fn style(tokens: &UiTokens) -> BlurPinsStyle {
+        BlurPinsStyle::of(tokens)
     }
 
     /// Runs and draws the overlay over `canvas` (the main canvas's response) through `view`.
@@ -100,15 +107,9 @@ impl<'a> BlurPinsOverlay<'a> {
         let Self { id_salt, pins, labels } = self;
         let ctx = ui.ctx().clone();
         let id = ui.make_persistent_id(id_salt);
-        let style = BlurPinsStyle::of(&current(&ctx));
-        let english;
-        let labels = match labels {
-            Some(labels) => labels,
-            None => {
-                english = BlurPinsLabels::default();
-                &english
-            }
-        };
+        let style = Self::style(&current(&ctx));
+        let labels = labels.unwrap_or_else(|| BlurPinsLabels::of(ui));
+        let units = Units::of(ui);
         let editable = usable(pins) && ui.is_enabled();
         // The pins are written in place from the gesture's value, so the gesture's own last report
         // (or the value it began from) stands for the pins while they show one of its values.
@@ -140,7 +141,7 @@ impl<'a> BlurPinsOverlay<'a> {
             ctx.set_cursor_icon(grab_at(&shown, view, at, &style).cursor(shown.kind == BlurKind::TiltShift));
         }
 
-        let parts = parts(view, &shown, &style, labels);
+        let parts = parts(view, &shown, &style, &labels, &units);
         let picked = shown.selected.map(|i| i as u64);
         let focus = PartFocus::new(id, labels.pins.as_str()).parts(&parts).picked(picked).focusable(editable).show(ui, canvas);
         if held.is_none() && editable {
@@ -312,21 +313,21 @@ fn keys(ui: &Ui, ctx: &Context, focus: &PartFocusResponse, shown: &BlurPins, ges
 }
 
 /// The pins as keyboard parts, in order: "Pin 3, Blur 15 px" (Spin: "Blur Angle 90°").
-fn parts(view: &CanvasView, pins: &BlurPins, style: &BlurPinsStyle, labels: &BlurPinsLabels) -> Vec<Part> {
+fn parts(view: &CanvasView, pins: &BlurPins, style: &BlurPinsStyle, labels: &BlurPinsLabels, units: &Units) -> Vec<Part> {
     let reach = Vec2::splat(2.0 * style.grab);
     pins.pins
         .iter()
         .enumerate()
         .map(|(index, pin)| {
-            let amount = if pins.kind == BlurKind::Spin {
-                format!("{} {}°", labels.blur_angle, pin.amount.round())
+            let (word, amount) = if pins.kind == BlurKind::Spin {
+                (&labels.pin_part_angle, units.degrees(pin.amount.round()))
             } else {
-                format!("{} {} px", labels.blur, pin.amount.round())
+                (&labels.pin_part, units.pixels(pin.amount.round()))
             };
-            let n = (index + 1).to_string();
+            let n = units.numbers().format(index as f64 + 1.0, 0..=0);
             Part {
                 key: index as u64,
-                name: craft_i18n::fmt(&labels.pin_part, &[("n", n.as_str()), ("amount", amount.as_str())]),
+                name: craft_i18n::fmt(word, &[("n", n.as_str()), ("amount", amount.as_str())]),
                 value: None,
                 rect: Rect::from_center_size(view.to_screen(pins.to_document(pin)), reach),
                 selected: pins.selected == Some(index),
