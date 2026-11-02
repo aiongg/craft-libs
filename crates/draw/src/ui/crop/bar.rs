@@ -354,6 +354,7 @@ fn size_name(labels: &CropBarLabels, i: usize) -> String {
 
 /// The preset list: Ratio, W x H x Resolution, the ratio presets, the size presets, the user's
 /// presets, Front Image, then New Crop Preset… and Delete Crop Preset….
+#[expect(clippy::too_many_arguments, reason = "the bar's inputs")]
 fn preset_list(
     ui: &mut Ui,
     settings: &mut CropSettings,
