@@ -44,9 +44,15 @@ impl Host {
             }
             (ShapeChange::Radii(r), LiveShape::Rect { radii, .. }) => *radii = r,
             (ShapeChange::Fill(paint), _) => self.look.fill = paint,
-            (ShapeChange::Stroke(paint), _) => self.look.stroke = paint,
+            (ShapeChange::Stroke { paint, width }, _) => {
+                self.look.stroke = paint;
+                self.look.stroke_width = width.unwrap_or(self.look.stroke_width);
+            }
             (ShapeChange::StrokeWidth(width), _) => self.look.stroke_width = width,
-            (ShapeChange::StrokeStyle(style), _) => self.look.stroke_style = style,
+            (ShapeChange::StrokeStyle { style, width }, _) => {
+                self.look.stroke_style = style;
+                self.look.stroke_width = width.unwrap_or(self.look.stroke_width);
+            }
             _ => {}
         }
     }
@@ -117,7 +123,7 @@ fn shape_panel_scrub_is_one_undo_gesture() {
 }
 
 // ↓ on a stroke width of 0 reports nothing; turning the stroke chip from No Color to Solid at
-// width 0 reports `StrokeWidth(3)` with the paint.
+// width 0 reports one `Stroke` change carrying width 3.
 #[test]
 fn shape_panel_stroke_width_zero_does_not_add_a_stroke_and_on_gives_three_px() {
     let mut harness = harness(Host::new(rect(), look(0.0)));
@@ -132,7 +138,7 @@ fn shape_panel_stroke_width_zero_does_not_add_a_stroke_and_on_gives_three_px() {
     node(&harness, Role::RadioButton, "Solid").click();
     harness.run_steps(4);
     let changes: Vec<_> = harness.state().events.iter().filter_map(EditEvent::value).cloned().collect();
-    assert!(matches!(changes.as_slice(), [ShapeChange::StrokeWidth(w), ShapeChange::Stroke(Paint::Solid(_))] if *w == 3.0), "{changes:?}");
+    assert!(matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w) }] if *w == 3.0), "{changes:?}");
 }
 
 // A locked appearance disables every field and chip (AccessKit `disabled`).
@@ -175,7 +181,7 @@ fn shape_panel_stroke_style_button_reports_the_style() {
     node(&on, Role::RadioButton, "Dashed").click();
     on.run_steps(8);
     let changes: Vec<_> = on.state().events.iter().filter_map(EditEvent::value).cloned().collect();
-    assert!(matches!(changes.as_slice(), [ShapeChange::StrokeStyle(style)] if !style.dashes.is_empty()), "{changes:?}");
+    assert!(matches!(changes.as_slice(), [ShapeChange::StrokeStyle { style, width: None }] if !style.dashes.is_empty()), "{changes:?}");
 
     let mut off = harness(Host { button: true, ..Host::new(rect(), look(0.0)) });
     assert_eq!(value(&off).as_deref(), Some("No Color"));
@@ -184,5 +190,5 @@ fn shape_panel_stroke_style_button_reports_the_style() {
     node(&off, Role::RadioButton, "Dashed").click();
     off.run_steps(8);
     let changes: Vec<_> = off.state().events.iter().filter_map(EditEvent::value).cloned().collect();
-    assert!(matches!(changes.as_slice(), [ShapeChange::StrokeWidth(w), ShapeChange::StrokeStyle(_)] if *w == 3.0), "{changes:?}");
+    assert!(matches!(changes.as_slice(), [ShapeChange::StrokeStyle { width: Some(w), .. }] if *w == 3.0), "{changes:?}");
 }

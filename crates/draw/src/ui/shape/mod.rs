@@ -1,5 +1,5 @@
 //! The shape layer's Properties sections ([`ShapePanel`]) and the Shape tools' options bar
-//! ([`ShapeOptionsBar`]), each field a gesture-aware [`EditEvent<ShapeChange>`](craft_ui::edit::EditEvent).
+//! ([`ShapeBar`]), each field a gesture-aware [`EditEvent<ShapeChange>`](craft_ui::edit::EditEvent).
 //!
 //! ```no_run
 //! use craft_draw::ui::shape::{LiveShape, ShapeAppearance, ShapeChange, ShapePanel};
@@ -31,7 +31,7 @@ mod panel;
 mod panel_tests;
 pub(crate) mod stories;
 
-pub use bar::{ShapeOptionsBar, ShapeOptionsOutput};
+pub use bar::{ShapeBar, ShapeBarOutput};
 pub use labels::ShapeLabels;
 pub use panel::{ShapePaint, ShapePanel, ShapePanelOutput};
 
@@ -107,13 +107,21 @@ pub enum ShapeChange {
     Fill(Paint),
     /// The options bar's Fill check box (tool defaults only).
     FillOn(bool),
-    /// The stroke paint. The app also sets its background colour from a solid stroke.
-    Stroke(Paint),
-    /// The stroke width in pixels, 0–288. A stroke turned on without a width carries
-    /// [`ShapeChange::ENABLED_STROKE_WIDTH`]; a step that clamps at 0 is no change.
+    /// The stroke paint. The app also sets its background colour from a solid stroke. `width` is
+    /// `Some(`[`ENABLED_STROKE_WIDTH`](Self::ENABLED_STROKE_WIDTH)`)` when the edit turns the
+    /// stroke on from width 0 (the app sets the width with the paint, in one command), else `None`.
+    Stroke {
+        paint: Paint,
+        width: Option<f64>,
+    },
+    /// The stroke width in pixels, 0–288. A step that clamps at 0 is no change.
     StrokeWidth(f64),
-    /// The Stroke style button's edit (its `EditEvent<StrokeStyle>`, mapped).
-    StrokeStyle(StrokeStyle),
+    /// The Stroke style button's edit (its `EditEvent<StrokeStyle>`, mapped); `width` as in
+    /// [`Stroke`](Self::Stroke).
+    StrokeStyle {
+        style: StrokeStyle,
+        width: Option<f64>,
+    },
     /// Width and height of a rect, ellipse or polygon.
     Size {
         width: f64,
@@ -130,7 +138,7 @@ pub enum ShapeChange {
 }
 
 impl ShapeChange {
-    /// The stroke width a stroke gets when it is turned on at 0 (PhotoCraft's
+    /// The stroke width a stroke gets when an edit turns it on at width 0 (PhotoCraft's
     /// `enabled_stroke_width`).
     pub const ENABLED_STROKE_WIDTH: f64 = 3.0;
 }

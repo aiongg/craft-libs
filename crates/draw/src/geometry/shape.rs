@@ -32,7 +32,7 @@ pub enum ShapeGeometry {
     Rect { rect: Rect, radii: [f64; 4] },
     /// An ellipse inscribed in `rect`.
     Ellipse { rect: Rect },
-    /// A regular polygon or star fitted to `rect` (the Box frame: PhotoCraft's Triangle and
+    /// A regular polygon or star inscribed in the ellipse of `rect` (the Box frame: PhotoCraft's Triangle and
     /// Polygon). `sides` in [`SIDES`]; `star_ratio` in [`STAR_RATIO`], 1 for a plain polygon.
     /// The Triangle tool is 3 sides.
     Polygon { rect: Rect, sides: u32, star_ratio: f64 },
@@ -56,8 +56,10 @@ impl ShapeGeometry {
     ///   rectangle.
     /// - `Ellipse`: kurbo's `Ellipse::from_rect`.
     /// - `Polygon`: the outline of [`RadialPolygon`](Self::RadialPolygon) with the first point
-    ///   straight up, scaled into `rect` so its points touch the edges (a triangle's base lies on
-    ///   the bottom edge); a star alternates outer and inner points.
+    ///   straight up, its outer points on the ellipse inscribed in `rect` (PhotoCraft's engine:
+    ///   a triangle's base lies a quarter of the height below the centre, not on the bottom
+    ///   edge); a star alternates outer and inner points, the inner ones on the ellipse
+    ///   scaled by `star_ratio`.
     /// - `RadialPolygon`: `sides` outer points on the circle of `radius`, the first at `rotation`
     ///   from straight up; a star (`star_ratio` < 1) puts an inner point between each pair at
     ///   `radius * star_ratio`.
@@ -81,16 +83,9 @@ impl ShapeGeometry {
             Self::Ellipse { rect } => Ellipse::from_rect(rect.abs()).to_path(tolerance),
             Self::Polygon { rect, sides, star_ratio } => {
                 let rect = rect.abs();
-                let unit = polygon_points(Point::ZERO, 1.0, 0.0, sides, star_ratio);
-                let (mut lo, mut hi) = (Point::new(f64::MAX, f64::MAX), Point::new(f64::MIN, f64::MIN));
-                for p in &unit {
-                    lo = Point::new(lo.x.min(p.x), lo.y.min(p.y));
-                    hi = Point::new(hi.x.max(p.x), hi.y.max(p.y));
-                }
-                let scale =
-                    |from: f64, to: f64, a: f64, b: f64, v: f64| if to - from > 0.0 { a + (v - from) / (to - from) * (b - a) } else { (a + b) / 2.0 };
+                let (c, rx, ry) = (rect.center(), rect.width() / 2.0, rect.height() / 2.0);
                 let points: Vec<Point> =
-                    unit.iter().map(|p| Point::new(scale(lo.x, hi.x, rect.x0, rect.x1, p.x), scale(lo.y, hi.y, rect.y0, rect.y1, p.y))).collect();
+                    polygon_points(Point::ZERO, 1.0, 0.0, sides, star_ratio).iter().map(|p| Point::new(c.x + p.x * rx, c.y + p.y * ry)).collect();
                 closed(&points)
             }
             Self::RadialPolygon { center, radius, rotation, sides, star_ratio } => {
@@ -178,7 +173,7 @@ impl RadialFrame {
         if radius < MIN_SIDE {
             return None;
         }
-        let rotation = if upright { 0.0 } else { (v.atan2() + FRAC_PI_2) % TAU };
+        let rotation = if upright { 0.0 } else { (v.atan2() + FRAC_PI_2).rem_euclid(TAU) };
         Some(RadialFrame { center, radius, rotation })
     }
 
