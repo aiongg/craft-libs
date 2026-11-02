@@ -1,12 +1,14 @@
 //! Tests of the Shape tools on the tool host (task SH-T3).
 
+use egui::accesskit::Role;
 use egui::{Key, Modifiers, Sense, vec2};
 use egui_kittest::Harness;
-use kurbo::Point;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
+use kurbo::{Point, Rect};
 
 use super::{ShapeDragEvent, ShapeDragOptions, ShapeDragRules, ShapeDragTool, ShapeKind};
 use crate::geometry::shape::ShapeGeometry;
-use craft_ui::canvas::{CanvasId, CanvasView, ToolHost, ToolInput};
+use craft_ui::canvas::{CanvasId, CanvasTool as _, CanvasView, SnapGesture, ToolHost, ToolInput};
 use craft_ui::edit::{CancelReason, EditEvent};
 use craft_ui::theme::{Base, install};
 
@@ -250,4 +252,33 @@ fn shape_drag_cancels_on_escape_and_on_tool_switch() {
     to(&mut h, (101.0, 100.0), Modifiers::NONE);
     key(&mut h, Key::Escape, Modifiers::NONE);
     assert!(h.state().events.is_empty(), "{:?}", h.state().events);
+}
+
+// The tool asks the host to snap the pointer while sizing and the moving box while Space is held:
+// the box as it was when Space went down, shifted back by the pointer's travel since the press.
+#[test]
+fn space_changes_the_snap_from_the_point_to_the_moving_box() {
+    let mut h = harness(1.0, opts(ShapeKind::Rectangle), ShapeDragRules::PHOTOSHOP);
+    focus(&mut h);
+    down(&mut h, (100.0, 100.0));
+    to(&mut h, (160.0, 140.0), Modifiers::NONE);
+    assert_eq!(h.state().tool.snap_gesture(), Some(SnapGesture::Point));
+    space(&mut h, true);
+    assert_eq!(h.state().tool.snap_gesture(), Some(SnapGesture::Rect { at_press: Rect::new(40.0, 60.0, 100.0, 100.0) }));
+    space(&mut h, false);
+    assert_eq!(h.state().tool.snap_gesture(), Some(SnapGesture::Point));
+}
+
+// A begun drag adds one AccessKit object named for its size, with the hint as its value; it goes
+// when the drag ends.
+#[test]
+fn shape_drag_node_names_the_size_while_drawing() {
+    let mut h = harness(1.0, opts(ShapeKind::Rectangle), ShapeDragRules::PHOTOSHOP);
+    down(&mut h, (100.0, 100.0));
+    assert_eq!(h.query_all_by_role(Role::GraphicsObject).count(), 0, "no node before the drag begins");
+    to(&mut h, (160.0, 140.0), Modifiers::NONE);
+    let node = h.get_by_label("Drawing 60 by 40");
+    assert_eq!(node.value().unwrap_or_default(), "Drag to draw · Click or press Enter to set a size");
+    up(&mut h, (160.0, 140.0), Modifiers::NONE);
+    assert_eq!(h.query_all_by_label("Drawing 60 by 40").count(), 0, "the node goes with the drag");
 }

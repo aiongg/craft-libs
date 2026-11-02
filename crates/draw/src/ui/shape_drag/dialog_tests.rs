@@ -196,3 +196,63 @@ fn create_shape_remembers_size_and_checks_bad_values() {
         assert!(!bad.get_by_role_and_label(Role::Button, "OK").accesskit_node().is_disabled());
     }
 }
+
+// The radius fields sit in PhotoCraft's 2×2 grid (Top Left, Top Right / Bottom Left, Bottom Right)
+// and keep their places from one pass to the next.
+#[test]
+fn create_shape_radius_fields_form_a_grid_that_holds_across_passes() {
+    let mut h = open(CreateShapeOptions::initial(ShapeKind::Rectangle, Point::ZERO).recalled(), &Arc::default());
+    let places =
+        |h: &Harness<'_, App>| ["Top Left", "Top Right", "Bottom Left", "Bottom Right"].map(|c| h.get_by_role_and_label(Role::SpinButton, c).rect());
+    let first = places(&h);
+    h.run();
+    h.run();
+    assert_eq!(places(&h), first, "the fields do not move between passes");
+    let [tl, tr, bl, br] = first;
+    assert_eq!(tl.min.y, tr.min.y, "top row");
+    assert_eq!(bl.min.y, br.min.y, "bottom row");
+    assert!(bl.min.y > tl.min.y, "the bottom row is under the top row");
+    assert_eq!((tl.min.x, tr.min.x), (bl.min.x, br.min.x), "columns line up");
+    assert!(tr.min.x > tl.max.x, "the right column is right of the left one");
+}
+
+// Create Polygon shows Star Ratio at 100 %, answers it and remembers it; a Triangle has none.
+#[test]
+fn create_polygon_has_a_star_ratio() {
+    let store = Arc::default();
+    let mut h = open(CreateShapeOptions::initial(ShapeKind::Polygon, Point::ZERO), &store);
+    assert_eq!(h.get_all_by_role_and_label(Role::SpinButton, "Star Ratio").count(), 1);
+    assert!((shown(&h).star_ratio - 1.0).abs() < 1e-9, "100 % by default");
+    type_into(&mut h, "Star Ratio", "40");
+    click_button(&mut h, "OK");
+    let Some(made) = h.state().answers.last() else { panic!("OK answers") };
+    let ShapeGeometry::Polygon { star_ratio, .. } = made.geometry else { panic!("a polygon: {:?}", made.geometry) };
+    assert!((star_ratio - 0.4).abs() < 1e-9, "{star_ratio}");
+
+    let again = open(CreateShapeOptions::initial(ShapeKind::Polygon, Point::ZERO), &store);
+    assert!((shown(&again).star_ratio - 0.4).abs() < 1e-9, "recalled");
+    let triangle = open(CreateShapeOptions::initial(ShapeKind::Triangle, Point::ZERO), &store);
+    assert_eq!(triangle.get_all_by_role_and_label(Role::SpinButton, "Star Ratio").count(), 0);
+}
+
+// A click more than 300,000 px from the origin shows the position error and disables OK.
+#[test]
+fn create_shape_checks_the_position_range() {
+    let far = open(CreateShapeOptions::initial(ShapeKind::Ellipse, Point::new(300_001.0, 0.0)).recalled(), &Arc::default());
+    assert!(far.get_by_role_and_label(Role::Button, "OK").accesskit_node().is_disabled());
+    assert!(far.query_all_by_label("The shape's position is out of range").count() > 0);
+    let edge = open(CreateShapeOptions::initial(ShapeKind::Ellipse, Point::new(-300_000.0, 300_000.0)).recalled(), &Arc::default());
+    assert!(!edge.get_by_role_and_label(Role::Button, "OK").accesskit_node().is_disabled(), "the limit itself is allowed");
+}
+
+// From Center leaves the top left on a half pixel for an odd side, as PhotoCraft does.
+#[test]
+fn create_shape_from_center_keeps_half_pixels() {
+    let mut h = open(CreateShapeOptions::initial(ShapeKind::Rectangle, Point::new(10.0, 10.0)).recalled(), &Arc::default());
+    type_into(&mut h, "Width", "101");
+    h.get_by_role_and_label(Role::CheckBox, "From Center").click();
+    h.run();
+    click_button(&mut h, "OK");
+    let Some(made) = h.state().answers.last() else { panic!("OK answers") };
+    assert_eq!(made.geometry, rect(-40.5, -40.0, 60.5, 60.0));
+}
