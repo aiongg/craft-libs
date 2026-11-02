@@ -202,15 +202,15 @@ fn gallery_undo_works_while_a_number_field_has_focus() {
     harness.run();
     assert_eq!(harness.state().workspace.session().effects[0].filter, "sponge");
 
-    harness.get_by_role_and_label(Role::SpinButton, "Size:").click();
+    harness.get_by_role_and_label(Role::SpinButton, "Size").click();
     harness.run();
-    let before = harness.get_by_role_and_label(Role::SpinButton, "Size:").accesskit_node().value();
+    let before = harness.get_by_role_and_label(Role::SpinButton, "Size").accesskit_node().value();
     assert!(harness.ctx.text_edit_focused(), "the number field has the keyboard");
 
     harness.key_press_modifiers(Modifiers::COMMAND, Key::Z);
     harness.run();
     assert_eq!(harness.state().workspace.session().effects[0].filter, "cutout", "the pick is undone");
-    assert_eq!(harness.get_by_role_and_label(Role::SpinButton, "Size:").accesskit_node().value(), before, "the field keeps its text");
+    assert_eq!(harness.get_by_role_and_label(Role::SpinButton, "Size").accesskit_node().value(), before, "the field keeps its text");
 
     harness.key_press_modifiers(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z);
     harness.run();

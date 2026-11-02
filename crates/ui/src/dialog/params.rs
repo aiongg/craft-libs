@@ -322,7 +322,8 @@ impl Param {
         let ctx = form.ctx().clone();
         let numbers = LocaleNumbers::of_ctx(&ctx);
         let numbers = &*numbers;
-        let label = format!("{}:", translated(&ctx, self.label.trim_end_matches([':', '：'])));
+        let name = translated(&ctx, self.label.trim_end_matches([':', '：']));
+        let label = format!("{name}:");
         let key = self.key.as_str();
         let default = self.kind.default_value();
         let unit = &self.unit;
@@ -332,8 +333,8 @@ impl Param {
                 let (places, step) = if (max - min).abs() <= 10.0 { (0..=2, 0.01) } else { (0..=1, 1.0) };
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
-                        let slider = Slider::new((key, "slider"), label.as_str(), value, *min..=*max).scale(*scale).show(ui);
-                        let field = NumberField::new((key, "field"), label.as_str(), value, numbers).range(*min..=*max).step(step).decimals(places);
+                        let slider = Slider::new((key, "slider"), &name, value, *min..=*max).scale(*scale).show(ui);
+                        let field = NumberField::new((key, "field"), &name, value, numbers).range(*min..=*max).step(step).decimals(places);
                         let field = with_unit(field, unit).show(ui);
                         if let Some(v) = edited(&field).or_else(|| edited(&slider)) {
                             fields.set(key, FieldValue::Number(v));
@@ -349,7 +350,7 @@ impl Param {
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
                         let places = 0..=*decimals as usize;
-                        let field = NumberField::new((key, "field"), label.as_str(), value, numbers).range(range).step(*step).decimals(places);
+                        let field = NumberField::new((key, "field"), &name, value, numbers).range(range).step(*step).decimals(places);
                         let field = with_unit(field, unit).show(ui);
                         if let Some(v) = edited(&field) {
                             fields.set(key, FieldValue::Number(v));
@@ -364,7 +365,7 @@ impl Param {
                 let range = min.map_or(f64::NEG_INFINITY, |m| m as f64)..=max.map_or(f64::INFINITY, |m| m as f64);
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
-                        let field = NumberField::new((key, "field"), label.as_str(), value as f64, numbers).range(range).decimals(0..=0);
+                        let field = NumberField::new((key, "field"), &name, value as f64, numbers).range(range).decimals(0..=0);
                         let field = with_unit(field, unit).show(ui);
                         if let Some(v) = edited(&field) {
                             fields.set(key, FieldValue::Int(v.round() as i64));
@@ -376,7 +377,7 @@ impl Param {
             }
             ParamKind::Bool { default } => {
                 let mut value = fields.bool(key).unwrap_or(*default);
-                let text = label.trim_end_matches([':', '：']);
+                let text = name.as_str();
                 form.unlabelled(|ui| {
                     edit::scope(ui, |ui| {
                         let check = Checkbox::bool(text, &mut value).id_salt(key).show(ui);
@@ -392,7 +393,7 @@ impl Param {
                 let mut value = fields.text(key).map(str::to_owned).or_else(|| text_of(default.as_ref())).unwrap_or_default();
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
-                        let mut select = Select::new((key, "select"), label.as_str(), &mut value);
+                        let mut select = Select::new((key, "select"), &name, &mut value);
                         for (id, text) in options {
                             select = select.option(id.clone(), translated(&ctx, text));
                         }
@@ -409,7 +410,7 @@ impl Param {
                 let value = fields.number(key).unwrap_or(*default);
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
-                        let dial = AngleDial::new((key, "angle"), label.as_str(), value, numbers).show(ui);
+                        let dial = AngleDial::new((key, "angle"), &name, value, numbers).show(ui);
                         if let Some(v) = edited(&dial) {
                             fields.set(key, FieldValue::Number(v));
                         }
@@ -422,10 +423,9 @@ impl Param {
                 let color = fields.color(key);
                 let shown = color.map_or(Rgba::BLACK, |c| Rgba::rgb(encode(c[0]), encode(c[1]), encode(c[2])));
                 form.row(label.as_str(), |ui, _| {
-                    let swatch = ui.add(Swatch::new((key, "swatch"), label.as_str(), shown).mixed(color.is_none()));
+                    let swatch = ui.add(Swatch::new((key, "swatch"), &name, shown).mixed(color.is_none()));
                     if swatch.clicked() {
-                        let request =
-                            ColorRequest::new(key, Srgba::from_rgb_array(color.unwrap_or([0.0; 3]))).title(label.trim_end_matches([':', '：']));
+                        let request = ColorRequest::new(key, Srgba::from_rgb_array(color.unwrap_or([0.0; 3]))).title(&name);
                         ui.ctx().data_mut(|d| d.insert_temp(color_press_id(dialog), request));
                     }
                     swatch
@@ -449,7 +449,7 @@ impl Param {
                                 ui.horizontal(|ui| {
                                     for column in 0..side.min(count - row * side) {
                                         let i = row * side + column;
-                                        let name = format!("{label} {}, {}", row + 1, column + 1);
+                                        let name = format!("{name} {}, {}", row + 1, column + 1);
                                         let cell = NumberField::new((key, i), name, cells[i] as f64, numbers).decimals(0..=0).show(ui);
                                         if let Some(v) = edited(&cell) {
                                             next[i] = v.round() as i64;
@@ -471,7 +471,7 @@ impl Param {
                 let value = fields.point(key).unwrap_or(*default);
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
-                        let picker = PointPicker::new((key, "point"), label.as_str(), value, preview.copied()).show(ui);
+                        let picker = PointPicker::new((key, "point"), &name, value, preview.copied()).show(ui);
                         if let Some(v) = edited(&picker) {
                             fields.set(key, FieldValue::Point(v));
                         }
@@ -485,7 +485,7 @@ impl Param {
                 let mut index = value;
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
-                        let mut select = Select::new((key, "channel"), label.as_str(), &mut index);
+                        let mut select = Select::new((key, "channel"), &name, &mut index);
                         for (i, name) in names.iter().enumerate() {
                             select = select.option(i, name.as_str());
                         }
@@ -502,7 +502,7 @@ impl Param {
                 let value = fields.text(key).unwrap_or(default).to_owned();
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
-                        let mut text = TextField::new((key, "text"), label.as_str(), &value);
+                        let mut text = TextField::new((key, "text"), &name, &value);
                         if let Some(hint) = self.texts.as_ref().and_then(|t| t.hint.as_ref()) {
                             text = text.placeholder(translated(&ctx, hint));
                         }
@@ -543,9 +543,8 @@ impl Param {
                         }
                         let field = ui
                             .add_enabled_ui(fields.number(key).is_some(), |ui| {
-                                let field = NumberField::new((key, "field"), label.as_str(), last, numbers)
-                                    .range(*min..=*max)
-                                    .decimals(0..=*decimals as usize);
+                                let field =
+                                    NumberField::new((key, "field"), &name, last, numbers).range(*min..=*max).decimals(0..=*decimals as usize);
                                 with_unit(field, unit).show(ui)
                             })
                             .inner;

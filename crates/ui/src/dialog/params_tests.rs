@@ -83,7 +83,7 @@ fn the_registry_notation_parses_into_params() {
 fn typing_into_the_first_field_and_enter_answers_ok() {
     let mut harness = harness(ParamDialog::new("blur", "Blur", params()));
     harness.run();
-    assert!(harness.get_by_role_and_label(Role::SpinButton, "Radius:").accesskit_node().is_focused());
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Radius").accesskit_node().is_focused());
     harness.event(Event::Text("7".to_owned()));
     harness.run();
     harness.key_press(Key::Enter);
@@ -196,7 +196,7 @@ fn tab_visits_the_fields_and_buttons_only() {
         harness.run();
         seen.push(harness.query_by(|n| n.is_focused()).and_then(|n| n.accesskit_node().label()).unwrap_or_default());
     }
-    assert!(seen.iter().all(|label| ["Radius:", "OK", "Cancel"].contains(&label.as_str())), "{seen:?}");
+    assert!(seen.iter().all(|label| ["Radius", "OK", "Cancel"].contains(&label.as_str())), "{seen:?}");
     assert!(seen.iter().any(|label| label == "Cancel"), "{seen:?}");
 }
 
@@ -217,8 +217,8 @@ fn labels_and_option_labels_show_through_the_hosts_catalog() {
         })
         .build_ui_state(|ui, host: &mut DialogHost| host.show(ui.ctx()), host);
     harness.run();
-    harness.get_by_role_and_label(Role::SpinButton, "Radius-de:");
-    let select = harness.get_by_label("Method:");
+    harness.get_by_role_and_label(Role::SpinButton, "Radius-de");
+    let select = harness.get_by_label("Method");
     assert_eq!(select.accesskit_node().value().as_deref(), Some("Vergrößern"));
 }
 
@@ -245,7 +245,7 @@ fn a_parsed_hex_default_shows_as_that_hex() {
     let params = Param::parse_list(r##"{"tint":color=#808080}"##);
     let mut harness = harness(ParamDialog::new("tint", "Tint", params));
     harness.run();
-    let swatch = harness.get_by_label("Tint:");
+    let swatch = harness.get_by_role_and_label(Role::ColorWell, "Tint");
     assert_eq!(swatch.accesskit_node().value().as_deref().map(str::to_lowercase).as_deref(), Some("#808080"));
 }
 
@@ -261,8 +261,8 @@ fn labels_follow_photocrafts_source_label() {
 
     let mut harness = harness(ParamDialog::new("c", "C", params));
     harness.run();
-    harness.get_by_label("Cell Size:");
-    harness.get_by_label("Intent:");
+    harness.get_by_label("Cell Size");
+    harness.get_by_label("Intent");
 }
 
 // The log slider starts above a max/min ratio of 500 (PhotoCraft `uses_logarithmic_slider`).
@@ -304,7 +304,7 @@ fn a_swatch_press_goes_to_its_own_dialog() {
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui_state(|ui, host: &mut DialogHost| host.show(ui.ctx()), host);
     harness.run();
-    harness.get_by_label("Over:").click();
+    harness.get_by_label("Over").click();
     harness.run();
     assert_eq!(
         harness.state_mut().get_mut::<CommandForm>().unwrap().pick_color().map(|request| (request.key, request.title, request.color)),
@@ -381,13 +381,13 @@ fn a_row_is_enabled_only_while_its_condition_holds() {
     ];
     let mut harness = harness(ParamDialog::new("c", "C", rows));
     harness.run();
-    assert!(harness.get_by_role_and_label(Role::SpinButton, "Range:").accesskit_node().is_disabled());
-    let label = harness.get_by_role_and_label(Role::Label, "Range:");
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Range").accesskit_node().is_disabled());
+    let label = harness.get_by_role_and_label(Role::Label, "Range");
     assert!(label.accesskit_node().is_disabled(), "the row label is disabled too");
     harness.get_by_label("Localized").click();
     harness.run();
     harness.run();
-    assert!(!harness.get_by_role_and_label(Role::SpinButton, "Range:").accesskit_node().is_disabled());
+    assert!(!harness.get_by_role_and_label(Role::SpinButton, "Range").accesskit_node().is_disabled());
 }
 
 // A custom row draws the host's control and writes the dialog's values.
@@ -402,7 +402,7 @@ fn a_custom_row_writes_the_fields() {
     })];
     let mut harness = harness(ParamDialog::new("zoom", "Zoom", rows));
     harness.run();
-    harness.get_by_label("Center:").click();
+    harness.get_by_label("Center").click();
     harness.run();
     assert_eq!(open_dialog(&mut harness).expect("open").fields().point("center"), Some([25.0, 75.0]));
 }
@@ -427,7 +427,7 @@ fn an_optional_number_is_absent_until_custom_is_checked() {
     let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
     harness.run();
     assert_eq!(open_dialog(&mut harness).expect("open").fields().number("quality"), None);
-    assert!(harness.get_by_role_and_label(Role::SpinButton, "Quality:").accesskit_node().is_disabled());
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Quality").accesskit_node().is_disabled());
     harness.get_by_label("Custom").click();
     harness.run();
     assert_eq!(open_dialog(&mut harness).expect("open").fields().number("quality"), Some(8.0));
@@ -447,14 +447,14 @@ fn a_text_row_shows_its_hint_while_empty_and_the_row_has_a_tooltip() {
     let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
     harness.run();
     let field = |harness: &Harness<'_, App>| {
-        harness.get_by_role_and_label(Role::TextInput, "File Naming:").accesskit_node().data().placeholder().map(str::to_owned)
+        harness.get_by_role_and_label(Role::TextInput, "File Naming").accesskit_node().data().placeholder().map(str::to_owned)
     };
     assert_eq!(field(&harness).as_deref(), Some("{name}"));
-    harness.get_by_role_and_label(Role::TextInput, "File Naming:").focus();
+    harness.get_by_role_and_label(Role::TextInput, "File Naming").focus();
     harness.run();
     harness.event(Event::Text("x".to_owned()));
     harness.run();
-    harness.get_by_role_and_label(Role::TextInput, "File Naming:").hover();
+    harness.get_by_role_and_label(Role::TextInput, "File Naming").hover();
     for _ in 0..30 {
         harness.step();
     }
@@ -470,12 +470,12 @@ fn an_optional_number_with_no_decimals_shows_an_integer() {
     ];
     let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
     harness.run();
-    harness.get_by_role_and_label(Role::SpinButton, "Quality:").focus();
+    harness.get_by_role_and_label(Role::SpinButton, "Quality").focus();
     harness.run();
     harness.event(Event::Text("5.7".to_owned()));
     harness.key_press(Key::Tab);
     harness.run();
-    let shown = harness.get_by_role_and_label(Role::SpinButton, "Quality:").value();
+    let shown = harness.get_by_role_and_label(Role::SpinButton, "Quality").value();
     assert_eq!(shown.as_deref(), Some("6"), "{shown:?}");
 }
 
@@ -513,12 +513,12 @@ fn a_number_row_is_unbounded_on_open_sides_and_clamped_on_bounded_ones() {
     let mut harness = harness(ParamDialog::new("shift", "Shift", rows));
     harness.run();
     assert!(harness.query_by_role(Role::Slider).is_none());
-    harness.get_by_role_and_label(Role::SpinButton, "Offset:").focus();
+    harness.get_by_role_and_label(Role::SpinButton, "Offset").focus();
     harness.run();
     harness.event(Event::Text("-5000.25".to_owned()));
     harness.key_press(Key::Tab);
     harness.run();
-    harness.get_by_role_and_label(Role::SpinButton, "Count:").focus();
+    harness.get_by_role_and_label(Role::SpinButton, "Count").focus();
     harness.run();
     harness.event(Event::Text("99".to_owned()));
     harness.key_press(Key::Tab);
@@ -565,9 +565,9 @@ fn param_rows_draw_range_choice_bool_and_colour() {
     assert!(!state.changed, "filling defaults is not an edit");
     assert_eq!((state.fields.number("radius"), state.fields.bool("monochromatic")), (Some(1.0), Some(false)));
     assert_eq!(state.fields.text("method"), Some("zoom"));
-    harness.get_by_role_and_label(Role::SpinButton, "Radius:");
+    harness.get_by_role_and_label(Role::SpinButton, "Radius");
     harness.get_by_role_and_label(Role::CheckBox, "Monochromatic");
-    harness.get_by_label("Method:");
+    harness.get_by_label("Method");
 
     harness.get_by_role_and_label(Role::CheckBox, "Monochromatic").click();
     harness.run_steps(1);
@@ -576,7 +576,7 @@ fn param_rows_draw_range_choice_bool_and_colour() {
     harness.run_steps(2);
     assert!(!harness.state().changed);
 
-    harness.get_by_label("Tint:").click();
+    harness.get_by_label("Tint").click();
     harness.run_steps(1);
     assert_eq!(harness.state().color.as_deref(), Some("tint"));
 }

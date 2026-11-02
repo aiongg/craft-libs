@@ -279,18 +279,24 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             rows.push(MenuItem::new(self.shaped(ui, &PanelMenuLabels::in_dock(ui, self.config).close_group), GroupItem::CloseGroup).into());
         }
         if self.minimizes(owner) {
-            let label = if owner.minimized { &PanelMenuLabels::in_dock(ui, self.config).expand } else { &PanelMenuLabels::in_dock(ui, self.config).minimize };
+            let label =
+                if owner.minimized { &PanelMenuLabels::in_dock(ui, self.config).expand } else { &PanelMenuLabels::in_dock(ui, self.config).minimize };
             rows.push(MenuItem::new(self.shaped(ui, label), GroupItem::ToggleMinimized).into());
         }
         if owner.kind == GroupKind::Dock {
-            rows.push(MenuItem::new(self.shaped(ui, &PanelMenuLabels::in_dock(ui, self.config).collapse_to_icons), GroupItem::CollapseToIcons).into());
+            rows.push(
+                MenuItem::new(self.shaped(ui, &PanelMenuLabels::in_dock(ui, self.config).collapse_to_icons), GroupItem::CollapseToIcons).into(),
+            );
         }
         let whole_window = matches!(owner.kind, GroupKind::Floating { .. }) && self.whole_window(panel);
         if floatable && !whole_window {
             rows.push(MenuItem::new(self.shaped(ui, &PanelMenuLabels::in_dock(ui, self.config).float_group), GroupItem::FloatGroup).into());
         }
         if movable && owner.kind == GroupKind::Dock {
-            for (up, label) in [(true, &PanelMenuLabels::in_dock(ui, self.config).move_group_up), (false, &PanelMenuLabels::in_dock(ui, self.config).move_group_down)] {
+            for (up, label) in [
+                (true, &PanelMenuLabels::in_dock(ui, self.config).move_group_up),
+                (false, &PanelMenuLabels::in_dock(ui, self.config).move_group_down),
+            ] {
                 let steps = self.layout.can_step_group(panel, up, |p| self.permissions(p));
                 rows.push(MenuItem::new(self.shaped(ui, label), GroupItem::StepGroup(up)).enabled(steps).into());
             }
@@ -309,7 +315,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         if config.maximize_item && owner.kind == GroupKind::Frame {
             let restore = self.frame.maximized.as_ref().is_some_and(|m| owner.panels.contains(m));
-            let label = if restore { &PanelMenuLabels::in_dock(ui, self.config).restore_frame } else { &PanelMenuLabels::in_dock(ui, self.config).maximize };
+            let label =
+                if restore { &PanelMenuLabels::in_dock(ui, self.config).restore_frame } else { &PanelMenuLabels::in_dock(ui, self.config).maximize };
             rows.push(MenuItem::new(self.shaped(ui, label), GroupItem::ToggleMaximize).into());
         }
         rows
@@ -478,7 +485,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             self.output.actions.push(Action::CloseGroup { panel: panel.clone() });
         }
         if self.minimizes(owner) {
-            let label = if owner.minimized { PanelMenuLabels::in_dock(ui, self.config).expand.clone() } else { PanelMenuLabels::in_dock(ui, self.config).minimize.clone() };
+            let label = if owner.minimized {
+                PanelMenuLabels::in_dock(ui, self.config).expand.clone()
+            } else {
+                PanelMenuLabels::in_dock(ui, self.config).minimize.clone()
+            };
             if self.menu_action(ui, &label) {
                 self.output.actions.push(Action::SetMinimized { panel: panel.clone(), minimized: !owner.minimized });
             }
@@ -496,9 +507,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             });
         }
         if movable && owner.kind == GroupKind::Dock {
-            for (up, label) in
-                [(true, PanelMenuLabels::in_dock(ui, self.config).move_group_up.clone()), (false, PanelMenuLabels::in_dock(ui, self.config).move_group_down.clone())]
-            {
+            for (up, label) in [
+                (true, PanelMenuLabels::in_dock(ui, self.config).move_group_up.clone()),
+                (false, PanelMenuLabels::in_dock(ui, self.config).move_group_down.clone()),
+            ] {
                 let steps = self.layout.can_step_group(panel, up, |p| self.permissions(p));
                 if ui.add_enabled_ui(steps, |ui| self.menu_action(ui, &label)).inner {
                     self.output.actions.push(Action::StepGroup { panel: panel.clone(), up });

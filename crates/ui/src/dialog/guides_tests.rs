@@ -264,10 +264,10 @@ fn layout_dialog_previews_live_and_tracks_the_preset() {
     assert!(first.lines.all.vertical.contains(&5.0), "the preview is the full set: the existing guides too");
     assert_eq!(first.color, Color32::from_rgb(0x4a, 0xff, 0xff));
 
-    choose(&mut harness, "Preset:", "12 Columns");
+    choose(&mut harness, "Preset", "12 Columns");
     let twelve = layout(&harness);
     assert_eq!((twelve.preset, twelve.columns.number, twelve.columns.gutter.value), (GuideLayoutPreset::TwelveColumns, 12, 24.0));
-    choose(&mut harness, "Target:", "Selected Artboards");
+    choose(&mut harness, "Target", "Selected Artboards");
     assert_eq!(layout(&harness).preset, GuideLayoutPreset::TwelveColumns, "a target change keeps the preset");
     type_into(&mut harness, "Gutter", "10");
     assert_eq!(layout(&harness).preset, GuideLayoutPreset::Custom, "a typed edit makes the preset Custom");
@@ -343,7 +343,7 @@ fn typed_percent_resolves_per_artboard() {
 
     let dialog = GuideLayoutDialog::new(document(), GuideLines::default(), pixel_units(), GuideColor::Cyan.rgb()).artboards(boards);
     let mut harness = open(dialog);
-    choose(&mut harness, "Target:", "Selected Artboards");
+    choose(&mut harness, "Target", "Selected Artboards");
     type_into(&mut harness, "Gutter", "10%");
     assert_eq!(layout(&harness).columns.gutter, Length { value: 10.0, unit: LengthUnit::Percent }, "the dialog keeps the percentage");
     type_into(&mut harness, "Gutter", "12");
@@ -370,7 +370,7 @@ fn guide_fields_have_photocraft_widths() {
 
     let dialog = GuideLayoutDialog::new(document(), GuideLines::default(), pixel_units(), GuideColor::Cyan.rgb());
     let harness = open(dialog);
-    assert!((width(&harness, Role::ComboBox, "Preset:") - 222.0).abs() < 1.0);
+    assert!((width(&harness, Role::ComboBox, "Preset") - 222.0).abs() < 1.0);
     assert!((width(&harness, Role::ComboBox, "Color") - 174.0).abs() < 1.0);
     assert!((width(&harness, Role::SpinButton, "Number") - 68.0).abs() < 1.0);
     assert!((width(&harness, Role::SpinButton, "Top:") - 64.0).abs() < 1.0);

@@ -609,8 +609,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 Rect::from_min_max(bar.min, pos2(bar.right() - width, bar.bottom())),
             ),
         };
-        let label =
-            if column.iconic { PanelMenuLabels::in_dock(ui, self.config).expand_panels.clone() } else { PanelMenuLabels::in_dock(ui, self.config).collapse_to_icons.clone() };
+        let label = if column.iconic {
+            PanelMenuLabels::in_dock(ui, self.config).expand_panels.clone()
+        } else {
+            PanelMenuLabels::in_dock(ui, self.config).collapse_to_icons.clone()
+        };
         if usable(button) {
             let response = ui.interact(button, self.id.with(("column-collapse", Some(first))), Sense::click());
             self.register_interaction(ui.ctx(), response.id);

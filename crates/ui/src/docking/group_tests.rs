@@ -686,7 +686,8 @@ fn the_group_menu_rows_use_the_apps_panel_menu_words() {
     use egui_kittest::{Harness, kittest::Queryable};
     let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
         |ui, (content, actions): &mut (TestContent, Vec<Action<u32>>)| {
-            let labels = super::panel_menu::PanelMenuLabels { close_group: "Collapse Panel Group".into(), ..super::panel_menu::PanelMenuLabels::of(ui) };
+            let labels =
+                super::panel_menu::PanelMenuLabels { close_group: "Collapse Panel Group".into(), ..super::panel_menu::PanelMenuLabels::of(ui) };
             let style = DockStyle::join(&super::DockConfig::default().panel_menu(labels), &super::DockLook::of(ui));
             let out = DockArea::new(Id::unique(AREA)).show_content(ui, &docked(), &style, content);
             actions.extend(out.actions);

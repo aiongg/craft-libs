@@ -335,7 +335,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         if self.config.maximize_item && owner.kind == GroupKind::Frame {
             let restore = self.frame.maximized.as_ref().is_some_and(|m| owner.panels.contains(m));
-            let label = if restore { PanelMenuLabels::in_dock(ui, self.config).restore_frame.clone() } else { PanelMenuLabels::in_dock(ui, self.config).maximize.clone() };
+            let label = if restore {
+                PanelMenuLabels::in_dock(ui, self.config).restore_frame.clone()
+            } else {
+                PanelMenuLabels::in_dock(ui, self.config).maximize.clone()
+            };
             if self.menu_action(ui, &label) {
                 let panel = if restore { self.frame.maximized.clone().unwrap_or_else(|| panel.clone()) } else { panel.clone() };
                 self.output.events.push(DockEvent::ToggleMaximize { panel });
