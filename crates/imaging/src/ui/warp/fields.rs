@@ -3,12 +3,11 @@
 
 use egui::{AsIdSalt, IdSalt, Ui};
 
-use craft_theme::ControlSize;
 use craft_ui::controls::{IconButton, NumberField, Select};
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
-use craft_ui::localized::{LocaleNumbers, Unit};
-use craft_ui::patterns::{CellWidth, OptionsBar};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::patterns::{CellWidth, OptionsBar, OptionsBarSlots};
 use craft_ui::words;
 
 use super::{WarpMesh, WarpSplit};
@@ -34,6 +33,7 @@ words! {
         warp_name: "warpFields.warpName" = "Warp";
         orientation: "warpFields.orientation" = "Change warp orientation";
         bend: "warpFields.bend" = "Bend:";
+        bend_name: "warpFields.bendName" = "Bend";
         horizontal: "warpFields.horizontal" = "H:";
         vertical: "warpFields.vertical" = "V:";
         horizontal_name: "warpFields.horizontalName" = "Horizontal distortion";
@@ -153,8 +153,9 @@ pub struct WarpFieldsOutput {
     pub edits: Vec<WarpFieldsEdit>,
 }
 
-/// The Warp group of a transform's options bar, shown by the draw library's `TransformBar` in its
-/// Warp phase through its `warp_fields` closure.
+/// The Warp group of a transform's options bar: the app fills the bar's body slot with it in the
+/// transform's Warp phase ([`add_to`](Self::add_to)) and reads the edits from the
+/// [`output`](Self::output) it gave.
 ///
 /// - In order: "Split:" and three `IconButton`s (Crosswise, Vertically, Horizontally; the armed
 ///   one pressed, a press on it disarms), a divider, "Grid:" and a `Select` (Custom, Default,
@@ -169,19 +170,21 @@ pub struct WarpFields<'a> {
     id_salt: IdSalt,
     styles: &'a [WarpStyleEntry],
     values: WarpFieldValues,
-    labels: WarpFieldsLabels,
+    labels: Option<WarpFieldsLabels>,
     split: Option<WarpSplit>,
     on_type: bool,
+    output: Option<&'a mut WarpFieldsOutput>,
 }
 
 impl<'a> WarpFields<'a> {
     /// The group for the app's `styles` showing `values`.
     pub fn new(id_salt: impl AsIdSalt, styles: &'a [WarpStyleEntry], values: WarpFieldValues) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), styles, values, labels: WarpFieldsLabels::default(), split: None, on_type: false }
+        Self { id_salt: IdSalt::new(id_salt), styles, values, labels: None, split: None, on_type: false, output: None }
     }
 
+    /// The words; the installed ones ([`WarpFieldsLabels::of`]) when not given.
     pub fn labels(mut self, labels: WarpFieldsLabels) -> Self {
-        self.labels = labels;
+        self.labels = Some(labels);
         self
     }
 
@@ -197,14 +200,26 @@ impl<'a> WarpFields<'a> {
         self
     }
 
-    /// Draws the group into the options bar's `ui`.
-    pub fn show(self, ui: &mut Ui) -> WarpFieldsOutput {
+    /// Where the group reports its edits; each pass's edits are appended in order.
+    pub fn output(mut self, output: &'a mut WarpFieldsOutput) -> Self {
+        self.output = Some(output);
+        self
+    }
+
+    /// Fills the bar's body slot.
+    pub fn add_to(self, slots: &mut OptionsBarSlots<'a>) {
+        slots.body(move |ui| self.show(ui));
+    }
+
+    fn show(self, ui: &mut Ui) {
         // pc: crates/ui-egui/src/tools/transform_tool/options_bar.rs:358 (`warp_fields`), :410
         // (`warp_mesh_fields`), :501 (`split_icon`).
-        let Self { id_salt, styles, values, labels, split, on_type } = self;
-        let sm = ControlSize::Sm;
+        let Self { id_salt, styles, values, labels, split, on_type, output } = self;
+        let labels = labels.unwrap_or_else(|| WarpFieldsLabels::of(ui));
+        let sm = OptionsBar::CONTROL_SIZE;
         let numbers = LocaleNumbers::of(ui);
-        let mut out = WarpFieldsOutput::default();
+        let mut scratch = WarpFieldsOutput::default();
+        let out = output.unwrap_or(&mut scratch);
         ui.push_id(id_salt, |ui| {
             OptionsBar::group(ui, !on_type, |ui| {
                 OptionsBar::cell(ui, &labels.split, CellWidth::Content, |ui, _| {
@@ -265,7 +280,7 @@ impl<'a> WarpFields<'a> {
                     out.edits.push(WarpFieldsEdit::Orientation { vertical: !values.vertical });
                 }
                 let fields: [NumberRow<'_>; 3] = [
-                    ("bend", &labels.bend, labels.bend.trim_end_matches(':'), values.bend, WarpFieldsEdit::Bend),
+                    ("bend", &labels.bend, &labels.bend_name, values.bend, WarpFieldsEdit::Bend),
                     ("horizontal", &labels.horizontal, &labels.horizontal_name, values.horizontal, WarpFieldsEdit::Horizontal),
                     ("vertical", &labels.vertical, &labels.vertical_name, values.vertical_distortion, WarpFieldsEdit::Vertical),
                 ];
@@ -277,6 +292,5 @@ impl<'a> WarpFields<'a> {
                 }
             });
         });
-        out
     }
 }

@@ -45,8 +45,8 @@ words! {
 ///
 /// Keys (one Tab stop, `PartFocus`): Page Down and Up pick the next and previous corner (plane by
 /// plane, clockwise); arrows move the picked corner and its linked corners (⇧ ten); in Layout,
-/// Insert adds [`PerspectiveSession::inserted_plane`] and Delete removes the picked corner's
-/// plane; Enter applies.
+/// Insert adds [`PerspectiveSession::inserted_plane`] and Delete or Backspace removes the picked
+/// corner's plane; Enter applies.
 ///
 /// AccessKit: a group; each corner a graphics object "Plane 2, corner 3" with value "x, y",
 /// "linked" when linked. Nothing mirrors in a right-to-left interface.
@@ -355,7 +355,7 @@ impl<'a> PerspectiveWarp<'a> {
 
     /// The keys: Enter and Esc always; with the group focused and no press held, the arrows move
     /// the picked corner and the corners linked to it, and in Layout Insert adds a plane and
-    /// Delete removes the picked corner's plane.
+    /// Delete and Backspace remove the picked corner's plane.
     #[expect(clippy::too_many_arguments, reason = "one pass's state, passed once")]
     fn keys(
         &self,
@@ -395,7 +395,7 @@ impl<'a> PerspectiveWarp<'a> {
                 *picked = Some(PlaneCorner { plane: grown.len() - 1, corner: 0 });
                 gesture.set(grown);
             }
-            if take_exact(ui, Modifiers::NONE, Key::Delete) > 0
+            if take_exact(ui, Modifiers::NONE, Key::Delete) + take_exact(ui, Modifiers::NONE, Key::Backspace) > 0
                 && let Some(corner) = on
             {
                 let mut rest = shown.to_vec();
@@ -442,7 +442,11 @@ impl<'a> PerspectiveWarp<'a> {
 }
 
 /// The keys a focused overlay keeps from the app's shortcuts.
-const CLAIMED: [ClaimedKey; 2] = [ClaimedKey::exact(Modifiers::NONE, Key::Delete), ClaimedKey::exact(Modifiers::NONE, Key::Insert)];
+const CLAIMED: [ClaimedKey; 3] = [
+    ClaimedKey::exact(Modifiers::NONE, Key::Delete),
+    ClaimedKey::exact(Modifiers::NONE, Key::Backspace),
+    ClaimedKey::exact(Modifiers::NONE, Key::Insert),
+];
 
 /// What a press does.
 #[derive(Clone, Debug)]
