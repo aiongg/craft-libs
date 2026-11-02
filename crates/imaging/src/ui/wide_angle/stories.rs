@@ -14,13 +14,11 @@
 //! |---|---|
 //! | `patterns/wide-angle/constraints` | Free, Horizontal and Vertical constraints on the source; the same over the corrected preview (arg) |
 
-use std::sync::{Arc, Mutex};
-
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::dialog::Outcome;
 use craft_ui::localized::Labels as _;
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, claim, dialog_closed, dialog_shown};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, claim, dialog_closed, dialog_shown, lock, shared};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui};
 
@@ -87,13 +85,13 @@ struct Lens {
 }
 
 impl Lens {
-    fn centre(&self) -> (f64, f64) {
+    fn center(&self) -> (f64, f64) {
         (f64::from(self.size[0]) / 2.0, f64::from(self.size[1]) / 2.0)
     }
 
     /// Where the straight picture's point lands in the source.
     fn distort(&self, p: Point) -> Point {
-        let (cx, cy) = self.centre();
+        let (cx, cy) = self.center();
         let (x, y) = ((p.x - cx) / cx, (p.y - cy) / cx);
         let scale = 1.0 / (1.0 + self.k * (x * x + y * y));
         Point::new(cx + x * scale * cx, cy + y * scale * cx)
@@ -101,7 +99,7 @@ impl Lens {
 
     /// The straight picture's point that lands on the source's `p`.
     fn undistort(&self, p: Point) -> Point {
-        let (cx, cy) = self.centre();
+        let (cx, cy) = self.center();
         let (x, y) = ((p.x - cx) / cx, (p.y - cy) / cx);
         let (mut u, mut v) = (x, y);
         for _ in 0..INVERSE_ROUNDS {
@@ -182,12 +180,6 @@ impl WideAngleSource for StorySource {
 
 // --- the kept workspace ---
 
-struct Kept {
-    workspace: WideAngleWorkspace,
-}
-
-type Slot = Arc<Mutex<Option<Kept>>>;
-
 /// The start: Auto, and the three constraints in source pixels.
 fn start(size: [u32; 2]) -> WideAngleSession {
     let [width, height] = size.map(f64::from);
@@ -199,25 +191,23 @@ fn start(size: [u32; 2]) -> WideAngleSession {
 }
 
 fn show_constraints(ui: &mut Ui, args: &mut ConstraintsArgs) {
-    let id = ui.make_persistent_id("craft_imaging::wide_angle::story");
-    let slot: Slot = ui.data_mut(|d| d.get_temp_mut_or_insert_with::<Slot>(id, Slot::default).clone());
-    let Ok(mut kept) = slot.lock() else { return };
+    let slot = shared(ui, "constraints", || None::<WideAngleWorkspace>);
+    let mut kept = lock(&slot);
     if !(dialog_shown(ui, args.open) && claim(ui.ctx(), "wide_angle", ui.scope_id())) {
         *kept = None;
         return;
     }
     let image = MockImage::default();
-    if kept.is_none() {
+    let workspace = kept.get_or_insert_with(|| {
         let subject = StoryLabels::of(ui).photo;
-        *kept = Some(Kept { workspace: WideAngleWorkspace::new(WideAngleOpen::new(image.size(), subject).session(start(image.size()))) });
-    }
-    let Some(kept) = kept.as_mut() else { return };
+        WideAngleWorkspace::new(WideAngleOpen::new(image.size(), subject).session(start(image.size())))
+    });
     let lens = Lens { size: image.size(), k: args.curvature / 100.0 };
     let source = StorySource { source: Barrel { image, lens }, corrected: (args.preview == PreviewArg::Corrected).then_some(image) };
-    let out = kept.workspace.show(ui.ctx(), &Geometry(lens), &source);
+    let out = workspace.show(ui.ctx(), &Geometry(lens), &source);
     // The fake solve is instant: every ticket is answered in the pass that asked it.
     if let Some(ticket) = out.preview_wanted {
-        kept.workspace.preview_ready(ticket, None);
+        workspace.preview_ready(ticket, None);
     }
     if out.outcome.is_some_and(Outcome::closes) {
         dialog_closed(ui, &mut args.open);

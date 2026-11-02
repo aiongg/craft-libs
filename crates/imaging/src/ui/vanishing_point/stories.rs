@@ -2,9 +2,10 @@
 //! `vanishing_point::stories` to the crate's `register!` list, `VanishingPointWorkspace` to
 //! `COMPONENTS` and [`VanishingPointStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!
-//! The stories run the workspace's own parts, the options bar and the plane editor on a
-//! `FullWindowCanvas`, in a frame of the story (the tool is an arg, so Create Plane's pending
-//! corners and the Stamp tool show without the strip). The scene is [`MockScene`]: planes are
+//! The `planes` and `stamp` stories run the workspace's own parts, the options bar and the plane
+//! editor on a `FullWindowCanvas`, in a frame of the story (the tool is an arg, so Create Plane's
+//! pending corners and the Stamp tool show without the strip). The `selection` story runs the
+//! workspace itself as a dialog. The scene is [`MockScene`]: planes are
 //! flat quadrilaterals, the first is valid, the second questionable and the third invalid, plane
 //! 3 is torn off the first one's right edge, and the stamp ring is the circle squashed to 0.5
 //! (an affine ring, no perspective maths). The layer is `MockImage`, the stamp preview is the
@@ -15,21 +16,23 @@
 //! |---|---|
 //! | `patterns/vanishing-point/planes` | Valid, questionable and invalid planes, a torn-off wall; click a plane to select it and show its nodes; Create Plane's pending corners |
 //! | `patterns/vanishing-point/stamp` | The source cross, the foreshortened ring under the pointer, the paste image on a plane |
+//! | `patterns/vanishing-point/selection` | The whole workspace as a dialog, opened on the plane the arg picks (`VanishingPointWorkspace::selected_plane`), with its nodes shown |
 
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{Checkerboard, NavigationOptions, RasterSource};
+use craft_ui::dialog::Outcome;
 use craft_ui::dialog::full_window::{FullWindowCanvas, FullWindowView};
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, lock, shared};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, Surface, claim, dialog_closed, dialog_shown, lock, reset_on, shared};
 use craft_ui::theme::current;
 use craft_ui::typed_story;
 use egui::load::SizedTexture;
 use egui::{Color32, ColorImage, TextureHandle, TextureOptions, Ui, vec2};
 
 use super::{
-    PlaneCheck, PlaneEdge, StampLimits, TornPlane, VanishingPlane, VanishingPointBar, VanishingPointEditor, VanishingPointSession,
-    VanishingPointSettings, VanishingPointSource, VanishingPointStyle, VanishingScene, VanishingTool,
+    PlaneCheck, PlaneEdge, StampLimits, TornPlane, VanishingPlane, VanishingPointBar, VanishingPointEditor, VanishingPointOpen,
+    VanishingPointSession, VanishingPointSettings, VanishingPointSource, VanishingPointStyle, VanishingPointWorkspace, VanishingScene, VanishingTool,
 };
 use crate::ui::mock_image::MockImage;
 
@@ -67,6 +70,15 @@ pub(crate) fn stories() -> Vec<Story> {
             show_stamp
         )
         .on(Surface::Canvas),
+        typed_story!(
+            "patterns/vanishing-point/selection",
+            Level::Patterns,
+            "VanishingPointWorkspace",
+            "Selection",
+            SelectionArgs { open: true, plane: SelectedArg::Wall },
+            show_selection
+        )
+        .on(Surface::Own),
     ]
 }
 
@@ -76,6 +88,39 @@ enum PlaneTool {
     Edit,
     #[choice(name = "Create Plane")]
     Create,
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum SelectedArg {
+    #[choice(name = "None")]
+    NoPlane,
+    Wall,
+    Window,
+    #[choice(name = "Floor Patch")]
+    FloorPatch,
+    #[choice(name = "Torn Wall")]
+    TornWall,
+}
+
+impl SelectedArg {
+    /// The index of the plane in [`planes_session`].
+    fn index(self) -> Option<usize> {
+        match self {
+            SelectedArg::NoPlane => None,
+            SelectedArg::Wall => Some(0),
+            SelectedArg::Window => Some(1),
+            SelectedArg::FloorPatch => Some(2),
+            SelectedArg::TornWall => Some(3),
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct SelectionArgs {
+    /// Whether the workspace is open.
+    open: bool,
+    /// The plane the workspace opens on.
+    plane: SelectedArg,
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]
@@ -225,6 +270,8 @@ impl VanishingPointSource for MockSource {
 
 /// The paste's texture size in pixels.
 const PASTE: usize = 64;
+/// The engine's clone-stroke limits the stories give the editor.
+const LIMITS: StampLimits = StampLimits { strokes: 4096, dabs: 200_000 };
 
 /// A diagonal two-colour pattern: the clipboard's image.
 fn paste_image() -> ColorImage {
@@ -248,13 +295,7 @@ struct State {
 impl State {
     fn new(ui: &Ui, session: VanishingPointSession) -> Self {
         let texture = ui.ctx().load_texture("vanishing-point-story-paste", paste_image(), TextureOptions::NEAREST);
-        Self {
-            session,
-            editor: VanishingPointEditor::new(StampLimits { strokes: 4096, dabs: 200_000 }),
-            view: FullWindowView::new(),
-            options: VanishingPointSettings::default(),
-            texture,
-        }
+        Self { session, editor: VanishingPointEditor::new(LIMITS), view: FullWindowView::new(), options: VanishingPointSettings::default(), texture }
     }
 }
 
@@ -319,4 +360,38 @@ fn show_stamp(ui: &mut Ui, args: &mut StampArgs) {
     state.options.stamp.aligned = args.aligned;
     state.options.stamp.diameter = args.diameter;
     editor(ui, &mut state, "stamp", VanishingTool::Stamp, words.hint_stamp.as_str());
+}
+
+/// The workspace a `selection` story keeps, with the paste texture its source holds.
+struct Opened {
+    workspace: VanishingPointWorkspace,
+    texture: TextureHandle,
+}
+
+fn show_selection(ui: &mut Ui, args: &mut SelectionArgs) {
+    reset_on(ui, "selection", &args.plane);
+    let slot = shared(ui, "selection", || None::<Opened>);
+    let mut kept = lock(&slot);
+    if !(dialog_shown(ui, args.open) && claim(ui.ctx(), "vanishing_point", ui.scope_id())) {
+        *kept = None;
+        return;
+    }
+    let image = MockImage::default();
+    let opened = kept.get_or_insert_with(|| {
+        let texture = ui.ctx().load_texture("vanishing-point-story-selection-paste", paste_image(), TextureOptions::NEAREST);
+        let mut open = VanishingPointOpen::new(image.size(), StoryLabels::of(ui).photo, LIMITS);
+        open.session = planes_session();
+        let mut workspace = VanishingPointWorkspace::new(open);
+        workspace.selected_plane(args.plane.index());
+        Opened { workspace, texture }
+    });
+    let source = MockSource { image, paste: SizedTexture::new(opened.texture.id(), vec2(PASTE as f32, PASTE as f32)) };
+    let out = opened.workspace.show(ui.ctx(), &MockScene, &source);
+    // The fake stamp preview is the layer itself, so every ticket is answered in the pass that asked it.
+    if let Some(ticket) = out.preview_wanted {
+        opened.workspace.preview_ready(ticket);
+    }
+    if out.outcome.is_some_and(Outcome::closes) {
+        dialog_closed(ui, &mut args.open);
+    }
 }

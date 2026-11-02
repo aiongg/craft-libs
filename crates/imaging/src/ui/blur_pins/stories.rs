@@ -16,7 +16,7 @@
 use craft_ui::canvas::RasterSource as _;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, Surface};
+use craft_ui::story::{Level, Story, StoryArgs, Surface, lock, reset_on, shared};
 use craft_ui::testing::canvas_story::{ViewArgs, document_with};
 use craft_ui::typed_story;
 use egui::{Sense, Ui};
@@ -38,6 +38,7 @@ craft_ui::words! {
         update: "blurPinsStory.update" = "dragging";
         commit: "blurPinsStory.commit" = "drag finished";
         cancel: "blurPinsStory.cancel" = "drag cancelled";
+        canvas: "blurPinsStory.canvas" = "Blur pins canvas";
     }
 }
 
@@ -109,12 +110,10 @@ struct TiltArgs {
     transition: f64,
 }
 
-/// The pins' state and the last edit's kind, kept in egui memory with the args they were built
-/// from.
-#[derive(Clone)]
+/// The pins' state and the last edit's kind. The args they were built from reset it
+/// ([`reset_on`]).
 struct Kept {
     pins: BlurPins,
-    signature: Vec<f64>,
     edit: Option<&'static str>,
 }
 
@@ -132,15 +131,13 @@ fn show(ui: &mut Ui, salt: &'static str, signature: Vec<f64>, build: impl FnOnce
     let labels = BlurPinsLabels::of(ui);
     let words = BlurPinsStoryLabels::of(ui);
     let image = MockImage::default();
-    let key = ui.make_persistent_id(("blur-pins-story", salt));
-    let mut kept = ui.data(|d| d.get_temp::<Kept>(key)).filter(|kept| kept.signature == signature).unwrap_or_else(|| Kept {
-        pins: build(&image),
-        signature,
-        edit: None,
-    });
+    reset_on(ui, salt, &signature);
+    let kept = shared(ui, salt, || Kept { pins: build(&image), edit: None });
+    let mut kept = lock(&kept);
+    let kept = &mut *kept;
     ui.columns(2, |columns| {
         let ui = &mut columns[0];
-        let picture = document_with(ui, ViewArgs::default(), salt, 0.0, image.view(None, None));
+        let picture = document_with(ui, ViewArgs::default(), words.canvas.as_str(), 0.0, image.view(None, None));
         image.show(ui, &picture);
         let (area, view) = (&picture.response, picture.view);
         let canvas = ui.interact(area.rect, ui.make_persistent_id(("blur-pins-story-canvas", salt)), Sense::click_and_drag() - Sense::FOCUSABLE);
@@ -167,7 +164,6 @@ fn show(ui: &mut Ui, salt: &'static str, signature: Vec<f64>, build: impl FnOnce
         };
         ui.add(Text::new(craft_i18n::fmt(&words.edit, &[("what", what.as_str())])).content(Content::Muted));
     });
-    ui.data_mut(|d| d.insert_temp(key, kept));
 }
 
 fn show_field(ui: &mut Ui, args: &mut FieldArgs) {

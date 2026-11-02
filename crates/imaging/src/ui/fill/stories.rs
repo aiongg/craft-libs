@@ -24,7 +24,7 @@ use craft_ui::canvas::{Checkerboard, PixelRect, RasterSource, SelectionOperation
 use craft_ui::dialog::full_window::FullWindowCanvas;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, claim, dialog_closed, dialog_shown, lock, shared};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, claim, dialog_closed, dialog_shown, lock, reset_on, shared};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Ui, vec2};
 
@@ -230,7 +230,7 @@ impl FillSource for MockFill {
     }
 }
 
-fn texel_centre(column: u32, row: u32) -> [f64; 2] {
+fn texel_center(column: u32, row: u32) -> [f64; 2] {
     let t = f64::from(TEXEL);
     [(f64::from(column) + 0.5) * t, (f64::from(row) + 0.5) * t]
 }
@@ -285,7 +285,7 @@ impl MockFill {
     fn of(session: &FillSession, mode: SamplingMode) -> Self {
         let image = MockImage::default();
         let cells = image.size().map(|v| v.div_ceil(TEXEL));
-        let at = |i: usize| texel_centre(i as u32 % cells[0], i as u32 / cells[0]);
+        let at = |i: usize| texel_center(i as u32 % cells[0], i as u32 / cells[0]);
         let count = (cells[0] * cells[1]) as usize;
 
         let house = image.subject_bounds();
@@ -358,21 +358,19 @@ impl MockFill {
     }
 }
 
-/// What a workspace story keeps: the workspace built from `signature`, and the planes of the
-/// session they were made for.
+/// What a workspace story keeps: the workspace, and the planes of the session they were made for.
 struct Held {
     workspace: ContentAwareFillWorkspace,
-    signature: (SamplingMode, bool, u64, bool),
     source: MockFill,
     planned: (FillSession, SamplingMode),
 }
 
 impl Held {
-    fn new(settings: &FillSettings, subject: &str, signature: (SamplingMode, bool, u64, bool)) -> Self {
+    fn new(settings: &FillSettings, subject: &str) -> Self {
         let size = MockImage::default().size();
         let workspace = ContentAwareFillWorkspace::new(FillOpen::new(size, subject, LIMITS).settings(settings.clone()));
         let planned = (workspace.session().clone(), settings.sampling);
-        Held { source: MockFill::of(&planned.0, planned.1), workspace, signature, planned }
+        Held { source: MockFill::of(&planned.0, planned.1), workspace, planned }
     }
 }
 
@@ -384,13 +382,11 @@ fn run_workspace(ui: &mut Ui, salt: &'static str, open: &mut bool, settings: Fil
         return;
     }
     let signature = (settings.sampling, settings.excluded, settings.opacity.to_bits(), settings.show_overlay);
-    let held = shared(ui, salt, || Held::new(&settings, &words.layer, signature));
+    reset_on(ui, salt, &signature);
+    let held = shared(ui, salt, || Held::new(&settings, &words.layer));
     let mut held = lock(&held);
-    if held.signature != signature {
-        *held = Held::new(&settings, &words.layer, signature);
-    }
     let ctx = ui.ctx().clone();
-    let Held { workspace, source, planned, .. } = &mut *held;
+    let Held { workspace, source, planned } = &mut *held;
     let out = workspace.show(&ctx, source);
     if let Some(ticket) = out.preview_wanted {
         match preview {
@@ -406,7 +402,7 @@ fn run_workspace(ui: &mut Ui, salt: &'static str, open: &mut bool, settings: Fil
     }
     if out.outcome.is_some() {
         // The next opening starts again.
-        *held = Held::new(&settings, &words.layer, signature);
+        *held = Held::new(&settings, &words.layer);
         dialog_closed(ui, open);
     }
 }
