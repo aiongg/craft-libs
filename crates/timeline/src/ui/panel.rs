@@ -6,17 +6,17 @@ use craft_ui::behavior::{ClaimedKey, KeyClaim, Selection, SelectionChange, Selec
 use craft_ui::controls::IconButton;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture, GestureId};
 use craft_ui::icons::Icon;
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{
-    Align, AsIdSalt, CornerRadius, CursorIcon, EventFilter, Id, IdSalt, Key, Layout, Modifiers, PointerButton, Pos2, Rect, Response, Sense, Stroke,
-    StrokeKind, Ui, UiBuilder, WidgetInfo, pos2, vec2,
+    Align, Align2, AsIdSalt, CornerRadius, CursorIcon, EventFilter, Id, IdSalt, Key, Layout, Modifiers, Painter, PointerButton, Pos2, Rect, Response,
+    Sense, Stroke, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2, vec2,
 };
 
-use super::clips::{ClipLane, TimelineTool};
+use super::clips::{ClipLane, ClipPainter, TimelineTool};
 use super::markers::MarkerEdit;
 use super::ruler::{SHIFT_STEP_FRAMES, STEP_FRAMES, TimelineRuler, TimelineScrollBar, WHEEL_ZOOM};
 use super::{LabelPalette, TimecodeField, TimelineStyle};
@@ -47,6 +47,10 @@ craft_ui::words! {
         no_label: "timeline.noLabel" = "None";
         empty: "timeline.empty" = "Drop media here to create sequence.";
         overview: "timeline.overview" = "Overview";
+        mix: "timeline.mix" = "Mix";
+        track_height: "timeline.trackHeight" = "Drag to change the height of {track}";
+        track_height_top: "timeline.trackHeightTop" = "Drag the top edge to change the height of {track}";
+        header_width: "timeline.headerWidth" = "Drag to change the width of the track headers";
     }
 }
 
@@ -64,6 +68,7 @@ pub enum TrackSwitch {
 /// What the panel asks of the app. Clip and playhead edits come as `EditEvent` gestures: the
 /// app previews updates and applies the commit as one undo step.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum TimelineEdit {
     Clip(EditEvent<ClipEdit>),
     Playhead(EditEvent<Tick>),
@@ -82,7 +87,8 @@ pub enum TimelineEdit {
         track: TrackId,
         label: Option<MarkerColor>,
     },
-    /// A row's bottom edge dragged: the new height in points, clamped to
+    /// A row's edge dragged, or a double-click on its header (a one-step `Set` between 64 and
+    /// 30 points, FilmCraft `timeline/headers.rs:179-186`): the new height in points, clamped to
     /// `style.track_height_min`…`style.track_height_max`, as one gesture (Esc cancels).
     TrackHeight {
         track: TrackId,
@@ -117,22 +123,25 @@ pub type HeaderExtra<'a> = Box<dyn FnMut(&mut Ui, &TrackInfo<'_>) + 'a>;
 /// window as options).
 ///
 /// Layout, top to bottom: the large [`TimecodeField`](super::TimecodeField) and the toolbar
-/// toggles (left, over the headers, `style.top_height` high) beside the
-/// [`TimelineRuler`](super::TimelineRuler); then the track rows: video tracks stacked upward
-/// from the divider (V1 nearest it), the divider (`style.divider_height`), audio tracks
-/// downward; each side scrolls vertically on its own; the
-/// [`TimelineScrollBar`](super::TimelineScrollBar) at the bottom. Headers are [`TrackHeader`]s,
-/// `style.header_width` wide unless [`header_width`](Self::header_width) says otherwise and
-/// resizable at their right edge ([`TimelineEdit::HeaderWidth`]); rows are
-/// [`ClipLane`](super::ClipLane)s. The playhead line runs over every row; the snap line shows
-/// while a gesture snaps. `style` is [`TimelineStyle`](super::TimelineStyle) (`timeline.*` tokens). The toolbar
-/// toggles are [`ToggleButton`](craft_ui::controls::ToggleButton)s the app owns the state of
-/// (Snap, Linked Selection), reported through their responses on
-/// [`TimelineOutput::toolbar`].
+/// buttons (left, over the headers, `style.top_height` high) beside the
+/// [`TimelineRuler`](super::TimelineRuler); then the track rows: the caption tracks in their own
+/// area (FilmCraft's), a divider, video tracks stacked upward from the next divider (V1 nearest
+/// it), the divider (`style.divider_height`), audio tracks downward, and the Mix row
+/// (`style.mix_row_height`) when the model has a [master volume](TimelineModel::master_volume_db);
+/// each side scrolls vertically on its own; the [`TimelineScrollBar`](super::TimelineScrollBar)
+/// at the bottom. Headers are [`TrackHeader`]s, `style.header_width` wide unless
+/// [`header_width`](Self::header_width) says otherwise, resizable at their right edge
+/// ([`TimelineEdit::HeaderWidth`], within `style.header_width_min`…`style.header_width_max`);
+/// rows are [`ClipLane`](super::ClipLane)s, which paint their clips' content through
+/// [`content`](Self::content). The playhead line runs over every row; the snap line shows while
+/// a gesture snaps. `style` is [`TimelineStyle`](super::TimelineStyle) (`timeline.*` tokens). The
+/// toolbar buttons are [`IconButton`]s the app owns the state of (Snap, Linked Selection),
+/// reported through their responses on [`TimelineOutput::toolbar`]; the app adds a marker when
+/// the Add Marker response clicks (FilmCraft `ruler.rs:70`).
 ///
 /// Input:
-/// - Wheel scrolls vertically, Shift+wheel horizontally, Alt+wheel (Cmd+wheel on macOS) zooms
-///   about the pointer; a pinch zooms; the view animates to its target as FilmCraft's does.
+/// - Wheel scrolls vertically, Shift+wheel horizontally, Alt+wheel zooms about the pointer; a
+///   pinch zooms; the view animates to its target as FilmCraft's does.
 /// - `=` and `-` zoom in and out about the playhead, `\` fits the sequence.
 /// - While playing, the view follows the playhead by the [`FollowMode`]; a jump while stopped
 ///   reveals it ([`TimeView::scroll_to_reveal`](crate::TimeView::scroll_to_reveal)).
@@ -144,7 +153,7 @@ pub type HeaderExtra<'a> = Box<dyn FnMut(&mut Ui, &TrackInfo<'_>) + 'a>;
 ///   ([`TimelineModel::edit_points`]), each a [`TimelineEdit::Playhead`] `Set`; the header switches are Tab stops in row order; Delete on selected
 ///   clips is the app's shortcut (the panel claims no keys beyond these).
 /// - AccessKit: the time area is a `Group` named by [`TimelineLabels::panel`]; each track a
-///   `Row`; each clip a `Button` named by its name with its start and duration as the value
+///   `Row`; each height edge and the headers' width edge a `Splitter`; each clip a `Button` named by its name with its start and duration as the value
 ///   (the [`TimeFormat`](crate::TimeFormat) of the model), `selected` set.
 ///
 /// ```ignore
@@ -163,6 +172,7 @@ pub struct Timeline<'a, M: TimelineModel> {
     header_width: Option<f32>,
     palette: Option<&'a LabelPalette>,
     header_extra: Option<HeaderExtra<'a>>,
+    content: Option<ClipPainter<'a>>,
     labels: Option<TimelineLabels>,
 }
 
@@ -183,6 +193,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             header_width: None,
             palette: None,
             header_extra: None,
+            content: None,
             labels: None,
         }
     }
@@ -234,6 +245,13 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
         self
     }
 
+    /// Paints each clip's content into its body rect (waveforms, thumbnails), forwarded to every
+    /// lane's [`ClipLane::content`](super::ClipLane::content).
+    pub fn content(mut self, paint: impl FnMut(&Painter, Rect, &ClipInfo<'_>) + 'a) -> Self {
+        self.content = Some(Box::new(paint));
+        self
+    }
+
     pub fn labels(mut self, labels: TimelineLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -255,6 +273,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             header_width,
             palette,
             mut header_extra,
+            mut content,
             labels,
         } = self;
         let tokens = Tokens::of(ui);
@@ -274,26 +293,33 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             let tracks = model.tracks();
             let format = model.format();
             let (rate, duration, playhead) = (format.rate, model.duration(), model.playhead());
-            let heights: Vec<f32> = tracks
-                .iter()
-                .map(|track| {
-                    let default = if track.kind == TrackKind::Video { style.video_track_height } else { style.audio_track_height };
-                    let height = if track.height.is_finite() && track.height > 0.0 { track.height } else { default };
-                    height.clamp(style.track_height_min, style.track_height_max)
-                })
-                .collect();
-            let (upper, lower): (Vec<usize>, Vec<usize>) = (0..tracks.len()).partition(|&i| tracks[i].kind == TrackKind::Video);
+            let heights: Vec<f32> = tracks.iter().map(|track| resolved_height(&style, track)).collect();
+            let side_of = |track: &TrackInfo<'_>| match track.kind {
+                TrackKind::Caption => Side::Caption,
+                TrackKind::Video => Side::Upper,
+                _ => Side::Lower,
+            };
+            let on_side = |side: Side| -> Vec<usize> { (0..tracks.len()).filter(|&i| side_of(&tracks[i]) == side).collect() };
+            let (captions, upper, lower) = (on_side(Side::Caption), on_side(Side::Upper), on_side(Side::Lower));
             let total = |indices: &[usize]| indices.iter().map(|&i| heights[i]).sum::<f32>();
-            let (upper_sum, lower_sum) = (total(&upper), total(&lower));
-            // Each side keeps one empty track's height past its last track: where a drop adds one.
+            let (caption_need, upper_sum, lower_sum) = (total(&captions), total(&upper), total(&lower));
+            // The video and audio sides keep one empty track's height past their last track: where
+            // a drop adds one.
             let (upper_need, lower_need) = (upper_sum + style.video_track_height, lower_sum + style.audio_track_height);
+            let mix = model.master_volume_db();
 
             let avail = ui.available_size();
-            let wanted = style.top_height + upper_need + style.divider_height + lower_need + style.scrollbar_height;
+            let wanted = style.top_height
+                + caption_need
+                + upper_need
+                + style.divider_height
+                + lower_need
+                + if mix.is_some() { style.mix_row_height } else { 0.0 }
+                + style.scrollbar_height;
             let (outer, _) = ui.allocate_exact_size(vec2(avail.x, if avail.y.is_finite() { avail.y } else { wanted }), Sense::hover());
             let panel_response = ui.interact(outer, id.with("panel"), Sense::hover());
-            let header_w = header_width.unwrap_or(style.header_width).clamp(0.0, outer.width() / 2.0);
-            let geo = Geo::new(&style, outer, header_w, upper_need, lower_need);
+            let header_w = header_width.unwrap_or(style.header_width).clamp(style.header_width_min, style.header_width_max).min(outer.width());
+            let geo = Geo::new(&style, outer, header_w, Needs { caption: caption_need, upper: upper_need, lower: lower_need, mix: mix.is_some() });
             let (left, width) = (geo.time_left, geo.time_area.width());
 
             let painter = ui.painter_at(outer);
@@ -301,6 +327,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             painter.rect_filled(geo.top, CornerRadius::ZERO, color.surface.chrome.to_egui());
             painter.rect_filled(geo.time_area, CornerRadius::ZERO, color.surface.sunken.to_egui());
             painter.rect_filled(geo.divider, CornerRadius::ZERO, color.surface.chrome.to_egui());
+            painter.rect_filled(geo.caption_divider, CornerRadius::ZERO, color.surface.chrome.to_egui());
 
             // The time area is the panel's one Tab stop, below the lanes: a lane gets the pointer
             // and hands the focus over.
@@ -325,6 +352,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
                     out.edits.extend(keys.handle(ui, &mut anim).map(|to| TimelineEdit::Playhead(EditEvent::set(to, mods))));
                 }
             }
+            scrolls.caption = scrolls.caption.clamp(0.0, geo.max_caption);
             scrolls.upper = scrolls.upper.clamp(0.0, geo.max_upper);
             scrolls.lower = scrolls.lower.clamp(0.0, geo.max_lower);
             ui.data_mut(|d| d.insert_temp(scrolls_id, scrolls));
@@ -355,7 +383,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             // The ruler.
             let mut ruler_ui = ui.new_child(UiBuilder::new().max_rect(geo.ruler));
             ruler_ui.set_clip_rect(geo.ruler.intersect(ui.clip_rect()));
-            let ruler = TimelineRuler::new(id.with("ruler"), &mut view, format, duration)
+            let ruler = TimelineRuler::new((id, "ruler"), &mut view, format, duration)
                 .playhead(playhead)
                 .in_out(model.in_out())
                 .work_area(model.work_area())
@@ -376,16 +404,19 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
 
             // The rows.
             let mut rows = Vec::with_capacity(tracks.len());
-            for (indices, top, up) in
-                [(&upper, geo.upper.bottom() - upper_sum + scrolls.upper, true), (&lower, geo.lower.top() - scrolls.lower, false)]
-            {
+            for (indices, top, side) in [
+                (&captions, geo.caption.top() - scrolls.caption, Side::Caption),
+                (&upper, geo.upper.bottom() - upper_sum + scrolls.upper, Side::Upper),
+                (&lower, geo.lower.top() - scrolls.lower, Side::Lower),
+            ] {
                 let mut y = top;
                 for (position, &index) in indices.iter().enumerate() {
                     let kind = tracks[index].kind;
                     let before = indices[..position].iter().filter(|&&i| tracks[i].kind == kind).count();
                     let of_kind = indices.iter().filter(|&&i| tracks[i].kind == kind).count();
-                    let kind_index = if up { of_kind - 1 - before } else { before } as i32;
-                    rows.push(Row { index, kind, kind_index, top: y, bottom: y + heights[index] });
+                    let kind_index = if side == Side::Upper { of_kind - 1 - before } else { before } as i32;
+                    let top_video = side == Side::Upper && position == 0;
+                    rows.push(Row { index, kind, side, kind_index, top_video, top: y, bottom: y + heights[index] });
                     y += heights[index];
                 }
             }
@@ -419,15 +450,19 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
                 pointer_y: ui.input(|i| i.pointer.latest_pos()).map(|pos| pos.y),
                 hover: ui.input(|i| i.pointer.hover_pos()),
             };
-            for (area, in_area) in [(geo.upper, true), (geo.lower, false)] {
+            for (area, side) in [(geo.caption, Side::Caption), (geo.upper, Side::Upper), (geo.lower, Side::Lower)] {
                 let mut child = ui.new_child(UiBuilder::new().max_rect(area));
                 child.set_clip_rect(area.intersect(ui.clip_rect()));
-                for row in rows.iter().filter(|row| (row.kind == TrackKind::Video) == in_area) {
+                for row in rows.iter().filter(|row| row.side == side) {
                     let (track, clips) = (&tracks[row.index], &clips[row.index]);
                     if row_rect(&geo, row).intersects(area) {
-                        cx.show_row(&mut child, area, row, track, clips, header_extra.as_mut(), &mut out);
+                        let hooks = RowHooks { extra: header_extra.as_mut(), content: content.as_mut() };
+                        cx.show_row(&mut child, area, row, (track, heights[row.index], clips), hooks, &mut out);
                     }
                 }
+            }
+            if let Some(db) = mix {
+                paint_mix_row(ui, &geo, &tokens, &labels, db);
             }
             out.settle_drag(ui, &cx, drag_key);
             out.marquee_pass(ui, &cx, marquee_key, tracks.iter().zip(&clips).map(|(track, list)| (track.id, list.as_slice())));
@@ -446,12 +481,12 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             lines.line_segment([pos2(x, geo.time_area.top()), pos2(x, geo.time_area.bottom())], Stroke::new(hairline, color.accent.solid.to_egui()));
             let separator = Stroke::new(craft_theme::Stroke::Hairline.width(ui.pixels_per_point()), color.line.divider.to_egui());
             painter.line_segment([pos2(left, geo.top.top()), pos2(left, geo.rows.bottom())], separator);
-            out.edits.extend(resize_headers(ui, &geo, header_w, id));
+            out.edits.extend(resize_headers(ui, &geo, header_w, id, &labels));
 
             // The scroll bar.
             let mut bar_ui = ui.new_child(UiBuilder::new().max_rect(geo.bar));
             bar_ui.set_clip_rect(geo.bar.intersect(ui.clip_rect()));
-            TimelineScrollBar::new(id.with("scroll"), &mut view, duration).show(&mut bar_ui);
+            TimelineScrollBar::new((id, "scroll"), &mut view, duration).show(&mut bar_ui);
 
             // Whatever moved the view directly (the ruler, the scroll bar) is the new target.
             if view != eased {
@@ -501,24 +536,52 @@ pub struct TimelineToolbar {
 }
 
 /// One track's header (Premiere's): the colour label strip (`style.label_strip` wide; a click
-/// opens a [`PressMenu`](craft_ui::menu::PressMenu) of the labels and None), then the switches
-/// the [`TrackInfo`] has (`Some`): lock, target, sync lock, output, mute, solo, as icon
-/// [`ToggleButton`](craft_ui::controls::ToggleButton)s with the tooltips of
-/// [`TimelineLabels`]; the name; and a resize edge at the bottom (vertical resize cursor;
-/// `style.track_height_min`…`style.track_height_max`). The label tints the header by
-/// `style.header_label_tint` (a proportion). Each switch is a Tab stop; Space toggles;
-/// Alt-click on Mute or Solo is exclusive. AccessKit: each switch a toggle `Button` named by its
-/// tooltip and the track's name.
+/// opens a [`PressMenu`](craft_ui::menu::PressMenu) of the labels and None), the name (indented
+/// by the track's `depth`), then the switches the [`TrackInfo`] has (`Some`): lock, target, sync
+/// lock, output, mute, solo, as icon [`IconButton`]s with the tooltips of [`TimelineLabels`]
+/// (FilmCraft puts the switches on the header's upper line and the name on the lower one); and a
+/// resize edge at the bottom (vertical resize cursor;
+/// `style.track_height_min`…`style.track_height_max`), which starts from the row's
+/// [`height`](Self::height). Rows above the divider grow upward, so
+/// [`above_divider`](Self::above_divider) negates their travel, and the top video row also has
+/// a top edge ([`top_edge`](Self::top_edge)), as FilmCraft's. A double-click on the header's
+/// body toggles the height between 64 and 30 points. The label tints the header by
+/// `HEADER_LABEL_TINT`, a share of the app's colour (FilmCraft `timeline.rs:254`). The colour
+/// strip and the edges are pointer-only; each switch is a Tab stop; Space toggles; Alt-click on
+/// Mute or Solo is exclusive. AccessKit: each switch a toggle `Button` named by its tooltip and
+/// the track's name; each edge a `Splitter` named by the track.
 pub struct TrackHeader<'a> {
     id_salt: IdSalt,
     track: &'a TrackInfo<'a>,
+    height: Option<f32>,
+    above_divider: bool,
+    top_edge: bool,
     palette: Option<&'a LabelPalette>,
     labels: Option<&'a TimelineLabels>,
 }
 
 impl<'a> TrackHeader<'a> {
     pub fn new(id_salt: impl AsIdSalt, track: &'a TrackInfo<'a>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), track, palette: None, labels: None }
+        Self { id_salt: IdSalt::new(id_salt), track, height: None, above_divider: false, top_edge: false, palette: None, labels: None }
+    }
+
+    /// The row's height this pass, which a resize starts from. Without it the header resolves
+    /// the track's height itself (the style's default for its kind when `None`).
+    pub fn height(mut self, height: f32) -> Self {
+        self.height = Some(height);
+        self
+    }
+
+    /// The row is above the divider: dragging an edge up grows it (video rows stack upward).
+    pub fn above_divider(mut self, above: bool) -> Self {
+        self.above_divider = above;
+        self
+    }
+
+    /// Adds a resize edge at the header's top (the top video row's outer edge).
+    pub fn top_edge(mut self, on: bool) -> Self {
+        self.top_edge = on;
+        self
     }
 
     pub fn palette(mut self, palette: &'a LabelPalette) -> Self {
@@ -534,7 +597,7 @@ impl<'a> TrackHeader<'a> {
     // filmcraft: crates/ui-egui/src/panels/timeline/headers.rs:38 `draw_headers`, `:202`
     // `header_line_buttons`; `timeline.rs:254` `TRACK_HEADER_TINT`.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> TrackHeaderOutput {
-        let Self { id_salt, track, palette, labels } = self;
+        let Self { id_salt, track, height, above_divider, top_edge, palette, labels } = self;
         let tokens = Tokens::of(ui);
         let style = TimelineStyle::of(&tokens);
         let color = &tokens.color;
@@ -557,6 +620,7 @@ impl<'a> TrackHeader<'a> {
         let id = ui.make_persistent_id(id_salt);
         let enabled = ui.is_enabled();
         let mods = ui.input(|i| i.modifiers);
+        let height = height.unwrap_or_else(|| resolved_height(&style, track));
         let response = ui.interact(rect, id, Sense::hover());
         let mut edits = Vec::new();
         let painter = ui.painter_at(rect);
@@ -571,7 +635,7 @@ impl<'a> TrackHeader<'a> {
         painter.line_segment([pos2(rect.left(), rect.bottom()), pos2(rect.right(), rect.bottom())], divider);
 
         // The colour strip opens the label menu.
-        let strip_response = ui.interact(strip, id.with("strip"), Sense::click());
+        let strip_response = ui.interact(strip, id.with("strip"), Sense::CLICK);
         strip_response.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, &labels.track_color));
         let strip_response = strip_response.on_hover_text(&labels.track_color);
         if strip_response.hovered() && track.label.is_none() {
@@ -587,11 +651,21 @@ impl<'a> TrackHeader<'a> {
             edits.push(TimelineEdit::Label { track: track.id, label });
         }
 
-        // The name, then the switches the track has.
+        // A double-click on the header's body toggles the height (below the switches in z order).
+        let body = Rect::from_min_max(pos2(strip.right(), rect.top()), rect.max);
+        if ui.interact(body, id.with("body"), Sense::CLICK).double_clicked() && enabled {
+            let toggled = if height < HEIGHT_TOGGLE_BELOW { HEIGHT_TOGGLE_TALL } else { HEIGHT_TOGGLE_SHORT };
+            edits.push(TimelineEdit::TrackHeight {
+                track: track.id,
+                height: EditEvent::set(toggled.clamp(style.track_height_min, style.track_height_max), mods),
+            });
+        }
+
+        // The name (indented by the track's depth), then the switches the track has.
         let text = role_format(&tokens, style.header_text, color.text.normal.to_egui());
         let gap = ui.spacing().item_spacing.x;
         let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(track.name.to_owned(), text.clone())));
-        let mut x = strip.right() + gap;
+        let mut x = strip.right() + gap + f32::from(track.depth) * header_indent(&style);
         painter.galley(pos2(x, rect.center().y - galley.size().y / 2.0), galley.clone(), text.color);
         x += galley.size().x + gap;
         let side = IconButton::style(&tokens, ControlSize::Sm).side;
@@ -624,28 +698,38 @@ impl<'a> TrackHeader<'a> {
             }
         }
 
-        // The bottom edge resizes the row.
-        let grab =
-            Rect::from_min_max(pos2(rect.left(), rect.bottom() - style.edge_zone / 2.0), pos2(rect.right(), rect.bottom() + style.edge_zone / 2.0));
-        let edge = ui.interact(grab, id.with("height"), Sense::drag());
-        if edge.hovered() || edge.dragged() {
-            ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+        // The edges resize the row: the bottom one, and the top one of the top video row.
+        let sign = if above_divider { -1.0 } else { 1.0 };
+        let half = style.edge_zone / 2.0;
+        let bottom = Rect::from_min_max(pos2(rect.left(), rect.bottom() - half), pos2(rect.right(), rect.bottom() + half));
+        let top = Rect::from_min_max(pos2(rect.left(), rect.top() - half), pos2(rect.right(), rect.top() + half));
+        let name = |word: &str| fmt(word, &[("track", track.name)]);
+        let mut edges = vec![(HeaderEdge::Bottom, bottom, name(&labels.track_height))];
+        if top_edge {
+            edges.push((HeaderEdge::Top, top, name(&labels.track_height_top)));
         }
-        let mut resize = Gesture::load(ui, edge.id, &track.height, EditPolicy::default()).enabled(enabled);
-        if edge.drag_started_by(PointerButton::Primary) {
-            resize.begin();
+        for (edge_kind, grab, label) in edges {
+            let edge = ui.interact(grab, id.with(("height", edge_kind as u8)), Sense::DRAG);
+            edge.widget_info(|| WidgetInfo::labeled(Role::Splitter, enabled, &label));
+            if edge.hovered() || edge.dragged() {
+                ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+            }
+            let mut resize = Gesture::load(ui, edge.id, &height, EditPolicy::default()).enabled(enabled);
+            if edge.drag_started_by(PointerButton::Primary) {
+                resize.begin();
+            }
+            if resize.is_active()
+                && edge.dragged()
+                && let (Some(origin), Some(pos)) = (ui.input(|i| i.pointer.press_origin()), ui.input(|i| i.pointer.latest_pos()))
+            {
+                let wanted = *resize.start().unwrap_or(&height) + sign * (pos.y - origin.y);
+                resize.update(wanted.clamp(style.track_height_min, style.track_height_max), mods);
+            }
+            if edge.drag_stopped() {
+                resize.commit();
+            }
+            edits.extend(resize.finish().map(|height| TimelineEdit::TrackHeight { track: track.id, height }));
         }
-        if resize.is_active()
-            && edge.dragged()
-            && let (Some(origin), Some(pos)) = (ui.input(|i| i.pointer.press_origin()), ui.input(|i| i.pointer.latest_pos()))
-        {
-            let wanted = *resize.start().unwrap_or(&track.height) + pos.y - origin.y;
-            resize.update(wanted.clamp(style.track_height_min, style.track_height_max), mods);
-        }
-        if edge.drag_stopped() {
-            resize.commit();
-        }
-        edits.extend(resize.finish().map(|height| TimelineEdit::TrackHeight { track: track.id, height }));
         TrackHeaderOutput { response, edits }
     }
 }
@@ -657,8 +741,38 @@ pub struct TrackHeaderOutput {
     pub edits: Vec<TimelineEdit>,
 }
 
-/// How strongly a track's colour label tints its header (FilmCraft `timeline.rs:254`), a share.
+/// How strongly a track's colour label tints its header: a share of the app's label colour
+/// (FilmCraft `timeline.rs:254` `TRACK_HEADER_TINT`).
 const HEADER_LABEL_TINT: f32 = 0.18;
+/// A double-click on a header sets a row below this height to the tall one, else to the short
+/// one (FilmCraft `timeline/headers.rs:179-186`).
+const HEIGHT_TOGGLE_BELOW: f32 = 50.0;
+const HEIGHT_TOGGLE_TALL: f32 = 64.0;
+const HEIGHT_TOGGLE_SHORT: f32 = 30.0;
+
+/// Which edge of a header a resize came from.
+#[derive(Clone, Copy)]
+enum HeaderEdge {
+    Bottom,
+    Top,
+}
+
+/// A track's height in points: its own, or the style's default for its kind, within the style's
+/// least and most.
+fn resolved_height(style: &TimelineStyle, track: &TrackInfo<'_>) -> f32 {
+    let default = match track.kind {
+        TrackKind::Video => style.video_track_height,
+        // No `timeline` leaf sizes a caption row (FilmCraft `timeline_captions.rs:22` `ROW_H`).
+        TrackKind::Caption | TrackKind::Audio | TrackKind::Other => style.audio_track_height,
+    };
+    track.height.filter(|height| height.is_finite() && *height > 0.0).unwrap_or(default).clamp(style.track_height_min, style.track_height_max)
+}
+
+/// How far each level of a track's `depth` indents its name (EffectCraft `timeline.rs:2024`).
+/// No `timeline` leaf holds it.
+fn header_indent(style: &TimelineStyle) -> f32 {
+    style.label_strip
+}
 /// The factor one `=` or `-` press zooms by.
 const KEY_ZOOM: f64 = 2.0;
 /// The view's ease rate per second (FilmCraft `timeline.rs:468`) and the longest frame it counts.
@@ -699,17 +813,29 @@ struct ViewAnim {
 /// How far each side of the divider is scrolled, in points.
 #[derive(Clone, Copy, Debug, Default)]
 struct Scrolls {
+    caption: f32,
     upper: f32,
     lower: f32,
 }
 
+/// The three areas of rows: the captions at the top, video above the divider, the rest below.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Side {
+    Caption,
+    Upper,
+    Lower,
+}
+
 /// A track row's place this pass. `kind_index` counts away from the divider within the kind
-/// (V1 is 0, V2 is 1; A1 is 0).
+/// (V1 is 0, V2 is 1; A1 is 0; captions count from the top). `top_video` marks the top video
+/// row, which has a top edge.
 #[derive(Clone, Copy, Debug)]
 struct Row {
     index: usize,
     kind: TrackKind,
+    side: Side,
     kind_index: i32,
+    top_video: bool,
     top: f32,
     bottom: f32,
 }
@@ -781,6 +907,9 @@ fn resolve_move(rows: &[Row], source: &Row, y: f32, bounds: (f32, f32)) -> (i32,
     if let Some(row) = rows.iter().find(|row| row.top <= y && y < row.bottom) {
         return if row.kind == source.kind { (row.kind_index - source.kind_index, false) } else { (0, false) };
     }
+    if source.side == Side::Caption {
+        return (0, false);
+    }
     let same = || rows.iter().filter(|row| row.kind == source.kind);
     let past = if source.kind == TrackKind::Video { same().all(|row| y < row.top) } else { same().all(|row| y >= row.bottom) };
     if past { (same().count() as i32 - source.kind_index, true) } else { (0, false) }
@@ -839,18 +968,33 @@ struct Geo {
     time_area: Rect,
     ruler: Rect,
     bar: Rect,
+    caption: Rect,
+    caption_divider: Rect,
     upper: Rect,
     divider: Rect,
     lower: Rect,
+    mix: Rect,
     time_left: f32,
+    max_caption: f32,
     max_upper: f32,
     max_lower: f32,
 }
 
+/// What each side of the rows needs, in points.
+#[derive(Clone, Copy, Debug)]
+struct Needs {
+    caption: f32,
+    upper: f32,
+    lower: f32,
+    mix: bool,
+}
+
 impl Geo {
-    /// Both sides need their tracks plus one empty track; the divider sits where each side gets
-    /// what it needs, else the sides share the room.
-    fn new(style: &TimelineStyle, outer: Rect, header_w: f32, upper_need: f32, lower_need: f32) -> Self {
+    /// Every side needs its tracks (video and audio plus one empty track); the captions take what
+    /// they need up to half the room, then the divider sits where each side gets what it needs,
+    /// else the sides share the room.
+    fn new(style: &TimelineStyle, outer: Rect, header_w: f32, needs: Needs) -> Self {
+        let Needs { caption: caption_need, upper: upper_need, lower: lower_need, mix } = needs;
         let time_left = outer.left() + header_w;
         let top = Rect::from_min_size(outer.min, vec2(outer.width(), style.top_height.min(outer.height())));
         let rows =
@@ -858,14 +1002,69 @@ impl Geo {
         let time_area = Rect::from_min_max(pos2(time_left, rows.top()), rows.max);
         let ruler = Rect::from_min_max(pos2(time_left, (top.bottom() - style.ruler_height).max(top.top())), pos2(outer.right(), top.bottom()));
         let bar = Rect::from_min_max(pos2(time_left, rows.bottom()), outer.max);
-        let room = (rows.height() - style.divider_height).max(0.0);
+        let mix_h = if mix { style.mix_row_height.min(rows.height()) } else { 0.0 };
+        let caption_divider_h = if caption_need > 0.0 { style.divider_height } else { 0.0 };
+        let room = (rows.height() - style.divider_height - caption_divider_h - mix_h).max(0.0);
+        let caption_h = caption_need.min(room / 2.0);
+        let room = room - caption_h;
         let upper_h = if upper_need + lower_need <= room { upper_need } else { upper_need.min(room / 2.0).max(room - lower_need) }.clamp(0.0, room);
-        let upper = Rect::from_min_size(rows.min, vec2(rows.width(), upper_h));
+        let caption = Rect::from_min_size(rows.min, vec2(rows.width(), caption_h));
+        let caption_divider = Rect::from_min_size(pos2(rows.left(), caption.bottom()), vec2(rows.width(), caption_divider_h));
+        let upper = Rect::from_min_size(pos2(rows.left(), caption_divider.bottom()), vec2(rows.width(), upper_h));
         let divider = Rect::from_min_size(pos2(rows.left(), upper.bottom()), vec2(rows.width(), style.divider_height));
-        let lower = Rect::from_min_max(pos2(rows.left(), divider.bottom()), rows.max);
-        let (max_upper, max_lower) = ((upper_need - upper.height()).max(0.0), (lower_need - lower.height()).max(0.0));
-        Self { outer, top, rows, time_area, ruler, bar, upper, divider, lower, time_left, max_upper, max_lower }
+        let lower = Rect::from_min_max(pos2(rows.left(), divider.bottom()), pos2(rows.right(), (rows.bottom() - mix_h).max(divider.bottom())));
+        let mix = Rect::from_min_max(pos2(rows.left(), lower.bottom()), rows.max);
+        let (max_caption, max_upper, max_lower) =
+            ((caption_need - caption.height()).max(0.0), (upper_need - upper.height()).max(0.0), (lower_need - lower.height()).max(0.0));
+        Self {
+            outer,
+            top,
+            rows,
+            time_area,
+            ruler,
+            bar,
+            caption,
+            caption_divider,
+            upper,
+            divider,
+            lower,
+            mix,
+            time_left,
+            max_caption,
+            max_upper,
+            max_lower,
+        }
     }
+}
+
+/// The Mix row (FilmCraft `timeline.rs:387-396`): its name over the headers' left, the master
+/// volume in dB at the headers' right.
+fn paint_mix_row(ui: &Ui, geo: &Geo, tokens: &UiTokens, labels: &TimelineLabels, db: f32) {
+    if geo.mix.height() <= 0.0 {
+        return;
+    }
+    let style = TimelineStyle::of(tokens);
+    let color = &tokens.color;
+    let painter = ui.painter_at(geo.mix);
+    painter.rect_filled(geo.mix, CornerRadius::ZERO, color.surface.panel.to_egui());
+    let gap = ui.spacing().item_spacing.x;
+    let numbers = LocaleNumbers::of(ui);
+    let name = role_format(tokens, style.header_text, color.text.normal.to_egui());
+    painter.text(
+        pos2(geo.mix.left() + style.label_strip + gap, geo.mix.center().y),
+        Align2::LEFT_CENTER,
+        &labels.mix,
+        name.font_id.clone(),
+        name.color,
+    );
+    let value = role_format(tokens, style.header_text, color.accent.text.to_egui());
+    painter.text(
+        pos2(geo.time_left - gap, geo.mix.center().y),
+        Align2::RIGHT_CENTER,
+        numbers.format(f64::from(db), 1..=1),
+        value.font_id.clone(),
+        value.color,
+    );
 }
 
 /// A row's full width, headers included.
@@ -903,7 +1102,9 @@ fn wheel(ui: &Ui, geo: &Geo, anim: &mut ViewAnim, scrolls: &mut Scrolls) {
             used = true;
         }
         if vertical != 0.0 {
-            if pos.y < geo.upper.bottom() {
+            if pos.y < geo.caption.bottom() {
+                scrolls.caption -= vertical;
+            } else if pos.y < geo.upper.bottom() {
                 scrolls.upper += vertical;
             } else if pos.y > geo.divider.bottom() {
                 scrolls.lower -= vertical;
@@ -1081,27 +1282,39 @@ struct RowCx<'a> {
     hover: Option<Pos2>,
 }
 
+/// The app's hooks into a row.
+struct RowHooks<'h, 'a> {
+    extra: Option<&'h mut HeaderExtra<'a>>,
+    content: Option<&'h mut ClipPainter<'a>>,
+}
+
 impl RowCx<'_> {
-    /// One track row: its header, its lane, and what the lane reported.
-    #[expect(clippy::too_many_arguments, reason = "one row's parts")]
+    /// One track row: its header, its lane, and what the lane reported. `track` comes with its
+    /// resolved height and its clips.
     fn show_row(
         &self,
         child: &mut Ui,
         area: Rect,
         row: &Row,
-        track: &TrackInfo<'_>,
-        clips: &[ClipInfo<'_>],
-        extra: Option<&mut HeaderExtra<'_>>,
+        (track, height, clips): (&TrackInfo<'_>, f32, &[ClipInfo<'_>]),
+        hooks: RowHooks<'_, '_>,
         out: &mut Pass,
     ) {
+        let RowHooks { extra, content } = hooks;
         let (id, left) = (self.id, self.geo.time_left);
         let full = row_rect(&self.geo, row);
         let header_rect = Rect::from_min_max(full.min, pos2(left, full.bottom()));
         let lane_rect = Rect::from_min_max(pos2(left, full.top()), full.max);
-        let node = child.interact(full.intersect(area), id.with(("row", track.id.0)), Sense::hover());
+        let node = child.interact(full.intersect(area), id.with(("row", track.id.0)), Sense::HOVER);
         node.widget_info(|| WidgetInfo::labeled(Role::Row, self.enabled, track.name));
 
-        let header = TrackHeader::new(id.with(("header", track.id.0)), track).palette(self.palette).labels(self.labels).show(child, header_rect);
+        let header = TrackHeader::new((id, "header", track.id.0), track)
+            .height(height)
+            .above_divider(row.side == Side::Upper)
+            .top_edge(row.top_video)
+            .palette(self.palette)
+            .labels(self.labels)
+            .show(child, header_rect);
         out.edits.extend(header.edits);
         if let Some(extra) = extra {
             let mut slot = child.new_child(UiBuilder::new().max_rect(header_rect).layout(Layout::right_to_left(Align::Center)));
@@ -1110,14 +1323,17 @@ impl RowCx<'_> {
         }
 
         let locked = track.locked.unwrap_or(false);
-        let lane = ClipLane::new(id.with(("lane", track.id.0)), track.id, clips, self.view, self.rate)
+        let mut lane = ClipLane::new((id, "lane", track.id.0), track.id, clips, self.view, self.rate)
             .tool(self.tool)
             .no_modifier_trims(self.no_modifier_trims)
             .snap(self.targets)
             .locked(locked)
             .selection(self.selection)
-            .palette(self.palette)
-            .show(child, lane_rect);
+            .palette(self.palette);
+        if let Some(paint) = content {
+            lane = lane.content(move |painter, rect, clip| paint(painter, rect, clip));
+        }
+        let lane = lane.show(child, lane_rect);
         if lane.response.drag_started() || lane.response.clicked() {
             child.memory_mut(|m| m.request_focus(self.area_id));
         }
@@ -1214,16 +1430,16 @@ impl Pass {
 }
 
 /// The headers' right edge: drag to resize all headers. Reports the new width as one gesture.
-fn resize_headers(ui: &Ui, geo: &Geo, header_w: f32, id: Id) -> Option<TimelineEdit> {
+fn resize_headers(ui: &Ui, geo: &Geo, header_w: f32, id: Id, labels: &TimelineLabels) -> Option<TimelineEdit> {
     let tokens = Tokens::of(ui);
     let style = TimelineStyle::of(&tokens);
     let mods = ui.input(|i| i.modifiers);
-    let side = IconButton::style(&tokens, ControlSize::Sm).side;
     let grab = Rect::from_min_max(
         pos2(geo.time_left - style.edge_zone / 2.0, geo.rows.top()),
         pos2(geo.time_left + style.edge_zone / 2.0, geo.rows.bottom()),
     );
-    let edge = ui.interact(grab, id.with("header width"), Sense::drag());
+    let edge = ui.interact(grab, id.with("header width"), Sense::DRAG);
+    edge.widget_info(|| WidgetInfo::labeled(Role::Splitter, ui.is_enabled(), &labels.header_width));
     if edge.hovered() || edge.dragged() {
         ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
     }
@@ -1236,7 +1452,7 @@ fn resize_headers(ui: &Ui, geo: &Geo, header_w: f32, id: Id) -> Option<TimelineE
         && let (Some(origin), Some(pos)) = (ui.input(|i| i.pointer.press_origin()), ui.input(|i| i.pointer.latest_pos()))
     {
         let wanted = *resize.start().unwrap_or(&header_w) + pos.x - origin.x;
-        resize.update(wanted.clamp(style.label_strip + side, geo.outer.width() / 2.0), mods);
+        resize.update(wanted.clamp(style.header_width_min, style.header_width_max), mods);
     }
     if edge.drag_stopped() {
         resize.commit();

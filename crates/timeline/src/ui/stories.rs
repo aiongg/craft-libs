@@ -174,7 +174,7 @@ struct TrackData {
     id: TrackId,
     kind: TrackKind,
     name: &'static str,
-    height: f32,
+    height: Option<f32>,
     label: Option<MarkerColor>,
     locked: bool,
     targeted: bool,
@@ -301,7 +301,7 @@ fn sample_sequence(labels: &TimelineStoryLabels, points_per_second: f32) -> Sequ
         id,
         kind,
         name,
-        height: 0.0,
+        height: None,
         label: None,
         locked: false,
         targeted: true,
@@ -503,7 +503,7 @@ impl Sequence {
             }
             TimelineEdit::TrackHeight { track, height } => {
                 if let (Some(&h), Some(t)) = (live(height), self.tracks.iter_mut().find(|t| t.id == *track)) {
-                    t.height = h;
+                    t.height = Some(h);
                 }
             }
             TimelineEdit::HeaderWidth(event) => {
