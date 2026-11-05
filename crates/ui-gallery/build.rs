@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 
 fn main() {
     println!("cargo::rerun-if-env-changed=CRAFT_FONTS_DIR");
-    let mut src = String::from("/// The embedded candidate interface faces; empty without `CRAFT_FONTS_DIR`.\npub static UI_CANDIDATES: &[Candidate] = &[\n");
+    let mut src =
+        String::from("/// The embedded candidate interface faces; empty without `CRAFT_FONTS_DIR`.\npub static UI_CANDIDATES: &[Candidate] = &[\n");
     if let Some(dir) = std::env::var_os("CRAFT_FONTS_DIR").map(PathBuf::from) {
         match candidates(&dir) {
             Ok(entries) => src.push_str(&entries),
