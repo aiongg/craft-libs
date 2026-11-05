@@ -30,6 +30,7 @@ struct Noted {
 }
 
 impl FontCache {
+    /// Create an empty cache.
     pub fn new() -> Self {
         Self::default()
     }
