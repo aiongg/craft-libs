@@ -252,6 +252,24 @@ impl Dispatcher {
         self
     }
 
+    /// Reads the clipboard keys egui's integrations drop, from the frame's raw input; call it
+    /// from `eframe::App::raw_input_hook` or before `Context::run`. It does nothing unless
+    /// [`with_clipboard_events`](Self::with_clipboard_events) is on. `typing` is whether a text
+    /// field has the keyboard this frame ([`Active::typing`]).
+    ///
+    /// Outside text fields, a V release whose ⌘V press egui-winit swallowed (egui issue #6329:
+    /// an image on the clipboard) and `PasteImage` become the ⌘V press, which the dispatcher
+    /// then runs as the Paste chord. It lives in the raw input because the press must exist
+    /// before egui reads the frame, and the dispatcher sees only the frame's `InputState`.
+    pub fn raw_input(&self, ctx: &Context, raw: &mut ::egui::RawInput, typing: bool) {
+        if !self.clipboard {
+            return;
+        }
+        if !typing {
+            crate::raw_clipboard::swallowed_paste(ctx, raw);
+        }
+    }
+
     /// Starts from what the platform reports about the keyboard layout. The dispatcher also
     /// learns from what plain presses type ([`Layout::observe`]), and takes whether the layout
     /// is Latin from egui when the integration reports it (egui-winit on Linux, with the suite's

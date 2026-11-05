@@ -628,3 +628,76 @@ fn a_key_without_a_latin_letter_runs_no_letter_binding() {
         assert_eq!(ran, [expected], "{press:?}");
     }
 }
+
+fn raw_key(key: EguiKey, pressed: bool, modifiers: Modifiers) -> Event {
+    Event::Key { key, physical_key: None, pressed, repeat: false, modifiers }
+}
+
+/// Runs `events` through the dispatcher's raw-input hook and returns the events left.
+fn raw_events(d: &Dispatcher, ctx: &egui::Context, typing: bool, events: Vec<Event>) -> Vec<Event> {
+    let mut raw = egui::RawInput { events, ..Default::default() };
+    d.raw_input(ctx, &mut raw, typing);
+    raw.events
+}
+
+fn v_presses(events: &[Event], with_command: bool) -> usize {
+    events.iter().filter(|e| matches!(e, Event::Key { key: EguiKey::V, pressed: true, modifiers, .. } if modifiers.command || !with_command)).count()
+}
+
+#[test]
+fn each_paste_key_is_one_press() {
+    let d = Dispatcher::new().with_clipboard_events(true);
+    let ctx = egui::Context::default();
+    let cmd = Modifiers::COMMAND;
+    let presses = |events| v_presses(&raw_events(&d, &ctx, false, events), false);
+    // A press that reached us, then its release.
+    assert_eq!(presses(vec![raw_key(EguiKey::V, true, cmd)]), 1);
+    assert_eq!(presses(vec![raw_key(EguiKey::V, false, cmd)]), 0, "the release of a press doesn't paste again");
+    // A text paste event whose V is released after Cmd adds nothing; the next image paste still pastes.
+    assert_eq!(presses(vec![Event::Paste("x".into())]), 0);
+    assert_eq!(presses(vec![Event::ModifiersChanged(Modifiers::NONE), raw_key(EguiKey::V, false, Modifiers::NONE)]), 0);
+    assert_eq!(presses(vec![Event::ModifiersChanged(cmd), raw_key(EguiKey::V, false, cmd)]), 1, "image paste");
+}
+
+#[test]
+fn a_swallowed_paste_press_is_added_once() {
+    let d = Dispatcher::new().with_clipboard_events(true);
+    let cmd = Modifiers::COMMAND;
+    let none = Modifiers::NONE;
+    let pastes = |ctx: &egui::Context, events| v_presses(&raw_events(&d, ctx, false, events), true);
+    // Cmd down, (the swallowed V press,) Cmd up, V up: in one frame or over several.
+    let ctx = egui::Context::default();
+    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), Event::ModifiersChanged(none), raw_key(EguiKey::V, false, none)]), 1);
+    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd)]), 0);
+    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(none)]), 0);
+    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 1, "released after Cmd");
+    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 0, "one swallowed press is one paste");
+    // A plain V tap after Cmd was used is a tool key, not a paste.
+    let ctx = egui::Context::default();
+    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), Event::ModifiersChanged(none)]), 0);
+    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, true, none), raw_key(EguiKey::V, false, none)]), 0);
+    // Without Cmd at all, a lone V release is nothing.
+    let ctx = egui::Context::default();
+    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 0);
+    // Released with Cmd still held it pastes.
+    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), raw_key(EguiKey::V, false, cmd)]), 1);
+    // egui 0.37's image-only clipboard paste is the same Cmd+V press.
+    let image = std::sync::Arc::new(egui::ColorImage::filled([1, 1], egui::Color32::BLACK));
+    let ctx = egui::Context::default();
+    assert_eq!(pastes(&ctx, vec![Event::PasteImage(image)]), 1);
+}
+
+#[test]
+fn a_swallowed_paste_reaches_the_paste_binding_and_text_fields_keep_theirs() {
+    let km = dispatch_keymap();
+    let ctx = egui::Context::default();
+    let mut d = Dispatcher::new().with_clipboard_events(true);
+    let image = std::sync::Arc::new(egui::ColorImage::filled([1, 1], egui::Color32::BLACK));
+    let events = raw_events(&d, &ctx, false, vec![Event::PasteImage(image.clone())]);
+    let (ran, _) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, events));
+    assert_eq!(ran, ["edit.paste"]);
+    // While typing the hook leaves the events to the text field, and with clipboard events off it does nothing.
+    assert_eq!(raw_events(&d, &ctx, true, vec![Event::PasteImage(image.clone())]), [Event::PasteImage(image.clone())]);
+    let off = Dispatcher::new();
+    assert_eq!(raw_events(&off, &ctx, false, vec![Event::PasteImage(image.clone())]), [Event::PasteImage(image)]);
+}
