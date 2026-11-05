@@ -163,7 +163,7 @@ pub use keymap::{
     AssignError, Assigned, Bindable, Binding, BindingError, Conflict, ConflictKind, DropReason, Holder, Keymap, Kind, Lookup, MAX_BINDING_TEXT,
     MAX_BINDINGS, MAX_COMMANDS, MAX_CONFLICTS, Overrides, Policy, Problem, TypingRule, text_editing_chords,
 };
-pub use layout::{KeyInput, Layout};
+pub use layout::{COMMON_SYMBOLS, KeyInput, Layout, SYMBOL_TABLE, SymbolLayout};
 pub use parity::ReturnGlyph;
 #[cfg(feature = "ui")]
 pub use parity::{ClipboardPress, clipboard_presses};

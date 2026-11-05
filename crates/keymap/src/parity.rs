@@ -82,13 +82,15 @@ impl Keymap {
 }
 
 impl Layout {
-    /// Whether a binding on a key the layout doesn't type unshifted (`[` and `]` on a German
-    /// layout, where those positions type `ü` and `+`) also matches the key at its US position.
-    /// On by default for `[`, `]`, `;`, `'`, `\`, `,`, `.`, `/`, `` ` ``, `-` and `=`.
-    // pc: crates/ui-egui/src/input/layout_keys.rs:1-12 (module doc: a per-layout table, then the
-    // fallback that the keys at the US `[` / `]` positions act as `[` / `]` when they type
-    // something else). PhotoCraft applies it to the brush keys `[`, `]` and ⇧+ / ⇧−; the
-    // library's wider key list is new.
+    /// Whether the keys at the US `[` and `]` positions stand for the brackets on layouts that
+    /// type something else there (German `ü` and `+`, Spanish and Italian `+`): in
+    /// [`Layout::candidates`] and in [`Layout::adjust`], which also applies the per-layout symbol
+    /// table ([`SYMBOL_TABLE`](crate::layout::SYMBOL_TABLE)). The fallback is off once a real
+    /// bracket was typed or a table layout's symbol was seen. No other key falls back: German `+`
+    /// is no brush key on a layout with a table row. On by default; with it off, `adjust` still
+    /// applies the symbol table.
+    // pc: crates/ui-egui/src/input/layout_keys.rs `apply` (the table, the bracket fallback and its
+    // two learnt switches); PhotoCraft turned the router's wider position fallback off.
     pub fn with_position_fallback(mut self, on: bool) -> Layout {
         self.position_fallback = on;
         self

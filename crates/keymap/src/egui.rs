@@ -296,6 +296,8 @@ impl Dispatcher {
         let mut kept = Vec::with_capacity(input.events.len());
         let events = std::mem::take(&mut input.events);
         let text_of = text_of_press(&events, self.text_first && !active.typing);
+        let texts: Vec<String> =
+            text_of.iter().map(|j| j.and_then(|j| if let Event::Text(t) = &events[j] { Some(t.clone()) } else { None }).unwrap_or_default()).collect();
         self.report_latin(input.keyboard_layout_is_latin());
         self.learn(&events, &text_of, platform);
         let mut drop = vec![false; events.len()];
@@ -306,7 +308,11 @@ impl Dispatcher {
         for (i, event) in events.into_iter().enumerate() {
             match &event {
                 Event::Key { pressed: true, repeat, .. } if !*repeat || self.repeat => {
-                    let input = key_input(&event, platform, input);
+                    let mut input = key_input(&event, platform, input);
+                    // AltGr presses report no modifiers; their text is no plain typing.
+                    if !self.right_alt {
+                        input = self.layout.adjust(input, &texts[i]);
+                    }
                     let held = input.mods;
                     if let Some(chord) = self.layout.resolve(&input) {
                         let plain_clip = is_plain_clipboard(chord.key, chord.mods);
