@@ -375,6 +375,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> CommandPalette<'a, '_, T>
                         label: entry.label(),
                         mnemonic: None,
                         icon: None,
+                        swatch: None,
                         kind: ItemKind::Plain,
                         shortcut: entry.shortcut_of(),
                         submenu: false,

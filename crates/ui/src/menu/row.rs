@@ -15,7 +15,7 @@ use egui::{Color32, Galley, Pos2, Rect, Response, Shape, Stroke, Ui, pos2, vec2}
 
 use super::item::ItemKind;
 use super::mnemonic;
-use crate::controls::{Kbd, ListboxStyle, icon_size};
+use crate::controls::{Kbd, ListboxStyle, Swatch, icon_size};
 use crate::direction;
 use crate::icons::{self, Icon};
 use crate::theme::{ToEgui, UiTokens, corner_radius, role_format};
@@ -93,6 +93,8 @@ pub(crate) struct RowContent<'r> {
     /// Underlined in the label.
     pub mnemonic: Option<char>,
     pub icon: Option<Icon>,
+    /// A colour swatch in the icon slot when there is no icon.
+    pub swatch: Option<Srgba>,
     pub kind: ItemKind,
     pub shortcut: Option<&'r Kbd>,
     pub submenu: bool,
@@ -244,9 +246,14 @@ impl RowPainter<'_> {
             }
             _ => {}
         }
-        if let Some(icon) = row.icon.filter(|_| cols.icons) {
-            let icon_center = start + forward * (self.marks_width(cols) + s.icon / 2.0);
-            icons::paint(ui, square(icon_center), icon, icon_size(self.size), text);
+        let icon_center = start + forward * (self.marks_width(cols) + s.icon / 2.0);
+        match (row.icon, row.swatch) {
+            (Some(icon), _) if cols.icons => icons::paint(ui, square(icon_center), icon, icon_size(self.size), text),
+            (None, Some(color)) if cols.icons => {
+                let style = Swatch::style(self.tokens, self.size);
+                ui.painter().extend(Swatch::shapes(&style, square(icon_center), Some(color.into()), false, state.enabled, ppp));
+            }
+            _ => {}
         }
         let galley = self.label_galley(ui, row, text);
         let text_x = |width: f32| {

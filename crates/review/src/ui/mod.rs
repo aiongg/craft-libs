@@ -49,8 +49,8 @@ pub use revisions::{RevisionsLabels, RevisionsPanel, RevisionsPanelOutput};
 pub use signature::{SignatureLabels, SignaturePadDialog, SignaturePadResult, SignatureSettings, paint_signature};
 pub use style::ReviewStyle;
 pub use thread::{
-    CommentComposer, CommentComposerResponse, CommentPins, CommentPinsOutput, PinCluster, PinMove, REACTIONS, ThreadLabels, ThreadPopover,
-    ThreadPopoverOutput, cluster, insert_mention, mention_matches, mention_query,
+    CommentComposer, CommentComposerResponse, CommentPin, CommentPins, CommentPinsOutput, PinCluster, PinMove, REACTIONS, ThreadLabels,
+    ThreadPopover, ThreadPopoverOutput, cluster, insert_mention, mention_matches, mention_query,
 };
 pub use versions::{VersionAction, VersionHistoryPanel, VersionHistoryPanelOutput, VersionPreviewBanner, VersionsLabels};
 

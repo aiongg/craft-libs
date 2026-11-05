@@ -58,7 +58,7 @@ mod screens {
     use egui_kittest::kittest::Queryable as _;
 
     use super::super::comments::CommentEdit;
-    use super::super::thread::{CommentComposer, CommentPins, PinMove, ThreadPopover};
+    use super::super::thread::{CommentComposer, CommentPin, CommentPins, PinMove, ThreadPopover};
     use crate::comments::{CommentAnchor, CommentMessage, CommentThread, ReviewStatus, ThreadId};
     use craft_ui::edit::EditEvent;
 
@@ -100,6 +100,7 @@ mod screens {
         assert_eq!((harness.state().closed, harness.state().draft.as_str()), (1, ""));
 
         let mut harness = composer();
+        harness.get_by_role_and_label(Role::Button, "Cancel");
         harness.type_text("never mind");
         harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Escape));
         assert!(harness.state().posted.is_empty());
@@ -144,6 +145,61 @@ mod screens {
         harness(show_popover, Popover { thread, draft: String::new(), edits: Vec::new(), closed: false })
     }
 
+    // Esc with the focus in the reply field closes the popover (the field passes the press on).
+    #[test]
+    fn escape_in_the_reply_field_closes_the_popover() {
+        let mut harness = popover();
+        harness.type_text("draft");
+        harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Escape));
+        assert!(harness.state().closed);
+        assert_eq!(harness.state().draft, "draft", "the draft stays");
+    }
+
+    // Esc closes the mention list first and the popover on the next press.
+    #[test]
+    fn escape_closes_the_mention_list_before_the_popover() {
+        let mut harness = popover();
+        harness.type_text("hi @bo");
+        harness.get_by_role_and_label(Role::ListBox, "Suggestions");
+        harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Escape));
+        assert!(!harness.state().closed);
+        assert!(harness.query_by_role_and_label(Role::ListBox, "Suggestions").is_none());
+        harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Escape));
+        assert!(harness.state().closed);
+    }
+
+    // a click on a suggestion completes the mention and keeps the popover open.
+    #[test]
+    fn clicking_a_suggestion_completes_the_mention() {
+        let mut harness = popover();
+        harness.type_text("hi @an");
+        harness.get_by_role_and_label(Role::ListBoxOption, "Ana María").click();
+        harness.run();
+        assert_eq!(harness.state().draft, "hi @Ana María ");
+        assert!(!harness.state().closed);
+    }
+
+    // the "…" menu marks unread, copies the link and deletes your own thread.
+    #[test]
+    fn more_menu_holds_unread_link_and_delete_for_your_thread() {
+        let mut harness = popover();
+        harness.get_by_label("More").click();
+        harness.run();
+        assert!(harness.query_by_label("Delete thread").is_none(), "someone else's thread");
+        harness.get_by_label("Copy link").click();
+        harness.run();
+        assert_eq!(harness.state().edits, [CommentEdit::CopyLink { thread: ThreadId(7) }]);
+
+        let mut harness = popover();
+        harness.state_mut().thread.messages[0].author = "Me".into();
+        harness.run();
+        harness.get_by_label("More").click();
+        harness.run();
+        harness.get_by_label("Delete thread").click();
+        harness.run();
+        assert_eq!(harness.state().edits, [CommentEdit::Delete { thread: ThreadId(7), index: 0 }]);
+    }
+
     // the popover completes @mentions with Enter, posts the reply with the draft, resolves and closes with Esc.
     #[test]
     fn popover_completes_mentions_replies_and_resolves() {
@@ -166,13 +222,29 @@ mod screens {
 
     struct Pins {
         pins: Vec<(ThreadId, egui::Pos2, &'static str)>,
+        open: Option<ThreadId>,
         opened: Vec<ThreadId>,
+        closed: Vec<ThreadId>,
         moves: Vec<EditEvent<PinMove>>,
     }
 
     fn show_pins(ui: &mut Ui, app: &mut Pins) {
-        let out = CommentPins::new("pins", &app.pins, "Me").show(ui);
+        let pins: Vec<CommentPin> = app
+            .pins
+            .iter()
+            .map(|&(id, point, author)| CommentPin {
+                id,
+                point,
+                author,
+                text: "Check the margin",
+                color: [200, 80, 40],
+                unread: id == ThreadId(1),
+                resolved: id == ThreadId(3),
+            })
+            .collect();
+        let out = CommentPins::new("pins", &pins, "Me").open(app.open).show(ui);
         app.opened.extend(out.opened);
+        app.closed.extend(out.closed);
         app.moves.extend(out.moved);
     }
 
@@ -180,11 +252,21 @@ mod screens {
     #[test]
     fn pins_open_drag_and_cluster() {
         let pins = vec![(ThreadId(1), pos2(100.0, 100.0), "Ana"), (ThreadId(2), pos2(300.0, 100.0), "Me"), (ThreadId(3), pos2(310.0, 104.0), "Bo")];
-        let mut harness = harness(show_pins, Pins { pins, opened: Vec::new(), moves: Vec::new() });
+        let mut harness = harness(show_pins, Pins { pins, open: None, opened: Vec::new(), closed: Vec::new(), moves: Vec::new() });
         harness.get_by_label("2 comments");
-        harness.get_by_label("Comment by Ana").click();
+        harness.get_by_label("Comment by Ana: Check the margin").click();
         harness.run();
         assert_eq!(harness.state().opened, [ThreadId(1)]);
+        assert!(harness.state().closed.is_empty());
+
+        // A click on the open pin closes it instead of opening it again.
+        harness.state_mut().open = Some(ThreadId(1));
+        harness.state_mut().opened.clear();
+        harness.run();
+        harness.get_by_label("Comment by Ana: Check the margin").click();
+        harness.run();
+        assert_eq!(harness.state().closed, [ThreadId(1)]);
+        assert!(harness.state().opened.is_empty());
 
         let mut harness = harness_with_own_pin();
         harness.drag(pos2(110.0, 85.0), pos2(150.0, 85.0), Modifiers::NONE);
@@ -194,6 +276,9 @@ mod screens {
     }
 
     fn harness_with_own_pin() -> Harness<'static, Pins> {
-        harness(show_pins, Pins { pins: vec![(ThreadId(2), pos2(100.0, 100.0), "Me")], opened: Vec::new(), moves: Vec::new() })
+        harness(
+            show_pins,
+            Pins { pins: vec![(ThreadId(2), pos2(100.0, 100.0), "Me")], open: None, opened: Vec::new(), closed: Vec::new(), moves: Vec::new() },
+        )
     }
 }

@@ -2,22 +2,22 @@
 
 use std::ops::Range;
 
-use craft_theme::{ButtonVariant, ControlSize};
-use craft_ui::controls::{Button, IconButton, TextField, ToggleButton};
+use craft_theme::{ButtonVariant, ControlSize, Stroke as StrokeWidth};
+use craft_ui::controls::{Autocomplete, Button, IconButton, Suggestion, TextField, ToggleButton};
 use craft_ui::edit::{CancelReason, EditEvent, GestureId};
-use craft_ui::icons::Icon;
+use craft_ui::icons::{self, Icon, IconSize};
 use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::popover::{Popover, PopoverAnchor, PopoverClose};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, corner_radius, role_format};
 use egui::text::{CCursor, CCursorRange, LayoutJob};
 use egui::{
-    Align, AsIdSalt, CornerRadius, Id, IdSalt, Key, Layout, Modifiers, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, pos2, vec2,
+    Align, AsIdSalt, Color32, CornerRadius, Id, IdSalt, Key, Layout, Modifiers, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
 use super::ReviewStyle;
 use super::comments::{CommentEdit, age_text, avatar, text};
-use crate::collab::initials;
+use super::presence::paint_avatar;
 use crate::comments::{CommentThread, ThreadId};
 
 craft_ui::words! {
@@ -29,6 +29,9 @@ craft_ui::words! {
         post: "thread.post" = "Post";
         edit: "thread.edit" = "Edit";
         delete: "thread.delete" = "Delete";
+        delete_thread: "thread.deleteThread" = "Delete thread";
+        more: "thread.more" = "More";
+        cancel: "thread.cancel" = "Cancel";
         resolve: "thread.resolve" = "Resolve";
         reopen: "thread.reopen" = "Reopen";
         copy_link: "thread.copyLink" = "Copy link";
@@ -36,6 +39,7 @@ craft_ui::words! {
         react: "thread.react" = "Add reaction";
         close: "thread.close" = "Close";
         pin: "thread.pin" = "Comment by {author}";
+        pin_text: "thread.pinText" = "Comment by {author}: {words}";
         cluster: "thread.cluster" = "{n} comments";
     }
 }
@@ -123,25 +127,45 @@ pub fn insert_mention(text: &mut String, range: (usize, usize), name: &str) -> u
     text.get(..start).map_or(0, |before| before.chars().count()) + inserted.chars().count()
 }
 
+/// One thread's pin: where it is (screen), who started it and how it looks (FigCraft
+/// `canvas/comments.rs:352` `paint_pin`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CommentPin<'a> {
+    pub id: ThreadId,
+    /// The pin's spot in screen coordinates.
+    pub point: Pos2,
+    /// The author of the thread's first message.
+    pub author: &'a str,
+    /// The thread's first message, for the pin's accessible name (its first words).
+    pub text: &'a str,
+    /// The author's colour (straight RGB), as the people bar shows them.
+    pub color: [u8; 3],
+    /// The viewer hasn't read the thread: a dot on the pin.
+    pub unread: bool,
+    /// The thread is resolved: a grey avatar and a check.
+    pub resolved: bool,
+}
+
 /// Comment pins over a canvas (Figma's, as FigCraft draws them): a `review.pin` pin per thread
-/// ([`ReviewStyle`](super::ReviewStyle); the author's avatar in a speech-bubble shape with a
-/// square bottom-left corner), pins within `review.cluster_radius` gathered into a cluster
-/// showing the count; a click on a pin opens its thread, on a cluster zooms or lists it. Your own
-/// pin can be dragged (past egui's drag threshold) to another spot, reported as a
-/// [`PinMove`] gesture (Esc cancels). Resolved threads are hidden unless shown. Each pin is a
-/// Tab stop in reading order, Enter opens it; AccessKit `Button`s named by author and the
-/// thread's first words.
+/// ([`ReviewStyle`](super::ReviewStyle); the author's avatar in the author's colour in a
+/// speech-bubble shape with a square bottom-left corner, grey with a check once resolved, a dot
+/// while unread), pins within `review.cluster_radius` gathered into a cluster showing the count; a
+/// click on a pin opens its thread, a click on the open pin closes it, a click on a cluster lists
+/// it. Your own pin can be dragged (past egui's drag threshold) to another spot, reported as a
+/// [`PinMove`] gesture (Esc cancels). Each pin is a Tab stop in reading order, Enter opens it;
+/// AccessKit `Button`s named by author and the thread's first words.
 pub struct CommentPins<'a> {
     id_salt: IdSalt,
-    pins: &'a [(ThreadId, Pos2, &'a str)],
+    pins: &'a [CommentPin<'a>],
     me: &'a str,
     open: Option<ThreadId>,
+    labels: Option<ThreadLabels>,
 }
 
 impl<'a> CommentPins<'a> {
-    /// `pins`: each thread's screen point and author.
-    pub fn new(id_salt: impl AsIdSalt, pins: &'a [(ThreadId, Pos2, &'a str)], me: &'a str) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), pins, me, open: None }
+    /// `pins`: each thread's pin.
+    pub fn new(id_salt: impl AsIdSalt, pins: &'a [CommentPin<'a>], me: &'a str) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), pins, me, open: None, labels: None }
     }
 
     /// The thread whose popover is open (its pin is drawn raised).
@@ -150,40 +174,41 @@ impl<'a> CommentPins<'a> {
         self
     }
 
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: ThreadLabels) -> Self {
+        self.labels = Some(labels);
+        self
+    }
+
     // figcraft: crates/ui-egui/src/canvas/comments.rs:242 `pins`, `:352` `paint_pin`, `:370`
     // `paint_cluster`, `:385` `draw`, `:419` `input`, `:119` `PinDrag`.
     pub fn show(self, ui: &mut Ui) -> CommentPinsOutput {
-        let Self { id_salt, pins, me, open } = self;
-        let labels = ThreadLabels::of(ui);
+        let Self { id_salt, pins, me, open, labels } = self;
+        let labels = labels.unwrap_or_else(|| ThreadLabels::of(ui));
         let tokens = Tokens::of(ui);
         let style = ReviewStyle::of(&tokens);
         let id = ui.make_persistent_id(id_salt);
-        let points: Vec<Pos2> = pins.iter().map(|(_, at, _)| *at).collect();
+        let points: Vec<Pos2> = pins.iter().map(|pin| pin.point).collect();
         let mut spots: Vec<PinCluster> = cluster(&points, style.cluster_radius)
             .into_iter()
             .map(|members| {
                 let sum = members.iter().fold(Vec2::ZERO, |sum, &i| sum + points[i].to_vec2());
-                PinCluster { at: (sum / members.len() as f32).to_pos2(), threads: members.iter().map(|&i| pins[i].0).collect() }
+                PinCluster { at: (sum / members.len() as f32).to_pos2(), threads: members.iter().map(|&i| pins[i].id).collect() }
             })
             .collect();
         spots.sort_by(|a, b| a.at.y.total_cmp(&b.at.y).then(a.at.x.total_cmp(&b.at.x)));
         let cx = PinCx { tokens: &tokens, style: &style, labels: &labels, id };
-        let mut out = CommentPinsOutput { response: ui.interact(Rect::NOTHING, id, Sense::hover()), opened: None, moved: None };
+        let mut out = CommentPinsOutput { response: ui.interact(Rect::NOTHING, id, Sense::hover()), opened: None, closed: None, moved: None };
         for spot in &spots {
             let one = match spot.threads.as_slice() {
-                [thread] => pins.iter().find(|(id, ..)| id == thread),
+                [thread] => pins.iter().find(|pin| pin.id == *thread),
                 _ => None,
             };
-            match one {
-                Some((thread, at, author)) => {
-                    let response = single_pin(ui, &cx, (*thread, *at, author), me, open == Some(*thread), &mut out);
-                    out.response = out.response.union(response);
-                }
-                None => {
-                    let response = cluster_pin(ui, &cx, spot, pins, &mut out);
-                    out.response = out.response.union(response);
-                }
-            }
+            let response = match one {
+                Some(pin) => single_pin(ui, &cx, pin, me, open == Some(pin.id), &mut out),
+                None => cluster_pin(ui, &cx, spot, pins, &mut out),
+            };
+            out.response = out.response.union(response);
         }
         out
     }
@@ -200,8 +225,10 @@ pub struct PinMove {
 #[must_use]
 pub struct CommentPinsOutput {
     pub response: Response,
-    /// The thread whose pin or cluster entry was clicked.
+    /// The thread whose pin or cluster entry was clicked while its popover was closed.
     pub opened: Option<ThreadId>,
+    /// The thread whose open pin was clicked: its popover closes.
+    pub closed: Option<ThreadId>,
     /// A drag of your own pin, as one gesture.
     pub moved: Option<EditEvent<PinMove>>,
 }
@@ -209,8 +236,9 @@ pub struct CommentPinsOutput {
 /// The thread popover next to a pin (`review.popover_width` wide), on the kernel's
 /// [`Popover`](craft_ui::popover): messages with avatar, author, age and
 /// text (@mentions in the accent), reactions under each (click to toggle yours), your messages'
-/// Edit and Delete, the thread's Resolve / Reopen, Copy link and Mark as unread, and the reply
-/// composer at the bottom with @mention completion (up to six rows; Up / Down pick, Enter or Tab
+/// Edit and Delete, the thread's Resolve / Reopen check button and a "…" menu (Mark as unread,
+/// Copy link and, on your own thread, Delete thread), and the reply composer at the bottom with
+/// @mention completion through [`Autocomplete`] (up to six rows; Up / Down pick, Enter or Tab
 /// takes one). Esc closes it (after closing an open mention list). Focus goes to the reply box
 /// when it opens.
 pub struct ThreadPopover<'a> {
@@ -246,10 +274,10 @@ impl<'a> ThreadPopover<'a> {
         let mut open = true;
         let point = pos2(anchor.right() + tokens.space.gap.inline, anchor.top());
         let name = thread.messages.first().map_or_else(String::new, |m| fmt(&labels.pin, &[("author", &m.author)]));
-        let shown = Popover::new(id.with("popover"), PopoverAnchor::Point(point)).close(PopoverClose::default().escape(false)).label(name).show(
-            ui,
-            &mut open,
-            |ui, pop| {
+        let shown = Popover::new(id.with("popover"), PopoverAnchor::Point(point))
+            .close(PopoverClose::default().outside(false).escape(false))
+            .label(name)
+            .show(ui, &mut open, |ui, pop| {
                 pop.initial_focus(reply_field(&cx));
                 ui.set_width(style.popover_width);
                 ui.spacing_mut().item_spacing.y = tokens.space.gap.row;
@@ -258,12 +286,11 @@ impl<'a> ThreadPopover<'a> {
                 for index in 0..thread.messages.len() {
                     escape_used |= message_view(ui, &cx, index, &mut edits);
                 }
-                escape_used |= reply_composer(ui, &cx, draft, &mut edits);
+                escape_used |= reply_composer(ui, &cx, pop, draft, &mut edits);
                 if !escape_used && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape)) {
                     pop.close();
                 }
-            },
-        );
+            });
         ThreadPopoverOutput { edits, closed: shown.is_none_or(|shown| shown.closed_by.is_some()) }
     }
 }
@@ -290,6 +317,12 @@ pub struct CommentComposer<'a> {
 impl<'a> CommentComposer<'a> {
     pub fn new(id_salt: impl AsIdSalt, anchor: Option<Pos2>, draft: &'a mut String) -> Self {
         Self { id_salt: IdSalt::new(id_salt), anchor, draft, labels: None }
+    }
+
+    /// Words other than the installed ones.
+    pub fn labels(mut self, labels: ThreadLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     // pdfcraft: crates/ui-egui/src/tools/comments/composer.rs:9 `composer`.
@@ -323,7 +356,7 @@ impl<'a> CommentComposer<'a> {
                     .horizontal(|ui| {
                         let post =
                             ui.add_enabled(!text.is_empty(), Button::new(&labels.post).variant(ButtonVariant::Primary).id_salt("post")).clicked();
-                        (post, ui.add(Button::new(&labels.close).id_salt("cancel")).clicked())
+                        (post, ui.add(Button::new(&labels.cancel).id_salt("cancel")).clicked())
                     })
                     .inner;
                 if (post || field.submitted) && !text.is_empty() {
@@ -376,8 +409,19 @@ struct PinCx<'a> {
     id: Id,
 }
 
-fn single_pin(ui: &mut Ui, cx: &PinCx, (thread, at, author): (ThreadId, Pos2, &str), me: &str, open: bool, out: &mut CommentPinsOutput) -> Response {
+/// The words of the thread's text a pin's accessible name carries.
+const PIN_NAME_WORDS: usize = 8;
+
+/// The unread dot's radius, its inset from the bubble's top right corner and the check's inset
+/// from the bottom right (FigCraft `canvas/comments.rs:358-367`: radius 3.5 inside a 1 pt ring,
+/// centre 2 pt in, check centre 3 pt in).
+const UNREAD_DOT_RADIUS: f32 = 3.5;
+const UNREAD_DOT_INSET: f32 = 2.0;
+const CHECK_INSET: f32 = 3.0;
+
+fn single_pin(ui: &mut Ui, cx: &PinCx, pin: &CommentPin, me: &str, open: bool, out: &mut CommentPinsOutput) -> Response {
     let PinCx { tokens, style, labels, id } = *cx;
+    let CommentPin { id: thread, point: at, author, text, color, unread, resolved } = *pin;
     let key = id.with(("pin", thread));
     let drag_key = key.with("drag");
     let mine = author == me;
@@ -390,19 +434,34 @@ fn single_pin(ui: &mut Ui, cx: &PinCx, (thread, at, author): (ThreadId, Pos2, &s
     let rect = pin_rect(style, shown_at, style.pin);
     let sense = if mine { Sense::click_and_drag() } else { Sense::click() };
     let response = ui.interact(rect, key, sense);
-    let name = fmt(&labels.pin, &[("author", author)]);
+    let words = text.split_whitespace().take(PIN_NAME_WORDS).collect::<Vec<_>>().join(" ");
+    let name =
+        if words.is_empty() { fmt(&labels.pin, &[("author", author)]) } else { fmt(&labels.pin_text, &[("author", author), ("words", &words)]) };
     response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
     if response.clicked() || (response.has_focus() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter))) {
-        out.opened = Some(thread);
+        if open {
+            out.closed = Some(thread);
+        } else {
+            out.opened = Some(thread);
+        }
     }
     if mine {
         drag_pin(ui, &response, thread, rect, drag_key, out);
     }
     paint_bubble(ui, tokens, style, rect, open || response.hovered() || response.has_focus(), |ui, inner| {
-        let color = tokens.color.text.on_strong.to_egui();
-        ui.painter().circle_filled(inner.center(), inner.height() / 2.0, tokens.color.accent.strong.to_egui());
-        let galley = ui.painter().layout_job(LayoutJob::single_section(initials(author), role_format(tokens, style.caption_text, color)));
-        ui.painter().galley(inner.center() - galley.size() / 2.0, galley, color);
+        let fill = if resolved { tokens.color.text.faint.to_egui() } else { Color32::from_rgb(color[0], color[1], color[2]) };
+        paint_avatar(ui.painter(), inner.center(), inner.height() / 2.0, author, fill);
+        let accent = tokens.color.accent.strong.to_egui();
+        if unread {
+            let centre = rect.right_top() + vec2(-UNREAD_DOT_INSET, UNREAD_DOT_INSET);
+            let ring = StrokeWidth::W1.width(ui.pixels_per_point());
+            ui.painter().circle_filled(centre, UNREAD_DOT_RADIUS + ring, tokens.color.surface.raised.to_egui());
+            ui.painter().circle_filled(centre, UNREAD_DOT_RADIUS, accent);
+        }
+        if resolved {
+            let centre = rect.right_bottom() - Vec2::splat(CHECK_INSET);
+            icons::paint(ui, Rect::from_center_size(centre, Vec2::splat(tokens.size.icon.sm)), Icon::Check, IconSize::Sm, accent);
+        }
     });
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
@@ -442,7 +501,7 @@ fn drag_pin(ui: &mut Ui, response: &Response, thread: ThreadId, rect: Rect, drag
     }
 }
 
-fn cluster_pin(ui: &mut Ui, cx: &PinCx, spot: &PinCluster, pins: &[(ThreadId, Pos2, &str)], out: &mut CommentPinsOutput) -> Response {
+fn cluster_pin(ui: &mut Ui, cx: &PinCx, spot: &PinCluster, pins: &[CommentPin], out: &mut CommentPinsOutput) -> Response {
     let PinCx { tokens, style, labels, id } = *cx;
     let color = tokens.color.text.on_strong.to_egui();
     let count = spot.threads.len().to_string();
@@ -456,8 +515,8 @@ fn cluster_pin(ui: &mut Ui, cx: &PinCx, spot: &PinCluster, pins: &[(ThreadId, Po
     let entries: Vec<MenuEntry<ThreadId>> = spot
         .threads
         .iter()
-        .filter_map(|thread| pins.iter().find(|(id, ..)| id == thread))
-        .map(|(thread, _, author)| MenuItem::new(fmt(&labels.pin, &[("author", author)]), *thread).into())
+        .filter_map(|thread| pins.iter().find(|pin| pin.id == *thread))
+        .map(|pin| MenuItem::new(fmt(&labels.pin, &[("author", pin.author)]), pin.id).into())
         .collect();
     if let Some(thread) = PressMenu::new(&entries).show(ui, &response).chosen {
         out.opened = Some(thread);
@@ -474,7 +533,12 @@ fn paint_bubble(ui: &mut Ui, tokens: &UiTokens, style: &ReviewStyle, rect: Rect,
     let radius = bubble(style, rect);
     let fill = if hot { tokens.color.accent.soft } else { tokens.color.surface.raised }.to_egui();
     ui.painter().rect_filled(rect, radius, fill);
-    ui.painter().rect_stroke(rect, radius, Stroke::new(1.0, tokens.color.line.border.to_egui()), StrokeKind::Inside);
+    ui.painter().rect_stroke(
+        rect,
+        radius,
+        Stroke::new(StrokeWidth::W1.width(ui.pixels_per_point()), tokens.color.line.border.to_egui()),
+        StrokeKind::Inside,
+    );
     inner(ui, rect.shrink(style.pin_inset));
 }
 
@@ -492,23 +556,40 @@ fn reply_field(cx: &PopoverCx) -> Id {
     cx.id.with("reply")
 }
 
-/// Resolve, copy link, mark as unread and close.
+/// What the "…" menu offers.
+#[derive(Clone, Copy)]
+enum More {
+    MarkUnread,
+    CopyLink,
+    DeleteThread,
+}
+
+/// Resolve (a check button), the "…" menu (Mark as unread, Copy link, Delete thread when it is
+/// yours: Figma's) and close.
 fn popover_header(ui: &mut Ui, cx: &PopoverCx, pop: &craft_ui::popover::PopoverCtx, edits: &mut Vec<CommentEdit>) {
     let (labels, thread) = (cx.labels, cx.thread.id);
     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
         if ui.add(IconButton::new(Icon::Close, &labels.close).id_salt("close")).clicked() {
             pop.close();
         }
+        let mut entries: Vec<MenuEntry<More>> = vec![
+            MenuItem::new(&labels.mark_unread, More::MarkUnread).icon(Icon::EyeOff).into(),
+            MenuItem::new(&labels.copy_link, More::CopyLink).icon(Icon::Link).into(),
+        ];
+        if cx.thread.messages.first().is_some_and(|first| first.author == cx.me) {
+            entries.push(MenuItem::new(&labels.delete_thread, More::DeleteThread).icon(Icon::Trash).into());
+        }
+        let more = ui.add(IconButton::new(Icon::More, &labels.more).id_salt("more"));
+        match PressMenu::new(&entries).show(ui, &more).chosen {
+            Some(More::MarkUnread) => edits.push(CommentEdit::MarkUnread { thread }),
+            Some(More::CopyLink) => edits.push(CommentEdit::CopyLink { thread }),
+            Some(More::DeleteThread) => edits.push(CommentEdit::Delete { thread, index: 0 }),
+            None => {}
+        }
         let resolved = cx.thread.resolved;
         let name = if resolved { &labels.reopen } else { &labels.resolve };
         if ui.add(IconButton::new(Icon::Check, name).selected(resolved).id_salt("resolve")).clicked() {
             edits.push(CommentEdit::Resolve { thread, resolved: !resolved });
-        }
-        if ui.add(IconButton::new(Icon::EyeOff, &labels.mark_unread).id_salt("unread")).clicked() {
-            edits.push(CommentEdit::MarkUnread { thread });
-        }
-        if ui.add(IconButton::new(Icon::Link, &labels.copy_link).id_salt("link")).clicked() {
-            edits.push(CommentEdit::CopyLink { thread });
         }
     });
 }
@@ -643,52 +724,34 @@ fn inline_editor(ui: &mut Ui, cx: &PopoverCx, index: usize, mut draft: String, k
     false
 }
 
-/// The @mention list of a reply field, kept between passes.
-#[derive(Clone, Default)]
-struct Mention {
-    range: (usize, usize),
-    names: Vec<String>,
-    selected: usize,
-    /// The `@` the viewer dismissed the list for with Esc.
-    dismissed: Option<usize>,
-}
-
 fn set_cursor(ctx: &egui::Context, id: Id, at: usize) {
     let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
     state.cursor.set_char_range(Some(CCursorRange::one(CCursor::new(at))));
     egui::TextEdit::store_state(ctx, id, state);
 }
 
-/// The reply field with @mention completion and Post. True when Esc was used.
-fn reply_composer(ui: &mut Ui, cx: &PopoverCx, draft: &mut String, edits: &mut Vec<CommentEdit>) -> bool {
+/// The `@query` at the reply field's cursor and the people it matches; `None` when there is no
+/// query or nobody matches. The list itself shows only while the field or the list has the focus,
+/// and a press on a row moves the focus to the row, so the cursor is read without a focus test.
+fn mention_at_cursor(ui: &Ui, cx: &PopoverCx, field_id: Id, draft: &str) -> Option<((usize, usize), Vec<String>)> {
+    let cursor = egui::TextEdit::load_state(ui.ctx(), field_id)?.cursor.char_range()?.primary.index.0;
+    let range = mention_query(draft, cursor)?;
+    let names = mention_matches(cx.people, draft.get(range.0 + 1..range.1).unwrap_or(""), cx.me);
+    (!names.is_empty()).then_some((range, names))
+}
+
+fn suggestions(names: &[String]) -> Vec<Suggestion> {
+    names.iter().map(|name| Suggestion::new(name.as_str())).collect()
+}
+
+/// The reply field with @mention completion (`Autocomplete`, Enter accepts) and Post. True when
+/// Esc was used. `pop` closes on a press outside the popover and the list.
+fn reply_composer(ui: &mut Ui, cx: &PopoverCx, pop: &craft_ui::popover::PopoverCtx, draft: &mut String, edits: &mut Vec<CommentEdit>) -> bool {
     let labels = cx.labels;
     let field_id = reply_field(cx);
-    let key = field_id.with("mention");
-    let mut mention: Mention = ui.data(|d| d.get_temp(key)).unwrap_or_default();
-    let mut escape_used = false;
-    if ui.memory(|m| m.has_focus(field_id)) && !mention.names.is_empty() {
-        let count = mention.names.len();
-        ui.input_mut(|input| {
-            if input.consume_key(Modifiers::NONE, Key::ArrowDown) {
-                mention.selected = (mention.selected + 1) % count;
-            }
-            if input.consume_key(Modifiers::NONE, Key::ArrowUp) {
-                mention.selected = (mention.selected + count - 1) % count;
-            }
-        });
-        if ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape)) {
-            mention.dismissed = Some(mention.range.0);
-            mention.names.clear();
-            escape_used = true;
-        } else if ui.input_mut(|input| {
-            (!input.modifiers.shift && input.consume_key(Modifiers::NONE, Key::Enter)) || input.consume_key(Modifiers::NONE, Key::Tab)
-        }) && let Some(name) = mention.names.get(mention.selected).cloned()
-        {
-            let at = insert_mention(draft, mention.range, &name);
-            set_cursor(ui.ctx(), field_id, at);
-            mention.names.clear();
-        }
-    }
+    let list_id = cx.id.with("mentions");
+    let before = mention_at_cursor(ui, cx, field_id, draft).map(|(_, names)| suggestions(&names)).unwrap_or_default();
+    let keys = Autocomplete::new(list_id, field_id, &before).enter_accepts(true).take_keys(ui);
     let field = TextField::new(cx.id.with("reply-text"), &labels.reply, draft.as_str())
         .id(field_id)
         .multiline(COMPOSER_ROWS)
@@ -697,41 +760,23 @@ fn reply_composer(ui: &mut Ui, cx: &PopoverCx, draft: &mut String, edits: &mut V
     if let Some(value) = field.event.as_ref().and_then(EditEvent::value) {
         draft.clone_from(value);
     }
-    let cursor = ui
-        .memory(|m| m.has_focus(field_id))
-        .then(|| egui::TextEdit::load_state(ui.ctx(), field_id))
-        .flatten()
-        .and_then(|state| state.cursor.char_range())
-        .map(|range| range.primary.index.0);
-    let found = cursor.and_then(|c| mention_query(draft, c)).filter(|range| mention.dismissed != Some(range.0));
-    let names = found.map(|range| mention_matches(cx.people, draft.get(range.0 + 1..range.1).unwrap_or(""), cx.me)).unwrap_or_default();
-    match found {
-        Some(range) if !names.is_empty() => {
-            if mention.range.0 != range.0 || mention.names.is_empty() {
-                mention.selected = 0;
-            }
-            mention.selected = mention.selected.min(names.len() - 1);
-            mention.range = range;
-            mention.names = names;
-        }
-        _ if cursor.is_some() => mention.names.clear(),
-        _ => {}
+    let after = mention_at_cursor(ui, cx, field_id, draft);
+    let shown = after.as_ref().map(|(_, names)| suggestions(names)).unwrap_or_default();
+    let list = Autocomplete::new(list_id, field_id, &shown).enter_accepts(true).show(ui, field.response.rect, keys);
+    // The suggestion list is drawn on the tooltip layer, so the popover doesn't count it as its
+    // own: a press outside closes the popover unless it landed in the list.
+    let in_list = list.popup.as_ref().zip(ui.input(|i| i.pointer.interact_pos())).is_some_and(|(popup, at)| popup.rect.contains(at));
+    if pop.pressed_outside() && !in_list {
+        pop.close();
     }
-    let mut chosen = None;
-    for (row, name) in mention.names.iter().enumerate() {
-        let mut on = row == mention.selected;
-        let response = ui.add(ToggleButton::new(name, &mut on).size(ControlSize::Sm).id_salt(("mention", row)));
-        if response.clicked() {
-            chosen = Some(name.clone());
-        }
-    }
-    if let Some(name) = chosen {
-        let at = insert_mention(draft, mention.range, &name);
+    if let Some(((range, names), picked)) = after.zip(list.accepted)
+        && let Some(name) = names.get(picked)
+    {
+        let at = insert_mention(draft, range, name);
         set_cursor(ui.ctx(), field_id, at);
         ui.memory_mut(|m| m.request_focus(field_id));
-        mention.names.clear();
     }
-    ui.data_mut(|d| d.insert_temp(key, mention));
+    let escape_used = keys.dismissed;
     let text = draft.trim().to_owned();
     let post = ui.add_enabled(!text.is_empty(), Button::new(&labels.post).variant(ButtonVariant::Primary).id_salt("reply-post")).clicked();
     if (post || field.submitted) && !text.is_empty() {
