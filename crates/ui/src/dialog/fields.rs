@@ -71,10 +71,12 @@ impl From<String> for FieldValue {
 ///
 /// - [`snapshot`](DialogFields::snapshot) is taken when the dialog opens;
 ///   [`reset`](DialogFields::reset) restores it (Alt+Cancel, Photoshop).
-/// - A [`ParamDialog`](super::ParamDialog) that remembers its values stores the whole map through
-///   craft-settings' `Remembered` on OK and loads it on open, then drops
+/// - It serializes as the plain map (`{radius = 4.0, method = "gaussian"}`).
+/// - A [`ParamDialog`](super::ParamDialog) that remembers its values stores the map through
+///   craft-settings' `Remembered` after the app's command succeeds and loads it on open, then drops
 ///   the keys the current parameter list does not have or whose value no longer fits.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct DialogFields {
     values: BTreeMap<String, FieldValue>,
     #[serde(skip)]

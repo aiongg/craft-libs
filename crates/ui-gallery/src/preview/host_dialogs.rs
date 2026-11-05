@@ -51,6 +51,7 @@ pub fn open_delete_layer(host: &mut DialogHost, mock: &Mock) {
 pub fn show(ctx: &Context, host: &mut DialogHost, mock: &mut Mock) {
     host.show(ctx);
     if let Some(DialogResult::Ok(done)) = host.take::<ParamDialog>() {
+        done.remember(ctx);
         let radius = done.fields.number("radius").unwrap_or_default();
         mock.status = format!("Gaussian Blur, radius {radius:.1} px");
     }

@@ -189,7 +189,7 @@ impl CommandForm {
     }
 
     fn answer(&self) -> ParamResult {
-        ParamResult { key: self.key.clone(), fields: self.fields.clone() }
+        ParamResult { key: self.key.clone(), fields: self.fields.clone(), remember: None }
     }
 }
 

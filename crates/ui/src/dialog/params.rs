@@ -338,6 +338,7 @@ struct RowOptions {
     eyedropper: bool,
     eyedropper_armed: bool,
     full_width: bool,
+    not_remembered: bool,
     units: Option<UnitChoices>,
 }
 
@@ -533,6 +534,15 @@ impl Param {
     /// kinds are unchanged.
     pub fn full_width(mut self) -> Self {
         self.options.get_or_insert_default().full_width = true;
+        self
+    }
+
+    /// Leaves the row out of the [`remembered`](ParamDialog::remember) values: a choice that
+    /// refers to something in the document (Lens Blur's depth channel, a menu of open documents)
+    /// opens from its default every time.
+    // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:687 (references aren't remembered).
+    pub fn not_remembered(mut self) -> Self {
+        self.options.get_or_insert_default().not_remembered = true;
         self
     }
 
@@ -1481,9 +1491,10 @@ impl ParamDialog {
         self
     }
 
-    /// Remembers the values under `key` in the app's settings (craft-settings `Remembered`) on OK
-    /// and opens with them next time, dropping the ones that no longer fit the parameters
-    /// (spec question 2).
+    /// Remembers the values under `key` in the app's settings (craft-settings `Remembered`) and
+    /// opens with them next time, dropping the ones that no longer fit the parameters (spec
+    /// question 2). The values are stored when the app calls [`ParamResult::remember`] after its
+    /// command succeeds, so a failed command leaves the previous values.
     pub fn remember(mut self, key: impl Into<String>) -> Self {
         self.remember_key = Some(key.into());
         self
@@ -1660,31 +1671,29 @@ impl ParamDialog {
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:335 `rememberable` (`Range`, `Choice`, `Bool`
     // and `Int` are kept; its angles are ranges).
     fn remembered_keys(&self) -> Vec<&str> {
-        let kept = |kind: &ParamKind| {
-            matches!(
-                kind,
-                ParamKind::Range { .. }
-                    | ParamKind::Angle { .. }
-                    | ParamKind::Int { .. }
-                    | ParamKind::Number { .. }
-                    | ParamKind::Bool { .. }
-                    | ParamKind::Choice { .. }
-            )
+        let kept = |param: &Param| {
+            !param.option().not_remembered
+                && matches!(
+                    param.kind,
+                    ParamKind::Range { .. }
+                        | ParamKind::Angle { .. }
+                        | ParamKind::Int { .. }
+                        | ParamKind::Number { .. }
+                        | ParamKind::Bool { .. }
+                        | ParamKind::Choice { .. }
+                )
         };
-        let units = self.params.iter().filter_map(Param::unit_key);
-        self.params.iter().filter(|p| kept(&p.kind)).map(|p| p.key.as_str()).chain(units).collect()
+        let units = self.params.iter().filter(|p| !p.option().not_remembered).filter_map(Param::unit_key);
+        self.params.iter().filter(|p| kept(p)).map(|p| p.key.as_str()).chain(units).collect()
     }
 
-    /// Stores the values under the remember key.
-    // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:363 `remember`.
-    fn store(&self, ctx: &Context) {
-        let (Some(key), Some(host)) = (&self.remember_key, Host::try_of_ctx(ctx)) else { return };
-        let mut saved = self.fields.clone();
+    /// The values to store under the remember key, if the dialog remembers.
+    fn remembered(&self) -> Option<Remember> {
+        let key = self.remember_key.clone()?;
+        let mut values = self.fields.clone();
         let keys = self.remembered_keys();
-        saved.retain_fitting(&keys, |key, value| self.params.iter().any(|p| p.accepts(key, value)));
-        if !saved.is_empty() {
-            Remembered::<DialogFields>::new(key.as_str()).store(&host, &saved);
-        }
+        values.retain_fitting(&keys, |key, value| self.params.iter().any(|p| p.accepts(key, value)));
+        (!values.is_empty()).then_some(Remember { key, values })
     }
 
     /// The preview pane: zoom buttons and the zoom percentage over a well as wide as the dialog and
@@ -1767,6 +1776,15 @@ pub struct ParamResult {
     pub key: String,
     /// The values the user confirmed, keyed by parameter.
     pub fields: DialogFields,
+    /// What [`remember`](ParamResult::remember) stores.
+    pub(super) remember: Option<Remember>,
+}
+
+/// The remember key and the values kept under it.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct Remember {
+    key: String,
+    values: DialogFields,
 }
 
 impl ParamResult {
@@ -1774,13 +1792,21 @@ impl ParamResult {
     pub fn key(&self) -> &str {
         &self.key
     }
+
+    /// Stores the values of a dialog built with [`ParamDialog::remember`], for the next open. The
+    /// app calls it after the command succeeds; otherwise it does nothing.
+    // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:363 `remember`, called after the filter ran.
+    pub fn remember(&self, ctx: &Context) {
+        if let (Some(remember), Some(host)) = (&self.remember, Host::try_of_ctx(ctx)) {
+            Remembered::<DialogFields>::new(remember.key.as_str()).store(&host, &remember.values);
+        }
+    }
 }
 
 impl ParamDialog {
-    /// OK: stores the remembered values and builds the answer.
-    fn answer(&self, ctx: &Context) -> ParamResult {
-        self.store(ctx);
-        ParamResult { key: self.key.clone(), fields: self.fields.clone() }
+    /// OK: the answer, with the values to remember.
+    fn answer(&self) -> ParamResult {
+        ParamResult { key: self.key.clone(), fields: self.fields.clone(), remember: self.remembered() }
     }
 }
 
@@ -1867,7 +1893,7 @@ impl StackDialog for ParamDialog {
         self.picked_path = take_path_press(ctx, self.id).or(self.picked_path.take());
         self.picked_eyedropper = take_eyedropper_press(ctx, self.id).or(self.picked_eyedropper.take());
         match shown.outcome? {
-            Outcome::Ok => Some(DialogResult::Ok(self.answer(ctx))),
+            Outcome::Ok => Some(DialogResult::Ok(self.answer())),
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
             Outcome::Reset => {
                 match &self.reset_target {
@@ -1901,6 +1927,6 @@ impl StackDialog for ParamDialog {
         if !self.state.is_open() {
             self.open(ctx);
         }
-        Some(self.answer(ctx))
+        Some(self.answer())
     }
 }

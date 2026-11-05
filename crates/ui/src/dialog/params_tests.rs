@@ -18,6 +18,8 @@ use crate::theme::{Base, install};
 struct App {
     host: DialogHost,
     answers: Vec<DialogResult<ParamResult>>,
+    /// The app's command fails, so it doesn't call [`ParamResult::remember`].
+    command_fails: bool,
 }
 
 fn params() -> Vec<Param> {
@@ -43,10 +45,13 @@ fn harness(dialog: ParamDialog) -> Harness<'static, App> {
             |ui, app: &mut App| {
                 app.host.show(ui.ctx());
                 if let Some(answer) = app.host.take::<ParamDialog>() {
+                    if let (DialogResult::Ok(result), false) = (&answer, app.command_fails) {
+                        result.remember(ui.ctx());
+                    }
                     app.answers.push(answer);
                 }
             },
-            App { host, answers: Vec::new() },
+            App { host, answers: Vec::new(), command_fails: false },
         )
 }
 
@@ -92,7 +97,9 @@ fn typing_into_the_first_field_and_enter_answers_ok() {
     harness.key_press(Key::Enter);
     harness.run();
     harness.run();
-    let [DialogResult::Ok(ParamResult { key, fields })] = &harness.state().answers[..] else { panic!("one OK, got {:?}", harness.state().answers) };
+    let [DialogResult::Ok(ParamResult { key, fields, .. })] = &harness.state().answers[..] else {
+        panic!("one OK, got {:?}", harness.state().answers)
+    };
     assert_eq!(key, "blur");
     assert_eq!(fields.number("radius"), Some(7.0));
     assert_eq!(fields.bool("monochromatic"), Some(false));
@@ -497,7 +504,44 @@ fn the_footer_hook_and_the_close_box_follow_the_options() {
     assert!(harness.query_by_label("Close").is_none());
 }
 
-// `confirm` stores the remembered values as OK does.
+// A command that fails leaves the previous values remembered; a row marked `not_remembered`
+// always opens from its default.
+#[test]
+fn only_a_successful_command_remembers_and_not_remembered_rows_never_do() {
+    let dialog = || {
+        let mut all = params();
+        all.push(
+            Param::new(
+                "source",
+                "Source:",
+                ParamKind::Choice { options: vec![("none".into(), "None".into()), ("channel:0".into(), "Alpha 1".into())], default: None },
+            )
+            .not_remembered(),
+        );
+        ParamDialog::new("blur", "Blur", all).remember("filter.blur")
+    };
+    let confirm_with = |harness: &mut Harness<'static, App>, radius: f64| {
+        let fields = open_dialog(harness).expect("open").fields_mut();
+        fields.set("radius", FieldValue::Number(radius));
+        fields.set("source", "channel:0");
+        let ctx = harness.ctx.clone();
+        assert!(harness.state_mut().host.confirm::<ParamDialog>(&ctx));
+        harness.run();
+        harness.state_mut().host.open(dialog());
+        harness.run();
+    };
+    let mut harness = harness(dialog());
+    harness.run();
+    confirm_with(&mut harness, 9.0);
+    let fields = harness.state().host.get::<ParamDialog>().expect("reopened").fields();
+    assert_eq!((fields.number("radius"), fields.text("source")), (Some(9.0), Some("none")));
+
+    harness.state_mut().command_fails = true;
+    confirm_with(&mut harness, 30.0);
+    assert_eq!(radius(&harness), Some(9.0), "the failed command stored nothing");
+}
+
+// `confirm` answers as OK does, so the app can remember the values.
 #[test]
 fn confirm_stores_the_remembered_values() {
     let mut harness = harness(ParamDialog::new("blur", "Blur", params()).remember("filter.blur"));
@@ -505,6 +549,7 @@ fn confirm_stores_the_remembered_values() {
     open_dialog(&mut harness).expect("open").fields_mut().set("radius", FieldValue::Number(9.0));
     let ctx = harness.ctx.clone();
     assert!(harness.state_mut().host.confirm::<ParamDialog>(&ctx));
+    harness.run();
     harness.state_mut().host.open(ParamDialog::new("blur", "Blur", params()).remember("filter.blur"));
     harness.run();
     assert_eq!(radius(&harness), Some(9.0));
