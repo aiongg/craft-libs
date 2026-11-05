@@ -88,8 +88,11 @@ pub enum CloseScope {
 /// The user's answer for one document.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CloseAnswer {
+    /// Save the document, then close it.
     Save,
+    /// Close the document and discard its changes.
     DontSave,
+    /// Keep the document open and end the whole close operation.
     Cancel,
 }
 
@@ -136,6 +139,7 @@ impl<D: Clone + PartialEq> CloseGuard<D> {
         Self { scope, pending: modified.into_iter().collect(), saving: None, apply_to_all: None, cancelled: false }
     }
 
+    /// What the guard was started for.
     pub fn scope(&self) -> CloseScope {
         self.scope
     }
@@ -211,10 +215,12 @@ impl<D: Clone + PartialEq> CloseGuard<D> {
         self.pending.retain(|d| d != doc);
     }
 
+    /// Whether no document is left to ask about or save, or the operation was cancelled.
     pub fn is_finished(&self) -> bool {
         self.cancelled || (self.pending.is_empty() && self.saving.is_none())
     }
 
+    /// Whether the operation was cancelled.
     pub fn is_cancelled(&self) -> bool {
         self.cancelled
     }
