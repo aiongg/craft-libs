@@ -150,3 +150,37 @@ fn item_text_formats_sizes_and_missing_values() {
     assert_eq!(text(StatusItem::DocumentProfile, &values), "—");
     assert_eq!(text(StatusItem::DocumentSizes, &StatusValues::default()), "—");
 }
+
+#[test]
+// A new StatusItem needs its ▸ menu name: every item has a non-empty English label.
+fn every_item_has_an_english_label() {
+    let labels = StatusReadoutLabels::english();
+    for item in StatusItem::ALL {
+        assert!(!item.label(&labels).trim().is_empty(), "{item:?}");
+    }
+}
+
+#[test]
+// The tooltip set for the shown item appears over its text.
+fn the_shown_items_tooltip_appears_over_its_text() {
+    let mut harness =
+        Harness::builder().with_size([640.0, 80.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui(|ui| {
+            StatusBar::new("bar").show(ui, |bar| {
+                bar.leading(|ui| {
+                    let values = StatusValues { scratch_sizes: Some((1 << 30, 8 << 30)), ..StatusValues::default() };
+                    let readout = StatusReadout::new("readout")
+                        .tooltip(StatusItem::ScratchSizes, "Memory used and available")
+                        .tooltip(StatusItem::Efficiency, "Not shown");
+                    readout.show(ui, 100.0, StatusItem::ScratchSizes, &values);
+                });
+            });
+        });
+    harness.run();
+    assert!(harness.query_by_label_contains("Memory used").is_none(), "no tooltip before hovering");
+    harness.get_by_label_contains("Scratch:").hover();
+    for _ in 0..30 {
+        harness.step();
+    }
+    harness.get_by_label_contains("Memory used and available");
+    assert!(harness.query_by_label_contains("Not shown").is_none());
+}
