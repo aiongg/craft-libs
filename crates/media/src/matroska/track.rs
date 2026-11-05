@@ -5,14 +5,23 @@ use crate::matroska::codec::Codec;
 /// Track type (`TrackType`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrackKind {
+    /// `TrackType` 1.
     Video,
+    /// `TrackType` 2.
     Audio,
+    /// `TrackType` 3 (combined audio and video).
     Complex,
+    /// `TrackType` 0x10.
     Logo,
+    /// `TrackType` 0x11.
     Subtitle,
+    /// `TrackType` 0x12.
     Buttons,
+    /// `TrackType` 0x20.
     Control,
+    /// `TrackType` 0x21.
     Metadata,
+    /// Any other `TrackType` value.
     Other(u8),
 }
 
@@ -38,8 +47,11 @@ impl TrackKind {
 pub struct MasteringMetadata {
     /// Red, green, blue primaries as (x, y).
     pub primaries: [(f64, f64); 3],
+    /// White point as CIE 1931 (x, y).
     pub white_point: (f64, f64),
+    /// Maximum luminance in cd/m².
     pub luminance_max: f64,
+    /// Minimum luminance in cd/m².
     pub luminance_min: f64,
 }
 
@@ -48,12 +60,19 @@ pub struct MasteringMetadata {
 pub struct Color {
     /// `MatrixCoefficients` (H.273; 2 = unspecified).
     pub matrix_coefficients: Option<u64>,
+    /// `BitsPerChannel`.
     pub bits_per_channel: Option<u64>,
+    /// `ChromaSubsamplingHorz`: chroma pixels removed horizontally (1 for 4:2:0 and 4:2:2).
     pub chroma_subsampling_horz: Option<u64>,
+    /// `ChromaSubsamplingVert`: chroma pixels removed vertically (1 for 4:2:0).
     pub chroma_subsampling_vert: Option<u64>,
+    /// `CbSubsamplingHorz`: extra horizontal subsampling of the Cb channel.
     pub cb_subsampling_horz: Option<u64>,
+    /// `CbSubsamplingVert`: extra vertical subsampling of the Cb channel.
     pub cb_subsampling_vert: Option<u64>,
+    /// `ChromaSitingHorz`: 0 unspecified, 1 left collocated, 2 half.
     pub chroma_siting_horz: Option<u64>,
+    /// `ChromaSitingVert`: 0 unspecified, 1 top collocated, 2 half.
     pub chroma_siting_vert: Option<u64>,
     /// `Range`: 0 unspecified, 1 broadcast (limited), 2 full, 3 defined by matrix/transfer.
     pub range: Option<u64>,
@@ -65,6 +84,7 @@ pub struct Color {
     pub max_cll: Option<u64>,
     /// Maximum frame-average light level (cd/m²).
     pub max_fall: Option<u64>,
+    /// `MasteringMetadata`, if present.
     pub mastering: Option<MasteringMetadata>,
 }
 
@@ -78,11 +98,15 @@ impl Color {
 /// `Video` element.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct VideoInfo {
+    /// `PixelWidth` in pixels.
     pub pixel_width: u32,
+    /// `PixelHeight` in pixels.
     pub pixel_height: u32,
     /// `DisplayWidth`/`DisplayHeight`, in `display_unit` (0 = pixels, 3 = display aspect ratio).
     pub display_width: Option<u32>,
+    /// `DisplayHeight`, in `display_unit`.
     pub display_height: Option<u32>,
+    /// `DisplayUnit`: 0 pixels, 1 cm, 2 inches, 3 display aspect ratio, 4 unknown.
     pub display_unit: u64,
     /// Crop (top, bottom, left, right) in pixels.
     pub crop: (u32, u32, u32, u32),
@@ -90,12 +114,15 @@ pub struct VideoInfo {
     pub flag_interlaced: u64,
     /// `FieldOrder` (0 progressive, 1 tff, 2 undetermined, 6 bff, 9/14 interleaved).
     pub field_order: Option<u64>,
+    /// `StereoMode` (0 mono; other values as in RFC 9559).
     pub stereo_mode: Option<u64>,
     /// `AlphaMode`: 1 if BlockAdditions carry alpha.
     pub alpha_mode: u64,
     /// `ColourSpace` FourCC (uncompressed video).
     pub color_space: Option<[u8; 4]>,
+    /// `Colour` element, if present.
     pub color: Option<Color>,
+    /// `Projection` element, if present.
     pub projection: Option<Projection>,
 }
 
@@ -153,7 +180,9 @@ pub struct AudioInfo {
     pub sampling_frequency: f64,
     /// `OutputSamplingFrequency` (e.g. SBR output rate).
     pub output_sampling_frequency: Option<f64>,
+    /// `Channels`.
     pub channels: u64,
+    /// `BitDepth` in bits per sample, if present.
     pub bit_depth: Option<u64>,
 }
 
@@ -167,12 +196,27 @@ impl Default for AudioInfo {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ContentEncoding {
     /// `ContentCompAlgo` 3: the given bytes were stripped from the start of every frame.
-    HeaderStripping { bytes: Vec<u8>, scope: u64 },
+    HeaderStripping {
+        /// The stripped bytes.
+        bytes: Vec<u8>,
+        /// `ContentEncodingScope` bit mask: 1 frames, 2 `CodecPrivate`, 4 next encoding.
+        scope: u64,
+    },
     /// Other compression (0 zlib, 1 bzlib, 2 lzo1x): not supported for reading frame data.
     /// `algo` is `u64::MAX` for a chain of more encodings than a reader checks.
-    Compression { algo: u64, settings: Vec<u8>, scope: u64 },
+    Compression {
+        /// `ContentCompAlgo` value.
+        algo: u64,
+        /// `ContentCompSettings` bytes.
+        settings: Vec<u8>,
+        /// `ContentEncodingScope` bit mask (see [`ContentEncoding::HeaderStripping`]).
+        scope: u64,
+    },
     /// Encryption (not supported for reading frame data).
-    Encryption { scope: u64 },
+    Encryption {
+        /// `ContentEncodingScope` bit mask (see [`ContentEncoding::HeaderStripping`]).
+        scope: u64,
+    },
 }
 
 /// One entry of a track's sample (frame) table.
@@ -186,6 +230,7 @@ pub struct Sample {
     pub pts: i64,
     /// Duration in timebase ticks (from `BlockDuration` or `DefaultDuration`), 0 if unknown.
     pub duration: u64,
+    #[allow(missing_docs)]
     pub keyframe: bool,
     /// Index of the owning cluster in [`crate::matroska::MkvFile::clusters`].
     pub cluster: u32,
@@ -202,30 +247,47 @@ pub struct Sample {
 /// A Matroska track (`TrackEntry`) plus, once indexed, its sample table.
 #[derive(Clone, Debug)]
 pub struct Track {
+    /// `TrackNumber`, the value blocks use to refer to the track.
     pub number: u64,
+    /// `TrackUID`.
     pub uid: u64,
+    /// `TrackType`, as a decoded kind.
     pub kind: TrackKind,
+    /// `FlagEnabled`.
     pub enabled: bool,
+    /// `FlagDefault`.
     pub default: bool,
+    /// `FlagForced`.
     pub forced: bool,
+    /// `FlagHearingImpaired`.
     pub hearing_impaired: bool,
+    /// `FlagLacing`: whether blocks of this track may be laced.
     pub lacing: bool,
     /// `DefaultDuration` in nanoseconds.
     pub default_duration_ns: Option<u64>,
+    /// `Name`.
     pub name: String,
     /// `Language` (ISO 639-2, default `eng`).
     pub language: String,
+    /// `LanguageBCP47`, if present.
     pub language_bcp47: Option<String>,
+    /// `CodecID`.
     pub codec_id: String,
+    /// Raw `CodecPrivate` bytes.
     pub codec_private: Vec<u8>,
+    /// `CodecName`.
     pub codec_name: String,
+    /// Codec decoded from `codec_id` and `codec_private`.
     pub codec: Codec,
     /// `CodecDelay` in nanoseconds.
     pub codec_delay_ns: u64,
     /// `SeekPreRoll` in nanoseconds.
     pub seek_pre_roll_ns: u64,
+    /// `Video` settings; `Some` for video tracks.
     pub video: Option<VideoInfo>,
+    /// `Audio` settings; `Some` for audio tracks.
     pub audio: Option<AudioInfo>,
+    /// `ContentEncodings`, in decoding order.
     pub encodings: Vec<ContentEncoding>,
     /// Timebase numerator/denominator in seconds: `TimestampScale / 1e9`, reduced.
     pub timebase: (u64, u64),

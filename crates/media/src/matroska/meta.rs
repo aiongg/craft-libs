@@ -45,11 +45,15 @@ pub struct SegmentInfo {
     pub timestamp_scale: u64,
     /// `Duration` in timestamp ticks (float), if present.
     pub duration: Option<f64>,
+    /// `Title`, if present.
     pub title: Option<String>,
+    /// `MuxingApp` string.
     pub muxing_app: String,
+    /// `WritingApp` string.
     pub writing_app: String,
     /// `DateUTC`: nanoseconds since 2001-01-01T00:00:00 UTC.
     pub date_utc: Option<i64>,
+    /// `SegmentUUID`, if present.
     pub segment_uuid: Option<[u8; 16]>,
 }
 
@@ -70,19 +74,24 @@ impl Default for SegmentInfo {
 /// One `SeekHead` entry: level-1 element ID and its position relative to the Segment data start.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SeekEntry {
+    /// Element ID of the referenced level-1 element.
     pub id: u32,
+    /// Position of the element, relative to the Segment data start.
     pub position: u64,
 }
 
 /// One `CueTrackPositions` of a `CuePoint`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CuePosition {
+    /// `CueTrack`: the `TrackNumber` the cue applies to.
     pub track: u64,
     /// Cluster position relative to the Segment data start.
     pub cluster_position: u64,
     /// Block position relative to the Cluster data start.
     pub relative_position: Option<u64>,
+    /// `CueBlockNumber`: 1-based block index within the Cluster, if present.
     pub block_number: Option<u64>,
+    /// `CueDuration` in timestamp ticks, if present.
     pub duration: Option<u64>,
 }
 
@@ -91,6 +100,7 @@ pub struct CuePosition {
 pub struct CuePoint {
     /// In timestamp ticks.
     pub time: u64,
+    /// Positions for this time, one per track.
     pub positions: Vec<CuePosition>,
 }
 
@@ -110,22 +120,34 @@ pub struct ClusterInfo {
 /// One `ChapterDisplay`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ChapterDisplay {
+    /// `ChapString`: the chapter title text.
     pub string: String,
+    /// `ChapLanguage` codes (Matroska language codes).
     pub languages: Vec<String>,
+    /// `ChapLanguageBCP47` tags.
     pub languages_bcp47: Vec<String>,
+    /// `ChapCountry` codes.
     pub countries: Vec<String>,
 }
 
 /// `ChapterAtom` (possibly nested).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Chapter {
+    /// `ChapterUID`.
     pub uid: u64,
+    /// `ChapterStringUID`, if present.
     pub string_uid: Option<String>,
+    /// `ChapterTimeStart` in nanoseconds.
     pub start_ns: u64,
+    /// `ChapterTimeEnd` in nanoseconds, if present.
     pub end_ns: Option<u64>,
+    /// `ChapterFlagHidden`.
     pub hidden: bool,
+    /// `ChapterFlagEnabled`.
     pub enabled: bool,
+    /// The chapter's display strings, one per language.
     pub displays: Vec<ChapterDisplay>,
+    /// Nested sub-chapters.
     pub children: Vec<Chapter>,
 }
 
@@ -139,21 +161,32 @@ impl Chapter {
 /// `EditionEntry`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Edition {
+    /// `EditionUID`, if present.
     pub uid: Option<u64>,
+    /// `EditionFlagHidden`.
     pub hidden: bool,
+    /// `EditionFlagDefault`.
     pub default: bool,
+    /// `EditionFlagOrdered`.
     pub ordered: bool,
+    /// Top-level chapters of the edition.
     pub chapters: Vec<Chapter>,
 }
 
 /// `Targets` of a `Tag`. Empty UID lists mean "the whole segment".
 #[derive(Clone, Debug, PartialEq)]
 pub struct TagTargets {
+    /// `TargetTypeValue` (default 50, the "album/movie" level).
     pub type_value: u64,
+    /// `TargetType`: the name of the level, if present.
     pub type_name: Option<String>,
+    /// `TagTrackUID` values the tag applies to.
     pub track_uids: Vec<u64>,
+    /// `TagEditionUID` values the tag applies to.
     pub edition_uids: Vec<u64>,
+    /// `TagChapterUID` values the tag applies to.
     pub chapter_uids: Vec<u64>,
+    /// `TagAttachmentUID` values the tag applies to.
     pub attachment_uids: Vec<u64>,
 }
 
@@ -173,29 +206,43 @@ impl Default for TagTargets {
 /// `SimpleTag` (possibly nested).
 #[derive(Clone, Debug, PartialEq)]
 pub struct SimpleTag {
+    /// `TagName`.
     pub name: String,
+    /// `TagLanguage`.
     pub language: String,
+    /// `TagDefault`.
     pub default: bool,
+    /// `TagString` value, if the tag holds text.
     pub string: Option<String>,
+    /// `TagBinary` value, if the tag holds bytes.
     pub binary: Option<Vec<u8>>,
+    /// Nested simple tags.
     pub children: Vec<SimpleTag>,
 }
 
 /// `Tag`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Tag {
+    /// What the tag applies to.
     pub targets: TagTargets,
+    /// The tag's `SimpleTag` entries.
     pub simple: Vec<SimpleTag>,
 }
 
 /// `AttachedFile` (listed only; the payload is located by `data_offset`/`data_size`).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Attachment {
+    /// `FileUID`.
     pub uid: u64,
+    /// `FileName`.
     pub name: String,
+    /// `FileMediaType`: the MIME type.
     pub media_type: String,
+    /// `FileDescription`, if present.
     pub description: Option<String>,
+    /// Absolute offset of the file data.
     pub data_offset: u64,
+    /// Size of the file data in bytes.
     pub data_size: u64,
 }
 

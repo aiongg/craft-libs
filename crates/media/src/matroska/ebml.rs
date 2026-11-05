@@ -12,11 +12,14 @@ pub fn vint_len(b: u8) -> Option<usize> {
 /// Element data size: known, or "unknown" (all value bits set).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Size {
+    /// A known size in bytes.
     Known(u64),
+    /// The all-ones "unknown size" marker (live or streamed output).
     Unknown,
 }
 
 impl Size {
+    /// The size in bytes, or `None` when unknown.
     pub fn known(self) -> Option<u64> {
         match self {
             Size::Known(n) => Some(n),
@@ -138,10 +141,13 @@ pub fn string(data: &[u8]) -> String {
 /// One element inside an in-memory master element.
 #[derive(Clone, Copy, Debug)]
 pub struct Elem<'a> {
+    /// EBML element ID, marker bits included.
     pub id: u32,
     /// Offset of the element header, relative to the start of the parent's data.
     pub offset: usize,
+    /// Length in bytes of the element header (ID plus size field).
     pub header_len: usize,
+    /// The element's payload bytes.
     pub data: &'a [u8],
     /// The size field was "unknown" (data runs to the end of the parent).
     pub unknown_size: bool,
@@ -160,6 +166,7 @@ pub struct Children<'a> {
 }
 
 impl<'a> Children<'a> {
+    /// Iterate the child elements of `data`, the payload of a master element.
     pub fn new(data: &'a [u8]) -> Self {
         Self { data, pos: 0, damaged: false }
     }
@@ -239,13 +246,18 @@ pub fn verify_crc(master_data: &[u8]) -> Option<bool> {
 /// Block lacing mode (flags bits 1–2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lacing {
+    /// No lacing: the block holds one frame.
     None,
+    /// Xiph lacing: frame sizes coded as runs of 255-valued bytes.
     Xiph,
+    /// Fixed-size lacing: all frames have equal size.
     FixedSize,
+    /// EBML lacing: first size as a VINT, later sizes as signed VINT deltas.
     Ebml,
 }
 
 impl Lacing {
+    /// Decode the lacing mode from a block's flags byte.
     pub fn from_flags(flags: u8) -> Lacing {
         match (flags >> 1) & 3 {
             0 => Lacing::None,

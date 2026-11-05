@@ -216,6 +216,7 @@ impl Track {
     pub fn has_mixed_descriptions(&self) -> bool {
         self.samples.windows(2).any(|w| w[0].description_index != w[1].description_index)
     }
+    /// Video parameters of the track's first sample description, or `None` for other track kinds.
     pub fn video(&self) -> Option<&crate::isobmff::codec::VideoParams> {
         self.entries.first().and_then(|e| e.video.as_ref())
     }

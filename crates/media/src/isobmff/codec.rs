@@ -839,6 +839,7 @@ impl OpusConfig {
         h
     }
 
+    /// Parse the `dOps` box payload (the bytes after the box header).
     pub fn parse(data: &[u8]) -> Result<Self> {
         let mut c = Cur::labeled(data, "dOps");
         let _version = c.u8()?;
