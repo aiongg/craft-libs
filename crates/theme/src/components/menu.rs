@@ -55,12 +55,19 @@ pub struct MenuTokens {
 /// PhotoCraft's label colours (`menu_tint`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MenuHue {
+    #[allow(missing_docs)]
     Red,
+    #[allow(missing_docs)]
     Orange,
+    #[allow(missing_docs)]
     Yellow,
+    #[allow(missing_docs)]
     Green,
+    #[allow(missing_docs)]
     Blue,
+    #[allow(missing_docs)]
     Violet,
+    #[allow(missing_docs)]
     Gray,
 }
 

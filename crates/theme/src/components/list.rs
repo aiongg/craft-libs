@@ -149,16 +149,27 @@ pub struct ListTokens {
 /// PhotoCraft's layer label colours (`LabelColor`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum LabelColor {
+    #[allow(missing_docs)]
     Red,
+    #[allow(missing_docs)]
     Orange,
+    #[allow(missing_docs)]
     Yellow,
+    #[allow(missing_docs)]
     Green,
+    #[allow(missing_docs)]
     Seafoam,
+    #[allow(missing_docs)]
     Blue,
+    #[allow(missing_docs)]
     Indigo,
+    #[allow(missing_docs)]
     Magenta,
+    #[allow(missing_docs)]
     Fuchsia,
+    #[allow(missing_docs)]
     Violet,
+    #[allow(missing_docs)]
     Gray,
 }
 
@@ -792,9 +803,13 @@ fn stack(top: Rgba, bottom: Rgba) -> Rgba {
 /// The selected row's fills and text for the fills `selected` and `selected_hover`: unchanged in
 /// standard contrast, moved to identify the state on the panel in high contrast.
 pub(super) struct SelectedLook {
+    /// The selected fill.
     pub selected: Rgba,
+    /// The selected fill while hovered.
     pub selected_hover: Rgba,
+    /// The selected row's text.
     pub text: Rgba,
+    /// The selected row's quiet text, such as details.
     pub quiet: Rgba,
 }
 

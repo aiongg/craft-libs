@@ -6,9 +6,11 @@ use crate::{AppId, Appearance, Contrast, ContrastCheck, Mode, Size, TextSize, Th
 /// The resolve warnings of one appearance of a theme, for the theme itself or one of its apps.
 #[derive(Clone, Debug)]
 pub struct AppearanceReport {
+    /// The app the sweep resolved for; `None` for the theme itself.
     pub app: Option<AppId>,
     /// Text size is the default and reduced motion is off.
     pub appearance: Appearance,
+    /// The contrast checks that failed in this appearance.
     pub warnings: Vec<ContrastCheck>,
 }
 
@@ -30,10 +32,12 @@ impl AppearanceReport {
 /// theme has, then contrast (standard, high), then size (compact, comfortable).
 #[derive(Clone, Debug, Default)]
 pub struct ContrastReport {
+    /// One report per appearance, in sweep order.
     pub appearances: Vec<AppearanceReport>,
 }
 
 impl ContrastReport {
+    /// Iterates over the appearances in sweep order.
     pub fn iter(&self) -> std::slice::Iter<'_, AppearanceReport> {
         self.appearances.iter()
     }

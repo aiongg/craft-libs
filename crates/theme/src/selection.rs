@@ -13,7 +13,9 @@ use crate::{AppId, ThemeId};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModeChoice {
+    #[allow(missing_docs)]
     Light,
+    #[allow(missing_docs)]
     Dark,
     /// The OS's mode, else the app's fallback mode.
     System,
@@ -23,7 +25,9 @@ pub enum ModeChoice {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ContrastChoice {
+    #[allow(missing_docs)]
     Standard,
+    #[allow(missing_docs)]
     High,
     /// The OS's contrast, else standard.
     #[default]
@@ -58,7 +62,9 @@ impl MotionChoice {
 /// A theme for each mode. Either slot may hold [`crate::APP_DEFAULT`].
 #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ThemePair {
+    /// The theme used in light mode.
     pub light: ThemeId,
+    /// The theme used in dark mode.
     pub dark: ThemeId,
 }
 
@@ -89,11 +95,17 @@ impl ThemePair {
 /// What the user picked, every field concrete (after defaults are filled in).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct Selection {
+    /// The theme for each mode.
     pub theme: ThemePair,
+    /// Light, dark or the OS's mode.
     pub mode: ModeChoice,
+    /// Standard, high or the OS's contrast.
     pub contrast: ContrastChoice,
+    /// Full, reduced or the OS's motion.
     pub motion: MotionChoice,
+    /// The size set.
     pub size: Size,
+    /// The text size.
     pub text_size: TextSize,
 }
 
@@ -102,12 +114,19 @@ pub struct Selection {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct SuiteChoice {
+    /// The theme chosen for light mode.
     pub theme_light: Option<ThemeId>,
+    /// The theme chosen for dark mode.
     pub theme_dark: Option<ThemeId>,
+    /// The chosen mode.
     pub mode: Option<ModeChoice>,
+    /// The chosen contrast.
     pub contrast: Option<ContrastChoice>,
+    /// The chosen motion.
     pub motion: Option<MotionChoice>,
+    /// The chosen size set.
     pub size: Option<Size>,
+    /// The chosen text size.
     pub text_size: Option<TextSize>,
 }
 
@@ -162,8 +181,11 @@ impl From<Selection> for SuiteChoice {
 /// size that suit it (the creative apps Dark and Compact; office apps may ship Light).
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppDefaults {
+    /// The theme for each mode.
     pub theme: ThemePair,
+    /// The mode the app starts in when nothing is chosen.
     pub mode: ModeChoice,
+    /// The size set the app starts in when nothing is chosen.
     pub size: Size,
     /// The app's own sizes: base overrides and component pins, applied to whichever size set is
     /// chosen.
@@ -178,8 +200,11 @@ pub struct AppDefaults {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct AppChoice {
+    /// The app's own theme for each mode.
     pub theme: Option<ThemePair>,
+    /// The app's own mode.
     pub mode: Option<ModeChoice>,
+    /// The app's own size set.
     pub size: Option<Size>,
 }
 
@@ -224,8 +249,11 @@ impl AppChoice {
 /// What the OS reports; `None` where it gives no answer.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct SystemAppearance {
+    /// The OS's mode.
     pub mode: Option<Mode>,
+    /// The OS's contrast preference.
     pub contrast: Option<Contrast>,
+    /// Whether the OS asks for reduced motion.
     pub reduced_motion: Option<bool>,
 }
 
@@ -237,6 +265,7 @@ pub struct Shown {
     /// The appearance it was resolved for, "System" replaced by the OS's answer or the
     /// fallbacks. `mode` is the mode asked for; [`Resolved::variant_used`] is the one shown.
     pub appearance: Appearance,
+    /// The resolved tokens and what was used to resolve them.
     pub resolved: Resolved,
     /// Why the result differs from what the selection asked for, in the order the steps found
     /// them: mode, theme, variant.

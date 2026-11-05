@@ -15,6 +15,7 @@ const MAX_LEN: usize = 64;
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ThemeId(Arc<str>);
 
+/// Why an id is not valid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IdError {
     /// Shorter than 2 or longer than 64 bytes.
@@ -63,6 +64,7 @@ impl AppId {
         Ok(AppId(Arc::from(s)))
     }
 
+    /// The id as text.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -106,14 +108,17 @@ impl ThemeId {
         ThemeId(Arc::from(s))
     }
 
+    /// The id that means "the app's own default theme" ([`APP_DEFAULT`]).
     pub fn app_default() -> Self {
         Self::from_static(APP_DEFAULT)
     }
 
+    /// The id of the suite's default theme ([`SUITE_DEFAULT`]).
     pub fn suite_default() -> Self {
         Self::from_static(SUITE_DEFAULT)
     }
 
+    /// The id as text.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -123,6 +128,7 @@ impl ThemeId {
         self.0.starts_with(RESERVED_PREFIX)
     }
 
+    /// Whether this is [`APP_DEFAULT`].
     pub fn is_app_default(&self) -> bool {
         &*self.0 == APP_DEFAULT
     }
