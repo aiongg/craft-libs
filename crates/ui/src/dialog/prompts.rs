@@ -169,6 +169,9 @@ pub struct StandardPrompt {
     args: Vec<(String, String)>,
 }
 
+/// A prompt's title, message and answers, each answer `(role, label, key)`.
+type PromptContent = (String, String, Vec<(ButtonRole, String, Option<Key>)>);
+
 impl StandardPrompt {
     /// A prompt asking `kind`, with no tag and no "Don't show again" box.
     pub fn new(kind: PromptKind) -> Self {
@@ -337,7 +340,6 @@ impl StandardPrompt {
         Remembered::new(format!("prompt.{key}.skip"))
     }
 
-    /// The title, message and answers of the kind: `(role, label, key)`.
     /// An app-given `text` in the Host's language with the [`arg`](Self::arg) values filled.
     fn app_text(&self, ctx: &Context, text: &str) -> String {
         let text = super::params::translated(ctx, text);
@@ -348,7 +350,8 @@ impl StandardPrompt {
         craft_i18n::fmt(&text, &args)
     }
 
-    fn content(&self, ctx: &Context, labels: &PromptLabels) -> (String, String, Vec<(ButtonRole, String, Option<Key>)>) {
+    /// The title, message and answers of the kind: `(role, label, key)`.
+    fn content(&self, ctx: &Context, labels: &PromptLabels) -> PromptContent {
         let (mut title, mut message, mut answers) = self.kind_content(ctx, labels);
         if let Some(own) = &self.title {
             title = self.app_text(ctx, own);
@@ -376,7 +379,7 @@ impl StandardPrompt {
         (title, message, answers)
     }
 
-    fn kind_content(&self, ctx: &Context, labels: &PromptLabels) -> (String, String, Vec<(ButtonRole, String, Option<Key>)>) {
+    fn kind_content(&self, ctx: &Context, labels: &PromptLabels) -> PromptContent {
         let cancel = (ButtonRole::Cancel, "Cancel".to_owned(), Some(Key::C));
         match &self.kind {
             PromptKind::ConfirmDelete { names, count } => {

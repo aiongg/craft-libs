@@ -19,6 +19,8 @@ use crate::tab_strip::{Tab, TabEvent, TabKind, TabStrip};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 
 /// One row of a properties tab.
+// A dialog holds a few rows, built once; boxing `Param` would only make the rows harder to write.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum PropertyRow {

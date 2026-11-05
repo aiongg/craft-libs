@@ -1,7 +1,7 @@
 //! [`SettingsFiles`]: the file access a [`SettingsStore`](crate::SettingsStore) goes through, so an
 //! app can route its settings elsewhere (PhotoCraft's `Services` file closures, browser storage).
 
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
 
 /// How the store reads and writes its files. [`DiskFiles`] is the file system, the default; an
@@ -47,6 +47,7 @@ impl SettingsFiles for DiskFiles {
     }
 
     fn write(&self, path: &Path, text: &str) -> io::Result<()> {
+        use std::io::Write as _;
         craft_atomic::WriteOptions::default().with_new_file_permissions(craft_atomic::NewFilePermissions::Private).atomic_write_with(path, |file| {
             restrict_permissions(file)?;
             file.write_all(text.as_bytes())

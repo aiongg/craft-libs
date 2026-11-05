@@ -658,17 +658,17 @@ impl Param {
                         ui.vertical(|ui| {
                             ui.set_width(width);
                             edit::scope(ui, |ui| {
-                                let mut field = None;
-                                direction::horizontal(ui, |ui| {
+                                let field = direction::horizontal(ui, |ui| {
                                     ui.add(Label::new(name.as_str()).selectable(false));
                                     ui.with_layout(direction::trailing(ui), |ui| {
                                         let widget =
                                             NumberField::new((key, "field"), &name, value, numbers).range(*min..=*max).step(step).decimals(places);
-                                        field = Some(with_unit(widget, unit).show(ui));
-                                    });
-                                });
+                                        with_unit(widget, unit).show(ui)
+                                    })
+                                    .inner
+                                })
+                                .inner;
                                 let slider = Slider::new((key, "slider"), &name, value, *min..=*max).scale(*scale).width(width).show(ui);
-                                let field = field.unwrap_or_else(|| unreachable!("the field is drawn in the line above"));
                                 if let Some(v) = edited(&field).or_else(|| edited(&slider)) {
                                     fields.set(key, rounded(v, shown));
                                 }
@@ -693,8 +693,7 @@ impl Param {
                     .inner
                 });
             }
-            ParamKind::Number { min, max, step, decimals, .. } if self.option().units.is_some() => {
-                let choices = self.option().units.unwrap_or_else(|| unreachable!("guarded"));
+            ParamKind::Number { min, max, step, decimals, .. } if let Some(choices) = self.option().units => {
                 let base = fields.number(key).or_else(|| number_of(default.as_ref())).unwrap_or(0.0);
                 let chosen = fields.text(&choices.key).and_then(|id| choices.units.iter().position(|u| u.id == id)).unwrap_or(choices.initial);
                 let mut unit_id = choices.units.get(chosen).map(|u| u.id.clone()).unwrap_or_default();

@@ -145,7 +145,7 @@ pub fn owner(ctx: &Context, gate: &OwnerGate) -> KeyOwner {
 /// (Esc cancels its edit, Tab leaves it), so for the rest of the pass the key is not the app's.
 /// The next pass the field is no longer the owner.
 fn text_has_keys(ctx: &Context) -> bool {
-    let last = Id::new("craft_ui::focus::key_owner::last_text");
+    let last = Id::unique("craft_ui::focus::key_owner::last_text");
     if ctx.text_edit_focused() {
         let id = ctx.memory(|m| m.focused());
         ctx.data_mut(|d| d.insert_temp(last, id));
