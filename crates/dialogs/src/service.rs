@@ -63,7 +63,7 @@ fn file_error(e: std::io::Error, path: &Path) -> FileError {
 /// (`adds_extension`, Windows), a lowercase extension is left off so the name does not end up
 /// doubled; an uppercase extension is the user's spelling and stays.
 // pc: apps/photocraft/src/services.rs:192 dialog_file_name
-fn dialog_file_name(suggested: &str, adds_extension: bool) -> Option<String> {
+pub(crate) fn dialog_file_name(suggested: &str, adds_extension: bool) -> Option<String> {
     let path = Path::new(suggested);
     let name = path.file_name()?.to_string_lossy().into_owned();
     let (Some(stem), Some(ext)) = (path.file_stem(), path.extension().and_then(|e| e.to_str())) else { return Some(name) };

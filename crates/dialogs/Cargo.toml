@@ -28,6 +28,14 @@ objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "NSApplication", "NSOpenPanel", "NSPanel", "NSResponder", "NSSavePanel", "NSView", "NSWindow"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }
 
+# The Linux Save panel asks the desktop portal itself, which reports the file type picked. The
+# versions craft-platform already builds (zbus with async-io and blocking-api), so adopting the
+# crate adds nothing new to the apps' Cargo.lock.
+[target.'cfg(target_os = "linux")'.dependencies]
+futures-lite = "2"
+log = "0.4"
+zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
+
 [features]
 default = []
 # `craft_dialogs::ui`: `PathField` and the other egui parts of the file service.
