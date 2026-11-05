@@ -222,7 +222,7 @@ impl StackDialog for CommandForm {
         }
         let shown = dialog.show(ctx, &mut self.state, &mut self.fields, |ui, fields| {
             first_field_focused(ui, id, |ui| {
-                FormGrid::new("form").show(ui, |form| draw_rows(params, id, form, fields, None));
+                FormGrid::new("form").show(ui, |form| draw_rows(params, id, form, fields, None, false));
             });
             if let Some(below) = below {
                 below(ui, fields);

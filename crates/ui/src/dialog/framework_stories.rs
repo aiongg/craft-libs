@@ -17,6 +17,7 @@ use crate::typed_story;
 enum LayoutArg {
     SideColumn,
     BottomFooter,
+    Stacked,
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]
@@ -188,6 +189,7 @@ fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
     let layout = match args.layout {
         LayoutArg::SideColumn => ParamLayout::SideColumn,
         LayoutArg::BottomFooter => ParamLayout::BottomFooter,
+        LayoutArg::Stacked => ParamLayout::Stacked,
     };
     let preview = args.preview;
     drive(

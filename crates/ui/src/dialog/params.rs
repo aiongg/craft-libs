@@ -594,18 +594,23 @@ impl Param {
 
     /// [`Param::row`] for a row of the dialog `dialog`: a colour swatch press is kept under it.
     pub(super) fn row_in(&self, dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
+        self.row_with(dialog, form, fields, preview, false);
+    }
+
+    /// [`Param::row_in`], with a slider row stacked when `stacked` ([`ParamLayout::Stacked`]).
+    fn row_with(&self, dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>, stacked: bool) {
         if !self.visible(fields) {
             return;
         }
         form.set_disabled(!self.enabled(fields));
-        self.row_body(dialog, form, fields, preview);
+        self.row_body(dialog, form, fields, preview, stacked);
         if let (Some(tip), Some(row)) = (self.texts.as_ref().and_then(|t| t.tooltip.as_ref()), form.last_row()) {
             let _ = row.clone().tooltip(translated(form.ctx(), tip));
         }
         form.set_disabled(false);
     }
 
-    fn row_body(&self, dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
+    fn row_body(&self, dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>, stacked: bool) {
         let ctx = form.ctx().clone();
         let numbers = LocaleNumbers::of_ctx(&ctx);
         let numbers = &*numbers;
@@ -623,6 +628,35 @@ impl Param {
                     None if (max - min).abs() <= 10.0 => (0..=2, 0.01),
                     None => (0..=1, 1.0),
                 };
+                if stacked {
+                    // The label and the field share the first line, the slider fills the second.
+                    form.spanning(|ui| {
+                        let width = ui.available_width();
+                        ui.vertical(|ui| {
+                            ui.set_width(width);
+                            edit::scope(ui, |ui| {
+                                let mut field = None;
+                                direction::horizontal(ui, |ui| {
+                                    ui.add(Label::new(name.as_str()).selectable(false));
+                                    ui.with_layout(direction::trailing(ui), |ui| {
+                                        let widget =
+                                            NumberField::new((key, "field"), &name, value, numbers).range(*min..=*max).step(step).decimals(places);
+                                        field = Some(with_unit(widget, unit).show(ui));
+                                    });
+                                });
+                                let slider = Slider::new((key, "slider"), &name, value, *min..=*max).scale(*scale).width(width).show(ui);
+                                let field = field.unwrap_or_else(|| unreachable!("the field is drawn in the line above"));
+                                if let Some(v) = edited(&field).or_else(|| edited(&slider)) {
+                                    fields.set(key, rounded(v, shown));
+                                }
+                                (slider, field)
+                            })
+                            .inner
+                        })
+                        .inner
+                    });
+                    return;
+                }
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
                         let slider = Slider::new((key, "slider"), &name, value, *min..=*max).scale(*scale).show(ui);
@@ -1078,9 +1112,16 @@ pub(super) fn first_field_focused<R>(ui: &mut Ui, id: DialogId, body: impl FnOnc
 }
 
 /// Draws one row per parameter.
-pub(super) fn draw_rows(params: &[Param], dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
+pub(super) fn draw_rows(
+    params: &[Param],
+    dialog: DialogId,
+    form: &mut Form<'_>,
+    fields: &mut DialogFields,
+    preview: Option<&SizedTexture>,
+    stacked: bool,
+) {
     for param in params {
-        param.row_in(dialog, form, fields, preview);
+        param.row_with(dialog, form, fields, preview, stacked);
     }
 }
 
@@ -1154,7 +1195,7 @@ impl<'a> ParamRows<'a> {
         }
         let before = fields.clone();
         let preview = self.preview.as_ref();
-        let shown = FormGrid::new(id).show(ui, |form| draw_rows(self.params, id, form, fields, preview));
+        let shown = FormGrid::new(id).show(ui, |form| draw_rows(self.params, id, form, fields, preview, false));
         let ctx = ui.ctx();
         ParamRowsResponse {
             response: shown.response,
@@ -1312,6 +1353,11 @@ pub enum ParamLayout {
     SideColumn,
     /// Parameters, then the preview pane, then a bottom footer: PhotoCraft today.
     BottomFooter,
+    /// PhotoCraft's filter dialogs: each slider row stacked (the label and the value field with
+    /// its unit on the first line, a full-width slider under it), then the Preview check box,
+    /// the preview pane, a zoom row under the pane, and OK and Cancel at the bottom right. Other
+    /// rows keep the form's label and control columns.
+    Stacked,
 }
 
 /// A dialog from a parameter list: one row per [`Param`], Preview with hold-to-compare, Reset on
@@ -1537,7 +1583,7 @@ impl ParamDialog {
     /// The rows, for a body a host draws itself in the same form.
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:810 `body`.
     pub fn rows(&mut self, form: &mut Form<'_>) {
-        draw_rows(&self.params, self.id, form, &mut self.fields, self.preview_image.as_ref());
+        draw_rows(&self.params, self.id, form, &mut self.fields, self.preview_image.as_ref(), false);
     }
 
     /// The colour parameter whose swatch the user pressed, once: the host opens its colour picker
@@ -1635,29 +1681,39 @@ impl ParamDialog {
     /// checkerboard under transparency. The pointer drags the view along an axis the image
     /// overflows, and a click centres the view on the point clicked.
     // pc: crates/ui-egui/src/dialogs/filter_preview_ui.rs (the pane only; the worker stays in the app).
-    fn preview_pane(ui: &mut Ui, dialog: DialogId, image: &SizedTexture) {
+    fn preview_pane(ui: &mut Ui, dialog: DialogId, image: &SizedTexture, zoom_below: bool) {
         let tokens = Tokens::of(ui);
         let words = DialogLabels::of_ctx(ui.ctx());
         let zoom_id = preview_zoom_id(dialog);
         let pan_id = preview_pan_id(dialog);
         let old_zoom = ui.data(|d| d.get_temp::<f32>(zoom_id)).unwrap_or(1.0);
         let mut zoom = old_zoom;
-        direction::horizontal(ui, |ui| {
-            let out = ui.add(IconButton::new(Icon::Minus, words.zoom_out.as_str()).id_salt((dialog, "zoom-out")).enabled(zoom > ZOOM_STEPS[0]));
-            let readout = ui.add(Label::new(Units::of(ui).percent(f64::from(zoom) * 100.0)).selectable(false));
-            ui.ctx().accesskit_node_builder(readout.id, |node| node.set_description(words.zoom.clone()));
-            let into = ui.add(
-                IconButton::new(Icon::Plus, words.zoom_in.as_str()).id_salt((dialog, "zoom-in")).enabled(zoom < ZOOM_STEPS[ZOOM_STEPS.len() - 1]),
-            );
-            if out.clicked() {
-                zoom = ZOOM_STEPS.iter().rev().copied().find(|step| *step < zoom - 1e-4).unwrap_or(ZOOM_STEPS[0]);
-            }
-            if into.clicked() {
-                zoom = ZOOM_STEPS.iter().copied().find(|step| *step > zoom + 1e-4).unwrap_or(ZOOM_STEPS[ZOOM_STEPS.len() - 1]);
-            }
-        });
+        let zoom_row = |ui: &mut Ui, zoom: &mut f32| {
+            direction::horizontal(ui, |ui| {
+                let out = ui.add(IconButton::new(Icon::Minus, words.zoom_out.as_str()).id_salt((dialog, "zoom-out")).enabled(*zoom > ZOOM_STEPS[0]));
+                let readout = ui.add(Label::new(Units::of(ui).percent(f64::from(*zoom) * 100.0)).selectable(false));
+                ui.ctx().accesskit_node_builder(readout.id, |node| node.set_description(words.zoom.clone()));
+                let into = ui.add(
+                    IconButton::new(Icon::Plus, words.zoom_in.as_str())
+                        .id_salt((dialog, "zoom-in"))
+                        .enabled(*zoom < ZOOM_STEPS[ZOOM_STEPS.len() - 1]),
+                );
+                if out.clicked() {
+                    *zoom = ZOOM_STEPS.iter().rev().copied().find(|step| *step < *zoom - 1e-4).unwrap_or(ZOOM_STEPS[0]);
+                }
+                if into.clicked() {
+                    *zoom = ZOOM_STEPS.iter().copied().find(|step| *step > *zoom + 1e-4).unwrap_or(ZOOM_STEPS[ZOOM_STEPS.len() - 1]);
+                }
+            });
+        };
+        if !zoom_below {
+            zoom_row(ui, &mut zoom);
+        }
         let [least, height] = tokens.component.dialog.preview_pane;
         let (well, response) = ui.allocate_exact_size(vec2(ui.available_width().max(least), height), Sense::click_and_drag());
+        if zoom_below {
+            zoom_row(ui, &mut zoom);
+        }
         let field = TextField::style(&tokens, ControlSize::Md);
         let swatch = Swatch::style(&tokens, ControlSize::Md);
         ui.painter().extend(field_box(ui, &field, well, BoxState { enabled: true, focused: false, hovered: false, invalid: false }));
@@ -1733,7 +1789,7 @@ impl StackDialog for ParamDialog {
         }
         let labels = DialogLabels::of_ctx(ctx);
         let layout = self.layout.unwrap_or(if self.preview { ParamLayout::SideColumn } else { ParamLayout::BottomFooter });
-        let mut preview = *self.state.preview();
+        let preview = std::cell::RefCell::new(*self.state.preview());
         let (has_preview, preview_label) = (self.preview, labels.preview.as_str());
         let reset = Reset::AltCancel(labels.reset.clone());
         let footer = match layout {
@@ -1741,12 +1797,13 @@ impl StackDialog for ParamDialog {
                 let footer = Footer::side().reset(reset).ok_enabled(self.ok_enabled);
                 if has_preview {
                     footer.below(|ui| {
-                        preview.checkbox(ui, preview_label);
+                        preview.borrow_mut().checkbox(ui, preview_label);
                     })
                 } else {
                     footer
                 }
             }
+            ParamLayout::Stacked => Footer::standard().reset(reset).ok_enabled(self.ok_enabled),
             ParamLayout::BottomFooter => {
                 let mut footer = Footer::standard().reset(reset).ok_enabled(self.ok_enabled);
                 if let Some(extra) = &mut self.footer_extra {
@@ -1754,7 +1811,7 @@ impl StackDialog for ParamDialog {
                 }
                 if has_preview {
                     footer.leading(|ui| {
-                        preview.checkbox(ui, preview_label);
+                        preview.borrow_mut().checkbox(ui, preview_label);
                     })
                 } else {
                     footer
@@ -1762,6 +1819,7 @@ impl StackDialog for ParamDialog {
             }
         };
         let image = self.preview_image.as_ref();
+        let stacked = layout == ParamLayout::Stacked;
         let (params, id, below) = (&self.params, self.id, &self.below);
         let mut dialog =
             Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).history(self.history);
@@ -1774,21 +1832,25 @@ impl StackDialog for ParamDialog {
             &mut self.fields,
             |ui, fields| {
                 first_field_focused(ui, id, |ui| {
-                    FormGrid::new("params").show(ui, |form| draw_rows(params, id, form, fields, image));
+                    FormGrid::new("params").show(ui, |form| draw_rows(params, id, form, fields, image, stacked));
                 });
                 if let Some(below) = below {
                     below(ui, fields);
                 }
             },
             |ui, _| {
+                if stacked && has_preview {
+                    ui.add_space(ui.spacing().item_spacing.y);
+                    preview.borrow_mut().checkbox(ui, preview_label);
+                }
                 if let Some(image) = image {
                     ui.add_space(ui.spacing().item_spacing.y);
-                    Self::preview_pane(ui, id, image);
+                    Self::preview_pane(ui, id, image, stacked);
                 }
             },
         );
         if self.state.is_open() {
-            *self.state.preview_mut() = preview;
+            *self.state.preview_mut() = preview.into_inner();
         }
         self.picked_color = take_color_press(ctx, self.id).or(self.picked_color.take());
         self.picked_path = take_path_press(ctx, self.id).or(self.picked_path.take());

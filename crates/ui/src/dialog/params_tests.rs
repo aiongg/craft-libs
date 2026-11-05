@@ -8,8 +8,8 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::{
-    CommandForm, DialogFields, DialogHost, DialogResult, EyedropperRequest, FieldValue, NumberUnit, Param, ParamDialog, ParamKind, ParamResult,
-    PathKind, PathRequest,
+    CommandForm, DialogFields, DialogHost, DialogResult, EyedropperRequest, FieldValue, NumberUnit, Param, ParamDialog, ParamKind, ParamLayout,
+    ParamResult, PathKind, PathRequest,
 };
 use crate::controls::SliderScale;
 use crate::localized::Unit;
@@ -800,4 +800,35 @@ fn the_preview_zoom_buttons_change_the_zoom() {
     harness.get_by_label("Zoom out").click();
     harness.run();
     let _ = harness.get_by_label("75%");
+}
+
+// PhotoCraft's filter dialogs: the value field shares the label's line and the slider runs under
+// it; the colour row keeps its label column.
+#[test]
+fn the_stacked_layout_puts_the_field_on_the_label_line_and_the_slider_under_it() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).layout(ParamLayout::Stacked));
+    harness.run();
+    let label = harness.get_by_role_and_label(Role::Label, "Radius").rect();
+    let field = harness.get_by_role_and_label(Role::SpinButton, "Radius").rect();
+    let slider = harness.get_by_role_and_label(Role::Slider, "Radius").rect();
+    assert!((label.center().y - field.center().y).abs() < 2.0, "label {label:?} and field {field:?} share a line");
+    assert!(label.right() <= field.left() && field.left() > slider.center().x, "the field is at the trailing end");
+    assert!(slider.top() >= field.bottom() - 1.0, "the slider {slider:?} is under the field {field:?}");
+    assert!(slider.width() > 2.0 * field.width(), "the slider fills the row");
+}
+
+// The Preview check box sits above the pane, and the zoom row under it.
+#[test]
+fn the_stacked_layout_puts_the_preview_check_box_above_the_pane_and_the_zoom_row_under_it() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).preview(true).layout(ParamLayout::Stacked));
+    harness.run();
+    open_dialog(&mut harness).expect("open").set_preview_image(Some(SizedTexture::new(TextureId::default(), vec2(64.0, 48.0))));
+    harness.run();
+    let slider = harness.get_by_role_and_label(Role::Slider, "Radius").rect();
+    let check = harness.get_by_label("Preview").rect();
+    let zoom = harness.get_by_label("Zoom out").rect();
+    let ok = harness.get_by_label("OK").rect();
+    assert!(check.top() >= slider.bottom(), "Preview is under the rows");
+    assert!(zoom.top() >= check.bottom() + 40.0, "the pane sits between Preview {check:?} and the zoom row {zoom:?}");
+    assert!(ok.top() >= zoom.bottom() && ok.left() > check.right(), "OK is at the bottom right");
 }
