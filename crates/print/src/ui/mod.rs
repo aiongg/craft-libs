@@ -83,6 +83,7 @@ pub struct Settings {
     pub copies: u32,
     /// None preserves the printer's default instead of forcing simplex.
     pub duplex: Option<Duplex>,
+    /// Print in grayscale.
     pub grayscale: bool,
 }
 
