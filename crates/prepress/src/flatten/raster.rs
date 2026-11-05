@@ -1,4 +1,4 @@
-//! Complex regions rasterized as ink images (plan tasks C3 and C4), and [`flatten_page`], which
+//! Complex regions rasterized as ink images, and [`flatten_page`], which
 //! flattens one page of a PDF.
 //!
 //! A region's image is its items written alone as a small PDF ([`page_pdf`]) and separated with

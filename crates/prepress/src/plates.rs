@@ -8,7 +8,7 @@
 //! components, DeviceGray black only, and other process color converts to CMYK through the
 //! printing condition (see [`Conversion`]).
 //!
-//! Ported from PdfCraft #2770 by Guillem Hermida (`crates/render/src/separations.rs` at
+//! Ported from storytold/pdfcraft#2770 by Guillem Hermida (`crates/render/src/separations.rs` at
 //! 6fcf2a4, MIT OR Apache-2.0), with craft-cms in place of moxcms.
 
 use std::collections::HashSet;
