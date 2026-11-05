@@ -16,33 +16,36 @@
 //! app's, through its method table. Everything a method table does not want to own is here.
 
 pub mod actions;
+#[cfg(feature = "ui")]
 pub mod ui;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod args;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "ui", not(target_arch = "wasm32")))]
 pub mod control;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod profiler;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod protocol;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "ui", not(target_arch = "wasm32")))]
 pub mod screenshot;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod security;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "ui", not(target_arch = "wasm32")))]
 pub mod synthetic;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod trace;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod client;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "ui", not(target_arch = "wasm32")))]
 pub mod server;
 
+#[cfg(all(feature = "ui", not(target_arch = "wasm32")))]
+pub use control::{ControlChannel, ControlRequest, ControlResponse, Dispatch, Reply};
 #[cfg(not(target_arch = "wasm32"))]
-pub use control::{ControlChannel, ControlRequest, ControlResponse, Dispatch, REPLY_DEADLINE, Reply};
-#[cfg(not(target_arch = "wasm32"))]
+pub use protocol::REPLY_DEADLINE;
+#[cfg(all(feature = "ui", not(target_arch = "wasm32")))]
 pub use screenshot::Captures;
 #[cfg(not(target_arch = "wasm32"))]
 pub use security::AutomationError;

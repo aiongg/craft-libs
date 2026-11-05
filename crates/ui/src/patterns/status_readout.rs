@@ -7,7 +7,7 @@ use std::ops::RangeInclusive;
 use egui::{AsIdSalt, Context, Id, Ui};
 
 use super::StatusBar;
-use crate::controls::NumberField;
+use crate::controls::{NumberField, TooltipExt as _};
 use crate::edit::EditEvent;
 use crate::localized::words::counts;
 use crate::localized::{Labels as _, LocaleNumbers, Unit, Words};
@@ -103,12 +103,13 @@ pub struct StatusReadout {
     id: Id,
     labels: Option<StatusReadoutLabels>,
     range: RangeInclusive<f64>,
+    tips: Vec<(StatusItem, String)>,
 }
 
 impl StatusReadout {
     /// A readout with English labels and the default zoom range. `id_salt` keys its state.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        Self { id: Id::unique("craft_ui::patterns::StatusReadout").with(id_salt), labels: None, range: DEFAULT_RANGE }
+        Self { id: Id::unique("craft_ui::patterns::StatusReadout").with(id_salt), labels: None, range: DEFAULT_RANGE, tips: Vec::new() }
     }
 
     /// The zoom field's range in percent: the host's zoom ladder limits for the document
@@ -116,6 +117,15 @@ impl StatusReadout {
     /// 0.01–100000.
     pub fn range(mut self, percent: RangeInclusive<f64>) -> Self {
         self.range = percent;
+        self
+    }
+
+    /// A tooltip for the info text while `item` is the one shown ("Efficiency is the share of
+    /// time spent working rather than waiting on the scratch disk"). Shown as given: translate it
+    /// in the app. An item without one has no tooltip.
+    pub fn tooltip(mut self, item: StatusItem, text: impl Into<String>) -> Self {
+        self.tips.retain(|(i, _)| *i != item);
+        self.tips.push((item, text.into()));
         self
     }
 
@@ -143,7 +153,10 @@ impl StatusReadout {
                 .show(ui);
             out.zoom = edit.event;
         });
-        StatusBar::info(ui, &item.text(values, &labels, &numbers, ui.ctx()));
+        let info = StatusBar::info(ui, &item.text(values, &labels, &numbers, ui.ctx()));
+        if let Some((_, tip)) = self.tips.iter().find(|(i, _)| *i == item) {
+            let _ = info.tooltip(tip.as_str());
+        }
         let button = StatusBar::menu_button(ui, &labels.menu);
         let entries: Vec<MenuEntry<StatusItem>> =
             StatusItem::ALL.iter().map(|&i| MenuItem::new(i.label(&labels), i).radio(i == item).into()).collect();
@@ -201,7 +214,7 @@ impl StatusItem {
     }
 
     /// The item's name in the ▸ menu.
-    fn label(self, labels: &StatusReadoutLabels) -> &str {
+    pub(super) fn label(self, labels: &StatusReadoutLabels) -> &str {
         match self {
             StatusItem::DocumentSizes => &labels.document_sizes,
             StatusItem::DocumentProfile => &labels.document_profile,

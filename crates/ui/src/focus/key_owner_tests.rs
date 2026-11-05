@@ -74,3 +74,33 @@ fn layer_keys_are_free_over_a_focused_control_and_not_under_a_popover_or_a_text_
     }
     assert!(!keys_free(&ctx, layer), "a text field has the keys");
 }
+
+// egui takes the focus off a text field at the start of the pass in which Esc is pressed; the
+// field has read the key, so that pass it still owns the keyboard, and the next it does not.
+#[test]
+fn a_text_field_owns_the_keys_in_the_pass_egui_drops_its_focus_on_escape() {
+    let ctx = Context::default();
+    let mut text = String::new();
+    for _ in 0..2 {
+        pass(&ctx, |ui| {
+            ui.text_edit_singleline(&mut text).request_focus();
+            owner(ui.ctx(), &OwnerGate::default());
+        });
+    }
+    let mut owners = Vec::new();
+    let escape = || RawInput {
+        events: vec![egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE }],
+        ..RawInput::default()
+    };
+    ctx.run_ui(escape(), |ui| {
+        ui.text_edit_singleline(&mut text);
+        owners.push(owner(ui.ctx(), &OwnerGate::default()));
+        assert!(!keys_free(ui.ctx(), LayerId::background()), "keys_free agrees with owner in the Escape pass");
+    })
+    .drop_without_applying_deltas();
+    pass(&ctx, |ui| {
+        ui.text_edit_singleline(&mut text);
+        owners.push(owner(ui.ctx(), &OwnerGate::default()));
+    });
+    assert_eq!(owners, [KeyOwner::Text, KeyOwner::App]);
+}

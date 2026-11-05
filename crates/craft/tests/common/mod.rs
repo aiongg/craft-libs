@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 pub const NOT_IN_FACADE: &[(&str, &str)] = &[
     ("design-lint", "a lint template and checker for apps' clippy.toml, run from xtask"),
     ("fonts-build", "a build-script helper; apps call it from build.rs"),
+    ("media-testkit", "test support: ffmpeg discovery and fixture locations for the media crates"),
     ("plate-test", "a test harness: reference PDFs and PDF structure checks"),
     ("ui-gallery", "a tool: the story gallery application"),
     ("ui-macros", "a proc-macro crate that craft-ui re-exports"),

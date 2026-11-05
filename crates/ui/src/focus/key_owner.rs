@@ -5,7 +5,7 @@
 //! shell registers (`AppShell::canvas`) counts as no focus at
 //! all, so a focused canvas is [`KeyOwner::App`].
 
-use egui::{Context, LayerId};
+use egui::{Context, Id, LayerId};
 
 /// What has the keyboard, first match wins in this order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -70,9 +70,11 @@ pub fn register_canvas(ctx: &Context, id: egui::Id) {
 /// Whether the canvas's own single keys (page keys, digits, the Space hand) run: nothing but a
 /// focused widget that isn't text has the keyboard, and then the widget keeps what it claimed
 /// ([`KeyClaim`](crate::behavior::KeyClaim)). Other focused widgets leave these keys to the
-/// shortcuts, as in Photoshop.
+/// shortcuts, as in Photoshop. This is [`owner`] being [`KeyOwner::App`] or
+/// [`KeyOwner::Widget`] with no modal state from the app (a default [`OwnerGate`]); an app with
+/// its own gate asks [`owner`] itself.
 // pc: crates/ui-egui/src/input/shortcuts.rs:824 `handle_escape_and_view_keys`, :872 page keys.
-pub(crate) fn canvas_keys_free(ctx: &Context) -> bool {
+pub fn canvas_keys_free(ctx: &Context) -> bool {
     matches!(owner(ctx, &OwnerGate::default()), KeyOwner::App | KeyOwner::Widget)
 }
 
@@ -89,7 +91,7 @@ pub fn keys_free(ctx: &Context, layer: LayerId) -> bool {
         || crate::popup_list::owns_keys(ctx)
         || crate::popup_list::passive_open(ctx)
         || crate::menu::bar::is_focused(ctx)
-        || ctx.text_edit_focused()
+        || text_has_keys(ctx)
     {
         return false;
     }
@@ -128,7 +130,7 @@ pub fn owner(ctx: &Context, gate: &OwnerGate) -> KeyOwner {
         KeyOwner::Recorder
     } else if gate.dialog || ctx.memory(|m| m.top_modal_layer().is_some()) || crate::viewport::ViewportWindow::any_app_modal(ctx) {
         KeyOwner::Dialog
-    } else if ctx.text_edit_focused() {
+    } else if text_has_keys(ctx) {
         KeyOwner::Text
     } else if crate::popup_list::passive_open(ctx) {
         KeyOwner::Popover
@@ -136,4 +138,21 @@ pub fn owner(ctx: &Context, gate: &OwnerGate) -> KeyOwner {
         let focused = ctx.memory(|m| m.focused());
         if focused.is_none() || focused == crate::shell::registered_canvas(ctx) { KeyOwner::App } else { KeyOwner::Widget }
     }
+}
+
+/// Whether a text field has the keys this pass: one has the focus, or egui took the focus off it
+/// at the start of this pass because Esc or Tab was pressed in it. The field has read that key
+/// (Esc cancels its edit, Tab leaves it), so for the rest of the pass the key is not the app's.
+/// The next pass the field is no longer the owner.
+fn text_has_keys(ctx: &Context) -> bool {
+    let last = Id::unique("craft_ui::focus::key_owner::last_text");
+    if ctx.text_edit_focused() {
+        let id = ctx.memory(|m| m.focused());
+        ctx.data_mut(|d| d.insert_temp(last, id));
+        return true;
+    }
+    let Some(Some(id)) = ctx.data(|d| d.get_temp::<Option<Id>>(last)) else {
+        return false;
+    };
+    ctx.memory(|m| m.had_focus_last_frame(id)) && ctx.input(|i| i.key_pressed(egui::Key::Escape) || i.key_pressed(egui::Key::Tab))
 }

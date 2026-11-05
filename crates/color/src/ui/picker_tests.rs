@@ -689,3 +689,25 @@ fn a_sample_in_the_frame_of_an_opacity_step_keeps_the_stepped_alpha() {
     rig.settle();
     assert_eq!(hex(rig.color), "#ff990082", "the sample with the stepped alpha (51%)");
 }
+
+// The hex field agrees with `Srgba::from_hex` on every whole colour: the digits, eight with the
+// alpha on, the optional `#`, the case; six digits keep the field's alpha. Three digits are the field's draft in the two-digit field
+// (the user is typing six) and `from_hex`'s doubled digits in the one-digit field.
+#[test]
+fn the_hex_field_reads_whole_colours_as_srgba_from_hex_does() {
+    use super::hex::parse_hex;
+    let start = Rgba([9, 9, 9, 77]);
+    for text in ["#1a2b3c", "1A2B3C", " #1a2b3c ", "#1a2b3c80", "1A2B3CFF"] {
+        let expected = Srgba::from_hex(text).expect(text).to_rgba();
+        // Six digits change the colour and keep the field's alpha; `from_hex` makes them opaque.
+        let whole = text.trim().trim_start_matches('#').len() == 8;
+        let expected = if whole { expected } else { expected.with_alpha(77) };
+        assert_eq!(parse_hex(text, start, true, 2), Ok(expected), "{text:?}");
+    }
+    assert_eq!(parse_hex("#fa0", start, true, 1), Ok(Srgba::from_hex("#fa0").expect("rgb").to_rgba().with_alpha(77)), "three digits double");
+    assert_eq!(parse_hex("fa0", start, true, 2), Err(true), "three digits are a draft in the two-digit field");
+    assert_eq!(parse_hex("12345", start, true, 2), Err(true));
+    assert!(Srgba::from_hex("12345").is_none());
+    assert_eq!(parse_hex("1a2b3c8", start, true, 2), Err(true), "seven digits may still become eight");
+    assert_eq!(parse_hex("1a2b3c80ff", start, true, 2), Err(false));
+}

@@ -175,6 +175,8 @@ pub struct SettingRule {
     pub keep_on_reset: bool,
     /// The titled group the row goes in; rows without one go in the page's first, untitled group.
     pub group: Option<String>,
+    /// A choice whose ids are whole numbers is stored as an integer ([`SettingRule::minutes`]).
+    integer: bool,
 }
 
 /// A rule's control, where the value's type alone isn't enough.
@@ -218,6 +220,7 @@ impl SettingRule {
             restart: false,
             keep_on_reset: false,
             group: None,
+            integer: false,
         }
     }
 
@@ -259,13 +262,15 @@ impl SettingRule {
         self
     }
 
-    /// A choice of minute counts, stored as the count's decimal text ("10"). Labels read
-    /// "{n} minutes" and translate under `setting.<key>.<n>`, like any other choice. For
-    /// `craft_platform::autosave::INTERVAL_CHOICES_MINUTES`; the app reads the stored text with
-    /// `str::parse::<u64>()`.
-    pub fn minutes(self, counts: &[u32]) -> Self {
+    /// A choice of minute counts, stored as the integer count (`10`). Labels read "{n} minutes"
+    /// and translate under `setting.<key>.<n>`, like any other choice. For
+    /// `craft_platform::autosave::INTERVAL_CHOICES_MINUTES`. A settings file that holds the count as
+    /// text ("10") still shows its choice; the next change writes an integer, so the app's field
+    /// reads both (`craft_platform::autosave::deserialize_minutes`).
+    pub fn minutes(mut self, counts: &[u32]) -> Self {
         let labels: Vec<(String, String)> = counts.iter().map(|n| (n.to_string(), format!("{n} minutes"))).collect();
         let options: Vec<(&str, &str)> = labels.iter().map(|(id, label)| (id.as_str(), label.as_str())).collect();
+        self.integer = true;
         self.choices(&options)
     }
 
@@ -649,7 +654,7 @@ fn shape_of(rule: Option<&SettingRule>, value: Option<&toml::Value>) -> Option<S
         return Some(Shape::Custom);
     }
     Some(match (kind, value?) {
-        (Some(RuleKind::Choice(options)), Value::String(_)) => Shape::Choice(options.clone()),
+        (Some(RuleKind::Choice(options)), Value::String(_) | Value::Integer(_)) => Shape::Choice(options.clone()),
         (Some(RuleKind::Color), Value::String(_)) => Shape::Color,
         (Some(RuleKind::Int { range, unit }), Value::Integer(_)) => Shape::Int { range: range.clone(), unit: unit.clone() },
         (Some(RuleKind::Float { range, decimals, unit }), Value::Float(_)) => {
@@ -801,6 +806,10 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
                 RowKind::Float { value: *x, range: range.clone(), decimals: *decimals, unit: unit.as_deref() }
             }
             (Shape::Text, Some(Value::String(text))) => RowKind::Text(text),
+            (Shape::Choice(options), Some(Value::Integer(n))) => {
+                let id = options.iter().map(|(id, _)| id.as_str()).find(|id| *id == n.to_string()).unwrap_or("");
+                RowKind::Choice { value: id, options: options.iter().map(|(id, label)| (id.as_str(), label.as_str())).collect() }
+            }
             (Shape::Choice(options), Some(Value::String(id))) => {
                 RowKind::Choice { value: id, options: options.iter().map(|(id, label)| (id.as_str(), label.as_str())).collect() }
             }
@@ -867,8 +876,12 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
             (PrefValue::Float(x), Value::Float(_)) if x.is_finite() => Value::Float(clamp_float(x)),
             (PrefValue::Float(x), Value::Integer(_)) if x.is_finite() => Value::Integer(clamp_int(x.round() as i64)),
             (PrefValue::Text(text), Value::String(_)) if matches!(kind, None | Some(RuleKind::Custom)) => Value::String(text),
-            (PrefValue::Choice(id), Value::String(_)) => match kind {
-                Some(RuleKind::Choice(options)) if options.iter().any(|(option, _)| *option == id) => Value::String(id),
+            (PrefValue::Choice(id), Value::String(_) | Value::Integer(_)) => match kind {
+                Some(RuleKind::Choice(options)) if options.iter().any(|(option, _)| *option == id) => match id.parse::<i64>() {
+                    Ok(n) if self.rules.get(key).is_some_and(|rule| rule.integer) => Value::Integer(n),
+                    _ if matches!(current, Value::Integer(_)) => return,
+                    _ => Value::String(id),
+                },
                 _ => return,
             },
             (PrefValue::Color(color), Value::String(_)) if matches!(kind, Some(RuleKind::Color)) => {

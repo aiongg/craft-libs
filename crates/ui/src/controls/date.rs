@@ -1,7 +1,7 @@
 //! [`DatePicker`]: a calendar button whose popup picks a year, a month or a day, and the
 //! [`PickedDate`] it edits.
 
-use craft_i18n::{CalendarDate, DateFormat, DateLength, DateStyle, DateTime, LocalDate, NameLength, TimeZone, Weekday};
+use craft_i18n::{CalendarDate, DateFormat, DateLength, DateStyle, DateTime, LocalDate, NameLength, Weekday};
 use craft_theme::TypeRole;
 use egui::accesskit::Role;
 use egui::{Align2, AsIdSalt, Color32, CornerRadius, Id, IdSalt, Key, Modifiers, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
@@ -443,7 +443,7 @@ fn system_today() -> Option<PickedDate> {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        PickedDate::from_calendar_date(DateTime::from_system(std::time::SystemTime::now(), TimeZone::Local).date)
+        PickedDate::from_calendar_date(DateTime::from_system(std::time::SystemTime::now(), craft_i18n::TimeZone::Local).date)
     }
 }
 

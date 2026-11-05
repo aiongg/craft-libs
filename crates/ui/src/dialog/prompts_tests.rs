@@ -207,3 +207,25 @@ fn a_damaged_file_lists_its_warnings() {
     harness.get_by_label("Layer 1 is short");
     harness.get_by_label("Layer 2 is short");
 }
+
+// An app's own prompt texts are catalog keys read at draw time: a prompt left open follows a
+// language switch, and an arg is filled in after translation and is not translated itself.
+#[test]
+fn a_custom_prompt_follows_the_language_while_open() {
+    let (i18n, problems) =
+        craft_i18n::I18n::new(&[("de", "\tRasterize {name}?\t{name} rastern?\n\tRasterize\tRastern\n\tRadius\tRadius-de\n", "")], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let de = i18n.from_code("de").expect("de");
+    let i18n = std::sync::Arc::new(i18n);
+    let prompt = StandardPrompt::custom("Rasterize {name}?").button(PromptChoice::Proceed, "Rasterize", Some(Key::R)).arg("name", "Radius");
+    let mut harness = harness(prompt, OperatingSystem::Mac);
+    harness.run();
+    harness.get_by_label_contains("Rasterize ");
+    harness.get_by_role_and_label(Role::Button, "Rasterize");
+    craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" }).i18n(i18n).lang(de).install(&harness.ctx);
+    harness.run();
+    harness.get_by_label_contains("rastern?");
+    harness.get_by_label_contains("Radius");
+    harness.get_by_role_and_label(Role::Button, "Rastern");
+    assert!(harness.query_by_label_contains("Radius-de").is_none(), "the arg is not translated");
+}

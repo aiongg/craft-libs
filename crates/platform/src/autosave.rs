@@ -32,6 +32,28 @@ pub fn interval_from_minutes(text: &str) -> Option<Duration> {
     INTERVAL_CHOICES_MINUTES.contains(&minutes).then(|| Duration::from_secs(u64::from(minutes) * 60))
 }
 
+/// The interval for a stored choice as a count; `None` when it is not one of
+/// [`INTERVAL_CHOICES_MINUTES`].
+pub fn interval_for_minutes(minutes: u32) -> Option<Duration> {
+    INTERVAL_CHOICES_MINUTES.contains(&minutes).then(|| Duration::from_secs(u64::from(minutes) * 60))
+}
+
+/// Reads the stored minutes as an integer, or as the text an older settings file holds ("10"),
+/// for a field with `#[serde(deserialize_with = "deserialize_minutes")]`; the preferences row
+/// writes integers.
+pub fn deserialize_minutes<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u32, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Stored {
+        Count(u32),
+        Text(String),
+    }
+    match Stored::deserialize(deserializer)? {
+        Stored::Count(minutes) => Ok(minutes),
+        Stored::Text(text) => text.trim().parse().map_err(serde::de::Error::custom),
+    }
+}
+
 /// The status text of a failed autosave (an error in the status bar; no notice, the next
 /// interval tries again). `{error}`: the write error. Catalog id `autosave.failed`.
 pub const AUTOSAVE_FAILED: &str = "Autosave failed: {error}";
@@ -71,12 +93,13 @@ pub struct Autosave {
     next: Option<Instant>,
     saved: HashMap<u64, u64>,
     in_flight: HashMap<u64, u64>,
+    due_now: bool,
 }
 
 impl Autosave {
     /// `None` turns autosave off (PhotoCraft's `fileHandling.autosave = false`).
     pub fn new(interval: Option<Duration>) -> Self {
-        Self { interval, next: None, saved: HashMap::new(), in_flight: HashMap::new() }
+        Self { interval, next: None, saved: HashMap::new(), in_flight: HashMap::new(), due_now: false }
     }
 
     /// A changed preference; the next deadline moves to now plus the new interval.
@@ -88,6 +111,22 @@ impl Autosave {
             self.interval = interval;
             self.next = None;
         }
+    }
+
+    /// Makes the next [`due`](Self::due) call autosave every dirty document that has no autosave
+    /// in flight, whatever the interval says (tests, and an app's "autosave now"). It does not
+    /// change a revision already autosaved, and does nothing with autosave off.
+    pub fn autosave_now(&mut self) {
+        self.due_now = true;
+    }
+
+    /// Records `revision` of document `id` as already autosaved, so [`due`](Self::due) does not
+    /// write it again until the document changes (PhotoCraft does this for a recovered document
+    /// whose recovery copy is still fresh, so closing it does not discard that copy).
+    // pc: crates/ui-egui/src/prefs/prefs_ui/startup.rs:177
+    pub fn mark_autosaved(&mut self, id: u64, revision: u64) {
+        self.in_flight.remove(&id);
+        self.saved.insert(id, revision);
     }
 
     /// The documents to autosave now, and those whose recovery copy to discard.
@@ -108,12 +147,14 @@ impl Autosave {
             self.next = None;
             return due;
         };
-        let Some(next) = self.next else {
-            self.next = Some(now + interval);
-            return due;
-        };
-        if now < next {
-            return due;
+        let forced = std::mem::take(&mut self.due_now);
+        match self.next {
+            None if !forced => {
+                self.next = Some(now + interval);
+                return due;
+            }
+            Some(next) if !forced && now < next => return due,
+            _ => {}
         }
         self.next = Some(now + interval);
         for d in docs {
