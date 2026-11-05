@@ -172,7 +172,7 @@ fn the_search_never_follows_directory_links_and_stops_at_the_limit() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// `cancelled` turning true mid-walk ends the run as Cancelled and no update follows it (task B5).
+// `cancelled` turning true mid-walk ends the run as Cancelled and no update follows it.
 #[test]
 fn a_cancelled_search_stops_and_reports_nothing_more() {
     let tree = FakeLinkFiles::new().with("/r/a/x.png", b"1", 1).with("/r/b/x.png", b"2", 1).with("/r/c/x.png", b"3", 1);
