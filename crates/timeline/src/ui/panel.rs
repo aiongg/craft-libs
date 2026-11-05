@@ -3,6 +3,8 @@
 
 use craft_theme::ControlSize;
 use craft_ui::behavior::{ClaimedKey, KeyClaim, Selection, SelectionChange, SelectionPick};
+use craft_ui::canvas::kurbo::{Point, Rect as KurboRect};
+use craft_ui::canvas::{CanvasScrollbars, CanvasView, ScrollbarNames};
 use craft_ui::controls::IconButton;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture, GestureId};
 use craft_ui::icons::Icon;
@@ -51,6 +53,52 @@ craft_ui::words! {
         track_height: "timeline.trackHeight" = "Drag to change the height of {track}";
         track_height_top: "timeline.trackHeightTop" = "Drag the top edge to change the height of {track}";
         header_width: "timeline.headerWidth" = "Drag to change the width of the track headers";
+        divider: "timeline.divider" = "Drag to change how the room is shared between video and audio tracks";
+        scroll_captions: "timeline.scrollCaptions" = "Scroll bar of the caption tracks";
+        scroll_video: "timeline.scrollVideo" = "Scroll bar of the video tracks";
+        scroll_audio: "timeline.scrollAudio" = "Scroll bar of the audio tracks";
+        label_violet: "timeline.labelViolet" = "Violet";
+        label_iris: "timeline.labelIris" = "Iris";
+        label_caribbean: "timeline.labelCaribbean" = "Caribbean";
+        label_lavender: "timeline.labelLavender" = "Lavender";
+        label_cerulean: "timeline.labelCerulean" = "Cerulean";
+        label_forest: "timeline.labelForest" = "Forest";
+        label_rose: "timeline.labelRose" = "Rose";
+        label_mango: "timeline.labelMango" = "Mango";
+        label_purple: "timeline.labelPurple" = "Purple";
+        label_blue: "timeline.labelBlue" = "Blue";
+        label_teal: "timeline.labelTeal" = "Teal";
+        label_magenta: "timeline.labelMagenta" = "Magenta";
+        label_tan: "timeline.labelTan" = "Tan";
+        label_green: "timeline.labelGreen" = "Green";
+        label_brown: "timeline.labelBrown" = "Brown";
+        label_yellow: "timeline.labelYellow" = "Yellow";
+    }
+}
+
+impl TimelineLabels {
+    /// The name of the track colour label `label` (Premiere's sixteen; a number past them wraps
+    /// to the first).
+    pub fn label_name(&self, label: MarkerColor) -> &str {
+        let names = [
+            &self.label_violet,
+            &self.label_iris,
+            &self.label_caribbean,
+            &self.label_lavender,
+            &self.label_cerulean,
+            &self.label_forest,
+            &self.label_rose,
+            &self.label_mango,
+            &self.label_purple,
+            &self.label_blue,
+            &self.label_teal,
+            &self.label_magenta,
+            &self.label_tan,
+            &self.label_green,
+            &self.label_brown,
+            &self.label_yellow,
+        ];
+        names[usize::from(label.0) % names.len()]
     }
 }
 
@@ -107,10 +155,18 @@ pub enum TimelineEdit {
         change: SelectionChange<ClipId>,
         unlinked: bool,
     },
-    /// A secondary click; the app opens its menu at the pointer.
+    /// The divider between the video and audio tracks dragged: the video side's new share of the
+    /// room below the captions, from 0.1 to 0.9 (FilmCraft `timeline.rs:385`), as one gesture. A
+    /// view setting the app keeps and hands back through [`Timeline::divider`], never in undo.
+    Divider(EditEvent<f32>),
+    /// A secondary click, or the Menu key or Shift+F10 with the time area focused: the app opens
+    /// its menu. `anchor` is the clicked clip's or track's rect (the focused clip's with a key),
+    /// `pointer` the click position, `None` for a key.
     ContextMenu {
         track: Option<TrackId>,
         clip: Option<ClipId>,
+        anchor: Rect,
+        pointer: Option<Pos2>,
     },
     /// A double-click on a clip (Premiere opens it in the Source monitor).
     OpenClip(ClipId),
@@ -140,9 +196,18 @@ pub type HeaderExtra<'a> = Box<dyn FnMut(&mut Ui, &TrackInfo<'_>) + 'a>;
 /// the Add Marker response clicks (FilmCraft `ruler.rs:70`).
 ///
 /// Input:
-/// - Wheel scrolls vertically, Shift+wheel horizontally, Alt+wheel zooms about the pointer; a
-///   pinch zooms; the view animates to its target as FilmCraft's does.
-/// - `=` and `-` zoom in and out about the playhead, `\` fits the sequence.
+/// - FilmCraft's wheel mapping (Premiere Pro on macOS), read from the wheel events and their own
+///   modifiers: the wheel scrolls the side of the divider under the pointer, Cmd or Ctrl and the
+///   wheel scroll the time sideways (so does Shift, and any mostly sideways gesture), Alt and
+///   the wheel zoom about the pointer by `(1 + dy * 0.01).clamp(0.5, 2.0)`, a pinch zooms. A sideways
+///   scroll is not eased; zooms ease to their target as FilmCraft's do.
+/// - `=` and `-` zoom in and out by 1.6 about the playhead (FilmCraft), `\` fits the sequence.
+/// - Each side of the divider has a vertical scroll bar (the kernel's vertical scroll bar) right of the time
+///   area, and the divider drags ([`TimelineEdit::Divider`], [`divider`](Self::divider)).
+/// - A clip drag keeps its source row shown (clipped) when a wheel scroll takes the row out of
+///   view, so it ends when the button is released. A move onto a locked track is refused (the
+///   Not Allowed cursor); a new track is offered only when every source track is unlocked.
+///   Esc drops the marquee.
 /// - While playing, the view follows the playhead by the [`FollowMode`]; a jump while stopped
 ///   reveals it ([`TimeView::scroll_to_reveal`](crate::TimeView::scroll_to_reveal)).
 /// - A drop of media from the app is the app's (it reads the pointer over
@@ -150,8 +215,12 @@ pub type HeaderExtra<'a> = Box<dyn FnMut(&mut Ui, &TrackInfo<'_>) + 'a>;
 /// - Keyboard: the panel is a focus region (F6 reaches it); the time area is one Tab stop
 ///   whose Left / Right step the playhead a frame (Shift: five frames, Premiere's), Home / End
 ///   go to the start and end, Up / Down to the previous and next edit point
-///   ([`TimelineModel::edit_points`]), each a [`TimelineEdit::Playhead`] `Set`; the header switches are Tab stops in row order; Delete on selected
-///   clips is the app's shortcut (the panel claims no keys beyond these).
+///   ([`TimelineModel::edit_points`]), each a [`TimelineEdit::Playhead`] `Set`; every key is an
+///   exact chord (Alt+Left is not Left). The Menu key and Shift+F10 report a
+///   [`TimelineEdit::ContextMenu`] for the selection's last clip, else the first targeted track,
+///   with the clip's or the row's rect as `anchor` and no `pointer`. The header switches are Tab
+///   stops in row order; Delete on selected clips is the app's shortcut (the panel claims no keys
+///   beyond these).
 /// - AccessKit: the time area is a `Group` named by [`TimelineLabels::panel`]; each track a
 ///   `Row`; each height edge and the headers' width edge a `Splitter`; each clip a `Button` named by its name with its start and duration as the value
 ///   (the [`TimeFormat`](crate::TimeFormat) of the model), `selected` set.
@@ -170,6 +239,7 @@ pub struct Timeline<'a, M: TimelineModel> {
     follow: FollowMode,
     playing: bool,
     header_width: Option<f32>,
+    divider: Option<f32>,
     palette: Option<&'a LabelPalette>,
     header_extra: Option<HeaderExtra<'a>>,
     content: Option<ClipPainter<'a>>,
@@ -191,6 +261,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             follow: FollowMode::Page,
             playing: false,
             header_width: None,
+            divider: None,
             palette: None,
             header_extra: None,
             content: None,
@@ -233,6 +304,14 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
         self
     }
 
+    /// The video side's share of the room below the captions that the user dragged the divider to
+    /// ([`TimelineEdit::Divider`]), kept by the app. Without it each side gets what its tracks
+    /// need, else the sides share the room.
+    pub fn divider(mut self, share: f32) -> Self {
+        self.divider = Some(share);
+        self
+    }
+
     pub fn palette(mut self, palette: &'a LabelPalette) -> Self {
         self.palette = Some(palette);
         self
@@ -271,6 +350,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             follow,
             playing,
             header_width,
+            divider,
             palette,
             mut header_extra,
             mut content,
@@ -287,6 +367,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
         let mods = ui.input(|i| i.modifiers);
         let mut view = *model.view();
         let mut out = Pass::default();
+        let mut menu_key = false;
 
         let output = {
             let model: &M = &*model;
@@ -319,7 +400,19 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             let (outer, _) = ui.allocate_exact_size(vec2(avail.x, if avail.y.is_finite() { avail.y } else { wanted }), Sense::hover());
             let panel_response = ui.interact(outer, id.with("panel"), Sense::hover());
             let header_w = header_width.unwrap_or(style.header_width).clamp(style.header_width_min, style.header_width_max).min(outer.width());
-            let geo = Geo::new(&style, outer, header_w, Needs { caption: caption_need, upper: upper_need, lower: lower_need, mix: mix.is_some() });
+            let geo = Geo::new(
+                &style,
+                outer,
+                header_w,
+                Needs {
+                    caption: caption_need,
+                    upper: upper_need,
+                    lower: lower_need,
+                    mix: mix.is_some(),
+                    share: divider,
+                    bar: CanvasScrollbars::style(&tokens).width,
+                },
+            );
             let (left, width) = (geo.time_left, geo.time_area.width());
 
             let painter = ui.painter_at(outer);
@@ -346,15 +439,48 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             let mut scrolls = ui.data(|d| d.get_temp::<Scrolls>(scrolls_id)).unwrap_or_default();
             let valid = view.points_per_second > 0.0 && view.points_per_second.is_finite() && width > 0.0;
             if enabled && valid {
-                wheel(ui, &geo, &mut anim, &mut scrolls);
+                wheel(ui, &geo, &mut anim, &mut view, &mut scrolls);
                 if area_response.has_focus() {
                     let keys = Keys { id: area_id, rate, playhead, duration, points: model.edit_points(), width, fit_margin: style.fit_margin };
-                    out.edits.extend(keys.handle(ui, &mut anim).map(|to| TimelineEdit::Playhead(EditEvent::set(to, mods))));
+                    match keys.handle(ui, &mut anim) {
+                        Some(KeyOutcome::Playhead(to)) => out.edits.push(TimelineEdit::Playhead(EditEvent::set(to, mods))),
+                        Some(KeyOutcome::ContextMenu) => menu_key = true,
+                        None => {}
+                    }
                 }
             }
             scrolls.caption = scrolls.caption.clamp(0.0, geo.max_caption);
             scrolls.upper = scrolls.upper.clamp(0.0, geo.max_upper);
             scrolls.lower = scrolls.lower.clamp(0.0, geo.max_lower);
+            if enabled {
+                scrolls.caption = side_scroll_bar(
+                    ui,
+                    (id, "vscroll", 0u8),
+                    geo.caption.with_min_x(geo.content_right),
+                    caption_need,
+                    scrolls.caption,
+                    false,
+                    &labels.scroll_captions,
+                );
+                scrolls.upper = side_scroll_bar(
+                    ui,
+                    (id, "vscroll", 1u8),
+                    geo.upper.with_min_x(geo.content_right),
+                    upper_need,
+                    scrolls.upper,
+                    true,
+                    &labels.scroll_video,
+                );
+                scrolls.lower = side_scroll_bar(
+                    ui,
+                    (id, "vscroll", 2u8),
+                    geo.lower.with_min_x(geo.content_right),
+                    lower_need,
+                    scrolls.lower,
+                    false,
+                    &labels.scroll_audio,
+                );
+            }
             ui.data_mut(|d| d.insert_temp(scrolls_id, scrolls));
             if valid {
                 follow_view(ui, anim_id, &mut anim, &mut view, FollowStep { mode: follow, playing, width, playhead, duration });
@@ -397,7 +523,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             if ruler.response.double_clicked()
                 && let Some(pos) = ruler.response.interact_pointer_pos()
                 && pos.y < geo.ruler.top() + style.ruler_marker_band
-                && !model.markers().iter().any(|marker| (view.x_of(marker.start, left) - pos.x).abs() <= style.marker_width)
+                && !model.markers().iter().any(|marker| (view.x_of(marker.start, left) - pos.x).abs() <= style.marker_hit / 2.0)
             {
                 out.edits.push(TimelineEdit::Marker(MarkerEdit::Add { at: view.time_at(pos.x, left).max(Tick::ZERO) }));
             }
@@ -416,7 +542,16 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
                     let of_kind = indices.iter().filter(|&&i| tracks[i].kind == kind).count();
                     let kind_index = if side == Side::Upper { of_kind - 1 - before } else { before } as i32;
                     let top_video = side == Side::Upper && position == 0;
-                    rows.push(Row { index, kind, side, kind_index, top_video, top: y, bottom: y + heights[index] });
+                    rows.push(Row {
+                        index,
+                        kind,
+                        side,
+                        kind_index,
+                        top_video,
+                        locked: tracks[index].locked.unwrap_or(false),
+                        top: y,
+                        bottom: y + heights[index],
+                    });
                     y += heights[index];
                 }
             }
@@ -431,11 +566,29 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
                 let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(labels.empty.clone(), text.clone())));
                 painter.galley(geo.time_area.center() - galley.size() / 2.0, galley, text.color);
             }
+            // Where the selected clips are, in view or not: a move carries the whole selection, and a
+            // locked track under any of them refuses it. Looked up only while the button is down or just released.
+            let owners: Vec<(ClipId, usize)> = if !selection.is_empty() && ui.input(|i| i.pointer.primary_down() || i.pointer.primary_released()) {
+                let everything = TimeRange::new(Tick::ZERO, duration);
+                (0..tracks.len())
+                    .flat_map(|index| {
+                        model
+                            .clips(tracks[index].id, everything)
+                            .into_iter()
+                            .filter(|clip| selection.contains(&clip.id))
+                            .map(move |clip| (clip.id, index))
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
             let cx = RowCx {
                 id,
                 area_id,
                 geo,
                 rows: &rows,
+                clips: &clips,
+                owners: &owners,
                 track_ids: &track_ids,
                 view: &view,
                 rate,
@@ -455,7 +608,10 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
                 child.set_clip_rect(area.intersect(ui.clip_rect()));
                 for row in rows.iter().filter(|row| row.side == side) {
                     let (track, clips) = (&tracks[row.index], &clips[row.index]);
-                    if row_rect(&geo, row).intersects(area) {
+                    // The source row of a clip drag stays shown (clipped) after it scrolls out of view,
+                    // so its lane sees the release.
+                    let drags = out.drag.as_ref().is_some_and(|drag| drag.source == track.id);
+                    if drags || row_rect(&geo, row).intersects(area) {
                         let hooks = RowHooks { extra: header_extra.as_mut(), content: content.as_mut() };
                         cx.show_row(&mut child, area, row, (track, heights[row.index], clips), hooks, &mut out);
                     }
@@ -482,6 +638,10 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             let separator = Stroke::new(craft_theme::Stroke::Hairline.width(ui.pixels_per_point()), color.line.divider.to_egui());
             painter.line_segment([pos2(left, geo.top.top()), pos2(left, geo.rows.bottom())], separator);
             out.edits.extend(resize_headers(ui, &geo, header_w, id, &labels));
+            out.edits.extend(resize_divider(ui, &geo, id, &labels));
+            if menu_key {
+                out.edits.extend(menu_key_edit(&cx, model.selection(), &tracks));
+            }
 
             // The scroll bar.
             let mut bar_ui = ui.new_child(UiBuilder::new().max_rect(geo.bar));
@@ -518,8 +678,7 @@ pub struct TimelineOutput {
     pub response: Response,
     /// This pass's edits, in the order the user made them.
     pub edits: Vec<TimelineEdit>,
-    /// The toolbar toggles' responses, Snap and Linked Selection (the app flips its settings on
-    /// a click).
+    /// The toolbar buttons' responses; the app reacts to their clicks.
     pub toolbar: TimelineToolbar,
     /// The track row under the pointer and the time there (drops, the app's own overlays).
     pub row_at_pointer: Option<(TrackId, Tick)>,
@@ -527,7 +686,9 @@ pub struct TimelineOutput {
     pub time_area: Rect,
 }
 
-/// The Snap and Linked Selection toggles' responses.
+/// The toolbar buttons' responses: the Snap and Linked Selection toggles (the app flips its
+/// settings on a click), Add Marker (the app adds the marker at the playhead; the panel reports
+/// no `TimelineEdit` for it, FilmCraft `ruler.rs:70`) and the display settings.
 pub struct TimelineToolbar {
     pub snap: Response,
     pub linked_selection: Response,
@@ -645,7 +806,7 @@ impl<'a> TrackHeader<'a> {
             vec![MenuItem::new(labels.no_label.as_str(), None).radio(track.label.is_none()).into()];
         for (n, tint) in palette.0.iter().enumerate() {
             let label = MarkerColor(u8::try_from(n).unwrap_or(u8::MAX));
-            entries.push(MenuItem::new((n + 1).to_string(), Some(label)).radio(track.label == Some(label)).tint(*tint).into());
+            entries.push(MenuItem::new(labels.label_name(label), Some(label)).radio(track.label == Some(label)).tint(*tint).into());
         }
         if enabled && let Some(label) = PressMenu::new(&entries).show(ui, &strip_response).chosen {
             edits.push(TimelineEdit::Label { track: track.id, label });
@@ -672,10 +833,10 @@ impl<'a> TrackHeader<'a> {
         let switches = [
             (TrackSwitch::Locked, track.locked, Icon::LockOpen, Icon::Lock, labels.lock.as_str()),
             (TrackSwitch::Targeted, track.targeted, Icon::Target, Icon::Target, labels.target.as_str()),
-            (TrackSwitch::SyncLock, track.sync_lock, Icon::SwapHorizontal, Icon::SwapHorizontal, labels.sync_lock.as_str()),
+            (TrackSwitch::SyncLock, track.sync_lock, Icon::SyncLock, Icon::SyncLock, labels.sync_lock.as_str()),
             (TrackSwitch::Enabled, track.enabled, Icon::EyeOff, Icon::Eye, labels.output.as_str()),
-            (TrackSwitch::Muted, track.muted, Icon::Ban, Icon::Ban, labels.mute.as_str()),
-            (TrackSwitch::Solo, track.solo, Icon::Star, Icon::StarFilled, labels.solo.as_str()),
+            (TrackSwitch::Muted, track.muted, Icon::TrackMute, Icon::TrackMute, labels.mute.as_str()),
+            (TrackSwitch::Solo, track.solo, Icon::Solo, Icon::Solo, labels.solo.as_str()),
         ];
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect.intersect(ui.clip_rect()));
@@ -772,31 +933,54 @@ fn resolved_height(style: &TimelineStyle, track: &TrackInfo<'_>) -> f32 {
 fn header_indent(style: &TimelineStyle) -> f32 {
     style.header_indent
 }
-/// The factor one `=` or `-` press zooms by.
-const KEY_ZOOM: f64 = 2.0;
+/// The factor one `=` or `-` press zooms by, about the playhead (FilmCraft `menus.rs:421`).
+const KEY_ZOOM: f64 = 1.6;
 /// The view's ease rate per second (FilmCraft `timeline.rs:468`) and the longest frame it counts.
 const EASE_RATE: f64 = 20.0;
 const EASE_MAX_DT: f32 = 0.05;
 /// A zoom within this share of its target has arrived; a scroll within this many points has.
 const ZOOM_SETTLE: f64 = 0.0005;
 const SCROLL_SETTLE: f64 = 0.05;
+/// The least and most of the video side's share of the room below the captions (FilmCraft
+/// `timeline.rs:385`).
+/// How far a pinch's factor differs from 1 before it counts (FilmCraft `interact.rs:233`).
+const WHEEL_PINCH_EPSILON: f64 = 1e-4;
+const DIVIDER_SHARE_MIN: f32 = 0.1;
+const DIVIDER_SHARE_MAX: f32 = 0.9;
 
-/// The keys the time area claims while focused.
-const KEYS: [ClaimedKey; 14] = [
-    ClaimedKey::exact(Modifiers::NONE, Key::ArrowLeft),
-    ClaimedKey::exact(Modifiers::NONE, Key::ArrowRight),
-    ClaimedKey::exact(Modifiers::SHIFT, Key::ArrowLeft),
-    ClaimedKey::exact(Modifiers::SHIFT, Key::ArrowRight),
-    ClaimedKey::exact(Modifiers::NONE, Key::Home),
-    ClaimedKey::exact(Modifiers::NONE, Key::End),
-    ClaimedKey::exact(Modifiers::NONE, Key::ArrowUp),
-    ClaimedKey::exact(Modifiers::NONE, Key::ArrowDown),
-    ClaimedKey::exact(Modifiers::NONE, Key::Equals),
-    ClaimedKey::exact(Modifiers::SHIFT, Key::Equals),
-    ClaimedKey::exact(Modifiers::NONE, Key::Plus),
-    ClaimedKey::exact(Modifiers::SHIFT, Key::Plus),
-    ClaimedKey::exact(Modifiers::NONE, Key::Minus),
-    ClaimedKey::exact(Modifiers::NONE, Key::Backslash),
+/// What a key of the time area does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum KeyAction {
+    Step { forward: bool, five: bool },
+    Start,
+    End,
+    PreviousEdit,
+    NextEdit,
+    ZoomIn,
+    ZoomOut,
+    Fit,
+    ContextMenu,
+}
+
+/// The keys the time area claims while focused, each an exact chord (Alt+Left is Premiere's
+/// nudge, Shift+Home is not Home).
+const KEYS: [(ClaimedKey, KeyAction); 16] = [
+    (ClaimedKey::exact(Modifiers::NONE, Key::ArrowLeft), KeyAction::Step { forward: false, five: false }),
+    (ClaimedKey::exact(Modifiers::NONE, Key::ArrowRight), KeyAction::Step { forward: true, five: false }),
+    (ClaimedKey::exact(Modifiers::SHIFT, Key::ArrowLeft), KeyAction::Step { forward: false, five: true }),
+    (ClaimedKey::exact(Modifiers::SHIFT, Key::ArrowRight), KeyAction::Step { forward: true, five: true }),
+    (ClaimedKey::exact(Modifiers::NONE, Key::Home), KeyAction::Start),
+    (ClaimedKey::exact(Modifiers::NONE, Key::End), KeyAction::End),
+    (ClaimedKey::exact(Modifiers::NONE, Key::ArrowUp), KeyAction::PreviousEdit),
+    (ClaimedKey::exact(Modifiers::NONE, Key::ArrowDown), KeyAction::NextEdit),
+    (ClaimedKey::exact(Modifiers::NONE, Key::Equals), KeyAction::ZoomIn),
+    (ClaimedKey::exact(Modifiers::SHIFT, Key::Equals), KeyAction::ZoomIn),
+    (ClaimedKey::exact(Modifiers::NONE, Key::Plus), KeyAction::ZoomIn),
+    (ClaimedKey::exact(Modifiers::SHIFT, Key::Plus), KeyAction::ZoomIn),
+    (ClaimedKey::exact(Modifiers::NONE, Key::Minus), KeyAction::ZoomOut),
+    (ClaimedKey::exact(Modifiers::NONE, Key::Backslash), KeyAction::Fit),
+    (ClaimedKey::exact(Modifiers::NONE, Key::Menu), KeyAction::ContextMenu),
+    (ClaimedKey::exact(Modifiers::SHIFT, Key::F10), KeyAction::ContextMenu),
 ];
 
 /// The view's eased state: where it is heading, what it was last pass, the time kept under one
@@ -835,6 +1019,7 @@ struct Row {
     side: Side,
     kind_index: i32,
     top_video: bool,
+    locked: bool,
     top: f32,
     bottom: f32,
 }
@@ -894,24 +1079,68 @@ fn ease(ui: &Ui, anim: &mut ViewAnim, view: &mut TimeView) {
     }
 }
 
-/// How many tracks a drag at `y` moves a clip of `source`'s row, and whether the pointer is past
-/// the last track of its kind (above the top video track, below the last audio track), where the
-/// drop adds a track. A lane knows only its own row, so the panel works this out from all rows.
-/// With a new track the count reaches the track the drop would add.
-// filmcraft: crates/ui-egui/src/panels/timeline/layout.rs:40 `new_track_at`, `interact.rs:595`.
-fn resolve_move(rows: &[Row], source: &Row, y: f32, bounds: (f32, f32)) -> (i32, bool) {
+/// Where a clip move is headed: how many tracks it changes, whether it adds one, and whether the
+/// panel refuses it (a locked track is involved).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Derived {
+    track_delta: i32,
+    new_track: bool,
+    refused: bool,
+}
+
+impl Derived {
+    const STAY: Self = Self { track_delta: 0, new_track: false, refused: false };
+}
+
+/// What a drag at `y` does to a move from `sources` (the lane's own row first, then the rows of
+/// the other moved clips): `track_delta` counts the rows of the pointer's row away from the
+/// lane's when it is of the same kind and 0 off every row; `new_track` is a separate flag for
+/// the empty space past the last track of the kind (above the top video track, below the last
+/// audio track), where the drop adds a track. A move that starts on or reaches a locked track is
+/// refused and stays where it was. A lane knows only its own row, so the panel works this out
+/// from all rows.
+// filmcraft: crates/ui-egui/src/panels/timeline/layout.rs:40 `new_track_at`, `interact.rs:597-611`.
+fn resolve_move(rows: &[Row], sources: &[&Row], y: f32, bounds: (f32, f32)) -> Derived {
+    let Some(source) = sources.first() else { return Derived::STAY };
     if !(bounds.0..=bounds.1).contains(&y) {
-        return (0, false);
+        return Derived::STAY;
     }
-    if let Some(row) = rows.iter().find(|row| row.top <= y && y < row.bottom) {
-        return if row.kind == source.kind { (row.kind_index - source.kind_index, false) } else { (0, false) };
+    let (track_delta, new_track) = match rows.iter().find(|row| row.top <= y && y < row.bottom) {
+        Some(row) if row.kind == source.kind => (row.kind_index - source.kind_index, false),
+        Some(_) => (0, false),
+        None if source.side == Side::Caption => (0, false),
+        None => {
+            let same = || rows.iter().filter(|row| row.kind == source.kind);
+            let past = if source.kind == TrackKind::Video { same().all(|row| y < row.top) } else { same().all(|row| y >= row.bottom) };
+            (0, past)
+        }
+    };
+    let reaches_locked = |from: &Row| {
+        let count = rows.iter().filter(|row| row.kind == from.kind).count() as i32;
+        let target = (from.kind_index + track_delta).clamp(0, (count - 1).max(0));
+        rows.iter().any(|row| row.kind == from.kind && row.kind_index == target && row.locked)
+    };
+    if sources.iter().any(|from| from.locked || (track_delta != 0 && reaches_locked(from))) {
+        return Derived { track_delta: 0, new_track: false, refused: true };
     }
-    if source.side == Side::Caption {
-        return (0, false);
+    Derived { track_delta, new_track, refused: false }
+}
+
+/// The clips a move event carries.
+fn moved_clips(event: &EditEvent<ClipEdit>) -> Option<&[ClipId]> {
+    match event {
+        EditEvent::Begin { value, .. } => value.as_ref().and_then(moved_by),
+        EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } => moved_by(value),
+        _ => None,
     }
-    let same = || rows.iter().filter(|row| row.kind == source.kind);
-    let past = if source.kind == TrackKind::Video { same().all(|row| y < row.top) } else { same().all(|row| y >= row.bottom) };
-    if past { (same().count() as i32 - source.kind_index, true) } else { (0, false) }
+}
+
+/// The clips `edit` moves, when it is a move.
+fn moved_by(edit: &ClipEdit) -> Option<&[ClipId]> {
+    match edit {
+        ClipEdit::Move { clips, .. } => Some(clips),
+        _ => None,
+    }
 }
 
 /// `event` with the track fields of a move taken from the panel, and the value it carries.
@@ -974,6 +1203,10 @@ struct Geo {
     lower: Rect,
     mix: Rect,
     time_left: f32,
+    /// Where the time area ends; the vertical scroll bars sit right of it.
+    content_right: f32,
+    /// The room the divider splits between the video and audio sides.
+    split_room: f32,
     max_caption: f32,
     max_upper: f32,
     max_lower: f32,
@@ -986,6 +1219,10 @@ struct Needs {
     upper: f32,
     lower: f32,
     mix: bool,
+    /// The video side's share of the room below the captions, when the app keeps one.
+    share: Option<f32>,
+    /// The width of the vertical scroll bars.
+    bar: f32,
 }
 
 impl Geo {
@@ -993,20 +1230,27 @@ impl Geo {
     /// they need up to half the room, then the divider sits where each side gets what it needs,
     /// else the sides share the room.
     fn new(style: &TimelineStyle, outer: Rect, header_w: f32, needs: Needs) -> Self {
-        let Needs { caption: caption_need, upper: upper_need, lower: lower_need, mix } = needs;
+        let Needs { caption: caption_need, upper: upper_need, lower: lower_need, mix, share, .. } = needs;
         let time_left = outer.left() + header_w;
+        let content_right = (outer.right() - needs.bar).max(time_left);
         let top = Rect::from_min_size(outer.min, vec2(outer.width(), style.top_height.min(outer.height())));
         let rows =
             Rect::from_min_max(pos2(outer.left(), top.bottom()), pos2(outer.right(), (outer.bottom() - style.scrollbar_height).max(top.bottom())));
-        let time_area = Rect::from_min_max(pos2(time_left, rows.top()), rows.max);
-        let ruler = Rect::from_min_max(pos2(time_left, (top.bottom() - style.ruler_height).max(top.top())), pos2(outer.right(), top.bottom()));
-        let bar = Rect::from_min_max(pos2(time_left, rows.bottom()), outer.max);
+        let time_area = Rect::from_min_max(pos2(time_left, rows.top()), pos2(content_right, rows.bottom()));
+        let ruler = Rect::from_min_max(pos2(time_left, (top.bottom() - style.ruler_height).max(top.top())), pos2(content_right, top.bottom()));
+        let bar = Rect::from_min_max(pos2(time_left, rows.bottom()), pos2(content_right, outer.bottom()));
         let mix_h = if mix { style.mix_row_height.min(rows.height()) } else { 0.0 };
         let caption_divider_h = if caption_need > 0.0 { style.divider_height } else { 0.0 };
         let room = (rows.height() - style.divider_height - caption_divider_h - mix_h).max(0.0);
         let caption_h = caption_need.min(room / 2.0);
         let room = room - caption_h;
-        let upper_h = if upper_need + lower_need <= room { upper_need } else { upper_need.min(room / 2.0).max(room - lower_need) }.clamp(0.0, room);
+        let split_room = room;
+        let upper_h = match share {
+            Some(share) => room * share.clamp(DIVIDER_SHARE_MIN, DIVIDER_SHARE_MAX),
+            None if upper_need + lower_need <= room => upper_need,
+            None => upper_need.min(room / 2.0).max(room - lower_need),
+        }
+        .clamp(0.0, room);
         let caption = Rect::from_min_size(rows.min, vec2(rows.width(), caption_h));
         let caption_divider = Rect::from_min_size(pos2(rows.left(), caption.bottom()), vec2(rows.width(), caption_divider_h));
         let upper = Rect::from_min_size(pos2(rows.left(), caption_divider.bottom()), vec2(rows.width(), upper_h));
@@ -1029,6 +1273,8 @@ impl Geo {
             lower,
             mix,
             time_left,
+            content_right,
+            split_room,
             max_caption,
             max_upper,
             max_lower,
@@ -1066,52 +1312,98 @@ fn paint_mix_row(ui: &Ui, geo: &Geo, tokens: &UiTokens, labels: &TimelineLabels,
     );
 }
 
-/// A row's full width, headers included.
+/// A row's full width, headers included, up to the scroll bars.
 fn row_rect(geo: &Geo, row: &Row) -> Rect {
-    Rect::from_min_max(pos2(geo.outer.left(), row.top), pos2(geo.outer.right(), row.bottom))
+    Rect::from_min_max(pos2(geo.outer.left(), row.top), pos2(geo.content_right, row.bottom))
 }
 
-/// Wheel and pinch over the rows: Alt+wheel (Cmd on macOS) and a pinch zoom about the pointer,
-/// Shift+wheel scrolls in time, the wheel scrolls the side of the divider under the pointer.
-// filmcraft: crates/ui-egui/src/panels/timeline/interact.rs:215 `wheel_scroll`.
-fn wheel(ui: &Ui, geo: &Geo, anim: &mut ViewAnim, scrolls: &mut Scrolls) {
+/// What the wheel and the trackpad did this pass, read from the events themselves: egui turns
+/// Cmd or Ctrl and the wheel into a zoom and Shift and the wheel into a sideways scroll before
+/// anyone asks, and the Timeline has its own meaning for both (FilmCraft `interact.rs:173`
+/// `wheel_input`). The modifiers are those of the events.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct WheelInput {
+    /// In points; wheel lines and pages are converted.
+    delta: egui::Vec2,
+    /// A pinch's factor (1 for none).
+    pinch: f64,
+    command: bool,
+    alt: bool,
+    shift: bool,
+}
+
+/// Points a wheel line and a wheel page scroll (FilmCraft `interact.rs:178-182`).
+const WHEEL_LINE_POINTS: f32 = 40.0;
+const WHEEL_PAGE_POINTS: f32 = 400.0;
+
+impl WheelInput {
+    fn read(ui: &Ui) -> Self {
+        ui.input(|i| {
+            let mut wheel = Self { delta: egui::Vec2::ZERO, pinch: 1.0, command: false, alt: false, shift: false };
+            for event in &i.events {
+                match event {
+                    egui::Event::MouseWheel { unit, delta, modifiers, .. } => {
+                        let points = match unit {
+                            egui::MouseWheelUnit::Point => 1.0,
+                            egui::MouseWheelUnit::Line => WHEEL_LINE_POINTS,
+                            egui::MouseWheelUnit::Page => WHEEL_PAGE_POINTS,
+                        };
+                        if delta.x.is_finite() && delta.y.is_finite() {
+                            wheel.delta += *delta * points;
+                        }
+                        wheel.command |= modifiers.command || modifiers.mac_cmd || modifiers.ctrl;
+                        wheel.alt |= modifiers.alt;
+                        wheel.shift |= modifiers.shift;
+                    }
+                    egui::Event::Zoom(factor) if factor.is_finite() && *factor > 0.0 => wheel.pinch *= f64::from(*factor),
+                    _ => {}
+                }
+            }
+            wheel
+        })
+    }
+}
+
+/// Wheel and pinch over the rows, as FilmCraft's (Premiere Pro on macOS): the wheel scrolls the
+/// tracks under the pointer, Cmd or Ctrl and the wheel scrolls the timeline sideways, Alt and the
+/// wheel zooms about the pointer, and a pinch zooms. A sideways gesture (a trackpad swipe, a tilt
+/// wheel, Shift and the wheel) always scrolls sideways. A sideways scroll is not eased.
+// filmcraft: crates/ui-egui/src/panels/timeline/interact.rs:217 `wheel_scroll`.
+fn wheel(ui: &Ui, geo: &Geo, anim: &mut ViewAnim, view: &mut TimeView, scrolls: &mut Scrolls) {
     let Some(pos) = ui.input(|i| i.pointer.hover_pos()).filter(|pos| geo.rows.contains(*pos) && ui.rect_contains_pointer(geo.rows)) else {
         return;
     };
-    let mods = ui.input(|i| i.modifiers);
-    let (delta, pinch) = ui.input(|i| (i.smooth_scroll_delta, f64::from(i.zoom_delta())));
-    let zooms = mods.alt || mods.mac_cmd;
-    let mut factor = pinch;
-    let mut used = false;
-    if zooms && delta.y != 0.0 {
-        factor *= wheel_zoom_factor(delta.y);
-        used = true;
-    }
-    if factor != 1.0 && factor.is_finite() {
-        let anchor = anim.target.time_at(pos.x.max(geo.time_left), geo.time_left);
-        zoom_target(anim, factor, anchor, geo.time_area.width());
-    }
-    if !zooms {
-        let horizontal = if mods.shift { delta.x + delta.y } else { delta.x };
-        let vertical = if mods.shift { 0.0 } else { delta.y };
-        if horizontal != 0.0 {
-            let moved = Tick::from_seconds_f64(f64::from(horizontal) / anim.target.points_per_second);
-            anim.target.start = (anim.target.start - moved).max(Tick::ZERO);
-            anim.anchor = None;
-            used = true;
+    let wheel = WheelInput::read(ui);
+    let pinched = (wheel.pinch - 1.0).abs() > WHEEL_PINCH_EPSILON;
+    let zooms = wheel.alt && wheel.delta.y != 0.0;
+    if pinched || zooms {
+        let factor = if pinched { wheel.pinch } else { wheel_zoom_factor(wheel.delta.y) };
+        if factor.is_finite() {
+            let anchor = anim.target.time_at(pos.x.max(geo.time_left), geo.time_left);
+            zoom_target(anim, factor, anchor, geo.time_area.width());
         }
-        if vertical != 0.0 {
-            if pos.y < geo.caption.bottom() {
-                scrolls.caption -= vertical;
-            } else if pos.y < geo.upper.bottom() {
-                scrolls.upper += vertical;
-            } else if pos.y > geo.divider.bottom() {
-                scrolls.lower -= vertical;
+    } else if wheel.delta != egui::Vec2::ZERO {
+        let sideways = if wheel.delta.x.abs() > wheel.delta.y.abs() {
+            Some(wheel.delta.x)
+        } else if wheel.command || wheel.shift {
+            Some(wheel.delta.y)
+        } else {
+            None
+        };
+        match sideways {
+            Some(points) => {
+                let moved = Tick::from_seconds_f64(f64::from(points) / anim.target.points_per_second);
+                anim.target.start = (anim.target.start - moved).max(Tick::ZERO);
+                anim.anchor = None;
+                view.start = anim.target.start;
             }
-            used = true;
+            None if pos.y < geo.caption.bottom() => scrolls.caption -= wheel.delta.y,
+            None if pos.y < geo.upper.bottom() => scrolls.upper += wheel.delta.y,
+            None if pos.y > geo.divider.bottom() => scrolls.lower -= wheel.delta.y,
+            None => {}
         }
     }
-    if used {
+    if pinched || wheel.delta != egui::Vec2::ZERO {
         ui.input_mut(|i| i.smooth_scroll_delta = egui::Vec2::ZERO);
     }
 }
@@ -1128,56 +1420,46 @@ struct Keys {
 }
 
 impl Keys {
-    /// Runs the key pressed this pass: the playhead it asks for, and `=`, `-` and `\` change the
-    /// view's target.
-    fn handle(&self, ui: &Ui, anim: &mut ViewAnim) -> Option<Tick> {
+    /// Runs the key pressed this pass: the playhead it asks for, or the menu key; `=`, `-` and `\`
+    /// change the view's target.
+    fn handle(&self, ui: &Ui, anim: &mut ViewAnim) -> Option<KeyOutcome> {
         ui.memory_mut(|m| m.set_focus_lock_filter(self.id, EventFilter { horizontal_arrows: true, vertical_arrows: true, ..EventFilter::default() }));
-        KeyClaim::claim(ui.ctx(), self.id, &KEYS);
-        let (key, shift) = ui.input_mut(|i| {
-            [true, false].into_iter().find_map(|shift| {
-                let modifiers = if shift { Modifiers::SHIFT } else { Modifiers::NONE };
-                [
-                    Key::ArrowLeft,
-                    Key::ArrowRight,
-                    Key::Home,
-                    Key::End,
-                    Key::ArrowUp,
-                    Key::ArrowDown,
-                    Key::Equals,
-                    Key::Plus,
-                    Key::Minus,
-                    Key::Backslash,
-                ]
-                .into_iter()
-                .find(|key| i.consume_key(modifiers, *key))
-                .map(|key| (key, shift))
-            })
-        })?;
-        let frames = if shift { SHIFT_STEP_FRAMES } else { STEP_FRAMES };
+        let claims = KEYS.map(|(key, _)| key);
+        KeyClaim::claim(ui.ctx(), self.id, &claims);
+        let action = ui.input_mut(|i| KEYS.iter().find_map(|(key, action)| key.consume(i).then_some(*action)))?;
         let from = self.rate.frame_at(self.playhead);
-        let to = match key {
-            Key::ArrowLeft => Some(self.rate.tick_of(from.saturating_sub(frames))),
-            Key::ArrowRight => Some(self.rate.tick_of(from.saturating_add(frames))),
-            Key::Home => Some(Tick::ZERO),
-            Key::End => Some(self.duration),
-            Key::ArrowUp => self.points.iter().copied().filter(|p| *p < self.playhead).max(),
-            Key::ArrowDown => self.points.iter().copied().filter(|p| *p > self.playhead).min(),
-            Key::Equals | Key::Plus => {
+        let to = match action {
+            KeyAction::Step { forward, five } => {
+                let frames = if five { SHIFT_STEP_FRAMES } else { STEP_FRAMES };
+                Some(self.rate.tick_of(if forward { from.saturating_add(frames) } else { from.saturating_sub(frames) }))
+            }
+            KeyAction::Start => Some(Tick::ZERO),
+            KeyAction::End => Some(self.duration),
+            KeyAction::PreviousEdit => self.points.iter().copied().filter(|p| *p < self.playhead).max(),
+            KeyAction::NextEdit => self.points.iter().copied().filter(|p| *p > self.playhead).min(),
+            KeyAction::ZoomIn => {
                 zoom_target(anim, KEY_ZOOM, self.playhead, self.width);
                 None
             }
-            Key::Minus => {
+            KeyAction::ZoomOut => {
                 zoom_target(anim, 1.0 / KEY_ZOOM, self.playhead, self.width);
                 None
             }
-            _ => {
+            KeyAction::Fit => {
                 anim.target = TimeView::fit(TimeRange::new(Tick::ZERO, self.duration), self.width, self.fit_margin);
                 anim.anchor = None;
                 None
             }
+            KeyAction::ContextMenu => return Some(KeyOutcome::ContextMenu),
         };
-        to.map(|to| to.max(Tick::ZERO))
+        to.map(|to| KeyOutcome::Playhead(to.max(Tick::ZERO)))
     }
+}
+
+/// What a key of the time area asked of the panel.
+enum KeyOutcome {
+    Playhead(Tick),
+    ContextMenu,
 }
 
 /// What the follow and the reveal need.
@@ -1237,8 +1519,8 @@ impl Head {
                     ui.add(button)
                 };
                 TimelineToolbar {
-                    snap: button(Icon::AlignEdgeVcenter, &labels.snap, "snap", Some(snap)),
-                    linked_selection: button(Icon::Link, &labels.linked_selection, "linked", Some(linked_selection)),
+                    snap: button(Icon::Snap, &labels.snap, "snap", Some(snap)),
+                    linked_selection: button(Icon::LinkedSelection, &labels.linked_selection, "linked", Some(linked_selection)),
                     add_marker: button(Icon::Flag, &labels.add_marker, "marker", None),
                     settings: button(Icon::Settings, &labels.settings, "settings", None),
                 }
@@ -1266,6 +1548,9 @@ struct RowCx<'a> {
     area_id: Id,
     geo: Geo,
     rows: &'a [Row],
+    clips: &'a [Vec<ClipInfo<'a>>],
+    /// The track index of each selected clip.
+    owners: &'a [(ClipId, usize)],
     track_ids: &'a [TrackId],
     view: &'a TimeView,
     rate: FrameRate,
@@ -1288,6 +1573,29 @@ struct RowHooks<'h, 'a> {
 }
 
 impl RowCx<'_> {
+    /// A clip's rect on screen in its row.
+    fn clip_rect(&self, row: &Row, clip: &ClipInfo<'_>) -> Rect {
+        let left = self.geo.time_left;
+        Rect::from_min_max(pos2(self.view.x_of(clip.range.start, left), row.top), pos2(self.view.x_of(clip.range.end(), left), row.bottom))
+    }
+
+    /// Where moving `moving` from `source`'s row heads with the pointer where it is.
+    fn derive(&self, source: &Row, moving: &[ClipId]) -> Derived {
+        let Some(y) = self.pointer_y else { return Derived::STAY };
+        let mut sources = vec![source];
+        for row in self.rows {
+            if row.index != source.index && self.owners.iter().any(|(clip, index)| *index == row.index && moving.contains(clip)) {
+                sources.push(row);
+            }
+        }
+        let bounds = if source.side == Side::Caption {
+            (self.geo.rows.top(), self.geo.rows.bottom())
+        } else {
+            (self.geo.upper.top(), self.geo.lower.bottom())
+        };
+        resolve_move(self.rows, &sources, y, bounds)
+    }
+
     /// One track row: its header, its lane, and what the lane reported. `track` comes with its
     /// resolved height and its clips.
     fn show_row(
@@ -1328,7 +1636,8 @@ impl RowCx<'_> {
             .snap(self.targets)
             .locked(locked)
             .selection(self.selection)
-            .palette(self.palette);
+            .palette(self.palette)
+            .track_label(track.label);
         if let Some(paint) = content {
             lane = lane.content(move |painter, rect, clip| paint(painter, rect, clip));
         }
@@ -1339,8 +1648,19 @@ impl RowCx<'_> {
         out.snapped = lane.snapped_at.or(out.snapped);
         if let Some(event) = lane.edit {
             out.drag_seen = true;
-            let derived = self.pointer_y.map_or((0, false), |y| resolve_move(self.rows, row, y, (self.geo.rows.top(), self.geo.rows.bottom())));
-            let (event, value) = with_tracks(event, derived);
+            let event = match (event, &lane.grabbed) {
+                (EditEvent::Begin { id, value: None, .. }, Some(clips)) => EditEvent::begin_with(
+                    id,
+                    ClipEdit::Move { clips: clips.clone(), delta: Tick::ZERO, track_delta: 0, new_track: false, copy: false },
+                ),
+                (event, _) => event,
+            };
+            let moving = moved_clips(&event).or_else(|| out.drag.as_ref().and_then(|drag| moved_by(&drag.value))).unwrap_or_default().to_vec();
+            let derived = self.derive(row, &moving);
+            if derived.refused {
+                child.ctx().set_cursor_icon(CursorIcon::NotAllowed);
+            }
+            let (event, value) = with_tracks(event, (derived.track_delta, derived.new_track));
             out.drag = match (&event, value) {
                 (EditEvent::Cancel { .. } | EditEvent::Commit { .. }, _) => None,
                 (_, Some(value)) => event.id().map(|id| ClipDrag { id, value, source: track.id }),
@@ -1355,7 +1675,10 @@ impl RowCx<'_> {
             out.edits.push(TimelineEdit::OpenClip(clip));
         }
         if lane.response.secondary_clicked() {
-            out.edits.push(TimelineEdit::ContextMenu { track: Some(track.id), clip: lane.context_menu });
+            let anchor =
+                lane.context_menu.and_then(|clip| clips.iter().find(|info| info.id == clip)).map_or(lane_rect, |info| self.clip_rect(row, info));
+            let pointer = lane.response.interact_pointer_pos();
+            out.edits.push(TimelineEdit::ContextMenu { track: Some(track.id), clip: lane.context_menu, anchor, pointer });
         }
         if self.tool != TimelineTool::Razor
             && !locked
@@ -1377,9 +1700,14 @@ impl Pass {
     fn settle_drag(&mut self, ui: &Ui, cx: &RowCx<'_>, key: Id) {
         if let Some(active) = self.drag.clone().filter(|_| !self.drag_seen)
             && let Some(row) = cx.rows.iter().find(|row| cx.track_ids[row.index] == active.source)
-            && let Some(y) = cx.pointer_y
+            && cx.pointer_y.is_some()
         {
-            let derived = resolve_move(cx.rows, row, y, (cx.geo.rows.top(), cx.geo.rows.bottom()));
+            let moving = moved_by(&active.value).unwrap_or_default();
+            let derived = cx.derive(row, moving);
+            if derived.refused {
+                ui.ctx().set_cursor_icon(CursorIcon::NotAllowed);
+            }
+            let derived = (derived.track_delta, derived.new_track);
             let mut value = active.value.clone();
             if let ClipEdit::Move { track_delta, new_track, .. } = &mut value
                 && (*track_delta, *new_track) != derived
@@ -1405,6 +1733,10 @@ impl Pass {
             ui.data_mut(|d| d.remove::<Marquee>(key));
             return;
         };
+        if ui.input_mut(|i| ClaimedKey::exact(Modifiers::NONE, Key::Escape).consume(i)) {
+            ui.data_mut(|d| d.remove::<Marquee>(key));
+            return;
+        }
         let tokens = Tokens::of(ui);
         let color = &tokens.color;
         let now = ui.input(|i| i.pointer.latest_pos()).unwrap_or(active.origin);
@@ -1457,4 +1789,76 @@ fn resize_headers(ui: &Ui, geo: &Geo, header_w: f32, id: Id, labels: &TimelineLa
         resize.commit();
     }
     resize.finish().map(TimelineEdit::HeaderWidth)
+}
+
+/// One side's vertical scroll bar: the kernel's [`CanvasScrollbars`] (its look, AccessKit value and
+/// range), vertical only, over `strip` (right of the time area, as tall as the side). The side
+/// is a document as tall as its tracks need, seen through the strip at one point per unit.
+/// `offset` is how far the side is scrolled in points (`inverted` for the video side, whose
+/// tracks stack upward, so its bar's top is the most scrolled); the new offset comes back in the
+/// same pass. FilmCraft `timeline.rs:435`, `timeline/scrollbars.rs:116` `vertical_scrollbar`.
+fn side_scroll_bar(ui: &Ui, salt: impl AsIdSalt, strip: Rect, need: f32, offset: f32, inverted: bool, name: &str) -> f32 {
+    let max = (need - strip.height()).max(0.0);
+    if max <= 0.0 || strip.width() <= 0.0 {
+        return offset;
+    }
+    let half = f64::from(strip.height()) / 2.0;
+    let shown = f64::from(if inverted { max - offset } else { offset });
+    let mut view = CanvasView::new(strip, Point::new(0.0, shown + half), 1.0);
+    let names = ScrollbarNames::new(String::new(), name);
+    let doc = KurboRect::new(0.0, 0.0, 1.0, f64::from(need));
+    let _ = CanvasScrollbars::new(salt, names).vertical_only().show(ui, &mut view, doc);
+    let moved = ((view.center.y - half) as f32).clamp(0.0, max);
+    if inverted { max - moved } else { moved }
+}
+
+/// The divider between the video and audio tracks (right of the headers): drag to share the room between them. Reports
+/// the video side's share as one gesture (FilmCraft `timeline.rs:380-385`).
+fn resize_divider(ui: &Ui, geo: &Geo, id: Id, labels: &TimelineLabels) -> Option<TimelineEdit> {
+    if geo.split_room <= 0.0 {
+        return None;
+    }
+    let mods = ui.input(|i| i.modifiers);
+    let enabled = ui.is_enabled();
+    let share = geo.upper.height() / geo.split_room;
+    // Over the time area only: the headers' bottom edges resize their rows there.
+    let grab = geo.divider.with_min_x(geo.time_left);
+    let edge = ui.interact(grab, id.with("divider"), Sense::DRAG);
+    edge.widget_info(|| WidgetInfo::labeled(Role::Splitter, enabled, &labels.divider));
+    if edge.hovered() || edge.dragged() {
+        ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+    }
+    let mut resize = Gesture::load(ui, edge.id, &share, EditPolicy::default()).enabled(enabled);
+    if edge.drag_started_by(PointerButton::Primary) {
+        resize.begin();
+    }
+    if resize.is_active()
+        && edge.dragged()
+        && let (Some(origin), Some(pos)) = (ui.input(|i| i.pointer.press_origin()), ui.input(|i| i.pointer.latest_pos()))
+    {
+        let wanted = *resize.start().unwrap_or(&share) + (pos.y - origin.y) / geo.split_room;
+        resize.update(wanted.clamp(DIVIDER_SHARE_MIN, DIVIDER_SHARE_MAX), mods);
+    }
+    if edge.drag_stopped() {
+        resize.commit();
+    }
+    resize.finish().map(TimelineEdit::Divider)
+}
+
+/// The context menu the Menu key or Shift+F10 opens: on the selection's last clip when it is in
+/// view, else on the first targeted track (the first track without targets), anchored at the
+/// clip's or the row's rect.
+fn menu_key_edit(cx: &RowCx<'_>, selection: &[ClipId], tracks: &[TrackInfo<'_>]) -> Option<TimelineEdit> {
+    let focused = selection
+        .last()
+        .and_then(|&clip| cx.rows.iter().find_map(|row| cx.clips[row.index].iter().find(|info| info.id == clip).map(|info| (row, Some(info)))));
+    let (row, clip) = focused.or_else(|| {
+        let targeted = cx.rows.iter().find(|row| tracks[row.index].targeted == Some(true));
+        targeted.or_else(|| cx.rows.first()).map(|row| (row, None))
+    })?;
+    let anchor = match clip {
+        Some(info) => cx.clip_rect(row, info),
+        None => Rect::from_min_max(pos2(cx.geo.time_left, row.top), pos2(cx.geo.content_right, row.bottom)),
+    };
+    Some(TimelineEdit::ContextMenu { track: Some(tracks[row.index].id), clip: clip.map(|info| info.id), anchor, pointer: None })
 }

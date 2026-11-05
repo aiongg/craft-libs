@@ -460,6 +460,8 @@ craft_ui::words! {
         add_row: "timecodePanel.addRow" = "Add a timecode row";
         remove_row: "timecodePanel.removeRow" = "Remove Row";
         sequence_display: "timecodePanel.sequenceDisplay" = "Sequence Display";
+        caption: "timecodePanel.caption" = "{kind} \u{b7} {source}";
+        spoken: "timecodePanel.spoken" = "{caption}: {value}";
     }
 }
 
@@ -544,7 +546,8 @@ impl<'a> TimecodePanel<'a> {
                 for (at, row) in settings.rows.iter().enumerate() {
                     let big = at == 0;
                     let value = text(row);
-                    let caption = format!("{} \u{b7} {}", row_kind_label(&labels, row.kind), row_source_label(&labels, row.source));
+                    let caption =
+                        fmt(&labels.caption, &[("kind", row_kind_label(&labels, row.kind)), ("source", row_source_label(&labels, row.source))]);
                     let (role, color) = if big {
                         (TimelineStyle::of(&tokens).timecode_large_text, colors.accent.text)
                     } else {
@@ -561,7 +564,7 @@ impl<'a> TimecodePanel<'a> {
                         pos2(rect.center().x - caption_galley.size().x / 2.0, rect.top() + value_galley.size().y + ui.spacing().item_spacing.y);
                     ui.painter().galley(top, value_galley, value_format.color);
                     ui.painter().galley(below, caption_galley, caption_format.color);
-                    let spoken = format!("{caption}: {value}");
+                    let spoken = fmt(&labels.spoken, &[("caption", caption.as_str()), ("value", value.as_str())]);
                     row_response.widget_info(|| WidgetInfo::new(Role::Label));
                     ui.ctx().accesskit_node_builder(row_response.id, |node| node.set_value(spoken.as_str()));
                     let entries = row_menu(&labels, &displays, row, removable);
