@@ -46,6 +46,7 @@ pub struct FileStamp {
 }
 
 impl FileStamp {
+    /// The stamp of a file from its metadata.
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:42 Stamp::of
     pub fn of(meta: &Metadata) -> FileStamp {
         #[cfg(unix)]
@@ -70,10 +71,12 @@ impl FileStamp {
         std::fs::metadata(path).ok().filter(Metadata::is_file).map(|m| FileStamp::of(&m))
     }
 
+    /// The file's length in bytes when stamped.
     pub fn len(&self) -> u64 {
         self.len
     }
 
+    /// Whether the file was empty when stamped.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
@@ -110,7 +113,12 @@ pub enum ReadPolicy {
     /// The whole file, into a buffer of exactly its size, once `complete` says the last `tail`
     /// bytes (read first) end a whole file. A file still being written then costs one small
     /// read. PdfCraft: `tail` 1024, `complete` finds `%%EOF`.
-    Whole { tail: usize, complete: Complete },
+    Whole {
+        /// How many bytes at the end of the file to read first, for `complete`.
+        tail: usize,
+        /// Tells whether those last bytes end a whole file.
+        complete: Complete,
+    },
 }
 
 /// [`ReadPolicy::Whole`]'s check of a file's last bytes.
@@ -130,7 +138,9 @@ impl std::fmt::Debug for ReadPolicy {
 pub struct Changed<K> {
     /// The app's key for the document (its id).
     pub key: K,
+    /// The file's path.
     pub path: PathBuf,
+    /// The file's stamp now.
     pub stamp: FileStamp,
     /// The bytes with [`ReadPolicy::Whole`]; `None` with [`ReadPolicy::Stamp`].
     pub bytes: Option<Arc<Vec<u8>>>,
@@ -200,6 +210,7 @@ impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
         }
     }
 
+    /// Sets what the watcher reads of a changed file.
     pub fn read(mut self, policy: ReadPolicy) -> Self {
         self.policy = policy;
         self

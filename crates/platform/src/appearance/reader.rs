@@ -6,8 +6,11 @@ use super::{Contrast, Theme, Watcher};
 /// What the OS reports now. `None` is no answer; the host decides the fallback.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Reading {
+    /// The colour scheme.
     pub theme: Option<Theme>,
+    /// The contrast preference.
     pub contrast: Option<Contrast>,
+    /// True when the user asks for reduced motion.
     pub reduced_motion: Option<bool>,
 }
 
