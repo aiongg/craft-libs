@@ -63,13 +63,37 @@ pub(super) struct RowDrag<'p, K> {
     gesture: Option<ReorderGesture<K>>,
     dragging: Option<Dragging<K>>,
     target: Option<Resolved<K>>,
+    /// The lists whose rows this one takes drops from.
+    accepts: &'p [Id],
+    /// Rows of an accepted list are held over this one.
+    foreign: Option<Foreign<K>>,
+    /// The drop of such rows, when they were released over this list this pass.
+    dropped: Option<Dropped<K>>,
+}
+
+/// Rows of another list dragged over this one: their payload and the target under the pointer
+/// (`None` over a list without rows, or where the host refuses).
+struct Foreign<K> {
+    payload: ListDrag<K>,
+    target: Option<Resolved<K>>,
+}
+
+/// Rows of another list dropped on this one.
+pub(super) struct Dropped<K> {
+    pub(super) payload: ListDrag<K>,
+    pub(super) target: Option<Move<K>>,
 }
 
 impl<'p, K: Clone + Eq + Hash + Send + Sync + 'static> RowDrag<'p, K> {
     /// The drag of the list `list` in this pass, with the drag its last pass kept.
     pub(super) fn load(ui: &Ui, list: Id, reorder: Option<&'p Reorder<'p, K>>, dragging: Option<Dragging<K>>) -> Self {
         let gesture = reorder.is_some().then(|| ReorderGesture::load(ui, list));
-        Self { ctx: ui.ctx().clone(), list, reorder, gesture, dragging, target: None }
+        Self { ctx: ui.ctx().clone(), list, reorder, gesture, dragging, target: None, accepts: &[], foreign: None, dropped: None }
+    }
+
+    /// The lists whose rows this list takes drops from.
+    pub(super) fn accept_from(&mut self, lists: &'p [Id]) {
+        self.accepts = lists;
     }
 
     /// Forgets a drag that ended without the list (Esc, [`cancel_all`](crate::edit::cancel_all),
@@ -111,20 +135,48 @@ impl<'p, K: Clone + Eq + Hash + Send + Sync + 'static> RowDrag<'p, K> {
     /// rows' viewport); `top` is where the rows start on the screen.
     pub(super) fn resolve(&mut self, ui: &Ui, rows: &(impl DisplayOrder<K> + ?Sized), spans: &Spans, top: f32) {
         self.target = None;
+        self.foreign = None;
+        if self.dragging.is_none() {
+            self.resolve_foreign(ui, rows, spans, top);
+            return;
+        }
         let (Some(drag), Some(reorder)) = (self.dragging.as_ref(), self.reorder) else { return };
         let (pointer, modifiers) = ui.input(|i| (i.pointer.hover_pos(), i.modifiers));
         let Some(pointer) = pointer.filter(|_| ui.rect_contains_pointer(ui.clip_rect())) else { return };
         self.target = reorder.resolve(rows, spans, pointer.y - top, &drag.items, modifiers);
     }
 
+    /// Finds where rows of an accepted list held over this one drop.
+    fn resolve_foreign(&mut self, ui: &Ui, rows: &(impl DisplayOrder<K> + ?Sized), spans: &Spans, top: f32) {
+        let Some(payload) = DragAndDrop::payload::<ListDrag<K>>(&self.ctx).filter(|p| p.list != self.list && self.accepts.contains(&p.list)) else {
+            return;
+        };
+        let (pointer, modifiers) = ui.input(|i| (i.pointer.hover_pos(), i.modifiers));
+        let Some(pointer) = pointer.filter(|_| ui.rect_contains_pointer(ui.clip_rect())) else { return };
+        let plain = Reorder::new(Axis::Vertical);
+        let reorder = self.reorder.unwrap_or(&plain);
+        let target = reorder.resolve_foreign(rows, spans, pointer.y - top, &payload.items, modifiers);
+        self.foreign = Some(Foreign { payload: (*payload).clone(), target });
+    }
+
     /// The position in the display order of the row the drag drops on this pass.
     pub(super) fn target_at(&self) -> Option<usize> {
-        self.target.as_ref().map(|t| t.at)
+        self.resolved().map(|t| t.at)
     }
 
     /// The marker of the row at `at`, when the drag drops on it.
     pub(super) fn mark(&self, at: usize) -> Option<DropMark> {
-        self.target.as_ref().filter(|t| t.at == at).map(|t| drop_mark(t.mv.position))
+        self.resolved().filter(|t| t.at == at).map(|t| drop_mark(t.mv.position))
+    }
+
+    /// The target of the drag of this list, or of rows held over it from an accepted list.
+    fn resolved(&self) -> Option<&Resolved<K>> {
+        self.target.as_ref().or_else(|| self.foreign.as_ref().and_then(|f| f.target.as_ref()))
+    }
+
+    /// The drop of rows from an accepted list that was released over this list this pass.
+    pub(super) fn take_dropped(&mut self) -> Option<Dropped<K>> {
+        self.dropped.take()
     }
 
     /// The scroll offset while the drag is held near the top or bottom edge of `view`, the rows'
@@ -159,7 +211,10 @@ impl<'p, K: Clone + Eq + Hash + Send + Sync + 'static> RowDrag<'p, K> {
     /// Ends the drag under way when it was released, Esc was pressed or the window lost the
     /// focus; otherwise draws the ghost (`width` wide at most) and the copy cursor.
     pub(super) fn frame(&mut self, ui: &Ui, style: &ListRowStyle, width: f32) {
-        let Some(drag) = self.dragging.take() else { return };
+        let Some(drag) = self.dragging.take() else {
+            self.drop_foreign(ui);
+            return;
+        };
         let (released, down, modifiers, pointer) =
             ui.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.modifiers, i.pointer.latest_pos()));
         let end = if crate::focus::lost(&self.ctx) {
@@ -185,9 +240,23 @@ impl<'p, K: Clone + Eq + Hash + Send + Sync + 'static> RowDrag<'p, K> {
         self.dragging = Some(drag);
     }
 
+    /// Takes the rows of an accepted list when the pointer was released over this list: the
+    /// payload is cleared so no other widget takes it. The source list ends its own drag in the
+    /// same pass, whichever list is drawn first, as a cancel (its own order is unchanged).
+    fn drop_foreign(&mut self, ui: &Ui) {
+        let Some(foreign) = self.foreign.take() else { return };
+        let (released, down) = ui.input(|i| (i.pointer.any_released(), i.pointer.any_down()));
+        if !(released || !down) {
+            self.foreign = Some(foreign);
+            return;
+        }
+        DragAndDrop::clear_payload(&self.ctx);
+        self.dropped = Some(Dropped { payload: foreign.payload, target: foreign.target.map(|t| t.mv) });
+    }
+
     /// What the pass leaves.
     pub(super) fn finish(self) -> DragOutcome<K> {
-        let drop_target = self.dragging.as_ref().and(self.target).map(|t| t.mv);
+        let drop_target = self.dragging.as_ref().and(self.target).or_else(|| self.foreign.and_then(|f| f.target)).map(|t| t.mv);
         DragOutcome { dragging: self.dragging, event: self.gesture.and_then(ReorderGesture::finish), drop_target }
     }
 

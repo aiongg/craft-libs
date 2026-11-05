@@ -90,8 +90,8 @@ pub use events::{EventLevel, EventLog, EventLogLabels, EventLogOutput, EventLogS
 pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsListResponse, FindingsStyle, findings_summary};
 pub use metadata::{MetadataGroup, MetadataLabels, MetadataRow, MetadataStyle, MetadataTable, MetadataTableOutput, filter_metadata};
 pub use row::{
-    DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget, TrailingItem, drop_line,
-    paint_drop_mark,
+    DropMark, ListRow, ListRowStyle, RenameEnd, RowCommand, RowEvent, RowMenuLabels, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget,
+    TrailingItem, drop_line, paint_drop_mark,
 };
 pub use table::{CellContext, SortOrder, Table, TableColumn, TableEvent, TableLabels, TableLayout, TableOutput, TableSort, TableStyle};
 pub use tiles::{

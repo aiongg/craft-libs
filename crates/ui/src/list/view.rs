@@ -17,18 +17,19 @@ use egui::{
 
 use super::drag::{DragOutcome, Dragging, RowDrag};
 use super::rename;
-use super::row::{ListRow, RenameEnd, RowEvent, RowResponse, ThumbSize, row_id};
+use super::row::{ListRow, RenameEnd, RowCommand, RowEvent, RowResponse, ThumbSize, row_id};
 use super::spans::Spans;
 use super::toggle::{self, ToggleColumn, ToggleEdit};
 use super::tree::{self, Branch, OpenChange, TreeText};
 use crate::behavior::{
-    Axis, DisplayOrder, ListKey, ListOptions, ListSelection, Listbox, Move, Reorder, RowInfo, Selection, SelectionChange, SelectionMode, StackKey,
-    TreeMove, first_item, tree_key,
+    Axis, DisplayOrder, ListDrag, ListKey, ListOptions, ListSelection, Listbox, Move, Reorder, RowInfo, Selection, SelectionChange, SelectionMode,
+    StackKey, TreeMove, first_item, tree_key,
 };
 use crate::composites::SectionLabel;
 use crate::direction;
 use crate::edit::{self, EditEvent, GestureId};
 use crate::localized::SharedLabels as _;
+use crate::menu::MenuEntry;
 use crate::patterns::panel::ScrollBarLabels;
 use crate::popup_list;
 use crate::primitives::FocusRing;
@@ -61,6 +62,27 @@ pub enum ListEvent<K> {
     /// reader's Expand and Collapse); the host applies it to its open state. A closing group
     /// that hid the lead has taken the lead already ([`LeadMoved`](ListEvent::LeadMoved)).
     Open(OpenChange<K>),
+    /// An entry of a row's [menu](List::row_menu) other than Rename was chosen, in the pass of
+    /// the click. Choosing Rename opens the row's rename field in that pass and reports nothing
+    /// until the rename ends ([`Row`](ListEvent::Row) `Renamed` and `RenameEnded`).
+    RowMenu {
+        /// The row whose menu it is.
+        key: K,
+        /// The entry's command.
+        command: RowCommand,
+    },
+    /// Rows of another list this one [accepts drops from](List::accept_from) were released over
+    /// it, in the pass of the release. The source list ends its drag in the same pass with
+    /// `Cancel(Dismissed)`: its own order did not change, and the host applies this drop instead
+    /// (whichever of the two lists is drawn first).
+    Dropped {
+        /// The rows dragged, with the id of the list they came from.
+        from: ListDrag<K>,
+        /// Where they land among this list's rows (`copy` as for a [reorder](List::reorder));
+        /// `None` over a list without rows, or where the host's
+        /// [`accepts`](Reorder::accepts) refuses.
+        target: Option<Move<K>>,
+    },
     /// What a row reported: toggle column edits (also those of a column's
     /// [key](super::ToggleColumn::key)) and renames.
     Row(RowEvent<K>),
@@ -126,6 +148,8 @@ enum Heights<'a> {
 }
 
 type KeyTest<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
+type RowMenuFn<'a, K> = dyn Fn(&K) -> Vec<MenuEntry<RowCommand>> + 'a;
+type RowMenuEntries<'a, K> = Box<RowMenuFn<'a, K>>;
 
 /// A list of rows: a scroll area that lays out only the rows in view, one focus stop, the
 /// selection rules of [`ListSelection`], rename in place, and a hook for the host's context menu.
@@ -210,6 +234,8 @@ pub struct List<'a, K, O: ?Sized> {
     type_ahead: bool,
     reveal: Option<K>,
     start_rename: Option<K>,
+    row_menu: Option<RowMenuEntries<'a, K>>,
+    accept_from: Vec<Id>,
     reorder: Option<Reorder<'a, K>>,
     tree: bool,
     tree_text: Option<Arc<TreeText>>,
@@ -238,6 +264,8 @@ where
             type_ahead: false,
             reveal: None,
             start_rename: None,
+            row_menu: None,
+            accept_from: Vec::new(),
             reorder: None,
             tree: false,
             tree_text: None,
@@ -363,6 +391,28 @@ where
         self
     }
 
+    /// A "\u{2026}" button on every row with a menu of `entries(key)` (no button for an empty
+    /// list). The list draws the button and the menu itself, so a [`Rename`](RowCommand::Rename)
+    /// pick opens the row's rename field in the pass of the click, which [`start_rename`](List::start_rename)
+    /// from the host's own menu cannot (the host's menu is drawn after the list). It applies
+    /// where the list [renames](List::can_rename) the row. Other picks come back as
+    /// [`ListEvent::RowMenu`]. The button shows on a hovered or selected row and while its menu is
+    /// open; a screen reader finds it as a button named "More ({row})".
+    pub fn row_menu(mut self, entries: impl Fn(&K) -> Vec<MenuEntry<RowCommand>> + 'a) -> Self {
+        self.row_menu = Some(Box::new(entries));
+        self
+    }
+
+    /// Takes drops of rows dragged from the lists `lists` (their ids, from [`List::id_in`]): while
+    /// such rows are held over this list it shows the drop marker, and releasing them reports
+    /// [`ListEvent::Dropped`]. The lists must use the same key type. The target follows this
+    /// list's [`reorder`](List::reorder) rules (`accepts`, `into_rows`), or plain before and after
+    /// halves without one. The source list needs [`reorder`](List::reorder) to start drags.
+    pub fn accept_from(mut self, lists: impl IntoIterator<Item = Id>) -> Self {
+        self.accept_from = lists.into_iter().collect();
+        self
+    }
+
     /// Rows can be dragged and moved with the stacking keys by the rules of `reorder`, a
     /// vertical [`Reorder`]: where drops land, which the host refuses, whether Alt copies.
     pub fn reorder(mut self, reorder: Reorder<'a, K>) -> Self {
@@ -390,6 +440,8 @@ where
             type_ahead,
             reveal,
             start_rename,
+            row_menu,
+            accept_from,
             tree,
             tree_text,
             reorder,
@@ -420,6 +472,7 @@ where
             build: row,
             can_rename: can_rename.as_deref(),
             can_drag: can_drag.as_deref(),
+            row_menu: row_menu.as_deref(),
             row_rects: Vec::new(),
             spacers: Vec::new(),
             focus: false,
@@ -430,6 +483,7 @@ where
             rtl: direction::is_rtl(ui),
         };
 
+        pass.drag.accept_from(&accept_from);
         pass.end_for_gone_rows(ui);
         if let Some(key) = start_rename {
             pass.start_rename(key);
@@ -487,6 +541,9 @@ where
         }
         if pass.focus {
             ui.memory_mut(|m| m.request_focus(id));
+        }
+        if let Some(dropped) = pass.drag.take_dropped() {
+            pass.events.push(ListEvent::Dropped { from: dropped.payload, target: dropped.target });
         }
         let DragOutcome { dragging, event, drop_target } = pass.drag.finish();
         pass.state.drag = dragging;
@@ -631,6 +688,7 @@ struct Pass<'p, K, O: ?Sized, F> {
     build: F,
     can_rename: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
     can_drag: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
+    row_menu: Option<&'p RowMenuFn<'p, K>>,
     /// The rows drawn this frame.
     row_rects: Vec<(K, Rect)>,
     /// The spacers drawn this frame: a press on one is not a press on the empty space.
@@ -979,7 +1037,15 @@ where
             _ => false,
         };
         let mark = self.drag.mark(at);
-        let row = row.selected(self.selection.contains(&key)).focused(lead && focused).renaming(renaming).drop_mark(mark);
+        if let Some(entries) = self.row_menu {
+            row = row.menu(ui, entries(&key), self.renamable(&key));
+        }
+        let row = row
+            .rename_on_double_click(self.renamable(&key))
+            .selected(self.selection.contains(&key))
+            .focused(lead && focused)
+            .renaming(renaming)
+            .drop_mark(mark);
         let out = row.show_at(ui, rect);
         self.row_rects.push((key.clone(), rect));
         if lead {
@@ -991,10 +1057,21 @@ where
         });
         self.row_pointer(ui, (at, selectable), &key, &out);
         for event in out.events {
-            if let RowEvent::Open(change) = event {
-                self.focus = true;
-                self.open_change(at, change);
-                continue;
+            match event {
+                RowEvent::Open(change) => {
+                    self.focus = true;
+                    self.open_change(at, change);
+                    continue;
+                }
+                RowEvent::RenameStarted { row } => {
+                    self.start_rename(row);
+                    continue;
+                }
+                RowEvent::Menu { row, command } => {
+                    self.events.push(ListEvent::RowMenu { key: row, command });
+                    continue;
+                }
+                _ => {}
             }
             self.row_event(at, &event);
             self.events.push(ListEvent::Row(event));
@@ -1075,11 +1152,13 @@ where
     fn row_pointer(&mut self, ui: &Ui, (at, selectable): (usize, bool), key: &K, out: &RowResponse<K>) {
         let response = &out.response;
         let modifiers = ui.input(|i| i.modifiers);
-        if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
+        let on_label = ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| out.label.contains(p));
+        // The rename field asks for the focus itself in the pass of the double click; the list must not take it back.
+        let starts_rename = response.double_clicked() && on_label && self.renamable(key);
+        if (response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary)) && !starts_rename {
             self.focus = true;
         }
         if response.double_clicked() {
-            let on_label = ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| out.label.contains(p));
             if on_label && self.renamable(key) {
                 self.start_rename(key.clone());
             } else {

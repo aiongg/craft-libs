@@ -7,9 +7,10 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::drag::show_flat;
-use super::{ContextMenuRequest, List, ListEvent, ListRow, ToggleColumn};
+use super::{ContextMenuRequest, List, ListEvent, ListRow, RowCommand, ToggleColumn};
 use crate::behavior::RowInfo;
 use crate::direction::{self, Direction};
+use crate::menu::MenuItem;
 use crate::story::NoArgs;
 use crate::theme::{Base, install};
 
@@ -192,4 +193,87 @@ fn a_secondary_click_on_a_toggle_cell_names_its_column() {
     key(&mut harness, Key::F10, Modifiers::SHIFT);
     let [request] = &harness.state().1[..] else { panic!("one request") };
     assert_eq!(request.toggle, None);
+}
+
+type Menus = (Vec<RowInfo<usize>>, Vec<ListEvent<usize>>);
+
+fn menu_harness() -> Harness<'static, Menus> {
+    let mut harness = Harness::<Menus>::builder()
+        .with_size([420.0, 300.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, (rows, log): &mut Menus| {
+                let out = List::new("list", "Layers", rows.as_slice())
+                    .can_rename(|_| true)
+                    .row_menu(|_| vec![MenuItem::new("Rename", RowCommand::Rename).into(), MenuItem::new("Remove", RowCommand::Other(7)).into()])
+                    .show(ui, |_, &key| ListRow::new(key, format!("Row {key}")));
+                log.extend(out.events);
+            },
+            ((0..3).map(RowInfo::leaf).collect(), Vec::new()),
+        );
+    harness.run();
+    harness
+}
+
+fn click(harness: &mut Harness<'_, Menus>, pos: Pos2) {
+    harness.event(Event::PointerMoved(pos));
+    harness.run();
+    harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    harness.run();
+    harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+}
+
+#[allow(clippy::expect_used)]
+fn menu_item(harness: &Harness<'_, Menus>, label: &str) -> Pos2 {
+    let item = harness.query_by(|n| n.role() == Role::MenuItem && n.label().as_deref() == Some(label));
+    item.expect("the menu shows the entry").rect().center()
+}
+
+// A Rename pick starts the rename field in the pass of the click: the pass that ran the command
+// already draws the field, so the host sees no event for it and no frame passes without it.
+#[test]
+fn choosing_rename_in_a_row_menu_shows_the_field_in_the_same_pass() {
+    let mut harness = menu_harness();
+    let more = harness.get_by_label("More (Row 1)").rect().center();
+    click(&mut harness, more);
+    harness.run();
+    let rename = menu_item(&harness, "Rename");
+    assert!(harness.query_by_role(Role::TextInput).is_none());
+    click(&mut harness, rename);
+    harness.step();
+    assert!(harness.query_by_role(Role::TextInput).is_some(), "the pass of the release draws the field");
+    assert!(harness.state().1.iter().all(|e| !matches!(e, ListEvent::RowMenu { .. })), "Rename is the list's: {:?}", harness.state().1);
+}
+
+#[test]
+fn another_row_menu_entry_is_reported_with_its_row() {
+    let mut harness = menu_harness();
+    let more = harness.get_by_label("More (Row 2)").rect().center();
+    click(&mut harness, more);
+    harness.run();
+    let remove = menu_item(&harness, "Remove");
+    click(&mut harness, remove);
+    harness.run_steps(3);
+    assert!(harness.state().1.contains(&ListEvent::RowMenu { key: 2, command: RowCommand::Other(7) }), "{:?}", harness.state().1);
+    assert!(harness.query_by_role(Role::TextInput).is_none());
+}
+
+// A double click on a renamable row's label draws the rename field in the pass of the click.
+#[test]
+fn a_double_click_on_a_label_shows_the_rename_field_in_the_same_pass() {
+    let mut harness = menu_harness();
+    let label = harness.get_by_label("Row 1").rect().left_center() + egui::vec2(30.0, 0.0);
+    harness.event(Event::PointerMoved(label));
+    harness.run();
+    let button = |harness: &mut Harness<'_, Menus>, pressed| {
+        harness.event(Event::PointerButton { pos: label, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        harness.step();
+    };
+    button(&mut harness, true);
+    button(&mut harness, false);
+    assert!(harness.query_by_role(Role::TextInput).is_none());
+    button(&mut harness, true);
+    button(&mut harness, false);
+    assert!(harness.query_by_role(Role::TextInput).is_some(), "the field is drawn by the end of the pass of the double click");
 }
