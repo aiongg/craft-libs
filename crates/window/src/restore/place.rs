@@ -19,7 +19,9 @@ const MAX_POINTS: f32 = 100_000.0;
 /// `[0, 0]` when the position is unknown.
 #[derive(Clone, Copy, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct NormalRect {
+    /// Top-left corner in points.
     pub pos: [f32; 2],
+    /// Width and height in points.
     pub size: [f32; 2],
 }
 
@@ -30,11 +32,14 @@ pub struct NormalRect {
 /// window. A key that no longer matches falls back to the nearest connected monitor.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct MonitorKey {
+    /// The monitor name the platform reports.
     pub name: String,
+    /// The monitor size in pixels, width then height.
     pub size_px: [u32; 2],
 }
 
 impl MonitorKey {
+    /// A key for the monitor called `name` with size `size_px`.
     pub fn new(name: impl Into<String>, size_px: [u32; 2]) -> Self {
         Self { name: name.into(), size_px }
     }
@@ -55,10 +60,13 @@ pub struct Placement {
     /// The interface zoom factor while saving. Informational: `normal` is already at zoom 1.
     #[serde(default = "one")]
     pub zoom: f32,
+    /// The window was maximized.
     #[serde(default)]
     pub maximized: bool,
+    /// The window was full screen.
     #[serde(default)]
     pub fullscreen: bool,
+    /// The monitor the window was on, if known.
     #[serde(default)]
     pub monitor: Option<MonitorKey>,
 }
@@ -78,9 +86,11 @@ fn one() -> f32 {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Monitor {
+    /// The monitor's identity.
     pub key: MonitorKey,
     /// Top-left corner in the desktop's pixel space.
     pub pos_px: [i32; 2],
+    /// Width and height in pixels.
     pub size_px: [u32; 2],
     /// Physical pixels per point.
     pub scale: f32,
@@ -90,6 +100,7 @@ pub struct Monitor {
 }
 
 impl Monitor {
+    /// A monitor at `pos_px` of `size_px` pixels with `scale`, usable in full.
     pub fn new(key: MonitorKey, pos_px: [i32; 2], size_px: [u32; 2], scale: f32) -> Self {
         Self { key, pos_px, size_px, scale, work_px: None }
     }
@@ -118,20 +129,24 @@ pub struct Defaults {
 }
 
 impl Defaults {
+    /// Defaults for a first window of `size` points and a minimum of `min` points.
     pub fn new(size: [f32; 2], min: [f32; 2]) -> Self {
         Self { size, min, screen_room: [0.0, 48.0], restore_fullscreen: false, no_position: false }
     }
 
+    /// Set the room a monitor loses to the taskbar, Dock or menu bar.
     pub fn with_screen_room(mut self, room: [f32; 2]) -> Self {
         self.screen_room = room;
         self
     }
 
+    /// Set whether full screen is restored.
     pub fn with_restore_fullscreen(mut self, on: bool) -> Self {
         self.restore_fullscreen = on;
         self
     }
 
+    /// Set whether the platform hides window positions.
     pub fn with_no_position(mut self, on: bool) -> Self {
         self.no_position = on;
         self

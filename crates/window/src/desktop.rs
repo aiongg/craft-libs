@@ -14,14 +14,18 @@ pub use work_area::{TASKBAR, WindowMode, fit_window, fits, visible_part, visible
 /// session passes [`Backend::X11`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Backend {
+    #[allow(missing_docs)]
     Wayland,
+    #[allow(missing_docs)]
     X11,
 }
 
 /// The kind of desktop, as far as the frame decision cares.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DesktopKind {
+    #[allow(missing_docs)]
     Gnome,
+    #[allow(missing_docs)]
     Kde,
     /// A tiling compositor or window manager (Sway, Hyprland, i3, niri, river, ...).
     Tiling,
@@ -32,6 +36,7 @@ pub enum DesktopKind {
 /// What the running desktop is and offers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Desktop {
+    /// The kind of desktop.
     pub kind: DesktopKind,
     /// Whether the compositor offers server-side decorations (`zxdg_decoration_manager_v1`).
     /// `None` when not probed (X11, or the probe failed).

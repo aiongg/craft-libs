@@ -3,21 +3,28 @@
 /// A rectangle in points: top-left corner and size.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct Rect {
+    /// Left edge.
     pub x: f32,
+    /// Top edge.
     pub y: f32,
+    /// Width.
     pub width: f32,
+    /// Height.
     pub height: f32,
 }
 
 impl Rect {
+    /// A rectangle with its top-left corner at (`x`, `y`).
     pub const fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
         Self { x, y, width, height }
     }
 
+    /// The x coordinate of the right edge.
     pub fn right(&self) -> f32 {
         self.x + self.width
     }
 
+    /// The y coordinate of the bottom edge.
     pub fn bottom(&self) -> f32 {
         self.y + self.height
     }

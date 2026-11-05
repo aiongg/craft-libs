@@ -121,6 +121,7 @@ pub struct TrafficLights {
 
 #[cfg(feature = "ui")]
 impl TrafficLights {
+    /// A tracker with nothing measured yet.
     pub fn new() -> Self {
         Self::default()
     }

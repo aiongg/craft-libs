@@ -20,8 +20,11 @@ use std::sync::{Once, OnceLock};
 /// System Settings › Desktop & Dock › "Double-click a window's title bar to".
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DoubleClick {
+    #[allow(missing_docs)]
     Zoom,
+    #[allow(missing_docs)]
     Minimize,
+    #[allow(missing_docs)]
     Nothing,
 }
 

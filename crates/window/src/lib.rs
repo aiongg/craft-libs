@@ -273,15 +273,20 @@ fn parse_override(value: Option<&str>) -> Option<bool> {
 /// A window button.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Button {
+    #[allow(missing_docs)]
     Minimize,
+    #[allow(missing_docs)]
     Maximize,
+    #[allow(missing_docs)]
     Close,
 }
 
 /// Which window buttons go on which end of the app-drawn header bar, outermost last.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Layout {
+    /// Buttons on the left end, outermost last.
     pub left: Vec<Button>,
+    /// Buttons on the right end, outermost last.
     pub right: Vec<Button>,
 }
 
