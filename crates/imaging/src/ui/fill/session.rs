@@ -15,12 +15,16 @@ use crate::ui::select_mask::EditMode;
 #[serde(rename_all = "camelCase")]
 pub enum SamplingMode {
     #[default]
+    #[allow(missing_docs)]
     Auto,
+    #[allow(missing_docs)]
     Rectangular,
+    #[allow(missing_docs)]
     Custom,
 }
 
 impl SamplingMode {
+    /// The three modes, in menu order.
     pub const ALL: [SamplingMode; 3] = [SamplingMode::Auto, SamplingMode::Rectangular, SamplingMode::Custom];
 
     /// Whether the Sampling Brush adds in this mode (Custom) or subtracts (Auto, Rectangular).
@@ -33,10 +37,14 @@ impl SamplingMode {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ColorAdaptation {
+    #[allow(missing_docs)]
     None,
     #[default]
+    #[allow(missing_docs)]
     Default,
+    #[allow(missing_docs)]
     High,
+    #[allow(missing_docs)]
     VeryHigh,
 }
 
@@ -45,10 +53,15 @@ pub enum ColorAdaptation {
 #[serde(rename_all = "camelCase")]
 pub enum RotationAdaptation {
     #[default]
+    #[allow(missing_docs)]
     None,
+    #[allow(missing_docs)]
     Low,
+    #[allow(missing_docs)]
     Medium,
+    #[allow(missing_docs)]
     High,
+    #[allow(missing_docs)]
     Full,
 }
 
@@ -57,11 +70,14 @@ pub enum RotationAdaptation {
 #[serde(rename_all = "camelCase")]
 pub enum FillOutputTo {
     #[serde(rename = "current")]
+    #[allow(missing_docs)]
     CurrentLayer,
     #[default]
     #[serde(rename = "new")]
+    #[allow(missing_docs)]
     NewLayer,
     #[serde(rename = "duplicate")]
+    #[allow(missing_docs)]
     DuplicateLayer,
 }
 
@@ -71,9 +87,11 @@ pub enum FillOutputTo {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingStroke {
+    /// Whether the stroke adds to or subtracts from the sampling area.
     pub mode: EditMode,
     /// Diameter in document pixels.
     pub size: f64,
+    /// The brush path in document pixels.
     pub points: Vec<[f64; 2]>,
 }
 
@@ -83,7 +101,9 @@ pub struct SamplingStroke {
 /// Apply and the preview never fail on what was painted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FillLimits {
+    /// Most strokes, and separately most lasso edits.
     pub edits: usize,
+    /// Most points over all strokes.
     pub points: usize,
 }
 
@@ -137,8 +157,11 @@ pub enum FillReset {
 /// (risk 8).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FillSession {
+    /// How the sampling area starts.
     pub sampling: SamplingMode,
+    /// The Sampling Brush strokes, in order.
     pub strokes: Vec<SamplingStroke>,
+    /// The fill-area edits, in order.
     pub fill_edits: Vec<FillAreaEdit>,
 }
 
@@ -242,18 +265,27 @@ impl FillSession {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct FillSettings {
+    /// Whether the overlay shows.
     pub show_overlay: bool,
     /// 0..=100.
     pub opacity: f64,
+    /// The overlay tint as sRGB bytes.
     pub color: [u8; 3],
     /// The tint marks what is left out (Indicates › Excluded Area), not the sampling area.
     pub excluded: bool,
+    /// How the sampling area starts.
     pub sampling: SamplingMode,
+    #[allow(missing_docs)]
     pub sample_all_layers: bool,
+    #[allow(missing_docs)]
     pub color_adaptation: ColorAdaptation,
+    #[allow(missing_docs)]
     pub rotation: RotationAdaptation,
+    #[allow(missing_docs)]
     pub scale: bool,
+    #[allow(missing_docs)]
     pub mirror: bool,
+    #[allow(missing_docs)]
     pub output: FillOutputTo,
 }
 
@@ -283,14 +315,23 @@ impl Default for FillSettings {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FillCommand {
+    /// How the sampling area starts.
     pub sampling: SamplingMode,
+    #[allow(missing_docs)]
     pub sample_all_layers: bool,
+    #[allow(missing_docs)]
     pub color_adaptation: ColorAdaptation,
+    #[allow(missing_docs)]
     pub rotation_adaptation: RotationAdaptation,
+    #[allow(missing_docs)]
     pub scale: bool,
+    #[allow(missing_docs)]
     pub mirror: bool,
+    #[allow(missing_docs)]
     pub output: FillOutputTo,
+    /// The fill-area edits, in order.
     pub fill_edits: Vec<FillAreaEdit>,
+    /// The Sampling Brush strokes, in order.
     #[serde(rename = "samplingStrokes", skip_serializing_if = "Vec::is_empty")]
     pub strokes: Vec<SamplingStroke>,
 }

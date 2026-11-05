@@ -21,13 +21,30 @@ pub enum PreviewMap<'a> {
     /// warp pulls hard (about every `SEGMENT_PX` screen points, `MIN_PER_CELL` to `MAX_PER_CELL`
     /// per patch, at most `MAX_PER_AXIS` per axis). The displacement order measures from `source`,
     /// the unwarped frame.
-    Mesh { mesh: &'a WarpMesh, source: Rect },
+    Mesh {
+        #[allow(missing_docs)]
+        mesh: &'a WarpMesh,
+        #[allow(missing_docs)]
+        source: Rect,
+    },
     /// Puppet Warp: the solver's triangles, each vertex at its deformed position and its texel at
     /// its rest position within `source` (the layer's bounds), drawn in the solver's order.
-    Pins { mesh: PinMeshView<'a>, source: Rect },
+    Pins {
+        #[allow(missing_docs)]
+        mesh: PinMeshView<'a>,
+        #[allow(missing_docs)]
+        source: Rect,
+    },
     /// Perspective Warp and other engine maps: a `cells` × `cells` grid over `source` pushed
     /// through the app's function (PhotoCraft's piecewise homography, LC20).
-    Function { source: Rect, cells: usize, map: &'a dyn Fn(Point) -> Point },
+    Function {
+        #[allow(missing_docs)]
+        source: Rect,
+        #[allow(missing_docs)]
+        cells: usize,
+        #[allow(missing_docs)]
+        map: &'a dyn Fn(Point) -> Point,
+    },
 }
 
 impl std::fmt::Debug for PreviewMap<'_> {

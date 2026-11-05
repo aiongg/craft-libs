@@ -61,8 +61,11 @@ use craft_ui::theme::current;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum VanishingPointStripTool {
     #[default]
+    #[allow(missing_docs)]
     Editor,
+    #[allow(missing_docs)]
     Hand,
+    #[allow(missing_docs)]
     Zoom,
 }
 
@@ -83,9 +86,13 @@ pub trait VanishingPointSource {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct VanishingPointOpen {
+    /// The layer's size in document pixels.
     pub size: [u32; 2],
+    /// The layer's name: the title's subject.
     pub subject: String,
+    /// The planes, paste and strokes to start from.
     pub session: VanishingPointSession,
+    /// The options bar's values.
     pub settings: VanishingPointSettings,
     /// The engine's clone-stroke limits.
     pub limits: StampLimits,
@@ -98,6 +105,7 @@ pub struct VanishingPointOpen {
 }
 
 impl VanishingPointOpen {
+    /// Opens on a layer of `size` document pixels named `subject`; session and settings start at their defaults.
     pub fn new(size: [u32; 2], subject: impl Into<String>, limits: StampLimits) -> Self {
         Self {
             size,
@@ -111,6 +119,7 @@ impl VanishingPointOpen {
         }
     }
 
+    /// Sets the options bar's starting values.
     pub fn settings(mut self, settings: VanishingPointSettings) -> Self {
         self.settings = settings;
         self
@@ -152,6 +161,7 @@ pub enum VanishingPointEvent {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct VanishingPointOutput {
+    /// What happened this pass, in order.
     pub events: Vec<VanishingPointEvent>,
     /// The strokes changed other than by painting on (undo, a deleted plane): the app repaints the
     /// stamp preview from scratch for this ticket.
@@ -160,7 +170,9 @@ pub struct VanishingPointOutput {
     pub settings_changed: bool,
     /// The message of a refused Stamp press, translated, for the app's status line.
     pub status: Option<String>,
+    /// OK or Cancel, once chosen.
     pub outcome: Option<Outcome>,
+    /// The workspace's screen rectangle.
     pub rect: Rect,
 }
 
@@ -254,6 +266,7 @@ impl Pick {
 const CANVAS: &str = "vanishing-point-view";
 
 impl VanishingPointWorkspace {
+    /// A workspace on the layer and session that `open` describes.
     pub fn new(open: VanishingPointOpen) -> Self {
         let mut editor = VanishingPointEditor::new(open.limits);
         editor.cursor_options(open.cursor_options);
@@ -446,10 +459,12 @@ impl VanishingPointWorkspace {
         }
     }
 
+    /// The planes, paste and strokes recorded so far.
     pub fn session(&self) -> &VanishingPointSession {
         &self.session
     }
 
+    /// The options bar's current values.
     pub fn settings(&self) -> &VanishingPointSettings {
         &self.settings
     }

@@ -5,6 +5,8 @@ craft_ui::words! {
     /// translated copy with [`ScopePanel::labels`](super::ScopePanel::labels); the menus read the
     /// installed words. Channel and source names are the host's ([`ScopeChannel::label`](super::ScopeChannel::label),
     /// [`ScopeSource::label`](super::ScopeSource::label)).
+    // Every field is one self-evident word; its English text is the default.
+    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct ScopePanelLabels {
         /// The plot's accessible name.

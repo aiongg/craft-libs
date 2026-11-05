@@ -22,6 +22,8 @@ pub(super) const PREVIEW_TEXTURE_MAX: u32 = 1024;
 
 craft_ui::words! {
     /// The accessible name and value of the selection overlay, English by default.
+    // Every field is one self-evident word; its English text is the default.
+    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct SelectionOverlayLabels {
         /// The graphics object's name.

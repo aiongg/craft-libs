@@ -21,11 +21,14 @@ pub struct WideAngleStyle {
     /// Free: `accent`; Horizontal: `status.warn.fg`; Vertical: `status.bad.fg` (PhotoCraft
     /// `t.accent`, `t.warning`, `t.danger`).
     pub free: Color32,
+    #[allow(missing_docs)]
     pub horizontal: Color32,
+    #[allow(missing_docs)]
     pub vertical: Color32,
     /// The halo under each line (the cue's contrast against the image): `wide_angle.halo`, black
     /// at 160 alpha unless a theme pins it, 2.5 wider than the line (as Vanishing Point's).
     pub halo: Color32,
+    #[allow(missing_docs)]
     pub halo_width: f32,
     /// The constraint being drawn: `wide_angle.drawing`, the semantic `accent.soft` (PhotoCraft's
     /// `accent_soft`).

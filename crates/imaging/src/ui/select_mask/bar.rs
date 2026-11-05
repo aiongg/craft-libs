@@ -16,6 +16,7 @@ use super::tools::{BrushSizes, SelectMaskTool, SelectMaskToolOptions};
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct SelectMaskBarOutput {
+    /// The bar's response.
     pub response: Response,
     /// The edit lifecycle of the option the user changed this pass, with the options after it
     /// (already written to the options passed in).
@@ -40,6 +41,7 @@ pub struct SelectMaskBar<'a> {
 }
 
 impl<'a> SelectMaskBar<'a> {
+    /// Starts the bar for `tool`, editing `options` in place; `id_salt` keeps its state apart from other bars.
     pub fn new(id_salt: impl AsIdSalt, tool: SelectMaskTool, options: &'a mut SelectMaskToolOptions) -> Self {
         Self { id_salt: IdSalt::new(id_salt), tool, options, labels: None }
     }
@@ -50,6 +52,7 @@ impl<'a> SelectMaskBar<'a> {
         self
     }
 
+    /// Draws the bar and returns its response and the edits it made.
     pub fn show(self, ui: &mut Ui) -> SelectMaskBarOutput {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1497 `options_bar`.
         let Self { id_salt, tool, options, labels } = self;

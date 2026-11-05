@@ -19,7 +19,9 @@ pub const PLANE_MINIMUM: f64 = 4.0;
 /// left, in document units (PhotoCraft `Plane { src, dst }`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Plane {
+    /// The corners in Layout, clockwise from the top left.
     pub source: [Point; 4],
+    /// The corners in Warp, clockwise from the top left.
     pub target: [Point; 4],
 }
 
@@ -41,7 +43,9 @@ impl Plane {
 /// A plane's corner: the plane's index and the corner's (0 to 3, clockwise from the top left).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PlaneCorner {
+    /// The plane's index.
     pub plane: usize,
+    /// The corner's index, 0 to 3.
     pub corner: usize,
 }
 
@@ -193,14 +197,17 @@ impl PerspectiveSession {
         self
     }
 
+    /// The layer's bounds.
     pub fn bounds(&self) -> Rect {
         self.bounds
     }
 
+    /// The planes in their order.
     pub fn planes(&self) -> &[Plane] {
         &self.draft.planes
     }
 
+    /// The current mode.
     pub fn mode(&self) -> PlaneMode {
         self.draft.mode
     }
@@ -315,10 +322,12 @@ impl PerspectiveSession {
         self.step(Step::Redo)
     }
 
+    /// Whether an edit can be undone.
     pub fn can_undo(&self) -> bool {
         self.history.can_undo()
     }
 
+    /// Whether an undone edit can be redone.
     pub fn can_redo(&self) -> bool {
         self.history.can_redo()
     }

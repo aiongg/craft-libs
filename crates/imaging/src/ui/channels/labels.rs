@@ -9,6 +9,8 @@ use super::model::{ChannelKind, ChannelRow};
 
 craft_ui::words! {
     /// The words of the Channels panel. Channel names are the app's ([`ChannelRow::name`]).
+    // Every field is one self-evident word; its English text is the default.
+    #[allow(missing_docs)]
     pub struct ChannelsLabels {
         /// The list's name for a screen reader.
         list: "channels.list" = "Channels";

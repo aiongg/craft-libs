@@ -15,6 +15,7 @@ pub struct FilterGalleryStyle {
 }
 
 impl FilterGalleryStyle {
+    /// The gallery's sizes from the theme `tokens`.
     pub fn of(tokens: &UiTokens) -> FilterGalleryStyle {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:702-754 (thumbnails 80 x 56), :832 (list 190).
         let f = &tokens.component.filter_gallery;

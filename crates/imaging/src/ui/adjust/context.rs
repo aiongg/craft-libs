@@ -98,22 +98,34 @@ pub enum ToneSpace {
 pub enum ToneChannel {
     /// The composite of RGB ("RGB") or CMYK ("CMYK").
     Composite(ToneSpace),
+    #[allow(missing_docs)]
     Red,
+    #[allow(missing_docs)]
     Green,
+    #[allow(missing_docs)]
     Blue,
+    #[allow(missing_docs)]
     Cyan,
+    #[allow(missing_docs)]
     Magenta,
+    #[allow(missing_docs)]
     Yellow,
+    #[allow(missing_docs)]
     Black,
+    #[allow(missing_docs)]
     Lightness,
+    #[allow(missing_docs)]
     A,
+    #[allow(missing_docs)]
     B,
     /// The one channel of a grey document.
     Gray,
     /// A channel the host names, shown exactly as given (a user-named alpha channel, a layer mask
     /// or Quick Mask isolated in the Channels panel, PhotoCraft #5335), in `color`.
     Named {
+        #[allow(missing_docs)]
         name: String,
+        #[allow(missing_docs)]
         color: ChannelColor,
     },
 }

@@ -16,6 +16,7 @@ use super::model::{BlurKind, BlurPins};
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct BlurPinsPanelOutput {
+    /// The panel's response.
     pub response: Response,
     /// The amount slider's gesture, with the pins after it.
     pub edit: Option<EditEvent<BlurPins>>,
@@ -32,6 +33,7 @@ pub struct BlurPinsPanel<'a> {
 }
 
 impl<'a> BlurPinsPanel<'a> {
+    /// Starts the panel over `pins`, which it edits in place; `id_salt` keeps its state apart from other panels.
     pub fn new(id_salt: impl AsIdSalt, pins: &'a mut BlurPins) -> Self {
         Self { id_salt: IdSalt::new(id_salt), pins, labels: None }
     }
@@ -42,6 +44,7 @@ impl<'a> BlurPinsPanel<'a> {
         self
     }
 
+    /// Draws the rows and returns the response and any amount edit.
     pub fn show(self, ui: &mut Ui) -> BlurPinsPanelOutput {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:398 `body` (the slider, the hints).
         let Self { id_salt, pins, labels } = self;

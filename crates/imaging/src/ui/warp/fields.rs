@@ -17,6 +17,8 @@ type NumberRow<'a> = (&'a str, &'a str, &'a str, f64, fn(EditEvent<f64>) -> Warp
 
 words! {
     /// The words of [`WarpFields`] (PhotoCraft's Warp options bar). `Default` is English.
+    // Every field is one self-evident word; its English text is the default.
+    #[allow(missing_docs)]
     pub struct WarpFieldsLabels {
         split: "warpFields.split" = "Split:";
         split_crosswise: "warpFields.splitCrosswise" = "Split Warp Crosswise";
@@ -65,11 +67,16 @@ pub struct WarpStyleEntry {
 /// numbered entries uniform n × n patches, anything split by hand Custom.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum WarpGridChoice {
+    #[allow(missing_docs)]
     Custom,
     #[default]
+    #[allow(missing_docs)]
     Default,
+    #[allow(missing_docs)]
     Three,
+    #[allow(missing_docs)]
     Four,
+    #[allow(missing_docs)]
     Five,
 }
 
@@ -118,7 +125,9 @@ pub struct WarpFieldValues {
     pub vertical: bool,
     /// Bend, H and V distortion in percent, −100 to 100.
     pub bend: f64,
+    /// Horizontal distortion in percent, −100 to 100.
     pub horizontal: f64,
+    /// Vertical distortion in percent, −100 to 100.
     pub vertical_distortion: f64,
     /// The Grid menu's reading of the mesh.
     pub grid: WarpGridChoice,

@@ -73,7 +73,9 @@ pub trait WideAngleSource {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct WideAngleOpen {
+    /// The layer's size in document pixels.
     pub size: [u32; 2],
+    /// The layer's name: the title's subject.
     pub subject: String,
     /// The settings to start from (the last used, or the command's parameters from the control
     /// channel).
@@ -81,10 +83,12 @@ pub struct WideAngleOpen {
 }
 
 impl WideAngleOpen {
+    /// Opens on a layer of `size` document pixels named `subject`, with the default session.
     pub fn new(size: [u32; 2], subject: impl Into<String>) -> Self {
         Self { size, subject: subject.into(), session: WideAngleSession::default() }
     }
 
+    /// Sets the session to start from.
     pub fn session(mut self, session: WideAngleSession) -> Self {
         self.session = session;
         self
@@ -104,10 +108,13 @@ pub enum WideAngleEvent {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct WideAngleOutput {
+    /// What happened this pass, in order.
     pub events: Vec<WideAngleEvent>,
     /// The session changed (or undo stepped): the app solves and warps for this ticket.
     pub preview_wanted: Option<PreviewTicket>,
+    /// OK or Cancel, once chosen.
     pub outcome: Option<Outcome>,
+    /// The workspace's screen rectangle.
     pub rect: Rect,
     /// How long the solve and warp of the preview now shown took, as the app reported it with
     /// [`WideAngleWorkspace::preview_ready`]; the app may show it in its status bar.
@@ -163,6 +170,7 @@ fn record(session: &mut WideAngleSession, events: &mut Vec<WideAngleEvent>, edit
 }
 
 impl WideAngleWorkspace {
+    /// A workspace on the layer and session that `open` describes.
     pub fn new(open: WideAngleOpen) -> Self {
         Self {
             dialog: DialogState::new(),
@@ -338,6 +346,7 @@ impl WideAngleWorkspace {
         WideAngleOutput { events, preview_wanted, outcome: response.outcome, rect: response.rect, timing: *timing }
     }
 
+    /// The correction settings as they are now.
     pub fn session(&self) -> &WideAngleSession {
         &self.session
     }
@@ -350,6 +359,7 @@ impl WideAngleWorkspace {
         }
     }
 
+    /// The preview job `ticket` failed: `message` shows in the preview pane.
     pub fn preview_failed(&mut self, ticket: PreviewTicket, message: String) {
         self.preview.failed(ticket, message);
     }

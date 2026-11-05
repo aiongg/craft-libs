@@ -29,6 +29,7 @@ pub struct ConstraintTool {
 }
 
 impl ConstraintTool {
+    /// An idle tool.
     pub fn new() -> Self {
         Self::default()
     }
@@ -50,6 +51,7 @@ impl ConstraintTool {
         ConstraintToolPass { tool: self, session, geometry, style, labels, canvas: None, scale: [1.0, 1.0], corrected: false }
     }
 
+    /// Takes the edits collected since the last call.
     pub fn take_edits(&mut self) -> Vec<WideAngleConstraintEdit> {
         std::mem::take(&mut self.edits)
     }

@@ -86,6 +86,7 @@ fn usable(pins: &BlurPins) -> bool {
 }
 
 impl<'a> BlurPinsOverlay<'a> {
+    /// Starts the overlay over `pins`, which it edits in place; `id_salt` keeps its state apart from other overlays.
     pub fn new(id_salt: impl AsIdSalt, pins: &'a mut BlurPins) -> Self {
         Self { id_salt: IdSalt::new(id_salt), pins, labels: None }
     }

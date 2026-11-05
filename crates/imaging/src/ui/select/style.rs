@@ -29,18 +29,22 @@ pub struct SelectToolStyle {
     /// `select.ring_offset` (12, 12) right of and below the pointer (mirrored in neither
     /// direction).
     pub ring_radius: f32,
+    #[allow(missing_docs)]
     pub ring_offset: f32,
     /// The ring's halo: `select.ring_halo` (3) of `overlay.halo` at 0.78 (PhotoCraft's black at
     /// alpha 200).
     pub ring_halo: f32,
+    #[allow(missing_docs)]
     pub ring_halo_color: Color32,
     /// The ring's line over the halo: `select.ring_line` (1.2) of `overlay.handle_fill`.
     pub ring_line: f32,
+    #[allow(missing_docs)]
     pub ring_line_color: Color32,
     /// The Magnetic Lasso's width circle with Other Cursors › Precise: a 1 pt ring of
     /// `overlay.halo` at 0.55 half a point outside a 1 pt ring of `overlay.handle_fill` at 0.86
     /// (PhotoCraft's black at alpha 140 and white at alpha 220).
     pub width_ring_dark: Color32,
+    #[allow(missing_docs)]
     pub width_ring_light: Color32,
     /// The width circle's smallest radius: `select.width_ring_min` (2).
     pub width_ring_min: f32,

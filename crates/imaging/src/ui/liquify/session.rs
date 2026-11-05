@@ -11,6 +11,7 @@ use super::tools::{LiquifyBrush, LiquifyTool};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LiquifyStroke {
+    /// The tool that made the stroke.
     pub tool: LiquifyTool,
     /// Brush diameter in document pixels.
     pub size: f64,
@@ -62,7 +63,9 @@ pub enum LiquifyGlobal {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum LiquifyStep {
+    /// A brush stroke.
     Stroke(LiquifyStroke),
+    /// A whole-mesh operation such as Reconstruct All or Invert.
     Global(LiquifyGlobal),
 }
 
@@ -127,6 +130,7 @@ impl LiquifySession {
         self.steps.len()
     }
 
+    /// Whether no step is recorded.
     pub fn is_empty(&self) -> bool {
         self.steps.is_empty()
     }
@@ -137,13 +141,17 @@ impl LiquifySession {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum MeshSize {
+    #[allow(missing_docs)]
     Small,
     #[default]
+    #[allow(missing_docs)]
     Medium,
+    #[allow(missing_docs)]
     Large,
 }
 
 impl MeshSize {
+    /// The three sizes, smallest first.
     pub const ALL: [MeshSize; 3] = [MeshSize::Small, MeshSize::Medium, MeshSize::Large];
 }
 
@@ -154,12 +162,16 @@ impl MeshSize {
 #[serde(rename_all = "camelCase")]
 pub enum BackdropMode {
     #[default]
+    #[allow(missing_docs)]
     InFront,
+    #[allow(missing_docs)]
     Behind,
+    #[allow(missing_docs)]
     Blend,
 }
 
 impl BackdropMode {
+    /// The three modes, in menu order.
     pub const ALL: [BackdropMode; 3] = [BackdropMode::InFront, BackdropMode::Behind, BackdropMode::Blend];
 }
 
@@ -181,15 +193,23 @@ pub enum BackdropUse {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct LiquifySettings {
+    /// The selected tool.
     pub tool: LiquifyTool,
+    /// The brush options.
     pub brush: LiquifyBrush,
     /// Brush Reconstruct Options › Amount, 0..=100.
     pub reconstruct_amount: f64,
+    /// Whether Show Mesh is on.
     pub show_mesh: bool,
+    /// The mesh density.
     pub mesh_size: MeshSize,
+    /// Whether Show Mask is on.
     pub show_mask: bool,
+    /// Whether Show Backdrop is on.
     pub show_backdrop: bool,
+    /// Which layers the backdrop shows.
     pub backdrop: BackdropUse,
+    /// How the backdrop combines with the image.
     pub backdrop_mode: BackdropMode,
     /// 0..=100.
     pub backdrop_opacity: f64,

@@ -30,6 +30,7 @@ pub const OVERLAY_COLOR_KEY: &str = "selectMask.overlayColor";
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct SelectMaskPanelOutput {
+    /// The panel's response.
     pub response: Response,
     /// The edit lifecycle of the refinement values the user changed this pass, with the values
     /// after it (already written to the refinement passed in): a slider's `Begin`, `Update` and
@@ -74,6 +75,7 @@ pub struct SelectMaskPanel<'a> {
 }
 
 impl<'a> SelectMaskPanel<'a> {
+    /// Starts the panel over `settings`, `refine` and `view`, which it edits in place; `id_salt` keeps its state apart from other panels.
     pub fn new(id_salt: impl AsIdSalt, settings: &'a mut SelectMaskSettings, refine: &'a mut RefineSettings, view: &'a mut MaskViewState) -> Self {
         Self { id_salt: IdSalt::new(id_salt), settings, refine, view, error: None, labels: None }
     }
@@ -90,6 +92,7 @@ impl<'a> SelectMaskPanel<'a> {
         self
     }
 
+    /// Draws the panel and returns its response and any edits.
     pub fn show(self, ui: &mut Ui) -> SelectMaskPanelOutput {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1540 `properties`.
         let Self { id_salt, settings, refine, view, error, labels } = self;

@@ -33,6 +33,8 @@ pub use state::{MaskCoverage, MaskViewChange, MaskViewMode, MaskViewRecipe, Mask
 
 craft_ui::words! {
     /// The words of the mask views, English by default.
+    // Every field is one self-evident word; its English text is the default.
+    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct MaskViewLabels {
         /// The row label beside the view drop-down.

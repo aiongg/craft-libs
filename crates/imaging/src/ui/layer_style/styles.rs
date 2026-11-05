@@ -24,6 +24,7 @@ pub struct StylePresets<'a> {
 }
 
 impl<'a> StylePresets<'a> {
+    /// Builds the presets from the browser `state`, its `rows` and `thumb`, which paints one preset's thumbnail.
     pub fn new(
         state: &'a mut PresetState<String>,
         rows: &'a [PresetRow<String>],

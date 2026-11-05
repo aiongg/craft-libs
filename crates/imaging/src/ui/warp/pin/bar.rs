@@ -14,6 +14,8 @@ use super::{Pin, PinDensity, PinEdit, PinMode, PinWarpOptions, PinWarpSession};
 
 words! {
     /// The words of [`PinWarpBar`] (PhotoCraft's Puppet Warp bar). `Default` is English.
+    // Every field is one self-evident word; its English text is the default.
+    #[allow(missing_docs)]
     pub struct PinWarpBarLabels {
         mode: "pinWarpBar.mode" = "Mode:";
         mode_name: "pinWarpBar.modeName" = "Mode";

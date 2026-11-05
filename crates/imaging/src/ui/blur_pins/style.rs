@@ -14,6 +14,7 @@ pub struct BlurPinsStyle {
     pub grab: f32,
     /// The ring's radius and band: `.ring` (24), `.ring_band` (5).
     pub ring: f32,
+    #[allow(missing_docs)]
     pub ring_band: f32,
     /// A shape handle's size: `.handle` (4.5).
     pub handle: f32,
@@ -41,6 +42,7 @@ pub struct BlurPinsStyle {
     pub round_corner: f32,
     /// The marks' line and fill (`overlay.handle_fill`) and halo (`blur_pins.halo`, the semantic `overlay.halo` unless a theme pins it).
     pub line: Color32,
+    #[allow(missing_docs)]
     pub halo: Color32,
     /// The ring's amount arc: `accent`.
     pub amount: Color32,

@@ -9,13 +9,18 @@ use craft_ui::canvas::kurbo::Point;
 #[serde(rename_all = "camelCase")]
 pub enum WideAngleModel {
     #[default]
+    #[allow(missing_docs)]
     Auto,
+    #[allow(missing_docs)]
     Fisheye,
+    #[allow(missing_docs)]
     Perspective,
+    #[allow(missing_docs)]
     FullSpherical,
 }
 
 impl WideAngleModel {
+    /// The four models, in menu order.
     pub const ALL: [WideAngleModel; 4] = [WideAngleModel::Auto, WideAngleModel::Fisheye, WideAngleModel::Perspective, WideAngleModel::FullSpherical];
 }
 
@@ -24,12 +29,16 @@ impl WideAngleModel {
 #[serde(rename_all = "camelCase")]
 pub enum ConstraintOrientation {
     #[default]
+    #[allow(missing_docs)]
     Free,
+    #[allow(missing_docs)]
     Horizontal,
+    #[allow(missing_docs)]
     Vertical,
 }
 
 impl ConstraintOrientation {
+    /// The three orientations, in menu order.
     pub const ALL: [ConstraintOrientation; 3] = [ConstraintOrientation::Free, ConstraintOrientation::Horizontal, ConstraintOrientation::Vertical];
 }
 
@@ -37,8 +46,11 @@ impl ConstraintOrientation {
 /// PhotoCraft's `Constraint` (`a`, `b`, `orientation`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WideAngleConstraint {
+    /// One end point in document pixels.
     pub a: [f64; 2],
+    /// The other end point in document pixels.
     pub b: [f64; 2],
+    /// What the line is constrained to be.
     #[serde(default)]
     pub orientation: ConstraintOrientation,
 }
@@ -61,15 +73,22 @@ impl WideAngleConstraint {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum WideAngleConstraintEdit {
+    /// Adds a constraint.
     Add(WideAngleConstraint),
+    /// Sets the orientation of the constraint at `index`.
     Orient {
+        #[allow(missing_docs)]
         index: usize,
+        #[allow(missing_docs)]
         orientation: ConstraintOrientation,
     },
+    /// Deletes the constraint at that index.
     Delete(usize),
     /// Arrow keys moved the focused constraint by `by` document pixels.
     Move {
+        #[allow(missing_docs)]
         index: usize,
+        #[allow(missing_docs)]
         by: [f64; 2],
     },
 }
@@ -81,6 +100,7 @@ pub enum WideAngleConstraintEdit {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WideAngleSession {
+    /// The lens model.
     pub model: WideAngleModel,
     /// 0..=200 mm (35 mm frame after the crop factor).
     pub focal_length: f64,
@@ -88,6 +108,7 @@ pub struct WideAngleSession {
     pub crop_factor: f64,
     /// 50..=150 %.
     pub scale: f64,
+    /// The constraints, in order.
     pub constraints: Vec<WideAngleConstraint>,
 }
 

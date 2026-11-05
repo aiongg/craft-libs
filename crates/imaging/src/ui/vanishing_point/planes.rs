@@ -16,6 +16,7 @@ pub const MAX_GRID_LINES: usize = 200;
 /// bottom-right, bottom-left after [`VanishingScene::normalized`]).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct VanishingPlane {
+    /// The corners in document pixels, `[x, y]` each.
     pub corners: [[f64; 2]; 4],
 }
 
@@ -50,13 +51,18 @@ impl VanishingPlane {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PlaneEdge {
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     Left,
 }
 
 impl PlaneEdge {
+    /// The four edges, clockwise from the top.
     pub const ALL: [PlaneEdge; 4] = [PlaneEdge::Top, PlaneEdge::Right, PlaneEdge::Bottom, PlaneEdge::Left];
 }
 
@@ -66,6 +72,7 @@ impl PlaneEdge {
 pub struct TornPlane {
     /// The parent plane's index, always below this plane's.
     pub from: usize,
+    /// The parent's edge the plane grows from.
     pub edge: PlaneEdge,
     /// Degrees between the planes (90: perpendicular).
     pub angle: f64,
@@ -77,8 +84,11 @@ pub struct TornPlane {
 /// (questionable) or `status.bad.fg` (invalid; drawn as its outline only).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PlaneCheck {
+    #[allow(missing_docs)]
     Valid,
+    #[allow(missing_docs)]
     Questionable,
+    #[allow(missing_docs)]
     Invalid,
 }
 

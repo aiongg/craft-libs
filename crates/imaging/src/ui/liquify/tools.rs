@@ -252,6 +252,7 @@ impl StrokeRecorder {
         EditEvent::begin_with(id, stroke)
     }
 
+    /// Adds the point `at` (x, y, pressure) unless it equals the last one, and reports `Update` with it. `None` with no stroke.
     pub fn extend(&mut self, at: [f64; 3], modifiers: Modifiers) -> Option<EditEvent<LiquifyStroke>> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:279 `extend`; :704-713 (an equal point is
         // skipped).
@@ -274,6 +275,7 @@ impl StrokeRecorder {
         Some(EditEvent::update(*id, stroke.with_points(vec![at]), modifiers))
     }
 
+    /// Ends the stroke at `at`, adding the release point if it differs from the last, and reports `Commit`. `None` with no stroke.
     pub fn end(&mut self, at: [f64; 2], modifiers: Modifiers) -> Option<EditEvent<LiquifyStroke>> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:714-727 (`Up` adds the release point with
         // the last pressure, then `end`).
@@ -286,6 +288,7 @@ impl StrokeRecorder {
         Some(EditEvent::commit(id, stroke, true, modifiers))
     }
 
+    /// Drops the stroke and reports `Cancel` with `reason`. `None` with no stroke.
     pub fn cancel(&mut self, reason: CancelReason) -> Option<EditEvent<LiquifyStroke>> {
         // new: PhotoCraft has no stroke cancel; the field already took the dabs, so the workspace
         // follows a Cancel with a Replay.

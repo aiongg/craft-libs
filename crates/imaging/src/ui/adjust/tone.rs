@@ -180,6 +180,7 @@ impl TonePickerRow {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TonePick {
+    /// The picker that took the sample.
     pub picker: TonePicker,
     /// The document point sampled, in document units.
     pub at: [f64; 2],

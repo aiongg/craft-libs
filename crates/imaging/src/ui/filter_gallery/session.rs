@@ -7,8 +7,11 @@ use super::catalog::FilterCatalog;
 /// One effect layer: a filter, its fields (the catalog's parameters) and its eye.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectLayer {
+    /// The filter's key in the catalog.
     pub filter: String,
+    /// The filter's parameter values.
     pub fields: DialogFields,
+    /// Whether the layer's eye is on.
     pub visible: bool,
 }
 
@@ -45,6 +48,7 @@ pub enum EffectChange {
 /// clamps it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FilterGallerySession {
+    /// The effect layers, bottom first.
     pub effects: Vec<EffectLayer>,
 }
 

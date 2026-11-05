@@ -70,7 +70,9 @@ pub enum CurvesMode {
 /// one [`CurvesMode`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct ToneCurves {
+    /// The curves, one per channel.
     pub curves: Vec<Curve>,
+    /// The mode all the curves share.
     pub mode: CurvesMode,
 }
 

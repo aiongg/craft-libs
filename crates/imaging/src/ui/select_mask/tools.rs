@@ -44,6 +44,7 @@ pub enum SelectMaskTool {
 }
 
 impl SelectMaskTool {
+    /// The eight tools, in strip order.
     pub const ALL: [SelectMaskTool; 8] = [
         SelectMaskTool::Quick,
         SelectMaskTool::RefineEdge,
@@ -136,8 +137,11 @@ impl SelectMaskTool {
 /// opens). Not in the history, not persisted.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BrushSizes {
+    /// The Quick Selection diameter.
     pub quick: f64,
+    /// The Refine Edge Brush diameter.
     pub refine: f64,
+    /// The Brush diameter.
     pub brush: f64,
 }
 
@@ -191,6 +195,7 @@ impl BrushSizes {
 pub struct SelectMaskToolOptions {
     /// + (true) or − in the bar.
     pub add: bool,
+    /// The diameters of the three brush tools.
     pub sizes: BrushSizes,
     /// The Brush's hardness, 0..=100 (100).
     pub hardness: f64,
@@ -224,6 +229,7 @@ pub struct SelectMaskCanvas {
 }
 
 impl SelectMaskCanvas {
+    /// An idle canvas.
     pub fn new() -> Self {
         Self::default()
     }

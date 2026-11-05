@@ -38,6 +38,7 @@ pub struct PinWarpStyle {
     pub ring: Stroke,
     /// A selected pin's core diameter: `transform.pin_core` (4), in `overlay.pin_ring`.
     pub core: f32,
+    #[allow(missing_docs)]
     pub core_color: Color32,
     /// The fixed-rotation ring's radius and the ⌥-turn reach: `transform.pin_turn` (18).
     pub turn_radius: f32,

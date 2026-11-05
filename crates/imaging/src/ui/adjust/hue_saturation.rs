@@ -102,6 +102,7 @@ pub struct HueSaturation {
     pub saturation: f64,
     /// Master lightness: −100..=100 %.
     pub lightness: f64,
+    /// Colorize: tints the whole image with the master hue.
     pub colorize: bool,
     /// Reds, Yellows, Greens, Cyans, Blues, Magentas.
     pub ranges: [HueRangeValue; 6],
@@ -164,6 +165,7 @@ pub struct HueSaturationEditor<'a> {
 }
 
 impl<'a> HueSaturationEditor<'a> {
+    /// Draws the editor and returns this frame's edit of the `HueSaturation`.
     pub fn new(id_salt: impl AsIdSalt, value: &'a HueSaturation, numbers: &'a LocaleNumbers) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -185,21 +187,25 @@ impl<'a> HueSaturationEditor<'a> {
         self
     }
 
+    /// Sets where the editor is shown (dialog or Properties panel); a dialog by default.
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
+    /// Sets how the editor reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: AdjustLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -216,6 +222,7 @@ impl<'a> HueSaturationEditor<'a> {
         ctx.data(|d| d.get_temp::<usize>(id.with(RANGE))).and_then(|shown| shown.checked_sub(1)).filter(|&range| range < 6)
     }
 
+    /// Draws the editor and returns this frame's edit of the `HueSaturation`.
     pub fn show(self, ui: &mut Ui) -> EditResponse<HueSaturation> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/hue_saturation.rs:65-210 `hue_saturation`
         // (range select :70-77, Master rows :80-103, range rows :104-125, Colorize :127-142,

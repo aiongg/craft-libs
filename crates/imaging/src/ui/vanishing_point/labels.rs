@@ -2,6 +2,8 @@
 
 craft_ui::words! {
     /// Vanishing Point's words, English by default (Photoshop's names).
+    // Every field is one self-evident word; its English text is the default.
+    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct VanishingPointLabels {
         /// The title's name.

@@ -36,8 +36,11 @@ pub struct ChoiceOption {
 pub enum FieldKind {
     /// A slider row over `min..=max` in `unit`; values are whole numbers.
     Slider {
+        /// Lowest value, in `unit`.
         min: f64,
+        /// Highest value, in `unit`.
         max: f64,
+        /// The unit the slider shows.
         unit: FieldUnit,
     },
     /// A colour swatch; a click asks the app for a colour (`ColorRequest`).
@@ -49,6 +52,7 @@ pub enum FieldKind {
     /// Gradient Overlay's Method: Smooth, Perceptual, Linear, Classic, and Custom first while the
     /// stored value names none of them (an imported curve kept until the user picks).
     GradientMethod,
+    #[allow(missing_docs)]
     Check,
     /// An angle dial and field, −180..=180°. With the effect's `useGlobalLight` on, it edits the
     /// shared light angle.
@@ -58,6 +62,7 @@ pub enum FieldKind {
     /// A contour thumbnail with the preset picker and the Contour Editor; `anti_alias` is the
     /// key of the effect's Anti-aliased check shown beside it, when the effect has one.
     Contour {
+        #[allow(missing_docs)]
         anti_alias: Option<Cow<'static, str>>,
     },
 }
@@ -71,6 +76,7 @@ pub struct EffectField {
     /// Emboss's contour under its Contour check). The dialog shows the `layerStyle.field.*` word
     /// for the built-in tables.
     pub label: Cow<'static, str>,
+    /// How the field is edited.
     pub kind: FieldKind,
 }
 
@@ -78,10 +84,12 @@ pub struct EffectField {
 /// own builds its specs by hand; Photoshop's ten come from [`EffectSpec::photoshop`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectSpec {
+    /// The effect this page edits.
     pub kind: EffectKind,
     /// The English name ("Drop Shadow"); the dialog shows the `layerStyle.effect.*` word for the
     /// built-in kinds.
     pub label: Cow<'static, str>,
+    /// The page's rows, top to bottom.
     pub fields: Vec<EffectField>,
     /// The values a new instance starts from.
     pub defaults: StyleParams,

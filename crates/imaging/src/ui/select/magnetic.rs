@@ -227,7 +227,7 @@ fn pen_pressure(pointer: &ToolPointer) -> Option<f32> {
 /// Drawn: the outline solid (`MarqueeLook::Drawing`), a white 5 pt square with a 1 pt black
 /// outline at each fastening point, and over the first point the closing ring beside the pointer
 /// (`SelectToolStyle`). The cursor is the crosshair; with Other Cursors › Precise
-/// ([`set_precise_cursor`](Self::set_precise_cursor)) the width circle too.
+/// (`set_precise_cursor`) the width circle too.
 #[derive(Clone, Debug)]
 pub struct MagneticLassoTool<T> {
     tracer: T,
@@ -463,7 +463,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
         }
     }
 
-    /// The system crosshair; with [`set_precise_cursor`](MagneticLassoTool::set_precise_cursor)
+    /// The system crosshair; with `set_precise_cursor`
     /// `paint` adds the width circle (`width · zoom`, at least `select.width_ring_min`) round it, a 1 pt dark ring
     /// outside a 1 pt light one (`SelectToolStyle::width_ring_dark`, `width_ring_light`).
     fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {

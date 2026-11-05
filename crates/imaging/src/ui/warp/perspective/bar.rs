@@ -16,6 +16,8 @@ pub(crate) const PLANES: Counted = Counted::new("perspectiveBar.planes", "{n} pl
 
 words! {
     /// The words of [`PerspectiveBar`] (PhotoCraft's Perspective Warp bar). `Default` is English.
+    // Every field is one self-evident word; its English text is the default.
+    #[allow(missing_docs)]
     pub struct PerspectiveBarLabels {
         layout: "perspectiveBar.layout" = "Layout";
         warp: "perspectiveBar.warp" = "Warp";

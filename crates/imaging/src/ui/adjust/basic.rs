@@ -52,6 +52,7 @@ pub struct BrightnessContrastEditor<'a> {
 }
 
 impl<'a> BrightnessContrastEditor<'a> {
+    /// Draws the editor and returns this frame's edit of the `BrightnessContrast`.
     pub fn new(id_salt: impl AsIdSalt, value: &'a BrightnessContrast, numbers: &'a LocaleNumbers) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -82,11 +83,13 @@ impl<'a> BrightnessContrastEditor<'a> {
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
+    /// Draws the editor and returns this frame's edit of the `BrightnessContrast`.
     pub fn show(self, ui: &mut Ui) -> EditResponse<BrightnessContrast> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:53-66 `brightness_contrast`.
         let labels = self.labels.clone().unwrap_or_else(|| AdjustLabels::of(ui));
@@ -179,21 +182,25 @@ impl<'a> ThresholdEditor<'a> {
         self
     }
 
+    /// Sets where the editor is shown (dialog or Properties panel); a dialog by default.
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
+    /// Sets how the editor reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: AdjustLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -254,10 +261,12 @@ fn rgb8(r: u8, g: u8, b: u8) -> Srgba {
 /// The tone Color Balance shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ColorBalanceTone {
+    #[allow(missing_docs)]
     Shadows,
     /// The default, and where a reset returns.
     #[default]
     Midtones,
+    #[allow(missing_docs)]
     Highlights,
 }
 
@@ -265,8 +274,11 @@ pub enum ColorBalanceTone {
 /// −100..=100, whole numbers.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ColorBalance {
+    /// Shifts for the shadows: Cyan–Red, Magenta–Green, Yellow–Blue.
     pub shadows: [f64; 3],
+    /// Shifts for the midtones, in the same order.
     pub midtones: [f64; 3],
+    /// Shifts for the highlights, in the same order.
     pub highlights: [f64; 3],
     /// Preserve Luminosity; on by default.
     pub preserve_luminosity: bool,
@@ -334,6 +346,7 @@ pub struct ColorBalanceEditor<'a> {
 }
 
 impl<'a> ColorBalanceEditor<'a> {
+    /// Draws the editor and returns this frame's edit of the `ColorBalance`.
     pub fn new(id_salt: impl AsIdSalt, value: &'a ColorBalance, numbers: &'a LocaleNumbers) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -346,21 +359,25 @@ impl<'a> ColorBalanceEditor<'a> {
         }
     }
 
+    /// Sets where the editor is shown (dialog or Properties panel); a dialog by default.
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
+    /// Sets how the editor reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: AdjustLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -383,6 +400,7 @@ impl<'a> ColorBalanceEditor<'a> {
         ctx.data_mut(|d| d.insert_temp(id.with(TONE), ColorBalanceTone::Midtones));
     }
 
+    /// Draws the editor and returns this frame's edit of the `ColorBalance`.
     pub fn show(self, ui: &mut Ui) -> EditResponse<ColorBalance> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:115-153 `color_balance` (tracks
         // :131-133, reset 0 and wheel step 1 in a dialog :137).
@@ -608,6 +626,7 @@ pub struct PhotoFilter {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct PhotoFilterOutput {
+    /// The edit of the value, as every editor reports it.
     pub edit: EditResponse<PhotoFilter>,
     /// The user clicked the Color swatch: open the colour picker with this request (key
     /// `"photoFilter.color"`, title "Filter Color") and write the answer into the value's
@@ -637,6 +656,7 @@ pub struct PhotoFilterEditor<'a> {
 }
 
 impl<'a> PhotoFilterEditor<'a> {
+    /// Draws the editor and returns this frame's edit of the `PhotoFilter`.
     pub fn new(id_salt: impl AsIdSalt, value: &'a PhotoFilter, numbers: &'a LocaleNumbers) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -649,26 +669,31 @@ impl<'a> PhotoFilterEditor<'a> {
         }
     }
 
+    /// Sets where the editor is shown (dialog or Properties panel); a dialog by default.
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
+    /// Sets how the editor reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: AdjustLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
+    /// Draws the editor and returns this frame's edit and any colour-picker request.
     pub fn show(self, ui: &mut Ui) -> PhotoFilterOutput {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:197-238 `photo_filter` (radio state
         // `pf-mode`, Custom first, density 25, Preserve Luminosity).

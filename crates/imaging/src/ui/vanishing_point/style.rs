@@ -10,9 +10,11 @@ use craft_ui::theme::{ToEgui, UiTokens};
 pub struct VanishingPointStyle {
     /// Outline: `vanishing_point.line` (1.25); selected `.line_selected` (2).
     pub line: f32,
+    #[allow(missing_docs)]
     pub line_selected: f32,
     /// Grid lines: `.grid` (0.75) at `.grid_alpha` (0.6).
     pub grid: f32,
+    #[allow(missing_docs)]
     pub grid_alpha: f32,
     /// Node squares: `.node` (7), white fill, outline in the plane's colour at `line`.
     pub node: f32,
@@ -21,6 +23,7 @@ pub struct VanishingPointStyle {
     /// The halo under lines, the ring and the cross: `.halo` (black at alpha 160), `.halo_width`
     /// (2.5).
     pub halo: Color32,
+    #[allow(missing_docs)]
     pub halo_width: f32,
     /// The source cross's arms: `.source_arm` (7).
     pub source_arm: f32,
@@ -33,10 +36,13 @@ pub struct VanishingPointStyle {
     pub click_slop: f32,
     /// The pasted image's white tint alpha: `.paste_alpha` (230 of 255).
     pub paste_alpha: f32,
+    /// The node squares' fill.
     pub node_fill: Color32,
     /// The check's colours: `accent`, `status.warn.fg`, `status.bad.fg`.
     pub valid: Color32,
+    #[allow(missing_docs)]
     pub questionable: Color32,
+    #[allow(missing_docs)]
     pub invalid: Color32,
 }
 

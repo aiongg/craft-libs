@@ -38,6 +38,7 @@ pub struct AdjustField {
     pub key: &'static str,
     /// The row's caption, translated.
     pub label: String,
+    /// The slider's value range, in the field's unit.
     pub range: RangeInclusive<f64>,
     /// The value a double-click on the slider sets.
     pub default: f64,
@@ -45,6 +46,7 @@ pub struct AdjustField {
     pub unit: Option<Unit>,
     /// Decimal places kept; `None` rounds as [`round`](Self::round) says.
     pub decimals: Option<usize>,
+    /// The track behind the slider.
     pub track: AdjustTrack,
 }
 
@@ -196,7 +198,7 @@ impl<'a> AdjustSliders<'a> {
     }
 
     /// Draws the rows as one edit of the table: each row's field and slider are parts of it
-    /// ([`edit_parts`]), so no row's event is lost to another's in the same pass. The edit
+    /// (`edit_parts`), so no row's event is lost to another's in the same pass. The edit
     /// carries every value of the table (the changed one rounded), so the host stores it as is.
     pub fn show(self, ui: &mut Ui) -> EditResponse<Vec<f64>> {
         let id = ui.make_persistent_id(self.id_salt);

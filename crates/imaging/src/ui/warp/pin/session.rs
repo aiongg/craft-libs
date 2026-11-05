@@ -12,7 +12,9 @@ use craft_ui::edit::EditEvent;
 /// units (PhotoCraft `PuppetPin { src, dst, rotate, depth }`, VectorCraft `rest`, `at`, `angle`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pin {
+    /// The pin's attachment point on the rest mesh.
     pub rest: Point,
+    /// Where the pin holds that point now.
     pub at: Point,
     /// The fixed rotation of the mesh around the pin, in degrees; `None` is Auto (LC15).
     pub angle: Option<f64>,
@@ -24,9 +26,12 @@ pub struct Pin {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PinMode {
+    #[allow(missing_docs)]
     Rigid,
     #[default]
+    #[allow(missing_docs)]
     Normal,
+    #[allow(missing_docs)]
     Distort,
 }
 
@@ -34,9 +39,12 @@ pub enum PinMode {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PinDensity {
+    #[allow(missing_docs)]
     Fewer,
     #[default]
+    #[allow(missing_docs)]
     Normal,
+    #[allow(missing_docs)]
     More,
 }
 
@@ -44,7 +52,9 @@ pub enum PinDensity {
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PinWarpOptions {
+    /// How stiff the mesh is.
     pub mode: PinMode,
+    /// How many points the mesh has.
     pub density: PinDensity,
     /// Grows (or, negative, shrinks) the mesh beyond the opaque pixels, in document pixels; 2 by
     /// default, −50 to 100 in the bar (PhotoCraft).
@@ -62,6 +72,7 @@ impl Default for PinWarpOptions {
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PinWarpSettings {
+    /// The solver's options.
     #[serde(flatten)]
     pub options: PinWarpOptions,
     /// Show Mesh; on by default.
@@ -99,9 +110,13 @@ pub trait PinSolver {
 /// order to draw the triangles in (back to front).
 #[derive(Clone, Copy, Debug)]
 pub struct PinMeshView<'a> {
+    /// The rest vertices.
     pub rest: &'a [Point],
+    /// The deformed vertices, index for index with `rest`.
     pub deformed: &'a [Point],
+    /// Triangles as indices into the vertices.
     pub triangles: &'a [[u32; 3]],
+    /// The triangle indices in draw order, back to front.
     pub order: &'a [u32],
 }
 
@@ -255,6 +270,7 @@ impl PinWarpSession {
         self
     }
 
+    /// The pins in their order.
     pub fn pins(&self) -> &[Pin] {
         &self.pins
     }
@@ -264,10 +280,12 @@ impl PinWarpSession {
         &self.selected
     }
 
+    /// The solver's options.
     pub fn options(&self) -> &PinWarpOptions {
         &self.options
     }
 
+    /// Whether Show Mesh is on.
     pub fn show_mesh(&self) -> bool {
         self.show_mesh
     }
@@ -344,10 +362,12 @@ impl PinWarpSession {
         self.step(Step::Redo, solver)
     }
 
+    /// Whether an edit can be undone.
     pub fn can_undo(&self) -> bool {
         self.history.can_undo()
     }
 
+    /// Whether an undone edit can be redone.
     pub fn can_redo(&self) -> bool {
         self.history.can_redo()
     }

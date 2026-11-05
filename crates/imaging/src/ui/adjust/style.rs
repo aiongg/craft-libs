@@ -31,40 +31,54 @@ pub struct AdjustStyle {
     /// The range band's outer (fall-off) and inner (fully affected) fills: `text.faint` and
     /// `text.muted` (`:172-173`).
     pub band_outer: Color32,
+    #[allow(missing_docs)]
     pub band_inner: Color32,
     /// A range thumb's fill, inner thumbs and outer thumbs: `text.normal` and `surface.sunken`;
     /// its edge `text.muted` (`:176-178`).
     pub thumb_inner: Color32,
+    #[allow(missing_docs)]
     pub thumb_outer: Color32,
+    #[allow(missing_docs)]
     pub thumb_edge: Color32,
     /// The degree readout under the bars: `type.mono` in `text.faint` (`:207`).
     pub degrees_font: FontId,
+    #[allow(missing_docs)]
     pub degrees_color: Color32,
     /// A point picker's tone dot: radius `adjust.picker_dot` (3.5) centred `adjust.picker_dot_inset`
     /// (5.5) in from the button's bottom-trailing corner, with a 1 pt ring in `adjust.picker_ring`
     /// (PhotoCraft `adjust_dialog.rs:180-181`), faded by `adjust.disabled_alpha` on a disabled
     /// button.
     pub picker_dot: f32,
+    #[allow(missing_docs)]
     pub picker_dot_inset: f32,
+    #[allow(missing_docs)]
     pub picker_ring: Color32,
+    #[allow(missing_docs)]
     pub disabled_alpha: f32,
     /// Threshold's histogram: `adjust.threshold_histogram` high (90) and at most
     /// `adjust.threshold_width` wide (300) (`basic.rs:73-74`); the level marker 1 pt in
     /// `accent.strong` (`:83`); the marker's travel is `adjust.threshold_inset` in from each edge
     /// (`:78`).
     pub threshold_histogram: f32,
+    #[allow(missing_docs)]
     pub threshold_width: f32,
+    #[allow(missing_docs)]
     pub threshold_inset: f32,
+    #[allow(missing_docs)]
     pub threshold_marker_width: f32,
+    #[allow(missing_docs)]
     pub threshold_marker: Color32,
     /// Channel Mixer's Total readout: `type.mono`, `text.normal`, and `status.warn.fg` above 100 %
     /// (`basic.rs:271`).
     pub total_font: FontId,
+    #[allow(missing_docs)]
     pub total_color: Color32,
+    #[allow(missing_docs)]
     pub total_warn: Color32,
     /// The Curves hint and the "Unavailable in this color mode" note: `type.caption` in
     /// `text.faint` (`curves.rs:402`, `adjust_dialog.rs:206`).
     pub note_font: FontId,
+    #[allow(missing_docs)]
     pub note_color: Color32,
 }
 

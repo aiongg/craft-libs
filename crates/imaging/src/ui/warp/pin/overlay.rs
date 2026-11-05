@@ -21,6 +21,8 @@ use crate::ui::warp::{PinWarpStyle, paint_mesh};
 
 words! {
     /// The AccessKit words of [`PinWarp`]. `Default` is English.
+    // Every field is one self-evident word; its English text is the default.
+    #[allow(missing_docs)]
     pub struct PinWarpLabels {
         group: "pinWarp.group" = "Puppet Warp";
         pin: "pinWarp.pin" = "Pin {n} of {count}";
@@ -66,6 +68,7 @@ pub struct PinWarp<'a> {
 /// What [`PinWarp::show`] reported this pass.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PinWarpResponse {
+    /// The overlay's widget id.
     pub id: Id,
     /// The edits in the order they happened; the app applies each with
     /// [`PinWarpSession::apply`].
@@ -86,6 +89,7 @@ impl<'a> PinWarp<'a> {
         Self { id_salt: IdSalt::new(id_salt), session, labels: None, units: None, modifiers: None, policy: EditPolicy::default() }
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: PinWarpLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -103,6 +107,7 @@ impl<'a> PinWarp<'a> {
         self
     }
 
+    /// Sets how the overlay reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self

@@ -17,6 +17,7 @@ use super::tool::{FillTool, FillToolOptions};
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct FillBarOutput {
+    /// The bar's response.
     pub response: Response,
     /// Expand or Contract pressed.
     pub edit: Option<FillAreaEdit>,
@@ -39,6 +40,7 @@ pub struct FillBar<'a> {
 }
 
 impl<'a> FillBar<'a> {
+    /// Starts the bar for `tool`, editing `options` in place; `id_salt` keeps its state apart from other bars.
     pub fn new(id_salt: impl AsIdSalt, tool: FillTool, options: &'a mut FillToolOptions) -> Self {
         Self { id_salt: IdSalt::new(id_salt), tool, options, labels: None }
     }
@@ -49,6 +51,7 @@ impl<'a> FillBar<'a> {
         self
     }
 
+    /// Draws the bar and returns its response and the edits it made.
     pub fn show(self, ui: &mut Ui) -> FillBarOutput {
         // pc: crates/ui-egui/src/dialogs/caf_ui/view.rs:33 `caf_options_bar`.
         let Self { id_salt, tool, options, labels } = self;

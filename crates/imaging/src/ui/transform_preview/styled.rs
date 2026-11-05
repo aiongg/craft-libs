@@ -156,7 +156,9 @@ fn grow(rect: &PixelRect, by: i32) -> PixelRect {
 /// resampled layer's do.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StyledContent {
+    /// The work rectangle in document pixels.
     pub rect: PixelRect,
+    /// The straight-alpha RGBA texels, row by row.
     pub texels: Vec<[f32; 4]>,
 }
 

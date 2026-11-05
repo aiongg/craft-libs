@@ -123,6 +123,7 @@ pub enum DragKind {
 /// The value of a selection drag: what moves and by how much.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SelectionDrag {
+    /// What the drag moves.
     pub kind: DragKind,
     /// The offset from the press in whole document pixels (rounded, each within ±10⁷). The ants
     /// follow it through `SelectionOverlay::offset` while the drag runs.

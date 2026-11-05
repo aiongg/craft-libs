@@ -266,6 +266,7 @@ pub struct Veil {
     pub color: Srgba,
     /// 0..=1.
     pub opacity: f32,
+    /// What the veil's mask covers.
     pub mask: VeilMask,
 }
 
@@ -273,7 +274,9 @@ pub struct Veil {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct MaskViewRecipe {
+    /// The selected view.
     pub mode: MaskViewMode,
+    /// What the mask covers in this view.
     pub coverage: MaskCoverage,
     /// Fills over the image, bottom first.
     pub veils: Vec<Veil>,
@@ -296,7 +299,9 @@ pub enum MaskViewChange {
     Mode(MaskViewMode),
     /// A view's opacity changed, in percent.
     Opacity(MaskViewMode, f32),
+    /// Show Edge turned on or off.
     ShowEdge(bool),
+    /// Show Original turned on or off.
     ShowOriginal(bool),
     /// X pressed (`true`) or released.
     HideView(bool),
