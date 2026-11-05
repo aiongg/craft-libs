@@ -117,10 +117,14 @@ crate::words! {
 /// The document's colour mode.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ColorMode {
+    #[allow(missing_docs)]
     Grayscale,
     #[default]
+    #[allow(missing_docs)]
     Rgb,
+    #[allow(missing_docs)]
     Cmyk,
+    #[allow(missing_docs)]
     Lab,
 }
 
@@ -128,7 +132,9 @@ pub enum ColorMode {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BitDepth {
     #[default]
+    /// 8 bits per channel.
     Eight,
+    /// 16 bits per channel.
     Sixteen,
     /// 32-bit floating point.
     ThirtyTwo,
@@ -138,10 +144,13 @@ pub enum BitDepth {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum BackgroundContents {
     #[default]
+    #[allow(missing_docs)]
     White,
+    #[allow(missing_docs)]
     Black,
     /// The app's current background colour ([`NewDocumentDialog::background_color`]).
     BackgroundColor,
+    #[allow(missing_docs)]
     Transparent,
     /// A colour the user picked with Custom…, sRGB, 0–1 per channel.
     Custom([f32; 3]),
@@ -152,7 +161,9 @@ pub enum BackgroundContents {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Orientation {
     #[default]
+    /// Taller than wide, or square.
     Portrait,
+    /// Wider than tall.
     Landscape,
 }
 
@@ -173,11 +184,15 @@ pub struct DocumentOptions {
     pub size: PixelSize,
     /// The unit the size fields show; the size itself is always in pixels.
     pub unit: SizeUnit,
+    /// The unit the resolution field shows; the resolution itself is stored in pixels per inch.
     pub resolution_unit: ResolutionUnit,
+    /// The colour mode.
     pub color_mode: ColorMode,
+    /// Bits per channel.
     pub depth: BitDepth,
     /// The colour profile's name; `None` is the working profile of the mode.
     pub profile: Option<String>,
+    /// What fills the background layer.
     pub background: BackgroundContents,
     /// Artboards: the document starts with one artboard of this size.
     pub artboard: bool,
@@ -205,9 +220,13 @@ impl Default for DocumentOptions {
 pub struct DocumentPreset {
     /// English name, shown through the catalog under `newDocument.preset.<id>`.
     pub name: &'static str,
+    /// Stable id, the key of the preset's catalog entry (`newDocument.preset.<id>`).
     pub id: &'static str,
+    /// Width in pixels.
     pub width: u32,
+    /// Height in pixels.
     pub height: u32,
+    /// Resolution in pixels per inch.
     pub pixels_per_inch: f64,
 }
 
@@ -255,6 +274,7 @@ pub struct PresetCategory {
     pub id: &'static str,
     /// English title, translated through [`NewDocumentLabels`] for the built-in ids.
     pub title: &'static str,
+    /// The category's cards in display order.
     pub presets: Vec<DocumentPreset>,
 }
 

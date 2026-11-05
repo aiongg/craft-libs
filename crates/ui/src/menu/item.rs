@@ -32,7 +32,9 @@ impl ItemKind {
 /// Separators at the start or end of a menu, and a separator after another, are not drawn.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MenuEntry<T> {
+    /// A row the user can run or open.
     Item(MenuItem<T>),
+    /// A divider line between groups of rows.
     Separator,
 }
 
@@ -234,10 +236,12 @@ impl<T> MenuItem<T> {
         self
     }
 
+    /// The row's visible label.
     pub fn label(&self) -> &str {
         &self.label
     }
 
+    /// Whether the row is plain, a check or a radio row.
     pub fn item_kind(&self) -> ItemKind {
         self.kind
     }

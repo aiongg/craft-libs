@@ -94,7 +94,9 @@ impl BeforeAfterMode {
 /// Which picture a [`BeforeAfterPane`] holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BeforeAfterSide {
+    #[allow(missing_docs)]
     Before,
+    #[allow(missing_docs)]
     After,
 }
 
@@ -102,6 +104,7 @@ pub enum BeforeAfterSide {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct BeforeAfterPane {
+    #[allow(missing_docs)]
     pub side: BeforeAfterSide,
     /// The pane: half of the area (two panes) or the whole area.
     pub area: Rect,

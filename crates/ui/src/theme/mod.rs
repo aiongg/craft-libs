@@ -57,10 +57,15 @@ use egui::{Color32, CornerRadius, Stroke, style::Widgets};
 #[deprecated(note = "use `craft_ui::theme::install` and `style_for`, which style every widget state from the theme's tokens")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WidgetPalette {
+    /// The colour of egui's noninteractive widget state.
     pub noninteractive: Color32,
+    /// The colour of egui's inactive widget state.
     pub inactive: Color32,
+    /// The colour of egui's hovered widget state.
     pub hovered: Color32,
+    /// The colour of egui's active (pressed) widget state.
     pub active: Color32,
+    /// The colour of egui's open widget state.
     pub open: Color32,
 }
 

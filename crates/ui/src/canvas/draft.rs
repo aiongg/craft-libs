@@ -81,7 +81,10 @@ pub enum DraftEvent {
     /// A press began an outline. `intent` is the modifiers the tool resolves its operation from
     /// ([`SelectionOperation::resolve`](super::SelectionOperation::resolve)): the press's own,
     /// with ⌥ dropped when ⌥ started straight segments because nothing was selected.
-    Started { intent: Modifiers },
+    Started {
+        /// The modifiers the tool resolves its operation from.
+        intent: Modifiers,
+    },
     /// The outline or its rubber band changed: a vertex added or retracted, freehand points
     /// added, the pointer moved. The tool repaints.
     Changed,
@@ -89,7 +92,12 @@ pub enum DraftEvent {
     /// outline with fewer gives [`Cancelled`](Self::Cancelled)); `straight` holds the indices of
     /// the points whose incoming segment is straight (an ⌥-click or a polygon vertex), for a path
     /// that keeps them straight (the Freeform Pen).
-    Closed { points: Vec<Point>, straight: Vec<usize> },
+    Closed {
+        /// The outline's points, at least 3.
+        points: Vec<Point>,
+        /// Indices of the points whose incoming segment is straight.
+        straight: Vec<usize>,
+    },
     /// The outline was dropped: Esc, the last vertex retracted, a document change, or a close
     /// with fewer than 3 points. The tool reports nothing to the app.
     Cancelled,

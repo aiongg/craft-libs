@@ -60,9 +60,17 @@ pub enum NamedPresetEvent<K> {
     /// A preset was picked in the field: the app applies it.
     Apply(K),
     /// New… or Save as New Preset… committed `name` (trimmed; an empty name is the suggestion).
-    Create { name: String },
+    Create {
+        /// The new preset's name.
+        name: String,
+    },
     /// Rename… committed `text` (trimmed) for `key`.
-    Rename { key: K, text: String },
+    Rename {
+        /// The preset renamed.
+        key: K,
+        /// The new name.
+        text: String,
+    },
     /// Delete was chosen for `key`; the row acts at once (the app confirms if it wants to).
     Delete(K),
     /// A file pick finished.

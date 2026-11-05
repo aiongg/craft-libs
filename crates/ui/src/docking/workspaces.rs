@@ -16,9 +16,13 @@ use crate::menu::{MenuEntry, MenuItem};
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct WorkspaceChrome {
+    /// The menu bar shows.
     pub menu_bar: bool,
+    /// The tool rail shows.
     pub tool_rail: bool,
+    /// The options bar shows.
     pub options_bar: bool,
+    /// The status bar shows.
     pub status_bar: bool,
 }
 
@@ -30,10 +34,13 @@ pub struct NamedWorkspace<P> {
     pub id: String,
     /// What the menus and the switcher show.
     pub name: String,
+    /// The panel layout.
     pub layout: Workspace<P>,
+    /// Which bars show.
     pub chrome: WorkspaceChrome,
     /// Whether Keyboard Shortcuts and Menus were saved with it (Photoshop's New Workspace boxes).
     pub keeps_shortcuts: bool,
+    /// Whether menu customizations were saved with it.
     pub keeps_menus: bool,
 }
 
@@ -43,7 +50,9 @@ pub struct NamedWorkspace<P> {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, bound(deserialize = "P: serde::Deserialize<'de> + Eq + Hash + Clone"))]
 pub struct WorkspaceSet<P> {
+    /// Workspaces the app defines in code.
     pub builtin: Vec<NamedWorkspace<P>>,
+    /// Workspaces the user saved.
     pub saved: Vec<NamedWorkspace<P>>,
     /// Id of the current workspace.
     pub current: String,
@@ -72,15 +81,18 @@ pub enum WorkspaceCommand {
     New,
     /// Open the Delete Workspace dialog.
     Delete,
+    /// Toggle Lock Workspace.
     LockToggle,
 }
 
 impl<P: Clone + Eq + Hash> WorkspaceSet<P> {
+    /// A set of `builtin` workspaces with the first one current.
     pub fn new(builtin: Vec<NamedWorkspace<P>>) -> Self {
         let current = builtin.first().map(|w| w.id.clone()).unwrap_or_default();
         Self { builtin, current, ..Self::default() }
     }
 
+    /// The current workspace, or `None` when `current` names none.
     pub fn current(&self) -> Option<&NamedWorkspace<P>> {
         self.find(&self.current)
     }
@@ -200,12 +212,17 @@ fn slug(name: &str) -> String {
     if words.is_empty() { name.to_string() } else { words.join("-") }
 }
 
+/// Why a [`WorkspaceSet`] edit was refused.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum WorkspaceError {
+    /// No workspace has the id.
     UnknownId,
+    /// A built-in workspace already has the name.
     NameTaken,
+    /// The name is empty after trimming.
     EmptyName,
+    /// The current workspace cannot be deleted.
     CurrentCannotBeDeleted,
 }
 
@@ -229,15 +246,18 @@ pub struct WorkspaceSwitcherResponse {
 }
 
 impl<'a, P: Clone + Eq + Hash> WorkspaceSwitcher<'a, P> {
+    /// A switcher over `set`; `id_salt` keeps its state apart from other switchers.
     pub fn new(id_salt: impl AsIdSalt, set: &'a WorkspaceSet<P>) -> Self {
         Self { id: Id::unique("craft_ui::docking::WorkspaceSwitcher").with(id_salt), set, labels: None }
     }
 
+    /// Uses these labels instead of the installed words.
     pub fn labels(mut self, labels: &'a WorkspaceLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Shows the switcher and returns the command the user picked, if any.
     // pc: crates/ui-egui/src/menus/workspace_ui.rs:68 `switcher_options`; Photoshop's options bar switcher.
     pub fn show(self, ui: &mut Ui) -> WorkspaceSwitcherResponse {
         let Self { id, set, labels } = self;

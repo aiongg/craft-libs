@@ -28,7 +28,9 @@ pub fn texture_factor(size: [u32; 2], side: u32) -> u32 {
 /// pixels, a power of two no coarser than the screen and capped by the texture side.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DetailPlan {
+    /// Pixels of the document per texel; a power of two.
     pub factor: u32,
+    /// The part of the document in view, in document pixels.
     pub region: PixelRect,
 }
 

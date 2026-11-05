@@ -67,6 +67,7 @@ pub struct RecoveryDialog {
 }
 
 impl RecoveryDialog {
+    /// A dialog offering to recover `document`.
     pub fn new(document: RecoveredDocument) -> Self {
         Self { id: dialog_id("recovery"), document, state: DialogState::new() }
     }

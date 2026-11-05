@@ -35,21 +35,27 @@ crate::words! {
 /// and an optional description shown while it is active.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Suggestion {
+    /// The text the suggestion inserts.
     pub text: String,
+    /// A short mark drawn before the text.
     pub mark: Option<String>,
+    /// A description shown while the suggestion is active.
     pub description: Option<String>,
 }
 
 impl Suggestion {
+    /// A suggestion that inserts `text`, with no mark or description.
     pub fn new(text: impl Into<String>) -> Self {
         Self { text: text.into(), mark: None, description: None }
     }
 
+    /// Sets the mark drawn before the text.
     pub fn mark(mut self, mark: impl Into<String>) -> Self {
         self.mark = Some(mark.into());
         self
     }
 
+    /// Sets the description shown while the suggestion is active.
     pub fn description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self

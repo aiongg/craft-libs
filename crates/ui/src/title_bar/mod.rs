@@ -156,6 +156,7 @@ pub struct TitleBar<'a> {
 }
 
 impl<'a> TitleBar<'a> {
+    /// A title bar for the window `frame` describes.
     pub fn new(frame: &'a Frame) -> Self {
         Self {
             frame,

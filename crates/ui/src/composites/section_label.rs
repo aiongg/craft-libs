@@ -36,10 +36,12 @@ pub struct SectionLabel {
 }
 
 impl SectionLabel {
+    /// A label showing `text`, already translated.
     pub fn new(text: impl Into<String>) -> Self {
         Self { text: text.into() }
     }
 
+    /// The label's look from the theme: the `Label` type role in the faint text colour.
     pub fn style(tokens: &UiTokens) -> SectionLabelStyle {
         SectionLabelStyle { role: TypeRole::Label, color: Content::Faint.color(tokens).to_egui() }
     }

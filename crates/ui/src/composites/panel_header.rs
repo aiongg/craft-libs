@@ -155,6 +155,7 @@ impl PanelHeader {
         self
     }
 
+    /// The header's look from the theme's `panel_header` tokens, scaled to `pixels_per_point`.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> PanelHeaderStyle {
         let p = &tokens.component.panel_header;
         PanelHeaderStyle {

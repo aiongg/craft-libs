@@ -35,40 +35,108 @@ use crate::theme::{Tokens, TokensOf};
 pub enum ParamKind {
     /// A slider with a number field. [`SliderScale::Log`] for ranges over three decades
     /// (PhotoCraft's rule for `0.1..1000`).
-    Range { min: f64, max: f64, default: f64, scale: SliderScale },
+    Range {
+        /// Lowest value.
+        min: f64,
+        /// Highest value.
+        max: f64,
+        /// The value shown when nothing is remembered.
+        default: f64,
+        /// How the slider maps position to value.
+        scale: SliderScale,
+    },
     /// A whole-number field with steppers; `None` bounds are unbounded.
-    Int { min: Option<i64>, max: Option<i64>, default: i64 },
+    Int {
+        /// Lowest value, or `None` for no lower bound.
+        min: Option<i64>,
+        /// Highest value, or `None` for no upper bound.
+        max: Option<i64>,
+        /// The value shown when nothing is remembered.
+        default: i64,
+    },
     /// A bare [`NumberField`] without a slider (Photoshop's Merge to HDR Pro has sliders; a
     /// canvas size or a count does not). A `None` bound is open on that side. Scrub and arrow
     /// keys move by `step`; `decimals` is the most digits shown after the decimal mark, so an
     /// integer is `decimals: 0`. The field holds a [`FieldValue::Number`].
-    Number { min: Option<f64>, max: Option<f64>, default: f64, step: f64, decimals: u32 },
+    Number {
+        /// Lowest value, or `None` for no lower bound.
+        min: Option<f64>,
+        /// Highest value, or `None` for no upper bound.
+        max: Option<f64>,
+        /// The value shown when nothing is remembered.
+        default: f64,
+        /// How far a scrub step or an arrow key moves the value.
+        step: f64,
+        /// The most digits shown after the decimal mark; 0 for an integer.
+        decimals: u32,
+    },
     /// A check box.
-    Bool { default: bool },
+    Bool {
+        /// Whether the box starts checked.
+        default: bool,
+    },
     /// A [`Select`] of `(id, label)` options; the field holds the id.
-    Choice { options: Vec<(String, String)>, default: Option<String> },
+    Choice {
+        /// The `(id, label)` pairs in list order.
+        options: Vec<(String, String)>,
+        /// The id selected when nothing is remembered; `None` selects the first option.
+        default: Option<String>,
+    },
     /// An [`AngleDial`] with its field, in degrees.
-    Angle { default: f64 },
+    Angle {
+        /// The angle in degrees shown when nothing is remembered.
+        default: f64,
+    },
     /// A [`Swatch`] that opens the host's colour picker; `None`: unset
     /// until picked.
-    Color { default: Option<[f32; 3]> },
+    Color {
+        /// The colour as RGB in 0–1; `None` leaves it unset.
+        default: Option<[f32; 3]>,
+    },
     /// A grid of `cells` integer fields, [`side`](ParamKind::grid_side) per row (Custom filter:
     /// `int[25]` is 5×5). A `cells` that is not square wraps every `round(sqrt(cells))` fields
     /// and the last row is short, as PhotoCraft lays it out.
-    Grid { cells: usize, default: i64 },
+    Grid {
+        /// The number of fields.
+        cells: usize,
+        /// The value every cell starts with.
+        default: i64,
+    },
     /// A [`PointPicker`] over the preview image plus X and Y fields,
     /// in percent of the image.
-    Point { default: [f64; 2] },
+    Point {
+        /// `[x, y]` in percent of the image.
+        default: [f64; 2],
+    },
     /// One of the document's channels by index, shown by name.
-    Channel { names: Vec<String>, default: usize },
+    Channel {
+        /// The channel names in index order.
+        names: Vec<String>,
+        /// The index selected when nothing is remembered.
+        default: usize,
+    },
     /// A [`TextField`].
-    Text { default: String },
+    Text {
+        /// The text shown when nothing is remembered.
+        default: String,
+    },
     /// A number that may be unset: a "Custom" check box switches the field on. Unset the key is
     /// absent from the [`DialogFields`] (PhotoCraft's Batch quality: `null` keeps the command's
     /// own default). `initial` is what the field shows the first time the box is checked;
     /// `decimals` is the most digits shown after the decimal mark (`0` for an integer, as in
     /// [`ParamKind::Number`]).
-    OptionalNumber { min: f64, max: f64, default: Option<f64>, initial: f64, decimals: u32 },
+    OptionalNumber {
+        /// Lowest value.
+        min: f64,
+        /// Highest value.
+        max: f64,
+        /// The value when nothing is remembered; `None` leaves the number unset.
+        default: Option<f64>,
+        /// The value the field shows the first time the box is checked.
+        initial: f64,
+        /// The most digits shown after the decimal mark; 0 for an integer.
+        decimals: u32,
+    },
     /// A row the host draws: see [`Param::custom`]. It has no value of its own.
     Custom(CustomRow),
 }
@@ -82,6 +150,7 @@ pub struct CustomRow(Arc<CustomDraw>);
 type CustomDraw = dyn Fn(&mut Ui, &mut DialogFields, &CustomContext) -> Response + Send + Sync;
 
 impl CustomRow {
+    /// Wraps `draw`, which draws the row and edits the values it owns through the [`DialogFields`].
     pub fn new(draw: impl Fn(&mut Ui, &mut DialogFields, &CustomContext) -> Response + Send + Sync + 'static) -> Self {
         Self(Arc::new(draw))
     }
@@ -124,13 +193,16 @@ impl PartialEq for CustomRow {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum PathKind {
     #[default]
+    /// Picks a folder.
     Folder,
     /// An existing file. `extensions` are the ones the file dialog offers, without the dot and in
     /// any letter case (`["cube", "3dl"]`); empty offers every file. The host passes them to its
     /// file dialog as one filter (craft-dialogs' `Filter`).
     OpenFile {
+        #[allow(missing_docs)]
         extensions: Vec<String>,
     },
+    /// Chooses a file to write.
     SaveFile,
 }
 
@@ -145,7 +217,9 @@ impl PathKind {
 /// `fields_mut().set(key, FieldValue::Text(path))`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PathRequest {
+    /// The key of the text parameter the path belongs to.
     pub key: String,
+    /// What the picker should offer.
     pub kind: PathKind,
 }
 
@@ -154,7 +228,9 @@ pub struct PathRequest {
 /// written with [`ParamDialog::set_color`].
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EyedropperRequest {
+    /// The key of the colour parameter the dropper fills.
     pub key: String,
+    /// True when the dropper turns on, false when it turns off.
     pub armed: bool,
 }
 
@@ -232,6 +308,7 @@ pub struct Param {
     /// The label without its colon, in English (`"Radius"`); the dialog translates it and adds the
     /// colon (a trailing colon given here is dropped first).
     pub label: String,
+    /// Which control edits the value, and its default.
     pub kind: ParamKind,
     /// Shown after the number (`px`, `%`, `°`); formats through the locale.
     pub unit: Option<Unit>,
@@ -264,6 +341,7 @@ struct RowTexts {
 }
 
 impl Param {
+    /// A row with the field `key`, the English `label` and the control `kind`.
     pub fn new(key: impl Into<String>, label: impl Into<String>, kind: ParamKind) -> Self {
         Self { key: key.into(), label: label.into(), kind, unit: None, enabled_when: None, browse: None, texts: None, options: None }
     }
@@ -374,6 +452,7 @@ impl Param {
         self.enabled_when.as_ref().is_none_or(|(key, value)| fields.get(key) == Some(value))
     }
 
+    /// Sets the unit shown after the number.
     pub fn unit(mut self, unit: Unit) -> Self {
         self.unit = Some(unit);
         self
@@ -903,6 +982,7 @@ pub struct ParamRows<'a> {
 }
 
 impl<'a> ParamRows<'a> {
+    /// Rows for `params`; `id_salt` keeps their control ids apart from other rows.
     pub fn new(id_salt: impl egui::AsIdSalt, params: &'a [Param]) -> Self {
         Self { id_salt: egui::IdSalt::new(id_salt), params, preview: None }
     }
@@ -1264,6 +1344,7 @@ impl ParamDialog {
         self
     }
 
+    /// Sets the content width class.
     pub fn width(mut self, width: Width) -> Self {
         self.width = width;
         self
@@ -1411,11 +1492,14 @@ impl ParamDialog {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParamResult {
     /// The dialog's [`key`](ParamDialog::key): the command the values are for.
+    /// The command the values are for.
     pub key: String,
+    /// The values the user confirmed, keyed by parameter.
     pub fields: DialogFields,
 }
 
 impl ParamResult {
+    /// The command the values are for.
     pub fn key(&self) -> &str {
         &self.key
     }

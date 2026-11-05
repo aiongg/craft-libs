@@ -176,6 +176,7 @@ const OTHER_BUTTONS: [PointerButton; 4] = [PointerButton::Secondary, PointerButt
 /// to tell their press from a later one.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PrimaryPress {
+    /// Screen point where the button went down.
     pub origin: Pos2,
     time: f64,
 }

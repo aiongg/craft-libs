@@ -8,8 +8,11 @@ use super::geometry::valid_rect;
 /// Colors for a resize handle. The ordinary, unfocused handle does not paint a fill.
 #[derive(Clone, Copy, Debug)]
 pub struct ResizeHandleStyle {
+    /// Handle colour while the pointer hovers it.
     pub hovered: Color32,
+    /// Handle colour while it is dragged.
     pub dragged: Color32,
+    /// Handle colour while it has keyboard focus.
     pub focused: Color32,
 }
 
@@ -41,6 +44,7 @@ pub struct ResizeHandle<'a> {
 }
 
 impl<'a> ResizeHandle<'a> {
+    /// A handle `id` on `rect` that resizes a split along `axis`, announced to screen readers as `label` and drawn with `style`.
     pub fn new(id: Id, axis: SplitAxis, rect: Rect, label: &'a str, style: ResizeHandleStyle) -> Self {
         Self { id, axis, rect, label, style, hit_margin: 3.0, step: 8.0, value: None, reversed: false }
     }

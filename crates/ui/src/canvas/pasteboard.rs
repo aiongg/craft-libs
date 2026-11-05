@@ -28,6 +28,7 @@ pub enum PasteboardColor {
     /// The theme's canvas colour (`surface.canvas`).
     #[default]
     Default,
+    #[allow(missing_docs)]
     Black,
     /// Grey 40.
     DarkGray,
@@ -35,6 +36,7 @@ pub enum PasteboardColor {
     MediumGray,
     /// Grey 184.
     LightGray,
+    #[allow(missing_docs)]
     Custom(Color32),
 }
 
@@ -57,14 +59,18 @@ impl PasteboardColor {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum PageBorder {
     #[default]
+    #[allow(missing_docs)]
     DropShadow,
+    #[allow(missing_docs)]
     Line,
+    #[allow(missing_docs)]
     None,
 }
 
 /// One page or artboard on the pasteboard, in document units.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PageFrame {
+    /// The page's rectangle in document space.
     pub rect: Rect,
     /// Drawn above the page's top-left corner (artboards, spreads); `None` draws nothing.
     pub name: Option<String>,
@@ -77,6 +83,7 @@ pub struct PageFrame {
 }
 
 impl PageFrame {
+    /// A page at `rect` with no name, fill or active mark.
     pub fn new(rect: Rect) -> Self {
         Self { rect, name: None, fill: None, active: None }
     }
@@ -88,11 +95,13 @@ impl PageFrame {
         self
     }
 
+    /// Sets the name drawn above the page's top-left corner.
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
     }
 
+    /// Sets the page's own fill under the document.
     pub fn fill(mut self, fill: Color32) -> Self {
         self.fill = Some(fill);
         self
@@ -111,6 +120,7 @@ pub struct PasteboardStyle {
     pub outline: Stroke,
     /// Page names: the UI face at the caption role, in the muted text colour.
     pub name_font: FontId,
+    #[allow(missing_docs)]
     pub name_color: Color32,
     /// Space between a page's top edge and its name: `pasteboard.name_gap`.
     pub name_gap: f32,
@@ -144,6 +154,7 @@ impl<'a> Pasteboard<'a> {
         Self { id_salt: IdSalt::new(id_salt), pages, color: PasteboardColor::Default, border: PageBorder::DropShadow, canvas: None }
     }
 
+    /// Sets the pasteboard colour.
     pub fn color(mut self, color: PasteboardColor) -> Self {
         self.color = color;
         self
@@ -156,6 +167,7 @@ impl<'a> Pasteboard<'a> {
         self
     }
 
+    /// Sets how the page edge is drawn.
     pub fn border(mut self, border: PageBorder) -> Self {
         self.border = border;
         self

@@ -7,7 +7,9 @@ use crate::fonts;
 
 /// A token value with a direct egui counterpart.
 pub trait ToEgui {
+    /// The egui type the value converts to.
     type Egui;
+    /// Converts the value to its egui counterpart.
     fn to_egui(self) -> Self::Egui;
 }
 
@@ -106,8 +108,11 @@ fn to_i8(v: f32) -> i8 {
 /// proportional family, so text never lands in a family with no faces.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FontFamilies {
+    /// The family of the UI slot.
     pub ui: FontFamily,
+    /// The family of the semibold slot.
     pub ui_semibold: FontFamily,
+    /// The family of the mono slot.
     pub mono: FontFamily,
     /// Whether the formats of type styles in the UI slots ([`super::style_format`]) set the
     /// `opsz` axis to their text size. On when the OS's interface face draws in the stack
@@ -136,6 +141,7 @@ impl FontFamilies {
         }
     }
 
+    /// The family that draws text in `slot`.
     pub fn family(&self, slot: FontSlot) -> &FontFamily {
         match slot {
             FontSlot::Ui => &self.ui,

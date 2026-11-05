@@ -215,11 +215,13 @@ impl Slider {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether the slider takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -476,6 +478,7 @@ impl Slider {
             .collect()
     }
 
+    /// The slider's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
         let s = &tokens.component.slider;
         let (thumb, thumb_width) = (s.thumb.get(size), s.thumb_width.get(size));
@@ -516,7 +519,9 @@ pub const KEY_FILTER: EventFilter = EventFilter { horizontal_arrows: true, verti
 /// A range with an optional step: where values may go and how keys move them.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Scale {
+    #[allow(missing_docs)]
     pub min: f64,
+    #[allow(missing_docs)]
     pub max: f64,
     step: Option<f64>,
     kind: SliderScale,
@@ -681,6 +686,7 @@ pub(super) struct Track {
 }
 
 impl Track {
+    /// A track across `rect`, inset by half a thumb at each end, for `scale`.
     pub fn new(rect: Rect, style: &SliderStyle, scale: Scale) -> Self {
         let reach = style.thumb_width / 2.0;
         Self { x0: rect.left() + reach, x1: rect.right() - reach, y: rect.center().y, reach, scale, track_height: style.track_height }
@@ -838,6 +844,7 @@ fn to_layer(ui: &Ui, response: &Response, pos: Pos2) -> Pos2 {
 /// What a control's response says about this frame's input, for [`stepped`].
 #[derive(Clone, Copy, Debug)]
 pub struct Sensing {
+    #[allow(missing_docs)]
     pub enabled: bool,
     /// The pointer is over the control.
     pub hovered: bool,
@@ -852,6 +859,7 @@ pub struct Sensing {
 }
 
 impl Sensing {
+    /// The sensing of `response`: the wheel steps the control and arrows move the thumb the way they point.
     pub fn of(response: &Response) -> Self {
         Self { enabled: response.enabled(), hovered: response.hovered(), dragging: response.dragged(), wheel: true, falling: false }
     }

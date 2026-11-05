@@ -33,6 +33,7 @@ crate::words! {
 /// The answer for one document, with whether it applies to the rest.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct UnsavedAnswer {
+    /// The button the user pressed.
     pub answer: CloseAnswer,
     /// The "Apply to All" box was ticked: the app calls
     /// [`CloseGuard::answer_all`](craft_quit::CloseGuard::answer_all).
@@ -67,6 +68,7 @@ pub struct UnsavedChangesDialog {
 }
 
 impl UnsavedChangesDialog {
+    /// The question for the document `document_name`, closing under `scope`; the guard asks about one document.
     pub fn new(scope: CloseScope, document_name: impl Into<String>) -> Self {
         Self { id: dialog_id("unsaved-changes"), scope, name: document_name.into(), remaining: 1, apply_to_all: false }
     }

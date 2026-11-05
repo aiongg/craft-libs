@@ -103,6 +103,7 @@ impl Button {
         }
     }
 
+    /// Sets the fill variant (primary, secondary and so on).
     pub fn variant(mut self, variant: ButtonVariant) -> Self {
         self.variant = variant;
         self
@@ -114,6 +115,7 @@ impl Button {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -175,6 +177,7 @@ impl Button {
         style
     }
 
+    /// The sizes and colours for `variant` and `size` from `tokens`.
     pub fn style(tokens: &UiTokens, variant: ButtonVariant, size: ControlSize) -> ButtonStyle {
         let b = &tokens.component.button;
         let colors = b.colors(variant);

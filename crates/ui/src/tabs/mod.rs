@@ -8,6 +8,7 @@ pub struct TabFit {
     /// `(input index, width)` for visible tabs. A nonempty input always retains the selected tab
     /// (or the final tab if `selected` was out of bounds), even when its width must become zero.
     pub shown: Vec<(usize, f32)>,
+    /// The indices of the hidden tabs, in input order.
     pub overflow: Vec<usize>,
     /// Reserved width of the overflow button, zero when no tabs overflow. This can be smaller
     /// than the requested width in a tiny strip; use it when laying out the button.

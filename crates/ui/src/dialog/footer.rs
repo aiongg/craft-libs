@@ -286,6 +286,7 @@ impl<'a> Footer<'a> {
         self
     }
 
+    /// Enables the Apply button; true by default.
     pub fn apply_enabled(mut self, enabled: bool) -> Self {
         self.apply_enabled = enabled;
         self

@@ -102,6 +102,7 @@ pub struct Prompt<'a> {
 }
 
 impl<'a> Prompt<'a> {
+    /// A prompt keyed by `id` (stable per prompt kind) with a `title` and `message`; add its buttons with the answer methods.
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>, message: impl Into<String>) -> Self {
         Self { id: dialog_id(id), title: title.into(), message: message.into(), answers: Vec::new(), escape: None, stack: None, below: None }
     }

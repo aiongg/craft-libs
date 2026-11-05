@@ -106,16 +106,16 @@ pub(super) struct Renderer<'a, P> {
     /// Where floating windows, flyouts and drag ghosts go: [`crate::docking::DockArea::float_bounds`].
     pub(super) float_bounds: Rect,
     pub(super) targets: Vec<DropTarget<P>>,
-    /// [D] Seams, group bands, column edges and new-dock bands, see [`crate::docking::targets::DockDrop`].
+    /// \[D\] Seams, group bands, column edges and new-dock bands, see [`crate::docking::targets::DockDrop`].
     pub(super) dock_targets: Vec<crate::docking::targets::DockDrop<P>>,
-    /// [D] The open groups of dock columns, whose body zones stack or make columns.
+    /// \[D\] The open groups of dock columns, whose body zones stack or make columns.
     pub(super) dock_groups: Vec<dock::DockGroup<P>>,
-    /// [D] The scroll offset of each dock column that scrolls this frame, by its first panel.
+    /// \[D\] The scroll offset of each dock column that scrolls this frame, by its first panel.
     pub(super) column_scroll: HashMap<P, f32>,
     pub(super) owned_interactions: Vec<Id>,
     pub(super) output: DockOutput<P>,
     pub(super) frame: FrameState<P>,
-    /// [D] Flyout and iconic column state for this frame.
+    /// \[D\] Flyout and iconic column state for this frame.
     pub(super) iconic: Iconic<P>,
     /// What a drag would float from each drawn panel, group and column, for commands.
     pub(super) float_space: crate::docking::FloatSpace<P>,

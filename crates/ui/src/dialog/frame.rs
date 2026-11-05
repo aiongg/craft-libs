@@ -124,6 +124,7 @@ impl DialogFrame {
         self
     }
 
+    /// Resolves the frame's surface, padding and metrics from `tokens`; `pixels_per_point` snaps them to physical pixels.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> DialogFrameStyle {
         let d = &tokens.component.dialog;
         DialogFrameStyle {

@@ -20,9 +20,19 @@ use egui::{Align, Color32, Galley, Painter, Pos2, Rect, Vec2, epaint::TextShape,
 #[must_use]
 pub enum AlignedGalley {
     /// A complete left-anchored logical bound, with the reading area kept separately.
-    Aligned { galley: Arc<Galley>, paint_offset: Vec2, reading_rect: Rect },
+    Aligned {
+        /// The re-laid-out galley, anchored at the left of its logical bound.
+        galley: Arc<Galley>,
+        /// Where to paint the galley relative to the reading area's origin.
+        paint_offset: Vec2,
+        /// The reading area the text was aligned in.
+        reading_rect: Rect,
+    },
     /// An invalid width leaves the original galley untouched, including its alignment.
-    InvalidWidth { original: Arc<Galley> },
+    InvalidWidth {
+        /// The galley as it was passed in.
+        original: Arc<Galley>,
+    },
 }
 
 impl AlignedGalley {

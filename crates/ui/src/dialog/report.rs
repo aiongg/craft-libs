@@ -29,8 +29,11 @@ crate::words! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum NoteTone {
     #[default]
+    #[allow(missing_docs)]
     Info,
+    #[allow(missing_docs)]
     Warning,
+    #[allow(missing_docs)]
     Error,
 }
 
@@ -56,11 +59,14 @@ impl NoteTone {
 /// One line of the report.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReportNote {
+    /// The note's weight; picks its icon.
     pub tone: NoteTone,
+    /// The note's text.
     pub text: String,
 }
 
 impl ReportNote {
+    /// A note of weight `tone` with `text`.
     pub fn new(tone: NoteTone, text: impl Into<String>) -> Self {
         Self { tone, text: text.into() }
     }
@@ -80,10 +86,12 @@ pub struct ReportDialog {
 }
 
 impl ReportDialog {
+    /// A report keyed by `key` (stable per kind of report) with a `title`, one `summary` line and the `notes`.
     pub fn new(key: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>, summary: impl Into<String>, notes: Vec<ReportNote>) -> Self {
         Self { id: dialog_id(key), title: title.into(), summary: summary.into(), notes, width: Width::Standard, state: DialogState::new() }
     }
 
+    /// Sets the content width class.
     pub fn width(mut self, width: Width) -> Self {
         self.width = width;
         self

@@ -35,6 +35,7 @@ pub struct RegularWeight {
 }
 
 impl RegularWeight {
+    /// Wraps `inner`, with every family at the regular weight.
     pub fn new(inner: Arc<dyn FontProvider>) -> Self {
         Self { inner, weights: Vec::new() }
     }

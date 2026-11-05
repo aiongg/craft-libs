@@ -136,6 +136,7 @@ crate::words! {
 }
 
 impl RulerNames {
+    /// The accessible names of the two rulers and the origin corner.
     pub fn new(horizontal: impl Into<String>, vertical: impl Into<String>, origin: impl Into<String>) -> Self {
         Self { horizontal: horizontal.into(), vertical: vertical.into(), origin: origin.into() }
     }
@@ -237,6 +238,7 @@ impl<'a> Rulers<'a> {
         self
     }
 
+    /// How the rulers report gestures.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
@@ -273,6 +275,7 @@ impl<'a> Rulers<'a> {
         ScreenRect::from_min_max(full.min + vec2(size, size), full.max)
     }
 
+    /// The ruler look in `tokens`.
     pub fn style(tokens: &UiTokens) -> RulerStyle {
         let (r, c) = (&tokens.component.ruler, &tokens.color);
         let family = tokens.families().family(craft_theme::FontSlot::Ui).clone();

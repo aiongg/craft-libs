@@ -6,16 +6,24 @@
 /// The value of one arg.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ArgValue {
+    /// A switch.
     Bool(bool),
     /// One of `options`, by position.
     Choice {
+        /// The option labels, in panel order.
         options: &'static [&'static str],
+        /// The position of the chosen option in `options`.
         index: usize,
     },
+    /// A text field.
     Text(String),
+    /// A number field.
     Number {
+        /// The current value.
         value: f64,
+        /// The smallest value the field accepts.
         min: f64,
+        /// The largest value the field accepts.
         max: f64,
     },
 }
@@ -23,7 +31,9 @@ pub enum ArgValue {
 /// A named arg.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Arg {
+    /// The arg's name, as the panel shows it and a story looks it up.
     pub name: &'static str,
+    /// The current value and the control that edits it.
     pub value: ArgValue,
 }
 
@@ -117,6 +127,7 @@ impl Args {
         self.args.iter_mut()
     }
 
+    /// The arg called `name`, or `None` when the story has no such arg.
     pub fn get(&self, name: &str) -> Option<&Arg> {
         self.args.iter().find(|a| a.name == name)
     }

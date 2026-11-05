@@ -22,7 +22,9 @@ pub struct UiTokens {
     pub mode: Mode,
     /// [`style_for`] the tokens.
     pub style: Arc<Style>,
+    /// The `shape.radius` tokens as egui radii.
     pub radius: Radii,
+    /// The `elevation` tokens as egui shadows.
     pub shadow: Shadows,
     families: FontFamilies,
     fonts: [FontId; 8],
@@ -31,9 +33,13 @@ pub struct UiTokens {
 /// `shape.radius` as egui radii.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Radii {
+    /// Controls: `shape.radius.control`.
     pub control: CornerRadius,
+    /// Popups and menus: `shape.radius.popup`.
     pub popup: CornerRadius,
+    /// Windows: `shape.radius.window`.
     pub window: CornerRadius,
+    /// Panels: `shape.radius.panel`.
     pub panel: CornerRadius,
     /// Push buttons: `button.radius`, which is `shape.radius.button` unless the theme overrides
     /// it.
@@ -45,8 +51,11 @@ pub struct Radii {
 /// `elevation` as egui shadows.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Shadows {
+    /// Popups and dialogs, in the popup component's shadow colour.
     pub popup: Shadow,
+    /// Floating parts, such as the shadow under the canvas pasteboard's page.
     pub floating: Shadow,
+    /// [`SurfaceKind::Knob`](crate::primitives::SurfaceKind::Knob) surfaces.
     pub knob: Shadow,
 }
 
@@ -67,6 +76,8 @@ pub(crate) fn popup_shadow(tokens: &Tokens) -> Shadow {
 }
 
 impl UiTokens {
+    /// Resolves `tokens` into egui values: the style, radii, shadows and fonts, with text in
+    /// `families`.
     pub fn new(tokens: Tokens, appearance: Appearance, mode: Mode, families: FontFamilies) -> Self {
         let r = &tokens.shape.radius;
         let radius = Radii {

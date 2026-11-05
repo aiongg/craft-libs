@@ -18,7 +18,9 @@ use crate::theme::{Tokens, TokensOf};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum PillPlace {
     #[default]
+    #[allow(missing_docs)]
     BottomCenter,
+    #[allow(missing_docs)]
     TopCenter,
 }
 
@@ -28,6 +30,7 @@ pub enum PillPlace {
 pub struct ToolPillResponse<T> {
     /// The tool to make current: a clicked button, or a tool chosen from a group's flyout.
     pub select: Option<T>,
+    /// The pill's screen rectangle.
     pub rect: Rect,
 }
 
@@ -57,10 +60,12 @@ pub struct ToolPill {
 }
 
 impl ToolPill {
+    /// A pill keyed `id_salt`, at the bottom centre.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id: Id::unique("craft-ui-tool-pill").with(id_salt), place: PillPlace::default(), labels: None }
     }
 
+    /// Sets where the pill sits on the canvas.
     pub fn place(mut self, place: PillPlace) -> Self {
         self.place = place;
         self

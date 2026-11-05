@@ -10,14 +10,23 @@ use crate::menu::{MenuEntry, MenuItem};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Arrangement {
+    /// Tiles every document window across the document area, side by side.
     TileAllVertically,
+    /// Tiles every document window across the document area, stacked.
     TileAllHorizontally,
+    /// Two cells, side by side.
     TwoUpVertical,
+    /// Two cells, stacked.
     TwoUpHorizontal,
+    /// Three cells in a row.
     ThreeUpVertical,
+    /// Three cells in a column.
     ThreeUpHorizontal,
+    /// Three cells: one large cell beside two stacked cells.
     ThreeUpStacked,
+    /// Four cells in a 2 by 2 grid.
     FourUp,
+    /// Six cells in a 3 by 2 grid.
     SixUp,
     /// Every document back into one tab group.
     ConsolidateAllToTabs,
@@ -31,9 +40,13 @@ pub enum Arrangement {
     FloatAllInWindows,
     /// A second view of the active document.
     NewWindowForDocument,
+    /// Sets every document view to the active view's zoom.
     MatchZoom,
+    /// Scrolls every document view to the active view's location.
     MatchLocation,
+    /// Sets every document view to the active view's rotation.
     MatchRotation,
+    /// Matches zoom, location and rotation together.
     MatchAll,
 }
 

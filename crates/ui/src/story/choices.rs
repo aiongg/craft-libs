@@ -7,7 +7,9 @@ use super::StoryChoice;
 /// The `size` arg of a control: `sm` or `md`.
 #[derive(StoryChoice, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SizeArg {
+    /// [`ControlSize::Sm`].
     Sm,
+    /// [`ControlSize::Md`].
     #[default]
     Md,
 }
@@ -25,11 +27,16 @@ impl SizeArg {
 /// The `tone` arg of a component: a [`Tone`] of the notice family.
 #[derive(StoryChoice, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ToneArg {
+    /// [`Tone::Neutral`].
     #[default]
     Neutral,
+    /// [`Tone::Info`].
     Info,
+    /// [`Tone::Good`].
     Good,
+    /// [`Tone::Warn`].
     Warn,
+    /// [`Tone::Bad`].
     Bad,
 }
 

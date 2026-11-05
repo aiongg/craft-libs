@@ -1,4 +1,4 @@
-//! [D] Docks: side docks of columns, each a column bar above stacked groups.
+//! \[D\] Docks: side docks of columns, each a column bar above stacked groups.
 //!
 //! Columns run from the window edge inwards. Every column's inner edge resizes it; the last
 //! column's inner edge is the dock's inner edge. Behavior follows VectorCraft `floating.rs`
@@ -20,7 +20,7 @@ use crate::docking::{
 };
 use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 
-/// [D] An open group of a dock column: its visible body, and the target and line of its left,
+/// \[D\] An open group of a dock column: its visible body, and the target and line of its left,
 /// right, top and bottom zones (see [`DockStyle::side_zone_fraction`]). The top and bottom
 /// stack a group above or below it; the left and right make a column on that side.
 #[derive(Clone, Debug)]
@@ -120,7 +120,7 @@ pub(in crate::docking) fn column_limits<P>(column: &Column<P>, look: &DockLook, 
     (lo, hi.max(lo))
 }
 
-/// [D] A dock's columns as drawn in its rect: each column's width bounds, natural width with
+/// \[D\] A dock's columns as drawn in its rect: each column's width bounds, natural width with
 /// the floor it shrinks to, and the width [`fit_widths`] gives it, and each column with groups
 /// as `(index, width, rect)`, from the window edge inwards.
 pub(in crate::docking) struct DockColumns {

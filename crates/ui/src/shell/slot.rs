@@ -5,7 +5,9 @@ use egui::Frame;
 /// The side a slot lies against.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Edge {
+    /// Along the top edge.
     Top,
+    /// Along the bottom edge.
     Bottom,
     /// The reading start: left, or right right to left.
     Start,
@@ -103,6 +105,7 @@ impl Slot {
         self
     }
 
+    /// The slot's key, as visibility flags and [`ShellCx::slot_visible`](super::ShellCx::slot_visible) name it.
     pub fn key(&self) -> SlotKey {
         self.key
     }

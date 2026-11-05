@@ -231,6 +231,7 @@ pub mod counts {
     pub(crate) const ABOUT_PRS: Counted = Counted::new("about.prs", "{n} PR", "{n} PRs");
     pub(crate) const ABOUT_COMMITS: Counted = Counted::new("about.commitCount", "{n} commit", "{n} commits");
     pub(crate) const MORE: Counted = Counted::new("chipField.more", "+{n} more", "+{n} more");
+    /// Counted words for a star rating: "1 star", "3 stars".
     pub const STARS: Counted = Counted::new("rating.stars", "{n} star", "{n} stars");
     pub(crate) const DRAG_ITEMS: Counted = Counted::new("drag.count", "{n} item", "{n} items");
     pub(crate) const EVENT_ERRORS: Counted = Counted::new("eventLog.errorCount", "{n} error", "{n} errors");

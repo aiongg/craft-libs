@@ -258,6 +258,7 @@ impl<'a> Dialog<'a> {
         self
     }
 
+    /// Sets what is drawn behind a modal dialog; [`Backdrop::None`] by default.
     pub fn backdrop(mut self, backdrop: Backdrop) -> Self {
         self.backdrop = backdrop;
         self
@@ -281,6 +282,7 @@ impl<'a> Dialog<'a> {
         self
     }
 
+    /// Sets how the body fits: [`Body::Fit`] or [`Body::Scroll`].
     pub fn body(mut self, body: Body) -> Self {
         self.body = body;
         self
@@ -328,6 +330,7 @@ impl<'a> Dialog<'a> {
         self
     }
 
+    /// Sets what takes the keyboard focus when the dialog opens; [`InitialFocus::Auto`] by default.
     pub fn initial_focus(mut self, focus: InitialFocus) -> Self {
         self.initial_focus = focus;
         self

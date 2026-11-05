@@ -40,9 +40,11 @@ pub struct MenuStyle {
     /// `menu.arrow_base` and `menu.arrow_depth`: the submenu arrow's base and depth, as fractions
     /// of the label size.
     pub arrow_base: f32,
+    /// Depth of the submenu arrow, as a fraction of the label size (`menu.arrow_depth`).
     pub arrow_depth: f32,
     /// `menu.active.fill` and `menu.active.text`: the active row.
     pub active_fill: Color32,
+    /// Text colour of the active row (`menu.active.text`).
     pub active_text: Color32,
     /// `menu.open.fill`: a submenu's row while its submenu is open.
     pub open_fill: Color32,

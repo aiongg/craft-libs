@@ -122,6 +122,7 @@ pub struct MenuResponse<T> {
 }
 
 impl<'a, T: Clone> Menu<'a, T> {
+    /// A menu of `entries`, shown at the default control size.
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
         Self {
             entries,

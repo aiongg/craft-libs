@@ -114,6 +114,7 @@ pub struct PanelFooterStyle {
 pub struct PanelFooter;
 
 impl PanelFooter {
+    /// The footer's look from the theme's `panel_footer` tokens, scaled to `pixels_per_point`.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> PanelFooterStyle {
         let f = &tokens.component.panel_footer;
         PanelFooterStyle {

@@ -140,7 +140,9 @@ pub fn text_width(ui: &Ui, text: &str, font: &FontId) -> f32 {
 /// A galley [`elided_galley`] laid out, and whether it lost characters.
 #[derive(Clone, Debug)]
 pub struct Elided {
+    /// The laid-out galley, shortened when `elided`.
     pub galley: Arc<Galley>,
+    /// Whether characters were replaced by the ellipsis.
     pub elided: bool,
 }
 

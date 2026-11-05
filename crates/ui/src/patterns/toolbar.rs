@@ -178,6 +178,7 @@ impl<'a> Toolbar<'a> {
         self
     }
 
+    /// The resolved toolbar style, read from `tokens.component.toolbar`.
     pub fn style(tokens: &UiTokens) -> ToolbarStyle {
         let t = &tokens.component.toolbar;
         ToolbarStyle {

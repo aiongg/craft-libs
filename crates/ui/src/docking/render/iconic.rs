@@ -1,4 +1,4 @@
-//! [D] Iconic columns: one icon per panel, groups apart, and the flyout an icon opens.
+//! \[D\] Iconic columns: one icon per panel, groups apart, and the flyout an icon opens.
 //!
 //! Behavior follows VectorCraft `dock.rs` (icon column, flyouts beside it on the canvas side,
 //! names when the column is widened) and PhotoCraft `dock.rs` (Auto-Collapse Iconic Panels).
@@ -30,19 +30,19 @@ fn key(area: Id) -> Id {
     area.with("flyout")
 }
 
-/// [D] Open the flyout of the group holding `panel`, when that group is in an iconic column.
+/// \[D\] Open the flyout of the group holding `panel`, when that group is in an iconic column.
 /// The flyout shows from the next frame on. [`crate::docking::DockArea::raise_panel`] does the
 /// same for a panel the Window menu opens.
 pub fn open_flyout<P: Clone + Send + Sync + 'static>(ctx: &Context, area_id: Id, panel: P) {
     ctx.data_mut(|d| d.insert_temp(key(area_id), Open(panel)));
 }
 
-/// [D] Close the area's flyout.
+/// \[D\] Close the area's flyout.
 pub fn close_flyout<P: Clone + Send + Sync + 'static>(ctx: &Context, area_id: Id) {
     ctx.data_mut(|d| d.remove::<Open<P>>(key(area_id)));
 }
 
-/// [D] The panel whose icon opened the area's flyout, while one is open.
+/// \[D\] The panel whose icon opened the area's flyout, while one is open.
 pub fn flyout<P: Clone + Send + Sync + 'static>(ctx: &Context, area_id: Id) -> Option<P> {
     ctx.data(|d| d.get_temp::<Open<P>>(key(area_id))).map(|open| open.0)
 }

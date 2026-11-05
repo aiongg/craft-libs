@@ -35,6 +35,7 @@ pub(crate) fn mix(colors: &States<Color32>, hover: f32, pressed: f32) -> Color32
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct StateColors {
+    /// The fill per state.
     pub fill: States<Color32>,
     /// The border's colour; `None` keeps the surface's. A bevel keeps its own colours.
     pub border: Option<States<Color32>>,
@@ -81,6 +82,8 @@ impl From<&ItemColors> for StateColors {
 pub struct StateLayer;
 
 impl StateLayer {
+    /// The resolved state-layer style: the `state.*` hover and pressed fills and the hover
+    /// fade time in seconds.
     pub fn style(tokens: &UiTokens) -> StateLayerStyle {
         let c = &tokens.color;
         let motion = tokens.motion.hover;

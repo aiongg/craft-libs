@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 #[serde(untagged)]
 #[non_exhaustive]
 pub enum FieldValue {
+    #[allow(missing_docs)]
     Bool(bool),
     /// Integer fields, grid cells, counts. Before `Number` so an untagged read keeps an integer
     /// an integer.
@@ -88,6 +89,7 @@ impl PartialEq for DialogFields {
 }
 
 impl DialogFields {
+    /// An empty map.
     pub fn new() -> Self {
         Self::default()
     }
@@ -97,22 +99,27 @@ impl DialogFields {
         Self { values: pairs.into_iter().map(|(k, v)| (k.into(), v.into())).collect(), opening: BTreeMap::new() }
     }
 
+    /// Sets `key` to `value`, replacing any earlier value.
     pub fn set(&mut self, key: impl Into<String>, value: impl Into<FieldValue>) {
         self.values.insert(key.into(), value.into());
     }
 
+    /// The value under `key`, if any.
     pub fn get(&self, key: &str) -> Option<&FieldValue> {
         self.values.get(key)
     }
 
+    /// The value under `key`, mutably.
     pub fn get_mut(&mut self, key: &str) -> Option<&mut FieldValue> {
         self.values.get_mut(key)
     }
 
+    /// Removes `key` and returns its value.
     pub fn remove(&mut self, key: &str) -> Option<FieldValue> {
         self.values.remove(key)
     }
 
+    /// True when `key` has a value.
     pub fn contains(&self, key: &str) -> bool {
         self.values.contains_key(key)
     }
@@ -144,6 +151,7 @@ impl DialogFields {
         }
     }
 
+    /// `Text`, else `None`.
     pub fn text(&self, key: &str) -> Option<&str> {
         match self.values.get(key)? {
             FieldValue::Text(s) => Some(s),
@@ -151,6 +159,7 @@ impl DialogFields {
         }
     }
 
+    /// `Color` as RGB in 0–1, else `None`.
     pub fn color(&self, key: &str) -> Option<[f32; 3]> {
         match self.values.get(key)? {
             FieldValue::Color(c) => Some(*c),
@@ -158,6 +167,7 @@ impl DialogFields {
         }
     }
 
+    /// `Point` as `[x, y]`, else `None`.
     pub fn point(&self, key: &str) -> Option<[f64; 2]> {
         match self.values.get(key)? {
             FieldValue::Point(p) => Some(*p),
@@ -165,6 +175,7 @@ impl DialogFields {
         }
     }
 
+    /// `Grid` cells in row order, else `None`.
     pub fn grid(&self, key: &str) -> Option<&[i64]> {
         match self.values.get(key)? {
             FieldValue::Grid(g) => Some(g),
@@ -190,10 +201,12 @@ impl DialogFields {
         self.values.iter().map(|(k, v)| (k.as_str(), v))
     }
 
+    /// The number of keys.
     pub fn len(&self) -> usize {
         self.values.len()
     }
 
+    /// True when there are no keys.
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }

@@ -43,6 +43,7 @@ impl<T: PartialEq> MixedValue<T> {
         Some(if values.all(|value| value == first) { MixedValue::Same(first) } else { MixedValue::Mixed })
     }
 
+    /// Whether the items differ.
     pub fn is_mixed(&self) -> bool {
         matches!(self, MixedValue::Mixed)
     }
@@ -60,7 +61,9 @@ impl<T: PartialEq> MixedValue<T> {
 /// whether the selection's values differed, and whether the user chose to apply it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ApplyValue<T> {
+    #[allow(missing_docs)]
     pub value: T,
+    #[allow(missing_docs)]
     pub mixed: bool,
     /// Off until the user turns it on: opening the dialog or visiting a tab never turns mixed
     /// values into the first item's value.
@@ -99,6 +102,7 @@ pub struct ApplyRow<'a, T> {
 }
 
 impl<'a, T: Clone + PartialEq> ApplyRow<'a, T> {
+    /// A row labelled `label` for `apply`, identified by `id_salt`.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, apply: &'a mut ApplyValue<T>) -> Self {
         Self { id_salt: IdSalt::new(id_salt), label: label.into(), apply, labels: None }
     }

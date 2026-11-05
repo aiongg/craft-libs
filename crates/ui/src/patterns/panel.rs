@@ -86,6 +86,7 @@ pub struct Panel<'a> {
 }
 
 impl<'a> Panel<'a> {
+    /// A scrolling panel without title or footer. `id_salt` keys the scroll state.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id_salt: IdSalt::new(id_salt), title: None, scroll: true, fill: false, footer: None, footer_label: None, scroll_bar_label: None }
     }

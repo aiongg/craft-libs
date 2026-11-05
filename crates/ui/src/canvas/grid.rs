@@ -16,6 +16,7 @@ const MAX_CROSSINGS: usize = 200_000;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum GridLine {
     #[default]
+    #[allow(missing_docs)]
     Solid,
     /// Dashes of `guide.dash` with gaps of `guide.gap`.
     Dashed,
@@ -51,9 +52,11 @@ pub struct GridStyle {
     pub crossing_min: f32,
     /// Dashes and gaps of the Dashed style: `guide.dash`, `guide.gap`.
     pub dash: f32,
+    /// The gap length of the Dashed style, in screen points.
     pub gap: f32,
     /// Dot spacing and radius of the Dots style: `guide.dot_gap`, `guide.dot_radius`.
     pub dot_gap: f32,
+    /// The dot radius of the Dots style, in screen points.
     pub dot_radius: f32,
     /// `overlay.grid`.
     pub color: Color32,
@@ -145,6 +148,7 @@ impl CanvasGrid {
         self
     }
 
+    /// How the lines are drawn.
     pub fn line(mut self, line: GridLine) -> Self {
         self.line = line;
         self
@@ -158,6 +162,7 @@ impl CanvasGrid {
         self
     }
 
+    /// The grid look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GridStyle {
         let (g, guide) = (&tokens.component.grid, &tokens.component.guide);
         GridStyle {

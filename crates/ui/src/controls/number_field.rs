@@ -44,9 +44,11 @@ pub struct NumberFieldStyle {
     pub field: TextFieldStyle,
     /// The unit: `field.unit.rest` and `field.unit.disabled`.
     pub unit: Color32,
+    #[allow(missing_docs)]
     pub unit_disabled: Color32,
     /// The scrub label or icon: `field.scrub.rest` and `field.scrub.disabled`.
     pub scrub: Color32,
+    #[allow(missing_docs)]
     pub scrub_disabled: Color32,
 }
 
@@ -232,12 +234,22 @@ fn same_preset(current: f64, value: f64) -> bool {
 pub enum Preset {
     /// A number: a pick commits `value` as one edit. The row shows a check mark while the field
     /// holds `value` (not while it is [mixed](NumberField::mixed)).
-    Value { label: String, value: f64 },
+    Value {
+        #[allow(missing_docs)]
+        label: String,
+        #[allow(missing_docs)]
+        value: f64,
+    },
     /// A choice that is not a number (Auto, Metrics): a pick leaves the field's value alone and
     /// the host applies it. `checked` is the host's: the choice is current. Typing its label
     /// (any case) and committing picks it too, and while the field is mixed and the choice
     /// checked, the field shows the label where it would show the blank.
-    Choice { label: String, checked: bool },
+    Choice {
+        #[allow(missing_docs)]
+        label: String,
+        #[allow(missing_docs)]
+        checked: bool,
+    },
     /// A line between groups of rows.
     Separator,
 }
@@ -546,11 +558,13 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether the field takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -646,6 +660,7 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// The field's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> NumberFieldStyle {
         let f = &tokens.component.field;
         let mut field = TextField::style(tokens, size);

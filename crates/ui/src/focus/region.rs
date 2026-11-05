@@ -19,6 +19,7 @@ pub struct Region {
 }
 
 impl Region {
+    /// A region with the automation id `id` and the accessible name `label`.
     pub fn new(id: impl Into<String>, label: impl Into<String>) -> Region {
         Region { id: id.into(), label: label.into() }
     }
@@ -64,6 +65,7 @@ impl State {
 /// The commands F6 and Shift+F6 are bound to in the app's keymap (a user may rebind them).
 // figcraft: crates/ui-egui/src/a11y.rs:29-30.
 pub const NEXT_REGION_COMMAND: &str = "view.nextRegion";
+/// The command bound to Shift+F6, which moves to the previous region.
 pub const PREVIOUS_REGION_COMMAND: &str = "view.previousRegion";
 
 /// Region focus for one window, kept in egui memory by window.

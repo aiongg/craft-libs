@@ -23,6 +23,7 @@ pub struct SelectionFrameStyle {
     pub outline: f32,
     /// A dashed outline's dash and gap: `selection_frame.dash` (4) and `selection_frame.gap` (3).
     pub dash: f32,
+    /// The dash gap of a dashed outline, in screen points.
     pub gap: f32,
     /// What one [`grow`](SelectionFrame::grow) step adds to a grip: `selection_frame.grow_step`
     /// (1, VectorCraft's Size steps).
@@ -49,7 +50,9 @@ pub struct GripSetStyle {
     /// Fills by state: `overlay.grip` (#2f6bff), `overlay.grip_warm` (#ff7f9f), `overlay.grip_hot`
     /// (#ff3b3b), CadCraft's pinned colours.
     pub cold: Color32,
+    #[allow(missing_docs)]
     pub warm: Color32,
+    #[allow(missing_docs)]
     pub hot: Color32,
     /// A dynamic grip at rest: `overlay.grip_dyn` (#26c6e8, CadCraft's `grip_dyn`).
     pub dynamic: Color32,

@@ -33,6 +33,7 @@ pub struct Alert<'a> {
 }
 
 impl<'a> Alert<'a> {
+    /// An alert with a `title`, a `message` and one OK button. `id` keys the dialog's remembered state and focus, so keep it stable per alert kind.
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>, message: impl Into<String>) -> Self {
         Self { id: dialog_id(id), title: title.into(), message: message.into(), ok_label: "OK".to_owned(), stack: None }
     }

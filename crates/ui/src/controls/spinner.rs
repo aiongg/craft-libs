@@ -38,6 +38,7 @@ impl Default for Spinner {
 }
 
 impl Spinner {
+    /// A spinner at the control height in [`Content::Normal`].
     pub fn new() -> Self {
         Self { size: None, content: Content::Normal, label: None }
     }
@@ -48,6 +49,7 @@ impl Spinner {
         self
     }
 
+    /// Sets the colour role the spinner draws in.
     pub fn content(mut self, content: Content) -> Self {
         self.content = content;
         self

@@ -8,22 +8,33 @@ use super::{Placement, Side, Target, Zone};
 /// body of a frame or floating group that rejects tabs no target at all.
 #[derive(Clone, Debug)]
 pub struct DropTarget<P> {
+    /// A panel that names the group; a drop proposal is relative to it.
     pub anchor: P,
+    /// The group's rect, tab strip included.
     pub rect: Rect,
+    /// The tab strip's rect; `None` when the group has no strip.
     pub tab_strip: Option<Rect>,
+    /// Each tab's panel and rect, in display order.
     pub tabs: Vec<(P, Rect)>,
+    /// Whether a drop may split the group.
     pub allow_splits: bool,
+    /// Whether a drop may join the group as a tab.
     pub accepts_tabs: bool,
     /// The strip runs right to left: the first tab is rightmost, and an insertion slot sits
     /// at the right edge of the tab it precedes.
     pub right_to_left: bool,
 }
 
+/// Where a drop would land, from [`resolve_drop`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct DropProposal<P> {
+    /// The panel the placement is relative to.
     pub anchor: P,
+    /// Where the dropped panel goes relative to `anchor`.
     pub placement: Placement<P>,
+    /// The rect the drop would take, drawn as the drop preview.
     pub preview: Rect,
+    /// The insertion marker for a tab drop; `None` for other drops.
     pub insertion: Option<Rect>,
     /// The pointer addresses the tab's current insertion slot. The renderer also marks a drop
     /// that would leave every panel where it is, changing only sizes.
@@ -233,16 +244,24 @@ pub fn resolve_drop<P: Clone + Eq>(panel: &P, pointer: Pos2, targets: &[DropTarg
 /// ([`crate::docking::DockStyle::drop_edges`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Sides {
+    #[allow(missing_docs)]
     pub left: bool,
+    #[allow(missing_docs)]
     pub right: bool,
+    #[allow(missing_docs)]
     pub top: bool,
+    #[allow(missing_docs)]
     pub bottom: bool,
 }
 
 impl Sides {
+    /// All four sides.
     pub const ALL: Self = Self { left: true, right: true, top: true, bottom: true };
+    /// No side.
     pub const NONE: Self = Self { left: false, right: false, top: false, bottom: false };
+    /// The left and right sides.
     pub const LEFT_RIGHT: Self = Self { left: true, right: true, top: false, bottom: false };
+    /// The top and bottom sides.
     pub const TOP_BOTTOM: Self = Self { left: false, right: false, top: true, bottom: true };
 
     /// Whether `zone`'s side is in the set; never the center.
@@ -264,7 +283,12 @@ pub enum ZoneRule {
     Depth(f32),
     /// [`body_zone`] with this fraction; a split previews a `line` thick line along the
     /// group's edge on that side.
-    Fraction { fraction: f32, line: f32 },
+    Fraction {
+        /// Share of the body, from each edge, that means "beside".
+        fraction: f32,
+        /// Thickness in points of the preview line.
+        line: f32,
+    },
 }
 
 /// [`resolve_drop`] with the body zones of `rule`: [`crate::docking::DockStyle::zone_rule`]
@@ -407,7 +431,7 @@ pub(super) fn frame_proposal<P: Clone + Eq + Send + Sync + 'static>(ctx: &egui::
     resolve_drop_of(None, pointer, &snapshot.targets, snapshot.rule, snapshot.sides)
 }
 
-/// [D] A dock drop target, built once per frame next to the [`DropTarget`]s. The pointer selects
+/// \[D\] A dock drop target, built once per frame next to the [`DropTarget`]s. The pointer selects
 /// it inside `band`; `line` is the edge it docks to.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct DockDrop<P> {

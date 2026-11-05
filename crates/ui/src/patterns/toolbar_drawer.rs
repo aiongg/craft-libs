@@ -23,7 +23,9 @@ use crate::theme::{ToEgui, Tokens, TokensOf};
 /// A heading in the drawer and the tools under it ("Select", "Paint").
 #[derive(Clone, Debug, PartialEq)]
 pub struct DrawerGroup<T> {
+    /// The heading text. Translate it in the app.
     pub label: String,
+    /// The tools listed under the heading, in order.
     pub tools: Vec<RailTool<T>>,
 }
 
@@ -36,11 +38,24 @@ pub enum ToolbarEdit<T> {
     /// onto the toolbar: into slot `slot` at `index` of its tools
     /// (dropped onto a tool: joins its group), or as a new slot before slot index `before` (dropped
     /// between two slots).
-    Add { tool: RailTool<T>, at: DropAt },
+    Add {
+        /// The tool added.
+        tool: RailTool<T>,
+        /// Where it was dropped.
+        at: DropAt,
+    },
     /// A tool dragged from the toolbar into the drawer.
-    Remove { tool: T },
+    Remove {
+        /// The id of the tool removed.
+        tool: T,
+    },
     /// A tool dragged to another place in the toolbar.
-    Move { tool: T, at: DropAt },
+    Move {
+        /// The id of the tool moved.
+        tool: T,
+        /// Where it was dropped.
+        at: DropAt,
+    },
     /// "Restore Defaults" at the drawer's foot.
     Reset,
 }
@@ -49,15 +64,24 @@ pub enum ToolbarEdit<T> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DropAt {
     /// Into an existing slot's group, at this position of its tools.
-    Slot { slot: SlotId, index: usize },
+    Slot {
+        /// The slot's id.
+        slot: SlotId,
+        /// The position among the slot's tools.
+        index: usize,
+    },
     /// As a new slot before the slot at this index (the slot count for the end).
-    NewSlot { before: usize },
+    NewSlot {
+        /// The index of the slot the new one goes before.
+        before: usize,
+    },
 }
 
 /// What [`ToolbarDrawer::show`] returns.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct ToolbarDrawerOutput<T> {
+    /// The toolbar edits made this frame, in order.
     pub edits: Vec<ToolbarEdit<T>>,
     /// A tool clicked in the drawer: the host selects it, as a rail click would.
     pub select: Option<T>,
@@ -109,6 +133,8 @@ struct State {
 }
 
 impl ToolbarDrawer {
+    /// A drawer with English labels. `id_salt` keys its state and, until `rail` is called, names
+    /// the rail it edits.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         let id_salt = IdSalt::new(id_salt);
         Self { id: Id::unique("craft-ui-toolbar-drawer").with(id_salt), rail: id_salt, labels: None }
@@ -122,6 +148,7 @@ impl ToolbarDrawer {
         self
     }
 
+    /// The texts, translated. Without them the installed words are used.
     pub fn labels(mut self, labels: ToolbarDrawerLabels) -> Self {
         self.labels = Some(labels);
         self

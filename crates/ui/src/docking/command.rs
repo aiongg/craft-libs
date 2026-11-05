@@ -47,35 +47,53 @@ use crate::layout::SplitSize;
 #[serde(tag = "command", bound(serialize = "P: Serialize", deserialize = "P: Deserialize<'de>"))]
 #[non_exhaustive]
 pub enum DockCommand<P> {
+    /// Runs a raw layout [`Action`].
     #[serde(rename = "window.panel.layout")]
-    Layout { action: Action<P> },
+    Layout {
+        /// The action to run.
+        action: Action<P>,
+    },
+    /// Moves a panel next to `anchor`; `zone` and `before` choose where.
     #[serde(rename = "window.panel.move")]
     Move {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         anchor: P,
+        #[allow(missing_docs)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         zone: Option<ZoneName>,
+        #[allow(missing_docs)]
         #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
         before: Option<Option<P>>,
+        #[allow(missing_docs)]
         #[serde(default)]
         group: bool,
         /// A serialized [`Placement`]; it takes precedence over `zone` and `before`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         placement: Option<Placement<P>>,
     },
+    /// Floats a panel, at the given position and size when present.
     #[serde(rename = "window.panel.float")]
     Float {
+        #[allow(missing_docs)]
         panel: P,
+        /// Left edge in logical points. `None` keeps the current value.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         x: Option<f32>,
+        /// Top edge in logical points. `None` keeps the current value.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         y: Option<f32>,
+        /// Width in logical points. `None` keeps the current value.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         width: Option<f32>,
+        /// Height in logical points. `None` keeps the current value.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         height: Option<f32>,
+        #[allow(missing_docs)]
         #[serde(default)]
         group: bool,
+        #[allow(missing_docs)]
         #[serde(default)]
         column: bool,
     },
@@ -86,41 +104,75 @@ pub enum DockCommand<P> {
     /// last location, then moved to the edge a zone names.
     #[serde(rename = "window.panel.dock")]
     Dock {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         anchor: Option<P>,
+        #[allow(missing_docs)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         zone: Option<ZoneName>,
+        #[allow(missing_docs)]
         #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
         before: Option<Option<P>>,
+        #[allow(missing_docs)]
         #[serde(default)]
         group: bool,
+        #[allow(missing_docs)]
         #[serde(default)]
         column: bool,
+        #[allow(missing_docs)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         side: Option<Side>,
     },
     /// Select a panel; a hidden one is shown at its last location first.
     #[serde(rename = "window.panel.activate")]
-    Activate { panel: P },
+    Activate {
+        #[allow(missing_docs)]
+        panel: P,
+    },
+    /// Closes a panel.
     #[serde(rename = "window.panel.close")]
-    Close { panel: P },
+    Close {
+        #[allow(missing_docs)]
+        panel: P,
+    },
+    /// Closes every panel in the panel's group.
     #[serde(rename = "window.panel.closeGroup")]
-    CloseGroup { panel: P },
+    CloseGroup {
+        #[allow(missing_docs)]
+        panel: P,
+    },
+    /// Closes every panel in the panel's group except the panel.
     #[serde(rename = "window.panel.closeOthers")]
-    CloseOthers { panel: P },
+    CloseOthers {
+        #[allow(missing_docs)]
+        panel: P,
+    },
+    /// Minimizes or restores the panel's floating window, dock group or accordion entry;
+    /// `minimized` `None` toggles.
     #[serde(rename = "window.panel.minimize")]
     Minimize {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         minimized: Option<bool>,
     },
     /// Move the panel's dock group one place up or down its column.
     #[serde(rename = "window.panel.stepGroup")]
-    StepGroup { panel: P, up: bool },
+    StepGroup {
+        #[allow(missing_docs)]
+        panel: P,
+        /// Move toward the top of the column when true, toward the bottom when false.
+        up: bool,
+    },
+    /// Collapses the panel's dock column to an icon rail, or expands it; `iconic` `None` toggles.
     #[serde(rename = "window.panel.iconic")]
     Iconic {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         iconic: Option<bool>,
     },
@@ -128,22 +180,37 @@ pub enum DockCommand<P> {
     /// A docked panel's group floats first.
     #[serde(rename = "window.panel.window")]
     Window {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         native: Option<bool>,
     },
     /// Switch to a named workspace. The application owns named workspaces.
     #[serde(rename = "window.workspace")]
-    Workspace { name: String },
+    Workspace {
+        /// Workspace name.
+        name: String,
+    },
+    /// Create a named workspace from the current layout (application-owned).
     #[serde(rename = "window.workspace.new")]
-    NewWorkspace { name: String },
+    NewWorkspace {
+        /// Workspace name.
+        name: String,
+    },
+    /// Delete a named workspace (application-owned).
     #[serde(rename = "window.workspace.delete")]
-    DeleteWorkspace { name: String },
+    DeleteWorkspace {
+        /// Workspace name.
+        name: String,
+    },
     /// Reset the current workspace to its saved or built-in arrangement (application-owned).
     #[serde(rename = "window.workspace.reset", alias = "ui.dock.reset")]
     ResetWorkspace {},
+    /// Locks or unlocks the layout against user edits; `locked` `None` toggles.
     #[serde(rename = "window.workspace.lock")]
     Lock {
+        #[allow(missing_docs)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         locked: Option<bool>,
     },
@@ -156,7 +223,12 @@ pub enum DockCommand<P> {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged, bound(serialize = "P: Serialize", deserialize = "P: Deserialize<'de>"))]
 pub enum UiDock<P> {
-    Action { action: Action<P> },
+    /// A raw layout action.
+    Action {
+        /// The action to run.
+        action: Action<P>,
+    },
+    /// A named operation.
     Operation(DockOperation<P>),
 }
 
@@ -168,42 +240,66 @@ pub enum UiDock<P> {
 pub enum DockOperation<P> {
     /// Show a panel at its last location and select it.
     Open {
+        #[allow(missing_docs)]
         panel: P,
     },
+    /// Close a panel.
     Close {
+        #[allow(missing_docs)]
         panel: P,
     },
+    /// Select a panel.
     Activate {
+        #[allow(missing_docs)]
         panel: P,
     },
+    /// Float a panel in a window at `rect`.
     Float {
+        #[allow(missing_docs)]
         panel: P,
+        /// Window rect as `[x, y, width, height]` in logical points.
         rect: [f32; 4],
     },
+    /// Move or resize an already floating panel's window.
     MoveFloating {
+        #[allow(missing_docs)]
         panel: P,
+        /// Window rect as `[x, y, width, height]` in logical points.
         rect: [f32; 4],
     },
+    /// Move a panel next to `target`.
     Move {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         target: P,
+        #[allow(missing_docs)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         zone: Option<ZoneName>,
+        #[allow(missing_docs)]
         #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
         before: Option<Option<P>>,
     },
+    /// Open or close the panel's entry in its accordion stack.
     SetStackOpen {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         open: bool,
     },
     /// `height` is required; `null` clears it.
     ResizeStack {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         #[serde(deserialize_with = "required")]
         height: Option<f32>,
     },
+    /// Resize the split at `path` to `size`.
     ResizeSplit {
+        /// Path from the root: false is the first child, true the second.
         path: Vec<bool>,
+        #[allow(missing_docs)]
         size: SplitSize,
     },
 }
@@ -212,18 +308,26 @@ pub enum DockOperation<P> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ZoneName {
+    /// A tab in the anchor's group.
     Tab,
     #[serde(alias = "Center")]
+    #[allow(missing_docs)]
     Center,
     #[serde(alias = "Left")]
+    #[allow(missing_docs)]
     Left,
     #[serde(alias = "Right")]
+    #[allow(missing_docs)]
     Right,
     #[serde(alias = "Top")]
+    #[allow(missing_docs)]
     Top,
     #[serde(alias = "Bottom")]
+    #[allow(missing_docs)]
     Bottom,
+    /// A new group above the anchor's group in its dock column.
     Above,
+    /// A new group below the anchor's group in its dock column.
     Below,
 }
 

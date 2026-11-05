@@ -82,16 +82,19 @@ impl<'a> PointPicker<'a> {
         self
     }
 
+    /// The number of decimal places the fields show.
     pub fn decimals(mut self, decimals: usize) -> Self {
         self.decimals = decimals;
         self
     }
 
+    /// How a typing run reports ([`EditPolicy`]); the default reports every change at once.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// Whether the picker takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

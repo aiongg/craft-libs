@@ -186,6 +186,7 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
         self
     }
 
+    /// The resolved flyout style, read from `tokens.component.rail`.
     pub fn style(tokens: &UiTokens) -> FlyoutStyle {
         let r = &tokens.component.rail;
         let base = IconButton::style(tokens, ControlSize::Md);

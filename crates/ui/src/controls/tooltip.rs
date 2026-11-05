@@ -55,6 +55,7 @@ impl Tooltip {
     /// `interaction.tooltip_delay` in [`style_for`](crate::theme::style_for).
     pub const DELAY: f32 = 0.35;
 
+    /// The tooltip's sizes and colours from `tokens`.
     pub fn style(tokens: &UiTokens) -> TooltipStyle {
         let t = &tokens.component.tooltip;
         let popup = Frame::popup(&tokens.style);

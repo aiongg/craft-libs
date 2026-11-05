@@ -51,23 +51,31 @@ pub struct ListboxStyle {
     pub separator_pad: f32,
     /// `listbox.label` and `listbox.group_label`.
     pub label: TypeRole,
+    #[allow(missing_docs)]
     pub group_label: TypeRole,
     /// Corners of a row's fill: `listbox.radius`.
     pub radius: CornerRadius,
     /// `listbox.text.rest` and `listbox.text.disabled`.
     pub text: Color32,
+    #[allow(missing_docs)]
     pub text_disabled: Color32,
     /// `listbox.active.fill`, `.text` and `.border`: the active row.
     pub active_fill: Color32,
+    #[allow(missing_docs)]
     pub active_text: Color32,
+    #[allow(missing_docs)]
     pub active_border: Color32,
     /// `listbox.chosen.fill`, `.text` and `.border`: the chosen option, active or not.
     pub chosen_fill: Color32,
+    #[allow(missing_docs)]
     pub chosen_text: Color32,
+    #[allow(missing_docs)]
     pub chosen_border: Color32,
     /// `listbox.mark`, `listbox.group` and `listbox.separator`.
     pub mark: Color32,
+    #[allow(missing_docs)]
     pub group: Color32,
+    #[allow(missing_docs)]
     pub separator: Color32,
     /// The keyboard's active row, inside its edge: the focus ring's stroke ([`FocusRing::style`],
     /// `line.focus`).
@@ -409,6 +417,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -421,6 +430,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
+    /// Whether the select takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

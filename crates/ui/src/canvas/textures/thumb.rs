@@ -145,6 +145,7 @@ pub enum ThumbFit {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ThumbPaint {
+    /// How the picture fits its box.
     pub fit: ThumbFit,
     /// The checkerboard behind the picture's transparency (default on). Off for opaque pictures
     /// such as photos and pages.
@@ -160,16 +161,19 @@ impl Default for ThumbPaint {
 }
 
 impl ThumbPaint {
+    /// Sets how the picture fits its box.
     pub fn fit(mut self, fit: ThumbFit) -> Self {
         self.fit = fit;
         self
     }
 
+    /// Sets whether the checkerboard shows behind transparency.
     pub fn checker(mut self, checker: bool) -> Self {
         self.checker = checker;
         self
     }
 
+    /// Sets the tint that multiplies the picture.
     pub fn tint(mut self, tint: Color32) -> Self {
         self.tint = tint;
         self

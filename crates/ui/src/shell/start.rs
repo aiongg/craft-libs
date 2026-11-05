@@ -28,6 +28,7 @@ use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 /// files in step 4) and passes it every frame.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecentFile {
+    /// The file's full path; also the identity of the entry.
     pub path: PathBuf,
     /// The name shown: the file name without its folder.
     pub name: String,
@@ -42,10 +43,13 @@ pub struct RecentFile {
 /// A template card: a named document size or starter file.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Template {
+    /// The host's identifier, returned in [`StartAction::UseTemplate`].
     pub id: String,
+    /// The card's name. Translate it in the app.
     pub name: String,
     /// "1920 × 1080 px".
     pub detail: String,
+    /// A preview the host has loaded, drawn on the card.
     pub thumbnail: Option<egui::TextureId>,
 }
 
@@ -65,7 +69,9 @@ pub enum RecentSort {
     /// Most recently opened first.
     #[default]
     Opened,
+    /// By file name.
     Name,
+    /// Most recently created first.
     Created,
 }
 
@@ -77,6 +83,7 @@ pub enum StartAction {
     New,
     /// Open… (the host opens its file dialog).
     Open,
+    /// A recent file's card or row was opened: the host opens that path.
     OpenRecent(PathBuf),
     /// "Remove from Recent" on a card's context menu, or its × on hover.
     RemoveRecent(PathBuf),
@@ -84,10 +91,13 @@ pub enum StartAction {
     ClearRecent,
     /// "Show in Folder" on a card's context menu.
     RevealRecent(PathBuf),
+    /// A row of the Pinned Folders list was opened; the host shows that folder.
     OpenPinned(PathBuf),
     /// "Pin Folder…" (the host asks for a folder).
     PinFolder,
+    /// The × on a pinned folder's row was used; the host stops listing that folder.
     UnpinFolder(PathBuf),
+    /// A template card was chosen; the string is [`Template::id`].
     UseTemplate(String),
     /// The view or sort changed; the host stores it with its preferences.
     ViewChanged(RecentView, RecentSort),

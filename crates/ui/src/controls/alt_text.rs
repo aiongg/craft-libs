@@ -40,7 +40,9 @@ pub struct AltTextStyle {
 /// An object's alt text: its description and whether it is decorative (read by no one).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AltText {
+    /// The description; empty when none is set.
     pub text: String,
+    /// `true` when the object is decorative and needs no description.
     pub decorative: bool,
 }
 
@@ -78,6 +80,7 @@ pub struct AltTextField<'a> {
 }
 
 impl<'a> AltTextField<'a> {
+    /// A field editing `value`, identified by `id_salt`.
     pub fn new(id_salt: impl AsIdSalt, value: &'a mut AltText) -> Self {
         Self { id_salt: IdSalt::new(id_salt), value, mixed: false, enabled: true, labels: None }
     }
@@ -94,6 +97,7 @@ impl<'a> AltTextField<'a> {
         self
     }
 
+    /// Whether the field takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -106,6 +110,7 @@ impl<'a> AltTextField<'a> {
     }
 
     // deckcraft: crates/ui-egui/src/dialogs/body.rs:596 dlg_alt_text
+    /// Draws the field and reports the edited [`AltText`].
     pub fn show(self, ui: &mut Ui) -> EditResponse<AltText> {
         let Self { id_salt, value, mixed, enabled, labels } = self;
         let labels = labels.unwrap_or_else(|| AltTextLabels::of(ui));

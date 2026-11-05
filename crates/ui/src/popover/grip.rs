@@ -17,6 +17,7 @@ pub struct ResizeGrip {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct GripResponse {
+    /// The grip's interaction response (hover, press, drag).
     pub response: Response,
     /// The press began this frame.
     pub started: bool,

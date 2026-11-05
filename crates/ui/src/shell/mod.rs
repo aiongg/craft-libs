@@ -82,6 +82,7 @@ impl ShellCx {
         &self.window
     }
 
+    /// The body mode of this pass.
     pub fn body_mode(&self) -> BodyMode {
         self.mode
     }
@@ -161,6 +162,7 @@ pub struct AppShell<'a> {
 }
 
 impl<'a> AppShell<'a> {
+    /// A shell for `window` with no slots and a [`BodyMode::Normal`] body.
     pub fn new(window: WindowKey) -> Self {
         Self {
             window,
@@ -192,7 +194,7 @@ impl<'a> AppShell<'a> {
     }
 
     /// The title slot, the first top slot, with plain contents. `slot` should be keyed `"title"`.
-    /// For the window's title bar use [`title_bar`](Self::title_bar) (feature `window-frame`).
+    /// For the window's title bar use `title_bar` (feature `window-frame`).
     pub fn title(mut self, slot: Slot, add: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.title = Some((slot, Box::new(add)));
         self
@@ -222,6 +224,7 @@ impl<'a> AppShell<'a> {
         self
     }
 
+    /// Whether the slots show ([`BodyMode::Normal`]) or only the body ([`BodyMode::Only`]).
     pub fn body_mode(mut self, mode: BodyMode) -> Self {
         self.mode = mode;
         self

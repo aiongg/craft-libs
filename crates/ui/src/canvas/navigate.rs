@@ -332,7 +332,10 @@ pub enum PageKey {
     /// Scroll by this many screen points (positive: show what is below or to the right).
     Scroll(ScreenVec),
     /// Show the document's top-left corner (Home) or bottom-right corner (End).
-    Corner { end: bool },
+    Corner {
+        /// `true` for End (bottom-right), `false` for Home (top-left).
+        end: bool,
+    },
 }
 
 impl PageKey {
@@ -750,8 +753,9 @@ impl Default for TouchpadGlide {
 pub struct Autoscroll;
 
 impl Autoscroll {
-    /// Slowest and fastest scroll, points per second.
+    /// Slowest scroll, points per second.
     pub const MIN_SPEED: f32 = 120.0;
+    /// Fastest scroll, points per second.
     pub const MAX_SPEED: f32 = 2400.0;
     /// Extra speed per point the pointer is past the edge.
     pub const GAIN: f32 = 12.0;
@@ -1079,6 +1083,7 @@ pub struct ZoomTool {
     pub out: bool,
     /// The document's size in document units (the ladder's lower limit).
     pub size: Size,
+    /// The navigation preferences the tool reads.
     pub prefs: NavigationOptions,
     hold: Option<super::HoldZoom>,
     drag: Option<super::ZoomDrag>,
@@ -1087,6 +1092,7 @@ pub struct ZoomTool {
 }
 
 impl ZoomTool {
+    /// A zoom tool for a document of `size`, using `prefs`.
     pub fn new(size: Size, prefs: NavigationOptions) -> Self {
         Self { out: false, size, prefs, hold: None, drag: None, press: None }
     }

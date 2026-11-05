@@ -25,14 +25,22 @@ pub const NAVIGATOR_PROXY_COLOR_KEY: &str = "navigator.proxyColor";
 /// (as `GuideColor::Custom`). Serialised by variant name, `Custom` as `{"Custom": [r, g, b]}`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ProxyColor {
+    /// The theme's `navigator.proxy` colour.
     #[default]
     Default,
+    #[allow(missing_docs)]
     Red,
+    #[allow(missing_docs)]
     Orange,
+    #[allow(missing_docs)]
     Yellow,
+    #[allow(missing_docs)]
     Green,
+    #[allow(missing_docs)]
     Blue,
+    #[allow(missing_docs)]
     Violet,
+    #[allow(missing_docs)]
     Gray,
     /// Chosen with Custom… (the app's colour picker).
     Custom([u8; 3]),

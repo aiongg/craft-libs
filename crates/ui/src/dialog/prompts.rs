@@ -47,15 +47,31 @@ crate::words! {
 pub enum PromptKind {
     /// "Delete layer ‘Background’?" with Delete and Cancel. `names` are up to four display
     /// names; `count` the whole number.
-    ConfirmDelete { names: Vec<String>, count: usize },
+    ConfirmDelete {
+        /// Display names of the first few items.
+        names: Vec<String>,
+        /// How many items the action affects.
+        count: usize,
+    },
     /// A file with damaged data: Open Anyway or Cancel.
-    DamagedFile { name: String },
+    DamagedFile {
+        /// The file's name.
+        name: String,
+    },
     /// The document's own file changed on disk since it was opened or saved: Replace or Cancel
     /// (Save As keeps both; the message says so).
-    ChangedOnDisk { name: String },
+    ChangedOnDisk {
+        /// The document's file name.
+        name: String,
+    },
     /// A save would overwrite a file the save dialog did not ask about: Replace or Cancel.
     /// `answered` is the name the dialog answered, when it differs.
-    ReplaceFile { name: String, answered: Option<String> },
+    ReplaceFile {
+        /// The existing file's name.
+        name: String,
+        /// The name the save dialog answered, when it differs from `name`.
+        answered: Option<String>,
+    },
     /// Trashing a layer mask: Apply, Delete (the Alternate) or Cancel.
     TrashMask,
 }
@@ -67,6 +83,7 @@ pub enum PromptChoice {
     Proceed,
     /// The Alternate button where the prompt has one (Trash mask's Delete).
     Alternate,
+    /// Dismiss without acting.
     Cancel,
 }
 
@@ -74,6 +91,7 @@ pub enum PromptChoice {
 /// app gave the prompt, so a result says which question it answers (the document, the path, the
 /// layers).
 pub struct PromptAnswer {
+    /// The button the user pressed.
     pub choice: PromptChoice,
     tag: Option<Box<dyn Any + Send>>,
 }
@@ -130,31 +148,37 @@ pub struct StandardPrompt {
 }
 
 impl StandardPrompt {
+    /// A prompt asking `kind`, with no tag and no "Don't show again" box.
     pub fn new(kind: PromptKind) -> Self {
         Self { id: dialog_id(("standard-prompt", std::mem::discriminant(&kind))), kind, skip_key: None, skip: false, tag: None, noun: None }
     }
 
     // pc: crates/ui-egui/src/dialogs/delete_layer_prompt.rs:9 `intercept` (message, names, skip).
+    /// The delete confirmation for `count` items; `names` are the first few display names.
     pub fn confirm_delete(names: impl IntoIterator<Item = impl Into<String>>, count: usize) -> Self {
         Self::new(PromptKind::ConfirmDelete { names: names.into_iter().map(Into::into).collect(), count })
     }
 
     // pc: crates/ui-egui/src/dialogs/open_prompt.rs:185 `show_damage` and :206 `damage_body`.
+    /// The damaged-file question for the file `name`.
     pub fn damaged_file(name: impl Into<String>) -> Self {
         Self::new(PromptKind::DamagedFile { name: name.into() })
     }
 
     // pc: crates/ui-egui/src/dialogs/disk_change_prompt.rs:21 `intercept` and :37 `body`.
+    /// The changed-on-disk question for the file `name`.
     pub fn changed_on_disk(name: impl Into<String>) -> Self {
         Self::new(PromptKind::ChangedOnDisk { name: name.into() })
     }
 
     // pc: crates/ui-egui/src/dialogs/replace_prompt.rs:23 `open` and :31 `body`.
+    /// The replace-file question for `name`; `answered` is the name the save dialog answered, when it differs.
     pub fn replace_file(name: impl Into<String>, answered: Option<String>) -> Self {
         Self::new(PromptKind::ReplaceFile { name: name.into(), answered })
     }
 
     // pc: crates/ui-egui/src/dialogs/mask_trash_prompt.rs.
+    /// The layer-mask trash question.
     pub fn trash_mask() -> Self {
         Self::new(PromptKind::TrashMask)
     }
@@ -234,6 +258,7 @@ impl StandardPrompt {
         }
     }
 
+    /// The question this prompt asks.
     pub fn kind(&self) -> &PromptKind {
         &self.kind
     }

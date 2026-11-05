@@ -40,7 +40,9 @@ crate::words! {
 /// One item of the tree, in tree order (each folder followed by what it holds).
 #[derive(Clone, Debug, PartialEq)]
 pub struct TreeEntry<K> {
+    #[allow(missing_docs)]
     pub key: K,
+    #[allow(missing_docs)]
     pub name: String,
     /// The folder holding it; `None` at the top.
     pub parent: Option<K>,
@@ -132,11 +134,13 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether the picker takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -154,6 +158,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
     }
 
     // lightcraft: crates/ui-egui/src/widgets/album_picker.rs:201 show, :208 show_with_choices
+    /// Draws the picker and reports the picked entry's key.
     pub fn show(self, ui: &mut Ui) -> EditResponse<Option<K>> {
         let Self { id_salt, label, value, entries, placeholder, size, enabled, labels } = self;
         let labels = labels.unwrap_or_else(|| TreePickerLabels::of(ui));

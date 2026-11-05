@@ -142,7 +142,9 @@ pub use crate::localized::units::LengthUnit as SizeUnit;
 /// Resolution units of Image Size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResolutionUnit {
+    #[allow(missing_docs)]
     PixelsPerInch,
+    #[allow(missing_docs)]
     PixelsPerCentimetre,
 }
 
@@ -162,12 +164,19 @@ impl ResolutionUnit {
 pub enum Resample {
     /// Resample off: the pixel count is fixed, a physical size changes the resolution.
     None,
+    /// Lets the app pick the filter for enlarging or reducing.
     Automatic,
+    #[allow(missing_docs)]
     PreserveDetails,
+    #[allow(missing_docs)]
     Bicubic,
+    #[allow(missing_docs)]
     BicubicSmoother,
+    #[allow(missing_docs)]
     BicubicSharper,
+    #[allow(missing_docs)]
     Bilinear,
+    #[allow(missing_docs)]
     NearestNeighbor,
     /// Not in Photoshop's list; PhotoCraft offers it last.
     Lanczos,
@@ -176,15 +185,24 @@ pub enum Resample {
 /// A cell of the 3×3 anchor: which edge or corner of the current canvas stays put.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Anchor {
+    #[allow(missing_docs)]
     TopLeft,
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     TopRight,
+    #[allow(missing_docs)]
     Left,
     #[default]
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     BottomLeft,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     BottomRight,
 }
 
@@ -212,10 +230,15 @@ impl Anchor {
 /// What fills the new area of a grown canvas.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CanvasExtension {
+    /// The app's foreground colour.
     Foreground,
+    /// The app's background colour.
     Background,
+    #[allow(missing_docs)]
     White,
+    #[allow(missing_docs)]
     Black,
+    #[allow(missing_docs)]
     Gray,
     /// Picked in the colour picker, sRGB components 0..=1.
     Other([f32; 3]),
@@ -226,15 +249,20 @@ pub enum CanvasExtension {
 /// The sizes the host hands a size dialog and gets back.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PixelSize {
+    /// Width in pixels.
     pub width: u32,
+    /// Height in pixels.
     pub height: u32,
+    /// Resolution in pixels per inch.
     pub pixels_per_inch: f64,
 }
 
 /// What the user chose in Image Size.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImageSizeResult {
+    /// The new size.
     pub size: PixelSize,
+    /// The resampling filter.
     pub resample: Resample,
     /// Scale Styles: layer effects scale with the image (enabled while proportions are
     /// constrained).
@@ -244,8 +272,11 @@ pub struct ImageSizeResult {
 /// What the user chose in Canvas Size.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanvasSizeResult {
+    /// The new canvas size.
     pub size: PixelSize,
+    /// Which part of the current canvas stays put.
     pub anchor: Anchor,
+    /// What fills the added area.
     pub extension: CanvasExtension,
 }
 
@@ -265,8 +296,11 @@ pub struct LinkedSizeFields {
     pub original: PixelSize,
     /// The size being edited.
     pub current: PixelSize,
+    /// The unit the width and height fields show.
     pub unit: SizeUnit,
+    /// The unit the resolution field shows.
     pub resolution_unit: ResolutionUnit,
+    /// Keeps the aspect ratio when one side changes.
     pub constrain: bool,
     /// Whether the pixel count may change (Image Size with Resample on; always in Canvas Size).
     pub resampling: bool,
@@ -289,6 +323,7 @@ pub(super) enum Field {
 }
 
 impl LinkedSizeFields {
+    /// Fields for a document of size `original`, in pixels, constrained and resampling.
     pub fn new(original: PixelSize) -> Self {
         Self {
             original,
@@ -545,6 +580,7 @@ pub struct AnchorGrid<'a> {
 }
 
 impl<'a> AnchorGrid<'a> {
+    /// A grid editing `anchor`; `delta` is the width and height change, which decides the direction of the arrows drawn.
     pub fn new(anchor: &'a mut Anchor, delta: (f64, f64)) -> Self {
         Self { anchor, delta, arrows: true }
     }
@@ -699,6 +735,7 @@ pub struct ImageSizeDialog {
 }
 
 impl ImageSizeDialog {
+    /// An Image Size dialog for a document of size `original`.
     pub fn new(original: PixelSize) -> Self {
         Self {
             id: dialog_id("image-size"),
@@ -733,6 +770,7 @@ impl ImageSizeDialog {
         self
     }
 
+    /// The linked fields.
     pub fn fields(&self) -> &LinkedSizeFields {
         &self.fields
     }
@@ -848,6 +886,7 @@ pub struct CanvasSizeDialog {
 }
 
 impl CanvasSizeDialog {
+    /// A Canvas Size dialog for a document of size `original`; it has no chain and no constrain.
     pub fn new(original: PixelSize) -> Self {
         // Photoshop's Canvas Size has no linked proportions and no chain.
         let fields = LinkedSizeFields { constrain: false, chain: false, ..LinkedSizeFields::new(original) };
@@ -862,6 +901,7 @@ impl CanvasSizeDialog {
         }
     }
 
+    /// Sets the bytes per pixel the file size readout assumes; 4 by default.
     pub fn bytes_per_pixel(mut self, bytes: f64) -> Self {
         self.bytes_per_pixel = bytes;
         self
@@ -885,6 +925,7 @@ impl CanvasSizeDialog {
         self
     }
 
+    /// The linked fields.
     pub fn fields(&self) -> &LinkedSizeFields {
         &self.fields
     }

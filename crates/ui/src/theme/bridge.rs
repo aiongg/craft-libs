@@ -18,10 +18,13 @@ use crate::direction::{self, Direction, HasDirection};
 /// What an app shows: the selection resolved for each mode, and what it was resolved from.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Base {
+    /// The selection resolved for light mode.
     pub light: Shown,
+    /// The selection resolved for dark mode.
     pub dark: Shown,
     /// Which of the two egui shows; `System` follows egui's system theme.
     pub mode: ModeChoice,
+    /// What the two [`Shown`] were resolved from.
     pub inputs: Inputs,
 }
 
@@ -29,8 +32,11 @@ pub struct Base {
 /// overrides. Each `Shown` holds its appearance.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Inputs {
+    /// The theme used in light mode.
     pub light: ThemeDef,
+    /// The theme used in dark mode.
     pub dark: ThemeDef,
+    /// The app whose overrides apply; `None` for none.
     pub app: Option<AppId>,
     /// The app's size overrides, applied at every resolution.
     pub sizes: AppSizes,
@@ -135,9 +141,13 @@ pub fn install(ctx: &Context, base: &Base) {
 /// keep the outer value.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Overrides {
+    /// Forces light or dark.
     pub mode: Option<Mode>,
+    /// Forces a contrast level.
     pub contrast: Option<Contrast>,
+    /// Replaces the theme.
     pub theme: Option<ThemeDef>,
+    /// Replaces the size class.
     pub size: Option<Size>,
     /// Pinned over the theme's colours (and, in high contrast, over its high-contrast pins).
     pub colors: Pins,

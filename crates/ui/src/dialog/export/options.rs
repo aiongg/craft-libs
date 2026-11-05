@@ -55,8 +55,11 @@ crate::words! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum JpegFormat {
     #[default]
+    /// Standard sequential JPEG.
     Baseline,
+    /// Sequential JPEG with optimized Huffman tables (smaller file).
     BaselineOptimized,
+    /// Progressive JPEG that fills in over several scans.
     Progressive,
 }
 
@@ -65,6 +68,7 @@ pub enum JpegFormat {
 pub struct JpegOptions {
     /// Photoshop's scale, 0–12; [`jpeg_quality_percent`] gives the encoder's 1–100.
     pub quality: u8,
+    /// The JPEG encoding.
     pub format: JpegFormat,
 }
 
@@ -229,6 +233,7 @@ impl Default for TiffOptionsDialog {
 }
 
 impl TiffOptionsDialog {
+    /// The dialog with layers kept and the "don't show again" box off.
     pub fn new() -> Self {
         Self { id: dialog_id("tiff-options"), answer: TiffOptions { discard_layers: false, dont_show_again: false }, state: DialogState::new() }
     }
@@ -276,6 +281,7 @@ pub struct TargaOptionsDialog {
 }
 
 impl TargaOptionsDialog {
+    /// The dialog preset to `bits` per pixel: 32 when `bits` is 32, otherwise 24.
     pub fn new(bits: u8) -> Self {
         Self { id: dialog_id("targa-options"), bits: if bits == 32 { 32 } else { 24 }, state: DialogState::new() }
     }
@@ -311,6 +317,7 @@ impl StackDialog for TargaOptionsDialog {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DdsCompression {
     #[default]
+    /// No compression.
     None,
     /// BC1 / DXT1.
     Bc1,
@@ -323,7 +330,9 @@ pub enum DdsCompression {
 /// What DDS Options returns.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DdsOptions {
+    /// The block compression.
     pub compression: DdsCompression,
+    /// Generates mipmaps.
     pub mipmaps: bool,
 }
 
@@ -342,6 +351,7 @@ impl Default for DdsOptionsDialog {
 }
 
 impl DdsOptionsDialog {
+    /// The dialog with the default options (see [`DdsOptions::default`]).
     pub fn new() -> Self {
         Self { id: dialog_id("dds-options"), options: DdsOptions::default(), state: DialogState::new() }
     }

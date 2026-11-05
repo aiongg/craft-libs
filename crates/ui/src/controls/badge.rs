@@ -52,6 +52,7 @@ pub struct Badge {
 }
 
 impl Badge {
+    /// A neutral, soft badge showing `text`.
     pub fn new(text: impl Into<String>) -> Self {
         Self { text: text.into(), tone: BadgeTone::Neutral, style: BadgeStyle::Soft }
     }
@@ -61,16 +62,19 @@ impl Badge {
         Self::new(if n > MAX_COUNT { format!("{MAX_COUNT}+") } else { n.to_string() })
     }
 
+    /// Sets the colour tone.
     pub fn tone(mut self, tone: BadgeTone) -> Self {
         self.tone = tone;
         self
     }
 
+    /// Sets the fill style, soft or solid.
     pub fn style(mut self, style: BadgeStyle) -> Self {
         self.style = style;
         self
     }
 
+    /// The sizes and colours for `tone` and `style` from `tokens`.
     pub fn look(tokens: &UiTokens, tone: BadgeTone, style: BadgeStyle) -> BadgeLook {
         let b = &tokens.component.badge;
         let colors = b.colors(tone, style);

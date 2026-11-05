@@ -49,6 +49,8 @@ pub enum OverflowMenu {
 }
 
 impl TabKind {
+    /// How tab widths are fitted to the strip: whole titles for document and text tabs, shrinking
+    /// for panel tabs.
     pub fn fit_mode(self) -> FitMode {
         match self {
             Self::Document | Self::Text => FitMode::Whole,
@@ -56,6 +58,8 @@ impl TabKind {
         }
     }
 
+    /// Where the overflow button sits: at the strip's end for document and text tabs, after the
+    /// last tab for panel tabs.
     pub fn overflow_place(self) -> OverflowPlace {
         match self {
             Self::Document | Self::Text => OverflowPlace::StripEnd,
@@ -63,6 +67,8 @@ impl TabKind {
         }
     }
 
+    /// Which tabs the overflow menu lists: every tab for document and text tabs, the hidden
+    /// ones for panel tabs.
     pub fn overflow_menu(self) -> OverflowMenu {
         match self {
             Self::Document | Self::Text => OverflowMenu::AllTabs,
@@ -94,7 +100,9 @@ impl TabKind {
 /// The side of a tab its × is on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CloseSide {
+    /// The physical left side.
     Left,
+    /// The physical right side.
     Right,
 }
 
@@ -108,9 +116,11 @@ pub fn close_side(os: OperatingSystem, rtl: bool) -> CloseSide {
 /// What [`StripPlan::new`] lays out.
 #[derive(Clone, Debug)]
 pub struct StripPlanInput<'a> {
+    /// The kind of strip; sets the fit mode and the overflow rules.
     pub kind: TabKind,
     /// The strip's rect.
     pub rect: Rect,
+    /// Whether the interface reads right to left; the layout mirrors.
     pub rtl: bool,
     /// Width of the host's area at the reading start.
     pub leading: f32,
@@ -131,6 +141,7 @@ pub struct StripPlanInput<'a> {
 pub struct PlacedTab {
     /// The tab's index in the host's order.
     pub index: usize,
+    /// The tab's rect on the strip, in physical coordinates.
     pub rect: Rect,
 }
 
@@ -145,12 +156,15 @@ pub struct StripPlan {
     pub overflow: Option<Rect>,
     /// The host's areas; zero width when the host has none.
     pub leading: Rect,
+    /// The host's area at the reading end; zero width when the host has none.
     pub trailing: Rect,
     /// The space between the host's areas, where the tabs and the button go.
     pub tabs_area: Rect,
 }
 
 impl StripPlan {
+    /// Lays out one pass of the strip from `input`: which tabs show and where, which hide, and
+    /// where the overflow button and the host's areas go.
     pub fn new(input: &StripPlanInput<'_>) -> Self {
         let StripPlanInput { kind, rect, rtl, leading, trailing, natural, selected, min_width, overflow_width } = *input;
         let total = rect.width().max(0.0);
@@ -257,9 +271,13 @@ pub enum FocusSpot {
 /// A focus move on the strip, in reading order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FocusMove {
+    /// The tab before the focused one in reading order.
     Previous,
+    /// The tab after the focused one in reading order.
     Next,
+    /// The first tab in reading order.
     First,
+    /// The last tab in reading order.
     Last,
 }
 

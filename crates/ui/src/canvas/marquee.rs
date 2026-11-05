@@ -177,6 +177,7 @@ impl Marquee {
         self
     }
 
+    /// The marquee look in `tokens`.
     pub fn style(tokens: &UiTokens) -> MarqueeStyle {
         let (m, o) = (&tokens.component.marquee, &tokens.color.overlay);
         let (light, dark) = (o.marquee.to_egui(), o.marquee_dash.to_egui());
@@ -347,7 +348,9 @@ fn ellipse_points(view: &CanvasView, r: Rect) -> Vec<Pos2> {
 /// The two corners of a marquee in document space, as dragged: not ordered, not rounded.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct MarqueeRect {
+    /// The corner where the drag began.
     pub a: Point,
+    /// The corner where the pointer is now.
     pub b: Point,
 }
 

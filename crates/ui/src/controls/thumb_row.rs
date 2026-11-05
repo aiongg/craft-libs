@@ -121,7 +121,14 @@ pub enum Order {
     Free,
     /// At least `gap` above the value of thumb `below` and below that of thumb `above`. A drag
     /// stops there; it doesn't push the other thumb.
-    Between { below: Option<usize>, above: Option<usize>, gap: f64 },
+    Between {
+        /// The thumb whose value this one stays above, if any.
+        below: Option<usize>,
+        /// The thumb whose value this one stays below, if any.
+        above: Option<usize>,
+        /// The least distance kept from each of them, in the row's values.
+        gap: f64,
+    },
 }
 
 /// Where a thumb sits that a function of the row's values places (a levels gamma thumb, between
@@ -265,7 +272,9 @@ pub struct ThumbRowOutput<const N: usize> {
 /// a tap off the thumbs did to it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RowOp {
+    /// The thumb's index in the row.
     pub thumb: usize,
+    #[allow(missing_docs)]
     pub op: ScalarOp,
 }
 
@@ -687,6 +696,7 @@ impl<const N: usize> ThumbRow<N> {
         self
     }
 
+    /// Whether the row takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

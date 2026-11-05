@@ -117,6 +117,7 @@ crate::words! {
 }
 
 impl ScrollbarNames {
+    /// The accessible names of the two scroll bars.
     pub fn new(horizontal: impl Into<String>, vertical: impl Into<String>) -> Self {
         Self { horizontal: horizontal.into(), vertical: vertical.into() }
     }

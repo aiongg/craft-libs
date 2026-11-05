@@ -68,9 +68,13 @@ fn dragged_id(group: u64) -> Id {
 
 /// A document as its tab shows it.
 pub struct DocumentTab<D> {
+    /// Identifies the document in events.
     pub id: D,
+    /// Text of the tab.
     pub title: String,
+    /// Shows the modified marker on the tab.
     pub modified: bool,
+    /// Shows a close button on the tab.
     pub closable: bool,
 }
 
@@ -78,22 +82,31 @@ pub struct DocumentTab<D> {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DocumentTabEvent<D> {
+    /// The tab was clicked.
     Selected(D),
+    /// The tab's close button was clicked.
     CloseRequested(D),
     /// Reordered inside its group: now before `before` (`None`: last).
     Reordered {
+        #[allow(missing_docs)]
         document: D,
+        /// The tab it now sits before.
         before: Option<D>,
     },
     /// Dragged out of its strip and released outside every group: float it at `at`.
     TornOff {
+        #[allow(missing_docs)]
         document: D,
+        /// Pointer position at release, in screen points.
         at: Pos2,
     },
     /// Released over another group's strip, before `before`.
     DroppedInto {
+        #[allow(missing_docs)]
         document: D,
+        /// The destination group.
         group: u64,
+        /// The tab it now sits before (`None`: last).
         before: Option<D>,
     },
 }

@@ -51,6 +51,7 @@ pub enum PaintingCursor {
 /// Preferences › Cursors, as the app stores them; the host reads them each pass.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CursorOptions {
+    /// Which cursor the painting tools show.
     pub painting: PaintingCursor,
     /// Show Crosshair in Brush Tip: the outline draws its centre mark.
     pub crosshair_in_brush_tip: bool,
@@ -104,23 +105,59 @@ pub enum ToolCursor {
     /// An OS cursor.
     System(CursorIcon),
     /// The black-and-white crosshair bitmap (Precise), `length` each arm, `gap` around the centre.
-    Crosshair { length: f32, gap: f32 },
+    Crosshair {
+        /// Length of each arm, in screen points.
+        length: f32,
+        /// Empty gap around the centre, in screen points.
+        gap: f32,
+    },
     /// A circle of `radius` (a round brush tip at this zoom), with a centre mark when `centre`.
-    Circle { radius: f32, centre: bool },
+    Circle {
+        /// Circle radius, in screen points.
+        radius: f32,
+        /// Draw a centre mark.
+        centre: bool,
+    },
     /// Closed rings of offsets from the hotspot (a shaped brush tip), with a centre mark.
-    Outline { rings: Arc<[Vec<Vec2>]>, centre: bool },
+    Outline {
+        /// Closed rings of offsets from the hotspot, in screen points.
+        rings: Arc<[Vec<Vec2>]>,
+        /// Draw a centre mark.
+        centre: bool,
+    },
     /// The Hand tool: open, or the fist while dragging.
-    Hand { closed: bool },
+    Hand {
+        /// Show the fist (dragging) instead of the open hand.
+        closed: bool,
+    },
     /// The Zoom tool's magnifier, with a minus when it zooms out.
-    Zoom { out: bool },
+    Zoom {
+        /// Show a minus: the tool zooms out.
+        out: bool,
+    },
     /// The tool's icon at `hotspot` (offset from the icon's top-left in the icon set's 24-unit box),
     /// with a dark outline so it reads on any image, plus a badge beside it.
-    Tool { icon: Icon, hotspot: Vec2, badge: Option<CursorBadge> },
+    Tool {
+        /// The tool's icon.
+        icon: Icon,
+        /// The pointer's hotspot, offset from the icon's top-left in the icon set's 24-unit box.
+        hotspot: Vec2,
+        /// A badge beside the icon, if any.
+        badge: Option<CursorBadge>,
+    },
     /// The system arrow with a badge beside it.
-    Arrow { badge: Option<CursorBadge> },
+    Arrow {
+        /// A badge beside the arrow, if any.
+        badge: Option<CursorBadge>,
+    },
     /// `cursor` with `badge` centred on the hotspot: the + or − inside a brush circle
     /// (`BrushCursor::badge`).
-    Badged { cursor: Box<ToolCursor>, badge: CursorBadge },
+    Badged {
+        /// The cursor drawn under the badge.
+        cursor: Box<ToolCursor>,
+        /// The badge centred on the hotspot.
+        badge: CursorBadge,
+    },
     /// No pointer: the tool paints its own (a text caret, a transform box's turn arrow).
     Hidden,
 }
@@ -289,6 +326,7 @@ impl CursorHost {
         ctx.data(|d| d.get_temp::<CapsLock>(caps_lock_id())).is_some_and(|c| c.on)
     }
 
+    /// The cursor look in `tokens`: line and halo colours, sizes and badge style.
     pub fn style(tokens: &UiTokens) -> CursorStyle {
         let c = &tokens.component.cursor;
         CursorStyle {

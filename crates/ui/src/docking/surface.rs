@@ -8,22 +8,35 @@ use super::{Action, DockConfig, DockError, DockLook, DockSpec, DropTarget, Layou
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct DockStyle {
+    /// Height of a tab strip in points.
     pub tab_height: f32,
+    /// Space between adjacent controls, in points.
     pub gap: f32,
     /// Vertical gap between stacked controls in a panel body.
     pub body_gap: f32,
+    /// Smallest size in points a pane keeps when it is resized.
     pub min_pane: f32,
+    /// Fill of panel bodies.
     pub background: Color32,
+    /// Fill of tab strips.
     pub tab_background: Color32,
+    /// Fill of the selected tab and the tab under the pointer.
     pub active_background: Color32,
+    #[allow(missing_docs)]
     pub text: Color32,
+    #[allow(missing_docs)]
     pub inactive_text: Color32,
+    /// Outline of panel bodies and the dock's edges.
     pub border: Stroke,
+    #[allow(missing_docs)]
     pub accent: Color32,
+    #[allow(missing_docs)]
     pub font: FontId,
     /// Localize these accessibility labels in the application adapter. The menu rows are [`crate::docking::panel_menu::PanelMenuLabels`].
     pub panels_label: String,
+    /// Accessibility label of the handles that resize the split tree's panes.
     pub resize_label: String,
+    /// Accessibility label of a floating window's resize handles.
     pub resize_window_label: String,
     /// Accessibility label of a group's drag bar and top border.
     pub move_group_label: String,
@@ -42,6 +55,7 @@ pub struct DockStyle {
     pub min_tab_width: f32,
     /// Painted under every floating window, so it stays opaque when the panel colors are not.
     pub floating_background: Color32,
+    /// Outline of a floating window.
     pub floating_stroke: Stroke,
     /// Painted over a native floating window while [`DockArea::input_blocked`] is on.
     pub blocked_dim: Color32,
@@ -78,48 +92,53 @@ pub struct DockStyle {
     /// zero). Other drops beside a group, column or dock preview the rect the moved panels
     /// take. Border bands reach 4 pt past this line into a tab strip.
     pub drop_line_width: f32,
-    /// [D] The docking profile. The docked area's left and right edges, where no dock is yet,
+    /// \[D\] The docking profile. The docked area's left and right edges, where no dock is yet,
     /// take a drop as a new dock (see [`Self::new_dock_band`]). Without
     /// [`Self::side_edge_zones`], the body of a frame or floating group that takes no tabs (a
     /// canvas) takes no drop: a release there floats as over no target.
     pub new_dock_zones: bool,
-    /// [D] Height of the bar above each dock column. It drags the column and holds its »/« button.
+    /// \[D\] Height of the bar above each dock column. It drags the column and holds its »/« button.
     pub column_bar_height: f32,
-    /// [D] Height of the band centred on the seam between two stacked groups in a dock column
+    /// \[D\] Height of the band centred on the seam between two stacked groups in a dock column
     /// (28 pt).
     pub seam_band: f32,
-    /// [D] Width of the band centred on each edge of a dock column, where a drop makes a new
+    /// \[D\] Width of the band centred on each edge of a dock column, where a drop makes a new
     /// column (28 pt).
     pub column_edge_band: f32,
-    /// [D] Width of the band along the docked area's left and right edges, and inside an empty
+    /// \[D\] Width of the band along the docked area's left and right edges, and inside an empty
     /// dock, that makes a new dock (28 pt).
     pub new_dock_band: f32,
-    /// [D] Side of a panel icon in an iconic column; each icon row is 10 pt taller.
+    /// \[D\] Side of a panel icon in an iconic column; each icon row is 10 pt taller.
     pub icon_size: f32,
-    /// [D] Width of an iconic column without a saved width, and the narrowest it gets.
+    /// \[D\] Width of an iconic column without a saved width, and the narrowest it gets.
     pub iconic_width: f32,
-    /// [D] Widest an iconic column gets by dragging its inner edge.
+    /// \[D\] Widest an iconic column gets by dragging its inner edge.
     pub iconic_max_width: f32,
-    /// [D] An iconic column at least this wide shows panel names beside the icons.
+    /// \[D\] An iconic column at least this wide shows panel names beside the icons.
     pub iconic_label_width: f32,
-    /// [D] Lay docks out right to left: `Side::Start` is the right edge. egui has no app-wide
+    /// \[D\] Lay docks out right to left: `Side::Start` is the right edge. egui has no app-wide
     /// layout direction, so the host sets this from its locale. Splits keep their sides.
     pub right_to_left: bool,
-    /// [D] Accessibility label of a column bar.
+    /// \[D\] Accessibility label of a column bar.
     pub move_column_label: String,
-    /// [D] Accessibility labels of the column bar's »/« button.
+    /// \[D\] Accessibility labels of the column bar's »/« button.
     pub collapse_column_label: String,
+    /// \[D\] Accessibility label of the column bar's expand button.
     pub expand_column_label: String,
+    /// \[D\] Accessibility label of a floating window's move bar.
     pub move_window_label: String,
+    /// \[D\] Accessibility label of a floating window's close button.
     pub close_window_label: String,
     /// Group menu items Close Other Panels in Group, and Maximize Frame / Restore Frame Size
     /// for groups of the split tree, each shown when its flag is on.
     pub close_others_item: bool,
+    /// Shows Maximize Frame / Restore Frame Size in the group menu.
     pub maximize_item: bool,
     /// Shown under the pointer while a drag offers a docking target, when [`Self::float_hint`]
     /// is on. `{key}` stands for the modifier that floats the drop instead: ⌘ on macOS, Ctrl
     /// elsewhere.
     pub float_hint_label: String,
+    /// Shows [`Self::float_hint_label`] while a drag offers a docking target.
     pub float_hint: bool,
     /// Ctrl/Cmd held when a tab drag of a split-tree group starts makes its drop float, even
     /// when the key is let go during the drag. Off: only the key held at the drop counts.
@@ -133,7 +152,7 @@ pub struct DockStyle {
     pub title_bar_docks: bool,
     /// Show the built-in Close items in tab and group menus (Close Panel, Close Tab Group,
     /// Close Other Panels in Group) for closable panels. A host that draws its own Close items
-    /// turns this off and keeps [`Permissions::closable`], so its close actions still apply.
+    /// turns this off and keeps `Permissions::closable`, so its close actions still apply.
     pub close_menu_items: bool,
     /// End every group's tab strip with a ≡ button that opens the selected panel's menu, the one
     /// its tab opens. The host's group header sits before it.
@@ -316,9 +335,12 @@ impl DockStyle {
     }
 }
 
+/// What a [`DockArea`] frame produced for the host to apply.
 #[derive(Clone, Debug)]
 pub struct DockOutput<P> {
+    /// The layout actions the user's gestures asked for this frame. The host applies them.
     pub actions: Vec<Action<P>>,
+    /// Set, with nothing drawn, when the layout or the style, limits or area were invalid.
     pub error: Option<DockError>,
     /// The panel the user focused this frame: a clicked tab or menu entry, a drop, or a press
     /// of any pointer button in a panel body (stripless panels included) or in a group header,
@@ -600,23 +622,36 @@ fn record_tab_focus<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(ctx: &
 pub enum DockEvent<P> {
     /// Maximize Frame: maximize the frame holding `panel`, or restore it when it is the one
     /// passed to [`DockArea::maximized`].
-    ToggleMaximize { panel: P },
-    /// [D] Auto-Collapse Iconic Panels was chosen in a column menu. The host flips its
+    ToggleMaximize {
+        /// A panel of the frame to maximize or restore.
+        panel: P,
+    },
+    /// \[D\] Auto-Collapse Iconic Panels was chosen in a column menu. The host flips its
     /// preference and passes it to [`DockArea::auto_collapse_iconic`].
     ToggleAutoCollapse,
-    /// [D] The area's flyout opened, switched to another panel or closed (`None`), whatever
+    /// \[D\] The area's flyout opened, switched to another panel or closed (`None`), whatever
     /// changed it: an icon, Escape, a press outside, a raised panel, a group that is no longer
     /// iconic, or [`super::open_flyout`] and [`super::close_flyout`]. It comes once per change,
     /// in the frame that draws the change.
-    FlyoutChanged { panel: Option<P> },
+    FlyoutChanged {
+        /// The panel now in the flyout; `None` when it closed.
+        panel: Option<P>,
+    },
     /// A row of the panel's menu ([`DockContent::panel_menu_entries`]) was chosen; `command` is
     /// the row's id. The host runs it as it runs a menu bar command.
-    PanelCommand { panel: P, command: super::panel_menu::PanelCommand },
+    PanelCommand {
+        /// The panel whose menu the row belongs to.
+        panel: P,
+        /// The chosen row's id.
+        command: super::panel_menu::PanelCommand,
+    },
 }
 
 /// Which panels [`DockArea::hide_panels`] hides. Protected panels always stay.
 pub enum HidePanels<'a, P> {
+    /// Hides none.
     None,
+    /// Hides every panel.
     All,
     /// Every panel except those for which the function returns true.
     Except(&'a dyn Fn(&P) -> bool),
@@ -636,7 +671,9 @@ impl<P> Copy for HidePanels<'_, P> {}
 /// a maximum lifts the maximum of the panels it joins.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PanelLimits {
+    /// Smallest body size in points.
     pub min: Vec2,
+    /// Largest body size in points.
     pub max: Vec2,
 }
 
@@ -681,11 +718,13 @@ impl DockHeights {
         Self { default, compact: default, fill: 0.0 }
     }
 
+    /// Sets the height in points the group gives way down to.
     pub fn compact(mut self, compact: f32) -> Self {
         self.compact = compact;
         self
     }
 
+    /// Sets the height in points the group asks for when it fills the column.
     pub fn fill(mut self, fill: f32) -> Self {
         self.fill = fill;
         self
@@ -729,7 +768,7 @@ pub(super) enum GroupGesture {
     Window,
     /// A drag bar or top border: a ghost follows the pointer, the release picks the target.
     Group,
-    /// [D] A column bar: like `Group`, for the whole dock column.
+    /// \[D\] A column bar: like `Group`, for the whole dock column.
     Column,
 }
 
@@ -851,6 +890,7 @@ pub fn send_keys(ctx: &Context, viewport: egui::ViewportId, events: Vec<egui::Ev
 /// [`DockArea::show_content`] reads every policy from here; the closures passed to the older
 /// `show*` functions override `logical_label`, `permissions` and `limits`.
 pub trait DockContent<P> {
+    /// Draws the panel's body into `ui`.
     fn body(&mut self, ui: &mut Ui, panel: &P);
     /// Plain text name for accessibility, menus and the default visual label.
     fn logical_label(&self, panel: &P) -> String
@@ -859,9 +899,11 @@ pub trait DockContent<P> {
     {
         format!("{panel:?}")
     }
+    /// What the user may do with the panel (default: everything).
     fn permissions(&self, _panel: &P) -> Permissions {
         Permissions::default()
     }
+    /// Body size limits of the panel (default: none).
     fn limits(&self, _panel: &P) -> PanelLimits {
         PanelLimits::default()
     }
@@ -915,6 +957,7 @@ pub trait DockContent<P> {
     fn resolve_drag(&mut self, _ctx: &Context, _style: &DockStyle, _request: &DropRequest<'_, P>) -> Option<DropFeedback> {
         None
     }
+    /// The text shown for `logical`, the panel's label; the default shows it as is.
     fn label(&mut self, _ui: &Ui, _panel: &P, logical: &str, _font: &FontId, _color: Color32) -> egui::WidgetText {
         logical.into()
     }
@@ -923,6 +966,8 @@ pub trait DockContent<P> {
     fn action_label(&mut self, _ui: &Ui, logical: &str, _font: &FontId, _color: Color32) -> egui::WidgetText {
         logical.into()
     }
+    /// Draws extra rows in `panel`'s menu, after the group items. Ignored when
+    /// [`Self::panel_menu_entries`] returns rows.
     fn panel_menu(&mut self, _ui: &mut Ui, _panel: &P) {}
     /// The rows of `panel`'s menu as library menu entries (checks, radios, submenus,
     /// separators), translated. When non-empty they replace [`Self::panel_menu`]: the renderer
@@ -961,19 +1006,30 @@ pub trait DockContent<P> {
 
 /// Host-owned drop resolution request, see [`DockContent::resolve_drag`].
 pub struct DropRequest<'a, P> {
+    /// The dragged panel.
     pub panel: &'a P,
+    /// Pointer position in screen points.
     pub pointer: Pos2,
+    /// The drop targets the renderer found this frame.
     pub targets: &'a [DropTarget<P>],
+    /// The rect of the window being dragged by its title bar; `None` for a tab or group drag.
     pub floating_rect: Option<Rect>,
+    /// The drag carries the panel's whole group, not one tab.
     pub whole_group: bool,
+    /// The pointer was released this frame, so the drop happens now.
     pub released: bool,
+    /// The dock area's rect.
     pub workspace: Rect,
+    /// The bounds floating windows may use.
     pub screen: Rect,
 }
 
+/// What the host's [`DockContent::resolve_drag`] draws while a drag hovers its own target.
 #[derive(Clone, Debug, Default)]
 pub struct DropFeedback {
+    /// Outline of the area the drop would take.
     pub preview: Option<Rect>,
+    /// Insertion marker drawn in the drop color.
     pub insertion: Option<Rect>,
 }
 
@@ -1073,6 +1129,7 @@ pub struct DockArea<'a, P = ()> {
 }
 
 impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
+    /// A dock area whose state is stored under `id`.
     pub fn new(id: Id) -> Self {
         Self {
             id,
@@ -1154,7 +1211,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         self
     }
 
-    /// [D] Auto-Collapse Iconic Panels (default off): a flyout closes on Escape or a press
+    /// \[D\] Auto-Collapse Iconic Panels (default off): a flyout closes on Escape or a press
     /// outside it. Off, it stays open until its icon or another icon is clicked.
     pub fn auto_collapse_iconic(mut self, on: bool) -> Self {
         self.auto_collapse = on;

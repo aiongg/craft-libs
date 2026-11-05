@@ -30,23 +30,41 @@ crate::words! {
 /// settings for; [`PageInfo::new`] adds its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StandardPage {
+    #[allow(missing_docs)]
     General,
+    #[allow(missing_docs)]
     Interface,
+    #[allow(missing_docs)]
     Workspace,
+    #[allow(missing_docs)]
     Tools,
+    #[allow(missing_docs)]
     HistoryLog,
+    #[allow(missing_docs)]
     FileHandling,
+    #[allow(missing_docs)]
     Export,
+    #[allow(missing_docs)]
     Performance,
+    #[allow(missing_docs)]
     ScratchDisks,
+    #[allow(missing_docs)]
     Cursors,
+    #[allow(missing_docs)]
     TransparencyAndGamut,
+    #[allow(missing_docs)]
     UnitsAndRulers,
+    #[allow(missing_docs)]
     GuidesGridAndSlices,
+    #[allow(missing_docs)]
     PlugIns,
+    #[allow(missing_docs)]
     Type,
+    #[allow(missing_docs)]
     EnhancedControls,
+    #[allow(missing_docs)]
     RawDefaults,
+    #[allow(missing_docs)]
     Integrations,
 }
 
@@ -107,11 +125,14 @@ impl StandardPage {
 /// under `settingsPage.<id>`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PageInfo {
+    /// The top-level key of the settings struct the page shows (`"interface"`).
     pub id: String,
+    /// The English title; translated under `settingsPage.<id>`.
     pub title: String,
 }
 
 impl PageInfo {
+    /// A page with the given id and English title.
     pub fn new(id: impl Into<String>, title: impl Into<String>) -> Self {
         Self { id: id.into(), title: title.into() }
     }
@@ -138,7 +159,9 @@ pub struct SettingRule {
     pub key: String,
     /// English label; without one the key's last part is spelled out ([`setting_label`]).
     pub label: Option<String>,
+    /// English help text shown with the row; `None` shows none.
     pub help: Option<String>,
+    /// The control to use; `None` picks it from the value's type.
     pub kind: Option<RuleKind>,
     /// Shown only while another setting has this value.
     pub shown_when: Option<(String, String)>,
@@ -158,9 +181,21 @@ pub struct SettingRule {
 #[derive(Clone, Debug, PartialEq)]
 pub enum RuleKind {
     /// An integer field limited to the range.
-    Int { range: RangeInclusive<i64>, unit: Option<String> },
+    Int {
+        /// The values the field accepts.
+        range: RangeInclusive<i64>,
+        /// Text shown after the field ("px"); `None` shows none.
+        unit: Option<String>,
+    },
     /// A number field limited to the range.
-    Float { range: RangeInclusive<f64>, decimals: u8, unit: Option<String> },
+    Float {
+        /// The values the field accepts.
+        range: RangeInclusive<f64>,
+        /// How many decimal places the field shows.
+        decimals: u8,
+        /// Text shown after the field ("%"); `None` shows none.
+        unit: Option<String>,
+    },
     /// A list of `(id, English label)`; labels translate under `setting.<key>.<id>`.
     Choice(Vec<(String, String)>),
     /// A `#rrggbb` string as a swatch and hex field.
@@ -170,6 +205,7 @@ pub enum RuleKind {
 }
 
 impl SettingRule {
+    /// A rule for the setting at the dotted `key` (`"<page>.<key>"`), with no overrides.
     pub fn new(key: impl Into<String>) -> Self {
         Self {
             key: key.into(),
@@ -185,21 +221,25 @@ impl SettingRule {
         }
     }
 
+    /// Sets the English label; it translates under `setting.<key>`.
     pub fn label(mut self, english: impl Into<String>) -> Self {
         self.label = Some(english.into());
         self
     }
 
+    /// Sets the English help text shown with the row; it translates under `setting.<key>.help`.
     pub fn help(mut self, english: impl Into<String>) -> Self {
         self.help = Some(english.into());
         self
     }
 
+    /// An integer field limited to `range`.
     pub fn int(mut self, range: RangeInclusive<i64>) -> Self {
         self.kind = Some(RuleKind::Int { range, unit: None });
         self
     }
 
+    /// A number field limited to `range`, showing `decimals` decimal places.
     pub fn float(mut self, range: RangeInclusive<f64>, decimals: u8) -> Self {
         self.kind = Some(RuleKind::Float { range, decimals, unit: None });
         self
@@ -213,6 +253,7 @@ impl SettingRule {
         self
     }
 
+    /// A choice among `(id, English label)` pairs; labels translate under `setting.<key>.<id>`.
     pub fn choices(mut self, options: &[(&str, &str)]) -> Self {
         self.kind = Some(RuleKind::Choice(options.iter().map(|(id, label)| ((*id).to_owned(), (*label).to_owned())).collect()));
         self
@@ -228,41 +269,50 @@ impl SettingRule {
         self.choices(&options)
     }
 
+    /// A `#rrggbb` string shown as a swatch and hex field.
     pub fn color(mut self) -> Self {
         self.kind = Some(RuleKind::Color);
         self
     }
 
+    /// The app draws the control ([`CustomSettings::row`]).
     pub fn custom(mut self) -> Self {
         self.kind = Some(RuleKind::Custom);
         self
     }
 
+    /// Shows the row only while the setting at `key` has `value`.
     pub fn shown_when(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.shown_when = Some((key.into(), value.into()));
         self
     }
 
+    /// Never shows the row.
     pub fn hidden(mut self) -> Self {
         self.hidden = true;
         self
     }
 
+    /// Shows the row only on Linux.
     pub fn linux_only(mut self) -> Self {
         self.linux_only = true;
         self
     }
 
+    /// Marks the setting as read at launch: "Applies at next launch." shows under the control.
     pub fn restart(mut self) -> Self {
         self.restart = true;
         self
     }
 
+    /// Keeps the setting's value when the user resets its page.
     pub fn keep_on_reset(mut self) -> Self {
         self.keep_on_reset = true;
         self
     }
 
+    /// Puts the row in the titled group `english`; the title translates under
+    /// `settingGroup.<english>`.
     pub fn group(mut self, english: impl Into<String>) -> Self {
         self.group = Some(english.into());
         self
@@ -280,6 +330,7 @@ pub trait CustomSettings<T> {
     /// Dialogs opened from a custom row (a colour picker), drawn last in the window's viewport.
     /// A dialog's answer goes into `draft`.
     fn nested(&mut self, _ctx: &Context, _draft: &mut SettingsDraft) {}
+    /// Whether a dialog drawn by [`Self::nested`] is open.
     fn nested_open(&self) -> bool {
         false
     }
@@ -469,6 +520,7 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
         self
     }
 
+    /// The per-setting rules. A later rule for the same key replaces an earlier one.
     pub fn rules(mut self, rules: Vec<SettingRule>) -> Self {
         self.rules = rules.into_iter().map(|r| (r.key.clone(), r)).collect();
         self.texts = OnceLock::new();
@@ -533,6 +585,7 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
         self.applied.take()
     }
 
+    /// The app's custom part, the same as [`Self::custom_mut`].
     pub fn custom_part(&mut self) -> &mut C {
         &mut self.custom
     }

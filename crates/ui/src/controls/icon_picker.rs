@@ -32,7 +32,9 @@ crate::words! {
 /// One cell: what it picks, its name (tooltip, AccessKit, search) and more words it is found by.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IconPickerItem<K> {
+    #[allow(missing_docs)]
     pub key: K,
+    #[allow(missing_docs)]
     pub label: String,
     /// Words the search also matches ("arrow", "direction"); PdfCraft finds a tool by its menus'
     /// commands this way.
@@ -42,7 +44,9 @@ pub struct IconPickerItem<K> {
 /// A titled group of cells; with a search typed the groups with no match are hidden.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IconPickerGroup<K> {
+    #[allow(missing_docs)]
     pub name: String,
+    #[allow(missing_docs)]
     pub items: Vec<IconPickerItem<K>>,
 }
 
@@ -163,6 +167,7 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
 
     // deckcraft: crates/ui-egui/src/ribbon/insert.rs:199 icon_library, :217 icon_cell
     // pdfcraft: crates/ui-egui/src/panels/all_tools_ui.rs:45 show (groups, search)
+    /// Draws the search field and the grid, and reports the cell picked.
     pub fn show(self, ui: &mut Ui) -> IconPickerOutput<K> {
         let Self { id_salt, label, groups, paint, max_height, labels } = self;
         let labels = labels.unwrap_or_else(|| IconPickerLabels::of(ui));

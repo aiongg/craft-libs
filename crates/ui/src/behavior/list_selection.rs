@@ -274,7 +274,12 @@ pub enum Step {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ListKey {
     /// Move the lead and select it alone, or with `extend` extend the range from the anchor to it.
-    Select { step: Step, extend: bool },
+    Select {
+        /// How far the lead moves.
+        step: Step,
+        /// Whether the range from the anchor extends to the new lead instead of selecting it alone.
+        extend: bool,
+    },
     /// Move the lead without changing the selection.
     MoveLead(Step),
     /// Toggle the lead's row (select it in single mode).

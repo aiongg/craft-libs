@@ -34,20 +34,29 @@ pub enum SelectText {
 /// A line's look, for underline, stroke and border style lists.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LineStyle {
+    #[allow(missing_docs)]
     Solid,
     /// Two thin lines 3 points apart.
     Double,
     /// 2.5 points wide.
     Thick,
+    #[allow(missing_docs)]
     Dotted,
+    #[allow(missing_docs)]
     Dashed,
+    #[allow(missing_docs)]
     DotDash,
+    #[allow(missing_docs)]
     DotDotDash,
+    #[allow(missing_docs)]
     Wave,
     /// Two lines, the upper 3 wide and the lower 1 (InDesign's Thick - Thin).
     ThickThin,
+    #[allow(missing_docs)]
     ThinThick,
+    #[allow(missing_docs)]
     ThinThin,
+    #[allow(missing_docs)]
     ThickThick,
 }
 

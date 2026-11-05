@@ -53,6 +53,7 @@ const MIB: usize = 1024 * 1024;
 /// A cache's settings, read when the cache is created ([`TextureCache::in_context`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TextureCacheOptions {
+    /// The cache's size limits.
     pub budget: TextureBudget,
     /// The sampling of every texture: `TextureOptions::LINEAR` by default; the clipping overlay
     /// and pixel-exact previews use `TextureOptions::NEAREST`.
@@ -111,6 +112,7 @@ impl Default for TextureCacheOptions {
 /// A cached picture as a painter draws it: `painter.image(texture.id, rect, uv, tint)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CachedTexture {
+    /// The egui texture to paint.
     pub id: TextureId,
     /// The texture's size in texels (reduced when the image was past the device limit).
     pub size: [usize; 2],
@@ -130,14 +132,20 @@ pub enum TextureState {
     Missing,
     /// The picture for this revision is on its way. `stand_in` is the key's picture of another
     /// revision, shown until the new one lands.
-    Loading { stand_in: Option<CachedTexture> },
+    Loading {
+        /// The key's picture of another revision, if any.
+        stand_in: Option<CachedTexture>,
+    },
     /// The picture for this revision.
     Ready(CachedTexture),
     /// This revision has no picture (a group row): nothing is drawn and nothing is asked again.
     Empty,
     /// Making this revision's picture failed; it is not asked again until the revision changes.
     /// `message` is for the host's tooltip.
-    Failed { message: String },
+    Failed {
+        /// The failure text, for the host's tooltip.
+        message: String,
+    },
 }
 
 impl TextureState {
@@ -160,6 +168,7 @@ pub struct TextureStatistics {
     pub bytes: usize,
     /// Uploads this pass, and their bytes.
     pub uploads: usize,
+    /// Bytes uploaded this pass.
     pub upload_bytes: usize,
     /// Entries evicted since the cache was made.
     pub evicted: usize,

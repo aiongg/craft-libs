@@ -102,21 +102,30 @@ crate::words! {
 /// The formats of Save for Web.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum WebFormat {
+    /// GIF, indexed colour.
     Gif,
+    /// PNG with an indexed palette of at most 256 colours.
     Png8,
+    /// PNG with 24-bit colour.
     Png24,
     #[default]
+    /// JPEG.
     Jpeg,
+    /// WebP, lossy or lossless.
     WebP,
+    /// Wireless bitmap: one bit per pixel.
     Wbmp,
 }
 
 /// How an indexed format's palette is chosen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ColorTable {
+    /// A palette weighted toward colours the eye notices.
     Perceptual,
     #[default]
+    /// As Perceptual, favouring broad areas of colour and web-safe colours.
     Selective,
+    /// A palette sampled from the colours most common in the image.
     Adaptive,
     /// The 216 web-safe colours.
     Restrictive,
@@ -125,20 +134,30 @@ pub enum ColorTable {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// How an indexed format spreads colour error.
 pub enum Dither {
+    /// Nearest palette colour, no dither.
     None,
     #[default]
+    /// Error diffusion; the amount sets its strength.
     Diffusion,
+    /// A regular halftone-like pattern.
     Pattern,
+    /// Random noise.
     Noise,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// What metadata goes into a web file.
 pub enum WebMetadata {
+    /// No metadata.
     None,
     #[default]
+    /// The copyright notice only.
     Copyright,
+    /// The copyright notice and contact details.
     CopyrightAndContact,
+    /// All metadata.
     All,
 }
 
@@ -160,29 +179,41 @@ pub enum WebView {
 /// app encodes each variant with.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SaveForWebOptions {
+    /// The file format.
     pub format: WebFormat,
     /// 0–100 (JPEG, lossy WebP).
     pub quality: u8,
+    /// The palette method; used by indexed formats.
     pub color_table: ColorTable,
     /// 2–256 (GIF, PNG-8).
     pub colors: u16,
+    /// How colour error is spread; used by indexed formats.
     pub dither: Dither,
     /// 0–100.
     pub dither_amount: u8,
+    /// Keeps transparency where the format allows it; otherwise the matte fills it.
     pub transparency: bool,
+    /// Writes an interlaced file (GIF, PNG).
     pub interlaced: bool,
     /// 0–100.
     pub web_snap: u8,
+    /// Writes a progressive JPEG.
     pub progressive: bool,
+    /// Optimizes the JPEG encoding for a smaller file.
     pub optimized: bool,
+    /// Encodes WebP losslessly; the quality is then ignored.
     pub lossless: bool,
+    /// Embeds the colour profile in the file.
     pub embed_profile: bool,
     /// `#rrggbb`.
     pub matte: [u8; 3],
+    /// Converts the colours to sRGB before encoding.
     pub convert_srgb: bool,
+    /// What metadata goes into the file.
     pub metadata: WebMetadata,
     /// The output size in percent of the document, 1–1000 with two decimals.
     pub percent: f64,
+    /// The resampling filter used when the size differs from the document's.
     pub resample: Resample,
 }
 
@@ -220,6 +251,7 @@ pub struct WebVariant {
     pub index: usize,
     /// The revision [`SaveForWebDialog::wanted_variants`] gave; older answers are dropped.
     pub revision: u64,
+    /// The encoded pane's image.
     pub texture: TextureHandle,
     /// The encoded file size.
     pub bytes: u64,
@@ -234,9 +266,13 @@ pub struct WebVariant {
 /// What Save for Web returns.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SaveForWebResult {
+    /// The settings the user confirmed.
     pub options: SaveForWebOptions,
+    /// The file the user chose to write.
     pub path: PathBuf,
+    /// The output width in pixels.
     pub width: u32,
+    /// The output height in pixels.
     pub height: u32,
 }
 

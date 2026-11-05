@@ -9,7 +9,12 @@ pub enum Curve {
     /// corner breaks the curve, and the points from one corner to the next (both included) take
     /// the host's interpolation (its sampler) as a run of their own. A short `corners` reads as smooth
     /// points; [`Curve::smooth`] and [`Curve::from_parts`] make the value.
-    Points { points: Vec<[f32; 2]>, corners: Vec<bool> },
+    Points {
+        /// Control points `[input, output]`.
+        points: Vec<[f32; 2]>,
+        /// Per point, whether it is a corner rather than smooth.
+        corners: Vec<bool>,
+    },
     /// A drawn curve (pencil): one output level per input level, drawn as straight segments.
     Map(Vec<f32>),
 }
@@ -319,7 +324,9 @@ pub(crate) enum CurveOp {
 /// themselves (a Curves eyedropper).
 #[derive(Clone, Copy, Debug)]
 pub struct CurveRules {
+    /// Greatest level of the curve; inputs and outputs run `0..=levels`.
     pub levels: f32,
+    /// Most control points the curve may hold.
     pub max_points: usize,
 }
 

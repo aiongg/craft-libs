@@ -26,7 +26,9 @@ pub type SlotId = u32;
 /// One tool of a slot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RailTool<T> {
+    /// The host's identifier for the tool, returned when the tool is selected.
     pub id: T,
+    /// The glyph drawn on the rail button and in the flyout row.
     pub icon: Icon,
     /// The tool's name: tooltip, flyout row and accessible name. Translate it in the app.
     pub label: String,
@@ -42,6 +44,7 @@ impl<T> RailTool<T> {
         Self { id, icon, label: label.into(), shortcut: None, enabled: true }
     }
 
+    /// Sets the key shown in the tooltip and the flyout row. An empty string clears it.
     #[must_use]
     pub fn shortcut(mut self, shortcut: impl Into<String>) -> Self {
         let shortcut = shortcut.into();
@@ -49,6 +52,7 @@ impl<T> RailTool<T> {
         self
     }
 
+    /// Enables or disables the tool.
     #[must_use]
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
@@ -59,13 +63,16 @@ impl<T> RailTool<T> {
 /// A group of tools that share one button; its flyout lists them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ToolSlot<T> {
+    /// The slot's name, chosen by the host; keys the remembered last-used tool.
     pub id: SlotId,
+    /// The tools the slot's flyout lists. The button shows the current or last-used tool, else the first enabled one.
     pub tools: Vec<RailTool<T>>,
     /// The slot ends a group: [`group_end`](Self::group_end).
     pub group_end: bool,
 }
 
 impl<T> ToolSlot<T> {
+    /// A slot that does not end a group.
     pub fn new(id: SlotId, tools: Vec<RailTool<T>>) -> Self {
         Self { id, tools, group_end: false }
     }
@@ -340,6 +347,7 @@ pub struct ToolRail<'a, T> {
 }
 
 impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
+    /// A single-column rail at the start edge. `id_salt` keys the rail's state.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),

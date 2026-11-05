@@ -143,15 +143,18 @@ impl CommandForm {
         self
     }
 
+    /// Sets the content width class.
     pub fn width(mut self, width: Width) -> Self {
         self.width = width;
         self
     }
 
+    /// The fields the form shows.
     pub fn fields(&self) -> &DialogFields {
         &self.fields
     }
 
+    /// The fields the form shows, for the app to read or set values.
     pub fn fields_mut(&mut self) -> &mut DialogFields {
         &mut self.fields
     }

@@ -107,16 +107,19 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
         self
     }
 
+    /// Sets the fill variant of both parts.
     pub fn variant(mut self, variant: ButtonVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether both parts take input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -135,6 +138,7 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
     }
 
     // vectorcraft: crates/ui-egui/src/widgets/buttons.rs:65 split_button_named
+    /// Draws the button and reports a press of the main part or of the arrow.
     pub fn show(self, ui: &mut Ui) -> SplitButtonResponse<T> {
         let tokens = Tokens::of(ui);
         let look = Self::style(&tokens, self.variant, self.size);

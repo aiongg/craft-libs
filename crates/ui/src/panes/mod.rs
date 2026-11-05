@@ -46,21 +46,27 @@ const FLOAT_GRAB: Vec2 = vec2(40.0, 12.0);
 /// right-to-left ones.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Edge {
+    /// The edge at the reading start: left in left-to-right interfaces, right in right-to-left ones.
     Start,
+    /// The edge at the reading end.
     End,
+    /// The bottom edge.
     Bottom,
 }
 
 /// Where a pane is shown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Place {
+    #[allow(missing_docs)]
     Docked(Edge),
+    #[allow(missing_docs)]
     Floating,
 }
 
 /// The persisted layout of one pane. The app stores it where it keeps its preferences.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PaneState {
+    /// Where the pane is: docked to an edge or floating.
     pub place: Place,
     /// Width of a side pane or height of a bottom pane, in points. `None`: the pane's default.
     pub size: Option<f32>,
@@ -69,6 +75,7 @@ pub struct PaneState {
 }
 
 impl PaneState {
+    /// A docked pane on `edge`, `size` points wide (or high for the bottom edge), with no remembered floating rectangle.
     pub fn docked(edge: Edge, size: f32) -> Self {
         Self { place: Place::Docked(edge), size: Some(size), float_rect: None }
     }
@@ -102,9 +109,13 @@ pub enum SidePolicy {
 /// A change the user asked for. The host applies none of them to the app's state.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaneRequest<P> {
+    /// The user closed the pane.
     Close(P),
+    /// The user moved the pane to a new place.
     Place(P, Place),
+    /// The user resized the pane to this width, or height for a bottom pane, in points.
     Resize(P, f32),
+    /// The user moved or resized the floating pane to `[x, y, width, height]`.
     FloatRect(P, [f32; 4]),
     /// The pane took focus from a click, keyboard focus or F6.
     Focus(P),
@@ -115,6 +126,7 @@ pub enum PaneRequest<P> {
 }
 
 impl<P> PaneRequest<P> {
+    /// The pane the request is about.
     pub fn pane(&self) -> &P {
         match self {
             Self::Close(p) | Self::Place(p, _) | Self::Resize(p, _) | Self::FloatRect(p, _) | Self::Focus(p) | Self::Before(p, _) => p,
@@ -138,6 +150,7 @@ pub struct PaneOutput<P> {
 pub trait PaneContent<P> {
     /// May follow the selection (Format Shape, Format Picture).
     fn title(&self, pane: &P) -> String;
+    /// Draws the pane's contents.
     fn body(&mut self, ui: &mut Ui, pane: &P);
     /// Used when the state callback returns `None` and the host has none in memory.
     fn default_state(&self, pane: &P) -> PaneState;
@@ -311,6 +324,7 @@ impl PaneHost {
         self
     }
 
+    /// How docked panes share an edge.
     pub fn policy(mut self, policy: SidePolicy) -> Self {
         self.policy = policy;
         self
@@ -329,6 +343,7 @@ impl PaneHost {
         self
     }
 
+    /// The chrome's words in the interface language; a host given none takes them from the installed words.
     pub fn labels(mut self, labels: PaneLabels) -> Self {
         self.labels = labels;
         self.labels_set = true;

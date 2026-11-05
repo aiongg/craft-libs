@@ -27,7 +27,9 @@ pub enum ScalarOp {
 /// Which bound [`ScalarOp::ToBound`] goes to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Bound {
+    /// The lowest value the operation applies to (Home).
     Low,
+    /// The highest value the operation applies to (End).
     High,
 }
 

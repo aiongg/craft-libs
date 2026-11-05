@@ -37,6 +37,7 @@ crate::words! {
 /// Text or an image.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum WatermarkStyle {
+    /// Watermark text.
     Text(String),
     /// The image file's path.
     Graphic(String),
@@ -45,7 +46,9 @@ pub enum WatermarkStyle {
 /// A watermark. Sizes are percent of the image's short edge.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Watermark {
+    /// Text or image.
     pub style: WatermarkStyle,
+    /// Lays text out vertically instead of horizontally.
     pub vertical: bool,
     /// One of the nine anchors.
     pub position: Anchor,
@@ -57,6 +60,7 @@ pub struct Watermark {
     pub opacity: f32,
     /// 0–40 % each.
     pub inset: [f32; 2],
+    /// Draws a drop shadow behind the watermark.
     pub shadow: bool,
 }
 
@@ -92,6 +96,7 @@ pub struct WatermarkEditor<'a> {
 }
 
 impl<'a> WatermarkEditor<'a> {
+    /// An editor for `value`; `id_salt` keeps its controls' ids apart from other editors.
     pub fn new(id_salt: impl egui::AsIdSalt, value: &'a mut Watermark) -> Self {
         Self { id_salt: egui::IdSalt::new(id_salt), value }
     }

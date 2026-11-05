@@ -121,6 +121,8 @@ impl Handle {
         self
     }
 
+    /// The resolved handle style for `shape`, from `tokens.component.handle` and the overlay
+    /// colours.
     pub fn style(tokens: &UiTokens, shape: HandleShape) -> HandleStyle {
         let (h, o) = (&tokens.component.handle, &tokens.color.overlay);
         let (fill, stroke) = match shape {

@@ -8,49 +8,72 @@ use crate::layout::{SplitAxis, SplitSize};
 
 /// Limits are checked before cloning or recursively modifying an application layout.
 pub const MAX_DEPTH: usize = 64;
+/// Most panels a layout may hold. Larger layouts fail with [`DockError::LimitExceeded`].
 pub const MAX_PANELS: usize = 4096;
 pub(super) const MAX_NODES: usize = MAX_PANELS * 2;
 const MAX_EXTENT: f32 = 1_000_000.0;
 
+/// A drop zone on a group: the middle, or a side half.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Zone {
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Left,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     Bottom,
 }
 
+/// A node of a layout tree.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Node<P> {
+    /// Two children side by side or stacked.
     Split {
+        /// Direction the children lie in.
         axis: SplitAxis,
+        /// How the two children share the room.
         size: SplitSize,
+        /// The first child: left or top.
         first: Box<Node<P>>,
+        /// The second child: right or bottom.
         second: Box<Node<P>>,
     },
+    /// A group of tabs.
     Tabs {
+        #[allow(missing_docs)]
         panels: Vec<P>,
+        /// Index into `panels` of the selected tab.
         active: usize,
     },
     /// An accordion keeps its open state and preferred heights when other panels move.
     Stack {
+        #[allow(missing_docs)]
         entries: Vec<StackEntry<P>>,
     },
     /// One window edge's dock, columns from the window edge inwards. A dock is the root or,
     /// following only same-side children of horizontal splits, at its window edge. At most one
     /// per side. An empty dock (no columns) is valid and accepts [`Target::NewDock`].
     Dock {
+        #[allow(missing_docs)]
         side: Side,
+        #[allow(missing_docs)]
         columns: Vec<Column<P>>,
     },
 }
 
+/// One panel of a [`Node::Stack`] accordion.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct StackEntry<P> {
+    #[allow(missing_docs)]
     pub panel: P,
+    #[allow(missing_docs)]
     pub open: bool,
+    #[allow(missing_docs)]
     pub height: Option<f32>,
 }
 
@@ -99,6 +122,7 @@ impl<P: PartialEq> PartialEq for Floating<P> {
 /// [`super::DockArea::monitors`] with these; native floating windows store the one they are on.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Monitor {
+    /// Display name from the OS, when it reports one.
     pub name: Option<String>,
     /// `[x, y, width, height]` on the desktop.
     pub rect: [f32; 4],
@@ -140,6 +164,7 @@ impl<P> Floating<P> {
         self
     }
 
+    /// Every panel in the window, in tree order.
     pub fn panels(&self) -> impl Iterator<Item = &P> {
         tree_panels(&self.root).into_iter()
     }
@@ -326,9 +351,12 @@ mod floating_serde {
     }
 }
 
+/// The panels of a workspace: a docked tree plus floating windows. Every panel occurs once.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Layout<P> {
+    /// The docked layout; `None` when nothing is docked.
     pub root: Option<Node<P>>,
+    /// Floating windows, with unique ids.
     #[serde(deserialize_with = "floating_serde::unique_ids")]
     pub floating: Vec<Floating<P>>,
 }
@@ -339,11 +367,15 @@ impl<P> Default for Layout<P> {
     }
 }
 
+/// Where a moved panel goes relative to an anchor panel.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Placement<P> {
     /// Insert before this existing destination member, or append. Also reorders a group.
-    Tab { before: Option<P> },
+    Tab {
+        /// The member to insert before; `None` appends.
+        before: Option<P>,
+    },
     /// Center inserts after the anchor; sides split the anchor's frame into two halves, and
     /// every other frame keeps its size. Sides apply to `Tabs` and `Stack` nodes only.
     Split(Zone),
@@ -354,18 +386,30 @@ pub enum Placement<P> {
     /// the nearest such split along its opposite side instead. The renderer offers it beside a
     /// frame too small to halve. `Center`, and an anchor without either divider or with a dock
     /// beyond it, are invalid.
-    SplitSized { zone: Zone, size: SplitSize, outer: SplitSize },
+    SplitSized {
+        /// The side of the anchor frame.
+        zone: Zone,
+        /// Size of the new split.
+        size: SplitSize,
+        /// New size of the enclosing split that gives up the room.
+        outer: SplitSize,
+    },
     /// A new group above or below the anchor's group in a dock column. On an anchor in a
     /// floating window, a split of the anchor's group above or below.
     /// `height` is the inserted group's preferred height ([`super::Group::height`]); `None`
     /// keeps a moved group's own height, or shares the free height for a new group.
     Group {
+        #[allow(missing_docs)]
         below: bool,
+        #[allow(missing_docs)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         height: Option<f32>,
     },
     /// A new column before (towards the window edge) or after the anchor's column.
-    Column { after: bool },
+    Column {
+        /// Places the new column after the anchor's column; false places it before.
+        after: bool,
+    },
     /// A new frame along one edge of the docked layout, a quarter of its width or height: the
     /// root is split, or in a layout with docks, the part between them. The anchor names any
     /// docked panel. A protected anchor ([`Permissions::is_protected`], applied through
@@ -381,9 +425,13 @@ pub enum Placement<P> {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
 pub struct Location<P> {
+    /// The window rect `[x, y, width, height]` when the panel was floating.
     pub floating: Option<[f32; 4]>,
+    /// The panel the placement is relative to.
     pub anchor: Option<P>,
+    /// Where the panel sat relative to `anchor`.
     pub placement: Placement<P>,
+    /// The size of the split the panel's frame was in, when it had one.
     pub size: Option<SplitSize>,
     /// Accordion state to restore if the destination is still an accordion.
     pub stack: Option<(bool, Option<f32>)>,
@@ -401,19 +449,30 @@ pub struct Location<P> {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Action<P> {
+    /// Move one panel next to `anchor`.
     Move {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         anchor: P,
+        #[allow(missing_docs)]
         placement: Placement<P>,
     },
+    /// Float the panel's group in a window at `rect`.
     Float {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         rect: [f32; 4],
     },
+    /// Close a panel.
     Close {
+        #[allow(missing_docs)]
         panel: P,
     },
+    /// Select a panel in its group.
     Activate {
+        #[allow(missing_docs)]
         panel: P,
     },
     /// Reveal a registered, currently absent panel. Applications validate their panel registry.
@@ -423,45 +482,65 @@ pub enum Action<P> {
     /// quarter wide at the right edge of the docked area
     /// ([`Placement::Edge`]).
     Open {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         anchor: Option<P>,
     },
     /// Reveal an absent panel beside a protected canvas or at another explicit destination.
     OpenAt {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         anchor: P,
+        #[allow(missing_docs)]
         placement: Placement<P>,
     },
     /// Reposition/resize a floating window, identified by one of its panels.
     MoveFloating {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         rect: [f32; 4],
     },
     /// Path from the root: false is the first child, true the second.
     ResizeSplit {
+        #[allow(missing_docs)]
         path: Vec<bool>,
+        #[allow(missing_docs)]
         size: SplitSize,
     },
     /// [`Action::ResizeSplit`] in the floating window holding `panel`, with a path from its
     /// root.
     ResizeWindowSplit {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         path: Vec<bool>,
+        #[allow(missing_docs)]
         size: SplitSize,
     },
+    /// Open or close the panel's entry in its accordion stack.
     SetStackOpen {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         open: bool,
     },
+    /// Set the panel's accordion entry height in points; `None` clears it.
     ResizeStack {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         height: Option<f32>,
     },
     /// Move the group containing `panel` with its order, active tab and minimized state.
     /// `Target::At` with `Tab` or `Split(Center)` merges every member. An accordion entry is a
     /// group of one. A target inside the group is a no-op.
     MoveGroup {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         to: Target<P>,
     },
     /// Move the dock group containing `panel` one place up or down its column, past the
@@ -469,70 +548,99 @@ pub enum Action<P> {
     /// ([`DockError::InvalidPlacement`]), at the column's end ([`DockError::MissingTarget`]), or
     /// beside a group that cannot move ([`DockError::NotAllowed`]; a canvas is never stepped past).
     StepGroup {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         up: bool,
     },
     /// Move the dock column containing `panel`. `Float` makes a window of its groups.
     MoveColumn {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         to: Target<P>,
     },
     /// Dock or merge the floating window containing `panel`, every group included.
     MoveWindow {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         to: Target<P>,
     },
     /// Close Tab Group.
     CloseGroup {
+        #[allow(missing_docs)]
         panel: P,
     },
     /// × on a floating window: closes all its panels.
     CloseWindow {
+        #[allow(missing_docs)]
         panel: P,
     },
     /// Close Other Panels in Group.
     CloseOthers {
+        #[allow(missing_docs)]
         panel: P,
     },
     /// Minimize a dock group to its tab strip, or the floating window holding the panel to its
     /// title bar (and the strip of its only group). On an accordion entry, closes it.
     SetMinimized {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         minimized: bool,
     },
+    /// Collapse the panel's dock column to icons, or expand it.
     SetIconic {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         iconic: bool,
     },
+    /// Set the expanded width in points of the panel's dock column.
     ResizeColumn {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         width: f32,
     },
     /// Preferred height of a dock group or of an accordion entry.
     ResizeGroup {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         height: Option<f32>,
     },
+    /// Set the width in points of the panel's dock column while iconic; `None` clears it.
     ResizeIconic {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         width: Option<f32>,
     },
     /// Put the floating window in its own OS window at `rect`, or back in the app window.
     SetNative {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         rect: Option<[f32; 4]>,
     },
     /// Record the monitor of the native window holding `panel`: from the application's
     /// monitor list, or else only the size egui reported.
     SetMonitor {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         monitor: Option<Monitor>,
+        #[allow(missing_docs)]
         monitor_size: Option<[f32; 2]>,
     },
     /// Move one panel, without the rest of its group. `Target::At` is [`Action::Move`];
     /// `NewDock` and `Float` give the panel a group of its own.
     MovePanel {
+        #[allow(missing_docs)]
         panel: P,
+        #[allow(missing_docs)]
         to: Target<P>,
     },
 }
@@ -543,8 +651,11 @@ pub enum Action<P> {
 /// the built-in close controls of a panel that stays closable by command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Permissions {
+    /// The panel may be moved.
     pub movable: bool,
+    /// The panel may be floated.
     pub floatable: bool,
+    /// The panel may be closed.
     pub closable: bool,
     /// Other panels may join this panel's group as tabs.
     pub accepts_tabs: bool,
@@ -579,16 +690,25 @@ impl Permissions {
     }
 }
 
+/// Why a layout edit or load was refused. The layout is unchanged when an edit fails.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DockError {
+    /// The layout is deeper or larger than [`MAX_DEPTH`] or [`MAX_PANELS`] allow.
     LimitExceeded,
+    /// A panel occurs in more than one place.
     DuplicatePanel,
+    /// The panel to act on is not in the layout.
     MissingPanel,
+    /// The anchor or destination is not in the layout.
     MissingTarget,
+    /// An active tab index is out of range.
     InvalidSelection,
+    /// A size or rect is not finite or is out of bounds.
     InvalidGeometry,
+    /// The destination does not support the placement.
     InvalidPlacement,
+    /// The panel's [`Permissions`] forbid the action.
     NotAllowed,
     /// Saved by a newer version of the docking format.
     UnsupportedVersion,
@@ -754,6 +874,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         panels
     }
 
+    /// Whether the layout holds `panel`, docked or floating.
     pub fn contains(&self, panel: &P) -> bool {
         self.panels().contains(&panel)
     }

@@ -71,31 +71,37 @@ impl Case {
         self
     }
 
+    /// The system appearance (light or dark, contrast, motion) that `System` choices resolve against.
     pub fn system(mut self, system: SystemAppearance) -> Case {
         self.system = system;
         self
     }
 
+    /// The contrast choice.
     pub fn contrast(mut self, contrast: ContrastChoice) -> Case {
         self.selection.contrast = contrast;
         self
     }
 
+    /// The control size.
     pub fn size(mut self, size: Size) -> Case {
         self.selection.size = size;
         self
     }
 
+    /// The text size.
     pub fn text_size(mut self, text_size: TextSize) -> Case {
         self.selection.text_size = text_size;
         self
     }
 
+    /// The interface font.
     pub fn interface_font(mut self, font: InterfaceFont) -> Case {
         self.font = font;
         self
     }
 
+    /// The layout direction.
     pub fn direction(mut self, dir: Direction) -> Case {
         self.dir = dir;
         self
@@ -119,30 +125,37 @@ impl Case {
         self
     }
 
+    /// The user's selections: theme, mode, contrast, motion, size and text size.
     pub fn selection(&self) -> &Selection {
         &self.selection
     }
 
+    /// The system appearance that `System` choices resolve against.
     pub fn system_appearance(&self) -> SystemAppearance {
         self.system
     }
 
+    /// The app's defaults for the selections.
     pub fn app_defaults(&self) -> &AppDefaults {
         &self.defaults
     }
 
+    /// The app's id, if the case has one.
     pub fn app_id(&self) -> Option<&AppId> {
         self.app.as_ref()
     }
 
+    /// The interface font.
     pub fn font(&self) -> InterfaceFont {
         self.font
     }
 
+    /// The layout direction.
     pub fn dir(&self) -> Direction {
         self.dir
     }
 
+    /// The interface scale.
     pub fn interface_scale(&self) -> InterfaceScale {
         self.scale
     }

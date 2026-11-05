@@ -70,6 +70,7 @@ impl SplitLayout {
 /// One pane's view: its own, or linked to the main view's zoom and position.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SplitPane {
+    /// The pane's own view; ignored for centre and zoom while `linked`.
     pub view: CanvasView,
     /// The pane follows the main view's centre and zoom (its rotation stays its own).
     pub linked: bool,
@@ -91,6 +92,7 @@ pub struct SplitViews {
 }
 
 impl SplitViews {
+    /// A split keyed `id_salt` with `layout`; pane 0 is active.
     pub fn new(id_salt: impl AsIdSalt, layout: SplitLayout) -> Self {
         Self { id_salt: IdSalt::new(id_salt), layout, active: 0, labels: None }
     }

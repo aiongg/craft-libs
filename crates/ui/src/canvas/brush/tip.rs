@@ -11,6 +11,7 @@ use kurbo::{Rect, Vec2};
 pub struct BrushTip {
     /// The brush's diameter (its Size).
     pub diameter: f64,
+    /// The tip's outline for the cursor preferences.
     pub outline: BrushTipOutline,
 }
 
@@ -28,15 +29,30 @@ impl BrushTip {
 pub enum BrushTipOutline {
     /// A plain round tip: two circles, radii in document units. Under a skewed pose or a view
     /// with a pixel aspect the circle becomes an ellipse.
-    Round { normal_radius: f64, full_radius: f64 },
+    Round {
+        /// Radius of the 50 % contour, in document units.
+        normal_radius: f64,
+        /// Radius where the dab reaches 0 %, in document units.
+        full_radius: f64,
+    },
     /// A shaped tip (a sampled bitmap, a turned or flattened round tip) traced by the engine:
     /// rings in radius units (1 is `diameter / 2`) in document orientation, for each preference.
-    Traced { normal: TipRings, full: TipRings },
+    Traced {
+        /// The 50 % contour.
+        normal: TipRings,
+        /// The 0 % contour.
+        full: TipRings,
+    },
     /// An aliased tip (the Pencil, the Eraser in Pencil or Block mode): the whole-pixel `cell` its
     /// dab fills at the pointer (PhotoCraft's `paint::grid_square`), drawn on the pixel grid as a
     /// disc when `round`, else as the square. The OS pointer hides; see
     /// [`BrushCursor::paint_pixels`](super::BrushCursor::paint_pixels).
-    Pixels { cell: Rect, round: bool },
+    Pixels {
+        /// The whole-pixel cell the dab fills, in document units.
+        cell: Rect,
+        /// Draw the cell as a disc rather than a square.
+        round: bool,
+    },
 }
 
 /// Closed rings of a traced tip outline, points in radius units `[x, y]` (document orientation,
@@ -69,7 +85,9 @@ impl TipRings {
 /// so the pose comes before zoom, rotation and flip, and a cached outline is only re-mapped.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TipPose {
+    /// The document-space direction of the tip's x axis.
     pub x_axis: Vec2,
+    /// The document-space direction of the tip's y axis.
     pub y_axis: Vec2,
 }
 

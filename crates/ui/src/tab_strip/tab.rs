@@ -241,6 +241,7 @@ pub struct TabStyle {
     pub icon_size: f32,
     /// `tab.label` and `tab.label_large`.
     pub label_role: TypeRole,
+    /// The label role with Large Tabs on.
     pub label_role_large: TypeRole,
     /// `tab.detail_role`.
     pub detail_role: TypeRole,
@@ -250,16 +251,21 @@ pub struct TabStyle {
     pub close_radius: f32,
     /// `tab.strip`, and `tab.active` behind the active tab and a tab under the pointer.
     pub strip: Color32,
+    /// The active tab's fill.
     pub active: Color32,
     /// `tab.text` and `tab.text.inactive`.
+    /// The label colour of the selected tab.
     pub text: Color32,
+    /// The label colour of the other tabs.
     pub inactive_text: Color32,
     /// `tab.detail`.
     pub detail: Color32,
     /// The divider at a tab's trailing edge: `tab.divider`, one physical pixel.
     pub divider: Stroke,
     /// `tab.close` and `tab.close.hover`.
+    /// The × colour at rest.
     pub close_color: Color32,
+    /// The × colour under the pointer.
     pub close_hover: Color32,
     /// Behind the × under the pointer: `tab.close.fill`.
     pub close_fill: Color32,
@@ -271,7 +277,9 @@ pub struct TabStyle {
     /// `tab.underline`: under the selected text tab's label.
     pub underline: Color32,
     /// The progress bar: `progress.track` and `progress.fill`.
+    /// The progress bar's track colour.
     pub track: Color32,
+    /// The progress bar's filled part.
     pub fill: Color32,
 }
 
@@ -411,8 +419,11 @@ pub struct TabParts {
 /// not modified).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TabMetrics {
+    /// The label's width in points.
     pub label: f32,
+    /// The detail's width in points; 0 without one.
     pub detail: f32,
+    /// The modified mark's width in points; 0 when not modified.
     pub mark: f32,
 }
 

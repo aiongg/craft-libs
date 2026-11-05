@@ -74,6 +74,7 @@ pub struct CraftFace {
     /// The manifest's script tags: ISO 15924 codes such as `Arab`, `Thai`, `Jpan`, `Kore`, `Hans`
     /// and `Hant`. Hong Kong forms, which have no ISO 15924 code, are tagged `Hant-HK`.
     pub scripts: &'static [&'static str],
+    /// The font file's bytes.
     pub bytes: &'static [u8],
     /// Face index in a font collection (`.ttc`); `0` for a single font.
     pub index: u32,
@@ -335,6 +336,7 @@ pub struct UiFonts<'a> {
 }
 
 impl<'a> UiFonts<'a> {
+    /// A configuration with no faces, using `scripts` to map languages to scripts.
     pub fn new(scripts: &'a dyn LanguageScripts) -> Self {
         Self {
             scripts,
@@ -428,6 +430,7 @@ impl<'a> UiFonts<'a> {
         self
     }
 
+    /// How emoji are drawn.
     pub fn emoji(mut self, emoji: Emoji) -> Self {
         self.emoji = emoji;
         self
@@ -460,6 +463,7 @@ impl<'a> UiFonts<'a> {
         self
     }
 
+    /// Whether and how installed system fonts are used.
     pub fn system_fonts(mut self, system: SystemFonts) -> Self {
         self.system = system;
         self

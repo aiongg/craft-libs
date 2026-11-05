@@ -81,10 +81,12 @@ pub struct Switch<'a> {
 }
 
 impl<'a> Switch<'a> {
+    /// A switch named `label` that edits `on`.
     pub fn new(label: impl Into<String>, on: &'a mut bool) -> Self {
         Self { label: label.into(), on, size: ControlSize::Md, enabled: true, id_salt: None }
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -141,6 +143,7 @@ impl<'a> Switch<'a> {
         EditResponse::new(laid.tooltip(response, &self.label), gesture.finish())
     }
 
+    /// The switch's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SwitchStyle {
         let c = &tokens.component.check;
         let track_height = c.size.get(size);

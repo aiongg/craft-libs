@@ -40,12 +40,29 @@ use egui::{Color32, ColorImage, Context, ScreenshotCallback, ViewportId};
 pub enum CaptureError {
     /// The checked `width * height` pixel count, or its `width * height * size_of::<Color32>()`
     /// byte count, overflowed `usize`.
-    DimensionsOverflow { width: usize, height: usize },
+    DimensionsOverflow {
+        /// Reported width in pixels.
+        width: usize,
+        /// Reported height in pixels.
+        height: usize,
+    },
     /// The pixel buffer does not match the reported image dimensions, or the image has zero width
     /// or height.
-    MalformedImage { width: usize, height: usize, pixels: usize },
+    MalformedImage {
+        /// Reported width in pixels.
+        width: usize,
+        /// Reported height in pixels.
+        height: usize,
+        /// Length of the pixel buffer.
+        pixels: usize,
+    },
     /// The checked image size exceeds the slot's per-image byte bound.
-    ImageTooLarge { bytes: usize, max_bytes: usize },
+    ImageTooLarge {
+        /// Size of the image in bytes.
+        bytes: usize,
+        /// The slot's per-image byte bound.
+        max_bytes: usize,
+    },
 }
 
 impl core::fmt::Display for CaptureError {

@@ -20,14 +20,23 @@ pub const SKEW_LIMIT: f64 = 89.0;
 /// picker shows them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Anchor9 {
+    #[allow(missing_docs)]
     TopLeft,
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     TopRight,
+    #[allow(missing_docs)]
     Left,
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     BottomLeft,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     BottomRight,
 }
 
@@ -56,7 +65,9 @@ impl Anchor9 {
 /// transform) and its reference point, in document space.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BoxState {
+    /// The four corners, clockwise from the top left.
     pub quad: [Point; 4],
+    /// The reference point.
     pub pivot: Point,
 }
 
@@ -64,10 +75,15 @@ pub struct BoxState {
 /// `k + 1`: 0 top, 1 right, 2 bottom, 3 left.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BoxPart {
+    #[allow(missing_docs)]
     Corner(u8),
+    #[allow(missing_docs)]
     Edge(u8),
+    #[allow(missing_docs)]
     Pivot,
+    #[allow(missing_docs)]
     Inside,
+    #[allow(missing_docs)]
     Outside,
 }
 
@@ -104,8 +120,11 @@ pub enum ScaleRule {
 /// and moves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BoxAllow {
+    #[allow(missing_docs)]
     pub rotate: bool,
+    #[allow(missing_docs)]
     pub skew: bool,
+    #[allow(missing_docs)]
     pub distort: bool,
 }
 
@@ -160,11 +179,14 @@ fn resolve_kind(mode: TransformMode, part: BoxPart, mods: Modifiers) -> BoxDrag 
 /// How drags change a box.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BoxRules {
+    /// The transform mode the options bar selects.
     pub mode: TransformMode,
+    /// How corner and edge drags scale.
     pub scale: ScaleRule,
     /// The options bar's aspect link. Off, plain corner and edge drags stretch and ⇧ keeps the
     /// proportions, as [`ScaleRule::Free`] does.
     pub aspect_linked: bool,
+    /// What the content allows.
     pub allow: BoxAllow,
     /// The angle ⇧ snaps a rotation to, in degrees (PhotoCraft 15; DesignCraft and VectorCraft
     /// 45).
@@ -533,8 +555,11 @@ fn nonzero(v: f64) -> f64 {
 /// is 100 %; negative for a flipped side); angles are degrees, positive clockwise on screen.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Parts {
+    /// Horizontal scale factor.
     pub w: f64,
+    /// Vertical scale factor.
     pub h: f64,
+    /// Rotation in degrees, clockwise on screen.
     pub angle: f64,
     /// The sides' lean.
     pub skew_h: f64,

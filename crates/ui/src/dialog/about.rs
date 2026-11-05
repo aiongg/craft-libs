@@ -89,7 +89,9 @@ crate::words! {
 /// A link on the About tab.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AboutLink {
+    /// Link text.
     pub label: String,
+    /// Target URL, opened in the system browser.
     pub url: String,
 }
 
@@ -114,17 +116,27 @@ pub struct AboutInfo {
 /// recorded consent; without one the `@login` stands in.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Contributor {
+    /// GitHub login, shown as `@login` when no name is credited.
     pub login: Cow<'static, str>,
+    /// Name the contributor consented to show; used in [`NameMode::DisplayName`].
     pub display_name: Option<Cow<'static, str>>,
+    /// Real name the contributor consented to show; used in [`NameMode::RealName`].
     pub real_name: Option<Cow<'static, str>>,
+    #[allow(missing_docs)]
     pub prs: u64,
+    #[allow(missing_docs)]
     pub commits: u64,
+    #[allow(missing_docs)]
     pub lines_added: u64,
+    #[allow(missing_docs)]
     pub lines_deleted: u64,
+    /// Binary assets added.
     pub binary_added: u64,
+    /// Binary assets deleted.
     pub binary_deleted: u64,
     /// ISO 8601 UTC; empty for someone credited only through a merged PR.
     pub first_commit: Cow<'static, str>,
+    /// ISO 8601 UTC time of the latest commit; empty for someone credited only through a merged PR.
     pub last_commit: Cow<'static, str>,
 }
 
@@ -140,6 +152,7 @@ impl Contributor {
         chosen.map_or_else(|| Cow::Owned(format!("@{}", self.login)), |name| Cow::Borrowed(name.as_ref()))
     }
 
+    /// Lines added minus lines deleted; negative when the contributor removed more than they added.
     pub fn lines_delta(&self) -> i128 {
         i128::from(self.lines_added) - i128::from(self.lines_deleted)
     }
@@ -176,18 +189,26 @@ impl Contributor {
 /// An AI model credited in Co-Authored-By trailers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModelCredit {
+    #[allow(missing_docs)]
     pub company: Cow<'static, str>,
+    #[allow(missing_docs)]
     pub model: Cow<'static, str>,
+    #[allow(missing_docs)]
     pub version: Cow<'static, str>,
+    /// Commits carrying the model's Co-Authored-By trailer.
     pub commits: u64,
+    /// Lines added in those commits.
     pub lines_added: u64,
+    /// Lines deleted in those commits.
     pub lines_deleted: u64,
 }
 
 /// The credits tables.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Credits {
+    /// Rows of the Contributors tab.
     pub contributors: Cow<'static, [Contributor]>,
+    /// Rows of the Models tab.
     pub models: Cow<'static, [ModelCredit]>,
     /// Every commit, for the counts line and the models' share.
     pub total_commits: u64,
@@ -197,8 +218,11 @@ pub struct Credits {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum NameMode {
     #[default]
+    /// Show `@login`.
     Username,
+    /// Show the consented display name, else `@login`.
     DisplayName,
+    /// Show the consented real name, else `@login`.
     RealName,
 }
 
@@ -206,20 +230,31 @@ pub enum NameMode {
 /// biggest first ([`default_ascending`](Self::default_ascending)).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ContributorSort {
+    /// Sort by the name [`NameMode`] selects.
     Name,
+    /// Sort by merged PR count.
     Prs,
+    /// Sort by commit count.
     Commits,
+    /// Sort by lines added.
     LinesAdded,
+    /// Sort by lines deleted.
     LinesDeleted,
+    /// Sort by lines added minus lines deleted.
     LinesDelta,
+    /// Sort by binary assets added.
     BinaryAdded,
+    /// Sort by binary assets deleted.
     BinaryDeleted,
     #[default]
+    /// Sort by the date of the first commit.
     FirstCommit,
+    /// Sort by the date of the latest commit.
     LastCommit,
 }
 
 impl ContributorSort {
+    /// Every sort key in the order the sort list and the table columns first show them.
     pub const ALL: [ContributorSort; 10] = [
         ContributorSort::Name,
         ContributorSort::Prs,
@@ -234,6 +269,7 @@ impl ContributorSort {
     ];
 
     // pc: crates/ui-egui/src/dialogs/credits.rs:106 default_ascending
+    /// Whether this key sorts ascending when first chosen: true for names and dates, false for counts.
     pub fn default_ascending(self) -> bool {
         matches!(self, ContributorSort::Name | ContributorSort::FirstCommit | ContributorSort::LastCommit)
     }
@@ -366,8 +402,11 @@ pub enum CommitShare {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum AboutTab {
     #[default]
+    /// The About tab (app name, blurb, links).
     About,
+    /// The Contributors tab.
     Contributors,
+    /// The AI models tab.
     Models,
 }
 
@@ -478,6 +517,7 @@ pub struct AboutDialog {
 }
 
 impl AboutDialog {
+    /// Creates the dialog on the About tab with the default sort (first commit, ascending) and no hidden columns.
     pub fn new(info: AboutInfo, credits: Credits) -> Self {
         Self {
             id: dialog_id("about"),
@@ -498,10 +538,12 @@ impl AboutDialog {
         self
     }
 
+    /// The tab currently showing.
     pub fn current_tab(&self) -> AboutTab {
         self.tab
     }
 
+    /// Switches to `tab`.
     pub fn set_tab(&mut self, tab: AboutTab) {
         self.tab = tab;
     }

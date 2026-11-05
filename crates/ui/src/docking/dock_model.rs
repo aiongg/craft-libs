@@ -20,7 +20,9 @@ const DEFAULT_FLOAT: [f32; 4] = [48.0, 48.0, 260.0, 320.0];
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Side {
+    /// The first edge in reading order (left in a left-to-right layout).
     Start,
+    /// The last edge in reading order (right in a left-to-right layout).
     End,
 }
 
@@ -28,7 +30,9 @@ pub enum Side {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
 pub struct Group<P> {
+    /// The panels, in tab order.
     pub panels: Vec<P>,
+    /// Index into `panels` of the selected tab.
     pub active: usize,
     /// Only the tab strip shows. `height` is kept for when the group expands again.
     #[serde(default)]
@@ -41,10 +45,12 @@ pub struct Group<P> {
 }
 
 impl<P> Group<P> {
+    /// A group of `panels` with tab `active` selected, expanded and with no preferred height.
     pub fn new(panels: Vec<P>, active: usize) -> Self {
         Self { panels, active, minimized: false, height: None }
     }
 
+    /// The selected panel, or `None` when `active` is out of range.
     pub fn active_panel(&self) -> Option<&P> {
         self.panels.get(self.active)
     }
@@ -54,6 +60,7 @@ impl<P> Group<P> {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
 pub struct Column<P> {
+    /// The groups, top to bottom.
     pub groups: Vec<Group<P>>,
     /// Expanded width in points.
     pub width: f32,
@@ -66,6 +73,7 @@ pub struct Column<P> {
 }
 
 impl<P> Column<P> {
+    /// A column of `groups` that is `width` points wide, expanded.
     pub fn new(groups: Vec<Group<P>>, width: f32) -> Self {
         Self { groups, width, iconic: false, iconic_width: None }
     }
@@ -76,12 +84,24 @@ impl<P> Column<P> {
 #[non_exhaustive]
 pub enum Target<P> {
     /// Relative to the panel `anchor`, which must not be part of what moves.
-    At { anchor: P, placement: Placement<P> },
+    At {
+        /// The panel to place the moved groups next to.
+        anchor: P,
+        /// Where, relative to `anchor`.
+        placement: Placement<P>,
+    },
     /// A new dock on an edge that has none (or an empty one). The root becomes the other side
     /// of a horizontal split.
-    NewDock { side: Side },
-    /// A new floating window. `None` keeps the source's size at a default position.
-    Float { rect: Option<[f32; 4]> },
+    NewDock {
+        /// The edge to put the dock on.
+        side: Side,
+    },
+    /// A new floating window.
+    Float {
+        /// Window rect as `[x, y, width, height]` in logical points. `None` keeps the source's
+        /// size at a default position.
+        rect: Option<[f32; 4]>,
+    },
 }
 
 impl<P: Clone + Eq + Hash> Placement<P> {
@@ -119,25 +139,36 @@ impl<P: Clone + Eq + Hash> Placement<P> {
 /// windows, so `Front` means "showing": the active tab of an expanded group in an expanded column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PanelState {
+    /// The panel is closed.
     Hidden,
+    /// The panel is in the layout but not showing: not the active tab, or in a minimized group,
+    /// collapsed accordion entry or iconic column.
     Open,
+    /// The panel is showing.
     Front,
 }
 
 /// The group a closed panel was in, when that group was in a dock.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GroupLocation {
+    /// Whether the group was minimized.
     pub minimized: bool,
+    /// The group's preferred height in points.
     pub height: Option<f32>,
     /// The column, when the group was docked.
     pub column: Option<ColumnLocation>,
 }
 
+/// The column a closed panel's group was in.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ColumnLocation {
+    /// The dock edge the column was on.
     pub side: Side,
+    /// Expanded width in points.
     pub width: f32,
+    /// Whether the column was collapsed to icons.
     pub iconic: bool,
+    /// Width in points while iconic.
     pub iconic_width: Option<f32>,
 }
 

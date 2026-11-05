@@ -118,15 +118,24 @@ const SAME_GUIDE: f64 = 0.01;
 /// A guide colour: Photoshop's list (PhotoCraft's `GUIDE_COLORS`, Cyan by default) or Custom….
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum GuideColor {
+    #[allow(missing_docs)]
     LightBlue,
+    #[allow(missing_docs)]
     LightRed,
+    #[allow(missing_docs)]
     Green,
+    #[allow(missing_docs)]
     MediumBlue,
+    #[allow(missing_docs)]
     Yellow,
+    #[allow(missing_docs)]
     Magenta,
     #[default]
+    #[allow(missing_docs)]
     Cyan,
+    #[allow(missing_docs)]
     LightGray,
+    #[allow(missing_docs)]
     Black,
     /// Chosen with Custom…'s swatch (the app's colour picker). Its `#rrggbb` is written with
     /// craft-theme's `Rgba::to_hex`, as every hex text in the suite.
@@ -173,11 +182,13 @@ impl GuideColor {
         GuideColor::NAMED.into_iter().find(|named| named.rgb() == rgb).unwrap_or(GuideColor::Custom(rgb))
     }
 
+    /// The colour as an egui colour.
     pub fn color32(self) -> Color32 {
         let [r, g, b] = self.rgb();
         Color32::from_rgb(r, g, b)
     }
 
+    /// The translated name shown in the colour list.
     pub fn label(self, labels: &GuidesLabels) -> &str {
         match self {
             GuideColor::LightBlue => &labels.light_blue,
@@ -198,9 +209,13 @@ impl GuideColor {
 /// ruler unit.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GuideUnits {
+    /// The ruler's length unit.
     pub ruler: LengthUnit,
+    /// Document width in pixels.
     pub width_px: f64,
+    /// Document height in pixels.
     pub height_px: f64,
+    /// Document resolution, for converting inches, centimetres and points to pixels.
     pub pixels_per_inch: f64,
     /// 72 (PostScript) or 72.27, Preferences › Units & Rulers › Point/Pica Size.
     pub points_per_inch: f64,
@@ -217,12 +232,14 @@ impl GuideUnits {
 /// Selected Guides answer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NewGuideOptions {
+    /// Whether the guide is horizontal or vertical.
     pub orientation: Orientation,
     /// In the ruler unit: the field converts anything typed with another unit ("2.5 cm" in a
     /// pixel ruler) into it.
     pub position: Length,
     /// [`position`](Self::position) in document pixels.
     pub position_px: f64,
+    /// The guide's colour.
     pub color: GuideColor,
     /// Edit Selected Guides: the colour was changed in the dialog. A guide drawn in the
     /// preference colour keeps using it unless this is true (PhotoCraft sends the colour only
@@ -646,9 +663,13 @@ impl GuideLines {
 /// A rectangle a layout fills, in document pixels.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GuideRect {
+    /// Left edge.
     pub x0: f64,
+    /// Top edge.
     pub y0: f64,
+    /// Right edge.
     pub x1: f64,
+    /// Bottom edge.
     pub y1: f64,
 }
 
@@ -656,6 +677,7 @@ pub struct GuideRect {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum GuideTarget {
     #[default]
+    /// The whole document.
     Document,
     /// Each selected artboard (listed only when the app passes some with
     /// [`GuideLayoutDialog::artboards`]).
@@ -666,6 +688,7 @@ pub enum GuideTarget {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum GuideLayoutPreset {
     #[default]
+    /// No preset: the fields keep the user's values.
     Custom,
     /// 5 columns, 3 rows, no gutter.
     FiveColumnsThreeRows,
@@ -676,6 +699,7 @@ pub enum GuideLayoutPreset {
 }
 
 impl GuideLayoutPreset {
+    /// Every preset in list order.
     pub const ALL: [GuideLayoutPreset; 4] =
         [GuideLayoutPreset::Custom, GuideLayoutPreset::FiveColumnsThreeRows, GuideLayoutPreset::EightColumns, GuideLayoutPreset::TwelveColumns];
 
@@ -717,6 +741,7 @@ pub struct GuideAxis {
     pub number: u32,
     /// Width of a column or height of a row; `None` shares the room out evenly.
     pub size: Option<Length>,
+    /// Space between columns or rows.
     pub gutter: Length,
 }
 
@@ -724,10 +749,15 @@ pub struct GuideAxis {
 /// answers, and the calculation ([`lines`](Self::lines)).
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GuideLayoutOptions {
+    /// The Preset list's choice.
     pub preset: GuideLayoutPreset,
+    /// Where the guides go.
     pub target: GuideTarget,
+    /// The column group.
     pub columns: GuideAxis,
+    /// The row group.
     pub rows: GuideAxis,
+    /// The margin group's check box.
     pub margin_enabled: bool,
     /// Top, left, bottom, right.
     pub margin: [Length; 4],
@@ -735,6 +765,7 @@ pub struct GuideLayoutOptions {
     /// between the margins instead of packing them from the start (PhotoCraft's engine centres
     /// both).
     pub center_columns: bool,
+    /// Replaces the existing guides instead of adding to them.
     pub clear_existing: bool,
 }
 
@@ -773,6 +804,7 @@ pub enum GuideLayoutError {
 }
 
 impl GuideLayoutError {
+    /// The translated message the dialog shows for this error.
     pub fn message(self, labels: &GuidesLabels) -> &str {
         match self {
             GuideLayoutError::DoesNotFit => &labels.does_not_fit,
@@ -788,7 +820,9 @@ impl GuideLayoutError {
 /// guides, unless Clear Existing Guides, plus `added`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct GuideLayoutLines {
+    /// The new guides only.
     pub added: GuideLines,
+    /// The guides OK commits.
     pub all: GuideLines,
 }
 
@@ -908,14 +942,18 @@ impl GuideLayoutOptions {
 /// commit, in the dialog's colour.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GuidePreview {
+    /// The guides to draw.
     pub lines: GuideLayoutLines,
+    /// The colour to draw them in.
     pub color: Color32,
 }
 
 /// What New Guide Layout answers.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GuideLayoutResult {
+    /// The settings the user confirmed.
     pub options: GuideLayoutOptions,
+    /// The guides OK commits.
     pub lines: GuideLayoutLines,
     /// The guide colour chosen; PhotoCraft stores it as the guide colour preference.
     pub color: [u8; 3],

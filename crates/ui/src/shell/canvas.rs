@@ -40,8 +40,11 @@ mod key {
 /// leaves the region unnamed, and a shell given no labels uses [`CanvasLabels::of`].
 #[derive(Clone, Debug)]
 pub struct CanvasLabels {
+    /// The name of the options bar region.
     pub options: Option<String>,
+    /// The name of the tool rail region.
     pub tools: Option<String>,
+    /// The name of the status bar region.
     pub status: Option<String>,
 }
 
@@ -87,6 +90,7 @@ pub struct CanvasShell<'a> {
 }
 
 impl<'a> CanvasShell<'a> {
+    /// A shell for `window` with no slots yet.
     pub fn new(window: WindowKey) -> Self {
         Self {
             shell: AppShell::new(window),
@@ -137,16 +141,20 @@ impl<'a> CanvasShell<'a> {
         self
     }
 
+    /// The translated names of the regions. Without them [`CanvasLabels::of`] reads the
+    /// installed words.
     pub fn labels(mut self, labels: CanvasLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Whether the slots show ([`BodyMode::Normal`]) or only the body ([`BodyMode::Only`]).
     pub fn body_mode(mut self, mode: BodyMode) -> Self {
         self.shell = self.shell.body_mode(mode);
         self
     }
 
+    /// Whether the reveal works in body-only mode; see [`AppShell::allow_reveal`]. Default on.
     pub fn allow_reveal(mut self, allow: bool) -> Self {
         self.shell = self.shell.allow_reveal(allow);
         self
@@ -158,11 +166,13 @@ impl<'a> CanvasShell<'a> {
         self
     }
 
+    /// The host's pasteboard colour, behind the document in normal mode.
     pub fn backdrop(mut self, color: Option<egui::Color32>) -> Self {
         self.shell = self.shell.backdrop(color);
         self
     }
 
+    /// The translated AccessKit name of the body.
     pub fn body_label(mut self, label: impl Into<String>) -> Self {
         self.shell = self.shell.body_label(label);
         self
