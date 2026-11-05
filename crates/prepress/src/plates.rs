@@ -94,7 +94,10 @@ pub enum Conversion {
         condition: Option<String>,
     },
     /// Through [`Fallback::Fogra39`] or [`Fallback::Profile`]; the profile's description.
-    Fallback { profile: String },
+    Fallback {
+        /// The profile's description.
+        profile: String,
+    },
     /// By [`Fallback::DeviceFormulas`].
     DeviceFormulas,
 }
@@ -107,10 +110,13 @@ pub struct Plates {
     pub inks: InkSet,
     /// Spot inks past [`MAX_SPOT_INKS`]: listed, not separated.
     pub unseparated: Vec<String>,
+    /// Plate width in pixels.
     pub width: u32,
+    /// Plate height in pixels.
     pub height: u32,
     /// The resolution the plates rendered at, after [`MAX_PLATE_PIXELS`].
     pub dpi: f32,
+    /// How the page's CMYK was converted to the plates' inks.
     pub conversion: Conversion,
     /// One plane per ink, in [`InkSet::iter`] order: the tint per pixel, row-major, 0 for no
     /// ink and 255 for 100%.
@@ -129,15 +135,20 @@ impl Plates {
     }
 }
 
+/// Why a page could not be separated.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// The PDF could not be opened.
     #[error(transparent)]
     Open(#[from] OpenError),
+    /// The requested page is not in the document.
     #[error("page {0} does not exist")]
     NoPage(usize),
+    /// The resolution is zero, negative, infinite or NaN.
     #[error("the resolution must be positive and finite")]
     InvalidDpi,
+    /// The fallback profile is not usable as a printing condition.
     #[error("the fallback profile can't be a printing condition: {0}")]
     Profile(#[from] ProfileError),
     /// After a [`raster::Error::BackendPanic`] the document is dropped; nothing else is kept.
