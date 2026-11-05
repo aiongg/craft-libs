@@ -108,8 +108,6 @@ fn dragging_a_field_onto_another_area_moves_it() {
         (area, EditEvent::Set { value, .. }),
     ] = &moves[..]
     else {
-        let boxes: Vec<_> = [FieldArea::Filters, FieldArea::Columns, FieldArea::Rows, FieldArea::Values].iter().map(|_| ()).collect::<Vec<_>>();
-        let _ = boxes;
         panic!(
             "begin, cancel, set: {moves:?}; to {to:?}; filters {:?}; columns {:?}",
             harness.get_by_role_and_label(Role::ListBox, "Filters").rect(),
