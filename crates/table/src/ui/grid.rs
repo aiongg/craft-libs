@@ -129,13 +129,6 @@ impl LineIndex {
 /// 100 % height, so the letters stay readable (GridCraft `geo.rs:35`). A proportion, not a size.
 pub const HEADER_MIN_ZOOM: f32 = 0.75;
 
-/// How far from a header's far edge a press still grabs it, as a share of the column header's
-/// height (GridCraft `interact.rs:945`: 4 of 21). A proportion, not a size.
-const EDGE_GRAB_SHARE: f32 = 0.2;
-
-/// The opacity (0…255) of the selection's tint over the cells.
-const SELECTION_FILL_ALPHA: u8 = 48;
-
 /// The least and greatest zoom (10 %…400 %).
 const MIN_ZOOM: f32 = 0.1;
 const MAX_ZOOM: f32 = 4.0;

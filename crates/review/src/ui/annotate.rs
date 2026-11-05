@@ -13,6 +13,8 @@ use craft_ui::theme::ToEgui as _;
 use egui::{AsIdSalt, Color32, CursorIcon, EventFilter, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui};
 use kurbo::{Point, Rect, Vec2};
 
+use super::style::ReviewStyle;
+
 use crate::annotate::{
     Annotation, AnnotationEdit, AnnotationGroup, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, AnnotationTool, hit, reshaped,
     resized, snapped_to_45,
@@ -733,7 +735,7 @@ fn group_label(labels: &AnnotateLabels, group: AnnotationGroup) -> String {
     .to_string()
 }
 
-fn paint_annotation(painter: &Painter, a: &Annotation, to_screen: &impl Fn(Point) -> Pos2, scale: f32, icon_points: f32) {
+fn paint_annotation(painter: &Painter, a: &Annotation, to_screen: &impl Fn(Point) -> Pos2, scale: f32, icon_points: f32, text_font: &egui::FontId) {
     use AnnotationKind as K;
     let color = color32(a);
     let width = (a.stroke_width as f32 * scale).max(1.0);
@@ -806,8 +808,7 @@ fn paint_annotation(painter: &Painter, a: &Annotation, to_screen: &impl Fn(Point
         K::TextBox | K::Callout => {
             let r = screen_rect(a.rect, to_screen);
             painter.rect_stroke(r, 0.0, stroke, egui::StrokeKind::Inside);
-            let font = egui::TextStyle::Body.resolve(&painter.ctx().global_style());
-            painter.with_clip_rect(r).text(r.left_top(), egui::Align2::LEFT_TOP, &a.text, font, color);
+            painter.with_clip_rect(r).text(r.left_top(), egui::Align2::LEFT_TOP, &a.text, text_font.clone(), color);
         }
         K::Note | K::Attach | K::Caret => {
             let at = to_screen(Point::new(a.rect.x0, a.rect.y0));
@@ -829,8 +830,9 @@ impl<'a> AnnotationOverlay<'a> {
         let tokens = craft_ui::theme::current(painter.ctx());
         let scale = (to_screen(Point::new(1.0, 0.0)) - to_screen(Point::ZERO)).length();
         let icon_points = IconSize::Md.points(&tokens);
+        let text_font = tokens.font(ReviewStyle::of(&tokens).annotation_text);
         for a in self.annotations {
-            paint_annotation(painter, a, &to_screen, scale, icon_points);
+            paint_annotation(painter, a, &to_screen, scale, icon_points, &text_font);
         }
         let outline = Stroke::new(Handle::style(&tokens, HandleShape::Square).stroke.width, tokens.color.overlay.line.to_egui());
         let ppp = painter.ctx().pixels_per_point();

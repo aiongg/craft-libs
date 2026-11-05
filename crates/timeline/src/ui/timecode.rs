@@ -1,6 +1,6 @@
 //! The timecode field and the Timecode panel (N1.09, N1.14).
 
-use craft_theme::{ControlSize, TypeRole};
+use craft_theme::ControlSize;
 use craft_ui::behavior::scrub::travel;
 use craft_ui::behavior::{ClaimedKey, KeyClaim, Scrub};
 use craft_ui::controls::text_field::{BoxState, field_box};
@@ -108,7 +108,7 @@ impl<'a> TimecodeField<'a> {
         let id = ui.make_persistent_id(id_salt);
         let typing_key = id.with("typing");
         let rate = format.rate;
-        let role = if large { TypeRole::Heading } else { TypeRole::Mono };
+        let role = if large { style.timecode_large_text } else { style.timecode_text };
         let color = if large { tokens.color.accent.text.to_egui() } else { field.text };
         let text_format = tabular(role_format(&tokens, role, color));
         let ctx = ui.ctx().clone();
@@ -386,7 +386,7 @@ impl<'a> TimecodePanel<'a> {
         let id = ui.make_persistent_id(id_salt);
         let enabled = ui.is_enabled();
         let colors = &tokens.color;
-        let caption_format = role_format(&tokens, TypeRole::Caption, colors.text.muted.to_egui());
+        let caption_format = role_format(&tokens, TimelineStyle::of(&tokens).timecode_caption, colors.text.muted.to_egui());
         let mut picks: Vec<(usize, RowCommand)> = Vec::new();
         let mut add = false;
         let removable = settings.rows.len() > 1;
@@ -396,7 +396,11 @@ impl<'a> TimecodePanel<'a> {
                     let big = at == 0;
                     let value = text(row);
                     let caption = format!("{} \u{b7} {}", row_kind_label(&labels, row.kind), row_source_label(&labels, row.source));
-                    let (role, color) = if big { (TypeRole::Heading, colors.accent.text) } else { (TypeRole::Mono, colors.text.normal) };
+                    let (role, color) = if big {
+                        (TimelineStyle::of(&tokens).timecode_large_text, colors.accent.text)
+                    } else {
+                        (TimelineStyle::of(&tokens).timecode_text, colors.text.normal)
+                    };
                     let value_format = tabular(role_format(&tokens, role, color.to_egui()));
                     let value_galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(value.clone(), value_format.clone())));
                     let caption_galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(caption.clone(), caption_format.clone())));

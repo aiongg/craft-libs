@@ -1,6 +1,6 @@
 //! A decoded frame fitted in a panel, with a status line (N1.11).
 
-use craft_theme::TypeRole;
+use super::style::TimelineStyle;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
@@ -71,7 +71,7 @@ impl<'a> FramePreview<'a> {
     // `draw_video_surface`.
     pub fn show(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
-        let format = role_format(&tokens, TypeRole::Caption, tokens.color.text.muted.to_egui());
+        let format = role_format(&tokens, TimelineStyle::of(&tokens).preview_text, tokens.color.text.muted.to_egui());
         let id = ui.make_persistent_id(self.id_salt);
         let (rect, _) = ui.allocate_exact_size(ui.available_size(), Sense::hover());
         let response = ui.interact(rect, id, Sense::hover());

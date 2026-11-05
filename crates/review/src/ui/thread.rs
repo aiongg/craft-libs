@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use craft_theme::{ButtonVariant, ControlSize, TypeRole};
+use craft_theme::{ButtonVariant, ControlSize};
 use craft_ui::controls::{Button, IconButton, TextField, ToggleButton};
 use craft_ui::edit::{CancelReason, EditEvent, GestureId};
 use craft_ui::icons::Icon;
@@ -400,7 +400,7 @@ fn single_pin(ui: &mut Ui, cx: &PinCx, (thread, at, author): (ThreadId, Pos2, &s
     paint_bubble(ui, tokens, style, rect, open || response.hovered() || response.has_focus(), |ui, inner| {
         let color = tokens.color.text.on_strong.to_egui();
         ui.painter().circle_filled(inner.center(), inner.height() / 2.0, tokens.color.accent.strong.to_egui());
-        let galley = ui.painter().layout_job(LayoutJob::single_section(initials(author), role_format(tokens, TypeRole::Caption, color)));
+        let galley = ui.painter().layout_job(LayoutJob::single_section(initials(author), role_format(tokens, style.caption_text, color)));
         ui.painter().galley(inner.center() - galley.size() / 2.0, galley, color);
     });
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -445,7 +445,7 @@ fn cluster_pin(ui: &mut Ui, cx: &PinCx, spot: &PinCluster, pins: &[(ThreadId, Po
     let PinCx { tokens, style, labels, id } = *cx;
     let color = tokens.color.text.on_strong.to_egui();
     let count = spot.threads.len().to_string();
-    let galley = ui.painter().layout_job(LayoutJob::single_section(count, role_format(tokens, TypeRole::Caption, color)));
+    let galley = ui.painter().layout_job(LayoutJob::single_section(count, role_format(tokens, style.caption_text, color)));
     let width = style.pin.max(galley.size().x + 2.0 * tokens.space.pad.control);
     let rect = pin_rect(style, spot.at, width);
     let key = id.with(("cluster", spot.threads.first()));
@@ -474,8 +474,7 @@ fn paint_bubble(ui: &mut Ui, tokens: &UiTokens, style: &ReviewStyle, rect: Rect,
     let fill = if hot { tokens.color.accent.soft } else { tokens.color.surface.raised }.to_egui();
     ui.painter().rect_filled(rect, radius, fill);
     ui.painter().rect_stroke(rect, radius, Stroke::new(1.0, tokens.color.line.border.to_egui()), StrokeKind::Inside);
-    let inset = tokens.space.gap.inline / 2.0;
-    inner(ui, rect.shrink(inset));
+    inner(ui, rect.shrink(style.pin_inset));
 }
 
 /// What the popover's parts read.
@@ -542,8 +541,8 @@ fn mention_text(ui: &mut Ui, cx: &PopoverCx, message: &str) {
     let tokens = cx.tokens;
     let mut names: Vec<&str> = cx.people.iter().map(String::as_str).collect();
     names.push(cx.me);
-    let plain = role_format(tokens, TypeRole::Body, tokens.color.text.normal.to_egui());
-    let mention = role_format(tokens, TypeRole::BodyStrong, tokens.color.accent.text.to_egui());
+    let plain = role_format(tokens, ReviewStyle::of(tokens).body_text, tokens.color.text.normal.to_egui());
+    let mention = role_format(tokens, ReviewStyle::of(tokens).strong_text, tokens.color.accent.text.to_egui());
     let mut job = LayoutJob::default();
     let mut at = 0;
     for range in mention_ranges(message, &names) {
@@ -566,11 +565,11 @@ fn message_view(ui: &mut Ui, cx: &PopoverCx, index: usize, edits: &mut Vec<Comme
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = tokens.space.gap.inline;
             ui.horizontal(|ui| {
-                text(ui, tokens, TypeRole::BodyStrong, tokens.color.text.normal.to_egui(), &message.author);
+                text(ui, tokens, ReviewStyle::of(tokens).strong_text, tokens.color.text.normal.to_egui(), &message.author);
                 text(
                     ui,
                     tokens,
-                    TypeRole::Caption,
+                    ReviewStyle::of(tokens).caption_text,
                     tokens.color.text.muted.to_egui(),
                     age_text(ui.ctx(), message.modified.unwrap_or(message.created)),
                 );

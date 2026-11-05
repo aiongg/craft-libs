@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use craft_theme::{TypeRole, contrast_ratio};
+use craft_theme::contrast_ratio;
 use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::motion::{MIN_MOVE, glides_allowed};
@@ -56,7 +56,7 @@ pub fn paint_avatar(painter: &Painter, center: Pos2, radius: f32, name: &str, fi
     let tokens = current(painter.ctx());
     let on = text_on(&tokens, fill);
     painter.circle_filled(center, radius, fill);
-    let mut format = role_format(&tokens, TypeRole::Caption, on);
+    let mut format = role_format(&tokens, ReviewStyle::of(&tokens).caption_text, on);
     format.font_id.size = radius * AVATAR_TEXT;
     let galley = painter.layout_job(LayoutJob::single_section(crate::collab::initials(name), format));
     painter.galley(center - galley.size() / 2.0, galley, on);
@@ -94,7 +94,7 @@ fn person_color(person: &Participant) -> Color32 {
 /// A name in a person's colour, its top left corner at `at`.
 fn paint_name_tag(painter: &Painter, tokens: &UiTokens, at: Pos2, name: &str, fill: Color32) {
     let on = text_on(tokens, fill);
-    let galley = painter.layout_job(LayoutJob::single_section(name.to_owned(), role_format(tokens, TypeRole::Caption, on)));
+    let galley = painter.layout_job(LayoutJob::single_section(name.to_owned(), role_format(tokens, ReviewStyle::of(tokens).caption_text, on)));
     let pad = vec2(tokens.space.gap.inline, tokens.space.gap.inline / 2.0);
     let rect = Rect::from_min_size(at, galley.size() + 2.0 * pad);
     painter.rect_filled(rect, tokens.radius.control, fill);
@@ -191,7 +191,8 @@ impl<'a> PeopleBar<'a> {
             ring(ui.painter(), &tokens, at, radius);
             ui.painter().circle_filled(at, radius, tokens.color.surface.sunken.to_egui());
             let muted = tokens.color.text.muted.to_egui();
-            let galley = ui.painter().layout_job(LayoutJob::single_section(name.clone(), role_format(&tokens, TypeRole::Caption, muted)));
+            let galley =
+                ui.painter().layout_job(LayoutJob::single_section(name.clone(), role_format(&tokens, ReviewStyle::of(&tokens).caption_text, muted)));
             ui.painter().galley(at - galley.size() / 2.0, galley, muted);
             let entries: Vec<MenuEntry<PeopleCommand>> = others
                 .iter()
@@ -250,7 +251,7 @@ fn paint_follow_frame(ui: &Ui, tokens: &UiTokens, id: egui::Id, text: &str, fill
     let area = ui.ctx().content_rect();
     painter.rect_stroke(area.shrink(FRAME_WIDTH / 2.0), CornerRadius::ZERO, Stroke::new(FRAME_WIDTH, fill), StrokeKind::Inside);
     let on = text_on(tokens, fill);
-    let galley = painter.layout_job(LayoutJob::single_section(text.to_owned(), role_format(tokens, TypeRole::Caption, on)));
+    let galley = painter.layout_job(LayoutJob::single_section(text.to_owned(), role_format(tokens, ReviewStyle::of(tokens).caption_text, on)));
     let pad = vec2(tokens.space.pad.control, tokens.space.gap.inline / 2.0);
     let tag =
         Rect::from_center_size(pos2(area.center().x, area.min.y + FRAME_WIDTH + (galley.size().y + 2.0 * pad.y) / 2.0), galley.size() + 2.0 * pad);

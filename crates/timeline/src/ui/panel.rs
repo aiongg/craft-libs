@@ -1,7 +1,7 @@
 //! The timeline panel: track headers, track rows with clips, the ruler, the playhead and the
 //! scroll bars, over the app's [`TimelineModel`] (N1.07).
 
-use craft_theme::{ControlSize, TypeRole};
+use craft_theme::ControlSize;
 use craft_ui::behavior::{ClaimedKey, KeyClaim, Selection, SelectionChange, SelectionPick};
 use craft_ui::controls::IconButton;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture, GestureId};
@@ -18,7 +18,7 @@ use egui::{
 
 use super::clips::{ClipLane, TimelineTool};
 use super::markers::MarkerEdit;
-use super::ruler::{MARKER_BAND, SHIFT_STEP_FRAMES, STEP_FRAMES, TimelineRuler, TimelineScrollBar, WHEEL_ZOOM};
+use super::ruler::{SHIFT_STEP_FRAMES, STEP_FRAMES, TimelineRuler, TimelineScrollBar, WHEEL_ZOOM};
 use super::{LabelPalette, TimecodeField, TimelineStyle};
 use crate::clips::{ClipEdit, SnapTargets, marquee_clips};
 use crate::clock::{Follow, FollowMode};
@@ -368,7 +368,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             out.snapped = ruler.snapped_at.or(out.snapped);
             if ruler.response.double_clicked()
                 && let Some(pos) = ruler.response.interact_pointer_pos()
-                && pos.y < geo.ruler.top() + MARKER_BAND * geo.ruler.height()
+                && pos.y < geo.ruler.top() + style.ruler_marker_band
                 && !model.markers().iter().any(|marker| (view.x_of(marker.start, left) - pos.x).abs() <= style.marker_width)
             {
                 out.edits.push(TimelineEdit::Marker(MarkerEdit::Add { at: view.time_at(pos.x, left).max(Tick::ZERO) }));
@@ -396,7 +396,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
             let selection = model.selection();
             let track_ids: Vec<TrackId> = tracks.iter().map(|track| track.id).collect();
             if tracks.is_empty() {
-                let text = role_format(&tokens, TypeRole::Body, color.text.muted.to_egui());
+                let text = role_format(&tokens, style.empty_text, color.text.muted.to_egui());
                 let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(labels.empty.clone(), text.clone())));
                 painter.galley(geo.time_area.center() - galley.size() / 2.0, galley, text.color);
             }
@@ -588,7 +588,7 @@ impl<'a> TrackHeader<'a> {
         }
 
         // The name, then the switches the track has.
-        let text = role_format(&tokens, TypeRole::Caption, color.text.normal.to_egui());
+        let text = role_format(&tokens, style.header_text, color.text.normal.to_egui());
         let gap = ui.spacing().item_spacing.x;
         let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(track.name.to_owned(), text.clone())));
         let mut x = strip.right() + gap;

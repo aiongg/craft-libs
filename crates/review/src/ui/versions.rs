@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
-use craft_theme::{ButtonVariant, TypeRole};
+use craft_theme::ButtonVariant;
 use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
 use craft_ui::controls::{Button, ControlSize, IconButton, TextField};
 use craft_ui::edit::EditEvent;
@@ -169,7 +169,13 @@ impl<'a> VersionPreviewBanner<'a> {
             .inner_margin(Margin::same(tokens.space.pad.control as i8))
             .show(&mut inner, |ui| {
                 ui.horizontal(|ui| {
-                    text(ui, &tokens, TypeRole::Body, tokens.color.text.normal.to_egui(), fmt(&labels.previewing, &[("title", &name)]));
+                    text(
+                        ui,
+                        &tokens,
+                        ReviewStyle::of(&tokens).body_text,
+                        tokens.color.text.normal.to_egui(),
+                        fmt(&labels.previewing, &[("title", &name)]),
+                    );
                     if ui.add(Button::new(&labels.restore).variant(ButtonVariant::Primary).id_salt(id.with("restore"))).clicked() {
                         action = Some(VersionAction::Restore(version.id));
                     }
@@ -237,7 +243,7 @@ enum RowMenu {
 fn header(ui: &mut Ui, cx: &Cx, state: &mut PanelState, action: &mut Option<VersionAction>) {
     let (tokens, labels) = (cx.tokens, cx.labels);
     ui.horizontal(|ui| {
-        text(ui, tokens, TypeRole::Title, tokens.color.text.normal.to_egui(), &labels.title);
+        text(ui, tokens, ReviewStyle::of(tokens).title_text, tokens.color.text.normal.to_egui(), &labels.title);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if state.form.is_none() && ui.add(Button::new(&labels.save).id_salt(cx.id.with("save"))).clicked() {
                 state.form = Some((String::new(), String::new()));
@@ -272,11 +278,11 @@ fn header(ui: &mut Ui, cx: &Cx, state: &mut PanelState, action: &mut Option<Vers
 
 fn branch_section(ui: &mut Ui, cx: &Cx, branches: &[Branch], state: &mut PanelState, action: &mut Option<VersionAction>) {
     let (tokens, labels) = (cx.tokens, cx.labels);
-    text(ui, tokens, TypeRole::Caption, tokens.color.text.muted.to_egui(), &labels.branches);
+    text(ui, tokens, ReviewStyle::of(tokens).caption_text, tokens.color.text.muted.to_egui(), &labels.branches);
     for branch in branches {
         ui.horizontal(|ui| {
             let color = if branch.state == BranchState::Active { tokens.color.text.normal } else { tokens.color.text.muted };
-            text(ui, tokens, TypeRole::Body, color.to_egui(), &branch.name);
+            text(ui, tokens, ReviewStyle::of(tokens).body_text, color.to_egui(), &branch.name);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let salt = cx.id.with(("branch", branch.id));
                 if branch.state == BranchState::Active {
@@ -325,7 +331,7 @@ fn confirm_strip(ui: &mut Ui, cx: &Cx, state: &mut PanelState, action: &mut Opti
     let Some(pending) = state.confirm else { return };
     let (tokens, labels) = (cx.tokens, cx.labels);
     let name = cx.versions.iter().find(|v| v.id == pending).map_or_else(String::new, |v| version_name(ui.ctx(), v));
-    text(ui, tokens, TypeRole::Body, tokens.color.text.normal.to_egui(), format!("{} {name}", labels.delete_confirm));
+    text(ui, tokens, ReviewStyle::of(tokens).body_text, tokens.color.text.normal.to_egui(), format!("{} {name}", labels.delete_confirm));
     ui.horizontal(|ui| {
         if ui.add(Button::new(&labels.delete).variant(ButtonVariant::Primary).id_salt(cx.id.with("confirm-delete"))).clicked() {
             state.confirm = None;
@@ -338,15 +344,14 @@ fn confirm_strip(ui: &mut Ui, cx: &Cx, state: &mut PanelState, action: &mut Opti
 }
 
 /// A dot on the timeline line: filled for the version shown.
-fn paint_dot(painter: &Painter, rect: Rect, tokens: &UiTokens, filled: bool) {
+fn paint_dot(painter: &Painter, rect: Rect, tokens: &UiTokens, style: &ReviewStyle, filled: bool) {
     let line = Stroke::new(craft_theme::Stroke::W1.width(painter.ctx().pixels_per_point()), tokens.color.line.divider.to_egui());
     painter.line_segment([rect.center_top(), rect.center_bottom()], line);
     let color = tokens.color.accent.solid.to_egui();
-    let radius = rect.width() / 4.0;
     if filled {
-        painter.circle_filled(rect.center(), radius, color);
+        painter.circle_filled(rect.center(), style.version_dot_radius, color);
     } else {
-        painter.circle(rect.center(), radius, tokens.color.surface.panel.to_egui(), Stroke::new(line.width, color));
+        painter.circle(rect.center(), style.version_dot_hollow_radius, tokens.color.surface.panel.to_egui(), Stroke::new(line.width, color));
     }
 }
 
@@ -407,14 +412,14 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, action: &mut Option<Ver
     let out = list.show(ui, |_, key| {
         let current = cx.previewing.is_none();
         match key {
-            RowKey::Current => {
-                ListRow::new(key.clone(), &labels.current).indent(indent).glyph(move |painter, rect| paint_dot(painter, rect, cx.tokens, current))
-            }
+            RowKey::Current => ListRow::new(key.clone(), &labels.current)
+                .indent(indent)
+                .glyph(move |painter, rect| paint_dot(painter, rect, cx.tokens, cx.style, current)),
             RowKey::Group(head) => {
                 let n = sizes.get(head).copied().unwrap_or_default();
                 ListRow::new(key.clone(), fmt(&labels.autosaves, &[("n", &n.to_string())]))
                     .indent(indent)
-                    .glyph(move |painter, rect| paint_dot(painter, rect, cx.tokens, false))
+                    .glyph(move |painter, rect| paint_dot(painter, rect, cx.tokens, cx.style, false))
             }
             RowKey::Version(id) => {
                 let id = *id;
@@ -427,7 +432,7 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, action: &mut Option<Ver
                 ListRow::new(key.clone(), label)
                     .indent(indent)
                     .detail(detail)
-                    .glyph(move |painter, rect| paint_dot(painter, rect, cx.tokens, shown))
+                    .glyph(move |painter, rect| paint_dot(painter, rect, cx.tokens, cx.style, shown))
                     .trailing_item(button, move |ui| {
                         let entries = row_menu(labels, version.autosave);
                         let more = ui.add(IconButton::new(Icon::More, "\u{2026}").id_salt(("more", id.0)));

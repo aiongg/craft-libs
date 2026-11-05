@@ -2473,6 +2473,20 @@ fn timeline_lines(out: &mut Lines, t: &TimelineTokens) {
         overview_inset_y,
         overview_box_outset,
         overview_view_min,
+        ruler_marker_band,
+        ruler_work_height,
+        ruler_label_y,
+        ruler_tick_inset,
+        ruler_major_tick,
+        ruler_minor_tick,
+        ruler_render_bar,
+        ruler_head_half_width,
+        ruler_head_height,
+        ruler_cap_width,
+        scroll_knob_radius,
+        scroll_end_zone,
+        header_width_min,
+        header_width_max,
     } = t;
     out.line("timeline.top_height", len(*top_height));
     out.line("timeline.ruler_height", len(*ruler_height));
@@ -2520,6 +2534,20 @@ fn timeline_lines(out: &mut Lines, t: &TimelineTokens) {
     out.line("timeline.overview_inset_y", len(*overview_inset_y));
     out.line("timeline.overview_box_outset", len(*overview_box_outset));
     out.line("timeline.overview_view_min", len(*overview_view_min));
+    out.line("timeline.ruler_marker_band", len(*ruler_marker_band));
+    out.line("timeline.ruler_work_height", len(*ruler_work_height));
+    out.line("timeline.ruler_label_y", len(*ruler_label_y));
+    out.line("timeline.ruler_tick_inset", len(*ruler_tick_inset));
+    out.line("timeline.ruler_major_tick", len(*ruler_major_tick));
+    out.line("timeline.ruler_minor_tick", len(*ruler_minor_tick));
+    out.line("timeline.ruler_render_bar", len(*ruler_render_bar));
+    out.line("timeline.ruler_head_half_width", len(*ruler_head_half_width));
+    out.line("timeline.ruler_head_height", len(*ruler_head_height));
+    out.line("timeline.ruler_cap_width", len(*ruler_cap_width));
+    out.line("timeline.scroll_knob_radius", len(*scroll_knob_radius));
+    out.line("timeline.scroll_end_zone", len(*scroll_end_zone));
+    out.line("timeline.header_width_min", len(*header_width_min));
+    out.line("timeline.header_width_max", len(*header_width_max));
 }
 
 fn review_lines(out: &mut Lines, t: &ReviewTokens) {
@@ -2542,6 +2570,12 @@ fn review_lines(out: &mut Lines, t: &ReviewTokens) {
         revision_inserted,
         revision_deleted,
         revision_changed,
+        card_accent_width,
+        pin_inset,
+        version_dot_radius,
+        version_dot_hollow_radius,
+        ink_light,
+        ink_dark,
     } = t;
     out.line("review.pin", len(*pin));
     out.line("review.cluster_radius", len(*cluster_radius));
@@ -2561,6 +2595,12 @@ fn review_lines(out: &mut Lines, t: &ReviewTokens) {
     out.line("review.revision_inserted", hex(*revision_inserted));
     out.line("review.revision_deleted", hex(*revision_deleted));
     out.line("review.revision_changed", hex(*revision_changed));
+    out.line("review.card_accent_width", len(*card_accent_width));
+    out.line("review.pin_inset", len(*pin_inset));
+    out.line("review.version_dot_radius", len(*version_dot_radius));
+    out.line("review.version_dot_hollow_radius", len(*version_dot_hollow_radius));
+    out.line("review.ink_light", hex(*ink_light));
+    out.line("review.ink_dark", hex(*ink_dark));
 }
 
 fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
@@ -2583,15 +2623,23 @@ fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
         filter_button_min,
         filter_button_max,
         filter_button_inset,
-        chart_dash,
-        chart_dash_gap,
         error_tag_gap,
         error_tag_radius,
         error_tag_mark,
-        error_tag_mark_text,
         filter_button_radius,
         filter_button_glyph_inset,
         stats_gap,
+        edge_grab,
+        fill_handle,
+        header_accent_bar,
+        hidden_mark_offset,
+        header_separator_inset,
+        status_menu_min_width,
+        field_list_checklist_max,
+        field_list_area_min,
+        selection_fill,
+        fill_handle_fill,
+        fill_handle_ring,
     } = t;
     out.line("sheet.column_header_height", len(*column_header_height));
     out.line("sheet.row_header_digit", len(*row_header_digit));
@@ -2611,15 +2659,23 @@ fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
     out.line("sheet.filter_button_min", len(*filter_button_min));
     out.line("sheet.filter_button_max", len(*filter_button_max));
     out.line("sheet.filter_button_inset", len(*filter_button_inset));
-    out.line("sheet.chart_dash", len(*chart_dash));
-    out.line("sheet.chart_dash_gap", len(*chart_dash_gap));
     out.line("sheet.error_tag_gap", len(*error_tag_gap));
     out.line("sheet.error_tag_radius", len(*error_tag_radius));
     out.line("sheet.error_tag_mark", len(*error_tag_mark));
-    out.line("sheet.error_tag_mark_text", len(*error_tag_mark_text));
     out.line("sheet.filter_button_radius", len(*filter_button_radius));
     out.line("sheet.filter_button_glyph_inset", len(*filter_button_glyph_inset));
     out.line("sheet.stats_gap", len(*stats_gap));
+    out.line("sheet.edge_grab", len(*edge_grab));
+    out.line("sheet.fill_handle", len(*fill_handle));
+    out.line("sheet.header_accent_bar", len(*header_accent_bar));
+    out.line("sheet.hidden_mark_offset", len(*hidden_mark_offset));
+    out.line("sheet.header_separator_inset", len(*header_separator_inset));
+    out.line("sheet.status_menu_min_width", len(*status_menu_min_width));
+    out.line("sheet.field_list_checklist_max", len(*field_list_checklist_max));
+    out.line("sheet.field_list_area_min", len(*field_list_area_min));
+    out.line("sheet.selection_fill", hex(*selection_fill));
+    out.line("sheet.fill_handle_fill", hex(*fill_handle_fill));
+    out.line("sheet.fill_handle_ring", hex(*fill_handle_ring));
 }
 
 fn pages_lines(out: &mut Lines, t: &PagesTokens) {

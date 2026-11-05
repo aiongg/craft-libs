@@ -6,7 +6,7 @@ use craft_ui::primitives::FocusRing;
 use craft_ui::theme::scale::Stroke as Line;
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
-use egui::{Align2, CornerRadius, FontId, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2};
+use egui::{Align2, CornerRadius, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2};
 
 use super::style::SheetStyle;
 
@@ -89,7 +89,7 @@ impl<'a> ErrorTag<'a> {
             colors.status.warn.solid.to_egui(),
             Stroke::NONE,
         ));
-        let mark = FontId::new(style.error_tag_mark_text, tokens.font(craft_theme::TypeRole::BodyStrong).family);
+        let mark = tokens.font(style.error_tag_mark_text);
         painter.text(centre, Align2::CENTER_CENTER, "!", mark, colors.text.on_status.to_egui());
         FocusRing::paint_if(ui, tag, radius, response.has_focus());
 

@@ -1,7 +1,8 @@
 //! [`SheetStyle`]: the spreadsheet widgets' sizes, from the `sheet` tokens.
 
 use craft_theme::TypeRole;
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui as _, UiTokens};
+use egui::Color32;
 
 /// The sizes the spreadsheet widgets read, one `sheet.*` token each, at 100 % sheet zoom (the
 /// widgets scale them by the zoom). craft-theme's `sheet` family holds GridCraft's values. The family is
@@ -47,20 +48,55 @@ pub struct SheetStyle {
     /// `sheet.filter_button_glyph_inset`.
     pub filter_button_radius: f32,
     pub filter_button_glyph_inset: f32,
-    /// The error checking tag's gap to its cell, corner radius, warning diamond's half-diagonal and
-    /// exclamation mark's text size: `sheet.error_tag_gap`, `sheet.error_tag_radius`,
-    /// `sheet.error_tag_mark`, `sheet.error_tag_mark_text`.
+    /// The error checking tag's gap to its cell, corner radius and warning diamond's
+    /// half-diagonal: `sheet.error_tag_gap`, `sheet.error_tag_radius`, `sheet.error_tag_mark`.
     pub error_tag_gap: f32,
     pub error_tag_radius: f32,
     pub error_tag_mark: f32,
-    pub error_tag_mark_text: f32,
-    /// A dashed chart line's dash and gap: `sheet.chart_dash`, `sheet.chart_dash_gap`.
-    pub chart_dash: f32,
-    pub chart_dash_gap: f32,
+    /// The type role of the error checking tag's exclamation mark: the theme's caption role,
+    /// nearest GridCraft's 10 pt (`grid/menus.rs:447`).
+    pub error_tag_mark_text: TypeRole,
     /// The gap between the status bar's statistics: `sheet.stats_gap`.
     pub stats_gap: f32,
     /// The type role of the status bar's statistics: the theme's label role.
     pub stats_text: TypeRole,
+    /// How far from a header's far edge a press still grabs it, at 100 % zoom: `sheet.edge_grab`.
+    pub edge_grab: f32,
+    /// The fill handle's side: `sheet.fill_handle`.
+    pub fill_handle: f32,
+    /// The accent bar on a selected header's inner edge: `sheet.header_accent_bar`.
+    pub header_accent_bar: f32,
+    /// The distance of each line of a hidden line's double divider from its edge:
+    /// `sheet.hidden_mark_offset`.
+    pub hidden_mark_offset: f32,
+    /// How far the headers' separators stop short of the header's start:
+    /// `sheet.header_separator_inset`.
+    pub header_separator_inset: f32,
+    /// The status bar menu's least width: `sheet.status_menu_min_width`.
+    pub status_menu_min_width: f32,
+    /// The field list checklist's greatest height and an area's least height:
+    /// `sheet.field_list_checklist_max`, `sheet.field_list_area_min`.
+    pub field_list_checklist_max: f32,
+    pub field_list_area_min: f32,
+    /// The selection's tint over the cells: `sheet.selection_fill`.
+    pub selection_fill: Color32,
+    /// The fill handle's fill and its one-point ring: `sheet.fill_handle_fill`,
+    /// `sheet.fill_handle_ring`.
+    pub fill_handle_fill: Color32,
+    pub fill_handle_ring: Color32,
+    /// The type role of the column and row headers' text, the outline buttons' digits, a
+    /// condition's problem line and the field list's hints: the theme's caption role.
+    pub header_text: TypeRole,
+    pub outline_text: TypeRole,
+    pub problem_text: TypeRole,
+    pub hint_text: TypeRole,
+    /// The type role of a field list's area headings and a slicer's tiles: the theme's body
+    /// role.
+    pub heading_text: TypeRole,
+    pub slicer_text: TypeRole,
+    /// The type roles of a chart's text, plain and bold: the theme's body and strong body roles.
+    pub chart_text: TypeRole,
+    pub chart_text_strong: TypeRole,
 }
 
 impl SheetStyle {
@@ -87,16 +123,33 @@ impl SheetStyle {
             filter_button_min: t.filter_button_min,
             filter_button_max: t.filter_button_max,
             filter_button_inset: t.filter_button_inset,
-            chart_dash: t.chart_dash,
-            chart_dash_gap: t.chart_dash_gap,
             error_tag_gap: t.error_tag_gap,
             error_tag_radius: t.error_tag_radius,
             error_tag_mark: t.error_tag_mark,
-            error_tag_mark_text: t.error_tag_mark_text,
+            error_tag_mark_text: TypeRole::Caption,
             filter_button_radius: t.filter_button_radius,
             filter_button_glyph_inset: t.filter_button_glyph_inset,
             stats_gap: t.stats_gap,
             stats_text: TypeRole::Label,
+            edge_grab: t.edge_grab,
+            fill_handle: t.fill_handle,
+            header_accent_bar: t.header_accent_bar,
+            hidden_mark_offset: t.hidden_mark_offset,
+            header_separator_inset: t.header_separator_inset,
+            status_menu_min_width: t.status_menu_min_width,
+            field_list_checklist_max: t.field_list_checklist_max,
+            field_list_area_min: t.field_list_area_min,
+            selection_fill: t.selection_fill.to_egui(),
+            fill_handle_fill: t.fill_handle_fill.to_egui(),
+            fill_handle_ring: t.fill_handle_ring.to_egui(),
+            header_text: TypeRole::Caption,
+            outline_text: TypeRole::Caption,
+            problem_text: TypeRole::Caption,
+            hint_text: TypeRole::Caption,
+            heading_text: TypeRole::Body,
+            slicer_text: TypeRole::Body,
+            chart_text: TypeRole::Body,
+            chart_text_strong: TypeRole::BodyStrong,
         }
     }
 }

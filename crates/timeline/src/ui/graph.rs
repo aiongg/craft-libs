@@ -1,6 +1,5 @@
 //! The graph editor: keyframed values (or their speed) as curves over time (N1.08).
 
-use craft_theme::TypeRole;
 use craft_ui::behavior::{ClaimedKey, KeyClaim, ListSelection, RowInfo, Selection, SelectionChange, SelectionMode, SelectionPick};
 use craft_ui::canvas::Orientation;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
@@ -549,7 +548,7 @@ fn paint_plot(
             plot_painter.line_segment([pos2(x, plot.top()), pos2(x, plot.bottom())], grid);
         }
     }
-    let text = role_format(tokens, TypeRole::Caption, color.text.faint.to_egui());
+    let text = role_format(tokens, style.graph_text, color.text.faint.to_egui());
     let mut line = (low / step).ceil() * step;
     while line <= high {
         let y = y_of(line);

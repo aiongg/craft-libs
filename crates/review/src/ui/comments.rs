@@ -195,7 +195,7 @@ impl<'a> CommentsPanel<'a> {
                     add_box(ui, &cx, state, &mut edits);
                 }
                 if threads.is_empty() {
-                    text(ui, &tokens, TypeRole::Body, tokens.color.text.muted.to_egui(), &labels.empty);
+                    text(ui, &tokens, style.body_text, tokens.color.text.muted.to_egui(), &labels.empty);
                     return;
                 }
                 list(ui, &cx, threads, state, &mut edits);
@@ -263,7 +263,7 @@ pub(super) fn avatar(ui: &mut Ui, tokens: &UiTokens, name: &str) -> Response {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::hover());
     let on = tokens.color.text.on_strong.to_egui();
     ui.painter().circle_filled(rect.center(), side / 2.0, tokens.color.accent.strong.to_egui());
-    let galley = ui.painter().layout_job(LayoutJob::single_section(initials(name), role_format(tokens, TypeRole::Caption, on)));
+    let galley = ui.painter().layout_job(LayoutJob::single_section(initials(name), role_format(tokens, ReviewStyle::of(tokens).caption_text, on)));
     ui.painter().galley(rect.center() - galley.size() / 2.0, galley, on);
     response
 }
@@ -311,8 +311,8 @@ fn badge(ui: &mut Ui, tokens: &UiTokens, icon: Icon, color: Color32, name: &str)
 fn header(ui: &mut Ui, cx: &Cx, threads: &[CommentThread], state: &mut CommentsPanelState) {
     let (tokens, labels) = (cx.tokens, cx.labels);
     let replies: usize = threads.iter().map(CommentThread::replies).sum();
-    text(ui, tokens, TypeRole::Title, tokens.color.text.normal.to_egui(), format!("{} {}", labels.title, threads.len()));
-    text(ui, tokens, TypeRole::Caption, tokens.color.text.muted.to_egui(), fmt(&labels.replies, &[("n", &replies.to_string())]));
+    text(ui, tokens, ReviewStyle::of(tokens).title_text, tokens.color.text.normal.to_egui(), format!("{} {}", labels.title, threads.len()));
+    text(ui, tokens, ReviewStyle::of(tokens).caption_text, tokens.color.text.muted.to_egui(), fmt(&labels.replies, &[("n", &replies.to_string())]));
     let search = TextField::new(cx.id.with("search"), &labels.search, &state.search).placeholder(&labels.search).leading(Icon::Search).show(ui);
     if let Some(value) = search.event.as_ref().and_then(EditEvent::value) {
         state.search.clone_from(value);
@@ -368,7 +368,13 @@ fn list(ui: &mut Ui, cx: &Cx, threads: &[CommentThread], state: &mut CommentsPan
         for (position, thread) in shown.iter().enumerate() {
             let heading = group_of(cx, thread, state.sort);
             if heading.is_some() && heading != group {
-                text(ui, cx.tokens, TypeRole::BodyStrong, cx.tokens.color.text.muted.to_egui(), heading.clone().unwrap_or_default());
+                text(
+                    ui,
+                    cx.tokens,
+                    ReviewStyle::of(cx.tokens).strong_text,
+                    cx.tokens.color.text.muted.to_egui(),
+                    heading.clone().unwrap_or_default(),
+                );
             }
             group = heading;
             if card(ui, cx, thread, state, edits) {
@@ -442,7 +448,7 @@ fn card(ui: &mut Ui, cx: &Cx, thread: &CommentThread, state: &mut CommentsPanelS
     let response = shown.response;
     let rect = shown.inner;
     if selected {
-        let bar = Rect::from_min_max(rect.min, pos2(rect.min.x + tokens.space.gap.inline / 2.0, rect.max.y));
+        let bar = Rect::from_min_max(rect.min, pos2(rect.min.x + style.card_accent_width, rect.max.y));
         ui.painter().rect_filled(bar, 0.0, style.card_accent);
     }
     let first = thread.messages.first();
@@ -487,10 +493,10 @@ fn card_head(
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             let author = first.map_or(labels.unknown_author.as_str(), |m| m.author.as_str());
-            text(ui, tokens, TypeRole::BodyStrong, tokens.color.text.normal.to_egui(), author);
+            text(ui, tokens, style.strong_text, tokens.color.text.normal.to_egui(), author);
             if let Some(m) = first {
                 let then = m.modified.unwrap_or(m.created);
-                text(ui, tokens, TypeRole::Caption, tokens.color.text.muted.to_egui(), age_text(ui.ctx(), then));
+                text(ui, tokens, style.caption_text, tokens.color.text.muted.to_egui(), age_text(ui.ctx(), then));
             }
         });
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -543,7 +549,7 @@ fn message_body(ui: &mut Ui, cx: &Cx, thread: &CommentThread, index: usize, stat
     let Some(message) = thread.messages.get(index) else { return };
     let editing = state.editing.as_ref().is_some_and(|(t, i, _)| *t == thread.id && *i == index);
     if !editing {
-        text(ui, cx.tokens, TypeRole::Body, cx.tokens.color.text.normal.to_egui(), &message.text);
+        text(ui, cx.tokens, ReviewStyle::of(cx.tokens).body_text, cx.tokens.color.text.normal.to_egui(), &message.text);
         return;
     }
     let draft = state.editing.as_ref().map(|(_, _, text)| text.clone()).unwrap_or_default();
@@ -576,11 +582,11 @@ fn reply(ui: &mut Ui, cx: &Cx, thread: &CommentThread, index: usize, editable: b
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             ui.horizontal(|ui| {
-                text(ui, tokens, TypeRole::BodyStrong, tokens.color.text.normal.to_egui(), &message.author);
+                text(ui, tokens, ReviewStyle::of(tokens).strong_text, tokens.color.text.normal.to_egui(), &message.author);
                 text(
                     ui,
                     tokens,
-                    TypeRole::Caption,
+                    ReviewStyle::of(tokens).caption_text,
                     tokens.color.text.muted.to_egui(),
                     age_text(ui.ctx(), message.modified.unwrap_or(message.created)),
                 );

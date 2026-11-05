@@ -1,6 +1,6 @@
 //! The voting pill on a board (N5.08).
 
-use craft_theme::{ButtonVariant, TypeRole};
+use craft_theme::ButtonVariant;
 use craft_ui::controls::{Button, NumberField, Select};
 use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
 use craft_ui::popover::{Popover, PopoverAnchor};
@@ -8,6 +8,7 @@ use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
 use super::comments::text;
+use super::style::ReviewStyle;
 use crate::collab::{CollabRequest, CollabTransport, VoteScope};
 
 /// Votes per person a new vote starts with.
@@ -76,7 +77,7 @@ impl<'a> VotePill<'a> {
                         let left = text(
                             ui,
                             &tokens,
-                            TypeRole::Body,
+                            ReviewStyle::of(&tokens).body_text,
                             tokens.color.text.normal.to_egui(),
                             fmt(&labels.votes_left, &[("n", &running.left().to_string())]),
                         );
@@ -138,8 +139,8 @@ fn start_popover(ui: &mut Ui, id: egui::Id, button: &Response, labels: &VoteLabe
         &mut open,
         |ui, pop| {
             ui.spacing_mut().item_spacing.y = tokens.space.gap.row;
-            text(ui, &tokens, TypeRole::BodyStrong, tokens.color.text.normal.to_egui(), &labels.voting_session);
-            text(ui, &tokens, TypeRole::Label, tokens.color.text.muted.to_egui(), &labels.votes_per_person);
+            text(ui, &tokens, ReviewStyle::of(&tokens).strong_text, tokens.color.text.normal.to_egui(), &labels.voting_session);
+            text(ui, &tokens, ReviewStyle::of(&tokens).label_text, tokens.color.text.muted.to_egui(), &labels.votes_per_person);
             let votes = NumberField::new(id.with("votes"), &labels.votes_per_person, draft.per_person, &numbers)
                 .range(1..=MAX_VOTES)
                 .step(1.0)
@@ -149,7 +150,7 @@ fn start_popover(ui: &mut Ui, id: egui::Id, button: &Response, labels: &VoteLabe
             if let Some(value) = votes.event.as_ref().and_then(|event| event.value()) {
                 draft.per_person = value.round().clamp(1.0, f64::from(MAX_VOTES)) as u32;
             }
-            text(ui, &tokens, TypeRole::Label, tokens.color.text.muted.to_egui(), &labels.vote_on);
+            text(ui, &tokens, ReviewStyle::of(&tokens).label_text, tokens.color.text.muted.to_egui(), &labels.vote_on);
             let _ = Select::new(id.with("scope"), &labels.vote_on, &mut draft.scope)
                 .option(VoteScope::All, &labels.all)
                 .option(VoteScope::Stickies, &labels.stickies)

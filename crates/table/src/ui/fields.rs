@@ -9,7 +9,9 @@ use craft_ui::list::{DropMark, List, ListEvent, ListRow, RowEvent, ThumbSize, To
 use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt, PressMenu};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, margin};
-use egui::{AsIdSalt, DragAndDrop, Frame, Id, IdSalt, Modifiers, Pos2, Response, RichText, TextStyle, Ui};
+use egui::{AsIdSalt, DragAndDrop, Frame, Id, IdSalt, Modifiers, Pos2, Response, RichText, Ui};
+
+use super::style::SheetStyle;
 
 craft_ui::words! {
     /// The pane's words, English by default (GridCraft's, Excel's).
@@ -142,13 +144,16 @@ impl<'a> FieldListPane<'a> {
         let response = ui
             .with_layout(direction::column(ui), |ui| {
                 ui.label(RichText::new(&labels.title).strong());
-                ui.label(RichText::new(&labels.choose).text_style(TextStyle::Small).color(tokens.color.text.muted.to_egui()));
+                let style = SheetStyle::of(&tokens);
+                let hint = tokens.font(style.hint_text);
+                ui.label(RichText::new(&labels.choose).font(hint.clone()).color(tokens.color.text.muted.to_egui()));
                 let button_height = Button::style(&tokens, craft_ui::controls::ButtonVariant::Secondary, ControlSize::Md).height;
                 let footer = ui.spacing().item_spacing.y + button_height;
                 checklist(&cx, ui, fields, ui.available_height() * CHECKLIST_SHARE, &mut edits);
                 ui.separator();
-                ui.label(RichText::new(&labels.areas_hint).text_style(TextStyle::Small).color(tokens.color.text.muted.to_egui()));
-                let heading = ui.text_style_height(&TextStyle::Body) + ui.spacing().item_spacing.y;
+                ui.label(RichText::new(&labels.areas_hint).font(hint).color(tokens.color.text.muted.to_egui()));
+                let heading_font = tokens.font(style.heading_text);
+                let heading = ui.fonts_mut(|fonts| fonts.row_height(&heading_font)) + ui.spacing().item_spacing.y;
                 let framing = 2.0 * (f32::from(margin(tokens.space.pad.control).top) + ui.spacing().item_spacing.y);
                 let room = (ui.available_height() - footer - 2.0 * (heading + framing)).max(0.0) / 2.0;
                 let room = room.max(cx.row_height * AREA_MIN_ROWS);

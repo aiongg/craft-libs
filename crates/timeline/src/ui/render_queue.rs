@@ -3,7 +3,8 @@
 use std::cell::RefCell;
 use std::time::Duration;
 
-use craft_theme::{ButtonVariant, ControlSize, TypeRole};
+use super::style::TimelineStyle;
+use craft_theme::{ButtonVariant, ControlSize};
 use craft_ui::behavior::{Axis, ClaimedKey, KeyClaim, Move, Reorder, RowInfo, Selection, SelectionChange};
 use craft_ui::controls::{Button, Progress};
 use craft_ui::direction;
@@ -121,8 +122,8 @@ impl<'a> RenderQueueList<'a> {
         let row_style = ListRow::<RenderItemId>::style(&tokens);
         let bar_style = Progress::style(&tokens);
         let button_height = Button::style(&tokens, ButtonVariant::Secondary, ControlSize::Md).height;
-        let caption = role_format(&tokens, TypeRole::Caption, tokens.color.text.muted.to_egui());
-        let caption_line = tokens.typography.get(TypeRole::Caption).line_height;
+        let caption = role_format(&tokens, TimelineStyle::of(&tokens).render_queue_text, tokens.color.text.muted.to_egui());
+        let caption_line = tokens.typography.get(TimelineStyle::of(&tokens).render_queue_text).line_height;
         let (caption_font, caption_color) = (caption.font_id.clone(), caption.color);
         let ctx = ui.ctx().clone();
         let gap = ui.spacing().item_spacing.y;
