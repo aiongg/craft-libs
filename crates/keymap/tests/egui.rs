@@ -721,7 +721,11 @@ fn insert_and_delete_chords_copy_paste_and_cut_on_linux() {
     assert_eq!(after(EguiKey::Insert, Modifiers::CTRL, true), [Event::Copy]);
     assert_eq!(after(EguiKey::Delete, Modifiers::SHIFT, true), [Event::Cut]);
     assert!(after(EguiKey::Insert, Modifiers::SHIFT, true).is_empty());
-    let asked = ctx.run_ui(egui::RawInput::default(), |_| {}).viewport_output.values().flat_map(|v| &v.commands).any(|c| matches!(c, egui::ViewportCommand::RequestPaste));
+    let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let mut raw = egui::RawInput { events: vec![raw_key(EguiKey::Insert, true, Modifiers::SHIFT)], ..Default::default() };
+        d.raw_input(ui.ctx(), &mut raw, true);
+    });
+    let asked = out.viewport_output.values().flat_map(|v| &v.commands).any(|c| matches!(c, egui::ViewportCommand::RequestPaste));
     assert!(asked, "the window is asked for the clipboard text");
     // Plain Insert, other modifiers, and the other platforms are left alone.
     assert!(matches!(after(EguiKey::Insert, Modifiers::NONE, false).as_slice(), [Event::Key { key: EguiKey::Insert, .. }]));
