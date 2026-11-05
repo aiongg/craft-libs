@@ -211,7 +211,11 @@ impl DialogFrame {
 /// box lies over it.
 fn title_row(ui: &mut Ui, style: &DialogFrameStyle, id: egui::Id, title: &str, close_label: Option<&str>) -> (Response, Option<Response>, f32) {
     let tokens = Tokens::of(ui);
-    let row_height = if close_label.is_some() { style.close_box.max(style.title_line) } else { style.title_line };
+    // pc: crates/ui-egui/src/dialogs.rs:630 the title is a bare label, so the row is the font's own
+    // height, not the role's line height.
+    let mut format = role_format(&tokens, style.title_role, style.title);
+    format.line_height = None;
+    let row_height = ui.fonts_mut(|f| f.layout_job(egui::text::LayoutJob::single_section(title.to_owned(), format.clone()))).size().y;
     let (_, row) = ui.allocate_space(vec2(ui.available_width(), row_height));
     let forward = direction::forward(ui);
     let (start, end) = (direction::start_x(ui, row), direction::end_x(ui, row));
@@ -227,15 +231,16 @@ fn title_row(ui: &mut Ui, style: &DialogFrameStyle, id: egui::Id, title: &str, c
 
     let text = Rect::from_x_y_ranges(span(start, near), row.y_range());
     if text.width() >= 1.0 {
-        let format = role_format(&tokens, style.title_role, style.title);
         let mut title_ui = ui.new_child(UiBuilder::new().max_rect(text).layout(direction::row(ui)));
         let label = title_ui.add(Label::new(egui::text::LayoutJob::single_section(title.to_owned(), format)).truncate().selectable(false));
         label.widget_info(|| WidgetInfo::labeled(Role::Heading, true, title));
         ui.ctx().accesskit_node_builder(label.id, |node| node.set_level(1));
     }
+    // pc: crates/ui-egui/src/dialogs.rs:255-267 the close box overlays the row, centred on it, and
+    // does not set the row's height.
     let close = close_label.map(|label| {
         let square = Rect::from_x_y_ranges(span(near, end), (row.center().y - style.close_box / 2.0)..=(row.center().y + style.close_box / 2.0));
         IconButton::new(Icon::Close, label).size(ControlSize::Sm).id_salt((id, "close")).show_at(ui, square)
     });
-    (drag, close, row_height)
+    (drag, close, if close_label.is_some() { row_height.max(style.close_box) } else { row_height })
 }

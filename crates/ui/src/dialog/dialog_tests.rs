@@ -580,8 +580,8 @@ fn a_dialog_that_fits_keeps_its_size_and_place() {
     let (harness, _) = tall_dialog(vec2(640.0, 480.0), 3);
     let (row, ok) = (harness.get_by_label("Row 0").rect(), harness.get_by_label("OK").rect());
     let near = |a: Rect, b: Rect| (a.min - b.min).length() < 0.5 && (a.size() - b.size()).length() < 0.5;
-    assert!(near(row, Rect::from_min_max(pos2(170.0, 215.0), pos2(203.2, 229.0))), "{row:?}");
-    assert!(near(ok, Rect::from_min_max(pos2(292.0, 313.0), pos2(376.0, 341.0))), "{ok:?}");
+    assert!(near(row, Rect::from_min_max(pos2(170.0, 213.0), pos2(203.2, 227.0))), "{row:?}");
+    assert!(near(ok, Rect::from_min_max(pos2(292.0, 311.0), pos2(376.0, 339.0))), "{ok:?}");
 }
 
 #[test]
@@ -763,4 +763,37 @@ fn the_title_is_drawn_in_the_dialog_title_role() {
     assert_eq!(*font, tokens.font(craft_theme::TypeRole::Heading));
     assert_eq!(font.size, 15.0);
     assert_eq!(tokens.typography.heading.font, craft_theme::FontSlot::UiSemibold);
+}
+
+// PhotoCraft lays the title out as a bare label and overlays the close box, so the title rule
+// sits the pad, the title's own height, an item gap and the title gap under the dialog's top,
+// with or without the close box.
+#[test]
+fn the_title_rule_sits_the_title_height_under_the_pad_whatever_the_close_box() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut at = [0.0; 2];
+    let mut expected = 0.0;
+    for (i, close) in [false, true].into_iter().enumerate() {
+        for _ in 0..2 {
+            let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                let d = crate::theme::current(ui.ctx()).component.dialog;
+                let gap = ui.spacing().item_spacing.y;
+                let mut frame = DialogFrame::new("frame", "New Document");
+                if close {
+                    frame = frame.close_label("Close");
+                }
+                let mut body_top = 0.0;
+                let r = frame.show(ui, |ui| body_top = ui.cursor().top());
+                // The body starts after the rule (one point), an item gap and the body gap.
+                at[i] = body_top - r.rect.top() - 1.0 - gap - d.body_gap;
+                if !close {
+                    expected = d.pad + r.title_height + gap + d.title_gap;
+                }
+            });
+            output.drop_without_applying_deltas();
+        }
+    }
+    assert!((at[0] - expected).abs() < 0.5, "rule at {}, expected {expected}", at[0]);
+    assert!((at[1] - at[0]).abs() < 0.5, "the close box moved the rule: {} against {}", at[1], at[0]);
 }
