@@ -95,6 +95,7 @@ fn a_text_field_owns_the_keys_in_the_pass_egui_drops_its_focus_on_escape() {
     ctx.run_ui(escape(), |ui| {
         ui.text_edit_singleline(&mut text);
         owners.push(owner(ui.ctx(), &OwnerGate::default()));
+        assert!(!keys_free(ui.ctx(), LayerId::background()), "keys_free agrees with owner in the Escape pass");
     })
     .drop_without_applying_deltas();
     pass(&ctx, |ui| {

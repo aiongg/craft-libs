@@ -91,7 +91,7 @@ pub fn keys_free(ctx: &Context, layer: LayerId) -> bool {
         || crate::popup_list::owns_keys(ctx)
         || crate::popup_list::passive_open(ctx)
         || crate::menu::bar::is_focused(ctx)
-        || ctx.text_edit_focused()
+        || text_has_keys(ctx)
     {
         return false;
     }
