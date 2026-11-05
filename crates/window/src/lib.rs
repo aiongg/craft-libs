@@ -10,7 +10,7 @@
 //! compositor — so on KDE, say, one app wore KWin's title bar while another wore its own. This
 //! crate makes the decision one place.
 //!
-//! This page describes the first-generation rule ([`Choice::probe`], [`Frame`], [`decorate`]),
+//! This page describes the first-generation rule ([`Choice::probe`], [`Frame`], `decorate` (feature `ui`)),
 //! which stays for apps that have not moved. The current rule is in [`policy`]: the app's own bar
 //! is the title bar by default, and the user setting "Use system title bar" turns that off.
 //!
@@ -37,8 +37,8 @@
 //!
 //! # With egui
 //!
-//! The `ui` feature adds [`decorate`], which applies the decision to an
-//! [`egui::ViewportBuilder`] before the window is created:
+//! The `ui` feature adds `decorate`, which applies the decision to an
+//! `egui::ViewportBuilder` before the window is created:
 //!
 //! ```ignore
 //! let viewport = egui::ViewportBuilder::default().with_title("PhotoCraft");
@@ -53,7 +53,7 @@
 //! # The app's own title bar
 //!
 //! An app that draws over the title bar (a hidden macOS title bar with a full-size content view,
-//! or [`Frame::App`]) makes its top strip act as one with [`title_bar`]: the strip's empty part
+//! or [`Frame::App`]) makes its top strip act as one with `title_bar` (feature `ui`): the strip's empty part
 //! moves the window and follows the system's double-click setting, while the strip's controls and
 //! in-window panels lying over it keep their own clicks and drags. On macOS,
 //! `title_bar::sync_movable` sets AppKit's `movable` flag each frame so a drag that starts on
