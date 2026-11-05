@@ -12,10 +12,15 @@ use super::patterns::{Alphabet, FxMap, MAX_PATTERN_LEN, Patterns, apply, pack};
 /// Parameters of one level.
 #[derive(Clone, Copy, Debug)]
 pub struct Level {
+    /// Shortest pattern length, in letters, that this level considers.
     pub min_len: usize,
+    /// Longest pattern length, in letters, that this level considers.
     pub max_len: usize,
+    /// Weight of each good position a pattern fixes.
     pub good_weight: u32,
+    /// Weight of each bad position a pattern would break.
     pub bad_weight: u32,
+    /// Least weighted score (good times `good_weight` minus bad times `bad_weight`) for a pattern to be kept.
     pub threshold: u32,
 }
 
@@ -40,13 +45,18 @@ struct Word {
 /// Accuracy of a pattern set over a word list.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Score {
+    /// Number of words tested.
     pub words: usize,
+    /// Number of correct break positions in the word list.
     pub breaks: usize,
+    /// Number of correct break positions the patterns found.
     pub found: usize,
+    /// Number of break positions the patterns put where the word list has none.
     pub wrong: usize,
 }
 
 impl Score {
+    /// The number of correct break positions the patterns missed.
     pub fn missed(&self) -> usize {
         self.breaks.saturating_sub(self.found)
     }

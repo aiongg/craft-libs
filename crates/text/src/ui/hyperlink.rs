@@ -43,7 +43,12 @@ pub enum LinkTarget {
     /// A web address or file (`https://…`).
     Url(String),
     /// An email address and an optional subject, written as a `mailto:` link by the app.
-    Email { address: String, subject: Option<String> },
+    Email {
+        /// The email address.
+        address: String,
+        /// The subject line, if any.
+        subject: Option<String>,
+    },
     /// The top of the document (Word's "Top of the Document").
     Top,
     /// A place in the document: the index into [`HyperlinkDialog::places`].
@@ -53,7 +58,9 @@ pub enum LinkTarget {
 /// The link the dialog edits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Hyperlink {
+    /// Where the link goes.
     pub target: LinkTarget,
+    /// The tooltip shown over the link.
     pub tooltip: String,
     /// PowerPoint's Highlight click.
     pub highlight_click: bool,
@@ -79,7 +86,12 @@ pub enum CurrentLink {
 pub enum HyperlinkAnswer {
     /// Write this link; `text` is the display text when the selection was a bare caret (insert
     /// it) or the user changed it.
-    Set { link: Hyperlink, text: Option<String> },
+    Set {
+        /// The link to write.
+        link: Hyperlink,
+        /// The display text, when the selection was a bare caret or the user changed it.
+        text: Option<String>,
+    },
     /// Remove Link (only with a link to edit).
     Remove,
     /// OK changed nothing (a mixed or other link with no new target).
@@ -93,7 +105,7 @@ pub enum HyperlinkAnswer {
 ///   starts at `https://` (DeckCraft). Address, Email address, Subject and Text to display are
 ///   craft-ui `TextField`s.
 /// - Place in This Document lists Top of the Document, then [`places`](Self::places), in a
-///   craft-ui [`List`](craft_ui::list::List) (one Tab stop, the list keys, type-ahead; headings
+///   craft-ui [`List`] (one Tab stop, the list keys, type-ahead; headings
 ///   and bookmarks, or slides "1. Title"). Top is [`LinkTarget::Top`]; `places` holds only the
 ///   named places.
 /// - With [`CurrentLink::Mixed`] or [`CurrentLink::Other`] the fields start empty and OK returns
@@ -208,6 +220,7 @@ impl HyperlinkDialog {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: HyperlinkLabels) -> Self {
         self.labels = Some(labels);
         self

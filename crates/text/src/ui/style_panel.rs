@@ -1,4 +1,4 @@
-//! [`TextStylesPanel`] (F14.03): the Character Styles and Paragraph Styles panels. A list of the
+//! [`TextStylesPanel`]: the Character Styles and Paragraph Styles panels. A list of the
 //! document's styles with the one at the type selection highlighted ("+" after its name when the
 //! text overrides it), and Photoshop's footer: Clear Override and Redefine at the left, Style
 //! Options, Duplicate, New and Delete at the right. The styles, their attributes and the
@@ -47,7 +47,9 @@ craft_ui::words! {
 /// Which panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextStyleKind {
+    #[allow(missing_docs)]
     Character,
+    #[allow(missing_docs)]
     Paragraph,
 }
 
@@ -56,7 +58,9 @@ pub enum TextStyleKind {
 /// deleted), as PhotoCraft's engine lists them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextStyleRow {
+    /// The style's id; 0 is the base style.
     pub id: u64,
+    /// The style's name.
     pub name: String,
 }
 
@@ -123,14 +127,22 @@ pub enum TextStyleAction {
     /// A click on a row with a type target: apply the style; `clear_overrides` with Alt held.
     /// For character styles only with text selected; at a bare caret the panel sends
     /// [`TextStylesPanelOutput::status`] instead.
-    Apply { id: u64, clear_overrides: bool },
+    Apply {
+        /// The id of the style to apply.
+        id: u64,
+        /// Whether to clear the local overrides (Alt held).
+        clear_overrides: bool,
+    },
     /// Clear Override, with a target whose style is overridden.
     ClearOverride,
     /// Redefine: the current style takes the target's attributes. Not for character style 0.
     Redefine,
     /// New: a style from the selected type when there is a target (`from_selection`), else a
     /// default one. The app opens its Style Options for the new id.
-    New { from_selection: bool },
+    New {
+        /// Whether to start from the selected type's attributes.
+        from_selection: bool,
+    },
     /// Duplicate the selected row's style.
     Duplicate(u64),
     /// Delete the selected row's style (never id 0).
@@ -154,6 +166,7 @@ pub struct TextStylesPanelOutput {
     pub actions: Vec<TextStyleAction>,
     /// A message for the status bar ("Select text to apply a character style").
     pub status: Option<StatusLine>,
+    #[allow(missing_docs)]
     pub response: Response,
 }
 
@@ -246,6 +259,7 @@ impl<'a> TextStylesPanel<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: TextStylesLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -253,6 +267,7 @@ impl<'a> TextStylesPanel<'a> {
 
     // pc: crates/ui-egui/src/panels/type_panels_ui.rs:215 `styles_panel` (rows, "+" marker,
     // click / Alt-click / double-click, footer buttons and their conditions).
+    /// Paints the panel and returns the action the user asked for.
     pub fn show(self, ui: &mut Ui) -> TextStylesPanelOutput {
         let TextStylesPanel { id_salt, kind, rows, state, current, overridden, target, text_selected, mut highlighted, labels } = self;
         let selected = &mut state.selected;

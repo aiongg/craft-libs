@@ -1,4 +1,4 @@
-//! [`TextEditor`] (F14.02, gap 54): typing on a canvas. The type tool's editing session in
+//! [`TextEditor`]: typing on a canvas. The type tool's editing session in
 //! PhotoCraft, the text box editors in DesignCraft, VectorCraft and FigCraft, a cell or caption
 //! typed in place in GridCraft and FilmCraft.
 //!
@@ -10,7 +10,7 @@
 //!
 //! Offsets are in chars of the host's text, as PhotoCraft's type tool counts them.
 //!
-//! Input methods (gap 54) go through craft-ui's [`Composer`]: its edits arrive in the order the
+//! Input methods go through craft-ui's [`Composer`]: its edits arrive in the order the
 //! platform sent them. The marked (preedit) text is written into the host's text with
 //! [`EditKind::Composing`] and replaced by every update, so it lays out, wraps and takes the
 //! character style exactly as typed text does (PhotoCraft; Photoshop draws it the same way). The
@@ -57,7 +57,9 @@ const BLINK_SECONDS: f64 = 0.530;
 /// selected. Char offsets.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TextSelection {
+    /// Char offset of the caret, the end that moves.
     pub caret: usize,
+    /// Char offset of the anchor, the end that stays.
     pub anchor: usize,
 }
 
@@ -72,6 +74,7 @@ impl TextSelection {
         self.caret.min(self.anchor)..self.caret.max(self.anchor)
     }
 
+    /// Whether nothing is selected: the caret is at the anchor.
     pub fn is_empty(self) -> bool {
         self.caret == self.anchor
     }
@@ -81,7 +84,9 @@ impl TextSelection {
 /// horizontal text, horizontal in vertical text, slanted when the layer is rotated or skewed.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CaretLine {
+    /// The caret's top end, at the line's ascent.
     pub top: Point,
+    /// The caret's bottom end, at the line's descent.
     pub bottom: Point,
 }
 
@@ -104,10 +109,15 @@ pub enum EditKind {
 /// A character style toggle on the selection (or the insertion style at a caret).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CharToggle {
+    #[allow(missing_docs)]
     AllCaps,
+    #[allow(missing_docs)]
     Underline,
+    #[allow(missing_docs)]
     FauxBold,
+    #[allow(missing_docs)]
     FauxItalic,
+    #[allow(missing_docs)]
     Strikethrough,
 }
 
@@ -322,10 +332,12 @@ impl TextEditor {
         self
     }
 
+    /// The editor's widget id.
     pub fn id(&self) -> Id {
         self.id
     }
 
+    /// The current selection, as char offsets.
     pub fn selection(&self) -> TextSelection {
         self.selection
     }
@@ -1164,6 +1176,7 @@ pub fn flow_key(key: Key, vertical: bool) -> Key {
 /// The paragraph box's handles are not the editor's: the app draws them with the transform box
 /// before the tool host runs, so their presses never reach it.
 pub struct TextEditorTool<'a, H: TextEditorHost> {
+    /// The editor this tool drives.
     pub editor: &'a mut TextEditor,
     // `CanvasTool::paint` takes `&self` and the host's layout calls take `&mut self`.
     host: RefCell<&'a mut H>,
@@ -1171,6 +1184,7 @@ pub struct TextEditorTool<'a, H: TextEditorHost> {
 }
 
 impl<'a, H: TextEditorHost> TextEditorTool<'a, H> {
+    /// A tool driving `editor`, with `host` as the app's text and layout.
     pub fn new(editor: &'a mut TextEditor, host: &'a mut H) -> Self {
         TextEditorTool { editor, host: RefCell::new(host), update: TextEditorResponse::default() }
     }

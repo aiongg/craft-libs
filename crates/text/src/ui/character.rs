@@ -1,4 +1,4 @@
-//! [`CharacterControls`] and [`ParagraphControls`] (F14.04): Photoshop's Character and Paragraph
+//! [`CharacterControls`] and [`ParagraphControls`]: Photoshop's Character and Paragraph
 //! panels as controls for a panel body, a Properties section or a style options editor. Values
 //! are in points (sizes, leading, baseline shift, indents, spacing) and thousandths of an em
 //! (kerning, tracking); the fields show them in the app's type unit (a [`LengthUnit`] and its
@@ -137,7 +137,9 @@ fn per_point(unit: LengthUnit, context: UnitContext) -> f64 {
 /// Leading: automatic (the font size × the paragraph's auto-leading, 120 % by default) or set.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Leading {
+    #[allow(missing_docs)]
     Auto,
+    /// The leading in points.
     Points(f32),
 }
 
@@ -147,24 +149,35 @@ pub enum Leading {
 // (Metrics / Optical in any case, or a number in -1000..=10000).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Kerning {
+    #[allow(missing_docs)]
     Metrics,
+    #[allow(missing_docs)]
     Optical,
+    /// A value in thousandths of an em; 0 is none.
     Manual(f32),
 }
 
+/// How letters are capitalized.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Caps {
+    #[allow(missing_docs)]
     #[default]
     Normal,
+    #[allow(missing_docs)]
     AllCaps,
+    #[allow(missing_docs)]
     SmallCaps,
 }
 
+/// Where the text sits relative to the baseline.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum BaselinePosition {
+    #[allow(missing_docs)]
     #[default]
     Normal,
+    #[allow(missing_docs)]
     Superscript,
+    #[allow(missing_docs)]
     Subscript,
 }
 
@@ -172,23 +185,37 @@ pub enum BaselinePosition {
 /// and the field shows empty (Photoshop).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CharacterValues {
+    #[allow(missing_docs)]
     pub family: Option<String>,
+    #[allow(missing_docs)]
     pub style: Option<String>,
+    /// Size in points.
     pub size: Option<f32>,
+    #[allow(missing_docs)]
     pub leading: Option<Leading>,
+    #[allow(missing_docs)]
     pub kerning: Option<Kerning>,
+    /// Tracking in thousandths of an em.
     pub tracking: Option<f32>,
     /// Percent, 100 is unscaled.
     pub vertical_scale: Option<f32>,
+    /// Percent, 100 is unscaled.
     pub horizontal_scale: Option<f32>,
+    /// Baseline shift in points; positive raises the text.
     pub baseline_shift: Option<f32>,
     /// The swatch's colour, converted by the app for display.
     pub color: Option<Color32>,
+    #[allow(missing_docs)]
     pub faux_bold: Option<bool>,
+    #[allow(missing_docs)]
     pub faux_italic: Option<bool>,
+    #[allow(missing_docs)]
     pub caps: Option<Caps>,
+    #[allow(missing_docs)]
     pub position: Option<BaselinePosition>,
+    #[allow(missing_docs)]
     pub underline: Option<bool>,
+    #[allow(missing_docs)]
     pub strikethrough: Option<bool>,
     /// The [`OPENTYPE_FEATURES`] that are on, by tag.
     pub opentype: Vec<&'static str>,
@@ -199,28 +226,44 @@ pub struct CharacterValues {
 /// One change from the Character controls.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CharacterChange {
+    #[allow(missing_docs)]
     Family(String),
     /// A style of the current family; the app keeps the family.
     Style(String),
+    /// Size in points.
     Size(f32),
+    #[allow(missing_docs)]
     Leading(Leading),
+    #[allow(missing_docs)]
     Kerning(Kerning),
+    /// Tracking in thousandths of an em.
     Tracking(f32),
+    /// Percent, 100 is unscaled.
     VerticalScale(f32),
+    /// Percent, 100 is unscaled.
     HorizontalScale(f32),
+    /// Baseline shift in points.
     BaselineShift(f32),
+    #[allow(missing_docs)]
     FauxBold(bool),
+    #[allow(missing_docs)]
     FauxItalic(bool),
     /// All Caps and Small Caps are one choice: pressing the pressed one returns `Normal`.
     Caps(Caps),
     /// Superscript and Subscript, the same way.
     Position(BaselinePosition),
+    #[allow(missing_docs)]
     Underline(bool),
+    #[allow(missing_docs)]
     Strikethrough(bool),
+    /// An OpenType feature switched on or off.
     OpenType {
+        /// The feature's four-letter tag, such as "liga".
         tag: &'static str,
+        #[allow(missing_docs)]
         on: bool,
     },
+    #[allow(missing_docs)]
     Language(String),
 }
 
@@ -264,7 +307,7 @@ pub const COLOR_KEY: &str = "character.color";
 ///   starts with an Auto row ([`Leading::Auto`]); while leading is Auto the field shows the font
 ///   size × 120 %.
 /// - Family: craft-font-manager's `FontPicker` with `font-picker` and
-///   [`font_picker`](Self::font_picker), else a `Select` of `families`.
+///   `font_picker`, else a `Select` of `families`.
 /// - Toggles are toggle buttons in one row, pressed while on; Tab reaches each.
 /// - A mixed value shows an empty field or an unpressed toggle; typing or pressing sets it for the
 ///   whole selection.
@@ -326,6 +369,7 @@ impl<'a> CharacterControls<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: CharacterLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -333,6 +377,7 @@ impl<'a> CharacterControls<'a> {
 
     // pc: crates/ui-egui/src/tools/type_tool/panel.rs:215 `type_sections` (character half), :149
     // `metric_field`, :25 `opentype_row`; options_bar.rs:228 `kerning_label`.
+    /// Paints the controls and returns the changes the user made.
     pub fn show(self, ui: &mut Ui) -> CharacterControlsResponse {
         let labels = self.labels.unwrap_or_else(|| CharacterLabels::of(ui));
         let values = self.values;
@@ -582,13 +627,20 @@ impl<'a> CharacterControls<'a> {
 /// Paragraph alignment, in Photoshop's button order.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TextAlign {
+    #[allow(missing_docs)]
     #[default]
     Left,
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     JustifyLeft,
+    #[allow(missing_docs)]
     JustifyCenter,
+    #[allow(missing_docs)]
     JustifyRight,
+    #[allow(missing_docs)]
     JustifyAll,
 }
 
@@ -598,33 +650,51 @@ pub enum ParagraphDirection {
     /// From the paragraph's first strong character.
     #[default]
     Automatic,
+    #[allow(missing_docs)]
     LeftToRight,
+    #[allow(missing_docs)]
     RightToLeft,
 }
 
 /// The paragraph attributes at the type target; `None` where the selected paragraphs differ.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ParagraphValues {
+    #[allow(missing_docs)]
     pub align: Option<TextAlign>,
+    #[allow(missing_docs)]
     pub direction: Option<ParagraphDirection>,
+    /// Indent at the start edge in points (the left in left-to-right text).
     pub start_indent: Option<f32>,
+    /// Indent at the end edge in points (the right in left-to-right text).
     pub end_indent: Option<f32>,
+    /// First-line indent in points.
     pub first_line_indent: Option<f32>,
+    /// Space before the paragraph in points.
     pub space_before: Option<f32>,
+    /// Space after the paragraph in points.
     pub space_after: Option<f32>,
+    #[allow(missing_docs)]
     pub hyphenate: Option<bool>,
 }
 
 /// One change from the Paragraph controls.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParagraphChange {
+    #[allow(missing_docs)]
     Align(TextAlign),
+    #[allow(missing_docs)]
     Direction(ParagraphDirection),
+    /// Indent at the start edge in points.
     StartIndent(f32),
+    /// Indent at the end edge in points.
     EndIndent(f32),
+    /// First-line indent in points.
     FirstLineIndent(f32),
+    /// Space before the paragraph in points.
     SpaceBefore(f32),
+    /// Space after the paragraph in points.
     SpaceAfter(f32),
+    #[allow(missing_docs)]
     Hyphenate(bool),
 }
 
@@ -650,6 +720,7 @@ pub struct ParagraphControls<'a> {
 }
 
 impl<'a> ParagraphControls<'a> {
+    /// Controls for the paragraph attributes `values`.
     pub fn new(id_salt: impl AsIdSalt, values: &'a ParagraphValues) -> Self {
         ParagraphControls {
             id_salt: IdSalt::new(id_salt),
@@ -672,6 +743,7 @@ impl<'a> ParagraphControls<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: ParagraphLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -679,6 +751,7 @@ impl<'a> ParagraphControls<'a> {
 
     // pc: crates/ui-egui/src/tools/type_tool/panel.rs:215 `type_sections` (paragraph half);
     // options_bar.rs:356 `direction_items`.
+    /// Paints the controls and returns the changes the user made.
     pub fn show(self, ui: &mut Ui) -> ParagraphControlsResponse {
         let char_labels = CharacterLabels::of(ui);
         let labels = self.labels.unwrap_or_else(|| ParagraphLabels::of(ui));

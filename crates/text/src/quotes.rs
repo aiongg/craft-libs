@@ -1,4 +1,4 @@
-//! Smart quotes (F14.07): straight quotes typed into text become the language's quotation marks
+//! Smart quotes: straight quotes typed into text become the language's quotation marks
 //! (Photoshop's Preferences › Type › Use Smart Quotes, on by default). The marks follow the
 //! language of the text at the caret, as Photoshop's follow the Character panel's language.
 //! Only typed text is converted; pasted text keeps its quotes (Photoshop).

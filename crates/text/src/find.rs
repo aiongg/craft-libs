@@ -36,6 +36,7 @@ pub const MAX_COUNT: u32 = 1000;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct FindOptions {
+    #[allow(missing_docs)]
     pub match_case: bool,
     /// Whole words only: a match starts and ends at a word boundary.
     pub whole_word: bool,
@@ -87,7 +88,12 @@ pub enum WildcardError {
     /// `[]` or `[!]`.
     EmptyClass,
     /// A range of a class that runs downwards (`[z-a]`).
-    ReversedRange { from: char, to: char },
+    ReversedRange {
+        /// The range's first character.
+        from: char,
+        /// The range's last character, which sorts before `from`.
+        to: char,
+    },
     /// The translated expression is one the engine refuses (an unbalanced parenthesis).
     Refused,
 }
@@ -243,6 +249,7 @@ impl FindPattern {
         expression_pattern(pattern, spans, options, empty)
     }
 
+    /// The options the pattern was built with.
     pub fn options(&self) -> &FindOptions {
         &self.options
     }
@@ -369,6 +376,7 @@ impl FindPattern {
 /// A piece of Replace with text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReplacePiece {
+    /// The text to put in, as written.
     Literal(String),
     /// `^&`: the text found.
     Found,
@@ -489,7 +497,9 @@ impl From<Vec<Range<usize>>> for PageMatches {
 /// One match: the page (or story) it is on, by the app's index, and its char range there.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FindMatch {
+    /// The page (or story) index the app gave.
     pub page: usize,
+    /// Char range of the match on that page.
     pub range: Range<usize>,
 }
 
@@ -517,14 +527,17 @@ impl FindMatches {
         FindMatches { matches: Vec::new(), current: None, from: Some(from), follow_ended: false, limited: Vec::new() }
     }
 
+    /// Every match found.
     pub fn matches(&self) -> &[FindMatch] {
         &self.matches
     }
 
+    /// The number of matches.
     pub fn len(&self) -> usize {
         self.matches.len()
     }
 
+    /// Whether there are no matches.
     pub fn is_empty(&self) -> bool {
         self.matches.is_empty()
     }
@@ -534,6 +547,7 @@ impl FindMatches {
         self.current
     }
 
+    /// The current match, if one is chosen.
     pub fn current_match(&self) -> Option<&FindMatch> {
         self.current.and_then(|i| self.matches.get(i))
     }

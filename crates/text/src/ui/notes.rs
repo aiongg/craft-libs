@@ -23,10 +23,15 @@ use crate::lists::{ListMarker, ListParagraph, line_starts, markers};
 /// A run of notes text with its formatting.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NotesRun {
+    /// The run's text.
     pub text: String,
+    #[allow(missing_docs)]
     pub bold: bool,
+    #[allow(missing_docs)]
     pub italic: bool,
+    #[allow(missing_docs)]
     pub underline: bool,
+    #[allow(missing_docs)]
     pub strikethrough: bool,
     /// `None`: the editor's text colour.
     pub color: Option<Color32>,
@@ -36,16 +41,22 @@ pub struct NotesRun {
 /// [`crate::lists::LEVEL_INDENT`] per level).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NotesParagraph {
+    /// The runs of the paragraph, in order.
     pub runs: Vec<NotesRun>,
+    /// List level; 0 is the outermost.
     pub level: u8,
+    /// The list marker, if the paragraph is a list item.
     pub marker: Option<ListMarker>,
+    /// Start-edge margin of the lines after the first, in points.
     pub margin: Option<f64>,
+    /// First-line indent in points, added to `margin`; negative hangs the first line.
     pub indent: Option<f64>,
 }
 
 /// The notes as the editor sees them.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NotesText {
+    /// The paragraphs, in order.
     pub paragraphs: Vec<NotesParagraph>,
 }
 
@@ -174,6 +185,7 @@ impl Flat {
 pub struct NotesResponse {
     /// The notes changed: the app stores them (one undo step per typing run, as text fields).
     pub changed: Option<NotesText>,
+    #[allow(missing_docs)]
     pub response: Response,
 }
 
@@ -203,6 +215,7 @@ craft_ui::words! {
 }
 
 impl<'a> NotesEditor<'a> {
+    /// Notes for `notes`, shown at the body size.
     pub fn new(id_salt: impl egui::AsIdSalt, notes: &'a NotesText) -> Self {
         NotesEditor { id_salt: egui::IdSalt::new(id_salt), notes, zoom: 1.0, labels: None }
     }
@@ -214,6 +227,7 @@ impl<'a> NotesEditor<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: NotesLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -221,6 +235,7 @@ impl<'a> NotesEditor<'a> {
 
     // deckcraft: crates/ui-egui/src/panels/notes.rs:189 `editor`, :117 `para_layout`, :143
     // `job`, :162 `galley`, :215 `paint_bullets`.
+    /// Paints the editor and returns the new notes when the user changed them.
     pub fn show(self, ui: &mut Ui) -> NotesResponse {
         let labels = self.labels.clone().unwrap_or_else(|| NotesLabels::of_ctx(ui.ctx()));
         let look = Look::of(ui, self.zoom);
@@ -259,6 +274,7 @@ pub struct NotesView<'a> {
 }
 
 impl<'a> NotesView<'a> {
+    /// A read-only view of `notes`.
     pub fn new(id_salt: impl egui::AsIdSalt, notes: &'a NotesText) -> Self {
         NotesView { id_salt: egui::IdSalt::new(id_salt), notes, zoom: 1.0 }
     }
@@ -270,6 +286,7 @@ impl<'a> NotesView<'a> {
     }
 
     // deckcraft: crates/ui-egui/src/panels/notes.rs:231 `view` (the presenter's read-only notes).
+    /// Paints the notes wrapped to the available width.
     pub fn show(self, ui: &mut Ui) -> Response {
         let look = Look::of(ui, self.zoom);
         let galley = look.galley(ui, self.notes, ui.available_width());
@@ -287,6 +304,7 @@ impl<'a> NotesView<'a> {
 pub struct NotesStyle {
     /// The type role of the notes' text, and of a bold run.
     pub body: TypeRole,
+    /// The type role of a bold run.
     pub strong: TypeRole,
     /// The size of the notes' default text, points: indents are in points and scale with the text
     /// size as `size / points` (`text_editor.notes_points`; deckcraft: `panels/notes.rs:118`

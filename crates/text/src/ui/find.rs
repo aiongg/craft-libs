@@ -136,7 +136,7 @@ impl FindBarState {
 
 /// The find bar, built per pass while open, over the app's query, options and matches.
 ///
-/// - The field is craft-ui's [`SearchField`](craft_ui::controls::SearchField) (placeholder "Find
+/// - The field is craft-ui's [`SearchField`] (placeholder "Find
 ///   text"); it takes the keyboard when the app calls [`FindBarState::open`]; Enter steps to the next match and keeps
 ///   the keyboard, ⇧-Enter the previous; Esc clears the field and a second Esc closes the bar (the
 ///   suite's search field rule).
@@ -158,6 +158,7 @@ pub struct FindBar<'a> {
 }
 
 impl<'a> FindBar<'a> {
+    /// A find bar over the app's `query` and `options`, listing `matches`.
     pub fn new(id_salt: impl egui::AsIdSalt, query: &'a mut String, options: &'a mut FindOptions, matches: &'a mut FindMatches) -> Self {
         FindBar { id_salt: egui::IdSalt::new(id_salt), query, options, matches, progress: None, state: None, labels: None }
     }
@@ -174,12 +175,14 @@ impl<'a> FindBar<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: FindLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
     // pdfcraft: crates/ui-egui/src/canvas/find.rs:208 `find_bar`, :84 `rerun_find`.
+    /// Paints the bar and returns what the user asked for.
     pub fn show(self, ui: &mut Ui) -> FindBarOutput {
         let FindBar { id_salt, query, options, matches, progress, state, labels } = self;
         let ctx = ui.ctx().clone();
@@ -340,9 +343,12 @@ impl FindLabels {
 /// Which tab of Find and Replace is open.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum FindTab {
+    #[allow(missing_docs)]
     #[default]
     Find,
+    #[allow(missing_docs)]
     Replace,
+    #[allow(missing_docs)]
     GoTo,
 }
 
@@ -351,30 +357,45 @@ pub enum FindTab {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FindRequest {
+    /// Find the next match.
     FindNext {
+        /// The Find what text.
         query: String,
+        /// How the Find what text is read.
         options: FindOptions,
     },
     /// Replace the current match, then find the next.
     Replace {
+        /// The Find what text.
         query: String,
+        /// The Replace with text.
         with: String,
+        /// How the Find what text is read.
         options: FindOptions,
     },
+    /// Replace every match.
     ReplaceAll {
+        /// The Find what text.
         query: String,
+        /// The Replace with text.
         with: String,
+        /// How the Find what text is read.
         options: FindOptions,
     },
     /// Word's Reading Highlight: highlight every match (`on`) or clear the highlight.
     Highlight {
+        /// The Find what text.
         query: String,
+        /// How the Find what text is read.
         options: FindOptions,
+        /// `true` to highlight every match, `false` to clear the highlight.
         on: bool,
     },
     /// Go To: the kind's index in [`FindReplaceDialog::go_to_kinds`] and the typed target.
     GoTo {
+        /// Index into the Go To kinds.
         kind: usize,
+        /// The typed target, such as a page number.
         target: String,
     },
 }
@@ -426,6 +447,7 @@ enum Press {
 }
 
 impl FindReplaceDialog {
+    /// A dialog opened on `tab` with `query` in Find what.
     pub fn new(query: impl Into<String>, tab: FindTab) -> Self {
         FindReplaceDialog {
             query: query.into(),
@@ -445,11 +467,13 @@ impl FindReplaceDialog {
         }
     }
 
+    /// Selects the Word layout (Find, Replace and Go To tabs, more search options) when `on`, or the PowerPoint layout when off.
     pub fn word(mut self, on: bool) -> Self {
         self.word = on;
         self
     }
 
+    /// Sets the starting options for Match case, Whole words and the rest.
     pub fn options(mut self, options: FindOptions) -> Self {
         self.options = options;
         self
@@ -461,6 +485,7 @@ impl FindReplaceDialog {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: FindLabels) -> Self {
         self.labels = Some(labels);
         self

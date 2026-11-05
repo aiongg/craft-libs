@@ -1,15 +1,15 @@
 //! The text interface on craft-ui (feature `ui`):
 //!
-//! - [`editor`] (F14.02): [`TextEditor`](editor::TextEditor), the text editor on a canvas, over a
+//! - [`editor`]: [`TextEditor`](editor::TextEditor), the text editor on a canvas, over a
 //!   [`TextEditorHost`](editor::TextEditorHost) the app implements for its text and layout.
 //!   Input methods go through craft-ui's [`Composer`](craft_ui::ime::Composer), with the marked
 //!   text written into the app's text so it lays out like typed text.
-//! - [`character`] (F14.04): [`CharacterControls`](character::CharacterControls) and
+//! - [`character`]: [`CharacterControls`](character::CharacterControls) and
 //!   [`ParagraphControls`](character::ParagraphControls), Photoshop's Character and Paragraph
 //!   panels as controls for a panel body, a Properties section or an options bar.
-//! - [`style_panel`] (F14.03): [`TextStylesPanel`](style_panel::TextStylesPanel), the Character
+//! - [`style_panel`]: [`TextStylesPanel`](style_panel::TextStylesPanel), the Character
 //!   Styles and Paragraph Styles panels.
-//! - [`spelling`] (F14.06): [`CheckSpellingDialog`](spelling::CheckSpellingDialog), Edit › Check
+//! - [`spelling`]: [`CheckSpellingDialog`](spelling::CheckSpellingDialog), Edit › Check
 //!   Spelling on the dialog stack, and the user's words as a settings section.
 //!
 //! The paged-text controls (6b):

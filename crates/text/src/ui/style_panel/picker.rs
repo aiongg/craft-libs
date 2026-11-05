@@ -44,7 +44,12 @@ pub enum StylePreview {
     Color(Color32),
     /// A short sample drawn in the style ("Ag"), with the app's family and size already applied
     /// through a font id.
-    Text { sample: String, font: egui::FontId },
+    Text {
+        /// The sample text.
+        sample: String,
+        /// The font to draw it in.
+        font: egui::FontId,
+    },
     /// An icon from craft-ui's set (effect and grid styles).
     Icon(craft_ui::icons::Icon),
 }
@@ -52,16 +57,20 @@ pub enum StylePreview {
 /// One style in the picker; its folder is the name's ([`crate::styles::style_folder`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedStyleRow {
+    /// The style's id.
     pub id: u64,
+    /// The style's name; folders are split off it.
     pub name: String,
     /// The second line ("Inter 16/24", "#1473E6").
     pub meta: String,
+    /// What the row shows before its name.
     pub preview: StylePreview,
 }
 
 /// How the picker lays styles out.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum StylePickerView {
+    #[allow(missing_docs)]
     #[default]
     List,
     /// Tiles of previews (colour styles), the name in the tooltip.
@@ -80,6 +89,7 @@ pub struct StyleChipResponse {
     pub create: bool,
     /// Edit from a row's context menu.
     pub edit: Option<u64>,
+    #[allow(missing_docs)]
     pub response: Response,
 }
 
@@ -162,6 +172,7 @@ impl<'a> StyleChip<'a> {
         StyleChip { id_salt: egui::IdSalt::new(id_salt), styles, applied, view, opened: false, labels: None }
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: StylePickerLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -177,6 +188,7 @@ impl<'a> StyleChip<'a> {
 
     // figcraft: crates/ui-egui/src/widgets/style_picker.rs:211 `chip`, :154 `Picker`, :341
     // `by_folder`.
+    /// Paints the chip and its popover and returns what the user picked.
     pub fn show(self, ui: &mut Ui) -> StyleChipResponse {
         let StyleChip { id_salt, styles, applied, view, opened, labels } = self;
         let labels = labels.unwrap_or_else(|| StylePickerLabels::of_ctx(ui.ctx()));

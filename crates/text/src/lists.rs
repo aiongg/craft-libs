@@ -146,7 +146,14 @@ pub enum ListMarker {
     /// picture bullet is "•".
     Bullet(String),
     /// A number counted per level from `start`.
-    Number { style: NumberStyle, start: u32, punctuation: NumberPunctuation },
+    Number {
+        /// How the number is written.
+        style: NumberStyle,
+        /// The number of the first paragraph at this level.
+        start: u32,
+        /// The characters around the number.
+        punctuation: NumberPunctuation,
+    },
 }
 
 impl ListMarker {
@@ -168,6 +175,7 @@ impl ListMarker {
 pub struct ListParagraph {
     /// 0 is the outermost level; deeper than [`MAX_LEVEL`] counts as [`MAX_LEVEL`].
     pub level: u8,
+    /// The marker the paragraph starts with, if any.
     pub marker: Option<ListMarker>,
     /// An empty paragraph shows no marker and doesn't count.
     pub empty: bool,
