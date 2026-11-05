@@ -19,7 +19,7 @@ use std::sync::Arc;
 use super::layout::arrange_closed;
 use super::{ArrangeSpacing, Mapper, Pass, TextureKey, TileContent, TileGroup, TileLayout, TileLook, TileSource, TileStyle, fit_name};
 
-/// Where a `Cards` caption goes.
+/// Where a caption goes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum CaptionPlace {
     /// Under the picture (Bridge; Acrobat's page labels).
@@ -59,10 +59,11 @@ impl<K> Default for Strip<'_, K> {
 }
 
 impl<K> Strip<'_, K> {
-    /// The width the `Start` caption column adds to each card; 0 for any other place or layout.
+    /// The width the `Start` caption column adds to each tile; 0 for any other place, and for
+    /// `Cards` without captions.
     pub fn start_width(&self, style: &TileStyle, layout: TileLayout) -> f32 {
         match (self.caption_place, layout) {
-            (CaptionPlace::Start, TileLayout::Cards { caption: true, .. }) => style.start_caption_width,
+            (CaptionPlace::Start, TileLayout::Cards { caption: true, .. } | TileLayout::Justified { .. }) => style.start_caption_width,
             _ => 0.0,
         }
     }
@@ -87,14 +88,14 @@ pub(super) fn arrange_strip(
     spacing: ArrangeSpacing,
     start_width: f32,
 ) -> super::TileArrangement {
-    let TileLayout::Cards { side, aspect, .. } = layout else { return arrange_closed(aspects, groups, closed, width, layout, spacing) };
+    let TileLayout::Cards { side, aspect, .. } = layout else { return arrange_closed(aspects, groups, closed, width, layout, spacing, start_width) };
     if start_width <= 0.0 {
-        return arrange_closed(aspects, groups, closed, width, layout, spacing);
+        return arrange_closed(aspects, groups, closed, width, layout, spacing, 0.0);
     }
     let aspect = if aspect.is_finite() && aspect > 0.0 { aspect } else { 1.0 };
     let wide = side + start_width;
     let cards = TileLayout::Cards { side: wide, aspect: aspect * wide / side.max(f32::EPSILON), caption: false };
-    let mut arrangement = arrange_closed(aspects, groups, closed, width, cards, spacing);
+    let mut arrangement = arrange_closed(aspects, groups, closed, width, cards, spacing, 0.0);
     for tile in arrangement.tiles.iter_mut().filter(|t| **t != Rect::NOTHING) {
         tile.min.x += start_width;
     }
@@ -106,16 +107,11 @@ pub(super) fn start_column(picture: Rect, width: f32) -> Rect {
     Rect::from_min_max(pos2(picture.min.x - width, picture.min.y), pos2(picture.min.x, picture.max.y))
 }
 
-/// The current tile's ring, inside the selection ring that surrounds the picture.
+/// The current tile's ring, outside the picture edge (PdfCraft draws the current page's border
+/// outside its thumbnail; over the selection ring when the tile is selected).
 pub(super) fn ring_current(painter: &Painter, style: &TileStyle, picture: Rect) {
     // pdfcraft: crates/ui-egui/src/panels/pages.rs:176 (the current page's heavier border); deckcraft: crates/ui-egui/src/panels/thumbs.rs:230 (the selected slide's ring).
-    painter.rect_stroke(picture, 0.0, Stroke::new(style.ring_current_width, style.ring_current), StrokeKind::Inside);
-}
-
-/// Whether `look`'s caption is a `Start` column: it begins above the picture's bottom edge, where
-/// a caption under the picture begins at it.
-pub(super) fn is_start(look: &TileLook<'_>) -> bool {
-    look.caption.is_some_and(|c| c.top() < look.picture.bottom())
+    painter.rect_stroke(picture, 0.0, Stroke::new(style.ring_current_width, style.ring_current), StrokeKind::Outside);
 }
 
 /// The colour of a `Start` caption's name.
@@ -161,7 +157,7 @@ pub(super) fn paint_hidden_and_marks(painter: &Painter, tokens: &UiTokens, style
     if content.hidden {
         painter.rect_filled(look.picture, 0.0, style.veil);
     }
-    if !is_start(look) {
+    if look.caption_place != CaptionPlace::Start {
         return;
     }
     let Some(column) = look.caption else { return };
@@ -241,23 +237,29 @@ where
             return;
         };
         let row = &rows[rows.partition_point(|r| r.top + r.height < y).min(last)];
-        // The first tile whose middle the pointer has not passed, in reading order.
+        // The first tile whose middle the pointer has not passed, in reading order. Each tile's
+        // middle is its own card's (its `Start` column and its picture), so rows of tiles of
+        // unequal width split at their own midpoints.
+        let card = |i: usize| {
+            let tile = mapper.rect(self.arr.tiles[i]);
+            if self.rtl { tile.with_max_x(tile.right() + self.start_width) } else { tile.with_min_x(tile.left() - self.start_width) }
+        };
         let gap = row
             .tiles
             .clone()
             .find(|&i| {
-                let middle = mapper.rect(self.arr.tiles[i]).center().x;
+                let middle = card(i).center().x;
                 if self.rtl { pointer.x > middle } else { pointer.x < middle }
             })
             .unwrap_or(row.tiles.end);
         self.file_gap = Some(gap);
         let half = self.style.gap / 2.0;
         let (x, tile) = if gap < row.tiles.end {
-            let tile = mapper.rect(self.arr.tiles[gap]);
-            (if self.rtl { tile.right() + self.start_width + half } else { tile.left() - self.start_width - half }, tile)
+            let card = card(gap);
+            (if self.rtl { card.right() + half } else { card.left() - half }, card)
         } else {
-            let tile = mapper.rect(self.arr.tiles[gap - 1]);
-            (if self.rtl { tile.left() - half } else { tile.right() + half }, tile)
+            let card = card(gap - 1);
+            (if self.rtl { card.left() - half } else { card.right() + half }, card)
         };
         drop_line(ui, pos2(x, tile.top()), pos2(x, tile.bottom()));
         self.state.drift = Reorder::<K>::new(Axis::Vertical).auto_scroll(pointer, view, ui.input(|i| i.stable_dt));

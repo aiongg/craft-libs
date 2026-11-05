@@ -24,7 +24,7 @@ use super::icon::{ASPECT, CardList, entries_of};
 use super::list::{drop_items, inside_any, item_of, open_event};
 use super::{BinEvent, BinLabels, BinModel, BinState, MediaBin, ThumbPair};
 use crate::ui::grid::{
-    BadgeVisibility, TileContent, TileFace, TileLabels, TileLook, TileSource as _, TileStyle, TileZoom, ZoomStep, card_size, paint_tile,
+    BadgeVisibility, CaptionPlace, TileContent, TileFace, TileLabels, TileLook, TileSource as _, TileStyle, TileZoom, ZoomStep, card_size, paint_tile,
 };
 use craft_ui::list::{TileRename, TileRenameOutcome, show_tile_rename};
 
@@ -370,6 +370,7 @@ where
                         content: &content,
                         picture,
                         caption: open.is_none().then_some(caption),
+                        caption_place: CaptionPlace::Below,
                         selected,
                         hovered: response.hovered() && drag.is_none(),
                         lead_focused: focused && is_lead,
