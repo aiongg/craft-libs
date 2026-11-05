@@ -111,6 +111,7 @@ struct Rig {
     pages: Vec<PlacedPage>,
     state: TextSelectState,
     changed: bool,
+    focus: bool,
 }
 
 fn rig() -> Harness<'static, Rig> {
@@ -124,6 +125,7 @@ fn rig_in(direction: Direction) -> Harness<'static, Rig> {
         pages: vec![PlacedPage { page: 0, rect, scale: 1.0, band: (0.0, 100.0) }],
         state: TextSelectState::default(),
         changed: false,
+        focus: true,
     };
     HarnessBuilder::default()
         .with_step_dt(0.05)
@@ -136,8 +138,11 @@ fn rig_in(direction: Direction) -> Harness<'static, Rig> {
             |ui, rig: &mut Rig| {
                 let canvas_id = CanvasId::new(ui, "canvas");
                 let canvas = canvas_id.interact(ui, rig.view.rect, Sense::click_and_drag() | Sense::FOCUSABLE);
+                if std::mem::take(&mut rig.focus) {
+                    canvas.request_focus();
+                }
                 let mut tool = TextSelectTool::new(&rig.pages, &Texts, &mut rig.state);
-                let _ = ToolHost::new(canvas_id).show(ui, &rig.view, &canvas, &mut tool);
+                let _ = ToolHost::new(canvas_id).keys(true).show(ui, &rig.view, &canvas, &mut tool);
                 rig.changed |= tool.changed();
             },
             rig,
@@ -253,7 +258,12 @@ fn the_i_beam_needs_a_point_inside_a_glyph_box() {
 // Shift-arrows extend toward the arrow's side: right to left, Shift-Left reaches the next glyph.
 #[test]
 fn shift_arrows_mirror_right_to_left() {
-    for (direction, key, head) in [(Direction::Ltr, Key::ArrowRight, 5), (Direction::Ltr, Key::ArrowLeft, 3), (Direction::Rtl, Key::ArrowLeft, 5), (Direction::Rtl, Key::ArrowRight, 3)] {
+    for (direction, key, head) in [
+        (Direction::Ltr, Key::ArrowRight, 5),
+        (Direction::Ltr, Key::ArrowLeft, 3),
+        (Direction::Rtl, Key::ArrowLeft, 5),
+        (Direction::Rtl, Key::ArrowRight, 3),
+    ] {
         let mut h = rig_in(direction);
         press(&mut h, Mock::center(4), Modifiers::NONE);
         release(&mut h, Mock::center(4), Modifiers::NONE);

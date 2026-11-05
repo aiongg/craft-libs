@@ -102,12 +102,7 @@ impl<'a> SyncedViews<'a> {
 /// once it has changed (a continuous view's current page follows from the offset). Returns
 /// whether anything changed.
 // pdfcraft: crates/ui-egui/src/workflows/compare_ui.rs:362 `compare_area`.
-fn follow(
-    leader: &PageViewState,
-    follower: &mut PageViewState,
-    last_offset: &mut Option<(f64, f64)>,
-    last_current: &mut Option<usize>,
-) -> bool {
+fn follow(leader: &PageViewState, follower: &mut PageViewState, last_offset: &mut Option<(f64, f64)>, last_current: &mut Option<usize>) -> bool {
     let before = follower.clone();
     follower.zoom = leader.zoom;
     follower.fit = leader.fit;
