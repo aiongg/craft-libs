@@ -723,10 +723,18 @@ pub enum Error {
         known: Vec<String>,
     },
     /// A face to embed has a path that isn't UTF-8, which `include_bytes!` can't name.
-    NonUtf8Path { path: PathBuf },
+    NonUtf8Path {
+        #[allow(missing_docs)]
+        path: PathBuf,
+    },
     /// A manifest font or licence path is absolute, climbs out with `..`, or resolves (through a
     /// symlink) to a file outside the checkout.
-    OutsideCheckout { manifest: PathBuf, file: String },
+    OutsideCheckout {
+        #[allow(missing_docs)]
+        manifest: PathBuf,
+        #[allow(missing_docs)]
+        file: String,
+    },
 }
 
 impl fmt::Display for Error {
