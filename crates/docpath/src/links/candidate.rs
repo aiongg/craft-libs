@@ -38,12 +38,27 @@ impl Default for MatchCriteria {
 #[non_exhaustive]
 pub enum CandidateProblem {
     /// The name without extension differs: `found` against `wanted`.
-    NameDiffers { found: String, wanted: String },
+    NameDiffers {
+        /// The candidate's name without extension.
+        found: String,
+        /// The name the link needs.
+        wanted: String,
+    },
     /// The extension differs.
-    ExtensionDiffers { found: String, wanted: String },
+    ExtensionDiffers {
+        /// The candidate's extension.
+        found: String,
+        /// The extension the link needs.
+        wanted: String,
+    },
     /// Not the same file: the size differs (`found` and `wanted` in bytes), or, with `sizes`
     /// equal, the fingerprint differs.
-    DifferentFile { found: u64, wanted: u64 },
+    DifferentFile {
+        /// The candidate's size in bytes, or its fingerprint when the sizes are equal.
+        found: u64,
+        /// The linked file's size in bytes, or its fingerprint when the sizes are equal.
+        wanted: u64,
+    },
     /// The file couldn't be read; the system's message.
     Unreadable(String),
     /// A problem the app's checker found, already in the user's language.
