@@ -1,7 +1,9 @@
-//! Canvas grid: major and minor lines over a document. Colours are the semantic `overlay.*` tokens; the family holds sizes and
-//! shares, the same at every Size because the overlay sits on the document.
+//! Canvas grid: major and minor lines over a document. The canvas grid's colours are the semantic `overlay.*` tokens; the page
+//! grids' colours (margins, columns, baseline) are this family's. It holds sizes and shares, the same at every Size because the
+//! overlay sits on the document.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
+use crate::color::Rgba;
 use crate::values;
 
 /// Grid tokens.
@@ -18,6 +20,12 @@ pub struct GridTokens {
     pub crossing: f32,
     /// Smallest major spacing at which Crossings draw: `grid.crossing_min`.
     pub crossing_min: f32,
+    /// A page's margin guides: `grid.page_margins`, InDesign's magenta.
+    pub page_margins: Rgba,
+    /// A page's column guides: `grid.page_columns`, InDesign's violet.
+    pub page_columns: Rgba,
+    /// A page's baseline grid lines: `grid.page_baseline`, InDesign's light blue.
+    pub page_baseline: Rgba,
 }
 
 /// Grid has no overridable field: its sizes come from the code, as every size does.
@@ -41,6 +49,9 @@ impl Family for GridTokens {
             min_step: values::GRID_MIN_STEP,
             crossing: values::GRID_CROSSING,
             crossing_min: values::GRID_CROSSING_MIN,
+            page_margins: values::GRID_PAGE_MARGINS,
+            page_columns: values::GRID_PAGE_COLUMNS,
+            page_baseline: values::GRID_PAGE_BASELINE,
         }
     }
 

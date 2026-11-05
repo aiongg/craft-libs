@@ -6,7 +6,7 @@ use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::Interactive;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, corner_radius, style_format};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, corner_radius, role_format};
 use egui::accesskit::{Action, Role};
 use egui::text::LayoutJob;
 use egui::{CursorIcon, EventFilter, Key, Modifiers, PointerButton, Rect, Response, Sense, StrokeKind, Ui, pos2, vec2};
@@ -89,7 +89,20 @@ impl<'a> ColumnBar<'a> {
 
     /// The bar's sizes and colours, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> ColumnBarStyle {
-        ColumnBarStyle::of(tokens)
+        use craft_ui::theme::ToEgui as _;
+        let t = &tokens.component.pages;
+        let c = &tokens.color;
+        ColumnBarStyle {
+            height: tokens.size.control.md,
+            outline: egui::Stroke::new(t.column_bar_outline, c.line.control_edge.to_egui()),
+            radius: tokens.shape.radius.control,
+            divider: egui::Stroke::new(t.column_bar_divider, c.line.control_edge.to_egui()),
+            divider_active: egui::Stroke::new(t.column_bar_divider_active, c.accent.solid.to_egui()),
+            grab: t.column_bar_grab,
+            fill: t.column_bar_fill.to_egui(),
+            fill_alt: t.column_bar_fill_alt.to_egui(),
+            label: craft_theme::TypeRole::Label,
+        }
     }
 
     /// Column names drawn in their shares (the app's field names).
@@ -184,7 +197,7 @@ impl<'a> ColumnBar<'a> {
 
     fn paint(&self, ui: &Ui, style: &ColumnBarStyle, tokens: &craft_ui::theme::UiTokens, bar: Rect, edges: &[f32], active: Option<usize>) {
         let painter = ui.painter_at(bar);
-        let format = style_format(tokens.families(), tokens.typography.label, tokens.color.text.normal.to_egui());
+        let format = role_format(tokens, style.label, tokens.color.text.normal.to_egui());
         let mut left = bar.left();
         for (i, &right) in edges.iter().enumerate() {
             let text = match self.names.and_then(|names| names.get(i)) {

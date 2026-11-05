@@ -20,7 +20,7 @@ mod picker;
 #[cfg(test)]
 mod picker_tests;
 
-pub use picker::{NamedStyleRow, StyleChip, StyleChipResponse, StylePickerLabels, StylePickerView, StylePreview};
+pub use picker::{NamedStyleRow, StyleChip, StyleChipResponse, StylePickerLabels, StylePickerStyle, StylePickerView, StylePreview};
 
 craft_ui::words! {
     /// The panels' words, English by default (PhotoCraft's strings).

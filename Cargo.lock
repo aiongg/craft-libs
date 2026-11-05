@@ -1293,6 +1293,7 @@ version = "0.1.0"
 dependencies = [
  "craft-host",
  "craft-text",
+ "craft-theme",
  "craft-ui",
  "egui",
  "egui_kittest",
@@ -1450,6 +1451,7 @@ version = "0.1.0"
 dependencies = [
  "craft-font-manager",
  "craft-host",
+ "craft-theme",
  "craft-ui",
  "egui",
  "egui_kittest",

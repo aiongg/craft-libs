@@ -27,13 +27,13 @@ use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryLabels, dialog_closed, dialog_shown, drive, lock, shared};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
+use craft_ui::theme::{Tokens, TokensOf as _};
 use craft_ui::typed_story;
 use egui::{Ui, vec2};
 use kurbo::{Point, Rect, Size};
 
 use super::column_bar::ColumnBar;
-use super::grid::{PageGrid, PageGridColors, PageGrids};
+use super::grid::{PageGrid, PageGrids};
 use super::list::{PageList, PageListEvent, PageListRow};
 use super::preview::PagePreview;
 use super::range::{PageRangeField, PageRangeFieldState, PageRangeLabels, PageRangeOptions};
@@ -280,11 +280,7 @@ fn show_view(ui: &mut Ui, name: &str, demo: &mut ViewDemo, options: LayoutOption
     // The second page's grids, through a view that maps page points to its screen rectangle.
     if let Some(placed) = out.pages.iter().find(|placed| placed.page == 1) {
         let view = CanvasView::new(placed.rect, Point::new(LETTER.width / 2.0, LETTER.height / 2.0), placed.scale);
-        let colors = PageGridColors {
-            margins: tokens.color.status.bad.solid.to_egui(),
-            columns: tokens.color.accent.solid.to_egui(),
-            baseline: tokens.color.status.info.solid.to_egui(),
-        };
+        let colors = PageGrids::style(&tokens);
         PageGrids::new(&view, &[sample_grid()], colors).paint(&ui.painter_at(out.canvas.rect));
     }
     last_event(ui, demo.last.as_deref());

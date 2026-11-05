@@ -134,7 +134,22 @@ fn paint_preview(ui: &Ui, painter: &Painter, rect: Rect, preview: &StylePreview)
     }
 }
 
+/// The picker's measures.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StylePickerStyle {
+    /// The side of a style tile in the grid view (`text_styles.tile_side`).
+    pub tile_side: f32,
+    /// The side of a style's preview square in the chip (`text_styles.preview_side`).
+    pub preview_side: f32,
+}
+
 impl<'a> StyleChip<'a> {
+    /// The picker's measures, from the tokens.
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> StylePickerStyle {
+        let t = &tokens.component.text_styles;
+        StylePickerStyle { tile_side: t.tile_side, preview_side: t.preview_side }
+    }
+
     /// `applied`: `Some(Some(id))` one style, `Some(None)` mixed, `None` no style.
     pub fn new(id_salt: impl egui::AsIdSalt, styles: &'a [NamedStyleRow], applied: Option<Option<u64>>, view: &'a mut StylePickerView) -> Self {
         StyleChip { id_salt: egui::IdSalt::new(id_salt), styles, applied, view, labels: None }
@@ -156,7 +171,8 @@ impl<'a> StyleChip<'a> {
         let mut open = ui.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
         let applied_style = applied.flatten().and_then(|wanted| styles.iter().find(|style| style.id == wanted));
         let side = IconButton::style(&tokens, ControlSize::Md).side;
-        let icon_side = tokens.size.icon.md;
+        let style = Self::style(&tokens);
+        let icon_side = style.preview_side;
         let mut out = StyleChipResponse {
             picked: None,
             detach: false,
@@ -198,9 +214,15 @@ impl<'a> StyleChip<'a> {
                     selection: applied_style.map_or_else(Selection::new, |style| Selection::only(RowKey::Style(style.id))),
                 });
                 let mut result = Picked::default();
-                show_picker(ui, id, &Pass { styles, applied_style, labels: &labels, side }, view, &mut state, &mut result, |field| {
-                    pop.initial_focus(field)
-                });
+                show_picker(
+                    ui,
+                    id,
+                    &Pass { styles, applied_style, labels: &labels, side: style.tile_side },
+                    view,
+                    &mut state,
+                    &mut result,
+                    |field| pop.initial_focus(field),
+                );
                 ui.data_mut(|d| d.insert_temp(id.with("browsing"), state));
                 if result.picked.is_some() || result.edit.is_some() {
                     pop.close();

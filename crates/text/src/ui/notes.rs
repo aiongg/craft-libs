@@ -9,11 +9,12 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
+use craft_theme::TypeRole;
 use craft_ui::controls::TextField;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::Content;
-use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, scale};
+use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, UiTokens, scale};
 use egui::text::{CCursor, LayoutJob, TextFormat};
 use egui::{Align2, Color32, FontId, Galley, Label, Pos2, Response, Ui, WidgetText, vec2};
 
@@ -282,16 +283,32 @@ impl<'a> NotesView<'a> {
     }
 }
 
-/// The size of the notes' default text, points: indents are in points and scale with the text
-/// size as `size / NOTES_POINTS` (deckcraft: `panels/notes.rs:118` `para_layout`, :216).
-const NOTES_POINTS: f32 = 12.0;
+/// The notes' type roles and measures, shared by [`NotesEditor`] and [`NotesView`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NotesStyle {
+    /// The type role of the notes' text, and of a bold run.
+    pub body: TypeRole,
+    pub strong: TypeRole,
+    /// The size of the notes' default text, points: indents are in points and scale with the text
+    /// size as `size / points` (`text_editor.notes_points`; deckcraft: `panels/notes.rs:118`
+    /// `para_layout`, :216).
+    pub points: f32,
+    /// The largest indent, points (`text_editor.notes_max_indent`; deckcraft: `panels/notes.rs:49` `px`).
+    pub max_indent: f32,
+}
 
-/// The largest indent, points (deckcraft: `panels/notes.rs:51` `px`).
-const MAX_INDENT: f64 = 400.0;
+impl NotesStyle {
+    /// The notes' style, from the tokens.
+    pub fn of(tokens: &UiTokens) -> Self {
+        let t = &tokens.component.text_editor;
+        NotesStyle { body: TypeRole::Body, strong: TypeRole::BodyStrong, points: t.notes_points, max_indent: t.notes_max_indent }
+    }
+}
 
 /// The notes' type and measures: the body role's face at the pane's zoom, document points
 /// scaled with the text size.
 struct Look {
+    max_indent: f64,
     regular: FontId,
     strong: FontId,
     color: Color32,
@@ -310,21 +327,23 @@ struct Layout {
 impl Look {
     fn of(ui: &Ui, zoom: f32) -> Look {
         let tokens = Tokens::of(ui);
-        let body = tokens.families().font_id(tokens.typography.body);
-        let strong = tokens.families().font_id(tokens.typography.body_strong);
+        let style = NotesStyle::of(&tokens);
+        let body = tokens.font(style.body);
+        let strong = tokens.font(style.strong);
         let color = Content::Normal.color(&tokens).to_egui();
         Look {
             regular: FontId::new(body.size * zoom, body.family),
             strong: FontId::new(body.size * zoom, strong.family),
             color,
-            scale: body.size * zoom / NOTES_POINTS,
+            scale: body.size * zoom / style.points,
+            max_indent: f64::from(style.max_indent),
             underline: scale::Stroke::W1.egui(ui.ctx(), color),
         }
     }
 
     /// A length in points from the file, bounded, in logical pixels.
     fn indent(&self, points: f64) -> f32 {
-        if points.is_finite() { points.clamp(0.0, MAX_INDENT) as f32 * self.scale } else { 0.0 }
+        if points.is_finite() { points.clamp(0.0, self.max_indent) as f32 * self.scale } else { 0.0 }
     }
 
     fn format(&self, run: &NotesRun) -> TextFormat {

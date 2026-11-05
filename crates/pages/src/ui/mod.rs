@@ -83,8 +83,8 @@ pub use reading::{ReadingLabels, ReadingState, ReadingView, ReadingViewResponse}
 pub use setup::{PageLayoutChoice, PageLayoutMenus, PageSetupDialog, PageSetupLabels};
 pub use stories::stories;
 pub use style::{
-    CellSelectionStyle, ColumnBarStyle, EdgePickerStyle, FrameMarksStyle, HeaderFooterStyle, MarginHandlesStyle, PageThumbnailsStyle, PageViewStyle,
-    ReadingStyle, TableSizeStyle, TextSelectStyle,
+    CellSelectionStyle, ColumnBarStyle, EdgePickerStyle, FrameMarksStyle, HeaderFooterStyle, MarginHandlesStyle, PagePreviewStyle,
+    PageThumbnailsStyle, PageViewStyle, ReadingStyle, TableSizeStyle, TextSelectStyle,
 };
 pub use sync_views::{Lead, SyncedViews, SyncedViewsState};
 pub use table::{

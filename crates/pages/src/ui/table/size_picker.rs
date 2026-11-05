@@ -6,7 +6,7 @@ use craft_ui::behavior::{GridKey, GridNav};
 use craft_ui::direction;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Interactive, Surface, SurfaceEdge, SurfaceKind};
-use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, scale};
+use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, role_format, scale};
 use egui::accesskit::Role;
 use egui::{EventFilter, Key, Modifiers, Rect, Sense, Ui, UiBuilder, vec2};
 
@@ -48,7 +48,8 @@ pub struct TableSizePicker {
 impl TableSizePicker {
     /// The picker's sizes, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> crate::ui::TableSizeStyle {
-        crate::ui::TableSizeStyle::of(tokens)
+        let t = &tokens.component.pages;
+        crate::ui::TableSizeStyle { cell: t.table_size_cell, gap: t.table_size_gap, label: craft_theme::TypeRole::Body }
     }
 
     pub fn new(id_salt: impl egui::AsIdSalt) -> Self {
@@ -74,7 +75,8 @@ impl TableSizePicker {
 
         // The label's row is reserved above the grid and filled once this pass's lead is known.
         let size = vec2(COLUMNS as f32 * step - style.gap, ROWS as f32 * step - style.gap);
-        let (_, label_rect) = ui.allocate_space(vec2(size.x, ui.text_style_height(&egui::TextStyle::Body)));
+        let label_format = role_format(&tokens, style.label, tokens.color.text.normal.to_egui());
+        let (_, label_rect) = ui.allocate_space(vec2(size.x, label_format.line_height.unwrap_or(label_format.font_id.size)));
         let (_, rect) = ui.allocate_space(size);
 
         let focused = ui.memory(|m| m.has_focus(id));
@@ -150,7 +152,9 @@ impl TableSizePicker {
                 }
             }
         }
-        ui.scope_builder(UiBuilder::new().max_rect(label_rect), |ui| ui.label(text(lead)));
+        ui.scope_builder(UiBuilder::new().max_rect(label_rect), |ui| {
+            ui.label(egui::RichText::new(text(lead)).font(label_format.font_id.clone()).color(label_format.color))
+        });
         TableSizeResponse { hovered: lead.map(|i| (i / COLUMNS + 1, i % COLUMNS + 1)), picked }
     }
 }

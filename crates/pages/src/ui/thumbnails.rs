@@ -232,7 +232,8 @@ impl<'a> PageThumbnails<'a> {
 
     /// The panel's sizes, from the tokens.
     pub fn style(tokens: &UiTokens) -> PageThumbnailsStyle {
-        PageThumbnailsStyle::of(tokens)
+        let t = &tokens.component.pages;
+        PageThumbnailsStyle { usual_width: t.thumbnail_usual_width, panel_inset: t.thumbnail_panel_inset }
     }
 
     /// Off: no drag, no stacking keys, no Delete, no file drops (a read-only document).

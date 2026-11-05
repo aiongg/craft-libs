@@ -206,7 +206,18 @@ impl<'a> PageView<'a> {
     /// The view's spacing (`pages.gap`, `pages.margin`, `pages.side`, Hide White Space's pad and
     /// seam), from the tokens.
     pub fn style(tokens: &UiTokens) -> PageViewStyle {
-        PageViewStyle::of(tokens)
+        use craft_ui::theme::ToEgui as _;
+        let t = &tokens.component.pages;
+        PageViewStyle {
+            spacing: PageSpacing {
+                gap: f64::from(t.gap),
+                margin: f64::from(t.margin),
+                side: f64::from(t.side),
+                white_space_pad: f64::from(t.white_space_pad),
+                seam: f64::from(t.seam),
+            },
+            paper: t.paper.to_egui(),
+        }
     }
 
     /// The layout constants; the state's display, continuous, cover and page gaps override

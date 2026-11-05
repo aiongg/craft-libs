@@ -62,6 +62,13 @@ pub struct PageGrids<'a> {
 }
 
 impl<'a> PageGrids<'a> {
+    /// The guide colours, from the tokens.
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> PageGridColors {
+        use craft_ui::theme::ToEgui as _;
+        let t = &tokens.component.grid;
+        PageGridColors { margins: t.page_margins.to_egui(), columns: t.page_columns.to_egui(), baseline: t.page_baseline.to_egui() }
+    }
+
     pub fn new(view: &'a CanvasView, pages: &'a [PageGrid], colors: PageGridColors) -> Self {
         PageGrids { view, pages, colors, threshold: 0.75 }
     }

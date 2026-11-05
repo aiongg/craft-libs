@@ -1,6 +1,7 @@
 //! The ruler's geometry and drawing.
 
 use craft_ui::canvas::{RulerStyle, RulerUnits, crisp};
+use craft_ui::theme::UiTokens;
 use egui::{Align2, Color32, Painter, Pos2, Rect, Shape, Stroke, pos2, vec2};
 
 use super::TabAlign;
@@ -42,7 +43,7 @@ impl Geometry {
     }
 }
 
-/// The marker sizes, proportions of the strip's thickness (`ruler.size`).
+/// The marker sizes (`ruler.marker_*`).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Shapes {
     /// Half the width of a marker.
@@ -60,9 +61,9 @@ pub(super) struct Shapes {
 }
 
 impl Shapes {
-    pub(super) fn of(style: &RulerStyle) -> Self {
-        let size = style.size;
-        Shapes { half: size * 0.28, tip: size * 0.31, bar: size * 0.25, stem: size * 0.31, foot: size * 0.25, selector: size * 0.875 }
+    pub(super) fn of(tokens: &UiTokens) -> Self {
+        let r = &tokens.component.ruler;
+        Shapes { half: r.marker_half, tip: r.marker_tip, bar: r.marker_bar, stem: r.marker_stem, foot: r.marker_foot, selector: r.marker_selector }
     }
 
     fn triangle(&self, a: Pos2, b: Pos2, c: Pos2, fill: Color32, stroke: Stroke) -> Shape {
