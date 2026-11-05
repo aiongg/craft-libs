@@ -116,7 +116,7 @@ impl Default for ClipboardLimits {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ClipboardError {
     /// No clipboard can be reached at all: a Flatpak on Wayland, where the sandbox hides the
-    /// data-control protocol (PhotoCraft #5031), or a headless session. Paste explains it with
+    /// data-control protocol (storytold/photocraft#5031), or a headless session. Paste explains it with
     /// [`CLIPBOARD_UNAVAILABLE`].
     Unavailable,
     /// Another read or write holds the clipboard handle (a re-entrant call).
@@ -223,7 +223,7 @@ pub trait ClipboardBackend: Send {
 /// copied to the clipboard manager at exit). When no backend opens, every call answers
 /// [`ClipboardError::Unavailable`] and [`unreadable`](Self::unreadable) turns true. On Wayland a
 /// bitmap arboard can't read (it asks for `image/png` only; a screenshot tool may offer only
-/// `image/jpeg` or `image/bmp`, PhotoCraft #2546) reads as `None`.
+/// `image/jpeg` or `image/bmp`, storytold/photocraft#2546) reads as `None`.
 ///
 /// arboard reaches text, HTML, one bitmap and copied files; other flavors ([`SVG`], [`PDF`],
 /// [`RTF`]) are not written or read here.

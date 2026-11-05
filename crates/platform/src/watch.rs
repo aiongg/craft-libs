@@ -1,7 +1,7 @@
 //! Open files that change on disk (N10.02): another app or a build rewrites a document that is
 //! open, and the app reloads it or says so.
 //!
-//! Cheap by design (PdfCraft #431). One worker thread looks at each watched file's metadata,
+//! Cheap by design (storytold/pdfcraft#431). One worker thread looks at each watched file's metadata,
 //! never its contents, every [`IDLE`], and sleeps without waking while nothing is watched. A
 //! changed file is read only once it has stopped changing ([`SETTLE`] apart) and, when the app
 //! gives a [`ReadPolicy::Whole`] check, once it looks complete (PdfCraft reads the last KiB
@@ -146,7 +146,7 @@ pub struct Changed<K> {
     pub bytes: Option<Arc<Vec<u8>>>,
     /// Which of the app's readings or writings of the file this was found for. A change found
     /// before the latest one ([`FileWatch::known_now`] bumps it) is older than the document in
-    /// memory and [`FileWatch::take_changes`] drops it (PdfCraft #1802).
+    /// memory and [`FileWatch::take_changes`] drops it (storytold/pdfcraft#1802).
     pub epoch: u64,
 }
 
@@ -279,7 +279,7 @@ impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
     }
 
     /// Whether the file at `path` is another version than the one `key` came from: something
-    /// else wrote it since the document was opened, reloaded or last saved (PdfCraft #2166,
+    /// else wrote it since the document was opened, reloaded or last saved (storytold/pdfcraft#2166,
     /// PhotoCraft `changed_on_disk`). A missing or unreadable file, or a document whose version
     /// was never recorded, is not a difference. When only the change time differs and `saved`
     /// holds the bytes the app last wrote or read, equal bytes are not a difference.
