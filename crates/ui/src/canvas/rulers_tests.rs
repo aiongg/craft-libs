@@ -10,7 +10,7 @@ use crate::canvas::{CanvasView, GuideNames, GuidePlace, Guides, Orientation, Rul
 use crate::edit::{CancelReason, EditEvent};
 use crate::localized::LocaleNumbers;
 use crate::localized::units::LengthUnit;
-use crate::theme::{Base, install};
+use crate::theme::{Base, ToEgui as _, install};
 
 const SIZE: f32 = 16.0;
 
@@ -615,4 +615,56 @@ fn a_ruler_menu_pick_reports_the_unit() {
     h.run_steps(2);
     assert_eq!(h.state().picked, [LengthUnit::Points]);
     assert_eq!(h.state().contexts, 0, "the rulers' own menu replaces the context report");
+}
+
+// The rulers paint the margin shade themselves, under the ticks, over the spans the host passes.
+#[test]
+fn the_margin_spans_are_shaded_in_each_strip() {
+    let mut h = Harness::builder().with_size(vec2(440.0, 340.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(|ui| {
+        let full = ScreenRect::from_min_size(pos2(20.0, 20.0), vec2(400.0 + SIZE, 300.0 + SIZE));
+        let content = ScreenRect::from_min_max(full.min + vec2(SIZE, SIZE), full.max);
+        let view = CanvasView::new(content, Point::new(200.0, 150.0), 1.0);
+        let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
+        let names = RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin");
+        let _ = Rulers::new("rulers", &px, &px, names).margins([0.0..50.0, 350.0..400.0], [20.0..40.0]).show(ui, full, &view, None);
+    });
+    h.run();
+    let shade = crate::theme::current(&h.ctx).component.ruler.margin_shade.to_egui();
+    let shades: Vec<ScreenRect> =
+        h.output().shapes.iter().filter_map(|s| if let Shape::Rect(r) = &s.shape { (r.fill == shade).then_some(r.rect) } else { None }).collect();
+    let (left, top) = (20.0 + SIZE, 20.0 + SIZE);
+    // View centre (200, 150) is at the content's centre: document x 0 is 200 points left of it.
+    let x0 = left + 400.0 / 2.0 - 200.0;
+    let y0 = top + 300.0 / 2.0 - 150.0;
+    let expected = [
+        ScreenRect::from_min_max(pos2(x0, 20.0), pos2(x0 + 50.0, 20.0 + SIZE)),
+        ScreenRect::from_min_max(pos2(x0 + 350.0, 20.0), pos2(x0 + 400.0, 20.0 + SIZE)),
+        ScreenRect::from_min_max(pos2(20.0, y0 + 20.0), pos2(20.0 + SIZE, y0 + 40.0)),
+    ];
+    assert_eq!(shades, expected);
+}
+
+// One tick rule: metric ticks are the units' own steps; inch ticks follow `step_min` for labels and
+// a tenth of it (6 points) for the finest ticks.
+#[test]
+fn the_tick_helper_follows_the_metric_and_inch_rules() {
+    use super::{INCH_EIGHTHS, INCH_SIXTEENTHS, TickRule};
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let tokens = crate::theme::current(&ctx);
+    let style = Rulers::style(&tokens);
+    let units = px();
+    let metric = Rulers::ticks(&units, TickRule::Metric, &style, 1.0, 0.0..=200.0);
+    let labelled: Vec<_> = metric.iter().filter_map(|t| t.label.as_deref().map(|l| (t.value, l))).collect();
+    assert!(labelled.contains(&(0.0, "0")) && labelled.contains(&(100.0, "100")) && labelled.contains(&(200.0, "200")), "{labelled:?}");
+    assert!(metric.iter().filter(|t| t.length == style.tick_mid).all(|t| (t.value / 10.0).round().rem_euclid(10.0) == 5.0));
+    // Inches, 72 points each: one inch is at least `step_min` (60) apart, and sixteenths need 96.
+    let inches = RulerUnits { per_doc: 1.0 / 72.0, ..px() };
+    let count = |zoom: f64, finest: &[u32]| {
+        Rulers::ticks(&inches, TickRule::Inches(finest), &style, zoom, 0.0..=1.0).iter().filter(|t| (0.0..=1.0).contains(&t.value)).count()
+    };
+    assert_eq!(count(1.0, &INCH_SIXTEENTHS), 9, "72 points an inch: eighths are 9 apart, sixteenths 4.5");
+    assert_eq!(count(1.0, &INCH_EIGHTHS), 9);
+    assert_eq!(count(2.0, &INCH_SIXTEENTHS), 17, "144 points an inch: sixteenths 9 points apart");
+    assert_eq!(count(2.0, &INCH_EIGHTHS), 9, "eighths only");
 }

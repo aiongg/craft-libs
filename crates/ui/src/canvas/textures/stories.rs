@@ -126,7 +126,7 @@ fn state_word(words: &TextureStoryLabels, state: &TextureState) -> String {
 fn fake_image(key: u32, revision: u64) -> ColorImage {
     let mut source = FakeThumbSource::<u32>::new();
     source.set_revision(revision);
-    match source.render(&key, &ThumbRequest { side: 64, pixels_per_point: 1.0 }) {
+    match source.render(&key, &ThumbRequest { side: 64, pixels_per_point: 1.0, region: None }) {
         ThumbRender::Ready(image) => image,
         ThumbRender::Later(_) | ThumbRender::Blank => ColorImage::example(),
     }

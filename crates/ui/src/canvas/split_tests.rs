@@ -140,3 +140,30 @@ fn the_first_pane_is_drawn_first_and_keeps_its_place() {
     sorted.reverse();
     assert_eq!(sorted, by_default, "the rects do not move");
 }
+
+// Tab visits the pane groups in reading order whichever pane is drawn first.
+#[test]
+fn tab_visits_the_panes_in_reading_order_with_first() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let base = std::cell::Cell::new(None);
+    let frame = |events: Vec<Event>| {
+        let input = RawInput { screen_rect: Some(full()), events, ..RawInput::default() };
+        ctx.run_ui(input, |ui| {
+            base.set(Some(ui.make_persistent_id(egui::IdSalt::new("tab-order"))));
+            SplitViews::new("tab-order", SplitLayout::Four).first(1).show(ui, full(), |_, _, _| {});
+        })
+        .drop_without_applying_deltas();
+    };
+    frame(vec![]);
+    let base = base.get().expect("the first frame ran");
+    let mut visited = Vec::new();
+    for _ in 0..3 {
+        for events in crate::testing::events::key_press(egui::Key::Tab, Modifiers::NONE) {
+            frame(events);
+        }
+        visited.push((0..4).find(|&i| ctx.memory(|m| m.has_focus(base.with(("group", i))))));
+    }
+    // Pane 0 (bottom right) is active and no Tab stop; reading order is 1 (top left), 2, 3.
+    assert_eq!(visited, [Some(1), Some(2), Some(3)]);
+}

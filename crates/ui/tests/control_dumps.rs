@@ -758,7 +758,7 @@ fn guide() {
     });
 }
 
-/// Rulers: strip, label and tick sizes, the colours and the pointer marker.
+/// Rulers: strip, label and tick sizes, the colours, the margin shade and the pointer marker.
 #[test]
 fn ruler() {
     check("ruler.txt", |d, t| {
@@ -767,6 +767,7 @@ fn ruler() {
         d.line("label_pitch", s.label_pitch).line("label_pad", s.label_pad).line("step_min", s.step_min);
         d.line("tick_mid", s.tick_mid).line("tick_minor", s.tick_minor);
         d.line("fill", s.fill).line("tick", s.tick).line("label_color", s.label).line("marker", s.marker);
+        d.line("margin_shade", s.margin_shade);
     });
 }
 
