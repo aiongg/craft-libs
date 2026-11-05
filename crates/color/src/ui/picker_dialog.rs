@@ -93,7 +93,7 @@ enum Title {
 ///   field shows the component it showed last time, and Only Web Colors is as it was left
 ///   ([`ColorPickerMemory`]); with Only Web Colors on, the opening colour is snapped to the
 ///   nearest web colour and the compare swatch's "current" half shows the snapped colour, so OK
-///   without an edit changes nothing (PhotoCraft #4995).
+///   without an edit changes nothing (storytold/photocraft#4995).
 /// - **Compare swatch:** "new" over "current"; a click on "current" sets the colour back.
 /// - **Warnings:** the out-of-gamut chip shows when the colour
 ///   leaves the CMYK gamut of the [`cmyk`](Self::cmyk) converter (ΔE over 3); with Only Web Colors off, the web-colour chip shows for a
@@ -186,7 +186,7 @@ impl ColorPickerDialog {
     }
 
     /// The model values the colour was picked in (a CMYK fill's inks): the fields show them as
-    /// they were typed, not what the sRGB colour converts to (PhotoCraft #4196).
+    /// they were typed, not what the sRGB colour converts to (storytold/photocraft#4196).
     pub fn kept(mut self, values: craft_theme::ModelValues) -> ColorPickerDialog {
         self.opening.model = Some(values);
         self.current.model = Some(values);
@@ -429,7 +429,7 @@ impl StackDialog for ColorPickerDialog {
 impl ColorPickerDialog {
     /// The first pass: recalls the remembered field component and Only Web Colors, and with Only
     /// Web Colors on snaps the opening colour, which the compare swatch's current half follows
-    /// (PhotoCraft #4995).
+    /// (storytold/photocraft#4995).
     fn start(&mut self, ctx: &Context) {
         self.started = true;
         if self.remember

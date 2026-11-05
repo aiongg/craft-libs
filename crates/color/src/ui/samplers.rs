@@ -308,7 +308,7 @@ pub fn sampler_options(ui: &mut Ui, count: usize) -> bool {
 }
 
 /// The Info panel readouts of a document's [`ColorSamplers`], cached until something they depend
-/// on changes (PhotoCraft #4528). The cache is kept per [`document`](Self::document); a reading
+/// on changes (storytold/photocraft#4528). The cache is kept per [`document`](Self::document); a reading
 /// is computed again when the document's [`revision`](Self::revision), the points or the
 /// [`cmyk`](Self::cmyk) converter's profile differ from the cached ones.
 // pc: crates/ui-egui/src/panels/info.rs:124 `sampler_readouts`.

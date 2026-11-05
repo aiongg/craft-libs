@@ -1,5 +1,4 @@
-//! Stories of the paint kinds and the paint list's row actions (task ST-SH2; task RG2 registers
-//! them). Registering them adds `paint_stories::stories()` to the colour stories, the components
+//! Stories of the paint kinds and the paint list's row actions. Registering them adds `paint_stories::stories()` to the colour stories, the components
 //! to `COMPONENTS` and [`PaintStoryLabels`] to `WORDS`.
 //!
 //! Every story uses fake pattern and picture previews (small generated textures) and fake paints;

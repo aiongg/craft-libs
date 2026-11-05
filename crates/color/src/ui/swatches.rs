@@ -416,7 +416,7 @@ pub struct SwatchesPanelResponse {
 
 /// The Swatches panel on a [`SwatchLibrary`], built on craft-ui's
 /// [`PresetBrowser`](craft_ui::presets::PresetBrowser): groups as folders, swatches as flat
-/// touching squares with no gap or corner radius (Photoshop, PhotoCraft #5103), the size the
+/// touching squares with no gap or corner radius (Photoshop, storytold/photocraft#5103), the size the
 /// browser's view menu chooses.
 ///
 /// - Click uses the swatch for the foreground; Alt-click (or Ctrl or Cmd) for the background.

@@ -13,7 +13,7 @@ use craft_theme::{Channel, ColorModel, DefaultOn, MAX_CHANNELS, ModelValues, Srg
 /// `ColorPickerDialog` adds it when it is given a
 /// `ColorPickerDialog::gamut`. Inks the user typed stay as typed while they
 /// still give the colour (`PickedColor::model`): a CMYK document
-/// fills with them, not with what its sRGB stand-in converts back to (PhotoCraft #4196).
+/// fills with them, not with what its sRGB stand-in converts back to (storytold/photocraft#4196).
 #[derive(Clone)]
 pub struct CmykModel {
     converter: CmykConverter,

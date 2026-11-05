@@ -109,7 +109,7 @@ fn the_chip_names_its_paint() {
     assert_eq!(value(Paint::Solid(Srgba::rgb(1.0, 0.0, 0.0))).as_deref(), Some("#ff0000"));
 }
 
-// Task SH-T14: the Pattern and Picture tabs and the paint list's row actions.
+// The Pattern and Picture tabs and the paint list's row actions.
 
 /// `kinds()` lists Pattern and Picture only with their editors; a chip with both shows five tabs,
 /// and a switch to Pattern reports `Set(Paint::Pattern(default))`.

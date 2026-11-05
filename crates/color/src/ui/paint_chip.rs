@@ -38,7 +38,7 @@ craft_ui::words! {
 
 craft_ui::words! {
     /// The paint popover's Pattern and Picture tabs, English by default (Photoshop's Pattern,
-    /// PowerPoint's Picture). Kept apart from [`PaintLabels`] until task RG1 registers them.
+    /// PowerPoint's Picture). Kept apart from [`PaintLabels`] until they are registered.
     #[non_exhaustive]
     pub struct PaintKindLabels {
         pattern: "paint.pattern" = "Pattern";
