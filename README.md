@@ -124,7 +124,7 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [Panel docking](docs/ui-docking.md): validated panel moves, floating groups, workspace adapters
   and an optional egui docking surface.
 - [Dialogs](docs/ui-dialogs.md): modal and modeless dialogs, footer roles and keys, prompts, the dialog stack, canvas pass-through, viewport windows
-- [Craft framework](docs/craft/README.md): the design, installation, architecture, design system, foundations, components, accessibility, tests, and the migration and landing plan
+- [Craft framework](docs/craft-framework.md): the design, installation, architecture, design system, foundations, components, accessibility, tests, and the migration and landing plan
 
 ## License and credits
 
