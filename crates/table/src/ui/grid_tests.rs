@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use craft_ui::edit::EditEvent;
 use craft_ui::testing::{HarnessExt as _, events, symbols};
-use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
+use craft_ui::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
 use egui::accesskit::Role;
 use egui::{Event, ImeEvent, Key, KeyboardShortcut, Modifiers, Painter, PointerButton, Pos2, Rect, Ui, pos2, vec2};
 use egui_kittest::Harness;
@@ -618,4 +618,90 @@ fn the_active_descendant_follows_a_key_in_the_same_pass() {
     let named = harness.get_by_label(&label).accesskit_node().id();
     let grid = harness.get_by_role(Role::Grid);
     assert_eq!(grid.accesskit_node().active_descendant().map(|node| node.id()), Some(named));
+}
+
+/// The grid drawn to pixels, with its geometry.
+fn render(app: App) -> Result<(egui::ColorImage, SheetGeometry), craft_ui::testing::render::RenderError> {
+    use craft_ui::testing::render::{Render, image_of};
+    let mut harness = Render::new([800.0, 500.0])
+        .setup(|ctx| {
+            install(ctx, &Base::suite_default());
+            symbols::install(ctx);
+        })
+        .harness(show, app)?;
+    harness.run();
+    let image = image_of(&mut harness)?;
+    let geometry = harness.state().geometry.clone().expect("a pass ran");
+    Ok((image, geometry))
+}
+
+fn pixel(image: &egui::ColorImage, at: Pos2) -> egui::Color32 {
+    image.pixels[at.y as usize * image.size[0] + at.x as usize]
+}
+
+/// How many pixels of `area` are not `colour`.
+fn not_colored(image: &egui::ColorImage, area: Rect, colour: egui::Color32) -> usize {
+    let mut count = 0;
+    for y in area.top().floor() as usize..area.bottom().ceil() as usize {
+        for x in area.left().floor() as usize..area.right().ceil() as usize {
+            count += usize::from(pixel(image, pos2(x as f32, y as f32)) != colour);
+        }
+    }
+    count
+}
+
+// A merged cell has no gridline inside it.
+#[test]
+fn no_gridline_shows_inside_a_merged_cell() -> Result<(), craft_ui::testing::render::RenderError> {
+    let merge = CellRange::new(CellRef::new(2, 1), CellRef::new(2, 3));
+    let (plain, geometry) = render(App::default())?;
+    let (merged, _) = render(App { sheet: Sheet { merges: vec![merge], ..Sheet::default() }, ..App::default() })?;
+    let background = pixel(&plain, geometry.cell_rect(CellRef::new(5, 5)).center());
+    let (inner, row) = (geometry.x(2), geometry.cell_rect(CellRef::new(2, 2)));
+    let across = Rect::from_min_max(pos2(inner - 0.5, row.top() + 3.0), pos2(inner + 0.5, row.bottom() - 3.0));
+    assert!(not_colored(&plain, across, background) > 0, "the gridline is there without the merge");
+    assert_eq!(not_colored(&merged, across, background), 0, "and gone inside the merge");
+    Ok(())
+}
+
+// A hidden column leaves a double divider on its neighbours' header edge; a visible edge has none.
+#[test]
+fn a_hidden_column_leaves_a_double_divider_in_the_header() -> Result<(), craft_ui::testing::render::RenderError> {
+    let style = style();
+    let columns = BTreeMap::from([(2, 0.0)]);
+    let sheet = Sheet { columns: LineIndex::new(&columns, 80.0, SHEET_COLUMNS), ..Sheet::default() };
+    let (image, geometry) = render(App { sheet, ..App::default() })?;
+    let header = Rect::from_min_max(pos2(0.0, geometry.cells().top() - geometry.header_size().y), pos2(0.0, geometry.cells().top()));
+    let chrome = pixel(&image, pos2(geometry.cells().left() - 2.0, header.top() + 1.0));
+    let beside = |x: f32| {
+        let offset = style.hidden_mark_offset;
+        Rect::from_min_max(pos2(x - offset - 1.0, header.top() + style.header_separator_inset + 3.0), pos2(x - offset + 1.0, header.bottom() - 4.0))
+    };
+    let hidden_edge = geometry.x(3);
+    let plain_edge = geometry.x(5);
+    assert!(not_colored(&image, beside(hidden_edge), chrome) > 0, "marks beside the hidden column");
+    assert_eq!(not_colored(&image, beside(plain_edge), chrome), 0, "none at a plain edge");
+    Ok(())
+}
+
+// A selected header gets the accent bar on its inner edge.
+#[test]
+fn a_selected_header_has_an_accent_bar() -> Result<(), craft_ui::testing::render::RenderError> {
+    let (image, geometry) = render(App::default())?;
+    let tokens = {
+        let mut tokens = None;
+        egui::__run_test_ui(|ui| tokens = Some(Tokens::of(ui)));
+        tokens.unwrap()
+    };
+    let cell = geometry.cell_rect(CellRef::new(0, 0));
+    let bar = pos2(cell.center().x, geometry.cells().top() - 1.5);
+    let above = pos2(cell.center().x, geometry.cells().top() - 6.0);
+    let accent = {
+        let c = tokens.color.accent.solid.to_egui();
+        c
+    };
+    let near = |a: egui::Color32, b: egui::Color32| a.to_array().iter().zip(b.to_array()).all(|(x, y)| x.abs_diff(y) <= 2);
+    assert!(near(pixel(&image, bar), accent), "bar {:?} vs {accent:?}", pixel(&image, bar));
+    assert!(!near(pixel(&image, above), accent), "the bar is thin");
+    Ok(())
 }
