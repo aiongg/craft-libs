@@ -37,13 +37,13 @@ pub struct VideoParams {
     pub frame_count: u16,
     /// Compressor name from the sample entry's 32-byte Pascal string.
     pub compressor_name: String,
-    /// Image depth in bits per pixel (24 colour, 32 colour with alpha, 33 to 40 greyscale, as in QuickTime).
+    /// The sample entry's `depth` field, as read.
     pub depth: u16,
     /// QuickTime `vendor` / version fields (zero in ISO files).
     pub vendor: FourCc,
-    /// QuickTime temporal quality (0 to 1023).
+    /// The QuickTime `temporalQuality` field, as read.
     pub temporal_quality: u32,
-    /// QuickTime spatial quality (0 to 1023).
+    /// The QuickTime `spatialQuality` field, as read.
     pub spatial_quality: u32,
     /// `colr` box.
     pub color: Option<ColorInfo>,
@@ -196,7 +196,7 @@ pub struct AudioParams {
     pub sample_size: u16,
     /// Sample rate in Hz.
     pub sample_rate: f64,
-    /// QuickTime compression ID: -2 for variable-rate compressed audio (v1/v2 entries), 0 otherwise.
+    /// The QuickTime `compressionID` field, as read. Written back only for version 1 entries.
     pub compression_id: i16,
     /// v1 fields.
     pub samples_per_packet: u32,
@@ -208,7 +208,8 @@ pub struct AudioParams {
     pub bytes_per_sample: u32,
     /// v2 fields.
     pub const_bits_per_channel: u32,
-    /// Linear PCM format flags (CoreAudio `AudioStreamBasicDescription` flag bits).
+    /// Linear PCM format flags from a version 2 entry. Bit 1 is float, bit 2 big-endian and bit 4
+    /// signed integer; float samples count as signed.
     pub lpcm_flags: u32,
     /// Constant bytes per packet, or 0 when variable.
     pub const_bytes_per_packet: u32,
@@ -451,7 +452,7 @@ pub struct HevcConfig {
     pub general_profile_compatibility_flags: u32,
     /// 48 bits of general constraint indicator flags.
     pub general_constraint_indicator_flags: u64,
-    /// `general_level_idc`: level times 30.
+    /// The `general_level_idc` byte, as read.
     pub general_level_idc: u8,
     /// `min_spatial_segmentation_idc` (12 bits); 0 if unknown.
     pub min_spatial_segmentation_idc: u16,
@@ -463,9 +464,9 @@ pub struct HevcConfig {
     pub bit_depth_luma: u8,
     /// Chroma bit depth (8 or more).
     pub bit_depth_chroma: u8,
-    /// Average frame rate in frames per 256 seconds; 0 if unspecified.
+    /// The `avgFrameRate` field, as read.
     pub avg_frame_rate: u16,
-    /// `constantFrameRate` (2 bits): 0 not guaranteed, 1 constant, 2 constant per temporal layer.
+    /// The 2-bit `constantFrameRate` field, as read.
     pub constant_frame_rate: u8,
     /// Number of temporal layers; 0 if unknown.
     pub num_temporal_layers: u8,
@@ -595,7 +596,7 @@ pub struct Av1Config {
     pub chroma_subsampling_x: bool,
     /// `chroma_subsampling_y`.
     pub chroma_subsampling_y: bool,
-    /// `chroma_sample_position` (2 bits): 0 unknown, 1 vertical, 2 colocated.
+    /// The 2-bit `chroma_sample_position` field, as read.
     pub chroma_sample_position: u8,
     /// `initial_presentation_delay_minus_one` (4 bits), when signalled.
     pub initial_presentation_delay_minus_one: Option<u8>,
@@ -654,7 +655,7 @@ impl Av1Config {
 pub struct VpcConfig {
     /// VP profile (0 to 3).
     pub profile: u8,
-    /// VP level, as defined by the VP codec mapping (for example 10 for 1.0).
+    /// The `level` byte, as read.
     pub level: u8,
     /// Bit depth (8, 10 or 12).
     pub bit_depth: u8,
@@ -809,7 +810,7 @@ impl PcmConfig {
 pub struct OpusConfig {
     /// Number of output channels.
     pub output_channels: u8,
-    /// Number of samples to discard at the start of the stream, at 48 kHz.
+    /// The `PreSkip` field, as read.
     pub pre_skip: u16,
     /// Sample rate of the original input in Hz (informational).
     pub input_sample_rate: u32,
@@ -979,7 +980,8 @@ pub struct ApvConfig {
     pub matrix_coefficients: u8,
     /// True for full-range sample values.
     pub full_range: bool,
-    /// Raw `APVDecoderConfigurationRecord` bytes (after the 4-byte FullBox header).
+    /// Raw `APVDecoderConfigurationRecord` bytes (after the 4-byte FullBox header). When non-empty,
+    /// serialization writes these bytes and ignores the parsed fields above.
     pub raw_record: Vec<u8>,
 }
 

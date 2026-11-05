@@ -70,9 +70,9 @@ pub struct Color {
     pub cb_subsampling_horz: Option<u64>,
     /// `CbSubsamplingVert`: extra vertical subsampling of the Cb channel.
     pub cb_subsampling_vert: Option<u64>,
-    /// `ChromaSitingHorz`: 0 unspecified, 1 left collocated, 2 half.
+    /// `ChromaSitingHorz` value, as read.
     pub chroma_siting_horz: Option<u64>,
-    /// `ChromaSitingVert`: 0 unspecified, 1 top collocated, 2 half.
+    /// `ChromaSitingVert` value, as read.
     pub chroma_siting_vert: Option<u64>,
     /// `Range`: 0 unspecified, 1 broadcast (limited), 2 full, 3 defined by matrix/transfer.
     pub range: Option<u64>,
@@ -102,11 +102,12 @@ pub struct VideoInfo {
     pub pixel_width: u32,
     /// `PixelHeight` in pixels.
     pub pixel_height: u32,
-    /// `DisplayWidth`/`DisplayHeight`, in `display_unit` (0 = pixels, 3 = display aspect ratio).
+    /// `DisplayWidth`, in `display_unit`.
     pub display_width: Option<u32>,
     /// `DisplayHeight`, in `display_unit`.
     pub display_height: Option<u32>,
-    /// `DisplayUnit`: 0 pixels, 1 cm, 2 inches, 3 display aspect ratio, 4 unknown.
+    /// `DisplayUnit` value, as read. `pixel_aspect` uses the display size only for 0 (pixels) and 3
+    /// (display aspect ratio).
     pub display_unit: u64,
     /// Crop (top, bottom, left, right) in pixels.
     pub crop: (u32, u32, u32, u32),
@@ -199,7 +200,8 @@ pub enum ContentEncoding {
     HeaderStripping {
         /// The stripped bytes.
         bytes: Vec<u8>,
-        /// `ContentEncodingScope` bit mask: 1 frames, 2 `CodecPrivate`, 4 next encoding.
+        /// `ContentEncodingScope` bit mask, default 1. Bit 1 applies the encoding to frames and bit 2 to
+        /// `CodecPrivate`; other bits are kept but not interpreted.
         scope: u64,
     },
     /// Other compression (0 zlib, 1 bzlib, 2 lzo1x): not supported for reading frame data.
@@ -209,12 +211,12 @@ pub enum ContentEncoding {
         algo: u64,
         /// `ContentCompSettings` bytes.
         settings: Vec<u8>,
-        /// `ContentEncodingScope` bit mask (see [`ContentEncoding::HeaderStripping`]).
+        /// `ContentEncodingScope` bit mask; bit 1 means frames are affected.
         scope: u64,
     },
     /// Encryption (not supported for reading frame data).
     Encryption {
-        /// `ContentEncodingScope` bit mask (see [`ContentEncoding::HeaderStripping`]).
+        /// `ContentEncodingScope` bit mask; bit 1 means frames are affected.
         scope: u64,
     },
 }
