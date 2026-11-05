@@ -145,6 +145,8 @@ pub struct TablePropertiesOutput {
 ///   the document's unit), mixed (empty) where [`TableValues`] has `None`; row height mode,
 ///   cell alignment and direction are `Select`s or icon `Segmented` controls; Merge, Unmerge,
 ///   Insert and Delete are `Button`s, enabled from `several_cells` and `merged`.
+/// - The number fields have no upper bound (counts from 1, or 0 for header and footer rows;
+///   lengths from 0), as DesignCraft's table panel; the app refuses what its table can't take.
 /// - Keys: Tab moves through the fields in reading order; each control's own keys.
 pub struct TableProperties<'a> {
     id_salt: egui::IdSalt,

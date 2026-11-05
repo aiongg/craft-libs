@@ -137,14 +137,16 @@ pub struct EdgePickerResponse {
 ///   lines through its middle. Chosen lines in the accent at `line_on`, others in
 ///   `line_off_color` at `line_off`, the line under the pointer at `line_hover` (DesignCraft;
 ///   InDesign's proxy).
+/// - The pointer picks the nearest line within the inset less one point ([`hit_reach`]).
 /// - Click toggles a line. Double-click on a line picks its group alone (an outer line: the four
 ///   outer lines on, the inner off; an inner line the other way round). Triple-click turns all on,
 ///   or all off when all were on (InDesign's proxy).
 /// - [`paragraph`](Self::paragraph): no inside vertical line, and the inside horizontal is
 ///   "Between" paragraphs (Word's paragraph borders).
 /// - Keys: one Tab stop (an AccessKit Group "Edges" of six CheckBoxes); ←/→/↑/↓ move between
-///   lines through craft-ui's [`GridNav`](craft_ui::behavior::GridNav) over the lines' 3 × 3
-///   places (`GridNav::ragged`), Space toggles. The edges are the panel's choice of
+///   lines through craft-ui's [`GridNav`](craft_ui::behavior::GridNav) over the lines' ragged
+///   rows `[Top] [Left, InsideH, InsideV, Right] [Bottom]` (`GridNav::ragged`; the paragraph
+///   picker's middle row has no InsideV), Space toggles. The edges are the panel's choice of
 ///   which lines a stroke applies to (view state, not the document), so the picker edits them in
 ///   place and reports [`EdgePickerResponse::changed`].
 pub struct EdgePicker<'a> {
@@ -222,7 +224,7 @@ impl<'a> EdgePicker<'a> {
         // The pointer is read last, so a press on the square goes to the nearest line whichever
         // line's focus rectangle it falls in.
         let square = group.interact(rect, group.scope_id().with("pointer"), Sense::CLICK);
-        let hit = square.interact_pointer_pos().or_else(|| square.hover_pos()).and_then(|p| line_at(&lines, &keys, p, style.inset));
+        let hit = square.interact_pointer_pos().or_else(|| square.hover_pos()).and_then(|p| line_at(&lines, &keys, p, hit_reach(style.inset)));
         if square.clicked() {
             let last_key = square.id.with("last");
             let start_key = square.id.with("start");
@@ -296,7 +298,7 @@ fn edge_name(labels: &EdgePickerLabels, key: EdgeKey, paragraph: bool) -> String
 
 /// The six lines (start, end) in [`EdgeKey::ALL`] order: the outer rectangle at `inset` and the
 /// two inner lines through its middle.
-fn edge_lines(rect: Rect, inset: f32) -> [(Pos2, Pos2); 6] {
+pub(super) fn edge_lines(rect: Rect, inset: f32) -> [(Pos2, Pos2); 6] {
     let i = rect.shrink(inset);
     let c = i.center();
     [
@@ -309,8 +311,18 @@ fn edge_lines(rect: Rect, inset: f32) -> [(Pos2, Pos2); 6] {
     ]
 }
 
+/// How much nearer than the inset the pointer must be to a line to pick it: DesignCraft's
+/// `d <= PROXY_INSET - 1.0` (`cell_stroke.rs:91`), so the lines' hit zones stay short of each
+/// other and of the square's edge.
+const REACH_SHORTFALL: f32 = 1.0;
+
+/// The distance from a line within which the pointer picks it.
+pub(super) fn hit_reach(inset: f32) -> f32 {
+    inset - REACH_SHORTFALL
+}
+
 /// The line nearest `p` among `keys`, if one is within `reach`.
-fn line_at(lines: &[(Pos2, Pos2); 6], keys: &[EdgeKey], p: Pos2, reach: f32) -> Option<EdgeKey> {
+pub(super) fn line_at(lines: &[(Pos2, Pos2); 6], keys: &[EdgeKey], p: Pos2, reach: f32) -> Option<EdgeKey> {
     keys.iter()
         .map(|&key| {
             let (a, b) = lines[key as usize];

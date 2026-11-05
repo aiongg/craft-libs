@@ -8,7 +8,7 @@
 //!     doc.apply_page_setup(setup);       // one undo step
 //! }
 //! // the Layout tab:
-//! if let Some(choice) = PageLayoutMenus::new(&doc.page_setup(), prefs.unit).margins(ui) { doc.apply(choice) }
+//! if let Some(choice) = PageLayoutMenus::new(ui.ctx(), &doc.page_setup(), prefs.unit).margins(ui) { doc.apply(choice) }
 //! ```
 
 use std::cell::Cell;
@@ -19,9 +19,9 @@ use craft_ui::composites::{FormGrid, Notice, SectionHeader, Tone};
 use craft_ui::controls::expr::ExprUnits;
 use craft_ui::controls::{Checkbox, NumberField, RadioGroup, Select};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width};
-use craft_ui::edit::EditEvent;
+use craft_ui::edit::{DraftStep, EditEvent, GestureDraft};
 use craft_ui::localized::units::{LengthUnit, UnitContext};
-use craft_ui::localized::{LocaleNumbers, SharedLabels as _};
+use craft_ui::localized::{LocaleNumbers, SharedLabels as _, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::patterns::unit_number_field;
 use craft_ui::primitives::Gap;
@@ -79,6 +79,82 @@ craft_ui::words! {
         margins_dont_fit: "pageSetup.marginsDontFit" = "The margins don't fit on a page this size; make the margins smaller first.";
         uniform_preset: "pageSetup.uniformPreset" = "{name}  {size} all";
         custom_margins: "pageSetup.customMargins" = "Custom Margins…";
+        /// A length in inches: the number and the double prime.
+        length_inches: "pageSetup.lengthInches" = "{value}\"";
+        /// A length in any other unit: the number and the unit's suffix.
+        length_unit: "pageSetup.lengthUnit" = "{value} {unit}";
+        /// A paper's size under its name.
+        paper_dimensions: "pageSetup.paperDimensions" = "{width} \u{d7} {height}";
+        paper_letter: "pageSetup.paperLetter" = "Letter";
+        paper_legal: "pageSetup.paperLegal" = "Legal";
+        paper_executive: "pageSetup.paperExecutive" = "Executive";
+        paper_a3: "pageSetup.paperA3" = "A3";
+        paper_a4: "pageSetup.paperA4" = "A4";
+        paper_a5: "pageSetup.paperA5" = "A5";
+        paper_b4_jis: "pageSetup.paperB4Jis" = "B4 (JIS)";
+        paper_b5_jis: "pageSetup.paperB5Jis" = "B5 (JIS)";
+        paper_tabloid: "pageSetup.paperTabloid" = "Tabloid";
+        paper_statement: "pageSetup.paperStatement" = "Statement";
+        paper_envelope_10: "pageSetup.paperEnvelope10" = "Envelope #10";
+        paper_envelope_dl: "pageSetup.paperEnvelopeDl" = "Envelope DL";
+        paper_a0: "pageSetup.paperA0" = "A0";
+        paper_a1: "pageSetup.paperA1" = "A1";
+        paper_a2: "pageSetup.paperA2" = "A2";
+        paper_a6: "pageSetup.paperA6" = "A6";
+        paper_b5: "pageSetup.paperB5" = "B5";
+        paper_letter_half: "pageSetup.paperLetterHalf" = "Letter - Half";
+        paper_legal_half: "pageSetup.paperLegalHalf" = "Legal - Half";
+        paper_us_business_card: "pageSetup.paperUsBusinessCard" = "US Business Card";
+        preset_normal: "pageSetup.presetNormal" = "Normal";
+        preset_narrow: "pageSetup.presetNarrow" = "Narrow";
+        preset_moderate: "pageSetup.presetModerate" = "Moderate";
+        preset_wide: "pageSetup.presetWide" = "Wide";
+        preset_mirrored: "pageSetup.presetMirrored" = "Mirrored";
+        preset_office2003: "pageSetup.presetOffice2003" = "Office 2003 Default";
+    }
+}
+
+impl PageSetupLabels {
+    /// The word for `paper`, matched on its English name; a paper this table has no word for (an
+    /// app's own list) keeps its own name.
+    pub fn paper_name<'a>(&'a self, paper: &'a PaperSize) -> &'a str {
+        match paper.name {
+            "Letter" => &self.paper_letter,
+            "Legal" => &self.paper_legal,
+            "Executive" => &self.paper_executive,
+            "A3" => &self.paper_a3,
+            "A4" => &self.paper_a4,
+            "A5" => &self.paper_a5,
+            "B4 (JIS)" => &self.paper_b4_jis,
+            "B5 (JIS)" => &self.paper_b5_jis,
+            "Tabloid" => &self.paper_tabloid,
+            "Statement" => &self.paper_statement,
+            "Envelope #10" => &self.paper_envelope_10,
+            "Envelope DL" => &self.paper_envelope_dl,
+            "A0" => &self.paper_a0,
+            "A1" => &self.paper_a1,
+            "A2" => &self.paper_a2,
+            "A6" => &self.paper_a6,
+            "B5" => &self.paper_b5,
+            "Letter - Half" => &self.paper_letter_half,
+            "Legal - Half" => &self.paper_legal_half,
+            "US Business Card" => &self.paper_us_business_card,
+            other => other,
+        }
+    }
+
+    /// The word for `preset`, matched on its id; a preset this table has no word for keeps its own
+    /// name.
+    pub fn preset_name<'a>(&'a self, preset: &'a MarginPreset) -> &'a str {
+        match preset.id {
+            "normal" => &self.preset_normal,
+            "narrow" => &self.preset_narrow,
+            "moderate" => &self.preset_moderate,
+            "wide" => &self.preset_wide,
+            "mirrored" => &self.preset_mirrored,
+            "office2003" => &self.preset_office2003,
+            _ => preset.name,
+        }
     }
 }
 
@@ -95,53 +171,96 @@ fn rounded(value: f64, unit: LengthUnit) -> f64 {
     (value * scale).round() / scale
 }
 
-/// `points` as the text a menu shows: the number in `unit` without trailing zeros, then the unit
-/// (inches as the double prime).
-fn length_text(points: f64, unit: LengthUnit) -> String {
+/// `points` as the text a menu shows: the number in `unit` without trailing zeros, in the user's
+/// digits, then the unit (inches as the double prime).
+fn length_text(points: f64, unit: LengthUnit, labels: &PageSetupLabels, numbers: &LocaleNumbers) -> String {
     let value = UnitContext::default().from_pixels(points, unit).unwrap_or(points);
-    let number = format!("{:.*}", unit.decimals(), value);
-    let number = if number.contains('.') { number.trim_end_matches('0').trim_end_matches('.') } else { number.as_str() };
+    let number = numbers.format(value, 0..=unit.decimals());
     match unit {
-        LengthUnit::Inches => format!("{number}\""),
-        unit => format!("{number} {}", unit.suffix()),
+        LengthUnit::Inches => fmt(&labels.length_inches, &[("value", &number)]),
+        unit => fmt(&labels.length_unit, &[("value", &number), ("unit", unit.suffix())]),
     }
 }
 
-/// A length field in `unit` over `points`, which an edit changes (clamped to `range`, points).
-/// A value that rounds to what the field showed changes nothing, so an untouched length keeps its
-/// exact value.
-#[expect(clippy::too_many_arguments, reason = "a field names every input of its control")]
-fn length_field(
-    ui: &mut Ui,
-    salt: &str,
-    caption: &str,
-    points: &mut f64,
-    range: RangeInclusive<f64>,
+/// The gesture a number field of the dialog is in, with the whole setup from before its `Begin`,
+/// so Esc restores everything the gesture touched (a width typed past the height turns the
+/// orientation too).
+#[derive(Default)]
+pub(super) struct FieldDraft {
+    on: Option<(&'static str, GestureDraft<PageSetup>)>,
+}
+
+impl FieldDraft {
+    /// Runs one event of the field `key`: `write` puts the event's value into a copy of the
+    /// setup, which the draft helper previews, keeps or restores.
+    pub(super) fn apply(&mut self, key: &'static str, setup: &mut PageSetup, event: EditEvent<f64>, write: impl Fn(&mut PageSetup, f64)) {
+        let mut draft = match self.on.take() {
+            Some((on, draft)) if on == key && draft.active() => draft,
+            _ => GestureDraft::new(),
+        };
+        let event = event.map(|value| {
+            let mut next = setup.clone();
+            write(&mut next, value);
+            next
+        });
+        if draft.apply(setup, event) == DraftStep::Previewed && draft.active() {
+            self.on = Some((key, draft));
+        }
+    }
+}
+
+/// What the dialog's number fields share in one pass.
+struct Fields<'a> {
     unit: LengthUnit,
-    numbers: &LocaleNumbers,
+    numbers: &'a LocaleNumbers,
+    /// Set when a field's text can't become a value: OK waits until it does.
+    rejected: &'a Cell<bool>,
+}
+
+/// One length of the setup: where it is and which values it takes (points).
+struct Length<'a> {
+    salt: &'static str,
+    caption: &'a str,
+    get: fn(&PageSetup) -> f64,
+    set: fn(&mut PageSetup, f64),
+    range: RangeInclusive<f64>,
     id: Option<Id>,
-) -> egui::Response {
-    let context = UnitContext::default();
-    let convert = |points: f64| context.from_pixels(points, unit).unwrap_or(points);
-    let shown = rounded(convert(*points), unit);
-    let units = ExprUnits { unit: Some(unit), suffix: unit.suffix(), context };
-    let mut field = unit_number_field(salt.to_owned(), caption, shown, numbers, &units)
-        .range(convert(*range.start())..=convert(*range.end()))
-        .step(convert(MARGIN_SCRUB_STEP));
-    if let Some(id) = id {
-        field = field.with_id(id);
+}
+
+impl Fields<'_> {
+    /// A length field in the dialog's unit over the setup's value, which an edit changes (clamped to
+    /// the range). A value that rounds to what the field showed changes nothing, so an untouched
+    /// length keeps its exact value.
+    fn length(&self, ui: &mut Ui, draft: &mut FieldDraft, setup: &mut PageSetup, length: Length<'_>) -> egui::Response {
+        let Length { salt, caption, get, set, range, id } = length;
+        let (unit, context) = (self.unit, UnitContext::default());
+        let convert = |points: f64| context.from_pixels(points, unit).unwrap_or(points);
+        let shown = rounded(convert(get(setup)), unit);
+        let units = ExprUnits { unit: Some(unit), suffix: unit.suffix(), context };
+        let mut field = unit_number_field(salt.to_owned(), caption, shown, self.numbers, &units)
+            .range(convert(*range.start())..=convert(*range.end()))
+            .step(convert(MARGIN_SCRUB_STEP));
+        if let Some(id) = id {
+            field = field.with_id(id);
+        }
+        let output = field.show_full(ui);
+        self.rejected.set(self.rejected.get() | output.rejected);
+        if let Some(event) = output.edit.event {
+            // The unit conversion fails for no length unit; an event it can't convert is dropped.
+            if event.value().is_none_or(|value| context.to_pixels(*value, unit).is_some()) {
+                let exact = get(setup);
+                let points = |value: f64| {
+                    if rounded(value, unit) == shown {
+                        exact
+                    } else {
+                        context.to_pixels(value, unit).unwrap_or(exact).clamp(*range.start(), *range.end())
+                    }
+                };
+                draft.apply(salt, setup, event, |next, value| set(next, points(value)));
+            }
+        }
+        output.edit.response
     }
-    let edit = field.show(ui);
-    let value = match edit.event.as_ref() {
-        Some(EditEvent::Commit { changed: false, .. }) | None => None,
-        Some(event) => event.value().copied(),
-    };
-    if let Some(value) = value.filter(|v| rounded(*v, unit) != shown)
-        && let Some(new) = context.to_pixels(value, unit)
-    {
-        *points = new.clamp(*range.start(), *range.end());
-    }
-    edit.response
 }
 
 impl PageSetupDialog {
@@ -149,7 +268,7 @@ impl PageSetupDialog {
         self.id().with("top")
     }
 
-    fn body(&mut self, ui: &mut Ui, labels: &PageSetupLabels, numbers: &LocaleNumbers, valid: &Cell<bool>) {
+    fn body(&mut self, ui: &mut Ui, labels: &PageSetupLabels, numbers: &LocaleNumbers, valid: &Cell<bool>, rejected: &Cell<bool>) {
         let gap = Gap::Section.points(&Tokens::of(ui));
         let unit = self.unit;
         let top_id = self.top_id();
@@ -157,20 +276,29 @@ impl PageSetupDialog {
         let (left, right) = if mirrored { (&labels.inside, &labels.outside) } else { (&labels.left, &labels.right) };
         let side = 0.0..=MAX_PAGE_SIDE;
         let setup = &mut self.setup;
+        let draft = &mut self.draft;
+        let fields = Fields { unit, numbers, rejected };
 
         SectionHeader::new("page-setup-margins", labels.margins.as_str()).collapsible(false).show(ui, |ui| {
             FormGrid::new("page-setup-margins-grid").show(ui, |form| {
+                let margin = |salt, caption, get, set, id| Length { salt, caption, get, set, range: side.clone(), id };
                 form.row(labels.top.as_str(), |ui, _| {
-                    length_field(ui, "top", &labels.top, &mut setup.margins.top, side.clone(), unit, numbers, Some(top_id))
+                    let length = margin("top", &labels.top, |s: &PageSetup| s.margins.top, |s: &mut PageSetup, v| s.margins.top = v, Some(top_id));
+                    fields.length(ui, draft, setup, length)
                 });
                 form.row(labels.bottom.as_str(), |ui, _| {
-                    length_field(ui, "bottom", &labels.bottom, &mut setup.margins.bottom, side.clone(), unit, numbers, None)
+                    let length = margin("bottom", &labels.bottom, |s| s.margins.bottom, |s, v| s.margins.bottom = v, None);
+                    fields.length(ui, draft, setup, length)
                 });
-                form.row(left.as_str(), |ui, _| length_field(ui, "left", left, &mut setup.margins.left, side.clone(), unit, numbers, None));
-                form.row(right.as_str(), |ui, _| length_field(ui, "right", right, &mut setup.margins.right, side.clone(), unit, numbers, None));
+                form.row(left.as_str(), |ui, _| {
+                    fields.length(ui, draft, setup, margin("left", left, |s| s.margins.left, |s, v| s.margins.left = v, None))
+                });
+                form.row(right.as_str(), |ui, _| {
+                    fields.length(ui, draft, setup, margin("right", right, |s| s.margins.right, |s, v| s.margins.right = v, None))
+                });
                 if !self.document_setup {
                     form.row(labels.gutter.as_str(), |ui, _| {
-                        length_field(ui, "gutter", &labels.gutter, &mut setup.gutter, side.clone(), unit, numbers, None)
+                        fields.length(ui, draft, setup, margin("gutter", &labels.gutter, |s| s.gutter, |s, v| s.gutter = v, None))
                     });
                 }
             });
@@ -198,14 +326,20 @@ impl PageSetupDialog {
                 FormGrid::new("page-setup-pages-grid").show(ui, |form| {
                     form.row(labels.number_of_pages.as_str(), |ui, _| {
                         let shown = f64::from(setup.pages.unwrap_or(1));
-                        let edit = NumberField::new("pages", labels.number_of_pages.as_str(), shown, numbers)
+                        let output = NumberField::new("pages", labels.number_of_pages.as_str(), shown, numbers)
                             .range(1.0..=f64::from(MAX_PAGES))
                             .decimals(0..=0)
-                            .show(ui);
-                        if let Some(value) = edit.event.as_ref().and_then(EditEvent::value).filter(|v| **v != shown) {
-                            setup.pages = Some(value.round() as u32);
+                            .show_full(ui);
+                        rejected.set(rejected.get() | output.rejected);
+                        if let Some(event) = output.edit.event {
+                            let event = event.map(|value| if value == shown { value } else { value.round() });
+                            draft.apply("pages", setup, event, |next, value| {
+                                if value != shown {
+                                    next.pages = Some(value as u32);
+                                }
+                            });
                         }
-                        edit
+                        output.edit.response
                     });
                 });
             } else {
@@ -225,7 +359,7 @@ impl PageSetupDialog {
                     let before = choice;
                     let mut select = Select::new("page-setup-paper-size", labels.paper_size.as_str(), &mut choice);
                     for (index, paper) in self.papers.iter().enumerate() {
-                        select = select.option(PaperChoice::Named(index), paper.name);
+                        select = select.option(PaperChoice::Named(index), labels.paper_name(paper));
                     }
                     let edit = select.option(PaperChoice::Custom, labels.custom_size.as_str()).show(ui);
                     if choice != before {
@@ -243,12 +377,18 @@ impl PageSetupDialog {
                     edit
                 });
                 let sides = MIN_PAGE_SIDE..=MAX_PAGE_SIDE;
-                let (mut width, mut height) = (setup.width, setup.height);
-                form.row(labels.width.as_str(), |ui, _| length_field(ui, "width", &labels.width, &mut width, sides.clone(), unit, numbers, None));
-                form.row(labels.height.as_str(), |ui, _| length_field(ui, "height", &labels.height, &mut height, sides.clone(), unit, numbers, None));
-                if (width, height) != (setup.width, setup.height) {
-                    setup.set_size(width, height);
-                }
+                let side = |salt, caption, get, set| Length { salt, caption, get, set, range: sides.clone(), id: None };
+                form.row(labels.width.as_str(), |ui, _| {
+                    fields.length(
+                        ui,
+                        draft,
+                        setup,
+                        side("width", &labels.width, |s: &PageSetup| s.width, |s: &mut PageSetup, v| s.set_size(v, s.height)),
+                    )
+                });
+                form.row(labels.height.as_str(), |ui, _| {
+                    fields.length(ui, draft, setup, side("height", &labels.height, |s| s.height, |s, v| s.set_size(s.width, v)))
+                });
             });
         });
 
@@ -301,6 +441,10 @@ impl PageSetupDialog {
 ///   the orientation ([`PageSetup::set_size`]).
 /// - With [`layout`](Self::layout): Vertical alignment, Different Odd & Even Pages, Different
 ///   First Page; with [`direction`](Self::direction): Section direction.
+/// - A length or count gesture previews in [`setup`](Self::setup) and a cancel of the gesture
+///   restores the whole setup from before it (craft-ui's `GestureDraft`); a text no number can
+///   come from keeps OK disabled until it is fixed.
+/// - Paper names are words ([`PageSetupLabels::paper_name`]).
 /// - Keys: Enter is OK, Esc Cancel; first focus on Top. Group labels are form section headers
 ///   (the dialog framework's), not bold text.
 pub struct PageSetupDialog {
@@ -312,6 +456,7 @@ pub struct PageSetupDialog {
     direction: bool,
     custom: bool,
     labels: Option<PageSetupLabels>,
+    draft: FieldDraft,
     state: DialogState,
 }
 
@@ -326,6 +471,7 @@ impl PageSetupDialog {
             direction: false,
             custom: false,
             labels: None,
+            draft: FieldDraft::default(),
             state: DialogState::new(),
         }
     }
@@ -388,13 +534,14 @@ impl StackDialog for PageSetupDialog {
         let numbers = LocaleNumbers::of_ctx(ctx);
         let title = if self.document_setup { &labels.document_setup } else { &labels.title };
         let valid = Cell::new(true);
+        let rejected = Cell::new(false);
         let mut state = std::mem::take(&mut self.state);
         let shown = Dialog::with_id(self.id(), title.as_str())
             .stack(stack)
             .width(Width::Standard)
             .initial_focus(InitialFocus::Field(self.top_id()))
-            .footer(Footer::standard().ok_enabled_with(|| valid.get()))
-            .show(ctx, &mut state, &mut (), |ui, ()| self.body(ui, &labels, &numbers, &valid));
+            .footer(Footer::standard().ok_enabled_with(|| valid.get() && !rejected.get()))
+            .show(ctx, &mut state, &mut (), |ui, ()| self.body(ui, &labels, &numbers, &valid, &rejected));
         self.state = state;
         match shown.outcome {
             Some(Outcome::Ok) => Some(DialogResult::Ok(self.setup.clone())),
@@ -425,12 +572,21 @@ pub struct PageLayoutMenus<'a> {
     unit: LengthUnit,
     presets: &'a [MarginPreset],
     papers: &'a [PaperSize],
-    labels: Option<PageSetupLabels>,
+    labels: Arc<PageSetupLabels>,
+    numbers: Arc<LocaleNumbers>,
 }
 
 impl<'a> PageLayoutMenus<'a> {
-    pub fn new(setup: &'a PageSetup, unit: LengthUnit) -> Self {
-        PageLayoutMenus { setup, unit, presets: &MARGIN_PRESETS, papers: PAPER_SIZES, labels: None }
+    /// The menus over `setup`, with the words and digits installed in `ctx` and lengths in `unit`.
+    pub fn new(ctx: &Context, setup: &'a PageSetup, unit: LengthUnit) -> Self {
+        PageLayoutMenus {
+            setup,
+            unit,
+            presets: &MARGIN_PRESETS,
+            papers: PAPER_SIZES,
+            labels: PageSetupLabels::shared_ctx(ctx),
+            numbers: LocaleNumbers::of_ctx(ctx),
+        }
     }
 
     pub fn presets(mut self, presets: &'a [MarginPreset]) -> Self {
@@ -444,19 +600,19 @@ impl<'a> PageLayoutMenus<'a> {
     }
 
     pub fn labels(mut self, labels: PageSetupLabels) -> Self {
-        self.labels = Some(labels);
+        self.labels = Arc::new(labels);
         self
     }
 
-    fn words(&self) -> PageSetupLabels {
-        self.labels.clone().unwrap_or_default()
+    fn length(&self, points: f64) -> String {
+        length_text(points, self.unit, &self.labels, &self.numbers)
     }
 
     /// The presets (a uniform one reads "Normal  2.54 cm all" in the unit), a separator and
     /// Custom Margins…; Mirrored is checked when the document mirrors margins.
     // wordcraft: crates/ui-egui/src/ribbon/layout.rs:8 `margins_items`.
     pub fn margins(&self) -> Vec<MenuEntry<PageLayoutChoice>> {
-        let labels = self.words();
+        let labels = &self.labels;
         let current = MarginPreset::matching(self.presets, &self.setup.margins, self.setup.mirrored);
         let mut entries: Vec<MenuEntry<PageLayoutChoice>> = self
             .presets
@@ -464,12 +620,8 @@ impl<'a> PageLayoutMenus<'a> {
             .map(|preset| {
                 let m = preset.margins;
                 let uniform = m.top == m.bottom && m.top == m.left && m.top == m.right;
-                let label = if uniform {
-                    let size = length_text(m.top, self.unit);
-                    labels.uniform_preset.replace("{name}", preset.name).replace("{size}", &size)
-                } else {
-                    preset.name.to_owned()
-                };
+                let name = labels.preset_name(preset);
+                let label = if uniform { fmt(&labels.uniform_preset, &[("name", name), ("size", &self.length(m.top))]) } else { name.to_owned() };
                 MenuItem::new(label, PageLayoutChoice::Margins(*preset)).check(current == Some(preset)).into()
             })
             .collect();
@@ -480,7 +632,7 @@ impl<'a> PageLayoutMenus<'a> {
 
     // wordcraft: crates/ui-egui/src/ribbon/layout.rs:30 `orientation_items`.
     pub fn orientation(&self) -> Vec<MenuEntry<PageLayoutChoice>> {
-        let labels = self.words();
+        let labels = &self.labels;
         [(Orientation::Portrait, &labels.portrait), (Orientation::Landscape, &labels.landscape)]
             .into_iter()
             .map(|(orientation, label)| {
@@ -489,19 +641,19 @@ impl<'a> PageLayoutMenus<'a> {
             .collect()
     }
 
-    /// The paper sizes with their size in the unit as a second line, a separator and More Paper
-    /// Sizes….
+    /// The paper sizes with their size in the unit on the detail line under the name, a separator
+    /// and More Paper Sizes….
     // wordcraft: crates/ui-egui/src/ribbon/layout.rs:51 (the Size menu button);
     // designcraft: crates/ui-egui/src/chrome/control_bar.rs:44 (presets in the control bar).
     pub fn size(&self) -> Vec<MenuEntry<PageLayoutChoice>> {
-        let labels = self.words();
+        let labels = &self.labels;
         let current = paper_named(self.papers, self.setup.width, self.setup.height);
         let mut entries: Vec<MenuEntry<PageLayoutChoice>> = self
             .papers
             .iter()
             .map(|paper| {
-                let size = format!("{} \u{d7} {}", length_text(paper.width, self.unit), length_text(paper.height, self.unit));
-                MenuItem::new(format!("{}  {size}", paper.name), PageLayoutChoice::Paper(*paper)).check(current == Some(paper)).into()
+                let size = fmt(&labels.paper_dimensions, &[("width", &self.length(paper.width)), ("height", &self.length(paper.height))]);
+                MenuItem::new(labels.paper_name(paper), PageLayoutChoice::Paper(*paper)).detail(size).check(current == Some(paper)).into()
             })
             .collect();
         entries.push(MenuEntry::Separator);

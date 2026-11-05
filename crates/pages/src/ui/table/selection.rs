@@ -99,7 +99,7 @@ impl<'a> CellSelectionOverlay<'a> {
         }
     }
 
-    // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:126 `draw_cell_selection`.
+    // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:16 `draw_text_selection` (the tint of every selected cell; `:126` `draw_cell_selection` is the in-cell caret).
     pub fn paint(self, painter: &Painter) {
         let style = Self::style(&current(painter.ctx()));
         for &range in self.selection.ranges() {
