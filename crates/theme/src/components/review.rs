@@ -35,6 +35,12 @@ pub struct ReviewTokens {
     pub card_accent_width: f32,
     /// The room between a pin's bubble and the avatar circle inside it: `values::REVIEW_PIN_INSET`.
     pub pin_inset: f32,
+    /// The unread dot's radius on a pin: `values::REVIEW_PIN_DOT_RADIUS`.
+    pub pin_dot_radius: f32,
+    /// How far the unread dot sits in from the pin's top right corner: `values::REVIEW_PIN_DOT_INSET`.
+    pub pin_dot_inset: f32,
+    /// How far the resolved check sits in from the pin's bottom right corner: `values::REVIEW_PIN_CHECK_INSET`.
+    pub pin_check_inset: f32,
     /// The filled version dot's radius: `values::REVIEW_VERSION_DOT_RADIUS`.
     pub version_dot_radius: f32,
     /// The hollow version dot's radius: `values::REVIEW_VERSION_DOT_HOLLOW_RADIUS`.
@@ -166,6 +172,9 @@ impl Family for ReviewTokens {
         "revision_bar_height" 4.0..=64.0 => revision_bar_height;
         "card_accent_width" 1.0..=16.0 => card_accent_width;
         "pin_inset" 0.0..=16.0 => pin_inset;
+        "pin_dot_radius" 0.5..=16.0 => pin_dot_radius;
+        "pin_dot_inset" 0.0..=16.0 => pin_dot_inset;
+        "pin_check_inset" 0.0..=16.0 => pin_check_inset;
         "version_dot_radius" 1.0..=16.0 => version_dot_radius;
         "version_dot_hollow_radius" 1.0..=16.0 => version_dot_hollow_radius;
     };
@@ -185,6 +194,9 @@ impl Family for ReviewTokens {
             revision_bar_height: values::REVIEW_REVISION_BAR_HEIGHT,
             card_accent_width: values::REVIEW_CARD_ACCENT_WIDTH,
             pin_inset: values::REVIEW_PIN_INSET,
+            pin_dot_radius: values::REVIEW_PIN_DOT_RADIUS,
+            pin_dot_inset: values::REVIEW_PIN_DOT_INSET,
+            pin_check_inset: values::REVIEW_PIN_CHECK_INSET,
             version_dot_radius: values::REVIEW_VERSION_DOT_RADIUS,
             version_dot_hollow_radius: values::REVIEW_VERSION_DOT_HOLLOW_RADIUS,
             status_accepted: c.status.good.fg,

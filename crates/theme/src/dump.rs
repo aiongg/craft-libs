@@ -1929,6 +1929,7 @@ fn ruler_lines(out: &mut Lines, r: &RulerTokens) {
         tick_mid,
         tick_minor,
         marker_half,
+        marker_column,
         marker_tip,
         marker_bar,
         marker_stem,
@@ -1944,6 +1945,7 @@ fn ruler_lines(out: &mut Lines, r: &RulerTokens) {
     out.line("ruler.tick_mid", len(*tick_mid));
     out.line("ruler.tick_minor", len(*tick_minor));
     out.line("ruler.marker_half", len(*marker_half));
+    out.line("ruler.marker_column", len(*marker_column));
     out.line("ruler.marker_tip", len(*marker_tip));
     out.line("ruler.marker_bar", len(*marker_bar));
     out.line("ruler.marker_stem", len(*marker_stem));
@@ -2452,14 +2454,14 @@ fn timeline_lines(out: &mut Lines, t: &TimelineTokens) {
         fit_margin,
         transport_button,
         keyframe_glyph,
-        keyframe_hold,
-        keyframe_bezier,
         keyframe_snap,
         keyframe_arrow_width,
         keyframe_arrow_height,
         keyframe_nav_step,
         marker_width,
         work_area_grab,
+        ruler_work_hit_pad,
+        ruler_render_hit_pad,
         ruler_label_gap,
         ruler_tick_gap,
         scrub_step,
@@ -2515,14 +2517,14 @@ fn timeline_lines(out: &mut Lines, t: &TimelineTokens) {
     out.line("timeline.fit_margin", len(*fit_margin));
     out.line("timeline.transport_button", len(*transport_button));
     out.line("timeline.keyframe_glyph", len(*keyframe_glyph));
-    out.line("timeline.keyframe_hold", len(*keyframe_hold));
-    out.line("timeline.keyframe_bezier", len(*keyframe_bezier));
     out.line("timeline.keyframe_snap", len(*keyframe_snap));
     out.line("timeline.keyframe_arrow_width", len(*keyframe_arrow_width));
     out.line("timeline.keyframe_arrow_height", len(*keyframe_arrow_height));
     out.line("timeline.keyframe_nav_step", len(*keyframe_nav_step));
     out.line("timeline.marker_width", len(*marker_width));
     out.line("timeline.work_area_grab", len(*work_area_grab));
+    out.line("timeline.ruler_work_hit_pad", len(*ruler_work_hit_pad));
+    out.line("timeline.ruler_render_hit_pad", len(*ruler_render_hit_pad));
     out.line("timeline.ruler_label_gap", len(*ruler_label_gap));
     out.line("timeline.ruler_tick_gap", len(*ruler_tick_gap));
     out.line("timeline.scrub_step", len(*scrub_step));
@@ -2583,6 +2585,9 @@ fn review_lines(out: &mut Lines, t: &ReviewTokens) {
         revision_changed,
         card_accent_width,
         pin_inset,
+        pin_dot_radius,
+        pin_dot_inset,
+        pin_check_inset,
         version_dot_radius,
         version_dot_hollow_radius,
         ink_light,
@@ -2608,6 +2613,9 @@ fn review_lines(out: &mut Lines, t: &ReviewTokens) {
     out.line("review.revision_changed", hex(*revision_changed));
     out.line("review.card_accent_width", len(*card_accent_width));
     out.line("review.pin_inset", len(*pin_inset));
+    out.line("review.pin_dot_radius", len(*pin_dot_radius));
+    out.line("review.pin_dot_inset", len(*pin_dot_inset));
+    out.line("review.pin_check_inset", len(*pin_check_inset));
     out.line("review.version_dot_radius", len(*version_dot_radius));
     out.line("review.version_dot_hollow_radius", len(*version_dot_hollow_radius));
     out.line("review.ink_light", hex(*ink_light));
@@ -2636,11 +2644,12 @@ fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
         filter_button_inset,
         error_tag_gap,
         error_tag_radius,
-        error_tag_mark,
         filter_button_radius,
         filter_button_glyph_inset,
         stats_gap,
         edge_grab,
+        border_grab,
+        outline_band_slack,
         fill_handle,
         header_accent_bar,
         hidden_mark_offset,
@@ -2672,11 +2681,12 @@ fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
     out.line("sheet.filter_button_inset", len(*filter_button_inset));
     out.line("sheet.error_tag_gap", len(*error_tag_gap));
     out.line("sheet.error_tag_radius", len(*error_tag_radius));
-    out.line("sheet.error_tag_mark", len(*error_tag_mark));
     out.line("sheet.filter_button_radius", len(*filter_button_radius));
     out.line("sheet.filter_button_glyph_inset", len(*filter_button_glyph_inset));
     out.line("sheet.stats_gap", len(*stats_gap));
     out.line("sheet.edge_grab", len(*edge_grab));
+    out.line("sheet.border_grab", len(*border_grab));
+    out.line("sheet.outline_band_slack", len(*outline_band_slack));
     out.line("sheet.fill_handle", len(*fill_handle));
     out.line("sheet.header_accent_bar", len(*header_accent_bar));
     out.line("sheet.hidden_mark_offset", len(*hidden_mark_offset));

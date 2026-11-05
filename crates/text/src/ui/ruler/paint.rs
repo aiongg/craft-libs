@@ -61,6 +61,8 @@ impl Geometry {
 pub(super) struct Shapes {
     /// Half the width of a marker.
     pub half: f32,
+    /// The width of a table column marker.
+    column: f32,
     /// The height of a triangle.
     tip: f32,
     /// The height of the left indent's box.
@@ -76,7 +78,15 @@ pub(super) struct Shapes {
 impl Shapes {
     pub(super) fn of(tokens: &UiTokens) -> Self {
         let r = &tokens.component.ruler;
-        Shapes { half: r.marker_half, tip: r.marker_tip, bar: r.marker_bar, stem: r.marker_stem, foot: r.marker_foot, selector: r.marker_selector }
+        Shapes {
+            half: r.marker_half,
+            column: r.marker_column,
+            tip: r.marker_tip,
+            bar: r.marker_bar,
+            stem: r.marker_stem,
+            foot: r.marker_foot,
+            selector: r.marker_selector,
+        }
     }
 
     fn triangle(&self, a: Pos2, b: Pos2, c: Pos2, fill: Color32, stroke: Stroke) -> Shape {
@@ -179,10 +189,10 @@ fn span(g: &Geometry, units: &RulerUnits) -> std::ops::RangeInclusive<f64> {
     (f64::from(a.min(b)) * units.per_doc)..=(f64::from(a.max(b)) * units.per_doc)
 }
 
-/// The box of a table column marker at screen x `x`: as wide as an indent marker, the strip's
-/// depth tall.
+/// The box of a table column marker at screen x `x`: `ruler.marker_column` wide, the strip's depth
+/// tall.
 pub(super) fn column_marker(shapes: &Shapes, strip: Rect, x: f32) -> Rect {
-    Rect::from_min_max(pos2(x - shapes.half, strip.min.y), pos2(x + shapes.half, strip.max.y))
+    Rect::from_min_max(pos2(x - shapes.column / 2.0, strip.min.y), pos2(x + shapes.column / 2.0, strip.max.y))
 }
 
 /// A table column marker: a box with a grip of three short lines across it.

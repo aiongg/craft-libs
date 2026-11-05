@@ -44,10 +44,6 @@ pub struct TimelineTokens {
     pub transport_button: f32,
     /// A keyframe glyph's box: `values::TIMELINE_KEYFRAME_GLYPH`.
     pub keyframe_glyph: f32,
-    /// A hold key's square inside the glyph box: `values::TIMELINE_KEYFRAME_HOLD`.
-    pub keyframe_hold: f32,
-    /// A bezier key's circle radius: `values::TIMELINE_KEYFRAME_BEZIER`.
-    pub keyframe_bezier: f32,
     /// How near the playhead or another key a Shift-dragged key snaps: `values::TIMELINE_KEYFRAME_SNAP`.
     pub keyframe_snap: f32,
     /// The keyframe navigator's arrow box width: `values::TIMELINE_KEYFRAME_ARROW_WIDTH`.
@@ -60,6 +56,10 @@ pub struct TimelineTokens {
     pub marker_width: f32,
     /// How near a work-area end must be to grab it: `values::TIMELINE_WORK_AREA_GRAB`.
     pub work_area_grab: f32,
+    /// How far above and below the work-area bar the ruler still grabs it: `values::TIMELINE_RULER_WORK_HIT_PAD`.
+    pub ruler_work_hit_pad: f32,
+    /// How far above and below a render-state bar its tooltip still shows: `values::TIMELINE_RULER_RENDER_HIT_PAD`.
+    pub ruler_render_hit_pad: f32,
     /// The least room between two ruler labels: `values::TIMELINE_RULER_LABEL_GAP`.
     pub ruler_label_gap: f32,
     /// The least room between two ruler ticks: `values::TIMELINE_RULER_TICK_GAP`.
@@ -160,14 +160,14 @@ impl Family for TimelineTokens {
         "fit_margin" 0.0..=64.0 => fit_margin;
         "transport_button" 12.0..=64.0 => transport_button;
         "keyframe_glyph" 6.0..=48.0 => keyframe_glyph;
-        "keyframe_hold" 3.0..=32.0 => keyframe_hold;
-        "keyframe_bezier" 1.0..=24.0 => keyframe_bezier;
         "keyframe_snap" 1.0..=64.0 => keyframe_snap;
         "keyframe_arrow_width" 4.0..=64.0 => keyframe_arrow_width;
         "keyframe_arrow_height" 4.0..=64.0 => keyframe_arrow_height;
         "keyframe_nav_step" 4.0..=64.0 => keyframe_nav_step;
         "marker_width" 2.0..=32.0 => marker_width;
         "work_area_grab" 1.0..=64.0 => work_area_grab;
+        "ruler_work_hit_pad" 0.0..=16.0 => ruler_work_hit_pad;
+        "ruler_render_hit_pad" 0.0..=16.0 => ruler_render_hit_pad;
         "ruler_label_gap" 16.0..=512.0 => ruler_label_gap;
         "ruler_tick_gap" 2.0..=64.0 => ruler_tick_gap;
         "scrub_step" 0.25..=16.0 => scrub_step;
@@ -226,14 +226,14 @@ impl Family for TimelineTokens {
             fit_margin: values::TIMELINE_FIT_MARGIN,
             transport_button: values::TIMELINE_TRANSPORT_BUTTON,
             keyframe_glyph: values::TIMELINE_KEYFRAME_GLYPH,
-            keyframe_hold: values::TIMELINE_KEYFRAME_HOLD,
-            keyframe_bezier: values::TIMELINE_KEYFRAME_BEZIER,
             keyframe_snap: values::TIMELINE_KEYFRAME_SNAP,
             keyframe_arrow_width: values::TIMELINE_KEYFRAME_ARROW_WIDTH,
             keyframe_arrow_height: values::TIMELINE_KEYFRAME_ARROW_HEIGHT,
             keyframe_nav_step: values::TIMELINE_KEYFRAME_NAV_STEP,
             marker_width: values::TIMELINE_MARKER_WIDTH,
             work_area_grab: values::TIMELINE_WORK_AREA_GRAB,
+            ruler_work_hit_pad: values::TIMELINE_RULER_WORK_HIT_PAD,
+            ruler_render_hit_pad: values::TIMELINE_RULER_RENDER_HIT_PAD,
             ruler_label_gap: values::TIMELINE_RULER_LABEL_GAP,
             ruler_tick_gap: values::TIMELINE_RULER_TICK_GAP,
             scrub_step: values::TIMELINE_SCRUB_STEP,

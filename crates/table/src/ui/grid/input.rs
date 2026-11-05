@@ -556,7 +556,7 @@ fn begin<M: GridModel>(pass: &Pass<'_, M>, geo: &SheetGeometry, state: &mut Grid
                 if let Some(source) = fill_handle_at(pass, geo, state, p) {
                     return Some(Drag::Fill { source, menu: false });
                 }
-                if on_border(rect, p, pass.style.edge_grab) && shown(p) {
+                if on_border(rect, p, pass.style.border_grab) && shown(p) {
                     return Some(Drag::Move { source, grab: geo.cell_at(p), mods });
                 }
             }
@@ -691,7 +691,7 @@ fn hover_cursor<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, state: &GridState, ge
                 let rect = geo.range_rect(state.selection.current());
                 if handle_rect(rect, pass.style.fill_handle).contains(p) {
                     Some(CursorIcon::Crosshair)
-                } else if on_border(rect, p, pass.style.edge_grab) {
+                } else if on_border(rect, p, pass.style.border_grab) {
                     Some(CursorIcon::Move)
                 } else {
                     None

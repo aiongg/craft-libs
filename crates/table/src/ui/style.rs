@@ -48,20 +48,20 @@ pub struct SheetStyle {
     /// `sheet.filter_button_glyph_inset`.
     pub filter_button_radius: f32,
     pub filter_button_glyph_inset: f32,
-    /// The error checking tag's gap to its cell, corner radius and warning diamond's
-    /// half-diagonal: `sheet.error_tag_gap`, `sheet.error_tag_radius`, `sheet.error_tag_mark`.
+    /// The error checking tag's gap to its cell and corner radius: `sheet.error_tag_gap`,
+    /// `sheet.error_tag_radius`.
     pub error_tag_gap: f32,
     pub error_tag_radius: f32,
-    pub error_tag_mark: f32,
-    /// The type role of the error checking tag's exclamation mark: the theme's caption role,
-    /// nearest GridCraft's 10 pt (`grid/menus.rs:447`).
-    pub error_tag_mark_text: TypeRole,
     /// The gap between the status bar's statistics: `sheet.stats_gap`.
     pub stats_gap: f32,
     /// The type role of the status bar's statistics: the theme's label role.
     pub stats_text: TypeRole,
     /// How far from a header's far edge a press still grabs it, at 100 % zoom: `sheet.edge_grab`.
     pub edge_grab: f32,
+    /// How far from a selection's border a press still moves it, at 100 % zoom: `sheet.border_grab`.
+    pub border_grab: f32,
+    /// The room after the last lane in an outline band, at any zoom: `sheet.outline_band_slack`.
+    pub outline_band_slack: f32,
     /// The fill handle's side: `sheet.fill_handle`.
     pub fill_handle: f32,
     /// The accent bar on a selected header's inner edge: `sheet.header_accent_bar`.
@@ -125,13 +125,13 @@ impl SheetStyle {
             filter_button_inset: t.filter_button_inset,
             error_tag_gap: t.error_tag_gap,
             error_tag_radius: t.error_tag_radius,
-            error_tag_mark: t.error_tag_mark,
-            error_tag_mark_text: TypeRole::Caption,
             filter_button_radius: t.filter_button_radius,
             filter_button_glyph_inset: t.filter_button_glyph_inset,
             stats_gap: t.stats_gap,
             stats_text: TypeRole::Label,
             edge_grab: t.edge_grab,
+            border_grab: t.border_grab,
+            outline_band_slack: t.outline_band_slack,
             fill_handle: t.fill_handle,
             header_accent_bar: t.header_accent_bar,
             hidden_mark_offset: t.hidden_mark_offset,

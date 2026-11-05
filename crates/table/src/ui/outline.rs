@@ -87,13 +87,13 @@ impl<'a> OutlineBand<'a> {
     }
 
     /// The band's thickness for an outline `levels` deep: `(levels + 1)` lanes ([`lane`] of
-    /// `style.outline_lane`) plus [`BAND_SLACK`]; 0 without an outline.
+    /// `style.outline_lane`) plus `style.outline_band_slack`; 0 without an outline.
     // gridcraft: crates/ui-egui/src/outline.rs:50 `band` (`(levels + 1) × lane + 3`).
     pub fn thickness(levels: u8, zoom: f32, style: &super::SheetStyle) -> f32 {
         if levels == 0 {
             return 0.0;
         }
-        (f32::from(levels) + 1.0) * lane(style.outline_lane, zoom) + BAND_SLACK
+        (f32::from(levels) + 1.0) * lane(style.outline_lane, zoom) + style.outline_band_slack
     }
 
     /// The bands a grid reserves for outlines `(rows, columns)` levels deep: the row band's
@@ -101,7 +101,7 @@ impl<'a> OutlineBand<'a> {
     /// corner: the band on the other axis is at least a lane and the slack thick then (GridCraft
     /// `grid/geo.rs:50-60`).
     pub(super) fn bands((rows, columns): (u8, u8), headings: bool, zoom: f32, style: &super::SheetStyle) -> Vec2 {
-        let corner = lane(style.outline_lane, zoom) + BAND_SLACK;
+        let corner = lane(style.outline_lane, zoom) + style.outline_band_slack;
         let mut band = Vec2::new(Self::thickness(rows, zoom, style), Self::thickness(columns, zoom, style));
         if !headings {
             if rows > 0 {
@@ -197,9 +197,6 @@ impl<'a> OutlineBand<'a> {
         OutlineBandOutput { response, actions }
     }
 }
-
-/// The room after the last lane, in points at any zoom (GridCraft `outline.rs:50` `band`, `+ 3.0`).
-pub const BAND_SLACK: f32 = 3.0;
 
 /// What the bands did this pass.
 #[must_use]

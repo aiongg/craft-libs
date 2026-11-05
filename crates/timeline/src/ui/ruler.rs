@@ -51,12 +51,6 @@ pub(super) fn wheel_zoom_factor(dy: f32) -> f64 {
     (1.0 + f64::from(dy) * WHEEL_ZOOM_SLOPE).clamp(WHEEL_ZOOM_LIMITS.0, WHEEL_ZOOM_LIMITS.1)
 }
 
-/// How far the work-area bar's hit area reaches above and below the bar: FilmCraft's
-/// `r.expand2(vec2(zone, 1.0))` (`timeline_hit.rs:116`). To become `timeline.ruler_work_hit_pad`.
-const WORK_HIT_PAD: f32 = 1.0;
-/// How far a render-bar span's hover area reaches above and below the bar (FilmCraft
-/// `timeline/ruler.rs:132`). To become `timeline.ruler_render_hit_pad`.
-const RENDER_HIT_PAD: f32 = 2.0;
 /// The height of a split-edit bracket, and where it starts below the label row's centre (FilmCraft
 /// `timeline/ruler.rs:94-98`: `y0 = label_y + 7`, a 7 pt stem).
 const SPLIT_MARK_HEIGHT: f32 = 7.0;
@@ -488,7 +482,7 @@ impl<'a> TimelineRuler<'a> {
             let band = band(marker_end, work_end);
             let shown = *gesture.shown();
             let (x0, x1) = (view.x_of(shown.start, left), view.x_of(shown.end(), left));
-            let hit = band.expand2(vec2(0.0, WORK_HIT_PAD));
+            let hit = band.expand2(vec2(0.0, style.ruler_work_hit_pad));
             let bar = hit.intersect(Rect::from_min_max(pos2(x0, hit.top()), pos2(x1, hit.bottom())));
             let end_zone = |x: f32| Rect::from_min_max(pos2(x - grab, hit.top()), pos2(x + grab, hit.bottom())).intersect(rect);
             let zones = [
@@ -562,7 +556,7 @@ impl<'a> TimelineRuler<'a> {
             painter.rect_filled(span.intersect(rect), CornerRadius::ZERO, color.state.selected.to_egui());
         }
         let strip = band(render_top, height);
-        paint_render_bar(ui, id, &painter, strip, &view, render_bar, &tokens);
+        paint_render_bar(ui, id, &painter, render_bar, &RenderBarCx { strip, view: &view, tokens: &tokens, style: &style });
         if let Some(area) = work_shown.filter(|area| !area.is_empty()) {
             let band = band(marker_end, work_end);
             let bar = Rect::from_min_max(pos2(view.x_of(area.start, left), band.top()), pos2(view.x_of(area.end(), left), band.bottom()));
@@ -634,7 +628,16 @@ fn wheel_zoom(ui: &Ui, response: &Response, view: &mut TimeView, rect: Rect) {
 }
 
 /// The render bar's stretches along `strip`, each with its hover tooltip.
-fn paint_render_bar(ui: &Ui, id: Id, painter: &egui::Painter, strip: Rect, view: &TimeView, spans: &[RenderSpan], tokens: &UiTokens) {
+/// What the render bar is drawn from.
+struct RenderBarCx<'a> {
+    strip: Rect,
+    view: &'a TimeView,
+    tokens: &'a UiTokens,
+    style: &'a TimelineStyle,
+}
+
+fn paint_render_bar(ui: &Ui, id: Id, painter: &egui::Painter, spans: &[RenderSpan], cx: &RenderBarCx) {
+    let RenderBarCx { strip, view, tokens, style } = *cx;
     let (clip, left) = (painter.clip_rect(), painter.clip_rect().left());
     let color = &tokens.color;
     for (at, span) in spans.iter().enumerate().filter(|(_, span)| !span.range.is_empty()) {
@@ -648,7 +651,7 @@ fn paint_render_bar(ui: &Ui, id: Id, painter: &egui::Painter, strip: Rect, view:
             .intersect(clip);
         painter.rect_filled(bar, CornerRadius::ZERO, fill.to_egui());
         if !span.tooltip.is_empty() && bar.width() > 0.0 {
-            let hover = ui.interact(bar.expand2(vec2(0.0, RENDER_HIT_PAD)).intersect(clip), id.with(("render", at)), Sense::hover());
+            let hover = ui.interact(bar.expand2(vec2(0.0, style.ruler_render_hit_pad)).intersect(clip), id.with(("render", at)), Sense::hover());
             hover.tooltip(span.tooltip.clone());
         }
     }

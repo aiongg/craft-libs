@@ -602,7 +602,7 @@ fn outline_levels_reserve_the_bands_inside_the_grid() {
 
     let corner = harness(App { outline: (2, 0), no_headings: true, ..App::default() });
     let bands = corner.state().geometry.as_ref().unwrap().bands();
-    assert_eq!(bands, vec2(band, super::outline::lane(style.outline_lane, 1.0) + super::outline::BAND_SLACK));
+    assert_eq!(bands, vec2(band, super::outline::lane(style.outline_lane, 1.0) + style.outline_band_slack));
 }
 
 // After a key scrolls the active cell into view, the grid's node names it as the active
