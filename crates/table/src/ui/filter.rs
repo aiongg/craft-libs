@@ -21,11 +21,6 @@ craft_ui::words! {
     }
 }
 
-/// Where a sorted column's two glyphs split the button: the funnel or chevron takes this share of
-/// the glyph area's width on the left, the sort arrow the rest (a proportion of the button, not a
-/// size; GridCraft draws no sort arrow, Excel shows both).
-const BASE_GLYPH_SHARE: f32 = 0.5;
-
 /// What the filter button reports.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -102,6 +97,11 @@ impl FilterButton {
         let style = SheetStyle::of(&tokens);
         let colors = &tokens.color;
         let id = ui.make_persistent_id(id_salt);
+        let icon_side = IconSize::Sm.points(&tokens);
+        let rect = match sorted {
+            Some(_) => Rect::from_min_max(pos2(rect.left() - icon_side - style.filter_button_glyph_inset, rect.top()), rect.max),
+            None => rect,
+        };
         let response = ui.interact(rect, id, Sense::click_and_drag());
         let name = fmt(if filtered { &labels.filtered } else { &labels.filter }, &[("column", &column)]);
         response.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), &name));
@@ -111,18 +111,19 @@ impl FilterButton {
         ui.painter().rect_filled(rect, radius, fill.to_egui());
         ui.painter().rect_stroke(rect, radius, edge, StrokeKind::Inside);
         let base = if filtered { Icon::Funnel } else { Icon::ChevronDown };
-        let glyph = rect.shrink(style.filter_button_glyph_inset);
         let ink = colors.text.normal.to_egui();
         let (stroke, set) = (IconSize::Sm.stroke(), icons::active(ui.ctx()));
-        match sorted {
-            None => icons::paint_in(ui, glyph, base, set, glyph.width(), stroke, ink),
-            Some(order) => {
-                let side = glyph.width() * BASE_GLYPH_SHARE;
-                let (left, right) = glyph.split_left_right_at_x(glyph.left() + side);
-                let arrow = if order == SortOrder::Ascending { Icon::SortAscending } else { Icon::SortDescending };
-                icons::paint_in(ui, left, base, set, side, stroke, ink);
-                icons::paint_in(ui, right, arrow, set, glyph.width() - side, stroke, ink);
+        let (arrow_slot, base_slot) = match sorted {
+            None => (None, rect),
+            Some(_) => {
+                let (left, right) = rect.split_left_right_at_x(rect.left() + icon_side + style.filter_button_glyph_inset);
+                (Some(left), right)
             }
+        };
+        icons::paint_in(ui, base_slot, base, set, icon_side, stroke, ink);
+        if let (Some(slot), Some(order)) = (arrow_slot, sorted) {
+            let arrow = if order == SortOrder::Ascending { Icon::SortAscending } else { Icon::SortDescending };
+            icons::paint_in(ui, slot, arrow, set, icon_side, stroke, ink);
         }
         FocusRing::paint_if(ui, rect, radius, response.has_focus());
         let alt_down = response.has_focus() && ui.input_mut(|input| ClaimedKey::exact(Modifiers::ALT, Key::ArrowDown).consume(input));

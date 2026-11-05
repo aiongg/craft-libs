@@ -82,8 +82,15 @@ impl<'a> ErrorTag<'a> {
         let painter = ui.painter();
         painter.rect_filled(tag, radius, fill.to_egui());
         painter.rect_stroke(tag, radius, edge, StrokeKind::Inside);
-        let mark = 2.0 * style.error_tag_mark;
-        icons::paint_in(ui, tag, Icon::WarningDiamond, icons::active(ui.ctx()), mark, IconSize::Sm.stroke(), colors.status.warn.solid.to_egui());
+        icons::paint_in(
+            ui,
+            tag,
+            Icon::WarningDiamond,
+            icons::active(ui.ctx()),
+            IconSize::Sm.points(&tokens),
+            IconSize::Sm.stroke(),
+            colors.status.warn.solid.to_egui(),
+        );
         FocusRing::paint_if(ui, tag, radius, response.has_focus());
 
         let mut entries: Vec<MenuEntry<Option<usize>>> = vec![MenuItem::new(self.problem, None).enabled(false).into(), MenuEntry::Separator];
