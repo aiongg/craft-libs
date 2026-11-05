@@ -29,6 +29,7 @@ pub enum Error {
     #[error("unsupported: {0}")]
     Unsupported(String),
     #[error("write: {0}")]
+    #[allow(missing_docs)]
     Write(#[from] craft_pdf::write::WriteError),
     /// The PDF could not be parsed for the structure summary.
     #[error("read: {0}")]
