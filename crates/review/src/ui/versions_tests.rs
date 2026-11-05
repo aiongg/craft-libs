@@ -235,3 +235,68 @@ fn editing_a_description_reports_title_and_description() {
     harness.press(enter());
     assert_eq!(harness.state().actions, [VersionAction::Rename { id: VersionId(4), title: "Final".into(), description: "Signed off".into() }]);
 }
+
+fn version_row<'h>(harness: &'h Harness<'static, App>, title: &str) -> egui_kittest::Node<'h> {
+    let title = title.to_owned();
+    harness.get_by(move |n| n.role() == Role::TreeItem && n.label().is_some_and(|l| l.starts_with(&title)))
+}
+
+fn described(width: f32) -> Harness<'static, App> {
+    let version = |id: u64, title: &str, description: &str| Version {
+        id: VersionId(id),
+        title: title.into(),
+        description: description.into(),
+        created: i64::try_from(id).expect("small") * 1_000,
+        author: "Ana".into(),
+        autosave: false,
+    };
+    let long = "Reworked the header grid, moved the logo into the shared library and fixed the baseline of the second column";
+    let versions = vec![version(1, "Plain", ""), version(2, "Described", long)];
+    let mut harness = Harness::<App>::builder()
+        .with_size([width, 640.0])
+        .with_context_setup(|ctx| {
+            install(ctx, &Base::suite_default());
+            symbols::install(ctx);
+        })
+        .build_ui_state(show, App { versions, branches: Vec::new(), actions: Vec::new() });
+    harness.run();
+    harness
+}
+
+// A version's description shows under its date, wrapped to the row's label width, at most three
+// lines: the row is taller than one without, taller still in a narrower panel, and never past
+// three lines.
+#[test]
+fn a_description_wraps_under_the_version_up_to_three_lines() {
+    let height = |width: f32, title: &str| {
+        let harness = described(width);
+        let rect = version_row(&harness, title).rect();
+        rect.height()
+    };
+    let (plain, wide, narrow, narrower) =
+        (height(700.0, "Plain"), height(700.0, "Described"), height(260.0, "Described"), height(180.0, "Described"));
+    assert!(wide > plain, "the description adds lines");
+    assert!(narrow > wide, "a narrower panel wraps to more lines");
+    assert_eq!(narrower, narrow, "both are at three lines");
+}
+
+// The delete confirmation replaces the version's row inside the list; no strip above it, and the
+// row's own menu button is gone while it asks.
+#[test]
+fn the_delete_confirmation_replaces_the_row_in_place() {
+    let mut harness = harness();
+    let before = version_row(&harness, "Final").rect();
+    harness.get_by_role_and_label(Role::Button, "More (Final)").click();
+    harness.run();
+    harness.get_by_label("Delete").click();
+    harness.run();
+    let list = harness.get_by_role(Role::Tree).rect();
+    let question = harness.get_by_label("Delete \u{201c}Final\u{201d}? This can't be undone.").rect();
+    let delete = harness.get_by_role_and_label(Role::Button, "Delete").rect();
+    assert!(list.contains_rect(question) && list.contains_rect(delete), "the question and its buttons are in the list");
+    let row = version_row(&harness, "Final").rect();
+    assert!(row.contains_rect(question) && row.contains_rect(delete), "in the row of the version");
+    assert_eq!(row.top(), before.top(), "which stays where it was");
+    assert!(row.height() > before.height(), "and grows to hold them");
+    assert!(harness.query_by_role_and_label(Role::Button, "More (Final)").is_none());
+}

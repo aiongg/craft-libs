@@ -396,6 +396,9 @@ impl ListRowStyle {
     }
 }
 
+/// The host's content of a row, see [`ListRow::body`].
+type Body<'a> = Box<dyn Fn(&mut Ui) + 'a>;
+
 /// One row of a list.
 ///
 /// ```
@@ -445,6 +448,8 @@ pub struct ListRow<'a, K> {
     key: K,
     label: String,
     detail: Option<String>,
+    lines: Option<(String, usize)>,
+    body: Option<Body<'a>>,
     description: Option<String>,
     tooltip: Option<egui::WidgetText>,
     accessible_name: Option<String>,
@@ -510,6 +515,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             key,
             label: label.into(),
             detail: None,
+            lines: None,
+            body: None,
             description: None,
             tooltip: None,
             accessible_name: None,
@@ -658,9 +665,61 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     fn min_width_with(&self, ui: &Ui, group: bool) -> f32 {
         let style = Self::style(&Tokens::of(ui));
         let (column, leading) = self.extent(&style, group);
-        let widths: Vec<(f32, bool)> = self.trailing.iter().map(|t| (t.width, t.optional)).collect();
+        let widths = self.trailing_widths();
         let ends = self.columns.iter().filter(|c| c.at_end).count();
         min_width(&style, (self.columns.len() - ends, ends, self.indented_toggles), column, leading, &widths)
+    }
+
+    fn trailing_widths(&self) -> Vec<(f32, bool)> {
+        self.trailing.iter().map(|t| (t.width, t.optional)).collect()
+    }
+
+    /// The row's columns and bands across `width`: what [`show`](ListRow::show) lays out, and
+    /// what [`height_in`](ListRow::height_in) wraps its text to.
+    fn layout(&self, style: &ListRowStyle, width: f32, rtl: bool) -> RowLayout {
+        let indent = self.indent + if self.clipped { style.indent } else { 0.0 };
+        let (indent, disclosure) = self.branch.map_or((indent, 0.0), |b| {
+            let steps = Branch { depth: self.paint_depth.unwrap_or(b.depth), ..b }.steps();
+            (indent + steps as f32 * style.indent, if b.group { style.disclosure } else { 0.0 })
+        });
+        // The clipping arrow takes a column of its own after the disclosure triangle.
+        let marker = if self.clipped { style.icon_size } else { 0.0 };
+        let column = disclosure + marker;
+        let leading = leading_width(style, self.thumb, self.icon_slot(style), self.thumb_width, &self.extras);
+        let widths = self.trailing_widths();
+        let ends = self.columns.iter().filter(|c| c.at_end).count();
+        let counts = (self.columns.len() - ends, ends, self.indented_toggles);
+        let min_width = min_width(style, counts, column, leading, &widths);
+        let geometry = Geometry::new(style, width, rtl, counts, (indent, column, self.leading_first), leading, &widths);
+        RowLayout { disclosure, marker, leading, counts, min_width, geometry }
+    }
+
+    /// The row's height across `width`, for a row shown in `ui`'s theme without showing it: the
+    /// row's own height (its [thumbnail](ListRow::thumb) and [detail](ListRow::detail) line), or
+    /// the text it stacks in its label band, or its [body](ListRow::body), whichever is tallest.
+    /// The text is laid out at the band's width, so the height is the one the row draws.
+    pub fn height_in(&self, ui: &mut Ui, width: f32) -> f32 {
+        let tokens = Tokens::of(ui);
+        let style = Self::style(&tokens);
+        let base = style.height(self.thumb, self.detail.is_some());
+        if self.lines.is_none() && self.body.is_none() {
+            return base;
+        }
+        let band = self.layout(&style, width, direction::is_rtl(ui)).geometry.band_width();
+        match &self.body {
+            Some(body) => base.max(sized(ui, band, body) + style.gap),
+            None => {
+                let text = self.text_height(ui, &tokens, &style, band);
+                base.max(text + style.gap)
+            }
+        }
+    }
+
+    /// The height of the label, the detail line and the wrapped lines in a band `band` wide.
+    fn text_height(&self, ui: &Ui, tokens: &UiTokens, style: &ListRowStyle, band: f32) -> f32 {
+        let detail = self.detail.as_ref().map_or(0.0, |_| style.detail_line);
+        let lines = self.lines.as_ref().map_or(0.0, |(text, max)| style.gap + wrapped(ui, tokens, style, band, text, *max).size().y);
+        style.label_line + detail + lines
     }
 
     /// The width of a tree row's disclosure and clipping columns, and of the leading part.
@@ -720,6 +779,27 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// line).
     pub fn detail(mut self, detail: impl Into<String>) -> Self {
         self.detail = Some(detail.into()).filter(|d| !d.is_empty());
+        self
+    }
+
+    /// Secondary text under the detail line (a version's description): `text` wrapped to the
+    /// label band's width in the detail role, at most `max_lines` lines, the last cut with an
+    /// ellipsis. The row's height grows with the wrapped lines ([`height_in`](ListRow::height_in));
+    /// a [`List`](super::List) that [measures its rows](super::List::measured) lays the rows out
+    /// at their own heights. The text is not part of the row's AccessKit name; give it as the
+    /// [`description`](ListRow::description) where a screen reader should read it.
+    pub fn lines(mut self, text: impl Into<String>, max_lines: usize) -> Self {
+        self.lines = Some((text.into(), max_lines)).filter(|(text, _)| !text.is_empty());
+        self
+    }
+
+    /// The host's content in place of this row's label, detail and lines (a delete confirmation
+    /// that replaces the row). `add` fills the label band, as wide as the band, as high as it
+    /// takes: the row measures it by running it once in an invisible sizing pass, then draws it,
+    /// so `add` runs twice per pass and must not depend on the pass. A row with a body has no
+    /// "\u{2026}" menu and no rename.
+    pub fn body(mut self, add: impl Fn(&mut Ui) + 'a) -> Self {
+        self.body = Some(Box::new(add));
         self
     }
 
@@ -845,7 +925,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// [`Rename`](RowCommand::Rename) starts the rename field in the pass it is chosen. A list sets
     /// it from [`List::row_menu`](super::List::row_menu); no menu for empty `entries`.
     pub(super) fn menu(mut self, ui: &Ui, entries: Vec<MenuEntry<RowCommand>>, can_rename: bool) -> Self {
-        if entries.is_empty() {
+        if entries.is_empty() || self.body.is_some() {
             return self;
         }
         let width = Self::style(&Tokens::of(ui)).toggle_column;
@@ -1036,18 +1116,33 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
 
     /// Shows the row across the available width.
     pub fn show(self, ui: &mut Ui) -> RowResponse<K> {
+        let tokens = Tokens::of(ui);
+        let mut style = Self::style(&tokens);
+        style.divider.width = Hairline::Hairline.width(ui.pixels_per_point());
+        let rtl = direction::is_rtl(ui);
+        let width = self.slot.map_or_else(|| ui.available_width(), |slot| slot.width());
+        let rect = match self.slot {
+            Some(slot) => slot,
+            None => {
+                let height = self.height_in(ui, width);
+                ui.allocate_space(vec2(width, height)).1
+            }
+        };
+        let RowLayout { disclosure, marker, leading, counts, min_width, geometry } = self.layout(&style, width, rtl);
         let ListRow {
             key,
             label,
             detail,
+            lines,
+            body,
             description,
             tooltip,
             accessible_name,
             columns,
             icon,
             glyph,
-            glyph_width,
-            leading_first,
+            glyph_width: _,
+            leading_first: _,
             striped,
             thumb,
             thumbnail,
@@ -1070,8 +1165,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             renaming,
             rule,
             drop,
-            indent,
-            paint_depth,
+            indent: _,
+            paint_depth: _,
             indented_toggles,
             rename_field_name,
             rename_draft,
@@ -1079,23 +1174,10 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             rename_on_double_click,
             role,
             position,
-            slot,
+            slot: _,
             branch,
             tree_text,
         } = self;
-        let tokens = Tokens::of(ui);
-        let mut style = Self::style(&tokens);
-        style.divider.width = Hairline::Hairline.width(ui.pixels_per_point());
-        let height = style.height(thumb, detail.is_some());
-        let indent = indent + if clipped { style.indent } else { 0.0 };
-        let (indent, disclosure) = branch.map_or((indent, 0.0), |b| {
-            let steps = Branch { depth: paint_depth.unwrap_or(b.depth), ..b }.steps();
-            (indent + steps as f32 * style.indent, if b.group { style.disclosure } else { 0.0 })
-        });
-        // The clipping arrow takes a column of its own after the disclosure triangle.
-        let marker = if clipped { style.icon_size } else { 0.0 };
-        let column = disclosure + marker;
-        let rect = slot.unwrap_or_else(|| ui.allocate_space(vec2(ui.available_width(), height)).1);
         let row_id = row_id(ui.scope_id(), &key);
         let name = match (accessible_name, &detail) {
             (Some(name), _) => name,
@@ -1126,14 +1208,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
 
         let side = style.thumb_side(thumb);
         let first_width = (side > 0.0).then(|| thumb_width.unwrap_or(side));
-        let icon_slot = (icon.is_some() || glyph.is_some()).then(|| glyph_width.unwrap_or(style.icon_size));
-        let leading = leading_width(&style, thumb, icon_slot, thumb_width, &extras);
         let extras = if side > 0.0 && thumb != ThumbSize::None { extras } else { Vec::new() };
-        let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
-        let ends = columns.iter().filter(|c| c.at_end).count();
-        let counts = (columns.len() - ends, ends, indented_toggles);
-        let min_width = min_width(&style, counts, column, leading, &widths);
-        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), counts, (indent, column, leading_first), leading, &widths);
         // Parts that don't fit stay in their place and the row's trailing edge cuts them.
         let outer_clip = ui.clip_rect();
         ui.set_clip_rect(outer_clip.intersect(rect));
@@ -1222,6 +1297,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             | menu.is_some_and(|menu| run_menu(ui, &style, (&geometry, rect), (&menu, &label, &key), (row_id, hovered, selected), &mut events));
         let band = geometry.label_band(rect);
         let double_clicked_label = rename_on_double_click
+            && body.is_none()
             && !renaming
             && response.double_clicked()
             && ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| band.contains(p));
@@ -1231,7 +1307,13 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let renaming = renaming || double_clicked_label;
         let (text, detail_text) = label_colors(&style, (selected, dimmed, muted), layer);
         let label_role = if strong { style.label_strong_role } else { style.label_role };
-        if renaming {
+        if let Some(body) = body {
+            let width = band.width().max(1.0);
+            let high = sized(ui, width, &body);
+            let at = Rect::from_center_size(band.center(), vec2(width, high));
+            let mut child = ui.new_child(UiBuilder::new().max_rect(at).layout(egui::Layout::top_down(egui::Align::Min)));
+            body(&mut child);
+        } else if renaming {
             rename::show(
                 ui,
                 row_id,
@@ -1242,7 +1324,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
                 &mut events,
             );
         } else if visible {
-            paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), (text, italic, label_role));
+            paint_label(
+                ui,
+                &tokens,
+                &style,
+                band,
+                (&label, detail.as_deref().map(|d| (d, detail_text)), lines.as_ref().map(|(t, n)| (t.as_str(), *n))),
+                (text, italic, label_role),
+            );
         }
         for (item, at) in trailing.into_iter().zip(&geometry.items).skip(usize::from(has_menu)) {
             let Some((start, width)) = *at else { continue };
@@ -1257,6 +1346,34 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         FocusRing::paint_if(ui, rect, corner_radius(style.radius), focused);
         RowResponse { response, events, label: band, toggles, min_width }
     }
+}
+
+/// What [`ListRow::layout`] finds.
+struct RowLayout {
+    disclosure: f32,
+    marker: f32,
+    leading: Option<f32>,
+    counts: (usize, usize, bool),
+    min_width: f32,
+    geometry: Geometry,
+}
+
+/// The wrapped lines of a row: `text` in the detail role, at most `max` lines in `band`.
+fn wrapped(ui: &Ui, tokens: &UiTokens, style: &ListRowStyle, band: f32, text: &str, max: usize) -> std::sync::Arc<egui::Galley> {
+    let mut job = egui::text::LayoutJob::single_section(text.to_owned(), role_format(tokens, style.detail_role, style.detail));
+    job.wrap.max_width = band.max(1.0);
+    job.wrap.max_rows = max.max(1);
+    ui.painter().layout_job(job)
+}
+
+/// The height the host's `body` takes in a band `band` wide: it runs once in an invisible
+/// sizing pass, so what it lays out is what it measures.
+fn sized(ui: &mut Ui, band: f32, body: &Body<'_>) -> f32 {
+    let rect = Rect::from_min_size(ui.max_rect().min, vec2(band.max(1.0), f32::INFINITY));
+    let mut sizing =
+        ui.new_child(UiBuilder::new().id_salt("body-size").max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)).sizing_pass().invisible());
+    body(&mut sizing);
+    sizing.min_rect().height()
 }
 
 /// The space between a thumbnail and the one after it: the link glyph's slot, or the gap.
@@ -1334,7 +1451,7 @@ impl Geometry {
     /// `indent` shrinks to keep the label's room; `column` (a tree row's triangle) doesn't.
     fn new(
         style: &ListRowStyle,
-        rect: Rect,
+        width: f32,
         rtl: bool,
         (columns, ends, indented): (usize, usize, bool),
         (indent, column, leading_first): (f32, f32, bool),
@@ -1343,7 +1460,7 @@ impl Geometry {
     ) -> Geometry {
         let leading_columns = columns as f32 * style.toggle_column;
         let base = leading_columns * toggle_rooms(indented) + style.pad_x;
-        let ends_start = rect.width() - style.trailing_pad - ends as f32 * style.toggle_column;
+        let ends_start = width - style.trailing_pad - ends as f32 * style.toggle_column;
         let end = ends_start;
         let leading_width = leading.map_or(0.0, |side| side + style.gap);
         // Trailing items are placed first. Optional ones stay while the label keeps its least
@@ -1397,6 +1514,11 @@ impl Geometry {
     fn span(&self, rect: Rect, offset: f32, width: f32) -> Rect {
         let (a, b) = (self.edge(rect, offset), self.edge(rect, offset + width));
         Rect::from_x_y_ranges(a.min(b)..=a.max(b), rect.y_range())
+    }
+
+    /// The label band's width.
+    fn band_width(&self) -> f32 {
+        (self.label_end - self.label_start).max(0.0)
     }
 
     fn label_band(&self, rect: Rect) -> Rect {
@@ -1623,20 +1745,20 @@ fn paint_icon_slot(ui: &Ui, style: &ListRowStyle, at: Rect, glyph: Option<Thumbn
 }
 
 /// The label, and the detail line under it, centred in `band` and cut with an ellipsis.
+/// A row's label, its detail line with the colour, and its wrapped lines with their count.
+type LabelText<'t> = (&'t str, Option<(&'t str, Color32)>, Option<(&'t str, usize)>);
+
 fn paint_label(
     ui: &Ui,
     tokens: &UiTokens,
     style: &ListRowStyle,
     band: Rect,
-    label: &str,
-    detail: Option<(&str, Color32)>,
+    (label, detail, lines): LabelText<'_>,
     (color, italic, label_role): (Color32, bool, TypeRole),
 ) {
     if band.width() < 1.0 {
         return;
     }
-    let total = style.label_line + detail.map_or(0.0, |_| style.detail_line);
-    let top = band.center().y - total / 2.0;
     // Painted, not a `Label`: the row's own node carries the text, so a label node would name it twice.
     let line = |ui: &Ui, top: f32, height: f32, text: &str, role: TypeRole, color: Color32, italics: bool| {
         let at = Rect::from_x_y_ranges(band.x_range(), top..=top + height);
@@ -1650,9 +1772,20 @@ fn paint_label(
         let x = if direction::is_rtl(ui) { at.right() - galley.size().x } else { at.left() };
         ui.painter().galley(pos2(x, at.center().y - galley.size().y / 2.0), galley, color);
     };
+    let wrapped_lines = lines.map(|(text, max)| wrapped(ui, tokens, style, band.width(), text, max));
+    let total =
+        style.label_line + detail.map_or(0.0, |_| style.detail_line) + wrapped_lines.as_ref().map_or(0.0, |galley| style.gap + galley.size().y);
+    let mut top = band.center().y - total / 2.0;
     line(ui, top, style.label_line, label, label_role, color, italic);
+    top += style.label_line;
     if let Some((detail, detail_color)) = detail {
-        line(ui, top + style.label_line, style.detail_line, detail, style.detail_role, detail_color, false);
+        line(ui, top, style.detail_line, detail, style.detail_role, detail_color, false);
+        top += style.detail_line;
+    }
+    if let Some(galley) = wrapped_lines {
+        let detail_color = detail.map_or(style.detail, |(_, color)| color);
+        let x = if direction::is_rtl(ui) { band.right() - galley.size().x } else { band.left() };
+        ui.painter().galley_with_override_text_color(pos2(x, top + style.gap), galley, detail_color);
     }
 }
 

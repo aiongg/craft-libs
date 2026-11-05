@@ -10,6 +10,7 @@ use egui::accesskit::{Action, Role};
 use egui::containers::scroll_area::ScrollSource;
 use egui::mutex::Mutex;
 use egui::os::OperatingSystem;
+use egui::scroll_area::ScrollBarVisibility;
 use egui::{
     Align, AsIdSalt, Context, CornerRadius, Event, EventFilter, Id, IdSalt, Key, KeyboardShortcut, Layout, Modifiers, PointerButton, Pos2, Rect,
     Response, ScrollArea, Sense, Ui, UiBuilder, WidgetInfo, pos2, text::LayoutJob, vec2,
@@ -137,6 +138,20 @@ pub struct ListOutput<K> {
     pub rows: Vec<(K, Rect)>,
 }
 
+/// The spans of a list's rows, and for a measured list the width they were measured at and
+/// whether the scroll bar is needed.
+struct Fit {
+    spans: Spans,
+    width: Option<f32>,
+    bar: bool,
+}
+
+impl Fit {
+    fn of(spans: Spans) -> Self {
+        Fit { spans, width: None, bar: false }
+    }
+}
+
 /// The heights of a list's rows.
 enum Heights<'a> {
     /// Every row as a [`ListRow`] with this thumbnail and, if true, a detail line.
@@ -145,6 +160,8 @@ enum Heights<'a> {
     Fixed(f32),
     /// Each row's own height.
     Mixed(Box<dyn Fn(usize) -> f32 + 'a>),
+    /// Each row as high as [`ListRow::height_in`] says at the width its label gets.
+    Measured,
 }
 
 type KeyTest<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
@@ -181,7 +198,9 @@ type RowMenuEntries<'a, K> = Box<RowMenuFn<'a, K>>;
 ///   rows in view are built and drawn, with one above and one below, so the list takes 10,000 rows;
 ///   rows keep their state by key. Rows have one height ([`row_height`](List::row_height), or the
 ///   height of a [`ListRow`] with [thumbnails](List::thumbnails) or
-///   [detail lines](List::detail_lines)), or each its own ([`heights`](List::heights)).
+///   [detail lines](List::detail_lines)), or each its own ([`heights`](List::heights)), or as
+///   high as the row asks at its own width ([`measured`](List::measured): wrapped
+///   [lines](ListRow::lines), a [body](ListRow::body)).
 /// - **Focus.** The list is one Tab stop and keeps the focus while its rows scroll away; the rows
 ///   aren't focus stops. The focus sits on the lead (the first row with no lead shown), which
 ///   draws the focus ring while the keyboard is in use. A press on a row or on the empty space
@@ -433,6 +452,23 @@ where
         self
     }
 
+    /// Each row as high as it asks for at the width the list gives it ([`ListRow::height_in`]:
+    /// wrapped [lines](ListRow::lines), a [body](ListRow::body)), in the pass the rows are drawn:
+    /// no height is guessed or carried over from an earlier pass.
+    ///
+    /// Spans stay exact for rows out of view because the list builds every row each pass and
+    /// measures it the same way (a row's text is laid out at its label band's width, and egui
+    /// caches the galleys across passes; a body runs once in a sizing pass). The width is the
+    /// list's width less the scroll bar's, which the list decides from the total height at the
+    /// full width and holds the bar to (it is always shown when needed, hidden when not), so
+    /// the bar never changes the width after the rows were measured. Keep `row` cheap: it runs for
+    /// every row. Section rows are `list.row_height` high; use [`heights`](List::heights) for
+    /// a spacer.
+    pub fn measured(mut self) -> Self {
+        self.heights = Heights::Measured;
+        self
+    }
+
     /// Shows the list across the available width. `row` builds the row at a position, with its
     /// key; it is called for the rows drawn, and for rows a key needs to read (the selected rows'
     /// toggle states, labels for type-ahead).
@@ -469,11 +505,6 @@ where
         };
         let focused = ui.memory(|m| m.has_focus(id));
         let style = ListRow::<'_, K>::style(&Tokens::of(ui));
-        let spans = match &heights {
-            Heights::Rows(thumb, detail) => Spans::uniform(style.height(*thumb, *detail), rows.len()),
-            Heights::Fixed(height) => Spans::uniform(*height, rows.len()),
-            Heights::Mixed(height) => Spans::mixed(rows.len(), height),
-        };
         let dragging = state.drag.take();
         let mut pass = Pass {
             ctx: ui.ctx().clone(),
@@ -497,6 +528,14 @@ where
             rtl: direction::is_rtl(ui),
         };
 
+        let measured = matches!(heights, Heights::Measured);
+        let fit = match &heights {
+            Heights::Rows(thumb, detail) => Fit::of(Spans::uniform(style.height(*thumb, *detail), rows.len())),
+            Heights::Fixed(height) => Fit::of(Spans::uniform(*height, rows.len())),
+            Heights::Mixed(height) => Fit::of(Spans::mixed(rows.len(), height)),
+            Heights::Measured => pass.fit(ui, max_height),
+        };
+        let spans = fit.spans;
         pass.drag.accept_from(&accept_from);
         pass.end_for_gone_rows(ui);
         if let Some(key) = start_rename {
@@ -538,10 +577,15 @@ where
                 if let Some(height) = max_height {
                     scroll = scroll.max_height(height);
                 }
+                if measured {
+                    // The rows were measured at the width this decides.
+                    scroll =
+                        scroll.scroll_bar_visibility(if fit.bar { ScrollBarVisibility::AlwaysVisible } else { ScrollBarVisibility::AlwaysHidden });
+                }
                 if let Some(offset) = scroll_to {
                     scroll = scroll.vertical_scroll_offset(offset);
                 }
-                let out = scroll.show_viewport(ui, |ui, viewport| pass.draw(ui, viewport, &spans, focused));
+                let out = scroll.show_viewport(ui, |ui, viewport| pass.draw(ui, viewport, &spans, fit.width, focused));
                 pass.state.offset = out.state.clamped_offset().y;
                 pass.state.viewport = Some(out.inner_rect.height());
                 pass.state.view = Some(out.inner_rect);
@@ -985,6 +1029,53 @@ where
         }
     }
 
+    /// The spans of a measured list: at the full width when the rows fit the list's height, else
+    /// at the width less the scroll bar's.
+    fn fit(&mut self, ui: &mut Ui, max_height: Option<f32>) -> Fit {
+        let room = ui.available_size();
+        let high = max_height.map_or(room.y, |max| room.y.min(max));
+        let full = self.measure(ui, room.x);
+        if full.total() <= high {
+            return Fit { spans: full, width: Some(room.x), bar: false };
+        }
+        let width = room.x - ui.spacing().scroll.allocated_width();
+        Fit { spans: self.measure(ui, width), width: Some(width), bar: true }
+    }
+
+    /// The rows' extents at `width`, each row built and asked for its height.
+    fn measure(&mut self, ui: &mut Ui, width: f32) -> Spans {
+        let style = ListRow::<K>::style(&Tokens::of(ui));
+        let heights: Vec<f32> = (0..self.rows.len())
+            .map(|at| {
+                if self.rows.is_section(at) {
+                    return style.row_height;
+                }
+                let key = self.rows.key(at).clone();
+                let built = (self.build)(at, &key);
+                let mut row = self.shaped(built, at);
+                if let Some(entries) = self.row_menu {
+                    row = row.menu(ui, entries(&key), self.renamable(&key));
+                }
+                row.height_in(ui, width)
+            })
+            .collect();
+        Spans::mixed(heights.len(), |at| heights[at])
+    }
+
+    /// `row` as a row of this list at `at`: a tree row with its branch, else with its place in the set.
+    fn shaped(&self, row: ListRow<'r, K>, at: usize) -> ListRow<'r, K> {
+        if self.tree {
+            row.tree_text(self.tree_text.clone()).branch(Branch {
+                depth: self.rows.depth(at),
+                group: self.rows.has_children(at),
+                open: self.rows.open(at),
+                siblings: Some(tree::siblings(self.rows, at)),
+            })
+        } else {
+            row.position_in_set(self.item_index(at))
+        }
+    }
+
     /// The scroll offset that reveals the row asked for, once the viewport is known.
     fn scroll_target(&mut self, spans: &Spans) -> Option<f32> {
         let height = self.state.viewport?;
@@ -996,9 +1087,19 @@ where
     /// the focus (the active descendant), the row being renamed (its field has the focus), the
     /// row that took a sweep's press (it ends the sweep) and the row a drag grabbed (egui's drag
     /// state is its).
-    fn draw(&mut self, ui: &mut Ui, viewport: Rect, spans: &Spans, focused: bool) {
+    fn draw(&mut self, ui: &mut Ui, viewport: Rect, spans: &Spans, measured_at: Option<f32>, focused: bool) {
         let content = ui.max_rect();
         let width = content.width();
+        // A scroll bar that is still sliding in or out gives the rows another width than the one
+        // measured: measure again at the width they are drawn at.
+        let remeasured;
+        let spans = match measured_at {
+            Some(at) if (at - width).abs() > 0.5 => {
+                remeasured = self.measure(ui, width);
+                &remeasured
+            }
+            _ => spans,
+        };
         ui.set_min_height(spans.total());
         self.drag.resolve(ui, self.rows, spans, content.min.y, content.x_range());
         let lead = self.lead_at();
@@ -1034,16 +1135,7 @@ where
         }
         debug_assert!(!row.is_spacer(), "the spacer at {at} must be a section of the display order");
         let selectable = row.is_selectable();
-        if self.tree {
-            row = row.tree_text(self.tree_text.clone()).branch(Branch {
-                depth: self.rows.depth(at),
-                group: self.rows.has_children(at),
-                open: self.rows.open(at),
-                siblings: Some(tree::siblings(self.rows, at)),
-            });
-        } else {
-            row = row.position_in_set(self.item_index(at));
-        }
+        row = self.shaped(row, at);
         debug_assert!(*row.key() == key, "the row built for {key:?} has the key {:?}", row.key());
         let renaming = match &mut self.state.renaming {
             Some(open) if open.key == key => {

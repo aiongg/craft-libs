@@ -47,6 +47,8 @@ mod findings_stories;
 mod findings_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod list_tests;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod measured_tests;
 mod metadata;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod metadata_tests;
