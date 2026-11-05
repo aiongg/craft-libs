@@ -220,3 +220,45 @@ fn the_interval_choices_are_photoshops_and_include_the_default() {
     assert_eq!(interval_from_minutes("7"), None);
     assert_eq!(interval_from_minutes("ten"), None);
 }
+
+// A revision marked autosaved is not written again until the document changes.
+#[test]
+fn a_revision_marked_autosaved_is_not_written_again() {
+    let minute = Duration::from_secs(60);
+    let t0 = Instant::now();
+    let mut timer = Autosave::new(Some(minute));
+    timer.mark_autosaved(1, 4);
+    assert!(timer.due(t0, [doc(1, 4, true)]).save.is_empty());
+    assert!(timer.due(t0 + minute, [doc(1, 4, true)]).save.is_empty(), "the recovered revision is already on disk");
+    assert_eq!(timer.due(t0 + 2 * minute, [doc(1, 5, true)]).save, vec![1], "an edit makes it due again");
+}
+
+// autosave_now makes the next due call save every dirty document, before the clock started
+// and inside the interval, once.
+#[test]
+fn autosave_now_saves_dirty_documents_regardless_of_the_interval() {
+    let minute = Duration::from_secs(60);
+    let t0 = Instant::now();
+    let mut timer = Autosave::new(Some(minute));
+    timer.autosave_now();
+    assert_eq!(timer.due(t0, [doc(1, 1, true), doc(2, 1, false)]).save, vec![1]);
+    timer.finished(1, 1, Ok(()));
+    assert!(timer.due(t0 + Duration::from_secs(1), [doc(1, 2, true)]).save.is_empty(), "back on the interval");
+    timer.autosave_now();
+    assert_eq!(timer.due(t0 + Duration::from_secs(2), [doc(1, 2, true)]).save, vec![1]);
+}
+
+// The stored minutes read as an integer or as the text an older settings file holds.
+#[test]
+fn minutes_deserialize_from_integers_and_old_text() {
+    #[derive(serde::Deserialize)]
+    struct Stored {
+        #[serde(deserialize_with = "deserialize_minutes")]
+        minutes: u32,
+    }
+    let read = |json: &str| serde_json::from_str::<Stored>(json).unwrap().minutes;
+    assert_eq!(read(r#"{"minutes": 15}"#), 15);
+    assert_eq!(read(r#"{"minutes": "30"}"#), 30);
+    assert_eq!(interval_for_minutes(15), Some(Duration::from_secs(900)));
+    assert_eq!(interval_for_minutes(7), None);
+}
