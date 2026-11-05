@@ -8,7 +8,7 @@ use craft_host::Host;
 use craft_settings::Remembered;
 use craft_theme::{ControlSize, Rgba, Srgba};
 use egui::load::SizedTexture;
-use egui::{Color32, Context, CornerRadius, Id, Label, Rect, Response, Sense, Ui, Vec2, pos2, vec2};
+use egui::{Color32, Context, CornerRadius, Id, Label, Rect, Response, Sense, Shape, StrokeKind, Ui, Vec2, pos2, vec2};
 
 use super::color_request::ColorRequest;
 use super::dialog::{Dialog, Outcome};
@@ -18,7 +18,7 @@ use super::footer::{DialogLabels, Footer, Reset};
 use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
-use crate::composites::{FieldControl as _, Form, FormGrid, SectionHeader};
+use crate::composites::{FieldControl, Form, FormGrid, SectionHeader};
 use crate::controls::text_field::{BoxState, TextField, field_box};
 use crate::controls::{
     AngleDial, Button, Checkbox, IconButton, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, TooltipExt as _, checkerboard,
@@ -27,6 +27,7 @@ use crate::direction;
 use crate::edit::{self, EditResponse};
 use crate::icons::Icon;
 use crate::localized::{Labels as _, LocaleNumbers, Unit, Units, focus_first_field};
+use crate::primitives::SurfaceEdge;
 use crate::theme::{Tokens, TokensOf};
 
 /// What a parameter is and which control edits it. Defaults are the values a dialog opens with
@@ -678,7 +679,7 @@ impl Param {
                     });
                     return;
                 }
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let slider = Slider::new((key, "slider"), &name, value, *min..=*max).scale(*scale).show(ui);
                         let field = NumberField::new((key, "field"), &name, value, numbers).range(*min..=*max).step(step).decimals(places);
@@ -699,7 +700,7 @@ impl Param {
                 let factor = choices.units.get(chosen).map_or(1.0, |u| u.factor);
                 let words = DialogLabels::of_ctx(&ctx);
                 let range = min.map_or(f64::NEG_INFINITY, |m| m / factor)..=max.map_or(f64::INFINITY, |m| m / factor);
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let places = 0..=*decimals as usize;
                         let field = NumberField::new((key, "field"), &name, base / factor, numbers).range(range).step(*step).decimals(places);
@@ -723,7 +724,7 @@ impl Param {
             ParamKind::Number { min, max, step, decimals, .. } => {
                 let value = fields.number(key).or_else(|| number_of(default.as_ref())).unwrap_or(0.0);
                 let range = min.unwrap_or(f64::NEG_INFINITY)..=max.unwrap_or(f64::INFINITY);
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let places = 0..=*decimals as usize;
                         let field = NumberField::new((key, "field"), &name, value, numbers).range(range).step(*step).decimals(places);
@@ -739,7 +740,7 @@ impl Param {
             ParamKind::Int { min, max, .. } => {
                 let value = fields.int(key).or_else(|| number_of(default.as_ref()).map(|n| n as i64)).unwrap_or(0);
                 let range = min.map_or(f64::NEG_INFINITY, |m| m as f64)..=max.map_or(f64::INFINITY, |m| m as f64);
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let field = NumberField::new((key, "field"), &name, value as f64, numbers).range(range).decimals(0..=0);
                         let field = with_unit(field, unit).show(ui);
@@ -763,7 +764,8 @@ impl Param {
             ParamKind::Bool { default } => {
                 let mut value = fields.bool(key).unwrap_or(*default);
                 let text = name.as_str();
-                form.unlabelled(|ui| {
+                // Stacked puts the check box at the left margin; the form grid starts it at the control column.
+                let draw = |ui: &mut Ui| {
                     edit::scope(ui, |ui| {
                         let check = Checkbox::bool(text, &mut value).id_salt(key).show(ui);
                         if let Some(v) = edited(&check) {
@@ -772,11 +774,16 @@ impl Param {
                         check
                     })
                     .inner
-                });
+                };
+                if stacked {
+                    form.spanning(draw);
+                } else {
+                    form.unlabelled(draw);
+                }
             }
             ParamKind::Choice { options, .. } => {
                 let mut value = fields.text(key).map(str::to_owned).or_else(|| text_of(default.as_ref())).unwrap_or_default();
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let mut select = Select::new((key, "select"), &name, &mut value);
                         for (id, text) in options {
@@ -793,7 +800,7 @@ impl Param {
             }
             ParamKind::Angle { default } => {
                 let value = fields.number(key).unwrap_or(*default);
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let dial = AngleDial::new((key, "angle"), &name, value, numbers).show(ui);
                         if let Some(v) = edited(&dial) {
@@ -807,7 +814,7 @@ impl Param {
             ParamKind::Color { .. } => {
                 let color = fields.color(key);
                 let shown = color.map_or(Rgba::BLACK, |c| Rgba::rgb(encode(c[0]), encode(c[1]), encode(c[2])));
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::End, |ui| {
                     let swatch = ui.add(Swatch::new((key, "swatch"), &name, shown).mixed(color.is_none()));
                     if swatch.clicked() {
                         let request = ColorRequest::new(key, Srgba::from_rgb_array(color.unwrap_or([0.0; 3]))).title(&name);
@@ -838,7 +845,7 @@ impl Param {
                         _ => vec![0; *count],
                     },
                 };
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let mut next = cells.clone();
                         let mut first = None;
@@ -867,7 +874,7 @@ impl Param {
             }
             ParamKind::Point { default } => {
                 let value = fields.point(key).unwrap_or(*default);
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let picker = PointPicker::new((key, "point"), &name, value, preview.copied()).show(ui);
                         if let Some(v) = edited(&picker) {
@@ -881,7 +888,7 @@ impl Param {
             ParamKind::Channel { names, default } => {
                 let value = fields.int(key).and_then(|i| usize::try_from(i).ok()).unwrap_or(*default);
                 let mut index = value;
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let mut select = Select::new((key, "channel"), &name, &mut index);
                         for (i, name) in names.iter().enumerate() {
@@ -898,7 +905,7 @@ impl Param {
             }
             ParamKind::Text { default } => {
                 let value = fields.text(key).unwrap_or(default).to_owned();
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let mut text = TextField::new((key, "text"), &name, &value);
                         if let Some(hint) = self.texts.as_ref().and_then(|t| t.hint.as_ref()) {
@@ -928,7 +935,7 @@ impl Param {
                 let last = stored.or_else(|| ctx.data(|d| d.get_temp::<f64>(last_id))).unwrap_or(*initial);
                 let mut on = stored.is_some();
                 let words = DialogLabels::of_ctx(&ctx);
-                form.row(label.as_str(), |ui, _| {
+                line(form, stacked, &name, &label, Side::Start, |ui| {
                     edit::scope(ui, |ui| {
                         let check = Checkbox::bool(words.custom.as_str(), &mut on).id_salt((key, "custom")).show(ui);
                         match edited(&check) {
@@ -962,11 +969,46 @@ impl Param {
                 if self.option().full_width {
                     form.spanning(|ui| (row.0)(ui, fields, &custom));
                 } else {
-                    form.row(label.as_str(), |ui, _| (row.0)(ui, fields, &custom));
+                    line(form, stacked, &name, &label, Side::Start, |ui| (row.0)(ui, fields, &custom));
                 }
             }
         }
     }
+}
+
+/// Which end of a stacked line a row's control sits at.
+#[derive(Clone, Copy)]
+enum Side {
+    /// Right after the label.
+    Start,
+    /// At the line's far end (a colour swatch).
+    End,
+}
+
+/// A labelled row: in the form grid the label sits in the label column, with its colon; stacked it
+/// is one line from the left margin, the dim label without a colon and then the control.
+// pc: crates/ui-egui/src/filter_dialog.rs:935-1000 (the row's label and control on one line).
+fn line<C: FieldControl>(
+    form: &mut Form<'_>,
+    stacked: bool,
+    name: &str,
+    label: &str,
+    side: Side,
+    add_control: impl FnOnce(&mut Ui) -> C,
+) -> egui::InnerResponse<C> {
+    if !stacked {
+        return form.row(label, |ui, _| add_control(ui));
+    }
+    form.spanning(|ui| {
+        direction::horizontal(ui, |ui| {
+            ui.add(Label::new(name).selectable(false));
+            match side {
+                Side::Start => add_control(ui),
+                Side::End => ui.with_layout(direction::trailing(ui), add_control).inner,
+            }
+        })
+        .inner
+    })
 }
 
 /// `value` rounded to `places` digits (`None`: as is); no digits stores an integer.
@@ -1750,9 +1792,18 @@ impl ParamDialog {
             d.insert_temp(pan_id, pan);
         });
         let shown = Rect::from_center_size(well.center() + pan, size);
-        let painter = ui.painter_at(well);
-        painter.extend(checkerboard(shown.intersect(well), CornerRadius::ZERO, swatch.checker, swatch.checker_cell));
+        // Stacked frames the well: the image sits inside the field's border, drawn over it.
+        let frame = match field.surface.edge {
+            SurfaceEdge::Border(stroke) if zoom_below => Some(stroke),
+            _ => None,
+        };
+        let inner = frame.map_or(well, |stroke| well.shrink(stroke.width));
+        let painter = ui.painter_at(inner);
+        painter.extend(checkerboard(shown.intersect(inner), CornerRadius::ZERO, swatch.checker, swatch.checker_cell));
         painter.image(image.id, shown, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        if let Some(stroke) = frame {
+            ui.painter().add(Shape::rect_stroke(well, field.surface.radius, stroke, StrokeKind::Inside));
+        }
         if slack != Vec2::ZERO {
             ui.ctx().set_cursor_icon(if response.dragged() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::Grab });
         }

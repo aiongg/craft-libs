@@ -895,3 +895,27 @@ fn an_armed_eyedropper_row_opens_pressed_and_the_first_press_disarms_it() {
     harness.run();
     assert_eq!(open_dialog(&mut harness).expect("open").pick_eyedropper(), Some(EyedropperRequest { key: "from".into(), armed: false }));
 }
+
+// PhotoCraft's filter dialogs draw a non-slider row as one line from the left margin: the label
+// without a colon, then the control. The other layouts keep the form grid's label column.
+#[test]
+fn the_stacked_layout_draws_a_choice_row_as_one_left_aligned_line_without_a_colon() {
+    let rows = || {
+        let options = vec![("uniform".into(), "Uniform".into()), ("gaussian".into(), "Gaussian".into())];
+        vec![Param::new("distribution", "Distribution:", ParamKind::Choice { options, default: None })]
+    };
+    let mut stacked = harness(ParamDialog::new("noise", "Add Noise", rows()).layout(ParamLayout::Stacked));
+    stacked.run();
+    let label = stacked.get_by_role_and_label(Role::Label, "Distribution").rect();
+    let select = stacked.get_by_role_and_label(Role::ComboBox, "Distribution").rect();
+    assert!((label.center().y - select.center().y).abs() < 2.0, "label {label:?} and control {select:?} share a line");
+    assert!(label.right() <= select.left(), "the control follows the label");
+
+    let mut form = harness(ParamDialog::new("noise", "Add Noise", rows()).layout(ParamLayout::BottomFooter));
+    form.run();
+    // The grid's label is a colon wider than the stacked one and the control starts after the label column.
+    let (grid_label, grid_select) =
+        (form.get_by_role_and_label(Role::Label, "Distribution").rect(), form.get_by_role_and_label(Role::ComboBox, "Distribution").rect());
+    assert!(grid_label.width() > label.width(), "grid label {grid_label:?} keeps its colon, stacked {label:?} has none");
+    assert!(grid_select.left() - grid_label.right() >= select.left() - label.right(), "the grid keeps its column gap");
+}
