@@ -364,8 +364,10 @@ fn file_name(path: &Path) -> String {
 }
 
 /// Most files [`list_folder`] lists.
+#[cfg(not(target_arch = "wasm32"))]
 const MAX_FILES: usize = 500;
 /// Largest file [`list_folder`] lists: a 129³ `.cube` is about 60 MB.
+#[cfg(not(target_arch = "wasm32"))]
 const MAX_BYTES: u64 = 64 << 20;
 
 /// The `.cube`, `.3dl` and `.look` files directly in `dir` as (file name, path), sorted by name
