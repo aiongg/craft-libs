@@ -1,4 +1,4 @@
-//! [`ArtboardProperties`]: an artboard's section in the Properties panel (task SH-T8).
+//! [`ArtboardProperties`]: an artboard's section in the Properties panel.
 
 use craft_theme::Srgba;
 use egui::{AsIdSalt, IdSalt, Ui};

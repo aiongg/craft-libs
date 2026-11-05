@@ -1,5 +1,4 @@
-//! Stories of the corner widgets (task ST-PE1; task RG2 registers them, adds `stories()` to the
-//! draw stories and `COMPONENTS` to the registry, and regenerates the dump). The story holds fake
+//! Stories of the corner widgets. The story holds fake
 //! shapes, applies the edits the widgets report and draws the rounded outlines itself, as an app's
 //! engine does.
 //!

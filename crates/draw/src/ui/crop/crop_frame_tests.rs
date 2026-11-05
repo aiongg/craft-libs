@@ -1189,7 +1189,7 @@ fn enter_is_ignored_while_another_widget_has_the_focus() {
 
 // Every key `show` reads (Enter, Esc, the arrows with and without ⇧ on the whole frame and on a
 // picked corner, X, and an Image-mode arrow that moves the view) gives through `CropFrame::key` the
-// action and frame `show` reports for the same press, and a release gives nothing (task TO-C3).
+// action and frame `show` reports for the same press, and a release gives nothing.
 #[test]
 fn host_keys_equal_show_keys() {
     let tool_key = |key, modifiers, pressed| ToolKey { key, modifiers, pressed, repeat: false };

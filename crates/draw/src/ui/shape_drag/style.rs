@@ -1,4 +1,4 @@
-//! [`ShapeDragStyle`]: the Shape tools' preview look and click slop, from tokens (task TK3).
+//! [`ShapeDragStyle`]: the Shape tools' preview look and click slop, from tokens.
 
 use egui::Stroke;
 

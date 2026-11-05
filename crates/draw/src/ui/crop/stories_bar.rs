@@ -1,5 +1,4 @@
-//! Stories of the Crop options bar and its menus (task ST-TO1; task RG2 registers them and their
-//! components).
+//! Stories of the Crop options bar and its menus.
 //!
 //! Every story fills an `OptionsBar` with `CropBar` (or shows one menu) over settings kept in
 //! the story's state, with a fake 2400 × 1500 px document at 300 ppi and two fake saved presets, and

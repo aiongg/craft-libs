@@ -1,4 +1,4 @@
-//! Tests of the Ruler tool on the canvas tool host (task TO-R2).
+//! Tests of the Ruler tool on the canvas tool host.
 
 use egui::{Event, Key, Modifiers, PointerButton, Sense, pos2, vec2};
 use egui_kittest::Harness;

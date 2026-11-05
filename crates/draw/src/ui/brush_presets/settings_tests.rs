@@ -1,4 +1,4 @@
-//! Tests of the picker's persisted view (task BR-BP3).
+//! Tests of the picker's persisted view.
 
 use super::{BrushCardParts, BrushCardsState, BrushPickerSettings};
 

@@ -1,4 +1,4 @@
-//! Tests of the stroke preview painter (task PE-A4).
+//! Tests of the stroke preview painter.
 
 use egui::{Color32, Pos2, Rect, Shape};
 

@@ -1,4 +1,4 @@
-//! Tests of the dynamic control row (task BR-BS5).
+//! Tests of the dynamic control row.
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
 use egui::accesskit::{Action, ActionData, ActionRequest, Node, NodeId, Role, Toggled, TreeId};

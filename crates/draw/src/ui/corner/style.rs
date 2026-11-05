@@ -1,4 +1,4 @@
-//! [`CornerStyle`]: the corner widgets' look, from tokens (task TK2). Every size is the same at
+//! [`CornerStyle`]: the corner widgets' look, from tokens. Every size is the same at
 //! every Size: the widgets sit on the document.
 
 use egui::Color32;

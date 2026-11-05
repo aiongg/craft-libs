@@ -1,4 +1,4 @@
-//! Tests of the Ruler options bar (task TO-R3).
+//! Tests of the Ruler options bar.
 
 use egui::accesskit::{Action, ActionRequest, Node, NodeId, Role};
 use egui::{Context, Event, Pos2, RawInput, Rect, vec2};

@@ -1,4 +1,4 @@
-//! Tests of the stroke editor and its button (task PE-B3).
+//! Tests of the stroke editor and its button.
 
 use egui::accesskit::{Role, Toggled};
 use egui::{Context, Event, Key, Sense, Ui, vec2};

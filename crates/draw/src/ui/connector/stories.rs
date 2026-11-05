@@ -1,4 +1,4 @@
-//! Stories of the Connector tool and bar (task ST-SH2; task RG2 registers them). Registering them
+//! Stories of the Connector tool and bar. Registering them
 //! adds `stories()` to craft-draw's stories, the components to `COMPONENTS` and
 //! [`ConnectorStoryLabels`] to `WORDS`.
 //!

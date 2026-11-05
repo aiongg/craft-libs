@@ -1,5 +1,5 @@
-//! [`StrokeEditorStyle`]: the stroke editor's and its button's look, from tokens (task TK2).
-//! Panel sizes: the same at both Sizes unless TK2's Size data gives a Comfortable value.
+//! [`StrokeEditorStyle`]: the stroke editor's and its button's look, from tokens.
+//! Panel sizes: the same at both Sizes.
 
 use egui::Color32;
 

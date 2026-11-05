@@ -1,4 +1,4 @@
-//! Tests of the brush Size row (task BR-BS2).
+//! Tests of the brush Size row.
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
 use egui::accesskit::{Action, ActionRequest, Node, NodeId, TreeId};

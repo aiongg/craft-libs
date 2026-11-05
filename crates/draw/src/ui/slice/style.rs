@@ -1,4 +1,4 @@
-//! [`SliceStyle`]: the slice overlay's look, from tokens (task TK3).
+//! [`SliceStyle`]: the slice overlay's look, from tokens.
 
 use egui::{Color32, FontId, Stroke, Vec2, vec2};
 

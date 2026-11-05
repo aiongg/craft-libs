@@ -1,4 +1,4 @@
-//! Stories of painting symmetry (task ST-TO2; task RG2 registers them). A fake page stands for the
+//! Stories of painting symmetry. A fake page stands for the
 //! document, and the axes, the Transform Symmetry session and the menu run on it as an app would
 //! run them. Sample words and the status lines are story words.
 //!

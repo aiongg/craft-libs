@@ -1,4 +1,4 @@
-//! [`SliceOptionsDialog`] and [`DivideSlicesDialog`] (task SH-T9). PhotoCraft and VectorCraft
+//! [`SliceOptionsDialog`] and [`DivideSlicesDialog`]. PhotoCraft and VectorCraft
 //! both have them with the same fields; what the fields mean at export is the app's.
 
 use std::cell::Cell;

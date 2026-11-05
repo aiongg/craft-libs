@@ -1,4 +1,4 @@
-//! Tests of the picture fill editor (task SH-T13).
+//! Tests of the picture fill editor.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};

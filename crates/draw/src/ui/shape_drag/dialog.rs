@@ -1,5 +1,5 @@
 //! [`CreateShapeDialog`]: Create Rectangle, Ellipse, Triangle, Polygon (and Illustrator's Rounded
-//! Rectangle and Star), opened by a Shape tool click (task SH-T7).
+//! Rectangle and Star), opened by a Shape tool click.
 
 use std::cell::Cell;
 use std::ops::RangeInclusive;
@@ -124,7 +124,7 @@ pub struct CreatedShape {
 /// - Title: "Create Rectangle" and so on ([`CreateShapeLabels`]).
 /// - Fields in a `FormGrid` (labels right-aligned): Width and Height (`unit_number_field` in the
 ///   ruler unit; a secondary click on a field picks that field's unit, which is not remembered,
-///   PhotoCraft #7786). Rectangle and Rounded Rectangle: four radii Top Left, Top Right, Bottom
+///   storytold/photocraft#7786). Rectangle and Rounded Rectangle: four radii Top Left, Top Right, Bottom
 ///   Right, Bottom Left, as PhotoCraft's 2×2 grid (Top Left, Top Right / Bottom Left, Bottom
 ///   Right) under one "Radius" label with the corner names as the fields' accessible names, and a
 ///   "Link radii" `LinkedFields` toggle between the top two fields (`LinkMode::Equal`, on by

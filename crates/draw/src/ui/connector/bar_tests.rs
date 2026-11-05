@@ -1,4 +1,4 @@
-//! Tests of the connector bar (task SH-T11).
+//! Tests of the connector bar.
 
 use egui::accesskit::Role;
 use egui::{Context, Painter, Rect};

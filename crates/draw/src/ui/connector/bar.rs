@@ -1,4 +1,4 @@
-//! [`ConnectorBar`]: the connector part of a style bar (task SH-T11).
+//! [`ConnectorBar`]: the connector part of a style bar.
 
 use egui::{AsIdSalt, Color32, IdSalt, Painter, Rect, Stroke, Ui, UiBuilder, pos2, vec2};
 

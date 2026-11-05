@@ -1,4 +1,4 @@
-//! Tests of the "+" buttons (task SH-T8), and of the Artboard tool's "+" press, which needs them.
+//! Tests of the "+" buttons, and of the Artboard tool's "+" press, which needs them.
 
 use egui::accesskit::Role;
 use egui::{Key, Modifiers, Pos2, Sense, vec2};

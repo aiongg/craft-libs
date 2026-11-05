@@ -1,5 +1,4 @@
-//! [`ShapePanel`]: a shape layer's Appearance and Shape sections in the Properties panel (task
-//! SH-T6).
+//! [`ShapePanel`]: a shape layer's Appearance and Shape sections in the Properties panel.
 
 use std::ops::RangeInclusive;
 

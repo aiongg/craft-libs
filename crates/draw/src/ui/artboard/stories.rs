@@ -1,5 +1,4 @@
-//! Stories of the Artboard tool, bar and Properties section (task ST-SH1; task RG2 registers
-//! them). Fake boards on a `Pasteboard` stand for the document; the tool, the bar and the section
+//! Stories of the Artboard tool, bar and Properties section. Fake boards on a `Pasteboard` stand for the document; the tool, the bar and the section
 //! run on them as an app runs them. Sample words are story words; the plain strings are the status
 //! lines.
 //!
@@ -10,9 +9,6 @@
 //! - `patterns/artboard-bar/bar`: the bar with and without a selected board, over a preset list.
 //! - `patterns/artboard-properties/section`: the Properties section: preset, W and H, X and Y, background;
 //!   Other… is answered by the story.
-//!
-//! RG2 registers `stories()` and the components `ArtboardTool`, `ArtboardBar` and
-//! `ArtboardProperties`; RG1 adds [`ArtboardStoryLabels`] to `WORDS`.
 
 use egui::{Color32, Ui};
 use kurbo::{Point, Rect, Size, Vec2};

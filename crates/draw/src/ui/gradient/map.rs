@@ -1,9 +1,9 @@
 //! [`GradientMapEditor`]: Photoshop's Gradient Map adjustment: the preset picker, the
-//! [`GradientEditor`] stop bar with colour stops only, Reverse and Dither (task AD-6).
+//! [`GradientEditor`] stop bar with colour stops only, Reverse and Dither.
 //!
 //! It lives here, beside the gradient editor it builds on, rather than with the other adjustment
 //! editors in craft-imaging: a family crate depends on no other family crate but craft-color
-//! (lead call L5).
+//!.
 
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Id, IdSalt, Modifiers, Sense, Ui, UiBuilder};

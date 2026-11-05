@@ -1,4 +1,4 @@
-//! [`SliceBar`]: the Slice tools' options bar cells (task SH-T9).
+//! [`SliceBar`]: the Slice tools' options bar cells.
 
 use std::sync::Arc;
 

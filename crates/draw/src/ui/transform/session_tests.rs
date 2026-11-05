@@ -1,4 +1,4 @@
-//! Tests of the Free Transform session (task TR-T2).
+//! Tests of the Free Transform session.
 
 use egui::Modifiers;
 use kurbo::{Point, Rect, Vec2};

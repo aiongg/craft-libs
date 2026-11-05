@@ -1,13 +1,10 @@
-//! Stories of the "+" buttons (task ST-SH1; task RG2 registers them). A box on the story page has
+//! Stories of the "+" buttons. A box on the story page has
 //! the buttons round it; the story shows what an app draws for the hovered side, a ghost of the
 //! board the button would add, and reports the click. Sample words are story words.
 //!
 //! - `primitives/add-beside-handles/buttons`: four buttons round a box; the ghost on hover (`AddBesideResponse::hovered`
 //!   is the side); a rectangle the buttons keep clear of (`clear_of`: the neighbouring board hides
 //!   the button that would sit on it); a box too small for buttons; Alt on a click asks for a copy.
-//!
-//! RG2 registers `stories()` and the component `AddBesideHandles`; RG1 adds
-//! [`AddBesideStoryLabels`] to `WORDS`.
 
 use egui::{Pos2, Shape, Stroke, Ui};
 use kurbo::{Rect, Vec2};

@@ -1,4 +1,4 @@
-//! Stories of the picture fill editor (task ST-SH2; task RG2 registers them). Registering them
+//! Stories of the picture fill editor. Registering them
 //! adds `stories()` to craft-draw's stories, the component to `COMPONENTS` and
 //! [`PictureStoryLabels`] to `WORDS`.
 //!

@@ -1,4 +1,4 @@
-//! Tests of the path mode table and the Path Options popover (task PE-B5).
+//! Tests of the path mode table and the Path Options popover.
 
 use egui::accesskit::Role;
 use egui::{Context, Key, Modifiers};

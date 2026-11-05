@@ -1,4 +1,4 @@
-//! [`PictureFillEditor`] (task SH-T13).
+//! [`PictureFillEditor`].
 
 use std::ops::RangeInclusive;
 use std::path::Path;

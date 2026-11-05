@@ -1,4 +1,4 @@
-//! Tests of the Crop options bar (task TO-C5).
+//! Tests of the Crop options bar.
 
 use egui::accesskit::Role;
 use egui::{Key, Modifiers};

@@ -1,4 +1,4 @@
-//! Tests of the stroke style (task PE-A1).
+//! Tests of the stroke style.
 
 use super::*;
 

@@ -1,4 +1,4 @@
-//! Tests of the Brush Preset picker (task BR-BP2).
+//! Tests of the Brush Preset picker.
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
 use craft_ui::direction::{self, Direction};

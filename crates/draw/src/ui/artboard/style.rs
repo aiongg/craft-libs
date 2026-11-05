@@ -1,4 +1,4 @@
-//! [`ArtboardStyle`]: the Artboard tool's look, from tokens (task TK3).
+//! [`ArtboardStyle`]: the Artboard tool's look, from tokens.
 
 use egui::{Color32, Stroke};
 

@@ -1,4 +1,4 @@
-//! Tests of the Slice tools' options bar (task SH-T9).
+//! Tests of the Slice tools' options bar.
 
 use egui::accesskit::Role;
 use egui_kittest::Harness;

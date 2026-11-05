@@ -1,4 +1,4 @@
-//! Tests of the path operations (task PE-A2).
+//! Tests of the path operations.
 
 use kurbo::{ParamCurve, Point, Vec2};
 

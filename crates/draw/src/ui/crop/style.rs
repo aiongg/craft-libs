@@ -1,4 +1,4 @@
-//! [`CropBarStyle`]: the sizes of the Crop options bar's menus and preset select, from tokens (task TK2). The frame's
+//! [`CropBarStyle`]: the sizes of the Crop options bar's menus and preset select, from tokens. The frame's
 //! own look is [`CropStyle`](super::CropStyle).
 
 use super::bar::CropBar;

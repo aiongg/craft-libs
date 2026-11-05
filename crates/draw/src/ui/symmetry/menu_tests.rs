@@ -1,4 +1,4 @@
-//! Tests of the painting symmetry menu (task TO-S3).
+//! Tests of the painting symmetry menu.
 
 use egui::Context;
 use egui::accesskit::{Role, Toggled};

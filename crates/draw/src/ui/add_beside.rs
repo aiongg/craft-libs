@@ -1,6 +1,6 @@
 //! [`AddBesideHandles`]: the "+" buttons beside the four sides of a selected object, which add an
 //! artboard (Photoshop) or a connected object (FigJam) there. One widget for the Artboard tool and
-//! the connector tools (tasks SH-T8 and TK3).
+//! the connector tools.
 //!
 //! The Artboard tool runs on the tool host and gets no `Ui`: it places, hit-tests and paints the
 //! buttons through [`AddBesideHandles::buttons`], [`at`](AddBesideHandles::at) and

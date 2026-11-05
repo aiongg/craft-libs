@@ -1,4 +1,4 @@
-//! [`ArtboardTool`]: the Artboard tool on the tool host (task SH-T5).
+//! [`ArtboardTool`]: the Artboard tool on the tool host.
 
 use egui::{CursorIcon, Key, Modifiers, Painter, Pos2, Shape, StrokeKind, vec2};
 use kurbo::{Point, Rect, Vec2};

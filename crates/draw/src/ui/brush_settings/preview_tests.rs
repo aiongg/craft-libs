@@ -1,4 +1,4 @@
-//! Tests of the preview stroke and the stroke strip (task BR-BS3).
+//! Tests of the preview stroke and the stroke strip.
 
 use std::cell::Cell;
 

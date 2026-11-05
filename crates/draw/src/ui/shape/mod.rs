@@ -114,7 +114,7 @@ impl ShapeAppearance {
 }
 
 /// One field's change. The app turns it into one document command (and, from the options bar with
-/// a shape layer selected, into the tool defaults too: PhotoCraft #3347).
+/// a shape layer selected, into the tool defaults too: storytold/photocraft#3347).
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ShapeChange {

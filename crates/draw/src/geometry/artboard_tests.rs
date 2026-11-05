@@ -1,4 +1,4 @@
-//! Tests of artboard rectangles (task SH-T1).
+//! Tests of artboard rectangles.
 
 use kurbo::{Point, Rect, Vec2};
 

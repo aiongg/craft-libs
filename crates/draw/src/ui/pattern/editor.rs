@@ -1,4 +1,4 @@
-//! [`PatternFillEditor`] (task SH-T12).
+//! [`PatternFillEditor`].
 
 use craft_color::ui::ColorPopover;
 use craft_theme::TypeRole;

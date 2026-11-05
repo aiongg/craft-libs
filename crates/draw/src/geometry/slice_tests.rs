@@ -1,4 +1,4 @@
-//! Tests of slice rectangles (task SH-T1).
+//! Tests of slice rectangles.
 
 use kurbo::{Point, Rect, Vec2};
 
