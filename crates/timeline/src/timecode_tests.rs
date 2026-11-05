@@ -35,7 +35,6 @@ fn formats_every_display() {
     assert_eq!(format_time(t + Tick(TICKS_PER_SECOND / 2), &tc.display(TimeDisplay::AudioSamples)), "00:00:10:24000");
     assert_eq!(format_time(t, &tc.display(TimeDisplay::Seconds)), "10.000");
     assert_eq!(format_time(Tick(-1), &tc.display(TimeDisplay::Seconds)), "0.000");
-    assert_eq!(TimeDisplay::Feet35.label(), "Feet + Frames 35mm");
 }
 
 #[test]

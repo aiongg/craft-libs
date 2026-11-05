@@ -154,7 +154,7 @@ pub struct TimelineStyle {
     pub preview_text: TypeRole,
     /// The type role of A timecode field's and a timecode panel row's value: the theme's mono role.
     pub timecode_text: TypeRole,
-    /// The type role of The large timecode and the timecode panel's first row: the theme's heading role.
+    /// The type role of The large timecode and the timecode panel's first row: the theme's mono role (FilmCraft's timecode face).
     pub timecode_large_text: TypeRole,
     /// The type role of A timecode panel row's caption: the theme's caption role.
     pub timecode_caption: TypeRole,
@@ -238,7 +238,7 @@ impl TimelineStyle {
             render_queue_text: TypeRole::Caption,
             preview_text: TypeRole::Caption,
             timecode_text: TypeRole::Mono,
-            timecode_large_text: TypeRole::Heading,
+            timecode_large_text: TypeRole::Mono,
             timecode_caption: TypeRole::Caption,
             transport_text: TypeRole::Mono,
         }

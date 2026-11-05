@@ -1,17 +1,17 @@
 //! The ruler and the scroll bar (egui_kittest).
 
 use craft_ui::edit::{CancelReason, EditEvent};
-use craft_ui::testing::{HarnessExt as _, symbols};
+use craft_ui::testing::{HarnessExt as _, events, symbols};
 use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
 use egui::accesskit::Role;
 use egui::{Key, KeyboardShortcut, Modifiers, Pos2, Rect, Ui, pos2};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::ruler::{TimelineRuler, TimelineScrollBar, ruler_steps, ruler_ticks};
 use super::style::TimelineStyle;
 use crate::rates::FrameRate;
-use crate::time::{Tick, TimeView};
+use crate::time::{Tick, TimeRange, TimeView};
 use crate::timecode::{TimeFormat, format_time};
 
 fn style() -> TimelineStyle {
@@ -76,6 +76,8 @@ fn show_ruler(ui: &mut Ui, app: &mut App) {
 fn harness<S>(show: impl FnMut(&mut Ui, &mut S) + 'static, state: S) -> Harness<'static, S> {
     let mut harness = Harness::<S>::builder()
         .with_size([480.0, 120.0])
+        // Two clicks of a double-click must land within egui's double-click delay.
+        .with_step_dt(0.05)
         .with_context_setup(|ctx| {
             install(ctx, &Base::suite_default());
             symbols::install(ctx);
@@ -186,9 +188,105 @@ fn ruler_shows_markers() {
         Marker { id: MarkerId(3), start: secs(2.0), duration: Tick::ZERO, name: "Cue".into(), comment: String::new(), color: MarkerColor(1) };
     let mut harness =
         harness(show_marked, Marked { view: TimeView::new(Tick::ZERO, 100.0), markers: vec![marker], edits: Vec::new(), rect: Rect::NOTHING });
-    harness.get_by_role_and_label(Role::ListBoxOption, "Cue");
+    harness.get_by_role_and_label(Role::ListBoxOption, "Cue, 00:00:02:00");
     let rect = harness.state().rect;
     let on_flag = pos2(rect.left() + 200.0, rect.top() + rect.height() * 0.1);
     harness.click_at_with(on_flag, egui::PointerButton::Primary, Modifiers::COMMAND);
     assert_eq!(harness.state().edits, [super::markers::MarkerEdit::Delete(crate::markers::MarkerId(3))]);
+}
+
+struct Worked {
+    view: TimeView,
+    area: TimeRange,
+    events: Vec<EditEvent<TimeRange>>,
+    rect: Rect,
+}
+
+fn show_worked(ui: &mut Ui, app: &mut Worked) {
+    let out = TimelineRuler::new("ruler", &mut app.view, format(), secs(60.0)).work_area(Some(app.area)).show(ui);
+    app.rect = out.response.rect;
+    app.events.extend(out.work_area);
+}
+
+fn worked() -> Harness<'static, Worked> {
+    harness(
+        show_worked,
+        Worked { view: TimeView::new(Tick::ZERO, 100.0), area: TimeRange::new(secs(2.0), secs(2.0)), events: Vec::new(), rect: Rect::NOTHING },
+    )
+}
+
+fn play(harness: &mut Harness<'_, Worked>, frames: Vec<events::Frame>) {
+    for frame in frames {
+        for event in frame {
+            harness.event(event);
+        }
+        harness.step();
+    }
+    harness.run();
+}
+
+/// A point on the work-area bar at `seconds`.
+fn on_bar(rect: Rect, seconds: f64) -> Pos2 {
+    pos2(rect.left() + seconds as f32 * 100.0, rect.top() + style().ruler_marker_band + style().ruler_work_height / 2.0)
+}
+
+// the bar's middle moves the work area, its end moves that end; each is a gesture.
+#[test]
+fn dragging_the_work_area_moves_it_or_an_end() {
+    let mut harness = worked();
+    let rect = harness.state().rect;
+    play(&mut harness, events::drag(on_bar(rect, 3.0), on_bar(rect, 3.5), Modifiers::NONE));
+    let events = &harness.state().events;
+    assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "{events:?}");
+    assert!(
+        matches!(events.last(), Some(EditEvent::Commit { value, changed: true, .. }) if *value == TimeRange::new(secs(2.5), secs(2.0))),
+        "{events:?}"
+    );
+
+    let mut harness = worked();
+    play(&mut harness, events::drag(on_bar(rect, 4.0), on_bar(rect, 5.0), Modifiers::NONE));
+    let events = &harness.state().events;
+    assert!(
+        matches!(events.last(), Some(EditEvent::Commit { value, changed: true, .. }) if *value == TimeRange::from_bounds(secs(2.0), secs(5.0))),
+        "{events:?}"
+    );
+}
+
+// a double-click on the bar fits it to what the ruler shows.
+#[test]
+fn double_clicking_the_work_area_sets_it_to_the_visible_span() {
+    let mut harness = worked();
+    let rect = harness.state().rect;
+    play(&mut harness, events::click(on_bar(rect, 3.0), egui::PointerButton::Primary, 2, Modifiers::NONE));
+    let view = harness.state().view;
+    let expected = TimeRange::from_bounds(view.start, view.time_at(rect.right(), rect.left()));
+    let events = &harness.state().events;
+    assert!(matches!(events.last(), Some(EditEvent::Commit { value, changed: true, .. }) if *value == expected), "{events:?}");
+}
+
+// the wheel's zoom factor is FilmCraft's, `1 + dy / 100` within 0.5..=2.
+#[test]
+fn the_wheel_zoom_factor_follows_the_source() {
+    use super::ruler::wheel_zoom_factor;
+    assert_eq!(wheel_zoom_factor(0.0), 1.0);
+    assert!((wheel_zoom_factor(10.0) - 1.1).abs() < 1e-6);
+    assert!((wheel_zoom_factor(-10.0) - 0.9).abs() < 1e-6);
+    assert_eq!(wheel_zoom_factor(500.0), 2.0);
+    assert_eq!(wheel_zoom_factor(-500.0), 0.5);
+}
+
+// the ruler slider and the scroll bar tell AccessKit their numeric value and range.
+#[test]
+fn the_slider_and_the_scroll_bar_have_numeric_ranges() {
+    let mut slider = ruler();
+    slider.state_mut().playhead = secs(12.0);
+    slider.run();
+    let data = slider.get_by_role_and_label(Role::Slider, "Time Ruler").accesskit_node().data().clone();
+    assert_eq!((data.numeric_value(), data.min_numeric_value(), data.max_numeric_value()), (Some(12.0), Some(0.0), Some(60.0)));
+
+    let bar = harness(show_bar, Bar { view: TimeView::new(secs(5.0), 100.0), rect: Rect::NOTHING });
+    let data = bar.get_by_role_and_label(Role::ScrollBar, "Zoom and Scroll").accesskit_node().data().clone();
+    assert_eq!(data.numeric_value(), Some(5.0));
+    assert_eq!(data.min_numeric_value(), Some(0.0));
+    assert!(data.max_numeric_value().is_some_and(|max| max > 5.0));
 }

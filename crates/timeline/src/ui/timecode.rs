@@ -7,17 +7,17 @@ use craft_ui::controls::text_field::{BoxState, field_box};
 use craft_ui::controls::{IconButton, TextField};
 use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
 use craft_ui::icons::Icon;
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format, tabular};
 use egui::accesskit::{Invalid, Role};
-use egui::text::{CCursorRange, LayoutJob};
+use egui::text::{CCursor, CCursorRange, LayoutJob};
 use egui::text_edit::TextEditState;
 use egui::{Align, AsIdSalt, CursorIcon, EventFilter, IdSalt, Key, Layout, Modifiers, Response, Sense, TextEdit, Ui, WidgetInfo, pos2, vec2};
 
 use super::style::TimelineStyle;
 use crate::time::Tick;
-use crate::timecode::{TimeDisplay, TimeFormat, format_time, parse_time};
+use crate::timecode::{TimeDisplay, TimeFormat, TimecodeError, format_time, parse_time};
 
 /// Frames the Up and Down keys step a field, without and with Shift.
 const STEP_FRAMES: i64 = 1;
@@ -51,6 +51,64 @@ struct Typing {
     invalid: bool,
 }
 
+craft_ui::words! {
+    /// The names of the time displays, English by default (Premiere's Time Display menu).
+    #[non_exhaustive]
+    pub struct TimeDisplayLabels {
+        timecode: "timeDisplay.timecode" = "Timecode";
+        frames: "timeDisplay.frames" = "Frames";
+        feet_16: "timeDisplay.feet16" = "Feet + Frames 16mm";
+        feet_35: "timeDisplay.feet35" = "Feet + Frames 35mm";
+        audio_samples: "timeDisplay.audioSamples" = "Audio Samples";
+        seconds: "timeDisplay.seconds" = "Seconds";
+    }
+}
+
+impl TimeDisplayLabels {
+    /// The name of `display`.
+    pub fn name(&self, display: TimeDisplay) -> &str {
+        match display {
+            TimeDisplay::Timecode => &self.timecode,
+            TimeDisplay::Frames => &self.frames,
+            TimeDisplay::Feet16 => &self.feet_16,
+            TimeDisplay::Feet35 => &self.feet_35,
+            TimeDisplay::AudioSamples => &self.audio_samples,
+            TimeDisplay::Seconds => &self.seconds,
+        }
+    }
+}
+
+craft_ui::words! {
+    /// The timecode field's words for typed text that isn't a time, English by default.
+    #[non_exhaustive]
+    pub struct TimecodeFieldLabels {
+        empty: "timecodeField.empty" = "Enter a time.";
+        not_a_time: "timecodeField.notATime" = "\u{201c}{input}\u{201d} is not a time.";
+    }
+}
+
+impl TimecodeFieldLabels {
+    /// The notice for `error`.
+    pub fn message(&self, error: &TimecodeError) -> String {
+        match error {
+            TimecodeError::Empty => self.empty.clone(),
+            TimecodeError::NotATime(input) => fmt(&self.not_a_time, &[("input", input)]),
+        }
+    }
+}
+
+/// What a [`TimecodeField`] did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
+#[must_use = "the host applies the edit event"]
+pub struct TimecodeFieldOutput {
+    pub edit: EditResponse<Tick>,
+    /// Typed text that didn't parse, from an Enter or a click away; word it with
+    /// [`TimecodeFieldLabels::message`]. Enter keeps the field open on the bad text, a click away
+    /// closes it (FilmCraft `widgets.rs:178-184`); nothing is committed either way.
+    pub error: Option<TimecodeError>,
+}
+
 /// Premiere's big timecode readout and the smaller timecode fields of dialogs.
 ///
 /// - Drag horizontally to scrub through the kernel's [`Scrub`](craft_ui::behavior::Scrub) (the
@@ -59,13 +117,14 @@ struct Typing {
 ///   Shift ×10 (FilmCraft `widgets.rs:130`); a gesture of `EditEvent<Tick>`s, Esc cancels it. A
 ///   click without a drag edits (decisions §4.2, NumberField).
 /// - Click (or Enter when focused) to type: the text is selected; Enter or a click away commits
-///   through [`parse_time`](crate::parse_time) relative to the current value; Esc cancels. A time
-///   that doesn't parse keeps the field open with the error on `EditResponse` (the app shows a
-///   notice) and commits nothing.
+///   through [`parse_time`](crate::parse_time) relative to the current value; Esc cancels. Left
+///   and Right on the whole selected text go to its last digit. A time that doesn't parse commits
+///   nothing and is reported on [`TimecodeFieldOutput::error`] (the app shows a notice): Enter
+///   keeps the field open on it, a click away closes the field.
 /// - Never before `min` (the sequence start).
 /// - One Tab stop; Up and Down step one frame (Shift: ten) as `Set`s.
-/// - Text in the `timecode` type role with tabular figures; `large` uses the display role
-///   (the Program monitor's and Timeline's readout, accent coloured).
+/// - Text in the mono type role with tabular figures (FilmCraft's timecode face); `large` is the
+///   Program monitor's and Timeline's readout, accent coloured.
 /// - AccessKit: a spin button whose value is the formatted time.
 pub struct TimecodeField<'a> {
     id_salt: IdSalt,
@@ -74,11 +133,24 @@ pub struct TimecodeField<'a> {
     min: Tick,
     large: bool,
     width: Option<f32>,
+    typing: Option<String>,
+    labels: Option<TimecodeFieldLabels>,
+    display_labels: Option<TimeDisplayLabels>,
 }
 
 impl<'a> TimecodeField<'a> {
     pub fn new(id_salt: impl AsIdSalt, time: Tick, format: &'a TimeFormat) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), time, format, min: Tick::ZERO, large: false, width: None }
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            time,
+            format,
+            min: Tick::ZERO,
+            large: false,
+            width: None,
+            typing: None,
+            labels: None,
+            display_labels: None,
+        }
     }
 
     pub fn min(mut self, min: Tick) -> Self {
@@ -97,10 +169,36 @@ impl<'a> TimecodeField<'a> {
         self
     }
 
+    /// Opens the field in its typing state with `text` the first time it is shown (for stories and
+    /// screenshots); Esc or a commit closes it as usual and it doesn't open again.
+    pub fn typing(mut self, text: impl Into<String>) -> Self {
+        self.typing = Some(text.into());
+        self
+    }
+
+    pub fn labels(mut self, labels: TimecodeFieldLabels) -> Self {
+        self.labels = Some(labels);
+        self
+    }
+
+    /// The display names, for the accessible name of the field.
+    pub fn display_labels(mut self, labels: TimeDisplayLabels) -> Self {
+        self.display_labels = Some(labels);
+        self
+    }
+
+    /// The edit alone; [`show_full`](Self::show_full) adds the typed-text error.
+    pub fn show(self, ui: &mut Ui) -> EditResponse<Tick> {
+        self.show_full(ui).edit
+    }
+
     // filmcraft: crates/ui-egui/src/widgets.rs:147 `timecode_field` (and the scrub speed above
     // it, `:130`).
-    pub fn show(self, ui: &mut Ui) -> EditResponse<Tick> {
-        let Self { id_salt, time, format, min, large, width } = self;
+    pub fn show_full(self, ui: &mut Ui) -> TimecodeFieldOutput {
+        let Self { id_salt, time, format, min, large, width, typing: preset, labels, display_labels } = self;
+        let display_labels = display_labels.unwrap_or_else(|| TimeDisplayLabels::of(ui));
+        let labels = labels.unwrap_or_else(|| TimecodeFieldLabels::of(ui));
+        let display_name = display_labels.name(format.display);
         let tokens = Tokens::of(ui);
         let style = TimelineStyle::of(&tokens);
         let field = TextField::style(&tokens, ControlSize::Md);
@@ -113,6 +211,15 @@ impl<'a> TimecodeField<'a> {
         let text_format = tabular(role_format(&tokens, role, color));
         let ctx = ui.ctx().clone();
         let layout = |text: &str| ctx.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(text.to_owned(), text_format.clone())));
+        if let Some(text) = preset {
+            let preset_key = id.with("preset");
+            if ui.data(|d| d.get_temp::<bool>(preset_key)).is_none() {
+                ui.data_mut(|d| {
+                    d.insert_temp(preset_key, true);
+                    d.insert_temp(typing_key, Typing { text, select: true, invalid: false });
+                });
+            }
+        }
         let typing = ui.data(|d| d.get_temp::<Typing>(typing_key));
 
         let shown_text = |t: Tick| format_time(t, format);
@@ -127,6 +234,7 @@ impl<'a> TimecodeField<'a> {
             let state = BoxState { enabled, focused: true, hovered: false, invalid: typed.invalid };
             ui.painter().extend(field_box(ui, &field, rect, state));
             let inner = rect.shrink2(vec2(field.pad_x, 0.0));
+            arrow_to_last_digit(ui, edit_id, &typed.text);
             let edit = TextEdit::singleline(&mut typed.text)
                 .id(edit_id)
                 .font(text_format.font_id.clone())
@@ -137,7 +245,7 @@ impl<'a> TimecodeField<'a> {
             let response = ui.put(inner, edit);
             ui.ctx().accesskit_node_builder(response.id, |node| {
                 node.set_role(Role::TextInput);
-                node.set_label(format.display.label());
+                node.set_label(display_name);
             });
             if typed.select {
                 let mut state = TextEditState::load(ui.ctx(), edit_id).unwrap_or_default();
@@ -148,29 +256,42 @@ impl<'a> TimecodeField<'a> {
             let escaped = response.lost_focus() && ui.input(|i| i.key_pressed(Key::Escape));
             let entered = response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
             let mut done = escaped;
-            if (response.lost_focus() && !escaped) || entered {
+            let mut error = None;
+            if response.lost_focus() && !escaped {
                 match parse_time(&typed.text, format, time) {
                     Ok(t) => {
                         gesture.set(t.max(min));
                         done = true;
                     }
-                    Err(_) => {
+                    Err(e) if entered => {
                         typed.invalid = true;
                         response.request_focus();
+                        error = Some(e);
+                    }
+                    Err(e) => {
+                        done = true;
+                        error = Some(e);
                     }
                 }
             } else if !response.has_focus() && !typed.select {
                 response.request_focus();
             }
             if typed.invalid {
-                ui.ctx().accesskit_node_builder(response.id, |node| node.set_invalid(Invalid::True));
+                let notice = error.as_ref().map(|e| labels.message(e));
+                ui.ctx().accesskit_node_builder(response.id, |node| {
+                    node.set_invalid(Invalid::True);
+                    if let Some(notice) = &notice {
+                        node.set_description(notice.as_str());
+                    }
+                });
             }
             if done {
                 ui.data_mut(|d| d.remove::<Typing>(typing_key));
             } else {
                 ui.data_mut(|d| d.insert_temp(typing_key, typed));
             }
-            return EditResponse::new(response, gesture.finish()).submitted(entered).escaped(escaped);
+            let edit = EditResponse::new(response, gesture.finish()).submitted(entered).escaped(escaped);
+            return TimecodeFieldOutput { edit, error };
         }
 
         let response = ui.interact(rect, id, Sense::click_and_drag());
@@ -217,7 +338,7 @@ impl<'a> TimecodeField<'a> {
                 ui.data_mut(|d| d.remove::<Scrubbing>(scrub_key));
                 gesture.commit();
             }
-            let enter = response.has_focus() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter));
+            let enter = response.has_focus() && ui.input_mut(|i| ClaimedKey::exact(Modifiers::NONE, Key::Enter).consume(i));
             if response.clicked() || enter {
                 let current = shown_text(*gesture.shown());
                 ui.data_mut(|d| d.insert_temp(typing_key, Typing { text: current, select: true, invalid: false }));
@@ -227,10 +348,10 @@ impl<'a> TimecodeField<'a> {
                 ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { vertical_arrows: true, ..EventFilter::default() }));
                 KeyClaim::claim(ui.ctx(), id, &FIELD_KEYS);
                 let key = ui.input_mut(|i| {
-                    [true, false].into_iter().find_map(|shift| {
-                        let modifiers = if shift { Modifiers::SHIFT } else { Modifiers::NONE };
-                        [Key::ArrowUp, Key::ArrowDown].into_iter().find(|key| i.consume_key(modifiers, *key)).map(|key| (key, shift))
-                    })
+                    FIELD_KEYS
+                        .iter()
+                        .find(|claimed| claimed.consume(i))
+                        .map(|claimed| (claimed.shortcut.logical_key, claimed.shortcut.modifiers.shift))
                 });
                 if let Some((key, shift)) = key {
                     let frames = if shift { SHIFT_STEP_FRAMES } else { STEP_FRAMES };
@@ -247,9 +368,25 @@ impl<'a> TimecodeField<'a> {
         let at = pos2(rect.left() + field.pad_x, rect.center().y - galley.size().y / 2.0);
         ui.painter().with_clip_rect(rect).galley(at, galley, if enabled { color } else { field.text_disabled });
         craft_ui::primitives::FocusRing::paint_radius(ui, rect, field.surface.radius, &response);
-        response.widget_info(|| WidgetInfo::labeled(Role::SpinButton, enabled, format.display.label()));
+        response.widget_info(|| WidgetInfo::labeled(Role::SpinButton, enabled, display_name));
         ui.ctx().accesskit_node_builder(response.id, |node| node.set_value(text.as_str()));
-        EditResponse::new(response, gesture.finish())
+        TimecodeFieldOutput { edit: EditResponse::new(response, gesture.finish()), error: None }
+    }
+}
+
+/// Left or Right on the whole selected text puts the caret on its last digit; egui would jump to
+/// the start (FilmCraft `widgets.rs:160-168`).
+fn arrow_to_last_digit(ui: &Ui, edit_id: egui::Id, text: &str) {
+    let arrow = ui.input(|i| i.modifiers.is_none() && (i.key_pressed(Key::ArrowLeft) || i.key_pressed(Key::ArrowRight)));
+    let len = text.chars().count();
+    if !arrow || len == 0 {
+        return;
+    }
+    if let Some(mut state) = TextEditState::load(ui.ctx(), edit_id)
+        && state.cursor.char_range().is_some_and(|range| range.sorted_cursors() == [CCursor::new(0), CCursor::new(len)])
+    {
+        state.cursor.set_char_range(Some(CCursorRange::one(CCursor::new(len))));
+        state.store(ui.ctx(), edit_id);
     }
 }
 
@@ -258,7 +395,7 @@ impl<'a> TimecodeField<'a> {
 enum RowCommand {
     Kind(TimecodeRowKind),
     Source(TimecodeSource),
-    Display(TimeDisplay),
+    Display(Option<TimeDisplay>),
     Remove,
 }
 
@@ -281,7 +418,7 @@ fn row_source_label(labels: &TimecodePanelLabels, source: TimecodeSource) -> &st
 }
 
 /// A row's menu: its kind, its monitor, its display, and Remove Row while another row is left.
-fn row_menu(labels: &TimecodePanelLabels, row: &TimecodeRow, removable: bool) -> Vec<MenuEntry<RowCommand>> {
+fn row_menu(labels: &TimecodePanelLabels, displays: &TimeDisplayLabels, row: &TimecodeRow, removable: bool) -> Vec<MenuEntry<RowCommand>> {
     let mut entries: Vec<MenuEntry<RowCommand>> = Vec::new();
     let kinds = [
         TimecodeRowKind::CurrentTime,
@@ -296,8 +433,10 @@ fn row_menu(labels: &TimecodePanelLabels, row: &TimecodeRow, removable: bool) ->
     entries
         .extend(sources.map(|source| MenuItem::new(row_source_label(labels, source), RowCommand::Source(source)).radio(row.source == source).into()));
     entries.push(MenuEntry::Separator);
+    entries.push(MenuItem::new(labels.sequence_display.as_str(), RowCommand::Display(None)).radio(row.display.is_none()).into());
     entries.extend(
-        TimeDisplay::ALL.map(|display| MenuItem::new(display.label(), RowCommand::Display(display)).radio(row.display == Some(display)).into()),
+        TimeDisplay::ALL
+            .map(|display| MenuItem::new(displays.name(display), RowCommand::Display(Some(display))).radio(row.display == Some(display)).into()),
     );
     if removable {
         entries.push(MenuEntry::Separator);
@@ -320,6 +459,7 @@ craft_ui::words! {
         active: "timecodePanel.active" = "Active Monitor";
         add_row: "timecodePanel.addRow" = "Add a timecode row";
         remove_row: "timecodePanel.removeRow" = "Remove Row";
+        sequence_display: "timecodePanel.sequenceDisplay" = "Sequence Display";
     }
 }
 
@@ -356,7 +496,8 @@ pub struct TimecodeRow {
 
 /// Premiere's Timecode panel: the first row in large type, the others smaller, each with its
 /// caption ("Current Time · Program"). The app gives each row's text (it knows the clip under
-/// the playhead). A secondary click on a row opens its menu (kind, source, display, Remove Row);
+/// the playhead). A secondary click on a row opens its menu (kind, source, display with
+/// "Sequence Display" to follow the sequence again, Remove Row);
 /// "+" adds a row. Rows are read-only text (AccessKit labels); the menu items and "+" are the Tab
 /// stops; the Menu key and Shift+F10 open a focused row's menu.
 pub struct TimecodePanel<'a> {
@@ -364,11 +505,12 @@ pub struct TimecodePanel<'a> {
     settings: &'a mut TimecodePanelSettings,
     text: &'a dyn Fn(&TimecodeRow) -> String,
     labels: Option<TimecodePanelLabels>,
+    display_labels: Option<TimeDisplayLabels>,
 }
 
 impl<'a> TimecodePanel<'a> {
     pub fn new(id_salt: impl AsIdSalt, settings: &'a mut TimecodePanelSettings, text: &'a dyn Fn(&TimecodeRow) -> String) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), settings, text, labels: None }
+        Self { id_salt: IdSalt::new(id_salt), settings, text, labels: None, display_labels: None }
     }
 
     pub fn labels(mut self, labels: TimecodePanelLabels) -> Self {
@@ -376,12 +518,19 @@ impl<'a> TimecodePanel<'a> {
         self
     }
 
+    /// The display names of the row menu.
+    pub fn display_labels(mut self, labels: TimeDisplayLabels) -> Self {
+        self.display_labels = Some(labels);
+        self
+    }
+
     /// Changes the settings directly (a panel preference, not a document edit) and says so on
     /// the output.
     // filmcraft: crates/ui-egui/src/panels/timecode.rs:104 `show`, `:21` `row_text`.
     pub fn show(self, ui: &mut Ui) -> TimecodePanelOutput {
-        let Self { id_salt, settings, text, labels } = self;
+        let Self { id_salt, settings, text, labels, display_labels } = self;
         let labels = labels.unwrap_or_else(|| TimecodePanelLabels::of(ui));
+        let displays = display_labels.unwrap_or_else(|| TimeDisplayLabels::of(ui));
         let tokens = Tokens::of(ui);
         let id = ui.make_persistent_id(id_salt);
         let enabled = ui.is_enabled();
@@ -415,7 +564,7 @@ impl<'a> TimecodePanel<'a> {
                     let spoken = format!("{caption}: {value}");
                     row_response.widget_info(|| WidgetInfo::new(Role::Label));
                     ui.ctx().accesskit_node_builder(row_response.id, |node| node.set_value(spoken.as_str()));
-                    let entries = row_menu(&labels, row, removable);
+                    let entries = row_menu(&labels, &displays, row, removable);
                     if let Some(command) = ContextMenu::new(&entries).show(ui, &row_response).chosen {
                         picks.push((at, command));
                     }
@@ -431,7 +580,7 @@ impl<'a> TimecodePanel<'a> {
             match command {
                 RowCommand::Kind(kind) => row.kind = kind,
                 RowCommand::Source(source) => row.source = source,
-                RowCommand::Display(display) => row.display = Some(display),
+                RowCommand::Display(display) => row.display = display,
                 RowCommand::Remove => {
                     settings.rows.remove(at);
                 }

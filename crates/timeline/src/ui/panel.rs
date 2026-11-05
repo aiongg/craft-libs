@@ -18,7 +18,7 @@ use egui::{
 
 use super::clips::{ClipLane, ClipPainter, TimelineTool};
 use super::markers::MarkerEdit;
-use super::ruler::{SHIFT_STEP_FRAMES, STEP_FRAMES, TimelineRuler, TimelineScrollBar, WHEEL_ZOOM};
+use super::ruler::{SHIFT_STEP_FRAMES, STEP_FRAMES, TimelineRuler, TimelineScrollBar, wheel_zoom_factor};
 use super::{LabelPalette, TimecodeField, TimelineStyle};
 use crate::clips::{ClipEdit, SnapTargets, marquee_clips};
 use crate::clock::{Follow, FollowMode};
@@ -1084,7 +1084,7 @@ fn wheel(ui: &Ui, geo: &Geo, anim: &mut ViewAnim, scrolls: &mut Scrolls) {
     let mut factor = pinch;
     let mut used = false;
     if zooms && delta.y != 0.0 {
-        factor *= (f64::from(delta.y) * WHEEL_ZOOM).exp();
+        factor *= wheel_zoom_factor(delta.y);
         used = true;
     }
     if factor != 1.0 && factor.is_finite() {
