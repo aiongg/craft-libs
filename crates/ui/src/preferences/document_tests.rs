@@ -295,6 +295,45 @@ struct FilePrefs {
     general: Files,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct IntegerFiles {
+    autosave_minutes: i64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+struct IntegerFilePrefs {
+    general: IntegerFiles,
+}
+
+// The autosave row stores an integer; an old settings file that holds the minutes as text still
+// shows its choice.
+#[test]
+fn the_minutes_rule_stores_integers_and_still_reads_text() {
+    let rules = || vec![SettingRule::new("general.autosaveMinutes").minutes(&[5, 10, 15, 30, 60])];
+    let selected = |doc: &dyn PreferencesModel| {
+        let pages = doc.pages();
+        let row =
+            pages.iter().flat_map(|page| page.groups.iter().flat_map(|group| group.rows.iter())).find(|row| row.key == "general.autosaveMinutes");
+        let Some(RowKind::Choice { value, .. }) = row.map(|row| &row.kind) else { panic!("no choice row") };
+        value.to_string()
+    };
+    let old = SettingsDocument::new(FilePrefs { general: Files { autosave_minutes: "30".into() } })
+        .expect("the prefs serialize")
+        .pages(StandardPage::ALL.map(PageInfo::from).to_vec())
+        .rules(rules());
+    assert_eq!(selected(&old), "30");
+
+    let mut doc = SettingsDocument::new(IntegerFilePrefs { general: IntegerFiles { autosave_minutes: 10 } })
+        .expect("the prefs serialize")
+        .pages(StandardPage::ALL.map(PageInfo::from).to_vec())
+        .rules(rules());
+    assert_eq!(selected(&doc), "10");
+    PreferencesModel::set(&mut doc, "general.autosaveMinutes", PrefValue::Choice("15".into()));
+    assert_eq!(selected(&doc), "15");
+    assert_eq!(PreferencesModel::apply(&mut doc), Ok(()), "the integer field reads what the row wrote");
+}
+
 // The autosave row offers the five interval choices as "{n} minutes", with 10 selected by default.
 #[test]
 fn the_minutes_rule_offers_the_autosave_intervals_with_ten_selected() {

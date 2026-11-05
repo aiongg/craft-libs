@@ -37,13 +37,13 @@ struct General {
     language: String,
     name: String,
     autosave: bool,
-    autosave_minutes: String,
+    autosave_minutes: u32,
     recent_files: i64,
 }
 
 impl Default for General {
     fn default() -> Self {
-        Self { language: "en".into(), name: "Studio".into(), autosave: true, autosave_minutes: "10".into(), recent_files: 20 }
+        Self { language: "en".into(), name: "Studio".into(), autosave: true, autosave_minutes: 10, recent_files: 20 }
     }
 }
 
