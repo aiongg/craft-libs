@@ -2,8 +2,9 @@
 
 use craft_ui::behavior::{ClaimedKey, KeyClaim, ListSelection, RowInfo, Selection, SelectionChange, SelectionMode, SelectionPick, Step};
 use craft_ui::controls::IconButton;
+use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy, EditResponse, Gesture};
-use craft_ui::icons::Icon;
+use craft_ui::icons::{self, Icon, IconSize};
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Corner, FocusRing, Interactive};
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, scale};
@@ -525,11 +526,11 @@ impl KeyframeNavigator {
             for (name, label, direction, active) in [("previous", &labels.previous, -1.0_f32, has_previous), ("next", &labels.next, 1.0, has_next)] {
                 let area = Rect::from_center_size(center + vec2(direction * style.keyframe_nav_step, 0.0), arrow_size);
                 let (response, clicked) = press(ui, name, label, area, active);
-                let c = area.center();
-                let (reach, span) = (arrow_size.x / 4.0, arrow_size.y * 0.275);
-                let points = vec![c + vec2(-reach * direction, -span), c + vec2(-reach * direction, span), c + vec2(reach * direction, 0.0)];
+                // The time axis is never mirrored, so the arrows swap their icons where the kernel mirrors directional ones.
+                let icon = if (direction < 0.0) != direction::is_rtl(ui) { Icon::ChevronLeft } else { Icon::ChevronRight };
                 let color = if active { colors.text.normal } else { colors.text.faint };
-                ui.painter().add(Shape::convex_polygon(points, color.to_egui(), Stroke::NONE));
+                let size = IconSize::Sm;
+                icons::paint_on(ui.painter(), area, icon, icons::active(ui.ctx()), size.points(&tokens), size.stroke(), color.to_egui());
                 FocusRing::paint(ui, area, Corner::Control, &response);
                 if direction < 0.0 {
                     out.previous = clicked;

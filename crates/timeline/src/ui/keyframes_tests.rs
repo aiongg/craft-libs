@@ -250,3 +250,23 @@ fn animation_toggle_takes_labels() {
     );
     assert!(harness.query_by_role_and_label(Role::Button, "Stopwatch").is_some());
 }
+
+// the navigator's arrows are icons (textured meshes), not painted polygons.
+#[test]
+fn navigator_arrows_are_icons() {
+    use egui::epaint::Shape;
+    use egui::{Context, RawInput};
+
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut output =
+        ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(200.0, 60.0))), ..RawInput::default() }, |ui| {
+            let _ = KeyframeNavigator::new("nav", true, true, false).show(ui);
+        });
+    output.textures_delta.clear();
+    let images =
+        output.shapes.iter().filter(|clipped| matches!(&clipped.shape, Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default())).count();
+    let polygons = output.shapes.iter().filter(|clipped| matches!(&clipped.shape, Shape::Path(_))).count();
+    assert!(images >= 2, "two arrow icons, found {images}");
+    assert!(polygons <= 1, "only the diamond outline is a path: {polygons}");
+}
