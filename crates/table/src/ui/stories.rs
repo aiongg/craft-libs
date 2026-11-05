@@ -4,16 +4,16 @@
 //!
 //! Each story keeps its own demo state in egui memory and applies the widget's events to it as
 //! an app would; the grid stories share one fake sheet ([`Sheet`], a [`GridModel`] over 40 rows
-//! and 12 columns of sample sales). The line under a story names the last event. Sample names,
+//! and 12 columns of sample sales, 15 pt rows and 64 pt columns as in Excel). The line under a story names the last event. Sample names,
 //! categories and field labels are words of [`TableStoryLabels`].
 //!
 //! | Story id | Shows |
 //! |---|---|
 //! | `patterns/cell-grid/sheet` | 40 × 12 cells, a frozen header row, a wide column, two selected ranges, an error tag and filter buttons |
-//! | `patterns/cell-grid/outline` | two levels of row groups (one collapsed) and a column group |
+//! | `patterns/outline-band/outline` | two levels of row groups (one collapsed) and a column group |
 //! | `patterns/condition-builder/rules` | Match all of: a rating, a date range and a nested any-group |
-//! | `patterns/field-list/pane` | five fields, Region in Rows and Sales in Values |
-//! | `composites/chart/primitives` | a column chart and a doughnut |
+//! | `patterns/field-list-pane/pane` | five fields, Region in Rows and Sales in Values |
+//! | `composites/chart-primitive/primitives` | a column chart and a doughnut |
 //! | `composites/slicer/tiles` | a two-column slicer with three of six values on |
 //! | `composites/selection-stats/readout` | Average, Count and Sum of a selection |
 
@@ -25,8 +25,7 @@ use craft_ui::controls::PickedDate;
 use craft_ui::edit::EditEvent;
 use craft_ui::list::SortOrder;
 use craft_ui::localized::{Labels as _, fmt};
-use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, NoArgs, Story, StoryLabels, lock, shared};
+use craft_ui::story::{Level, NoArgs, Story, last_event, lock, shared};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use craft_ui::typed_story;
 use egui::{Align2, Color32, CornerRadius, FontId, Painter, Rect, Sense, Ui, UiBuilder, Vec2, pos2, vec2};
@@ -44,13 +43,13 @@ use super::style::SheetStyle;
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("patterns/cell-grid/sheet", Level::Patterns, "Cell grid", "Sheet", NoArgs {}, cell_grid),
-        typed_story!("patterns/cell-grid/outline", Level::Patterns, "Cell grid", "Outline", NoArgs {}, outline),
-        typed_story!("patterns/condition-builder/rules", Level::Patterns, "Condition builder", "Rules", NoArgs {}, conditions),
-        typed_story!("patterns/field-list/pane", Level::Patterns, "Field list", "Pane", NoArgs {}, fields),
-        typed_story!("composites/chart/primitives", Level::Composites, "Chart", "Primitives", NoArgs {}, chart),
+        typed_story!("patterns/cell-grid/sheet", Level::Patterns, "CellGrid", "Sheet", NoArgs {}, cell_grid),
+        typed_story!("patterns/outline-band/outline", Level::Patterns, "OutlineBand", "Outline", NoArgs {}, outline),
+        typed_story!("patterns/condition-builder/rules", Level::Patterns, "ConditionBuilder", "Rules", NoArgs {}, conditions),
+        typed_story!("patterns/field-list-pane/pane", Level::Patterns, "FieldListPane", "Pane", NoArgs {}, fields),
+        typed_story!("composites/chart-primitive/primitives", Level::Composites, "ChartPrimitive", "Primitives", NoArgs {}, chart),
         typed_story!("composites/slicer/tiles", Level::Composites, "Slicer", "Tiles", NoArgs {}, slicer),
-        typed_story!("composites/selection-stats/readout", Level::Composites, "Selection stats", "Readout", NoArgs {}, stats),
+        typed_story!("composites/selection-stats/readout", Level::Composites, "SelectionStats", "Readout", NoArgs {}, stats),
     ]
 }
 
@@ -148,15 +147,13 @@ impl TableStoryLabels {
 const ROWS: u32 = 40;
 const COLUMNS: u32 = 12;
 
+/// Sample sizes at 100 %: Excel's default row height and column width, and the wide column.
+const SAMPLE_ROW: f32 = 15.0;
+const SAMPLE_COLUMN: f32 = 64.0;
+const SAMPLE_WIDE_COLUMN: f32 = 112.0;
+
 /// The height of a grid over its width.
 const GRID_ASPECT: f32 = 0.7;
-
-fn last_event(ui: &mut Ui, event: Option<&str>) {
-    if let Some(event) = event {
-        let line = fmt(&StoryLabels::of(ui).last_event, &[("event", event)]);
-        ui.add(Text::new(line).content(Content::Muted));
-    }
-}
 
 fn rgba(color: Color32) -> [u8; 4] {
     color.to_array()
@@ -169,13 +166,10 @@ struct Sheet {
     columns: LineIndex,
     texts: Vec<Vec<String>>,
     numbers: Vec<Vec<Option<f64>>>,
-    /// Row heights and column widths at 100 %.
-    default_row: f32,
-    default_column: f32,
 }
 
 impl Sheet {
-    fn new(labels: &TableStoryLabels, style: &SheetStyle) -> Self {
+    fn new(labels: &TableStoryLabels) -> Self {
         let (regions, products) = (labels.regions(), labels.products());
         let channels = [&labels.channel_online, &labels.channel_retail];
         let mut texts = vec![labels.headings().iter().map(|h| (*h).to_owned()).collect::<Vec<_>>()];
@@ -219,14 +213,11 @@ impl Sheet {
                 None,
             ]);
         }
-        let (default_row, default_column) = (style.column_header_height, style.column_header_height * 3.0);
         let mut sheet = Self {
-            rows: LineIndex::new(&BTreeMap::new(), default_row, ROWS),
-            columns: LineIndex::new(&BTreeMap::new(), default_column, COLUMNS),
+            rows: LineIndex::new(&BTreeMap::new(), SAMPLE_ROW, ROWS),
+            columns: LineIndex::new(&BTreeMap::new(), SAMPLE_COLUMN, COLUMNS),
             texts,
             numbers,
-            default_row,
-            default_column,
         };
         sheet.set_lines(&BTreeMap::new(), &BTreeMap::new());
         sheet
@@ -234,8 +225,8 @@ impl Sheet {
 
     /// Rows and columns whose size is not the default (0 hides).
     fn set_lines(&mut self, rows: &BTreeMap<u32, f32>, columns: &BTreeMap<u32, f32>) {
-        self.rows = LineIndex::new(rows, self.default_row, ROWS);
-        self.columns = LineIndex::new(columns, self.default_column, COLUMNS);
+        self.rows = LineIndex::new(rows, SAMPLE_ROW, ROWS);
+        self.columns = LineIndex::new(columns, SAMPLE_COLUMN, COLUMNS);
     }
 
     fn stats(&self, selection: &CellSelection) -> SelectionStats {
@@ -321,9 +312,9 @@ fn cell_grid(ui: &mut Ui, _: &mut NoArgs) {
     let tokens = Tokens::of(ui);
     let style = SheetStyle::of(&tokens);
     let demo = shared(ui, "grid", || {
-        let mut sheet = Sheet::new(&labels, &style);
+        let mut sheet = Sheet::new(&labels);
         // The Product column is wide.
-        let columns = BTreeMap::from([(1, sheet.default_column * 1.75)]);
+        let columns = BTreeMap::from([(1, SAMPLE_WIDE_COLUMN)]);
         sheet.set_lines(&BTreeMap::new(), &columns);
         let selection = CellSelection::from_ranges(
             vec![CellRange::new(CellRef::new(2, 1), CellRef::new(5, 3)), CellRange::new(CellRef::new(8, 4), CellRef::new(10, 6))],
@@ -346,7 +337,7 @@ fn cell_grid(ui: &mut Ui, _: &mut NoArgs) {
         let fixes = [labels.fix_convert.as_str(), labels.fix_ignore.as_str()];
         let tag = ErrorTag::new("tag", CellRef::new(3, 4), geometry, &labels.problem_text_number, &fixes).show(ui);
         if let Some(fix) = tag.fix {
-            demo.last = Some(format!("Fix({fix})"));
+            demo.last = Some(format!("{:?}", fixes[fix]));
         }
         for column in 0..COLUMNS {
             let cell = geometry.cell_rect(CellRef::new(0, column));
@@ -357,8 +348,8 @@ fn cell_grid(ui: &mut Ui, _: &mut NoArgs) {
             let button = FilterButton::new(("filter", column), labels.headings()[column as usize])
                 .filtered(column == 2)
                 .sorted((column == 0).then_some(SortOrder::Ascending));
-            if button.show(ui, rect).event.is_some() {
-                demo.last = Some(format!("Filter({column})"));
+            if let Some(event) = button.show(ui, rect).event {
+                demo.last = Some(format!("{event:?}"));
             }
         }
     });
@@ -419,10 +410,8 @@ fn apply_outline(axis: &mut OutlineAxis, action: OutlineAction, rows: bool) {
 // new: two levels of row groups, one collapsed, and a column group.
 fn outline(ui: &mut Ui, _: &mut NoArgs) {
     let labels = TableStoryLabels::of(ui);
-    let tokens = Tokens::of(ui);
-    let style = SheetStyle::of(&tokens);
     let demo = shared(ui, "outline", || OutlineDemo {
-        sheet: Sheet::new(&labels, &style),
+        sheet: Sheet::new(&labels),
         state: GridState::default(),
         rows: OutlineAxis { levels: 2, groups: vec![group(1, 10, 1, false), group(3, 5, 2, true), group(13, 20, 1, false)] },
         columns: OutlineAxis { levels: 1, groups: vec![group(3, 5, 1, false)] },
@@ -753,10 +742,8 @@ struct StatsDemo {
 // new: Average, Count and Sum of a selection.
 fn stats(ui: &mut Ui, _: &mut NoArgs) {
     let labels = TableStoryLabels::of(ui);
-    let tokens = Tokens::of(ui);
-    let style = SheetStyle::of(&tokens);
     let demo = shared(ui, "stats", || StatsDemo {
-        sheet: Sheet::new(&labels, &style),
+        sheet: Sheet::new(&labels),
         shown: StatsShown::default(),
         selection: CellSelection::range(CellRange::new(CellRef::new(1, 4), CellRef::new(12, 6))),
     });
@@ -786,8 +773,6 @@ mod tests {
                 })
                 .build_ui_state(
                     move |ui, args| {
-                        // The reaction emoji have no face in the test fonts.
-                        ui.ctx().set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
                         (story.show)(ui, args);
                     },
                     story.defaults(),
