@@ -3,8 +3,9 @@
 //!
 //! Pickers never block the frame: [`Files::pick`] returns a [`PickId`] at once and the answer
 //! arrives on a later pass through [`Files::take_answer`]. One picker shows at a time; later
-//! requests wait in order. The service remembers the last folder per [`PickRequest::purpose`]
-//! and applies the extension policy to a saved name before the app sees it.
+//! requests wait in order. A request starts in its own [`PickRequest::directory`] when it names
+//! one; otherwise the service starts it in the last folder it remembers for the
+//! [`PickRequest::purpose`]. It applies the extension policy to a saved name before the app sees it.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -46,13 +47,15 @@ pub struct PickRequest {
     /// What to pick.
     pub kind: PickKind,
     /// Groups requests that share a remembered folder (`"document"`, `"export"`, `"swatches"`).
-    /// The picker opens in the folder the last answered request of this purpose chose.
+    /// The picker opens in the folder the last answered request of this purpose chose, unless the
+    /// request names a [`directory`](PickRequest::directory).
     pub purpose: String,
     /// The picker's title, when the platform shows one.
     pub title: Option<String>,
     /// The file types to offer.
     pub filters: Vec<FileFilter>,
-    /// Starting folder when the purpose has no remembered folder.
+    /// Starting folder. It wins over the purpose's remembered folder; a request without one
+    /// starts in the remembered folder.
     pub directory: Option<PathBuf>,
     /// Suggested name for [`PickKind::Save`].
     pub file_name: Option<String>,
@@ -98,7 +101,7 @@ impl PickRequest {
         self
     }
 
-    /// Sets the folder to start in when the purpose has no remembered folder.
+    /// Sets the folder to start in, instead of the purpose's remembered folder.
     pub fn directory(mut self, directory: impl Into<PathBuf>) -> Self {
         self.directory = Some(directory.into());
         self

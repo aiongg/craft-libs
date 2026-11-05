@@ -7,7 +7,8 @@
 //! read the answer from `host.files().take_answer(id)` on a later pass.
 //!
 //! What the user sees: Open and Folder as free-standing panels on macOS, Save as a sheet; the panel
-//! starts in the last folder chosen for the same purpose; a Save that names an existing file the
+//! starts in the request's own folder when it names one (Save As in the document's folder) and
+//! otherwise in the last folder chosen for the same purpose; a Save that names an existing file the
 //! OS panel did not ask about gets the Replace question (PhotoCraft `file_dialog.rs:193
 //! replaces_unasked`); a typed name without an extension gets the suggested one and an uppercase
 //! extension is lowercased (`file_dialog.rs:210 lowercased_extension`, `:365 saved_path`); the two
@@ -265,8 +266,8 @@ impl FilePanels {
         lock(&self.inner).panel_busy = self.dialogs.is_open() || self.dialogs.queued() > 0;
     }
 
-    /// Translates a request into the panel builder: kind, title, filters, the remembered folder
-    /// (else `request.directory`) and the suggested name with its extension.
+    /// Translates a request into the panel builder: kind, title, filters, `request.directory`
+    /// (else the remembered folder) and the suggested name with its extension.
     // pc: apps/photocraft/src/services.rs:192 dialog_file_name, :203 show_file_dialog
     fn file_dialog(&self, request: &PickRequest, last_folder: Option<&Path>) -> FileDialog {
         let mut dialog = FileDialog::new(match request.kind {
@@ -277,7 +278,7 @@ impl FilePanels {
         });
         dialog.title = request.title.clone();
         dialog.filters = request.filters.iter().map(|f| Filter { name: f.name.clone(), extensions: f.extensions.clone() }).collect();
-        dialog.directory = last_folder.map(Path::to_path_buf).or_else(|| request.directory.clone());
+        dialog.directory = request.directory.clone().or_else(|| last_folder.map(Path::to_path_buf));
         if request.kind == PickKind::Save {
             let adds_extension = cfg!(windows) && !request.filters.is_empty();
             dialog.file_name = request.file_name.as_deref().and_then(|name| dialog_file_name(name, adds_extension));
@@ -525,8 +526,8 @@ mod service_tests {
         assert_eq!(log.borrow().len(), 1);
     }
 
-    // The second Open of purpose "document" starts in the folder the first chose; another
-    // purpose does not.
+    // The second Open of purpose "document" starts in the folder the first chose; a request that
+    // names a folder starts there, whatever its purpose remembers.
     #[test]
     fn last_folder_is_remembered_per_purpose() {
         let dir = scratch("folders");
@@ -536,6 +537,7 @@ mod service_tests {
         assert_eq!(service.last_folder("document"), Some(dir.clone()));
         service.pick(PickRequest::open("document"));
         service.pick(PickRequest::open("swatches").directory("/elsewhere"));
+        service.pick(PickRequest::open("document").directory("/elsewhere"));
         panels.pump(NONE);
         let directories: Vec<_> = log
             .borrow()
@@ -545,7 +547,7 @@ mod service_tests {
                 Request::Message(_) => None,
             })
             .collect();
-        assert_eq!(directories, vec![None, Some(dir), Some(PathBuf::from("/elsewhere"))]);
+        assert_eq!(directories, vec![None, Some(dir), Some(PathBuf::from("/elsewhere")), Some(PathBuf::from("/elsewhere"))]);
         assert_eq!(service.last_folder("swatches"), None);
     }
 
