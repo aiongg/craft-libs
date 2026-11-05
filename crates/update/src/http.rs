@@ -17,19 +17,28 @@ const MAX_API: u64 = 16 << 20;
 /// What a GET of a small resource produced.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Fetched {
+    #[allow(missing_docs)]
     Body {
+        /// The response body.
         text: String,
+        /// The response's `ETag`, to send back as `If-None-Match` on the next request.
         etag: Option<String>,
     },
     /// `If-None-Match` matched: the saved copy is current.
     NotModified,
+    #[allow(missing_docs)]
     NotFound,
     /// GitHub's API refused: out of quota until `reset` (Unix seconds), if it said.
     RateLimited {
+        /// Unix seconds at which the quota resets, when the response said.
         reset: Option<i64>,
     },
 }
 
+/// Blocking HTTP client for release lookups and downloads.
+///
+/// Small requests, the release feed, redirect probing and file downloads use separate agents with
+/// their own timeouts. Cloning is cheap and shares nothing mutable.
 #[derive(Clone)]
 pub struct Http {
     small: ureq::Agent,
@@ -45,6 +54,7 @@ pub struct Http {
 /// Why ArtCraft's release feed couldn't be read.
 #[derive(Debug)]
 pub struct FeedError {
+    /// Message for the log, naming the host and the cause.
     pub why: String,
     /// The server answered HTTP 429 Too Many Requests.
     pub throttled: bool,
@@ -420,13 +430,18 @@ const MAX_DOWNLOAD: u64 = 16 << 30;
 /// What a download reports as it goes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Transfer {
+    /// Bytes are arriving.
     Bytes {
+        /// Bytes of the file on disk so far.
         done: u64,
+        /// Size of the whole file in bytes.
         total: u64,
     },
     /// The connection dropped; waiting before trying again.
     Reconnecting {
+        /// Bytes of the file on disk so far.
         done: u64,
+        /// Size of the whole file in bytes.
         total: u64,
     },
 }
@@ -440,10 +455,12 @@ impl Stop {
     const PAUSE: u8 = 1;
     const CANCEL: u8 = 2;
 
+    /// Asks the download to stop and keep its partial file. Has no effect once cancel was asked.
     pub fn pause(&self) {
         let _ = self.0.compare_exchange(Self::RUN, Self::PAUSE, Ordering::SeqCst, Ordering::SeqCst);
     }
 
+    /// Asks the download to stop and delete its partial file. Overrides a pause.
     pub fn cancel(&self) {
         self.0.store(Self::CANCEL, Ordering::SeqCst);
     }
@@ -564,6 +581,7 @@ fn parse_content_range(v: &str) -> Option<(u64, Option<u64>)> {
     Some((start, total))
 }
 
+/// Lowercase hex of `bytes`, two digits per byte.
 pub fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write as _;
     bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut s, b| {

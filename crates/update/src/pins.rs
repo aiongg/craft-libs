@@ -33,9 +33,12 @@ pub const FLATPAK_GRANT: &str = "--filesystem=xdg-data/ArtCraft/versions:ro";
 /// Which published build an app follows. A pinned version never changes on its own.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VersionTrack {
+    /// The newest stable release.
     #[default]
     Stable,
+    /// The newest prerelease.
     Nightly,
+    /// A fixed version label.
     Pinned(String),
 }
 

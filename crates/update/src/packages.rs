@@ -8,6 +8,7 @@ use crate::{App, InstallSource, version};
 /// One installed package that belongs to a Craft App.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Package {
+    /// The package manager that owns the package.
     pub manager: InstallSource,
     /// The package's name (`photocraft-bin`) or Flatpak app id.
     pub name: String,

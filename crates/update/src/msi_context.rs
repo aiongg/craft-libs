@@ -12,7 +12,9 @@
 /// other way round).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MsiScope {
+    #[allow(missing_docs)]
     PerUser,
+    #[allow(missing_docs)]
     PerMachine,
 }
 

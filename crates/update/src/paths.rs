@@ -49,6 +49,7 @@ impl Paths {
         Self { data: root.join("data"), cache: root.join("cache") }
     }
 
+    /// Folder for partial and finished downloads.
     pub fn downloads(&self) -> PathBuf {
         self.cache.join("downloads")
     }

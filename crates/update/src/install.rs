@@ -32,10 +32,15 @@ use crate::process;
 
 /// What an install needs from the backend.
 pub struct Job<'a> {
+    #[allow(missing_docs)]
     pub http: &'a Http,
+    #[allow(missing_docs)]
     pub paths: &'a Paths,
+    /// Checked during the install; set it to pause or cancel.
     pub stop: &'a Stop,
+    /// Called each time the job enters a new phase.
     pub phase: &'a mut dyn FnMut(JobPhase),
+    #[allow(missing_docs)]
     pub install_locations: &'a InstallLocations,
     /// Write over whatever [`occupied`] found.
     pub replace: bool,
@@ -58,6 +63,10 @@ pub fn install(
 
 type RecordCommit<'a> = Option<&'a mut dyn FnMut(&Record) -> Result<(), String>>;
 
+/// [`install`] with an optional `commit` callback.
+///
+/// Only a Windows portable ZIP install calls `commit`: it receives the new record once the
+/// executable is checked, and an error from it fails the install.
 #[allow(clippy::too_many_arguments)]
 pub fn install_at(
     app: &App,

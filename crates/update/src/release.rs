@@ -10,6 +10,7 @@ use crate::version::{self, Version};
 /// One downloadable file of a release.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Asset {
+    /// File name.
     pub name: String,
     /// Bytes; 0 when unknown.
     pub size: u64,
@@ -22,20 +23,26 @@ pub struct Asset {
 /// A published release of one app.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Release {
+    /// The git tag.
     pub tag: String,
+    /// The version parsed from the tag; `None` when the tag is not a version.
     pub version: Option<Version>,
     /// `PhotoCraft v0.5.0`
     pub name: String,
     /// Unix seconds; `None` when only the tag is known.
     pub published_at: Option<i64>,
+    /// Web page of the release.
     pub html_url: String,
     /// Release notes (Markdown), capped.
     pub notes: String,
+    #[allow(missing_docs)]
     pub prerelease: bool,
+    #[allow(missing_docs)]
     pub assets: Vec<Asset>,
 }
 
 impl Release {
+    /// The version as text, or the tag when it is not a version.
     pub fn version_label(&self) -> String {
         self.version.as_ref().map_or_else(|| self.tag.clone(), ToString::to_string)
     }
@@ -49,6 +56,7 @@ impl Release {
         }
     }
 
+    /// The `SHA256SUMS.txt` asset, if the release has one.
     pub fn sums_asset(&self) -> Option<&Asset> {
         self.assets.iter().find(|a| a.name == "SHA256SUMS.txt")
     }
