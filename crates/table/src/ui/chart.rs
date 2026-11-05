@@ -22,8 +22,11 @@ const COLLINEAR: f32 = 1e-3;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum HAlign {
     #[default]
+    #[allow(missing_docs)]
     Left,
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Right,
 }
 
@@ -31,8 +34,11 @@ pub enum HAlign {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum VAlign {
     #[default]
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     Middle,
+    #[allow(missing_docs)]
     Bottom,
 }
 
@@ -41,55 +47,95 @@ pub enum VAlign {
 /// library paints it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChartPrimitive {
+    /// A rectangle.
     Rect {
+        /// Left edge.
         x: f32,
+        /// Top edge.
         y: f32,
+        /// Width.
         w: f32,
+        /// Height.
         h: f32,
+        /// Fill colour; `None` for no fill.
         fill: Option<[u8; 4]>,
+        /// Stroke colour and width; `None` for no stroke.
         stroke: Option<([u8; 4], f32)>,
+        /// Corner radius.
         radius: f32,
     },
+    /// A polyline.
     Line {
+        /// The vertices, in order.
         points: Vec<[f32; 2]>,
+        /// Stroke colour.
         color: [u8; 4],
+        /// Stroke width.
         width: f32,
+        /// Draw dashed.
         dash: bool,
     },
+    /// A filled polygon.
     Polygon {
+        /// The vertices, in order.
         points: Vec<[f32; 2]>,
+        /// Fill colour.
         fill: [u8; 4],
+        /// Stroke colour and width; `None` for no stroke.
         stroke: Option<([u8; 4], f32)>,
     },
     /// A pie or doughnut sector: centre, radii, angles in radians (0 at 12 o'clock, clockwise).
     Wedge {
+        /// Centre x.
         cx: f32,
+        /// Centre y.
         cy: f32,
+        /// Outer radius.
         r_outer: f32,
+        /// Inner radius; 0 for a pie sector, above 0 for a doughnut.
         r_inner: f32,
+        /// Start angle.
         a0: f32,
+        /// End angle.
         a1: f32,
+        /// Fill colour.
         fill: [u8; 4],
+        /// Stroke colour and width; `None` for no stroke.
         stroke: Option<([u8; 4], f32)>,
     },
+    /// A circle.
     Circle {
+        /// Centre x.
         cx: f32,
+        /// Centre y.
         cy: f32,
+        /// Radius.
         r: f32,
+        /// Fill colour; `None` for no fill.
         fill: Option<[u8; 4]>,
+        /// Stroke colour and width; `None` for no stroke.
         stroke: Option<([u8; 4], f32)>,
     },
     /// Text anchored at `(x, y)` by `align` / `valign`, rotated by `rotation` radians about the
     /// anchor; `size` in points.
     Text {
+        /// Anchor x.
         x: f32,
+        /// Anchor y.
         y: f32,
+        /// The text to draw.
         text: String,
+        /// Font size in points.
         size: f32,
+        /// Text colour.
         color: [u8; 4],
+        /// Draw in bold.
         bold: bool,
+        /// Horizontal anchor.
         align: HAlign,
+        /// Vertical anchor.
         valign: VAlign,
+        /// Rotation in radians about the anchor.
         rotation: f32,
     },
 }

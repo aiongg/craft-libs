@@ -33,6 +33,7 @@ struct Pointed {
 }
 
 impl ReferencePicker {
+    /// A picker that inserts references to cells of `sheet`, the sheet being edited.
     pub fn new(sheet: impl Into<String>) -> Self {
         Self { sheet: sheet.into(), caret: 0, point: None, refocus: false }
     }

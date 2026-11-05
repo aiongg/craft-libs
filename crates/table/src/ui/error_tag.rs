@@ -23,10 +23,10 @@ craft_ui::words! {
 use super::grid::CellRef;
 use super::grid::SheetGeometry;
 
-/// Excel's error checking tag (GridCraft): a `sheet.error_tag` square ([`SheetStyle`](super::SheetStyle), not scaled by the zoom)
+/// Excel's error checking tag (GridCraft): a `sheet.error_tag` square ([`SheetStyle`], not scaled by the zoom)
 /// left of `cell` (right of it when it would cover the row headings), not drawn when outside the
 /// cells; the warning-diamond icon in the `status.warn` colour, the problem as tooltip (the app's
-/// words, "Number Stored as Text"); a click opens a [`PressMenu`](craft_ui::menu::PressMenu): the
+/// words, "Number Stored as Text"); a click opens a [`PressMenu`]: the
 /// problem as its title, then the fixes. It senses click and drag, so a press on it never reaches
 /// the grid under it. A Tab stop (AccessKit `Button` with a popup) named
 /// [`ErrorTagLabels::options`]; Enter, Space or Alt+Down opens the menu.
@@ -40,10 +40,12 @@ pub struct ErrorTag<'a> {
 }
 
 impl<'a> ErrorTag<'a> {
+    /// A tag for `cell` in `geometry`, with `problem` as tooltip and menu title and `fixes` as the menu entries.
     pub fn new(id_salt: impl egui::AsIdSalt, cell: CellRef, geometry: &'a SheetGeometry, problem: &'a str, fixes: &'a [&'a str]) -> Self {
         Self { id_salt: IdSalt::new(id_salt), cell, geometry, problem, fixes, labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: ErrorTagLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -64,6 +66,7 @@ impl<'a> ErrorTag<'a> {
     }
 
     // gridcraft: crates/ui-egui/src/grid/menus.rs:416 `error_check_tag`.
+    /// Shows the tag and its menu; the response holds the chosen fix.
     pub fn show(self, ui: &mut Ui) -> ErrorTagResponse {
         let tokens = Tokens::of(ui);
         let style = SheetStyle::of(&tokens);

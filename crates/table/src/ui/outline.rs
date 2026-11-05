@@ -29,17 +29,24 @@ pub const LANE_MIN_ZOOM: f32 = 0.75;
 /// (below or right; before it when `summary_before`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OutlineGroup {
+    /// The group's first line.
     pub start: u32,
+    /// The group's last line.
     pub end: u32,
+    #[allow(missing_docs)]
     pub level: u8,
+    /// Whether the group is collapsed.
     pub collapsed: bool,
+    /// Whether the summary line comes before the group instead of after it.
     pub summary_before: bool,
 }
 
 /// One direction's outline: its deepest level and its groups.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct OutlineAxis {
+    /// The deepest level.
     pub levels: u8,
+    /// The groups of this direction.
     pub groups: Vec<OutlineGroup>,
 }
 
@@ -48,13 +55,23 @@ pub struct OutlineAxis {
 #[non_exhaustive]
 pub enum OutlineAction {
     /// Show levels 1…`level` (the corner buttons 1…n+1).
-    Level { rows: bool, level: u8 },
+    Level {
+        /// True for the row outline, false for the column outline.
+        rows: bool,
+        /// The deepest level to show.
+        level: u8,
+    },
     /// Collapse or expand a group (its − / + button).
-    Toggle { rows: bool, group: OutlineGroup },
+    Toggle {
+        /// True for the row outline, false for the column outline.
+        rows: bool,
+        /// The group to collapse or expand.
+        group: OutlineGroup,
+    },
 }
 
 /// A lane's width at `zoom` (sheet zoom, 1.0 = 100 %): `lane × max(zoom, LANE_MIN_ZOOM)`,
-/// rounded, `lane` being `sheet.outline_lane` ([`SheetStyle`](super::SheetStyle)).
+/// rounded, `lane` being `sheet.outline_lane` ([`SheetStyle`]).
 // gridcraft: crates/ui-egui/src/outline.rs:44 `lane`.
 pub fn lane(lane: f32, zoom: f32) -> f32 {
     (lane * zoom.max(LANE_MIN_ZOOM)).round()
@@ -77,10 +94,12 @@ pub struct OutlineBand<'a> {
 }
 
 impl<'a> OutlineBand<'a> {
+    /// Bands for the `rows` and `columns` outlines, placed by `geometry`.
     pub fn new(id_salt: impl AsIdSalt, rows: &'a OutlineAxis, columns: &'a OutlineAxis, geometry: &'a SheetGeometry) -> Self {
         Self { id_salt: IdSalt::new(id_salt), rows, columns, geometry, labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: OutlineBandLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -116,6 +135,7 @@ impl<'a> OutlineBand<'a> {
 
     // gridcraft: crates/ui-egui/src/outline.rs:88 `Button`, `:96` `Bracket`, `:105` `Layout`,
     // `:113` `bands` and the layout below.
+    /// Shows the bands and reports the buttons pressed.
     pub fn show(self, ui: &mut Ui) -> OutlineBandOutput {
         let Self { id_salt, rows, columns, geometry, labels } = self;
         let zoom = geometry.zoom();
@@ -201,6 +221,7 @@ impl<'a> OutlineBand<'a> {
 /// What the bands did this pass.
 #[must_use]
 pub struct OutlineBandOutput {
+    /// The bands' response.
     pub response: Response,
     /// The buttons pressed this pass, in order.
     pub actions: Vec<OutlineAction>,

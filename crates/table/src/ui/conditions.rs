@@ -37,19 +37,25 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Match {
     #[default]
+    /// Every rule must hold.
     All,
+    /// At least one rule must hold.
     Any,
+    /// No rule may hold.
     None,
 }
 
 /// A value editor kind; the field's kind picks it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ConditionKind {
+    #[allow(missing_docs)]
     Text,
+    #[allow(missing_docs)]
     Number,
-    /// A date, edited with the kernel's [`DatePicker`](craft_ui::controls::DatePicker) (its value
+    /// A date, edited with the kernel's [`DatePicker`] (its value
     /// a [`PickedDate`](craft_ui::controls::PickedDate)).
     Date,
+    #[allow(missing_docs)]
     Bool,
     /// One of the field's choices (an album, a label).
     Choice,
@@ -59,8 +65,11 @@ pub enum ConditionKind {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub enum ConditionValue {
     #[default]
+    /// No value.
     None,
+    /// A text value.
     Text(String),
+    /// A number.
     Number(f64),
     /// Two numbers for "is between".
     Range(f64, f64),
@@ -70,31 +79,43 @@ pub enum ConditionValue {
     DateRange(craft_ui::controls::PickedDate, craft_ui::controls::PickedDate),
     /// "in the last N units".
     Last {
+        /// The number of units.
         n: u32,
+        /// The unit, as the app names it.
         unit: String,
     },
+    /// A yes or no value.
     Bool(bool),
+    /// One of the field's choices, by id.
     Choice(String),
 }
 
 /// One rule.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Condition {
+    /// The field's id, as `ConditionFields::fields` lists it.
     pub field: String,
+    /// The operator's id, as `ConditionFields::operators` lists it.
     pub operator: String,
+    /// The value the operator compares against.
     pub value: ConditionValue,
 }
 
 /// A group of rules and nested groups.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ConditionGroup {
+    /// How the items combine.
     pub matching: Match,
+    /// The rules and nested groups, in order.
     pub items: Vec<ConditionItem>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// One entry of a group: a rule or a nested group.
 pub enum ConditionItem {
+    /// A single rule.
     Rule(Condition),
+    /// A nested group.
     Group(ConditionGroup),
 }
 
@@ -103,6 +124,7 @@ pub enum ConditionItem {
 pub trait ConditionFields {
     /// `(id, label)` in menu order, grouped by `group` headings when given.
     fn fields(&self) -> Vec<(String, String, Option<String>)>;
+    /// The kind of value editor `field` takes.
     fn kind(&self, field: &str) -> ConditionKind;
     /// `(id, label)` of the operators for `field` ("is", "contains", "is between").
     fn operators(&self, field: &str) -> Vec<(String, String)>;
@@ -138,10 +160,12 @@ pub struct ConditionBuilder<'a> {
 }
 
 impl<'a> ConditionBuilder<'a> {
+    /// A builder that edits `group`, offering `fields`.
     pub fn new(id_salt: impl AsIdSalt, group: &'a mut ConditionGroup, fields: &'a dyn ConditionFields) -> Self {
         Self { id_salt: IdSalt::new(id_salt), group, fields, labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: ConditionLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -150,6 +174,7 @@ impl<'a> ConditionBuilder<'a> {
     // lightcraft: crates/ui-egui/src/dialogs/rules_editor.rs:305 `edit`, `:50` `match_combo`,
     // `:135` `value_editor`, `:241` `field_menu`, `:296` `problem_note`; wordcraft:
     // crates/ui-egui/src/dialogs/mailings.rs (filter and sort rows).
+    /// Shows the builder; the response is marked changed when `group` changed.
     pub fn show(self, ui: &mut Ui) -> Response {
         let Self { id_salt, group, fields, labels } = self;
         let labels = labels.unwrap_or_else(|| ConditionLabels::of(ui));
