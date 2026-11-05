@@ -131,6 +131,7 @@ struct Host {
     view: CanvasView,
     doc: Rect,
     overscroll: bool,
+    vertical_only: bool,
     over: bool,
     changed: bool,
     tokens: Option<std::sync::Arc<UiTokens>>,
@@ -143,6 +144,7 @@ impl Host {
             view: CanvasView::new(rect, center, zoom),
             doc: Rect::new(0.0, 0.0, 2000.0, 1500.0),
             overscroll: true,
+            vertical_only: false,
             over: false,
             changed: false,
             tokens: None,
@@ -158,8 +160,11 @@ fn harness(host: Host) -> Harness<'static, Host> {
         .build_ui_state(
             |ui, host: &mut Host| {
                 let names = ScrollbarNames::new("Horizontal scroll bar", "Vertical scroll bar");
-                let ScrollbarsResponse { over, changed } =
-                    CanvasScrollbars::new("bars", names).overscroll(host.overscroll).show(ui, &mut host.view, host.doc);
+                let mut bars = CanvasScrollbars::new("bars", names).overscroll(host.overscroll);
+                if host.vertical_only {
+                    bars = bars.vertical_only();
+                }
+                let ScrollbarsResponse { over, changed } = bars.show(ui, &mut host.view, host.doc);
                 host.tokens = Some(Tokens::of(ui));
                 host.over = over;
                 host.changed |= changed;
@@ -301,4 +306,14 @@ fn the_look_is_the_chrome_track_and_the_muted_hot_thumb() {
     assert_eq!(style.track, tokens.color.surface.chrome.to_egui());
     assert_eq!(style.thumb, tokens.color.text.faint.to_egui());
     assert_eq!(style.thumb_hot, tokens.color.text.muted.to_egui());
+}
+
+#[test]
+fn vertical_only_draws_just_the_vertical_bar() {
+    let mut host = Host::new(1.0, Point::new(1000.0, 750.0));
+    host.vertical_only = true;
+    let mut h = harness(host);
+    h.run();
+    assert!(h.query_by_label("Horizontal scroll bar").is_none(), "no horizontal bar");
+    assert!(h.query_by_label("Vertical scroll bar").is_some(), "the vertical bar is drawn");
 }
