@@ -46,7 +46,7 @@ mod versions_tests;
 pub use annotate::{AnnotateLabels, AnnotateTool, AnnotationOverlay, AnnotationToolbar, AnnotationToolbarOutput};
 pub use comments::{CommentEdit, CommentsLabels, CommentsPanel, CommentsPanelOutput, CommentsPanelState};
 pub use revisions::{RevisionsLabels, RevisionsPanel, RevisionsPanelOutput};
-pub use signature::{SignatureLabels, SignaturePadDialog, SignatureSettings, paint_signature};
+pub use signature::{SignatureLabels, SignaturePadDialog, SignaturePadResult, SignatureSettings, paint_signature};
 pub use style::ReviewStyle;
 pub use thread::{
     CommentComposer, CommentComposerResponse, CommentPins, CommentPinsOutput, PinCluster, PinMove, REACTIONS, ThreadLabels, ThreadPopover,

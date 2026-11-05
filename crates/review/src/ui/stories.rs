@@ -32,7 +32,7 @@ use super::ReviewStyle;
 use super::annotate::{AnnotateTool, AnnotationOverlay, AnnotationToolbar};
 use super::comments::{CommentEdit, CommentsPanel, CommentsPanelState};
 use super::revisions::RevisionsPanel;
-use super::signature::SignaturePadDialog;
+use super::signature::{SignaturePadDialog, SignaturePadResult};
 use super::thread::{CommentPins, ThreadPopover};
 use super::versions::{VersionAction, VersionHistoryPanel};
 use crate::annotate::{Annotation, AnnotationEdit, AnnotationId, AnnotationKind, AnnotationTool};
@@ -487,7 +487,7 @@ fn annotate(ui: &mut Ui, _: &mut NoArgs) {
         apply_annotation(demo, &edit);
     }
     TOOLS.with(|tools| tools.borrow_mut().insert(key, tool));
-    AnnotationOverlay::new(&demo.annotations, &demo.selected).paint(&ui.painter_at(area), |p| view.to_screen(p));
+    AnnotationOverlay::new(&demo.annotations, &demo.selected).paint(&ui.painter_at(area), &Tokens::of(ui), |p| view.to_screen(p));
     last_event(ui, demo.last.as_deref());
 }
 
@@ -525,7 +525,7 @@ fn signature_pad(ui: &mut Ui, args: &mut PadArgs) {
             SignaturePadDialog::new(draft)
         },
         |_| {},
-        |(saved, initials)| format!("{saved:?}, initials: {initials}"),
+        |SignaturePadResult { signature, initials }| format!("{signature:?}, initials: {initials}"),
     );
 }
 

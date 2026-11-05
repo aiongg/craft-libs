@@ -11,7 +11,7 @@ use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::patterns::{Toolbar, ToolbarItem};
 use craft_ui::popover::{Popover, PopoverAnchor};
 use craft_ui::primitives::{Handle, HandleShape};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::text::{LayoutJob, TextFormat};
 use egui::{AsIdSalt, Color32, CursorIcon, EventFilter, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui};
 use kurbo::{Point, Rect, Vec2};
@@ -195,10 +195,23 @@ pub const DEFAULT_STROKE_WIDTH: f64 = 1.0;
 /// highlights (straight RGB).
 pub const DEFAULT_COLOR: [u8; 3] = [0xE0, 0x30, 0x30];
 pub const HIGHLIGHT_COLOR: [u8; 3] = [0xFF, 0xE0, 0x30];
-/// The colours the toolbar offers: the two defaults and a few common comment colours (Acrobat's
-/// colour menu also has "Other Color", which the app may add).
-pub const PALETTE: [[u8; 3]; 7] =
-    [DEFAULT_COLOR, [0xF0, 0x8A, 0x24], HIGHLIGHT_COLOR, [0x3C, 0xA8, 0x4C], [0x2A, 0x6F, 0xDB], [0x8A, 0x4F, 0xC8], [0x00, 0x00, 0x00]];
+/// The colours the toolbar offers: Acrobat's quick colours for comments as PdfCraft carries them
+/// (`crates/ui-egui/src/tools/comments.rs:260` `SWATCHES`, rounded to 8 bits): yellow, orange, red,
+/// pink, purple, blue, light blue, green, grey and black. Acrobat's colour menu also has "Other
+/// Color", which the app may add. Adobe publishes no list of the swatch values, so PdfCraft's
+/// rendering of them is the source.
+pub const PALETTE: [[u8; 3]; 10] = [
+    [255, 240, 0],
+    [255, 138, 0],
+    [227, 33, 33],
+    [255, 94, 163],
+    [138, 64, 209],
+    [0, 120, 214],
+    [92, 191, 250],
+    [46, 158, 92],
+    [128, 128, 128],
+    [0, 0, 0],
+];
 /// The widths the toolbar's width field accepts, in page units.
 const WIDTH_RANGE: std::ops::RangeInclusive<f64> = 1.0..=12.0;
 /// A highlight lets the text show through.
@@ -935,17 +948,17 @@ fn paint_annotation(painter: &Painter, a: &Annotation, to_screen: &impl Fn(Point
 }
 
 impl<'a> AnnotationOverlay<'a> {
-    /// `to_screen` maps page units to screen points (the canvas view).
+    /// `tokens` are the ones the host `Ui` resolves (`Tokens::of(ui)`); `to_screen` maps page units
+    /// to screen points (the canvas view).
     // pdfcraft: crates/ui-egui/src/tools/comments/paint.rs (`drawn_shape`, the handles).
-    pub fn paint(&self, painter: &Painter, to_screen: impl Fn(Point) -> Pos2) {
-        let tokens = craft_ui::theme::current(painter.ctx());
+    pub fn paint(&self, painter: &Painter, tokens: &UiTokens, to_screen: impl Fn(Point) -> Pos2) {
         let scale = (to_screen(Point::new(1.0, 0.0)) - to_screen(Point::ZERO)).length();
-        let icon_points = IconSize::Md.points(&tokens);
-        let text_format = role_format(&tokens, ReviewStyle::of(&tokens).annotation_text, Color32::PLACEHOLDER);
+        let icon_points = IconSize::Md.points(tokens);
+        let text_format = role_format(tokens, ReviewStyle::of(tokens).annotation_text, Color32::PLACEHOLDER);
         for a in self.annotations {
             paint_annotation(painter, a, &to_screen, scale, icon_points, &text_format);
         }
-        let outline = Stroke::new(Handle::style(&tokens, HandleShape::Square).stroke.width, tokens.color.overlay.line.to_egui());
+        let outline = Stroke::new(Handle::style(tokens, HandleShape::Square).stroke.width, tokens.color.overlay.line.to_egui());
         let ppp = painter.ctx().pixels_per_point();
         for a in self.annotations.iter().filter(|a| self.selected.contains(&a.id)) {
             let points = crate::annotate::handles(a);
@@ -965,7 +978,7 @@ impl<'a> AnnotationOverlay<'a> {
                     AnnotationHandle::Box(..) => HandleShape::Square,
                     AnnotationHandle::Point(_) => HandleShape::Round,
                 };
-                painter.extend(Handle::shapes(&tokens, shape, to_screen(at), ppp));
+                painter.extend(Handle::shapes(tokens, shape, to_screen(at), ppp));
             }
         }
     }
