@@ -12,7 +12,7 @@ use craft_ui::theme::{ToEgui as _, current};
 use egui::accesskit::Role;
 use egui::{Align, Context, Frame, Id, Key, Layout, Modal, Modifiers, Sense, Vec2};
 
-use super::style::PageViewStyle;
+use super::style::PagePreviewStyle;
 use super::view::PageSource;
 
 craft_ui::words! {
@@ -59,6 +59,11 @@ pub struct PagePreview<'a> {
 }
 
 impl<'a> PagePreview<'a> {
+    /// The preview's measures, from the tokens.
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> PagePreviewStyle {
+        PagePreviewStyle { room: tokens.component.pages.preview_room }
+    }
+
     /// Preview `pages` (0-based), showing `pages[*at]`.
     pub fn new(id_salt: impl egui::AsIdSalt, source: &'a dyn PageSource, pages: &'a [usize], at: &'a mut usize) -> Self {
         PagePreview { id_salt: egui::IdSalt::new(id_salt), source, pages, at, labels: None }
@@ -117,7 +122,7 @@ impl<'a> PagePreview<'a> {
         let page = pages[*at];
 
         let tokens = current(ctx);
-        let margin = PageViewStyle::of(&tokens).spacing.margin as f32;
+        let margin = Self::style(&tokens).room;
         let button = IconButton::style(&tokens, ControlSize::Md).side;
         let numbers = LocaleNumbers::of_ctx(ctx);
         let name = labels.page_of.replace("{p}", &source.page_label(page)).replace("{n}", &numbers.format(source.page_count() as f64, 0..=0));

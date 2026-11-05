@@ -133,7 +133,17 @@ pub struct HeaderFooterZones<'a> {
 impl<'a> HeaderFooterZones<'a> {
     /// The zones' sizes and strokes, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> HeaderFooterStyle {
-        HeaderFooterStyle::of(tokens)
+        use craft_ui::theme::ToEgui as _;
+        let t = &tokens.component.pages;
+        let c = &tokens.color;
+        HeaderFooterStyle {
+            inset: t.header_footer_inset,
+            hint: egui::Stroke::new(t.header_footer_hint_outline, c.line.control_edge.to_egui()),
+            editing: egui::Stroke::new(t.header_footer_edit_outline, c.accent.solid.to_egui()),
+            neighbour: egui::Stroke::new(t.header_footer_edit_outline, c.line.control_edge.to_egui()),
+            paper: t.paper.to_egui(),
+            ink: t.ink.to_egui(),
+        }
     }
 
     pub fn new(id_salt: impl egui::AsIdSalt, placed: &'a [PlacedPage], bands: &'a dyn Fn(usize) -> ZoneBands) -> Self {

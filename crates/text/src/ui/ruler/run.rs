@@ -97,7 +97,8 @@ struct Pass {
 
 pub(super) fn show(ruler: TextRuler<'_>, ui: &mut Ui, strip: Rect) -> TextRulerResponse {
     let TextRuler { id_salt, values, width, unit, kind, scale, right_to_left, selected, labels } = ruler;
-    let style = Rulers::style(&Tokens::of(ui));
+    let tokens = Tokens::of(ui);
+    let style = Rulers::style(&tokens);
     let width = if width.is_finite() { width.max(0.0) } else { 0.0 };
     let fit = if width > 0.0 { strip.width() / width } else { 1.0 };
     let scale = scale.filter(|scale| scale.is_finite() && *scale > 0.0).unwrap_or(fit).max(f32::EPSILON);
@@ -106,7 +107,7 @@ pub(super) fn show(ruler: TextRuler<'_>, ui: &mut Ui, strip: Rect) -> TextRulerR
         id: ui.make_persistent_id(id_salt),
         g: Geometry { strip, scale, right_to_left, width },
         step: snap_step(&units, scale, style.step_min),
-        shapes: Shapes::of(&style),
+        shapes: Shapes::of(&tokens),
         kind: kind.as_deref().copied().unwrap_or_default(),
         labels: labels.unwrap_or_else(|| TextRulerLabels::of(ui)),
         units,

@@ -157,7 +157,17 @@ pub struct EdgePicker<'a> {
 impl<'a> EdgePicker<'a> {
     /// The picker's sizes and colours, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> crate::ui::EdgePickerStyle {
-        crate::ui::EdgePickerStyle::of(tokens)
+        use craft_ui::theme::ToEgui as _;
+        let t = &tokens.component.pages;
+        crate::ui::EdgePickerStyle {
+            side: t.edge_picker_side,
+            inset: t.edge_picker_inset,
+            fill: t.edge_picker_fill.to_egui(),
+            line_on: t.edge_picker_line_on,
+            line_off: t.edge_picker_line_off,
+            line_off_color: t.edge_picker_line_off_color.to_egui(),
+            line_hover: t.edge_picker_line_hover,
+        }
     }
 
     pub fn new(id_salt: impl egui::AsIdSalt, edges: &'a mut BorderEdges) -> Self {

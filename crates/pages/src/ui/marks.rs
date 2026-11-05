@@ -123,10 +123,25 @@ impl<'a> TextFrameMarks<'a> {
         self
     }
 
+    /// The marks' sizes and colours, from the tokens.
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> FrameMarksStyle {
+        use craft_ui::theme::ToEgui as _;
+        let t = &tokens.component.pages;
+        FrameMarksStyle {
+            port: t.frame_marks_port,
+            port_inset: t.frame_marks_port_inset,
+            overset: t.frame_marks_overset.to_egui(),
+            overset_arm: t.frame_marks_overset_arm,
+            overset_stroke: t.frame_marks_overset_stroke,
+            mark_min: t.frame_marks_mark_min,
+            mark_max: t.frame_marks_mark_max,
+        }
+    }
+
     // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:271 `draw_hidden_characters`;
     // crates/ui-egui/src/canvas/frames.rs:349 `port_pos`, :292 (overset marks).
     pub fn paint(self, painter: &Painter) {
-        let style = FrameMarksStyle::of(&current(painter.ctx()));
+        let style = Self::style(&current(painter.ctx()));
         let line = |color| scale::Stroke::Hairline.egui(painter.ctx(), color);
         if self.hidden_characters {
             for placed in self.marks {

@@ -200,7 +200,13 @@ pub struct ReadingViewResponse {
 impl<'a> ReadingView<'a> {
     /// The view's sizes, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> ReadingStyle {
-        ReadingStyle::of(tokens)
+        let t = &tokens.component.pages;
+        ReadingStyle {
+            column_gap: t.reading_column_gap,
+            nav_bar: t.reading_nav_bar,
+            column_target: t.reading_column_target,
+            column_min: t.reading_column_min,
+        }
     }
 
     pub fn new(id_salt: impl egui::AsIdSalt, source: &'a dyn PageSource, state: &'a mut ReadingState) -> Self {

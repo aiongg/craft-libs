@@ -89,9 +89,19 @@ impl<'a> CellSelectionOverlay<'a> {
         CellSelectionOverlay { geometry, selection }
     }
 
+    /// The overlay's colours, from the tokens.
+    pub fn style(tokens: &craft_ui::theme::UiTokens) -> CellSelectionStyle {
+        use craft_ui::theme::ToEgui as _;
+        let t = &tokens.component.pages;
+        CellSelectionStyle {
+            fill: t.table_selection_fill.to_egui(),
+            outline: egui::Stroke::new(t.table_selection_outline, tokens.color.accent.solid.to_egui()),
+        }
+    }
+
     // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:126 `draw_cell_selection`.
     pub fn paint(self, painter: &Painter) {
-        let style = CellSelectionStyle::of(&current(painter.ctx()));
+        let style = Self::style(&current(painter.ctx()));
         for &range in self.selection.ranges() {
             let rect = self.geometry.rect(range);
             painter.rect_filled(rect, 0.0, style.fill);

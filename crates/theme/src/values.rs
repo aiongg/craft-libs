@@ -1199,6 +1199,10 @@ pub const FONT_PICKER_MISSING_LIST_HEIGHT: f32 = 160.0;
 
 /// Height of the list (PhotoCraft's `styles_panel`).
 pub const TEXT_STYLES_LIST_HEIGHT: f32 = 220.0;
+/// The side of a style tile in the picker's grid view (FigCraft `widgets/style_picker.rs:34` `SWATCH`).
+pub const TEXT_STYLES_TILE_SIDE: f32 = 24.0;
+/// The side of a style's preview square in the chip and the list rows (FigCraft `widgets/style_picker.rs:226`, `:432`).
+pub const TEXT_STYLES_PREVIEW_SIDE: f32 = 14.0;
 
 /// Height of the Glyphs panel's grid, in points (PhotoCraft's `glyphs_panel` scroll area).
 pub const GLYPHS_GRID_HEIGHT: f32 = 260.0;
@@ -1225,6 +1229,10 @@ pub const TEXT_EDITOR_SELECTION_ALPHA: f32 = 110.0 / 255.0;
 /// Underline widths of marked text and of the segment being converted.
 pub const TEXT_EDITOR_PREEDIT_UNDERLINE: f32 = 1.5;
 pub const TEXT_EDITOR_ACTIVE_UNDERLINE: f32 = 3.0;
+/// The size of the notes' default text, points: a notes indent in points scales as `size / this` (DeckCraft `panels/notes.rs:18`, `:118`).
+pub const TEXT_EDITOR_NOTES_POINTS: f32 = 12.0;
+/// The largest notes indent, points (DeckCraft `panels/notes.rs:49`).
+pub const TEXT_EDITOR_NOTES_MAX_INDENT: f32 = 400.0;
 
 /// Points between split view panes (EffectCraft's `view.rs`).
 pub const SPLIT_GAP: f32 = 2.0;
@@ -1285,6 +1293,18 @@ pub const RULER_STEP_MIN: f32 = 60.0;
 pub const RULER_TICK_MID: f32 = 6.0;
 /// Length of the other minor ticks.
 pub const RULER_TICK_MINOR: f32 = 3.0;
+/// Half the width of a text-ruler marker (WordCraft `canvas/rulers.rs:75`, `first - 4.5`).
+pub const RULER_MARKER_HALF: f32 = 4.5;
+/// The height of a text-ruler indent triangle (WordCraft `canvas/rulers.rs:75`, `bar.min.y + 5.0`).
+pub const RULER_MARKER_TIP: f32 = 5.0;
+/// The height of the left indent's box under its triangle (WordCraft `canvas/rulers.rs:80-86`, `bar.max.y - 3.0` to `bar.max.y + 1.0`).
+pub const RULER_MARKER_BAR: f32 = 4.0;
+/// The height of a tab stop's stem (WordCraft `ruler_tabs.rs:91`, `base - 5.0`).
+pub const RULER_MARKER_STEM: f32 = 5.0;
+/// The length of a tab stop's foot, to either side of the stem (WordCraft `ruler_tabs.rs:82`).
+pub const RULER_MARKER_FOOT: f32 = 4.0;
+/// The side of the tab selector's box (WordCraft `ruler_tabs.rs:129`).
+pub const RULER_MARKER_SELECTOR: f32 = 14.0;
 
 /// The control height the Compact options bar sizes are set for.
 pub const OPTIONS_BAR_BASE_CONTROL: f32 = 24.0;
@@ -2267,77 +2287,89 @@ pub const PAGES_WHITE_SPACE_PAD: f32 = 6.0;
 /// The seam Hide White Space draws between pages.
 pub const PAGES_SEAM: f32 = 1.0;
 /// The thumbnail width at zoom 1.
-pub const THUMBNAILS_USUAL_WIDTH: f32 = 150.0;
+pub const PAGES_THUMBNAIL_USUAL_WIDTH: f32 = 150.0;
 /// What the panel keeps free beside the thumbnails.
-pub const THUMBNAILS_PANEL_INSET: f32 = 40.0;
+pub const PAGES_THUMBNAIL_PANEL_INSET: f32 = 40.0;
 /// How far either side of an edge grabs it.
-pub const MARGINS_EDGE_GRAB: f32 = 4.0;
+pub const PAGES_MARGIN_HANDLE_GRAB: f32 = 4.0;
 /// A section's inset from its band, top and bottom.
-pub const HEADER_FOOTER_INSET: f32 = 3.0;
+pub const PAGES_HEADER_FOOTER_INSET: f32 = 3.0;
 /// The dashed outline of a hovered empty section.
-pub const HEADER_FOOTER_HINT_OUTLINE: f32 = 1.0;
+pub const PAGES_HEADER_FOOTER_HINT_OUTLINE: f32 = 1.0;
 /// The edited section's outline and its neighbours'.
-pub const HEADER_FOOTER_EDIT_OUTLINE: f32 = 1.0;
+pub const PAGES_HEADER_FOOTER_EDIT_OUTLINE: f32 = 1.0;
 /// Corner radius of the selection rects.
-pub const TEXT_SELECTION_RADIUS: f32 = 1.0;
+pub const PAGES_TEXT_SELECTION_RADIUS: f32 = 1.0;
 /// The column rectangle's outline while dragging.
-pub const TEXT_SELECTION_COLUMN_OUTLINE: f32 = 1.0;
-/// Alpha of the the selection tint.
-pub const TEXT_SELECTION_FILL_ALPHA: u8 = 70;
+pub const PAGES_TEXT_SELECTION_COLUMN_OUTLINE: f32 = 1.0;
+/// Alpha of the selection tint.
+pub const PAGES_TEXT_SELECTION_FILL_ALPHA: u8 = 70;
 /// Corner radius of the current match.
-pub const FIND_CURRENT_RADIUS: f32 = 2.0;
+pub const PAGES_FIND_CURRENT_RADIUS: f32 = 2.0;
 /// How much the current match grows past the others.
-pub const FIND_CURRENT_GROW: f32 = 1.0;
-/// Alpha of the a match's tint (`find.match`).
-pub const FIND_MATCHED_ALPHA: u8 = 90;
-/// Alpha of the the current match's tint.
-pub const FIND_CURRENT_ALPHA: u8 = 110;
+pub const PAGES_FIND_CURRENT_GROW: f32 = 1.0;
+/// Alpha of a match's tint.
+pub const PAGES_FIND_MATCHED_ALPHA: u8 = 90;
+/// Alpha of the current match's tint.
+pub const PAGES_FIND_CURRENT_ALPHA: u8 = 110;
 /// The bar's outline.
-pub const COLUMN_BAR_OUTLINE: f32 = 1.0;
+pub const PAGES_COLUMN_BAR_OUTLINE: f32 = 1.0;
 /// A divider at rest.
-pub const COLUMN_BAR_DIVIDER: f32 = 1.5;
+pub const PAGES_COLUMN_BAR_DIVIDER: f32 = 1.5;
 /// A divider hovered, dragged or focused.
-pub const COLUMN_BAR_DIVIDER_ACTIVE: f32 = 3.0;
+pub const PAGES_COLUMN_BAR_DIVIDER_ACTIVE: f32 = 3.0;
 /// How far either side of a divider grabs it.
-pub const COLUMN_BAR_GRAB: f32 = 4.0;
+pub const PAGES_COLUMN_BAR_GRAB: f32 = 4.0;
 /// Between columns.
-pub const READING_COLUMN_GAP: f32 = 18.0;
+pub const PAGES_READING_COLUMN_GAP: f32 = 18.0;
 /// Room under the columns for the page-turn bar.
-pub const READING_NAV_BAR: f32 = 44.0;
+pub const PAGES_READING_NAV_BAR: f32 = 44.0;
 /// One column per this much width.
-pub const READING_COLUMN_TARGET: f32 = 295.0;
+pub const PAGES_READING_COLUMN_TARGET: f32 = 295.0;
 /// The least column width.
-pub const READING_COLUMN_MIN: f32 = 192.0;
+pub const PAGES_READING_COLUMN_MIN: f32 = 192.0;
 /// A port's side.
-pub const FRAME_MARKS_PORT: f32 = 8.5;
+pub const PAGES_FRAME_MARKS_PORT: f32 = 8.5;
 /// A port's distance from the frame's corner.
-pub const FRAME_MARKS_PORT_INSET: f32 = 10.0;
+pub const PAGES_FRAME_MARKS_PORT_INSET: f32 = 10.0;
 /// The overset mark's arm length.
-pub const FRAME_MARKS_OVERSET_ARM: f32 = 5.0;
+pub const PAGES_FRAME_MARKS_OVERSET_ARM: f32 = 5.0;
 /// The overset mark's stroke.
-pub const FRAME_MARKS_OVERSET_STROKE: f32 = 1.5;
+pub const PAGES_FRAME_MARKS_OVERSET_STROKE: f32 = 1.5;
 /// The least hidden-character mark size.
-pub const FRAME_MARKS_MARK_MIN: f32 = 6.0;
+pub const PAGES_FRAME_MARKS_MARK_MIN: f32 = 6.0;
 /// The largest hidden-character mark size.
-pub const FRAME_MARKS_MARK_MAX: f32 = 40.0;
+pub const PAGES_FRAME_MARKS_MARK_MAX: f32 = 40.0;
 /// The square's side.
-pub const EDGE_PICKER_SIDE: f32 = 64.0;
+pub const PAGES_EDGE_PICKER_SIDE: f32 = 64.0;
 /// The lines' inset from the square.
-pub const EDGE_PICKER_INSET: f32 = 8.0;
+pub const PAGES_EDGE_PICKER_INSET: f32 = 8.0;
 /// A chosen line.
-pub const EDGE_PICKER_LINE_ON: f32 = 2.5;
+pub const PAGES_EDGE_PICKER_LINE_ON: f32 = 2.5;
 /// A line not chosen.
-pub const EDGE_PICKER_LINE_OFF: f32 = 1.0;
+pub const PAGES_EDGE_PICKER_LINE_OFF: f32 = 1.0;
 /// The line under the pointer.
-pub const EDGE_PICKER_LINE_HOVER: f32 = 3.0;
+pub const PAGES_EDGE_PICKER_LINE_HOVER: f32 = 3.0;
 /// A square's side.
-pub const TABLE_SIZE_CELL: f32 = 16.0;
+pub const PAGES_TABLE_SIZE_CELL: f32 = 16.0;
 /// The space between squares.
-pub const TABLE_SIZE_GAP: f32 = 2.0;
+pub const PAGES_TABLE_SIZE_GAP: f32 = 2.0;
 /// The range outline.
-pub const CELL_SELECTION_OUTLINE: f32 = 1.0;
-/// Alpha of the the selected cells' tint.
-pub const CELL_SELECTION_FILL_ALPHA: u8 = 110;
+pub const PAGES_TABLE_SELECTION_OUTLINE: f32 = 1.0;
+/// Alpha of the selected cells' tint.
+pub const PAGES_TABLE_SELECTION_FILL_ALPHA: u8 = 110;
+/// The room the page preview keeps around the page (PdfCraft `canvas.rs:75` `MARGIN`, the value `pages.margin` has).
+pub const PAGES_PREVIEW_ROOM: f32 = 28.0;
+/// Alpha of an even column's fill in the column bar: 0.11 of the accent (PdfCraft `tools/field_table_ui.rs:362`).
+pub const PAGES_COLUMN_BAR_FILL_ALPHA: u8 = 28;
+/// Alpha of an odd column's fill in the column bar: 0.055 of the accent (PdfCraft `tools/field_table_ui.rs:362`).
+pub const PAGES_COLUMN_BAR_FILL_ALT_ALPHA: u8 = 14;
+/// The margin guides of a page grid: InDesign's magenta (DesignCraft `doc/src/lib.rs:476` `margin_color`).
+pub const GRID_PAGE_MARGINS: Rgba = Rgba::rgb(255, 56, 255);
+/// The column guides of a page grid: InDesign's violet (DesignCraft `doc/src/lib.rs:477` `column_color`).
+pub const GRID_PAGE_COLUMNS: Rgba = Rgba::rgb(166, 40, 255);
+/// The baseline grid's lines: InDesign's light blue (DesignCraft `doc/src/lib.rs:148` `BaselineGrid::default`).
+pub const GRID_PAGE_BASELINE: Rgba = Rgba::rgb(140, 205, 230);
 
 /// Side of a media tile's flag glyph in its badge bar (LightCraft `grid.rs`).
 pub const TILE_FLAG: f32 = 14.0;

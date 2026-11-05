@@ -7,7 +7,7 @@ use super::reading::*;
 use super::style::ReadingStyle;
 
 fn style() -> ReadingStyle {
-    ReadingStyle::of(&current(&egui::Context::default()))
+    ReadingView::style(&current(&egui::Context::default()))
 }
 
 // A 1200 pt wide view gives four columns of at least 192 pt; a requested 612 pt column in a 500 pt view shrinks to the window less two gaps.

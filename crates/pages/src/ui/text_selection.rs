@@ -212,7 +212,17 @@ impl<'a> TextSelectTool<'a> {
 
     /// The tool's colours and sizes, from the tokens.
     pub fn style(tokens: &UiTokens) -> TextSelectStyle {
-        TextSelectStyle::of(tokens)
+        use craft_ui::theme::ToEgui as _;
+        let t = &tokens.component.pages;
+        TextSelectStyle {
+            selection: t.text_selection_fill.to_egui(),
+            found: t.find_match.to_egui(),
+            current: t.find_current.to_egui(),
+            radius: t.text_selection_radius,
+            current_radius: t.find_current_radius,
+            current_grow: t.find_current_grow,
+            column_outline: egui::Stroke::new(t.text_selection_column_outline, tokens.color.accent.solid.to_egui()),
+        }
     }
 }
 
