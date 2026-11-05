@@ -1,7 +1,5 @@
 //! The comments panel (egui_kittest).
 
-#![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
-
 use craft_ui::testing::{HarnessExt as _, symbols};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
