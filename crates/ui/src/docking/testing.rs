@@ -546,6 +546,7 @@ pub struct NativeHost {
     /// [`Self::moves_windows`]: set by the presses and releases given to windows, and by a test
     /// that has the window system report a release before egui does.
     pub held: bool,
+    /// The open native windows by viewport id.
     pub windows: std::collections::HashMap<egui::ViewportId, HostWindow>,
     /// Every command sent to a native window or the main window, in order.
     pub commands: Vec<(egui::ViewportId, egui::ViewportCommand)>,
@@ -568,6 +569,7 @@ pub struct HostWindow {
     /// Desktop rect of its content: where it opened, then moved by `OuterPosition` and
     /// `InnerSize`.
     pub rect: Rect,
+    #[allow(missing_docs)]
     pub visible: bool,
     /// The window level its builder asked for on its last frame.
     pub level: Option<egui::WindowLevel>,

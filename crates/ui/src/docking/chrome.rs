@@ -257,6 +257,7 @@ impl<'a> FloatingFrame<'a> {
         self
     }
 
+    /// Whether the panel can be resized by its edges.
     pub fn resizable(mut self, resizable: bool) -> Self {
         self.resizable = resizable;
         self

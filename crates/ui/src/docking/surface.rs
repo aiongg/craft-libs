@@ -16,6 +16,7 @@ pub struct DockStyle {
     pub body_gap: f32,
     /// Optional gap beside attached side docks. Other split/row dividers retain `gap`.
     pub dock_gap: Option<f32>,
+    /// Smallest size a pane can be resized to, in logical points.
     pub min_pane: f32,
     /// Fill of panel bodies.
     pub background: Color32,
@@ -120,7 +121,7 @@ pub struct DockStyle {
     /// \[D\] Lay docks out right to left: `Side::Start` is the right edge. egui has no app-wide
     /// layout direction, so the host sets this from its locale. Splits keep their sides.
     pub right_to_left: bool,
-    /// [D] Accessibility label of a column bar; `{name}` names the column ([`Self::localized`]).
+    /// \[D\] Accessibility label of a column bar; `{name}` names the column ([`Self::localized`]).
     pub move_column_label: String,
     /// \[D\] Accessibility labels of the column bar's »/« button.
     pub collapse_column_label: String,
