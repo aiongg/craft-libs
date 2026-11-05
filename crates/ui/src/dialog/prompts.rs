@@ -194,7 +194,7 @@ impl StandardPrompt {
         }
     }
 
-    /// The answer a host-side [`confirm`](DialogHost::confirm) gives, as pressing that button
+    /// The answer a host-side [`confirm`](super::DialogHost::confirm) gives, as pressing that button
     /// would; Proceed (the default button) until set.
     pub fn set_choice(&mut self, choice: PromptChoice) {
         self.chosen = choice;
