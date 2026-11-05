@@ -825,9 +825,12 @@ fn start_captions_widen_the_card_and_name_their_marks() {
         let cell = tile(&harness, 0).rect();
         assert_eq!(cell.size(), vec2(100.0 + style.start_caption_width, 100.0), "{direction:?}");
         let panel = harness.get_by_role(Role::ListBox).rect();
+        // The vertical scroll bar sits on the right in both directions, and the arrangement
+        // leaves its room out.
+        let bar = harness.ctx.global_style().spacing.scroll.allocated_width();
         match direction {
             Direction::Ltr => assert!(cell.left() - panel.left() < 2.0 * style.inset, "{cell:?}"),
-            Direction::Rtl => assert!(panel.right() - cell.right() < 2.0 * style.inset, "{cell:?}"),
+            Direction::Rtl => assert!(panel.right() - bar - cell.right() < 2.0 * style.inset, "{cell:?}"),
         }
         assert_eq!(tile(&harness, 2).accesskit_node().label().as_deref(), Some("Tile 2, Has animations"));
     }
