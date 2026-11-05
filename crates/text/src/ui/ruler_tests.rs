@@ -1,10 +1,11 @@
 //! The text ruler in a harness.
 #![allow(clippy::expect_used, reason = "tests")]
 
+use craft_ui::canvas::Rulers;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::units::LengthUnit;
-use craft_ui::theme::{Base, install};
-use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, pos2, vec2};
+use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
+use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Shape, pos2, vec2};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::ruler::*;
@@ -18,10 +19,25 @@ struct App {
     kind: TabAlign,
     right_to_left: bool,
     events: Vec<EditEvent<RulerValues>>,
+    columns: Vec<f32>,
+    column_events: Vec<EditEvent<ColumnBorder>>,
+    /// The shapes painted on the ruler's layer this pass, and the marker colour they are tested for.
+    drawn: Vec<Shape>,
+    marker: egui::Color32,
 }
 
 fn open(values: RulerValues, right_to_left: bool) -> Harness<'static, App> {
-    let app = App { start: values.clone(), values, kind: TabAlign::Left, right_to_left, events: Vec::new() };
+    let app = App {
+        start: values.clone(),
+        values,
+        kind: TabAlign::Left,
+        right_to_left,
+        events: Vec::new(),
+        columns: Vec::new(),
+        column_events: Vec::new(),
+        drawn: Vec::new(),
+        marker: egui::Color32::TRANSPARENT,
+    };
     let mut harness =
         HarnessBuilder::default().with_size(vec2(700.0, 300.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
             |ui, app: &mut App| {
@@ -30,7 +46,18 @@ fn open(values: RulerValues, right_to_left: bool) -> Harness<'static, App> {
                     .kind(&mut app.kind)
                     .scale(Some(1.0))
                     .right_to_left(app.right_to_left)
+                    .columns(&app.columns)
                     .show(ui, STRIP);
+                app.drawn = ui
+                    .ctx()
+                    .graphics(|g| g.get(ui.layer_id()).map(|list| list.all_entries().map(|entry| entry.shape.clone()).collect()).unwrap_or_default());
+                app.marker = Rulers::style(&Tokens::of(ui)).marker.color;
+                if let Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. }) = &response.column
+                    && let Some(border) = app.columns.get_mut(value.index)
+                {
+                    *border = value.position;
+                }
+                app.column_events.extend(response.column.clone());
                 match &response.edit {
                     Some(EditEvent::Begin { .. }) => app.start = app.values.clone(),
                     Some(EditEvent::Cancel { .. }) => app.values = app.start.clone(),
@@ -170,4 +197,59 @@ fn right_to_left_mirrors_positions() {
     harness.state_mut().values = RulerValues::default();
     click(&mut harness, pos2(STRIP.min.x + 72.0, 110.0), PointerButton::Primary);
     assert_eq!(last_value(&harness).expect("a value").stops, [stop(WIDTH - 72.0, TabAlign::Left)]);
+}
+
+/// The marker-coloured line segments painted this pass at the given opacity share.
+fn marker_lines(harness: &Harness<'_, App>, share: f32) -> usize {
+    let app = harness.state();
+    let want = app.marker.gamma_multiply(share);
+    app.drawn.iter().filter(|shape| matches!(shape, Shape::LineSegment { stroke, .. } if stroke.color == want)).count()
+}
+
+// While a stop is dragged off the ruler its glyph is painted at half opacity; back on the ruler it is opaque again.
+#[test]
+fn a_stop_dragged_off_the_ruler_is_painted_faded() {
+    let values = RulerValues { stops: vec![stop(72.0, TabAlign::Left)], ..RulerValues::default() };
+    let mut harness = open(values, false);
+    let glyph = pos2(STRIP.min.x + 72.0, STRIP.max.y - 2.0);
+    assert_eq!(marker_lines(&harness, 0.5), 0, "idle");
+    pointer(&mut harness, glyph, Some((PointerButton::Primary, true)));
+    pointer(&mut harness, glyph + vec2(10.0, 0.0), None);
+    assert_eq!(marker_lines(&harness, 0.5), 0, "on the ruler");
+    pointer(&mut harness, glyph + vec2(30.0, 25.0), None);
+    assert_eq!(marker_lines(&harness, 0.5), 2, "stem and foot");
+    pointer(&mut harness, glyph + vec2(30.0, 0.0), None);
+    assert_eq!(marker_lines(&harness, 0.5), 0, "back on the ruler");
+}
+
+// Delete and Backspace clear the picked stop; Shift+Delete (Cut) does not.
+#[test]
+fn delete_and_backspace_clear_the_picked_stop() {
+    let values = RulerValues { stops: vec![stop(72.0, TabAlign::Left), stop(144.0, TabAlign::Right)], ..RulerValues::default() };
+    for key in [Key::Delete, Key::Backspace] {
+        let mut harness = open(values.clone(), false);
+        click(&mut harness, pos2(STRIP.min.x + 72.0, STRIP.max.y - 2.0), PointerButton::Primary);
+        harness.state_mut().events.clear();
+        harness.key_press_modifiers(Modifiers::SHIFT, key);
+        harness.run();
+        assert!(harness.state().events.is_empty(), "{key:?} with Shift: {:?}", harness.state().events);
+        harness.key_press(key);
+        harness.run();
+        assert_eq!(last_value(&harness).expect("a value").stops, [stop(144.0, TabAlign::Right)], "{key:?}");
+    }
+}
+
+// Dragging the second table border 36 pt right reports one gesture on border 1, snapped; the border's drag shows the widths with Alt.
+#[test]
+fn a_table_column_border_drags_as_one_gesture() {
+    let mut harness = open(RulerValues::default(), false);
+    harness.state_mut().columns = vec![0.0, 144.0, 288.0];
+    harness.run();
+    let from = pos2(STRIP.min.x + 144.0, 110.0);
+    drag(&mut harness, from, &[from + vec2(18.0, 0.0)], from + vec2(36.0, 0.0));
+    let events = &harness.state().column_events;
+    assert_eq!(events.iter().filter(|e| matches!(e, EditEvent::Begin { .. })).count(), 1, "{events:?}");
+    let Some(EditEvent::Commit { value, changed: true, .. }) = events.last() else { panic!("{events:?}") };
+    assert_eq!((value.index, value.position), (1, 180.0));
+    assert!(harness.state().events.is_empty(), "no stop was placed: {:?}", harness.state().events);
 }

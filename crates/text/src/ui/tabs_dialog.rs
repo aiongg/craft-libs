@@ -16,10 +16,10 @@ use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
 use craft_ui::controls::expr::ExprUnits;
 use craft_ui::controls::{Button, Select};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width};
-use craft_ui::edit::{EditEvent, EditResponse};
+use craft_ui::edit::{DraftStep, EditEvent, EditResponse, GestureDraft};
 use craft_ui::list::{Table, TableColumn, TableEvent, TableLayout};
 use craft_ui::localized::units::{LengthUnit, UnitContext};
-use craft_ui::localized::{LocaleNumbers, SharedLabels as _};
+use craft_ui::localized::{LocaleNumbers, SharedLabels as _, fmt};
 use craft_ui::patterns::unit_number_field;
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{Context, Id, Ui};
@@ -33,6 +33,8 @@ craft_ui::words! {
         title: "tabs.title" = "Tabs";
         default_stops: "tabs.defaultStops" = "Default tab stops:";
         position: "tabs.position" = "Tab stop position:";
+        /// The Position column's header (the field label above keeps its colon).
+        position_column: "tabs.positionColumn" = "Position";
         alignment: "tabs.alignment" = "Alignment";
         leader: "tabs.leader" = "Leader";
         left: "tabs.left" = "Left";
@@ -41,6 +43,9 @@ craft_ui::words! {
         decimal: "tabs.decimal" = "Decimal";
         bar: "tabs.bar" = "Bar";
         leader_none: "tabs.leaderNone" = "None";
+        /// A leader option: Word numbers the fills, "1 ……" (the number is the leader's access key
+        /// in Word's list).
+        leader_option: "tabs.leaderOption" = "{n} {fill}";
         set: "tabs.set" = "Set";
         clear: "tabs.clear" = "Clear";
         clear_all: "tabs.clearAll" = "Clear All";
@@ -66,7 +71,7 @@ pub const MAX_STOPS: usize = 64;
 ///
 /// - The stops are a craft-ui [`Table`](craft_ui::list::Table) (columns Position, Alignment,
 ///   Leader; one Tab stop with the list keys and selection) whose cells are a `unit_number_field`
-///   in the unit and two `Select`s (the leader's showing just the fill when closed); editing a
+///   in the unit and two `Select`s (the leader's options numbered as Word's: "1 ……"); editing a
 ///   row in place keeps the table in row order until the edit ends, then
 ///   [`TabStopsDialog::normalize`] restores position order and merges stops moved onto one
 ///   another (the edited row wins).
@@ -88,8 +93,8 @@ pub struct TabStopsDialog {
     layout: TableLayout<Col>,
     /// The row whose position field takes the keyboard in the next pass (a stop Set just added).
     to_edit: Option<usize>,
-    /// The row and position an in-place edit began from, for Esc.
-    before: Option<(usize, f32)>,
+    /// The row an in-place position edit is on and the position it began from, for Esc.
+    draft: Option<(usize, GestureDraft<f32>)>,
 }
 
 /// The stops table's columns.
@@ -122,7 +127,7 @@ impl TabStopsDialog {
             state: DialogState::new(),
             layout: TableLayout { order: vec![Col::Position, Col::Alignment, Col::Leader], hidden: Vec::new(), widths: Vec::new(), sort: None },
             to_edit: None,
-            before: None,
+            draft: None,
         }
     }
 
@@ -335,8 +340,8 @@ impl TabStopsDialog {
     }
 
     fn columns(labels: &TabStopsLabels) -> Vec<TableColumn<Col>> {
-        let column = |key, label: &str| TableColumn::new(key, label.trim_end_matches([':', '\u{ff1a}'])).sortable(false);
-        vec![column(Col::Position, &labels.position), column(Col::Alignment, &labels.alignment), column(Col::Leader, &labels.leader)]
+        let column = |key, label: &str| TableColumn::new(key, label).sortable(false);
+        vec![column(Col::Position, &labels.position_column), column(Col::Alignment, &labels.alignment), column(Col::Leader, &labels.leader)]
     }
 
     /// The stops table; returns the edits its cells made.
@@ -405,34 +410,23 @@ impl TabStopsDialog {
         }
     }
 
-    /// An in-place position edit: rows keep their order until the edit ends.
-    fn apply_position(&mut self, at: usize, event: EditEvent<f32>) {
-        match event {
-            EditEvent::Begin { value, .. } => {
-                self.before = self.stops.get(at).map(|stop| (at, stop.position));
-                if let Some(value) = value {
-                    self.edit_position(at, value);
-                }
-            }
-            EditEvent::Update { value, .. } => self.edit_position(at, value),
-            EditEvent::Commit { value, changed, .. } => {
-                if changed {
-                    self.edit_position(at, value);
-                }
-                self.before = None;
+    /// An in-place position edit: rows keep their order until the edit ends. The draft helper
+    /// restores the position the edit began from on Cancel.
+    pub(super) fn apply_position(&mut self, at: usize, event: EditEvent<f32>) {
+        let Some(mut position) = self.stops.get(at).map(|stop| stop.position) else { return };
+        let (row, mut draft) = match self.draft.take() {
+            Some((row, draft)) if row == at && draft.active() => (row, draft),
+            _ => (at, GestureDraft::new()),
+        };
+        let step = draft.apply(&mut position, event);
+        self.edit_position(row, position);
+        match step {
+            DraftStep::Previewed => self.draft = Some((row, draft)),
+            DraftStep::Committed => {
                 self.edited = self.edited.or(Some(at));
                 self.normalize();
             }
-            EditEvent::Set { value, .. } => {
-                self.edit_position(at, value);
-                self.normalize();
-            }
-            EditEvent::Cancel { .. } => {
-                if let Some((row, position)) = self.before.take() {
-                    self.edit_position(row, position);
-                }
-                self.normalize();
-            }
+            DraftStep::Restored | DraftStep::Set => self.normalize(),
             _ => {}
         }
     }
@@ -464,12 +458,19 @@ fn align_select(ui: &mut Ui, at: usize, labels: &TabStopsLabels, align: &mut Tab
         .show(ui)
 }
 
-/// The leader's options read as their fill, so the closed box shows just the fill.
+/// The leader's options read as Word's list does: "None", then each fill after its number.
 fn leader_select(ui: &mut Ui, at: usize, labels: &TabStopsLabels, leader: &mut TabLeader) -> EditResponse<TabLeader> {
     let mut select = Select::new(("tabs-leader", at), labels.leader.as_str(), leader);
     for kind in TabLeader::ALL {
-        let text = if kind == TabLeader::None { labels.leader_none.as_str() } else { kind.sample() };
-        select = select.option(kind, text);
+        select = select.option(kind, leader_text(labels, kind));
     }
     select.show(ui)
+}
+
+/// A leader option's text: "None", or the fill after its number.
+pub(super) fn leader_text(labels: &TabStopsLabels, kind: TabLeader) -> String {
+    match TabLeader::ALL.iter().position(|other| *other == kind) {
+        Some(n) if kind != TabLeader::None => fmt(&labels.leader_option, &[("n", &n.to_string()), ("fill", kind.sample())]),
+        _ => labels.leader_none.clone(),
+    }
 }

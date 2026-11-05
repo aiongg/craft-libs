@@ -40,6 +40,9 @@ craft_ui::words! {
         left_indent: "textRuler.leftIndent" = "Left Indent";
         right_indent: "textRuler.rightIndent" = "Right Indent";
         tab_selector: "textRuler.tabSelector" = "Tab Selector: {kind}";
+        table_column: "textRuler.tableColumn" = "Table Column Width";
+        /// The drag tooltip: the marker's name and its position in the unit.
+        tip: "textRuler.tip" = "{name}: {value}";
     }
 }
 
@@ -152,6 +155,16 @@ pub fn dropped_off(y: f32, strip: Rect) -> bool {
 /// How far (screen points) past the strip a dragged stop must be to come off.
 const DROP_OFF: f32 = 18.0;
 
+/// A table column border on the ruler (WordCraft `table_ruler.rs`): the table's left edge is
+/// border 0, then the right edge of each cell of the caret's row.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ColumnBorder {
+    pub index: usize,
+    /// Points from the column's start edge. The columns right of the border move along with it:
+    /// only the column left of it changes width.
+    pub position: f32,
+}
+
 /// What the ruler did this pass.
 #[derive(Debug)]
 pub struct TextRulerResponse {
@@ -161,15 +174,18 @@ pub struct TextRulerResponse {
     pub selected: Option<usize>,
     /// A double-click on a stop (Word opens the Tabs dialog).
     pub open_tabs_dialog: bool,
+    /// A table column border dragged ([`TextRuler::columns`]): one gesture per drag.
+    pub column: Option<EditEvent<ColumnBorder>>,
     pub response: Response,
 }
 
 /// The ruler for one paragraph, built per pass in the ruler strip the app lays out (a canvas
 /// ruler, or the Tabs panel's own strip above a text frame).
 ///
-/// - Ticks and numbers in the unit through craft-ui's ruler ticks
-///   ([`Ticks`](craft_ui::canvas::Ticks), [`RulerUnits`](craft_ui::canvas::RulerUnits); the
-///   canvas rulers' style), from the column's start edge; numbers keep clear of the markers
+/// - Ticks and numbers in the unit through the canvas rulers' tick rule
+///   ([`Rulers::ticks`](craft_ui::canvas::Rulers::ticks): inches follow Word's sixteenths,
+///   [`INCH_SIXTEENTHS`](craft_ui::canvas::INCH_SIXTEENTHS); the canvas rulers' style), from the
+///   column's start edge; numbers keep clear of the markers
 ///   (WordCraft #1878). The column takes the ruler's fill, the margins the ruler family's
 ///   `ruler.margin_shade` (the token craft-pages' margin handles read too).
 /// - Indent markers (Word's): the first-line triangle down at the top, the hanging triangle up
@@ -182,12 +198,18 @@ pub struct TextRulerResponse {
 ///   on release; Esc and focus loss Cancel; at most one event a pass.
 /// - The tab selector ([`kind`](Self::kind)) sits in the corner square left of the strip: click
 ///   for the next kind, right-click for the previous, its glyph the kind's.
+/// - A table's column borders ([`columns`](Self::columns), Word's): a grip marker on each border
+///   of the caret row; dragging one reports a [`ColumnBorder`] gesture, snapped like a stop (Alt
+///   free). While Alt is held in the drag, the widths of the columns show between the borders
+///   as the drag leaves them. Pointer only, as in Word; the app's table properties dialog is the
+///   keyboard path. Each marker is an AccessKit Splitter named by the table column word.
 /// - Right-to-left paragraphs mirror the ruler: positions run from the right edge, and the stops'
 ///   feet point the other way.
 /// - Keys (the suite's rule for a set of canvas items, as the guides: one Tab stop, keys move
 ///   inside): Page Down and Page Up pick the next or previous marker or stop, the arrows move the
-///   picked one by the snap step ([`craft_ui::behavior::nudge`]: ⇧ ten steps), Delete clears a
-///   picked stop; each key is one `EditEvent::Set`. Word reaches stops from the keyboard only
+///   picked one by the snap step ([`craft_ui::behavior::nudge`]: ⇧ ten steps), Delete or
+///   Backspace clears a picked stop (both claimed through [`KeyClaim`](craft_ui::behavior::KeyClaim));
+///   each key is one `EditEvent::Set`. Word reaches stops from the keyboard only
 ///   through its dialogs; the suite's rule is every control from the keyboard. Each marker and
 ///   stop is an AccessKit Slider named by its kind ([`TextRulerLabels`]) with its value in the
 ///   unit.
@@ -200,6 +222,7 @@ pub struct TextRuler<'a> {
     scale: Option<f32>,
     right_to_left: bool,
     selected: Option<usize>,
+    columns: &'a [f32],
     labels: Option<TextRulerLabels>,
 }
 
@@ -215,8 +238,17 @@ impl<'a> TextRuler<'a> {
             scale: None,
             right_to_left: false,
             selected: None,
+            columns: &[],
             labels: None,
         }
+    }
+
+    /// The caret row's table column borders, points from the column's start edge: the table's left
+    /// edge first, then the right edge of each cell. Empty (the default) when the caret is not in
+    /// a table.
+    pub fn columns(mut self, borders: &'a [f32]) -> Self {
+        self.columns = borders;
+        self
     }
 
     pub fn labels(mut self, labels: TextRulerLabels) -> Self {

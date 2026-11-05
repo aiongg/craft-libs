@@ -3,8 +3,9 @@
 #![allow(clippy::expect_used, reason = "tests")]
 
 use craft_ui::dialog::{DialogHost, DialogResult};
+use craft_ui::edit::{CancelReason, EditEvent, GestureId};
 use craft_ui::theme::{Base, install};
-use egui::vec2;
+use egui::{Modifiers, vec2};
 use egui_kittest::kittest::Queryable as _;
 use egui_kittest::{Harness, HarnessBuilder};
 
@@ -97,4 +98,29 @@ fn the_dialog_sets_a_stop_and_answers_ok() {
     let answers = &harness.state().answers;
     assert_eq!(answers.len(), 1);
     assert_eq!(answers.first().map(|a| a.stops.clone()), Some(vec![stop(INCH, TabAlign::Left), stop(1.5 * INCH, TabAlign::Left)]));
+}
+
+// Esc in the middle of a position edit puts the stop back at the position the edit began from, and a commit keeps the new one.
+#[test]
+fn cancelling_a_position_edit_restores_the_start() {
+    let mut dialog = TabStopsDialog::new(vec![stop(INCH, TabAlign::Left)], 0.5 * INCH);
+    let id = GestureId::next();
+    dialog.apply_position(0, EditEvent::begin(id));
+    dialog.apply_position(0, EditEvent::update(id, 3.0 * INCH, Modifiers::NONE));
+    dialog.apply_position(0, EditEvent::cancel(id, CancelReason::Escape));
+    assert_eq!(dialog.result().stops, [stop(INCH, TabAlign::Left)]);
+
+    let id = GestureId::next();
+    dialog.apply_position(0, EditEvent::begin(id));
+    dialog.apply_position(0, EditEvent::update(id, 3.0 * INCH, Modifiers::NONE));
+    dialog.apply_position(0, EditEvent::commit(id, 3.0 * INCH, true, Modifiers::NONE));
+    assert_eq!(dialog.result().stops, [stop(3.0 * INCH, TabAlign::Left)]);
+}
+
+// The leader list reads as Word's: None, then each fill after its number.
+#[test]
+fn leader_options_carry_word_numbers() {
+    let labels = TabStopsLabels::default();
+    let texts: Vec<String> = TabLeader::ALL.iter().map(|kind| leader_text(&labels, *kind)).collect();
+    assert_eq!(texts, ["None", "1 ……", "2 ------", "3 ______", "4 ······"]);
 }
