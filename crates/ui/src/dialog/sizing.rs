@@ -971,6 +971,12 @@ impl ImageSizeDialog {
     pub fn fields(&self) -> &LinkedSizeFields {
         &self.fields
     }
+
+    /// The linked fields, for a host that sets the size in pixels
+    /// ([`LinkedSizeFields::set_width`]) whatever unit the dialog shows.
+    pub fn fields_mut(&mut self) -> &mut LinkedSizeFields {
+        &mut self.fields
+    }
 }
 
 impl StackDialog for ImageSizeDialog {
@@ -1199,6 +1205,12 @@ impl CanvasSizeDialog {
     /// The linked fields.
     pub fn fields(&self) -> &LinkedSizeFields {
         &self.fields
+    }
+
+    /// The linked fields, for a host that sets the size in pixels
+    /// ([`LinkedSizeFields::set_width`]) whatever unit the dialog shows.
+    pub fn fields_mut(&mut self) -> &mut LinkedSizeFields {
+        &mut self.fields
     }
 }
 
