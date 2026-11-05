@@ -191,7 +191,7 @@ impl Watcher {
     /// It comes over the same connection as the theme, a change runs the same wake callback, and
     /// [`Watcher::wait_first`] returns after the first read of it. macOS and Windows have no
     /// watcher: reading their settings needs platform bindings, and this crate forbids `unsafe`.
-    /// On the web use [`browser_contrast`].
+    /// On the web use `browser_contrast`.
     pub fn contrast(&self) -> Option<Contrast> {
         match self.shared.contrast.load(Ordering::Acquire) {
             1 => Some(Contrast::Standard),
@@ -205,7 +205,7 @@ impl Watcher {
     /// exists, and on targets without a desktop watcher.
     ///
     /// Wake and [`Watcher::wait_first`] behave as for [`Watcher::contrast`]. On the web use
-    /// [`browser_reduced_motion`].
+    /// `browser_reduced_motion`.
     pub fn reduced_motion(&self) -> Option<bool> {
         match self.shared.motion.load(Ordering::Acquire) {
             1 => Some(false),

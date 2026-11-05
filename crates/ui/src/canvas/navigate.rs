@@ -4,7 +4,7 @@
 //! Controls rows).
 //!
 //! Each piece reads one pass's input and changes a [`CanvasView`] the app copies back into its
-//! own view; zooms go through [`zoom`](super::zoom) and clamp to [`ZoomLadder`](super::ZoomLadder).
+//! own view; zooms go through [`zoom`] and clamp to [`ZoomLadder`].
 //!
 //! ```no_run
 //! use craft_ui::canvas::{CanvasView, navigate::{NavigationOptions, WheelNavigation}, kurbo::Size};
@@ -244,7 +244,7 @@ impl WheelNavigation {
     }
 
     /// Apply `action` to `view` with the pointer at `pointer`: a factor zoom anchors at
-    /// [`zoom::wheel_anchor`](super::zoom::wheel_anchor), a ladder step at the pointer, and both clamp to the ladder's range; a
+    /// [`zoom::wheel_anchor`], a ladder step at the pointer, and both clamp to the ladder's range; a
     /// pan moves the view (within the scroll limits unless `prefs.overscroll`). At a zoom limit
     /// the view stays put, as in Photoshop: a notch past 12800 % neither zooms nor slides the
     /// image toward the pointer. Returns whether the view changed.

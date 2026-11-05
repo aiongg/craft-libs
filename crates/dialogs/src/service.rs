@@ -1,4 +1,4 @@
-//! [`FileService`]: craft-host's [`Files`] over the native panels of [`Dialogs`](crate::Dialogs).
+//! [`FileService`]: craft-host's [`Files`] over the native panels of [`Dialogs`].
 //!
 //! The app builds the pair at startup, installs the service in the Host
 //! (`Host::builder(..).files(Arc::new(service))`) and keeps the [`FilePanels`] on the main thread,

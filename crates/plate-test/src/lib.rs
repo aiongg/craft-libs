@@ -1,6 +1,6 @@
 //! Print-color test scenes for the Craft apps.
 //!
-//! [`scene`] reads the app-neutral scene files in `scenes/`. [`reference`] writes a scene to
+//! [`scene`] reads the app-neutral scene files in `scenes/`. [`mod@reference`] writes a scene to
 //! PDF through craft-pdf, so the shared writer is tested on its own. [`structure`] summarizes a
 //! PDF's print-relevant structure (transparency groups, overprint and soft-mask graphics states,
 //! color spaces, output intents) and checks it against a scene's `structure` block. Apps use

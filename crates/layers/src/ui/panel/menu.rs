@@ -25,7 +25,7 @@ pub(super) const COLLAPSE_ALL: &str = "layers.collapseAll";
 /// The panel menu's Clip Thumbnails to Layer Bounds.
 pub(super) const CLIP_THUMBNAILS: &str = "layers.clipThumbnails";
 
-/// What a panel-menu command asks of the app, from [`run_command`].
+/// What a panel-menu command asks of the app, from [`LayersPanel::run_command`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LayersMenuAction {

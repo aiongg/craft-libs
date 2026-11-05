@@ -92,7 +92,7 @@ pub struct ListTokens {
     pub icon: Rgba,
     /// Icons and the triangle under the pointer: `text.normal`.
     pub icon_hover: Rgba,
-    /// Behind a row under the pointer: an opaque `state.hover` at [`values::LIST_HOVER_OPACITY`],
+    /// Behind a row under the pointer: an opaque `state.hover` at `values::LIST_HOVER_OPACITY`,
     /// moved to stay visible.
     pub hover: Rgba,
     /// Behind the selected row: `state.selected`, moved to reach the non-text minimum on the
@@ -102,7 +102,7 @@ pub struct ListTokens {
     /// non-text minimum on the panel (and to keep its step from `selected` where the theme has one).
     /// Where the theme pins `selected`, the hover fill laid over it.
     pub selected_hover: Rgba,
-    /// Behind every second row of a striped list: `state.hover` at [`values::LIST_STRIPE_OPACITY`]
+    /// Behind every second row of a striped list: `state.hover` at `values::LIST_STRIPE_OPACITY`
     /// (egui's `faint_bg_color`, which PdfCraft's striped tables use), translucent, so the hover
     /// and selected fills laid over it keep their own contrast.
     pub stripe: Rgba,
@@ -116,7 +116,7 @@ pub struct ListTokens {
     /// kind pin its 5.
     pub thumb_radius: f32,
     /// Behind a layer-form row under the pointer: `list.hover` with `accent.solid` at
-    /// [`values::LIST_LAYER_TINT_OPACITY`] laid over it.
+    /// `values::LIST_LAYER_TINT_OPACITY` laid over it.
     pub layer_hover: Rgba,
     /// Behind the selected layer-form row, with or without the pointer: `list.selected`; the themes
     /// whose PhotoCraft kind is not a Pro kind pin `state.hover` with a `layer_outline`.
@@ -761,7 +761,7 @@ fn quiet_on_selected(text: Rgba, fills: &[Rgba; 2], rest: Rgba) -> Rgba {
     readable_on(quiet, fills, rest, false)
 }
 
-/// `hover` with `accent.solid` at [`values::LIST_LAYER_TINT_OPACITY`] laid over it (PhotoCraft
+/// `hover` with `accent.solid` at `values::LIST_LAYER_TINT_OPACITY` laid over it (PhotoCraft
 /// paints the half-opacity hover, then the accent tint), moved to stay visible on the panel. It is
 /// never drawn beside the selected row's fill, so it keeps no step from it. Where the tint would
 /// leave the text unreadable on it (a light accent over a dark hover in high contrast), `hover`

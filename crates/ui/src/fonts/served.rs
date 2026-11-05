@@ -76,7 +76,7 @@ impl Stack {
 
     /// The served faces that draw `c` in `family`, in the order the family asks them: those
     /// whose file maps `c` ([`ServedFace::covers`]) and that are tagged with `c`'s script (see
-    /// [`script_of`]). The family's order puts the UI language's faces first, so a Han character
+    /// `script_of`). The family's order puts the UI language's faces first, so a Han character
     /// takes the face of the UI language's region (Simplified, Traditional, Hong Kong, Japanese or
     /// Korean forms), then the other offered languages' and the rest in manifest order. Letters
     /// of Latin, Greek and Cyrillic take faces such as Noto Sans, not the CJK faces, which carry
@@ -324,7 +324,7 @@ pub(super) fn script_of(c: char) -> Option<&'static str> {
     })
 }
 
-/// [`script_of`] the cluster's first character, with an emoji or text variation selector
+/// `script_of` the cluster's first character, with an emoji or text variation selector
 /// (U+FE0F, U+FE0E) choosing between [`EMOJI`] and [`SYMBOLS`].
 pub(super) fn script_of_cluster(cluster: &str) -> Option<&'static str> {
     let script = script_of(cluster.chars().next()?)?;

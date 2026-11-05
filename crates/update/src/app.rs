@@ -20,7 +20,7 @@ pub struct App {
     /// Its accent colour (sRGB), for the update prompt's buttons and highlights: the app's brand
     /// colour, as ArtCraft Launcher shows it. `None`: the default blue.
     pub accent: Option<[u8; 3]>,
-    /// Who makes it, shown as "by <developer>" in the update prompt. [`DEVELOPER`] unless the app
+    /// Who makes it, shown as "by `<developer>`" in the update prompt. [`DEVELOPER`] unless the app
     /// says otherwise.
     pub developer: &'static str,
 }

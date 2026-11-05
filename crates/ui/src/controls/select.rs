@@ -280,7 +280,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
-    /// A hover tooltip on the last option added, shown after [`Tooltip::DELAY`] on its row; it is
+    /// A hover tooltip on the last option added, shown after `Tooltip::DELAY` on its row; it is
     /// also the row's accessible description.
     pub fn option_tooltip(mut self, text: impl Into<String>) -> Self {
         if let Some(Entry::Option(choice)) = self.entries.iter_mut().rev().find(|e| matches!(e, Entry::Option(_))) {

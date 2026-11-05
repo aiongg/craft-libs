@@ -1,13 +1,13 @@
-//! [`MenuBar`]: a row of menu titles, each opening a [`Menu`](super::Menu), driven as PhotoCraft's
+//! [`MenuBar`]: a row of menu titles, each opening a [`Menu`], driven as PhotoCraft's
 //! bar is.
 //!
 //! A press on a title opens its menu (releasing over a row runs it), a second press or Esc closes
 //! it, and while one is open the pointer moving onto another title opens that one. ← and → at a
 //! menu's top level open the neighbouring menu. F10 puts the keyboard on the bar, and where menus
 //! have [`mnemonics`](super::mnemonics) a tap on Alt does too and Alt+letter opens a menu at once
-//! ([`keys`]). Titles that don't fit move into a trailing "…" menu, or all of
+//! (`keys`). Titles that don't fit move into a trailing "…" menu, or all of
 //! them into one "Menu". The Help menu can start with a search field over every command of the bar
-//! ([`search`]).
+//! (`search`).
 
 mod keys;
 mod search;
@@ -62,7 +62,7 @@ crate::words! {
     }
 }
 
-/// A menu bar: a row of titles, each opening a [`Menu`](super::Menu) of its entries.
+/// A menu bar: a row of titles, each opening a [`Menu`] of its entries.
 ///
 /// ```
 /// use craft_ui::menu::{MenuBar, MenuItem};
@@ -86,7 +86,7 @@ crate::words! {
 /// nothing leaves the menu open. While a menu is open, the pointer moving onto another title opens
 /// that one (a pointer at rest doesn't, so it doesn't undo ← and →).
 ///
-/// Keys: an open menu has the [`Menu`](super::Menu)'s keys, and ← / → at its top level open the
+/// Keys: an open menu has the [`Menu`]'s keys, and ← / → at its top level open the
 /// neighbouring menu, wrapping (mirrored right to left, where the titles run from the right).
 ///
 /// - F10 puts the keyboard on the bar: the first title is lit, ← / → move, ↓, Enter and Space

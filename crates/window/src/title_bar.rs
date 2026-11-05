@@ -9,7 +9,7 @@
 //! app (that is how the strip's own controls work), and AppKit does not zoom the window. It does
 //! move the window when a drag starts anywhere in the band, on the strip's controls and on any
 //! in-window panel that lies over the band, unless the window is not movable. [`window_movable`]
-//! says when the pointer is on one of those, and [`sync_movable`] sets the window's `movable` flag
+//! says when the pointer is on one of those, and `sync_movable` sets the window's `movable` flag
 //! from it before the press. Both are per viewport: each window of the app has its own flag.
 //!
 //! In full screen the strip is not a title bar: neither a drag nor a double-click acts on the

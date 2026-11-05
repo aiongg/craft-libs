@@ -4,7 +4,7 @@
 //!
 //! A control whose edit response is public ([`Slider`](crate::controls::Slider),
 //! [`NumberField`](crate::controls::NumberField)) reports its operations through the context
-//! instead ([`report`], [`take`]).
+//! instead (`report`, [`take`]).
 
 use egui::{Context, Id, Modifiers, ViewportId};
 
@@ -56,7 +56,7 @@ pub(crate) fn report<O: Clone + Send + Sync + 'static>(ctx: &Context, id: Id, mu
     });
 }
 
-/// The operations control `id` [reported](report) in this pass, taken: a second call returns
+/// The operations control `id` reported in this pass, taken: a second call returns
 /// none.
 pub fn take<O: Clone + Send + Sync + 'static>(ctx: &Context, id: Id) -> Vec<O> {
     let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());

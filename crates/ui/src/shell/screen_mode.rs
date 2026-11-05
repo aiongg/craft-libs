@@ -117,7 +117,7 @@ crate::words! {
 /// first gave a clean full screen and a work-area maximize.]
 ///
 /// WORKAROUND(winit#4756): remove `keep_apart` once the winit in Cargo.lock (0.30.13 today) has
-/// the fix; check first with https://gist.github.com/aweussom/3f80ffb82df7f0102341858afbbffd9b
+/// the fix; check first with <https://gist.github.com/aweussom/3f80ffb82df7f0102341858afbbffd9b>
 /// (`--max`, no `--fix`: full screen must have no WS_MAXIMIZE and hide the taskbar).
 pub fn full_screen_commands(ctx: &Context, window: &WindowKey, mode: ScreenMode, keep_apart: bool) -> Vec<ViewportCommand> {
     let (full_screen, maximized) = ctx.input(|i| (i.viewport().fullscreen.unwrap_or(false), i.viewport().maximized.unwrap_or(false)));

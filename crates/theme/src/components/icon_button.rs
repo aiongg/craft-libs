@@ -13,9 +13,9 @@ use crate::values;
 pub struct IconButtonTokens {
     /// Side of the square: the control height.
     pub size: BySize<f32>,
-    /// Glyph size: the Size's icon less [`values::ICON_BUTTON_GLYPH_LESS`].
+    /// Glyph size: the Size's icon less `values::ICON_BUTTON_GLYPH_LESS`.
     pub icon: BySize<f32>,
-    /// Diameter of the badge dot: [`values::ICON_BUTTON_BADGE_RATIO`] of the Size's icon. Not
+    /// Diameter of the badge dot: `values::ICON_BUTTON_BADGE_RATIO` of the Size's icon. Not
     /// overridable.
     pub badge: BySize<f32>,
     /// Colours while toggled on (`on_*`) and while toggled on and disabled (`on_disabled_*`), the

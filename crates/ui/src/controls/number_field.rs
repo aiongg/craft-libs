@@ -459,8 +459,8 @@ impl<'a> NumberField<'a> {
         self
     }
 
-    /// Whether typed arithmetic ([`expr::parse`](super::expr::parse)) and relative entries
-    /// ([`expr::relative`](super::expr::relative): `*2`, `/4` on the field's value) are read on the
+    /// Whether typed arithmetic ([`expr::parse`]) and relative entries
+    /// ([`expr::relative`]: `*2`, `/4` on the field's value) are read on the
     /// commit, after the locale's plain number and before an [`or_parse`](NumberField::or_parse)
     /// reader. On by default; `false` leaves a field to plain numbers. The text is handed over
     /// with the region's decimal mark as `.` and ASCII digits.
@@ -1292,7 +1292,7 @@ impl FieldRule {
 }
 
 /// The value `op` gives a field at `from` under `rule`, settled ([`FieldRule::settle`]). Presses
-/// step as the arrow keys do ([`stepped`](crate::localized::stepped)): Shift ten steps, Ctrl/Cmd
+/// step as the arrow keys do (`stepped`): Shift ten steps, Ctrl/Cmd
 /// a tenth; a field without a step leaves `from`. A move to a bound that is open leaves `from`.
 pub fn apply(op: &ScalarOp, from: f64, rule: &FieldRule) -> f64 {
     let stepping = rule.step != 0.0 && rule.step.is_finite();

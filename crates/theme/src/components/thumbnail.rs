@@ -15,7 +15,7 @@ pub struct ThumbnailTokens {
     pub checker_a: Rgba,
     /// The other checkerboard cell: `thumbnail.checker.b`.
     pub checker_b: Rgba,
-    /// Side of a checkerboard cell: [`values::THUMBNAIL_CHECKER_CELL`].
+    /// Side of a checkerboard cell: `values::THUMBNAIL_CHECKER_CELL`.
     pub checker_cell: f32,
     /// The cell while no picture has arrived: `surface.sunken`, the field's resting fill.
     pub placeholder: Rgba,

@@ -53,7 +53,7 @@ pub struct FeedError {
 }
 
 /// `http://<loopback host>:<port>` and an optional path: the host must be exactly 127.0.0.1,
-/// localhost or [::1] (no `user@` in front of another host), with a numeric port.
+/// localhost or `::1` (no `user@` in front of another host), with a numeric port.
 pub fn is_loopback(url: &str) -> bool {
     let Some(rest) = url.strip_prefix("http://") else { return false };
     let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();

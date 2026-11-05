@@ -119,7 +119,7 @@ pub enum ToolCursor {
     /// The system arrow with a badge beside it.
     Arrow { badge: Option<CursorBadge> },
     /// `cursor` with `badge` centred on the hotspot: the + or − inside a brush circle
-    /// ([`BrushCursor::badge`](crate::canvas::BrushCursor::badge)).
+    /// (`BrushCursor::badge`).
     Badged { cursor: Box<ToolCursor>, badge: CursorBadge },
     /// No pointer: the tool paints its own (a text caret, a transform box's turn arrow).
     Hidden,

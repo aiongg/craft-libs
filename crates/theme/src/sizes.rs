@@ -1,7 +1,7 @@
 //! Size sets: the numbers behind a Size choice. A set holds the base values (what the semantic
 //! `size`, `space`, `shape` and `typography` tokens start from) and the component values that
 //! differ by set. The built-in sets are the JSON files in `sizes/`, read by
-//! [`format::parse_sizes`](crate::format::parse_sizes).
+//! [`format::parse_sizes`].
 
 use std::sync::LazyLock;
 

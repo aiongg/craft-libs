@@ -72,9 +72,9 @@ const FOOTER_BUTTONS: usize = 7;
 /// if let Some(preview) = out.drop_preview { canvas.preview(preview) }
 /// ```
 ///
-/// Top to bottom: the filter bar ([`LayerFilterBar`](super::filter::LayerFilterBar), while
+/// Top to bottom: the filter bar ([`LayerFilterBar`], while
 /// Show Filters is on and [`filter_bar`](Self::filter_bar) is not off), the blend, Opacity, Lock
-/// and Fill rows ([`BlendRows`](super::rows::BlendRows) over `tree.properties()`), the rows (a
+/// and Fill rows ([`BlendRows`] over `tree.properties()`), the rows (a
 /// [`List`](craft_ui::list::List) in tree mode filling the height left), the footer. Row heights
 /// and thumbnail sizes come from the Size preset's `list.*` tokens and the Panel Options'
 /// thumbnail size.
@@ -278,7 +278,7 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
     /// Draws the panel over the available rect.
     ///
     /// Builds the pass's `PanelContext`, then in order: the filter bar (its edits change the
-    /// filter; no event), [`BlendRows`](super::rows::BlendRows) (its edits are
+    /// filter; no event), [`BlendRows`] (its edits are
     /// [`LayersEvent::Properties`]), the rows (`body::show_body` over
     /// `body::shared_display_rows`, with `drag::reorder`; the reveal's opens are listed open in the same pass), the row menus (`menu::show_row_menus`),
     /// the footer (`footer::show_footer`). Events are reported in that order; the drop preview

@@ -117,7 +117,7 @@ impl Words {
         Words::new(lookup).with_plural(move |_, n, one, other| Some(i18n.trn(lang, n, one, other)))
     }
 
-    /// The words of the installed [`Host`]: its catalogs in its language, English without a Host
+    /// The words of the installed `Host`: its catalogs in its language, English without a Host
     /// or a catalog. The same `Arc` comes back until the Host is installed again.
     pub fn of(ui: &Ui) -> Arc<Words> {
         Words::of_ctx(ui.ctx())

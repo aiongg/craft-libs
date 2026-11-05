@@ -37,7 +37,7 @@ type Decorate = Box<dyn Fn(ViewportBuilder) -> ViewportBuilder>;
 /// - **Nested dialogs.** [`PreferencesModel::nested`] draws them inside this window's viewport.
 /// - **Chrome.** [`builder`](PreferencesWindow::builder) takes `craft_window::decorate`.
 /// - **Size and position.** With the `window-restore` feature,
-///   [`remember`](PreferencesWindow::remember) keeps them per app.
+///   `remember` keeps them per app.
 ///
 /// # Quit on macOS
 ///

@@ -139,7 +139,7 @@ impl Curve {
     }
 
     /// The output of every input level `0..=levels` through `points` (normalised first, see
-    /// [`Curve::normalised`]), of which
+    /// `Curve::normalised`), of which
     /// `corners` marks corner points (PhotoCraft's `contour_curve_lut`): the points are split at
     /// the corners into runs `[start..=corner]`, each run is `smooth` (the host's interpolation of
     /// those points alone, constant outside its end points), and each run owns the inputs from its
@@ -325,7 +325,7 @@ pub struct CurveRules {
 
 impl CurveRules {
     /// Adds a point at `v`, kept sorted, and returns its index. A point within
-    /// [`SAME_POINT`] input levels of `v` is returned instead; a full curve takes none.
+    /// `SAME_POINT` input levels of `v` is returned instead; a full curve takes none.
     pub fn insert(&self, points: &mut Vec<[f32; 2]>, v: [f32; 2]) -> Option<usize> {
         if !v.iter().all(|x| x.is_finite()) {
             return None;

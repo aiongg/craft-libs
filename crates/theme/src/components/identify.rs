@@ -39,7 +39,7 @@ thread_local! {
 pub(super) struct Identify<'a> {
     /// The fills it sits on; it reaches the non-text minimum on each.
     pub on: &'a [Rgba],
-    /// Fills it touches that it also keeps a [`values::LIST_HOVER_MIN`] step from (a selected row
+    /// Fills it touches that it also keeps a `values::LIST_HOVER_MIN` step from (a selected row
     /// beside its hovered state).
     pub apart: &'a [Rgba],
     /// An edge that identifies the state as well: when it reaches the minimum on every fill in

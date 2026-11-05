@@ -349,7 +349,7 @@ fn record_open(ctx: &egui::Context, popup: Id, open: bool) {
 /// as it was at the end of the last pass (or this one, once the menu has been drawn).
 ///
 /// An open menu has the keyboard: it takes the typing keys it is drawn after, but an app that
-/// handles its single-key shortcuts (B for a brush, [ and ] for its size) before drawing its
+/// handles its single-key shortcuts (B for a brush, \[ and \] for its size) before drawing its
 /// menus skips them while this is true, as native menus swallow those keys. Command shortcuts
 /// (Ctrl+S) may run; [`bar::leave_for_shortcut`](super::bar::leave_for_shortcut) covers a menu
 /// bar that has the keyboard with no menu open.

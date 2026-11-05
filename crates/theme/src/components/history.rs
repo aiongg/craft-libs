@@ -8,9 +8,9 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct HistoryTokens {
-    /// Side of a snapshot's thumbnail: [`values::HISTORY_SNAPSHOT_THUMB`].
+    /// Side of a snapshot's thumbnail: `values::HISTORY_SNAPSHOT_THUMB`.
     pub snapshot_thumb: f32,
-    /// Width of the Undo list's popup: [`values::HISTORY_UNDO_LIST_WIDTH`].
+    /// Width of the Undo list's popup: `values::HISTORY_UNDO_LIST_WIDTH`.
     pub undo_list_width: f32,
 }
 

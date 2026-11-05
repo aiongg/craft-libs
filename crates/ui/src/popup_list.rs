@@ -45,8 +45,8 @@ pub(crate) fn in_front_of(ctx: &Context, host: LayerId, popup: Id) {
 /// while it is open. It is never taller than the room on that side: a long list scrolls.
 ///
 /// A header (a search field) and a footer (an "Add…" row) stay in place while only the list
-/// scrolls. [`Self::show_rows_with_header`] is for rows of one height; rows of different heights,
-/// or a tree, use [`Self::show_ui_with_header`].
+/// scrolls. `Self::show_rows_with_header` is for rows of one height; rows of different heights,
+/// or a tree, use `Self::show_ui_with_header`.
 #[must_use = "You should call .show*"]
 pub struct PopupList<'a> {
     popup: Popup<'a>,
@@ -148,7 +148,7 @@ impl<'a> PopupList<'a> {
         self.show(header, |scroll, ui, h| scroll.show(ui, |ui| list(ui, h)).inner, None::<fn(&mut Ui)>).map(|(r, _)| r)
     }
 
-    /// Like [`Self::show_ui_with_header`], with a list of `total_rows(&header's)` rows, each
+    /// Like `Self::show_ui_with_header`, with a list of `total_rows(&header's)` rows, each
     /// `row_height` tall without the item spacing, that only lays out the rows in view: `rows`
     /// gets the range to add, as in [`ScrollArea::show_rows`], and what `header` returned.
     pub(crate) fn show_rows_with_header<H, R>(
@@ -161,7 +161,7 @@ impl<'a> PopupList<'a> {
         self.show(header, rows_list(row_height, total_rows, rows), None::<fn(&mut Ui)>).map(|(r, _)| r)
     }
 
-    /// Like [`Self::show_ui_with_header`], with `footer` fixed under the list. Returns what `list`
+    /// Like `Self::show_ui_with_header`, with `footer` fixed under the list. Returns what `list`
     /// and `footer` returned.
     pub(crate) fn show_ui_with_header_footer<H, R, F>(
         self,
@@ -172,7 +172,7 @@ impl<'a> PopupList<'a> {
         self.show(header, |scroll, ui, h| scroll.show(ui, |ui| list(ui, h)).inner, Some(footer)).and_then(|(r, f)| Some((r, f?)))
     }
 
-    /// Like [`Self::show_rows_with_header`], with `footer` fixed under the list.
+    /// Like `Self::show_rows_with_header`, with `footer` fixed under the list.
     pub(crate) fn show_rows_with_header_footer<H, R, F>(
         self,
         header: impl FnOnce(&mut Ui) -> H,
@@ -395,7 +395,7 @@ struct OpenList {
 }
 
 /// The [`PopupList`]s whose contents are being drawn, innermost last, per viewport. A popup
-/// [recorded](record_open) open while one draws is that popup's child.
+/// recorded open while one draws is that popup's child.
 #[derive(Clone, Default)]
 pub(crate) struct Drawing(Vec<Id>);
 
@@ -484,7 +484,7 @@ pub(crate) fn family(ctx: &Context, popup: Id) -> Vec<Id> {
 }
 
 /// Whether a popup is open in this viewport: one in egui's popup memory ([`Popup::is_any_open`]:
-/// menus, context menus) or a list [recorded](record_open) open at the end of the last pass or
+/// menus, context menus) or a list recorded open at the end of the last pass or
 /// earlier in this one. Keys a popup takes while it is open (Tab in a select's list) are read at
 /// the start of a pass, before the popup's owner runs, so this is what a control reads to leave
 /// them alone.

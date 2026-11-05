@@ -79,16 +79,16 @@ craft_ui::words! {
 /// }
 /// ```
 ///
-/// - **Row 1**: the blend [`Select`](craft_ui::controls::Select) (Small) with `blend_modes` and
+/// - **Row 1**: the blend [`Select`] (Small) with `blend_modes` and
 ///   their separators, then "Opacity:" as a scrub label and a Small
-///   [`NumberField`](craft_ui::controls::NumberField) 0 to 100 % with its pop-up slider,
+///   [`NumberField`] 0 to 100 % with its pop-up slider,
 ///   `layers.percent_field_width` of text plus the pop-up arrow wide. A wheel notch over the closed select steps one mode
 ///   (`Set` each); hovering a mode in the open list reports `BlendHover`. The "Opacity:" label
 ///   hides when `available < label + field + 2 gaps + layers.blend.label_slack +
 ///   layers.blend.min_width`, and the select takes the rest of the row (at least
 ///   `layers.blend.floor_width`). The rows are `layers.blend.row_gap` apart.
 /// - **Row 2** (with [`locks`](Self::locks)): "Lock:", five Small toggle
-///   [`IconButton`](craft_ui::controls::IconButton)s in [`LockKind::ALL`] order (Lock image pixels
+///   [`IconButton`]s in [`LockKind::ALL`] order (Lock image pixels
 ///   disables Lock transparent pixels), then "Fill:" and its field as Opacity's, right-aligned in
 ///   one column with it. The "Lock:" label drops before the Fill label would run over the lock
 ///   icons.

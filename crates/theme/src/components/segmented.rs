@@ -25,7 +25,7 @@ pub struct SegmentedTokens {
     /// Label type role.
     pub label: TypeRole,
     /// Pills that are not selected: transparent until hovered, then `state.hover` at
-    /// [`values::SEGMENT_HOVER_OPACITY`]; `text.muted`.
+    /// `values::SEGMENT_HOVER_OPACITY`; `text.muted`.
     pub segment: ItemColors,
     /// The selected pill: `text.normal` on `state.hover`. In high contrast the fill or its edge
     /// reaches the non-text minimum on the panel and on a popup.

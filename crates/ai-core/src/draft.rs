@@ -239,7 +239,7 @@ pub struct ConnectionDraft {
     pub billing: Billing,
     pub uses_key: bool,
     /// Text typed into the key box. Empty while editing means "keep the saved key". It is a plain
-    /// string only because a text box needs one; [`Debug`] never prints it and [`prepare`]
+    /// string only because a text box needs one; [`Debug`] never prints it and [`Self::prepare`]
     /// (Self::prepare) turns it into a [`SecretString`].
     pub key: String,
     /// Header that carries the key; empty sends it as `Authorization: Bearer`.
@@ -329,7 +329,7 @@ impl ConnectionDraft {
     /// A test is not instant and the address stays editable while it runs, so its answer can
     /// arrive after the address has changed, or after a later test at the new address has already
     /// answered. Recording it then would file one endpoint's models under another, which is what
-    /// [`models_fit`](Self::models_fit) exists to prevent. An answer is therefore taken only while
+    /// `models_fit` exists to prevent. An answer is therefore taken only while
     /// the field still holds the address it was asked of, and a late one is dropped. Returns
     /// whether the models were taken, so a caller can say "this result is out of date".
     ///

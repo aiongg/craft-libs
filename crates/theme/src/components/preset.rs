@@ -38,17 +38,17 @@ pub struct PresetTokens {
     pub popup_max_height: f32,
     /// The gap between the browser's list and its own footer: `gap.inline`.
     pub footer_room: f32,
-    /// Least thumbnail side in a list row: [`values::PRESET_THUMB_LIST_MIN`].
+    /// Least thumbnail side in a list row: `values::PRESET_THUMB_LIST_MIN`.
     pub thumb_list_min: f32,
-    /// Greatest thumbnail side in a list row: [`values::PRESET_THUMB_LIST_MAX`].
+    /// Greatest thumbnail side in a list row: `values::PRESET_THUMB_LIST_MAX`.
     pub thumb_list_max: f32,
-    /// Side of the thumbnail in the drag ghost: [`values::PRESET_GHOST_THUMB`].
+    /// Side of the thumbnail in the drag ghost: `values::PRESET_GHOST_THUMB`.
     pub ghost_thumb: f32,
     /// Between toolbar and footer buttons: `gap.inline`.
     pub toolbar_gap: f32,
-    /// Width of the ring on a hovered cell, outside it: [`values::PRESET_RING_HOVER_WIDTH`].
+    /// Width of the ring on a hovered cell, outside it: `values::PRESET_RING_HOVER_WIDTH`.
     pub ring_hover_width: f32,
-    /// Width of the contrast line outside the selected ring: [`values::PRESET_RING_HALO_WIDTH`].
+    /// Width of the contrast line outside the selected ring: `values::PRESET_RING_HALO_WIDTH`.
     pub ring_halo_width: f32,
     /// The 1 point frame inside each cell that is not flush: `preset.border`, `line.border`. A
     /// design target with no contrast minimum.

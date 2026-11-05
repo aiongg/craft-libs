@@ -506,8 +506,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     }
 
     /// Empty room in a list: a row that takes its height but draws nothing, answers no pointer
-    /// and has no AccessKit node. Give its position [`DisplayOrder::is_section`] so that keys and
-    /// clicks skip it, and its height through [`List::heights`].
+    /// and has no AccessKit node. Give its position `DisplayOrder::is_section` so that keys and
+    /// clicks skip it, and its height through `List::heights`.
     pub fn spacer(key: K) -> Self {
         let mut row = Self::new(key, String::new());
         row.spacer = true;

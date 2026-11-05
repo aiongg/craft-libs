@@ -11,7 +11,7 @@ use craft_theme::{Channel, ColorModel, DefaultOn, MAX_CHANNELS, ModelValues, Srg
 /// A host offers it by passing it to the picker
 /// ([`ColorPicker::models`](crate::ui::ColorPicker::models)); the
 /// [`ColorPickerDialog`](crate::ui::ColorPickerDialog) adds it when it is given a
-/// [`gamut`](crate::ui::ColorPickerDialog::gamut). Inks the user typed stay as typed while they
+/// `ColorPickerDialog::gamut`. Inks the user typed stay as typed while they
 /// still give the colour ([`PickedColor::model`](crate::ui::PickedColor::model)): a CMYK document
 /// fills with them, not with what its sRGB stand-in converts back to (PhotoCraft #4196).
 #[derive(Clone)]

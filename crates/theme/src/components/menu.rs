@@ -117,7 +117,7 @@ pub struct MenuTint {
 
 impl MenuTint {
     /// The tint of `color` (its alpha scales the strength) for a menu on the popup card `base`
-    /// with the text colours of `c`. It starts at [`values::MENU_TINT_ALPHA`] of the colour; `text.normal` and `text.muted`
+    /// with the text colours of `c`. It starts at `values::MENU_TINT_ALPHA` of the colour; `text.normal` and `text.muted`
     /// then move in OKLCH lightness until they reach the text minimum (4.5:1, 7:1 with `high`)
     /// on the fill. When they can't, the alpha drops by 0.01 until they do; at 0 the fill is the
     /// card itself. The check and radio marks and the arrow use the label colour, which has

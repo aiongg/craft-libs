@@ -73,7 +73,7 @@ impl WheelGeometry {
         self.center + hue_direction(hue) * ((self.inner + self.outer) / 2.0)
     }
 
-    /// The triangle's corners at `hue`, as [`triangle_corners`], grown by `by` points.
+    /// The triangle's corners at `hue`, as `triangle_corners`, grown by `by` points.
     pub fn corners(&self, hue: f32, by: f32) -> [Pos2; 3] {
         triangle_corners(self.center, self.triangle + by, hue)
     }
@@ -139,7 +139,7 @@ pub struct ColorWheelStyle {
     pub grab_inner: f32,
     /// One point of `line.control_edge` round the ring and the triangle.
     pub edge: Stroke,
-    /// The knob's inner circle and outer ring, as [`ColorArea`]'s marker.
+    /// The knob's inner circle and outer ring, as [`super::ColorArea`]'s marker.
     pub marker_inner_radius: f32,
     pub marker_inner: Stroke,
     pub marker_outer_radius: f32,
@@ -174,7 +174,7 @@ pub struct ColorWheelStyle {
 ///   part.
 /// - Keys on the focused ring: Left and Down lower the hue by 1 degree, Right and Up raise it,
 ///   wrapping at 360; Shift steps ten; Page Up and Page Down 36 degrees; Home 0, End 359. On the
-///   triangle (as [`ColorArea`]): Left and Right saturation, Up and Down brightness; Shift ten;
+///   triangle (as [`super::ColorArea`]): Left and Right saturation, Up and Down brightness; Shift ten;
 ///   Page keys a tenth of brightness; Home and End saturation 0 and 100. The directions are not
 ///   screen directions: the triangle turns with the hue. Each key is a
 ///   [`Set`](craft_ui::edit::EditEvent::Set); during a drag keys change nothing.

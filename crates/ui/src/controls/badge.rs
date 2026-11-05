@@ -39,7 +39,7 @@ pub struct BadgeLook {
 }
 
 /// A small label: `ui.add(Badge::new("Beta").tone(BadgeTone::Accent))`, or a count with
-/// [`Badge::count`], which reads `99+` above [`MAX_COUNT`].
+/// [`Badge::count`], which reads `99+` above `MAX_COUNT`.
 ///
 /// Soft badges (the default) tint the tone's background, text and border; solid ones fill with the
 /// tone's solid colour. A badge has no input and no Tab stop; AccessKit sees a label with its
@@ -56,7 +56,7 @@ impl Badge {
         Self { text: text.into(), tone: BadgeTone::Neutral, style: BadgeStyle::Soft }
     }
 
-    /// A count: `99+` above [`MAX_COUNT`].
+    /// A count: `99+` above `MAX_COUNT`.
     pub fn count(n: u32) -> Self {
         Self::new(if n > MAX_COUNT { format!("{MAX_COUNT}+") } else { n.to_string() })
     }

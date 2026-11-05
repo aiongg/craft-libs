@@ -290,7 +290,7 @@ pub struct PreferencesOutput {
     /// Set on the pass the window is answered; the host closes it.
     pub closed: Option<Closed>,
     /// The colour row whose swatch was pressed, for this pass only: the host opens its colour
-    /// dialog and answers with [`PreferencesModel::set_color`] on the request's key.
+    /// dialog and answers with `PreferencesModel::set_color` on the request's key.
     pub pick_color: Option<ColorRequest>,
     /// Apply ran this pass and succeeded (OK also applies, and closes).
     pub applied: bool,

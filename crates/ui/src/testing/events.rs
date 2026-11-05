@@ -2,7 +2,7 @@
 //!
 //! A platform delivers a pointer move, a press, a release and a key's down and up in separate
 //! frames, with the modifier state announced before the first and cleared after the last. These
-//! builders are the one definition of that sequence: [`HarnessExt`](super::HarnessExt) plays it
+//! builders are the one definition of that sequence: `HarnessExt` plays it
 //! on a kittest harness and `craft_automation::synthetic::SyntheticInput` plays it into a running
 //! app. Keys carry their `physical_key`, which the shortcut dispatcher's position fallback reads.
 

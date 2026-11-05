@@ -28,10 +28,10 @@ use crate::values;
 pub struct ListboxTokens {
     /// Height of a row and of a group header: the control height.
     pub height: BySize<f32>,
-    /// Between a row's edge and its contents: `space.pad.control` and [`values::LISTBOX_PAD_X`]
+    /// Between a row's edge and its contents: `space.pad.control` and `values::LISTBOX_PAD_X`
     /// more (PhotoCraft's 10 point button padding).
     pub pad_x: f32,
-    /// The most a select's or combo box's list shows before it scrolls: [`values::LISTBOX_MAX_HEIGHT`]
+    /// The most a select's or combo box's list shows before it scrolls: `values::LISTBOX_MAX_HEIGHT`
     /// scaled by the control height of the size and rounded.
     pub max_height: f32,
     /// Between the check mark, an icon and the text: `space.gap.inline`.

@@ -451,7 +451,7 @@ pub struct TabView<'a> {
     /// A divider is drawn at the tab's trailing edge (document tabs in Compact).
     pub divider: bool,
     /// The tab draws only its label, in `tab.text` when active and `tab.text.inactive` otherwise:
-    /// no surface, indicator or divider ([`TabKind::Text`]).
+    /// no surface, indicator or divider (`TabKind::Text`).
     pub text_only: bool,
     /// A host drag is over the tab: an outline of `tab.drop` inside it.
     pub drop_highlight: bool,

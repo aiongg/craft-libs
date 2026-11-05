@@ -209,7 +209,7 @@ pub struct Problem {
 
 /// The suite's font store.
 ///
-/// Nothing here touches the network on its own: only [`FontStore::fetch_index`] and the installs
+/// Nothing here touches the network on its own: only [`FontStore::fetch_indexes`] and the installs
 /// do, and only while the user has turned the network on.
 pub struct FontStore {
     dir: PathBuf,

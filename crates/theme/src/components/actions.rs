@@ -10,20 +10,20 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ActionsTokens {
-    /// A set header's height: [`values::ACTIONS_SET_ROW_HEIGHT`].
+    /// A set header's height: `values::ACTIONS_SET_ROW_HEIGHT`.
     pub set_row_height: f32,
-    /// An action row's height: [`values::ACTIONS_ROW_HEIGHT`].
+    /// An action row's height: `values::ACTIONS_ROW_HEIGHT`.
     pub row_height: f32,
-    /// A step row's height: [`values::ACTIONS_STEP_ROW_HEIGHT`].
+    /// A step row's height: `values::ACTIONS_STEP_ROW_HEIGHT`.
     pub step_row_height: f32,
     /// The radius of the dot on the action being recorded:
-    /// [`values::ACTIONS_RECORDING_DOT_RADIUS`].
+    /// `values::ACTIONS_RECORDING_DOT_RADIUS`.
     pub recording_dot_radius: f32,
     /// The Button Mode fills, red to violet: `actions.color.red` to `actions.color.violet`
-    /// ([`values::ACTIONS_COLORS`]). Data colours, the same in every theme (as the list's label
+    /// (`values::ACTIONS_COLORS`). Data colours, the same in every theme (as the list's label
     /// colours); gray and no colour derive from `text.muted` and `surface.raised`.
     pub colors: [Rgba; 6],
-    /// A label on a coloured fill: `actions.color.label` ([`values::ACTIONS_LABEL_ON_COLOR`]),
+    /// A label on a coloured fill: `actions.color.label` (`values::ACTIONS_LABEL_ON_COLOR`),
     /// near black over all six fills.
     pub label_on_color: Rgba,
 }

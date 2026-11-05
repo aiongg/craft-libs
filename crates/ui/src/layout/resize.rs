@@ -25,7 +25,7 @@ pub struct ResizeResponse {
 ///
 /// This widget never stores or changes a pane size. IDs and labels are separate, so translated
 /// labels do not change identity. Pointer drags retain egui's immediate `Sense::drag` behavior
-/// and hold focus only for the gesture (see [`drag_focus`]).
+/// and hold focus only for the gesture (see `drag_focus`).
 /// Only arrows along the split axis are consumed, while this handle has focus. Tab remains
 /// available for normal focus traversal.
 pub struct ResizeHandle<'a> {

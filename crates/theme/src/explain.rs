@@ -12,7 +12,7 @@ use super::tokens::{ColorToken, ColorTokens, ElevationTokens, ShapeTokens, Statu
 use super::values::{self, ColorSource};
 use crate::AppId;
 
-/// The steps of [`resolve`] for one theme and appearance.
+/// The steps of [`crate::resolve()`] for one theme and appearance.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Explained {
@@ -212,7 +212,7 @@ impl Explained {
     }
 }
 
-/// Resolves `theme` for `appearance` as [`resolve`] does, and reports how every colour got its
+/// Resolves `theme` for `appearance` as [`crate::resolve()`] does, and reports how every colour got its
 /// value and every contrast pair the rules measure.
 pub fn explain(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Explained {
     explain_sized(theme, appearance, app, &AppSizes::default())
