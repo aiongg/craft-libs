@@ -2,7 +2,7 @@
 
 use egui::{Context, Id, LayerId, RawInput, Sense, pos2, vec2};
 
-use super::key_owner::{KeyOwner, OwnerGate, keys_free, owner, register_canvas};
+use super::key_owner::{KeyOwner, OwnerGate, canvas_keys_free_for, keys_free, owner, register_canvas};
 
 pub(crate) fn pass(ctx: &Context, f: impl FnMut(&mut egui::Ui)) {
     ctx.run_ui(RawInput::default(), f).drop_without_applying_deltas();
@@ -103,4 +103,18 @@ fn a_text_field_owns_the_keys_in_the_pass_egui_drops_its_focus_on_escape() {
         owners.push(owner(ui.ctx(), &OwnerGate::default()));
     });
     assert_eq!(owners, [KeyOwner::Text, KeyOwner::App]);
+}
+
+#[test]
+fn a_chord_the_focused_control_claimed_is_not_free_for_the_canvas() {
+    use crate::behavior::ClaimedKey;
+    use egui::{Key, KeyboardShortcut, Modifiers};
+    let delete = KeyboardShortcut::new(Modifiers::NONE, Key::Delete);
+    let cut = KeyboardShortcut::new(Modifiers::SHIFT, Key::Delete);
+    let ctx = Context::default();
+    focus_widget_claiming(&ctx, Id::unique("curve"), false, &[ClaimedKey::exact(Modifiers::NONE, Key::Delete)]);
+    assert!(!canvas_keys_free_for(&ctx, &delete));
+    assert!(canvas_keys_free_for(&ctx, &cut), "an unclaimed chord stays free");
+    let ctx = Context::default();
+    assert!(canvas_keys_free_for(&ctx, &delete), "nothing focused");
 }

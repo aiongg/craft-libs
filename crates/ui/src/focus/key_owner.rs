@@ -78,6 +78,13 @@ pub fn canvas_keys_free(ctx: &Context) -> bool {
     matches!(owner(ctx, &OwnerGate::default()), KeyOwner::App | KeyOwner::Widget)
 }
 
+/// [`canvas_keys_free`] for the chord `shortcut`: also false when the focused control claimed
+/// that chord ([`KeyClaim::claimed`](crate::behavior::KeyClaim::claimed)), so a Delete shortcut
+/// leaves a curve editor's Delete to the editor.
+pub fn canvas_keys_free_for(ctx: &Context, shortcut: &egui::KeyboardShortcut) -> bool {
+    canvas_keys_free(ctx) && !crate::behavior::KeyClaim::claimed(ctx, shortcut)
+}
+
 /// Whether single keys (tool letters, brackets, zoom chords, undo) are free for the layer
 /// `layer`, the layer of a full-window workspace or of a rail inside one: `layer` is the top
 /// modal layer (or no modal layer or app-modal window is open), no text field is editing, and no

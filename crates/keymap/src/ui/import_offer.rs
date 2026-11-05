@@ -57,7 +57,8 @@ pub struct ImportOffer {
     pub set_name: String,
     /// The plan the answer Import applies.
     pub plan: ImportPlan,
-    /// Shortcuts the import changes.
+    /// Commands whose shortcuts end up different from the app's defaults; the offer is made only
+    /// when this is above 0.
     pub changes: usize,
     labels: Option<ImportOfferLabels>,
 }
@@ -89,7 +90,11 @@ impl ImportOffer {
             return Err(NoOffer::OwnShortcuts);
         }
         let plan = plan(set, keymap, options);
-        let changes = plan.apply(&mut keymap.clone()).imported;
+        // Counted against the defaults, not the import report: a command the set leaves on its
+        // defaults is not a change, whatever the keymap passed in held before.
+        let mut applied = keymap.clone();
+        plan.apply(&mut applied);
+        let changes = plan.commands.iter().filter(|p| applied.bindings(&p.command) != applied.default_bindings(&p.command)).count();
         if changes == 0 {
             return Err(NoOffer::NothingChanges);
         }
