@@ -1703,3 +1703,25 @@ fn an_always_visible_column_shows_its_off_icon_without_the_pointer() {
     assert!(!drawn(false, false).contains(&colour(s.dimmed)), "a plain off column paints nothing");
     assert!(!drawn(false, true).contains(&colour(s.selected_dimmed)), "a plain off column paints nothing, selected");
 }
+
+// A sized glyph slot is as wide as the host says, so a wide row number is not clipped; the label
+// starts after it and the row's least width grows by the difference.
+#[test]
+fn a_sized_glyph_slot_takes_its_width() {
+    let (ctx, s) = (context(), style());
+    let wide = 3.0 * s.icon_size;
+    let mut painted = Rect::NOTHING;
+    let mut sized = (0.0, Rect::NOTHING);
+    let mut plain = (0.0, Rect::NOTHING);
+    shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let row = ListRow::new(1u8, "Page").glyph_sized(wide, |_, rect| painted = rect).show(ui);
+            sized = (row.min_width, row.label);
+            let row = ListRow::new(1u8, "Page").glyph(|_, _| {}).show(ui);
+            plain = (row.min_width, row.label);
+        })
+    });
+    assert_eq!(painted.size(), vec2(wide, s.icon_size), "the glyph gets the slot's width and the icon's height");
+    assert_eq!(sized.0 - plain.0, wide - s.icon_size, "the least width counts the slot");
+    assert_eq!(sized.1.left() - plain.1.left(), wide - s.icon_size, "the label starts after it");
+}

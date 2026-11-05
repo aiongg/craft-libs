@@ -16,6 +16,7 @@ use crate::edit::EditEvent;
 use crate::icons::{self, Icon, IconSize};
 use crate::localized::SharedLabels as _;
 use crate::localized::{Labels, Word, Words};
+use crate::menu::{ContextMenu, MenuEntry, OpenAt};
 use crate::primitives::{FocusRing, Interactive};
 use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
@@ -73,6 +74,31 @@ crate::words! {
         large: "list.thumbLarge" = "Large";
         custom: "list.thumbCustom" = "Custom";
     }
+}
+
+crate::words! {
+    /// The name of a row's "\u{2026}" menu button; `{row}` is the row's label.
+    pub struct RowMenuLabels {
+        more: "list.rowMenu" = "More ({row})";
+    }
+}
+
+/// What a [`List::row_menu`](super::List::row_menu) entry runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum RowCommand {
+    /// Rename the row: the list opens the row's rename field in the pass the entry is chosen, so
+    /// the host sees no event for it.
+    Rename,
+    /// An entry of the host's, numbered by the host.
+    Other(usize),
+}
+
+/// The "\u{2026}" menu of a row, set by the list.
+struct RowMenu {
+    entries: Vec<MenuEntry<RowCommand>>,
+    /// Whether [`RowCommand::Rename`] opens the row's rename field.
+    can_rename: bool,
 }
 
 crate::words! {
@@ -136,6 +162,20 @@ pub enum RowEvent<K> {
         row: K,
         /// The new text.
         text: String,
+    },
+    /// An entry of the row's menu ([`List::row_menu`](super::List::row_menu)) other than a
+    /// rename was chosen.
+    Menu {
+        /// The row.
+        row: K,
+        /// The entry's command.
+        command: RowCommand,
+    },
+    /// The row's menu chose [`RowCommand::Rename`] on a row that can be renamed: the row has
+    /// opened its rename field in this pass. A [`List`](super::List) keeps the open rename.
+    RenameStarted {
+        /// The row.
+        row: K,
     },
     /// The rename field closed, by commit or by Esc; the host stops passing `renaming(true)`.
     RenameEnded {
@@ -411,6 +451,7 @@ pub struct ListRow<'a, K> {
     columns: Vec<ToggleColumn>,
     icon: Option<Icon>,
     glyph: Option<Thumbnail<'a>>,
+    glyph_width: Option<f32>,
     striped: bool,
     thumb: ThumbSize,
     thumbnail: Option<Thumbnail<'a>>,
@@ -437,6 +478,7 @@ pub struct ListRow<'a, K> {
     paint_depth: Option<usize>,
     indented_toggles: bool,
     rename_field_name: Option<String>,
+    menu: Option<RowMenu>,
     role: Role,
     position: Option<usize>,
     slot: Option<Rect>,
@@ -471,6 +513,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             columns: Vec::new(),
             icon: None,
             glyph: None,
+            glyph_width: None,
             striped: false,
             thumb: ThumbSize::None,
             thumbnail: None,
@@ -497,6 +540,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             paint_depth: None,
             indented_toggles: false,
             rename_field_name: None,
+            menu: None,
             role: Role::ListBoxOption,
             position: None,
             slot: None,
@@ -617,7 +661,12 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     fn extent(&self, style: &ListRowStyle, group: bool) -> (f32, Option<f32>) {
         let disclosure = if group { style.disclosure } else { 0.0 };
         let marker = if self.clipped { style.icon_size } else { 0.0 };
-        (disclosure + marker, leading_width(style, self.thumb, self.icon.is_some() || self.glyph.is_some(), self.thumb_width, &self.extras))
+        (disclosure + marker, leading_width(style, self.thumb, self.icon_slot(style), self.thumb_width, &self.extras))
+    }
+
+    /// The width of the icon or glyph slot, `None` for a row with neither.
+    fn icon_slot(&self, style: &ListRowStyle) -> Option<f32> {
+        (self.icon.is_some() || self.glyph.is_some()).then(|| self.glyph_width.unwrap_or(style.icon_size))
     }
 
     /// The row's key.
@@ -679,6 +728,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
         self.glyph = None;
+        self.glyph_width = None;
         self
     }
 
@@ -689,6 +739,17 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// icon replaces it (the last one set wins). A thumbnail takes its place.
     pub fn glyph(mut self, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
         self.glyph = Some(Box::new(paint));
+        self.glyph_width = None;
+        self.icon = None;
+        self
+    }
+
+    /// Like [`glyph`](ListRow::glyph) in a slot `width` points wide and `size.icon.md` high, for a
+    /// mark that is wider than an icon (a row number). The slot's width counts in the row's least
+    /// width and the label starts after it; `paint` draws into that rect, clipped to it.
+    pub fn glyph_sized(mut self, width: f32, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
+        self.glyph = Some(Box::new(paint));
+        self.glyph_width = Some(width);
         self.icon = None;
         self
     }
@@ -756,6 +817,20 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// from one carries the mask to the footer's Delete.
     pub fn thumb_drags(mut self, thumb_drags: bool) -> Self {
         self.thumb_drags = thumb_drags;
+        self
+    }
+
+    /// The row's "\u{2026}" menu, drawn by the row at its trailing edge before the label, so a
+    /// [`Rename`](RowCommand::Rename) starts the rename field in the pass it is chosen. A list sets
+    /// it from [`List::row_menu`](super::List::row_menu); no menu for empty `entries`.
+    pub(super) fn menu(mut self, ui: &Ui, entries: Vec<MenuEntry<RowCommand>>, can_rename: bool) -> Self {
+        if entries.is_empty() {
+            return self;
+        }
+        let width = Self::style(&Tokens::of(ui)).toggle_column;
+        // The first item is the outermost.
+        self.trailing.insert(0, TrailingItem { width, optional: false, add: Box::new(|_| {}) });
+        self.menu = Some(RowMenu { entries, can_rename });
         self
     }
 
@@ -942,6 +1017,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             columns,
             icon,
             glyph,
+            glyph_width,
             striped,
             thumb,
             thumbnail,
@@ -968,6 +1044,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             paint_depth,
             indented_toggles,
             rename_field_name,
+            menu,
             role,
             position,
             slot,
@@ -1017,7 +1094,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
 
         let side = style.thumb_side(thumb);
         let first_width = (side > 0.0).then(|| thumb_width.unwrap_or(side));
-        let leading = leading_width(&style, thumb, icon.is_some() || glyph.is_some(), thumb_width, &extras);
+        let icon_slot = (icon.is_some() || glyph.is_some()).then(|| glyph_width.unwrap_or(style.icon_size));
+        let leading = leading_width(&style, thumb, icon_slot, thumb_width, &extras);
         let extras = if side > 0.0 && thumb != ThumbSize::None { extras } else { Vec::new() };
         let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
         let ends = columns.iter().filter(|c| c.at_end).count();
@@ -1061,7 +1139,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         }
 
         if let (Some(across), true) = (leading, visible) {
-            let high = if side > 0.0 { side } else { across };
+            let high = if side > 0.0 { side } else { style.icon_size };
             let at =
                 Rect::from_center_size(pos2(geometry.span(rect, geometry.leading_start, across).center().x, rect.center().y), vec2(across, high));
             let at = at.round_to_pixels(ui.pixels_per_point());
@@ -1107,6 +1185,19 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             }
         }
 
+        let mut renaming = renaming;
+        let has_menu = menu.is_some();
+        if let (Some(menu), Some(Some((start, width)))) = (menu, geometry.items.first()) {
+            let at = geometry.span(rect, *start, *width).round_to_pixels(ui.pixels_per_point());
+            match show_menu(ui, &style, at, (&menu, &label), (row_id, hovered, selected)) {
+                Some(RowCommand::Rename) if menu.can_rename => {
+                    renaming = true;
+                    events.push(RowEvent::RenameStarted { row: key.clone() });
+                }
+                Some(command) => events.push(RowEvent::Menu { row: key.clone(), command }),
+                None => {}
+            }
+        }
         let band = geometry.label_band(rect);
         let (text, detail_text) = label_colors(&style, (selected, dimmed, muted), layer);
         let label_role = if strong { style.label_strong_role } else { style.label_role };
@@ -1115,7 +1206,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         } else if visible {
             paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), (text, italic, label_role));
         }
-        for (item, at) in trailing.into_iter().zip(&geometry.items) {
+        for (item, at) in trailing.into_iter().zip(&geometry.items).skip(usize::from(has_menu)) {
             let Some((start, width)) = *at else { continue };
             let at = geometry.span(rect, start, width).round_to_pixels(ui.pixels_per_point());
             let mut child = ui.new_child(UiBuilder::new().max_rect(at).layout(direction::row(ui)));
@@ -1137,16 +1228,15 @@ fn between(style: &ListRowStyle, extra: &ExtraThumb<'_>) -> f32 {
 
 /// The width of a row's leading part (every thumbnail and what is between them, or the icon),
 /// without the gap after it; `None` for a row without one.
-fn leading_width(style: &ListRowStyle, thumb: ThumbSize, has_icon: bool, thumb_width: Option<f32>, extras: &[ExtraThumb<'_>]) -> Option<f32> {
+fn leading_width(style: &ListRowStyle, thumb: ThumbSize, icon_slot: Option<f32>, thumb_width: Option<f32>, extras: &[ExtraThumb<'_>]) -> Option<f32> {
     let side = style.thumb_side(thumb);
-    match (side > 0.0, has_icon) {
+    match (side > 0.0, icon_slot) {
         (true, _) => {
             let first = thumb_width.unwrap_or(side);
             let extras = if thumb != ThumbSize::None { extras } else { &[] };
             Some(first + extras.iter().map(|extra| first + between(style, extra)).sum::<f32>())
         }
-        (false, true) => Some(style.icon_size),
-        (false, false) => None,
+        (false, slot) => slot,
     }
 }
 
@@ -1436,6 +1526,28 @@ fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbn
     }
     let color = if selected { style.thumb_border_selected } else { style.thumb_border };
     ui.painter().rect_stroke(at, corner_radius(style.thumb_radius), Stroke::new(1.0, color), StrokeKind::Outside);
+}
+
+/// The "\u{2026}" button in `at` and its menu; the command chosen this pass. The button shows on a
+/// hovered or selected row and while its menu is open, and is reached by the pointer and the
+/// screen reader, not the Tab key (the list is the one focus stop).
+fn show_menu(
+    ui: &mut Ui,
+    style: &ListRowStyle,
+    at: Rect,
+    (menu, label): (&RowMenu, &str),
+    (row_id, hovered, selected): (Id, bool, bool),
+) -> Option<RowCommand> {
+    let name = tree::with_row(&RowMenuLabels::of(ui).more, label);
+    let sensed = Interactive::with_id(row_id.with("row-menu"), Role::Button, name).sense(Sense::CLICK).state_layer(false).focus_ring(false);
+    let button = sensed.interact_at(ui, at).finish(ui);
+    let open = ContextMenu::is_open(ui.ctx(), &button);
+    if ui.is_rect_visible(at) && (hovered || selected || open) {
+        let color = if button.hovered() || open { style.icon_hover } else { style.icon };
+        icons::paint_in(ui, at, Icon::More, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), color);
+    }
+    let request = (button.clicked() && !open).then_some(OpenAt::Rect(button.rect));
+    ContextMenu::new(&menu.entries).own_gestures(false).open_at(request).show(ui, &button).chosen
 }
 
 /// The icon, or the host's glyph, in the slot `at`.
