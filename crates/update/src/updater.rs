@@ -369,14 +369,25 @@ impl Updater {
         self.show_if(ctx, true)
     }
 
+    /// Whether the app should close now so the installed update can restart it, without drawing
+    /// the startup prompt (a host that shows the progress in its own dialog calls this instead of
+    /// [`show_if`](Self::show_if)). True once per finished install, and only with `can_start`
+    /// true: while the app holds unsaved work the close waits and is asked again.
+    pub fn take_close(&mut self, can_start: bool) -> bool {
+        let close = self.restart && can_start;
+        if close {
+            self.restart = false;
+        }
+        close
+    }
+
     /// Like [`Self::show`], but an installation only starts when `can_start` is true. An app passes
     /// `false` while it holds unsaved work: the restart helper is scheduled before the app closes,
     /// and a close that the user then cancels would leave it waiting for an exit that never comes.
     pub fn show_if(&mut self, ctx: &egui::Context, can_start: bool) -> Action {
         // The close waits for the app to hold no unsaved work: the user may have edited while the
         // update installed, and a close they cancel is asked again once the work is saved.
-        if self.restart && can_start {
-            self.restart = false;
+        if self.take_close(can_start) {
             return Action::Close;
         }
         let Some(prompt) = &mut self.prompt else { return Action::None };
@@ -815,6 +826,19 @@ mod tests {
         assert_eq!(frame(&mut u, &ctx, false), Action::None, "unsaved work holds the close back");
         assert_eq!(frame(&mut u, &ctx, true), Action::Close);
         assert_eq!(frame(&mut u, &ctx, true), Action::None);
+    }
+
+    #[test]
+    fn take_close_gives_the_restart_close_without_drawing() {
+        let ctx = egui::Context::default();
+        let mut u = updater(Ok(None));
+        let (tx, rx) = channel();
+        u.install = Some((rx, newer()));
+        assert!(tx.send(Ok(())).is_ok());
+        u.tick(&ctx);
+        assert!(!u.take_close(false), "unsaved work holds the close back");
+        assert!(u.take_close(true));
+        assert!(!u.take_close(true), "once per install");
     }
 
     #[test]
