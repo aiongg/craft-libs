@@ -1,4 +1,4 @@
-//! The words the update dialogs and the [`Updater`](crate::updater::Updater) show, in the app's
+//! The words the update dialogs and the `Updater` (feature `ui`) show, in the app's
 //! interface language.
 //!
 //! The crate keeps its text in English, and that English text is the lookup key, as in the
@@ -67,6 +67,7 @@ pub struct Note {
 }
 
 impl Note {
+    /// A note for the English `text`, with the values of its `{name}` placeholders in `args`.
     pub fn new(text: &'static str, args: &[(&'static str, &str)]) -> Self {
         Self { text, args: args.iter().map(|(k, v)| (*k, (*v).to_owned())).collect() }
     }
