@@ -7,6 +7,8 @@ pub mod egui_fork;
 pub use craft_ai_core as ai_core;
 #[cfg(feature = "atomic")]
 pub use craft_atomic as atomic;
+#[cfg(feature = "audio")]
+pub use craft_audio as audio;
 #[cfg(feature = "automation")]
 pub use craft_automation as automation;
 #[cfg(feature = "browse")]
@@ -19,6 +21,8 @@ pub use craft_color as color;
 pub use craft_crw as crw;
 #[cfg(feature = "dialogs")]
 pub use craft_dialogs as dialogs;
+#[cfg(feature = "doc")]
+pub use craft_doc as doc;
 #[cfg(feature = "docpath")]
 pub use craft_docpath as docpath;
 #[cfg(feature = "draw")]
@@ -45,6 +49,8 @@ pub use craft_layers as layers;
 pub use craft_media as media;
 #[cfg(feature = "menu")]
 pub use craft_menu as menu;
+#[cfg(feature = "pcraft-format")]
+pub use craft_pcraft_format as pcraft_format;
 #[cfg(feature = "pdf")]
 pub use craft_pdf as pdf;
 #[cfg(feature = "platform")]
@@ -53,6 +59,8 @@ pub use craft_platform as platform;
 pub use craft_prepress as prepress;
 #[cfg(feature = "print")]
 pub use craft_print as print;
+#[cfg(feature = "proof")]
+pub use craft_proof as proof;
 #[cfg(feature = "quit")]
 pub use craft_quit as quit;
 #[cfg(feature = "settings")]
@@ -68,6 +76,10 @@ pub use craft_ui as ui;
 pub use craft_update as update;
 #[cfg(feature = "vectorcraft-format")]
 pub use craft_vectorcraft_format as vectorcraft_format;
+#[cfg(feature = "web-api")]
+pub use craft_web_api as web_api;
+#[cfg(feature = "web-host")]
+pub use craft_web_host as web_host;
 #[cfg(feature = "window")]
 pub use craft_window as window;
 #[cfg(feature = "ui")]

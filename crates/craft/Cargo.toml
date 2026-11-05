@@ -18,12 +18,14 @@ egui = { workspace = true, optional = true }
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 craft-ai-core = { workspace = true, optional = true }
 craft-atomic = { workspace = true, optional = true }
+craft-audio = { workspace = true, optional = true }
 craft-automation = { workspace = true, optional = true }
 craft-browse = { workspace = true, optional = true }
 craft-cms = { workspace = true, optional = true }
 craft-color = { workspace = true, optional = true }
 craft-crw = { workspace = true, optional = true }
 craft-dialogs = { workspace = true, optional = true }
+craft-doc = { workspace = true, optional = true }
 craft-docpath = { workspace = true, optional = true }
 craft-draw = { workspace = true, optional = true }
 craft-ecproj-format = { workspace = true, optional = true }
@@ -36,16 +38,20 @@ craft-keymap = { workspace = true, optional = true }
 craft-layers = { workspace = true, optional = true }
 craft-media = { workspace = true, optional = true }
 craft-menu = { workspace = true, optional = true }
+craft-pcraft-format = { workspace = true, optional = true }
 craft-pdf = { workspace = true, optional = true }
 craft-platform = { workspace = true, optional = true }
 craft-prepress = { workspace = true, optional = true }
 craft-print = { workspace = true, optional = true }
+craft-proof = { workspace = true, optional = true }
 craft-quit = { workspace = true, optional = true }
 craft-settings = { workspace = true, optional = true }
 craft-text = { workspace = true, optional = true }
 craft-theme-store = { workspace = true, optional = true }
 craft-update = { workspace = true, optional = true }
 craft-vectorcraft-format = { workspace = true, optional = true }
+craft-web-api = { workspace = true, optional = true }
+craft-web-host = { workspace = true, optional = true }
 craft-window = { workspace = true, optional = true }
 craft-ui = { workspace = true, optional = true }
 
@@ -88,6 +94,17 @@ ai-core = ["dep:craft-ai-core"]
 
 atomic = ["dep:craft-atomic"]
 
+audio = ["dep:craft-audio"]
+audio-decode = ["audio", "craft-audio/decode"]
+audio-decode-native = ["audio", "craft-audio/decode-native"]
+audio-encode = ["audio", "craft-audio/encode"]
+audio-flac-encode = ["audio", "craft-audio/flac-encode"]
+audio-lossless-encode = ["audio", "craft-audio/lossless-encode"]
+audio-pcm-encode = ["audio", "craft-audio/pcm-encode"]
+audio-peaks = ["audio", "craft-audio/peaks"]
+audio-serde = ["audio", "craft-audio/serde"]
+audio-symphonia = ["audio", "craft-audio/symphonia"]
+
 automation = ["dep:craft-automation"]
 
 browse = ["dep:craft-browse"]
@@ -99,6 +116,9 @@ color = ["dep:craft-color", "settings", "platform"]
 crw = ["dep:craft-crw"]
 
 dialogs = ["dep:craft-dialogs"] # native only: rfd's folder picker and file paths
+
+doc = ["dep:craft-doc"]
+doc-pcraft-pixels = ["doc", "craft-doc/pcraft-pixels"]
 
 docpath = ["dep:craft-docpath"]
 
@@ -128,8 +148,12 @@ media = ["dep:craft-media"]
 media-bitstream = ["media", "craft-media/bitstream"]
 media-isobmff = ["media", "craft-media/isobmff"]
 media-matroska = ["media", "craft-media/matroska"]
+media-ogg = ["media", "craft-media/ogg"]
+media-serde = ["media", "craft-media/serde"]
 
 menu = ["dep:craft-menu"]
+
+pcraft-format = ["dep:craft-pcraft-format"]
 
 pdf = ["dep:craft-pdf"]
 pdf-interpret = ["pdf", "craft-pdf/interpret"]
@@ -153,6 +177,8 @@ prepress = ["dep:craft-prepress"]
 prepress-flatten = ["prepress", "craft-prepress/flatten"]
 
 print = ["dep:craft-print"]
+
+proof = ["dep:craft-proof"]
 
 quit = ["dep:craft-quit"]
 quit-menu = ["quit", "craft-quit/menu"]
@@ -234,6 +260,10 @@ update = ["dep:craft-update"] # native only: downloads and installs through getr
 update-local-mirror = ["update", "craft-update/local-mirror"]
 
 vectorcraft-format = ["dep:craft-vectorcraft-format"]
+
+web-api = ["dep:craft-web-api"]
+
+web-host = ["dep:craft-web-host"]
 
 window = ["dep:craft-window"]
 window-restore-eframe = ["window", "craft-window/restore-eframe"] # native only: the window-restore store
