@@ -490,7 +490,7 @@ fn an_optional_number_with_no_decimals_shows_an_integer() {
     assert_eq!(shown.as_deref(), Some("6"), "{shown:?}");
 }
 
-// The footer hook draws before the buttons; `close_label(None)` removes the close box.
+// The footer hook draws before the buttons, in the bottom and the stacked layouts; `close_label(None)` removes the close box.
 #[test]
 fn the_footer_hook_and_the_close_box_follow_the_options() {
     let mut harness = harness(ParamDialog::new("table", "Table", params()).footer_extra(|ui| {
@@ -499,6 +499,12 @@ fn the_footer_hook_and_the_close_box_follow_the_options() {
     harness.run();
     harness.get_by_label("Load…");
     harness.get_by_label("Close");
+    let stacked = ParamDialog::new("table", "Table", params()).layout(ParamLayout::Stacked).footer_extra(|ui| {
+        let _ = ui.button("Save…");
+    });
+    let mut harness = self::harness(stacked);
+    harness.run();
+    harness.get_by_label("Save…");
     let mut harness = self::harness(ParamDialog::new("table", "Table", params()).close_label(None));
     harness.run();
     assert!(harness.query_by_label("Close").is_none());

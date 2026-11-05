@@ -1539,8 +1539,9 @@ impl ParamDialog {
         self
     }
 
-    /// Controls before the buttons in the [`ParamLayout::BottomFooter`] row (Color Table's Load
-    /// and Save). The side column has no such row and ignores it.
+    /// Controls before the buttons in the bottom row of [`ParamLayout::BottomFooter`] and
+    /// [`ParamLayout::Stacked`] (Color Table's Load and Save). The side column has no such row
+    /// and ignores it.
     pub fn footer_extra(mut self, add: impl FnMut(&mut Ui) + Send + 'static) -> Self {
         self.footer_extra = Some(Box::new(add));
         self
@@ -1840,13 +1841,13 @@ impl StackDialog for ParamDialog {
                     footer
                 }
             }
-            ParamLayout::Stacked => Footer::standard().reset(reset).ok_enabled(self.ok_enabled),
-            ParamLayout::BottomFooter => {
+            ParamLayout::Stacked | ParamLayout::BottomFooter => {
                 let mut footer = Footer::standard().reset(reset).ok_enabled(self.ok_enabled);
                 if let Some(extra) = &mut self.footer_extra {
                     footer = footer.trailing_extra(|ui| extra(ui));
                 }
-                if has_preview {
+                // Stacked draws the Preview check box above the pane instead.
+                if has_preview && layout == ParamLayout::BottomFooter {
                     footer.leading(|ui| {
                         preview.borrow_mut().checkbox(ui, preview_label);
                     })
