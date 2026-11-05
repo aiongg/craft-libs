@@ -2,14 +2,17 @@
 
 use std::collections::HashMap;
 
-use craft_theme::contrast_ratio;
+use craft_ui::behavior::ClaimedKey;
+use craft_ui::controls::Kbd;
+use craft_ui::focus::key_owner::{KeyOwner, OwnerGate, owner};
 use craft_ui::localized::{Labels as _, fmt};
-use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
+use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, PressMenu};
 use craft_ui::motion::{MIN_MOVE, glides_allowed};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, current, role_format};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::text::LayoutJob;
 use egui::{
-    AsIdSalt, Color32, CornerRadius, IdSalt, LayerId, Order, Painter, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, pos2, vec2,
+    AsIdSalt, Color32, CornerRadius, IdSalt, Key, KeyboardShortcut, LayerId, Modifiers, Order, Painter, Pos2, Rect, Response, Sense, Shape, Stroke,
+    StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
 use super::chat::paint_chat_bubble;
@@ -20,14 +23,21 @@ use crate::collab::{CHAT_FADE_S, CHAT_HOLD_S, CollabRequest, CollabTransport, Pa
 const MAX_OUTLINES: usize = 500;
 /// Most other people shown as avatars before the "+N" menu.
 const MAX_SHOWN: usize = 5;
-/// An avatar's text height as a fraction of its radius.
+/// An avatar's text height as a fraction of its radius (FigCraft `live.rs:190`, `semibold(r * 0.8)`).
 const AVATAR_TEXT: f32 = 0.8;
-/// Distance between neighbouring avatars as a fraction of the avatar's diameter (they overlap).
+/// Distance between neighbouring avatars as a fraction of the avatar's diameter, they overlap
+/// (FigCraft `live.rs:474-475`: `STEP` 20 over `R` 12, so 20 / 24).
 const AVATAR_STEP: f32 = 20.0 / 24.0;
-/// Width of the rings round avatars, the following frame and the pointer's edge.
+/// Width of the rings round avatars and of the following frame (FigCraft `live.rs:479`, `:458`).
 const FRAME_WIDTH: f32 = 2.0;
-/// Width of a selection outline.
+/// Width of a selection outline and of the pointer's edge (FigCraft `live.rs:203`).
 const OUTLINE_WIDTH: f32 = 1.5;
+/// The weights of red, green and blue in a colour's luminance (FigCraft `live.rs:182`).
+const LUMA_WEIGHTS: [f32; 3] = [0.299, 0.587, 0.114];
+/// A person colour with a luminance above this gets the dark ink (FigCraft `live.rs:183`).
+const DARK_INK_ABOVE: f32 = 170.0;
+/// The key that stops following; the label names it.
+const STOP_FOLLOWING_KEY: KeyboardShortcut = KeyboardShortcut::new(Modifiers::NONE, Key::Escape);
 /// The pointer arrow's corners (left, notch, right) as fractions of its size; the tip is the
 /// origin.
 const POINTER_SHAPE: [[f32; 2]; 3] = [[3.5 / 16.0, 15.5 / 16.0], [7.5 / 16.0, 8.5 / 16.0], [15.5 / 16.0, 4.0 / 16.0]];
@@ -45,18 +55,19 @@ craft_ui::words! {
         more: "presence.more" = "+{n}";
         you: "presence.you" = "{name} (you)";
         viewer: "presence.viewer" = "Can view";
-        following: "presence.following" = "Following {name}";
+        following: "presence.following" = "Following {name} · {key} to stop";
+        follow_viewer: "presence.followViewer" = "{action} ({viewer})";
+        remove: "presence.remove" = "Remove {name} from session";
     }
 }
 
-/// A round avatar of radius `radius` in `fill` with the initials in a legible text colour
-/// (black or white by the fill's luminance).
+/// A round avatar of radius `radius` in `fill` with the initials ([`initials`](crate::collab::initials))
+/// in the dark or light ink the fill's luminance asks for ([`ink_on`]).
 // figcraft: crates/ui-egui/src/live.rs:188 `avatar`, `:182` `text_on`.
-pub fn paint_avatar(painter: &Painter, center: Pos2, radius: f32, name: &str, fill: Color32) {
-    let tokens = current(painter.ctx());
-    let on = text_on(&tokens, fill);
+pub fn paint_avatar(painter: &Painter, tokens: &UiTokens, center: Pos2, radius: f32, name: &str, fill: Color32) {
+    let on = ink_on(&ReviewStyle::of(tokens), fill);
     painter.circle_filled(center, radius, fill);
-    let mut format = role_format(&tokens, ReviewStyle::of(&tokens).caption_text, on);
+    let mut format = role_format(tokens, ReviewStyle::of(tokens).caption_text, on);
     format.font_id.size = radius * AVATAR_TEXT;
     let galley = painter.layout_job(LayoutJob::single_section(crate::collab::initials(name), format));
     painter.galley(center - galley.size() / 2.0, galley, on);
@@ -64,8 +75,7 @@ pub fn paint_avatar(painter: &Painter, center: Pos2, radius: f32, name: &str, fi
 
 /// A remote pointer arrow with its tip at `tip`.
 // figcraft: crates/ui-egui/src/live.rs:195 `pointer`.
-pub fn paint_pointer(painter: &Painter, tip: Pos2, fill: Color32) {
-    let tokens = current(painter.ctx());
+pub fn paint_pointer(painter: &Painter, tokens: &UiTokens, tip: Pos2, fill: Color32) {
     let size = tokens.size.icon.md;
     let [left, notch, right] = POINTER_SHAPE.map(|[x, y]| tip + vec2(x, y) * size);
     painter.add(Shape::convex_polygon(vec![tip, left, notch], fill, Stroke::NONE));
@@ -73,12 +83,12 @@ pub fn paint_pointer(painter: &Painter, tip: Pos2, fill: Color32) {
     painter.add(Shape::closed_line(vec![tip, left, notch, right], Stroke::new(OUTLINE_WIDTH, tokens.color.overlay.halo.to_egui())));
 }
 
-/// The text colour that reads best on `fill`: the theme's text on strong fills or its normal text.
-pub(super) fn text_on(tokens: &UiTokens, fill: Color32) -> Color32 {
+/// The ink that reads on a person's colour `fill`: `review.ink_dark` when its luminance is above
+/// [`DARK_INK_ABOVE`], else `review.ink_light` (FigCraft `live.rs:182`).
+pub(super) fn ink_on(style: &ReviewStyle, fill: Color32) -> Color32 {
     let [r, g, b, _] = fill.to_array();
-    let fill = craft_theme::Rgba::rgb(r, g, b);
-    let (light, dark) = (tokens.color.text.on_strong, tokens.color.text.normal);
-    (if contrast_ratio(light, fill) >= contrast_ratio(dark, fill) { light } else { dark }).to_egui()
+    let luminance: f32 = [r, g, b].iter().zip(LUMA_WEIGHTS).map(|(channel, weight)| f32::from(*channel) * weight).sum();
+    if luminance > DARK_INK_ABOVE { style.ink_dark } else { style.ink_light }
 }
 
 /// Where a name tag or chat bubble starts from a pointer's tip.
@@ -93,18 +103,20 @@ fn person_color(person: &Participant) -> Color32 {
 
 /// A name in a person's colour, its top left corner at `at`.
 fn paint_name_tag(painter: &Painter, tokens: &UiTokens, at: Pos2, name: &str, fill: Color32) {
-    let on = text_on(tokens, fill);
-    let galley = painter.layout_job(LayoutJob::single_section(name.to_owned(), role_format(tokens, ReviewStyle::of(tokens).caption_text, on)));
+    let style = ReviewStyle::of(tokens);
+    let on = ink_on(&style, fill);
+    let galley = painter.layout_job(LayoutJob::single_section(name.to_owned(), role_format(tokens, style.caption_text, on)));
     let pad = vec2(tokens.space.gap.inline, tokens.space.gap.inline / 2.0);
     let rect = Rect::from_min_size(at, galley.size() + 2.0 * pad);
     painter.rect_filled(rect, tokens.radius.control, fill);
     painter.galley(rect.min + pad, galley, on);
 }
 
-/// The avatars at the top of the right panel (FigCraft): yours last, up to five others and a
-/// "+N" overflow menu; a click on someone follows their view (a frame in their colour around the
-/// canvas while following), a click on yours opens Spotlight me. Each avatar is a Tab stop named
-/// by the person, Enter follows.
+/// The avatars at the top of the right panel (FigCraft): yours first, then up to five others and
+/// a "+N" chip that opens a menu of everyone else; a click on someone follows their view (a frame
+/// in their colour around the canvas while following, Esc stops), a click on yours opens
+/// Spotlight me, and a right-click on someone offers Remove when the transport allows it. Each
+/// avatar is a Tab stop named by the person, Enter follows.
 pub struct PeopleBar<'a> {
     id_salt: IdSalt,
     transport: &'a dyn CollabTransport,
@@ -127,10 +139,11 @@ impl<'a> PeopleBar<'a> {
         self
     }
 
-    /// Follow and Spotlight come back as [`CollabRequest`]s.
+    /// Follow, Spotlight and Remove come back as [`CollabRequest`]s. `canvas` is the canvas'
+    /// rectangle in screen points: the following frame is drawn round it.
     // figcraft: crates/ui-egui/src/live.rs:473 `people_bar`, `:569` `people_menu`, `:461`
     // `follow_frame`.
-    pub fn show(self, ui: &mut Ui) -> PeopleBarOutput {
+    pub fn show(self, ui: &mut Ui, canvas: Rect) -> PeopleBarOutput {
         let Self { id_salt, transport, following, labels } = self;
         let labels = labels.unwrap_or_else(|| PresenceLabels::of(ui));
         let tokens = Tokens::of(ui);
@@ -176,10 +189,16 @@ impl<'a> PeopleBar<'a> {
             let at = advance(&mut center);
             let followed = following == Some(person.id);
             let action = if followed { labels.stop_following.clone() } else { fmt(&labels.follow, &[("name", &person.name)]) };
-            let name = if person.viewer { format!("{action} ({})", labels.viewer) } else { action };
+            let name = if person.viewer { fmt(&labels.follow_viewer, &[("action", &action), ("viewer", &labels.viewer)]) } else { action };
             let button = avatar_button(ui, &tokens, id.with(("avatar", person.id)), at, side, &person.name, person_color(person), followed, &name);
             if button.clicked() {
                 requests.push(CollabRequest::Follow(if followed { None } else { Some(person.id) }));
+            }
+            if transport.can_remove() {
+                let entries = [MenuEntry::from(MenuItem::new(fmt(&labels.remove, &[("name", &person.name)]), PeopleCommand::Remove(person.id)))];
+                if let Some(PeopleCommand::Remove(who)) = ContextMenu::new(&entries).show(ui, &button).chosen {
+                    requests.push(CollabRequest::Remove(who));
+                }
             }
         }
         if hidden > 0 {
@@ -204,7 +223,15 @@ impl<'a> PeopleBar<'a> {
         }
 
         if let Some(person) = following.and_then(|who| others.iter().find(|person| person.id == who)) {
-            paint_follow_frame(ui, &tokens, id, &fmt(&labels.following, &[("name", &person.name)]), person_color(person));
+            let key = Kbd::new(&STOP_FOLLOWING_KEY).text(ui.ctx().os());
+            let text = fmt(&labels.following, &[("name", &person.name), ("key", &key)]);
+            paint_follow_frame(ui, &tokens, id, canvas, &text, person_color(person));
+            // Taken in the pass it is pressed, before the canvas sees it (FigCraft `live.rs:428`).
+            let stop = owner(ui.ctx(), &OwnerGate::default()) == KeyOwner::App
+                && ui.input_mut(|input| ClaimedKey::exact(STOP_FOLLOWING_KEY.modifiers, STOP_FOLLOWING_KEY.logical_key).consume(input));
+            if stop {
+                requests.push(CollabRequest::Follow(None));
+            }
         }
         PeopleBarOutput { response, requests }
     }
@@ -213,6 +240,7 @@ impl<'a> PeopleBar<'a> {
 #[derive(Clone, Copy)]
 enum PeopleCommand {
     Follow(ParticipantId),
+    Remove(ParticipantId),
     Spotlight,
 }
 
@@ -238,20 +266,20 @@ fn avatar_button(
     let response = ui.interact(Rect::from_center_size(center, Vec2::splat(side)), id, Sense::click());
     response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, name));
     ring(ui.painter(), tokens, center, side / 2.0);
-    paint_avatar(ui.painter(), center, side / 2.0, person, fill);
+    paint_avatar(ui.painter(), tokens, center, side / 2.0, person, fill);
     if active || response.hovered() || response.has_focus() {
         ui.painter().circle_stroke(center, side / 2.0 + FRAME_WIDTH, Stroke::new(FRAME_WIDTH, fill));
     }
     response.on_hover_text(name)
 }
 
-/// A frame in the followed person's colour round the window, with "Following {name}" at the top.
-fn paint_follow_frame(ui: &Ui, tokens: &UiTokens, id: egui::Id, text: &str, fill: Color32) {
-    let painter = ui.ctx().layer_painter(LayerId::new(Order::Foreground, id.with("follow")));
-    let area = ui.ctx().content_rect();
+/// A frame in the followed person's colour round `area` (the canvas), with `text` at the top.
+fn paint_follow_frame(ui: &Ui, tokens: &UiTokens, id: egui::Id, area: Rect, text: &str, fill: Color32) {
+    let painter = ui.ctx().layer_painter(LayerId::new(Order::Foreground, id.with("follow"))).with_clip_rect(area);
     painter.rect_stroke(area.shrink(FRAME_WIDTH / 2.0), CornerRadius::ZERO, Stroke::new(FRAME_WIDTH, fill), StrokeKind::Inside);
-    let on = text_on(tokens, fill);
-    let galley = painter.layout_job(LayoutJob::single_section(text.to_owned(), role_format(tokens, ReviewStyle::of(tokens).caption_text, on)));
+    let style = ReviewStyle::of(tokens);
+    let on = ink_on(&style, fill);
+    let galley = painter.layout_job(LayoutJob::single_section(text.to_owned(), role_format(tokens, style.caption_text, on)));
     let pad = vec2(tokens.space.pad.control, tokens.space.gap.inline / 2.0);
     let tag =
         Rect::from_center_size(pos2(area.center().x, area.min.y + FRAME_WIDTH + (galley.size().y + 2.0 * pad.y) / 2.0), galley.size() + 2.0 * pad);
@@ -274,21 +302,20 @@ pub struct PeopleBarOutput {
 pub struct RemoteCursors<'a> {
     id_salt: IdSalt,
     transport: &'a dyn CollabTransport,
-    canvas: Rect,
 }
 
 impl<'a> RemoteCursors<'a> {
-    pub fn new(id_salt: impl AsIdSalt, transport: &'a dyn CollabTransport, canvas: Rect) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), transport, canvas }
+    pub fn new(id_salt: impl AsIdSalt, transport: &'a dyn CollabTransport) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), transport }
     }
 
-    /// `to_screen` maps document units to screen points.
+    /// Paints inside `canvas`, the canvas' rectangle in screen points. `to_screen` maps document
+    /// units to screen points.
     // figcraft: crates/ui-egui/src/live.rs:273 `draw`, `:205` `name_tag`.
-    pub fn paint(&self, ui: &Ui, to_screen: impl Fn([f64; 2]) -> Pos2) {
+    pub fn paint(&self, ui: &Ui, canvas: Rect, to_screen: impl Fn([f64; 2]) -> Pos2) {
         let ctx = ui.ctx();
         let tokens = Tokens::of(ui);
-        let style = ReviewStyle::of(&tokens);
-        let painter = ui.painter().with_clip_rect(self.canvas);
+        let painter = ui.painter().with_clip_rect(canvas);
         let state_id = ui.make_persistent_id(self.id_salt);
         let mut state: Glides = ctx.data(|data| data.get_temp(state_id)).unwrap_or_default();
         let now = ctx.input(|input| input.time);
@@ -314,7 +341,7 @@ impl<'a> RemoteCursors<'a> {
             }
             shown.insert(person.id, next);
             let tip = to_screen(next);
-            paint_pointer(&painter, tip, fill);
+            paint_pointer(&painter, &tokens, tip, fill);
             let bubble = person.chat.as_ref().filter(|chat| !chat.text.is_empty()).and_then(|chat| {
                 let age = now - chat.changed;
                 let alpha = chat_alpha(age, reduce);
@@ -322,7 +349,7 @@ impl<'a> RemoteCursors<'a> {
                 (alpha > 0.0).then_some((chat, alpha))
             });
             match bubble {
-                Some((chat, alpha)) => paint_chat_bubble(&painter, tip, Some(&person.name), &chat.text, fill, alpha, &style),
+                Some((chat, alpha)) => paint_chat_bubble(&painter, &tokens, tip, Some(&person.name), &chat.text, fill, alpha),
                 None => paint_name_tag(&painter, &tokens, tip + offset, &person.name, fill),
             }
         }

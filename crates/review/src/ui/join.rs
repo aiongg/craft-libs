@@ -24,7 +24,7 @@ craft_ui::words! {
 }
 
 /// FigCraft's join field (one component for the share popover, the home screen and the Join
-/// dialog): a text field (its text is not read out by AccessKit: it may hold a link's secret)
+/// dialog): a secret text field (masked, its text is not read out by AccessKit: it may hold a link's secret)
 /// and Join, enabled when the field isn't blank and no join is pending; Enter joins. On join the
 /// field clears; while joining it shows Joining… with Cancel, and a failure's reason with
 /// Try Again.
@@ -83,6 +83,7 @@ impl<'a> JoinField<'a> {
                     let field = TextField::new(id.with("text"), &labels.name, typed.as_str())
                         .id(field_id)
                         .placeholder(&labels.hint)
+                        .secret(true)
                         .width(width.unwrap_or(style.join_width))
                         .show(ui);
                     if let Some(value) = field.event.as_ref().and_then(|event| event.value()) {
@@ -92,7 +93,7 @@ impl<'a> JoinField<'a> {
                         ui.memory_mut(|memory| memory.request_focus(field_id));
                     }
                     let filled = !typed.trim().is_empty() && !state.pending();
-                    join = ui.add_enabled(filled, Button::new(&labels.join).variant(ButtonVariant::Primary).id_salt("join")).clicked();
+                    join = ui.add_enabled(filled, Button::new(&labels.join).variant(ButtonVariant::Primary).id_salt(id.with("join"))).clicked();
                     join |= field.submitted && filled;
                 });
                 if join {
@@ -105,7 +106,7 @@ impl<'a> JoinField<'a> {
                     JoinState::Joining | JoinState::Reconnecting { .. } => {
                         ui.horizontal(|ui| {
                             text(ui, &tokens, style.body_text, tokens.color.text.muted.to_egui(), &labels.joining);
-                            if ui.add(Button::new(&labels.cancel).id_salt("cancel")).clicked() {
+                            if ui.add(Button::new(&labels.cancel).id_salt(id.with("cancel"))).clicked() {
                                 requests.push(CollabRequest::CancelJoin);
                             }
                         });
@@ -114,7 +115,7 @@ impl<'a> JoinField<'a> {
                         text(ui, &tokens, style.body_text, tokens.color.status.bad.fg.to_egui(), reason);
                         let last: Option<String> = ui.data(|data| data.get_temp(last_id));
                         if let Some(last) = last
-                            && ui.add(Button::new(&labels.retry).id_salt("retry")).clicked()
+                            && ui.add(Button::new(&labels.retry).id_salt(id.with("retry"))).clicked()
                         {
                             requests.push(CollabRequest::Join(last));
                         }
