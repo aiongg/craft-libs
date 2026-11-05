@@ -25,6 +25,7 @@ pub struct StrokeButtonResponse {
     /// The editor's valid change, as [`StrokeEditorResponse::event`](super::StrokeEditorResponse::event):
     /// the host makes one undo step per gesture ([`field`](Self::field) names it).
     pub event: Option<EditEvent<StrokeStyle>>,
+    /// The field the change came from.
     pub field: Option<StrokeField>,
 }
 

@@ -64,6 +64,7 @@ impl Labels for PenNames<'static> {
 }
 
 impl<'a> PenNames<'a> {
+    /// Names from the group text and `anchor(i, n)`, the name of anchor `i` of `n`.
     pub fn new(group: impl Into<String>, anchor: impl Fn(usize, usize) -> String + 'a) -> Self {
         Self { group: group.into(), anchor: Box::new(anchor) }
     }
@@ -75,24 +76,29 @@ impl<'a> PenNames<'a> {
 pub struct PenStyle {
     /// The path so far: `bezier.draft_line` in `overlay.line`.
     pub draft_line: f32,
+    /// The path so far: its colour.
     pub color: Color32,
     /// The rubber band: `bezier.line` wide, dashes `bezier.rubber_dash` long with
     /// `bezier.rubber_gap` between, in `overlay.line`.
     pub rubber_width: f32,
+    /// Dash length of the rubber band.
     pub rubber_dash: f32,
+    /// Gap length of the rubber band.
     pub rubber_gap: f32,
-    /// An anchor, as [`BezierOverlay`](super::BezierOverlay)'s.
+    /// An anchor, as [`BezierOverlay`]'s.
     pub anchor: HandleStyle,
     /// The last anchor, filled.
     pub selected_anchor: HandleStyle,
     /// A direction handle's end and its line's width.
     pub control: HandleStyle,
+    /// Width of the line from an anchor to its direction handle.
     pub control_line: f32,
     /// The first anchor while a press there closes the path: filled, `bezier.close_anchor` wide.
     pub close_anchor: HandleStyle,
     /// The close cue's ring beside the pointer: radius `bezier.close_ring`, `bezier.close_offset`
     /// across and down from the pointer.
     pub close_ring: f32,
+    /// Offset of the close cue's ring from the pointer, across and down.
     pub close_offset: f32,
     /// Distance within which a press takes an anchor, a handle or an open path's end:
     /// `bezier.hit`.
@@ -318,6 +324,7 @@ impl<'a> PenDraft<'a> {
         self
     }
 
+    /// The pen draft's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> PenStyle {
         let b = &tokens.component.bezier;
         let sized = |style: HandleStyle, size| adjusted(style, |h| (h.size, h.hit) = (size, 2.0 * b.hit));

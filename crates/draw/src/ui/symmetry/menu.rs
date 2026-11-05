@@ -14,18 +14,31 @@ craft_ui::words! {
     /// English by default.
     #[non_exhaustive]
     pub struct SymmetryLabels {
+        #[allow(missing_docs)]
         button: "symmetry.button" = "Set painting symmetry options";
+        #[allow(missing_docs)]
         off: "symmetry.off" = "Symmetry Off";
+        #[allow(missing_docs)]
         vertical: "symmetry.vertical" = "Vertical";
+        #[allow(missing_docs)]
         horizontal: "symmetry.horizontal" = "Horizontal";
+        #[allow(missing_docs)]
         dual: "symmetry.dual" = "Dual Axis";
+        #[allow(missing_docs)]
         diagonal: "symmetry.diagonal" = "Diagonal";
+        #[allow(missing_docs)]
         work_path: "symmetry.workPath" = "Work Path";
+        #[allow(missing_docs)]
         transform: "symmetry.transform" = "Transform Symmetry";
+        #[allow(missing_docs)]
         commit: "symmetry.commit" = "Commit transform";
+        #[allow(missing_docs)]
         cancel: "symmetry.cancel" = "Cancel transform";
+        #[allow(missing_docs)]
         group: "symmetry.group" = "Symmetry";
+        #[allow(missing_docs)]
         center: "symmetry.center" = "Center";
+        #[allow(missing_docs)]
         rotation_handle: "symmetry.rotationHandle" = "Rotation handle";
     }
 }
@@ -33,6 +46,7 @@ craft_ui::words! {
 /// The symmetry in force, as the menu marks it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SymmetryChoice {
+    /// No symmetry.
     Off,
     /// A straight symmetry of this mode.
     Mode(SymmetryMode),
@@ -98,6 +112,7 @@ pub struct SymmetryMenu<'a> {
 }
 
 impl<'a> SymmetryMenu<'a> {
+    /// A menu with no current choice.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id_salt: IdSalt::new(id_salt), current: None, paths: &[], can_transform: false, labels: None }
     }

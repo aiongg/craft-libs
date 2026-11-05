@@ -21,11 +21,17 @@ craft_ui::words! {
     /// ("Add artboard beside").
     #[non_exhaustive]
     pub struct AddBesideLabels {
+        #[allow(missing_docs)]
         group: "addBeside.group" = "Add beside";
+        #[allow(missing_docs)]
         above: "addBeside.above" = "Add above";
+        #[allow(missing_docs)]
         right: "addBeside.right" = "Add right";
+        #[allow(missing_docs)]
         below: "addBeside.below" = "Add below";
+        #[allow(missing_docs)]
         left: "addBeside.left" = "Add left";
+        #[allow(missing_docs)]
         add_connected: "addBeside.addConnected" = "Add a connected shape";
     }
 }
@@ -33,9 +39,13 @@ craft_ui::words! {
 /// A side of the object, in document space (never mirrored right to left).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AddSide {
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     Left,
 }
 
@@ -63,6 +73,7 @@ pub struct AddBesideStyle {
     pub fill: Color32,
     /// A hovered or focused disc: `accent.solid`, the plus then in `text.on_strong`.
     pub hot_fill: Color32,
+    /// The plus on a hovered or focused disc.
     pub hot_plus: Color32,
 }
 

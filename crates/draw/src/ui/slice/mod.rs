@@ -47,8 +47,10 @@ pub use tool::SliceTool;
 /// Slice draws new slices; Select picks, moves and resizes them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SliceMode {
+    /// Draws new slices.
     #[default]
     Slice,
+    /// Picks, moves and resizes slices.
     Select,
 }
 
@@ -85,6 +87,7 @@ pub struct SliceItem {
     pub id: Option<u32>,
     /// In document pixels.
     pub rect: Rect,
+    /// Where the slice comes from.
     pub origin: SliceOrigin,
 }
 
@@ -148,22 +151,31 @@ pub enum SliceEvent {
     /// The slice `number` (and the whole slice when the press hit a covered piece of it) moving to
     /// a new rectangle.
     Move {
+        /// The slice's display number.
         number: usize,
+        /// The drag phase and the new rectangle, in document pixels.
         event: EditEvent<Rect>,
     },
     /// The user slice `number` resized by a handle.
     Resize {
+        /// The slice's display number.
         number: usize,
+        /// The drag phase and the new rectangle, in document pixels.
         event: EditEvent<Rect>,
     },
     /// The selection changed: `number` picked (`None`: nothing), `add` for an Illustrator ⇧-click
     /// that adds or removes it.
     Select {
+        /// The picked slice's display number, or `None` for nothing.
         number: Option<usize>,
+        /// Whether the pick adds to or removes from the selection.
         add: bool,
+        /// Modifier keys held at the click.
         modifiers: Modifiers,
     },
+    /// A slice command the keyboard or menu asked for.
     Command(SliceCommand),
+    /// A command or gesture the tool refused.
     Refused(SliceRefusal),
 }
 
@@ -173,7 +185,9 @@ pub enum SliceEvent {
 #[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct SliceToolSettings {
+    /// The marquee-style constraint (Normal, Fixed Ratio or Fixed Size).
     pub style: Constraint,
+    /// Whether auto slices are hidden.
     pub hide_auto: bool,
 }
 

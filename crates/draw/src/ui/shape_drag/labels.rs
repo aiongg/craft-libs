@@ -20,22 +20,39 @@ craft_ui::words! {
     /// The Create Shape dialog's words (PhotoCraft's, without colons; US spelling).
     #[non_exhaustive]
     pub struct CreateShapeLabels {
+        #[allow(missing_docs)]
         rectangle: "createShape.rectangle" = "Create Rectangle";
+        #[allow(missing_docs)]
         rounded_rectangle: "createShape.roundedRectangle" = "Create Rounded Rectangle";
+        #[allow(missing_docs)]
         ellipse: "createShape.ellipse" = "Create Ellipse";
+        #[allow(missing_docs)]
         triangle: "createShape.triangle" = "Create Triangle";
+        #[allow(missing_docs)]
         polygon: "createShape.polygon" = "Create Polygon";
+        #[allow(missing_docs)]
         star: "createShape.star" = "Create Star";
+        #[allow(missing_docs)]
         width: "createShape.width" = "Width";
+        #[allow(missing_docs)]
         height: "createShape.height" = "Height";
+        #[allow(missing_docs)]
         radius: "createShape.radius" = "Radius";
+        #[allow(missing_docs)]
         top_left: "createShape.topLeft" = "Top Left";
+        #[allow(missing_docs)]
         top_right: "createShape.topRight" = "Top Right";
+        #[allow(missing_docs)]
         bottom_right: "createShape.bottomRight" = "Bottom Right";
+        #[allow(missing_docs)]
         bottom_left: "createShape.bottomLeft" = "Bottom Left";
+        #[allow(missing_docs)]
         link_radii: "createShape.linkRadii" = "Link radii";
+        #[allow(missing_docs)]
         sides: "createShape.sides" = "Sides";
+        #[allow(missing_docs)]
         star_ratio: "createShape.starRatio" = "Star Ratio";
+        #[allow(missing_docs)]
         from_center: "createShape.fromCenter" = "From Center";
         /// The click lies more than 300,000 px from the origin on an axis.
         bad_position: "createShape.badPosition" = "The shape's position is out of range";

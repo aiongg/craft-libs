@@ -11,7 +11,9 @@ craft_ui::words! {
         appearance: "shape.appearance" = "Appearance";
         /// The live shape section.
         shape: "shape.shape" = "Shape";
+        #[allow(missing_docs)]
         fill: "shape.fill" = "Fill";
+        #[allow(missing_docs)]
         stroke: "shape.stroke" = "Stroke";
         /// The fill chip's accessible name.
         fill_color: "shape.fillColor" = "Fill color";
@@ -23,17 +25,29 @@ craft_ui::words! {
         set_fill_type: "shape.setFillType" = "Set shape fill type";
         /// The stroke chip's tooltip.
         set_stroke_type: "shape.setStrokeType" = "Set shape stroke type";
+        #[allow(missing_docs)]
         width: "shape.width" = "W";
+        #[allow(missing_docs)]
         width_name: "shape.widthName" = "Width";
+        #[allow(missing_docs)]
         height: "shape.height" = "H";
+        #[allow(missing_docs)]
         height_name: "shape.heightName" = "Height";
+        #[allow(missing_docs)]
         corner_radius: "shape.cornerRadius" = "Corner radius";
+        #[allow(missing_docs)]
         top_left: "shape.topLeft" = "Top Left";
+        #[allow(missing_docs)]
         top_right: "shape.topRight" = "Top Right";
+        #[allow(missing_docs)]
         bottom_right: "shape.bottomRight" = "Bottom Right";
+        #[allow(missing_docs)]
         bottom_left: "shape.bottomLeft" = "Bottom Left";
+        #[allow(missing_docs)]
         sides: "shape.sides" = "Sides";
+        #[allow(missing_docs)]
         star_ratio: "shape.starRatio" = "Star ratio";
+        #[allow(missing_docs)]
         weight: "shape.weight" = "Weight";
         /// The options bar's corner radius cell.
         radius: "shape.radius" = "Radius";

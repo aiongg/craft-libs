@@ -23,6 +23,7 @@ pub struct ConnectorStyle {
     /// A path handle's radius: `connector.path_handle` (3.5), accent with a 1 pt white
     /// ring.
     pub path_handle: f32,
+    /// A path handle's fill.
     pub handle_fill: Color32,
     /// A drag shorter than this many screen points makes nothing: `connector.click_slop` (4).
     pub click_slop: f32,

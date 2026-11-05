@@ -60,6 +60,7 @@ pub struct BarGroups {
 }
 
 impl BarGroups {
+    /// Every group shown.
     pub const ALL: Self = Self { reference: true, position: true, size: true, angle: true, skew: true, interpolation: true };
 }
 
@@ -76,10 +77,18 @@ impl Default for BarGroups {
 pub enum SizeUnit {
     /// The scale in percent of the box's size before the transform, shown and committed with up to
     /// `decimals` decimals (a parser's result is rounded to them and no further).
-    Percent { decimals: usize },
+    Percent {
+        /// Most decimals shown and committed.
+        decimals: usize,
+    },
     /// The box's length, in the host's units along each axis (the unit its W and H context menu
     /// picked; PhotoCraft keeps it apart from the rulers').
-    Length { x: RulerUnits, y: RulerUnits },
+    Length {
+        /// The unit along x.
+        x: RulerUnits,
+        /// The unit along y.
+        y: RulerUnits,
+    },
 }
 
 impl Default for SizeUnit {
@@ -98,6 +107,7 @@ pub struct FieldLabel {
 }
 
 impl FieldLabel {
+    /// A label showing `glyph` and named `name`.
     pub fn new(glyph: impl Into<String>, name: impl Into<String>) -> Self {
         Self { glyph: glyph.into(), name: name.into() }
     }
@@ -107,14 +117,21 @@ impl FieldLabel {
 /// text or [`TransformFieldLabels::of`] for the words installed in the context.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TransformFieldLabels {
+    #[allow(missing_docs)]
     pub x: FieldLabel,
+    #[allow(missing_docs)]
     pub y: FieldLabel,
+    #[allow(missing_docs)]
     pub w: FieldLabel,
+    #[allow(missing_docs)]
     pub h: FieldLabel,
     /// The tooltip and name of the aspect link toggle.
     pub link: String,
+    #[allow(missing_docs)]
     pub angle: FieldLabel,
+    #[allow(missing_docs)]
     pub skew_h: FieldLabel,
+    #[allow(missing_docs)]
     pub skew_v: FieldLabel,
     /// Around a W or H scale: `{n}%`.
     pub percent: Unit,
@@ -196,12 +213,19 @@ impl TransformFieldLabels {
 /// One of the fields.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TransformField {
+    #[allow(missing_docs)]
     X,
+    #[allow(missing_docs)]
     Y,
+    #[allow(missing_docs)]
     W,
+    #[allow(missing_docs)]
     H,
+    #[allow(missing_docs)]
     Angle,
+    #[allow(missing_docs)]
     SkewH,
+    #[allow(missing_docs)]
     SkewV,
 }
 
@@ -301,7 +325,9 @@ fn nonzero(v: f64) -> f64 {
 /// What the row edits and reports: the box and the V skew it reads with.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TransformRow {
+    /// The box.
     pub state: BoxState,
+    /// The vertical skew, in degrees.
     pub skew_v: f64,
 }
 

@@ -145,7 +145,7 @@ type Cursor<'a> = Box<dyn Fn(LineCursor) -> CursorIcon + 'a>;
 /// Pointer (PhotoCraft's live Gradient tool, VectorCraft where PhotoCraft has none):
 ///
 /// - The overlay senses through the host's canvas response and takes a press on one of its parts
-///   with [`Claim`](craft_ui::canvas::Claim), before the host's guides and tool. A press off every part, or
+///   with [`Claim`], before the host's guides and tool. A press off every part, or
 ///   with ⌘ (Ctrl) held, is the host's.
 /// - Parts within `gradient_line.hit` of the pointer, in this order: the end handle, the start
 ///   handle, the nearest stop, the nearest midpoint, the line.
@@ -383,6 +383,7 @@ impl<'a> GradientOverlay<'a> {
         });
     }
 
+    /// The overlay's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GradientLineStyle {
         let (g, o, h) = (&tokens.component.gradient_line, &tokens.color.overlay, &tokens.component.handle);
         let (fill, halo) = (o.handle_fill.to_egui(), o.halo.to_egui());

@@ -34,6 +34,7 @@ pub struct GradientSwatch<'a> {
 }
 
 impl<'a> GradientSwatch<'a> {
+    /// A swatch of `stops`; `label` names it for a screen reader.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, stops: &'a GradientStops) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -66,6 +67,7 @@ impl<'a> GradientSwatch<'a> {
         self
     }
 
+    /// The control's size.
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -83,6 +85,7 @@ impl<'a> GradientSwatch<'a> {
         self
     }
 
+    /// Draws the swatch.
     pub fn show(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let style = Swatch::style(&tokens, self.size);

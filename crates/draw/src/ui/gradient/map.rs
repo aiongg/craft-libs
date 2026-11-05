@@ -1,5 +1,5 @@
 //! [`GradientMapEditor`]: Photoshop's Gradient Map adjustment: the preset picker, the
-//! [`GradientEditor`](super::GradientEditor) stop bar with colour stops only, Reverse and Dither (task AD-6).
+//! [`GradientEditor`] stop bar with colour stops only, Reverse and Dither (task AD-6).
 //!
 //! It lives here, beside the gradient editor it builds on, rather than with the other adjustment
 //! editors in craft-imaging: a family crate depends on no other family crate but craft-color
@@ -54,7 +54,7 @@ fn apply(op: &MapOp, value: &GradientMap) -> Option<GradientMap> {
 /// A Gradient Map value: the map from tone (0 black … 1 white) to colour.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GradientMap {
-    /// Colour stops only ([`StopRows::ColorOnly`](super::StopRows::ColorOnly)): every alpha 1,
+    /// Colour stops only ([`StopRows::ColorOnly`]): every alpha 1,
     /// no opacity stops; 2..=64 stops, locations rounded to 0.001.
     pub stops: GradientStops,
     /// Reverse: the map runs white to black.
@@ -71,13 +71,18 @@ craft_ui::words! {
         gradient_map: "gradientMap.title" = "Gradient Map";
         /// The stop bar's own name (AccessKit), distinct from the group's.
         stops: "gradientMap.stops" = "Gradient stops";
+        #[allow(missing_docs)]
         preset: "gradientMap.preset" = "Preset";
         /// The preset button's text while the stops match no preset (always: the editor keeps no
         /// preset identity).
         custom: "gradientMap.custom" = "Custom";
+        #[allow(missing_docs)]
         preset_options: "gradientMap.presetOptions" = "Gradient Preset Options";
+        #[allow(missing_docs)]
         import_presets: "gradientMap.importPresets" = "Import .GRD";
+        #[allow(missing_docs)]
         reverse: "gradientMap.reverse" = "Reverse";
+        #[allow(missing_docs)]
         dither: "gradientMap.dither" = "Dither";
     }
 }
@@ -103,12 +108,12 @@ pub struct GradientMapOutput {
 ///
 /// Top to bottom (PhotoCraft's order):
 /// 1. **Preset**: a button reading "Custom" opens a popover with the host's
-///    [`GradientGroup`]s in a [`GradientPalette`](super::GradientPalette) (List layout), a gear
+///    [`GradientGroup`]s in a [`GradientPalette`] (List layout), a gear
 ///    menu with Import .GRD above it. A pick replaces the stops with the preset's colour stops
 ///    (alpha forced to 1, opacity stops dropped) as one `Set`, closes the popover and selects the
 ///    first stop. The host resolves Foreground and Background stops to its current colours
 ///    before passing the groups.
-/// 2. **The stop bar**: [`GradientEditor`](super::GradientEditor) with [`StopRows::ColorOnly`](super::StopRows::ColorOnly),
+/// 2. **The stop bar**: [`GradientEditor`] with [`StopRows::ColorOnly`],
 ///    2 to 64 stops, no midpoints, location fields in percent with PhotoCraft's 0.001 rounding of
 ///    locations. Its edits come out as edits of the map.
 /// 3. **Reverse** and **Dither** check boxes, each one `Set`.
@@ -175,6 +180,7 @@ impl<'a> GradientMapEditor<'a> {
         self
     }
 
+    /// Whether the editor takes input; disabled by `false`.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

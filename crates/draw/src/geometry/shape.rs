@@ -29,22 +29,60 @@ pub enum ShapeGeometry {
     /// A rectangle; `radii` round the corners top-left, top-right, bottom-right, bottom-left (all
     /// 0 for square corners). Photoshop's Rectangle with a radius and VectorCraft's Rounded
     /// Rectangle are this with radii.
-    Rect { rect: Rect, radii: [f64; 4] },
+    Rect {
+        /// The rectangle's bounds.
+        rect: Rect,
+        /// Corner radii, in document units.
+        radii: [f64; 4],
+    },
     /// An ellipse inscribed in `rect`.
-    Ellipse { rect: Rect },
+    Ellipse {
+        /// The bounds of the ellipse.
+        rect: Rect,
+    },
     /// A regular polygon or star inscribed in the ellipse of `rect` (the Box frame: PhotoCraft's Triangle and
     /// Polygon). `sides` in [`SIDES`]; `star_ratio` in [`STAR_RATIO`], 1 for a plain polygon.
     /// The Triangle tool is 3 sides.
-    Polygon { rect: Rect, sides: u32, star_ratio: f64 },
+    Polygon {
+        /// The box whose inscribed ellipse holds the polygon.
+        rect: Rect,
+        /// Number of sides.
+        sides: u32,
+        /// Inner radius over outer radius for a star; 1 for a plain polygon.
+        star_ratio: f64,
+    },
     /// A regular polygon or star about `center` (the Radial frame: VectorCraft's Polygon and
     /// Star). `radius` reaches the outer points; `rotation` turns the first point from straight
     /// up, in radians, clockwise on screen.
-    RadialPolygon { center: Point, radius: f64, rotation: f64, sides: u32, star_ratio: f64 },
+    RadialPolygon {
+        /// The centre of the polygon.
+        center: Point,
+        /// Distance from the centre to the outer points, in document units.
+        radius: f64,
+        /// Turn of the first point from straight up, in radians, clockwise on screen.
+        rotation: f64,
+        /// Number of sides.
+        sides: u32,
+        /// Inner radius over outer radius for a star; 1 for a plain polygon.
+        star_ratio: f64,
+    },
     /// A line from `from` to `to`, `weight` wide (Photoshop's Line tool: a filled bar).
-    Line { from: Point, to: Point, weight: f64 },
+    Line {
+        /// The start of the line.
+        from: Point,
+        /// The end of the line.
+        to: Point,
+        /// The bar's width, in document units.
+        weight: f64,
+    },
     /// A custom shape's box: the app fits its preset path into `rect`, keeping the preset's
     /// proportions when `keep_proportions` (⇧ held, PhotoCraft's `finish_custom_shape`).
-    Custom { rect: Rect, keep_proportions: bool },
+    Custom {
+        /// The box the preset path is fitted into.
+        rect: Rect,
+        /// Whether the preset keeps its own proportions inside `rect`.
+        keep_proportions: bool,
+    },
 }
 
 impl ShapeGeometry {
@@ -153,6 +191,7 @@ pub fn line_drag(from: Point, to: Point, snap: bool) -> Option<Point> {
 /// (VectorCraft's Polygon and Star tools).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RadialFrame {
+    /// The press point, the frame's centre.
     pub center: Point,
     /// From the centre to the pointer, document units.
     pub radius: f64,

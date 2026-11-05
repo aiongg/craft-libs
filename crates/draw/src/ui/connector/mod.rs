@@ -97,22 +97,37 @@ pub enum ConnectorEnd {
     Free(Point),
     /// Glued to object `target`: by `side` (FigCraft), at numbered `site` (DeckCraft), or at `at`
     /// as fractions of its box placed by hand (FigCraft's Cmd/Ctrl drag).
-    Glued { target: u64, side: ConnectionSide, site: Option<u32>, at: Option<[f64; 2]> },
+    Glued {
+        /// Id of the object glued to.
+        target: u64,
+        /// The side the end leaves by.
+        side: ConnectionSide,
+        /// The numbered connection site, when the product has them.
+        site: Option<u32>,
+        /// A hand-placed spot as fractions of the target's box.
+        at: Option<[f64; 2]>,
+    },
 }
 
 /// Which end of a connector.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ConnectorEndKind {
+    /// The `from` end.
     Start,
+    /// The `to` end.
     End,
 }
 
 /// The selected connector as the tool and the overlay see it this pass: a snapshot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConnectorItem {
+    /// The app's id for the connector.
     pub id: u64,
+    /// The start end.
     pub from: ConnectorEnd,
+    /// The finish end.
     pub to: ConnectorEnd,
+    /// How the connector runs between its ends.
     pub routing: Routing,
     /// The hand-reshaped path, `None` when it routes by itself.
     pub path: Option<ConnectorPath>,
@@ -122,8 +137,11 @@ pub struct ConnectorItem {
 /// ([`ConnectorTool::custom_preview`]) and the commit.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConnectorDraft {
+    /// The start end.
     pub from: ConnectorEnd,
+    /// The finish end.
     pub to: ConnectorEnd,
+    /// How the connector runs between its ends.
     pub routing: Routing,
     /// The route's points ([`route`](crate::geometry::connector::route)).
     pub points: Vec<Point>,
@@ -137,9 +155,17 @@ pub enum ConnectorEvent {
     /// ends on its start object), `Cancel`.
     Draw(EditEvent<ConnectorDraft>),
     /// An end of the selected connector dragged onto another object or onto empty canvas.
-    Reattach { end: ConnectorEndKind, event: EditEvent<ConnectorEnd> },
+    Reattach {
+        /// Which end moved.
+        end: ConnectorEndKind,
+        /// The drag phase and the end's new attachment.
+        event: EditEvent<ConnectorEnd>,
+    },
     /// A path handle of the selected connector dragged: the new path.
     Reshape(EditEvent<ConnectorPath>),
     /// A "+" button beside the selected object: add a connected object on that side.
-    AddConnected { side: AddSide },
+    AddConnected {
+        /// The side of the selected object the "+" sits on.
+        side: AddSide,
+    },
 }

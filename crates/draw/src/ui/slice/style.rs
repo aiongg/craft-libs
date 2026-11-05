@@ -46,6 +46,7 @@ pub struct SliceStyle {
     /// Handle size and reach from the `Handle` painter, `Handle::style(tokens, HandleShape::Square)`
     /// (7 and 14).
     pub handle: f32,
+    /// A handle's grab reach, in screen points.
     pub handle_hit: f32,
     /// A handle's fill: `overlay.handle_fill`.
     pub handle_fill: Color32,

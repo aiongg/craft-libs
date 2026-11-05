@@ -52,7 +52,9 @@ impl Selection {
 /// host gives it one.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TaggedStop {
+    /// The marker.
     pub stop: StopRef,
+    /// The host's tag of the colour stop.
     pub tag: u64,
 }
 
@@ -60,8 +62,11 @@ pub struct TaggedStop {
 /// screen rect of its marker, for a picker opened beside it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ColorRequest {
+    /// Index of the colour stop.
     pub index: usize,
+    /// The host's tag of the colour stop.
     pub tag: u64,
+    /// Screen rect of the stop's marker.
     pub rect: Rect,
 }
 
@@ -157,7 +162,12 @@ pub enum LineRelease {
     Commit(LineGradient),
     /// A click on the line added colour stop `selected` ([`StopRef::Color`]): the host sets the
     /// gradient and selects it.
-    Add { value: LineGradient, selected: TaggedStop },
+    Add {
+        /// The gradient with the new stop.
+        value: LineGradient,
+        /// The new stop, to select.
+        selected: TaggedStop,
+    },
     /// Nothing happened.
     Nothing,
 }

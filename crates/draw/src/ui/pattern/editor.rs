@@ -64,6 +64,7 @@ impl<'a> PatternFillEditor<'a> {
         self
     }
 
+    /// Draws the editor and reports the edit.
     pub fn show(self, ui: &mut Ui) -> EditResponse<PatternFillOptions> {
         let Self { id_salt, options, swatches, mut thumbnails, labels } = self;
         let id = ui.make_persistent_id(id_salt);

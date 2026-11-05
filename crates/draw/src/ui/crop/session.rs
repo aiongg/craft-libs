@@ -17,6 +17,7 @@ pub struct CropDocKey(pub u64);
 /// What the Crop tool needs to know of the active document each pass.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CropDocument {
+    /// Identifies the document, so the tool keeps a frame per document.
     pub key: CropDocKey,
     /// The canvas size in document units (pixels).
     pub size: Size,
@@ -61,7 +62,9 @@ impl CropDocument {
 /// One state of the box's own history: the frame and whether it is the untouched default.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct CropStep {
+    /// The frame, or `None` when there is none.
     pub frame: Option<CropBox>,
+    /// Whether the frame is the untouched default.
     pub default_frame: bool,
 }
 
@@ -166,6 +169,7 @@ impl CropSession {
         self.default_frame = step.default_frame;
     }
 
+    /// A session with no frame.
     pub fn new() -> Self {
         Self::default()
     }
@@ -398,6 +402,7 @@ impl CropSession {
         &self.straighten
     }
 
+    /// Straighten's state, mutably.
     pub fn straighten_mut(&mut self) -> &mut StraightenState {
         &mut self.straighten
     }
