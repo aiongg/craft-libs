@@ -1,5 +1,5 @@
-//! [`SyncedViews`] (N3.22): two page views side by side that follow each other's zoom, layout and
-//! scroll, as PdfCraft's Compare Files shows the old file left and the new one right. The half
+//! [`SyncedViews`] (N3.22): two page views side by side that follow each other's zoom, layout,
+//! rotation, current page and scroll, as PdfCraft's Compare Files shows the old file left and the new one right. The half
 //! under the pointer leads (the new file at first). The pair draws the leading half first; the
 //! other takes the leader's zoom, layout and scroll before it is drawn, in the same pass. The
 //! halves and the divider are craft-ui's [`SplitViews`](craft_ui::canvas::SplitViews) with
@@ -25,6 +25,8 @@ pub struct SyncedViewsState {
     pub lead: Lead,
     /// The leader's offset when the follower last copied it.
     last_offset: Option<(f64, f64)>,
+    /// The leader's current page when the follower last copied it.
+    last_current: Option<usize>,
 }
 
 /// The pair, built per pass: the app draws each half with its own [`PageView`](super::view::PageView)
@@ -58,7 +60,10 @@ impl<'a> SyncedViews<'a> {
         let rect = ui.available_rect_before_wrap();
         let rects = SplitLayout::Two.rects(Tokens::of(ui).component.split.gap, rect);
         // `SplitLayout::Two` puts pane 0 (the main view) on the right.
-        if let Some(pointer) = ui.input(|i| i.pointer.hover_pos()) {
+        // The lead stays with the half a drag started in: it changes on a press, or on hover with
+        // no button held.
+        let may_switch = ui.input(|i| i.pointer.any_pressed() || !i.pointer.any_down());
+        if let Some(pointer) = ui.input(|i| i.pointer.hover_pos()).filter(|_| may_switch) {
             if rects[1].contains(pointer) {
                 self.state.lead = Lead::Left;
             } else if rects[0].contains(pointer) {
@@ -66,7 +71,7 @@ impl<'a> SyncedViews<'a> {
             }
         }
         let lead = self.state.lead;
-        let last_offset = &mut self.state.last_offset;
+        let copied = (&mut self.state.last_offset, &mut self.state.last_current);
         let (left, right) = states;
         let (leader, follower) = match lead {
             Lead::Left => (left, right),
@@ -82,7 +87,7 @@ impl<'a> SyncedViews<'a> {
             if this == lead {
                 responses[pane] = Some(half(ui, leader, this));
             } else {
-                follow(leader, follower, last_offset);
+                follow(leader, follower, copied.0, copied.1);
                 responses[pane] = Some(half(ui, follower, this));
             }
         });
@@ -92,10 +97,12 @@ impl<'a> SyncedViews<'a> {
     }
 }
 
-/// The follower takes the leader's zoom and layout, and its scroll offset once the leader has
-/// moved since the last copy. Returns whether anything changed.
+/// The follower takes the leader's zoom, layout and rotation, its scroll offset once the leader
+/// has moved since the last copy, and, when one page shows at a time, the leader's current page
+/// once it has changed (a continuous view's current page follows from the offset). Returns
+/// whether anything changed.
 // pdfcraft: crates/ui-egui/src/workflows/compare_ui.rs:362 `compare_area`.
-fn follow(leader: &PageViewState, follower: &mut PageViewState, last_offset: &mut Option<(f64, f64)>) -> bool {
+fn follow(leader: &PageViewState, follower: &mut PageViewState, last_offset: &mut Option<(f64, f64)>, last_current: &mut Option<usize>) -> bool {
     let before = follower.clone();
     follower.zoom = leader.zoom;
     follower.fit = leader.fit;
@@ -104,9 +111,16 @@ fn follow(leader: &PageViewState, follower: &mut PageViewState, last_offset: &mu
     follower.cover = leader.cover;
     follower.page_gaps = leader.page_gaps;
     follower.hide_white_space = leader.hide_white_space;
+    follower.rotation = leader.rotation;
     if *last_offset != Some(leader.offset) {
         follower.offset = leader.offset;
         *last_offset = Some(leader.offset);
+    }
+    if *last_current != Some(leader.current) {
+        if !leader.continuous {
+            follower.go_to(leader.current);
+        }
+        *last_current = Some(leader.current);
     }
     *follower != before
 }

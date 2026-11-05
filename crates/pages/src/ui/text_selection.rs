@@ -2,7 +2,7 @@
 //! craft-ui canvas tool):
 //! drag across glyphs in reading order, Alt-drag (or the app's Column Select tool) for the glyphs
 //! inside a rectangle, double-click a word, triple-click a line, four clicks the page; the
-//! selection highlighted, with find matches under it ([`paint_text_marks`]).
+//! selection highlighted (find matches are painted by [`paint_text_marks`], not by the tool).
 //!
 //! The page's text comes from the app ([`PageTextSource`]: PdfCraft's extracted text layer); the
 //! layer keeps no text.
@@ -22,8 +22,11 @@ use super::view::PlacedPage;
 /// points (origin top-left).
 pub trait PageTextSource {
     fn glyph_count(&self) -> usize;
-    /// The glyph nearest `p` within a line's height, if any.
+    /// The glyph nearest `p` within a line's height, if any: where a press or drag lands.
     fn glyph_at(&self, p: kurbo::Point) -> Option<usize>;
+    /// The glyph whose box holds `p`, if any (exactly, no tolerance): where the pointer is over
+    /// text and shows the I-beam.
+    fn glyph_box_at(&self, p: kurbo::Point) -> Option<usize>;
     /// One rectangle per line piece of `glyphs`.
     fn line_rects(&self, glyphs: Range<usize>) -> Vec<Rect>;
     /// The glyphs whose boxes `rect` holds, in reading order.
@@ -132,9 +135,10 @@ pub struct TextSelectState {
 }
 
 /// Paint the selection and find marks of one placed page: the selection fill, the match fills,
-/// the current match grown and rounded as the style says. The page view's overlays call it for
-/// every page whatever tool is active (find marks show under the Hand tool too);
-/// [`TextSelectTool::paint`](craft_ui::canvas::CanvasTool::paint) calls it for the selection.
+/// the current match grown and rounded as the style says. This is the one painter of find marks:
+/// the page view's overlays call it for every page whatever tool is active (find marks show
+/// under the Hand tool too). [`TextSelectTool::paint`](craft_ui::canvas::CanvasTool::paint)
+/// paints the selection only, so an app that also calls this paints no mark twice.
 // pdfcraft: crates/ui-egui/src/canvas.rs:1485 `paint_text_marks`.
 pub fn paint_text_marks(
     painter: &Painter,
@@ -174,29 +178,24 @@ pub fn paint_text_marks(
 ///   time): 2 the word, 3 the line, 4 the page ([`click_unit`]). The cursor is the I-beam over
 ///   glyphs, the arrow elsewhere ([`CanvasTool::cursor`]). A press off any glyph clears the
 ///   selection.
-/// - Highlights through [`paint_text_marks`] with [`TextSelectStyle`] (the `text_selection.*`
-///   tokens proposed in the spec).
+/// - The selection is painted through [`paint_text_marks`] with [`TextSelectStyle`]; the tool
+///   paints no find marks.
 /// - Keys while the canvas has the keyboard ([`CanvasTool::key`], taken only when used):
-///   ⇧-arrows extend a run by a glyph (⇧⌥ by a word), Esc clears. Select All and Copy are the
+///   ⇧-arrows extend a run by a glyph (⇧⌥ by a word; ⇧← and ⇧→ swap in a right-to-left
+///   interface, as [`ToolContext::direction`] says), Esc clears. Select All and Copy are the
 ///   app's commands (they read [`TextSelection::text`]).
 /// - The selection is reported to AccessKit through the bridge ([`super::access`]).
 pub struct TextSelectTool<'a> {
     pages: &'a [PlacedPage],
     texts: &'a dyn PageTexts,
     state: &'a mut TextSelectState,
-    marks: &'a [TextMark],
     column: bool,
     changed: bool,
 }
 
 impl<'a> TextSelectTool<'a> {
     pub fn new(pages: &'a [PlacedPage], texts: &'a dyn PageTexts, state: &'a mut TextSelectState) -> Self {
-        TextSelectTool { pages, texts, state, marks: &[], column: false, changed: false }
-    }
-
-    pub fn marks(mut self, marks: &'a [TextMark]) -> Self {
-        self.marks = marks;
-        self
+        TextSelectTool { pages, texts, state, column: false, changed: false }
     }
 
     /// The Column Select tool is active.
@@ -259,7 +258,7 @@ impl CanvasTool for TextSelectTool<'_> {
         }
         let over_glyph = self
             .page_at(pointer.screen)
-            .and_then(|placed| self.texts.page(placed.page).map(|text| text.glyph_at(placed.to_page(pointer.screen))))
+            .and_then(|placed| self.texts.page(placed.page).map(|text| text.glyph_box_at(placed.to_page(pointer.screen))))
             .is_some_and(|glyph| glyph.is_some());
         ToolCursor::System(if over_glyph { CursorIcon::Text } else { CursorIcon::Default })
     }
@@ -356,7 +355,7 @@ impl CanvasTool for TextSelectTool<'_> {
         self.end_gesture();
     }
 
-    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         let Some(selection) = self.state.selection.filter(|_| key.pressed) else { return false };
         if key.key == Key::Escape && !key.modifiers.any() {
             self.set(None);
@@ -365,9 +364,12 @@ impl CanvasTool for TextSelectTool<'_> {
         let (TextSpan::Run { anchor, head }, true) = (selection.span, key.modifiers.shift) else { return false };
         let Some(text) = self.texts.page(selection.page) else { return false };
         let count = text.glyph_count();
+        let rtl = cx.direction == craft_ui::direction::Direction::Rtl;
         let forward = match key.key {
-            Key::ArrowRight | Key::ArrowDown => true,
-            Key::ArrowLeft | Key::ArrowUp => false,
+            Key::ArrowDown => true,
+            Key::ArrowUp => false,
+            Key::ArrowRight => !rtl,
+            Key::ArrowLeft => rtl,
             _ => return false,
         };
         let moved = match key.key {
@@ -384,7 +386,7 @@ impl CanvasTool for TextSelectTool<'_> {
         let style = Self::style(cx.tokens);
         for placed in self.pages {
             let Some(text) = self.texts.page(placed.page) else { continue };
-            paint_text_marks(painter, placed, text, self.state.selection.as_ref(), self.marks, &style);
+            paint_text_marks(painter, placed, text, self.state.selection.as_ref(), &[], &style);
         }
         if let (Some((page, _)), Some(TextSelection { page: selected, span: TextSpan::Column { from, to } })) =
             (self.state.gesture, self.state.selection)

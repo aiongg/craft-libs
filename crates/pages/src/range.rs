@@ -105,14 +105,14 @@ pub enum Subset {
 pub struct PageRange {
     pub all: bool,
     pub from: usize,
-    /// Starts past any page count, so the field shows (and clamps it to) the last page.
-    pub to: usize,
+    /// The last page of the range; `None` is the document's last page, whatever its length.
+    pub to: Option<usize>,
     pub subset: Subset,
 }
 
 impl Default for PageRange {
     fn default() -> Self {
-        PageRange { all: true, from: 1, to: usize::MAX, subset: Subset::All }
+        PageRange { all: true, from: 1, to: None, subset: Subset::All }
     }
 }
 
@@ -120,7 +120,7 @@ impl PageRange {
     /// The pages (0-based) the range selects in a document of `count` pages.
     // pdfcraft: crates/ui-egui/src/dialogs/marks_ui.rs:46 `PageRange::pages`.
     pub fn pages(&self, count: usize) -> Vec<usize> {
-        let (from, to) = if self.all { (1, count) } else { (self.from.max(1), self.to.min(count)) };
+        let (from, to) = if self.all { (1, count) } else { (self.from.max(1), self.to.map_or(count, |to| to.min(count))) };
         (from..=to)
             .filter(|page| match self.subset {
                 Subset::All => true,

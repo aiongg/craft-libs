@@ -48,13 +48,14 @@ pub struct PagePreviewResponse {
 ///   The pages stepped through are `pages` (the pages a range selects), in order.
 /// - Keys: ← and Page Up previous, → and Page Down next (not while a text field has the
 ///   keyboard), Esc closes; +, = , − and 0 are taken so the grid underneath doesn't zoom.
-/// - Focus moves into the preview when it opens and back when it closes; it is an AccessKit
+/// - Focus moves into the preview when the app says it [`opened`](Self::opened) and back when it closes; it is an AccessKit
 ///   Dialog named "Page {p} of {n}".
 pub struct PagePreview<'a> {
     id_salt: egui::IdSalt,
     source: &'a dyn PageSource,
     pages: &'a [usize],
     at: &'a mut usize,
+    opened: bool,
     labels: Option<PagePreviewLabels>,
 }
 
@@ -66,7 +67,15 @@ impl<'a> PagePreview<'a> {
 
     /// Preview `pages` (0-based), showing `pages[*at]`.
     pub fn new(id_salt: impl egui::AsIdSalt, source: &'a dyn PageSource, pages: &'a [usize], at: &'a mut usize) -> Self {
-        PagePreview { id_salt: egui::IdSalt::new(id_salt), source, pages, at, labels: None }
+        PagePreview { id_salt: egui::IdSalt::new(id_salt), source, pages, at, opened: false, labels: None }
+    }
+
+    /// The app opened the preview this pass (set on the one pass that follows the command that
+    /// opens it): the keyboard moves into the preview and the focus it had is given back on
+    /// close.
+    pub fn opened(mut self, opened: bool) -> Self {
+        self.opened = opened;
+        self
     }
 
     pub fn labels(mut self, labels: PagePreviewLabels) -> Self {
@@ -77,7 +86,7 @@ impl<'a> PagePreview<'a> {
     // pdfcraft: crates/ui-egui/src/workflows/combine_grid/card.rs:326 `preview`; vectorcraft:
     // crates/ui-egui/src/dialogs/import_pdf.rs (page choice with a preview).
     pub fn show(self, ctx: &Context) -> PagePreviewResponse {
-        let PagePreview { id_salt, source, pages, at, labels } = self;
+        let PagePreview { id_salt, source, pages, at, opened, labels } = self;
         let mut out = PagePreviewResponse::default();
         if pages.is_empty() {
             out.closed = true;
@@ -87,11 +96,9 @@ impl<'a> PagePreview<'a> {
         *at = (*at).min(pages.len() - 1);
         let id = Id::unique((id_salt, "page-preview"));
 
-        // The preview takes the keyboard on the pass it opens and gives it back on the pass it closes.
-        let pass = ctx.cumulative_pass_nr();
-        let (seen, before) = (id.with("seen"), id.with("focus-before"));
-        let opened = ctx.data_mut(|d| d.get_temp::<u64>(seen)).is_none_or(|last| last + 1 < pass);
-        ctx.data_mut(|d| d.insert_temp(seen, pass));
+        // The focus from before the preview opened is kept until it closes: the preview is not
+        // drawn in between, so only the preview can hold it.
+        let before = id.with("focus-before");
         if opened {
             let focused = ctx.memory(|m| m.focused());
             ctx.data_mut(|d| d.insert_temp(before, focused));
@@ -152,12 +159,29 @@ impl<'a> PagePreview<'a> {
                     response.on_hover_text(message);
                     ui.label(labels.unavailable.as_str());
                 }
+                // Previous sits at the reading start and Next after the label, as the arrow keys
+                // run (right to left: → is previous).
+                let rtl = direction::is_rtl(ctx);
                 ui.horizontal(|ui| {
-                    let previous =
-                        ui.add_enabled(*at > 0, IconButton::new(Icon::ChevronLeft, labels.previous.as_str()).id_salt((id_salt, "previous")));
-                    ui.label(name.as_str());
-                    let next = ui.add_enabled(*at < last, IconButton::new(Icon::ChevronRight, labels.next.as_str()).id_salt((id_salt, "next")));
-                    let closer = ui.add(IconButton::new(Icon::Close, labels.close.as_str()).id_salt((id_salt, "close")));
+                    let previous = |ui: &mut egui::Ui| {
+                        ui.add_enabled(*at > 0, IconButton::new(Icon::ChevronLeft, labels.previous.as_str()).id_salt((id_salt, "previous")))
+                    };
+                    let next = |ui: &mut egui::Ui| {
+                        ui.add_enabled(*at < last, IconButton::new(Icon::ChevronRight, labels.next.as_str()).id_salt((id_salt, "next")))
+                    };
+                    let (previous, next, closer) = if rtl {
+                        let closer = ui.add(IconButton::new(Icon::Close, labels.close.as_str()).id_salt((id_salt, "close")));
+                        let next = next(ui);
+                        ui.label(name.as_str());
+                        let previous = previous(ui);
+                        (previous, next, closer)
+                    } else {
+                        let previous = previous(ui);
+                        ui.label(name.as_str());
+                        let next = next(ui);
+                        let closer = ui.add(IconButton::new(Icon::Close, labels.close.as_str()).id_salt((id_salt, "close")));
+                        (previous, next, closer)
+                    };
                     if previous.clicked() && *at > 0 {
                         *at -= 1;
                         out.stepped = true;
