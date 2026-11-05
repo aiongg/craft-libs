@@ -209,11 +209,10 @@ impl<'a> MarginHandles<'a> {
         }
     }
 
-    /// The handles' sizes and colours, from the tokens.
+    /// The handles' sizes, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> MarginHandlesStyle {
-        use craft_ui::theme::ToEgui as _;
         let c = &tokens.component;
-        MarginHandlesStyle { edge_grab: c.pages.margin_handle_grab, shade: c.ruler.margin_shade.to_egui(), paper: c.pages.paper.to_egui() }
+        MarginHandlesStyle { edge_grab: c.pages.margin_handle_grab }
     }
 
     /// The unit the drag tooltip and the AccessKit value show (the app's ruler unit).

@@ -47,6 +47,12 @@ pub struct ReviewStyle {
     pub card_accent_width: f32,
     /// The room between a pin's bubble and the avatar circle inside it: `review.pin_inset`.
     pub pin_inset: f32,
+    /// The unread dot's radius on a pin: `review.pin_dot_radius`.
+    pub pin_dot_radius: f32,
+    /// How far the unread dot sits in from the pin's top right corner: `review.pin_dot_inset`.
+    pub pin_dot_inset: f32,
+    /// How far the resolved check sits in from the pin's bottom right corner: `review.pin_check_inset`.
+    pub pin_check_inset: f32,
     /// The filled and the hollow version dot's radius: `review.version_dot_radius`,
     /// `review.version_dot_hollow_radius`.
     pub version_dot_radius: f32,
@@ -92,6 +98,9 @@ impl ReviewStyle {
             revision_changed: t.revision_changed.to_egui(),
             card_accent_width: t.card_accent_width,
             pin_inset: t.pin_inset,
+            pin_dot_radius: t.pin_dot_radius,
+            pin_dot_inset: t.pin_dot_inset,
+            pin_check_inset: t.pin_check_inset,
             version_dot_radius: t.version_dot_radius,
             version_dot_hollow_radius: t.version_dot_hollow_radius,
             ink_light: t.ink_light.to_egui(),

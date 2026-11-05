@@ -14,7 +14,8 @@ pub struct PagesTokens {
     pub margin: f32,
     /// Kept clear at each side of the pages: `values::PAGES_SIDE`.
     pub side: f32,
-    /// What Hide White Space leaves above and below each page's text area: `values::PAGES_WHITE_SPACE_PAD`.
+    /// What Hide White Space leaves above and below each page's text area, in points at 100 % zoom (multiplied by the zoom):
+    /// `values::PAGES_WHITE_SPACE_PAD`.
     pub white_space_pad: f32,
     /// The seam Hide White Space draws between pages: `values::PAGES_SEAM`.
     pub seam: f32,

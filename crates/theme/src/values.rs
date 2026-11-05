@@ -1295,6 +1295,8 @@ pub const RULER_TICK_MID: f32 = 6.0;
 pub const RULER_TICK_MINOR: f32 = 3.0;
 /// Half the width of a text-ruler marker (WordCraft `canvas/rulers.rs:75`, `first - 4.5`).
 pub const RULER_MARKER_HALF: f32 = 4.5;
+/// The width of a table-ruler column marker (WordCraft `table_ruler.rs:125`, `vec2(7.0, ..)`).
+pub const RULER_MARKER_COLUMN: f32 = 7.0;
 /// The height of a text-ruler indent triangle (WordCraft `canvas/rulers.rs:75`, `bar.min.y + 5.0`).
 pub const RULER_MARKER_TIP: f32 = 5.0;
 /// The height of the left indent's box under its triangle (WordCraft `canvas/rulers.rs:80-86`, `bar.max.y - 3.0` to `bar.max.y + 1.0`).
@@ -2089,10 +2091,6 @@ pub const TIMELINE_FIT_MARGIN: f32 = 10.0;
 pub const TIMELINE_TRANSPORT_BUTTON: f32 = 28.0;
 /// A keyframe glyph's box.
 pub const TIMELINE_KEYFRAME_GLYPH: f32 = 15.0;
-/// A hold key's square inside the glyph box.
-pub const TIMELINE_KEYFRAME_HOLD: f32 = 9.0;
-/// A bezier key's circle radius.
-pub const TIMELINE_KEYFRAME_BEZIER: f32 = 5.5;
 /// How near the playhead or another key a Shift-dragged key snaps.
 pub const TIMELINE_KEYFRAME_SNAP: f32 = 8.0;
 /// The keyframe navigator's arrow box width.
@@ -2103,8 +2101,12 @@ pub const TIMELINE_KEYFRAME_ARROW_HEIGHT: f32 = 20.0;
 pub const TIMELINE_KEYFRAME_NAV_STEP: f32 = 16.0;
 /// A marker flag's width.
 pub const TIMELINE_MARKER_WIDTH: f32 = 8.0;
-/// How near a work-area end must be to grab it.
-pub const TIMELINE_WORK_AREA_GRAB: f32 = 8.0;
+/// How near a work-area end must be to grab it (FilmCraft `panels/timeline_hit.rs` `EDGE_PX`).
+pub const TIMELINE_WORK_AREA_GRAB: f32 = 7.0;
+/// How far above and below the work-area bar the ruler still grabs it (FilmCraft `panels/timeline_hit.rs`, `expand2(vec2(zone, 1.0))`).
+pub const TIMELINE_RULER_WORK_HIT_PAD: f32 = 1.0;
+/// How far above and below a render-state bar its tooltip still shows (FilmCraft `panels/timeline/ruler.rs`, `expand2(vec2(0.0, 2.0))`).
+pub const TIMELINE_RULER_RENDER_HIT_PAD: f32 = 2.0;
 /// The least room between two ruler labels.
 pub const TIMELINE_RULER_LABEL_GAP: f32 = 110.0;
 /// The least room between two ruler ticks.
@@ -2240,8 +2242,6 @@ pub const SHEET_FILTER_BUTTON_INSET: f32 = 2.0;
 pub const SHEET_ERROR_TAG_GAP: f32 = 2.0;
 /// The error checking tag's corner radius.
 pub const SHEET_ERROR_TAG_RADIUS: f32 = 3.0;
-/// The warning diamond's half-diagonal in the error checking tag.
-pub const SHEET_ERROR_TAG_MARK: f32 = 6.0;
 /// The filter button's corner radius.
 pub const SHEET_FILTER_BUTTON_RADIUS: f32 = 2.0;
 /// The filter button's inset round its glyph.
@@ -2250,6 +2250,10 @@ pub const SHEET_FILTER_BUTTON_GLYPH_INSET: f32 = 1.5;
 pub const SHEET_STATS_GAP: f32 = 10.0;
 /// How far from a header's far edge a press still grabs it (GridCraft `grid/interact.rs:949`).
 pub const SHEET_EDGE_GRAB: f32 = 4.0;
+/// How far from a selection's border a press still moves it (GridCraft `grid/interact.rs`, `expand(3.0)`/`shrink(3.0)`).
+pub const SHEET_BORDER_GRAB: f32 = 3.0;
+/// The room after the last lane in an outline band (GridCraft `outline.rs` `band`, `+ 3.0`).
+pub const SHEET_OUTLINE_BAND_SLACK: f32 = 3.0;
 /// The fill handle's side (GridCraft `grid/selection.rs:133`).
 pub const SHEET_FILL_HANDLE: f32 = 6.0;
 /// The accent bar on a selected header's inner edge (`grid/show.rs:566`).
@@ -2274,6 +2278,12 @@ pub const REVIEW_CARD_ACCENT_WIDTH: f32 = 4.0;
 /// The room between a pin's bubble and the avatar circle inside it: an 11 pt circle in a 28 pt
 /// bubble (FigCraft `canvas/comments.rs:357`).
 pub const REVIEW_PIN_INSET: f32 = 3.0;
+/// The unread dot's radius on a pin (FigCraft `canvas/comments.rs`, `circle_filled(c, 3.5, ACCENT)`).
+pub const REVIEW_PIN_DOT_RADIUS: f32 = 3.5;
+/// How far the unread dot sits in from the pin's top right corner (FigCraft `canvas/comments.rs`, `vec2(-2.0, 2.0)`).
+pub const REVIEW_PIN_DOT_INSET: f32 = 2.0;
+/// How far the resolved check sits in from the pin's bottom right corner (FigCraft `canvas/comments.rs`, `vec2(-3.0, -3.0)`).
+pub const REVIEW_PIN_CHECK_INSET: f32 = 3.0;
 /// The filled version dot's radius (FigCraft `panels/versions.rs:386`).
 pub const REVIEW_VERSION_DOT_RADIUS: f32 = 4.0;
 /// The hollow version dot's radius (`panels/versions.rs:388`).
@@ -2286,7 +2296,8 @@ pub const PAGES_GAP: f32 = 14.0;
 pub const PAGES_MARGIN: f32 = 28.0;
 /// Kept clear at each side of the pages.
 pub const PAGES_SIDE: f32 = 70.0;
-/// What Hide White Space leaves above and below each page's text area.
+/// What Hide White Space leaves above and below each page's text area, in points at 100 % zoom (WordCraft
+/// `canvas/geometry.rs:17,40` multiplies it by the zoom).
 pub const PAGES_WHITE_SPACE_PAD: f32 = 6.0;
 /// The seam Hide White Space draws between pages.
 pub const PAGES_SEAM: f32 = 1.0;

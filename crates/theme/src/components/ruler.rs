@@ -26,6 +26,8 @@ pub struct RulerTokens {
     pub tick_minor: f32,
     /// Half the width of a text-ruler marker: `ruler.marker_half`.
     pub marker_half: f32,
+    /// The width of a table-ruler column marker: `values::RULER_MARKER_COLUMN`.
+    pub marker_column: f32,
     /// Height of a text-ruler indent triangle: `ruler.marker_tip`.
     pub marker_tip: f32,
     /// Height of the left indent's box under its triangle: `ruler.marker_bar`.
@@ -56,6 +58,7 @@ impl Family for RulerTokens {
         "tick_mid" 0.0..=1024.0 => tick_mid;
         "tick_minor" 0.0..=1024.0 => tick_minor;
         "marker_half" 0.0..=64.0 => marker_half;
+        "marker_column" 0.0..=64.0 => marker_column;
         "marker_tip" 0.0..=64.0 => marker_tip;
         "marker_bar" 0.0..=64.0 => marker_bar;
         "marker_stem" 0.0..=64.0 => marker_stem;
@@ -73,6 +76,7 @@ impl Family for RulerTokens {
             tick_mid: values::RULER_TICK_MID,
             tick_minor: values::RULER_TICK_MINOR,
             marker_half: values::RULER_MARKER_HALF,
+            marker_column: values::RULER_MARKER_COLUMN,
             marker_tip: values::RULER_MARKER_TIP,
             marker_bar: values::RULER_MARKER_BAR,
             marker_stem: values::RULER_MARKER_STEM,

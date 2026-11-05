@@ -117,7 +117,7 @@ impl LayoutOptions {
 }
 
 /// The spacing of a page layout: screen points, except [`white_space_pad`](Self::white_space_pad),
-/// which is in page points. The page view takes it from the `pages.*` size tokens
+/// which is in points at 100 % zoom and is multiplied by the zoom. The page view takes it from the `pages.*` size tokens
 /// (`craft_pages::ui::PageView::style`); this crate's core has no tokens, so the layout functions
 /// take it as a value.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -130,8 +130,8 @@ pub struct PageSpacing {
     /// Kept clear at each side (token `pages.side`; PdfCraft's gutter for its floating
     /// quick-action bar).
     pub side: f64,
-    /// What Hide White Space leaves above and below each page's text area, in page points: it
-    /// scales with the zoom, as WordCraft's `WHITE_SPACE_PAD` does (token
+    /// What Hide White Space leaves above and below each page's text area, in points at 100 % zoom:
+    /// it is multiplied by the zoom, as WordCraft's `WHITE_SPACE_PAD` is (`canvas/geometry.rs:17,40`) (token
     /// `pages.white_space_pad`).
     pub white_space_pad: f64,
     /// The seam Hide White Space draws between pages, in screen points at any zoom (token

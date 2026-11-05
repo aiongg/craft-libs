@@ -187,7 +187,7 @@ pub struct TextRulerResponse {
 ///   [`INCH_SIXTEENTHS`](craft_ui::canvas::INCH_SIXTEENTHS); the canvas rulers' style), from the
 ///   column's start edge; numbers keep clear of the markers
 ///   (WordCraft #1878). The column takes the ruler's fill, the margins the ruler family's
-///   `ruler.margin_shade` (the token craft-pages' margin handles read too).
+///   `ruler.margin_shade`.
 /// - Indent markers (Word's): the first-line triangle down at the top, the hanging triangle up
 ///   and the left box under it at the bottom, the right triangle at the right. Dragging the box
 ///   moves first-line and left together; Alt drags freely (no snap).

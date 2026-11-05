@@ -10,7 +10,7 @@ use egui::{Modifiers, PointerButton, Rect, Ui, pos2, vec2};
 use egui_kittest::Harness;
 
 use super::grid::{GridLayout, LineIndex, SheetGeometry};
-use super::outline::{BAND_SLACK, Frame, OutlineAction, OutlineAxis, OutlineBand, OutlineGroup, lane};
+use super::outline::{Frame, OutlineAction, OutlineAxis, OutlineBand, OutlineGroup, lane};
 use super::style::SheetStyle;
 
 fn style() -> SheetStyle {
@@ -25,7 +25,7 @@ fn band_thickness_counts_a_lane_per_level_plus_one() {
     let style = style();
     let step = lane(style.outline_lane, 1.0);
     assert_eq!(OutlineBand::thickness(0, 1.0, &style), 0.0);
-    assert_eq!(OutlineBand::thickness(2, 1.0, &style), 3.0 * step + BAND_SLACK);
+    assert_eq!(OutlineBand::thickness(2, 1.0, &style), 3.0 * step + style.outline_band_slack);
     assert!(OutlineBand::thickness(3, 1.0, &style) > OutlineBand::thickness(2, 1.0, &style));
     assert_eq!(lane(style.outline_lane, 0.1), lane(style.outline_lane, 0.75), "lanes stop shrinking at the least zoom");
     assert_eq!(lane(style.outline_lane, 2.0), (style.outline_lane * 2.0).round());

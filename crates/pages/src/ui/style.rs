@@ -1,7 +1,6 @@
 //! The page widgets' sizes and colours, one style per widget, each a pure function of
 //! [`UiTokens`] built by the widget's `style` function from the `pages.*` leaves (the one `pages`
-//! family; names and source values in the spec's "Proposed tokens") and, for the rulers' margin
-//! shade, `ruler.margin_shade`. No body here or in a widget holds a literal size.
+//! family; names and source values in the spec's "Proposed tokens"). No body here or in a widget holds a literal size.
 //!
 //! Proportions of a token size (a hidden slide's opacity, a mark's share of the ascent) are named
 //! constants beside their widget (lead call 38), not tokens.
@@ -37,16 +36,11 @@ pub struct PageThumbnailsStyle {
     pub panel_inset: f32,
 }
 
-/// [`MarginHandles`](super::MarginHandles)' sizes and colours.
+/// [`MarginHandles`](super::MarginHandles)' sizes.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MarginHandlesStyle {
     /// How far either side of an edge grabs it (`pages.margin_handle_grab`).
     pub edge_grab: f32,
-    /// The margin part of a ruler (`ruler.margin_shade`, a new leaf of craft-ui's ruler family,
-    /// which craft-text's `TextRuler` reads too); the text part keeps the ruler's fill.
-    pub shade: Color32,
-    /// The text part of a ruler: the page's paper (`pages.paper`).
-    pub paper: Color32,
 }
 
 /// [`HeaderFooterZones`](super::HeaderFooterZones)' sizes and strokes.

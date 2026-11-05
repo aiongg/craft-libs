@@ -51,8 +51,6 @@ pub struct SheetTokens {
     pub error_tag_gap: f32,
     /// The error checking tag's corner radius: `values::SHEET_ERROR_TAG_RADIUS`.
     pub error_tag_radius: f32,
-    /// The warning diamond's half-diagonal in the error checking tag: `values::SHEET_ERROR_TAG_MARK`.
-    pub error_tag_mark: f32,
     /// The filter button's corner radius: `values::SHEET_FILTER_BUTTON_RADIUS`.
     pub filter_button_radius: f32,
     /// The filter button's inset round its glyph: `values::SHEET_FILTER_BUTTON_GLYPH_INSET`.
@@ -61,6 +59,10 @@ pub struct SheetTokens {
     pub stats_gap: f32,
     /// How far from a header's far edge a press still grabs it: `values::SHEET_EDGE_GRAB`.
     pub edge_grab: f32,
+    /// How far from a selection's border a press still moves it: `values::SHEET_BORDER_GRAB`.
+    pub border_grab: f32,
+    /// The room after the last lane in an outline band: `values::SHEET_OUTLINE_BAND_SLACK`.
+    pub outline_band_slack: f32,
     /// The fill handle's side: `values::SHEET_FILL_HANDLE`.
     pub fill_handle: f32,
     /// The accent bar on a selected header's inner edge: `values::SHEET_HEADER_ACCENT_BAR`.
@@ -149,11 +151,12 @@ impl Family for SheetTokens {
         "filter_button_inset" 0.0..=16.0 => filter_button_inset;
         "error_tag_gap" 0.0..=16.0 => error_tag_gap;
         "error_tag_radius" 0.0..=16.0 => error_tag_radius;
-        "error_tag_mark" 1.0..=32.0 => error_tag_mark;
         "filter_button_radius" 0.0..=16.0 => filter_button_radius;
         "filter_button_glyph_inset" 0.0..=16.0 => filter_button_glyph_inset;
         "stats_gap" 0.0..=64.0 => stats_gap;
         "edge_grab" 1.0..=16.0 => edge_grab;
+        "border_grab" 1.0..=16.0 => border_grab;
+        "outline_band_slack" 0.0..=16.0 => outline_band_slack;
         "fill_handle" 2.0..=32.0 => fill_handle;
         "header_accent_bar" 0.5..=8.0 => header_accent_bar;
         "hidden_mark_offset" 0.5..=8.0 => hidden_mark_offset;
@@ -189,11 +192,12 @@ impl Family for SheetTokens {
             filter_button_inset: values::SHEET_FILTER_BUTTON_INSET,
             error_tag_gap: values::SHEET_ERROR_TAG_GAP,
             error_tag_radius: values::SHEET_ERROR_TAG_RADIUS,
-            error_tag_mark: values::SHEET_ERROR_TAG_MARK,
             filter_button_radius: values::SHEET_FILTER_BUTTON_RADIUS,
             filter_button_glyph_inset: values::SHEET_FILTER_BUTTON_GLYPH_INSET,
             stats_gap: values::SHEET_STATS_GAP,
             edge_grab: values::SHEET_EDGE_GRAB,
+            border_grab: values::SHEET_BORDER_GRAB,
+            outline_band_slack: values::SHEET_OUTLINE_BAND_SLACK,
             fill_handle: values::SHEET_FILL_HANDLE,
             header_accent_bar: values::SHEET_HEADER_ACCENT_BAR,
             hidden_mark_offset: values::SHEET_HIDDEN_MARK_OFFSET,

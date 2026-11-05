@@ -45,11 +45,8 @@ pub struct TimelineStyle {
     pub fit_margin: f32,
     /// A transport button's square: `timeline.transport_button`.
     pub transport_button: f32,
-    /// A keyframe glyph's box: `timeline.keyframe_glyph`; a hold key's square inside it:
-    /// `timeline.keyframe_hold`; a bezier key's circle radius: `timeline.keyframe_bezier`.
+    /// A keyframe glyph's box: `timeline.keyframe_glyph`.
     pub keyframe_glyph: f32,
-    pub keyframe_hold: f32,
-    pub keyframe_bezier: f32,
     /// How near the playhead or another key a Shift-dragged key snaps:
     /// `timeline.keyframe_snap`.
     pub keyframe_snap: f32,
@@ -63,6 +60,12 @@ pub struct TimelineStyle {
     pub marker_width: f32,
     /// How near a work-area end must be to grab it: `timeline.work_area_grab`.
     pub work_area_grab: f32,
+    /// How far the work-area bar's hit area reaches above and below the bar:
+    /// `timeline.ruler_work_hit_pad`.
+    pub ruler_work_hit_pad: f32,
+    /// How far a render-bar span's hover area reaches above and below the bar:
+    /// `timeline.ruler_render_hit_pad`.
+    pub ruler_render_hit_pad: f32,
     /// The least room between two ruler labels and between two ticks:
     /// `timeline.ruler_label_gap`, `timeline.ruler_tick_gap`.
     pub ruler_label_gap: f32,
@@ -185,14 +188,14 @@ impl TimelineStyle {
             fit_margin: t.fit_margin,
             transport_button: t.transport_button,
             keyframe_glyph: t.keyframe_glyph,
-            keyframe_hold: t.keyframe_hold,
-            keyframe_bezier: t.keyframe_bezier,
             keyframe_snap: t.keyframe_snap,
             keyframe_arrow_width: t.keyframe_arrow_width,
             keyframe_arrow_height: t.keyframe_arrow_height,
             keyframe_nav_step: t.keyframe_nav_step,
             marker_width: t.marker_width,
             work_area_grab: t.work_area_grab,
+            ruler_work_hit_pad: t.ruler_work_hit_pad,
+            ruler_render_hit_pad: t.ruler_render_hit_pad,
             ruler_label_gap: t.ruler_label_gap,
             ruler_tick_gap: t.ruler_tick_gap,
             scrub_step: t.scrub_step,

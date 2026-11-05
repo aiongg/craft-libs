@@ -412,13 +412,6 @@ struct PinCx<'a> {
 /// The words of the thread's text a pin's accessible name carries.
 const PIN_NAME_WORDS: usize = 8;
 
-/// The unread dot's radius, its inset from the bubble's top right corner and the check's inset
-/// from the bottom right (FigCraft `canvas/comments.rs:358-367`: radius 3.5 inside a 1 pt ring,
-/// centre 2 pt in, check centre 3 pt in).
-const UNREAD_DOT_RADIUS: f32 = 3.5;
-const UNREAD_DOT_INSET: f32 = 2.0;
-const CHECK_INSET: f32 = 3.0;
-
 fn single_pin(ui: &mut Ui, cx: &PinCx, pin: &CommentPin, me: &str, open: bool, out: &mut CommentPinsOutput) -> Response {
     let PinCx { tokens, style, labels, id } = *cx;
     let CommentPin { id: thread, point: at, author, text, color, unread, resolved } = *pin;
@@ -453,13 +446,13 @@ fn single_pin(ui: &mut Ui, cx: &PinCx, pin: &CommentPin, me: &str, open: bool, o
         paint_avatar(ui.painter(), tokens, inner.center(), inner.height() / 2.0, author, fill);
         let accent = tokens.color.accent.strong.to_egui();
         if unread {
-            let centre = rect.right_top() + vec2(-UNREAD_DOT_INSET, UNREAD_DOT_INSET);
+            let centre = rect.right_top() + vec2(-style.pin_dot_inset, style.pin_dot_inset);
             let ring = StrokeWidth::W1.width(ui.pixels_per_point());
-            ui.painter().circle_filled(centre, UNREAD_DOT_RADIUS + ring, tokens.color.surface.raised.to_egui());
-            ui.painter().circle_filled(centre, UNREAD_DOT_RADIUS, accent);
+            ui.painter().circle_filled(centre, style.pin_dot_radius + ring, tokens.color.surface.raised.to_egui());
+            ui.painter().circle_filled(centre, style.pin_dot_radius, accent);
         }
         if resolved {
-            let centre = rect.right_bottom() - Vec2::splat(CHECK_INSET);
+            let centre = rect.right_bottom() - Vec2::splat(style.pin_check_inset);
             icons::paint(ui, Rect::from_center_size(centre, Vec2::splat(tokens.size.icon.sm)), Icon::Check, IconSize::Sm, accent);
         }
     });
