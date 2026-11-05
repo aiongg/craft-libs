@@ -125,6 +125,7 @@ impl UpdatePromptDialog {
         self.installing = installing;
     }
 
+    /// The release the dialog offers.
     pub fn release(&self) -> &Release {
         &self.release
     }
@@ -196,6 +197,7 @@ impl StackDialog for UpdatePromptDialog {
 /// What the user chose in the check-result dialog.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CheckChoice {
+    /// Close the dialog.
     Close,
     /// Failed state only: run another check.
     CheckAgain,
@@ -214,6 +216,7 @@ pub struct UpdateCheckDialog {
 }
 
 impl UpdateCheckDialog {
+    /// A dialog in the checking state for `running_version`.
     pub fn new(running_version: impl Into<String>) -> Self {
         Self { id: dialog_id(CHECK_KEY), running_version: running_version.into(), status: Status::Checking, state: DialogState::new() }
     }

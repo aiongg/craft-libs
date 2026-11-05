@@ -38,6 +38,7 @@ pub enum Status {
 /// What the app should do after [`Updater::show`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Action {
+    /// Nothing for the app to do this frame.
     None,
     /// Open this page in the browser.
     OpenUrl(String),
@@ -80,6 +81,8 @@ impl From<&str> for Failure {
     }
 }
 
+/// One app's update flow: the check, the startup prompt and the self-update worker. See the
+/// module docs.
 pub struct Updater {
     app: &'static App,
     version: String,
@@ -103,6 +106,7 @@ pub struct Updater {
 }
 
 impl Updater {
+    /// An updater for `app`, running `version`.
     pub fn new(app: &'static App, version: impl Into<String>) -> Self {
         let version = version.into();
         let version = self_update::current_version(app, &version).map_or(version, |v| v.to_string());
@@ -204,6 +208,7 @@ impl Updater {
         }
     }
 
+    /// What the last requested check came to.
     pub fn status(&self) -> &Status {
         &self.status
     }

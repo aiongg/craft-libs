@@ -24,10 +24,16 @@ pub enum StartupPromptResponse {
 /// State for the startup update prompt dialog.
 #[derive(Clone, Debug)]
 pub struct StartupPrompt {
+    /// The app the prompt is for.
     pub app: &'static App,
+    /// The release on offer.
     pub release: Release,
+    /// The version that is running now.
     pub running_version: String,
+    /// Whether this installed copy can update itself, from
+    /// [`is_self_updating`](crate::self_update::is_self_updating) when the prompt is made.
     pub is_self_updating: bool,
+    /// Whether the dialog is showing.
     pub open: bool,
     /// A message shown as it is: an error from the network or the installer.
     pub status_message: Option<String>,
@@ -35,6 +41,7 @@ pub struct StartupPrompt {
     /// wins when both are set, so an error written straight to it shows.
     /// [`StartupPrompt::set_note`] and [`StartupPrompt::set_message`] keep only one.
     pub status_note: Option<Note>,
+    /// Set while an install the prompt started is running.
     pub is_installing: bool,
     /// Puts the card's words in the interface language ([`crate::translate`]); English by default.
     pub translate: Translate,
