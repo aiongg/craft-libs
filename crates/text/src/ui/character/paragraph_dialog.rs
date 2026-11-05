@@ -19,9 +19,9 @@ use craft_ui::composites::{Field, FieldGroup, GroupBox};
 use craft_ui::controls::expr::ExprUnits;
 use craft_ui::controls::{NumberField, Select};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width};
-use craft_ui::edit::EditEvent;
+use craft_ui::edit::{EditEvent, GestureDraft};
 use craft_ui::localized::units::{Length, LengthUnit, UnitContext};
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, fmt};
 use craft_ui::patterns::unit_number_field;
 use craft_ui::primitives::{Content, Surface, SurfaceKind};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -141,7 +141,8 @@ pub struct ParagraphAnswer {
 ///   Choosing Exactly with an At of 9.99 or less sets 18 pt; choosing a multiple with an At above
 ///   9.99 sets 1 (DeckCraft).
 /// - Lengths in the dialog's unit (inches by default, as PowerPoint). Typed numbers are clamped
-///   by their field; text that is not a number is not taken (the field marks it). A format the
+///   by their field; text that is not a number is not taken (the field marks it, and OK waits until it is fixed or
+///   left). Esc in a field's gesture restores the value the gesture began from. A format the
 ///   app hands over with a value out of range shows the labels' range message under its field
 ///   (the field error style) and OK waits until it is fixed.
 /// - Preview (Word's; DeckCraft has none): three sample paragraphs, the outer two grey and the
@@ -154,11 +155,13 @@ pub struct ParagraphDialog {
     word: bool,
     labels: Option<ParagraphDialogLabels>,
     state: DialogState,
+    /// One draft per field, indexed by [`Row`]: Esc in a gesture restores the value it began from.
+    drafts: [GestureDraft<Option<f32>>; ROWS],
 }
 
 impl ParagraphDialog {
     pub fn new(format: ParagraphFormat) -> Self {
-        ParagraphDialog { format, unit: LengthUnit::Inches, word: false, labels: None, state: DialogState::new() }
+        ParagraphDialog { format, unit: LengthUnit::Inches, word: false, labels: None, state: DialogState::new(), drafts: Default::default() }
     }
 
     pub fn unit(mut self, unit: LengthUnit) -> Self {
@@ -243,9 +246,12 @@ impl LinePreset {
     }
 }
 
+/// The number of [`Row`]s.
+const ROWS: usize = 6;
+
 /// The fields that can be out of range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Row {
+pub(super) enum Row {
     BeforeText,
     AfterText,
     By,
@@ -287,12 +293,11 @@ fn with_at(spacing: LineSpacing, at: f32) -> LineSpacing {
     }
 }
 
-/// The value an edit event leaves in the field, if it changed it.
-fn applied<T: Clone>(event: Option<&EditEvent<T>>) -> Option<T> {
-    match event? {
-        EditEvent::Commit { changed: false, .. } => None,
-        event => event.value().cloned(),
-    }
+/// What a length field reported this pass.
+pub(super) struct LengthEdit {
+    pub(super) event: Option<EditEvent<Option<f32>>>,
+    /// The field's text can't become a value.
+    pub(super) rejected: bool,
 }
 
 impl ParagraphDialog {
@@ -330,7 +335,7 @@ impl ParagraphDialog {
             }
             None => numbers.format(f64::from(points), 0..=AT_DECIMALS),
         };
-        labels.out_of_range.replace("{field}", caption).replace("{min}", &show(bounds.0)).replace("{max}", &show(bounds.1))
+        fmt(&labels.out_of_range, &[("field", caption), ("min", &show(bounds.0)), ("max", &show(bounds.1))])
     }
 
     /// One length field of the form: `value` in points, shown in `unit`.
@@ -347,38 +352,82 @@ impl ParagraphDialog {
         bounds: (f32, f32),
         enabled: bool,
         row: Row,
-    ) -> Option<Option<f32>> {
+    ) -> LengthEdit {
         let invalid = self.out_of_range().contains(&row);
         let error = invalid.then(|| self.message(labels, numbers, caption, bounds, Some(unit)));
         let shown = value.map_or(f64::NAN, |v| in_unit(v, unit));
         let units = ExprUnits { unit: Some(unit), suffix: unit.suffix(), context: UnitContext::default() };
         let range = in_unit(bounds.0, unit)..=in_unit(bounds.1, unit);
+        let rejected = Cell::new(false);
         let edit = Field::new(caption)
             .error(error)
             .show(ui, |ui, invalid| {
-                unit_number_field(("paragraph", salt), caption, shown, numbers, &units)
+                let output = unit_number_field(("paragraph", salt), caption, shown, numbers, &units)
                     .range(range)
                     .enabled(enabled)
                     .invalid(invalid)
-                    .show_optional(ui)
+                    .show_optional_full(ui);
+                rejected.set(output.rejected);
+                output.edit
             })
             .inner;
-        applied(edit.event.as_ref()).map(|v| v.map(|v| in_points(v, unit)))
+        LengthEdit { event: edit.event.map(|event| event.map(|v| v.map(|v| in_points(v, unit)))), rejected: rejected.get() }
+    }
+
+    /// Applies a field's event to its row's value through the row's draft, and refuses OK while
+    /// the field's text is rejected.
+    pub(super) fn edit(&mut self, row: Row, edit: LengthEdit, valid: &Cell<bool>) {
+        if edit.rejected {
+            valid.set(false);
+        }
+        let Some(event) = edit.event else { return };
+
+        let mut value = self.value(row);
+        self.drafts[row as usize].apply(&mut value, event);
+        self.set_value(row, value);
+    }
+
+    fn value(&self, row: Row) -> Option<f32> {
+        let f = &self.format;
+        match row {
+            Row::BeforeText => f.before_text,
+            Row::AfterText => f.after_text.flatten(),
+            Row::By => f.by,
+            Row::SpaceBefore => f.space_before,
+            Row::SpaceAfter => f.space_after,
+            Row::At => f.line_spacing.map(at_value),
+        }
+    }
+
+    fn set_value(&mut self, row: Row, value: Option<f32>) {
+        let f = &mut self.format;
+        match row {
+            Row::BeforeText => f.before_text = value,
+            Row::AfterText => f.after_text = Some(value),
+            Row::By => f.by = value,
+            Row::SpaceBefore => f.space_before = value,
+            Row::SpaceAfter => f.space_after = value,
+            // An emptied At keeps the spacing's number.
+            Row::At => f.line_spacing = f.line_spacing.map(|l| with_at(l, value.unwrap_or_else(|| at_value(l)))),
+        }
     }
 
     fn body(&mut self, ui: &mut Ui, labels: &ParagraphDialogLabels, numbers: &LocaleNumbers, valid: &Cell<bool>) {
+        valid.set(true);
         let unit = self.unit;
         let gap = ui.spacing().item_spacing.y;
         FieldGroup::new("paragraph-fields").show(ui, |ui| {
             GroupBox::new(labels.general.as_str()).show(ui, |ui| self.alignment(ui, labels));
             ui.add_space(gap);
-            GroupBox::new(labels.indentation.as_str()).show(ui, |ui| self.indentation(ui, labels, numbers, unit));
+            GroupBox::new(labels.indentation.as_str()).show(ui, |ui| self.indentation(ui, labels, numbers, unit, valid));
             ui.add_space(gap);
-            GroupBox::new(labels.spacing.as_str()).show(ui, |ui| self.spacing(ui, labels, numbers));
+            GroupBox::new(labels.spacing.as_str()).show(ui, |ui| self.spacing(ui, labels, numbers, valid));
             ui.add_space(gap);
             GroupBox::new(labels.preview.as_str()).show(ui, |ui| self.preview(ui, labels));
         });
-        valid.set(self.out_of_range().is_empty());
+        if !self.out_of_range().is_empty() {
+            valid.set(false);
+        }
     }
 
     fn alignment(&mut self, ui: &mut Ui, labels: &ParagraphDialogLabels) {
@@ -404,16 +453,14 @@ impl ParagraphDialog {
         self.format.align = align;
     }
 
-    fn indentation(&mut self, ui: &mut Ui, labels: &ParagraphDialogLabels, numbers: &LocaleNumbers, unit: LengthUnit) {
+    fn indentation(&mut self, ui: &mut Ui, labels: &ParagraphDialogLabels, numbers: &LocaleNumbers, unit: LengthUnit, valid: &Cell<bool>) {
         let indent = (-MAX_POINTS, MAX_POINTS);
         let before = self.format.before_text;
-        if let Some(v) = self.length_field(ui, labels, numbers, "before", &labels.before_text, before, unit, indent, true, Row::BeforeText) {
-            self.format.before_text = v;
-        }
-        if let Some(after) = self.format.after_text
-            && let Some(v) = self.length_field(ui, labels, numbers, "after", &labels.after_text, after, unit, indent, true, Row::AfterText)
-        {
-            self.format.after_text = Some(v);
+        let edit = self.length_field(ui, labels, numbers, "before", &labels.before_text, before, unit, indent, true, Row::BeforeText);
+        self.edit(Row::BeforeText, edit, valid);
+        if let Some(after) = self.format.after_text {
+            let edit = self.length_field(ui, labels, numbers, "after", &labels.after_text, after, unit, indent, true, Row::AfterText);
+            self.edit(Row::AfterText, edit, valid);
         }
         let mut special = self.format.special;
         Field::new(labels.special.as_str()).show(ui, |ui, _| {
@@ -432,24 +479,29 @@ impl ParagraphDialog {
         }
         let by_enabled = matches!(self.format.special, Some(SpecialIndent::FirstLine | SpecialIndent::Hanging));
         let by = self.format.by;
-        if let Some(v) = self.length_field(ui, labels, numbers, "by", &labels.by, by, unit, (0.0, MAX_POINTS), by_enabled, Row::By) {
-            self.format.by = v;
-        }
+        let edit = self.length_field(ui, labels, numbers, "by", &labels.by, by, unit, (0.0, MAX_POINTS), by_enabled, Row::By);
+        self.edit(Row::By, edit, valid);
     }
 
-    fn spacing(&mut self, ui: &mut Ui, labels: &ParagraphDialogLabels, numbers: &LocaleNumbers) {
+    fn spacing(&mut self, ui: &mut Ui, labels: &ParagraphDialogLabels, numbers: &LocaleNumbers, valid: &Cell<bool>) {
         let points = (0.0, MAX_POINTS);
         let (before, after) = (self.format.space_before, self.format.space_after);
-        if let Some(v) =
-            self.length_field(ui, labels, numbers, "space-before", &labels.spacing_before, before, LengthUnit::Points, points, true, Row::SpaceBefore)
-        {
-            self.format.space_before = v;
-        }
-        if let Some(v) =
-            self.length_field(ui, labels, numbers, "space-after", &labels.spacing_after, after, LengthUnit::Points, points, true, Row::SpaceAfter)
-        {
-            self.format.space_after = v;
-        }
+        let edit = self.length_field(
+            ui,
+            labels,
+            numbers,
+            "space-before",
+            &labels.spacing_before,
+            before,
+            LengthUnit::Points,
+            points,
+            true,
+            Row::SpaceBefore,
+        );
+        self.edit(Row::SpaceBefore, edit, valid);
+        let edit =
+            self.length_field(ui, labels, numbers, "space-after", &labels.spacing_after, after, LengthUnit::Points, points, true, Row::SpaceAfter);
+        self.edit(Row::SpaceAfter, edit, valid);
 
         let mut preset = self.format.line_spacing.map(LinePreset::of);
         let at_least = self.word || preset == Some(LinePreset::AtLeast);
@@ -475,22 +527,24 @@ impl ParagraphDialog {
         let in_lines = matches!(current, Some(LineSpacing::Multiple(_)));
         let error = invalid.then(|| self.message(labels, numbers, &labels.at, (lo, hi), (!in_lines).then_some(LengthUnit::Points)));
         let shown = current.map_or(f64::NAN, |l| f64::from(at_value(l)));
+        let rejected = Cell::new(false);
         let edit = Field::new(labels.at.as_str())
             .error(error)
             .show(ui, |ui, invalid| {
                 let unit = if in_lines { Unit::new("{n}") } else { Unit::new("{n} pt") };
-                NumberField::new(("paragraph", "at"), labels.at.as_str(), shown, numbers)
+                let output = NumberField::new(("paragraph", "at"), labels.at.as_str(), shown, numbers)
                     .range(f64::from(lo)..=f64::from(hi))
                     .decimals(0..=AT_DECIMALS)
                     .unit(unit)
                     .enabled(current.is_some())
                     .invalid(invalid)
-                    .show_optional(ui)
+                    .show_optional_full(ui);
+                rejected.set(output.rejected);
+                output.edit
             })
             .inner;
-        if let (Some(Some(v)), Some(l)) = (applied(edit.event.as_ref()), current) {
-            self.format.line_spacing = Some(with_at(l, v as f32));
-        }
+        let event = edit.event.map(|event| event.map(|v| v.map(|v| v as f32)));
+        self.edit(Row::At, LengthEdit { event, rejected: rejected.get() }, valid);
     }
 
     fn preview(&self, ui: &mut Ui, labels: &ParagraphDialogLabels) {

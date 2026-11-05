@@ -1,11 +1,14 @@
 //! The Paragraph dialog.
 
+use std::cell::Cell;
+
 use craft_ui::dialog::{DialogHost, DialogResult};
+use craft_ui::edit::{CancelReason, EditEvent, GestureId};
 use craft_ui::localized::units::LengthUnit;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Event, Key, vec2};
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::paragraph_dialog::{sample_plan, *};
@@ -113,7 +116,11 @@ fn a_value_out_of_range_refuses_ok_with_its_message() {
     assert_eq!(format(&harness).space_before, Some(12.0), "text that is not a number is not taken");
     harness.get_by_label("OK").click();
     harness.run();
-    assert_eq!(harness.state().answers.last().and_then(|a| a.format.space_before), Some(12.0));
+    assert!(harness.state().answers.is_empty(), "OK waits for the rejected text");
+    type_into(&mut harness, "Spacing before", "13");
+    harness.get_by_label("OK").click();
+    harness.run();
+    assert_eq!(harness.state().answers.last().and_then(|a| a.format.space_before), Some(13.0));
 }
 
 // Tabs… returns Ok with open_tabs true and the format as edited.
@@ -147,4 +154,32 @@ fn the_preview_lays_out_the_values() {
     assert_eq!(subject[1].rect.height(), 20.0);
     assert_eq!(subject[0].rect.top(), 3.0 * 12.0 + 10.0);
     assert!(!subject[2].full && subject[0].full);
+}
+
+// Text that is not a number (a rejected field) disables OK until it is fixed, also after the focus leaves: "abc" in Before text leaves OK disabled and a click answers nothing; a number enables it.
+#[test]
+fn rejected_text_refuses_ok() {
+    let mut harness = open(start());
+    type_into(&mut harness, "Before text", "abc");
+    assert!(harness.get_by_label("OK").accesskit_node().is_disabled(), "OK waits for the rejected text");
+    harness.get_by_label("OK").click();
+    harness.run();
+    assert!(harness.state().answers.is_empty());
+
+    type_into(&mut harness, "Before text", "0.5");
+    assert!(!harness.get_by_label("OK").accesskit_node().is_disabled());
+}
+
+// A field's Cancel restores the value its gesture began from: Begin and Update to 1 in then Cancel leave Before text at 0.
+#[test]
+fn cancelling_a_field_gesture_restores_the_start() {
+    let mut dialog = ParagraphDialog::new(start());
+    let valid = Cell::new(true);
+    let id = GestureId::next();
+    let to = |v: f32| LengthEdit { event: Some(EditEvent::update(id, Some(v), egui::Modifiers::NONE)), rejected: false };
+    dialog.edit(Row::BeforeText, LengthEdit { event: Some(EditEvent::begin(id)), rejected: false }, &valid);
+    dialog.edit(Row::BeforeText, to(72.0), &valid);
+    assert_eq!(dialog.format().before_text, Some(72.0));
+    dialog.edit(Row::BeforeText, LengthEdit { event: Some(EditEvent::cancel(id, CancelReason::Escape)), rejected: false }, &valid);
+    assert_eq!(dialog.format().before_text, Some(0.0));
 }
