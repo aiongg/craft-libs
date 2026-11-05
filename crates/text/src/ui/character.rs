@@ -19,7 +19,7 @@ use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy};
 use craft_ui::icons::Icon;
 use craft_ui::localized::units::{Length, LengthUnit, UnitContext};
-use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Units};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use craft_ui::patterns::unit_number_field;
 use craft_ui::primitives::{Content, Icon as Mark, Text};
@@ -384,10 +384,11 @@ impl<'a> CharacterControls<'a> {
         let (length, context) = self.unit;
         let scale = per_point(length, context);
         let suffix = unit_suffix(length, &labels).to_owned();
-        let size_presets: Vec<(String, f32)> = SIZE_PRESETS.iter().map(|&p| (preset_label(f64::from(p) * scale, &suffix), p)).collect();
+        let units = Units::of(ui);
+        let size_presets: Vec<(String, f32)> = SIZE_PRESETS.iter().map(|&p| (units.text(length.kind(), f64::from(p) * scale, 0..=2), p)).collect();
         let auto_row = [labels.auto.clone()];
         let tracking_presets: Vec<(String, f32)> =
-            TRACKING_PRESETS.iter().flat_map(|group| group.iter()).map(|&p| (preset_label(f64::from(p), ""), p)).collect();
+            TRACKING_PRESETS.iter().flat_map(|group| group.iter()).map(|&p| (units.numbers().format(f64::from(p), 0..=2), p)).collect();
         let mut pass = Pass::new(ui);
         let auto_leading = values.size.map(|size| size * AUTO_LEADING);
 
@@ -884,14 +885,6 @@ struct Metric {
     suffix: String,
     /// `(menu text, model value)`.
     presets: Vec<(String, f32)>,
-}
-
-/// A preset as the menu shows it: at most two decimals, then the unit.
-fn preset_label(shown: f64, suffix: &str) -> String {
-    let number = format!("{shown:.2}");
-    let number = number.trim_end_matches('0').trim_end_matches('.');
-    let number = if number == "-0" { "0" } else { number };
-    if suffix.is_empty() { number.to_owned() } else { format!("{number} {suffix}") }
 }
 
 /// One row cell: a justified row of the available width, so a field fills its column.

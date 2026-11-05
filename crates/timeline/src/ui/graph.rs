@@ -4,7 +4,7 @@ use craft_ui::behavior::{ClaimedKey, KeyClaim, ListSelection, RowInfo, Selection
 use craft_ui::canvas::Orientation;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::icons::Icon;
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::patterns::{Toolbar, ToolbarItem};
 use craft_ui::primitives::{Corner, FocusRing};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format, scale};
@@ -628,6 +628,7 @@ fn paint_plot(
         }
     }
     let text = role_format(tokens, style.graph_text, color.text.faint.to_egui());
+    let numbers = LocaleNumbers::of(ui);
     let mut line = (low / step).ceil() * step;
     while line <= high {
         let y = y_of(line);
@@ -635,7 +636,7 @@ fn paint_plot(
         plot_painter.text(
             pos2(plot.left() + tokens.space.gap.inline, y - hairline),
             Align2::LEFT_BOTTOM,
-            format_value(line, step),
+            format_value(&numbers, line, step),
             text.font_id.clone(),
             text.color,
         );
@@ -881,10 +882,10 @@ fn fit_selection(curves: &[GraphCurve], selection: &Selection<KeyframeId>, mode:
 
 /// A grid line's label: as many decimals as the step needs, no negative zero.
 // effectcraft: crates/ui-egui/src/panels/graph.rs:826 `fmt`.
-fn format_value(value: f64, step: f64) -> String {
+fn format_value(numbers: &LocaleNumbers, value: f64, step: f64) -> String {
     let decimals = if step >= 1.0 { 0 } else { (-step.log10()).ceil() as usize };
-    let text = format!("{value:.decimals$}");
-    if text.trim_start_matches('-').chars().all(|c| c == '0' || c == '.') { text.trim_start_matches('-').to_owned() } else { text }
+    // `LocaleNumbers::format` drops negative zero; the minimum keeps the step's digits.
+    numbers.format(value, decimals..=decimals)
 }
 /// What the graph editor did this pass.
 #[must_use]

@@ -38,14 +38,20 @@ fn timecode_base_and_drop_frame_support() {
     assert!(!FrameRate::FPS_30.supports_drop_frame());
 }
 
+#[cfg(feature = "ui")]
 #[test]
 fn labels_trim_trailing_zeros() {
-    let labels: Vec<String> = [FrameRate::FPS_24, FrameRate::FPS_23_976, FrameRate::FPS_29_97, FrameRate::FPS_59_94].map(FrameRate::label).into();
+    let numbers = craft_ui::localized::LocaleNumbers::from_tag("en");
+    let labels: Vec<String> = [FrameRate::FPS_24, FrameRate::FPS_23_976, FrameRate::FPS_29_97, FrameRate::FPS_59_94].map(|rate| rate.label(&numbers)).into();
     assert_eq!(labels, ["24", "23.976", "29.97", "59.94"]);
+    assert_eq!(PixelAspect::SQUARE.ratio_label(&numbers), "1.0");
+    assert_eq!(PixelAspect { num: 10, den: 11 }.ratio_label(&numbers), "0.9091");
+}
+
+#[test]
+fn frame_rate_from_f64_snaps_to_common_rates() {
     assert_eq!(FrameRate::from_f64(29.97), FrameRate::FPS_29_97);
     assert_eq!(FrameRate::from_f64(12.5), FrameRate::new(25, 2));
-    assert_eq!(PixelAspect::SQUARE.ratio_label(), "1.0");
-    assert_eq!(PixelAspect { num: 10, den: 11 }.ratio_label(), "0.9091");
 }
 
 #[test]

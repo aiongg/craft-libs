@@ -150,15 +150,15 @@ impl FrameRate {
         self.is_ntsc() && self.timecode_base() % 30 == 0
     }
 
-    /// The menu label without the unit: `24`, `23.976`, `29.97` (three decimals, trailing zeros
-    /// and the point trimmed). The unit ("fps") is the menu's word.
+    /// The menu label without the unit: `24`, `23.976`, `29.97` (up to three decimals, in the
+    /// locale's digits and decimal mark). The unit ("fps") is the menu's word.
     // filmcraft: crates/time/src/lib.rs:282.
-    pub fn label(self) -> String {
+    #[cfg(feature = "ui")]
+    pub fn label(self, numbers: &craft_ui::localized::LocaleNumbers) -> String {
         if self.den == 1 {
-            return self.num.to_string();
+            return numbers.format(f64::from(self.num), 0..=0);
         }
-        let s = format!("{:.3}", self.as_f64());
-        s.trim_end_matches('0').trim_end_matches('.').to_string()
+        numbers.format(self.as_f64(), 0..=3)
     }
 }
 
@@ -235,15 +235,16 @@ impl PixelAspect {
         if self.den == 0 { 1.0 } else { f64::from(self.num) / f64::from(self.den) }
     }
 
-    /// The ratio as a menu shows it after its name: `1.0` for square pixels, else four decimals
-    /// (`0.9091`). FilmCraft's labels are "Square Pixels (1.0)" and "Custom (0.9091)"; the words
-    /// are the menu's.
+    /// The ratio as a menu shows it after its name, in the locale's digits and decimal mark:
+    /// `1.0` for square pixels, else four decimals (`0.9091`). FilmCraft's labels are "Square
+    /// Pixels (1.0)" and "Custom (0.9091)"; the words are the menu's.
     // filmcraft: crates/ui-egui/src/panels/sequence_settings.rs:204 `par_label`.
-    pub fn ratio_label(self) -> String {
+    #[cfg(feature = "ui")]
+    pub fn ratio_label(self, numbers: &craft_ui::localized::LocaleNumbers) -> String {
         if self.num == self.den || self.den == 0 {
-            return "1.0".to_string();
+            return numbers.format(1.0, 1..=1);
         }
-        format!("{:.4}", self.as_f64())
+        numbers.format(self.as_f64(), 4..=4)
     }
 }
 
