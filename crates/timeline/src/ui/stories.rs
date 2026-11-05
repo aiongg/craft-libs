@@ -1,6 +1,4 @@
-//! Stories of the timeline widgets. Not registered yet: registering them would change the registry
-//! dump and run their bodies. The registration task adds them to the gallery, the words of
-//! [`TimelineStoryLabels`] to the words registry, and regenerates the dump.
+//! Stories of the timeline widgets. Each story's component is the widget's Rust type.
 //!
 //! Each story keeps its own demo state in egui memory and applies the widget's events to it as
 //! an app would. The line under a story names the last event. Sample clip, marker and queue
@@ -10,22 +8,26 @@
 //! |---|---|
 //! | `patterns/timeline/panel` | a 30 s sequence at 29.97 drop-frame: V1–V2, A1–A2, a marker, In and Out, the playhead at 5 s |
 //! | `composites/timeline-ruler/ruler` | the ruler at frame, second and minute zoom, with work area, cache bars and markers |
-//! | `composites/keyframes/lane` | a lane of Linear, Hold and Bezier keys (two selected) with the toggle and navigator |
+//! | `composites/keyframe-lane/lane` | a lane of Linear, Hold and Bezier keys (two selected) with the toggle and navigator |
 //! | `patterns/graph-editor/editor` | Position X and Y curves, one key selected with its handles |
-//! | `composites/transport/bar` | the Program row, playing and looping |
-//! | `composites/transport/media-controls` | the media controls at 0:12.50 of 1:05.00 with trim marks |
-//! | `controls/timecode-field/field` | a large and a small field at 29.97 drop-frame |
+//! | `composites/transport-bar/bar` | the Program row, playing and looping |
+//! | `composites/media-controls/controls` | the media controls at 0:12.50 of 1:05.00 with trim marks |
+//! | `controls/timecode-field/field` | a large and a small field at 29.97 drop-frame, and one already typing |
 //! | `patterns/timecode-panel/panel` | Current Time, Duration and Remaining rows |
 //! | `composites/frame-preview/preview` | a 4:3 test card letterboxed in a 16:9 box, and a cropped one |
 //! | `patterns/marker-dialog/dialog` | the Marker dialog on a range marker |
 //! | `composites/timeline-overview/overview` | eight tracks of runs and the visible box |
-//! | `patterns/render-queue/list` | Ready, Encoding 42 %, Done, Failed and Cancelled items |
+//! | `patterns/render-queue-list/list` | Ready, Encoding 42 %, Done, Failed and Cancelled items |
+//!
+//! Sample sizes are the widgets' own leaves or named proportions of the tile's width:
+//! `GRAPH_ASPECT` (graph height over width), `PREVIEW_ASPECT` (16:9) and `OVERVIEW_ASPECT`
+//! (overview height over width).
 
 use craft_ui::behavior::{DropPosition, Move, Selection};
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryLabels, drive, lock, shared};
+use craft_ui::story::{Level, NoArgs, Story, StoryArgs, drive, last_event, lock, shared};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use craft_ui::typed_story;
 use egui::{Color32, ColorImage, Sense, TextureHandle, TextureOptions, Ui, vec2};
@@ -52,17 +54,17 @@ use crate::timecode::{TimeFormat, format_time};
 pub(super) fn stories() -> Vec<Story> {
     vec![
         typed_story!("patterns/timeline/panel", Level::Patterns, "Timeline", "Panel", NoArgs {}, timeline_panel),
-        typed_story!("composites/timeline-ruler/ruler", Level::Composites, "Timeline ruler", "Ruler", NoArgs {}, ruler),
-        typed_story!("composites/keyframes/lane", Level::Composites, "Keyframes", "Lane", NoArgs {}, keyframe_lane),
-        typed_story!("patterns/graph-editor/editor", Level::Patterns, "Graph editor", "Editor", NoArgs {}, graph_editor),
-        typed_story!("composites/transport/bar", Level::Composites, "Transport", "Bar", NoArgs {}, transport_bar),
-        typed_story!("composites/transport/media-controls", Level::Composites, "Transport", "Media controls", NoArgs {}, media_controls),
-        typed_story!("controls/timecode-field/field", Level::Controls, "Timecode field", "Field", NoArgs {}, timecode_field),
-        typed_story!("patterns/timecode-panel/panel", Level::Patterns, "Timecode panel", "Panel", NoArgs {}, timecode_panel),
-        typed_story!("composites/frame-preview/preview", Level::Composites, "Frame preview", "Preview", NoArgs {}, frame_preview),
-        typed_story!("patterns/marker-dialog/dialog", Level::Patterns, "Marker dialog", "Dialog", DialogArgs { open: true }, marker_dialog),
-        typed_story!("composites/timeline-overview/overview", Level::Composites, "Timeline overview", "Overview", NoArgs {}, overview),
-        typed_story!("patterns/render-queue/list", Level::Patterns, "Render queue", "List", NoArgs {}, render_queue),
+        typed_story!("composites/timeline-ruler/ruler", Level::Composites, "TimelineRuler", "Ruler", NoArgs {}, ruler),
+        typed_story!("composites/keyframe-lane/lane", Level::Composites, "KeyframeLane", "Lane", NoArgs {}, keyframe_lane),
+        typed_story!("patterns/graph-editor/editor", Level::Patterns, "GraphEditor", "Editor", NoArgs {}, graph_editor),
+        typed_story!("composites/transport-bar/bar", Level::Composites, "TransportBar", "Bar", NoArgs {}, transport_bar),
+        typed_story!("composites/media-controls/controls", Level::Composites, "MediaControls", "Controls", NoArgs {}, media_controls),
+        typed_story!("controls/timecode-field/field", Level::Controls, "TimecodeField", "Field", NoArgs {}, timecode_field),
+        typed_story!("patterns/timecode-panel/panel", Level::Patterns, "TimecodePanel", "Panel", NoArgs {}, timecode_panel),
+        typed_story!("composites/frame-preview/preview", Level::Composites, "FramePreview", "Preview", NoArgs {}, frame_preview),
+        typed_story!("patterns/marker-dialog/dialog", Level::Patterns, "MarkerDialog", "Dialog", DialogArgs { open: true }, marker_dialog),
+        typed_story!("composites/timeline-overview/overview", Level::Composites, "TimelineOverview", "Overview", NoArgs {}, overview),
+        typed_story!("patterns/render-queue-list/list", Level::Patterns, "RenderQueueList", "List", NoArgs {}, render_queue),
     ]
 }
 
@@ -121,13 +123,6 @@ fn secs(s: f64) -> Tick {
 
 fn span(start: f64, end: f64) -> TimeRange {
     TimeRange::from_bounds(secs(start), secs(end))
-}
-
-fn last_event(ui: &mut Ui, event: Option<&str>) {
-    if let Some(event) = event {
-        let line = fmt(&StoryLabels::of(ui).last_event, &[("event", event)]);
-        ui.add(Text::new(line).content(Content::Muted));
-    }
 }
 
 /// The value a gesture or a one-shot change has settled on.
@@ -656,6 +651,18 @@ fn ruler(ui: &mut Ui, _: &mut NoArgs) {
 
 // ---- Keyframes ----------------------------------------------------------------------------
 
+/// What the lane's story reports besides the lane's own edits.
+#[derive(Debug)]
+#[expect(dead_code, reason = "the payloads are read through Debug")]
+enum LaneEvent {
+    Previous,
+    Next,
+    Toggle,
+    Delete,
+    DoubleClicked(KeyframeId),
+    ContextMenu(KeyframeId),
+}
+
 struct LaneDemo {
     keys: Vec<KeyframeMark>,
     selection: Selection<KeyframeId>,
@@ -713,13 +720,13 @@ fn keyframe_lane(ui: &mut Ui, _: &mut NoArgs) {
         if let Some(key) = demo.keys.iter().rev().find(|k| k.time < demo.playhead) {
             demo.playhead = key.time;
         }
-        demo.last = Some("Previous".into());
+        demo.last = Some(format!("{:?}", LaneEvent::Previous));
     }
     if navigator.next {
         if let Some(key) = demo.keys.iter().find(|k| k.time > demo.playhead) {
             demo.playhead = key.time;
         }
-        demo.last = Some("Next".into());
+        demo.last = Some(format!("{:?}", LaneEvent::Next));
     }
     if navigator.toggle {
         let playhead = demo.playhead;
@@ -730,7 +737,7 @@ fn keyframe_lane(ui: &mut Ui, _: &mut NoArgs) {
             demo.keys.push(KeyframeMark { id, time: playhead, interpolation: KeyframeInterpolation::Linear });
             demo.keys.sort_by_key(|k| k.time);
         }
-        demo.last = Some("Toggle".into());
+        demo.last = Some(format!("{:?}", LaneEvent::Toggle));
     }
     if let Some(change) = lane.selection {
         demo.last = Some(format!("{:?}", change.pick));
@@ -748,13 +755,13 @@ fn keyframe_lane(ui: &mut Ui, _: &mut NoArgs) {
     if lane.delete {
         let selection = std::mem::take(&mut demo.selection);
         demo.keys.retain(|k| !selection.contains(&k.id));
-        demo.last = Some("Delete".into());
+        demo.last = Some(format!("{:?}", LaneEvent::Delete));
     }
     if let Some(id) = lane.double_clicked {
-        demo.last = Some(format!("DoubleClicked({id:?})"));
+        demo.last = Some(format!("{:?}", LaneEvent::DoubleClicked(id)));
     }
     if let Some(id) = lane.context_menu {
-        demo.last = Some(format!("ContextMenu({id:?})"));
+        demo.last = Some(format!("{:?}", LaneEvent::ContextMenu(id)));
     }
     last_event(ui, demo.last.as_deref());
 }
@@ -966,6 +973,14 @@ fn transport_bar(ui: &mut Ui, _: &mut NoArgs) {
     last_event(ui, demo.last.as_deref());
 }
 
+/// What the media controls' story reports besides the seek.
+#[derive(Debug)]
+#[expect(dead_code, reason = "the payloads are read through Debug")]
+enum MediaEvent {
+    Toggle,
+    Nudge(f64),
+}
+
 struct MediaDemo {
     position: f64,
     playing: bool,
@@ -984,11 +999,11 @@ fn media_controls(ui: &mut Ui, _: &mut NoArgs) {
     let out = MediaControls::new("media", demo.position, MEDIA_SECONDS).playing(demo.playing).trim(TRIM.0, TRIM.1).show(ui);
     if out.toggle {
         demo.playing = !demo.playing;
-        demo.last = Some("Toggle".into());
+        demo.last = Some(format!("{:?}", MediaEvent::Toggle));
     }
     if let Some(step) = out.nudge {
         demo.position = (demo.position + step).clamp(0.0, MEDIA_SECONDS);
-        demo.last = Some(format!("Nudge({step})"));
+        demo.last = Some(format!("{:?}", MediaEvent::Nudge(step)));
     }
     if let Some(event) = &out.seek {
         if let Some(&seconds) = live(event) {
@@ -1004,23 +1019,29 @@ fn media_controls(ui: &mut Ui, _: &mut NoArgs) {
 struct FieldDemo {
     large: Tick,
     small: Tick,
+    typing: Tick,
     last: Option<String>,
 }
 
-// new: a large and a small field at 29.97 drop-frame; a click starts typing in either.
+// new: a large and a small field at 29.97 drop-frame, and one that starts in its typing state; a
+// click starts typing in any.
 fn timecode_field(ui: &mut Ui, _: &mut NoArgs) {
-    let demo = shared(ui, "field", || FieldDemo { large: secs(5.0), small: secs(64.5), last: None });
+    let demo = shared(ui, "field", || FieldDemo { large: secs(5.0), small: secs(64.5), typing: secs(6.0), last: None });
     let mut demo = lock(&demo);
     let demo = &mut *demo;
     let format = format();
-    let large = TimecodeField::new("large", demo.large, &format).large(true).show(ui);
-    let small = TimecodeField::new("small", demo.small, &format).show(ui);
-    for (out, time) in [(large, &mut demo.large), (small, &mut demo.small)] {
-        if let Some(event) = &out.event {
+    let large = TimecodeField::new("large", demo.large, &format).large(true).show_full(ui);
+    let small = TimecodeField::new("small", demo.small, &format).show_full(ui);
+    let typing = TimecodeField::new("typing", demo.typing, &format).typing(format_time(demo.typing, &format)).show_full(ui);
+    for (out, time) in [(large, &mut demo.large), (small, &mut demo.small), (typing, &mut demo.typing)] {
+        if let Some(event) = &out.edit.event {
             if let Some(&t) = live(event) {
                 *time = t;
             }
             demo.last = Some(format!("{event:?}"));
+        }
+        if let Some(error) = &out.error {
+            demo.last = Some(format!("{error:?}"));
         }
     }
     last_event(ui, demo.last.as_deref());
@@ -1150,6 +1171,8 @@ struct OverviewDemo {
 }
 
 const OVERVIEW_TRACKS: u8 = 8;
+/// The overview's height over its width.
+const OVERVIEW_ASPECT: f32 = 0.1;
 const OVERVIEW_CLIPS: u8 = 6;
 
 // new: eight tracks of runs and the visible box.
@@ -1179,7 +1202,7 @@ fn overview(ui: &mut Ui, _: &mut NoArgs) {
     let mut demo = lock(&demo);
     let demo = &mut *demo;
     let width = ui.available_width();
-    let height = f32::from(OVERVIEW_TRACKS) * style.track_height_min + 2.0 * style.overview_inset_y;
+    let height = width * OVERVIEW_ASPECT;
     ui.allocate_ui(vec2(width, height), |ui| {
         let runs = overview_runs(&demo.tracks, demo.end, ui.available_rect_before_wrap(), &style);
         TimelineOverview::new("overview", &runs, &mut demo.view, width, demo.end).playhead(Some(secs(30.0))).show(ui);
