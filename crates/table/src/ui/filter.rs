@@ -97,7 +97,8 @@ impl FilterButton {
         let style = SheetStyle::of(&tokens);
         let colors = &tokens.color;
         let id = ui.make_persistent_id(id_salt);
-        let icon_side = IconSize::Sm.points(&tokens);
+        // The small icon size, no larger than the button's own side less its glyph inset.
+        let icon_side = IconSize::Sm.points(&tokens).min(rect.height() - 2.0 * style.filter_button_glyph_inset);
         let rect = match sorted {
             Some(_) => Rect::from_min_max(pos2(rect.left() - icon_side - style.filter_button_glyph_inset, rect.top()), rect.max),
             None => rect,
