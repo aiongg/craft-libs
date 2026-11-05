@@ -52,13 +52,10 @@ fn open(values: RulerValues, right_to_left: bool) -> Harness<'static, App> {
                     .ctx()
                     .graphics(|g| g.get(ui.layer_id()).map(|list| list.all_entries().map(|entry| entry.shape.clone()).collect()).unwrap_or_default());
                 app.marker = Rulers::style(&Tokens::of(ui)).marker.color;
-                match &response.column {
-                    Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. }) => {
-                        if let Some(border) = app.columns.get_mut(value.index) {
-                            *border = value.position;
-                        }
-                    }
-                    _ => {}
+                if let Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. }) = &response.column
+                    && let Some(border) = app.columns.get_mut(value.index)
+                {
+                    *border = value.position;
                 }
                 app.column_events.extend(response.column.clone());
                 match &response.edit {
