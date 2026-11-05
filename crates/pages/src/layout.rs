@@ -92,6 +92,7 @@ pub enum Fit {
 /// The constants and switches of a layout.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LayoutOptions {
+    #[allow(missing_docs)]
     pub display: PageDisplay,
     /// [`PageDisplay::TwoUp`]: the first page alone, as a cover.
     pub cover: bool,
@@ -402,7 +403,9 @@ pub fn parse_display_token(token: &str) -> Option<(PageDisplay, bool)> {
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct ViewDefaults {
+    /// Single pages, two-up spreads or columns.
     pub display: PageDisplay,
+    /// Every page scrolls past; off shows one row (a page or a spread) at a time.
     pub continuous: bool,
     /// Separate pages with a gap and shadow; off joins adjacent page edges.
     pub page_gaps: bool,

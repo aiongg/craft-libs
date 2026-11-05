@@ -35,16 +35,22 @@ pub const MAX_DEPTH: usize = 16;
 /// What a block node is.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BlockRole {
+    #[allow(missing_docs)]
     Paragraph,
     /// A heading at outline level 1–9.
     Heading(u8),
     /// A list item at list level 0–8, with its marker text ("1.", "•").
     ListItem {
+        /// List level, 0 to 8.
         level: u8,
+        /// The marker text.
         marker: String,
     },
+    #[allow(missing_docs)]
     Table,
+    #[allow(missing_docs)]
     Row,
+    #[allow(missing_docs)]
     Cell,
     /// A picture or chart named by its alt text.
     Image(String),
@@ -59,7 +65,9 @@ pub struct AccessNode(u32);
 /// A text position the app names: (node of the text run, char offset in it).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccessPosition {
+    /// The node of the text run.
     pub run: AccessNode,
+    /// Character offset into the run's text.
     pub offset: usize,
 }
 

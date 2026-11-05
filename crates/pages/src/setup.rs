@@ -10,7 +10,9 @@
 pub struct PaperSize {
     /// The English name, which is also its id ("Letter", "A4", "B5 (JIS)"); menus translate it.
     pub name: &'static str,
+    /// Page width in points.
     pub width: f64,
+    /// Page height in points.
     pub height: f64,
 }
 
@@ -57,17 +59,21 @@ pub fn paper_named(list: &[PaperSize], width: f64, height: f64) -> Option<&Paper
 
 /// The smallest and largest page side, points (0.1" and 22", as Word allows).
 pub const MIN_PAGE_SIDE: f64 = 7.2;
+/// The largest page side, points (22").
 pub const MAX_PAGE_SIDE: f64 = 1584.0;
 
 /// The least text width and height margins leave on a page, points (WordCraft's
 /// `MIN_TEXT_ROOM`).
 pub const MIN_TEXT_ROOM: f64 = 36.0;
 
+/// Which way the page's long side runs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Orientation {
+    #[allow(missing_docs)]
     #[default]
     Portrait,
+    #[allow(missing_docs)]
     Landscape,
 }
 
@@ -86,13 +92,18 @@ impl Orientation {
 /// the outside; labels say Inside/Outside then.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Margins {
+    /// Top margin in points.
     pub top: f64,
+    /// Bottom margin in points.
     pub bottom: f64,
+    /// Left margin in points.
     pub left: f64,
+    /// Right margin in points.
     pub right: f64,
 }
 
 impl Margins {
+    /// Margins with the same width `m` (points) on all four sides.
     pub const fn uniform(m: f64) -> Margins {
         Margins { top: m, bottom: m, left: m, right: m }
     }
@@ -114,6 +125,7 @@ pub struct MarginPreset {
     /// The menu name ("Narrow"); the uniform presets add the margin in the unit ("Narrow
     /// 1.27 cm all", [`crate::ui::setup::PageLayoutMenus`]).
     pub name: &'static str,
+    /// The margins this preset applies.
     pub margins: Margins,
     /// Mirrored margins (facing pages) come with this preset.
     pub mirrored: bool,
@@ -156,10 +168,14 @@ impl MarginPreset {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PageVerticalAlign {
+    #[allow(missing_docs)]
     #[default]
     Top,
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Justify,
+    #[allow(missing_docs)]
     Bottom,
 }
 
@@ -168,9 +184,13 @@ pub enum PageVerticalAlign {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct PageSetup {
+    /// Page width in points, as shown in the current orientation.
     pub width: f64,
+    /// Page height in points, as shown in the current orientation.
     pub height: f64,
+    #[allow(missing_docs)]
     pub orientation: Orientation,
+    #[allow(missing_docs)]
     pub margins: Margins,
     /// Word's gutter (binding room added to the inside margin).
     pub gutter: f64,
@@ -178,6 +198,7 @@ pub struct PageSetup {
     pub mirrored: bool,
     /// The number of pages (InDesign's Document Setup); `None` where pages flow (Word).
     pub pages: Option<u32>,
+    #[allow(missing_docs)]
     pub vertical_align: PageVerticalAlign,
     /// Headers and footers: Different First Page.
     pub different_first: bool,

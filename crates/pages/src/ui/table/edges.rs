@@ -36,15 +36,22 @@ craft_ui::words! {
 /// One of the six edges, in the picker's order (DesignCraft's `EDGE_NAMES`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EdgeKey {
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     Left,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     InsideHorizontal,
+    #[allow(missing_docs)]
     InsideVertical,
 }
 
 impl EdgeKey {
+    /// The six edges in the picker's order.
     pub const ALL: [EdgeKey; 6] = [EdgeKey::Top, EdgeKey::Bottom, EdgeKey::Left, EdgeKey::Right, EdgeKey::InsideHorizontal, EdgeKey::InsideVertical];
 
     /// The name commands take (`top`, `bottom`, `left`, `right`, `innerHorizontal`,
@@ -66,12 +73,15 @@ impl EdgeKey {
 pub struct BorderEdges(pub [bool; 6]);
 
 impl BorderEdges {
+    /// Every edge chosen.
     pub const ALL: BorderEdges = BorderEdges([true; 6]);
 
+    /// Whether `edge` is chosen.
     pub fn get(self, edge: EdgeKey) -> bool {
         self.0[edge as usize]
     }
 
+    /// Chooses or clears `edge`.
     pub fn set(&mut self, edge: EdgeKey, on: bool) {
         self.0[edge as usize] = on;
     }
@@ -80,9 +90,13 @@ impl BorderEdges {
 /// Word's border presets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BorderPreset {
+    #[allow(missing_docs)]
     All,
+    #[allow(missing_docs)]
     None,
+    #[allow(missing_docs)]
     Outside,
+    #[allow(missing_docs)]
     Inside,
     /// One edge, toggled.
     Edge(EdgeKey),
@@ -126,7 +140,9 @@ const INNER: [EdgeKey; 2] = [EdgeKey::InsideHorizontal, EdgeKey::InsideVertical]
 /// What the picker did.
 #[derive(Debug)]
 pub struct EdgePickerResponse {
+    /// Whether an edge was toggled this pass.
     pub changed: bool,
+    #[allow(missing_docs)]
     pub response: Response,
 }
 
@@ -137,14 +153,14 @@ pub struct EdgePickerResponse {
 ///   lines through its middle. Chosen lines in the accent at `line_on`, others in
 ///   `line_off_color` at `line_off`, the line under the pointer at `line_hover` (DesignCraft;
 ///   InDesign's proxy).
-/// - The pointer picks the nearest line within the inset less one point ([`hit_reach`]).
+/// - The pointer picks the nearest line within the inset less one point (`hit_reach`).
 /// - Click toggles a line. Double-click on a line picks its group alone (an outer line: the four
 ///   outer lines on, the inner off; an inner line the other way round). Triple-click turns all on,
 ///   or all off when all were on (InDesign's proxy).
 /// - [`paragraph`](Self::paragraph): no inside vertical line, and the inside horizontal is
 ///   "Between" paragraphs (Word's paragraph borders).
 /// - Keys: one Tab stop (an AccessKit Group "Edges" of six CheckBoxes); ←/→/↑/↓ move between
-///   lines through craft-ui's [`GridNav`](craft_ui::behavior::GridNav) over the lines' ragged
+///   lines through craft-ui's [`GridNav`] over the lines' ragged
 ///   rows `[Top] [Left, InsideH, InsideV, Right] [Bottom]` (`GridNav::ragged`; the paragraph
 ///   picker's middle row has no InsideV), Space toggles. The edges are the panel's choice of
 ///   which lines a stroke applies to (view state, not the document), so the picker edits them in
@@ -172,15 +188,18 @@ impl<'a> EdgePicker<'a> {
         }
     }
 
+    /// A picker editing `edges` in place.
     pub fn new(id_salt: impl egui::AsIdSalt, edges: &'a mut BorderEdges) -> Self {
         EdgePicker { id_salt: egui::IdSalt::new(id_salt), edges, paragraph: false, labels: None }
     }
 
+    /// Switches to paragraph borders: no inside vertical line, and the inside horizontal line is the line between paragraphs.
     pub fn paragraph(mut self, on: bool) -> Self {
         self.paragraph = on;
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: EdgePickerLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -188,6 +207,7 @@ impl<'a> EdgePicker<'a> {
 
     // designcraft: crates/ui-egui/src/panels/cell_stroke.rs:110 `edge_proxy`, :91 `proxy_click`,
     // :52 `proxy_lines`; wordcraft: crates/ui-egui/src/dialogs/dialogs_para.rs:554 `borders` (paragraph borders).
+    /// Paints the picker and applies clicks and keys to `edges`.
     pub fn show(self, ui: &mut Ui) -> EdgePickerResponse {
         let tokens = Tokens::of(ui);
         let style = Self::style(&tokens);

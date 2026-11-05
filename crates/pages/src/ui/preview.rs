@@ -78,6 +78,7 @@ impl<'a> PagePreview<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: PagePreviewLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -85,6 +86,7 @@ impl<'a> PagePreview<'a> {
 
     // pdfcraft: crates/ui-egui/src/workflows/combine_grid/card.rs:326 `preview`; vectorcraft:
     // crates/ui-egui/src/dialogs/import_pdf.rs (page choice with a preview).
+    /// Shows the preview over the window and reports page changes and close requests.
     pub fn show(self, ctx: &Context) -> PagePreviewResponse {
         let PagePreview { id_salt, source, pages, at, opened, labels } = self;
         let mut out = PagePreviewResponse::default();

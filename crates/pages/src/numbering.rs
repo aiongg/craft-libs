@@ -24,12 +24,15 @@ pub const PAGE_NUMBER_STYLES: [NumberStyle; 8] = [
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct PageNumbering {
+    #[allow(missing_docs)]
     pub style: NumberStyle,
     /// The first page's number. 0 is written in each style's zero form, as DesignCraft's
     /// `NumberStyle::format` does: Roman "0", letters "", symbols "*", kanji "〇", padded
     /// Arabic "00", "000", "0000".
     pub start: u32,
+    /// The text put before the number when `include_prefix` is on.
     pub prefix: String,
+    /// Whether the prefix is shown in front of the number.
     pub include_prefix: bool,
 }
 

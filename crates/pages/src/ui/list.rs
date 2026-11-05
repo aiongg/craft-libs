@@ -2,11 +2,11 @@
 //! numbered row per page or artboard with its name, picked, reordered by dragging or with the
 //! stacking keys, renamed in place, with New and Delete in the footer and a lock column.
 //!
-//! A composite of craft-ui's list pieces, never a copy: [`List`](craft_ui::list::List) with
-//! [`ListRow`](craft_ui::list::ListRow)s (a [`ToggleColumn::lock`](craft_ui::list::ToggleColumn::lock)
+//! A composite of craft-ui's list pieces, never a copy: [`List`] with
+//! [`ListRow`]s (a [`ToggleColumn::lock`]
 //! column, the number painted in the row's glyph slot, the options icon as a trailing item),
 //! `List::reorder` for drags and stacking keys, `List`'s rename for names, and a
-//! [`PanelFooter`](craft_ui::composites::PanelFooter) with New and Delete as drop-aware buttons.
+//! [`PanelFooter`] with New and Delete as drop-aware buttons.
 //!
 //! ```ignore
 //! let out = PageList::new("artboards", &rows, &mut picked, active).show(ui);
@@ -52,7 +52,9 @@ craft_ui::words! {
 /// One row.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PageListRow {
+    #[allow(missing_docs)]
     pub name: String,
+    /// Whether the row is locked against edits.
     pub locked: bool,
 }
 
@@ -73,14 +75,24 @@ pub enum PageListEvent {
     /// never empty and never unchanged. With several rows picked (and `row` one of them) the field
     /// opens empty, and the app gives the name to all of them numbered in list order as
     /// `{text}-1`, `{text}-2` (VectorCraft `artboards.rs:243`).
-    Rename { row: usize, text: String },
+    Rename {
+        /// The row that was renamed.
+        row: usize,
+        /// The new name.
+        text: String,
+    },
     /// A drag of rows or a stacking key (⌘/Ctrl+] and [), as `List` reports reorders.
     Reorder(EditEvent<Move<usize>>),
     /// A click or a sweep in the lock column, as `List` reports toggle columns.
     Lock(EditEvent<ToggleEdit<usize>>),
     /// New, or a row dropped on New (`duplicate`, the dragged rows' `grabbed` row); `options`
     /// with Alt held (open the options for the new one first).
-    New { duplicate: Option<usize>, options: bool },
+    New {
+        /// The row dragged onto New, to duplicate; `None` for a plain New.
+        duplicate: Option<usize>,
+        /// Whether Alt was held: open the options for the new row first.
+        options: bool,
+    },
     /// Delete (the button, the Delete key, or rows dropped on it): the picked rows that aren't
     /// locked, or the dropped rows.
     Delete(Vec<usize>),
@@ -95,7 +107,9 @@ pub enum PageListEvent {
 #[derive(Debug)]
 #[must_use = "the app applies the list's events"]
 pub struct PageListOutput {
+    /// The list's area.
     pub response: Response,
+    /// What the user did this pass, in order.
     pub events: Vec<PageListEvent>,
 }
 
@@ -123,6 +137,7 @@ pub struct PageList<'a> {
 }
 
 impl<'a> PageList<'a> {
+    /// A list of `rows` with `picked` as the selection and `active` as the page or artboard being edited.
     pub fn new(id_salt: impl egui::AsIdSalt, rows: &'a [PageListRow], picked: &'a mut Selection<usize>, active: usize) -> Self {
         PageList { id_salt: egui::IdSalt::new(id_salt), rows, picked, active, rename: None, labels: None }
     }
@@ -138,6 +153,7 @@ impl<'a> PageList<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: PageListLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -145,6 +161,7 @@ impl<'a> PageList<'a> {
 
     // vectorcraft: crates/ui-egui/src/panels/artboards.rs:396 `show`, :297 `select_range`, :311
     // `toggle`, :243 `rename`, :371 `duplicate`.
+    /// Paints the list and returns its response and the events for the app to apply.
     pub fn show(self, ui: &mut Ui) -> PageListOutput {
         let PageList { id_salt, rows, picked, active, rename, labels } = self;
         let labels = labels.unwrap_or_else(|| PageListLabels::of(ui));

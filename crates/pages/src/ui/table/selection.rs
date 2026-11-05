@@ -34,7 +34,9 @@ use crate::ui::CellSelectionStyle;
 /// (n + 1 values for n rows).
 #[derive(Clone, Debug, PartialEq)]
 pub struct TableGeometry {
+    /// Screen y of each row boundary.
     pub row_edges: Vec<f32>,
+    /// Screen x of each column boundary.
     pub column_edges: Vec<f32>,
 }
 
@@ -74,7 +76,7 @@ fn band(edges: &[f32], v: f32) -> Option<u32> {
 /// The overlay over selected cells, painted after the table.
 ///
 /// - Every range of the selection ([`CellSelection::ranges`]) tints with
-///   [`CellSelectionStyle`](crate::ui::CellSelectionStyle)'s fill, the active cell included
+///   [`CellSelectionStyle`]'s fill, the active cell included
 ///   (InDesign tints it too, unlike Excel), and each range is outlined with its outline (accent).
 ///   A caret or text selection inside one cell draws as text (InDesign; DesignCraft).
 /// - Paint only: the app's table tool runs clicks, drags and keys over the shared model (module
@@ -85,6 +87,7 @@ pub struct CellSelectionOverlay<'a> {
 }
 
 impl<'a> CellSelectionOverlay<'a> {
+    /// An overlay of `selection` over the table at `geometry`.
     pub fn new(geometry: &'a TableGeometry, selection: &'a CellSelection) -> Self {
         CellSelectionOverlay { geometry, selection }
     }
@@ -100,6 +103,7 @@ impl<'a> CellSelectionOverlay<'a> {
     }
 
     // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:16 `draw_text_selection` (the tint of every selected cell; `:126` `draw_cell_selection` is the in-cell caret).
+    /// Paints the tint over every selected range.
     pub fn paint(self, painter: &Painter) {
         let style = Self::style(&current(painter.ctx()));
         for &range in self.selection.ranges() {

@@ -2,8 +2,8 @@
 //! rotation, current page and scroll, as PdfCraft's Compare Files shows the old file left and the new one right. The half
 //! under the pointer leads (the new file at first). The pair draws the leading half first; the
 //! other takes the leader's zoom, layout and scroll before it is drawn, in the same pass. The
-//! halves and the divider are craft-ui's [`SplitViews`](craft_ui::canvas::SplitViews) with
-//! [`SplitLayout::Two`](craft_ui::canvas::SplitLayout::Two).
+//! halves and the divider are craft-ui's [`SplitViews`] with
+//! [`SplitLayout::Two`].
 
 use craft_ui::canvas::{SplitLayout, SplitViews};
 use craft_ui::theme::{Tokens, TokensOf as _};
@@ -14,7 +14,9 @@ use super::view::{PageViewResponse, PageViewState};
 /// Which half leads.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Lead {
+    #[allow(missing_docs)]
     Left,
+    #[allow(missing_docs)]
     #[default]
     Right,
 }
@@ -22,6 +24,7 @@ pub enum Lead {
 /// The pair's state, kept by the app.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SyncedViewsState {
+    /// The half that leads: the one the pointer was last over.
     pub lead: Lead,
     /// The leader's offset when the follower last copied it.
     last_offset: Option<(f64, f64)>,
@@ -44,6 +47,7 @@ pub struct SyncedViews<'a> {
 }
 
 impl<'a> SyncedViews<'a> {
+    /// A pair keyed by `id_salt`, with its state kept in `state`.
     pub fn new(id_salt: impl egui::AsIdSalt, state: &'a mut SyncedViewsState) -> Self {
         SyncedViews { id_salt: egui::IdSalt::new(id_salt), state }
     }

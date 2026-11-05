@@ -1,5 +1,5 @@
 //! [`PageView`] (N3.06): a scrolling view of a document's pages, laid out by
-//! [`crate::layout`], drawn through craft-ui's [`Pasteboard`](craft_ui::canvas::Pasteboard) page
+//! [`crate::layout`], drawn through craft-ui's [`Pasteboard`] page
 //! frames on a [`CanvasView`], with the page pictures the app renders through craft-ui's texture
 //! contract ([`ThumbSource`]).
 //!
@@ -48,6 +48,7 @@ use crate::layout::{
 /// `thumbnails()` for the strip), evicts, keeps a stale picture as the stand-in until the new
 /// one lands and asks for the redraw; the app holds no texture and polls nothing.
 pub trait PageSource: ThumbSource<usize> {
+    /// The number of pages in the document.
     fn page_count(&self) -> usize;
 
     /// Page `page`'s size in points as shown (its rotation applied).
@@ -66,11 +67,15 @@ pub trait PageSource: ThumbSource<usize> {
 pub struct PageViewState {
     /// The current page: the one the page box shows and paging moves from.
     pub current: usize,
+    /// Single pages, two-up spreads or columns.
     pub display: PageDisplay,
+    /// Every page scrolls past; off shows one row (a page or a spread) at a time.
     pub continuous: bool,
     /// Two-page spreads start with the first page alone.
     pub cover: bool,
+    /// Separate pages with a gap and shadow; off joins adjacent page edges.
     pub page_gaps: bool,
+    /// [`Fit::Width`] or [`Fit::Page`] refit as the view resizes; [`Fit::None`] keeps `zoom`.
     pub fit: Fit,
     /// The zoom (1.0 = 100 %), kept equal to what a fit shows so zoom steps start from it (Word,
     /// WordCraft issue #67).
@@ -148,8 +153,8 @@ impl PageViewState {
         self.current = page;
     }
 
-    /// Zoom In / Zoom Out: the next rung of craft-ui's [`ZoomLadder`](craft_ui::canvas::ZoomLadder)
-    /// above (or below) the shown zoom, within [`ZOOM_RANGE`](crate::layout::ZOOM_RANGE)
+    /// Zoom In / Zoom Out: the next rung of craft-ui's [`ZoomLadder`]
+    /// above (or below) the shown zoom, within [`ZOOM_RANGE`]
     /// (`ZoomLadder::step_in_range`; Photoshop's rungs, the suite's one zoom ladder); a fit ends.
     /// The zoom a fit showed is the start (WordCraft issue #67).
     // wordcraft: crates/ui-egui/src/canvas/geometry.rs:234 `sync_fit_zoom` (start from the shown
@@ -163,6 +168,7 @@ impl PageViewState {
 /// One page on screen this pass, for overlays: its index, screen rectangle and scale.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlacedPage {
+    /// Page index, 0-based.
     pub page: usize,
     /// The whole page on screen (part of it may be clipped or, with Hide White Space, hidden).
     pub rect: Rect,
@@ -196,8 +202,7 @@ pub struct PageViewResponse {
     /// The view's canvas id (from its id salt), for the `ToolHost` and craft-ui's canvas state.
     pub canvas_id: CanvasId,
     /// The pages drawn this pass, in order, at the offset the pass ended with (a scroll-bar drag
-    /// of this pass included): the page rectangles overlays and the access page window read
-    /// (LC58).
+    /// of this pass included): the page rectangles overlays and the access page window read.
     pub pages: Vec<PlacedPage>,
     /// The whole layout, content coordinates.
     pub layout: PagedLayout,
@@ -215,11 +220,11 @@ pub struct PageViewResponse {
 
 /// The page view, built per pass over the app's [`PageSource`] and [`PageViewState`].
 ///
-/// - Layout: [`place_pages`](crate::layout::place_pages) at the state's zoom, or the fit's
-///   ([`fit_scale`](crate::layout::fit_scale)), with the [`PageSpacing`](crate::layout::PageSpacing)
+/// - Layout: [`place_pages`] at the state's zoom, or the fit's
+///   ([`fit_scale`]), with the [`PageSpacing`]
 ///   of [`PageView::style`], recomputed when the viewport or the pages change; the zoom is written
 ///   back so it equals what shows. Pages draw as craft-ui
-///   [`PageFrame`](craft_ui::canvas::PageFrame)s on a [`Pasteboard`](craft_ui::canvas::Pasteboard)
+///   [`PageFrame`]s on a [`Pasteboard`]
 ///   (its page fill, border and shadow), the page picture over each through
 ///   `Thumbnails::state`/`paint` at `Priority::VISIBLE`, one row either side at `Priority::NEAR`;
 ///   a page larger than the texture side adds a second picture of the part in view, asked as a
@@ -229,7 +234,7 @@ pub struct PageViewResponse {
 /// - Layout: the last pass's layout is reused while its inputs are the same; a scale the fit or
 ///   the app changes keeps the page at the top of the view in place (PdfCraft
 ///   `anchor_zoom_change`).
-/// - Scrolling: [`CanvasScrollbars`](craft_ui::canvas::CanvasScrollbars), laid out before the
+/// - Scrolling: [`CanvasScrollbars`], laid out before the
 ///   offset is clamped so a drag lands in its own pass, and the wheel through
 ///   [`WheelNavigation::read_page`] (Acrobat: Ctrl/Cmd + wheel and a pinch zoom, the wheel scrolls,
 ///   Shift + wheel scrolls sideways; the app must not call `WheelNavigation::configure`); space-drag, the Hand and Zoom tools run in the app's
@@ -253,6 +258,7 @@ pub struct PageView<'a> {
 }
 
 impl<'a> PageView<'a> {
+    /// A view of the pages of `source`, with `state` kept by the app between passes.
     pub fn new(id_salt: impl egui::AsIdSalt, source: &'a dyn PageSource, state: &'a mut PageViewState) -> Self {
         PageView { id_salt: egui::IdSalt::new(id_salt), source, state, options: LayoutOptions::ACROBAT, name: None, bodies: None }
     }
@@ -293,6 +299,8 @@ impl<'a> PageView<'a> {
         self
     }
 
+    /// Lays out and paints the pages, handles scrolling, paging keys and zoom, and returns what
+    /// the view did this pass.
     // pdfcraft: crates/ui-egui/src/canvas.rs:3060 (the page area pass: fit, layout, shown row,
     // paging, scroll area), :948 `paint_page_surface`, :2962 `hold_sharp_renders`, :2262
     // `anchor_zoom_change`; wordcraft: crates/ui-egui/src/canvas/geometry.rs:166 `geometry`.

@@ -17,7 +17,12 @@ pub enum PageRangeError {
     /// `"{page}" is not a page number or label` (the token as typed).
     NotAPage(String),
     /// `page {n} is out of range (1–{count})`.
-    OutOfRange { page: usize, count: usize },
+    OutOfRange {
+        /// The page number that was asked for.
+        page: usize,
+        /// The number of pages in the document.
+        count: usize,
+    },
     /// Longer than [`MAX_RANGE_TEXT`], or expanding past [`MAX_EXPANDED`].
     TooLong,
 }
@@ -103,10 +108,13 @@ pub enum Subset {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct PageRange {
+    /// All pages; `from` and `to` are kept but not applied.
     pub all: bool,
+    /// First page of the range, 1-based.
     pub from: usize,
     /// The last page of the range; `None` is the document's last page, whatever its length.
     pub to: Option<usize>,
+    /// Which pages of the range count: all, even or odd.
     pub subset: Subset,
 }
 
