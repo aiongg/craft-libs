@@ -110,11 +110,13 @@ pub struct ArrangeSpacing {
 /// - `groups` are in display order and cover only the tiles they name; tiles outside every group
 ///   sit in rows without a header.
 pub fn arrange(aspects: &[f32], groups: &[TileGroup], width: f32, layout: TileLayout, spacing: ArrangeSpacing) -> TileArrangement {
-    arrange_closed(aspects, groups, &[], width, layout, spacing)
+    arrange_closed(aspects, groups, &[], width, layout, spacing, 0.0)
 }
 
 /// [`arrange`] with the groups flagged in `closed` (by group index; groups past its end are open)
-/// reduced to their header: their tiles get no row and keep `Rect::NOTHING`.
+/// reduced to their header: their tiles get no row and keep `Rect::NOTHING`. With `Justified`,
+/// each tile also takes a `column` at its left, outside the picture rect, so a row's pictures
+/// and columns fill the width together; `Cards` ignores it (see `strip::arrange_strip`).
 pub(super) fn arrange_closed(
     aspects: &[f32],
     groups: &[TileGroup],
@@ -122,6 +124,7 @@ pub(super) fn arrange_closed(
     width: f32,
     layout: TileLayout,
     spacing: ArrangeSpacing,
+    column: f32,
 ) -> TileArrangement {
     // lightcraft: crates/ui-egui/src/panels/grid.rs:588 (`layout`: justified rows, square cells, groups).
     let sanitized: Vec<f32> = aspects.iter().map(|a| if a.is_finite() && *a > 0.0 { *a } else { 1.0 }).collect();
@@ -173,21 +176,25 @@ pub(super) fn arrange_closed(
         };
         match layout {
             TileLayout::Justified { row_height } => {
+                // Along a row each tile is its column, its picture and the gap: the columns are
+                // spacing the pictures share the rest of the width around.
+                let step = gap + column;
+                let room = content - column;
                 let mut i = range.start;
                 while i < range.end {
                     let mut j = i + 1;
                     let mut sum = sanitized[i];
-                    while j < range.end && (sum + sanitized[j]) * row_height + gap * (j - i) as f32 <= content {
+                    while j < range.end && (sum + sanitized[j]) * row_height + step * (j - i) as f32 <= room {
                         sum += sanitized[j];
                         j += 1;
                     }
-                    let height = if j < range.end { (content - gap * (j - i - 1) as f32) / sum } else { row_height };
+                    let height = if j < range.end { (room - step * (j - i - 1) as f32) / sum } else { row_height };
                     let top = place(&mut out, &mut y, i..j, height);
-                    let mut x = inset;
+                    let mut x = inset + column;
                     for (tile, aspect) in out.tiles[i..j].iter_mut().zip(&sanitized[i..j]) {
                         let w = aspect * height;
                         *tile = Rect::from_min_size(pos2(x, top), vec2(w, height));
-                        x += w + gap;
+                        x += w + step;
                     }
                     i = j;
                 }

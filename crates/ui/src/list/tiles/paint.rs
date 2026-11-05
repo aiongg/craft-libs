@@ -13,7 +13,7 @@ use craft_theme::TypeRole;
 use egui::text::LayoutJob;
 use egui::{Color32, CornerRadius, Galley, Painter, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
-use super::{BadgeKind, BadgeSlot, BadgeVisibility, TileBadge, TileContent, TileFlag, TileLabels, TileStatus, TileStyle, fit_name};
+use super::{BadgeKind, BadgeSlot, BadgeVisibility, CaptionPlace, TileBadge, TileContent, TileFlag, TileLabels, TileStatus, TileStyle, fit_name};
 
 /// The opacity of a disabled tile.
 const DISABLED_OPACITY: f32 = 0.4;
@@ -44,6 +44,8 @@ pub struct TileLook<'a> {
     /// reading start (`CaptionPlace::Start`: the name is then centred in the column, a hidden
     /// tile's name is slashed and its marks are drawn under it); none for a tile without one.
     pub caption: Option<Rect>,
+    /// Which kind of caption `caption` is: under the picture, or the column at its reading start.
+    pub caption_place: CaptionPlace,
     /// Whether the tile is selected.
     pub selected: bool,
     /// Whether the pointer is over it.
@@ -325,7 +327,7 @@ impl Pen<'_> {
     fn caption(&self) {
         let (style, content, look) = (self.style, self.look.content, self.look);
         let Some(caption) = look.caption else { return };
-        if super::strip::is_start(look) {
+        if look.caption_place == CaptionPlace::Start {
             if let Some((galley, at)) = super::strip::start_name(self.painter, self.tokens, style, look) {
                 self.painter.galley(at, galley, style.caption);
             }
@@ -404,8 +406,13 @@ pub(super) fn badge_rects(picture: Rect, widths: &[f32], style: &TileStyle, chec
 /// The accessible name built from `TileLabels`: name, stars, flag, label, status, badge tips.
 pub(super) fn accessible_name(ctx: &egui::Context, content: &TileContent, labels: &TileLabels, label_name: Option<&str>) -> String {
     // lightcraft: crates/ui-egui/src/panels/grid.rs:800 (`cell_description`).
+    let marks = || content.marks.iter().map(|m| m.tip.clone()).filter(|tip| !tip.is_empty());
+    let joined = |name: &str, details: &[String]| {
+        if details.is_empty() { name.to_owned() } else { fmt(&labels.tile_name, &[("name", name), ("details", &details.join(", "))]) }
+    };
+    // The app's own name replaces the grid's description; the marks still join it.
     if let Some(name) = &content.accessible_name {
-        return name.clone();
+        return joined(name, &marks().collect::<Vec<_>>());
     }
     let mut details: Vec<String> = Vec::new();
     if let Some(n) = content.rating.filter(|n| *n > 0) {
@@ -432,6 +439,6 @@ pub(super) fn accessible_name(ctx: &egui::Context, content: &TileContent, labels
         details.push(stack_text(ctx, labels, n));
     }
     details.extend(content.badges.iter().map(|b| b.tip.clone()).filter(|tip| !tip.is_empty()));
-    details.extend(content.marks.iter().map(|m| m.tip.clone()).filter(|tip| !tip.is_empty()));
-    if details.is_empty() { content.name.clone() } else { fmt(&labels.tile_name, &[("name", &content.name), ("details", &details.join(", "))]) }
+    details.extend(marks());
+    joined(&content.name, &details)
 }

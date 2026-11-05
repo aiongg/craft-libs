@@ -22,6 +22,8 @@ pub(super) enum GridKeyAction {
     Preview,
     ToggleLead,
     Remove,
+    /// Esc with tiles picked: empty the selection.
+    Clear,
     Rate(u8),
     Zoom(ZoomStep),
     /// F2: rename the lead.
@@ -38,6 +40,9 @@ pub(super) struct KeyGrid<'a> {
     pub space: SpaceAction,
     pub check_mode: bool,
     pub rating: RatingKeys,
+    /// Whether Esc empties the selection: tiles are picked and no marquee or drag is under way
+    /// (those take Esc themselves).
+    pub clearable: bool,
     /// Whether the lead can be renamed (F2 is claimed only then).
     pub renamable: bool,
 }
@@ -49,7 +54,7 @@ fn digit(key: Key) -> Option<u8> {
 }
 
 /// The action for `key` with `modifiers` on `grid` (its lead at `grid.lead`): arrows and Home,
-/// End, Page Up, Page Down through `nav.step`; Cmd/Ctrl+A; Enter; Space per `space` (Ctrl+Space
+/// End, Page Up, Page Down through `nav.step`; Cmd/Ctrl+A; Enter; Esc when `clearable`; Space per `space` (Ctrl+Space
 /// always `ToggleLead`; check mode always toggles); Delete and Backspace; the rating keys per
 /// `rating` (digits 1–5 rate, 0 clears); Cmd/Ctrl + `=`/`+`, `-`, `0` zoom (checked before the
 /// rating digits, so Cmd/Ctrl+0 is Reset only when `rating` is not `CommandDigits`, where it
@@ -95,6 +100,7 @@ pub(super) fn action(key: Key, modifiers: Modifiers, grid: &KeyGrid<'_>) -> Opti
             Some(if grid.check_mode || grid.space == SpaceAction::Toggle { GridKeyAction::ToggleLead } else { GridKeyAction::Preview })
         }
         Key::Delete | Key::Backspace if plain => Some(GridKeyAction::Remove),
+        Key::Escape if plain && !shift && grid.clearable => Some(GridKeyAction::Clear),
         _ if plain && !shift && grid.rating == RatingKeys::Digits => digit(key).map(GridKeyAction::Rate),
         _ => None,
     }

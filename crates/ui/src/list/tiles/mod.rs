@@ -96,7 +96,8 @@ pub struct TileContent {
     pub name: String,
     /// The caption's second line (a duration, "3 pages").
     pub detail: Option<String>,
-    /// Replaces the accessible name the grid builds from `TileLabels::tile_name`.
+    /// Replaces the name and details the grid builds from `TileLabels::tile_name`; the tips of
+    /// `marks` still join it.
     pub accessible_name: Option<String>,
     /// Replaces the tooltip (default: the full name).
     pub tooltip: Option<String>,
@@ -265,7 +266,8 @@ pub enum TileEvent<K> {
     Preview(K),
     /// A star click or a rating key: `keys` get `rating` (0 clears). A `Set`, one undo step.
     Rate { keys: Vec<K>, rating: u8 },
-    /// Delete or Backspace on the selection.
+    /// Delete or Backspace on the selection; with nothing picked, on the current tile
+    /// ([`TileGrid::current`]).
     Remove(Vec<K>),
     /// A drag of the selection began (once); the payload is also egui's drag payload.
     Drag(ListDrag<K>),
@@ -278,6 +280,10 @@ pub enum TileEvent<K> {
     GroupPicked { group: usize, modifiers: Modifiers },
     /// Cmd/Ctrl + / − / 0, or a pinch.
     Zoom(ZoomStep),
+    /// A secondary click (or AccessKit's ShowContextMenu) on an unpicked tile replaced the
+    /// selection with it, for the menu that follows as `ContextMenu`. A pick, not a move: a host
+    /// with a current tile keeps it. Already applied to the selection given.
+    ContextPicked(SelectionChange<K>),
     /// A context menu was asked for, on a tile or the background (`row: None`).
     ContextMenu(ContextMenuRequest<K>),
     /// A double click on the background (FilmCraft: import).
@@ -373,7 +379,9 @@ pub type CardOverlay<'a, K> = Box<dyn FnMut(&mut Ui, &K, Rect) + 'a>;
 ///   (`ragged` rows from the arrangement for `Justified`, `wrapped` for `Cards`; `rtl` mirrors
 ///   Left and Right); the selection follows; Shift extends; Cmd/Ctrl+arrows move the lead only
 ///   (`LeadMoved`). Enter: `Activate(lead)`. Space: per [`SpaceAction`]; Ctrl+Space always
-///   toggles the lead. Delete and Backspace: `Remove(selection)`. Rating keys per [`RatingKeys`].
+///   toggles the lead. Delete and Backspace: `Remove(selection)`, or of the current tile with
+///   nothing picked. Esc empties the selection (not during a marquee or a drag, which take it).
+///   A secondary click on an unpicked tile: `ContextPicked`, then `ContextMenu`. Rating keys per [`RatingKeys`].
 ///   Cmd/Ctrl + / − / 0: `Zoom`. Cmd/Ctrl+] and [ move the lead's tiles with `.reorder(..)`
 ///   (`StackKey`). Menu key and Shift+F10: `ContextMenu`. Keys a focused grid takes are claimed
 ///   (`KeyClaim`). Type-ahead on names with `.type_ahead(true)`, as `List`.
@@ -596,8 +604,8 @@ where
     }
 
     /// Marks tile `key` as the current one (Acrobat's current page, PowerPoint's current slide):
-    /// a `tile.ring_current_width` ring in `tile.ring.current` (`accent.solid`) round its
-    /// picture, inside the selection ring, whether or not it is selected; AccessKit `aria_current` (`AriaCurrent::Page`) on its option.
+    /// a `tile.ring_current_width` ring in `tile.ring.current` (`accent.solid`) outside its
+    /// picture's edge (PdfCraft's current page), drawn over the selection ring when it is selected; AccessKit `aria_current` (`AriaCurrent::Page`) on its option.
     /// It is not the lead: keys still start from the lead. A new current tile scrolls into view as
     /// little as it takes, except during a drag (Acrobat follows the page it shows).
     #[must_use]
@@ -606,7 +614,8 @@ where
         self
     }
 
-    /// Where `Cards` captions go (default [`CaptionPlace::Below`]).
+    /// Where captions go (default [`CaptionPlace::Below`]); `Start` also works with `Justified`
+    /// rows, where each picture gets its column.
     #[must_use]
     pub fn caption_place(mut self, place: CaptionPlace) -> Self {
         self.strip.caption_place = place;
@@ -1198,6 +1207,12 @@ where
         ((height / row).floor() as usize).max(1)
     }
 
+    /// Whether Esc empties the selection: tiles are picked and no marquee or drag is under way
+    /// (those take Esc themselves).
+    fn takes_escape(&self) -> bool {
+        !self.selection.items.is_empty() && self.state.marquee.is_none() && !DragAndDrop::has_any_payload(&self.ctx)
+    }
+
     /// Takes the keys the grid owns from the input and applies them. Returns whether the context
     /// menu was asked for.
     fn keys(&mut self, ui: &Ui, type_ahead: bool) -> bool {
@@ -1215,6 +1230,7 @@ where
             space: self.space,
             check_mode: self.check_mode,
             rating: self.rating_keys,
+            clearable: self.takes_escape(),
             renamable: self.selection.lead.as_ref().is_some_and(|lead| self.renamable(lead)),
         };
         let stacks = self.reorder.is_some();
@@ -1289,8 +1305,20 @@ where
             GridKeyAction::Preview => self.events.extend(self.selection.lead.clone().map(TileEvent::Preview)),
             GridKeyAction::ToggleLead => self.toggle_lead(),
             GridKeyAction::Remove => {
-                if !self.selection.items.is_empty() {
-                    self.events.push(TileEvent::Remove(self.selection.items.clone()));
+                // With nothing picked the key removes the current tile.
+                let keys = if self.selection.items.is_empty() { self.strip.current.iter().cloned().collect() } else { self.selection.items.clone() };
+                if !keys.is_empty() {
+                    self.events.push(TileEvent::Remove(keys));
+                }
+            }
+            GridKeyAction::Clear => {
+                if let Some(change) = change_of(
+                    self.selection,
+                    SelectionPick::Clear,
+                    None,
+                    Selection { items: Vec::new(), lead: self.selection.lead.clone(), anchor: None },
+                ) {
+                    self.apply(change);
                 }
             }
             GridKeyAction::Rate(rating) => {
@@ -1417,7 +1445,8 @@ where
     }
 
     fn select_all(&mut self) {
-        let items: Vec<K> = (0..self.len).filter(|&p| !self.order.is_section(p)).map(|p| self.source.key(p).clone()).collect();
+        let items: Vec<K> =
+            (0..self.len).filter(|&p| !self.order.is_section(p) && self.nav_index(p).is_some()).map(|p| self.source.key(p).clone()).collect();
         let lead = self.selection.lead.clone().or_else(|| items.first().cloned());
         let new = Selection { items, lead: lead.clone(), anchor: self.selection.anchor.clone().or_else(|| lead.clone()) };
         if let Some(change) = change_of(self.selection, SelectionPick::Range, lead, new) {
@@ -1600,6 +1629,7 @@ where
             content: &content,
             picture,
             caption: caption.filter(|_| renaming.is_none()),
+            caption_place: if start { CaptionPlace::Start } else { CaptionPlace::Below },
             selected,
             hovered: response.hovered() && !rows.dragging,
             lead_focused: self.focused && is_lead,
@@ -1741,7 +1771,8 @@ where
             && tile_enabled
             && let Some(change) = self.rules.click(self.selection, &self.order, at, Modifiers::NONE)
         {
-            self.apply(change);
+            *self.selection = change.selection.clone();
+            self.events.push(TileEvent::ContextPicked(change));
         }
         self.events.push(TileEvent::ContextMenu(ContextMenuRequest { row: Some(key), selected: was_selected, anchor, pointer, toggle: None }));
     }
@@ -1959,9 +1990,9 @@ where
         });
         FocusRing::paint_if(ui, response.rect, CornerRadius::ZERO, focused && len == 0);
         if focused {
-            self.ctx.memory_mut(|m| {
-                m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false })
-            });
+            // Esc keeps the focus while it has a selection to empty; egui would drop focus on it.
+            let escape = self.takes_escape();
+            self.ctx.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape }));
         }
         let events = std::mem::take(&mut self.events);
         let ctx = self.ctx.clone();

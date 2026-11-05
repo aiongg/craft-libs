@@ -21,6 +21,7 @@ use super::fake::FakeTiles;
 use super::groups::pinned_rect;
 use super::layout::{ArrangeSpacing, arrange};
 use super::paint::badge_rects;
+use super::strip::mark_rects;
 use super::{BadgeVisibility, CaptionPlace, RatingKeys, SpaceAction, TileContent, TileEvent, TileGrid, TileGroup, TileLayout, TileStyle};
 
 /// Cmd on a Mac and Ctrl elsewhere, as a platform reports it: `ctrl` with the abstract `command`.
@@ -912,4 +913,198 @@ fn file_drops_report_the_gap() {
     harness.input_mut().hovered_files.clear();
     harness.run_steps(2);
     assert_eq!(harness.state().file_gap, None);
+}
+
+// Esc empties the picked set only when something is picked; with nothing picked the key is left alone.
+#[test]
+fn escape_clears_the_picked_set_and_is_left_alone_when_nothing_is_picked() {
+    let mut harness = harness(Host::new(6));
+    click(&mut harness, 1);
+    click_with(&mut harness, 3, CMD);
+    assert_eq!(selected(&harness), [1, 3]);
+    harness.state_mut().take();
+    key(&mut harness, Modifiers::NONE, Key::Escape);
+    assert!(selected(&harness).is_empty());
+    let events = harness.state_mut().take();
+    assert!(events.iter().any(|e| matches!(e, TileEvent::Selection(c) if c.pick == crate::behavior::SelectionPick::Clear)), "{events:?}");
+    key(&mut harness, Modifiers::NONE, Key::Escape);
+    assert!(harness.state_mut().take().is_empty(), "nothing picked: no event");
+}
+
+// Delete with nothing picked reports the current tile; with a pick it reports the pick.
+#[test]
+fn delete_without_a_pick_removes_the_current_tile() {
+    let mut host = Host::new(6);
+    host.current = Some(2);
+    let mut harness = harness(host);
+    click(&mut harness, 4);
+    key(&mut harness, Modifiers::NONE, Key::Escape);
+    harness.state_mut().take();
+    key(&mut harness, Modifiers::NONE, Key::Delete);
+    assert_eq!(harness.state_mut().take(), vec![TileEvent::Remove(vec![2])]);
+    click(&mut harness, 4);
+    harness.state_mut().take();
+    key(&mut harness, Modifiers::NONE, Key::Backspace);
+    assert_eq!(harness.state_mut().take(), vec![TileEvent::Remove(vec![4])]);
+}
+
+// A secondary click on an unpicked tile picks it for the menu as `ContextPicked`, not `Selection`.
+#[test]
+fn a_secondary_click_on_an_unpicked_tile_reports_a_context_pick() {
+    let mut harness = harness(Host::new(6));
+    click(&mut harness, 0);
+    harness.state_mut().take();
+    let at = centre(&harness, 3);
+    harness.click_at_with(at, PointerButton::Secondary, Modifiers::NONE);
+    harness.run_steps(8);
+    let events = harness.state_mut().take();
+    assert!(events.iter().any(|e| matches!(e, TileEvent::ContextPicked(c) if c.row == Some(3))), "{events:?}");
+    assert!(!events.iter().any(|e| matches!(e, TileEvent::Selection(_))), "{events:?}");
+    assert!(events.iter().any(|e| matches!(e, TileEvent::ContextMenu(r) if r.row == Some(3) && !r.selected)), "{events:?}");
+    assert_eq!(selected(&harness), [3]);
+    harness.state_mut().take();
+    harness.click_at_with(at, PointerButton::Secondary, Modifiers::NONE);
+    harness.run_steps(8);
+    let events = harness.state_mut().take();
+    assert!(!events.iter().any(|e| matches!(e, TileEvent::ContextPicked(_))), "a picked tile: only the menu, {events:?}");
+}
+
+// The app's accessible name keeps the marks' tips.
+#[test]
+fn an_accessible_name_from_the_app_still_joins_the_marks() {
+    let mut host = Host::new(3);
+    host.caption_place = CaptionPlace::Start;
+    host.tiles.describe = Box::new(|key, content| {
+        content.accessible_name = Some(format!("Slide {key}"));
+        if key == 1 {
+            content.marks = vec![TileMark { icon: Icon::Star, tip: "Has animations".to_owned() }];
+        }
+    });
+    let harness = harness(host);
+    harness.get_by_label("Slide 0");
+    harness.get_by_label("Slide 1, Has animations");
+}
+
+// Select All leaves out the tiles of a closed group.
+#[test]
+fn select_all_skips_closed_groups() {
+    let mut host = Host::new(8);
+    host.groups = [(0, 4, "Monday"), (4, 4, "Tuesday")]
+        .into_iter()
+        .map(|(start, count, title)| TileGroup { start, count, title: title.to_owned(), detail: String::new() })
+        .collect();
+    host.group_open = Some(vec![false, true]);
+    let mut harness = harness(host);
+    click(&mut harness, 5);
+    key(&mut harness, CMD, Key::A);
+    assert_eq!(selected(&harness), [4, 5, 6, 7]);
+}
+
+// `Justified` with a `Start` caption: every tile has its column, rows still fill the width.
+#[test]
+fn start_captions_work_with_justified_rows() {
+    let mut host = Host::new(9);
+    host.layout = TileLayout::Justified { row_height: 80.0 };
+    host.caption_place = CaptionPlace::Start;
+    host.tiles.aspect = Box::new(|key| 1.0 + (key % 3) as f32 * 0.5);
+    let harness = harness(host);
+    let style = style(&harness);
+    let first = tile(&harness, 0).rect();
+    let second = tile(&harness, 1).rect();
+    assert!((second.left() - first.right() - style.gap).abs() < 0.5, "cards of a row are one gap apart: {first:?} {second:?}");
+    assert!(first.width() > 80.0 + style.start_caption_width, "the card holds the column and the picture: {first:?}");
+}
+
+// File-drop gap over unequal tiles: the pointer left of a wide card's middle is before it, right of it after.
+#[test]
+fn file_drop_gaps_follow_each_cards_own_middle() {
+    let mut host = Host::new(4);
+    host.layout = TileLayout::Justified { row_height: 80.0 };
+    host.tiles.aspect = Box::new(|key| if key == 0 { 3.0 } else { 1.0 });
+    host.file_drops = true;
+    let mut harness = harness(host);
+    harness.input_mut().hovered_files.push(egui::HoveredFile::default());
+    let wide = tile(&harness, 0).rect();
+    let y = wide.center().y;
+    harness.event(Event::PointerMoved(pos2(wide.center().x - 2.0, y)));
+    harness.run_steps(2);
+    assert_eq!(harness.state().file_gap, Some(0));
+    harness.event(Event::PointerMoved(pos2(wide.center().x + 2.0, y)));
+    harness.run_steps(2);
+    assert_eq!(harness.state().file_gap, Some(1), "the wide first card's own middle, not a share of the row");
+}
+
+fn paint_image(host: Host) -> Result<egui::ColorImage, crate::testing::render::RenderError> {
+    use crate::testing::render::{Render, image_of};
+    let direction = host.direction;
+    let mut harness = Render::new([640.0, 480.0])
+        .setup(move |ctx| {
+            install(ctx, &Base::suite_default());
+            direction::apply(ctx, direction);
+        })
+        .harness(show, host)?;
+    harness.run();
+    image_of(&mut harness)
+}
+
+fn pixel(image: &egui::ColorImage, at: Pos2) -> egui::Color32 {
+    image.pixels[at.y as usize * image.size[0] + at.x as usize]
+}
+
+fn differing(a: &egui::ColorImage, b: &egui::ColorImage, area: Rect) -> usize {
+    let mut count = 0;
+    for y in area.top() as usize..area.bottom() as usize {
+        for x in area.left() as usize..area.right() as usize {
+            let at = pos2(x as f32, y as f32);
+            count += usize::from(pixel(a, at) != pixel(b, at));
+        }
+    }
+    count
+}
+
+fn start_host(hidden: bool, marks: bool, current: Option<usize>) -> Host {
+    let mut host = Host::new(3);
+    host.caption_place = CaptionPlace::Start;
+    host.current = current;
+    host.tiles.describe = Box::new(move |key, content| {
+        if key == 0 {
+            content.hidden = hidden;
+            if marks {
+                content.marks = vec![TileMark { icon: Icon::Star, tip: "Has animations".to_owned() }];
+            }
+        }
+    });
+    host
+}
+
+// Painting: the veil over a hidden tile's picture, the slash across its name, the marks under it
+// and the current ring outside the picture edge.
+#[test]
+fn start_tiles_paint_the_veil_slash_marks_and_current_ring() -> Result<(), crate::testing::render::RenderError> {
+    let geometry = harness(start_host(false, false, None));
+    let tokens = current(&geometry.ctx);
+    let style = TileStyle::style(&tokens);
+    let cell = tile(&geometry, 0).rect();
+    let column = Rect::from_min_size(cell.min, vec2(style.start_caption_width, cell.height()));
+    let picture = Rect::from_min_max(pos2(cell.left() + style.start_caption_width, cell.top()), cell.max);
+
+    let plain = paint_image(start_host(false, false, None))?;
+    let hidden = paint_image(start_host(true, false, None))?;
+    assert_ne!(pixel(&hidden, picture.center()), pixel(&plain, picture.center()), "the veil covers the picture");
+    assert!(differing(&plain, &hidden, column) > 10, "the slash crosses the name");
+
+    let marked = paint_image(start_host(false, true, None))?;
+    let mark = mark_rects(column, &tokens, &style, 1)[0];
+    assert!(differing(&plain, &marked, mark) > 5, "the mark's glyph is drawn under the name");
+    assert_eq!(differing(&plain, &marked, picture), 0);
+
+    let ringed = paint_image(start_host(false, false, Some(0)))?;
+    let width = style.ring_current_width;
+    let outside = pos2(picture.left() - width / 2.0, picture.center().y);
+    let inside = pos2(picture.left() + width / 2.0, picture.center().y);
+    let colour = style.ring_current;
+    let near = |a: egui::Color32, b: egui::Color32| a.to_array().iter().zip(b.to_array()).all(|(x, y)| x.abs_diff(y) <= 2);
+    assert!(near(pixel(&ringed, outside), colour), "ring outside the edge: {:?} vs {colour:?}", pixel(&ringed, outside));
+    assert_eq!(pixel(&ringed, inside), pixel(&plain, inside), "nothing inside the picture");
+    Ok(())
 }
