@@ -857,11 +857,12 @@ fn graph_editor(ui: &mut Ui, _: &mut NoArgs) {
     let demo = &mut *demo;
     let width = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(vec2(width, width * GRAPH_ASPECT), Sense::hover());
-    let out =
-        GraphEditor::new("graph", &demo.curves, &demo.selection, &demo.view, &mut demo.range).playhead(demo.playhead).format(format()).show(ui, rect);
+    let out = GraphEditor::new("graph", &demo.curves, &mut demo.selection, &demo.view, &mut demo.range)
+        .playhead(demo.playhead)
+        .format(format())
+        .show(ui, rect);
     if let Some(change) = out.selection {
         demo.last = Some(format!("{:?}", change.pick));
-        demo.selection = change.selection;
     }
     if let Some(event) = &out.keys_moved {
         if let Some(delta) = settled(event) {
@@ -895,7 +896,7 @@ fn graph_editor(ui: &mut Ui, _: &mut NoArgs) {
         }
         demo.last = Some(format!("{event:?}"));
     }
-    if let Some(action) = out.action {
+    for action in out.actions {
         demo.last = Some(format!("{action:?}"));
         let interpolation = match action {
             GraphAction::Hold => Some(KeyframeInterpolation::Hold),
@@ -1169,14 +1170,10 @@ fn overview(ui: &mut Ui, _: &mut NoArgs) {
     let width = ui.available_width();
     let height = f32::from(OVERVIEW_TRACKS) * style.track_height_min + 2.0 * style.overview_inset_y;
     ui.allocate_ui(vec2(width, height), |ui| {
-        let area = ui.available_rect_before_wrap().shrink2(vec2(style.overview_inset_x, style.overview_inset_y));
-        let runs = overview_runs(&demo.tracks, demo.end + secs(TAIL_SECONDS), area);
+        let runs = overview_runs(&demo.tracks, demo.end, ui.available_rect_before_wrap(), &style);
         TimelineOverview::new("overview", &runs, &mut demo.view, width, demo.end).playhead(Some(secs(30.0))).show(ui);
     });
 }
-
-/// The seconds the overview adds after the content's end (`TimelineOverview`'s total).
-const TAIL_SECONDS: f64 = 10.0;
 
 // ---- Render queue -------------------------------------------------------------------------
 

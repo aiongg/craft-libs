@@ -1,11 +1,12 @@
 //! The overview (egui_kittest).
 
 use craft_ui::testing::{HarnessExt as _, symbols};
-use craft_ui::theme::{Base, install};
+use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
 use egui::{Color32, Pos2, Rect, Ui, pos2, vec2};
 use egui_kittest::Harness;
 
 use super::overview::{OverviewRun, TimelineOverview, overview_runs};
+use super::style::TimelineStyle;
 use crate::time::{Tick, TimeRange, TimeView};
 
 fn secs(s: f64) -> Tick {
@@ -37,12 +38,16 @@ fn runs_merge_touching_clips_of_one_colour() {
         clips.push((TimeRange::new(secs(at), secs(length)), color));
         at += length + if index == 3000 { 30.0 } else { 0.0 };
     }
-    let total = secs(at + 10.0);
-    let rect = Rect::from_min_size(pos2(8.0, 4.0), vec2(900.0, 56.0));
-    let runs = overview_runs(std::slice::from_ref(&clips), total, rect);
+    // The runs fill the widget's own area: no inset or tail to copy.
+    let mut style = None;
+    egui::__run_test_ui(|ui| style = Some(TimelineStyle::of(&Tokens::of(ui))));
+    let style = style.unwrap();
+    let outer = Rect::from_min_size(pos2(8.0, 4.0), vec2(900.0, 56.0));
+    let rect = TimelineOverview::area(outer, &style);
+    let runs = overview_runs(std::slice::from_ref(&clips), secs(at), outer, &style);
     assert!(runs.len() <= 6, "{} rects for 5000 clips", runs.len());
 
-    let width = total.0 as f32;
+    let width = secs(at + 10.0).0 as f32;
     let unmerged: Vec<OverviewRun> = clips
         .iter()
         .map(|&(range, color)| {

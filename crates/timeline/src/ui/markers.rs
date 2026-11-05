@@ -4,7 +4,7 @@ use craft_ui::behavior::{ClaimedKey, KeyClaim};
 use craft_ui::composites::FormGrid;
 use craft_ui::controls::{Swatch, TextField, TooltipExt as _};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width};
-use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
+use craft_ui::edit::{EditEvent, EditPolicy, Gesture, GestureDraft};
 use craft_ui::icons::{Icon, IconSize};
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Corner, FocusRing};
@@ -31,6 +31,7 @@ const DURATION_TINT: f32 = 0.5;
 
 /// What a marker gesture asks of the app.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum MarkerEdit {
     /// A drag of the marker: its new time (snapped), as one gesture; Esc cancels.
     Move { id: MarkerId, to: EditEvent<Tick> },
@@ -54,9 +55,11 @@ pub enum MarkerEdit {
 /// double-click opens the dialog, a secondary click is reported for the app's menu (Settings,
 /// Convert, Delete). With [`bin`](Self::bin) a marker dragged out of the bin at the right end
 /// adds one where it is dropped. Tooltips show name and comment. Keyboard: the strip is one Tab
-/// stop, Left / Right pick the previous / next marker, Enter opens it, Delete deletes it
-/// (claimed through [`KeyClaim`](craft_ui::behavior::KeyClaim)). AccessKit: a `ListBox` of
-/// markers named by name and time.
+/// stop (the markers and the bin are pointer-only), Left / Right pick the previous / next
+/// marker, Enter opens it, Delete and Backspace delete it (claimed through
+/// [`KeyClaim`](craft_ui::behavior::KeyClaim)); each chord matches its modifiers exactly.
+/// AccessKit: a `ListBox` named by [`MarkerStripLabels`]' title, holding the markers named by
+/// name and time.
 pub struct MarkerStrip<'a> {
     id_salt: IdSalt,
     markers: &'a [Marker],
@@ -65,11 +68,17 @@ pub struct MarkerStrip<'a> {
     palette: Option<&'a LabelPalette>,
     bin: Option<Rect>,
     format: Option<TimeFormat>,
+    labels: Option<MarkerStripLabels>,
 }
 
 impl<'a> MarkerStrip<'a> {
     pub fn new(id_salt: impl AsIdSalt, markers: &'a [Marker], view: &'a TimeView) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), markers, view, snap: None, palette: None, bin: None, format: None }
+        Self { id_salt: IdSalt::new(id_salt), markers, view, snap: None, palette: None, bin: None, format: None, labels: None }
+    }
+
+    pub fn labels(mut self, labels: MarkerStripLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     pub fn snap(mut self, targets: Option<&'a SnapTargets>) -> Self {
@@ -98,10 +107,10 @@ impl<'a> MarkerStrip<'a> {
     // effectcraft: crates/ui-egui/src/panels/markers_ui.rs:274 `marker_shape`, `:282` `marker`,
     // `:253` `snap`, `:380` `name_box_x`, `:408` `comp_markers`, `:429` `marker_bin`.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> MarkerStripResponse {
-        let Self { id_salt, markers, view, snap, palette, bin, format } = self;
+        let Self { id_salt, markers, view, snap, palette, bin, format, labels } = self;
         let tokens = Tokens::of(ui);
         let style = TimelineStyle::of(&tokens);
-        let labels = MarkerDialogLabels::of(ui);
+        let labels = labels.unwrap_or_else(|| MarkerStripLabels::of(ui));
         let owned;
         let palette = match palette {
             Some(palette) => palette,
@@ -156,7 +165,7 @@ impl<'a> MarkerStrip<'a> {
                     continue;
                 }
                 let hit = Rect::from_min_max(pos2(x - half_hit, rect.top()), pos2(x + half_hit, rect.bottom()));
-                let marker_response = ui.interact(hit, id.with(("marker", marker.id.0)), Sense::click_and_drag());
+                let marker_response = ui.interact(hit, id.with(("marker", marker.id.0)), Sense::CLICK | Sense::DRAG);
                 if marker_response.drag_started_by(PointerButton::Primary) {
                     out.response.request_focus();
                     picked = Some(marker.id);
@@ -301,7 +310,7 @@ impl<'a> MarkerStrip<'a> {
                 height,
                 flag_width: style.marker_width,
                 enabled,
-                title: labels.title.as_str(),
+                labels: &labels,
                 tint: palette.color(MarkerColor::default()),
             };
             if let Some(at) = marker_bin(ui, id.with("bin"), &bin_cx, view, &settle, &tokens) {
@@ -312,22 +321,29 @@ impl<'a> MarkerStrip<'a> {
     }
 }
 
-/// Left and Right pick the previous and next marker, Enter opens the picked one, Delete deletes it.
+/// Whether `key` was pressed with no modifier this pass, and consumes it; an extra Shift or Alt
+/// is another chord.
+fn pressed(ui: &Ui, key: Key) -> bool {
+    ui.input_mut(|i| ClaimedKey::exact(Modifiers::NONE, key).consume(i))
+}
+
+/// Left and Right pick the previous and next marker, Enter opens the picked one, Delete and
+/// Backspace delete it.
 fn pick_by_key(ui: &Ui, id: Id, order: &[&Marker], picked: &mut Option<MarkerId>, edits: &mut Vec<MarkerEdit>) {
     ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, ..EventFilter::default() }));
-    KeyClaim::claim(ui.ctx(), id, &[ClaimedKey::exact(Modifiers::NONE, Key::Delete)]);
+    KeyClaim::claim(ui.ctx(), id, &[ClaimedKey::exact(Modifiers::NONE, Key::Delete), ClaimedKey::exact(Modifiers::NONE, Key::Backspace)]);
     let at = picked.and_then(|picked| order.iter().position(|m| m.id == picked));
-    if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowRight)) {
+    if pressed(ui, Key::ArrowRight) {
         *picked = Some(order[at.map_or(0, |at| (at + 1).min(order.len() - 1))].id);
     }
-    if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowLeft)) {
+    if pressed(ui, Key::ArrowLeft) {
         *picked = Some(order[at.map_or(order.len() - 1, |at| at.saturating_sub(1))].id);
     }
     if let Some(picked) = *picked {
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
+        if pressed(ui, Key::Enter) {
             edits.push(MarkerEdit::Open(picked));
         }
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete)) {
+        if pressed(ui, Key::Delete) || pressed(ui, Key::Backspace) {
             edits.push(MarkerEdit::Delete(picked));
         }
     }
@@ -348,7 +364,7 @@ struct BinCx<'a> {
     height: f32,
     flag_width: f32,
     enabled: bool,
-    title: &'a str,
+    labels: &'a MarkerStripLabels,
     tint: egui::Color32,
 }
 
@@ -356,10 +372,11 @@ struct BinCx<'a> {
 /// along the strip, and dropping it there answers the time to add one at.
 // effectcraft: crates/ui-egui/src/panels/markers_ui.rs:429 `marker_bin`.
 fn marker_bin(ui: &mut Ui, id: Id, cx: &BinCx<'_>, view: &TimeView, settle: &dyn Fn(Tick, Option<Tick>) -> Tick, tokens: &UiTokens) -> Option<Tick> {
-    let BinCx { bin, strip, height, flag_width, enabled, title, tint } = *cx;
+    let BinCx { bin, strip, height, flag_width, enabled, labels, tint } = *cx;
     let color = &tokens.color;
-    let response = ui.interact(bin, id, Sense::drag());
-    response.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, title));
+    let response = ui.interact(bin, id, Sense::DRAG);
+    response.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, labels.bin.as_str()));
+    let response = response.tooltip(labels.bin_hint.clone());
     let hot = response.hovered() || response.dragged();
     if hot {
         ui.ctx().set_cursor_icon(if response.dragged() { CursorIcon::Grabbing } else { CursorIcon::Grab });
@@ -414,6 +431,16 @@ pub struct MarkerStripResponse {
 }
 
 craft_ui::words! {
+    /// The marker strip's words, English by default.
+    #[non_exhaustive]
+    pub struct MarkerStripLabels {
+        title: "markerStrip.title" = "Markers";
+        bin: "markerStrip.bin" = "Marker bin";
+        bin_hint: "markerStrip.binHint" = "Marker bin: drag a marker to the time ruler";
+    }
+}
+
+craft_ui::words! {
     /// The Marker dialog's words, English by default.
     #[non_exhaustive]
     pub struct MarkerDialogLabels {
@@ -452,6 +479,7 @@ pub struct MarkerDialogResult {
 /// OK with the edited values, Delete, or Previous / Next (Premiere's: the edits are kept and the
 /// app opens the dialog again on the neighbouring marker).
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MarkerDialogAction {
     Save(MarkerDraft),
     Delete,
@@ -470,6 +498,17 @@ pub struct MarkerDialog {
     palette: LabelPalette,
     labels: Option<MarkerDialogLabels>,
     state: DialogState,
+    /// What each field held before the gesture running in it, to restore on Esc.
+    drafts: FieldDrafts,
+}
+
+/// One [`GestureDraft`] per field of the dialog.
+#[derive(Default)]
+struct FieldDrafts {
+    name: GestureDraft<String>,
+    comment: GestureDraft<String>,
+    start: GestureDraft<Tick>,
+    duration: GestureDraft<Tick>,
 }
 
 impl MarkerDialog {
@@ -481,7 +520,15 @@ impl MarkerDialog {
             duration: marker.duration,
             color: marker.color,
         };
-        Self { id: marker.id, draft, format, palette: LabelPalette::default(), labels: None, state: DialogState::new() }
+        Self {
+            id: marker.id,
+            draft,
+            format,
+            palette: LabelPalette::default(),
+            labels: None,
+            state: DialogState::new(),
+            drafts: FieldDrafts::default(),
+        }
     }
 
     pub fn palette(mut self, palette: LabelPalette) -> Self {
@@ -531,14 +578,6 @@ impl StackDialog for MarkerDialog {
     }
 }
 
-/// The value an edit event leaves in a field, if it changed it.
-fn edited<T: Clone>(event: Option<&EditEvent<T>>) -> Option<T> {
-    match event? {
-        EditEvent::Commit { changed: false, .. } => None,
-        event => event.value().cloned(),
-    }
-}
-
 impl MarkerDialog {
     fn body(&mut self, ui: &mut Ui, labels: &MarkerDialogLabels) {
         let name_id = self.id().with("name");
@@ -546,23 +585,23 @@ impl MarkerDialog {
             let name = form.row(labels.name.as_str(), |ui, _| {
                 TextField::new(("marker", "name"), labels.name.as_str(), self.draft.name.as_str()).id(name_id).show(ui)
             });
-            if let Some(text) = edited(name.inner.event.as_ref()) {
-                self.draft.name = text;
+            if let Some(event) = name.inner.event {
+                self.drafts.name.apply(&mut self.draft.name, event);
             }
             let time = form.row(labels.time.as_str(), |ui, _| TimecodeField::new(("marker", "time"), self.draft.start, &self.format).show(ui));
-            if let Some(start) = edited(time.inner.event.as_ref()) {
-                self.draft.start = start;
+            if let Some(event) = time.inner.event {
+                self.drafts.start.apply(&mut self.draft.start, event);
             }
             let length =
                 form.row(labels.duration.as_str(), |ui, _| TimecodeField::new(("marker", "duration"), self.draft.duration, &self.format).show(ui));
-            if let Some(duration) = edited(length.inner.event.as_ref()) {
-                self.draft.duration = duration;
+            if let Some(event) = length.inner.event {
+                self.drafts.duration.apply(&mut self.draft.duration, event);
             }
             let comment = form.row(labels.comment.as_str(), |ui, _| {
                 TextField::new(("marker", "comment"), labels.comment.as_str(), self.draft.comment.as_str()).multiline(COMMENT_ROWS).show(ui)
             });
-            if let Some(text) = edited(comment.inner.event.as_ref()) {
-                self.draft.comment = text;
+            if let Some(event) = comment.inner.event {
+                self.drafts.comment.apply(&mut self.draft.comment, event);
             }
             let mut chosen = None;
             form.row(labels.color.as_str(), |ui, _| {

@@ -28,13 +28,17 @@ const AUTO_MARGIN: f64 = 0.08;
 /// (`graph.rs:790`, `:789`).
 const FIT_MARGIN: f64 = 0.15;
 const FIT_MARGIN_MIN: f64 = 1.0;
-/// Points of Ctrl-wheel travel per factor of e in the value range (`graph.rs:386`).
-const WHEEL_POINTS: f64 = 200.0;
+/// The share of the plot's height a reference graph leaves free above and below (EffectCraft
+/// `graph.rs:318`: it is drawn in 90 % of the height). A proportion of the plot, not a size.
+const REFERENCE_PAD: f32 = 0.05;
+/// The share of a curve's colour a reference graph keeps (EffectCraft `graph_tools.rs:320`).
+const REFERENCE_FADE: f32 = 0.35;
 
 craft_ui::words! {
     /// The bottom bar's tooltips, English by default (EffectCraft `graph.rs:611`).
     #[non_exhaustive]
     pub struct GraphEditorLabels {
+        title: "graphEditor.title" = "Graph Editor";
         value_graph: "graphEditor.valueGraph" = "Edit Value Graph";
         speed_graph: "graphEditor.speedGraph" = "Edit Speed Graph";
         show_selected: "graphEditor.showSelected" = "Show Selected Properties (else all animated properties)";
@@ -96,11 +100,14 @@ pub struct GraphRange {
     pub auto_zoom: bool,
     pub selected_only: bool,
     pub separate_dimensions: bool,
+    /// Show Reference Graph: the other graph type, faint, scaled to the plot (EffectCraft
+    /// `graph.rs:301`). The curves come from [`GraphEditor::reference`].
+    pub reference: bool,
 }
 
 impl Default for GraphRange {
     fn default() -> Self {
-        Self { low: 0.0, high: 100.0, mode: GraphMode::Value, auto_zoom: true, selected_only: false, separate_dimensions: false }
+        Self { low: 0.0, high: 100.0, mode: GraphMode::Value, auto_zoom: true, selected_only: false, separate_dimensions: false, reference: false }
     }
 }
 
@@ -130,6 +137,7 @@ pub struct HandleMove {
 
 /// A bottom-bar button, or a key on the plot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum GraphAction {
     /// Delete with keys selected.
     Delete,
@@ -155,20 +163,29 @@ pub enum GraphAction {
 ///   keys moves them in time and value (Shift constrains to the axis moved most), reported as an
 ///   `EditEvent<GraphKeyMove>` gesture; dragging a handle reports an `EditEvent<HandleMove>`.
 ///   Esc cancels a drag.
-/// - Wheel zooms the value range about the pointer (turns auto-zoom off); auto-zoom fits the
-///   shown curves each frame ([`auto_range`]).
+/// - Ctrl/Cmd+wheel (and a pinch) zooms the value range about its middle (turns auto-zoom off),
+///   read as egui's zoom delta; auto-zoom fits the shown curves each frame ([`auto_range`]).
+/// - With [`GraphRange::reference`] and [`reference`](Self::reference) curves, the other graph
+///   type is drawn faint behind the curves, scaled to the plot.
 /// - The bottom bar, a horizontal [`Toolbar`](craft_ui::patterns::Toolbar): Value / Speed graph,
-///   selected only, auto-zoom, fit selection, fit all, separate dimensions, Hold, Linear, Auto
-///   Bezier, Easy Ease, Ease In, Ease Out; buttons with the tooltips of [`GraphEditorLabels`].
-/// - Keyboard: the plot is one Tab stop; arrows move the selected keys (a frame / a value step),
-///   F9, Shift+F9 and Ctrl+Shift+F9 report the Easy Ease actions; Delete is claimed through
-///   [`KeyClaim`](craft_ui::behavior::KeyClaim) and reported as [`GraphAction::Delete`].
+///   selected only, auto-zoom, fit selection, fit all, reference graph, separate dimensions,
+///   Hold, Linear, Auto Bezier, Easy Ease, Ease In, Ease Out; icon buttons with the tooltips of
+///   [`GraphEditorLabels`].
+/// - Keyboard: the plot is one Tab stop; the keys and handles are pointer-only. Arrows move the
+///   selected keys (a frame / a value step; a key drag does not snap, as in EffectCraft), F9,
+///   Shift+F9 and Ctrl+Shift+F9 report the Easy Ease actions; Delete and Backspace are claimed
+///   through [`KeyClaim`](craft_ui::behavior::KeyClaim) and reported as
+///   [`GraphAction::Delete`]. Every chord matches its modifiers exactly. EffectCraft has no
+///   keyboard selection of keys, so there is none.
 ///   AccessKit: the plot is a `Group` named by [`GraphEditorLabels`]' title with the
 ///   selected keys' count as its value.
+///
+/// The selection is applied by the editor and reported as a [`SelectionChange`] too.
 pub struct GraphEditor<'a> {
     id_salt: IdSalt,
     curves: &'a [GraphCurve],
-    selection: &'a Selection<KeyframeId>,
+    reference: &'a [GraphCurve],
+    selection: &'a mut Selection<KeyframeId>,
     view: &'a TimeView,
     range: &'a mut GraphRange,
     playhead: Tick,
@@ -180,11 +197,19 @@ impl<'a> GraphEditor<'a> {
     pub fn new(
         id_salt: impl AsIdSalt,
         curves: &'a [GraphCurve],
-        selection: &'a Selection<KeyframeId>,
+        selection: &'a mut Selection<KeyframeId>,
         view: &'a TimeView,
         range: &'a mut GraphRange,
     ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), curves, selection, view, range, playhead: Tick::ZERO, labels: None, format: None }
+        Self { id_salt: IdSalt::new(id_salt), curves, reference: &[], selection, view, range, playhead: Tick::ZERO, labels: None, format: None }
+    }
+
+    /// The curves of the other graph type, which [`GraphRange::reference`] shows faint (the
+    /// speed curves under the value graph, and the reverse). The app samples them as it does
+    /// `curves`.
+    pub fn reference(mut self, curves: &'a [GraphCurve]) -> Self {
+        self.reference = curves;
+        self
     }
 
     pub fn playhead(mut self, t: Tick) -> Self {
@@ -207,7 +232,7 @@ impl<'a> GraphEditor<'a> {
     // effectcraft: crates/ui-egui/src/panels/graph.rs:407 `show`, `:356` `box_select`, `:379`
     // `wheel_zoom`, `:611` `button_bar`, `:740` `fit_selection`, `:842` `HandleGrab`.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> GraphEditorOutput {
-        let Self { id_salt, curves, selection, view, range, playhead, labels, format } = self;
+        let Self { id_salt, curves, reference, selection, view, range, playhead, labels, format } = self;
         let labels = labels.unwrap_or_else(|| GraphEditorLabels::of(ui));
         let tokens = Tokens::of(ui);
         let style = TimelineStyle::of(&tokens);
@@ -250,7 +275,7 @@ impl<'a> GraphEditor<'a> {
         let x_of = |time: Tick| view.x_of(time, plot.left());
         let time_at = |x: f32| view.time_at(x, plot.left());
 
-        let mut out = GraphEditorOutput { response, selection: None, keys_moved: None, handle_moved: None, action: None };
+        let mut out = GraphEditorOutput { response, selection: None, keys_moved: None, handle_moved: None, actions: Vec::new() };
         let step = nice_step(span / GRID_LINES);
         let frame = format
             .as_ref()
@@ -283,7 +308,7 @@ impl<'a> GraphEditor<'a> {
                     for (side, handle) in [(HandleSide::In, key.in_handle), (HandleSide::Out, key.out_handle)] {
                         let Some(at) = handle.filter(|_| on) else { continue };
                         let hit = Rect::from_center_size(handle_at(key, side, at), vec2(style.graph_handle_hit, style.graph_handle_hit));
-                        let handle_response = ui.interact(hit, id.with(("handle", index, key.id.0, side as u8)), Sense::drag());
+                        let handle_response = ui.interact(hit, id.with(("handle", index, key.id.0, side as u8)), Sense::DRAG);
                         if handle_response.drag_started_by(PointerButton::Primary)
                             && let Some(press) = ui.input(|i| i.pointer.press_origin())
                         {
@@ -311,7 +336,7 @@ impl<'a> GraphEditor<'a> {
                         continue;
                     }
                     let hit = Rect::from_center_size(center, vec2(style.graph_key_hit, style.graph_key_hit));
-                    let key_response = ui.interact(hit, id.with(("key", index, key.id.0)), Sense::click_and_drag());
+                    let key_response = ui.interact(hit, id.with(("key", index, key.id.0)), Sense::CLICK | Sense::DRAG);
                     if key_response.drag_started_by(PointerButton::Primary)
                         && let Some(press) = ui.input(|i| i.pointer.press_origin())
                     {
@@ -354,13 +379,18 @@ impl<'a> GraphEditor<'a> {
 
             // The plot itself: a click on empty graph clears, a drag box-selects.
             let marquee = MarqueeCx { marquee_key, plot, rules: &rules, dragging, modifiers };
-            marquee_select(ui, &mut out, &marquee, selection, curves, &key_at);
+            marquee_select(ui, &mut out, &marquee, &*selection, curves, &key_at);
 
             // The wheel with Ctrl zooms the value range about its middle and ends auto-zoom.
-            wheel_zoom(ui, &out.response, range);
+            wheel_zoom(ui, plot, range);
 
             // Keyboard: arrows move the selected keys, F9 the Easy Ease family, Delete deletes.
             keyboard(ui, id, &mut out, selection, (step, frame), &mut moving);
+        }
+
+        // This pass's selection change shows in this pass's paint.
+        if let Some(change) = &out.selection {
+            selection.clone_from(&change.selection);
         }
 
         out.keys_moved = moving.finish();
@@ -378,18 +408,15 @@ impl<'a> GraphEditor<'a> {
             }
         };
 
-        let frame_of_plot = PlotFrame { rect, plot, low, high, step, playhead, marquee_key };
-        paint_plot(ui, &tokens, &style, &frame_of_plot, (curves, selection, view, format.as_ref()), (&x_of, &y_of, &key_at, &handle_at));
+        let reference = if range.reference { reference } else { &[] };
+        let frame_of_plot = PlotFrame { rect, plot, low, high, step, playhead, marquee_key, reference };
+        paint_plot(ui, &tokens, &style, &frame_of_plot, (curves, &*selection, view, format.as_ref()), (&x_of, &y_of, &key_at, &handle_at));
         FocusRing::paint_radius(ui, plot, Corner::Control.radius(&tokens), &out.response);
-        let name = match range.mode {
-            GraphMode::Value => labels.value_graph.as_str(),
-            GraphMode::Speed => labels.speed_graph.as_str(),
-        };
-        out.response.widget_info(|| WidgetInfo::labeled(Role::Group, enabled, name));
+        out.response.widget_info(|| WidgetInfo::labeled(Role::Group, enabled, labels.title.as_str()));
         let count = selection.items.len().to_string();
         ui.ctx().accesskit_node_builder(out.response.id, |node| node.set_value(count.as_str()));
 
-        bottom_bar(ui, (id, bar), &tokens, &labels, range, (curves, selection), &mut out);
+        bottom_bar(ui, (id, bar), &tokens, &labels, range, (curves, &*selection), &mut out);
         out
     }
 }
@@ -425,7 +452,7 @@ fn marquee_select(
         ui.data_mut(|d| d.remove::<Marquee>(marquee_key));
     }
     if let Some(marquee) = ui.data(|d| d.get_temp::<Marquee>(marquee_key)) {
-        let cancelled = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
+        let cancelled = pressed(ui, Key::Escape);
         if cancelled {
             ui.data_mut(|d| d.remove::<Marquee>(marquee_key));
         }
@@ -451,18 +478,31 @@ fn marquee_select(
     }
 }
 
-/// The wheel with Ctrl zooms the value range about its middle and ends auto-zoom.
-fn wheel_zoom(ui: &Ui, response: &Response, range: &mut GraphRange) {
-    let (low, high) = (range.low, range.high);
-    if response.hovered() {
-        let (dy, zoom) = ui.input(|i| (i.smooth_scroll_delta.y, i.modifiers.command));
-        if zoom && dy != 0.0 {
-            let factor = (-f64::from(dy) / WHEEL_POINTS).exp();
-            let middle = (low + high) / 2.0;
-            (range.low, range.high) = (middle - (middle - low) * factor, middle + (high - middle) * factor);
-            range.auto_zoom = false;
-        }
+/// Ctrl/Cmd+wheel (and a pinch) over the plot zooms the value range about its middle and ends
+/// auto-zoom. egui turns the wheel into its zoom delta (a factor of e per 200 points of travel,
+/// as EffectCraft `graph.rs:386` reads it), so the range scales by the delta's inverse.
+fn wheel_zoom(ui: &Ui, plot: Rect, range: &mut GraphRange) {
+    if !ui.rect_contains_pointer(plot) {
+        return;
     }
+    let zoom = ui.input(|i| i.zoom_delta());
+    if zoom != 1.0 && zoom.is_finite() && zoom > 0.0 {
+        let factor = 1.0 / f64::from(zoom);
+        let (low, high) = (range.low, range.high);
+        let middle = (low + high) / 2.0;
+        (range.low, range.high) = (middle - (middle - low) * factor, middle + (high - middle) * factor);
+        range.auto_zoom = false;
+    }
+}
+
+/// Whether `key` was pressed with no modifier this pass; an extra Shift or Alt is another chord.
+fn pressed(ui: &Ui, key: Key) -> bool {
+    chord(ui, Modifiers::NONE, key)
+}
+
+/// Whether `key` was pressed with exactly `modifiers` this pass, and consumes it.
+fn chord(ui: &Ui, modifiers: Modifiers, key: Key) -> bool {
+    ui.input_mut(|i| ClaimedKey::exact(modifiers, key).consume(i))
 }
 
 /// The plot's keys: arrows move the selected keys, F9 the Easy Ease family, Delete deletes.
@@ -476,39 +516,40 @@ fn keyboard(
 ) {
     if out.response.has_focus() {
         ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, ..EventFilter::default() }));
-        KeyClaim::claim(ui.ctx(), id, &[ClaimedKey::exact(Modifiers::NONE, Key::Delete)]);
+        KeyClaim::claim(ui.ctx(), id, &[ClaimedKey::exact(Modifiers::NONE, Key::Delete), ClaimedKey::exact(Modifiers::NONE, Key::Backspace)]);
         let mut nudge = GraphKeyMove::default();
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowLeft)) {
+        if pressed(ui, Key::ArrowLeft) {
             nudge.dt = Tick(-frame.0);
         }
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowRight)) {
+        if pressed(ui, Key::ArrowRight) {
             nudge.dt = frame;
         }
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) {
+        if pressed(ui, Key::ArrowUp) {
             nudge.dv = step;
         }
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown)) {
+        if pressed(ui, Key::ArrowDown) {
             nudge.dv = -step;
         }
         if nudge != GraphKeyMove::default() && !selection.is_empty() {
             moving.set(nudge);
         }
-        // The most specific chord first: a plain F9 also matches the same key with Shift.
-        if ui.input_mut(|i| i.consume_key(Modifiers::CTRL | Modifiers::SHIFT, Key::F9)) {
-            out.action = Some(GraphAction::EasyEaseOut);
-        } else if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, Key::F9)) {
-            out.action = Some(GraphAction::EasyEaseIn);
-        } else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F9)) {
-            out.action = Some(GraphAction::EasyEase);
+        if chord(ui, Modifiers::CTRL | Modifiers::SHIFT, Key::F9) {
+            out.actions.push(GraphAction::EasyEaseOut);
         }
-        if !selection.is_empty() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete)) {
-            out.action = Some(GraphAction::Delete);
+        if chord(ui, Modifiers::SHIFT, Key::F9) {
+            out.actions.push(GraphAction::EasyEaseIn);
+        }
+        if pressed(ui, Key::F9) {
+            out.actions.push(GraphAction::EasyEase);
+        }
+        if !selection.is_empty() && (pressed(ui, Key::Delete) || pressed(ui, Key::Backspace)) {
+            out.actions.push(GraphAction::Delete);
         }
     }
 }
 
 /// The plot's place and range, and what it marks.
-struct PlotFrame {
+struct PlotFrame<'a> {
     rect: Rect,
     plot: Rect,
     low: f64,
@@ -516,6 +557,8 @@ struct PlotFrame {
     step: f64,
     playhead: Tick,
     marquee_key: Id,
+    /// The other graph type's curves, empty unless they show.
+    reference: &'a [GraphCurve],
 }
 
 /// What the plot shows: the curves, the selection, the time view and the time format.
@@ -530,11 +573,11 @@ fn paint_plot(
     ui: &Ui,
     tokens: &UiTokens,
     style: &TimelineStyle,
-    frame: &PlotFrame,
+    frame: &PlotFrame<'_>,
     (curves, selection, view, format): PlotData<'_>,
     (x_of, y_of, key_at, handle_at): PlotMaps<'_>,
 ) {
-    let PlotFrame { rect, plot, low, high, step, playhead, marquee_key } = *frame;
+    let PlotFrame { rect, plot, low, high, step, playhead, marquee_key, reference } = *frame;
     let color = &tokens.color;
     let ppp = ui.pixels_per_point();
     let hairline = scale::Stroke::Hairline.width(ppp);
@@ -563,6 +606,7 @@ fn paint_plot(
         line += step;
     }
     let dimension_colors = [color.data.red, color.data.green, color.data.blue, color.data.yellow];
+    paint_reference(&plot_painter, reference, plot, &dimension_colors.map(|color| color.to_egui()), &x_of, ppp);
     let mut next_color = 0;
     let curve_width = scale::Stroke::W1_5.width(ppp);
     let line_width = scale::Stroke::W1.width(ppp);
@@ -607,6 +651,28 @@ fn paint_plot(
     plot_painter.line_segment([pos2(x, plot.top()), pos2(x, plot.bottom())], Stroke::new(line_width, color.accent.solid.to_egui()));
 }
 
+/// Show Reference Graph: the other graph type's curves, faint, each scaled so the curves together
+/// fill the plot less [`REFERENCE_PAD`] above and below (EffectCraft `graph.rs:301-323`).
+fn paint_reference(painter: &egui::Painter, curves: &[GraphCurve], plot: Rect, dimensions: &[Color32], x_of: &dyn Fn(Tick) -> f32, ppp: f32) {
+    let values = || curves.iter().flat_map(|curve| curve.samples.iter().map(|sample| sample.1));
+    let (low, high) = values().fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), value| (low.min(value), high.max(value)));
+    if !low.is_finite() {
+        return;
+    }
+    let span = (high - low).max(1e-9);
+    let free = plot.height() * REFERENCE_PAD;
+    let stroke_width = scale::Stroke::W1.width(ppp);
+    for (index, curve) in curves.iter().enumerate() {
+        let stroke_color = curve.color.unwrap_or(dimensions[index % dimensions.len()]);
+        let points: Vec<Pos2> = curve
+            .samples
+            .iter()
+            .map(|&(time, value)| pos2(x_of(time), plot.bottom() - ((value - low) / span) as f32 * (plot.height() - 2.0 * free) - free))
+            .collect();
+        painter.add(Shape::line(points, Stroke::new(stroke_width, stroke_color.gamma_multiply(REFERENCE_FADE))));
+    }
+}
+
 /// The bottom bar: the graph type, display toggles, fits, separate dimensions and the keyframe
 /// interpolation buttons.
 fn bottom_bar(
@@ -625,6 +691,7 @@ fn bottom_bar(
     painter.line_segment([bar.left_top(), bar.right_top()], Stroke::new(hairline, color.line.divider.to_egui()));
     let (mut value_on, mut speed_on) = (range.mode == GraphMode::Value, range.mode == GraphMode::Speed);
     let (mut selected_on, mut zoom_on, mut separate_on) = (range.selected_only, range.auto_zoom, range.separate_dimensions);
+    let mut reference_on = range.reference;
     let mut bar_ui = ui.new_child(UiBuilder::new().max_rect(bar));
     let toolbar = Toolbar::new(id.with("bar"), Orientation::Horizontal)
         .group([
@@ -637,14 +704,15 @@ fn bottom_bar(
             ToolbarItem::new(Icon::Scan, labels.fit_selection.as_str()),
             ToolbarItem::new(Icon::Maximize2, labels.fit_all.as_str()),
         ])
+        .group([ToolbarItem::new(Icon::Layers, labels.show_reference.as_str()).toggle(&mut reference_on)])
         .group([ToolbarItem::new(Icon::Split, labels.separate.as_str()).toggle(&mut separate_on)])
         .group([
-            ToolbarItem::new(Icon::Square, labels.hold.as_str()),
-            ToolbarItem::new(Icon::Diamond, labels.linear.as_str()),
-            ToolbarItem::new(Icon::Circle, labels.auto_bezier.as_str()),
-            ToolbarItem::new(Icon::Spline, labels.easy_ease.as_str()),
-            ToolbarItem::new(Icon::ChevronRight, labels.easy_ease_in.as_str()),
-            ToolbarItem::new(Icon::ChevronLeft, labels.easy_ease_out.as_str()),
+            ToolbarItem::new(Icon::KeyframeHold, labels.hold.as_str()),
+            ToolbarItem::new(Icon::KeyframeLinear, labels.linear.as_str()),
+            ToolbarItem::new(Icon::KeyframeAutoBezier, labels.auto_bezier.as_str()),
+            ToolbarItem::new(Icon::KeyframeBezier, labels.easy_ease.as_str()),
+            ToolbarItem::new(Icon::KeyframeEaseIn, labels.easy_ease_in.as_str()),
+            ToolbarItem::new(Icon::KeyframeEaseOut, labels.easy_ease_out.as_str()),
         ])
         .overflow(true)
         .show(&mut bar_ui);
@@ -657,15 +725,16 @@ fn bottom_bar(
             if let Some((low, high)) = fit_selection(curves, selection, range.mode) {
                 (range.low, range.high, range.auto_zoom) = (low, high, false);
             }
-            out.action = Some(GraphAction::FitSelection);
+            out.actions.push(GraphAction::FitSelection);
         }
         Some((1, 3)) => {
             range.auto_zoom = true;
-            out.action = Some(GraphAction::FitAll);
+            out.actions.push(GraphAction::FitAll);
         }
-        Some((2, 0)) => range.separate_dimensions = !range.separate_dimensions,
-        Some((3, item)) => {
-            out.action = Some(
+        Some((2, 0)) => range.reference = !range.reference,
+        Some((3, 0)) => range.separate_dimensions = !range.separate_dimensions,
+        Some((4, item)) => {
+            out.actions.push(
                 [
                     GraphAction::Hold,
                     GraphAction::Linear,
@@ -788,7 +857,8 @@ pub struct GraphEditorOutput {
     pub selection: Option<SelectionChange<KeyframeId>>,
     pub keys_moved: Option<EditEvent<GraphKeyMove>>,
     pub handle_moved: Option<EditEvent<HandleMove>>,
-    pub action: Option<GraphAction>,
+    /// This pass's actions, in order.
+    pub actions: Vec<GraphAction>,
 }
 
 /// A grid step near `raw`: 1, 2, 5 or 10 times the power of ten below `|raw|` (cut-offs 1.5,

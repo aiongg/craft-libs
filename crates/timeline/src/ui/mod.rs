@@ -64,7 +64,8 @@ pub use keyframes::{
     KeyframeNavigatorOutput, paint_keyframe,
 };
 pub use markers::{
-    MARKER_POINT, MarkerDialog, MarkerDialogAction, MarkerDialogLabels, MarkerDialogResult, MarkerDraft, MarkerEdit, MarkerStrip, MarkerStripResponse,
+    MARKER_POINT, MarkerDialog, MarkerDialogAction, MarkerDialogLabels, MarkerDialogResult, MarkerDraft, MarkerEdit, MarkerStrip, MarkerStripLabels,
+    MarkerStripResponse,
 };
 pub use overview::{OverviewRun, TimelineOverview, overview_runs};
 pub use panel::{Timeline, TimelineEdit, TimelineLabels, TimelineOutput, TimelineToolbar, TrackHeader, TrackHeaderOutput, TrackSwitch};

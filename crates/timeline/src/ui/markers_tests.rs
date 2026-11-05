@@ -5,11 +5,11 @@ use craft_ui::edit::EditEvent;
 use craft_ui::testing::{HarnessExt as _, symbols};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
-use egui::{Modifiers, PointerButton, Pos2, Rect, Ui, pos2};
+use egui::{Key, KeyboardShortcut, Modifiers, PointerButton, Pos2, Rect, Ui, pos2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-use super::markers::{MarkerDialog, MarkerDialogAction, MarkerDialogResult, MarkerEdit, MarkerStrip};
+use super::markers::{MarkerDialog, MarkerDialogAction, MarkerDialogResult, MarkerEdit, MarkerStrip, MarkerStripLabels};
 use crate::clips::SnapTargets;
 use crate::markers::{Marker, MarkerColor, MarkerId};
 use crate::rates::FrameRate;
@@ -103,6 +103,30 @@ fn command_click_deletes_and_double_click_opens() {
         harness.run();
     }
     assert!(harness.state().edits.contains(&MarkerEdit::Open(MarkerId(1))), "{:?}", harness.state().edits);
+}
+
+// Left and Right pick markers in time order, Enter opens the picked one, Delete and Backspace
+// delete it; Shift+Delete is another chord.
+#[test]
+fn keys_pick_open_and_delete_markers() {
+    let mut harness = strip(vec![marker(2, 3.0), marker(1, 2.0)]);
+    let title = MarkerStripLabels::default().title;
+    harness.get_by_role_and_label(Role::ListBox, &title).focus();
+    harness.run();
+    let press = |harness: &mut Harness<'static, Strip>, modifiers, key| harness.press(KeyboardShortcut::new(modifiers, key));
+
+    press(&mut harness, Modifiers::NONE, Key::ArrowRight);
+    press(&mut harness, Modifiers::NONE, Key::Enter);
+    press(&mut harness, Modifiers::NONE, Key::ArrowRight);
+    press(&mut harness, Modifiers::SHIFT, Key::Delete);
+    press(&mut harness, Modifiers::NONE, Key::Delete);
+    press(&mut harness, Modifiers::NONE, Key::ArrowLeft);
+    press(&mut harness, Modifiers::NONE, Key::Backspace);
+    assert_eq!(
+        harness.state().edits,
+        [MarkerEdit::Open(MarkerId(1)), MarkerEdit::Delete(MarkerId(2)), MarkerEdit::Delete(MarkerId(1))],
+        "the first pick is the earliest marker"
+    );
 }
 
 struct Dialog {
