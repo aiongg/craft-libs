@@ -139,6 +139,10 @@ pub struct Hit {
     /// US base key (`Shift+;` for `:`), `+` and `=` standing for each other, or a digit-row
     /// position's digit.
     pub exact: bool,
+    /// The press is a bound chord of `command` with Alt added, and `command` opted in
+    /// ([`Bindable::has_alt_variant`](crate::Bindable::has_alt_variant)). `trigger` is the chord
+    /// pressed, Alt included.
+    pub alt_variant: bool,
     /// The text of the Paste event that ran the command, or on the web of the Paste event that
     /// came with the press that ran it.
     pub pasted: Option<String>,
@@ -151,7 +155,7 @@ impl Hit {
             Lookup::Run(command) => (command, Vec::new()),
             Lookup::Cycle(cycle) => (cycle.first()?.clone(), cycle),
         };
-        Some(Hit { command, cycle, trigger, exact, pasted: None })
+        Some(Hit { command, cycle, trigger, exact, alt_variant: false, pasted: None })
     }
 }
 
@@ -411,8 +415,24 @@ impl Dispatcher {
         let find = |double: bool| {
             chords.iter().find_map(|&chord| Hit::from_lookup(keymap.lookup(&chord, double, active), Trigger { chord, double }, chord == first))
         };
+        // Only when no binding owns the Alt chord itself, so a bound Alt chord runs its own command.
+        let alt_variant = |chords: &[Chord]| {
+            let platform = keymap.platform();
+            chords.iter().filter(|c| c.mods.alt).find_map(|&chord| {
+                if active.typing && !keymap.typing_rule().fires(&chord, platform) {
+                    return None;
+                }
+                let plain = Chord::new(Mods { alt: false, ..chord.mods }, chord.key);
+                match keymap.lookup(&plain, false, &Active { typing: false, ..*active }) {
+                    Lookup::Run(command) if keymap.bindable(&command).is_some_and(|b| b.has_alt_variant) => {
+                        Some(Hit { command, cycle: Vec::new(), trigger: Trigger { chord, double: false }, exact: chord == first, alt_variant: true, pasted: None })
+                    }
+                    _ => None,
+                }
+            })
+        };
         if repeat {
-            return find(false);
+            return find(false).or_else(|| alt_variant(&chords));
         }
         let again = self
             .last
@@ -420,7 +440,7 @@ impl Dispatcher {
             .is_some_and(|l| l.chord == first && !l.ran_double && l.panel.as_deref() == active.panel && now >= l.at && now - l.at < DOUBLE_PRESS);
         let double = if again { find(true) } else { None };
         self.last = Some(LastPress { chord: first, at: now, ran_double: double.is_some(), panel: active.panel.map(str::to_owned) });
-        double.or_else(|| find(false))
+        double.or_else(|| find(false)).or_else(|| alt_variant(&chords))
     }
 }
 

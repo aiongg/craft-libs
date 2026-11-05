@@ -263,3 +263,29 @@ fn the_menu_bar_holding_the_keyboard_keeps_letters_and_a_command_chord_leaves_it
         assert_eq!((got_ran, got_left), (ran.iter().map(|s| s.to_string()).collect::<Vec<_>>(), left));
     }
 }
+
+#[test]
+fn alt_on_an_opted_in_chord_hits_the_variant_in_press_order() {
+    let command = |id: &str, key: &str| Bindable::new(id, id, Scope::app()).with_default(Binding::parse(key).unwrap());
+    let catalog = vec![
+        command("adjust.levels", "Cmd+L").with_alt_variant(),
+        command("adjust.hue", "Cmd+U"),
+        command("adjust.curves", "Cmd+M").with_alt_variant(),
+        command("adjust.curvesOwn", "Cmd+Alt+M"),
+        command("file.save", "Cmd+S"),
+    ];
+    let km = Keymap::new(catalog, Scopes::new(), Platform::Linux);
+    let alt = Modifiers { alt: true, ..CTRL };
+    let ctx = Context::default();
+    let events = vec![press(EguiKey::L, alt), press(EguiKey::S, CTRL), press(EguiKey::U, alt), press(EguiKey::M, alt), press(EguiKey::L, CTRL)];
+    let mut ran = Vec::new();
+    let mut router = KeyRouter::new(Dispatcher::new());
+    frame(&ctx, raw(events), |root| {
+        router.route(root.ctx(), &km, &Active::NONE, KeyGate::default, |hit| ran.push((hit.command.id, hit.alt_variant)));
+    });
+    // Hue did not opt in, and Cmd+Alt+M is bound to its own command.
+    assert_eq!(
+        ran,
+        [("adjust.levels".to_string(), true), ("file.save".to_string(), false), ("adjust.curvesOwn".to_string(), false), ("adjust.levels".to_string(), false)]
+    );
+}

@@ -168,6 +168,10 @@ pub struct Bindable {
     /// foreign name without a leading `Show`, `Hide` or `Show/Hide` only for such commands.
     #[serde(default)]
     pub is_toggle: bool,
+    /// Alt added to one of the command's chords runs it as its last-settings variant
+    /// ([`Hit::alt_variant`](crate::egui::Hit::alt_variant)), unless a binding owns the Alt chord.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_alt_variant: bool,
     #[serde(default)]
     /// The bindings the command has before the user changes any.
     pub defaults: Vec<Binding>,
@@ -185,6 +189,7 @@ impl Bindable {
             scope,
             kind: Kind::Command,
             is_toggle: false,
+            has_alt_variant: false,
             defaults: Vec::new(),
         }
     }
@@ -192,6 +197,13 @@ impl Bindable {
     /// Marks the command as showing and hiding something ([`Bindable::is_toggle`]).
     pub fn toggle(mut self) -> Bindable {
         self.is_toggle = true;
+        self
+    }
+
+    /// Opts the command in to the Alt variant ([`Bindable::has_alt_variant`]): Photoshop opens an
+    /// adjustment at its last settings on its key with Alt added.
+    pub fn with_alt_variant(mut self) -> Bindable {
+        self.has_alt_variant = true;
         self
     }
 
