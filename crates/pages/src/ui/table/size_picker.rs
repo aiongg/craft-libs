@@ -4,7 +4,7 @@
 
 use craft_ui::behavior::{GridKey, GridNav};
 use craft_ui::direction;
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
 use craft_ui::primitives::{Interactive, Surface, SurfaceEdge, SurfaceKind};
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, role_format, scale};
 use egui::accesskit::Role;
@@ -33,6 +33,8 @@ pub struct TableSizeResponse {
 
 /// The picker inside a menu, built per pass.
 ///
+/// - The pointer hovers a square only on the square itself; the gap between squares hovers none
+///   (WordCraft's picker).
 /// - Squares up to the hovered one fill with the checked fill and an accent outline; others the
 ///   input fill and strong border.
 /// - Squares of [`TableSizeStyle`](crate::ui::TableSizeStyle)'s cell and gap.
@@ -43,6 +45,7 @@ pub struct TableSizeResponse {
 pub struct TableSizePicker {
     id_salt: egui::IdSalt,
     labels: Option<TableSizePickerLabels>,
+    preset: Option<(usize, usize)>,
 }
 
 impl TableSizePicker {
@@ -53,11 +56,19 @@ impl TableSizePicker {
     }
 
     pub fn new(id_salt: impl egui::AsIdSalt) -> Self {
-        TableSizePicker { id_salt: egui::IdSalt::new(id_salt), labels: None }
+        TableSizePicker { id_salt: egui::IdSalt::new(id_salt), labels: None, preset: None }
     }
 
     pub fn labels(mut self, labels: TableSizePickerLabels) -> Self {
         self.labels = Some(labels);
+        self
+    }
+
+    /// Shows the square at `(rows, columns)` hovered while no pointer is over the grid and the grid
+    /// has no focus, as a story's or a test's stand-in for a pointer. Out-of-range sizes are
+    /// clamped to the grid.
+    pub fn hovered(mut self, size: (usize, usize)) -> Self {
+        self.preset = Some((size.0.clamp(1, ROWS), size.1.clamp(1, COLUMNS)));
         self
     }
 
@@ -67,6 +78,7 @@ impl TableSizePicker {
         let tokens = Tokens::of(ui);
         let style = Self::style(&tokens);
         let labels = self.labels.clone().unwrap_or_else(|| TableSizePickerLabels::of(ui));
+        let numbers = LocaleNumbers::of(ui);
         let step = style.cell + style.gap;
         let nav = GridNav::wrapped(ROWS * COLUMNS, COLUMNS).rtl(direction::is_rtl(ui));
         let id = Interactive::id_in(ui, self.id_salt);
@@ -104,23 +116,30 @@ impl TableSizePicker {
 
         let forward = direction::forward(ui);
         let start = direction::start_x(ui, rect);
+        // A point in the gap between squares is on no square (WordCraft's `table_grid_picker`
+        // reports a hover only from a square's own response).
         let cell_at = |p: egui::Pos2| {
-            let column = (((p.x - start) * forward / step).floor().max(0.0) as usize).min(COLUMNS - 1);
-            let row = (((p.y - rect.top()) / step).floor().max(0.0) as usize).min(ROWS - 1);
-            row * COLUMNS + column
+            let (across, down) = ((p.x - start) * forward, p.y - rect.top());
+            let (column, row) = ((across / step).floor(), (down / step).floor());
+            let on_square = across - column * step < style.cell && down - row * step < style.cell;
+            let in_grid = column >= 0.0 && row >= 0.0 && (column as usize) < COLUMNS && (row as usize) < ROWS;
+            (on_square && in_grid).then(|| row as usize * COLUMNS + column as usize)
         };
         let text = |lead: Option<usize>| match lead {
-            Some(i) => labels.size.replace("{cols}", &(i % COLUMNS + 1).to_string()).replace("{rows}", &(i / COLUMNS + 1).to_string()),
+            Some(i) => {
+                let count = |n: usize| numbers.format(n as f64, 0..=0);
+                fmt(&labels.size, &[("cols", &count(i % COLUMNS + 1)), ("rows", &count(i / COLUMNS + 1))])
+            }
             None => labels.insert_table.clone(),
         };
 
         let pointer_moved = ui.input(|i| i.pointer.delta() != vec2(0.0, 0.0));
         let response =
             Interactive::with_id(id, Role::Grid, labels.insert_table.as_str()).value(text(lead)).sense(Sense::click()).interact_at(ui, rect);
-        let pointer = response.response().hover_pos().map(cell_at);
+        let pointer = response.response().hover_pos().and_then(cell_at);
         match pointer {
             Some(cell) if pointer_moved || !focused => lead = Some(cell),
-            None if !focused => lead = None,
+            None if !focused => lead = self.preset.map(|(rows, columns)| (rows - 1) * COLUMNS + columns - 1),
             _ => {}
         }
         let clicked = response.response().clicked();

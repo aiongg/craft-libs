@@ -78,3 +78,17 @@ fn presets_set_or_toggle_edges() {
     assert!(!toggled.get(EdgeKey::Top) && toggled.get(EdgeKey::Bottom));
     assert_eq!(BorderPreset::None.apply(outside), BorderEdges::default());
 }
+
+// The pointer picks a line within the inset less a point (DesignCraft `cell_stroke.rs:91`): half a point inside that reach picks the top line, half a point outside it picks none.
+#[test]
+fn a_line_is_picked_within_the_inset_less_one_point() {
+    let inset = 12.0;
+    let rect = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(100.0, 100.0));
+    let lines = edge_lines(rect, inset);
+    let (top, _) = lines[EdgeKey::Top as usize];
+    let reach = hit_reach(inset);
+    assert_eq!(reach, inset - 1.0);
+    let keys = [EdgeKey::Top];
+    assert_eq!(line_at(&lines, &keys, top + egui::vec2(20.0, -(reach - 0.5)), reach), Some(EdgeKey::Top));
+    assert_eq!(line_at(&lines, &keys, top + egui::vec2(20.0, -(reach + 0.5)), reach), None);
+}

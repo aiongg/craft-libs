@@ -63,3 +63,35 @@ fn hover_sizes_and_click_picks() {
     harness.run();
     assert_eq!(harness.state().picked, vec![(2, 2)]);
 }
+
+// A pointer in the gap between squares hovers none (WordCraft reports a hover only from a square's own response), and one on the square after the gap hovers that square.
+#[test]
+fn the_gap_between_squares_hovers_nothing() {
+    let mut harness = open();
+    harness.run();
+    let grid = harness.get_by_role_and_label(Role::Grid, "Insert Table").rect();
+    // The grid is `COLUMNS` steps wide and `ROWS` steps high, each less one gap.
+    let step = (grid.width() - grid.height()) / (COLUMNS - ROWS) as f32;
+    let gap = COLUMNS as f32 * step - grid.width();
+    let cell = step - gap;
+    let on_square = grid.min + vec2(0.5 * cell, 0.5 * cell);
+    harness.event(Event::PointerMoved(on_square));
+    harness.step();
+    assert_eq!(harness.state().last.hovered, Some((1, 1)));
+    // Midway between the first and the second column.
+    harness.event(Event::PointerMoved(grid.min + vec2(cell + gap / 2.0, 0.5 * cell)));
+    harness.step();
+    assert_eq!(harness.state().last.hovered, None);
+}
+
+// A preset hover shows the square and its label without a pointer.
+#[test]
+fn a_preset_hover_shows_the_square_and_label() {
+    let mut harness = HarnessBuilder::default()
+        .with_size(vec2(300.0, 300.0))
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(|ui, app: &mut App| app.last = TableSizePicker::new("size").hovered((3, 4)).show(ui), App::default());
+    harness.run();
+    assert_eq!(harness.state().last.hovered, Some((3, 4)));
+    assert!(harness.query_by_label("4×3 Table").is_some());
+}
