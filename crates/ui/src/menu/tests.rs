@@ -6,7 +6,7 @@ use craft_theme::ControlSize;
 use egui::accesskit::{self, HasPopup, NodeId, Role, Toggled};
 use egui::{Event, Id, Key, Modifiers, Popup, Pos2, Rect, pos2, vec2};
 
-use craft_theme::Srgba;
+use craft_theme::{Rgba, Srgba};
 
 use super::nav::{Nav, heading};
 use super::row::RowPainter;
@@ -1331,4 +1331,16 @@ fn a_submenu_row_ends_in_a_filled_triangle_pointing_towards_its_submenu() {
         let edge = if rtl { row.left() } else { row.right() };
         assert!((edge - tip.x).abs() < row.height(), "rtl {rtl}: the arrow is at the row's end");
     }
+}
+
+#[test]
+fn a_swatch_row_paints_its_colour_in_the_icon_slot() {
+    let color = Srgba::rgb(0.9, 0.2, 0.1);
+    let mut d = Driver::new(vec![MenuItem::new("Red", "red").swatch(color).into(), item("Plain", "plain")]);
+    d.click("Open");
+    d.move_to(pos2(-10.0, -10.0));
+    d.run(2);
+    let want = Rgba::from(color).to_egui();
+    assert_eq!(fills(&d).iter().filter(|&&f| f == want).count(), 1, "one well in the colour");
+    assert!(d.rect("Red").height() > 0.0);
 }

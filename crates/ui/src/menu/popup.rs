@@ -438,7 +438,7 @@ impl Draw<'_> {
         };
         let mut cols = Columns {
             marks: items.iter().any(|(_, it)| it.item_kind().checked().is_some()),
-            icons: items.iter().any(|(_, it)| it.icon_of().is_some()),
+            icons: items.iter().any(|(_, it)| it.icon_of().is_some() || it.swatch_of().is_some()),
             width: self.painter.style.min_width,
         };
         for (k, (_, it)) in items.iter().enumerate() {
@@ -542,6 +542,7 @@ fn row_content<'r, T>(it: &'r MenuItem<T>, label: &'r str, mnemonic: Option<char
         label,
         mnemonic,
         icon: it.icon_of(),
+        swatch: it.swatch_of(),
         kind: it.item_kind(),
         shortcut: it.shortcut_of().filter(|_| it.children().is_none()),
         submenu: it.children().is_some(),

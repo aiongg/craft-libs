@@ -91,13 +91,15 @@ pub struct MenuItem<T> {
     label: String,
     english: Option<String>,
     icon: Option<Icon>,
+    /// Boxed with `detail` and `tint` to keep a row under clippy's large-variant size.
+    swatch: Option<Box<Srgba>>,
     shortcut: Option<Kbd>,
     kind: ItemKind,
     enabled: bool,
     mnemonic: Option<char>,
     /// Takes part in its level's mnemonics.
     keyed: bool,
-    tint: Option<Srgba>,
+    tint: Option<Box<Srgba>>,
     tooltip: Option<String>,
     /// Boxed to keep a row, and so `MenuEntry`, under clippy's large-variant size.
     detail: Option<Box<str>>,
@@ -123,6 +125,7 @@ impl<T> MenuItem<T> {
             label,
             english: None,
             icon: None,
+            swatch: None,
             shortcut: None,
             kind: ItemKind::Plain,
             enabled: true,
@@ -135,6 +138,14 @@ impl<T> MenuItem<T> {
             accessible_name: None,
             action,
         }
+    }
+
+    /// A colour swatch (the kernel [`Swatch`](crate::controls::Swatch) look) in the icon slot, at
+    /// the icon's size: a colour chosen by a row, such as a label colour filter. The colour is
+    /// document data, so the row keeps its text. An icon on the same row wins.
+    pub fn swatch(mut self, color: impl Into<Srgba>) -> Self {
+        self.swatch = Some(Box::new(color.into()));
+        self
     }
 
     /// An icon before the label. Every row of a menu that has an icon keeps room for one.
@@ -197,7 +208,7 @@ impl<T> MenuItem<T> {
     /// can't), scaled by the colour's alpha. The active and disabled looks win over it.
     /// The colour is document data, so the row keeps its text: colour is never the only cue.
     pub fn tint(mut self, color: impl Into<Srgba>) -> Self {
-        self.tint = Some(color.into());
+        self.tint = Some(Box::new(color.into()));
         self
     }
 
@@ -260,12 +271,13 @@ impl<T> MenuItem<T> {
             label: self.label.clone(),
             english: self.english.clone(),
             icon: self.icon,
+            swatch: self.swatch.clone(),
             shortcut: self.shortcut.clone(),
             kind: self.kind,
             enabled: self.enabled,
             mnemonic: self.mnemonic,
             keyed: self.keyed,
-            tint: self.tint,
+            tint: self.tint.clone(),
             tooltip: self.tooltip.clone(),
             detail: self.detail.clone(),
             keep_open: self.keep_open,
@@ -293,12 +305,16 @@ impl<T> MenuItem<T> {
         }
     }
 
+    pub(crate) fn swatch_of(&self) -> Option<Srgba> {
+        self.swatch.as_deref().copied()
+    }
+
     pub(crate) fn icon_of(&self) -> Option<Icon> {
         self.icon
     }
 
     pub(crate) fn tint_of(&self) -> Option<Srgba> {
-        self.tint
+        self.tint.as_deref().copied()
     }
 
     pub(crate) fn accessible_name_of(&self) -> Option<&str> {

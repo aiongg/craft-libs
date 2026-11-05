@@ -348,7 +348,7 @@ pub(super) fn released_away(ui: &Ui, popup: Id, field: Rect) -> bool {
 /// Gives the focus back to `owner` (the widget that had it when the pass began) when a press
 /// inside the open list `popup` took it away: egui drops the focus on a click elsewhere, and a
 /// press on a disabled option, a group header or the list's edge chooses nothing.
-pub(super) fn keep_focus(ui: &Ui, popup: Id, owner: Option<Id>) {
+pub(crate) fn keep_focus(ui: &Ui, popup: Id, owner: Option<Id>) {
     let pressed_in = ui.input(|i| (i.pointer.any_pressed() || i.pointer.any_click()).then(|| i.pointer.interact_pos()).flatten());
     let in_list = ui.memory(|m| m.area_rect(popup)).zip(pressed_in).is_some_and(|(r, p)| r.contains(p));
     if let Some(owner) = owner

@@ -533,7 +533,7 @@ fn filter_menu(ui: &mut Ui, cx: &Cx, threads: &[CommentThread], state: &mut Comm
             let name = color.map_or_else(|| labels.no_color.clone(), |color| color_name(labels, color));
             let row = check(name, FilterRow::Color(color), filter.hidden_colors.contains(&color));
             match color {
-                Some([r, g, b]) => row.tint(Color32::from_rgb(r, g, b)).into(),
+                Some([r, g, b]) => row.swatch(Color32::from_rgb(r, g, b)).into(),
                 None => row.into(),
             }
         })

@@ -168,6 +168,17 @@ mod screens {
         assert!(harness.state().closed);
     }
 
+    // a click on a suggestion completes the mention and keeps the popover open.
+    #[test]
+    fn clicking_a_suggestion_completes_the_mention() {
+        let mut harness = popover();
+        harness.type_text("hi @an");
+        harness.get_by_role_and_label(Role::ListBoxOption, "Ana María").click();
+        harness.run();
+        assert_eq!(harness.state().draft, "hi @Ana María ");
+        assert!(!harness.state().closed);
+    }
+
     // the "…" menu marks unread, copies the link and deletes your own thread.
     #[test]
     fn more_menu_holds_unread_link_and_delete_for_your_thread() {
