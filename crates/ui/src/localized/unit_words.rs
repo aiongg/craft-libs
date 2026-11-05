@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use egui::{Context, Ui};
 
+use super::units::LengthUnit;
 use super::{LocaleNumbers, Unit, Word, Words};
 
 /// What a number counts.
@@ -24,6 +25,14 @@ pub enum UnitKind {
     Points,
     /// `{n}×`.
     Times,
+    /// `{n} in`.
+    Inches,
+    /// `{n} cm`.
+    Centimetres,
+    /// `{n} mm`.
+    Millimetres,
+    /// `{n} pica`.
+    Picas,
 }
 
 /// The unit words, for the family `WORDS` lists.
@@ -33,6 +42,10 @@ pub const UNIT_WORDS: &[Word] = &[
     Word::in_context("unit", "{n}°"),
     Word::in_context("unit", "{n} pt"),
     Word::in_context("unit", "{n}×"),
+    Word::in_context("unit", "{n} in"),
+    Word::in_context("unit", "{n} cm"),
+    Word::in_context("unit", "{n} mm"),
+    Word::in_context("unit", "{n} pica"),
 ];
 
 impl UnitKind {
@@ -44,6 +57,10 @@ impl UnitKind {
             UnitKind::Degrees => UNIT_WORDS[2],
             UnitKind::Points => UNIT_WORDS[3],
             UnitKind::Times => UNIT_WORDS[4],
+            UnitKind::Inches => UNIT_WORDS[5],
+            UnitKind::Centimetres => UNIT_WORDS[6],
+            UnitKind::Millimetres => UNIT_WORDS[7],
+            UnitKind::Picas => UNIT_WORDS[8],
         }
     }
 
@@ -53,7 +70,8 @@ impl UnitKind {
         match self {
             UnitKind::Pixels => 0..=0,
             UnitKind::Percent | UnitKind::Degrees | UnitKind::Points => 0..=1,
-            UnitKind::Times => 0..=2,
+            UnitKind::Times | UnitKind::Centimetres | UnitKind::Millimetres | UnitKind::Picas => 0..=2,
+            UnitKind::Inches => 0..=3,
         }
     }
 }
@@ -120,6 +138,12 @@ impl Units {
     /// A factor: `2×`.
     pub fn times(&self, n: f64) -> String {
         self.show(UnitKind::Times, n)
+    }
+
+    /// `n` of `unit` with the digits a field in that unit shows ([`LengthUnit::decimals`]), at
+    /// most: `12 pt`, `0.5 in`.
+    pub fn length(&self, unit: LengthUnit, n: f64) -> String {
+        self.text(unit.kind(), n, 0..=unit.decimals())
     }
 
     /// The unit of `kind` for a number field (`NumberField::unit`), in the user's language.

@@ -5,7 +5,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::*;
 use crate::testing::{HarnessExt as _, a11y};
-use crate::theme::{Base, install};
+use crate::theme::{Base, Tokens, TokensOf as _, install};
 
 /// The chosen option, and where option 1's content sits.
 type State = (usize, Option<Rect>);
@@ -69,4 +69,30 @@ fn an_option_with_content_takes_no_more_height_than_its_content_in_a_tall_column
     let plain = harness.get_by_label("None").rect().height();
     let with = harness.get_by_label("Small").rect().height();
     assert!((with - plain.max(20.0)).abs() < 1.0, "option {with} high, plain row {plain}");
+}
+
+// An option's icon sits between the circle and the label: the option is as much wider as the icon and its gap, and the icon adds no node.
+#[test]
+fn an_option_icon_widens_the_hit_area_by_the_icon_and_its_gap_without_a_node() {
+    let room = std::rc::Rc::new(std::cell::Cell::new(0.0));
+    let width = |icon: Option<crate::icons::Icon>| {
+        let room = std::rc::Rc::clone(&room);
+        let mut harness = Harness::builder().with_size([320.0, 200.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            move |ui, choice: &mut usize| {
+                let style = RadioGroup::style(&Tokens::of(ui), ControlSize::Md);
+                room.set(style.icon + style.gap);
+                let mut set = RadioSet::new("targets", "Targets", choice).item(0).begin(ui);
+                let option = RadioOption::new("Web page");
+                let _ = set.radio_with(ui, 0, if let Some(icon) = icon { option.icon(icon) } else { option });
+                let _ = set.end(ui);
+            },
+            0,
+        );
+        harness.run();
+        assert_eq!(harness.query_all_by_role(Role::RadioButton).count(), 1);
+        assert!(harness.query_all_by_role(Role::Image).next().is_none(), "decorative");
+        harness.get_by_label("Web page").rect().width()
+    };
+    let (plain, with) = (width(None), width(Some(crate::icons::Icon::Globe)));
+    assert!((with - plain - room.get()).abs() < 0.5, "plain {plain}, with icon {with}");
 }

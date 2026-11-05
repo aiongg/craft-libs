@@ -7,14 +7,15 @@ use craft_theme::{ControlSize, States, TypeRole};
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Ui, UiBuilder, Vec2, vec2};
 
-use super::SizeDisabledArgs;
 use super::button::content_color;
 use super::check::{IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
 use super::checkbox::LONG_LABEL;
 use super::common_stories::ControlStoryLabels;
+use super::{SizeDisabledArgs, icon_size};
 use crate::behavior::RadioSelection;
 use crate::direction;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
+use crate::icons::{self, Icon, IconSize};
 use crate::localized::Labels as _;
 use crate::primitives::{Content, Gap, Interactive, Row, Sensed, Stack, Text};
 use crate::story::{Level, Story, StoryLabels};
@@ -35,6 +36,10 @@ pub struct RadioStyle {
     pub label: TypeRole,
     /// Diameter of the dot: `check.dot`.
     pub dot: f32,
+    /// Side of a leading icon ([`RadioOption::icon`]): the `icon` token of the size.
+    pub icon: f32,
+    /// Size class of a leading icon.
+    pub icon_class: IconSize,
     /// Width of the outline, drawn inside the circle: `check.outline`.
     pub outline: f32,
     /// Not selected: `check.off.*`.
@@ -52,7 +57,7 @@ impl RadioStyle {
 }
 
 /// Reports a sensed radio button with its settled state and paints its circle, dot and label.
-fn paint(ui: &Ui, style: &RadioStyle, laid: &Labelled, sensed: Sensed, on: bool) -> Response {
+fn paint(ui: &Ui, style: &RadioStyle, laid: &Labelled, sensed: Sensed, on: bool, icon: Option<Icon>) -> Response {
     let mut response = sensed.checked(on).finish(ui);
     if response.enabled() {
         response = response.on_hover_cursor(CursorIcon::PointingHand);
@@ -65,7 +70,11 @@ fn paint(ui: &Ui, style: &RadioStyle, laid: &Labelled, sensed: Sensed, on: bool)
         if let Some(dot) = paint.mark {
             ui.painter().circle_filled(rect.center(), style.dot / 2.0, dot);
         }
-        laid.paint_label(ui, label, content_color(ui, &style.text, &response, false));
+        let color = content_color(ui, &style.text, &response, false);
+        if let Some(icon) = icon {
+            icons::paint(ui, laid.lead_rect(ui, response.rect, style.icon), icon, style.icon_class, color);
+        }
+        laid.paint_label(ui, label, color);
     }
     response
 }
@@ -181,7 +190,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioGroup<'a, T> {
                 .zip(&laid)
                 .zip(&self.items)
                 .enumerate()
-                .map(|(i, ((sensed, laid), item))| laid.tooltip(paint(group, &style, laid, sensed, selected == Some(i)), &item.label))
+                .map(|(i, ((sensed, laid), item))| laid.tooltip(paint(group, &style, laid, sensed, selected == Some(i), None), &item.label))
                 .collect();
             (responses, radios.changed().then_some(selected).flatten())
         });
@@ -211,6 +220,8 @@ impl RadioGroup<'static, ()> {
             diameter: c.box_size.get(size),
             gap: c.box_gap,
             label: c.label,
+            icon: icon_size(size).points(tokens),
+            icon_class: icon_size(size),
             dot: c.dot.get(size),
             outline: c.outline,
             off: IndicatorColors::from(&c.off),
@@ -361,14 +372,15 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PreparedRadioSet<T> {
     ///
     /// If the set has no option `index`.
     pub fn radio_with(&mut self, ui: &mut Ui, index: usize, option: RadioOption<'_>) -> Response {
-        let RadioOption { label, name, description, content } = option;
+        let RadioOption { label, name, description, icon, content } = option;
         let name = name.unwrap_or(label);
         let (id, enabled) = self.items[index];
         let selected = self.radios.selected() == Some(index);
         let (tokens, style) = (&self.tokens, &self.style);
         let response = ui
             .scope_builder(UiBuilder::new().accessibility_parent(self.id), |ui| {
-                let laid = Labelled::layout(ui, tokens, &style.layout(), label);
+                let lead = if icon.is_some() { style.icon + style.gap } else { 0.0 };
+                let laid = Labelled::layout_after(ui, tokens, &style.layout(), label, lead);
                 let element = Interactive::with_id(id, Role::RadioButton, name).position_in_set(index).state_layer(false).enabled(enabled);
                 let sensed = match content {
                     None => element.interact(ui, laid.size),
@@ -386,7 +398,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PreparedRadioSet<T> {
                         element.interact_at(ui, hit.response.rect)
                     }
                 };
-                laid.tooltip(paint(ui, style, &laid, sensed, selected), label)
+                laid.tooltip(paint(ui, style, &laid, sensed, selected, icon), label)
             })
             .inner;
         if let Some(description) = description {
@@ -417,6 +429,7 @@ pub struct RadioOption<'a> {
     label: &'a str,
     name: Option<&'a str>,
     description: Option<&'a str>,
+    icon: Option<Icon>,
     content: Option<OptionContent<'a>>,
 }
 
@@ -425,7 +438,7 @@ type OptionContent<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 impl<'a> RadioOption<'a> {
     /// An option showing `label`, which is also its accessible name.
     pub fn new(label: &'a str) -> Self {
-        Self { label, name: None, description: None, content: None }
+        Self { label, name: None, description: None, icon: None, content: None }
     }
 
     /// The accessible name, for an option whose label is a short form ("H:" for "Hue").
@@ -437,6 +450,14 @@ impl<'a> RadioOption<'a> {
     /// What a screen reader reads after the name: a sample's size, a hint.
     pub fn description(mut self, description: &'a str) -> Self {
         self.description = Some(description);
+        self
+    }
+
+    /// An icon drawn between the circle and the label, in the label's colour (a target's icon, as
+    /// Word's hyperlink dialog shows). Decorative: it is not in the accessibility tree, and it is
+    /// part of the option's hit area.
+    pub fn icon(mut self, icon: Icon) -> Self {
+        self.icon = Some(icon);
         self
     }
 
@@ -455,6 +476,7 @@ impl std::fmt::Debug for RadioOption<'_> {
             .field("label", &self.label)
             .field("name", &self.name)
             .field("description", &self.description)
+            .field("icon", &self.icon)
             .field("content", &self.content.is_some())
             .finish()
     }

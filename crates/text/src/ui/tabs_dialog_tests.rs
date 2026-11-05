@@ -124,3 +124,34 @@ fn leader_options_carry_word_numbers() {
     let texts: Vec<String> = TabLeader::ALL.iter().map(|kind| leader_text(&labels, *kind)).collect();
     assert_eq!(texts, ["None", "1 ……", "2 ------", "3 ______", "4 ······"]);
 }
+
+/// Every text the last frame painted.
+fn painted(harness: &Harness<'_, App>) -> Vec<String> {
+    fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    harness.output().shapes.iter().for_each(|clipped| walk(&clipped.shape, &mut out));
+    out
+}
+
+// A stop with the dotted leader shows only the fill in the closed Leader box, as Word does; the list keeps "1 ……".
+#[test]
+fn the_closed_leader_box_shows_the_fill_alone() {
+    let mut app = App::default();
+    let dotted = TabStop { position: INCH, align: TabAlign::Left, leader: TabLeader::ALL[1] };
+    app.host.open(TabStopsDialog::new(vec![dotted], 0.5 * INCH));
+    let mut harness: Harness<'_, App> = HarnessBuilder::default()
+        .with_size(vec2(800.0, 800.0))
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(|ui, app: &mut App| app.host.show(ui.ctx()), app);
+    harness.run();
+    let texts = painted(&harness);
+    let fill = TabLeader::ALL[1].sample();
+    assert!(texts.iter().any(|t| t == fill), "{texts:?}");
+    assert!(!texts.iter().any(|t| t.starts_with("1 ")), "{texts:?}");
+}

@@ -234,6 +234,7 @@ fn columns(ui: &mut Ui, args: &mut DialogArgs) {
                 widths: vec![(150.0, 36.0), (150.0, 36.0), (96.0, 0.0)],
                 equal_width: Some(false),
                 line_between: Some(false),
+                ..TextColumns::default()
             };
             TextColumnsDialog::new(columns).word(COLUMN_WIDTH)
         },

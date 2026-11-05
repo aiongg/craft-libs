@@ -7,17 +7,28 @@ use std::cell::Cell;
 
 use craft_ui::composites::{Field, FieldControl as _, FieldGroup, FormGrid, GroupBox};
 use craft_ui::controls::expr::ExprUnits;
-use craft_ui::controls::{Button, CheckState, Checkbox, ControlSize, NumberField};
+use craft_ui::controls::{Button, CheckState, Checkbox, ControlSize, NumberField, Select};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width};
 use craft_ui::edit::{EditEvent, GestureDraft};
 use craft_ui::localized::units::{Length, LengthUnit, UnitContext};
-use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Units, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::patterns::unit_number_field;
-use egui::{Context, Label, Ui};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
+use egui::{Context, Label, Rect, Sense, Ui, pos2, vec2};
 
-/// The most columns (PowerPoint's 16).
+/// The most columns PowerPoint takes (DeckCraft `crates/ui-egui/src/dialogs/columns.rs:10`); the
+/// dialog's limit without [`word`](TextColumnsDialog::word) and the default for a host that
+/// sets none.
 pub const MAX_COLUMNS: u32 = 16;
+
+/// The most columns Word takes (WordCraft `dialogs_insert/columns.rs:96` `clamp(1, 12)`); the
+/// dialog's limit with [`word`](TextColumnsDialog::word).
+pub const MAX_COLUMNS_WORD: u32 = 12;
+
+/// The narrowest column of Word's dialog, points (WordCraft `dialogs_insert/columns.rs:81`
+/// `MIN_COL_PT`: the engine refuses narrower ones).
+pub const MIN_COLUMN_WIDTH: f32 = 18.0;
 
 /// The largest spacing, points (22 in, PowerPoint).
 pub const MAX_SPACING: f32 = 1584.0;
@@ -50,6 +61,12 @@ craft_ui::words! {
         equal_width: "columns.equalWidth" = "Equal column width";
         line_between: "columns.lineBetween" = "Line between";
         more_columns: "columns.more" = "More Columns…";
+        preview: "columns.preview" = "Preview";
+        apply_to: "columns.applyTo" = "Apply to:";
+        this_section: "columns.thisSection" = "This section";
+        whole_document: "columns.wholeDocument" = "Whole document";
+        this_point_forward: "columns.thisPointForward" = "This point forward";
+        selected_text: "columns.selectedText" = "Selected text";
     }
 }
 
@@ -64,6 +81,23 @@ pub struct TextColumns {
     pub widths: Vec<(f32, f32)>,
     pub equal_width: Option<bool>,
     pub line_between: Option<bool>,
+    /// Word: where the columns apply. `Some` only for a dialog with [`apply_to`](TextColumnsDialog::apply_to),
+    /// which always returns it with the changes (WordCraft sends it with every `layout.columns`).
+    pub apply: Option<ColumnsApply>,
+}
+
+/// Word's Apply to: the part of the document the columns apply to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ColumnsApply {
+    /// The section the caret is in (offered when the document has more than one).
+    Section,
+    /// The whole document.
+    Document,
+    /// From the caret to the end: a new section starts here.
+    Forward,
+    /// The selected text, as a section of its own.
+    Selection,
 }
 
 /// Word's Layout › Columns presets.
@@ -90,6 +124,8 @@ pub struct TextColumnsDialog {
     shown: TextColumns,
     edited: TextColumns,
     word: Option<f32>,
+    max_columns: Option<u32>,
+    apply_choices: Vec<ColumnsApply>,
     unit: LengthUnit,
     state: DialogState,
     labels: Option<TextColumnsLabels>,
@@ -103,6 +139,8 @@ impl TextColumnsDialog {
             shown: columns.clone(),
             edited: columns,
             word: None,
+            max_columns: None,
+            apply_choices: Vec::new(),
             unit: LengthUnit::Inches,
             state: DialogState::default(),
             labels: None,
@@ -113,6 +151,26 @@ impl TextColumnsDialog {
     /// Word's dialog, over a text width of `width` points.
     pub fn word(mut self, width: f32) -> Self {
         self.word = Some(width);
+        self
+    }
+
+    /// The most columns Number takes, in place of the family's: [`MAX_COLUMNS_WORD`] with
+    /// [`word`](Self::word), [`MAX_COLUMNS`] (PowerPoint, DeckCraft) without. At least 1.
+    pub fn max_columns(mut self, max: u32) -> Self {
+        self.max_columns = Some(max.max(1));
+        self
+    }
+
+    /// Word's Apply to: the parts of the document the columns can apply to, in the order the
+    /// list shows them, and the one chosen when the dialog opens (added to the list when it is
+    /// missing). The answer carries the choice in [`TextColumns::apply`], changed or not.
+    pub fn apply_to(mut self, choices: &[ColumnsApply], current: ColumnsApply) -> Self {
+        self.apply_choices = choices.to_vec();
+        if !self.apply_choices.contains(&current) {
+            self.apply_choices.push(current);
+        }
+        self.shown.apply = Some(current);
+        self.edited.apply = Some(current);
         self
     }
 
@@ -138,12 +196,22 @@ impl TextColumnsDialog {
             widths: if shown.widths != edited.widths { edited.widths.clone() } else { Vec::new() },
             equal_width: kept(&shown.equal_width, &edited.equal_width),
             line_between: kept(&shown.line_between, &edited.line_between),
+            apply: edited.apply.filter(|_| !self.apply_choices.is_empty()),
         };
         (changes != TextColumns::default()).then_some(changes)
     }
 
+    /// The most columns Number takes.
+    fn max(&self) -> u32 {
+        self.max_columns.unwrap_or(if self.word.is_some() { MAX_COLUMNS_WORD } else { MAX_COLUMNS })
+    }
+
+    fn count_ok(&self, count: u32) -> bool {
+        (1..=self.max()).contains(&count)
+    }
+
     fn count_in_range(&self) -> bool {
-        self.edited.count.is_none_or(|n| (1..=MAX_COLUMNS).contains(&n))
+        self.edited.count.is_none_or(|n| self.count_ok(n))
     }
 
     fn spacing_in_range(&self) -> bool {
@@ -159,36 +227,35 @@ impl TextColumnsDialog {
         self.edited.spacing.or(self.edited.widths.first().map(|w| w.1)).unwrap_or(DEFAULT_SPACING)
     }
 
-    /// One column's width when `count` columns of `spacing` fill `width`.
-    fn equal_width_of(width: f32, spacing: f32, count: u32) -> f32 {
-        ((width - spacing * (count - 1) as f32) / count as f32).max(0.0)
+    /// `count` equal columns of `spacing` filling `width`, each at least [`MIN_COLUMN_WIDTH`]: the
+    /// spacing gives way when the columns would be narrower (WordCraft `even_out`).
+    fn even_rows(width: f32, spacing: f32, count: u32) -> Vec<(f32, f32)> {
+        let room = (width - MIN_COLUMN_WIDTH * count as f32).max(0.0);
+        let spacing = if count > 1 { spacing.clamp(0.0, room / (count - 1) as f32) } else { spacing };
+        let each = ((width - spacing * (count - 1) as f32) / count as f32).max(0.0);
+        (0..count).map(|i| (each, if i + 1 < count { spacing } else { 0.0 })).collect()
     }
 
     /// The width and the spacing after each column, as the grid shows them.
     fn rows(&self) -> Vec<(f32, f32)> {
-        let (Some(width), Some(count)) = (self.word, self.edited.count.filter(|n| (1..=MAX_COLUMNS).contains(n))) else {
+        let (Some(width), Some(count)) = (self.word, self.edited.count.filter(|n| self.count_ok(*n))) else {
             return Vec::new();
         };
         if !self.equal() && self.edited.widths.len() == count as usize {
             return self.edited.widths.clone();
         }
-        let spacing = self.spacing_now();
-        let each = Self::equal_width_of(width, spacing, count);
-        (0..count).map(|i| (each, if i + 1 < count { spacing } else { 0.0 })).collect()
+        Self::even_rows(width, self.spacing_now(), count)
     }
 
     fn set_count(&mut self, count: u32) {
         self.edited.count = Some(count);
-        if self.word.is_some() && (1..=MAX_COLUMNS).contains(&count) && !self.equal() {
+        if self.word.is_some() && self.count_ok(count) && !self.equal() {
             self.edited.widths = self.rows_for(count);
         }
     }
 
     fn rows_for(&self, count: u32) -> Vec<(f32, f32)> {
-        let width = self.word.unwrap_or(0.0);
-        let spacing = self.spacing_now();
-        let each = Self::equal_width_of(width, spacing, count);
-        (0..count).map(|i| (each, if i + 1 < count { spacing } else { 0.0 })).collect()
+        Self::even_rows(self.word.unwrap_or(0.0), self.spacing_now(), count)
     }
 
     fn apply_preset(&mut self, preset: ColumnsPreset) {
@@ -223,7 +290,7 @@ impl TextColumnsDialog {
     /// else the neighbouring column does.
     fn set_width(&mut self, row: usize, value: f32) {
         let (Some(width), Some(count)) = (self.word, self.edited.count) else { return };
-        let value = value.clamp(0.0, width);
+        let value = value.clamp(MIN_COLUMN_WIDTH.min(width), width);
         if self.equal() {
             if count > 1 {
                 self.edited.spacing = Some(((width - count as f32 * value) / (count - 1) as f32).clamp(0.0, MAX_SPACING));
@@ -235,7 +302,16 @@ impl TextColumnsDialog {
         let other = if row + 1 < rows.len() { row + 1 } else { row.saturating_sub(1) };
         rows[row].0 = value;
         if other != row {
-            rows[other].0 = (rows[other].0 - (value - old)).max(0.0);
+            // The neighbour gives the difference up to its minimum; the edited column takes back
+            // what the neighbour could not give (WordCraft `rebalance`).
+            let wanted = rows[other].0 - (value - old);
+            let short = (MIN_COLUMN_WIDTH - wanted).max(0.0);
+            rows[other].0 = wanted.max(MIN_COLUMN_WIDTH);
+            if short > 0.0 {
+                let from_width = short.min((rows[row].0 - MIN_COLUMN_WIDTH).max(0.0));
+                rows[row].0 -= from_width;
+                rows[row].1 = (rows[row].1 - (short - from_width)).max(0.0);
+            }
         }
         self.edited.widths = rows;
     }
@@ -250,9 +326,11 @@ impl TextColumnsDialog {
         }
         let mut rows = self.rows();
         let Some(old) = rows.get(row).map(|r| r.1) else { return };
+        // The next column keeps its minimum width: the spacing stops growing there.
+        let value = rows.get(row + 1).map_or(value, |next| value.min(old + (next.0 - MIN_COLUMN_WIDTH).max(0.0)));
         rows[row].1 = value;
         if let Some(next) = rows.get_mut(row + 1) {
-            next.0 = (next.0 - (value - old)).max(0.0);
+            next.0 = (next.0 - (value - old)).max(MIN_COLUMN_WIDTH);
         }
         self.edited.widths = rows;
     }
@@ -281,9 +359,9 @@ impl TextColumnsDialog {
     }
 
     /// The message under Number when it is out of range, its bounds in the locale's digits.
-    pub(super) fn number_message(labels: &TextColumnsLabels, numbers: &LocaleNumbers) -> String {
+    pub(super) fn number_message(labels: &TextColumnsLabels, numbers: &LocaleNumbers, max: u32) -> String {
         let bound = |n: u32| numbers.format(f64::from(n), 0..=0);
-        fmt(&labels.number_range, &[("min", &bound(1)), ("max", &bound(MAX_COLUMNS))])
+        fmt(&labels.number_range, &[("min", &bound(1)), ("max", &bound(max))])
     }
 
     /// The Number field's event.
@@ -296,12 +374,13 @@ impl TextColumnsDialog {
     }
 
     /// The columns as edited so far.
+    #[cfg(test)]
     pub(super) fn edited(&self) -> &TextColumns {
         &self.edited
     }
 
-    fn spacing_message(&self, labels: &TextColumnsLabels, numbers: &LocaleNumbers) -> String {
-        let show = |points: f32| format!("{} {}", numbers.format(in_unit(points, self.unit), 0..=self.unit.decimals()), self.unit.suffix());
+    fn spacing_message(&self, labels: &TextColumnsLabels, units: &Units) -> String {
+        let show = |points: f32| units.length(self.unit, in_unit(points, self.unit));
         fmt(&labels.spacing_range, &[("min", &show(0.0)), ("max", &show(MAX_SPACING))])
     }
 
@@ -328,7 +407,7 @@ impl TextColumnsDialog {
         }
         FieldGroup::new("columns-fields").show(ui, |ui| {
             let bad = !self.count_in_range();
-            let error = bad.then(|| Self::number_message(labels, numbers));
+            let error = bad.then(|| Self::number_message(labels, numbers, self.max()));
             let shown = self.edited.count.map_or(f64::NAN, f64::from);
             let edit = Field::new(labels.number.as_str())
                 .error(error)
@@ -339,7 +418,7 @@ impl TextColumnsDialog {
             self.edit_count(edit.event);
             if self.word.is_none() {
                 let bad = !self.spacing_in_range();
-                let error = bad.then(|| self.spacing_message(labels, numbers));
+                let error = bad.then(|| self.spacing_message(labels, &Units::of(ui)));
                 let spacing = self.edited.spacing;
                 let edit = Field::new(labels.spacing.as_str())
                     .error(error)
@@ -359,7 +438,18 @@ impl TextColumnsDialog {
         });
         if self.word.is_some() {
             ui.add_space(gap);
-            GroupBox::new(labels.width_and_spacing.as_str()).show(ui, |ui| self.grid(ui, labels, numbers));
+            let pane = Tokens::of(ui).component.dialog.preview_pane[0];
+            ui.horizontal_top(|ui| {
+                let room = (ui.available_width() - pane - ui.spacing().item_spacing.x).max(0.0);
+                ui.scope(|ui| {
+                    ui.set_width(room);
+                    GroupBox::new(labels.width_and_spacing.as_str()).show(ui, |ui| self.grid(ui, labels, numbers));
+                });
+                ui.vertical(|ui| {
+                    ui.add(Label::new(labels.preview.as_str()).selectable(false));
+                    self.preview(ui, labels);
+                });
+            });
             ui.add_space(gap);
             let mut equal = self.edited.equal_width.map_or(CheckState::Mixed, CheckState::from);
             if Checkbox::new(labels.equal_width.as_str(), &mut equal).show(ui).response.changed() {
@@ -367,7 +457,7 @@ impl TextColumnsDialog {
                 if equal == CheckState::Checked {
                     self.edited.spacing = Some(self.spacing_now());
                     self.edited.widths.clear();
-                } else if let Some(count) = self.edited.count.filter(|n| (1..=MAX_COLUMNS).contains(n)) {
+                } else if let Some(count) = self.edited.count.filter(|n| self.count_ok(*n)) {
                     self.edited.widths = self.rows_for(count);
                 }
             }
@@ -376,7 +466,62 @@ impl TextColumnsDialog {
         if Checkbox::new(labels.line_between.as_str(), &mut line).show(ui).response.changed() {
             self.edited.line_between = Some(line == CheckState::Checked);
         }
+        if !self.apply_choices.is_empty() {
+            ui.add_space(gap);
+            self.apply_select(ui, labels);
+        }
         valid.set(self.count_in_range() && self.spacing_in_range());
+    }
+
+    /// Word's Apply to list.
+    fn apply_select(&mut self, ui: &mut Ui, labels: &TextColumnsLabels) {
+        let mut apply = self.edited.apply;
+        Field::new(labels.apply_to.as_str()).show(ui, |ui, _| {
+            let mut select = Select::new(("columns", "apply"), labels.apply_to.as_str(), &mut apply);
+            for choice in &self.apply_choices {
+                let text = match choice {
+                    ColumnsApply::Section => &labels.this_section,
+                    ColumnsApply::Document => &labels.whole_document,
+                    ColumnsApply::Forward => &labels.this_point_forward,
+                    ColumnsApply::Selection => &labels.selected_text,
+                };
+                select = select.option(Some(*choice), text.as_str());
+            }
+            select.show(ui)
+        });
+        self.edited.apply = apply;
+    }
+
+    /// The page preview: the columns and the line between them on a page, as Word's dialog draws it
+    /// (WordCraft `columns_preview`).
+    fn preview(&self, ui: &mut Ui, labels: &TextColumnsLabels) {
+        let tokens = Tokens::of(ui);
+        let [pane_width, pane_height] = tokens.component.dialog.preview_pane;
+        let (pane, response) = ui.allocate_exact_size(vec2(pane_width, pane_height), Sense::hover());
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Image, true, labels.preview.as_str()));
+        if !ui.is_rect_visible(pane) {
+            return;
+        }
+        let ppp = ui.pixels_per_point();
+        let stroke = |color| egui::Stroke::new(craft_theme::Stroke::W1.width(ppp), color);
+        let colors = &tokens.color;
+        let height = pane.height().min(pane.width() / PAGE_ASPECT);
+        let page = Rect::from_center_size(pane.center(), vec2(height * PAGE_ASPECT, height));
+        let painter = ui.painter();
+        painter.rect_filled(pane, 0.0, tokens.component.dialog.preview_fill.to_egui());
+        painter.rect(page, 0.0, colors.surface.raised.to_egui(), stroke(colors.line.border.to_egui()), egui::StrokeKind::Inside);
+        let plan = preview_plan(&self.rows(), self.word.unwrap_or(0.0), self.edited.line_between == Some(true), page);
+        let pitch = ui.text_style_height(&egui::TextStyle::Body) * LINE_PITCH;
+        for &(left, right) in &plan.columns {
+            let mut y = plan.text.top();
+            while y + pitch / 2.0 <= plan.text.bottom() {
+                painter.line_segment([pos2(left, y), pos2(right, y)], stroke(colors.text.faint.to_egui()));
+                y += pitch;
+            }
+        }
+        for &x in &plan.separators {
+            painter.line_segment([pos2(x, plan.text.top()), pos2(x, plan.text.bottom())], stroke(colors.text.normal.to_egui()));
+        }
     }
 
     fn presets(&mut self, ui: &mut Ui, labels: &TextColumnsLabels) {
@@ -417,8 +562,9 @@ impl TextColumnsDialog {
                     ui.add(Label::new(labels.spacing.as_str()).selectable(false));
                     let last = i + 1 == rows.len();
                     let s = self.length_field(ui, numbers, ("columns-gap", i), spacing_name, (!last).then_some(*spacing), !last);
-                    width_edit = w.event.clone().map(|e| (i, e));
-                    spacing_edit = s.event.clone().map(|e| (i, e));
+                    // A row without an event leaves an earlier row's event alone.
+                    width_edit = w.event.clone().map(|e| (i, e)).or(width_edit.take());
+                    spacing_edit = s.event.clone().map(|e| (i, e)).or(spacing_edit.take());
                     (w.own_name(), s)
                 });
             }
@@ -438,6 +584,45 @@ impl TextColumnsDialog {
             });
         }
     }
+}
+
+/// A page's width over its height (letter paper, WordCraft draws 84 by 110).
+const PAGE_ASPECT: f32 = 84.0 / 110.0;
+/// The margin around the preview's text, as a share of the page's width (WordCraft: 9 of 84).
+const PAGE_MARGIN: f32 = 9.0 / 84.0;
+/// The distance between the preview's text lines, as a share of a text row's height.
+const LINE_PITCH: f32 = 0.5;
+
+/// Where the preview draws: the text area, each column's left and right edge and the x of the
+/// line between each two columns (when [`line_between`](TextColumns::line_between) is on).
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct PreviewPlan {
+    pub(super) text: Rect,
+    pub(super) columns: Vec<(f32, f32)>,
+    pub(super) separators: Vec<f32>,
+}
+
+/// The preview of `rows` (each column's width and the spacing after it, points) over a text width
+/// of `text_width` points on `page`.
+pub(super) fn preview_plan(rows: &[(f32, f32)], text_width: f32, line_between: bool, page: Rect) -> PreviewPlan {
+    let text = page.shrink(page.width() * PAGE_MARGIN);
+    let scale = text.width() / text_width.max(f32::EPSILON);
+    let mut x = text.left();
+    let mut columns = Vec::new();
+    let mut separators = Vec::new();
+    for (i, (width, spacing)) in rows.iter().enumerate() {
+        let right = (x + width * scale).min(text.right());
+        columns.push((x, right));
+        x = right;
+        if i + 1 < rows.len() {
+            let gap = spacing * scale;
+            if line_between {
+                separators.push(x + gap / 2.0);
+            }
+            x += gap;
+        }
+    }
+    PreviewPlan { text, columns, separators }
 }
 
 /// A caption without its trailing colon: the name of a field whose row label carries the colon.
