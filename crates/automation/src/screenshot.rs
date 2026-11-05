@@ -45,11 +45,14 @@ const BASE_SETTLE_MS: f64 = 60.0;
 /// attribution only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DocumentId {
+    /// The app's active-document generation at admission.
     pub generation: u64,
+    /// The document revision at admission; recorded for attribution only.
     pub revision: u64,
 }
 
 impl DocumentId {
+    /// Whether both ids name the same active document (same `generation`).
     pub fn same_document(self, other: Self) -> bool {
         self.generation == other.generation
     }
@@ -60,11 +63,17 @@ impl DocumentId {
 /// of it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CaptureGeometry {
+    /// Viewport size in logical points, `[width, height]`.
     pub size_points: [f32; 2],
+    /// Physical pixels per point, including zoom.
     pub pixels_per_point: f32,
+    /// The UI zoom factor.
     pub zoom: f32,
+    /// The renderer's largest texture side, in pixels.
     pub max_texture_side: usize,
+    /// Whether the window is minimised.
     pub minimized: bool,
+    /// The active document, if any; not part of the layout identity.
     pub document: Option<DocumentId>,
 }
 
@@ -139,10 +148,12 @@ pub struct PendingCapture {
 }
 
 impl PendingCapture {
+    /// The caller's token for this request.
     pub fn token(&self) -> u64 {
         self.token
     }
 
+    /// Whether the render for this capture was already requested.
     pub fn issued(&self) -> bool {
         self.issued_epoch.is_some()
     }
@@ -150,9 +161,13 @@ impl PendingCapture {
 
 /// A request that is over: an image to save and reply, or an error.
 pub struct Finished {
+    /// The request's token.
     pub token: u64,
+    /// File to write the PNG to; `None` inlines it in the reply.
     pub path: Option<String>,
+    /// Where to send the answer.
     pub reply: Option<Sender<ControlResponse>>,
+    /// The captured image, or the error text for the reply.
     pub result: Result<Arc<ColorImage>, String>,
 }
 
@@ -176,14 +191,17 @@ pub struct Captures {
 }
 
 impl Captures {
+    /// Requests admitted or waiting for geometry.
     pub fn pending(&self) -> usize {
         self.records.len() + self.waiting.len()
     }
 
+    /// Bytes reserved for admitted images; counted against [`MAX_TOTAL_BYTES`].
     pub fn reserved_bytes(&self) -> usize {
         self.records.iter().map(|r| r.reserved_bytes).sum()
     }
 
+    /// Whether any request is pending.
     pub fn any_pending(&self) -> bool {
         self.pending() > 0
     }
@@ -193,6 +211,7 @@ impl Captures {
         !self.waiting.is_empty() || self.records.iter().any(|r| !r.issued())
     }
 
+    /// The geometry recorded by the last [`Self::note_geometry`], if any.
     pub fn last_geometry(&self) -> Option<CaptureGeometry> {
         self.geometry
     }

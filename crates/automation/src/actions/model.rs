@@ -43,14 +43,22 @@ impl From<ActionStep> for (String, Value) {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(from = "String", into = "String")]
 pub enum ActionColor {
+    /// No colour.
     #[default]
     None,
+    #[allow(missing_docs)]
     Red,
+    #[allow(missing_docs)]
     Orange,
+    #[allow(missing_docs)]
     Yellow,
+    #[allow(missing_docs)]
     Green,
+    #[allow(missing_docs)]
     Blue,
+    #[allow(missing_docs)]
     Violet,
+    #[allow(missing_docs)]
     Gray,
 }
 

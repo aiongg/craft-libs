@@ -15,12 +15,19 @@ use crate::profiler::FrameStages;
 /// One frame of a gesture.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Row {
+    /// Frame start on the app clock, ms.
     pub t: f64,
+    /// Time since the previous frame started, ms; `0` for the first frame of a gesture.
     pub interval: f64,
+    /// Pointer moves delivered this frame.
     pub moves: usize,
+    /// The live gesture's render time, ms.
     pub gesture: f64,
+    /// Canvas composite plus upload time, ms.
     pub canvas: f64,
+    /// UI pass time, ms.
     pub ui: f64,
+    /// The windowing library's CPU time for the previous frame, ms.
     pub cpu_prev: Option<f64>,
 }
 
@@ -28,14 +35,23 @@ pub struct Row {
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Summary {
+    /// Frames in the gesture.
     pub frames: usize,
+    /// The render backend name.
     pub backend: String,
+    /// Frame interval, `[p50, p95]` in ms.
     pub interval: [f64; 2],
+    /// Pointer moves per frame, `[p50, p95]`.
     pub moves: [f64; 2],
+    /// Gesture render time, `[p50, p95]` in ms.
     pub gesture: [f64; 2],
+    /// Canvas time, `[p50, p95]` in ms.
     pub canvas: [f64; 2],
+    /// UI time, `[p50, p95]` in ms.
     pub ui: [f64; 2],
+    /// CPU time of the previous frame, `[p50, p95]` in ms.
     pub cpu: [f64; 2],
+    /// Time between frames not spent in the CPU of the previous frame, `[p50, p95]` in ms.
     pub wait: [f64; 2],
 }
 
@@ -67,9 +83,12 @@ impl Summary {
 /// Where the trace goes.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub enum Output {
+    /// No trace.
     #[default]
     Off,
+    /// Print a summary to stderr when each gesture ends.
     Stderr,
+    /// Also append every frame of every gesture to this CSV file.
     Csv(std::path::PathBuf),
 }
 
@@ -108,6 +127,7 @@ impl FrameTrace {
         Self { output, ..Default::default() }
     }
 
+    /// Whether the trace records frames.
     pub fn is_on(&self) -> bool {
         !matches!(self.output, Output::Off)
     }

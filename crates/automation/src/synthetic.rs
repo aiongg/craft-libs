@@ -45,8 +45,11 @@ fn remove_event_run(events: &mut Vec<Event>, step: &[Event]) {
 /// A validated `ui.click`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Click {
+    /// Target position in points.
     pub at: Pos2,
+    /// The button pressed.
     pub button: PointerButton,
+    /// Number of clicks (2 is a double click).
     pub count: u64,
 }
 
@@ -83,7 +86,9 @@ pub fn move_from_params(params: &Value) -> Result<Pos2, String> {
 /// A validated `ui.key`: an egui key name (`Enter`, `A`, `F5`) with modifiers.
 #[derive(Clone, Debug, PartialEq)]
 pub struct KeyPress {
+    /// The key pressed.
     pub key: egui::Key,
+    /// Modifiers held with it.
     pub modifiers: Modifiers,
 }
 
