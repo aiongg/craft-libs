@@ -611,7 +611,7 @@ fn versions(ui: &mut Ui, _: &mut NoArgs) {
     let mut demo = lock(&demo);
     let demo = &mut *demo;
     let out = VersionHistoryPanel::new("versions", &demo.versions, &demo.branches).previewing(demo.previewing).show(ui);
-    if let Some(action) = out.action {
+    for action in out.actions {
         demo.last = Some(format!("{action:?}"));
         match action {
             VersionAction::Save { title, description } => {
@@ -621,9 +621,10 @@ fn versions(ui: &mut Ui, _: &mut NoArgs) {
             }
             VersionAction::Preview(id) => demo.previewing = Some(id),
             VersionAction::Current => demo.previewing = None,
-            VersionAction::Rename { id, title } => {
+            VersionAction::Rename { id, title, description } => {
                 if let Some(v) = demo.versions.iter_mut().find(|v| v.id == id) {
                     v.title = title;
+                    v.description = description;
                 }
             }
             VersionAction::Duplicate(id) => {
@@ -675,7 +676,7 @@ fn revisions(ui: &mut Ui, _: &mut NoArgs) {
     let mut demo = lock(&demo);
     let demo = &mut *demo;
     let out = RevisionsPanel::new("revisions", &labels.compared_with, &demo.revisions).show(ui);
-    if let Some(action) = out.action {
+    for action in out.actions {
         demo.last = Some(format!("{action:?}"));
         match action {
             RevisionAction::Accept(i) | RevisionAction::Reject(i) => {

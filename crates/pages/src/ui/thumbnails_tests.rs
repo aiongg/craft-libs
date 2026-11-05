@@ -4,11 +4,11 @@
 use craft_ui::behavior::{DropPosition, Move, Selection, SelectionPick};
 use craft_ui::canvas::textures::{FakeThumbSource, Revision, ThumbRender, ThumbRequest, ThumbSource};
 use craft_ui::edit::EditEvent;
-use craft_ui::list::CaptionPlace;
+use craft_ui::list::{CaptionPlace, TileStyle};
 use craft_ui::testing::events;
-use craft_ui::theme::{Base, install};
+use craft_ui::theme::{Base, current, install};
 use egui::accesskit::{AriaCurrent, Role};
-use egui::{Key, Modifiers, PointerButton, Pos2, vec2};
+use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Shape, StrokeKind, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 use kurbo::Size;
@@ -57,6 +57,7 @@ struct App {
     marks: Option<fn(usize) -> ThumbnailMarks>,
     new_page_row: bool,
     drop_target: Option<Move<usize>>,
+    file_gap: Option<usize>,
 }
 
 impl App {
@@ -73,6 +74,7 @@ impl App {
             marks: None,
             new_page_row: false,
             drop_target: None,
+            file_gap: None,
         }
     }
 
@@ -82,7 +84,7 @@ impl App {
 }
 
 fn show(ui: &mut egui::Ui, app: &mut App) {
-    let App { pages, picked, current, events, editable, zoom, caption_place, sections, marks, new_page_row, drop_target } = app;
+    let App { pages, picked, current, events, editable, zoom, caption_place, sections, marks, new_page_row, drop_target, file_gap } = app;
     let mut panel = PageThumbnails::new("pages", &*pages, picked, *current)
         .editable(*editable)
         .caption_place(*caption_place)
@@ -97,6 +99,7 @@ fn show(ui: &mut egui::Ui, app: &mut App) {
     let out = panel.show(ui);
     events.extend(out.events);
     *drop_target = out.drop_target;
+    *file_gap = out.file_gap;
 }
 
 fn open(app: App) -> Harness<'static, App> {
@@ -161,19 +164,19 @@ fn clicks_go_and_modifier_clicks_pick() {
     let mut harness = open(App::new(9));
     click(&mut harness, 2);
     let events = harness.state_mut().take();
-    assert!(matches!(&events[..], [ThumbnailEvent::Picked(change), ThumbnailEvent::Go(2)] if change.pick == SelectionPick::Replace), "{events:?}");
+    assert!(matches!(&events[..], [ThumbnailEvent::Selection(change), ThumbnailEvent::Go(2)] if change.pick == SelectionPick::Replace), "{events:?}");
     assert_eq!(picked(&harness), [2]);
 
     click_with(&mut harness, 4, PointerButton::Primary, CMD);
     let events = harness.state_mut().take();
-    assert!(matches!(&events[..], [ThumbnailEvent::Picked(change)] if change.pick == SelectionPick::Toggle), "{events:?}");
+    assert!(matches!(&events[..], [ThumbnailEvent::Selection(change)] if change.pick == SelectionPick::Toggle), "{events:?}");
     assert_eq!(picked(&harness), [2, 4]);
 
     click(&mut harness, 1);
     harness.state_mut().take();
     click_with(&mut harness, 3, PointerButton::Primary, Modifiers::SHIFT);
     let events = harness.state_mut().take();
-    assert!(matches!(&events[..], [ThumbnailEvent::Picked(change)] if change.pick == SelectionPick::Range), "{events:?}");
+    assert!(matches!(&events[..], [ThumbnailEvent::Selection(change)] if change.pick == SelectionPick::Range), "{events:?}");
     assert_eq!(picked(&harness), [1, 2, 3]);
 }
 
@@ -298,23 +301,23 @@ fn keys_and_context_menu_follow_the_list_rules() {
     harness.state_mut().take();
     key(&mut harness, Modifiers::NONE, Key::ArrowRight);
     let events = harness.state_mut().take();
-    assert!(matches!(&events[..], [ThumbnailEvent::Picked(_), ThumbnailEvent::Go(1)]), "{events:?}");
+    assert!(matches!(&events[..], [ThumbnailEvent::Selection(_), ThumbnailEvent::Go(1)]), "{events:?}");
 
     key(&mut harness, Modifiers::SHIFT, Key::ArrowRight);
     let events = harness.state_mut().take();
-    assert!(matches!(&events[..], [ThumbnailEvent::Picked(change)] if change.pick == SelectionPick::Range), "{events:?}");
+    assert!(matches!(&events[..], [ThumbnailEvent::Selection(change)] if change.pick == SelectionPick::Range), "{events:?}");
     assert_eq!(picked(&harness), [1, 2]);
 
     key(&mut harness, Modifiers::NONE, Key::Escape);
     let events = harness.state_mut().take();
-    assert!(matches!(&events[..], [ThumbnailEvent::Picked(change)] if change.pick == SelectionPick::Clear), "{events:?}");
+    assert!(matches!(&events[..], [ThumbnailEvent::Selection(change)] if change.pick == SelectionPick::Clear), "{events:?}");
     assert!(picked(&harness).is_empty());
 
     click(&mut harness, 3);
     harness.state_mut().take();
     click_with(&mut harness, 6, PointerButton::Secondary, Modifiers::NONE);
     let events = harness.state_mut().take();
-    assert!(matches!(&events[..], [ThumbnailEvent::Picked(_), ThumbnailEvent::ContextMenu(request)] if request.row == Some(6)), "{events:?}");
+    assert!(matches!(&events[..], [ThumbnailEvent::Selection(_), ThumbnailEvent::ContextMenu(request)] if request.row == Some(6)), "{events:?}");
     assert_eq!(picked(&harness), [6]);
 }
 
@@ -344,4 +347,116 @@ fn current_page_sections_and_slide_marks_map_to_the_grid() {
     harness.run_steps(4);
     let events = harness.state_mut().take();
     assert!(events.iter().any(|e| matches!(e, ThumbnailEvent::NewPage)), "{events:?}");
+}
+
+// A page and the marks together are named in one line: the grid joins the animation mark's tip after "Hidden".
+#[test]
+fn hidden_and_animated_pages_are_named_with_both() {
+    let mut app = App::new(3);
+    app.marks = Some(|page| ThumbnailMarks { hidden: page == 1, animated: page == 1 });
+    let harness = open(app);
+    assert_eq!(tile(&harness, 1).accesskit_node().label().as_deref(), Some("Page 2, Hidden, Has animations"));
+}
+
+// A drop onto a page (no page takes one) places the moved pages before it; After a page not among the moved ones goes behind it.
+#[test]
+fn moved_page_treats_into_as_before() {
+    let mv = |position| Move { items: vec![0], target: 3, position, copy: false };
+    let after = |position, p| moved_page(&mv(position), p, 5);
+    for p in 0..5 {
+        assert_eq!(after(DropPosition::Into, p), after(DropPosition::Before, p), "page {p}");
+    }
+    assert_eq!(after(DropPosition::Before, 0), 2);
+    assert_eq!(after(DropPosition::After, 0), 3);
+}
+
+/// Every shape drawn in the last pass, flattened.
+fn shapes(harness: &Harness<'_, App>) -> Vec<Shape> {
+    fn flatten(shape: &Shape, out: &mut Vec<Shape>) {
+        match shape {
+            Shape::Vec(inner) => inner.iter().for_each(|shape| flatten(shape, out)),
+            other => out.push(other.clone()),
+        }
+    }
+    let mut out = Vec::new();
+    for clipped in &harness.output().shapes {
+        flatten(&clipped.shape, &mut out);
+    }
+    out
+}
+
+fn shapes_in(harness: &Harness<'_, App>, area: Rect) -> Vec<Shape> {
+    shapes(harness).into_iter().filter(|shape| area.contains_rect(shape.visual_bounding_rect())).collect()
+}
+
+fn start_app(hidden: bool, animated: bool, current: usize) -> App {
+    let mut app = App::new(3);
+    app.caption_place = CaptionPlace::Start;
+    app.current = current;
+    app.marks = Some(match (hidden, animated) {
+        (false, false) => |_| ThumbnailMarks::default(),
+        (true, false) => |page| ThumbnailMarks { hidden: page == 0, animated: false },
+        (false, true) => |page| ThumbnailMarks { hidden: false, animated: page == 0 },
+        (true, true) => |page| ThumbnailMarks { hidden: page == 0, animated: page == 0 },
+    });
+    app
+}
+
+// Through the panel: a hidden slide gets the veil over its picture and a slash across its number, an animated one a mark under the number, and the current page a ring outside its picture; none of it shows on the other pages.
+#[test]
+fn hidden_marked_and_current_pages_are_painted() {
+    let plain = open(start_app(false, false, 1));
+    let tokens = current(&plain.ctx);
+    let style = TileStyle::style(&tokens);
+    let cell = tile(&plain, 0).rect();
+    let column = Rect::from_min_size(cell.min, vec2(style.start_caption_width, cell.height()));
+    let picture = Rect::from_min_max(pos2(cell.left() + style.start_caption_width, cell.top()), cell.max);
+    let veils = |harness: &Harness<'_, App>| {
+        shapes_in(harness, picture).iter().filter(|s| matches!(s, Shape::Rect(r) if r.fill == style.veil && !r.fill.is_additive())).count()
+    };
+
+    let hidden = open(start_app(true, false, 1));
+    assert_eq!(veils(&plain), 0);
+    assert_eq!(veils(&hidden), 1, "the veil covers the hidden picture");
+    assert!(shapes_in(&hidden, column).len() > shapes_in(&plain, column).len(), "the slash crosses the number");
+
+    let marked = open(start_app(false, true, 1));
+    assert!(shapes_in(&marked, column).len() > shapes_in(&plain, column).len(), "the mark is drawn under the number");
+    assert_eq!(shapes_in(&marked, picture).len(), shapes_in(&plain, picture).len(), "the picture is untouched");
+
+    let ring = |harness: &Harness<'_, App>, page: usize| {
+        let cell = tile(harness, page).rect();
+        shapes(harness).into_iter().any(|shape| {
+            matches!(&shape, Shape::Rect(r) if r.stroke.color == style.ring_current
+                && r.stroke.width == style.ring_current_width
+                && r.stroke_kind == StrokeKind::Outside
+                && cell.contains(r.rect.center()))
+        })
+    };
+    assert!(ring(&plain, 1) && !ring(&plain, 0) && !ring(&plain, 2), "the ring is on the current page only");
+}
+
+// Files dragged over the panel: the gap is before a page left of its middle and after it right of it (the number column is part of the card), and a read-only panel reports none.
+#[test]
+fn file_drops_report_the_gap_through_the_panel() {
+    let mut app = App::new(4);
+    app.caption_place = CaptionPlace::Start;
+    let mut harness = open(app);
+    harness.input_mut().hovered_files.push(egui::HoveredFile::default());
+    let card = tile(&harness, 2).rect();
+    harness.event(Event::PointerMoved(pos2(card.center().x - 2.0, card.center().y)));
+    harness.run_steps(2);
+    assert_eq!(harness.state().file_gap, Some(2));
+    harness.event(Event::PointerMoved(pos2(card.center().x + 2.0, card.center().y)));
+    harness.run_steps(2);
+    assert_eq!(harness.state().file_gap, Some(3));
+
+    let mut app = App::new(4);
+    app.editable = false;
+    let mut harness = open(app);
+    harness.input_mut().hovered_files.push(egui::HoveredFile::default());
+    let card = tile(&harness, 2).rect();
+    harness.event(Event::PointerMoved(card.center()));
+    harness.run_steps(2);
+    assert_eq!(harness.state().file_gap, None);
 }

@@ -268,7 +268,8 @@ impl<'a> ClipLane<'a> {
             }
         }
 
-        let mut out = ClipLaneResponse { response, edit: None, select: None, double_clicked: None, context_menu: None, snapped_at: None };
+        let mut out =
+            ClipLaneResponse { response, edit: None, select: None, double_clicked: None, context_menu: None, snapped_at: None, grabbed: None };
         if let Some(clip) = reader_click {
             out.select = lane.pick(selection, Some(clip), Modifiers::NONE);
         }
@@ -310,6 +311,7 @@ impl<'a> ClipLane<'a> {
             let mut gesture = Gesture::load(ui, id, &rest, EditPolicy::default());
             if !pressed.cancelled && out.response.drag_started_by(PointerButton::Primary) {
                 gesture.begin_with_value();
+                out.grabbed = moved_by(&rest);
                 if let Grab::Body(clip) = pressed.grab
                     && !selection.contains(&clip)
                 {
@@ -387,6 +389,19 @@ pub struct ClipLaneResponse {
     pub context_menu: Option<ClipId>,
     /// Where a drag snapped this pass.
     pub snapped_at: Option<Tick>,
+    /// On the pass a drag began that moves clips (a body grab with a move tool): the clips the
+    /// move carries, the selection when it holds the grabbed clip, else that clip. The `Begin`
+    /// carries no value when the pointer has not moved the clips yet, so the panel builds a zero
+    /// [`ClipEdit::Move`] of this set for the preview.
+    pub grabbed: Option<Vec<ClipId>>,
+}
+
+/// The clips `edit` moves, when it is a move.
+fn moved_by(edit: &ClipEdit) -> Option<Vec<ClipId>> {
+    match edit {
+        ClipEdit::Move { clips, .. } => Some(clips.clone()),
+        _ => None,
+    }
 }
 
 /// What a press grabbed, worked out on the press frame (FilmCraft `Pressed`, #259).

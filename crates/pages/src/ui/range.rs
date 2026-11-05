@@ -21,7 +21,7 @@ craft_ui::words! {
         selected_pages: "pageRange.selectedPages" = "Selected pages";
         select_pages: "pageRange.selectPages" = "Select pages";
         page_range: "pageRange.pageRange" = "Page range";
-        not_a_page: "pageRange.notAPage" = "{page} is not a page number or label";
+        not_a_page: "pageRange.notAPage" = "\"{page}\" is not a page number or label";
         out_of_range: "pageRange.outOfRange" = "page {n} is out of range (1–{count})";
         too_long: "pageRange.tooLong" = "Too many pages";
         all_pages: "pageRange.allPages" = "All pages";
@@ -36,21 +36,33 @@ craft_ui::words! {
 
 impl PageRangeLabels {
     /// The error in these words.
-    pub fn error(&self, error: &PageRangeError) -> String {
+    pub fn error(&self, error: &PageRangeError, numbers: &LocaleNumbers) -> String {
+        let whole = |n: usize| numbers.format(n as f64, 0..=0);
         match error {
-            PageRangeError::NotAPage(token) => self.not_a_page.replace("{page}", &format!("{token:?}")),
-            PageRangeError::OutOfRange { page, count } => self.out_of_range.replace("{n}", &page.to_string()).replace("{count}", &count.to_string()),
+            PageRangeError::NotAPage(token) => self.not_a_page.replace("{page}", token),
+            PageRangeError::OutOfRange { page, count } => self.out_of_range.replace("{n}", &whole(*page)).replace("{count}", &whole(*count)),
             PageRangeError::TooLong => self.too_long.clone(),
         }
     }
 }
 
-/// The field's text and error between passes, kept by the app per field.
+/// The field's text and error between passes, kept by the app per field. The default is empty.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PageRangeFieldState {
     text: String,
     shown: Vec<usize>,
     error: Option<PageRangeError>,
+}
+
+impl PageRangeFieldState {
+    /// The state with `text` typed over `selected` and read for a document of `count` pages: the
+    /// field shows the text and, when it doesn't parse, the error under it (the state a story
+    /// shows for the error look).
+    pub fn typed(selected: &[usize], text: impl Into<String>, count: usize) -> Self {
+        let text = text.into();
+        let error = parse_pages(&text, count).err();
+        PageRangeFieldState { text, shown: selected.to_vec(), error }
+    }
 }
 
 /// What the field did this pass.
@@ -112,8 +124,9 @@ impl<'a> PageRangeField<'a> {
             state.shown = selected.to_vec();
             state.error = None;
         }
-        let placeholder = (current + 1).to_string();
-        let error = state.error.as_ref().map(|error| labels.error(error));
+        let numbers = LocaleNumbers::of_ctx(ui.ctx());
+        let placeholder = numbers.format((current + 1) as f64, 0..=0);
+        let error = state.error.as_ref().map(|error| labels.error(error, &numbers));
         let mut chosen = None;
         let tokens = Tokens::of(ui);
         let chevron = IconButton::style(&tokens, ControlSize::Md).side;
@@ -212,7 +225,7 @@ impl<'a> PageRangeOptions<'a> {
                     .enabled(enabled)
                     .show(ui);
                 ui.label(labels.to.as_str());
-                let shown_to = range.to.clamp(1, last);
+                let shown_to = range.to.map_or(last, |to| to.clamp(1, last));
                 let to = NumberField::new((id_salt, "to"), labels.to.as_str(), shown_to as f64, &numbers)
                     .range(1.0..=last as f64)
                     .decimals(0..=0)
@@ -227,10 +240,10 @@ impl<'a> PageRangeOptions<'a> {
         if let Some(value) = from.event.as_ref().and_then(EditEvent::value).map(|v| (v.round() as usize).clamp(1, last)).filter(|v| *v != shown_from)
         {
             range.from = value;
-            range.to = range.to.max(value);
+            range.to = range.to.map(|to| to.max(value));
         }
         if let Some(value) = to.event.as_ref().and_then(EditEvent::value).map(|v| (v.round() as usize).clamp(1, last)).filter(|v| *v != shown_to) {
-            range.to = value;
+            range.to = Some(value);
             range.from = range.from.min(value);
         }
         response |= from.response;

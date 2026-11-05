@@ -86,3 +86,46 @@ fn the_follower_takes_the_leaders_zoom_and_scroll() {
     harness.step();
     assert_eq!(harness.state().right.zoom, 1.0);
 }
+
+// The follower takes the leader's rotation along with its zoom, in the pass the leader changes it.
+#[test]
+fn the_follower_takes_the_leaders_rotation() {
+    let mut harness = open();
+    harness.hover_at(egui::pos2(700.0, 300.0));
+    harness.run();
+    harness.state_mut().right.rotation = 90;
+    harness.step();
+    assert_eq!(harness.state().left.rotation, 90);
+}
+
+// With one page showing, the follower turns to the leader's page when the leader turns.
+#[test]
+fn the_follower_turns_to_the_leaders_page() {
+    let mut harness = open();
+    harness.state_mut().left.continuous = false;
+    harness.state_mut().right.continuous = false;
+    harness.hover_at(egui::pos2(700.0, 300.0));
+    harness.run();
+    harness.state_mut().right.go_to(3);
+    harness.step();
+    assert_eq!(harness.state().left.current, 3);
+}
+
+// A drag that starts in one half and crosses into the other keeps the first half leading.
+#[test]
+fn a_drag_keeps_the_lead() {
+    let mut harness = open();
+    let (right, left) = (egui::pos2(700.0, 300.0), egui::pos2(100.0, 300.0));
+    harness.hover_at(right);
+    harness.run();
+    harness.event(egui::Event::PointerButton { pos: right, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::NONE });
+    harness.step();
+    harness.event(egui::Event::PointerMoved(left));
+    harness.step();
+    assert_eq!(harness.state().pair.lead, Lead::Right, "held over the other half");
+    harness.event(egui::Event::PointerButton { pos: left, button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::NONE });
+    harness.step();
+    harness.event(egui::Event::PointerMoved(egui::pos2(101.0, 300.0)));
+    harness.step();
+    assert_eq!(harness.state().pair.lead, Lead::Left, "after the release hover decides");
+}

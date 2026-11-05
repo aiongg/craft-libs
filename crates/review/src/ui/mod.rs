@@ -52,7 +52,7 @@ pub use thread::{
     CommentComposer, CommentComposerResponse, CommentPin, CommentPins, CommentPinsOutput, PinCluster, PinMove, REACTIONS, ThreadLabels,
     ThreadPopover, ThreadPopoverOutput, cluster, insert_mention, mention_matches, mention_query,
 };
-pub use versions::{VersionAction, VersionHistoryPanel, VersionHistoryPanelOutput, VersionPreviewBanner, VersionsLabels};
+pub use versions::{VersionAction, VersionHistoryPanel, VersionHistoryPanelOutput, VersionPreviewBanner, VersionPreviewBannerOutput, VersionsLabels};
 
 pub use chat::{ChatLabels, CursorChatBox, CursorChatBoxOutput, paint_chat_bubble};
 pub use join::{JoinField, JoinFieldOutput, JoinLabels};

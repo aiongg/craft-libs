@@ -204,6 +204,7 @@ struct Sequence {
     marks: (Option<Tick>, Option<Tick>),
     work_area: Option<TimeRange>,
     header_width: Option<f32>,
+    divider: Option<f32>,
 }
 
 const SEQUENCE_SECONDS: f64 = 30.0;
@@ -350,6 +351,7 @@ fn sample_sequence(labels: &TimelineStoryLabels, points_per_second: f32) -> Sequ
         marks: (Some(secs(2.0)), Some(secs(22.0))),
         work_area: None,
         header_width: None,
+        divider: None,
     }
 }
 
@@ -511,6 +513,11 @@ impl Sequence {
                     self.header_width = Some(w);
                 }
             }
+            TimelineEdit::Divider(event) => {
+                if let Some(&share) = live(event) {
+                    self.divider = Some(share);
+                }
+            }
             TimelineEdit::Select { change, .. } => self.selection = change.selection.clone(),
             TimelineEdit::ContextMenu { .. } | TimelineEdit::OpenClip(_) => {}
         }
@@ -542,12 +549,15 @@ fn timeline_panel(ui: &mut Ui, _: &mut NoArgs) {
     let demo = &mut *demo;
     let height =
         style.top_height + style.divider_height + style.scrollbar_height + ROWS_PER_SIDE * (style.video_track_height + style.audio_track_height);
-    let (snap, linked, header_width) = (demo.snap, demo.linked, demo.seq.header_width);
+    let (snap, linked, header_width, divider) = (demo.snap, demo.linked, demo.seq.header_width, demo.seq.divider);
     let out = ui
         .allocate_ui(vec2(width, height), |ui| {
             let mut timeline = Timeline::new("timeline", &mut demo.seq).snap(snap).linked_selection(linked);
             if let Some(width) = header_width {
                 timeline = timeline.header_width(width);
+            }
+            if let Some(share) = divider {
+                timeline = timeline.divider(share);
             }
             timeline.show(ui)
         })

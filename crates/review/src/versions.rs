@@ -49,7 +49,8 @@ pub enum HistoryRow {
 }
 
 /// The history list of `versions` (any order): newest first, named versions as rows of their
-/// own, each run of consecutive autosaves between them one group.
+/// own, each run of two or more consecutive autosaves between them one group; a lone autosave
+/// stays a row of its own.
 // figcraft: crates/ui-egui/src/panels/versions.rs:111 `panel` (rows), `:557` `autosave_group`.
 pub fn history_rows(versions: &[Version]) -> Vec<HistoryRow> {
     let mut order: Vec<usize> = (0..versions.len()).collect();

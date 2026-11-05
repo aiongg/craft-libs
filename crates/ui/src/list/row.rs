@@ -452,6 +452,7 @@ pub struct ListRow<'a, K> {
     icon: Option<Icon>,
     glyph: Option<Thumbnail<'a>>,
     glyph_width: Option<f32>,
+    leading_first: bool,
     striped: bool,
     thumb: ThumbSize,
     thumbnail: Option<Thumbnail<'a>>,
@@ -478,6 +479,7 @@ pub struct ListRow<'a, K> {
     paint_depth: Option<usize>,
     indented_toggles: bool,
     rename_field_name: Option<String>,
+    rename_draft: Option<String>,
     menu: Option<RowMenu>,
     rename_on_double_click: bool,
     role: Role,
@@ -515,6 +517,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             icon: None,
             glyph: None,
             glyph_width: None,
+            leading_first: false,
             striped: false,
             thumb: ThumbSize::None,
             thumbnail: None,
@@ -541,6 +544,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             paint_depth: None,
             indented_toggles: false,
             rename_field_name: None,
+            rename_draft: None,
             menu: None,
             rename_on_double_click: false,
             role: Role::ListBoxOption,
@@ -756,6 +760,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
+    /// Puts the icon, glyph or thumbnails before the tree disclosure column instead of after it,
+    /// so a group row reads glyph, triangle, label (a timeline dot left of the triangle). The
+    /// label and the row's least width are unchanged.
+    pub fn leading_first(mut self, first: bool) -> Self {
+        self.leading_first = first;
+        self
+    }
+
     /// Fills the row with `list.stripe` under the hover and selected fills, for every second row
     /// of a striped list (the host counts the rows).
     pub fn striped(mut self, striped: bool) -> Self {
@@ -933,6 +945,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
+    /// The text the rename field starts from (default: the row's label). A rename that ends
+    /// with this text unchanged reports no [`Renamed`](RowEvent::Renamed). [`List`](super::List)
+    /// sets it from [`List::rename_draft`](super::List::rename_draft).
+    pub fn rename_draft(mut self, text: impl Into<String>) -> Self {
+        self.rename_draft = Some(text.into());
+        self
+    }
+
     /// Puts the [toggle columns](ListRow::toggle) after the [indent](ListRow::indent) instead of at
     /// the leading edge: a sub-row's eye sits under its parent's. The leading edge keeps its
     /// columns' width, empty, so the dividers and the parent's eye column run on through the row.
@@ -1027,6 +1047,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             icon,
             glyph,
             glyph_width,
+            leading_first,
             striped,
             thumb,
             thumbnail,
@@ -1053,6 +1074,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             paint_depth,
             indented_toggles,
             rename_field_name,
+            rename_draft,
             menu,
             rename_on_double_click,
             role,
@@ -1111,7 +1133,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let ends = columns.iter().filter(|c| c.at_end).count();
         let counts = (columns.len() - ends, ends, indented_toggles);
         let min_width = min_width(&style, counts, column, leading, &widths);
-        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), counts, (indent, column), leading, &widths);
+        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), counts, (indent, column, leading_first), leading, &widths);
         // Parts that don't fit stay in their place and the row's trailing edge cuts them.
         let outer_clip = ui.clip_rect();
         ui.set_clip_rect(outer_clip.intersect(rect));
@@ -1210,7 +1232,15 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let (text, detail_text) = label_colors(&style, (selected, dimmed, muted), layer);
         let label_role = if strong { style.label_strong_role } else { style.label_role };
         if renaming {
-            rename::show(ui, row_id, &key, &label, rename_field_name.as_deref().unwrap_or(&label), band, &mut events);
+            rename::show(
+                ui,
+                row_id,
+                &key,
+                rename_draft.as_deref().unwrap_or(&label),
+                rename_field_name.as_deref().unwrap_or(&label),
+                band,
+                &mut events,
+            );
         } else if visible {
             paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), (text, italic, label_role));
         }
@@ -1307,7 +1337,7 @@ impl Geometry {
         rect: Rect,
         rtl: bool,
         (columns, ends, indented): (usize, usize, bool),
-        (indent, column): (f32, f32),
+        (indent, column, leading_first): (f32, f32, bool),
         leading: Option<f32>,
         items: &[(f32, bool)],
     ) -> Geometry {
@@ -1350,8 +1380,8 @@ impl Geometry {
             rtl,
             toggles_start,
             ends_start: ends_start + overflow,
-            column_start: base + indent,
-            leading_start: base + indent + column,
+            column_start: base + indent + if leading_first { leading_width } else { 0.0 },
+            leading_start: base + indent + if leading_first { 0.0 } else { column },
             label_start: base + indent + column + leading_width,
             label_end,
             items,

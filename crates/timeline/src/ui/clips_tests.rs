@@ -31,6 +31,7 @@ struct App {
     edits: Vec<EditEvent<ClipEdit>>,
     selects: Vec<(SelectionChange<ClipId>, bool)>,
     snapped: Option<Tick>,
+    grabbed: Vec<Vec<ClipId>>,
 }
 
 fn clip(id: ClipId, name: &'static str, from: i64, to: i64) -> ClipInfo<'static> {
@@ -49,6 +50,7 @@ fn show(ui: &mut Ui, app: &mut App) {
     }
     let out = lane.show(ui, app.rect);
     app.edits.extend(out.edit);
+    app.grabbed.extend(out.grabbed);
     app.snapped = out.snapped_at.or(app.snapped);
     if let Some((change, unlinked)) = out.select {
         app.selection = change.selection.items.clone();
@@ -69,6 +71,7 @@ fn harness() -> Harness<'static, App> {
         edits: Vec::new(),
         selects: Vec::new(),
         snapped: None,
+        grabbed: Vec::new(),
     };
     let mut harness =
         Harness::<App>::builder().with_size([480.0, 120.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(show, app);
@@ -275,4 +278,22 @@ fn the_track_label_tints_the_lane() {
     };
     assert!(tinted(Some(MarkerColor(2))));
     assert!(!tinted(None), "no label, no tint");
+}
+
+// The pass a body drag begins reports the clips it moves (the selection when it holds the grabbed
+// clip); an edge grab moves none.
+#[test]
+fn a_body_press_reports_the_grabbed_clip_set() {
+    let mut harness = harness();
+    drag(&mut harness, 50.0, 60.0);
+    assert_eq!(harness.state().grabbed, vec![vec![A]]);
+
+    let mut harness = self::harness();
+    harness.state_mut().selection = vec![A, ClipId(9)];
+    drag(&mut harness, 50.0, 60.0);
+    assert_eq!(harness.state().grabbed, vec![vec![A, ClipId(9)]]);
+
+    let mut harness = self::harness();
+    drag(&mut harness, 100.0, 90.0);
+    assert!(harness.state().grabbed.is_empty(), "the clip's right edge trims");
 }
