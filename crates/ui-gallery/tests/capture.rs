@@ -1,3 +1,5 @@
+//! Integration tests of craft-ui-gallery: capture.
+
 use craft_ui_gallery::capture::{parse_spec, render, resolve};
 
 fn shot(json: &str) -> Result<craft_ui_gallery::capture::Resolved, String> {
