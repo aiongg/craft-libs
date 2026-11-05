@@ -1,13 +1,26 @@
 //! The ruler's geometry and drawing.
 
-use craft_ui::canvas::{RulerStyle, RulerUnits, crisp};
+use craft_ui::canvas::{RulerStyle, RulerUnits, Rulers, TickRule, crisp};
 use craft_ui::theme::UiTokens;
 use egui::{Align2, Color32, Painter, Pos2, Rect, Shape, Stroke, pos2, vec2};
 
 use super::TabAlign;
 
-/// Ticks drawn at most (a ruler zoomed far out).
-const MAX_TICKS: i64 = 20_000;
+/// A decimal stop's dot sits this share of the foot along, and this share of the stem up
+/// (WordCraft `ruler_tabs.rs:101`: 0.7 of the foot, 3.5 of a 5 stem).
+const DOT_ALONG: f32 = 0.7;
+const DOT_UP: f32 = 0.7;
+/// The dot's radius, as a share of the marker stroke's width (WordCraft `ruler_tabs.rs:101`: 1.1
+/// beside a 1.5 stroke).
+const DOT_RADIUS: f32 = 0.75;
+/// A bar stop's stem, as a share of a stop's (WordCraft `ruler_tabs.rs:105`: 7 against 5).
+const BAR_STEM: f32 = 1.4;
+/// The grip across a table column marker: three vertical lines this far apart (points), each
+/// this far long on either side of its middle (WordCraft `table_ruler.rs:47-50`: three
+/// lines 3 apart, 1.5 either way).
+const GRIP_LINES: [f32; 3] = [-1.0, 0.0, 1.0];
+const GRIP_PITCH: f32 = 3.0;
+const GRIP_HALF: f32 = 1.5;
 
 /// Where the column sits on the strip: positions are points from the column's start edge, which
 /// is the strip's right end in a right-to-left paragraph.
@@ -47,7 +60,7 @@ impl Geometry {
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Shapes {
     /// Half the width of a marker.
-    half: f32,
+    pub half: f32,
     /// The height of a triangle.
     tip: f32,
     /// The height of the left indent's box.
@@ -132,10 +145,10 @@ impl Shapes {
             TabAlign::Decimal => {
                 stem(self.stem);
                 along(-self.foot, self.foot);
-                painter.circle_filled(pos2(x + foot * 0.7, base - self.stem * 0.7), stroke.width * 0.75, stroke.color);
+                painter.circle_filled(pos2(x + foot * DOT_ALONG, base - self.stem * DOT_UP), stroke.width * DOT_RADIUS, stroke.color);
             }
             TabAlign::Bar => {
-                stem(self.stem * 1.4);
+                stem(self.stem * BAR_STEM);
             }
         }
     }
@@ -147,38 +160,38 @@ pub(super) fn background(painter: &Painter, style: &RulerStyle, g: &Geometry) {
     painter.rect_filled(g.column(), 0.0, style.fill);
 }
 
-/// The ticks and numbers along the strip from the column's start edge. Numbers that would run
-/// into a `keep_clear` rect are left out.
-pub(super) fn ticks(painter: &Painter, style: &RulerStyle, g: &Geometry, units: &RulerUnits, keep_clear: &[Rect]) {
-    let (step, subdivisions) = units.step(f64::from(g.scale), style.step_min);
-    let minor = step / f64::from(subdivisions);
-    if !(minor.is_finite() && minor > 0.0 && units.per_doc.is_finite() && units.per_doc > 0.0) {
-        return;
-    }
-    let (a, b) = (g.at(g.strip.min.x), g.at(g.strip.max.x));
-    let (lo, hi) = (f64::from(a.min(b)) * units.per_doc, f64::from(a.max(b)) * units.per_doc);
-    let subdivisions = i64::from(subdivisions);
-    // One labelled step beyond each end: a number starts beside its tick.
-    let (first, last) = ((lo / minor).floor() as i64 - subdivisions, (hi / minor).ceil() as i64 + subdivisions);
-    if last - first > MAX_TICKS {
-        return;
-    }
-    for m in first..=last {
-        let x = g.x((m as f64 * minor / units.per_doc) as f32);
-        let rem = m.rem_euclid(subdivisions);
-        let major = rem == 0;
-        let len = if major {
-            style.size
-        } else if subdivisions % 2 == 0 && rem == subdivisions / 2 {
-            style.tick_mid
-        } else {
-            style.tick_minor
-        };
+/// The ticks and numbers along the strip from the column's start edge, from the kernel's tick
+/// rule. Numbers that would run into a `keep_clear` rect are left out.
+pub(super) fn ticks(painter: &Painter, style: &RulerStyle, g: &Geometry, units: &RulerUnits, rule: TickRule<'_>, keep_clear: &[Rect]) {
+    for tick in Rulers::ticks(units, rule, style, f64::from(g.scale), span(g, units)) {
+        let x = g.x((tick.value / units.per_doc) as f32);
         let bottom = g.strip.bottom();
-        crisp(painter, pos2(x, bottom - len), pos2(x, bottom), style.tick);
-        if major {
-            number(painter, style, g, x, &units.tick_label((m / subdivisions) as f64 * step, step), keep_clear);
+        crisp(painter, pos2(x, bottom - tick.length), pos2(x, bottom), style.tick);
+        if let Some(label) = tick.label {
+            number(painter, style, g, x, &label, keep_clear);
         }
+    }
+}
+
+/// The strip's span in ruler units from the column's start edge.
+fn span(g: &Geometry, units: &RulerUnits) -> std::ops::RangeInclusive<f64> {
+    let (a, b) = (g.at(g.strip.min.x), g.at(g.strip.max.x));
+    (f64::from(a.min(b)) * units.per_doc)..=(f64::from(a.max(b)) * units.per_doc)
+}
+
+/// The box of a table column marker at screen x `x`: as wide as an indent marker, the strip's
+/// depth tall.
+pub(super) fn column_marker(shapes: &Shapes, strip: Rect, x: f32) -> Rect {
+    Rect::from_min_max(pos2(x - shapes.half, strip.min.y), pos2(x + shapes.half, strip.max.y))
+}
+
+/// A table column marker: a box with a grip of three short lines across it.
+pub(super) fn column_grip(painter: &Painter, style: &RulerStyle, marker: Rect) {
+    painter.rect(marker, 0.0, style.margin_shade, style.marker, egui::StrokeKind::Inside);
+    let middle = marker.center();
+    for k in GRIP_LINES {
+        let at = pos2(middle.x + k * GRIP_PITCH, middle.y);
+        painter.line_segment([at - vec2(0.0, GRIP_HALF), at + vec2(0.0, GRIP_HALF)], style.marker);
     }
 }
 
