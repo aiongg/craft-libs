@@ -8,14 +8,14 @@ use craft_ui::controls::{Button, Checkbox, IconButton, SearchField, Select, Text
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, Outcome, StackDialog, Width};
 use craft_ui::focus::key_owner::{OwnerGate, owner};
 use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, fmt};
+use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::tab_strip::{Tab, TabEvent, TabKind, TabStrip};
 use egui::os::OperatingSystem;
 use egui::text::{CCursor, CCursorRange};
 use egui::{Context, Id, Key, KeyboardShortcut, Modifiers, Response, Ui};
 
-use crate::find::{FindMatches, FindOptions};
+use crate::find::{FindError, FindMatches, FindOptions, MAX_COUNT, MAX_PATTERN, RegexError, WildcardError};
 
 craft_ui::words! {
     /// The bar's and dialog's words (PdfCraft's, WordCraft's and DeckCraft's strings).
@@ -49,6 +49,7 @@ craft_ui::words! {
         special: "find.special" = "Special";
         find_next: "find.findNext" = "Find Next";
         replace: "find.replace" = "Replace";
+        replace_more: "find.replaceMore" = "Replace…";
         replace_all: "find.replaceAll" = "Replace All";
         replaced: "find.replaced" = "All done. We made {n} replacements.";
         not_found: "find.notFound" = "{app} can't find “{text}”.";
@@ -74,12 +75,34 @@ craft_ui::words! {
         line_break: "find.lineBreak" = "Manual Line Break";
         found_text: "find.foundText" = "Find What Text";
         clipboard_contents: "find.clipboardContents" = "Clipboard Contents";
+        special_item: "find.specialItem" = "{name}  {code}";
+        error_too_long: "find.errorTooLong" = "The Find what text is longer than {max} characters";
+        wildcard_unclosed_brace: "find.wildcardUnclosedBrace" = "A { needs a closing }";
+        wildcard_unclosed_bracket: "find.wildcardUnclosedBracket" = "A [ needs a closing ]";
+        wildcard_back_reference: "find.wildcardBackReference" = "Back-references (\\1) work in Replace with, not in Find what";
+        wildcard_bad_count: "find.wildcardBadCount" = "{count} is not a valid count";
+        wildcard_count_too_large: "find.wildcardCountTooLarge" = "Counts go up to {max}";
+        wildcard_empty_class: "find.wildcardEmptyClass" = "[ ] needs at least one character";
+        wildcard_reversed_range: "find.wildcardReversedRange" = "[{from}-{to}] is not in ascending order";
+        wildcard_refused: "find.wildcardRefused" = "This wildcard pattern can't be searched for";
+        regex_unclosed_group: "find.regexUnclosedGroup" = "A ( needs a closing )";
+        regex_unopened_group: "find.regexUnopenedGroup" = "A ) has no ( before it";
+        regex_unclosed_class: "find.regexUnclosedClass" = "A [ needs a closing ]";
+        regex_nothing_to_repeat: "find.regexNothingToRepeat" = "Nothing before the repeat (*, +, ? or a count)";
+        regex_bad_repetition: "find.regexBadRepetition" = "A repeat count must be {n}, {n,} or {n,m} with n up to m";
+        regex_reversed_range: "find.regexReversedRange" = "A range of a [ ] class must go up, as in [a-z]";
+        regex_bad_escape: "find.regexBadEscape" = "A \\ must be followed by a character it can escape";
+        regex_bad_group_name: "find.regexBadGroupName" = "A group name must be a word, used once";
+        regex_unsupported: "find.regexUnsupported" = "Back-references and look-around are not supported";
+        regex_bad_flag: "find.regexBadFlag" = "This flag is not supported";
+        regex_too_big: "find.regexTooBig" = "The expression is too big";
+        regex_invalid: "find.regexInvalid" = "This is not a valid regular expression";
     }
 }
 
 /// What the bar did this pass.
 #[derive(Debug)]
-pub struct FindBarResponse {
+pub struct FindBarOutput {
     /// The query or an option changed: search again ([`FindMatches::new`] from the current page).
     pub search: bool,
     /// Enter, ⇧-Enter, the arrows or ⌘G / ⇧⌘G: step through the matches (the bar already called
@@ -91,10 +114,30 @@ pub struct FindBarResponse {
     pub response: Response,
 }
 
+/// Whether the bar has just been asked for, kept by the app beside its query. The bar takes the
+/// keyboard on the pass after [`open`](Self::open) (⌘F opens it, and ⌘F again with the bar open
+/// moves the keyboard back to the field, as Acrobat does).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FindBarState {
+    opened: bool,
+}
+
+impl FindBarState {
+    /// The bar is being opened, or asked for again while open: its field takes the keyboard.
+    pub fn open(&mut self) {
+        self.opened = true;
+    }
+
+    /// Whether the keyboard is still owed to the field.
+    pub fn is_opening(&self) -> bool {
+        self.opened
+    }
+}
+
 /// The find bar, built per pass while open, over the app's query, options and matches.
 ///
 /// - The field is craft-ui's [`SearchField`](craft_ui::controls::SearchField) (placeholder "Find
-///   text"); it takes the keyboard when the bar opens; Enter steps to the next match and keeps
+///   text"); it takes the keyboard when the app calls [`FindBarState::open`]; Enter steps to the next match and keeps
 ///   the keyboard, ⇧-Enter the previous; Esc clears the field and a second Esc closes the bar (the
 ///   suite's search field rule).
 /// - The count reads "Searching… {s}/{p}" while pages are still being read, "No matches", or
@@ -110,12 +153,19 @@ pub struct FindBar<'a> {
     options: &'a mut FindOptions,
     matches: &'a mut FindMatches,
     progress: Option<(usize, usize)>,
+    state: Option<&'a mut FindBarState>,
     labels: Option<FindLabels>,
 }
 
 impl<'a> FindBar<'a> {
     pub fn new(id_salt: impl egui::AsIdSalt, query: &'a mut String, options: &'a mut FindOptions, matches: &'a mut FindMatches) -> Self {
-        FindBar { id_salt: egui::IdSalt::new(id_salt), query, options, matches, progress: None, labels: None }
+        FindBar { id_salt: egui::IdSalt::new(id_salt), query, options, matches, progress: None, state: None, labels: None }
+    }
+
+    /// The app's [`FindBarState`]; without it the bar never claims the keyboard on its own.
+    pub fn state(mut self, state: &'a mut FindBarState) -> Self {
+        self.state = Some(state);
+        self
     }
 
     /// Pages searched so far and the page count, while the search runs.
@@ -130,19 +180,17 @@ impl<'a> FindBar<'a> {
     }
 
     // pdfcraft: crates/ui-egui/src/canvas/find.rs:208 `find_bar`, :84 `rerun_find`.
-    pub fn show(self, ui: &mut Ui) -> FindBarResponse {
-        let FindBar { id_salt, query, options, matches, progress, labels } = self;
+    pub fn show(self, ui: &mut Ui) -> FindBarOutput {
+        let FindBar { id_salt, query, options, matches, progress, state, labels } = self;
         let ctx = ui.ctx().clone();
         let labels = labels.unwrap_or_else(|| FindLabels::of_ctx(&ctx));
         let (next_key, previous_key) = step_shortcuts(&ctx);
-        let mut response = FindBarResponse { search: false, stepped: false, closed: false, response: ui.response() };
+        let mut response = FindBarOutput { search: false, stepped: false, closed: false, response: ui.response() };
         let mut step: Option<bool> = None;
 
-        // The bar takes the keyboard on the pass it opens.
-        let opened_id = Id::unique((id_salt, "opened"));
-        let pass = ctx.cumulative_pass_nr();
-        let opened = ctx.data_mut(|d| d.get_temp::<u64>(opened_id)).is_none_or(|last| last + 1 < pass);
-        ctx.data_mut(|d| d.insert_temp(opened_id, pass));
+        // The bar takes the keyboard on the pass the app opened it in.
+        let opened = state.is_some_and(|state| std::mem::take(&mut state.opened));
+        let numbers = LocaleNumbers::of(ui);
 
         if !owner(&ctx, &OwnerGate::default()).is_exclusive() {
             if ctx.input_mut(|i| i.consume_shortcut(&previous_key)) {
@@ -172,7 +220,7 @@ impl<'a> FindBar<'a> {
                 response.closed = true;
             }
 
-            let text = count_text(&labels, query.trim().is_empty(), matches, progress);
+            let text = count_text(&labels, &numbers, query.trim().is_empty(), matches, progress);
             if !text.is_empty() {
                 ui.label(text);
             }
@@ -233,21 +281,60 @@ fn step_shortcuts(ctx: &Context) -> (KeyboardShortcut, KeyboardShortcut) {
 }
 
 /// The bar's count: nothing for an empty query, "Searching… s/p" while pages are being read and
-/// nothing is found yet, "No matches", else "c of n" with a "+" while pages are still being read.
-fn count_text(labels: &FindLabels, empty_query: bool, matches: &FindMatches, progress: Option<(usize, usize)>) -> String {
+/// nothing is found yet, "No matches", else "c of n" with a "+" while pages are still being read
+/// or a page hit its match limit.
+fn count_text(labels: &FindLabels, numbers: &LocaleNumbers, empty_query: bool, matches: &FindMatches, progress: Option<(usize, usize)>) -> String {
+    let number = |n: usize| numbers.format(n as f64, 0..=0);
     if empty_query {
         return String::new();
     }
     let reading = progress.filter(|(searched, pages)| searched < pages);
     if matches.is_empty() {
         return match reading {
-            Some((searched, pages)) => fmt(&labels.searching, &[("s", &searched.to_string()), ("p", &pages.to_string())]),
+            Some((searched, pages)) => fmt(&labels.searching, &[("s", &number(searched)), ("p", &number(pages))]),
             None => labels.no_matches.clone(),
         };
     }
     let current = matches.current().map_or(0, |c| c + 1);
-    let more = if reading.is_some() { "+" } else { "" };
-    fmt(&labels.count, &[("c", &current.to_string()), ("n", &matches.len().to_string()), ("more", more)])
+    let more = if reading.is_some() || matches.limit_reached() { "+" } else { "" };
+    fmt(&labels.count, &[("c", &number(current)), ("n", &number(matches.len())), ("more", more)])
+}
+
+impl FindLabels {
+    /// What to tell the user of a Find what text the engine refused, in these words (the app
+    /// shows it under the field or through [`FindReplaceDialog::set_message`]).
+    pub fn error(&self, error: &FindError, numbers: &LocaleNumbers) -> String {
+        let number = |n: u32| numbers.format(f64::from(n), 0..=0);
+        match error {
+            FindError::TooLong => fmt(&self.error_too_long, &[("max", &numbers.format(MAX_PATTERN as f64, 0..=0))]),
+            FindError::Wildcards(kind) => match kind {
+                WildcardError::UnclosedBrace => self.wildcard_unclosed_brace.clone(),
+                WildcardError::UnclosedBracket => self.wildcard_unclosed_bracket.clone(),
+                WildcardError::BackReference => self.wildcard_back_reference.clone(),
+                WildcardError::BadCount(body) => fmt(&self.wildcard_bad_count, &[("count", &["{", body, "}"].concat())]),
+                WildcardError::CountTooLarge => fmt(&self.wildcard_count_too_large, &[("max", &number(MAX_COUNT))]),
+                WildcardError::EmptyClass => self.wildcard_empty_class.clone(),
+                WildcardError::ReversedRange { from, to } => {
+                    fmt(&self.wildcard_reversed_range, &[("from", &from.to_string()), ("to", &to.to_string())])
+                }
+                _ => self.wildcard_refused.clone(),
+            },
+            FindError::Regex(kind) => match kind {
+                RegexError::UnclosedGroup => self.regex_unclosed_group.clone(),
+                RegexError::UnopenedGroup => self.regex_unopened_group.clone(),
+                RegexError::UnclosedClass => self.regex_unclosed_class.clone(),
+                RegexError::NothingToRepeat => self.regex_nothing_to_repeat.clone(),
+                RegexError::BadRepetition => self.regex_bad_repetition.clone(),
+                RegexError::ReversedRange => self.regex_reversed_range.clone(),
+                RegexError::BadEscape => self.regex_bad_escape.clone(),
+                RegexError::BadGroupName => self.regex_bad_group_name.clone(),
+                RegexError::Unsupported => self.regex_unsupported.clone(),
+                RegexError::BadFlag => self.regex_bad_flag.clone(),
+                RegexError::TooBig => self.regex_too_big.clone(),
+                _ => self.regex_invalid.clone(),
+            },
+        }
+    }
 }
 
 /// Which tab of Find and Replace is open.
@@ -262,6 +349,7 @@ pub enum FindTab {
 /// A request the dialog makes while open; the app runs it and reports back with
 /// [`FindReplaceDialog::set_message`].
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum FindRequest {
     FindNext {
         query: String,
@@ -426,7 +514,7 @@ impl StackDialog for FindReplaceDialog {
             (FindTab::Find, true) => {
                 vec![(labels.highlight_all.clone(), Press::Highlight(true)), (labels.clear_highlight.clone(), Press::Highlight(false))]
             }
-            (FindTab::Find, false) => vec![(format!("{}…", labels.replace), Press::ShowReplace)],
+            (FindTab::Find, false) => vec![(labels.replace_more.clone(), Press::ShowReplace)],
             (FindTab::GoTo, _) => Vec::new(),
         };
         let ok_enabled = match tab {
@@ -603,7 +691,7 @@ fn special_entries(labels: &FindLabels, replacing: bool) -> Vec<MenuEntry<&'stat
         (&labels.clipboard_contents, "^c"),
     ];
     let items: &[(&str, &'static str)] = if replacing { &replace } else { &find };
-    items.iter().map(|(label, code)| MenuItem::new(format!("{label}  {code}"), *code).into()).collect()
+    items.iter().map(|(label, code)| MenuItem::new(fmt(&labels.special_item, &[("name", label), ("code", code)]), *code).into()).collect()
 }
 
 /// Insert `code` into `text` at the field's cursor (replacing its selection), else at the end,

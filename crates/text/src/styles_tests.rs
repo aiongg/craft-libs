@@ -7,7 +7,9 @@ use crate::styles::*;
 fn folders_names_and_the_next_free_name() {
     assert_eq!(style_folder("Brand/Blue/500"), "Brand/Blue");
     assert_eq!(style_leaf("Brand/Blue/500"), "500");
-    assert_eq!((style_folder(" Plain "), style_leaf(" Plain ")), ("", "Plain"));
+    // A name without a separator is a leaf as typed; after a separator both parts are trimmed.
+    assert_eq!((style_folder(" Plain "), style_leaf(" Plain ")), ("", " Plain "));
+    assert_eq!((style_folder(" Brand / Red "), style_leaf(" Brand / Red ")), ("Brand", "Red"));
     assert_eq!(next_style_name(["Style 1", "Style 3"], "Style"), "Style 2");
     assert_eq!(next_style_name([], "Paragraph Style"), "Paragraph Style 1");
 

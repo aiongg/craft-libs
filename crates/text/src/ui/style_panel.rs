@@ -4,17 +4,18 @@
 //! Options, Duplicate, New and Delete at the right. The styles, their attributes and the
 //! commands are the app's; the panel reports what the user asked for.
 
-use craft_ui::behavior::{Axis, ListDrag, Reorder, RowInfo, Selection, SelectionPick};
+use craft_ui::behavior::{Axis, ClaimedKey, KeyClaim, ListDrag, Reorder, RowInfo, Selection, SelectionPick};
 use craft_ui::composites::{PanelFooter, StatusLine, Tone};
 use craft_ui::controls::Kbd;
 use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::icons::Icon;
 use craft_ui::list::{List, ListEvent, ListRow};
 use craft_ui::localized::{Labels as _, Words};
-use craft_ui::menu::{MenuEntry, MenuItem};
+use craft_ui::menu::{MenuEntry, MenuItem, facts_id};
 
 use crate::styles::dragged_styles;
-use egui::{AsIdSalt, Context, Id, IdSalt, Key, KeyboardShortcut, Modifiers, PointerButton, Response, Ui, UiBuilder};
+use egui::{AsIdSalt, Context, IdSalt, Key, KeyboardShortcut, Modifiers, PointerButton, Response, Sides, Ui};
+use std::cell::RefCell;
 
 mod picker;
 #[cfg(test)]
@@ -70,13 +71,14 @@ pub struct TextStylesState {
 /// What the panel menu needs to know of the last pass, kept in the context under the panel's id
 /// salt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct MenuFacts {
+pub(crate) struct MenuFacts {
     kind: TextStyleKind,
     target: bool,
     overridden: bool,
     current: Option<u64>,
-    /// How many rows the panel's multi-row highlight holds.
-    highlighted: usize,
+    /// How many rows the panel's multi-row highlight holds: Duplicate and Delete act on all of
+    /// them from the second on.
+    pub(crate) highlighted: usize,
 }
 
 const CMD_CLEAR_OVERRIDE: &str = "textStyles.clearOverride";
@@ -88,7 +90,7 @@ const CMD_OPTIONS: &str = "textStyles.options";
 
 impl MenuFacts {
     fn of(ctx: &Context, id_salt: IdSalt) -> Option<MenuFacts> {
-        ctx.data(|d| d.get_temp(Id::NULL.with(id_salt)))
+        ctx.data(|d| d.get_temp(facts_id(id_salt)))
     }
 
     /// The row the footer and the menu act on: the panel's selection, else the current style.
@@ -116,10 +118,11 @@ impl MenuFacts {
 
 /// What the user asked for this pass. The app runs the command on its document.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TextStyleAction {
     /// A click on a row with a type target: apply the style; `clear_overrides` with Alt held.
     /// For character styles only with text selected; at a bare caret the panel sends
-    /// [`TextStylesPanelResponse::status`] instead.
+    /// [`TextStylesPanelOutput::status`] instead.
     Apply { id: u64, clear_overrides: bool },
     /// Clear Override, with a target whose style is overridden.
     ClearOverride,
@@ -146,8 +149,9 @@ pub enum TextStyleAction {
 
 /// The panel's result.
 #[derive(Clone, Debug)]
-pub struct TextStylesPanelResponse {
-    pub action: Option<TextStyleAction>,
+pub struct TextStylesPanelOutput {
+    /// What the user asked for this pass, in order; the app runs them in that order.
+    pub actions: Vec<TextStyleAction>,
     /// A message for the status bar ("Select text to apply a character style").
     pub status: Option<StatusLine>,
     pub response: Response,
@@ -160,7 +164,7 @@ pub struct TextStylesPanelResponse {
 ///     .current(at_target.paragraph, at_target.paragraph_override)
 ///     .target(has_type_target)
 ///     .show(ui);
-/// if let Some(action) = r.action { run_style_command(action) }
+/// for action in r.actions { run_style_command(action) }
 /// ```
 ///
 /// - Dense rows (`list.row_height_dense`) in a scrolling list up to 220 pt tall. The style at the type target has the
@@ -169,8 +173,11 @@ pub struct TextStylesPanelResponse {
 /// - Click: [`TextStyleAction::Apply`] (Alt-click clears overrides); the clicked row becomes the
 ///   selected row. Double-click: [`TextStyleAction::Options`]. The row's tooltip says so, with
 ///   the platform's name for Alt.
-/// - Keys: the list is one Tab stop; ↑/↓ move the selected row, Enter applies it, Delete deletes
-///   it (not id 0), as list rows elsewhere in the suite.
+/// - Keys: the list is one Tab stop; ↑/↓ move the selected row, Enter applies it, Delete or
+///   Backspace deletes it (not id 0), as list rows elsewhere in the suite.
+/// - The footer is one [`Sides`] row: Clear Override and Redefine at the start, Style Options,
+///   Duplicate, New and Delete at the end. The start group is clipped to the room the end group
+///   leaves, so at a narrow width it never sits under the end buttons.
 /// - Footer buttons are icon buttons with tooltips; each does nothing when its condition (above)
 ///   doesn't hold.
 /// - The panel menu ([`panel_menu`](Self::panel_menu), [`run_command`](Self::run_command)) has the
@@ -233,7 +240,7 @@ impl<'a> TextStylesPanel<'a> {
     }
 
     /// Whether the type target has text selected (default true). At a bare caret a click on a
-    /// character style sets [`TextStylesPanelResponse::status`] instead of applying.
+    /// character style sets [`TextStylesPanelOutput::status`] instead of applying.
     pub fn text_selected(mut self, on: bool) -> Self {
         self.text_selected = on;
         self
@@ -246,14 +253,14 @@ impl<'a> TextStylesPanel<'a> {
 
     // pc: crates/ui-egui/src/panels/type_panels_ui.rs:215 `styles_panel` (rows, "+" marker,
     // click / Alt-click / double-click, footer buttons and their conditions).
-    pub fn show(self, ui: &mut Ui) -> TextStylesPanelResponse {
+    pub fn show(self, ui: &mut Ui) -> TextStylesPanelOutput {
         let TextStylesPanel { id_salt, kind, rows, state, current, overridden, target, text_selected, mut highlighted, labels } = self;
         let selected = &mut state.selected;
         let labels = labels.unwrap_or_else(|| TextStylesLabels::of_ctx(ui.ctx()));
         let paragraph = kind == TextStyleKind::Paragraph;
         let alt = alt_name(ui.ctx());
         let tip = labels.row_tip.replace("{key}", &alt);
-        let mut action: Option<TextStyleAction> = None;
+        let actions = RefCell::new(Vec::<TextStyleAction>::new());
         let mut status: Option<StatusLine> = None;
         let hint = || StatusLine { text: labels.select_text.clone(), tone: Tone::Warn };
 
@@ -314,19 +321,19 @@ impl<'a> TextStylesPanel<'a> {
                     if target && !paragraph && !text_selected {
                         status = Some(hint());
                     } else if target {
-                        action = Some(TextStyleAction::Apply { id, clear_overrides: alt_held });
+                        actions.borrow_mut().push(TextStyleAction::Apply { id, clear_overrides: alt_held });
                     }
                 }
                 ListEvent::Activate(id) if double => {
                     if id != 0 || paragraph {
-                        action = Some(TextStyleAction::Options(id));
+                        actions.borrow_mut().push(TextStyleAction::Options(id));
                     }
                 }
                 ListEvent::Activate(id) => {
                     if target && !paragraph && !text_selected {
                         status = Some(hint());
                     } else if target {
-                        action = Some(TextStyleAction::Apply { id, clear_overrides: false });
+                        actions.borrow_mut().push(TextStyleAction::Apply { id, clear_overrides: false });
                     }
                 }
                 _ => {}
@@ -337,45 +344,49 @@ impl<'a> TextStylesPanel<'a> {
         }
         let kept: Vec<u64> = highlighted.as_deref().map(|highlight| highlight.items.clone()).unwrap_or_default();
         let facts = MenuFacts { kind, target, overridden, current, highlighted: kept.len() };
-        ui.data_mut(|d| d.insert_temp(Id::NULL.with(id_salt), facts));
+        ui.data_mut(|d| d.insert_temp(facts_id(id_salt), facts));
         let footer_state = TextStylesState { selected: *selected };
-        if out.response.has_focus() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete)) {
+        let delete_keys = [ClaimedKey::exact(Modifiers::NONE, Key::Delete), ClaimedKey::exact(Modifiers::NONE, Key::Backspace)];
+        KeyClaim::claim(ui.ctx(), list_id, &delete_keys);
+        if out.response.has_focus() && ui.input_mut(|i| delete_keys.iter().fold(false, |any, key| key.consume(i) | any)) {
             if kept.len() > 1 {
-                action = Some(TextStyleAction::DeleteHighlighted);
+                actions.borrow_mut().push(TextStyleAction::DeleteHighlighted);
             } else if let Some(id) = picked.or(shown).filter(|id| *id != 0) {
-                action = Some(TextStyleAction::Delete(id));
+                actions.borrow_mut().push(TextStyleAction::Delete(id));
             }
         }
 
         let listed: Vec<u64> = rows.iter().map(|row| row.id).collect();
-        let mut run = |command: &str| {
+        let run = |command: &str| {
             if let Some(found) = facts.action(&footer_state, command) {
-                action = Some(found);
+                actions.borrow_mut().push(found);
             }
         };
-        let mut dropped_on_new = None;
-        let mut dropped_on_delete = None;
-        PanelFooter::show(ui, |ui| {
-            let left = ui.max_rect();
-            // A child, not a scope: a scope would move the cursor of the buttons at the other end.
-            let mut start = ui.new_child(UiBuilder::new().max_rect(left).layout(craft_ui::direction::row(ui)));
-            if PanelFooter::button(&mut start, Icon::Ban, &labels.clear_override).clicked() {
+        let dropped_on_new = RefCell::new(None);
+        let dropped_on_delete = RefCell::new(None);
+        let start_group = |ui: &mut Ui| {
+            // Only the room the end group leaves: the buttons that don't fit neither paint nor
+            // take clicks over the end group's.
+            ui.set_clip_rect(ui.clip_rect().intersect(ui.max_rect()));
+            if PanelFooter::button(ui, Icon::Ban, &labels.clear_override).clicked() {
                 run(CMD_CLEAR_OVERRIDE);
             }
-            if PanelFooter::button(&mut start, Icon::Check, &labels.redefine).clicked() {
+            if PanelFooter::button(ui, Icon::Check, &labels.redefine).clicked() {
                 run(CMD_REDEFINE);
             }
+        };
+        let end_group = |ui: &mut Ui| {
             let (delete, dropped) = PanelFooter::drop_button::<ListDrag<u64>>(ui, Icon::Trash, &labels.delete, true, |drag| {
                 drag.list == list_id && drag.items.iter().any(|id| *id != 0)
             });
-            dropped_on_delete = dropped;
+            *dropped_on_delete.borrow_mut() = dropped;
             if delete.clicked() {
                 run(CMD_DELETE);
             }
             let (new, dropped) = PanelFooter::drop_button::<ListDrag<u64>>(ui, Icon::Plus, &labels.new_style, true, |drag| {
                 drag.list == list_id && drag.items.iter().any(|id| *id != 0 || paragraph)
             });
-            dropped_on_new = dropped;
+            *dropped_on_new.borrow_mut() = dropped;
             if new.clicked() {
                 run(CMD_NEW);
             }
@@ -385,23 +396,34 @@ impl<'a> TextStylesPanel<'a> {
             if PanelFooter::button(ui, Icon::Settings, &labels.options).clicked() {
                 run(CMD_OPTIONS);
             }
+        };
+        let rtl = craft_ui::direction::is_rtl(ui);
+        PanelFooter::show(ui, |ui| {
+            // `Sides` is physical: the start group goes to the right in a right-to-left interface,
+            // and the end group is the one that keeps its width there.
+            let sides = Sides::new().height(ui.available_height());
+            if rtl {
+                sides.shrink_right().show(ui, |left| end_group(left), |right| start_group(right));
+            } else {
+                sides.shrink_left().show(ui, |left| start_group(left), |right| end_group(right));
+            }
         });
         // A dragged row carries every highlighted style when it is one of them, else itself.
-        if let Some(drag) = dropped_on_delete {
-            action = if dragged_styles(&kept, &listed, &drag.grabbed).len() > 1 {
+        if let Some(drag) = dropped_on_delete.into_inner() {
+            actions.borrow_mut().extend(if dragged_styles(&kept, &listed, &drag.grabbed).len() > 1 {
                 Some(TextStyleAction::DeleteHighlighted)
             } else {
                 (drag.grabbed != 0).then_some(TextStyleAction::Delete(drag.grabbed))
-            };
+            });
         }
-        if let Some(drag) = dropped_on_new {
-            action = if dragged_styles(&kept, &listed, &drag.grabbed).len() > 1 {
+        if let Some(drag) = dropped_on_new.into_inner() {
+            actions.borrow_mut().extend(if dragged_styles(&kept, &listed, &drag.grabbed).len() > 1 {
                 Some(TextStyleAction::DuplicateHighlighted)
             } else {
                 (drag.grabbed != 0 || paragraph).then_some(TextStyleAction::Duplicate(drag.grabbed))
-            };
+            });
         }
-        TextStylesPanelResponse { action, status, response: out.response }
+        TextStylesPanelOutput { actions: actions.into_inner(), status, response: out.response }
     }
 }
 

@@ -102,3 +102,71 @@ fn grid_view_picks_with_the_keyboard() {
     }
     assert_eq!(harness.state().picked, [4]);
 }
+
+/// Every shape of the last pass, layers and clips flattened.
+fn shapes(harness: &Harness<'_, App>) -> Vec<egui::Shape> {
+    fn flatten(shape: &egui::Shape, out: &mut Vec<egui::Shape>) {
+        match shape {
+            egui::Shape::Vec(inner) => inner.iter().for_each(|shape| flatten(shape, out)),
+            other => out.push(other.clone()),
+        }
+    }
+    let mut out = Vec::new();
+    for clipped in &harness.output().shapes {
+        flatten(&clipped.shape, &mut out);
+    }
+    out
+}
+
+// The grid draws a swatch over the whole tile (FigCraft's SWATCH is its cell), and a folder's
+// caption in the Caption role.
+#[test]
+fn grid_tiles_are_filled_and_folders_use_the_caption_role() {
+    let mut harness = harness(Some(Some(1)));
+    harness.state_mut().view = StylePickerView::Grid;
+    harness.run();
+    harness.get_by_label("500").click();
+    harness.run();
+
+    let tokens = craft_ui::theme::current(&harness.ctx);
+    let side = StyleChip::style(&tokens).tile_side;
+    let swatches: Vec<f32> = shapes(&harness)
+        .iter()
+        .filter_map(|shape| match shape {
+            egui::Shape::Rect(rect) if rect.fill == egui::Color32::RED => Some(rect.rect.width()),
+            _ => None,
+        })
+        .collect();
+    // Four styles in four tiles; the chip's own preview square is another size.
+    assert_eq!(swatches.iter().filter(|width| (**width - side).abs() < 0.01).count(), 4, "{swatches:?} against {side}");
+
+    let caption = tokens.families().font_id(tokens.typography.get(craft_theme::TypeRole::Caption)).size;
+    let sizes: Vec<f32> = shapes(&harness)
+        .iter()
+        .filter_map(|shape| match shape {
+            egui::Shape::Text(text) if text.galley.text() == "Brand" => text.galley.job.sections.first().map(|s| s.format.font_id.size),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(sizes, [caption]);
+}
+
+// `opened(true)` shows the picker without a click; the next pass without it keeps it open.
+#[test]
+fn opened_shows_the_picker_on_that_pass() {
+    let labels = StylePickerLabels::english();
+    let mut harness = HarnessBuilder::default()
+        .with_step_dt(0.05)
+        .with_size(egui::vec2(320.0, 480.0))
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, (view, first): &mut (StylePickerView, bool)| {
+                let styles = [style(1, "Body")];
+                StyleChip::new("chip", &styles, Some(Some(1)), view).opened(*first).show(ui);
+                *first = false;
+            },
+            (StylePickerView::List, true),
+        );
+    harness.run();
+    harness.get_by_label(&labels.search);
+}
