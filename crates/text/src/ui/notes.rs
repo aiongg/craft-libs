@@ -234,11 +234,12 @@ impl<'a> NotesEditor<'a> {
             *laid.borrow_mut() = Some((notes, galley.clone()));
             galley
         };
-        let (edit, text_rect) = TextField::new(self.id_salt, labels.notes.as_str(), &plain)
+        let output = TextField::new(self.id_salt, labels.notes.as_str(), &plain)
             .placeholder(labels.placeholder.as_str())
             .multiline(rows)
             .layouter(&layouter)
-            .show_with_text_rect(ui);
+            .show_full(ui);
+        let (edit, text_rect) = (output.edit, output.text_rect);
         let changed = match edit.event.as_ref() {
             Some(EditEvent::Commit { changed: false, .. }) | None => None,
             Some(event) => event.value().map(|text| self.notes.typed(text).unwrap_or_else(|| NotesText::from_plain(text))),

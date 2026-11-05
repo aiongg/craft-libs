@@ -188,6 +188,7 @@ pub struct Typing<'a, C: Codec = PlainText> {
     policy: EditPolicy,
     enabled: bool,
     password: bool,
+    secret: bool,
     char_limit: usize,
     reject_over: usize,
     escape: Escape,
@@ -272,6 +273,7 @@ impl<'a, C: Codec> Typing<'a, C> {
             policy: EditPolicy::default(),
             enabled: true,
             password: false,
+            secret: false,
             char_limit: usize::MAX,
             reject_over: usize::MAX,
             escape: Escape::PassThrough,
@@ -344,9 +346,18 @@ impl<'a, C: Codec> Typing<'a, C> {
         self
     }
 
-    /// Shows a bullet per character; AccessKit reports a `PasswordInput`.
+    /// Shows a bullet per character; AccessKit reports a `PasswordInput` with the bullets as its
+    /// value. A host [`layouter`](Self::layouter) doesn't see the text: the bullets are laid out
+    /// instead.
     pub fn password(mut self, password: bool) -> Self {
         self.password = password;
+        self
+    }
+
+    /// A [`password`](Self::password) whose value AccessKit doesn't get either (not even the
+    /// number of characters): a token or a code that a screen reader must not read back.
+    pub fn secret(mut self, secret: bool) -> Self {
+        self.secret = secret;
         self
     }
 
@@ -416,8 +427,9 @@ impl<'a, C: Codec> Typing<'a, C> {
         if enabled {
             super::FieldTab::register(ui, id);
         }
+        let masked = self.password || self.secret;
         let menu = match (self.edit_menu && enabled, self.menu) {
-            (true, None) => edit_menu::show(ui, id, self.password, None),
+            (true, None) => edit_menu::show(ui, id, masked, None),
             (true, Some(shown)) => shown,
             (false, _) => edit_menu::Outcome::default(),
         };
@@ -491,10 +503,11 @@ impl<'a, C: Codec> Typing<'a, C> {
         }
         state.store(ui.ctx(), id);
 
-        let mut layouter = |ui: &Ui, text: &dyn TextBuffer, _wrap: f32| tabular_line(ui, look, self.password, text.as_str());
+        let mut layouter = |ui: &Ui, text: &dyn TextBuffer, _wrap: f32| tabular_line(ui, look, masked, text.as_str());
+        // A masked field never gives its text to the host's layouter.
         let mut hosted = |ui: &Ui, text: &dyn TextBuffer, wrap: f32| match self.layouter {
-            Some(host) => host(ui, text.as_str(), wrap),
-            None => tabular_line(ui, look, self.password, text.as_str()),
+            Some(host) if !masked => host(ui, text.as_str(), wrap),
+            _ => tabular_line(ui, look, masked, text.as_str()),
         };
         let edit = match self.multiline {
             Some(rows) => TextEdit::multiline(&mut buffer).desired_rows(rows).lock_focus(false),
@@ -510,7 +523,7 @@ impl<'a, C: Codec> Typing<'a, C> {
             .align(look.align)
             .hint_text(self.placeholder)
             .interactive(enabled)
-            .password(self.password)
+            .password(masked)
             .char_limit(self.char_limit);
         if self.layouter.is_some() {
             edit = edit.layouter(&mut hosted);
@@ -543,6 +556,9 @@ impl<'a, C: Codec> Typing<'a, C> {
         let text = remove_chars(&buffer, marked);
         // `galley_pos` is where the text starts; a right-aligned galley's rect starts left of 0.
         let text_rect = Rect::from_min_size(output.galley_pos, output.galley.size());
+        if self.secret {
+            hide_text_runs(ui.ctx(), id, &output.galley);
+        }
         let response = output.response.response;
         let mut typed = Typed {
             id,
@@ -573,8 +589,31 @@ impl<'a, C: Codec> Typing<'a, C> {
             let text = typed.text.clone();
             typed.change(ui, text);
         }
-        report(ui, id, self.label, self.role, self.password, self.invalid || typed.rejected().is_some(), enabled);
+        report(ui, id, self.label, self.role, masked, self.invalid || typed.rejected().is_some(), enabled);
         typed
+    }
+}
+
+/// Clears the field's AccessKit value and empties the text-run nodes `TextEdit` gives it, and the
+/// selection that points into them. An AccessKit consumer reads a text input's value from its runs, so the
+/// bullets would give the secret's length away.
+fn hide_text_runs(ctx: &egui::Context, id: Id, galley: &Galley) {
+    // egui splits a row into runs of at most this many characters (`accesskit_text.rs`).
+    const RUN: usize = 255;
+    ctx.accesskit_node_builder(id, |node| {
+        node.clear_value();
+        node.clear_text_selection();
+    });
+    for (row_index, row) in galley.rows.iter().enumerate() {
+        for chunk in 0..=row.glyphs.len() / RUN {
+            ctx.accesskit_node_builder(id.with(row_index).with(chunk), |run| {
+                run.set_value("");
+                run.set_character_lengths(Vec::<u8>::new());
+                run.set_character_positions(Vec::<f32>::new());
+                run.set_character_widths(Vec::<f32>::new());
+                run.set_word_starts(Vec::<u8>::new());
+            });
+        }
     }
 }
 

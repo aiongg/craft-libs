@@ -99,16 +99,19 @@ fn enter_and_tab_cycle_inside_the_selection() {
     let merges = [r((0, 0), (1, 1))];
     let space = CellSpace::new(10, 10).merges(&merges);
     let mut sel = CellSelection::from_ranges(vec![r((2, 2), (3, 3)), r((6, 6), (6, 7))], c(6, 6)).unwrap();
-    let ranges = sel.ranges().len();
+    let ranges = sel.ranges().to_vec();
     let mut seen = vec![sel.active()];
     for _ in 0..6 {
         assert!(sel.advance(CellAdvance::Tab, false, &space));
         seen.push(sel.active());
     }
     assert_eq!(seen, [c(6, 6), c(6, 7), c(2, 2), c(2, 3), c(3, 2), c(3, 3), c(6, 6)]);
-    assert_eq!(sel.ranges().len(), ranges);
+    // The order of `ranges()` stays; the current range follows the active cell.
+    assert_eq!(sel.ranges(), ranges);
+    assert_eq!(sel.current(), ranges[1]);
     assert!(sel.advance(CellAdvance::Tab, true, &space));
     assert_eq!(sel.active(), c(3, 3));
+    assert_eq!(sel.current(), ranges[0]);
     assert!(sel.advance(CellAdvance::Enter, false, &space));
     assert_eq!(sel.active(), c(6, 6));
 
@@ -116,6 +119,55 @@ fn enter_and_tab_cycle_inside_the_selection() {
     one.select(c(1, 1), &space);
     assert!(one.advance(CellAdvance::Tab, false, &space));
     assert_eq!(one.ranges(), [CellRange::cell(c(0, 2))]);
+    // A merge selected whole is one cell; `from_ranges` refuses empty input and a stray active cell.
+    let mut merged = CellSelection::default();
+    merged.select(c(1, 1), &space);
+    assert!(merged.is_single_cell(&space));
+    assert!(CellSelection::from_ranges(Vec::new(), c(0, 0)).is_none());
+    assert!(CellSelection::from_ranges(vec![r((0, 0), (1, 1))], c(5, 5)).is_none());
+}
+
+// A hidden column inside a range is skipped by Tab and Enter inside a multi-cell selection.
+#[test]
+fn advance_inside_a_range_skips_hidden_lines() {
+    let hidden_columns = |column: u32| column == 1;
+    let space = CellSpace::new(5, 5).hidden_columns(&hidden_columns);
+    let mut sel = CellSelection::range(r((0, 0), (1, 2)));
+    let mut seen = Vec::new();
+    for _ in 0..4 {
+        sel.advance(CellAdvance::Tab, false, &space);
+        seen.push(sel.active());
+    }
+    assert_eq!(seen, [c(0, 2), c(1, 0), c(1, 2), c(0, 0)]);
+}
+
+// A cell the selectable rule refuses can't be selected or added; the selection stays as it was.
+// `select_range` covers merges.
+#[test]
+fn locked_cells_refuse_selection_and_ranges_cover_merges() {
+    let merges = [r((2, 2), (3, 3))];
+    let selectable = |cell: CellRef| cell != c(5, 5);
+    let space = CellSpace::new(10, 10).merges(&merges).selectable(&selectable);
+    let mut sel = CellSelection::cell(c(0, 0));
+    assert!(!sel.select(c(5, 5), &space));
+    assert!(!sel.add(c(5, 5), &space));
+    assert_eq!(sel, CellSelection::cell(c(0, 0)));
+    assert!(sel.select_range(r((1, 1), (2, 2)), &space));
+    assert_eq!(sel.ranges(), [r((1, 1), (3, 3))]);
+}
+
+// A stored selection with no ranges is refused, where `advance` would otherwise index past the
+// end; a stored selection keeps its order and current range through a round trip.
+#[test]
+fn a_stored_selection_is_checked_on_the_way_in() {
+    assert!(serde_json::from_str::<CellSelection>(r#"{"ranges":[]}"#).is_err());
+    let empty = r#"{"ranges":[],"active":{"row":0,"column":0},"anchor":{"row":0,"column":0}}"#;
+    assert!(serde_json::from_str::<CellSelection>(empty).is_err());
+    let space = CellSpace::new(10, 10);
+    let mut sel = CellSelection::from_ranges(vec![r((2, 2), (3, 3)), r((6, 6), (6, 7))], c(6, 6)).unwrap();
+    sel.advance(CellAdvance::Tab, true, &space);
+    let back: CellSelection = serde_json::from_str(&serde_json::to_string(&sel).unwrap()).unwrap();
+    assert_eq!(back, sel);
 }
 
 // Tab, Tab, Enter goes to the next row in the column the Tabs started in; an arrow ends the run.
@@ -135,6 +187,31 @@ fn enter_after_tabs_returns_to_the_starting_column() {
     sel.step(CellDirection::Right, &space);
     sel.advance(CellAdvance::Enter, false, &space);
     assert_eq!(sel.active(), c(5, 3));
+}
+
+// Enter after a Tab run goes to the start column only when a walk may stop there: with it hidden
+// or locked it takes the plain Down neighbour, and the run ends either way.
+#[test]
+fn enter_after_tabs_ignores_a_start_column_that_cannot_be_visited() {
+    let hidden_columns = |column: u32| column == 1;
+    let hidden = CellSpace::new(10, 10).hidden_columns(&hidden_columns);
+    let mut sel = CellSelection::cell(c(2, 1));
+    sel.advance(CellAdvance::Tab, false, &hidden);
+    sel.advance(CellAdvance::Tab, false, &hidden);
+    assert_eq!(sel.active(), c(2, 3));
+    assert!(sel.advance(CellAdvance::Enter, false, &hidden));
+    assert_eq!(sel.active(), c(3, 3));
+    sel.advance(CellAdvance::Enter, false, &hidden);
+    assert_eq!(sel.active(), c(4, 3));
+
+    let selectable = |cell: CellRef| !(cell.row == 3 && cell.column == 1);
+    let space = CellSpace::new(10, 10).selectable(&selectable);
+    let mut sel = CellSelection::cell(c(2, 1));
+    sel.advance(CellAdvance::Tab, false, &space);
+    assert!(sel.advance(CellAdvance::Enter, false, &space));
+    assert_eq!(sel.active(), c(3, 2));
+    sel.advance(CellAdvance::Enter, false, &space);
+    assert_eq!(sel.active(), c(4, 2));
 }
 
 // A document table's Tab runs on to the next row, visits a merge once and is None past the last

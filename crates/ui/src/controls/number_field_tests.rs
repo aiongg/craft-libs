@@ -46,6 +46,8 @@ struct Rig {
     /// Typed inches convert to pixels at 300 ppi; the committed value keeps this many decimals.
     inches: Option<usize>,
     drawn: bool,
+    /// The field reported its text rejected in the last pass.
+    rejected: bool,
     enabled: bool,
     /// What the host makes of a value it is sent (a host that snaps).
     adjust: fn(f64) -> f64,
@@ -114,6 +116,7 @@ impl Rig {
             rate: None,
             inches: None,
             drawn: true,
+            rejected: false,
             enabled: true,
             adjust: |v| v,
             on_commit: false,
@@ -251,7 +254,9 @@ impl Rig {
         if let Some(places) = self.inches {
             field = field.commit_decimals(places).or_parse(|text| Some(text.strip_suffix("in")?.trim().parse::<f64>().ok()? * 300.0));
         }
-        let edit = field.show(ui);
+        let output = field.show_full(ui);
+        self.rejected = output.rejected;
+        let edit = output.edit;
         (self.id, self.rect, self.escaped) = (edit.response.id, edit.response.rect, edit.escaped);
         self.event.clone_from(&edit.event);
         if let Some(event) = edit.event {
@@ -584,6 +589,7 @@ fn text_that_is_no_number_keeps_the_value_stays_outlined_and_esc_restores() {
     assert_eq!(rig.event, Some(commit(id, 7.0, false)));
     rig.frame(vec![]);
     assert_eq!((rig.value, rig.shown().as_deref(), rig.invalid()), (7.0, Some("abc"), true));
+    assert!(rig.rejected, "the output reports the rejected text for a dialog's OK button");
     // It stays while the focus leaves and comes back.
     rig.blur();
     assert_eq!((rig.shown().as_deref(), rig.invalid()), (Some("abc"), true));
@@ -593,6 +599,7 @@ fn text_that_is_no_number_keeps_the_value_stays_outlined_and_esc_restores() {
     assert!(!rig.has_focus() && rig.escaped, "Esc restores, leaves and goes on");
     rig.frame(vec![]);
     assert_eq!((rig.shown().as_deref(), rig.invalid(), rig.event.clone()), (Some("7"), false, None));
+    assert!(!rig.rejected);
 
     // Text fixed and committed clears the mark.
     rig.focus();

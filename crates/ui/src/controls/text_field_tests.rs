@@ -1236,7 +1236,7 @@ fn a_host_layouter_lays_the_text_out() {
     let mut drawn = Vec::new();
     let mut text_rect = egui::Rect::NOTHING;
     let output = ctx.run_ui(RawInput::default(), |ui| {
-        text_rect = TextField::new("host", "Notes", "abc").layouter(&layouter).show_with_text_rect(ui).1;
+        text_rect = TextField::new("host", "Notes", "abc").layouter(&layouter).show_full(ui).text_rect;
     });
     for clipped in &output.shapes {
         if let egui::Shape::Text(t) = &clipped.shape {
@@ -1249,4 +1249,28 @@ fn a_host_layouter_lays_the_text_out() {
         drawn.iter().any(|(text, font, pos)| text == "abc" && *font == egui::FontId::monospace(20.0) && pos.x == text_rect.min.x),
         "{drawn:?} {text_rect:?}"
     );
+}
+
+// A masked field never hands its text to a host layouter, which would draw it in clear; an empty
+// field's text rect has zero width and one line's height.
+#[test]
+fn a_host_layouter_never_sees_a_masked_fields_text() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let seen = std::cell::RefCell::new(Vec::new());
+    let layouter = |ui: &Ui, text: &str, wrap: f32| {
+        seen.borrow_mut().push(text.to_owned());
+        ui.fonts_mut(|f| f.layout_job(egui::text::LayoutJob::simple(text.to_owned(), egui::FontId::monospace(20.0), egui::Color32::RED, wrap)))
+    };
+    let mut empty = egui::Rect::NOTHING;
+    let output = ctx.run_ui(RawInput::default(), |ui| {
+        let _ = TextField::new("a", "Password", "hunter2").password(true).layouter(&layouter).show_full(ui);
+        let _ = TextField::new("b", "Token", "swordfish").secret(true).layouter(&layouter).show_full(ui);
+        empty = TextField::new("c", "Empty", "").layouter(&layouter).show_full(ui).text_rect;
+    });
+    output.drop_without_applying_deltas();
+    let seen = seen.into_inner();
+    assert!(!seen.iter().any(|t| t.contains("hunter2") || t.contains("swordfish")), "{seen:?}");
+    assert_eq!(empty.width(), 0.0);
+    assert!(empty.height() > 0.0);
 }
