@@ -1,12 +1,14 @@
 //! The error checking tag beside a cell (N6.09).
 
+use craft_ui::behavior::ClaimedKey;
+use craft_ui::icons::{self, Icon, IconSize};
 use craft_ui::localized::Labels as _;
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::primitives::FocusRing;
 use craft_ui::theme::scale::Stroke as Line;
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
-use egui::{Align2, CornerRadius, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2};
+use egui::{CornerRadius, IdSalt, Key, Modifiers, Rect, Response, Sense, StrokeKind, Ui, WidgetInfo, pos2, vec2};
 
 use super::style::SheetStyle;
 
@@ -23,9 +25,10 @@ use super::grid::SheetGeometry;
 
 /// Excel's error checking tag (GridCraft): a `sheet.error_tag` square ([`SheetStyle`](super::SheetStyle), not scaled by the zoom)
 /// left of `cell` (right of it when it would cover the row headings), not drawn when outside the
-/// cells; an amber diamond with "!" (the `status.warn` fill and ink), the problem as tooltip
-/// (the app's words, "Number Stored as Text"); a click opens a [`PressMenu`](craft_ui::menu::PressMenu):
-/// the problem as its title, then the fixes. A Tab stop (AccessKit `Button` with a popup) named
+/// cells; the warning-diamond icon in the `status.warn` colour, the problem as tooltip (the app's
+/// words, "Number Stored as Text"); a click opens a [`PressMenu`](craft_ui::menu::PressMenu): the
+/// problem as its title, then the fixes. It senses click and drag, so a press on it never reaches
+/// the grid under it. A Tab stop (AccessKit `Button` with a popup) named
 /// [`ErrorTagLabels::options`]; Enter, Space or Alt+Down opens the menu.
 pub struct ErrorTag<'a> {
     id_salt: IdSalt,
@@ -46,11 +49,12 @@ impl<'a> ErrorTag<'a> {
         self
     }
 
-    /// Where the tag goes for a tag `side` points square (`sheet.error_tag`, not scaled by the
-    /// sheet's zoom) with `gap` points between it and the cell (`sheet.error_tag_gap`), `None`
-    /// when it is outside the cells.
+    /// Where the tag goes: `style.error_tag` points square and `style.error_tag_gap` from the cell
+    /// (neither scaled by the sheet's zoom: GridCraft `menus.rs:424-432` draws the tag at fixed
+    /// points), `None` when it is outside the cells.
     // gridcraft: crates/ui-egui/src/grid/menus.rs:424 (placement).
-    pub fn rect(&self, side: f32, gap: f32) -> Option<Rect> {
+    pub fn rect(&self, style: &SheetStyle) -> Option<Rect> {
+        let (side, gap) = (style.error_tag, style.error_tag_gap);
         let cell = self.geometry.cell_rect(self.cell);
         let cells = self.geometry.cells();
         let left = cell.left() - side - gap;
@@ -63,13 +67,13 @@ impl<'a> ErrorTag<'a> {
     pub fn show(self, ui: &mut Ui) -> ErrorTagResponse {
         let tokens = Tokens::of(ui);
         let style = SheetStyle::of(&tokens);
-        let Some(tag) = self.rect(style.error_tag, style.error_tag_gap) else {
+        let Some(tag) = self.rect(&style) else {
             return ErrorTagResponse { response: None, fix: None };
         };
         let labels = self.labels.unwrap_or_else(|| ErrorTagLabels::of(ui));
         let colors = &tokens.color;
         let id = ui.make_persistent_id(self.id_salt);
-        let response = ui.interact(tag, id, Sense::click()).on_hover_text(self.problem);
+        let response = ui.interact(tag, id, Sense::click_and_drag()).on_hover_text(self.problem);
         response.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), &labels.options));
 
         let radius = CornerRadius::same(style.error_tag_radius.round() as u8);
@@ -78,24 +82,13 @@ impl<'a> ErrorTag<'a> {
         let painter = ui.painter();
         painter.rect_filled(tag, radius, fill.to_egui());
         painter.rect_stroke(tag, radius, edge, StrokeKind::Inside);
-        let (centre, reach) = (tag.center(), style.error_tag_mark);
-        painter.add(Shape::convex_polygon(
-            vec![
-                pos2(centre.x, centre.y - reach),
-                pos2(centre.x + reach, centre.y),
-                pos2(centre.x, centre.y + reach),
-                pos2(centre.x - reach, centre.y),
-            ],
-            colors.status.warn.solid.to_egui(),
-            Stroke::NONE,
-        ));
-        let mark = tokens.font(style.error_tag_mark_text);
-        painter.text(centre, Align2::CENTER_CENTER, "!", mark, colors.text.on_status.to_egui());
+        let mark = 2.0 * style.error_tag_mark;
+        icons::paint_in(ui, tag, Icon::WarningDiamond, icons::active(ui.ctx()), mark, IconSize::Sm.stroke(), colors.status.warn.solid.to_egui());
         FocusRing::paint_if(ui, tag, radius, response.has_focus());
 
         let mut entries: Vec<MenuEntry<Option<usize>>> = vec![MenuItem::new(self.problem, None).enabled(false).into(), MenuEntry::Separator];
         entries.extend(self.fixes.iter().enumerate().map(|(i, fix)| MenuEntry::from(MenuItem::new(*fix, Some(i)))));
-        let alt_down = response.has_focus() && ui.input_mut(|input| input.consume_key(Modifiers::ALT, Key::ArrowDown));
+        let alt_down = response.has_focus() && ui.input_mut(|input| ClaimedKey::exact(Modifiers::ALT, Key::ArrowDown).consume(input));
         let fix = PressMenu::new(&entries).keyboard_owner(response.id, alt_down).show(ui, &response).chosen.flatten();
         ErrorTagResponse { response: Some(response), fix }
     }

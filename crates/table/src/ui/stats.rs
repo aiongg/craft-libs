@@ -4,7 +4,7 @@ use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
-use egui::{IdSalt, Label, Response, RichText, Sense, Ui, WidgetInfo};
+use egui::{CursorIcon, IdSalt, Label, PointerButton, Rect, Response, RichText, Sense, Ui, WidgetInfo, vec2};
 
 use super::style::SheetStyle;
 
@@ -65,31 +65,42 @@ impl Default for StatsShown {
     }
 }
 
-/// The status bar's texts, left to right: Average, Count, Numerical Count, Minimum, Maximum,
+/// One statistic of the status bar: the label with its value, and the value alone, which a click
+/// copies.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StatPart {
+    /// "Average: 3.5".
+    pub text: String,
+    /// "3.5".
+    pub value: String,
+}
+
+/// The status bar's statistics, left to right: Average, Count, Numerical Count, Minimum, Maximum,
 /// Sum, each when shown and the selection has a value for it (Count and Numerical Count with any
 /// cell, the others with numbers). `format` formats a number in the active cell's number format.
 // gridcraft: crates/ui-egui/src/tabs.rs:441 `selection_statistics`.
-pub fn stats_parts(stats: &SelectionStats, shown: &StatsShown, labels: &StatsLabels, format: impl Fn(f64) -> String) -> Vec<String> {
+pub fn stats_parts(stats: &SelectionStats, shown: &StatsShown, labels: &StatsLabels, format: impl Fn(f64) -> String) -> Vec<StatPart> {
     let numbers = stats.numeric > 0;
     let any = stats.count > 0;
     let mut parts = Vec::new();
+    let mut push = |label: &str, value: String| parts.push(StatPart { text: fmt(label, &[("v", &value)]), value });
     if let Some(average) = stats.average().filter(|_| shown.average) {
-        parts.push(fmt(&labels.average, &[("v", &format(average))]));
+        push(&labels.average, format(average));
     }
     if shown.count && any {
-        parts.push(fmt(&labels.count, &[("v", &stats.count.to_string())]));
+        push(&labels.count, stats.count.to_string());
     }
     if shown.numerical_count && any {
-        parts.push(fmt(&labels.numerical_count, &[("v", &stats.numeric.to_string())]));
+        push(&labels.numerical_count, stats.numeric.to_string());
     }
     if shown.minimum && numbers {
-        parts.push(fmt(&labels.minimum, &[("v", &format(stats.min))]));
+        push(&labels.minimum, format(stats.min));
     }
     if shown.maximum && numbers {
-        parts.push(fmt(&labels.maximum, &[("v", &format(stats.max))]));
+        push(&labels.maximum, format(stats.max));
     }
     if shown.sum && numbers {
-        parts.push(fmt(&labels.sum, &[("v", &format(stats.sum))]));
+        push(&labels.sum, format(stats.sum));
     }
     parts
 }
@@ -106,17 +117,20 @@ enum Statistic {
 }
 
 /// The statistics in the status bar for a selection of more than one cell, separated by wide
-/// spaces; a secondary click opens the menu of check items (one per statistic), which changes
-/// `shown` directly. Text (AccessKit labels); the menu items are the Tab stops.
+/// spaces. A click on a statistic copies its value without the label (GridCraft `tabs.rs:421`);
+/// a secondary click opens the menu of check items (one per statistic), which changes `shown`
+/// directly. The readout is as wide as the room it is given, so its menu opens with no statistic
+/// shown (GridCraft opens it from the whole status bar). Text (AccessKit labels); the menu
+/// items are the Tab stops.
 pub struct SelectionStatsReadout<'a> {
     id_salt: IdSalt,
-    parts: &'a [String],
+    parts: &'a [StatPart],
     shown: &'a mut StatsShown,
     labels: Option<StatsLabels>,
 }
 
 impl<'a> SelectionStatsReadout<'a> {
-    pub fn new(id_salt: impl egui::AsIdSalt, parts: &'a [String], shown: &'a mut StatsShown) -> Self {
+    pub fn new(id_salt: impl egui::AsIdSalt, parts: &'a [StatPart], shown: &'a mut StatsShown) -> Self {
         Self { id_salt: IdSalt::new(id_salt), parts, shown, labels: None }
     }
 
@@ -134,13 +148,29 @@ impl<'a> SelectionStatsReadout<'a> {
         let id = ui.make_persistent_id(id_salt);
         let font = tokens.font(style.stats_text);
         let color = tokens.color.text.muted.to_egui();
+        let room = ui.available_width();
+        let mut rects = Vec::with_capacity(parts.len());
+        // The readout keeps one text line of height with no statistic shown.
+        let line = ui.fonts_mut(|f| f.row_height(&font));
         let row = ui.horizontal(|ui| {
+            ui.set_min_height(line);
             ui.spacing_mut().item_spacing.x = style.stats_gap;
             for part in parts {
-                ui.add(Label::new(RichText::new(part).font(font.clone()).color(color)).selectable(false));
+                let label = ui.add(Label::new(RichText::new(&part.text).font(font.clone()).color(color)).selectable(false));
+                rects.push(label.rect);
             }
         });
-        let response = ui.interact(row.response.rect, id, Sense::click());
+        let area = Rect::from_min_size(row.response.rect.min, vec2(room.max(row.response.rect.width()), row.response.rect.height()));
+        let mut response = ui.interact(area, id, Sense::click());
+        let over = |at: Option<egui::Pos2>| at.and_then(|at| rects.iter().position(|rect| rect.contains(at)));
+        if over(response.hover_pos()).is_some() {
+            response = response.on_hover_cursor(CursorIcon::PointingHand).on_hover_text(&labels.click_to_copy);
+        }
+        if response.clicked_by(PointerButton::Primary)
+            && let Some(part) = over(response.interact_pointer_pos())
+        {
+            ui.ctx().copy_text(parts[part].value.clone());
+        }
         response.widget_info(|| WidgetInfo::new(Role::GenericContainer));
         let item = |label: &str, statistic: Statistic, on: bool| MenuEntry::from(MenuItem::new(label, statistic).check(on).keep_open(true));
         let entries = [
@@ -151,7 +181,7 @@ impl<'a> SelectionStatsReadout<'a> {
             item(&labels.maximum_item, Statistic::Maximum, shown.maximum),
             item(&labels.sum_item, Statistic::Sum, shown.sum),
         ];
-        if let Some(statistic) = ContextMenu::new(&entries).show(ui, &response).chosen {
+        if let Some(statistic) = ContextMenu::new(&entries).min_width(style.status_menu_min_width).show(ui, &response).chosen {
             let flag = match statistic {
                 Statistic::Average => &mut shown.average,
                 Statistic::Count => &mut shown.count,

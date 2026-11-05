@@ -59,6 +59,7 @@ pub fn slicer_layout(rect: Rect, zoom: f32, n: usize, columns: u32, style: &Shee
 
 /// What a click on a slicer did.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SlicerAction {
     Toggle(String),
     Clear,
@@ -68,11 +69,13 @@ pub enum SlicerAction {
 /// with the funnel button (tinted while a filter is on), value tiles (on: accent with on-accent
 /// text; off: hover with dim text); tiles that overflow the card are left out. A click on a tile
 /// toggles its value, on the funnel clears; elsewhere it is the app's (select, drag the object).
+/// The card and the funnel button sense click and drag, so a press on them never reaches the grid
+/// under the slicer.
 /// The slicer is one Tab stop whose arrows move between the tiles in reading order
 /// ([`GridNav`](craft_ui::behavior::GridNav) over the tile columns), Space toggles the focused
 /// tile as a click does, and the funnel button is a Tab stop of
 /// its own named by [`SlicerLabels::clear`]. AccessKit: a `ListBox` of `ListBoxOption`s with
-/// `selected`. The tiles are the slicer's own (Excel's look); step 5's `Chip` is a removable tag
+/// `selected`, the focused tile its `active_descendant`. The tiles are the slicer's own (Excel's look); step 5's `Chip` is a removable tag
 /// and `ToggleButton` a pressed button, neither of which is a slicer tile.
 pub struct Slicer<'a> {
     id_salt: IdSalt,
@@ -130,12 +133,12 @@ impl<'a> Slicer<'a> {
             let option = options.interact(layout.tiles[i], id.with(("tile", i)), Sense::hover());
             option.widget_info(|| WidgetInfo::selected(Role::ListBoxOption, enabled, items[i].1, &items[i].0));
         }
-        let card = ui.interact(rect, id, Sense::click());
+        let card = ui.interact(rect, id, Sense::click_and_drag());
         card.widget_info(|| WidgetInfo::labeled(Role::ListBox, enabled, caption));
-        let clear = ui.interact(layout.clear, id.with("clear"), Sense::click());
+        let clear = ui.interact(layout.clear, id.with("clear"), Sense::click_and_drag());
         clear.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, &labels.clear));
 
-        let mut action = None;
+        let mut actions = Vec::new();
         let active_key = id.with("active");
         let mut active = ctx.data(|d| d.get_temp::<usize>(active_key)).unwrap_or(0);
         let nav = GridNav::wrapped(shown.len(), columns.max(1) as usize).rtl(craft_ui::direction::is_rtl(ui));
@@ -152,20 +155,25 @@ impl<'a> Slicer<'a> {
                 active = nav.step(active.min(shown.len() - 1), step, None).index;
             }
             if ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Space)) {
-                action = Some(SlicerAction::Toggle(items[shown[active.min(shown.len() - 1)]].0.clone()));
+                actions.push(SlicerAction::Toggle(items[shown[active.min(shown.len() - 1)]].0.clone()));
             }
         }
         if card.clicked() && !clear.hovered() {
             let hit = ui.input(|input| input.pointer.interact_pos()).and_then(|p| shown.iter().position(|&i| layout.tiles[i].contains(p)));
             if let Some(at) = hit {
                 active = at;
-                action = Some(SlicerAction::Toggle(items[shown[at]].0.clone()));
+                actions.push(SlicerAction::Toggle(items[shown[at]].0.clone()));
             }
         }
         if clear.clicked() {
-            action = Some(SlicerAction::Clear);
+            actions.push(SlicerAction::Clear);
         }
         ctx.data_mut(|d| d.insert_temp(active_key, active));
+        let focused = (card.has_focus() && !shown.is_empty()).then(|| id.with(("tile", shown[active.min(shown.len() - 1)])).accesskit_id());
+        ctx.accesskit_node_builder(id, |node| match focused {
+            Some(tile) => node.set_active_descendant(tile),
+            None => node.clear_active_descendant(),
+        });
 
         let colors = &tokens.color;
         let radius: CornerRadius = tokens.radius.panel;
@@ -211,7 +219,7 @@ impl<'a> Slicer<'a> {
             let focus = Line::W2.egui(&ctx, colors.line.focus.to_egui());
             painter.rect_stroke(layout.clear, tokens.radius.control, focus, StrokeKind::Outside);
         }
-        SlicerOutput { response: card, action }
+        SlicerOutput { response: card, actions }
     }
 }
 
@@ -219,5 +227,6 @@ impl<'a> Slicer<'a> {
 #[must_use]
 pub struct SlicerOutput {
     pub response: Response,
-    pub action: Option<SlicerAction>,
+    /// In order. A click on a tile or the funnel and a key press in one pass report both.
+    pub actions: Vec<SlicerAction>,
 }

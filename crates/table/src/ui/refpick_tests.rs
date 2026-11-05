@@ -59,3 +59,17 @@ fn other_sheets_are_quoted() {
     assert!(picker.pick(&mut text, cell(0, 0), "SHEET1", false, can_point, quote), "the dialog's own sheet needs no prefix, in any case");
     assert_eq!(text, "=$A$1");
 }
+
+// A stored reference that is no longer at the caret doesn't anchor a drag: the range grows from the
+// press's own cell.
+#[test]
+fn a_drag_from_elsewhere_ignores_the_stale_reference() {
+    let mut picker = ReferencePicker::new("Sheet1");
+    let mut text = "=SUM(".to_owned();
+    picker.set_caret(5, false);
+    assert!(picker.pick(&mut text, cell(2, 1), "Sheet1", false, can_point, quote));
+    text.push(',');
+    picker.set_caret(text.chars().count(), false);
+    assert!(picker.pick(&mut text, cell(4, 2), "Sheet1", true, can_point, quote));
+    assert_eq!(text, "=SUM($B$3,$C$5");
+}

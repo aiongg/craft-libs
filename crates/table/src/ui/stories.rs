@@ -374,10 +374,10 @@ fn cell_grid(ui: &mut Ui, _: &mut NoArgs) {
                 continue;
             }
             let rect = filter_button_rect(cell, demo.state.zoom, style.filter_button_max, &style);
-            let button = FilterButton::new(("filter", column), rect, labels.headings()[column as usize])
+            let button = FilterButton::new(("filter", column), labels.headings()[column as usize])
                 .filtered(column == 2)
                 .sorted((column == 0).then_some(SortOrder::Ascending));
-            if button.show(ui).clicked() {
+            if button.show(ui, rect).event.is_some() {
                 demo.last = Some(format!("Filter({column})"));
             }
         }
@@ -748,7 +748,7 @@ fn slicer(ui: &mut Ui, _: &mut NoArgs) {
     let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
     let filtered = demo.items.iter().any(|(_, on)| !on);
     let out = Slicer::new("slicer", &labels.head_region, &demo.items).columns(columns).filtered(filtered).show(ui, rect);
-    if let Some(action) = out.action {
+    for action in out.actions {
         demo.last = Some(format!("{action:?}"));
         match action {
             SlicerAction::Toggle(name) => {

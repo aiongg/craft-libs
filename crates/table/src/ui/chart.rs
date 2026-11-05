@@ -96,7 +96,9 @@ pub enum ChartPrimitive {
 
 /// Paints `primitives` with their origin at `origin`, scaled by `zoom`: rects (stroke inside),
 /// lines (stroke width × max(zoom, 0.5); dashed 4 / 3 points × zoom), polygons (a convex fill,
-/// else a mesh of the closed path), wedges as meshes with one step per 0.05 rad (2…400 steps)
+/// else GridCraft's area-chart strip mesh: vertical strips between the first half of the points
+/// and the second half, exact for an area chart's "mountain" polygon and only acceptable for
+/// other concave shapes, `chartview.rs:171`), wedges as meshes with one step per 0.05 rad (2…400 steps)
 /// and their outline, circles, text at `size × zoom` in the UI face (bold when asked), rotated
 /// about its anchor.
 // gridcraft: crates/ui-egui/src/chartview.rs:45 `paint_prims`, `:152` `is_convex`, `:173`
