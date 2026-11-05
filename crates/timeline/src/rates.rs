@@ -9,7 +9,9 @@ use crate::time::{TICKS_PER_SECOND, Tick};
 /// as the default (23.976, as FilmCraft).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct FrameRate {
+    /// The numerator: frames in `den` seconds.
     pub num: i64,
+    /// The denominator: seconds that `num` frames take.
     pub den: i64,
 }
 
@@ -20,16 +22,27 @@ impl Default for FrameRate {
 }
 
 impl FrameRate {
+    /// 23.976 frames a second (24000/1001).
     pub const FPS_23_976: FrameRate = FrameRate { num: 24000, den: 1001 };
+    #[allow(missing_docs)]
     pub const FPS_24: FrameRate = FrameRate { num: 24, den: 1 };
+    #[allow(missing_docs)]
     pub const FPS_25: FrameRate = FrameRate { num: 25, den: 1 };
+    /// 29.97 frames a second (30000/1001).
     pub const FPS_29_97: FrameRate = FrameRate { num: 30000, den: 1001 };
+    #[allow(missing_docs)]
     pub const FPS_30: FrameRate = FrameRate { num: 30, den: 1 };
+    #[allow(missing_docs)]
     pub const FPS_48: FrameRate = FrameRate { num: 48, den: 1 };
+    #[allow(missing_docs)]
     pub const FPS_50: FrameRate = FrameRate { num: 50, den: 1 };
+    /// 59.94 frames a second (60000/1001).
     pub const FPS_59_94: FrameRate = FrameRate { num: 60000, den: 1001 };
+    #[allow(missing_docs)]
     pub const FPS_60: FrameRate = FrameRate { num: 60, den: 1 };
+    /// 119.88 frames a second (120000/1001).
     pub const FPS_119_88: FrameRate = FrameRate { num: 120000, den: 1001 };
+    #[allow(missing_docs)]
     pub const FPS_120: FrameRate = FrameRate { num: 120, den: 1 };
 
     /// The rates a frame-rate menu offers, in Premiere's order.
@@ -69,6 +82,7 @@ impl FrameRate {
         if self.num > 0 && self.den > 0 { self } else { FrameRate::default() }
     }
 
+    /// The rate in frames a second.
     pub fn as_f64(self) -> f64 {
         self.num as f64 / self.den as f64
     }
@@ -160,7 +174,9 @@ impl Default for SampleRate {
 }
 
 impl SampleRate {
+    #[allow(missing_docs)]
     pub const HZ_44100: SampleRate = SampleRate(44_100);
+    #[allow(missing_docs)]
     pub const HZ_48000: SampleRate = SampleRate(48_000);
 
     /// The rates a session's sample-rate menu offers (SoundCraft `crates/time/src/lib.rs:46`).
@@ -179,6 +195,7 @@ impl SampleRate {
     /// The sequence sample rates FilmCraft offers (`panels/sequence_settings.rs:59`).
     pub const VIDEO: [SampleRate; 5] = [SampleRate(32_000), SampleRate(44_100), SampleRate(48_000), SampleRate(88_200), SampleRate(96_000)];
 
+    /// The rate in samples a second.
     pub fn hz(self) -> u32 {
         self.0
     }
@@ -197,7 +214,9 @@ impl SampleRate {
 /// A pixel aspect ratio, `num / den` (1/1 is square pixels).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct PixelAspect {
+    /// The numerator of the width-to-height ratio of one pixel.
     pub num: u32,
+    /// The denominator of the width-to-height ratio of one pixel.
     pub den: u32,
 }
 
@@ -208,6 +227,7 @@ impl Default for PixelAspect {
 }
 
 impl PixelAspect {
+    #[allow(missing_docs)]
     pub const SQUARE: PixelAspect = PixelAspect { num: 1, den: 1 };
 
     /// The ratio, 1.0 for a zero denominator.

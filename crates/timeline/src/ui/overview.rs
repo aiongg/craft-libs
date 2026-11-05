@@ -24,7 +24,9 @@ fn overview_total(end: Tick) -> Tick {
 /// A run of touching clips of one colour on one track, in overview coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OverviewRun {
+    /// The run's place inside [`TimelineOverview::area`].
     pub rect: Rect,
+    /// The run's fill colour.
     pub color: Color32,
 }
 
@@ -88,11 +90,13 @@ impl<'a> TimelineOverview<'a> {
         Self { id_salt: IdSalt::new(id_salt), runs, view, view_width, end, playhead: None, labels: None }
     }
 
+    /// The accessibility words; `TimelineLabels::of` when not set.
     pub fn labels(mut self, labels: super::TimelineLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// The playhead to draw; `None` draws none.
     pub fn playhead(mut self, t: Option<Tick>) -> Self {
         self.playhead = t;
         self
@@ -104,6 +108,7 @@ impl<'a> TimelineOverview<'a> {
         outer.shrink2(vec2(style.overview_inset_x, style.overview_inset_y))
     }
 
+    /// Show the overview; a click or drag moves the view, and the response reports it.
     // soundcraft: crates/ui-egui/src/edit_window/universe.rs:60 `universe`.
     pub fn show(self, ui: &mut Ui) -> Response {
         let Self { id_salt, runs, view, view_width, end, playhead, labels } = self;

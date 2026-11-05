@@ -30,11 +30,14 @@ const CENTRE: f64 = 0.5;
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum PlaybackState {
     #[default]
+    /// Not playing.
     Stopped,
     /// Play was pressed; the clock waits for the first frames since `since` (seconds).
     Prerolling {
+        /// The wall-clock time, in seconds, when Play was pressed.
         since: f64,
     },
+    /// Frames are playing and the playhead advances.
     Playing,
 }
 
@@ -79,10 +82,12 @@ fn folded(raw: Tick, range: TimeRange) -> Tick {
 }
 
 impl PlaybackClock {
+    /// A stopped clock at normal speed.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Whether the clock is stopped, prerolling or playing.
     pub fn state(&self) -> PlaybackState {
         self.state
     }
@@ -92,6 +97,7 @@ impl PlaybackClock {
         self.state != PlaybackState::Stopped
     }
 
+    /// The playback speed as a multiple of normal speed.
     pub fn speed(&self) -> f64 {
         self.speed
     }

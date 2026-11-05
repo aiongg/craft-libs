@@ -53,25 +53,41 @@ craft_ui::words! {
 /// with an icon and a label in the app's words.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TransportButton {
+    /// Add a marker at the playhead.
     AddMarker,
+    /// Set the In mark at the playhead.
     MarkIn,
+    /// Set the Out mark at the playhead.
     MarkOut,
+    /// Move the playhead to the In mark.
     GoToIn,
+    /// Step one frame back.
     StepBack,
     /// Shows Pause while playing.
     PlayStop,
+    /// Step one frame forward.
     StepForward,
+    /// Move the playhead to the Out mark.
     GoToOut,
+    /// Insert the source into the sequence.
     Insert,
+    /// Overwrite the sequence with the source.
     Overwrite,
+    /// Lift the In to Out range, leaving a gap.
     Lift,
+    /// Extract the In to Out range, closing the gap.
     Extract,
+    /// Export the frame at the playhead.
     ExportFrame,
     /// A toggle; shown pressed while on.
     Loop,
+    /// An app-defined button.
     Custom {
+        /// The button's identity, to tell it from other custom buttons.
         id: String,
+        /// The button's icon.
         icon: Icon,
+        /// The tooltip and accessible name, in the app's words.
         label: String,
     },
 }
@@ -158,14 +174,15 @@ impl TransportButton {
 /// monitor (Premiere keeps the Program and Source rows apart).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TransportBarSettings {
+    /// The buttons left out of the row.
     pub hidden: Vec<TransportButton>,
 }
 
 /// A monitor's transport row (Premiere's, as FilmCraft draws it), through the kernel's
-/// horizontal [`Toolbar`](craft_ui::patterns::Toolbar): `style.transport_button` squares
-/// ([`TimelineStyle`](super::TimelineStyle)) centred under the picture, Pause in place of Play
+/// horizontal [`Toolbar`]: `style.transport_button` squares
+/// ([`TimelineStyle`]) centred under the picture, Pause in place of Play
 /// while playing, Loop pressed while on, and a "+" button editor at the right (a popover with a
-/// [`Checkbox`](craft_ui::controls::Checkbox) per button and Reset) when the row has room.
+/// [`Checkbox`] per button and Reset) when the row has room.
 ///
 /// - Keyboard and AccessKit are the toolbar's: a `Toolbar` whose buttons are named by their
 ///   tooltips; Space and Enter press. The keys in the tooltips (Space, I, O, Left, Right…) are
@@ -183,15 +200,18 @@ pub struct TransportBar<'a> {
 }
 
 impl<'a> TransportBar<'a> {
+    /// A row of `buttons`, in order.
     pub fn new(id_salt: impl AsIdSalt, buttons: &'a [TransportButton]) -> Self {
         Self { id_salt: IdSalt::new(id_salt), buttons, settings: None, playing: false, looping: false, editable: true, labels: None }
     }
 
+    /// Whether playback is running; Play shows as Pause while it is.
     pub fn playing(mut self, playing: bool) -> Self {
         self.playing = playing;
         self
     }
 
+    /// Whether Loop is on; the Loop button shows pressed.
     pub fn looping(mut self, on: bool) -> Self {
         self.looping = on;
         self
@@ -209,11 +229,13 @@ impl<'a> TransportBar<'a> {
         self
     }
 
+    /// The tooltip words; `TransportLabels::of` when not set.
     pub fn labels(mut self, labels: TransportLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Show the row and report the button pressed.
     // filmcraft: crates/ui-egui/src/panels/monitor.rs:1003 `transport`, `:1146`
     // `transport_button`, `:1000` `TRANSPORT_BUTTON`.
     pub fn show(self, ui: &mut Ui) -> TransportBarOutput {
@@ -309,6 +331,7 @@ impl<'a> TransportBar<'a> {
 /// What the transport row did this pass.
 #[must_use]
 pub struct TransportBarOutput {
+    /// The row's response, for hover and focus.
     pub response: Response,
     /// The button pressed this pass.
     pub pressed: Option<TransportButton>,
@@ -319,9 +342,9 @@ pub struct TransportBarOutput {
 /// PowerPoint's media controls under a video or sound on a slide (DeckCraft): play / pause,
 /// back and forward a quarter second, a seek track with the trim marks, and the time
 /// (`1:05.25` style in the mono face, digits through `LocaleNumbers`). The seek track is the
-/// kernel's [`Slider`](craft_ui::controls::Slider) (one Tab stop; Left / Right a quarter
+/// kernel's [`Slider`] (one Tab stop; Left / Right a quarter
 /// second, Home / End) reporting an `EditEvent<f64>` gesture in seconds; the buttons are
-/// [`IconButton`](craft_ui::controls::IconButton) Tab stops. A press on the bar never reaches
+/// [`IconButton`] Tab stops. A press on the bar never reaches
 /// the canvas under it. AccessKit: the bar is a named toolbar (`TransportLabels::media_controls`);
 /// the slider's value text is the time; the buttons are named by [`TransportLabels`].
 pub struct MediaControls {
@@ -339,6 +362,7 @@ impl MediaControls {
         Self { id_salt: IdSalt::new(id_salt), position, duration, playing: false, trim: None, labels: None }
     }
 
+    /// Whether playback is running; Play shows as Pause while it is.
     pub fn playing(mut self, playing: bool) -> Self {
         self.playing = playing;
         self
@@ -350,11 +374,13 @@ impl MediaControls {
         self
     }
 
+    /// The tooltip and accessibility words; `TransportLabels::of` when not set.
     pub fn labels(mut self, labels: TransportLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Show the controls and report what the user did.
     // deckcraft: crates/ui-egui/src/media.rs:472 `control_bar`, `:404` `clock`.
     pub fn show(self, ui: &mut Ui) -> MediaControlsOutput {
         let Self { id_salt, position, duration, playing, trim, labels } = self;
@@ -416,10 +442,13 @@ impl MediaControls {
 /// What the media controls did this pass.
 #[must_use]
 pub struct MediaControlsOutput {
+    /// The controls' response, for hover and focus.
     pub response: Response,
+    /// Play or Pause was pressed.
     pub toggle: bool,
     /// −0.25 or +0.25 seconds.
     pub nudge: Option<f64>,
+    /// A drag of the position slider, in seconds, as one gesture.
     pub seek: Option<EditEvent<f64>>,
 }
 

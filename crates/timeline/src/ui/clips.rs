@@ -38,11 +38,17 @@ pub enum TimelineTool {
     /// Select, move, and trim at edges ([`selection_trim`](crate::clips::selection_trim)).
     #[default]
     Selection,
+    /// Ripple Edit: trims move later clips along.
     Ripple,
+    /// Rolling Edit: moves the cut between two touching clips.
     Rolling,
+    /// Rate Stretch: changes a clip's speed to fill its new length.
     RateStretch,
+    /// Razor: cuts a clip at the pointer.
     Razor,
+    /// Slip: moves a clip's media inside the clip.
     Slip,
+    /// Slide: moves a clip between its neighbours.
     Slide,
 }
 
@@ -101,11 +107,11 @@ pub type ClipPainter<'a> = Box<dyn FnMut(&Painter, Rect, &ClipInfo<'_>) + 'a>;
 /// - Draws each [`ClipInfo`] as a block: label colour (from [`LabelPalette`]), name, a
 ///   selected outline, dimmed when disabled; the app paints the content (thumbnails, waveform,
 ///   fades) through [`content`](Self::content) before the outline.
-/// - A press with the [`TimelineTool`] on an edge ([`edge_at`](crate::edge_at) with the
-///   `timeline.edge_zone` and `timeline.roll_zone` sizes of [`TimelineStyle`](super::TimelineStyle)) starts a trim of the kind the tool and modifiers give; on a body it moves (Selection),
+/// - A press with the [`TimelineTool`] on an edge ([`edge_at`] with the
+///   `timeline.edge_zone` and `timeline.roll_zone` sizes of [`TimelineStyle`]) starts a trim of the kind the tool and modifiers give; on a body it moves (Selection),
 ///   slips or slides; the Razor cuts at the pointer (snapped to `rate`'s frames). The drag is
 ///   reported as an `EditEvent<ClipEdit>` gesture; moves snap to `snap` targets within
-///   `timeline.snap_distance` ([`snap_time`](crate::snap_time)). Esc during the
+///   `timeline.snap_distance` ([`snap_time`]). Esc during the
 ///   drag cancels it, and the release after an Esc is ignored (FilmCraft #580).
 /// - A press acts on what it pressed, worked out on the press frame, not when egui's drag
 ///   threshold passes (FilmCraft `Pressed`, #259).
@@ -139,6 +145,7 @@ pub struct ClipLane<'a> {
 }
 
 impl<'a> ClipLane<'a> {
+    /// A lane for `track`'s `clips` (those that overlap the visible time) on `view`; times snap to the frames of `rate`.
     pub fn new(id_salt: impl AsIdSalt, track: TrackId, clips: &'a [ClipInfo<'a>], view: &'a TimeView, rate: FrameRate) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -157,6 +164,7 @@ impl<'a> ClipLane<'a> {
         }
     }
 
+    /// The tool that decides what a press does; [`TimelineTool::Selection`] by default.
     pub fn tool(mut self, tool: TimelineTool) -> Self {
         self.tool = tool;
         self
@@ -169,11 +177,13 @@ impl<'a> ClipLane<'a> {
         self
     }
 
+    /// The snap targets for drags; `None` turns snapping off.
     pub fn snap(mut self, targets: Option<&'a SnapTargets>) -> Self {
         self.snap = targets;
         self
     }
 
+    /// Whether the track is locked: clips draw hatched and ignore presses.
     pub fn locked(mut self, locked: bool) -> Self {
         self.locked = locked;
         self
@@ -186,12 +196,13 @@ impl<'a> ClipLane<'a> {
         self
     }
 
+    /// The palette that gives label colours; the default palette when not set.
     pub fn palette(mut self, palette: &'a LabelPalette) -> Self {
         self.palette = Some(palette);
         self
     }
 
-    /// The track's colour label: it tints the lane by [`LANE_LABEL_TINT`] of the
+    /// The track's colour label: it tints the lane by `LANE_LABEL_TINT` of the
     /// [`palette`](Self::palette)'s colour (FilmCraft `timeline.rs:335`, #1186). The panel passes
     /// [`TrackInfo::label`](crate::TrackInfo::label).
     pub fn track_label(mut self, label: Option<MarkerColor>) -> Self {
@@ -379,11 +390,14 @@ impl<'a> ClipLane<'a> {
 
 /// What a clip lane did this pass.
 pub struct ClipLaneResponse {
+    /// The lane's response, for hover and focus.
     pub response: Response,
+    /// The drag the lane reports, one update per frame and a commit on release.
     pub edit: Option<EditEvent<ClipEdit>>,
     /// A click's selection change and whether Cmd/Ctrl left the linked partners out. The panel
     /// reports it as [`TimelineEdit::Select`](super::TimelineEdit::Select).
     pub select: Option<(SelectionChange<ClipId>, bool)>,
+    /// The clip that was double-clicked.
     pub double_clicked: Option<ClipId>,
     /// A secondary click: the app opens its clip menu.
     pub context_menu: Option<ClipId>,

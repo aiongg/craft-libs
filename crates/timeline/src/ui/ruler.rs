@@ -132,9 +132,11 @@ fn dragged_range(kind: WorkGrab, anchor: TimeRange, moved: Tick, frame: Tick, se
 /// One ruler tick.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RulerTick {
+    /// The tick's time.
     pub at: Tick,
     /// The label of a major tick ("00:00:10:00", "5|1"); minor ticks have none.
     pub label: Option<String>,
+    /// Whether the tick is a major one (longer, and it may carry a label).
     pub major: bool,
 }
 
@@ -161,13 +163,16 @@ pub enum RenderBarState {
 /// One stretch of the render bar along the ruler's bottom edge.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RenderSpan {
+    /// The stretch of time.
     pub range: TimeRange,
+    /// What the stretch says about its frames.
     pub state: RenderBarState,
     /// What hovering the stretch says ("Rendered preview"); no tooltip when empty.
     pub tooltip: String,
 }
 
 impl RenderSpan {
+    /// A span over `range` with `tooltip` shown on hover.
     pub fn new(range: TimeRange, state: RenderBarState, tooltip: impl Into<String>) -> Self {
         Self { range, state, tooltip: tooltip.into() }
     }
@@ -177,9 +182,13 @@ impl RenderSpan {
 /// of a clip start and end apart, drawn as brackets tagged V and A.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SplitMarks {
+    /// Where the video starts, if it starts apart from the audio.
     pub video_in: Option<Tick>,
+    /// Where the video ends, if it ends apart from the audio.
     pub video_out: Option<Tick>,
+    /// Where the audio starts, if it starts apart from the video.
     pub audio_in: Option<Tick>,
+    /// Where the audio ends, if it ends apart from the video.
     pub audio_out: Option<Tick>,
 }
 
@@ -219,7 +228,7 @@ pub fn ruler_steps(frame_points: f64, base: i64, label_gap: f32, tick_gap: f32) 
 
 /// The ticks of a [`RulerScale::Format`] ruler over a view `width` points wide: one every
 /// [`ruler_steps`] tick stride from the first one at or before the left edge, labelled every
-/// label stride with [`format_time`](crate::format_time); the gaps from `style`.
+/// label stride with [`format_time`]; the gaps from `style`.
 // filmcraft: crates/ui-egui/src/panels/timeline/ruler.rs:24 `draw_top` (the tick loop).
 pub fn ruler_ticks(format: &TimeFormat, view: &TimeView, width: f32, style: &super::TimelineStyle) -> Vec<RulerTick> {
     let (rate, pps) = (format.rate, view.points_per_second);
@@ -243,7 +252,7 @@ pub fn ruler_ticks(format: &TimeFormat, view: &TimeView, width: f32, style: &sup
 /// The ruler across the top of a timeline: ticks and labels, the playhead's head, In and Out
 /// shading (inside the span, as FilmCraft), the work-area bar, the render bar, split-edit marks
 /// and the sequence markers (through
-/// [`MarkerStrip`](super::MarkerStrip)).
+/// [`MarkerStrip`]).
 ///
 /// - Press and drag scrubs the playhead (snapped to `snap` targets when given; Shift snaps when
 ///   no targets are given, as After Effects), reported as an `EditEvent<Tick>` gesture; Esc
@@ -257,7 +266,7 @@ pub fn ruler_ticks(format: &TimeFormat, view: &TimeView, width: f32, style: &sup
 ///   End go to the start and the end; each a `Set` event. Visible focus ring around the ruler.
 /// - AccessKit: a `Slider` named by [`TimelineRulerLabels::ruler`], value the playhead's text,
 ///   numeric value the playhead in seconds over `0..=end`.
-/// - Sizes from [`TimelineStyle`](super::TimelineStyle): `style.ruler_height` unless
+/// - Sizes from [`TimelineStyle`]: `style.ruler_height` unless
 ///   [`height`](Self::height) says otherwise.
 pub struct TimelineRuler<'a> {
     id_salt: IdSalt,
@@ -307,6 +316,7 @@ impl<'a> TimelineRuler<'a> {
         self
     }
 
+    /// The playhead time, drawn as a line.
     pub fn playhead(mut self, t: Tick) -> Self {
         self.playhead = t;
         self
@@ -318,6 +328,7 @@ impl<'a> TimelineRuler<'a> {
         self
     }
 
+    /// The work area range, drawn as a bar; `None` draws none.
     pub fn work_area(mut self, range: Option<TimeRange>) -> Self {
         self.work_area = range;
         self
@@ -338,6 +349,7 @@ impl<'a> TimelineRuler<'a> {
         self
     }
 
+    /// The markers of the sequence, drawn in the marker band.
     pub fn markers(mut self, markers: &'a [Marker]) -> Self {
         self.markers = markers;
         self
@@ -369,11 +381,13 @@ impl<'a> TimelineRuler<'a> {
         self
     }
 
+    /// The accessibility words; `TimelineRulerLabels::of` when not set.
     pub fn labels(mut self, labels: TimelineRulerLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Show the ruler and report what the user did.
     // filmcraft: crates/ui-egui/src/panels/timeline/ruler.rs:24 `draw_top` (ruler part), `:176`
     // `draw_markers`; effectcraft: crates/ui-egui/src/panels/timeline.rs:2308 `work_area_bar`,
     // `:2379` `cache_bars`, `:2483` `ruler_scrub`.
@@ -699,10 +713,13 @@ fn paint_split_marks(
 
 /// What the ruler did this pass.
 pub struct TimelineRulerResponse {
+    /// The ruler's response, for hover and focus.
     pub response: Response,
     /// The playhead scrub, a gesture or a key's `Set`.
     pub scrub: Option<EditEvent<Tick>>,
+    /// The work-area drag gesture.
     pub work_area: Option<EditEvent<TimeRange>>,
+    /// The marker edits of this pass, in order.
     pub markers: Vec<MarkerEdit>,
     /// Where scrubbing snapped this pass (for a snap line across the tracks).
     pub snapped_at: Option<Tick>,
@@ -720,10 +737,12 @@ pub struct TimelineScrollBar<'a> {
 }
 
 impl<'a> TimelineScrollBar<'a> {
+    /// A scroll bar over `view`, spanning the content up to `end`.
     pub fn new(id_salt: impl AsIdSalt, view: &'a mut TimeView, end: Tick) -> Self {
         Self { id_salt: IdSalt::new(id_salt), view, end }
     }
 
+    /// Show the scroll bar; dragging changes the view.
     // filmcraft: crates/ui-egui/src/panels/timeline/scrollbars.rs:6 `MIN_THUMB_W`, `:12`
     // `zoom_thumb`, `:24` `zoom_scrollbar`.
     pub fn show(self, ui: &mut Ui) -> Response {

@@ -44,15 +44,20 @@ pub const SECONDS: Counted = Counted::new("renderQueue.seconds", "{n} s", "{n} s
 /// An item's state.
 #[derive(Clone, Debug, PartialEq)]
 pub enum RenderStatus {
+    /// Waiting in the queue.
     Ready,
     /// Progress 0…1 and the time left when the encoder knows it.
     Encoding {
+        /// The share done, from 0 to 1.
         progress: f32,
+        /// The time left; `None` while the encoder cannot tell.
         remaining: Option<Duration>,
     },
+    /// Finished.
     Done,
     /// The encoder's message, in the app's words.
     Failed(String),
+    /// Cancelled by the user.
     Cancelled,
 }
 
@@ -63,10 +68,15 @@ pub struct RenderItemId(pub u64);
 /// A queue row: "Sequence → file.mp4", the preset, the status.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RenderQueueItem {
+    /// The item's identity.
     pub id: RenderItemId,
+    /// The source name, such as the sequence.
     pub source: String,
+    /// The output file name.
     pub file: String,
+    /// The name of the export preset.
     pub preset: String,
+    /// The item's state.
     pub status: RenderStatus,
 }
 
@@ -77,21 +87,27 @@ pub enum RenderQueueEvent {
     /// A drag of rows, or Cmd/Ctrl+] and [ on the selected rows (the list's reorder; Premiere's
     /// queue moves items by drag), as one gesture.
     Reorder(EditEvent<Move<RenderItemId>>),
+    /// The selection changed.
     Selection(SelectionChange<RenderItemId>),
+    /// Cancel the item.
     Cancel(RenderItemId),
+    /// Run a failed or cancelled item again.
     Retry(RenderItemId),
     /// The row's Remove button, or Delete or Backspace on the selection (one event per item, in
     /// order).
     Remove(RenderItemId),
+    /// Start the queue.
     Start,
+    /// Stop the queue.
     Stop,
+    /// Remove every finished item.
     ClearFinished,
 }
 
 /// FilmCraft's export queue (Premiere's queue in Export mode), drawn through the kernel's
-/// [`List`](craft_ui::list::List) of [`ListRow`](craft_ui::list::ListRow)s: each row's label
+/// [`List`] of [`ListRow`]s: each row's label
 /// "source → file", its detail line "preset · status"; an Encoding row shows its progress with a
-/// [`Progress`](craft_ui::controls::Progress) bar and the time left on its own line
+/// [`Progress`] bar and the time left on its own line
 /// ([`RenderQueueLabels::time_left`] with the time written as FilmCraft's `format_eta`: `45 s`
 /// ([`RenderQueueLabels::seconds`], a count word) under a minute, `m:ss` under an hour, then
 /// `h:mm:ss`, digits through `LocaleNumbers`).
@@ -113,15 +129,18 @@ pub struct RenderQueueList<'a> {
 }
 
 impl<'a> RenderQueueList<'a> {
+    /// A list of `items` with the app's `selection`; `running` tells whether the queue is encoding, which enables Stop and disables Start.
     pub fn new(id_salt: impl AsIdSalt, items: &'a [RenderQueueItem], selection: &'a mut Selection<RenderItemId>, running: bool) -> Self {
         Self { id_salt: IdSalt::new(id_salt), items, selection, running, labels: None }
     }
 
+    /// The words of the list; `RenderQueueLabels::of` when not set.
     pub fn labels(mut self, labels: RenderQueueLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Show the list and report what the user did.
     // filmcraft: crates/ui-egui/src/panels/export_mode/queue.rs:7 `queue_column`;
     // crates/export/src/settings.rs:769 `format_eta`.
     pub fn show(self, ui: &mut Ui) -> RenderQueueListOutput {
@@ -252,7 +271,9 @@ impl<'a> RenderQueueList<'a> {
 /// What the queue did this pass.
 #[must_use]
 pub struct RenderQueueListOutput {
+    /// The list's response, for hover and focus.
     pub response: Response,
+    /// What the user asked for this pass, in order.
     pub events: Vec<RenderQueueEvent>,
 }
 

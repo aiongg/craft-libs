@@ -23,10 +23,12 @@ pub const VIEW_EXTENT_PAST_END: Tick = Tick(600 * TICKS_PER_SECOND);
 pub struct Tick(pub i64);
 
 impl Tick {
+    /// Time zero.
     pub const ZERO: Tick = Tick(0);
     /// The latest time any widget accepts; a quarter of the storage range, so sums of two stay
     /// representable.
     pub const MAX: Tick = Tick(i64::MAX / 4);
+    /// The earliest time any widget accepts; the negative counterpart of [`Tick::MAX`].
     pub const MIN: Tick = Tick(i64::MIN / 4);
 
     /// `s` seconds, rounded to the nearest tick.
@@ -93,14 +95,17 @@ impl Tick {
         Tick(clamp_i64((i128::from(self.0) * i128::from(num)).checked_div_euclid(i128::from(den)).unwrap_or(0)))
     }
 
+    /// The absolute value; saturates at the maximum.
     pub fn abs(self) -> Tick {
         Tick(self.0.saturating_abs())
     }
 
+    /// The earlier of two times.
     pub fn min(self, o: Tick) -> Tick {
         Tick(self.0.min(o.0))
     }
 
+    /// The later of two times.
     pub fn max(self, o: Tick) -> Tick {
         Tick(self.0.max(o.0))
     }
@@ -148,31 +153,39 @@ impl SubAssign for Tick {
 /// overlaps nothing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct TimeRange {
+    /// The first tick in the range.
     pub start: Tick,
+    /// The length; zero or negative makes the range empty.
     pub duration: Tick,
 }
 
 impl TimeRange {
+    /// A range from `start` lasting `duration`.
     pub fn new(start: Tick, duration: Tick) -> Self {
         Self { start, duration }
     }
 
+    /// A range from `start` up to, not including, `end`.
     pub fn from_bounds(start: Tick, end: Tick) -> Self {
         Self { start, duration: end - start }
     }
 
+    /// The first tick after the range.
     pub fn end(&self) -> Tick {
         self.start + self.duration
     }
 
+    /// Whether the range has zero or negative duration.
     pub fn is_empty(&self) -> bool {
         self.duration.0 <= 0
     }
 
+    /// Whether `t` lies in `[start, end)`.
     pub fn contains(&self, t: Tick) -> bool {
         t >= self.start && t < self.end()
     }
 
+    /// Whether both ranges are non-empty and share at least one tick.
     pub fn overlaps(&self, o: &TimeRange) -> bool {
         !self.is_empty() && !o.is_empty() && self.start < o.end() && o.start < self.end()
     }
@@ -193,7 +206,9 @@ impl TimeRange {
 /// area's left edge (right of the track headers).
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TimeView {
+    /// The time at the left edge of the time area.
     pub start: Tick,
+    /// The zoom in points a second, between [`TimeView::MIN_ZOOM`] and [`TimeView::MAX_ZOOM`].
     pub points_per_second: f64,
 }
 
@@ -210,6 +225,7 @@ impl TimeView {
     /// The most zoomed-in view: 24,000 points a second, a few points per frame at 120 fps.
     pub const MAX_ZOOM: f64 = 24_000.0;
 
+    /// A view with its left edge at `start` and `points_per_second` of zoom.
     pub fn new(start: Tick, points_per_second: f64) -> Self {
         Self { start, points_per_second }
     }

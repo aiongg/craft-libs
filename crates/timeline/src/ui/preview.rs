@@ -53,20 +53,24 @@ pub struct FramePreview<'a> {
 }
 
 impl<'a> FramePreview<'a> {
+    /// A preview of `frame` (texture and size in pixels); `None` shows the status alone.
     pub fn new(id_salt: impl AsIdSalt, frame: Option<(TextureId, Vec2)>) -> Self {
         Self { id_salt: IdSalt::new(id_salt), frame, fit: FrameFit::Letterbox, status: None }
     }
 
+    /// How the frame fits its box; [`FrameFit::Letterbox`] by default.
     pub fn fit(mut self, fit: FrameFit) -> Self {
         self.fit = fit;
         self
     }
 
+    /// The status line text; an empty text shows no line.
     pub fn status(mut self, text: &'a str) -> Self {
         self.status = Some(text);
         self
     }
 
+    /// Show the preview in the available space.
     // soundcraft: crates/ui-egui/src/panels/video_window.rs:21 `video_status_text`, `:33`
     // `draw_video_surface`.
     pub fn show(self, ui: &mut Ui) -> Response {

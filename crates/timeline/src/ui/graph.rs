@@ -60,18 +60,26 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum GraphMode {
     #[default]
+    /// The property's value over time.
     Value,
+    /// The rate of change of the value over time.
     Speed,
 }
 
 /// A key on a curve, with its Bezier handles in graph units (time, value) when it has them.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GraphKey {
+    /// The keyframe's identity.
     pub id: KeyframeId,
+    /// The keyframe's time.
     pub time: Tick,
+    /// The keyframe's value.
     pub value: f64,
+    /// How the curve leaves the keyframe.
     pub interpolation: KeyframeInterpolation,
+    /// The incoming Bezier handle as an absolute (time, value) point; `None` without one.
     pub in_handle: Option<(Tick, f64)>,
+    /// The outgoing Bezier handle as an absolute (time, value) point; `None` without one.
     pub out_handle: Option<(Tick, f64)>,
 }
 
@@ -81,24 +89,31 @@ pub struct GraphKey {
 pub struct GraphCurve {
     /// The property and dimension, the app's.
     pub id: u64,
+    /// The curve's display name.
     pub name: String,
     /// `None`: the next colour of the per-dimension set (red, green, blue, yellow; EffectCraft
     /// `graph.rs:22`).
     pub color: Option<Color32>,
     /// `(time, value)` in time order, about one per two points of width.
     pub samples: Vec<(Tick, f64)>,
+    /// The curve's keyframes, in time order.
     pub keys: Vec<GraphKey>,
 }
 
 /// The graph's value range and options; the app keeps it per panel.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GraphRange {
+    /// The lowest value shown at the bottom of the plot.
     pub low: f64,
+    /// The highest value shown at the top of the plot.
     pub high: f64,
+    /// Which graph shows.
     pub mode: GraphMode,
     /// The range follows the shown curves (After Effects' Auto-zoom graph height).
     pub auto_zoom: bool,
+    /// Show only the selected properties' curves; otherwise all animated ones.
     pub selected_only: bool,
+    /// Show each dimension of a property as its own curve.
     pub separate_dimensions: bool,
     /// Show Reference Graph: the other graph type, faint, scaled to the plot (EffectCraft
     /// `graph.rs:301`). The curves come from [`GraphEditor::reference`].
@@ -114,24 +129,33 @@ impl Default for GraphRange {
 /// A move of the selected keys in time and value.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GraphKeyMove {
+    /// The shift in time.
     pub dt: Tick,
+    /// The shift in value, in the curve's own units.
     pub dv: f64,
 }
 
 /// Which handle of a key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HandleSide {
+    /// The incoming handle.
     In,
+    /// The outgoing handle.
     Out,
 }
 
 /// A handle dragged to `(time, value)`; with Alt the two handles break apart.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HandleMove {
+    /// The keyframe the handle belongs to.
     pub key: KeyframeId,
+    /// Which of the key's handles moved.
     pub side: HandleSide,
+    /// The handle's new time.
     pub time: Tick,
+    /// The handle's new value.
     pub value: f64,
+    /// The two handles of the key move independently (Alt held).
     pub broken: bool,
 }
 
@@ -141,13 +165,21 @@ pub struct HandleMove {
 pub enum GraphAction {
     /// Delete with keys selected.
     Delete,
+    /// Fit the view to the selected keys.
     FitSelection,
+    /// Fit the view to every curve.
     FitAll,
+    /// Convert the selected keys to Hold.
     Hold,
+    /// Convert the selected keys to Linear.
     Linear,
+    /// Convert the selected keys to Auto Bezier.
     AutoBezier,
+    /// Easy Ease on the selected keys.
     EasyEase,
+    /// Easy Ease In on the selected keys.
     EasyEaseIn,
+    /// Easy Ease Out on the selected keys.
     EasyEaseOut,
 }
 
@@ -167,14 +199,14 @@ pub enum GraphAction {
 ///   read as egui's zoom delta; auto-zoom fits the shown curves each frame ([`auto_range`]).
 /// - With [`GraphRange::reference`] and [`reference`](Self::reference) curves, the other graph
 ///   type is drawn faint behind the curves, scaled to the plot.
-/// - The bottom bar, a horizontal [`Toolbar`](craft_ui::patterns::Toolbar): Value / Speed graph,
+/// - The bottom bar, a horizontal [`Toolbar`]: Value / Speed graph,
 ///   selected only, auto-zoom, fit selection, fit all, reference graph, separate dimensions,
 ///   Hold, Linear, Auto Bezier, Easy Ease, Ease In, Ease Out; icon buttons with the tooltips of
 ///   [`GraphEditorLabels`].
 /// - Keyboard: the plot is one Tab stop; the keys and handles are pointer-only. Arrows move the
 ///   selected keys (a frame / a value step; a key drag does not snap, as in EffectCraft), F9,
 ///   Shift+F9 and Ctrl+Shift+F9 report the Easy Ease actions; Delete and Backspace are claimed
-///   through [`KeyClaim`](craft_ui::behavior::KeyClaim) and reported as
+///   through [`KeyClaim`] and reported as
 ///   [`GraphAction::Delete`]. Every chord matches its modifiers exactly. EffectCraft has no
 ///   keyboard selection of keys, so there is none.
 ///   AccessKit: the plot is a `Group` named by [`GraphEditorLabels`]' title with the
@@ -194,6 +226,7 @@ pub struct GraphEditor<'a> {
 }
 
 impl<'a> GraphEditor<'a> {
+    /// A graph editor for `curves` with the app's key `selection`, the time `view` of the timeline and the graph `range`, which the editor changes (zoom, mode, options).
     pub fn new(
         id_salt: impl AsIdSalt,
         curves: &'a [GraphCurve],
@@ -212,11 +245,13 @@ impl<'a> GraphEditor<'a> {
         self
     }
 
+    /// The playhead time, drawn as a vertical line.
     pub fn playhead(mut self, t: Tick) -> Self {
         self.playhead = t;
         self
     }
 
+    /// The tooltip and accessibility words; `GraphEditorLabels::of` when not set.
     pub fn labels(mut self, labels: GraphEditorLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -229,6 +264,7 @@ impl<'a> GraphEditor<'a> {
         self
     }
 
+    /// Show the editor in `rect` and report what the user did.
     // effectcraft: crates/ui-egui/src/panels/graph.rs:407 `show`, `:356` `box_select`, `:379`
     // `wheel_zoom`, `:611` `button_bar`, `:740` `fit_selection`, `:842` `HandleGrab`.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> GraphEditorOutput {
@@ -853,9 +889,13 @@ fn format_value(value: f64, step: f64) -> String {
 /// What the graph editor did this pass.
 #[must_use]
 pub struct GraphEditorOutput {
+    /// The plot's response, for hover and focus.
     pub response: Response,
+    /// The selection change a click or box selection made.
     pub selection: Option<SelectionChange<KeyframeId>>,
+    /// The key move gesture, one update per frame and a commit on release.
     pub keys_moved: Option<EditEvent<GraphKeyMove>>,
+    /// The handle move gesture, one update per frame and a commit on release.
     pub handle_moved: Option<EditEvent<HandleMove>>,
     /// This pass's actions, in order.
     pub actions: Vec<GraphAction>,

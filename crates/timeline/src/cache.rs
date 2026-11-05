@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 /// The memory a cached frame holds.
 pub trait FrameSize {
+    /// Bytes of memory the value holds, counted against the cache budget.
     fn bytes(&self) -> usize;
 }
 
@@ -43,9 +44,11 @@ pub struct FramePlayhead<K> {
     pub current: i64,
     /// The range the preview plays, inclusive.
     pub start: i64,
+    /// Last frame of the played range, inclusive.
     pub end: i64,
     /// Frames advanced per shown frame (the skip of a RAM preview, at least 1).
     pub step: i64,
+    /// Whether playback wraps from `end` back to `start`.
     pub looping: bool,
 }
 
@@ -85,6 +88,7 @@ impl<K: FrameCacheKey, V: FrameSize> FrameCache<K, V> {
         Self { map: HashMap::new(), order: VecDeque::new(), bytes: 0, budget, playhead: None, on_screen: None }
     }
 
+    /// The byte budget the cache evicts down to.
     pub fn budget(&self) -> usize {
         self.budget
     }
@@ -94,10 +98,12 @@ impl<K: FrameCacheKey, V: FrameSize> FrameCache<K, V> {
         self.bytes
     }
 
+    /// The number of frames held.
     pub fn len(&self) -> usize {
         self.map.len()
     }
 
+    /// Whether the cache holds no frames.
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
@@ -180,6 +186,7 @@ impl<K: FrameCacheKey, V: FrameSize> FrameCache<K, V> {
         self.order.retain(|k| self.map.contains_key(k));
     }
 
+    /// Remove every frame and reset the byte count.
     pub fn clear(&mut self) {
         self.map.clear();
         self.order.clear();
