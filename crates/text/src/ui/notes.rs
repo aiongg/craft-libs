@@ -65,19 +65,18 @@ impl NotesText {
         paragraphs.join("\n")
     }
 
-    /// The notes as they read with `text` typed in, one edit (an insertion or a deletion) away
-    /// from [`plain`](Self::plain): the runs around the edit keep their formatting and typed text
-    /// takes the formatting before it; `None` when `text` isn't one edit away (the app then
-    /// replaces the notes with plain paragraphs).
-    // deckcraft: crates/ui-egui/src/panels/notes.rs:41 `typed`.
+    /// The notes as they read with `text` typed in as if in place: only the span between the
+    /// longest common prefix and suffix of [`plain`](Self::plain) and `text` changes (so one
+    /// insertion, a deletion, or a selection replaced by typing all count), untouched text keeps
+    /// its runs and paragraph settings, and the new text takes the formatting where it lands.
+    /// Line endings in `text` are read as `\n` first. `None` when the two share no prefix and no
+    /// suffix: the app then replaces the notes with plain paragraphs.
+    // deckcraft: crates/model/src/edit.rs:420 `replace_text` (via `panels/notes.rs:41` `typed`).
     pub fn typed(&self, text: &str) -> Option<NotesText> {
         let old: Vec<char> = self.plain().chars().collect();
-        let new: Vec<char> = text.chars().collect();
+        let new: Vec<char> = text.replace("\r\n", "\n").replace('\r', "\n").chars().collect();
         if old == new {
             return Some(self.clone());
-        }
-        if new.contains(&'\r') {
-            return None;
         }
         let prefix = old.iter().zip(&new).take_while(|(a, b)| a == b).count();
         let room = old.len().min(new.len()) - prefix;

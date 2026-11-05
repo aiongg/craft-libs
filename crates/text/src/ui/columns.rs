@@ -5,16 +5,16 @@
 
 use std::cell::Cell;
 
-use craft_ui::composites::{Field, FieldGroup, GroupBox};
+use craft_ui::composites::{Field, FieldControl as _, FieldGroup, FormGrid, GroupBox};
 use craft_ui::controls::expr::ExprUnits;
 use craft_ui::controls::{Button, CheckState, Checkbox, ControlSize, NumberField};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width};
-use craft_ui::edit::EditEvent;
+use craft_ui::edit::{EditEvent, GestureDraft};
 use craft_ui::localized::units::{Length, LengthUnit, UnitContext};
-use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::patterns::unit_number_field;
-use egui::{Context, Grid, Ui};
+use egui::{Context, Label, Ui};
 
 /// The most columns (PowerPoint's 16).
 pub const MAX_COLUMNS: u32 = 16;
@@ -22,8 +22,12 @@ pub const MAX_COLUMNS: u32 = 16;
 /// The largest spacing, points (22 in, PowerPoint).
 pub const MAX_SPACING: f32 = 1584.0;
 
-/// The spacing a preset takes when the columns have none yet, points (Word's 0.5 in).
-const DEFAULT_SPACING: f32 = 36.0;
+/// The spacing between columns Word gives a preset and a new section's columns, points: Word's
+/// 0.5 in (wordcraft: `dialogs/dialogs_insert/columns.rs:182` `preset`, `doc/src/section.rs:617`).
+const DEFAULT_SPACING: f32 = 0.5 * 72.0;
+/// The Left and Right presets' narrow column is this share of the text width less one spacing,
+/// the wide one the rest (wordcraft: `columns.rs:187-188`).
+const NARROW_SHARE: f32 = 1.0 / 3.0;
 
 craft_ui::words! {
     /// The dialog's and menu's words (DeckCraft's and WordCraft's strings).
@@ -41,7 +45,7 @@ craft_ui::words! {
         left: "columns.left" = "Left";
         right: "columns.right" = "Right";
         width_and_spacing: "columns.widthAndSpacing" = "Width and spacing";
-        column: "columns.column" = "Col #:";
+        column: "columns.columnN" = "Col {n}:";
         width: "columns.width" = "Width:";
         equal_width: "columns.equalWidth" = "Equal column width";
         line_between: "columns.lineBetween" = "Line between";
@@ -89,6 +93,8 @@ pub struct TextColumnsDialog {
     unit: LengthUnit,
     state: DialogState,
     labels: Option<TextColumnsLabels>,
+    /// The edited columns from before the running gesture: Esc restores them.
+    draft: GestureDraft<TextColumns>,
 }
 
 impl TextColumnsDialog {
@@ -100,6 +106,7 @@ impl TextColumnsDialog {
             unit: LengthUnit::Inches,
             state: DialogState::default(),
             labels: None,
+            draft: GestureDraft::new(),
         }
     }
 
@@ -186,7 +193,7 @@ impl TextColumnsDialog {
 
     fn apply_preset(&mut self, preset: ColumnsPreset) {
         let Some(width) = self.word else { return };
-        let spacing = self.edited.spacing.filter(|s| *s > 0.0).unwrap_or(DEFAULT_SPACING);
+        let spacing = DEFAULT_SPACING;
         self.edited.spacing = Some(spacing);
         let (count, narrow_first) = match preset {
             ColumnsPreset::One => (1, None),
@@ -202,8 +209,9 @@ impl TextColumnsDialog {
                 self.edited.widths.clear();
             }
             Some(left) => {
-                let narrow = width / 3.0;
-                let wide = (width - narrow - spacing).max(0.0);
+                let room = (width - spacing).max(0.0);
+                let narrow = room * NARROW_SHARE;
+                let wide = room - narrow;
                 let (first, second) = if left { (narrow, wide) } else { (wide, narrow) };
                 self.edited.equal_width = Some(false);
                 self.edited.widths = vec![(first, spacing), (second, 0.0)];
@@ -258,20 +266,46 @@ fn in_points(value: f64, unit: LengthUnit) -> f32 {
     UnitContext::default().convert(Length { value, unit }, LengthUnit::Points).unwrap_or(value) as f32
 }
 
-/// The value an edit event leaves in the field, if it changed it.
-fn applied<T: Clone>(event: Option<&EditEvent<T>>) -> Option<T> {
-    match event? {
-        EditEvent::Commit { changed: false, .. } => None,
-        event => event.value().cloned(),
-    }
-}
-
 impl TextColumnsDialog {
+    /// Applies a field's event through the draft: every `Update` shows in the dialog, and Esc
+    /// (`Cancel`) restores the columns from before the gesture. `set` writes the field's value
+    /// into the columns.
+    fn edit<V>(&mut self, event: Option<EditEvent<V>>, set: impl FnOnce(&mut Self, V)) {
+        let Some(event) = event else { return };
+        let event = event.map(|value| {
+            let before = self.edited.clone();
+            set(self, value);
+            std::mem::replace(&mut self.edited, before)
+        });
+        self.draft.apply(&mut self.edited, event);
+    }
+
+    /// The message under Number when it is out of range, its bounds in the locale's digits.
+    pub(super) fn number_message(labels: &TextColumnsLabels, numbers: &LocaleNumbers) -> String {
+        let bound = |n: u32| numbers.format(f64::from(n), 0..=0);
+        fmt(&labels.number_range, &[("min", &bound(1)), ("max", &bound(MAX_COLUMNS))])
+    }
+
+    /// The Number field's event.
+    pub(super) fn edit_count(&mut self, event: Option<EditEvent<Option<f64>>>) {
+        self.edit(event, |me, v| {
+            if let Some(v) = v {
+                me.set_count(v.max(0.0) as u32);
+            }
+        });
+    }
+
+    /// The columns as edited so far.
+    pub(super) fn edited(&self) -> &TextColumns {
+        &self.edited
+    }
+
     fn spacing_message(&self, labels: &TextColumnsLabels, numbers: &LocaleNumbers) -> String {
         let show = |points: f32| format!("{} {}", numbers.format(in_unit(points, self.unit), 0..=self.unit.decimals()), self.unit.suffix());
-        labels.spacing_range.replace("{min}", &show(0.0)).replace("{max}", &show(MAX_SPACING))
+        fmt(&labels.spacing_range, &[("min", &show(0.0)), ("max", &show(MAX_SPACING))])
     }
 
+    /// One width or spacing field of the grid, named `caption`; its event in points.
     fn length_field(
         &self,
         ui: &mut Ui,
@@ -280,11 +314,10 @@ impl TextColumnsDialog {
         caption: &str,
         points: Option<f32>,
         enabled: bool,
-    ) -> Option<f32> {
+    ) -> craft_ui::edit::EditResponse<Option<f32>> {
         let units = ExprUnits { unit: Some(self.unit), suffix: self.unit.suffix(), context: UnitContext::default() };
         let shown = points.map_or(f64::NAN, |p| in_unit(p, self.unit));
-        let edit = unit_number_field(salt, caption, shown, numbers, &units).enabled(enabled).show_optional(ui);
-        applied(edit.event.as_ref()).flatten().map(|v| in_points(v, self.unit))
+        unit_number_field(salt, caption, shown, numbers, &units).enabled(enabled).show_optional(ui).map(|v| v.map(|v| in_points(v, self.unit)))
     }
 
     fn body(&mut self, ui: &mut Ui, labels: &TextColumnsLabels, numbers: &LocaleNumbers, valid: &Cell<bool>) {
@@ -295,7 +328,7 @@ impl TextColumnsDialog {
         }
         FieldGroup::new("columns-fields").show(ui, |ui| {
             let bad = !self.count_in_range();
-            let error = bad.then(|| labels.number_range.replace("{min}", "1").replace("{max}", &MAX_COLUMNS.to_string()));
+            let error = bad.then(|| Self::number_message(labels, numbers));
             let shown = self.edited.count.map_or(f64::NAN, f64::from);
             let edit = Field::new(labels.number.as_str())
                 .error(error)
@@ -303,9 +336,7 @@ impl TextColumnsDialog {
                     NumberField::new(("columns", "count"), labels.number.as_str(), shown, numbers).decimals(0..=0).invalid(invalid).show_optional(ui)
                 })
                 .inner;
-            if let Some(Some(v)) = applied(edit.event.as_ref()) {
-                self.set_count(v.max(0.0) as u32);
-            }
+            self.edit_count(edit.event);
             if self.word.is_none() {
                 let bad = !self.spacing_in_range();
                 let error = bad.then(|| self.spacing_message(labels, numbers));
@@ -318,9 +349,12 @@ impl TextColumnsDialog {
                         unit_number_field(("columns", "spacing"), labels.spacing.as_str(), shown, numbers, &units).invalid(invalid).show_optional(ui)
                     })
                     .inner;
-                if let Some(Some(v)) = applied(edit.event.as_ref()) {
-                    self.edited.spacing = Some(in_points(v, self.unit));
-                }
+                let unit = self.unit;
+                self.edit(edit.event, |me, v: Option<f64>| {
+                    if let Some(v) = v {
+                        me.edited.spacing = Some(in_points(v, unit));
+                    }
+                });
             }
         });
         if self.word.is_some() {
@@ -366,36 +400,49 @@ impl TextColumnsDialog {
         }
     }
 
-    /// One row per column: its number, its width and the spacing after it.
+    /// One row per column: its number, then its width and the spacing after it.
     fn grid(&mut self, ui: &mut Ui, labels: &TextColumnsLabels, numbers: &LocaleNumbers) {
         let rows = self.rows();
         let equal = self.equal();
         let mut width_edit = None;
         let mut spacing_edit = None;
-        Grid::new("columns-grid").show(ui, |ui| {
-            ui.label(labels.column.as_str());
-            ui.label(labels.width.as_str());
-            ui.label(labels.spacing.as_str());
-            ui.end_row();
+        let (width_name, spacing_name) = (bare(&labels.width), bare(&labels.spacing));
+        FormGrid::new("columns-grid").show(ui, |form| {
             for (i, (width, spacing)) in rows.iter().enumerate() {
-                ui.label(numbers.format(i as f64 + 1.0, 0..=0));
-                if let Some(v) = self.length_field(ui, numbers, ("columns-width", i), labels.width.as_str(), Some(*width), !equal || i == 0) {
-                    width_edit = Some((i, v));
-                }
-                let last = i + 1 == rows.len();
-                if let Some(v) = self.length_field(ui, numbers, ("columns-gap", i), labels.spacing.as_str(), (!last).then_some(*spacing), !last) {
-                    spacing_edit = Some((i, v));
-                }
-                ui.end_row();
+                let number = numbers.format(i as f64 + 1.0, 0..=0);
+                let row = fmt(&labels.column, &[("n", &number)]);
+                form.row(row, |ui, _| {
+                    ui.add(Label::new(labels.width.as_str()).selectable(false));
+                    let w = self.length_field(ui, numbers, ("columns-width", i), width_name, Some(*width), !equal || i == 0);
+                    ui.add(Label::new(labels.spacing.as_str()).selectable(false));
+                    let last = i + 1 == rows.len();
+                    let s = self.length_field(ui, numbers, ("columns-gap", i), spacing_name, (!last).then_some(*spacing), !last);
+                    width_edit = w.event.clone().map(|e| (i, e));
+                    spacing_edit = s.event.clone().map(|e| (i, e));
+                    (w.own_name(), s)
+                });
             }
         });
-        if let Some((i, v)) = width_edit {
-            self.set_width(i, v);
+        if let Some((i, event)) = width_edit {
+            self.edit(Some(event), |me, v: Option<f32>| {
+                if let Some(v) = v {
+                    me.set_width(i, v);
+                }
+            });
         }
-        if let Some((i, v)) = spacing_edit {
-            self.set_spacing_after(i, v);
+        if let Some((i, event)) = spacing_edit {
+            self.edit(Some(event), |me, v: Option<f32>| {
+                if let Some(v) = v {
+                    me.set_spacing_after(i, v);
+                }
+            });
         }
     }
+}
+
+/// A caption without its trailing colon: the name of a field whose row label carries the colon.
+fn bare(caption: &str) -> &str {
+    caption.trim_end_matches([':', '\u{ff1a}'])
 }
 
 impl StackDialog for TextColumnsDialog {

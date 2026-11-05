@@ -6,11 +6,13 @@ use std::cell::Cell;
 
 use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
 use craft_ui::composites::{Field, FieldGroup};
-use craft_ui::controls::{Checkbox, RadioSet, TextField};
+use craft_ui::controls::{Checkbox, RadioOption, RadioSet, TextField};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width};
 use craft_ui::edit::EditEvent;
+use craft_ui::icons::Icon;
 use craft_ui::list::{List, ListRow};
 use craft_ui::localized::Labels as _;
+use craft_ui::primitives::Icon as IconWidget;
 use egui::{Context, Ui};
 
 craft_ui::words! {
@@ -26,6 +28,7 @@ craft_ui::words! {
         text_to_display: "hyperlink.textToDisplay" = "Text to display:";
         address: "hyperlink.address" = "Address:";
         email_address: "hyperlink.emailAddress" = "E-mail address:";
+        subject: "hyperlink.subject" = "Subject:";
         select_place: "hyperlink.selectPlace" = "Select a place in this document:";
         top_of_document: "hyperlink.topOfDocument" = "Top of the Document";
         screen_tip: "hyperlink.screenTip" = "ScreenTip:";
@@ -36,11 +39,14 @@ craft_ui::words! {
 
 /// Where a link goes.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LinkTarget {
     /// A web address or file (`https://…`).
     Url(String),
-    /// An email address, written `mailto:` by the app.
-    Email(String),
+    /// An email address and an optional subject, written as a `mailto:` link by the app.
+    Email { address: String, subject: Option<String> },
+    /// The top of the document (Word's "Top of the Document").
+    Top,
     /// A place in the document: the index into [`HyperlinkDialog::places`].
     Place(usize),
 }
@@ -70,6 +76,7 @@ pub enum CurrentLink {
 
 /// OK's answer.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum HyperlinkAnswer {
     /// Write this link; `text` is the display text when the selection was a bare caret (insert
     /// it) or the user changed it.
@@ -82,12 +89,14 @@ pub enum HyperlinkAnswer {
 
 /// The dialog.
 ///
-/// - Link to: the three targets as craft-ui's `RadioSet` with icons, a column at the left
-///   (Word's); a new link's address starts at `https://` (DeckCraft). Address, Email address,
-///   Subject and Text to display are craft-ui `TextField`s.
-/// - Place in This Document lists [`places`](Self::places) in a craft-ui
-///   [`List`](craft_ui::list::List) (one Tab stop, the list keys, type-ahead; Top of the Document
-///   first; headings and bookmarks, or slides "1. Title").
+/// - Link to: the three targets as craft-ui's `RadioSet`, a column at the left (Word's), each
+///   with its icon (a globe, a bookmark, an envelope) after the label; a new link's address
+///   starts at `https://` (DeckCraft). Address, Email address, Subject and Text to display are
+///   craft-ui `TextField`s.
+/// - Place in This Document lists Top of the Document, then [`places`](Self::places), in a
+///   craft-ui [`List`](craft_ui::list::List) (one Tab stop, the list keys, type-ahead; headings
+///   and bookmarks, or slides "1. Title"). Top is [`LinkTarget::Top`]; `places` holds only the
+///   named places.
 /// - With [`CurrentLink::Mixed`] or [`CurrentLink::Other`] the fields start empty and OK returns
 ///   [`HyperlinkAnswer::Keep`] until a target differs from the seed (DeckCraft's
 ///   `hyperlink_should_apply`).
@@ -111,13 +120,22 @@ enum Mode {
     Place,
 }
 
+/// A row of the places list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Spot {
+    Top,
+    /// An index into [`HyperlinkDialog::places`].
+    Place(usize),
+}
+
 /// The dialog's fields.
 #[derive(Clone, Debug, PartialEq)]
 struct Form {
     mode: Mode,
     url: String,
     email: String,
-    place: Selection<usize>,
+    subject: String,
+    place: Selection<Spot>,
     tooltip: String,
     highlight_click: bool,
     display: String,
@@ -132,6 +150,7 @@ impl Form {
             mode: Mode::Url,
             url: NEW_ADDRESS.to_owned(),
             email: String::new(),
+            subject: String::new(),
             place: Selection::new(),
             tooltip: String::new(),
             highlight_click: false,
@@ -145,13 +164,18 @@ impl Form {
                 form.highlight_click = link.highlight_click;
                 match &link.target {
                     LinkTarget::Url(url) => form.url.clone_from(url),
-                    LinkTarget::Email(email) => {
+                    LinkTarget::Email { address, subject } => {
                         form.mode = Mode::Email;
-                        form.email.clone_from(email);
+                        form.email.clone_from(address);
+                        form.subject = subject.clone().unwrap_or_default();
+                    }
+                    LinkTarget::Top => {
+                        form.mode = Mode::Place;
+                        form.place = Selection::only(Spot::Top);
                     }
                     LinkTarget::Place(place) => {
                         form.mode = Mode::Place;
-                        form.place = Selection::only(*place);
+                        form.place = Selection::only(Spot::Place(*place));
                     }
                 }
             }
@@ -159,7 +183,7 @@ impl Form {
         form
     }
 
-    fn place(&self) -> Option<usize> {
+    fn place(&self) -> Option<Spot> {
         self.place.lead
     }
 }
@@ -172,7 +196,8 @@ impl HyperlinkDialog {
         HyperlinkDialog { current, text, places: Vec::new(), highlight: false, labels: None, state: DialogState::default(), seed: form.clone(), form }
     }
 
-    /// The places in the document a link may go to.
+    /// The places in the document a link may go to, after Top of the Document (which the dialog
+    /// always lists, as [`LinkTarget::Top`]).
     pub fn places(mut self, places: Vec<String>) -> Self {
         self.places = places;
         self
@@ -194,8 +219,14 @@ impl HyperlinkDialog {
         let form = &self.form;
         match form.mode {
             Mode::Url => Some(form.url.trim()).filter(|u| !u.is_empty() && *u != NEW_ADDRESS).map(|u| LinkTarget::Url(u.to_owned())),
-            Mode::Email => Some(form.email.trim()).filter(|e| !e.is_empty()).map(|e| LinkTarget::Email(e.to_owned())),
-            Mode::Place => form.place().filter(|p| *p < self.places.len()).map(LinkTarget::Place),
+            Mode::Email => Some(form.email.trim()).filter(|e| !e.is_empty()).map(|address| LinkTarget::Email {
+                address: address.to_owned(),
+                subject: Some(form.subject.trim()).filter(|s| !s.is_empty()).map(str::to_owned),
+            }),
+            Mode::Place => match form.place()? {
+                Spot::Top => Some(LinkTarget::Top),
+                Spot::Place(place) => (place < self.places.len()).then_some(LinkTarget::Place(place)),
+            },
         }
     }
 
@@ -209,7 +240,7 @@ impl HyperlinkDialog {
         form.mode != seed.mode
             || match form.mode {
                 Mode::Url => form.url != seed.url,
-                Mode::Email => form.email != seed.email,
+                Mode::Email => form.email != seed.email || form.subject != seed.subject,
                 Mode::Place => form.place() != seed.place(),
             }
     }
@@ -268,9 +299,11 @@ impl HyperlinkDialog {
                     .item(Mode::Email)
                     .item(Mode::Place)
                     .begin(ui);
-                set.radio(ui, 0, labels.web_page.as_str());
-                set.radio(ui, 1, labels.email.as_str());
-                set.radio(ui, 2, labels.place.as_str());
+                for (index, (label, icon)) in
+                    [(&labels.web_page, Icon::Globe), (&labels.email, Icon::Mail), (&labels.place, Icon::Bookmark)].into_iter().enumerate()
+                {
+                    set.radio_with(ui, index, RadioOption::new(label.as_str()).content(move |ui| _ = ui.add(IconWidget::new(icon))));
+                }
                 let _ = set.end(ui);
             });
             ui.vertical(|ui| {
@@ -280,7 +313,10 @@ impl HyperlinkDialog {
                     }
                     match self.form.mode {
                         Mode::Url => Self::text_field(ui, "url", labels.address.as_str(), &mut self.form.url, Some(address)),
-                        Mode::Email => Self::text_field(ui, "email", labels.email_address.as_str(), &mut self.form.email, Some(address)),
+                        Mode::Email => {
+                            Self::text_field(ui, "email", labels.email_address.as_str(), &mut self.form.email, Some(address));
+                            Self::text_field(ui, "subject", labels.subject.as_str(), &mut self.form.subject, None);
+                        }
                         Mode::Place => self.place_list(ui, labels),
                     }
                     Self::text_field(ui, "tip", labels.screen_tip.as_str(), &mut self.form.tooltip, None);
@@ -295,15 +331,18 @@ impl HyperlinkDialog {
 
     fn place_list(&mut self, ui: &mut Ui, labels: &HyperlinkLabels) {
         ui.label(labels.select_place.as_str());
-        let keys: Vec<RowInfo<usize>> = (0..self.places.len()).map(RowInfo::leaf).collect();
+        let keys: Vec<RowInfo<Spot>> = std::iter::once(Spot::Top).chain((0..self.places.len()).map(Spot::Place)).map(RowInfo::leaf).collect();
         let places = &self.places;
         let _ = List::new(("hyperlink", "places"), labels.select_place.as_str(), keys.as_slice())
             .selection(&mut self.form.place)
             .mode(SelectionMode::Single)
             .type_ahead(true)
-            .show(ui, |at, &key| {
-                let name = places[at].as_str();
-                ListRow::new(key, if name.is_empty() { labels.top_of_document.as_str() } else { name })
+            .show(ui, |_, &key| {
+                let name = match key {
+                    Spot::Top => labels.top_of_document.as_str(),
+                    Spot::Place(place) => places[place].as_str(),
+                };
+                ListRow::new(key, name)
             });
     }
 }

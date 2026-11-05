@@ -74,7 +74,7 @@ fn mixed_links_are_kept_until_a_new_target() {
     assert_eq!(answer(&harness), Some(set(LinkTarget::Url("https://a.example".into()))));
 }
 
-// Choosing E-mail Address returns LinkTarget::Email; Place in This Document returns the picked place's index.
+// Choosing E-mail Address returns LinkTarget::Email; Place in This Document returns the picked place's index in `places` (Top of the Document is not one of them).
 #[test]
 fn email_and_place_targets() {
     let mut harness = open(HyperlinkDialog::new(CurrentLink::None, None));
@@ -82,9 +82,9 @@ fn email_and_place_targets() {
     harness.run();
     type_into(&mut harness, "E-mail address:", "a@b.example");
     ok(&mut harness);
-    assert_eq!(answer(&harness), Some(set(LinkTarget::Email("a@b.example".into()))));
+    assert_eq!(answer(&harness), Some(set(LinkTarget::Email { address: "a@b.example".into(), subject: None })));
 
-    let places = vec!["".to_owned(), "1. Title".to_owned(), "2. Plan".to_owned()];
+    let places = vec!["1. Title".to_owned(), "2. Plan".to_owned()];
     let mut harness = open(HyperlinkDialog::new(CurrentLink::None, None).places(places));
     harness.get_by_role_and_label(Role::RadioButton, "Place in This Document").click();
     harness.run();
@@ -92,5 +92,35 @@ fn email_and_place_targets() {
     harness.get_by_label("2. Plan").click();
     harness.run();
     ok(&mut harness);
-    assert_eq!(answer(&harness), Some(set(LinkTarget::Place(2))));
+    assert_eq!(answer(&harness), Some(set(LinkTarget::Place(1))));
+}
+
+// The E-mail Address target has a Subject field, returned beside the address; an empty subject is None.
+#[test]
+fn an_email_link_carries_its_subject() {
+    let mut harness = open(HyperlinkDialog::new(CurrentLink::None, None));
+    harness.get_by_role_and_label(Role::RadioButton, "E-mail Address").click();
+    harness.run();
+    type_into(&mut harness, "E-mail address:", "a@b.example");
+    type_into(&mut harness, "Subject:", "Hello");
+    ok(&mut harness);
+    assert_eq!(answer(&harness), Some(set(LinkTarget::Email { address: "a@b.example".into(), subject: Some("Hello".into()) })));
+}
+
+// Picking Top of the Document returns LinkTarget::Top, and an edited Top link reopens with that row picked.
+#[test]
+fn the_top_of_the_document_is_its_own_target() {
+    let places = vec!["1. Title".to_owned()];
+    let mut harness = open(HyperlinkDialog::new(CurrentLink::None, None).places(places.clone()));
+    harness.get_by_role_and_label(Role::RadioButton, "Place in This Document").click();
+    harness.run();
+    harness.get_by_label("Top of the Document").click();
+    harness.run();
+    ok(&mut harness);
+    assert_eq!(answer(&harness), Some(set(LinkTarget::Top)));
+
+    let current = CurrentLink::One(Hyperlink { target: LinkTarget::Top, tooltip: String::new(), highlight_click: false });
+    let mut harness = open(HyperlinkDialog::new(current, None).places(places));
+    ok(&mut harness);
+    assert_eq!(answer(&harness), Some(set(LinkTarget::Top)));
 }

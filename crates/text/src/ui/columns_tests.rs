@@ -1,6 +1,8 @@
 //! The Columns dialog and menu.
 
 use craft_ui::dialog::{DialogHost, DialogResult};
+use craft_ui::edit::{CancelReason, EditEvent, GestureId};
+use craft_ui::localized::LocaleNumbers;
 use craft_ui::localized::units::LengthUnit;
 use craft_ui::menu::MenuEntry;
 use craft_ui::theme::{Base, install};
@@ -85,18 +87,18 @@ fn out_of_range_values_keep_the_dialog_open() {
 fn word_grid_follows_equal_width() {
     let columns = TextColumns { count: Some(3), ..start() };
     let mut harness = open(TextColumnsDialog::new(columns).word(468.0).unit(LengthUnit::Inches));
-    let widths: Vec<_> = harness.get_all_by_role_and_label(Role::SpinButton, "Width:").collect();
+    let widths: Vec<_> = harness.get_all_by_role_and_label(Role::SpinButton, "Width").collect();
     assert_eq!(widths.len(), 3);
     assert_eq!(widths.iter().map(|w| w.accesskit_node().is_disabled()).collect::<Vec<_>>(), [false, true, true]);
     for width in &widths {
         assert!(width.value().is_some_and(|v| v.contains("1.83")), "{:?}", width.value());
     }
-    let spacing = harness.get_all_by_role_and_label(Role::SpinButton, "Spacing:").next().expect("spacing field");
+    let spacing = harness.get_all_by_role_and_label(Role::SpinButton, "Spacing").next().expect("spacing field");
     assert!(spacing.value().is_some_and(|v| v.contains("0.5")));
 
     harness.get_by_label("Equal column width").click();
     harness.run();
-    let widths: Vec<_> = harness.get_all_by_role_and_label(Role::SpinButton, "Width:").collect();
+    let widths: Vec<_> = harness.get_all_by_role_and_label(Role::SpinButton, "Width").collect();
     assert!(widths.iter().all(|w| !w.accesskit_node().is_disabled()));
 }
 
@@ -108,4 +110,58 @@ fn the_menu_checks_the_current_preset() {
         entries.iter().filter_map(MenuEntry::item).filter(|i| i.item_kind().checked() == Some(true)).map(|i| i.label().to_owned()).collect();
     assert_eq!(checked, ["Two"]);
     assert_eq!(entries.last().and_then(MenuEntry::item).and_then(|i| i.command()), Some(&ColumnsChoice::More));
+}
+
+fn widths(harness: &Harness<'_, App>, name: &str) -> Vec<Option<String>> {
+    harness.get_all_by_role_and_label(Role::SpinButton, name).map(|n| n.value()).collect()
+}
+
+// The Left preset over a 6.5 in text width and 0.5 in spacing makes a 2 in and a 4 in column (a third of the width less the spacing, then the rest); it sets the spacing to 0.5 in even when the columns had another.
+#[test]
+fn the_left_preset_splits_the_width_less_the_spacing() {
+    let columns = TextColumns { spacing: Some(18.0), ..start() };
+    let mut harness = open(TextColumnsDialog::new(columns).word(468.0).unit(LengthUnit::Inches));
+    harness.get_by_label("Left").click();
+    harness.run();
+    let shown = widths(&harness, "Width");
+    assert_eq!(shown.len(), 2);
+    assert!(shown[0].as_deref().is_some_and(|v| v.starts_with('2') && !v.starts_with("2.")), "{shown:?}");
+    assert!(shown[1].as_deref().is_some_and(|v| v.starts_with('4')), "{shown:?}");
+    assert!(widths(&harness, "Spacing")[0].as_deref().is_some_and(|v| v.contains("0.5")));
+}
+
+// Each grid row is named by its column ("Col 2:") through the form grid; the row's first field keeps the name Width.
+#[test]
+fn grid_rows_are_labelled_by_column() {
+    let columns = TextColumns { count: Some(3), ..start() };
+    let harness = open(TextColumnsDialog::new(columns).word(468.0).unit(LengthUnit::Inches));
+    harness.get_by_label_contains("Col 2");
+    assert_eq!(widths(&harness, "Width").len(), 3);
+}
+
+// A Cancel after a preview puts the columns back: Begin and Update to 3 columns then Cancel keeps 1; a Commit keeps 3.
+#[test]
+fn cancelling_a_number_edit_restores_the_start() {
+    let mut dialog = TextColumnsDialog::new(start());
+    let id = GestureId::next();
+    dialog.edit_count(Some(EditEvent::begin(id)));
+    dialog.edit_count(Some(EditEvent::update(id, Some(3.0), egui::Modifiers::NONE)));
+    assert_eq!(dialog.edited().count, Some(3));
+    dialog.edit_count(Some(EditEvent::cancel(id, CancelReason::Escape)));
+    assert_eq!(dialog.edited().count, Some(1));
+
+    let id = GestureId::next();
+    dialog.edit_count(Some(EditEvent::begin(id)));
+    dialog.edit_count(Some(EditEvent::commit(id, Some(3.0), true, egui::Modifiers::NONE)));
+    assert_eq!(dialog.edited().count, Some(3));
+}
+
+// The range message writes the bounds in the locale's digits: under ar-EG the maximum is not "16".
+#[test]
+fn the_number_range_message_uses_the_locales_digits() {
+    let labels = TextColumnsLabels::default();
+    let english = TextColumnsDialog::number_message(&labels, &LocaleNumbers::from_tag("en"));
+    assert!(english.contains("from 1 to 16"), "{english}");
+    let arabic = TextColumnsDialog::number_message(&labels, &LocaleNumbers::from_tag("ar-EG"));
+    assert!(!arabic.contains("16") && !arabic.contains("to 1 "), "{arabic}");
 }

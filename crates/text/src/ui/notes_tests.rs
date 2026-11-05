@@ -59,6 +59,18 @@ fn typing_keeps_the_formatting_around_it() {
     assert_eq!(notes.typed("BOLD PLAIN"), None);
 }
 
+// A span replaced in one go (a selection typed over) keeps the text around it, and a CR LF pair is one line break (DeckCraft's replace_text).
+#[test]
+fn typed_replaces_the_span_between_the_common_prefix_and_suffix() {
+    let notes = NotesText { paragraphs: vec![paragraph(vec![run("bold", true), run(" plain", false)])] };
+    let replaced = notes.typed("bXYZ plain").expect("a prefix and a suffix are shared");
+    assert_eq!(replaced.paragraphs[0].runs, vec![run("bXYZ", true), run(" plain", false)]);
+
+    let split = notes.typed("bold\r\n plain").expect("shares both ends");
+    assert_eq!(split.plain(), "bold\n plain");
+    assert_eq!(split.paragraphs.len(), 2);
+}
+
 // Typing into the editor reports the notes with the typed text in the bold run it landed in.
 #[test]
 fn the_editor_reports_typed_text_with_its_formatting() {
