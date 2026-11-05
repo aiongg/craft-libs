@@ -10,7 +10,8 @@
 //! starts in the request's own folder when it names one (Save As in the document's folder) and
 //! otherwise in the last folder chosen for the same purpose; a Save that names an existing file the
 //! OS panel did not ask about gets the Replace question (PhotoCraft `file_dialog.rs:193
-//! replaces_unasked`); a typed name without an extension gets the suggested one and an uppercase
+//! replaces_unasked`), a native message box from [`FilePanels::pump`] or, with the `ui` feature, a
+//! prompt on the app's `DialogHost` from `FilePanels::pump_with`; a typed name without an extension gets the suggested one and an uppercase
 //! extension is lowercased (`file_dialog.rs:210 lowercased_extension`, `:365 saved_path`); the two
 //! steps are separate settings of the [`ExtensionPolicy`].
 
@@ -148,7 +149,24 @@ pub enum ReplaceGuard {
 struct Pending {
     request: PickRequest,
     /// The Save path waiting on the replace question's answer.
-    awaiting_replace: Option<PathBuf>,
+    awaiting_replace: Option<ReplaceQuestion>,
+}
+
+/// A Save answer that collides with an existing file after the extension policy: the path the
+/// panel answered and the path it settled to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ReplaceQuestion {
+    answered: PathBuf,
+    settled: PathBuf,
+}
+
+/// A replace question shown on the app's `DialogHost`: the pick it settles and the prompt's id,
+/// once the host has accepted the prompt.
+#[cfg(feature = "ui")]
+struct AskedPrompt {
+    id: PickId,
+    question: ReplaceQuestion,
+    dialog: Option<craft_ui::dialog::DialogId>,
 }
 
 /// The native file service: the Host's side. Requests go to the [`FilePanels`] over a channel;
@@ -168,6 +186,9 @@ pub struct FilePanels {
     extension_policy: ExtensionPolicy,
     replace_guard: ReplaceGuard,
     replace_words: ReplaceWords,
+    /// The replace questions [`pump_with`](FilePanels::pump_with) put on the app's dialog host.
+    #[cfg(feature = "ui")]
+    prompts: Vec<AskedPrompt>,
 }
 
 struct Inner {
@@ -198,6 +219,8 @@ impl FileService {
             extension_policy: ExtensionPolicy::default(),
             replace_guard: ReplaceGuard::default(),
             replace_words: ReplaceWords::default(),
+            #[cfg(feature = "ui")]
+            prompts: Vec::new(),
         };
         (Self { inner, wake, to_panels }, panels)
     }
@@ -246,11 +269,7 @@ impl FilePanels {
     /// the answer becomes a [`PickAnswer`].
     // pc: crates/ui-egui/src/file_dialog.rs:310 poll_file_dialog, :349 finish_file_dialog, :365 saved_path
     pub fn pump<W: HasWindowHandle + HasDisplayHandle>(&mut self, parent: Option<&W>) {
-        while let Ok((id, request)) = self.requests.try_recv() {
-            let folder = lock(&self.inner).last_folder.get(&request.purpose).cloned();
-            let dialog = self.file_dialog(&request, folder.as_deref());
-            self.dialogs.ask(dialog, id);
-        }
+        self.start_requests();
         // A replace question queued by `finish` shows in the same pass, so the loop runs until no
         // answer is left to settle.
         loop {
@@ -260,9 +279,94 @@ impl FilePanels {
                 break;
             }
             for (id, answer) in answers {
-                self.finish(id, answer);
+                if let Some(question) = self.finish(id, answer) {
+                    self.dialogs.ask_message(self.replace_message(&question.settled), id);
+                }
             }
         }
+        self.mark_busy();
+    }
+
+    /// [`pump`](FilePanels::pump) with the replace question on the app's own dialog host: the
+    /// question is a [`StandardPrompt::replace_file`](craft_ui::dialog::StandardPrompt::replace_file)
+    /// the app's `DialogHost::show` draws, so `ui.dialog.confirm` and `ui.dialog.cancel` answer it
+    /// like every prompt, and the answer is read on a later pump. A prompt of the app's own that is
+    /// open makes the question wait its turn instead of being replaced.
+    ///
+    /// The host keeps one result per prompt type: a `take::<StandardPrompt>()` of the app that runs
+    /// while the question is open takes its answer (the pick then ends as `Cancelled`), and the
+    /// app's `open` of another prompt replaces the open question the same way.
+    // pc: crates/ui-egui/src/dialogs/replace_prompt.rs:23 open
+    #[cfg(feature = "ui")]
+    pub fn pump_with<W: HasWindowHandle + HasDisplayHandle>(&mut self, dialogs: &mut craft_ui::dialog::DialogHost, parent: Option<&W>) {
+        self.collect_prompt_answers(dialogs);
+        self.start_requests();
+        loop {
+            self.dialogs.show_pending(parent);
+            let answers = self.dialogs.take_answers();
+            if answers.is_empty() {
+                break;
+            }
+            for (id, answer) in answers {
+                if let Some(question) = self.finish(id, answer) {
+                    self.prompts.push(AskedPrompt { id, question, dialog: None });
+                }
+            }
+        }
+        self.open_prompts(dialogs);
+        self.mark_busy();
+    }
+
+    /// Opens the replace questions the host has not accepted yet, one at a time: a prompt that is
+    /// open (ours or the app's) keeps the input.
+    #[cfg(feature = "ui")]
+    fn open_prompts(&mut self, dialogs: &mut craft_ui::dialog::DialogHost) {
+        use craft_ui::dialog::StandardPrompt;
+        for asked in self.prompts.iter_mut().filter(|a| a.dialog.is_none()) {
+            let name = |p: &Path| p.file_name().map_or_else(|| p.to_string_lossy(), |n| n.to_string_lossy()).into_owned();
+            let prompt = StandardPrompt::replace_file(name(&asked.question.settled), Some(name(&asked.question.answered)));
+            match dialogs.open_unless_open(prompt) {
+                Ok(dialog) => asked.dialog = Some(dialog),
+                Err(_) => break,
+            }
+        }
+    }
+
+    /// Settles the picks whose replace prompt has finished. A prompt that is neither open nor
+    /// holding a result was taken by someone else or replaced: the pick ends as `Cancelled`.
+    #[cfg(feature = "ui")]
+    fn collect_prompt_answers(&mut self, dialogs: &mut craft_ui::dialog::DialogHost) {
+        use craft_ui::dialog::{DialogResult, PromptChoice, StandardPrompt};
+        for asked in std::mem::take(&mut self.prompts) {
+            let replace = match asked.dialog {
+                None => {
+                    self.prompts.push(asked);
+                    continue;
+                }
+                Some(dialog) => match dialogs.take_by_id::<StandardPrompt>(dialog) {
+                    Some(DialogResult::Ok(answer)) => answer.choice == PromptChoice::Proceed,
+                    Some(DialogResult::Cancel) => false,
+                    None if dialogs.get_by_id::<StandardPrompt>(dialog).is_some() => {
+                        self.prompts.push(asked);
+                        continue;
+                    }
+                    None => false,
+                },
+            };
+            self.settle_replace(asked.id, replace);
+        }
+    }
+
+    /// Drains the requests the service queued into the native panels' queue.
+    fn start_requests(&mut self) {
+        while let Ok((id, request)) = self.requests.try_recv() {
+            let folder = lock(&self.inner).last_folder.get(&request.purpose).cloned();
+            let dialog = self.file_dialog(&request, folder.as_deref());
+            self.dialogs.ask(dialog, id);
+        }
+    }
+
+    fn mark_busy(&self) {
         lock(&self.inner).panel_busy = self.dialogs.is_open() || self.dialogs.queued() > 0;
     }
 
@@ -324,14 +428,15 @@ impl FilePanels {
 
     /// Turns a panel answer into the pick's answer: `Cancelled` stays, `Paths` for Save go through
     /// the policy and guard, `Unavailable` becomes `Cancelled` plus a log line (the service has no
-    /// way to show an error; the feature sees nothing chosen).
-    fn finish(&mut self, id: PickId, answer: Answer) {
-        let Some(pending) = lock(&self.inner).pending.remove(&id) else { return };
+    /// way to show an error; the feature sees nothing chosen). A Save that needs the replace
+    /// question stays pending and returns the question for the caller to ask.
+    fn finish(&mut self, id: PickId, answer: Answer) -> Option<ReplaceQuestion> {
+        let pending = lock(&self.inner).pending.remove(&id)?;
         let picked = match (answer, pending.awaiting_replace) {
-            (Answer::Message(result), Some(settled)) => {
+            (Answer::Message(result), Some(question)) => {
                 let replace =
                     matches!(&result, MessageResult::Ok) || matches!(&result, MessageResult::Custom(label) if *label == self.replace_words.replace);
-                if replace { Picked::Paths(vec![settled]) } else { Picked::Cancelled }
+                if replace { Picked::Paths(vec![question.settled]) } else { Picked::Cancelled }
             }
             (Answer::Paths(paths), _) if paths.is_empty() => Picked::Cancelled,
             (Answer::Paths(mut paths), _) => {
@@ -339,9 +444,9 @@ impl FilePanels {
                     let answered = paths.swap_remove(0);
                     let settled = Self::settled_save_path(self.extension_policy, &answered, pending.request.suggested_extension.as_deref());
                     if self.replace_guard == ReplaceGuard::AskWhenUnasked && Self::replaces_unasked(&answered, &settled) {
-                        self.dialogs.ask_message(self.replace_message(&settled), id);
-                        lock(&self.inner).pending.insert(id, Pending { request: pending.request, awaiting_replace: Some(settled) });
-                        return;
+                        let question = ReplaceQuestion { answered, settled };
+                        lock(&self.inner).pending.insert(id, Pending { request: pending.request, awaiting_replace: Some(question.clone()) });
+                        return Some(question);
                     }
                     paths = vec![settled];
                 }
@@ -353,16 +458,30 @@ impl FilePanels {
             }
             (Answer::Cancelled | Answer::Message(_), _) => Picked::Cancelled,
         };
+        self.complete(id, pending.request, picked);
+        None
+    }
+
+    /// Ends the pick whose replace question has been answered: the settled path on Replace,
+    /// `Cancelled` otherwise. A forgotten pick has nothing to settle.
+    #[cfg(feature = "ui")]
+    fn settle_replace(&mut self, id: PickId, replace: bool) {
+        let Some(Pending { request, awaiting_replace: Some(question) }) = lock(&self.inner).pending.remove(&id) else { return };
+        self.complete(id, request, if replace { Picked::Paths(vec![question.settled]) } else { Picked::Cancelled });
+    }
+
+    /// Remembers the folder of a chosen path and queues the answer.
+    fn complete(&self, id: PickId, request: PickRequest, picked: Picked) {
         let mut inner = lock(&self.inner);
         if let Picked::Paths(paths) = &picked
             && let Some(first) = paths.first()
         {
-            let folder = if pending.request.kind == PickKind::Folder { Some(first.as_path()) } else { first.parent() };
+            let folder = if request.kind == PickKind::Folder { Some(first.as_path()) } else { first.parent() };
             if let Some(folder) = folder.filter(|f| !f.as_os_str().is_empty()) {
-                inner.last_folder.insert(pending.request.purpose.clone(), folder.to_path_buf());
+                inner.last_folder.insert(request.purpose.clone(), folder.to_path_buf());
             }
         }
-        inner.answered.push_back(PickAnswer { id, request: pending.request, picked });
+        inner.answered.push_back(PickAnswer { id, request, picked });
     }
 }
 
@@ -590,5 +709,79 @@ mod service_tests {
         assert_eq!(typed("Photo.PNG", keep_case), PathBuf::from("Photo.PNG"));
         assert_eq!(typed("Photo.PNG", ExtensionPolicy::default()), PathBuf::from("Photo.png"));
         assert_eq!(typed("Photo", ExtensionPolicy::AS_TYPED), PathBuf::from("Photo"));
+    }
+
+    // A hard link is another entry of the same file.
+    #[cfg(unix)]
+    #[test]
+    fn a_hard_link_is_another_entry() {
+        let dir = scratch("hardlink");
+        std::fs::write(dir.join("a.txt"), b"x").expect("fixture");
+        std::fs::hard_link(dir.join("a.txt"), dir.join("b.txt")).expect("hard link");
+        assert!(same_file(&dir.join("a.txt"), &dir.join("b.txt")));
+        assert!(!same_entry(&dir.join("a.txt"), &dir.join("b.txt")));
+        assert!(same_entry(&dir.join("a.txt"), &dir.join("a.txt")));
+    }
+
+    // On a file system that ignores letter case, another spelling of a name is the same entry.
+    #[test]
+    fn another_spelling_is_the_same_entry_where_case_is_ignored() {
+        let dir = scratch("case");
+        std::fs::write(dir.join("a.txt"), b"x").expect("fixture");
+        if !dir.join("A.TXT").exists() {
+            return;
+        }
+        assert!(same_entry(&dir.join("a.txt"), &dir.join("A.TXT")));
+    }
+
+    #[cfg(feature = "ui")]
+    mod prompt {
+        use craft_ui::dialog::{DialogHost, StandardPrompt};
+        use egui::Context;
+
+        use super::*;
+
+        /// A Save that typed "Photo" over an existing "Photo.png", pumped once: the question is
+        /// open on the returned host.
+        fn asked() -> (FileService, FilePanels, DialogHost, PickId, PathBuf) {
+            let dir = scratch("prompt");
+            std::fs::write(dir.join("Photo.png"), b"old").expect("fixture");
+            let (service, mut panels, _) = service_with(vec![Answer::Paths(vec![dir.join("Photo")])]);
+            let mut dialogs = DialogHost::new();
+            let id = service.pick(PickRequest::save("export").suggested_extension("png"));
+            panels.pump_with(&mut dialogs, NONE);
+            assert!(dialogs.is_open::<StandardPrompt>(), "the question is on the host");
+            assert!(service.take_answer(id).is_none(), "the pick waits for the answer");
+            assert!(service.pick_pending());
+            (service, panels, dialogs, id, dir.join("Photo.png"))
+        }
+
+        // Confirming the prompt, as `ui.dialog.confirm` does, settles the pick on the next pump.
+        #[test]
+        fn confirming_the_replace_prompt_answers_the_settled_path() {
+            let (service, mut panels, mut dialogs, id, settled) = asked();
+            assert!(dialogs.confirm::<StandardPrompt>(&Context::default()));
+            panels.pump_with(&mut dialogs, NONE);
+            assert_eq!(answered(&service, id), Picked::Paths(vec![settled]));
+            assert!(!service.pick_pending());
+        }
+
+        #[test]
+        fn cancelling_the_replace_prompt_answers_cancelled() {
+            let (service, mut panels, mut dialogs, id, _) = asked();
+            assert!(dialogs.cancel::<StandardPrompt>(&Context::default()));
+            panels.pump_with(&mut dialogs, NONE);
+            assert_eq!(answered(&service, id), Picked::Cancelled);
+        }
+
+        // A result someone else took leaves no prompt to wait for: the pick ends rather than hangs.
+        #[test]
+        fn a_prompt_result_taken_elsewhere_ends_the_pick() {
+            let (service, mut panels, mut dialogs, id, _) = asked();
+            assert!(dialogs.confirm::<StandardPrompt>(&Context::default()));
+            assert!(dialogs.take::<StandardPrompt>().is_some());
+            panels.pump_with(&mut dialogs, NONE);
+            assert_eq!(answered(&service, id), Picked::Cancelled);
+        }
     }
 }
