@@ -15,10 +15,12 @@ pub struct FileStamp {
 }
 
 impl FileStamp {
+    /// The file's length in bytes.
     pub fn len(&self) -> u64 {
         self.len
     }
 
+    /// Whether the file is empty.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
@@ -27,7 +29,9 @@ impl FileStamp {
 /// A `library/*.json` file: the name before `.json` and its stamp.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LibraryFile {
+    /// The file name without `.json`.
     pub stem: String,
+    /// The file's stamp when it was listed.
     pub stamp: FileStamp,
 }
 

@@ -50,6 +50,7 @@ impl StoreOptions {
         }
     }
 
+    /// How long to wait for the suite lock before failing with [`StoreError::Busy`].
     pub fn lock_timeout(mut self, timeout: Duration) -> Self {
         self.lock_timeout = timeout;
         self
@@ -89,23 +90,27 @@ pub enum StoreError {
     /// The selection changed in another app on a field this update also changed. Show `disk` and
     /// offer to apply the user's choice on top of it.
     Conflict {
+        /// The state now on disk.
         disk: Accepted,
         /// The change that wasn't applied; "Apply mine" sends it again with `disk` as base.
         mine: SelectionChange,
     },
     /// `selection.json` is from a newer build (the store is read-only) or too large.
     Selection(SelectionError),
+    /// The suite folder could not be read or written.
     Io(Arc<io::Error>),
     /// The theme file was refused.
     Format(FormatErrors),
     /// A library file whose `id` isn't its file name (`<id>.json`).
     FileName {
+        /// The id the file declares.
         id: ThemeId,
     },
     /// A library theme has this id already; import it as a copy to keep both.
     IdExists(ThemeId),
     /// The suite selection uses this theme, in either mode.
     InUse(ThemeId),
+    /// No library theme has this id.
     NotFound(ThemeId),
     /// Built-in themes can't be deleted.
     BuiltIn(ThemeId),
@@ -126,6 +131,7 @@ pub enum Problem {
     /// `selection.json` is damaged (moved aside on the next write), from a newer build
     /// (read-only) or too large.
     Selection(SelectionError),
+    /// `selection.json` could not be read.
     SelectionUnreadable(Arc<io::Error>),
     /// The library folder can't be listed.
     LibraryUnreadable(Arc<io::Error>),
@@ -134,7 +140,9 @@ pub enum Problem {
     Watcher(&'static str),
     /// A library file that can't be used; `stem` is its name without `.json`.
     Theme {
+        /// The file name without `.json`.
         stem: String,
+        /// Why the file was refused.
         error: StoreError,
     },
 }
@@ -142,6 +150,7 @@ pub enum Problem {
 /// A parsed theme file and the bytes it came from.
 #[derive(Clone, Debug)]
 pub struct ThemeRecord {
+    /// The parsed theme.
     pub theme: ThemeDef,
     /// Computed on first use and shared with clones and with the [`ThemeEntry`] made from this
     /// record, so parsing and library scans don't resolve every theme.
@@ -196,14 +205,18 @@ pub(crate) fn builtin(id: &ThemeId) -> Option<&'static ThemeDef> {
 /// One library theme, as a theme picker lists it, with what a preview card resolves.
 #[derive(Clone, Debug)]
 pub struct ThemeEntry {
+    /// The theme's id.
     pub id: ThemeId,
+    /// The theme's display name.
     pub name: String,
+    /// The theme's own version number.
     pub version: u32,
     /// The parsed theme; [`ThemeDef::variants`] says which modes it has.
     pub theme: ThemeDef,
     warnings: Arc<OnceLock<usize>>,
     /// A low-contrast theme is labelled so in the picker.
     pub contrast_intent: ContrastIntent,
+    /// The theme file's stamp when it was read.
     pub stamp: FileStamp,
 }
 
@@ -213,6 +226,7 @@ impl ThemeEntry {
         *self.warnings.get_or_init(|| contrast_warnings(&self.theme))
     }
 
+    /// An entry for `record`, read with `stamp`.
     pub fn new(record: &ThemeRecord, stamp: FileStamp) -> Self {
         let t = &record.theme;
         ThemeEntry {
@@ -231,7 +245,9 @@ impl ThemeEntry {
 /// files in another theme format are skipped.
 #[derive(Clone, Debug, Default)]
 pub struct Library {
+    /// The valid themes.
     pub entries: Vec<ThemeEntry>,
+    /// Files that could not be used.
     pub problems: Vec<Problem>,
 }
 
@@ -240,6 +256,7 @@ pub struct Library {
 pub struct Imported {
     /// The stored theme; for a copy, with its new id.
     pub record: ThemeRecord,
+    /// The selection after the import.
     pub accepted: Accepted,
 }
 
@@ -247,7 +264,9 @@ pub struct Imported {
 /// repeated.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ParseCounts {
+    /// Parses of `selection.json`.
     pub selection: u64,
+    /// Parses of theme files.
     pub themes: u64,
     /// Theme files in another format (the pilot's `craft-theme`), counted in `themes` too.
     pub other_schema: u64,
@@ -340,6 +359,7 @@ impl Store {
         std::mem::take(&mut self.moved_aside)
     }
 
+    /// How many files of each kind the store has parsed.
     pub fn parse_counts(&self) -> ParseCounts {
         self.counts
     }

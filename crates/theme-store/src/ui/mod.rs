@@ -135,6 +135,7 @@ impl<'a> AppearancePage<'a> {
 
     // pc: crates/ui-egui/src/prefs/prefs_ui/fields.rs:315 interface_groups (appearance group);
     // pc: crates/ui-egui/src/prefs/prefs_ui/appearance.rs:311 (mode list), :268 theme_row
+    /// Draw the page and report what the user changed this frame.
     pub fn show(self, ui: &mut Ui) -> AppearancePageResponse {
         let Self { id_salt, client, draft, favorites, text_size } = self;
         let labels = AppearanceLabels::of(ui);
@@ -331,6 +332,7 @@ struct Slot {
 /// What a chip reported.
 #[derive(Debug)]
 pub struct ThemeChipResponse {
+    /// The chip's egui response.
     pub response: Response,
     /// The star badge was clicked, or the context menu's Add to Favorites / Remove from Favorites
     /// was chosen.
@@ -343,11 +345,13 @@ impl<'a> ThemeChip<'a> {
         Self { theme, dark, selected: false, favorite: false, slot: None, id_salt: None }
     }
 
+    /// Whether the chip shows as the chosen theme.
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
         self
     }
 
+    /// Whether the chip shows the favourite star.
     pub fn favorite(mut self, favorite: bool) -> Self {
         self.favorite = favorite;
         self
@@ -361,6 +365,7 @@ impl<'a> ThemeChip<'a> {
     }
 
     // pc: crates/ui-egui/src/prefs/prefs_ui/appearance.rs:218 theme_swatch (badge :255, star :264, toggle :276)
+    /// Draw the chip.
     pub fn show(self, ui: &mut Ui) -> ThemeChipResponse {
         let labels = AppearanceLabels::of(ui);
         self.show_in(ui, &labels)
