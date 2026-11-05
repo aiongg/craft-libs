@@ -286,11 +286,23 @@ fn show_view(ui: &mut Ui, name: &str, demo: &mut ViewDemo, options: LayoutOption
     last_event(ui, demo.last.as_deref());
 }
 
+/// A default view state with `set` applied (the state's memory is private, so no struct update).
+fn view_state(set: impl FnOnce(&mut PageViewState)) -> PageViewState {
+    let mut state = PageViewState::default();
+    set(&mut state);
+    state
+}
+
 // new: twelve Letter pages from a flat-colour mock source, continuous, fit width, page gaps,
 // with a text selection layer and margin grids on page 2.
 fn page_view_continuous(ui: &mut Ui, _: &mut NoArgs) {
     let demo = shared(ui, "view-continuous", || {
-        view_demo(PageViewState { fit: Fit::Width, continuous: true, page_gaps: true, go_to: Some((1, 0.0)), ..PageViewState::default() })
+        view_demo(view_state(|s| {
+            s.fit = Fit::Width;
+            s.continuous = true;
+            s.page_gaps = true;
+            s.go_to = Some((1, 0.0));
+        }))
     });
     let mut demo = lock(&demo);
     show_view(ui, "continuous", &mut demo, LayoutOptions::ACROBAT);
@@ -299,15 +311,14 @@ fn page_view_continuous(ui: &mut Ui, _: &mut NoArgs) {
 // new: the same pages two-up with a cover, not continuous, showing spread 2–3.
 fn page_view_spreads(ui: &mut Ui, _: &mut NoArgs) {
     let demo = shared(ui, "view-spreads", || {
-        view_demo(PageViewState {
-            display: PageDisplay::TwoUp,
-            cover: true,
-            continuous: false,
-            page_gaps: true,
-            fit: Fit::Page,
-            current: 1,
-            ..PageViewState::default()
-        })
+        view_demo(view_state(|s| {
+            s.display = PageDisplay::TwoUp;
+            s.cover = true;
+            s.continuous = false;
+            s.page_gaps = true;
+            s.fit = Fit::Page;
+            s.current = 1;
+        }))
     });
     let mut demo = lock(&demo);
     show_view(ui, "spreads", &mut demo, LayoutOptions::ACROBAT);

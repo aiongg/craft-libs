@@ -95,6 +95,23 @@ fn hide_white_space_cuts_margins_and_keeps_coordinates() {
     assert!(!laid.on_page_gap(Point::new(centre, 1000.0)));
 }
 
+// The pad is in page points: zoomed to 2, 6 page points of pad are 12 screen points; the seam stays 1.
+#[test]
+fn hide_white_space_pad_scales_with_the_zoom_and_the_seam_does_not() {
+    let mut laid = place_pages(&[LETTER; 3], 2.0, viewport(), &LayoutOptions::ACROBAT, &SPACING);
+    laid.hide_white_space(&[(72.0, 720.0); 3], 2.0, 800.0, &SPACING);
+    assert_eq!(laid.bands[1], (72.0 * 2.0 - 6.0 * 2.0, 720.0 * 2.0 + 6.0 * 2.0));
+    assert_eq!(laid.rects[1].y0 + laid.bands[1].0, laid.rects[0].y0 + laid.bands[0].1 + SPACING.seam);
+}
+
+// Every zoom the view offers lays out as shown: 6400 % is not cut to a smaller scale.
+#[test]
+fn the_largest_zoom_lays_out_at_its_own_scale() {
+    let scale = ZOOM_RANGE.end() * SCREEN_POINTS_PER_POINT;
+    let laid = place_pages(&[LETTER], scale, viewport(), &LayoutOptions::ACROBAT, &SPACING);
+    assert_eq!(laid.rects[0].width(), LETTER.width * scale);
+}
+
 #[test]
 fn display_tokens_round_trip() {
     for display in PageDisplay::ORDER {
