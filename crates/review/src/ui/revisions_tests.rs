@@ -19,7 +19,7 @@ struct App {
 
 fn show(ui: &mut Ui, app: &mut App) {
     let out = RevisionsPanel::new("revisions", "deck-v2", &app.revisions).show(ui);
-    app.actions.extend(out.action);
+    app.actions.extend(out.actions);
 }
 
 fn harness(revisions: Vec<Revision>) -> Harness<'static, App> {
@@ -62,4 +62,20 @@ fn no_changes_offers_end_review() {
     harness.get_by_role_and_label(Role::Button, "End Review").click();
     harness.run();
     assert_eq!(harness.state().actions, [RevisionAction::EndReview]);
+}
+
+// each card's bar carries its kind as a word for a screen reader.
+#[test]
+fn a_cards_bar_names_its_kind() {
+    let harness = harness(vec![revision(RevisionKind::Changed, "Slide 3 changed"), revision(RevisionKind::Deleted, "Slide 4 deleted")]);
+    harness.get_by_label("Changed");
+    harness.get_by_label("Deleted");
+}
+
+// detail lines get their bullet from the words, and Accept All counts the changes.
+#[test]
+fn details_are_bulleted_by_a_word() {
+    let harness = harness(vec![revision(RevisionKind::Changed, "Slide 3 changed")]);
+    harness.get_by_label("\u{2022} Title text changed");
+    harness.get_by_label("Accept All (1)");
 }

@@ -20,6 +20,7 @@ pub struct Revision {
 
 /// What the revisions panel asks for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RevisionAction {
     /// The heading was clicked: go to the change.
     Go(usize),
