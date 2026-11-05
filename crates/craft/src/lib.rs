@@ -73,6 +73,8 @@ pub use craft_window as window;
 #[cfg(feature = "ui")]
 pub use egui;
 
+/// The types an app imports first: the host handle, a dialog stack, edit events and the theme
+/// tokens.
 pub mod prelude {
     pub use craft_host::{AppInfo, Host, Section};
     #[cfg(feature = "ui")]
