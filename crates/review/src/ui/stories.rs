@@ -445,7 +445,8 @@ fn apply_annotation(demo: &mut AnnotateDemo, edit: &EditEvent<AnnotationEdit>) {
                 });
             }
         }
-        AnnotationEdit::Select(ids) => selected.clone_from(ids),
+        AnnotationEdit::Selection(change) => selected.clone_from(&change.selection.items),
+        AnnotationEdit::Open(_) => {}
     }
 }
 
@@ -461,7 +462,12 @@ fn annotate(ui: &mut Ui, _: &mut NoArgs) {
     });
     let mut demo = lock(&demo);
     let demo = &mut *demo;
-    AnnotationToolbar::new("toolbar", &mut demo.tool).show(ui);
+    let canvas_id = CanvasId::new(ui, "annotations");
+    let key = canvas_id.id();
+    let mut tool = TOOLS.with(|tools| tools.borrow_mut().remove(&key)).unwrap_or_else(|| AnnotateTool::new(demo.tool, 0));
+    tool.tool = demo.tool;
+    AnnotationToolbar::new("toolbar", &mut tool).show(ui);
+    demo.tool = tool.tool;
 
     let width = ui.available_width();
     let (area, _) = ui.allocate_exact_size(vec2(width, width * CANVAS_ASPECT), Sense::hover());
@@ -472,11 +478,7 @@ fn annotate(ui: &mut Ui, _: &mut NoArgs) {
     let page = ScreenRect::from_min_max(view.to_screen(Point::ORIGIN), view.to_screen(Point::new(PAGE.0, PAGE.1)));
     ui.painter().rect_filled(page, 0.0, tokens.color.surface.raised.to_egui());
 
-    let canvas_id = CanvasId::new(ui, "annotations");
     let canvas = canvas_id.interact(ui, area, Sense::click_and_drag() | Sense::FOCUSABLE);
-    let key = canvas_id.id();
-    let mut tool = TOOLS.with(|tools| tools.borrow_mut().remove(&key)).unwrap_or_else(|| AnnotateTool::new(demo.tool, 0));
-    tool.tool = demo.tool;
     tool.annotations.clone_from(&demo.annotations);
     tool.selected.clone_from(&demo.selected);
     let _ = ToolHost::new(canvas_id).show(ui, &view, &canvas, &mut tool);

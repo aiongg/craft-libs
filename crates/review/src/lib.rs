@@ -25,7 +25,9 @@ mod signature_tests;
 #[cfg(test)]
 mod versions_tests;
 
-pub use annotate::{Annotation, AnnotationEdit, AnnotationGroup, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, AnnotationTool};
+#[cfg(feature = "ui")]
+pub use annotate::AnnotationEdit;
+pub use annotate::{Annotation, AnnotationGroup, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, AnnotationTool};
 pub use comments::{CommentAnchor, CommentMessage, CommentSort, CommentThread, Reaction, ReviewStatus, ThreadId};
 pub use revisions::{Revision, RevisionAction, RevisionKind};
 pub use signature::{SavedSignature, SignatureDraft, SignatureImage, SignatureTab};

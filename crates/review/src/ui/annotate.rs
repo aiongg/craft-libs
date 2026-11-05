@@ -1,15 +1,18 @@
 //! The annotation tool on the canvas, the overlay that draws annotations, and the toolbar
 //! (N5.03).
 
-use craft_ui::behavior::nudge;
-use craft_ui::canvas::{CanvasTool, Marquee, MarqueeLook, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
-use craft_ui::controls::IconButton;
+use craft_ui::behavior::{Selection, SelectionChange, SelectionPick, nudge};
+use craft_ui::canvas::{CanvasTool, Marquee, MarqueeLook, Orientation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
+use craft_ui::controls::{NumberField, Swatch};
 use craft_ui::edit::{CancelReason, EditEvent, GestureId};
 use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
+use craft_ui::patterns::{Toolbar, ToolbarItem};
+use craft_ui::popover::{Popover, PopoverAnchor};
 use craft_ui::primitives::{Handle, HandleShape};
-use craft_ui::theme::ToEgui as _;
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
+use egui::text::{LayoutJob, TextFormat};
 use egui::{AsIdSalt, Color32, CursorIcon, EventFilter, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui};
 use kurbo::{Point, Rect, Vec2};
 
@@ -47,11 +50,63 @@ craft_ui::words! {
         polygon: "annotate.polygon" = "Polygon";
         cloud: "annotate.cloud" = "Cloud";
         eraser: "annotate.eraser" = "Eraser";
+        toolbar: "annotate.toolbar" = "Annotation tools";
+        /// A group's button: the group, then its last-used tool.
+        group_tool: "annotate.groupTool" = "{group}: {tool}";
+        color: "annotate.color" = "Color";
+        width: "annotate.width" = "Line width";
+        /// The reader's names of the annotation kinds: card headings and sort groups.
+        kind_note: "annotate.kind.note" = "Note";
+        kind_text_box: "annotate.kind.textBox" = "Text box";
+        kind_callout: "annotate.kind.callout" = "Callout";
+        kind_attach: "annotate.kind.attach" = "Attachment";
+        kind_highlight: "annotate.kind.highlight" = "Highlight";
+        kind_underline: "annotate.kind.underline" = "Underline";
+        kind_strike_out: "annotate.kind.strikeOut" = "Strikethrough";
+        kind_squiggly: "annotate.kind.squiggly" = "Squiggly";
+        kind_caret: "annotate.kind.caret" = "Insert text";
+        kind_replace_text: "annotate.kind.replaceText" = "Replace text";
+        kind_ink: "annotate.kind.ink" = "Drawing";
+        kind_line: "annotate.kind.line" = "Line";
+        kind_arrow: "annotate.kind.arrow" = "Arrow";
+        kind_rectangle: "annotate.kind.rectangle" = "Rectangle";
+        kind_oval: "annotate.kind.oval" = "Oval";
+        kind_poly_line: "annotate.kind.polyLine" = "Polyline";
+        kind_polygon: "annotate.kind.polygon" = "Polygon";
+        kind_cloud: "annotate.kind.cloud" = "Cloud";
+    }
+}
+
+impl AnnotateLabels {
+    /// The reader's name of `kind` ("Note", "Text box", "Strikethrough"; PdfCraft's
+    /// `comments_panel.rs:25` `subtype_label`).
+    pub fn kind(&self, kind: AnnotationKind) -> &str {
+        use AnnotationKind as K;
+        match kind {
+            K::Note => &self.kind_note,
+            K::TextBox => &self.kind_text_box,
+            K::Callout => &self.kind_callout,
+            K::Attach => &self.kind_attach,
+            K::Highlight => &self.kind_highlight,
+            K::Underline => &self.kind_underline,
+            K::StrikeOut => &self.kind_strike_out,
+            K::Squiggly => &self.kind_squiggly,
+            K::Caret => &self.kind_caret,
+            K::ReplaceText => &self.kind_replace_text,
+            K::Ink => &self.kind_ink,
+            K::Line => &self.kind_line,
+            K::Arrow => &self.kind_arrow,
+            K::Rectangle => &self.kind_rectangle,
+            K::Oval => &self.kind_oval,
+            K::PolyLine => &self.kind_poly_line,
+            K::Polygon => &self.kind_polygon,
+            K::Cloud => &self.kind_cloud,
+        }
     }
 }
 
 /// The page text between two page points as quads (four corners each).
-pub type TextQuads = Box<dyn Fn(kurbo::Point, kurbo::Point) -> Vec<[kurbo::Point; 4]>>;
+pub type TextQuads = Box<dyn Fn(kurbo::Point, kurbo::Point) -> Vec<[kurbo::Point; 4]> + Send>;
 
 /// Acrobat's annotation tools as one canvas tool on craft-ui's tool host.
 ///
@@ -65,12 +120,17 @@ pub type TextQuads = Box<dyn Fn(kurbo::Point, kurbo::Point) -> Vec<[kurbo::Point
 ///   the tool changes; Note and Text box place at the click and report `Create`, the app opens
 ///   the composer. Markup kinds select page text through the app's text hit test
 ///   ([`text_quads`](Self::text_quads)) and report the quads.
-/// - Eraser: a drag reports `Erase` for the Ink strokes it crosses.
+/// - Eraser: a drag reports one `Erase` per Ink annotation it crosses, with the strokes in
+///   ascending order.
 /// - Keys: Delete removes the selection, arrows nudge it through
 ///   [`behavior::nudge`](craft_ui::behavior::nudge) (one point, Shift ten) as `Set`s.
 /// - A double-click (from [`ToolPointer::clicks`](craft_ui::canvas::ToolPointer)) on a note or
-///   text box opens its text for editing; the app's page text and selection reach the tool in
+///   text box reports `Open`; the app's page text and selection reach the tool in
 ///   [`CanvasTool::each_pass`] through the public fields.
+/// - New annotations take the tool's [`color`](Self::color) and [`width`](Self::width) (a
+///   highlight its [`highlight_color`](Self::highlight_color)); the toolbar's controls set them.
+///   Notes, attachments and carets are created with an icon-sized rect and keep that size on
+///   screen at any zoom, so hits test them against an icon side worked out each pass.
 /// - Locked annotations are selected but never moved.
 pub struct AnnotateTool {
     pub tool: AnnotationTool,
@@ -79,6 +139,12 @@ pub struct AnnotateTool {
     pub selected: Vec<AnnotationId>,
     /// The page the tool works on.
     pub page: usize,
+    /// The colour of new annotations other than highlights (straight RGB).
+    pub color: [u8; 3],
+    /// The colour of new highlights (straight RGB).
+    pub highlight_color: [u8; 3],
+    /// The stroke width of new annotations, in page units.
+    pub width: f64,
     /// The edits since the app last took them ([`take_edits`](Self::take_edits)).
     edits: Vec<EditEvent<AnnotationEdit>>,
     text_quads: Option<TextQuads>,
@@ -98,6 +164,9 @@ impl AnnotateTool {
             annotations: Vec::new(),
             selected: Vec::new(),
             page,
+            color: DEFAULT_COLOR,
+            highlight_color: HIGHLIGHT_COLOR,
+            width: DEFAULT_STROKE_WIDTH,
             edits: Vec::new(),
             text_quads: None,
             gesture: None,
@@ -109,7 +178,7 @@ impl AnnotateTool {
     }
 
     /// The page text between two points as quads (PdfCraft's text selection), for markups.
-    pub fn text_quads(mut self, quads: impl Fn(kurbo::Point, kurbo::Point) -> Vec<[kurbo::Point; 4]> + 'static) -> Self {
+    pub fn text_quads(mut self, quads: impl Fn(kurbo::Point, kurbo::Point) -> Vec<[kurbo::Point; 4]> + Send + 'static) -> Self {
         self.text_quads = Some(Box::new(quads));
         self
     }
@@ -120,11 +189,18 @@ impl AnnotateTool {
     }
 }
 
-/// Acrobat's PDF default border width, in page units.
-const DEFAULT_STROKE_WIDTH: f64 = 1.0;
-/// Acrobat's default colours: red for shapes and notes, yellow for highlights (straight RGB).
-const DEFAULT_COLOR: [u8; 3] = [0xE0, 0x30, 0x30];
-const HIGHLIGHT_COLOR: [u8; 3] = [0xFF, 0xE0, 0x30];
+/// Acrobat's default border width (Preferences > Commenting, "Line thickness" 1), in page units.
+pub const DEFAULT_STROKE_WIDTH: f64 = 1.0;
+/// Acrobat's default colours (Preferences > Commenting): red for shapes and notes, yellow for
+/// highlights (straight RGB).
+pub const DEFAULT_COLOR: [u8; 3] = [0xE0, 0x30, 0x30];
+pub const HIGHLIGHT_COLOR: [u8; 3] = [0xFF, 0xE0, 0x30];
+/// The colours the toolbar offers: the two defaults and a few common comment colours (Acrobat's
+/// colour menu also has "Other Color", which the app may add).
+pub const PALETTE: [[u8; 3]; 7] =
+    [DEFAULT_COLOR, [0xF0, 0x8A, 0x24], HIGHLIGHT_COLOR, [0x3C, 0xA8, 0x4C], [0x2A, 0x6F, 0xDB], [0x8A, 0x4F, 0xC8], [0x00, 0x00, 0x00]];
+/// The widths the toolbar's width field accepts, in page units.
+const WIDTH_RANGE: std::ops::RangeInclusive<f64> = 1.0..=12.0;
 /// A highlight lets the text show through.
 const HIGHLIGHT_OPACITY: f32 = 0.4;
 
@@ -187,13 +263,26 @@ impl AnnotateTool {
         cx.view.doc_len(Handle::style(cx.tokens, HandleShape::Square).hit / 2.0)
     }
 
+    /// The side of a note, attachment or caret icon in page units at this pass's zoom.
+    fn icon_side(cx: &ToolContext<'_>) -> f64 {
+        cx.view.doc_len(IconSize::Md.points(cx.tokens))
+    }
+
     fn push(&mut self, edit: AnnotationEdit, modifiers: Modifiers) {
         self.edits.push(EditEvent::set(edit, modifiers));
     }
 
-    fn select(&mut self, ids: Vec<AnnotationId>, modifiers: Modifiers) {
+    /// Selects `ids`, applied here and reported as a `Selection` change picked by `pick` on `row`.
+    fn select(&mut self, ids: Vec<AnnotationId>, pick: SelectionPick, row: Option<AnnotationId>, modifiers: Modifiers) {
         self.selected.clone_from(&ids);
-        self.push(AnnotationEdit::Select(ids), modifiers);
+        let selection = Selection { lead: ids.last().copied(), anchor: row, items: ids };
+        self.push(AnnotationEdit::Selection(SelectionChange { pick, row, selection }), modifiers);
+    }
+
+    /// Replaces the selection with `ids` (a marquee or a plain click), or clears it.
+    fn replace_selection(&mut self, ids: Vec<AnnotationId>, modifiers: Modifiers) {
+        let (pick, row) = if ids.is_empty() { (SelectionPick::Clear, None) } else { (SelectionPick::Replace, ids.last().copied()) };
+        self.select(ids, pick, row, modifiers);
     }
 
     fn fresh(&self, kind: AnnotationKind, rect: Rect) -> Annotation {
@@ -205,9 +294,9 @@ impl AnnotateTool {
             rect,
             points: Vec::new(),
             strokes: Vec::new(),
-            color: if markup { HIGHLIGHT_COLOR } else { DEFAULT_COLOR },
+            color: if markup { self.highlight_color } else { self.color },
             opacity: if markup { HIGHLIGHT_OPACITY } else { 1.0 },
-            stroke_width: DEFAULT_STROKE_WIDTH,
+            stroke_width: self.width,
             text: String::new(),
             locked: false,
         }
@@ -243,9 +332,9 @@ impl AnnotateTool {
         matches!(self.tool, AnnotationTool::Draw(AnnotationKind::PolyLine | AnnotationKind::Polygon | AnnotationKind::Cloud))
     }
 
-    fn press_select(&mut self, pointer: &ToolPointer, tolerance: f64) -> ToolAction {
+    fn press_select(&mut self, pointer: &ToolPointer, tolerance: f64, icon_side: f64) -> ToolAction {
         let shift = pointer.modifiers.shift;
-        let found = hit(&self.annotations, &self.selected, pointer.doc, tolerance);
+        let found = hit(&self.annotations, &self.selected, pointer.doc, tolerance, icon_side);
         let locked = |id: AnnotationId, list: &[Annotation]| list.iter().any(|a| a.id == id && a.locked);
         let edit = |change: Change, origin: Point| Gesture::Edit { id: GestureId::next(), begun: false, origin, change };
         match found {
@@ -263,7 +352,10 @@ impl AnnotateTool {
                     // A second click on a note or text box asks the app to open its text.
                     let opens = self.annotations.iter().any(|a| a.id == id && matches!(a.kind, AnnotationKind::Note | AnnotationKind::TextBox));
                     if opens {
-                        self.push(AnnotationEdit::Select(vec![id]), pointer.modifiers);
+                        if !selected {
+                            self.select(vec![id], SelectionPick::Replace, Some(id), pointer.modifiers);
+                        }
+                        self.push(AnnotationEdit::Open(id), pointer.modifiers);
                         return ToolAction::Done;
                     }
                 }
@@ -275,9 +367,9 @@ impl AnnotateTool {
                         }
                         None => ids.push(id),
                     }
-                    self.select(ids, pointer.modifiers);
+                    self.select(ids, SelectionPick::Toggle, Some(id), pointer.modifiers);
                 } else if !selected {
-                    self.select(vec![id], pointer.modifiers);
+                    self.select(vec![id], SelectionPick::Replace, Some(id), pointer.modifiers);
                 }
                 let ids: Vec<AnnotationId> = self.selected.iter().copied().filter(|s| !locked(*s, &self.annotations)).collect();
                 if !ids.is_empty() {
@@ -291,12 +383,12 @@ impl AnnotateTool {
         ToolAction::Claimed
     }
 
-    fn press_draw(&mut self, kind: AnnotationKind, pointer: &ToolPointer) -> ToolAction {
+    fn press_draw(&mut self, kind: AnnotationKind, pointer: &ToolPointer, icon_side: f64) -> ToolAction {
         use AnnotationKind as K;
         let at = pointer.doc;
         match kind {
             K::Note | K::Attach | K::Caret => {
-                let mut annotation = self.fresh(kind, Rect::from_points(at, at));
+                let mut annotation = self.fresh(kind, Rect::from_origin_size(at, (icon_side, icon_side)));
                 annotation.points = vec![at];
                 self.create(annotation, pointer.modifiers);
                 ToolAction::Done
@@ -384,8 +476,8 @@ impl CanvasTool for AnnotateTool {
         self.gesture = None;
         let tolerance = Self::tolerance(cx);
         match self.tool {
-            AnnotationTool::Select => self.press_select(pointer, tolerance),
-            AnnotationTool::Draw(kind) => self.press_draw(kind, pointer),
+            AnnotationTool::Select => self.press_select(pointer, tolerance, Self::icon_side(cx)),
+            AnnotationTool::Draw(kind) => self.press_draw(kind, pointer, Self::icon_side(cx)),
             AnnotationTool::Eraser => {
                 self.gesture = Some(Gesture::Erase { path: vec![pointer.doc], crossed: Vec::new() });
                 ToolAction::Claimed
@@ -439,9 +531,10 @@ impl CanvasTool for AnnotateTool {
         cx.request_repaint();
     }
 
-    fn release(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         let Some(gesture) = self.gesture.take() else { return };
         let modifiers = pointer.modifiers;
+        let icon_side = Self::icon_side(cx);
         match gesture {
             Gesture::Edit { id, begun, origin, change } => {
                 if !begun {
@@ -466,7 +559,10 @@ impl CanvasTool for AnnotateTool {
                 } else {
                     self.annotations
                         .iter()
-                        .filter(|a| !area.intersect(a.rect).is_zero_area() || area.contains(a.rect.center()))
+                        .filter(|a| {
+                            let extent = a.extent(icon_side);
+                            !area.intersect(extent).is_zero_area() || area.contains(extent.center())
+                        })
                         .map(|a| a.id)
                         .collect()
                 };
@@ -476,7 +572,7 @@ impl CanvasTool for AnnotateTool {
                         ids.push(id);
                     }
                 }
-                self.select(ids, modifiers);
+                self.replace_selection(ids, modifiers);
             }
             Gesture::Shape { kind, origin, .. } => {
                 if let Some(annotation) = self.shape_annotation(kind, origin, pointer.doc, modifiers.shift) {
@@ -490,10 +586,17 @@ impl CanvasTool for AnnotateTool {
             }
             Gesture::Stroke(points) => self.strokes.push(points),
             Gesture::Erase { crossed, .. } => {
-                let mut ids: Vec<AnnotationId> = crossed.iter().map(|(id, _)| *id).collect();
-                ids.dedup();
+                // One event per annotation, in the order the Eraser met them: an app that removes
+                // strokes by index must not see the same annotation twice.
+                let mut ids: Vec<AnnotationId> = Vec::new();
+                for (id, _) in &crossed {
+                    if !ids.contains(id) {
+                        ids.push(*id);
+                    }
+                }
                 for id in ids {
-                    let strokes: Vec<usize> = crossed.iter().filter(|(a, _)| *a == id).map(|(_, i)| *i).collect();
+                    let mut strokes: Vec<usize> = crossed.iter().filter(|(a, _)| *a == id).map(|(_, i)| *i).collect();
+                    strokes.sort_unstable();
                     self.push(AnnotationEdit::Erase { id, strokes }, modifiers);
                 }
             }
@@ -735,10 +838,10 @@ fn group_label(labels: &AnnotateLabels, group: AnnotationGroup) -> String {
     .to_string()
 }
 
-fn paint_annotation(painter: &Painter, a: &Annotation, to_screen: &impl Fn(Point) -> Pos2, scale: f32, icon_points: f32, text_font: &egui::FontId) {
+fn paint_annotation(painter: &Painter, a: &Annotation, to_screen: &impl Fn(Point) -> Pos2, scale: f32, icon_points: f32, text_format: &TextFormat) {
     use AnnotationKind as K;
     let color = color32(a);
-    let width = (a.stroke_width as f32 * scale).max(1.0);
+    let width = (a.stroke_width as f32 * scale).max(craft_theme::Stroke::W1.width(painter.ctx().pixels_per_point()));
     let stroke = Stroke::new(width, color);
     let map = |points: &[Point]| -> Vec<Pos2> { points.iter().map(|&p| to_screen(p)).collect() };
     match a.kind {
@@ -808,7 +911,15 @@ fn paint_annotation(painter: &Painter, a: &Annotation, to_screen: &impl Fn(Point
         K::TextBox | K::Callout => {
             let r = screen_rect(a.rect, to_screen);
             painter.rect_stroke(r, 0.0, stroke, egui::StrokeKind::Inside);
-            painter.with_clip_rect(r).text(r.left_top(), egui::Align2::LEFT_TOP, &a.text, text_font.clone(), color);
+            // The text is document-scaled: the role's size at zoom 1, wrapped at the box's width.
+            let mut format = text_format.clone();
+            format.font_id.size *= scale;
+            format.line_height = format.line_height.map(|h| h * scale);
+            format.color = color;
+            let mut job = LayoutJob::single_section(a.text.clone(), format);
+            job.wrap.max_width = r.width();
+            let galley = painter.layout_job(job);
+            painter.with_clip_rect(r).galley(r.left_top(), galley, color);
         }
         K::Note | K::Attach | K::Caret => {
             let at = to_screen(Point::new(a.rect.x0, a.rect.y0));
@@ -830,9 +941,9 @@ impl<'a> AnnotationOverlay<'a> {
         let tokens = craft_ui::theme::current(painter.ctx());
         let scale = (to_screen(Point::new(1.0, 0.0)) - to_screen(Point::ZERO)).length();
         let icon_points = IconSize::Md.points(&tokens);
-        let text_font = tokens.font(ReviewStyle::of(&tokens).annotation_text);
+        let text_format = role_format(&tokens, ReviewStyle::of(&tokens).annotation_text, Color32::PLACEHOLDER);
         for a in self.annotations {
-            paint_annotation(painter, a, &to_screen, scale, icon_points, &text_font);
+            paint_annotation(painter, a, &to_screen, scale, icon_points, &text_format);
         }
         let outline = Stroke::new(Handle::style(&tokens, HandleShape::Square).stroke.width, tokens.color.overlay.line.to_egui());
         let ppp = painter.ctx().pixels_per_point();
@@ -860,17 +971,31 @@ impl<'a> AnnotationOverlay<'a> {
     }
 }
 
-/// Acrobat's quick bar: Select, then the three groups (Comment ▸, Highlight ▸, Draw ▸), each a
-/// button showing its last-used tool with a flyout of the group's tools; the colour and the
-/// stroke width of the current tool follow. Each button is a Tab stop; Down opens a flyout.
+/// Acrobat's quick bar on [`patterns::Toolbar`](craft_ui::patterns::Toolbar): Select, then the
+/// three groups (Comment, Highlight, Draw), each a button showing its last-used tool and a
+/// chevron that opens a flyout of the group's tools. A second row holds the colour and the line
+/// width of the tool's new annotations ([`AnnotateTool::color`], [`AnnotateTool::width`]); both
+/// are disabled for tools that draw nothing (Select, Eraser) and the width for markups. Every
+/// button is a Tab stop and the arrow keys move between them; Down on a group button opens its
+/// flyout.
 pub struct AnnotationToolbar<'a> {
     id_salt: IdSalt,
-    tool: &'a mut AnnotationTool,
+    tool: &'a mut AnnotateTool,
     labels: Option<AnnotateLabels>,
 }
 
+/// What [`AnnotationToolbar::show`] reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct AnnotationToolbarOutput {
+    /// The toolbar's buttons together; changed when the tool, the colour or the width changed.
+    pub response: Response,
+    /// Each group's flyout popup, for `egui::Popup::open_id` and `Popup::is_id_open`.
+    pub flyouts: Vec<(AnnotationGroup, egui::Id)>,
+}
+
 impl<'a> AnnotationToolbar<'a> {
-    pub fn new(id_salt: impl AsIdSalt, tool: &'a mut AnnotationTool) -> Self {
+    pub fn new(id_salt: impl AsIdSalt, tool: &'a mut AnnotateTool) -> Self {
         Self { id_salt: IdSalt::new(id_salt), tool, labels: None }
     }
 
@@ -879,57 +1004,110 @@ impl<'a> AnnotationToolbar<'a> {
         self
     }
 
-    /// Changes `tool` directly.
+    /// Changes the tool's `tool`, `color` and `width` directly.
     // pdfcraft: crates/ui-egui/src/tools/comments.rs:81 `GROUPS`.
-    pub fn show(self, ui: &mut Ui) -> Response {
+    pub fn show(self, ui: &mut Ui) -> AnnotationToolbarOutput {
         let labels = self.labels.unwrap_or_else(|| AnnotateLabels::of(ui));
         let id = ui.make_persistent_id(self.id_salt);
-        let tool = self.tool;
-        let before = *tool;
-        let response = ui
-            .horizontal(|ui| {
-                let select = ui.add(
-                    IconButton::new(Icon::Pointer, tool_label(&labels, AnnotationTool::Select))
-                        .selected(*tool == AnnotationTool::Select)
-                        .id_salt("select"),
-                );
-                if select.clicked() {
-                    *tool = AnnotationTool::Select;
-                }
-                let mut all = select;
-                for group in AnnotationGroup::ALL {
-                    let key = id.with(("last", group as u8));
-                    let last = last_tool(ui, key, group, *tool);
-                    let main = ui.add(
-                        IconButton::new(tool_icon(last), format!("{}: {}", group_label(&labels, group), tool_label(&labels, last)))
-                            .selected(group.tools().contains(tool))
-                            .id_salt(("group", group as u8)),
-                    );
-                    if main.clicked() {
-                        *tool = last;
-                    }
-                    let arrow =
-                        ui.add(IconButton::new(Icon::ChevronDown, group_label(&labels, group)).id_salt(("flyout", group as u8)).focusable(false));
-                    let down = main.has_focus() && {
-                        ui.memory_mut(|m| m.set_focus_lock_filter(main.id, EventFilter { vertical_arrows: true, ..Default::default() }));
-                        ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown))
-                    };
-                    let entries: Vec<MenuEntry<AnnotationTool>> =
-                        group.tools().iter().map(|&t| MenuItem::new(tool_label(&labels, t), t).icon(tool_icon(t)).radio(*tool == t).into()).collect();
-                    if let Some(chosen) = PressMenu::new(&entries).keyboard_owner(main.id, down).show(ui, &arrow).chosen {
-                        *tool = chosen;
-                    }
-                    all = all.union(main).union(arrow);
-                }
-                all
-            })
-            .inner;
-        let mut response = response;
-        if *tool != before {
+        let annotate = self.tool;
+        let before = (annotate.tool, annotate.color, annotate.highlight_color, annotate.width);
+        let lasts: Vec<AnnotationTool> =
+            AnnotationGroup::ALL.iter().map(|&group| last_tool(ui, id.with(("last", group as u8)), group, annotate.tool)).collect();
+        let selected = if annotate.tool == AnnotationTool::Select {
+            (0, 0)
+        } else {
+            AnnotationGroup::ALL.iter().position(|g| g.tools().contains(&annotate.tool)).map_or((0, 0), |g| (g + 1, 0))
+        };
+        let mut toolbar = Toolbar::new(id.with("bar"), Orientation::Horizontal)
+            .label(&labels.toolbar)
+            .selected(Some(selected))
+            .group([ToolbarItem::new(Icon::Pointer, tool_label(&labels, AnnotationTool::Select))]);
+        for (&group, &last) in AnnotationGroup::ALL.iter().zip(&lasts) {
+            let name = fmt(&labels.group_tool, &[("group", &group_label(&labels, group)), ("tool", &tool_label(&labels, last))]);
+            toolbar = toolbar.group([ToolbarItem::new(tool_icon(last), name), ToolbarItem::new(Icon::ChevronDown, group_label(&labels, group))]);
+        }
+        let bar = toolbar.show(ui);
+        // The buttons in order: Select, then each group's tool button and chevron.
+        if let Some((group, item)) = bar.clicked {
+            match (group, item) {
+                (0, _) => annotate.tool = AnnotationTool::Select,
+                (g, 0) => annotate.tool = lasts[g - 1],
+                _ => {}
+            }
+        }
+        let mut flyouts = Vec::new();
+        let mut all = bar.items.first().cloned();
+        for (n, &group) in AnnotationGroup::ALL.iter().enumerate() {
+            let (Some(main), Some(chevron)) = (bar.items.get(1 + 2 * n), bar.items.get(2 + 2 * n)) else { continue };
+            let down = main.has_focus() && {
+                ui.memory_mut(|m| m.set_focus_lock_filter(main.id, EventFilter { vertical_arrows: true, ..Default::default() }));
+                ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown))
+            };
+            let entries: Vec<MenuEntry<AnnotationTool>> =
+                group.tools().iter().map(|&t| MenuItem::new(tool_label(&labels, t), t).icon(tool_icon(t)).radio(annotate.tool == t).into()).collect();
+            if let Some(chosen) = PressMenu::new(&entries).keyboard_owner(main.id, down).show(ui, chevron).chosen {
+                annotate.tool = chosen;
+            }
+            flyouts.push((group, egui::Popup::default_response_id(chevron)));
+            all = Some(all.map_or_else(|| main.clone(), |r| r.union(main.clone())).union(chevron.clone()));
+        }
+        let response = ui.horizontal(|ui| style_controls(ui, id, annotate, &labels)).inner;
+        let mut response = all.map_or(response.clone(), |all| all.union(response));
+        if before != (annotate.tool, annotate.color, annotate.highlight_color, annotate.width) {
             response.mark_changed();
         }
-        response
+        AnnotationToolbarOutput { response, flyouts }
     }
+}
+
+/// The colour well with its palette popover, and the line width field, for the current tool.
+fn style_controls(ui: &mut Ui, id: egui::Id, annotate: &mut AnnotateTool, labels: &AnnotateLabels) -> Response {
+    let tokens = Tokens::of(ui);
+    let numbers = LocaleNumbers::of(ui);
+    let draws = matches!(annotate.tool, AnnotationTool::Draw(_));
+    let highlight = annotate.tool == AnnotationTool::Draw(AnnotationKind::Highlight);
+    let markup = matches!(annotate.tool, AnnotationTool::Draw(kind) if kind.is_markup());
+    let current = if highlight { annotate.highlight_color } else { annotate.color };
+    let rgba = |[r, g, b]: [u8; 3]| craft_theme::Rgba([r, g, b, 0xFF]);
+
+    let well = ui.add(Swatch::new(id.with("color"), &labels.color, rgba(current)).enabled(draws));
+    let open_id = id.with("palette-open");
+    let mut open = ui.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
+    if well.clicked() {
+        open = !open;
+    }
+    let mut picked = None;
+    Popover::new(id.with("palette"), PopoverAnchor::Control(well.clone())).toggle(well.id).label(&labels.color).show(ui, &mut open, |ui, _| {
+        ui.spacing_mut().item_spacing = egui::vec2(tokens.space.gap.inline, tokens.space.gap.inline);
+        ui.horizontal(|ui| {
+            for (n, color) in PALETTE.into_iter().enumerate() {
+                let swatch = Swatch::new(id.with(("palette", n)), Swatch::hex(rgba(color)), rgba(color)).radio(color == current).position_in_set(n);
+                if ui.add(swatch).clicked() {
+                    picked = Some(color);
+                }
+            }
+        });
+    });
+    if let Some(color) = picked {
+        if highlight {
+            annotate.highlight_color = color;
+        } else {
+            annotate.color = color;
+        }
+        open = false;
+    }
+    ui.data_mut(|d| d.insert_temp(open_id, open));
+
+    let width = NumberField::new(id.with("width"), &labels.width, annotate.width, &numbers)
+        .range(WIDTH_RANGE)
+        .step(1.0)
+        .decimals(0..=1)
+        .enabled(draws && !markup)
+        .show(ui);
+    if let Some(value) = width.event.as_ref().and_then(|event| event.value()) {
+        annotate.width = value.clamp(*WIDTH_RANGE.start(), *WIDTH_RANGE.end());
+    }
+    well.union(width.response)
 }
 
 /// The group's last-used tool is kept in egui memory, so the group button keeps showing it.

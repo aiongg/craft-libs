@@ -99,32 +99,6 @@ impl AnnotationKind {
         )
     }
 
-    /// The English name the card and tooltips show ("Note", "Text box", "Strikethrough",
-    /// "Rectangle"; PdfCraft's reader-friendly names).
-    // pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:25 `subtype_label`.
-    pub fn label(self) -> &'static str {
-        match self {
-            AnnotationKind::Note => "Note",
-            AnnotationKind::TextBox => "Text box",
-            AnnotationKind::Callout => "Callout",
-            AnnotationKind::Attach => "Attachment",
-            AnnotationKind::Highlight => "Highlight",
-            AnnotationKind::Underline => "Underline",
-            AnnotationKind::StrikeOut => "Strikethrough",
-            AnnotationKind::Squiggly => "Squiggly",
-            AnnotationKind::Caret => "Insert text",
-            AnnotationKind::ReplaceText => "Replace text",
-            AnnotationKind::Ink => "Drawing",
-            AnnotationKind::Line => "Line",
-            AnnotationKind::Arrow => "Arrow",
-            AnnotationKind::Rectangle => "Rectangle",
-            AnnotationKind::Oval => "Oval",
-            AnnotationKind::PolyLine => "Polyline",
-            AnnotationKind::Polygon => "Polygon",
-            AnnotationKind::Cloud => "Cloud",
-        }
-    }
-
     /// Kinds that keep their size: icons placed at a point, and the callout, whose box also
     /// holds its leader line (PdfCraft `geometry.rs:12` `resizable`).
     pub fn is_fixed_size(self) -> bool {
@@ -151,6 +125,19 @@ pub struct Annotation {
     pub stroke_width: f64,
     pub text: String,
     pub locked: bool,
+}
+
+impl Annotation {
+    /// The box the annotation takes on the page: its `rect`, except for the icon kinds (Note,
+    /// Attachment, Caret), which take an `icon_side` square at the rect's corner. `icon_side` is
+    /// the icon's side in page units at the current zoom.
+    pub fn extent(&self, icon_side: f64) -> Rect {
+        if matches!(self.kind, AnnotationKind::Note | AnnotationKind::Attach | AnnotationKind::Caret) {
+            Rect::from_origin_size(self.rect.origin(), (icon_side, icon_side))
+        } else {
+            self.rect
+        }
+    }
 }
 
 /// A handle of a selected annotation.
@@ -203,8 +190,6 @@ pub fn box_handle_point(rect: Rect, (hx, hy): (i8, i8)) -> Point {
     Point::new(x, y)
 }
 
-/// The smallest side a plain resize leaves, in page units.
-const MIN_SIDE: f64 = 1.0;
 /// The smallest width of an aspect-keeping corner resize (PdfCraft `geometry.rs:72`).
 const MIN_ASPECT_WIDTH: f64 = 4.0;
 
@@ -224,7 +209,7 @@ fn distance_to_path(p: Point, path: &[Point], closed: bool) -> f64 {
     open.chain(closing).fold(f64::INFINITY, f64::min).min(path.first().map_or(f64::INFINITY, |&a| (p - a).hypot()))
 }
 
-fn body_hit(a: &Annotation, at: Point, tolerance: f64) -> bool {
+fn body_hit(a: &Annotation, at: Point, tolerance: f64, icon_side: f64) -> bool {
     let reach = tolerance + a.stroke_width / 2.0;
     match a.kind {
         AnnotationKind::Line | AnnotationKind::Arrow | AnnotationKind::PolyLine => distance_to_path(at, &a.points, false) <= reach,
@@ -240,25 +225,28 @@ fn body_hit(a: &Annotation, at: Point, tolerance: f64) -> bool {
             let r = quad.iter().fold(Rect::from_points(quad[0], quad[0]), |r, &p| r.union_pt(p));
             r.inflate(tolerance, tolerance).contains(at)
         }),
-        _ => a.rect.inflate(tolerance, tolerance).contains(at),
+        _ => a.extent(icon_side).inflate(tolerance, tolerance).contains(at),
     }
 }
 
 /// The topmost hit at `at` within `tolerance` page units: a handle of a selected annotation
 /// first, then any annotation's body (strokes and lines by distance, boxes by containment),
-/// last drawn first.
-pub fn hit(annotations: &[Annotation], selected: &[AnnotationId], at: Point, tolerance: f64) -> Option<AnnotationHit> {
+/// last drawn first. `icon_side` is the side, in page units, of the icon a Note, Attachment or
+/// Caret shows: those kinds keep one size on screen whatever the zoom (Acrobat's NoZoom), so the
+/// caller works it out each pass from the view.
+pub fn hit(annotations: &[Annotation], selected: &[AnnotationId], at: Point, tolerance: f64, icon_side: f64) -> Option<AnnotationHit> {
     for id in selected {
         let Some(annotation) = annotations.iter().find(|a| a.id == *id) else { continue };
         if let Some((handle, _)) = handles(annotation).into_iter().find(|(_, p)| (p.x - at.x).abs() <= tolerance && (p.y - at.y).abs() <= tolerance) {
             return Some(AnnotationHit::Handle(*id, handle));
         }
     }
-    annotations.iter().rev().find(|a| body_hit(a, at, tolerance)).map(|a| AnnotationHit::Body(a.id))
+    annotations.iter().rev().find(|a| body_hit(a, at, tolerance, icon_side)).map(|a| AnnotationHit::Body(a.id))
 }
 
 /// `rect` with handle `(hx, hy)` moved by `delta`; with `aspect` (Shift on a corner, or a kind
-/// that keeps its aspect) the ratio is kept; never inverted below one unit.
+/// that keeps its aspect) the ratio is kept. A plain resize adds the delta and normalises the
+/// rect, so dragging a handle past the opposite edge flips the box (PdfCraft `geometry.rs:89-101`).
 // pdfcraft: crates/ui-egui/src/tools/comments/geometry.rs:72 `resized`, `:68` `corner_ratio`.
 pub fn resized(rect: Rect, handle: (i8, i8), delta: Vec2, aspect: Option<f64>) -> Rect {
     let (hx, hy) = handle;
@@ -277,16 +265,16 @@ pub fn resized(rect: Rect, handle: (i8, i8), delta: Vec2, aspect: Option<f64>) -
     }
     let mut r = rect;
     match hx {
-        -1 => r.x0 = (r.x0 + delta.x).min(r.x1 - MIN_SIDE),
-        1 => r.x1 = (r.x1 + delta.x).max(r.x0 + MIN_SIDE),
+        -1 => r.x0 += delta.x,
+        1 => r.x1 += delta.x,
         _ => {}
     }
     match hy {
-        -1 => r.y0 = (r.y0 + delta.y).min(r.y1 - MIN_SIDE),
-        1 => r.y1 = (r.y1 + delta.y).max(r.y0 + MIN_SIDE),
+        -1 => r.y0 += delta.y,
+        1 => r.y1 += delta.y,
         _ => {}
     }
-    r
+    r.abs()
 }
 
 /// `to` held to the nearest 45° step from `anchor`, at the same distance.
@@ -316,7 +304,9 @@ pub fn reshaped(points: &[Point], i: usize, to: Point, shift: bool) -> Vec<Point
 
 /// What an annotation gesture asks of the app. Moves and reshapes are reported as the value of
 /// an `EditEvent` gesture (one undo step per drag).
+#[cfg(feature = "ui")]
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum AnnotationEdit {
     /// A new annotation drawn with a tool; for a Note or Text box the app opens the composer
     /// ([`CommentComposer`](crate::ui::CommentComposer)) on it.
@@ -334,10 +324,14 @@ pub enum AnnotationEdit {
         points: Vec<Point>,
     },
     Delete(Vec<AnnotationId>),
-    /// The Eraser crossed these strokes of an Ink annotation.
+    /// The Eraser crossed these strokes of an Ink annotation. One event per annotation per
+    /// gesture, with the strokes in ascending order.
     Erase {
         id: AnnotationId,
         strokes: Vec<usize>,
     },
-    Select(Vec<AnnotationId>),
+    /// The selection changed; the tool has applied it to [`AnnotateTool::selected`](crate::ui::AnnotateTool).
+    Selection(craft_ui::behavior::SelectionChange<AnnotationId>),
+    /// A double-click on a note or text box: the app opens its text for editing.
+    Open(AnnotationId),
 }

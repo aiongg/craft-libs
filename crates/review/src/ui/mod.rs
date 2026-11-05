@@ -32,7 +32,7 @@ mod stories;
 mod annotate_tests;
 #[cfg(test)]
 mod collab_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod comments_tests;
 #[cfg(test)]
 mod revisions_tests;
@@ -40,10 +40,10 @@ mod revisions_tests;
 mod signature_tests;
 #[cfg(test)]
 mod thread_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod versions_tests;
 
-pub use annotate::{AnnotateLabels, AnnotateTool, AnnotationOverlay, AnnotationToolbar};
+pub use annotate::{AnnotateLabels, AnnotateTool, AnnotationOverlay, AnnotationToolbar, AnnotationToolbarOutput};
 pub use comments::{CommentEdit, CommentsLabels, CommentsPanel, CommentsPanelOutput, CommentsPanelState};
 pub use revisions::{RevisionsLabels, RevisionsPanel, RevisionsPanelOutput};
 pub use signature::{SignatureLabels, SignaturePadDialog, SignatureSettings, paint_signature};
