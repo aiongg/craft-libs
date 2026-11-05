@@ -22,23 +22,28 @@ pub struct Baseline {
 /// A file and rule whose finding count is above the baseline.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Increase {
+    /// The file.
     pub path: PathBuf,
+    /// The rule id.
     pub rule: String,
     /// The count in the baseline; 0 for a file or rule it does not list.
     pub baseline: usize,
+    /// The count in the current report.
     pub now: usize,
 }
 
 /// The result of comparing a [`Report`] with a [`Baseline`].
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BaselineCheck {
+    /// Every file and rule whose count rose above the baseline.
     pub increases: Vec<Increase>,
     /// Findings that make the check fail whatever the baseline says (`parse`).
     pub unbaselined: Vec<Finding>,
     /// Findings of the files and rules in `increases`.
     pub new_findings: Vec<Finding>,
-    /// Total findings now and in the baseline.
+    /// Total findings in the current report.
     pub now: usize,
+    /// Total findings in the baseline.
     pub baseline: usize,
 }
 
@@ -80,6 +85,8 @@ impl Baseline {
         format!("{HEADER}{doc}")
     }
 
+    /// Reads a baseline file written by [`Baseline::to_toml`]; fails with [`Error::Io`] or
+    /// [`Error::Toml`].
     pub fn load(path: &Path) -> Result<Self, Error> {
         let text = std::fs::read_to_string(path).map_err(|source| Error::Io { path: path.to_owned(), source })?;
         Self::parse(path, &text)
