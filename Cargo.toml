@@ -32,6 +32,7 @@ craft-color = { path = "crates/color" }
 craft-crw = { path = "crates/crw" }
 craft-design-lint = { path = "crates/design-lint" }
 craft-dialogs = { path = "crates/dialogs" }
+craft-doc = { path = "crates/doc" }
 craft-docpath = { path = "crates/docpath" }
 craft-draw = { path = "crates/draw" }
 craft-ecproj-format = { path = "crates/ecproj-format" }
@@ -45,10 +46,15 @@ craft-imaging = { path = "crates/imaging" }
 craft-jpeg = { path = "crates/jpeg" }
 craft-keymap = { path = "crates/keymap" }
 craft-layers = { path = "crates/layers" }
-craft-media = { path = "crates/media" }
+craft-audio = { path = "crates/audio" }
+# No default features, so craft-audio's `encode` builds craft-media without `isobmff`.
+craft-media = { path = "crates/media", default-features = false }
+craft-media-testkit = { path = "crates/media-testkit" }
 craft-menu = { path = "crates/menu" }
+craft-pcraft-format = { path = "crates/pcraft-format" }
 craft-prepress = { path = "crates/prepress" }
 craft-print = { path = "crates/print" }
+craft-proof = { path = "crates/proof" }
 craft-quit = { path = "crates/quit" }
 craft-settings = { path = "crates/settings" }
 craft-text = { path = "crates/text" }
@@ -58,9 +64,11 @@ craft-ui = { path = "crates/ui" }
 craft-ui-macros = { path = "crates/ui-macros" }
 craft-update = { path = "crates/update" }
 craft-vectorcraft-format = { path = "crates/vectorcraft-format" }
+craft-web-api = { path = "crates/web-api" }
 craft-window = { path = "crates/window" }
 # egui's colour types alone, for crates that convert to and from them without egui.
 ecolor = { version = "0.37", default-features = false }
+craft-web-host = { path = "crates/web-host" }
 egui = { version = "0.37", default-features = false }
 rayon = "1"
 serde = { version = "1", features = ["derive"] }
@@ -104,3 +112,10 @@ eframe = { git = "https://github.com/aiongg/egui.git", rev = "35a72e6b786d65ba92
 egui_demo_lib = { git = "https://github.com/aiongg/egui.git", rev = "35a72e6b786d65ba92532566251947d4b80c4611" }
 egui_inspection = { git = "https://github.com/aiongg/egui.git", rev = "35a72e6b786d65ba92532566251947d4b80c4611" }
 winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457d84ee4975110bfda6797c44dc" }
+
+# symphonia's FLAC decoder restores LPC samples as `residual + (prediction as i32)`. In a valid
+# 32-bit stream the prediction can leave the i32 range while the sum does not, so a debug build
+# panics where a release build wraps to the right sample. Apps that decode 32-bit FLAC through
+# craft-audio's `decode` need the same override in their own workspace.
+[profile.dev.package.symphonia-bundle-flac]
+overflow-checks = false

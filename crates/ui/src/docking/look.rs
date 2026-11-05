@@ -18,6 +18,8 @@ pub struct DockLook {
     pub tab_height: f32,
     /// Space between the groups of a split.
     pub gap: f32,
+    /// Gap beside attached side docks; `None`: `gap`. Other split dividers keep `gap`.
+    pub dock_gap: Option<f32>,
     /// Vertical gap between stacked controls in a panel body, docked or floating: `dock.body_gap`.
     pub body_gap: f32,
     /// Least width or height of a pane in a split: `dock.min_pane`.
@@ -154,6 +156,7 @@ impl DockLook {
         Self {
             tab_height: tab.panel_height,
             gap: dock.gap,
+            dock_gap: None,
             body_gap: dock.body_gap,
             min_pane: dock.min_pane,
             drag_bar_width: dock.drag_bar_width,
@@ -256,6 +259,7 @@ impl DockLook {
         .all(|v| v.is_finite() && (0.0..=4096.0).contains(v))
             && self.tab_height > 0.0
             && self.font.size > 0.0
+            && self.dock_gap.is_none_or(|gap| gap.is_finite() && (0.0..=4096.0).contains(&gap))
     }
 }
 

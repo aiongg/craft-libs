@@ -38,7 +38,7 @@ const BORDER_BAND: f32 = 4.0;
 const WHEEL_NOTCH: f32 = 40.0;
 
 impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
-    /// Draw one tab group at `rect`.
+    /// Draw one tab group at `rect`, returning whether the host took exclusive ownership.
     ///
     /// An `active` index outside `panels` is a no-op. A lone protected panel is drawn stripless:
     /// its whole rect is the body and its only tab has `Rect::NOTHING`. Side splits are offered
@@ -47,14 +47,23 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// hidden overflow tabs still appear in the drop target with `Rect::NOTHING`. The host's extra
     /// tabs follow the panel tabs and fit with them ([`fit_with_extra`]). `minimized` hides the body
     /// but keeps the strip. Tabs, strip, header and drag bar are mirrored in right-to-left layout.
-    pub(super) fn group(&mut self, ui: &mut Ui, panels: &[P], active: usize, minimized: bool, rect: Rect, kind: GroupKind) {
-        let Some(selected) = panels.get(active) else { return };
-        self.record_float(panels, rect.size(), rect.size());
+    pub(super) fn group(&mut self, ui: &mut Ui, panels: &[P], active: usize, minimized: bool, rect: Rect, kind: GroupKind) -> bool {
+        let Some(selected) = panels.get(active) else { return false };
+        let host_collapsed = self.content.group_collapsed(panels);
+        let minimized = minimized || host_collapsed;
+        if !host_collapsed {
+            self.record_float(panels, rect.size(), rect.size());
+        }
+        if self.content.custom_group(ui, panels, selected, rect, matches!(kind, GroupKind::Floating { .. })) {
+            return true;
+        }
         let policy = self.permissions(selected);
         let splits = matches!(kind, GroupKind::Frame | GroupKind::Floating { .. }) && policy.accepts_splits;
         let rtl = self.config.right_to_left;
         if stripless(panels, &*self.content) {
-            self.contents(ui, selected, rect);
+            if !minimized {
+                self.contents(ui, selected, rect);
+            }
             self.targets.push(DropTarget {
                 anchor: selected.clone(),
                 rect,
@@ -64,7 +73,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 accepts_tabs: policy.accepts_tabs,
                 right_to_left: rtl,
             });
-            return;
+            return false;
         }
         let movable = panels.iter().all(|p| self.permissions(p).movable);
         let strip = Rect::from_min_max(rect.min, pos2(rect.right(), (rect.top() + self.look.tab_height).min(rect.bottom())));
@@ -160,10 +169,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         let bar =
             mirror(Rect::from_min_max(pos2(x.min(strip.right() - header_width), strip.top()), pos2(strip.right() - header_width, strip.bottom())));
-        self.group_handle(ui, "drag-bar", bar, &owner, movable);
+        let named = self.group_handle(ui, "drag-bar", bar, &owner, movable, true);
         // Registered last, so the band wins over the tabs below it.
         let border = mirror(Rect::from_min_max(strip.min, pos2(strip.right() - header_width, (strip.top() + BORDER_BAND).min(strip.bottom()))));
-        self.group_handle(ui, "drag-border", border, &owner, movable);
+        self.group_handle(ui, "drag-border", border, &owner, movable, !named);
         if self.config.wheel_selects_tabs {
             let tabs_area = mirror(Rect::from_min_max(strip.min, pos2(strip.right() - header_width, strip.bottom())));
             self.wheel_tabs(ui, tabs_area, extra, panels, active);
@@ -184,6 +193,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             self.contents(ui, selected, Rect::from_min_max(pos2(rect.left(), strip.bottom()), rect.max));
         }
         ui.painter().rect_stroke(rect, 0.0, self.look.border, StrokeKind::Inside);
+        false
     }
 
     /// A part of the strip the host draws (`header` or `extra-tabs`) at `rect`. A press in it
@@ -377,27 +387,50 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// The drag bar (`drag-bar`: drag, double-click, and the group menu on a right click, Enter
     /// or Space) or the top border band (`drag-border`: drag only). Both move the whole group;
-    /// a left click on the bar only focuses it.
-    fn group_handle(&mut self, ui: &mut Ui, name: &'static str, hit: Rect, owner: &TabGroup<'_, P>, movable: bool) {
+    /// a left click on the bar only focuses it. Only an `accessible` handle takes focus and is in
+    /// the accessibility tree, so each group is announced once: the band, which has no keyboard
+    /// function, only where no bar is drawn. Returns whether the handle is drawn.
+    fn group_handle(&mut self, ui: &mut Ui, name: &'static str, hit: Rect, owner: &TabGroup<'_, P>, movable: bool, accessible: bool) -> bool {
         if !crate::docking::targets::usable(hit) {
-            return;
+            return false;
         }
         let bar = name == "drag-bar";
-        let sense = if bar { Sense::click_and_drag() } else { Sense::drag() };
+        let sense = match (bar, accessible) {
+            (true, _) => Sense::click_and_drag(),
+            (false, true) => Sense::drag(),
+            (false, false) => Sense::DRAG,
+        };
         let response = ui.interact(hit, self.id.with((name, owner.panels.first())), sense);
         let response = if movable { response.on_hover_cursor(egui::CursorIcon::Grab) } else { response };
         self.register_interaction(ui.ctx(), response.id);
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.move_group_label));
+        if accessible {
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), self.move_group_name(owner.selected)));
+        }
         if movable && response.drag_started() {
             self.start_group_drag(ui, owner.panels, self.drag_source(owner));
         }
         if !bar {
-            return;
+            return true;
         }
         if self.minimizes(owner) && response.double_clicked() {
             self.output.actions.push(Action::SetMinimized { panel: owner.selected.clone(), minimized: !owner.minimized });
         }
-        if let Some(color) = self.bar_outline(&response) {
+        let modality = self.id.with("keyboard-chrome-focus");
+        let keyboard_input = ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { pressed: true, .. })));
+        let pointer_input = ui.input(|i| i.pointer.any_pressed());
+        // The focus outline shows for keyboard focus only: a press that focuses the bar leaves none.
+        let keyboard_focus = ui.ctx().data_mut(|d| {
+            let on = if pointer_input {
+                false
+            } else if keyboard_input {
+                true
+            } else {
+                d.get_temp::<bool>(modality).unwrap_or(false)
+            };
+            d.insert_temp(modality, on);
+            on
+        });
+        if let Some(color) = self.bar_outline(&response, keyboard_focus) {
             ui.painter().with_clip_rect(hit).rect_stroke(hit.shrink(1.0), 0.0, Stroke::new(self.look.focus_width, color), StrokeKind::Inside);
         }
         let keyboard = response.has_focus() && ui.input(|i| i.key_pressed(Key::Enter) || i.key_pressed(Key::Space));
@@ -409,12 +442,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             None
         };
         egui::Popup::menu(&response).open_memory(command).show(|ui| self.group_menu(ui, owner, owner.selected));
+        true
     }
 
     /// The outline of a drag bar or column bar under the pointer (the handle's hover color) or
     /// with keyboard focus (the focus color, which wins), `None` otherwise.
-    pub(super) fn bar_outline(&self, response: &egui::Response) -> Option<Color32> {
-        if response.has_focus() {
+    pub(super) fn bar_outline(&self, response: &egui::Response, keyboard_focus: bool) -> Option<Color32> {
+        if response.has_focus() && keyboard_focus {
             Some(self.look.focus)
         } else if response.hovered() {
             Some(self.look.resize.gamma_multiply(self.look.grip_alpha))
@@ -610,12 +644,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         style.text = self.look.text;
         style.inactive_text = self.look.inactive_text;
         style.pad_x = self.look.tab_padding * 0.5;
-        let galley = self.tab_label(ui, panel, &label, style.label_color(active), f32::INFINITY);
+        let visual_active = active && !owner.is_some_and(|owner| self.content.group_collapsed(owner.panels));
+        let galley = self.tab_label(ui, panel, &label, style.label_color(visual_active), f32::INFINITY);
         let tab_id = self.id.with(("tab", panel));
         let position = owner.and_then(|owner| owner.panels.iter().position(|p| p == panel)).unwrap_or(0);
         let text = <crate::tab_strip::TabStripText as crate::localized::SharedLabels>::shared(ui);
         let view = crate::tab_strip::TabView::new(self.id, &text, position)
-            .active(active)
+            .active(visual_active)
             .focused(ui.memory(|m| m.has_focus(tab_id)))
             .sense(if policy.movable { Sense::click_and_drag() } else { Sense::click() });
         let closable = owner.is_some() && self.tab_closable(panel);

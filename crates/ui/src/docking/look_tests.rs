@@ -305,7 +305,8 @@ fn the_painters_read_their_own_tokens() {
     let bar = rect_of(&d, Hit::DragBar(1));
     d.ctx.memory_mut(|m| m.request_focus(DockArea::<u32>::hit_id(d.id, &Hit::DragBar(1))));
     d.step(vec![]);
-    d.step(vec![]);
+    // The outline is for keyboard focus: a key press makes the focus a keyboard one.
+    d.step(vec![egui::Event::Key { key: egui::Key::F20, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE }]);
     let stroked = rects(&d).iter().any(|r| r.stroke.color == wanted(focus) && r.stroke.width == width && r.rect == bar.shrink(1.0));
     assert!(stroked, "drag bar focus outline");
 
