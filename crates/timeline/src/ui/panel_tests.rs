@@ -2,15 +2,16 @@
 
 use craft_ui::edit::EditEvent;
 use craft_ui::testing::{HarnessExt as _, events};
-use craft_ui::theme::{Base, install};
+use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
 use egui::accesskit::Role;
-use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, Rect, TouchPhase, Ui, vec2};
+use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, Rect, TouchPhase, Ui, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::panel::{Timeline, TimelineEdit, TrackSwitch};
 use crate::clips::ClipEdit;
 use crate::clock::FollowMode;
+use crate::markers::{Marker, MarkerId};
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
 use crate::rates::FrameRate;
 use crate::time::{TICKS_PER_SECOND, Tick, TimeRange, TimeView};
@@ -31,6 +32,8 @@ struct Model {
     playhead: Tick,
     selection: Vec<ClipId>,
     master: Option<f32>,
+    locked: Vec<TrackId>,
+    markers: Vec<Marker>,
 }
 
 impl TimelineModel for Model {
@@ -60,7 +63,7 @@ impl TimelineModel for Model {
                 height: None,
                 depth: 0,
                 label: None,
-                locked: Some(false),
+                locked: Some(self.locked.contains(&id)),
                 targeted: None,
                 sync_lock: None,
                 enabled: None,
@@ -85,6 +88,10 @@ impl TimelineModel for Model {
     fn master_volume_db(&self) -> Option<f32> {
         self.master
     }
+
+    fn markers(&self) -> &[Marker] {
+        &self.markers
+    }
 }
 
 struct App {
@@ -94,10 +101,15 @@ struct App {
     playing: bool,
     time_area: Rect,
     painted: usize,
+    divider: Option<f32>,
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
-    let out = Timeline::new("timeline", &mut app.model).follow(app.follow, app.playing).content(|_, _, _| app.painted += 1).show(ui);
+    let mut timeline = Timeline::new("timeline", &mut app.model).follow(app.follow, app.playing).content(|_, _, _| app.painted += 1);
+    if let Some(share) = app.divider {
+        timeline = timeline.divider(share);
+    }
+    let out = timeline.show(ui);
     app.time_area = out.time_area;
     app.edits.extend(out.edits);
 }
@@ -115,8 +127,10 @@ fn harness_with(names: Vec<(TrackId, TrackKind, &'static str)>, master: Option<f
         view: TimeView::new(Tick::ZERO, 20.0),
         playhead: Tick::ZERO,
         selection: Vec::new(),
+        locked: Vec::new(),
+        markers: Vec::new(),
     };
-    let app = App { model, edits: Vec::new(), follow: FollowMode::Page, playing: false, time_area: Rect::NOTHING, painted: 0 };
+    let app = App { model, edits: Vec::new(), follow: FollowMode::Page, playing: false, time_area: Rect::NOTHING, painted: 0, divider: None };
     let mut harness = Harness::<App>::builder()
         .with_size([900.0, 500.0])
         // Two clicks of a double-click must land within egui's double-click delay.
@@ -205,11 +219,11 @@ fn a_move_gets_its_track_fields_from_the_pointer() {
     drag_y(&mut harness, v1.center().y, v2.center().y);
     assert!(matches!(committed(&harness), Some(ClipEdit::Move { track_delta: 1, new_track: false, .. })), "{:?}", committed(&harness));
 
-    // Above V2: a new video track, one past V2.
+    // Above V2: a new video track; the flag is separate and the count stays 0 (FilmCraft).
     harness.state_mut().edits.clear();
     let above = harness.state().time_area.top() + (v2.top() - harness.state().time_area.top()) / 2.0;
     drag_y(&mut harness, v1.center().y, above);
-    assert!(matches!(committed(&harness), Some(ClipEdit::Move { track_delta: 2, new_track: true, .. })), "{:?}", committed(&harness));
+    assert!(matches!(committed(&harness), Some(ClipEdit::Move { track_delta: 0, new_track: true, .. })), "{:?}", committed(&harness));
 
     // Into the audio rows: no change of track.
     harness.state_mut().edits.clear();
@@ -220,7 +234,7 @@ fn a_move_gets_its_track_fields_from_the_pointer() {
     harness.state_mut().edits.clear();
     let below = a1.bottom() + (harness.state().time_area.bottom() - a1.bottom()).min(a1.height()) / 2.0;
     drag_y(&mut harness, a1.center().y, below);
-    assert!(matches!(committed(&harness), Some(ClipEdit::Move { track_delta: 1, new_track: true, .. })), "{:?}", committed(&harness));
+    assert!(matches!(committed(&harness), Some(ClipEdit::Move { track_delta: 0, new_track: true, .. })), "{:?}", committed(&harness));
 }
 
 // clicking Lock reports Switch { Locked, true }; Alt-click on Solo is exclusive.
@@ -274,7 +288,7 @@ fn wheel_and_keys_zoom_about_the_pointer_and_playhead() {
     harness.press(egui::KeyboardShortcut::new(Modifiers::NONE, Key::Equals));
     harness.run_steps(2);
     let view = harness.state().model.view;
-    assert!((view.points_per_second - 40.0).abs() < 0.01, "{view:?}");
+    assert!((view.points_per_second - 32.0).abs() < 0.01, "{view:?}");
     let x = view.x_of(seconds(5), 0.0);
     assert!((x - 100.0).abs() < 0.5, "the playhead keeps its x: {x}");
     harness.press(egui::KeyboardShortcut::new(Modifiers::NONE, Key::Minus));
@@ -401,4 +415,305 @@ fn caption_rows_sit_above_video_with_a_mix_row() {
     let (c, v1, a1) = (row(&harness, "C1"), row(&harness, "V1"), row(&harness, "A1"));
     assert!(c.bottom() < v1.top(), "{c:?} {v1:?}");
     assert!(v1.bottom() < a1.top() && a1.bottom() <= harness.state().time_area.bottom(), "{v1:?} {a1:?}");
+}
+
+fn wheel_with(harness: &mut Harness<'_, App>, at: Pos2, delta: Vec2, modifiers: Modifiers) {
+    harness.hover_at(at);
+    harness.step();
+    harness.event(Event::MouseWheel { unit: MouseWheelUnit::Point, delta, phase: TouchPhase::Move, modifiers, source: MouseWheelSource::Unknown });
+    harness.step();
+}
+
+fn many_audio() -> Harness<'static, App> {
+    harness_with(
+        vec![
+            (V1, TrackKind::Video, "V1"),
+            (A1, TrackKind::Audio, "A1"),
+            (TrackId(21), TrackKind::Audio, "A2"),
+            (TrackId(22), TrackKind::Audio, "A3"),
+            (TrackId(23), TrackKind::Audio, "A4"),
+            (TrackId(24), TrackKind::Audio, "A5"),
+            (TrackId(25), TrackKind::Audio, "A6"),
+            (TrackId(26), TrackKind::Audio, "A7"),
+            (TrackId(27), TrackKind::Audio, "A8"),
+            (TrackId(28), TrackKind::Audio, "A9"),
+        ],
+        None,
+    )
+}
+
+// FilmCraft's mapping: Cmd or Ctrl and the wheel scroll sideways (never zoom), Shift and the wheel
+// too, neither eased; the plain wheel leaves the time alone; a pinch zooms.
+#[test]
+fn the_wheel_maps_as_filmcraft_does() {
+    let mut harness = harness();
+    let y = row(&harness, "V1").center().y;
+    let at = point(&harness, 10.0, y);
+    for modifiers in [Modifiers::COMMAND, Modifiers::CTRL, Modifiers::SHIFT] {
+        harness.state_mut().model.view = TimeView::new(Tick::ZERO, 20.0);
+        harness.run_steps(2);
+        wheel_with(&mut harness, at, vec2(0.0, -100.0), modifiers);
+        let view = harness.state().model.view;
+        assert_eq!(view.start, seconds(5), "{modifiers:?}: scrolled in one pass, not eased: {view:?}");
+        assert_eq!(view.points_per_second, 20.0, "{modifiers:?} doesn't zoom");
+    }
+    harness.state_mut().model.view = TimeView::new(Tick::ZERO, 20.0);
+    harness.run_steps(2);
+    wheel_with(&mut harness, at, vec2(0.0, -100.0), Modifiers::NONE);
+    assert_eq!(harness.state().model.view.start, Tick::ZERO, "the plain wheel scrolls the tracks");
+
+    harness.event(Event::Zoom(1.5));
+    harness.run_steps(8);
+    assert!(harness.state().model.view.points_per_second > 25.0, "{:?}", harness.state().model.view);
+}
+
+// The plain wheel scrolls the side of the divider under the pointer.
+#[test]
+fn the_wheel_scrolls_the_side_under_the_pointer() {
+    let mut harness = many_audio();
+    let before = row(&harness, "A3").top();
+    let at = Pos2::new(harness.state().time_area.center().x, row(&harness, "A2").center().y);
+    wheel_with(&mut harness, at, vec2(0.0, -30.0), Modifiers::NONE);
+    harness.run_steps(2);
+    let after = row(&harness, "A3").top();
+    assert!((before - after - 30.0).abs() < 0.5, "{before} -> {after}");
+}
+
+// Each side has a vertical scroll bar: dragging the audio side's moves its rows.
+#[test]
+fn a_side_with_more_rows_than_room_has_a_scroll_bar_that_scrolls_it() {
+    let mut harness = many_audio();
+    let bar = harness.get_by_label("Scroll bar of the audio tracks").rect();
+    let before = row(&harness, "A3").top();
+    let a1 = row(&harness, "A1");
+    let x = bar.right() - 2.0;
+    harness.drag(Pos2::new(x, a1.top() + 6.0), Pos2::new(x, a1.top() + 80.0), Modifiers::NONE);
+    harness.run_steps(2);
+    let after = row(&harness, "A3").top();
+    assert!(after < before - 10.0, "{before} -> {after}");
+}
+
+// Alt+Left is not a Left, Shift+Home is not a Home: each key is an exact chord.
+#[test]
+fn keys_are_exact_chords() {
+    let mut harness = harness();
+    harness.state_mut().model.playhead = seconds(5);
+    harness.run_steps(2);
+    harness.get_by_role_and_label(Role::Group, "Timeline").focus();
+    harness.run_steps(2);
+    let playhead_edits = |harness: &Harness<'_, App>| harness.state().edits.iter().filter(|edit| matches!(edit, TimelineEdit::Playhead(_))).count();
+    harness.press(egui::KeyboardShortcut::new(Modifiers::ALT, Key::ArrowLeft));
+    harness.press(egui::KeyboardShortcut::new(Modifiers::SHIFT, Key::Home));
+    assert_eq!(playhead_edits(&harness), 0, "{:?}", harness.state().edits);
+    harness.press(egui::KeyboardShortcut::new(Modifiers::NONE, Key::Home));
+    assert_eq!(playhead_edits(&harness), 1);
+}
+
+// A move onto a locked track is refused; the new-track flag is separate from the count; a locked
+// source track anywhere in the selection refuses the new track.
+#[test]
+fn moves_onto_or_from_locked_tracks_are_refused() {
+    let mut harness = harness();
+    let (v2, v1) = (row(&harness, "V2"), row(&harness, "V1"));
+    harness.state_mut().model.locked = vec![V2];
+    harness.run_steps(2);
+    drag_y(&mut harness, v1.center().y, v2.center().y);
+    assert!(
+        matches!(committed(&harness), Some(ClipEdit::Move { track_delta: 0, new_track: false, .. })),
+        "a locked target keeps the clip's track: {:?}",
+        committed(&harness)
+    );
+
+    harness.state_mut().model.locked = vec![A1];
+    harness.state_mut().model.selection = vec![ClipId(1), ClipId(2)];
+    harness.state_mut().edits.clear();
+    harness.run_steps(2);
+    let above = harness.state().time_area.top() + (v2.top() - harness.state().time_area.top()) / 2.0;
+    drag_y(&mut harness, v1.center().y, above);
+    assert!(
+        matches!(committed(&harness), Some(ClipEdit::Move { track_delta: 0, new_track: false, .. })),
+        "a locked source track refuses the new track: {:?}",
+        committed(&harness)
+    );
+}
+
+// Dragging the divider reports the video side's share as one gesture, within 0.1 to 0.9; the app's
+// share lays the sides out.
+#[test]
+fn the_divider_drags_and_the_apps_share_lays_out_the_sides() {
+    let mut harness = harness();
+    let v1 = row(&harness, "V1");
+    let area = harness.state().time_area;
+    let from = Pos2::new(area.center().x, v1.bottom() + 1.0);
+    harness.drag(from, from + vec2(0.0, 40.0), Modifiers::NONE);
+    let shares: Vec<f32> = harness
+        .state()
+        .edits
+        .iter()
+        .filter_map(|edit| match edit {
+            TimelineEdit::Divider(EditEvent::Commit { value, .. }) => Some(*value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(shares.len(), 1, "{:?}", harness.state().edits);
+    assert!((0.1..=0.9).contains(&shares[0]), "{shares:?}");
+
+    harness.state_mut().divider = Some(0.9);
+    harness.run_steps(2);
+    let high = row(&harness, "A1").top();
+    harness.state_mut().divider = Some(0.1);
+    harness.run_steps(2);
+    let low = row(&harness, "A1").top();
+    assert!(high > low + 100.0, "{high} {low}");
+    harness.get_by_label("Drag to change how the room is shared between video and audio tracks");
+}
+
+// The Menu key and Shift+F10 open the clip menu on the selection's last clip; a click reports the
+// pointer.
+#[test]
+fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
+    let mut harness = harness();
+    harness.state_mut().model.selection = vec![ClipId(1)];
+    harness.run_steps(2);
+    harness.get_by_role_and_label(Role::Group, "Timeline").focus();
+    harness.run_steps(2);
+    harness.press(egui::KeyboardShortcut::new(Modifiers::NONE, Key::Menu));
+    harness.press(egui::KeyboardShortcut::new(Modifiers::SHIFT, Key::F10));
+    let menus: Vec<_> = harness
+        .state()
+        .edits
+        .iter()
+        .filter_map(|edit| match edit {
+            TimelineEdit::ContextMenu { track, clip, anchor, pointer } => Some((*track, *clip, *anchor, *pointer)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(menus.len(), 2, "{menus:?}");
+    for (track, clip, anchor, pointer) in menus {
+        assert_eq!((track, clip, pointer), (Some(V1), Some(ClipId(1)), None));
+        let v1 = row(&harness, "V1");
+        assert_eq!((anchor.top(), anchor.bottom()), (v1.top(), v1.bottom()));
+        assert!((anchor.width() - 4.0 * 20.0).abs() < 0.5, "{anchor:?}");
+    }
+
+    harness.state_mut().edits.clear();
+    let at = point(&harness, 4.0, row(&harness, "V1").center().y);
+    for frame in events::click(at, PointerButton::Secondary, 1, Modifiers::NONE) {
+        for event in frame {
+            harness.event(event);
+        }
+        harness.step();
+    }
+    let click = harness.state().edits.iter().find_map(|edit| match edit {
+        TimelineEdit::ContextMenu { pointer, .. } => Some(*pointer),
+        _ => None,
+    });
+    assert!(matches!(click, Some(Some(pos)) if (pos - at).length() < 1.0), "{click:?}");
+}
+
+// Esc drops the marquee: releasing afterwards selects nothing.
+#[test]
+fn escape_drops_the_marquee() {
+    let mut harness = harness();
+    let y = row(&harness, "V1").center().y;
+    let (from, to) = (point(&harness, 1.0, y), point(&harness, 8.0, y));
+    harness.hover_at(from);
+    harness.step();
+    harness.drag_at(from);
+    harness.step();
+    harness.hover_at(from.lerp(to, 0.5));
+    harness.step();
+    harness.hover_at(to);
+    harness.step();
+    harness.key_press(Key::Escape);
+    harness.step();
+    harness.drop_at(to);
+    harness.run_steps(2);
+    assert!(!harness.state().edits.iter().any(|edit| matches!(edit, TimelineEdit::Select { .. })), "{:?}", harness.state().edits);
+}
+
+// A double-click on the marker band adds a marker unless it lands within half the marker's hit
+// width of one.
+#[test]
+fn add_marker_is_refused_within_half_the_marker_hit() {
+    let mut harness = harness();
+    harness.state_mut().model.markers = vec![Marker { id: MarkerId(1), start: seconds(10), ..Marker::default() }];
+    harness.run_steps(2);
+    let style = {
+        let mut style = None;
+        egui::__run_test_ui(|ui| style = Some(super::style::TimelineStyle::of(&Tokens::of(ui))));
+        style.unwrap()
+    };
+    let band_y = harness.state().time_area.top() - style.ruler_height + style.ruler_marker_band / 2.0;
+    let double_click = |harness: &mut Harness<'_, App>, x: f32| {
+        // Long enough after the last click that this one is not a third.
+        harness.run_steps(30);
+        for frame in events::click(Pos2::new(x, band_y), PointerButton::Primary, 2, Modifiers::NONE) {
+            for event in frame {
+                harness.event(event);
+            }
+            harness.step();
+        }
+    };
+    let adds = |harness: &Harness<'_, App>| {
+        harness.state().edits.iter().filter(|edit| matches!(edit, TimelineEdit::Marker(crate::ui::MarkerEdit::Add { .. }))).count()
+    };
+    let marker_x = point(&harness, 10.0, 0.0).x;
+    double_click(&mut harness, marker_x + 1.0);
+    assert_eq!(adds(&harness), 0, "{:?}", harness.state().edits);
+    // Past marker_hit / 2 (the marker's own hit) but inside marker_width: allowed.
+    assert!(style.marker_hit / 2.0 < style.marker_width);
+    double_click(&mut harness, marker_x + (style.marker_width + style.marker_hit / 2.0) / 2.0);
+    assert_eq!(adds(&harness), 1, "{:?}", harness.state().edits);
+}
+
+// A clip drag whose source row scrolls out of view still ends when the button is released.
+#[test]
+fn a_clip_drag_ends_after_its_row_scrolls_out_of_view() {
+    let mut harness = many_audio();
+    let a1 = row(&harness, "A1");
+    let from = point(&harness, 4.0, a1.center().y);
+    harness.hover_at(from);
+    harness.step();
+    harness.drag_at(from);
+    harness.step();
+    harness.hover_at(from + vec2(30.0, 0.0));
+    harness.step();
+    wheel_with(&mut harness, from + vec2(30.0, 0.0), vec2(0.0, -2000.0), Modifiers::NONE);
+    harness.run_steps(2);
+    let a1_after = row(&harness, "A1");
+    assert!(a1_after.top() < a1.top() - 50.0, "A1 scrolled out of view: {a1:?} -> {a1_after:?}");
+    harness.drop_at(from + vec2(30.0, 0.0));
+    harness.run_steps(2);
+    let events = clip_events(&harness);
+    assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "{events:?}");
+    assert!(matches!(events.last(), Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. })), "{events:?}");
+}
+
+// The colour strip's menu names the sixteen labels.
+#[test]
+fn the_sixteen_labels_have_names() {
+    let labels = super::panel::TimelineLabels::default();
+    assert_eq!(labels.label_name(crate::MarkerColor(0)), "Violet");
+    assert_eq!(labels.label_name(crate::MarkerColor(2)), "Caribbean");
+    assert_eq!(labels.label_name(crate::MarkerColor(15)), "Yellow");
+    assert_eq!(labels.label_name(crate::MarkerColor(16)), "Violet");
+}
+
+// A drag that only moves across rows previews the track change before it ends: the Begin or an
+// Update carries it, not just the Commit.
+#[test]
+fn a_vertical_only_drag_previews_the_track_change() {
+    let mut harness = harness();
+    let (v2, v1) = (row(&harness, "V2"), row(&harness, "V1"));
+    drag_y(&mut harness, v1.center().y, v2.center().y);
+    let events = clip_events(&harness);
+    let previewed = events.iter().any(|event| {
+        matches!(
+            event,
+            EditEvent::Begin { value: Some(ClipEdit::Move { track_delta: 1, .. }), .. }
+                | EditEvent::Update { value: ClipEdit::Move { track_delta: 1, .. }, .. }
+        )
+    });
+    assert!(previewed, "{events:?}");
 }
