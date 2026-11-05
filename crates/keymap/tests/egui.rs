@@ -628,3 +628,69 @@ fn a_key_without_a_latin_letter_runs_no_letter_binding() {
         assert_eq!(ran, [expected], "{press:?}");
     }
 }
+
+/// A press as a layout reports it (logical key, physical position, held modifiers) with the text
+/// it typed after it, as egui-winit sends them.
+fn typed(key: EguiKey, physical: EguiKey, modifiers: Modifiers, text: &str) -> Vec<Event> {
+    let mut events = vec![Event::Key { key, physical_key: Some(physical), pressed: true, repeat: false, modifiers }];
+    if !text.is_empty() {
+        events.push(Event::Text(text.into()));
+    }
+    events
+}
+
+fn layout_keymap() -> Keymap {
+    let app = |id: &str, key: &str| Bindable::new(id, id, Scope::app()).with_default(Binding::parse(key).unwrap());
+    let catalog = vec![
+        app("brush.smaller", "["),
+        app("brush.bigger", "]"),
+        app("brush.harder", "Shift+]"),
+        app("view.zoomIn", "="),
+        app("view.zoomOut", "-"),
+        app("select.grow", "Cmd+Shift+."),
+    ];
+    Keymap::new(catalog, Scopes::new(), Platform::Windows)
+}
+
+fn ran(d: &mut Dispatcher, km: &Keymap, time: f64, modifiers: Modifiers, events: Vec<Event>) -> Vec<String> {
+    run(d, km, &Active::NONE, frame(time, modifiers, events)).0
+}
+
+#[test]
+fn german_keys_are_brackets_and_plus_is_not_a_brush_key() {
+    let km = layout_keymap();
+    let mut d = Dispatcher::new();
+    // ö arrives as the physical `;`, # as the physical `\`, and ⇧# types `'`.
+    assert_eq!(ran(&mut d, &km, 1.0, Modifiers::NONE, typed(EguiKey::Semicolon, EguiKey::Semicolon, Modifiers::NONE, "ö")), ["brush.smaller"]);
+    assert_eq!(ran(&mut d, &km, 2.0, Modifiers::NONE, typed(EguiKey::Backslash, EguiKey::Backslash, Modifiers::NONE, "#")), ["brush.bigger"]);
+    // ⇧# keeps its Shift: it is ⇧], not ].
+    let shift = Modifiers::SHIFT;
+    assert_eq!(ran(&mut d, &km, 3.0, shift, typed(EguiKey::Quote, EguiKey::Backslash, shift, "'")), ["brush.harder"]);
+    // The + key sits at the US `]` position and is no bracket on a German layout.
+    assert!(ran(&mut d, &km, 4.0, Modifiers::NONE, typed(EguiKey::Plus, EguiKey::CloseBracket, Modifiers::NONE, "+")).is_empty());
+    // ⇧+ types `*` and arrives as the physical `]`: it zooms in, and ⇧- zooms out.
+    assert_eq!(ran(&mut d, &km, 5.0, shift, typed(EguiKey::CloseBracket, EguiKey::CloseBracket, shift, "*")), ["view.zoomIn"]);
+    assert_eq!(ran(&mut d, &km, 6.0, shift, typed(EguiKey::Slash, EguiKey::Slash, shift, "_")), ["view.zoomOut"]);
+}
+
+#[test]
+fn the_bracket_positions_are_brackets_on_layouts_without_a_table_row() {
+    let km = layout_keymap();
+    // Spanish: `+` at the `]` position runs `]`; AZERTY's dead `^` at `[` runs `[`.
+    let mut d = Dispatcher::new();
+    assert_eq!(ran(&mut d, &km, 1.0, Modifiers::NONE, typed(EguiKey::Plus, EguiKey::CloseBracket, Modifiers::NONE, "+")), ["brush.bigger"]);
+    assert_eq!(ran(&mut d, &km, 2.0, Modifiers::NONE, typed(EguiKey::OpenBracket, EguiKey::OpenBracket, Modifiers::NONE, "^")), ["brush.smaller"]);
+    // Dvorak types `[` on the US `-` key; once seen, the `]` position's `=` is zoom, not `]`.
+    let mut d = Dispatcher::new();
+    assert_eq!(ran(&mut d, &km, 1.0, Modifiers::NONE, typed(EguiKey::OpenBracket, EguiKey::Minus, Modifiers::NONE, "[")), ["brush.smaller"]);
+    assert_eq!(ran(&mut d, &km, 2.0, Modifiers::NONE, typed(EguiKey::Equals, EguiKey::CloseBracket, Modifiers::NONE, "=")), ["view.zoomIn"]);
+}
+
+#[test]
+fn cmd_chords_on_period_follow_the_key_position() {
+    let km = layout_keymap();
+    // Nordic: ⇧⌘. types `:`, which egui reports as the logical key.
+    let mods = Modifiers { shift: true, ctrl: true, command: true, ..Modifiers::NONE };
+    let mut d = Dispatcher::new();
+    assert_eq!(ran(&mut d, &km, 1.0, mods, typed(EguiKey::Colon, EguiKey::Period, mods, ":")), ["select.grow"]);
+}
