@@ -167,6 +167,26 @@ fn a_wide_row_has_no_overflow_button_and_shows_every_item() {
 }
 
 #[test]
+fn button_size_sets_the_buttons_and_the_bars_height() {
+    let side = tokens().button + 10.0;
+    let mut h = harness(Direction::Ltr, [600.0, 80.0]).build_ui_state(
+        move |ui, host: &mut Host| {
+            let out = Toolbar::new("tools", Orientation::Horizontal)
+                .button_size(side)
+                .group([ToolbarItem::new(Icon::Pointer, "One"), ToolbarItem::new(Icon::Droplet, "Two")])
+                .show(ui);
+            host.rects = out.items.iter().map(|r| r.rect).collect();
+            host.area = [0.0, 0.0, 0.0, ui.min_rect().height()];
+        },
+        Host::default(),
+    );
+    h.run();
+    let host = h.state();
+    assert!(host.rects.iter().all(|r| r.width() == side && r.height() == side), "{:?}", host.rects);
+    assert_eq!(host.area[3], side, "the bar is as high as its buttons");
+}
+
+#[test]
 fn a_narrow_row_moves_the_groups_that_do_not_fit_into_a_menu_that_runs_them() {
     let mut h = run(Direction::Ltr, [190.0, 200.0], Orientation::Horizontal, true);
     let shown = h.state().rects.len();

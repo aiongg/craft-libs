@@ -490,7 +490,7 @@ impl Draw<'_> {
         let underline = mnemonic.filter(|_| self.underline);
         let content = row_content(it, label, underline);
         let row = Row { widget, enabled, path: row_path.clone(), submenu: children.is_some(), mnemonic };
-        let height = self.painter.style.rows.height;
+        let height = self.painter.height(ui, &content);
         nav.row(ui, depth - 1, row, |ui, nav, lit| {
             let r = Interactive::with_id(widget, row::role(it.item_kind()), it.accessible_name_of().unwrap_or(label))
                 .sense(Sense::CLICK)
@@ -546,6 +546,7 @@ fn row_content<'r, T>(it: &'r MenuItem<T>, label: &'r str, mnemonic: Option<char
         shortcut: it.shortcut_of().filter(|_| it.children().is_none()),
         submenu: it.children().is_some(),
         tint: it.tint_of(),
+        detail: it.detail_of(),
     }
 }
 

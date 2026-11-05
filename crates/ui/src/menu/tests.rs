@@ -525,6 +525,20 @@ fn rows_are_as_wide_as_the_widest_and_at_least_the_menus_width() {
 }
 
 #[test]
+// A detail line makes its row one line of the detail's type taller, as wide as the longer of the two
+// lines, and AccessKit reads it as the row's description.
+fn a_detail_line_adds_its_height_and_width_and_is_the_description() {
+    let long = "A detail line much longer than the label and the least width of a menu together hold";
+    let mut d = Driver::new(vec![MenuItem::new("Letter", "letter").detail(long).into(), item("Plain", "plain")]);
+    d.click("Open");
+    let (detail, plain) = (d.rect("Letter"), d.rect("Plain"));
+    assert!(detail.height() > plain.height() + 8.0, "{detail:?} against {plain:?}");
+    assert_eq!(detail.width(), plain.width(), "rows share one width");
+    assert!(detail.width() > 300.0, "the detail line widens the menu: {detail:?}");
+    assert_eq!(d.node("Letter").and_then(|n| n.description().map(str::to_owned)).as_deref(), Some(long));
+}
+
+#[test]
 fn min_width_sets_the_narrowest_level_and_a_wider_row_still_widens_it() {
     let mut d = Driver::new(vec![item("A", "a"), item("A much longer row than the least width of a menu holds, and then some more text", "b")]);
     d.min_width = Some(400.0);
@@ -822,6 +836,27 @@ fn the_menu_key_and_shift_f10_open_a_context_menu_at_the_focused_widget() {
         assert_eq!(o.chosen, ["copy"], "first row lit on opening, then one step down");
         assert!(!o.open[2]);
     }
+}
+
+/// A pointer click on a context-menu row runs its command. The menu is not at fault when a
+/// harness's one-call `click` on the row does not run it: the menu needs the pointer to move onto
+/// the row, then a press and a release in separate frames, as here.
+#[test]
+fn a_pointer_click_on_a_context_menu_row_runs_its_command() {
+    let mut o = Owners::new();
+    let target = o.rect("Target");
+    o.move_to(target.center());
+    o.button(egui::PointerButton::Secondary, true);
+    o.button(egui::PointerButton::Secondary, false);
+    o.run(3);
+    assert!(o.open[2]);
+    let p = o.at("Copy");
+    o.move_to(p);
+    o.button(egui::PointerButton::Primary, true);
+    o.button(egui::PointerButton::Primary, false);
+    o.run(3);
+    assert_eq!(o.chosen, ["copy"]);
+    assert!(!o.open[2]);
 }
 
 /// Right to left, a context menu runs leftwards from its point, though there is room on the right.

@@ -169,4 +169,34 @@ mod picker {
         harness.run();
         assert!(items(&harness).is_empty(), "the popup closed");
     }
+
+    // The list takes the keys itself while it has the focus (Tab from the search field): arrows move its
+    // active row and Enter picks it, as they do from the search field.
+    #[test]
+    fn the_focused_list_takes_arrows_and_enter() {
+        let mut harness = harness();
+        harness.state_mut().value = None;
+        harness.run();
+        harness.get_by_role(Role::ComboBox).click();
+        harness.run();
+        harness.run();
+        harness.key_press(Key::Tab);
+        harness.run();
+        harness.event(egui::Event::Text("zzz".to_string()));
+        harness.run();
+        assert_eq!(items(&harness).len(), 3, "typing did not reach the search field, which no longer has the focus");
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        assert!(harness.get_by_label("Archive").accesskit_node().is_selected().unwrap_or(false), "an arrow moved the active row");
+        harness.key_press(Key::ArrowRight);
+        harness.run();
+        assert_eq!(items(&harness), ["Library", "Archive", "Old Trip", "Trip Notes"].map(String::from), "the list opened the active folder");
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        harness.key_press(Key::Enter);
+        harness.run();
+        harness.run();
+        assert_eq!(harness.state().value, Some(6), "Enter picked the active item");
+        assert!(items(&harness).is_empty(), "the popup closed");
+    }
 }

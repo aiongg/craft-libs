@@ -341,6 +341,7 @@ fn content<'a, T>(tool: &'a RailTool<T>, kbd: &'a Option<Kbd>) -> RowContent<'a>
         shortcut: kbd.as_ref(),
         submenu: false,
         tint: None,
+        detail: None,
     }
 }
 

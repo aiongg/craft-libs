@@ -379,6 +379,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> CommandPalette<'a, '_, T>
                         shortcut: entry.shortcut_of(),
                         submenu: false,
                         tint: None,
+                        detail: None,
                     };
                     let r = Interactive::with_id(list_id.with(("option", at)), Role::ListBoxOption, entry.label())
                         .sense(Sense::CLICK)
