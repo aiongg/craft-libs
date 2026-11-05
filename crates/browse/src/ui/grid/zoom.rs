@@ -83,7 +83,7 @@ impl TileZoom {
 /// The tile size slider (Bridge's thumbnail slider): a library `Slider` over
 /// [`TileZoom::range`] with a small picture glyph at its start and a large one at its end, each
 /// an `IconButton` that steps `Out` and `In`. The slider reports the gesture as `EditEvent<f64>`;
-/// Esc during the drag restores the size it started from (FilmCraft #580, the library slider's
+/// Esc during the drag restores the size it started from (storytold/filmcraft#580, the library slider's
 /// rule). Words from `TileLabels` (`.labels(..)`, else the language of the `Ui`). Ladder steps are the slider's marks.
 pub struct ThumbnailSlider {
     id_salt: IdSalt,

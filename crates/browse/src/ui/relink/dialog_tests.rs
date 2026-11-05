@@ -1,4 +1,4 @@
-//! `RelinkDialog` through egui_kittest with a fake `LinkFiles` and `ManualJobs` (task B10).
+//! `RelinkDialog` through egui_kittest with a fake `LinkFiles` and `ManualJobs`.
 
 use std::io::Cursor;
 use std::path::{Path, PathBuf};

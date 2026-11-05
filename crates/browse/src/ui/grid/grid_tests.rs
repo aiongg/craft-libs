@@ -1,4 +1,4 @@
-//! `TileGrid` behaviour through egui_kittest (task B6).
+//! `TileGrid` behaviour through egui_kittest.
 
 use std::cell::RefCell;
 use std::collections::BTreeSet;

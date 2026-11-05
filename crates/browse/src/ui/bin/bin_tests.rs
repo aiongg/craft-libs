@@ -1,4 +1,4 @@
-//! `MediaBin` behaviour through egui_kittest (tasks B11, B12).
+//! `MediaBin` behaviour through egui_kittest.
 
 use craft_ui::behavior::{ListDrag, Selection};
 use craft_ui::composites::FooterAction;
@@ -377,7 +377,7 @@ fn a_drop_on_a_footer_action_reports_it() {
     assert!(harness.state().events.iter().all(|e| !matches!(e, BinEvent::Drop { .. })));
 }
 
-// FilmCraft #580: Esc during the zoom slider drag gives Cancel and the size it started from (B11).
+// storytold/filmcraft#580: Esc during the zoom slider drag gives Cancel and the size it started from (B11).
 #[test]
 fn escape_during_the_zoom_drag_restores_the_size() {
     let mut harness = harness(Host::new());
