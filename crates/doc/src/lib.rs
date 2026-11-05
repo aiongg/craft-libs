@@ -82,6 +82,7 @@ impl Kind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Info {
+    #[allow(missing_docs)]
     pub kind: Kind,
     /// The format version the file declares.
     pub version: u32,
@@ -108,7 +109,14 @@ pub enum Error {
     Malformed(String),
     /// The file's format version is newer than this crate reads.
     #[error("{} version {version} is newer than this reader supports ({supported})", kind.extension())]
-    TooNew { kind: Kind, version: u32, supported: u32 },
+    TooNew {
+        #[allow(missing_docs)]
+        kind: Kind,
+        #[allow(missing_docs)]
+        version: u32,
+        #[allow(missing_docs)]
+        supported: u32,
+    },
     /// A valid container feature this reader does not implement (ZIP64, encryption, a ZIP
     /// compression method other than STORE or DEFLATE).
     #[error("{0}")]
@@ -176,10 +184,12 @@ pub enum RenditionKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Rendition {
+    #[allow(missing_docs)]
     pub kind: RenditionKind,
     /// The MIME type: the one a VectorCraft file gives (a member without one gives no
     /// rendition), or `image/png` for PhotoCraft's previews.
     pub mime: String,
+    /// The encoded image data.
     pub bytes: Vec<u8>,
 }
 
@@ -201,8 +211,11 @@ pub struct Outline {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Canvas {
+    /// Width in pixels.
     pub width: u32,
+    /// Height in pixels.
     pub height: u32,
+    /// Resolution in dots per inch.
     pub resolution_dpi: f32,
     /// The color mode as the manifest writes it: `Rgb`, `Cmyk`, `Grayscale`, `Lab`, `Indexed`,
     /// `Bitmap`, `Duotone` or `Multichannel`.
@@ -215,12 +228,15 @@ pub struct Canvas {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Page {
+    #[allow(missing_docs)]
     pub name: String,
     /// The left edge (0 for a composition).
     pub x: f64,
     /// The top edge (0 for a composition).
     pub y: f64,
+    /// Width, in the same units as `x`.
     pub width: f64,
+    /// Height, in the same units as `y`.
     pub height: f64,
     /// A composition's frame rate and duration; `None` for an artboard, and for a composition
     /// that gives either one without the other.
@@ -235,7 +251,9 @@ pub struct Page {
 pub struct Timing {
     /// Frames per second as `frame_rate_num / frame_rate_den`.
     pub frame_rate_num: i64,
+    #[allow(missing_docs)]
     pub frame_rate_den: i64,
+    #[allow(missing_docs)]
     pub duration_seconds: f64,
 }
 
@@ -243,12 +261,14 @@ pub struct Timing {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Layer {
+    #[allow(missing_docs)]
     pub name: String,
     /// What the layer holds, as the file names it: `layer` for VectorCraft; `raster`, `group`,
     /// `adjustment`, `fill`, `text`, `shape` or `smart` for PhotoCraft; the source type for
     /// EffectCraft (`Footage`, `Comp`, `Solid`, `Text`, `Shape`, `Null`, `Camera`, `Light`,
     /// `Model`, `Primitive`).
     pub kind: String,
+    #[allow(missing_docs)]
     pub visible: bool,
     /// Opacity from 0 to 1; `None` for EffectCraft, where opacity is an animated property.
     pub opacity: Option<f32>,
