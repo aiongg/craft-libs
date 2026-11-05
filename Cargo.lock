@@ -1292,6 +1292,7 @@ name = "craft-pages"
 version = "0.1.0"
 dependencies = [
  "craft-host",
+ "craft-i18n",
  "craft-text",
  "craft-theme",
  "craft-ui",

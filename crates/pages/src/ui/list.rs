@@ -12,7 +12,7 @@
 //! let out = PageList::new("artboards", &rows, &mut picked, active).show(ui);
 //! for event in out.events {
 //!     match event {
-//!         PageListEvent::Activate(i) => doc.set_active_artboard(i),
+//!         PageListEvent::Go(i) => doc.set_active_artboard(i),
 //!         PageListEvent::Fit(i) => view.fit_artboard(i),
 //!         PageListEvent::Rename { row, text } => doc.rename_artboards(&picked, row, &text),
 //!         PageListEvent::Reorder(EditEvent::Commit { value, .. }) => doc.move_artboards(value),
@@ -25,16 +25,16 @@
 
 use std::cell::RefCell;
 
-use craft_ui::behavior::{Axis, ListDrag, Move, Reorder, RowInfo, Selection, SelectionChange};
+use craft_ui::behavior::{Axis, ClaimedKey, KeyClaim, ListDrag, Move, Reorder, RowInfo, Selection, SelectionChange};
 use craft_ui::composites::PanelFooter;
 use craft_ui::controls::{ControlSize, IconButton};
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
 use craft_ui::list::{ContextMenuRequest, List, ListEvent, ListRow, RowEvent, ToggleColumn, ToggleEdit};
-use craft_ui::localized::LocaleNumbers;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::theme::{Tokens, TokensOf as _, role_format};
 use egui::text::LayoutJob;
-use egui::{Key, Modifiers, PointerButton, Rect, Response, Ui};
+use egui::{Key, Modifiers, PointerButton, Rect, Response, Ui, vec2};
 
 craft_ui::words! {
     /// The list's words (VectorCraft's strings).
@@ -61,8 +61,11 @@ pub struct PageListRow {
 #[non_exhaustive]
 pub enum PageListEvent {
     /// The picked rows changed (applied to the selection given), as `ListEvent::Selection`.
-    Picked(SelectionChange<usize>),
+    Selection(SelectionChange<usize>),
     /// A click on a row, or the lead moved by a key: it becomes the active page or artboard.
+    Go(usize),
+    /// Enter on the lead row, or a double-click on a row's name that doesn't rename it (the
+    /// kernel's meaning).
     Activate(usize),
     /// A double-click on a row's number: fit it in the window (Illustrator).
     Fit(usize),
@@ -80,7 +83,8 @@ pub enum PageListEvent {
     /// Delete (the button, the Delete key, or rows dropped on it): the picked rows that aren't
     /// locked, or the dropped rows.
     Delete(Vec<usize>),
-    /// The options icon: a click on the active row's, a double-click on another's.
+    /// The options icon: a click on the active row's, a double-click on another's (a single click
+    /// on another's is [`Go`](Self::Go)).
     Options(usize),
     /// The app's menu is asked for (`List`'s context menu request).
     ContextMenu(ContextMenuRequest<usize>),
@@ -97,13 +101,14 @@ pub struct PageListOutput {
 /// The list, built per pass (behaviour: Photoshop's Layers and Artboards panel rules where they
 /// differ from Illustrator's, then VectorCraft).
 ///
-/// - Rows are `ListRow`s: the number in the glyph slot (its width from the widest number, so
-///   names line up), the name, the options icon as a trailing item, the lock as a toggle column.
+/// - Rows are `ListRow`s: the number in the glyph slot (`ListRow::glyph_sized`, its width the
+///   widest number's, drawn against the slot's right edge as VectorCraft does, so names line up),
+///   the name, the options icon as a trailing item, the lock as a toggle column.
 ///   The active row is the list's lead and shows the selected fill; picked rows the highlight.
 ///   Names wider than the row are elided by `ListRow`.
 /// - Pointer, keys, rename and drag are `List`'s: click activates and picks; ⇧-click extends,
 ///   ⌘/Ctrl-click toggles; one Tab stop, ↑/↓ move the active row, F2 renames, Enter activates,
-///   Delete deletes, ⌘/Ctrl+] and [ move the picked rows, the Menu key and ⇧F10 open the menu.
+///   Delete and Backspace delete (claimed from the app's shortcuts while the list has focus), ⌘/Ctrl+] and [ move the picked rows, the Menu key and ⇧F10 open the menu.
 /// - Footer: New and Delete are `PanelFooter::drop_button`s taking this list's `ListDrag`
 ///   (a row dropped on New duplicates the grabbed row; on Delete deletes the dragged rows).
 /// - AccessKit: `List`'s ListBox named "Artboards"; the rename field is named "Name".
@@ -141,7 +146,7 @@ impl<'a> PageList<'a> {
     // `toggle`, :243 `rename`, :371 `duplicate`.
     pub fn show(self, ui: &mut Ui) -> PageListOutput {
         let PageList { id_salt, rows, picked, active, rename, labels } = self;
-        let labels = labels.unwrap_or_default();
+        let labels = labels.unwrap_or_else(|| PageListLabels::of(ui));
         let tokens = Tokens::of(ui);
         let style = ListRow::<usize>::style(&tokens);
         let numbers = LocaleNumbers::of(ui);
@@ -153,7 +158,13 @@ impl<'a> PageList<'a> {
         let keys: Vec<RowInfo<usize>> = (0..rows.len()).map(RowInfo::leaf).collect();
         let reserved = PanelFooter::reserved_height(&PanelFooter::style(&tokens, ui.pixels_per_point())) + ui.spacing().item_spacing.y;
         let focused = ui.memory(|m| m.has_focus(list_id));
-        let delete_key = focused && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete));
+        let delete_keys = [ClaimedKey::exact(Modifiers::NONE, Key::Delete), ClaimedKey::exact(Modifiers::NONE, Key::Backspace)];
+        KeyClaim::claim(ui.ctx(), list_id, &delete_keys);
+        let delete_key = focused && ui.input_mut(|i| delete_keys.iter().fold(false, |any, key| key.consume(i) | any));
+        let number_width = {
+            let widest = numbers.format(rows.len().max(1) as f64, 0..=0);
+            ui.painter().layout_job(LayoutJob::single_section(widest, role_format(&tokens, style.detail_role, style.detail))).size().x
+        };
         let option_side = IconButton::style(&tokens, ControlSize::Sm).side;
 
         let items = picked.items.clone();
@@ -177,10 +188,11 @@ impl<'a> PageList<'a> {
                 .rename_field_name(&labels.name)
                 .highlight(selected && row != active)
                 .toggle(ToggleColumn::lock(&labels.lock, rows[at].locked))
-                .glyph(move |painter, rect| {
+                .glyph_sized(number_width, move |painter, rect| {
                     number_rects.borrow_mut().push((row, rect));
                     let galley = painter.layout_job(LayoutJob::single_section(number, format));
-                    painter.galley(rect.center() - galley.size() / 2.0, galley, color);
+                    let size = galley.size();
+                    painter.galley(rect.right_center() - vec2(size.x, size.y / 2.0), galley, color);
                 })
                 .trailing_item(option_side, move |ui| {
                     let response = ui.add(IconButton::new(Icon::Settings, options).size(ControlSize::Sm));
@@ -194,22 +206,22 @@ impl<'a> PageList<'a> {
         let double_click = ui.input(|i| i.pointer.button_double_clicked(PointerButton::Primary).then(|| i.pointer.interact_pos())).flatten();
         let on_number =
             |row: usize| double_click.is_some_and(|at| number_rects.borrow().iter().any(|(r, rect): &(usize, Rect)| *r == row && rect.contains(at)));
-        // A key that moves the lead picks the row without a click; it becomes active too.
+        // A key that moves the lead picks the row without a click; it becomes the active row too.
         let mut moved = None;
         for event in output.events {
             if !matches!(event, ListEvent::Clicked(_)) {
-                events.extend(moved.take().map(PageListEvent::Activate));
+                events.extend(moved.take().map(PageListEvent::Go));
             }
             match event {
                 ListEvent::Selection(change) => {
                     moved = change.row.filter(|row| change.selection.contains(row));
-                    events.push(PageListEvent::Picked(change));
+                    events.push(PageListEvent::Selection(change));
                 }
                 ListEvent::Clicked(row) => {
                     moved = None;
-                    events.push(PageListEvent::Activate(row));
+                    events.push(PageListEvent::Go(row));
                 }
-                ListEvent::LeadMoved(row) => events.push(PageListEvent::Activate(row)),
+                ListEvent::LeadMoved(row) => events.push(PageListEvent::Go(row)),
                 ListEvent::Activate(row) if on_number(row) => events.push(PageListEvent::Fit(row)),
                 ListEvent::Activate(row) => events.push(PageListEvent::Activate(row)),
                 ListEvent::Row(RowEvent::Renamed { row, text }) => events.push(PageListEvent::Rename { row, text }),
@@ -219,12 +231,12 @@ impl<'a> PageList<'a> {
                 _ => {}
             }
         }
-        events.extend(moved.map(PageListEvent::Activate));
+        events.extend(moved.map(PageListEvent::Go));
 
         // A click on the active row's options icon opens them; on another row's it makes that row
         // active, so a double click opens its options.
         for (row, double) in option_clicks.into_inner() {
-            events.push(if double || row == active { PageListEvent::Options(row) } else { PageListEvent::Activate(row) });
+            events.push(if double || row == active { PageListEvent::Options(row) } else { PageListEvent::Go(row) });
         }
 
         let unlocked = |from: &[usize]| from.iter().copied().filter(|&row| rows.get(row).is_some_and(|r| !r.locked)).collect::<Vec<_>>();
