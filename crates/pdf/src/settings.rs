@@ -76,11 +76,15 @@ macro_rules! choice {
 choice! {
     /// The PDF standard the file conforms to.
     Standard {
+        #[allow(missing_docs)]
         None = "none", "None";
         /// PDF/A-2b (archival), validated by the writer.
         PdfA2b = "pdfA2b", "PDF/A-2b";
+        #[allow(missing_docs)]
         PdfX1a = "pdfX1a", "PDF/X-1a:2001";
+        #[allow(missing_docs)]
         PdfX3 = "pdfX3", "PDF/X-3:2002";
+        #[allow(missing_docs)]
         PdfX4 = "pdfX4", "PDF/X-4:2010";
     } default None
 }
@@ -135,10 +139,15 @@ choice! {
     Compatibility {
         /// No transparency: it is flattened (see [`PdfSettings::pdf13`]).
         Pdf13 = "1.3", "PDF 1.3";
+        #[allow(missing_docs)]
         Pdf14 = "1.4", "PDF 1.4";
+        #[allow(missing_docs)]
         Pdf15 = "1.5", "PDF 1.5";
+        #[allow(missing_docs)]
         Pdf16 = "1.6", "PDF 1.6";
+        #[allow(missing_docs)]
         Pdf17 = "1.7", "PDF 1.7";
+        #[allow(missing_docs)]
         Pdf20 = "2.0", "PDF 2.0";
     } default Pdf17
 }
@@ -158,9 +167,13 @@ impl Compatibility {
 choice! {
     /// How images above the threshold resolution are resampled.
     Downsample {
+        #[allow(missing_docs)]
         None = "none", "No downsampling";
+        #[allow(missing_docs)]
         Average = "average", "Average";
+        #[allow(missing_docs)]
         Subsample = "subsample", "Subsample";
+        #[allow(missing_docs)]
         Bicubic = "bicubic", "Bicubic";
     } default None
 }
@@ -168,9 +181,13 @@ choice! {
 choice! {
     /// Compression of colour and greyscale images.
     ImageCodec {
+        #[allow(missing_docs)]
         None = "none", "None";
+        #[allow(missing_docs)]
         Zip = "zip", "ZIP";
+        #[allow(missing_docs)]
         Jpeg = "jpeg", "JPEG";
+        #[allow(missing_docs)]
         Jpeg2000 = "jpeg2000", "JPEG 2000";
         /// JPEG images stay JPEG, the others are compressed losslessly.
         Auto = "auto", "Automatic";
@@ -180,10 +197,15 @@ choice! {
 choice! {
     /// JPEG image quality.
     JpegQuality {
+        #[allow(missing_docs)]
         Minimum = "minimum", "Minimum";
+        #[allow(missing_docs)]
         Low = "low", "Low";
+        #[allow(missing_docs)]
         Medium = "medium", "Medium";
+        #[allow(missing_docs)]
         High = "high", "High";
+        #[allow(missing_docs)]
         Maximum = "maximum", "Maximum";
     } default Maximum
 }
@@ -191,10 +213,15 @@ choice! {
 choice! {
     /// Compression of 1-bit (monochrome) images.
     MonoCodec {
+        #[allow(missing_docs)]
         None = "none", "None";
+        #[allow(missing_docs)]
         CcittG3 = "ccittG3", "CCITT Group 3";
+        #[allow(missing_docs)]
         CcittG4 = "ccittG4", "CCITT Group 4";
+        #[allow(missing_docs)]
         Zip = "zip", "ZIP";
+        #[allow(missing_docs)]
         RunLength = "runLength", "Run Length";
     } default Zip
 }
@@ -202,7 +229,9 @@ choice! {
 choice! {
     /// The style of printer's marks.
     MarkKind {
+        #[allow(missing_docs)]
         Roman = "roman", "Roman";
+        #[allow(missing_docs)]
         Japanese = "japanese", "Japanese";
     } default Roman
 }
@@ -210,7 +239,9 @@ choice! {
 choice! {
     /// Colour conversion on output.
     ColorConversion {
+        #[allow(missing_docs)]
         None = "none", "No conversion";
+        #[allow(missing_docs)]
         Destination = "destination", "Convert to destination";
         /// Convert only colours whose profile differs from the destination's.
         PreserveNumbers = "preserveNumbers", "Convert to destination (preserve numbers)";
@@ -220,9 +251,13 @@ choice! {
 choice! {
     /// Which ICC profiles the file embeds.
     ProfileInclusion {
+        #[allow(missing_docs)]
         None = "none", "Don't include profiles";
+        #[allow(missing_docs)]
         All = "all", "Include all profiles";
+        #[allow(missing_docs)]
         Destination = "destination", "Include destination profile";
+        #[allow(missing_docs)]
         TaggedSource = "taggedSource", "Include tagged source profiles";
     } default None
 }
@@ -230,7 +265,9 @@ choice! {
 choice! {
     /// What happens to overprinting fills and strokes.
     Overprint {
+        #[allow(missing_docs)]
         Preserve = "preserve", "Preserve";
+        #[allow(missing_docs)]
         Discard = "discard", "Discard";
     } default Preserve
 }
@@ -238,8 +275,11 @@ choice! {
 choice! {
     /// Printing allowed by the permissions.
     Printing {
+        #[allow(missing_docs)]
         None = "none", "None";
+        #[allow(missing_docs)]
         Low = "low", "Low resolution (150 ppi)";
+        #[allow(missing_docs)]
         High = "high", "High resolution";
     } default High
 }
@@ -247,10 +287,15 @@ choice! {
 choice! {
     /// Changes allowed by the permissions.
     Changes {
+        #[allow(missing_docs)]
         None = "none", "None";
+        #[allow(missing_docs)]
         Pages = "pages", "Inserting, deleting and rotating pages";
+        #[allow(missing_docs)]
         Forms = "forms", "Filling in form fields and signing";
+        #[allow(missing_docs)]
         Comments = "comments", "Commenting, filling in form fields and signing";
+        #[allow(missing_docs)]
         Any = "any", "Any except extracting pages";
     } default Any
 }
@@ -258,9 +303,13 @@ choice! {
 choice! {
     /// The encryption algorithm, which follows the PDF version ([`Compatibility`]).
     Encryption {
+        #[allow(missing_docs)]
         Rc440 = "rc440", "40-bit RC4";
+        #[allow(missing_docs)]
         Rc4 = "rc4", "128-bit RC4";
+        #[allow(missing_docs)]
         Aes128 = "aes128", "128-bit AES";
+        #[allow(missing_docs)]
         Aes256 = "aes256", "256-bit AES";
     } default Aes256
 }
@@ -281,7 +330,9 @@ impl Encryption {
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PdfSettings {
+    #[allow(missing_docs)]
     pub standard: Standard,
+    #[allow(missing_docs)]
     pub compatibility: Compatibility,
     // General.
     /// Embed the native document so the PDF reopens editable.
@@ -297,11 +348,17 @@ pub struct PdfSettings {
     /// Keep the layers whose Print option is off (they are left out otherwise, unless
     /// `create_layers` is on).
     pub include_non_printing: bool,
+    #[allow(missing_docs)]
     pub compression: CompressionSettings,
+    #[allow(missing_docs)]
     pub marks: MarkSettings,
+    #[allow(missing_docs)]
     pub bleed: BleedSettings,
+    #[allow(missing_docs)]
     pub output: OutputSettings,
+    #[allow(missing_docs)]
     pub advanced: AdvancedSettings,
+    #[allow(missing_docs)]
     pub security: SecuritySettings,
     /// The transparency flattener preset PDF 1.3 files (PDF/X-1a and PDF/X-3 ones too) are
     /// flattened with: a built-in or saved preset's name; empty, High Resolution. The app flattens
@@ -313,12 +370,15 @@ pub struct PdfSettings {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ImageCompression {
+    #[allow(missing_docs)]
     pub downsample: Downsample,
     /// Target resolution (ppi).
     pub ppi: f64,
     /// Only images above this resolution (ppi) are downsampled.
     pub above_ppi: f64,
+    #[allow(missing_docs)]
     pub compression: ImageCodec,
+    #[allow(missing_docs)]
     pub quality: JpegQuality,
 }
 
@@ -332,9 +392,13 @@ impl Default for ImageCompression {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MonoCompression {
+    #[allow(missing_docs)]
     pub downsample: Downsample,
+    /// Target resolution (ppi).
     pub ppi: f64,
+    /// Only images above this resolution (ppi) are downsampled.
     pub above_ppi: f64,
+    #[allow(missing_docs)]
     pub compression: MonoCodec,
 }
 
@@ -348,8 +412,11 @@ impl Default for MonoCompression {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct CompressionSettings {
+    /// Settings for colour images.
     pub color: ImageCompression,
+    /// Settings for greyscale images.
     pub gray: ImageCompression,
+    /// Settings for monochrome images.
     pub mono: MonoCompression,
     /// Compress text and line art (Flate content streams).
     pub compress_text: bool,
@@ -365,10 +432,15 @@ impl Default for CompressionSettings {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MarkSettings {
+    #[allow(missing_docs)]
     pub trim: bool,
+    #[allow(missing_docs)]
     pub registration: bool,
+    #[allow(missing_docs)]
     pub color_bars: bool,
+    #[allow(missing_docs)]
     pub page_info: bool,
+    #[allow(missing_docs)]
     pub kind: MarkKind,
     /// Trim mark weight (pt).
     pub weight: f64,
@@ -395,9 +467,13 @@ impl MarkSettings {
 pub struct BleedSettings {
     /// Use the document's bleed instead of the values below.
     pub use_document: bool,
+    #[allow(missing_docs)]
     pub top: f64,
+    #[allow(missing_docs)]
     pub bottom: f64,
+    #[allow(missing_docs)]
     pub left: f64,
+    #[allow(missing_docs)]
     pub right: f64,
 }
 
@@ -416,15 +492,20 @@ pub const DOCUMENT_CMYK: &str = "Document CMYK";
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct OutputSettings {
+    #[allow(missing_docs)]
     pub conversion: ColorConversion,
     /// Destination profile name (empty: the document's profile; [`DOCUMENT_CMYK`]: the CMYK
     /// profile in effect, whatever the document's colour mode).
     pub destination: String,
+    #[allow(missing_docs)]
     pub profiles: ProfileInclusion,
     /// PDF/X output intent profile name.
     pub output_intent: String,
+    /// PDF/X `OutputCondition`: free text naming the intended printing condition.
     pub output_condition: String,
+    /// PDF/X `OutputConditionIdentifier`: the condition's identifier in its registry.
     pub output_condition_id: String,
+    /// PDF/X `RegistryName`: web address of the registry that defines the condition.
     pub registry: String,
     /// Mark the file as trapped.
     pub trapped: bool,
@@ -439,6 +520,7 @@ pub struct AdvancedSettings {
     /// Text as glyph outlines; off, text is real (selectable, searchable) text in embedded subset
     /// fonts.
     pub outline_text: bool,
+    #[allow(missing_docs)]
     pub overprint: Overprint,
 }
 
@@ -453,11 +535,15 @@ impl Default for AdvancedSettings {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SecuritySettings {
+    /// Password required to open the file; empty for none. Never serialised.
     #[serde(skip_serializing)]
     pub open_password: String,
+    /// Password that lifts the permission limits; empty for none. Never serialised.
     #[serde(skip_serializing)]
     pub permissions_password: String,
+    #[allow(missing_docs)]
     pub printing: Printing,
+    #[allow(missing_docs)]
     pub changes: Changes,
     /// Allow copying text, images and other content.
     pub copy: bool,
