@@ -69,9 +69,10 @@ pub enum PageListEvent {
     Activate(usize),
     /// A double-click on a row's number: fit it in the window (Illustrator).
     Fit(usize),
-    /// A name typed in place (F2, a double-click on the name, the context menu's Rename), never
-    /// unchanged; with several rows picked the app gives the name to all of them and numbers them
-    /// (Illustrator).
+    /// A name typed in place (F2, a double-click on the name, the context menu's Rename): trimmed,
+    /// never empty and never unchanged. With several rows picked (and `row` one of them) the field
+    /// opens empty, and the app gives the name to all of them numbered in list order as
+    /// `{text}-1`, `{text}-2` (VectorCraft `artboards.rs:243`).
     Rename { row: usize, text: String },
     /// A drag of rows or a stacking key (⌘/Ctrl+] and [), as `List` reports reorders.
     Reorder(EditEvent<Move<usize>>),
@@ -173,6 +174,7 @@ impl<'a> PageList<'a> {
         let mut list = List::new(id_salt, &labels.artboards, keys.as_slice())
             .selection(&mut *picked)
             .renamable(true)
+            .rename_draft(|row| (items.len() > 1 && items.contains(row)).then(String::new))
             .reorder(Reorder::new(Axis::Vertical))
             .max_height((ui.available_height() - reserved).max(0.0));
         if let Some(row) = rename {
@@ -224,7 +226,13 @@ impl<'a> PageList<'a> {
                 ListEvent::LeadMoved(row) => events.push(PageListEvent::Go(row)),
                 ListEvent::Activate(row) if on_number(row) => events.push(PageListEvent::Fit(row)),
                 ListEvent::Activate(row) => events.push(PageListEvent::Activate(row)),
-                ListEvent::Row(RowEvent::Renamed { row, text }) => events.push(PageListEvent::Rename { row, text }),
+                ListEvent::Row(RowEvent::Renamed { row, text }) => {
+                    // VectorCraft renames only to a name with something in it.
+                    let text = text.trim();
+                    if !text.is_empty() {
+                        events.push(PageListEvent::Rename { row, text: text.to_owned() });
+                    }
+                }
                 ListEvent::Row(RowEvent::Toggle(edit)) => events.push(PageListEvent::Lock(edit)),
                 ListEvent::Reorder(edit) => events.push(PageListEvent::Reorder(edit)),
                 ListEvent::ContextMenu(request) => events.push(PageListEvent::ContextMenu(request)),

@@ -199,3 +199,37 @@ fn default_labels_are_translated() {
     harness.run();
     let _ = harness.get_by_label("Neue Tafel");
 }
+
+// With rows 1 and 2 picked the field opens empty on either of them; "  Cover " reports Rename { text: "Cover" }, an empty field reports nothing; on an unpicked row (or one alone) the field opens on its name.
+#[test]
+fn the_field_opens_empty_when_several_rows_are_picked() {
+    let mut harness = open(&[], &[1, 2]);
+    harness.state_mut().active = 1;
+    let field = |harness: &Harness<'_, App>| harness.query_by_role(Role::TextInput).and_then(|n| n.value());
+    harness.get_by_role(Role::ListBox).focus();
+    harness.run();
+    press(&mut harness, Key::F2);
+    assert!(harness.query_by_role(Role::TextInput).is_some(), "the field is open");
+    assert_eq!(field(&harness).unwrap_or_default(), "");
+    harness.get_by_label("Name").focus();
+    harness.run();
+    harness.event(Event::Text("  Cover ".into()));
+    harness.run();
+    press(&mut harness, Key::Enter);
+    let renames: Vec<_> = harness.state().events.iter().filter(|e| matches!(e, PageListEvent::Rename { .. })).collect();
+    assert!(matches!(&renames[..], [PageListEvent::Rename { text, .. }] if text == "Cover"), "{renames:?}");
+
+    harness.state_mut().events.clear();
+    press(&mut harness, Key::F2);
+    harness.event(Event::Text("   ".into()));
+    harness.run();
+    press(&mut harness, Key::Enter);
+    assert!(harness.state().events.iter().all(|e| !matches!(e, PageListEvent::Rename { .. })), "{:?}", harness.state().events);
+
+    // The active row is not among the picked ones: it opens on its name.
+    let mut harness = open(&[], &[1, 2]);
+    harness.get_by_role(Role::ListBox).focus();
+    harness.run();
+    press(&mut harness, Key::F2);
+    assert_eq!(field(&harness).as_deref(), Some("Board 1"));
+}
