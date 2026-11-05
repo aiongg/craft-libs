@@ -1,10 +1,20 @@
 //! Reading view geometry and turning.
 
-use craft_ui::theme::current;
-use egui::{Event, Modifiers, MouseWheelUnit, Vec2, vec2};
+use std::cell::RefCell;
+
+use craft_ui::canvas::textures::{FakeThumbSource, Revision, ThumbRender, ThumbRequest, ThumbSource};
+use craft_ui::direction::{self, Direction};
+use craft_ui::testing::events;
+use craft_ui::theme::{Base, current, install};
+use egui::accesskit::Role;
+use egui::{Event, Modifiers, MouseWheelUnit, Vec2, pos2, vec2};
+use egui_kittest::kittest::Queryable as _;
+use egui_kittest::{Harness, HarnessBuilder};
+use kurbo::Size;
 
 use super::reading::*;
 use super::style::ReadingStyle;
+use super::view::PageSource;
 
 fn style() -> ReadingStyle {
     ReadingView::style(&current(&egui::Context::default()))
@@ -54,4 +64,100 @@ fn animation_settles_on_the_boundary() {
     }
     assert_eq!(offset, 300.0);
     assert_eq!(animation_step(0.0, 300.0, 10.0), 300.0 * (1.0 - (-1.8_f32).exp()));
+}
+
+// A chosen column gives way to a narrow window down to 144 screen points whatever the scale (WordCraft `reading_size`): 300 pt at scale 2 in a 150 pt window is 72 pt, not 144.
+#[test]
+fn a_narrow_window_floors_the_column_at_144_screen_points() {
+    let (width, _) = reading_size(vec2(150.0, 900.0), 2.0, &style(), Some(300.0));
+    assert_eq!(width, 72.0);
+}
+
+struct Pages {
+    fake: FakeThumbSource<usize>,
+    renders: RefCell<usize>,
+}
+
+impl ThumbSource<usize> for Pages {
+    fn revision(&self, key: &usize, request: &ThumbRequest) -> Revision {
+        self.fake.revision(key, request)
+    }
+
+    fn render(&self, key: &usize, request: &ThumbRequest) -> ThumbRender {
+        *self.renders.borrow_mut() += 1;
+        self.fake.render(key, request)
+    }
+}
+
+impl PageSource for Pages {
+    fn page_count(&self) -> usize {
+        6
+    }
+
+    fn page_size(&self, _page: usize) -> Size {
+        Size::new(200.0, 300.0)
+    }
+}
+
+struct App {
+    pages: Pages,
+    state: ReadingState,
+}
+
+fn open(dir: Direction) -> Harness<'static, App> {
+    let app = App { pages: Pages { fake: FakeThumbSource::new().aspect(200, 300), renders: RefCell::new(0) }, state: ReadingState::default() };
+    let mut harness = HarnessBuilder::default()
+        .with_size(vec2(900.0, 500.0))
+        .with_context_setup(move |ctx| {
+            install(ctx, &Base::suite_default());
+            direction::apply(ctx, dir);
+        })
+        .build_ui_state(
+            |ui, app: &mut App| {
+                ReadingView::new("read", &app.pages, &mut app.state).name("Story").show(ui);
+            },
+            app,
+        );
+    harness.run();
+    harness
+}
+
+/// The column the view is on or turning to.
+fn going_to(harness: &Harness<'_, App>) -> usize {
+    harness.state().state.target.unwrap_or(harness.state().state.column)
+}
+
+fn swipe(harness: &mut Harness<'_, App>, by: f32) {
+    for frame in events::drag(pos2(450.0, 200.0), pos2(450.0 + by, 200.0), Modifiers::NONE) {
+        for event in frame {
+            harness.event(event);
+        }
+        harness.step();
+    }
+    harness.run();
+}
+
+// The Document node carries the name the app gave.
+#[test]
+fn the_document_node_is_named() {
+    let harness = open(Direction::Ltr);
+    harness.get_by_role_and_label(Role::Document, "Story");
+}
+
+// Right to left the row mirrors: the Next button is at the left, and a swipe to the right turns forward while a swipe to the left (the way a left-to-right row turns back) stays on the first column.
+#[test]
+fn the_row_mirrors_right_to_left() {
+    let mut harness = open(Direction::Rtl);
+    let next = harness.get_by_label("Next Screen").rect().center().x;
+    let previous = harness.get_by_label("Previous Screen").rect().center().x;
+    assert!(next < 450.0 && next < previous, "{next} {previous}");
+    swipe(&mut harness, -150.0);
+    assert_eq!(going_to(&harness), 0);
+    swipe(&mut harness, 150.0);
+    assert_eq!(going_to(&harness), 1);
+    let mut harness = open(Direction::Ltr);
+    swipe(&mut harness, 150.0);
+    assert_eq!(going_to(&harness), 0);
+    swipe(&mut harness, -150.0);
+    assert_eq!(going_to(&harness), 1);
 }

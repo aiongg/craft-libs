@@ -281,7 +281,7 @@ fn show_view(ui: &mut Ui, name: &str, demo: &mut ViewDemo, options: LayoutOption
     if let Some(placed) = out.pages.iter().find(|placed| placed.page == 1) {
         let view = CanvasView::new(placed.rect, Point::new(LETTER.width / 2.0, LETTER.height / 2.0), placed.scale);
         let colors = PageGrids::style(&tokens);
-        PageGrids::new(&view, &[sample_grid()], colors).paint(&ui.painter_at(out.canvas.rect));
+        PageGrids::new(&view, &demo.state, &[sample_grid()], colors).paint(&ui.painter_at(out.canvas.rect));
     }
     last_event(ui, demo.last.as_deref());
 }

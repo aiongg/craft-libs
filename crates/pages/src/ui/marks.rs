@@ -8,7 +8,7 @@ use egui::{Align2, Color32, FontId, Painter, Pos2, Shape, Stroke, vec2};
 use kurbo::{Point, Rect};
 
 use craft_ui::canvas::CanvasView;
-use craft_ui::theme::{StrokeExt as _, current, scale};
+use craft_ui::theme::{StrokeExt as _, scale};
 
 use super::style::FrameMarksStyle;
 
@@ -99,6 +99,7 @@ pub struct FrameExtras {
 /// - Nothing here takes input or focus: it's paint only.
 pub struct TextFrameMarks<'a> {
     view: &'a CanvasView,
+    style: FrameMarksStyle,
     marks: &'a [PlacedMark],
     frames: &'a [FrameExtras],
     hidden_characters: bool,
@@ -106,8 +107,10 @@ pub struct TextFrameMarks<'a> {
 }
 
 impl<'a> TextFrameMarks<'a> {
-    pub fn new(view: &'a CanvasView, frames: &'a [FrameExtras]) -> Self {
-        TextFrameMarks { view, marks: &[], frames, hidden_characters: false, color: egui::Color32::LIGHT_BLUE }
+    /// The marks over `frames`, sized by `style` ([`TextFrameMarks::style`] of the tokens in
+    /// scope where it is drawn).
+    pub fn new(view: &'a CanvasView, frames: &'a [FrameExtras], style: FrameMarksStyle) -> Self {
+        TextFrameMarks { view, style, marks: &[], frames, hidden_characters: false, color: egui::Color32::LIGHT_BLUE }
     }
 
     /// The hidden-character marks (View › Show Hidden Characters).
@@ -141,7 +144,7 @@ impl<'a> TextFrameMarks<'a> {
     // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:271 `draw_hidden_characters`;
     // crates/ui-egui/src/canvas/frames.rs:349 `port_pos`, :292 (overset marks).
     pub fn paint(self, painter: &Painter) {
-        let style = Self::style(&current(painter.ctx()));
+        let style = self.style;
         let line = |color| scale::Stroke::Hairline.egui(painter.ctx(), color);
         if self.hidden_characters {
             for placed in self.marks {

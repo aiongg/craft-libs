@@ -1,8 +1,11 @@
 //! The column bar.
 
+use craft_ui::direction::{self, Direction};
 use craft_ui::edit::EditEvent;
-use craft_ui::theme::{Base, install};
-use egui::{Key, vec2};
+use craft_ui::theme::{Base, current, install};
+use egui::accesskit::{Action, ActionData, ActionRequest, Role};
+use egui::{Event, Key, Shape, vec2};
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::column_bar::*;
@@ -46,8 +49,17 @@ struct App {
 }
 
 fn open() -> Harness<'static, App> {
-    let mut harness =
-        HarnessBuilder::default().with_size(vec2(400.0, 100.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+    open_in(Direction::Ltr)
+}
+
+fn open_in(dir: Direction) -> Harness<'static, App> {
+    let mut harness = HarnessBuilder::default()
+        .with_size(vec2(400.0, 100.0))
+        .with_context_setup(move |ctx| {
+            install(ctx, &Base::suite_default());
+            direction::apply(ctx, dir);
+        })
+        .build_ui_state(
             |ui, app: &mut App| {
                 app.events.extend(ColumnBar::new("bar", &[1.0, 1.0, 1.0, 1.0]).show(ui).edit);
             },
@@ -69,4 +81,56 @@ fn arrow_keys_resize_the_focused_pair() {
     let [EditEvent::Set { value, .. }] = events.as_slice() else { panic!("{events:?}") };
     assert!(close(value[0], 1.04) && close(value[1], 0.96), "{value:?}");
     assert_eq!((value[2], value[3]), (1.0, 1.0));
+}
+
+// Right to left the bar mirrors: divider 0 sits right of the middle, and the Right arrow, which points away from the first column, shrinks it.
+#[test]
+fn the_bar_mirrors_right_to_left() {
+    let mut harness = open_in(Direction::Rtl);
+    let left_to_right = open();
+    let at = |harness: &Harness<'_, App>| harness.get_by_role_and_label(Role::Splitter, "Column 1 width").rect().center().x;
+    assert!(at(&harness) > 200.0, "{}", at(&harness));
+    assert!((at(&harness) + at(&left_to_right) - 400.0).abs() < 1.0);
+    harness.key_press(Key::Tab);
+    harness.run();
+    harness.key_press(Key::ArrowRight);
+    harness.run();
+    let events = &harness.state().events;
+    let [EditEvent::Set { value, .. }] = events.as_slice() else { panic!("{events:?}") };
+    assert!(close(value[0], 0.96) && close(value[1], 1.04), "{value:?}");
+}
+
+// The columns alternate the style's two fills, first column first.
+#[test]
+fn columns_alternate_their_fill() {
+    fn rects(shape: &Shape, fills: &mut Vec<egui::Color32>) {
+        match shape {
+            Shape::Vec(shapes) => shapes.iter().for_each(|shape| rects(shape, fills)),
+            Shape::Rect(rect) if rect.fill != egui::Color32::TRANSPARENT => fills.push(rect.fill),
+            _ => {}
+        }
+    }
+    let harness = open();
+    let style = ColumnBar::style(&current(&harness.ctx));
+    let mut fills = Vec::new();
+    harness.output().shapes.iter().for_each(|clipped| rects(&clipped.shape, &mut fills));
+    fills.retain(|fill| *fill == style.fill || *fill == style.fill_alt);
+    assert_eq!(fills, [style.fill, style.fill_alt, style.fill, style.fill_alt]);
+}
+
+// A screen reader's SetValue gives column 0 the percentage (40 % of 4 equal columns): the next column gives up the difference.
+#[test]
+fn set_value_sets_the_columns_percentage() {
+    let mut harness = open();
+    let (target_node, target_tree) = harness.get_by_role_and_label(Role::Splitter, "Column 1 width").accesskit_node().locate();
+    harness.event(Event::AccessKitActionRequest(ActionRequest {
+        action: Action::SetValue,
+        target_tree,
+        target_node,
+        data: Some(ActionData::NumericValue(40.0)),
+    }));
+    harness.run();
+    let events = &harness.state().events;
+    let [EditEvent::Set { value, .. }] = events.as_slice() else { panic!("{events:?}") };
+    assert!(close(value[0], 1.6) && close(value[1], 0.4), "{value:?}");
 }

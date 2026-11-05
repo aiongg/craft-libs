@@ -9,6 +9,8 @@ use kurbo::{Point, Rect};
 use craft_ui::canvas::CanvasView;
 use craft_ui::theme::{StrokeExt as _, scale};
 
+use super::view::PageViewState;
+
 /// The share of its colour the baseline grid draws at (DesignCraft's `gamma_multiply(0.8)`): a
 /// proportion, not a size.
 const BASELINE_SHARE: f32 = 0.8;
@@ -52,12 +54,14 @@ pub struct PageGridColors {
 /// The grids of the pages on screen, painted only.
 ///
 /// - Margins as a hairline rectangle; columns as hairlines at each inner column edge; baseline
-///   lines across the page when the view's zoom is at least [`baseline_threshold`](Self::baseline_threshold)
+///   lines across the page when the page view's zoom ([`PageViewState::zoom`], 1.0 = 100 %; the
+///   `view` maps page points to screen and carries a different scale) is at least [`baseline_threshold`](Self::baseline_threshold)
 ///   (InDesign's View Threshold, 75 % by default).
 pub struct PageGrids<'a> {
     view: &'a CanvasView,
     pages: &'a [PageGrid],
     colors: PageGridColors,
+    zoom: f64,
     threshold: f64,
 }
 
@@ -69,8 +73,10 @@ impl<'a> PageGrids<'a> {
         PageGridColors { margins: t.page_margins.to_egui(), columns: t.page_columns.to_egui(), baseline: t.page_baseline.to_egui() }
     }
 
-    pub fn new(view: &'a CanvasView, pages: &'a [PageGrid], colors: PageGridColors) -> Self {
-        PageGrids { view, pages, colors, threshold: 0.75 }
+    /// The grids of `pages` through `view` (page points to screen), at the zoom of the page
+    /// view `state` they are drawn over.
+    pub fn new(view: &'a CanvasView, state: &PageViewState, pages: &'a [PageGrid], colors: PageGridColors) -> Self {
+        PageGrids { view, pages, colors, zoom: state.zoom, threshold: 0.75 }
     }
 
     pub fn baseline_threshold(mut self, zoom: f64) -> Self {
@@ -84,7 +90,7 @@ impl<'a> PageGrids<'a> {
         let segment = |a: Point, b: Point, color| painter.line_segment([self.view.to_screen(a), self.view.to_screen(b)], line(color));
         for grid in self.pages {
             if let Some((start, increment)) = grid.baseline
-                && self.view.zoom >= self.threshold
+                && self.zoom >= self.threshold
             {
                 let color = self.colors.baseline.gamma_multiply(BASELINE_SHARE);
                 for y in baseline_lines(start, increment, grid.page.height()) {

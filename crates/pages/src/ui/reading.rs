@@ -14,7 +14,7 @@ use craft_ui::icons::Icon;
 use craft_ui::localized::Labels as _;
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::accesskit::Role;
-use egui::{Event, EventFilter, Key, Modifiers, MouseWheelUnit, Pos2, Rect, Sense, Ui, Vec2, pos2, vec2};
+use egui::{Event, EventFilter, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, Rect, Sense, Ui, Vec2, pos2, vec2};
 
 use super::style::ReadingStyle;
 use super::view::PageSource;
@@ -45,6 +45,10 @@ const KEY_FILTER: EventFilter = EventFilter { horizontal_arrows: true, vertical_
 /// The column widths Word's View › Column Width offers, page points (Narrow to Wide).
 pub const REQUESTED_WIDTH: std::ops::RangeInclusive<f32> = 144.0..=612.0;
 
+/// The narrowest column a chosen width gives way to on a narrow window, screen points
+/// (WordCraft `reading_size`: `.max(144.0)` pixels, whatever the scale).
+const NARROWEST_FIT: f32 = 144.0;
+
 /// The most columns side by side (WordCraft).
 pub const MAX_COLUMNS: usize = 5;
 
@@ -68,7 +72,8 @@ pub const READING_ZOOM: std::ops::RangeInclusive<f32> = 0.75..=1.5;
 /// per point. With a chosen column width (`requested`, within [`REQUESTED_WIDTH`] page points)
 /// that width, at most the window less two gaps; otherwise about one column per
 /// `style.column_target` screen points, 1 to [`MAX_COLUMNS`], each at least `style.column_min`.
-/// The height leaves the gap and `style.nav_bar` (WordCraft's `READ_NAV_BAR`, #1772).
+/// A chosen width gives way to a window narrower than it, but not below [`NARROWEST_FIT`] screen
+/// points. The height leaves the gap and `style.nav_bar` (WordCraft's `READ_NAV_BAR`, #1772).
 // wordcraft: crates/ui-egui/src/canvas/reading.rs:49 `reading_size`.
 pub fn reading_size(avail: Vec2, scale: f32, style: &ReadingStyle, requested: Option<f32>) -> (f32, f32) {
     let scale = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
@@ -78,7 +83,7 @@ pub fn reading_size(avail: Vec2, scale: f32, style: &ReadingStyle, requested: Op
     let column = match requested.filter(|points| points.is_finite()) {
         Some(points) => {
             let wanted = points.clamp(*REQUESTED_WIDTH.start(), *REQUESTED_WIDTH.end()) * scale;
-            wanted.min((width - 2.0 * gap).max(REQUESTED_WIDTH.start() * scale))
+            wanted.min((width - 2.0 * gap).max(NARROWEST_FIT))
         }
         None => {
             let count = (width / style.column_target).round().clamp(1.0, MAX_COLUMNS as f32);
@@ -168,15 +173,21 @@ pub struct ReadingState {
     /// The text at the start of the first column shown (app-defined position), kept across
     /// reflows instead of the editing caret.
     pub anchor: Option<u64>,
+    /// Where the swipe in progress began (egui clears the press origin in the pass that
+    /// releases the button, so the end of a swipe can't read it).
+    swipe_from: Option<Pos2>,
 }
 
 /// The columns, built per pass over pages the app laid out at [`reading_size`].
 ///
 /// - Columns `style.column_gap` apart (WordCraft's `GAP`) in a single row, scrolled
 ///   horizontally inside [`reading_viewport`]; the page-turn buttons (previous, next: craft-ui
-///   `IconButton`s named by [`ReadingLabels`]) at the bottom right in the nav bar; ← / → /
+///   `IconButton`s named by [`ReadingLabels`]) at the bottom end in the nav bar; ← / → /
 ///   Page Up / Page Down / space turn a column, Home / End go to the ends (one Tab stop: the
 ///   view; the buttons are their own).
+/// - In a right-to-left interface the row mirrors: the first column is at the right, the nav
+///   bar at the left with the chevrons swapped, and a swipe toward the left turns back, so
+///   an arrow or swipe always moves toward the side it points at.
 /// - A resize keeps the columns until [`RESIZE_SETTLE`] has passed, then the app reflows.
 /// - The text stays selectable; the app's editing caret doesn't move the columns.
 pub struct ReadingView<'a> {
@@ -184,6 +195,7 @@ pub struct ReadingView<'a> {
     source: &'a dyn PageSource,
     state: &'a mut ReadingState,
     zoom: f32,
+    name: Option<String>,
     labels: Option<ReadingLabels>,
 }
 
@@ -210,7 +222,7 @@ impl<'a> ReadingView<'a> {
     }
 
     pub fn new(id_salt: impl egui::AsIdSalt, source: &'a dyn PageSource, state: &'a mut ReadingState) -> Self {
-        ReadingView { id_salt: egui::IdSalt::new(id_salt), source, state, zoom: 1.0, labels: None }
+        ReadingView { id_salt: egui::IdSalt::new(id_salt), source, state, zoom: 1.0, name: None, labels: None }
     }
 
     pub fn labels(mut self, labels: ReadingLabels) -> Self {
@@ -223,10 +235,16 @@ impl<'a> ReadingView<'a> {
         self
     }
 
+    /// The document's name for the AccessKit Document node.
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
     // wordcraft: crates/ui-egui/src/canvas/reading.rs:25 `Settle::apply`, :119 `turn_read_page`,
     // :84 `place_read_pages`.
     pub fn show(self, ui: &mut Ui) -> ReadingViewResponse {
-        let ReadingView { id_salt, source, state, zoom, labels } = self;
+        let ReadingView { id_salt, source, state, zoom, name, labels } = self;
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         let style = Self::style(&tokens);
@@ -235,7 +253,14 @@ impl<'a> ReadingView<'a> {
         ui.advance_cursor_after_rect(rect);
         let id = ui.make_persistent_id(id_salt);
         let response = ui.interact(rect, id, Sense::click_and_drag() | Sense::FOCUSABLE);
-        ctx.accesskit_node_builder(response.id, |node| node.set_role(Role::Document));
+        ctx.accesskit_node_builder(response.id, |node| {
+            node.set_role(Role::Document);
+            if let Some(name) = &name {
+                node.set_label(name.as_str());
+            }
+        });
+        let rtl = direction::is_rtl(ui);
+        let forward = direction::forward(ui);
         let reflow = settled(&ctx, id, rect.size());
         let count = source.page_count();
         if count == 0 {
@@ -255,10 +280,19 @@ impl<'a> ReadingView<'a> {
         if response.hovered() {
             ui.input_mut(|input| input.smooth_scroll_delta = Vec2::ZERO);
         }
-        let mut turn = turns + swipe(&response, column);
+        if response.drag_started_by(PointerButton::Primary) {
+            state.swipe_from = response.interact_pointer_pos();
+        }
+        let swiped = if response.drag_stopped() {
+            let end = response.interact_pointer_pos().or_else(|| ctx.input(|input| input.pointer.latest_pos()));
+            swipe(state.swipe_from.take(), end, column, forward)
+        } else {
+            0
+        };
+        let mut turn = turns + swiped;
         if response.has_focus() {
             ui.memory_mut(|memory| memory.set_focus_lock_filter(response.id, KEY_FILTER));
-            let (back, forward, start, end) = keys(ui, direction::is_rtl(ui));
+            let (back, forward, start, end) = keys(ui, rtl);
             turn += forward - back;
             goal = if start {
                 Some(0)
@@ -270,10 +304,12 @@ impl<'a> ReadingView<'a> {
         }
         let side = IconButton::style(&tokens, ControlSize::Md).side;
         let nav = Rect::from_min_max(pos2(rect.min.x, rect.max.y - style.nav_bar), rect.max);
-        let next_at = Rect::from_min_size(pos2(nav.max.x - gap - side, nav.center().y - side / 2.0), vec2(side, side));
-        let previous_at = next_at.translate(vec2(-side - ui.spacing().item_spacing.x, 0.0));
-        let previous = IconButton::new(Icon::ChevronLeft, labels.previous.as_str()).enabled(current > 0).show_at(ui, previous_at);
-        let next = IconButton::new(Icon::ChevronRight, labels.next.as_str()).enabled(current < last).show_at(ui, next_at);
+        let next_x = if rtl { nav.min.x + gap } else { nav.max.x - gap - side };
+        let next_at = Rect::from_min_size(pos2(next_x, nav.center().y - side / 2.0), vec2(side, side));
+        let previous_at = next_at.translate(vec2(-forward * (side + ui.spacing().item_spacing.x), 0.0));
+        let (previous_icon, next_icon) = if rtl { (Icon::ChevronRight, Icon::ChevronLeft) } else { (Icon::ChevronLeft, Icon::ChevronRight) };
+        let previous = IconButton::new(previous_icon, labels.previous.as_str()).enabled(current > 0).show_at(ui, previous_at);
+        let next = IconButton::new(next_icon, labels.next.as_str()).enabled(current < last).show_at(ui, next_at);
         turn += i32::from(next.clicked()) - i32::from(previous.clicked());
         if turn != 0 {
             goal = Some((current as i64 + i64::from(turn)).clamp(0, last as i64) as usize);
@@ -312,7 +348,9 @@ impl<'a> ReadingView<'a> {
         for page in 0..count {
             let size = source.page_size(page);
             let size = vec2(size.width as f32, size.height as f32) * scale;
-            let at = Rect::from_min_size(pos2(viewport.left() + gap + page as f32 * step - state.offset, top), size);
+            let along = gap + page as f32 * step - state.offset;
+            let x = if rtl { viewport.right() - along - size.x } else { viewport.left() + along };
+            let at = Rect::from_min_size(pos2(x, top), size);
             let shown = at.intersects(viewport);
             let near = !shown && [-step, step].into_iter().any(|by| at.translate(vec2(by, 0.0)).intersects(viewport));
             if !shown && !near {
@@ -334,16 +372,13 @@ fn screen_scale(zoom: f32) -> f32 {
     zoom * SCREEN_POINTS_PER_POINT as f32
 }
 
-/// The columns a swipe that ended this pass turns (positive: forward), if it ran along the
-/// columns for [`SWIPE_SHARE`] of a column.
-fn swipe(response: &egui::Response, column: f32) -> i32 {
-    if !response.drag_stopped() {
-        return 0;
-    }
-    let moved: Option<(Pos2, Pos2)> = response.interact_pointer_pos().zip(response.ctx.input(|input| input.pointer.press_origin()));
-    match moved {
-        Some((end, start)) if (end.x - start.x).abs() >= column * SWIPE_SHARE && (end.x - start.x).abs() > (end.y - start.y).abs() => {
-            if end.x < start.x { 1 } else { -1 }
+/// The columns a swipe from `start` to `end` turns (positive: forward), if it ran along the
+/// columns for [`SWIPE_SHARE`] of a column. `forward` is 1 (columns run to the right) or -1
+/// (right to left): a swipe against the columns' direction turns forward.
+fn swipe(start: Option<Pos2>, end: Option<Pos2>, column: f32, forward: f32) -> i32 {
+    match start.zip(end) {
+        Some((start, end)) if (end.x - start.x).abs() >= column * SWIPE_SHARE && (end.x - start.x).abs() > (end.y - start.y).abs() => {
+            if (end.x - start.x) * forward < 0.0 { 1 } else { -1 }
         }
         _ => 0,
     }

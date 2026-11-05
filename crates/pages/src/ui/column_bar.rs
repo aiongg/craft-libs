@@ -4,10 +4,10 @@
 
 use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
-use craft_ui::localized::Labels as _;
+use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
 use craft_ui::primitives::Interactive;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, corner_radius, role_format};
-use egui::accesskit::{Action, Role};
+use egui::accesskit::{Action, ActionData, Role};
 use egui::text::LayoutJob;
 use egui::{CursorIcon, EventFilter, Key, Modifiers, PointerButton, Rect, Response, Sense, StrokeKind, Ui, pos2, vec2};
 
@@ -74,7 +74,11 @@ pub fn move_divider(widths: &mut [f64], i: usize, delta: f64) {
 ///   and focus loss Cancel), at most one event a pass.
 /// - Keys: each divider is a Tab stop (an AccessKit Splitter named by
 ///   [`ColumnBarLabels::divider`], "Column {n} width"); ← / → move the focused one by
-///   [`KEY_STEP`] as one [`EditEvent::Set`], mirrored in a right-to-left interface.
+///   [`KEY_STEP`] as one [`EditEvent::Set`]; a screen reader's SetValue sets the column's
+///   percentage. In a right-to-left interface the bar mirrors (the first column is at the right),
+///   so an arrow moves the divider toward the side it points at.
+/// - Columns alternate the style's `fill` and `fill_alt` (PdfCraft tints them 0.11 and 0.055);
+///   hovering a column names it, by the app's name or [`ColumnBarLabels::column`].
 pub struct ColumnBar<'a> {
     id_salt: egui::IdSalt,
     widths: &'a [f64],
@@ -121,16 +125,19 @@ impl<'a> ColumnBar<'a> {
         let tokens = Tokens::of(ui);
         let style = Self::style(&tokens);
         let labels = self.labels.clone().unwrap_or_else(|| ColumnBarLabels::of(ui));
+        let numbers = LocaleNumbers::of(ui);
+        let rtl = direction::is_rtl(ui);
+        let forward = direction::forward(ui);
         let (bar, response) = ui.allocate_exact_size(vec2(ui.available_width(), style.height), Sense::hover());
         let base = shares(self.widths);
-        let at = column_edges(&base, bar);
+        let at = column_edges(&base, bar, rtl);
         let mut live = None;
         let mut active = None;
         let mut edit = None;
         for i in 0..self.widths.len().saturating_sub(1) {
             let reach = style.grab.min(base[i].min(base[i + 1]) as f32 * bar.width() / 2.0);
             let grab = Rect::from_x_y_ranges((at[i] - reach)..=(at[i] + reach), bar.y_range());
-            let name = labels.divider.replace("{n}", &(i + 1).to_string());
+            let name = fmt(&labels.divider, &[("n", &numbers.format((i + 1) as f64, 0..=0))]);
             let sensed = Interactive::with_id(ui.make_persistent_id((self.id_salt, i)), Role::Splitter, name)
                 .sense(Sense::drag())
                 .state_layer(false)
@@ -146,17 +153,22 @@ impl<'a> ColumnBar<'a> {
                 && let Some(mut moved) = gesture.anchor().cloned()
                 && let Some((pos, origin)) = handle.interact_pointer_pos().zip(ui.input(|input| input.pointer.press_origin()))
             {
-                move_divider(&mut moved, i, f64::from(pos.x - origin.x) / f64::from(bar.width()));
+                move_divider(&mut moved, i, f64::from((pos.x - origin.x) * forward) / f64::from(bar.width()));
                 gesture.update(moved, modifiers);
             }
             if handle.drag_stopped() {
                 gesture.commit();
             }
             if !handle.dragged_by(PointerButton::Primary) {
-                let steps = key_steps(ui, &handle, direction::is_rtl(ui));
-                if steps != 0.0 {
+                let requested = requests(ui, &handle, rtl);
+                let current = shares(gesture.shown()).get(i).copied().unwrap_or_default();
+                let delta = match requested.value {
+                    Some(percent) => percent / 100.0 - current,
+                    None => requested.steps * KEY_STEP,
+                };
+                if delta != 0.0 {
                     let mut moved = gesture.shown().clone();
-                    move_divider(&mut moved, i, steps * KEY_STEP);
+                    move_divider(&mut moved, i, delta);
                     handle.request_focus();
                     gesture.set(moved);
                 }
@@ -175,9 +187,10 @@ impl<'a> ColumnBar<'a> {
             edit = edit.or(gesture.finish());
         }
         let shown = shares(live.as_deref().unwrap_or(self.widths));
-        let edges = column_edges(&shown, bar);
+        let edges = column_edges(&shown, bar, rtl);
         self.paint(ui, &style, &tokens, bar, &edges, active);
-        let response = match response.hover_pos().and_then(|at| edges.iter().position(|&x| at.x < x).or(edges.len().checked_sub(1))) {
+        let response = match response.hover_pos().and_then(|at| edges.iter().position(|&x| (at.x - x) * forward < 0.0).or(edges.len().checked_sub(1)))
+        {
             Some(column) if response.hovered() => {
                 let text = self.name(column, &labels);
                 response.on_hover_text(text)
@@ -191,24 +204,26 @@ impl<'a> ColumnBar<'a> {
     fn name(&self, i: usize, labels: &ColumnBarLabels) -> String {
         match self.names.and_then(|names| names.get(i)) {
             Some(name) => name.clone(),
-            None => labels.column.replace("{letter}", &letter(i)),
+            None => fmt(&labels.column, &[("letter", &letter(i))]),
         }
     }
 
     fn paint(&self, ui: &Ui, style: &ColumnBarStyle, tokens: &craft_ui::theme::UiTokens, bar: Rect, edges: &[f32], active: Option<usize>) {
         let painter = ui.painter_at(bar);
         let format = role_format(tokens, style.label, tokens.color.text.normal.to_egui());
-        let mut left = bar.left();
-        for (i, &right) in edges.iter().enumerate() {
+        let mut start = direction::start_x(ui, bar);
+        for (i, &end) in edges.iter().enumerate() {
+            let column = Rect::from_x_y_ranges(start.min(end)..=start.max(end), bar.y_range());
+            painter.rect_filled(column, 0.0, if i % 2 == 0 { style.fill } else { style.fill_alt });
             let text = match self.names.and_then(|names| names.get(i)) {
                 Some(name) => name.clone(),
                 None => letter(i),
             };
             let galley = painter.layout_job(LayoutJob::single_section(text, format.clone()));
-            if galley.size().x <= right - left {
-                painter.galley(pos2((left + right) / 2.0, bar.center().y) - galley.size() / 2.0, galley, format.color);
+            if galley.size().x <= column.width() {
+                painter.galley(column.center() - galley.size() / 2.0, galley, format.color);
             }
-            left = right;
+            start = end;
         }
         painter.rect_stroke(bar, corner_radius(style.radius), style.outline, StrokeKind::Inside);
         for (i, &x) in edges.iter().enumerate().take(edges.len().saturating_sub(1)) {
@@ -221,16 +236,20 @@ impl<'a> ColumnBar<'a> {
 /// The keys a focused divider keeps: the arrows move it rather than the focus.
 const KEY_FILTER: EventFilter = EventFilter { horizontal_arrows: true, vertical_arrows: false, tab: false, escape: false };
 
-/// The right edge of each column of `shares` across `bar`; the last is the bar's edge.
-fn column_edges(shares: &[f64], bar: Rect) -> Vec<f32> {
-    let mut x = bar.left();
+/// The far edge of each column of `shares` across `bar`, from its reading start (the left edge,
+/// or the right edge right to left); the last is the bar's end.
+fn column_edges(shares: &[f64], bar: Rect, rtl: bool) -> Vec<f32> {
+    let sign = if rtl { -1.0 } else { 1.0 };
+    let start = if rtl { bar.right() } else { bar.left() };
+    let end = if rtl { bar.left() } else { bar.right() };
+    let mut x = start;
     let last = shares.len().saturating_sub(1);
     shares
         .iter()
         .enumerate()
         .map(|(i, share)| {
-            x += *share as f32 * bar.width();
-            if i == last { bar.right() } else { x.min(bar.right()) }
+            x += sign * *share as f32 * bar.width();
+            if i == last { end } else { x.clamp(bar.left(), bar.right()) }
         })
         .collect()
 }
@@ -247,9 +266,17 @@ fn letter(i: usize) -> String {
     out.iter().rev().collect()
 }
 
-/// The steps toward the right this pass's arrow presses and screen reader requests ask of the
-/// divider `handle` (negative: left); an arrow counts while the divider has the focus.
-fn key_steps(ui: &Ui, handle: &Response, rtl: bool) -> f64 {
+/// What this pass's arrow presses and screen reader requests ask of a divider.
+struct Requested {
+    /// Steps that grow the column before the divider (negative: shrink it): Increment and
+    /// Decrement, and the arrows, which grow it when they point away from the reading start.
+    steps: f64,
+    /// A SetValue: the column's new percentage of the bar.
+    value: Option<f64>,
+}
+
+/// The requests for the divider `handle`; an arrow counts while the divider has the focus.
+fn requests(ui: &Ui, handle: &Response, rtl: bool) -> Requested {
     let sign = if rtl { -1.0 } else { 1.0 };
     let mut steps = 0.0;
     if handle.has_focus() {
@@ -260,8 +287,15 @@ fn key_steps(ui: &Ui, handle: &Response, rtl: bool) -> f64 {
         });
     }
     ui.input(|input| {
-        let requests = |action| input.num_accesskit_action_requests(handle.id, action) as f64;
-        steps += requests(Action::Increment) - requests(Action::Decrement);
-    });
-    steps
+        let count = |action| input.num_accesskit_action_requests(handle.id, action) as f64;
+        steps += count(Action::Increment) - count(Action::Decrement);
+        let value = input
+            .accesskit_action_requests(handle.id, Action::SetValue)
+            .filter_map(|request| match request.data {
+                Some(ActionData::NumericValue(value)) if value.is_finite() => Some(value),
+                _ => None,
+            })
+            .last();
+        Requested { steps, value }
+    })
 }
