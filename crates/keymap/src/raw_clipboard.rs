@@ -78,3 +78,36 @@ pub(crate) fn swallowed_paste(ctx: &Context, raw: &mut RawInput) {
     }
     raw.events = out;
 }
+
+/// Turns Ctrl+Insert, Shift+Insert and Shift+Delete (Copy, Paste and Cut on Linux and Windows)
+/// into what the chords they stand for would be. egui-winit sends the clipboard events for them
+/// only on Windows, and the web browser pastes natively, so the presses reach egui as plain keys
+/// only on a native Linux build (and Windows builds that turned `clipboard_shortcuts` off).
+///
+/// In a text field the press becomes egui's `Copy` or `Cut` event, or, for paste, a
+/// `ViewportCommand::RequestPaste` (the window answers with a `Paste` event next frame) and the
+/// press goes. Outside text fields it becomes the Cmd+C, Cmd+V or Cmd+X press, so the Copy,
+/// Paste and Cut bindings run.
+pub(crate) fn insert_chords(ctx: &Context, raw: &mut RawInput, typing: bool) {
+    use ::egui::os::OperatingSystem as Os;
+    if cfg!(target_arch = "wasm32") || !matches!(ctx.os(), Os::Nix | Os::Windows) {
+        return;
+    }
+    let mut out = Vec::with_capacity(raw.events.len());
+    for e in raw.events.drain(..) {
+        let Event::Key { key, pressed: true, repeat: false, modifiers: m, .. } = &e else {
+            out.push(e);
+            continue;
+        };
+        let ctrl_only = m.ctrl && !m.shift && !m.alt && !m.mac_cmd;
+        let shift_only = m.shift && !m.ctrl && !m.alt && !m.command && !m.mac_cmd;
+        match key {
+            Key::Insert if ctrl_only => out.push(if typing { Event::Copy } else { press(Key::C, Modifiers::COMMAND) }),
+            Key::Delete if shift_only => out.push(if typing { Event::Cut } else { press(Key::X, Modifiers::COMMAND) }),
+            Key::Insert if shift_only && typing => ctx.send_viewport_cmd(::egui::ViewportCommand::RequestPaste),
+            Key::Insert if shift_only => out.push(press(Key::V, Modifiers::COMMAND)),
+            _ => out.push(e),
+        }
+    }
+    raw.events = out;
+}

@@ -701,3 +701,44 @@ fn a_swallowed_paste_reaches_the_paste_binding_and_text_fields_keep_theirs() {
     let off = Dispatcher::new();
     assert_eq!(raw_events(&off, &ctx, false, vec![Event::PasteImage(image.clone())]), [Event::PasteImage(image)]);
 }
+
+#[test]
+fn insert_and_delete_chords_copy_paste_and_cut_on_linux() {
+    let d = Dispatcher::new().with_clipboard_events(true);
+    let ctx = egui::Context::default();
+    ctx.set_os(egui::os::OperatingSystem::Nix);
+    let after = |key, modifiers, typing| {
+        let mut raw = egui::RawInput { events: vec![raw_key(key, true, modifiers)], ..Default::default() };
+        d.raw_input(&ctx, &mut raw, typing);
+        raw.events
+    };
+    let is_press = |events: &[Event], key| matches!(events, [Event::Key { key: k, pressed: true, modifiers, .. }] if *k == key && modifiers.command);
+    // Outside text fields they are the Copy, Paste and Cut chords.
+    assert!(is_press(&after(EguiKey::Insert, Modifiers::CTRL, false), EguiKey::C));
+    assert!(is_press(&after(EguiKey::Insert, Modifiers::SHIFT, false), EguiKey::V));
+    assert!(is_press(&after(EguiKey::Delete, Modifiers::SHIFT, false), EguiKey::X));
+    // In a text field Ctrl+Insert and Shift+Delete are egui's events; Shift+Insert asks for the text.
+    assert_eq!(after(EguiKey::Insert, Modifiers::CTRL, true), [Event::Copy]);
+    assert_eq!(after(EguiKey::Delete, Modifiers::SHIFT, true), [Event::Cut]);
+    assert!(after(EguiKey::Insert, Modifiers::SHIFT, true).is_empty());
+    let asked = ctx.run_ui(egui::RawInput::default(), |_| {}).viewport_output.values().flat_map(|v| &v.commands).any(|c| matches!(c, egui::ViewportCommand::RequestPaste));
+    assert!(asked, "the window is asked for the clipboard text");
+    // Plain Insert, other modifiers, and the other platforms are left alone.
+    assert!(matches!(after(EguiKey::Insert, Modifiers::NONE, false).as_slice(), [Event::Key { key: EguiKey::Insert, .. }]));
+    assert!(matches!(after(EguiKey::Delete, Modifiers::SHIFT | Modifiers::CTRL, false).as_slice(), [Event::Key { key: EguiKey::Delete, .. }]));
+    ctx.set_os(egui::os::OperatingSystem::Mac);
+    assert!(matches!(after(EguiKey::Insert, Modifiers::CTRL, false).as_slice(), [Event::Key { key: EguiKey::Insert, .. }]));
+}
+
+#[test]
+fn rewritten_insert_chords_run_the_clipboard_bindings() {
+    let km = dispatch_keymap();
+    let ctx = egui::Context::default();
+    ctx.set_os(egui::os::OperatingSystem::Nix);
+    let mut d = Dispatcher::new().with_clipboard_events(true);
+    let mut raw = egui::RawInput { events: vec![raw_key(EguiKey::Insert, true, Modifiers::SHIFT)], ..Default::default() };
+    d.raw_input(&ctx, &mut raw, false);
+    let (ran, left) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, raw.events));
+    assert_eq!(ran, ["edit.paste"]);
+    assert!(left.is_empty());
+}
