@@ -24,7 +24,9 @@ const REPAINT: Duration = Duration::from_millis(33);
 pub struct TourStep {
     /// The automation id of the step (`layers-panel`).
     pub id: String,
+    /// The card's heading. Translate it in the app.
     pub title: String,
+    /// The card's text. Translate it in the app.
     pub body: String,
     /// The rect of the part it points at this frame; `None` shows the card centred with no
     /// highlight (a welcome or closing step).
@@ -35,7 +37,9 @@ pub struct TourStep {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TourEvent {
+    /// Next, or Enter: the host moves to the following step.
     Next,
+    /// Back: the host moves to the previous step.
     Back,
     /// Done on the last step.
     Finished,
@@ -106,10 +110,12 @@ pub(super) fn card_position(target: Option<Rect>, card: Vec2, screen: Rect, marg
 }
 
 impl Tour {
+    /// A tour with English labels. `id_salt` keys the card's state.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id: Id::unique(id_salt), labels: None }
     }
 
+    /// The texts, translated. Without them the installed words are used.
     pub fn labels(mut self, labels: TourLabels) -> Self {
         self.labels = Some(labels);
         self

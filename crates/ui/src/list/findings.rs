@@ -33,13 +33,16 @@ crate::words! {
 /// How bad a finding is. DesignCraft's preflight has these two.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FindingLevel {
+    #[allow(missing_docs)]
     Error,
+    #[allow(missing_docs)]
     Warning,
 }
 
 /// One problem, in the app's words.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Finding {
+    /// How serious the finding is.
     pub level: FindingLevel,
     /// "Missing font: Minion Pro Bold", "photo.jpg: effective 96 ppi (< 150)".
     pub message: String,
@@ -91,6 +94,7 @@ pub struct FindingsList<'a> {
 }
 
 impl<'a> FindingsList<'a> {
+    /// A list of `findings` with the summary line on; `id_salt` keeps its state.
     pub fn new(id_salt: impl egui::AsIdSalt, findings: &'a [Finding]) -> Self {
         Self { id_salt: egui::IdSalt::new(id_salt), findings, summary: true }
     }
@@ -111,6 +115,7 @@ impl<'a> FindingsList<'a> {
         }
     }
 
+    /// Draws the list and returns what the user did this pass.
     pub fn show(self, ui: &mut Ui) -> FindingsListResponse {
         let Self { id_salt, findings, summary } = self;
         let labels = FindingsLabels::shared(ui);

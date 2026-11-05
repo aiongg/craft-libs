@@ -1,4 +1,4 @@
-//! Stories of the nudge, the move gesture and the stroke constraints (task KS2). A fake page with rectangles and strokes, so every state shows without an app.
+//! Stories of the nudge, the move gesture and the stroke constraints. A fake page with rectangles and strokes, so every state shows without an app.
 //! Sample text and the axis and flag names of the status lines are story words.
 //!
 //! - `primitives/nudge-keys/arrows`: a rectangle on a fake page; arrows move it 1 unit, ⇧ 10, a ⌘ base

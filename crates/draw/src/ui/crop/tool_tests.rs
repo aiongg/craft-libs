@@ -1,4 +1,4 @@
-//! Tests of the Crop tool on the canvas tool host (task TO-C4).
+//! Tests of the Crop tool on the canvas tool host.
 
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Sense, pos2, vec2};
 use egui_kittest::Harness;

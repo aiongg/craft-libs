@@ -53,7 +53,10 @@ pub type Override = Box<dyn FnMut(&Request) -> Answer>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     /// Choose existing files: one, or several when `multiple`.
-    Open { multiple: bool },
+    Open {
+        /// Whether the user may choose more than one file.
+        multiple: bool,
+    },
     /// Choose one folder.
     Folder,
     /// Choose where to write a file.
@@ -63,6 +66,7 @@ pub enum Kind {
 /// A file dialog request.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileDialog {
+    /// Which dialog to show.
     pub kind: Kind,
     /// The dialog's title, or its message line on macOS, where panels have no title bar.
     pub title: Option<String>,
@@ -100,6 +104,7 @@ impl FileDialog {
         Self::new(Kind::Save)
     }
 
+    /// Sets the dialog's title (its message line on macOS).
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
         self
@@ -111,11 +116,13 @@ impl FileDialog {
         self
     }
 
+    /// Sets the folder the dialog opens in.
     pub fn directory(mut self, directory: impl Into<PathBuf>) -> Self {
         self.directory = Some(directory.into());
         self
     }
 
+    /// Sets the file name a Save dialog suggests.
     pub fn file_name(mut self, file_name: impl Into<String>) -> Self {
         self.file_name = Some(file_name.into());
         self
@@ -125,9 +132,12 @@ impl FileDialog {
 /// The icon a message box shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MessageLevel {
+    /// An informational icon.
     #[default]
     Info,
+    /// A warning icon.
     Warning,
+    /// An error icon.
     Error,
 }
 
@@ -135,39 +145,57 @@ pub enum MessageLevel {
 /// plain variant they replace.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum MessageButtons {
+    /// One OK button.
     #[default]
     Ok,
+    /// OK and Cancel.
     OkCancel,
+    /// Yes and No.
     YesNo,
+    /// Yes, No and Cancel.
     YesNoCancel,
+    /// One button with this label.
     OkCustom(String),
+    /// Two buttons with these labels, in the order of OK and Cancel.
     OkCancelCustom(String, String),
+    /// Three buttons with these labels, in the order of Yes, No and Cancel.
     YesNoCancelCustom(String, String, String),
 }
 
 /// The button a message box was closed with. A custom button answers with its label.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MessageResult {
+    /// OK.
     Ok,
+    /// Cancel.
     Cancel,
+    /// Yes.
     Yes,
+    /// No.
     No,
+    /// A custom button, by its label.
     Custom(String),
 }
 
 /// A message box request.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Message {
+    /// The icon.
     pub level: MessageLevel,
+    /// The box's title.
     pub title: String,
+    /// The body text.
     pub description: String,
+    /// The buttons offered.
     pub buttons: MessageButtons,
 }
 
 /// What [`Dialogs`] was asked to show, as an [`Override`] sees it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Request {
+    /// A file dialog.
     File(FileDialog),
+    /// A message box.
     Message(Message),
 }
 
@@ -242,6 +270,7 @@ pub struct Dialogs<T> {
 }
 
 impl<T> Dialogs<T> {
+    /// A dialog queue that calls `wake` when an answer arrives.
     pub fn new(wake: Wake) -> Self {
         Self { wake, queue: VecDeque::new(), open: None, answers: Vec::new(), show: Show::Native }
     }

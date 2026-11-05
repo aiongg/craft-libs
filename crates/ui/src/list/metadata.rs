@@ -54,6 +54,7 @@ pub struct MetadataRow {
 }
 
 impl MetadataRow {
+    /// A row showing `name` and `value`, unlocked and with no storage key.
     pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
         Self { name: name.into(), value: value.into(), key: None, locked: false }
     }
@@ -80,7 +81,9 @@ impl MetadataRow {
 /// line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MetadataGroup {
+    /// The group's title, or empty for a group without a title line.
     pub name: String,
+    /// The group's fields, in display order.
     pub rows: Vec<MetadataRow>,
 }
 
@@ -163,6 +166,7 @@ pub struct MetadataTable<'a> {
 }
 
 impl<'a> MetadataTable<'a> {
+    /// A table of `groups` with no filter, no checks chosen and no height cap; `id_salt` keeps its state.
     pub fn new(id_salt: impl AsIdSalt, groups: &'a [MetadataGroup]) -> Self {
         Self { id_salt: IdSalt::new(id_salt), groups, filter: None, chosen: None, max_height: None, labels: None }
     }
@@ -211,6 +215,7 @@ impl<'a> MetadataTable<'a> {
     }
 
     // filmcraft: crates/ui-egui/src/panels/project_dialogs.rs:124 metadata_display
+    /// Draws the table and returns what the user did this pass.
     pub fn show(self, ui: &mut Ui) -> MetadataTableOutput {
         let Self { id_salt, groups, filter, chosen, max_height, labels } = self;
         let labels = labels.map_or_else(|| MetadataLabels::shared(ui), Arc::new);

@@ -167,6 +167,7 @@ impl StatusBar {
         self
     }
 
+    /// The resolved status bar style, read from `tokens.component.status_bar`.
     pub fn style(tokens: &UiTokens) -> StatusBarStyle {
         let s = &tokens.component.status_bar;
         let c = &tokens.color;

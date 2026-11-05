@@ -29,10 +29,12 @@ impl Scope {
         Scope(APP.to_string())
     }
 
+    /// Whether this is the application scope.
     pub fn is_app(&self) -> bool {
         self.0 == APP
     }
 
+    /// The scope name.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -55,6 +57,7 @@ impl<'de> Deserialize<'de> for Scope {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ScopeKind {
+    /// Works whatever has the keyboard.
     Application,
     /// Works while the panel has the keyboard. Names that are not registered count as panels.
     Panel,
@@ -81,8 +84,11 @@ impl Default for Scopes {
 /// being typed in.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Active<'a> {
+    /// The focused panel, if any.
     pub panel: Option<&'a str>,
+    /// The active contexts.
     pub contexts: &'a [&'a str],
+    /// Whether a text field is being typed in.
     pub typing: bool,
 }
 
@@ -90,12 +96,14 @@ impl<'a> Active<'a> {
     /// No panel focused, no context, not typing.
     pub const NONE: Active<'static> = Active { panel: None, contexts: &[], typing: false };
 
+    /// Only `panel` focused: no context, not typing.
     pub const fn panel(panel: &'a str) -> Active<'a> {
         Active { panel: Some(panel), contexts: &[], typing: false }
     }
 }
 
 impl Scopes {
+    /// An empty registry; panel fallthrough is on.
     pub fn new() -> Scopes {
         Scopes::default()
     }
@@ -108,6 +116,7 @@ impl Scopes {
         self
     }
 
+    /// Registers a context.
     pub fn with_context(mut self, name: &str) -> Scopes {
         if !self.contexts.iter().any(|c| c == name) {
             self.contexts.push(name.to_string());
@@ -131,14 +140,17 @@ impl Scopes {
         self
     }
 
+    /// The registered panels.
     pub fn panels(&self) -> &[String] {
         &self.panels
     }
 
+    /// The registered contexts.
     pub fn contexts(&self) -> &[String] {
         &self.contexts
     }
 
+    /// Whether panel fallthrough is on: see [`Scopes::with_panel_fallthrough`].
     pub fn panel_fallthrough(&self) -> bool {
         self.panel_fallthrough
     }
@@ -152,6 +164,7 @@ impl Scopes {
             || self.shares.iter().any(|(a, b)| a == name || b == name)
     }
 
+    /// The kind of `scope`: application, a registered context, else a panel.
     pub fn kind(&self, scope: &Scope) -> ScopeKind {
         self.kind_of(scope.as_str())
     }

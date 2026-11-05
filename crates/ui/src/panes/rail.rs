@@ -38,6 +38,7 @@ const MAX_SIZE: f32 = 4096.0;
 #[derive(Clone, Debug)]
 #[deprecated(note = "use `patterns::PanelRail`")]
 pub struct RailItem<P> {
+    /// The pane the item opens.
     pub pane: P,
     /// Painted tinted with the chrome's text colors, like docking's panel icons.
     pub icon: ImageSource<'static>,
@@ -59,16 +60,19 @@ impl<P> RailItem<P> {
         Self { pane, icon, label: label.into(), enabled: true, marker: false, marker_label: None }
     }
 
+    /// Whether the item can be used; a disabled item is drawn disabled and cannot take focus.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
+    /// Whether the marker dot shows while the pane is closed.
     pub fn marker(mut self, marker: bool) -> Self {
         self.marker = marker;
         self
     }
 
+    /// The marker's accessible description, translated by the app.
     pub fn marker_label(mut self, label: impl Into<String>) -> Self {
         self.marker_label = Some(label.into());
         self

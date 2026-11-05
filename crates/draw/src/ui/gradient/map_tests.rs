@@ -1,4 +1,4 @@
-//! Tests of the Gradient Map editor (task AD-6).
+//! Tests of the Gradient Map editor.
 
 use craft_theme::Srgba;
 use egui::accesskit::Role;

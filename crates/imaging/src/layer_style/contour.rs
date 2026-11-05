@@ -3,7 +3,9 @@
 /// A contour point, input and output in 0..=1.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ContourPoint {
+    /// Input value, 0..=1 (the horizontal axis).
     pub input: f32,
+    /// Output value, 0..=1 (the vertical axis).
     pub output: f32,
     /// A corner point: the curve runs straight into and out of it.
     pub corner: bool,
@@ -14,7 +16,9 @@ pub struct ContourPoint {
 /// contours keep their own name and points.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Contour {
+    #[allow(missing_docs)]
     pub name: String,
+    /// The points, sorted by input.
     pub points: Vec<ContourPoint>,
 }
 

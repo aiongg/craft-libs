@@ -12,7 +12,7 @@ pub struct ChannelsTokens {
     /// Comfortable 30).
     pub thumb: f32,
     /// Side of a spot channel's ink swatch at its thumbnail's bottom trailing corner:
-    /// [`values::CHANNELS_SPOT_SWATCH`].
+    /// `values::CHANNELS_SPOT_SWATCH`.
     pub spot_swatch: f32,
 }
 

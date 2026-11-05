@@ -10,15 +10,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::release::{Asset, Release};
 
+/// An operating system a release targets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Os {
+    #[allow(missing_docs)]
     Windows,
+    #[allow(missing_docs)]
     MacOs,
+    #[allow(missing_docs)]
     Linux,
+    #[allow(missing_docs)]
     FreeBsd,
 }
 
 impl Os {
+    /// The name shown to the user.
     pub fn label(self) -> &'static str {
         match self {
             Self::Windows => "Windows",
@@ -29,15 +35,21 @@ impl Os {
     }
 }
 
+/// A CPU architecture a release targets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Arch {
+    #[allow(missing_docs)]
     X64,
+    #[allow(missing_docs)]
     X86,
+    #[allow(missing_docs)]
     Arm64,
+    #[allow(missing_docs)]
     Riscv64,
 }
 
 impl Arch {
+    /// The name shown to the user.
     pub fn label(self) -> &'static str {
         match self {
             Self::X64 => "x64",
@@ -57,17 +69,22 @@ pub enum PackageKind {
     PortableZip,
     /// macOS disk image with the `.app` bundle.
     Dmg,
+    #[allow(missing_docs)]
     AppImage,
+    #[allow(missing_docs)]
     Deb,
+    #[allow(missing_docs)]
     Rpm,
     /// Arch Linux package (`.pkg.tar.zst`).
     ArchPkg,
+    #[allow(missing_docs)]
     Flatpak,
     /// Linux or FreeBSD tarball (`bin/<app>`, `share/…`).
     TarGz,
 }
 
 impl PackageKind {
+    /// The name shown to the user, with the file extension.
     pub fn label(self) -> &'static str {
         match self {
             Self::Msi => "Installer (.msi)",
@@ -100,7 +117,9 @@ impl PackageKind {
 /// Where the launcher is running (or, on the web, the visitor's machine).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Platform {
+    #[allow(missing_docs)]
     pub os: Os,
+    #[allow(missing_docs)]
     pub arch: Arch,
 }
 
@@ -132,6 +151,7 @@ impl Platform {
         Some(Self { os, arch })
     }
 
+    /// The name shown to the user: `macOS` alone, otherwise OS and architecture.
     pub fn label(self) -> String {
         match self.os {
             Os::MacOs => "macOS".into(),
@@ -185,9 +205,13 @@ impl Platform {
 /// What an asset name says about itself.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssetName {
+    /// The app's file name prefix (the id of the app, or a former id).
     pub stem: String,
+    /// The version text from the name.
     pub version: String,
+    /// The platform part of the name (`windows-x64`, `macos-universal`, `linux-x86_64`).
     pub token: String,
+    #[allow(missing_docs)]
     pub kind: PackageKind,
 }
 

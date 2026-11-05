@@ -1,5 +1,5 @@
 //! [`Slider`]: a value on a horizontal track; and the scale, track, painting and keyboard parts it
-//! shares with [`RangeSlider`](super::RangeSlider).
+//! shares with [`RangeSlider`].
 
 use std::collections::VecDeque;
 use std::fmt::Debug;
@@ -27,7 +27,7 @@ use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, variant_list};
 use crate::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format, scale};
 use crate::typed_story;
 
-/// A slider's sizes and colours, from [`Slider::style`]; [`RangeSlider`](super::RangeSlider)
+/// A slider's sizes and colours, from [`Slider::style`]; [`RangeSlider`]
 /// draws with the same.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -215,11 +215,13 @@ impl Slider {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether the slider takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -239,7 +241,7 @@ impl Slider {
     /// the focus, as PhotoCraft's dialog sliders do (off by default: in a panel the wheel
     /// scrolls). The rules are the unfocused number field's: a gesture that started elsewhere
     /// keeps scrolling over the slider, Alt, Ctrl/Cmd and sideways scrolls stay with the view,
-    /// Shift steps ten. A [`RangeSlider`](crate::controls::RangeSlider) has no such option: its
+    /// Shift steps ten. A [`RangeSlider`] has no such option: its
     /// two thumbs give a wheel over the track no one value to step.
     pub fn wheel_unfocused(mut self, on: bool) -> Self {
         self.wheel_unfocused = on;
@@ -476,6 +478,7 @@ impl Slider {
             .collect()
     }
 
+    /// The slider's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
         let s = &tokens.component.slider;
         let (thumb, thumb_width) = (s.thumb.get(size), s.thumb_width.get(size));
@@ -516,7 +519,9 @@ pub const KEY_FILTER: EventFilter = EventFilter { horizontal_arrows: true, verti
 /// A range with an optional step: where values may go and how keys move them.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Scale {
+    #[allow(missing_docs)]
     pub min: f64,
+    #[allow(missing_docs)]
     pub max: f64,
     step: Option<f64>,
     kind: SliderScale,
@@ -681,6 +686,7 @@ pub(super) struct Track {
 }
 
 impl Track {
+    /// A track across `rect`, inset by half a thumb at each end, for `scale`.
     pub fn new(rect: Rect, style: &SliderStyle, scale: Scale) -> Self {
         let reach = style.thumb_width / 2.0;
         Self { x0: rect.left() + reach, x1: rect.right() - reach, y: rect.center().y, reach, scale, track_height: style.track_height }
@@ -838,6 +844,7 @@ fn to_layer(ui: &Ui, response: &Response, pos: Pos2) -> Pos2 {
 /// What a control's response says about this frame's input, for [`stepped`].
 #[derive(Clone, Copy, Debug)]
 pub struct Sensing {
+    #[allow(missing_docs)]
     pub enabled: bool,
     /// The pointer is over the control.
     pub hovered: bool,
@@ -852,6 +859,7 @@ pub struct Sensing {
 }
 
 impl Sensing {
+    /// The sensing of `response`: the wheel steps the control and arrows move the thumb the way they point.
     pub fn of(response: &Response) -> Self {
         Self { enabled: response.enabled(), hovered: response.hovered(), dragging: response.dragged(), wheel: true, falling: false }
     }
@@ -862,7 +870,7 @@ impl Sensing {
 /// while the thumb has focus, the wheel only while the pointer is over the control. While a drag
 /// is under way they change nothing; keys and the wheel are still taken. With a `wheel_over`
 /// rect, a thumb without focus takes the wheel gestures that start over that rect too
-/// ([`field_wheel::notches`]). A move to an end or a screen reader's value wins over the steps of
+/// (`field_wheel::notches`). A move to an end or a screen reader's value wins over the steps of
 /// the same frame.
 pub fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect>, wheel_step: Option<f64>, scale: &Scale) -> Option<ScalarOp> {
     let (step, page) = (scale.key_step(), scale.page_step());

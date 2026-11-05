@@ -9,7 +9,7 @@ use egui::{AsIdSalt, Color32, ColorImage, Context, IdSalt, Painter, Pos2, Rect, 
 use crate::scopes::{ChannelMask, ClippingMask};
 
 /// The clipped channels the warning buttons show: their fill is these channels' data colour
-/// (`data.red`, `data.green`, `data.blue` mixed by the mask, lead call L14), black when none clip.
+/// (`data.red`, `data.green`, `data.blue` mixed by the mask), black when none clip.
 /// The host folds its histogram's end bins or [`ClippingMask::any`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ClippingFrame {
@@ -60,7 +60,7 @@ pub enum ClippingMode {
 /// over the preview rect. The texture lives in an internal
 /// [`TextureCache`](craft_ui::canvas::textures::TextureCache) with
 /// [`TextureOptions::NEAREST`](egui::TextureOptions::NEAREST) under the overlay's id, rebuilt
-/// only when `revision`, the mode or the theme's mode changes (lead call L33). Transparent and
+/// only when `revision`, the mode or the theme's mode changes. Transparent and
 /// non-finite pixels are transparent in every mode.
 ///
 /// ```ignore

@@ -34,7 +34,7 @@
 //! so with [`TitleBar::native_hit_test`] or [`CaptionRegions::native_hit_test`].
 //!
 //! The app also calls [`release_after_os_resize`] from its `raw_input_hook`, and on macOS
-//! [`craft_window::title_bar::sync_movable`] once per frame.
+//! `craft_window::title_bar::sync_movable` once per frame.
 
 mod captions;
 mod drag;
@@ -156,6 +156,7 @@ pub struct TitleBar<'a> {
 }
 
 impl<'a> TitleBar<'a> {
+    /// A title bar for the window `frame` describes.
     pub fn new(frame: &'a Frame) -> Self {
         Self {
             frame,

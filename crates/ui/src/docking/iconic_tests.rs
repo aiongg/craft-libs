@@ -1,4 +1,4 @@
-//! [D] Iconic columns, flyouts and hit rects, driven through `testing::DockDriver`.
+//! \[D\] Iconic columns, flyouts and hit rects, driven through `testing::DockDriver`.
 
 use super::testing::DockDriver;
 use super::*;

@@ -34,6 +34,7 @@ pub enum RampKind {
 /// A colour the ramp picked.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RampPick {
+    /// The picked colour.
     pub color: Srgba,
     /// Alt was held at the press (or at the click, key or box press): the host sets the colour it
     /// is not editing.
@@ -186,6 +187,7 @@ impl<'a> ColorRamp<'a> {
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

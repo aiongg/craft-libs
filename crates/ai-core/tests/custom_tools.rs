@@ -1,3 +1,5 @@
+//! Integration tests of craft-ai-core: custom tools.
+
 use craft_ai_core::{CapabilityId, InputRole, Role, RoleId, StoreFile};
 
 fn tool(id: &str) -> Role {

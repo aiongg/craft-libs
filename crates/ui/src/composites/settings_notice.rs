@@ -63,6 +63,7 @@ fn save_error_text(error: &SettingsError) -> String {
 }
 
 impl SettingsNotices {
+    /// An empty set: no failures and no status or error line.
     pub fn new() -> Self {
         Self::default()
     }

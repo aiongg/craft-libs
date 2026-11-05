@@ -8,19 +8,19 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct LinkTokens {
-    /// Side of a status badge: [`values::LINK_BADGE`].
+    /// Side of a status badge: `values::LINK_BADGE`.
     pub badge: f32,
-    /// Width and height of the preview box: [`values::LINK_PREVIEW`].
+    /// Width and height of the preview box: `values::LINK_PREVIEW`.
     pub preview: [f32; 2],
-    /// Height of the candidate list: [`values::LINK_CANDIDATES_HEIGHT`].
+    /// Height of the candidate list: `values::LINK_CANDIDATES_HEIGHT`.
     pub candidates_height: f32,
-    /// Least height of the links table: [`values::LINK_TABLE_MIN`].
+    /// Least height of the links table: `values::LINK_TABLE_MIN`.
     pub table_min: f32,
-    /// Greatest height of the links table: [`values::LINK_TABLE_MAX`].
+    /// Greatest height of the links table: `values::LINK_TABLE_MAX`.
     pub table_max: f32,
-    /// The table's share of the window's height before the clamp: [`values::LINK_TABLE_SHARE`].
+    /// The table's share of the window's height before the clamp: `values::LINK_TABLE_SHARE`.
     pub table_share: f32,
-    /// Greatest width of the dialog: [`values::LINK_DIALOG_MAX_WIDTH`].
+    /// Greatest width of the dialog: `values::LINK_DIALOG_MAX_WIDTH`.
     pub dialog_max_width: f32,
 }
 

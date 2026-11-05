@@ -36,6 +36,11 @@ jobs:
           key: craft-crw-${{ matrix.os }}
       - run: cargo fmt -p craft-crw --check
       - run: cargo clippy -p craft-crw --all-targets --locked -- -D warnings
+      - name: Docs (links and missing docs)
+        if: runner.os == 'Linux'
+        run: cargo doc -p craft-crw --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
       - run: cargo test -p craft-crw --locked
 
   wasm:

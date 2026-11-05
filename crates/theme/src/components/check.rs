@@ -162,10 +162,10 @@ pub struct CheckTokens {
     pub outline: f32,
     /// Label type role.
     pub label: TypeRole,
-    /// Corner radius of the box: [`CHECK_RADIUS`](values::CHECK_RADIUS) in every theme, or the
-    /// theme's `check.radius`, at most [`CHECK_RADIUS_MAX`](values::CHECK_RADIUS_MAX).
+    /// Corner radius of the box: `CHECK_RADIUS` in every theme, or the
+    /// theme's `check.radius`, at most `CHECK_RADIUS_MAX`.
     pub radius: f32,
-    /// Stroke width of the check and the dash: [`CHECK_MARK_RATIO`](values::CHECK_MARK_RATIO) of
+    /// Stroke width of the check and the dash: `CHECK_MARK_RATIO` of
     /// the box.
     pub mark: BySize<f32>,
     /// Diameter of the radio dot.

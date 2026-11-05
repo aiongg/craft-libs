@@ -46,7 +46,9 @@ pub enum Preset {
     /// A sentence in the language filtered by, or in the family's own script.
     #[default]
     Sentence,
+    #[allow(missing_docs)]
     Alphabet,
+    #[allow(missing_docs)]
     Numerals,
 }
 
@@ -57,7 +59,9 @@ pub enum Preset {
 pub struct FontsPanelSettings {
     /// The sample text; empty for the preset.
     pub sample: String,
+    /// Which sample text shows while `sample` is empty.
     pub preset: Preset,
+    /// Sample size in pixels, 12 to 120.
     pub size: f32,
     /// The user closed the note that downloads are off.
     pub hide_download_note: bool,
@@ -73,9 +77,12 @@ impl Default for FontsPanelSettings {
     }
 }
 
+/// A tab of the panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tab {
+    /// Families installed on this machine.
     Installed,
+    /// Families in the downloadable catalogue.
     Catalogue,
 }
 
@@ -103,7 +110,9 @@ type InstalledFilter = (String, Origin, Option<u64>);
 
 /// What the app is built from; tests pass their own catalog, store and index.
 pub struct Options {
+    /// The installed fonts the panel lists.
     pub catalog: Arc<Catalog>,
+    /// Installs and removes fonts and fetches downloads.
     pub installer: Arc<dyn Installer>,
     /// The Google Fonts index, or why it couldn't be read.
     pub index: Result<Index, String>,
@@ -148,6 +157,8 @@ pub(crate) struct Catalogue {
     pub search: Search,
 }
 
+/// The Fonts panel: an Installed tab and a Catalogue tab, with search, filters, family cards
+/// and a details sheet. Build it with `Options`; the host calls it once per frame.
 pub struct FontsPanel {
     pub(crate) settings: FontsPanelSettings,
     /// What the Host's section last held, so a change is written once.
@@ -398,10 +409,12 @@ impl FontsPanel {
         &self.settings
     }
 
+    /// The current tab.
     pub fn tab(&self) -> Tab {
         self.tab
     }
 
+    /// Switch to `tab` and clear the keyboard focus row.
     pub fn set_tab(&mut self, tab: Tab) {
         self.tab = tab;
         self.focus_row = None;

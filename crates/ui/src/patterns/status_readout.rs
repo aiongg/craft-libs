@@ -25,9 +25,11 @@ pub enum StatusItem {
     /// "Doc: 24.9M/24.9M": the flattened size and the size with layers.
     #[default]
     DocumentSizes,
+    /// The document's colour profile name.
     DocumentProfile,
     /// "4000 px × 3000 px (300 ppi)".
     DocumentDimensions,
+    /// The document's measurement scale, as the host formats it.
     MeasurementScale,
     /// "Scratch: 1.2G/8.0G": memory the app uses for open documents and what it may use.
     ScratchSizes,
@@ -35,7 +37,9 @@ pub enum StatusItem {
     Efficiency,
     /// How long the last operation took, "Timing: 0.4 s".
     Timing,
+    /// The name of the active tool.
     CurrentTool,
+    /// The number of layers in the document.
     LayerCount,
 }
 
@@ -44,15 +48,21 @@ pub enum StatusItem {
 pub struct StatusValues {
     /// Flattened and layered sizes in bytes.
     pub document_sizes: Option<(u64, u64)>,
+    /// The colour profile name, shown as given.
     pub document_profile: Option<String>,
+    /// The dimensions text, shown as given ("4000 px × 3000 px (300 ppi)").
     pub document_dimensions: Option<String>,
+    /// The measurement scale text, shown as given.
     pub measurement_scale: Option<String>,
     /// Used and available bytes (craft-platform's `usage` module samples the process).
     pub scratch_sizes: Option<(u64, u64)>,
     /// 0–100.
     pub efficiency: Option<u8>,
+    /// How long the last operation took.
     pub timing: Option<std::time::Duration>,
+    /// The active tool's name, shown as given. Translate it in the app.
     pub current_tool: Option<String>,
+    /// The number of layers.
     pub layer_count: Option<usize>,
 }
 
@@ -96,6 +106,7 @@ pub struct StatusReadout {
 }
 
 impl StatusReadout {
+    /// A readout with English labels and the default zoom range. `id_salt` keys its state.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id: Id::unique("craft_ui::patterns::StatusReadout").with(id_salt), labels: None, range: DEFAULT_RANGE }
     }
@@ -108,6 +119,7 @@ impl StatusReadout {
         self
     }
 
+    /// The texts, translated. Without them the installed words are used.
     pub fn labels(mut self, labels: StatusReadoutLabels) -> Self {
         self.labels = Some(labels);
         self

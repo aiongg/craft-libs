@@ -1,4 +1,4 @@
-//! Content-Aware Fill's fill-area edits (task WS-CA1).
+//! Content-Aware Fill's fill-area edits.
 
 use serde::{Deserialize, Serialize};
 
@@ -10,12 +10,36 @@ use craft_ui::canvas::SelectionOperation;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum FillAreaEdit {
-    New { points: Vec<[f64; 2]> },
-    Add { points: Vec<[f64; 2]> },
-    Subtract { points: Vec<[f64; 2]> },
-    Intersect { points: Vec<[f64; 2]> },
-    Expand { by: f64 },
-    Contract { by: f64 },
+    /// Replaces the fill area with the polygon `points`.
+    New {
+        #[allow(missing_docs)]
+        points: Vec<[f64; 2]>,
+    },
+    /// Adds the polygon `points` to the fill area.
+    Add {
+        #[allow(missing_docs)]
+        points: Vec<[f64; 2]>,
+    },
+    /// Subtracts the polygon `points` from the fill area.
+    Subtract {
+        #[allow(missing_docs)]
+        points: Vec<[f64; 2]>,
+    },
+    /// Intersects the fill area with the polygon `points`.
+    Intersect {
+        #[allow(missing_docs)]
+        points: Vec<[f64; 2]>,
+    },
+    /// Grows the fill area by `by` pixels.
+    Expand {
+        #[allow(missing_docs)]
+        by: f64,
+    },
+    /// Shrinks the fill area by `by` pixels.
+    Contract {
+        #[allow(missing_docs)]
+        by: f64,
+    },
 }
 
 impl FillAreaEdit {

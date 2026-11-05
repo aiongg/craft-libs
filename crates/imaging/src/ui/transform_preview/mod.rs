@@ -55,6 +55,7 @@ impl PreviewQuality {
     pub const SEGMENT_PX: f64 = 6.0;
     /// Fewest and most segments one warp patch gets along an axis.
     pub const MIN_PER_CELL: usize = 4;
+    #[allow(missing_docs)]
     pub const MAX_PER_CELL: usize = 96;
     /// Most samples along either axis of a warp mesh.
     pub const MAX_PER_AXIS: usize = 240;

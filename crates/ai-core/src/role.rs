@@ -19,8 +19,11 @@ use crate::model::{CapabilitySpec, InputRole, ModelInfo};
 /// A feature an app offers that needs a model.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Role {
+    #[allow(missing_docs)]
     pub id: RoleId,
+    /// Name shown to the user, such as "Generative Fill".
     pub label: String,
+    /// The capability a model must offer to fill the role.
     pub capability: CapabilityId,
     /// Inputs this feature will send. A model must accept them and require no others.
     #[serde(default)]
@@ -30,29 +33,63 @@ pub struct Role {
 /// The user's choice for one role.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Binding {
+    /// The role being bound.
     pub role: RoleId,
+    /// The chosen connection.
     pub connection: ConnectionId,
+    /// The chosen model, offered by that connection.
     pub model: ModelId,
 }
 
 /// A fully checked choice.
 #[derive(Clone, Copy, Debug)]
 pub struct Resolved<'a> {
+    /// The connection to send the job to.
     pub connection: &'a Connection,
+    /// The model to run.
     pub model: &'a ModelInfo,
+    /// The model's spec for the role's capability.
     pub spec: &'a CapabilitySpec,
 }
 
 /// Why a role could not be resolved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ResolveError {
+    /// No layer has a binding for the role.
     Unbound(RoleId),
+    /// The bound connection is not in the list.
     ConnectionMissing(ConnectionId),
+    /// The bound connection is switched off.
     ConnectionDisabled(ConnectionId),
-    ModelMissing { connection: ConnectionId, model: ModelId },
-    CapabilityMismatch { model: ModelId, capability: CapabilityId },
-    InputUnsupported { model: ModelId, input: InputRole },
-    InputRequired { model: ModelId, input: InputRole },
+    /// The bound connection does not offer the bound model.
+    ModelMissing {
+        /// The bound connection.
+        connection: ConnectionId,
+        /// The bound model.
+        model: ModelId,
+    },
+    /// The model has no spec for the role's capability.
+    CapabilityMismatch {
+        /// The bound model.
+        model: ModelId,
+        /// The capability the role needs.
+        capability: CapabilityId,
+    },
+    /// The role sends an input the model does not accept.
+    InputUnsupported {
+        /// The bound model.
+        model: ModelId,
+        /// The input the model rejects.
+        input: InputRole,
+    },
+    /// The model requires an input the role does not send.
+    InputRequired {
+        /// The bound model.
+        model: ModelId,
+        /// The input the role is missing.
+        input: InputRole,
+    },
+    /// A tool role differs from the shared definition saved for its id.
     ToolMismatch(RoleId),
 }
 

@@ -1,4 +1,4 @@
-//! Tests of the marquees and the selection drag (task SE-F8). Each drives a `MarqueeTool` through
+//! Tests of the marquees and the selection drag. Each drives a `MarqueeTool` through
 //! a `ToolHost` with injected pointer input (`ToolHost::inject`) and a fake `SelectionProbe` (a
 //! rectangle selection, optionally floating), then reads `take_events`.
 

@@ -1,4 +1,4 @@
-//! [`MaskViewKeys`]: the view keys of Select and Mask (task SE-F6).
+//! [`MaskViewKeys`]: the view keys of Select and Mask.
 
 use craft_ui::focus::key_owner;
 use egui::{Event, Key, Ui};

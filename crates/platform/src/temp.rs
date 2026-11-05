@@ -53,6 +53,7 @@ impl TempDir {
         Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "no unused private temporary folder name"))
     }
 
+    /// The folder's path.
     pub fn path(&self) -> &Path {
         &self.path
     }

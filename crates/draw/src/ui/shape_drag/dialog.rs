@@ -1,5 +1,5 @@
 //! [`CreateShapeDialog`]: Create Rectangle, Ellipse, Triangle, Polygon (and Illustrator's Rounded
-//! Rectangle and Star), opened by a Shape tool click (task SH-T7).
+//! Rectangle and Star), opened by a Shape tool click.
 
 use std::cell::Cell;
 use std::ops::RangeInclusive;
@@ -39,6 +39,7 @@ const MAX_RADIUS: f64 = 10_000.0;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CreateShapeOptions {
+    /// Which shape the dialog creates.
     pub kind: ShapeKind,
     /// The click in document pixels, rounded: the shape's top left, or its centre with From Center.
     pub at: Point,
@@ -57,6 +58,7 @@ pub struct CreateShapeOptions {
     /// A polygon's or star's inner over outer radius (1 for a plain polygon; the dialog shows
     /// 1–100 % for Polygon and Star).
     pub star_ratio: f64,
+    /// "From Center": the click is the shape's centre.
     pub from_center: bool,
     /// The remembered values are already in (a reopened dialog, a test).
     pub recalled: bool,
@@ -108,10 +110,12 @@ impl CreateShapeOptions {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CreatedShape {
+    /// Which shape was created.
     pub kind: ShapeKind,
     /// The shape at the click (centred on it with From Center, which may leave its top left on a
     /// half pixel, as PhotoCraft's).
     pub geometry: ShapeGeometry,
+    /// Whether From Center was on.
     pub from_center: bool,
 }
 
@@ -120,7 +124,7 @@ pub struct CreatedShape {
 /// - Title: "Create Rectangle" and so on ([`CreateShapeLabels`]).
 /// - Fields in a `FormGrid` (labels right-aligned): Width and Height (`unit_number_field` in the
 ///   ruler unit; a secondary click on a field picks that field's unit, which is not remembered,
-///   PhotoCraft #7786). Rectangle and Rounded Rectangle: four radii Top Left, Top Right, Bottom
+///   storytold/photocraft#7786). Rectangle and Rounded Rectangle: four radii Top Left, Top Right, Bottom
 ///   Right, Bottom Left, as PhotoCraft's 2×2 grid (Top Left, Top Right / Bottom Left, Bottom
 ///   Right) under one "Radius" label with the corner names as the fields' accessible names, and a
 ///   "Link radii" `LinkedFields` toggle between the top two fields (`LinkMode::Equal`, on by

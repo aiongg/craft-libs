@@ -1,3 +1,5 @@
+//! Integration tests of craft-update: dialog screenshots.
+
 #![cfg(feature = "screen-testing")]
 //! Renders the update dialogs to PNG, light and dark at 1.5x:
 //! `CRAFT_UPDATE_SNAPSHOT_DIR=~/.cache/cl-update-shots cargo test -p craft-update --features screen-testing --test dialog_screenshots`

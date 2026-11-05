@@ -1,5 +1,5 @@
-//! The pen draft's Curvature mode ([`PenMode::Curvature`](super::PenMode::Curvature), task
-//! PE-B2): the Curvature Pen while a path is being drawn.
+//! The pen draft's Curvature mode ([`PenMode::Curvature`](super::PenMode::Curvature)):
+//! the Curvature Pen while a path is being drawn.
 
 use egui::{Context, Modifiers, Response, Shape, Stroke, Ui, vec2};
 use kurbo::{BezPath, PathEl};

@@ -177,7 +177,7 @@ impl Mock {
 
 #[cfg(test)]
 mod tests {
-    use craft_ui::dialog::PixelSize;
+    use craft_ui::dialog::{PixelSize, ResolutionUnit, SizeUnit};
 
     use super::doc::adjust;
     use super::*;
@@ -250,7 +250,13 @@ mod tests {
     }
 
     fn size_result(width: u32, height: u32, ppi: f64, resample: Resample) -> ImageSizeResult {
-        ImageSizeResult { size: PixelSize { width, height, pixels_per_inch: ppi }, resample, scale_styles: true }
+        ImageSizeResult {
+            size: PixelSize { width, height, pixels_per_inch: ppi },
+            unit: SizeUnit::Pixels,
+            resolution_unit: ResolutionUnit::PixelsPerInch,
+            resample,
+            scale_styles: true,
+        }
     }
 
     #[test]

@@ -25,8 +25,11 @@ pub const USAGE_EXIT_CODE: i32 = 2;
 /// `<PREFIX>_CONTROL_TOKEN`, `<PREFIX>_CONTROL_TOKEN_FILE`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EnvNames {
+    /// Variable name for the control port.
     pub port: String,
+    /// Variable name for the control token.
     pub token: String,
+    /// Variable name for the file that holds the control token.
     pub token_file: String,
 }
 
@@ -40,7 +43,9 @@ impl EnvNames {
 /// Where a control value came from, for error messages: the flag's own spelling, or the variable.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Source {
+    /// The command-line flag.
     Flag,
+    /// The environment variable.
     Env,
 }
 
@@ -51,8 +56,11 @@ pub enum Source {
 /// a token is generated and printed to stderr at start.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ControlOptions {
+    /// The port to listen on (`0` picks a free one); `None` leaves the control server off.
     pub port: Option<u16>,
+    /// The token given inline.
     pub token: Option<String>,
+    /// The file to read the token from.
     pub token_file: Option<PathBuf>,
     /// Where each set value came from, so an error names the flag or the variable.
     pub sources: Sources,
@@ -61,8 +69,11 @@ pub struct ControlOptions {
 /// The [`Source`] of each set field of [`ControlOptions`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Sources {
+    /// Where `port` came from.
     pub port: Option<Source>,
+    /// Where `token` came from.
     pub token: Option<Source>,
+    /// Where `token_file` came from.
     pub token_file: Option<Source>,
 }
 
@@ -72,15 +83,28 @@ pub struct Sources {
 pub enum OptionsError {
     /// `invalid value 'nope' for 'PHOTOCRAFT_CONTROL_PORT'` (or `'--control <PORT>'`).
     #[error("invalid value '{value}' for '{shown}': expected a port, 0-65535")]
-    NotAPort { value: String, shown: String },
+    NotAPort {
+        /// The value as given.
+        value: String,
+        /// The flag or variable name, as the user wrote it.
+        shown: String,
+    },
     /// `the argument '--control-token' cannot be used with 'PHOTOCRAFT_CONTROL_TOKEN_FILE'`.
     /// Never contains the token.
     #[error("the argument '{a}' cannot be used with '{b}'")]
-    Conflict { a: String, b: String },
+    Conflict {
+        /// The first of the two, as shown.
+        a: String,
+        /// The second of the two, as shown.
+        b: String,
+    },
     /// `invalid UTF-8 was detected in 'PHOTOCRAFT_CONTROL_TOKEN'`: a variable that is set but is
     /// not Unicode. The token file's path is the exception: any path is accepted.
     #[error("invalid UTF-8 was detected in '{shown}'")]
-    NotUnicode { shown: String },
+    NotUnicode {
+        /// The variable name.
+        shown: String,
+    },
 }
 
 impl ControlOptions {
@@ -180,8 +204,11 @@ impl ControlOptions {
 /// `--control-token-file`), so an app with other names reports its own.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FlagNames {
+    /// Spelling of the port flag.
     pub port: String,
+    /// Spelling of the token flag.
     pub token: String,
+    /// Spelling of the token-file flag.
     pub token_file: String,
 }
 

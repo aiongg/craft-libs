@@ -51,6 +51,7 @@ pub enum Builtin {
 }
 
 impl Builtin {
+    /// Every built-in profile, in a fixed order for building a profile picker.
     pub const ALL: [Builtin; 11] = [
         Builtin::Srgb,
         Builtin::DisplayP3,
@@ -174,6 +175,7 @@ pub fn default_for(cs: ColorSpace) -> Option<&'static Profile> {
     })
 }
 
+/// The built-in sRGB profile (same as `Builtin::Srgb.profile()`).
 pub fn srgb() -> &'static Profile {
     Builtin::Srgb.profile()
 }

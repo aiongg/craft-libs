@@ -1,4 +1,4 @@
-//! Tests of the Brush Settings panel frame (task BR-BS6).
+//! Tests of the Brush Settings panel frame.
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
 use craft_ui::direction::{self, Direction};

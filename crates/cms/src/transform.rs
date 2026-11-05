@@ -14,14 +14,18 @@ use crate::{CmsError, Intent, check_len, invalid_arg};
 /// Sample storage of a byte buffer for [`Transform::convert_bytes_many`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SampleKind {
+    #[allow(missing_docs)]
     U8,
+    #[allow(missing_docs)]
     U16,
+    #[allow(missing_docs)]
     F32,
 }
 
 /// Options for building a [`Transform`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TransformOptions {
+    #[allow(missing_docs)]
     pub intent: Intent,
     /// Adobe-style black point compensation (ignored for absolute colorimetric).
     pub bpc: bool,
@@ -38,6 +42,7 @@ impl Default for TransformOptions {
 
 /// Grid sizes of the device-link tables built for integer (and fast float) evaluation.
 pub const GRID_3D: usize = 33;
+/// Grid points per axis of 4-input tables (grid of 17⁴ nodes).
 pub const GRID_4D: usize = 17;
 const TABLE_1D: usize = 4096;
 /// Resolution of output shaper tables (indexed by `x^(1/4)`).
@@ -111,6 +116,7 @@ impl Transform {
         Self::with_options(src, dst, TransformOptions { intent, bpc, ..Default::default() })
     }
 
+    /// Like [`Transform::new`], with every option in `opts`.
     pub fn with_options(src: &Profile, dst: &Profile, opts: TransformOptions) -> Result<Transform, CmsError> {
         let stages = link_stages(src, dst, opts.intent, opts.bpc)?;
         let mut t = Self::from_pipeline(Pipeline::new(src.channels(), stages)?, opts)?;
@@ -265,12 +271,15 @@ impl Transform {
         }
     }
 
+    /// Number of input channels.
     pub fn inputs(&self) -> usize {
         self.inputs
     }
+    /// Number of output channels.
     pub fn outputs(&self) -> usize {
         self.outputs
     }
+    /// The options this transform was built with.
     pub fn options(&self) -> TransformOptions {
         self.opts
     }

@@ -13,11 +13,11 @@ use super::footer::{DialogLabels, Footer, Reset};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
 use crate::behavior::RadioSelection;
-use crate::composites::{Form, FormGrid, RowLabel};
+use crate::composites::{Form, FormGrid, RowLabel, SectionHeader};
 use crate::controls::{Checkbox, NumberField, Select};
 use crate::edit::{EditEvent, EditResponse};
 use crate::localized::{Labels as _, LocaleNumbers, SharedLabels};
-use crate::primitives::{Content, Divider, Interactive, StateColors, SurfaceKind};
+use crate::primitives::{Content, Interactive, StateColors, SurfaceKind};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 
 crate::words! {
@@ -130,6 +130,8 @@ impl SizingLabels {
     }
 }
 
+/// The decimals a typed size or resolution keeps; the fields show fewer.
+const COMMIT_DECIMALS: usize = 8;
 /// The engine's greatest document side, in pixels.
 const MAX_PIXELS: f64 = 300_000.0;
 /// The least and greatest resolution, in pixels per inch.
@@ -142,7 +144,9 @@ pub use crate::localized::units::LengthUnit as SizeUnit;
 /// Resolution units of Image Size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResolutionUnit {
+    #[allow(missing_docs)]
     PixelsPerInch,
+    #[allow(missing_docs)]
     PixelsPerCentimetre,
 }
 
@@ -162,12 +166,19 @@ impl ResolutionUnit {
 pub enum Resample {
     /// Resample off: the pixel count is fixed, a physical size changes the resolution.
     None,
+    /// Lets the app pick the filter for enlarging or reducing.
     Automatic,
+    #[allow(missing_docs)]
     PreserveDetails,
+    #[allow(missing_docs)]
     Bicubic,
+    #[allow(missing_docs)]
     BicubicSmoother,
+    #[allow(missing_docs)]
     BicubicSharper,
+    #[allow(missing_docs)]
     Bilinear,
+    #[allow(missing_docs)]
     NearestNeighbor,
     /// Not in Photoshop's list; PhotoCraft offers it last.
     Lanczos,
@@ -176,15 +187,24 @@ pub enum Resample {
 /// A cell of the 3×3 anchor: which edge or corner of the current canvas stays put.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Anchor {
+    #[allow(missing_docs)]
     TopLeft,
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     TopRight,
+    #[allow(missing_docs)]
     Left,
     #[default]
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     BottomLeft,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     BottomRight,
 }
 
@@ -212,10 +232,15 @@ impl Anchor {
 /// What fills the new area of a grown canvas.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CanvasExtension {
+    /// The app's foreground colour.
     Foreground,
+    /// The app's background colour.
     Background,
+    #[allow(missing_docs)]
     White,
+    #[allow(missing_docs)]
     Black,
+    #[allow(missing_docs)]
     Gray,
     /// Picked in the colour picker, sRGB components 0..=1.
     Other([f32; 3]),
@@ -226,15 +251,24 @@ pub enum CanvasExtension {
 /// The sizes the host hands a size dialog and gets back.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PixelSize {
+    /// Width in pixels.
     pub width: u32,
+    /// Height in pixels.
     pub height: u32,
+    /// Resolution in pixels per inch.
     pub pixels_per_inch: f64,
 }
 
 /// What the user chose in Image Size.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImageSizeResult {
+    /// The new size.
     pub size: PixelSize,
+    /// The unit of the Width and Height fields when OK was pressed.
+    pub unit: SizeUnit,
+    /// The unit of the Resolution field when OK was pressed.
+    pub resolution_unit: ResolutionUnit,
+    /// The resampling filter.
     pub resample: Resample,
     /// Scale Styles: layer effects scale with the image (enabled while proportions are
     /// constrained).
@@ -244,8 +278,15 @@ pub struct ImageSizeResult {
 /// What the user chose in Canvas Size.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanvasSizeResult {
+    /// The new canvas size.
     pub size: PixelSize,
+    /// The unit of the Width and Height fields when OK was pressed.
+    pub unit: SizeUnit,
+    /// Whether the fields showed the change in size (the Relative box) when OK was pressed.
+    pub relative: bool,
+    /// Which part of the current canvas stays put.
     pub anchor: Anchor,
+    /// What fills the added area.
     pub extension: CanvasExtension,
 }
 
@@ -265,8 +306,11 @@ pub struct LinkedSizeFields {
     pub original: PixelSize,
     /// The size being edited.
     pub current: PixelSize,
+    /// The unit the width and height fields show.
     pub unit: SizeUnit,
+    /// The unit the resolution field shows.
     pub resolution_unit: ResolutionUnit,
+    /// Keeps the aspect ratio when one side changes.
     pub constrain: bool,
     /// Whether the pixel count may change (Image Size with Resample on; always in Canvas Size).
     pub resampling: bool,
@@ -278,6 +322,19 @@ pub struct LinkedSizeFields {
     /// Points in an inch for the Points and Picas units: 72, or the Point/Pica Size preference
     /// (72.27 for traditional points).
     pub points_per_inch: f64,
+    /// The last typed width or height at full precision, shown back while the pixel size it made
+    /// stands (a pixel count is whole, so 72.27 pt at 72 ppi is 72 px).
+    pub(super) typed: Option<Typed>,
+}
+
+/// A value typed in a width or height field, with the state it produced.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct Typed {
+    field: Field,
+    value: f64,
+    unit: SizeUnit,
+    relative: bool,
+    size: PixelSize,
 }
 
 /// Which of the fields an edit came from.
@@ -289,6 +346,7 @@ pub(super) enum Field {
 }
 
 impl LinkedSizeFields {
+    /// Fields for a document of size `original`, in pixels, constrained and resampling.
     pub fn new(original: PixelSize) -> Self {
         Self {
             original,
@@ -300,6 +358,7 @@ impl LinkedSizeFields {
             relative: false,
             chain: true,
             points_per_inch: POINTS_PER_INCH,
+            typed: None,
         }
     }
 
@@ -319,6 +378,14 @@ impl LinkedSizeFields {
 
     /// The field's value in the current unit (the change in size, in a relative size).
     pub(super) fn shown(&self, field: Field) -> f64 {
+        if let Some(typed) = &self.typed
+            && typed.field == field
+            && typed.unit == self.unit
+            && typed.relative == self.relative
+            && typed.size == self.current
+        {
+            return typed.value;
+        }
         let (current, original) = (Self::side(self.current, field), Self::side(self.original, field));
         let pixels = if self.relative { current - original } else { current };
         self.unit.from_pixels(pixels, original, self.current.pixels_per_inch, self.points_per_inch)
@@ -339,11 +406,13 @@ impl LinkedSizeFields {
         let (current, original) = (Self::side(self.current, field), Self::side(self.original, field));
         let ppi = self.current.pixels_per_inch;
         let pixels = self.unit.to_pixels(value, original, ppi, self.points_per_inch);
+        self.typed = None;
         if !self.resampling {
             if !self.unit.is_pixel_unit() && pixels > 0.0 {
                 self.current.pixels_per_inch = (ppi * current / pixels).clamp(PPI_RANGE.0, PPI_RANGE.1);
                 self.current.width = self.original.width;
                 self.current.height = self.original.height;
+                self.remember_typed(field, value);
             }
             return;
         }
@@ -353,6 +422,42 @@ impl LinkedSizeFields {
         } else {
             self.set_height(pixels);
         }
+        self.remember_typed(field, value);
+    }
+
+    fn remember_typed(&mut self, field: Field, value: f64) {
+        self.typed = Some(Typed { field, value, unit: self.unit, relative: self.relative, size: self.current });
+    }
+
+    /// The width in the current unit (the change in width, in a relative size), as the field
+    /// shows it before rounding for display.
+    pub fn width(&self) -> f64 {
+        self.shown(Field::Width)
+    }
+
+    /// The height in the current unit; see [`width`](LinkedSizeFields::width).
+    pub fn height(&self) -> f64 {
+        self.shown(Field::Height)
+    }
+
+    /// The resolution in the current resolution unit, unrounded.
+    pub fn resolution_value(&self) -> f64 {
+        self.current.pixels_per_inch / self.resolution_unit.per_inch()
+    }
+
+    /// Sets the width as typing `value` in its field does, in the current unit.
+    pub fn set_width_value(&mut self, value: f64) {
+        self.edit(Field::Width, value);
+    }
+
+    /// Sets the height as typing `value` in its field does, in the current unit.
+    pub fn set_height_value(&mut self, value: f64) {
+        self.edit(Field::Height, value);
+    }
+
+    /// Sets the resolution as typing `value` in its field does, in the current resolution unit.
+    pub fn set_resolution_value(&mut self, value: f64) {
+        self.edit(Field::Resolution, value);
     }
 
     /// Sets the resolution in pixels per inch. With Resample on and a physical unit the print
@@ -434,6 +539,7 @@ impl LinkedSizeFields {
         let number = NumberField::new(id, name, self.shown(field), &numbers)
             .range(least..=limit)
             .decimals(unit.decimals()..=unit.decimals())
+            .commit_decimals(COMMIT_DECIMALS)
             .or_parse(move |text| unit.parse_typed(text, original, ppi, points))
             .enabled(editable);
         let number = match row_label.scrub() {
@@ -459,7 +565,8 @@ impl LinkedSizeFields {
         let places = if self.resolution_unit == ResolutionUnit::PixelsPerInch { 0 } else { 2 };
         let number = NumberField::new("resolution", &labels.resolution, self.current.pixels_per_inch / per, &numbers)
             .range(PPI_RANGE.0 / per..=PPI_RANGE.1 / per)
-            .decimals(places..=places);
+            .decimals(places..=places)
+            .commit_decimals(COMMIT_DECIMALS);
         let edit = number.show(ui);
         let event = self.apply(ui, Field::Resolution, edit.event);
         let mut picked = self.resolution_unit;
@@ -545,6 +652,7 @@ pub struct AnchorGrid<'a> {
 }
 
 impl<'a> AnchorGrid<'a> {
+    /// A grid editing `anchor`; `delta` is the width and height change, which decides the direction of the arrows drawn.
     pub fn new(anchor: &'a mut Anchor, delta: (f64, f64)) -> Self {
         Self { anchor, delta, arrows: true }
     }
@@ -655,12 +763,17 @@ pub fn human_bytes(bytes: f64) -> String {
 
 /// The file size of a document of `size` at `bytes_per_pixel`, as the readouts show it.
 /// A readout row whose text is set after the rows below it have taken this frame's edits.
-struct Readout(Rect);
+struct Readout(Rect, bool);
 
 impl Readout {
+    /// The right end (the end of the reading direction) of `row`, a header's row.
+    fn trailing(row: Rect) -> Self {
+        Self(row, true)
+    }
+
     /// Takes the row's place in the grid, with the label and no text.
     fn reserve(form: &mut Form<'_>, label: &str) -> Self {
-        Self(form.value(label, "").rect)
+        Self(form.value(label, "").rect, false)
     }
 
     /// Draws `text` in the reserved row. `ui` is the parent of the grid.
@@ -668,8 +781,12 @@ impl Readout {
         let tokens = Tokens::of(ui);
         let format = role_format(&tokens, craft_theme::TypeRole::Body, Content::Normal.color(&tokens).to_egui());
         let job = LayoutJob::single_section(text, format);
-        let rect = Rect::from_min_max(self.0.min, Pos2::new(ui.max_rect().right().max(self.0.min.x), self.0.max.y));
-        ui.scope_builder(UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(Align::Center)), |ui| {
+        let (rect, layout) = if self.1 {
+            (self.0, crate::direction::trailing(ui))
+        } else {
+            (Rect::from_min_max(self.0.min, Pos2::new(ui.max_rect().right().max(self.0.min.x), self.0.max.y)), Layout::left_to_right(Align::Center))
+        };
+        ui.scope_builder(UiBuilder::new().max_rect(rect).layout(layout), |ui| {
             ui.add(Label::new(job).selectable(false));
         });
     }
@@ -695,10 +812,13 @@ pub struct ImageSizeDialog {
     method: Resample,
     scale_styles: bool,
     bytes_per_pixel: f64,
+    methods: Vec<Resample>,
+    labels: Option<SizingLabels>,
     state: DialogState<(LinkedSizeFields, Resample, bool)>,
 }
 
 impl ImageSizeDialog {
+    /// An Image Size dialog for a document of size `original`.
     pub fn new(original: PixelSize) -> Self {
         Self {
             id: dialog_id("image-size"),
@@ -707,7 +827,120 @@ impl ImageSizeDialog {
             method: Resample::Automatic,
             scale_styles: true,
             bytes_per_pixel: 4.0,
+            methods: RESAMPLE_METHODS.to_vec(),
+            labels: None,
             state: DialogState::new(),
+        }
+    }
+
+    /// The words of the dialog, in place of the installed ones (an app's catalog words).
+    pub fn labels(mut self, labels: SizingLabels) -> Self {
+        self.labels = Some(labels);
+        self
+    }
+
+    /// The unit the Width and Height fields open in (an app's Units & Rulers preference);
+    /// Pixels by default. The chosen unit comes back in [`ImageSizeResult::unit`].
+    pub fn unit(mut self, unit: SizeUnit) -> Self {
+        self.fields.unit = unit;
+        self
+    }
+
+    /// The unit the Resolution field opens in; Pixels/Inch by default.
+    pub fn resolution_unit(mut self, unit: ResolutionUnit) -> Self {
+        self.fields.resolution_unit = unit;
+        self
+    }
+
+    /// Limits the Resample list to `methods` (PhotoCraft's Indexed Color offers Automatic and
+    /// Nearest Neighbor), listed in the dialog's usual order. [`Resample::None`] is not a list
+    /// entry, and a list with no entry the dialog knows leaves the full list. A method the
+    /// dialog opens with that is no longer listed becomes the first listed.
+    pub fn resample_methods(mut self, methods: &[Resample]) -> Self {
+        let kept: Vec<Resample> = RESAMPLE_METHODS.into_iter().filter(|m| methods.contains(m)).collect();
+        if !kept.is_empty() {
+            self.methods = kept;
+        }
+        self.keep_method_listed();
+        self
+    }
+
+    fn keep_method_listed(&mut self) {
+        if !self.methods.contains(&self.method) {
+            self.method = self.methods[0];
+            if self.resample != Resample::None {
+                self.resample = self.method;
+            }
+        }
+    }
+
+    /// Sets the width as typing it in the field does, in the current unit.
+    pub fn set_width(&mut self, value: f64) {
+        self.fields.set_width_value(value);
+    }
+
+    /// Sets the height as typing it in the field does, in the current unit.
+    pub fn set_height(&mut self, value: f64) {
+        self.fields.set_height_value(value);
+    }
+
+    /// Sets the resolution as typing it in the field does, in the resolution unit.
+    pub fn set_resolution(&mut self, value: f64) {
+        self.fields.set_resolution_value(value);
+    }
+
+    /// Switches the unit of the Width and Height fields; the size stays.
+    pub fn set_unit(&mut self, unit: SizeUnit) {
+        self.fields.unit = unit;
+    }
+
+    /// Switches the unit of the Resolution field; the resolution stays.
+    pub fn set_resolution_unit(&mut self, unit: ResolutionUnit) {
+        self.fields.resolution_unit = unit;
+    }
+
+    /// Chooses the Resample method as the list does, or [`Resample::None`] to uncheck Resample
+    /// (the size returns to the opening pixel count). A method the list does not offer
+    /// ([`resample_methods`](ImageSizeDialog::resample_methods)) is ignored.
+    pub fn set_resample(&mut self, resample: Resample) {
+        if resample == Resample::None {
+            if self.fields.resampling {
+                self.method = self.resample;
+                self.resample = Resample::None;
+                self.fields.resampling = false;
+                self.fields.current.width = self.fields.original.width;
+                self.fields.current.height = self.fields.original.height;
+            }
+        } else if self.methods.contains(&resample) {
+            self.method = resample;
+            self.resample = resample;
+            self.fields.resampling = true;
+        }
+    }
+
+    /// Sets the Scale Styles box.
+    pub fn set_scale_styles(&mut self, on: bool) {
+        self.scale_styles = on;
+    }
+
+    /// The Resample method now chosen; [`Resample::None`] while Resample is unchecked.
+    pub fn chosen_resample(&self) -> Resample {
+        self.resample
+    }
+
+    /// Whether the Scale Styles box is checked.
+    pub fn chosen_scale_styles(&self) -> bool {
+        self.scale_styles
+    }
+
+    /// The answer the dialog gives now.
+    fn answer(&self) -> ImageSizeResult {
+        ImageSizeResult {
+            size: self.fields.current,
+            unit: self.fields.unit,
+            resolution_unit: self.fields.resolution_unit,
+            resample: self.resample,
+            scale_styles: self.scale_styles,
         }
     }
 
@@ -724,6 +957,7 @@ impl ImageSizeDialog {
             self.method = resample;
         }
         self.fields.resampling = resample != Resample::None;
+        self.keep_method_listed();
         self
     }
 
@@ -733,8 +967,15 @@ impl ImageSizeDialog {
         self
     }
 
+    /// The linked fields.
     pub fn fields(&self) -> &LinkedSizeFields {
         &self.fields
+    }
+
+    /// The linked fields, for a host that sets the size in pixels
+    /// ([`LinkedSizeFields::set_width`]) whatever unit the dialog shows.
+    pub fn fields_mut(&mut self) -> &mut LinkedSizeFields {
+        &mut self.fields
     }
 }
 
@@ -748,11 +989,11 @@ impl StackDialog for ImageSizeDialog {
     // pc: crates/ui-egui/src/dialogs/sizing.rs:211 `image_size`, on `Dialog` with
     // `Footer::standard().reset(..)`.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<ImageSizeResult>> {
-        let labels = SizingLabels::shared_ctx(ctx);
+        let labels = self.labels.clone().map_or_else(|| SizingLabels::shared_ctx(ctx), std::sync::Arc::new);
         let gaps = crate::theme::current(ctx).space.gap;
         let reset = DialogLabels::of_ctx(ctx).reset;
         let mut fields = (self.fields.clone(), self.resample, self.scale_styles);
-        let (bytes_per_pixel, method) = (self.bytes_per_pixel, &mut self.method);
+        let (bytes_per_pixel, method, methods) = (self.bytes_per_pixel, &mut self.method, &self.methods);
         let shown = Dialog::new("image-size", labels.image_size_title.as_str())
             .stack(stack)
             .footer(Footer::standard().reset(Reset::AltCancel(reset)))
@@ -780,7 +1021,7 @@ impl StackDialog for ImageSizeDialog {
                         if on {
                             let mut picked = *resample;
                             let mut select = Select::new("resample-method", &labels.resample_method, &mut picked);
-                            for option in RESAMPLE_METHODS {
+                            for option in methods.iter().copied() {
                                 select = select.option(option, labels.method(option));
                             }
                             let _ = select.show(ui);
@@ -802,8 +1043,7 @@ impl StackDialog for ImageSizeDialog {
         match shown.outcome {
             Some(Outcome::Ok) => {
                 (*kept, *resample, *scale_styles) = fields;
-                let result = ImageSizeResult { size: kept.current, resample: *resample, scale_styles: *scale_styles };
-                return Some(DialogResult::Ok(result));
+                return Some(DialogResult::Ok(self.answer()));
             }
             Some(Outcome::Cancel | Outcome::Close) => return Some(DialogResult::Cancel),
             Some(Outcome::Reset) => {
@@ -813,6 +1053,10 @@ impl StackDialog for ImageSizeDialog {
         }
         (*kept, *resample, *scale_styles) = fields;
         None
+    }
+
+    fn confirm(&mut self, _ctx: &Context) -> Option<ImageSizeResult> {
+        Some(self.answer())
     }
 }
 
@@ -844,10 +1088,12 @@ pub struct CanvasSizeDialog {
     /// Whether the extension list is offered (a document with a Background layer).
     has_background: bool,
     bytes_per_pixel: f64,
+    labels: Option<SizingLabels>,
     state: DialogState<(LinkedSizeFields, Anchor, CanvasExtension)>,
 }
 
 impl CanvasSizeDialog {
+    /// A Canvas Size dialog for a document of size `original`; it has no chain and no constrain.
     pub fn new(original: PixelSize) -> Self {
         // Photoshop's Canvas Size has no linked proportions and no chain.
         let fields = LinkedSizeFields { constrain: false, chain: false, ..LinkedSizeFields::new(original) };
@@ -858,10 +1104,81 @@ impl CanvasSizeDialog {
             extension: CanvasExtension::Background,
             has_background: true,
             bytes_per_pixel: 4.0,
+            labels: None,
             state: DialogState::new(),
         }
     }
 
+    /// The words of the dialog, in place of the installed ones (an app's catalog words).
+    pub fn labels(mut self, labels: SizingLabels) -> Self {
+        self.labels = Some(labels);
+        self
+    }
+
+    /// The unit the Width and Height fields open in (an app's Units & Rulers preference);
+    /// Pixels by default. The chosen unit comes back in [`CanvasSizeResult::unit`].
+    pub fn unit(mut self, unit: SizeUnit) -> Self {
+        self.fields.unit = unit;
+        self
+    }
+
+    /// Sets the width as typing it in the field does, in the current unit.
+    pub fn set_width(&mut self, value: f64) {
+        self.fields.set_width_value(value);
+    }
+
+    /// Sets the height as typing it in the field does, in the current unit.
+    pub fn set_height(&mut self, value: f64) {
+        self.fields.set_height_value(value);
+    }
+
+    /// Switches the unit of the Width and Height fields; the size stays.
+    pub fn set_unit(&mut self, unit: SizeUnit) {
+        self.fields.unit = unit;
+    }
+
+    /// Sets the Relative box: the fields show the change in size instead of the size.
+    pub fn set_relative(&mut self, relative: bool) {
+        self.fields.relative = relative;
+    }
+
+    /// Chooses the anchor cell.
+    pub fn set_anchor(&mut self, anchor: Anchor) {
+        self.anchor = anchor;
+    }
+
+    /// Chooses the extension colour.
+    pub fn set_extension(&mut self, extension: CanvasExtension) {
+        self.extension = extension;
+    }
+
+    /// The anchor cell now chosen.
+    pub fn chosen_anchor(&self) -> Anchor {
+        self.anchor
+    }
+
+    /// The extension colour the answer carries: transparent without a Background layer.
+    pub fn chosen_extension(&self) -> CanvasExtension {
+        if self.has_background { self.extension.clone() } else { CanvasExtension::Transparent }
+    }
+
+    /// Whether the Relative box is checked.
+    pub fn chosen_relative(&self) -> bool {
+        self.fields.relative
+    }
+
+    /// The answer the dialog gives now.
+    fn answer(&self) -> CanvasSizeResult {
+        CanvasSizeResult {
+            size: self.fields.current,
+            unit: self.fields.unit,
+            relative: self.fields.relative,
+            anchor: self.anchor,
+            extension: self.chosen_extension(),
+        }
+    }
+
+    /// Sets the bytes per pixel the file size readout assumes; 4 by default.
     pub fn bytes_per_pixel(mut self, bytes: f64) -> Self {
         self.bytes_per_pixel = bytes;
         self
@@ -885,8 +1202,15 @@ impl CanvasSizeDialog {
         self
     }
 
+    /// The linked fields.
     pub fn fields(&self) -> &LinkedSizeFields {
         &self.fields
+    }
+
+    /// The linked fields, for a host that sets the size in pixels
+    /// ([`LinkedSizeFields::set_width`]) whatever unit the dialog shows.
+    pub fn fields_mut(&mut self) -> &mut LinkedSizeFields {
+        &mut self.fields
     }
 }
 
@@ -900,7 +1224,7 @@ impl StackDialog for CanvasSizeDialog {
     // pc: crates/ui-egui/src/dialogs/sizing.rs:352 `canvas_size`; the extension list is new
     // (Photoshop's Canvas extension color; PhotoCraft has none).
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<CanvasSizeResult>> {
-        let labels = SizingLabels::shared_ctx(ctx);
+        let labels = self.labels.clone().map_or_else(|| SizingLabels::shared_ctx(ctx), std::sync::Arc::new);
         let gaps = crate::theme::current(ctx).space.gap;
         let reset = DialogLabels::of_ctx(ctx).reset;
         let mut fields = (self.fields.clone(), self.anchor, self.extension.clone());
@@ -914,8 +1238,13 @@ impl StackDialog for CanvasSizeDialog {
                     form.value(&labels.current_size, file_size(original, bytes_per_pixel));
                     form.value(&labels.current_width, craft_i18n::fmt(&labels.pixels_value, &[("n", &original.width.to_string())]));
                     form.value(&labels.current_height, craft_i18n::fmt(&labels.pixels_value, &[("n", &original.height.to_string())]));
-                    form.spanning(|ui| Divider::horizontal().show(ui));
-                    let new_size_row = Readout::reserve(form, &labels.new_size);
+                    let header = form.spanning(|ui| {
+                        SectionHeader::new("new-size", labels.new_size.trim_end_matches([':', '\u{ff1a}']))
+                            .collapsible(false)
+                            .show(ui, |_| {})
+                            .response
+                    });
+                    let new_size_row = Readout::trailing(header.inner.rect);
                     let _ = fields.rows(form, &labels, false);
                     let current = fields.current;
                     form.unlabelled(|ui| Checkbox::bool(&labels.relative, &mut fields.relative).show(ui));
@@ -952,12 +1281,11 @@ impl StackDialog for CanvasSizeDialog {
                 });
                 new_size_row.inner.put(ui, file_size(fields.current, bytes_per_pixel));
             });
-        let CanvasSizeDialog { fields: kept, anchor, extension, has_background, .. } = self;
+        let CanvasSizeDialog { fields: kept, anchor, extension, .. } = self;
         match shown.outcome {
             Some(Outcome::Ok) => {
                 (*kept, *anchor, *extension) = fields;
-                let extension = if *has_background { extension.clone() } else { CanvasExtension::Transparent };
-                return Some(DialogResult::Ok(CanvasSizeResult { size: kept.current, anchor: *anchor, extension }));
+                return Some(DialogResult::Ok(self.answer()));
             }
             Some(Outcome::Cancel | Outcome::Close) => return Some(DialogResult::Cancel),
             Some(Outcome::Reset) => {
@@ -967,5 +1295,9 @@ impl StackDialog for CanvasSizeDialog {
         }
         (*kept, *anchor, *extension) = fields;
         None
+    }
+
+    fn confirm(&mut self, _ctx: &Context) -> Option<CanvasSizeResult> {
+        Some(self.answer())
     }
 }

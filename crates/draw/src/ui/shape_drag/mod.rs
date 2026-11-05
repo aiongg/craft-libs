@@ -48,12 +48,19 @@ pub use tool::ShapeDragTool;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ShapeKind {
     #[default]
+    #[allow(missing_docs)]
     Rectangle,
+    #[allow(missing_docs)]
     RoundedRectangle,
+    #[allow(missing_docs)]
     Ellipse,
+    #[allow(missing_docs)]
     Triangle,
+    #[allow(missing_docs)]
     Polygon,
+    #[allow(missing_docs)]
     Star,
+    #[allow(missing_docs)]
     Line,
     /// The selected custom shape preset: the tool gives its box and the app fits the preset in it.
     Custom,
@@ -75,6 +82,7 @@ pub enum ShapeFrame {
 /// builds it from the stored settings.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ShapeDragOptions {
+    /// Which shape the drag draws.
     pub kind: ShapeKind,
     /// The Rectangle's corner radius; over 0 draws four equal radii.
     pub corner_radius: f64,
@@ -141,5 +149,12 @@ pub enum ShapeDragEvent {
     Gesture(EditEvent<ShapeGeometry>),
     /// A press and release within the click slop, or Enter with the canvas focused (at the view
     /// centre): the app opens [`CreateShapeDialog`] for kinds it [supports](CreateShapeDialog::supports).
-    Click { at: Point, kind: ShapeKind, modifiers: Modifiers },
+    Click {
+        /// The click, in document space.
+        at: Point,
+        /// The tool's shape kind.
+        kind: ShapeKind,
+        /// Modifier keys held.
+        modifiers: Modifiers,
+    },
 }

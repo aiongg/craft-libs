@@ -28,6 +28,7 @@ struct State {
     finished: Vec<(u64, Outcome)>,
 }
 
+/// Runs system installs one at a time. Share one queue between all install jobs of a process.
 pub struct Queue {
     state: Mutex<State>,
     changed: Condvar,
@@ -60,6 +61,7 @@ impl Default for Queue {
 }
 
 impl Queue {
+    /// An empty queue.
     pub const fn new() -> Self {
         let state = State { busy: false, next_id: 0, waiting: Vec::new(), running: Vec::new(), finished: Vec::new() };
         Self { state: Mutex::new(state), changed: Condvar::new() }

@@ -98,21 +98,52 @@ pub enum EditEvent<T> {
     /// the host previews it as it does an [`Update`](EditEvent::Update), and the gesture's next
     /// update follows the policy's rate from this frame.
     #[non_exhaustive]
-    Begin { id: GestureId, value: Option<T> },
+    Begin {
+        /// The gesture's id.
+        id: GestureId,
+        /// The value the beginning frame already changed it to, if any.
+        value: Option<T>,
+    },
     /// The gesture's value changed, at the policy's [`UpdateRate`]; the host previews it.
     #[non_exhaustive]
-    Update { id: GestureId, value: T, modifiers: Modifiers },
+    Update {
+        /// The gesture's id.
+        id: GestureId,
+        /// The gesture's current value.
+        value: T,
+        /// The modifier keys held this frame.
+        modifiers: Modifiers,
+    },
     /// The gesture ended with `value`, which the host applies: an update may not have carried it
     /// (a debounced value, or the change of the commit frame). `changed` is false when `value`
     /// equals the start value, so the host makes no undo step. `modifiers` are the ones held at
     /// the end.
     #[non_exhaustive]
-    Commit { id: GestureId, value: T, changed: bool, modifiers: Modifiers },
+    Commit {
+        /// The gesture's id.
+        id: GestureId,
+        /// The final value.
+        value: T,
+        /// Whether `value` differs from the start value.
+        changed: bool,
+        /// The modifier keys held at the end.
+        modifiers: Modifiers,
+    },
     /// The gesture was abandoned; the host restores its "before" state.
-    Cancel { id: GestureId, reason: CancelReason },
+    Cancel {
+        /// The gesture's id.
+        id: GestureId,
+        /// Why it was abandoned.
+        reason: CancelReason,
+    },
     /// A one-shot change outside a gesture: a toggle, an arrow-key nudge, a wheel step, Enter.
     #[non_exhaustive]
-    Set { value: T, modifiers: Modifiers },
+    Set {
+        /// The new value.
+        value: T,
+        /// The modifier keys held this frame.
+        modifiers: Modifiers,
+    },
 }
 
 /// Constructors, for an application's own control that reports to a [`GestureHost`] and for
@@ -244,7 +275,10 @@ pub enum CancelReason {
 pub enum Ending {
     /// The host keeps the control's last value as one undo step; `changed` is false when that
     /// value is the start value, so the host reverts instead.
-    Commit { changed: bool },
+    Commit {
+        /// Whether the value differs from the start value.
+        changed: bool,
+    },
     /// The host reverts the gesture.
     Cancel,
 }
@@ -334,7 +368,9 @@ pub enum Cost {
 #[non_exhaustive]
 #[must_use = "the host applies the edit event"]
 pub struct EditResponse<T> {
+    /// The control's egui response.
     pub response: Response,
+    /// What the control reports this frame, if anything.
     pub event: Option<EditEvent<T>>,
     /// The user pressed the control's submit key this frame (Enter in a text field), whether or
     /// not the value changed: a search's "find next", a dialog's OK. A change the key ends goes
@@ -353,6 +389,7 @@ pub struct EditResponse<T> {
 }
 
 impl<T> EditResponse<T> {
+    /// A response with `event` and no submit or escape.
     pub fn new(response: Response, event: Option<EditEvent<T>>) -> Self {
         Self { response, event, submitted: false, escaped: false }
     }
@@ -472,6 +509,7 @@ impl OuterGesture {
         Self { id }
     }
 
+    /// The gesture's id.
     pub fn id(self) -> GestureId {
         self.id
     }

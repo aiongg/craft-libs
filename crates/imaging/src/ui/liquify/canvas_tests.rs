@@ -1,4 +1,4 @@
-//! Tests of Liquify's canvas and workspace (task WS-LQ2).
+//! Tests of Liquify's canvas and workspace.
 
 use egui::accesskit::Role;
 use egui::os::OperatingSystem;

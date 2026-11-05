@@ -8,129 +8,129 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TimelineTokens {
-    /// The timecode and toolbar strip over the track headers: [`values::TIMELINE_TOP_HEIGHT`].
+    /// The timecode and toolbar strip over the track headers: `values::TIMELINE_TOP_HEIGHT`.
     pub top_height: f32,
-    /// The ruler's height: [`values::TIMELINE_RULER_HEIGHT`].
+    /// The ruler's height: `values::TIMELINE_RULER_HEIGHT`.
     pub ruler_height: f32,
-    /// The scroll bar's height: [`values::TIMELINE_SCROLLBAR_HEIGHT`].
+    /// The scroll bar's height: `values::TIMELINE_SCROLLBAR_HEIGHT`.
     pub scrollbar_height: f32,
-    /// The least thumb length of the scroll bar: [`values::TIMELINE_SCROLL_THUMB_MIN`].
+    /// The least thumb length of the scroll bar: `values::TIMELINE_SCROLL_THUMB_MIN`.
     pub scroll_thumb_min: f32,
-    /// The divider between video and audio tracks: [`values::TIMELINE_DIVIDER_HEIGHT`].
+    /// The divider between video and audio tracks: `values::TIMELINE_DIVIDER_HEIGHT`.
     pub divider_height: f32,
-    /// The Mix row at the bottom: [`values::TIMELINE_MIX_ROW_HEIGHT`].
+    /// The Mix row at the bottom: `values::TIMELINE_MIX_ROW_HEIGHT`.
     pub mix_row_height: f32,
-    /// The track headers' default width: [`values::TIMELINE_HEADER_WIDTH`].
+    /// The track headers' default width: `values::TIMELINE_HEADER_WIDTH`.
     pub header_width: f32,
-    /// A new video track's height: [`values::TIMELINE_VIDEO_TRACK_HEIGHT`].
+    /// A new video track's height: `values::TIMELINE_VIDEO_TRACK_HEIGHT`.
     pub video_track_height: f32,
-    /// A new audio track's height: [`values::TIMELINE_AUDIO_TRACK_HEIGHT`].
+    /// A new audio track's height: `values::TIMELINE_AUDIO_TRACK_HEIGHT`.
     pub audio_track_height: f32,
-    /// The least a track's height can be dragged to: [`values::TIMELINE_TRACK_HEIGHT_MIN`].
+    /// The least a track's height can be dragged to: `values::TIMELINE_TRACK_HEIGHT_MIN`.
     pub track_height_min: f32,
-    /// The most a track's height can be dragged to: [`values::TIMELINE_TRACK_HEIGHT_MAX`].
+    /// The most a track's height can be dragged to: `values::TIMELINE_TRACK_HEIGHT_MAX`.
     pub track_height_max: f32,
-    /// The colour label strip at a header's leading edge: [`values::TIMELINE_LABEL_STRIP`].
+    /// The colour label strip at a header's leading edge: `values::TIMELINE_LABEL_STRIP`.
     pub label_strip: f32,
-    /// How near a snap target must be: [`values::TIMELINE_SNAP_DISTANCE`].
+    /// How near a snap target must be: `values::TIMELINE_SNAP_DISTANCE`.
     pub snap_distance: f32,
-    /// The widest a clip's edge zone gets on each side of an edge: [`values::TIMELINE_EDGE_ZONE`].
+    /// The widest a clip's edge zone gets on each side of an edge: `values::TIMELINE_EDGE_ZONE`.
     pub edge_zone: f32,
-    /// The distance from a cut within which the Selection tool rolls: [`values::TIMELINE_ROLL_ZONE`].
+    /// The distance from a cut within which the Selection tool rolls: `values::TIMELINE_ROLL_ZONE`.
     pub roll_zone: f32,
-    /// The room `TimeView::fit` leaves: [`values::TIMELINE_FIT_MARGIN`].
+    /// The room `TimeView::fit` leaves: `values::TIMELINE_FIT_MARGIN`.
     pub fit_margin: f32,
-    /// A transport button's square: [`values::TIMELINE_TRANSPORT_BUTTON`].
+    /// A transport button's square: `values::TIMELINE_TRANSPORT_BUTTON`.
     pub transport_button: f32,
-    /// A keyframe glyph's box: [`values::TIMELINE_KEYFRAME_GLYPH`].
+    /// A keyframe glyph's box: `values::TIMELINE_KEYFRAME_GLYPH`.
     pub keyframe_glyph: f32,
-    /// A hold key's square inside the glyph box: [`values::TIMELINE_KEYFRAME_HOLD`].
+    /// A hold key's square inside the glyph box: `values::TIMELINE_KEYFRAME_HOLD`.
     pub keyframe_hold: f32,
-    /// A bezier key's circle radius: [`values::TIMELINE_KEYFRAME_BEZIER`].
+    /// A bezier key's circle radius: `values::TIMELINE_KEYFRAME_BEZIER`.
     pub keyframe_bezier: f32,
-    /// How near the playhead or another key a Shift-dragged key snaps: [`values::TIMELINE_KEYFRAME_SNAP`].
+    /// How near the playhead or another key a Shift-dragged key snaps: `values::TIMELINE_KEYFRAME_SNAP`.
     pub keyframe_snap: f32,
-    /// The keyframe navigator's arrow box width: [`values::TIMELINE_KEYFRAME_ARROW_WIDTH`].
+    /// The keyframe navigator's arrow box width: `values::TIMELINE_KEYFRAME_ARROW_WIDTH`.
     pub keyframe_arrow_width: f32,
-    /// The keyframe navigator's arrow box height: [`values::TIMELINE_KEYFRAME_ARROW_HEIGHT`].
+    /// The keyframe navigator's arrow box height: `values::TIMELINE_KEYFRAME_ARROW_HEIGHT`.
     pub keyframe_arrow_height: f32,
-    /// The room between the keyframe navigator's parts: [`values::TIMELINE_KEYFRAME_NAV_STEP`].
+    /// The room between the keyframe navigator's parts: `values::TIMELINE_KEYFRAME_NAV_STEP`.
     pub keyframe_nav_step: f32,
-    /// A marker flag's width: [`values::TIMELINE_MARKER_WIDTH`].
+    /// A marker flag's width: `values::TIMELINE_MARKER_WIDTH`.
     pub marker_width: f32,
-    /// How near a work-area end must be to grab it: [`values::TIMELINE_WORK_AREA_GRAB`].
+    /// How near a work-area end must be to grab it: `values::TIMELINE_WORK_AREA_GRAB`.
     pub work_area_grab: f32,
-    /// The least room between two ruler labels: [`values::TIMELINE_RULER_LABEL_GAP`].
+    /// The least room between two ruler labels: `values::TIMELINE_RULER_LABEL_GAP`.
     pub ruler_label_gap: f32,
-    /// The least room between two ruler ticks: [`values::TIMELINE_RULER_TICK_GAP`].
+    /// The least room between two ruler ticks: `values::TIMELINE_RULER_TICK_GAP`.
     pub ruler_tick_gap: f32,
-    /// The drag length that moves a timecode field's value one frame: [`values::TIMELINE_SCRUB_STEP`].
+    /// The drag length that moves a timecode field's value one frame: `values::TIMELINE_SCRUB_STEP`.
     pub scrub_step: f32,
-    /// A marker flag's height at most (EffectCraft `markers_ui.rs:287`): [`values::TIMELINE_MARKER_HEIGHT`].
+    /// A marker flag's height at most (EffectCraft `markers_ui.rs:287`): `values::TIMELINE_MARKER_HEIGHT`.
     pub marker_height: f32,
-    /// A marker's hit width (`markers_ui.rs:310`): [`values::TIMELINE_MARKER_HIT`].
+    /// A marker's hit width (`markers_ui.rs:310`): `values::TIMELINE_MARKER_HIT`.
     pub marker_hit: f32,
-    /// The room either side of a marker's name inside its box (`markers_ui.rs:304`): [`values::TIMELINE_MARKER_NAME_PAD`].
+    /// The room either side of a marker's name inside its box (`markers_ui.rs:304`): `values::TIMELINE_MARKER_NAME_PAD`.
     pub marker_name_pad: f32,
-    /// The room between a marker's flag and its name box (`markers_ui.rs:381`, `:389`): [`values::TIMELINE_MARKER_NAME_GAP`].
+    /// The room between a marker's flag and its name box (`markers_ui.rs:381`, `:389`): `values::TIMELINE_MARKER_NAME_GAP`.
     pub marker_name_gap: f32,
-    /// The room between a range marker's end and a name box after it (`markers_ui.rs:383`): [`values::TIMELINE_MARKER_END_GAP`].
+    /// The room between a range marker's end and a name box after it (`markers_ui.rs:383`): `values::TIMELINE_MARKER_END_GAP`.
     pub marker_end_gap: f32,
-    /// A graph key's square (EffectCraft `graph.rs:543`): [`values::TIMELINE_GRAPH_KEY`].
+    /// A graph key's square (EffectCraft `graph.rs:543`): `values::TIMELINE_GRAPH_KEY`.
     pub graph_key: f32,
-    /// A graph key's hit square (`graph.rs:545`): [`values::TIMELINE_GRAPH_KEY_HIT`].
+    /// A graph key's hit square (`graph.rs:545`): `values::TIMELINE_GRAPH_KEY_HIT`.
     pub graph_key_hit: f32,
-    /// A graph handle's dot radius (`graph.rs:488`): [`values::TIMELINE_GRAPH_HANDLE`].
+    /// A graph handle's dot radius (`graph.rs:488`): `values::TIMELINE_GRAPH_HANDLE`.
     pub graph_handle: f32,
-    /// A graph handle's hit square (`graph.rs:490`): [`values::TIMELINE_GRAPH_HANDLE_HIT`].
+    /// A graph handle's hit square (`graph.rs:490`): `values::TIMELINE_GRAPH_HANDLE_HIT`.
     pub graph_handle_hit: f32,
-    /// The room over the graph's plot (`graph.rs:412`): [`values::TIMELINE_GRAPH_TOP_INSET`].
+    /// The room over the graph's plot (`graph.rs:412`): `values::TIMELINE_GRAPH_TOP_INSET`.
     pub graph_top_inset: f32,
-    /// The room between the plot's edge and its value labels (`graph.rs:441`): [`values::TIMELINE_GRAPH_LABEL_INSET`].
+    /// The room between the plot's edge and its value labels (`graph.rs:441`): `values::TIMELINE_GRAPH_LABEL_INSET`.
     pub graph_label_inset: f32,
-    /// How far past the plot a key still counts as shown (`graph.rs:479`): [`values::TIMELINE_GRAPH_REACH`].
+    /// How far past the plot a key still counts as shown (`graph.rs:479`): `values::TIMELINE_GRAPH_REACH`.
     pub graph_reach: f32,
-    /// The graph's bottom bar (`graph.rs:411`): [`values::TIMELINE_GRAPH_BAR_HEIGHT`].
+    /// The graph's bottom bar (`graph.rs:411`): `values::TIMELINE_GRAPH_BAR_HEIGHT`.
     pub graph_bar_height: f32,
-    /// The room either side of the overview's runs (SoundCraft `universe.rs:61`): [`values::TIMELINE_OVERVIEW_INSET_X`].
+    /// The room either side of the overview's runs (SoundCraft `universe.rs:61`): `values::TIMELINE_OVERVIEW_INSET_X`.
     pub overview_inset_x: f32,
-    /// The room over and under the overview's runs (`universe.rs:61`): [`values::TIMELINE_OVERVIEW_INSET_Y`].
+    /// The room over and under the overview's runs (`universe.rs:61`): `values::TIMELINE_OVERVIEW_INSET_Y`.
     pub overview_inset_y: f32,
-    /// How far the overview's view box reaches past the runs (`universe.rs:81`): [`values::TIMELINE_OVERVIEW_BOX_OUTSET`].
+    /// How far the overview's view box reaches past the runs (`universe.rs:81`): `values::TIMELINE_OVERVIEW_BOX_OUTSET`.
     pub overview_box_outset: f32,
-    /// The least width the overview takes the time area to have (`universe.rs:80`): [`values::TIMELINE_OVERVIEW_VIEW_MIN`].
+    /// The least width the overview takes the time area to have (`universe.rs:80`): `values::TIMELINE_OVERVIEW_VIEW_MIN`.
     pub overview_view_min: f32,
-    /// The ruler's marker band at its top: [`values::TIMELINE_RULER_MARKER_BAND`].
+    /// The ruler's marker band at its top: `values::TIMELINE_RULER_MARKER_BAND`.
     pub ruler_marker_band: f32,
-    /// The work-area bar's height under the marker band: [`values::TIMELINE_RULER_WORK_HEIGHT`].
+    /// The work-area bar's height under the marker band: `values::TIMELINE_RULER_WORK_HEIGHT`.
     pub ruler_work_height: f32,
-    /// How far below the ruler's top the time labels' centre line is: [`values::TIMELINE_RULER_LABEL_Y`].
+    /// How far below the ruler's top the time labels' centre line is: `values::TIMELINE_RULER_LABEL_Y`.
     pub ruler_label_y: f32,
-    /// How far above the ruler's bottom the ticks start: [`values::TIMELINE_RULER_TICK_INSET`].
+    /// How far above the ruler's bottom the ticks start: `values::TIMELINE_RULER_TICK_INSET`.
     pub ruler_tick_inset: f32,
-    /// A labelled tick's length: [`values::TIMELINE_RULER_MAJOR_TICK`].
+    /// A labelled tick's length: `values::TIMELINE_RULER_MAJOR_TICK`.
     pub ruler_major_tick: f32,
-    /// An unlabelled tick's length: [`values::TIMELINE_RULER_MINOR_TICK`].
+    /// An unlabelled tick's length: `values::TIMELINE_RULER_MINOR_TICK`.
     pub ruler_minor_tick: f32,
-    /// The render and cache bar's height at the ruler's bottom: [`values::TIMELINE_RULER_RENDER_BAR`].
+    /// The render and cache bar's height at the ruler's bottom: `values::TIMELINE_RULER_RENDER_BAR`.
     pub ruler_render_bar: f32,
-    /// Half the playhead head's width: [`values::TIMELINE_RULER_HEAD_HALF_WIDTH`].
+    /// Half the playhead head's width: `values::TIMELINE_RULER_HEAD_HALF_WIDTH`.
     pub ruler_head_half_width: f32,
-    /// The playhead head's height: [`values::TIMELINE_RULER_HEAD_HEIGHT`].
+    /// The playhead head's height: `values::TIMELINE_RULER_HEAD_HEIGHT`.
     pub ruler_head_height: f32,
-    /// A work-area end cap's width: [`values::TIMELINE_RULER_CAP_WIDTH`].
+    /// A work-area end cap's width: `values::TIMELINE_RULER_CAP_WIDTH`.
     pub ruler_cap_width: f32,
-    /// The radius of the knobs at the scroll thumb's ends: [`values::TIMELINE_SCROLL_KNOB_RADIUS`].
+    /// The radius of the knobs at the scroll thumb's ends: `values::TIMELINE_SCROLL_KNOB_RADIUS`.
     pub scroll_knob_radius: f32,
-    /// How near a scroll thumb's end a press must be to resize the view: [`values::TIMELINE_SCROLL_END_ZONE`].
+    /// How near a scroll thumb's end a press must be to resize the view: `values::TIMELINE_SCROLL_END_ZONE`.
     pub scroll_end_zone: f32,
-    /// The least the track headers' width can be dragged to: [`values::TIMELINE_HEADER_WIDTH_MIN`].
+    /// The least the track headers' width can be dragged to: `values::TIMELINE_HEADER_WIDTH_MIN`.
     pub header_width_min: f32,
-    /// The most the track headers' width can be dragged to: [`values::TIMELINE_HEADER_WIDTH_MAX`].
+    /// The most the track headers' width can be dragged to: `values::TIMELINE_HEADER_WIDTH_MAX`.
     pub header_width_max: f32,
-    /// A caption row's height when the app gives none: [`values::TIMELINE_CAPTION_ROW_HEIGHT`].
+    /// A caption row's height when the app gives none: `values::TIMELINE_CAPTION_ROW_HEIGHT`.
     pub caption_row_height: f32,
-    /// How far each level of a track's depth indents its header: [`values::TIMELINE_HEADER_INDENT`].
+    /// How far each level of a track's depth indents its header: `values::TIMELINE_HEADER_INDENT`.
     pub header_indent: f32,
 }
 

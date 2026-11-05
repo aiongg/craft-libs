@@ -1,4 +1,4 @@
-//! [`paint_mesh`]: the one painter of a deformed mesh's lines (task TR-T12).
+//! [`paint_mesh`]: the one painter of a deformed mesh's lines.
 
 use egui::{Painter, Pos2, Shape};
 

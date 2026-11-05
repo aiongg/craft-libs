@@ -1,4 +1,4 @@
-//! [`WideAnglePanel`]: Adaptive Wide Angle's settings column (task WS-WA1).
+//! [`WideAnglePanel`]: Adaptive Wide Angle's settings column.
 
 use egui::accesskit::Role;
 use egui::{AsIdSalt, IdSalt, Modifiers, Response, Ui, WidgetInfo};
@@ -18,6 +18,7 @@ use super::session::{ConstraintOrientation, WideAngleConstraintEdit, WideAngleMo
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct WideAnglePanelOutput {
+    /// The panel's response.
     pub response: Response,
     /// The latest edit of the correction values (the lens model and the sliders) this pass, with
     /// the session after it, already written to the session. A slider's gesture reports `Begin`,
@@ -56,6 +57,7 @@ pub struct WideAnglePanel<'a> {
 }
 
 impl<'a> WideAnglePanel<'a> {
+    /// Starts the panel over `session` and the Preview check `preview`, both edited in place; `id_salt` keeps its state apart from other panels.
     pub fn new(id_salt: impl AsIdSalt, session: &'a mut WideAngleSession, preview: &'a mut bool) -> Self {
         Self { id_salt: IdSalt::new(id_salt), session, preview, labels: None }
     }
@@ -66,6 +68,7 @@ impl<'a> WideAnglePanel<'a> {
         self
     }
 
+    /// Draws the panel and returns its response and any session edit.
     pub fn show(self, ui: &mut Ui) -> WideAnglePanelOutput {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:363-437 (Correction, the sliders, the
         // constraint rows, Preview, the hint).

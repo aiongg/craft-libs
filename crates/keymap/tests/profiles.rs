@@ -1,3 +1,5 @@
+//! Integration tests of craft-keymap: profiles.
+
 use craft_keymap::{
     Bindable, Binding, CommandRef, ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Keymap, MAX_SETS, Overrides, Platform,
     Policy, ProfileError, Profiles, Scope, Scopes, SetProblem, Start, plan,

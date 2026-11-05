@@ -20,8 +20,11 @@ pub const MAX_PNG_BYTES: usize = 5 << 20;
 /// One parsed request line.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Request {
+    /// The caller's id, echoed in the reply; `null` when absent.
     pub id: Value,
+    /// The method name.
     pub method: String,
+    /// The method parameters; `{}` when absent.
     pub params: Value,
 }
 

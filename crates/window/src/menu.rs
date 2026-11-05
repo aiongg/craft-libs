@@ -19,10 +19,12 @@ pub struct Document<K> {
 /// One window in the Window menu (macOS) or the View › Switch Windows list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MenuEntry {
+    /// The window.
     pub id: WindowId,
     /// The document's name, or "Name:1", "Name:2", … when several windows show the document.
     /// Also the window's title.
     pub title: String,
+    /// The window has unsaved changes.
     pub dirty: bool,
     /// The active (most recently focused) window: the one to check-mark.
     pub active: bool,
@@ -64,10 +66,12 @@ impl WindowMenu {
         Self { entries }
     }
 
+    /// The windows, in the order the menu lists them.
     pub fn entries(&self) -> &[MenuEntry] {
         &self.entries
     }
 
+    /// The entry of window `id`, if it is listed.
     pub fn get(&self, id: WindowId) -> Option<&MenuEntry> {
         self.entries.iter().find(|e| e.id == id)
     }

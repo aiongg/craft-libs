@@ -27,10 +27,13 @@ open_enum!(
 /// Optional abilities beyond the basic request and result.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Features {
+    /// The model can stream text deltas as it generates.
     #[serde(default)]
     pub streaming: bool,
+    /// The model can call tools.
     #[serde(default)]
     pub tools: bool,
+    /// The model can return JSON that follows a schema.
     #[serde(default)]
     pub structured_output: bool,
 }
@@ -38,6 +41,7 @@ pub struct Features {
 /// What one model can do for one capability.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapabilitySpec {
+    /// The capability this spec describes.
     pub capability: CapabilityId,
     /// Inputs the model accepts, with the most of each. An input role not listed is unsupported.
     pub accepts: BTreeMap<InputRole, u32>,
@@ -47,6 +51,7 @@ pub struct CapabilitySpec {
     /// Most outputs one request can return (variations count here).
     #[serde(default = "one")]
     pub max_outputs: u32,
+    /// Optional abilities the model has for this capability.
     #[serde(default)]
     pub features: Features,
 }
@@ -56,16 +61,19 @@ fn one() -> u32 {
 }
 
 impl CapabilitySpec {
-    /// A spec that accepts the given inputs (one of each) and requires none.
+    /// A spec for `capability` that accepts no inputs, requires none and returns one output; add
+    /// inputs with [`accepting`](Self::accepting).
     pub fn new(capability: CapabilityId) -> Self {
         Self { capability, accepts: BTreeMap::new(), requires: Vec::new(), max_outputs: 1, features: Features::default() }
     }
 
+    /// Accepts up to `max` inputs of `role`.
     pub fn accepting(mut self, role: InputRole, max: u32) -> Self {
         self.accepts.insert(role, max);
         self
     }
 
+    /// Requires an input of `role`. Adding the same role twice has no effect.
     pub fn requiring(mut self, role: InputRole) -> Self {
         if !self.requires.contains(&role) {
             self.requires.push(role);
@@ -73,11 +81,13 @@ impl CapabilitySpec {
         self
     }
 
+    /// Sets the most outputs one request can return.
     pub fn max_outputs(mut self, n: u32) -> Self {
         self.max_outputs = n;
         self
     }
 
+    /// Sets the optional abilities.
     pub fn with_features(mut self, features: Features) -> Self {
         self.features = features;
         self
@@ -102,8 +112,11 @@ pub struct Pricing {
 /// One model as offered by one connection.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelInfo {
+    #[allow(missing_docs)]
     pub id: ModelId,
+    /// Name shown to the user.
     pub label: String,
+    /// What the model can do, one spec per capability.
     #[serde(default)]
     pub capabilities: Vec<CapabilitySpec>,
     /// Reported by the provider where it can be (OpenRouter does). Absent in stores written before
@@ -123,15 +136,18 @@ pub struct ModelInfo {
 }
 
 impl ModelInfo {
+    /// Builds a model with no capabilities. Add them with [`ModelInfo::with`].
     pub fn new(id: ModelId, label: impl Into<String>) -> Self {
         Self { id, label: label.into(), capabilities: Vec::new(), pricing: None, released: None, tags: Vec::new(), local_file: None }
     }
 
+    /// Adds a capability spec.
     pub fn with(mut self, spec: CapabilitySpec) -> Self {
         self.capabilities.push(spec);
         self
     }
 
+    /// The spec for `capability`, if the model supports it.
     pub fn spec_for(&self, capability: &CapabilityId) -> Option<&CapabilitySpec> {
         self.capabilities.iter().find(|s| &s.capability == capability)
     }

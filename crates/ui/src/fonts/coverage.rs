@@ -13,15 +13,20 @@ pub struct Sample<'a> {
     pub language: &'a str,
     /// The message key, or a name for a content sample.
     pub key: &'a str,
+    /// The text to check.
     pub text: &'a str,
 }
 
 /// A character the stack can't draw.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Missing {
+    /// Language tag of the string.
     pub language: String,
+    /// Message key, or the name of a content sample.
     pub key: String,
+    /// The string that holds the uncovered character.
     pub text: String,
+    /// A character of `text` that no face of the family has.
     pub character: char,
 }
 

@@ -1,4 +1,4 @@
-//! Tests of the perspective bar (task TR-T13).
+//! Tests of the perspective bar.
 
 use egui::Modifiers;
 use egui::accesskit::Role;

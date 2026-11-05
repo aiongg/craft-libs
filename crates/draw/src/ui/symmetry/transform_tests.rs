@@ -1,4 +1,4 @@
-//! Tests of Transform Symmetry on the canvas tool host (task TO-S2).
+//! Tests of Transform Symmetry on the canvas tool host.
 
 use egui::{CursorIcon, Event, Key, Modifiers, PointerButton, Pos2, Sense, pos2, vec2};
 use egui_kittest::Harness;

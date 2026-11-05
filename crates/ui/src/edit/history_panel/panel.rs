@@ -79,7 +79,12 @@ pub enum HistoryEvent {
     /// The source column was clicked on a row that is not the source.
     SetSource(HistorySource),
     /// A snapshot was renamed in place; `name` is trimmed and not blank.
-    RenameSnapshot { id: SnapshotId, text: String },
+    RenameSnapshot {
+        /// The snapshot renamed.
+        id: SnapshotId,
+        /// The new name.
+        text: String,
+    },
     /// Delete this state: the trash with no snapshot selected, a drop of a state on the trash, or
     /// the menu's Delete.
     DeleteStep(StepId),
@@ -88,7 +93,10 @@ pub enum HistoryEvent {
     DeleteSnapshot(SnapshotId),
     /// Take a snapshot: the camera button (`dialog: false`, at once), Alt with it or the menu's
     /// New Snapshot… (`dialog: true`, the app opens `new_snapshot_form`).
-    NewSnapshot { dialog: bool },
+    NewSnapshot {
+        /// Whether the app opens the new-snapshot dialog instead of taking the snapshot at once.
+        dialog: bool,
+    },
     /// A new document from this state (the New Document button or menu row: the current state).
     NewDocument(StepId),
     /// The menu's Step Forward.

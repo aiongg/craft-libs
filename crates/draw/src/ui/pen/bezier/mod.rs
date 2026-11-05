@@ -87,18 +87,27 @@ pub enum HandlesShown {
 pub enum BezierHit {
     /// A shown direction handle's end.
     Handle {
+        /// The path's id.
         path: u64,
+        /// The anchor the handle belongs to.
         knot: KnotRef,
+        /// Which of the anchor's two handles.
         side: HandleSide,
     },
+    /// An anchor.
     Anchor {
+        /// The path's id.
         path: u64,
+        /// The anchor.
         knot: KnotRef,
     },
     /// The segment leaving `segment`, at its parameter `t`.
     Segment {
+        /// The path's id.
         path: u64,
+        /// The anchor the segment leaves.
         segment: KnotRef,
+        /// Position along the segment, 0..=1.
         t: f64,
     },
 }
@@ -154,6 +163,8 @@ impl Labels for BezierNames<'static> {
 }
 
 impl<'a> BezierNames<'a> {
+    /// Names from the group, handle and marquee texts and `anchor(i, n)`, the name of anchor `i`
+    /// of `n`.
     pub fn new(
         group: impl Into<String>,
         in_handle: impl Into<String>,
@@ -500,6 +511,7 @@ impl<'a> BezierOverlay<'a> {
         self
     }
 
+    /// How this control reports its gestures to the host.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
@@ -526,6 +538,7 @@ impl<'a> BezierOverlay<'a> {
         self
     }
 
+    /// The path overlay's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> BezierStyle {
         let b = &tokens.component.bezier;
         let sized = |style: HandleStyle, size| adjusted(style, |h| (h.size, h.hit) = (size, 2.0 * b.hit));

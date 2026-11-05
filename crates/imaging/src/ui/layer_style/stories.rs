@@ -1,4 +1,4 @@
-//! Stories of the Layer Style dialog (task ST-AD2): not registered. Registering them (task RG2)
+//! Stories of the Layer Style dialog: not registered. Registering them
 //! adds `layer_style::stories` to the crate's `register!` list, [`COMPONENTS`] to the registry and
 //! [`LayerStyleStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!

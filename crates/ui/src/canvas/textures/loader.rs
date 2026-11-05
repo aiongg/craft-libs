@@ -18,6 +18,7 @@ use super::cache::{Revision, TextureCache, TextureCacheOptions, TextureKey, Text
 /// A loader's settings, read when it is created ([`TextureLoader::in_context`]).
 #[derive(Clone)]
 pub struct LoaderOptions {
+    /// Settings of the loader's cache.
     pub cache: TextureCacheOptions,
     /// Jobs running at once; 0 runs one job per pass on the UI thread (wasm32).
     /// Default: [`QueueOptions::default_lanes`](craft_host::queue::QueueOptions::default_lanes).

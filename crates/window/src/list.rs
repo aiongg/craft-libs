@@ -63,6 +63,7 @@ impl<T> Default for WindowList<T> {
 }
 
 impl<T> WindowList<T> {
+    /// An empty list.
     pub fn new() -> Self {
         Self::default()
     }
@@ -123,14 +124,17 @@ impl<T> WindowList<T> {
         self.entries.iter_mut().map(|e| (e.id, &mut e.data))
     }
 
+    /// The data of window `id`, if it is open.
     pub fn get(&self, id: WindowId) -> Option<&T> {
         self.entries.iter().find(|e| e.id == id).map(|e| &e.data)
     }
 
+    /// The data of window `id`, if it is open, for changing.
     pub fn get_mut(&mut self, id: WindowId) -> Option<&mut T> {
         self.entries.iter_mut().find(|e| e.id == id).map(|e| &mut e.data)
     }
 
+    /// Whether window `id` is open.
     pub fn contains(&self, id: WindowId) -> bool {
         self.entries.iter().any(|e| e.id == id)
     }
@@ -141,10 +145,12 @@ impl<T> WindowList<T> {
         self.recent.iter().copied().find(|&id| self.get(id).is_some_and(&mut matches))
     }
 
+    /// The number of open windows.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// Whether no window is open.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

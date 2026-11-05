@@ -1,7 +1,8 @@
-//! Dialogs: the frame every dialog shares. Sizes only (no colours): the look comes from the popup
-//! family and no theme overrides these.
+//! Dialogs: the frame every dialog shares. Sizes, and the fill of a preview pane's well: the rest
+//! of the look comes from the popup family.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
+use crate::color::Rgba;
 use crate::tokens::TypeRole;
 use crate::values;
 
@@ -64,15 +65,29 @@ pub struct DialogTokens {
     pub anchor_inset: f32,
     /// Corner radius of the mark in the chosen anchor cell: `dialog.anchor_mark_radius`.
     pub anchor_mark_radius: f32,
+    /// The well of a preview pane, which shows where the image does not reach: `dialog.preview.fill`,
+    /// `surface.canvas`.
+    pub preview_fill: Rgba,
 }
 
-/// Dialogs have no overridable field: their sizes come from the code, as every size does.
+impl DialogTokens {
+    fn color_mut(&mut self, f: DialogField) -> &mut Rgba {
+        match f {
+            DialogField::PreviewFill => &mut self.preview_fill,
+        }
+    }
+}
+
+/// An overridable dialog field. Path: `preview.fill`, as `dialog.preview.fill`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum DialogField {}
+pub enum DialogField {
+    /// `dialog.preview.fill`
+    PreviewFill,
+}
 
 impl Family for DialogTokens {
     type Field = DialogField;
-    const FIELDS: &'static [DialogField] = &[];
+    const FIELDS: &'static [DialogField] = &[DialogField::PreviewFill];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { DialogTokens;
         "pad" 0.0..=64.0 => pad;
         "pad_roomy" 0.0..=32.0 => pad_roomy;
@@ -141,29 +156,36 @@ impl Family for DialogTokens {
             anchor_cell: values::DIALOG_ANCHOR_CELL,
             anchor_inset: values::DIALOG_ANCHOR_INSET,
             anchor_mark_radius: values::DIALOG_ANCHOR_MARK_RADIUS,
+            preview_fill: s.color.surface.canvas,
         }
     }
 
     fn path(f: DialogField) -> String {
-        match f {}
+        match f {
+            DialogField::PreviewFill => "preview.fill".to_owned(),
+        }
     }
 
-    fn from_path(_: &str) -> Option<DialogField> {
-        None
+    fn from_path(path: &str) -> Option<DialogField> {
+        Self::FIELDS.iter().copied().find(|f| Self::path(*f) == path)
     }
 
-    fn kind(f: DialogField) -> FieldKind {
-        match f {}
+    fn kind(_: DialogField) -> FieldKind {
+        FieldKind::Color
     }
 
     fn get(&self, f: DialogField) -> OverrideValue {
-        match f {}
+        let mut copy = *self;
+        OverrideValue::Color(*copy.color_mut(f))
     }
 
-    fn set(&mut self, f: DialogField, _: OverrideValue) {
-        match f {}
+    fn set(&mut self, f: DialogField, v: OverrideValue) {
+        if let OverrideValue::Color(c) = v {
+            *self.color_mut(f) = c;
+        }
     }
 
+    // No contrast pairs: the well sits behind an image.
     fn pairs() -> Vec<ContrastPair> {
         Vec::new()
     }

@@ -36,11 +36,13 @@ impl CapabilityId {
         Ok(Self(s.to_owned()))
     }
 
+    /// Builds an id from a modality and a task token. Fails when `task` is not a valid token.
     pub fn new(modality: &Modality, task: &str) -> Result<Self, IdError> {
         validate_token(task)?;
         Ok(Self(format!("{}.{}", modality.as_str(), task)))
     }
 
+    /// The full `modality.task` text.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -51,6 +53,7 @@ impl CapabilityId {
         Modality::parse(head).unwrap_or_else(|_| Modality::Other(head.to_owned()))
     }
 
+    /// The task half, for example `inpaint` in `image.inpaint`.
     pub fn task(&self) -> &str {
         self.0.split_once('.').map_or("", |(_, t)| t)
     }

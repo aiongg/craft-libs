@@ -1,4 +1,4 @@
-//! [`ContourField`]: an effect's Contour row and its preset picker (task AD-10), and
+//! [`ContourField`]: an effect's Contour row and its preset picker, and
 //! [`ContourEditorDialog`], the Contour Editor on the host's dialog stack.
 
 use std::sync::Arc;
@@ -142,6 +142,7 @@ impl<'a> ContourField<'a> {
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

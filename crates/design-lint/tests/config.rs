@@ -1,3 +1,5 @@
+//! Integration tests of craft-design-lint: config.
+
 #![allow(clippy::unwrap_used, reason = "tests")]
 
 use std::path::Path;

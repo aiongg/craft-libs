@@ -14,8 +14,8 @@ use crate::matroska::meta::{
     Attachment, ClusterInfo, CuePoint, Edition, SeekEntry, SegmentInfo, Tag, parse_chapters, parse_cues, parse_info, parse_seekhead, parse_tags,
     parse_tracks,
 };
-use crate::matroska::source::{ByteSource, ReadSeekSource};
 use crate::matroska::track::{Sample, Track, TrackKind, gcd};
+use crate::source::{ByteSource, ReadSeekSource};
 
 const WIN: usize = 64 * 1024;
 /// Upper bound for level-1 metadata elements read into memory (Info, Tracks, Cues, Tags…).
@@ -83,7 +83,9 @@ impl Default for OpenOptions {
 pub struct MkvFile {
     /// EBML `DocType`: `matroska` or `webm`.
     pub doc_type: String,
+    /// EBML `DocTypeVersion`.
     pub doc_type_version: u64,
+    /// EBML `DocTypeReadVersion`: the lowest reader version that can parse the file.
     pub doc_type_read_version: u64,
     /// Absolute offset of the Segment's data (base for SeekHead and Cues positions).
     pub segment_data_start: u64,
@@ -91,15 +93,21 @@ pub struct MkvFile {
     pub segment_end: u64,
     /// Segment size field was "unknown" (live / streamed output).
     pub live: bool,
+    /// Segment `Info` element.
     pub info: SegmentInfo,
+    /// Parsed `Tracks` entries, in file order.
     pub tracks: Vec<Track>,
+    /// `SeekHead` entries.
     pub seek_head: Vec<SeekEntry>,
     /// Cue points, sorted by time.
     pub cues: Vec<CuePoint>,
     /// Clusters in file order (complete only when [`MkvFile::indexed`]).
     pub clusters: Vec<ClusterInfo>,
+    /// Chapter editions from `Chapters`.
     pub chapters: Vec<Edition>,
+    /// `Tags` elements.
     pub tags: Vec<Tag>,
+    /// Attached files from `Attachments`.
     pub attachments: Vec<Attachment>,
     /// Absolute offset of the first Cluster.
     pub first_cluster: Option<u64>,
@@ -128,8 +136,11 @@ pub struct Packet {
     pub duration: u64,
     /// Duration in nanoseconds (0 if unknown).
     pub duration_ns: u64,
+    #[allow(missing_docs)]
     pub keyframe: bool,
+    #[allow(missing_docs)]
     pub discardable: bool,
+    #[allow(missing_docs)]
     pub invisible: bool,
     /// `DiscardPadding` (ns) from the enclosing BlockGroup.
     pub discard_padding_ns: Option<i64>,
@@ -147,22 +158,30 @@ pub struct Packet {
 /// Result of [`Demuxer::seek`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SeekPoint {
+    /// Index into [`MkvFile::tracks`].
     pub track: usize,
     /// Keyframe timestamp in ticks and ns.
     pub pts: i64,
+    /// Keyframe timestamp in nanoseconds.
     pub pts_ns: i64,
     /// Sample index of the keyframe when the file is indexed.
     pub sample: Option<usize>,
+    /// Absolute offset of the Cluster holding the keyframe.
     pub cluster_offset: u64,
+    /// Absolute offset of the Block holding the keyframe.
     pub block_offset: u64,
 }
 
 /// A keyframe index entry ([`Demuxer::keyframe_index`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Keyframe {
+    /// Index into the track's sample table.
     pub sample: usize,
+    /// Keyframe timestamp in ticks of the track timebase.
     pub pts: i64,
+    /// Keyframe timestamp in nanoseconds.
     pub pts_ns: i64,
+    /// Absolute offset of the Block holding the keyframe.
     pub block_offset: u64,
 }
 
@@ -1023,6 +1042,7 @@ impl<S: ByteSource> Demuxer<S> {
         Self::with_options(src, OpenOptions::default())
     }
 
+    /// Open with explicit [`OpenOptions`].
     pub fn with_options(src: S, opts: OpenOptions) -> Result<Self> {
         let mut cache = Cache::default();
         let file = open_impl(&src, &opts, &mut cache)?;
@@ -1031,15 +1051,19 @@ impl<S: ByteSource> Demuxer<S> {
         Ok(Self { src, file, opts, cache, lookup, pos, cluster: None, pending: VecDeque::new(), skip_laces: None, done: false })
     }
 
+    /// The parsed file structure.
     pub fn file(&self) -> &MkvFile {
         &self.file
     }
+    /// The parsed tracks, in file order.
     pub fn tracks(&self) -> &[Track] {
         &self.file.tracks
     }
+    /// The underlying byte source.
     pub fn source(&self) -> &S {
         &self.src
     }
+    /// Release the byte source and the parsed file structure.
     pub fn into_parts(self) -> (S, MkvFile) {
         (self.src, self.file)
     }

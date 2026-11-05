@@ -56,6 +56,7 @@ pub fn assert_labelled<State>(harness: &Harness<'_, State>) {
 /// One stop of the Tab order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TabStop {
+    /// The node's accessibility role.
     pub role: Role,
     /// The accessible label, empty when the node has none.
     pub label: String,
@@ -87,6 +88,7 @@ pub fn tab_order<State>(harness: &mut Harness<'_, State>) -> Vec<TabStop> {
 pub struct Ring {
     /// The outer edge of the stroke.
     pub rect: Rect,
+    #[allow(missing_docs)]
     pub stroke: Stroke,
 }
 

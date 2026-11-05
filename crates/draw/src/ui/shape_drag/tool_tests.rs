@@ -1,4 +1,4 @@
-//! Tests of the Shape tools on the tool host (task SH-T3).
+//! Tests of the Shape tools on the tool host.
 
 use egui::accesskit::Role;
 use egui::{Key, Modifiers, Sense, vec2};

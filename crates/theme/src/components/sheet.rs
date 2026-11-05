@@ -11,72 +11,72 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SheetTokens {
-    /// The column headers' height: [`values::SHEET_COLUMN_HEADER_HEIGHT`].
+    /// The column headers' height: `values::SHEET_COLUMN_HEADER_HEIGHT`.
     pub column_header_height: f32,
-    /// The row headers' width per digit of the last visible row: [`values::SHEET_ROW_HEADER_DIGIT`].
+    /// The row headers' width per digit of the last visible row: `values::SHEET_ROW_HEADER_DIGIT`.
     pub row_header_digit: f32,
-    /// The room around the row header's digits: [`values::SHEET_ROW_HEADER_PADDING`].
+    /// The room around the row header's digits: `values::SHEET_ROW_HEADER_PADDING`.
     pub row_header_padding: f32,
-    /// One outline lane: [`values::SHEET_OUTLINE_LANE`].
+    /// One outline lane: `values::SHEET_OUTLINE_LANE`.
     pub outline_lane: f32,
-    /// What an outline button's side is short of the lane: [`values::SHEET_OUTLINE_BUTTON_MARGIN`].
+    /// What an outline button's side is short of the lane: `values::SHEET_OUTLINE_BUTTON_MARGIN`.
     pub outline_button_margin: f32,
-    /// An outline button's least side: [`values::SHEET_OUTLINE_BUTTON_MIN`].
+    /// An outline button's least side: `values::SHEET_OUTLINE_BUTTON_MIN`.
     pub outline_button_min: f32,
-    /// The first outline lane's inset from the band's edge: [`values::SHEET_OUTLINE_INSET`].
+    /// The first outline lane's inset from the band's edge: `values::SHEET_OUTLINE_INSET`.
     pub outline_inset: f32,
-    /// How far an outline button's hit area reaches past its square: [`values::SHEET_OUTLINE_HIT`].
+    /// How far an outline button's hit area reaches past its square: `values::SHEET_OUTLINE_HIT`.
     pub outline_hit: f32,
-    /// An outline button's corner radius: [`values::SHEET_OUTLINE_RADIUS`].
+    /// An outline button's corner radius: `values::SHEET_OUTLINE_RADIUS`.
     pub outline_radius: f32,
-    /// A slicer's header: [`values::SHEET_SLICER_HEADER`].
+    /// A slicer's header: `values::SHEET_SLICER_HEADER`.
     pub slicer_header: f32,
-    /// A slicer's value tile: [`values::SHEET_SLICER_TILE`].
+    /// A slicer's value tile: `values::SHEET_SLICER_TILE`.
     pub slicer_tile: f32,
-    /// The gap between slicer tiles: [`values::SHEET_SLICER_GAP`].
+    /// The gap between slicer tiles: `values::SHEET_SLICER_GAP`.
     pub slicer_gap: f32,
-    /// The padding round a slicer's tiles: [`values::SHEET_SLICER_PADDING`].
+    /// The padding round a slicer's tiles: `values::SHEET_SLICER_PADDING`.
     pub slicer_padding: f32,
-    /// A slicer's clear button: [`values::SHEET_SLICER_CLEAR`].
+    /// A slicer's clear button: `values::SHEET_SLICER_CLEAR`.
     pub slicer_clear: f32,
-    /// The error checking tag's square: [`values::SHEET_ERROR_TAG`].
+    /// The error checking tag's square: `values::SHEET_ERROR_TAG`.
     pub error_tag: f32,
-    /// The filter button's least side: [`values::SHEET_FILTER_BUTTON_MIN`].
+    /// The filter button's least side: `values::SHEET_FILTER_BUTTON_MIN`.
     pub filter_button_min: f32,
-    /// The filter button's largest side: [`values::SHEET_FILTER_BUTTON_MAX`].
+    /// The filter button's largest side: `values::SHEET_FILTER_BUTTON_MAX`.
     pub filter_button_max: f32,
-    /// The filter button's inset from the header cell's corner: [`values::SHEET_FILTER_BUTTON_INSET`].
+    /// The filter button's inset from the header cell's corner: `values::SHEET_FILTER_BUTTON_INSET`.
     pub filter_button_inset: f32,
-    /// The gap between the error checking tag and its cell: [`values::SHEET_ERROR_TAG_GAP`].
+    /// The gap between the error checking tag and its cell: `values::SHEET_ERROR_TAG_GAP`.
     pub error_tag_gap: f32,
-    /// The error checking tag's corner radius: [`values::SHEET_ERROR_TAG_RADIUS`].
+    /// The error checking tag's corner radius: `values::SHEET_ERROR_TAG_RADIUS`.
     pub error_tag_radius: f32,
-    /// The warning diamond's half-diagonal in the error checking tag: [`values::SHEET_ERROR_TAG_MARK`].
+    /// The warning diamond's half-diagonal in the error checking tag: `values::SHEET_ERROR_TAG_MARK`.
     pub error_tag_mark: f32,
-    /// The filter button's corner radius: [`values::SHEET_FILTER_BUTTON_RADIUS`].
+    /// The filter button's corner radius: `values::SHEET_FILTER_BUTTON_RADIUS`.
     pub filter_button_radius: f32,
-    /// The filter button's inset round its glyph: [`values::SHEET_FILTER_BUTTON_GLYPH_INSET`].
+    /// The filter button's inset round its glyph: `values::SHEET_FILTER_BUTTON_GLYPH_INSET`.
     pub filter_button_glyph_inset: f32,
-    /// The gap between statistics in the status bar: [`values::SHEET_STATS_GAP`].
+    /// The gap between statistics in the status bar: `values::SHEET_STATS_GAP`.
     pub stats_gap: f32,
-    /// How far from a header's far edge a press still grabs it: [`values::SHEET_EDGE_GRAB`].
+    /// How far from a header's far edge a press still grabs it: `values::SHEET_EDGE_GRAB`.
     pub edge_grab: f32,
-    /// The fill handle's side: [`values::SHEET_FILL_HANDLE`].
+    /// The fill handle's side: `values::SHEET_FILL_HANDLE`.
     pub fill_handle: f32,
-    /// The accent bar on a selected header's inner edge: [`values::SHEET_HEADER_ACCENT_BAR`].
+    /// The accent bar on a selected header's inner edge: `values::SHEET_HEADER_ACCENT_BAR`.
     pub header_accent_bar: f32,
-    /// The distance of each line of the double divider from a hidden line's edge: [`values::SHEET_HIDDEN_MARK_OFFSET`].
+    /// The distance of each line of the double divider from a hidden line's edge: `values::SHEET_HIDDEN_MARK_OFFSET`.
     pub hidden_mark_offset: f32,
-    /// How far the headers' separators stop short of the header's start: [`values::SHEET_HEADER_SEPARATOR_INSET`].
+    /// How far the headers' separators stop short of the header's start: `values::SHEET_HEADER_SEPARATOR_INSET`.
     pub header_separator_inset: f32,
-    /// The status bar menu's least width: [`values::SHEET_STATUS_MENU_MIN_WIDTH`].
+    /// The status bar menu's least width: `values::SHEET_STATUS_MENU_MIN_WIDTH`.
     pub status_menu_min_width: f32,
-    /// The field list checklist's greatest height: [`values::SHEET_FIELD_LIST_CHECKLIST_MAX`].
+    /// The field list checklist's greatest height: `values::SHEET_FIELD_LIST_CHECKLIST_MAX`.
     pub field_list_checklist_max: f32,
-    /// A field list area's least height: [`values::SHEET_FIELD_LIST_AREA_MIN`].
+    /// A field list area's least height: `values::SHEET_FIELD_LIST_AREA_MIN`.
     pub field_list_area_min: f32,
     /// The selection's tint over the cells: `sheet.selection_fill`, `accent.solid` at
-    /// [`values::SHEET_SELECTION_FILL_ALPHA`].
+    /// `values::SHEET_SELECTION_FILL_ALPHA`.
     pub selection_fill: Rgba,
     /// The fill handle's fill: `sheet.fill_handle_fill`, `accent.solid`, the selection's border.
     pub fill_handle_fill: Rgba,

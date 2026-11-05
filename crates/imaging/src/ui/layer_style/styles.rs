@@ -1,4 +1,4 @@
-//! The Styles page: the host's style presets in a [`PresetBrowser`] grid (task AD-8).
+//! The Styles page: the host's style presets in a [`PresetBrowser`] grid.
 
 use egui::{Painter, Rect, Ui};
 
@@ -16,7 +16,7 @@ pub type StyleThumb<'a> = Box<dyn FnMut(&Painter, Rect, ThumbInfo<'_, String>) +
 /// The host's style presets for the Styles page: the preset browser's state and rows (groups
 /// and presets keyed by the preset's name, as PhotoCraft keys them) and the thumbnail painter.
 /// The page uses the library [`PresetBrowser`](craft_ui::presets::PresetBrowser) in grid view
-/// at `layer_style.preset_thumb` (lead call L28).
+/// at `layer_style.preset_thumb`.
 pub struct StylePresets<'a> {
     pub(super) state: &'a mut PresetState<String>,
     pub(super) rows: &'a [PresetRow<String>],
@@ -24,6 +24,7 @@ pub struct StylePresets<'a> {
 }
 
 impl<'a> StylePresets<'a> {
+    /// Builds the presets from the browser `state`, its `rows` and `thumb`, which paints one preset's thumbnail.
     pub fn new(
         state: &'a mut PresetState<String>,
         rows: &'a [PresetRow<String>],

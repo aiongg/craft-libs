@@ -1,4 +1,4 @@
-//! Tests of Content-Aware Fill's panels and workspace (task WS-CA2).
+//! Tests of Content-Aware Fill's panels and workspace.
 
 use egui::os::OperatingSystem;
 use egui::{Color32, ColorImage, Event, Key, Modifiers, PointerButton, Shape, TextureId, pos2, vec2};

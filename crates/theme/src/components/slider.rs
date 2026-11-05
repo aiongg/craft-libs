@@ -1,5 +1,5 @@
 //! Sliders: a flat track in the control edge colour, the part from the start to the value filled
-//! in the accent colour, and a knob on the value. The thumb takes its edge from the `Surface`
+//! in the muted text colour, and a knob on the value. The thumb takes its edge from the `Surface`
 //! primitive (an outline, or a bevel in Classic) and its shadow from `elevation.knob`; this
 //! family holds the sizes, corners and colours.
 
@@ -22,34 +22,34 @@ fn stepped(sizes: BySize<f32>, md: f32) -> BySize<f32> {
 pub struct SliderTokens {
     /// Height of the control, the thumb's pointer target: the control height.
     pub height: BySize<f32>,
-    /// Default length: [`values::SLIDER_WIDTH`] control heights. A justified layout stretches it.
+    /// Default length: `values::SLIDER_WIDTH` control heights. A justified layout stretches it.
     pub width: BySize<f32>,
     /// Height of the thumb, and its diameter while round: the icon size less
-    /// [`values::SLIDER_THUMB_INSET`] (PhotoCraft's 12 at Compact).
+    /// `values::SLIDER_THUMB_INSET` (PhotoCraft's 12 at Compact).
     pub thumb: BySize<f32>,
     /// Width of the thumb: its height unless the theme sets another shape.
     pub thumb_width: BySize<f32>,
-    /// Width of a range slider's thumb: [`values::RANGE_THUMB_WIDTH`] at the Compact control
+    /// Width of a range slider's thumb: `values::RANGE_THUMB_WIDTH` at the Compact control
     /// height, scaled by the control height of the size. Not overridable.
     pub range_thumb_width: BySize<f32>,
-    /// Height of a range slider's thumb: [`values::RANGE_THUMB_HEIGHT`], scaled the same way.
+    /// Height of a range slider's thumb: `values::RANGE_THUMB_HEIGHT`, scaled the same way.
     pub range_thumb_height: BySize<f32>,
-    /// Corners of a range slider's thumb: [`values::RANGE_THUMB_RADIUS`]. Not overridable.
+    /// Corners of a range slider's thumb: `values::RANGE_THUMB_RADIUS`. Not overridable.
     pub range_thumb_radius: f32,
-    /// Thickness of the track: [`values::SLIDER_TRACK`].
+    /// Thickness of the track: `values::SLIDER_TRACK`.
     pub track_height: f32,
-    /// Thickness of a gradient track: [`values::SLIDER_GRADIENT_TRACK`]. It has square ends and
+    /// Thickness of a gradient track: `values::SLIDER_GRADIENT_TRACK`. It has square ends and
     /// no outline.
     pub gradient_height: f32,
-    /// Corners of the track: [`values::SLIDER_TRACK_RADIUS`] or `radius.pill` if smaller (Classic's
+    /// Corners of the track: `values::SLIDER_TRACK_RADIUS` or `radius.pill` if smaller (Classic's
     /// square track), clamped to half its height.
     pub track_radius: f32,
     /// Corners of the thumb, clamped to half its shorter side; 999 gives a round thumb.
     pub radius: f32,
     /// The track's fill: `line.control_edge`.
     pub track: Rgba,
-    /// The filled part, from the start to the value: an accent state indicator (`accent.solid` in
-    /// every state; `text.disabled` when disabled).
+    /// The filled part, from the start to the value: a state indicator (`text.muted` in every
+    /// enabled state; `text.disabled` when disabled).
     pub fill: States<Rgba>,
     /// The thumb: a knob, a `surface.knob` face with a `line.knob_edge` outline in every
     /// enabled state; disabled, a face halfway to `surface.panel` with a `line.divider` outline.
@@ -57,16 +57,16 @@ pub struct SliderTokens {
     /// The ring round the thumb: clear at rest and when disabled, `accent.soft` while hovered or
     /// pressed.
     pub ring: States<Rgba>,
-    /// Width of the ring: [`values::KNOB_RING`].
+    /// Width of the ring: `values::KNOB_RING`.
     pub ring_width: f32,
-    /// From the thumb's edge to the ring's centre line: [`values::KNOB_RING_OFFSET`].
+    /// From the thumb's edge to the ring's centre line: `values::KNOB_RING_OFFSET`.
     pub ring_offset: f32,
-    /// Height of the marks and ticks under the track ([`values::SLIDER_MARK`] at the Compact
+    /// Height of the marks and ticks under the track (`values::SLIDER_MARK` at the Compact
     /// control height, scaled by the control height of the size and rounded to whole points).
     /// Their colour is `line.divider`. Not overridable.
     pub mark: BySize<f32>,
     /// How near a mark a drag has to come for the thumb to snap to it, in points:
-    /// [`values::SLIDER_SNAP`]. Not overridable.
+    /// `values::SLIDER_SNAP`. Not overridable.
     pub snap: f32,
 }
 
@@ -183,7 +183,7 @@ impl Family for SliderTokens {
             track_radius: values::SLIDER_TRACK_RADIUS.min(s.shape.radius.pill),
             radius: s.shape.radius.pill,
             track: c.line.control_edge,
-            fill: States::new(c.accent.solid, c.accent.solid, c.accent.solid, c.text.disabled),
+            fill: States::new(c.text.muted, c.text.muted, c.text.muted, c.text.disabled),
             thumb_colors: ThumbColors::knob(c),
             ring: States::new(clear, soft, soft, clear),
             ring_width: values::KNOB_RING,
@@ -261,7 +261,7 @@ impl Family for SliderTokens {
     }
 
     /// The track against the panel or a popup, and the filled part against the track: the
-    /// control edge minimum ([`values::CONTROL_EDGE_MIN`]), 3:1 with high contrast and listed,
+    /// control edge minimum (`values::CONTROL_EDGE_MIN`), 3:1 with high contrast and listed,
     /// never warned, in Standard, where the accent fill sits on PhotoCraft's `line.control_edge`
     /// track. The thumb is neither text nor a state indicator, so it has no minimum: where its
     /// face is close to the fill under it, its outline or shadow gives the edge.

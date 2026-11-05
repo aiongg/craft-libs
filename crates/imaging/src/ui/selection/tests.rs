@@ -1,4 +1,4 @@
-//! Tests of the selection overlay (task SE-F7), with a `MaskSource` over a disc that counts its row
+//! Tests of the selection overlay, with a `MaskSource` over a disc that counts its row
 //! reads, shown on a plain egui `Context`.
 
 use std::cell::Cell;

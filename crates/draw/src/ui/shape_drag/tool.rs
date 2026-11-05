@@ -1,5 +1,5 @@
 //! [`ShapeDragTool`]: the Shape tools' press, drag and release on the [`ToolHost`](craft_ui::canvas::ToolHost)
-//! (task SH-T3).
+//!.
 
 use egui::{Key, Modifiers, Painter, Pos2, Shape};
 use kurbo::{PathEl, Point, Rect, Vec2};

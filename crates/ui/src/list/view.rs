@@ -88,7 +88,7 @@ pub enum ListEvent<K> {
     /// [key](super::ToggleColumn::key)) and renames.
     Row(RowEvent<K>),
     /// A move of rows the host makes, in a list that [reorders](List::reorder), as one edit
-    /// gesture ([`ReorderGesture`]). A drag reports `Begin`, then `Commit` with the move on a
+    /// gesture (`ReorderGesture`). A drag reports `Begin`, then `Commit` with the move on a
     /// drop on a target, or `Cancel`: `Escape`, `FocusLost` (the window lost focus), `Dismissed`
     /// (released anywhere else), `Removed` (a dragged row left the list), or the reason of a
     /// [`cancel_all`](crate::edit::cancel_all). A pass that doesn't draw the list ends the drag
@@ -227,7 +227,7 @@ type RowMenuEntries<'a, K> = Box<RowMenuFn<'a, K>>;
 /// - **Reorder.** With [`reorder`](List::reorder), a drag of a row moves the selection (the row
 ///   alone when it isn't selected) without changing it. The target row shows the drop marker;
 ///   a box with the grabbed row's label follows the pointer; the list scrolls while the pointer
-///   is near its top or bottom edge. The drag is egui's [`DragAndDrop`] payload [`ListDrag`], so
+///   is near its top or bottom edge. The drag is egui's `DragAndDrop` payload `ListDrag`, so
 ///   other widgets take drops from it (the Delete button of a [`PanelFooter`](crate::composites::PanelFooter)). Cmd+] and Cmd+[ (Ctrl+] and
 ///   Ctrl+[ off macOS) move the selected rows one row toward the start or end, with Shift to the
 ///   start or end. The list reports [`ListEvent::Reorder`]; the host moves the rows. The target

@@ -15,7 +15,7 @@
 //!
 //! Primitives take semantic properties, never sizes or colours, and read their tokens with
 //! [`Tokens::of`](crate::theme::TokensOf::of). Each resolves its look with a pure `style`
-//! function of [`UiTokens`](crate::theme::UiTokens) and its properties, which tests and the
+//! function of [`UiTokens`] and its properties, which tests and the
 //! dumps under `crates/ui/tests/dumps/components/` read without a frame.
 //!
 //! In a disabled `Ui` egui fades everything drawn, primitives included; controls that draw their

@@ -23,6 +23,7 @@ pub enum ReturnGlyph {
 }
 
 impl ReturnGlyph {
+    /// The glyph as text.
     pub fn symbol(self) -> &'static str {
         match self {
             ReturnGlyph::Return => "↩",
@@ -65,6 +66,7 @@ impl Keymap {
         self
     }
 
+    /// Whether several tools may share one key. See [`Keymap::with_shared_tool_keys`].
     pub fn shares_tool_keys(&self) -> bool {
         self.shared_tool_keys
     }

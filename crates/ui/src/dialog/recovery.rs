@@ -67,6 +67,7 @@ pub struct RecoveryDialog {
 }
 
 impl RecoveryDialog {
+    /// A dialog offering to recover `document`.
     pub fn new(document: RecoveredDocument) -> Self {
         Self { id: dialog_id("recovery"), document, state: DialogState::new() }
     }
@@ -116,5 +117,10 @@ impl StackDialog for RecoveryDialog {
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
             _ => None,
         }
+    }
+
+    /// Recover, the default button; `None` while recovery is blocked.
+    fn confirm(&mut self, _ctx: &Context) -> Option<RecoveryAnswer> {
+        self.document.blocked.is_none().then_some(RecoveryAnswer::Recover)
     }
 }

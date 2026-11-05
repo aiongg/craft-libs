@@ -1,4 +1,4 @@
-//! Stories of the selection overlay (task ST-SE2).
+//! Stories of the selection overlay.
 //!
 //! Every story draws `MockImage` (`ui::mock_image`) under the overlay of a fake `MaskSource`: the
 //! picture's subject (the house, [`MockSubject`]), and for the large case a soft-edged disc in a

@@ -1,4 +1,4 @@
-//! Tests of rounded corners (task PE-A5).
+//! Tests of rounded corners.
 
 use kurbo::{Point, Vec2};
 

@@ -23,6 +23,7 @@ impl<T: Settings> Clone for SharedSettings<T> {
 }
 
 impl<T: Settings> SharedSettings<T> {
+    /// Shares `store`.
     pub fn new(store: SettingsStore<T>) -> Self {
         Self(Arc::new(Mutex::new(store)))
     }

@@ -31,6 +31,7 @@ pub struct IconPen<'a> {
 }
 
 impl<'a> IconPen<'a> {
+    /// A pen drawing in `rect`, which maps the 24-unit icon grid onto it, with strokes `width` points wide in `color`.
     pub fn new(painter: &'a Painter, rect: Rect, width: f32, color: Color32) -> Self {
         Self { painter, rect, width, color }
     }
@@ -59,6 +60,7 @@ impl<'a> IconPen<'a> {
     }
 
     // cadcraft: crates/ui-egui/src/icons.rs:174 l
+    /// Strokes a line from `(x1, y1)` to `(x2, y2)` in units.
     pub fn line(&self, x1: f32, y1: f32, x2: f32, y2: f32) {
         self.painter.line_segment([self.at(x1, y1), self.at(x2, y2)], self.stroke());
     }
@@ -74,11 +76,13 @@ impl<'a> IconPen<'a> {
     }
 
     // cadcraft: crates/ui-egui/src/icons.rs:187 c
+    /// Strokes a circle of radius `r` centred at `(x, y)` in units.
     pub fn circle(&self, x: f32, y: f32, r: f32) {
         self.painter.circle_stroke(self.at(x, y), r * self.scale(), self.stroke());
     }
 
     // cadcraft: crates/ui-egui/src/icons.rs:190 fill_c
+    /// Fills a circle of radius `r` centred at `(x, y)` in units.
     pub fn fill_circle(&self, x: f32, y: f32, r: f32) {
         self.painter.circle_filled(self.at(x, y), r * self.scale(), self.color);
     }
@@ -98,11 +102,13 @@ impl<'a> IconPen<'a> {
     }
 
     // cadcraft: crates/ui-egui/src/icons.rs:204 rect
+    /// Strokes a rectangle with its corner at `(x, y)`, `w` units wide and `h` high.
     pub fn rect(&self, x: f32, y: f32, w: f32, h: f32) {
         self.polyline(&[(x, y), (x + w, y), (x + w, y + h), (x, y + h)], true);
     }
 
     // cadcraft: crates/ui-egui/src/icons.rs:207 fill_rect
+    /// Fills a rectangle with its corner at `(x, y)`, `w` units wide and `h` high.
     pub fn fill_rect(&self, x: f32, y: f32, w: f32, h: f32) {
         self.painter.rect_filled(Rect::from_min_max(self.at(x, y), self.at(x + w, y + h)), 0.0, self.color);
     }

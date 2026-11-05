@@ -1,4 +1,4 @@
-//! The effect list on the dialog's left (task AD-8).
+//! The effect list on the dialog's left.
 
 use std::cell::Cell;
 
@@ -80,7 +80,7 @@ impl Command {
 /// dimmed row with an empty check box per kind the layer lacks (`list.text.dimmed`, not
 /// selectable; a click adds it, turned on, #1357).
 ///
-/// It is a library `List` of `ListRow`s at the list token's row height (lead call L16), the gap
+/// It is a library `List` of `ListRow`s at the list token's row height, the gap
 /// after Blending Options a spacer row, each effect row with a check box at the row start, its
 /// label in `list.label` (muted, `list.text.muted`, while the effect is off, even when its page
 /// is selected, #2288), and for kinds that [allow several](EffectKind::allows_several) a `+` icon

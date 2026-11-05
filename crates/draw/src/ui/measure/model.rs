@@ -12,15 +12,20 @@ pub const MIN_LINE: f64 = 0.5;
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RulerLine {
+    /// The first end, and the protractor's vertex.
     pub start: Point,
+    /// The second end of the main arm.
     pub end: Point,
+    /// The free end of the protractor's second arm, when there is one.
     pub protractor: Option<Point>,
 }
 
 /// A part of the line a press grabs and the keys move.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RulerPart {
+    /// The line's start.
     Start,
+    /// The line's end.
     End,
     /// The protractor arm's free end.
     Protractor,
@@ -51,9 +56,13 @@ impl RulerPart {
 /// (end minus start, signed), the angle A and the lengths L1 and L2.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RulerReading {
+    /// X of the start.
     pub x: f64,
+    /// Y of the start.
     pub y: f64,
+    /// End minus start, signed, along x.
     pub w: f64,
+    /// End minus start, signed, along y.
     pub h: f64,
     /// Degrees. A line: counter-clockwise from +x with y up, -180 to 180. With a protractor: the
     /// angle between the two arms, 0 to 180.

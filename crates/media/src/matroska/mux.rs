@@ -19,8 +19,11 @@ use crate::matroska::track::TrackKind;
 /// ends where the timestamps stop advancing by that duration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LacingMode {
+    /// No lacing: one frame per block.
     None,
+    /// Xiph lacing.
     Xiph,
+    /// EBML lacing.
     Ebml,
     /// Fixed-size lacing when consecutive frames have equal sizes, otherwise EBML lacing.
     FixedOrEbml,
@@ -29,21 +32,30 @@ pub enum LacingMode {
 /// Track description for [`MkvWriter`].
 #[derive(Clone, Debug)]
 pub struct TrackSpec {
+    /// Track type; selects the video or audio settings written.
     pub kind: TrackKind,
+    /// Matroska `CodecID` string, e.g. `A_OPUS`.
     pub codec_id: String,
+    /// Bytes of `CodecPrivate` (empty to omit).
     pub codec_private: Vec<u8>,
+    /// `DefaultDuration` in nanoseconds per frame; required for audio lacing.
     pub default_duration_ns: Option<u64>,
+    /// `Language` element value (ISO 639-2 code); omitted when `None`.
     pub language: Option<String>,
+    /// `Name` element value; omitted when `None`.
     pub name: Option<String>,
     /// Pixel width/height for video tracks.
     pub video_size: Option<(u32, u32)>,
     /// (sampling frequency, channels, bit depth) for audio tracks.
     pub audio: Option<(f64, u64, Option<u64>)>,
+    /// `CodecDelay` in nanoseconds.
     pub codec_delay_ns: u64,
+    /// `SeekPreRoll` in nanoseconds.
     pub seek_pre_roll_ns: u64,
 }
 
 impl TrackSpec {
+    /// Create a spec with the given kind and `CodecID`; all other fields take empty or zero defaults.
     pub fn new(kind: TrackKind, codec_id: impl Into<String>) -> Self {
         Self {
             kind,
@@ -69,11 +81,14 @@ pub struct MuxOptions {
     pub timestamp_scale: u64,
     /// Start a new cluster at the next video keyframe (or any frame without video) after this long.
     pub cluster_duration_ns: u64,
+    /// Lacing mode applied to audio tracks.
     pub lacing: LacingMode,
     /// Maximum frames per laced block. Matroska allows 1 to 256; [`MkvWriter::new`] clamps
     /// other values into that range.
     pub max_lace_frames: usize,
+    /// Segment `Title`; omitted when `None`.
     pub title: Option<String>,
+    /// `WritingApp` string recorded in the Segment `Info`.
     pub writing_app: String,
 }
 
@@ -152,6 +167,9 @@ pub struct MkvWriter<W: Write + Seek> {
 }
 
 impl<W: Write + Seek> MkvWriter<W> {
+    /// Write the EBML header and Segment start to `w` and return a writer for `tracks`.
+    ///
+    /// Fails when `tracks` is empty or `opts.timestamp_scale` is zero.
     pub fn new(mut w: W, tracks: Vec<TrackSpec>, mut opts: MuxOptions) -> Result<Self> {
         if tracks.is_empty() || opts.timestamp_scale == 0 {
             return Err(Error::Invalid("muxer needs at least one track and a non-zero timestamp scale".into()));

@@ -41,7 +41,9 @@ pub enum ReadOnly {
 /// A write [`Store::take_pending`] prepared.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pending {
+    /// The file to write.
     pub path: PathBuf,
+    /// The file's new contents.
     pub bytes: Vec<u8>,
     /// Pass to [`Store::mark_saved`] after the write succeeded.
     pub generation: u64,

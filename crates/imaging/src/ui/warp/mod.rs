@@ -47,8 +47,11 @@ use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 /// shape its inside and are neither drawn nor dragged.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WarpMesh {
+    /// Column patch boundaries in the mesh's parameter space, increasing from 0 to 1.
     pub us: Vec<f64>,
+    /// Row patch boundaries in the mesh's parameter space, increasing from 0 to 1.
     pub vs: Vec<f64>,
+    /// The control points row by row, in document units.
     pub points: Vec<Point>,
 }
 
@@ -56,9 +59,13 @@ pub struct WarpMesh {
 /// column, left and right along a row (in the document, unmirrored).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum WarpSide {
+    #[allow(missing_docs)]
     Up,
+    #[allow(missing_docs)]
     Left,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     Down,
 }
 
@@ -404,16 +411,41 @@ pub enum WarpSplit {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum WarpEdit {
     /// Move the control point `index` (an anchor carries its handles along: the host's rule).
-    Point { index: usize, by: Vec2 },
+    Point {
+        #[allow(missing_docs)]
+        index: usize,
+        #[allow(missing_docs)]
+        by: Vec2,
+    },
     /// Pull the surface at the host's parameters `(s, t)` ([`WarpGrid::surface`]).
-    Surface { s: f64, t: f64, by: Vec2 },
+    Surface {
+        #[allow(missing_docs)]
+        s: f64,
+        #[allow(missing_docs)]
+        t: f64,
+        #[allow(missing_docs)]
+        by: Vec2,
+    },
     /// Insert lines of anchors: the host's mesh becomes [`WarpMesh::split`] of itself with these
     /// arguments. Always a [`Set`](EditEvent::Set).
     ///
     /// `thirds` is set when the cut is of a one-patch mesh that PhotoCraft's custom warp first
     /// divides at its thirds ([`WarpMesh::commit_thirds`]): the host applies that to its mesh
     /// before `split`, and `column`, `row`, `u` and `v` name a patch of the result.
-    Split { split: WarpSplit, column: usize, row: usize, u: f64, v: f64, thirds: bool },
+    Split {
+        #[allow(missing_docs)]
+        split: WarpSplit,
+        #[allow(missing_docs)]
+        column: usize,
+        #[allow(missing_docs)]
+        row: usize,
+        #[allow(missing_docs)]
+        u: f64,
+        #[allow(missing_docs)]
+        v: f64,
+        #[allow(missing_docs)]
+        thirds: bool,
+    },
 }
 
 /// The AccessKit names of a warp mesh's parts. [`WarpNames::english`] is English, and a host passes
@@ -479,6 +511,7 @@ fn handle_name(words: Option<&Words>, row: usize, column: usize, side: WarpSide)
 }
 
 impl<'a> WarpNames<'a> {
+    /// Names a mesh's points for assistive technology: `group` names the mesh, `anchor(row, column)` an anchor and `handle(row, column, side)` a handle.
     pub fn new(
         group: impl Into<String>,
         anchor: impl Fn(usize, usize) -> String + 'a,
@@ -743,11 +776,13 @@ impl<'a> WarpGrid<'a> {
         self
     }
 
+    /// Sets how the grid reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// The mesh's look and reach from the theme `tokens`.
     pub fn style(tokens: &UiTokens) -> WarpStyle {
         let sized = |mut style: HandleStyle, size: f32| {
             style.size = size;

@@ -18,9 +18,11 @@ pub const WINDOWS_BUTTON_WIDTH: f32 = 46.0;
 /// A caption button.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Caption {
+    /// Minimize the window.
     Minimize,
     /// Maximize, or Restore while the window is maximized.
     Maximize,
+    /// Close the window.
     Close,
 }
 
@@ -74,9 +76,13 @@ impl CaptionLabels {
 /// A caption glyph, as icon themes name them (`window-restore-symbolic`, …).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum CaptionIcon {
+    #[allow(missing_docs)]
     Minimize,
+    #[allow(missing_docs)]
     Maximize,
+    #[allow(missing_docs)]
     Restore,
+    #[allow(missing_docs)]
     Close,
 }
 
@@ -92,6 +98,7 @@ pub struct CaptionIcons {
     /// Changes whenever `render` may answer differently (a reinstalled theme, a size finished
     /// rendering); the cached textures follow it. 0 for icons that never change.
     pub generation: u64,
+    /// Renders a glyph at a pixel size; see [`RenderIconFn`].
     pub render: Arc<RenderIconFn>,
 }
 
@@ -216,6 +223,7 @@ pub struct CaptionButtons<'a> {
 }
 
 impl<'a> CaptionButtons<'a> {
+    /// Buttons for `captions` drawn with `style`, with English labels and no icon theme.
     pub fn new(captions: &'a Captions, style: &'a TitleBarStyle) -> Self {
         Self { captions, style, scope: None, labels: None, icons: None, preview: None }
     }
@@ -256,6 +264,7 @@ impl<'a> CaptionButtons<'a> {
         self
     }
 
+    /// Draws the buttons in `bar` (the title bar's rect); returns the button clicked this frame.
     pub fn show(self, ui: &mut Ui, bar: Rect) -> Option<Caption> {
         self.show_rects(ui, bar).0
     }

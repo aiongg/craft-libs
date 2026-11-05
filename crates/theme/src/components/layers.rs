@@ -11,9 +11,9 @@ use crate::values;
 #[non_exhaustive]
 pub struct LayersTokens {
     /// Box of an indicator icon (lock, link, warning, Smart Filter badge):
-    /// [`values::LAYERS_INDICATOR_ICON`].
+    /// `values::LAYERS_INDICATOR_ICON`.
     pub indicator_icon: f32,
-    /// Width of the effects triangle: [`values::LAYERS_INDICATOR_TRIANGLE`].
+    /// Width of the effects triangle: `values::LAYERS_INDICATOR_TRIANGLE`.
     pub indicator_triangle: f32,
     /// The `fx` mark: `layers.indicator.fx`, `text.muted`.
     pub indicator_fx: Rgba,
@@ -25,7 +25,7 @@ pub struct LayersTokens {
     pub indicator_link: Rgba,
     /// The warning indicator: `layers.indicator.warn`, `status.warn.fg`.
     pub indicator_warn: Rgba,
-    /// Box of a mask badge: [`values::LAYERS_MASK_BADGE`].
+    /// Box of a mask badge: `values::LAYERS_MASK_BADGE`.
     pub mask_badge: f32,
     /// A mask badge's fill: `layers.mask.badge_fill`, `surface.raised`.
     pub mask_badge_fill: Rgba,
@@ -34,39 +34,39 @@ pub struct LayersTokens {
     /// The cross over a disabled mask: `layers.mask.disabled`, `status.bad.fg`.
     pub mask_disabled: Rgba,
     /// Least width of the blend select before the "Opacity:" label hides:
-    /// [`values::LAYERS_BLEND_MIN_WIDTH`].
+    /// `values::LAYERS_BLEND_MIN_WIDTH`.
     pub blend_min_width: f32,
     /// Width of the Opacity and Fill fields, without the pop-up arrow:
-    /// [`values::LAYERS_PERCENT_FIELD_WIDTH`].
+    /// `values::LAYERS_PERCENT_FIELD_WIDTH`.
     pub percent_field_width: f32,
     /// Between the filter bar's controls: `space.gap.inline`.
     pub filter_gap: f32,
-    /// Width of the filter type select: [`values::LAYERS_FILTER_TYPE_WIDTH`].
+    /// Width of the filter type select: `values::LAYERS_FILTER_TYPE_WIDTH`.
     pub filter_type_width: f32,
     /// Space after the filter type select, besides `filter_gap`:
-    /// [`values::LAYERS_FILTER_TYPE_GAP`].
+    /// `values::LAYERS_FILTER_TYPE_GAP`.
     pub filter_type_gap: f32,
     /// Panel Options' sample side as a factor of the row thumbnail:
-    /// [`values::LAYERS_OPTIONS_SAMPLE_SCALE`].
+    /// `values::LAYERS_OPTIONS_SAMPLE_SCALE`.
     pub options_sample_scale: f32,
     /// Room kept free between the "Opacity:" label and its field:
-    /// [`values::LAYERS_BLEND_LABEL_SLACK`].
+    /// `values::LAYERS_BLEND_LABEL_SLACK`.
     pub blend_label_slack: f32,
     /// Least width of the blend select when the row is too narrow for anything else:
-    /// [`values::LAYERS_BLEND_FLOOR_WIDTH`].
+    /// `values::LAYERS_BLEND_FLOOR_WIDTH`.
     pub blend_floor_width: f32,
-    /// Between the blend, Opacity, Lock and Fill rows: [`values::LAYERS_BLEND_ROW_GAP`].
+    /// Between the blend, Opacity, Lock and Fill rows: `values::LAYERS_BLEND_ROW_GAP`.
     pub blend_row_gap: f32,
-    /// Ink of the Type layer's kind tile: [`values::LAYERS_KIND_TYPE_INK`]. Like the tile's paper
+    /// Ink of the Type layer's kind tile: `values::LAYERS_KIND_TYPE_INK`. Like the tile's paper
     /// (the thumbnail checker) it is the same in every theme.
     pub kind_type_ink: Rgba,
-    /// Between the effects triangle and the `fx` mark: [`values::LAYERS_INDICATOR_FX_GAP`].
+    /// Between the effects triangle and the `fx` mark: `values::LAYERS_INDICATOR_FX_GAP`.
     pub indicator_fx_gap: f32,
-    /// Stroke of the cross over a disabled mask: [`values::LAYERS_MASK_CROSS_WIDTH`].
+    /// Stroke of the cross over a disabled mask: `values::LAYERS_MASK_CROSS_WIDTH`.
     pub mask_cross_width: f32,
-    /// Inset of that cross from the thumbnail: [`values::LAYERS_MASK_CROSS_INSET`].
+    /// Inset of that cross from the thumbnail: `values::LAYERS_MASK_CROSS_INSET`.
     pub mask_cross_inset: f32,
-    /// Stroke of the Smart Filters indicator's rings: [`values::LAYERS_INDICATOR_RING_WIDTH`].
+    /// Stroke of the Smart Filters indicator's rings: `values::LAYERS_INDICATOR_RING_WIDTH`.
     pub indicator_ring_width: f32,
 }
 

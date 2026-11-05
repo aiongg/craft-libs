@@ -1,4 +1,4 @@
-//! Behaviour tests of the grouping marks and `QuietMarks` (task H2).
+//! Behaviour tests of the grouping marks and `QuietMarks`.
 
 use egui::{Context, Modifiers};
 

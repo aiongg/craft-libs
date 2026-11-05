@@ -88,6 +88,7 @@ pub struct AngleDialStyle {
     pub needle_inset: f32,
     /// Radius of the dot at the centre: `angle_dial.hub`, in `angle_dial.hub_fill`.
     pub hub: f32,
+    #[allow(missing_docs)]
     pub hub_fill: Color32,
     /// Radius round the centre within which the pointer changes nothing: `angle_dial.dead_zone`.
     pub dead_zone: f32,
@@ -196,6 +197,7 @@ impl<'a> AngleDial<'a> {
         self
     }
 
+    /// Where zero degrees sits and which way angles increase.
     pub fn orientation(mut self, orientation: AngleOrientation) -> Self {
         self.orientation = orientation;
         self
@@ -213,6 +215,7 @@ impl<'a> AngleDial<'a> {
         self
     }
 
+    /// Whether the dial and field take input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -224,6 +227,7 @@ impl<'a> AngleDial<'a> {
         self
     }
 
+    /// The dial's sizes and colours from `tokens`.
     pub fn style(tokens: &UiTokens) -> AngleDialStyle {
         let d = &tokens.component.angle_dial;
         AngleDialStyle {

@@ -1,4 +1,4 @@
-//! Stories of the transform preview (task ST-TR2).
+//! Stories of the transform preview.
 //!
 //! The moving layer is `MockImage` (`ui::mock_image`) uploaded as a mip pyramid in which every
 //! level below the first has its own tint, so the level the preview picks shows. It sits in the

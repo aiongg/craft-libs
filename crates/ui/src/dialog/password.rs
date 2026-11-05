@@ -57,6 +57,7 @@ crate::words! {
 pub struct Secret(String);
 
 impl Secret {
+    /// Wraps `text` as a secret.
     pub fn new(text: String) -> Self {
         Self(text)
     }
@@ -66,6 +67,7 @@ impl Secret {
         &self.0
     }
 
+    /// True when no characters were typed.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -91,8 +93,11 @@ impl Drop for Secret {
 /// A rough strength, as Acrobat's meter shows it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PasswordStrength {
+    /// Under 8 characters or a single character class.
     Weak,
+    /// At least 8 characters and two classes.
     Medium,
+    /// At least 12 characters and three classes.
     Strong,
 }
 
@@ -123,9 +128,15 @@ pub fn password_strength(password: &str) -> PasswordStrength {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PasswordPurpose {
     /// The password that opens `name` (Acrobat's Password dialog on open); OK is Open.
-    Open { name: String },
+    Open {
+        /// The file's name, shown in the message.
+        name: String,
+    },
     /// The permissions (owner) password that lifts `name`'s restrictions; OK is Unlock.
-    Permissions { name: String },
+    Permissions {
+        /// The file's name, shown in the message.
+        name: String,
+    },
     /// A new password typed twice, with the strength under the first field (Protect Using
     /// Password); OK stays disabled until both match and are not empty.
     Set,
@@ -133,11 +144,13 @@ pub enum PasswordPurpose {
 
 /// What a [`PasswordDialog`] answers: the password and the tag the app gave the dialog.
 pub struct PasswordAnswer {
+    /// The password the user typed.
     pub secret: Secret,
     tag: Option<Box<dyn Any + Send>>,
 }
 
 impl PasswordAnswer {
+    /// The tag the app gave the dialog, if it is a `T`.
     pub fn tag<T: Any>(&self) -> Option<&T> {
         self.tag.as_deref()?.downcast_ref()
     }
@@ -165,7 +178,7 @@ impl fmt::Debug for PasswordAnswer {
 ///
 /// The field takes focus when the dialog opens, after the eye button was pressed, and whenever
 /// nothing in the window has focus; it asks only then: asking every pass interrupts the input
-/// method, and on Linux typed keys go through it (PdfCraft #2818), and Tab can still reach the
+/// method, and on Linux typed keys go through it (storytold/pdfcraft#2818), and Tab can still reach the
 /// eye button and the buttons. Enter submits from the field; Esc and the close box cancel. The
 /// eye button beside the (first) field shows or hides the text (its name says what it does:
 /// "Show password" / "Hide password"); the field's AccessKit node is a password field while the
@@ -185,6 +198,7 @@ pub struct PasswordDialog {
 }
 
 impl PasswordDialog {
+    /// A dialog for `purpose`, with no error line and no tag.
     pub fn new(purpose: PasswordPurpose) -> Self {
         Self {
             id: dialog_id("password"),
@@ -220,6 +234,7 @@ impl PasswordDialog {
         self
     }
 
+    /// The purpose the dialog was made for.
     pub fn purpose(&self) -> &PasswordPurpose {
         &self.purpose
     }
@@ -340,5 +355,14 @@ impl StackDialog for PasswordDialog {
             Outcome::Ok => Some(DialogResult::Ok(PasswordAnswer { secret: Secret::new(std::mem::take(&mut self.input.0)), tag: self.tag.take() })),
             _ => Some(DialogResult::Cancel),
         }
+    }
+
+    /// OK with the typed password; `None` while a new password is empty or its confirmation
+    /// differs.
+    fn confirm(&mut self, _ctx: &Context) -> Option<PasswordAnswer> {
+        if matches!(self.purpose, PasswordPurpose::Set) && (self.input.is_empty() || self.input != self.confirm) {
+            return None;
+        }
+        Some(PasswordAnswer { secret: Secret::new(std::mem::take(&mut self.input.0)), tag: self.tag.take() })
     }
 }

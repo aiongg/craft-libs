@@ -50,11 +50,14 @@ pub const RGBA8: &str = "image/x-rgba8";
 /// several, best first (VectorCraft: SVG, PDF, PNG, then text).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Flavor {
+    /// The MIME type, such as `text/plain` or [`RGBA8`].
     pub mime: Cow<'static, str>,
+    /// The flavor's bytes, in the encoding the MIME type names.
     pub data: Vec<u8>,
 }
 
 impl Flavor {
+    /// A flavor of `data` with the given MIME type.
     pub fn new(mime: impl Into<Cow<'static, str>>, data: Vec<u8>) -> Self {
         Self { mime: mime.into(), data }
     }
@@ -69,8 +72,11 @@ impl Flavor {
 /// `rgba.len() == width * height * 4`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClipboardImage {
+    /// Width in pixels.
     pub width: u32,
+    /// Height in pixels.
     pub height: u32,
+    /// Straight (non-premultiplied) RGBA8 samples, row by row, `width * height * 4` bytes.
     pub rgba: Vec<u8>,
 }
 
@@ -102,6 +108,7 @@ pub struct ClipboardLimits {
 }
 
 impl ClipboardLimits {
+    /// The limits used when none are set: 1 GiB of image data, 128 MiB of text, 10 000 files.
     pub const DEFAULT: ClipboardLimits = ClipboardLimits { image_bytes: 4 * 16384 * 16384, text_bytes: 128 << 20, files: 10_000 };
 }
 
@@ -116,13 +123,16 @@ impl Default for ClipboardLimits {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ClipboardError {
     /// No clipboard can be reached at all: a Flatpak on Wayland, where the sandbox hides the
-    /// data-control protocol (PhotoCraft #5031), or a headless session. Paste explains it with
+    /// data-control protocol (storytold/photocraft#5031), or a headless session. Paste explains it with
     /// [`CLIPBOARD_UNAVAILABLE`].
     Unavailable,
     /// Another read or write holds the clipboard handle (a re-entrant call).
     Busy,
     /// The contents are larger than the limit for their kind, in bytes.
-    TooLarge { limit: u64 },
+    TooLarge {
+        /// The limit that was exceeded, in bytes.
+        limit: u64,
+    },
     /// None of the flavours written can be put on this clipboard (only SVG or PDF on the system
     /// clipboard, or an image the platform can't take).
     NoFormat,
@@ -223,7 +233,7 @@ pub trait ClipboardBackend: Send {
 /// copied to the clipboard manager at exit). When no backend opens, every call answers
 /// [`ClipboardError::Unavailable`] and [`unreadable`](Self::unreadable) turns true. On Wayland a
 /// bitmap arboard can't read (it asks for `image/png` only; a screenshot tool may offer only
-/// `image/jpeg` or `image/bmp`, PhotoCraft #2546) reads as `None`.
+/// `image/jpeg` or `image/bmp`, storytold/photocraft#2546) reads as `None`.
 ///
 /// arboard reaches text, HTML, one bitmap and copied files; other flavors ([`SVG`], [`PDF`],
 /// [`RTF`]) are not written or read here.
@@ -241,6 +251,7 @@ pub(crate) type Decode = Box<dyn Fn(&[u8]) -> Option<ClipboardImage> + Send>;
 
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
 impl SystemClipboard {
+    /// A clipboard that connects to the system clipboard on first use.
     pub fn new() -> Self {
         Self { handle: None, unreadable: false, decode: None, presence: presence::Presence::new() }
     }
@@ -719,10 +730,12 @@ enum Ours {
 }
 
 impl Clipboard {
+    /// A clipboard over `backend` with [`ClipboardLimits::DEFAULT`] and the synthetic fence off.
     pub fn new(backend: impl ClipboardBackend + 'static) -> Self {
         Self { backend: Box::new(backend), limits: ClipboardLimits::DEFAULT, synthetic: false, ours: None }
     }
 
+    /// Sets the size limits that writes are checked against.
     pub fn limits(mut self, limits: ClipboardLimits) -> Self {
         self.limits = limits;
         self
@@ -737,6 +750,7 @@ impl Clipboard {
         self.synthetic = synthetic;
     }
 
+    /// Puts `text` on the clipboard as a plain-text flavor; see [`write`](Self::write).
     pub fn write_text(&mut self, text: &str) -> Result<Written, ClipboardError> {
         self.write(&[Flavor::text(text)])
     }
@@ -849,6 +863,7 @@ impl Clipboard {
         self.ours = None;
     }
 
+    /// The backend, for calls the wrapper does not forward.
     pub fn backend_mut(&mut self) -> &mut dyn ClipboardBackend {
         &mut *self.backend
     }

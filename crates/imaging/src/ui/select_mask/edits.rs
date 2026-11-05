@@ -1,4 +1,4 @@
-//! Select and Mask's edits and Refine Edge Brush strokes as typed data (task WS-SM1).
+//! Select and Mask's edits and Refine Edge Brush strokes as typed data.
 
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub enum EditMode {
     #[default]
+    #[allow(missing_docs)]
     Add,
+    #[allow(missing_docs)]
     Subtract,
 }
 
@@ -18,7 +20,9 @@ pub enum EditMode {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ObjectTarget {
+    /// The object under this document point.
     Point([f64; 2]),
+    /// The object inside this rectangle `[x, y, width, height]` in document pixels.
     Rect([f64; 4]),
 }
 
@@ -31,27 +35,49 @@ pub enum ObjectTarget {
 pub enum SelectMaskEdit {
     /// A Quick Selection stroke.
     Quick {
+        #[allow(missing_docs)]
         points: Vec<[f64; 2]>,
+        #[allow(missing_docs)]
         size: f64,
+        #[allow(missing_docs)]
         mode: EditMode,
         #[serde(rename = "sampleAllLayers")]
+        #[allow(missing_docs)]
         sample_all_layers: bool,
     },
     /// A Brush stroke.
-    Brush { points: Vec<[f64; 2]>, size: f64, hardness: f64, mode: EditMode },
+    Brush {
+        #[allow(missing_docs)]
+        points: Vec<[f64; 2]>,
+        #[allow(missing_docs)]
+        size: f64,
+        #[allow(missing_docs)]
+        hardness: f64,
+        #[allow(missing_docs)]
+        mode: EditMode,
+    },
     /// A Lasso or Polygonal Lasso polygon (3 points or more).
-    Lasso { points: Vec<[f64; 2]>, mode: EditMode },
+    Lasso {
+        #[allow(missing_docs)]
+        points: Vec<[f64; 2]>,
+        #[allow(missing_docs)]
+        mode: EditMode,
+    },
     /// An Object Selection click or rect.
     Object {
         #[serde(flatten)]
+        #[allow(missing_docs)]
         target: ObjectTarget,
+        #[allow(missing_docs)]
         mode: EditMode,
         #[serde(rename = "sampleAllLayers")]
+        #[allow(missing_docs)]
         sample_all_layers: bool,
     },
     /// Select Subject.
     Subject {
         #[serde(rename = "sampleAllLayers")]
+        #[allow(missing_docs)]
         sample_all_layers: bool,
     },
     /// Clear Selection.
@@ -76,8 +102,11 @@ impl SelectMaskEdit {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RefineStroke {
+    /// The brush path in document pixels, rounded to a tenth.
     pub points: Vec<[f64; 2]>,
+    /// The brush diameter in document pixels.
     pub size: f64,
+    /// Whether the stroke adds to the refined edge or subtracts from it.
     pub mode: EditMode,
 }
 

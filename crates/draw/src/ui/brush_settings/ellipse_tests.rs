@@ -1,4 +1,4 @@
-//! Tests of the tip angle and roundness widget (task BR-BS2).
+//! Tests of the tip angle and roundness widget.
 
 use egui::vec2;
 

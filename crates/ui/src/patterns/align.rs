@@ -38,17 +38,29 @@ crate::words! {
 /// One align or distribute command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AlignAction {
+    /// Align the layers' left edges.
     AlignLeftEdges,
+    /// Align the layers' horizontal centres.
     AlignHorizontalCenters,
+    /// Align the layers' right edges.
     AlignRightEdges,
+    /// Align the layers' top edges.
     AlignTopEdges,
+    /// Align the layers' vertical centres.
     AlignVerticalCenters,
+    /// Align the layers' bottom edges.
     AlignBottomEdges,
+    /// Equalize the gaps by spacing the layers' top edges evenly.
     DistributeTopEdges,
+    /// Equalize the gaps by spacing the layers' vertical centres evenly.
     DistributeVerticalCenters,
+    /// Equalize the gaps by spacing the layers' bottom edges evenly.
     DistributeBottomEdges,
+    /// Equalize the gaps by spacing the layers' left edges evenly.
     DistributeLeftEdges,
+    /// Equalize the gaps by spacing the layers' horizontal centres evenly.
     DistributeHorizontalCenters,
+    /// Equalize the gaps by spacing the layers' right edges evenly.
     DistributeRightEdges,
     /// Equal gaps between the layers, left to right.
     DistributeHorizontally,
@@ -117,6 +129,7 @@ impl AlignAction {
         }
     }
 
+    /// Whether the action is one of the six align commands rather than a distribute command.
     pub fn is_align(self) -> bool {
         Self::ALIGN.contains(&self)
     }
@@ -150,6 +163,7 @@ pub struct AlignStyle {
 pub struct AlignBarResponse {
     /// The command picked, from a button or the menu.
     pub picked: Option<AlignAction>,
+    /// The bar's egui response.
     pub response: Response,
 }
 
@@ -177,6 +191,7 @@ pub struct AlignBar<'a> {
 }
 
 impl<'a> AlignBar<'a> {
+    /// An align bar; `id_salt` keeps its state. Distribute commands sit in the menu.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id_salt: IdSalt::new(id_salt), enabled: Box::new(|_| true), distribute: DistributeButtons::Menu, labels: None }
     }
@@ -193,6 +208,7 @@ impl<'a> AlignBar<'a> {
         self
     }
 
+    /// Where the distribute commands sit.
     pub fn distribute(mut self, distribute: DistributeButtons) -> Self {
         self.distribute = distribute;
         self
@@ -205,6 +221,7 @@ impl<'a> AlignBar<'a> {
     }
 
     // pc: crates/ui-egui/src/tools/align_bar.rs:32 options
+    /// Draws the bar and returns the command picked, if any.
     pub fn show(self, ui: &mut Ui) -> AlignBarResponse {
         let labels = self.labels.unwrap_or_else(|| AlignLabels::of(ui));
         let name = |action: AlignAction| {

@@ -1,4 +1,4 @@
-//! Tests of the distances between boxes (task TO-R1).
+//! Tests of the distances between boxes.
 
 use kurbo::{Point, Rect};
 

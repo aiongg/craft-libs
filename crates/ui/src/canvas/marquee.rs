@@ -106,7 +106,7 @@ pub(crate) struct Path {
 /// .bounds_value(&numbers, &unit).show(ui, &canvas, &view)`.
 ///
 /// Shapes are given in document space and mapped through the [`CanvasView`] point by point, so a
-/// rotated view draws the hinted rectangle where the release selects (PhotoCraft #2512). It is in
+/// rotated view draws the hinted rectangle where the release selects (storytold/photocraft#2512). It is in
 /// the AccessKit tree as one graphics object inside the host's canvas node, named by the host's
 /// label and valued by [`value`](Marquee::value) or [`bounds_value`](Marquee::bounds_value), one
 /// of which the host gives. It takes no focus or input. With reduced motion the ants stand still
@@ -177,6 +177,7 @@ impl Marquee {
         self
     }
 
+    /// The marquee look in `tokens`.
     pub fn style(tokens: &UiTokens) -> MarqueeStyle {
         let (m, o) = (&tokens.component.marquee, &tokens.color.overlay);
         let (light, dark) = (o.marquee.to_egui(), o.marquee_dash.to_egui());
@@ -320,7 +321,7 @@ fn bounds_text(bounds: Rect, numbers: &LocaleNumbers, unit: &Unit) -> String {
 /// corners, drawn with its vertices where they are: snapping each on its own turns the nearly
 /// flat arcs at the edge midpoints into 1 px stairs whose antialiased steps wash the ants out to
 /// grey. Any other rotation samples the document ellipse and maps each point, with as many
-/// vertices as the same ellipse would get on the screen (PhotoCraft #2512).
+/// vertices as the same ellipse would get on the screen (storytold/photocraft#2512).
 fn ellipse_points(view: &CanvasView, r: Rect) -> Vec<Pos2> {
     if view.axis_aligned() {
         let screen = ScreenRect::from_two_pos(view.to_screen(Point::new(r.x0, r.y0)), view.to_screen(Point::new(r.x1, r.y1)));
@@ -347,7 +348,9 @@ fn ellipse_points(view: &CanvasView, r: Rect) -> Vec<Pos2> {
 /// The two corners of a marquee in document space, as dragged: not ordered, not rounded.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct MarqueeRect {
+    /// The corner where the drag began.
     pub a: Point,
+    /// The corner where the pointer is now.
     pub b: Point,
 }
 

@@ -20,8 +20,11 @@ pub const MAX_CHORD_TEXT: usize = 72;
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum Platform {
+    #[allow(missing_docs)]
     Mac,
+    #[allow(missing_docs)]
     Windows,
+    #[allow(missing_docs)]
     Linux,
 }
 
@@ -38,6 +41,7 @@ impl Platform {
         }
     }
 
+    /// Whether this is macOS.
     pub const fn is_mac(self) -> bool {
         matches!(self, Platform::Mac)
     }
@@ -51,7 +55,7 @@ macro_rules! keys {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         #[non_exhaustive]
         pub enum Key {
-            $($variant),*
+            $(#[allow(missing_docs)] $variant),*
         }
 
         impl Key {
@@ -315,16 +319,23 @@ pub struct Mods {
     pub ctrl: bool,
     /// Alt, Option on macOS.
     pub alt: bool,
+    /// The Shift key.
     pub shift: bool,
 }
 
 impl Mods {
+    /// No modifiers.
     pub const NONE: Mods = Mods { cmd: false, ctrl: false, alt: false, shift: false };
+    /// Only [`cmd`](Mods::cmd).
     pub const CMD: Mods = Mods { cmd: true, ctrl: false, alt: false, shift: false };
+    /// Only [`ctrl`](Mods::ctrl).
     pub const CTRL: Mods = Mods { cmd: false, ctrl: true, alt: false, shift: false };
+    /// Only [`alt`](Mods::alt).
     pub const ALT: Mods = Mods { cmd: false, ctrl: false, alt: true, shift: false };
+    /// Only [`shift`](Mods::shift).
     pub const SHIFT: Mods = Mods { cmd: false, ctrl: false, alt: false, shift: true };
 
+    /// Whether no modifier is held.
     pub const fn is_none(self) -> bool {
         !(self.cmd || self.ctrl || self.alt || self.shift)
     }
@@ -358,7 +369,9 @@ impl Mods {
 /// A key with modifiers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Chord {
+    /// The modifiers held with the key.
     pub mods: Mods,
+    /// The key.
     pub key: Key,
 }
 
@@ -367,13 +380,17 @@ pub struct Chord {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum ParseError {
+    /// The text is empty.
     Empty,
     /// Longer than [`MAX_CHORD_TEXT`].
     TooLong,
     /// Modifiers with no key, or a trailing `+`.
     MissingKey,
+    /// A key name nothing here recognises, as written.
     UnknownKey(String),
+    /// A modifier name nothing here recognises, as written.
     UnknownModifier(String),
+    /// A modifier written twice, as written.
     DuplicateModifier(String),
     /// Two different chords: key sequences are not supported.
     Sequence,
@@ -453,6 +470,7 @@ fn add_modifier(mods: &mut Mods, m: Modifier, written: &str) -> Result<(), Parse
 }
 
 impl Chord {
+    /// A chord of `key` held with `mods`.
     pub const fn new(mods: Mods, key: Key) -> Chord {
         Chord { mods, key }
     }
@@ -548,6 +566,7 @@ impl Chord {
         s
     }
 
+    /// Whether the key is a function key.
     pub const fn is_function_key(&self) -> bool {
         self.key.is_function_key()
     }
@@ -604,16 +623,19 @@ impl<'de> Deserialize<'de> for Chord {
 /// What starts a command: a chord, pressed once or twice in a row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Trigger {
+    /// The chord to press.
     pub chord: Chord,
     /// The chord pressed twice.
     pub double: bool,
 }
 
 impl Trigger {
+    /// A trigger that fires on one press of `chord`.
     pub const fn single(chord: Chord) -> Trigger {
         Trigger { chord, double: false }
     }
 
+    /// A trigger that fires on two presses of `chord` in a row.
     pub const fn double(chord: Chord) -> Trigger {
         Trigger { chord, double: true }
     }
@@ -643,6 +665,7 @@ impl Trigger {
         self.to_string()
     }
 
+    /// The trigger with its chord's modifiers as `platform` sees them ([`Mods::effective`]).
     pub const fn effective(self, platform: Platform) -> Trigger {
         Trigger { chord: self.chord.effective(platform), double: self.double }
     }

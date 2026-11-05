@@ -41,7 +41,9 @@ impl LanguageChoice {
 /// One language row: its code and its name in itself ("Français").
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LanguageRow {
+    /// The language code the app stores.
     pub code: String,
+    /// The language's name in itself.
     pub name: String,
 }
 

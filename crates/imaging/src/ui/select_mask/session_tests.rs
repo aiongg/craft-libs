@@ -1,4 +1,4 @@
-//! Tests of Select and Mask's session and edits (task WS-SM1).
+//! Tests of Select and Mask's session and edits.
 
 use craft_ui::dialog::{LocalHistory, Step};
 use serde_json::json;

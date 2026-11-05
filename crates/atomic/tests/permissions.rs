@@ -1,3 +1,5 @@
+//! Integration tests of craft-atomic: permissions.
+
 #![cfg(unix)]
 
 use craft_atomic::{NewFilePermissions, WriteOptions, atomic_write, write_new};

@@ -88,6 +88,7 @@ pub struct Shot {
     /// [`DEFAULT_WIDTH`] wide. A height needs a width.
     #[serde(default)]
     pub width: Option<f32>,
+    /// In points; see `width`.
     #[serde(default)]
     pub height: Option<f32>,
     /// The state of the story's first interactive widget.

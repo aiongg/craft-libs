@@ -1,4 +1,4 @@
-//! Tests of the options-bar brush chip (task BR-BP3).
+//! Tests of the options-bar brush chip.
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
 use craft_ui::direction::{self, Direction};

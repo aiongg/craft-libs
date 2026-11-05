@@ -80,8 +80,7 @@ fn stale_migration_is_not_written_over() {
     assert_eq!(out["appearance"]["ui_scale"].as_float(), Some(1.5), "our own change is written");
 }
 
-// Two SettingsStores on one folder each change a different key and both changes survive (fill
-// task S4-F12, which wires the merge into `save`).
+// Two SettingsStores on one folder each change a different key and both changes survive.
 #[test]
 fn two_stores_keep_each_others_changes() {
     let tmp = tempfile::tempdir().unwrap();

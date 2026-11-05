@@ -1,3 +1,5 @@
+//! Integration tests of craft-platform: browser downloads.
+
 #![cfg(all(target_arch = "wasm32", feature = "browser"))]
 use craft_platform::browser::{DownloadOptions, PreparedDownload, download_bytes};
 use wasm_bindgen::{JsValue, prelude::wasm_bindgen};

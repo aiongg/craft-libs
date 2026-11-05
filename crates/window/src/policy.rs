@@ -45,9 +45,13 @@ pub enum TitleBarPref {
 /// The operating system family. Linux stands for Linux and the BSDs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Os {
+    #[allow(missing_docs)]
     Mac,
+    #[allow(missing_docs)]
     Windows,
+    #[allow(missing_docs)]
     Linux,
+    #[allow(missing_docs)]
     Web,
 }
 
@@ -69,9 +73,13 @@ impl Os {
 /// The look of the caption buttons.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CaptionFamily {
+    #[allow(missing_docs)]
     Windows,
+    #[allow(missing_docs)]
     Adwaita,
+    #[allow(missing_docs)]
     Breeze,
+    #[allow(missing_docs)]
     Generic,
 }
 
@@ -91,7 +99,9 @@ impl CaptionFamily {
 /// Caption buttons the app draws: their look and which end of the bar they sit at.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Captions {
+    /// The buttons' look.
     pub family: CaptionFamily,
+    /// Which buttons go on which end.
     pub layout: Layout,
 }
 
@@ -127,6 +137,7 @@ pub enum Frame {
 /// The decided frame and how it was decided.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Decision {
+    /// Who draws the window frame.
     pub frame: Frame,
     /// `Some(true)` when `<PREFIX>_TITLEBAR` forced the app's bar, `Some(false)` when it forced the
     /// system's, `None` when the platform and setting decided.

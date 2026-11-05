@@ -119,6 +119,7 @@ impl<'a> IconButton<'a> {
         }
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -224,6 +225,7 @@ impl<'a> IconButton<'a> {
         self
     }
 
+    /// The button's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> IconButtonStyle {
         let c = &tokens.component;
         let ghost = c.button.colors(ButtonVariant::Ghost);

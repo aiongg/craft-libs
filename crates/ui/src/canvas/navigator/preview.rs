@@ -65,7 +65,7 @@ pub enum NavigatorPreview<'a> {
 ///
 /// **What the user sees and does.**
 /// - The zoom row is laid out first, at the bottom of the space; the preview box takes the height
-///   above it in the same pass (no previous-pass height, lead call L7), at least
+///   above it in the same pass (no previous-pass height), at least
 ///   `navigator.min_preview`. The box is filled with `surface.canvas`; the document is fitted
 ///   inside with `navigator.inset` on each side ([`preview_rect`](super::preview_rect)), over a
 ///   checkerboard of `navigator.checker` squares in `Checkerboard`'s colours.
@@ -76,7 +76,7 @@ pub enum NavigatorPreview<'a> {
 /// - Press and drag on the preview: the view centre follows the pointer
 ///   ([`view_center_for`](super::view_center_for)), clamped to the document, every pass. A click
 ///   moves the centre to the clicked point. Esc during the drag puts the view back as it was at
-///   the press (lead call L5).
+///   the press.
 /// - With Cmd (macOS) or Ctrl (elsewhere) held at the press, the drag draws marching ants
 ///   ([`Marquee`](crate::canvas::Marquee) with `MarqueeLook::Ants`) clipped to the fitted rect;
 ///   the release zooms to the rectangle ([`zoom_to_document_rect`](super::zoom_to_document_rect)).
@@ -171,7 +171,7 @@ impl<'a> Navigator<'a> {
         self
     }
 
-    /// The zoom row's control size; [`ControlSize::Sm`] by default (lead call L6: the library's
+    /// The zoom row's control size; [`ControlSize::Sm`] by default (the library's
     /// `NumberField`, `IconButton` and `Slider` at that size, the field at the library's width).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.control_size = size;
@@ -519,7 +519,7 @@ pub struct NavigatorOutput {
 }
 
 /// Paints a checkerboard of `style.checker`-point squares in `style.checker_colors` over `rect`,
-/// starting at its top-left corner (lead call L8: `CheckerSize` offers 4, 8 and 16 only).
+/// starting at its top-left corner (`CheckerSize` offers 4, 8 and 16 only).
 fn paint_checker(painter: &Painter, rect: Rect, style: &NavigatorStyle) {
     // pc: crates/ui-egui/src/widgets/color.rs:29 `checker`, called with 6.0 at panels/navigator.rs:25, :28.
     let painter = painter.with_clip_rect(painter.clip_rect().intersect(rect));

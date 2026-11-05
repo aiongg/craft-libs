@@ -1,4 +1,4 @@
-//! Tests of the Connector tool (task SH-T10). The view maps one document unit to one screen point.
+//! Tests of the Connector tool. The view maps one document unit to one screen point.
 
 use egui::{CursorIcon, Key, Modifiers, Sense, vec2};
 use egui_kittest::Harness;

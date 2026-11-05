@@ -1,4 +1,4 @@
-//! Tests of the pins' model and grabs (task WS-BP1).
+//! Tests of the pins' model and grabs.
 
 use egui::{Color32, CursorIcon, Rect, pos2};
 

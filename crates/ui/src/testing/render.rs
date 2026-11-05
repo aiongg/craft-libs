@@ -47,7 +47,10 @@ pub enum RenderError {
     Size(String),
     /// The UI still asked for frames after the step limit:
     /// `the UI did not settle within {steps} frames`.
-    NotSettled { steps: u64 },
+    NotSettled {
+        /// The step limit that was exceeded.
+        steps: u64,
+    },
     /// wgpu failed (no adapter, a lost device): `rendering failed: {kittest's message}`.
     Renderer(String),
 }

@@ -4,7 +4,7 @@
 //! The host keeps the library and every command; the browser draws, senses and reports
 //! [`PresetEvent`]s. This module holds the data it meets the host through: [`PresetRow`] (the
 //! host's flat display list), [`PresetState`] (the view settings the host stores),
-//! [`PresetEvent`] and [`PresetLabels`]; [`layout`] is the pure geometry of the rows.
+//! [`PresetEvent`] and [`PresetLabels`]; `layout` is the pure geometry of the rows.
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod bars_tests;

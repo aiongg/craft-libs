@@ -13,6 +13,7 @@ use super::slot::Edge;
 pub struct WindowKey(String);
 
 impl WindowKey {
+    /// A key from any string. Two windows of one app need different keys.
     pub fn new(key: impl Into<String>) -> Self {
         Self(key.into())
     }
@@ -22,6 +23,7 @@ impl WindowKey {
         Self::new("main")
     }
 
+    /// The key as a string.
     pub fn as_str(&self) -> &str {
         &self.0
     }

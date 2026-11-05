@@ -88,6 +88,7 @@ impl<'a> DragBadge<'a> {
     }
 
     // lightcraft: crates/ui-egui/src/panels/grid.rs:1120 drag_feedback; panels/left/albums.rs:366 (album drag)
+    /// Shows the badge beside the pointer for this pass.
     pub fn show(self, ctx: &Context) {
         let Self { id_salt, text, count, labels } = self;
         let Some(pointer) = ctx.input(|i| i.pointer.latest_pos()) else { return };
@@ -155,6 +156,7 @@ impl HoveredFiles {
         })
     }
 
+    /// Whether no file hovers: no paths and no unnamed files.
     pub fn is_empty(&self) -> bool {
         self.paths.is_empty() && self.unnamed == 0
     }
@@ -193,6 +195,7 @@ impl<'a> DropVeil<'a> {
     }
 
     // lightcraft: crates/ui-egui/src/drop_overlay.rs:73 show
+    /// Shows the veil over the window for this pass.
     pub fn show(self, ctx: &Context) {
         let Self { id_salt, lines } = self;
         let tokens = crate::theme::current(ctx);

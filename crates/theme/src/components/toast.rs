@@ -24,9 +24,9 @@ pub struct ToastTokens {
     pub radius: f32,
     /// Card fill: `surface.panel` (PhotoCraft's `card`).
     pub fill: Rgba,
-    /// Offset of the card's shadow, from [`values::TOAST_SHADOW_OFFSET`]; colour as the popup's.
+    /// Offset of the card's shadow, from `values::TOAST_SHADOW_OFFSET`; colour as the popup's.
     pub shadow_offset: [f32; 2],
-    /// Blur of the card's shadow, from [`values::TOAST_SHADOW_BLUR`].
+    /// Blur of the card's shadow, from `values::TOAST_SHADOW_BLUR`.
     pub shadow_blur: f32,
     /// Bullet lines: `text.muted`.
     pub line: Rgba,

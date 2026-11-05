@@ -32,6 +32,7 @@ pub struct KeyInput {
     pub button_focused: bool,
     /// The footer has an enabled default button.
     pub default_enabled: bool,
+    /// Whether the dialog or the body answers Enter.
     pub enter_rule: EnterRule,
 }
 

@@ -1,4 +1,4 @@
-//! Stories of Perspective Warp (task ST-TR2).
+//! Stories of Perspective Warp.
 //!
 //! The layer is `MockImage` on the shared stage of the transform preview stories
 //! (`transform_preview::stories::Document`), drawn by the real `TransformPreview` through

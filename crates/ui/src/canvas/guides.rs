@@ -40,6 +40,7 @@ pub enum Orientation {
 }
 
 impl Orientation {
+    /// The other orientation.
     pub fn flipped(self) -> Orientation {
         match self {
             Orientation::Horizontal => Orientation::Vertical,
@@ -98,8 +99,11 @@ impl Orientation {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum GuideLine {
     #[default]
+    #[allow(missing_docs)]
     Solid,
+    #[allow(missing_docs)]
     Dashed,
+    #[allow(missing_docs)]
     Dots,
 }
 
@@ -108,6 +112,7 @@ pub enum GuideLine {
 pub struct Guide {
     /// The host's name for the guide, unique among the guides shown together.
     pub key: u64,
+    #[allow(missing_docs)]
     pub orientation: Orientation,
     /// Document coordinate across the guide: x for a vertical guide.
     pub position: f64,
@@ -116,6 +121,7 @@ pub struct Guide {
     /// The host's colour for this guide, in place of `overlay.guide` (PhotoCraft's New Guide
     /// colour and preferences). The selected guide is `overlay.guide_selected` whatever it is.
     pub color: Option<Color32>,
+    /// How the line is drawn.
     pub line: GuideLine,
     /// A locked guide is drawn but takes no pointer or key.
     pub locked: bool,
@@ -127,6 +133,7 @@ impl Guide {
         Self { key, orientation, position, span: None, color: None, line: GuideLine::Solid, locked: false }
     }
 
+    /// The guide's orientation and position, as the value of its edit events.
     pub fn place(&self) -> GuidePlace {
         GuidePlace { orientation: self.orientation, position: Some(self.position) }
     }
@@ -135,7 +142,9 @@ impl Guide {
 /// Where a guide is, the value of a guide's edit events: `position: None` is a removed guide.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GuidePlace {
+    #[allow(missing_docs)]
     pub orientation: Orientation,
+    /// Document coordinate across the guide; `None` for a removed guide.
     pub position: Option<f64>,
 }
 
@@ -178,9 +187,11 @@ pub struct GuideStyle {
     pub hit: f32,
     /// A dashed guide's dashes and gaps: `guide.dash`, `guide.gap`.
     pub dash: f32,
+    /// A dashed guide's gap length, in screen points.
     pub gap: f32,
     /// A dotted guide's dot spacing and radius: `guide.dot_gap`, `guide.dot_radius`.
     pub dot_gap: f32,
+    /// A dotted guide's dot radius, in screen points.
     pub dot_radius: f32,
     /// `overlay.guide`.
     pub color: Color32,
@@ -221,6 +232,7 @@ crate::words! {
 }
 
 impl GuideNames {
+    /// The accessible names of the guide group and of its two orientations.
     pub fn new(group: impl Into<String>, vertical: impl Into<String>, horizontal: impl Into<String>) -> Self {
         Self { group: group.into(), vertical: vertical.into(), horizontal: horizontal.into() }
     }
@@ -418,11 +430,13 @@ impl<'a> Guides<'a> {
         self
     }
 
+    /// How the guides report gestures.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// The guide look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GuideStyle {
         let (g, o) = (&tokens.component.guide, &tokens.color.overlay);
         let halo = tokens.component.handle.halo;
@@ -454,7 +468,7 @@ impl<'a> Guides<'a> {
     /// horizontal guide, the left one a vertical guide. The ruler calls it when a drag starts on
     /// it, with the [`id`](GuidesResponse::id) of the guides it feeds; the guides run the drag
     /// until the release, wherever the pointer goes. Alt held turns the guide the other way
-    /// (PhotoCraft #5698). Released over the canvas and inside the bounds the drag commits with
+    /// (storytold/photocraft#5698). Released over the canvas and inside the bounds the drag commits with
     /// no key and the host adds the guide; elsewhere it is cancelled.
     ///
     /// The guides take the drag when they are shown, in this pass if that comes after the call,
@@ -978,7 +992,7 @@ fn guide_id(guides: Id, key: u64) -> Id {
 
 /// The screen ends of a guide at `position` across what the view shows (`visible`, the document
 /// bounds of the canvas rect), limited to `span` and to the canvas rect: a rotated view turns the
-/// guide with the document (PhotoCraft #3277). `None` when the guide is out of view.
+/// guide with the document (storytold/photocraft#3277). `None` when the guide is out of view.
 pub(super) fn segment(view: &CanvasView, visible: Rect, orientation: Orientation, position: f64, span: Option<&Range<f64>>) -> Option<[Pos2; 2]> {
     let (lo, hi) = orientation.flipped().range(visible);
     let (lo, hi) = match span {
@@ -1052,7 +1066,9 @@ fn readable_on(fill: Color32) -> Color32 {
 /// An alignment line of [`SmartGuides`], in document coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SmartLine {
+    /// One end of the line.
     pub a: Point,
+    /// The other end of the line.
     pub b: Point,
     /// An extension from an object's edge to a distance: dashed.
     pub extension: bool,
@@ -1061,7 +1077,9 @@ pub struct SmartLine {
 /// A distance of [`SmartGuides`]: a line with end caps and a label, in document coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Measure {
+    /// One end of the distance.
     pub a: Point,
+    /// The other end of the distance.
     pub b: Point,
     /// The host's formatted distance (`24 px`).
     pub label: String,
@@ -1084,6 +1102,7 @@ pub struct SmartGuides<'a> {
 }
 
 impl<'a> SmartGuides<'a> {
+    /// Shows `lines` and `measures`; both are in document coordinates.
     pub fn new(lines: &'a [SmartLine], measures: &'a [Measure]) -> Self {
         Self { lines, measures, color: None, bounds: None }
     }
@@ -1102,6 +1121,7 @@ impl<'a> SmartGuides<'a> {
         self
     }
 
+    /// Paints the lines, distances and bounds through `view`.
     pub fn show(self, ui: &Ui, view: &CanvasView) {
         let tokens = Tokens::of(ui);
         let mut style = Guides::style(&tokens);
@@ -1193,10 +1213,13 @@ pub(crate) fn stories() -> Vec<Story> {
 /// A host's guides and selection, as the stories and tests keep them.
 #[derive(Clone, Debug)]
 pub struct GuideHost {
+    /// The guides, in the host's order.
     pub guides: Vec<Guide>,
+    /// The key of the selected guide.
     pub selected: Option<u64>,
     /// The guides when a drag began, to restore on a cancel.
     pub before: Option<Vec<Guide>>,
+    /// The key the next guide dragged out of a ruler gets.
     pub next_key: u64,
 }
 

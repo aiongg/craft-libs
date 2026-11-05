@@ -18,7 +18,9 @@ const MAX_URI_LEN: usize = 4096;
 /// Size limits applied to payloads in a request.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limits {
+    /// Largest inline binary payload, in bytes.
     pub max_inline_bytes: u64,
+    /// Largest text payload, in bytes.
     pub max_text_bytes: usize,
 }
 
@@ -52,6 +54,7 @@ validated_string!(
 );
 
 impl MediaType {
+    /// The coarse kind for this media type. Unknown types are `Other`; `application/json` counts as text.
     pub fn kind(&self) -> PayloadKind {
         let s = self.as_str();
         if s.starts_with("image/") {
@@ -75,19 +78,28 @@ impl MediaType {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PayloadKind {
+    #[allow(missing_docs)]
     Text,
+    #[allow(missing_docs)]
     Image,
+    #[allow(missing_docs)]
     Video,
+    #[allow(missing_docs)]
     Audio,
+    /// A document such as a PDF.
     Document,
+    /// Any other media type.
     Other,
 }
 
 /// A reference to data that stays where it is until a provider adapter streams it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PayloadHandle {
+    /// Where the data lives, such as a file path or URL. Never empty and has no control characters.
     pub uri: String,
+    /// What the data is.
     pub media_type: MediaType,
+    /// Size in bytes, when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size_bytes: Option<u64>,
 }
@@ -96,27 +108,36 @@ pub struct PayloadHandle {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Payload {
+    /// Plain text.
     Text {
+        /// The text.
         text: String,
     },
+    /// Binary data carried in the payload, serialized as base64.
     Inline {
+        /// What the data is.
         media_type: MediaType,
+        /// The raw bytes.
         #[serde(with = "base64_bytes")]
         data: Vec<u8>,
     },
+    /// Data kept where it is, referenced by a handle.
     Handle(PayloadHandle),
 }
 
 impl Payload {
+    /// A text payload.
     pub fn text(text: impl Into<String>) -> Self {
         Self::Text { text: text.into() }
     }
 
+    /// An inline payload. Fails when `media_type` is not a valid media type.
     pub fn inline(media_type: &str, data: Vec<u8>) -> Result<Self, AiError> {
         let media_type = MediaType::new(media_type).map_err(|e| AiError::invalid(format!("media type: {e}")))?;
         Ok(Self::Inline { media_type, data })
     }
 
+    /// A handle payload. Fails on an empty, over-long (4096 bytes) or control-character URI, or an invalid media type.
     pub fn handle(uri: &str, media_type: &str, size_bytes: Option<u64>) -> Result<Self, AiError> {
         if uri.is_empty() || uri.len() > MAX_URI_LEN || uri.chars().any(char::is_control) {
             return Err(AiError::invalid("payload uri is empty, too long, or has control characters"));
@@ -125,6 +146,7 @@ impl Payload {
         Ok(Self::Handle(PayloadHandle { uri: uri.to_owned(), media_type, size_bytes }))
     }
 
+    /// The coarse kind: text for `Text`, otherwise from the media type.
     pub fn kind(&self) -> PayloadKind {
         match self {
             Self::Text { .. } => PayloadKind::Text,

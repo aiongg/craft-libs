@@ -1,4 +1,4 @@
-//! Tests of the Brush Settings section list (task BR-BS4).
+//! Tests of the Brush Settings section list.
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
 use craft_ui::theme::{Base, install};

@@ -22,14 +22,19 @@ const SQUARE: f64 = 40.0;
 #[derive(StoryChoice, Clone, Copy, Debug, Default, PartialEq)]
 pub enum PppArg {
     #[default]
+    /// Use the gallery's own scale.
     Gallery,
     #[choice(name = "1")]
+    #[allow(missing_docs)]
     One,
     #[choice(name = "1.25")]
+    #[allow(missing_docs)]
     OneQuarter,
     #[choice(name = "1.5")]
+    #[allow(missing_docs)]
     OneHalf,
     #[choice(name = "2")]
+    #[allow(missing_docs)]
     Two,
 }
 
@@ -53,12 +58,17 @@ impl PppArg {
 #[derive(StoryArgs, Clone, Copy, Debug, PartialEq)]
 pub struct ViewArgs {
     #[arg(range = 10.0..=800.0)]
+    /// Zoom in percent of device pixels per document pixel.
     pub zoom: f64,
     #[arg(range = -180.0..=180.0)]
+    /// Rotation in degrees.
     pub rotation: f64,
+    #[allow(missing_docs)]
     pub flip: bool,
     #[arg(range = 0.5..=2.0)]
+    /// Pixel aspect ratio of the view.
     pub aspect: f64,
+    /// Pixels per point of the canvas.
     pub ppp: PppArg,
 }
 
@@ -72,6 +82,7 @@ impl Default for ViewArgs {
 #[derive(StoryArgs, Debug, Default, PartialEq)]
 pub struct PlainArgs {
     #[arg(flatten)]
+    /// The view arguments.
     pub view: ViewArgs,
 }
 
@@ -79,7 +90,9 @@ pub struct PlainArgs {
 pub struct StoryCanvas {
     /// The canvas widget's id, the key of a story's per-canvas state.
     pub id: CanvasId,
+    /// The canvas widget's response.
     pub response: Response,
+    /// The view the canvas was drawn with.
     pub view: CanvasView,
     /// The area allocated: the canvas and the margin around its top and left for rulers.
     pub full: egui::Rect,

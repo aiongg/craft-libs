@@ -21,11 +21,14 @@ use serde::{Deserialize, Serialize};
 /// Ordered row first, then column (reading order left to right).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct CellRef {
+    /// Zero-based row.
     pub row: u32,
+    /// Zero-based column.
     pub column: u32,
 }
 
 impl CellRef {
+    /// The cell at `row`, `column`.
     pub fn new(row: u32, column: u32) -> Self {
         Self { row, column }
     }
@@ -35,7 +38,9 @@ impl CellRef {
 /// Logical: in a right-to-left sheet the widget mirrors it on screen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CellRange {
+    /// The top-left corner.
     pub start: CellRef,
+    /// The bottom-right corner.
     pub end: CellRef,
 }
 
@@ -50,18 +55,22 @@ impl CellRange {
         Self { start: c, end: c }
     }
 
+    /// Whether `c` lies in the range.
     pub fn contains(&self, c: CellRef) -> bool {
         self.rows().contains(&c.row) && self.columns().contains(&c.column)
     }
 
+    /// Whether the range is one cell.
     pub fn is_single_cell(&self) -> bool {
         self.start == self.end
     }
 
+    /// The rows the range spans.
     pub fn rows(&self) -> RangeInclusive<u32> {
         self.start.row..=self.end.row
     }
 
+    /// The columns the range spans.
     pub fn columns(&self) -> RangeInclusive<u32> {
         self.start.column..=self.end.column
     }
@@ -106,6 +115,7 @@ impl CellRange {
 /// A move of one cell. Logical: in a right-to-left sheet the widget maps the Left arrow to
 /// [`Right`](Self::Right) (Excel mirrors the arrows with the sheet).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
 pub enum CellDirection {
     Up,
     Down,
@@ -116,7 +126,9 @@ pub enum CellDirection {
 /// Which key moves the active cell after an entry: Enter goes down the rows, Tab along a row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CellAdvance {
+    /// Enter: down the rows.
     Enter,
+    /// Tab: along the row.
     Tab,
 }
 
@@ -153,11 +165,13 @@ impl<'a> CellSpace<'a> {
         self
     }
 
+    /// Which rows are hidden; the arrows skip them.
     pub fn hidden_rows(mut self, hidden: &'a dyn Fn(u32) -> bool) -> Self {
         self.hidden_rows = Some(hidden);
         self
     }
 
+    /// Which columns are hidden; the arrows skip them.
     pub fn hidden_columns(mut self, hidden: &'a dyn Fn(u32) -> bool) -> Self {
         self.hidden_columns = Some(hidden);
         self
@@ -170,10 +184,12 @@ impl<'a> CellSpace<'a> {
         self
     }
 
+    /// The number of rows.
     pub fn row_count(&self) -> u32 {
         self.rows
     }
 
+    /// The number of columns.
     pub fn column_count(&self) -> u32 {
         self.columns
     }
@@ -399,14 +415,17 @@ impl CellSelection {
         holds.then(|| Self { current: ranges.len() - 1, ranges, active, anchor: active, tab_run: None })
     }
 
+    /// The selected ranges, in the order they were added.
     pub fn ranges(&self) -> &[CellRange] {
         &self.ranges
     }
 
+    /// The active cell: the one an entry goes into.
     pub fn active(&self) -> CellRef {
         self.active
     }
 
+    /// The corner of the current range that Shift extends from.
     pub fn anchor(&self) -> CellRef {
         self.anchor
     }
@@ -430,6 +449,7 @@ impl CellSelection {
         CellRef::new(row, column)
     }
 
+    /// Whether any selected range holds `c`.
     pub fn contains(&self, c: CellRef) -> bool {
         self.ranges.iter().any(|r| r.contains(c))
     }

@@ -1,4 +1,4 @@
-//! Tests of the pin session (task TR-T6), on a fake solver that records its calls.
+//! Tests of the pin session, on a fake solver that records its calls.
 
 use egui::Modifiers;
 use kurbo::Point;

@@ -1,4 +1,4 @@
-//! [`LassoTool`]: the freehand Lasso with ⌥-latched straight segments (task SE-F9).
+//! [`LassoTool`]: the freehand Lasso with ⌥-latched straight segments.
 
 use craft_ui::behavior::move_gesture::ConstrainStyle;
 use craft_ui::canvas::draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};

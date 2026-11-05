@@ -1,4 +1,4 @@
-//! Tests of Content-Aware Fill's session, edits and tools (task WS-CA1).
+//! Tests of Content-Aware Fill's session, edits and tools.
 
 use serde_json::json;
 

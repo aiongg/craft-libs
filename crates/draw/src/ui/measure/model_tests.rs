@@ -1,4 +1,4 @@
-//! Tests of the Ruler line model (task TO-R1).
+//! Tests of the Ruler line model.
 
 use kurbo::Point;
 

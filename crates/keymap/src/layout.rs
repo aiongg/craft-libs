@@ -63,25 +63,30 @@ pub struct KeyInput {
 }
 
 impl KeyInput {
+    /// A press with `mods` and nothing else known about the key.
     pub const fn new(mods: Mods) -> KeyInput {
         KeyInput { mods, typed: None, physical: None, latin: None, shift_needed: None }
     }
 
+    /// Sets [`typed`](Self::typed).
     pub const fn with_typed(mut self, key: Key) -> KeyInput {
         self.typed = Some(key);
         self
     }
 
+    /// Sets [`physical`](Self::physical).
     pub const fn with_physical(mut self, key: Key) -> KeyInput {
         self.physical = Some(key);
         self
     }
 
+    /// Sets [`latin`](Self::latin).
     pub const fn with_latin(mut self, c: char) -> KeyInput {
         self.latin = Some(c);
         self
     }
 
+    /// Sets [`shift_needed`](Self::shift_needed).
     pub const fn with_shift_needed(mut self, needed: bool) -> KeyInput {
         self.shift_needed = Some(needed);
         self

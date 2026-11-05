@@ -55,6 +55,7 @@ pub struct Flattened {
     pub items: Vec<Item>,
     /// Areas left for rasterizing, each disjoint from every item but those it paints before.
     pub complex: Vec<ComplexRegion>,
+    /// What the flattening did.
     pub report: FlattenReport,
 }
 
@@ -95,11 +96,13 @@ pub struct FlattenReport {
 pub struct ComplexGroup {
     /// Indices into [`DisplayList::items`].
     pub items: Vec<usize>,
+    /// Why the group went to the rasterizer.
     pub reason: ComplexReason,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
+/// Why a group or region is rasterized instead of flattened.
 pub enum ComplexReason {
     /// The region sweep failed ([`GeomError::Degenerate`]).
     Degenerate,
@@ -109,10 +112,13 @@ pub enum ComplexReason {
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 #[non_exhaustive]
+/// Why [`flatten`] failed.
 pub enum FlattenError {
     #[error("a color names ink {0:?}, which is not in the list's ink set")]
+    #[allow(missing_docs)]
     UnknownInk(InkId),
     #[error(transparent)]
+    #[allow(missing_docs)]
     Geometry(#[from] GeomError),
 }
 

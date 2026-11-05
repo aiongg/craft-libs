@@ -64,7 +64,9 @@ crate::words! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SortOrder {
     #[default]
+    #[allow(missing_docs)]
     Ascending,
+    #[allow(missing_docs)]
     Descending,
 }
 
@@ -81,7 +83,9 @@ impl SortOrder {
 /// The column the rows sort by, and which way.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TableSort<C> {
+    #[allow(missing_docs)]
     pub column: C,
+    #[allow(missing_docs)]
     pub order: SortOrder,
 }
 
@@ -192,10 +196,12 @@ impl<C> TableColumn<C> {
         self
     }
 
+    /// The column's key.
     pub fn key(&self) -> &C {
         &self.key
     }
 
+    /// The column's heading, already translated.
     pub fn label(&self) -> &str {
         &self.label
     }
@@ -270,6 +276,7 @@ pub struct TableLayout<C> {
     /// The widths the user dragged; empty until a column is resized, and the columns fit the
     /// table's width until then (PdfCraft's `Columns::widths`).
     pub widths: Vec<(C, f32)>,
+    /// The sorted column and its order, or `None` when the table is unsorted.
     pub sort: Option<TableSort<C>>,
 }
 
@@ -361,20 +368,26 @@ pub struct TableStyle {
     /// The sort glyph's side and its gap after the label: `table.sort_glyph` (PdfCraft's
     /// chevron, 12) and `table.sort_gap` (PdfCraft 14 to its centre, so 8 to its edge).
     pub sort_glyph: f32,
+    /// Gap between the sort glyph and the label (`table.sort_gap`).
     pub sort_gap: f32,
     /// The resize grip's hit width, centred on a column edge: `table.grip_width`.
     pub grip_width: f32,
     /// Header text: the `Label` role in `text.muted`, the sorting column's in `text.normal`
     /// (PdfCraft's).
     pub header_text: Color32,
+    #[allow(missing_docs)]
     pub header_text_sorted: Color32,
     /// The header's hover and pressed fills: `list.hover` and `state.pressed`.
     pub header_hover: Color32,
+    #[allow(missing_docs)]
     pub header_pressed: Color32,
     /// The drop line a dragged header shows, `table.drop_line_width` (2.5, PdfCraft's) wide in
     /// `accent.solid`, reaching `table.drop_line_slack` past the cell it marks.
+    #[allow(missing_docs)]
     pub drop_line: Color32,
+    /// Width of the drop line (`table.drop_line_width`).
     pub drop_line_width: f32,
+    /// How far the drop line reaches past the cell it marks (`table.drop_line_slack`).
     pub drop_line_slack: f32,
     /// The least width of a column that sets none: `table.min_column`.
     pub min_column: f32,
@@ -382,6 +395,7 @@ pub struct TableStyle {
     /// dock dividers' (`dock.resize` and `float.focus`, the dock look's `resize` and `focus`).
     /// Header cells stay square, as Photoshop's and the system file lists' do.
     pub edge: Color32,
+    #[allow(missing_docs)]
     pub edge_focus: Color32,
     /// Every other row's fill (`list.stripe`).
     pub stripe: Color32,
@@ -740,6 +754,7 @@ where
     }
 
     // pdfcraft: crates/ui-egui/src/workflows/combine_ui/table.rs:32 table, :96 heading, :167 table_body
+    /// Draws the table, calling `cell` for each visible cell, and returns what the user did this pass.
     pub fn show(self, ui: &mut Ui, mut cell: impl FnMut(&mut Ui, &K, &C, &CellContext<'_>)) -> TableOutput<K, C> {
         let Table {
             id_salt,

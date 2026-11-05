@@ -26,7 +26,9 @@ pub enum Measurement {
 /// The paper a new document starts on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Paper {
+    /// A4 sheets.
     A4,
+    /// US Letter sheets.
     Letter,
 }
 
@@ -48,7 +50,9 @@ pub struct Region {
     pub numbers: String,
     /// The locale dates and times are written in, BCP 47.
     pub time: String,
+    /// The unit system for lengths, distances and weights.
     pub measurement: Measurement,
+    /// The paper size a new document starts on.
     pub paper: Paper,
     /// The decimal separator the system sets (Windows, macOS); `None` follows the locale.
     pub decimal: Option<char>,

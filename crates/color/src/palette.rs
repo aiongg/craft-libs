@@ -110,7 +110,12 @@ pub enum SwatchColor {
     Gray(f32),
     /// A colour space this crate does not model (colour-book colours in an `.aco` file), kept
     /// as stored so it survives a round trip. Shows as black.
-    Book { space: u16, values: [u16; 4] },
+    Book {
+        /// The colour-book space id stored in the file.
+        space: u16,
+        /// The four stored channel values, untouched.
+        values: [u16; 4],
+    },
 }
 
 impl SwatchColor {
@@ -145,17 +150,23 @@ impl SwatchColor {
 #[serde(rename_all = "camelCase")]
 pub enum SwatchKind {
     #[default]
+    #[allow(missing_docs)]
     Process,
+    #[allow(missing_docs)]
     Global,
+    #[allow(missing_docs)]
     Spot,
 }
 
 /// One named swatch.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SwatchEntry {
+    /// The swatch's label.
     pub name: String,
+    /// The swatch's colour.
     pub color: SwatchColor,
     #[serde(default)]
+    /// How the file marks the colour; `Process` unless the file says otherwise.
     pub kind: SwatchKind,
 }
 
@@ -170,7 +181,9 @@ impl SwatchEntry {
 /// one group named after the file.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SwatchGroup {
+    /// The group's label.
     pub name: String,
+    /// The group's swatches in display order.
     pub entries: Vec<SwatchEntry>,
 }
 
@@ -178,6 +191,7 @@ pub struct SwatchGroup {
 /// variants let it word them itself.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SwatchReport {
+    /// What was dropped or changed, in the order it was found.
     pub notes: Vec<SwatchNote>,
 }
 

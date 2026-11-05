@@ -20,9 +20,9 @@ pub enum Hit<P> {
     Border(P),
     /// The "…" button of a group whose tabs overflow; named by the active panel.
     Overflow(P),
-    /// [D] A column bar: drag moves the column (S6).
+    /// \[D\] A column bar: drag moves the column (S6).
     ColumnBar(P),
-    /// [D] The »/« button of a column bar (M2).
+    /// \[D\] The »/« button of a column bar (M2).
     Collapse(P),
     /// An accordion entry's −/+ button.
     StackToggle(P),
@@ -30,12 +30,13 @@ pub enum Hit<P> {
     Title(P),
     /// A floating window's × button.
     Close(P),
-    /// [D] A panel's icon in an iconic column (S7, M5).
+    /// \[D\] A panel's icon in an iconic column (S7, M5).
     Icon(P),
-    /// [D] The grip above an icon group (S8).
+    /// \[D\] The grip above an icon group (S8).
     IconGrip(P),
     /// A floating window's resize handle.
     Resize(P, ResizeEdge),
+    /// A divider.
     Divider(Divider<P>),
 }
 
@@ -43,13 +44,21 @@ pub enum Hit<P> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum ResizeEdge {
+    #[allow(missing_docs)]
     Left,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     BottomLeft,
+    #[allow(missing_docs)]
     BottomRight,
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     TopLeft,
+    #[allow(missing_docs)]
     TopRight,
 }
 
@@ -61,7 +70,7 @@ pub enum Divider<P> {
     Split(Vec<bool>),
     /// Below the accordion entry of this panel.
     Stack(P),
-    /// [D] The inner edge of the column holding this panel first.
+    /// \[D\] The inner edge of the column holding this panel first.
     Column(P),
     /// Below the dock group holding this panel first.
     Group(P),
@@ -70,6 +79,7 @@ pub enum Divider<P> {
     Intersection(Vec<bool>, Vec<bool>),
     /// A divider in the floating window holding the panel, by its path from the window's root.
     WindowSplit(P, Vec<bool>),
+    /// Like `Intersection` in the floating window holding the panel.
     WindowIntersection(P, Vec<bool>, Vec<bool>),
 }
 

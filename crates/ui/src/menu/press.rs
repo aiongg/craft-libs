@@ -48,6 +48,7 @@ pub struct PressMenu<'a, T> {
 }
 
 impl<'a, T: Clone> PressMenu<'a, T> {
+    /// A menu of `entries` that opens on a press, at the default control size.
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
         Self { entries, size: ControlSize::Md, scroll_labels: None, focus_owner: None, min_width: None }
     }

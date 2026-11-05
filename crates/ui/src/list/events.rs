@@ -56,8 +56,11 @@ crate::words! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum EventLevel {
     #[default]
+    #[allow(missing_docs)]
     Info,
+    #[allow(missing_docs)]
     Warning,
+    #[allow(missing_docs)]
     Error,
 }
 
@@ -77,9 +80,11 @@ impl EventLevel {
 pub struct LogEvent {
     /// The app's id; it keeps the selection while new events arrive.
     pub id: u64,
+    /// How serious the event is.
     pub level: EventLevel,
     /// What reported it: "Auto-save", "Render", a command's name.
     pub source: String,
+    /// What happened, already translated.
     pub message: String,
     /// How many times in a row it happened (1 for once).
     pub count: u32,
@@ -215,6 +220,7 @@ impl<'a> EventLog<'a> {
     }
 
     // filmcraft: crates/ui-egui/src/panels/events.rs:52 events
+    /// Draws the log and returns what the user did this pass.
     pub fn show(self, ui: &mut Ui) -> EventLogOutput {
         let Self { id_salt, events, state, now_ms, labels } = self;
         let labels = labels.map_or_else(|| EventLogLabels::shared(ui), Arc::new);

@@ -1,5 +1,5 @@
 //! [`PinWarp`]: Puppet Warp's pins on the canvas, placed, moved, turned and removed by pointer and
-//! keyboard (task TR-T12).
+//! keyboard.
 
 use egui::{AsIdSalt, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Rect, Response, Shape, Ui, vec2};
 use kurbo::Vec2;
@@ -66,6 +66,7 @@ pub struct PinWarp<'a> {
 /// What [`PinWarp::show`] reported this pass.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PinWarpResponse {
+    /// The overlay's widget id.
     pub id: Id,
     /// The edits in the order they happened; the app applies each with
     /// [`PinWarpSession::apply`].
@@ -86,6 +87,7 @@ impl<'a> PinWarp<'a> {
         Self { id_salt: IdSalt::new(id_salt), session, labels: None, units: None, modifiers: None, policy: EditPolicy::default() }
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: PinWarpLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -103,6 +105,7 @@ impl<'a> PinWarp<'a> {
         self
     }
 
+    /// Sets how the overlay reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self

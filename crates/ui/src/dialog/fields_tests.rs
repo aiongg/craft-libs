@@ -76,6 +76,13 @@ fn the_map_round_trips_through_toml() {
     assert_eq!(back, fields, "{text}");
 }
 
+// The map serializes flat, as an app's own settings hold it.
+#[test]
+fn the_map_serializes_as_a_plain_table() {
+    let fields = DialogFields::from_pairs([("method", FieldValue::Text("gaussian".into())), ("radius", FieldValue::Number(4.5))]);
+    assert_eq!(toml::to_string(&fields).expect("serialises"), "method = \"gaussian\"\nradius = 4.5\n");
+}
+
 // A list keeps its items through TOML; a list of integers or of numbers that an untagged read
 // gives back as a grid, point or colour still reads as the list.
 #[test]

@@ -24,7 +24,9 @@ pub enum BrushLevel {
 /// [`BrushLevel`] names.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BrushDimensions {
+    /// The new diameter, in document units.
     pub diameter: f64,
+    /// The new level, 0 to 1, of the [`BrushLevel`] being resized.
     pub level: f64,
 }
 

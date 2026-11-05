@@ -1,4 +1,4 @@
-//! [`PatternFillDialog`] (task SH-T12).
+//! [`PatternFillDialog`].
 
 use std::sync::Arc;
 

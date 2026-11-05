@@ -1,4 +1,4 @@
-//! Tests of the anchor tools (task PE-B1) and the Curvature tool (task PE-C1).
+//! Tests of the anchor tools and the Curvature tool.
 
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Sense, Shape, vec2};
 use egui_kittest::Harness;
@@ -116,7 +116,7 @@ fn reports(h: &Harness<'_, Host>) -> (usize, usize) {
     (h.state().inserts.len(), h.state().deletes.len())
 }
 
-// PE-B1. Add Anchor: a click on a segment reports `insert` at the hit's t; a click on an anchor
+// Add Anchor: a click on a segment reports `insert` at the hit's t; a click on an anchor
 // is claimed and reports nothing; with ⌥ the click on an anchor reports `delete`.
 #[test]
 fn add_anchor_tool_reports_insert_on_a_segment_click_and_alt_swaps() {
@@ -135,7 +135,7 @@ fn add_anchor_tool_reports_insert_on_a_segment_click_and_alt_swaps() {
     assert_eq!(h.state().deletes, vec![(1, vec![KnotRef::new(0, 0)])]);
 }
 
-// PE-B1. Delete Anchor: a click on an anchor reports `delete` of that anchor; ⌥ on a segment
+// Delete Anchor: a click on an anchor reports `delete` of that anchor; ⌥ on a segment
 // reports `insert`.
 #[test]
 fn delete_anchor_tool_reports_delete_on_an_anchor_click() {
@@ -148,7 +148,7 @@ fn delete_anchor_tool_reports_delete_on_an_anchor_click() {
     assert!(matches!(h.state().inserts[..], [(1, segment, _)] if segment == KnotRef::new(0, 0)), "{:?}", h.state().inserts);
 }
 
-// PE-B1. Auto Add/Delete: the first and last anchors of an open subpath and empty canvas are not
+// Auto Add/Delete: the first and last anchors of an open subpath and empty canvas are not
 // claimed (the pen draft takes them); a closed subpath's every anchor is.
 #[test]
 fn auto_add_delete_leaves_open_ends_to_the_pen() {
@@ -166,7 +166,7 @@ fn auto_add_delete_leaves_open_ends_to_the_pen() {
     assert_eq!(h.state().inserts.len(), 1);
 }
 
-// PE-B1. With an open pen draft passed as one more `EditPath` (its own key, last), Add on the
+// With an open pen draft passed as one more `EditPath` (its own key, last), Add on the
 // draft's segment and Delete on its anchor report `insert` and `delete` with the draft's key, and
 // applying them with `EditSubpath::{insert_at, remove_knot}` leaves the draft open from its last
 // anchor (PhotoCraft `anchor_tools.rs:116-128`).
@@ -189,7 +189,7 @@ fn anchor_tools_edit_the_pen_draft_passed_as_a_path() {
     assert!(after.knots.last().is_some_and(|k| k.anchor == last), "drawing goes on from the last anchor");
 }
 
-// PE-B1. Hovering a segment with Add draws the segment mark and a hollow anchor at t; hovering an
+// Hovering a segment with Add draws the segment mark and a hollow anchor at t; hovering an
 // anchor with Delete draws the enlarged anchor.
 #[test]
 fn anchor_tools_draw_the_hover_mark_of_what_a_press_takes() {
@@ -264,7 +264,7 @@ fn near(a: kurbo::Vec2, b: kurbo::Vec2) -> bool {
     (a - b).hypot() < 1e-3
 }
 
-// PE-C1. A drag from an anchor reports MoveCurvature Begin past the click slop, Update, Commit;
+// A drag from an anchor reports MoveCurvature Begin past the click slop, Update, Commit;
 // Esc cancels and the rest of the press does nothing.
 #[test]
 fn curvature_tool_drags_an_anchor_and_reflows() {
@@ -306,7 +306,7 @@ fn curvature_tool_drags_an_anchor_and_reflows() {
     assert_eq!(h.state().events.len(), n);
 }
 
-// PE-C1. A drag from a segment is one InsertCurvature gesture with t clamped to 0.01..=0.99.
+// A drag from a segment is one InsertCurvature gesture with t clamped to 0.01..=0.99.
 #[test]
 fn curvature_tool_insert_and_drag_is_one_gesture() {
     let mut h = harness(BezierTool::Curvature);
@@ -322,7 +322,7 @@ fn curvature_tool_insert_and_drag_is_one_gesture() {
     assert_eq!(h.state().selection.anchors, vec![KnotRef::new(0, 1)], "the new anchor is selected");
 }
 
-// PE-C1. A click without drag on a segment reports one Set of InsertCurvature with `by` zero.
+// A click without drag on a segment reports one Set of InsertCurvature with `by` zero.
 #[test]
 fn curvature_tool_click_on_a_segment_inserts_only() {
     let mut h = harness(BezierTool::Curvature);
@@ -332,7 +332,7 @@ fn curvature_tool_click_on_a_segment_inserts_only() {
     assert_eq!((path, segment, by), (1, KnotRef::new(0, 0), kurbo::Vec2::ZERO));
 }
 
-// PE-C1. The second click of a double-click on an anchor reports a ToggleCurvature Set.
+// The second click of a double-click on an anchor reports a ToggleCurvature Set.
 #[test]
 fn curvature_tool_double_click_toggles_an_anchor() {
     let mut h = harness(BezierTool::Curvature);
@@ -343,7 +343,7 @@ fn curvature_tool_double_click_toggles_an_anchor() {
     assert_eq!(last_value(&h), Some(PathEdit::ToggleCurvature { path: 1, knot: KnotRef::new(0, 1) }));
 }
 
-// PE-C1. A press on empty canvas is not claimed, so the pen draft shown after starts a path.
+// A press on empty canvas is not claimed, so the pen draft shown after starts a path.
 #[test]
 fn curvature_tool_does_not_claim_empty_canvas() {
     let mut h = harness(BezierTool::Curvature);
@@ -352,7 +352,7 @@ fn curvature_tool_does_not_claim_empty_canvas() {
     assert!(click(&mut h, 110.0, 60.0, Modifiers::NONE), "a segment is claimed");
 }
 
-// PE-C1. With focus, the arrows report a MoveCurvature Set of the selected anchors (⇧ 10) and
+// With focus, the arrows report a MoveCurvature Set of the selected anchors (⇧ 10) and
 // Enter a ToggleCurvature Set of the picked anchor.
 #[test]
 fn curvature_tool_keys_move_and_toggle() {
@@ -380,7 +380,7 @@ fn with_handle_over_the_segment(h: &mut Harness<'_, Host>) {
     h.run();
 }
 
-// PE-C1 fix (pen H1). A shown handle does not hide the segment under it for the anchor tools and
+// A shown handle does not hide the segment under it for the anchor tools and
 // Curvature: the press inserts instead of being left to the pen draft.
 #[test]
 fn a_shown_handle_does_not_hide_the_segment_for_the_anchor_tools_and_curvature() {
@@ -404,7 +404,7 @@ fn a_shown_handle_does_not_hide_the_segment_for_the_anchor_tools_and_curvature()
     assert!(matches!(last_value(&h), Some(PathEdit::MoveHandle { .. })), "{:?}", last_value(&h));
 }
 
-// PE-C1 fix. A Curvature press on a segment reports the new anchor's selection in the pass of the
+// A Curvature press on a segment reports the new anchor's selection in the pass of the
 // insert's Set, never alone before it.
 #[test]
 fn curvature_insert_selects_with_its_first_set() {

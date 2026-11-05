@@ -1,4 +1,4 @@
-//! [`ArtboardProperties`]: an artboard's section in the Properties panel (task SH-T8).
+//! [`ArtboardProperties`]: an artboard's section in the Properties panel.
 
 use craft_theme::Srgba;
 use egui::{AsIdSalt, IdSalt, Ui};
@@ -63,6 +63,7 @@ impl<'a> ArtboardProperties<'a> {
         self
     }
 
+    /// Draw the section and return what the user changed.
     pub fn show(self, ui: &mut Ui) -> ArtboardPropertiesOutput {
         // pc: crates/ui-egui/src/canvas/artboard_ui.rs:129-205 `properties` (Artboard :137, X :166,
         // Y :167, the background dropdown :174-184, Other… :182).

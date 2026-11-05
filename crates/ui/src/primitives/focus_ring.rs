@@ -44,6 +44,8 @@ impl FocusRingStyle {
 pub struct FocusRing;
 
 impl FocusRing {
+    /// The resolved ring style: a 1 px stroke in the `line.focus` colour, drawn 1 point outside
+    /// the control.
     pub fn style(tokens: &UiTokens) -> FocusRingStyle {
         FocusRingStyle { stroke: Stroke::new(craft_theme::Stroke::W1.width(1.0), tokens.color.line.focus.to_egui()), offset: 1.0 }
     }

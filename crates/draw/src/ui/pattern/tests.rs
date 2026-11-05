@@ -1,4 +1,4 @@
-//! Tests of the pattern fill editor and dialog (task SH-T12). PhotoCraft's
+//! Tests of the pattern fill editor and dialog. PhotoCraft's
 //! `dialogs/pattern_fill_ui/tests.rs` cases move here.
 
 use egui::accesskit::Role;

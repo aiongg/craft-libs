@@ -1,5 +1,5 @@
 //! [`LevelsPanel`]: the Levels adjustment around the [`LevelsEditor`]: the Channel select, Auto,
-//! the point pickers and the editor over the shown channel's histogram (task AD-1).
+//! the point pickers and the editor over the shown channel's histogram.
 
 use craft_theme::TypeRole;
 use egui::accesskit::Role;

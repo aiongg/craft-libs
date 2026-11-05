@@ -30,7 +30,12 @@ pub enum CropRatio {
     /// The document's own proportions ("Original Ratio"); the fields show its size.
     Original,
     /// Width to height as typed or picked, both sides positive and at most [`RATIO_MAX`].
-    Sides { width: f64, height: f64 },
+    Sides {
+        /// The width part of the ratio.
+        width: f64,
+        /// The height part of the ratio.
+        height: f64,
+    },
     /// W × H × Resolution: the frame holds W : H while it is drawn, and the commit resamples to
     /// [`CropSettings::target`].
     Size,
@@ -58,6 +63,7 @@ pub struct CropSizeFields {
     pub height: String,
     /// A positive number, or empty for the document's resolution.
     pub resolution: String,
+    /// The unit of `resolution`.
     pub resolution_unit: ResolutionUnit,
 }
 
@@ -77,16 +83,22 @@ pub enum CropFill {
 /// and the resolution in px/in it sets, when one was typed.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CropTarget {
+    /// Target width in pixels.
     pub width: f64,
+    /// Target height in pixels.
     pub height: f64,
+    /// Target resolution in px/in, when one was typed.
     pub resolution: Option<f64>,
 }
 
 /// One built-in size preset: the W, H and Resolution text it fills in px/in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CropSizePreset {
+    /// The W text, a length with its unit.
     pub width: &'static str,
+    /// The H text, a length with its unit.
     pub height: &'static str,
+    /// The Resolution text, in px/in.
     pub resolution: &'static str,
 }
 
@@ -98,6 +110,7 @@ pub struct CropUserPreset {
     /// At most 255 characters (PhotoCraft's `MAX_NAME`); the app's New Crop Preset dialog
     /// suggests [`CropSettings::preset_name`].
     pub name: String,
+    /// The ratio the preset sets.
     pub ratio: CropRatio,
     /// The fields of a [`CropRatio::Size`] preset; empty for a ratio preset.
     pub size: CropSizeFields,
@@ -161,6 +174,7 @@ pub const CROP_SIZES: [CropSizePreset; 8] = [
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct CropSettings {
+    /// The aspect constraint of the frame.
     pub ratio: CropRatio,
     /// The ratio fields as shown while one side is still empty (0): a pair with both sides
     /// positive becomes [`CropRatio::Sides`]; an incomplete pair is a free ratio that keeps the
@@ -170,11 +184,14 @@ pub struct CropSettings {
     pub size: CropSizeFields,
     /// Delete Cropped Pixels: on by default (Photoshop).
     pub delete_pixels: bool,
+    /// What fills the area a crop grows beyond the canvas.
     pub fill: CropFill,
     /// The overlay inside the frame (Rule of Thirds by default), when it shows (Auto) and its
     /// orientation (Triangle and Golden Spiral have more than one).
     pub guide: CropGuide,
+    /// When the guide shows.
     pub guide_show: GuideShow,
+    /// Which orientation of the guide to draw, counting from 0.
     pub guide_orientation: u8,
     /// The gear menu's options: Classic Mode, Show Cropped Area, Auto Center Preview and the
     /// shield.

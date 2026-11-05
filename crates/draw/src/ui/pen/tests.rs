@@ -783,8 +783,6 @@ fn a_press_during_a_typing_run_begins_after_the_runs_commit_but_the_pens_draft_n
     assert_eq!(draft(&h).knots.len(), 2, "no wait: {:?}", &h.state().events[before..]);
 }
 
-// Task PE-C2 from here.
-
 // Auto Add/Delete on: a press on a draft segment inserts an anchor and on an inner anchor deletes
 // it (Updates); with ⇧ held the press adds an anchor as usual.
 #[test]

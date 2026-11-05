@@ -8,30 +8,30 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ScopesTokens {
-    /// A clipping warning button's side: [`values::SCOPES_WARNING_SIZE`].
+    /// A clipping warning button's side: `values::SCOPES_WARNING_SIZE`.
     pub warning_size: f32,
-    /// The gap between the statistics columns: [`values::SCOPES_STATISTICS_GAP`].
+    /// The gap between the statistics columns: `values::SCOPES_STATISTICS_GAP`.
     pub statistics_gap: f32,
-    /// Each per-channel plot of All Channels View: [`values::SCOPES_ALL_CHANNELS_HEIGHT`].
+    /// Each per-channel plot of All Channels View: `values::SCOPES_ALL_CHANNELS_HEIGHT`.
     pub all_channels_height: f32,
-    /// The vectorscope rings' alpha on `text.faint`: [`values::SCOPES_VECTOR_RING_ALPHA`].
+    /// The vectorscope rings' alpha on `text.faint`: `values::SCOPES_VECTOR_RING_ALPHA`.
     pub vector_ring_alpha: f32,
-    /// The smallest half-side of a cloud dot: [`values::SCOPES_VECTOR_DOT_MIN`].
+    /// The smallest half-side of a cloud dot: `values::SCOPES_VECTOR_DOT_MIN`.
     pub vector_dot_min: f32,
-    /// The largest half-side of a cloud dot: [`values::SCOPES_VECTOR_DOT_MAX`].
+    /// The largest half-side of a cloud dot: `values::SCOPES_VECTOR_DOT_MAX`.
     pub vector_dot_max: f32,
-    /// The hover readout badge's height: [`values::SCOPES_HOVER_BADGE_HEIGHT`].
+    /// The hover readout badge's height: `values::SCOPES_HOVER_BADGE_HEIGHT`.
     pub hover_badge_height: f32,
-    /// The hovered zone band's alpha on `text.normal`: [`values::SCOPES_ZONE_ALPHA`].
+    /// The hovered zone band's alpha on `text.normal`: `values::SCOPES_ZONE_ALPHA`.
     pub zone_alpha: f32,
-    /// The vectorscope's smallest default height: [`values::SCOPES_VECTOR_HEIGHT_MIN`].
+    /// The vectorscope's smallest default height: `values::SCOPES_VECTOR_HEIGHT_MIN`.
     pub vector_height_min: f32,
-    /// The vectorscope's largest default height: [`values::SCOPES_VECTOR_HEIGHT_MAX`].
+    /// The vectorscope's largest default height: `values::SCOPES_VECTOR_HEIGHT_MAX`.
     pub vector_height_max: f32,
     /// The vectorscope's margin between its outer ring and the plot's edge:
-    /// [`values::SCOPES_VECTOR_MARGIN`].
+    /// `values::SCOPES_VECTOR_MARGIN`.
     pub vector_margin: f32,
-    /// The inset of a clipping warning's triangle in its button: [`values::SCOPES_WARNING_INSET`].
+    /// The inset of a clipping warning's triangle in its button: `values::SCOPES_WARNING_INSET`.
     pub warning_inset: f32,
 }
 

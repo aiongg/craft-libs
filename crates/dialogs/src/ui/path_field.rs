@@ -50,6 +50,8 @@ pub struct PathField<'a> {
 }
 
 impl<'a> PathField<'a> {
+    /// A field with `label` showing `value`. `request` is what Browse asks the host to pick.
+    /// `id_salt` keeps the field's state apart from other fields in the same `Ui`.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: &'a str, request: PickRequest) -> Self {
         Self { id_salt: IdSalt::new(id_salt), label: label.into(), value, request, must_exist: false, width: None, enabled: true }
     }
@@ -66,6 +68,7 @@ impl<'a> PathField<'a> {
         self
     }
 
+    /// Whether the field and its Browse button react to input; default true.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

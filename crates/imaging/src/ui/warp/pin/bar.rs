@@ -1,4 +1,4 @@
-//! [`PinWarpBar`]: Puppet Warp's options bar (task TR-T12).
+//! [`PinWarpBar`]: Puppet Warp's options bar.
 
 use egui::{AsIdSalt, IdSalt, Modifiers, RichText};
 

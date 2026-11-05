@@ -38,7 +38,7 @@ impl CmykConverter {
         Ok(CmykConverter { profile: cmyk, to_srgb, from_srgb })
     }
 
-    /// The built-in coated CMYK converter ([`Builtin::CoatedCmyk`](crate::Builtin::CoatedCmyk)),
+    /// The built-in coated CMYK converter ([`Builtin::CoatedCmyk`]),
     /// built once per process; what a document without a CMYK profile uses.
     // pc: crates/color/src/convert.rs:94 (OnceLock); `Builtin::CoatedCmyk.profile()`.
     #[expect(clippy::expect_used, reason = "the built-in profiles always link; a unit test builds it")]

@@ -99,7 +99,7 @@ impl<'a> HistogramSet<'a> {
     }
 
     /// The counts are from a cache or out of date: the plot shows the library histogram's stale
-    /// mark (lead call L15), whose click asks for a refresh.
+    /// mark, whose click asks for a refresh.
     pub fn stale(mut self, stale: bool) -> Self {
         self.stale = stale;
         self
@@ -263,7 +263,7 @@ pub struct ScopePanelState {
     pub range: Option<RangeInclusive<f32>>,
 }
 
-/// Photoshop's Histogram panel and Camera Raw's scope in one widget (lead call L10).
+/// Photoshop's Histogram panel and Camera Raw's scope in one widget.
 ///
 /// **What the user sees.**
 /// - **Compact View**: the plot alone, `histogram.height` high; a single channel in its colour.
@@ -277,7 +277,7 @@ pub struct ScopePanelState {
 ///   Color, else `text.muted`), Colors as overlaid ribbons ([`ChannelOverlay`]), the original
 ///   outlined over it, the host's [`markers`](Self::markers) (sampler ticks), the stale mark.
 ///   A channel the mode lacks shows the composite.
-/// - The statistics grid (lead call L13): two label and value pairs per row: Mean, Std Dev,
+/// - The statistics grid: two label and value pairs per row: Mean, Std Dev,
 ///   Median, Pixels for the whole histogram (Colors counts the composite), Level, Count,
 ///   Percentile and Cache Level for the hovered level or the selected range, values at
 ///   `TypeRole::Mono`, labels `text.muted`, `scopes.statistics_gap` between the pairs
@@ -301,7 +301,7 @@ pub struct ScopePanelState {
 /// selection and the focused tone zone) and the warning buttons are Tab stops. While the panel
 /// has the focus and no text field has, U toggles the shadow warning and O the highlight warning
 /// (the panel is the key owner through [`focus::key_owner`](craft_ui::focus::key_owner); S is the
-/// host's, lead call L28).
+/// host's).
 ///
 /// **AccessKit.** The plot is the histogram's `Image` named [`ScopePanelLabels::histogram`] with
 /// the value text [`ScopePanelLabels::histogram_value`] ("Red channel, Entire Image"); a selection

@@ -15,8 +15,11 @@ const MAX_ENDPOINT_LEN: usize = 2048;
 /// A parsed endpoint.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Endpoint {
+    /// True for `https`, false for `http`.
     pub https: bool,
+    /// Host name or address, without port.
     pub host: String,
+    /// Explicit port, or `None` for the scheme default.
     pub port: Option<u16>,
 }
 

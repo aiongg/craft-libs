@@ -1,4 +1,4 @@
-//! [`FilterTree`]: the middle column's category folders with thumbnails (task WS-FG2).
+//! [`FilterTree`]: the middle column's category folders with thumbnails.
 
 use egui::accesskit::Role;
 use egui::text::{LayoutJob, TextWrapping};
@@ -24,6 +24,7 @@ const COLUMNS: usize = 3;
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct FilterTreeResponse {
+    /// The tree's response.
     pub response: Response,
     /// The filter whose thumbnail was clicked (or picked with Enter or Space).
     pub picked: Option<String>,
@@ -71,6 +72,7 @@ impl<'a> FilterTree<'a> {
         self
     }
 
+    /// Draws the category folders and filter thumbnails and reports the filter picked.
     pub fn show(self, ui: &mut Ui) -> FilterTreeResponse {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:702-754 (folders, thumbnails 80 × 56, three
         // a row, names under them), :616 `update_thumbs`.

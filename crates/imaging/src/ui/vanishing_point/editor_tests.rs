@@ -1,4 +1,4 @@
-//! Tests of Vanishing Point's planes and editor (task WS-VP1), on a `ToolHost` with a fake scene.
+//! Tests of Vanishing Point's planes and editor, on a `ToolHost` with a fake scene.
 
 #[cfg(feature = "screen-testing")]
 use egui::{Key, pos2};

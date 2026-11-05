@@ -1,4 +1,4 @@
-//! [`MockImage`]: the one generated picture of craft-imaging's stories (task ST-SE2): the selection
+//! [`MockImage`]: the one generated picture of craft-imaging's stories: the selection
 //! and mask-view stories and every full-window editor's stories draw it.
 //!
 //! Original art drawn by code, so the stories show a photo-like image without a file: a gradient

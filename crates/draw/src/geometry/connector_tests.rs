@@ -1,4 +1,4 @@
-//! Tests of connector routes (task SH-T2), ported from FigCraft's engine tests (`board_route.rs`).
+//! Tests of connector routes, ported from FigCraft's engine tests (`board_route.rs`).
 
 use kurbo::{Point, Rect};
 

@@ -117,7 +117,12 @@ pub enum TransformRequest<W> {
     Discard,
     /// [`TransformEdit::WarpRequested`]: the app builds its warp from the box (`rect` mapped onto
     /// `state`, a smart object's own warp first) and answers [`TransformEdit::Warp`].
-    NeedWarp { rect: Rect, state: BoxState },
+    NeedWarp {
+        /// The source frame.
+        rect: Rect,
+        /// The box the warp starts from.
+        state: BoxState,
+    },
 }
 
 /// What a commit applies: the source frame, the box it was moved to, the interpolation, and the
@@ -130,6 +135,7 @@ pub struct TransformResult<W> {
     /// [`warp`](Self::warp) already holds the box (PhotoCraft builds it from the box when the
     /// phase opens), so the app applies the warp and ignores this box.
     pub state: BoxState,
+    /// How the app resamples the pixels.
     pub interpolation: Interpolation,
     /// The app's warp, when the session ended in the Warp phase.
     pub warp: Option<W>,
@@ -138,10 +144,15 @@ pub struct TransformResult<W> {
 /// Edit › Transform's presets while a box is open (PhotoCraft `box_preset`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TransformPreset {
+    #[allow(missing_docs)]
     Rotate180,
+    #[allow(missing_docs)]
     Rotate90Clockwise,
+    #[allow(missing_docs)]
     Rotate90CounterClockwise,
+    #[allow(missing_docs)]
     FlipHorizontal,
+    #[allow(missing_docs)]
     FlipVertical,
 }
 
@@ -177,9 +188,12 @@ impl TransformPreset {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Interpolation {
+    /// Bicubic resampling (the default).
     #[default]
     Bicubic,
+    /// Bilinear resampling.
     Bilinear,
+    /// Nearest-neighbour resampling: no smoothing.
     NearestNeighbor,
 }
 
@@ -393,6 +407,7 @@ impl<W: TransformWarp> TransformSession<W> {
         self.allow
     }
 
+    /// The resampling method chosen for the commit.
     pub fn interpolation(&self) -> Interpolation {
         self.interpolation
     }
@@ -573,10 +588,12 @@ impl<W: TransformWarp> TransformSession<W> {
         self.step(Step::Redo)
     }
 
+    /// Whether [`undo`](Self::undo) has a step to take back.
     pub fn can_undo(&self) -> bool {
         self.history.can_undo()
     }
 
+    /// Whether [`redo`](Self::redo) has a step to replay.
     pub fn can_redo(&self) -> bool {
         self.history.can_redo()
     }

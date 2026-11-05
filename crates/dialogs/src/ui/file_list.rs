@@ -32,14 +32,17 @@ craft_ui::words! {
 /// Files picked one by one, or one folder whose files the app lists.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum FileListMode {
+    /// Individual files, listed in the user's order.
     #[default]
     Files,
+    /// One folder; the app lists its files.
     Folder,
 }
 
 /// The picker's value; the dialog keeps it.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FileList {
+    /// Whether files or a folder are picked.
     pub mode: FileListMode,
     /// The chosen files in Files mode, in the user's order, each once.
     pub files: Vec<PathBuf>,

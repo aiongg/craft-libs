@@ -1,5 +1,4 @@
-//! Tests of the Layer Style dialog body: the effect list, the Styles page, colour answers (task
-//! AD-8).
+//! Tests of the Layer Style dialog body: the effect list, the Styles page, colour answers.
 //!
 //! Most specs here list no fields, so their effect pages draw only their title, Preview check box,
 //! Make Default and Reset to Default.

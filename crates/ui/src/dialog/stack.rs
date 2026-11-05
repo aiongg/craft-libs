@@ -60,10 +60,12 @@ impl DialogStack {
         self.entries.retain(|(entry, _)| !doomed.contains(entry));
     }
 
+    /// True when `id` is on the stack.
     pub fn contains(&self, id: DialogId) -> bool {
         self.entries.iter().any(|(entry, _)| *entry == id)
     }
 
+    /// True when no dialog is on the stack.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
@@ -73,6 +75,7 @@ impl DialogStack {
         self.entries.last().map(|(id, _)| *id)
     }
 
+    /// True when `id` is the top dialog.
     pub fn is_top(&self, id: DialogId) -> bool {
         self.top() == Some(id)
     }

@@ -140,7 +140,7 @@ impl PresetPanelMenu {
 
 #[cfg(test)]
 mod tests {
-    //! Tests of the panel-menu pair (task PR3).
+    //! Tests of the panel-menu pair.
     use super::*;
 
     fn labels() -> PresetLabels {

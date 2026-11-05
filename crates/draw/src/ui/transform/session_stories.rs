@@ -1,4 +1,4 @@
-//! Stories of the Free Transform session (task ST-TR1; task RG2 registers them). A rectangle
+//! Stories of the Free Transform session. A rectangle
 //! stands for the layer over the story canvas, and the session, its overlay and its bar run on it
 //! as an app would run them. Sample words, result notes and phase names are story words.
 //!

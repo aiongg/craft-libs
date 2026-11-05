@@ -1,4 +1,4 @@
-//! Stories of the pattern fill editor and dialog (task ST-SH2; task RG2 registers them).
+//! Stories of the pattern fill editor and dialog.
 //! Registering them adds `stories()` to craft-draw's stories, the components to `COMPONENTS` and
 //! [`PatternStoryLabels`] to `WORDS`.
 //!

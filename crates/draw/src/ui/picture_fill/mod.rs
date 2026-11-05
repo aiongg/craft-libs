@@ -28,24 +28,37 @@ pub use labels::PictureFillLabels;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TileAlignment {
     #[default]
+    #[allow(missing_docs)]
     TopLeft,
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     TopRight,
+    #[allow(missing_docs)]
     Left,
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     BottomLeft,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     BottomRight,
 }
 
 /// How tiles flip from one to the next.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TileMirror {
+    /// No mirroring.
     #[default]
     None,
+    /// Every second tile in a row is flipped left to right.
     Horizontal,
+    /// Every second tile in a column is flipped top to bottom.
     Vertical,
+    /// Both.
     Both,
 }
 
@@ -54,10 +67,22 @@ pub enum TileMirror {
 pub enum PictureMode {
     /// Stretched to the shape, inset by `offsets` (left, top, right, bottom) in percent of the
     /// shape (negative grows past the edge).
-    Stretch { offsets: [f64; 4] },
+    Stretch {
+        /// Inset from the left, top, right and bottom edges, in percent of the shape.
+        offsets: [f64; 4],
+    },
     /// Tiled: `offset` (x, y) in points, `scale` (x, y) in percent, the first tile's alignment and
     /// the mirror between tiles.
-    Tile { offset: [f64; 2], scale: [f64; 2], alignment: TileAlignment, mirror: TileMirror },
+    Tile {
+        /// Offset of the tiling, x and y in points.
+        offset: [f64; 2],
+        /// Scale of a tile, x and y in percent.
+        scale: [f64; 2],
+        /// Where the first tile sits.
+        alignment: TileAlignment,
+        /// Mirroring between tiles.
+        mirror: TileMirror,
+    },
 }
 
 impl PictureMode {
@@ -79,6 +104,7 @@ impl Default for PictureMode {
 pub struct PictureFill {
     /// The picture's name as the source row shows it; `None` before one is picked.
     pub source: Option<String>,
+    /// How the picture fills the shape.
     pub mode: PictureMode,
     /// The picture turns with the shape.
     pub rotate_with_shape: bool,
@@ -102,7 +128,12 @@ pub enum PictureFillEvent {
     Edit(craft_ui::edit::EditEvent<PictureFill>),
     /// Insert… picked a picture and read it: its file name and bytes. The app stores the picture
     /// and sets [`PictureFill::source`].
-    Source { name: String, bytes: Vec<u8> },
+    Source {
+        /// The file name.
+        name: String,
+        /// The file's contents.
+        bytes: Vec<u8>,
+    },
     /// The picked file could not be read: the message to show.
     SourceFailed(String),
 }

@@ -32,6 +32,7 @@ pub struct ClippyDrift {
     pub key: &'static str,
     /// The entry's `path`.
     pub path: String,
+    /// Whether the entry is missing or differs.
     pub kind: DriftKind,
 }
 
@@ -50,6 +51,7 @@ impl fmt::Display for ClippyDrift {
 pub struct ClippyShadow {
     /// The `clippy.toml` that is read instead, or the `CLIPPY_CONF_DIR` directory.
     pub path: PathBuf,
+    /// Why that file or directory wins over the app's `clippy.toml`.
     pub reason: String,
 }
 

@@ -1,4 +1,4 @@
-//! Screen and AccessKit tests of the History panel (task ST3; they need the `history` style from TK1).
+//! Screen and AccessKit tests of the History panel (they need the `history` style).
 
 use egui::accesskit::{Role, Toggled};
 use std::cell::RefCell;

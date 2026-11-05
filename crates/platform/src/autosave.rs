@@ -226,6 +226,7 @@ pub struct RecoveryMeta {
 pub struct RecoveryEntry {
     /// The file stem shared by the copy and its sidecar.
     pub key: String,
+    /// What the sidecar says about the copy.
     pub meta: RecoveryMeta,
     /// When the copy was written (the sidecar's modification time).
     pub saved: SystemTime,
@@ -265,6 +266,9 @@ const _: () = {
 #[cfg(not(target_arch = "wasm32"))]
 impl RecoveryStore {
     // pc: crates/format/src/autosave.rs:348 RecoveryStore::new; pdfcraft: crates/ui-egui/src/persist/recovery.rs:103 claim
+    /// Opens the store in `dir`, creating the folder with private permissions, and locks an
+    /// instance file in it that marks this run as alive. Removes orphaned temporary files that
+    /// are older than the store's age limit.
     pub fn open(dir: impl Into<PathBuf>) -> std::io::Result<Self> {
         use std::sync::atomic::{AtomicU64, Ordering};
         static STORES: AtomicU64 = AtomicU64::new(0);
@@ -290,6 +294,7 @@ impl RecoveryStore {
         Ok(Self { dir, session, adopted: std::sync::Mutex::new(HashMap::new()), instance, lock })
     }
 
+    /// The recovery folder.
     pub fn dir(&self) -> &Path {
         &self.dir
     }

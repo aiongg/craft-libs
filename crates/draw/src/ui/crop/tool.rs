@@ -24,10 +24,13 @@ type Snap<'a> = &'a dyn Fn(BoxPart, &CropBox, Modifiers) -> Vec2;
 /// to its crop command; a commit it refuses goes back with [`CropTool::applied`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CropCommit {
+    /// The frame to crop to.
     pub frame: CropBox,
     /// [`CropSettings::target`]: W × H × Resolution's size, `None` for no resample.
     pub target: Option<CropTarget>,
+    /// Whether pixels outside the frame are deleted (else hidden).
     pub delete_pixels: bool,
+    /// What fills the area beyond the canvas.
     pub fill: CropFill,
 }
 
@@ -62,6 +65,7 @@ pub enum CropEvent {
 /// [`dragging`](CropTool::dragging)) is on the tool.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CropOutput {
+    /// What the pass reported, in order.
     pub events: Vec<CropEvent>,
 }
 
@@ -205,6 +209,7 @@ pub struct CropTool {
 }
 
 impl CropTool {
+    /// A tool with no frame.
     pub fn new() -> Self {
         Self::default()
     }

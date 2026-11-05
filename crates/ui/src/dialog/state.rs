@@ -27,6 +27,7 @@ impl<H> Default for DialogState<H> {
 }
 
 impl<H> DialogState<H> {
+    /// The state of a closed dialog.
     pub fn new() -> Self {
         Self::default()
     }
@@ -47,6 +48,7 @@ impl<H> DialogState<H> {
         &self.preview
     }
 
+    /// The Preview flags, mutably.
     pub fn preview_mut(&mut self) -> &mut Preview {
         &mut self.preview
     }

@@ -55,7 +55,9 @@ pub struct ToastStyle {
     pub more: egui::Color32,
     /// Side of the tone icon: `icon.md`.
     pub icon: f32,
+    /// Type role of the title.
     pub title_role: TypeRole,
+    /// Type role of the bullet lines.
     pub line_role: TypeRole,
 }
 
@@ -79,6 +81,7 @@ impl Toast {
         Self { id, title: title.into(), tone: Tone::Neutral, lines: Vec::new(), sticky: false, persistent: false, action: None }
     }
 
+    /// The card's tone, which sets its edge, title colour and icon.
     pub fn tone(mut self, tone: Tone) -> Self {
         self.tone = tone;
         self
@@ -240,6 +243,7 @@ impl ToastStack {
         self
     }
 
+    /// The card's look for `tone` from the theme's `toast` tokens.
     pub fn style(tokens: &UiTokens, tone: Tone) -> ToastStyle {
         let t = &tokens.component.toast;
         ToastStyle {

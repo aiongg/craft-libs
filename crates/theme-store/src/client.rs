@@ -39,6 +39,7 @@ pub struct SuiteClient {
 }
 
 impl SuiteClient {
+    /// A client for `watch`, starting from its current snapshot.
     pub fn new(watch: SuiteWatch) -> Self {
         let snapshot = watch.snapshot();
         let app_theme = watch.initial_app_theme().cloned();
@@ -233,6 +234,7 @@ impl SuiteClient {
         &self.snapshot.problems
     }
 
+    /// The latest snapshot of the suite folder.
     pub fn snapshot(&self) -> &Arc<Snapshot> {
         &self.snapshot
     }

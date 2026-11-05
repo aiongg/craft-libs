@@ -74,6 +74,7 @@ pub struct FooterButton {
 }
 
 impl FooterButton {
+    /// A button with this `role` and translated `label`, enabled, with no extra minimum width.
     pub fn new(role: ButtonRole, label: impl Into<String>) -> Self {
         Self { role, label: label.into(), min_width: 0.0, enabled: true }
     }
@@ -84,11 +85,13 @@ impl FooterButton {
         self
     }
 
+    /// Greys the button out and ignores clicks when `enabled` is false; true by default.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
+    /// The button's role.
     pub fn role(&self) -> ButtonRole {
         self.role
     }
@@ -99,6 +102,7 @@ impl FooterButton {
 pub struct Clicked {
     /// Its place in the listed buttons.
     pub index: usize,
+    #[allow(missing_docs)]
     pub role: ButtonRole,
     /// Which of the buttons of its role it is, in listed order (the second Alternate is 1).
     pub nth: usize,

@@ -1,4 +1,4 @@
-//! Stories of the mask views (task ST-SE2). The story has no words of its own: its captions are
+//! Stories of the mask views. The story has no words of its own: its captions are
 //! `MaskViewLabels`.
 //!
 //! The story composites the recipe itself over `MockImage` with `MockImage::subject` as the soft

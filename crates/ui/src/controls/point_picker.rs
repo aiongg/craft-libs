@@ -33,7 +33,7 @@ pub struct PointPickerStyle {
 }
 
 /// A 2D point picked on a thumbnail of the image (Radial Blur's Blur Center, Zoom Blur, Lens
-/// Flare), with X and Y [`NumberField`](super::NumberField)s beside it.
+/// Flare), with X and Y [`NumberField`]s beside it.
 ///
 /// The user sees the image fitted in a sunken well (a checkerboard when there is no image), a
 /// cross at the point, and two fields. A press on the thumbnail moves the point there; a drag
@@ -82,16 +82,19 @@ impl<'a> PointPicker<'a> {
         self
     }
 
+    /// The number of decimal places the fields show.
     pub fn decimals(mut self, decimals: usize) -> Self {
         self.decimals = decimals;
         self
     }
 
+    /// How a typing run reports ([`EditPolicy`]); the default reports every change at once.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// Whether the picker takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

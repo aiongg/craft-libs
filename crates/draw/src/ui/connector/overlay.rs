@@ -1,5 +1,4 @@
-//! [`ConnectorOverlay`]: a selected connector's handles and a target's attach points (task
-//! SH-T10).
+//! [`ConnectorOverlay`]: a selected connector's handles and a target's attach points.
 
 use egui::epaint::CubicBezierShape;
 use egui::{Color32, Painter, Pos2, Shape};

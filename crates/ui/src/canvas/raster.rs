@@ -31,13 +31,18 @@ pub(super) use super::textures::limits::texture_factor;
 /// A rectangle of whole document pixels, `x0..x1` by `y0..y1` (exclusive ends).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PixelRect {
+    /// First column, inclusive.
     pub x0: i32,
+    /// First row, inclusive.
     pub y0: i32,
+    /// End column, exclusive.
     pub x1: i32,
+    /// End row, exclusive.
     pub y1: i32,
 }
 
 impl PixelRect {
+    /// A rectangle `x0..x1` by `y0..y1`.
     pub const fn new(x0: i32, y0: i32, x1: i32, y1: i32) -> Self {
         Self { x0, y0, x1, y1 }
     }
@@ -47,14 +52,17 @@ impl PixelRect {
         Self::new(0, 0, i32::try_from(size[0]).unwrap_or(i32::MAX), i32::try_from(size[1]).unwrap_or(i32::MAX))
     }
 
+    /// Width in pixels, 0 when inverted.
     pub fn width(&self) -> i32 {
         (self.x1 - self.x0).max(0)
     }
 
+    /// Height in pixels, 0 when inverted.
     pub fn height(&self) -> i32 {
         (self.y1 - self.y0).max(0)
     }
 
+    /// Whether the rectangle covers no pixel.
     pub fn is_empty(&self) -> bool {
         self.width() == 0 || self.height() == 0
     }
@@ -108,9 +116,12 @@ pub trait RasterSource {
 pub enum CheckerSize {
     /// No checkerboard: transparency shows white.
     None,
+    #[allow(missing_docs)]
     Small,
     #[default]
+    #[allow(missing_docs)]
     Medium,
+    #[allow(missing_docs)]
     Large,
 }
 
@@ -131,13 +142,21 @@ impl CheckerSize {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum CheckerColors {
     #[default]
+    #[allow(missing_docs)]
     Light,
+    #[allow(missing_docs)]
     Medium,
+    #[allow(missing_docs)]
     Dark,
+    #[allow(missing_docs)]
     Red,
+    #[allow(missing_docs)]
     Orange,
+    #[allow(missing_docs)]
     Green,
+    #[allow(missing_docs)]
     Blue,
+    #[allow(missing_docs)]
     Purple,
     /// The user's two colours (light, dark).
     Custom(Color32, Color32),
@@ -166,7 +185,9 @@ impl CheckerColors {
 /// in the user's colours. A user preference, not a theme token.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Checkerboard {
+    /// Square size.
     pub size: CheckerSize,
+    /// Square colours.
     pub colors: CheckerColors,
 }
 
@@ -310,6 +331,7 @@ pub struct RasterResponse {
 }
 
 impl RasterDisplay {
+    /// A display keyed `id_salt`, with no checkerboard.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id_salt: IdSalt::new(id_salt), checker: None }
     }

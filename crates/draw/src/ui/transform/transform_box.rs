@@ -90,10 +90,15 @@ impl Default for TransformNames {
 /// "ΔX:", "ΔY:"). `Default` is English.
 #[derive(Clone, Debug)]
 pub struct TransformLabels {
+    /// Label of the angle readout.
     pub angle: String,
+    /// Label of the width readout.
     pub w: String,
+    /// Label of the height readout.
     pub h: String,
+    /// Label of the horizontal move readout.
     pub dx: String,
+    /// Label of the vertical move readout.
     pub dy: String,
     /// Around a W or H scale: `{n}%`.
     pub percent: Unit,
@@ -153,6 +158,7 @@ pub struct TransformStyle {
     /// The rotate band of [`RotateZone::Band`], from a corner: `transform.band_inner`,
     /// `transform.band_outer`.
     pub band_inner: f32,
+    /// Outer edge of the rotate band, from a corner.
     pub band_outer: f32,
     /// Farthest a press outside may move and still be a click: `transform.click_slop`.
     pub click_slop: f32,
@@ -438,11 +444,13 @@ impl<'a> TransformBox<'a> {
         self
     }
 
+    /// How this control reports its gestures to the host.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// The transform box's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> TransformStyle {
         let (t, o) = (&tokens.component.transform, &tokens.color.overlay);
         let halo = tokens.component.handle.halo;

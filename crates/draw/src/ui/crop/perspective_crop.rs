@@ -253,11 +253,13 @@ impl<'a> PerspectiveCropQuad<'a> {
         self
     }
 
+    /// How this control reports its gestures to the host.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// The perspective crop's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> PerspectiveCropStyle {
         let o = &tokens.color.overlay;
         let handle = Handle::style(tokens, HandleShape::Square);

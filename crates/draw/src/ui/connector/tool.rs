@@ -1,4 +1,4 @@
-//! [`ConnectorTool`]: the Connector tool on the tool host (task SH-T10).
+//! [`ConnectorTool`]: the Connector tool on the tool host.
 
 use std::f64::consts::FRAC_PI_4;
 

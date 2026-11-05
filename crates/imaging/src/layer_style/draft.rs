@@ -17,6 +17,7 @@ use super::spec::EffectSpec;
 /// [`render_hash`](Self::render_hash) ignores it: a page change re-renders nothing.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayerStyleDraft {
+    /// The effect and blending values being edited.
     pub style: LayerStyle,
     /// The page shown.
     pub page: LayerStylePage,

@@ -1,4 +1,4 @@
-//! Tests of the session's options bar (task TR-T9).
+//! Tests of the session's options bar.
 
 use egui::Context;
 use egui::accesskit::Role;

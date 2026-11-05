@@ -1,5 +1,5 @@
 //! Theme files: schema `craft-design-theme`, version 1. [`parse`] reads and validates one,
-//! [`write`] produces the stable text form, [`to_file`] wraps a [`ThemeDef`] that has no file,
+//! [`fn@write`] produces the stable text form, [`to_file`] wraps a [`ThemeDef`] that has no file,
 //! and [`ThemeDef::validate`] checks a theme against what [`parse`] accepts.
 //!
 //! The library does no I/O: callers hand over bytes and take back text.
@@ -41,15 +41,15 @@ const LENGTH: &str = "a length: a number of 0 or more, or \"full\"";
 const OFFSET: &str = "a number";
 const EDGE: &str = "\"flat\" or {\"bevel\": {\"width\": n}} with n above 0";
 
-/// A parsed theme file: the theme and the JSON it came from, so that [`write`] keeps unknown keys.
+/// A parsed theme file: the theme and the JSON it came from, so that [`fn@write`] keeps unknown keys.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThemeFile {
-    /// The theme. [`write`] refuses one that [`ThemeDef::validate`] rejects.
+    /// The theme. [`fn@write`] refuses one that [`ThemeDef::validate`] rejects.
     pub theme: ThemeDef,
     raw: Map<String, Value>,
 }
 
-/// A theme file for `theme`, as if it had been parsed from the file [`write`] produces. Fails
+/// A theme file for `theme`, as if it had been parsed from the file [`fn@write`] produces. Fails
 /// when [`ThemeDef::validate`] does.
 pub fn to_file(theme: &ThemeDef) -> Result<ThemeFile, FormatErrors> {
     theme.validate()?;

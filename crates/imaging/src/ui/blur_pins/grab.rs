@@ -1,4 +1,4 @@
-//! What a press on the pins grabs, and the drag that follows (task WS-BP1).
+//! What a press on the pins grabs, and the drag that follows.
 
 use egui::CursorIcon;
 
@@ -12,21 +12,51 @@ use super::style::BlurPinsStyle;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BlurGrab {
     /// An Iris or Spin outline handle: axis 0..=3 (+u, +v, −u, −v) resizes that radius.
-    Axis { pin: usize, axis: usize },
+    Axis {
+        #[allow(missing_docs)]
+        pin: usize,
+        #[allow(missing_docs)]
+        axis: usize,
+    },
     /// Iris's rounding square.
-    Round { pin: usize },
+    Round {
+        #[allow(missing_docs)]
+        pin: usize,
+    },
     /// One of Iris's four feather dots.
-    Feather { pin: usize, dot: usize },
+    Feather {
+        #[allow(missing_docs)]
+        pin: usize,
+        #[allow(missing_docs)]
+        dot: usize,
+    },
     /// A Tilt-Shift turn dot, on one side of the band (−1 or 1).
-    Turn { pin: usize, side: i8 },
+    Turn {
+        #[allow(missing_docs)]
+        pin: usize,
+        #[allow(missing_docs)]
+        side: i8,
+    },
     /// A Tilt-Shift solid line: the sharp band's width.
-    Focus { pin: usize },
+    Focus {
+        #[allow(missing_docs)]
+        pin: usize,
+    },
     /// A Tilt-Shift dashed line: the transition's width.
-    Transition { pin: usize },
+    Transition {
+        #[allow(missing_docs)]
+        pin: usize,
+    },
     /// A pin's ring: the amount (one turn is the full range).
-    Ring { pin: usize },
+    Ring {
+        #[allow(missing_docs)]
+        pin: usize,
+    },
     /// A pin's dot: moves it.
-    Pin { pin: usize },
+    Pin {
+        #[allow(missing_docs)]
+        pin: usize,
+    },
     /// Nothing: a click adds a pin (not Tilt-Shift).
     New,
 }

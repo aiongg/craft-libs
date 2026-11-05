@@ -1,4 +1,4 @@
-//! Tests of the marquee style cells (task K13).
+//! Tests of the marquee style cells.
 
 use egui::accesskit::Role;
 use egui_kittest::Harness;

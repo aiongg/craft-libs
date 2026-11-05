@@ -1,4 +1,4 @@
-//! Tests of the Curves panel and its ⌘-click helper (task AD-2).
+//! Tests of the Curves panel and its ⌘-click helper.
 
 use egui::accesskit::Role;
 use egui_kittest::Harness;

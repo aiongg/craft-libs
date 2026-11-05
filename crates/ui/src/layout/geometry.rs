@@ -31,8 +31,11 @@ impl SplitSize {
 /// Contained, non-overlapping rectangles of a single split, including its divider.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SplitLayout {
+    /// The first pane.
     pub first: Rect,
+    /// The divider between the panes.
     pub divider: Rect,
+    /// The second pane.
     pub second: Rect,
     first_size: f32,
     available: f32,

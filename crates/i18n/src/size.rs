@@ -13,10 +13,15 @@ const CONTEXT: &str = "unit";
 /// A file-size unit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SizeUnit {
+    /// Bytes.
     Byte,
+    /// Kilobytes, or kibibytes in an IEC style.
     Kilo,
+    /// Megabytes, or mebibytes in an IEC style.
     Mega,
+    /// Gigabytes, or gibibytes in an IEC style.
     Giga,
+    /// Terabytes, or tebibytes in an IEC style.
     Tera,
 }
 

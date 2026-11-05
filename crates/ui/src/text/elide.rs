@@ -13,7 +13,7 @@
 //!
 //! Cuts fall between characters (`char`s), never inside one. A right-to-left paragraph (its first
 //! strong letter is Hebrew, Arabic…) cut at its end keeps its logical start, so the "…" lands at
-//! the left, where a right-to-left line ends (PhotoCraft #5159). The result is never empty: a room
+//! the left, where a right-to-left line ends (storytold/photocraft#5159). The result is never empty: a room
 //! narrower than "…" still gets "…". craft-text's `bidi::elide` has the same right-to-left rule
 //! for apps without craft-ui; craft-ui can't call it (craft-text's `ui` feature depends on
 //! craft-ui), so the check (first strong character R or AL, Unicode rule P2) is repeated here.
@@ -110,7 +110,7 @@ pub fn elide_path<'a>(path: &'a str, max_width: f32, width: impl Fn(&str) -> f32
 
 /// `text` cut to at most `max_chars` characters with [`ELLIPSIS`] where `at` says, for text in
 /// a message or title that wraps but must not grow without end (a 2 000-character web URL as a
-/// document name, PdfCraft #236). [`ElideAt::Middle`] keeps `max_chars / 4` at the end and the
+/// document name, storytold/pdfcraft#236). [`ElideAt::Middle`] keeps `max_chars / 4` at the end and the
 /// rest at the start.
 // pdfcraft: crates/ui-egui/src/dialogs/prompts.rs:133 shorten_middle
 pub fn elide_chars(text: &str, max_chars: usize, at: ElideAt) -> Cow<'_, str> {
@@ -140,7 +140,9 @@ pub fn text_width(ui: &Ui, text: &str, font: &FontId) -> f32 {
 /// A galley [`elided_galley`] laid out, and whether it lost characters.
 #[derive(Clone, Debug)]
 pub struct Elided {
+    /// The laid-out galley, shortened when `elided`.
     pub galley: Arc<Galley>,
+    /// Whether characters were replaced by the ellipsis.
     pub elided: bool,
 }
 

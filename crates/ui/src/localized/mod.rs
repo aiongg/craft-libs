@@ -88,6 +88,7 @@ impl std::fmt::Debug for LocaleNumbers {
 }
 
 impl LocaleNumbers {
+    /// Numbers written as `format` says, with digit grouping on and no messages for typing errors.
     pub fn new(format: Arc<Format>) -> LocaleNumbers {
         LocaleNumbers { format, messages: None, grouping: true }
     }
@@ -220,10 +221,12 @@ impl Unit {
         Unit::new(i18n.get(lang, "unit", template).unwrap_or(template))
     }
 
+    /// The text the unit puts before the number; empty for a suffix unit.
     pub fn prefix(&self) -> &str {
         &self.prefix
     }
 
+    /// The text the unit puts after the number; empty for a prefix unit.
     pub fn suffix(&self) -> &str {
         &self.suffix
     }
@@ -299,6 +302,7 @@ pub struct LocalizedDragValue<'a> {
 
 #[allow(deprecated)]
 impl<'a> LocalizedDragValue<'a> {
+    /// Wraps `drag` so it shows and reads numbers as `numbers` says.
     pub fn new(drag: DragValue<'a>, numbers: &LocaleNumbers) -> Self {
         LocalizedDragValue { drag, numbers: numbers.clone(), unit: Unit::default(), formatter: None, fallback: None }
     }
@@ -428,10 +432,13 @@ struct FieldState {
 /// app's tokens, or start from [`Recessed::from_style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Recessed {
+    /// Fill of the box.
     pub fill: Color32,
+    /// Border of the box.
     pub stroke: Stroke,
     /// The border while the field has the keyboard focus.
     pub focus_stroke: Stroke,
+    /// Corner rounding of the box.
     pub corner_radius: CornerRadius,
     /// The box's height; the text is centred in it.
     pub height: f32,
@@ -591,6 +598,7 @@ impl<'a> NumberField<'a> {
         if Num::INTEGRAL { field.decimals(0..=0).range(Num::MIN.to_f64()..=Num::MAX.to_f64()) } else { field }
     }
 
+    /// The range of values the field accepts and clamps to.
     pub fn range(mut self, range: RangeInclusive<f64>) -> Self {
         self.range = range;
         self
@@ -611,6 +619,7 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// The unit written around the number.
     pub fn unit(mut self, unit: Unit) -> Self {
         self.unit = unit;
         self
@@ -623,11 +632,13 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// The field's width in logical points.
     pub fn desired_width(mut self, width: f32) -> Self {
         self.width = Some(width);
         self
     }
 
+    /// Keeps the field's state when widgets before it come and go; else the `Ui`'s next automatic id.
     pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
         self.id_salt = Some(IdSalt::new(id_salt));
         self

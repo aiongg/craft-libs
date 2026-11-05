@@ -31,8 +31,8 @@
 //! whose holder skipped a pass is dropped, as is the input the holder kept.
 //!
 //! A holder with several inputs that run one a pass (a composite's queue of held part events)
-//! [keeps](keep) its place at the head after each runs: an input that arrives meanwhile, a press
-//! on one of its parts among them, waits until the holder [leaves](leave) the queue.
+//! keeps its place at the head after each runs: an input that arrives meanwhile, a press
+//! on one of its parts among them, waits until the holder leaves the queue.
 //!
 //! Standalone controls don't wait: the [`GestureHost`](super::GestureHost) orders their events
 //! (a `Begin` or `Set` while another gesture is under way ends that gesture first).

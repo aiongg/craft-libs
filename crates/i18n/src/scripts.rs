@@ -5,35 +5,65 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum Script {
+    #[allow(missing_docs)]
     Arab,
+    #[allow(missing_docs)]
     Armn,
+    #[allow(missing_docs)]
     Beng,
+    #[allow(missing_docs)]
     Cyrl,
+    #[allow(missing_docs)]
     Deva,
+    #[allow(missing_docs)]
     Ethi,
+    #[allow(missing_docs)]
     Geor,
+    #[allow(missing_docs)]
     Grek,
+    #[allow(missing_docs)]
     Gujr,
+    #[allow(missing_docs)]
     Guru,
+    #[allow(missing_docs)]
     Hang,
+    #[allow(missing_docs)]
     Hani,
+    #[allow(missing_docs)]
     Hebr,
+    #[allow(missing_docs)]
     Hira,
+    #[allow(missing_docs)]
     Kana,
+    #[allow(missing_docs)]
     Khmr,
+    #[allow(missing_docs)]
     Knda,
+    #[allow(missing_docs)]
     Laoo,
+    #[allow(missing_docs)]
     Latn,
+    #[allow(missing_docs)]
     Mlym,
+    #[allow(missing_docs)]
     Mong,
+    #[allow(missing_docs)]
     Mymr,
+    #[allow(missing_docs)]
     Orya,
+    #[allow(missing_docs)]
     Sinh,
+    #[allow(missing_docs)]
     Syrc,
+    #[allow(missing_docs)]
     Taml,
+    #[allow(missing_docs)]
     Telu,
+    #[allow(missing_docs)]
     Thaa,
+    #[allow(missing_docs)]
     Thai,
+    #[allow(missing_docs)]
     Tibt,
 }
 
@@ -83,7 +113,9 @@ impl Script {
 /// Which way a language's text, and an interface in it, runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {
+    /// Left to right.
     Ltr,
+    /// Right to left.
     Rtl,
 }
 

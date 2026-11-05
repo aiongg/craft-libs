@@ -134,7 +134,7 @@ fn identity_to_unicode_names_give_text() {
     }
 }
 
-/// PdfCraft #3109 / #3116: text in mode 7 (clip only) reaches the device as
+/// storytold/pdfcraft#3109 / #3116: text in mode 7 (clip only) reaches the device as
 /// `GlyphDrawMode::Clip`, apart from mode 3 (invisible OCR text), so extraction that leaves out
 /// OCR text keeps a heading drawn through its clip.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

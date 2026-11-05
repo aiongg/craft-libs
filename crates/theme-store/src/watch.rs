@@ -35,10 +35,20 @@ const DROP_WAIT: Duration = Duration::from_millis(100);
 pub enum Op {
     /// Writes the fields the user changed ([`Store::update`]). `base` is the accepted state the
     /// UI showed when the user made the change.
-    Update { base: Accepted, change: SelectionChange },
+    Update {
+        /// The accepted state the change was made against.
+        base: Accepted,
+        /// The fields to write.
+        change: SelectionChange,
+    },
     /// Adds a theme file to the library ([`Store::import`]); the result is
     /// [`OpOutput::Imported`].
-    Import { bytes: Arc<[u8]>, as_copy: bool },
+    Import {
+        /// The theme file's contents.
+        bytes: Arc<[u8]>,
+        /// Give the theme a new id when its id is already in the library, instead of failing.
+        as_copy: bool,
+    },
     /// Removes a library theme ([`Store::delete`]).
     Delete(ThemeId),
     /// A theme file for sharing ([`Store::export`]); the result is [`OpOutput::Exported`].
@@ -55,7 +65,9 @@ pub enum Op {
 /// What a successful [`Op`] returns.
 #[derive(Clone, Debug)]
 pub enum OpOutput {
+    /// The operation had no output.
     Done,
+    /// The theme file's bytes.
     Exported(Arc<[u8]>),
     /// The stored id; for an import as copy, the new one.
     Imported(ThemeId),
@@ -76,9 +88,11 @@ pub struct Snapshot {
     /// The library themes named by [`Op::AppTheme`], light slot first and each once: the last
     /// version that parsed, gone once its file is deleted, so the app falls back to its default.
     pub app_theme: Vec<ThemeRecord>,
+    /// Files and folders the store could not use.
     pub problems: Vec<Problem>,
     /// The latest operation results by request id, oldest first, at most [`RESULTS_KEPT`].
     pub results: Arc<[(u64, Result<OpOutput, StoreError>)]>,
+    /// Counts snapshots; each new one is higher.
     pub generation: u64,
 }
 
@@ -88,6 +102,7 @@ impl Snapshot {
         self.results.iter().rev().find(|(r, _)| *r == id).map(|(_, result)| result)
     }
 
+    /// The newest kept result.
     pub fn last_result(&self) -> Option<&(u64, Result<OpOutput, StoreError>)> {
         self.results.last()
     }

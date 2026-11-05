@@ -52,6 +52,7 @@ impl Default for WarpArgs {
     }
 }
 
+/// The catalog stories for the warp grid.
 pub fn stories() -> Vec<Story> {
     vec![typed_story!("primitives/warp-grid/warp", Level::Primitives, "WarpGrid", "Warp", WarpArgs::default(), show_warp).on(Surface::Canvas)]
 }

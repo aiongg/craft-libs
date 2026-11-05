@@ -1,4 +1,4 @@
-//! Stories of the Warp options-bar group (task ST-TR2).
+//! Stories of the Warp options-bar group.
 //!
 //! The real group in an options bar, over a fake style list. Every case keeps its own values and
 //! applies the edits the group reports, as the draw library's `TransformBar` host does. Every

@@ -19,10 +19,12 @@ impl Plate {
         (width.checked_mul(height) == Some(ink.len())).then_some(Self { width, height, ink })
     }
 
+    /// Width in pixels.
     pub fn width(&self) -> usize {
         self.width
     }
 
+    /// Height in pixels.
     pub fn height(&self) -> usize {
         self.height
     }

@@ -1,4 +1,4 @@
-//! Tests of the styled transform preview (task TR-T11).
+//! Tests of the styled transform preview.
 
 use std::cell::Cell;
 

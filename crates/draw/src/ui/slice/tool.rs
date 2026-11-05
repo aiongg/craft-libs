@@ -1,4 +1,4 @@
-//! [`SliceTool`]: the Slice and Slice Select tools on the tool host (task SH-T4).
+//! [`SliceTool`]: the Slice and Slice Select tools on the tool host.
 
 use craft_theme::Srgba;
 use egui::{Color32, CursorIcon, Key, Modifiers, Painter, Shape, Stroke, StrokeKind, vec2};

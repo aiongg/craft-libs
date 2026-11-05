@@ -106,16 +106,16 @@ pub(super) struct Renderer<'a, P> {
     /// Where floating windows, flyouts and drag ghosts go: [`crate::docking::DockArea::float_bounds`].
     pub(super) float_bounds: Rect,
     pub(super) targets: Vec<DropTarget<P>>,
-    /// [D] Seams, group bands, column edges and new-dock bands, see [`crate::docking::targets::DockDrop`].
+    /// \[D\] Seams, group bands, column edges and new-dock bands, see [`crate::docking::targets::DockDrop`].
     pub(super) dock_targets: Vec<crate::docking::targets::DockDrop<P>>,
-    /// [D] The open groups of dock columns, whose body zones stack or make columns.
+    /// \[D\] The open groups of dock columns, whose body zones stack or make columns.
     pub(super) dock_groups: Vec<dock::DockGroup<P>>,
-    /// [D] The scroll offset of each dock column that scrolls this frame, by its first panel.
+    /// \[D\] The scroll offset of each dock column that scrolls this frame, by its first panel.
     pub(super) column_scroll: HashMap<P, f32>,
     pub(super) owned_interactions: Vec<Id>,
     pub(super) output: DockOutput<P>,
     pub(super) frame: FrameState<P>,
-    /// [D] Flyout and iconic column state for this frame.
+    /// \[D\] Flyout and iconic column state for this frame.
     pub(super) iconic: Iconic<P>,
     /// What a drag would float from each drawn panel, group and column, for commands.
     pub(super) float_space: crate::docking::FloatSpace<P>,
@@ -163,6 +163,20 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     pub(super) fn label_of(&self, panel: &P) -> String {
         self.content.logical_label(panel)
+    }
+
+    /// The accessible name of the handle that moves the group showing `shown`.
+    pub(super) fn move_group_name(&self, shown: &P) -> String {
+        super::labels::named(&self.config.move_group_label, super::labels::MOVE_GROUP, || self.label_of(shown))
+    }
+
+    /// The accessible name of `column`'s bar: its groups' shown panels that have a title name it.
+    pub(super) fn move_column_name(&self, column: &super::Column<P>) -> String {
+        super::labels::named(&self.config.move_column_label, super::labels::MOVE_COLUMN, || {
+            let shown = column.groups.iter().filter_map(|g| g.active_panel().or(g.panels.first()));
+            let titles: Vec<String> = shown.map(|panel| self.label_of(panel).trim().to_owned()).filter(|title| !title.is_empty()).collect();
+            titles.join(", ")
+        })
     }
 
     pub(super) fn permissions(&self, panel: &P) -> Permissions {
@@ -214,13 +228,23 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 // The divider's inner-edge hit margin must win over child scrollbars, just
                 // as accordion dividers win over the adjacent panel's content.
                 // Named by its layout path, which `ResizeSplit` takes and hits report.
+                self.content.split_separator(ui, split.divider);
+                let host_width =
+                    *axis == SplitAxis::Horizontal && self.tree.as_ref().is_some_and(|(panel, _)| self.content.owns_floating_split_width(panel));
+                if host_width {
+                    return;
+                }
                 let layout_path = self.original_path(path);
                 let response = ResizeHandle::new(
                     self.split_id(&layout_path),
                     *axis,
                     split.divider,
                     &self.config.resize_label,
-                    ResizeHandleStyle { hovered: self.look.resize, dragged: self.look.resize, focused: self.look.focus },
+                    self.content.resize_handle_style(ResizeHandleStyle {
+                        hovered: self.look.resize,
+                        dragged: self.look.resize,
+                        focused: self.look.focus,
+                    }),
                 )
                 .value(split.first_size(), (split.first_size() + lo)..=(split.first_size() + hi))
                 .show(ui);
@@ -493,11 +517,15 @@ pub(in crate::docking) fn node_limits<P>(node: &Node<P>, look: &DockLook, conten
         Node::Split { axis, first, second, .. } => {
             let a = node_limits(first, look, content);
             let b = node_limits(second, look, content);
+            let gap = if matches!(first.as_ref(), Node::Dock { .. }) || matches!(second.as_ref(), Node::Dock { .. }) {
+                look.dock_gap.unwrap_or(look.gap)
+            } else {
+                look.gap
+            };
             let limits = match axis {
-                SplitAxis::Horizontal => PanelLimits {
-                    min: vec2(a.min.x + b.min.x + look.gap, a.min.y.max(b.min.y)),
-                    max: vec2(a.max.x + b.max.x + look.gap, a.max.y.min(b.max.y)),
-                },
+                SplitAxis::Horizontal => {
+                    PanelLimits { min: vec2(a.min.x + b.min.x + gap, a.min.y.max(b.min.y)), max: vec2(a.max.x + b.max.x + gap, a.max.y.min(b.max.y)) }
+                }
                 SplitAxis::Vertical => PanelLimits {
                     min: vec2(a.min.x.max(b.min.x), a.min.y + b.min.y + look.gap),
                     max: vec2(a.max.x.min(b.max.x), a.max.y + b.max.y + look.gap),

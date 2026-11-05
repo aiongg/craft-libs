@@ -32,7 +32,7 @@ pub fn preview_rect(frame: Rect, size: Size, inset: f32) -> Rect {
 /// point zoom, divided by the pixel aspect horizontally ([`CanvasView::aspect`]), times the
 /// preview scale, centred on the preview point of `view.center`. On a rotated or flipped view
 /// it is the quad [`CanvasView::to_doc`] gives for the canvas corners, mapped the same way
-/// (lead call L3; PhotoCraft never rotated its navigator).
+/// (PhotoCraft never rotated its navigator).
 ///
 /// The quad is not clipped: [`Navigator::show`](super::Navigator::show) clips each edge to the
 /// preview box less 1 pt when it draws it, and an upright proxy is the axis-aligned rect

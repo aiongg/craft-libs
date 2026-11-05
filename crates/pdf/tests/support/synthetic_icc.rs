@@ -11,7 +11,7 @@
 //!   clamped to 0..1. A neutral of L* 50 prints as 50% of each ink, where the ISO 32000-2
 //!   §10.4.2.4 device formulas would print it on black alone.
 //!
-//! From PdfCraft #2770 by Guillem Hermida (`crates/render/tests/support/synthetic_icc.rs` at
+//! From storytold/pdfcraft#2770 by Guillem Hermida (`crates/render/tests/support/synthetic_icc.rs` at
 //! 6fcf2a4aca29e943e28cb69017ff8f87d00656c6, MIT OR Apache-2.0). Used by `tests/plates.rs`
 //! through `#[path]`.
 

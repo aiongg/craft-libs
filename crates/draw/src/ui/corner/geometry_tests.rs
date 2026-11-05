@@ -1,4 +1,4 @@
-//! Tests of the corner widgets' geometry (task PE-A5).
+//! Tests of the corner widgets' geometry.
 
 use egui::{Pos2, pos2, vec2};
 use kurbo::{Point, Vec2};

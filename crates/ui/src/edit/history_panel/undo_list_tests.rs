@@ -1,4 +1,4 @@
-//! Screen and AccessKit tests of the undo list (task ST3).
+//! Screen and AccessKit tests of the undo list.
 
 use egui::accesskit::Role;
 use egui::{Event, Key, Pos2, Ui, UiBuilder, vec2};

@@ -1,4 +1,4 @@
-//! Stories of the marquee style cells (task KS1): not registered. Registering them (task RG2)
+//! Stories of the marquee style cells: not registered. Registering them
 //! adds `stories()` to the canvas stories, `COMPONENTS` to the component list and
 //! [`ConstraintFieldsStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!

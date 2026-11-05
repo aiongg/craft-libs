@@ -1,4 +1,4 @@
-//! Tests of the perspective session and plane geometry (task TR-T7).
+//! Tests of the perspective session and plane geometry.
 
 use egui::Modifiers;
 use kurbo::{Point, Rect};

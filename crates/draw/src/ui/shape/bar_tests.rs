@@ -1,4 +1,4 @@
-//! Tests of the Shape tools' options bar (task SH-T6).
+//! Tests of the Shape tools' options bar.
 
 use craft_color::ui::Paint;
 use craft_theme::Srgba;

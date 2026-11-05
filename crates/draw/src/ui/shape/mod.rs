@@ -41,23 +41,36 @@ pub use panel::{ShapePaint, ShapePanel, ShapePanelOutput};
 pub enum LiveShape {
     /// A rectangle: radii top-left, top-right, bottom-right, bottom-left.
     Rect {
+        /// Width in document pixels.
         width: f64,
+        /// Height in document pixels.
         height: f64,
+        /// The four corner radii in document pixels.
         radii: [f64; 4],
     },
+    /// An ellipse.
     Ellipse {
+        /// Width in document pixels.
         width: f64,
+        /// Height in document pixels.
         height: f64,
     },
     /// A polygon or star: one corner radius for every corner.
     Polygon {
+        /// Width in document pixels.
         width: f64,
+        /// Height in document pixels.
         height: f64,
+        /// The corner radius in document pixels.
         corner_radius: f64,
+        /// Number of sides, or points of a star.
         sides: u32,
+        /// Inner radius over outer radius; 1 for a plain polygon.
         star_ratio: f64,
     },
+    /// A line.
     Line {
+        /// The line's weight in document pixels.
         weight: f64,
     },
 }
@@ -67,7 +80,9 @@ pub enum LiveShape {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ShapeAppearance {
+    /// The fill paint.
     pub fill: Paint,
+    /// The stroke paint.
     pub stroke: Paint,
     /// Stroke width in pixels; 0 is no stroke.
     pub stroke_width: f64,
@@ -99,7 +114,7 @@ impl ShapeAppearance {
 }
 
 /// One field's change. The app turns it into one document command (and, from the options bar with
-/// a shape layer selected, into the tool defaults too: PhotoCraft #3347).
+/// a shape layer selected, into the tool defaults too: storytold/photocraft#3347).
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ShapeChange {
@@ -111,7 +126,9 @@ pub enum ShapeChange {
     /// `Some(`[`ENABLED_STROKE_WIDTH`](Self::ENABLED_STROKE_WIDTH)`)` when the edit turns the
     /// stroke on from width 0 (the app sets the width with the paint, in one command), else `None`.
     Stroke {
+        /// The new stroke paint.
         paint: Paint,
+        /// The width to set along with the paint.
         width: Option<f64>,
     },
     /// The stroke width in pixels, 0–288. A step that clamps at 0 is no change.
@@ -119,19 +136,25 @@ pub enum ShapeChange {
     /// The Stroke style button's edit (its `EditEvent<StrokeStyle>`, mapped); `width` as in
     /// [`Stroke`](Self::Stroke).
     StrokeStyle {
+        /// The new stroke style.
         style: StrokeStyle,
+        /// The width to set along with the style.
         width: Option<f64>,
     },
     /// Width and height of a rect, ellipse or polygon.
     Size {
+        /// New width in document pixels.
         width: f64,
+        /// New height in document pixels.
         height: f64,
     },
     /// A rectangle's four radii (the "Corner radius" field sets all four).
     Radii([f64; 4]),
     /// A polygon's corner radius, or the options bar's Radius.
     CornerRadius(f64),
+    /// A polygon's number of sides.
     Sides(u32),
+    /// A star's inner over outer radius.
     StarRatio(f64),
     /// A line's weight.
     Weight(f64),
@@ -149,11 +172,17 @@ impl ShapeChange {
 #[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ShapeToolSettings {
+    /// Whether new shapes get a fill.
     pub fill_on: bool,
+    /// The Rectangle's corner radius.
     pub corner_radius: f64,
+    /// A polygon's sides or a star's points.
     pub sides: u32,
+    /// A star's inner over outer radius; 1 for a plain polygon.
     pub star_ratio: f64,
+    /// The Line's weight.
     pub line_weight: f64,
+    /// Stroke width of new shapes, in pixels; 0 is no stroke.
     pub stroke_width: f64,
 }
 

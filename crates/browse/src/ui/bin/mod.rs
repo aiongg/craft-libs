@@ -256,7 +256,12 @@ pub enum BinEvent<K> {
     /// Enter or a double click on an item.
     Activate(K),
     /// Enter or a double click on a bin, with how.
-    OpenBin { key: K, how: OpenHow },
+    OpenBin {
+        /// The bin that was opened.
+        key: K,
+        /// How it was opened.
+        how: OpenHow,
+    },
     /// The breadcrumb, Up or a search result moved the shown bin.
     Navigate(Option<K>),
     /// A List-view bin opened or closed (→, ←, the triangle, a screen reader's Expand and
@@ -265,9 +270,19 @@ pub enum BinEvent<K> {
     Open(OpenChange<K>),
     /// A rename committed (Enter, Tab, a click elsewhere) with non-empty text other than the
     /// name; a `Set`, one undo step. Esc cancels in the editor and reports nothing.
-    Rename { key: K, text: String },
+    Rename {
+        /// The renamed item.
+        key: K,
+        /// The new name.
+        text: String,
+    },
     /// Items dropped into a bin (`None`: the shown bin). A `Set`.
-    Drop { items: Vec<K>, into: Option<K> },
+    Drop {
+        /// The dropped items.
+        items: Vec<K>,
+        /// The target bin; `None` is the shown bin.
+        into: Option<K>,
+    },
     /// A reorder in a bin shown in User Order.
     Reorder(EditEvent<Move<K>>),
     /// Delete or Backspace.
@@ -275,7 +290,12 @@ pub enum BinEvent<K> {
     /// A drag of the selection began.
     Drag(ListDrag<K>),
     /// Hover scrub over an item's picture.
-    Scrub { key: K, fraction: f32 },
+    Scrub {
+        /// The scrubbed item.
+        key: K,
+        /// Pointer position across the picture from the reading start, 0.0 to 1.0.
+        fraction: f32,
+    },
     /// The search text changed.
     Search(String),
     /// A view button.
@@ -299,7 +319,12 @@ pub enum BinEvent<K> {
     /// The footer's New Bin.
     NewBin,
     /// A Freeform drag committed: the cards' new positions.
-    FreeformMoved { keys: Vec<K>, to: Vec<Vec2> },
+    FreeformMoved {
+        /// The cards that moved.
+        keys: Vec<K>,
+        /// The new position of each card, in the same order as `keys`.
+        to: Vec<Vec2>,
+    },
     /// A context menu on an item, a bin or the background (`row: None`).
     ContextMenu(ContextMenuRequest<K>),
 }
@@ -490,7 +515,6 @@ where
         Self { zoom_range: (min, max), ..self }
     }
 
-    /// The words.
     /// Opens the in-place rename of `key` in this pass, as F2 would: in the List view the name
     /// cell's field (`Table::start_rename`), in the Icon view the card's caption
     /// (`TileGrid::start_rename`). In the Freeform view it is the caption's field as in the Icon view. Call it
@@ -501,6 +525,7 @@ where
         Self { rename: Some(key), ..self }
     }
 
+    /// Replaces the bin's words, for translation.
     #[must_use]
     pub fn labels(self, labels: BinLabels) -> Self {
         // new: builder.

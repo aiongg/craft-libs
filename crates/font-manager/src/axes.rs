@@ -30,8 +30,11 @@ pub struct FontAxis {
     pub tag: [u8; 4],
     /// The axis's name from the font's name table (`Weight`), English when there is one.
     pub name: String,
+    /// Lowest value, in the axis's own units.
     pub min: f32,
+    /// Value the face uses when no coordinate is set.
     pub default: f32,
+    /// Highest value, in the axis's own units.
     pub max: f32,
     /// Hidden from the user by the font (`HIDDEN_AXIS`).
     pub hidden: bool,
@@ -40,6 +43,7 @@ pub struct FontAxis {
 /// A named instance of a variable face (`Bold Condensed`): its coordinates per axis.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedInstance {
+    /// The instance's name from the font's name table.
     pub name: String,
     /// (tag, value) for every axis of the face, in axis order.
     pub coordinates: Vec<([u8; 4], f32)>,
@@ -165,6 +169,7 @@ impl<'a> AxisSliders<'a> {
     }
 
     // pc: crates/ui-egui/src/tools/type_tool/fonts.rs:189 `axis_sliders` and `:166 axis_value`.
+    /// Draw the sliders (and the instance list, if any) and report the edits made this frame.
     pub fn show(self, ui: &mut Ui) -> AxisSlidersResponse {
         let labels = AxisSlidersLabels::of(ui);
         let numbers = LocaleNumbers::of(ui);

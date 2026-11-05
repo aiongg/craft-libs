@@ -29,6 +29,7 @@ pub fn apply_keymap(bar: &mut MenuBar, keymap: &Keymap) {
 /// An item's state for the frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ItemState {
+    /// Whether the item can be chosen.
     pub enabled: bool,
     /// Checked or selected; `None` leaves the item's [`ItemKind`] as it is.
     pub checked: Option<bool>,

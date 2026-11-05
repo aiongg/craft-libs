@@ -41,7 +41,9 @@ pub struct PatternSwatch {
 /// editor is in preset mode.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PatternColors {
+    /// The pattern's foreground colour.
     pub foreground: Srgba,
+    /// The pattern's background colour.
     pub background: Srgba,
 }
 

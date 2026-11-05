@@ -19,6 +19,7 @@ use crate::index::{Family, Index};
 /// Store files to remove: a whole family, or some of its styles.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RemoveRequest {
+    /// The family name.
     pub family: String,
     /// The files the catalog found for it in the font store.
     pub files: Vec<PathBuf>,
@@ -29,14 +30,18 @@ pub struct RemoveRequest {
 /// Bytes downloaded so far, of `total`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Progress {
+    /// Bytes received.
     pub done: u64,
+    /// Bytes expected.
     pub total: u64,
 }
 
 /// A downloaded and verified file.
 #[derive(Clone, Debug)]
 pub struct Downloaded {
+    /// The file's path in the index.
     pub path: String,
+    /// The verified file contents.
     pub bytes: Vec<u8>,
 }
 
@@ -248,10 +253,13 @@ impl Installer for NoStore {
 /// What a [`FakeStore`] was asked to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Call {
+    /// Asked to install the family.
     Install(String),
     /// The family and the file's path in the index.
     InstallFile(String, String),
+    /// Asked to remove the family.
     Remove(String),
+    /// Asked to download the family.
     Download(String),
 }
 
@@ -279,6 +287,7 @@ pub struct FakeStore {
 }
 
 impl FakeStore {
+    /// A store that installs into `dir` and serves downloads from `files`, keyed by index path.
     pub fn new(dir: impl Into<PathBuf>, files: HashMap<String, Vec<u8>>) -> FakeStore {
         FakeStore {
             dir: dir.into(),
@@ -336,6 +345,7 @@ impl FakeStore {
         }
     }
 
+    /// Let held downloads finish; see [`FakeStore::hold`].
     pub fn release(&self) {
         if let Ok(mut held) = self.held.0.lock() {
             *held = false;

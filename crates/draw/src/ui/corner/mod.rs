@@ -49,10 +49,15 @@ impl CornerKind {
 /// sharp polygon's, not the rounded one's), its radius now and its kind.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CornerPoint {
+    /// The corner's vertex.
     pub vertex: Point,
+    /// The previous vertex along the outline.
     pub prev: Point,
+    /// The next vertex along the outline.
     pub next: Point,
+    /// The current radius, in document units.
     pub radius: f64,
+    /// How the corner is cut.
     pub kind: CornerKind,
 }
 
@@ -61,8 +66,11 @@ pub struct CornerPoint {
 /// or every corner shares one (polygons, stars: ⌥ is ignored).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CornerTarget {
+    /// The app's id for the object.
     pub key: u64,
+    /// The object's corners, in outline order.
     pub corners: Vec<CornerPoint>,
+    /// Whether each corner has its own radius (else all share one).
     pub individual: bool,
 }
 
@@ -70,7 +78,9 @@ pub struct CornerTarget {
 /// [`CornerTarget::corners`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CornerRef {
+    /// The [`CornerTarget::key`] of the object.
     pub target: u64,
+    /// Index into [`CornerTarget::corners`].
     pub corner: usize,
 }
 
@@ -78,7 +88,9 @@ pub struct CornerRef {
 /// without `individual`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CornerRadii {
+    /// The [`CornerTarget::key`] of the object.
     pub key: u64,
+    /// The new radii, in document units, one per corner.
     pub radii: Vec<f64>,
 }
 
@@ -87,5 +99,6 @@ pub struct CornerRadii {
 /// one coalesce key).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CornerEdit {
+    /// The new radii per object.
     pub targets: Vec<CornerRadii>,
 }

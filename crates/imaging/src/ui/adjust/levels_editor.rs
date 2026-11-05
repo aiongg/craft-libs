@@ -25,12 +25,15 @@ use craft_ui::typed_story;
 /// output black and white points.
 #[derive(Clone, Copy, Debug)]
 pub struct Levels {
+    #[allow(missing_docs)]
     pub in_black: f64,
     /// The midtone gamma: above 1 brightens.
     pub gamma: f64,
+    #[allow(missing_docs)]
     pub in_white: f64,
     /// Output black; above `out_white` it inverts.
     pub out_black: f64,
+    #[allow(missing_docs)]
     pub out_white: f64,
 }
 
@@ -107,11 +110,13 @@ pub struct LevelsStyle {
     /// The width range the editor takes of the available width: `levels.min_width`,
     /// `levels.max_width`.
     pub min_width: f32,
+    #[allow(missing_docs)]
     pub max_width: f32,
     /// Height of a row of thumbs: `levels.row`.
     pub row: f32,
     /// A triangle thumb: `levels.thumb_width` × `levels.thumb_height`.
     pub thumb_width: f32,
+    #[allow(missing_docs)]
     pub thumb_height: f32,
     /// Distance from a thumb's centre within which a press grabs it: `levels.hit`.
     pub hit: f32,
@@ -119,9 +124,11 @@ pub struct LevelsStyle {
     pub bar: f32,
     /// A thumb's edge, and a disabled one's: `levels.thumb_edge`, `levels.disabled_edge`.
     pub thumb_edge: Color32,
+    #[allow(missing_docs)]
     pub disabled_edge: Color32,
     /// The ring round a hovered or pressed thumb: `levels.ring`, `slider.ring_width` wide.
     pub ring: States<Color32>,
+    #[allow(missing_docs)]
     pub ring_width: f32,
     /// The captions' role; they are muted text.
     pub caption_role: TypeRole,
@@ -432,12 +439,14 @@ impl<'a> LevelsEditor<'a> {
         self
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: LevelsLabels) -> Self {
         self.labels = labels;
         self.labels_set = true;
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -456,6 +465,7 @@ impl<'a> LevelsEditor<'a> {
         clip.filter(|_| pass + 1 >= ctx.cumulative_pass_nr())
     }
 
+    /// The editor's sizes and colours from the theme `tokens`.
     pub fn style(tokens: &UiTokens) -> LevelsStyle {
         let l = &tokens.component.levels;
         LevelsStyle {

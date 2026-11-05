@@ -52,13 +52,19 @@ fn clear_of_buttons(handle: Rect, buttons: &[Rect]) -> Option<Rect> {
 pub struct ChromeStyle {
     /// Painted under the contents, so the window stays opaque when the contents are not.
     pub background: Color32,
+    /// Outline of the frame.
     pub stroke: Stroke,
+    #[allow(missing_docs)]
     pub title_background: Color32,
+    #[allow(missing_docs)]
     pub text: Color32,
+    #[allow(missing_docs)]
     pub weak_text: Color32,
+    #[allow(missing_docs)]
     pub accent: Color32,
     /// Keyboard focus ring of the title bar.
     pub focus: Color32,
+    /// Width of the focus ring in points.
     pub focus_width: f32,
     /// Height of the title bar; the frame's minimum height keeps room for it.
     pub title_height: f32,
@@ -68,6 +74,7 @@ pub struct ChromeStyle {
     pub gap: f32,
     /// The diagonal resize grip, painted `drop_width` thick.
     pub grip: Color32,
+    /// Thickness of the grip's strokes in points.
     pub drop_width: f32,
     /// Title text, and the ▾ and × glyphs when hovered or focused.
     pub title_text: Color32,
@@ -76,9 +83,11 @@ pub struct ChromeStyle {
     /// Corners of the frame's fill, outline and shadow; the title bar rounds its top corners and
     /// [`Self::body_inset`] keeps the body inside the bottom ones.
     pub radius: CornerRadius,
+    /// Drop shadow of the frame.
     pub shadow: Shadow,
     /// Fill of a selected or hovered control, such as an icon rail's open item.
     pub active_background: Color32,
+    /// Font of the title text.
     pub font: FontId,
     /// Narrowest a resized frame gets.
     pub min_width: f32,
@@ -181,19 +190,23 @@ pub struct FloatingFrame<'a> {
     bounds: Option<Rect>,
     limits: PanelLimits,
     resizable: bool,
+    resize_axes: [bool; 2],
     resize_label: &'a str,
     opacity: f32,
     title: Option<TitleBar<'a>>,
     auto_height: bool,
     request: Option<Rect>,
     dock_into: Option<Id>,
+    reserve_top_resize_band: bool,
 }
 
 /// What a [`FloatingFrame`] did this frame.
 pub struct FrameResponse<R> {
+    /// The value `add_contents` returned.
     pub inner: R,
     /// Where the frame was drawn, inside its bounds.
     pub rect: Rect,
+    /// The layer the frame was drawn on.
     pub layer: LayerId,
     /// The rect a resize handle asks for: pointer drags anchored at the opposite edges, or
     /// arrow keys on a focused handle (8 pt per press). Escape and focus loss end a resize.
@@ -205,6 +218,7 @@ pub struct FrameResponse<R> {
 }
 
 impl<'a> FloatingFrame<'a> {
+    /// A frame at `rect`, resizable, with default limits, no bounds and full opacity.
     pub fn new(id: Id, rect: Rect) -> Self {
         Self {
             id,
@@ -212,12 +226,14 @@ impl<'a> FloatingFrame<'a> {
             bounds: None,
             limits: PanelLimits::default(),
             resizable: true,
+            resize_axes: [true, true],
             resize_label: "Resize window",
             opacity: 1.0,
             title: None,
             auto_height: false,
             request: None,
             dock_into: None,
+            reserve_top_resize_band: true,
         }
     }
 
@@ -234,8 +250,22 @@ impl<'a> FloatingFrame<'a> {
         self
     }
 
+    /// Whether the top resize handle is the full band over the contents' top edge. Off, it is one
+    /// physical pixel thick, for a host whose own header owns that edge.
+    pub fn reserve_top_resize_band(mut self, reserve: bool) -> Self {
+        self.reserve_top_resize_band = reserve;
+        self
+    }
+
+    /// Whether the panel can be resized by its edges.
     pub fn resizable(mut self, resizable: bool) -> Self {
         self.resizable = resizable;
+        self
+    }
+
+    /// Restrict the stock edge handles when a host owns resizing on one axis.
+    pub fn resize_axes(mut self, axes: [bool; 2]) -> Self {
+        self.resize_axes = axes;
         self
     }
 
@@ -251,6 +281,7 @@ impl<'a> FloatingFrame<'a> {
         self
     }
 
+    /// The layer a frame with this `id` draws on, for ordering and hit tests by the host.
     pub fn layer(id: Id) -> LayerId {
         LayerId::new(Order::Middle, id)
     }
@@ -307,7 +338,14 @@ impl<'a> FloatingFrame<'a> {
             ..self.limits
         };
         let canceled = ui.input(|input| input.key_pressed(Key::Escape)) || crate::focus::lost(ui.ctx());
-        for (name, handle, direction) in handles(rect) {
+        for (name, mut handle, mut direction) in handles(rect) {
+            if !self.reserve_top_resize_band && direction.y < 0.0 {
+                handle.max.y = (rect.top() + ui.ctx().pixels_per_point().recip()).min(rect.bottom());
+            }
+            direction = vec2(if self.resize_axes[0] { direction.x } else { 0.0 }, if self.resize_axes[1] { direction.y } else { 0.0 });
+            if direction == egui::Vec2::ZERO {
+                continue;
+            }
             let Some(handle) = clear_of_buttons(handle, buttons) else { continue };
             if !super::targets::usable(handle) {
                 continue;
@@ -439,7 +477,9 @@ pub struct TitleBar<'a> {
 pub struct TitleResponse {
     /// Drag to move; double-click is the caller's (docking minimizes every group).
     pub bar: Response,
+    /// The ▾ menu button, when the bar was built with one.
     pub menu: Option<Response>,
+    /// The × close button, when the bar was built with one.
     pub close: Option<Response>,
 }
 
@@ -567,7 +607,12 @@ pub enum MoveStep {
     /// Escape or window focus loss ended the move: the rect it started from.
     Canceled(Rect),
     /// Released over `pointer`, with the rect where it was dropped.
-    Dropped { rect: Rect, pointer: Pos2 },
+    Dropped {
+        /// Where the frame was dropped.
+        rect: Rect,
+        /// The pointer position at release.
+        pointer: Pos2,
+    },
 }
 
 /// Move `rect` with a drag on `bar` (usually [`TitleResponse::bar`]). The rect and the press
@@ -613,7 +658,9 @@ pub enum FrameDrop<P> {
 
 /// What a titled frame ([`FloatingFrame::show_titled`]) did this pass, beyond [`FrameResponse`].
 pub struct TitledFrameResponse<R, P = ()> {
+    /// The frame's own response.
     pub frame: FrameResponse<R>,
+    /// The title bar's buttons and drag response.
     pub title: TitleResponse,
     /// The rect a title-bar drag asks for this pass ([`live_move`]); the host stores it.
     pub moved: Option<Rect>,
@@ -749,5 +796,35 @@ impl ChromeStyle {
     /// floating preset window drawn from the app's top level). Gap 13.
     pub fn of_ctx(ctx: &Context) -> Self {
         Self::with_look(&DockLook::from_tokens(&crate::theme::current(ctx)), crate::direction::is_rtl(ctx))
+    }
+}
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn defaults_preserve_pre_host_hook_frame_geometry() {
+        let rect = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 200.0));
+        let frame = FloatingFrame::new(Id::unique("defaults"), rect);
+        assert_eq!(frame.resize_axes, [true, true]);
+        assert!(frame.reserve_top_resize_band);
+        assert!(frame.resizable);
+        // Literal pre-PR hit rectangles: preserve these rather than silently enlarging them.
+        let expected = [
+            [388.0, 288.0, 400.0, 300.0],
+            [100.0, 112.0, 104.0, 288.0],
+            [396.0, 112.0, 400.0, 288.0],
+            [112.0, 296.0, 388.0, 300.0],
+            [100.0, 288.0, 112.0, 300.0],
+            [112.0, 100.0, 388.0, 104.0],
+            [100.0, 100.0, 112.0, 104.0],
+            [388.0, 100.0, 400.0, 104.0],
+        ];
+        for ((_, hit, _), [x0, y0, x1, y1]) in handles(rect).into_iter().zip(expected) {
+            assert_eq!(hit, Rect::from_min_max(pos2(x0, y0), pos2(x1, y1)));
+            // Audit result: legacy targets do NOT meet a 24-by-24 logical-pixel target.
+            assert!(hit.width() < 24.0 || hit.height() < 24.0);
+        }
     }
 }

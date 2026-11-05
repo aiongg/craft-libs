@@ -38,8 +38,11 @@ mod fields;
 /// the opacity row).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StopRef {
+    /// Colour stop `i`.
     Color(usize),
+    /// Opacity stop `i`.
     Opacity(usize),
+    /// The midpoint after stop `i` of the given row.
     Midpoint(StopRow, usize),
 }
 
@@ -140,16 +143,19 @@ pub struct GradientEditorStyle {
     /// Height of the ramp and its inset at both ends of the bar: `gradient_editor.ramp_height`,
     /// `gradient_editor.inset`.
     pub ramp_height: f32,
+    /// Inset of the ramp at both ends of the bar.
     pub inset: f32,
     /// Side of a stop marker's square and height of its pointer: `gradient_editor.marker`,
     /// `gradient_editor.pointer`.
     pub marker: f32,
+    /// Height of a stop marker's pointer.
     pub pointer: f32,
     /// Radius of a midpoint diamond: `gradient_editor.diamond`.
     pub diamond: f32,
     /// How far from a marker and a diamond a press takes it: `gradient_editor.hit`,
     /// `gradient_editor.diamond_hit`.
     pub hit: f32,
+    /// How far from a midpoint diamond a press takes it.
     pub diamond_hit: f32,
     /// How far above or below the ramp a dragged stop is removed: `gradient_editor.tear_off`.
     pub tear_off: f32,
@@ -160,7 +166,9 @@ pub struct GradientEditorStyle {
     /// Marker outlines, pointers and diamonds: `gradient_editor.marker_edge`; hovered:
     /// `text.normal`; selected, with the selected diamond's fill: `gradient_editor.selected`.
     pub marker_edge: Color32,
+    /// The outline of a hovered marker.
     pub hovered: Color32,
+    /// The outline of the selected marker and the fill of the selected diamond.
     pub selected: Color32,
     /// The drop place line: `accent.solid`.
     pub drop: Color32,
@@ -286,8 +294,11 @@ enum StopField {
 /// ([`GradientEditor::drop_target`]). With the colour popover, its picker's eyedropper request
 /// and id, as [`ColorPopoverResponse`](craft_color::ui::ColorPopoverResponse) reports them.
 pub struct GradientEditorResponse<T = ()> {
+    /// This frame's edit of the stops.
     pub edit: EditResponse<GradientStops>,
+    /// Colour stop whose colour the host is asked to edit.
     pub color_requested: Option<usize>,
+    /// A payload dropped on the bar: where it landed and the payload.
     pub dropped: Option<(StopDrop, Arc<T>)>,
     /// The popover's eyedropper button was pressed; the sampled colour goes to
     /// [`ColorPicker::sampled`] with [`picker_id`](Self::picker_id).
@@ -422,6 +433,7 @@ impl<'a> GradientEditor<'a> {
         ctx.data_mut(|d| d.get_temp_mut_or_default::<State>(id.with(STATE)).selected = marker);
     }
 
+    /// The stop bar's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GradientEditorStyle {
         let g = &tokens.component.gradient_editor;
         GradientEditorStyle {
@@ -504,6 +516,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         self
     }
 
+    /// Whether the editor takes input; disabled by `false`.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

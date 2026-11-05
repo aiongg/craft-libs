@@ -62,6 +62,7 @@ pub struct ColorSamplers {
 }
 
 impl ColorSamplers {
+    /// An empty set of sample points.
     pub fn new() -> ColorSamplers {
         ColorSamplers::default()
     }
@@ -108,6 +109,7 @@ impl ColorSamplers {
         Ok(())
     }
 
+    /// Removes every point.
     pub fn clear(&mut self) {
         self.points.clear();
     }
@@ -266,8 +268,11 @@ impl CanvasTool for ColorSamplerTool<'_> {
 pub struct SamplerReadout {
     /// The point's number, from 1.
     pub number: usize,
+    /// The pixel the point sits on, in document pixels.
     pub position: [i64; 2],
+    /// Red, green and blue, 0–255.
     pub rgb: [u8; 3],
+    /// Cyan, magenta, yellow and black ink, in percent.
     pub cmyk: [u8; 4],
 }
 
@@ -303,7 +308,7 @@ pub fn sampler_options(ui: &mut Ui, count: usize) -> bool {
 }
 
 /// The Info panel readouts of a document's [`ColorSamplers`], cached until something they depend
-/// on changes (PhotoCraft #4528). The cache is kept per [`document`](Self::document); a reading
+/// on changes (storytold/photocraft#4528). The cache is kept per [`document`](Self::document); a reading
 /// is computed again when the document's [`revision`](Self::revision), the points or the
 /// [`cmyk`](Self::cmyk) converter's profile differ from the cached ones.
 // pc: crates/ui-egui/src/panels/info.rs:124 `sampler_readouts`.

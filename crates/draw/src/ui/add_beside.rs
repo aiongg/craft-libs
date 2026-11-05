@@ -1,6 +1,6 @@
 //! [`AddBesideHandles`]: the "+" buttons beside the four sides of a selected object, which add an
 //! artboard (Photoshop) or a connected object (FigJam) there. One widget for the Artboard tool and
-//! the connector tools (tasks SH-T8 and TK3).
+//! the connector tools.
 //!
 //! The Artboard tool runs on the tool host and gets no `Ui`: it places, hit-tests and paints the
 //! buttons through [`AddBesideHandles::buttons`], [`at`](AddBesideHandles::at) and
@@ -33,9 +33,13 @@ craft_ui::words! {
 /// A side of the object, in document space (never mirrored right to left).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AddSide {
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     Left,
 }
 
@@ -63,6 +67,7 @@ pub struct AddBesideStyle {
     pub fill: Color32,
     /// A hovered or focused disc: `accent.solid`, the plus then in `text.on_strong`.
     pub hot_fill: Color32,
+    /// The plus on a hovered or focused disc.
     pub hot_plus: Color32,
 }
 

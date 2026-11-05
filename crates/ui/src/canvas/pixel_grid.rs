@@ -22,8 +22,11 @@ use super::view::CanvasView;
 /// One grid line piece in document pixels, axis-aligned, with its colour.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GridSegment {
+    /// First end of the piece, in document pixels.
     pub from: [i32; 2],
+    /// Last end of the piece, in document pixels.
     pub to: [i32; 2],
+    /// The line's colour.
     pub color: Color32,
 }
 

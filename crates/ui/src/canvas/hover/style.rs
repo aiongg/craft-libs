@@ -1,4 +1,4 @@
-//! [`HoverStyle`]: the hover outline's look and timing, from tokens (task TK1).
+//! [`HoverStyle`]: the hover outline's look and timing, from tokens.
 
 use std::time::Duration;
 

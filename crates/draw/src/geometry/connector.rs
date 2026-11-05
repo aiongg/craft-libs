@@ -17,6 +17,7 @@ pub const ROOM: f64 = 24.0;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Routing {
+    /// A direct line between the ends.
     #[default]
     Straight,
     /// Right angles only: out of each end along its side's normal, turning once or twice, around
@@ -33,9 +34,13 @@ pub enum ConnectionSide {
     /// The side facing the other end.
     #[default]
     Auto,
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     Left,
 }
 
@@ -106,9 +111,19 @@ pub enum ConnectorPath {
     /// An elbow's straight runs, each at right angles to the one before: whether the first runs
     /// across (else up or down), and where the runs between the first and last lie (x of one that
     /// runs up or down, y of one that runs across). The first and last lie on the ends.
-    Runs { across: bool, at: Vec<f64> },
+    Runs {
+        /// Whether the first run goes across (else up or down).
+        across: bool,
+        /// Positions of the runs between the first and last, in document units.
+        at: Vec<f64>,
+    },
     /// How far a curve's middle was moved.
-    Bow { x: f64, y: f64 },
+    Bow {
+        /// Horizontal move of the curve's middle, in document units.
+        x: f64,
+        /// Vertical move of the curve's middle, in document units.
+        y: f64,
+    },
 }
 
 impl RouteEnd {

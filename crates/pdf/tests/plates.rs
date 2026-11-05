@@ -1,5 +1,5 @@
 //! Plate mode through the raster path: each ink's separation drawn as a gray film.
-//! Adapted from PdfCraft #2770 by Guillem Hermida (`separations::tests` in pdfcraft-render at
+//! Adapted from storytold/pdfcraft#2770 by Guillem Hermida (`separations::tests` in pdfcraft-render at
 //! 6fcf2a4aca29e943e28cb69017ff8f87d00656c6, MIT OR Apache-2.0).
 #![cfg(feature = "raster")]
 
@@ -516,7 +516,7 @@ fn a_knockout_group_separates_with_only_the_top_object_in_the_overlap() {
     assert_eq!(blended.at(20, 20), [25, 50, 0, 0], "both squares without /K");
 }
 
-/// PdfCraft #3018: `/DefaultCMYK` and `/DefaultGray` change how device color looks, not the
+/// storytold/pdfcraft#3018: `/DefaultCMYK` and `/DefaultGray` change how device color looks, not the
 /// inks it prints with. Under them DeviceCMYK still separates as its components (and keeps the
 /// nonzero overprint mode), a DeviceCMYK image sample by sample, and DeviceGray on black alone,
 /// with or without a simulation whose profile differs from the default.

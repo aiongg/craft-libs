@@ -2,7 +2,7 @@
 //! and the keyboard as PhotoCraft's menus are.
 //!
 //! - [`MenuItem`] and [`MenuEntry`]: a menu's data. A row has a label, an optional icon, a check or
-//!   radio mark ([`ItemKind`]), a shortcut ([`Kbd`](crate::controls::Kbd)), an enabled state, a
+//!   radio mark ([`ItemKind`]), a shortcut ([`Kbd`]), an enabled state, a
 //!   preferred mnemonic, and a command (`T`) or a submenu of entries. A check or radio row can
 //!   [keep the menu open](MenuItem::keep_open) when it runs, for panel menus of settings.
 //! - [`Menu`]: the popup. Its owner (a menu bar's title, a button, a secondary click) makes the

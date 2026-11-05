@@ -23,7 +23,9 @@ pub struct ToggleButtonStyle {
     /// On: `toggle_button.on.*`, held in every state but disabled, and
     /// `toggle_button.on_disabled.*` when disabled.
     pub on_fill: States<Color32>,
+    #[allow(missing_docs)]
     pub on_border: States<Color32>,
+    #[allow(missing_docs)]
     pub on_text: States<Color32>,
 }
 
@@ -47,10 +49,12 @@ pub struct ToggleButton<'a> {
 }
 
 impl<'a> ToggleButton<'a> {
+    /// A button named `label` that edits `on`.
     pub fn new(label: impl Into<String>, on: &'a mut bool) -> Self {
         Self { label: label.into(), on, size: ControlSize::Md, icon: None, trailing: None, role: None, enabled: true, id_salt: None }
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -74,6 +78,7 @@ impl<'a> ToggleButton<'a> {
         self
     }
 
+    /// Whether the button takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -86,6 +91,7 @@ impl<'a> ToggleButton<'a> {
         self
     }
 
+    /// The button's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> ToggleButtonStyle {
         let off = super::Button::style(tokens, ButtonVariant::Secondary, size);
         let on = &tokens.component.toggle_button;

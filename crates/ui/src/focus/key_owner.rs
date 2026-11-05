@@ -2,7 +2,7 @@
 //! tool keys, nudging, the chrome's Tab toggle and F6.
 //!
 //! Every reader of single keys asks [`owner`] instead of keeping its own rule. The canvas the
-//! shell registers ([`AppShell::canvas`](crate::shell::AppShell::canvas)) counts as no focus at
+//! shell registers (`AppShell::canvas`) counts as no focus at
 //! all, so a focused canvas is [`KeyOwner::App`].
 
 use egui::{Context, LayerId};
@@ -62,7 +62,7 @@ pub struct OwnerGate {
 
 /// Registers `id` as the canvas of this pass for a canvas drawn outside an
 /// [`AppShell`](crate::shell::AppShell) (a story, a test); the shell does it through
-/// [`AppShell::canvas`](crate::shell::AppShell::canvas). Call it on every pass the canvas is drawn.
+/// `AppShell::canvas`. Call it on every pass the canvas is drawn.
 pub fn register_canvas(ctx: &Context, id: egui::Id) {
     crate::shell::register_canvas(ctx, id);
 }

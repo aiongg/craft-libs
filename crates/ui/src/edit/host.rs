@@ -88,6 +88,7 @@ struct Under<U: UndoMarks> {
 type Apply<U> = Arc<dyn Fn(&mut U, &(dyn Any + Send + Sync)) + Send + Sync>;
 
 impl<U: UndoMarks> GestureHost<U> {
+    /// An empty host with no gesture under way.
     pub fn new() -> Self {
         Self { active: None, ended: None }
     }

@@ -1,4 +1,4 @@
-//! [`LiquifyPanel`]: Liquify's Properties panel (task WS-LQ2).
+//! [`LiquifyPanel`]: Liquify's Properties panel.
 
 use std::ops::RangeInclusive;
 
@@ -19,6 +19,7 @@ use super::tools::LiquifyBrush;
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct LiquifyPanelOutput {
+    /// The panel's response.
     pub response: Response,
     /// The pass's edit of the settings, which already hold the new value: a slider's gesture
     /// (`Begin`, `Update`, `Commit`) or a one-shot `Set` for a check box or a select. The
@@ -72,6 +73,7 @@ impl Pass {
 }
 
 impl<'a> LiquifyPanel<'a> {
+    /// Starts the panel over `settings`, which it edits in place; `id_salt` keeps its state apart from other panels.
     pub fn new(id_salt: impl AsIdSalt, settings: &'a mut LiquifySettings) -> Self {
         Self { id_salt: IdSalt::new(id_salt), settings, layers: &[], labels: None }
     }
@@ -88,6 +90,7 @@ impl<'a> LiquifyPanel<'a> {
         self
     }
 
+    /// Draws the panel and returns its response and any settings edit.
     pub fn show(self, ui: &mut Ui) -> LiquifyPanelOutput {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:995-1059 (the four sections).
         let Self { id_salt, settings, layers, labels } = self;

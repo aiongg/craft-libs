@@ -1,4 +1,4 @@
-//! Tests of the pins' overlay and panel (task WS-BP2).
+//! Tests of the pins' overlay and panel.
 
 use egui::accesskit::Role;
 use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, Rect, Sense, TextEdit, WidgetInfo, vec2};

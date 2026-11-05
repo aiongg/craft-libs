@@ -61,6 +61,7 @@ pub struct Kbd {
 }
 
 impl Kbd {
+    /// A chord written from `shortcut` in the platform's notation.
     pub fn new(shortcut: &KeyboardShortcut) -> Self {
         Self { chord: Chord::Shortcut(*shortcut), keycaps: false, content: Content::Muted, os: None }
     }
@@ -90,6 +91,7 @@ impl Kbd {
         self
     }
 
+    /// The chord's sizes and colours from `tokens`.
     pub fn style(tokens: &UiTokens) -> KbdStyle {
         let k = &tokens.component.kbd;
         let mut keycap = Surface::style(tokens, SurfaceKind::Raised);

@@ -22,9 +22,11 @@ const DEFAULT_AUTO_HIDE: Duration = Duration::from_secs(6);
 pub struct PostedNotice {
     /// Given by [`NoticeCenter::post`].
     pub id: u64,
+    /// Title line, already translated.
     pub title: String,
     /// Lines under the title, already translated and filled in.
     pub lines: Vec<String>,
+    /// The tone the notice is drawn in.
     pub tone: Tone,
     /// A preference key; when set, closing the notice with "Don't Show Again" reports
     /// [`NoticeEnd::Silenced`] with this key and the app stores it. A notice whose key the app
@@ -38,13 +40,17 @@ pub struct PostedNotice {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum NoticeEnd {
+    /// The user closed the notice; carries its id.
     Closed(u64),
+    /// The auto-hide time passed; carries its id.
     Expired(u64),
     /// Dropped by the cap.
     Dropped(u64),
     /// "Don't Show Again": store the key.
     Silenced {
+        /// Id of the notice.
         id: u64,
+        /// The preference key to store.
         key: String,
     },
 }
@@ -141,6 +147,7 @@ impl NoticeCenter {
         self.notices.retain(|n| n.id != id);
     }
 
+    /// The notices on show, oldest first.
     pub fn notices(&self) -> &[PostedNotice] {
         &self.notices
     }

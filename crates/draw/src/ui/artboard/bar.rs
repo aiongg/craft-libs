@@ -1,4 +1,4 @@
-//! [`ArtboardBar`]: the Artboard tool's options bar cells (task SH-T8).
+//! [`ArtboardBar`]: the Artboard tool's options bar cells.
 
 use egui::{AsIdSalt, IdSalt, Modifiers, Ui};
 use kurbo::Size;

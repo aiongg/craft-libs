@@ -47,7 +47,9 @@ pub struct Stats {
 /// The pixels whose TAC is over a limit.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Above {
+    /// Width in pixels.
     pub width: u32,
+    /// Height in pixels.
     pub height: u32,
     /// One entry per pixel, row-major: `true` where the TAC is over the limit.
     pub mask: Vec<bool>,
@@ -58,9 +60,13 @@ pub struct Above {
 /// A connected group of pixels over the limit (4-connected), with its bounding box in pixels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Region {
+    /// Left edge of the bounding box, in pixels.
     pub x: u32,
+    /// Top edge of the bounding box, in pixels.
     pub y: u32,
+    /// Width of the bounding box in pixels.
     pub width: u32,
+    /// Height of the bounding box in pixels.
     pub height: u32,
     /// The pixels over the limit in the region.
     pub pixels: u32,

@@ -1,4 +1,4 @@
-//! [`BeforeAfterStyle`]: the before and after view's look, from tokens (task TK1).
+//! [`BeforeAfterStyle`]: the before and after view's look, from tokens.
 
 use egui::{Color32, FontId};
 
@@ -18,11 +18,13 @@ pub struct BeforeAfterStyle {
     pub line_color: Color32,
     /// The halo under the line, `before_after.halo` wider on each side: `overlay.halo`.
     pub halo: Color32,
+    /// The halo's width across the line: `before_after.halo` on each side of the line's own width.
     pub halo_width: f32,
     /// The knob's diameter: `before_after.knob` (20, FigCraft `dev_compare.rs:356`).
     pub knob: f32,
     /// The knob's fill and its glyph: `accent.strong` and `text.on_strong`.
     pub knob_fill: Color32,
+    #[allow(missing_docs)]
     pub knob_glyph: Color32,
     /// Between two side-by-side panes: `before_after.gap_side` (12, LightCraft `detail.rs:479`).
     pub gap_side: f32,
@@ -32,6 +34,7 @@ pub struct BeforeAfterStyle {
     pub caption_gap: f32,
     /// The captions: `type.label` in `text.muted`.
     pub caption_font: FontId,
+    #[allow(missing_docs)]
     pub caption_color: Color32,
 }
 

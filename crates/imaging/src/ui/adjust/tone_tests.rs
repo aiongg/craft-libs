@@ -1,4 +1,4 @@
-//! Tests of the point picker row and its canvas tool (task AD-1).
+//! Tests of the point picker row and its canvas tool.
 
 use egui::accesskit::Role;
 use egui::{Id, Key, Pos2, Rect, Sense, vec2};

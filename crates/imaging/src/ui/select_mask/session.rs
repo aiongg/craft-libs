@@ -1,5 +1,5 @@
 //! Select and Mask's session (what OK applies, with undo), its limits and its remembered settings
-//! (task WS-SM1).
+//!.
 
 use craft_theme::Srgba;
 use serde::{Deserialize, Serialize};
@@ -15,14 +15,18 @@ use super::edits::{RefineStroke, SelectMaskEdit};
 /// (`engine/src/select_mask_edits.rs:27-28`, `cmd/smartselect_cmds.rs:350-351`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SelectMaskLimits {
+    /// Most tool edits.
     pub edits: usize,
+    /// Most points over all tool edits.
     pub edit_points: usize,
+    /// Most Refine Edge Brush strokes.
     pub strokes: usize,
+    /// Most points over all Refine Edge Brush strokes.
     pub stroke_points: usize,
 }
 
 /// Which limit refused an edit or a stroke, with the number it passed. The workspace words it
-/// ([`SelectMaskLimitWords`](super::SelectMaskLimitWords) through [`LimitRefused::message`]).
+/// (`SelectMaskLimitWords` through [`LimitRefused::message`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LimitRefused {
     /// At most this many edits.
@@ -40,15 +44,22 @@ pub enum LimitRefused {
 #[serde(rename_all = "camelCase")]
 pub enum OutputTo {
     #[default]
+    #[allow(missing_docs)]
     Selection,
+    #[allow(missing_docs)]
     LayerMask,
+    #[allow(missing_docs)]
     NewLayer,
+    #[allow(missing_docs)]
     NewLayerWithMask,
+    #[allow(missing_docs)]
     NewDocument,
+    #[allow(missing_docs)]
     NewDocumentWithMask,
 }
 
 impl OutputTo {
+    /// The six targets, in menu order.
     pub const ALL: [OutputTo; 6] = [
         OutputTo::Selection,
         OutputTo::LayerMask,
@@ -74,6 +85,7 @@ impl OutputTo {
 pub struct RefineSettings {
     /// 0..=250 px.
     pub radius: f64,
+    /// Smart Radius.
     pub smart_radius: bool,
     /// 0..=100.
     pub smooth: f64,
@@ -83,9 +95,11 @@ pub struct RefineSettings {
     pub contrast: f64,
     /// −100..=100 %.
     pub shift_edge: f64,
+    /// Decontaminate Colors.
     pub decontaminate: bool,
     /// 0..=100 %, enabled with Decontaminate Colors.
     pub amount: f64,
+    /// Where the result goes.
     pub output: OutputTo,
 }
 
@@ -122,8 +136,11 @@ impl RefineSettings {
 /// changes them.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SelectMaskSession {
+    /// The tool edits, in order.
     pub edits: Vec<SelectMaskEdit>,
+    /// The Refine Edge Brush strokes, in order.
     pub strokes: Vec<RefineStroke>,
+    /// The refinement values.
     pub refine: RefineSettings,
 }
 
@@ -133,13 +150,18 @@ pub struct SelectMaskSession {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectMaskCommand {
+    /// The refinement values.
     #[serde(flatten)]
     pub refine: RefineSettings,
+    /// Sample All Layers.
     pub sample_all_layers: bool,
+    /// The tool edits, in order.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub edits: Vec<SelectMaskEdit>,
+    /// The Refine Edge Brush strokes, in order.
     #[serde(rename = "refineStrokes", skip_serializing_if = "Vec::is_empty")]
     pub strokes: Vec<RefineStroke>,
+    /// `Some("mask")` when a layer mask is refined, else `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target: Option<&'static str>,
 }
@@ -204,18 +226,25 @@ impl SelectMaskSession {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SelectMaskSettings {
+    /// The selected view.
     pub view: MaskViewMode,
     /// Each view's Transparency or Opacity (percent), in [`MaskViewMode::ALL`] order.
     pub opacities: [f32; 7],
+    /// Show Edge.
     pub show_edge: bool,
+    /// Show Original.
     pub show_original: bool,
+    /// The overlay tint as sRGB bytes.
     pub overlay_color: [u8; 3],
+    /// Whether the overlay marks masked or selected areas.
     pub overlay_indicates: ColorIndicates,
     /// The stroke being drawn joins the preview while the pointer moves.
     pub real_time: bool,
     /// The preview runs on the document at full size (reduction 1).
     pub high_quality: bool,
+    /// The refinement values.
     pub refine: RefineSettings,
+    /// Remember Settings: the app persists these settings while it is on.
     pub remember: bool,
 }
 

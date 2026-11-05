@@ -270,6 +270,7 @@ pub struct ConnectionLimiter {
 }
 
 impl ConnectionLimiter {
+    /// A limiter that allows at most `max` live permits.
     pub fn new(max: usize) -> Self {
         Self { live: std::sync::Arc::new(AtomicUsize::new(0)), max }
     }
@@ -316,6 +317,7 @@ pub struct AuthDeadlineStream {
 }
 
 impl AuthDeadlineStream {
+    /// Wraps `inner`; reads fail once `auth_deadline` has passed unauthenticated.
     pub fn new(inner: std::net::TcpStream, auth_deadline: Duration) -> Self {
         // A limit too large to represent expires at once rather than never.
         let now = Instant::now();

@@ -519,6 +519,7 @@ impl PropertyGroup {
         self
     }
 
+    /// Draws the row, with `add_contents` filling its value cell.
     pub fn show<R>(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         let ctx = ui.ctx().clone();
         let id = overrides_id(&ctx);

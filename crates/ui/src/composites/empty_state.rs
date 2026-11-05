@@ -188,6 +188,7 @@ impl<'a> EmptyState<'a> {
         self
     }
 
+    /// The empty state's look from the theme's `empty_state` tokens.
     pub fn style(tokens: &UiTokens) -> EmptyStateStyle {
         let e = &tokens.component.empty_state;
         EmptyStateStyle {
@@ -207,6 +208,7 @@ impl<'a> EmptyState<'a> {
         }
     }
 
+    /// Draws the empty state and returns its response, including the action's if one was set.
     pub fn show(self, ui: &mut Ui) -> EmptyStateResponse {
         let tokens = Tokens::of(ui);
         let style = EmptyState::style(&tokens);

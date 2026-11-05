@@ -27,12 +27,16 @@ craft_ui::words! {
 /// (PhotoCraft's "Default" pasteboard).
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedColor {
+    /// What the app stores for this colour.
     pub id: String,
+    /// The name shown, already translated.
     pub label: String,
+    /// The swatch colour, or `None` to let the theme decide.
     pub color: Option<Srgba>,
 }
 
 impl NamedColor {
+    /// A named colour with the given id, label and swatch colour.
     pub fn new(id: impl Into<String>, label: impl Into<String>, color: Option<Srgba>) -> NamedColor {
         NamedColor { id: id.into(), label: label.into(), color }
     }
@@ -41,7 +45,9 @@ impl NamedColor {
 /// What a [`ColorChoice`] holds: one of the named colours by id, or the custom colour.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChosenColor {
+    /// The named colour with this id.
     Named(String),
+    /// The custom colour set by [`ColorChoice::custom`].
     Custom,
 }
 
@@ -103,11 +109,13 @@ impl<'a> ColorChoice<'a> {
         self
     }
 
+    /// Sets the control size.
     pub fn size(mut self, size: ControlSize) -> ColorChoice<'a> {
         self.size = size;
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> ColorChoice<'a> {
         self.enabled = enabled;
         self
@@ -116,6 +124,7 @@ impl<'a> ColorChoice<'a> {
     // pc: crates/ui-egui/src/canvas/canvas_tool_menu.rs:98 `PASTEBOARD_MENU` (Default, Black, Dark
     // Gray, Medium Gray, Light Gray, Custom, separator, Select Custom Color…); built on `Select`
     // with `row_content` for the swatch and `separator` before the picker row.
+    /// Draws the choice and returns the edit and any custom-colour request.
     pub fn show(self, ui: &mut Ui) -> ColorChoiceResponse {
         let Self { id_salt, label, value, named, custom, size, enabled } = self;
         let labels = ColorChoiceLabels::of(ui);

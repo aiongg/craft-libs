@@ -31,10 +31,10 @@
 //! app.prefs.liquify = app.liquify.settings().clone();
 //! ```
 //!
-//! Files: `session` (the steps, the settings; task WS-LQ1), `tools` (the tools and the stroke
-//! recorder; WS-LQ1), `keys` (the workspace keys; WS-LQ1), `panel` (the Properties panel; WS-LQ2),
-//! `canvas` (the canvas tool, the backdrop, the mask and mesh, the brush resize; WS-LQ2), this file
-//! (`show`, `step`; WS-LQ2).
+//! Files: `session` (the steps, the settings), `tools` (the tools and the stroke
+//! recorder), `keys` (the workspace keys), `panel` (the Properties panel),
+//! `canvas` (the canvas tool, the backdrop, the mask and mesh, the brush resize), this file
+//! (`show`, `step`).
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
 //! [`FullWindowSide`]: craft_ui::dialog::full_window::FullWindowSide
@@ -121,6 +121,7 @@ pub struct LiquifyOpen {
 }
 
 impl LiquifyOpen {
+    /// Opens on a layer of `size` document pixels named `subject`; every other option takes its default.
     pub fn new(size: [u32; 2], subject: impl Into<String>) -> Self {
         Self { size, subject: subject.into(), ..Self::default() }
     }
@@ -184,6 +185,7 @@ pub enum LiquifyEvent {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct LiquifyOutput {
+    /// What happened this pass, in order.
     pub events: Vec<LiquifyEvent>,
     /// OK or Cancel this pass.
     pub outcome: Option<Outcome>,
@@ -281,14 +283,14 @@ impl LiquifyWorkspace {
     /// Shows the workspace for this pass.
     ///
     /// In order: the events [`step`](Self::step) queued; the title
-    /// ([`FullWindowTitle`](craft_ui::dialog::full_window::FullWindowTitle) with the subject and
+    /// ([`FullWindowTitle`] with the subject and
     /// the zoom); the history keys (`FullWindowFx::take_step`, read before the body whatever has
     /// focus, so ⌘Z works while a number field has focus; a stroke or other gesture is cancelled
     /// with `UndoDuringGesture` first); [`LiquifyKeys`] while `FullWindowFx::keys_free`; the tool
     /// strip (a `ToolRail` with `pick_by_key(true)` over [`LiquifyTool::slots`]; a pick cancels
     /// the old tool's gesture with `Removed`); the side column ([`LiquifyPanel`], footer
     /// `SideFooter::bottom` with OK and Cancel); the canvas
-    /// ([`FullWindowCanvas`](craft_ui::dialog::full_window::FullWindowCanvas)) with the source's
+    /// ([`FullWindowCanvas`]) with the source's
     /// image under [`BackdropLayering`], the freeze mask as a `RasterOverlay` tinted
     /// `liquify.freeze` while Show Mask is on, the mesh through `warp::paint_mesh` while Show Mesh
     /// is on, and [`LiquifyCanvas`] as its tool. Then `LocalHistory::settle(&session, busy)` with

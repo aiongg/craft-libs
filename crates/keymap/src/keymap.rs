@@ -29,16 +29,22 @@ pub const MAX_CONFLICTS: usize = 4096;
 #[non_exhaustive]
 pub enum Kind {
     #[default]
+    /// Runs the command.
     Command,
     /// Selects a tool. Tools of one group share keys and cycle; tools without a group name form one
     /// group together.
-    Tool { group: Option<String> },
+    Tool {
+        /// The group the tool belongs to; `None` joins the group of tools without one.
+        group: Option<String>,
+    },
 }
 
 /// A trigger in a scope. `scope: None` is the command's home scope.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Binding {
+    /// What is pressed.
     pub trigger: Trigger,
+    /// The scope the binding works in; `None` for the command's home scope.
     pub scope: Option<Scope>,
 }
 
@@ -47,9 +53,11 @@ pub struct Binding {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum BindingError {
+    /// Longer than [`MAX_BINDING_TEXT`].
     TooLong,
     /// The part before `": "` is not a scope name.
     Scope,
+    /// The trigger part did not parse.
     Trigger(ParseError),
 }
 
@@ -71,6 +79,7 @@ impl Binding {
         Binding { trigger: trigger.into(), scope: None }
     }
 
+    /// A binding of `trigger` in `scope`.
     pub fn in_scope(trigger: impl Into<Trigger>, scope: Scope) -> Binding {
         Binding { trigger: trigger.into(), scope: Some(scope) }
     }
@@ -136,7 +145,9 @@ impl<'de> Deserialize<'de> for Binding {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Bindable {
+    /// The command's id and parameters.
     pub command: CommandRef,
+    /// The name the UI shows.
     pub label: String,
     /// Menu paths, the main one first; used by search and import.
     #[serde(default)]
@@ -151,12 +162,14 @@ pub struct Bindable {
     /// Home scope.
     pub scope: Scope,
     #[serde(default)]
+    /// Whether it runs a command or selects a tool.
     pub kind: Kind,
     /// The command shows and hides something (a panel, guides, rulers). Import matching reads a
     /// foreign name without a leading `Show`, `Hide` or `Show/Hide` only for such commands.
     #[serde(default)]
     pub is_toggle: bool,
     #[serde(default)]
+    /// The bindings the command has before the user changes any.
     pub defaults: Vec<Binding>,
 }
 
@@ -182,16 +195,19 @@ impl Bindable {
         self
     }
 
+    /// Sets the [`kind`](Bindable::kind).
     pub fn with_kind(mut self, kind: Kind) -> Bindable {
         self.kind = kind;
         self
     }
 
+    /// Adds a default binding.
     pub fn with_default(mut self, binding: Binding) -> Bindable {
         self.defaults.push(binding);
         self
     }
 
+    /// Adds a menu path; the first one added is the main path.
     pub fn with_path(mut self, path: Vec<String>) -> Bindable {
         self.paths.push(path);
         self
@@ -203,6 +219,7 @@ impl Bindable {
         self
     }
 
+    /// Adds an alias.
     pub fn with_alias(mut self, alias: impl Into<String>) -> Bindable {
         self.aliases.push(alias.into());
         self
@@ -331,7 +348,9 @@ pub fn text_editing_chords(platform: Platform) -> &'static [Chord] {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Lookup {
+    /// No binding matches.
     None,
+    /// Run this command.
     Run(CommandRef),
     /// Tools of one group share the chord: the app picks the next one (catalog order).
     Cycle(Vec<CommandRef>),
@@ -354,7 +373,9 @@ pub enum Policy {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Holder {
+    /// The command holding the binding.
     pub command: CommandRef,
+    /// The binding it holds.
     pub binding: Binding,
 }
 
@@ -374,6 +395,7 @@ pub struct Assigned {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum AssignError {
+    /// The catalog has no such command.
     UnknownCommand,
     /// The system takes this chord.
     Reserved(Trigger),
@@ -407,11 +429,13 @@ impl std::error::Error for AssignError {}
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum DropReason {
+    /// The overrides key is longer than [`MAX_KEY`].
     KeyTooLong,
     /// The value is not a list of texts.
     NotAList,
     /// Items of the list that are not text.
     NotText,
+    /// A binding text is longer than [`MAX_BINDING_TEXT`].
     TextTooLong,
     /// Texts past [`MAX_BINDINGS`].
     TooManyBindings,
@@ -423,19 +447,50 @@ pub enum DropReason {
 #[non_exhaustive]
 pub enum Problem {
     /// No command in the catalog has this key; the entry is kept.
-    UnknownCommand { key: String },
+    UnknownCommand {
+        /// The overrides key.
+        key: String,
+    },
     /// A text that does not parse; the entry keeps it.
-    BadBinding { key: String, text: String, error: BindingError },
+    BadBinding {
+        /// The overrides key.
+        key: String,
+        /// The binding text that did not parse.
+        text: String,
+        /// Why it did not parse.
+        error: BindingError,
+    },
     /// A reserved chord; not bound.
-    Reserved { key: String, text: String },
+    Reserved {
+        /// The overrides key.
+        key: String,
+        /// The binding text.
+        text: String,
+    },
     /// A scope that is neither registered in [`Scopes`] nor used by the catalog; not bound.
-    UnknownScope { key: String, text: String },
+    UnknownScope {
+        /// The overrides key.
+        key: String,
+        /// The binding text.
+        text: String,
+    },
     /// Another entry names the same command; this one is ignored.
-    DuplicateKey { key: String },
+    DuplicateKey {
+        /// The overrides key.
+        key: String,
+    },
     /// Part of an entry dropped while loading.
-    Dropped { key: String, reason: DropReason },
+    Dropped {
+        /// The overrides key.
+        key: String,
+        /// What was dropped.
+        reason: DropReason,
+    },
     /// Entries past [`MAX_COMMANDS`] dropped while loading.
-    TooManyCommands { ignored: usize },
+    TooManyCommands {
+        /// How many entries were dropped.
+        ignored: usize,
+    },
 }
 
 /// How two bindings on one chord relate.
@@ -456,8 +511,11 @@ pub enum ConflictKind {
 pub struct Conflict {
     /// The effective trigger on the keymap's platform.
     pub chord: Trigger,
+    /// The first command and its binding.
     pub a: (CommandRef, Binding),
+    /// The second command and its binding.
     pub b: (CommandRef, Binding),
+    /// How the two relate.
     pub kind: ConflictKind,
     /// Both bindings are defaults.
     pub in_defaults: bool,
@@ -545,6 +603,7 @@ impl Keymap {
         km
     }
 
+    /// Sets the [`TypingRule`] for presses while a text field is being typed in.
     pub fn with_typing_rule(mut self, rule: TypingRule) -> Keymap {
         self.typing = rule;
         self
@@ -558,36 +617,44 @@ impl Keymap {
         self
     }
 
+    /// Loads `overrides` ([`Keymap::set_overrides`]).
     pub fn with_overrides(mut self, overrides: Overrides) -> Keymap {
         self.set_overrides(overrides);
         self
     }
 
+    /// Replaces the user's overrides and rebuilds the bindings.
     pub fn set_overrides(&mut self, overrides: Overrides) {
         self.overrides = overrides;
         self.reload();
     }
 
+    /// The user's overrides.
     pub fn overrides(&self) -> &Overrides {
         &self.overrides
     }
 
+    /// The platform the keymap was built for.
     pub fn platform(&self) -> Platform {
         self.platform
     }
 
+    /// The scope registry.
     pub fn scopes(&self) -> &Scopes {
         &self.scopes
     }
 
+    /// The rule for presses while a text field is being typed in.
     pub fn typing_rule(&self) -> TypingRule {
         self.typing
     }
 
+    /// Every command the user can bind, in catalog order.
     pub fn catalog(&self) -> &[Bindable] {
         &self.catalog
     }
 
+    /// The catalog entry of `command`, if it is in the catalog.
     pub fn bindable(&self, command: &CommandRef) -> Option<&Bindable> {
         self.find(command).map(|i| &self.catalog[i])
     }
@@ -602,6 +669,7 @@ impl Keymap {
         self.find(command).map(|i| self.defaults[i].iter().map(|b| self.public(i, b)).collect()).unwrap_or_default()
     }
 
+    /// Whether `chord` is reserved, as `platform` sees chords.
     pub fn is_reserved(&self, chord: &Chord) -> bool {
         let c = chord.effective(self.platform);
         self.reserved.iter().any(|r| r.effective(self.platform) == c)

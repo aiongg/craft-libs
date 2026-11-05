@@ -1,7 +1,7 @@
 //! The macOS traffic lights, measured, so an app-drawn title bar fits around them.
 //!
 //! AppKit places the lights; their size and position change between macOS versions (they grew
-//! in macOS 26). [`TrafficLights::update`] measures the zoom button of a titled window with a
+//! in macOS 26). `TrafficLights::update` measures the zoom button of a titled window with a
 //! full-size content view and returns the [`MacInset`] the title bar reserves. The result is
 //! cached: the AppKit calls run again only after leaving full screen or when the scale changes.
 //! Before a window exists it returns [`default_inset`] for the running macOS version.
@@ -13,7 +13,7 @@
 //!
 //! # Checklist on a Mac
 //!
-//! Run an app that calls [`TrafficLights::update`] on macOS 26 and 27, one window with the
+//! Run an app that calls `TrafficLights::update` on macOS 26 and 27, one window with the
 //! app-drawn bar, and compare against the real lights:
 //!
 //! - The reserved leading space ends one gap after the green button; the bar's content centres
@@ -70,7 +70,7 @@ pub fn default_inset(major: u32) -> MacInset {
     inset_from_lights(lights).unwrap_or_default()
 }
 
-/// The cache behind [`TrafficLights`], with no AppKit or egui in it.
+/// The cache behind `TrafficLights`, with no AppKit or egui in it.
 #[derive(Clone, Debug, Default)]
 pub struct Cache {
     measured: Option<MacInset>,
@@ -121,6 +121,7 @@ pub struct TrafficLights {
 
 #[cfg(feature = "ui")]
 impl TrafficLights {
+    /// A tracker with nothing measured yet.
     pub fn new() -> Self {
         Self::default()
     }

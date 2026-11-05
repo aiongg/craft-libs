@@ -1,4 +1,4 @@
-//! Tests of the Crop options bar's menus (task TO-C5).
+//! Tests of the Crop options bar's menus.
 
 use egui::accesskit::{Role, Toggled};
 use egui_kittest::Harness;

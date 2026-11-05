@@ -1,5 +1,4 @@
-//! Stories of the stroke editor (task ST-PE1; task RG2 registers them, adds `stories()` to the
-//! draw stories and `COMPONENTS` to the registry, and regenerates the dump). Every story keeps a
+//! Stories of the stroke editor. Every story keeps a
 //! fake [`StrokeStyle`] in egui memory and applies the editor's events to it as an app would; the
 //! choice rows paint fake arrowheads and profiles.
 //!

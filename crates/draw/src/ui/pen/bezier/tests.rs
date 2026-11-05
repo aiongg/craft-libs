@@ -658,8 +658,6 @@ fn highlight_draws_the_hover_look_on_the_hit_only() {
     assert!(!square_widths(&h).contains(&enlarged), "no enlarged anchor for a segment");
 }
 
-// Task PE-A3 from here.
-
 // `hit_test` answers what a press takes, without a pass: handles, then anchors, then segments, in
 // a rotated and flipped view, as the overlay's own press does.
 #[test]
@@ -734,7 +732,7 @@ fn anchors_hidden_draws_outlines_only() {
 }
 
 // Path Options: a colour replaces `overlay.line` for paths without their own colour and a
-// thickness replaces `bezier.line`; the pen draft's line takes them too (task PE-C2's half).
+// thickness replaces `bezier.line`; the pen draft's line takes them too.
 #[test]
 fn path_options_colour_and_thickness_change_the_pen_and_path_look() {
     let mut h = two_paths();

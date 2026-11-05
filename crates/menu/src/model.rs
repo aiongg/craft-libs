@@ -7,8 +7,10 @@ use std::ops::BitOr;
 use craft_keymap::{Chord, CommandRef};
 use craft_theme::Srgba;
 
+/// The app's menus, in order, and its open documents.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MenuBar {
+    /// The top-level menus, left to right.
     pub menus: Vec<Menu>,
     /// The app's open documents, for the Window menu.
     pub documents: Vec<Document>,
@@ -33,16 +35,21 @@ impl Document {
         Document { command: command.into(), label: label.into(), active: false, hidden: false }
     }
 
+    /// Mark the document as the one in front.
     pub fn active(mut self, active: bool) -> Document {
         self.active = active;
         self
     }
 }
 
+/// A top-level menu.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Menu {
+    /// The title in the bar.
     pub title: String,
+    /// What the menu is for.
     pub role: MenuRole,
+    /// The menu's entries, top to bottom.
     pub children: Vec<Node>,
 }
 
@@ -53,11 +60,17 @@ pub enum MenuRole {
     /// Any menu without a fixed place.
     #[default]
     Other,
+    #[allow(missing_docs)]
     App,
+    #[allow(missing_docs)]
     File,
+    #[allow(missing_docs)]
     Edit,
+    #[allow(missing_docs)]
     View,
+    #[allow(missing_docs)]
     Window,
+    #[allow(missing_docs)]
     Help,
 }
 
@@ -66,11 +79,17 @@ pub enum MenuRole {
 pub struct Platforms(u8);
 
 impl Platforms {
+    /// No platform.
     pub const NONE: Platforms = Platforms(0);
+    /// macOS.
     pub const MAC: Platforms = Platforms(1);
+    /// Windows.
     pub const WINDOWS: Platforms = Platforms(1 << 1);
+    /// Linux.
     pub const LINUX: Platforms = Platforms(1 << 2);
+    /// A browser, on any operating system.
     pub const WEB: Platforms = Platforms(1 << 3);
+    /// Every platform.
     pub const ALL: Platforms = Platforms(0b1111);
 
     /// Whether every platform in `other` is in `self`.
@@ -83,6 +102,7 @@ impl Platforms {
         Platforms(self.0 & !other.0)
     }
 
+    /// Whether no platform is in the set.
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
@@ -101,23 +121,34 @@ impl BitOr for Platforms {
     }
 }
 
+/// One entry of a menu.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
+    /// An item the user can choose.
     Item(Item),
+    /// A dividing line.
     Separator,
+    /// A nested menu.
     Submenu {
+        /// The submenu's title.
         label: String,
+        /// The submenu's entries.
         children: Vec<Node>,
+        /// The place a layout gives it, if any.
         role: Option<ItemRole>,
+        /// The platforms it is shown on.
         platforms: Platforms,
     },
     /// An item AppKit provides and runs itself (Services, Zoom, …), with the label to show.
     Standard {
+        /// Which AppKit item.
         kind: Standard,
+        /// The label to show.
         label: String,
     },
 }
 
+/// One menu item: a command with its label, shortcut and state.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Item {
@@ -125,11 +156,15 @@ pub struct Item {
     /// (`CommandRef::with_params("file.open_recent", json!({"index": 3}))`), or a [`Builtin`]. A
     /// click reports it.
     pub command: CommandRef,
+    /// The text shown.
     pub label: String,
     /// `cmd` is ⌘ and `ctrl` the Control key: ⌃⌘M and ⌘M are different shortcuts.
     pub shortcut: Option<Chord>,
+    /// Whether the item can be chosen.
     pub enabled: bool,
+    /// Plain, check or radio.
     pub kind: ItemKind,
+    /// The fixed place a layout gives the item, if any.
     pub role: Option<ItemRole>,
     /// The platforms the item is shown on.
     pub platforms: Platforms,
@@ -149,6 +184,7 @@ pub struct Item {
 /// A plain item, or one with a checked state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ItemKind {
+    /// An ordinary item.
     #[default]
     Plain,
     /// A check item, and whether it is checked.
@@ -172,13 +208,16 @@ impl ItemKind {
 /// and Language items; the Mac layout adds Hide and Minimize.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ItemRole {
+    /// The About item.
     About,
     /// The app's settings: an item, or a submenu of settings pages.
     Settings,
     /// The app's own quit command, which asks about unsaved changes. Without one the layout adds
     /// [`Builtin::Quit`].
     Quit,
+    /// Hides the app (macOS).
     Hide,
+    /// Minimizes the window (macOS).
     Minimize,
     /// A submenu of themes or appearance modes, and items that go with it (Next Theme).
     Appearance,
@@ -189,11 +228,17 @@ pub enum ItemRole {
 /// The items AppKit provides.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Standard {
+    #[allow(missing_docs)]
     Services,
+    #[allow(missing_docs)]
     ShowAll,
+    #[allow(missing_docs)]
     Minimize,
+    #[allow(missing_docs)]
     Zoom,
+    #[allow(missing_docs)]
     BringAllToFront,
+    #[allow(missing_docs)]
     CloseWindow,
 }
 
@@ -245,6 +290,7 @@ impl Builtin {
         }
     }
 
+    /// The command an item with this built-in runs.
     pub fn command(self) -> CommandRef {
         CommandRef::new(self.id())
     }
@@ -275,11 +321,13 @@ impl Item {
         }
     }
 
+    /// Set the shortcut.
     pub fn shortcut(mut self, shortcut: Chord) -> Item {
         self.shortcut = Some(shortcut);
         self
     }
 
+    /// Set whether the item can be chosen.
     pub fn enabled(mut self, enabled: bool) -> Item {
         self.enabled = enabled;
         self
@@ -297,11 +345,13 @@ impl Item {
         self
     }
 
+    /// Give the item a role, which fixes its place in a layout.
     pub fn role(mut self, role: ItemRole) -> Item {
         self.role = Some(role);
         self
     }
 
+    /// Show the item only on `platforms`.
     pub fn platforms(mut self, platforms: Platforms) -> Item {
         self.platforms = platforms;
         self
@@ -354,10 +404,12 @@ impl Node {
 }
 
 impl Menu {
+    /// A menu with no special role.
     pub fn new(title: impl Into<String>, children: Vec<Node>) -> Menu {
         Menu { title: title.into(), role: MenuRole::Other, children }
     }
 
+    /// Set the menu's role.
     pub fn role(mut self, role: MenuRole) -> Menu {
         self.role = role;
         self
@@ -404,10 +456,12 @@ impl MenuBar {
         self.documents.iter().any(|d| d.command == *command)
     }
 
+    /// The first item whose command is `command`, at any depth.
     pub fn find(&self, command: &CommandRef) -> Option<&Item> {
         self.items().into_iter().find(|it| it.command == *command)
     }
 
+    /// The first menu with `role`.
     pub fn menu(&self, role: MenuRole) -> Option<&Menu> {
         self.menus.iter().find(|m| m.role == role)
     }
@@ -452,11 +506,17 @@ impl MenuBar {
 /// A row labelled `---` is a separator.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Row {
+    /// The menu path to the item's menu; `["File", "Open Recent"]`.
     pub path: Vec<String>,
+    /// What the row runs.
     pub command: CommandRef,
+    /// The text shown.
     pub label: String,
+    /// The row's shortcut.
     pub shortcut: Option<Chord>,
+    /// Whether the row can be chosen.
     pub enabled: bool,
+    /// Plain, check or radio.
     pub kind: ItemKind,
 }
 

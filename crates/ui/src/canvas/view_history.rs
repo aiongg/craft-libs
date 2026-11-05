@@ -8,6 +8,7 @@ use kurbo::Point;
 /// centre and zoom there.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ViewPlace<K> {
+    /// What the view showed.
     pub key: K,
     /// The document point at the canvas's centre.
     pub center: Point,

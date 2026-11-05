@@ -53,13 +53,20 @@ pub enum TabEvent<K> {
     /// ([`tear_off`](TabStrip::tear_off)), with the pointer at `pointer`. The drag's payload
     /// ([`ListDrag`] with the strip's id) stays for the widget under the pointer; the host floats
     /// the tab or leaves it to docking.
-    DroppedOut { tab: K, pointer: Pos2 },
+    DroppedOut {
+        /// The key of the dragged tab.
+        tab: K,
+        /// The pointer position at release, in screen coordinates.
+        pointer: Pos2,
+    },
 }
 
 /// A tab dragged out of the strip's band: the tab and where the pointer is.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DragOut<K> {
+    /// The key of the dragged tab.
     pub tab: K,
+    /// The pointer position, in screen coordinates.
     pub pointer: Pos2,
 }
 

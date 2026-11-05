@@ -27,9 +27,13 @@ pub struct Palette {
     pub accent_ink: Color32,
     /// Primary buttons and the chosen option.
     pub invert_bg: Color32,
+    /// Text on `invert_bg`.
     pub invert_fg: Color32,
+    /// Success state.
     pub good: Color32,
+    /// Warning state.
     pub warn: Color32,
+    /// Error state.
     pub bad: Color32,
 }
 
@@ -56,6 +60,7 @@ impl Palette {
         }
     }
 
+    /// A one-point stroke in the `line` colour.
     pub fn hairline(&self) -> Stroke {
         Stroke::new(1.0, self.line)
     }
@@ -67,6 +72,7 @@ impl Palette {
 pub struct Look {
     /// `None`: from the context's visuals.
     pub dark: Option<Palette>,
+    /// The light palette; `None` takes it from the visuals.
     pub light: Option<Palette>,
     /// Page titles.
     pub display: FontFamily,
@@ -78,6 +84,7 @@ pub struct Look {
     pub button: FontFamily,
     /// Labels and buttons set upper case and spaced out.
     pub caps: bool,
+    /// Corner radius of buttons, fields and cards.
     pub corner: CornerRadius,
     /// Buttons, fields and option cells.
     pub control_height: f32,

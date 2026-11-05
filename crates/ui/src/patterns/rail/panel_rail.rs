@@ -50,7 +50,9 @@ pub struct PanelRailStyle {
 /// One icon of the rail, standing for the panel it opens.
 #[derive(Clone, Debug)]
 pub struct PanelRailItem<P> {
+    /// The panel this item opens, returned when the item is clicked.
     pub panel: P,
+    /// The glyph drawn on the button.
     pub icon: Icon,
     /// Tooltip and accessible name. Translate it in the app.
     pub label: String,
@@ -70,18 +72,21 @@ impl<P> PanelRailItem<P> {
         Self { panel, icon, label: label.into(), enabled: true, marker: false, marker_label: None }
     }
 
+    /// Enables or disables the item.
     #[must_use]
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
+    /// Shows or hides the content marker dot.
     #[must_use]
     pub fn marker(mut self, marker: bool) -> Self {
         self.marker = marker;
         self
     }
 
+    /// Sets the accessible description read while the marker shows. Translate it in the app.
     #[must_use]
     pub fn marker_label(mut self, label: impl Into<String>) -> Self {
         self.marker_label = Some(label.into());
@@ -153,6 +158,7 @@ pub struct PanelRail {
 const RAIL_NAME: Word = Word::keyed("dock.panels", "Panels");
 
 impl PanelRail {
+    /// A rail at the end edge. `id_salt` keys its scroll state.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id_salt: IdSalt::new(id_salt), edge: Edge::End, label: None, scroll_bar_label: None }
     }
@@ -179,6 +185,7 @@ impl PanelRail {
         self
     }
 
+    /// The resolved rail style, read from `tokens.component.rail`.
     pub fn style(tokens: &UiTokens) -> PanelRailStyle {
         let r = &tokens.component.rail;
         let clear = Color32::TRANSPARENT;

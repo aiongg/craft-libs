@@ -1,5 +1,4 @@
-//! Stories of the Ruler tool, its bar and the distances between boxes (task ST-TO2; task RG2
-//! registers them). A fake picture stands for the layers, and the tool, the bar and the guides run
+//! Stories of the Ruler tool, its bar and the distances between boxes. A fake picture stands for the layers, and the tool, the bar and the guides run
 //! on it as an app would run them. Sample words and the status lines are story words; the case
 //! names are choice names.
 //!

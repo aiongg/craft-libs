@@ -9,6 +9,7 @@ use crate::index::{Category, Index, categories};
 pub struct Query {
     /// Part of a family name, ignoring case and accents.
     pub text: String,
+    /// Only families in this category; `None` for all.
     pub category: Option<Category>,
     /// A position in [`Index::languages`].
     pub language: Option<usize>,
@@ -29,6 +30,7 @@ pub struct Search {
 }
 
 impl Search {
+    /// Build the search keys for `index`.
     pub fn new(index: &Index) -> Search {
         let folder = Folder::new("en");
         let families = index.families().iter().map(|f| folder.key(&f.family)).collect();

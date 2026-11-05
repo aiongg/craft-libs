@@ -36,7 +36,9 @@ pub const MAX_SUGGESTIONS: usize = 200;
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct ForeignSet {
+    /// The set's name, when the source has one.
     pub name: Option<String>,
+    /// The set's items, in source order.
     pub entries: Vec<ForeignEntry>,
     /// Entries the reader dropped at its own limits; [`plan`] counts them in
     /// [`ImportReport::truncated`].
@@ -53,6 +55,7 @@ pub struct ForeignEntry {
     pub path: Vec<String>,
     /// Empty when the source says the item has no shortcut.
     pub keys: Vec<ForeignKey>,
+    /// The entry's line in the source file, when the reader gives one.
     pub line: Option<usize>,
     /// The item selects a tool.
     pub is_tool: bool,
@@ -145,6 +148,7 @@ pub struct ForeignKey {
     pub context: Option<String>,
     /// The key text as written, for reports.
     pub text: String,
+    /// The key read as a trigger, or why it could not be.
     pub trigger: Result<Trigger, ForeignError>,
     /// What reading the text approximated, reported in [`ImportReport::approximated`].
     pub notes: Vec<ReadNote>,
@@ -208,7 +212,9 @@ pub struct ImportOptions {
     pub contexts: Vec<(String, ContextRule)>,
     /// Earlier answers of the user, by [`ForeignEntry::remember_key`]. They are tried first.
     pub remembered: BTreeMap<String, CommandRef>,
+    /// What the import starts from.
     pub start: Start,
+    /// What an entry without keys does to its command.
     pub none_defined: NoneDefined,
     /// Look for likely commands for unmatched entries ([`ImportReport::suggestions`]).
     pub suggest: bool,
@@ -219,8 +225,11 @@ pub struct ImportOptions {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct PlannedBinding {
+    /// The binding to add.
     pub binding: Binding,
+    /// The source's path of the entry, as the set names it.
     pub item: String,
+    /// The entry's line in the source file, when the reader gives one.
     pub line: Option<usize>,
     /// The entry's position in the set: a later entry takes a chord from an earlier one.
     pub order: usize,
@@ -231,10 +240,13 @@ pub struct PlannedBinding {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Planned {
+    /// The command.
     pub command: CommandRef,
     /// The first entry matched to it, and its line.
     pub item: String,
+    /// The entry's line in the source file, when the reader gives one.
     pub line: Option<usize>,
+    /// The bindings the set gives the command.
     pub bindings: Vec<PlannedBinding>,
     /// Every matched entry had no keys, so [`NoneDefined::Clear`] clears the command. One entry
     /// with keys, in any order, keeps an entry without keys from clearing them.
@@ -251,7 +263,9 @@ pub struct Planned {
 pub struct ImportPlan {
     /// In the order of their first entry.
     pub commands: Vec<Planned>,
+    /// What the import starts from.
     pub start: Start,
+    /// What an entry without keys does to its command.
     pub none_defined: NoneDefined,
     /// `unmatched`, `unreadable`, `approximated`, `suggestions`, `matched_without_change` and the
     /// counts;
@@ -264,12 +278,17 @@ pub struct ImportPlan {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Changed {
+    /// The command.
     pub command: CommandRef,
+    /// The command's label, as the UI shows it.
     pub label: String,
     /// The first entry matched to the command, and its line.
     pub item: String,
+    /// The entry's line in the source file, when the reader gives one.
     pub line: Option<usize>,
+    /// The command's shortcuts before the import, as binding texts.
     pub from: Vec<String>,
+    /// The command's shortcuts after the import, as binding texts.
     pub to: Vec<String>,
 }
 
@@ -278,8 +297,11 @@ pub struct Changed {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Cleared {
+    /// The command that lost the binding.
     pub command: CommandRef,
+    /// The command's label, as the UI shows it.
     pub label: String,
+    /// The binding that was taken, as binding text.
     pub shortcut: String,
 }
 
@@ -302,12 +324,17 @@ pub enum SkipReason {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Skipped {
+    /// The command.
     pub command: CommandRef,
+    /// The source's path of the entry, as the set names it.
     pub item: String,
+    /// The entry's line in the source file, when the reader gives one.
     pub line: Option<usize>,
+    /// The key that was not bound, as binding text.
     pub shortcut: String,
     /// The command of the later entry that takes the chord ([`SkipReason::Taken`]).
     pub kept_by: Option<CommandRef>,
+    /// Why it was not bound.
     pub reason: SkipReason,
 }
 
@@ -320,8 +347,11 @@ pub struct Skipped {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Failed {
+    /// The command that kept its bindings.
     pub command: CommandRef,
+    /// The command's label, as the UI shows it.
     pub label: String,
+    /// Which change failed.
     pub change: FailedChange,
     /// The set's shortcuts for [`FailedChange::Bind`]; empty for [`FailedChange::Clear`].
     pub shortcuts: Vec<String>,
@@ -344,6 +374,7 @@ pub enum FailedChange {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum UnmatchedReason {
+    /// No command fits the entry.
     NoMatch,
     /// Several commands fit and no match step picked one.
     Ambiguous,
@@ -358,10 +389,13 @@ pub enum UnmatchedReason {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Unmatched {
+    /// The source's path of the entry, as the set names it.
     pub item: String,
+    /// The entry's line in the source file, when the reader gives one.
     pub line: Option<usize>,
     /// The keys as written, `<context>: <keys>` joined with `, `.
     pub keys: String,
+    /// Why the keys were not used.
     pub reason: UnmatchedReason,
 }
 
@@ -370,8 +404,11 @@ pub struct Unmatched {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Unreadable {
+    /// The source's path of the entry, as the set names it.
     pub item: String,
+    /// The entry's line in the source file, when the reader gives one.
     pub line: Option<usize>,
+    /// The keys as written.
     pub keys: String,
     /// Why the first of them could not be read.
     pub reason: ForeignError,
@@ -382,10 +419,15 @@ pub struct Unreadable {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct MatchedWithoutChange {
+    /// The command.
     pub command: CommandRef,
+    /// The command's label, as the UI shows it.
     pub label: String,
+    /// The source's path of the entry, as the set names it.
     pub item: String,
+    /// The entry's line in the source file, when the reader gives one.
     pub line: Option<usize>,
+    /// Why the command was not cleared.
     pub reason: NoChangeReason,
 }
 
@@ -405,8 +447,11 @@ pub enum NoChangeReason {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Suggestion {
+    /// The source's path of the entry, as the set names it.
     pub item: String,
+    /// The entry's line in the source file, when the reader gives one.
     pub line: Option<usize>,
+    /// The likely commands, best first.
     pub candidates: Vec<CommandRef>,
 }
 
@@ -416,10 +461,13 @@ pub struct Suggestion {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Approximated {
+    /// The source's path of the entry, as the set names it.
     pub item: String,
+    /// The entry's line in the source file, when the reader gives one.
     pub line: Option<usize>,
     /// The keys with this note, as written: `<context>: <keys>` joined with `, `.
     pub keys: String,
+    /// What was approximated.
     pub note: ReadNote,
 }
 
@@ -429,23 +477,32 @@ pub struct Approximated {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ImportReport {
+    /// The set's name, when the source has one.
     pub set: Option<String>,
     /// Commands of the set whose bindings changed.
     pub imported: usize,
+    /// Commands whose bindings changed.
     pub changed: Vec<Changed>,
+    /// Bindings taken from commands outside the set.
     pub conflicts_cleared: Vec<Cleared>,
+    /// Keys of the set that were not bound.
     pub skipped: Vec<Skipped>,
     #[serde(default)]
+    /// Changes that could not be made.
     pub failed: Vec<Failed>,
     /// Entries without keys that matched a command and changed nothing.
     #[serde(default)]
     pub matched_without_change: Vec<MatchedWithoutChange>,
+    /// Entries with keys that were not used.
     pub unmatched: Vec<Unmatched>,
     /// Entries that matched no command and have no keys, or keys only in
     /// [`ContextRule::Skip`] contexts.
     pub unmatched_without_shortcut: usize,
+    /// Keys that could not be read.
     pub unreadable: Vec<Unreadable>,
+    /// Keys read approximately.
     pub approximated: Vec<Approximated>,
+    /// Likely commands for unmatched entries; never applied.
     pub suggestions: Vec<Suggestion>,
     /// Entries, keys, path segments, bindings and text fields cut at the caps, unmatched entries
     /// past [`MAX_SUGGESTIONS`] that got no suggestion, and [`ForeignSet::truncated`].

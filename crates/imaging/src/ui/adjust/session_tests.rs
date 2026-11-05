@@ -1,4 +1,4 @@
-//! Tests of the Properties panel session (task AD-5).
+//! Tests of the Properties panel session.
 
 use super::AdjustSession;
 

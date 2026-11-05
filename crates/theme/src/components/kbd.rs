@@ -22,7 +22,7 @@ pub struct KbdTokens {
     /// in the monospace face, and a chord needs no equal widths.
     pub label: TypeRole,
     /// Corner radius of a keycap: `shape.radius.control` or the theme's `kbd.radius`, at most
-    /// [`values::KBD_RADIUS_MAX`].
+    /// `values::KBD_RADIUS_MAX`.
     pub radius: f32,
     /// Keycap fill: `surface.raised`.
     pub fill: Rgba,

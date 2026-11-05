@@ -21,7 +21,9 @@ const MIN_VISIBLE: f32 = 160.0;
 /// How the window sits on its monitor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WindowMode {
+    /// An ordinary window.
     Normal,
+    /// Filling the usable area of its monitor.
     Maximized,
     /// Full screen covers the taskbar on purpose: all of it can be seen.
     FullScreen,

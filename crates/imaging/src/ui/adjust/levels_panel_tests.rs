@@ -1,4 +1,4 @@
-//! Tests of the Levels panel (task AD-1).
+//! Tests of the Levels panel.
 
 use egui::accesskit::Role;
 use egui::{Key, Pos2, pos2};

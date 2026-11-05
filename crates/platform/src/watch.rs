@@ -1,7 +1,7 @@
 //! Open files that change on disk (N10.02): another app or a build rewrites a document that is
 //! open, and the app reloads it or says so.
 //!
-//! Cheap by design (PdfCraft #431). One worker thread looks at each watched file's metadata,
+//! Cheap by design (storytold/pdfcraft#431). One worker thread looks at each watched file's metadata,
 //! never its contents, every [`IDLE`], and sleeps without waking while nothing is watched. A
 //! changed file is read only once it has stopped changing ([`SETTLE`] apart) and, when the app
 //! gives a [`ReadPolicy::Whole`] check, once it looks complete (PdfCraft reads the last KiB
@@ -46,6 +46,7 @@ pub struct FileStamp {
 }
 
 impl FileStamp {
+    /// The stamp of a file from its metadata.
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:42 Stamp::of
     pub fn of(meta: &Metadata) -> FileStamp {
         #[cfg(unix)]
@@ -70,10 +71,12 @@ impl FileStamp {
         std::fs::metadata(path).ok().filter(Metadata::is_file).map(|m| FileStamp::of(&m))
     }
 
+    /// The file's length in bytes when stamped.
     pub fn len(&self) -> u64 {
         self.len
     }
 
+    /// Whether the file was empty when stamped.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
@@ -110,7 +113,12 @@ pub enum ReadPolicy {
     /// The whole file, into a buffer of exactly its size, once `complete` says the last `tail`
     /// bytes (read first) end a whole file. A file still being written then costs one small
     /// read. PdfCraft: `tail` 1024, `complete` finds `%%EOF`.
-    Whole { tail: usize, complete: Complete },
+    Whole {
+        /// How many bytes at the end of the file to read first, for `complete`.
+        tail: usize,
+        /// Tells whether those last bytes end a whole file.
+        complete: Complete,
+    },
 }
 
 /// [`ReadPolicy::Whole`]'s check of a file's last bytes.
@@ -130,13 +138,15 @@ impl std::fmt::Debug for ReadPolicy {
 pub struct Changed<K> {
     /// The app's key for the document (its id).
     pub key: K,
+    /// The file's path.
     pub path: PathBuf,
+    /// The file's stamp now.
     pub stamp: FileStamp,
     /// The bytes with [`ReadPolicy::Whole`]; `None` with [`ReadPolicy::Stamp`].
     pub bytes: Option<Arc<Vec<u8>>>,
     /// Which of the app's readings or writings of the file this was found for. A change found
     /// before the latest one ([`FileWatch::known_now`] bumps it) is older than the document in
-    /// memory and [`FileWatch::take_changes`] drops it (PdfCraft #1802).
+    /// memory and [`FileWatch::take_changes`] drops it (storytold/pdfcraft#1802).
     pub epoch: u64,
 }
 
@@ -200,6 +210,7 @@ impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
         }
     }
 
+    /// Sets what the watcher reads of a changed file.
     pub fn read(mut self, policy: ReadPolicy) -> Self {
         self.policy = policy;
         self
@@ -268,7 +279,7 @@ impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
     }
 
     /// Whether the file at `path` is another version than the one `key` came from: something
-    /// else wrote it since the document was opened, reloaded or last saved (PdfCraft #2166,
+    /// else wrote it since the document was opened, reloaded or last saved (storytold/pdfcraft#2166,
     /// PhotoCraft `changed_on_disk`). A missing or unreadable file, or a document whose version
     /// was never recorded, is not a difference. When only the change time differs and `saved`
     /// holds the bytes the app last wrote or read, equal bytes are not a difference.

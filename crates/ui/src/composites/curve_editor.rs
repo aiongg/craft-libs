@@ -32,11 +32,14 @@ use crate::typed_story;
 /// One channel of a curve dialog: its name ("Red"; the host's text) and colour.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CurveChannel {
+    /// Name of the channel, already translated; shown in the channel picker and read by screen readers.
     pub label: String,
+    /// Colour the channel's curve and gradient bar are drawn in.
     pub color: ChannelColor,
 }
 
 impl CurveChannel {
+    /// A channel called `label`, drawn in `color`.
     pub fn new(label: impl Into<String>, color: ChannelColor) -> Self {
         Self { label: label.into(), color }
     }
@@ -83,11 +86,13 @@ pub struct CurveStyle {
     /// Least and greatest side of the graph, gradient bars included: `curve.min_side`,
     /// `curve.max_side`.
     pub min_side: f32,
+    /// Greatest side of the graph, gradient bars included (`curve.max_side`).
     pub max_side: f32,
     /// Inset of the value area in the plot: `curve.pad`.
     pub pad: f32,
     /// Thickness of the gradient bars and their gap to the plot: `curve.bar`, `curve.bar_gap`.
     pub bar: f32,
+    /// Gap between the gradient bars and the plot (`curve.bar_gap`).
     pub bar_gap: f32,
     /// Radius around a point that takes a press: `curve.hit`.
     pub hit: f32,
@@ -95,6 +100,7 @@ pub struct CurveStyle {
     pub drag_off: f32,
     /// The plot: `curve.fill`, a one-point `curve.border` outside it.
     pub fill: Color32,
+    /// One-point outline of the plot (`curve.border`).
     pub border: Stroke,
     /// The quarter grid: one point of `curve.grid`.
     pub grid: Stroke,
@@ -104,6 +110,7 @@ pub struct CurveStyle {
     pub width: f32,
     /// Width and opacity of the other channels' curves: `curve.other_width`, `curve.other_alpha`.
     pub other_width: f32,
+    /// Opacity of the other channels' curves (`curve.other_alpha`).
     pub other_alpha: f32,
     /// An unselected point: `handle.size` square of `curve.point_fill` with a `handle.stroke`
     /// outline of `curve.point_stroke` inside it.
@@ -113,6 +120,7 @@ pub struct CurveStyle {
     pub selected: HandleStyle,
     /// The hint line: `caption` in `text.faint`.
     pub hint_role: TypeRole,
+    /// Colour of the hint line (`text.faint`).
     pub hint: Color32,
 }
 
@@ -467,6 +475,7 @@ impl<'a> CurveEditor<'a> {
         self
     }
 
+    /// Whether the editor takes input; it also follows a disabled parent `Ui`.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -533,6 +542,7 @@ impl<'a> CurveEditor<'a> {
         });
     }
 
+    /// The editor's look from the theme's `curve` tokens.
     pub fn style(tokens: &UiTokens) -> CurveStyle {
         let c = &tokens.component.curve;
         let h = &tokens.component.handle;
@@ -1017,6 +1027,7 @@ impl<'a> CurvePreview<'a> {
         self
     }
 
+    /// Draws the editor and returns the response of its plot.
     pub fn show(self, ui: &mut Ui) -> Response {
         let (plot, response) = ui.allocate_exact_size(self.size.max(vec2(1.0, 1.0)), Sense::hover());
         response.widget_info(|| egui::WidgetInfo::labeled(Role::Image, ui.is_enabled(), &self.label));

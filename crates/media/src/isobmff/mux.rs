@@ -18,6 +18,7 @@ pub enum Brand {
 /// Movie-level writer options.
 #[derive(Clone, Debug)]
 pub struct WriterOptions {
+    /// File type brand written to `ftyp`.
     pub brand: Brand,
     /// Movie timescale (`mvhd`); default 1000.
     pub movie_timescale: u32,
@@ -26,6 +27,7 @@ pub struct WriterOptions {
 }
 
 impl WriterOptions {
+    /// Options for `brand` with a 1000 ticks-per-second movie timescale and no metadata.
     pub fn new(brand: Brand) -> Self {
         WriterOptions { brand, movie_timescale: 1000, metadata: Vec::new() }
     }
@@ -34,6 +36,7 @@ impl WriterOptions {
 /// Per-track configuration.
 #[derive(Clone, Debug)]
 pub struct TrackConfig {
+    /// Sample entry (codec configuration) for the track's `stsd` box.
     pub entry: SampleEntry,
     /// Media timescale. For PCM it must equal the sample rate (one tick per audio frame).
     pub timescale: u32,
@@ -49,6 +52,7 @@ pub struct TrackConfig {
 }
 
 impl TrackConfig {
+    /// Configuration for `entry` and a media `timescale` in ticks per second, with language `und`, no edits and no handler name.
     pub fn new(entry: SampleEntry, timescale: u32) -> Self {
         TrackConfig { entry, timescale, language: "und".into(), edits: Vec::new(), media_start: None, handler_name: None }
     }
@@ -57,11 +61,13 @@ impl TrackConfig {
 /// A sample handed to the muxers.
 #[derive(Clone, Copy, Debug)]
 pub struct WriteSample<'a> {
+    /// Encoded sample payload, in the format the track's sample entry declares.
     pub data: &'a [u8],
     /// Duration in the media timescale. Ignored for PCM (each frame lasts one tick).
     pub duration: u32,
     /// pts − dts in the media timescale.
     pub composition_offset: i32,
+    /// True for a sync sample (random access point, such as a key frame).
     pub is_sync: bool,
 }
 
@@ -808,6 +814,7 @@ pub struct FragmentedWriter<W: Write> {
 }
 
 impl<W: Write> FragmentedWriter<W> {
+    /// Creates a writer that writes to `w` with the given options. The init segment is written with the first fragment.
     pub fn new(w: W, opts: WriterOptions) -> Self {
         FragmentedWriter { w, opts, tracks: Vec::new(), pending: Vec::new(), next_dts: Vec::new(), seq: 0, init_written: false }
     }

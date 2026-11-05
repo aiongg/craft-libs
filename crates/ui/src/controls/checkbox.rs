@@ -142,6 +142,7 @@ impl<'a, T: CheckValue> Checkbox<'a, T> {
         Self { label: label.into(), value, size: ControlSize::Md, enabled: true, id_salt: None }
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -200,6 +201,7 @@ impl<'a, T: CheckValue> Checkbox<'a, T> {
 }
 
 impl Checkbox<'static, CheckState> {
+    /// The box's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> CheckboxStyle {
         let c = &tokens.component.check;
         CheckboxStyle {

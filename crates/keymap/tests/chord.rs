@@ -1,3 +1,5 @@
+//! Integration tests of craft-keymap: chord.
+
 use craft_keymap::chord::foreign::{Flavor, ForeignError, ReadNote, read_foreign};
 use craft_keymap::{Chord, Key, MAX_CHORD_TEXT, Mods, ParseError, Platform, Trigger};
 

@@ -1,3 +1,5 @@
+//! Integration tests of craft-keymap: ui snapshot.
+
 #![cfg(feature = "screen-testing")]
 //! Screenshots of the Keyboard Shortcuts dialog for review, not a golden comparison. With
 //! `CRAFT_KEYMAP_SNAPSHOT_DIR` set, writes PNGs of a few states in light and dark at 1× and 2×;

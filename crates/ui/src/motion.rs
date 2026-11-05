@@ -93,6 +93,7 @@ pub struct CaretFrame {
 /// How to draw the caret this frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CaretLook {
+    /// The shape of the caret bar.
     pub bar: CaretBar,
     /// 0 (not drawn) to 1.
     pub opacity: f32,

@@ -150,14 +150,19 @@ pub struct ReadReport {
 
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
+/// Why reading a page failed.
 pub enum ReadError {
     #[error(transparent)]
+    #[allow(missing_docs)]
     Open(#[from] OpenError),
     #[error("page {0} does not exist")]
+    /// The requested page index is not in the document.
     NoPage(usize),
     #[error("the fallback profile can't be a printing condition: {0}")]
+    #[allow(missing_docs)]
     Profile(#[from] ProfileError),
     #[error("the PDF interpreter failed on the page")]
+    #[allow(missing_docs)]
     Interpret,
 }
 

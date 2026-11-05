@@ -45,6 +45,7 @@ macro_rules! egui_keys {
                 }
             }
 
+            /// The egui key for this key.
             pub fn to_egui(self) -> EguiKey {
                 match self {
                     $(Key::$ours => EguiKey::$theirs,)*
@@ -226,6 +227,7 @@ impl Default for Dispatcher {
 }
 
 impl Dispatcher {
+    /// A dispatcher with the default settings.
     pub fn new() -> Dispatcher {
         Dispatcher::default()
     }

@@ -1,5 +1,4 @@
-//! Stories of the Crop tool on the canvas tool host (task ST-TO1; task RG2 registers them and
-//! their components).
+//! Stories of the Crop tool on the canvas tool host.
 //!
 //! Every story runs a `CropTool` through `ToolHost` on the story canvas (`craft_ui::testing::
 //! canvas_story`) over a small picture the story paints, and keeps the tool, the settings and the

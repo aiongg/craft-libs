@@ -1,4 +1,4 @@
-//! The Blur Gallery's pins as typed data (task WS-BP1).
+//! The Blur Gallery's pins as typed data.
 
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +44,7 @@ impl BlurKind {
 pub struct IrisShape {
     /// Radii as fractions of the bounds' shorter side, 0.01..=1.
     pub radius_x: f64,
+    #[allow(missing_docs)]
     pub radius_y: f64,
     /// Degrees, clockwise on screen, −180..180.
     pub angle: f64,
@@ -134,11 +135,16 @@ impl TiltBand {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlurPin {
+    #[allow(missing_docs)]
     pub x: f64,
+    #[allow(missing_docs)]
     pub y: f64,
+    /// Blur in pixels (Spin: blur angle in degrees).
     pub amount: f64,
+    /// The shape of an Iris or Spin pin; `None` on a Tilt-Shift pin.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iris: Option<IrisShape>,
+    /// The band of a Tilt-Shift pin; `None` on an Iris or Spin pin.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tilt: Option<TiltBand>,
 }
@@ -150,9 +156,13 @@ pub struct BlurPin {
 /// (Tilt-Shift: `centerX`, `centerY`, `angle`, `focus`, `transition`, `blur`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlurPins {
+    /// The filter these pins belong to.
     pub kind: BlurKind,
+    /// The filter's bounds in document pixels, `[x0, y0, x1, y1]`.
     pub bounds: [f64; 4],
+    /// The pins, in creation order.
     pub pins: Vec<BlurPin>,
+    /// Index of the selected pin in `pins`, if any.
     pub selected: Option<usize>,
 }
 

@@ -1,4 +1,4 @@
-//! [`ShapeBar`]: the Shape tools' options bar cells (task SH-T6).
+//! [`ShapeBar`]: the Shape tools' options bar cells.
 
 use craft_color::ui::{Paint, PaintChip};
 use craft_theme::Srgba;
@@ -23,7 +23,7 @@ type KindCell<'a> = (Field<'a>, CellWidth, fn(f64) -> ShapeChange);
 pub struct ShapeBarOutput {
     /// Each changed cell this pass, as [`ShapePanelOutput::events`](super::ShapePanelOutput::events).
     /// With a shape layer selected the app applies it to the layer and to [`ShapeToolSettings`];
-    /// without, to the settings only (PhotoCraft #3347).
+    /// without, to the settings only (storytold/photocraft#3347).
     pub events: Vec<EditEvent<ShapeChange>>,
 }
 

@@ -1,5 +1,4 @@
-//! [`VanishingPointEditor`]: the plane tools, the paste and the stamp, without a frame (task
-//! WS-VP1).
+//! [`VanishingPointEditor`]: the plane tools, the paste and the stamp, without a frame.
 
 use std::borrow::Cow;
 
@@ -37,9 +36,12 @@ const MIN_DAB_STEP: f64 = 1.0;
 /// Hand and Zoom.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum VanishingTool {
+    #[allow(missing_docs)]
     EditPlane,
     #[default]
+    #[allow(missing_docs)]
     CreatePlane,
+    #[allow(missing_docs)]
     Stamp,
 }
 
@@ -69,10 +71,15 @@ impl Default for StampSettings {
 /// options' percent / 100).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StampStroke {
+    /// The clone source in document pixels where the stroke starts.
     pub source: [f64; 2],
+    /// The brush path in document pixels.
     pub points: Vec<[f64; 2]>,
+    /// The brush diameter in document pixels.
     pub size: f64,
+    /// Hardness, 0..=1.
     pub hardness: f64,
+    /// Opacity, 0..=1.
     pub opacity: f64,
 }
 
@@ -80,14 +87,18 @@ pub struct StampStroke {
 /// as a fraction of the plane's width.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PasteImage {
+    /// The image's top-left in plane coordinates, 0..=1.
     pub at: [f64; 2],
+    /// The image's width as a fraction of the plane's width.
     pub width: f64,
 }
 
 /// The planes as a gesture reports them: every plane and how it was torn off.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlaneEdit {
+    /// Every plane.
     pub planes: Vec<VanishingPlane>,
+    /// Per plane, how it was torn off an earlier plane; `None` for a plane drawn by hand.
     pub torn: Vec<Option<TornPlane>>,
 }
 
@@ -96,11 +107,15 @@ pub struct PlaneEdit {
 /// the selection and the bar's options are outside it (risk 8).
 #[derive(Clone, Debug, PartialEq)]
 pub struct VanishingPointSession {
+    /// Every plane.
     pub planes: Vec<VanishingPlane>,
+    /// Per plane, how it was torn off an earlier plane; `None` for a plane drawn by hand.
     pub torn: Vec<Option<TornPlane>>,
+    /// Where the pasted image sits on the selected plane.
     pub paste: PasteImage,
     /// The clone source (Alt-click), document pixels.
     pub source: Option<[f64; 2]>,
+    /// The clone strokes, in order.
     pub strokes: Vec<StampStroke>,
     /// The first stroke's (source, start) since the source was set: Aligned strokes keep its
     /// offset.
@@ -129,8 +144,11 @@ impl Default for VanishingPointSession {
 pub struct VanishingPointSettings {
     /// Grid cell size in pixels at the plane's nearest edge.
     pub grid_size: f64,
+    /// Whether to paste the clipboard image.
     pub paste: bool,
+    /// Whether the result goes to a new layer.
     pub new_layer: bool,
+    /// The Stamp tool's options.
     pub stamp: StampSettings,
 }
 
@@ -250,6 +268,7 @@ impl VanishingPointEditor {
         self.status.take()
     }
 
+    /// The selected tool.
     pub fn tool(&self) -> VanishingTool {
         self.tool
     }
@@ -263,6 +282,7 @@ impl VanishingPointEditor {
         }
     }
 
+    /// The index of the selected plane, if any.
     pub fn selected(&self) -> Option<usize> {
         self.selected
     }
@@ -334,6 +354,7 @@ impl VanishingPointEditor {
         VanishingPointPass { editor: self, session, settings, scene, source, style }
     }
 
+    /// Takes the events collected since the last call.
     pub fn take_events(&mut self) -> Vec<VanishingPointEvent> {
         std::mem::take(&mut self.events)
     }

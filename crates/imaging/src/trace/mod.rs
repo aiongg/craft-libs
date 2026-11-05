@@ -38,9 +38,13 @@ pub const STEP_RANGE: (u32, u32) = (1, 64);
 /// (a floating piece, a transformed selection).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct MaskRect {
+    /// Left edge, included.
     pub x0: i32,
+    /// Top edge, included.
     pub y0: i32,
+    /// Right edge, excluded.
     pub x1: i32,
+    /// Bottom edge, excluded.
     pub y1: i32,
 }
 

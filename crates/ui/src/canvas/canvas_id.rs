@@ -4,8 +4,8 @@ use egui::{AsIdSalt, Id, IdSalt, Rect, Response, Sense, Ui};
 
 /// The id of one canvas, made before the canvas is: the [`ToolHost`](super::ToolHost), the
 /// per-canvas state of the navigation pieces ([`ZoomAnimation`](super::ZoomAnimation),
-/// [`FlickPan`](super::FlickPan), [`MomentaryKeys`](super::MomentaryKeys),
-/// [`PixelGrid`](super::PixelGrid)) and [`AppShell::canvas`](crate::shell::AppShell::canvas)
+/// `FlickPan`, [`MomentaryKeys`](super::MomentaryKeys),
+/// [`PixelGrid`](super::PixelGrid)) and `AppShell::canvas`
 /// all key their state by it. It is the id of the canvas widget: interact with
 /// [`interact`](Self::interact) (or [`id`](Self::id)), so the response's id is this one.
 ///

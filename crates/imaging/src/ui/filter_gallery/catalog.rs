@@ -1,4 +1,4 @@
-//! Filter Gallery's catalog: the app's filters, their categories and parameters (task WS-FG1).
+//! Filter Gallery's catalog: the app's filters, their categories and parameters.
 
 use craft_ui::dialog::{DialogFields, Param, ParamKind};
 
@@ -8,10 +8,15 @@ use craft_ui::dialog::{DialogFields, Param, ParamKind};
 /// whether it uses the foreground and background colours (Photoshop shows them in the settings).
 #[derive(Clone, Debug, PartialEq)]
 pub struct GalleryFilter {
+    /// The filter's key in the app's command.
     pub key: String,
+    /// The English label.
     pub label: String,
+    /// The key of the filter's category.
     pub category: String,
+    /// The filter's parameters.
     pub params: Vec<Param>,
+    /// Whether the filter uses the foreground and background colours.
     pub uses_colors: bool,
 }
 
@@ -36,8 +41,11 @@ impl GalleryFilter {
 /// A category folder: its key, its English label and its filters' keys in menu order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FilterCategory {
+    /// The category's key.
     pub key: String,
+    /// The English label.
     pub label: String,
+    /// The keys of the category's filters, in menu order.
     pub filters: Vec<String>,
 }
 
@@ -56,5 +64,6 @@ pub trait FilterCatalog {
 /// layer (PhotoCraft renders 6 a pass, 80 × 56). The app's `ThumbSource<GalleryThumb>` renders it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct GalleryThumb {
+    /// The key of the filtered effect.
     pub filter: String,
 }

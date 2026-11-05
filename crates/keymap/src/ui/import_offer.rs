@@ -65,7 +65,9 @@ pub struct ImportOffer {
 /// The user's answer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OfferAnswer {
+    /// Import the set.
     Import,
+    /// Leave the keymap alone.
     DontImport,
 }
 
