@@ -23,7 +23,7 @@ pub struct ActionsPanelStyle {
     pub fills: [Color32; 6],
     /// Button Mode's gray fill: `text.muted`.
     pub gray: Color32,
-    /// Button Mode's fill for no colour: `surface.raised` (lead call L34).
+    /// Button Mode's fill for no colour: `surface.raised`.
     pub no_color: Color32,
     /// A label on a coloured fill: `actions.color.label`.
     pub label_on_color: Color32,

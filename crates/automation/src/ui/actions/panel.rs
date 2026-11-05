@@ -53,7 +53,7 @@ pub trait ActionsHost {
     }
 }
 
-/// The Actions panel's persisted section (lead call L26): Button Mode and the collapsed sets.
+/// The Actions panel's persisted section: Button Mode and the collapsed sets.
 /// Selection and expansion are not persisted.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -240,9 +240,9 @@ pub struct ActionsPanelOutput {
 /// The Actions panel (Photoshop's Window › Actions): sets, actions and steps as a tree, the
 /// include and dialog cells, in-place rename, drag to move, Button Mode, the footer, the panel
 /// menu and the context menus. It runs nothing and changes nothing: it reads the
-/// [`ActionList`] and reports [`ActionsEvent`]s (lead call L19).
+/// [`ActionList`] and reports [`ActionsEvent`]s.
 ///
-/// **What the user sees.** A [`List`](craft_ui::list::List) in tree mode (lead call L20) over the
+/// **What the user sees.** A [`List`](craft_ui::list::List) in tree mode over the
 /// space above the footer: loose actions first, then each set (a header with a folder icon,
 /// open or closed, and "{n} actions" at the end side; empty sets show their header), each action
 /// (a play glyph, its name, and at the end side its shortcut and step count, "2/3 steps" when some
@@ -278,7 +278,7 @@ pub struct ActionsPanelOutput {
 /// **AccessKit.** A `Tree` named [`ActionsLabels::name`]; rows are `TreeItem`s with level,
 /// expanded and Expand or Collapse, selected; `Default` on an action plays it; a recording
 /// action's name carries [`ActionsLabels::recording_suffix`]. The include and dialog cells are
-/// the rows' toggle columns as `CheckBox`es (lead call L23; [`ToggleColumn::check`](craft_ui::list::ToggleColumn::check))
+/// the rows' toggle columns as `CheckBox`es ([`ToggleColumn::check`](craft_ui::list::ToggleColumn::check))
 /// named [`ActionsLabels::include`] and [`ActionsLabels::dialog`], the include cell of a partial
 /// action `Toggled::Mixed` ([`ToggleColumn::mixed`](craft_ui::list::ToggleColumn::mixed)).
 ///

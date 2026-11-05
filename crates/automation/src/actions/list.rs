@@ -43,7 +43,7 @@ impl std::error::Error for ActionListError {}
 
 /// The recorded actions: one flat list (PhotoCraft's engine, journal and file are flat), each
 /// action with an optional set name, plus the names of sets that hold no action yet, so New Set
-/// works before anything is recorded into it (lead call L17; VectorCraft's nested sets map onto
+/// works before anything is recorded into it (VectorCraft's nested sets map onto
 /// it).
 ///
 /// The list is app data shared by the panel, the app's commands, the CLI and the control channel:

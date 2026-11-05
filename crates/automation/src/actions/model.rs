@@ -7,7 +7,7 @@ use craft_theme::LabelColor;
 use serde_json::Value;
 
 /// One recorded step: a command id and its parameters, the shape batch and droplets accept.
-/// Serialised as the pair `[id, params]` (lead call L18; PhotoCraft's `(String, Value)`).
+/// Serialised as the pair `[id, params]` (PhotoCraft's `(String, Value)`).
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(from = "(String, Value)", into = "(String, Value)")]
 pub struct ActionStep {
@@ -36,7 +36,7 @@ impl From<ActionStep> for (String, Value) {
     }
 }
 
-/// An action's Button Mode colour (lead call L24): none and Photoshop's seven, serialised as
+/// An action's Button Mode colour: none and Photoshop's seven, serialised as
 /// PhotoCraft's `BUTTON_COLORS` names (`""` for none, `"red"` … `"gray"`). An unknown name reads as
 /// `None`. The file keeps this type (lead call 40) because [`LabelColor`] has eleven colours and
 /// no "none"; [`label_color`](Self::label_color) maps it for words and tints.
