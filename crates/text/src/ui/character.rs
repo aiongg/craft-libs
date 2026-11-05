@@ -30,7 +30,9 @@ mod paragraph_dialog;
 #[cfg(test)]
 mod paragraph_dialog_tests;
 
-pub use paragraph_dialog::{LineSpacing, ParagraphAlign, ParagraphAnswer, ParagraphDialog, ParagraphDialogLabels, ParagraphFormat, SpecialIndent};
+pub use paragraph_dialog::{
+    LineSpacing, ParagraphAlign, ParagraphAnswer, ParagraphDialog, ParagraphDialogLabels, ParagraphFormat, SpacingKind, SpecialIndent,
+};
 
 craft_ui::words! {
     /// The Character controls' words, English by default (PhotoCraft's tooltips).

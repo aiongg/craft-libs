@@ -36,7 +36,7 @@ fn open(dialog: TextColumnsDialog) -> Harness<'static, App> {
 }
 
 fn start() -> TextColumns {
-    TextColumns { count: Some(1), spacing: Some(36.0), equal_width: Some(true), line_between: Some(false), widths: Vec::new() }
+    TextColumns { count: Some(1), spacing: Some(36.0), equal_width: Some(true), line_between: Some(false), widths: Vec::new(), apply: None }
 }
 
 fn type_into(harness: &mut Harness<'_, App>, field: &str, text: &str) {
@@ -160,8 +160,88 @@ fn cancelling_a_number_edit_restores_the_start() {
 #[test]
 fn the_number_range_message_uses_the_locales_digits() {
     let labels = TextColumnsLabels::default();
-    let english = TextColumnsDialog::number_message(&labels, &LocaleNumbers::from_tag("en"));
+    let english = TextColumnsDialog::number_message(&labels, &LocaleNumbers::from_tag("en"), MAX_COLUMNS);
     assert!(english.contains("from 1 to 16"), "{english}");
-    let arabic = TextColumnsDialog::number_message(&labels, &LocaleNumbers::from_tag("ar-EG"));
+    let arabic = TextColumnsDialog::number_message(&labels, &LocaleNumbers::from_tag("ar-EG"), MAX_COLUMNS);
     assert!(!arabic.contains("16") && !arabic.contains("to 1 "), "{arabic}");
+}
+
+fn nth_field(harness: &Harness<'_, App>, name: &str, n: usize) -> String {
+    widths(harness, name).swap_remove(n).unwrap_or_default()
+}
+
+fn type_into_nth(harness: &mut Harness<'_, App>, name: &str, n: usize, text: &str) {
+    harness.get_all_by_role_and_label(Role::SpinButton, name).nth(n).expect("field").focus();
+    harness.run();
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
+    harness.run();
+    harness.event(Event::Text(text.into()));
+    harness.run();
+    harness.key_press(Key::Tab);
+    harness.run();
+}
+
+// Word's dialog takes 12 columns, PowerPoint's 16; `max_columns` replaces either.
+#[test]
+fn the_most_columns_follows_the_family_and_the_builder() {
+    let mut harness = open(TextColumnsDialog::new(start()).word(468.0));
+    type_into(&mut harness, "Number:", "13");
+    harness.get_by_label_contains("from 1 to 12");
+    let mut harness = open(TextColumnsDialog::new(start()).word(468.0).max_columns(16));
+    type_into(&mut harness, "Number:", "13");
+    assert!(harness.query_by_label_contains("Number must be").is_none());
+    let mut harness = open(TextColumnsDialog::new(start()).max_columns(4));
+    type_into(&mut harness, "Number:", "5");
+    harness.get_by_label_contains("from 1 to 4");
+}
+
+// A width typed below 18 pt becomes 18 pt (0.25 in), and a width that would take the neighbour below 18 pt leaves it at 18 pt (WordCraft `MIN_COL_PT`).
+#[test]
+fn a_column_is_never_narrower_than_the_minimum() {
+    let mut harness = open(TextColumnsDialog::new(start()).word(468.0).unit(LengthUnit::Inches));
+    harness.get_by_label("Left").click();
+    harness.run();
+    type_into_nth(&mut harness, "Width", 0, "0.1");
+    assert!(nth_field(&harness, "Width", 0).starts_with("0.25"), "{:?}", widths(&harness, "Width"));
+    type_into_nth(&mut harness, "Width", 0, "6.4");
+    assert!(nth_field(&harness, "Width", 1).starts_with("0.25"), "{:?}", widths(&harness, "Width"));
+}
+
+// The preview puts each column at its share of the text width and the line between in the middle of the spacing, only when the line is on.
+#[test]
+fn the_preview_places_columns_and_the_line_between() {
+    let page = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), vec2(100.0, 130.0));
+    let rows = [(100.0, 36.0), (200.0, 0.0)];
+    let plan = preview_plan(&rows, 336.0, true, page);
+    let scale = plan.text.width() / 336.0;
+    let left = plan.text.left();
+    assert_eq!(plan.columns.len(), 2);
+    assert!((plan.columns[0].1 - (left + 100.0 * scale)).abs() < 1e-3 && (plan.columns[1].0 - (left + 136.0 * scale)).abs() < 1e-3);
+    assert!((plan.separators[0] - (left + 118.0 * scale)).abs() < 1e-3);
+    assert!((plan.columns[1].1 - plan.text.right()).abs() < 1e-3);
+    assert!(preview_plan(&rows, 336.0, false, page).separators.is_empty());
+}
+
+// Apply to answers with the choice, changed or not, and lists the parts offered.
+#[test]
+fn apply_to_always_answers_with_the_choice() {
+    let choices = [ColumnsApply::Section, ColumnsApply::Document, ColumnsApply::Forward];
+    let mut harness = open(TextColumnsDialog::new(start()).word(468.0).apply_to(&choices, ColumnsApply::Section));
+    ok(&mut harness);
+    assert_eq!(harness.state().answers, vec![Some(TextColumns { apply: Some(ColumnsApply::Section), ..TextColumns::default() })]);
+
+    let mut harness = open(TextColumnsDialog::new(start()).word(468.0).apply_to(&choices, ColumnsApply::Section));
+    choose(&mut harness, "Apply to:", "Whole document");
+    ok(&mut harness);
+    assert_eq!(harness.state().answers, vec![Some(TextColumns { apply: Some(ColumnsApply::Document), ..TextColumns::default() })]);
+
+    let harness = open(TextColumnsDialog::new(start()).word(468.0));
+    assert!(harness.query_by_role_and_label(Role::ComboBox, "Apply to:").is_none());
+}
+
+fn choose(harness: &mut Harness<'_, App>, list: &str, option: &str) {
+    harness.get_by_role_and_label(Role::ComboBox, list).click();
+    harness.run();
+    harness.get_by_label(option).click();
+    harness.run();
 }

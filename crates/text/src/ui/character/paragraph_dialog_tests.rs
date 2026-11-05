@@ -28,6 +28,7 @@ fn start() -> ParagraphFormat {
         space_before: Some(0.0),
         space_after: Some(0.0),
         line_spacing: Some(LineSpacing::Multiple(1.5)),
+        ..ParagraphFormat::default()
     }
 }
 
@@ -182,4 +183,29 @@ fn cancelling_a_field_gesture_restores_the_start() {
     assert_eq!(dialog.format().before_text, Some(72.0));
     dialog.edit(Row::BeforeText, LengthEdit { event: Some(EditEvent::cancel(id, CancelReason::Escape)), rejected: false }, &valid);
     assert_eq!(dialog.format().before_text, Some(0.0));
+}
+
+// Spacing kept as lines (DeckCraft `pct`) shows its number without points, answers the kind it opened with while the value is untouched, and answers points once the value changes.
+#[test]
+fn a_spacing_in_lines_keeps_its_kind_until_its_value_changes() {
+    let lines = ParagraphFormat { space_before: Some(1.5), space_before_kind: SpacingKind::Lines, ..start() };
+    let mut harness = open(lines.clone());
+    let shown = harness.get_by_role_and_label(Role::SpinButton, "Spacing before").value().unwrap_or_default();
+    assert!(shown.starts_with("1.5") && !shown.contains("pt"), "{shown:?}");
+    harness.get_by_label("OK").click();
+    harness.run();
+    let answer = harness.state().answers.last().cloned().expect("OK answers");
+    assert_eq!((answer.format.space_before, answer.format.space_before_kind), (Some(1.5), SpacingKind::Lines));
+
+    let mut harness = open(lines);
+    type_into(&mut harness, "Spacing before", "12");
+    assert_eq!((format(&harness).space_before, format(&harness).space_before_kind), (Some(12.0), SpacingKind::Points));
+    assert_eq!(format(&harness).space_after_kind, SpacingKind::Points);
+}
+
+// A spacing of 11 lines is out of range (DeckCraft keeps at most 10).
+#[test]
+fn lines_of_spacing_have_their_own_range() {
+    let harness = open(ParagraphFormat { space_after: Some(11.0), space_after_kind: SpacingKind::Lines, ..start() });
+    harness.get_by_label_contains("Spacing after must be from 0 to 10");
 }

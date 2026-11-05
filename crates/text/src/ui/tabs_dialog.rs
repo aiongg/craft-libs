@@ -19,7 +19,7 @@ use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState,
 use craft_ui::edit::{DraftStep, EditEvent, EditResponse, GestureDraft};
 use craft_ui::list::{Table, TableColumn, TableEvent, TableLayout};
 use craft_ui::localized::units::{LengthUnit, UnitContext};
-use craft_ui::localized::{LocaleNumbers, SharedLabels as _, fmt};
+use craft_ui::localized::{LocaleNumbers, SharedLabels as _, Units, fmt};
 use craft_ui::patterns::unit_number_field;
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{Context, Id, Ui};
@@ -265,6 +265,7 @@ impl StackDialog for TabStopsDialog {
 struct Lengths<'a> {
     unit: LengthUnit,
     numbers: &'a LocaleNumbers,
+    units: &'a Units,
 }
 
 fn rounded(value: f64, unit: LengthUnit) -> f64 {
@@ -288,7 +289,7 @@ impl Lengths<'_> {
     /// `points` as the number in the unit with its suffix.
     fn text(&self, points: f32) -> String {
         let value = UnitContext::default().from_pixels(f64::from(points), self.unit).unwrap_or(f64::from(points));
-        format!("{value:.*} {}", self.unit.decimals(), self.unit.suffix())
+        self.units.length(self.unit, value)
     }
 }
 
@@ -305,7 +306,8 @@ impl TabStopsDialog {
     }
 
     fn body(&mut self, ui: &mut Ui, labels: &TabStopsLabels, numbers: &LocaleNumbers) {
-        let lengths = Lengths { unit: self.unit, numbers };
+        let units = Units::of(ui);
+        let lengths = Lengths { unit: self.unit, numbers, units: &units };
         self.default_row(ui, labels, &lengths);
         let edits = self.table(ui, labels, &lengths);
         for edit in edits {
@@ -458,11 +460,15 @@ fn align_select(ui: &mut Ui, at: usize, labels: &TabStopsLabels, align: &mut Tab
         .show(ui)
 }
 
-/// The leader's options read as Word's list does: "None", then each fill after its number.
+/// The leader's options read as Word's list does: "None", then each fill after its number. The
+/// closed box shows the fill alone, as Word's does.
 fn leader_select(ui: &mut Ui, at: usize, labels: &TabStopsLabels, leader: &mut TabLeader) -> EditResponse<TabLeader> {
     let mut select = Select::new(("tabs-leader", at), labels.leader.as_str(), leader);
     for kind in TabLeader::ALL {
         select = select.option(kind, leader_text(labels, kind));
+        if kind != TabLeader::None {
+            select = select.option_closed_text(kind.sample());
+        }
     }
     select.show(ui)
 }

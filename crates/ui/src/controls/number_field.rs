@@ -29,7 +29,7 @@ use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
 use crate::localized::Labels as _;
-use crate::localized::{LocaleNumbers, Unit, Words, first_field_id, incomplete, on_grid, round_half_away, stepped};
+use crate::localized::{LocaleNumbers, Unit, UnitKind, Units, Words, first_field_id, incomplete, on_grid, round_half_away, stepped};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, StoryLabels, variant_list};
@@ -169,6 +169,7 @@ pub struct NumberField<'a> {
     decimals: RangeInclusive<usize>,
     commit_decimals: Option<usize>,
     unit: Unit,
+    unit_kind: Option<UnitKind>,
     fallback: Option<Box<Reader<'a>>>,
     expressions: bool,
     handle: Option<Handle>,
@@ -360,6 +361,7 @@ impl<'a> NumberField<'a> {
             decimals: 0..=6,
             commit_decimals: None,
             unit: Unit::default(),
+            unit_kind: None,
             fallback: None,
             expressions: true,
             handle: None,
@@ -461,6 +463,14 @@ impl<'a> NumberField<'a> {
     /// The unit drawn around the number; typed text may include it.
     pub fn unit(mut self, unit: Unit) -> Self {
         self.unit = unit;
+        self.unit_kind = None;
+        self
+    }
+
+    /// The unit of `kind`, spelled by its word in the user's language ([`Units::unit`]) when the
+    /// field is shown; typed text may include it.
+    pub fn unit_kind(mut self, kind: UnitKind) -> Self {
+        self.unit_kind = Some(kind);
         self
     }
 
@@ -743,6 +753,9 @@ impl<'a> NumberField<'a> {
     }
 
     fn show_unit(mut self, ui: &mut Ui) -> NumberFieldOutput<Option<f64>> {
+        if let Some(kind) = self.unit_kind {
+            self.unit = Units::of(ui).unit(kind);
+        }
         let bounds = ordered(&self.range);
         if !(bounds.0.is_finite() && bounds.1.is_finite()) {
             debug_assert!(self.popup.is_none(), "a pop-up slider needs a finite range; set .range first");

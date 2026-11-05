@@ -241,6 +241,8 @@ struct Choice<T> {
     enabled: bool,
     tooltip: Option<String>,
     shortcut: Option<Kbd>,
+    /// What the closed box shows instead of `text`.
+    closed_text: Option<String>,
 }
 
 impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
@@ -270,13 +272,29 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 
     /// An option showing `text`, which chooses `value`.
     pub fn option(mut self, value: T, text: impl Into<String>) -> Self {
-        self.entries.push(Entry::Option(Choice { value, text: text.into(), icon: None, enabled: true, tooltip: None, shortcut: None }));
+        self.entries.push(Entry::Option(Choice {
+            value,
+            text: text.into(),
+            icon: None,
+            enabled: true,
+            tooltip: None,
+            shortcut: None,
+            closed_text: None,
+        }));
         self
     }
 
     /// An option showing `icon` before `text`, which chooses `value`.
     pub fn option_icon(mut self, value: T, icon: Icon, text: impl Into<String>) -> Self {
-        self.entries.push(Entry::Option(Choice { value, text: text.into(), icon: Some(icon), enabled: true, tooltip: None, shortcut: None }));
+        self.entries.push(Entry::Option(Choice {
+            value,
+            text: text.into(),
+            icon: Some(icon),
+            enabled: true,
+            tooltip: None,
+            shortcut: None,
+            closed_text: None,
+        }));
         self
     }
 
@@ -284,6 +302,17 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     pub fn option_enabled(mut self, enabled: bool) -> Self {
         if let Some(Entry::Option(choice)) = self.entries.iter_mut().rev().find(|e| matches!(e, Entry::Option(_))) {
             choice.enabled = enabled;
+        }
+        self
+    }
+
+    /// The text the closed box shows for the last option added, in place of its list text
+    /// (Word's Leader box shows the fill without its number). The list, type-ahead, the search
+    /// and the accessible value keep the full text; a [`fit`](Select::fit) box fits the closed
+    /// texts.
+    pub fn option_closed_text(mut self, text: impl Into<String>) -> Self {
+        if let Some(Entry::Option(choice)) = self.entries.iter_mut().rev().find(|e| matches!(e, Entry::Option(_))) {
+            choice.closed_text = Some(text.into());
         }
         self
     }
@@ -631,6 +660,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         state.store(ui, id);
 
         let text = shown_option.map(|o| options.text(o));
+        let closed = shown_option.and_then(|o| options.closed_override(o).map(Cow::Borrowed)).or_else(|| text.clone());
         let paint_value = |painter: &Painter, rect: Rect| {
             if let Some(content) = &content {
                 (content.paint)(painter, rect, &*value);
@@ -643,7 +673,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             &style,
             &response,
             BoxContent {
-                text: text.as_deref(),
+                text: closed.as_deref(),
                 icon: shown_option.and_then(|o| options.icon(o)),
                 leading,
                 placeholder: &placeholder,
@@ -1215,6 +1245,17 @@ impl<'s, 'a, T: Clone + PartialEq> Options<'s, 'a, T> {
         }
     }
 
+    /// The text the closed box shows in place of `option`'s text, if it has one.
+    fn closed_override(&self, option: usize) -> Option<&'s str> {
+        let choice: &'s Choice<T> = self.choices.get(option)?;
+        choice.closed_text.as_deref()
+    }
+
+    /// What the closed box shows for `option`: its closed text, else its text.
+    fn closed_text(&self, option: usize) -> Cow<'s, str> {
+        self.closed_override(option).map_or_else(|| self.text(option), Cow::Borrowed)
+    }
+
     fn icon(&self, option: usize) -> Option<Icon> {
         self.choices.get(option).and_then(|c| c.icon)
     }
@@ -1636,14 +1677,14 @@ fn fitted_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, optio
     Tokens::of(ui).font(f.role).hash(&mut hasher);
     ui.pixels_per_point().to_bits().hash(&mut hasher);
     for option in 0..options.len() {
-        options.text(option).hash(&mut hasher);
+        options.closed_text(option).hash(&mut hasher);
     }
     let key = hasher.finish();
     let cache_id = id.with("fit");
     let cached = ui.data(|d| d.get_temp::<(u64, f32)>(cache_id)).filter(|(cached, _)| *cached == key);
     let text = cached.map(|(_, text)| text).unwrap_or_else(|| {
         let text = (0..options.len())
-            .map(|option| text_galley(ui, f.role, &options.text(option), Color32::PLACEHOLDER, f32::INFINITY).size().x)
+            .map(|option| text_galley(ui, f.role, &options.closed_text(option), Color32::PLACEHOLDER, f32::INFINITY).size().x)
             .fold(0.0, f32::max);
         ui.data_mut(|d| d.insert_temp(cache_id, (key, text)));
         text

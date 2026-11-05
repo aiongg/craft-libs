@@ -195,16 +195,23 @@ pub fn unit_number_field<'a>(
     units: &ExprUnits<'_>,
 ) -> NumberField<'a> {
     let places = units.unit.map_or(2, LengthUnit::decimals);
+    let own = units.unit.filter(|unit| unit.suffix() == units.suffix);
     let template = match units.suffix {
         "" => "{n}".to_owned(),
         "%" => "{n}%".to_owned(),
+        // The field's own length unit takes its word at show time; another suffix is the caller's.
         suffix => format!("{{n}} {suffix}"),
     };
     let (unit, suffix, context) = (units.unit, units.suffix.to_owned(), units.context);
     let reader = move |text: &str| {
         if suffix.is_empty() { expr::parse(text) } else { expr::parse_with_units(text, &ExprUnits { unit, suffix: &suffix, context }) }
     };
-    NumberField::new(id_salt, caption, shown, numbers).decimals(0..=places).unit(Unit::new(&template)).or_parse(reader).size(OptionsBar::CONTROL_SIZE)
+    let field = NumberField::new(id_salt, caption, shown, numbers).decimals(0..=places).unit(Unit::new(&template)).or_parse(reader);
+    let field = match own {
+        Some(unit) => field.unit_kind(unit.kind()),
+        None => field,
+    };
+    field.size(OptionsBar::CONTROL_SIZE)
 }
 
 /// Percentage points a caption drag adds per screen point ([`NumberField::scrub_rate`]).

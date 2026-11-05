@@ -12,7 +12,6 @@ use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
 use craft_ui::list::{List, ListRow};
 use craft_ui::localized::Labels as _;
-use craft_ui::primitives::Icon as IconWidget;
 use egui::{Context, Ui};
 
 craft_ui::words! {
@@ -302,7 +301,7 @@ impl HyperlinkDialog {
                 for (index, (label, icon)) in
                     [(&labels.web_page, Icon::Globe), (&labels.email, Icon::Mail), (&labels.place, Icon::Bookmark)].into_iter().enumerate()
                 {
-                    set.radio_with(ui, index, RadioOption::new(label.as_str()).content(move |ui| _ = ui.add(IconWidget::new(icon))));
+                    set.radio_with(ui, index, RadioOption::new(label.as_str()).icon(icon));
                 }
                 let _ = set.end(ui);
             });
