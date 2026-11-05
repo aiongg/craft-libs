@@ -1,4 +1,4 @@
-//! Filter Gallery's session: the effect-layer stack (task WS-FG1).
+//! Filter Gallery's session: the effect-layer stack.
 
 use craft_ui::dialog::DialogFields;
 
@@ -7,8 +7,11 @@ use super::catalog::FilterCatalog;
 /// One effect layer: a filter, its fields (the catalog's parameters) and its eye.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectLayer {
+    /// The filter's key in the catalog.
     pub filter: String,
+    /// The filter's parameter values.
     pub fields: DialogFields,
+    /// Whether the layer's eye is on.
     pub visible: bool,
 }
 
@@ -27,17 +30,37 @@ impl EffectLayer {
 pub enum EffectChange {
     /// A thumbnail or the Filter select picked `filter` for the effect layer at `index`: its
     /// fields start from the filter's defaults; the eye stays. Nothing changes for the same filter.
-    SetFilter { index: usize, filter: String },
+    SetFilter {
+        #[allow(missing_docs)]
+        index: usize,
+        #[allow(missing_docs)]
+        filter: String,
+    },
     /// The settings of the effect layer at `index`.
-    Fields { index: usize, fields: DialogFields },
+    Fields {
+        #[allow(missing_docs)]
+        index: usize,
+        #[allow(missing_docs)]
+        fields: DialogFields,
+    },
     /// New effect layer: a copy of the selected one, above it, selected.
     Add,
     /// Delete effect layer: the selected one, unless it is the last; the one below is selected.
     Delete,
     /// Move the effect layer at `from` to `to` (the arrows, ⌘] and ⌘[, a drag).
-    Move { from: usize, to: usize },
+    Move {
+        #[allow(missing_docs)]
+        from: usize,
+        #[allow(missing_docs)]
+        to: usize,
+    },
     /// The eye of the effect layer at `index`.
-    Visible { index: usize, visible: bool },
+    Visible {
+        #[allow(missing_docs)]
+        index: usize,
+        #[allow(missing_docs)]
+        visible: bool,
+    },
 }
 
 /// What OK applies and the history snapshots: the effect layers, bottom first (the top row of the
@@ -45,6 +68,7 @@ pub enum EffectChange {
 /// clamps it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FilterGallerySession {
+    /// The effect layers, bottom first.
     pub effects: Vec<EffectLayer>,
 }
 

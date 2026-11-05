@@ -74,10 +74,12 @@ pub const LANGUAGES: [&str; 6] = ["ar", "ja", "zh-TW", "ko", "th", "vi"];
 pub struct Locale {
     /// Language tag, as in [`LANGUAGES`].
     pub language: &'static str,
+    /// Reading direction of the language, from `craft_i18n::direction`.
     pub direction: Direction,
 }
 
 impl Locale {
+    /// A locale for the language tag `language`, with its reading direction.
     pub fn new(language: &'static str) -> Self {
         Self { language, direction: craft_i18n::direction(language) }
     }
@@ -192,7 +194,9 @@ impl Screens {
 /// One IME composition: the marked text after each keystroke, then the text committed.
 #[derive(Clone, Copy, Debug)]
 pub struct Composition<'a> {
+    /// The marked text after each keystroke, in order.
     pub preedit: &'a [&'a str],
+    /// The text committed at the end.
     pub commit: &'a str,
 }
 

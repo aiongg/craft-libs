@@ -1,3 +1,5 @@
+//! Integration tests of craft-keymap: settings.
+
 use std::time::Duration;
 
 use craft_keymap::{Bindable, Binding, CommandRef, DropReason, Keymap, Overrides, Platform, Policy, Problem, Profiles, Scope, Scopes};

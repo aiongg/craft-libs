@@ -1,4 +1,4 @@
-//! Stories of the live preview (task ST-AD1): not registered. Registering it (task RG2) adds
+//! Stories of the live preview: not registered. Registering it adds
 //! `live_preview::stories` to the crate's `register!` list, [`COMPONENTS`] to its components and
 //! [`PreviewStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!

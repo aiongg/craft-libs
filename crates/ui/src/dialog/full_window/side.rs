@@ -111,6 +111,7 @@ pub struct FullWindowSide<'a> {
 }
 
 impl<'a> FullWindowSide<'a> {
+    /// A side region keyed by `id_salt` with the Standard width, no header and no footer; the body scrolls.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id_salt: IdSalt::new(id_salt), width: SideWidth::Standard, header: None, name: None, scrolls: true, footer: None }
     }

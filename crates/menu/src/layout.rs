@@ -20,8 +20,11 @@ const CMD_COMMA: Chord = Chord::new(Mods::CMD, Key::Comma);
 /// The platform a layout is for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Target {
+    #[allow(missing_docs)]
     Mac,
+    #[allow(missing_docs)]
     Windows,
+    #[allow(missing_docs)]
     Linux,
     /// A browser, on any operating system.
     Web,
@@ -75,6 +78,7 @@ impl<'a> LayoutOptions<'a> {
         LayoutOptions { app_name, label: &english, extra_shortcuts: &[] }
     }
 
+    /// Set the shortcuts the app binds outside its menus; see [`LayoutOptions::extra_shortcuts`].
     pub fn extra_shortcuts(mut self, shortcuts: &'a [(Chord, CommandRef)]) -> LayoutOptions<'a> {
         self.extra_shortcuts = shortcuts;
         self
@@ -96,6 +100,7 @@ fn english(s: &'static str) -> String {
 /// A system or browser shortcut the app also uses for one of its commands.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Clash {
+    /// The shortcut the app binds.
     pub shortcut: Chord,
     /// What macOS or the browser uses it for.
     pub system: &'static str,
@@ -105,9 +110,12 @@ pub struct Clash {
     pub resolution: &'static str,
 }
 
+/// A laid-out menu bar and the shortcut clashes found.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layout {
+    /// The menus to show.
     pub bar: MenuBar,
+    /// App shortcuts that collide with system ones.
     pub clashes: Vec<Clash>,
 }
 

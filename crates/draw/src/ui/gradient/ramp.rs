@@ -33,6 +33,7 @@ pub struct GradientRampStyle {
 pub struct GradientRamp;
 
 impl GradientRamp {
+    /// The ramp's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GradientRampStyle {
         let (s, g) = (&tokens.component.swatch, &tokens.component.gradient_editor);
         GradientRampStyle { checker: [s.checker_a.to_egui(), s.checker_b.to_egui()], cell: s.checker_cell, edge: g.edge.to_egui() }

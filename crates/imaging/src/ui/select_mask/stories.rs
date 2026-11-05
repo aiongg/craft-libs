@@ -1,5 +1,5 @@
-//! Stories of the Select and Mask workspace (task ST-WS2): not registered. Registering them
-//! (task RG2) adds `select_mask::stories` to the crate's `register!` list,
+//! Stories of the Select and Mask workspace: not registered. Registering them
+//! adds `select_mask::stories` to the crate's `register!` list,
 //! `SelectMaskWorkspace` to `COMPONENTS` and [`SelectMaskStoryLabels`] to `WORDS`, and
 //! regenerates the registry dump.
 //!

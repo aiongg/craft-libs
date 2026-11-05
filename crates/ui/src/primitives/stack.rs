@@ -94,6 +94,7 @@ pub struct Stack {
 }
 
 impl Stack {
+    /// A stack with `gap` between items and no padding.
     pub fn new(gap: Gap) -> Self {
         Self { gap, pad: None }
     }
@@ -104,6 +105,7 @@ impl Stack {
         self
     }
 
+    /// Lays out the items `add_contents` adds, top to bottom.
     pub fn show<R>(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         let tokens = Tokens::of(ui);
         let gap = self.gap.points(&tokens);
@@ -126,6 +128,7 @@ pub struct Row {
 }
 
 impl Row {
+    /// A row with `gap` between items and no padding.
     pub fn new(gap: Gap) -> Self {
         Self { gap, pad: None }
     }
@@ -136,6 +139,7 @@ impl Row {
         self
     }
 
+    /// Lays out the items `add_contents` adds, in reading order.
     pub fn show<R>(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         let tokens = Tokens::of(ui);
         let gap = self.gap.points(&tokens);

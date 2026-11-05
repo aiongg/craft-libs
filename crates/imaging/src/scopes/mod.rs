@@ -10,7 +10,7 @@
 //!
 //! Colour management and the histogram count stay in the app: the inputs are straight RGBA in the
 //! app's chosen RGB space and counted 256-bin histograms. LightCraft, EffectCraft and PhotoCraft
-//! count the same way (lead call L9).
+//! count the same way.
 
 mod clipping;
 mod statistics;

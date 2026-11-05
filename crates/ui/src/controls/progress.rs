@@ -70,6 +70,7 @@ impl Progress {
         Self { amount: Amount::Fraction(fraction), label: None, value_text: None, width: None }
     }
 
+    /// A bar of unknown extent.
     pub fn indeterminate() -> Self {
         Self { amount: Amount::Indeterminate, label: None, value_text: None, width: None }
     }
@@ -93,6 +94,7 @@ impl Progress {
         self
     }
 
+    /// The bar's sizes and colours from `tokens`.
     pub fn style(tokens: &UiTokens) -> ProgressStyle {
         let p = &tokens.component.progress;
         let radius = corner_radius(p.radius);

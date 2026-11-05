@@ -1,4 +1,4 @@
-//! Tests of the crop session (task TO-C2).
+//! Tests of the crop session.
 
 use kurbo::{Rect, Size};
 

@@ -120,11 +120,13 @@ impl RangeSlider {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether the slider takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

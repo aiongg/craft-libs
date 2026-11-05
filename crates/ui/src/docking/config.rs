@@ -10,7 +10,9 @@ use crate::localized::{Labels as _, Words};
 pub struct DockConfig {
     /// Localize these accessibility labels in the application adapter. The menu rows are [`crate::docking::panel_menu::PanelMenuLabels`].
     pub panels_label: String,
+    /// Accessibility label of the handles that resize the split tree's panes.
     pub resize_label: String,
+    /// Accessibility label of a floating window's resize handles.
     pub resize_window_label: String,
     /// Accessibility label of a group's drag bar and top border.
     pub move_group_label: String,
@@ -55,38 +57,43 @@ pub struct DockConfig {
     /// zero). Other drops beside a group, column or dock preview the rect the moved panels
     /// take. Border bands reach 4 pt past this line into a tab strip.
     pub drop_line_width: f32,
-    /// [D] The docking profile. The docked area's left and right edges, where no dock is yet,
+    /// \[D\] The docking profile. The docked area's left and right edges, where no dock is yet,
     /// take a drop as a new dock (see [`Self::new_dock_band`]). Without
     /// [`Self::side_edge_zones`], the body of a frame or floating group that takes no tabs (a
     /// canvas) takes no drop: a release there floats as over no target.
     pub new_dock_zones: bool,
-    /// [D] Height of the band centred on the seam between two stacked groups in a dock column
+    /// \[D\] Height of the band centred on the seam between two stacked groups in a dock column
     /// (28 pt).
     pub seam_band: f32,
-    /// [D] Width of the band centred on each edge of a dock column, where a drop makes a new
+    /// \[D\] Width of the band centred on each edge of a dock column, where a drop makes a new
     /// column (28 pt).
     pub column_edge_band: f32,
-    /// [D] Width of the band along the docked area's left and right edges, and inside an empty
+    /// \[D\] Width of the band along the docked area's left and right edges, and inside an empty
     /// dock, that makes a new dock (28 pt).
     pub new_dock_band: f32,
-    /// [D] Lay docks out right to left: `Side::Start` is the right edge. egui has no app-wide
+    /// \[D\] Lay docks out right to left: `Side::Start` is the right edge. egui has no app-wide
     /// layout direction, so the host sets this from its locale. Splits keep their sides.
     pub right_to_left: bool,
-    /// [D] Accessibility label of a column bar.
+    /// \[D\] Accessibility label of a column bar.
     pub move_column_label: String,
-    /// [D] Accessibility labels of the column bar's »/« button.
+    /// \[D\] Accessibility labels of the column bar's »/« button.
     pub collapse_column_label: String,
+    /// Accessibility label of the column bar's expand button.
     pub expand_column_label: String,
+    /// Accessibility label of a floating window's move bar.
     pub move_window_label: String,
+    /// Accessibility label of a floating window's close button.
     pub close_window_label: String,
     /// Group menu items Close Other Panels in Group, and Maximize Frame / Restore Frame Size
     /// for groups of the split tree, each shown when its flag is on.
     pub close_others_item: bool,
+    /// Shows Maximize Frame / Restore Frame Size in the group menu.
     pub maximize_item: bool,
     /// Shown under the pointer while a drag offers a docking target, when [`Self::float_hint`]
     /// is on. `{key}` stands for the modifier that floats the drop instead: ⌘ on macOS, Ctrl
     /// elsewhere.
     pub float_hint_label: String,
+    /// Shows [`Self::float_hint_label`] while a drag offers a docking target.
     pub float_hint: bool,
     /// Ctrl/Cmd held when a tab drag of a split-tree group starts makes its drop float, even
     /// when the key is let go during the drag. Off: only the key held at the drop counts.
@@ -100,7 +107,7 @@ pub struct DockConfig {
     pub title_bar_docks: bool,
     /// Show the built-in Close items in tab and group menus (Close Panel, Close Tab Group,
     /// Close Other Panels in Group) for closable panels. A host that draws its own Close items
-    /// turns this off and keeps [`Permissions::closable`], so its close actions still apply.
+    /// turns this off and keeps `Permissions::closable`, so its close actions still apply.
     pub close_menu_items: bool,
     /// End every group's tab strip with a ≡ button that opens the selected panel's menu, the one
     /// its tab opens. The host's group header sits before it.

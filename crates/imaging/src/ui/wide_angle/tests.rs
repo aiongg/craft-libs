@@ -1,4 +1,4 @@
-//! Tests of the Adaptive Wide Angle workspace (task WS-WA1).
+//! Tests of the Adaptive Wide Angle workspace.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;

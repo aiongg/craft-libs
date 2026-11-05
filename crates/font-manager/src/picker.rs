@@ -66,13 +66,21 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FontClass {
+    #[allow(missing_docs)]
     Serif,
+    #[allow(missing_docs)]
     SlabSerif,
+    #[allow(missing_docs)]
     SansSerif,
+    #[allow(missing_docs)]
     Script,
+    #[allow(missing_docs)]
     Monospace,
+    #[allow(missing_docs)]
     Handwritten,
+    #[allow(missing_docs)]
     Blackletter,
+    #[allow(missing_docs)]
     Decorative,
 }
 
@@ -104,12 +112,18 @@ impl FontClass {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FontPreviewSize {
+    /// No sample in the rows.
     None,
+    #[allow(missing_docs)]
     Small,
+    #[allow(missing_docs)]
     #[default]
     Medium,
+    #[allow(missing_docs)]
     Large,
+    #[allow(missing_docs)]
     ExtraLarge,
+    #[allow(missing_docs)]
     Huge,
 }
 
@@ -167,6 +181,7 @@ pub struct FontPickerSettings {
     pub recent: Vec<String>,
     /// How many recent families the list shows (Photoshop: Number of Recent Fonts to Display, 10).
     pub recent_limit: usize,
+    /// How large the sample in each row is.
     pub preview: FontPreviewSize,
     /// Show family names in English rather than their own language (Type › Show Font Names in English).
     pub names_in_english: bool,
@@ -216,9 +231,11 @@ pub struct FamilyRow {
     pub family: String,
     /// The name shown: the family's name in the UI language unless `names_in_english`.
     pub shown: String,
+    /// The family is a favourite.
     pub starred: bool,
     /// The family's class once it has been read: by a class filter, or by the list drawing the row.
     pub class: Option<FontClass>,
+    /// The family has a variable face.
     pub variable: bool,
     /// The row is in the Recent group at the top.
     pub recent: bool,
@@ -324,6 +341,7 @@ impl<'a> FontPicker<'a> {
         self
     }
 
+    /// Use `labels` instead of the English words or the installed translation.
     pub fn labels(mut self, labels: FontPickerLabels) -> Self {
         self.labels = Some(labels);
         self

@@ -1,4 +1,4 @@
-//! Tests of the Curvature Pen's handles (task PE-A2).
+//! Tests of the Curvature Pen's handles.
 
 use kurbo::Point;
 

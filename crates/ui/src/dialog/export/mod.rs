@@ -151,15 +151,23 @@ pub enum ExportSize {
     /// Percent of the document, 1–1000.
     Scale(f64),
     /// Pixel width and height (with the aspect lock off, or any size the lock allows).
-    Pixels { width: u32, height: u32 },
+    Pixels {
+        #[allow(missing_docs)]
+        width: u32,
+        #[allow(missing_docs)]
+        height: u32,
+    },
 }
 
 /// What metadata goes into the file. `None` also drops the resolution (PhotoCraft).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExportMetadata {
     #[default]
+    /// Writes no metadata.
     None,
+    /// Writes the EXIF block only.
     Exif,
+    /// Writes all metadata.
     All,
 }
 
@@ -167,7 +175,9 @@ pub enum ExportMetadata {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExportProfile {
     #[default]
+    /// Uses the document's own profile.
     Document,
+    /// Converts to sRGB.
     Srgb,
 }
 
@@ -179,13 +189,21 @@ pub struct ExportOptions {
     pub format: String,
     /// 1–100; PhotoCraft's default 85 comes from its Export preference.
     pub quality: u8,
+    /// Lossless encoding; applies to WebP.
     pub lossless: bool,
+    /// Keeps the alpha channel for formats that support it.
     pub transparency: bool,
+    /// The size to export at.
     pub size: ExportSize,
+    /// Keeps the document's aspect ratio when one of the pixel dimensions is edited.
     pub lock_aspect: bool,
+    /// The resampling filter used when the size differs from the document's.
     pub resample: Resample,
+    /// What metadata goes into the file.
     pub metadata: ExportMetadata,
+    /// The colour profile of the file.
     pub profile: ExportProfile,
+    /// Embeds the colour profile in the file.
     pub embed_profile: bool,
     /// 0 is Auto.
     pub bits: u8,
@@ -242,17 +260,22 @@ impl Default for ExportFormatDefaults {
 pub struct ExportPreview {
     /// The revision of [`ExportAsDialog::wanted_preview`] this answers; older answers are ignored.
     pub revision: u64,
+    /// The preview image to show.
     pub texture: TextureHandle,
+    /// The file size estimate for these settings.
     pub estimate: SizeEstimate,
 }
 
 /// What Export As returns: the options and the path the user chose.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExportAsResult {
+    /// The settings the user confirmed.
     pub options: ExportOptions,
+    /// The file the user chose to write.
     pub path: PathBuf,
     /// The output size in pixels.
     pub width: u32,
+    #[allow(missing_docs)]
     pub height: u32,
 }
 

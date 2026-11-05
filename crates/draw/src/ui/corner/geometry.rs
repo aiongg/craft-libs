@@ -1,4 +1,4 @@
-//! The corner widgets' geometry over [`fillet`](crate::geometry::fillet::fillet) (task PE-A5):
+//! The corner widgets' geometry over [`fillet`](crate::geometry::fillet::fillet):
 //! placement, the hide rules, the hit test and the drag maths. Document units unless a name says
 //! screen.
 

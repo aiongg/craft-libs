@@ -1,4 +1,4 @@
-//! `SectionLayout` (task B2), moved from LightCraft's `sidebar.rs` tests.
+//! `SectionLayout`, moved from LightCraft's `sidebar.rs` tests.
 
 use serde::{Deserialize, Serialize};
 

@@ -1,4 +1,4 @@
-//! [`SelectMaskStyle`]: Select and Mask's canvas marks, from tokens (task FX7-41).
+//! [`SelectMaskStyle`]: Select and Mask's canvas marks, from tokens.
 
 use craft_ui::canvas::draft::DraftReach;
 use craft_ui::theme::{ToEgui as _, UiTokens};

@@ -132,9 +132,9 @@ impl BorderColors {
 pub struct FieldTokens {
     /// Height of the box: the control height.
     pub height: BySize<f32>,
-    /// Default width: [`values::FIELD_WIDTH`] control heights. A justified layout stretches it.
+    /// Default width: `values::FIELD_WIDTH` control heights. A justified layout stretches it.
     pub width: BySize<f32>,
-    /// A number field's default width: [`values::NUMBER_FIELD_WIDTH`] control heights. A justified
+    /// A number field's default width: `values::NUMBER_FIELD_WIDTH` control heights. A justified
     /// layout stretches it.
     pub number_width: BySize<f32>,
     /// Between the box's edge and its text or icon: `space.pad.control`.

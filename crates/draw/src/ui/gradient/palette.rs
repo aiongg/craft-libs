@@ -37,11 +37,14 @@ pub enum PaletteLayout {
 /// A named run of presets.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GradientGroup {
+    /// The group's heading.
     pub name: String,
+    /// The presets in the group.
     pub items: Vec<GradientItem>,
 }
 
 impl GradientGroup {
+    /// A group called `name` holding `items`.
     pub fn new(name: impl Into<String>, items: Vec<GradientItem>) -> Self {
         Self { name: name.into(), items }
     }
@@ -50,11 +53,14 @@ impl GradientGroup {
 /// A named gradient preset.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GradientItem {
+    /// The preset's name.
     pub name: String,
+    /// The preset's stops.
     pub stops: GradientStops,
 }
 
 impl GradientItem {
+    /// A preset called `name` with `stops`.
     pub fn new(name: impl Into<String>, stops: GradientStops) -> Self {
         Self { name: name.into(), stops }
     }
@@ -64,8 +70,15 @@ impl GradientItem {
 /// item of a group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum GradientRef {
+    /// Place in the Recent list.
     Recent(usize),
-    Item { group: usize, item: usize },
+    /// An item of a group.
+    Item {
+        /// Index of the group.
+        group: usize,
+        /// Index of the item within the group.
+        item: usize,
+    },
 }
 
 /// A palette of gradient presets in groups, with an optional Recent group first:

@@ -58,6 +58,7 @@ const EPOCH_FROM_CE: i32 = 719_163;
 /// A day of the Gregorian calendar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CalendarDate {
+    /// The year; negative for years before 1 CE (proleptic Gregorian).
     pub year: i64,
     /// 1 to 12.
     pub month: u8,
@@ -90,6 +91,7 @@ impl CalendarDate {
         i64::from(date.num_days_from_ce() - EPOCH_FROM_CE).saturating_add(cycles.saturating_mul(CYCLE_DAYS))
     }
 
+    /// The day of the week.
     pub fn weekday(self) -> Weekday {
         // Day 0, 1970-01-01, was a Thursday.
         Weekday::ALL[((self.days().rem_euclid(7) + 3) % 7) as usize]
@@ -118,12 +120,19 @@ impl CalendarDate {
 /// A day of the week.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Weekday {
+    #[allow(missing_docs)]
     Monday,
+    #[allow(missing_docs)]
     Tuesday,
+    #[allow(missing_docs)]
     Wednesday,
+    #[allow(missing_docs)]
     Thursday,
+    #[allow(missing_docs)]
     Friday,
+    #[allow(missing_docs)]
     Saturday,
+    #[allow(missing_docs)]
     Sunday,
 }
 
@@ -139,16 +148,20 @@ pub enum TimeZone {
     /// The system's offset at that moment (daylight saving included).
     #[default]
     Local,
+    /// Coordinated Universal Time.
     Utc,
 }
 
 /// A date with a time of day, on one clock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DateTime {
+    /// The day.
     pub date: CalendarDate,
     /// 0 to 23.
     pub hour: u8,
+    /// 0 to 59.
     pub minute: u8,
+    /// 0 to 59.
     pub second: u8,
 }
 
@@ -203,7 +216,9 @@ pub enum DateLength {
 /// How much of a time [`DateFormat::format`] writes, on the region's clock (`2:05 PM`, `14:05`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TimePrecision {
+    /// Hours and minutes (`2:05 PM`).
     Minutes,
+    /// Hours, minutes and seconds (`2:05:09 PM`).
     Seconds,
 }
 
@@ -211,7 +226,9 @@ pub enum TimePrecision {
 /// (`Oct 31, 2026, 2:05 PM`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DateStyle {
+    /// The date part and its length; `None` writes no date.
     pub date: Option<DateLength>,
+    /// The time part and its precision; `None` writes no time.
     pub time: Option<TimePrecision>,
 }
 

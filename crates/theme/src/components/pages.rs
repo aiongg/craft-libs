@@ -8,93 +8,93 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PagesTokens {
-    /// Between pages, and between rows: [`values::PAGES_GAP`].
+    /// Between pages, and between rows: `values::PAGES_GAP`.
     pub gap: f32,
-    /// Above the first and below the last row: [`values::PAGES_MARGIN`].
+    /// Above the first and below the last row: `values::PAGES_MARGIN`.
     pub margin: f32,
-    /// Kept clear at each side of the pages: [`values::PAGES_SIDE`].
+    /// Kept clear at each side of the pages: `values::PAGES_SIDE`.
     pub side: f32,
-    /// What Hide White Space leaves above and below each page's text area: [`values::PAGES_WHITE_SPACE_PAD`].
+    /// What Hide White Space leaves above and below each page's text area: `values::PAGES_WHITE_SPACE_PAD`.
     pub white_space_pad: f32,
-    /// The seam Hide White Space draws between pages: [`values::PAGES_SEAM`].
+    /// The seam Hide White Space draws between pages: `values::PAGES_SEAM`.
     pub seam: f32,
-    /// The room the page preview keeps around the page: [`values::PAGES_PREVIEW_ROOM`].
+    /// The room the page preview keeps around the page: `values::PAGES_PREVIEW_ROOM`.
     pub preview_room: f32,
-    /// The thumbnail width at zoom 1: [`values::PAGES_THUMBNAIL_USUAL_WIDTH`].
+    /// The thumbnail width at zoom 1: `values::PAGES_THUMBNAIL_USUAL_WIDTH`.
     pub thumbnail_usual_width: f32,
-    /// What the thumbnails panel keeps free beside the thumbnails: [`values::PAGES_THUMBNAIL_PANEL_INSET`].
+    /// What the thumbnails panel keeps free beside the thumbnails: `values::PAGES_THUMBNAIL_PANEL_INSET`.
     pub thumbnail_panel_inset: f32,
-    /// How far either side of a margin edge grabs it: [`values::PAGES_MARGIN_HANDLE_GRAB`].
+    /// How far either side of a margin edge grabs it: `values::PAGES_MARGIN_HANDLE_GRAB`.
     pub margin_handle_grab: f32,
-    /// A header or footer section's inset from its band, top and bottom: [`values::PAGES_HEADER_FOOTER_INSET`].
+    /// A header or footer section's inset from its band, top and bottom: `values::PAGES_HEADER_FOOTER_INSET`.
     pub header_footer_inset: f32,
-    /// The dashed outline of a hovered empty section: [`values::PAGES_HEADER_FOOTER_HINT_OUTLINE`].
+    /// The dashed outline of a hovered empty section: `values::PAGES_HEADER_FOOTER_HINT_OUTLINE`.
     pub header_footer_hint_outline: f32,
-    /// The edited section's outline and its neighbours': [`values::PAGES_HEADER_FOOTER_EDIT_OUTLINE`].
+    /// The edited section's outline and its neighbours': `values::PAGES_HEADER_FOOTER_EDIT_OUTLINE`.
     pub header_footer_edit_outline: f32,
-    /// Corner radius of the selection rects: [`values::PAGES_TEXT_SELECTION_RADIUS`].
+    /// Corner radius of the selection rects: `values::PAGES_TEXT_SELECTION_RADIUS`.
     pub text_selection_radius: f32,
-    /// The column rectangle's outline while dragging: [`values::PAGES_TEXT_SELECTION_COLUMN_OUTLINE`].
+    /// The column rectangle's outline while dragging: `values::PAGES_TEXT_SELECTION_COLUMN_OUTLINE`.
     pub text_selection_column_outline: f32,
-    /// Corner radius of the current match: [`values::PAGES_FIND_CURRENT_RADIUS`].
+    /// Corner radius of the current match: `values::PAGES_FIND_CURRENT_RADIUS`.
     pub find_current_radius: f32,
-    /// How much the current match grows past the others: [`values::PAGES_FIND_CURRENT_GROW`].
+    /// How much the current match grows past the others: `values::PAGES_FIND_CURRENT_GROW`.
     pub find_current_grow: f32,
-    /// The column bar's outline: [`values::PAGES_COLUMN_BAR_OUTLINE`].
+    /// The column bar's outline: `values::PAGES_COLUMN_BAR_OUTLINE`.
     pub column_bar_outline: f32,
-    /// A column divider at rest: [`values::PAGES_COLUMN_BAR_DIVIDER`].
+    /// A column divider at rest: `values::PAGES_COLUMN_BAR_DIVIDER`.
     pub column_bar_divider: f32,
-    /// A column divider hovered, dragged or focused: [`values::PAGES_COLUMN_BAR_DIVIDER_ACTIVE`].
+    /// A column divider hovered, dragged or focused: `values::PAGES_COLUMN_BAR_DIVIDER_ACTIVE`.
     pub column_bar_divider_active: f32,
-    /// How far either side of a column divider grabs it: [`values::PAGES_COLUMN_BAR_GRAB`].
+    /// How far either side of a column divider grabs it: `values::PAGES_COLUMN_BAR_GRAB`.
     pub column_bar_grab: f32,
-    /// The narrowest column that paints its percentage: [`values::PAGES_COLUMN_BAR_LABEL_MIN`].
+    /// The narrowest column that paints its percentage: `values::PAGES_COLUMN_BAR_LABEL_MIN`.
     pub column_bar_label_min: f32,
-    /// Between the reading view's columns: [`values::PAGES_READING_COLUMN_GAP`].
+    /// Between the reading view's columns: `values::PAGES_READING_COLUMN_GAP`.
     pub reading_column_gap: f32,
-    /// Room under the reading columns for the page-turn bar: [`values::PAGES_READING_NAV_BAR`].
+    /// Room under the reading columns for the page-turn bar: `values::PAGES_READING_NAV_BAR`.
     pub reading_nav_bar: f32,
-    /// One reading column per this much width: [`values::PAGES_READING_COLUMN_TARGET`].
+    /// One reading column per this much width: `values::PAGES_READING_COLUMN_TARGET`.
     pub reading_column_target: f32,
-    /// The least reading column width: [`values::PAGES_READING_COLUMN_MIN`].
+    /// The least reading column width: `values::PAGES_READING_COLUMN_MIN`.
     pub reading_column_min: f32,
-    /// A frame port's side: [`values::PAGES_FRAME_MARKS_PORT`].
+    /// A frame port's side: `values::PAGES_FRAME_MARKS_PORT`.
     pub frame_marks_port: f32,
-    /// A frame port's distance from the frame's corner: [`values::PAGES_FRAME_MARKS_PORT_INSET`].
+    /// A frame port's distance from the frame's corner: `values::PAGES_FRAME_MARKS_PORT_INSET`.
     pub frame_marks_port_inset: f32,
-    /// The overset mark's arm length: [`values::PAGES_FRAME_MARKS_OVERSET_ARM`].
+    /// The overset mark's arm length: `values::PAGES_FRAME_MARKS_OVERSET_ARM`.
     pub frame_marks_overset_arm: f32,
-    /// The overset mark's stroke: [`values::PAGES_FRAME_MARKS_OVERSET_STROKE`].
+    /// The overset mark's stroke: `values::PAGES_FRAME_MARKS_OVERSET_STROKE`.
     pub frame_marks_overset_stroke: f32,
-    /// The least hidden-character mark size: [`values::PAGES_FRAME_MARKS_MARK_MIN`].
+    /// The least hidden-character mark size: `values::PAGES_FRAME_MARKS_MARK_MIN`.
     pub frame_marks_mark_min: f32,
-    /// The largest hidden-character mark size: [`values::PAGES_FRAME_MARKS_MARK_MAX`].
+    /// The largest hidden-character mark size: `values::PAGES_FRAME_MARKS_MARK_MAX`.
     pub frame_marks_mark_max: f32,
-    /// The border edge picker's square side: [`values::PAGES_EDGE_PICKER_SIDE`].
+    /// The border edge picker's square side: `values::PAGES_EDGE_PICKER_SIDE`.
     pub edge_picker_side: f32,
-    /// The edge picker's lines' inset from the square: [`values::PAGES_EDGE_PICKER_INSET`].
+    /// The edge picker's lines' inset from the square: `values::PAGES_EDGE_PICKER_INSET`.
     pub edge_picker_inset: f32,
-    /// A chosen edge picker line: [`values::PAGES_EDGE_PICKER_LINE_ON`].
+    /// A chosen edge picker line: `values::PAGES_EDGE_PICKER_LINE_ON`.
     pub edge_picker_line_on: f32,
-    /// An edge picker line not chosen: [`values::PAGES_EDGE_PICKER_LINE_OFF`].
+    /// An edge picker line not chosen: `values::PAGES_EDGE_PICKER_LINE_OFF`.
     pub edge_picker_line_off: f32,
-    /// The edge picker line under the pointer: [`values::PAGES_EDGE_PICKER_LINE_HOVER`].
+    /// The edge picker line under the pointer: `values::PAGES_EDGE_PICKER_LINE_HOVER`.
     pub edge_picker_line_hover: f32,
-    /// A table size picker square's side: [`values::PAGES_TABLE_SIZE_CELL`].
+    /// A table size picker square's side: `values::PAGES_TABLE_SIZE_CELL`.
     pub table_size_cell: f32,
-    /// The space between table size picker squares: [`values::PAGES_TABLE_SIZE_GAP`].
+    /// The space between table size picker squares: `values::PAGES_TABLE_SIZE_GAP`.
     pub table_size_gap: f32,
-    /// The selected table cells' range outline: [`values::PAGES_TABLE_SELECTION_OUTLINE`].
+    /// The selected table cells' range outline: `values::PAGES_TABLE_SELECTION_OUTLINE`.
     pub table_selection_outline: f32,
-    /// The text selection tint: `pages.text_selection_fill`, `accent.solid` at alpha [`values::PAGES_TEXT_SELECTION_FILL_ALPHA`].
+    /// The text selection tint: `pages.text_selection_fill`, `accent.solid` at alpha `values::PAGES_TEXT_SELECTION_FILL_ALPHA`.
     pub text_selection_fill: Rgba,
-    /// A find match's tint: `pages.find_match`, `data.yellow` at alpha [`values::PAGES_FIND_MATCHED_ALPHA`].
+    /// A find match's tint: `pages.find_match`, `data.yellow` at alpha `values::PAGES_FIND_MATCHED_ALPHA`.
     pub find_match: Rgba,
-    /// The current find match's tint: `pages.find_current`, `status.warn.solid` at alpha [`values::PAGES_FIND_CURRENT_ALPHA`].
+    /// The current find match's tint: `pages.find_current`, `status.warn.solid` at alpha `values::PAGES_FIND_CURRENT_ALPHA`.
     pub find_current: Rgba,
-    /// An even column's fill in the column bar: `pages.column_bar_fill`, `accent.solid` at alpha [`values::PAGES_COLUMN_BAR_FILL_ALPHA`].
+    /// An even column's fill in the column bar: `pages.column_bar_fill`, `accent.solid` at alpha `values::PAGES_COLUMN_BAR_FILL_ALPHA`.
     pub column_bar_fill: Rgba,
-    /// An odd column's fill in the column bar: `pages.column_bar_fill_alt`, `accent.solid` at alpha [`values::PAGES_COLUMN_BAR_FILL_ALT_ALPHA`].
+    /// An odd column's fill in the column bar: `pages.column_bar_fill_alt`, `accent.solid` at alpha `values::PAGES_COLUMN_BAR_FILL_ALT_ALPHA`.
     pub column_bar_fill_alt: Rgba,
     /// The overset mark's colour: `pages.frame_marks_overset`, `status.bad.solid`.
     pub frame_marks_overset: Rgba,
@@ -102,7 +102,7 @@ pub struct PagesTokens {
     pub edge_picker_fill: Rgba,
     /// The colour of an edge picker line not chosen: `pages.edge_picker_line_off_color`, `text.faint`.
     pub edge_picker_line_off_color: Rgba,
-    /// The selected table cells' tint: `pages.table_selection_fill`, `accent.solid` at alpha [`values::PAGES_TABLE_SELECTION_FILL_ALPHA`].
+    /// The selected table cells' tint: `pages.table_selection_fill`, `accent.solid` at alpha `values::PAGES_TABLE_SELECTION_FILL_ALPHA`.
     pub table_selection_fill: Rgba,
     /// The paper of a page, the same in every theme: `pages.paper`, white.
     pub paper: Rgba,

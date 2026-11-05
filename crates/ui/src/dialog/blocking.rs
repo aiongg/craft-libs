@@ -37,6 +37,7 @@ pub struct BlockingOverlay {
 }
 
 impl BlockingOverlay {
+    /// An overlay keyed by `id`, with the wait cursor, a transparent backdrop and no card. `id` must stay the same on every pass the work lasts.
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug) -> Self {
         Self {
             id: egui::Id::unique(("craft_ui::dialog::blocking", id)),

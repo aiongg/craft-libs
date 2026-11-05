@@ -79,6 +79,7 @@ pub struct EmbeddedFace {
     pub scripts: &'static [&'static str],
     /// Face index in a font collection (`.ttc`); `0` for a single font.
     pub index: u32,
+    /// The font file's bytes, from `include_bytes!`.
     pub bytes: &'static [u8],
 }
 

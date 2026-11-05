@@ -1,5 +1,5 @@
 //! [`WarpFields`]: the Warp group of a transform's options bar: Split icons, Grid menu, warp style,
-//! orientation and Bend, H and V (task TR-T5).
+//! orientation and Bend, H and V.
 
 use egui::{AsIdSalt, IdSalt, Ui};
 
@@ -65,11 +65,16 @@ pub struct WarpStyleEntry {
 /// numbered entries uniform n × n patches, anything split by hand Custom.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum WarpGridChoice {
+    #[allow(missing_docs)]
     Custom,
     #[default]
+    #[allow(missing_docs)]
     Default,
+    #[allow(missing_docs)]
     Three,
+    #[allow(missing_docs)]
     Four,
+    #[allow(missing_docs)]
     Five,
 }
 
@@ -118,7 +123,9 @@ pub struct WarpFieldValues {
     pub vertical: bool,
     /// Bend, H and V distortion in percent, −100 to 100.
     pub bend: f64,
+    /// Horizontal distortion in percent, −100 to 100.
     pub horizontal: f64,
+    /// Vertical distortion in percent, −100 to 100.
     pub vertical_distortion: f64,
     /// The Grid menu's reading of the mesh.
     pub grid: WarpGridChoice,
@@ -137,7 +144,10 @@ pub enum WarpFieldsEdit {
     /// coming from a preset and takes 50 otherwise.
     Style(String),
     /// The orientation button.
-    Orientation { vertical: bool },
+    Orientation {
+        /// The new orientation is vertical.
+        vertical: bool,
+    },
     /// The Bend field: a scrub or typing run, or a Set.
     Bend(EditEvent<f64>),
     /// The H field.

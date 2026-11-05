@@ -22,7 +22,9 @@ pub enum Edit {
     /// The marked text changed. Empty text ends the composition; an [`Edit::Insert`] of the
     /// committed text, if any, follows. `active` is the segment being converted, in chars.
     Preedit {
+        /// The marked text.
         text: String,
+        /// The segment being converted, in chars of `text`.
         active: Option<Range<usize>>,
     },
     /// Text to insert at the caret: typed, committed by the IME, or marked text kept as typed.
@@ -31,8 +33,11 @@ pub enum Edit {
     /// IME is using never appear here. The key's event also stays in the input for the app's
     /// other keyboard handling: an app handles each key from one of the two.
     Key {
+        /// The key pressed.
         key: Key,
+        /// The modifier keys held.
         modifiers: Modifiers,
+        /// Whether the press is an auto-repeat.
         repeat: bool,
     },
     /// A line break sent as text or committed with nothing composing (an on-screen keyboard's
@@ -40,17 +45,22 @@ pub enum Edit {
     /// handles it as Enter. The line break a pressed Enter also types is dropped, so each Enter
     /// arrives once, as [`Edit::Key`] or as this.
     LineBreak {
+        /// The modifier keys held with Enter; Shift usually asks for a soft line break.
         modifiers: Modifiers,
     },
     /// The clipboard events, in order with the text, held back while the IME composes. The app
     /// applies them; the event also stays in the input, so it handles each from one of the two.
     Paste(String),
+    /// Copy the selection. The app applies it; the event also stays in the input.
     Copy,
+    /// Cut the selection. The app applies it; the event also stays in the input.
     Cut,
     /// Delete chars around the caret (the web text agent's corrections, mobile Backspace). The app
     /// applies it; its event is removed from the input. Never sent while composing.
     DeleteSurrounding {
+        /// Chars to delete before the caret.
         before_chars: usize,
+        /// Chars to delete after the caret.
         after_chars: usize,
     },
     /// Delete the text an input method replaces (macOS accent menus and dictation, Wayland input
@@ -60,7 +70,9 @@ pub enum Edit {
     /// [`surrounding_chars`] counts them. The app applies it; its event is removed from the
     /// input. Only the suite's egui fork sends it.
     DeleteSurroundingBytes {
+        /// UTF-8 bytes to delete before the caret or selection.
         before_bytes: usize,
+        /// UTF-8 bytes to delete after the caret or selection.
         after_bytes: usize,
     },
 }
@@ -79,6 +91,7 @@ pub fn surrounding_chars(before: &str, after: &str, before_bytes: usize, after_b
 /// The marked text, for painting at the caret with an underline.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Preedit<'a> {
+    /// The marked text.
     pub text: &'a str,
     /// The segment being converted (Japanese, Chinese phrase input), in chars. Draw it with a
     /// thicker underline. `None` when the IME doesn't say.
@@ -88,6 +101,7 @@ pub struct Preedit<'a> {
 /// What [`Composer::process`] made of a pass's events.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Processed {
+    /// The edits for the canvas's text, in the order the platform sent them.
     pub edits: Vec<Edit>,
     /// The input events with those the IME used removed, for the app's other keyboard handling.
     pub events: Vec<Event>,
@@ -200,6 +214,7 @@ impl Clone for Composer {
 }
 
 impl Composer {
+    /// A composer with no marked text and the default owner and purpose.
     pub fn new() -> Self {
         Self::default()
     }
@@ -217,10 +232,12 @@ impl Composer {
         self
     }
 
+    /// Whether marked text is on show.
     pub fn is_composing(&self) -> bool {
         !self.preedit.is_empty()
     }
 
+    /// The marked text to paint, or `None` when not composing.
     pub fn preedit(&self) -> Option<Preedit<'_>> {
         self.is_composing().then(|| Preedit { text: &self.preedit, active: self.active.as_ref() })
     }

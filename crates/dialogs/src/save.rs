@@ -14,7 +14,7 @@
 //!   wrote it): Save asks first ([`SaveStep::AskChangedOnDisk`]); the app opens craft-ui's
 //!   `StandardPrompt::changed_on_disk` and answers with [`SaveFlow::replace`] (Replace),
 //!   [`SaveFlow::save_elsewhere`] (Save As, keeps both) or [`SaveFlow::cancel`]. Only when
-//!   confirming the document's own file (PhotoCraft #6596, PdfCraft #2166).
+//!   confirming the document's own file (storytold/photocraft#6596, storytold/pdfcraft#2166).
 //!
 //! It is egui-free: the questions are steps the app answers, as with craft-quit's `CloseGuard`,
 //! which hands its `GuardStep::Save(doc)` to [`SaveFlow::start`] and hears back through
@@ -70,13 +70,28 @@ pub enum SaveStep<D> {
     Picking,
     /// `path` is the document's own file and another app changed it: ask, then answer with
     /// [`SaveFlow::replace`], [`SaveFlow::save_elsewhere`] or [`SaveFlow::cancel`].
-    AskChangedOnDisk { key: D, path: PathBuf },
+    AskChangedOnDisk {
+        /// The document.
+        key: D,
+        /// The document's file.
+        path: PathBuf,
+    },
     /// Write the document to `path` now; then call [`SaveFlow::written`] or
     /// [`SaveFlow::failed`]. With [`SaveTarget::As`] the document takes `path` as its file; with
     /// [`SaveTarget::Copy`] it keeps its own.
-    Write { key: D, path: PathBuf, target: SaveTarget },
+    Write {
+        /// The document.
+        key: D,
+        /// Where to write.
+        path: PathBuf,
+        /// Whether the document takes `path` as its file or keeps its own.
+        target: SaveTarget,
+    },
     /// The user cancelled (the picker or the question); nothing was written.
-    Cancelled { key: D },
+    Cancelled {
+        /// The document whose save was cancelled.
+        key: D,
+    },
     /// Another save of this flow is still running (a picker, a question or a write); nothing
     /// started. The app shows [`SAVE_IN_PROGRESS`].
     Busy,
@@ -117,6 +132,7 @@ impl<D> Default for SaveFlow<D> {
 }
 
 impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
+    /// A flow with no save in progress.
     pub fn new() -> Self {
         Self::default()
     }

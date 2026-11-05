@@ -1,4 +1,4 @@
-//! [`PolygonLassoTool`]: the Polygonal Lasso, click by click (task SE-F9).
+//! [`PolygonLassoTool`]: the Polygonal Lasso, click by click.
 
 use craft_ui::canvas::draft::{DraftKind, DraftPoint, DraftReach, OutlineDraft, turn_to_45};
 use craft_ui::canvas::{CanvasTool, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode, ToolPointer};

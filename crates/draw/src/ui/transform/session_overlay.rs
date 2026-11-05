@@ -136,6 +136,7 @@ impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
         self
     }
 
+    /// How this control reports its gestures to the host.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self

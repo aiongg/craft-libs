@@ -67,6 +67,7 @@ pub struct CropOverlayMenu<'a> {
 }
 
 impl<'a> CropOverlayMenu<'a> {
+    /// A menu that edits `settings` in place.
     pub fn new(id_salt: impl AsIdSalt, settings: &'a mut CropSettings) -> Self {
         Self { id_salt: IdSalt::new(id_salt), settings, labels: None }
     }
@@ -146,6 +147,7 @@ impl<'a> CropOptionsMenu<'a> {
     /// The [`ColorRequest::key`] of the shield colour.
     pub const COLOR_KEY: &'static str = "crop-shield-color";
 
+    /// A menu that edits `shield` in place.
     pub fn new(id_salt: impl AsIdSalt, shield: &'a mut CropShield) -> Self {
         Self { id_salt: IdSalt::new(id_salt), shield, labels: None }
     }

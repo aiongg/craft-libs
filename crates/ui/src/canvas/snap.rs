@@ -23,7 +23,9 @@ pub const SNAP_PX: f64 = 8.0;
 /// the smart-guide colour or the plain one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SnapKind {
+    #[allow(missing_docs)]
     Guide,
+    #[allow(missing_docs)]
     Grid,
     /// The document's edges.
     Bounds,
@@ -51,6 +53,7 @@ pub struct SnapTarget {
     pub vertical: bool,
     /// The position along the snapped axis, document units.
     pub position: f64,
+    /// What the target is.
     pub kind: SnapKind,
     /// The extent of the target along its line, for drawing a smart guide between the two
     /// objects; `None` for a full-height line (guides, grid).
@@ -60,8 +63,11 @@ pub struct SnapTarget {
 /// The line the UI draws for a snap that happened.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SnapLine {
+    /// Whether the line is vertical (snaps x) or horizontal (snaps y).
     pub vertical: bool,
+    /// The position along the snapped axis, in document units.
     pub position: f64,
+    /// What the target was.
     pub kind: SnapKind,
     /// From the snapped object to the target, along the line.
     pub span: Option<(f64, f64)>,
@@ -90,10 +96,15 @@ impl From<SnapLine> for SmartLine {
 pub struct SnapOptions {
     /// View › Snap (the master switch).
     pub on: bool,
+    #[allow(missing_docs)]
     pub guides: bool,
+    #[allow(missing_docs)]
     pub grid: bool,
+    #[allow(missing_docs)]
     pub layers: bool,
+    #[allow(missing_docs)]
     pub document_bounds: bool,
+    #[allow(missing_docs)]
     pub selection: bool,
     /// View › Show › Smart Guides.
     pub smart_guides: bool,
@@ -113,9 +124,15 @@ pub enum SnapGesture {
     Point,
     /// A rectangle moves with the pointer and its edges and centre snap: `at_press` is the
     /// rectangle when the gesture began; the host snaps `at_press + (pointer - press)`.
-    Rect { at_press: Rect },
+    Rect {
+        /// The rectangle when the gesture began.
+        at_press: Rect,
+    },
     /// Only one axis snaps (a guide being dragged).
-    Axis { vertical: bool },
+    Axis {
+        /// Whether the snapping axis is x (a vertical guide).
+        vertical: bool,
+    },
 }
 
 /// The snap targets of one gesture.
@@ -135,6 +152,7 @@ fn line(target: &SnapTarget, a: f64, b: f64) -> SnapLine {
 }
 
 impl SnapTargets {
+    /// No targets.
     pub fn new() -> Self {
         Self::default()
     }
@@ -214,6 +232,7 @@ impl SnapTargets {
         SnapTargets { targets: self.targets.iter().copied().filter(|t| keep(t.kind)).collect() }
     }
 
+    /// Whether there is no target.
     pub fn is_empty(&self) -> bool {
         self.targets.is_empty()
     }

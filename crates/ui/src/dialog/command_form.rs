@@ -143,15 +143,18 @@ impl CommandForm {
         self
     }
 
+    /// Sets the content width class.
     pub fn width(mut self, width: Width) -> Self {
         self.width = width;
         self
     }
 
+    /// The fields the form shows.
     pub fn fields(&self) -> &DialogFields {
         &self.fields
     }
 
+    /// The fields the form shows, for the app to read or set values.
     pub fn fields_mut(&mut self) -> &mut DialogFields {
         &mut self.fields
     }
@@ -186,7 +189,7 @@ impl CommandForm {
     }
 
     fn answer(&self) -> ParamResult {
-        ParamResult { key: self.key.clone(), fields: self.fields.clone() }
+        ParamResult { key: self.key.clone(), fields: self.fields.clone(), remember: None }
     }
 }
 
@@ -219,7 +222,7 @@ impl StackDialog for CommandForm {
         }
         let shown = dialog.show(ctx, &mut self.state, &mut self.fields, |ui, fields| {
             first_field_focused(ui, id, |ui| {
-                FormGrid::new("form").show(ui, |form| draw_rows(params, id, form, fields, None));
+                FormGrid::new("form").show(ui, |form| draw_rows(params, id, form, fields, None, false));
             });
             if let Some(below) = below {
                 below(ui, fields);

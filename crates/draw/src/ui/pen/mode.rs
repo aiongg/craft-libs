@@ -19,11 +19,17 @@ pub enum PenMode {
 /// tools are the app's (step7-pen lead call 27).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PathTool {
+    #[allow(missing_docs)]
     Pen,
+    #[allow(missing_docs)]
     Curvature,
+    #[allow(missing_docs)]
     AddAnchor,
+    #[allow(missing_docs)]
     DeleteAnchor,
+    #[allow(missing_docs)]
     ConvertPoint,
+    #[allow(missing_docs)]
     DirectSelection,
 }
 

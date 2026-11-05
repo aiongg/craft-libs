@@ -17,45 +17,45 @@ pub struct TileTokens {
     pub group_header: f32,
     /// Between the picture and its caption: `tile.caption_gap` (2 / 3).
     pub caption_gap: f32,
-    /// Height of the badge bar: [`values::TILE_BAR`].
+    /// Height of the badge bar: `values::TILE_BAR`.
     pub bar: f32,
-    /// Side of the flag glyph: [`values::TILE_FLAG`].
+    /// Side of the flag glyph: `values::TILE_FLAG`.
     pub flag: f32,
-    /// Side of the colour dot: [`values::TILE_DOT`].
+    /// Side of the colour dot: `values::TILE_DOT`.
     pub dot: f32,
-    /// Side of the check box in check mode: [`values::TILE_CHECKBOX`].
+    /// Side of the check box in check mode: `values::TILE_CHECKBOX`.
     pub checkbox: f32,
-    /// Margin of the scrim behind the check box, around its side: [`values::TILE_CHECKBOX_BACKDROP`].
+    /// Margin of the scrim behind the check box, around its side: `values::TILE_CHECKBOX_BACKDROP`.
     pub checkbox_backdrop: f32,
-    /// Height of a badge pill: [`values::TILE_BADGE_HEIGHT`].
+    /// Height of a badge pill: `values::TILE_BADGE_HEIGHT`.
     pub badge_height: f32,
-    /// Height of the status band: [`values::TILE_STATUS_BAND`].
+    /// Height of the status band: `values::TILE_STATUS_BAND`.
     pub status_band: f32,
-    /// Height of the In/Out range bar: [`values::TILE_RANGE_BAR`].
+    /// Height of the In/Out range bar: `values::TILE_RANGE_BAR`.
     pub range_bar: f32,
-    /// Width of the selection ring: [`values::TILE_RING_WIDTH`].
+    /// Width of the selection ring: `values::TILE_RING_WIDTH`.
     pub ring_width: f32,
-    /// Width of the hover ring: [`values::TILE_RING_HOVER_WIDTH`].
+    /// Width of the hover ring: `values::TILE_RING_HOVER_WIDTH`.
     pub ring_hover_width: f32,
-    /// Width of the halo outside the selection ring: [`values::TILE_RING_HALO_WIDTH`].
+    /// Width of the halo outside the selection ring: `values::TILE_RING_HALO_WIDTH`.
     pub ring_halo_width: f32,
-    /// Width of the current tile's ring (a page panel's current page): [`values::TILE_RING_CURRENT_WIDTH`].
+    /// Width of the current tile's ring (a page panel's current page): `values::TILE_RING_CURRENT_WIDTH`.
     pub ring_current_width: f32,
-    /// Width of the caption column of `CaptionPlace::Start` (a slide strip's numbers): [`values::TILE_START_CAPTION_WIDTH`].
+    /// Width of the caption column of `CaptionPlace::Start` (a slide strip's numbers): `values::TILE_START_CAPTION_WIDTH`.
     pub start_caption_width: f32,
-    /// Share of the grid's height one wheel notch scrolls: [`values::TILE_WHEEL_SHARE`].
+    /// Share of the grid's height one wheel notch scrolls: `values::TILE_WHEEL_SHARE`.
     pub wheel_share: f32,
-    /// Height of the compare caption strip: [`values::TILE_COMPARE_CAPTION`].
+    /// Height of the compare caption strip: `values::TILE_COMPARE_CAPTION`.
     pub compare_caption: f32,
-    /// Margin around the compare panes: [`values::TILE_COMPARE_MARGIN`].
+    /// Margin around the compare panes: `values::TILE_COMPARE_MARGIN`.
     pub compare_margin: f32,
-    /// Gap between the compare panes: [`values::TILE_COMPARE_GAP`].
+    /// Gap between the compare panes: `values::TILE_COMPARE_GAP`.
     pub compare_gap: f32,
-    /// Room the compare caption needs to keep the name: [`values::TILE_COMPARE_NAME_ROOM`].
+    /// Room the compare caption needs to keep the name: `values::TILE_COMPARE_NAME_ROOM`.
     pub compare_name_room: f32,
-    /// Side of the media bin's label chip: [`values::TILE_BIN_CHIP`].
+    /// Side of the media bin's label chip: `values::TILE_BIN_CHIP`.
     pub bin_chip: f32,
-    /// Radius of the media bin's label chip: [`values::TILE_BIN_CHIP_RADIUS`].
+    /// Radius of the media bin's label chip: `values::TILE_BIN_CHIP_RADIUS`.
     pub bin_chip_radius: f32,
     /// The selection ring: `tile.ring.selected`, `accent.solid`.
     pub ring_selected: Rgba,
@@ -81,7 +81,7 @@ pub struct TileTokens {
     pub scrim: Rgba,
     /// Text and glyphs on the badge bar: `tile.badge.text`, `text.on_strong`.
     pub badge_text: Rgba,
-    /// The veil over a rejected tile: `tile.veil`, `surface.scrim` at [`values::TILE_VEIL_ALPHA`].
+    /// The veil over a rejected tile: `tile.veil`, `surface.scrim` at `values::TILE_VEIL_ALPHA`.
     pub veil: Rgba,
     /// The In/Out range bar: `tile.range`, `accent.solid`.
     pub range: Rgba,

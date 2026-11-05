@@ -126,6 +126,7 @@ impl ReferencePoint {
         self
     }
 
+    /// The picker look in `tokens`, for a picker of `size`.
     pub fn style(tokens: &UiTokens, size: RefSize) -> ReferencePointStyle {
         let (r, c) = (&tokens.component.ref_point, &tokens.color);
         let (side, scale) = match size {

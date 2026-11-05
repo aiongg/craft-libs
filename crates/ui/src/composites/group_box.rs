@@ -53,6 +53,7 @@ pub struct GroupBox<'a> {
 }
 
 impl<'a> GroupBox<'a> {
+    /// A box titled `title`, filled, without a checkbox.
     pub fn new(title: impl Into<String>) -> Self {
         Self { title: title.into(), id_salt: None, checkbox: None, fill: true }
     }
@@ -77,6 +78,7 @@ impl<'a> GroupBox<'a> {
         self
     }
 
+    /// The box's look from the theme's `group_box` tokens, scaled to `pixels_per_point`.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> GroupBoxStyle {
         let g = &tokens.component.group_box;
         GroupBoxStyle {
@@ -95,6 +97,7 @@ impl<'a> GroupBox<'a> {
         Tokens::of(ui).component.group_box.gap
     }
 
+    /// Draws the box and its contents through `add_contents`.
     pub fn show<R>(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         let tokens = Tokens::of(ui);
         let style = GroupBox::style(&tokens, ui.pixels_per_point());

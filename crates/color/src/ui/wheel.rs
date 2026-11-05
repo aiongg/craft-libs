@@ -35,6 +35,7 @@ pub enum WheelPart {
 /// Where a wheel lies in its area: pure numbers, shared with the colour disc.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WheelGeometry {
+    /// Centre of the wheel.
     pub center: Pos2,
     /// Radius of the ring's inner edge.
     pub inner: f32,
@@ -73,7 +74,7 @@ impl WheelGeometry {
         self.center + hue_direction(hue) * ((self.inner + self.outer) / 2.0)
     }
 
-    /// The triangle's corners at `hue`, as [`triangle_corners`], grown by `by` points.
+    /// The triangle's corners at `hue`, as `triangle_corners`, grown by `by` points.
     pub fn corners(&self, hue: f32, by: f32) -> [Pos2; 3] {
         triangle_corners(self.center, self.triangle + by, hue)
     }
@@ -129,20 +130,29 @@ pub struct ColorWheelStyle {
     pub side: f32,
     /// Least height of the area: `color_wheel.side_min`.
     pub side_min: f32,
+    /// Least ring width: `color_wheel.ring_min`.
     pub ring_min: f32,
+    /// Largest ring width: `color_wheel.ring_max`.
     pub ring_max: f32,
+    /// Ring width as a proportion of the outer radius: `color_wheel.ring_ratio`.
     pub ring_ratio: f32,
+    /// Gap between the area's edge and the ring: `color_wheel.outer_inset`.
     pub outer_inset: f32,
+    /// Gap between the ring's inner edge and the triangle's circle: `color_wheel.triangle_inset`.
     pub triangle_inset: f32,
     /// A press this far outside the ring still takes it, and this far inside its inner edge.
     pub grab_outer: f32,
+    /// Reach inside the ring's inner edge that still grabs the ring.
     pub grab_inner: f32,
     /// One point of `line.control_edge` round the ring and the triangle.
     pub edge: Stroke,
-    /// The knob's inner circle and outer ring, as [`ColorArea`]'s marker.
+    /// The knob's inner circle and outer ring, as [`super::ColorArea`]'s marker.
     pub marker_inner_radius: f32,
+    /// The knob's inner circle stroke.
     pub marker_inner: Stroke,
+    /// Radius of the knob's outer ring.
     pub marker_outer_radius: f32,
+    /// The knob's outer ring stroke.
     pub marker_outer: Stroke,
 }
 
@@ -174,7 +184,7 @@ pub struct ColorWheelStyle {
 ///   part.
 /// - Keys on the focused ring: Left and Down lower the hue by 1 degree, Right and Up raise it,
 ///   wrapping at 360; Shift steps ten; Page Up and Page Down 36 degrees; Home 0, End 359. On the
-///   triangle (as [`ColorArea`]): Left and Right saturation, Up and Down brightness; Shift ten;
+///   triangle (as [`super::ColorArea`]): Left and Right saturation, Up and Down brightness; Shift ten;
 ///   Page keys a tenth of brightness; Home and End saturation 0 and 100. The directions are not
 ///   screen directions: the triangle turns with the hue. Each key is a
 ///   [`Set`](craft_ui::edit::EditEvent::Set); during a drag keys change nothing.
@@ -205,9 +215,11 @@ pub struct ColorWheelResponse {
     pub edit: EditResponse<ModelValues>,
     /// The area the wheel was given, for a host's button over its end corner.
     pub area: Rect,
+    /// Where the wheel lay in the area.
     pub geometry: WheelGeometry,
     /// The ids of the two focus stops.
     pub ring: Id,
+    /// The id of the triangle focus stop.
     pub triangle: Id,
 }
 
@@ -245,6 +257,7 @@ impl ColorWheel {
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -263,6 +276,7 @@ impl ColorWheel {
         self
     }
 
+    /// The style read from `tokens`.
     pub fn style(tokens: &UiTokens) -> ColorWheelStyle {
         let t = &tokens.component.color_wheel;
         let parts = parts_style(tokens);

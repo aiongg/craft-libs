@@ -78,14 +78,20 @@ impl BitOr for StrokeSections {
 /// sets the field for every item. Default: nothing mixed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct StrokeMixed {
+    #[allow(missing_docs)]
     pub align: bool,
+    #[allow(missing_docs)]
     pub cap: bool,
+    #[allow(missing_docs)]
     pub join: bool,
+    #[allow(missing_docs)]
     pub miter_limit: bool,
     /// The pattern: no preset row is selected, the "Dashed line" check shows its mixed state and
     /// the pair rows are hidden until the check is set.
     pub dashes: bool,
+    #[allow(missing_docs)]
     pub dash_offset: bool,
+    #[allow(missing_docs)]
     pub opacity: bool,
 }
 
@@ -116,28 +122,39 @@ impl StrokeMixed {
 pub enum StrokeField {
     /// A preset row.
     Preset,
+    #[allow(missing_docs)]
     Align,
+    #[allow(missing_docs)]
     Cap,
+    #[allow(missing_docs)]
     Join,
+    #[allow(missing_docs)]
     MiterLimit,
+    #[allow(missing_docs)]
     Opacity,
     /// The "Dashed line" check.
     Dashed,
     /// The dash or gap at this index of [`StrokeStyle::dashes`].
     Dash(usize),
+    /// The add-pair button.
     AddPair,
+    /// The remove-pair button.
     RemovePair,
+    #[allow(missing_docs)]
     DashOffset,
 }
 
 /// One choice of a [`StrokeChoiceRow`]: the app's id and the name the select shows.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct StrokeChoice {
+    /// The app's id for the choice.
     pub id: String,
+    /// The name the select shows.
     pub label: String,
 }
 
 impl StrokeChoice {
+    /// A choice with `id` shown as `label`.
     pub fn new(id: impl Into<String>, label: impl Into<String>) -> Self {
         Self { id: id.into(), label: label.into() }
     }
@@ -153,8 +170,11 @@ pub(crate) type PaintChoice<'a> = Box<dyn Fn(&Painter, Rect, &StrokeChoice) + 'a
 /// [`StrokeEditorResponse::choice`] with the row's and the choice's ids. S7-shapes' connector bar
 /// uses the same rows for its caps.
 pub struct StrokeChoiceRow<'a> {
+    /// The app's id for the row.
     pub id: String,
+    /// The row's label.
     pub label: String,
+    /// The choices the select offers.
     pub choices: &'a [StrokeChoice],
     /// The picked choice's id, `MixedValue::Mixed` across a selection, `None` for none.
     pub selected: Option<craft_ui::controls::MixedValue<&'a str>>,

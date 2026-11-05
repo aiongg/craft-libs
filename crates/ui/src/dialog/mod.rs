@@ -100,6 +100,7 @@ pub(crate) mod preview_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod preview_tests;
 mod prompt;
+mod prompt_extras;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod prompt_tests;
 mod prompts;
@@ -159,8 +160,8 @@ pub use new_document::{
     Orientation, PresetCategory, push_recent, size_line,
 };
 pub use params::{
-    CustomContext, CustomRow, EyedropperRequest, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, ParamRows, ParamRowsResponse, PathKind,
-    PathRequest, translated,
+    CustomContext, CustomRow, EyedropperRequest, NumberUnit, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, ParamRows, ParamRowsResponse,
+    PathKind, PathRequest, translated,
 };
 pub use pass::any_modal;
 pub use password::{PasswordAnswer, PasswordDialog, PasswordLabels, PasswordPurpose, PasswordStrength, Secret, password_strength};

@@ -52,6 +52,7 @@ impl<'a> SymmetryInput<'a> {
 /// What a pass reported, from [`SymmetryTransformPass::finish`].
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SymmetryTransformOutput {
+    /// What the pass reported, in order.
     pub events: Vec<SymmetryEvent>,
 }
 

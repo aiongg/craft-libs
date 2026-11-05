@@ -1,4 +1,4 @@
-//! [`EffectStack`]: the effect-layer stack under the settings (task WS-FG2).
+//! [`EffectStack`]: the effect-layer stack under the settings.
 
 use egui::{AsIdSalt, IdSalt, Key, KeyboardShortcut, Modifiers, Rect, Response, Ui, UiBuilder};
 
@@ -19,6 +19,7 @@ use super::style::FilterGalleryStyle;
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct EffectStackResponse {
+    /// The list's response.
     pub response: Response,
     /// The row picked (click, Up, Down).
     pub selected: Option<usize>,
@@ -44,6 +45,7 @@ pub struct EffectStack<'a> {
 }
 
 impl<'a> EffectStack<'a> {
+    /// Starts the stack over `effects` with the layer at index `selected` selected; `labels_of` gives a filter key's display name.
     pub fn new(id_salt: impl AsIdSalt, effects: &'a [EffectLayer], selected: usize, labels_of: &'a dyn Fn(&str) -> String) -> Self {
         Self { id_salt: IdSalt::new(id_salt), effects, selected, labels_of, labels: None }
     }
@@ -54,6 +56,7 @@ impl<'a> EffectStack<'a> {
         self
     }
 
+    /// Draws the stack and its buttons and reports any selection or change.
     pub fn show(self, ui: &mut Ui) -> EffectStackResponse {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:780, :832-881 (list 190 high, rows 24 with the eye,
         // the four buttons).

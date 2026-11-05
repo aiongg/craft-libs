@@ -1,4 +1,4 @@
-//! Tests of the Slice tools and the slice overlay (task SH-T4). PhotoCraft's
+//! Tests of the Slice tools and the slice overlay. PhotoCraft's
 //! `tools/slice_ui/tests.rs` cases move here.
 
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Sense, Shape, pos2, vec2};

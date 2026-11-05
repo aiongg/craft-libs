@@ -131,6 +131,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioGroup<'a, T> {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -277,6 +278,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioSet<'a, T> {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self

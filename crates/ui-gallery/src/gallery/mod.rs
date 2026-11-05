@@ -107,6 +107,7 @@ pub struct Gallery {
 }
 
 impl Gallery {
+    /// Builds the gallery, restoring the saved appearance and layout from `storage` when given.
     pub fn new(storage: Option<&dyn eframe::Storage>) -> Self {
         let saved = Saved::load(storage);
         let stories = stories();
@@ -141,6 +142,7 @@ impl Gallery {
         self.workspace = workspace;
     }
 
+    /// The active workspace.
     pub fn workspace(&self) -> GalleryWorkspace {
         self.workspace
     }
@@ -217,6 +219,7 @@ impl Gallery {
         self.variants.set(axis.filter(|_| self.target().is_some()), self.front_tab());
     }
 
+    /// What the Variants view repeats the story over; `None` when it is off.
     pub fn variants(&self) -> Option<VariantAxis> {
         self.variants.axis()
     }
@@ -303,10 +306,12 @@ impl Gallery {
         self.scan.painters(token)
     }
 
+    /// Every story.
     pub fn stories(&self) -> &[Story] {
         &self.stories
     }
 
+    /// The appearance the options bar edits.
     pub fn appearance_mut(&mut self) -> &mut Appearance {
         &mut self.appearance
     }

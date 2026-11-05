@@ -127,6 +127,7 @@ impl PreferencesBody {
         self
     }
 
+    /// The resolved Preferences style, read from `tokens.component.preferences`.
     pub fn style(tokens: &crate::theme::UiTokens) -> PreferencesStyle {
         let p = &tokens.component.preferences;
         PreferencesStyle {

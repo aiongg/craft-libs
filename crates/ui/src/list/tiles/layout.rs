@@ -12,11 +12,21 @@ pub enum TileLayout {
     /// Rows of pictures at their own aspect, `row_height` points high, each row but a group's
     /// last scaled to fill the width (LightCraft's library grid). Right to left, rows fill from
     /// the right.
-    Justified { row_height: f32 },
+    Justified {
+        /// Row height in points.
+        row_height: f32,
+    },
     /// Equal cards `side` points wide, the picture `side / aspect` high, with a caption below
     /// when `caption` (Bridge, PdfCraft, FigCraft, LightCraft's square grid as
     /// `Cards { aspect: 1.0, caption: true }`). Columns follow the width (`GridNav::columns`).
-    Cards { side: f32, aspect: f32, caption: bool },
+    Cards {
+        /// Card width in points.
+        side: f32,
+        /// Picture width divided by height.
+        aspect: f32,
+        /// Whether a caption sits below the picture.
+        caption: bool,
+    },
 }
 
 /// A run of tiles under one header (a date, a folder): `start..start + count` in display order.

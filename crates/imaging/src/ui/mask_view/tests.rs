@@ -1,4 +1,4 @@
-//! Tests of the mask views (task SE-F6).
+//! Tests of the mask views.
 
 use egui::{Context, Event, Key, Modifiers, RawInput};
 

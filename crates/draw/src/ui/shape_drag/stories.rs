@@ -1,4 +1,4 @@
-//! Stories of the Shape tools and Create Shape (task ST-SH1; task RG2 registers them). A fake
+//! Stories of the Shape tools and Create Shape. A fake
 //! canvas view stands for the document and the tool runs in a `ToolHost` as an app runs it. Sample
 //! words are story words; the plain strings are the status lines.
 //!
@@ -8,9 +8,6 @@
 //!   dialog's answer adds an outline to the page.
 //! - `patterns/create-shape-dialog/dialog`: the dialog alone for Rectangle (four radii), Polygon and Star (a
 //!   star ratio), with the ruler unit of its size fields and a bad size on request.
-//!
-//! RG2 registers `stories()` and the components `ShapeDragTool` and `CreateShapeDialog`; RG1 adds
-//! [`ShapeDragStoryLabels`] to `WORDS`.
 
 use egui::{Painter, Shape, Stroke, Ui};
 use kurbo::{PathEl, Point};

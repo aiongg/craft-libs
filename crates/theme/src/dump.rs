@@ -1169,6 +1169,7 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
         anchor_cell,
         anchor_inset,
         anchor_mark_radius,
+        preview_fill,
     } = t;
     out.line("dialog.pad", len(*pad));
     out.line("dialog.pad_roomy", len(*pad_roomy));
@@ -1197,6 +1198,7 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
     out.line("dialog.anchor_cell", len(*anchor_cell));
     out.line("dialog.anchor_inset", len(*anchor_inset));
     out.line("dialog.anchor_mark_radius", len(*anchor_mark_radius));
+    out.line("dialog.preview.fill", hex(*preview_fill));
 }
 
 fn form_lines(out: &mut Lines, t: &FormTokens) {

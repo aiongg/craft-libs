@@ -31,7 +31,9 @@ crate::words! {
 /// id).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Crumb<K> {
+    /// The text shown for the segment.
     pub label: String,
+    /// The value reported in [`BreadcrumbBarResponse::opened`] when the segment is opened.
     pub key: K,
 }
 
@@ -39,6 +41,7 @@ pub struct Crumb<K> {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct BreadcrumbBarResponse<K> {
+    /// The bar's egui response.
     pub response: Response,
     /// The segment clicked or activated: the app opens it. The last segment (where the user is)
     /// never reports.
@@ -127,6 +130,7 @@ impl<'a, K: Clone> BreadcrumbBar<'a, K> {
     }
 
     // lightcraft: crates/ui-egui/src/panels/grid.rs:1070 folder_breadcrumbs
+    /// Draws the bar and reports the segment opened, if any.
     pub fn show(self, ui: &mut Ui) -> BreadcrumbBarResponse<K> {
         let Self { id_salt, crumbs, labels } = self;
         let labels = labels.unwrap_or_else(|| BreadcrumbLabels::of(ui));

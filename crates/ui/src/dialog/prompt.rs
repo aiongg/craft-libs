@@ -1,10 +1,12 @@
 //! [`Prompt`]: a question with answers and accelerator letters, and [`accelerator_labels`].
 
+use craft_theme::Tone;
 use egui::{Context, Id, Key, Modifiers, Ui};
 
 use super::buttons::{ButtonRole, FooterButton, Platform};
 use super::dialog::{Dialog, InitialFocus, Outcome};
 use super::footer::Footer;
+use super::prompt_extras::Extras;
 use super::size::Width;
 use super::stack::{DialogStack, dialog_id};
 use super::state::DialogState;
@@ -99,11 +101,24 @@ pub struct Prompt<'a> {
     escape: Option<ButtonRole>,
     stack: Option<&'a DialogStack>,
     below: Option<Below<'a>>,
+    disabled: Vec<ButtonRole>,
+    extras: Extras,
 }
 
 impl<'a> Prompt<'a> {
+    /// A prompt keyed by `id` (stable per prompt kind) with a `title` and `message`; add its buttons with the answer methods.
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>, message: impl Into<String>) -> Self {
-        Self { id: dialog_id(id), title: title.into(), message: message.into(), answers: Vec::new(), escape: None, stack: None, below: None }
+        Self {
+            id: dialog_id(id),
+            title: title.into(),
+            message: message.into(),
+            answers: Vec::new(),
+            escape: None,
+            stack: None,
+            below: None,
+            disabled: Vec::new(),
+            extras: Extras::default(),
+        }
     }
 
     /// Adds an answer: its role (which decides its place and look), translated label and key.
@@ -132,6 +147,34 @@ impl<'a> Prompt<'a> {
         self
     }
 
+    /// Disables the answer of `role`: its button takes no click, and neither Enter nor its key
+    /// answers it. Esc still answers the [`escape`](Prompt::escape) role.
+    pub fn disable(mut self, role: ButtonRole) -> Self {
+        self.disabled.push(role);
+        self
+    }
+
+    /// A line under the message in the colour of `tone` (`Warn` or `Bad`, from the theme's
+    /// status tokens), with the tone's icon.
+    pub fn tone(mut self, tone: Tone, text: impl Into<String>) -> Self {
+        self.extras.tone = Some((tone, text.into()));
+        self
+    }
+
+    /// A scrolling list of lines under the message (a file's warnings).
+    pub fn lines(mut self, lines: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.extras.lines = lines.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// A collapsible section under the message, closed on open. `label` is the translated name
+    /// of its header ("Details"); Space and Enter toggle it, and AccessKit reports it as a
+    /// disclosure triangle with its `expanded` state.
+    pub fn details(mut self, label: impl Into<String>, text: impl Into<String>) -> Self {
+        self.extras.details = Some((label.into(), text.into()));
+        self
+    }
+
     /// The id a [`DialogStack`] knows the prompt by.
     pub fn id(&self) -> Id {
         self.id
@@ -139,14 +182,15 @@ impl<'a> Prompt<'a> {
 
     /// Shows the prompt; the role of the answer the pass it is given.
     pub fn show(self, ctx: &Context) -> Option<ButtonRole> {
-        let Self { id, title, message, answers, escape, stack, below } = self;
+        let Self { id, title, message, answers, escape, stack, below, disabled, extras } = self;
         let roles: Vec<ButtonRole> = answers.iter().map(|a| a.role).collect();
         let escape = escape_role(&roles, escape);
         let labels = accelerator_labels(&answers.iter().map(|a| (a.label.clone(), a.key)).collect::<Vec<_>>(), Platform::of(ctx));
-        let keys: Vec<(ButtonRole, Option<Key>)> = answers.iter().map(|a| (a.role, a.key)).collect();
+        let keys: Vec<(ButtonRole, Option<Key>)> = answers.iter().filter(|a| !disabled.contains(&a.role)).map(|a| (a.role, a.key)).collect();
 
         let (mut state, first) = load_state(ctx, id.with("prompt"));
-        let buttons: Vec<FooterButton> = answers.iter().zip(labels).map(|(a, label)| FooterButton::new(a.role, label)).collect();
+        let buttons: Vec<FooterButton> =
+            answers.iter().zip(labels).map(|(a, label)| FooterButton::new(a.role, label).enabled(!disabled.contains(&a.role))).collect();
         let shortcuts: Vec<Option<Key>> = answers.iter().map(|a| a.key).collect();
         let footer = Footer::custom(move |ui, fx| {
             let row = fx.buttons(ui, buttons);
@@ -166,6 +210,7 @@ impl<'a> Prompt<'a> {
         }
         let shown = dialog.show(ctx, &mut state, &mut (), |ui, ()| {
             ui.label(message);
+            extras.show(ui, id);
             if let Some(below) = below {
                 below(ui);
             }

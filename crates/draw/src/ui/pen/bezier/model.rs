@@ -9,6 +9,7 @@ use kurbo::{BezPath, CubicBez, Point, Vec2};
 /// its anchor is retracted.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Knot {
+    /// The anchor point.
     pub anchor: Point,
     /// The handle of the segment arriving at the anchor.
     pub in_ctrl: Point,
@@ -46,7 +47,9 @@ impl Knot {
 /// One subpath: its knots in order, open or closed.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct EditSubpath {
+    /// The knots in path order.
     pub knots: Vec<Knot>,
+    /// Whether the last knot joins back to the first.
     pub closed: bool,
 }
 
@@ -100,6 +103,7 @@ impl EditSubpath {
 pub struct EditPath {
     /// The host's key, stable across frames.
     pub key: u64,
+    /// The path's subpaths.
     pub subpaths: Vec<EditSubpath>,
     /// The layer colour its outline, anchors and handles are drawn in (DesignCraft, VectorCraft);
     /// `overlay.line` without one.
@@ -126,11 +130,14 @@ impl EditPath {
 /// A knot of a path, or the segment leaving it: its subpath and its index there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct KnotRef {
+    /// Index of the subpath in [`EditPath::subpaths`].
     pub subpath: usize,
+    /// Index of the knot in [`EditSubpath::knots`].
     pub knot: usize,
 }
 
 impl KnotRef {
+    /// A reference to knot `knot` of subpath `subpath`.
     pub fn new(subpath: usize, knot: usize) -> Self {
         Self { subpath, knot }
     }
@@ -140,7 +147,9 @@ impl KnotRef {
 /// segment (whose two handles show).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PathSelection {
+    /// The host key of the path being edited, if any.
     pub path: Option<u64>,
+    /// The selected anchors of that path.
     pub anchors: Vec<KnotRef>,
     /// The segment leaving this knot.
     pub segment: Option<KnotRef>,
@@ -156,7 +165,9 @@ impl PathSelection {
 /// Which of a knot's two direction handles.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HandleSide {
+    /// The handle of the segment arriving at the anchor.
     In,
+    /// The handle of the segment leaving the anchor.
     Out,
 }
 
@@ -166,27 +177,82 @@ pub enum HandleSide {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PathEdit {
     /// Move anchors with their handles by `by`, in document units.
-    MoveAnchors { path: u64, anchors: Vec<KnotRef>, by: Vec2 },
+    MoveAnchors {
+        /// The path's host key.
+        path: u64,
+        /// The anchors moved.
+        anchors: Vec<KnotRef>,
+        /// The move, in document units.
+        by: Vec2,
+    },
     /// Move a direction handle to `to`. A smooth knot keeps its other handle collinear, unless
     /// `alone`, which also makes the knot a corner (the host's rule).
-    MoveHandle { path: u64, knot: KnotRef, side: HandleSide, to: Point, alone: bool },
+    MoveHandle {
+        /// The path's host key.
+        path: u64,
+        /// The anchor the handle belongs to.
+        knot: KnotRef,
+        /// Which of the anchor's handles.
+        side: HandleSide,
+        /// The handle's new position.
+        to: Point,
+        /// Whether the other handle stays put (⌥ held).
+        alone: bool,
+    },
     /// Bend the segment leaving `segment` so its point at `t` moves by `by`, the nearer handle
     /// more (PhotoCraft's `bend_segment`).
-    BendSegment { path: u64, segment: KnotRef, t: f64, by: Vec2 },
+    BendSegment {
+        /// The path's host key.
+        path: u64,
+        /// The anchor the segment leaves.
+        segment: KnotRef,
+        /// Position along the segment, 0..=1.
+        t: f64,
+        /// How far the point at `t` moves, in document units.
+        by: Vec2,
+    },
     /// Convert Point: `None` makes a corner with retracted handles; `Some(out)` a smooth point
     /// whose out handle is at `out` and whose in handle mirrors it.
-    Convert { path: u64, knot: KnotRef, out: Option<Point> },
+    Convert {
+        /// The path's host key.
+        path: u64,
+        /// The converted anchor.
+        knot: KnotRef,
+        /// The out handle of the smooth point, or `None` for a corner.
+        out: Option<Point>,
+    },
     /// The Curvature tool's drag of anchors: move them with their handles by `by` (the whole move
     /// from the press), then reflow every subpath they are on ([`EditSubpath::reflow`]).
-    MoveCurvature { path: u64, anchors: Vec<KnotRef>, by: Vec2 },
+    MoveCurvature {
+        /// The path's host key.
+        path: u64,
+        /// The anchors moved.
+        anchors: Vec<KnotRef>,
+        /// The move from the press, in document units.
+        by: Vec2,
+    },
     /// The Curvature tool's press on a segment: insert a smooth anchor into the segment leaving
     /// `segment` at `t` ([`EditSubpath::insert_at`], `t` in
     /// [`CURVATURE_T_RANGE`](crate::geometry::curvature::CURVATURE_T_RANGE)), move it by `by`
     /// (zero for a click), and reflow the subpath. Insert and drag are one undo step.
-    InsertCurvature { path: u64, segment: KnotRef, t: f64, by: Vec2 },
+    InsertCurvature {
+        /// The path's host key.
+        path: u64,
+        /// The anchor the segment leaves.
+        segment: KnotRef,
+        /// Position along the segment, 0..=1.
+        t: f64,
+        /// The move of the new anchor, in document units.
+        by: Vec2,
+    },
     /// The Curvature tool's double-click or Enter on an anchor: a smooth knot becomes a corner
     /// with retracted handles and a corner becomes smooth, then the subpath reflows.
-    ToggleCurvature { path: u64, knot: KnotRef },
+    ToggleCurvature {
+        /// The path's host key.
+        path: u64,
+        /// The toggled anchor.
+        knot: KnotRef,
+    },
 }
 
 impl PathEdit {

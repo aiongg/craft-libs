@@ -1,5 +1,5 @@
-//! Stories of the selection frame, outlines, grips and range helpers (task KS1): not registered.
-//! Registering them (task RG2) adds `stories()` to the canvas stories, `COMPONENTS` to the
+//! Stories of the selection frame, outlines, grips and range helpers: not registered.
+//! Registering them adds `stories()` to the canvas stories, `COMPONENTS` to the
 //! component list and [`SelectionFrameStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!
 //! Every story draws its own fake objects on the canvas and keeps the edited boxes in the story's

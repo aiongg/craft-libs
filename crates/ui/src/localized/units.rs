@@ -18,12 +18,19 @@ pub(crate) const POINTS_PER_INCH: f64 = 72.0;
 /// and convert through the resolution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum LengthUnit {
+    #[allow(missing_docs)]
     Pixels,
+    #[allow(missing_docs)]
     Percent,
+    #[allow(missing_docs)]
     Inches,
+    #[allow(missing_docs)]
     Centimetres,
+    #[allow(missing_docs)]
     Millimetres,
+    #[allow(missing_docs)]
     Points,
+    #[allow(missing_docs)]
     Picas,
 }
 
@@ -39,6 +46,7 @@ impl LengthUnit {
         LengthUnit::Picas,
     ];
 
+    /// Whether the unit measures screen pixels (pixels or percent) rather than a physical length.
     pub fn is_pixel_unit(self) -> bool {
         matches!(self, LengthUnit::Pixels | LengthUnit::Percent)
     }
@@ -203,7 +211,9 @@ impl UnitContext {
 /// A number in a length unit.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Length {
+    /// The number of `unit`s.
     pub value: f64,
+    /// The unit `value` is in.
     pub unit: LengthUnit,
 }
 

@@ -53,9 +53,19 @@ pub enum PlacesEvent<K> {
     /// Clear Recent Directories.
     ClearRecent,
     /// A pick in the host's folder menu ([`PlacesTree::row_menu`]): its command on the folder `target`.
-    Menu { target: PathBuf, command: String },
+    Menu {
+        /// The folder the menu was opened on.
+        target: PathBuf,
+        /// The id of the picked command.
+        command: String,
+    },
     /// A `ListDrag<K>` released over a row `.accepts(..)` took.
-    Dropped { place: PathBuf, items: ListDrag<K> },
+    Dropped {
+        /// The row's folder.
+        place: PathBuf,
+        /// The dragged items.
+        items: ListDrag<K>,
+    },
 }
 
 impl PlacesSettings {

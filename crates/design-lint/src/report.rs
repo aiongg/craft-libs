@@ -9,7 +9,9 @@ use crate::config::Exemption;
 /// How serious a finding is. Only errors make the exit code non-zero.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Severity {
+    /// Fails the check: the exit code is non-zero.
     Error,
+    /// Reported only.
     Warning,
 }
 
@@ -35,9 +37,11 @@ pub struct Finding {
     pub column: usize,
     /// Line of the last token; markers cover findings by their start line.
     pub end_line: usize,
+    /// How serious the finding is.
     pub severity: Severity,
     /// Rule id such as `literal-size/vec2`.
     pub rule: &'static str,
+    /// What is wrong and, where the rule has one, the fix.
     pub message: String,
 }
 

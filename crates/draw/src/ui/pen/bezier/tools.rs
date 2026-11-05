@@ -1,5 +1,5 @@
-//! The Add Anchor Point, Delete Anchor Point, Auto Add/Delete (task PE-B1) and Curvature (task
-//! PE-C1) tools of [`BezierOverlay`]. The overlay's pass calls these where a tool decides: which
+//! The Add Anchor Point, Delete Anchor Point, Auto Add/Delete and Curvature
+//! tools of [`BezierOverlay`]. The overlay's pass calls these where a tool decides: which
 //! presses it takes, what a click reports, the hover mark, and the Curvature gestures and keys.
 //! Each task wires its calls into `bezier/mod.rs` (`takes`, `start`, `track`, `edit`, `pointer`,
 //! `keys`, `paint`) and may change these private signatures.
@@ -27,7 +27,7 @@ impl BezierOverlay<'_> {
         }
     }
 
-    /// Whether the new tools take a press on `hit` (task PE-B1; PE-C1 adds Curvature):
+    /// Whether the new tools take a press on `hit`:
     ///
     /// - Add Anchor: a segment, or an anchor (the press is claimed so it starts no path; it
     ///   reports nothing). Delete Anchor: an anchor, or a segment (claimed, nothing reported).
@@ -54,7 +54,7 @@ impl BezierOverlay<'_> {
         }
     }
 
-    /// A click of Add, Delete or Auto Add/Delete on `hit` (task PE-B1), reported on press as
+    /// A click of Add, Delete or Auto Add/Delete on `hit`, reported on press as
     /// PhotoCraft does: a segment sets [`BezierResponse::insert`] with the hit's `t`; an anchor
     /// sets [`BezierResponse::delete`] with that one anchor. One undo step each; no gesture, no
     /// drag, no selection change. The pen draft, when the host passes it as one more path
@@ -105,7 +105,7 @@ impl BezierOverlay<'_> {
         (would.insert.is_some() || would.delete.is_some()).then_some(hit)
     }
 
-    /// The Curvature tool's press (task PE-C1) on `hit`, the press's click count from
+    /// The Curvature tool's press on `hit`, the press's click count from
     /// [`PrimaryPress::clicks`]:
     ///
     /// - second click of a double-click on an anchor: a [`Target::Toggle`], reported as a
@@ -151,7 +151,7 @@ impl BezierOverlay<'_> {
         }
     }
 
-    /// The Curvature tool's keys while the overlay has focus (task PE-C1): the arrows move the
+    /// The Curvature tool's keys while the overlay has focus: the arrows move the
     /// selected anchors as one `MoveCurvature` Set (1 unit, ⇧ 10: the overlay's
     /// [`steps`](BezierOverlay::steps)); Enter toggles the picked anchor (`ToggleCurvature` Set).
     /// A picked handle, Delete, Backspace, Insert, the Page keys and Esc are

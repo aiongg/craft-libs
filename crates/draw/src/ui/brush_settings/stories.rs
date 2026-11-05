@@ -1,4 +1,4 @@
-//! Stories of the Brush Settings panel and its shared rows (task ST-BR2; task RG2 registers them).
+//! Stories of the Brush Settings panel and its shared rows.
 //! Fake section bodies and a fake stroke image drawn from [`PreviewStroke`] with software stamps,
 //! so every state shows without an engine; every string goes through story words. The sections,
 //! the tip angle and the control rows keep their state in the story, as an app keeps its brush

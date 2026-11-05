@@ -24,7 +24,12 @@ use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 pub enum PropertyRow {
     /// A label and a read-only value ("Page size:", "210 × 297 mm"); the value is selectable
     /// text.
-    Value { label: String, text: String },
+    Value {
+        /// The label, in the form grid's label column.
+        label: String,
+        /// The value shown as selectable text.
+        text: String,
+    },
     /// An editable field, drawn from the [`Param`] like a [`CommandForm`](super::CommandForm)
     /// row; read-only mode shows its value as text.
     Field(Param),
@@ -37,11 +42,14 @@ pub enum PropertyRow {
 /// One tab.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PropertiesTab {
+    /// The tab's title.
     pub title: String,
+    /// The rows in display order.
     pub rows: Vec<PropertyRow>,
 }
 
 impl PropertiesTab {
+    /// A tab titled `title` with `rows`.
     pub fn new(title: impl Into<String>, rows: Vec<PropertyRow>) -> Self {
         Self { title: title.into(), rows }
     }
@@ -67,6 +75,7 @@ pub struct PropertiesDialog {
 }
 
 impl PropertiesDialog {
+    /// A dialog keyed by `key` (stable per kind of dialog) with `title` and `tabs`; it opens on the first tab.
     pub fn new(key: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>, tabs: Vec<PropertiesTab>) -> Self {
         Self {
             id: dialog_id(key),
@@ -92,15 +101,18 @@ impl PropertiesDialog {
         self
     }
 
+    /// Sets the content width class.
     pub fn width(mut self, width: Width) -> Self {
         self.width = width;
         self
     }
 
+    /// The values of the editable rows.
     pub fn fields(&self) -> &DialogFields {
         &self.fields
     }
 
+    /// The values of the editable rows, mutably.
     pub fn fields_mut(&mut self) -> &mut DialogFields {
         &mut self.fields
     }
@@ -166,6 +178,19 @@ impl StackDialog for PropertiesDialog {
             Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
             _ => None,
         }
+    }
+
+    fn confirm(&mut self, ctx: &Context) -> Option<DialogFields> {
+        if !self.state.is_open() {
+            let params: Vec<Param> = self
+                .tabs
+                .iter()
+                .flat_map(|tab| &tab.rows)
+                .filter_map(|row| if let PropertyRow::Field(param) = row { Some(param.clone()) } else { None })
+                .collect();
+            open_fields(ctx, self.id, &params, &mut self.fields);
+        }
+        Some(if self.read_only { DialogFields::new() } else { self.fields.clone() })
     }
 }
 

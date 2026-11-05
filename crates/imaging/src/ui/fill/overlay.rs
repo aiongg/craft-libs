@@ -1,4 +1,4 @@
-//! The sampling tint and the fill area's ants over Content-Aware Fill's canvas (task WS-CA2).
+//! The sampling tint and the fill area's ants over Content-Aware Fill's canvas.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -16,9 +16,13 @@ use crate::trace::{CoverageGrid, GRID_EDGE_LIMIT, edges_of_grid};
 /// (`content_aware_plan`, `paint_strokes`) at a proxy of `k` pixels per texel.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SamplingPlane {
+    /// Document pixel of the plane's top-left corner.
     pub origin: [i32; 2],
+    /// The plane's size in texels, columns by rows.
     pub size: [u32; 2],
+    /// Document pixels per texel side.
     pub texel: u32,
+    /// One bit per texel, row by row; `true` marks a texel in the area.
     pub bits: Vec<bool>,
 }
 
@@ -47,6 +51,7 @@ pub struct FillOverlay<'a> {
 }
 
 impl<'a> FillOverlay<'a> {
+    /// Starts the overlay with the sampling area and the fill area, each `None` while the app has none.
     pub fn new(id_salt: impl AsIdSalt, sampling: Option<&'a SamplingPlane>, fill_area: Option<&'a SamplingPlane>) -> Self {
         Self { id_salt: IdSalt::new(id_salt), sampling, fill_area, color: Color32::TRANSPARENT, excluded: false, tint: true, document: None }
     }

@@ -4,7 +4,7 @@
 //! Controls rows).
 //!
 //! Each piece reads one pass's input and changes a [`CanvasView`] the app copies back into its
-//! own view; zooms go through [`zoom`](super::zoom) and clamp to [`ZoomLadder`](super::ZoomLadder).
+//! own view; zooms go through [`zoom`] and clamp to [`ZoomLadder`].
 //!
 //! ```no_run
 //! use craft_ui::canvas::{CanvasView, navigate::{NavigationOptions, WheelNavigation}, kurbo::Size};
@@ -270,7 +270,7 @@ impl WheelNavigation {
     }
 
     /// Apply `action` to `view` with the pointer at `pointer`: a factor zoom anchors at
-    /// [`zoom::wheel_anchor`](super::zoom::wheel_anchor), a ladder step at the pointer, and both clamp to the ladder's range; a
+    /// [`zoom::wheel_anchor`], a ladder step at the pointer, and both clamp to the ladder's range; a
     /// pan moves the view (within the scroll limits unless `prefs.overscroll`). At a zoom limit
     /// the view stays put, as in Photoshop: a notch past 12800 % neither zooms nor slides the
     /// image toward the pointer. Returns whether the view changed.
@@ -358,7 +358,10 @@ pub enum PageKey {
     /// Scroll by this many screen points (positive: show what is below or to the right).
     Scroll(ScreenVec),
     /// Show the document's top-left corner (Home) or bottom-right corner (End).
-    Corner { end: bool },
+    Corner {
+        /// `true` for End (bottom-right), `false` for Home (top-left).
+        end: bool,
+    },
 }
 
 impl PageKey {
@@ -776,8 +779,9 @@ impl Default for TouchpadGlide {
 pub struct Autoscroll;
 
 impl Autoscroll {
-    /// Slowest and fastest scroll, points per second.
+    /// Slowest scroll, points per second.
     pub const MIN_SPEED: f32 = 120.0;
+    /// Fastest scroll, points per second.
     pub const MAX_SPEED: f32 = 2400.0;
     /// Extra speed per point the pointer is past the edge.
     pub const GAIN: f32 = 12.0;
@@ -1105,6 +1109,7 @@ pub struct ZoomTool {
     pub out: bool,
     /// The document's size in document units (the ladder's lower limit).
     pub size: Size,
+    /// The navigation preferences the tool reads.
     pub prefs: NavigationOptions,
     hold: Option<super::HoldZoom>,
     drag: Option<super::ZoomDrag>,
@@ -1113,6 +1118,7 @@ pub struct ZoomTool {
 }
 
 impl ZoomTool {
+    /// A zoom tool for a document of `size`, using `prefs`.
     pub fn new(size: Size, prefs: NavigationOptions) -> Self {
         Self { out: false, size, prefs, hold: None, drag: None, press: None }
     }

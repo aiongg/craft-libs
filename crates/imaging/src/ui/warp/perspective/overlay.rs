@@ -1,5 +1,5 @@
 //! [`PerspectiveWarp`]: Perspective Warp's planes on the canvas, drawn, linked, snapped and dragged
-//! by pointer and keyboard (task TR-T13).
+//! by pointer and keyboard.
 
 use egui::{AsIdSalt, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Rect, Response, Shape, StrokeKind, Ui, vec2};
 use kurbo::{Point, Vec2};
@@ -62,6 +62,7 @@ pub struct PerspectiveWarp<'a> {
 /// What [`PerspectiveWarp::show`] reported this pass.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PerspectiveWarpResponse {
+    /// The overlay's widget id.
     pub id: Id,
     /// The edits in order; the app applies each with [`PerspectiveSession::apply`].
     pub edits: Vec<PerspectiveEdit>,
@@ -69,6 +70,7 @@ pub struct PerspectiveWarpResponse {
     pub apply: bool,
     /// Esc with no drag running.
     pub discard: bool,
+    /// Whether the overlay owns the canvas's pointer claim this pass.
     pub claimed: bool,
     /// The corner under the pointer.
     pub hovered: Option<PlaneCorner>,
@@ -80,6 +82,7 @@ impl<'a> PerspectiveWarp<'a> {
         Self { id_salt: IdSalt::new(id_salt), session, labels: None, units: None, modifiers: None, policy: EditPolicy::default() }
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: PerspectiveWarpLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -97,6 +100,7 @@ impl<'a> PerspectiveWarp<'a> {
         self
     }
 
+    /// Sets how the overlay reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self

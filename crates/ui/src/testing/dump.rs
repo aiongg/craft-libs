@@ -29,6 +29,7 @@ pub struct Dump {
 }
 
 impl Dump {
+    /// An empty dump.
     pub fn new() -> Self {
         Self::default()
     }
@@ -150,6 +151,7 @@ pub fn diff(old: &str, new: &str) -> String {
 
 /// A value's text in a dump.
 pub trait DumpValue {
+    /// The value as dump text.
     fn dump_value(&self) -> String;
 }
 

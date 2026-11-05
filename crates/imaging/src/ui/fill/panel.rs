@@ -1,4 +1,4 @@
-//! [`FillPanel`]: the Content-Aware Fill panel (task WS-CA2).
+//! [`FillPanel`]: the Content-Aware Fill panel.
 
 use egui::text::LayoutJob;
 use egui::{AsIdSalt, Color32, IdSalt, Label, Modifiers, Response, Ui};
@@ -21,6 +21,7 @@ use super::{FillLabels, OVERLAY_COLOR_KEY};
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct FillPanelOutput {
+    /// The panel's response.
     pub response: Response,
     /// The last edit of a setting this pass, with the settings as they stand after it (written to
     /// the settings already): the tint and the preview follow. A slider's drag is
@@ -68,11 +69,13 @@ impl<'a> FillPanel<'a> {
         self
     }
 
+    /// Sets an error message to show under the panel; `None` shows none.
     pub fn error(mut self, error: Option<&'a str>) -> Self {
         self.error = error;
         self
     }
 
+    /// Draws the panel and returns its response and any setting changes.
     pub fn show(self, ui: &mut Ui) -> FillPanelOutput {
         // pc: crates/ui-egui/src/dialogs/caf_ui/view.rs:118 `caf_props_panel`.
         let Self { id_salt, settings, sampling, error, labels } = self;

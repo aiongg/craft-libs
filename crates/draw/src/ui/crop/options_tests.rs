@@ -1,4 +1,4 @@
-//! Tests of the crop settings model (task TO-C1).
+//! Tests of the crop settings model.
 
 use kurbo::Size;
 

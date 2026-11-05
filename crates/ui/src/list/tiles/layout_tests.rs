@@ -1,4 +1,4 @@
-//! `arrange`, `TileArrangement`, `fit_name` and `TileZoom` (task B3).
+//! `arrange`, `TileArrangement`, `fit_name` and `TileZoom`.
 
 use egui::Rect;
 

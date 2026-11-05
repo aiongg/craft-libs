@@ -96,6 +96,7 @@ impl Readout {
         &self.rows
     }
 
+    /// The readout look in `tokens`.
     pub fn style(tokens: &UiTokens) -> ReadoutStyle {
         let (r, c) = (&tokens.component.readout, &tokens.color);
         ReadoutStyle {

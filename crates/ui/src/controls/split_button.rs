@@ -62,7 +62,7 @@ pub struct SplitButtonStyle {
 /// - **Menu.** A press on the arrow opens a [`PressMenu`](crate::menu::PressMenu) of `entries`
 ///   under the button, aligned to its start edge, so press-drag-release chooses in one gesture;
 ///   a press on the main part runs the action and never opens the menu. While the menu is open,
-///   a press outside it (the main part included) only closes it (lead call L21: the closing
+///   a press outside it (the main part included) only closes it (the closing
 ///   press does nothing else); a press on the arrow closes it, as an anchor toggles its menu.
 /// - **Keys.** One Tab stop: Space and Enter run the action; Alt+↓ (and ↓) open the menu with
 ///   its first row active. Esc closes the menu and leaves the focus on the button.
@@ -107,16 +107,19 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
         self
     }
 
+    /// Sets the fill variant of both parts.
     pub fn variant(mut self, variant: ButtonVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether both parts take input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -135,6 +138,7 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
     }
 
     // vectorcraft: crates/ui-egui/src/widgets/buttons.rs:65 split_button_named
+    /// Draws the button and reports a press of the main part or of the arrow.
     pub fn show(self, ui: &mut Ui) -> SplitButtonResponse<T> {
         let tokens = Tokens::of(ui);
         let look = Self::style(&tokens, self.variant, self.size);

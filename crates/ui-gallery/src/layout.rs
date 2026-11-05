@@ -49,8 +49,10 @@ pub enum GalleryWorkspace {
 }
 
 impl GalleryWorkspace {
+    /// Every workspace, in tab order.
     pub const ALL: [GalleryWorkspace; 2] = [GalleryWorkspace::Components, GalleryWorkspace::Theme];
 
+    /// The workspace's tab label.
     pub fn title(self) -> &'static str {
         match self {
             GalleryWorkspace::Components => "Components",
@@ -72,13 +74,18 @@ pub enum PreviewView {
 /// What a Variants view repeats the story over.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VariantAxis {
+    #[allow(missing_docs)]
     Theme,
+    #[allow(missing_docs)]
     Mode,
+    #[allow(missing_docs)]
     Contrast,
+    #[allow(missing_docs)]
     Size,
 }
 
 impl VariantAxis {
+    /// Every axis, in menu order.
     pub const ALL: [VariantAxis; 4] = [VariantAxis::Theme, VariantAxis::Mode, VariantAxis::Contrast, VariantAxis::Size];
 
     /// The axis in "in every ...".
@@ -103,6 +110,7 @@ impl VariantAxis {
 }
 
 impl PanelId {
+    /// The panel's title.
     pub fn title(self) -> &'static str {
         match self {
             PanelId::Components => "Components",

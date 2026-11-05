@@ -33,6 +33,7 @@ craft_ui::words! {
 /// The symmetry in force, as the menu marks it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SymmetryChoice {
+    /// No symmetry.
     Off,
     /// A straight symmetry of this mode.
     Mode(SymmetryMode),
@@ -98,6 +99,7 @@ pub struct SymmetryMenu<'a> {
 }
 
 impl<'a> SymmetryMenu<'a> {
+    /// A menu with no current choice.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id_salt: IdSalt::new(id_salt), current: None, paths: &[], can_transform: false, labels: None }
     }

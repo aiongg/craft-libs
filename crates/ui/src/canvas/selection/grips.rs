@@ -53,7 +53,10 @@ pub enum GripShape {
     Midpoint,
     /// A triangle pointing along `direction` (document units; drawn as the view maps it): a
     /// dynamic linear grip, pointing the way its distance grows.
-    Arrow { direction: Vec2 },
+    Arrow {
+        /// The direction the triangle points, in document units.
+        direction: Vec2,
+    },
     /// A downward triangle: a dynamic list grip, which opens the host's list of values.
     Triangle,
 }
@@ -79,6 +82,7 @@ pub struct Grip {
     pub key: u64,
     /// Where it sits, in document units.
     pub at: Point,
+    /// How the grip is drawn.
     pub shape: GripShape,
     /// Whether the host has made it hot (CadCraft's ⇧-click list, the grip being edited).
     pub hot: bool,
@@ -111,6 +115,7 @@ impl Grip {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct GripClick {
+    /// The key of the clicked grip.
     pub key: u64,
     /// ⇧ was held (CadCraft: toggles the grip hot; a plain click starts the grip edit).
     pub shift: bool,
@@ -120,6 +125,7 @@ pub struct GripClick {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct GripDrag {
+    /// The key of the dragged grip.
     pub key: u64,
     /// Where the grip was at the press, in document units.
     pub from: Point,

@@ -55,7 +55,7 @@ impl SelectionOperation {
     /// overridden by `modifiers` as [`from_modifiers`](Self::from_modifiers) reads them (⇧ add, ⌥
     /// subtract, ⇧⌥ intersect). With nothing selected (`has_selection` false) there is nothing to
     /// subtract from or intersect with, so ⌥ or ⇧⌥ over a bar of `New` gives `New`; a bar of
-    /// `Subtract` or `Intersect` is kept as it is (PhotoCraft #1106). The tool calls it with the
+    /// `Subtract` or `Intersect` is kept as it is (storytold/photocraft#1106). The tool calls it with the
     /// modifiers of the press (or [`DraftEvent::Started`](super::draft::DraftEvent::Started)'s
     /// `intent`) and keeps the answer for the gesture; the mode badge before the press follows the
     /// live modifiers through the same call.

@@ -38,7 +38,9 @@ pub struct SliderRowStyle {
 pub struct SliderRowResponse {
     /// The slider's response.
     pub response: Response,
+    /// The slider's edit for this frame.
     pub slider: EditResponse<f64>,
+    /// The number field's edit for this frame.
     pub field: EditResponse<f64>,
 }
 
@@ -226,6 +228,7 @@ impl<'a> SliderRow<'a> {
         self
     }
 
+    /// Whether the row takes input; it also follows a disabled parent `Ui`.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

@@ -17,6 +17,7 @@ pub struct Title {
 }
 
 impl Title {
+    /// A title showing `text`, without an unsaved mark.
     pub fn new(text: impl Into<String>) -> Self {
         Self { text: text.into(), unsaved: false, unsaved_label: None }
     }

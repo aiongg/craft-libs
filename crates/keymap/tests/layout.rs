@@ -1,3 +1,5 @@
+//! Integration tests of craft-keymap: layout.
+
 use craft_keymap::{Chord, Key, KeyInput, Layout, Mods, Platform};
 
 fn chord(text: &str) -> Chord {

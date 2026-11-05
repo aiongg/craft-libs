@@ -1,4 +1,4 @@
-//! Tests of the slider tables (task AD-3).
+//! Tests of the slider tables.
 
 use egui::accesskit::Role;
 use egui::{Color32, Context, Event, Modifiers, PointerButton, RawInput, pos2, vec2};

@@ -1,5 +1,5 @@
 //! [`BlendIfBar`]: one Blend If slider (This Layer or Underlying Layer) with its four handles
-//! (task AD-10).
+//!.
 
 use egui::accesskit::{Action, ActionData, Role};
 use egui::{AsIdSalt, Color32, EventFilter, Id, IdSalt, Key, Modifiers, Pos2, Rect, Sense, Shape, Stroke, Ui, vec2};
@@ -37,7 +37,7 @@ pub(crate) const WHITE_FACE: Color32 = Color32::from_gray(240);
 ///   pointer's side. A drag moves it by [`BlendIfRange::moved`]: alone with Alt held, else the
 ///   pair keeping its spread; the order black low ≤ black high ≤ white low ≤ white high is kept by
 ///   pushing the others. One gesture per drag (`Begin`, `Update`…, `Commit`; Esc cancels).
-/// - Keys (Photoshop has none; lead call L17): the four handles are Tab stops in order. ← and →
+/// - Keys (Photoshop has none): the four handles are Tab stops in order. ← and →
 ///   move the focused handle's pair one level, ⇧ ten levels; ⌥←, ⌥→ move only the focused half.
 ///   Each press is one `Set`.
 /// - AccessKit: each handle is a `Slider` 0..=255 named
@@ -86,6 +86,7 @@ impl BlendIfBar {
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -95,7 +96,7 @@ impl BlendIfBar {
     pub fn show(self, ui: &mut Ui) -> EditResponse<BlendIfRange> {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:1333-1344 (readout above the bar),
         // :1368-1454 `blend_if_bar` (ramp, nearest handle, drag rules, triangles).
-        // new: keys, Tab stops and AccessKit (lead call L17); look from `BlendIfBar::style`.
+        // new: keys, Tab stops and AccessKit; look from `BlendIfBar::style`.
         let Self { id_salt, layer, range, labels, numbers, policy, enabled } = self;
         let tokens = Tokens::of(ui);
         let style = BlendIfBar::style(&tokens);

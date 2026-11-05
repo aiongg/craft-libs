@@ -1,3 +1,5 @@
+//! Integration tests of craft-craft: egui fork.
+
 use craft::egui_fork::{GIT, PACKAGES, REV, check_lockfile};
 
 fn workspace_file(name: &str) -> String {

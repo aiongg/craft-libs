@@ -82,6 +82,7 @@ pub struct RulerTool {
 }
 
 impl RulerTool {
+    /// A tool with no line.
     pub fn new() -> Self {
         Self::default()
     }

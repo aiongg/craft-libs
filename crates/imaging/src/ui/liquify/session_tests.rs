@@ -1,4 +1,4 @@
-//! Tests of Liquify's session, tools and keys (task WS-LQ1).
+//! Tests of Liquify's session, tools and keys.
 
 use egui::{Context, Event, Key, Modifiers, RawInput};
 

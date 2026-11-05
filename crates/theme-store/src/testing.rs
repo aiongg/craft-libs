@@ -6,6 +6,7 @@
 
 use craft_theme::{ColorToken, Mode, Rgba};
 
+/// The id of [`SAMPLE_THEME_JSON`]'s theme.
 pub const SAMPLE_THEME_ID: &str = "sample.navy-cream";
 
 /// A theme with both variants, pins in each mode, and unknown keys at the top level, in
@@ -94,10 +95,15 @@ mod fault {
     /// The step of an atomic write that [`FailingFs`] fails.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum FailAt {
+        #[allow(missing_docs)]
         Create,
+        #[allow(missing_docs)]
         Sync,
+        #[allow(missing_docs)]
         Rename,
+        #[allow(missing_docs)]
         HardLink,
+        #[allow(missing_docs)]
         Remove,
     }
 

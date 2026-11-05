@@ -1,4 +1,4 @@
-//! Tests of the brush card parts and layout (task BR-BP1).
+//! Tests of the brush card parts and layout.
 
 use craft_theme::Mode;
 use craft_ui::theme::{Base, install, tokens_in_mode};

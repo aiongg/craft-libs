@@ -1,4 +1,4 @@
-//! Stories of the Slice tools (task ST-SH1; task RG2 registers them). A fake document carries user,
+//! Stories of the Slice tools. A fake document carries user,
 //! auto and layer slices, and the tool, its options bar and the dialogs run on it as an app runs
 //! them. Sample words are story words; the plain strings are the status lines.
 //!
@@ -10,9 +10,6 @@
 //! - `patterns/slice-options-dialog/dialog`: Image, No Image and HTML Text; the Background colour is answered
 //!   by the story.
 //! - `patterns/divide-slices-dialog/dialog`: rows and columns by count or by size.
-//!
-//! RG2 registers `stories()` and the components `SliceTool`, `SliceBar`, `SliceOptionsDialog` and
-//! `DivideSlicesDialog`; RG1 adds [`SliceStoryLabels`] to `WORDS`.
 
 use egui::Ui;
 use kurbo::Rect;

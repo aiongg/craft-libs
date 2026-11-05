@@ -1,4 +1,4 @@
-//! Tests of Vanishing Point's drawing and workspace (task WS-VP2).
+//! Tests of Vanishing Point's drawing and workspace.
 
 use egui::epaint::ColorMode;
 use egui::os::OperatingSystem;

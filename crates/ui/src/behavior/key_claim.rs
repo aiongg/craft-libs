@@ -26,6 +26,7 @@ pub struct KeyClaim;
 /// A key a control claims, and how an app shortcut matches it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ClaimedKey {
+    /// The key and the modifiers it needs.
     pub shortcut: KeyboardShortcut,
     /// Whether the key also counts with Shift or Alt held (egui's
     /// [`Modifiers::matches_logically`]), for a key some keyboards type with Shift (`+` is

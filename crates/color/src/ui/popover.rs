@@ -60,7 +60,7 @@ pub struct ColorPopoverResponse {
     /// The edit of the picker in the popup; the response is the swatch's. Without an event while
     /// the popup is closed.
     pub edit: EditResponse<PickedColor>,
-    /// The picker's eyedropper button was pressed ([`ColorPickerResponse`](super::ColorPickerResponse)).
+    /// The picker's eyedropper button was pressed ([`ColorPickerResponse`]).
     /// The result goes to [`ColorPicker::sampled`] with [`picker_id`](Self::picker_id).
     pub eyedropper_requested: bool,
     /// The id of the picker in the popup, once it has been shown.
@@ -85,6 +85,7 @@ impl<'a> ColorPopover<'a> {
         }
     }
 
+    /// Sets the control size.
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -110,6 +111,7 @@ impl<'a> ColorPopover<'a> {
         self
     }
 
+    /// Draws the swatch and, while open, its popover; returns the response.
     pub fn show(self, ui: &mut Ui) -> ColorPopoverResponse {
         let Self { id_salt, label, color, numbers, size, dimensions, enabled, picker: setup } = self;
         let enabled = enabled && ui.is_enabled();

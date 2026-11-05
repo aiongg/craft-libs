@@ -224,6 +224,7 @@ impl Inspector {
         self
     }
 
+    /// The resolved inspector style, read from `tokens.component.inspector`.
     pub fn style(tokens: &UiTokens) -> InspectorStyle {
         let i = &tokens.component.inspector;
         InspectorStyle {

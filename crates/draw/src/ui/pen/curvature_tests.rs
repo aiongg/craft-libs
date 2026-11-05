@@ -1,4 +1,4 @@
-//! Tests of the pen draft's Curvature mode (task PE-B2).
+//! Tests of the pen draft's Curvature mode.
 
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Sense, Shape, vec2};
 use egui_kittest::Harness;

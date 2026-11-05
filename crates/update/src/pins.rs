@@ -9,7 +9,7 @@
 //! never in the launcher's own folder: a Flatpak launcher's own folder is inside its sandbox, and a
 //! Flatpak app can be given read access to this one folder alone
 //! (`--filesystem=xdg-data/ArtCraft/versions:ro`) without seeing the launcher's settings.
-//! Inside a Flatpak, the host's folder is used (see [`crate::folders::host_data_local_dir`]).
+//! Inside a Flatpak, the host's folder is used (see `crate::folders::host_data_local_dir`).
 //!
 //! Invariants:
 //! - A missing, unreadable or damaged file means every app follows stable releases, as before.
@@ -33,9 +33,12 @@ pub const FLATPAK_GRANT: &str = "--filesystem=xdg-data/ArtCraft/versions:ro";
 /// Which published build an app follows. A pinned version never changes on its own.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VersionTrack {
+    /// The newest stable release.
     #[default]
     Stable,
+    /// The newest prerelease.
     Nightly,
+    /// A fixed version label.
     Pinned(String),
 }
 

@@ -1,4 +1,4 @@
-//! `LinkList` through egui_kittest (task B9).
+//! `LinkList` through egui_kittest.
 
 use std::collections::HashMap;
 

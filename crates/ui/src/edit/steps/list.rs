@@ -241,7 +241,7 @@ impl StepList {
     }
 
     /// Makes `id` current. No state is added or dropped; the skipped states stay redoable (one
-    /// jump, never one undo per state: PhotoCraft #2966). Ends any run and forgets what `clear`
+    /// jump, never one undo per state: storytold/photocraft#2966). Ends any run and forgets what `clear`
     /// set aside. `None` when `id` is unknown or already current.
     pub fn go_to(&mut self, id: StepId) -> Option<Jump> {
         let to = self.row_of(id)?;

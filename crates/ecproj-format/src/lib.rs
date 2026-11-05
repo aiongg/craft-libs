@@ -109,6 +109,7 @@ pub struct File<'a, V, P> {
 }
 
 impl<'a, V: Serialize, P: Serialize> File<'a, V, P> {
+    /// A file for `saved_by`, `view` and `project`.
     pub fn new(saved_by: &'a str, view: &'a V, project: &'a P) -> Self {
         File { saved_by, view, project }
     }

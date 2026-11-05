@@ -6,8 +6,8 @@ use egui::{Context, Ui};
 
 use super::{
     Alert, CanvasSizeDialog, CommandForm, DialogHost, DialogId, DialogLabels, DialogResult, DialogStack, ImageSizeDialog, NoteTone, Param,
-    ParamDialog, ParamLayout, PixelSize, PromptKind, PropertiesDialog, PropertiesTab, PropertyRow, ReportDialog, ReportNote, Resample, StackDialog,
-    StandardPrompt, StartupStage, UnsavedChangesDialog, dialog_id,
+    ParamDialog, ParamLayout, PixelSize, PromptChoice, PromptKind, PropertiesDialog, PropertiesTab, PropertyRow, ReportDialog, ReportNote, Resample,
+    StackDialog, StandardPrompt, StartupStage, UnsavedChangesDialog, dialog_id,
 };
 use crate::localized::Labels as _;
 use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryChoice, drive, lock, shared};
@@ -17,6 +17,7 @@ use crate::typed_story;
 enum LayoutArg {
     SideColumn,
     BottomFooter,
+    Stacked,
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]
@@ -53,6 +54,9 @@ enum PromptKindArg {
     ChangedOnDisk,
     ReplaceFile,
     TrashMask,
+    TrashVectorMask,
+    Rasterize,
+    GpuWarning,
     Unsaved,
 }
 
@@ -62,6 +66,9 @@ struct PromptArgs {
     kind: PromptKindArg,
     #[arg(name = "several documents")]
     several: bool,
+    /// Damaged file: a warnings list; Trash mask: Apply disabled; Rasterize: a smart-object layer.
+    #[arg(name = "alternate form")]
+    alternate: bool,
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]
@@ -109,7 +116,7 @@ pub(super) fn stories() -> Vec<Story> {
             Level::Patterns,
             "Dialog",
             "Standard prompts",
-            PromptArgs { open: true, kind: PromptKindArg::ConfirmDelete, several: false },
+            PromptArgs { open: true, kind: PromptKindArg::ConfirmDelete, several: false, alternate: false },
             show_prompt
         ),
         typed_story!(
@@ -156,6 +163,16 @@ fn filter_params() -> Vec<Param> {
         Param::new("lookup", "Look-up table:", super::ParamKind::Text { default: String::new() })
             .browse(super::PathKind::open_file(&["cube", "3dl"])),
     );
+    params.push(Param::section("Halftone"));
+    params.push(Param::number("cellSize", "Cell size:", 8.0, 1.0, 0).bounds(Some(1.0), Some(64.0)).visible_when("monochromatic", true));
+    params.push(Param::number_with_units(
+        "output",
+        "Output:",
+        72.0,
+        1.0,
+        2,
+        vec![super::NumberUnit::new("ppi", "pixels/inch", 1.0), super::NumberUnit::new("ppcm", "pixels/cm", 2.54)],
+    ));
     params.push(Param::custom("result", "Result:", |ui, _, custom| {
         let response = ui.button("Pick color…");
         if response.clicked() {
@@ -172,6 +189,7 @@ fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
     let layout = match args.layout {
         LayoutArg::SideColumn => ParamLayout::SideColumn,
         LayoutArg::BottomFooter => ParamLayout::BottomFooter,
+        LayoutArg::Stacked => ParamLayout::Stacked,
     };
     let preview = args.preview;
     drive(
@@ -251,22 +269,52 @@ fn show_size(ui: &mut Ui, args: &mut SizeArgs) {
 /// The standard prompts and the unsaved-changes question.
 fn show_prompt(ui: &mut Ui, args: &mut PromptArgs) {
     let several = args.several;
-    let kind = match args.kind {
-        PromptKindArg::ConfirmDelete => Some(if several {
-            PromptKind::ConfirmDelete { names: vec!["Background".to_owned(), "Layer 1".to_owned()], count: 5 }
-        } else {
-            PromptKind::ConfirmDelete { names: vec!["Background".to_owned()], count: 1 }
-        }),
-        PromptKindArg::DamagedFile => Some(PromptKind::DamagedFile { name: "poster.psd".to_owned() }),
-        PromptKindArg::ChangedOnDisk => Some(PromptKind::ChangedOnDisk { name: "poster.psd".to_owned() }),
+    let alternate = args.alternate;
+    let prompt: Option<Box<dyn Fn() -> StandardPrompt>> = match args.kind {
+        PromptKindArg::ConfirmDelete => Some(Box::new(move || {
+            StandardPrompt::new(if several {
+                PromptKind::ConfirmDelete { names: vec!["Background".to_owned(), "Layer 1".to_owned()], count: 5 }
+            } else {
+                PromptKind::ConfirmDelete { names: vec!["Background".to_owned()], count: 1 }
+            })
+        })),
+        PromptKindArg::DamagedFile => Some(Box::new(move || {
+            let prompt = StandardPrompt::damaged_file("poster.psd");
+            if alternate {
+                prompt
+                    .message("\u{201c}poster.psd\u{201d} has damaged data.\n\nSome layers may be missing or look wrong. Open it anyway?")
+                    .warnings((1..=12).map(|n| format!("Layer {n}: the pixel data is shorter than its bounds")))
+            } else {
+                prompt
+            }
+        })),
+        PromptKindArg::ChangedOnDisk => Some(Box::new(|| StandardPrompt::changed_on_disk("poster.psd"))),
         PromptKindArg::ReplaceFile => {
-            Some(PromptKind::ReplaceFile { name: "poster.png".to_owned(), answered: several.then(|| "poster.png.png".to_owned()) })
+            Some(Box::new(move || StandardPrompt::replace_file("poster.png", several.then(|| "poster.png.png".to_owned()))))
         }
-        PromptKindArg::TrashMask => Some(PromptKind::TrashMask),
+        PromptKindArg::TrashMask => Some(Box::new(move || StandardPrompt::trash_mask().can_apply(!alternate))),
+        PromptKindArg::TrashVectorMask => Some(Box::new(StandardPrompt::trash_vector_mask)),
+        PromptKindArg::Rasterize => Some(Box::new(move || {
+            let message =
+                if alternate { "This smart object must be rasterized to continue." } else { "This type layer must be rasterized to continue." };
+            StandardPrompt::custom(message)
+                .title("Rasterize")
+                .button(PromptChoice::Proceed, "Convert to Smart Object", Some(egui::Key::C))
+                .button(PromptChoice::Alternate, "Rasterize", Some(egui::Key::R))
+                .button(PromptChoice::Cancel, "Cancel", Some(egui::Key::A))
+        })),
+        PromptKindArg::GpuWarning => Some(Box::new(|| {
+            StandardPrompt::custom("The graphics processor failed to start.")
+                .title("GPU unavailable")
+                .tone(craft_theme::Tone::Warn, "Rendering will be slower on the CPU.")
+                .details("The driver reported: device lost (code 7).")
+                .button(PromptChoice::Proceed, "Keep Using CPU", Some(egui::Key::K))
+                .button(PromptChoice::Alternate, "Retry GPU", Some(egui::Key::R))
+        })),
         PromptKindArg::Unsaved => None,
     };
-    match kind {
-        Some(kind) => drive(ui, "prompt", &mut args.open, (args.kind, several), || StandardPrompt::new(kind), |_| {}, |choice| format!("{choice:?}")),
+    match prompt {
+        Some(prompt) => drive(ui, "prompt", &mut args.open, (args.kind, several, alternate), prompt, |_| {}, |choice| format!("{choice:?}")),
         None => drive(
             ui,
             "unsaved",

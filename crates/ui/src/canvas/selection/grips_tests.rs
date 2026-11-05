@@ -1,4 +1,4 @@
-//! Tests of the grip set (task K12).
+//! Tests of the grip set.
 
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Sense, vec2};

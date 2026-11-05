@@ -1,3 +1,5 @@
+//! Integration tests of craft-prepress: plates.
+
 use std::sync::Arc;
 
 use craft_cms::{Intent, Profile, Transform, builtin};

@@ -6,12 +6,14 @@ use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// A printer the spooler offers.
 pub struct Printer {
     /// The spooler's destination: what [`Settings::printer`] and jobs name.
     pub name: String,
     /// What the dialog shows; empty shows `name`. CUPS, for one, describes the queue
     /// `_192_0_2_15` as `192.0.2.15`, the name the user gave the printer.
     pub label: String,
+    /// Whether it is the system's default printer.
     pub default: bool,
 }
 
@@ -62,18 +64,26 @@ pub fn shown_names(printers: &[Printer]) -> Vec<String> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Two-sided printing mode.
 pub enum Duplex {
+    /// One-sided printing.
     Off,
+    /// Two-sided, flipping on the long edge.
     LongEdge,
+    /// Two-sided, flipping on the short edge.
     ShortEdge,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// What the user chose for one print job.
 pub struct Settings {
+    /// The chosen printer's [`Printer::name`].
     pub printer: String,
+    /// Number of copies.
     pub copies: u32,
     /// None preserves the printer's default instead of forcing simplex.
     pub duplex: Option<Duplex>,
+    /// Print in grayscale.
     pub grayscale: bool,
 }
 
@@ -83,34 +93,54 @@ impl Default for Settings {
     }
 }
 
+/// Starts discovery of printers; the returned receiver delivers the list once.
 pub type Discover = Box<dyn Fn() -> Receiver<Vec<Printer>>>;
+/// The receiver of one print job's outcome: the backend's receipt on success, its error text on failure.
 pub type Submission = Receiver<Result<String, String>>;
+/// Starts a print job from the document's PDF bytes with the chosen [`Settings`].
 pub type Submit = Box<dyn Fn(Vec<u8>, Settings) -> Submission>;
 
 /// Apps format these states in their own language. Receipts and errors are backend text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Feedback {
+    /// Discovery is running.
     FindingPrinters,
+    /// Discovery finished and found no printers.
     NoPrinters,
+    /// Discovery's worker stopped without a list.
     DiscoveryFailed,
+    /// A job was handed to the worker.
     Submitting,
+    /// The job succeeded; carries the backend's receipt text.
     Submitted(String),
+    /// The job failed; carries the backend's error text.
     Failed(String),
+    /// The job's worker stopped without an outcome.
     WorkerStopped,
 }
 
 /// Translated labels supplied by the app; identity never depends on their text. [`PrintTexts`]
 /// holds the same labels as owned, translatable text.
 pub struct PrintLabels<'a> {
+    #[allow(missing_docs)]
     pub printer: &'a str,
+    #[allow(missing_docs)]
     pub select_printer: &'a str,
+    #[allow(missing_docs)]
     pub refresh: &'a str,
+    #[allow(missing_docs)]
     pub copies: &'a str,
+    #[allow(missing_docs)]
     pub printer_default: &'a str,
+    #[allow(missing_docs)]
     pub duplex: &'a str,
+    #[allow(missing_docs)]
     pub one_sided: &'a str,
+    #[allow(missing_docs)]
     pub long_edge: &'a str,
+    #[allow(missing_docs)]
     pub short_edge: &'a str,
+    #[allow(missing_docs)]
     pub grayscale: &'a str,
 }
 
@@ -137,6 +167,7 @@ craft_ui::words! {
 }
 
 impl PrintTexts {
+    /// Lends the labels as [`PrintLabels`], for [`State::show`].
     pub fn labels(&self) -> PrintLabels<'_> {
         PrintLabels {
             printer: &self.printer,
@@ -154,9 +185,13 @@ impl PrintTexts {
 }
 
 #[derive(Default)]
+/// The state of the printer controls: settings, the printer list, the feedback and the running workers.
 pub struct State {
+    /// The current choices.
     pub settings: Settings,
+    /// The printers found by the last discovery; empty while none is known.
     pub printers: Vec<Printer>,
+    /// The latest feedback for the app to show, if any.
     pub message: Option<Feedback>,
     discovery: Option<Receiver<Vec<Printer>>>,
     submission: Option<Submission>,
@@ -164,10 +199,12 @@ pub struct State {
 }
 
 impl State {
+    /// Whether a print job is running.
     pub fn busy(&self) -> bool {
         self.submission.is_some()
     }
 
+    /// Whether printer discovery is running.
     pub fn discovering(&self) -> bool {
         self.discovery.is_some()
     }
@@ -200,6 +237,7 @@ impl State {
         true
     }
 
+    /// Reads finished workers' results into [`State::printers`] and [`State::message`], and asks for a repaint every 100 ms while a worker runs. Call it once per frame.
     pub fn poll(&mut self, ctx: &egui::Context) {
         if let Some(receiver) = &self.discovery {
             match receiver.try_recv() {

@@ -1,4 +1,4 @@
-//! `ReorderableSections` through egui_kittest (task B2).
+//! `ReorderableSections` through egui_kittest.
 
 use egui::accesskit::Role;
 use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, Ui, pos2, vec2};

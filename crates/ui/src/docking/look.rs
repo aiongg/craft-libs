@@ -18,6 +18,8 @@ pub struct DockLook {
     pub tab_height: f32,
     /// Space between the groups of a split.
     pub gap: f32,
+    /// Gap beside attached side docks; `None`: `gap`. Other split dividers keep `gap`.
+    pub dock_gap: Option<f32>,
     /// Vertical gap between stacked controls in a panel body, docked or floating: `dock.body_gap`.
     pub body_gap: f32,
     /// Least width or height of a pane in a split: `dock.min_pane`.
@@ -32,6 +34,7 @@ pub struct DockLook {
     pub menu_max_height: f32,
     /// Room inside controls: around a title, a float hint and an icon's label.
     pub pad: f32,
+    /// Fill of panel bodies.
     pub background: Color32,
     /// Tab strip, column bar and floating title bar.
     pub tab_strip: Color32,
@@ -41,8 +44,11 @@ pub struct DockLook {
     pub tab_radius: f32,
     /// Fill of the current icon cell in an iconic column.
     pub icon_selected: Color32,
+    #[allow(missing_docs)]
     pub text: Color32,
+    #[allow(missing_docs)]
     pub inactive_text: Color32,
+    /// Outline of panel bodies and the dock's edges.
     pub border: Stroke,
     /// A resize handle under the pointer or being dragged.
     pub resize: Color32,
@@ -50,22 +56,24 @@ pub struct DockLook {
     pub drop: Color32,
     /// Keyboard focus strokes.
     pub focus: Color32,
+    #[allow(missing_docs)]
     pub font: FontId,
     /// Horizontal room around a tab's label, both when measuring its natural width and when
     /// cutting it.
     pub tab_padding: f32,
     /// Painted under every floating window, so it stays opaque when the panel colors are not.
     pub floating_background: Color32,
+    /// Outline of a floating window.
     pub floating_stroke: Stroke,
     /// Painted over a native floating window while [`super::DockArea::input_blocked`] is on.
     pub blocked_dim: Color32,
     /// Height of a floating window's title bar.
     pub title_height: f32,
-    /// [D] Height of the bar above each dock column. It drags the column and holds its »/« button.
+    /// \[D\] Height of the bar above each dock column. It drags the column and holds its »/« button.
     pub column_bar_height: f32,
-    /// [D] Side of a panel icon in an iconic column; each icon row is 10 pt taller.
+    /// \[D\] Side of a panel icon in an iconic column; each icon row is 10 pt taller.
     pub icon_size: f32,
-    /// [D] Width of an iconic column without a saved width, and the narrowest it gets.
+    /// \[D\] Width of an iconic column without a saved width, and the narrowest it gets.
     pub iconic_width: f32,
     /// Widest an iconic column gets by dragging its inner edge: `dock.iconic_max_width`.
     pub iconic_max_width: f32,
@@ -117,9 +125,11 @@ pub struct DockLook {
     pub float_min_body_height: f32,
     /// Corner radius of a floating window's fill and outline.
     pub floating_radius: CornerRadius,
+    /// Shadow of a floating window.
     pub floating_shadow: Shadow,
     /// Fill of a floating window's title bar.
     pub title_background: Color32,
+    #[allow(missing_docs)]
     pub title_text: Color32,
     /// The ▾ and × glyphs of a floating title bar at rest.
     pub title_muted: Color32,
@@ -154,6 +164,7 @@ impl DockLook {
         Self {
             tab_height: tab.panel_height,
             gap: dock.gap,
+            dock_gap: None,
             body_gap: dock.body_gap,
             min_pane: dock.min_pane,
             drag_bar_width: dock.drag_bar_width,
@@ -256,6 +267,7 @@ impl DockLook {
         .all(|v| v.is_finite() && (0.0..=4096.0).contains(v))
             && self.tab_height > 0.0
             && self.font.size > 0.0
+            && self.dock_gap.is_none_or(|gap| gap.is_finite() && (0.0..=4096.0).contains(&gap))
     }
 }
 
@@ -289,7 +301,9 @@ impl DockSpec for DockStyle {
 /// A config and a look the application built.
 #[derive(Clone, Debug)]
 pub struct DockWith {
+    /// The behaviour and labels.
     pub config: DockConfig,
+    /// The colors, sizes and font.
     pub look: DockLook,
 }
 

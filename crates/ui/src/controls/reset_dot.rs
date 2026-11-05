@@ -87,6 +87,7 @@ impl ResetDot {
     }
 
     // vectorcraft: crates/ui-egui/src/dialogs/revolve.rs:573 reset_dot, :564 dot
+    /// Draws the dot; `clicked()` on the response asks the host to put the default back.
     pub fn show(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let labels = self.labels.unwrap_or_else(|| ResetDotLabels::of(ui));

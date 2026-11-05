@@ -110,6 +110,7 @@ pub struct SelectionBar {
 }
 
 impl SelectionBar {
+    /// A bar keyed `id_salt`, below the selection, with the default labels.
     pub fn new(id_salt: impl AsIdSalt) -> Self {
         Self { id: Id::unique(id_salt), above: false, pinned: None, labels: None }
     }

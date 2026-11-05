@@ -1,3 +1,5 @@
+//! Integration tests of craft-platform: dialog lifecycle.
+
 #![cfg(all(feature = "dialogs", not(target_arch = "wasm32")))]
 use craft_platform::{
     dialog_outcome::{DialogError, ErrorKind, Outcome},

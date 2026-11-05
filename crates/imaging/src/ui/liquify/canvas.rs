@@ -1,4 +1,4 @@
-//! Liquify's canvas: the canvas tool, the backdrop layering, the mesh (task WS-LQ2).
+//! Liquify's canvas: the canvas tool, the backdrop layering, the mesh.
 
 use egui::{Color32, ColorImage, Modifiers, Painter, PointerButton, Pos2, Shape, Stroke};
 
@@ -27,8 +27,11 @@ const HOLD_INTERVAL: f64 = 1.0 / 30.0;
 /// `columns × rows` nodes in row order, in document pixels.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LiquifyMesh {
+    /// Nodes per row.
     pub columns: usize,
+    /// Number of rows.
     pub rows: usize,
+    /// The `columns × rows` nodes in row order, in document pixels.
     pub points: Vec<Point>,
 }
 
@@ -70,8 +73,11 @@ impl LiquifyMesh {
 /// | Blend | at 1 − opacity | in front, at the opacity |
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BackdropLayering {
+    /// The tint of the image.
     pub image: Color32,
+    /// The tint of the backdrop drawn behind the image, if any.
     pub behind: Option<Color32>,
+    /// The tint of the backdrop drawn in front of the image, if any.
     pub front: Option<Color32>,
 }
 
@@ -215,6 +221,7 @@ impl Default for LiquifyCanvas {
 }
 
 impl LiquifyCanvas {
+    /// An idle canvas.
     pub fn new() -> Self {
         Self::default()
     }

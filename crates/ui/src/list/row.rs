@@ -322,23 +322,31 @@ pub struct ListRowStyle {
     pub detail_role: TypeRole,
     /// Line height of the label and of the detail line.
     pub label_line: f32,
+    /// Line height of the detail line.
     pub detail_line: f32,
     /// `list.text`, `list.text.dimmed`, `list.text.selected` and `list.text.selected.dimmed`.
     pub text: Color32,
+    #[allow(missing_docs)]
     pub dimmed: Color32,
     /// `list.text.muted`: the label of a [muted](ListRow::muted) row.
     pub muted: Color32,
+    #[allow(missing_docs)]
     pub selected_text: Color32,
+    #[allow(missing_docs)]
     pub selected_dimmed: Color32,
     /// `list.detail` and `list.detail.selected`.
     pub detail: Color32,
+    #[allow(missing_docs)]
     pub selected_detail: Color32,
     /// `list.icon` and `list.icon.hover`.
     pub icon: Color32,
+    #[allow(missing_docs)]
     pub icon_hover: Color32,
     /// `list.hover`, `list.selected` and `list.selected.hover`.
     pub hover: Color32,
+    #[allow(missing_docs)]
     pub selected: Color32,
+    #[allow(missing_docs)]
     pub selected_hover: Color32,
     /// `list.stripe`: behind every second row of a striped list, under the hover and selected fills.
     pub stripe: Color32,
@@ -346,20 +354,25 @@ pub struct ListRowStyle {
     pub divider: Stroke,
     /// `list.thumb.border` and `list.thumb.border.selected`.
     pub thumb_border: Color32,
+    #[allow(missing_docs)]
     pub thumb_border_selected: Color32,
     /// `list.thumb.radius`: the corners of the thumbnail's frame.
     pub thumb_radius: f32,
     /// The layer form's fills: `list.layer.hover` and `list.layer.selected`, and the 1 pt inside
     /// outline of the selected row, `list.layer.outline` (clear when the theme has none).
     pub layer_hover: Color32,
+    #[allow(missing_docs)]
     pub layer_selected: Color32,
+    #[allow(missing_docs)]
     pub layer_outline: Color32,
     /// `list.layer.radius`: the corners of the layer form's fills and outline.
     pub layer_radius: f32,
     /// `list.layer.text.selected`, `list.layer.text.selected.dimmed` and
     /// `list.layer.detail.selected`.
     pub layer_selected_text: Color32,
+    #[allow(missing_docs)]
     pub layer_selected_dimmed: Color32,
+    #[allow(missing_docs)]
     pub layer_selected_detail: Color32,
     /// `list.drop`.
     pub drop: Color32,
@@ -367,7 +380,9 @@ pub struct ListRowStyle {
     pub drop_halo: Stroke,
     /// The drag ghost: `list.ghost.fill`, a 1 pt `list.ghost.border`, `radius.control` corners.
     pub ghost_fill: Color32,
+    #[allow(missing_docs)]
     pub ghost_border: Color32,
+    /// Corner radius of the drag ghost (`radius.control`).
     pub ghost_radius: f32,
     /// Where the ghost starts from the pointer toward the reading end: `list.ghost_offset`.
     pub ghost_offset: Vec2,
@@ -556,8 +571,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     }
 
     /// Empty room in a list: a row that takes its height but draws nothing, answers no pointer
-    /// and has no AccessKit node. Give its position [`DisplayOrder::is_section`] so that keys and
-    /// clicks skip it, and its height through [`List::heights`].
+    /// and has no AccessKit node. Give its position `DisplayOrder::is_section` so that keys and
+    /// clicks skip it, and its height through `List::heights`.
     pub fn spacer(key: K) -> Self {
         let mut row = Self::new(key, String::new());
         row.spacer = true;
@@ -975,6 +990,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
+    /// The row look from the theme's `list` tokens.
     pub fn style(tokens: &UiTokens) -> ListRowStyle {
         let l = &tokens.component.list;
         ListRowStyle {

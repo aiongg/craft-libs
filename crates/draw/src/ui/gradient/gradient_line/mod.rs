@@ -17,14 +17,18 @@ pub const MIN_MIDPOINT_GAP: f32 = 0.001;
 /// A gradient's line between its start and end handles, in document units.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GradientLine {
+    /// The start handle.
     pub start: Point,
+    /// The end handle.
     pub end: Point,
 }
 
 /// What [`GradientOverlay`](crate::ui::gradient::GradientOverlay) edits: the line and the stops on it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LineGradient {
+    /// The line between the handles.
     pub line: GradientLine,
+    /// The colour and opacity stops along it.
     pub stops: GradientStops,
 }
 
@@ -69,8 +73,11 @@ pub enum GradientExtent {
 pub enum LinePart {
     /// The line between the handles.
     Line,
+    /// The start handle.
     Start,
+    /// The end handle.
     End,
+    /// Colour stop `i`.
     Stop(usize),
     /// The diamond between stop `i` and stop `i + 1`.
     Midpoint(usize),

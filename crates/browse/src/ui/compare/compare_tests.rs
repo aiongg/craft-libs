@@ -1,4 +1,4 @@
-//! `CompareTile` through egui_kittest (task B8).
+//! `CompareTile` through egui_kittest.
 
 use craft_ui::canvas::CanvasView;
 use craft_ui::canvas::textures::Revision;

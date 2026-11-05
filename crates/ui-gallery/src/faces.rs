@@ -22,8 +22,11 @@ use egui::{Color32, FontData, FontFamily, RichText, Ui};
 
 /// A font file from the candidate manifest.
 pub struct Candidate {
+    /// The family name.
     pub family: &'static str,
+    /// The style, such as `Regular`.
     pub style: &'static str,
+    /// The font file's bytes.
     pub bytes: &'static [u8],
 }
 

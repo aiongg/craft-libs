@@ -11,11 +11,13 @@ use super::{
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PdfPreset {
+    #[allow(missing_docs)]
     pub name: String,
     /// What the preset is for.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub description: String,
     #[serde(default)]
+    #[allow(missing_docs)]
     pub settings: PdfSettings,
 }
 

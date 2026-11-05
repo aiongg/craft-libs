@@ -28,12 +28,17 @@ pub struct TypingLook {
     pub margin: Margin,
     /// Where the text sits in the box: vertically centred, at the reading start.
     pub align: Align2,
+    /// Font of the text, the placeholder and the caret height.
     pub font: FontId,
+    /// Colour of the typed text.
     pub text: Color32,
+    /// Colour of the placeholder shown while the field is empty.
     pub placeholder: Color32,
     /// Behind selected text.
     pub selection: Color32,
+    /// Colour of selected text.
     pub selected_text: Color32,
+    /// Colour of the caret.
     pub caret: Color32,
 }
 
@@ -44,6 +49,7 @@ type Layouter<'a> = &'a dyn Fn(&Ui, &str, f32) -> Arc<Galley>;
 /// whose every text is a value; a number field's codec, whose typed text is a draft until the
 /// run commits.
 pub trait Codec {
+    /// The value the field edits.
     type Value: Clone + PartialEq + Send + Sync + 'static;
 
     /// Whether every text is a value. Then the typing run reports each change at the policy's
@@ -336,11 +342,13 @@ impl<'a, C: Codec> Typing<'a, C> {
         self
     }
 
+    /// How often the field reports a change as a value; see [`EditPolicy`].
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// Whether the field takes input; a disabled field also follows a disabled parent `Ui`.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -376,6 +384,7 @@ impl<'a, C: Codec> Typing<'a, C> {
         self
     }
 
+    /// What Esc does while the field has focus.
     pub fn escape(mut self, escape: Escape) -> Self {
         self.escape = escape;
         self

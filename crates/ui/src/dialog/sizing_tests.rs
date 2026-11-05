@@ -189,7 +189,16 @@ fn ok_returns_the_typed_size_results() {
     harness.run();
     harness.run();
     let result = harness.state_mut().dialogs.take::<ImageSizeDialog>().and_then(DialogResult::ok).expect("OK answered");
-    assert_eq!(result, ImageSizeResult { size: size(1200, 800, 72.0), resample: Resample::Bilinear, scale_styles: false });
+    assert_eq!(
+        result,
+        ImageSizeResult {
+            size: size(1200, 800, 72.0),
+            unit: SizeUnit::Pixels,
+            resolution_unit: ResolutionUnit::PixelsPerInch,
+            resample: Resample::Bilinear,
+            scale_styles: false
+        }
+    );
 
     let mut harness = host_with(|dialogs| {
         dialogs.open(CanvasSizeDialog::new(size(1200, 800, 72.0)));
@@ -200,7 +209,16 @@ fn ok_returns_the_typed_size_results() {
     harness.run();
     harness.run();
     let result = harness.state_mut().dialogs.take::<CanvasSizeDialog>().and_then(DialogResult::ok).expect("OK answered");
-    assert_eq!(result, CanvasSizeResult { size: size(1200, 800, 72.0), anchor: Anchor::BottomLeft, extension: CanvasExtension::Background });
+    assert_eq!(
+        result,
+        CanvasSizeResult {
+            size: size(1200, 800, 72.0),
+            unit: SizeUnit::Pixels,
+            relative: false,
+            anchor: Anchor::BottomLeft,
+            extension: CanvasExtension::Background
+        }
+    );
 }
 
 // Image Size links width and height with a chain; Canvas Size has none.
@@ -314,4 +332,113 @@ fn size_readouts_follow_the_fields_in_the_same_pass() {
     }
     // 1 x 1 px at 4 bytes per pixel.
     harness.get_by_value(&format!("{} (was {})", human_bytes(4.0), human_bytes(1200.0 * 800.0 * 4.0)));
+}
+
+// Row 161: the dialog opens in the unit the host names and answers with the unit chosen.
+#[test]
+fn the_opening_unit_comes_back_in_the_result() {
+    let mut harness = host_with(|dialogs| {
+        dialogs.open(ImageSizeDialog::new(size(1200, 800, 72.0)).unit(SizeUnit::Inches).resolution_unit(ResolutionUnit::PixelsPerCentimetre));
+    });
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Width").accesskit_node().value().is_some_and(|v| v.starts_with("16.667")));
+    harness.get_by_label("OK").click();
+    harness.run();
+    harness.run();
+    let result = harness.state_mut().dialogs.take::<ImageSizeDialog>().and_then(DialogResult::ok).expect("OK answered");
+    assert_eq!((result.unit, result.resolution_unit), (SizeUnit::Inches, ResolutionUnit::PixelsPerCentimetre));
+}
+
+// Rows 162 and 163: setters change what the open dialog answers, and `confirm` answers OK.
+#[test]
+fn setters_change_the_open_dialog_and_confirm_answers_ok() {
+    let mut harness = host_with(|dialogs| {
+        dialogs.open(ImageSizeDialog::new(size(1200, 800, 72.0)));
+        dialogs.open(CanvasSizeDialog::new(size(1200, 800, 72.0)));
+    });
+    let ctx = harness.ctx.clone();
+    {
+        let dialog = harness.state_mut().dialogs.get_mut::<ImageSizeDialog>().expect("open");
+        dialog.set_unit(SizeUnit::Percent);
+        dialog.set_width(50.0);
+        dialog.set_resample(Resample::Bilinear);
+        dialog.set_scale_styles(false);
+        assert_eq!((dialog.chosen_resample(), dialog.chosen_scale_styles()), (Resample::Bilinear, false));
+        let canvas = harness.state_mut().dialogs.get_mut::<CanvasSizeDialog>().expect("open");
+        canvas.set_anchor(Anchor::TopLeft);
+        canvas.set_relative(true);
+        canvas.set_width(100.0);
+        canvas.set_extension(CanvasExtension::White);
+        assert_eq!(canvas.chosen_anchor(), Anchor::TopLeft);
+    }
+    harness.run();
+    assert!(harness.state_mut().dialogs.confirm::<ImageSizeDialog>(&ctx));
+    assert!(harness.state_mut().dialogs.confirm::<CanvasSizeDialog>(&ctx));
+    let image = harness.state_mut().dialogs.take::<ImageSizeDialog>().and_then(DialogResult::ok).expect("answered");
+    assert_eq!((image.size.width, image.size.height, image.resample, image.scale_styles), (600, 400, Resample::Bilinear, false));
+    let canvas = harness.state_mut().dialogs.take::<CanvasSizeDialog>().and_then(DialogResult::ok).expect("answered");
+    assert_eq!((canvas.size.width, canvas.anchor, canvas.extension, canvas.relative), (1300, Anchor::TopLeft, CanvasExtension::White, true));
+}
+
+// Row 164: the Resample list holds only the methods the host allows.
+#[test]
+fn resample_methods_filters_the_list() {
+    let mut harness = host_with(|dialogs| {
+        dialogs.open(ImageSizeDialog::new(size(1200, 800, 72.0)).resample_methods(&[Resample::NearestNeighbor, Resample::Automatic]));
+    });
+    harness.get_by_label("Resample method").click();
+    harness.run();
+    harness.get_by_label("Nearest Neighbor (hard edges)");
+    assert!(harness.query_by_label("Bilinear").is_none());
+    assert!(harness.query_by_label("Lanczos (sharp)").is_none());
+}
+
+// Row 165: a typed value keeps full precision (72.27 pt stays, 100 ppi reads back 100).
+#[test]
+fn typed_values_keep_full_precision() {
+    let mut fields = LinkedSizeFields::new(size(1200, 800, 72.0));
+    fields.unit = SizeUnit::Points;
+    fields.constrain = false;
+    fields.edit(Field::Width, 72.27);
+    assert_eq!(fields.current.width, 72);
+    assert_eq!(fields.width(), 72.27);
+    fields.unit = SizeUnit::Pixels;
+    assert_eq!(fields.width(), 72.0, "another unit shows the pixels");
+    fields.resolution_unit = ResolutionUnit::PixelsPerCentimetre;
+    fields.edit(Field::Resolution, 39.37);
+    assert_eq!(fields.resolution_value(), 39.37);
+
+    let mut harness = host_with(|dialogs| {
+        dialogs.open(ImageSizeDialog::new(size(1200, 800, 72.0)));
+    });
+    harness.get_by_role_and_label(Role::SpinButton, "Resolution").focus();
+    harness.run();
+    harness.event(egui::Event::Text("100".into()));
+    harness.key_press(Key::Tab);
+    harness.run();
+    let dialog = harness.state_mut().dialogs.get_mut::<ImageSizeDialog>().expect("open");
+    assert_eq!(dialog.fields().current.pixels_per_inch, 100.0);
+}
+
+// Row 166: Canvas Size has a New Size header with the new file size at its right.
+#[test]
+fn canvas_size_has_a_new_size_header_with_the_file_size_at_its_right() {
+    let harness = host_with(|dialogs| {
+        dialogs.open(CanvasSizeDialog::new(size(1200, 800, 72.0)));
+    });
+    let header = harness.get_by_label("New Size").rect();
+    // The Current Size readout shows the same text; the New Size one is the lower of the two.
+    let new_size =
+        harness.get_all_by_value(&human_bytes(1200.0 * 800.0 * 4.0)).map(|n| n.rect()).max_by(|a, b| a.top().total_cmp(&b.top())).expect("readout");
+    assert!(new_size.right() >= header.right() - 1.0 && new_size.left() > header.left() + 40.0, "{new_size:?} {header:?}");
+    assert!((new_size.center().y - header.center().y).abs() < 4.0);
+}
+
+// Row 167: labels given to the dialog replace the installed ones.
+#[test]
+fn given_labels_replace_the_installed_words() {
+    let labels = SizingLabels { image_size_title: "Taille".to_owned(), width: "Largeur:".to_owned(), ..SizingLabels::default() };
+    let harness = host_with(|dialogs| {
+        dialogs.open(ImageSizeDialog::new(size(1200, 800, 72.0)).labels(labels));
+    });
+    harness.get_by_role_and_label(Role::SpinButton, "Largeur");
 }

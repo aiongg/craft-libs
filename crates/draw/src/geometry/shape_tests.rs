@@ -1,4 +1,4 @@
-//! Tests of shape outlines and drags (task SH-T1).
+//! Tests of shape outlines and drags.
 
 use std::f64::consts::{FRAC_PI_2, PI};
 

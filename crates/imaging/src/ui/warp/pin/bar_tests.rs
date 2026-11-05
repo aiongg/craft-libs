@@ -1,4 +1,4 @@
-//! Tests of the pin bar (task TR-T12).
+//! Tests of the pin bar.
 
 use egui::accesskit::Role;
 use egui_kittest::Harness;

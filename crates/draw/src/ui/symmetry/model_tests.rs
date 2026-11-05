@@ -1,4 +1,4 @@
-//! Tests of the symmetry model (task TO-S1).
+//! Tests of the symmetry model.
 
 use super::{MAX_COORDINATE, Symmetry, SymmetryMode};
 use kurbo::{Point, Size};

@@ -1,4 +1,4 @@
-//! [`SelectionOverlay`] (task SE-F7).
+//! [`SelectionOverlay`].
 
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -49,7 +49,12 @@ pub enum OutlineSource<'a> {
     /// Segments the app traced itself (in a job, PhotoCraft's Rayon trace), in document pixels of
     /// the full-size document, with the content `bounds` for the accessible value. Drawn as they
     /// are: no cache, no preview texture.
-    Segments { segments: &'a [Segment], bounds: MaskRect },
+    Segments {
+        #[allow(missing_docs)]
+        segments: &'a [Segment],
+        #[allow(missing_docs)]
+        bounds: MaskRect,
+    },
 }
 
 impl<'a, M: MaskSource> From<&'a M> for OutlineSource<'a> {

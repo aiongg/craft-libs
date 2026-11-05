@@ -154,11 +154,13 @@ pub struct ColorPartsStyle {
     /// The area marker's inner circle: `color_picker.marker_inner_radius`, a
     /// `color_picker.marker_inner_width` stroke of `color_picker.marker` (white).
     pub marker_inner_radius: f32,
+    /// The inner ring's stroke: width and colour.
     pub marker_inner: Stroke,
     /// The marker's outer ring: `color_picker.marker_outer_radius`, a
     /// `color_picker.marker_outer_width` stroke of `color_picker.marker_halo` (black at alpha
     /// 160). One of the two rings reads on any colour, and neither tints it.
     pub marker_outer_radius: f32,
+    /// The outer ring's stroke: width and colour.
     pub marker_outer: Stroke,
     /// A strip pointer triangle, its depth across and its height: `color_picker.pointer_width`
     /// and `color_picker.pointer_height`.

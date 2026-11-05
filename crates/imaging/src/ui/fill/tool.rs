@@ -1,4 +1,4 @@
-//! Content-Aware Fill's tools and the canvas tool (task WS-CA1).
+//! Content-Aware Fill's tools and the canvas tool.
 
 use egui::{CursorIcon, Key, Modifiers, Painter, PointerButton};
 
@@ -23,13 +23,18 @@ use crate::ui::select_mask::EditMode;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum FillTool {
     #[default]
+    #[allow(missing_docs)]
     SamplingBrush,
+    #[allow(missing_docs)]
     Lasso,
+    #[allow(missing_docs)]
     Hand,
+    #[allow(missing_docs)]
     Zoom,
 }
 
 impl FillTool {
+    /// The four tools, in strip order.
     pub const ALL: [FillTool; 4] = [FillTool::SamplingBrush, FillTool::Lasso, FillTool::Hand, FillTool::Zoom];
 
     /// B, L, H, Z.
@@ -126,6 +131,7 @@ pub struct FillCanvas {
 }
 
 impl FillCanvas {
+    /// An idle canvas with the default cursor options.
     pub fn new() -> Self {
         Self::default()
     }
@@ -148,10 +154,12 @@ impl FillCanvas {
         self.cursor_options = cursor_options;
     }
 
+    /// Takes the events collected since the last call.
     pub fn take_events(&mut self) -> Vec<FillEvent> {
         std::mem::take(&mut self.events)
     }
 
+    /// Whether a stroke, a lasso or a brush resize is in progress.
     pub fn busy(&self) -> bool {
         self.stroke.is_some() || self.lasso.is_some() || self.resize.active()
     }

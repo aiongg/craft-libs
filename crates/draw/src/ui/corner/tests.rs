@@ -1,4 +1,4 @@
-//! Tests of the corner widgets (task PE-B4).
+//! Tests of the corner widgets.
 
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Sense, vec2};

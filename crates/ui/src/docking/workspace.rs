@@ -8,6 +8,7 @@ use std::{collections::HashSet, hash::Hash};
 
 use super::model::{Action, DockError, Layout, Location, MAX_PANELS, Permissions, Placement, Zone};
 
+/// A saved arrangement of panels: the [`Layout`], the closed panels' former places, and a lock.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, bound(deserialize = "P: serde::Deserialize<'de>"))]
 pub struct Workspace<P> {
@@ -46,8 +47,10 @@ impl<P> Default for Workspace<P> {
 }
 
 impl<P> Workspace<P> {
+    /// The format version written to files.
     pub const VERSION: u32 = 2;
 
+    /// A workspace of `layout`, with no hidden panels, unlocked.
     pub fn new(layout: Layout<P>) -> Self {
         Self { version: Self::VERSION, layout, hidden: Vec::new(), saved: None, locked: false }
     }

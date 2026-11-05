@@ -20,19 +20,27 @@ pub const NAVIGATOR_PROXY_COLOR_KEY: &str = "navigator.proxyColor";
 ///
 /// `Default` is the theme's `navigator.proxy` (PhotoCraft's and Photoshop's light red,
 /// `rgb(255, 84, 84)`); the named colours are fixed data the same in every theme, chosen to read on
-/// the dark preview box (lead call L2: Photoshop's exact list was not available, so the hues follow
+/// the dark preview box (Photoshop's exact list was not available, so the hues follow
 /// PhotoCraft's Button Mode names); `Custom` is a colour from the app's picker, kept as 8-bit sRGB
 /// (as `GuideColor::Custom`). Serialised by variant name, `Custom` as `{"Custom": [r, g, b]}`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ProxyColor {
+    /// The theme's `navigator.proxy` colour.
     #[default]
     Default,
+    #[allow(missing_docs)]
     Red,
+    #[allow(missing_docs)]
     Orange,
+    #[allow(missing_docs)]
     Yellow,
+    #[allow(missing_docs)]
     Green,
+    #[allow(missing_docs)]
     Blue,
+    #[allow(missing_docs)]
     Violet,
+    #[allow(missing_docs)]
     Gray,
     /// Chosen with Custom… (the app's colour picker).
     Custom([u8; 3]),
@@ -68,7 +76,7 @@ impl ProxyColor {
 
     /// The colour drawn: `Default` reads `navigator.proxy` from `tokens`; the named ones are the
     /// lead's data (red 255/84/84, orange 255/160/60, yellow 255/214/64, green 92/214/110, blue
-    /// 84/160/255, violet 176/124/255, gray 200/200/200), moved into `values.rs` by TK2; `Custom`
+    /// 84/160/255, violet 176/124/255, gray 200/200/200); `Custom`
     /// is its own value.
     pub fn color(self, tokens: &UiTokens) -> Color32 {
         let navigator = &tokens.component.navigator;

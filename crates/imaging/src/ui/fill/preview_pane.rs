@@ -1,4 +1,4 @@
-//! [`FillPreviewPane`]: Content-Aware Fill's Preview panel (task WS-CA2).
+//! [`FillPreviewPane`]: Content-Aware Fill's Preview panel.
 
 use egui::{AsIdSalt, Frame, IdSalt, Panel, Response, Ui};
 
@@ -33,6 +33,7 @@ pub struct FillPreviewPane<'a> {
 }
 
 impl<'a> FillPreviewPane<'a> {
+    /// Starts the pane over `view`, which it pans and zooms, showing `status`.
     pub fn new(id_salt: impl AsIdSalt, view: &'a mut FullWindowView, status: &'a PreviewStatus) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),

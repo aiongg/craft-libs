@@ -52,6 +52,7 @@ pub struct LinkButton<'a> {
 }
 
 impl<'a> LinkButton<'a> {
+    /// A toggle that flips `linked`, with `mode`'s tooltip, at medium size.
     pub fn new(id_salt: impl AsIdSalt, linked: &'a mut bool, mode: LinkMode) -> Self {
         Self { id_salt: IdSalt::new(id_salt), linked, mode, size: ControlSize::Md, labels: None }
     }
@@ -63,12 +64,14 @@ impl<'a> LinkButton<'a> {
         self
     }
 
+    /// The button size; medium by default.
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
     // pc: crates/ui-egui/src/panels/preset_panels/panels.rs:603 (Clone Source link button)
+    /// Draws the toggle and flips `linked` on a click or Space.
     pub fn show(self, ui: &mut Ui) -> Response {
         let labels = self.labels.unwrap_or_else(|| LinkedFieldsLabels::of(ui));
         let tip = match self.mode {
@@ -86,8 +89,10 @@ impl<'a> LinkButton<'a> {
 /// and the link at the end of the first: [`LinkedFields::show_cells`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum LinkedLayout {
+    /// The fields in one row, the link after the first.
     #[default]
     Row,
+    /// The fields stacked, the link beside them, centred on their height.
     Column,
     /// Two columns of fields (the first half, the second half) with the link between them,
     /// centred on their height (DesignCraft's margins: Top and Bottom, link, Inside and Outside).
@@ -140,7 +145,7 @@ pub enum LinkedSlot {
 ///   taking the smallest factor (PhotoCraft's `k.min(wlim / sx).min(hlim / sy)`); in
 ///   [`LinkMode::Equal`] to the same value ([`follow_equal`]). Every value a gesture reports is
 ///   built from the values at its `Begin`, never from the previous update, so a scrub or a
-///   value typed digit by digit keeps the starting ratio (lead call L24). Unlinked, a field
+///   value typed digit by digit keeps the starting ratio. Unlinked, a field
 ///   moves alone.
 /// - **Linking.** Turning the link on in [`LinkMode::Equal`] sets every field to the first one's
 ///   value at once, one `Set` (DesignCraft's `setup_link`); in [`LinkMode::Ratio`] it changes no
@@ -223,6 +228,7 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
         self
     }
 
+    /// How the fields and the link are arranged; [`LinkedLayout::Row`] by default.
     pub fn layout(mut self, layout: LinkedLayout) -> Self {
         self.layout = layout;
         self
@@ -236,11 +242,13 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
         self
     }
 
+    /// The size of the fields and the link button.
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether the fields and the link take input; `true` by default.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -255,6 +263,7 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
     // pc: crates/ui-egui/src/panels/preset_panels/panels.rs:597 (Clone Source W, link, H)
     // pc: crates/ui-egui/src/panels/doc_props_ui.rs:149 (Properties' Canvas, link beside W and H)
     // designcraft: crates/ui-egui/src/dialogs.rs:2055 setup_link, :2263 setup_link_follow
+    /// Draws the fields and the link button in the chosen layout.
     pub fn show(self, ui: &mut Ui) -> EditResponse<[f64; N]> {
         let layout = self.layout;
         let side = IconButton::style(&Tokens::of(ui), self.size).side;

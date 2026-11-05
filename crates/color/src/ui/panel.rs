@@ -67,14 +67,23 @@ craft_ui::words! {
 #[serde(rename_all = "camelCase")]
 pub enum ColorPanelMode {
     #[default]
+    #[allow(missing_docs)]
     HueCube,
+    #[allow(missing_docs)]
     BrightnessCube,
+    #[allow(missing_docs)]
     ColorWheel,
+    #[allow(missing_docs)]
     GrayscaleSlider,
+    #[allow(missing_docs)]
     RgbSliders,
+    #[allow(missing_docs)]
     HsbSliders,
+    #[allow(missing_docs)]
     CmykSliders,
+    #[allow(missing_docs)]
     LabSliders,
+    #[allow(missing_docs)]
     WebColorSliders,
 }
 
@@ -120,13 +129,18 @@ impl ColorPanelMode {
 #[serde(rename_all = "camelCase")]
 pub enum ColorPanelRamp {
     #[default]
+    #[allow(missing_docs)]
     RgbSpectrum,
+    #[allow(missing_docs)]
     CmykSpectrum,
+    #[allow(missing_docs)]
     GrayscaleRamp,
+    #[allow(missing_docs)]
     CurrentColors,
 }
 
 impl ColorPanelRamp {
+    /// All ramps, in menu order.
     pub const ALL: [ColorPanelRamp; 4] =
         [ColorPanelRamp::RgbSpectrum, ColorPanelRamp::CmykSpectrum, ColorPanelRamp::GrayscaleRamp, ColorPanelRamp::CurrentColors];
 
@@ -166,7 +180,9 @@ impl ColorPanelRamp {
 pub struct ColorPanelState {
     /// The panel edits the background colour (its well was clicked), not the foreground.
     pub background: bool,
+    /// The picker layout.
     pub mode: ColorPanelMode,
+    /// The colour ramp under the picker.
     pub ramp: ColorPanelRamp,
     /// Make Ramp Web Safe: the ramp shows and picks web colours only.
     pub web_safe_ramp: bool,
@@ -179,7 +195,9 @@ impl craft_host::Section for ColorPanelState {
 /// Which colour a [`ColorPanel`] edit is for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PanelTarget {
+    /// The foreground colour.
     Foreground,
+    /// The background colour.
     Background,
 }
 
@@ -242,6 +260,7 @@ impl<'a> ColorPanel<'a> {
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> ColorPanel<'a> {
         self.enabled = enabled;
         self

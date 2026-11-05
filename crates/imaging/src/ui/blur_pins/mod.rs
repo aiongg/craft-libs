@@ -13,7 +13,7 @@
 //! BlurPinsPanel::new("pin-rows", &mut app.blur_pins).show(body_ui);
 //! ```
 //!
-//! Files: `model` and `grab` (task WS-BP1); `draw` and `panel` (WS-BP2); `style` (TK4).
+//! Files: `model` and `grab`; `draw` and `panel`; `style`.
 
 mod draw;
 mod grab;

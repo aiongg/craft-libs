@@ -170,12 +170,12 @@ craft_ui::words! {
 /// if out.changed { /* the app stores the filter; the panel reads it next time it's drawn */ }
 /// ```
 ///
-/// - **Kind**: five Small [`IconButton`](craft_ui::controls::IconButton) toggles in
+/// - **Kind**: five Small [`IconButton`] toggles in
 ///   [`FilterKind::ALL`] order (icons image, adjustment, type, square, app window), pressed while
 ///   on; a click adds or removes the kind.
-/// - **Name**: a [`SearchField`](craft_ui::controls::SearchField) over the rest of the row,
+/// - **Name**: a [`SearchField`] over the rest of the row,
 ///   named "Search layers".
-/// - **Mode**: a [`Select`](craft_ui::controls::Select) over the rest of the row with
+/// - **Mode**: a [`Select`] over the rest of the row with
 ///   `blend_modes` (the app gives Pass Through first, as PhotoCraft).
 /// - Keyboard: each control is its own Tab stop; the select opens with Space or Alt+Down.
 /// - AccessKit: the type select is a `ComboBox` named "Filter type"; the toggles are toggle

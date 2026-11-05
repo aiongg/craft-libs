@@ -114,12 +114,12 @@ craft_ui::words! {
 /// ```
 ///
 /// - Layout (`Width::Standard`, the library footer with OK and Cancel in the platform order): a
-///   [`GroupBox`](craft_ui::composites::GroupBox) "Thumbnail Size" with a
-///   [`RadioGroup`](craft_ui::controls::RadioGroup) of None (a text label), then Small, Medium and
+///   [`GroupBox`] "Thumbnail Size" with a
+///   [`RadioGroup`] of None (a text label), then Small, Medium and
 ///   Large, each with a real-size sample ([`paint_sample_thumbnail`]) at twice the row thumbnail
 ///   (`layers.options.sample_scale` × `list.thumb.*`: 36, 48, 96 at Compact), drawn inside the
 ///   radio's hit area, so a click on a sample picks its size and the sample adds no Tab stop. A group box "Thumbnail Contents" with Layer Bounds and Entire
-///   Document; then the five switches as [`Checkbox`](craft_ui::controls::Checkbox)es, in
+///   Document; then the five switches as [`Checkbox`]es, in
 ///   PhotoCraft's order.
 /// - Keyboard: the radio groups take arrows; Tab walks the groups and checkboxes; Enter is OK,
 ///   Esc is Cancel (the library dialog's keys).

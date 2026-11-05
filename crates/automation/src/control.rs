@@ -50,8 +50,11 @@ pub fn expired_error() -> String {
 
 /// One request from a transport, with where its reply goes.
 pub struct ControlRequest {
+    /// The method name, such as `ui.click`.
     pub method: String,
+    /// The request parameters as JSON.
     pub params: Value,
+    /// Where the answer goes; the transport reads the other end.
     pub reply: Sender<ControlResponse>,
     /// Requests still queued at this instant are rejected; dispatched work continues.
     pub deadline: Option<Instant>,
@@ -107,7 +110,12 @@ pub enum Reply {
     Done(Value),
     /// A `ui.screenshot`: admit `token` to the queue; `path` is where the app's write authority
     /// puts the PNG, `None` inlines it as base64 in the reply.
-    Screenshot { token: u64, path: Option<String> },
+    Screenshot {
+        /// Identifies the capture; must differ from every pending token.
+        token: u64,
+        /// File to write the PNG to, or `None` to inline it.
+        path: Option<String>,
+    },
     /// Synthetic input was queued: reply once the app has processed all of it.
     AfterInput,
     /// A command started a background job and the caller waits: reply with its result when it

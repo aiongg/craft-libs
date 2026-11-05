@@ -1,4 +1,4 @@
-//! [`SliceStyle`]: the slice overlay's look, from tokens (task TK3).
+//! [`SliceStyle`]: the slice overlay's look, from tokens.
 
 use egui::{Color32, FontId, Stroke, Vec2, vec2};
 
@@ -46,6 +46,7 @@ pub struct SliceStyle {
     /// Handle size and reach from the `Handle` painter, `Handle::style(tokens, HandleShape::Square)`
     /// (7 and 14).
     pub handle: f32,
+    /// A handle's grab reach, in screen points.
     pub handle_hit: f32,
     /// A handle's fill: `overlay.handle_fill`.
     pub handle_fill: Color32,

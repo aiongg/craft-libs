@@ -23,21 +23,31 @@ pub const SLOW_FRAMES: usize = 64;
 pub struct FrameStages {
     /// Frame start on the app clock, ms.
     pub t: f64,
+    /// Whole frame time; never less than the sum of its stages.
     pub frame_ms: f64,
+    /// Time from frame start to the UI pass, minus command time.
     pub input_ms: f64,
+    /// Time running the command named in `command`.
     pub command_ms: f64,
     /// The command id that ran this frame, if any.
     pub command: String,
+    /// Time computing the changed canvas region.
     pub damage_ms: f64,
+    /// Time compositing the canvas on the CPU.
     pub composite_ms: f64,
+    /// Time uploading canvas pixels to a texture.
     pub upload_ms: f64,
+    /// The GPU composite time; `None` off the GPU path.
     pub gpu_ms: Option<f64>,
+    /// Presentation time of the previous frame, if known.
     pub present_ms: Option<f64>,
     /// What the canvas refreshed (`"full"`, `"rect"`, `"gpu-full"`, …; `""` none; a kind starting with `gpu` is the GPU path).
     pub refresh: &'static str,
+    /// Pixels the canvas refreshed this frame.
     pub refresh_px: u64,
     /// The render path name (`"gpu"`, `"cpu"`).
     pub path: &'static str,
+    /// Time in the UI pass.
     #[serde(skip)]
     pub ui_ms: f64,
     /// The live gesture's own render time (a brush stroke).

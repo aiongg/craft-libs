@@ -1,4 +1,4 @@
-//! [`EffectParameters`]: the selected effect layer's filter select and parameters (task WS-FG2).
+//! [`EffectParameters`]: the selected effect layer's filter select and parameters.
 
 use egui::accesskit::Role;
 use egui::{AsIdSalt, IdSalt, Ui, UiBuilder};
@@ -23,6 +23,7 @@ pub struct EffectParametersResponse {
     pub rows: Option<ParamRowsResponse>,
     /// A filter picked in the select, or the fields changed.
     pub change: Option<EffectChange>,
+    /// A slider is being dragged; the history settles when the drag ends.
     pub dragging: bool,
 }
 
@@ -64,6 +65,7 @@ impl<'a> EffectParameters<'a> {
         self
     }
 
+    /// Draws the filter select and the parameter rows, and reports any change.
     pub fn show(self, ui: &mut Ui) -> EffectParametersResponse {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:774-831 (the select, the parameter rows).
         let Self { id_salt, index, effect, filter, categories, labels_of, labels } = self;

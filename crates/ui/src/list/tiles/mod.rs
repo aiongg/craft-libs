@@ -265,7 +265,12 @@ pub enum TileEvent<K> {
     /// Space (Bridge's preview).
     Preview(K),
     /// A star click or a rating key: `keys` get `rating` (0 clears). A `Set`, one undo step.
-    Rate { keys: Vec<K>, rating: u8 },
+    Rate {
+        /// The rated tiles.
+        keys: Vec<K>,
+        /// The new rating; 0 clears it.
+        rating: u8,
+    },
     /// Delete or Backspace on the selection; with nothing picked, on the current tile
     /// ([`TileGrid::current`]).
     Remove(Vec<K>),
@@ -275,9 +280,19 @@ pub enum TileEvent<K> {
     Reorder(EditEvent<Move<K>>),
     /// The pointer is over a picture (with `.hover_scrub(true)`): `fraction` across it from the
     /// reading start, 0..1, every pass while it hovers.
-    Scrub { key: K, fraction: f32 },
+    Scrub {
+        /// The hovered tile.
+        key: K,
+        /// Pointer position across the picture from the reading start, 0.0 to 1.0.
+        fraction: f32,
+    },
     /// A click on a group header (its tiles were selected; Shift or Cmd added them).
-    GroupPicked { group: usize, modifiers: Modifiers },
+    GroupPicked {
+        /// Index of the group in the host's group list.
+        group: usize,
+        /// The modifier keys held during the click.
+        modifiers: Modifiers,
+    },
     /// Cmd/Ctrl + / − / 0, or a pinch.
     Zoom(ZoomStep),
     /// A secondary click (or AccessKit's ShowContextMenu) on an unpicked tile replaced the
@@ -290,16 +305,38 @@ pub enum TileEvent<K> {
     EmptyActivated,
     /// A rename was committed with `text`, different from the tile's name (with `.can_rename(..)`);
     /// followed by `RenameEnded`.
-    Renamed { key: K, text: String },
+    Renamed {
+        /// The renamed tile.
+        key: K,
+        /// The new name.
+        text: String,
+    },
     /// A rename closed, and how.
-    RenameEnded { key: K, end: RenameEnd },
+    RenameEnded {
+        /// The tile whose rename closed.
+        key: K,
+        /// How the rename closed.
+        end: RenameEnd,
+    },
     /// A group header's disclosure chevron, or AccessKit's Expand or Collapse on the header,
     /// asks to open or close group `group` (with [`TileGrid::group_disclosure`]); the host keeps
     /// the open states.
-    GroupOpen { group: usize, open: bool },
+    GroupOpen {
+        /// Index of the group in the host's group list.
+        group: usize,
+        /// True to open the group, false to close it.
+        open: bool,
+    },
     /// The host's menu for group `group` is asked for: a secondary click on its header (with
     /// [`TileGrid::group_menus`]). `anchor` is the header's rect, `pointer` where the click was.
-    GroupContextMenu { group: usize, anchor: Rect, pointer: Option<Pos2> },
+    GroupContextMenu {
+        /// Index of the group in the host's group list.
+        group: usize,
+        /// The header's rect.
+        anchor: Rect,
+        /// Where the click was.
+        pointer: Option<Pos2>,
+    },
     /// A click, Enter or Space on the new item row ([`TileGrid::new_item_row`]).
     NewItem,
 }

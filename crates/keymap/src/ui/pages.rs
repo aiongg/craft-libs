@@ -107,7 +107,9 @@ pub struct DialogSnapshot {
     pub tab: String,
     /// The Show entry or Shortcuts For area.
     pub area: String,
+    /// The search text.
     pub query: String,
+    /// The command selected in the table, if any.
     pub selected: Option<CommandRef>,
     /// Commands whose bindings differ from the defaults, with their binding texts.
     pub overrides: Vec<(CommandRef, Vec<String>)>,
@@ -117,6 +119,7 @@ pub struct DialogSnapshot {
     pub recording: Option<CommandRef>,
     /// The active set's name, with sets.
     pub set: Option<String>,
+    /// Whether there is an edit to undo.
     pub can_undo: bool,
 }
 

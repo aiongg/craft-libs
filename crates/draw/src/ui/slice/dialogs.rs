@@ -1,4 +1,4 @@
-//! [`SliceOptionsDialog`] and [`DivideSlicesDialog`] (task SH-T9). PhotoCraft and VectorCraft
+//! [`SliceOptionsDialog`] and [`DivideSlicesDialog`]. PhotoCraft and VectorCraft
 //! both have them with the same fields; what the fields mean at export is the app's.
 
 use std::cell::Cell;
@@ -19,8 +19,10 @@ use craft_ui::primitives::Text;
 /// What a slice holds at export.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SliceKind {
+    /// The slice exports as an image.
     #[default]
     Image,
+    /// The slice exports without an image.
     NoImage,
     /// Illustrator's HTML Text (Photoshop's Table).
     HtmlText,
@@ -30,10 +32,15 @@ pub enum SliceKind {
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct SliceOptions {
+    /// What the slice holds at export.
     pub kind: SliceKind,
+    /// The slice's name.
     pub name: String,
+    /// The URL the slice links to.
     pub url: String,
+    /// The link's target frame.
     pub target: String,
+    /// The message shown for the slice.
     pub message: String,
     /// Image slices only.
     pub alt: String,
@@ -232,7 +239,9 @@ pub enum DivideBy {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct DivideSlices {
+    /// How to divide horizontally into rows, or `None` to leave rows.
     pub rows: Option<DivideBy>,
+    /// How to divide vertically into columns, or `None` to leave columns.
     pub columns: Option<DivideBy>,
 }
 

@@ -1,4 +1,4 @@
-//! Tests of the Blend If bar (task AD-10).
+//! Tests of the Blend If bar.
 #![cfg(not(target_arch = "wasm32"))]
 
 use egui::accesskit::Role;

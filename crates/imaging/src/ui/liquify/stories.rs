@@ -1,4 +1,4 @@
-//! Stories of the Liquify workspace (task ST-WS1): not registered. Registering them (task RG2)
+//! Stories of the Liquify workspace: not registered. Registering them
 //! adds `liquify::stories` to the crate's `register!` list, `LiquifyWorkspace` to `COMPONENTS` and
 //! [`LiquifyStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!

@@ -1,4 +1,4 @@
-//! The story of [`FontsPanel`](crate::FontsPanel).
+//! The story of [`FontsPanel`].
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};

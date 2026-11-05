@@ -11,26 +11,26 @@ use crate::values;
 #[non_exhaustive]
 pub struct NavigatorTokens {
     /// The proxy rectangle's colour when the app sets none: `navigator.proxy`
-    /// ([`values::NAVIGATOR_PROXY`]). A design target with no contrast minimum, since it is
+    /// (`values::NAVIGATOR_PROXY`). A design target with no contrast minimum, since it is
     /// drawn over any picture.
     pub proxy: Rgba,
-    /// The proxy's stroke width: [`values::NAVIGATOR_PROXY_WIDTH`].
+    /// The proxy's stroke width: `values::NAVIGATOR_PROXY_WIDTH`.
     pub proxy_width: f32,
     /// Width of the halo outline under the proxy, also the margin its edges are clipped to:
-    /// [`values::NAVIGATOR_HALO`].
+    /// `values::NAVIGATOR_HALO`.
     pub halo: f32,
-    /// The proxy's corner radius on an upright view: [`values::NAVIGATOR_PROXY_RADIUS`].
+    /// The proxy's corner radius on an upright view: `values::NAVIGATOR_PROXY_RADIUS`.
     pub proxy_radius: f32,
-    /// Space between the preview box and the fitted document: [`values::NAVIGATOR_INSET`].
+    /// Space between the preview box and the fitted document: `values::NAVIGATOR_INSET`.
     pub inset: f32,
-    /// The least height of the preview box: [`values::NAVIGATOR_MIN_PREVIEW`].
+    /// The least height of the preview box: `values::NAVIGATOR_MIN_PREVIEW`.
     pub min_preview: f32,
-    /// Side of a checkerboard square behind transparent pixels: [`values::NAVIGATOR_CHECKER`].
+    /// Side of a checkerboard square behind transparent pixels: `values::NAVIGATOR_CHECKER`.
     pub checker: f32,
-    /// The gap above the zoom row and between its controls: [`values::NAVIGATOR_ROW_GAP`].
+    /// The gap above the zoom row and between its controls: `values::NAVIGATOR_ROW_GAP`.
     pub row_gap: f32,
     /// The named proxy colours the options dialog lists after Default, in order: red, orange,
-    /// yellow, green, blue, violet, gray ([`values::NAVIGATOR_PROXY_COLORS`]). The same in every
+    /// yellow, green, blue, violet, gray (`values::NAVIGATOR_PROXY_COLORS`). The same in every
     /// theme.
     pub proxy_colors: [Rgba; 7],
 }

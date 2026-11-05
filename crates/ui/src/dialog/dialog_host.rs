@@ -33,6 +33,7 @@ impl<T> DialogResult<T> {
         }
     }
 
+    /// True when the dialog closed with [`DialogResult::Cancel`].
     pub fn is_cancel(&self) -> bool {
         matches!(self, DialogResult::Cancel)
     }
@@ -219,6 +220,7 @@ impl fmt::Debug for DialogHost {
 }
 
 impl DialogHost {
+    /// An empty host with no open or queued dialogs.
     pub fn new() -> Self {
         Self::default()
     }
@@ -230,6 +232,7 @@ impl DialogHost {
         &self.stack
     }
 
+    /// The routing stack, mutably.
     pub fn stack_mut(&mut self) -> &mut DialogStack {
         &mut self.stack
     }
@@ -325,6 +328,17 @@ impl DialogHost {
         }
     }
 
+    /// [`confirm`](DialogHost::confirm) after `set` has changed the open `D`: the way automation
+    /// answers a dialog with other than its default (a prompt's Alternate answer, a check box
+    /// ticked). `false` as [`confirm`](DialogHost::confirm), and `set` does not run when no `D` is open.
+    pub fn confirm_with<D: StackDialog>(&mut self, ctx: &Context, set: impl FnOnce(&mut D)) -> bool {
+        match self.get_mut::<D>() {
+            Some(dialog) => set(dialog),
+            None => return false,
+        }
+        self.confirm::<D>(ctx)
+    }
+
     /// [`confirm`](DialogHost::confirm) for the open `D` that `id` names.
     pub fn confirm_by_id<D: StackDialog>(&mut self, ctx: &Context, id: DialogId) -> bool {
         match self.position_by_id::<D>(id) {
@@ -381,6 +395,7 @@ impl DialogHost {
         self.open.iter().find(|dialog| dialog.id() == id).map(|dialog| dialog.as_any())
     }
 
+    /// [`get_dyn`](DialogHost::get_dyn), mutably.
     pub fn get_dyn_mut(&mut self, id: DialogId) -> Option<&mut dyn Any> {
         self.open.iter_mut().find(|dialog| dialog.id() == id).map(|dialog| dialog.as_any_mut())
     }
@@ -396,6 +411,7 @@ impl DialogHost {
         self.open.iter().rfind(|dialog| dialog.result_type() == TypeId::of::<D>())?.as_any().downcast_ref()
     }
 
+    /// [`get`](DialogHost::get), mutably.
     pub fn get_mut<D: StackDialog>(&mut self) -> Option<&mut D> {
         self.open.iter_mut().rfind(|dialog| dialog.result_type() == TypeId::of::<D>())?.as_any_mut().downcast_mut()
     }

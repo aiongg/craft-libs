@@ -11,15 +11,20 @@ use super::{BleedSettings, ColorConversion, Compatibility, DOCUMENT_CMYK, MarkSe
 /// The colour model of an ICC profile.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProfileKind {
+    #[allow(missing_docs)]
     Rgb,
+    #[allow(missing_docs)]
     Cmyk,
+    #[allow(missing_docs)]
     Gray,
 }
 
 /// The colour mode of the document being exported.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColorMode {
+    #[allow(missing_docs)]
     Rgb,
+    #[allow(missing_docs)]
     Cmyk,
 }
 

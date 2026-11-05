@@ -170,7 +170,9 @@ pub enum Samples {
 /// A decoded image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Decoded {
+    /// Width in pixels.
     pub width: u32,
+    /// Height in pixels.
     pub height: u32,
     /// Samples per pixel: 1 for gray, 3 for RGB, 4 for CMYK.
     ///
@@ -181,6 +183,7 @@ pub struct Decoded {
     /// components are converted from YCbCr, which yields the ink amounts of C, M and Y directly,
     /// and K is inverted.
     pub components: u8,
+    /// The pixel data.
     pub samples: Samples,
     /// Entropy-coded data was damaged or cut short: the rest of that scan, and any scans past
     /// the decoder's cap, were left out, and those blocks keep what earlier scans decoded.

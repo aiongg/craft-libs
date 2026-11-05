@@ -1,10 +1,10 @@
 //! [`AdjustSession`]: the Properties panel's memory of the settings it found on an adjustment
-//! layer, so Reset returns to them once the user edited (task AD-5).
+//! layer, so Reset returns to them once the user edited.
 
 /// The settings an adjustment layer had when the Properties panel started showing it, and whether
 /// the panel edited them since (or since the last Reset). A plain value the app keeps per panel;
 /// the app chooses the kinds that use it (PhotoCraft: Color Balance only, the one kind measured
-/// in Photoshop 25.4; lead call L8).
+/// in Photoshop 25.4).
 ///
 /// - [`track`](Self::track) every pass the panel shows the layer: the first pass (or the first
 ///   after a pass without it, or for another target) takes the committed settings as the start

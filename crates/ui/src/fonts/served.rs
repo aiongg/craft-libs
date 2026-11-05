@@ -76,7 +76,7 @@ impl Stack {
 
     /// The served faces that draw `c` in `family`, in the order the family asks them: those
     /// whose file maps `c` ([`ServedFace::covers`]) and that are tagged with `c`'s script (see
-    /// [`script_of`]). The family's order puts the UI language's faces first, so a Han character
+    /// `script_of`). The family's order puts the UI language's faces first, so a Han character
     /// takes the face of the UI language's region (Simplified, Traditional, Hong Kong, Japanese or
     /// Korean forms), then the other offered languages' and the rest in manifest order. Letters
     /// of Latin, Greek and Cyrillic take faces such as Noto Sans, not the CJK faces, which carry
@@ -116,7 +116,18 @@ impl Stack {
     /// [`super::UiFonts::stack`] would have. The web build does this for each file it fetches; an
     /// app that gets the files some other way can call it itself.
     pub fn provide(&mut self, url: &str, file: &Blob) {
-        let faces: Vec<ServedFace> = self.served.iter().filter(|face| face.url == url).copied().collect();
+        self.provide_to(file, |face| face.url == url);
+    }
+
+    /// [`Self::provide`] for bytes fetched and checked against `integrity`: only the faces that
+    /// require that integrity (or none, when it is empty) take them.
+    #[cfg(any(test, target_arch = "wasm32"))]
+    pub(crate) fn provide_fetched(&mut self, url: &str, integrity: &str, file: &Blob) {
+        self.provide_to(file, |face| face.url == url && face.integrity == integrity);
+    }
+
+    fn provide_to(&mut self, file: &Blob, takes: impl Fn(&ServedFace) -> bool) {
+        let faces: Vec<ServedFace> = self.served.iter().filter(|face| takes(face)).copied().collect();
         for face in faces {
             let name = face.name();
             let data = baseline_fallback(egui::FontData::from_blob(Arc::clone(file), face.index));
@@ -324,7 +335,7 @@ pub(super) fn script_of(c: char) -> Option<&'static str> {
     })
 }
 
-/// [`script_of`] the cluster's first character, with an emoji or text variation selector
+/// `script_of` the cluster's first character, with an emoji or text variation selector
 /// (U+FE0F, U+FE0E) choosing between [`EMOJI`] and [`SYMBOLS`].
 pub(super) fn script_of_cluster(cluster: &str) -> Option<&'static str> {
     let script = script_of(cluster.chars().next()?)?;

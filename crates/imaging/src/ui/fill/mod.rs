@@ -14,8 +14,8 @@
 //! OK with [`FillCommand`]. Apply keeps the workspace open: the app fills, then calls
 //! [`ContentAwareFillWorkspace::rebase`]. Cancel closes, keeping what Apply did.
 //!
-//! Files: `session`, `lasso` and `tool` (task WS-CA1); `overlay`, `panel`, `preview_pane`, `bar`
-//! and this file's bodies (WS-CA2).
+//! Files: `session`, `lasso` and `tool`; `overlay`, `panel`, `preview_pane`, `bar`
+//! and this file's bodies.
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
 
@@ -87,25 +87,31 @@ pub trait FillSource {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct FillOpen {
+    /// The layer's size in document pixels.
     pub size: [u32; 2],
     /// The layer's name: the title's subject.
     pub subject: String,
+    /// The fill settings the workspace starts with.
     pub settings: FillSettings,
+    /// The limits on strokes, edits and points.
     pub limits: FillLimits,
     /// The Sampling Brush's first size: a tenth of the sampling window's side.
     pub brush_size: f64,
 }
 
 impl FillOpen {
+    /// Opens on a layer of `size` document pixels named `subject`; the settings start at their defaults.
     pub fn new(size: [u32; 2], subject: impl Into<String>, limits: FillLimits) -> Self {
         Self { size, subject: subject.into(), settings: FillSettings::default(), limits, brush_size: 20.0 }
     }
 
+    /// Sets the starting fill settings.
     pub fn settings(mut self, settings: FillSettings) -> Self {
         self.settings = settings;
         self
     }
 
+    /// Sets the Sampling Brush's first size in document pixels.
     pub fn brush_size(mut self, brush_size: f64) -> Self {
         self.brush_size = brush_size;
         self
@@ -134,12 +140,15 @@ pub enum FillEvent {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct FillOutput {
+    /// What happened this pass, in order.
     pub events: Vec<FillEvent>,
     /// The session or a fill setting changed (or undo stepped): the app starts a preview job.
     pub preview_wanted: Option<PreviewTicket>,
     /// OK, Apply (stays open) or Cancel.
     pub outcome: Option<Outcome>,
+    /// The workspace's screen rectangle.
     pub rect: Rect,
+    /// A fill setting changed this pass.
     pub settings_changed: bool,
     /// The Color swatch was pressed: the app opens its colour picker and answers with
     /// [`ContentAwareFillWorkspace::set_color`].
@@ -444,10 +453,12 @@ impl ContentAwareFillWorkspace {
         }
     }
 
+    /// The strokes and fill-area edits recorded so far.
     pub fn session(&self) -> &FillSession {
         &self.session
     }
 
+    /// The current fill settings.
     pub fn settings(&self) -> &FillSettings {
         &self.settings
     }
@@ -484,10 +495,12 @@ impl ContentAwareFillWorkspace {
         self.stale = true;
     }
 
+    /// The preview job `ticket` finished: the preview shows the new result.
     pub fn preview_ready(&mut self, ticket: PreviewTicket) {
         self.preview.ready(ticket);
     }
 
+    /// The preview job `ticket` failed: `message` shows in the preview pane.
     pub fn preview_failed(&mut self, ticket: PreviewTicket, message: String) {
         self.preview.failed(ticket, message);
     }

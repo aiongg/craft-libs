@@ -74,10 +74,13 @@ pub const MAX_ENTRY: u64 = 1 << 30;
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// The `format` member is not [`EXTENSION`] or [`LEGACY_EXTENSION`]; it holds the value found.
     #[error("not a VectorCraft file: format is `{0}`")]
     Format(String),
+    /// The file's version is newer than [`VERSION`]; it holds the file's version.
     #[error("file version {0} is newer than this reader supports ({VERSION})")]
     TooNew(u32),
+    /// The entries name more bytes than the data after the JSON holds.
     #[error("the entries name more bytes than the data after the JSON holds")]
     TooBig,
 }
@@ -125,6 +128,7 @@ pub enum ReadError {
 pub struct File<D> {
     /// [`EXTENSION`], or [`LEGACY_EXTENSION`] in versions 1 and 2.
     pub format: String,
+    /// The file format version, at most [`VERSION`] for a file this reader accepts.
     pub version: u32,
     /// `"VectorCraft <app version>"`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -138,6 +142,7 @@ pub struct File<D> {
     /// A PDF of every artboard (Create PDF-Compatible File).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pdf: Option<Image>,
+    /// The document, in the app's own type.
     pub document: D,
     /// The images the document uses, by key.
     pub images: BTreeMap<String, Image>,
@@ -324,10 +329,15 @@ pub fn check(format: &str, version: u32) -> Result<(), Error> {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Contents<D> {
+    /// [`EXTENSION`], or [`LEGACY_EXTENSION`] in versions 1 and 2.
     pub format: String,
+    /// The file format version.
     pub version: u32,
+    /// The document, in the app's own type.
     pub document: D,
+    /// The images the document uses, by key.
     pub images: BTreeMap<String, Image>,
+    /// ICC files by profile name.
     pub profiles: BTreeMap<String, Image>,
 }
 
@@ -359,8 +369,10 @@ impl<D> Contents<D> {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[non_exhaustive]
 pub struct Head {
+    /// A PNG of the first artboard, when the file has one.
     #[serde(default, deserialize_with = "lenient")]
     pub preview: Option<Image>,
+    /// A PDF of every artboard, when the file has one.
     #[serde(default, deserialize_with = "lenient")]
     pub pdf: Option<Image>,
 }
@@ -374,6 +386,7 @@ pub struct Head {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct Image {
+    /// The media type of the bytes, such as `image/png`.
     pub mime: String,
     /// The bytes as base64, unless they come after the JSON (`blob`).
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -649,7 +662,9 @@ pub fn marker_at(file: &[u8]) -> Option<usize> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Part<'a> {
+    /// The media type of the bytes, such as `image/png`.
     pub mime: String,
+    /// The bytes.
     pub bytes: &'a [u8],
 }
 

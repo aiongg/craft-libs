@@ -138,7 +138,7 @@ pub struct ColorPickerResponse {
 /// - Tab: in a dialog's [`FieldTab`](craft_ui::behavior::FieldTab) scope Tab visits the number
 ///   fields and the hex field; the area, the strip and the sliders are reached with Ctrl+Tab.
 /// - AccessKit: a `Group` named `label`; the channel fields and sliders are named by the
-///   channel's full name ("Hue"), or "<model> <channel>" ("OKLCH hue") while another model on
+///   channel's full name ("Hue"), or `<model> <channel>` ("OKLCH hue") while another model on
 ///   show has a channel of that name (the rows' and the area's models in Compact, every model in
 ///   Full; the strip and the row label follow it); the hex field "Hex color", the eyedropper by
 ///   the host's label.
@@ -418,6 +418,7 @@ impl<'a> ColorPicker<'a> {
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

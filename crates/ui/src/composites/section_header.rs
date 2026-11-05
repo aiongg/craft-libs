@@ -132,6 +132,7 @@ impl<'a> SectionHeader<'a> {
         self
     }
 
+    /// The header's look from the theme's `section` tokens, scaled to `pixels_per_point`.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> SectionStyle {
         let s = &tokens.component.section;
         SectionStyle {

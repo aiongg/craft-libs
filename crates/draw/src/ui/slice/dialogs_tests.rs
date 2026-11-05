@@ -1,4 +1,4 @@
-//! Tests of Slice Options and Divide Slice (task SH-T9).
+//! Tests of Slice Options and Divide Slice.
 
 use egui::accesskit::Role;
 use egui::{Event, Key, vec2};

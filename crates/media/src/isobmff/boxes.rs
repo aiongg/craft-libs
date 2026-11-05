@@ -94,35 +94,45 @@ impl<'a> Reader<'a> {
         a.copy_from_slice(s);
         Ok(a)
     }
+    /// Reads a `u8`.
     pub fn u8(&mut self) -> Result<u8> {
         let [b] = self.array::<1>()?;
         Ok(b)
     }
+    /// Reads a big-endian `u16`.
     pub fn u16(&mut self) -> Result<u16> {
         Ok(u16::from_be_bytes(self.array()?))
     }
+    /// Reads a big-endian `i16`.
     pub fn i16(&mut self) -> Result<i16> {
         Ok(i16::from_be_bytes(self.array()?))
     }
+    /// Reads a big-endian 24-bit unsigned integer (box flags, for example) as `u32`.
     pub fn u24(&mut self) -> Result<u32> {
         let [a, b, c] = self.array::<3>()?;
         Ok(u32::from_be_bytes([0, a, b, c]))
     }
+    /// Reads a big-endian `u32`.
     pub fn u32(&mut self) -> Result<u32> {
         Ok(u32::from_be_bytes(self.array()?))
     }
+    /// Reads a big-endian `i32`.
     pub fn i32(&mut self) -> Result<i32> {
         Ok(i32::from_be_bytes(self.array()?))
     }
+    /// Reads a big-endian `u64`.
     pub fn u64(&mut self) -> Result<u64> {
         Ok(u64::from_be_bytes(self.array()?))
     }
+    /// Reads a big-endian `i64`.
     pub fn i64(&mut self) -> Result<i64> {
         Ok(i64::from_be_bytes(self.array()?))
     }
+    /// Reads a big-endian IEEE 754 `f64`.
     pub fn f64(&mut self) -> Result<f64> {
         Ok(f64::from_be_bytes(self.array()?))
     }
+    /// Reads a four-character code.
     pub fn fourcc(&mut self) -> Result<FourCc> {
         Ok(FourCc(self.array()?))
     }

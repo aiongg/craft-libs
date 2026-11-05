@@ -1344,3 +1344,14 @@ fn a_swatch_row_paints_its_colour_in_the_icon_slot() {
     assert_eq!(fills(&d).iter().filter(|&&f| f == want).count(), 1, "one well in the colour");
     assert!(d.rect("Red").height() > 0.0);
 }
+
+#[test]
+fn a_popup_not_drawn_last_pass_keeps_no_rows_from_before() {
+    let ctx = egui::Context::default();
+    let id = Id::unique("nav");
+    let row = super::nav::Row { widget: Id::unique("row"), enabled: true, path: vec![0], submenu: false, mnemonic: None };
+    let mut stale = Nav::default();
+    stale.rows = vec![vec![row]];
+    ctx.data_mut(|d| d.insert_temp(id, stale));
+    assert!(Nav::load(&ctx, id, true).rows.is_empty(), "a menu that was not open starts with no rows");
+}

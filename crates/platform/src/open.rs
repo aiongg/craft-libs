@@ -61,8 +61,11 @@ pub enum DropTarget {
 /// A dropped file as the app got it. On the web there is no path, only the name and bytes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DroppedFile {
+    /// The file's path; `None` on the web.
     pub path: Option<PathBuf>,
+    /// The file's name.
     pub name: String,
+    /// The contents, when the platform hands them over instead of a path.
     pub bytes: Option<Arc<[u8]>>,
 }
 
@@ -73,7 +76,12 @@ pub enum Intake {
     /// document that is already open instead of opening it again.
     Open(Vec<PathBuf>),
     /// Files dropped on the window, in drop order, with where they landed.
-    Dropped { files: Vec<DroppedFile>, target: DropTarget },
+    Dropped {
+        /// The dropped files.
+        files: Vec<DroppedFile>,
+        /// Where they landed.
+        target: DropTarget,
+    },
 }
 
 /// The sending side of a [`FileIntake`]: `Send + Clone`, for the threads that hear the OS (the
@@ -124,12 +132,14 @@ pub struct FileIntake {
 }
 
 impl FileIntake {
+    /// An intake and the sender that feeds it; `wake` runs when a batch arrives.
     pub fn new(wake: Wake) -> (FileIntake, IntakeSender) {
         let queue = Arc::new(Mutex::new(VecDeque::new()));
         let sender = IntakeSender { queue: queue.clone(), wake };
         (FileIntake { queue, sender: sender.clone() }, sender)
     }
 
+    /// Another sender for this intake.
     pub fn sender(&self) -> IntakeSender {
         self.sender.clone()
     }

@@ -84,6 +84,7 @@ pub struct Swatch {
 }
 
 impl Swatch {
+    /// A swatch of `color` named `label` (its tooltip and accessible name), identified by `id_salt`.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, color: impl Into<Rgba>) -> Self {
         Self {
             label: label.into(),
@@ -101,6 +102,7 @@ impl Swatch {
         }
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -166,6 +168,7 @@ impl Swatch {
         self
     }
 
+    /// The swatch's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SwatchStyle {
         let s = &tokens.component.swatch;
         SwatchStyle {

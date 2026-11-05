@@ -100,7 +100,10 @@ pub struct SearchHit<K> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SearchUpdate<K> {
     /// Files indexed so far (for "Searching… 120 files").
-    Progress { files: usize },
+    Progress {
+        /// The number of files indexed so far.
+        files: usize,
+    },
     /// A candidate.
     Hit(SearchHit<K>),
 }
@@ -109,9 +112,15 @@ pub enum SearchUpdate<K> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SearchEnd {
     /// Every folder was seen.
-    Done { files: usize },
+    Done {
+        /// The number of files indexed.
+        files: usize,
+    },
     /// The limit stopped the walk.
-    Truncated { files: usize },
+    Truncated {
+        /// The number of files indexed before the limit.
+        files: usize,
+    },
     /// `cancelled` said yes.
     Cancelled,
 }

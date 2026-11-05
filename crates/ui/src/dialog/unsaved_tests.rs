@@ -84,3 +84,18 @@ fn enter_esc_and_the_letter_keys_answer() {
         assert_eq!(harness.state().answers, [answer(expected)], "{key:?}");
     }
 }
+
+// Row 163: the host answers the open question without a pass, with a chosen answer and Apply to All.
+#[test]
+fn confirm_with_answers_the_open_question() {
+    let mut harness = harness(dialog().remaining(3), OperatingSystem::Nix);
+    harness.run();
+    let ctx = harness.ctx.clone();
+    let app = harness.state_mut();
+    assert!(app.host.confirm_with::<UnsavedChangesDialog>(&ctx, |d| {
+        d.set_answer(CloseAnswer::DontSave);
+        d.set_apply_to_all(true);
+    }));
+    harness.run();
+    assert_eq!(harness.state().answers, vec![UnsavedAnswer { answer: CloseAnswer::DontSave, apply_to_all: true }]);
+}

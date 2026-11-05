@@ -18,12 +18,15 @@ use crate::http::{Fetched, Http};
 /// One answer from a source.
 #[derive(Clone, Debug)]
 pub struct Answer {
+    #[allow(missing_docs)]
     pub latest: LatestRelease,
+    /// Where the answer came from.
     pub source: Source,
 }
 
 /// Looks up latest releases. Called from worker threads.
 pub trait ReleaseSource: Send + Sync {
+    /// The latest release of `repo` (`owner/name`), including prereleases when `prereleases` is set.
     fn latest(&self, repo: &str, prereleases: bool) -> Answer;
     /// The last answer saved for `repo`, for an instant first paint.
     fn cached(&self, repo: &str, prereleases: bool) -> Option<LatestRelease>;
@@ -54,6 +57,8 @@ struct CacheFile {
     entries: BTreeMap<String, Entry>,
 }
 
+/// Release information from GitHub: the REST API, falling back to the release pages when the
+/// API is out of quota. See the module docs.
 pub struct GitHubSource {
     http: Http,
     cache: Mutex<CacheFile>,
@@ -62,6 +67,8 @@ pub struct GitHubSource {
 }
 
 impl GitHubSource {
+    /// A source that reads `cache_path` at start (a missing or unreadable file gives an empty
+    /// cache) and saves there in [`save`](ReleaseSource::save).
     pub fn new(http: Http, cache_path: std::path::PathBuf) -> Self {
         let cache = std::fs::read(&cache_path).ok().and_then(|b| serde_json::from_slice::<CacheFile>(&b).ok()).unwrap_or_default();
         Self { http, cache: Mutex::new(cache), cache_path, limited_until: Mutex::new(None) }

@@ -1,4 +1,4 @@
-//! The effect page: one row per field of the effect's [`EffectSpec`], drawn by kind (task AD-9).
+//! The effect page: one row per field of the effect's [`EffectSpec`], drawn by kind.
 
 use egui::{AsIdSalt, Id, Modifiers, Ui, UiBuilder};
 
@@ -26,7 +26,9 @@ use crate::layer_style::{
 /// and its name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PatternChoice {
+    /// The pattern's key, stored in the `pattern` parameter.
     pub key: String,
+    /// The pattern's name.
     pub label: String,
 }
 

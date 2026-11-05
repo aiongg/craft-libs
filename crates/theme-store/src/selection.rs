@@ -36,20 +36,29 @@ impl Accepted {
 /// out keep what `selection.json` holds, chosen or not.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SelectionChange {
+    /// The light-mode theme.
     pub theme_light: Option<ThemeId>,
+    /// The dark-mode theme.
     pub theme_dark: Option<ThemeId>,
+    /// Light, dark or follow the system.
     pub mode: Option<ModeChoice>,
+    /// The contrast level.
     pub contrast: Option<ContrastChoice>,
+    /// The motion preference.
     pub motion: Option<MotionChoice>,
+    /// The interface density.
     pub size: Option<Size>,
+    /// The text size step.
     pub text_size: Option<TextSize>,
 }
 
 impl SelectionChange {
+    /// A change of the light-mode theme only.
     pub fn theme_light(theme: ThemeId) -> Self {
         SelectionChange { theme_light: Some(theme), ..SelectionChange::default() }
     }
 
+    /// A change of the dark-mode theme only.
     pub fn theme_dark(theme: ThemeId) -> Self {
         SelectionChange { theme_dark: Some(theme), ..SelectionChange::default() }
     }
@@ -70,22 +79,27 @@ impl SelectionChange {
         }
     }
 
+    /// A change of the mode only.
     pub fn mode(mode: ModeChoice) -> Self {
         SelectionChange { mode: Some(mode), ..SelectionChange::default() }
     }
 
+    /// A change of the contrast only.
     pub fn contrast(contrast: ContrastChoice) -> Self {
         SelectionChange { contrast: Some(contrast), ..SelectionChange::default() }
     }
 
+    /// A change of the motion preference only.
     pub fn motion(motion: MotionChoice) -> Self {
         SelectionChange { motion: Some(motion), ..SelectionChange::default() }
     }
 
+    /// A change of the size only.
     pub fn size(size: Size) -> Self {
         SelectionChange { size: Some(size), ..SelectionChange::default() }
     }
 
+    /// A change of the text size only.
     pub fn text_size(text_size: TextSize) -> Self {
         SelectionChange { text_size: Some(text_size), ..SelectionChange::default() }
     }
@@ -117,6 +131,7 @@ impl SelectionChange {
         }
     }
 
+    /// Whether no field is set.
     pub fn is_empty(&self) -> bool {
         *self == SelectionChange::default()
     }
@@ -186,9 +201,12 @@ pub enum SelectionError {
     Corrupt(String),
     /// Written by a newer build; never overwritten.
     TooNew {
+        /// The schema version the file declares.
         schema_version: u64,
     },
+    /// The file is larger than the store reads.
     TooLarge {
+        /// The file's length in bytes.
         len: usize,
     },
 }

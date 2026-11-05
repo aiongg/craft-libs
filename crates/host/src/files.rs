@@ -27,11 +27,14 @@ pub enum PickKind {
 /// the dot (`("JPEG", ["jpg", "jpeg"])`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileFilter {
+    /// The name the picker shows.
     pub name: String,
+    /// The extensions, lowercase, without the dot.
     pub extensions: Vec<String>,
 }
 
 impl FileFilter {
+    /// A filter named `name`. Each extension loses a leading dot and is lowercased.
     pub fn new(name: impl Into<String>, extensions: &[&str]) -> Self {
         Self { name: name.into(), extensions: extensions.iter().map(|e| e.trim_start_matches('.').to_ascii_lowercase()).collect() }
     }
@@ -40,11 +43,14 @@ impl FileFilter {
 /// One picker request. Built with the builder methods and handed to [`Files::pick`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PickRequest {
+    /// What to pick.
     pub kind: PickKind,
     /// Groups requests that share a remembered folder (`"document"`, `"export"`, `"swatches"`).
     /// The picker opens in the folder the last answered request of this purpose chose.
     pub purpose: String,
+    /// The picker's title, when the platform shows one.
     pub title: Option<String>,
+    /// The file types to offer.
     pub filters: Vec<FileFilter>,
     /// Starting folder when the purpose has no remembered folder.
     pub directory: Option<PathBuf>,
@@ -55,46 +61,57 @@ pub struct PickRequest {
 }
 
 impl PickRequest {
+    /// A request of `kind` for `purpose`, with no title, filters, folder or name.
     pub fn new(kind: PickKind, purpose: impl Into<String>) -> Self {
         Self { kind, purpose: purpose.into(), title: None, filters: Vec::new(), directory: None, file_name: None, suggested_extension: None }
     }
 
+    /// A request to choose one existing file.
     pub fn open(purpose: impl Into<String>) -> Self {
         Self::new(PickKind::Open, purpose)
     }
 
+    /// A request to choose one or more existing files.
     pub fn open_many(purpose: impl Into<String>) -> Self {
         Self::new(PickKind::OpenMany, purpose)
     }
 
+    /// A request to choose a folder.
     pub fn folder(purpose: impl Into<String>) -> Self {
         Self::new(PickKind::Folder, purpose)
     }
 
+    /// A request to choose where to write a file.
     pub fn save(purpose: impl Into<String>) -> Self {
         Self::new(PickKind::Save, purpose)
     }
 
+    /// Sets the picker's title.
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
         self
     }
 
+    /// Adds a file type; see [`FileFilter::new`].
     pub fn filter(mut self, name: impl Into<String>, extensions: &[&str]) -> Self {
         self.filters.push(FileFilter::new(name, extensions));
         self
     }
 
+    /// Sets the folder to start in when the purpose has no remembered folder.
     pub fn directory(mut self, directory: impl Into<PathBuf>) -> Self {
         self.directory = Some(directory.into());
         self
     }
 
+    /// Sets the name a Save picker suggests.
     pub fn file_name(mut self, file_name: impl Into<String>) -> Self {
         self.file_name = Some(file_name.into());
         self
     }
 
+    /// Sets the extension a Save answer gets when the user typed none; a leading dot is dropped
+    /// and the text is lowercased.
     pub fn suggested_extension(mut self, extension: impl Into<String>) -> Self {
         self.suggested_extension = Some(extension.into().trim_start_matches('.').to_ascii_lowercase());
         self
@@ -141,18 +158,25 @@ impl Picked {
 /// One answered pick.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PickAnswer {
+    /// The ticket of the pick.
     pub id: PickId,
+    /// The request that was answered.
     pub request: PickRequest,
+    /// What the user chose.
     pub picked: Picked,
 }
 
 /// Why a read or write failed. The message reads the same in every app (F15.06).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FileError {
+    /// The path does not exist. A conversion from `std::io::Error` leaves the path empty.
     NotFound(PathBuf),
+    /// The path exists but the process may not use it. A conversion from `std::io::Error`
+    /// leaves the path empty.
     PermissionDenied(PathBuf),
     /// The service cannot do this on the platform (write a path on wasm).
     Unsupported,
+    /// Any other failure, with the system's message.
     Other(String),
 }
 
@@ -193,6 +217,7 @@ pub trait Files: Send + Sync {
     fn forget(&self, id: PickId);
     /// Whether a picker is on screen or waiting.
     fn pick_pending(&self) -> bool;
+    /// Reads the whole file at `path`.
     fn read(&self, path: &Path) -> Result<Vec<u8>, FileError>;
     /// Writes atomically where the platform allows (temp file and rename).
     fn write(&self, path: &Path, bytes: &[u8]) -> Result<(), FileError>;

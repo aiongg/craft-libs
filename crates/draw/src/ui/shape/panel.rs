@@ -1,5 +1,4 @@
-//! [`ShapePanel`]: a shape layer's Appearance and Shape sections in the Properties panel (task
-//! SH-T6).
+//! [`ShapePanel`]: a shape layer's Appearance and Shape sections in the Properties panel.
 
 use std::ops::RangeInclusive;
 
@@ -18,7 +17,9 @@ use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, UnitKind, Units};
 /// Which paint a chip edits, for [`ShapePanel::chips`] and [`ShapeBar::chips`](super::ShapeBar::chips).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShapePaint {
+    /// The fill chip.
     Fill,
+    /// The stroke chip.
     Stroke,
 }
 

@@ -1,4 +1,4 @@
-//! Stories of the Blur Gallery pins (task ST-WS2): not registered. Registering them (task RG2)
+//! Stories of the Blur Gallery pins: not registered. Registering them
 //! adds `blur_pins::stories` to the crate's `register!` list and `BlurPinsOverlay` to
 //! `COMPONENTS`, and regenerates the registry dump.
 //!

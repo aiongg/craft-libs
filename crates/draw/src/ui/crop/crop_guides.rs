@@ -27,11 +27,17 @@ pub const SHIELD_EDITING: f32 = 0.5;
 #[serde(rename_all = "camelCase")]
 pub enum CropGuide {
     #[default]
+    #[allow(missing_docs)]
     Thirds,
+    #[allow(missing_docs)]
     Grid,
+    #[allow(missing_docs)]
     Diagonal,
+    #[allow(missing_docs)]
     Triangle,
+    #[allow(missing_docs)]
     GoldenRatio,
+    #[allow(missing_docs)]
     GoldenSpiral,
 }
 
@@ -193,7 +199,9 @@ pub enum GuideShow {
     /// Only while the frame is being dragged (drawn, moved, resized or turned).
     #[default]
     Auto,
+    /// Always shown.
     Always,
+    /// Never shown.
     Never,
 }
 
@@ -240,6 +248,7 @@ pub struct CropShield {
     pub show_cropped_area: bool,
     /// Enable Crop Shield: off shows the area outside the frame undimmed.
     pub enabled: bool,
+    /// Where the shield's colour comes from.
     pub color: ShieldColor,
     /// sRGB, used when `color` is `Custom`.
     pub custom_color: [u8; 3],

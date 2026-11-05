@@ -6,7 +6,9 @@
 /// craft-dialogs' save flow word their messages with these, so every app shows the same text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PlatformText {
+    /// The catalog id.
     pub id: &'static str,
+    /// The English text, used when the catalog has no entry.
     pub english: &'static str,
 }
 

@@ -98,11 +98,13 @@ impl<'a> Rating<'a> {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether the control takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -123,6 +125,7 @@ impl<'a> Rating<'a> {
     }
 
     // lightcraft: crates/ui-egui/src/widgets/rating.rs:129 show
+    /// Draws the stars and reports the edited rating.
     pub fn show(self, ui: &mut Ui) -> EditResponse<u8> {
         let Self { id_salt, label, rating, size, enabled, labels } = self;
         let labels = labels.unwrap_or_else(|| RatingLabels::of(ui));

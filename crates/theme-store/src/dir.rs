@@ -69,6 +69,7 @@ impl SuiteDir {
         SuiteDir { path: Some(path.into()), source: DirSource::Explicit }
     }
 
+    /// An in-memory suite with no folder, for tests and the web.
     pub fn memory() -> SuiteDir {
         SuiteDir { path: None, source: DirSource::Explicit }
     }
@@ -78,10 +79,12 @@ impl SuiteDir {
         self.path.as_deref()
     }
 
+    /// Whether the suite lives in memory.
     pub fn is_memory(&self) -> bool {
         self.path.is_none()
     }
 
+    /// Where the folder came from.
     pub fn source(&self) -> DirSource {
         self.source
     }

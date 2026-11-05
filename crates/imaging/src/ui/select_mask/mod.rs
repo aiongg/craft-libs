@@ -27,8 +27,8 @@
 //! if w.settings().remember { prefs.select_mask = w.settings().clone() }
 //! ```
 //!
-//! Files: `session` and `edits` (task WS-SM1); `tools` and `bar` (WS-SM2); `panel` and this file's
-//! `show` and `step` (WS-SM3).
+//! Files: `session` and `edits`; `tools` and `bar`; `panel` and this file's
+//! `show` and `step`.
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
 //! [`FullWindowSide`]: craft_ui::dialog::full_window::FullWindowSide
@@ -97,11 +97,13 @@ pub trait SelectMaskSource {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct SelectMaskOpen {
+    /// The document's size in pixels.
     pub size: [u32; 2],
     /// The document's name: the title's subject.
     pub subject: String,
     /// The remembered settings when Remember Settings was on, else the defaults.
     pub settings: SelectMaskSettings,
+    /// The limits on edits, strokes and points.
     pub limits: SelectMaskLimits,
     /// The targeted layer mask is refined (`"target": "mask"`), not the selection.
     pub target_mask: bool,
@@ -114,6 +116,7 @@ pub struct SelectMaskOpen {
 }
 
 impl SelectMaskOpen {
+    /// Opens on a document of `size` pixels named `subject`; settings and options take their defaults.
     pub fn new(size: [u32; 2], subject: impl Into<String>, limits: SelectMaskLimits) -> Self {
         Self {
             size,
@@ -127,11 +130,13 @@ impl SelectMaskOpen {
         }
     }
 
+    /// Sets the starting settings.
     pub fn settings(mut self, settings: SelectMaskSettings) -> Self {
         self.settings = settings;
         self
     }
 
+    /// Sets whether the layer mask is refined instead of the selection.
     pub fn target_mask(mut self, target_mask: bool) -> Self {
         self.target_mask = target_mask;
         self
@@ -173,12 +178,16 @@ pub enum SelectMaskEvent {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct SelectMaskOutput {
+    /// What happened this pass, in order.
     pub events: Vec<SelectMaskEvent>,
     /// The session, the view or a preview option changed this pass (or undo stepped): the app
     /// starts a preview job for this ticket.
     pub preview_wanted: Option<PreviewTicket>,
+    /// OK or Cancel, once chosen.
     pub outcome: Option<Outcome>,
+    /// The workspace's screen rectangle.
     pub rect: Rect,
+    /// A setting changed this pass.
     pub settings_changed: bool,
     /// The Overlay colour swatch was pressed: open the app's colour picker with this request
     /// (keyed [`OVERLAY_COLOR_KEY`]) and answer with [`SelectMaskWorkspace::set_color`].
@@ -189,7 +198,7 @@ pub struct SelectMaskOutput {
 ///
 /// Keys (none while a text field edits, except ⌘Z): W, R, B, L, H, Z and Shift+W, Shift+L
 /// (`ToolRail::pick_by_key`); `[` and `]` the brush size ([`BrushSizes::step`]); O M V A T K Y, F, J,
-/// P and X held ([`MaskViewKeys`](crate::ui::mask_view::MaskViewKeys)); Backspace and Delete the
+/// P and X held ([`MaskViewKeys`]); Backspace and Delete the
 /// polygon's last vertex; ⌘+, ⌘−, ⌘0, ⌘1 the view; ⌘Z, ⇧⌘Z the session's history; Enter closes a
 /// polygon first, else OK; Esc drops a polygon first, else Cancel (the dialog answers them; the workspace consumes the press it used).
 pub struct SelectMaskWorkspace {
@@ -462,10 +471,12 @@ impl SelectMaskWorkspace {
         }
     }
 
+    /// The edits and strokes recorded so far.
     pub fn session(&self) -> &SelectMaskSession {
         &self.session
     }
 
+    /// The current settings.
     pub fn settings(&self) -> &SelectMaskSettings {
         &self.settings
     }

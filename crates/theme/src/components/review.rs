@@ -11,33 +11,33 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ReviewTokens {
-    /// A comment pin's size: [`values::REVIEW_PIN`].
+    /// A comment pin's size: `values::REVIEW_PIN`.
     pub pin: f32,
-    /// Pins nearer than this gather into a cluster: [`values::REVIEW_CLUSTER_RADIUS`].
+    /// Pins nearer than this gather into a cluster: `values::REVIEW_CLUSTER_RADIUS`.
     pub cluster_radius: f32,
-    /// The thread popover's width: [`values::REVIEW_POPOVER_WIDTH`].
+    /// The thread popover's width: `values::REVIEW_POPOVER_WIDTH`.
     pub popover_width: f32,
-    /// The version history's timeline dot column: [`values::REVIEW_VERSION_DOT_X`].
+    /// The version history's timeline dot column: `values::REVIEW_VERSION_DOT_X`.
     pub version_dot_x: f32,
-    /// The version history's text column: [`values::REVIEW_VERSION_TEXT_X`].
+    /// The version history's text column: `values::REVIEW_VERSION_TEXT_X`.
     pub version_text_x: f32,
-    /// A cursor chat bubble's width: [`values::REVIEW_CHAT_WIDTH`].
+    /// A cursor chat bubble's width: `values::REVIEW_CHAT_WIDTH`.
     pub chat_width: f32,
-    /// A cursor chat bubble's corner radius: [`values::REVIEW_CHAT_RADIUS`].
+    /// A cursor chat bubble's corner radius: `values::REVIEW_CHAT_RADIUS`.
     pub chat_radius: f32,
-    /// The join field's width: [`values::REVIEW_JOIN_WIDTH`].
+    /// The join field's width: `values::REVIEW_JOIN_WIDTH`.
     pub join_width: f32,
-    /// The revision card's colour bar width: [`values::REVIEW_REVISION_BAR_WIDTH`].
+    /// The revision card's colour bar width: `values::REVIEW_REVISION_BAR_WIDTH`.
     pub revision_bar_width: f32,
-    /// The revision card's colour bar height: [`values::REVIEW_REVISION_BAR_HEIGHT`].
+    /// The revision card's colour bar height: `values::REVIEW_REVISION_BAR_HEIGHT`.
     pub revision_bar_height: f32,
-    /// The selected comment card's accent bar width: [`values::REVIEW_CARD_ACCENT_WIDTH`].
+    /// The selected comment card's accent bar width: `values::REVIEW_CARD_ACCENT_WIDTH`.
     pub card_accent_width: f32,
-    /// The room between a pin's bubble and the avatar circle inside it: [`values::REVIEW_PIN_INSET`].
+    /// The room between a pin's bubble and the avatar circle inside it: `values::REVIEW_PIN_INSET`.
     pub pin_inset: f32,
-    /// The filled version dot's radius: [`values::REVIEW_VERSION_DOT_RADIUS`].
+    /// The filled version dot's radius: `values::REVIEW_VERSION_DOT_RADIUS`.
     pub version_dot_radius: f32,
-    /// The hollow version dot's radius: [`values::REVIEW_VERSION_DOT_HOLLOW_RADIUS`].
+    /// The hollow version dot's radius: `values::REVIEW_VERSION_DOT_HOLLOW_RADIUS`.
     pub version_dot_hollow_radius: f32,
     /// The accepted status badge: `review.status_accepted`, `status.good.fg`.
     pub status_accepted: Rgba,
@@ -57,7 +57,7 @@ pub struct ReviewTokens {
     pub revision_changed: Rgba,
     /// The light ink on a dark person colour: `review.ink_light`, `text.on_strong`.
     pub ink_light: Rgba,
-    /// The dark ink on a light person colour: `review.ink_dark`, [`values::REVIEW_INK_DARK`].
+    /// The dark ink on a light person colour: `review.ink_dark`, `values::REVIEW_INK_DARK`.
     pub ink_dark: Rgba,
 }
 

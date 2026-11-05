@@ -1,4 +1,4 @@
-//! `name_matches` (task B11).
+//! `name_matches`.
 
 use super::name_matches;
 

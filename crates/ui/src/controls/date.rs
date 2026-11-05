@@ -51,12 +51,16 @@ crate::words! {
 /// Gregorian ones, as in the Buddhist calendar).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum DatePrecision {
+    #[allow(missing_docs)]
     Year,
+    #[allow(missing_docs)]
     Month,
+    #[allow(missing_docs)]
     Day,
 }
 
 impl DatePrecision {
+    /// Every precision, from coarsest to finest.
     pub const ALL: [DatePrecision; 3] = [DatePrecision::Year, DatePrecision::Month, DatePrecision::Day];
 }
 
@@ -67,6 +71,7 @@ impl DatePrecision {
 /// `CalendarDate`'s, not a copy here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PickedDate {
+    #[allow(missing_docs)]
     pub year: i32,
     /// 1 to 12.
     pub month: Option<u8>,
@@ -75,14 +80,17 @@ pub struct PickedDate {
 }
 
 impl PickedDate {
+    /// A value naming the whole `year`.
     pub fn year(year: i32) -> Self {
         Self { year, month: None, day: None }
     }
 
+    /// A value naming `month` (1 to 12) of `year`.
     pub fn month(year: i32, month: u8) -> Self {
         Self { year, month: Some(month), day: None }
     }
 
+    /// A value naming one day; `month` is 1 to 12 and `day` is 1 to the month's last day.
     pub fn day(year: i32, month: u8, day: u8) -> Self {
         Self { year, month: Some(month), day: Some(day) }
     }
@@ -129,6 +137,7 @@ impl PickedDate {
         }
     }
 
+    /// How much of a date the value names: year, month or day.
     pub fn precision(&self) -> DatePrecision {
         match (self.month, self.day) {
             (Some(_), Some(_)) => DatePrecision::Day,
@@ -336,6 +345,7 @@ impl<'a> DatePicker<'a> {
         self
     }
 
+    /// The latest value allowed: a value is allowed when any of its days is in range.
     pub fn max(mut self, max: Option<PickedDate>) -> Self {
         self.max = max;
         self
@@ -348,11 +358,13 @@ impl<'a> DatePicker<'a> {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether the button takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

@@ -1,3 +1,5 @@
+//! Integration tests of craft-vectorcraft-format: envelope.
+
 use std::io::Write;
 
 use craft_vectorcraft_format::{

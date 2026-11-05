@@ -21,8 +21,11 @@ use egui::{Event, PointerButton, Response};
 /// degrees 0..360, pressure 0..=1.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PenSample {
+    #[allow(missing_docs)]
     pub pressure: f32,
+    #[allow(missing_docs)]
     pub tilt: [f32; 2],
+    #[allow(missing_docs)]
     pub rotation: f32,
     /// The eraser end is toward the surface.
     pub eraser: bool,
@@ -57,6 +60,7 @@ const FEED_QUEUE: usize = 1024;
 pub struct PenFeed(Arc<Mutex<VecDeque<PenSample>>>);
 
 impl PenFeed {
+    /// An empty feed.
     pub fn new() -> Self {
         Self::default()
     }
@@ -100,6 +104,7 @@ pub struct PenInput {
 }
 
 impl PenInput {
+    /// A reader with pressure enabled.
     pub fn new() -> Self {
         Self { use_pressure: true, ..Self::default() }
     }

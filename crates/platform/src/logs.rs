@@ -303,7 +303,9 @@ pub fn format_line(ts: &str, level: log::Level, thread: &str, target: &str, mess
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug)]
 pub struct LogFile {
+    /// The log file's path.
     pub path: PathBuf,
+    /// The open file, for writing.
     pub file: File,
     /// The held lock that marks `path` as in use, until the logger is dropped; `None` where the
     /// file system has no locks.

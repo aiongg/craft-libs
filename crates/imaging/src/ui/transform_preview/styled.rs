@@ -1,5 +1,5 @@
 //! The styled transform preview: a layer with a style (Stroke, Drop Shadow, …) composited by the
-//! app at the resolution it is shown at, within a time budget (task TR-T11).
+//! app at the resolution it is shown at, within a time budget.
 //!
 //! A style is not transformed with its layer: it is drawn again from the layer's new shape (a
 //! stroke keeps its width, a shadow its angle). So the moving texels are resampled through the box
@@ -156,7 +156,9 @@ fn grow(rect: &PixelRect, by: i32) -> PixelRect {
 /// resampled layer's do.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StyledContent {
+    /// The work rectangle in document pixels.
     pub rect: PixelRect,
+    /// The straight-alpha RGBA texels, row by row.
     pub texels: Vec<[f32; 4]>,
 }
 

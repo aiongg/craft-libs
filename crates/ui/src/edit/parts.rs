@@ -21,9 +21,9 @@
 //! - Inside [`scope`](super::scope) every value is a `set`, so only Updates go out.
 //! - The typing fields are the gesture's [`focus_owners`](Gesture::focus_owners). While the
 //!   owner's typing run is under way, its ending event ends the composite's gesture, also when the
-//!   focus has left the field ([`Gesture::ended_by_part`]).
+//!   focus has left the field (`Gesture::ended_by_part`).
 //! - An interrupted composite gesture ends as its owner's gesture would
-//!   ([`Gesture::interrupted_as`]): when the composite stops being drawn, or the host ends its
+//!   (`Gesture::interrupted_as`): when the composite stops being drawn, or the host ends its
 //!   gesture for another one ([`GestureHost`](super::GestureHost)), the host gets the owner's
 //!   ending, a commit with the owner's last value (also one no update carried, as the
 //!   composite's value) or a cancel, whatever the composite's own focus rule would say. A

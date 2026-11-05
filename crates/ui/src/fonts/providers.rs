@@ -35,6 +35,7 @@ pub struct RegularWeight {
 }
 
 impl RegularWeight {
+    /// Wraps `inner`, with every family at the regular weight.
     pub fn new(inner: Arc<dyn FontProvider>) -> Self {
         Self { inner, weights: Vec::new() }
     }
@@ -124,7 +125,7 @@ impl FaceList {
         self.chains.get(family).or_else(|| self.chains.get(&FontFamily::Proportional)).map_or(&[], Vec::as_slice)
     }
 
-    /// Replace `family`'s list. Names without data from [`Self::add`] are skipped when asked.
+    /// Replace `family`'s list. Names without data from `Self::add` are skipped when asked.
     pub fn set_chain(&mut self, family: FontFamily, names: Vec<String>) {
         self.chains.insert(family, names);
     }

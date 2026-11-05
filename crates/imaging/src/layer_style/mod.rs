@@ -8,7 +8,7 @@
 //! edits a draft is `craft_imaging::ui::layer_style` (the `ui` feature); the engine that renders
 //! the style is the app's, which converts its own effects to and from [`LayerStyle`] by
 //! [`EffectKind::key`] and the parameter keys of the tables. Colours are [`craft_theme::Srgba`];
-//! contours are point lists, which the UI turns into a curve for its editor (lead call L27).
+//! contours are point lists, which the UI turns into a curve for its editor.
 //!
 //! ```no_run
 //! use craft_imaging::layer_style::{EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, LayerStylePage};

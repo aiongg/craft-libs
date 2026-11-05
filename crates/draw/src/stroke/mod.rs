@@ -17,9 +17,12 @@ mod tests;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum StrokeAlign {
+    /// The stroke lies inside the path.
     Inside,
+    /// The stroke is centred on the path.
     #[default]
     Center,
+    /// The stroke lies outside the path.
     Outside,
 }
 
@@ -30,6 +33,7 @@ pub enum LineCap {
     /// Butt / Flat: the stroke ends at the end point.
     #[default]
     Butt,
+    /// A semicircle past the end point.
     Round,
     /// The stroke goes on half its width past the end point.
     Square,
@@ -42,7 +46,9 @@ pub enum LineJoin {
     /// A sharp point, cut off past [`StrokeStyle::miter_limit`].
     #[default]
     Miter,
+    /// A circular arc around the corner point.
     Round,
+    /// The corner is cut off flat.
     Bevel,
 }
 
@@ -117,8 +123,11 @@ impl std::error::Error for StrokeError {}
 pub struct StrokeStyle {
     /// The width in document units.
     pub width: f32,
+    /// Where the stroke lies relative to the path.
     pub align: StrokeAlign,
+    /// The shape of open ends.
     pub cap: LineCap,
+    /// The shape of corners.
     pub join: LineJoin,
     /// The miter limit as a multiple of the width (Photoshop's 100 mitres nearly every corner).
     pub miter_limit: f32,
@@ -126,6 +135,7 @@ pub struct StrokeStyle {
     pub dashes: Vec<f32>,
     /// Where the pattern starts along the path, in [`dash_unit`](Self::dash_unit).
     pub dash_offset: f32,
+    /// What a dash or gap length counts in.
     pub dash_unit: DashUnit,
     /// 0..=1.
     pub opacity: f32,

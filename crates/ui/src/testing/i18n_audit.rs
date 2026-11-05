@@ -152,6 +152,7 @@ pub struct Audit {
 }
 
 impl Audit {
+    /// An audit with no findings.
     pub fn new() -> Self {
         Self::default()
     }

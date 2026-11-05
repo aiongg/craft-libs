@@ -9,7 +9,12 @@ pub enum Curve {
     /// corner breaks the curve, and the points from one corner to the next (both included) take
     /// the host's interpolation (its sampler) as a run of their own. A short `corners` reads as smooth
     /// points; [`Curve::smooth`] and [`Curve::from_parts`] make the value.
-    Points { points: Vec<[f32; 2]>, corners: Vec<bool> },
+    Points {
+        /// Control points `[input, output]`.
+        points: Vec<[f32; 2]>,
+        /// Per point, whether it is a corner rather than smooth.
+        corners: Vec<bool>,
+    },
     /// A drawn curve (pencil): one output level per input level, drawn as straight segments.
     Map(Vec<f32>),
 }
@@ -139,7 +144,7 @@ impl Curve {
     }
 
     /// The output of every input level `0..=levels` through `points` (normalised first, see
-    /// [`Curve::normalised`]), of which
+    /// `Curve::normalised`), of which
     /// `corners` marks corner points (PhotoCraft's `contour_curve_lut`): the points are split at
     /// the corners into runs `[start..=corner]`, each run is `smooth` (the host's interpolation of
     /// those points alone, constant outside its end points), and each run owns the inputs from its
@@ -319,13 +324,15 @@ pub(crate) enum CurveOp {
 /// themselves (a Curves eyedropper).
 #[derive(Clone, Copy, Debug)]
 pub struct CurveRules {
+    /// Greatest level of the curve; inputs and outputs run `0..=levels`.
     pub levels: f32,
+    /// Most control points the curve may hold.
     pub max_points: usize,
 }
 
 impl CurveRules {
     /// Adds a point at `v`, kept sorted, and returns its index. A point within
-    /// [`SAME_POINT`] input levels of `v` is returned instead; a full curve takes none.
+    /// `SAME_POINT` input levels of `v` is returned instead; a full curve takes none.
     pub fn insert(&self, points: &mut Vec<[f32; 2]>, v: [f32; 2]) -> Option<usize> {
         if !v.iter().all(|x| x.is_finite()) {
             return None;

@@ -1,4 +1,4 @@
-//! Vanishing Point's drawing: planes, grids, nodes, the paste, the stamp (task WS-VP2).
+//! Vanishing Point's drawing: planes, grids, nodes, the paste, the stamp.
 
 use egui::epaint::Vertex;
 use egui::{Color32, Mesh, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, Vec2, pos2};

@@ -25,7 +25,7 @@ pub fn on_close_request(ctx: &Context) -> bool {
 /// An app that builds its own native app menu (muda, any version) gives its Quit item this id,
 /// instead of using muda's `PredefinedMenuItem::quit`, which ends the process without asking, and
 /// passes its menu events to [`on_menu_event`]. Apps without their own menu use
-/// [`crate::install_app_menu`], which does both.
+/// `crate::install_app_menu`, which does both.
 pub const QUIT_MENU_ID: &str = "craft-quit.quit";
 
 /// Handle a native menu event by the id of the item chosen. For [`QUIT_MENU_ID`], asks the root
@@ -88,8 +88,11 @@ pub enum CloseScope {
 /// The user's answer for one document.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CloseAnswer {
+    /// Save the document, then close it.
     Save,
+    /// Close the document and discard its changes.
     DontSave,
+    /// Keep the document open and end the whole close operation.
     Cancel,
 }
 
@@ -136,6 +139,7 @@ impl<D: Clone + PartialEq> CloseGuard<D> {
         Self { scope, pending: modified.into_iter().collect(), saving: None, apply_to_all: None, cancelled: false }
     }
 
+    /// What the guard was started for.
     pub fn scope(&self) -> CloseScope {
         self.scope
     }
@@ -211,10 +215,12 @@ impl<D: Clone + PartialEq> CloseGuard<D> {
         self.pending.retain(|d| d != doc);
     }
 
+    /// Whether no document is left to ask about or save, or the operation was cancelled.
     pub fn is_finished(&self) -> bool {
         self.cancelled || (self.pending.is_empty() && self.saving.is_none())
     }
 
+    /// Whether the operation was cancelled.
     pub fn is_cancelled(&self) -> bool {
         self.cancelled
     }

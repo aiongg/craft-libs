@@ -102,6 +102,7 @@ impl<'a> HarmonyWheel<'a> {
         HarmonyWheel { id_salt: IdSalt::new(id_salt), label: label.into(), colors, selected: None, size: 0.0 }
     }
 
+    /// Marks the colour at this index as selected; none by default.
     pub fn selected(mut self, selected: Option<usize>) -> HarmonyWheel<'a> {
         self.selected = selected;
         self
@@ -115,6 +116,7 @@ impl<'a> HarmonyWheel<'a> {
 
     // inv-vectorcraft: crates/ui-egui/src/widgets/color.rs:485 `harmony_wheel`; built on
     // `ColorWheel`'s ring geometry where it fits (`WheelGeometry`).
+    /// Draws the wheel and returns its response.
     pub fn show(self, ui: &mut Ui) -> HarmonyWheelResponse {
         let Self { id_salt, label, colors, selected, size } = self;
         let labels = HarmonyLabels::of(ui);
@@ -160,7 +162,9 @@ impl<'a> HarmonyWheel<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct HarmonyPanelState {
+    /// The chosen harmony rule.
     pub rule: Harmony,
+    /// The variation grid's options.
     pub options: GuideOptions,
 }
 
@@ -211,6 +215,7 @@ impl<'a> HarmonyPanel<'a> {
         self
     }
 
+    /// Draws the panel, editing the state in place, and returns its response.
     pub fn show(self, ui: &mut Ui) -> HarmonyPanelResponse {
         let Self { id_salt, state, base, limit } = self;
         let labels = HarmonyLabels::of(ui);

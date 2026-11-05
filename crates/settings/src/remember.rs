@@ -17,6 +17,7 @@ use serde::de::DeserializeOwned;
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Serialize, serde::Deserialize)]
 pub struct RememberedSection {
+    /// Each scope key with its stored table.
     #[serde(flatten)]
     pub scopes: toml::Table,
 }
@@ -48,10 +49,12 @@ pub struct Remembered<T> {
 }
 
 impl<T: Serialize + DeserializeOwned> Remembered<T> {
+    /// A handle for the value stored under `scope`.
     pub fn new(scope: impl Into<String>) -> Self {
         Self { scope: scope.into(), _value: PhantomData }
     }
 
+    /// The scope key.
     pub fn scope(&self) -> &str {
         &self.scope
     }

@@ -24,7 +24,7 @@ use crate::actions::ActionList;
 /// | Button Mode | `ToggleRight`, pressed button | toggles [`ActionsSettings::button_mode`](super::ActionsSettings::button_mode) in `state` | not recording |
 ///
 /// PhotoCraft's "Button Mode" small text button becomes a pressed icon button in the one footer
-/// look (lead call L21: the panel menu's check row has the same state).
+/// look (the panel menu's check row has the same state).
 pub(super) fn footer(
     ui: &mut Ui,
     list_id: Id,

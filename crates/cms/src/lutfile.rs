@@ -9,7 +9,9 @@
 /// A parsed 3D LUT.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LutFile {
+    /// Title from the file, or empty when it has none.
     pub title: String,
+    /// Edge length of the cube: the table has `size` points per axis.
     pub size: usize,
     /// `size`³ × 3 values, red fastest.
     pub data: Vec<f32>,
@@ -18,6 +20,7 @@ pub struct LutFile {
     /// saturating outside. `[0, 1]` is the identity default; applying a table with any other
     /// domain is rejected upstream until Color Lookup carries it through.
     pub domain_min: [f32; 3],
+    /// Upper end of the input domain per channel; see [`domain_min`](Self::domain_min).
     pub domain_max: [f32; 3],
 }
 
@@ -25,6 +28,7 @@ pub struct LutFile {
 /// keeping the GPU table within texture limits).
 pub const MAX_SIZE: usize = 129;
 
+/// Why a LUT file could not be read; the string is a message for the user.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LutError(pub String);
 
@@ -229,6 +233,12 @@ pub fn write_cube(l: &LutFile) -> String {
     let mut s = String::new();
     if !l.title.is_empty() {
         s.push_str(&format!("TITLE \"{}\"\n", l.title.replace('"', "'")));
+    }
+    // The domain is what every row means: a table read with a non-default one must not be
+    // written back as if it expected inputs in 0..1. `parse_cube` accepts these anywhere.
+    if !l.domain_is_default() {
+        s.push_str(&format!("DOMAIN_MIN {} {} {}\n", l.domain_min[0], l.domain_min[1], l.domain_min[2]));
+        s.push_str(&format!("DOMAIN_MAX {} {} {}\n", l.domain_max[0], l.domain_max[1], l.domain_max[2]));
     }
     s.push_str(&format!("LUT_3D_SIZE {}\n", l.size));
     for c in l.data.as_chunks::<3>().0 {
@@ -443,5 +453,26 @@ DOMAIN_MAX 0.5 1 1
             assert!(l.data.iter().all(|v| (0.0..=1.0).contains(v)), "{id}");
         }
         assert!(builtin("nope").is_none());
+    }
+
+    #[test]
+    fn cube_domain_survives_a_write() {
+        let cube = "DOMAIN_MIN 0.25 0.25 0.25
+DOMAIN_MAX 0.75 0.75 0.75
+LUT_3D_SIZE 2
+0 0 0
+0 0 1
+0 1 0
+0 1 1
+1 0 0
+1 0 1
+1 1 0
+1 1 1
+";
+        let l = parse_cube(cube).expect("a cube with a non-default domain");
+        assert!(!l.domain_is_default());
+        let back = parse_cube(&write_cube(&l)).expect("roundtrip");
+        assert_eq!(back.domain_min, l.domain_min, "the written table must mean the same");
+        assert_eq!(back.domain_max, l.domain_max);
     }
 }

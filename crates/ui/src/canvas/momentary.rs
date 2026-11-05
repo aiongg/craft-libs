@@ -34,8 +34,11 @@ fn shortcut_held(input: &InputState, sc: &KeyboardShortcut) -> bool {
 /// A tool in effect only while its keys are held.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MomentaryTool {
+    #[allow(missing_docs)]
     Hand,
+    #[allow(missing_docs)]
     ZoomIn,
+    #[allow(missing_docs)]
     ZoomOut,
 }
 
@@ -67,8 +70,11 @@ impl MomentaryTool {
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MomentaryKeys {
+    #[allow(missing_docs)]
     pub hand: KeyboardShortcut,
+    #[allow(missing_docs)]
     pub zoom_in: KeyboardShortcut,
+    #[allow(missing_docs)]
     pub zoom_out: KeyboardShortcut,
 }
 

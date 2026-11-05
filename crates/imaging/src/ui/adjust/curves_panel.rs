@@ -1,7 +1,7 @@
 //! [`CurvesPanel`]: the Curves adjustment around the kernel's [`CurveEditor`]: the Channel select,
 //! the mode icons (points, pencil), Smooth, the point pickers, the other channels overlaid on the
 //! composite and the hint line; and the ⌘/Ctrl-click-on-the-image helper
-//! ([`CurvesPanel::add_point_from_sample`]) (task AD-2).
+//! ([`CurvesPanel::add_point_from_sample`]).
 //!
 //! [`CurveEditor`]: craft_ui::composites::CurveEditor
 
@@ -70,7 +70,9 @@ pub enum CurvesMode {
 /// one [`CurvesMode`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct ToneCurves {
+    /// The curves, one per channel.
     pub curves: Vec<Curve>,
+    /// The mode all the curves share.
     pub mode: CurvesMode,
 }
 

@@ -187,6 +187,7 @@ pub struct NativeMenu {
 }
 
 impl NativeMenu {
+    /// A menu driver for `backend`. Calls [`Backend::attach`] once.
     pub fn new(mut backend: Box<dyn Backend>) -> NativeMenu {
         let dispatch = Dispatch::default();
         backend.attach(dispatch.clone());
@@ -208,6 +209,7 @@ impl NativeMenu {
         }
     }
 
+    /// Choose how ⌘C, ⌘X and ⌘V reach the app; see [`ClipboardKeys`].
     pub fn clipboard_keys(mut self, keys: ClipboardKeys) -> NativeMenu {
         self.clipboard = keys;
         self

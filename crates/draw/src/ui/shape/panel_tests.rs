@@ -1,4 +1,4 @@
-//! Tests of the shape panel (task SH-T6).
+//! Tests of the shape panel.
 
 use craft_color::ui::Paint;
 use craft_theme::Srgba;

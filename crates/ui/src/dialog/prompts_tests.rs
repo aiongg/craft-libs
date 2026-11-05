@@ -3,7 +3,7 @@
 use egui::accesskit::Role;
 use egui::os::OperatingSystem;
 use egui::{Context, Key};
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::*;
@@ -123,4 +123,87 @@ fn the_delete_prompt_uses_the_apps_noun() {
     let mut harness = self::harness(prompt(), OperatingSystem::Mac);
     harness.run();
     harness.get_by_label_contains("2 items");
+}
+
+// Row 168: a vector mask asks "Delete the vector mask?" with OK and Cancel; when the host
+// cannot apply, Apply is disabled and neither Enter nor its key answers it.
+#[test]
+fn the_vector_mask_question_and_a_disabled_apply() {
+    let mut harness = harness(StandardPrompt::trash_vector_mask(), OperatingSystem::Mac);
+    harness.run();
+    harness.get_by_label_contains("Delete the vector mask?");
+    harness.get_by_role_and_label(Role::Button, "OK");
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert_eq!(harness.state().answers, [PromptChoice::Proceed]);
+
+    let mut harness = self::harness(StandardPrompt::trash_mask().can_apply(false), OperatingSystem::Mac);
+    harness.run();
+    assert!(harness.get_by_role_and_label(Role::Button, "Apply").accesskit_node().is_disabled());
+    harness.key_press(Key::Enter);
+    harness.key_press(Key::A);
+    harness.run();
+    assert!(harness.state().answers.is_empty(), "a disabled Apply answers nothing");
+    harness.get_by_role_and_label(Role::Button, "Delete").click();
+    harness.run();
+    assert_eq!(harness.state().answers, [PromptChoice::Alternate]);
+}
+
+// Row 169: the app gives message and buttons; the answer says which was pressed. Details is a
+// disclosure that Space opens, and Enter on it does not answer the prompt.
+#[test]
+fn a_custom_prompt_has_the_apps_buttons_tone_and_details() {
+    let rasterize = || {
+        StandardPrompt::custom("This type layer must be rasterized.")
+            .title("Rasterize")
+            .button(PromptChoice::Proceed, "Convert to Smart Object", Some(Key::C))
+            .button(PromptChoice::Alternate, "Rasterize", Some(Key::R))
+            .button(PromptChoice::Cancel, "Cancel", Some(Key::A))
+    };
+    let mut harness = harness(rasterize(), OperatingSystem::Mac);
+    harness.run();
+    harness.get_by_label_contains("must be rasterized");
+    harness.get_by_role_and_label(Role::Button, "Rasterize").click();
+    harness.run();
+    assert_eq!(harness.state().answers, [PromptChoice::Alternate]);
+    let mut harness = self::harness(rasterize(), OperatingSystem::Mac);
+    harness.run();
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert_eq!(harness.state().answers, [PromptChoice::Proceed]);
+
+    let gpu = StandardPrompt::custom("The GPU failed.")
+        .button(PromptChoice::Proceed, "Keep Using CPU", Some(Key::K))
+        .button(PromptChoice::Alternate, "Retry GPU", Some(Key::R))
+        .tone(craft_theme::Tone::Warn, "Drawing will be slower.")
+        .details("device lost");
+    let mut harness = self::harness(gpu, OperatingSystem::Mac);
+    harness.run();
+    assert!(harness.query_all_by_label_contains("Drawing will be slower.").next().is_some());
+    assert!(harness.query_all_by_label_contains("device lost").next().is_none(), "details start closed");
+    let toggle = harness.get_by_role_and_label(Role::DisclosureTriangle, "Details");
+    toggle.focus();
+    harness.run();
+    harness.key_press(Key::Space);
+    harness.run();
+    assert!(harness.query_all_by_label_contains("device lost").next().is_some());
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert!(harness.state().answers.is_empty(), "Enter on Details toggles it and answers nothing");
+    // With no Cancel button, Esc answers the first Alternate (the library's prompt rule).
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert_eq!(harness.state().answers, [PromptChoice::Alternate]);
+}
+
+// Row 170: a damaged-file prompt shows its paragraphs and every warning.
+#[test]
+fn a_damaged_file_lists_its_warnings() {
+    let prompt =
+        StandardPrompt::damaged_file("a.psd").message("First paragraph.\n\nSecond paragraph.").warnings(["Layer 1 is short", "Layer 2 is short"]);
+    let mut harness = harness(prompt, OperatingSystem::Mac);
+    harness.run();
+    harness.get_by_label_contains("Second paragraph.");
+    harness.get_by_label("Layer 1 is short");
+    harness.get_by_label("Layer 2 is short");
 }

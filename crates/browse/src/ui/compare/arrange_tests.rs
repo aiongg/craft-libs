@@ -1,4 +1,4 @@
-//! `ComparePair` and `survey_columns` (task B3).
+//! `ComparePair` and `survey_columns`.
 
 use craft_theme::Mode;
 use craft_ui::theme::tokens_in_mode;

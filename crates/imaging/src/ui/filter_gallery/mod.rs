@@ -13,8 +13,8 @@
 //! ([`FilterGalleryWorkspace::visible`]) for each [`PreviewTicket`]. OK runs `filter.filterGallery`
 //! with the effects; a smart filter opened again passes its recorded effects.
 //!
-//! Files: `catalog` and `session` (task WS-FG1); `tree`, `stack`, `parameters` and this file's
-//! bodies (WS-FG2).
+//! Files: `catalog` and `session`; `tree`, `stack`, `parameters` and this file's
+//! bodies.
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
 //! [`FullWindowZoomBar`]: craft_ui::dialog::full_window::FullWindowZoomBar
@@ -60,6 +60,7 @@ use craft_ui::theme::{Tokens, TokensOf as _};
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct FilterGalleryOpen {
+    /// The layer's size in document pixels.
     pub size: [u32; 2],
     /// The layer's name: the title's subject.
     pub subject: String,
@@ -73,6 +74,7 @@ pub struct FilterGalleryOpen {
 }
 
 impl FilterGalleryOpen {
+    /// Opens on a layer of `size` document pixels named `subject`, starting from `session`; navigation and checkerboard take their defaults.
     pub fn new(size: [u32; 2], subject: impl Into<String>, session: FilterGallerySession) -> Self {
         Self { size, subject: subject.into(), session, navigation: NavigationOptions::default(), checkerboard: None }
     }
@@ -104,11 +106,14 @@ pub enum FilterGalleryEvent {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct FilterGalleryOutput {
+    /// What happened this pass, in order.
     pub events: Vec<FilterGalleryEvent>,
     /// The stack, the zoom or the visible part changed: the app renders
     /// [`FilterGalleryWorkspace::visible`] for this ticket.
     pub preview_wanted: Option<PreviewTicket>,
+    /// OK or Cancel, once chosen.
     pub outcome: Option<Outcome>,
+    /// The workspace's screen rectangle.
     pub rect: Rect,
     /// A color parameter's swatch pressed: the app opens its picker and answers into the selected
     /// effect's fields ([`FilterGalleryWorkspace::set_color`]).
@@ -147,6 +152,7 @@ pub struct FilterGalleryWorkspace {
 }
 
 impl FilterGalleryWorkspace {
+    /// A workspace on the stack and layer that `open` describes.
     pub fn new(open: FilterGalleryOpen) -> Self {
         let [width, height] = open.size;
         let selected = open.session.effects.len().saturating_sub(1);
@@ -296,6 +302,7 @@ impl FilterGalleryWorkspace {
         FilterGalleryOutput { events, preview_wanted, outcome: response.outcome, rect: response.rect, pick_color: color_request }
     }
 
+    /// The effect-layer stack as it is now.
     pub fn session(&self) -> &FilterGallerySession {
         &self.session
     }
@@ -326,6 +333,7 @@ impl FilterGalleryWorkspace {
         self.dirty = true;
     }
 
+    /// The preview job `ticket` finished: the preview shows the new result.
     pub fn preview_ready(&mut self, ticket: PreviewTicket) {
         self.preview.ready(ticket);
     }
@@ -335,6 +343,7 @@ impl FilterGalleryWorkspace {
         self.preview.report_progress(ticket, fraction);
     }
 
+    /// The preview job `ticket` failed: `message` shows in the preview pane.
     pub fn preview_failed(&mut self, ticket: PreviewTicket, message: String) {
         self.preview.failed(ticket, message);
     }

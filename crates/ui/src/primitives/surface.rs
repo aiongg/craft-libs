@@ -87,15 +87,25 @@ pub enum SurfaceEdge {
     /// A two-tone bevel inside the rect: `top_left` on the top and left sides, `bottom_right` on
     /// the bottom and right, meeting on the diagonals of the top-right and bottom-left corners.
     /// `width` is in points; it is drawn rounded to whole physical pixels, at least one.
-    Bevel { top_left: Color32, bottom_right: Color32, width: f32 },
+    Bevel {
+        /// The colour of the top and left sides.
+        top_left: Color32,
+        /// The colour of the bottom and right sides.
+        bottom_right: Color32,
+        /// The bevel width in points.
+        width: f32,
+    },
 }
 
 /// Everything a surface draws, from [`Surface::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SurfaceStyle {
+    /// The fill colour.
     pub fill: Color32,
+    /// The corner radii.
     pub radius: CornerRadius,
+    /// The border or bevel around the fill.
     pub edge: SurfaceEdge,
     /// Drawn under the fill; `None` where the elevation casts none.
     pub shadow: Option<Shadow>,
@@ -137,6 +147,7 @@ pub struct Surface {
 }
 
 impl Surface {
+    /// A surface of the given kind.
     pub fn new(kind: SurfaceKind) -> Self {
         Self { kind }
     }

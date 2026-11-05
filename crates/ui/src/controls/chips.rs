@@ -78,6 +78,7 @@ impl<'a> Chip<'a> {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct ChipFieldResponse {
+    /// The field's egui response.
     pub response: Response,
     /// The chip whose × was clicked, or which Delete or Backspace removed: the host removes it.
     pub removed: Option<usize>,
@@ -168,17 +169,20 @@ impl<'a> ChipField<'a> {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Whether the field takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
     // lightcraft: crates/ui-egui/src/panels/keywording.rs:80 chip, :243 chip_groups; lightcraft: crates/ui-egui/src/panels/chips.rs:92 show
+    /// Draws the chips and reports what was clicked, removed or cleared.
     pub fn show(self, ui: &mut Ui) -> ChipFieldResponse {
         let labels = self.labels.clone().unwrap_or_else(|| ChipFieldLabels::of(ui));
         let tokens = Tokens::of(ui);

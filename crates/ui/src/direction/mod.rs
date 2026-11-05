@@ -107,6 +107,7 @@ impl SetRightToLeft for egui::Style {}
 
 /// Anything the interface direction can be read from.
 pub trait HasDirection {
+    /// The interface direction of this value.
     fn direction(&self) -> Direction;
 }
 
@@ -233,7 +234,9 @@ pub fn beside(d: &impl HasDirection) -> RectAlign {
 /// A move along a row or list in reading order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Step {
+    /// The item before the current one.
     Previous,
+    /// The item after the current one.
     Next,
 }
 
@@ -418,6 +421,7 @@ pub enum Unmirrored {
 }
 
 impl Unmirrored {
+    /// Every unmirrored kind, for iteration.
     pub const ALL: [Unmirrored; 12] = [
         Unmirrored::Canvas,
         Unmirrored::Image,

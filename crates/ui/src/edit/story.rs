@@ -21,8 +21,10 @@ use crate::typed_story;
 /// The `update rate` arg.
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 pub enum RateArg {
+    #[allow(missing_docs)]
     Realtime,
     #[choice(name = "debounced 300 ms")]
+    #[allow(missing_docs)]
     Debounced,
 }
 
@@ -30,9 +32,12 @@ pub enum RateArg {
 #[derive(StoryArgs, Clone, Copy, Debug, PartialEq)]
 pub struct PolicyArgs {
     #[arg(name = "update rate")]
+    #[allow(missing_docs)]
     pub update_rate: RateArg,
+    #[allow(missing_docs)]
     pub cancellable: bool,
     #[arg(name = "on release only")]
+    #[allow(missing_docs)]
     pub on_release_only: bool,
 }
 

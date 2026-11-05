@@ -47,9 +47,12 @@ pub use tool::ArtboardTool;
 /// An artboard's background.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum ArtboardBackground {
+    /// An opaque white board.
     #[default]
     White,
+    /// An opaque black board.
     Black,
+    /// No fill; the checkerboard or what lies under shows through.
     Transparent,
     /// Other…: a colour asked for with `ColorRequest`.
     Custom(Srgba),
@@ -58,11 +61,13 @@ pub enum ArtboardBackground {
 /// One artboard as the tool sees it this pass: a read-only snapshot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArtboardItem {
+    /// The board's name, as shown on its label.
     pub name: String,
     /// In document pixels.
     pub rect: Rect,
     /// A locked board selects but never moves or resizes (Illustrator).
     pub locked: bool,
+    /// The board's fill.
     pub background: ArtboardBackground,
 }
 
@@ -70,6 +75,7 @@ pub struct ArtboardItem {
 /// engine `PRESETS`); the library has no preset data.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArtboardPreset {
+    /// The name the preset menu shows.
     pub name: String,
     /// In document pixels.
     pub size: Size,
@@ -141,21 +147,54 @@ pub enum ArtboardEvent {
     Draw(EditEvent<Rect>),
     /// The selected boards moving by an offset in whole pixels (with their contents); `copy` for
     /// an Illustrator ⌥-drag.
-    Move { indices: Vec<usize>, event: EditEvent<Vec2>, copy: bool },
+    Move {
+        /// Indices of the moved boards.
+        indices: Vec<usize>,
+        /// The drag phase and the offset in whole pixels.
+        event: EditEvent<Vec2>,
+        /// Whether the boards are copied rather than moved (⌥ held).
+        copy: bool,
+    },
     /// Board `index` resized by a handle (contents stay): its new pixel rect.
-    Resize { index: usize, event: EditEvent<Rect> },
+    Resize {
+        /// Index of the resized board.
+        index: usize,
+        /// The drag phase and the new pixel rect.
+        event: EditEvent<Rect>,
+    },
     /// A "+" button (or Insert on a picked board): a board of the same size beside board `index`;
     /// `copy` (⌥) with its contents.
-    AddBeside { index: usize, side: AddSide, copy: bool },
+    AddBeside {
+        /// Index of the board the new one goes beside.
+        index: usize,
+        /// Which side of that board.
+        side: AddSide,
+        /// Whether the contents are copied too (⌥ held).
+        copy: bool,
+    },
     /// The selection changed to `indices` (empty: none).
-    Select { indices: Vec<usize>, modifiers: Modifiers },
+    Select {
+        /// The newly selected boards.
+        indices: Vec<usize>,
+        /// Modifier keys held at the click.
+        modifiers: Modifiers,
+    },
     /// Delete removed the selected boards.
-    Delete { indices: Vec<usize> },
+    Delete {
+        /// Indices of the removed boards.
+        indices: Vec<usize>,
+    },
     /// Enter, or a double click inside a board under [`ArtboardRules::open_on_double_click`]:
     /// Artboard Options.
-    OpenOptions { index: usize },
+    OpenOptions {
+        /// Index of the board whose options open.
+        index: usize,
+    },
     /// Illustrator: a click on an object outside the boards: fit a board to the object at `at`.
-    FitObject { at: Point },
+    FitObject {
+        /// The clicked point, in document space.
+        at: Point,
+    },
     /// Illustrator: Esc with no drag: the app returns to its selection tool.
     Leave,
 }

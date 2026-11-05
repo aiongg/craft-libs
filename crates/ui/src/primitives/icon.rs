@@ -17,6 +17,7 @@ pub struct IconStyle {
     pub points: f32,
     /// Stroke width of stroke sets, in points.
     pub stroke: f32,
+    /// The tint, from the [`Content`] colour.
     pub color: Color32,
 }
 
@@ -35,15 +36,18 @@ pub struct Icon {
 }
 
 impl Icon {
+    /// `icon` at [`IconSize::Md`] in [`Content::Normal`], without an accessible name.
     pub fn new(icon: icons::Icon) -> Self {
         Self { icon, size: IconSize::Md, content: Content::Normal, label: None }
     }
 
+    /// The size class.
     pub fn size(mut self, size: IconSize) -> Self {
         self.size = size;
         self
     }
 
+    /// The content colour that tints the icon.
     pub fn content(mut self, content: Content) -> Self {
         self.content = content;
         self
@@ -55,6 +59,7 @@ impl Icon {
         self
     }
 
+    /// The resolved style for a size class and content colour, read from `tokens`.
     pub fn style(tokens: &UiTokens, size: IconSize, content: Content) -> IconStyle {
         IconStyle { points: size.points(tokens), stroke: size.stroke(), color: content.color(tokens).to_egui() }
     }

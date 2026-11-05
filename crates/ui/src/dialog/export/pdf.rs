@@ -49,7 +49,9 @@ pub enum PdfArtboards {
 pub struct PdfExportResult {
     /// The settings, with the passwords typed (a preset never stores them).
     pub options: PdfSettings,
+    /// The file the user chose to write.
     pub path: PathBuf,
+    /// Which artboards to include.
     pub artboards: PdfArtboards,
 }
 

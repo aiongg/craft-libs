@@ -54,6 +54,7 @@ impl<'a> OutputPathRow<'a> {
     }
 
     // effectcraft: crates/ui-egui/src/panels/render_queue.rs:634 output_to (templates :397, Choose File… :413)
+    /// Draws the row and reports a new path or template, and any save picker it queued.
     pub fn show(self, ui: &mut Ui) -> OutputPathResponse {
         let labels = OutputPathLabels::shared(ui);
         let host = Host::of(ui);

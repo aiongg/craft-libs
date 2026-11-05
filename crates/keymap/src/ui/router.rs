@@ -69,10 +69,12 @@ impl KeyRouter {
         KeyRouter { dispatcher }
     }
 
+    /// The dispatcher the router uses.
     pub fn dispatcher(&self) -> &Dispatcher {
         &self.dispatcher
     }
 
+    /// The dispatcher the router uses, to change its settings.
     pub fn dispatcher_mut(&mut self) -> &mut Dispatcher {
         &mut self.dispatcher
     }
@@ -114,7 +116,7 @@ impl KeyRouter {
         }
     }
 
-    /// Runs this frame's hits through `run`, in press order. First [`leave_for_shortcut`]
+    /// Runs this frame's hits through `run`, in press order. First [`craft_ui::menu::bar::leave_for_shortcut`]
     /// (a command chord takes the keyboard off a menu bar with no menu open), then
     /// [`KeyRouter::owner`] and the dispatcher with `active` (typing set when the owner is
     /// [`KeyOwner::Text`]), keeping only the hits [`KeyRouter::allows`]; a declined press stays in

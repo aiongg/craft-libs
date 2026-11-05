@@ -1,5 +1,5 @@
-//! [`StrokeEditorStyle`]: the stroke editor's and its button's look, from tokens (task TK2).
-//! Panel sizes: the same at both Sizes unless TK2's Size data gives a Comfortable value.
+//! [`StrokeEditorStyle`]: the stroke editor's and its button's look, from tokens.
+//! Panel sizes: the same at both Sizes.
 
 use egui::Color32;
 
@@ -15,14 +15,18 @@ pub struct StrokeEditorStyle {
     /// The popover body's width: `stroke_editor.width` (272), never wider than the window less
     /// `stroke_editor.screen_margin` (24), never narrower than `stroke_editor.min_width` (160).
     pub width: f32,
+    #[allow(missing_docs)]
     pub screen_margin: f32,
+    #[allow(missing_docs)]
     pub min_width: f32,
     /// The popover's scrolling height: the window's less `stroke_editor.screen_margin_y` (40),
     /// never under `stroke_editor.min_height` (80).
     pub screen_margin_y: f32,
+    #[allow(missing_docs)]
     pub min_height: f32,
     /// The opener: `stroke_editor.opener_width` (138) by `stroke_editor.opener_height` (24).
     pub opener_width: f32,
+    #[allow(missing_docs)]
     pub opener_height: f32,
     /// A preset row's height: `stroke_editor.preset_height` (32).
     pub preset_height: f32,
@@ -44,8 +48,11 @@ pub struct StrokeEditorStyle {
     /// `status.bad.fg` slash, `stroke_editor.off_stroke` (1) and `stroke_editor.off_slash_stroke`
     /// (1.5) wide.
     pub off_line: Color32,
+    #[allow(missing_docs)]
     pub off_slash: Color32,
+    #[allow(missing_docs)]
     pub off_stroke: f32,
+    #[allow(missing_docs)]
     pub off_slash_stroke: f32,
     /// The error line's colour: `status.bad.fg`.
     pub error: Color32,

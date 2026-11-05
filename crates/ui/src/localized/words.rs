@@ -117,7 +117,7 @@ impl Words {
         Words::new(lookup).with_plural(move |_, n, one, other| Some(i18n.trn(lang, n, one, other)))
     }
 
-    /// The words of the installed [`Host`]: its catalogs in its language, English without a Host
+    /// The words of the installed `Host`: its catalogs in its language, English without a Host
     /// or a catalog. The same `Arc` comes back until the Host is installed again.
     pub fn of(ui: &Ui) -> Arc<Words> {
         Words::of_ctx(ui.ctx())
@@ -231,6 +231,7 @@ pub mod counts {
     pub(crate) const ABOUT_PRS: Counted = Counted::new("about.prs", "{n} PR", "{n} PRs");
     pub(crate) const ABOUT_COMMITS: Counted = Counted::new("about.commitCount", "{n} commit", "{n} commits");
     pub(crate) const MORE: Counted = Counted::new("chipField.more", "+{n} more", "+{n} more");
+    /// Counted words for a star rating: "1 star", "3 stars".
     pub const STARS: Counted = Counted::new("rating.stars", "{n} star", "{n} stars");
     pub(crate) const DRAG_ITEMS: Counted = Counted::new("drag.count", "{n} item", "{n} items");
     pub(crate) const EVENT_ERRORS: Counted = Counted::new("eventLog.errorCount", "{n} error", "{n} errors");
@@ -327,7 +328,8 @@ pub fn all() -> impl Iterator<Item = Word> {
 
 /// Declares a labels struct from one table, `field: "id" = "English";` per row, and implements
 /// [`Labels`] and `Default` for it. An empty id makes the word a plain one, looked up by its
-/// English text. Every field is a `String`.
+/// English text. Every field is a `String`; each needs no doc of its own, since its English text
+/// says what it is.
 ///
 /// The struct also gets `localized(translate)`, which replaces each field with
 /// `translate(`[`Word::key`]`)` where it returns `Some`.
@@ -339,7 +341,7 @@ macro_rules! words {
         $(#[$meta])*
         #[derive(Clone, Debug, PartialEq, Eq)]
         $vis struct $name {
-            $($(#[$fmeta])* pub $field: String,)*
+            $($(#[$fmeta])* #[allow(missing_docs)] pub $field: String,)*
         }
 
         impl $crate::localized::Labels for $name {

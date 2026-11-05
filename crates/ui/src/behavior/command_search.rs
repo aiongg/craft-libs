@@ -65,26 +65,32 @@ impl<T> PaletteEntry<T> {
         self
     }
 
+    /// The command the entry runs.
     pub fn command(&self) -> &T {
         &self.command
     }
 
+    /// The text the palette lists and searches.
     pub fn label(&self) -> &str {
         &self.label
     }
 
+    /// The titles of the menus above the command, outermost first; empty for an entry that is not a menu command.
     pub fn path_of(&self) -> &[String] {
         &self.path
     }
 
+    /// What the entry is when it is not a menu command, if set with [`kind`](PaletteEntry::kind).
     pub fn kind_of(&self) -> Option<&str> {
         self.kind.as_deref()
     }
 
+    /// The command's shortcut, if any.
     pub fn shortcut_of(&self) -> Option<&Kbd> {
         self.shortcut.as_ref()
     }
 
+    /// Whether the command can run.
     pub fn is_enabled(&self) -> bool {
         self.enabled
     }
@@ -168,6 +174,7 @@ pub struct CommandSearch<'a, T> {
 }
 
 impl<'a, T> CommandSearch<'a, T> {
+    /// A search over `entries` with an empty query, fuzzy matching on and no deduplication.
     pub fn new(entries: &'a [PaletteEntry<T>]) -> Self {
         Self { entries, query: String::new(), same: None, fuzzy: true }
     }

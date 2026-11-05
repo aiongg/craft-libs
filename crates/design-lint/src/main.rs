@@ -1,3 +1,5 @@
+//! The `craft-design-lint` command: checks an app's sources against the design rules.
+
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 

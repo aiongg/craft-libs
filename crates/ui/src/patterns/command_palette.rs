@@ -128,6 +128,8 @@ pub struct CommandPalette<'a, 'r, T> {
 }
 
 impl<'a, 'r, T> CommandPalette<'a, 'r, T> {
+    /// A palette over `entries`. `id` keys its state (query, selection) and must differ between
+    /// palettes shown at once. Labels are English until `labels` is called.
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug, entries: &'a [PaletteEntry<T>]) -> Self {
         Self { id: Id::unique(("craft_ui::command_palette", id)), entries, labels: PaletteLabels::english(), labels_set: false, recents: None }
     }

@@ -10,12 +10,17 @@ use crate::localized::{Labels, Word, Words};
 /// A setting's value as it crosses the boundary between the window and the host.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PrefValue {
+    /// A check box or switch.
     Bool(bool),
+    /// An integer field.
     Int(i64),
+    /// A number field.
     Float(f64),
+    /// A text field.
     Text(String),
     /// The id of the chosen option.
     Choice(String),
+    /// A colour.
     Color(Rgba),
 }
 
@@ -47,11 +52,13 @@ impl<'a> PageSpec<'a> {
         Self { id, title, groups: Vec::new(), footnote: None, keywords: "", custom: true }
     }
 
+    /// Sets the note shown under the last group.
     pub fn footnote(mut self, footnote: &'a str) -> Self {
         self.footnote = Some(footnote);
         self
     }
 
+    /// Sets extra search text for the page.
     pub fn keywords(mut self, keywords: &'a str) -> Self {
         self.keywords = keywords;
         self
@@ -77,16 +84,21 @@ pub enum Columns {
 /// A group of rows: a titled box, or the page itself when untitled.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GroupSpec<'a> {
+    /// The translated title of the box; `None` for the page's untitled group.
     pub title: Option<&'a str>,
+    /// How the rows are laid out.
     pub columns: Columns,
+    /// The group's rows, in order.
     pub rows: Vec<RowSpec<'a>>,
 }
 
 impl<'a> GroupSpec<'a> {
+    /// A group with [`Columns::Labelled`] layout.
     pub fn new(title: Option<&'a str>, rows: Vec<RowSpec<'a>>) -> Self {
         Self { title, columns: Columns::Labelled, rows }
     }
 
+    /// Switches the group to [`Columns::Checks`] layout.
     pub fn checks(mut self) -> Self {
         self.columns = Columns::Checks;
         self
@@ -108,10 +120,12 @@ pub struct RowSpec<'a> {
     pub help: Option<&'a str>,
     /// False for hidden rows and rows hidden by another value.
     pub visible: bool,
+    /// False: the control is drawn disabled.
     pub enabled: bool,
     /// The step of a [`RowKind::Float`] row (arrow keys, wheel, drag); without one the step comes
     /// from the range and decimals. Ignored by other kinds.
     pub step: Option<f64>,
+    /// The control and the value it shows.
     pub kind: RowKind<'a>,
 }
 
@@ -121,26 +135,31 @@ impl<'a> RowSpec<'a> {
         Self { key, label, keywords: "", help: None, visible: true, enabled: true, step: None, kind }
     }
 
+    /// Sets extra search text for the row.
     pub fn keywords(mut self, keywords: &'a str) -> Self {
         self.keywords = keywords;
         self
     }
 
+    /// Sets the help text under the control.
     pub fn help(mut self, help: &'a str) -> Self {
         self.help = Some(help);
         self
     }
 
+    /// Shows or hides the row.
     pub fn visible(mut self, visible: bool) -> Self {
         self.visible = visible;
         self
     }
 
+    /// Enables or disables the control.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
+    /// Sets the step of a [`RowKind::Float`] row.
     pub fn step(mut self, step: f64) -> Self {
         self.step = Some(step);
         self
@@ -150,26 +169,39 @@ impl<'a> RowSpec<'a> {
 /// What a row edits, with its value.
 #[derive(Clone, Debug, PartialEq)]
 pub enum RowKind<'a> {
+    /// A check box.
     Bool(bool),
     /// One of `options`, as `(id, label)`.
     Choice {
+        /// The id of the chosen option.
         value: &'a str,
+        /// The options as `(id, translated label)`.
         options: Vec<(&'a str, &'a str)>,
     },
     /// A swatch and a hex field. A press on the swatch reports
     /// [`PreferencesOutput::pick_color`]; the host opens its colour picker.
     Color(Rgba),
+    /// An integer field.
     Int {
+        /// The current value.
         value: i64,
+        /// The values the field accepts.
         range: RangeInclusive<i64>,
+        /// Text shown after the field ("px").
         unit: Option<&'a str>,
     },
+    /// A number field.
     Float {
+        /// The current value.
         value: f64,
+        /// The values the field accepts.
         range: RangeInclusive<f64>,
+        /// How many decimal places the field shows.
         decimals: u8,
+        /// Text shown after the field ("%").
         unit: Option<&'a str>,
     },
+    /// A text field.
     Text(&'a str),
     /// The host draws the control ([`PreferencesModel::custom_row`](super::PreferencesModel::custom_row)).
     Custom,
@@ -178,18 +210,27 @@ pub enum RowKind<'a> {
 /// Every caption of the window, in the language of the installed Host.
 #[derive(Clone, Debug)]
 pub struct PreferencesTexts {
+    /// The window's title.
     pub title: String,
+    /// The accessible name of the search field.
     pub search_label: String,
+    /// The search field's hint text.
     pub search_placeholder: String,
+    /// The accessible name of the button that clears the search.
     pub clear_search: String,
+    /// The accessible name of the page list.
     pub pages_label: String,
     /// The list's and the page's text when nothing matches the search.
     pub no_matches: String,
     /// A page with no visible row.
     pub empty_page: String,
+    /// The OK button.
     pub ok: String,
+    /// The Cancel button.
     pub cancel: String,
+    /// The Apply button.
     pub apply: String,
+    /// The button that resets the shown page to its defaults.
     pub reset_section: String,
     /// The accessible name of a colour row's hex field.
     pub hex_label: String,
@@ -290,7 +331,7 @@ pub struct PreferencesOutput {
     /// Set on the pass the window is answered; the host closes it.
     pub closed: Option<Closed>,
     /// The colour row whose swatch was pressed, for this pass only: the host opens its colour
-    /// dialog and answers with [`PreferencesModel::set_color`] on the request's key.
+    /// dialog and answers with `PreferencesModel::set_color` on the request's key.
     pub pick_color: Option<ColorRequest>,
     /// Apply ran this pass and succeeded (OK also applies, and closes).
     pub applied: bool,

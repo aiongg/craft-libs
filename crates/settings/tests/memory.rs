@@ -1,3 +1,5 @@
+//! Integration tests of craft-settings: memory.
+
 mod common;
 
 use std::time::{Duration, Instant};

@@ -16,7 +16,12 @@ pub enum Width {
     /// Exactly this wide (New Document 800, About 700), within the window.
     Fixed(f32),
     /// At least `min`, at most `max` (Shortcuts 460 to 720), within the window.
-    Range { min: f32, max: f32 },
+    Range {
+        /// The least content width, in points.
+        min: f32,
+        /// The greatest content width, in points.
+        max: f32,
+    },
 }
 
 impl Width {
@@ -52,7 +57,9 @@ pub enum ResizeMax {
 pub struct Resize {
     /// The size it opens at (before a remembered size).
     pub default: Vec2,
+    /// The least size.
     pub min: Vec2,
+    /// The greatest size.
     pub max: ResizeMax,
 }
 

@@ -1,4 +1,4 @@
-//! [`SliceOverlay`]: the slices drawn over the document (task SH-T4).
+//! [`SliceOverlay`]: the slices drawn over the document.
 
 use craft_theme::Srgba;
 use egui::{Color32, Painter, Rect, Shape, Stroke, StrokeKind, pos2, vec2};

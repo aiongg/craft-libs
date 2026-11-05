@@ -161,6 +161,7 @@ pub struct FullWindowDialog<'a> {
 }
 
 impl<'a> FullWindowDialog<'a> {
+    /// A full-window dialog keyed by `id`, which must stay the same on every pass the dialog is open.
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug) -> Self {
         Self {
             id: Id::unique(("craft_ui::dialog::full_window", id)),

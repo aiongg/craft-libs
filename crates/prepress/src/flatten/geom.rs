@@ -24,7 +24,9 @@ pub const DEFAULT_SLIVER: f64 = 0.01;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum FillRule {
     #[default]
+    #[allow(missing_docs)]
     NonZero,
+    #[allow(missing_docs)]
     EvenOdd,
 }
 
@@ -41,17 +43,21 @@ impl FillRule {
 /// A filled shape. Open subpaths are closed, as a fill closes them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Shape {
+    /// The outline; open subpaths count as closed.
     pub path: BezPath,
+    #[allow(missing_docs)]
     pub rule: FillRule,
     /// Indices into the clip list: the shape covers only what all of them cover.
     pub clips: Vec<usize>,
 }
 
 impl Shape {
+    /// Create a shape with no clips.
     pub fn new(path: BezPath, rule: FillRule) -> Self {
         Self { path, rule, clips: Vec::new() }
     }
 
+    /// Add clip indices (into the clip list passed to [`regions`]).
     pub fn clipped(mut self, clips: impl IntoIterator<Item = usize>) -> Self {
         self.clips.extend(clips);
         self
@@ -61,7 +67,9 @@ impl Shape {
 /// A clipping path.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClipPath {
+    /// The clip outline.
     pub path: BezPath,
+    /// The rule that decides what the outline covers.
     pub rule: FillRule,
 }
 
@@ -82,17 +90,26 @@ impl Region {
         self.sources.last().copied()
     }
 
+    /// Whether `p` lies inside the region.
     pub fn contains(&self, p: Point) -> bool {
         self.path.winding(p) != 0
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+/// Why computing regions failed.
 pub enum GeomError {
     #[error("input contains NaN or infinite coordinates")]
+    #[allow(missing_docs)]
     NonFinite,
     #[error("shape {shape} names clip {clip}, which does not exist")]
-    UnknownClip { shape: usize, clip: usize },
+    /// A shape refers to a clip index outside the clip list.
+    UnknownClip {
+        /// Index of the shape.
+        shape: usize,
+        /// The missing clip index.
+        clip: usize,
+    },
     /// The sweep failed on near-degenerate input; the caller rasterizes instead.
     #[error("the shapes are too degenerate to sweep")]
     Degenerate,

@@ -141,9 +141,19 @@ fn collect_rust_files(path: &Path, out: &mut Vec<PathBuf>) -> Result<(), Error> 
 #[derive(Debug)]
 pub enum Error {
     /// A file could not be read or written.
-    Io { path: std::path::PathBuf, source: std::io::Error },
+    Io {
+        /// The file.
+        path: std::path::PathBuf,
+        /// The underlying I/O error.
+        source: std::io::Error,
+    },
     /// A TOML file does not parse or does not have the expected shape.
-    Toml { path: std::path::PathBuf, message: String },
+    Toml {
+        /// The file.
+        path: std::path::PathBuf,
+        /// The parser's message.
+        message: String,
+    },
     /// The app's `clippy.toml` lacks or differs from template entries.
     ClippyDrift(Vec<ClippyDrift>),
     /// Another `clippy.toml`, or `CLIPPY_CONF_DIR`, makes clippy skip the app's one.

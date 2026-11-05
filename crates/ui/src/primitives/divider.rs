@@ -34,6 +34,8 @@ impl Divider {
         Self { vertical: true }
     }
 
+    /// The resolved divider style: the `line.divider` colour at a hairline width, which is one
+    /// physical pixel at `pixels_per_point`.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> DividerStyle {
         DividerStyle { stroke: Stroke::new(craft_theme::Stroke::Hairline.width(pixels_per_point), tokens.color.line.divider.to_egui()) }
     }

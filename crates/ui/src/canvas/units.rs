@@ -19,7 +19,10 @@ pub enum Ticks {
     /// PhotoCraft's decimal steps: the labelled step is the smallest of 1, 2, 2.5 and 5 × 10ⁿ
     /// units that leaves `ruler.step_min` points between labels, in 10 subdivisions. `whole`
     /// keeps the step a whole number of units without 2.5 (pixels).
-    Decimal { whole: bool },
+    Decimal {
+        /// Keep the step a whole number of units, without 2.5.
+        whole: bool,
+    },
     /// The host's table: screen points per unit to (labelled step in units, subdivisions), for
     /// DesignCraft's eighths of an inch and picas in sixths.
     Custom(fn(f64) -> (f64, u32)),
@@ -32,6 +35,7 @@ pub enum Ticks {
 pub struct RulerUnits {
     /// Ruler units per document unit along this axis (percent is per axis).
     pub per_doc: f64,
+    /// How the ticks are spaced.
     pub ticks: Ticks,
     /// The host's number format.
     pub numbers: LocaleNumbers,

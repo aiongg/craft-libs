@@ -50,16 +50,21 @@ pub struct TextFieldStyle {
     /// `field.border.hover`, `field.border.focused` and `field.border.disabled`; a bevel keeps
     /// its own colours.
     pub border_hover: Color32,
+    #[allow(missing_docs)]
     pub border_focused: Color32,
+    #[allow(missing_docs)]
     pub border_disabled: Color32,
     /// `field.text.rest` and `field.text.disabled`.
     pub text: Color32,
+    #[allow(missing_docs)]
     pub text_disabled: Color32,
     /// `field.placeholder.rest` and `field.placeholder.disabled`; icons in the box take them too.
     pub placeholder: Color32,
+    #[allow(missing_docs)]
     pub placeholder_disabled: Color32,
     /// `field.selection.fill` and `field.selection.text`.
     pub selection: Color32,
+    #[allow(missing_docs)]
     pub selected_text: Color32,
     /// `field.caret`.
     pub caret: Color32,
@@ -183,6 +188,7 @@ impl<'a> TextField<'a> {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -209,6 +215,7 @@ impl<'a> TextField<'a> {
         self
     }
 
+    /// Whether the field takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -301,6 +308,7 @@ impl<'a> TextField<'a> {
         self
     }
 
+    /// Draws the field and returns this frame's edit of the text.
     pub fn show(self, ui: &mut Ui) -> EditResponse<String> {
         self.show_full(ui).edit
     }
@@ -336,6 +344,7 @@ impl<'a> TextField<'a> {
         show_field(ui, &spec)
     }
 
+    /// The field's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> TextFieldStyle {
         let f = &tokens.component.field;
         let mut surface = Surface::style(tokens, SurfaceKind::Sunken);
@@ -432,6 +441,7 @@ impl<'a> SearchField<'a> {
         self
     }
 
+    /// Sets the control size (default [`ControlSize::Md`]).
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -443,6 +453,7 @@ impl<'a> SearchField<'a> {
         self
     }
 
+    /// Whether the field takes input (default `true`).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -664,9 +675,13 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> TextFieldOutput {
 /// (focused while it has the focus or its list is open).
 #[derive(Clone, Copy, Debug)]
 pub struct BoxState {
+    #[allow(missing_docs)]
     pub enabled: bool,
+    #[allow(missing_docs)]
     pub focused: bool,
+    #[allow(missing_docs)]
     pub hovered: bool,
+    #[allow(missing_docs)]
     pub invalid: bool,
 }
 

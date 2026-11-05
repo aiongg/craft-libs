@@ -40,6 +40,7 @@ crate::words! {
 pub struct ListManagerEntry {
     /// The app's id for the entry; the answer carries it.
     pub id: String,
+    /// The name shown in the row and typed in the name box.
     pub name: String,
     /// After the name in the row, dimmer: a shortcut (`Ctrl+Shift+K`), "(script, 3 steps)".
     pub detail: Option<String>,
@@ -55,7 +56,10 @@ pub enum ActionEnabled {
     /// Always (Cancel-like actions).
     Always,
     /// When the name box names an entry (of `kind`, when given).
-    OnEntry { kind: Option<u32> },
+    OnEntry {
+        /// Only entries of this kind, when given.
+        kind: Option<u32>,
+    },
     /// When the name box holds a name no entry has (Create).
     OnNewName,
 }
@@ -65,8 +69,11 @@ pub enum ActionEnabled {
 pub struct ListManagerAction {
     /// The app's id ("run", "stepInto"); the answer carries it.
     pub id: String,
+    /// The button's label.
     pub label: String,
+    /// Tooltip text, if any.
     pub tooltip: Option<String>,
+    /// When the button is enabled.
     pub enabled: ActionEnabled,
     /// Closes the dialog with the answer (Run, Edit, Create); otherwise the dialog stays open and
     /// the app reads it with [`ListManagerDialog::take_action`] (Delete asks first; Options…
@@ -75,6 +82,7 @@ pub struct ListManagerAction {
 }
 
 impl ListManagerAction {
+    /// An action with the app's `id`, a translated `label` and its enabled rule; it closes the dialog.
     pub fn new(id: impl Into<String>, label: impl Into<String>, enabled: ActionEnabled) -> Self {
         Self { id: id.into(), label: label.into(), tooltip: None, enabled, closes: true }
     }
@@ -84,10 +92,12 @@ impl ListManagerAction {
         Self::new("run", labels.run.clone(), ActionEnabled::OnEntry { kind: None })
     }
 
+    /// Edit, enabled on an entry, closing.
     pub fn edit(labels: &ListManagerLabels) -> Self {
         Self::new("edit", labels.edit.clone(), ActionEnabled::OnEntry { kind: None })
     }
 
+    /// Create, enabled when the name box holds a new name, closing.
     pub fn create(labels: &ListManagerLabels) -> Self {
         Self::new("create", labels.create.clone(), ActionEnabled::OnNewName)
     }
@@ -98,6 +108,7 @@ impl ListManagerAction {
         Self { closes: false, ..Self::new("delete", labels.delete.clone(), ActionEnabled::OnEntry { kind: None }) }
     }
 
+    /// Sets the tooltip.
     pub fn tooltip(mut self, tooltip: impl Into<String>) -> Self {
         self.tooltip = Some(tooltip.into());
         self
@@ -111,6 +122,7 @@ impl ListManagerAction {
         self
     }
 
+    /// Keeps the dialog open when pressed; the app reads the press with [`ListManagerDialog::take_action`].
     pub fn keeps_open(mut self) -> Self {
         self.closes = false;
         self
@@ -121,8 +133,11 @@ impl ListManagerAction {
 /// text, trimmed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ListManagerChoice {
+    /// The pressed action's id.
     pub action: String,
+    /// The id of the selected entry; `None` for a new name.
     pub entry: Option<String>,
+    /// The name box's text, trimmed.
     pub name: String,
 }
 
@@ -175,11 +190,13 @@ impl ListManagerDialog {
         }
     }
 
+    /// The rows to list.
     pub fn entries(mut self, entries: Vec<ListManagerEntry>) -> Self {
         self.entries = entries;
         self
     }
 
+    /// The buttons, top to bottom.
     pub fn actions(mut self, actions: Vec<ListManagerAction>) -> Self {
         self.actions = actions;
         self
@@ -198,6 +215,7 @@ impl ListManagerDialog {
         self
     }
 
+    /// Shows a search box above the list when true.
     pub fn searchable(mut self, searchable: bool) -> Self {
         self.searchable = searchable;
         self

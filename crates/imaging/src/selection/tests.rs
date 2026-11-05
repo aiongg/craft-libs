@@ -1,4 +1,4 @@
-//! Tests of the preview and Quick Mask colour rules (task SE-F5).
+//! Tests of the preview and Quick Mask colour rules.
 
 use super::*;
 

@@ -45,15 +45,18 @@ enum Elision {
 }
 
 impl Text {
+    /// `text` in [`TypeRole::Body`] and [`Content::Normal`], without truncation.
     pub fn new(text: impl Into<String>) -> Self {
         Self { text: text.into(), role: TypeRole::Body, content: Content::Normal, truncate: false, elide: None, max_width: None, italic: false }
     }
 
+    /// The type role: size, weight and line height.
     pub fn role(mut self, role: TypeRole) -> Self {
         self.role = role;
         self
     }
 
+    /// The content colour of the text.
     pub fn content(mut self, content: Content) -> Self {
         self.content = content;
         self

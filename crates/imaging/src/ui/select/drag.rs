@@ -1,5 +1,5 @@
 //! A press inside the selection: which drag it starts, the cursor over the selection, and the
-//! drag itself (task SE-F8; the lasso tools of SE-F9 use it unchanged). Public for the app's own
+//! drag itself (the lasso tools use it unchanged). Public for the app's own
 //! click tools: PhotoCraft's Magic Wand takes the same rule as the Polygonal Lasso
 //! ([`PressRule::Clicks`]; PhotoCraft `tool_input.rs:587-610`, `clicky`).
 

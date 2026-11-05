@@ -7,13 +7,16 @@
 /// values. Sampled tables clamp their input to `[0, 1]`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Curve {
+    #[allow(missing_docs)]
     Identity,
     /// `y = x^g`.
     Gamma(f64),
     /// ICC `parametricCurveType` function `kind` (0–4) with parameters `[g, a, b, c, d, e, f]`
     /// (unused ones are 0).
     Parametric {
+        /// ICC parametric function type, 0 to 4 (see [`Curve::param_count`]).
         kind: u16,
+        /// Parameters `[g, a, b, c, d, e, f]`; those the function type does not use are 0.
         p: [f64; 7],
     },
     /// Samples at evenly spaced inputs over `[0, 1]`, normalised outputs.
@@ -37,6 +40,7 @@ impl Curve {
         }
     }
 
+    /// `true` when the curve maps every input to itself (within 1e-9 for formulas, 1/65535 for tables).
     pub fn is_identity(&self) -> bool {
         match self {
             Curve::Identity => true,
@@ -60,6 +64,7 @@ impl Curve {
         }
     }
 
+    /// Evaluates the curve at `x` in `f32`, the fast path for pixel loops.
     #[inline]
     pub fn eval(&self, x: f32) -> f32 {
         match self {
@@ -89,22 +94,40 @@ impl Curve {
     /// once here instead of on every call, so building an output table from a long, flat table
     /// costs one scan of it, not one per entry.
     pub fn inverse64_many(&self) -> impl Fn(f64) -> f64 + '_ {
-        let edges = match self {
-            Curve::Table(t) if t.len() >= 2 => Some((edge_index(t, true), edge_index(t, false))),
-            _ => None,
-        };
+        let edges = self.inverse_edges();
         move |y| match (self, edges) {
-            (Curve::Table(t), Some((first, last))) => table_inverse_with(t, y as f32, |start| if start { first } else { last }) as f64,
+            (Curve::Table(_), Some(_)) => self.eval_inverse_with(y as f32, edges) as f64,
             _ => self.eval_inverse64(y),
         }
     }
 
+    /// Evaluates the inverse curve at `y` in `f32`, the fast path for pixel loops.
     #[inline]
     pub fn eval_inverse(&self, y: f32) -> f32 {
         match self {
             Curve::Identity => y,
             Curve::Table(t) => table_inverse(t, y),
             _ => self.eval_inverse64(y as f64) as f32,
+        }
+    }
+
+    /// The ends of a sampled curve's flat runs, as [`eval_inverse_with`](Self::eval_inverse_with)
+    /// takes them; `None` for other curves. Finding them scans the table, so a caller that
+    /// inverts the same curve many times finds them once.
+    pub(crate) fn inverse_edges(&self) -> Option<(f32, f32)> {
+        match self {
+            Curve::Table(t) if t.len() >= 2 => Some((edge_index(t, true), edge_index(t, false))),
+            _ => None,
+        }
+    }
+
+    /// [`eval_inverse`](Self::eval_inverse) with the flat-run ends from
+    /// [`inverse_edges`](Self::inverse_edges) of this curve.
+    #[inline]
+    pub(crate) fn eval_inverse_with(&self, y: f32, edges: Option<(f32, f32)>) -> f32 {
+        match (self, edges) {
+            (Curve::Table(t), Some((first, last))) => table_inverse_with(t, y, |start| if start { first } else { last }),
+            _ => self.eval_inverse(y),
         }
     }
 

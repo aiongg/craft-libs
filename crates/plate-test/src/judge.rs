@@ -14,10 +14,13 @@ use crate::tiff::Plate;
 /// Below this much ink on the glyph plate a text region counts as empty.
 const TEXT_MIN_INK: f32 = 20.0;
 
+/// Outcome of judging one sample point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Verdict {
+    #[allow(missing_docs)]
     Pass,
+    #[allow(missing_docs)]
     Fail,
     /// Measured, not judged.
     Info,
@@ -25,15 +28,22 @@ pub enum Verdict {
     Skipped,
 }
 
+/// The measurement and verdict for one [`SamplePoint`].
 #[derive(Debug, Clone, Serialize)]
 pub struct PointResult {
+    #[allow(missing_docs)]
     pub at: [f32; 2],
+    #[allow(missing_docs)]
     pub kind: PointKind,
+    #[allow(missing_docs)]
     pub note: Option<String>,
+    /// Expected ink per plate name.
     pub expected: BTreeMap<String, Level>,
+    /// Allowed difference in ink percentage points.
     pub tol: f32,
     /// Ink percentage per plate, rounded to 0.1; every expected and every separated plate.
     pub measured: BTreeMap<String, f32>,
+    #[allow(missing_docs)]
     pub verdict: Verdict,
     /// Plates outside tolerance.
     pub off: Vec<String>,
@@ -41,6 +51,7 @@ pub struct PointResult {
     pub how: Option<String>,
 }
 
+/// The result of judging every sample point of one scene against its separated plates.
 #[derive(Debug, Clone, Serialize)]
 pub struct Judgement {
     /// The plates the separation produced.
@@ -49,18 +60,22 @@ pub struct Judgement {
     pub missing_plates: Vec<String>,
     /// Plates the separation produced that the scene doesn't expect.
     pub extra_plates: Vec<String>,
+    #[allow(missing_docs)]
     pub points: Vec<PointResult>,
 }
 
 impl Judgement {
+    /// `true` when no expected plate is missing, no unexpected plate was produced and no point failed.
     pub fn passed(&self) -> bool {
         self.missing_plates.is_empty() && self.extra_plates.is_empty() && self.failed_points() == 0
     }
 
+    /// Number of points with a [`Verdict::Fail`] verdict.
     pub fn failed_points(&self) -> usize {
         self.points.iter().filter(|p| p.verdict == Verdict::Fail).count()
     }
 
+    /// Number of points that were judged: passed or failed, not info or skipped.
     pub fn judged_points(&self) -> usize {
         self.points.iter().filter(|p| matches!(p.verdict, Verdict::Pass | Verdict::Fail)).count()
     }

@@ -13,15 +13,20 @@ use super::{Action, Layout};
 /// A document group: the documents in one tab strip, one of them shown.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DocumentGroup<D> {
+    /// Identifies the group; unique within its [`DocumentWindows`].
     pub id: u64,
+    /// The documents in tab order.
     pub documents: Vec<D>,
+    /// The selected document.
     pub shown: Option<D>,
 }
 
 /// The document windows of the app: the tabbed groups in the canvas area and the floating ones.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct DocumentWindows<D> {
+    /// The tab groups in the canvas area.
     pub docked: Vec<DocumentGroup<D>>,
+    /// The floating groups, each with its window rect.
     pub floating: Vec<(DocumentGroup<D>, Rect)>,
     next_id: u64,
 }

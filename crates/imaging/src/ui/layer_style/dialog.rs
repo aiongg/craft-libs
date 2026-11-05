@@ -1,4 +1,4 @@
-//! [`LayerStyleDialog`]: the Layer Style dialog's body (task AD-8).
+//! [`LayerStyleDialog`]: the Layer Style dialog's body.
 
 use craft_theme::Srgba;
 use egui::accesskit::Role;
@@ -225,6 +225,7 @@ impl<'a> LayerStyleDialog<'a> {
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

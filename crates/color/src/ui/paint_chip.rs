@@ -38,7 +38,7 @@ craft_ui::words! {
 
 craft_ui::words! {
     /// The paint popover's Pattern and Picture tabs, English by default (Photoshop's Pattern,
-    /// PowerPoint's Picture). Kept apart from [`PaintLabels`] until task RG1 registers them.
+    /// PowerPoint's Picture). Kept apart from [`PaintLabels`] until they are registered.
     #[non_exhaustive]
     pub struct PaintKindLabels {
         pattern: "paint.pattern" = "Pattern";
@@ -72,6 +72,7 @@ craft_ui::words! {
 /// (angle, style, midpoints) is the host's; it gives this preview with the paint.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct GradientPreview {
+    /// Stops as (position 0–1, colour), ascending by position.
     pub stops: Vec<(f32, Srgba)>,
 }
 
@@ -93,8 +94,11 @@ pub struct ImagePreview {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Paint {
+    /// No paint.
     None,
+    /// A flat colour.
     Solid(Srgba),
+    /// A gradient, as the chip previews it.
     Gradient(GradientPreview),
     /// A pattern fill (Photoshop's shape Pattern tab, PowerPoint's Pattern fill).
     Pattern(ImagePreview),
@@ -106,10 +110,15 @@ pub enum Paint {
 /// a radio list) name them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FillKind {
+    #[allow(missing_docs)]
     None,
+    #[allow(missing_docs)]
     Solid,
+    #[allow(missing_docs)]
     Gradient,
+    #[allow(missing_docs)]
     Pattern,
+    #[allow(missing_docs)]
     Picture,
 }
 
@@ -213,6 +222,7 @@ impl<'a> PaintChip<'a> {
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> PaintChip<'a> {
         self.enabled = enabled;
         self
@@ -244,6 +254,7 @@ impl<'a> PaintChip<'a> {
     // inv-deckcraft: crates/ui-egui/src/panels/format_shape.rs:369-375 (the fill types).
     // new: the Pattern and Picture tabs (Photoshop's Fill popover, PowerPoint's Picture fill); a
     // chip without their editors is PhotoCraft's.
+    /// Draws the chip and its popover; the response carries the edit of the paint.
     pub fn show(self, ui: &mut Ui) -> EditResponse<Paint> {
         let Self { id_salt, label, paint, fallback, numbers, none_allowed, gradient, pattern, picture, enabled } = self;
         let ctx = ui.ctx().clone();
@@ -559,7 +570,9 @@ fn ramp(rect: Rect, preview: &GradientPreview) -> Mesh {
 /// How a paint is bound (FigCraft's colour style or variable).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PaintLinkKind {
+    /// A colour style.
     Style,
+    /// A variable.
     Variable,
 }
 
@@ -567,7 +580,9 @@ pub enum PaintLinkKind {
 /// a Detach button when [`PaintListOptions::bind`] is on.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PaintLink {
+    /// The style's or variable's name.
     pub name: String,
+    /// Whether it is a style or a variable.
     pub kind: PaintLinkKind,
 }
 
@@ -623,38 +638,52 @@ impl PaintListOptions {
 pub enum PaintListEvent {
     /// The chip's picker edited the paint (as [`PaintChip`] reports).
     Edit {
+        #[allow(missing_docs)]
         row: usize,
+        #[allow(missing_docs)]
         event: EditEvent<Paint>,
     },
     /// A hex typed and committed.
     Hex {
+        #[allow(missing_docs)]
         row: usize,
+        /// The committed colour.
         color: Srgba,
     },
     /// The opacity field: `Set` when typed, a gesture when scrubbed; 0–1.
     Opacity {
+        #[allow(missing_docs)]
         row: usize,
+        #[allow(missing_docs)]
         event: EditEvent<f32>,
     },
     /// Bind the paint to a style or variable: the app opens its picker.
     Bind {
+        #[allow(missing_docs)]
         row: usize,
     },
     /// Detach the row's style or variable.
     Detach {
+        #[allow(missing_docs)]
         row: usize,
     },
     /// Select the layers that use this paint.
     SelectUsers {
+        #[allow(missing_docs)]
         row: usize,
     },
+    /// Add a paint under the rows.
     Add,
+    /// Remove the row's paint.
     Remove {
+        #[allow(missing_docs)]
         row: usize,
     },
     /// Renamed in place (also in [`PaintListResponse::renamed`]).
     Rename {
+        #[allow(missing_docs)]
         row: usize,
+        /// The new name.
         name: String,
     },
 }
@@ -681,6 +710,7 @@ pub struct PaintList<'a> {
 #[derive(Debug, Default)]
 #[non_exhaustive]
 pub struct PaintListResponse {
+    /// Index of the selected row, if any.
     pub selected: Option<usize>,
     /// A row was renamed: its index and new name.
     pub renamed: Option<(usize, String)>,
@@ -692,6 +722,7 @@ impl<'a> PaintList<'a> {
     /// Black: a switch to Solid in a list with no solid paint and no [`fallback`](Self::fallback).
     pub const DEFAULT_SOLID: Srgba = Srgba::rgb(0.0, 0.0, 0.0);
 
+    /// A list of `paints` (name and paint per row); `id_salt` keys its state and `label` is its label.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, paints: &'a [(String, Paint)]) -> PaintList<'a> {
         PaintList {
             id_salt: IdSalt::new(id_salt),
@@ -704,6 +735,7 @@ impl<'a> PaintList<'a> {
         }
     }
 
+    /// Marks row `selected` as selected; none by default.
     pub fn selected(mut self, selected: Option<usize>) -> PaintList<'a> {
         self.selected = selected;
         self
@@ -731,6 +763,7 @@ impl<'a> PaintList<'a> {
 
     // pc: crates/ui-egui/src/tools/shape_paint_ui.rs:64 (the chip per row); rows on
     // `craft_ui::list` with an in-place `TextField` rename.
+    /// Draws the rows and returns the selection, any rename and the row actions of this pass.
     pub fn show(self, ui: &mut Ui) -> PaintListResponse {
         if self.options.any() {
             return self.show_with_actions(ui);

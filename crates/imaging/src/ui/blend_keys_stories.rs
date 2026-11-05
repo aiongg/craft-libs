@@ -1,4 +1,4 @@
-//! Stories of the blend mode keys (task ST-AD2): not registered. Registering it (task RG2) adds
+//! Stories of the blend mode keys: not registered. Registering it adds
 //! `blend_keys_stories` to the crate's `register!` list, [`COMPONENTS`] to the registry and
 //! [`BlendKeysStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!

@@ -10,7 +10,12 @@ pub enum PopoverSize {
     /// The remembered size, else `default`, never below `min`, with a [`ResizeGrip`](super::ResizeGrip)
     /// at the bottom trailing corner. The contents get `ui.set_width(size.x)` and
     /// `ui.set_min_height(size.y)` and fill them.
-    Resizable { default: Vec2, min: Vec2 },
+    Resizable {
+        /// The size used until the user resizes, in logical points.
+        default: Vec2,
+        /// The smallest size the user can reach, in logical points.
+        min: Vec2,
+    },
 }
 
 /// Where the remembered content size of the popover `id` is stored in egui's persisted memory.

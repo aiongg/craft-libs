@@ -1,4 +1,4 @@
-//! The channel-mixing adjustments: Black & White, Channel Mixer and Selective Color (task AD-5).
+//! The channel-mixing adjustments: Black & White, Channel Mixer and Selective Color.
 
 use craft_theme::{Srgba, TypeRole};
 use egui::{AsIdSalt, Context, Id, IdSalt, Label, RichText, Ui};
@@ -44,6 +44,7 @@ fn finish<T>(mut response: egui::Response, event: Option<EditEvent<T>>, submitte
 pub struct BlackWhite {
     /// Reds, Yellows, Greens, Cyans, Blues, Magentas: −200..=300 %, whole numbers.
     pub weights: [f64; 6],
+    /// Tint: colours the grey result with `tint_color`.
     pub tint: bool,
     /// The tint colour; (0.882, 0.827, 0.702) by default.
     pub tint_color: Srgba,
@@ -64,6 +65,7 @@ impl Default for BlackWhite {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct BlackWhiteOutput {
+    /// The edit of the value, as every editor reports it.
     pub edit: EditResponse<BlackWhite>,
     /// The user clicked the tint swatch: open the colour picker with this request (key
     /// `"blackWhite.tint"`, title "Tint Color") and write the answer into `tint_color`.
@@ -90,6 +92,7 @@ pub struct BlackWhiteEditor<'a> {
 }
 
 impl<'a> BlackWhiteEditor<'a> {
+    /// Draws the editor and returns this frame's edit of the `BlackWhite`.
     pub fn new(id_salt: impl AsIdSalt, value: &'a BlackWhite, numbers: &'a LocaleNumbers) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -102,26 +105,31 @@ impl<'a> BlackWhiteEditor<'a> {
         }
     }
 
+    /// Sets where the editor is shown (dialog or Properties panel); a dialog by default.
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
+    /// Sets how the editor reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: AdjustLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
+    /// Draws the editor and returns this frame's edit and any colour-picker request.
     pub fn show(self, ui: &mut Ui) -> BlackWhiteOutput {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:158-192 `black_white` (colours :160,
         // tint colour :178, Default :184-189).
@@ -195,8 +203,11 @@ impl<'a> BlackWhiteEditor<'a> {
 /// Constant, each −200..=200 %, whole numbers.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ChannelMixer {
+    /// Red output channel: source weights for Red, Green, Blue and the Constant.
     pub red: [f64; 4],
+    /// Green output channel, in the same order.
     pub green: [f64; 4],
+    /// Blue output channel, in the same order.
     pub blue: [f64; 4],
     /// Monochrome's Gray row; `Some` while Monochrome is on.
     pub gray: Option<[f64; 4]>,
@@ -279,6 +290,7 @@ pub struct ChannelMixerEditor<'a> {
 }
 
 impl<'a> ChannelMixerEditor<'a> {
+    /// Draws the editor and returns this frame's edit of the `ChannelMixer`.
     pub fn new(id_salt: impl AsIdSalt, value: &'a ChannelMixer, numbers: &'a LocaleNumbers) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -291,26 +303,31 @@ impl<'a> ChannelMixerEditor<'a> {
         }
     }
 
+    /// Sets where the editor is shown (dialog or Properties panel); a dialog by default.
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
+    /// Sets how the editor reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: AdjustLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
+    /// Draws the editor and returns this frame's edit of the `ChannelMixer`.
     pub fn show(self, ui: &mut Ui) -> EditResponse<ChannelMixer> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/basic.rs:243-290 `channel_mixer` (output
         // select :245-255, rows :262-266, Total :267-272, Monochrome :280-288).
@@ -419,6 +436,7 @@ pub enum SelectiveMethod {
     /// Relative to the ink already there; the default.
     #[default]
     Relative,
+    #[allow(missing_docs)]
     Absolute,
 }
 
@@ -426,7 +444,9 @@ pub enum SelectiveMethod {
 /// Neutrals, Blacks the Cyan, Magenta, Yellow, Black shifts, −100..=100 %, whole numbers.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct SelectiveColor {
+    /// Per colour range (Reds, Yellows, Greens, Cyans, Blues, Magentas, Whites, Neutrals, Blacks): Cyan, Magenta, Yellow, Black percentages.
     pub ranges: [[f64; 4]; 9],
+    /// How the percentages apply.
     pub method: SelectiveMethod,
 }
 
@@ -448,6 +468,7 @@ pub struct SelectiveColorEditor<'a> {
 }
 
 impl<'a> SelectiveColorEditor<'a> {
+    /// Draws the editor and returns this frame's edit of the `SelectiveColor`.
     pub fn new(id_salt: impl AsIdSalt, value: &'a SelectiveColor, numbers: &'a LocaleNumbers) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -460,21 +481,25 @@ impl<'a> SelectiveColorEditor<'a> {
         }
     }
 
+    /// Sets where the editor is shown (dialog or Properties panel); a dialog by default.
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
     }
 
+    /// Sets how the editor reports gestures (live, committed, cancelled).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
     }
 
+    /// Sets the words; the installed language by default.
     pub fn labels(mut self, labels: AdjustLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Turns editing off with `false`. The editor is also off while `ui` is disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -491,6 +516,7 @@ impl<'a> SelectiveColorEditor<'a> {
         ctx.data(|d| d.get_temp::<usize>(id.with(RANGE))).unwrap_or(0).min(8)
     }
 
+    /// Draws the editor and returns this frame's edit of the `SelectiveColor`.
     pub fn show(self, ui: &mut Ui) -> EditResponse<SelectiveColor> {
         // pc: crates/ui-egui/src/panels/adjust_ui.rs:17 (the nine ranges), :31-81
         // `selective_color_editor` (select :40-46, rows :50-59, method :61-71).

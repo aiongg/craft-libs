@@ -1,5 +1,5 @@
 //! [`PreviewPixels`] and [`PreviewTextures`]: the moving pixels of a transform, read once and
-//! uploaded as a mip chain built on demand (task TR-T4).
+//! uploaded as a mip chain built on demand.
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -12,6 +12,7 @@ use super::PreviewQuality;
 /// own surface once per session (PhotoCraft `read_surface`).
 #[derive(Clone, Debug)]
 pub struct PreviewPixels {
+    /// The texels, premultiplied.
     pub image: ColorImage,
     /// The uv extent of `image` that covers the source frame, each 0 to 1.
     pub base_uv: [f32; 2],
@@ -42,7 +43,9 @@ impl PreviewPixels {
 /// row, 0 hiding and 255 showing, and the mask's density (0 to 1).
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreviewMask {
+    /// One value per texel of the image, row by row.
     pub values: Vec<u8>,
+    /// The mask's density, 0 to 1.
     pub density: f32,
 }
 
@@ -52,7 +55,9 @@ pub struct PreviewMask {
 /// levels.
 #[derive(Clone)]
 pub struct PreviewDisplay {
+    /// Changes whenever `convert` does, so caches keyed on it refresh.
     pub key: u64,
+    /// Converts premultiplied document texels to the monitor's.
     pub convert: Arc<dyn Fn(&ColorImage) -> ColorImage + Send + Sync>,
 }
 
@@ -68,6 +73,7 @@ impl std::fmt::Debug for PreviewDisplay {
 pub struct TextureChoice {
     /// 0 is full resolution; level `n` is `2ⁿ` times smaller.
     pub level: u32,
+    /// Whether to draw with nearest filtering instead of linear.
     pub nearest: bool,
 }
 

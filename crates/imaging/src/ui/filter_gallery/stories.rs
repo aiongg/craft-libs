@@ -1,5 +1,4 @@
-//! Stories of the Filter Gallery workspace (task ST-WS1): not registered. Registering them (task
-//! RG2) adds `filter_gallery::stories` to the crate's `register!` list, `FilterGalleryWorkspace`
+//! Stories of the Filter Gallery workspace: not registered. Registering them adds `filter_gallery::stories` to the crate's `register!` list, `FilterGalleryWorkspace`
 //! to `COMPONENTS` and [`FilterGalleryStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!
 //! The stories use `MockGallery`: a six-filter catalog in two folders with `Param` lists (a Range,

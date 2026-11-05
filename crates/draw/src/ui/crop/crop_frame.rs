@@ -78,8 +78,11 @@ impl Default for CropNames {
 /// x and y axes (percent is per axis), which write W and H.
 #[derive(Clone, Copy, Debug)]
 pub struct CropReadout<'a> {
+    /// The readout's words.
     pub labels: &'a CropLabels,
+    /// Units of the x axis.
     pub x: &'a RulerUnits,
+    /// Units of the y axis.
     pub y: &'a RulerUnits,
 }
 
@@ -87,8 +90,11 @@ pub struct CropReadout<'a> {
 /// "Angle:"). `Default` is English.
 #[derive(Clone, Debug)]
 pub struct CropLabels {
+    /// The width label.
     pub w: String,
+    /// The height label.
     pub h: String,
+    /// The angle label.
     pub angle: String,
     /// Around the angle: `{n}°`.
     pub degrees: Unit,
@@ -533,6 +539,7 @@ impl<'a> CropFrame<'a> {
         self
     }
 
+    /// How this control reports its gestures to the host.
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
         self
@@ -560,6 +567,7 @@ impl<'a> CropFrame<'a> {
         self
     }
 
+    /// The crop frame's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> CropStyle {
         let (c, o) = (&tokens.component.crop, &tokens.color.overlay);
         let halo = Handle::style(tokens, HandleShape::Square).halo;

@@ -8,8 +8,8 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::{
-    CommandForm, DialogFields, DialogHost, DialogResult, EyedropperRequest, FieldValue, Param, ParamDialog, ParamKind, ParamResult, PathKind,
-    PathRequest,
+    CommandForm, DialogFields, DialogHost, DialogResult, EyedropperRequest, FieldValue, NumberUnit, Param, ParamDialog, ParamKind, ParamLayout,
+    ParamResult, PathKind, PathRequest,
 };
 use crate::controls::SliderScale;
 use crate::localized::Unit;
@@ -18,6 +18,8 @@ use crate::theme::{Base, install};
 struct App {
     host: DialogHost,
     answers: Vec<DialogResult<ParamResult>>,
+    /// The app's command fails, so it doesn't call [`ParamResult::remember`].
+    command_fails: bool,
 }
 
 fn params() -> Vec<Param> {
@@ -43,10 +45,13 @@ fn harness(dialog: ParamDialog) -> Harness<'static, App> {
             |ui, app: &mut App| {
                 app.host.show(ui.ctx());
                 if let Some(answer) = app.host.take::<ParamDialog>() {
+                    if let (DialogResult::Ok(result), false) = (&answer, app.command_fails) {
+                        result.remember(ui.ctx());
+                    }
                     app.answers.push(answer);
                 }
             },
-            App { host, answers: Vec::new() },
+            App { host, answers: Vec::new(), command_fails: false },
         )
 }
 
@@ -92,7 +97,9 @@ fn typing_into_the_first_field_and_enter_answers_ok() {
     harness.key_press(Key::Enter);
     harness.run();
     harness.run();
-    let [DialogResult::Ok(ParamResult { key, fields })] = &harness.state().answers[..] else { panic!("one OK, got {:?}", harness.state().answers) };
+    let [DialogResult::Ok(ParamResult { key, fields, .. })] = &harness.state().answers[..] else {
+        panic!("one OK, got {:?}", harness.state().answers)
+    };
     assert_eq!(key, "blur");
     assert_eq!(fields.number("radius"), Some(7.0));
     assert_eq!(fields.bool("monochromatic"), Some(false));
@@ -156,7 +163,7 @@ fn ok_remembers_the_values_and_cancel_does_not() {
     assert_eq!(fields.color("tint"), Some([1.0, 0.0, 0.0]), "colours are not remembered");
 }
 
-// Preview off, or the label held, makes `preview_on` false; the host's image shows in the pane
+// Preview off makes `preview_on` false, and the label held only `comparing`; the host's image shows in the pane
 // otherwise.
 #[test]
 fn the_preview_check_box_and_hold_to_compare_drive_preview_on() {
@@ -178,7 +185,8 @@ fn the_preview_check_box_and_hold_to_compare_drive_preview_on() {
     let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
     harness.event(button(true));
     harness.run();
-    assert!(!preview_on(&harness), "label held");
+    assert!(preview_on(&harness), "holding Compare leaves the canvas preview on");
+    assert!(harness.state().host.get::<ParamDialog>().is_some_and(ParamDialog::comparing), "the pane compares");
     harness.event(button(false));
     harness.run();
     assert!(!preview_on(&harness), "the click turned Preview off");
@@ -482,7 +490,7 @@ fn an_optional_number_with_no_decimals_shows_an_integer() {
     assert_eq!(shown.as_deref(), Some("6"), "{shown:?}");
 }
 
-// The footer hook draws before the buttons; `close_label(None)` removes the close box.
+// The footer hook draws before the buttons, in the bottom and the stacked layouts; `close_label(None)` removes the close box.
 #[test]
 fn the_footer_hook_and_the_close_box_follow_the_options() {
     let mut harness = harness(ParamDialog::new("table", "Table", params()).footer_extra(|ui| {
@@ -491,12 +499,55 @@ fn the_footer_hook_and_the_close_box_follow_the_options() {
     harness.run();
     harness.get_by_label("Load…");
     harness.get_by_label("Close");
+    let stacked = ParamDialog::new("table", "Table", params()).layout(ParamLayout::Stacked).footer_extra(|ui| {
+        let _ = ui.button("Save…");
+    });
+    let mut harness = self::harness(stacked);
+    harness.run();
+    harness.get_by_label("Save…");
     let mut harness = self::harness(ParamDialog::new("table", "Table", params()).close_label(None));
     harness.run();
     assert!(harness.query_by_label("Close").is_none());
 }
 
-// `confirm` stores the remembered values as OK does.
+// A command that fails leaves the previous values remembered; a row marked `not_remembered`
+// always opens from its default.
+#[test]
+fn only_a_successful_command_remembers_and_not_remembered_rows_never_do() {
+    let dialog = || {
+        let mut all = params();
+        all.push(
+            Param::new(
+                "source",
+                "Source:",
+                ParamKind::Choice { options: vec![("none".into(), "None".into()), ("channel:0".into(), "Alpha 1".into())], default: None },
+            )
+            .not_remembered(),
+        );
+        ParamDialog::new("blur", "Blur", all).remember("filter.blur")
+    };
+    let confirm_with = |harness: &mut Harness<'static, App>, radius: f64| {
+        let fields = open_dialog(harness).expect("open").fields_mut();
+        fields.set("radius", FieldValue::Number(radius));
+        fields.set("source", "channel:0");
+        let ctx = harness.ctx.clone();
+        assert!(harness.state_mut().host.confirm::<ParamDialog>(&ctx));
+        harness.run();
+        harness.state_mut().host.open(dialog());
+        harness.run();
+    };
+    let mut harness = harness(dialog());
+    harness.run();
+    confirm_with(&mut harness, 9.0);
+    let fields = harness.state().host.get::<ParamDialog>().expect("reopened").fields();
+    assert_eq!((fields.number("radius"), fields.text("source")), (Some(9.0), Some("none")));
+
+    harness.state_mut().command_fails = true;
+    confirm_with(&mut harness, 30.0);
+    assert_eq!(radius(&harness), Some(9.0), "the failed command stored nothing");
+}
+
+// `confirm` answers as OK does, so the app can remember the values.
 #[test]
 fn confirm_stores_the_remembered_values() {
     let mut harness = harness(ParamDialog::new("blur", "Blur", params()).remember("filter.blur"));
@@ -504,6 +555,7 @@ fn confirm_stores_the_remembered_values() {
     open_dialog(&mut harness).expect("open").fields_mut().set("radius", FieldValue::Number(9.0));
     let ctx = harness.ctx.clone();
     assert!(harness.state_mut().host.confirm::<ParamDialog>(&ctx));
+    harness.run();
     harness.state_mut().host.open(ParamDialog::new("blur", "Blur", params()).remember("filter.blur"));
     harness.run();
     assert_eq!(radius(&harness), Some(9.0));
@@ -715,4 +767,155 @@ fn two_dialogs_of_one_command_keep_separate_state() {
     assert_eq!(alpha.pick_color().map(|r| r.key), Some("tint".to_owned()));
     assert_eq!(beta.pick_color(), None);
     assert_eq!(beta.fields().color("tint"), Some([1.0, 0.0, 0.0]));
+}
+
+// A row hidden by `visible_when` draws nothing, and its value stays in the fields and the answer.
+#[test]
+fn visible_when_hides_a_row_and_keeps_its_value() {
+    let rows = vec![
+        Param::new("screen", "Screen:", ParamKind::Bool { default: false }),
+        Param::number("cell", "Cell size:", 8.0, 1.0, 0).visible_when("screen", true),
+    ];
+    let mut harness = harness(ParamDialog::new("bitmap", "Bitmap", rows));
+    harness.run();
+    assert!(harness.query_by_role_and_label(Role::SpinButton, "Cell size").is_none());
+    open_dialog(&mut harness).expect("open").fields_mut().set("screen", true);
+    harness.run();
+    assert!(harness.query_by_role_and_label(Role::SpinButton, "Cell size").is_some());
+    open_dialog(&mut harness).expect("open").fields_mut().set("screen", false);
+    harness.run();
+    assert!(harness.query_by_role_and_label(Role::SpinButton, "Cell size").is_none());
+    assert_eq!(open_dialog(&mut harness).expect("open").fields().number("cell"), Some(8.0));
+}
+
+// The field shows the value in the chosen unit; an edit stores the base unit and the unit's id.
+#[test]
+fn a_number_row_with_units_converts_to_the_base_unit() {
+    let units = vec![NumberUnit::new("ppi", "pixels/inch", 1.0), NumberUnit::new("ppcm", "pixels/cm", 2.54)];
+    let row = Param::number_with_units("output", "Output:", 72.0, 1.0, 2, units);
+    assert_eq!(row.unit_key(), Some("output.unit"));
+    let mut harness = harness(ParamDialog::new("bitmap", "Bitmap", vec![row]));
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").fields().text("output.unit"), Some("ppi"));
+    open_dialog(&mut harness).expect("open").fields_mut().set("output.unit", "ppcm");
+    harness.run();
+    let shown = harness.get_by_role_and_label(Role::SpinButton, "Output").accesskit_node().value().unwrap_or_default().to_string();
+    assert!(shown.starts_with("28.3"), "{shown}");
+    harness.get_by_role_and_label(Role::SpinButton, "Output").focus();
+    harness.run();
+    harness.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    harness.event(Event::Text("10".to_owned()));
+    harness.key_press(Key::Tab);
+    harness.run();
+    let fields = open_dialog(&mut harness).expect("open").fields().clone();
+    assert_eq!((fields.number("output"), fields.text("output.unit")), (Some(25.4), Some("ppcm")));
+}
+
+// A section row draws its heading and holds no value.
+#[test]
+fn a_section_row_draws_its_heading() {
+    let rows = vec![Param::section("Halftone"), Param::number("cell", "Cell size:", 8.0, 1.0, 0)];
+    let mut harness = harness(ParamDialog::new("bitmap", "Bitmap", rows));
+    harness.run();
+    let _ = harness.get_by_label("Halftone");
+    assert_eq!(open_dialog(&mut harness).expect("open").fields().len(), 1);
+}
+
+// `set_preview` turns the Preview state off and on without the check box.
+#[test]
+fn set_preview_changes_the_preview_state() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).preview(true));
+    harness.run();
+    assert!(open_dialog(&mut harness).is_some_and(|d| d.preview_on()));
+    open_dialog(&mut harness).expect("open").set_preview(false);
+    harness.run();
+    assert!(!open_dialog(&mut harness).is_some_and(|d| d.preview_on()));
+    open_dialog(&mut harness).expect("open").set_preview(true);
+    harness.run();
+    assert!(open_dialog(&mut harness).is_some_and(|d| d.preview_on()));
+}
+
+// The pane opens at 100%; the zoom buttons step the readout.
+#[test]
+fn the_preview_zoom_buttons_change_the_zoom() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).preview(true));
+    harness.run();
+    open_dialog(&mut harness).expect("open").set_preview_image(Some(SizedTexture::new(TextureId::default(), vec2(64.0, 48.0))));
+    harness.run();
+    let _ = harness.get_by_label("100%");
+    harness.get_by_label("Zoom in").click();
+    harness.run();
+    let _ = harness.get_by_label("150%");
+    harness.get_by_label("Zoom out").click();
+    harness.run();
+    harness.get_by_label("Zoom out").click();
+    harness.run();
+    let _ = harness.get_by_label("75%");
+}
+
+// PhotoCraft's filter dialogs: the value field shares the label's line and the slider runs under
+// it; the colour row keeps its label column.
+#[test]
+fn the_stacked_layout_puts_the_field_on_the_label_line_and_the_slider_under_it() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).layout(ParamLayout::Stacked));
+    harness.run();
+    let label = harness.get_by_role_and_label(Role::Label, "Radius").rect();
+    let field = harness.get_by_role_and_label(Role::SpinButton, "Radius").rect();
+    let slider = harness.get_by_role_and_label(Role::Slider, "Radius").rect();
+    assert!((label.center().y - field.center().y).abs() < 2.0, "label {label:?} and field {field:?} share a line");
+    assert!(label.right() <= field.left() && field.left() > slider.center().x, "the field is at the trailing end");
+    assert!(slider.top() >= field.bottom() - 1.0, "the slider {slider:?} is under the field {field:?}");
+    assert!(slider.width() > 2.0 * field.width(), "the slider fills the row");
+}
+
+// The Preview check box sits above the pane, and the zoom row under it.
+#[test]
+fn the_stacked_layout_puts_the_preview_check_box_above_the_pane_and_the_zoom_row_under_it() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).preview(true).layout(ParamLayout::Stacked));
+    harness.run();
+    open_dialog(&mut harness).expect("open").set_preview_image(Some(SizedTexture::new(TextureId::default(), vec2(64.0, 48.0))));
+    harness.run();
+    let slider = harness.get_by_role_and_label(Role::Slider, "Radius").rect();
+    let check = harness.get_by_label("Preview").rect();
+    let zoom = harness.get_by_label("Zoom out").rect();
+    let ok = harness.get_by_label("OK").rect();
+    assert!(check.top() >= slider.bottom(), "Preview is under the rows");
+    assert!(zoom.top() >= check.bottom() + 40.0, "the pane sits between Preview {check:?} and the zoom row {zoom:?}");
+    assert!(ok.top() >= zoom.bottom() && ok.left() > check.right(), "OK is at the bottom right");
+}
+
+// An eyedropper opened armed shows pressed, and its first press reports a disarm.
+#[test]
+fn an_armed_eyedropper_row_opens_pressed_and_the_first_press_disarms_it() {
+    let rows = vec![Param::new("from", "From:", ParamKind::Color { default: None }).eyedropper().armed(true)];
+    let mut harness = harness(ParamDialog::new("replace", "Replace Color", rows));
+    harness.run();
+    assert_eq!(harness.get_by_label("Eyedropper").accesskit_node().toggled(), Some(egui::accesskit::Toggled::True));
+    harness.get_by_label("Eyedropper").click();
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").pick_eyedropper(), Some(EyedropperRequest { key: "from".into(), armed: false }));
+}
+
+// PhotoCraft's filter dialogs draw a non-slider row as one line from the left margin: the label
+// without a colon, then the control. The other layouts keep the form grid's label column.
+#[test]
+fn the_stacked_layout_draws_a_choice_row_as_one_left_aligned_line_without_a_colon() {
+    let rows = || {
+        let options = vec![("uniform".into(), "Uniform".into()), ("gaussian".into(), "Gaussian".into())];
+        vec![Param::new("distribution", "Distribution:", ParamKind::Choice { options, default: None })]
+    };
+    let mut stacked = harness(ParamDialog::new("noise", "Add Noise", rows()).layout(ParamLayout::Stacked));
+    stacked.run();
+    let label = stacked.get_by_role_and_label(Role::Label, "Distribution").rect();
+    let select = stacked.get_by_role_and_label(Role::ComboBox, "Distribution").rect();
+    assert!((label.center().y - select.center().y).abs() < 2.0, "label {label:?} and control {select:?} share a line");
+    assert!(label.right() <= select.left(), "the control follows the label");
+
+    let mut form = harness(ParamDialog::new("noise", "Add Noise", rows()).layout(ParamLayout::BottomFooter));
+    form.run();
+    // The grid's label is a colon wider than the stacked one and the control starts after the label column.
+    let (grid_label, grid_select) =
+        (form.get_by_role_and_label(Role::Label, "Distribution").rect(), form.get_by_role_and_label(Role::ComboBox, "Distribution").rect());
+    assert!(grid_label.width() > label.width(), "grid label {grid_label:?} keeps its colon, stacked {label:?} has none");
+    assert!(grid_select.left() - grid_label.right() >= select.left() - label.right(), "the grid keeps its column gap");
 }

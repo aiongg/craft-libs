@@ -101,7 +101,7 @@ fn grid_width(ui: &Ui) -> f32 {
     (ui.available_width() - ui.spacing().scroll.allocated_width()).max(1.0)
 }
 
-/// The width one grid cell may take in a [`PresetBrowser`](super::PresetBrowser) about to be
+/// The width one grid cell may take in a [`PresetBrowser`] about to be
 /// shown in `ui`: the grid's width less its inset at both ends (none when `flush`). A host that
 /// sizes cells to the room (cards that share a row) reads it here instead of repeating the
 /// arithmetic.

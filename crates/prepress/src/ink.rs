@@ -14,9 +14,13 @@ use crate::cms::lab_to_srgb8;
 /// A process ink, in plate order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Process {
+    #[allow(missing_docs)]
     Cyan,
+    #[allow(missing_docs)]
     Magenta,
+    #[allow(missing_docs)]
     Yellow,
+    #[allow(missing_docs)]
     Black,
 }
 
@@ -69,7 +73,9 @@ pub struct Spot {
 /// A process or spot ink.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Ink {
+    /// One of the four process inks.
     Process(Process),
+    /// A named spot ink.
     Spot(Spot),
 }
 
@@ -82,6 +88,7 @@ impl Ink {
         }
     }
 
+    /// Whether this is a spot ink.
     pub fn is_spot(&self) -> bool {
         matches!(self, Self::Spot(_))
     }
@@ -178,6 +185,7 @@ impl InkSet {
         u16::try_from(at + 4).ok().map(InkId)
     }
 
+    /// The ink with index `id`, if this set has it.
     pub fn get(&self, id: InkId) -> Option<&Ink> {
         self.inks.get(id.index())
     }
@@ -258,6 +266,7 @@ impl InkSet {
         self.all_to_process = on;
     }
 
+    /// Whether "All Spots to Process" is on; see [`set_all_to_process`](Self::set_all_to_process).
     pub fn all_to_process(&self) -> bool {
         self.all_to_process
     }

@@ -155,6 +155,8 @@ impl OptionsBar {
         self
     }
 
+    /// The resolved options bar style, read from `tokens.component.options_bar`. `narrow` picks
+    /// the narrow-window height.
     pub fn style(tokens: &UiTokens, narrow: bool) -> OptionsBarStyle {
         let o = &tokens.component.options_bar;
         OptionsBarStyle {

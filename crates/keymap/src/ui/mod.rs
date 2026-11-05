@@ -68,13 +68,35 @@ pub enum Outcome {
     Changed,
     /// The user asked to import: the app opens a file of one of these formats and calls
     /// [`ShortcutsDialog::import_json`] or [`ShortcutsDialog::review_import`].
-    Import { formats: Vec<&'static str> },
+    Import {
+        /// Ids of the formats the user may pick from.
+        formats: Vec<&'static str>,
+    },
     /// A set as craft-keymap JSON, for the app to write.
-    Export { name: String, json: String },
+    Export {
+        /// The set's name.
+        name: String,
+        /// The set as craft-keymap JSON.
+        json: String,
+    },
     /// A set in one of [`Options::export_formats`], for the app to write.
-    ExportAs { format: &'static str, name: String, keymap: Box<Keymap> },
+    ExportAs {
+        /// The [`Format::id`] to write.
+        format: &'static str,
+        /// The set's name.
+        name: String,
+        /// The keymap with the set's overrides applied.
+        keymap: Box<Keymap>,
+    },
     /// The shortcut summary, for the app to show, save or print.
-    Summary { name: String, html: String, text: String },
+    Summary {
+        /// The set's name.
+        name: String,
+        /// The summary as HTML.
+        html: String,
+        /// The summary as plain text.
+        text: String,
+    },
     /// Import answers the user gave (item → command), for the app to keep for later imports.
     Remembered(BTreeMap<String, CommandRef>),
 }
@@ -97,15 +119,20 @@ pub enum ConflictMode {
 /// An app's own Show entry.
 #[derive(Clone, Copy, Debug)]
 pub struct Area {
+    /// The entry's id; the dialog's `area` in `DialogSnapshot` holds it while selected.
     pub id: &'static str,
+    /// The entry's text in the Show dropdown or tabs.
     pub label: &'static str,
+    /// Whether a catalog entry is listed under this area.
     pub rows: fn(&Bindable) -> bool,
 }
 
 /// A read-only row for a key outside the catalog.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FixedRow {
+    /// The group the row is listed under.
     pub group: String,
+    /// The row's text.
     pub label: String,
     /// The keys as shown.
     pub keys: String,
@@ -116,8 +143,11 @@ pub struct FixedRow {
 /// A file format an app reads or writes itself.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Format {
+    /// The format's id, as [`Outcome::Import`] and [`Outcome::ExportAs`] report it.
     pub id: &'static str,
+    /// The format's name as shown.
     pub label: &'static str,
+    /// File extensions of the format, without the dot.
     pub extensions: &'static [&'static str],
 }
 
@@ -159,12 +189,17 @@ pub struct Options {
     pub visible: Option<fn(&Bindable) -> bool>,
     /// false: the on-screen keyboard pane.
     pub keyboard: bool,
+    /// Read-only rows for keys outside the catalog.
     pub fixed: Vec<FixedRow>,
+    /// Formats the app can read, besides the built-in ones.
     pub import_formats: Vec<Format>,
+    /// Formats the app can write, besides craft-keymap JSON.
     pub export_formats: Vec<Format>,
     /// true: Summarize is offered.
     pub summary: bool,
+    /// The app's extra rule for which bindings a command may get.
     pub accept: Option<Accept>,
+    /// Called for every control once per frame, for automation.
     pub on_widget: Option<OnWidget>,
     /// `None`: [`DialogStyle::from_visuals`].
     pub style: Option<DialogStyle>,
@@ -218,6 +253,7 @@ pub struct ShortcutsDialog<'a> {
 }
 
 impl<'a> ShortcutsDialog<'a> {
+    /// A dialog editing `keymap`; without further builder calls it has no sets and default options.
     pub fn new(keymap: &'a mut Keymap) -> Self {
         ShortcutsDialog { keymap, sets: None, options: None, tabs: None }
     }
@@ -228,6 +264,7 @@ impl<'a> ShortcutsDialog<'a> {
         self
     }
 
+    /// Sets the dialog's [`Options`].
     pub fn options(mut self, options: &'a Options) -> Self {
         self.options = Some(options);
         self

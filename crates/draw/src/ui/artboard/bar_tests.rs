@@ -1,4 +1,4 @@
-//! Tests of the Artboard bar and Properties section (task SH-T8).
+//! Tests of the Artboard bar and Properties section.
 
 use egui::accesskit::Role;
 use egui::{Key, Modifiers, vec2};

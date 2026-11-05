@@ -81,6 +81,7 @@ pub struct ToolPointer {
     pub eraser: bool,
     /// The button the gesture runs with (hover: the primary).
     pub button: PointerButton,
+    #[allow(missing_docs)]
     pub modifiers: Modifiers,
     /// `egui` input time of the sample.
     pub time: f64,
@@ -107,7 +108,9 @@ pub enum ToolAction {
 /// A key the host passes to the tool while the canvas has the keyboard.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ToolKey {
+    #[allow(missing_docs)]
     pub key: Key,
+    #[allow(missing_docs)]
     pub modifiers: Modifiers,
     /// `true` on the press (and each repeat), `false` on the release.
     pub pressed: bool,
@@ -219,9 +222,11 @@ pub struct ToolContext<'a> {
     pub canvas: &'a Response,
     /// The pointer's last sample this pass, snapped as the tool asked.
     pub pointer: Option<ToolPointer>,
+    #[allow(missing_docs)]
     pub modifiers: Modifiers,
     /// `egui` input time and the seconds since the last pass.
     pub time: f64,
+    #[allow(missing_docs)]
     pub dt: f32,
     /// The snap targets the host was given, for a tool that snaps its own geometry (a transform
     /// box's edges) rather than the pointer.
@@ -229,7 +234,9 @@ pub struct ToolContext<'a> {
     /// The snap tolerance in document units at this zoom (8 screen points over the zoom), or
     /// `None` while Ctrl holds snapping off.
     pub snap_tolerance: Option<f64>,
+    /// The theme tokens of this pass.
     pub tokens: &'a UiTokens,
+    /// The locale's number formatting.
     pub numbers: &'a LocaleNumbers,
     /// The interface's layout direction: a tool mirrors its horizontal keys (a Shift-arrow
     /// selection extends toward the reading end) in a right-to-left interface.
@@ -407,22 +414,37 @@ pub enum ToolInput {
     /// A press of `button`. The host starts nothing when the tool takes no such button with
     /// `modifiers` ([`CanvasTool::takes`]), as for the OS pointer.
     Down {
+        #[allow(missing_docs)]
         button: PointerButton,
+        /// The pointer in document space.
         doc: Point,
+        /// Pen pressure, 0 to 1.
         pressure: f32,
+        /// Pen tilt in degrees.
         tilt: [f32; 2],
+        /// Pen rotation in degrees.
         rotation: f32,
+        #[allow(missing_docs)]
         modifiers: Modifiers,
     },
+    #[allow(missing_docs)]
     Move {
+        /// The pointer in document space.
         doc: Point,
+        /// Pen pressure, 0 to 1.
         pressure: f32,
+        /// Pen tilt in degrees.
         tilt: [f32; 2],
+        /// Pen rotation in degrees.
         rotation: f32,
+        #[allow(missing_docs)]
         modifiers: Modifiers,
     },
+    #[allow(missing_docs)]
     Up {
+        /// The pointer in document space.
         doc: Point,
+        #[allow(missing_docs)]
         modifiers: Modifiers,
     },
 }
@@ -1180,8 +1202,11 @@ fn gesture_button(gesture: Option<&Active>, tool: &dyn CanvasTool, modifiers: Mo
 /// units (see [`ToolHost::snap_tolerance`]).
 #[derive(Clone, Copy, Debug)]
 pub struct SnapAt<'a> {
+    /// How the pointer snaps.
     pub gesture: SnapGesture,
+    /// The targets to snap to.
     pub targets: &'a SnapTargets,
+    /// Snap distance in document units.
     pub tolerance: f64,
 }
 

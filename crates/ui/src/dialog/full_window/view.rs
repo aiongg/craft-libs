@@ -167,7 +167,9 @@ impl FullWindowView {
 /// A zoom command of a full-window canvas: its keys and the zoom bar's buttons.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FullWindowZoom {
+    /// Zoom in.
     In,
+    /// Zoom out.
     Out,
     /// Fit in View.
     Fit,
@@ -181,9 +183,13 @@ pub enum FullWindowZoom {
 /// own chords (PhotoCraft's `nav_shortcut`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FullWindowZoomKeys {
+    /// Chords that zoom in.
     pub zoom_in: Vec<KeyboardShortcut>,
+    /// Chords that zoom out.
     pub zoom_out: Vec<KeyboardShortcut>,
+    /// Chords for Fit in View.
     pub fit: Vec<KeyboardShortcut>,
+    /// Chords for 100 %.
     pub actual_pixels: Vec<KeyboardShortcut>,
 }
 

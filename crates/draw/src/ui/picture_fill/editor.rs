@@ -1,4 +1,4 @@
-//! [`PictureFillEditor`] (task SH-T13).
+//! [`PictureFillEditor`].
 
 use std::ops::RangeInclusive;
 use std::path::Path;
@@ -18,6 +18,7 @@ use super::{PictureFill, PictureFillEvent, PictureFillLabels, PictureMode, TileA
 #[non_exhaustive]
 #[must_use = "the app applies the edits and stores a picked picture"]
 pub struct PictureFillOutput {
+    /// What changed this frame, in order.
     pub events: Vec<PictureFillEvent>,
 }
 
@@ -63,6 +64,7 @@ impl<'a> PictureFillEditor<'a> {
         self
     }
 
+    /// Draws the editor and reports the events.
     pub fn show(self, ui: &mut Ui) -> PictureFillOutput {
         let Self { id_salt, fill, labels } = self;
         let id = ui.make_persistent_id(id_salt);

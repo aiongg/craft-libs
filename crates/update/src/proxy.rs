@@ -7,7 +7,9 @@ use ureq::{Proxy, ProxyProtocol};
 /// A manually configured proxy read from the OS settings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SystemProxy {
+    #[allow(missing_docs)]
     pub host: String,
+    #[allow(missing_docs)]
     pub port: Option<u16>,
     /// Hosts that skip the proxy, in `NO_PROXY` form (`example.com`, `*.example.com`, `10.*`).
     pub bypass: Vec<String>,

@@ -1,4 +1,4 @@
-//! Tests of Select and Mask's tools (task WS-SM2), on a `ToolHost` with injected input.
+//! Tests of Select and Mask's tools, on a `ToolHost` with injected input.
 
 use craft_ui::canvas::kurbo::{Point, Size};
 use craft_ui::canvas::{CanvasId, CanvasView, ToolHost, ToolInput};

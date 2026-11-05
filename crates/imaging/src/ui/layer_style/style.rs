@@ -1,5 +1,4 @@
-//! The looks of the Layer Style dialog, the Blend If bar and the contour field, from tokens (task
-//! TK3: token families `layer_style`, `blend_if`).
+//! The looks of the Layer Style dialog, the Blend If bar and the contour field, from tokens (token families `layer_style`, `blend_if`).
 
 use egui::{Color32, FontId};
 
@@ -21,15 +20,18 @@ pub struct LayerStyleDialogStyle {
     pub divider: Color32,
     /// A page title (the effect's name): `type.title` (PhotoCraft semibold 14, `:987`).
     pub title_font: FontId,
+    #[allow(missing_docs)]
     pub title_color: Color32,
     /// The label of an absent or switched-off effect: `text.faint` (absent), `text.muted` (off,
     /// #2288).
     pub absent_color: Color32,
+    #[allow(missing_docs)]
     pub off_color: Color32,
     /// The Styles page's thumbnails: `layer_style.preset_thumb` (32, `:962`); the page's scroll
     /// height `layer_style.presets_height` (340, `:954`). The grid's gap and radius are the preset
     /// browser's.
     pub preset_thumb: f32,
+    #[allow(missing_docs)]
     pub presets_height: f32,
     /// The invalid-value line: `status.bad.fg`.
     pub invalid_color: Color32,
@@ -43,15 +45,18 @@ pub struct BlendIfBarStyle {
     /// The bar's width range: `blend_if.width_min`, `blend_if.width_max` (120 and 320, PhotoCraft
     /// `layer_style.rs:1370`).
     pub width_min: f32,
+    #[allow(missing_docs)]
     pub width_max: f32,
     /// The bar's height: `blend_if.height` (26, `:1371`).
     pub height: f32,
     /// The ramp's height and side inset: `blend_if.ramp` (12), `blend_if.inset` (6) (`:1372`).
     pub ramp: f32,
+    #[allow(missing_docs)]
     pub inset: f32,
     /// A handle triangle's width and height: `blend_if.handle_width`, `blend_if.handle_height`
     /// (10 and 10, `:1432-1440`).
     pub handle_width: f32,
+    #[allow(missing_docs)]
     pub handle_height: f32,
     /// The ramp's border: `blend_if.ramp_border` (`:1383`).
     pub ramp_border: Color32,
@@ -61,6 +66,7 @@ pub struct BlendIfBarStyle {
     pub focus: Color32,
     /// The readout over the bar ("0 / 20    255"): `type.body`, `text.normal`.
     pub readout_font: FontId,
+    #[allow(missing_docs)]
     pub readout_color: Color32,
 }
 
@@ -71,6 +77,7 @@ pub struct ContourFieldStyle {
     /// The thumbnail: `layer_style.contour_thumb` (36, PhotoCraft `contour.rs:111`); the picker
     /// arrow beside it `layer_style.contour_arrow` (14 wide, `:119`).
     pub thumb: f32,
+    #[allow(missing_docs)]
     pub arrow: f32,
     /// A cell of the preset picker: `layer_style.contour_cell` (40, `:142`).
     pub cell: f32,

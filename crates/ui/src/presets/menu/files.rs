@@ -119,9 +119,19 @@ pub struct PresetExport {
 pub enum PresetFileEvent {
     /// The user picked a file for Load… (`replace: false`) or Replace… (`replace: true`); the app
     /// parses `bytes` in its own format and makes one undo step.
-    Loaded { file_name: String, bytes: Vec<u8>, replace: bool },
+    Loaded {
+        /// The picked file's name.
+        file_name: String,
+        /// The file's contents.
+        bytes: Vec<u8>,
+        /// True for Replace…, false for Load….
+        replace: bool,
+    },
     /// Save… wrote the export to the file the user picked. Nothing in the document changes.
-    Saved { file_name: String },
+    Saved {
+        /// The name of the file written.
+        file_name: String,
+    },
 }
 
 /// What [`PresetFiles::take_events`] returns: the events of a pick answered this pass and its
@@ -130,7 +140,9 @@ pub enum PresetFileEvent {
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct PresetFilesOutput {
+    /// The picks answered this pass, in order.
     pub events: Vec<PresetFileEvent>,
+    /// The status line for the app's status bar; `None` when no pick finished.
     pub status: Option<StatusLine>,
 }
 

@@ -1,5 +1,4 @@
-//! Stories of the Brush Preset picker, its cards and chip (task ST-BR1; task RG2 registers them
-//! and adds `BrushPresetPicker`, `BrushPresetCards` and `BrushPresetChip` to the components).
+//! Stories of the Brush Preset picker, its cards and chip.
 //! Fake presets in three groups; their tips and strokes are drawn with the painter, so every
 //! state shows without an engine. The preset names and the notes are story words.
 //!

@@ -1,4 +1,4 @@
-//! The pen draft's Auto Add/Delete and close cursor (task PE-C2): what a press on the open draft
+//! The pen draft's Auto Add/Delete and close cursor: what a press on the open draft
 //! does instead of adding an anchor, and whether it would close the path.
 
 use egui::{Modifiers, Pos2};

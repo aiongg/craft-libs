@@ -24,7 +24,9 @@ use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Well {
     #[default]
+    /// The primary well: at the start, top.
     Primary,
+    /// The secondary well: offset towards the end and down.
     Secondary,
 }
 
@@ -254,11 +256,13 @@ impl<'a> SwatchPair<'a> {
         self
     }
 
+    /// The style read from `tokens`.
     pub fn style(tokens: &UiTokens) -> SwatchPairStyle {
         let t = &tokens.component.color_picker;
         SwatchPairStyle { well: t.pair_well, step: t.pair_step, gap: t.pair_gap, ring: t.pair_ring }
     }
 
+    /// Draws the pair and returns its response.
     pub fn show(self, ui: &mut Ui) -> SwatchPairResponse {
         let Self { id_salt, label, wells, numbers, active, swap, defaults, enabled, backdrop, picker, popover, click_activates } = self;
         let enabled = enabled && ui.is_enabled();

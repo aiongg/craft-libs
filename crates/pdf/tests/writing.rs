@@ -1,3 +1,5 @@
+//! Integration tests of craft-pdf: writing.
+
 #![cfg(feature = "write")]
 #![allow(clippy::unwrap_used, clippy::panic)]
 

@@ -1,4 +1,4 @@
-//! [`MeasureStyle`]: the Ruler tool's look and reach, from tokens (task TK2).
+//! [`MeasureStyle`]: the Ruler tool's look and reach, from tokens.
 
 use craft_ui::canvas::straight_line::LineGuideStyle;
 use craft_ui::theme::UiTokens;
@@ -26,7 +26,7 @@ impl MeasureStyle {
     pub fn of(tokens: &UiTokens) -> Self {
         // pc: crates/ui-egui/src/tools/analysis_ui.rs:210 (7 / zoom), :408 `handle` (5 pt arms,
         // 3 pt black under 1 pt white), :489 `readout` (6 pt gap); the line from
-        // `LineGuideStyle::of` (task TK1).
+        // `LineGuideStyle::of`.
         let m = &tokens.component.measure;
         Self { line: LineGuideStyle::of(tokens), hit: m.hit, handle_arm: m.handle_arm, readout_gap: m.readout_gap }
     }

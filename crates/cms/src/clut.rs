@@ -13,6 +13,9 @@ pub const MAX_CHANNELS: usize = 15;
 /// Largest number of stored values (nodes × outputs) a table may hold.
 pub const MAX_VALUES: usize = 16 * 1024 * 1024;
 
+/// An N-input, M-output colour lookup table with `f32` node values.
+///
+/// Build one with [`Clut::new`]; evaluate it with the interpolation methods below.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Clut {
     pub(crate) inputs: usize,
@@ -60,9 +63,11 @@ impl Clut {
         Clut { inputs, outputs, grid, data, strides }
     }
 
+    /// Number of input channels.
     pub fn inputs(&self) -> usize {
         self.inputs
     }
+    /// Number of output channels.
     pub fn outputs(&self) -> usize {
         self.outputs
     }

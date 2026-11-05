@@ -22,6 +22,7 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
+    /// Reads the system's package lists once (on Linux; elsewhere the snapshot is empty).
     pub fn take() -> Self {
         #[cfg(target_os = "linux")]
         {
@@ -281,6 +282,7 @@ pub mod windows {
     }
 }
 
+/// Detection of Linux installs: AppImages in the usual folders and system packages.
 #[cfg(target_os = "linux")]
 pub mod linux {
     use std::path::{Path, PathBuf};
@@ -400,6 +402,8 @@ pub mod linux {
         appimages_in(app, &appimage_dirs())
     }
 
+    /// What is installed of `app` on this system: an AppImage first, then a deb, rpm, Arch or
+    /// Flatpak package, then a binary on `PATH`.
     pub fn detect(app: &App, snapshot: &Snapshot) -> Option<Installed> {
         if let Some((path, version)) = appimages(app).into_iter().next() {
             return Some(Installed { version, source: InstallSource::AppImage, location: path.display().to_string(), package: None });

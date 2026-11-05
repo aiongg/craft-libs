@@ -428,6 +428,7 @@ impl FieldGroup {
         Self { id_salt: IdSalt::new(id_salt) }
     }
 
+    /// Draws the group's rows through `add_contents`, sizing their label column to the widest label measured.
     pub fn show<R>(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         measure::group(ui, TAG, self.id_salt, add_contents)
     }

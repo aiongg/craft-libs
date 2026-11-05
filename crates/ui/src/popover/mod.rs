@@ -256,11 +256,13 @@ impl Popover {
         }
     }
 
+    /// How the popover is sized. Default: [`PopoverSize::Fit`].
     pub fn size(mut self, size: PopoverSize) -> Self {
         self.size = size;
         self
     }
 
+    /// Which rules close the popover besides the contents calling [`PopoverCtx::close`].
     pub fn close(mut self, close: PopoverClose) -> Self {
         self.close = close;
         self

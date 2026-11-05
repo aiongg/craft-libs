@@ -15,9 +15,11 @@ use writeable::Writeable as _;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CalendarKind {
+    #[allow(missing_docs)]
     Gregorian,
     /// The Gregorian months and days with the year counted from 543 BC.
     Buddhist,
+    #[allow(missing_docs)]
     Persian,
     /// A calendar the data bundles without a name here.
     Other,
@@ -27,8 +29,11 @@ pub enum CalendarKind {
 /// the Gregorian, Buddhist and Persian calendars); `year` is the calendar's own year number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct LocalDate {
+    #[allow(missing_docs)]
     pub year: i32,
+    #[allow(missing_docs)]
     pub month: u8,
+    #[allow(missing_docs)]
     pub day: u8,
 }
 

@@ -1,4 +1,4 @@
-//! Stories of the selection tools (task ST-SE1).
+//! Stories of the selection tools.
 //!
 //! Each story runs one tool inside a `ToolHost` over [`MockImage`], as an app would: the tool is
 //! wrapped in a [`SelectToolPass`] with a [`SelectionProbe`] over the story's fake selection, and

@@ -50,6 +50,7 @@ pub enum OpenAt {
 }
 
 impl<'a, T: Clone> ContextMenu<'a, T> {
+    /// A context menu of `entries` at the default control size, handling its own open and close gestures.
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
         Self { entries, size: ControlSize::Md, request: None, own_gestures: true, scroll_labels: None, min_width: None }
     }

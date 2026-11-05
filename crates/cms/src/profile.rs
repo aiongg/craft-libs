@@ -12,17 +12,27 @@ use crate::{CmsError, Intent};
 /// Profile/device class (header bytes 12..16).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ProfileClass {
+    #[allow(missing_docs)]
     Input,
+    #[allow(missing_docs)]
     Display,
+    #[allow(missing_docs)]
     Output,
+    #[allow(missing_docs)]
     DeviceLink,
+    #[allow(missing_docs)]
     ColorSpace,
+    #[allow(missing_docs)]
     Abstract,
+    #[allow(missing_docs)]
     NamedColor,
+    /// A class signature this crate does not know, kept as read.
     Unknown(u32),
 }
 
 impl ProfileClass {
+    /// Maps the four-character class signature (big-endian `u32`) to a class; unknown signatures
+    /// give [`ProfileClass::Unknown`].
     pub fn from_sig(s: u32) -> Self {
         match &s.to_be_bytes() {
             b"scnr" => Self::Input,
@@ -35,6 +45,7 @@ impl ProfileClass {
             _ => Self::Unknown(s),
         }
     }
+    /// The four-character class signature as a big-endian `u32`.
     pub fn sig(self) -> u32 {
         u32::from_be_bytes(*match self {
             Self::Input => b"scnr",
@@ -52,23 +63,37 @@ impl ProfileClass {
 /// Data colour space (header bytes 16..20).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ColorSpace {
+    #[allow(missing_docs)]
     Xyz,
+    #[allow(missing_docs)]
     Lab,
+    #[allow(missing_docs)]
     Luv,
+    #[allow(missing_docs)]
     YCbCr,
+    #[allow(missing_docs)]
     Yxy,
+    #[allow(missing_docs)]
     Rgb,
+    #[allow(missing_docs)]
     Gray,
+    #[allow(missing_docs)]
     Hsv,
+    #[allow(missing_docs)]
     Hls,
+    #[allow(missing_docs)]
     Cmyk,
+    #[allow(missing_docs)]
     Cmy,
     /// `nCLR` spaces with n = 2..=15 colorants.
     Color(u8),
+    /// A colour space signature this crate does not know, kept as read.
     Unknown(u32),
 }
 
 impl ColorSpace {
+    /// Maps the four-character colour space signature (big-endian `u32`) to a colour space; unknown
+    /// signatures give [`ColorSpace::Unknown`].
     pub fn from_sig(s: u32) -> Self {
         let b = s.to_be_bytes();
         match &b {
@@ -91,6 +116,7 @@ impl ColorSpace {
             _ => Self::Unknown(s),
         }
     }
+    /// The four-character colour space signature as a big-endian `u32`.
     pub fn sig(self) -> u32 {
         u32::from_be_bytes(match self {
             Self::Xyz => *b"XYZ ",
@@ -123,7 +149,9 @@ impl ColorSpace {
 /// Which PCS a stage list ends in (float values: XYZ with Y = 1 for the white, or Lab L 0–100).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Pcs {
+    #[allow(missing_docs)]
     Xyz,
+    #[allow(missing_docs)]
     Lab,
 }
 
@@ -141,9 +169,13 @@ pub enum LutKind {
 /// A parsed `AToB`/`BToA` tag: device-side and PCS-side values are normalised to `[0, 1]`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Lut {
+    /// Encoding family of the tag.
     pub kind: LutKind,
+    /// Number of device-side channels.
     pub inputs: usize,
+    /// Number of PCS-side channels.
     pub outputs: usize,
+    /// Stages from device side to PCS side for `AToB` tags, the reverse for `BToA` tags.
     pub stages: Vec<Stage>,
 }
 
@@ -157,11 +189,17 @@ pub const SAME_COLORS_MAX_DELTA_E: f64 = 0.5;
 pub struct Profile {
     /// Major version and minor.bugfix byte (e.g. `(4, 0x30)` for 4.3, `(2, 0x10)` for 2.1).
     pub version: (u8, u8),
+    #[allow(missing_docs)]
     pub class: ProfileClass,
+    #[allow(missing_docs)]
     pub color_space: ColorSpace,
+    #[allow(missing_docs)]
     pub pcs: Pcs,
+    /// Intent stored in the profile header.
     pub rendering_intent: Intent,
+    /// Text of the `desc` tag; empty when absent.
     pub description: String,
+    /// Text of the `cprt` tag; empty when absent.
     pub copyright: String,
     /// `wtpt` as stored (XYZ; D50 when absent).
     pub white_point: [f64; 3],
@@ -171,10 +209,13 @@ pub struct Profile {
     pub chad: Option<Mat3>,
     /// Colorant matrix (columns rXYZ, gXYZ, bXYZ), D50-adapted.
     pub matrix: Option<Mat3>,
+    /// Red, green and blue tone curves (`rTRC`, `gTRC`, `bTRC`) of a matrix/TRC profile.
     pub trc: Option<[Curve; 3]>,
+    /// Gray tone curve (`kTRC`) of a gray profile.
     pub gray_trc: Option<Curve>,
     /// A2B0/A2B1/A2B2 (perceptual, colorimetric, saturation).
     pub a2b: [Option<Lut>; 3],
+    /// B2A0/B2A1/B2A2 (perceptual, colorimetric, saturation).
     pub b2a: [Option<Lut>; 3],
     /// The bytes this profile was parsed from (or encoded to), kept for byte-exact embedding.
     pub(crate) bytes: Option<Arc<Vec<u8>>>,
@@ -207,6 +248,7 @@ impl Profile {
         self
     }
 
+    /// Number of device channels of the data colour space.
     pub fn channels(&self) -> usize {
         self.color_space.channels()
     }

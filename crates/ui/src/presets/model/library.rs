@@ -101,8 +101,11 @@ impl PresetId {
 /// A preset: its id, its name (unique across the library, ignoring case) and the app's value.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PresetItem<T> {
+    /// The library-wide id; stays the same when the preset is renamed or moved.
     pub id: PresetId,
+    /// The preset's name, unique across the library ignoring case.
     pub name: String,
+    /// The app's value.
     pub value: T,
 }
 
@@ -111,8 +114,11 @@ pub struct PresetItem<T> {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(bound(serialize = "T: Serialize", deserialize = "T: Deserialize<'de>"))]
 pub struct PresetGroup<T> {
+    /// The group's name, unique among its siblings ignoring case.
     pub name: String,
+    /// The presets directly in the group, in display order.
     pub items: Vec<PresetItem<T>>,
+    /// The folders directly in the group, in display order.
     pub groups: Vec<PresetGroup<T>>,
 }
 
@@ -121,21 +127,51 @@ pub struct PresetGroup<T> {
 #[non_exhaustive]
 pub enum PresetChange {
     /// A preset was added.
-    Added { id: PresetId, group: GroupPath },
+    Added {
+        /// The new preset's id.
+        id: PresetId,
+        /// The group it went into.
+        group: GroupPath,
+    },
     /// A group was added.
     GroupAdded(GroupPath),
     /// A preset was renamed.
-    Renamed { id: PresetId, name: String },
+    Renamed {
+        /// The preset renamed.
+        id: PresetId,
+        /// Its new name.
+        name: String,
+    },
     /// A group was renamed; `to` is its new path (its folders' paths change with it).
-    GroupRenamed { from: GroupPath, to: GroupPath },
+    GroupRenamed {
+        /// The path before the rename.
+        from: GroupPath,
+        /// The path after the rename.
+        to: GroupPath,
+    },
     /// A preset was deleted.
     Deleted(PresetId),
     /// A group was deleted with everything inside it; `items` are the presets that went with it.
-    GroupDeleted { path: GroupPath, items: Vec<PresetId> },
+    GroupDeleted {
+        /// The path the group had.
+        path: GroupPath,
+        /// The presets deleted with it.
+        items: Vec<PresetId>,
+    },
     /// A preset moved to another group (Move to, or a drag into a group).
-    Moved { id: PresetId, to: GroupPath },
+    Moved {
+        /// The preset moved.
+        id: PresetId,
+        /// The group it moved into.
+        to: GroupPath,
+    },
     /// A group moved to another parent; `to` is its new path.
-    GroupMoved { from: GroupPath, to: GroupPath },
+    GroupMoved {
+        /// The path before the move.
+        from: GroupPath,
+        /// The path after the move.
+        to: GroupPath,
+    },
     /// Presets or groups changed order inside one group.
     Reordered(GroupPath),
 }

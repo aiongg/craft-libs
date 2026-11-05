@@ -1,4 +1,4 @@
-//! Tests of the session overlay and the box's hidden reference point (task TR-T8).
+//! Tests of the session overlay and the box's hidden reference point.
 
 use egui::accesskit::Role;
 use egui::epaint::ColorMode;

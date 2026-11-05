@@ -1,4 +1,4 @@
-//! Tests of the Magnetic Lasso (task SE-F10), with a fake `EdgeTracer` that snaps to a circle and
+//! Tests of the Magnetic Lasso, with a fake `EdgeTracer` that snaps to a circle and
 //! traces along it, and a fake `SelectionProbe`.
 
 use std::cell::{Cell, RefCell};

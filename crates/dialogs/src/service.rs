@@ -1,4 +1,4 @@
-//! [`FileService`]: craft-host's [`Files`] over the native panels of [`Dialogs`](crate::Dialogs).
+//! [`FileService`]: craft-host's [`Files`] over the native panels of [`Dialogs`].
 //!
 //! The app builds the pair at startup, installs the service in the Host
 //! (`Host::builder(..).files(Arc::new(service))`) and keeps the [`FilePanels`] on the main thread,
@@ -35,6 +35,7 @@ pub struct ReplaceWords {
     pub question: String,
     /// The confirming button, the default.
     pub replace: String,
+    /// The cancelling button.
     pub cancel: String,
 }
 
@@ -214,11 +215,13 @@ impl FileService {
 }
 
 impl FilePanels {
+    /// Sets how a Save answer without an extension is completed.
     pub fn extension_policy(mut self, policy: ExtensionPolicy) -> Self {
         self.extension_policy = policy;
         self
     }
 
+    /// Sets whether the panels ask the Replace question when the native panel did not.
     pub fn replace_guard(mut self, guard: ReplaceGuard) -> Self {
         self.replace_guard = guard;
         self

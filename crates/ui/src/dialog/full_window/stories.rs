@@ -1,4 +1,4 @@
-//! Stories of the full-window regions (task KS3; task RG2 registers them).
+//! Stories of the full-window regions.
 //!
 //! The image is a generated scene (a gradient with a disc, a rectangle and a transparent corner)
 //! and the overlay a generated coverage mask at half resolution, so every state shows without an

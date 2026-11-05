@@ -39,6 +39,7 @@ pub struct Link {
 }
 
 impl Link {
+    /// A link labelled `label`, with no URL, in body type.
     pub fn new(label: impl Into<String>) -> Self {
         Self { label: label.into(), url: None, role: TypeRole::Body, id_salt: None }
     }
@@ -61,6 +62,8 @@ impl Link {
         self
     }
 
+    /// The link colour and underline from `tokens`: the accent text colour in high contrast, else
+    /// the accent solid.
     pub fn style(tokens: &UiTokens) -> LinkStyle {
         let c = &tokens.color;
         let color = if tokens.appearance.contrast == Contrast::High { c.accent.text } else { c.accent.solid }.to_egui();

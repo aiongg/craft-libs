@@ -104,12 +104,19 @@ use crate::{composites, controls, primitives};
 /// Where a story's component sits in the design system, in the order the gallery lists them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Level {
+    #[allow(missing_docs)]
     Foundations,
+    #[allow(missing_docs)]
     Primitives,
+    #[allow(missing_docs)]
     Controls,
+    #[allow(missing_docs)]
     Composites,
+    #[allow(missing_docs)]
     Patterns,
+    #[allow(missing_docs)]
     Shells,
+    #[allow(missing_docs)]
     Specimens,
 }
 
@@ -179,6 +186,7 @@ impl Surface {
 pub struct Story {
     /// `level/component/story` in lower-case slugs, e.g. `controls/button/primary`; unique.
     pub id: &'static str,
+    /// The design-system level the component belongs to; groups the gallery's list.
     pub level: Level,
     /// The component's display name, e.g. `Button`.
     pub component: &'static str,

@@ -1,4 +1,4 @@
-//! Stories of the shape panel and options bar (task ST-SH1; task RG2 registers them). A fake shape
+//! Stories of the shape panel and options bar. A fake shape
 //! layer (a `LiveShape` and a `ShapeAppearance`) stands for the document, and the panel and the bar
 //! edit it as an app does: each field's `EditEvent` becomes a change of the fake, and a cancelled
 //! gesture restores it. Sample words are story words; the plain strings are the status lines.
@@ -6,9 +6,6 @@
 //! - `patterns/shape-panel/sections`: Appearance and Shape for Rect, Ellipse, Polygon, Star and Line; a locked
 //!   layer disables every field.
 //! - `patterns/shape-bar/bar`: the bar for each Shape tool kind, over the tool settings.
-//!
-//! RG2 registers `stories()` and the components `ShapePanel` and `ShapeBar`, and RG1 adds
-//! [`ShapeStoryLabels`] to `WORDS`.
 
 use egui::Ui;
 

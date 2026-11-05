@@ -1,3 +1,5 @@
+//! Integration tests of craft-plate-test: scenes.
+
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use craft_plate_test::reference::{self, Context};

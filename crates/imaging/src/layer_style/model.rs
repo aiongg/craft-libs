@@ -12,15 +12,25 @@ use super::contour::Contour;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum EffectKind {
+    #[allow(missing_docs)]
     BevelEmboss,
+    #[allow(missing_docs)]
     Stroke,
+    #[allow(missing_docs)]
     InnerShadow,
+    #[allow(missing_docs)]
     InnerGlow,
+    #[allow(missing_docs)]
     Satin,
+    #[allow(missing_docs)]
     ColorOverlay,
+    #[allow(missing_docs)]
     GradientOverlay,
+    #[allow(missing_docs)]
     PatternOverlay,
+    #[allow(missing_docs)]
     OuterGlow,
+    #[allow(missing_docs)]
     DropShadow,
 }
 
@@ -107,7 +117,9 @@ pub enum StyleValue {
     Bool(bool),
     /// A choice's value key (`"softer"`), a blend mode's app key, a pattern id.
     Text(String),
+    /// A color value.
     Color(Srgba),
+    /// A contour value.
     Contour(Contour),
     /// Data the library never reads, in the app's own encoding (an imported multi-stop gradient,
     /// PSD descriptor data). It survives every edit unchanged.
@@ -116,7 +128,7 @@ pub enum StyleValue {
 
 /// An effect's parameters by key (`"opacity"`, `"useGlobalLight"`), the field tables' keys plus
 /// any key the app keeps that no field shows. Unknown keys survive every edit, so an apply never
-/// drops what the dialog does not model (lead call L26, in place of PhotoCraft's `fx` snapshot).
+/// drops what the dialog does not model (PhotoCraft kept an `fx` snapshot for this).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct StyleParams(pub BTreeMap<String, StyleValue>);
 
@@ -162,10 +174,13 @@ impl StyleParams {
 /// One effect on the layer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectInstance {
+    #[allow(missing_docs)]
     pub id: EffectId,
+    #[allow(missing_docs)]
     pub kind: EffectKind,
     /// The check box: whether the effect renders. Selecting a page does not change it.
     pub on: bool,
+    /// The effect's parameter values.
     pub params: StyleParams,
 }
 
@@ -173,8 +188,11 @@ pub struct EffectInstance {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Knockout {
     #[default]
+    #[allow(missing_docs)]
     None,
+    #[allow(missing_docs)]
     Shallow,
+    #[allow(missing_docs)]
     Deep,
 }
 
@@ -242,7 +260,9 @@ pub struct BlendIf {
     /// The host's channel entry: 0 is Gray in a colour document, then the colour channels in
     /// [`Blending::channels`] order; a one-channel document has only its own entry.
     pub channel: usize,
+    /// The range applied to the layer's own pixels.
     pub this_layer: BlendIfRange,
+    /// The range applied to the pixels beneath the layer.
     pub underlying: BlendIfRange,
 }
 
@@ -260,12 +280,17 @@ pub struct Blending {
     /// One entry per colour channel of the document, in the host's channel-name order: true
     /// blends it (Photoshop's Channels check boxes).
     pub channels: Vec<bool>,
+    #[allow(missing_docs)]
     pub knockout: Knockout,
     /// The five Advanced Blending checks, in Photoshop's order. Defaults: off, on, on, off, off.
     pub blend_interior_effects_as_group: bool,
+    /// Advanced Blending: Blend Clipped Layers as Group.
     pub blend_clipped_layers_as_group: bool,
+    /// Advanced Blending: Transparency Shapes Layer.
     pub transparency_shapes_layer: bool,
+    /// Advanced Blending: Layer Mask Hides Effects.
     pub layer_mask_hides_effects: bool,
+    /// Advanced Blending: Vector Mask Hides Effects.
     pub vector_mask_hides_effects: bool,
     /// One entry per Blend If channel (Gray first in a colour document).
     pub blend_if: Vec<BlendIf>,
@@ -297,6 +322,7 @@ impl Default for Blending {
 pub struct LayerStyle {
     /// The instances in render order. Several instances of one kind sit next to each other.
     pub effects: Vec<EffectInstance>,
+    #[allow(missing_docs)]
     pub blending: Blending,
     /// The document's global light angle in degrees, which every effect with Use Global Light on
     /// shows and edits. The app compares it with the document's on OK.

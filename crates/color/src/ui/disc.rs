@@ -20,6 +20,7 @@ const RINGS: u32 = 8;
 /// A marker's place on the disc: what a drag or a key changes.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DiscMove {
+    /// Index of the marker, in the order of the colours the disc was given.
     pub marker: usize,
     /// Degrees, 0 to 360, red at 0 and growing counter-clockwise.
     pub hue: f32,
@@ -40,6 +41,7 @@ pub struct ColorDiscStyle {
     pub inset: f32,
     /// A marker's radius, and a selected one's.
     pub marker: f32,
+    /// Radius of the selected marker.
     pub marker_selected: f32,
     /// A press within this of a marker grabs it.
     pub grab: f32,
@@ -152,6 +154,7 @@ impl ColorDisc {
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -169,6 +172,7 @@ impl ColorDisc {
         self
     }
 
+    /// The style the control draws with, read from the theme `tokens`.
     pub fn style(tokens: &UiTokens) -> ColorDiscStyle {
         let t = &tokens.component.color_wheel;
         ColorDiscStyle {

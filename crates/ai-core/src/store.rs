@@ -35,12 +35,15 @@ pub struct AppSettings {
 /// The whole store.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoreFile {
+    /// Version of the file format, checked before anything else. [`SCHEMA_VERSION`] is the one this build writes.
     pub schema_version: u32,
+    /// The saved connections. Ids must be unique.
     #[serde(default)]
     pub connections: Vec<Connection>,
     /// Default bindings, set in the launcher, used by every app unless it overrides.
     #[serde(default)]
     pub defaults: Vec<Binding>,
+    /// Per-app settings, keyed by app id.
     #[serde(default)]
     pub apps: BTreeMap<AppId, AppSettings>,
     /// User-declared tool contracts, shared across the suite. A declaration does not install an adapter.
@@ -51,23 +54,37 @@ pub struct StoreFile {
 /// Why a store file was refused.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StoreError {
+    /// The file is over [`MAX_STORE_BYTES`].
     TooLarge {
+        /// Size of the file in bytes.
         len: usize,
+        /// The limit in bytes.
         max: usize,
     },
+    /// The file is not valid JSON for this schema. The string says why.
     Syntax(String),
     /// Written by a newer version. Do not write to it.
     TooNew {
+        /// The file's schema version.
         found: u32,
+        /// The newest schema version this build reads.
         supported: u32,
     },
+    /// The schema version is 0.
     BadVersion(u32),
+    /// Two connections share this id.
     DuplicateConnection(ConnectionId),
+    /// Two custom tools share this id.
     DuplicateTool(RoleId),
+    /// More than 64 custom tools. The number is the count found.
     TooManyTools(usize),
+    /// A custom tool has an empty or over-long label, or no inputs, more than 8, or a repeated one.
     InvalidTool(RoleId),
+    /// A connection failed its own validation.
     Invalid {
+        /// The connection that failed.
         connection: ConnectionId,
+        /// The rule it broke.
         why: ConnectionError,
     },
 }
@@ -152,6 +169,7 @@ impl StoreFile {
         Ok(())
     }
 
+    /// Serializes the store as pretty-printed JSON. Does not validate; call [`StoreFile::validate`] first.
     pub fn to_json(&self) -> Result<String, StoreError> {
         serde_json::to_string_pretty(self).map_err(|e| StoreError::Syntax(e.to_string()))
     }

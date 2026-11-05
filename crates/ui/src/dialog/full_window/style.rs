@@ -1,5 +1,5 @@
 //! [`FullWindowStyle`]: the full-window regions' sizes and colours from the `full_window.*`
-//! tokens (TK1), with the panel, canvas, divider and text colours they derive from.
+//! tokens, with the panel, canvas, divider and text colours they derive from.
 
 use egui::{Color32, Stroke, Vec2};
 

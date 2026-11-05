@@ -1,4 +1,4 @@
-//! Tests of Filter Gallery's catalog and stack (task WS-FG1).
+//! Tests of Filter Gallery's catalog and stack.
 
 use craft_theme::Srgba;
 use craft_ui::dialog::{DialogFields, FieldValue, LocalHistory, Param, ParamKind, Step};

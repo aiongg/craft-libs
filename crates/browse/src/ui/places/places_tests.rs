@@ -1,4 +1,4 @@
-//! `PlacesTree` through egui_kittest with `FakeDirectories` and `ManualJobs` (task B7).
+//! `PlacesTree` through egui_kittest with `FakeDirectories` and `ManualJobs`.
 
 use std::sync::Arc;
 

@@ -52,13 +52,13 @@ pub struct SwatchTokens {
     /// to hit as the controls beside it. The well fills it.
     pub size: BySize<f32>,
     /// Corner radius of the well: `shape.radius.control` or the theme's `swatch.radius`, at
-    /// most [`values::SWATCH_RADIUS_MAX`].
+    /// most `values::SWATCH_RADIUS_MAX`.
     pub radius: f32,
     /// Width of the selection ring.
     pub selected_width: f32,
     /// Ring on the outline, 1 point wide: `line.control_edge`.
     pub edge: Rgba,
-    /// Side of a checkerboard cell: [`values::SWATCH_CHECKER_CELL`].
+    /// Side of a checkerboard cell: `values::SWATCH_CHECKER_CELL`.
     pub checker_cell: f32,
     /// Checkerboard cell that holds the corners: PhotoCraft's light grey in every theme.
     pub checker_a: Rgba,
@@ -97,7 +97,7 @@ impl SwatchTokens {
         }
     }
 
-    /// A ring of black or white at [`values::SWATCH_INNER_EDGE_ALPHA`] that stands out from `color`
+    /// A ring of black or white at `values::SWATCH_INNER_EDGE_ALPHA` that stands out from `color`
     /// (straight alpha, over the checkerboard): for compositions that draw a well apart from its
     /// colours, such as the colour pair's ring.
     pub fn inner_edge(&self, color: Rgba) -> Rgba {

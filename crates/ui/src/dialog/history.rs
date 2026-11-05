@@ -50,7 +50,9 @@ pub struct LocalHistory<T> {
 /// Which way [`LocalHistory::step`] goes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
+    /// Step back to the previous settings.
     Undo,
+    /// Step forward again after an undo.
     Redo,
 }
 
@@ -106,10 +108,12 @@ impl<T: Clone + PartialEq> LocalHistory<T> {
         true
     }
 
+    /// True when [`step`](LocalHistory::step) with [`Step::Undo`] would change something.
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }
 
+    /// True when [`step`](LocalHistory::step) with [`Step::Redo`] would change something.
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
     }

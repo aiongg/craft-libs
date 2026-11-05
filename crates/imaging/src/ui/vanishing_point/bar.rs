@@ -1,4 +1,4 @@
-//! [`VanishingPointBar`]: Vanishing Point's options bar (task WS-VP2).
+//! [`VanishingPointBar`]: Vanishing Point's options bar.
 
 use egui::{AsIdSalt, IdSalt, Modifiers, Response, Ui};
 
@@ -23,6 +23,7 @@ const PASTE_WIDTH: std::ops::RangeInclusive<f64> = 1.0..=1000.0;
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct VanishingPointBarOutput {
+    /// The bar's response.
     pub response: Response,
     /// The setting the user changed this pass, with every setting as it is now (written to the
     /// settings): a number field's gesture (`Begin`, `Update`, `Commit`) or a checkbox's `Set`.
@@ -51,6 +52,7 @@ pub struct VanishingPointBar<'a> {
 }
 
 impl<'a> VanishingPointBar<'a> {
+    /// Starts the bar for `tool` over `settings`, which it edits in place; `paste` is the pasted image's placement and `has_clip` whether the clipboard holds an image.
     pub fn new(id_salt: impl AsIdSalt, tool: VanishingTool, settings: &'a mut VanishingPointSettings, paste: PasteImage, has_clip: bool) -> Self {
         Self { id_salt: IdSalt::new(id_salt), tool, settings, paste, has_clip, has_strokes: false, labels: None }
     }
@@ -67,6 +69,7 @@ impl<'a> VanishingPointBar<'a> {
         self
     }
 
+    /// Draws the bar and returns its response and the edits it made.
     pub fn show(self, ui: &mut Ui) -> VanishingPointBarOutput {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:1230 `options_bar`.
         let Self { id_salt, tool, settings, paste, has_clip, has_strokes, labels } = self;

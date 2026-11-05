@@ -12,7 +12,7 @@
 //!   [`Words`](crate::localized::Words).
 //! - [`SettingsDocument`]: a [`PreferencesModel`] built from the app's settings struct, one row per
 //!   setting by type, labels from the key, with [`SettingRule`]s and Photoshop's [`StandardPage`]s.
-//! - [`matches`]: the search rule, public so hosts and tests share it.
+//! - [`matches`](fn@matches): the search rule, public so hosts and tests share it.
 //!
 //! Sizes are the `preferences.*` and `group_box.*` tokens.
 

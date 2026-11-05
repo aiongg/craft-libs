@@ -1,4 +1,4 @@
-//! [`MaskViewControls`]: the View Mode block of Select and Mask's Properties panel (task SE-F6).
+//! [`MaskViewControls`]: the View Mode block of Select and Mask's Properties panel.
 
 use craft_theme::TypeRole;
 use craft_ui::controls::{Checkbox, Kbd, Select, Slider};

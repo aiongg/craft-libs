@@ -8,8 +8,11 @@ use egui::{Color32, CornerRadius, Rect, Response, Sense, Stroke, StrokeKind, Ui,
 #[deprecated(note = "use craft_ui::controls::IconButton")]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ButtonVisuals {
+    /// Background fill.
     pub fill: Color32,
+    /// Outline stroke.
     pub stroke: Stroke,
+    /// Colour of the icon.
     pub icon: Color32,
 }
 
@@ -17,13 +20,16 @@ pub struct ButtonVisuals {
 #[deprecated(note = "use craft_ui::controls::IconButton")]
 #[derive(Clone, Copy, Debug)]
 pub struct IconButtonStyle {
+    /// Appearance when idle.
     pub normal: ButtonVisuals,
+    /// Appearance while hovered.
     pub hovered: ButtonVisuals,
     /// `None` keeps the ordinary hover/normal appearance while pressed. Some apps have no
     /// separate pressed treatment; others retain it when the pointer leaves the button.
     pub pressed: Option<ButtonVisuals>,
     /// Selection takes precedence over press and hover, matching the existing Craft buttons.
     pub selected: ButtonVisuals,
+    /// Corner rounding of the button frame.
     pub corner_radius: CornerRadius,
     /// An inset outline while the button has keyboard focus; `Stroke::NONE` opts out.
     pub focus_stroke: Stroke,
@@ -59,10 +65,12 @@ pub struct IconButton<'a> {
 }
 
 impl<'a> IconButton<'a> {
+    /// A button with the accessible `label`, drawn `size` in logical points with `style`.
     pub fn new(label: &'a str, size: Vec2, style: &'a IconButtonStyle) -> Self {
         Self { label, size, selected: false, style, single_shape_frame: false }
     }
 
+    /// Whether the caller marks the button selected; selection is never toggled by the button itself.
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
         self

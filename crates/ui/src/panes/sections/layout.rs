@@ -40,15 +40,30 @@ impl<S> SectionState<S> {
 pub enum SectionEvent<S> {
     /// Move `section` before `before` (`None`: to the end). From a drag, Cmd/Ctrl+] and [, or Move
     /// Up and Move Down.
-    Moved { section: S, before: Option<S> },
+    Moved {
+        /// The section moved.
+        section: S,
+        /// The section it now precedes; `None` for the end.
+        before: Option<S>,
+    },
     /// Hide This Section, or a check item turned off.
     Hidden(S),
     /// A check item turned on.
     Shown(S),
     /// The header folded or unfolded.
-    Folded { section: S, folded: bool },
+    Folded {
+        /// The section whose header was pressed.
+        section: S,
+        /// Whether the section is now folded.
+        folded: bool,
+    },
     /// The header button with `id` was pressed.
-    Button { section: S, id: &'static str },
+    Button {
+        /// The section whose header holds the button.
+        section: S,
+        /// The button's id.
+        id: &'static str,
+    },
     /// Reset: the usual order, every section shown and open.
     Reset,
 }

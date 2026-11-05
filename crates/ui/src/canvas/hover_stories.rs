@@ -1,4 +1,4 @@
-//! Stories of the hover outline (task KS1): not registered. Registering them (task RG2)
+//! Stories of the hover outline: not registered. Registering them
 //! adds `stories()` to the canvas stories, `COMPONENTS` to the component list and
 //! [`HoverStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!

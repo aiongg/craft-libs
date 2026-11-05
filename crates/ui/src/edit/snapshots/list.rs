@@ -24,6 +24,7 @@ impl SnapshotId {
 /// A named snapshot as the panel lists it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Snapshot {
+    /// Identifies the snapshot within its list.
     pub id: SnapshotId,
     /// The name: trimmed, never blank.
     pub name: String,

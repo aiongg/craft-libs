@@ -1,5 +1,5 @@
-//! Tests of the Artboard tool (task SH-T5). PhotoCraft's `artboard_tool.rs` tests move here. The
-//! "+" button press needs `AddBesideHandles::at` (SH-T8): these tests set
+//! Tests of the Artboard tool. PhotoCraft's `artboard_tool.rs` tests move here. The
+//! "+" button press needs `AddBesideHandles::at`: these tests set
 //! `ArtboardRules::plus_buttons` off; the "+" test is in `add_beside_tests.rs`.
 
 use egui::{CursorIcon, Event, Key, Modifiers, Sense, pos2, vec2};

@@ -63,6 +63,7 @@ pub enum RecordKind {
 pub struct Record {
     /// The primitive's widget or `Ui` id.
     pub id: Id,
+    /// What kind of primitive the record describes.
     pub kind: RecordKind,
     /// The whole box: a surface's or interactive element's rect, a layout's rect with its
     /// padding, a handle's hit square.
@@ -225,6 +226,7 @@ impl AccessTree {
         self.focus
     }
 
+    /// The node with `id`, or `None` when the tree has none.
     pub fn node(&self, id: NodeId) -> Option<&Node> {
         self.nodes.get(&id)
     }

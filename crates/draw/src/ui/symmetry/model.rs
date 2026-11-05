@@ -33,8 +33,11 @@ impl SymmetryMode {
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Symmetry {
+    #[allow(missing_docs)]
     pub mode: SymmetryMode,
+    /// The point the axes run through, in document units.
     pub center: Point,
+    /// Rotation in degrees clockwise, 0 to 360.
     pub rotation: f64,
 }
 

@@ -179,7 +179,9 @@ impl BlendShortcut {
 /// letter position, if it has one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlendKeyEntry<K> {
+    /// The app's key of the blend mode.
     pub key: K,
+    /// The mode's ⇧⌥ letter position, if it has one.
     pub shortcut: Option<BlendShortcut>,
 }
 
@@ -245,7 +247,7 @@ impl<K> BlendKeyPick<K> {
 ///   whose mode isn't listed (Clear or Behind for layers, Pass Through for a painting tool,
 ///   Overlay for the Healing Brush) is consumed and picks nothing. Any other letter is left alone.
 /// - Neither ⌘ nor Ctrl may be held. Presses are read and removed from egui's input only while
-///   the app owns the keyboard ([`KeyOwner::App`](craft_ui::focus::key_owner::KeyOwner::App):
+///   the app owns the keyboard ([`KeyOwner::App`]:
 ///   no text field, menu, open list or dialog has it), so an open Blend Mode list keeps its arrows
 ///   and letters. Call it before the single-letter tool keys, which would take ⇧⌥M as M.
 /// - Several presses in one pass combine: steps count from the previous press's entry, and the

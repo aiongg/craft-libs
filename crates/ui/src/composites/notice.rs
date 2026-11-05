@@ -73,6 +73,7 @@ impl Notice {
         self
     }
 
+    /// The notice's tone, which sets its colours and icon; `Tone::Info` by default.
     pub fn tone(mut self, tone: Tone) -> Self {
         self.tone = tone;
         self
@@ -91,6 +92,7 @@ impl Notice {
         self
     }
 
+    /// The look of a notice of `tone` from the theme's `notice` tokens.
     pub fn style(tokens: &UiTokens, tone: Tone) -> NoticeStyle {
         let n = &tokens.component.notice;
         NoticeStyle {

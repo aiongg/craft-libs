@@ -8,6 +8,7 @@ pub struct PreferencesState {
     /// The user's page. While a search hides it another page shows, and this returns when the
     /// search is cleared.
     pub selected: String,
+    /// The text in the search field. Empty shows every page.
     pub search: String,
     /// The message of a failed Apply, shown over the buttons until the next edit or Apply.
     pub error: Option<String>,
@@ -20,10 +21,12 @@ pub struct PreferencesState {
 }
 
 impl PreferencesState {
+    /// The state stored under `id`, or the default when none is stored.
     pub fn load(ctx: &Context, id: Id) -> Self {
         ctx.data(|d| d.get_temp::<PreferencesState>(id)).unwrap_or_default()
     }
 
+    /// Stores the state under `id` for the next pass. It is not persisted across runs.
     pub fn store(self, ctx: &Context, id: Id) {
         ctx.data_mut(|d| d.insert_temp(id, self));
     }

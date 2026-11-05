@@ -1,203 +1,176 @@
 # Craft framework
 
-As of 31 Oct 2026
-
-The Craft framework is the shared library layer every Craft app builds on. It holds the design system (tokens, themes, components), the shells and canvas core, the host convention, and shared features an app gets ready-made: colour, files, preferences, dialogs and more. This document describes the design, the proposed crate layout, how the apps migrate, and how the work lands in `craft-libs`.
+The Craft framework is the shared layer under every Craft app: the design system, shells, canvas core, host convention and feature families, supplied by `craft-libs` as one dependency.
 
 ## Contents
 
-1. [What it is and why](#what-it-is-and-why)
-2. [Try it](#try-it)
-3. [Design principles](#design-principles)
-4. [Architecture](#architecture)
-5. [Crate and module layout](#crate-and-module-layout)
-6. [Appearance](#appearance)
-7. [Colour](#colour)
-8. [Shape, size and type](#shape-size-and-type)
-9. [Components](#components)
-10. [Translation and accessibility](#translation-and-accessibility)
-11. [Tests and gates](#tests-and-gates)
-12. [Migration strategy](#migration-strategy)
-13. [Landing strategy](#landing-strategy)
-14. [Status and open questions](#status-and-open-questions)
+- [1. Overview](#1-overview)
+    - [1.1 What the Craft framework is](#11-what-the-craft-framework-is)
+    - [1.2 Framework and design system](#12-framework-and-design-system)
+    - [1.3 Principles](#13-principles)
+- [2. Installation](#2-installation)
+    - [2.1 Run the component gallery](#21-run-the-component-gallery)
+    - [2.2 Depend on craft from an app](#22-depend-on-craft-from-an-app)
+- [3. Architecture](#3-architecture)
+    - [3.1 Crate tiers](#31-crate-tiers)
+    - [3.2 The craft facade](#32-the-craft-facade)
+    - [3.3 Crate taxonomy](#33-crate-taxonomy)
+    - [3.4 The host convention: services in, edits out](#34-the-host-convention-services-in-edits-out)
+    - [3.5 One egui revision](#35-one-egui-revision)
+- [4. Design system](#4-design-system)
+    - [4.1 Component layers](#41-component-layers)
+    - [4.2 Ownership](#42-ownership)
+    - [4.3 Generic or family component](#43-generic-or-family-component)
+    - [4.4 Patterns and shells](#44-patterns-and-shells)
+    - [4.5 Per-app look and feel](#45-per-app-look-and-feel)
+    - [4.6 Customization ladder](#46-customization-ladder)
+    - [4.7 Themes](#47-themes)
+- [5. Foundations](#5-foundations)
+    - [5.1 Colour](#51-colour)
+    - [5.2 Typography](#52-typography)
+    - [5.3 Iconography](#53-iconography)
+    - [5.4 Dimensions](#54-dimensions)
+    - [5.5 Elevation](#55-elevation)
+    - [5.6 Motion](#56-motion)
+    - [5.7 Appearance and contrast](#57-appearance-and-contrast)
+- [6. Components](#6-components)
+    - [6.1 What every component provides](#61-what-every-component-provides)
+    - [6.2 Index by layer](#62-index-by-layer)
+    - [6.3 Family components](#63-family-components)
+- [7. Accessibility and translation](#7-accessibility-and-translation)
+    - [7.1 Required for every component](#71-required-for-every-component)
+    - [7.2 Translation rules](#72-translation-rules)
+    - [7.3 Goals beyond the required list](#73-goals-beyond-the-required-list)
+- [8. Tests and gates](#8-tests-and-gates)
+    - [8.1 Gates](#81-gates)
+    - [8.2 Design lint](#82-design-lint)
+- [9. Migration and landing](#9-migration-and-landing)
+    - [9.1 Migration strategy](#91-migration-strategy)
+    - [9.2 Acceptance checklist](#92-acceptance-checklist)
+    - [9.3 Steps](#93-steps)
+    - [9.4 Critical path](#94-critical-path)
+    - [9.5 What each step delivers](#95-what-each-step-delivers)
+    - [9.6 Documentation for each step](#96-documentation-for-each-step)
+    - [9.7 Landing strategy](#97-landing-strategy)
+    - [9.8 Breaking changes](#98-breaking-changes)
+    - [9.9 Status and open questions](#99-status-and-open-questions)
+- [Appendix A. Component tokens](#appendix-a-component-tokens)
+    - [Semantic colour tokens](#semantic-colour-tokens)
+    - [Appearance settings](#appearance-settings)
+    - [Built-in themes](#built-in-themes)
+    - [Generic or family placement](#generic-or-family-placement)
+    - [Docking details](#docking-details)
+    - [Radius roles](#radius-roles)
+    - [Size roles](#size-roles)
+    - [Raw values to convert](#raw-values-to-convert)
+- [Appendix B. Crate and module layout](#appendix-b-crate-and-module-layout)
+    - [Facade features](#facade-features)
+    - [Host service rules](#host-service-rules)
 
-## What it is and why
+## 1. Overview
 
-One library, `craft-libs`, supplies everything the Craft apps have in common:
+### 1.1 What the Craft framework is
 
-- **Tokens and themes.** Colours, sizes, type and shape as data, with built-in themes, light and dark modes, and high contrast.
-- **Components.** Primitives, controls, composites and patterns that read those tokens.
-- **Shells.** The window skeleton, docking, title bar, panel rails and options bar.
-- **Shared features.** Complete features an app adds with little code of its own. A colour picker dialog, for example, comes with its picker body, gamut and web-colour chips, OK and Cancel, remembered mode, and colour management through `craft-cms`. Each feature's API is settled in the spec of the step that builds it.
+The Craft framework is the shared layer under every Craft app, supplied by `craft-libs` as one library. It holds the design system, shells and canvas core, the host convention and the feature families. The framework builds each feature once and uses it everywhere, so copies cannot drift apart in look, behaviour, accessibility and translation.
 
-The apps differ in what they edit. The pieces around the editing are the same: a colour picker, docking, preferences, dialogs, file pickers, shortcut editing, font selection. Today each app writes its own version. Copies drift apart in look, behaviour, accessibility and translation, and a fix in one does not reach the others.
-
-The library takes the opposite approach: build each feature once, in one place, and use it the same way everywhere. A feature that only one app needs today is still built in the library. Moving it later, after a second app copies it, costs more than building it once.
-
-An app depends on one crate, `craft`, pins one revision, and imports `craft::<family>::...`. The library owns the one egui revision, so the apps cannot end up with two incompatible copies of egui.
-
-Terms used in this document:
+### 1.2 Framework and design system
 
 | Term | Meaning |
 | --- | --- |
-| Design system | The tokens, themes and component layers |
-| Craft framework | The whole: design system, shells, canvas core, host convention and shared features |
-| Family | A set of features a developer looks for together (colour, layers, timeline, ...). Each family is a crate |
-| Kernel | `craft-ui`: the design-system layers every family uses, with nothing that names a document concept |
+| Craft framework | The whole shared layer |
+| Design system | Tokens, themes and component layers. One part of the framework |
+| `craft-ui` | The kernel crate: the design-system layers every family uses, with no document concept |
+| Family | A set of features a developer looks for together (colour, layers, timeline). One crate each |
 
-## Try it
+App engineers need the framework: sections 2 and 3. Component and theme authors need the design system: sections 4 to 8.
 
-The component gallery runs from the `design-system` branch of this repository. One build holds every theme, and they switch at run time. Rust 1.95+.
+### 1.3 Principles
+
+- **Apps ask for meaning.** A raised surface, a primary button, muted text. Never a colour or pixel size. A lint checks app code ([8](#8-tests-and-gates)).
+- **Apps keep their layout and conventions.** The code and behaviour of the building blocks are shared ([4.5](#45-per-app-look-and-feel)).
+- **Behaviour follows the industry original.** Without one, it follows the app's existing behaviour. Where an app draws one kind of component several ways, the library has one.
+- **Apps own the document.** Features hold no document state or undo history.
+- **Accessibility and translation are required** ([7](#7-accessibility-and-translation)). A missing translation never blocks.
+- **Colour management goes through `craft-cms`.** A missing capability is added there.
+
+## 2. Installation
+
+### 2.1 Run the component gallery
+
+The gallery holds every theme. Themes switch at run time. It needs Rust 1.95 or later.
 
 ```
 git switch design-system
 cargo run --release -p craft-ui-gallery
 ```
 
-- Updates: `git pull`, rebuild
-- Candidate fonts (optional): check out the craft-fonts repository at branch `design-system-fonts`, set `CRAFT_FONTS_DIR=<absolute path>` before `cargo run`
-- Web: `cd crates/ui-gallery && trunk serve --release true index.html` (needs trunk and the wasm32 target)
-- Gallery contents: Overview (one tile per component of a level), a tab per component with all its stories, Variants (the selected story once per theme, mode, contrast or size), the appearance bar and its More popover
+- Update with `git pull` and rebuild.
+- Candidate fonts are optional: check out the `craft-fonts` repository at branch `design-system-fonts` and set `CRAFT_FONTS_DIR=<absolute path>` before `cargo run`.
+- Web build: `cd crates/ui-gallery && trunk serve --release true index.html`. It needs `trunk` and the `wasm32` target.
 
-## Design principles
+### 2.2 Depend on `craft` from an app
 
-### What each app keeps, what is shared
-
-Each app keeps the layout, placement, conventions and density of the industry tool it is modelled on. What is shared is the code for the building blocks and how they behave.
-
-| Per app | Shared |
-| --- | --- |
-| Layout and placement follow each app's industry original | Components (buttons, fields, sliders, swatches, colour wheel, bezier handles, dialogs, menus) |
-| Conventions (menu structure, shortcuts, tool behaviour) | Family patterns (dock and tool rail for creative apps, ribbon for office-style apps) |
-| Default density (Compact for dense editors, Comfortable for roomier apps such as PDFCraft) | Behaviour (focus and Tab order, Esc cancels, one undo step per drag, number-field scrubbing) |
-| Default theme and mode (dark for creative apps, light for office-style apps) | Themes, high contrast, translation, screen-reader support |
-| Colour overrides for the app's own look (for example SoundCraft's red playhead) | The token model that carries those overrides |
-
-A theme never changes the layout. Different arrangements are workspaces, and workspaces are separate from themes. An app has one layout in every theme and size: Studio, for example, is Pro's layout with Studio colours and the Comfortable size.
-
-### How an app tunes a component without writing its own
-
-Use the first option that works.
-
-1. **Density.** Compact or Comfortable, per app.
-2. **Size tokens.** The app ships a `sizes.json` that overrides base sizes (for example `size.control.md`). A base override carries to every size derived from it. To change one component only, the app pins that component's token. Overrides stay within validator limits.
-3. **Component tokens.** Named sizes and colours per component. One value changes it app-wide.
-4. **Options on the component.** Builder options cover structural differences. A new need gets a new option, not a new component.
-5. **Per-app colour overrides.** A theme file can carry a section per app with colour overrides. The values are references to theme roles or literal colours, so themes, dark mode and high contrast keep working.
-6. **One-off app components.** A last resort, built from shared pieces. They are allowed and not policed.
-
-Apps may set corner radii. A theme that has its own shape (Classic, Breeze, Adwaita, Soft) wins over the app's radii. The edge style (flat or bevel) stays with the size set and the theme.
-
-### Principles
-
-**Apps ask for meaning.** An app asks for a raised surface, a primary button or muted text. It never names a colour or a pixel size. A lint enforces this in app UI code (see [Tests and gates](#tests-and-gates)).
-
-**Sizes are runtime tokens.** Every size and spacing value is a token resolved at run time from the Size preset (Compact or Comfortable). Layout numbers inside components derive from base tokens. Only drawing details (stroke widths, chevron geometry, dash lengths) stay constants. Apps can override some tokens. Themes set no sizes, and the token model leaves room for a theme layer later.
-
-**Themes change colour and, for four themes, shape.** A theme supplies seeds and pins for colour. A theme may also define its own shape (corner radii, edge style). Classic, Breeze, Adwaita and Soft do.
-
-**One type scale, named by meaning.** Text uses semantic roles. App text that falls between two roles maps to the nearest role. A real new need gets a new, named role. There is no role for a single use.
-
-| Role | Use | Compact (size / line, pt) | Comfortable |
-| --- | --- | --- | --- |
-| Caption | Small print, badges | 10.5 / 14 | 11.5 / 16 |
-| Label | Control labels | 11.5 / 16 | 12.5 / 18 |
-| Body | Body text | 12 / 16 | 13 / 18 |
-| Body strong | Emphasised body text (semibold) | 12 / 16 | 13 / 18 |
-| Title | Panel and dialog titles | 13 / 18 | 14 / 20 |
-| Heading | Section headings | 15 / 20 | 17 / 24 |
-| Body large | Large regular text, such as a prominent text field | 15 / 20 | 16 / 22 |
-| Mono | Code, numbers in tables | 11.5 / 16 | 12.5 / 18 |
-
-A separate Text size setting (0.9x, 1x, 1.15x, 1.3x) scales the roles only.
-
-**Colour is one base family.** Seeds (neutral, accent and four status hues) produce ramps. Semantic tokens map to ramp steps. Any token can be pinned. See [Colour](#colour).
-
-**Standard themes follow their design; high contrast meets the standard.** In Standard contrast, derived colours meet WCAG 2.2 AA. Pinned colours that fall short are kept and reported (in `craft-theme check`, the gallery token browser and a "Low contrast" label in the theme picker), never rewritten. High contrast always enforces the targets, pinned or not, so users who need it have it.
-
-**One undo step per gesture, and Esc restores.** Value controls report changes as edit events: begin, update, commit, cancel, set. The app owns the value from before the gesture. Esc during a drag cancels it and restores that value. A drag or a typing run commits as one step.
-
-**Keyboard, focus and screen readers are required.** Every control is operable from the keyboard. Keyboard focus is always visible. Every widget exposes AccessKit roles, names and values. Pointer and keyboard behaviour follow the suite's own apps first. WAI-ARIA authoring patterns are a reference where no app has a convention. Beyond these requirements, accessibility is a direction and one consideration among others.
-
-**Translation never blocks.** Library words live in the shared `craft-i18n` catalog. A missing string shows in English. Labels the host app sets win over library words. No test requires a translation to exist.
-
-**The egui builder idiom.** `Type::new(required).option(..).show(ui)`. Panels take `&mut Model` in `new`. A dialog's per-pass answer is an `Outcome`; a dialog on the host returns a `DialogResult<T>`.
-
-**Behaviour follows the industry original.** Where an app's tool has an industry original, the library follows it. Otherwise it follows the app's existing behaviour. Where an app draws one kind of component several ways, the library has one: the app's most common or best version, with the variants it replaces listed.
-
-**Colour management goes through the CMS crate.** Anything that converts, previews or proofs colour (CMYK, gamut checks, display transforms) uses `craft-cms`. A missing capability is added to `craft-cms`, not worked around in a UI crate.
-
-## Architecture
-
-### Layers
-
-Components build up in six layers. Each layer reads the one below.
-
-| Layer | Holds |
-| --- | --- |
-| Tokens | Scales, ramps, seeds, derivation, contrast, size presets, component tokens, theme files (`craft-theme`, no egui) |
-| Primitives | Surface, state layer, focus ring, divider, stack, interactive area, text, icon, handle |
-| Controls | Buttons, fields, sliders, checkboxes, selects, swatches, tooltips |
-| Composites | Controls with labels and text: field rows, property rows, headers, lists, tabs, toasts, menus |
-| Patterns | Whole regions of a window: panel, dialog, inspector, dock area, options bar, status bar, title bar |
-| Shells | The window skeleton: title bar, rails, body, bars; presets for kinds of app |
-
-Supporting parts:
-
-| Part | Crate | Holds |
-| --- | --- | --- |
-| Store | `craft-theme-store` | Theme files, machine-local library, suite `selection.json`, lock and revision protocol, watcher, client |
-| Bridge | `craft_ui::theme` | Tokens to egui styles; stock egui widgets themed too |
-| Behaviour | `craft_ui::behavior`, `craft_ui::edit` | Focus, keys, typing and IME, list navigation; the edit lifecycle |
-| Tools | `craft-ui-gallery`, `craft-design-lint`, `craft-plate-test` | Gallery app, lint for app code, print test scenes |
-
-### Crate tiers
-
-| Tier | Crates | Rule |
-| --- | --- | --- |
-| 0. Engines and services | `craft-theme`, `craft-i18n`, `craft-settings`, `craft-cms`, `craft-pdf`, `craft-media`, `craft-platform`, `craft-host`, ... | No egui, except `ecolor` for colour conversion |
-| 1. Kernel | `craft-ui` | Tokens bridge, primitives, controls, generic composites, patterns, shells, dialog framework, docking, canvas plumbing, preferences framework, story and testing. Nothing that names a document concept. Never depends on a family crate |
-| 2. Families | `craft-color`, `craft-draw`, `craft-layers`, `craft-timeline`, ... | Core at the crate root, egui UI in `ui` behind the `ui` feature. A family crate may be UI-only. No family depends on another family's `ui`; a widget two families share moves down to `craft-ui` |
-| 3. Facade | `craft` | Re-exports every crate and forwards features |
-
-A family is a set of features a developer looks for together. The brush cursor, brush settings and brush presets live in one crate, not three.
-
-### The `craft` facade
-
-An app has one dependency, one pin and one import root. Feature and type names in the examples below show the path convention; they are not settled APIs.
+An app has one dependency, one pin and one import root.
 
 ```toml
 [dependencies]
 craft = { git = "https://github.com/storytold/craft-libs", rev = "...", features = [
-    "ui", "color", "layers", "theme-store", "platform-job", "platform-clipboard",
+    "ui", "color", "layers", "theme-store", "platform-clipboard",
 ] }
 ```
 
 ```rust
 use craft::prelude::*;
 use craft::color::ui::{ColorPicker, SwatchPalette};
-use craft::draw::ui::{CropFrame, GradientOverlay};
 ```
 
-- Every public UI type is re-exported at `<crate>::ui`; every core type at the crate root. The facade gives paths such as `craft::color::ui::<Type>` and `craft::color::Palette`.
-- A feature can move between crates without touching any app, as long as `craft::<family>` stays.
+The facade's rules and features are in [3.2](#32-the-craft-facade).
+
+## 3. Architecture
+
+### 3.1 Crate tiers
+
+Tiers describe dependency direction. A crate depends only on lower tiers. They are separate from the design-system layers in [4.1](#41-component-layers).
+
+```text
+Tier 3  craft              facade: re-exports and forwards features
+          |
+Tier 2  families           craft-color, craft-draw, craft-layers, ...
+          |
+Tier 1  craft-ui           kernel: tokens bridge, components, shells, dialogs, docking
+          |
+Tier 0  engines, services  craft-theme, craft-i18n, craft-settings, craft-cms, craft-host, ...
+```
+
+Rules: tier 0 has no egui except `ecolor`. `craft-ui` names no document concept and never depends on a family. A family keeps core types at the crate root and egui UI in `ui` behind the `ui` feature, and may be UI-only. No family depends on another family's `ui`; a widget two families share moves to `craft-ui`.
+
+### 3.2 The `craft` facade
+
+- Every public UI type is re-exported at `<crate>::ui`; every core type at the crate root: `craft::color::ui::ColorPicker`, `craft::color::Palette`.
 - `craft::prelude` holds `AppInfo`, `Host`, `Section`, `Tokens`, `EditEvent`, `DialogStack` and `Outcome`. There are no other preludes.
-- `craft::story::all()` and `craft::words::all()` collect the stories and word tables of every enabled crate.
+- `craft::story::all()` and `craft::words::all()` collect the stories and word tables of every enabled crate. A feature can move between crates as long as `craft::<family>` stays.
 
-### Feature names
+Feature names: `ui` is the only UI feature name in every crate, and `screen-testing` adds stories and snapshot tests. The full table is in [reference/crate-layout.md](#facade-features).
 
-| Feature | Meaning |
-| --- | --- |
-| `ui` | The family's egui side, on `craft-ui`. The only UI feature name in every crate |
-| `screen-testing` | Stories and snapshot tests; implies `ui` |
-| `egui` | Reserved for "convert my types to egui's, without `craft-ui`" where that is the whole feature (the model is `craft-theme`'s `ecolor`) |
-| `serde`, `collab`, per-service features | Keep their names. `craft-platform` has one feature per service (`job`, `clipboard`, ...) |
+Native-only modules use `#[cfg(not(target_arch = "wasm32"))]`. A crate that cannot build for wasm says so in its first doc line, and the facade gates it.
 
-The facade's `ui` turns on `?/ui` for every enabled family. Native-only modules are gated with `#[cfg(not(target_arch = "wasm32"))]`. A crate that cannot build for wasm says so in its first doc line, and the facade gates it.
+### 3.3 Crate taxonomy
 
-### The host convention: services in, edits out
+| Kind | Role | Crates |
+| --- | --- | --- |
+| Facade | One dependency for apps | `craft` |
+| Kernel | Shared UI infrastructure | `craft-ui`, `craft-ui-macros` |
+| Domain families | Features with core logic and egui UI | `craft-color`, `craft-draw`, `craft-imaging`, `craft-layers`, `craft-browse`, `craft-text`, `craft-font-manager`, `craft-pages`, `craft-review`, `craft-table`, `craft-timeline`; planned: `craft-audio`, `craft-code` |
+| Infrastructure services | Egui-free logic that families and apps share | `craft-theme`, `craft-theme-store`, `craft-host`, `craft-i18n`, `craft-settings`, `craft-keymap`, `craft-menu`, `craft-automation`, `craft-update`, `craft-cms`, `craft-ai-core`, `craft-atomic`, `craft-docpath`, `craft-font-catalog`, `craft-font-store`, `craft-pdf`, `craft-prepress` |
+| Formats and codecs | Clean-room readers and writers | `craft-crw`, `craft-jpeg`, `craft-media`, `craft-ecproj-format`, `craft-vectorcraft-format` |
+| Platform adapters | One operating-system or window-system service each | `craft-platform`, `craft-dialogs`, `craft-window`, `craft-quit`, `craft-print`; next: `craft-gpu` |
+| Tooling | Not shipped in apps | `craft-ui-gallery`, `craft-design-lint`, `craft-plate-test`, `craft-fonts-build` |
 
-`craft-host` is a small egui-free crate. The app builds a `Host` once and installs it on the egui context. Every library feature reads it with `Host::of(ui)`. No feature takes an i18n or settings parameter.
+Services and adapters may carry a `ui` feature (`craft-keymap`, `craft-update`, `craft-dialogs`) but name no document concept. Module tables: [reference/crate-layout.md](#appendix-b-crate-and-module-layout).
+
+### 3.4 The host convention: services in, edits out
+
+`craft-host` is a small egui-free crate. The app builds a `Host` once and installs it on the egui context. Every feature reads it with `Host::of(ui)`. No feature takes an i18n or settings parameter.
 
 ```rust
 fn setup(ctx: &egui::Context, app: &App) {
@@ -205,6 +178,7 @@ fn setup(ctx: &egui::Context, app: &App) {
         .i18n(app.i18n.clone())
         .settings(app.settings.clone())
         .commands(app.keymap.clone())
+        .files(app.files.clone())
         .jobs(Arc::new(craft::host::ThreadJobs))
         .install(ctx);
 }
@@ -212,47 +186,808 @@ fn setup(ctx: &egui::Context, app: &App) {
 
 | Rule | Detail |
 | --- | --- |
-| Services in | Identity, language, settings sections, commands and jobs today; files and a clock are planned. A service is a trait; the app or a library crate implements it |
-| Document data in | Each feature defines one small trait (`TimelineModel`, `ColorTarget`, `LayerTree`) that the app implements on its document view. Features never own document state |
+| Services in | Identity, language, settings sections, commands, files and jobs. Each is a trait the app or a library crate implements. |
+| Document data in | Each feature defines one small trait (`TimelineModel`, `ColorTarget`, `LayerTree`) that the app implements on its document view. Features own no document state |
 | Edits out | Features return edit events (`Begin`, `Update`, `Commit`, `Cancel`, `Set`). The app applies them to its own undo stack |
-| Dialogs | A feature dialog is a value the app opens on the kernel's `DialogHost`. Its result is a `DialogResult<T>` (`Ok(T)` or `Cancel`) the app reads with `take` on a later pass. No feature opens its own window |
-| Settings keys | Each feature exports a `serde` struct with a `const KEY`. The app embeds it in its settings file through `craft-settings` |
-| Words | Library words are rows in `craft-i18n`'s shared catalog. Features look them up through the host |
-| Commands | A feature exports its command catalog. The app registers it with `craft-keymap`. Automation dispatches through the host's commands |
-| Files | Features ask the host for pick, read and write. Native crates implement the service; apps on the web implement it over the browser |
+| Dialogs | A feature dialog is a value the app opens on the kernel's `DialogHost`. Its result is a `DialogResult<T>` (`Ok(T)` or `Cancel`) the app takes on a later pass. No feature opens its own window |
 
-What an app writes: one dependency, one `Host`, one trait implementation per document feature, and the code that applies edits. The sketch below shows the shape of that code, not a settled API: the host's typed results are described under step 2, and the colour picker dialog under step 4.
+The remaining service rules (settings keys, words, commands, files) are in [reference/crate-layout.md](#host-service-rules). The examples show the shape, not settled APIs.
+
+**Cancel and Escape.** Esc during a gesture ends it with `Cancel { reason: Escape }`. The app restores the value it held at `Begin` and makes no undo step.
 
 ```rust
-fn frame(ui: &mut egui::Ui, doc: &mut Document, dialogs: &mut DialogHost) {
-    if ui.button("Fill colour").clicked() {
-        dialogs.open(ColorPickerDialog::new(doc.fill));
-    }
-    if let Some(DialogResult::Ok(color)) = dialogs.take::<ColorPickerDialog>() {
-        doc.apply(Edit::set(FILL, color));
-    }
-    LayersPanel::new(&mut doc.layers).show(ui);
+match event {
+    EditEvent::Begin { id, .. } => self.mark = Some(doc.undo_mark(id)),
+    EditEvent::Update { value, .. } => doc.preview(FILL, value),
+    EditEvent::Commit { value, changed, .. } => if changed { doc.apply(Edit::set(FILL, value)) },
+    EditEvent::Cancel { .. } => if let Some(m) = self.mark.take() { doc.restore(m) },
+    EditEvent::Set { value, .. } => doc.apply(Edit::set(FILL, value)),
 }
 ```
 
-### One egui revision
+**Interrupted gesture.** Besides Esc, other events end a gesture with `Cancel`; the `CancelReason` says which: `FocusLost`, `Dismissed`, `DocumentSwitched`, `UndoDuringGesture`, `Removed`, `Disabled`, `External`. The handler above covers all of them. After `External`, the control shows the host's value and the outside change stays.
 
-`craft-libs` pins one revision of the egui fork. Each app's `xtask` checks that its lockfile uses the same revision and fails with a clear message if it does not. Two revisions in one build would give two incompatible `Tokens` and `Ui` types.
+**Error.** A failing service call returns a typed error, and the feature shows it in its own UI without an edit. File calls return `Result<_, FileError>`. A dismissed picker answers `Picked::Cancelled`, not an error.
 
-## Crate and module layout
+**Async job.** Work runs on the host's `Jobs`, never on a thread a feature starts. `JobQueue` adds priorities, one job per key, replacement and cancellation. Dropping a key sets the job's cancel flag, and a cancelled job's result is never delivered.
 
-The layout below is the proposed final shape. Crates are alphabetical. Modules are alphabetical inside each crate. The State column says whether a module exists in the repository today or is planned, and in which migration step (see [Migration strategy](#migration-strategy)). A module marked "exists" may gain features in later steps; the note says so.
+```rust
+queue.submit(photo_id, Priority::VISIBLE, move |cancel| decode(&path, cancel));
+while let Some(Finished { key, result }) = queue.try_recv() { show(key, result) } // on a later pass
+```
+
+### 3.5 One egui revision
+
+`craft-libs` pins one revision of the egui fork. Each app's `xtask` checks that its lockfile uses the same revision and fails with a clear message otherwise. Two revisions in one build would give two incompatible `Tokens` and `Ui` types.
+
+## 4. Design system
+
+The design system decides how apps look and how components compose. Its readers build components, themes and app looks.
+
+### 4.1 Component layers
+
+Each layer reads only the layer below it.
+
+```text
+Shells       title bar, rails, body and bars as slots; presets per kind of app
+  ^
+Patterns     panel, dialog, inspector, dock area, options bar, status bar, title bar
+  ^
+Composites   field rows, property rows, headers, lists, tabs, toasts, menus
+  ^
+Controls     buttons, fields, sliders, checkboxes, selects, swatches, tooltips
+  ^
+Primitives   surface, state layer, focus ring, divider, stack, interactive area, text, icon, handle
+  ^
+Tokens       scales, ramps, seeds, contrast, size presets, component tokens, themes  (craft-theme, no egui)
+```
+
+### 4.2 Ownership
+
+| Concern | Owner | Responsibility |
+| --- | --- | --- |
+| Token model, themes, resolution, validation | `craft-theme` | The design language as data, with no egui |
+| Theme files, machine-local library, suite selection | `craft-theme-store` | `selection.json`, lock and revision protocol, watcher, client |
+| Tokens to egui styles | `craft_ui::theme` | The one place data becomes egui styling, stock widgets included |
+| Behaviour | `craft_ui::behavior`, `craft_ui::edit` | Focus, keys, typing, list navigation, the edit lifecycle |
+| Generic components and shells | `craft-ui` | Reusable UI |
+| Domain components | Family crates | Feature UI on the kernel |
+| Gallery, lint, conformance | `craft-ui-gallery`, `craft-design-lint`, `craft-plate-test` | Inspect and enforce the system ([8](#8-tests-and-gates)) |
+
+### 4.3 Generic or family component
+
+A component goes in `craft-ui` when both hold:
+
+1. Its inputs are general data: values, ranges, points, text, a list of rows, or a small trait.
+2. It names no document concept: layer, colour model, gradient, path, clip, page.
+
+Otherwise it goes in the family crate that owns the concept. A component that two families need moves down to `craft-ui` once its inputs are general.
+
+Borderline cases (curve editor, histogram, preset browser, menus, canvas overlays) and where the code places them are in [reference/component-tokens.md](#generic-or-family-placement).
+
+### 4.4 Patterns and shells
+
+A pattern is a reusable region of a window. It works in any shell and decides nothing about the rest of the window: panel, dialog, inspector, dock area, options bar, status bar, title bar, rails.
+
+A shell composes a whole window. It orders slots (title bar, top bars, rails, body, bottom bars), decides which show, scopes ids and state per window, and draws no bar or panel itself. Slots take patterns.
+
+| Shell | State |
+| --- | --- |
+| Canvas: fixed document canvas, document tabs, tool rail, panel dock. Photo, vector, design, figure, PDF and CAD apps | Built |
+| Workspace: equal panels in named workspaces. Film, effects and sound apps | Planned |
+| Office-style: ribbon in the top slot, backstage view, task panes | Planned |
+
+Docking details are in [reference/component-tokens.md](#docking-details).
+
+### 4.5 Per-app look and feel
+
+An app has one layout in every theme and size. A theme never changes the layout. Different arrangements are workspaces, which are separate from themes. Studio, for example, is Pro's layout with Studio colours and the Comfortable size.
+
+| The app decides | The framework shares |
+| --- | --- |
+| Layout and placement, following its industry original | Components and their behaviour |
+| Conventions: menus, shortcuts, tool behaviour | Family patterns: dock and tool rail, ribbon |
+| Default density: Compact or Comfortable | Focus and Tab order, Esc cancels, one undo step per drag |
+| Default theme and mode: dark for creative apps, light for office-style apps | Themes, high contrast, translation, screen-reader support |
+| Colour overrides for its own look | The token model that carries them |
+
+### 4.6 Customization ladder
+
+Use the first step that works.
+
+1. **Density.** Compact or Comfortable.
+2. **Size overrides.** The app ships a `sizes.json` that overrides base sizes (for example `size.control.md`). A base override carries to every size derived from it. To change one component, pin that component's token. Overrides stay within the validator's limits.
+3. **Component tokens.** One named value changes a component app-wide.
+4. **Builder options.** Options cover structural differences. A new need gets a new option, not a new component.
+5. **Per-app colour overrides.** A theme file can carry a section per app. Values are theme roles or literal colours, so themes, dark mode and high contrast keep working.
+6. **One-off app components.** A last resort, built from shared pieces. Allowed and not policed.
+
+### 4.7 Themes
+
+Ten built-in themes with 17 mode variants; the suite default is ArtCraft. A two-mode theme is one theme with a variant per mode, and a mode can carry a partial `seeds` override so each mode derives its own colours. Picking a two-variant theme sets both modes. A theme can name an icon pack that replaces the base icons it covers. The gallery is also the base of a theme editor. The themes are listed in [reference/component-tokens.md](#built-in-themes).
+
+## 5. Foundations
+
+Foundations are the values every component reads. This section holds concepts only. Which component uses which token is in [reference/component-tokens.md](#appendix-a-component-tokens).
+
+### 5.1 Colour
+
+```text
+seeds -> ramps -> semantic tokens -> pins -> contrast pass -> component tokens -> resolved Tokens -> theme bridge
+```
+
+- **Seeds.** Neutral, accent and four status hues (good, warn, bad, info).
+- **Ramps.** 12 steps per seed per mode, in OKLCH, on a fixed lightness curve.
+- **Semantic tokens.** Mapped to ramp steps by meaning (groups below).
+- **Pins.** Any token can be set by hand.
+- **Anchoring.** Unpinned background greys keep their distance from the theme's panel colour, so they follow a pinned panel. Text greys stay on the curve.
+- **Contrast pass.** Derived colours move to the minimums in [5.7](#57-appearance-and-contrast).
+- **Component tokens.** Derived from semantic tokens and pinnable. About 1,100 resolved tokens per variant.
+
+Semantic tokens fall in eight groups: surface, text, line, accent, status, state, canvas overlay and data. The tokens of each group are in [reference/component-tokens.md](#semantic-colour-tokens).
+
+Accent fills that carry text use the strong pair: the accent moved in lightness only as far as white text needs.
+
+### 5.2 Typography
+
+App text maps to the nearest named role. A real new need gets a new role. No role serves a single use.
+
+| Role | Use | Compact (size / line, pt) | Comfortable |
+| --- | --- | --- | --- |
+| Caption | Small print | 10.5 / 14 | 11.5 / 16 |
+| Label | Control labels | 11.5 / 16 | 12.5 / 18 |
+| Body | Body text | 12 / 16 | 13 / 18 |
+| Body strong | Emphasised body text (semibold) | 12 / 16 | 13 / 18 |
+| Title | Panel and dialog titles (semibold) | 13 / 18 | 14 / 20 |
+| Heading | Section headings (semibold) | 15 / 20 | 17 / 24 |
+| Body large | Large regular text, such as a prominent field | 15 / 20 | 16 / 22 |
+| Mono | Code, numbers in tables | 11.5 / 16 | 12.5 / 18 |
+
+The Text size setting scales the roles only (0.83x, 1x, 1.17x, 1.33x), rounded to 0.5 pt. Control heights, icons and faces do not scale. The interface font setting can use the OS UI face; mono stays the suite's.
+
+### 5.3 Iconography
+
+- **Sets.** Phosphor is the base set. The gallery's active set defaults to Lucide. A theme may supply an icon pack that replaces the base icons it covers; missing icons fall back to the base set.
+- **Strokes.** 1.25 pt at the small size, 1.5 pt at medium and large.
+
+### 5.4 Dimensions
+
+Sizes are runtime tokens. The rule runs from the general to the specific:
+
+1. A **scale** holds the allowed values: spacing 0, 2, 4, 6, 8, 12, 16, 20, 24, 32; radius 0, 2, 3, 4, 6, 8, 12 and full; strokes hairline, 1, 1.5, 2, 3.
+2. **Semantic role tokens** pick from the scale by meaning: control height, icon size, gap, padding, radius, bar height.
+3. **Component tokens** name a semantic token.
+
+This is the design: components name semantic tokens and never a pixel value or shape of their own. The code still holds some raw component values, listed in [reference/component-tokens.md](#raw-values-to-convert), which also says which component takes which role. Only drawing details (stroke widths, chevron geometry, dash lengths) stay constants.
+
+**Semantic role tokens (pt).**
+
+| Role | Compact | Comfortable |
+| --- | --- | --- |
+| Control height sm / md | 20 / 24 | 24 / 30 |
+| Icon sm / md / lg | 12 / 16 / 20 | 14 / 18 / 22 |
+| Gap inline / row / stack / section | 4 / 4 / 6 / 12 | 6 / 6 / 8 / 16 |
+| Padding control / panel / dialog | 6 / 8 / 16 | 8 / 12 / 20 |
+| Radius control / popup / window / panel | 3 / 4 / 6 / 0 | 6 / 8 / 12 / 0 |
+| Radius button / pill | full / full | full / full |
+| Bar title / tab / status / options | 32 / 26 / 24 / 36 | 38 / 30 / 30 / 42 |
+| Panel header | 28 | 34 |
+| Rail width / button | 40 / 30 | 50 / 36 |
+
+Push buttons take the button radius and the pill-shaped parts take the pill radius. Both are fully rounded by default and square in Classic, and each clamps to half the part's height.
+
+Themes never set sizes. The Size preset sets them, and apps may override them within validator limits. Adwaita, Breeze, Soft and Classic define their own corner radii and edge style (flat or bevel; only the Surface primitive reads the edge). These change how a component is drawn, not its geometry, placement or the workspace structure.
+
+### 5.5 Elevation
+
+Shadow levels exist for popups, dialogs, floating panels and knobs. A bevel edge has none.
+
+### 5.6 Motion
+
+Durations are Fast (80 ms, hover and press feedback), Normal (150 ms, most state changes) and Slow (250 ms, large surfaces opening or moving). Easings are Standard, Enter and Exit. Reduced motion sets every duration to zero.
+
+### 5.7 Appearance and contrast
+
+#### 5.7.1 Settings
+
+Nine settings: theme (per mode), mode, contrast, size, text size and reduced motion are suite settings; interface font, direction and UI scaling are app settings. Options, effects and storage are in [reference/component-tokens.md](#appearance-settings).
+
+#### 5.7.2 Precedence
+
+Each field resolves on its own, in this order:
+
+```text
+app override  ->  suite choice (selection.json)  ->  app default
+ (preferences)      (set once any app picks it)     (shipped by the app)
+```
+
+- **Theme, mode, size.** An override replaces one field, not a whole profile: an app can override only its size and still follow the suite's theme and mode. An override of the theme replaces both slots of the theme pair; a slot may name the app default.
+- **Contrast, reduced motion, text size.** Suite choice only, then the built-in default (system, system, 1x). The app has neither default nor override.
+- **Interface font, direction, UI scaling.** App settings only.
+- **System values.** `system` resolves against what the OS reports. Mode falls back to the app's fallback mode, contrast to standard and motion to full.
+- **Unknown theme.** An unknown theme id falls back to the app default's slot, then to ArtCraft.
+
+#### 5.7.3 Contrast
+
+Standard contrast follows each theme's design. Derived colours reach the minimums. Pinned colours that fall short are kept and reported (`craft-theme check`, the gallery token browser, a "Low contrast" label in the theme picker), never rewritten. High contrast fixes every failing pair in the table, pinned or not.
+
+| Class | Pairs | Standard | High |
+| --- | --- | --- | --- |
+| Text | Text normal, muted, faint on surfaces and state fills; text on selected fills; accent text; status foregrounds; text on accent, strong accent and status solids | 4.5:1 | 7:1 |
+| Non-text cue | Focus line; accent solid, check and radio marks on control surfaces; overlay stroke on its halo; marquee on its dash | 3:1 | 4.5:1 |
+| State cue | Accent border of selected controls; selected anchor outline on its fill; curve and channel colours on their plot | none | 4.5:1 |
+| Control edge | Field and button borders, slider tracks | none | 3:1 |
+| Active popup row | The active row of a menu or list popup | 1.12:1 | 3:1 |
+| No rule | Dividers, hover and pressed fills, disabled text and fills | none | none |
+| Exempt | Guides, smart guides, path outlines and box lines: bare lines in a colour the user chooses | none | none |
+
+## 6. Components
+
+This section indexes the components by layer. Examples and every state of each component are in the gallery ([2.1](#21-run-the-component-gallery)). Which tokens a component reads is in [reference/component-tokens.md](#appendix-a-component-tokens).
+
+### 6.1 What every component provides
+
+- A builder API with semantic props only: no colour, pixel size or corner shape of its own. The idiom is `Type::new(required).option(..).show(ui)`. Panels take `&mut Model` in `new`. A dialog's per-pass answer is an `Outcome`; on the host it returns a `DialogResult<T>`.
+- Gallery stories for every state.
+- Everything in the checklist in [7.1](#71-required-for-every-component).
+
+### 6.2 Index by layer
+
+| Layer | Components |
+| --- | --- |
+| Foundations | Colours, edit lifecycle, stock egui |
+| Specimens | Icons |
+| Primitives | Surface, State layer, Focus ring, Divider, Stack, Row, Interactive, Text, Icon, Handle. Canvas overlays: canvas, grid, guides, marquee, readout, reference point, rulers, smart guides |
+| Controls | Button, IconButton, ToggleButton, SplitButton, Segmented, Link. Checkbox, Radio, Switch. TextField, SearchField, NumberField, Autocomplete, Linked and Mixed fields, PointPicker. Slider, RangeSlider, AngleDial. Select, ComboBox, TreePicker, Chips, Date. Swatch, Badge, Kbd, Spinner, Progress, Rating, Breadcrumb, Tooltip, ThumbRow |
+| Composites | Field, FormGrid, GroupBox, PropertyRow, SliderRow, SectionHeader, SectionLabel, PanelHeader, PanelFooter. Menu, ContextMenu, PressMenu, MenuBar. List, ListRow, TreeRow, Table. Tab, TabStrip. Toast, Notice, NoticeCentre, EmptyState. CurveEditor, CurvePreview, Histogram. PresetBrowser |
+| Patterns | Panel, Popover, Dialog, FullWindowDialog, PreferencesWindow, CommandPalette, Inspector, DockArea, ViewportWindow, PanelRail, ToolRail, Toolbar, ToolbarDrawer, OptionsBar, OptionsCell, StatusBar, StatusReadout, TitleBar, FlyoutButton, AlignBar, Tour |
+| Shells | AppShell with the Canvas preset (`CanvasShell`), start screen |
+
+The gallery lists every component.
+
+### 6.3 Family components
+
+| Crate | Components |
+| --- | --- |
+| `craft-color` | ColorPicker, ColorArea, ColorWheel, ColorDisc, ColorRamp, ColorPopover, HexField, SwatchPair, SwatchPalette |
+| `craft-draw` | GradientSwatch, GradientEditor, GradientPalette, gradient line, TransformFields, transform box, bezier paths, crop frame, perspective crop quad, pen draft |
+| `craft-imaging` | LevelsEditor, warp grid |
+| `craft-layers` | Layers panel, rows, filter bar, thumbnails |
+| `craft-browse` | Tile grid, media bin, places, thumbnails, relink |
+
+Other families ([3.3](#33-crate-taxonomy)) add theirs as they land.
+
+## 7. Accessibility and translation
+
+### 7.1 Required for every component
+
+A component is not complete until each item has a story or test.
+
+- [ ] **Keyboard.** Every control works from the keyboard. Behaviour follows the suite's own apps first, WAI-ARIA authoring patterns where no app has a convention.
+- [ ] **Visible focus.** A keyboard-only focus ring, always visible.
+- [ ] **AccessKit.** Roles, names and values on every widget (button, spin button, slider, text input, combo box, list option, radio, dialog, menu item, tab, tree item).
+- [ ] **RTL.** Chrome mirrors. Sliders, number fields and key chords never mirror.
+- [ ] **Reduced motion.** Animations resolve to zero.
+- [ ] **Translation.** Words come from the catalog ([7.2](#72-translation-rules)).
+- [ ] **Edit lifecycle.** Value controls report begin, update, commit, cancel and set. Esc restores the value held before the gesture. A drag or typing run is one undo step.
+
+Keyboard conventions:
+
+- Tab visits fields only in dialogs and every control elsewhere.
+- A swatch palette and a guide set are one Tab stop with arrow keys inside. A tab strip is one Tab stop.
+- Ctrl+Tab focuses a dialog's title row.
+- Cmd or Ctrl+] and [ move the focused row in every reorderable list. F2 renames. Enter runs the row's default action.
+
+### 7.2 Translation rules
+
+- Library words (button labels, dialog text, error text) are rows in the shared `craft-i18n` catalog (`common.tsv`). App labels win. Apps do not translate library words themselves.
+- The app installs its translator through the host once per language change.
+- Lookup order: the language's row, the English row, the built-in English.
+- A translation with a missing placeholder is ignored.
+- `craft::words::all()` lists the word tables of every enabled crate for catalog extraction.
+- No test requires a translation to exist.
+
+### 7.3 Goals beyond the required list
+
+These guide design where no rule exists. They are not acceptance criteria.
+
+- Size and Text size let users enlarge the interface without changing layout.
+
+## 8. Tests and gates
+
+### 8.1 Gates
+
+| Gate | What it holds |
+| --- | --- |
+| Gallery | Stories and variants for every component. It covers every crate with a `ui` feature. Keep it in step with the features each app enables |
+| Token dumps | Text files of resolved tokens per theme-mode variant, contrast (standard, high) and size (Compact, Comfortable), plus app sizes. Rewrite with `UPDATE_DUMPS=1` |
+| Style dumps | One egui style file per theme-mode |
+| Component dumps | One file per component in `craft-ui`, `craft-color`, `craft-draw` and `craft-imaging` |
+| Story registry | Every kernel story and its default args |
+| Title-bar dumps | The title bar's rendering |
+| Screenshots | Visual regression, screens, docking workflows, interface scale, font rendering, web fonts. |
+| Conformance | An app's real appearance setup against the library's reference, across the case matrix. Fails on a wrong theme, size or text size, a changed `Style`, or an app's own zoom or font override. `allow(field, reason)` makes an exception |
+| Theme check | `craft-theme check <file>`: contrast report, adjustments, invalid fields |
+| Design lint | `craft-design-lint check` (syn) and `check-clippy` |
+
+Text dumps of every token and component style are the regression gate.
+
+### 8.2 Design lint
+
+- Rules: `literal-size/*`, `raw-colour/const`, `style-mutation`, `tooltip/stock`, `clippy/inner-allow`.
+- Exemption marker: `// design: allow(reason)`. Empty, invalid and unused markers are findings.
+- Baselines and `--deny-unused` are supported.
+- Exit 0 clean, 1 findings, 2 error.
+
+## 9. Migration and landing
+
+How apps move onto the Craft framework, and how the work lands in `craft-libs`. This is a procedure document. The design is in [1](#1-overview) to [8](#8-tests-and-gates).
+
+### 9.1 Migration strategy
+
+Everything is built in `craft-libs` first: build each feature once, in one place, and use it one way. A feature one app has today is built in the library even when no second app needs it yet. Work goes step by step, so each step ends in a library the apps can use. It does not go family by family.
+
+- **PhotoCraft migrates first.** It has the most UI and features. Its port branch runs on the library while the library grows.
+- **VectorCraft migrates second.** It shares the Canvas shell and most of PhotoCraft's skeleton. If the two ports look alike, the library is general enough.
+- **Other apps follow**, each adopting the steps it needs.
+- **One branch per port.** The port adopts each step as it lands and deletes the code the step replaces. The app's main branch switches once, when the port merges.
+- **A gap is library work.** A gap an app finds is fixed in the library first. The port then deletes its own code. No app workaround.
+- **Review in small PRs.** Keep hand-written architecture changes in small, independently buildable PRs. Treat generated dumps and icon assets as reviewable data.
+
+### 9.2 Acceptance checklist
+
+Every app-port step passes all of these before it counts as done:
+
+- [ ] Tests are green.
+- [ ] Every story of the step's components is complete ([7.1](#71-required-for-every-component)).
+- [ ] Screenshot comparison of the app's upstream build against the port covers each screen, and every difference a user would notice has a recorded decision. Users see no significant difference, or slightly more polish.
+- [ ] Design lint is clean.
+- [ ] The conformance test is clean.
+- [ ] The app's duplicate implementation is removed. Where the app drew one kind of component several ways, the port uses one.
+
+### 9.3 Steps
+
+| Step | Delivers | Depends on | Status |
+| --- | --- | --- | --- |
+| 0 | PhotoCraft adopts the types the library already has; gaps become library work | none | done |
+| 1 | Foundations: `ui` feature names, `craft-host`, module moves into family crates, the `craft` facade, gallery and word registry over every crate, one egui revision | 0 | done |
+| 2 | Dialog framework: typed results, parameter and command dialogs, size dialogs, prompts, unsaved guard, startup modal queue; text and number control gaps | 1 | done |
+| 3 | Shell (dock, panel menus, floating frames, workspaces, start screen, focus regions), keymap completion, canvas core, options bar cells, testing tools | 2 | done |
+| 4 | Files, preferences, text and fonts, colour, previews and jobs | 2, 3 | done |
+| 5 | Common controls, system services, value formatting, guides and About, align bars | 2 | done |
+| 6 | 6a: layers, presets, history, navigator, browsing. 6b: pages, timeline, review, tables | 2, 3, 4 (6a); 2, 3, 5 (6b) | 6a done; 6b built, fix pass pending |
+| 7 | Canvas tools and the image-editing workspaces | 3, 4, 6a | built |
+| GPU | `craft-gpu`: GPU device, diagnostics, memory budget and the GPU canvas surface; PhotoCraft moves its GPU display onto it | 2, 3 | next |
+| 8 | Office-style shell, audio, code editor and console, slideshow | 2, 3; 6b timeline for audio | planned |
+
+Size: about 185 library tasks, plus about 28 PhotoCraft tasks and about 20 VectorCraft tasks. Step 3 is about 30 library tasks, step 4 about 35, step 6 about 44.
+
+### 9.4 Critical path
+
+```text
+2 --> 3 --> 4 --> 6a --> 7 --> PhotoCraft full port --> VectorCraft full port
+       |     |
+       |     +--> 5 (off the path: PhotoCraft needs only guides and About)
+       +--> 6b, 8 (off the path for PhotoCraft)
+```
+
+- Step 2 gates every feature that opens a dialog.
+- Step 3 gates the canvas tools (7), the colour droppers and text editor (4), and every panel (6) through the dock's panel-menu host.
+- Step 4's colour and font pickers gate the stroke, shape and text work in 7.
+- Step 6a gates PhotoCraft's panels and the brush presets in 7.
+- Steps 5, 6b and 8 run beside the path when capacity is free. Their inputs are other apps' code.
+
+### 9.5 What each step delivers
+
+**Step 0: adopt existing types.** PhotoCraft swaps widgets it shares in kind with the library for the library's. Each difference becomes a gap row. The port has recorded 108 gap rows. At least 26 are closed with a merged library change and 34 are scheduled in a later step. They range from a missing option on a slider row to a floating frame with no title-bar move, which is why the shell and common controls come before the tools.
+
+**Step 1: foundations.** No pixel changes.
+
+- The UI feature is `ui` in every crate, plus `screen-testing`.
+- `craft-host` carries the services every feature reads.
+- Domain code moves out of the kernel into `craft-draw`, `craft-imaging`, `craft-color` and `craft-print`.
+- The `craft` facade gives one dependency and one pin.
+- The gallery and word registry cover every `ui` crate.
+- Each app's `xtask` checks the egui revision.
+
+**Step 2: dialog framework.** A feature dialog is one value an app pushes and one result it reads.
+
+- Delivers: `DialogHost` with typed `DialogResult`, `ParamDialog`, command forms, image and canvas size dialogs, confirmation prompts, `UnsavedChangesGuard`, properties and report dialogs, `PointPicker`, `Remembered<T>`, `craft-update`'s dialogs on the stack.
+- PhotoCraft adopts: the stack for every dialog, parameter dialogs for filters, size dialogs, prompts, the unsaved guard, remembered options.
+- PhotoCraft deletes: its dialog host and routing, parameter-dialog builder, field map, size-dialog code and prompt helpers.
+
+**Step 3: shell, testing tools, canvas core, options bar.**
+
+- Delivers: dock host and commands, panel menus, floating frames, Window menu and Arrange, named workspaces, start screen, region focus, shortcuts dialog, the keymap catalog as source of truth, zoom and navigation, cursors, snapping, raster display, the on-canvas tool host, options bar cells with scrubbing, `craft-automation`, the render harness.
+- PhotoCraft adopts: the library dock, workspaces, `ScreenMode`, the shortcut catalog and dialog, canvas navigation, the tool host, options bar cells, automation.
+- PhotoCraft deletes: its dock, panel-menu popups, floating card frames, shortcuts table, zoom ladder, cursor host, momentary-key and snapping code, options bar cell code, screenshot queue and control channel.
+- VectorCraft maps to library components during this step. Its gaps feed the specs of steps 4 to 7.
+
+**Step 4: files, preferences, text and fonts, colour, previews.**
+
+- Delivers: the file service, New Document, export dialogs, print, file intake; preferences over a settings document with `AppearancePage` and recovery; font picker, canvas text editor, style panels; colour picker dialog, droppers, samplers, screen picker, swatch panel, palettes, CMS additions; preview panes and job progress.
+- PhotoCraft deletes: its file dialogs, most preferences code, recovery and path code, family picker, colour panel and picker bodies, job UI.
+- VectorCraft adopts steps 1 to 4 on its port branch in one pass.
+
+**Step 5: common controls, system services, value formatting, guides, About.** A small step for PhotoCraft.
+
+- Delivers: sortable tables, chips, date and tree pickers, linked fields, mixed values, split button, breadcrumb, rating; clipboard, file watcher, default-app registration, temp files, Save flow; dates, byte sizes and elision; New Guide and Guide Layout dialogs, About, align bars.
+- PhotoCraft adopts guides, About, align bars, linked size fields, clipboard and the Save flow.
+
+**Step 6: layers, presets, history, browsing (6a); pages, timeline, review, tables (6b).** 6a is on PhotoCraft's path. 6b serves other apps.
+
+- 6a delivers: `LayersPanel` over a `LayerTree` trait, channels, the preset model and menus, a history panel with one-edit steps and snapshots, navigator, scopes, actions, thumbnails, browsing. PhotoCraft's panels then all run in the library dock; it deletes its layer, history, navigator and histogram panels and its preset model.
+- 6b delivers: paged documents, timeline, comments and versions, spreadsheet tables. VectorCraft adopts layers and presets after 6a, and artboard lists after 6b.
+
+**Step 7: canvas tools and image-editing workspaces.** PhotoCraft's last large deletion.
+
+- Delivers: transform, warp, selection and mask tools, vector and shape tools, crop, measure, brush, and the full-window editors (select and mask, liquify, filter gallery, fill from surroundings, perspective plane, wide-angle correction, layer style, adjustments).
+- PhotoCraft adopts every tool through the library tool host. Its port then runs the lint clean and passes conformance and the render matrix.
+- VectorCraft adopts the draw family and finishes its port.
+
+**GPU canvas.** `craft-gpu` delivers the GPU device, diagnostics, memory budget and the GPU canvas surface. PhotoCraft's only task is to move its GPU display onto it. Nothing visible changes.
+
+**Step 8: office-style shell, audio, code editor, slideshow.** Mostly other apps' code.
+
+- Delivers: ribbon, backstage view, keytips and the office-style preset; audio engine and mixer UI; code editor and console; slideshow presenter.
+
+### 9.6 Documentation for each step
+
+Each step also adds its families to the library docs: a page per family with the out-of-the-box recipe (the `Host`, the trait the app implements, the builder call, the `Outcome`) and a migration table from old path to new path.
+
+### 9.7 Landing strategy
+
+The series totals:
+
+| Measure | Value |
+| --- | --- |
+| Commits | 1,107 |
+| Files changed | 1,547 |
+| Lines added | about 332,000 |
+| Lines removed | about 5,000 |
+| Generated test dumps among the added lines (`*/tests/dumps/*`) | about 105,000 |
+| Icon set files | 540 (four sets) |
+
+The work is mostly additive. A review reads dumps and icons as data.
+
+It lands as a series of upstream pull requests, one at a time, bottom-up. Each PR builds and passes CI alone. Apps pin `craft-libs` by commit, so a merged PR changes nothing in an app until the app moves its pin.
+
+| Order | PR | Contents |
+| --- | --- | --- |
+| 1 | egui patches | The patches go to the storytold egui fork; craft-libs main moves its egui pin. Everything else depends on this |
+| 2 | Icon sets | Data only |
+| 3 | Token model and themes | `craft-theme`, `craft-theme-store`, `craft-color`. New crates; nothing depends on them yet |
+| 4 | `craft-ui` core | Theme bridge, primitives, controls, edit lifecycle, behaviour |
+| 5 | Composites, patterns, shells | With `craft-draw` and `craft-imaging` |
+| 6 | Host, facade and changes to existing crates | `craft-host`, `craft`, and changes in `craft-menu`, `craft-keymap`, `craft-window` and `craft-platform` |
+| 7 | Tooling | The gallery, `craft-design-lint`, conformance |
+| GPU | `craft-gpu`: GPU device, diagnostics, memory budget and the GPU canvas surface; PhotoCraft moves its GPU display onto it | 2, 3 | next |
+| 8 | Office-style shell, audio, code editor and console, slideshow | 2, 3; 6b timeline for audio | planned |
+
+The egui patches are seven numbered changes (E22 to E28) on top of the fork's earlier patches:
+
+- the IME composition's pre-edit range on `TextEdit` state
+- a public accessibility description for `Response`
+- scroll-bar labels
+- an AccessKit focus report that leaves egui focus alone
+- a pointer press that goes to the widget under the press position
+- `DragAndDrop::aborted_by_escape`
+- `Popup::swallow_outside_press`, so the press that closes a popup does nothing else
+
+**Timing.** A layer lands once PhotoCraft's port has used it in earnest. Bottom layers land first. Landing early stops drift from upstream. A landed layer's API is shared, and changes to it need the same deprecation care.
+
+### 9.8 Breaking changes
+
+About 100 public items in `craft-ui`, `craft-menu`, `craft-keymap`, `craft-window` and `craft-platform` are removed or renamed, counting every removed `pub` item, including items that moved to another crate.
+
+Each PR that removes or renames a public item keeps the old name as a deprecated alias or shim until every app has moved past it, so an app's next pin bump still builds. A migration table from old path to new path goes with each PR. The old APIs apps use today (the icon-button and combo-box modules, the old rail and number-field types) stay `#[deprecated]` until the last app that uses them has migrated.
+
+### 9.9 Status and open questions
+
+#### What exists
+
+| Area | State |
+| --- | --- |
+| Token model, ten built-in themes, store, bridge | built |
+| Primitives, controls, composites, patterns | built |
+| Canvas shell, docking with iconic column and flyouts, title bar | built |
+| Dialog frame, prompts, full-window dialogs, preferences window, typed dialog stack | built |
+| `craft-color`, `craft-draw`, `craft-imaging`, `craft-layers`, `craft-browse`, `craft-automation`, `craft-pages`, `craft-review`, `craft-table`, `craft-timeline` | built |
+| `craft-host`, the `craft` facade, one egui revision check | built |
+| Gallery with Components and Theme workspaces, Variants, app preview | built |
+| Design lint, conformance test, `craft-theme check` | built |
+| PhotoCraft | Builds against the library through step 6a and is moving its dialogs onto it. Most panels, dialogs, canvas overlays and adjustment editors are still its own code, restyled by the theme |
+| macOS | The port builds on macOS; window, title bar and menu bar checks pass |
+| Comparison | Screenshots of 59 screens, current PhotoCraft beside the port, refreshed after each port batch |
+
+#### What is next
+
+1. The GPU canvas (`craft-gpu`).
+2. PhotoCraft's dialogs on the library, completing its port.
+3. VectorCraft's port, then the other apps.
+4. The upstream PR series, starting with the egui patches.
+
+#### Questions for the team
+
+| Topic | Question |
+| --- | --- |
+| Landing order | Is the bottom-up order right, or should the token model and `craft-ui` core land together? Should the apps' PRs follow each layer, or wait for the whole series? |
+| Deprecation window | How long do deprecated aliases stay: until every app has moved past them (the plan), or a fixed number of releases? |
+| egui patches | Which of the seven patches go to upstream egui, and which stay in the storytold fork? |
+| Facade name | `craft` is the facade's name. If it clashes with an app crate, the alternative is `craft-kit` |
+| Crate granularity | The layout adds twenty crates to upstream's twenty-six. Is there a family that should merge, or a crate that should split? |
+| Review load | Is a series of about 330,000 added lines, mostly generated or additive, reviewable as laid out, or should it split further? |
+
+## Appendix A. Component tokens
+
+Maintainer reference. The rule is in [5.4 Dimensions](#54-dimensions): components name semantic tokens, and semantic tokens pick from the scale. This page lists which role each component takes, and which components still hold raw values.
+
+### Semantic colour tokens
+
+| Group | Tokens |
+| --- | --- |
+| Surface | background, canvas, canvas pattern, chrome, panel, raised, sunken, knob, scrim, shadow |
+| Text | normal, muted, faint, disabled, on accent, on strong, on selected, on status |
+| Line | divider, border, control edge, knob edge, mark, focus |
+| Accent | solid, hover, pressed, strong (+ hover, pressed), soft, text |
+| Status | good, warn, bad, info, each with fg, bg, border, solid |
+| State | hover, pressed, selected, selected hover, disabled fill |
+| Canvas overlay | stroke, halo, handle, marquee, guide, grid |
+| Data | 8 series; histogram R, G, B, luma |
+
+The strong accent pair fills the menu highlight, primary buttons and solid accent badges.
+
+### Appearance settings
+
+| Setting | Options | Changes | Stored |
+| --- | --- | --- | --- |
+| Theme | 10 built-ins or a JSON file, per mode (`theme_light`, `theme_dark`) | Colours; shape for four themes | Suite |
+| Mode | light, dark, system | Palette | Suite |
+| Contrast | standard, high, system (default) | Contrast minimums | Suite |
+| Size | Compact, Comfortable | Heights, padding, gaps, type, corners | Suite |
+| Text size | 0.83x, 1x, 1.17x, 1.33x | Type only | Suite |
+| Reduced motion | full, reduced, system (default) | Animations to zero | Suite |
+| Interface font | Suite face, System | UI face | App |
+| Direction | Language (default), LTR, RTL | Mirroring; sliders, number fields and key chords never mirror | App |
+| UI scaling | Auto, or 75 to 300 % (steps of 5 from 75 to 125, then 150, 175, 200, 250, 300) | Whole-interface zoom | App |
+
+UI scaling omits sizes that would shrink the window below the app's minimum on the current screen; the size in use stays listed. Every app has a "Reset UI Scaling" command. Pointers an app draws grow with the scale.
+
+### Built-in themes
+
+Ten themes, 17 mode variants. The suite default is ArtCraft.
+
+| Theme | Modes | Look |
+| --- | --- | --- |
+| ArtCraft | light, dark | Mid-grey panels; suite default |
+| Pro | light, dark | Neutral greys |
+| Pro Light Gray | light | Light grey panels |
+| Graphite | light, dark | Near-black fields in dark |
+| Studio | light, dark | PhotoCraft Studio colours |
+| Solarized Dark | dark | Muted teal-tinted dark |
+| Adwaita | light, dark | Rounded, light grey; radii 6 / 9 / 12 |
+| Breeze | light, dark | Flat; 5 px corners |
+| Soft | light, dark | Low contrast (declared); corners rounder by +1 / +2 / +2 |
+| Classic | light | Square, bevelled; 1 pt bevel, all radii 0 |
+
+### Generic or family placement
+
+| Component | Placed in | Reason |
+| --- | --- | --- |
+| Button, Slider, List, Tab strip | `craft-ui` | General inputs |
+| Menu | `craft-ui` (`menu`) | Takes rows and shortcuts; the app supplies the commands |
+| Curve editor, histogram | `craft-ui` (composites) | Take points and bin counts; channel names are app words |
+| Preset browser | `craft-ui` (`presets`) | Works on a generic preset library model |
+| Canvas overlays: grid, guides, marquee, rulers, readout, reference point | `craft-ui` (`canvas`) | Draw over any canvas; no document type |
+| Crop frame, gradient overlay, transform box, bezier paths | `craft-draw` | Need shape and gradient types |
+| Colour picker, wheel, swatch palette | `craft-color` | Need colour models |
+| Levels editor, warp grid | `craft-imaging` | Need image-adjustment types |
+| Layers panel | `craft-layers` | Needs the `LayerTree` trait |
+
+### Docking details
+
+- Panels live as tabs in an expanded dock column or as icons in a collapsed (iconic) column, never both.
+- A click on an icon opens its group in a flyout beside the column.
+- Dialogs move by their title only.
+- A floating panel group has square corners and the floating shadow.
+
+### Radius roles
+
+| Role | Components |
+| --- | --- |
+| `radius.control` | Fields, small controls, buttons that are not pills |
+| `radius.popup` | Popups, menus |
+| `radius.window` | Windows, dialogs |
+| `radius.panel` | Docked panels (0 in every built-in size set) |
+| `radius.button` | Push buttons. `full` in the built-in size sets; Classic sets it to 0 |
+| `radius.pill` | Switch and slider tracks and knobs, progress bars, badges. Clamps to half the part's height; Classic sets it to 0 |
+
+A theme with its own shape replaces the radii or adds an offset to control, popup and window. Panel, button and pill are not offset.
+
+### Size roles
+
+| Role | Components |
+| --- | --- |
+| `size.control.sm`, `size.control.md` | Controls, fields, buttons |
+| `size.icon.sm`, `size.icon.md`, `size.icon.lg` | Icons |
+| `size.bar.title`, `size.bar.tab`, `size.bar.status`, `size.bar.options`, `size.bar.options_narrow` | Title bar, document tab bar, status bar, options bar |
+| `size.panel_header` | Panel headers |
+| `size.rail.width`, `size.rail.button`, `size.rail.panel_width`, `size.rail.panel_button` | Tool rail and panel rail |
+| `size.list.*`, `size.tab.*`, `size.preset.*` | Lists, tab strips, preset browsers |
+| `space.gap.*`, `space.pad.*` | Gaps between and padding inside components |
+
+Component values that differ by size set are in the `components` section of `sizes/compact.json` and `sizes/comfortable.json`: `options_bar.button`, `progress.width`, `button.height.sm`, `button.height.md`, `button.pad_x`, `dock.body_gap`, `status_bar.field_width`, `command_palette.row_height`, `inspector.header_height`, `inspector.icon`, `toolbar.*`, `toast.pad`, `toast.inset`, `channels.thumb`, `tile.*`. NumberField defaults to a width of three control heights. Apps set other widths per field.
+
+### Raw values to convert
+
+`crates/theme/src/values.rs` holds 943 component constants that are raw values: sizes, widths, gaps, paddings and radii written as pixel values, plus some fixed colours and opacities; many set for the Compact size and scaled by control height. Each one becomes a semantic token or a component token that names one. Stroke widths, chevron geometry and dash lengths stay constants.
+
+The table groups the constants by the component prefix of their names.
+
+| Component | Constants | Of which radii |
+| --- | --- | --- |
+| Check | 9 | 2 |
+| Panel | 4 |  |
+| Button | 3 |  |
+| Segmented | 1 |  |
+| Segment | 1 |  |
+| Field | 1 |  |
+| Number | 1 |  |
+| Property | 6 |  |
+| Inspector | 1 |  |
+| Toolbar | 1 |  |
+| Options | 11 |  |
+| Preferences | 8 |  |
+| Preset | 5 |  |
+| Form | 7 |  |
+| Histogram | 7 |  |
+| Listbox | 2 |  |
+| Menu | 7 |  |
+| Section | 5 |  |
+| Dock | 19 | 1 |
+| Float | 9 | 1 |
+| Color | 50 | 2 |
+| Swatch | 6 | 1 |
+| Gradient | 29 |  |
+| Curve | 11 |  |
+| Levels | 9 |  |
+| List | 15 |  |
+| Angle | 7 |  |
+| Tab | 9 |  |
+| Title | 11 |  |
+| Slider | 12 | 1 |
+| Range | 3 | 1 |
+| Handle | 4 |  |
+| Cursor | 17 |  |
+| Guide | 15 | 1 |
+| Transform | 23 | 2 |
+| Bezier | 14 |  |
+| Canvas | 2 |  |
+| Font | 5 |  |
+| Text | 6 |  |
+| Glyphs | 9 |  |
+| Split | 4 |  |
+| Pasteboard | 2 |  |
+| Ref | 3 |  |
+| Marquee | 7 |  |
+| Scroll | 6 |  |
+| Ruler | 7 |  |
+| Status | 4 |  |
+| Command | 5 |  |
+| Readout | 5 |  |
+| Radio | 1 |  |
+| Icon | 6 |  |
+| Switch | 2 |  |
+| Badge | 1 |  |
+| Kbd | 2 | 1 |
+| Progress | 1 |  |
+| Tooltip | 2 |  |
+| Toast | 3 |  |
+| Empty | 8 |  |
+| Rail | 9 | 1 |
+| Dialog | 25 | 1 |
+| Popover | 3 |  |
+| Crop | 25 |  |
+| Grid | 5 |  |
+| App | 2 |  |
+| Eyedropper | 3 | 1 |
+| Sampler | 3 | 1 |
+| Screen | 5 |  |
+| Paint | 4 |  |
+| Harmony | 4 |  |
+| Start | 2 |  |
+| Tour | 4 |  |
+| Selection | 16 |  |
+| New | 12 |  |
+| Export | 9 |  |
+| Theme | 10 | 4 |
+| Findings | 1 |  |
+| File | 2 |  |
+| Table | 6 |  |
+| Chip | 6 |  |
+| Breadcrumb | 3 |  |
+| Date | 4 |  |
+| Reset | 2 | 1 |
+| Drag | 4 |  |
+| Drop | 9 | 2 |
+| Event | 2 |  |
+| Autocomplete | 2 |  |
+| Metadata | 4 |  |
+| Rating | 4 |  |
+| Motion | 4 |  |
+| About | 5 |  |
+| Password | 1 |  |
+| Align | 1 |  |
+| Tree | 2 |  |
+| Alt | 2 |  |
+| Thumbnail | 1 |  |
+| Channels | 1 |  |
+| History | 2 |  |
+| Layers | 16 |  |
+| Tile | 19 | 1 |
+| Link | 7 |  |
+| Navigator | 9 | 1 |
+| Scopes | 12 |  |
+| Actions | 6 | 1 |
+| Select | 10 | 1 |
+| Hover | 5 |  |
+| Outline | 2 |  |
+| Grip | 5 |  |
+| Constrain | 2 |  |
+| Line | 2 |  |
+| Before | 6 |  |
+| Brush | 54 | 3 |
+| Full | 10 |  |
+| Corner | 7 |  |
+| Stroke | 16 |  |
+| Measure | 3 |  |
+| Symmetry | 3 |  |
+| Adjust | 14 | 1 |
+| Layer | 8 |  |
+| Blend | 7 |  |
+| Add | 5 | 1 |
+| Shape | 3 |  |
+| Slice | 12 | 1 |
+| Artboard | 2 |  |
+| Connector | 17 |  |
+| Vanishing | 12 |  |
+| Wide | 5 |  |
+| Blur | 16 |  |
+| Liquify | 2 |  |
+| Filter | 3 |  |
+
+## Appendix B. Crate and module layout
+
+Maintainer reference. The concepts are in [3. Architecture](#3-architecture). Crates are alphabetical, and modules are alphabetical inside each crate. The State column says whether a module exists in the repository is planned, or is next, and in which migration step (see [Migration and landing](#9-migration-and-landing)). 
 
 Conventions:
 
 - Crates are `craft-<family>`, one word where possible. No `-ui` or `-core` suffix.
 - Modules are nouns, one level below the crate root. `ui` is the only module that nests a second level (`craft_pages::ui::table`).
-- Types carry their full name (for example `LayersPanel`, not `layers::Panel`), so they read the same wherever they are imported.
+- Types carry their full name (`LayersPanel`, not `layers::Panel`), so they read the same wherever they are imported.
 - In a family crate, a module `ui::x` is the egui side and a bare `x` is core.
 
-Twenty crates are new relative to upstream. Ten exist on the `design-system` branch: `craft`, `craft-color`, `craft-design-lint`, `craft-draw`, `craft-host`, `craft-imaging`, `craft-theme`, `craft-theme-store`, `craft-ui-gallery`, `craft-ui-macros`. Ten are planned: `craft-audio`, `craft-automation`, `craft-browse`, `craft-code`, `craft-gpu`, `craft-layers`, `craft-pages`, `craft-review`, `craft-table`, `craft-timeline`.
+Twenty crates are new relative to upstream. Seventeen exist on the `design-system` branch: `craft`, `craft-automation`, `craft-browse`, `craft-color`, `craft-design-lint`, `craft-draw`, `craft-host`, `craft-imaging`, `craft-layers`, `craft-pages`, `craft-review`, `craft-table`, `craft-theme`, `craft-theme-store`, `craft-timeline`, `craft-ui-gallery`, `craft-ui-macros`. `craft-gpu` is the next step, and `craft-audio` and `craft-code` are planned.
 
-### craft
+### Facade features
+
+| Feature | Meaning |
+| --- | --- |
+| `ui` | The family's egui side, on `craft-ui`. The only UI feature name in every crate. The facade's `ui` turns on `?/ui` for every enabled family |
+| `screen-testing` | Stories and snapshot tests; implies `ui` |
+| `egui` | Converts a crate's types to egui's without `craft-ui`, where that is the whole feature (the model is `craft-theme`'s `ecolor`) |
+| `serde`, `collab`, per-service features | Keep their names. `craft-platform` has one feature per service (`job`, `clipboard`, ...) |
+
+### Host service rules
+
+| Rule | Detail |
+| --- | --- |
+| Settings keys | Each feature exports a `serde` struct with a `const KEY`, which the app embeds in its settings file through `craft-settings` |
+| Words | Library words are rows in the shared `craft-i18n` catalog, looked up through the host |
+| Commands | A feature exports its command catalog. The app registers it with `craft-keymap` |
+| Files | Features ask the host to pick, read and write. Native apps implement the service natively; web apps implement it over the browser |
+
+#### craft
 
 The facade. New on the branch (step 1).
 
@@ -263,7 +998,7 @@ The facade. New on the branch (step 1).
 | `story`, `words` | Stories and word tables of every enabled crate | exists |
 | crate re-exports | One module per crate, features forwarded | exists |
 
-### craft-ai-core
+#### craft-ai-core
 
 Shared data model for AI connections, roles, requests and jobs. No egui.
 
@@ -279,11 +1014,11 @@ Shared data model for AI connections, roles, requests and jobs. No egui.
 | `payload`, `provider`, `request`, `role`, `spec` | The provider trait, requests and payloads, roles, declarative routes | exists |
 | `ui::models`, `ui::settings` | Model download UI; AI settings page | planned, step 4 |
 
-### craft-atomic
+#### craft-atomic
 
 Crash-safe atomic file writing. One module at the root; exists.
 
-### craft-audio
+#### craft-audio
 
 Audio device, meter ballistics and peaks, plus mixer UI. New crate.
 
@@ -301,33 +1036,33 @@ Audio device, meter ballistics and peaks, plus mixer UI. New crate.
 | `ui::response` | Frequency response plot and editor | planned, step 8 |
 | `ui::waveform` | Waveform view | planned, step 8 |
 
-### craft-automation
+#### craft-automation
 
-Control channel, screenshot queue, profiler and recorded actions for tests and scripting. Native only. New crate.
+Control channel, screenshot queue, profiler and recorded actions for tests and scripting. Native only. New on the branch.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `actions`, `ui::actions` | Recorded actions and the actions list | planned, step 6 |
-| `control` | Automation control channel | planned, step 3 |
-| `profiler` | Frame profiler | planned, step 3 |
-| `screenshot` | Screenshot request queue | planned, step 3 |
-| `trace` | Frame timing trace | planned, step 3 |
+| `actions`, `ui::actions` | Recorded actions and the actions list | exists |
+| `control` | Automation control channel | exists |
+| `profiler` | Frame profiler | exists |
+| `screenshot` | Screenshot request queue | exists |
+| `trace` | Frame timing trace | exists |
 
-### craft-browse
+#### craft-browse
 
-Thumbnails, media bin, tile grid, places and in-app file browsing. New crate.
+Thumbnails, media bin, tile grid, places and in-app file browsing. New on the branch.
 
 | Module | Holds | State |
 | --- | --- | --- |
 | `browser`, `ui::browser` | In-app file browser | planned, step 4 |
-| `places`, `ui::places` | Folder places tree | planned, step 6 |
-| `thumbs` | Thumbnail loader and cache | planned, step 6 |
-| `ui::bin` | Media bin browser | planned, step 6 |
-| `ui::compare` | Image compare tile | planned, step 6 |
-| `ui::grid` | Thumbnail tile grid | planned, step 6 |
-| `ui::relink` | Linked files and relink dialog | planned, step 6 |
+| `places`, `ui::places` | Folder places tree | exists |
+| `thumbs` | Thumbnail loader and cache | exists |
+| `ui::bin` | Media bin browser | exists |
+| `ui::compare` | Image compare tile | exists |
+| `ui::grid` | Thumbnail tile grid | exists |
+| `ui::relink` | Linked files and relink dialog | exists |
 
-### craft-cms
+#### craft-cms
 
 Colour management: ICC v2 and v4 profiles, transforms, rendering intents. No egui.
 
@@ -335,13 +1070,13 @@ Colour management: ICC v2 and v4 profiles, transforms, rendering intents. No egu
 | --- | --- | --- |
 | `builtin`, `synth` | Built-in and synthetic CMYK profiles | exists |
 | `clut`, `curve`, `lut3d`, `lutfile` | Lookup tables, tone curves, display LUTs, creative LUT files | exists |
-| `convert` | CMYK models and gamut conversions the colour dialogs need | planned, step 4 |
+| `convert` | CMYK models and gamut conversions the colour dialogs need | exists |
 | `gamut` | Gamut checks against a proof profile | exists |
 | `math` | Matrices, XYZ and Lab, chromatic adaptation | exists |
 | `pipeline`, `transform` | Evaluation pipelines; transforms with intents and black point compensation | exists |
 | `profile`, `write` | ICC profile model and reader; v4.3 writer | exists |
 
-### craft-code
+#### craft-code
 
 Code editor field and console. UI-only family. New crate.
 
@@ -350,40 +1085,41 @@ Code editor field and console. UI-only family. New crate.
 | `ui::console` | Script console panel | planned, step 8 |
 | `ui::editor` | Syntax-coloured code field (syntax colours as a `data.code.*` token family) | planned, step 8 |
 
-### craft-color
+#### craft-color
 
 Colour for apps: picker, wells, swatch tables, ramps, hex field. New on the branch.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `display` | Display transform on `craft-cms` | planned, step 4 |
+| `display` | Display transform on `craft-cms` | exists |
 | `gray` | Grey level of a colour | exists |
-| `harmony` | Colour harmony and saved themes | planned, step 4 |
+| `harmony` | Colour harmony and saved themes | exists |
 | `hex` | Hex text for colours | exists |
 | `mode` | What a colour area and its strip show | exists |
-| `palette` | Palette data | planned, step 4 |
+| `palette` | Palette data | exists |
 | `ui::area`, `ui::strip` | 2D colour area and its strip | exists |
-| `ui::choice` | Colour choice: named colours plus Custom | planned, step 4 |
+| `ui::choice` | Colour choice: named colours plus Custom | exists |
 | `ui::disc`, `ui::wheel`, `ui::ramp` | Colour disc, wheel and ramp | exists |
-| `ui::droppers`, `ui::eyedropper`, `ui::samplers`, `ui::screen_picker` | Dialog droppers, eyedropper tool, sample points, screen picker | planned, step 4 |
-| `ui::harmony` | Harmony wheel | planned, step 4 |
+| `ui::droppers`, `ui::eyedropper`, `ui::samplers`, `ui::screen_picker` | Dialog droppers, eyedropper tool, sample points, screen picker | exists |
+| `ui::harmony` | Harmony wheel | exists |
 | `ui::hex`, `ui::readout` | Hex field and channel readout | exists |
-| `ui::lut_picker` | LUT picker | planned, step 4 |
-| `ui::paint_chip`, `ui::paints` | Paint chip and paint list | planned, step 4 |
+| `ui::lut_picker` | LUT picker | exists |
+| `ui::paint_chip` | Paint chip | exists |
+| `ui::paints` | Paint list | planned, step 4 |
 | `ui::pair` | Foreground and background swatch pair | exists |
 | `ui::palette` | Swatch palette | exists |
-| `ui::panel` | Colour panel modes and menus | planned, step 4 |
+| `ui::panel` | Colour panel modes and menus | exists |
 | `ui::picker`, `ui::popover` | The colour picker and its popover | exists |
-| `ui::picker_dialog` | The complete colour picker dialog | planned, step 4 |
-| `ui::profile_prompts` | Profile mismatch prompts | planned, step 4 |
-| `ui::swatches` | Swatch panel | planned, step 4 |
+| `ui::picker_dialog` | The complete colour picker dialog | exists |
+| `ui::profile_prompts` | Profile mismatch prompts | exists |
+| `ui::swatches` | Swatch panel | exists |
 | `web` | Web-safe colours | exists |
 
-### craft-crw
+#### craft-crw
 
 Clean-room decoder for one camera raw format. `tables` holds frozen entropy-code data. Exists; no change.
 
-### craft-design-lint
+#### craft-design-lint
 
 Lint for app UI code: the clippy template that blocks stock egui widgets and raw colours, and the `syn` checker for literal sizes. New on the branch.
 
@@ -396,7 +1132,7 @@ Lint for app UI code: the clippy template that blocks stock egui widgets and raw
 | `report` | Findings output | exists |
 | `rules` | Rule implementations | exists |
 
-### craft-dialogs
+#### craft-dialogs
 
 Native file and message dialogs that never block the event loop.
 
@@ -405,20 +1141,20 @@ Native file and message dialogs that never block the event loop.
 | `filter` | File-type filters matching any letter case | exists |
 | `macos` | macOS presentation | exists |
 | `native` | Native dialogs on a worker thread | exists |
-| `save` | Save and Save As flow with guards | planned, step 5 |
-| `service` | File dialog service behind the host's files | planned, step 4 |
-| `ui::file_list`, `ui::path_field` | File list picker; path field with Browse | planned, step 4 |
+| `save` | Save and Save As flow with guards | exists |
+| `service` | File dialog service behind the host's files | exists |
+| `ui::file_list`, `ui::path_field` | File list picker; path field with Browse | exists |
 
-### craft-docpath
+#### craft-docpath
 
 Decides whether a stored path or URL refers to a local file. Exists.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `links` | Linked files, for relink | planned, step 6 |
-| `names` | Safe file names | planned, step 5 |
+| `links` | Linked files, for relink | exists |
+| `names` | Safe file names | exists |
 
-### craft-draw
+#### craft-draw
 
 Vector and shape tools, pen, stroke, gradient, crop, measure, symmetry, brush presets and free transform. UI-only family. New on the branch (step 1).
 
@@ -439,7 +1175,7 @@ Vector and shape tools, pen, stroke, gradient, crop, measure, symmetry, brush pr
 | `ui::symmetry` | Paint symmetry guides, menu and transform | exists |
 | `ui::transform` | Free transform box and transform fields | exists |
 
-### craft-font-catalog
+#### craft-font-catalog
 
 Installed fonts: discovery on every platform, family and style lookup, shared loading. Exists.
 
@@ -451,23 +1187,23 @@ Installed fonts: discovery on every platform, family and style lookup, shared lo
 | `suitcase` | Classic suitcase font files | exists |
 | `system` | The platform's font service | exists |
 
-### craft-font-manager
+#### craft-font-manager
 
 Search and filters over font indexes, installed fonts by family, and the font manager panel.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `axes` | Variable font axes | planned, step 4 |
+| `axes` | Variable font axes | exists |
 | `filter` | Search by family, category, language, script | exists |
-| `glyphs` | Glyphs panel | planned, step 4 |
+| `glyphs` | Glyphs panel | exists |
 | `index` | The font indexes | exists |
 | `installed` | Installed fonts grouped by family | exists |
-| `missing` | Document fonts and missing-fonts dialog | planned, step 4 |
+| `missing` | Document fonts and missing-fonts dialog | exists |
 | `panel`, `ui` | The egui `FontsPanel` and its story | exists |
-| `picker` | Font picker: families, filters, previews, stars, recents, similar fonts (feature `font-picker`) | planned, step 4 |
+| `picker` | Font picker: families, filters, previews, stars, recents, similar fonts (feature `font-picker`) | exists |
 | `store` | What the panel needs from the font store | exists |
 
-### craft-font-store
+#### craft-font-store
 
 The font store: indexes, exact lookup, verified installs into the suite's font folder. Exists.
 
@@ -479,7 +1215,7 @@ The font store: indexes, exact lookup, verified installs into the suite's font f
 | `store` | Store folder, consent, installs, manifest, removal | exists |
 | `verify` | Checks a file against its index entry | exists |
 
-### craft-fonts-build
+#### craft-fonts-build
 
 Build-script support that embeds optional faces from an app's `build.rs`. Exists.
 
@@ -490,19 +1226,19 @@ Build-script support that embeds optional faces from an app's `build.rs`. Exists
 | `sha256` | Hash for served file names | exists |
 | `subset` | Cutting a face to the characters the catalogs use | exists |
 
-### craft-gpu
+#### craft-gpu
 
 GPU device, diagnostics and memory budget, plus the GPU canvas surface. New crate; native.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `budget` | Memory budget and probes | planned, step 8 |
-| `canvas` | GPU canvas display surface | planned, step 8 |
-| `device` | Device setup and diagnostics | planned, step 8 |
-| `health` | Device loss, fallback and upload guard | planned, step 8 |
-| `vector` | Vector canvas renderer | planned, step 8 |
+| `budget` | Memory budget and probes | next |
+| `canvas` | GPU canvas display surface | next |
+| `device` | Device setup and diagnostics | next |
+| `health` | Device loss, fallback and upload guard | next |
+| `vector` | Vector canvas renderer | next |
 
-### craft-host
+#### craft-host
 
 The `Host` bundle and service traits. Egui-free (egui only under `ui`, for `install`). New on the branch (step 1).
 
@@ -510,9 +1246,9 @@ The `Host` bundle and service traits. Egui-free (egui only under `ui`, for `inst
 | --- | --- | --- |
 | root | `Host`, `HostBuilder`, `Host::of`, `install` | exists |
 | `services` | `AppInfo`, `SectionStore`, `Section`, `Commands`, `Jobs`, `ThreadJobs`, `InlineJobs` and defaults | exists |
-| `files`, `clock` | File and clock services | planned, steps 3 and 4 |
+| `files` | File service | exists |
 
-### craft-i18n
+#### craft-i18n
 
 Translations: embedded catalogs, lookup with fallback, plurals, numbers for a region, language names, locale, search folding, collation. No egui.
 
@@ -521,12 +1257,12 @@ Translations: embedded catalogs, lookup with fallback, plurals, numbers for a re
 | `catalog` | Reading a catalog (the shared `common.tsv` holds library words) | exists |
 | `collate` | Locale sorting for lists people see | exists |
 | `fold` | Case- and accent-insensitive search matching | exists |
-| `format` | Numbers, percentages and counts for a region | exists; dates and relative times planned, step 5 |
+| `format` | Numbers, percentages and counts for a region | exists |
 | `number` | Reading numbers people type | exists |
 | `region`, `scripts` | Formatting region; scripts, direction and Han forms of a language | exists |
 | `size` | Sizes and measures with a unit | exists |
 
-### craft-imaging
+#### craft-imaging
 
 Raster image editing. New on the branch (step 1). Core at the root, widgets in `ui`.
 
@@ -551,11 +1287,11 @@ Raster image editing. New on the branch (step 1). Core at the root, widgets in `
 | `ui::vanishing_point`, `ui::wide_angle` | Perspective plane and wide-angle correction workspaces | exists |
 | `ui::warp` | Warp grid; mesh, pin and perspective warp | exists |
 
-### craft-jpeg
+#### craft-jpeg
 
 Clean-room decoder for 12-bit and arithmetic-coded JPEG. Exists.
 
-### craft-keymap
+#### craft-keymap
 
 Chords, keymaps, conflicts, overrides and shortcut-set import; the Keyboard Shortcuts dialog under `ui`.
 
@@ -571,23 +1307,23 @@ Chords, keymaps, conflicts, overrides and shortcut-set import; the Keyboard Shor
 | `profiles` | Named override sets | exists |
 | `reserved` | Chords the OS takes first | exists |
 | `scope` | Where a binding works | exists |
-| `ui` | Shortcuts dialog | exists; tabs, set row and conflict flow planned, step 3 |
-| `ui::import_offer` | First-launch import offer | planned, step 3 |
-| `ui::router` | Focus gate and key owners | planned, step 3 |
+| `ui` | Shortcuts dialog | exists |
+| `ui::import_offer` | First-launch import offer | exists |
+| `ui::router` | Focus gate and key owners | exists |
 
-### craft-layers
+#### craft-layers
 
-Layers panel and its parts. UI-only family. New crate.
+Layers panel and its parts. UI-only family. New on the branch.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `ui::filter` | Layer filter bar | planned, step 6 |
-| `ui::options` | Layers panel options dialog | planned, step 6 |
-| `ui::panel` | `LayersPanel` over a `LayerTree` trait | planned, step 6 |
-| `ui::rows` | Blend, opacity and lock rows | planned, step 6 |
-| `ui::thumbs` | Layer and mask thumbnails | planned, step 6 |
+| `ui::filter` | Layer filter bar | exists |
+| `ui::options` | Layers panel options dialog | exists |
+| `ui::panel` | `LayersPanel` over a `LayerTree` trait | exists |
+| `ui::rows` | Blend, opacity and lock rows | exists |
+| `ui::thumbs` | Layer and mask thumbnails | exists |
 
-### craft-media
+#### craft-media
 
 Bit-level I/O and clean-room MP4/MOV and Matroska/WebM demuxers and muxers. Exists.
 
@@ -597,16 +1333,16 @@ Bit-level I/O and clean-room MP4/MOV and Matroska/WebM demuxers and muxers. Exis
 | `isobmff` | MP4 and MOV (ISO base media) | exists |
 | `matroska` | MKV and WebM | exists |
 
-### craft-menu
+#### craft-menu
 
 Menus for macOS, Windows, Linux and the web, with shortcuts from `craft-keymap`.
 
 | Module | Holds | State |
 | --- | --- | --- |
 | `bar` | The menu bar drawn with egui | exists |
-| `context` | Panel and context menus from command entries | planned, step 3 |
+| `context` | Panel and context menus from command entries | exists |
 | `driver` | Events from the platform menu in, menu bars out | exists |
-| `help`, `language` | Help menu kit; language menu | planned, step 3 |
+| `help`, `language` | Help menu kit; language menu | exists |
 | `keymap` | Shortcuts and checked states from the keymap | exists |
 | `keytips` | Alt keytips | planned, step 8 |
 | `layout` | Platform layouts of an app's menus | exists |
@@ -616,37 +1352,37 @@ Menus for macOS, Windows, Linux and the web, with shortcuts from `craft-keymap`.
 | `recent` | Recent files, over the host's files | planned, step 3 |
 | `ribbon` | Ribbon with backstage, gallery, customize dialog and quick access toolbar | planned, step 8 |
 
-### craft-pages
+#### craft-pages
 
 Page geometry, setup, ranges, numbering and paged-document UI. New crate.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `layout` | Paged layout: rectangles, columns, facing pages | planned, step 6 |
-| `numbering` | Page numbering styles | planned, step 6 |
-| `range` | Page range parsing | planned, step 6 |
-| `setup` | Page setup model | planned, step 6 |
+| `layout` | Paged layout: rectangles, columns, facing pages | exists |
+| `numbering` | Page numbering styles | exists |
+| `range` | Page range parsing | exists |
+| `setup` | Page setup model | exists |
 | `show` | Slideshow playback | planned, step 8 |
-| `ui::access` | Accessibility bridge for a canvas of pages | planned, step 6 |
-| `ui::column_bar` | Column width bar | planned, step 6 |
+| `ui::access` | Accessibility bridge for a canvas of pages | exists |
+| `ui::column_bar` | Column width bar | exists |
 | `ui::flatten_preview` | Transparency flattener options and preview | planned, step 4 |
-| `ui::grid` | Page grid overlay | planned, step 6 |
-| `ui::header_footer` | Header and footer zones | planned, step 6 |
-| `ui::list` | Page and artboard list | planned, step 6 |
-| `ui::margins` | Margin handles on rulers | planned, step 6 |
-| `ui::marks` | Text frame marks overlay | planned, step 6 |
-| `ui::preview` | Page preview overlay | planned, step 6 |
-| `ui::range` | Page range field | planned, step 6 |
-| `ui::reading` | Reading view | planned, step 6 |
-| `ui::setup` | Page setup dialog | planned, step 6 |
+| `ui::grid` | Page grid overlay | exists |
+| `ui::header_footer` | Header and footer zones | exists |
+| `ui::list` | Page and artboard list | exists |
+| `ui::margins` | Margin handles on rulers | exists |
+| `ui::marks` | Text frame marks overlay | exists |
+| `ui::preview` | Page preview overlay | exists |
+| `ui::range` | Page range field | exists |
+| `ui::reading` | Reading view | exists |
+| `ui::setup` | Page setup dialog | exists |
 | `ui::show` | Presenter window, transitions, timer, pen and laser | planned, step 8 |
-| `ui::sync_views` | Synchronised side-by-side views | planned, step 6 |
-| `ui::table` | Document tables: edges, properties, size picker, cell selection | planned, step 6 |
-| `ui::text_selection` | Text selection layer over rendered pages | planned, step 6 |
-| `ui::thumbnails` | Page thumbnail strip | planned, step 6 |
-| `ui::view` | Paged document view | planned, step 6 |
+| `ui::sync_views` | Synchronised side-by-side views | exists |
+| `ui::table` | Document tables: edges, properties, size picker, cell selection | exists |
+| `ui::text_selection` | Text selection layer over rendered pages | exists |
+| `ui::thumbnails` | Page thumbnail strip | exists |
+| `ui::view` | Paged document view | exists |
 
-### craft-pdf
+#### craft-pdf
 
 Shared PDF reading, rendering and optional writing. Exists.
 
@@ -657,36 +1393,38 @@ Shared PDF reading, rendering and optional writing. Exists.
 | `read` | Bounded opening and interpreter guards | exists |
 | `write` | PDF authoring | exists |
 
-### craft-plate-test
+#### craft-plate-test
 
 Print-colour test scenes and PDF structure checks. Exists (`gs`, `judge`, `reference`, `report`, `scene`, `structure`, `tiff`).
 
-### craft-platform
+#### craft-platform
 
 Small platform lifecycle services, one cargo feature per service. No craft-ui.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `appearance` | Desktop colour, contrast and motion preferences | exists; reduced-motion setting planned, step 4 |
-| `autosave`, `ui::recovery` | Autosave and crash recovery | planned, step 4 |
+| `appearance` | Desktop colour, contrast and motion preferences | exists |
+| `autosave` | Autosave | exists |
+| `clock` | Clock service | exists |
+| `ui::recovery` | Crash recovery | planned, step 4 |
 | `browser` | Browser downloads | exists |
-| `clipboard` | Clipboard with synthetic input and size limits | planned, step 5 |
-| `clock` | Injectable clock | planned, step 3 |
-| `default_app` | Default app registration | planned, step 5 |
+| `clipboard` | Clipboard with synthetic input and size limits | exists |
+| `clock` | Injectable clock | exists |
+| `default_app` | Default app registration | exists |
 | `dialog_outcome`, `dialogs` | Dialog results with evidence; picker creation on the UI thread | exists |
 | `job` | Background jobs and preview jobs | planned, step 4 |
-| `logs` | Crash and command logs | planned, step 3 |
-| `open` | OS open requests, drops, open and reveal | planned, step 4 |
-| `pacing` | Frame pacing and work budgeting | planned, step 3 |
+| `logs` | Crash and command logs | exists |
+| `open` | OS open requests, drops, open and reveal | exists |
+| `pacing` | Frame pacing and work budgeting | exists |
 | `pen` | Pen input: pressure, tilt, eraser end | planned, step 3 |
 | `process` | Bounded output capture for one-shot programs | exists |
-| `screen` | Screen colour sampling | planned, step 4 |
-| `session` | Reopen last session | planned, step 3 |
-| `temp` | Private temp files | planned, step 5 |
-| `usage` | Resource usage readout | planned, step 3 |
-| `watch` | File change watcher | planned, step 5 |
+| `screen` | Screen colour sampling | exists |
+| `session` | Reopen last session | exists |
+| `temp` | Private temp files | exists |
+| `usage` | Resource usage readout | exists |
+| `watch` | File change watcher | exists |
 
-### craft-prepress
+#### craft-prepress
 
 Ink model, plates from a PDF, coverage, ink limits, composite preview. Exists.
 
@@ -696,7 +1434,7 @@ Ink model, plates from a PDF, coverage, ink limits, composite preview. Exists.
 | `coverage`, `ink`, `plates` | Ink coverage, ink model, page separation | exists |
 | `flatten` | Display list for the transparency flattener | exists |
 
-### craft-print
+#### craft-print
 
 System PDF print spooler (Unix and Windows) and the print dialog.
 
@@ -705,32 +1443,32 @@ System PDF print spooler (Unix and Windows) and the print dialog.
 | `browser` | Browser print | planned, step 4 |
 | `progress`, `sheets`, `ticket`, `windows` | Worker events, sheets of a print-ready PDF, print ticket, Windows spooler | exists |
 | `spool` | Spooler front end for the print dialog | planned, step 4 |
-| `ui` | Printer selection and job feedback | exists; print dialog planned, step 4 |
+| `ui` | Printer selection and job feedback | exists |
 | `ui::layout` | Print layout sheet | planned, step 4 |
 
-### craft-quit
+#### craft-quit
 
 Quits an app the platform's way.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `close` | Routes an egui window close through the platform quit | exists; the unsaved-changes guard planned, step 2 |
+| `close` | Routes an egui window close through the platform quit | exists |
 | `macos`, `menu` | `terminate:` on macOS; the app menu with a Quit that asks first | exists |
 
-### craft-review
+#### craft-review
 
 Comments, annotations, signatures, versions and revisions; collaboration behind `collab`. New crate.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `annotate`, `ui::annotate` | Page annotation tool | planned, step 6 |
-| `collab` (feature) | Presence, voting, chat, join by code, with `ui::chat`, `ui::presence`, `ui::vote` | planned, step 6 |
-| `comments`, `ui::comments`, `ui::thread` | Comments panel and threads | planned, step 6 |
-| `revisions`, `ui::revisions` | Revision compare list | planned, step 6 |
-| `signature`, `ui::signature` | Signature pad | planned, step 6 |
-| `versions`, `ui::versions` | Version history panel | planned, step 6 |
+| `annotate`, `ui::annotate` | Page annotation tool | exists |
+| `collab` (feature) | Presence, voting, chat, join by code, with `ui::chat`, `ui::presence`, `ui::vote` | exists |
+| `comments`, `ui::comments`, `ui::thread` | Comments panel and threads | exists |
+| `revisions`, `ui::revisions` | Revision compare list | exists |
+| `signature`, `ui::signature` | Signature pad | exists |
+| `versions`, `ui::versions` | Version history panel | exists |
 
-### craft-settings
+#### craft-settings
 
 Shared settings storage: platform folders, `config.toml`, atomic saves, recovery, migration. No egui.
 
@@ -740,51 +1478,53 @@ Shared settings storage: platform folders, `config.toml`, atomic saves, recovery
 | `error` | Reports and errors | exists |
 | `migrate` | Schema migrations and import of older files | exists |
 | `paths` | Choosing the configuration folder | exists |
-| `profiles` | Settings profiles | planned, step 4 |
+| `profiles` | Settings profiles | exists |
 | `recovery` | Keeping damaged and previous files | exists |
-| `remember` | `Remembered<T>`: last-used options for dialogs, panels and tools | planned, step 2 |
-| `store` | In-memory store | exists; multi-instance merge planned, step 4 |
+| `remember` | `Remembered<T>`: last-used options for dialogs, panels and tools | exists |
+| `store` | In-memory store | exists |
 
-### craft-table
+#### craft-table
 
 Spreadsheet grid and related UI. UI-only family. New crate.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `ui::chart` | Chart painting | planned, step 6 |
-| `ui::conditions` | Condition builder | planned, step 6 |
-| `ui::error_tag` | Error-checking tag | planned, step 6 |
-| `ui::fields` | Field list pane | planned, step 6 |
-| `ui::filter` | Filter buttons | planned, step 6 |
-| `ui::grid` | Spreadsheet cell grid | planned, step 6 |
-| `ui::outline` | Row and column outline | planned, step 6 |
-| `ui::refpick` | Cell reference picking | planned, step 6 |
-| `ui::slicer` | Slicer filter chips | planned, step 6 |
-| `ui::stats` | Selection statistics | planned, step 6 |
+| `ui::chart` | Chart painting | exists |
+| `ui::conditions` | Condition builder | exists |
+| `ui::error_tag` | Error-checking tag | exists |
+| `ui::fields` | Field list pane | exists |
+| `ui::filter` | Filter buttons | exists |
+| `ui::grid` | Spreadsheet cell grid | exists |
+| `ui::outline` | Row and column outline | exists |
+| `ui::refpick` | Cell reference picking | exists |
+| `ui::slicer` | Slicer filter chips | exists |
+| `ui::stats` | Selection statistics | exists |
 
-### craft-text
+#### craft-text
 
 Text processing below the composer, and text UI.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `bidi` | Bidirectional text (UAX #9) | exists; logical-end elision planned, step 4 |
-| `find` | Find and replace | planned, step 6 |
+| `bidi` | Bidirectional text (UAX #9) | exists |
+| `find` | Find and replace | exists |
 | `hyphen` | Hyphenation | exists |
 | `linebreak` | Knuth-Plass line breaking | exists |
-| `lists` | Bullet paragraph layout | planned, step 6 |
-| `quotes` | Smart quotes | planned, step 4 |
+| `lists` | Bullet paragraph layout | exists |
+| `quotes` | Smart quotes | exists |
 | `segment` | Line-break opportunities | exists |
-| `spell` | Spelling check | planned, step 4 |
-| `styles` | Named style list | planned, step 6 |
-| `ui::character`, `ui::style_panel` | Character format controls; text style panel | planned, step 4 |
-| `ui::columns`, `ui::hyperlink`, `ui::notes`, `ui::paragraph` | Columns dialog, hyperlink dialog, rich-text notes, paragraph format dialog | planned, step 6 |
-| `ui::editor` | Canvas text editor | planned, step 4 |
-| `ui::find`, `ui::styles` | Find bar; named styles panel | planned, step 6 |
-| `ui::ruler`, `ui::tabs_dialog` | Text ruler with tab stops; tab stops dialog | planned, step 6 |
-| `ui::spelling` | Spelling dialog | planned, step 4 |
+| `spell` | Spelling check | exists |
+| `styles` | Named style list | exists |
+| `ui::character`, `ui::style_panel` | Character format controls; text style panel | exists |
+| `ui::columns`, `ui::hyperlink`, `ui::notes` | Columns dialog, hyperlink dialog, rich-text notes | exists |
+| `ui::paragraph` | Paragraph format dialog | planned, step 6 |
+| `ui::editor` | Canvas text editor | exists |
+| `ui::find` | Find bar | exists |
+| `ui::styles` | Named styles panel | planned, step 6 |
+| `ui::ruler`, `ui::tabs_dialog` | Text ruler with tab stops; tab stops dialog | exists |
+| `ui::spelling` | Spelling dialog | exists |
 
-### craft-theme
+#### craft-theme
 
 The theme model: colour, scale and token primitives, semantic and component tokens, contrast rules, the theme file format, built-in themes, and the `craft-theme check` command. No egui. New on the branch.
 
@@ -804,7 +1544,7 @@ The theme model: colour, scale and token primitives, semantic and component toke
 | `sizes` | Size sets | exists |
 | `theme`, `tokens`, `values` | What a theme supplies; semantic tokens; tunable numbers | exists |
 
-### craft-theme-store
+#### craft-theme-store
 
 The suite's theme files, machine-local library and shared selection, with a lock and revision protocol for concurrent apps. New on the branch.
 
@@ -817,76 +1557,76 @@ The suite's theme files, machine-local library and shared selection, with a lock
 | `testing` | Fixtures for adapter tests | exists |
 | `ui::appearance` | `AppearancePage`: the whole appearance settings page | planned, step 4 |
 
-### craft-timeline
+#### craft-timeline
 
 Time, clips, keyframes, markers, frame cache, playback clock, and timeline UI. New crate.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `cache` | Frame cache with prefetch | planned, step 6 |
-| `clips` | Clip editing model | planned, step 6 |
-| `clock` | Playback clock and follow modes | planned, step 6 |
-| `frames` | Playback frame server | planned, step 6 |
-| `markers` | Markers | planned, step 6 |
-| `rates` | Media format presets | planned, step 6 |
-| `timecode` | Timecode and durations | planned, step 6 |
-| `ui::clips` | Clip editing UI | planned, step 6 |
-| `ui::graph` | Keyframe graph editor | planned, step 6 |
-| `ui::keyframes` | Keyframe lane | planned, step 6 |
-| `ui::markers` | Marker UI | planned, step 6 |
-| `ui::overview` | Overview strip | planned, step 6 |
-| `ui::panel` | Timeline panel with track headers | planned, step 6 |
-| `ui::preview` | Video frame painter and preview panel | planned, step 6 |
-| `ui::render_queue` | Render queue list | planned, step 6 |
-| `ui::ruler` | Time ruler | planned, step 6 |
-| `ui::timecode` | Timecode fields and readout | planned, step 6 |
-| `ui::transport` | Transport bar | planned, step 6 |
+| `cache` | Frame cache with prefetch | exists |
+| `clips` | Clip editing model | exists |
+| `clock` | Playback clock and follow modes | exists |
+| `frames` | Playback frame server | exists |
+| `markers` | Markers | exists |
+| `rates` | Media format presets | exists |
+| `timecode` | Timecode and durations | exists |
+| `ui::clips` | Clip editing UI | exists |
+| `ui::graph` | Keyframe graph editor | exists |
+| `ui::keyframes` | Keyframe lane | exists |
+| `ui::markers` | Marker UI | exists |
+| `ui::overview` | Overview strip | exists |
+| `ui::panel` | Timeline panel with track headers | exists |
+| `ui::preview` | Video frame painter and preview panel | exists |
+| `ui::render_queue` | Render queue list | exists |
+| `ui::ruler` | Time ruler | exists |
+| `ui::timecode` | Timecode fields and readout | exists |
+| `ui::transport` | Transport bar | exists |
 
-### craft-ui
+#### craft-ui
 
 The kernel. Roughly 100 features after the family crates take theirs.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `behavior` | Shared keyboard, focus, selection, typing and reorder rules | exists; scrub and pointer wrap (step 3), input quirks (step 4), drag feedback (step 5), move gesture (step 7) planned |
+| `behavior` | Shared keyboard, focus, selection, typing and reorder rules | exists |
 | `buttons` | Icon buttons with app-supplied colours | exists, deprecated (kept until the last app moves) |
-| `canvas` | Overlays and the canvas foundation: guides, rulers, marquee, readout, grid, view, scrollbars, hit testing | exists; cursor, navigation, snapping, raster display, pasteboard, split views, tool host (step 3), navigator and textures (step 6), hover, selection frame, compare (step 7) planned |
+| `canvas` | Overlays and the canvas foundation: guides, rulers, marquee, readout, grid, view, scrollbars, hit testing | exists |
 | `capture` | Screenshot completion slots | exists |
 | `combo` | Combo boxes and drop-downs | exists, deprecated |
-| `composites` | Field rows, form grid, group box, property rows, headers, curve editor, histogram, empty state, notice, toast | exists; notice centre planned, step 3 |
+| `composites` | Field rows, form grid, group box, property rows, headers, curve editor, histogram, empty state, notice, toast | exists |
 | `conformance` | An app's real appearance setup against the reference | exists |
-| `controls` | Button, checkbox, radio, switch, fields, sliders, select, combo box, swatch, badge, tooltip, thumb row | exists; point picker (step 2), number expressions (step 3), long tail of controls (step 5) planned |
-| `dialog` | Frame, footer, alert, prompt, full-window dialog, preview, local history, size, id-only stack | exists; typed stack, fields, parameter and command dialogs, size dialogs, prompts, unsaved guard, properties and report (step 2); new document, export, file list, recovery, progress (step 4); guides, About, password, list manager (step 5) planned |
+| `controls` | Button, checkbox, radio, switch, fields, sliders, select, combo box, swatch, badge, tooltip, thumb row | exists |
+| `dialog` | Frame, footer, alert, prompt, full-window dialog, preview, local history, size, id-only stack | exists |
 | `direction` | Right-to-left interface direction | exists |
-| `docking` | Panel docking, floating groups, iconic column, workspaces | exists; dock queries and commands, arrange, workspaces, multi-window host planned, step 3 |
-| `edit` | The edit lifecycle | exists; history panel and snapshots planned, step 6 |
-| `focus` | Window focus as pointer gestures read it | exists; region focus navigation planned, step 3 |
-| `fonts` | The UI font stack every app installs | exists; on-demand per-script registration planned, step 4 |
-| `icons` | Icons by meaning, rasterised per size, tinted when drawn | exists; tool icon set (step 3), painting helpers (step 5) planned |
+| `docking` | Panel docking, floating groups, iconic column, workspaces | exists |
+| `edit` | The edit lifecycle | exists |
+| `focus` | Window focus as pointer gestures read it | exists |
+| `fonts` | The UI font stack every app installs | exists |
+| `icons` | Icons by meaning, rasterised per size, tinted when drawn | exists |
 | `ime` | Input methods for text typed onto canvases | exists |
 | `inspect` | Debug recorder for layout boxes and the AccessKit tree | exists |
 | `interface_scale` | Device pixels per point | exists |
 | `layout` | Pane geometry and resize handles | exists |
-| `list` | Rows for panels that list things; tree; drag; rename | exists; sortable table, metadata table, event log (step 5), findings (step 4) planned |
-| `localized` | Region-aware number widgets; the word tables | exists; length units planned, step 3 |
-| `menu` | Menu, context menu, menu bar, press menu | exists; keep-open toggle rows planned, step 5 |
-| `motion` | Animated caret and selection outline; reduced motion | planned, steps 4 and 5 |
-| `panes` | Task panes and rail | exists; reorderable sidebar sections planned, step 6 |
-| `patterns` | Panel, inspector, command palette, options bar, status bar, rail, toolbar | exists; options cells, status bar readout, toolbar drawer, coach marks (step 3), align bars (step 5) planned |
+| `list` | Rows for panels that list things; tree; drag; rename | exists |
+| `localized` | Region-aware number widgets; the word tables | exists |
+| `menu` | Menu, context menu, menu bar, press menu | exists |
+| `motion` | Animated caret and selection outline; reduced motion | exists |
+| `panes` | Task panes and rail | exists |
+| `patterns` | Panel, inspector, command palette, options bar, status bar, rail, toolbar | exists |
 | `popover`, `popup_list` | Anchored popups; the list popup under a field | exists |
-| `preferences` | Preferences window model, search, body | exists; settings-document pages and cache page planned, step 4 |
-| `presets` | Preset browser: model, view, menu, toolbar | exists; library model, named-preset menu, pickers planned, step 6 |
-| `primitives` | Surface, state layer, focus ring, divider, stack, interactive, text, icon, handle | exists; painter helpers planned, step 5 |
-| `shell` | `AppShell`, `CanvasShell`, `ScreenMode` | exists; start screen planned, step 3; office-style preset planned, step 8 |
+| `preferences` | Preferences window model, search, body | exists |
+| `presets` | Preset browser: model, view, menu, toolbar | exists |
+| `primitives` | Surface, state layer, focus ring, divider, stack, interactive, text, icon, handle | exists |
+| `shell` | `AppShell`, `CanvasShell`, `ScreenMode` | exists; office-style preset planned, step 8 |
 | `story` | Stories and the registry macro | exists |
-| `tab_strip`, `tabs` | Document and panel tab strips; tab fitting | exists; drag between document tabs planned, step 3 |
-| `testing` | Accessibility, style dump, screens, symbols | exists; headless render harness, i18n audit planned, step 3 |
-| `text` | Shaped text in a reading area | exists; elided text and path labels planned, step 5 |
+| `tab_strip`, `tabs` | Document and panel tab strips; tab fitting | exists |
+| `testing` | Accessibility, style dump, screens, symbols | exists |
+| `text` | Shaped text in a reading area | exists |
 | `theme` | Tokens bridge to egui styles | exists |
 | `title_bar` | App-drawn title bar, caption buttons, resize zones | exists |
 | `viewport` | Windows in their own OS viewport | exists |
 
-### craft-ui-gallery
+#### craft-ui-gallery
 
 The gallery app (desktop and web). Not published. Depends on every `ui` crate. New on the branch.
 
@@ -901,11 +1641,11 @@ The gallery app (desktop and web). Not published. Depends on every `ui` crate. N
 | `preview` | Mock app preview | exists |
 | `probe`, `problems` | Probing and reporting layout problems | exists |
 
-### craft-ui-macros
+#### craft-ui-macros
 
 Derive macros for story arguments. New on the branch.
 
-### craft-update
+#### craft-update
 
 Release checking, downloading, installing and self-updating for the app suite and the launcher.
 
@@ -913,18 +1653,18 @@ Release checking, downloading, installing and self-updating for the app suite an
 | --- | --- | --- |
 | `app`, `suite`, `version`, `pins` | Apps, releases and versions | exists |
 | `desktop_entry`, `detect`, `distro`, `folders`, `install`, `manifest`, `msi_*`, `packages`, `paths`, `platform`, `portable`, `process`, `queue`, `status` | Installing, detecting and removing apps | exists |
-| `dialog` | Startup update prompt | exists; moves onto the dialog stack, with a startup modal queue, planned step 2 |
+| `dialog` | Startup update prompt | exists |
 | `http`, `proxy`, `release`, `source`, `time` | Network access and release lookup | exists |
 | `protocol` | Vocabulary jobs and results report in | exists |
 | `self_update`, `updater` | Launcher self-update; the update flow of an egui app | exists |
 
-### craft-window
+#### craft-window
 
 Decides who draws the window frame, makes an app-drawn strip act as the title bar, and keeps the window list, placement and restore.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `desktop` | Desktop and backend detection | exists; visible work area planned, step 3 |
+| `desktop` | Desktop and backend detection | exists |
 | `layout` | Window button layout per desktop | exists |
 | `list`, `menu` | Open windows; the Window menu | exists |
 | `mac` | macOS traffic lights, measured | exists |
@@ -933,387 +1673,3 @@ Decides who draws the window frame, makes an app-drawn strip act as the title ba
 | `restore` | Window restore | exists |
 | `title_bar` | An app strip as the title bar | exists |
 | `viewports` | Immediate viewports per window | exists |
-
-## Appearance
-
-| Setting | Options | Changes | Stored |
-| --- | --- | --- | --- |
-| Theme | 10 built-ins or a JSON file; chosen per mode (`theme_light`, `theme_dark`) | colours; shape for Adwaita, Breeze, Classic, Soft | suite |
-| Mode | light, dark, system | palette | suite |
-| Contrast | standard, high, system (default) | high: 7:1 text, 4.5:1 control cues | suite |
-| Size | Compact, Comfortable | heights, padding, gaps, type, corners | suite |
-| Text size | 0.9x, 1x, 1.15x, 1.3x | type only | suite |
-| Reduced motion | full, reduced, system (default) | animations to zero | suite |
-| Interface font | Suite face, System (OS UI face) | UI face | app |
-| Direction | Language (default), LTR, RTL | mirroring; sliders, number fields, key chords unmirrored | app |
-| UI scaling | Auto, or 75-300 % (steps of 5 from 75 to 125, then 150, 175, 200, 250, 300) | whole-interface zoom; sizes that do not fit the screen are hidden | app |
-
-Storage:
-
-- **Per suite**: theme, mode, contrast, size, text size, motion in the shared `selection.json`. Contrast, motion and text size always follow the suite.
-- **Per app**: a default (theme pair, mode, size; creative apps ship Dark and Compact, office-style apps may ship Light) and an optional override in the app's preferences ("Use a different ... in this app"). Interface font, direction and UI scaling are app settings.
-
-UI scaling rules:
-
-- The list leaves out sizes that would make the window smaller than the app's minimum on the current screen. The size in use always stays listed.
-- Every app has a "Reset UI Scaling" command.
-- Pointers an app draws (rotate and resize arrows) grow with the interface scale.
-
-Built-in themes (10; 17 mode variants). Suite default: ArtCraft.
-
-| Theme | Modes | Look |
-| --- | --- | --- |
-| ArtCraft | light, dark | mid-grey panels; suite default |
-| Pro | light, dark | neutral greys |
-| Pro Light Gray | light | light grey panels |
-| Graphite | light, dark | near-black fields in dark |
-| Studio | light, dark | PhotoCraft Studio colours |
-| Solarized Dark | dark | muted teal-tinted dark |
-| Adwaita | light, dark | rounded, light grey; radii 6 / 9 / 12 |
-| Breeze | light, dark | flat, 5 px corners everywhere |
-| Soft | light, dark | low contrast (declared); corners rounder by +1 / +2 / +2 |
-| Classic | light | classic square, bevelled look, 1 pt bevel, all radii 0 |
-
-A two-mode theme is one theme with a variant per mode. A mode can carry a partial `seeds` override, so each mode derives its own colours instead of freezing them as pins. Picking a two-variant theme sets both modes. A theme file can name an icon pack that replaces the base icons it covers; missing icons fall back to the base set.
-
-The gallery is also the base of a theme editor for people who make themes. Theme editing is designed for them, not only for developers.
-
-## Colour
-
-1. Seeds: neutral, accent, good, warn, bad, info
-2. Ramps: 12 steps per seed per mode, OKLCH, fixed lightness curve
-3. Semantic tokens (92 in the eight groups below), mapped to ramp steps by meaning
-4. Pins: any token by hand
-5. Anchoring: unpinned background greys keep their distance from the theme's panel colour, so they follow a pinned panel. Text greys stay on the fixed curve
-6. Contrast pass: derived colours moved to WCAG 2.2 AA; pins kept and reported (high contrast: everything adjusted)
-7. Component tokens from semantic tokens; each pinnable (about 1,100 resolved tokens per variant)
-
-| Group | Tokens |
-| --- | --- |
-| Surface | background, canvas, canvas pattern, chrome, panel, raised, sunken, knob, scrim, shadow |
-| Text | normal, muted, faint, disabled, on accent, on strong, on selected, on status |
-| Line | divider, border, control edge, knob edge, mark, focus |
-| Accent | solid, hover, pressed, strong (+ hover, pressed), soft, text |
-| Status | good, warn, bad, info x fg, bg, border, solid |
-| State | hover, pressed, selected, selected hover, disabled fill |
-| Canvas overlay | stroke, halo, handle, marquee, guide, grid |
-| Data | 8 series; histogram R, G, B, luma |
-
-Accent fills that carry text (menu highlight, primary buttons, solid accent badges) use the strong pair. The strong accent is the theme's accent moved in OKLCH lightness only as far as white text needs for 4.5:1. Its hover and pressed variants move away from the text by the ramp's hover and pressed steps.
-
-| Contrast pair | Standard | High |
-| --- | --- | --- |
-| Text on its surface or fill | 4.5:1 | 7:1 |
-| Control cues (focus, check and radio outlines, accent marks, overlays) | 3:1 | 4.5:1 |
-| Borders, field edges, hover, pressed, dividers | no minimum | no minimum |
-| Disabled | exempt | exempt |
-
-Guides, path outlines and box lines are bare lines in a colour the user chooses, so they are exempt from the overlay contrast rule.
-
-## Shape, size and type
-
-Shape and size come from the Size preset, never the theme (except Adwaita, Breeze, Classic and Soft for shape). The presets are data, resolved at run time. Apps can override them (see [How an app tunes a component](#how-an-app-tunes-a-component-without-writing-its-own)).
-
-| pt | Compact | Comfortable |
-| --- | --- | --- |
-| Control height sm / md | 20 / 24 | 24 / 30 |
-| Icon sm / md / lg | 12 / 16 / 20 | 14 / 18 / 22 |
-| Gap inline / row / stack / section | 4 / 4 / 6 / 12 | 6 / 6 / 8 / 16 |
-| Padding control / panel / dialog | 6 / 8 / 16 | 8 / 12 / 20 |
-| Radius control / popup / window / panel | 3 / 4 / 6 / 0 | 6 / 8 / 12 / 0 |
-| Buttons, badges, slider tracks | pill | pill |
-| Bar title / tab / status / options | 32 / 26 / 24 / 36 | 38 / 30 / 30 / 42 |
-| Panel header | 28 | 34 |
-| Rail width / button | 40 / 30 | 50 / 36 |
-
-The type scale is under [Design principles](#principles). NumberField defaults to a width of three control heights; apps set other widths per field.
-
-- Docked and floating panels: square. Floating panels add a shadow
-- Edge: flat or bevel; only the Surface primitive reads it
-- Elevation: shadow levels for popups, dialogs, floating panels, knobs; none under a bevel
-- Pill radius: a `radius.pill` token shapes switch and slider tracks and knobs, progress bars and badges. Classic sets it to 0
-- Faces: the built-in faces stay until the face comparison is done. The interface font setting offers the OS UI face as an alternative; the mono face stays the suite's
-- Icons: Phosphor is the base set; themes may supply an icon pack, and the gallery's active set defaults to Lucide. Strokes 1.25 pt at the small size, 1.5 pt at medium and large. Icons are typed values generated at build time from the SVG folders (four sets, 540 files)
-
-## Components
-
-The kernel's registry holds 165 stories for 79 components. `craft-color`, `craft-draw` and `craft-imaging` register about twenty more components. Each family crate adds its own stories as it lands, and the gallery shows all of them.
-
-Every component has a builder API, semantic props only, gallery stories, AccessKit support, keyboard behaviour, a keyboard-only focus ring, RTL support and reduced-motion support.
-
-| Level | Count in `craft-ui` | Components |
-| --- | --- | --- |
-| Foundations | 3 | colours, edit lifecycle, stock egui |
-| Specimens | 1 | icons |
-| Primitives | 18 | Surface, State layer, Focus ring, Divider, Stack, Row, Interactive, Text, Icon, Handle · canvas overlays: canvas, grid, guides, marquee, readout, reference point, rulers, smart guides |
-| Controls | 23 | Button, IconButton, ToggleButton, Segmented, Link · Checkbox, Radio, Switch · TextField, SearchField, NumberField · Slider, RangeSlider, AngleDial · Select, ComboBox · Swatch, Badge, Kbd, Spinner, Progress, Tooltip, ThumbRow |
-| Composites | 25 | Field, FormGrid, GroupBox, PropertyRow, SliderRow, SectionHeader, SectionLabel, PanelHeader, PanelFooter · Menu, ContextMenu, PressMenu, MenuBar · List, ListRow, TreeRow · Tab, TabStrip · Toast, Notice, EmptyState · CurveEditor, CurvePreview, Histogram · PresetBrowser |
-| Patterns | 16 | Panel, Popover, Dialog, FullWindowDialog, PreferencesWindow, CommandPalette, Inspector, DockArea, ViewportWindow, PanelRail, ToolRail, Toolbar, OptionsBar, StatusBar, TitleBar, FlyoutButton |
-| Shells | 1 preset | AppShell with the Canvas preset (`CanvasShell`) |
-
-Family components:
-
-| Crate | Components |
-| --- | --- |
-| `craft-color` | ColorPicker, ColorArea, ColorWheel, ColorDisc, ColorRamp, ColorPopover, HexField, SwatchPair, SwatchPalette |
-| `craft-draw` | GradientSwatch, GradientEditor, GradientPalette, gradient line, TransformFields, transform box, bezier paths, crop frame, perspective crop quad, pen draft |
-| `craft-imaging` | LevelsEditor, warp grid |
-
-Shells:
-
-- **Canvas** (built): a fixed document canvas, document tabs, tool rail, panel dock. For the photo, vector, design, figure, PDF and CAD apps.
-- **Workspace** (planned): the whole body is equal panels in named workspaces. For the film, effects and sound apps.
-- **Office-style** (planned, step 8): the ribbon as a top slot, backstage view and task panes.
-- Panels live as tabs in an expanded dock column or as icons in a collapsed (iconic) column, never both. A click on an icon opens its group in a flyout beside the column. Dialogs move by dragging the title only. A floating panel group has square corners and the floating shadow.
-
-Absent so far: Workspace and office-style presets, Frame preset, timeline, waveform, scopes.
-
-## Translation and accessibility
-
-Translation:
-
-- Library words (button labels, dialog text, error text) live as rows in the shared `craft-i18n` catalog (`common.tsv`). There are no per-app translations of library words
-- The app installs its translator once per language change, through the host
-- Lookup: the language's row, then the English row, then the built-in English. English shows when a row is missing
-- Labels the host app sets win and are never replaced; a translation missing a placeholder is ignored
-- RTL: chrome mirrors; sliders, number fields and key chords never mirror
-- `craft::words::all()` lists the word tables of every enabled crate for the catalog extraction
-
-Accessibility:
-
-- AccessKit roles on widgets (button, spin button, slider, text input, combo box, list option, radio, dialog, menu item, tab, tree item)
-- High contrast: 7:1 text, 4.5:1 control cues, every colour adjusted
-- Keyboard: keyboard-only focus ring. Behaviour follows the suite's own apps, WAI-ARIA where they have no convention. Examples: Tab visits fields only in dialogs and every control elsewhere; a swatch palette and a guide set are one Tab stop with arrow keys inside; a tab strip is one Tab stop; Ctrl+Tab focuses a dialog's title row
-- Lists: Cmd or Ctrl+] and [ move the focused row in every reorderable list; F2 renames; Enter runs the row's default action
-- Standard contrast follows each theme's design. High contrast is the accessible option and meets the standard
-
-## Tests and gates
-
-| Gate | What it holds |
-| --- | --- |
-| Token dumps | 68 files: 17 theme-mode variants x {standard, high} x {Compact, Comfortable}, plus one app-sizes file; rewrite with `UPDATE_DUMPS=1` |
-| Style dumps | 17 egui style files, one per theme-mode |
-| Component dumps | 70 files across `craft-ui`, `craft-color`, `craft-draw` and `craft-imaging` |
-| Story registry | 165 kernel stories and their default args |
-| Title-bar dumps | 2 files |
-| Other tests | visual regression, screens, docking workflows, interface scale, font rendering, web fonts |
-| Conformance | an app's real appearance setup against the library's reference, across the case matrix; fails on wrong theme, size or text size, a changed `Style`, own zoom or font override; `allow(field, reason)` for exceptions |
-| Theme check | `craft-theme check <file>`: contrast report, adjustments, invalid fields |
-| Design lint | `craft-design-lint check` (syn) and `check-clippy` |
-| Gallery and screenshots | the gallery covers every `ui` crate; contact sheets are rendered locally and committed once the first app has migrated |
-
-Text dumps of every token and component style are the regression gate.
-
-Design-lint rules: `literal-size/*`, `raw-colour/const`, `style-mutation`, `tooltip/stock`, `clippy/inner-allow`. Exemption marker `// design: allow(reason)`; empty, invalid and unused markers are findings. Baselines and `--deny-unused` are supported. Exit 0 clean, 1 findings, 2 error. Each app runs the lint and the conformance test in its `xtask ci`.
-
-## Migration strategy
-
-### Approach
-
-Everything is built in `craft-libs` first. The rule is "build them all in one spot, use them all in one way". A feature one app has today is built in the library even when no second app needs it yet. The work does not go family by family. It does go step by step, so each step ends in a library the apps can use.
-
-- **PhotoCraft migrates first.** It has the most UI and the most features. Its port branch runs on the library while the library grows.
-- **VectorCraft migrates second.** It shares the Canvas shell and most of PhotoCraft's skeleton. If the two ports look alike, the library is general enough.
-- **The other apps follow**, each adopting the steps it needs.
-- Each app's port is one branch. It adopts each step as the step lands and deletes the code the step replaces. The app's main branch switches once, when the port merges.
-
-### Acceptance for an app port
-
-- Users do not notice significant differences, or see slightly more polish.
-- Where an app draws one kind of component several ways, the port uses one. That consistency is part of the polish.
-- A screenshot comparison of the app's upstream build against its port covers each screen. Differences a user would notice need a decision.
-- A gap an app finds is library work, never an app workaround. The library fix comes first; the port then deletes its own code.
-
-### Steps
-
-| Step | Delivers | Depends on | Status |
-| --- | --- | --- | --- |
-| 0 | PhotoCraft adopts the types the library already has; gaps it finds become library work | none | done |
-| 1 | Foundations: `ui` feature names, `craft-host`, module moves into family crates, the `craft` facade, gallery and word registry over every crate, one egui revision | 0 | done |
-| 2 | Dialog framework: typed results, parameter and command dialogs, size dialogs, prompts, unsaved guard, startup modal queue; text and number control gaps | 1 | next |
-| 3 | Shell (dock, panel menus, floating frames, workspaces, start screen, focus regions), keymap completion, canvas core, options bar cells, testing tools | 2 | planned |
-| 4 | Files, preferences, text and fonts, colour, previews and jobs | 2, 3 | planned |
-| 5 | Common controls, system services, value formatting, guides and About, align bars | 2 | planned |
-| 6 | 6a: layers, presets, history, navigator, browsing. 6b: pages, timeline, review, tables | 2, 3, 4 (6a); 2, 3, 5 (6b) | planned |
-| 7 | Canvas tools and the image-editing workspaces | 3, 4, 6a | planned |
-| 8 | Office-style shell, audio, scripts and code, slideshow, GPU | 2, 3; 6b timeline for audio | planned |
-
-Size: about 185 library tasks in all, plus about 28 PhotoCraft tasks and about 20 VectorCraft tasks. Step 3 is about 30 library tasks, step 4 about 35, step 6 about 44.
-
-### Critical path
-
-```
-2 --> 3 --> 4 --> 6a --> 7 --> PhotoCraft full port --> VectorCraft full port
-       |     |
-       |     +--> 5 (off the path: PhotoCraft needs only guides and About from it)
-       +--> 6b, 8 (off the path for PhotoCraft)
-```
-
-- Step 2 gates every feature that opens a dialog.
-- Step 3 gates the canvas tools (7), the colour droppers and text editor (4), and every panel (6) through the dock's panel-menu host.
-- Step 4's colour and font pickers gate the stroke, shape and text work in 7.
-- Step 6a gates PhotoCraft's panels and the brush presets in 7.
-- Steps 5, 6b and 8 run beside the path when capacity is free. Their inputs are other apps' code, so they do not block PhotoCraft.
-
-### What each step delivers
-
-**Step 0: adopt existing types.** PhotoCraft swaps widgets it already shares in kind with the library for the library's. Each difference it finds is a gap row (see [Library gaps from the PhotoCraft port](#library-gaps-from-the-photocraft-port)).
-
-**Step 1: foundations.** No pixel changes. It changes how apps reach the library.
-
-- The UI feature is named `ui` in every crate, plus `screen-testing`.
-- `craft-host` carries the services every feature reads.
-- Domain code moves out of the kernel into `craft-draw`, `craft-imaging`, `craft-color` and `craft-print`.
-- The `craft` facade gives one dependency and one pin.
-- The gallery and the word registry cover every `ui` crate.
-- Each app's `xtask` checks the egui revision.
-
-**Step 2: dialog framework.** A feature dialog is one value an app pushes and one result it reads.
-
-- Delivers: `DialogHost` with typed `DialogResult`, `ParamDialog` from a parameter list, command forms, image and canvas size dialogs, confirmation prompts, `UnsavedChangesGuard`, properties and report dialogs, `PointPicker`, `Remembered<T>`, and `craft-update`'s dialogs on the stack.
-- PhotoCraft adopts: the stack for every dialog, parameter dialogs for filters, size dialogs, prompts, the unsaved guard, remembered options.
-- PhotoCraft deletes: its dialog host and routing, its parameter-dialog builder, its field map, its size-dialog code and prompt helpers.
-
-**Step 3: shell, testing tools, canvas core, options bar.** The window skeleton and what every canvas needs.
-
-- Delivers: dock host and commands, panel menus, floating frames, Window menu and Arrange, named workspaces, start screen, region focus, shortcuts dialog completion, the keymap catalog as source of truth, zoom and navigation, cursors, snapping, raster display, the on-canvas tool host, options bar cells with number cells and scrubbing, `craft-automation`, the render harness.
-- PhotoCraft adopts: the library dock, workspaces, `ScreenMode`, the shortcut catalog and dialog, canvas navigation, the tool host, options bar cells, automation.
-- PhotoCraft deletes: its dock, panel-menu popups, floating card frames, shortcuts table, zoom ladder, cursor host, momentary-key and snapping code, options bar cell code, screenshot queue and control channel.
-- VectorCraft: its mapping to library components runs during this step, and its gaps feed the specs of steps 4 to 7.
-
-**Step 4: files, preferences, text and fonts, colour, previews.** The shared features every app has.
-
-- Delivers: the file service, New Document, export dialogs, print, file intake; preferences over a settings document with `AppearancePage` and recovery; font picker, canvas text editor, style panels; a colour picker dialog, droppers, samplers, screen picker, swatch panel, palettes, CMS additions; preview panes and job progress.
-- PhotoCraft adopts all of it. It deletes its file dialogs, most of its preferences code, its recovery and path code, the family picker, its colour panel and picker bodies, and its job UI.
-- VectorCraft adopts steps 1 to 4 on its port branch in one pass.
-
-**Step 5: common controls, system services, value formatting, guides, About.** A small step for PhotoCraft.
-
-- Delivers: sortable tables, chips, date and tree pickers, linked fields, mixed values, split button, breadcrumb, rating; clipboard, file watcher, default-app registration, temp files, Save flow; dates, byte sizes and elision; New Guide and Guide Layout dialogs, About, align bars.
-- PhotoCraft adopts guides, About, align bars, linked size fields, clipboard and the Save flow.
-
-**Step 6: layers, presets, history, browsing (6a); pages, timeline, review, tables (6b).** 6a is on PhotoCraft's path. 6b serves other apps and runs beside steps 7 and 8.
-
-- 6a delivers: `LayersPanel` over a `LayerTree` trait, channels, the preset model and menus, a history panel with one-edit steps and snapshots, navigator, scopes, actions, thumbnails and browsing.
-- After 6a, all of PhotoCraft's panels are library panels in the library dock. It deletes its layer, history, navigator and histogram panels and its preset model.
-- 6b delivers: paged documents, timeline, comments and versions, spreadsheet tables. VectorCraft adopts layers and presets after 6a, and artboard lists after 6b.
-
-**Step 7: canvas tools and image-editing workspaces.** PhotoCraft's last large deletion.
-
-- Delivers: transform, warp, selection and mask tools, vector and shape tools, crop, measure, brush, and the full-window editors: select and mask, liquify, filter gallery, fill from surroundings, perspective plane, wide-angle correction, layer style, adjustments.
-- PhotoCraft adopts every tool through the library tool host and the workspaces as library editors. After this step its port runs the lint clean and passes the conformance test and the render matrix.
-- VectorCraft adopts the draw family and finishes its port.
-
-**Step 8: office-style shell, audio, scripts, slideshow, GPU.** Mostly other apps' code.
-
-- Delivers: ribbon, backstage view, keytips and the office-style preset; audio engine and mixer UI; code editor and console; slideshow presenter; `craft-gpu`.
-- PhotoCraft's only task is to move its GPU display onto `craft-gpu`. Nothing visible changes.
-
-### How each step runs
-
-1. **Spec.** A written spec for the step is reviewed before any code. Open questions are settled in one round.
-2. **Parallel tracks.** Implementation splits into independent tasks, one branch each, with narrow checks only.
-3. **Integration.** The branches merge into one, and the dumps are regenerated.
-4. **One full test run**, then a review of each track.
-5. **Fixes**, then a final full run.
-6. **PhotoCraft adoption.** The port branch repins to the library and replaces its code with the new features. The screenshot comparison runs at each adoption task.
-
-Each step also adds its families to the library docs: a page per family with the out-of-the-box recipe (the `Host`, the trait the app implements, the builder call, the `Outcome`), plus a migration table of old path to new path.
-
-### Library gaps from the PhotoCraft port
-
-The port has recorded 108 gap rows so far. At least 26 are closed with a merged library change, and 34 are scheduled in a later step. The rest have a track in progress or need no library change. The gaps range from small (a missing option on a slider row) to structural (a floating frame with no title-bar move). They are why the steps above include the shell and common controls before the tools.
-
-## Landing strategy
-
-### Size
-
-Measured on `design-system` against `upstream/main` (c39e435c):
-
-| Measure | Value |
-| --- | --- |
-| Commits | 1,107 |
-| Files changed | 1,547 |
-| Lines added | about 332,000 |
-| Lines removed | about 5,000 |
-| Generated test dumps among the added lines (`*/tests/dumps/*`) | about 105,000 |
-| Icon set files | 540 (four sets) |
-
-The branch is mostly additive. A review reads the dumps and icons as data, not code.
-
-### The series
-
-The work lands as a series of upstream pull requests, one at a time, bottom-up. Each PR builds and passes CI on its own. Apps pin `craft-libs` by commit, so a merged PR changes nothing in an app until the app moves its pin.
-
-| Order | PR | Contents |
-| --- | --- | --- |
-| 1 | egui patches | The egui fork's patches go to the storytold egui fork first; craft-libs main moves its egui pin. Everything else depends on this |
-| 2 | Icon sets | Data only |
-| 3 | Token model and themes | `craft-theme`, `craft-theme-store`, `craft-color`. New crates; nothing depends on them yet |
-| 4 | `craft-ui` core | Theme bridge, primitives, controls, edit lifecycle, behaviour |
-| 5 | Composites, patterns, shells | With `craft-draw` and `craft-imaging` |
-| 6 | Host, facade and changes to existing crates | `craft-host`, `craft`, and the changes in `craft-menu`, `craft-keymap`, `craft-window` and `craft-platform` |
-| 7 | Tooling | The gallery, `craft-design-lint`, conformance |
-| 8 | Apps | PhotoCraft, then VectorCraft, one PR each, then the other apps |
-
-The egui patches are seven numbered changes (E22 to E28) on top of the fork's earlier patches. They add:
-
-- the IME composition's pre-edit range on `TextEdit` state
-- a public accessibility description for `Response`
-- scroll-bar labels
-- an AccessKit focus report that leaves egui focus alone
-- a pointer press that goes to the widget under the press position
-- `DragAndDrop::aborted_by_escape`
-- `Popup::swallow_outside_press`, so the press that closes a popup does nothing else
-
-### Breaking changes
-
-About 100 public items in `craft-ui`, `craft-menu`, `craft-keymap`, `craft-window` and `craft-platform` are removed or renamed (106 on the current branch). That count is an upper bound: it counts every removed `pub` item, and items that moved to another crate count too.
-
-The rule: each PR that removes or renames a public item keeps the old name as a deprecated alias or shim until every app has moved past it, so an app's next pin bump still builds. A migration table (old path to new path) goes with each PR. The old APIs that apps use today (the icon-button and combo-box modules, the old rail and number-field types) stay marked `#[deprecated]` until the last app that uses them has migrated.
-
-### Timing
-
-A layer lands once PhotoCraft's port has used it in earnest. Bottom layers land first. Landing early stops drift from upstream. The cost is that a landed layer's API is then shared, and changes to it need the same deprecation care.
-
-### Staying current
-
-Upstream keeps moving. `design-system` merges upstream main daily. After each landed PR, the remaining work rebases onto main. Conflicts that are only lockfile and version pins need no local build; CI checks them.
-
-## Status and open questions
-
-### What exists
-
-| Area | State |
-| --- | --- |
-| Token model, ten built-in themes, store, bridge | built |
-| Primitives, controls, composites, patterns | built (79 components in `craft-ui`) |
-| Canvas shell, docking with iconic column and flyouts, title bar | built |
-| Dialog frame, prompts, full-window dialogs, preferences window | built; typed stack in step 2 |
-| `craft-color` picker parts, `craft-draw` crop, gradient, pen and transform, `craft-imaging` levels and warp grid | built |
-| `craft-host`, the `craft` facade, one egui revision check | built (step 1) |
-| Gallery with Components and Theme workspaces, Variants, app preview | built |
-| Design lint, conformance test, `craft-theme check` | built |
-| PhotoCraft on library components | window frame, title bar, menus (native on macOS), start screen, document tabs, status bar, options bar, tool rail, dock, dialog frame, Levels, Curves and Threshold, histograms, gradient editor, layer and guide dialogs, fill and stroke dialogs, Layers panel body |
-| Still PhotoCraft's own code, restyled by the theme | most panels, most dialogs, canvas overlays, other adjustment editors |
-| macOS | the port builds on macOS; window, title bar and menu bar checks pass |
-| Comparison | screenshots of 59 screens, current PhotoCraft beside the port, refreshed after each port batch |
-
-### What is next
-
-1. Step 2 (dialog framework) and step 3 (shell and canvas core), with PhotoCraft's adoption tasks after each.
-2. Step 4 (files, preferences, text, colour).
-3. Step 6a, then step 7, completing PhotoCraft's port.
-4. VectorCraft's port, then the other apps.
-5. The upstream PR series, starting with the egui patches once PhotoCraft's port has used the lower layers.
-
-### Questions for the team
-
-| Topic | Question |
-| --- | --- |
-| Landing order | Is the bottom-up order above right, or should the token model and `craft-ui` core land together? Should the apps' PRs follow each layer, or wait for the whole series? |
-| Deprecation window | How long do deprecated aliases stay? Options: until every app has moved past them (the plan above), or a fixed number of releases |
-| egui patches | Which of the seven patches go to upstream egui, and which stay in the storytold fork? |
-| Facade name | `craft` is the facade crate's name. If it clashes with an app crate, the alternative is `craft-kit` |
-| Crate granularity | The layout adds twenty crates to upstream's twenty-six. Is there a family that should merge, or a crate that should split? |
-| Review load | Is a series of about 330,000 added lines, mostly generated or additive, reviewable as laid out, or should it split further? |

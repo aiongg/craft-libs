@@ -1,4 +1,4 @@
-//! Tests of the Create Shape dialog (task SH-T7). PhotoCraft's `dialogs/shape_dialog/tests.rs`
+//! Tests of the Create Shape dialog. PhotoCraft's `dialogs/shape_dialog/tests.rs`
 //! cases move here; PhotoCraft keeps its control-channel tests.
 
 use std::sync::Arc;

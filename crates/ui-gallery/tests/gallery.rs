@@ -1,3 +1,5 @@
+//! Integration tests of craft-ui-gallery: gallery.
+
 use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui::interface_scale::InterfaceScale;
 use craft_ui::testing::i18n_audit;
