@@ -133,6 +133,9 @@ pub struct ColorPickerDialog {
     seeded: bool,
     picker: Id,
     gesture_start: Option<PickedColor>,
+    /// What the picker's fields are seeded with next pass, when that is not the opening colour
+    /// ([`set_color`](ColorPickerDialog::set_color)).
+    seed: Option<PickedColor>,
 }
 
 impl ColorPickerDialog {
@@ -145,7 +148,7 @@ impl ColorPickerDialog {
         ColorPickerDialog::with_title(key, title, color)
     }
 
-    /// A picker for the colour `key` names, titled `title` (translated by the app), opening on
+    /// A picker for the colour `key` names, titled `title` (a catalog key, translated every pass), opening on
     /// `color`.
     pub fn new(key: impl Into<String>, title: impl Into<String>, color: Srgba) -> ColorPickerDialog {
         ColorPickerDialog::with_title(key.into(), Title::Given(title.into()), color)
@@ -182,6 +185,7 @@ impl ColorPickerDialog {
             seeded: false,
             picker: Id::NULL,
             gesture_start: None,
+            seed: None,
         }
     }
 
@@ -245,6 +249,22 @@ impl ColorPickerDialog {
         self.current
     }
 
+    /// The colour the dialog opened with: as given, until the first pass; then, with Only Web
+    /// Colors on, snapped to the nearest web colour, which is what the compare swatch's
+    /// "current" half shows and what Reset returns to.
+    pub fn opening(&self) -> PickedColor {
+        self.opening
+    }
+
+    /// Sets the colour as an edit would, for automation and scripts (`ui.dialog.set color`): the
+    /// fields show `picked`'s model values when it has them, and the colour is what OK answers.
+    /// The compare swatch keeps the opening colour.
+    pub fn set_color(&mut self, picked: PickedColor) {
+        self.current = picked;
+        self.seed = Some(picked);
+        self.seeded = false;
+    }
+
     /// The colour Add to Swatches was pressed for, once; `None` otherwise. The app reads it each
     /// pass through `DialogHost::get_mut::<ColorPickerDialog>()` and adds the swatch
     /// ([`SwatchLibrary::add_picked`](super::SwatchLibrary::add_picked)).
@@ -258,6 +278,15 @@ impl StackDialog for ColorPickerDialog {
 
     fn id(&self) -> DialogId {
         self.id
+    }
+
+    /// Answers OK as the OK button would, without drawing: the dialog's start (recalled memory,
+    /// the Only Web Colors snap) has run, the memory is stored, and the colour is the current one.
+    fn confirm(&mut self, ctx: &Context) -> Option<ColorPickerResult> {
+        if !self.started {
+            self.start(ctx);
+        }
+        Some(self.accept(ctx))
     }
 
     /// The host closed the dialog from outside: its dropper ends with it.
@@ -302,7 +331,7 @@ impl StackDialog for ColorPickerDialog {
             Title::Default => labels.title.clone(),
             Title::Foreground => labels.foreground_title.clone(),
             Title::Background => labels.background_title.clone(),
-            Title::Given(title) => title.clone(),
+            Title::Given(title) => craft_ui::dialog::translated(ctx, title),
         };
         let numbers = LocaleNumbers::of_ctx(ctx);
         let alt = ctx.input(|i| i.modifiers.alt);
@@ -317,7 +346,7 @@ impl StackDialog for ColorPickerDialog {
         }
 
         let mut clicked = None;
-        let Self { current, opening, compare, memory, gesture_start, seeded, picker, state, key, .. } = self;
+        let Self { current, opening, compare, memory, gesture_start, seeded, picker, state, key, seed, .. } = self;
         let web_only = memory.web_colors;
         let color = current.color;
         let shown = Dialog::new(("color-picker", key.as_str()), title.as_str())
@@ -327,8 +356,9 @@ impl StackDialog for ColorPickerDialog {
             .show(ctx, state, &mut (), |ui, ()| {
                 let id = ui.make_persistent_id(IdSalt::new(PICKER));
                 if !*seeded {
-                    if let Some(values) = opening.model {
-                        ColorPicker::keep(ui.ctx(), id, opening.color, values);
+                    let from = seed.take().unwrap_or(*opening);
+                    if let Some(values) = from.model {
+                        ColorPicker::keep(ui.ctx(), id, from.color, values);
                     }
                     *seeded = true;
                 }
@@ -408,15 +438,7 @@ impl StackDialog for ColorPickerDialog {
                 self.seeded = false;
                 None
             }
-            Some(Outcome::Ok) => {
-                DropperState::disarm(ctx, owner);
-                if self.remember
-                    && let Some(host) = Host::try_of_ctx(ctx)
-                {
-                    Remembered::<ColorPickerMemory>::new(MEMORY_SCOPE).store(&host, &self.memory);
-                }
-                Some(DialogResult::Ok(ColorPickerResult { key: self.key.clone(), picked: self.current }))
-            }
+            Some(Outcome::Ok) => Some(DialogResult::Ok(self.accept(ctx))),
             Some(Outcome::Cancel | Outcome::Close) => {
                 DropperState::disarm(ctx, owner);
                 Some(DialogResult::Cancel)
@@ -427,6 +449,18 @@ impl StackDialog for ColorPickerDialog {
 }
 
 impl ColorPickerDialog {
+    /// What OK does: ends the dropper, stores the remembered field component and Only Web Colors,
+    /// and answers with the colour.
+    fn accept(&mut self, ctx: &Context) -> ColorPickerResult {
+        DropperState::disarm(ctx, self.id);
+        if self.remember
+            && let Some(host) = Host::try_of_ctx(ctx)
+        {
+            Remembered::<ColorPickerMemory>::new(MEMORY_SCOPE).store(&host, &self.memory);
+        }
+        ColorPickerResult { key: self.key.clone(), picked: self.current }
+    }
+
     /// The first pass: recalls the remembered field component and Only Web Colors, and with Only
     /// Web Colors on snaps the opening colour, which the compare swatch's current half follows
     /// (storytold/photocraft#4995).

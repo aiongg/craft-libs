@@ -296,3 +296,34 @@ fn the_screen_eyedropper_button_asks_for_a_pick() {
     rig.click(Role::Button, "Pick screen color");
     assert!(super::ScreenColorPicker::busy(&rig.ctx), "the press asked for a screen pick for the dialog");
 }
+
+/// A script sets the colour and confirms: the dialog answers OK with it, shows it in the hex
+/// field, and keeps the opening colour for the compare swatch.
+#[test]
+fn set_color_and_confirm_answer_ok_with_the_colour() {
+    let mut rig = Rig::open(ColorPickerDialog::foreground(BLUE));
+    let red = Srgba { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
+    rig.host.get_mut::<ColorPickerDialog>().expect("open").set_color(super::PickedColor { color: red, model: None });
+    rig.frames(3);
+    assert_eq!(rig.node(Role::TextInput, "Hex color").1.value(), Some("FF0000"));
+    assert_eq!(rig.dialog().opening().color, BLUE);
+    assert!(rig.host.confirm::<ColorPickerDialog>(&rig.ctx));
+    let Some(DialogResult::Ok(answer)) = rig.host.take::<ColorPickerDialog>() else { panic!("confirm answers OK") };
+    assert_eq!((answer.key.as_str(), answer.picked.color), ("foreground", red));
+}
+
+/// A given title is a catalog key, read every pass: it follows the language while open.
+#[test]
+fn a_given_title_follows_the_hosts_language_while_open() {
+    let (i18n, problems) = craft_i18n::I18n::new(&[("de", "\tPick a color\tFarbe wählen\n", "")], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let de = i18n.from_code("de").expect("de");
+    let mut rig = Rig::open(ColorPickerDialog::new("tint", "Pick a color", BLUE));
+    assert!(rig.nodes.iter().any(|(_, n)| n.label() == Some("Pick a color")));
+    craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" })
+        .i18n(std::sync::Arc::new(i18n))
+        .lang(de)
+        .install(&rig.ctx);
+    rig.frames(3);
+    assert!(rig.nodes.iter().any(|(_, n)| n.label() == Some("Farbe wählen")));
+}
