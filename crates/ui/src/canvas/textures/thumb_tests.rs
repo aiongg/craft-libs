@@ -147,3 +147,36 @@ fn thumbnails_paint_the_placeholder_alone() {
     });
     assert_eq!(drawn, 1);
 }
+
+struct Counting {
+    inner: FakeThumbSource<u32>,
+    renders: std::cell::RefCell<Vec<Option<Rect>>>,
+}
+
+impl super::ThumbSource<u32> for Counting {
+    fn revision(&self, key: &u32, request: &ThumbRequest) -> super::Revision {
+        self.inner.revision(key, request)
+    }
+    fn render(&self, key: &u32, request: &ThumbRequest) -> super::ThumbRender {
+        self.renders.borrow_mut().push(request.region);
+        self.inner.render(key, request)
+    }
+}
+
+// A key holds one picture: asking for another region of it renders again and the source sees the
+// region; asking for the same one does not.
+#[test]
+fn a_region_is_its_own_picture() {
+    let ctx = Context::default();
+    let thumbs = thumbnails(&ctx);
+    let source = Counting { inner: FakeThumbSource::<u32>::new(), renders: Default::default() };
+    let whole = ThumbRequest::for_cell(32.0, 2.0);
+    let part = whole.region(Rect::from_min_max(pos2(0.25, 0.25), pos2(0.5, 0.5)));
+    let other = whole.region(Rect::from_min_max(pos2(0.5, 0.5), pos2(0.75, 0.75)));
+    for request in [&whole, &whole, &part, &part, &other] {
+        pass(&ctx, |_| {
+            assert!(matches!(thumbs.state(&ctx, &source, &1, request, Priority::VISIBLE), TextureState::Ready(_)));
+        });
+    }
+    assert_eq!(*source.renders.borrow(), [None, part.region, other.region]);
+}

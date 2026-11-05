@@ -56,6 +56,7 @@ use super::snap::{SNAP_PX, SnapGesture, SnapTargets};
 use super::view::CanvasView;
 use super::{Readout, Turn};
 use crate::behavior::{ClaimedKey, KeyClaim};
+use crate::direction::{Direction, HasDirection as _};
 use crate::edit::CancelReason;
 use crate::localized::LocaleNumbers;
 use crate::theme::{Tokens, TokensOf as _, UiTokens};
@@ -230,6 +231,9 @@ pub struct ToolContext<'a> {
     pub snap_tolerance: Option<f64>,
     pub tokens: &'a UiTokens,
     pub numbers: &'a LocaleNumbers,
+    /// The interface's layout direction: a tool mirrors its horizontal keys (a Shift-arrow
+    /// selection extends toward the reading end) in a right-to-left interface.
+    pub direction: Direction,
     /// Caps Lock is on ([`CursorHost::caps_lock`]): the precise cursors of
     /// [`ToolCursor::brush`] and [`ToolCursor::tool`] take it.
     pub caps_lock: bool,
@@ -540,6 +544,7 @@ impl<'a> ToolHost<'a> {
                 snap: self.snap,
                 tokens: &tokens,
                 numbers: &numbers,
+                direction: ctx.direction(),
                 view: *view,
                 view_changed: false,
                 modifiers: Modifiers::NONE,
@@ -612,6 +617,7 @@ impl<'a> ToolHost<'a> {
             snap: None,
             tokens: &tokens,
             numbers: &numbers,
+            direction: ctx.direction(),
             view,
             view_changed: false,
             modifiers: ctx.input(|i| i.modifiers),
@@ -714,6 +720,7 @@ struct Pass<'p> {
     snap: Option<&'p SnapTargets>,
     tokens: &'p UiTokens,
     numbers: &'p LocaleNumbers,
+    direction: Direction,
     view: CanvasView,
     view_changed: bool,
     modifiers: Modifiers,
@@ -741,6 +748,7 @@ impl Pass<'_> {
             snap_tolerance: ToolHost::snap_tolerance(&self.view, modifiers, false),
             tokens: self.tokens,
             numbers: self.numbers,
+            direction: self.direction,
             caps_lock: self.caps_lock,
             parts_focused: self.parts_focused,
             requests: ToolRequests::default(),
