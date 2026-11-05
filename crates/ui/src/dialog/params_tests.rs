@@ -832,3 +832,15 @@ fn the_stacked_layout_puts_the_preview_check_box_above_the_pane_and_the_zoom_row
     assert!(zoom.top() >= check.bottom() + 40.0, "the pane sits between Preview {check:?} and the zoom row {zoom:?}");
     assert!(ok.top() >= zoom.bottom() && ok.left() > check.right(), "OK is at the bottom right");
 }
+
+// An eyedropper opened armed shows pressed, and its first press reports a disarm.
+#[test]
+fn an_armed_eyedropper_row_opens_pressed_and_the_first_press_disarms_it() {
+    let rows = vec![Param::new("from", "From:", ParamKind::Color { default: None }).eyedropper().armed(true)];
+    let mut harness = harness(ParamDialog::new("replace", "Replace Color", rows));
+    harness.run();
+    assert_eq!(harness.get_by_label("Eyedropper").accesskit_node().toggled(), Some(egui::accesskit::Toggled::True));
+    harness.get_by_label("Eyedropper").click();
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").pick_eyedropper(), Some(EyedropperRequest { key: "from".into(), armed: false }));
+}

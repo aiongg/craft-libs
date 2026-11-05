@@ -336,6 +336,7 @@ struct RowOptions {
     range_decimals: Option<u32>,
     randomize: bool,
     eyedropper: bool,
+    eyedropper_armed: bool,
     full_width: bool,
     units: Option<UnitChoices>,
 }
@@ -515,6 +516,16 @@ impl Param {
     /// other kinds are unchanged.
     pub fn eyedropper(mut self) -> Self {
         self.options.get_or_insert_default().eyedropper = true;
+        self
+    }
+
+    /// Opens the [`eyedropper`](Param::eyedropper) toggle of a colour row armed when `armed`
+    /// (Replace Color opens with its dropper armed): the host arms its own dropper to match, and
+    /// the first press disarms it. Until the toggle is pressed or the host calls
+    /// [`ParamDialog::set_eyedropper`], the state is the opening one; rows without an eyedropper
+    /// are unchanged.
+    pub fn armed(mut self, armed: bool) -> Self {
+        self.options.get_or_insert_default().eyedropper_armed = armed;
         self
     }
 
@@ -795,7 +806,7 @@ impl Param {
                     if self.option().eyedropper {
                         let name = DialogLabels::of_ctx(&ctx).eyedropper.clone();
                         let state = eyedropper_state_id(dialog, key);
-                        let mut armed = ui.ctx().data(|d| d.get_temp::<bool>(state)).unwrap_or(false);
+                        let mut armed = ui.ctx().data(|d| d.get_temp::<bool>(state)).unwrap_or(self.option().eyedropper_armed);
                         let button = ui.add(IconButton::new(Icon::Eyedropper, name).selected(armed).id_salt((key, "eyedropper")));
                         if button.clicked() {
                             armed = !armed;
