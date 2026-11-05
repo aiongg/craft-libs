@@ -115,6 +115,7 @@ pub trait GlyphSource: Send + Sync {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct GlyphsPanelSettings {
+    /// The chosen category, one of [`CATEGORIES`].
     pub category: String,
     /// Cell size in points, 24..=64 (PhotoCraft).
     pub zoom: f32,
@@ -246,6 +247,7 @@ impl<'a> GlyphsPanel<'a> {
         self
     }
 
+    /// Use `labels` instead of the English words or the installed translation.
     pub fn labels(mut self, labels: GlyphsLabels) -> Self {
         self.labels = Some(labels);
         self

@@ -45,7 +45,9 @@ craft_ui::words! {
 /// A font a document names: family and style as stored in the document.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DocumentFont {
+    /// The family name as the document stores it.
     pub family: String,
+    /// The style name as the document stores it.
     pub style: String,
     /// The PostScript name, when the document stores one (PDF, PSD).
     pub postscript_name: Option<String>,
@@ -65,7 +67,9 @@ pub enum FontStatus {
 /// A document font with its status.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DocumentFontRow {
+    /// The font the document names.
     pub font: DocumentFont,
+    /// Whether it resolves on this machine.
     pub status: FontStatus,
 }
 
