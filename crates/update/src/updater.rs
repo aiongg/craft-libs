@@ -91,6 +91,9 @@ pub struct Updater {
     check: Option<Receiver<Checked>>,
     install: Option<(Receiver<Result<(), Failure>>, Release)>,
     prompt: Option<StartupPrompt>,
+    /// The newest release a check found or the app offered; [`Updater::request_install`] works
+    /// from it after the prompt closed.
+    known: Option<Release>,
     restart: bool,
     /// An update is installed and waits for the app to exit; nothing starts a second one.
     installed: bool,
@@ -116,6 +119,7 @@ impl Updater {
             check: None,
             install: None,
             prompt: None,
+            known: None,
             restart: false,
             installed: false,
             pins_path: None,
@@ -199,6 +203,7 @@ impl Updater {
 
     /// Opens the startup prompt for a release the app found itself.
     pub fn offer(&mut self, release: Release) {
+        self.known = Some(release.clone());
         if self.install.is_none() && !self.installed && !self.read_choice() {
             self.prompt = Some(self.prompt_for(release));
         }
@@ -280,6 +285,7 @@ impl Updater {
         match answer {
             Ok(Some(release)) => {
                 self.status = Status::Idle;
+                self.known = Some(release.clone());
                 if self.prompt.is_none() && self.install.is_none() && !self.installed {
                     self.prompt = Some(self.prompt_for(release));
                 }
@@ -388,17 +394,30 @@ impl Updater {
         }
     }
 
-    /// Starts installing the offered release, as the prompt's Update and Restart does. With
-    /// `can_start` false (the app holds unsaved work) nothing starts and the prompt's message asks
-    /// the user to save first; with no prompt open nothing happens. Progress and failures show
-    /// through [`is_installing`](Self::is_installing) and [`status_message`](Self::status_message),
-    /// and a finished install ends in [`Action::Close`] from [`show`](Self::show).
-    pub fn request_install(&mut self, ctx: &egui::Context, can_start: bool) {
+    /// Starts installing the newest release the updater knows of, as the prompt's Update and
+    /// Restart does: the one a check found or [`offer`](Self::offer) was given, whether or not
+    /// the prompt is still open (a closed one is made again to hold the progress). Returns false
+    /// when it knows of no release (or the launcher manages the version), and then nothing
+    /// happens. With `can_start` false (the app holds unsaved work) nothing starts and
+    /// [`status_message`](Self::status_message) asks the user to save first. Progress and failures
+    /// show through [`is_installing`](Self::is_installing) and `status_message`, and a finished
+    /// install ends in [`Action::Close`] from [`show`](Self::show).
+    pub fn request_install(&mut self, ctx: &egui::Context, can_start: bool) -> bool {
+        if self.prompt.is_none()
+            && let Some(release) = self.known.clone()
+            && !self.read_choice()
+        {
+            self.prompt = Some(self.prompt_for(release));
+        }
+        if self.prompt.is_none() {
+            return false;
+        }
         if can_start {
             self.start_install(ctx);
         } else if let Some(prompt) = &mut self.prompt {
             prompt.set_note(Note::new("Save or close your open work first; the update restarts the app.", &[]));
         }
+        true
     }
 
     fn start_install(&mut self, ctx: &egui::Context) {
@@ -737,6 +756,10 @@ mod tests {
         assert!(u.install.is_none(), "nothing is scheduled while there is unsaved work");
         assert!(u.prompt.as_ref().is_some_and(|p| !p.is_installing && p.message().is_some()));
         assert!(!u.is_installing());
+        u.prompt = None;
+        assert!(u.request_install(&ctx, false), "a release the updater knows of needs no open prompt");
+        assert!(u.status_message().is_some());
+        assert!(!updater(Ok(None)).request_install(&ctx, true), "no known release reports false");
         assert!(u.status_message().is_some_and(|m| m.contains("Save or close")), "the public status line carries the note");
     }
 

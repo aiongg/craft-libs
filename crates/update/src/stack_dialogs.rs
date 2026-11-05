@@ -202,7 +202,7 @@ pub enum CheckChoice {
     /// Failed state only: run another check.
     CheckAgain,
     /// Available state only: install the release and restart (the default where the app can
-    /// update itself); the app calls `Updater::request_install`.
+    /// update itself); the app calls `Updater::request_install`, which works for any release the updater knows of.
     Update,
     /// Available state only: open the release page in the browser (the default elsewhere).
     Download,
