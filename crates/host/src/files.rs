@@ -58,6 +58,9 @@ pub struct PickRequest {
     /// Starting folder. It wins over the purpose's remembered folder; a request without one
     /// starts in the remembered folder.
     pub directory: Option<PathBuf>,
+    /// Starting folder while the purpose has no remembered folder yet (an export that starts
+    /// beside the document the first time, then where the last export went).
+    pub default_directory: Option<PathBuf>,
     /// Suggested name for [`PickKind::Save`].
     pub file_name: Option<String>,
     /// The extension a Save answer gets when the user typed none (`"png"`), lowercase.
@@ -67,7 +70,16 @@ pub struct PickRequest {
 impl PickRequest {
     /// A request of `kind` for `purpose`, with no title, filters, folder or name.
     pub fn new(kind: PickKind, purpose: impl Into<String>) -> Self {
-        Self { kind, purpose: purpose.into(), title: None, filters: Vec::new(), directory: None, file_name: None, suggested_extension: None }
+        Self {
+            kind,
+            purpose: purpose.into(),
+            title: None,
+            filters: Vec::new(),
+            directory: None,
+            default_directory: None,
+            file_name: None,
+            suggested_extension: None,
+        }
     }
 
     /// A request to choose one existing file.
@@ -105,6 +117,12 @@ impl PickRequest {
     /// Sets the folder to start in, instead of the purpose's remembered folder.
     pub fn directory(mut self, directory: impl Into<PathBuf>) -> Self {
         self.directory = Some(directory.into());
+        self
+    }
+
+    /// Sets the folder to start in while the purpose has no remembered folder.
+    pub fn default_directory(mut self, directory: impl Into<PathBuf>) -> Self {
+        self.default_directory = Some(directory.into());
         self
     }
 

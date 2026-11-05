@@ -325,6 +325,14 @@ impl FilePanels {
         self.mark_busy();
     }
 
+    /// The dialog ids of the Replace questions open on the app's dialog host, for an app that lists
+    /// its open prompts to automation (`ui.inspect`) and answers them by id
+    /// (`DialogHost::confirm_by_id::<StandardPrompt>`).
+    #[cfg(feature = "ui")]
+    pub fn open_questions(&self) -> impl Iterator<Item = craft_ui::dialog::DialogId> + '_ {
+        self.prompts.iter().filter_map(|asked| asked.dialog)
+    }
+
     /// Opens the replace questions the host has not accepted yet, one at a time: a prompt that is
     /// open (ours or the app's) keeps the input.
     #[cfg(feature = "ui")]
@@ -381,7 +389,8 @@ impl FilePanels {
     }
 
     /// Translates a request into the panel builder: kind, title, filters, `request.directory`
-    /// (else the remembered folder) and the suggested name with its extension.
+    /// (else the remembered folder, else `request.default_directory`) and the suggested name with
+    /// its extension.
     // pc: apps/photocraft/src/services.rs:192 dialog_file_name, :203 show_file_dialog
     fn file_dialog(&self, request: &PickRequest, last_folder: Option<&Path>) -> FileDialog {
         let mut dialog = FileDialog::new(match request.kind {
@@ -392,7 +401,7 @@ impl FilePanels {
         });
         dialog.title = request.title.clone();
         dialog.filters = request.filters.iter().map(|f| Filter { name: f.name.clone(), extensions: f.extensions.clone() }).collect();
-        dialog.directory = request.directory.clone().or_else(|| last_folder.map(Path::to_path_buf));
+        dialog.directory = request.directory.clone().or_else(|| last_folder.map(Path::to_path_buf)).or_else(|| request.default_directory.clone());
         if request.kind == PickKind::Save {
             let adds_extension = cfg!(windows) && !request.filters.is_empty();
             dialog.file_name = request.file_name.as_deref().and_then(|name| dialog_file_name(name, adds_extension));
@@ -669,6 +678,8 @@ mod service_tests {
         service.pick(PickRequest::open("document"));
         service.pick(PickRequest::open("swatches").directory("/elsewhere"));
         service.pick(PickRequest::open("document").directory("/elsewhere"));
+        service.pick(PickRequest::open("document").default_directory("/beside"));
+        service.pick(PickRequest::save("export").default_directory("/beside"));
         panels.pump(NONE);
         let directories: Vec<_> = log
             .borrow()
@@ -678,7 +689,12 @@ mod service_tests {
                 Request::Message(_) => None,
             })
             .collect();
-        assert_eq!(directories, vec![None, Some(dir), Some(PathBuf::from("/elsewhere")), Some(PathBuf::from("/elsewhere"))]);
+        let (elsewhere, beside) = (Some(PathBuf::from("/elsewhere")), Some(PathBuf::from("/beside")));
+        assert_eq!(
+            directories,
+            vec![None, Some(dir.clone()), elsewhere.clone(), elsewhere, Some(dir), beside],
+            "a default applies only where nothing is remembered"
+        );
         assert_eq!(service.last_folder("swatches"), None);
     }
 
@@ -799,14 +815,18 @@ mod service_tests {
             (service, panels, dialogs, id, dir.join("Photo.png"))
         }
 
-        // Confirming the prompt, as `ui.dialog.confirm` does, settles the pick on the next pump.
+        // Confirming the prompt by the id the panels list, as `ui.dialog.confirm` does, settles
+        // the pick on the next pump.
         #[test]
         fn confirming_the_replace_prompt_answers_the_settled_path() {
             let (service, mut panels, mut dialogs, id, settled) = asked("prompt-confirm");
-            assert!(dialogs.confirm::<StandardPrompt>(&Context::default()));
+            let open: Vec<_> = panels.open_questions().collect();
+            assert_eq!(open.len(), 1, "the open question is listed");
+            assert!(dialogs.confirm_by_id::<StandardPrompt>(&Context::default(), open[0]));
             panels.pump_with(&mut dialogs, NONE);
             assert_eq!(answered(&service, id), Picked::Paths(vec![settled]));
             assert!(!service.pick_pending());
+            assert_eq!(panels.open_questions().count(), 0);
         }
 
         #[test]
