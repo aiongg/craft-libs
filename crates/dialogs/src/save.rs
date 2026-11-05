@@ -14,7 +14,7 @@
 //!   wrote it): Save asks first ([`SaveStep::AskChangedOnDisk`]); the app opens craft-ui's
 //!   `StandardPrompt::changed_on_disk` and answers with [`SaveFlow::replace`] (Replace),
 //!   [`SaveFlow::save_elsewhere`] (Save As, keeps both) or [`SaveFlow::cancel`]. Only when
-//!   confirming the document's own file (PhotoCraft #6596, PdfCraft #2166).
+//!   confirming the document's own file (storytold/photocraft#6596, storytold/pdfcraft#2166).
 //!
 //! It is egui-free: the questions are steps the app answers, as with craft-quit's `CloseGuard`,
 //! which hands its `GuardStep::Save(doc)` to [`SaveFlow::start`] and hears back through
