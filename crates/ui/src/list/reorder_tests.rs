@@ -642,6 +642,8 @@ fn a_drop_button_is_enabled_while_an_accepted_drag_is_over_it() {
 /// Two lists, `A` (keys 0 to 2) and `B` (keys 10 and 11), where `B` takes drops from `A`.
 struct Pair {
     b_first: bool,
+    /// `B` sits left of `A` in one row, each in a fixed-width column.
+    beside: bool,
     a_events: Vec<ListEvent<usize>>,
     b_events: Vec<ListEvent<usize>>,
     b_rows: Vec<RowInfo<usize>>,
@@ -666,7 +668,13 @@ fn show_pair(ui: &mut Ui, host: &mut Pair) {
         })
         .inner
     };
-    if host.b_first {
+    if host.beside {
+        let rows = host.b_rows.clone();
+        ui.horizontal_top(|ui| {
+            host.b_events.extend(ui.allocate_ui(vec2(140.0, 120.0), |ui| show_b(ui, &rows)).inner);
+            host.a_events.extend(ui.allocate_ui(vec2(140.0, 120.0), show_a).inner);
+        });
+    } else if host.b_first {
         let rows = host.b_rows.clone();
         host.b_events.extend(show_b(ui, &rows));
         host.a_events.extend(show_a(ui));
@@ -678,7 +686,10 @@ fn show_pair(ui: &mut Ui, host: &mut Pair) {
 }
 
 fn pair_harness(b_first: bool, b_rows: Vec<RowInfo<usize>>) -> Harness<'static, Pair> {
-    let host = Pair { b_first, a_events: Vec::new(), b_events: Vec::new(), b_rows };
+    pair_harness_with(Pair { b_first, beside: false, a_events: Vec::new(), b_events: Vec::new(), b_rows })
+}
+
+fn pair_harness_with(host: Pair) -> Harness<'static, Pair> {
     let mut harness = Harness::<Pair>::builder()
         .with_size([320.0, 300.0])
         .with_step_dt(0.05)
@@ -745,4 +756,20 @@ fn a_list_without_rows_takes_a_drop_with_no_target_and_other_lists_take_none() {
     let drops: Vec<_> = harness.state().b_events.iter().filter(|e| matches!(e, ListEvent::Dropped { .. })).collect();
     assert!(matches!(drops[..], [ListEvent::Dropped { target: None, .. }]), "{drops:?}");
     assert!(harness.state().a_events.iter().all(|e| !matches!(e, ListEvent::Dropped { .. })), "the source takes no drop from itself");
+}
+
+// A list's scroll area clips only the scrolling axis to itself; sideways its clip reaches the
+// parent's edge. An empty list left of another must not take a drop released over its neighbour.
+#[test]
+fn a_drop_over_the_list_beside_an_empty_list_is_not_taken_by_the_empty_list() {
+    let mut harness = pair_harness_with(Pair { b_first: true, beside: true, a_events: Vec::new(), b_events: Vec::new(), b_rows: Vec::new() });
+    let grab = harness.get_by_label("A0").rect().center();
+    let over = harness.get_by_label("A2").rect().center();
+    pair_move(&mut harness, grab, Some(true));
+    pair_move(&mut harness, grab + vec2(0.0, 6.0), None);
+    pair_move(&mut harness, over, None);
+    pair_move(&mut harness, over, Some(false));
+    let host = harness.state();
+    assert!(host.b_events.iter().all(|e| !matches!(e, ListEvent::Dropped { .. })), "B takes no drop over A: {:?}", host.b_events);
+    assert!(host.a_events.iter().any(|e| matches!(e, ListEvent::Reorder(EditEvent::Commit { .. }))), "A reorders its own rows: {:?}", host.a_events);
 }

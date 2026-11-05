@@ -56,7 +56,10 @@ pub use conditions::{
     Condition, ConditionBuilder, ConditionFields, ConditionGroup, ConditionItem, ConditionKind, ConditionLabels, ConditionValue, Match,
 };
 pub use error_tag::{ErrorTag, ErrorTagLabels, ErrorTagResponse};
-pub use fields::{FieldArea, FieldListEdit, FieldListLabels, FieldListPane, FieldListPaneOutput, PivotField, ReportLayout};
+pub use fields::{
+    FieldArea, FieldGroup, FieldListEdit, FieldListLabels, FieldListPane, FieldListPaneOutput, FieldSort, PivotField, ReportLayout, ShowAs, Summary,
+    ValueSetting, ValuesRow,
+};
 pub use filter::{FilterButton, FilterButtonEvent, FilterButtonLabels, FilterButtonOutput, filter_button_rect};
 pub use grid::{
     CellAdvance, CellDirection, CellGrid, CellGridResponse, CellRange, CellRef, CellSelection, CellSpace, GridEdit, GridLayout, GridMenuTarget,

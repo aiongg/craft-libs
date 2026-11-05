@@ -558,7 +558,7 @@ fn move_fields(areas: &mut [(FieldArea, Vec<String>)], to: FieldArea, mv: &Move<
 fn fields(ui: &mut Ui, _: &mut NoArgs) {
     let labels = TableStoryLabels::of(ui);
     let demo = shared(ui, "fields", || {
-        let field = |name: &str, numeric| PivotField { name: name.into(), numeric };
+        let field = |name: &str, numeric| PivotField { name: name.into(), numeric, samples: Vec::new() };
         FieldsDemo {
             fields: vec![
                 field(&labels.head_region, false),
@@ -592,7 +592,9 @@ fn fields(ui: &mut Ui, _: &mut NoArgs) {
                     list.push(field);
                 }
             }
-            FieldListEdit::Remove { field } => demo.areas.iter_mut().for_each(|(_, list)| list.retain(|f| *f != field)),
+            FieldListEdit::Remove { field, from } => {
+                demo.areas.iter_mut().filter(|(area, _)| from.is_none_or(|from| from == *area)).for_each(|(_, list)| list.retain(|f| *f != field))
+            }
             FieldListEdit::Move { to, change } => {
                 if matches!(change, EditEvent::Commit { .. } | EditEvent::Set { .. })
                     && let Some(mv) = change.value()
@@ -600,7 +602,7 @@ fn fields(ui: &mut Ui, _: &mut NoArgs) {
                     move_fields(&mut demo.areas, to, mv);
                 }
             }
-            FieldListEdit::Refresh | FieldListEdit::CalculatedField | FieldListEdit::Layout(_) => {}
+            _ => {}
         }
     }
     last_event(ui, demo.last.as_deref());
