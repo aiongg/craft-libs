@@ -30,7 +30,16 @@ pub enum TileZoom {
     Ladder,
     /// A continuous size in points (bins: FilmCraft 48–400), `step` per key press, `default` for
     /// Reset.
-    Range { min: f32, max: f32, step: f32, default: f32 },
+    Range {
+        /// Smallest size in points.
+        min: f32,
+        /// Largest size in points.
+        max: f32,
+        /// Size change per key press, in points.
+        step: f32,
+        /// Size that Reset returns to, in points.
+        default: f32,
+    },
 }
 
 impl TileZoom {

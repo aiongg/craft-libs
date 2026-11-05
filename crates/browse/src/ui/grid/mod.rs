@@ -254,7 +254,12 @@ pub enum TileEvent<K> {
     /// Space (Bridge's preview).
     Preview(K),
     /// A star click or a rating key: `keys` get `rating` (0 clears). A `Set`, one undo step.
-    Rate { keys: Vec<K>, rating: u8 },
+    Rate {
+        /// The rated tiles.
+        keys: Vec<K>,
+        /// The new rating; 0 clears it.
+        rating: u8,
+    },
     /// Delete or Backspace on the selection.
     Remove(Vec<K>),
     /// A drag of the selection began (once); the payload is also egui's drag payload.
@@ -263,9 +268,19 @@ pub enum TileEvent<K> {
     Reorder(EditEvent<Move<K>>),
     /// The pointer is over a picture (with `.hover_scrub(true)`): `fraction` across it from the
     /// reading start, 0..1, every pass while it hovers.
-    Scrub { key: K, fraction: f32 },
+    Scrub {
+        /// The hovered tile.
+        key: K,
+        /// Pointer position across the picture from the reading start, 0.0 to 1.0.
+        fraction: f32,
+    },
     /// A click on a group header (its tiles were selected; Shift or Cmd added them).
-    GroupPicked { group: usize, modifiers: Modifiers },
+    GroupPicked {
+        /// Index of the group in the host's group list.
+        group: usize,
+        /// The modifier keys held during the click.
+        modifiers: Modifiers,
+    },
     /// Cmd/Ctrl + / − / 0, or a pinch.
     Zoom(ZoomStep),
     /// A context menu was asked for, on a tile or the background (`row: None`).
@@ -274,9 +289,19 @@ pub enum TileEvent<K> {
     EmptyActivated,
     /// A rename was committed with `text`, different from the tile's name (with `.can_rename(..)`);
     /// followed by `RenameEnded`.
-    Renamed { key: K, text: String },
+    Renamed {
+        /// The renamed tile.
+        key: K,
+        /// The new name.
+        text: String,
+    },
     /// A rename closed, and how.
-    RenameEnded { key: K, end: RenameEnd },
+    RenameEnded {
+        /// The tile whose rename closed.
+        key: K,
+        /// How the rename closed.
+        end: RenameEnd,
+    },
 }
 
 /// What [`TileGrid::show`] returns.

@@ -24,10 +24,24 @@ use crate::ui::grid::TileStyle;
 pub enum CompareImage<'a> {
     /// A texture from the app's own `TextureCache`, with the image's full size in pixels (for Fit
     /// and 100 %).
-    Texture { texture: CachedTexture, size: [u32; 2] },
+    Texture {
+        /// The cached texture to draw.
+        texture: CachedTexture,
+        /// The image's full size in pixels.
+        size: [u32; 2],
+    },
     /// A picture the tile uploads into its own `TextureCache` (`get_or_put` keyed by `key` and
     /// `revision`; `make` runs once per revision).
-    Picture { key: u64, revision: Revision, size: [u32; 2], make: Box<dyn FnOnce() -> ColorImage + 'a> },
+    Picture {
+        /// The cache key of the picture.
+        key: u64,
+        /// The picture's revision; a new revision uploads again.
+        revision: Revision,
+        /// The image's full size in pixels.
+        size: [u32; 2],
+        /// Builds the image. Runs once per revision.
+        make: Box<dyn FnOnce() -> ColorImage + 'a>,
+    },
     /// Nothing yet: the thumbnail placeholder.
     None,
 }
@@ -39,7 +53,10 @@ pub enum RenderState {
     Ready,
     /// A render is running; `overdue` once it has taken longer than the host's wait, which shows
     /// the "Rendering…" pill (`surface.scrim` with a `Spinner`).
-    Pending { overdue: bool },
+    Pending {
+        /// True once the render has taken longer than the host's wait.
+        overdue: bool,
+    },
     /// The render failed: the "Render failed" pill (`status.bad.solid`) at once, the message as
     /// its tooltip.
     Failed(String),
