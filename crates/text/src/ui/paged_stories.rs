@@ -4,28 +4,27 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `composites/text-ruler/word` | Word's ruler over a 6.5 in column, a hanging indent, one stop of each kind, the selector |
-//! | `composites/text-ruler/tabs-panel` | InDesign's Tabs panel strip fitted to its width, a selected decimal stop |
-//! | `patterns/tabs/dialog` | the Tabs dialog with three stops, one with a dot leader |
-//! | `patterns/paragraph/dialog` | the Paragraph dialog with a hanging indent and Exactly 18 pt |
-//! | `patterns/notes/editor` | three notes paragraphs, a bulleted level-1 list and a bold run |
-//! | `patterns/columns/dialog` | Word's More Columns over three unequal columns |
-//! | `patterns/hyperlink/dialog` | Edit Hyperlink over a web address with a ScreenTip |
-//! | `patterns/find/bar` | the bar with a query and 3 of 12, options on (with `find`) |
-//! | `patterns/find/dialog` | Word's Find and Replace on the Replace tab (with `find`) |
-//! | `composites/style-chip/picker` | a chip over a colour style, four styles in two folders |
+//! | `composites/text-ruler/word` | Word's ruler over a 6.5 in column, a hanging indent, four stops of each kind, the selector |
+//! | `composites/text-ruler/tabs-panel` | InDesign's Tabs panel strip fitted to its width, four stops of each kind, a selected decimal stop |
+//! | `patterns/tab-stops-dialog/dialog` | the Tabs dialog with three stops, one with a dot leader |
+//! | `patterns/paragraph-dialog/dialog` | the Paragraph dialog with a hanging indent and Exactly 18 pt |
+//! | `patterns/notes-editor/editor` | three notes paragraphs, a bulleted level-1 list and a bold run |
+//! | `patterns/text-columns-dialog/dialog` | Word's More Columns over three unequal columns, Apply to the whole document |
+//! | `patterns/hyperlink-dialog/dialog` | Edit Hyperlink over a web address with a ScreenTip |
+//! | `patterns/find-bar/bar` | the bar with a query and 3 of 12, options on (with `find`) |
+//! | `patterns/find-replace-dialog/dialog` | Word's Find and Replace on the Replace tab (with `find`) |
+//! | `composites/style-chip/picker` | a chip over a colour style, four styles in two folders, the picker open |
 
 use craft_ui::canvas::Rulers;
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::{Labels as _, fmt};
-use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryLabels, drive, lock, shared};
+use craft_ui::localized::Labels as _;
+use craft_ui::story::{Level, NoArgs, Story, StoryArgs, drive, last_event, lock, shared};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_ui::typed_story;
 use egui::{Rect, Ui, vec2};
 
 use super::character::{LineSpacing, ParagraphAlign, ParagraphDialog, ParagraphFormat, SpecialIndent};
-use super::columns::{TextColumns, TextColumnsDialog};
+use super::columns::{ColumnsApply, TextColumns, TextColumnsDialog};
 use super::hyperlink::{CurrentLink, Hyperlink, HyperlinkDialog, LinkTarget};
 use super::notes::{NotesEditor, NotesParagraph, NotesRun, NotesText};
 use super::ruler::{RulerValues, TabAlign, TabLeader, TabStop, TextRuler};
@@ -33,26 +32,26 @@ use super::style_panel::{NamedStyleRow, StyleChip, StylePickerView, StylePreview
 use super::tabs_dialog::TabStopsDialog;
 use crate::lists::ListMarker;
 
-/// `composites/text-ruler/word`, `composites/text-ruler/tabs-panel`, `patterns/tabs/dialog`,
-/// `patterns/paragraph/dialog`, `patterns/notes/editor`, `patterns/columns/dialog`,
-/// `patterns/hyperlink/dialog`, `patterns/find/bar`, `patterns/find/dialog` (with `find`),
+/// `composites/text-ruler/word`, `composites/text-ruler/tabs-panel`, `patterns/tab-stops-dialog/dialog`,
+/// `patterns/paragraph-dialog/dialog`, `patterns/notes-editor/editor`, `patterns/text-columns-dialog/dialog`,
+/// `patterns/hyperlink-dialog/dialog`, `patterns/find-bar/bar`, `patterns/find-replace-dialog/dialog` (with `find`),
 /// `composites/style-chip/picker`.
 pub fn stories() -> Vec<Story> {
     #[cfg_attr(not(feature = "find"), expect(unused_mut, reason = "only the find stories are added after the list"))]
     let mut all = vec![
-        typed_story!("composites/text-ruler/word", Level::Composites, "Text ruler", "Word", NoArgs {}, ruler_word),
-        typed_story!("composites/text-ruler/tabs-panel", Level::Composites, "Text ruler", "Tabs panel", NoArgs {}, ruler_panel),
-        typed_story!("patterns/tabs/dialog", Level::Patterns, "Tabs", "Dialog", DialogArgs { open: true }, tabs_dialog),
-        typed_story!("patterns/paragraph/dialog", Level::Patterns, "Paragraph", "Dialog", DialogArgs { open: true }, paragraph_dialog),
-        typed_story!("patterns/notes/editor", Level::Patterns, "Notes", "Editor", NoArgs {}, notes),
-        typed_story!("patterns/columns/dialog", Level::Patterns, "Columns", "Dialog", DialogArgs { open: true }, columns),
-        typed_story!("patterns/hyperlink/dialog", Level::Patterns, "Hyperlink", "Dialog", DialogArgs { open: true }, hyperlink),
-        typed_story!("composites/style-chip/picker", Level::Composites, "Style chip", "Picker", NoArgs {}, style_chip),
+        typed_story!("composites/text-ruler/word", Level::Composites, "TextRuler", "Word", NoArgs {}, ruler_word),
+        typed_story!("composites/text-ruler/tabs-panel", Level::Composites, "TextRuler", "Tabs panel", NoArgs {}, ruler_panel),
+        typed_story!("patterns/tab-stops-dialog/dialog", Level::Patterns, "TabStopsDialog", "Dialog", DialogArgs { open: true }, tabs_dialog),
+        typed_story!("patterns/paragraph-dialog/dialog", Level::Patterns, "ParagraphDialog", "Dialog", DialogArgs { open: true }, paragraph_dialog),
+        typed_story!("patterns/notes-editor/editor", Level::Patterns, "NotesEditor", "Editor", NoArgs {}, notes),
+        typed_story!("patterns/text-columns-dialog/dialog", Level::Patterns, "TextColumnsDialog", "Dialog", DialogArgs { open: true }, columns),
+        typed_story!("patterns/hyperlink-dialog/dialog", Level::Patterns, "HyperlinkDialog", "Dialog", DialogArgs { open: true }, hyperlink),
+        typed_story!("composites/style-chip/picker", Level::Composites, "StyleChip", "Picker", NoArgs {}, style_chip),
     ];
     #[cfg(feature = "find")]
     all.extend([
-        typed_story!("patterns/find/bar", Level::Patterns, "Find", "Bar", NoArgs {}, find_bar),
-        typed_story!("patterns/find/dialog", Level::Patterns, "Find", "Dialog", DialogArgs { open: true }, find_dialog),
+        typed_story!("patterns/find-bar/bar", Level::Patterns, "FindBar", "Bar", NoArgs {}, find_bar),
+        typed_story!("patterns/find-replace-dialog/dialog", Level::Patterns, "FindReplaceDialog", "Dialog", DialogArgs { open: true }, find_dialog),
     ]);
     all
 }
@@ -89,13 +88,6 @@ struct DialogArgs {
     open: bool,
 }
 
-fn last_event(ui: &mut Ui, event: Option<&str>) {
-    if let Some(event) = event {
-        let line = fmt(&StoryLabels::of(ui).last_event, &[("event", event)]);
-        ui.add(Text::new(line).content(Content::Muted));
-    }
-}
-
 // --- Rulers ---
 
 /// Word's column: 6.5 inches in points.
@@ -112,15 +104,22 @@ fn stop(position: f32, align: TabAlign) -> TabStop {
     TabStop { position, align, leader: TabLeader::None }
 }
 
-/// One stop of each kind, an inch apart from the first inch.
+/// The distance between neighbouring sample stops, in points.
+const STOP_PITCH: f32 = 22.0;
+/// The kinds of stop, in the order the sample stops repeat them.
+const KINDS: [TabAlign; 5] = [TabAlign::Left, TabAlign::Center, TabAlign::Right, TabAlign::Decimal, TabAlign::Bar];
+/// Stops of each kind.
+const STOPS_PER_KIND: usize = 4;
+
+/// Four stops of each kind, one pitch apart, the kinds taking turns.
 fn sample_stops() -> Vec<TabStop> {
-    vec![
-        stop(72.0, TabAlign::Left),
-        stop(144.0, TabAlign::Center),
-        stop(216.0, TabAlign::Right),
-        stop(288.0, TabAlign::Decimal),
-        stop(360.0, TabAlign::Bar),
-    ]
+    (0..KINDS.len() * STOPS_PER_KIND).map(|i| stop((i + 1) as f32 * STOP_PITCH, KINDS[i % KINDS.len()])).collect()
+}
+
+/// What the ruler story reports besides the edit.
+#[derive(Debug)]
+enum RulerEvent {
+    OpenTabsDialog,
 }
 
 fn apply_ruler(demo: &mut RulerDemo, out: super::ruler::TextRulerResponse) {
@@ -134,7 +133,7 @@ fn apply_ruler(demo: &mut RulerDemo, out: super::ruler::TextRulerResponse) {
         demo.selected = out.selected;
     }
     if out.open_tabs_dialog {
-        demo.last = Some("OpenTabsDialog".to_owned());
+        demo.last = Some(format!("{:?}", RulerEvent::OpenTabsDialog));
     }
 }
 
@@ -192,7 +191,7 @@ fn tabs_dialog(ui: &mut Ui, args: &mut DialogArgs) {
             TabStopsDialog::new(stops, DEFAULT_INTERVAL)
         },
         |_| {},
-        |result| format!("{} stops, {} cleared", result.stops.len(), result.cleared.len()),
+        |result| format!("{result:?}"),
     );
 }
 
@@ -216,7 +215,7 @@ fn paragraph_dialog(ui: &mut Ui, args: &mut DialogArgs) {
             })
         },
         |_| {},
-        |answer| format!("{:?}", answer.format.line_spacing),
+        |answer| format!("{answer:?}"),
     );
 }
 
@@ -236,10 +235,12 @@ fn columns(ui: &mut Ui, args: &mut DialogArgs) {
                 line_between: Some(false),
                 ..TextColumns::default()
             };
-            TextColumnsDialog::new(columns).word(COLUMN_WIDTH)
+            TextColumnsDialog::new(columns)
+                .word(COLUMN_WIDTH)
+                .apply_to(&[ColumnsApply::Document, ColumnsApply::Forward, ColumnsApply::Selection], ColumnsApply::Document)
         },
         |_| {},
-        |columns| format!("{:?}", columns.map(|c| c.count)),
+        |columns| format!("{columns:?}"),
     );
 }
 
@@ -266,6 +267,13 @@ fn hyperlink(ui: &mut Ui, args: &mut DialogArgs) {
 }
 
 // --- Notes ---
+
+/// What the notes story reports.
+#[derive(Debug)]
+#[expect(dead_code, reason = "the variants are read through Debug, for the event line")]
+enum NotesEvent {
+    Changed { characters: usize },
+}
 
 struct NotesDemo {
     notes: NotesText,
@@ -308,7 +316,7 @@ fn notes(ui: &mut Ui, _: &mut NoArgs) {
     let demo = &mut *demo;
     let out = NotesEditor::new("notes", &demo.notes).show(ui);
     if let Some(changed) = out.changed {
-        demo.last = Some(format!("{} characters", changed.plain().chars().count()));
+        demo.last = Some(format!("{:?}", NotesEvent::Changed { characters: changed.plain().chars().count() }));
         demo.notes = changed;
     }
     last_event(ui, demo.last.as_deref());
@@ -328,6 +336,15 @@ mod find_demos {
     /// A match's length and the distance between matches on a page, in characters.
     const MATCH_LENGTH: usize = 4;
     const MATCH_PITCH: usize = 10;
+
+    /// What the find bar story reports.
+    #[derive(Debug)]
+    #[expect(dead_code, reason = "the variants are read through Debug, for the event line")]
+    enum FindEvent {
+        Search(String),
+        Step(Option<usize>),
+        Closed,
+    }
 
     pub(super) struct FindDemo {
         query: String,
@@ -366,13 +383,13 @@ mod find_demos {
         let demo = &mut *demo;
         let out = FindBar::new("bar", &mut demo.query, &mut demo.options, &mut demo.matches).state(&mut demo.state).show(ui);
         if out.search {
-            demo.last = Some(format!("Search({:?})", demo.query));
+            demo.last = Some(format!("{:?}", FindEvent::Search(demo.query.clone())));
         }
         if out.stepped {
-            demo.last = Some(format!("Step({:?})", demo.matches.current()));
+            demo.last = Some(format!("{:?}", FindEvent::Step(demo.matches.current())));
         }
         if out.closed {
-            demo.last = Some("Closed".to_owned());
+            demo.last = Some(format!("{:?}", FindEvent::Closed));
         }
         super::last_event(ui, demo.last.as_deref());
     }
@@ -404,9 +421,21 @@ use find_demos::{find_bar, find_dialog};
 
 // --- Style chip ---
 
+/// What the style chip story reports.
+#[derive(Debug)]
+#[expect(dead_code, reason = "the variants are read through Debug, for the event line")]
+enum ChipEvent {
+    Picked(u64),
+    Detach,
+    Create,
+    Edit(u64),
+}
+
 struct ChipDemo {
     applied: Option<u64>,
     view: StylePickerView,
+    /// The picker was opened on the first pass.
+    opened: bool,
     last: Option<String>,
 }
 
@@ -414,7 +443,7 @@ struct ChipDemo {
 fn style_chip(ui: &mut Ui, _: &mut NoArgs) {
     let labels = PagedStoryLabels::of(ui);
     let tokens = Tokens::of(ui);
-    let demo = shared(ui, "style-chip", || ChipDemo { applied: Some(1), view: StylePickerView::List, last: None });
+    let demo = shared(ui, "style-chip", || ChipDemo { applied: Some(1), view: StylePickerView::List, opened: false, last: None });
     let mut demo = lock(&demo);
     let demo = &mut *demo;
     let swatch = |id: u64, name: &String, color: egui::Color32| {
@@ -427,20 +456,22 @@ fn style_chip(ui: &mut Ui, _: &mut NoArgs) {
         swatch(3, &labels.style_red_500, tokens.color.status.bad.solid.to_egui()),
         swatch(4, &labels.style_neutral, tokens.color.text.muted.to_egui()),
     ];
-    let out = StyleChip::new("chip", &styles, demo.applied.map(Some), &mut demo.view).show(ui);
+    let first = !demo.opened;
+    demo.opened = true;
+    let out = StyleChip::new("chip", &styles, demo.applied.map(Some), &mut demo.view).opened(first).show(ui);
     if let Some(id) = out.picked {
         demo.applied = Some(id);
-        demo.last = Some(format!("Picked({id})"));
+        demo.last = Some(format!("{:?}", ChipEvent::Picked(id)));
     }
     if out.detach {
         demo.applied = None;
-        demo.last = Some("Detach".to_owned());
+        demo.last = Some(format!("{:?}", ChipEvent::Detach));
     }
     if out.create {
-        demo.last = Some("Create".to_owned());
+        demo.last = Some(format!("{:?}", ChipEvent::Create));
     }
     if let Some(id) = out.edit {
-        demo.last = Some(format!("Edit({id})"));
+        demo.last = Some(format!("{:?}", ChipEvent::Edit(id)));
     }
     last_event(ui, demo.last.as_deref());
 }
