@@ -1,6 +1,5 @@
 //! Markers on a ruler or a clip bar, and the Marker dialog (N1.12).
 
-use craft_theme::TypeRole;
 use craft_ui::behavior::{ClaimedKey, KeyClaim};
 use craft_ui::composites::FormGrid;
 use craft_ui::controls::{Swatch, TextField, TooltipExt as _};
@@ -238,7 +237,7 @@ impl<'a> MarkerStrip<'a> {
         let color = &tokens.color;
         let hairline = scale::Stroke::Hairline.width(ui.pixels_per_point());
         let height = rect.height().min(style.marker_height);
-        let text = role_format(&tokens, TypeRole::Caption, color.text.normal.to_egui());
+        let text = role_format(&tokens, style.marker_text, color.text.normal.to_egui());
         let radius = Corner::Control.radius(&tokens);
         let placed: Vec<(&Marker, Tick, Tick)> = order
             .iter()

@@ -1,6 +1,5 @@
 //! Cursor chat: your bubble at the pointer, and everyone's bubbles (N5.09).
 
-use craft_theme::TypeRole;
 use craft_ui::controls::TextField;
 use craft_ui::edit::EditEvent;
 use craft_ui::focus::key_owner::{KeyOwner, OwnerGate, owner};
@@ -29,11 +28,11 @@ craft_ui::words! {
 pub fn paint_chat_bubble(painter: &Painter, tip: Pos2, name: Option<&str>, text: &str, fill: Color32, alpha: f32, style: &ReviewStyle) {
     let tokens = current(painter.ctx());
     let on = text_on(&tokens, fill).gamma_multiply(alpha);
-    let mut body = LayoutJob::single_section(text.to_owned(), role_format(&tokens, TypeRole::Body, on));
+    let mut body = LayoutJob::single_section(text.to_owned(), role_format(&tokens, style.body_text, on));
     body.wrap.max_width = style.chat_width;
     let body = painter.layout_job(body);
     let head = name
-        .map(|name| painter.layout_job(LayoutJob::single_section(name.to_owned(), role_format(&tokens, TypeRole::Caption, on.gamma_multiply(0.8)))));
+        .map(|name| painter.layout_job(LayoutJob::single_section(name.to_owned(), role_format(&tokens, style.caption_text, on.gamma_multiply(0.8)))));
     let pad = vec2(tokens.space.pad.control, tokens.space.gap.inline);
     let gap = tokens.space.gap.inline / 2.0;
     let head_height = head.as_ref().map_or(0.0, |galley| galley.size().y + gap);

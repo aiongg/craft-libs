@@ -1,5 +1,6 @@
 //! [`TimelineStyle`]: the timeline widgets' sizes, from the `timeline` tokens.
 
+use craft_theme::TypeRole;
 use craft_ui::theme::UiTokens;
 
 /// The sizes every timeline widget reads, one `timeline.*` token each (craft-theme's `timeline`
@@ -103,6 +104,58 @@ pub struct TimelineStyle {
     pub overview_box_outset: f32,
     /// The least width the overview takes the time area to have (`universe.rs:80`): `timeline.overview_view_min`.
     pub overview_view_min: f32,
+    /// The ruler's marker band at its top: `timeline.ruler_marker_band`.
+    pub ruler_marker_band: f32,
+    /// The work-area bar's height under the marker band: `timeline.ruler_work_height`.
+    pub ruler_work_height: f32,
+    /// How far below the ruler's top the time labels' centre line is: `timeline.ruler_label_y`.
+    pub ruler_label_y: f32,
+    /// How far above the ruler's bottom the ticks start: `timeline.ruler_tick_inset`.
+    pub ruler_tick_inset: f32,
+    /// A labelled tick's length: `timeline.ruler_major_tick`.
+    pub ruler_major_tick: f32,
+    /// An unlabelled tick's length: `timeline.ruler_minor_tick`.
+    pub ruler_minor_tick: f32,
+    /// The render and cache bar's height at the ruler's bottom: `timeline.ruler_render_bar`.
+    pub ruler_render_bar: f32,
+    /// Half the playhead head's width: `timeline.ruler_head_half_width`.
+    pub ruler_head_half_width: f32,
+    /// The playhead head's height: `timeline.ruler_head_height`.
+    pub ruler_head_height: f32,
+    /// A work-area end cap's width: `timeline.ruler_cap_width`.
+    pub ruler_cap_width: f32,
+    /// The radius of the knobs at the scroll thumb's ends: `timeline.scroll_knob_radius`.
+    pub scroll_knob_radius: f32,
+    /// How near a scroll thumb's end a press must be to resize the view: `timeline.scroll_end_zone`.
+    pub scroll_end_zone: f32,
+    /// The least the track headers' width can be dragged to: `timeline.header_width_min`.
+    pub header_width_min: f32,
+    /// The most the track headers' width can be dragged to: `timeline.header_width_max`.
+    pub header_width_max: f32,
+    /// The type role of The ruler's time labels: the theme's caption role.
+    pub ruler_text: TypeRole,
+    /// The type role of A marker's name: the theme's caption role.
+    pub marker_text: TypeRole,
+    /// The type role of The graph's value labels: the theme's caption role.
+    pub graph_text: TypeRole,
+    /// The type role of A track header's name: the theme's caption role.
+    pub header_text: TypeRole,
+    /// The type role of The empty panel's hint: the theme's body role.
+    pub empty_text: TypeRole,
+    /// The type role of A clip's name: the theme's caption role.
+    pub clip_text: TypeRole,
+    /// The type role of A render queue row's caption: the theme's caption role.
+    pub render_queue_text: TypeRole,
+    /// The type role of The preview's caption: the theme's caption role.
+    pub preview_text: TypeRole,
+    /// The type role of A timecode field's and a timecode panel row's value: the theme's mono role.
+    pub timecode_text: TypeRole,
+    /// The type role of The large timecode and the timecode panel's first row: the theme's heading role.
+    pub timecode_large_text: TypeRole,
+    /// The type role of A timecode panel row's caption: the theme's caption role.
+    pub timecode_caption: TypeRole,
+    /// The type role of The transport's time readout: the theme's mono role.
+    pub transport_text: TypeRole,
 }
 
 impl TimelineStyle {
@@ -156,6 +209,32 @@ impl TimelineStyle {
             overview_inset_y: t.overview_inset_y,
             overview_box_outset: t.overview_box_outset,
             overview_view_min: t.overview_view_min,
+            ruler_marker_band: t.ruler_marker_band,
+            ruler_work_height: t.ruler_work_height,
+            ruler_label_y: t.ruler_label_y,
+            ruler_tick_inset: t.ruler_tick_inset,
+            ruler_major_tick: t.ruler_major_tick,
+            ruler_minor_tick: t.ruler_minor_tick,
+            ruler_render_bar: t.ruler_render_bar,
+            ruler_head_half_width: t.ruler_head_half_width,
+            ruler_head_height: t.ruler_head_height,
+            ruler_cap_width: t.ruler_cap_width,
+            scroll_knob_radius: t.scroll_knob_radius,
+            scroll_end_zone: t.scroll_end_zone,
+            header_width_min: t.header_width_min,
+            header_width_max: t.header_width_max,
+            ruler_text: TypeRole::Caption,
+            marker_text: TypeRole::Caption,
+            graph_text: TypeRole::Caption,
+            header_text: TypeRole::Caption,
+            empty_text: TypeRole::Body,
+            clip_text: TypeRole::Caption,
+            render_queue_text: TypeRole::Caption,
+            preview_text: TypeRole::Caption,
+            timecode_text: TypeRole::Mono,
+            timecode_large_text: TypeRole::Heading,
+            timecode_caption: TypeRole::Caption,
+            transport_text: TypeRole::Mono,
         }
     }
 }

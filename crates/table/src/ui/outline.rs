@@ -4,9 +4,7 @@ use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
 use craft_ui::theme::scale::Stroke as Line;
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
-use egui::{
-    Align2, AsIdSalt, CornerRadius, FontId, IdSalt, Pos2, Rect, Response, Sense, Stroke, StrokeKind, TextStyle, Ui, Vec2, WidgetInfo, pos2, vec2,
-};
+use egui::{Align2, AsIdSalt, CornerRadius, FontId, IdSalt, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, WidgetInfo, pos2, vec2};
 
 use super::grid::{CellRange, CellRef, HEADER_MIN_ZOOM, SheetGeometry, column_letters};
 use super::style::SheetStyle;
@@ -143,7 +141,7 @@ impl<'a> OutlineBand<'a> {
             }
         }
 
-        let base = TextStyle::Small.resolve(ui.style());
+        let base = tokens.font(style.outline_text);
         let font = FontId::new(base.size * zoom.max(HEADER_MIN_ZOOM), base.family);
         // Tab order: the level buttons first, then the group buttons.
         let mut buttons: Vec<&Button> = layout.buttons.iter().collect();

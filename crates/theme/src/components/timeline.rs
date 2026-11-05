@@ -100,6 +100,34 @@ pub struct TimelineTokens {
     pub overview_box_outset: f32,
     /// The least width the overview takes the time area to have (`universe.rs:80`): [`values::TIMELINE_OVERVIEW_VIEW_MIN`].
     pub overview_view_min: f32,
+    /// The ruler's marker band at its top: [`values::TIMELINE_RULER_MARKER_BAND`].
+    pub ruler_marker_band: f32,
+    /// The work-area bar's height under the marker band: [`values::TIMELINE_RULER_WORK_HEIGHT`].
+    pub ruler_work_height: f32,
+    /// How far below the ruler's top the time labels' centre line is: [`values::TIMELINE_RULER_LABEL_Y`].
+    pub ruler_label_y: f32,
+    /// How far above the ruler's bottom the ticks start: [`values::TIMELINE_RULER_TICK_INSET`].
+    pub ruler_tick_inset: f32,
+    /// A labelled tick's length: [`values::TIMELINE_RULER_MAJOR_TICK`].
+    pub ruler_major_tick: f32,
+    /// An unlabelled tick's length: [`values::TIMELINE_RULER_MINOR_TICK`].
+    pub ruler_minor_tick: f32,
+    /// The render and cache bar's height at the ruler's bottom: [`values::TIMELINE_RULER_RENDER_BAR`].
+    pub ruler_render_bar: f32,
+    /// Half the playhead head's width: [`values::TIMELINE_RULER_HEAD_HALF_WIDTH`].
+    pub ruler_head_half_width: f32,
+    /// The playhead head's height: [`values::TIMELINE_RULER_HEAD_HEIGHT`].
+    pub ruler_head_height: f32,
+    /// A work-area end cap's width: [`values::TIMELINE_RULER_CAP_WIDTH`].
+    pub ruler_cap_width: f32,
+    /// The radius of the knobs at the scroll thumb's ends: [`values::TIMELINE_SCROLL_KNOB_RADIUS`].
+    pub scroll_knob_radius: f32,
+    /// How near a scroll thumb's end a press must be to resize the view: [`values::TIMELINE_SCROLL_END_ZONE`].
+    pub scroll_end_zone: f32,
+    /// The least the track headers' width can be dragged to: [`values::TIMELINE_HEADER_WIDTH_MIN`].
+    pub header_width_min: f32,
+    /// The most the track headers' width can be dragged to: [`values::TIMELINE_HEADER_WIDTH_MAX`].
+    pub header_width_max: f32,
 }
 
 /// Timeline tokens have no overridable field.
@@ -156,6 +184,20 @@ impl Family for TimelineTokens {
         "overview_inset_y" 0.0..=64.0 => overview_inset_y;
         "overview_box_outset" 0.0..=32.0 => overview_box_outset;
         "overview_view_min" 1.0..=2048.0 => overview_view_min;
+        "ruler_marker_band" 1.0..=128.0 => ruler_marker_band;
+        "ruler_work_height" 1.0..=64.0 => ruler_work_height;
+        "ruler_label_y" 4.0..=256.0 => ruler_label_y;
+        "ruler_tick_inset" 0.0..=32.0 => ruler_tick_inset;
+        "ruler_major_tick" 1.0..=64.0 => ruler_major_tick;
+        "ruler_minor_tick" 1.0..=64.0 => ruler_minor_tick;
+        "ruler_render_bar" 0.5..=16.0 => ruler_render_bar;
+        "ruler_head_half_width" 1.0..=32.0 => ruler_head_half_width;
+        "ruler_head_height" 2.0..=64.0 => ruler_head_height;
+        "ruler_cap_width" 1.0..=16.0 => ruler_cap_width;
+        "scroll_knob_radius" 1.0..=32.0 => scroll_knob_radius;
+        "scroll_end_zone" 1.0..=64.0 => scroll_end_zone;
+        "header_width_min" 32.0..=640.0 => header_width_min;
+        "header_width_max" 64.0..=1024.0 => header_width_max;
     };
 
     fn defaults(_: &Semantic<'_>) -> TimelineTokens {
@@ -206,6 +248,20 @@ impl Family for TimelineTokens {
             overview_inset_y: values::TIMELINE_OVERVIEW_INSET_Y,
             overview_box_outset: values::TIMELINE_OVERVIEW_BOX_OUTSET,
             overview_view_min: values::TIMELINE_OVERVIEW_VIEW_MIN,
+            ruler_marker_band: values::TIMELINE_RULER_MARKER_BAND,
+            ruler_work_height: values::TIMELINE_RULER_WORK_HEIGHT,
+            ruler_label_y: values::TIMELINE_RULER_LABEL_Y,
+            ruler_tick_inset: values::TIMELINE_RULER_TICK_INSET,
+            ruler_major_tick: values::TIMELINE_RULER_MAJOR_TICK,
+            ruler_minor_tick: values::TIMELINE_RULER_MINOR_TICK,
+            ruler_render_bar: values::TIMELINE_RULER_RENDER_BAR,
+            ruler_head_half_width: values::TIMELINE_RULER_HEAD_HALF_WIDTH,
+            ruler_head_height: values::TIMELINE_RULER_HEAD_HEIGHT,
+            ruler_cap_width: values::TIMELINE_RULER_CAP_WIDTH,
+            scroll_knob_radius: values::TIMELINE_SCROLL_KNOB_RADIUS,
+            scroll_end_zone: values::TIMELINE_SCROLL_END_ZONE,
+            header_width_min: values::TIMELINE_HEADER_WIDTH_MIN,
+            header_width_max: values::TIMELINE_HEADER_WIDTH_MAX,
         }
     }
 

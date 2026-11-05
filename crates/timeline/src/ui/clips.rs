@@ -1,6 +1,5 @@
 //! The clips of one track row, with Premiere's trims and moves (N1.05).
 
-use craft_theme::TypeRole;
 use craft_ui::behavior::{ListSelection, RowInfo, Selection, SelectionChange};
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
@@ -616,8 +615,8 @@ fn paint_clip(
         content(&clipped, body, clip);
     }
     let text_color = if clip.enabled { tokens.color.text.on_strong } else { tokens.color.text.disabled };
-    let caption = role_format(tokens, TypeRole::Caption, text_color.to_egui());
-    let line = tokens.typography.get(TypeRole::Caption).line_height;
+    let caption = role_format(tokens, TimelineStyle::of(tokens).clip_text, text_color.to_egui());
+    let line = tokens.typography.get(TimelineStyle::of(tokens).clip_text).line_height;
     let pad = ui.spacing().item_spacing.x;
     let name_at = pos2(body.left().max(clipped.clip_rect().left()) + pad, body.top() + pad + line / 2.0);
     clipped.text(name_at, Align2::LEFT_CENTER, clip.name, caption.font_id.clone(), caption.color);

@@ -5,8 +5,8 @@ use craft_ui::theme::scale::Stroke as Line;
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
 use egui::{
-    Align2, Color32, CornerRadius, EventFilter, FontId, IdSalt, Key, Modifiers, Rect, Response, Sense, StrokeKind, TextStyle, Ui, UiBuilder,
-    WidgetInfo, pos2, vec2,
+    Align2, Color32, CornerRadius, EventFilter, FontId, IdSalt, Key, Modifiers, Rect, Response, Sense, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2,
+    vec2,
 };
 
 use craft_ui::behavior::{GridKey, GridNav};
@@ -178,7 +178,7 @@ impl<'a> Slicer<'a> {
         painter.rect_filled(layout.header, header_radius, colors.accent.soft.to_egui());
         let strong = tokens.font(style.slicer_caption);
         let caption_font = FontId::new(strong.size * zoom, strong.family);
-        let base = TextStyle::Body.resolve(ui.style());
+        let base = tokens.font(style.slicer_text);
         let font = FontId::new(base.size * zoom, base.family);
         let padding = style.slicer_padding * zoom;
         let caption_at = layout.header.left_center() + vec2(padding, 0.0);

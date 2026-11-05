@@ -1,6 +1,6 @@
 //! The revisions panel: a compared copy's changes to accept or reject (N5.10).
 
-use craft_theme::{ButtonVariant, TypeRole};
+use craft_theme::ButtonVariant;
 use craft_ui::controls::{Button, Link};
 use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, corner_radius};
@@ -71,12 +71,12 @@ impl<'a> RevisionsPanel<'a> {
         let response = ui
             .vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = tokens.space.gap.stack;
-                text(ui, &tokens, TypeRole::Body, muted, fmt(&labels.compared_with, &[("name", compared_with)]));
+                text(ui, &tokens, style.body_text, muted, fmt(&labels.compared_with, &[("name", compared_with)]));
                 if by_position {
-                    text(ui, &tokens, TypeRole::Caption, muted, &labels.by_position);
+                    text(ui, &tokens, style.caption_text, muted, &labels.by_position);
                 }
                 if revisions.is_empty() {
-                    text(ui, &tokens, TypeRole::Body, tokens.color.text.normal.to_egui(), &labels.none_left);
+                    text(ui, &tokens, style.body_text, tokens.color.text.normal.to_egui(), &labels.none_left);
                     if ui.add(Button::new(&labels.end_review).id_salt(id.with("end"))).clicked() {
                         action = Some(RevisionAction::EndReview);
                     }
@@ -153,7 +153,7 @@ fn card(
         });
         let muted = tokens.color.text.muted.to_egui();
         for detail in revision.details.iter().take(DETAIL_LINES) {
-            text(ui, tokens, TypeRole::Caption, muted, format!("\u{2022} {detail}"));
+            text(ui, tokens, style.caption_text, muted, format!("\u{2022} {detail}"));
         }
     });
     action

@@ -744,6 +744,10 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             // List: the muted label. Wide angle: the halo and the drawing colour.
             + 1
             + 2
+            // Review: four status badges, the card's accent, three revision bars and two inks.
+            + 10
+            // Sheet: the selection fill and the fill handle's fill and ring.
+            + 3
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -1816,4 +1820,33 @@ fn preferences_row_widths_scale_with_the_control_height() {
     assert_eq!((compact.choice_width, compact.text_width), (220.0, 260.0));
     assert_eq!((comfy.choice_width, comfy.text_width), (275.0, 325.0));
     assert_eq!(comfy.list_width, compact.list_width, "the page list is the same in every size");
+}
+
+/// GridCraft's selection tint is `accent.solid` at alpha 0x1C in light themes and 0x24 in dark
+/// ones; the fill handle takes the selection's border colour.
+#[test]
+fn sheet_selection_fill_alpha_follows_the_mode() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let t = resolve(&def, a, None).tokens;
+            let sheet = &t.component.sheet;
+            let alpha = if a.mode == Mode::Dark { 0x24 } else { 0x1C };
+            assert_eq!(sheet.selection_fill, t.color(T::AccentSolid).with_alpha(alpha), "{} {a:?}", def.name);
+            assert_eq!(sheet.fill_handle_fill, t.color(T::AccentSolid), "{} {a:?}", def.name);
+        }
+    }
+}
+
+/// The inks on a person's colour: the theme's `text.on_strong`, and a dark ink that is the same in
+/// every theme, so a dark theme (where `text.normal` is light) still has one.
+#[test]
+fn review_inks_differ_in_every_theme() {
+    for def in [grey_blue(), violet()] {
+        for a in appearances() {
+            let t = resolve(&def, a, None).tokens;
+            let review = &t.component.review;
+            assert_eq!(review.ink_light, t.color(T::TextOnStrong), "{} {a:?}", def.name);
+            assert!(contrast_ratio(review.ink_dark, review.ink_light) >= 4.5, "{} {a:?}", def.name);
+        }
+    }
 }

@@ -1,6 +1,6 @@
 //! The join field: enter a session code or an invite link (N5.11).
 
-use craft_theme::{ButtonVariant, TypeRole};
+use craft_theme::ButtonVariant;
 use craft_ui::controls::{Button, TextField};
 use craft_ui::localized::Labels as _;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -104,14 +104,14 @@ impl<'a> JoinField<'a> {
                 match &state {
                     JoinState::Joining | JoinState::Reconnecting { .. } => {
                         ui.horizontal(|ui| {
-                            text(ui, &tokens, TypeRole::Body, tokens.color.text.muted.to_egui(), &labels.joining);
+                            text(ui, &tokens, style.body_text, tokens.color.text.muted.to_egui(), &labels.joining);
                             if ui.add(Button::new(&labels.cancel).id_salt("cancel")).clicked() {
                                 requests.push(CollabRequest::CancelJoin);
                             }
                         });
                     }
                     JoinState::Failed(reason) => {
-                        text(ui, &tokens, TypeRole::Body, tokens.color.status.bad.fg.to_egui(), reason);
+                        text(ui, &tokens, style.body_text, tokens.color.status.bad.fg.to_egui(), reason);
                         let last: Option<String> = ui.data(|data| data.get_temp(last_id));
                         if let Some(last) = last
                             && ui.add(Button::new(&labels.retry).id_salt("retry")).clicked()

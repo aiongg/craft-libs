@@ -1,6 +1,7 @@
 //! A monitor's transport bar and the compact media controls (N1.06).
 
-use craft_theme::{ControlSize, TypeRole};
+use super::style::TimelineStyle;
+use craft_theme::ControlSize;
 use craft_ui::canvas::Orientation;
 use craft_ui::controls::{Button, Checkbox, IconButton, Slider};
 use craft_ui::direction;
@@ -364,7 +365,7 @@ impl MediaControls {
         let position = if position.is_finite() { position.clamp(0.0, if playable { duration } else { 0.0 }) } else { 0.0 };
 
         let text = clock(&numbers, position);
-        let format = tabular(role_format(&tokens, TypeRole::Mono, tokens.color.text.normal.to_egui()));
+        let format = tabular(role_format(&tokens, TimelineStyle::of(&tokens).transport_text, tokens.color.text.normal.to_egui()));
         let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(text.clone(), format.clone())));
         let side = IconButton::style(&tokens, ControlSize::Md).side;
         let (row, response) = ui.allocate_exact_size(vec2(ui.available_width(), side), Sense::click_and_drag());

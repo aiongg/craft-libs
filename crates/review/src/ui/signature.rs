@@ -4,7 +4,6 @@ use std::cell::Cell;
 use std::hash::{Hash as _, Hasher as _};
 
 use craft_host::{Host, PickId, PickRequest, Picked};
-use craft_theme::TypeRole;
 use craft_ui::controls::{Button, Segmented, TextField};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, Outcome, StackDialog};
 use craft_ui::icons::Icon;
@@ -14,6 +13,7 @@ use egui::epaint::{ColorImage, TextureHandle};
 use egui::{Context, Id, Key, Modifiers, Painter, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, TextureOptions, Ui, Vec2, pos2, vec2};
 
 use super::comments::text;
+use super::style::ReviewStyle;
 use crate::signature::{MAX_IMAGE_BYTES, SavedSignature, SignatureDraft, SignatureImage, SignatureTab};
 
 /// The pad's width over its height (PdfCraft's 460 × 150 pad). Strokes are kept in units of the
@@ -349,7 +349,7 @@ fn type_tab(ui: &mut Ui, tokens: &UiTokens, labels: &SignatureLabels, salt: Id, 
 }
 
 fn image_tab(ui: &mut Ui, tokens: &UiTokens, labels: &SignatureLabels, draft: &SignatureDraft) -> bool {
-    text(ui, tokens, TypeRole::Body, tokens.color.text.muted.to_egui(), &labels.image_hint);
+    text(ui, tokens, ReviewStyle::of(tokens).body_text, tokens.color.text.muted.to_egui(), &labels.image_hint);
     let browse = ui.add(Button::new(&labels.browse).icon(Icon::Folder).id_salt("browse")).clicked();
     let (rect, response) = pad_box(ui, tokens, Sense::hover());
     response.widget_info(|| egui::WidgetInfo::labeled(egui::accesskit::Role::Image, true, &labels.image_tab));

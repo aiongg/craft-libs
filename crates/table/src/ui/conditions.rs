@@ -1,5 +1,6 @@
 //! The condition builder: rows of field, operator and value, with nested groups (N6.02).
 
+use super::style::SheetStyle;
 use craft_ui::controls::{Button, Checkbox, ControlSize, DatePicker, IconButton, NumberField, Select, TextField};
 use craft_ui::direction;
 use craft_ui::edit::EditEvent;
@@ -7,7 +8,7 @@ use craft_ui::icons::Icon;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::theme::scale::Stroke as Line;
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, UiTokens, margin};
-use egui::{Align, AsIdSalt, Frame, Id, IdSalt, Layout, Response, RichText, TextStyle, Ui, vec2};
+use egui::{Align, AsIdSalt, Frame, Id, IdSalt, Layout, Response, RichText, Ui, vec2};
 
 craft_ui::words! {
     /// The builder's words, English by default (LightCraft's).
@@ -308,7 +309,8 @@ fn edit_rule(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize], dep
     });
     if let Some(problem) = cx.fields.problem(rule) {
         let color = cx.tokens.color.status.warn.fg.to_egui();
-        ui.label(RichText::new(problem).text_style(TextStyle::Small).color(color));
+        let font = cx.tokens.font(SheetStyle::of(cx.tokens).problem_text);
+        ui.label(RichText::new(problem).font(font).color(color));
     }
 }
 

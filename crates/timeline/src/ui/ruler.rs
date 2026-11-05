@@ -1,6 +1,5 @@
 //! The time ruler and the timeline scroll bar (N1.01).
 
-use craft_theme::TypeRole;
 use craft_ui::behavior::{ClaimedKey, KeyClaim};
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::Labels as _;
@@ -33,20 +32,6 @@ craft_ui::words! {
     }
 }
 
-// The ruler's rows as shares of its height: the layout has no sizes of its own, so it scales with
-// `style.ruler_height` (FilmCraft: markers on the top row, labels at 24 of 44 pt, ticks on the
-// bottom edge, a 2 pt cache bar).
-pub(super) const MARKER_BAND: f32 = 0.3;
-const WORK_BAND: (f32, f32) = (0.3, 0.42);
-const LABEL_LINE: f32 = 0.58;
-const MAJOR_TICK: f32 = 0.22;
-const MINOR_TICK: f32 = 0.09;
-const CACHE_BAR: f32 = 0.05;
-/// The playhead's head: half its width and its height.
-const HEAD_HALF_WIDTH: f32 = 0.14;
-const HEAD_HEIGHT: f32 = 0.3;
-/// The work area's end caps: their width.
-const CAP_WIDTH: f32 = 0.07;
 /// Natural-log zoom per point of wheel travel over the ruler.
 pub(super) const WHEEL_ZOOM: f64 = 0.005;
 /// Frames one arrow key steps, without and with Shift.
@@ -72,9 +57,6 @@ const SCRUB_KEYS: [ClaimedKey; 8] = [
     ClaimedKey::exact(Modifiers::SHIFT, Key::Home),
     ClaimedKey::exact(Modifiers::SHIFT, Key::End),
 ];
-
-/// The scroll bar's knobs at the thumb's ends: their radius as a share of the bar's height.
-const KNOB: f32 = 0.26;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ScrollGrab {
@@ -320,8 +302,11 @@ impl<'a> TimelineRuler<'a> {
         let id = ui.make_persistent_id(id_salt);
         let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
         let response = ui.interact(rect, id, Sense::click_and_drag());
-        let band =
-            |from: f32, to: f32| Rect::from_min_max(pos2(rect.left(), rect.top() + from * height), pos2(rect.right(), rect.top() + to * height));
+        // The ruler's rows, as offsets from its top in points (FilmCraft's, in the `timeline` tokens).
+        let band = |from: f32, to: f32| Rect::from_min_max(pos2(rect.left(), rect.top() + from), pos2(rect.right(), rect.top() + to));
+        let marker_end = style.ruler_marker_band;
+        let work_end = marker_end + style.ruler_work_height;
+        let render_top = height - style.ruler_render_bar;
         let rate = format.rate;
         let modifiers = ui.input(|i| i.modifiers);
         let enabled = ui.is_enabled();
@@ -399,7 +384,7 @@ impl<'a> TimelineRuler<'a> {
         let mut work_shown = work_area;
         if let Some((area, gesture)) = work.as_mut() {
             let grab = style.work_area_grab;
-            let band = band(WORK_BAND.0, WORK_BAND.1);
+            let band = band(marker_end, work_end);
             let shown = *gesture.shown();
             let (x0, x1) = (view.x_of(shown.start, left), view.x_of(shown.end(), left));
             let hit = band.expand2(vec2(0.0, grab / 2.0));
@@ -462,14 +447,14 @@ impl<'a> TimelineRuler<'a> {
         let color = &tokens.color;
         let hairline = craft_theme::Stroke::Hairline.width(ui.pixels_per_point());
         painter.rect_filled(rect, CornerRadius::ZERO, color.surface.chrome.to_egui());
-        let body = band(WORK_BAND.1, 1.0 - CACHE_BAR);
+        let body = band(work_end, render_top);
         if in_out.0.is_some() || in_out.1.is_some() {
             let from = in_out.0.unwrap_or(Tick::ZERO);
             let to = in_out.1.map_or(end, |out| out + rate.frame_duration());
             let span = Rect::from_min_max(pos2(view.x_of(from, left), body.top()), pos2(view.x_of(to, left), body.bottom()));
             painter.rect_filled(span.intersect(rect), CornerRadius::ZERO, color.state.selected.to_egui());
         }
-        let strip = band(1.0 - CACHE_BAR, 1.0);
+        let strip = band(render_top, height);
         for (ranges, fill) in [(disk_cached, color.data.blue), (cached, color.data.green)] {
             for range in ranges.iter().filter(|range| !range.is_empty()) {
                 let bar = Rect::from_min_max(pos2(view.x_of(range.start, left), strip.top()), pos2(view.x_of(range.end(), left), strip.bottom()));
@@ -477,11 +462,11 @@ impl<'a> TimelineRuler<'a> {
             }
         }
         if let Some(area) = work_shown.filter(|area| !area.is_empty()) {
-            let band = band(WORK_BAND.0, WORK_BAND.1);
+            let band = band(marker_end, work_end);
             let bar = Rect::from_min_max(pos2(view.x_of(area.start, left), band.top()), pos2(view.x_of(area.end(), left), band.bottom()));
             painter.rect_filled(bar, CornerRadius::ZERO, color.text.muted.to_egui());
             for x in [bar.left(), bar.right()] {
-                let cap = Rect::from_center_size(pos2(x, bar.center().y), vec2(CAP_WIDTH * height, bar.height()));
+                let cap = Rect::from_center_size(pos2(x, bar.center().y), vec2(style.ruler_cap_width, bar.height()));
                 painter.rect_filled(cap, CornerRadius::ZERO, color.accent.solid.to_egui());
             }
         }
@@ -490,28 +475,29 @@ impl<'a> TimelineRuler<'a> {
             RulerScale::Format(format) => ruler_ticks(&format, &view, rect.width(), &style),
             RulerScale::Custom(source) => source.ticks(visible, pps),
         };
-        let text = tabular(role_format(&tokens, TypeRole::Caption, color.text.normal.to_egui()));
+        let text = tabular(role_format(&tokens, style.ruler_text, color.text.normal.to_egui()));
         let tick_color = color.text.muted.to_egui();
         for tick in &ticks {
             let x = view.x_of(tick.at, left);
-            let size = if tick.major { MAJOR_TICK } else { MINOR_TICK } * height;
-            painter.line_segment([pos2(x, strip.top()), pos2(x, strip.top() - size)], Stroke::new(hairline, tick_color));
+            let size = if tick.major { style.ruler_major_tick } else { style.ruler_minor_tick };
+            let base = rect.bottom() - style.ruler_tick_inset;
+            painter.line_segment([pos2(x, base), pos2(x, base - size)], Stroke::new(hairline, tick_color));
             if let Some(label) = &tick.label {
                 let galley = ui.fonts_mut(|fonts| fonts.layout_job(egui::text::LayoutJob::single_section(label.clone(), text.clone())));
-                let at = pos2(x - galley.size().x / 2.0, rect.top() + LABEL_LINE * height - galley.size().y / 2.0);
+                let at = pos2(x - galley.size().x / 2.0, rect.top() + style.ruler_label_y - galley.size().y / 2.0);
                 painter.galley(at, galley, text.color);
             }
         }
         if !markers.is_empty() {
-            let strip = MarkerStrip::new(id.with("markers"), markers, &view).snap(snap).show(ui, band(0.0, MARKER_BAND));
+            let strip = MarkerStrip::new(id.with("markers"), markers, &view).snap(snap).show(ui, band(0.0, marker_end));
             out.markers = strip.edits;
         }
         let x = view.x_of(shown, left);
         let accent = color.accent.solid.to_egui();
-        let half = HEAD_HALF_WIDTH * height;
+        let half = style.ruler_head_half_width;
         painter
             .line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), accent));
-        let head = vec![pos2(x - half, rect.top()), pos2(x + half, rect.top()), pos2(x, rect.top() + HEAD_HEIGHT * height)];
+        let head = vec![pos2(x - half, rect.top()), pos2(x + half, rect.top()), pos2(x, rect.top() + style.ruler_head_height)];
         painter.add(Shape::convex_polygon(head, accent, Stroke::NONE));
         FocusRing::paint_radius(ui, rect, CornerRadius::ZERO, &out.response);
 
@@ -577,7 +563,7 @@ impl<'a> TimelineScrollBar<'a> {
         let visible = f64::from(width) / view.points_per_second;
         let (left, thumb_width, per_point) = thumb_for(view.start.seconds(), visible);
         let thumb = Rect::from_min_max(pos2(left, bar.top()), pos2(left + thumb_width, bar.bottom()));
-        let end_zone = bar.height() / 2.0;
+        let end_zone = style.scroll_end_zone;
 
         let key = id.with("grab");
         let origin = ui.input(|i| i.pointer.press_origin());
@@ -647,7 +633,7 @@ impl<'a> TimelineScrollBar<'a> {
         painter.rect_filled(bar, round, color.surface.sunken.to_egui());
         let hot = response.hovered() || response.dragged();
         painter.rect_filled(thumb, round, if hot { color.text.muted } else { color.text.faint }.to_egui());
-        let radius = bar.height() * KNOB;
+        let radius = style.scroll_knob_radius;
         for x in [thumb.left() + thumb.height() / 2.0, thumb.right() - thumb.height() / 2.0] {
             painter.circle(
                 pos2(x, thumb.center().y),

@@ -6,8 +6,8 @@ use craft_ui::focus::key_owner::{OwnerGate, owner};
 use egui::{CursorIcon, Event, EventFilter, ImeEvent, Key, Modifiers, PointerButton, Pos2, Response, Ui, Vec2};
 
 use super::{
-    CellAdvance, CellDirection, CellRange, CellRef, CellSelection, CellSpace, EDGE_GRAB_SHARE, GridEdit, GridMenuTarget, GridModel, GridState,
-    MAX_ZOOM, MIN_ZOOM, Pass, SheetGeometry,
+    CellAdvance, CellDirection, CellRange, CellRef, CellSelection, CellSpace, GridEdit, GridMenuTarget, GridModel, GridState, MAX_ZOOM, MIN_ZOOM,
+    Pass, SheetGeometry,
 };
 
 /// A grid axis: column headers resize widths, row headers heights.
@@ -84,7 +84,7 @@ fn line_end(geo: &SheetGeometry, axis: Axis, line: u32) -> f32 {
 
 /// The line of `axis` whose far edge is within the grab distance of `p`.
 fn edge<M: GridModel>(pass: &Pass<'_, M>, geo: &SheetGeometry, axis: Axis, p: Pos2) -> Option<u32> {
-    let grab = pass.style.column_header_height * EDGE_GRAB_SHARE;
+    let grab = pass.style.edge_grab;
     let at = line_at(geo, axis, p);
     [at, at.saturating_sub(1)].into_iter().find(|&line| (axis.of(p) - line_end(geo, axis, line)).abs() <= grab)
 }

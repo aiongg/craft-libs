@@ -8,6 +8,9 @@ use super::style::SheetStyle;
 
 /// A line's width never shrinks below this share of its chart width (a zoom floor, not a size).
 const MIN_STROKE_ZOOM: f32 = 0.5;
+/// A dashed line's dash and gap, at 100 % zoom (GridCraft `chartview.rs:64`).
+const CHART_DASH: f32 = 4.0;
+const CHART_DASH_GAP: f32 = 3.0;
 /// One wedge step spans this many radians.
 const WEDGE_STEP: f32 = 0.05;
 /// A wedge has between these many steps.
@@ -122,7 +125,7 @@ pub fn paint_chart(painter: &Painter, origin: Pos2, primitives: &[ChartPrimitive
                 }
                 let stroke = Stroke::new(width * stroke_zoom, rgba(*color));
                 if *dash {
-                    painter.extend(Shape::dashed_line(&points, stroke, style.chart_dash * zoom, style.chart_dash_gap * zoom));
+                    painter.extend(Shape::dashed_line(&points, stroke, CHART_DASH * zoom, CHART_DASH_GAP * zoom));
                 } else {
                     painter.add(PathShape::line(points, PathStroke::new(stroke.width, stroke.color)));
                 }
@@ -177,7 +180,7 @@ pub fn paint_chart(painter: &Painter, origin: Pos2, primitives: &[ChartPrimitive
                 }
             }
             ChartPrimitive::Text { x, y, text, size, color, bold, align, valign, rotation } => {
-                let role = if *bold { craft_theme::TypeRole::BodyStrong } else { craft_theme::TypeRole::Body };
+                let role = if *bold { style.chart_text_strong } else { style.chart_text };
                 let family = tokens.font(role).family;
                 let color = rgba(*color);
                 let galley = painter.layout_no_wrap(text.clone(), FontId::new(size * zoom, family), color);

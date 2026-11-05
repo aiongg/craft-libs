@@ -1,5 +1,6 @@
 //! [`ReviewStyle`]: the review widgets' sizes, from the `review` tokens.
 
+use craft_theme::TypeRole;
 use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::Color32;
 
@@ -42,6 +43,28 @@ pub struct ReviewStyle {
     /// `review.revision_bar_height`.
     pub revision_bar_width: f32,
     pub revision_bar_height: f32,
+    /// The selected comment card's accent bar width: `review.card_accent_width`.
+    pub card_accent_width: f32,
+    /// The room between a pin's bubble and the avatar circle inside it: `review.pin_inset`.
+    pub pin_inset: f32,
+    /// The filled and the hollow version dot's radius: `review.version_dot_radius`,
+    /// `review.version_dot_hollow_radius`.
+    pub version_dot_radius: f32,
+    pub version_dot_hollow_radius: f32,
+    /// The light and the dark ink on a person's colour: `review.ink_light`, `review.ink_dark`.
+    pub ink_light: Color32,
+    pub ink_dark: Color32,
+    /// The type roles the bodies draw text in: the theme's body, strong body, caption, label and
+    /// title roles. A panel's title is `title_text`; a message and a hint are `body_text`; an
+    /// author, a heading and a mention are `strong_text`; an age, a count, a detail and
+    /// initials are `caption_text`; a form's field name is `label_text`.
+    pub body_text: TypeRole,
+    pub strong_text: TypeRole,
+    pub caption_text: TypeRole,
+    pub label_text: TypeRole,
+    pub title_text: TypeRole,
+    /// The type role of a text box's and a callout's text: the theme's body role.
+    pub annotation_text: TypeRole,
 }
 
 impl ReviewStyle {
@@ -67,6 +90,18 @@ impl ReviewStyle {
             revision_inserted: t.revision_inserted.to_egui(),
             revision_deleted: t.revision_deleted.to_egui(),
             revision_changed: t.revision_changed.to_egui(),
+            card_accent_width: t.card_accent_width,
+            pin_inset: t.pin_inset,
+            version_dot_radius: t.version_dot_radius,
+            version_dot_hollow_radius: t.version_dot_hollow_radius,
+            ink_light: t.ink_light.to_egui(),
+            ink_dark: t.ink_dark.to_egui(),
+            body_text: TypeRole::Body,
+            strong_text: TypeRole::BodyStrong,
+            caption_text: TypeRole::Caption,
+            label_text: TypeRole::Label,
+            title_text: TypeRole::Title,
+            annotation_text: TypeRole::Body,
         }
     }
 }

@@ -5,7 +5,8 @@ use craft_ui::theme::{StrokeExt as _, ToEgui as _, UiTokens};
 use egui::accesskit::Role;
 use egui::{Align2, Color32, FontId, Id, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, UiBuilder, Vec2, WidgetInfo};
 
-use super::{CellRange, CellRef, CellSelection, GridModel, GridState, HEADER_MIN_ZOOM, Pass, SELECTION_FILL_ALPHA, SheetGeometry, column_letters};
+use super::super::style::SheetStyle;
+use super::{CellRange, CellRef, CellSelection, GridModel, GridState, HEADER_MIN_ZOOM, Pass, SheetGeometry, column_letters};
 
 /// The colours and strokes the grid paints with, from the theme.
 struct Look {
@@ -27,10 +28,10 @@ struct Look {
 }
 
 impl Look {
-    fn of(ui: &Ui, tokens: &UiTokens, zoom: f32) -> Self {
+    fn of(ui: &Ui, tokens: &UiTokens, style: &SheetStyle, zoom: f32) -> Self {
         let c = &tokens.color;
         let ctx = ui.ctx();
-        let base = egui::TextStyle::Small.resolve(ui.style());
+        let base = tokens.font(style.header_text);
         Self {
             background: c.surface.background.to_egui(),
             header: c.surface.chrome.to_egui(),
@@ -42,10 +43,10 @@ impl Look {
             gridline: Line::Hairline.egui(ctx, c.line.divider.to_egui()),
             header_line: Line::Hairline.egui(ctx, c.line.border.to_egui()),
             accent: Line::W2.egui(ctx, c.accent.solid.to_egui()),
-            fill: c.accent.solid.with_alpha(SELECTION_FILL_ALPHA).to_egui(),
-            handle_fill: c.overlay.handle_fill.to_egui(),
-            handle_stroke: Line::Hairline.egui(ctx, c.overlay.handle_stroke.to_egui()),
-            handle: Line::W3.width(ctx.pixels_per_point()) * 2.0,
+            fill: style.selection_fill,
+            handle_fill: style.fill_handle_fill,
+            handle_stroke: Line::W1.egui(ctx, style.fill_handle_ring),
+            handle: style.fill_handle,
             font: FontId::new(base.size * zoom.max(HEADER_MIN_ZOOM), base.family),
         }
     }
@@ -97,7 +98,7 @@ fn panes(rows: &[Span], columns: &[Span]) -> Vec<Pane> {
 
 /// Paints the grid: cells, gridlines, headers and selection; mirrored for a right-to-left sheet.
 pub(super) fn paint<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, tokens: &UiTokens, state: &GridState, geo: &SheetGeometry) {
-    let look = Look::of(ui, tokens, geo.layout.zoom);
+    let look = Look::of(ui, tokens, &pass.style, geo.layout.zoom);
     let painter = ui.painter().with_clip_rect(pass.rect.intersect(ui.clip_rect()));
     let first = painter.add(Shape::Noop);
     painter.rect_filled(geo.cells(), 0.0, look.background);
