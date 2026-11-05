@@ -1,3 +1,5 @@
+//! Integration tests of craft-ai-core: contract regressions.
+
 use craft_ai_core::role::{eligible, fits, resolve};
 use craft_ai_core::*;
 

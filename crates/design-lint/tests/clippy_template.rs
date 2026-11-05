@@ -1,3 +1,5 @@
+//! Integration tests of craft-design-lint: clippy template.
+
 #![allow(clippy::unwrap_used, reason = "tests")]
 
 use std::collections::BTreeMap;

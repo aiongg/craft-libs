@@ -1,3 +1,5 @@
+//! Integration tests of craft-keymap: keymap.
+
 use std::time::{Duration, Instant};
 
 use craft_keymap::{

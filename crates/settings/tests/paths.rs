@@ -1,3 +1,5 @@
+//! Integration tests of craft-settings: paths.
+
 mod common;
 
 use std::path::PathBuf;

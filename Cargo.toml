@@ -71,6 +71,9 @@ chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+# Every public item has a doc comment; a self-evident field or variant carries
+# `#[allow(missing_docs)]` instead.
+missing_docs = "warn"
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(craft_pdf_unicode_fixtures)"] }
 
 [workspace.lints.clippy]

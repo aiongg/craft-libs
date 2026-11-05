@@ -1,3 +1,5 @@
+//! Integration tests of craft-settings: recovery.
+
 mod common;
 
 use common::{Theme, config_path, open_in, read_config, write_config};

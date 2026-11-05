@@ -1,3 +1,5 @@
+//! Integration tests of craft-ecproj-format: envelope.
+
 use std::collections::BTreeMap;
 
 use craft_ecproj_format::{File, Head, ReadError, SCHEMA_VERSION, check_schema};

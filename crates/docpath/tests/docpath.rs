@@ -1,3 +1,5 @@
+//! Integration tests of craft-docpath: docpath.
+
 use std::path::Path;
 
 use craft_docpath::{PathKind, Refused, classify, is_local, resolve, resolve_absolute};

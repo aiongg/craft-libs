@@ -1,3 +1,5 @@
+//! Integration tests of craft-pdf: contracts.
+
 #![cfg(feature = "raster")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use craft_pdf::{

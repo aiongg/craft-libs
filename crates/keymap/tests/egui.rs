@@ -1,3 +1,5 @@
+//! Integration tests of craft-keymap: egui.
+
 #![cfg(feature = "ui")]
 
 use craft_keymap::egui::{Dispatcher, Hit, matches, platform};

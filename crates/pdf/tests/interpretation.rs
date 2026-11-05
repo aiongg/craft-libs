@@ -1,3 +1,5 @@
+//! Integration tests of craft-pdf: interpretation.
+
 #![cfg(feature = "read")]
 #![allow(clippy::unwrap_used, clippy::panic)]
 

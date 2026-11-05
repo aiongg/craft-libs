@@ -59,8 +59,11 @@ type InputHook = std::sync::Arc<dyn Fn(&Context, &mut RawInput) + Send + Sync>;
 /// the clock by 1/60 s, so double-clicks register. [`Self::step`] applies what a frame emits,
 /// the way an application's command path would.
 pub struct DockDriver<P, C> {
+    /// The headless egui context.
     pub ctx: Context,
+    /// The dock layout, updated by [`Self::step`].
     pub layout: Layout<P>,
+    /// The panel content the area draws.
     pub content: C,
     /// The area's id, for [`DockArea::hit_rects`] and the free docking functions.
     pub id: Id,
@@ -404,14 +407,17 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
         }
     }
 
+    /// One frame with the pointer moved to `pos`.
     pub fn move_to(&mut self, pos: Pos2) -> DockOutput<P> {
         self.step(vec![Event::PointerMoved(pos)])
     }
 
+    /// One frame with the primary button pressed at `pos`.
     pub fn press(&mut self, pos: Pos2) -> DockOutput<P> {
         self.step(vec![Event::PointerMoved(pos), self.button(pos, true)])
     }
 
+    /// One frame with the primary button released at `pos`.
     pub fn release(&mut self, pos: Pos2) -> DockOutput<P> {
         self.step(vec![Event::PointerMoved(pos), self.button(pos, false)])
     }
