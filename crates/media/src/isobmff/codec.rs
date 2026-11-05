@@ -9,7 +9,9 @@ use crate::isobmff::error::{Error, Result};
 pub struct SampleEntry {
     /// Sample entry format (`avc1`, `mp4a`, `apch`, …).
     pub format: FourCc,
+    /// Index into the `dref` of the track's `dinf` box (1-based; usually 1).
     pub data_reference_index: u16,
+    #[allow(missing_docs)]
     pub codec: CodecConfig,
     /// Present for visual sample entries.
     pub video: Option<VideoParams>,
@@ -22,22 +24,33 @@ pub struct SampleEntry {
 /// Fields common to all visual sample entries plus the optional descriptive boxes.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct VideoParams {
+    /// Coded width in pixels from the sample entry.
     pub width: u16,
+    /// Coded height in pixels from the sample entry.
     pub height: u16,
     /// Horizontal/vertical resolution in pixels per inch (16.16 fixed point; 72 dpi = 0x0048_0000).
     pub horiz_resolution: u32,
+    /// Vertical resolution in pixels per inch (16.16 fixed point).
     pub vert_resolution: u32,
+    /// Frames per sample; 1 in practice.
     pub frame_count: u16,
+    /// Compressor name from the sample entry's 32-byte Pascal string.
     pub compressor_name: String,
+    /// Image depth in bits per pixel (24 colour, 32 colour with alpha, 33 to 40 greyscale, as in QuickTime).
     pub depth: u16,
     /// QuickTime `vendor` / version fields (zero in ISO files).
     pub vendor: FourCc,
+    /// QuickTime temporal quality (0 to 1023).
     pub temporal_quality: u32,
+    /// QuickTime spatial quality (0 to 1023).
     pub spatial_quality: u32,
+    /// `colr` box.
     pub color: Option<ColorInfo>,
     /// `pasp`: (hSpacing, vSpacing).
     pub pixel_aspect: Option<(u32, u32)>,
+    /// `clap` box.
     pub clean_aperture: Option<CleanAperture>,
+    /// `fiel` box.
     pub field_info: Option<FieldInfo>,
     /// QuickTime `gama` (16.16 fixed point).
     pub gamma: Option<u32>,
@@ -51,9 +64,13 @@ pub struct VideoParams {
 /// SEI: chromaticities in 0.00002 steps (order G, B, R as the SEI), luminance in 0.0001 cd/m².
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MasteringDisplay {
+    /// Chromaticity (x, y) of the green, blue and red primaries, in 0.00002 steps.
     pub primaries: [(u16, u16); 3],
+    /// Chromaticity (x, y) of the white point, in 0.00002 steps.
     pub white_point: (u16, u16),
+    /// Peak display luminance in 0.0001 cd/m².
     pub max_luminance: u32,
+    /// Minimum display luminance in 0.0001 cd/m².
     pub min_luminance: u32,
 }
 
@@ -68,6 +85,7 @@ impl MasteringDisplay {
             min_luminance: (min_nits * 10_000.0).round() as u32,
         }
     }
+    /// Peak luminance in cd/m².
     pub fn max_nits(&self) -> f64 {
         self.max_luminance as f64 / 10_000.0
     }
@@ -84,6 +102,7 @@ impl MasteringDisplay {
         v.extend_from_slice(&self.min_luminance.to_be_bytes());
         v
     }
+    /// Parses the 24-byte `mdcv` payload. Returns `None` if `p` is shorter than 24 bytes.
     pub fn parse(p: &[u8]) -> Option<Self> {
         if p.len() < 24 {
             return None;
@@ -103,19 +122,44 @@ impl MasteringDisplay {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ColorInfo {
     /// ISO `nclx` (with full-range flag).
-    Nclx { primaries: u16, transfer: u16, matrix: u16, full_range: bool },
+    Nclx {
+        /// Colour primaries code (ITU-T H.273 `ColourPrimaries`).
+        primaries: u16,
+        /// Transfer characteristics code (ITU-T H.273).
+        transfer: u16,
+        /// Matrix coefficients code (ITU-T H.273).
+        matrix: u16,
+        /// True when sample values use the full range rather than the video (limited) range.
+        full_range: bool,
+    },
     /// QuickTime `nclc`.
-    Nclc { primaries: u16, transfer: u16, matrix: u16 },
+    Nclc {
+        /// QuickTime colour primaries index.
+        primaries: u16,
+        /// QuickTime transfer function index.
+        transfer: u16,
+        /// QuickTime matrix index.
+        matrix: u16,
+    },
     /// Embedded ICC profile (`prof` restricted/unrestricted `rICC`).
-    Icc { kind: FourCc, profile: Vec<u8> },
+    Icc {
+        /// Colour type: `prof` or `rICC`.
+        kind: FourCc,
+        /// Raw ICC profile bytes.
+        profile: Vec<u8>,
+    },
 }
 
 /// `clap` clean aperture (all rationals num/den; offsets are signed).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CleanAperture {
+    /// Width as a fraction (numerator, denominator) in pixels.
     pub width: (u32, u32),
+    /// Height as a fraction (numerator, denominator) in pixels.
     pub height: (u32, u32),
+    /// Horizontal offset of the aperture centre from the image centre, as (signed numerator, denominator).
     pub horiz_offset: (i32, u32),
+    /// Vertical offset of the aperture centre from the image centre, as (signed numerator, denominator).
     pub vert_offset: (i32, u32),
 }
 
@@ -123,15 +167,20 @@ pub struct CleanAperture {
 /// (0, 1 = top first, 6 = bottom first, 9 / 14 per the QuickTime spec).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FieldInfo {
+    /// Field count: 1 for progressive, 2 for interlaced.
     pub fields: u8,
+    /// Field ordering code; see the type docs.
     pub detail: u8,
 }
 
 /// `btrt` box.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BitRate {
+    /// Decoding buffer size in bytes.
     pub buffer_size: u32,
+    /// Maximum bitrate in bits per second.
     pub max_bitrate: u32,
+    /// Average bitrate in bits per second.
     pub avg_bitrate: u32,
 }
 
@@ -140,20 +189,29 @@ pub struct BitRate {
 pub struct AudioParams {
     /// QuickTime sound description version (0, 1, 2). ISO files use 0.
     pub qt_version: u16,
+    /// Number of audio channels.
     pub channels: u32,
     /// Bits per sample from the entry (16 for most compressed formats).
     pub sample_size: u16,
+    /// Sample rate in Hz.
     pub sample_rate: f64,
+    /// QuickTime compression ID: -2 for variable-rate compressed audio (v1/v2 entries), 0 otherwise.
     pub compression_id: i16,
     /// v1 fields.
     pub samples_per_packet: u32,
+    /// Bytes per compressed packet (v1).
     pub bytes_per_packet: u32,
+    /// Bytes per uncompressed frame (v1).
     pub bytes_per_frame: u32,
+    /// Bytes per uncompressed sample (v1).
     pub bytes_per_sample: u32,
     /// v2 fields.
     pub const_bits_per_channel: u32,
+    /// Linear PCM format flags (CoreAudio `AudioStreamBasicDescription` flag bits).
     pub lpcm_flags: u32,
+    /// Constant bytes per packet, or 0 when variable.
     pub const_bytes_per_packet: u32,
+    /// Constant frames per packet, or 0 when variable.
     pub const_frames_per_packet: u32,
     /// `enda` little-endian flag inside a QuickTime `wave` box.
     pub little_endian: Option<bool>,
@@ -162,47 +220,64 @@ pub struct AudioParams {
 /// Codec configuration decoded from the sample entry.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CodecConfig {
+    #[allow(missing_docs)]
     Avc(AvcConfig),
+    #[allow(missing_docs)]
     Hevc(HevcConfig),
+    #[allow(missing_docs)]
     Av1(Av1Config),
+    #[allow(missing_docs)]
     Vp9(VpcConfig),
     /// Apple ProRes; fourcc is `apch`/`apcn`/`apcs`/`apco`/`ap4h`/`ap4x`.
     ProRes {
+        #[allow(missing_docs)]
         fourcc: FourCc,
     },
     /// Motion JPEG (`jpeg`, `mjpa`, `mjpb`).
     Jpeg {
+        #[allow(missing_docs)]
         fourcc: FourCc,
     },
     /// Avid DNxHD/DNxHR (`AVdn`, `AVdh`).
     Dnx {
+        #[allow(missing_docs)]
         fourcc: FourCc,
     },
     /// Advanced Professional Video (`apv1` + `apvC`).
     Apv(ApvConfig),
+    #[allow(missing_docs)]
     Aac(AacConfig),
     /// MPEG-1/2 audio (esds object type 0x69/0x6B, or QuickTime `.mp3` / `.mp2`). Usually layer
     /// III, but these name no layer: ffmpeg stores MP2 as `mp4a` + 0x6B. Each frame header has it.
     Mp3,
+    #[allow(missing_docs)]
     Pcm(PcmConfig),
     /// ALAC magic cookie (ALACSpecificConfig, 24 bytes, optionally followed by a channel layout).
     Alac {
+        #[allow(missing_docs)]
         cookie: Vec<u8>,
     },
+    #[allow(missing_docs)]
     Opus(OpusConfig),
+    #[allow(missing_docs)]
     Flac(FlacConfig),
     /// `dac3` payload.
     Ac3 {
+        #[allow(missing_docs)]
         dac3: Vec<u8>,
     },
     /// `dec3` payload.
     Eac3 {
+        #[allow(missing_docs)]
         dec3: Vec<u8>,
     },
+    #[allow(missing_docs)]
     Timecode(TimecodeConfig),
     /// Anything else; `raw` is the full sample entry payload (after the 8-byte box header).
     Unknown {
+        #[allow(missing_docs)]
         fourcc: FourCc,
+        #[allow(missing_docs)]
         raw: Vec<u8>,
     },
 }
@@ -236,12 +311,17 @@ impl CodecConfig {
 /// `avcC` — AVCDecoderConfigurationRecord (ISO/IEC 14496-15 §5.3.3).
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct AvcConfig {
+    /// `profile_idc` of the stream (AVCProfileIndication).
     pub profile: u8,
+    /// The `constraint_set` flags byte (profile_compatibility).
     pub compatibility: u8,
+    /// `level_idc` of the stream (AVCLevelIndication).
     pub level: u8,
     /// NAL length field size in bytes (1, 2 or 4).
     pub length_size: u8,
+    /// Sequence parameter set NAL units, without start codes.
     pub sps: Vec<Vec<u8>>,
+    /// Picture parameter set NAL units, without start codes.
     pub pps: Vec<Vec<u8>>,
     /// Bytes after the PPS list (high-profile extension: chroma format, bit depths, SPS-ext).
     pub ext: Vec<u8>,
@@ -254,6 +334,7 @@ impl AvcConfig {
         AvcConfig { profile, compatibility, level, length_size, sps, pps, ext: Vec::new() }
     }
 
+    /// Parses the payload of the box (the bytes after its header). Fails with [`Error::Truncated`] when a field runs past the end of `data`.
     pub fn parse(data: &[u8]) -> Result<Self> {
         let mut c = Cur::labeled(data, "avcC");
         let _version = c.u8()?;
@@ -276,6 +357,7 @@ impl AvcConfig {
         Ok(AvcConfig { profile, compatibility, level, length_size, sps, pps, ext: c.rest().to_vec() })
     }
 
+    /// Serializes to the payload of an `avcC` box (without the box header).
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut b = BoxBuf::new();
         b.u8(1);
@@ -301,35 +383,55 @@ impl AvcConfig {
 /// One NAL array of an `hvcC` record.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct HevcNalArray {
+    /// True when the array holds all NAL units of this type for the stream (`array_completeness`).
     pub completeness: bool,
+    /// NAL unit type of every unit in the array (32 = VPS, 33 = SPS, 34 = PPS).
     pub nal_type: u8,
+    /// NAL units, without start codes.
     pub nalus: Vec<Vec<u8>>,
 }
 
 /// `hvcC` — HEVCDecoderConfigurationRecord (ISO/IEC 14496-15 §8.3.3).
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct HevcConfig {
+    /// `general_profile_space` (2 bits).
     pub general_profile_space: u8,
+    /// `general_tier_flag`: true for the high tier.
     pub general_tier_flag: bool,
+    /// `general_profile_idc` (5 bits).
     pub general_profile_idc: u8,
+    /// 32 flags, one per profile id, set for each profile the stream conforms to.
     pub general_profile_compatibility_flags: u32,
     /// 48 bits of general constraint indicator flags.
     pub general_constraint_indicator_flags: u64,
+    /// `general_level_idc`: level times 30.
     pub general_level_idc: u8,
+    /// `min_spatial_segmentation_idc` (12 bits); 0 if unknown.
     pub min_spatial_segmentation_idc: u16,
+    /// `parallelismType` (2 bits).
     pub parallelism_type: u8,
+    /// `chroma_format_idc`: 0 monochrome, 1 for 4:2:0, 2 for 4:2:2, 3 for 4:4:4.
     pub chroma_format_idc: u8,
+    /// Luma bit depth (8 or more).
     pub bit_depth_luma: u8,
+    /// Chroma bit depth (8 or more).
     pub bit_depth_chroma: u8,
+    /// Average frame rate in frames per 256 seconds; 0 if unspecified.
     pub avg_frame_rate: u16,
+    /// `constantFrameRate` (2 bits): 0 not guaranteed, 1 constant, 2 constant per temporal layer.
     pub constant_frame_rate: u8,
+    /// Number of temporal layers; 0 if unknown.
     pub num_temporal_layers: u8,
+    /// True when all temporal layers are nested (`temporalIdNested`).
     pub temporal_id_nested: bool,
+    /// NAL length field size in bytes (1, 2 or 4).
     pub length_size: u8,
+    /// NAL unit arrays (VPS, SPS, PPS, SEI).
     pub arrays: Vec<HevcNalArray>,
 }
 
 impl HevcConfig {
+    /// Parses the payload of the box (the bytes after its header). Fails with [`Error::Truncated`] when a field runs past the end of `data`.
     pub fn parse(data: &[u8]) -> Result<Self> {
         let mut c = Cur::labeled(data, "hvcC");
         let _version = c.u8()?;
@@ -379,6 +481,7 @@ impl HevcConfig {
         })
     }
 
+    /// Serializes to the payload of an `hvcC` box (without the box header).
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut b = BoxBuf::new();
         b.u8(1);
@@ -412,12 +515,15 @@ impl HevcConfig {
     fn nalus_of(&self, t: u8) -> Vec<&[u8]> {
         self.arrays.iter().filter(|a| a.nal_type == t).flat_map(|a| a.nalus.iter().map(|n| n.as_slice())).collect()
     }
+    /// Video parameter set NAL units from all arrays of type 32, without start codes.
     pub fn vps(&self) -> Vec<&[u8]> {
         self.nalus_of(32)
     }
+    /// Sequence parameter set NAL units from all arrays of type 33, without start codes.
     pub fn sps(&self) -> Vec<&[u8]> {
         self.nalus_of(33)
     }
+    /// Picture parameter set NAL units from all arrays of type 34, without start codes.
     pub fn pps(&self) -> Vec<&[u8]> {
         self.nalus_of(34)
     }
@@ -426,20 +532,32 @@ impl HevcConfig {
 /// `av1C` — AV1CodecConfigurationRecord.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Av1Config {
+    /// `seq_profile` (3 bits).
     pub seq_profile: u8,
+    /// `seq_level_idx_0` (5 bits).
     pub seq_level_idx_0: u8,
+    /// `seq_tier_0`: true for the high tier.
     pub seq_tier_0: bool,
+    /// `high_bitdepth`: set for 10-bit (or 12-bit with `twelve_bit`).
     pub high_bitdepth: bool,
+    /// `twelve_bit`: with `high_bitdepth`, selects 12-bit.
     pub twelve_bit: bool,
+    /// True for monochrome video.
     pub monochrome: bool,
+    /// `chroma_subsampling_x`.
     pub chroma_subsampling_x: bool,
+    /// `chroma_subsampling_y`.
     pub chroma_subsampling_y: bool,
+    /// `chroma_sample_position` (2 bits): 0 unknown, 1 vertical, 2 colocated.
     pub chroma_sample_position: u8,
+    /// `initial_presentation_delay_minus_one` (4 bits), when signalled.
     pub initial_presentation_delay_minus_one: Option<u8>,
+    /// Configuration OBUs (usually the sequence header) stored after the fixed fields.
     pub config_obus: Vec<u8>,
 }
 
 impl Av1Config {
+    /// Parses the payload of the box (the bytes after its header). Fails with [`Error::Truncated`] when a field runs past the end of `data`.
     pub fn parse(data: &[u8]) -> Result<Self> {
         let mut c = Cur::labeled(data, "av1C");
         let m = c.u8()?;
@@ -463,6 +581,7 @@ impl Av1Config {
             config_obus: c.rest().to_vec(),
         })
     }
+    /// Serializes to the payload of an `av1C` box (without the box header).
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut b = BoxBuf::new();
         b.u8(0x81);
@@ -486,18 +605,28 @@ impl Av1Config {
 /// `vpcC` — VP codec configuration (version 1).
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct VpcConfig {
+    /// VP profile (0 to 3).
     pub profile: u8,
+    /// VP level, as defined by the VP codec mapping (for example 10 for 1.0).
     pub level: u8,
+    /// Bit depth (8, 10 or 12).
     pub bit_depth: u8,
+    /// `chromaSubsampling` code: 0 and 1 are 4:2:0, 2 is 4:2:2, 3 is 4:4:4.
     pub chroma_subsampling: u8,
+    /// True for full-range sample values, false for video range.
     pub full_range: bool,
+    /// Colour primaries code (ITU-T H.273).
     pub colour_primaries: u8,
+    /// Transfer characteristics code (ITU-T H.273).
     pub transfer_characteristics: u8,
+    /// Matrix coefficients code (ITU-T H.273).
     pub matrix_coefficients: u8,
+    /// Codec initialization data (`codecInitializationData`); empty for VP8 and VP9.
     pub codec_init: Vec<u8>,
 }
 
 impl VpcConfig {
+    /// Parses the payload of the box (the bytes after its header). Fails with [`Error::Truncated`] when a field runs past the end of `data`.
     pub fn parse(data: &[u8]) -> Result<Self> {
         let mut c = Cur::labeled(data, "vpcC");
         let (version, _) = c.full_header()?;
@@ -529,6 +658,7 @@ impl VpcConfig {
             codec_init,
         })
     }
+    /// Serializes to the payload of a `vpcC` box (without the box header).
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut b = BoxBuf::new();
         b.u32(1 << 24);
@@ -557,7 +687,9 @@ pub struct AacConfig {
     pub channel_config: u8,
     /// DecoderConfigDescriptor fields.
     pub max_bitrate: u32,
+    /// Average bitrate in bits per second.
     pub avg_bitrate: u32,
+    /// Decoding buffer size in bytes.
     pub buffer_size: u32,
 }
 
@@ -603,12 +735,17 @@ pub fn parse_asc(asc: &[u8]) -> Option<(u8, u32, u8)> {
 /// Uncompressed PCM description.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct PcmConfig {
+    /// Bits per sample (8, 16, 24, 32 or 64).
     pub bits: u16,
+    /// True for floating-point samples.
     pub float: bool,
+    /// True for big-endian sample bytes.
     pub big_endian: bool,
     /// Signed integer samples (8-bit `raw ` is unsigned).
     pub signed: bool,
+    /// Number of channels.
     pub channels: u32,
+    /// Sample rate in Hz.
     pub sample_rate: f64,
 }
 
@@ -623,16 +760,22 @@ impl PcmConfig {
 /// `dOps` — Opus specific box.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct OpusConfig {
+    /// Number of output channels.
     pub output_channels: u8,
+    /// Number of samples to discard at the start of the stream, at 48 kHz.
     pub pre_skip: u16,
+    /// Sample rate of the original input in Hz (informational).
     pub input_sample_rate: u32,
+    /// Output gain in Q7.8 fixed point dB.
     pub output_gain: i16,
+    /// Channel mapping family (0 means RTP mapping with 1 or 2 channels).
     pub channel_mapping_family: u8,
     /// StreamCount, CoupledCount and ChannelMapping bytes when family != 0.
     pub channel_mapping: Vec<u8>,
 }
 
 impl OpusConfig {
+    /// Parses the payload of the box (the bytes after its header). Fails with [`Error::Truncated`] when a field runs past the end of `data`.
     pub fn parse(data: &[u8]) -> Result<Self> {
         let mut c = Cur::labeled(data, "dOps");
         let _version = c.u8()?;
@@ -645,6 +788,7 @@ impl OpusConfig {
             channel_mapping: c.rest().to_vec(),
         })
     }
+    /// Serializes to the payload of a `dOps` box (without the box header).
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut b = BoxBuf::new();
         b.u8(0);
@@ -663,13 +807,18 @@ impl OpusConfig {
 pub struct FlacConfig {
     /// Raw metadata blocks (each with its 4-byte header) as stored in `dfLa`.
     pub metadata_blocks: Vec<u8>,
+    /// Sample rate in Hz.
     pub sample_rate: u32,
+    /// Number of channels.
     pub channels: u8,
+    /// Bits per sample.
     pub bits_per_sample: u8,
+    /// Total samples in the stream; 0 if unknown.
     pub total_samples: u64,
 }
 
 impl FlacConfig {
+    /// Parses the payload of the `dfLa` full box (version and flags first), keeping the metadata blocks and decoding STREAMINFO when present. Fails with [`Error::Truncated`] when a field runs past the end of `data`.
     pub fn parse(data: &[u8]) -> Result<Self> {
         let mut c = Cur::labeled(data, "dfLa");
         c.full_header()?;
@@ -696,7 +845,9 @@ impl FlacConfig {
 pub struct TimecodeConfig {
     /// Bit 0 drop frame, bit 1 24-hour max, bit 2 negative times OK, bit 3 counter.
     pub flags: u32,
+    /// Time units per second for timecode sample durations.
     pub timescale: u32,
+    /// Duration of one frame in `timescale` units.
     pub frame_duration: u32,
     /// Nominal frames per second (`numberOfFrames`), e.g. 30 for 29.97.
     pub frames_per_second: u8,
@@ -707,6 +858,7 @@ pub struct TimecodeConfig {
 }
 
 impl TimecodeConfig {
+    /// True when the `flags` drop-frame bit is set.
     pub fn drop_frame(&self) -> bool {
         self.flags & 1 != 0
     }
@@ -735,19 +887,33 @@ impl TimecodeConfig {
 /// `APVDecoderConfigurationRecord`).
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct ApvConfig {
+    /// APV profile code (`profile_idc`).
     pub profile_idc: u8,
+    /// APV level code (`level_idc`).
     pub level_idc: u8,
+    /// APV band code (`band_idc`).
     pub band_idc: u8,
+    /// Frame width in pixels.
     pub frame_width: u32,
+    /// Frame height in pixels.
     pub frame_height: u32,
+    /// `chroma_format_idc`.
     pub chroma_format_idc: u8,
+    /// Bit depth minus 8.
     pub bit_depth_minus8: u8,
+    /// `capture_time_distance`.
     pub capture_time_distance: u8,
+    /// True when `capture_time_distance` is to be ignored.
     pub capture_time_distance_ignored: bool,
+    /// True when the colour description fields are present in the record.
     pub color_description_present: bool,
+    /// Colour primaries code (ITU-T H.273).
     pub color_primaries: u8,
+    /// Transfer characteristics code (ITU-T H.273).
     pub transfer_characteristics: u8,
+    /// Matrix coefficients code (ITU-T H.273).
     pub matrix_coefficients: u8,
+    /// True for full-range sample values.
     pub full_range: bool,
     /// Raw `APVDecoderConfigurationRecord` bytes (after the 4-byte FullBox header).
     pub raw_record: Vec<u8>,

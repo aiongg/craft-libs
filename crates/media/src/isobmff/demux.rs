@@ -59,12 +59,15 @@ impl SampleBudget {
 pub struct Sample {
     /// Absolute byte offset in the file.
     pub offset: u64,
+    /// Sample size in bytes.
     pub size: u32,
     /// Decode timestamp (raw media time, edit lists not applied).
     pub dts: i64,
     /// Presentation timestamp = dts + composition offset (raw media time).
     pub pts: i64,
+    /// Duration in the media timescale.
     pub duration: u32,
+    #[allow(missing_docs)]
     pub is_sync: bool,
     /// 1-based index into [`Track::entries`].
     pub description_index: u32,
@@ -84,16 +87,22 @@ pub struct Edit {
 /// Broad classification of a track by its handler.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrackKind {
+    #[allow(missing_docs)]
     Video,
+    #[allow(missing_docs)]
     Audio,
+    #[allow(missing_docs)]
     Timecode,
+    #[allow(missing_docs)]
     Subtitle,
+    /// Any other handler type.
     Other,
 }
 
 /// A sample-to-group mapping (`sbgp`) with the matching descriptions (`sgpd`) kept raw.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct SampleGroup {
+    /// Four-character grouping type from `sbgp`/`sgpd` (for example `roll`).
     pub grouping_type: FourCc,
     /// (sample_count, group_description_index) runs.
     pub runs: Vec<(u32, u32)>,
@@ -104,9 +113,13 @@ pub struct SampleGroup {
 /// A demuxed track.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Track {
+    /// Track ID from `tkhd`, unique within the file.
     pub id: u32,
+    #[allow(missing_docs)]
     pub kind: TrackKind,
+    /// Handler type from `hdlr` (for example `vide`, `soun`).
     pub handler: FourCc,
+    /// Handler name string from `hdlr`.
     pub handler_name: String,
     /// Media timescale (`mdhd`).
     pub timescale: u32,
@@ -118,15 +131,21 @@ pub struct Track {
     pub language: String,
     /// `tkhd` presentation size (16.16 fixed point converted to integer pixels, rounded down).
     pub width: u32,
+    /// `tkhd` presentation height in integer pixels (same conversion as `width`).
     pub height: u32,
+    /// `tkhd` enabled flag.
     pub enabled: bool,
+    /// `tkhd` alternate group; tracks that share a non-zero value are alternatives of each other.
     pub alternate_group: u16,
     /// `tkhd` volume (8.8 fixed point).
     pub volume: i16,
     /// `tkhd` transformation matrix.
     pub matrix: [i32; 9],
+    /// Sample entries from `stsd`. [`Sample::description_index`] is 1-based into this list.
     pub entries: Vec<SampleEntry>,
+    /// All samples of the track in decode order.
     pub samples: Vec<Sample>,
+    /// Edit list entries from `elst`; empty when the track has none.
     pub edits: Vec<Edit>,
     /// Offset to add to raw pts to get presentation time (track timescale), derived from the
     /// leading empty edits and the first non-empty edit's `media_time`.
@@ -135,6 +154,7 @@ pub struct Track {
     pub references: Vec<(FourCc, Vec<u32>)>,
     /// Raw `sdtp` bytes (one per sample) if present.
     pub sdtp: Vec<u8>,
+    /// Sample groups (`sbgp` with matching `sgpd`) of the track.
     pub sample_groups: Vec<SampleGroup>,
     /// True if uncompressed audio samples were merged into one [`Sample`] per chunk.
     pub pcm_chunked: bool,
@@ -147,6 +167,7 @@ impl Track {
     pub fn codec(&self) -> Option<&CodecConfig> {
         self.entries.first().map(|e| &e.codec)
     }
+    /// The first sample entry's video parameters, or `None` for non-video tracks.
     pub fn video(&self) -> Option<&crate::isobmff::codec::VideoParams> {
         self.entries.first().and_then(|e| e.video.as_ref())
     }
@@ -168,6 +189,7 @@ impl Track {
             _ => None,
         }
     }
+    /// The first sample entry's audio parameters, or `None` for non-audio tracks.
     pub fn audio(&self) -> Option<&crate::isobmff::codec::AudioParams> {
         self.entries.first().and_then(|e| e.audio.as_ref())
     }
@@ -209,10 +231,12 @@ impl Track {
 /// Text metadata from `udta` (QuickTime `©xxx` atoms and iTunes-style `meta/ilst`, incl. `keys`).
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Metadata {
+    /// (key, value) pairs in file order. Keys are `©xxx` atom names or `keys` item names.
     pub entries: Vec<(String, String)>,
 }
 
 impl Metadata {
+    /// The value of the first entry whose key equals `key`.
     pub fn get(&self, key: &str) -> Option<&str> {
         self.entries.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
     }
@@ -225,8 +249,11 @@ impl Metadata {
 /// A parsed MP4/MOV file (headers and sample tables; media data stays in the source).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mp4File {
+    /// `ftyp` major brand.
     pub major_brand: FourCc,
+    /// `ftyp` minor version.
     pub minor_version: u32,
+    /// `ftyp` compatible brands.
     pub compatible_brands: Vec<FourCc>,
     /// QuickTime file (major brand `qt  ` or no `ftyp`).
     pub is_quicktime: bool,
@@ -234,7 +261,9 @@ pub struct Mp4File {
     pub timescale: u32,
     /// Movie duration in the movie timescale (`mvhd`; for fragmented files, the longest track).
     pub duration: u64,
+    /// Tracks in `trak` order. The track indices taken by other methods refer to this list.
     pub tracks: Vec<Track>,
+    /// Text metadata from `udta`.
     pub metadata: Metadata,
     /// File uses movie fragments (`mvex` present).
     pub fragmented: bool,
@@ -251,9 +280,11 @@ impl Mp4File {
         let s = t.samples.get(index).ok_or(Error::NoSuchSample(index))?;
         read_range(src, s.offset, s.size as u64)
     }
+    /// Index of the sample of track `track` being presented at raw media time `pts`; see [`Track::sample_at_pts`]. `None` if `track` is out of range or has no samples.
     pub fn sample_at_pts(&self, track: usize, pts: i64) -> Option<usize> {
         self.tracks.get(track)?.sample_at_pts(pts)
     }
+    /// The closest sync sample at or before `index` in track `track`, in decode order; see [`Track::sync_sample_before`]. `None` if `track` is out of range.
     pub fn sync_sample_before(&self, track: usize, index: usize) -> Option<usize> {
         Some(self.tracks.get(track)?.sync_sample_before(index))
     }

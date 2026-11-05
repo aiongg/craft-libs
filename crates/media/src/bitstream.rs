@@ -7,6 +7,7 @@
 
 use std::fmt;
 
+/// Error from bit-level reading and NAL splitting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitError {
     /// Tried to read past the end of the buffer.
@@ -28,6 +29,7 @@ impl fmt::Display for BitError {
 }
 impl std::error::Error for BitError {}
 
+/// Result type for the functions in this module, with [`BitError`] as the error.
 pub type Result<T> = std::result::Result<T, BitError>;
 
 /// MSB-first bit reader over a byte slice.
@@ -42,10 +44,12 @@ pub struct BitReader<'a> {
 }
 
 impl<'a> BitReader<'a> {
+    /// Creates a reader at bit 0 of `data`.
     pub fn new(data: &'a [u8]) -> Self {
         let rbsp_stop = data.iter().rposition(|&b| b != 0).map(|i| i.saturating_mul(8).saturating_add(7 - data[i].trailing_zeros() as usize));
         Self { data, pos: 0, rbsp_stop }
     }
+    /// The whole underlying slice, regardless of the read position.
     pub fn data(&self) -> &'a [u8] {
         self.data
     }
@@ -53,12 +57,15 @@ impl<'a> BitReader<'a> {
     pub fn position(&self) -> usize {
         self.pos
     }
+    /// Number of unread bits.
     pub fn bits_left(&self) -> usize {
         self.data.len().saturating_mul(8).saturating_sub(self.pos)
     }
+    /// True when the read position is on a byte boundary.
     pub fn is_byte_aligned(&self) -> bool {
         self.pos.is_multiple_of(8)
     }
+    /// Advances the position to the next byte boundary (no-op when already aligned).
     pub fn byte_align(&mut self) {
         self.pos = self.pos.div_ceil(8) * 8;
     }
@@ -66,6 +73,7 @@ impl<'a> BitReader<'a> {
     pub fn byte_pos(&self) -> usize {
         self.pos / 8
     }
+    /// Moves the read position to absolute bit `pos` from the start. Not range-checked; later reads fail with [`BitError::Eof`] when `pos` is past the end.
     pub fn seek_bits(&mut self, pos: usize) {
         self.pos = pos;
     }
@@ -107,6 +115,7 @@ impl<'a> BitReader<'a> {
         Ok(v)
     }
 
+    /// Reads `n` bits (up to 64) as a big-endian value.
     pub fn read_bits_u64(&mut self, n: u32) -> Result<u64> {
         if n <= 32 {
             return self.read_bits(n).map(u64::from);
@@ -116,14 +125,17 @@ impl<'a> BitReader<'a> {
         Ok((hi << 32) | lo)
     }
 
+    /// Reads one bit.
     #[inline]
     pub fn read_bit(&mut self) -> Result<bool> {
         self.read_bits(1).map(|b| b == 1)
     }
+    /// Reads one bit as a flag (`u(1)` syntax element).
     pub fn read_flag(&mut self) -> Result<bool> {
         self.read_bit()
     }
 
+    /// Skips `n` bits, failing with [`BitError::Eof`] if fewer remain.
     pub fn skip(&mut self, n: usize) -> Result<()> {
         if n > self.bits_left() {
             return Err(BitError::Eof);
@@ -187,6 +199,7 @@ pub struct BitWriter {
 }
 
 impl BitWriter {
+    /// Creates an empty writer.
     pub fn new() -> Self {
         Self::default()
     }
@@ -211,9 +224,11 @@ impl BitWriter {
         }
         self.acc &= (1u64 << self.nbits) - 1;
     }
+    /// Writes one bit.
     pub fn write_bit(&mut self, b: bool) {
         self.write_bits(b as u32, 1);
     }
+    /// Writes an unsigned Exp-Golomb `ue(v)` code.
     pub fn write_ue(&mut self, v: u32) {
         self.write_code_num(u64::from(v));
     }
@@ -232,13 +247,16 @@ impl BitWriter {
             self.write_bits(x as u32, len);
         }
     }
+    /// Writes a signed Exp-Golomb `se(v)` code.
     pub fn write_se(&mut self, v: i32) {
         let m = u64::from(v.unsigned_abs()) * 2;
         self.write_code_num(if v > 0 { m - 1 } else { m });
     }
+    /// Number of bits written so far, including a partial last byte.
     pub fn bit_len(&self) -> usize {
         self.buf.len() * 8 + self.nbits as usize
     }
+    /// True when the written bit count is a multiple of 8.
     pub fn is_byte_aligned(&self) -> bool {
         self.nbits == 0
     }
@@ -253,6 +271,7 @@ impl BitWriter {
         self.write_bit(true);
         self.align_zero();
     }
+    /// Appends whole bytes. Fast path when aligned; otherwise each byte is written bit by bit.
     pub fn write_bytes(&mut self, bytes: &[u8]) {
         if self.nbits == 0 {
             self.buf.extend_from_slice(bytes);
@@ -262,10 +281,12 @@ impl BitWriter {
             }
         }
     }
+    /// Pads to a byte boundary with zero bits and returns the written bytes.
     pub fn finish(mut self) -> Vec<u8> {
         self.align_zero();
         self.buf
     }
+    /// The completed bytes written so far, excluding any partial last byte.
     pub fn bytes(&self) -> &[u8] {
         &self.buf
     }
