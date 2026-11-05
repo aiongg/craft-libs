@@ -33,11 +33,13 @@ use crate::pipeline::Stage;
 use crate::profile::{ColorSpace, Lut, LutKind, Pcs, Profile, ProfileClass};
 use crate::{CmsError, Intent, invalid_arg};
 
+/// Profile description of the synthetic coated CMYK profile.
 pub const DESCRIPTION: &str = "Photocraft Coated CMYK (synthetic, 300% TAC, medium GCR)";
 
 /// Parameters of the synthetic profile.
 #[derive(Clone, Debug)]
 pub struct CmykParams {
+    /// Profile description text.
     pub description: String,
     /// Copyright tag text.
     pub copyright: String,
@@ -53,6 +55,7 @@ pub struct CmykParams {
     pub tvi: [f64; 4],
     /// Grid points of the AToB (4D) and BToA (3D) tables.
     pub grid_a2b: usize,
+    #[allow(missing_docs)]
     pub grid_b2a: usize,
     /// Map paper and PCS white onto each other exactly: the AToB maps no ink to L* 100,
     /// a* = b* = 0, and the BToA input curves put that white on a grid node (`grid_b2a` must
@@ -93,6 +96,8 @@ pub struct CmykModel {
 const YN: f64 = 2.0;
 
 impl CmykModel {
+    /// Model of a coated offset press (ISO 12647-2 paper type 1/2 aims) with the given tone value
+    /// increase at 50 % for C, M, Y, K.
     pub fn coated(tvi: [f64; 4]) -> Self {
         let lab = |l: f64, a: f64, b: f64| math::lab_to_xyz([l, a, b], math::D50);
         // ISO 12647-2 (coated, paper type 1/2) Lab aims, D50/2°; CMY overprint estimated.
@@ -159,6 +164,7 @@ impl CmykModel {
 /// A printer model: CMYK coverages (each in `[0, 1]`) → ICC-relative Lab (paper = L* 100).
 /// The separation solves and the gamut boundary invert it.
 pub trait Forward: Sync {
+    /// ICC-relative Lab for the given ink coverages.
     fn lab(&self, cmyk: [f64; 4]) -> [f64; 3];
 }
 

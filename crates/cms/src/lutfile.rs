@@ -9,7 +9,9 @@
 /// A parsed 3D LUT.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LutFile {
+    /// Title from the file, or empty when it has none.
     pub title: String,
+    /// Edge length of the cube: the table has `size` points per axis.
     pub size: usize,
     /// `size`³ × 3 values, red fastest.
     pub data: Vec<f32>,
@@ -18,6 +20,7 @@ pub struct LutFile {
     /// saturating outside. `[0, 1]` is the identity default; applying a table with any other
     /// domain is rejected upstream until Color Lookup carries it through.
     pub domain_min: [f32; 3],
+    /// Upper end of the input domain per channel; see [`domain_min`](Self::domain_min).
     pub domain_max: [f32; 3],
 }
 
@@ -25,6 +28,7 @@ pub struct LutFile {
 /// keeping the GPU table within texture limits).
 pub const MAX_SIZE: usize = 129;
 
+/// Why a LUT file could not be read; the string is a message for the user.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LutError(pub String);
 

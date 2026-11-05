@@ -7,13 +7,16 @@
 /// values. Sampled tables clamp their input to `[0, 1]`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Curve {
+    #[allow(missing_docs)]
     Identity,
     /// `y = x^g`.
     Gamma(f64),
     /// ICC `parametricCurveType` function `kind` (0–4) with parameters `[g, a, b, c, d, e, f]`
     /// (unused ones are 0).
     Parametric {
+        /// ICC parametric function type, 0 to 4 (see [`Curve::param_count`]).
         kind: u16,
+        /// Parameters `[g, a, b, c, d, e, f]`; those the function type does not use are 0.
         p: [f64; 7],
     },
     /// Samples at evenly spaced inputs over `[0, 1]`, normalised outputs.
@@ -37,6 +40,7 @@ impl Curve {
         }
     }
 
+    /// `true` when the curve maps every input to itself (within 1e-9 for formulas, 1/65535 for tables).
     pub fn is_identity(&self) -> bool {
         match self {
             Curve::Identity => true,
@@ -60,6 +64,7 @@ impl Curve {
         }
     }
 
+    /// Evaluates the curve at `x` in `f32`, the fast path for pixel loops.
     #[inline]
     pub fn eval(&self, x: f32) -> f32 {
         match self {
@@ -99,6 +104,7 @@ impl Curve {
         }
     }
 
+    /// Evaluates the inverse curve at `y` in `f32`, the fast path for pixel loops.
     #[inline]
     pub fn eval_inverse(&self, y: f32) -> f32 {
         match self {
