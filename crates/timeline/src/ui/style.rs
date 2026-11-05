@@ -31,6 +31,7 @@ pub struct TimelineStyle {
     /// The least and most a track's height can be dragged to: `timeline.track_height_min`,
     /// `timeline.track_height_max`.
     pub track_height_min: f32,
+    #[allow(missing_docs)]
     pub track_height_max: f32,
     /// The colour label strip at a header's leading edge: `timeline.label_strip`.
     pub label_strip: f32,
@@ -54,7 +55,9 @@ pub struct TimelineStyle {
     /// `timeline.keyframe_arrow_height`) and the room between its parts
     /// (`timeline.keyframe_nav_step`).
     pub keyframe_arrow_width: f32,
+    #[allow(missing_docs)]
     pub keyframe_arrow_height: f32,
+    #[allow(missing_docs)]
     pub keyframe_nav_step: f32,
     /// A marker flag's width: `timeline.marker_width`.
     pub marker_width: f32,
@@ -69,6 +72,7 @@ pub struct TimelineStyle {
     /// The least room between two ruler labels and between two ticks:
     /// `timeline.ruler_label_gap`, `timeline.ruler_tick_gap`.
     pub ruler_label_gap: f32,
+    #[allow(missing_docs)]
     pub ruler_tick_gap: f32,
     /// A drag of this length moves a timecode field's value one frame:
     /// `timeline.scrub_step`.

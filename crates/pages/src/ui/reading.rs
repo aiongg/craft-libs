@@ -72,7 +72,7 @@ pub const READING_ZOOM: std::ops::RangeInclusive<f32> = 0.75..=1.5;
 /// per point. With a chosen column width (`requested`, within [`REQUESTED_WIDTH`] page points)
 /// that width, at most the window less two gaps; otherwise about one column per
 /// `style.column_target` screen points, 1 to [`MAX_COLUMNS`], each at least `style.column_min`.
-/// A chosen width gives way to a window narrower than it, but not below [`NARROWEST_FIT`] screen
+/// A chosen width gives way to a window narrower than it, but not below `NARROWEST_FIT` screen
 /// points. The height leaves the gap and `style.nav_bar` (WordCraft's `READ_NAV_BAR`, #1772).
 // wordcraft: crates/ui-egui/src/canvas/reading.rs:49 `reading_size`.
 pub fn reading_size(avail: Vec2, scale: f32, style: &ReadingStyle, requested: Option<f32>) -> (f32, f32) {
@@ -168,7 +168,9 @@ pub struct ReadingState {
     /// Where turns are going (several ticks queue columns rather than rounding a half-turned
     /// position).
     pub target: Option<usize>,
+    /// The scroll position in screen points while a turn animates.
     pub offset: f32,
+    /// The wheel turns not yet applied, in points; see `wheel_turns`.
     pub wheel: f32,
     /// The text at the start of the first column shown (app-defined position), kept across
     /// reflows instead of the editing caret.
@@ -202,6 +204,7 @@ pub struct ReadingView<'a> {
 /// What the view did this pass.
 #[derive(Debug)]
 pub struct ReadingViewResponse {
+    #[allow(missing_docs)]
     pub response: egui::Response,
     /// The viewport has held still for [`RESIZE_SETTLE`] after a resize: the app reflows to a new
     /// [`reading_size`] in this pass. While it settles the view asks egui for one repaint at the
@@ -221,15 +224,18 @@ impl<'a> ReadingView<'a> {
         }
     }
 
+    /// A view of the pages of `source`, with `state` kept by the app between passes.
     pub fn new(id_salt: impl egui::AsIdSalt, source: &'a dyn PageSource, state: &'a mut ReadingState) -> Self {
         ReadingView { id_salt: egui::IdSalt::new(id_salt), source, state, zoom: 1.0, name: None, labels: None }
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: ReadingLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Sets the page zoom; 1.0 is the default size.
     pub fn zoom(mut self, zoom: f32) -> Self {
         self.zoom = zoom;
         self
@@ -243,6 +249,7 @@ impl<'a> ReadingView<'a> {
 
     // wordcraft: crates/ui-egui/src/canvas/reading.rs:25 `Settle::apply`, :119 `turn_read_page`,
     // :84 `place_read_pages`.
+    /// Shows the columns and navigation and reports page turns and reflow requests.
     pub fn show(self, ui: &mut Ui) -> ReadingViewResponse {
         let ReadingView { id_salt, source, state, zoom, name, labels } = self;
         let ctx = ui.ctx().clone();

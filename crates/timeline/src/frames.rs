@@ -31,7 +31,9 @@ pub const PREROLL_FRAMES: i64 = 6;
 
 /// The app's frame renderer. `render` runs on a worker thread (on the UI thread on wasm).
 pub trait FrameRenderer: Send + Sync + 'static {
+    /// The key that identifies a rendered frame.
     type Key: FrameCacheKey + Send + Sync + 'static;
+    /// The rendered frame type; its [`FrameSize`] counts against the cache budget.
     type Frame: FrameSize + Send + Sync + 'static;
     /// What a render needs besides the key: a document snapshot (`Arc<Project>`), the time, the
     /// scale. Cloned into each job.
@@ -48,10 +50,12 @@ pub trait FrameRenderer: Send + Sync + 'static {
 pub struct CancelToken(Arc<AtomicBool>);
 
 impl CancelToken {
+    /// Whether the job's frame is no longer wanted.
     pub fn is_cancelled(&self) -> bool {
         self.0.load(Ordering::Relaxed)
     }
 
+    /// Mark the job's frame as unwanted. Every clone of the token sees it.
     pub fn cancel(&self) {
         self.0.store(true, Ordering::Relaxed);
     }
@@ -66,6 +70,7 @@ pub struct FrameStats {
     pub request_misses: u64,
     /// Jobs finished, cancelled ones included.
     pub jobs_done: u64,
+    /// Jobs that ended because their token was cancelled.
     pub jobs_cancelled: u64,
     /// The running estimate of one playback frame's render time, seconds.
     pub render_cost: f64,
@@ -318,13 +323,16 @@ impl<R: FrameRenderer> FrameServer<R> {
         (cache.bytes(), cache.budget())
     }
 
+    /// The number of jobs waiting for a worker.
     pub fn queue_len(&self) -> usize {
         self.shared.queue.lock().map(|q| q.len()).unwrap_or(0)
     }
 
+    /// The number of worker threads (zero on wasm).
     pub fn workers(&self) -> usize {
         self.shared.workers
     }
+    /// A snapshot of the counters.
     pub fn stats(&self) -> FrameStats {
         *lock(&self.shared.stats)
     }

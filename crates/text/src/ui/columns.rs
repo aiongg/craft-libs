@@ -74,12 +74,15 @@ craft_ui::words! {
 /// shown is left out of the result, so each keeps its own value).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TextColumns {
+    /// Number of columns.
     pub count: Option<u32>,
     /// The space between columns, points (all of them, with equal width).
     pub spacing: Option<f32>,
     /// Word: each column's width and the spacing after it, points; empty with equal width.
     pub widths: Vec<(f32, f32)>,
+    /// Whether all columns have the same width.
     pub equal_width: Option<bool>,
+    /// Whether a line is drawn between columns.
     pub line_between: Option<bool>,
     /// Word: where the columns apply. `Some` only for a dialog with [`apply_to`](TextColumnsDialog::apply_to),
     /// which always returns it with the changes (WordCraft sends it with every `layout.columns`).
@@ -103,8 +106,11 @@ pub enum ColumnsApply {
 /// Word's Layout › Columns presets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ColumnsPreset {
+    #[allow(missing_docs)]
     One,
+    #[allow(missing_docs)]
     Two,
+    #[allow(missing_docs)]
     Three,
     /// Two columns, the left one narrower.
     Left,
@@ -134,6 +140,7 @@ pub struct TextColumnsDialog {
 }
 
 impl TextColumnsDialog {
+    /// A dialog editing `columns`, with lengths in inches.
     pub fn new(columns: TextColumns) -> Self {
         TextColumnsDialog {
             shown: columns.clone(),
@@ -174,11 +181,13 @@ impl TextColumnsDialog {
         self
     }
 
+    /// Sets the unit the length fields show.
     pub fn unit(mut self, unit: LengthUnit) -> Self {
         self.unit = unit;
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: TextColumnsLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -663,6 +672,7 @@ impl StackDialog for TextColumnsDialog {
 /// A choice from the Columns menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ColumnsChoice {
+    /// One of the column presets.
     Preset(ColumnsPreset),
     /// More Columns…: open the dialog.
     More,

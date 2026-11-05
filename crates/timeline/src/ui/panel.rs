@@ -105,11 +105,17 @@ impl TimelineLabels {
 /// A track header switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TrackSwitch {
+    /// The track is locked against edits.
     Locked,
+    /// The track is targeted by paste and insert.
     Targeted,
+    /// The track moves with ripple edits on other tracks.
     SyncLock,
+    /// The track's output is on (the eye or the speaker).
     Enabled,
+    /// The track is muted.
     Muted,
+    /// The track is soloed.
     Solo,
 }
 
@@ -118,32 +124,44 @@ pub enum TrackSwitch {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum TimelineEdit {
+    /// A clip drag; see [`ClipEdit`].
     Clip(EditEvent<ClipEdit>),
+    /// A playhead drag or click, as a new time.
     Playhead(EditEvent<Tick>),
+    /// A drag of the work area's range.
     WorkArea(EditEvent<TimeRange>),
+    /// A marker gesture.
     Marker(MarkerEdit),
     /// A header switch was clicked; `value` is the new state. Alt-click on Solo or Mute
     /// (exclusive) arrives with `exclusive`.
     Switch {
+        /// The track whose switch was clicked.
         track: TrackId,
+        /// Which switch was clicked.
         switch: TrackSwitch,
+        /// The switch's new state.
         value: bool,
+        /// Alt was held: apply to every other track too.
         exclusive: bool,
     },
     /// The colour strip's menu.
     Label {
+        /// The track whose label changed.
         track: TrackId,
+        /// The new label, or `None` to clear it.
         label: Option<MarkerColor>,
     },
     /// A row's edge dragged, or a double-click on its header (a one-step `Set` between 64 and
     /// 30 points, FilmCraft `timeline/headers.rs:179-186`): the new height in points, clamped to
     /// `style.track_height_min`…`style.track_height_max`, as one gesture (Esc cancels).
     TrackHeight {
+        /// The track that is resized.
         track: TrackId,
+        /// The new height, in points.
         height: EditEvent<f32>,
     },
     /// The headers' right edge dragged: their new width in points, as one gesture. A view
-    /// setting the app keeps beside [`TimeView`](crate::TimeView), never in undo.
+    /// setting the app keeps beside [`TimeView`], never in undo.
     HeaderWidth(EditEvent<f32>),
     /// A click on a clip or empty track space, or a marquee: the selection change the
     /// kernel's list rules give, with Premiere's picks (a click replaces, Shift+click toggles the
@@ -152,7 +170,9 @@ pub enum TimelineEdit {
     /// linked partners when Linked Selection is on, and keeps the selection
     /// ([`TimelineModel::selection`]).
     Select {
+        /// The clips selected after the change.
         change: SelectionChange<ClipId>,
+        /// Cmd or Ctrl was held: leave linked partners out.
         unlinked: bool,
     },
     /// The divider between the video and audio tracks dragged: the video side's new share of the
@@ -163,9 +183,13 @@ pub enum TimelineEdit {
     /// its menu. `anchor` is the clicked clip's or track's rect (the focused clip's with a key),
     /// `pointer` the click position, `None` for a key.
     ContextMenu {
+        /// The track under the pointer, if any.
         track: Option<TrackId>,
+        /// The clip under the pointer or focused, if any.
         clip: Option<ClipId>,
+        /// The clicked clip's or track's rect, to anchor the menu.
         anchor: Rect,
+        /// The click position; `None` for a key.
         pointer: Option<Pos2>,
     },
     /// A double-click on a clip (Premiere opens it in the Source monitor).
@@ -178,19 +202,19 @@ pub type HeaderExtra<'a> = Box<dyn FnMut(&mut Ui, &TrackInfo<'_>) + 'a>;
 /// The Timeline panel (Premiere's Timeline; EffectCraft's layer timeline and SoundCraft's Edit
 /// window as options).
 ///
-/// Layout, top to bottom: the large [`TimecodeField`](super::TimecodeField) and the toolbar
+/// Layout, top to bottom: the large [`TimecodeField`] and the toolbar
 /// buttons (left, over the headers, `style.top_height` high) beside the
-/// [`TimelineRuler`](super::TimelineRuler); then the track rows: the caption tracks in their own
+/// [`TimelineRuler`]; then the track rows: the caption tracks in their own
 /// area (FilmCraft's), a divider, video tracks stacked upward from the next divider (V1 nearest
 /// it), the divider (`style.divider_height`), audio tracks downward, and the Mix row
 /// (`style.mix_row_height`) when the model has a [master volume](TimelineModel::master_volume_db);
-/// each side scrolls vertically on its own; the [`TimelineScrollBar`](super::TimelineScrollBar)
+/// each side scrolls vertically on its own; the [`TimelineScrollBar`]
 /// at the bottom. Headers are [`TrackHeader`]s, `style.header_width` wide unless
 /// [`header_width`](Self::header_width) says otherwise, resizable at their right edge
 /// ([`TimelineEdit::HeaderWidth`], within `style.header_width_min`…`style.header_width_max`);
-/// rows are [`ClipLane`](super::ClipLane)s, which paint their clips' content through
+/// rows are [`ClipLane`]s, which paint their clips' content through
 /// [`content`](Self::content). The playhead line runs over every row; the snap line shows while
-/// a gesture snaps. `style` is [`TimelineStyle`](super::TimelineStyle) (`timeline.*` tokens). The
+/// a gesture snaps. `style` is [`TimelineStyle`] (`timeline.*` tokens). The
 /// toolbar buttons are [`IconButton`]s the app owns the state of (Snap, Linked Selection),
 /// reported through their responses on [`TimelineOutput::toolbar`]; the app adds a marker when
 /// the Add Marker response clicks (FilmCraft `ruler.rs:70`).
@@ -223,7 +247,7 @@ pub type HeaderExtra<'a> = Box<dyn FnMut(&mut Ui, &TrackInfo<'_>) + 'a>;
 ///   beyond these).
 /// - AccessKit: the time area is a `Group` named by [`TimelineLabels::panel`]; each track a
 ///   `Row`; each height edge and the headers' width edge a `Splitter`; each clip a `Button` named by its name with its start and duration as the value
-///   (the [`TimeFormat`](crate::TimeFormat) of the model), `selected` set.
+///   (the [`TimeFormat`] of the model), `selected` set.
 ///
 /// ```ignore
 /// let output = Timeline::new(("timeline", seq_id), &mut model).tool(app.tool).snap(app.snapping).show(ui);
@@ -269,6 +293,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
         }
     }
 
+    /// The tool that decides what a press on a clip does; [`TimelineTool::Selection`] by default.
     pub fn tool(mut self, tool: TimelineTool) -> Self {
         self.tool = tool;
         self
@@ -286,6 +311,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
         self
     }
 
+    /// Allow the Selection tool to choose Roll and Ripple trims without a modifier key.
     pub fn no_modifier_trims(mut self, on: bool) -> Self {
         self.no_modifier_trims = on;
         self
@@ -312,6 +338,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
         self
     }
 
+    /// The palette that gives label colours; the default palette when not set.
     pub fn palette(mut self, palette: &'a LabelPalette) -> Self {
         self.palette = Some(palette);
         self
@@ -331,11 +358,13 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
         self
     }
 
+    /// The accessibility and tooltip words; `TimelineLabels::of` when not set.
     pub fn labels(mut self, labels: TimelineLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Show the panel and report what the user did.
     // filmcraft: crates/ui-egui/src/panels/timeline.rs:263 `show`, `:468` `animate_view`, `:513`
     // (follow), `:757` `empty_state`; `timeline/layout.rs:61` `video_row_tops`;
     // `timeline/interact.rs:982` `interact`, `:215` `wheel_scroll`; `timeline/snap.rs:15`.
@@ -675,6 +704,7 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
 /// What the panel did this pass.
 #[must_use]
 pub struct TimelineOutput {
+    /// The panel's response, for hover and focus.
     pub response: Response,
     /// This pass's edits, in the order the user made them.
     pub edits: Vec<TimelineEdit>,
@@ -690,14 +720,18 @@ pub struct TimelineOutput {
 /// settings on a click), Add Marker (the app adds the marker at the playhead; the panel reports
 /// no `TimelineEdit` for it, FilmCraft `ruler.rs:70`) and the display settings.
 pub struct TimelineToolbar {
+    /// The Snap toggle button.
     pub snap: Response,
+    /// The Linked Selection toggle button.
     pub linked_selection: Response,
+    /// The Add Marker button.
     pub add_marker: Response,
+    /// The display settings button.
     pub settings: Response,
 }
 
 /// One track's header (Premiere's): the colour label strip (`style.label_strip` wide; a click
-/// opens a [`PressMenu`](craft_ui::menu::PressMenu) of the labels and None), the name (indented
+/// opens a [`PressMenu`] of the labels and None), the name (indented
 /// by the track's `depth`), then the switches the [`TrackInfo`] has (`Some`): lock, target, sync
 /// lock, output, mute, solo, as icon [`IconButton`]s with the tooltips of [`TimelineLabels`]
 /// (FilmCraft puts the switches on the header's upper line and the name on the lower one); and a
@@ -722,6 +756,7 @@ pub struct TrackHeader<'a> {
 }
 
 impl<'a> TrackHeader<'a> {
+    /// A header for `track`.
     pub fn new(id_salt: impl AsIdSalt, track: &'a TrackInfo<'a>) -> Self {
         Self { id_salt: IdSalt::new(id_salt), track, height: None, above_divider: false, top_edge: false, palette: None, labels: None }
     }
@@ -745,16 +780,19 @@ impl<'a> TrackHeader<'a> {
         self
     }
 
+    /// The palette that gives label colours; the default palette when not set.
     pub fn palette(mut self, palette: &'a LabelPalette) -> Self {
         self.palette = Some(palette);
         self
     }
 
+    /// The accessibility and tooltip words; `TimelineLabels::of` when not set.
     pub fn labels(mut self, labels: &'a TimelineLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Show the header in `rect` and report the edits.
     // filmcraft: crates/ui-egui/src/panels/timeline/headers.rs:38 `draw_headers`, `:202`
     // `header_line_buttons`; `timeline.rs:254` `TRACK_HEADER_TINT`.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> TrackHeaderOutput {
@@ -898,7 +936,9 @@ impl<'a> TrackHeader<'a> {
 /// What a header did this pass (the panel passes its edits on as [`TimelineEdit`]s).
 #[must_use]
 pub struct TrackHeaderOutput {
+    /// The header's response, for hover and focus.
     pub response: Response,
+    /// The edits the header asks for, in order.
     pub edits: Vec<TimelineEdit>,
 }
 

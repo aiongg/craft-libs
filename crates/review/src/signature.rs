@@ -57,14 +57,17 @@ impl SignatureImage {
         Self { width, height, rgba, key: hasher.finish() }
     }
 
+    /// Width in pixels.
     pub fn width(&self) -> u32 {
         self.width
     }
 
+    /// Height in pixels.
     pub fn height(&self) -> u32 {
         self.height
     }
 
+    /// Straight RGBA bytes, 4 per pixel, row by row.
     pub fn rgba(&self) -> &[u8] {
         &self.rgba
     }
@@ -82,6 +85,7 @@ pub enum SavedSignature {
     Drawn(Vec<Vec<[f32; 2]>>),
     /// Text drawn in the proportional face (the library has no script face).
     Typed(String),
+    /// A signature image.
     Image(SignatureImage),
 }
 
@@ -89,8 +93,11 @@ pub enum SavedSignature {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SignatureTab {
     #[default]
+    /// Type the signature as text.
     Type,
+    /// Draw the signature with the pointer.
     Draw,
+    /// Pick an image file.
     Image,
     /// A photo of a signature on paper, cleaned into an image by the app (PdfCraft's scan
     /// worker).
@@ -100,8 +107,11 @@ pub enum SignatureTab {
 /// What the pad holds while open.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SignatureDraft {
+    /// The tab that is showing.
     pub tab: SignatureTab,
+    /// Strokes drawn on the Draw tab, in pad units (0 to 1 on both axes).
     pub strokes: Vec<Vec<[f32; 2]>>,
+    /// The text typed on the Type tab.
     pub text: String,
     /// The Image or Scan tab's result.
     pub image: Option<SignatureImage>,

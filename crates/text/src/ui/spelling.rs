@@ -1,4 +1,4 @@
-//! [`CheckSpellingDialog`] (F14.06): Edit › Check Spelling on the dialog stack, and
+//! [`CheckSpellingDialog`]: Edit › Check Spelling on the dialog stack, and
 //! [`SpellingSettings`], the user's dictionary as a settings section.
 //!
 //! The dialog walks a list of misspellings the app found (with [`crate::spell::Dictionary`]
@@ -70,6 +70,7 @@ enum Press {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SpellingSettings {
+    /// The words the user added.
     pub user_words: Vec<String>,
 }
 
@@ -84,6 +85,7 @@ pub struct SpellingItem {
     pub object: u64,
     /// Byte range of the word in that object's text.
     pub range: Range<usize>,
+    /// The misspelled word.
     pub word: String,
     /// At most [`SUGGESTION_COUNT`], best first.
     pub suggestions: Vec<String>,
@@ -93,9 +95,21 @@ pub struct SpellingItem {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SpellingAction {
     /// Replace this one occurrence with `to`.
-    Change { item: SpellingItem, to: String },
+    Change {
+        /// The misspelling to replace.
+        item: SpellingItem,
+        /// The replacement text.
+        to: String,
+    },
     /// Replace every occurrence of `word` with `to`, in every text object when `all_layers`.
-    ChangeAll { word: String, to: String, all_layers: bool },
+    ChangeAll {
+        /// The misspelled word.
+        word: String,
+        /// The replacement text.
+        to: String,
+        /// Whether to change it in every text object, not only the current one.
+        all_layers: bool,
+    },
     /// Add `word` to the user's dictionary ([`SpellingSettings`]).
     Add(String),
     /// Find the misspellings again: Ignore All added a word to [`CheckSpellingDialog::ignored`],

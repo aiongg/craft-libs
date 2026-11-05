@@ -56,7 +56,7 @@ craft_ui::words! {
 /// What OK returns.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TabStopsResult {
-    /// The stops, sorted, none within [`SAME_POSITION`](super::ruler::SAME_POSITION) of another.
+    /// The stops, sorted, none within [`SAME_POSITION`] of another.
     pub stops: Vec<TabStop>,
     /// Positions to clear (stops the paragraph inherits from its style, cleared here).
     pub cleared: Vec<f32>,
@@ -69,7 +69,7 @@ pub const MAX_STOPS: usize = 64;
 
 /// The Tabs dialog.
 ///
-/// - The stops are a craft-ui [`Table`](craft_ui::list::Table) (columns Position, Alignment,
+/// - The stops are a craft-ui [`Table`] (columns Position, Alignment,
 ///   Leader; one Tab stop with the list keys and selection) whose cells are a `unit_number_field`
 ///   in the unit and two `Select`s (the leader's options numbered as Word's: "1 ……"); editing a
 ///   row in place keeps the table in row order until the edit ends, then
@@ -78,7 +78,7 @@ pub const MAX_STOPS: usize = 64;
 /// - Set adds a stop at the next free multiple of the default interval after the last stop, left
 ///   aligned, no leader, selected and ready to edit; Clear moves the selected stop to "to be
 ///   cleared"; Clear All clears every stop.
-/// - Positions are clamped to ±[`MAX_POSITION`](super::ruler::MAX_POSITION); at most
+/// - Positions are clamped to ±[`MAX_POSITION`]; at most
 ///   [`MAX_STOPS`] stops are read from a paragraph.
 /// - Keys: Enter is OK unless a row's field has the keyboard (it commits the field), Esc Cancel.
 pub struct TabStopsDialog {
@@ -131,11 +131,13 @@ impl TabStopsDialog {
         }
     }
 
+    /// Sets the unit the position fields show.
     pub fn unit(mut self, unit: LengthUnit) -> Self {
         self.unit = unit;
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: TabStopsLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -167,7 +169,7 @@ impl TabStopsDialog {
         self.edited = None;
     }
 
-    /// Position order after in-place edits, merging stops within [`SAME_POSITION`](super::ruler::SAME_POSITION) (the edited
+    /// Position order after in-place edits, merging stops within [`SAME_POSITION`] (the edited
     /// row wins), the selection kept on its stop.
     // wordcraft: crates/ui-egui/src/dialogs/dialogs_para.rs:123 `TabsForm::normalize`.
     pub fn normalize(&mut self) {

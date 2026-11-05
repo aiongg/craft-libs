@@ -1,4 +1,4 @@
-//! Spelling (F14.06): Edit › Check Spelling, and the suggestions in the type tool's context menu
+//! Spelling: Edit › Check Spelling, and the suggestions in the type tool's context menu
 //! over a misspelled word.
 //!
 //! [`Dictionary::english`] is SCOWL size 50 (American English, about 72,000 words), deflated into
@@ -167,6 +167,7 @@ impl Dictionary {
         self.words.len()
     }
 
+    /// Whether the dictionary has no words.
     pub fn is_empty(&self) -> bool {
         self.words.is_empty()
     }

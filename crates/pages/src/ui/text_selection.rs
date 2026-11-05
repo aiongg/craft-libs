@@ -21,6 +21,7 @@ use super::view::PlacedPage;
 /// A page's text as the selection reads it, glyph by glyph in reading order. Rectangles are page
 /// points (origin top-left).
 pub trait PageTextSource {
+    /// The number of glyphs on the page.
     fn glyph_count(&self) -> usize;
     /// The glyph nearest `p` within a line's height, if any: where a press or drag lands.
     fn glyph_at(&self, p: kurbo::Point) -> Option<usize>;
@@ -33,6 +34,7 @@ pub trait PageTextSource {
     fn glyphs_in(&self, rect: Rect) -> Vec<usize>;
     /// The word and the line around a glyph, as glyph ranges.
     fn word_at(&self, glyph: usize) -> Option<Range<usize>>;
+    /// The line around a glyph, as a glyph range.
     fn line_at(&self, glyph: usize) -> Option<Range<usize>>;
     /// The text of `glyphs` as Copy puts it on the clipboard (lines joined with newlines).
     fn text_of(&self, glyphs: Range<usize>) -> String;
@@ -44,15 +46,27 @@ pub trait PageTextSource {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TextSpan {
     /// Reading order, between two glyphs (inclusive), anchor where the drag started.
-    Run { anchor: usize, head: usize },
+    Run {
+        /// Index of the glyph where the drag started.
+        anchor: usize,
+        /// Index of the glyph the drag has reached.
+        head: usize,
+    },
     /// The glyphs inside a rectangle (page points), drawn from the corner the drag started at.
-    Column { from: kurbo::Point, to: kurbo::Point },
+    Column {
+        /// Corner of the rectangle where the drag started, in page points.
+        from: kurbo::Point,
+        /// Corner of the rectangle where the drag has reached, in page points.
+        to: kurbo::Point,
+    },
 }
 
 /// A text selection on one page.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TextSelection {
+    /// Page index, 0-based.
     pub page: usize,
+    /// The selected glyphs on that page.
     pub span: TextSpan,
 }
 
@@ -111,14 +125,18 @@ pub fn click_unit(text: &dyn PageTextSource, clicks: u32, glyph: usize) -> Optio
 /// A highlight drawn with the selection: find matches, the current one stronger.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextMark {
+    /// Page index, 0-based.
     pub page: usize,
+    /// The glyphs to highlight.
     pub glyphs: Range<usize>,
+    /// Whether this is the current find match, drawn stronger.
     pub current: bool,
 }
 
 /// The text of the document's pages, for the tool: the pages whose text the app has (PdfCraft
 /// extracts it in the background; a page without it yet selects nothing).
 pub trait PageTexts {
+    /// The text of page `page`, if it has been extracted yet.
     fn page(&self, page: usize) -> Option<&dyn PageTextSource>;
 }
 
@@ -126,6 +144,7 @@ pub trait PageTexts {
 /// place, as craft-ui's `List` applies its selection) and the gesture in progress.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TextSelectState {
+    /// The selection, if any.
     pub selection: Option<TextSelection>,
     /// The drag in progress: the page and where it started (glyph, or page point for a column).
     gesture: Option<(usize, TextSpan)>,
@@ -194,6 +213,7 @@ pub struct TextSelectTool<'a> {
 }
 
 impl<'a> TextSelectTool<'a> {
+    /// A tool over the placed `pages`, reading text from `texts` and keeping its gesture in `state`.
     pub fn new(pages: &'a [PlacedPage], texts: &'a dyn PageTexts, state: &'a mut TextSelectState) -> Self {
         TextSelectTool { pages, texts, state, column: false, changed: false }
     }

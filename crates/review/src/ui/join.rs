@@ -38,11 +38,12 @@ pub struct JoinField<'a> {
 }
 
 impl<'a> JoinField<'a> {
+    /// A field that edits `typed` and joins through `transport`.
     pub fn new(id_salt: impl AsIdSalt, transport: &'a dyn CollabTransport, typed: &'a mut String) -> Self {
         Self { id_salt: IdSalt::new(id_salt), transport, typed, width: None, focus: false, labels: None }
     }
 
-    /// Width of the field; `review.join_width` ([`ReviewStyle`](super::ReviewStyle)) by default.
+    /// Width of the field; `review.join_width` ([`ReviewStyle`]) by default.
     pub fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
         self
@@ -54,6 +55,7 @@ impl<'a> JoinField<'a> {
         self
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: JoinLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -125,6 +127,8 @@ impl<'a> JoinField<'a> {
 /// What the join field did this pass.
 #[must_use]
 pub struct JoinFieldOutput {
+    /// The field's response.
     pub response: Response,
+    /// The requests the user made: join, cancel or retry.
     pub requests: Vec<CollabRequest>,
 }

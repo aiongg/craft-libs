@@ -59,7 +59,9 @@ craft_ui::words! {
 /// The saved signature and initials, one settings section shared by every document.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SignatureSettings {
+    /// The saved signature, if any.
     pub signature: Option<SavedSignature>,
+    /// The saved initials, if any.
     pub initials: Option<SavedSignature>,
 }
 
@@ -237,7 +239,7 @@ pub type ScanTab = Box<dyn FnMut(&mut egui::Ui, &mut SignatureDraft) + Send>;
 
 /// Acrobat's signature pad on the dialog host: "Create signature" / "Change initials", the tabs
 /// Type (a field, previewed in the proportional face), Draw (a pad: strokes with the pointer or pen,
-/// Undo), Image (Browse… a PNG or JPEG up to [`MAX_IMAGE_BYTES`](crate::signature::MAX_IMAGE_BYTES)
+/// Undo), Image (Browse… a PNG or JPEG up to [`MAX_IMAGE_BYTES`]
 /// through `host.files()`) and Scan (shown when the app gives a scan hook); Clear; Apply (enabled
 /// when [`SignatureDraft::ready`]) and Cancel. Tabs are a segmented control (arrow keys move);
 /// Tab walks the controls; Enter is Apply; Esc is Cancel. Browse… reads and decodes the file on
@@ -265,12 +267,14 @@ pub struct SignaturePadDialog {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SignaturePadResult {
+    /// What the user drew, typed or picked.
     pub signature: SavedSignature,
     /// Whether it is initials (else the signature).
     pub initials: bool,
 }
 
 impl SignaturePadDialog {
+    /// A pad that starts from `draft`.
     pub fn new(draft: SignatureDraft) -> Self {
         Self { draft, scan: None, labels: None, state: DialogState::default(), pick: None, decoding: None, error: None, texture: None }
     }
@@ -281,6 +285,7 @@ impl SignaturePadDialog {
         self
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: SignatureLabels) -> Self {
         self.labels = Some(labels);
         self

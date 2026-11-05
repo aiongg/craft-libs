@@ -12,6 +12,7 @@ use egui::{EventFilter, Key, Modifiers, Rect, Sense, Ui, UiBuilder, vec2};
 
 /// The grid's size: 8 rows by 10 columns (Word and PowerPoint).
 pub const ROWS: usize = 8;
+/// The grid's width in squares.
 pub const COLUMNS: usize = 10;
 
 craft_ui::words! {
@@ -27,7 +28,9 @@ craft_ui::words! {
 /// (the menu closes then).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TableSizeResponse {
+    /// The `(rows, columns)` under the pointer or the focused square, for a live preview.
     pub hovered: Option<(usize, usize)>,
+    /// The `(rows, columns)` clicked or chosen with Enter.
     pub picked: Option<(usize, usize)>,
 }
 
@@ -39,7 +42,7 @@ pub struct TableSizeResponse {
 ///   input fill and strong border.
 /// - Squares of [`TableSizeStyle`](crate::ui::TableSizeStyle)'s cell and gap.
 /// - Keys: the grid is one Tab stop; arrows move the hovered square through craft-ui's
-///   [`GridNav`](craft_ui::behavior::GridNav) (`GridNav::wrapped(ROWS * COLUMNS, COLUMNS)`, its
+///   [`GridNav`] (`GridNav::wrapped(ROWS * COLUMNS, COLUMNS)`, its
 ///   right-to-left mirroring), Enter inserts it, Esc closes the menu. It is an AccessKit Grid
 ///   whose value reads like the label.
 pub struct TableSizePicker {
@@ -55,10 +58,12 @@ impl TableSizePicker {
         crate::ui::TableSizeStyle { cell: t.table_size_cell, gap: t.table_size_gap, label: craft_theme::TypeRole::Body }
     }
 
+    /// A picker with no preset size.
     pub fn new(id_salt: impl egui::AsIdSalt) -> Self {
         TableSizePicker { id_salt: egui::IdSalt::new(id_salt), labels: None, preset: None }
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: TableSizePickerLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -74,6 +79,7 @@ impl TableSizePicker {
 
     // wordcraft: crates/ui-egui/src/dialogs/forms.rs:335 `table_grid_picker`; deckcraft:
     // crates/ui-egui/src/ribbon/insert.rs:136 `table_grid_picker`.
+    /// Paints the grid and returns what was hovered and picked.
     pub fn show(self, ui: &mut Ui) -> TableSizeResponse {
         let tokens = Tokens::of(ui);
         let style = Self::style(&tokens);

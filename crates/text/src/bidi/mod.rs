@@ -36,7 +36,9 @@ pub enum Direction {
 /// it is treated as strongly left to right or right to left.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Override {
+    /// Byte range in the paragraph text.
     pub range: Range<usize>,
+    /// Whether the range is right to left (true) or left to right (false).
     pub rtl: bool,
 }
 
@@ -46,6 +48,7 @@ pub struct Override {
 pub struct Run {
     /// Byte range in the paragraph text, in logical order.
     pub range: Range<usize>,
+    /// Embedding level: even is left to right, odd is right to left.
     pub level: u8,
 }
 
@@ -138,6 +141,7 @@ impl<'t> Paragraph<'t> {
         Self { text, levels, paragraphs }
     }
 
+    /// The paragraph text the levels belong to.
     pub fn text(&self) -> &'t str {
         self.text
     }
@@ -174,6 +178,7 @@ impl<'t> Paragraph<'t> {
         &self.levels
     }
 
+    /// Consumes the resolution and returns the level of each byte of the text.
     pub fn into_levels(self) -> Vec<u8> {
         self.levels
     }

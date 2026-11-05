@@ -501,7 +501,7 @@ impl<'a> Rulers<'a> {
     /// of every ruler, so a text ruler or a page view's ruler draws the same ticks as the canvas's.
     /// One labelled step beyond each end is included, since a label starts right of its tick.
     /// `zoom` is screen points per document unit along the axis, as [`RulerUnits::step`] takes it.
-    /// Empty when the units are unusable or the span would need more than [`MAX_TICKS`] ticks.
+    /// Empty when the units are unusable or the span would need more than 20,000 ticks.
     pub fn ticks(units: &RulerUnits, rule: TickRule<'_>, style: &RulerStyle, zoom: f64, values: RangeInclusive<f64>) -> Vec<RulerTick> {
         let (step, subdivisions) = match rule {
             TickRule::Metric => units.step(zoom, style.step_min),

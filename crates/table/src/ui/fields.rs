@@ -57,9 +57,13 @@ craft_ui::words! {
 /// A pivot area.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FieldArea {
+    #[allow(missing_docs)]
     Filters,
+    #[allow(missing_docs)]
     Columns,
+    #[allow(missing_docs)]
     Rows,
+    #[allow(missing_docs)]
     Values,
 }
 
@@ -71,7 +75,9 @@ impl FieldArea {
 /// A source field: its name, whether it holds numbers (ticked, it goes to Values; text to Rows).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PivotField {
+    /// The field's name, as the checklist shows it.
     pub name: String,
+    /// Whether the field holds numbers.
     pub numeric: bool,
     /// A few of the field's values, shown as the checklist row's tooltip (GridCraft
     /// `pivot_pane.rs:56-57`).
@@ -92,10 +98,15 @@ pub struct ValuesRow {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Summary {
+    #[allow(missing_docs)]
     Sum,
+    #[allow(missing_docs)]
     Count,
+    #[allow(missing_docs)]
     Average,
+    #[allow(missing_docs)]
     Max,
+    #[allow(missing_docs)]
     Min,
 }
 
@@ -103,9 +114,13 @@ pub enum Summary {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ShowAs {
+    /// Show the plain value.
     NoCalculation,
+    /// Show the value as a share of the grand total.
     PercentOfGrandTotal,
+    /// Show a running total down the items.
     RunningTotal,
+    /// Show the value's rank among the items.
     Rank,
 }
 
@@ -113,7 +128,9 @@ pub enum ShowAs {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ValueSetting {
+    /// Change how the value is summarized.
     Summarize(Summary),
+    /// Change how the value is shown.
     ShowAs(ShowAs),
 }
 
@@ -121,7 +138,9 @@ pub enum ValueSetting {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum FieldSort {
+    #[allow(missing_docs)]
     Ascending,
+    #[allow(missing_docs)]
     Descending,
 }
 
@@ -129,9 +148,13 @@ pub enum FieldSort {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum FieldGroup {
+    #[allow(missing_docs)]
     Years,
+    #[allow(missing_docs)]
     Quarters,
+    #[allow(missing_docs)]
     Months,
+    /// Remove the grouping.
     Ungroup,
 }
 
@@ -142,10 +165,12 @@ pub enum FieldListEdit {
     /// Ticked: add it to its default area. A tick sweep reports one `Add` or `Remove` per row it
     /// changes, however late the app applies them; Esc reports the opposite edits.
     Add {
+        /// Name of the source field.
         field: String,
     },
     /// Unticked, or Remove Field from an area's menu.
     Remove {
+        /// Name of the source field.
         field: String,
         /// The area the field's menu removed it from; `None` for a tick of the checklist, which
         /// removes it from every area (GridCraft `pivot_pane.rs:164-166`).
@@ -155,29 +180,40 @@ pub enum FieldListEdit {
     /// as one gesture of the kernel's [`Move`] (the list's reorder):
     /// the app previews `Update`s and applies the `Commit`.
     Move {
+        /// The area the field moves to.
         to: FieldArea,
+        /// The gesture of the move; the app previews updates and applies the commit.
         change: EditEvent<Move<String>>,
     },
     /// The "Σ Values" row moved to Rows or Columns, by its menu or a drop. The app places it.
     MoveValues {
+        /// The area the Values row moves to.
         to: FieldArea,
     },
     /// A value field's Summarize by and Show as entries.
     ValueSettings {
+        /// Name of the value field.
         field: String,
+        /// The new setting.
         setting: ValueSetting,
     },
     /// A field's Sort A to Z and Z to A entries.
     Sort {
+        /// Name of the source field.
         field: String,
+        /// The order to sort in.
         order: FieldSort,
     },
     /// A field's Group by and Ungroup entries.
     Group {
+        /// Name of the date field.
         field: String,
+        /// How to group its items.
         by: FieldGroup,
     },
+    /// Refresh the pivot table from its source.
     Refresh,
+    /// Open the calculated-field dialog.
     CalculatedField,
     /// The Report Layout menu.
     Layout(ReportLayout),
@@ -186,17 +222,20 @@ pub enum FieldListEdit {
 /// The Report Layout menu's choices (Excel's).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ReportLayout {
+    #[allow(missing_docs)]
     Compact,
+    #[allow(missing_docs)]
     Outline,
+    #[allow(missing_docs)]
     Tabular,
 }
 
 /// The PivotTable Fields task pane (Excel's, as GridCraft lays it out): a field checklist, then
 /// the four areas each listing its fields; Refresh, Calculated Field… and the Report Layout
-/// [`PressMenu`](craft_ui::menu::PressMenu) at the bottom.
+/// [`PressMenu`] at the bottom.
 ///
-/// - The checklist is a kernel [`List`](craft_ui::list::List) whose rows carry a check-box
-///   [`ToggleColumn`](craft_ui::list::ToggleColumn) (ticked: [`FieldListEdit::Add`], unticked:
+/// - The checklist is a kernel [`List`] whose rows carry a check-box
+///   [`ToggleColumn`] (ticked: [`FieldListEdit::Add`], unticked:
 ///   [`FieldListEdit::Remove`]); a row's tooltip lists the field's samples. Its height is at most
 ///   `sheet.field_list_checklist_max`, each area's at least `sheet.field_list_area_min`.
 /// - Each area is a `List` with [`List::reorder`](craft_ui::list::List) and the
@@ -217,10 +256,12 @@ pub struct FieldListPane<'a> {
 }
 
 impl<'a> FieldListPane<'a> {
+    /// A pane listing the source `fields`, with `areas` giving the field names placed in each pivot area.
     pub fn new(id_salt: impl AsIdSalt, fields: &'a [PivotField], areas: &'a [(FieldArea, Vec<String>)]) -> Self {
         Self { id_salt: IdSalt::new(id_salt), fields, areas, values_row: None, labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: FieldListLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -234,6 +275,7 @@ impl<'a> FieldListPane<'a> {
     }
 
     // gridcraft: crates/ui-egui/src/pivot_pane.rs:21 `show`.
+    /// Shows the pane and reports what the user did.
     pub fn show(self, ui: &mut Ui) -> FieldListPaneOutput {
         let Self { id_salt, fields, areas, values_row, labels } = self;
         let labels = labels.unwrap_or_else(|| FieldListLabels::of(ui));
@@ -296,6 +338,7 @@ impl<'a> FieldListPane<'a> {
 /// What the pane did this pass.
 #[must_use]
 pub struct FieldListPaneOutput {
+    /// The pane's response.
     pub response: Response,
     /// This pass's edits, in order.
     pub edits: Vec<FieldListEdit>,

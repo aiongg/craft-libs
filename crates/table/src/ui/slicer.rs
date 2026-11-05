@@ -25,6 +25,7 @@ craft_ui::words! {
 /// A slicer's parts.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SlicerLayout {
+    /// The caption header.
     pub header: Rect,
     /// The clear-filter button in the header.
     pub clear: Rect,
@@ -61,7 +62,9 @@ pub fn slicer_layout(rect: Rect, zoom: f32, n: usize, columns: u32, style: &Shee
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SlicerAction {
+    /// Toggle the value of this tile.
     Toggle(String),
+    /// Clear the filter.
     Clear,
 }
 
@@ -72,7 +75,7 @@ pub enum SlicerAction {
 /// The card and the funnel button sense click and drag, so a press on them never reaches the grid
 /// under the slicer.
 /// The slicer is one Tab stop whose arrows move between the tiles in reading order
-/// ([`GridNav`](craft_ui::behavior::GridNav) over the tile columns), Space toggles the focused
+/// ([`GridNav`] over the tile columns), Space toggles the focused
 /// tile as a click does, and the funnel button is a Tab stop of
 /// its own named by [`SlicerLabels::clear`]. AccessKit: a `ListBox` of `ListBoxOption`s with
 /// `selected`, the focused tile its `active_descendant`. The tiles are the slicer's own (Excel's look); step 5's `Chip` is a removable tag
@@ -93,16 +96,19 @@ impl<'a> Slicer<'a> {
         Self { id_salt: IdSalt::new(id_salt), caption, items, columns: 1, filtered: false, zoom: 1.0, labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: SlicerLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// The number of tile columns; 1 by default.
     pub fn columns(mut self, columns: u32) -> Self {
         self.columns = columns;
         self
     }
 
+    /// Whether a filter is on; the funnel button is then tinted.
     pub fn filtered(mut self, on: bool) -> Self {
         self.filtered = on;
         self
@@ -115,6 +121,7 @@ impl<'a> Slicer<'a> {
     }
 
     // gridcraft: crates/ui-egui/src/chartview.rs:424 `paint_slicers`, `:472` `slicer_click`.
+    /// Shows the slicer in `rect` and reports clicks and key presses.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> SlicerOutput {
         let Self { id_salt, caption, items, columns, filtered, zoom, labels } = self;
         let labels = labels.unwrap_or_else(|| SlicerLabels::of(ui));
@@ -226,6 +233,7 @@ impl<'a> Slicer<'a> {
 /// What the slicer did this pass.
 #[must_use]
 pub struct SlicerOutput {
+    /// The slicer's response.
     pub response: Response,
     /// In order. A click on a tile or the funnel and a key press in one pass report both.
     pub actions: Vec<SlicerAction>,

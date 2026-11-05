@@ -1,7 +1,7 @@
 //! [`PageThumbnails`] (N3.01): the Pages panel of Acrobat and the slide strip of PowerPoint, on
-//! craft-ui's [`TileGrid`](craft_ui::list::TileGrid): page thumbnails with the current page marked, several picked with
+//! craft-ui's [`TileGrid`]: page thumbnails with the current page marked, several picked with
 //! ⌘/Ctrl- and ⇧-click, dragged to reorder, a context menu the app fills, and the
-//! [`ThumbnailSlider`](craft_ui::list::ThumbnailSlider) for their size.
+//! [`ThumbnailSlider`] for their size.
 //!
 //! The grid does the work: layout, `ListSelection` picks on the app's [`Selection`], `GridNav`
 //! keys, `Reorder` drags with a `ListDrag` payload reported as `EditEvent<Move<usize>>`, pictures
@@ -43,7 +43,7 @@ use super::style::PageThumbnailsStyle;
 use super::view::PageSource;
 
 /// The thumbnail zoom: 0.5 to 1.5 of the usual width in steps of 0.25, 1 by default (PdfCraft's
-/// `THUMBNAIL_ZOOM_RANGE` and its − and + step). The size row's [`ThumbnailSlider`](craft_ui::list::ThumbnailSlider) and the grid's
+/// `THUMBNAIL_ZOOM_RANGE` and its − and + step). The size row's [`ThumbnailSlider`] and the grid's
 /// ⌘/Ctrl + / − / 0 step on it.
 pub const THUMBNAIL_ZOOM: TileZoom = TileZoom::Range { min: 0.5, max: 1.5, step: 0.25, default: 1.0 };
 
@@ -67,9 +67,11 @@ craft_ui::words! {
 /// the name and the count; its context menu is the app's ([`ThumbnailEvent::SectionMenu`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ThumbnailSection {
+    #[allow(missing_docs)]
     pub name: String,
     /// The section's first page.
     pub first: usize,
+    /// Number of pages in the section.
     pub count: usize,
     /// Open (its pages shown); the app keeps it and applies [`ThumbnailEvent::SectionOpen`].
     pub open: bool,
@@ -143,10 +145,22 @@ pub enum ThumbnailEvent {
     ContextMenu(ContextMenuRequest<usize>),
     /// The app's menu for section `section` is asked for (secondary click on its header; the
     /// grid's `GroupContextMenu`).
-    SectionMenu { section: usize, anchor: Rect, pointer: Option<Pos2> },
+    SectionMenu {
+        /// Index of the section.
+        section: usize,
+        /// The section header's screen rectangle, where a menu opened from the keyboard goes.
+        anchor: Rect,
+        /// The pointer position of a secondary click; `None` for a keyboard request.
+        pointer: Option<Pos2>,
+    },
     /// A section header's chevron (or AccessKit's Expand or Collapse on it) asks to open or close
     /// it (the grid's `GroupOpen`).
-    SectionOpen { section: usize, open: bool },
+    SectionOpen {
+        /// Index of the section.
+        section: usize,
+        /// The state asked for: `true` to open the section, `false` to close it.
+        open: bool,
+    },
 }
 
 /// The panel's result.
@@ -164,8 +178,8 @@ pub struct PageThumbnailsOutput {
     pub file_gap: Option<usize>,
 }
 
-/// The thumbnails panel body, built per pass: a [`ThumbnailSlider`](craft_ui::list::ThumbnailSlider) row (with
-/// [`size`](Self::size)) over a craft-ui [`TileGrid`](craft_ui::list::TileGrid) of the pages. Sizes come from
+/// The thumbnails panel body, built per pass: a [`ThumbnailSlider`] row (with
+/// [`size`](Self::size)) over a craft-ui [`TileGrid`] of the pages. Sizes come from
 /// [`PageThumbnailsStyle`] (the `thumbnails.*` tokens proposed in the spec) and the grid's
 /// `tile.*` tokens.
 ///
@@ -247,7 +261,7 @@ impl<'a> PageThumbnails<'a> {
         self
     }
 
-    /// Show the size row above the grid: craft-ui's [`ThumbnailSlider`](craft_ui::list::ThumbnailSlider) over [`THUMBNAIL_ZOOM`]
+    /// Show the size row above the grid: craft-ui's [`ThumbnailSlider`] over [`THUMBNAIL_ZOOM`]
     /// (its − and + glyph buttons step 0.25), editing `zoom` (a view preference, not the
     /// document): `Update`, `Commit` and `Set` write it, `Cancel` restores the value the gesture
     /// began with. The row stays above the scroll area. The grid's `Zoom` keys step it too.
@@ -283,6 +297,7 @@ impl<'a> PageThumbnails<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: ThumbnailLabels) -> Self {
         self.labels = Some(labels);
         self

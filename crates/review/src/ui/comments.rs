@@ -29,6 +29,7 @@ use crate::comments::{CommentFilter, CommentSort, CommentThread, ReviewStatus, T
 pub mod counts {
     use craft_ui::localized::words::Counted;
 
+    /// Count word for a thread's reply count.
     pub const REPLIES: Counted = Counted::new("comments.replies", "{n} reply", "{n} replies");
 
     /// Every count word of the Comments panel.
@@ -112,12 +113,15 @@ craft_ui::words! {
 /// What the panel keeps between passes; the app keeps one per document window.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CommentsPanelState {
+    /// The search box text; threads match through [`matches`](fn@matches).
     pub search: String,
+    /// The active sort.
     pub sort: CommentSort,
     /// What the filter menu hides.
     pub filter: CommentFilter,
     /// The pages whose group is folded under the Page sort.
     pub collapsed_pages: Vec<usize>,
+    /// The selected thread, if any.
     pub selected: Option<ThreadId>,
     /// The message being edited inline: (thread, message index, text).
     pub editing: Option<(ThreadId, usize, String)>,
@@ -144,55 +148,79 @@ impl CommentsPanelState {
 pub enum CommentEdit {
     /// "Add a comment": a sticky note on the current page.
     Add {
+        /// The comment text.
         text: String,
     },
+    /// Reply to a thread.
     Reply {
+        #[allow(missing_docs)]
         thread: ThreadId,
+        /// The reply text.
         text: String,
     },
     /// Message `index` (0: the comment) edited.
     Edit {
+        #[allow(missing_docs)]
         thread: ThreadId,
+        /// Message index; 0 is the comment.
         index: usize,
+        /// The new text.
         text: String,
     },
     /// Message `index` deleted; 0 deletes the thread.
     Delete {
+        #[allow(missing_docs)]
         thread: ThreadId,
+        /// Message index; 0 deletes the whole thread.
         index: usize,
     },
+    /// Set a thread's review status.
     SetStatus {
+        #[allow(missing_docs)]
         thread: ThreadId,
+        #[allow(missing_docs)]
         status: ReviewStatus,
     },
+    /// Set or clear a thread's checkmark.
     Mark {
+        #[allow(missing_docs)]
         thread: ThreadId,
+        #[allow(missing_docs)]
         marked: bool,
     },
     /// A card was selected: the app selects the annotation on the page and scrolls to it.
     Select(ThreadId),
     /// Copy text of message `index`; the app puts it on the clipboard.
     CopyText {
+        #[allow(missing_docs)]
         thread: ThreadId,
+        /// Message index.
         index: usize,
     },
     /// The viewer's reaction `emoji` on message `index` toggled (the thread popover).
     React {
+        #[allow(missing_docs)]
         thread: ThreadId,
+        /// Message index.
         index: usize,
+        /// The reaction emoji.
         emoji: String,
     },
     /// Figma's resolve (`true`) or reopen (`false`).
     Resolve {
+        #[allow(missing_docs)]
         thread: ThreadId,
+        #[allow(missing_docs)]
         resolved: bool,
     },
     /// The app puts a link to the thread on the clipboard.
     CopyLink {
+        #[allow(missing_docs)]
         thread: ThreadId,
     },
     /// The viewer's read state of the thread cleared.
     MarkUnread {
+        #[allow(missing_docs)]
         thread: ThreadId,
     },
 }
@@ -200,23 +228,23 @@ pub enum CommentEdit {
 /// Acrobat's right-hand comment list (PdfCraft).
 ///
 /// - Header "Comments N" with "N replies" under it, search (a [`SearchField`]; filters by
-///   [`matches`](crate::comments::matches), ignoring case as PdfCraft does), the Sort by menu, the
+///   [`matches`](fn@matches), ignoring case as PdfCraft does), the Sort by menu, the
 ///   funnel menu ([`CommentFilter`]: Type, Author, Status, Color, Checkmark rows that hide what
 ///   they name, as PdfCraft's Filter comments) and, under the Page sort, a menu with Collapse
 ///   all pages and Expand all pages. A search or filter that leaves nothing shows "No comments
 ///   match."
 /// - "Add a comment" box: Enter (Cmd+Enter in a multi-line draft) posts a sticky note.
-/// - Cards grouped under headings (by [`sort_threads`](crate::comments::sort_threads)); under
+/// - Cards grouped under headings (by [`sort_threads`]); under
 ///   the Page sort a heading names the page ([`page_label`](CommentsPanel::page_label)), shows the
 ///   count of the page's comments before filtering, and folds its cards on a click. Each card has: an
 ///   avatar with the kind's icon in the annotation colour, author, modified date (relative
-///   under a week with [`relative_age`](craft_ui::localized::relative_age) in
+///   under a week with [`relative_age`] in
 ///   [`AgeStyle::Short`](craft_ui::localized::AgeStyle), then the date through craft-i18n's
 ///   `I18n::dates()`, as `AGE_SHOWN_AS_DATE` describes), the text; a status badge (Accepted:
 ///   thumbs-up; Rejected: thumbs-down; Cancelled: circle-x; Completed: check; colours
-///   `review.status_*` of [`ReviewStyle`](super::ReviewStyle)); the checkmark (a toggle on the
+///   `review.status_*` of [`ReviewStyle`]); the checkmark (a toggle on the
 ///   selected card, a mark otherwise); a lock badge; replies under it, each with its own "…"
-///   ([`PressMenu`](craft_ui::menu::PressMenu): Edit, Copy text, Delete).
+///   ([`PressMenu`]: Edit, Copy text, Delete).
 /// - The selected card has the `review.card_accent` bar, the reply box and "…" (Edit, Set
 ///   status, Delete). Locked threads and `read_only` hide the editing items.
 /// - Keyboard: Up / Down move between cards (selecting them), Enter focuses the reply box, Esc
@@ -247,6 +275,7 @@ impl<'a> CommentsPanel<'a> {
         self
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: CommentsLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -269,6 +298,7 @@ impl<'a> CommentsPanel<'a> {
     // pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:115 `show`, `:311` `card`, `:541`
     // `inline_editor`, `:568` `reply_menu`, `:600` `avatar`, `:626` `header_controls`;
     // `tools/comments/menu.rs:368` `status_badge`; deckcraft: crates/ui-egui/src/panels/comments.rs:67.
+    /// Shows the panel and reports what the user did.
     pub fn show(self, ui: &mut Ui) -> CommentsPanelOutput {
         let Self { id_salt, threads, state, read_only, labels, annotate_labels, page_label } = self;
         let labels = labels.unwrap_or_else(|| CommentsLabels::of(ui));
@@ -309,6 +339,7 @@ impl<'a> CommentsPanel<'a> {
 /// What the Comments panel did this pass.
 #[must_use]
 pub struct CommentsPanelOutput {
+    /// The panel's response.
     pub response: Response,
     /// This pass's edits, in order.
     pub edits: Vec<CommentEdit>,

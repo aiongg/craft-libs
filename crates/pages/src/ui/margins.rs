@@ -52,9 +52,13 @@ craft_ui::words! {
 /// An edge a margin drag moves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MarginEdge {
+    #[allow(missing_docs)]
     Left,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     Top,
+    #[allow(missing_docs)]
     Bottom,
     /// The header's distance from the top edge.
     Header,
@@ -66,7 +70,9 @@ pub enum MarginEdge {
 /// edge is the stored right margin) and its points.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MarginChange {
+    /// The margin that moved.
     pub edge: MarginEdge,
+    /// Its new size in points.
     pub points: f64,
 }
 
@@ -75,7 +81,9 @@ pub struct MarginChange {
 pub struct MarginRules {
     /// Page width and height, points.
     pub page: (f64, f64),
+    #[allow(missing_docs)]
     pub margins: Margins,
+    /// Binding room added to the inside margin, points.
     pub gutter: f64,
     /// An even page of mirrored margins.
     pub mirrored_even: bool,
@@ -155,6 +163,7 @@ pub fn dragged_margin(edge: MarginEdge, at: f64, rules: &MarginRules) -> MarginC
 /// What the handles did this pass.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MarginResponse {
+    /// The margin change, if a handle was dragged or moved with a key.
     pub edit: Option<EditEvent<MarginChange>>,
 }
 
@@ -221,6 +230,7 @@ impl<'a> MarginHandles<'a> {
         self
     }
 
+    /// Sets the gutter, points: binding room added to the inside margin. Default 0.
     pub fn gutter(mut self, gutter: f64) -> Self {
         self.gutter = gutter;
         self
@@ -238,16 +248,19 @@ impl<'a> MarginHandles<'a> {
         self
     }
 
+    /// Sets the snap step in points; 0 turns snapping off.
     pub fn snap(mut self, points: f64) -> Self {
         self.snap = points;
         self
     }
 
+    /// Sets the least width of text that a dragged margin must leave between it and the opposite margin, points.
     pub fn min_text(mut self, points: f64) -> Self {
         self.min_text = points;
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: MarginLabels) -> Self {
         self.labels = Some(labels);
         self

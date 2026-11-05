@@ -76,7 +76,7 @@ impl UnsavedChangesDialog {
         Self { id: dialog_id("unsaved-changes"), scope, name: document_name.into(), remaining: 1, apply_to_all: false, chosen: None }
     }
 
-    /// The answer a host-side [`confirm`](DialogHost::confirm) gives, as pressing that button
+    /// The answer a host-side [`confirm`](super::DialogHost::confirm) gives, as pressing that button
     /// would; the default button's until set.
     pub fn set_answer(&mut self, answer: CloseAnswer) {
         self.chosen = Some(answer);

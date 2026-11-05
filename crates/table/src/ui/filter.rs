@@ -33,7 +33,9 @@ pub enum FilterButtonEvent {
 /// What the filter button did this pass.
 #[must_use]
 pub struct FilterButtonOutput {
+    /// The button's response.
     pub response: Response,
+    /// What the user did, if anything.
     pub event: Option<FilterButtonEvent>,
 }
 
@@ -71,11 +73,13 @@ impl FilterButton {
         Self { id_salt: IdSalt::new(id_salt), filtered: false, sorted: None, column: column.into(), labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: FilterButtonLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Whether the column is filtered; the button then shows a funnel.
     pub fn filtered(mut self, on: bool) -> Self {
         self.filtered = on;
         self

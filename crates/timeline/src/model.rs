@@ -8,10 +8,12 @@ use crate::timecode::TimeFormat;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
+/// Identifies a track within a sequence.
 pub struct TrackId(pub u64);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
+/// Identifies a clip within a sequence.
 pub struct ClipId(pub u64);
 
 /// What a track holds; the panel groups video tracks above the divider (stacked upward from it,
@@ -20,7 +22,9 @@ pub struct ClipId(pub u64);
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TrackKind {
     #[default]
+    /// A picture track.
     Video,
+    /// A sound track.
     Audio,
     /// Captions, in their own area above the video tracks.
     Caption,
@@ -33,7 +37,9 @@ pub enum TrackKind {
 /// when `Some` (an EffectCraft layer has no sync lock).
 #[derive(Clone, Debug, PartialEq)]
 pub struct TrackInfo<'a> {
+    /// The track's identity.
     pub id: TrackId,
+    /// What the track holds.
     pub kind: TrackKind,
     /// "V1", "A2", a layer name.
     pub name: &'a str,
@@ -43,23 +49,34 @@ pub struct TrackInfo<'a> {
     /// Nesting under the track before it (EffectCraft property rows, SoundCraft folders): the
     /// header's name is indented by it.
     pub depth: u8,
+    /// The track's colour label, if it has one.
     pub label: Option<MarkerColor>,
+    /// Whether the track is locked against edits.
     pub locked: Option<bool>,
+    /// Whether the track is targeted by paste and insert.
     pub targeted: Option<bool>,
+    /// Whether the track moves with ripple edits on other tracks.
     pub sync_lock: Option<bool>,
     /// Track output (the eye on video, the speaker on audio).
     pub enabled: Option<bool>,
+    /// Whether the track is muted (audio).
     pub muted: Option<bool>,
+    /// Whether the track is soloed (audio).
     pub solo: Option<bool>,
 }
 
 /// One clip on a track, within the visible time.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClipInfo<'a> {
+    /// The clip's identity.
     pub id: ClipId,
+    /// The track that holds the clip.
     pub track: TrackId,
+    /// The clip's place on the timeline.
     pub range: TimeRange,
+    /// The clip's display name.
     pub name: &'a str,
+    /// The clip's colour label, if it has one.
     pub label: Option<MarkerColor>,
     /// Disabled clips are drawn dimmed (Premiere's Enable off).
     pub enabled: bool,
@@ -87,6 +104,7 @@ pub trait TimelineModel {
     /// How times are shown and typed (rate, drop-frame, display).
     fn format(&self) -> TimeFormat;
 
+    /// The playhead position.
     fn playhead(&self) -> Tick;
 
     /// The view (zoom and scroll) the panel shows and changes directly: view changes are not

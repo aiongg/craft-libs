@@ -1,5 +1,5 @@
 //! The page widgets' sizes and colours, one style per widget, each a pure function of
-//! [`UiTokens`] built by the widget's `style` function from the `pages.*` leaves (the one `pages`
+//! [`UiTokens`](craft_ui::theme::UiTokens) built by the widget's `style` function from the `pages.*` leaves (the one `pages`
 //! family; names and source values in the spec's "Proposed tokens"). No body here or in a widget holds a literal size.
 //!
 //! Proportions of a token size (a hidden slide's opacity, a mark's share of the ascent) are named
@@ -53,9 +53,11 @@ pub struct HeaderFooterStyle {
     pub hint: Stroke,
     /// The edited section's outline, accent, and its neighbours' (`pages.header_footer_edit_outline`).
     pub editing: Stroke,
+    #[allow(missing_docs)]
     pub neighbour: Stroke,
     /// The paper a section is cleared to and the ink its text takes (`pages.paper`, `pages.ink`).
     pub paper: Color32,
+    #[allow(missing_docs)]
     pub ink: Color32,
 }
 
@@ -65,12 +67,16 @@ pub struct HeaderFooterStyle {
 pub struct TextSelectStyle {
     /// `pages.text_selection_fill`, `pages.find_match`, `pages.find_current`.
     pub selection: Color32,
+    #[allow(missing_docs)]
     pub found: Color32,
+    #[allow(missing_docs)]
     pub current: Color32,
     /// Corner radii of the selection and match rects, and the current match's (`pages.text_selection_radius`,
     /// `pages.find_current_radius`); how much the current match grows (`pages.find_current_grow`).
     pub radius: f32,
+    #[allow(missing_docs)]
     pub current_radius: f32,
+    #[allow(missing_docs)]
     pub current_grow: f32,
     /// The column rectangle's outline while dragging (`pages.text_selection_column_outline`, accent).
     pub column_outline: Stroke,
@@ -84,19 +90,23 @@ pub struct ColumnBarStyle {
     /// The bar's outline (`pages.column_bar_outline`, `line.control_edge`) and corner radius
     /// (`radius.control`).
     pub outline: Stroke,
+    #[allow(missing_docs)]
     pub radius: f32,
     /// A divider at rest (`pages.column_bar_divider`, `line.control_edge`) and hovered, dragged or
     /// focused (`pages.column_bar_divider_active`, accent).
     pub divider: Stroke,
+    #[allow(missing_docs)]
     pub divider_active: Stroke,
     /// How far either side of a divider grabs it (`pages.column_bar_grab`).
     pub grab: f32,
     /// The fill of the even and the odd columns (`pages.column_bar_fill`, `pages.column_bar_fill_alt`).
     pub fill: Color32,
+    #[allow(missing_docs)]
     pub fill_alt: Color32,
     /// The type role of the column percentages (PdfCraft: medium 11 pt; the caption role is the
     /// nearest), and the narrowest column that paints one (`pages.column_bar_label_min`).
     pub label: TypeRole,
+    #[allow(missing_docs)]
     pub label_min: f32,
 }
 
@@ -110,6 +120,7 @@ pub struct ReadingStyle {
     /// One column per this much width, and the least column width, screen points
     /// (`pages.reading_column_target`, `pages.reading_column_min`).
     pub column_target: f32,
+    #[allow(missing_docs)]
     pub column_min: f32,
 }
 
@@ -119,14 +130,18 @@ pub struct FrameMarksStyle {
     /// A port's side and its distance from the frame's corner (`pages.frame_marks_port`,
     /// `pages.frame_marks_port_inset`).
     pub port: f32,
+    #[allow(missing_docs)]
     pub port_inset: f32,
     /// The overset mark: its colour, arm length and stroke (`pages.frame_marks_overset`,
     /// `pages.frame_marks_overset_arm`, `pages.frame_marks_overset_stroke`).
     pub overset: Color32,
+    #[allow(missing_docs)]
     pub overset_arm: f32,
+    #[allow(missing_docs)]
     pub overset_stroke: f32,
     /// The least and largest hidden-character mark size (`pages.frame_marks_mark_min`, `pages.frame_marks_mark_max`).
     pub mark_min: f32,
+    #[allow(missing_docs)]
     pub mark_max: f32,
     /// The fill of a port (`pages.paper`).
     pub paper: Color32,
@@ -137,6 +152,7 @@ pub struct FrameMarksStyle {
 pub struct EdgePickerStyle {
     /// The square's side and the lines' inset from it (`pages.edge_picker_side`, `pages.edge_picker_inset`).
     pub side: f32,
+    #[allow(missing_docs)]
     pub inset: f32,
     /// The field inside the inset (`pages.edge_picker_fill`), the square's border (`field.border`).
     pub fill: Color32,
@@ -144,8 +160,11 @@ pub struct EdgePickerStyle {
     /// its colour `pages.edge_picker_line_off_color`), the line under the pointer
     /// (`pages.edge_picker_line_hover`).
     pub line_on: f32,
+    #[allow(missing_docs)]
     pub line_off: f32,
+    #[allow(missing_docs)]
     pub line_off_color: Color32,
+    #[allow(missing_docs)]
     pub line_hover: f32,
 }
 
@@ -154,6 +173,7 @@ pub struct EdgePickerStyle {
 pub struct TableSizeStyle {
     /// A square's side and the space between squares (`pages.table_size_cell`, `pages.table_size_gap`).
     pub cell: f32,
+    #[allow(missing_docs)]
     pub gap: f32,
     /// The type role of the size label above the squares.
     pub label: TypeRole,
@@ -165,5 +185,6 @@ pub struct CellSelectionStyle {
     /// The selected cells' tint (`pages.table_selection_fill`) and the range outline (accent,
     /// `pages.table_selection_outline`).
     pub fill: Color32,
+    #[allow(missing_docs)]
     pub outline: Stroke,
 }

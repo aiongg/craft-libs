@@ -76,9 +76,9 @@ pub struct PageRangeFieldResponse {
 
 /// The field, built per pass.
 ///
-/// - Shows `selected` formatted ([`format_pages`](crate::range::format_pages)); with nothing
+/// - Shows `selected` formatted ([`format_pages`]); with nothing
 ///   selected, the current page as its placeholder (the page actions apply to).
-/// - The field is craft-ui's [`TextField`](craft_ui::controls::TextField) (its typing run, Esc
+/// - The field is craft-ui's [`TextField`] (its typing run, Esc
 ///   and focus rules). Typed text applies on Enter or when the field loses focus: parsed text
 ///   returns the pages and shows them back formatted; text that doesn't parse stays, with the
 ///   error under the field in the field error style (`status.bad.fg`, replacing help text). Esc
@@ -109,12 +109,14 @@ impl<'a> PageRangeField<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: PageRangeLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
     // pdfcraft: crates/ui-egui/src/panels/page_selection_ui.rs:64 `PageSelectionInput::show`.
+    /// Shows the field and reports what the user typed or picked.
     pub fn show(self, ui: &mut Ui) -> PageRangeFieldResponse {
         let PageRangeField { id_salt, state, selected, count, current, menu, labels } = self;
         let labels = labels.unwrap_or_else(|| PageRangeLabels::of(ui));
@@ -195,16 +197,19 @@ pub struct PageRangeOptions<'a> {
 }
 
 impl<'a> PageRangeOptions<'a> {
+    /// Options for `range` in a document of `count` pages.
     pub fn new(id_salt: impl egui::AsIdSalt, range: &'a mut PageRange, count: usize) -> Self {
         PageRangeOptions { id_salt: egui::IdSalt::new(id_salt), range, count, labels: None }
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: PageRangeLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
     // pdfcraft: crates/ui-egui/src/dialogs/marks_ui.rs:58 `PageRange::ui`.
+    /// Shows the options and returns the response of the controls.
     pub fn show(self, ui: &mut Ui) -> Response {
         let PageRangeOptions { id_salt, range, count, labels } = self;
         let labels = labels.unwrap_or_else(|| PageRangeLabels::of(ui));

@@ -436,7 +436,7 @@ impl PageSetupDialog {
 ///   [`document_setup`](Self::document_setup)).
 /// - Paper: a craft-ui `Select` of [`papers`](Self::papers) plus Custom size, and Width and Height
 ///   `unit_number_field`s
-///   ([`MIN_PAGE_SIDE`](crate::setup::MIN_PAGE_SIDE)–[`MAX_PAGE_SIDE`](crate::setup::MAX_PAGE_SIDE));
+///   ([`MIN_PAGE_SIDE`]–[`MAX_PAGE_SIDE`]);
 ///   Custom size stays chosen while the numbers match a name; a typed size wider than tall turns
 ///   the orientation ([`PageSetup::set_size`]).
 /// - With [`layout`](Self::layout): Vertical alignment, Different Odd & Even Pages, Different
@@ -461,6 +461,7 @@ pub struct PageSetupDialog {
 }
 
 impl PageSetupDialog {
+    /// A dialog that edits `setup`, with every paper size and no layout group.
     pub fn new(setup: PageSetup) -> Self {
         PageSetupDialog {
             setup,
@@ -495,16 +496,19 @@ impl PageSetupDialog {
         self
     }
 
+    /// Shows the Layout group (vertical alignment, odd and even pages, first page) when `on`.
     pub fn layout(mut self, on: bool) -> Self {
         self.layout = on;
         self
     }
 
+    /// Shows the section direction field when `on`.
     pub fn direction(mut self, on: bool) -> Self {
         self.direction = on;
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: PageSetupLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -556,6 +560,7 @@ impl StackDialog for PageSetupDialog {
 pub enum PageLayoutChoice {
     /// A margins preset (its margins and whether it mirrors).
     Margins(MarginPreset),
+    /// The orientation to apply.
     Orientation(Orientation),
     /// A paper size, in the current orientation.
     Paper(PaperSize),
@@ -589,16 +594,19 @@ impl<'a> PageLayoutMenus<'a> {
         }
     }
 
+    /// Sets the margin presets the Margins menu lists.
     pub fn presets(mut self, presets: &'a [MarginPreset]) -> Self {
         self.presets = presets;
         self
     }
 
+    /// Sets the paper sizes the Size menu lists.
     pub fn papers(mut self, papers: &'a [PaperSize]) -> Self {
         self.papers = papers;
         self
     }
 
+    /// Sets the translated labels.
     pub fn labels(mut self, labels: PageSetupLabels) -> Self {
         self.labels = Arc::new(labels);
         self
@@ -631,6 +639,7 @@ impl<'a> PageLayoutMenus<'a> {
     }
 
     // wordcraft: crates/ui-egui/src/ribbon/layout.rs:30 `orientation_items`.
+    /// The Orientation menu entries: Portrait and Landscape.
     pub fn orientation(&self) -> Vec<MenuEntry<PageLayoutChoice>> {
         let labels = &self.labels;
         [(Orientation::Portrait, &labels.portrait), (Orientation::Landscape, &labels.landscape)]

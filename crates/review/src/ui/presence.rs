@@ -68,7 +68,7 @@ craft_ui::words! {
 }
 
 /// A round avatar of radius `radius` in `fill` with the initials ([`initials`](crate::collab::initials))
-/// in the dark or light ink the fill's luminance asks for ([`ink_on`]).
+/// in the dark or light ink the fill's luminance asks for (`ink_on`).
 // figcraft: crates/ui-egui/src/live.rs:188 `avatar`, `:182` `text_on`.
 pub fn paint_avatar(painter: &Painter, tokens: &UiTokens, center: Pos2, radius: f32, name: &str, fill: Color32) {
     let on = ink_on(&ReviewStyle::of(tokens), fill);
@@ -132,15 +132,18 @@ pub struct PeopleBar<'a> {
 }
 
 impl<'a> PeopleBar<'a> {
+    /// A bar of the people in `transport`'s session.
     pub fn new(id_salt: impl AsIdSalt, transport: &'a dyn CollabTransport) -> Self {
         Self { id_salt: IdSalt::new(id_salt), transport, following: None, labels: None }
     }
 
+    /// The person being followed, if any.
     pub fn following(mut self, who: Option<ParticipantId>) -> Self {
         self.following = who;
         self
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: PresenceLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -323,14 +326,15 @@ fn paint_follow_frame(ui: &Ui, tokens: &UiTokens, id: egui::Id, area: Rect, text
 /// What the people bar did this pass.
 #[must_use]
 pub struct PeopleBarOutput {
+    /// The bar's response.
     pub response: Response,
     /// Follow and Spotlight, in order.
     pub requests: Vec<CollabRequest>,
 }
 
 /// Other people's cursors over the canvas: a pointer and a name tag in their colour, gliding to
-/// each reported position ([`glide`](crate::collab::glide)), their selection outlines (at most
-/// 500), and their cursor chat bubbles ([`paint_chat_bubble`](super::paint_chat_bubble)).
+/// each reported position ([`glide`]), their selection outlines (at most
+/// 500), and their cursor chat bubbles ([`paint_chat_bubble`]).
 /// Repaints only while something glides or fades. Not interactive.
 pub struct RemoteCursors<'a> {
     id_salt: IdSalt,
@@ -338,6 +342,7 @@ pub struct RemoteCursors<'a> {
 }
 
 impl<'a> RemoteCursors<'a> {
+    /// Cursors for the people in `transport`'s session.
     pub fn new(id_salt: impl AsIdSalt, transport: &'a dyn CollabTransport) -> Self {
         Self { id_salt: IdSalt::new(id_salt), transport }
     }

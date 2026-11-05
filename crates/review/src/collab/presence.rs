@@ -3,6 +3,7 @@
 use super::chat::CursorChat;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Identifies a person within a session.
 pub struct ParticipantId(pub u64);
 
 /// The colours people get in join order (FigCraft `crates/engine/src/sharing/live/types.rs:27`).
@@ -23,13 +24,17 @@ pub const GLIDE: f64 = 20.0;
 /// One person in the session.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Participant {
+    #[allow(missing_docs)]
     pub id: ParticipantId,
+    #[allow(missing_docs)]
     pub name: String,
+    /// The colour of their cursor and avatar, straight RGB.
     pub color: [u8; 3],
     /// Their pointer in document units, `None` off the canvas.
     pub cursor: Option<[f64; 2]>,
     /// The outlines of their selection, document units (at most 500 are drawn).
     pub selection: Vec<[[f64; 2]; 2]>,
+    /// Their cursor chat bubble, if one is open.
     pub chat: Option<CursorChat>,
     /// They view only (no edits).
     pub viewer: bool,

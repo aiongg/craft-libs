@@ -16,10 +16,12 @@ pub struct Dictionary {
 const MAGIC: &[u8] = b"DCHYPH1\n";
 
 impl Dictionary {
+    /// The number of words.
     pub fn len(&self) -> usize {
         self.masks.len()
     }
 
+    /// Whether the dictionary has no words.
     pub fn is_empty(&self) -> bool {
         self.masks.is_empty()
     }

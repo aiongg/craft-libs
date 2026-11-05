@@ -59,7 +59,9 @@ pub const REACTIONS: [&str; 8] = ["👍", "❤", "😂", "🎉", "👀", "🙏",
 /// A pin or a cluster of pins on screen.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PinCluster {
+    /// Centre of the pin or cluster, in screen points.
     pub at: Pos2,
+    /// The threads it stands for.
     pub threads: Vec<ThreadId>,
 }
 
@@ -131,6 +133,7 @@ pub fn insert_mention(text: &mut String, range: (usize, usize), name: &str) -> u
 /// `canvas/comments.rs:352` `paint_pin`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CommentPin<'a> {
+    /// The thread this pin belongs to.
     pub id: ThreadId,
     /// The pin's spot in screen coordinates.
     pub point: Pos2,
@@ -147,7 +150,7 @@ pub struct CommentPin<'a> {
 }
 
 /// Comment pins over a canvas (Figma's, as FigCraft draws them): a `review.pin` pin per thread
-/// ([`ReviewStyle`](super::ReviewStyle); the author's avatar in the author's colour in a
+/// ([`ReviewStyle`]; the author's avatar in the author's colour in a
 /// speech-bubble shape with a square bottom-left corner, grey with a check once resolved, a dot
 /// while unread), pins within `review.cluster_radius` gathered into a cluster showing the count; a
 /// click on a pin opens its thread, a click on the open pin closes it, a click on a cluster lists
@@ -182,6 +185,7 @@ impl<'a> CommentPins<'a> {
 
     // figcraft: crates/ui-egui/src/canvas/comments.rs:242 `pins`, `:352` `paint_pin`, `:370`
     // `paint_cluster`, `:385` `draw`, `:419` `input`, `:119` `PinDrag`.
+    /// Shows the pins and reports clicks and drags.
     pub fn show(self, ui: &mut Ui) -> CommentPinsOutput {
         let Self { id_salt, pins, me, open, labels } = self;
         let labels = labels.unwrap_or_else(|| ThreadLabels::of(ui));
@@ -217,13 +221,16 @@ impl<'a> CommentPins<'a> {
 /// A pin dragged to a new screen point; the app maps it to its anchor.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PinMove {
+    /// The thread that was dragged.
     pub thread: ThreadId,
+    /// Where it was dropped, in screen points.
     pub to: Pos2,
 }
 
 /// What the pins did this pass.
 #[must_use]
 pub struct CommentPinsOutput {
+    /// The pins' response.
     pub response: Response,
     /// The thread whose pin or cluster entry was clicked while its popover was closed.
     pub opened: Option<ThreadId>,
@@ -252,10 +259,12 @@ pub struct ThreadPopover<'a> {
 }
 
 impl<'a> ThreadPopover<'a> {
+    /// A popover for `thread` next to `anchor` (the pin's rectangle, in screen points). `me` is the viewer's name and `people` the names offered for @mentions; `draft` holds the reply text.
     pub fn new(id_salt: impl AsIdSalt, thread: &'a CommentThread, anchor: Rect, me: &'a str, people: &'a [String], draft: &'a mut String) -> Self {
         Self { id_salt: IdSalt::new(id_salt), thread, anchor, me, people, draft, labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: ThreadLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -263,6 +272,7 @@ impl<'a> ThreadPopover<'a> {
 
     // figcraft: crates/ui-egui/src/canvas/comments.rs:497 `composer`, `:601` `Act`, the popover
     // after it.
+    /// Shows the popover and reports the edits made.
     pub fn show(self, ui: &mut Ui) -> ThreadPopoverOutput {
         let Self { id_salt, thread, anchor, me, people, draft, labels } = self;
         let labels = labels.unwrap_or_else(|| ThreadLabels::of(ui));
@@ -315,6 +325,7 @@ pub struct CommentComposer<'a> {
 }
 
 impl<'a> CommentComposer<'a> {
+    /// A composer at `anchor` (screen points; `None` hides it) that edits `draft`.
     pub fn new(id_salt: impl AsIdSalt, anchor: Option<Pos2>, draft: &'a mut String) -> Self {
         Self { id_salt: IdSalt::new(id_salt), anchor, draft, labels: None }
     }
@@ -326,6 +337,7 @@ impl<'a> CommentComposer<'a> {
     }
 
     // pdfcraft: crates/ui-egui/src/tools/comments/composer.rs:9 `composer`.
+    /// Shows the composer and reports whether the user posted or closed it.
     pub fn show(self, ui: &mut Ui) -> CommentComposerResponse {
         let Self { id_salt, anchor, draft, labels } = self;
         let mut response = CommentComposerResponse { posted: None, closed: false };

@@ -152,11 +152,13 @@ impl Patterns {
         }
     }
 
+    /// The number of patterns.
     #[cfg(any(test, feature = "generator"))]
     pub fn len(&self) -> usize {
         self.map.len()
     }
 
+    /// Whether there are no patterns.
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }

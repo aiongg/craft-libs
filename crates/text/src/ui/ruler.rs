@@ -50,9 +50,12 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TabAlign {
+    #[allow(missing_docs)]
     #[default]
     Left,
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Right,
     /// On the decimal point (InDesign: on the character the app sets, "." by default).
     Decimal,
@@ -78,6 +81,7 @@ impl TabAlign {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TabLeader {
+    #[allow(missing_docs)]
     #[default]
     None,
     /// ……
@@ -91,6 +95,7 @@ pub enum TabLeader {
 }
 
 impl TabLeader {
+    /// Every leader, in the order a menu lists them.
     pub const ALL: [TabLeader; 5] = [TabLeader::None, TabLeader::Dot, TabLeader::Hyphen, TabLeader::Underscore, TabLeader::MiddleDot];
 
     /// The fill a closed leader box shows ("" for none): Word's "……", "------", "______",
@@ -112,8 +117,11 @@ impl TabLeader {
 /// it to the nearest [`TabLeader`] or keeps its own in a field the ruler ignores.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TabStop {
+    /// Position in points from the paragraph's start edge.
     pub position: f32,
+    #[allow(missing_docs)]
     pub align: TabAlign,
+    #[allow(missing_docs)]
     pub leader: TabLeader,
 }
 
@@ -159,6 +167,7 @@ const DROP_OFF: f32 = 18.0;
 /// border 0, then the right edge of each cell of the caret's row.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ColumnBorder {
+    /// Index of the border: 0 is the table's left edge.
     pub index: usize,
     /// Points from the column's start edge. The columns right of the border move along with it:
     /// only the column left of it changes width.
@@ -176,6 +185,7 @@ pub struct TextRulerResponse {
     pub open_tabs_dialog: bool,
     /// A table column border dragged ([`TextRuler::columns`]): one gesture per drag.
     pub column: Option<EditEvent<ColumnBorder>>,
+    #[allow(missing_docs)]
     pub response: Response,
 }
 
@@ -251,11 +261,13 @@ impl<'a> TextRuler<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: TextRulerLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Sets the unit the ruler's tooltip and marker values show.
     pub fn unit(mut self, unit: LengthUnit) -> Self {
         self.unit = unit;
         self
@@ -275,6 +287,7 @@ impl<'a> TextRuler<'a> {
         self
     }
 
+    /// Mirrors the ruler for a right-to-left paragraph when `on`.
     pub fn right_to_left(mut self, on: bool) -> Self {
         self.right_to_left = on;
         self
@@ -290,6 +303,7 @@ impl<'a> TextRuler<'a> {
     // `draw_tab_glyph`, crates/ui-egui/src/canvas/rulers.rs (indent markers); designcraft:
     // crates/ui-egui/src/panels/tabs.rs:97 `ruler`; vectorcraft: crates/ui-egui/src/panels/tabs.rs:114
     // `hit_marker`.
+    /// Paints the ruler in `strip` and returns what the user did.
     pub fn show(self, ui: &mut Ui, strip: Rect) -> TextRulerResponse {
         run::show(self, ui, strip)
     }

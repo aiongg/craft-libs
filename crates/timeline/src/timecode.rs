@@ -37,9 +37,13 @@ impl TimeDisplay {
 /// [`TimeDisplay::AudioSamples`]) and the first frame's number.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct TimeFormat {
+    /// The frame rate the display counts in.
     pub rate: FrameRate,
+    /// Count in drop-frame timecode; ignored for rates without drop-frame support.
     pub drop_frame: bool,
+    /// How the time is shown.
     pub display: TimeDisplay,
+    /// The rate for [`TimeDisplay::AudioSamples`].
     pub sample_rate: SampleRate,
     /// Added to the frame number in [`TimeDisplay::Frames`] (0 or 1 in After Effects).
     pub frame_offset: i64,
@@ -51,11 +55,13 @@ impl TimeFormat {
         Self { rate, ..Self::default() }
     }
 
+    /// This format with drop-frame set to `on`.
     pub fn drop_frame(mut self, on: bool) -> Self {
         self.drop_frame = on;
         self
     }
 
+    /// This format with the given display.
     pub fn display(mut self, display: TimeDisplay) -> Self {
         self.display = display;
         self
@@ -65,10 +71,15 @@ impl TimeFormat {
 /// SMPTE fields of a frame count.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TimecodeFields {
+    /// Whether the time is before zero.
     pub negative: bool,
+    /// Hours, from zero.
     pub hours: i64,
+    /// Minutes, 0 to 59.
     pub minutes: i64,
+    /// Seconds, 0 to 59.
     pub seconds: i64,
+    /// Frames within the second, below the nominal frame rate.
     pub frames: i64,
 }
 

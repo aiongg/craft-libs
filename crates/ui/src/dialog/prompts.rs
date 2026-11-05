@@ -202,16 +202,16 @@ impl StandardPrompt {
 
     /// Makes this prompt one of several of its kind, for a library feature that asks its own
     /// question beside the app's prompts (the file service's Replace question). Its result is kept
-    /// apart: only [`DialogHost::take_by_id`] with the id `open` returns reaches it, so the app's
+    /// apart: only [`DialogHost::take_by_id`](super::DialogHost::take_by_id) with the id `open` returns reaches it, so the app's
     /// `take::<StandardPrompt>()` never takes it, and opening another prompt doesn't drop it.
-    /// [`DialogHost::confirm`] still answers it when it is the top prompt.
+    /// [`DialogHost::confirm`](super::DialogHost::confirm) still answers it when it is the top prompt.
     pub fn instance(mut self, instance: impl std::hash::Hash + fmt::Debug) -> Self {
         self.id = dialog_id(("standard-prompt", std::mem::discriminant(&self.kind), instance));
         self.instance = Some(self.id);
         self
     }
 
-    /// The answer a host-side [`confirm`](DialogHost::confirm) gives, as pressing that button
+    /// The answer a host-side [`confirm`](super::DialogHost::confirm) gives, as pressing that button
     /// would; Proceed (the default button) until set.
     pub fn set_choice(&mut self, choice: PromptChoice) {
         self.chosen = choice;

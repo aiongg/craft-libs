@@ -113,6 +113,7 @@ impl LineIndex {
         if line >= f64::from(self.count) { last } else { line as u32 }
     }
 
+    /// The size of `line` in points at 100 % zoom; 0 for a hidden line, the default for a line with no custom size.
     pub fn size(&self, line: u32) -> f64 {
         match self.lines.binary_search_by(|entry| entry.0.cmp(&line)) {
             Ok(i) => self.lines.get(i).map_or(self.default, |entry| entry.2),
@@ -120,6 +121,7 @@ impl LineIndex {
         }
     }
 
+    /// The number of lines.
     pub fn count(&self) -> u32 {
         self.count
     }
@@ -140,19 +142,24 @@ const ROW_HEADER_LOOKAHEAD: f64 = 200.0;
 /// What a grid's geometry is made from, per frame.
 #[derive(Clone, Debug)]
 pub struct GridLayout {
+    /// The grid's rectangle on screen, in points.
     pub rect: Rect,
     /// 0.1…4 (10 %…400 %).
     pub zoom: f32,
+    /// Row heights.
     pub rows: LineIndex,
+    /// Column widths.
     pub columns: LineIndex,
     /// Frozen rows and columns at the top and left.
     pub frozen: (u32, u32),
     /// Scroll of the unfrozen part, in points at 100 %.
     pub scroll: Vec2,
+    /// Whether the row and column headings are shown.
     pub headings: bool,
     /// The outline bands' thickness left of the row headers and above the column headers
     /// ([`OutlineBand::thickness`](super::OutlineBand::thickness)).
     pub bands: Vec2,
+    /// Whether the sheet is mirrored for a right-to-left script.
     pub right_to_left: bool,
 }
 
@@ -213,6 +220,7 @@ impl SheetGeometry {
         self.cells
     }
 
+    /// The row headings' width by the column headings' height, in screen points; zero without headings.
     pub fn header_size(&self) -> Vec2 {
         self.header
     }
@@ -230,6 +238,7 @@ impl SheetGeometry {
     }
 
     // gridcraft: crates/ui-egui/src/grid/geo.rs:151 `y`.
+    /// The top y of `row` (frozen rows don't scroll).
     pub fn y(&self, row: u32) -> f32 {
         let (rows, zoom) = (&self.layout.rows, self.layout.zoom);
         if row < self.layout.frozen.0 {
@@ -240,12 +249,14 @@ impl SheetGeometry {
         }
     }
 
+    /// The rectangle of cell `c`, in logical coordinates.
     pub fn cell_rect(&self, c: CellRef) -> Rect {
         let (x, y) = (self.x(c.column), self.y(c.row));
         let size = Vec2::new(self.layout.columns.size(c.column) as f32, self.layout.rows.size(c.row) as f32) * self.layout.zoom;
         Rect::from_min_size(Pos2::new(x, y), size)
     }
 
+    /// The rectangle covering `r`, in logical coordinates.
     pub fn range_rect(&self, r: CellRange) -> Rect {
         Rect::from_min_max(self.cell_rect(r.start).min, self.cell_rect(r.end).max)
     }
@@ -264,6 +275,7 @@ impl SheetGeometry {
     }
 
     // gridcraft: crates/ui-egui/src/grid/geo.rs:183 `row_at`.
+    /// The row at logical y.
     pub fn row_at(&self, y: f32) -> u32 {
         let (rows, zoom, fr) = (&self.layout.rows, self.layout.zoom, self.layout.frozen.0);
         let from_top = f64::from((y - self.cells.top()) / zoom);
@@ -275,6 +287,7 @@ impl SheetGeometry {
         }
     }
 
+    /// The cell at the logical position `p`.
     pub fn cell_at(&self, p: Pos2) -> CellRef {
         CellRef::new(self.row_at(p.y), self.column_at(p.x))
     }
@@ -349,10 +362,12 @@ impl SheetGeometry {
         if self.layout.right_to_left { self.layout.rect.left() + self.layout.rect.right() - x } else { x }
     }
 
+    /// `p` with its x mirrored; see [`mirror_x`](Self::mirror_x).
     pub fn mirror_pos(&self, p: Pos2) -> Pos2 {
         Pos2::new(self.mirror_x(p.x), p.y)
     }
 
+    /// `r` with its x range mirrored; see [`mirror_x`](Self::mirror_x).
     pub fn mirror_rect(&self, r: Rect) -> Rect {
         let (a, b) = (self.mirror_x(r.left()), self.mirror_x(r.right()));
         Rect::from_x_y_ranges(a.min(b)..=a.max(b), r.y_range())
@@ -364,8 +379,10 @@ impl SheetGeometry {
 pub trait GridModel {
     /// Row heights and column widths (points at 100 %) with hidden lines at 0.
     fn rows(&self) -> &LineIndex;
+    /// Column widths in points at 100 %, with hidden columns at 0.
     fn columns(&self) -> &LineIndex;
 
+    /// The number of frozen rows and columns; `(0, 0)` by default.
     fn frozen(&self) -> (u32, u32) {
         (0, 0)
     }
@@ -422,7 +439,9 @@ pub trait GridModel {
 /// view (selection, scroll and zoom come back when the sheet reopens).
 #[derive(Clone, Debug, PartialEq)]
 pub struct GridState {
+    /// The selected cells.
     pub selection: CellSelection,
+    /// Scroll of the unfrozen part, in points at 100 %.
     pub scroll: Vec2,
     /// 0.1…4 (10 %…400 %); 1.0 for a new sheet.
     pub zoom: f32,
@@ -444,6 +463,7 @@ pub enum GridEdit {
     /// Start editing the active cell: `typed` replaces its content (a key typed on the grid),
     /// `None` edits it in place (F2, a double-click).
     BeginEdit {
+        /// Replacement text typed on the grid; `None` edits in place.
         typed: Option<String>,
     },
     /// Delete: clear the selection's contents.
@@ -454,29 +474,37 @@ pub enum GridEdit {
     /// gesture (Esc during the drag cancels it). Several selected columns resize together: the
     /// app applies the width to every column of the selection that holds `column`, as Excel does.
     ResizeColumn {
+        /// The column whose edge was dragged.
         column: u32,
+        /// The new width, in points at 100 % zoom.
         width: EditEvent<f32>,
     },
     /// A row header's bottom edge dragged, as [`ResizeColumn`](Self::ResizeColumn).
     ResizeRow {
+        /// The row whose edge was dragged.
         row: u32,
+        /// The new height, in points at 100 % zoom.
         height: EditEvent<f32>,
     },
     /// A double-click on a column header's edge: Excel's AutoFit Column Width.
     AutoFitColumn {
+        /// The column whose edge was double-clicked.
         column: u32,
     },
     /// A double-click on a row header's edge: AutoFit Row Height.
     AutoFitRow {
+        /// The row whose edge was double-clicked.
         row: u32,
     },
     /// A double-click on the edge where a hidden column sits: Excel's Unhide (GridCraft
     /// `grid/interact.rs:970`).
     UnhideColumn {
+        /// The hidden column.
         column: u32,
     },
     /// A double-click on the edge where a hidden row sits.
     UnhideRow {
+        /// The hidden row.
         row: u32,
     },
     /// The fill handle dragged: the range the current selection grows to (the source plus the
@@ -485,12 +513,14 @@ pub enum GridEdit {
     /// (Esc) drops it. A commit with `changed` false filled nothing. The grid selects the range
     /// when the gesture commits.
     Fill {
+        /// The range the selection grows to.
         range: EditEvent<CellRange>,
     },
     /// The selection dragged by its border: the cell its top-left corner moves to, as one
     /// gesture like [`Fill`](Self::Fill). The app moves the cells (cut and paste); the grid
     /// selects the moved range when the gesture commits.
     MoveCells {
+        /// The cell the selection's top-left corner moves to.
         to: EditEvent<CellRef>,
     },
     /// The fill handle dragged with the secondary button and released: the range the drag grew the
@@ -499,7 +529,9 @@ pub enum GridEdit {
     /// Months and Years from a date: GridCraft `grid/menus.rs:249-340`) and fills the range with
     /// the pick. Nothing is filled or selected until then; Esc during the drag reports nothing.
     FillMenu {
+        /// The range the drag grew the selection to.
         range: CellRange,
+        /// The pointer position in screen points.
         anchor: Pos2,
     },
     /// Esc while [`CellGrid::copy_mark`] shows the marching ants: the app ends copy mode.
@@ -507,11 +539,15 @@ pub enum GridEdit {
     /// Enter while [`CellGrid::copy_mark`] shows the marching ants: paste what was copied at the
     /// active cell and end copy mode (Excel).
     PasteAtActive,
+    /// Copy the selection.
     Copy,
+    /// Cut the selection.
     Cut,
+    /// Paste the given text at the active cell.
     Paste(String),
     /// Cmd+Page Down / Up.
     NextSheet,
+    /// Cmd+Page Up: go to the previous sheet.
     PreviousSheet,
     /// A secondary click (or the Menu key, Shift+F10) on the cells or a header. The selection has
     /// already moved as Excel moves it (a click outside the selection selects the cell or line
@@ -520,8 +556,11 @@ pub enum GridEdit {
     /// for a key (the fields of `craft_ui::list::ContextMenuRequest`). Both are in screen
     /// coordinates, mirrored for a right-to-left sheet.
     ContextMenu {
+        /// The clicked cell's or header's rectangle, in screen points.
         anchor: Rect,
+        /// Where a secondary click was, `None` for a key.
         pointer: Option<Pos2>,
+        /// What was clicked.
         target: GridMenuTarget,
     },
 }
@@ -530,8 +569,11 @@ pub enum GridEdit {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum GridMenuTarget {
+    /// The cells.
     Cells,
+    /// A column header, by column index.
     ColumnHeader(u32),
+    /// A row header, by row index.
     RowHeader(u32),
 }
 
@@ -590,6 +632,7 @@ pub struct CellGrid<'a, M: GridModel> {
 }
 
 impl<'a, M: GridModel> CellGrid<'a, M> {
+    /// A grid over `model` that keeps its selection, scroll and zoom in `state`.
     pub fn new(id_salt: impl AsIdSalt, model: &'a M, state: &'a mut GridState) -> Self {
         Self { id_salt: IdSalt::new(id_salt), model, state, headings: true, right_to_left: false, copy_mark: &[], outline: (0, 0) }
     }
@@ -612,11 +655,13 @@ impl<'a, M: GridModel> CellGrid<'a, M> {
         self
     }
 
+    /// Whether to show the row and column headings; `true` by default.
     pub fn headings(mut self, on: bool) -> Self {
         self.headings = on;
         self
     }
 
+    /// Whether to mirror the sheet for a right-to-left script; `false` by default.
     pub fn right_to_left(mut self, on: bool) -> Self {
         self.right_to_left = on;
         self
@@ -625,6 +670,7 @@ impl<'a, M: GridModel> CellGrid<'a, M> {
     // gridcraft: crates/ui-egui/src/grid/show.rs (painting), `grid/interact.rs` (pointer),
     // `grid/keyboard.rs:7` `keyboard`, `grid/selection.rs:93` `paint_selection`,
     // `grid/quadrant.rs:112` `paint_quadrant`.
+    /// Shows the grid and reports what the user did.
     pub fn show(self, ui: &mut Ui) -> CellGridResponse {
         let Self { id_salt, model, state, headings, right_to_left, copy_mark, outline } = self;
         let tokens = Tokens::of(ui);
@@ -716,9 +762,12 @@ impl<M: GridModel> Pass<'_, M> {
 
 /// What the grid did this pass.
 pub struct CellGridResponse {
+    /// The grid's response.
     pub response: Response,
     /// This pass's geometry (for the app's editor, objects and overlays).
     pub geometry: SheetGeometry,
+    /// Whether the selection changed this pass.
     pub selection_changed: bool,
+    /// What the grid asks of the app this pass, in order.
     pub edits: Vec<GridEdit>,
 }

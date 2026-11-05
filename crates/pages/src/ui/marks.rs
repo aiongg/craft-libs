@@ -38,6 +38,7 @@ pub enum HiddenMark {
 }
 
 impl HiddenMark {
+    /// The character drawn for the mark.
     pub fn glyph(self) -> &'static str {
         match self {
             HiddenMark::Space => "·",
@@ -67,9 +68,13 @@ impl HiddenMark {
 /// x (spaces) or starts at it, and the line's ascent (its size follows the text's).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlacedMark {
+    /// The kind of mark.
     pub mark: HiddenMark,
+    /// Where the mark sits on the baseline, in frame points.
     pub at: Point,
+    /// Whether the mark is centred on `at.x` (spaces) or starts at it.
     pub centred: bool,
+    /// The ascent of the line the mark is on, points.
     pub ascent: f64,
 }
 
@@ -95,7 +100,7 @@ pub struct FrameExtras {
 ///   `port_inset` left of the bottom-right corner on the bottom edge (DesignCraft's `port_pos`,
 ///   `PORT_SIZE_PX`). A threaded port holds a small triangle in the layer colour; the overset port
 ///   the style's overset `+`, drawn on every frame that ends an overset story, not only selected
-///   ones. Sizes from [`FrameMarksStyle`](super::FrameMarksStyle).
+///   ones. Sizes from [`FrameMarksStyle`].
 /// - Nothing here takes input or focus: it's paint only.
 pub struct TextFrameMarks<'a> {
     view: &'a CanvasView,
@@ -144,6 +149,7 @@ impl<'a> TextFrameMarks<'a> {
 
     // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:271 `draw_hidden_characters`;
     // crates/ui-egui/src/canvas/frames.rs:349 `port_pos`, :292 (overset marks).
+    /// Draws the hidden-character marks and the frame marks (ports and overset indicators) on `painter`.
     pub fn paint(self, painter: &Painter) {
         let style = self.style;
         let line = |color| scale::Stroke::Hairline.egui(painter.ctx(), color);

@@ -102,6 +102,7 @@ impl TimecodeFieldLabels {
 #[non_exhaustive]
 #[must_use = "the host applies the edit event"]
 pub struct TimecodeFieldOutput {
+    /// The edit: a changed time as an edit event.
     pub edit: EditResponse<Tick>,
     /// Typed text that didn't parse, from an Enter or a click away; word it with
     /// [`TimecodeFieldLabels::message`]. Enter keeps the field open on the bad text, a click away
@@ -111,13 +112,13 @@ pub struct TimecodeFieldOutput {
 
 /// Premiere's big timecode readout and the smaller timecode fields of dialogs.
 ///
-/// - Drag horizontally to scrub through the kernel's [`Scrub`](craft_ui::behavior::Scrub) (the
+/// - Drag horizontally to scrub through the kernel's [`Scrub`] (the
 ///   pointer travel and the screen-edge wrap, as [`NumberField`](craft_ui::controls::NumberField)
-///   scrubs): one frame per `style.scrub_step` of travel ([`TimelineStyle`](super::TimelineStyle)),
+///   scrubs): one frame per `style.scrub_step` of travel ([`TimelineStyle`]),
 ///   Shift ×10 (FilmCraft `widgets.rs:130`); a gesture of `EditEvent<Tick>`s, Esc cancels it. A
 ///   click without a drag edits (decisions §4.2, NumberField).
 /// - Click (or Enter when focused) to type: the text is selected; Enter or a click away commits
-///   through [`parse_time`](crate::parse_time) relative to the current value; Esc cancels. Left
+///   through [`parse_time`] relative to the current value; Esc cancels. Left
 ///   and Right on the whole selected text go to its last digit. A time that doesn't parse commits
 ///   nothing and is reported on [`TimecodeFieldOutput::error`] (the app shows a notice): Enter
 ///   keeps the field open on it, a click away closes the field.
@@ -139,6 +140,7 @@ pub struct TimecodeField<'a> {
 }
 
 impl<'a> TimecodeField<'a> {
+    /// A field showing `time` in `format`.
     pub fn new(id_salt: impl AsIdSalt, time: Tick, format: &'a TimeFormat) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -153,6 +155,7 @@ impl<'a> TimecodeField<'a> {
         }
     }
 
+    /// The earliest time the field accepts, such as the sequence start; zero by default.
     pub fn min(mut self, min: Tick) -> Self {
         self.min = min;
         self
@@ -164,6 +167,7 @@ impl<'a> TimecodeField<'a> {
         self
     }
 
+    /// The field's width in points; it fits its text by default.
     pub fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
         self
@@ -176,6 +180,7 @@ impl<'a> TimecodeField<'a> {
         self
     }
 
+    /// The words for typed-text errors and accessibility; `TimecodeFieldLabels::of` when not set.
     pub fn labels(mut self, labels: TimecodeFieldLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -192,6 +197,7 @@ impl<'a> TimecodeField<'a> {
         self.show_full(ui).edit
     }
 
+    /// Show the field and report the edit and any typed-text error.
     // filmcraft: crates/ui-egui/src/widgets.rs:147 `timecode_field` (and the scrub speed above
     // it, `:130`).
     pub fn show_full(self, ui: &mut Ui) -> TimecodeFieldOutput {
@@ -469,11 +475,15 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TimecodeRowKind {
     #[default]
+    /// The playhead time.
     CurrentTime,
     /// The source timecode of the clip under the playhead.
     MediaTime,
+    /// The length of the content.
     Duration,
+    /// The length between the In and Out marks.
     InOutDuration,
+    /// The time left after the playhead.
     Remaining,
 }
 
@@ -483,14 +493,18 @@ pub enum TimecodeSource {
     /// The Source monitor when it has the focus and an item, else the Program.
     #[default]
     Active,
+    /// The Program monitor.
     Program,
+    /// The Source monitor.
     Source,
 }
 
 /// One row of the Timecode panel.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TimecodeRow {
+    /// What the row shows.
     pub kind: TimecodeRowKind,
+    /// Which monitor the row reads.
     pub source: TimecodeSource,
     /// `None`: the sequence's own display.
     pub display: Option<TimeDisplay>,
@@ -511,10 +525,12 @@ pub struct TimecodePanel<'a> {
 }
 
 impl<'a> TimecodePanel<'a> {
+    /// A panel over `settings`, with `text` giving each row's text.
     pub fn new(id_salt: impl AsIdSalt, settings: &'a mut TimecodePanelSettings, text: &'a dyn Fn(&TimecodeRow) -> String) -> Self {
         Self { id_salt: IdSalt::new(id_salt), settings, text, labels: None, display_labels: None }
     }
 
+    /// The words of the panel; `TimecodePanelLabels::of` when not set.
     pub fn labels(mut self, labels: TimecodePanelLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -602,12 +618,14 @@ impl<'a> TimecodePanel<'a> {
 /// The Timecode panel's rows, saved by the app with its panel state.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TimecodePanelSettings {
+    /// The rows, first row in large type.
     pub rows: Vec<TimecodeRow>,
 }
 
 /// What the Timecode panel did this pass.
 #[must_use]
 pub struct TimecodePanelOutput {
+    /// The panel's response, for hover and focus.
     pub response: Response,
     /// A row was added, removed or changed; the app saves [`TimecodePanelSettings`].
     pub settings_changed: bool,

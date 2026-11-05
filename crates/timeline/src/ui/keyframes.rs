@@ -39,20 +39,30 @@ pub struct KeyframeId(pub u64);
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum KeyframeInterpolation {
     #[default]
+    /// Straight line to the next key.
     Linear,
+    /// The value stays until the next key.
     Hold,
+    /// A curve shaped by the key's two handles.
     Bezier,
+    /// A Bezier whose handles the app sets for a smooth curve through the key.
     AutoBezier,
+    /// A Bezier whose handles stay continuous across the key.
     ContinuousBezier,
+    /// Eases into the key.
     EaseIn,
+    /// Eases out of the key.
     EaseOut,
 }
 
 /// A keyframe on a lane.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct KeyframeMark {
+    /// The keyframe's identity.
     pub id: KeyframeId,
+    /// The keyframe's time.
     pub time: Tick,
+    /// How the segment after the keyframe interpolates.
     pub interpolation: KeyframeInterpolation,
 }
 
@@ -72,7 +82,7 @@ pub const fn keyframe_icon(interpolation: KeyframeInterpolation) -> Icon {
 }
 
 /// Draws a keyframe glyph ([`keyframe_icon`]) centred at `center`, `style.keyframe_glyph` points
-/// wide ([`TimelineStyle`](super::TimelineStyle)).
+/// wide ([`TimelineStyle`]).
 // filmcraft: crates/ui-egui/src/panels/effect_controls_selection.rs:256 `paint`.
 pub fn paint_keyframe(painter: &Painter, center: Pos2, interpolation: KeyframeInterpolation, color: Color32, style: &super::TimelineStyle) {
     paint_icon(painter, center, keyframe_icon(interpolation), color, style);
@@ -86,7 +96,7 @@ fn paint_icon(painter: &Painter, center: Pos2, icon: Icon, color: Color32, style
 /// The keyframes of one property row on its lane.
 ///
 /// - The selection is the app's [`Selection`] of keys in time order; clicks and keys change it
-///   with the kernel's [`ListSelection`](craft_ui::behavior::ListSelection) rules over that
+///   with the kernel's [`ListSelection`] rules over that
 ///   order, with Photoshop's and Premiere's picks: a click replaces, Shift+click and
 ///   Cmd/Ctrl+click toggle the key; a drag on empty lane draws a marquee (Shift adds to the
 ///   selection). The lane applies the change to the `&mut Selection` in the pass and reports it
@@ -101,7 +111,7 @@ fn paint_icon(painter: &Painter, center: Pos2, icon: Icon, color: Color32, style
 /// - Keyboard: one Tab stop when it has keys; Left and Right move the selection to the previous
 ///   and next key, Shift+Left/Right nudge the selected keys one frame (a `Set` on
 ///   [`KeyframeLaneResponse::moved`]), Delete and Backspace report [`KeyframeLaneResponse::delete`] (claimed
-///   through [`KeyClaim`](craft_ui::behavior::KeyClaim) so the app's Delete shortcut leaves it).
+///   through [`KeyClaim`] so the app's Delete shortcut leaves it).
 ///   AccessKit: a `ListBox` named by [`KeyframeLabels::lane`], one `ListBoxOption` per key named
 ///   by its time as timecode of the lane's rate, `selected` set.
 pub struct KeyframeLane<'a> {
@@ -116,6 +126,7 @@ pub struct KeyframeLane<'a> {
 }
 
 impl<'a> KeyframeLane<'a> {
+    /// A lane for `keys` with the app's key `selection`, on the time `view`; times snap to the frames of `rate`.
     pub fn new(
         id_salt: impl AsIdSalt,
         keys: &'a [KeyframeMark],
@@ -126,6 +137,7 @@ impl<'a> KeyframeLane<'a> {
         Self { id_salt: IdSalt::new(id_salt), keys, selection, view, rate, playhead: Tick::ZERO, bounds: None, labels: None }
     }
 
+    /// The playhead time; Shift-dragged keys snap to it.
     pub fn playhead(mut self, t: Tick) -> Self {
         self.playhead = t;
         self
@@ -137,11 +149,13 @@ impl<'a> KeyframeLane<'a> {
         self
     }
 
+    /// The tooltip words; `KeyframeLabels::of` when not set.
     pub fn labels(mut self, labels: KeyframeLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Show the lane in `rect` and report what the user did.
     // filmcraft: crates/ui-egui/src/panels/effect_controls_selection.rs:81 `update` (snapping),
     // `:110` `Interaction::begin`; effectcraft: crates/ui-egui/src/panels/timeline.rs:4059
     // `key_select`, `:4191` `key_drag_begin`, `:4246` `key_hit`.
@@ -464,12 +478,15 @@ impl Marquee {
 
 /// What a keyframe lane did this pass.
 pub struct KeyframeLaneResponse {
+    /// The lane's response, for hover and focus.
     pub response: Response,
     /// A click, marquee or key changed the selection.
     pub selection: Option<SelectionChange<KeyframeId>>,
     /// The selected keys' move, as a delta.
     pub moved: Option<EditEvent<Tick>>,
+    /// The key that was double-clicked.
     pub double_clicked: Option<KeyframeId>,
+    /// The key that got a secondary click; the app opens its menu.
     pub context_menu: Option<KeyframeId>,
     /// Delete or Backspace was pressed with keys selected.
     pub delete: bool,
@@ -502,11 +519,13 @@ impl KeyframeNavigator {
         self
     }
 
+    /// The tooltip words; `KeyframeLabels::of` when not set.
     pub fn labels(mut self, labels: KeyframeLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Show the navigator and report the button pressed.
     // filmcraft: crates/ui-egui/src/panels/effect_controls.rs:487 `keyframe_nav`.
     pub fn show(self, ui: &mut Ui) -> KeyframeNavigatorOutput {
         let Self { id_salt, animated, has_previous, has_next, at_key, labels } = self;
@@ -563,7 +582,9 @@ impl KeyframeNavigator {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[must_use]
 pub struct KeyframeNavigatorOutput {
+    /// The previous-key button was pressed.
     pub previous: bool,
+    /// The next-key button was pressed.
     pub next: bool,
     /// The diamond: add a key at the playhead, or remove the one there.
     pub toggle: bool,
@@ -579,15 +600,18 @@ pub struct AnimationToggle<'a> {
 }
 
 impl<'a> AnimationToggle<'a> {
+    /// A toggle for `on`, the property's animation state.
     pub fn new(id_salt: impl AsIdSalt, on: &'a bool) -> Self {
         Self { id_salt: IdSalt::new(id_salt), on, labels: None }
     }
 
+    /// The tooltip words; `KeyframeLabels::of` when not set.
     pub fn labels(mut self, labels: KeyframeLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// Show the toggle; the response carries the new state when it changed.
     // effectcraft: crates/ui-egui/src/panels/timeline.rs:3922 `prop_stopwatch`.
     pub fn show(self, ui: &mut Ui) -> craft_ui::edit::EditResponse<bool> {
         let Self { id_salt, on, labels } = self;

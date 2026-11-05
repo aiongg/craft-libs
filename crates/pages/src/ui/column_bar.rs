@@ -26,6 +26,7 @@ craft_ui::words! {
 /// What the bar did this pass.
 #[derive(Debug)]
 pub struct ColumnBarResponse {
+    #[allow(missing_docs)]
     pub response: Response,
     /// A divider gesture or key: the new widths.
     pub edit: Option<EditEvent<Vec<f64>>>,
@@ -90,6 +91,7 @@ pub struct ColumnBar<'a> {
 }
 
 impl<'a> ColumnBar<'a> {
+    /// A bar for `widths` (one entry per column), with `id_salt` to tell it from other bars.
     pub fn new(id_salt: impl egui::AsIdSalt, widths: &'a [f64]) -> Self {
         ColumnBar { id_salt: egui::IdSalt::new(id_salt), widths, names: None, labels: None }
     }
@@ -119,12 +121,14 @@ impl<'a> ColumnBar<'a> {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: ColumnBarLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
     // pdfcraft: crates/ui-egui/src/tools/field_table_ui.rs:338 `column_bar`, :376 `column_dividers`.
+    /// Paints the bar, handles divider drags and keys, and reports any edit.
     pub fn show(self, ui: &mut Ui) -> ColumnBarResponse {
         let tokens = Tokens::of(ui);
         let style = Self::style(&tokens);

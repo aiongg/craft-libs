@@ -32,6 +32,7 @@ pub fn baseline_lines(start: f64, increment: f64, height: f64) -> Vec<f64> {
 /// One page's grids, page points on the document.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PageGrid {
+    /// The page rectangle.
     pub page: Rect,
     /// The margin rectangle.
     pub margins: Rect,
@@ -45,7 +46,9 @@ pub struct PageGrid {
 /// and Columns colours).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PageGridColors {
+    /// Colour of the margin rectangle.
     pub margins: Color32,
+    /// Colour of the column rectangles.
     pub columns: Color32,
     /// Drawn at 80 % (DesignCraft's `gamma_multiply(0.8)`).
     pub baseline: Color32,
@@ -79,12 +82,14 @@ impl<'a> PageGrids<'a> {
         PageGrids { view, pages, colors, zoom: state.zoom, threshold: 0.75 }
     }
 
+    /// Sets the zoom below which the baseline grid is not drawn.
     pub fn baseline_threshold(mut self, zoom: f64) -> Self {
         self.threshold = zoom;
         self
     }
 
     // designcraft: crates/ui-egui/src/canvas/page_decor.rs:100 `draw_page_grids`.
+    /// Draws the margins, columns and baseline grid of every page.
     pub fn paint(self, painter: &Painter) {
         let line = |color| scale::Stroke::Hairline.egui(painter.ctx(), color);
         let segment = |a: Point, b: Point, color| painter.line_segment([self.view.to_screen(a), self.view.to_screen(b)], line(color));

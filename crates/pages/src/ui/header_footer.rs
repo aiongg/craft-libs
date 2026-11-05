@@ -49,6 +49,7 @@ craft_ui::words! {
 /// One of the six sections of a page's header and footer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Zone {
+    /// Whether the zone is in the footer band (true) or the header band (false).
     pub footer: bool,
     /// 0 start, 1 centre, 2 end of the band: left, centre and right in a left-to-right interface,
     /// mirrored in a right-to-left one.
@@ -58,15 +59,20 @@ pub struct Zone {
 /// A section of one page.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ZoneAt {
+    /// Page index, 0-based.
     pub page: usize,
+    /// The section on that page.
     pub zone: Zone,
 }
 
 /// Which header and footer a page uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HeaderFooterPage {
+    #[allow(missing_docs)]
     First,
+    #[allow(missing_docs)]
     Odd,
+    #[allow(missing_docs)]
     Even,
 }
 
@@ -90,8 +96,11 @@ impl HeaderFooterPage {
 /// by `sides` (GridCraft's `hf_sides`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ZoneBands {
+    /// Height of the header band, from the top edge to the top margin.
     pub top: f64,
+    /// Height of the footer band, from the bottom margin to the bottom edge.
     pub bottom: f64,
+    /// Left and right inset of the bands.
     pub sides: [f64; 2],
 }
 
@@ -102,6 +111,7 @@ pub struct HeaderFooterResponse {
     pub begin: Option<ZoneAt>,
     /// A click on a page outside the zones while one was being edited: commit it.
     pub end: bool,
+    #[allow(missing_docs)]
     pub response: Response,
 }
 
@@ -163,11 +173,13 @@ impl<'a> HeaderFooterZones<'a> {
         self
     }
 
+    /// Sets the section being edited, if any; it paints as an editor instead of a label.
     pub fn editing(mut self, at: Option<ZoneAt>) -> Self {
         self.editing = at;
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: HeaderFooterLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -193,6 +205,7 @@ impl<'a> HeaderFooterZones<'a> {
     }
 
     // gridcraft: crates/ui-egui/src/paper_view.rs:217 `paint_headers_footers`, :291 `interact`.
+    /// Paints the zones, handles clicks, and reports what to start or stop editing.
     pub fn show(self, ui: &mut Ui) -> HeaderFooterResponse {
         let tokens = Tokens::of(ui);
         let style = self.style;

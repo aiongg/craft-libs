@@ -23,7 +23,9 @@ pub struct EdgeZones {
 /// A clip's start (In) or end (Out).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ClipEdge {
+    /// The clip's start edge.
     In,
+    /// The clip's end edge.
     Out,
 }
 
@@ -47,7 +49,9 @@ pub enum TrimKind {
 /// The clip edge a pointer grabs.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EdgeHit {
+    /// The clip whose edge is hit.
     pub clip: ClipId,
+    /// Which edge of `clip` is hit.
     pub edge: ClipEdge,
     /// The pointer is inside the clip (not in the zone past its edge).
     pub inside: bool,
@@ -135,21 +139,70 @@ pub enum ClipEdit {
     /// knows only its own row, so it reports `track_delta: 0` and `new_track: false`; the panel
     /// that holds the rows works both out from the pointer and sets them before the edit reaches
     /// the app.
-    Move { clips: Vec<ClipId>, delta: Tick, track_delta: i32, new_track: bool, copy: bool },
+    Move {
+        /// The clips that move together.
+        clips: Vec<ClipId>,
+        /// The shift in time; negative moves earlier.
+        delta: Tick,
+        /// The shift in tracks; negative moves up.
+        track_delta: i32,
+        /// Dropped past the last track of its kind.
+        new_track: bool,
+        /// The drop copies the clips instead of moving them.
+        copy: bool,
+    },
     /// An edge moved by `delta` with `kind` ([`TrimKind::Trim`], `Ripple` or `Stretch`).
     /// `linked`: linked partners trim along (false when Alt was held as the drag started).
-    Trim { clip: ClipId, edge: ClipEdge, kind: TrimKind, delta: Tick, linked: bool },
+    Trim {
+        /// The clip whose edge moves.
+        clip: ClipId,
+        /// The edge that moves.
+        edge: ClipEdge,
+        /// The kind of trim.
+        kind: TrimKind,
+        /// The edge's shift in time.
+        delta: Tick,
+        /// Linked partners trim along.
+        linked: bool,
+    },
     /// The cut between `left` and `right` moved by `delta`.
-    Roll { left: ClipId, right: ClipId, delta: Tick },
+    Roll {
+        /// The clip before the cut.
+        left: ClipId,
+        /// The clip after the cut.
+        right: ClipId,
+        /// The cut's shift in time.
+        delta: Tick,
+    },
     /// The clip's media moved by `delta` inside it.
-    Slip { clip: ClipId, delta: Tick },
+    Slip {
+        /// The clip whose media moves.
+        clip: ClipId,
+        /// The media's shift in time inside the clip.
+        delta: Tick,
+    },
     /// The clip moved by `delta`, its neighbours' edges with it.
-    Slide { clip: ClipId, delta: Tick },
+    Slide {
+        /// The clip that moves.
+        clip: ClipId,
+        /// The clip's shift in time.
+        delta: Tick,
+    },
     /// The Razor tool cut `clip` at `at` (snapped to a frame).
-    Cut { clip: ClipId, at: Tick },
+    Cut {
+        /// The clip that is cut.
+        clip: ClipId,
+        /// The cut time.
+        at: Tick,
+    },
     /// Box selection: the clips the marquee touches; `add` keeps the selection from before
     /// (Shift or Cmd).
-    Select { clips: Vec<ClipId>, add: bool },
+    Select {
+        /// The clips the marquee touches.
+        clips: Vec<ClipId>,
+        /// Keep the earlier selection.
+        add: bool,
+    },
 }
 
 /// The clips a marquee from `a` to `b` (screen points) touches, given each visible clip's track
@@ -182,10 +235,12 @@ pub struct SnapTargets {
 }
 
 impl SnapTargets {
+    /// An empty set.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Add one snap time.
     pub fn push(&mut self, t: Tick) {
         self.times.push(t);
     }
@@ -198,6 +253,7 @@ impl SnapTargets {
         }
     }
 
+    /// The snap times in the order they were added.
     pub fn times(&self) -> &[Tick] {
         &self.times
     }

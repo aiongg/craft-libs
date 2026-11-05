@@ -1,5 +1,5 @@
 //! The update dialogs on craft-ui's dialog host: [`UpdatePromptDialog`] (a release is available)
-//! and [`UpdateCheckDialog`] (the result of a manual check), on [`Dialog`](craft_ui::dialog::Dialog)
+//! and [`UpdateCheckDialog`] (the result of a manual check), on [`Dialog`]
 //! with the app's name and version from `Host::app` (craft-host) and the words from
 //! [`UpdateLabels`]. [`dialog`](crate::dialog) keeps the hand-drawn cards until the apps have moved.
 

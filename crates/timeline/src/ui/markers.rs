@@ -34,19 +34,32 @@ const DURATION_TINT: f32 = 0.5;
 #[non_exhaustive]
 pub enum MarkerEdit {
     /// A drag of the marker: its new time (snapped), as one gesture; Esc cancels.
-    Move { id: MarkerId, to: EditEvent<Tick> },
+    Move {
+        /// The marker that moves.
+        id: MarkerId,
+        /// The new start time.
+        to: EditEvent<Tick>,
+    },
     /// An Alt-drag: its new duration, as one gesture.
-    SetDuration { id: MarkerId, duration: EditEvent<Tick> },
+    SetDuration {
+        /// The marker whose duration changes.
+        id: MarkerId,
+        /// The new duration.
+        duration: EditEvent<Tick>,
+    },
     /// Cmd-click (Ctrl-click on Windows and Linux), or Delete with the marker picked.
     Delete(MarkerId),
     /// Double-click or Enter: open the Marker dialog on it.
     Open(MarkerId),
     /// A marker dragged out of the marker bin and dropped at `at`, or Add Marker (M).
-    Add { at: Tick },
+    Add {
+        /// Where the new marker starts.
+        at: Tick,
+    },
 }
 
 /// A row of markers in `rect` (the ruler's marker band, a clip or layer bar): a flag
-/// `style.marker_width` wide ([`TimelineStyle`](super::TimelineStyle)) pointing down at its time
+/// `style.marker_width` wide ([`TimelineStyle`]) pointing down at its time
 /// (the point at [`MARKER_POINT`] of the height), coloured by its label, a duration bar for
 /// range markers, the name beside it when there is room.
 ///
@@ -57,7 +70,7 @@ pub enum MarkerEdit {
 /// adds one where it is dropped. Tooltips show name and comment. Keyboard: the strip is one Tab
 /// stop (the markers and the bin are pointer-only), Left / Right pick the previous / next
 /// marker, Enter opens it, Delete and Backspace delete it (claimed through
-/// [`KeyClaim`](craft_ui::behavior::KeyClaim)); each chord matches its modifiers exactly.
+/// [`KeyClaim`]); each chord matches its modifiers exactly.
 /// AccessKit: a `ListBox` named by [`MarkerStripLabels`]' title, holding the markers named by
 /// name and time.
 pub struct MarkerStrip<'a> {
@@ -72,20 +85,24 @@ pub struct MarkerStrip<'a> {
 }
 
 impl<'a> MarkerStrip<'a> {
+    /// A strip for `markers` on the time `view`.
     pub fn new(id_salt: impl AsIdSalt, markers: &'a [Marker], view: &'a TimeView) -> Self {
         Self { id_salt: IdSalt::new(id_salt), markers, view, snap: None, palette: None, bin: None, format: None, labels: None }
     }
 
+    /// The accessibility words; `MarkerStripLabels::of` when not set.
     pub fn labels(mut self, labels: MarkerStripLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
+    /// The snap targets for drags; `None` turns snapping off.
     pub fn snap(mut self, targets: Option<&'a SnapTargets>) -> Self {
         self.snap = targets;
         self
     }
 
+    /// The palette that gives the markers' label colours; the default palette when not set.
     pub fn palette(mut self, palette: &'a LabelPalette) -> Self {
         self.palette = Some(palette);
         self
@@ -104,6 +121,7 @@ impl<'a> MarkerStrip<'a> {
         self
     }
 
+    /// Show the strip in `rect` and report what the user did.
     // effectcraft: crates/ui-egui/src/panels/markers_ui.rs:274 `marker_shape`, `:282` `marker`,
     // `:253` `snap`, `:380` `name_box_x`, `:408` `comp_markers`, `:429` `marker_bin`.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> MarkerStripResponse {
@@ -424,9 +442,11 @@ pub const MARKER_POINT: f32 = 0.6;
 /// What the strip did this pass. A drag reports its gesture in [`MarkerEdit::Move`] and
 /// [`MarkerEdit::SetDuration`]: the app previews `Update`s and applies the `Commit`.
 pub struct MarkerStripResponse {
+    /// The strip's response, for hover and focus.
     pub response: Response,
     /// This pass's edits, in order.
     pub edits: Vec<MarkerEdit>,
+    /// The marker that got a secondary click; the app opens its menu.
     pub context_menu: Option<MarkerId>,
 }
 
@@ -462,17 +482,24 @@ const COMMENT_ROWS: usize = 3;
 /// The marker as the dialog edits it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarkerDraft {
+    /// The marker's name.
     pub name: String,
+    /// The marker's comment.
     pub comment: String,
+    /// The marker's start time.
     pub start: Tick,
+    /// The marker's duration; zero for a point marker.
     pub duration: Tick,
+    /// The marker's colour label.
     pub color: MarkerColor,
 }
 
 /// What the Marker dialog answers with.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarkerDialogResult {
+    /// The marker the dialog edited.
     pub marker: MarkerId,
+    /// What the user chose.
     pub action: MarkerDialogAction,
 }
 
@@ -481,9 +508,13 @@ pub struct MarkerDialogResult {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MarkerDialogAction {
+    /// OK: keep the edited values.
     Save(MarkerDraft),
+    /// Remove the marker.
     Delete,
+    /// Keep the edits and open the dialog on the previous marker.
     SaveAndPrevious(MarkerDraft),
+    /// Keep the edits and open the dialog on the next marker.
     SaveAndNext(MarkerDraft),
 }
 
@@ -512,6 +543,7 @@ struct FieldDrafts {
 }
 
 impl MarkerDialog {
+    /// A dialog editing `marker`, with times shown in `format`.
     pub fn new(marker: &Marker, format: TimeFormat) -> Self {
         let draft = MarkerDraft {
             name: marker.name.clone(),
@@ -531,11 +563,13 @@ impl MarkerDialog {
         }
     }
 
+    /// The palette that gives the swatches' colours; the default palette when not set.
     pub fn palette(mut self, palette: LabelPalette) -> Self {
         self.palette = palette;
         self
     }
 
+    /// The dialog's words; the default words when not set.
     pub fn labels(mut self, labels: MarkerDialogLabels) -> Self {
         self.labels = Some(labels);
         self

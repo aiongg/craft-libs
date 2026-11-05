@@ -25,6 +25,7 @@ use crate::versions::{Branch, BranchId, BranchState, HistoryRow, Version, Versio
 pub mod counts {
     use craft_ui::localized::words::Counted;
 
+    /// Count word for a collapsed run of autosaves.
     pub const AUTOSAVES: Counted = Counted::new("versions.autosaves", "{n} autosave version", "{n} autosave versions");
 
     /// Every count word of the Version history panel.
@@ -75,41 +76,55 @@ craft_ui::words! {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum VersionAction {
+    /// Save the current state as a named version.
     Save {
+        #[allow(missing_docs)]
         title: String,
+        #[allow(missing_docs)]
         description: String,
     },
     /// Show a version on the canvas, read-only.
     Preview(VersionId),
     /// Back to the current version.
     Current,
+    /// Restore a version as the current one.
     Restore(VersionId),
     /// A new title and description (a title edited in the row keeps the description).
     Rename {
+        /// The version to rename.
         id: VersionId,
+        #[allow(missing_docs)]
         title: String,
+        #[allow(missing_docs)]
         description: String,
     },
+    /// Duplicate a version.
     Duplicate(VersionId),
+    /// Delete a version.
     Delete(VersionId),
+    /// Create a branch.
     CreateBranch {
+        #[allow(missing_docs)]
         name: String,
     },
+    /// Open a branch.
     OpenBranch(BranchId),
+    /// Merge a branch back into the main file.
     MergeBranch(BranchId),
+    /// Archive a branch.
     ArchiveBranch(BranchId),
 }
 
 /// Figma's Version history panel in the left sidebar (FigCraft): the branches above (create,
 /// open, review and merge, archive), then Current version, then the history newest first
-/// ([`history_rows`](crate::versions::history_rows)) on a timeline line with a dot per row (the
+/// ([`history_rows`]) on a timeline line with a dot per row (the
 /// current one filled), each named version with its title, date and author (relative under a
 /// week with [`relative_age`](craft_ui::localized::relative_age), then the date through
 /// craft-i18n's `I18n::dates()`), runs of two or more autosaves collapsed (a lone autosave is a row);
 /// per-row "…" (the list's own [`row_menu`](craft_ui::list::List::row_menu)) with Restore, Rename,
 /// Duplicate and Delete (the row turns into the confirmation in place). A branch shows its state and date, with
 /// a "…" menu of Open, Review and merge, and Archive while active. The history is the kernel's
-/// [`List`](craft_ui::list::List) of [`ListRow`](craft_ui::list::ListRow)s (title and the date and
+/// [`List`] of [`ListRow`]s (title and the date and
 /// author as the detail line; the dot column painted in the row's leading slot at
 /// `review.version_dot_x`, text from `review.version_text_x`): one Tab stop, Up / Down move,
 /// Enter previews, F2 or Rename renames in place (`List::start_rename`), autosave groups are
@@ -124,15 +139,18 @@ pub struct VersionHistoryPanel<'a> {
 }
 
 impl<'a> VersionHistoryPanel<'a> {
+    /// A panel listing `versions` and `branches`.
     pub fn new(id_salt: impl AsIdSalt, versions: &'a [Version], branches: &'a [Branch]) -> Self {
         Self { id_salt: IdSalt::new(id_salt), versions, branches, previewing: None, labels: None }
     }
 
+    /// The version being previewed, if any; its row is selected.
     pub fn previewing(mut self, version: Option<VersionId>) -> Self {
         self.previewing = version;
         self
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: VersionsLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -141,6 +159,7 @@ impl<'a> VersionHistoryPanel<'a> {
     // figcraft: crates/ui-egui/src/panels/versions.rs:111 `panel`, `:317` `form`, `:374`
     // `timeline`, `:393` `current_row`, `:408` `version_row`, `:471` `branch_row`, `:557`
     // `autosave_group`, `:582` `confirm_row`.
+    /// Shows the panel and reports what the user did.
     pub fn show(self, ui: &mut Ui) -> VersionHistoryPanelOutput {
         let Self { id_salt, versions, branches, previewing, labels } = self;
         let labels = labels.unwrap_or_else(|| VersionsLabels::of(ui));
@@ -167,6 +186,7 @@ impl<'a> VersionHistoryPanel<'a> {
 /// What the Version history panel did this pass.
 #[must_use]
 pub struct VersionHistoryPanelOutput {
+    /// The panel's response.
     pub response: Response,
     /// In the order they happened this pass.
     pub actions: Vec<VersionAction>,
@@ -183,10 +203,12 @@ pub struct VersionPreviewBanner<'a> {
 }
 
 impl<'a> VersionPreviewBanner<'a> {
+    /// A banner for the previewed `version`.
     pub fn new(id_salt: impl AsIdSalt, version: &'a Version) -> Self {
         Self { id_salt: IdSalt::new(id_salt), version, labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: VersionsLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -236,7 +258,9 @@ impl<'a> VersionPreviewBanner<'a> {
 /// What the preview banner did this pass.
 #[must_use]
 pub struct VersionPreviewBannerOutput {
+    /// The banner's response.
     pub response: Response,
+    /// Restore or Back to current, if chosen this pass.
     pub action: Option<VersionAction>,
 }
 

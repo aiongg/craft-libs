@@ -15,6 +15,7 @@ pub struct SheetStyle {
     /// The row headers' width per digit of the last visible row, and the room around the
     /// digits: `sheet.row_header_digit`, `sheet.row_header_padding`.
     pub row_header_digit: f32,
+    /// The padding around a row header's digits: `sheet.row_header_padding`.
     pub row_header_padding: f32,
     /// One outline lane: `sheet.outline_lane`.
     pub outline_lane: f32,
@@ -23,9 +24,13 @@ pub struct SheetStyle {
     /// `sheet.outline_button_margin`, `sheet.outline_button_min`, `sheet.outline_inset`,
     /// `sheet.outline_hit`, `sheet.outline_radius`.
     pub outline_button_margin: f32,
+    /// An outline button's least side: `sheet.outline_button_min`.
     pub outline_button_min: f32,
+    /// The first lane's inset: `sheet.outline_inset`.
     pub outline_inset: f32,
+    /// How far an outline button's hit area reaches past its square: `sheet.outline_hit`.
     pub outline_hit: f32,
+    /// An outline button's corner radius: `sheet.outline_radius`.
     pub outline_radius: f32,
     /// The type role of a slicer's caption: the theme's strong body role.
     pub slicer_caption: TypeRole,
@@ -33,24 +38,32 @@ pub struct SheetStyle {
     /// button: `sheet.slicer_header`, `sheet.slicer_tile`, `sheet.slicer_gap`,
     /// `sheet.slicer_padding`, `sheet.slicer_clear`.
     pub slicer_header: f32,
+    /// A slicer's value tile height: `sheet.slicer_tile`.
     pub slicer_tile: f32,
+    /// The gap between slicer tiles: `sheet.slicer_gap`.
     pub slicer_gap: f32,
+    /// The padding round a slicer's tiles: `sheet.slicer_padding`.
     pub slicer_padding: f32,
+    /// A slicer's clear button side: `sheet.slicer_clear`.
     pub slicer_clear: f32,
     /// The error checking tag's square: `sheet.error_tag`.
     pub error_tag: f32,
     /// The filter button's least and largest side and its inset from the header cell's corner:
     /// `sheet.filter_button_min`, `sheet.filter_button_max`, `sheet.filter_button_inset`.
     pub filter_button_min: f32,
+    /// The filter button's largest side: `sheet.filter_button_max`.
     pub filter_button_max: f32,
+    /// The filter button's inset from the header cell's corner: `sheet.filter_button_inset`.
     pub filter_button_inset: f32,
     /// The filter button's corner radius and its inset round the glyph: `sheet.filter_button_radius`,
     /// `sheet.filter_button_glyph_inset`.
     pub filter_button_radius: f32,
+    /// The filter button's inset round the glyph: `sheet.filter_button_glyph_inset`.
     pub filter_button_glyph_inset: f32,
     /// The error checking tag's gap to its cell and corner radius: `sheet.error_tag_gap`,
     /// `sheet.error_tag_radius`.
     pub error_tag_gap: f32,
+    /// The error checking tag's corner radius: `sheet.error_tag_radius`.
     pub error_tag_radius: f32,
     /// The gap between the status bar's statistics: `sheet.stats_gap`.
     pub stats_gap: f32,
@@ -77,25 +90,32 @@ pub struct SheetStyle {
     /// The field list checklist's greatest height and an area's least height:
     /// `sheet.field_list_checklist_max`, `sheet.field_list_area_min`.
     pub field_list_checklist_max: f32,
+    /// An area's least height in the field list: `sheet.field_list_area_min`.
     pub field_list_area_min: f32,
     /// The selection's tint over the cells: `sheet.selection_fill`.
     pub selection_fill: Color32,
     /// The fill handle's fill and its one-point ring: `sheet.fill_handle_fill`,
     /// `sheet.fill_handle_ring`.
     pub fill_handle_fill: Color32,
+    /// The fill handle's one-point ring colour: `sheet.fill_handle_ring`.
     pub fill_handle_ring: Color32,
     /// The type role of the column and row headers' text, the outline buttons' digits, a
     /// condition's problem line and the field list's hints: the theme's caption role.
     pub header_text: TypeRole,
+    /// The type role of the outline buttons' digits.
     pub outline_text: TypeRole,
+    /// The type role of a condition's problem line.
     pub problem_text: TypeRole,
+    /// The type role of the field list's hints.
     pub hint_text: TypeRole,
     /// The type role of a field list's area headings and a slicer's tiles: the theme's body
     /// role.
     pub heading_text: TypeRole,
+    /// The type role of a slicer's tiles.
     pub slicer_text: TypeRole,
     /// The type roles of a chart's text, plain and bold: the theme's body and strong body roles.
     pub chart_text: TypeRole,
+    /// The type role of a chart's bold text.
     pub chart_text_strong: TypeRole,
 }
 

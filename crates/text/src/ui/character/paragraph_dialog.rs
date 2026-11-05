@@ -69,18 +69,25 @@ craft_ui::words! {
 /// PowerPoint's alignments (Word has the first four).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ParagraphAlign {
+    #[allow(missing_docs)]
     #[default]
     Left,
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Right,
+    #[allow(missing_docs)]
     Justify,
+    #[allow(missing_docs)]
     JustifyLow,
+    #[allow(missing_docs)]
     Distributed,
 }
 
 /// The first line against the others.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SpecialIndent {
+    #[allow(missing_docs)]
     #[default]
     None,
     /// The first line starts `by` further in.
@@ -122,13 +129,16 @@ impl Default for LineSpacing {
 /// and a field left empty is left as it was).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ParagraphFormat {
+    #[allow(missing_docs)]
     pub align: Option<ParagraphAlign>,
     /// Points.
     pub before_text: Option<f32>,
     /// Word's right indent ("After text"). The outer `None` hides the field (PowerPoint has
     /// none); `Some(None)` shows it empty, for paragraphs that differ.
     pub after_text: Option<Option<f32>>,
+    /// The special first-line indent: none, first line or hanging.
     pub special: Option<SpecialIndent>,
+    /// Size of the special indent, in points.
     pub by: Option<f32>,
     /// Points, or lines when [`space_before_kind`](Self::space_before_kind) says so.
     pub space_before: Option<f32>,
@@ -140,6 +150,7 @@ pub struct ParagraphFormat {
     pub space_before_kind: SpacingKind,
     /// What `space_after` counts, kept as `space_before_kind` is.
     pub space_after_kind: SpacingKind,
+    /// The line spacing rule and its value.
     pub line_spacing: Option<LineSpacing>,
 }
 
@@ -147,7 +158,9 @@ pub struct ParagraphFormat {
 /// the Tabs dialog, and after it the Paragraph dialog shows what was applied).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ParagraphAnswer {
+    /// The format as the user left it.
     pub format: ParagraphFormat,
+    /// Whether Tabs… was pressed.
     pub open_tabs: bool,
 }
 
@@ -182,6 +195,7 @@ pub struct ParagraphDialog {
 }
 
 impl ParagraphDialog {
+    /// A dialog editing `format`, with lengths in inches.
     pub fn new(format: ParagraphFormat) -> Self {
         ParagraphDialog {
             opened: format.clone(),
@@ -194,6 +208,7 @@ impl ParagraphDialog {
         }
     }
 
+    /// Sets the unit the length fields show.
     pub fn unit(mut self, unit: LengthUnit) -> Self {
         self.unit = unit;
         self
@@ -205,6 +220,7 @@ impl ParagraphDialog {
         self
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: ParagraphDialogLabels) -> Self {
         self.labels = Some(labels);
         self

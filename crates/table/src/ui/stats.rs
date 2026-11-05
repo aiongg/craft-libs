@@ -35,8 +35,11 @@ pub struct SelectionStats {
     pub count: u64,
     /// Cells holding numbers.
     pub numeric: u64,
+    /// Sum of the numbers.
     pub sum: f64,
+    /// Smallest of the numbers.
     pub min: f64,
+    /// Largest of the numbers.
     pub max: f64,
 }
 
@@ -50,11 +53,17 @@ impl SelectionStats {
 /// Which statistics show; one settings section (Excel's status bar menu is app-wide).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct StatsShown {
+    /// Show the average.
     pub average: bool,
+    /// Show the count of non-empty cells.
     pub count: bool,
+    /// Show the count of cells holding numbers.
     pub numerical_count: bool,
+    /// Show the smallest number.
     pub minimum: bool,
+    /// Show the largest number.
     pub maximum: bool,
+    /// Show the sum.
     pub sum: bool,
 }
 
@@ -130,16 +139,19 @@ pub struct SelectionStatsReadout<'a> {
 }
 
 impl<'a> SelectionStatsReadout<'a> {
+    /// A readout of `parts`, with `shown` choosing which of them appear; its menu edits `shown`.
     pub fn new(id_salt: impl egui::AsIdSalt, parts: &'a [StatPart], shown: &'a mut StatsShown) -> Self {
         Self { id_salt: IdSalt::new(id_salt), parts, shown, labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: StatsLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
     // gridcraft: crates/ui-egui/src/tabs.rs:323 `status_bar`, `:479` `status_bar_menu`.
+    /// Shows the readout; its response is the readout's.
     pub fn show(self, ui: &mut Ui) -> Response {
         let Self { id_salt, parts, shown, labels } = self;
         let labels = labels.unwrap_or_else(|| StatsLabels::of(ui));

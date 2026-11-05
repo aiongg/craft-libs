@@ -55,25 +55,34 @@ craft_ui::words! {
 /// How a row's height is set.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum RowHeight {
+    #[allow(missing_docs)]
     #[default]
     AtLeast,
+    #[allow(missing_docs)]
     Exactly,
 }
 
 /// Cell text's vertical justification.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum CellAlign {
+    #[allow(missing_docs)]
     #[default]
     Top,
+    #[allow(missing_docs)]
     Center,
+    #[allow(missing_docs)]
     Bottom,
+    #[allow(missing_docs)]
     Justify,
 }
 
+/// Which way a cell's text runs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TextDirection {
+    #[allow(missing_docs)]
     #[default]
     LeftToRight,
+    #[allow(missing_docs)]
     RightToLeft,
 }
 
@@ -81,19 +90,29 @@ pub enum TextDirection {
 /// mixed).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TableValues {
+    /// Number of rows in the table.
     pub rows: usize,
+    /// Number of columns in the table.
     pub columns: usize,
+    #[allow(missing_docs)]
     pub row_height_mode: Option<RowHeight>,
     /// Points.
     pub row_height: Option<f64>,
+    /// Column width in points.
     pub column_width: Option<f64>,
+    #[allow(missing_docs)]
     pub cell_align: Option<CellAlign>,
     /// Top, left, bottom, right, points.
     pub insets: [Option<f64>; 4],
+    #[allow(missing_docs)]
     pub direction: TextDirection,
+    #[allow(missing_docs)]
     pub alternating_fills: bool,
+    #[allow(missing_docs)]
     pub repeat_header: bool,
+    /// Number of header rows.
     pub header_rows: usize,
+    /// Number of footer rows.
     pub footer_rows: usize,
     /// More than one cell is selected (Merge Cells is enabled).
     pub several_cells: bool,
@@ -104,25 +123,43 @@ pub struct TableValues {
 /// One change the user made.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TableChange {
+    #[allow(missing_docs)]
     Rows(usize),
+    #[allow(missing_docs)]
     Columns(usize),
+    #[allow(missing_docs)]
     RowHeightMode(RowHeight),
+    /// Row height in points.
     RowHeight(f64),
+    /// Column width in points.
     ColumnWidth(f64),
+    /// Make the selected rows equally tall.
     DistributeRows,
+    #[allow(missing_docs)]
     CellAlign(CellAlign),
     /// Inset `index` (top, left, bottom, right) in points.
     Inset(usize, f64),
+    /// Merge the selected cells.
     Merge,
+    /// Split the selected merged cell.
     Unmerge,
+    #[allow(missing_docs)]
     InsertRow,
+    #[allow(missing_docs)]
     InsertColumn,
+    #[allow(missing_docs)]
     DeleteRow,
+    #[allow(missing_docs)]
     DeleteColumn,
+    #[allow(missing_docs)]
     Direction(TextDirection),
+    #[allow(missing_docs)]
     AlternatingFills(bool),
+    #[allow(missing_docs)]
     RepeatHeader(bool),
+    /// Number of header rows.
     HeaderRows(usize),
+    /// Number of footer rows.
     FooterRows(usize),
 }
 
@@ -130,6 +167,7 @@ pub enum TableChange {
 #[derive(Debug)]
 #[must_use = "the app applies the panel's edits"]
 pub struct TablePropertiesOutput {
+    #[allow(missing_docs)]
     pub response: Response,
     /// What the user did this pass, in order, as craft-ui edit events: a number field's typing
     /// run or scrub is one gesture (`Begin`, `Update`s, `Commit`, or `Cancel` on Esc) carrying a
@@ -156,16 +194,19 @@ pub struct TableProperties<'a> {
 }
 
 impl<'a> TableProperties<'a> {
+    /// A panel showing `values`, with lengths in `unit`.
     pub fn new(id_salt: impl egui::AsIdSalt, values: &'a TableValues, unit: craft_ui::localized::units::LengthUnit) -> Self {
         TableProperties { id_salt: egui::IdSalt::new(id_salt), values, unit, labels: None }
     }
 
+    /// Sets the translated labels; the default reads them from the interface locale.
     pub fn labels(mut self, labels: TablePropertiesLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
     // designcraft: crates/ui-egui/src/panels/table.rs:11 `show`.
+    /// Paints the panel and returns the response with the changes the user made.
     pub fn show(self, ui: &mut Ui) -> TablePropertiesOutput {
         let labels = self.labels.clone().unwrap_or_else(|| TablePropertiesLabels::of(ui));
         let panel = Panel { numbers: LocaleNumbers::of(ui), unit: self.unit };
