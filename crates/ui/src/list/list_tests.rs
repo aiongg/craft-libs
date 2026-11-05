@@ -378,8 +378,17 @@ fn rename_moves_on_with_tab_commits_when_another_starts_or_its_row_leaves() {
 
     pause(&mut harness);
     let label = row(&harness, 2).rect().center();
-    click_at(&mut harness, label, PointerButton::Primary);
-    click_at(&mut harness, label, PointerButton::Primary);
+    // The press and the release are separate passes, as from a real pointer: the click reports on the
+    // release, and a press in the pass the field opens in would drop the field's focus.
+    harness.event(Event::PointerMoved(label));
+    harness.run();
+    for _ in 0..2 {
+        for pressed in [true, false] {
+            harness.event(Event::PointerButton { pos: label, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+            harness.step();
+        }
+    }
+    harness.run();
     assert_eq!(field(&harness).as_deref(), Some("Row 2"), "a double click on the label renames");
     key(&mut harness, Modifiers::NONE, Key::Enter);
     assert_eq!(field(&harness), None);

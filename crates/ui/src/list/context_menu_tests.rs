@@ -258,3 +258,22 @@ fn another_row_menu_entry_is_reported_with_its_row() {
     assert!(harness.state().1.contains(&ListEvent::RowMenu { key: 2, command: RowCommand::Other(7) }), "{:?}", harness.state().1);
     assert!(harness.query_by_role(Role::TextInput).is_none());
 }
+
+// A double click on a renamable row's label draws the rename field in the pass of the click.
+#[test]
+fn a_double_click_on_a_label_shows_the_rename_field_in_the_same_pass() {
+    let mut harness = menu_harness();
+    let label = harness.get_by_label("Row 1").rect().left_center() + egui::vec2(30.0, 0.0);
+    harness.event(Event::PointerMoved(label));
+    harness.run();
+    let button = |harness: &mut Harness<'_, Menus>, pressed| {
+        harness.event(Event::PointerButton { pos: label, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        harness.step();
+    };
+    button(&mut harness, true);
+    button(&mut harness, false);
+    assert!(harness.query_by_role(Role::TextInput).is_none());
+    button(&mut harness, true);
+    button(&mut harness, false);
+    assert!(harness.query_by_role(Role::TextInput).is_some(), "the field is drawn by the end of the pass of the double click");
+}

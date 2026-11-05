@@ -19,6 +19,9 @@ use craft_theme::ControlSize;
 struct Draft {
     text: String,
     tab: Option<bool>,
+    /// The field has held the focus. A click in the pass that opened the field (a double click on
+    /// the label) takes the focus away at the end of that pass, so the field asks again until it has it.
+    held: bool,
 }
 
 /// The row whose rename is open, kept in egui memory per key type: only one field holds the focus.
@@ -64,6 +67,7 @@ pub(super) fn show<K: Clone + Send + Sync + 'static>(
     let stored = ui.data(|d| d.get_temp::<Option<Draft>>(memory)).flatten();
     let fresh = stored.is_none();
     let previous_tab = stored.as_ref().and_then(|d| d.tab);
+    let held = stored.as_ref().is_some_and(|d| d.held);
     let draft = stored.map_or_else(|| label.to_owned(), |d| d.text);
     let height = TextField::style(&Tokens::of(ui), ControlSize::Sm).height.min(band.height());
     let band = Rect::from_center_size(band.center(), vec2(band.width(), height));
@@ -74,8 +78,10 @@ pub(super) fn show<K: Clone + Send + Sync + 'static>(
         let ui = &mut child;
         // The id `TextField` gives its salt.
         let field = Interactive::id_in(ui, "rename");
-        if fresh {
+        if !held {
             ui.memory_mut(|m| m.request_focus(field));
+        }
+        if fresh {
             let mut state = TextEditState::default();
             state.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(draft.chars().count()))));
             state.store(ui.ctx(), field);
@@ -103,6 +109,7 @@ pub(super) fn show<K: Clone + Send + Sync + 'static>(
         Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }) => cancelled = true,
         _ => {}
     }
+    let held = held || edit.response.has_focus();
     let end = if cancelled || edit.escaped {
         Some(RenameEnd::Escape)
     } else if edit.submitted {
@@ -129,7 +136,7 @@ pub(super) fn show<K: Clone + Send + Sync + 'static>(
         }
         None => {
             ui.data_mut(|d| {
-                d.insert_temp(memory, Some(Draft { text, tab }));
+                d.insert_temp(memory, Some(Draft { text, tab, held }));
                 d.insert_temp(open_slot(), Some(Open { row_id, key: key.clone() }));
             });
         }

@@ -1040,7 +1040,12 @@ where
         if let Some(entries) = self.row_menu {
             row = row.menu(ui, entries(&key), self.renamable(&key));
         }
-        let row = row.selected(self.selection.contains(&key)).focused(lead && focused).renaming(renaming).drop_mark(mark);
+        let row = row
+            .rename_on_double_click(self.renamable(&key))
+            .selected(self.selection.contains(&key))
+            .focused(lead && focused)
+            .renaming(renaming)
+            .drop_mark(mark);
         let out = row.show_at(ui, rect);
         self.row_rects.push((key.clone(), rect));
         if lead {
@@ -1147,11 +1152,13 @@ where
     fn row_pointer(&mut self, ui: &Ui, (at, selectable): (usize, bool), key: &K, out: &RowResponse<K>) {
         let response = &out.response;
         let modifiers = ui.input(|i| i.modifiers);
-        if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
+        let on_label = ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| out.label.contains(p));
+        // The rename field asks for the focus itself in the pass of the double click; the list must not take it back.
+        let starts_rename = response.double_clicked() && on_label && self.renamable(key);
+        if (response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary)) && !starts_rename {
             self.focus = true;
         }
         if response.double_clicked() {
-            let on_label = ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| out.label.contains(p));
             if on_label && self.renamable(key) {
                 self.start_rename(key.clone());
             } else {

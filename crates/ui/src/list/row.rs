@@ -479,6 +479,7 @@ pub struct ListRow<'a, K> {
     indented_toggles: bool,
     rename_field_name: Option<String>,
     menu: Option<RowMenu>,
+    rename_on_double_click: bool,
     role: Role,
     position: Option<usize>,
     slot: Option<Rect>,
@@ -541,6 +542,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             indented_toggles: false,
             rename_field_name: None,
             menu: None,
+            rename_on_double_click: false,
             role: Role::ListBoxOption,
             position: None,
             slot: None,
@@ -820,6 +822,13 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
+    /// A double click on the label starts the rename in the pass of the click ([`RowEvent::RenameStarted`]);
+    /// a [`List`](super::List) sets it for the rows it renames.
+    pub(super) fn rename_on_double_click(mut self, on: bool) -> Self {
+        self.rename_on_double_click = on;
+        self
+    }
+
     /// The row's "\u{2026}" menu, drawn by the row at its trailing edge before the label, so a
     /// [`Rename`](RowCommand::Rename) starts the rename field in the pass it is chosen. A list sets
     /// it from [`List::row_menu`](super::List::row_menu); no menu for empty `entries`.
@@ -1045,6 +1054,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             indented_toggles,
             rename_field_name,
             menu,
+            rename_on_double_click,
             role,
             position,
             slot,
@@ -1189,6 +1199,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let renaming = renaming
             | menu.is_some_and(|menu| run_menu(ui, &style, (&geometry, rect), (&menu, &label, &key), (row_id, hovered, selected), &mut events));
         let band = geometry.label_band(rect);
+        let double_clicked_label = rename_on_double_click
+            && !renaming
+            && response.double_clicked()
+            && ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| band.contains(p));
+        if double_clicked_label {
+            events.push(RowEvent::RenameStarted { row: key.clone() });
+        }
+        let renaming = renaming || double_clicked_label;
         let (text, detail_text) = label_colors(&style, (selected, dimmed, muted), layer);
         let label_role = if strong { style.label_strong_role } else { style.label_role };
         if renaming {
