@@ -24,7 +24,7 @@
 //! The app is hosted when its URL has `?host=parent` (framed by a same-origin page: messages go
 //! through `postMessage`) or its canvas has `data-host="page"` (the page runs it directly:
 //! messages are `CustomEvent`s on the canvas, the fields in `detail`). This module is the contract
-//! itself and builds everywhere; [`web`] (wasm32 only) is the bridge an app's web shell calls.
+//! itself and builds everywhere; `web` (wasm32 only) is the bridge an app's web shell calls.
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
@@ -69,23 +69,33 @@ impl Mode {
 /// What an app posts to its host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outgoing {
+    /// The app is ready to receive messages.
     Ready,
+    /// The user asked to save the document.
     Save,
+    /// The document's unsaved-changes state changed.
     Dirty,
+    /// An operation failed.
     Failed,
+    /// The app hands a file off to another app through the host.
     Handoff,
 }
 
 /// What a host sends to an app.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Incoming {
+    /// The host's reply to `ready`: its contract version and options.
     Host,
+    /// The host sends a file for the app to open.
     Open,
+    /// The host confirms a save that carried an `id`.
     Saved,
+    /// The host confirms a hand-off is complete.
     HandoffDone,
 }
 
 impl Outgoing {
+    /// The message kind, the part of the `type` field after `<app>:`.
     pub const fn kind(self) -> &'static str {
         match self {
             Self::Ready => "ready",
@@ -98,8 +108,10 @@ impl Outgoing {
 }
 
 impl Incoming {
+    /// Every incoming kind.
     pub const ALL: [Self; 4] = [Self::Host, Self::Open, Self::Saved, Self::HandoffDone];
 
+    /// The message kind, the part of the `type` field after `<app>:`.
     pub const fn kind(self) -> &'static str {
         match self {
             Self::Host => "host",
