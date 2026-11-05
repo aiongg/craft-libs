@@ -91,3 +91,24 @@ fn import_answer_applies_the_plan() {
     let rulers: Vec<String> = km.bindings(&CommandRef::new("view.rulers")).iter().map(|b| b.trigger.to_string()).collect();
     assert_eq!(rulers, ["Cmd+K"]);
 }
+
+#[test]
+// Only commands that end up off their defaults count: a set equal to the defaults counts 0, one with two changed commands counts 2.
+fn the_count_is_the_commands_that_differ_from_the_defaults() {
+    let command = |id: &str, label: &str, key: &str| Bindable::new(id, label, Scope::app()).with_default(Binding::parse(key).unwrap());
+    let km = Keymap::new(
+        vec![command("file.save", "Save", "Cmd+S"), command("view.rulers", "Rulers", "Cmd+R"), command("view.grid", "Grid", "Cmd+G")],
+        Scopes::new(),
+        Platform::Mac,
+    );
+    let file = |save: &str, rulers: &str, grid: &str| {
+        format!(
+            "<photoshop-keyboard-shortcuts version=\"4\"><command name=\"Save\"><shortcut>{save}</shortcut></command>\
+            <command name=\"Rulers\"><shortcut>{rulers}</shortcut></command>\
+            <command name=\"Grid\"><shortcut>{grid}</shortcut></command></photoshop-keyboard-shortcuts>"
+        )
+    };
+    let prepare = |text: String| ImportOffer::prepare("/ps/x.psp", &set(&text), &km, &ImportOptions::default(), None);
+    assert_eq!(prepare(file("Cmd+S", "Cmd+R", "Cmd+G")).unwrap_err(), NoOffer::NothingChanges);
+    assert_eq!(prepare(file("Cmd+S", "Cmd+K", "Cmd+J")).unwrap().changes, 2);
+}
