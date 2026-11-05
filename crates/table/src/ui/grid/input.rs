@@ -36,8 +36,9 @@ enum Drag {
     Lines { axis: Axis, anchor: u32, add: bool },
     /// A header edge dragged: the line's size at the press and the pointer position then.
     Resize { axis: Axis, line: u32, origin: f32, press: f32 },
-    /// The fill handle dragged: the selected range the fill grows from.
-    Fill { source: CellRange },
+    /// The fill handle dragged: the selected range the fill grows from. With the secondary button
+    /// (`menu`) the release opens the app's fill menu instead of filling (GridCraft `Drag::Fill`).
+    Fill { source: CellRange, menu: bool },
     /// The selection dragged by its border: the range, the cell grabbed and the modifiers of the
     /// press (a press that never moves is a click with them).
     Move { source: CellRange, grab: CellRef, mods: Modifiers },
@@ -241,10 +242,20 @@ pub(super) fn pointer<M: GridModel>(
         response.request_focus();
         drag = begin(pass, &geo, state, geo.mirror_pos(p), primary.mods);
     }
+    let secondary_pressed = ui.input(|i| i.pointer.button_pressed(PointerButton::Secondary));
+    if primary.enabled
+        && secondary_pressed
+        && on_grid
+        && let Some(p) = primary.at
+        && let Some(source) = fill_handle_at(pass, &geo, state, geo.mirror_pos(p))
+    {
+        drag = Some(Drag::Fill { source, menu: true });
+    }
     let mut preview = None;
     let keeps = match drag {
         Some(Drag::Resize { axis, line, origin, press }) => resize(pass, ui, &geo, edits, primary, (axis, line, origin, press)),
-        Some(Drag::Fill { source }) => fill(pass, ui, state, &mut geo, edits, (response, primary), source, &mut preview),
+        Some(Drag::Fill { source, menu: true }) => fill_menu(pass, ui, state, &mut geo, edits, source, &mut preview),
+        Some(Drag::Fill { source, menu: false }) => fill(pass, ui, state, &mut geo, edits, (response, primary), source, &mut preview),
         Some(Drag::Move { source, grab, mods }) => {
             move_cells(pass, ui, state, &mut geo, edits, (response, primary), (source, grab, mods), &mut preview)
         }
@@ -385,6 +396,41 @@ fn fill<M: GridModel>(
     keeps
 }
 
+/// The fill handle dragged with the secondary button: the range it would grow to is previewed, and
+/// the release reports [`GridEdit::FillMenu`] at the pointer when the range grew and Esc didn't
+/// cancel (GridCraft `grid/interact.rs:708-716`). Nothing is filled or selected. Whether the drag
+/// goes on.
+fn fill_menu<M: GridModel>(
+    pass: &Pass<'_, M>,
+    ui: &Ui,
+    state: &mut GridState,
+    geo: &mut SheetGeometry,
+    edits: &mut Vec<GridEdit>,
+    source: CellRange,
+    preview: &mut Option<Preview>,
+) -> bool {
+    let (down, released, at) =
+        ui.input(|i| (i.pointer.secondary_down(), i.pointer.button_released(PointerButton::Secondary), i.pointer.interact_pos()));
+    let mut target = source;
+    if let Some(p) = at {
+        let cell = drag_cell(pass, ui, state, geo, geo.mirror_pos(p));
+        target = pass.space.cover(fill_target(source, cell));
+    }
+    let cancelled = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
+    let ends = released || !down || cancelled;
+    if ends {
+        if !cancelled
+            && target != source
+            && let Some(anchor) = at
+        {
+            edits.push(GridEdit::FillMenu { range: target, anchor });
+        }
+        return false;
+    }
+    *preview = Some(Preview::Fill(target));
+    true
+}
+
 /// The value a gesture's event ended with when it changed something.
 fn committed<T: Copy>(event: &EditEvent<T>) -> Option<T> {
     match event {
@@ -480,6 +526,17 @@ fn handle_rect(rect: Rect, side: f32) -> Rect {
     Rect::from_center_size(rect.right_bottom(), Vec2::splat(side))
 }
 
+/// The selection the fill handle at `p` (logical) grows, when the press is on the handle.
+fn fill_handle_at<M: GridModel>(pass: &Pass<'_, M>, geo: &SheetGeometry, state: &GridState, p: Pos2) -> Option<CellRange> {
+    if state.editing || !matches!(target(geo, p), Target::Cells) {
+        return None;
+    }
+    let source = state.selection.current();
+    let rect = geo.range_rect(source);
+    let shown = geo.range_panes(source).iter().any(|pane| pane.contains(rect.right_bottom()));
+    (handle_rect(rect, pass.style.fill_handle).contains(p) && shown).then_some(source)
+}
+
 /// The press: selects, or starts a resize, a fill or a move.
 fn begin<M: GridModel>(pass: &Pass<'_, M>, geo: &SheetGeometry, state: &mut GridState, p: Pos2, mods: Modifiers) -> Option<Drag> {
     let space = &pass.space;
@@ -496,8 +553,8 @@ fn begin<M: GridModel>(pass: &Pass<'_, M>, geo: &SheetGeometry, state: &mut Grid
                 let rect = geo.range_rect(source);
                 let panes = geo.range_panes(source);
                 let shown = |q: Pos2| panes.iter().any(|pane| pane.contains(q));
-                if handle_rect(rect, pass.style.fill_handle).contains(p) && shown(rect.right_bottom()) {
-                    return Some(Drag::Fill { source });
+                if let Some(source) = fill_handle_at(pass, geo, state, p) {
+                    return Some(Drag::Fill { source, menu: false });
                 }
                 if on_border(rect, p, pass.style.edge_grab) && shown(p) {
                     return Some(Drag::Move { source, grab: geo.cell_at(p), mods });

@@ -470,6 +470,15 @@ pub enum GridEdit {
     MoveCells {
         to: EditEvent<CellRef>,
     },
+    /// The fill handle dragged with the secondary button and released: the range the drag grew the
+    /// selection to, and the pointer's screen position. The app opens its fill menu there (Copy
+    /// Cells, Fill Series, Fill Formatting Only, Fill Without Formatting, and Fill Days, Weekdays,
+    /// Months and Years from a date: GridCraft `grid/menus.rs:249-340`) and fills the range with
+    /// the pick. Nothing is filled or selected until then; Esc during the drag reports nothing.
+    FillMenu {
+        range: CellRange,
+        anchor: Pos2,
+    },
     /// Esc while [`CellGrid::copy_mark`] shows the marching ants: the app ends copy mode.
     ClearCopyMark,
     /// Enter while [`CellGrid::copy_mark`] shows the marching ants: paste what was copied at the

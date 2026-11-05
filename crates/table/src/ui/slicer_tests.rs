@@ -53,7 +53,7 @@ fn items() -> Vec<(String, bool)> {
 fn show(ui: &mut Ui, app: &mut App) {
     let items = items();
     let out = Slicer::new("slicer", "Colour", &items).columns(1).filtered(true).show(ui, card());
-    app.actions.extend(out.action);
+    app.actions.extend(out.actions);
 }
 
 fn harness() -> Harness<'static, App> {
@@ -79,4 +79,25 @@ fn clicks_toggle_and_clear() {
     harness.click_at_with(layout.clear.center(), PointerButton::Primary, egui::Modifiers::NONE);
     harness.click_at_with(layout.header.left_center() + vec2(2.0, 0.0), PointerButton::Primary, egui::Modifiers::NONE);
     assert_eq!(harness.state().actions, [SlicerAction::Toggle("Blue".into()), SlicerAction::Clear]);
+}
+
+// The focused tile is the card's active descendant, and follows the arrows.
+#[test]
+fn the_focused_tile_is_the_active_descendant() {
+    use craft_ui::testing::events;
+    use egui::accesskit::Role;
+    use egui_kittest::kittest::{NodeT as _, Queryable as _};
+    let mut harness = harness();
+    harness.get_by_role(Role::ListBox).focus();
+    harness.run();
+    let active = |harness: &Harness<'_, App>| harness.get_by_role(Role::ListBox).accesskit_node().active_descendant().and_then(|n| n.label());
+    assert_eq!(active(&harness).as_deref(), Some("Red"));
+    for frame in events::key_press(egui::Key::ArrowDown, egui::Modifiers::NONE) {
+        for event in frame {
+            harness.event(event);
+        }
+        harness.run_steps(1);
+    }
+    harness.run();
+    assert_eq!(active(&harness).as_deref(), Some("Green"));
 }

@@ -48,11 +48,11 @@ fn tag_sits_left_or_right_of_the_cell() {
     let geometry = geometry(&style);
     let (side, gap) = (style.error_tag, style.error_tag_gap);
     let inner = cell(3, 2);
-    let tag = ErrorTag::new("tag", inner, &geometry, "Problem", &[]).rect(side, gap).expect("inside the cells");
+    let tag = ErrorTag::new("tag", inner, &geometry, "Problem", &[]).rect(&style).expect("inside the cells");
     let at = geometry.cell_rect(inner);
     assert_eq!(tag, Rect::from_min_size(pos2(at.left() - side - gap, at.top()), vec2(side, side)));
     let first = cell(3, 0);
-    let tag = ErrorTag::new("tag", first, &geometry, "Problem", &[]).rect(side, gap).expect("inside the cells");
+    let tag = ErrorTag::new("tag", first, &geometry, "Problem", &[]).rect(&style).expect("inside the cells");
     assert_eq!(tag.left(), geometry.cell_rect(first).right() + gap, "the first column has no room on its left");
 }
 
@@ -80,7 +80,7 @@ fn fix_menu_reports_its_index() {
         .build_ui_state(show, App { fix: None });
     harness.run();
     let style = style();
-    let tag = ErrorTag::new("tag", cell(3, 2), &geometry(&style), "", &[]).rect(style.error_tag, style.error_tag_gap).unwrap();
+    let tag = ErrorTag::new("tag", cell(3, 2), &geometry(&style), "", &[]).rect(&style).unwrap();
     harness.click_at(tag.center());
     harness.run();
     harness.get_by_label("Ignore Error").click();

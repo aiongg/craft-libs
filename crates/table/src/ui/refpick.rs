@@ -67,7 +67,7 @@ impl ReferencePicker {
             return false;
         }
         let anchor = match point {
-            Some(p) if extend => p.anchor,
+            Some(p) if extend && at_reference => p.anchor,
             _ => cell,
         };
         let range = absolute_range_reference(CellRange::new(anchor, cell));
