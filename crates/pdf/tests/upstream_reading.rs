@@ -1,4 +1,4 @@
-//! Text contracts adapted from PdfCraft #1477, with explicit-encoding precedence checks.
+//! Text contracts adapted from storytold/pdfcraft#1477, with explicit-encoding precedence checks.
 #![cfg(feature = "interpret")]
 #![allow(clippy::unwrap_used, clippy::panic)]
 

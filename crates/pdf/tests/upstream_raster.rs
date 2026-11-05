@@ -314,7 +314,7 @@ fn group4_fax_with_rows_zero_decodes_to_the_image_height() {
     }
 }
 
-/// PdfCraft #3308: a fax image whose `/Rows` is below its `/Height` is decoded to its height.
+/// storytold/pdfcraft#3308: a fax image whose `/Rows` is below its `/Height` is decoded to its height.
 /// `/BlackIs1` turns the fixture white, so rows left undecoded show as black. Also through an
 /// `/Indexed` color space, the filter's other output path.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -476,7 +476,7 @@ fn stencil_masks_are_drawn_at_the_fill_opacity_once() {
     }
 }
 
-/// PdfCraft #3246 (#3176, with ledger hayro-interpret (46)): `CA` and `ca` belong to the graphics
+/// storytold/pdfcraft#3246 (#3176, with ledger hayro-interpret (46)): `CA` and `ca` belong to the graphics
 /// state at paint time, so a `gs` after `SCN` or `scn` still fades a shading pattern, and a
 /// stroke takes the stroke alpha.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -653,7 +653,7 @@ fn blend_modes_over_an_empty_part_of_the_page_keep_their_color() {
     }
 }
 
-/// PdfCraft #3018 (ISO 32000-2 §8.6.5.6): the `/DefaultGray`, `/DefaultRGB` and `/DefaultCMYK`
+/// storytold/pdfcraft#3018 (ISO 32000-2 §8.6.5.6): the `/DefaultGray`, `/DefaultRGB` and `/DefaultCMYK`
 /// color spaces of a resource dictionary stand in for the device spaces its content selects,
 /// with color operators, images and shadings. The defaults are synthetic ICC profiles that send
 /// device color somewhere it cannot go uncalibrated: red to green (or blue), black to mid gray,
