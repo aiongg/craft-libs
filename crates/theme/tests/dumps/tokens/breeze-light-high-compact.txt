@@ -1753,6 +1753,7 @@ pages.column_bar_outline = 1
 pages.column_bar_divider = 1.5
 pages.column_bar_divider_active = 3
 pages.column_bar_grab = 4
+pages.column_bar_label_min = 32
 pages.reading_column_gap = 18
 pages.reading_nav_bar = 44
 pages.reading_column_target = 295

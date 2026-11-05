@@ -100,8 +100,10 @@ pub struct ColumnBarStyle {
     /// The fill of the even and the odd columns (`pages.column_bar_fill`, `pages.column_bar_fill_alt`).
     pub fill: Color32,
     pub fill_alt: Color32,
-    /// The type role of the column names.
+    /// The type role of the column percentages (PdfCraft: medium 11 pt; the caption role is the
+    /// nearest), and the narrowest column that paints one (`pages.column_bar_label_min`).
     pub label: TypeRole,
+    pub label_min: f32,
 }
 
 /// [`ReadingView`](super::ReadingView)'s sizes.
@@ -132,6 +134,8 @@ pub struct FrameMarksStyle {
     /// The least and largest hidden-character mark size (`pages.frame_marks_mark_min`, `pages.frame_marks_mark_max`).
     pub mark_min: f32,
     pub mark_max: f32,
+    /// The fill of a port (`pages.paper`).
+    pub paper: Color32,
 }
 
 /// [`EdgePicker`](super::EdgePicker)'s sizes and colours.

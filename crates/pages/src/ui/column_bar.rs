@@ -19,6 +19,7 @@ craft_ui::words! {
     pub struct ColumnBarLabels {
         divider: "columnBar.divider" = "Column {n} width";
         column: "columnBar.column" = "Column {letter}";
+        percent: "columnBar.percent" = "{value}%";
     }
 }
 
@@ -67,8 +68,10 @@ pub fn move_divider(widths: &mut [f64], i: usize, delta: f64) {
 /// The bar over the app's `widths`; it reports edits, it never writes them.
 ///
 /// - Look ([`ColumnBarStyle`]): the bar outlined, rounded; each divider a line, the active
-///   divider (hovered, dragged or focused) in the accent. Labels (the app's, "A", "B", … by
-///   default, [`ColumnBarLabels::column`]) are centred in their share when they fit.
+///   divider (hovered, dragged or focused) in the accent. Each column paints its percentage
+///   ([`ColumnBarLabels::percent`], PdfCraft `field_table_ui.rs:363`) when it is wider than the
+///   style's `label_min`; its name (the app's, else [`ColumnBarLabels::column`]) is the hover text
+///   and the description of the divider after it.
 /// - A divider grabs within the style's `grab` but never past the middle of a column; a drag is
 ///   one edit gesture, [`EditEvent`] (Begin, Update per move, Commit with the new widths; Esc
 ///   and focus loss Cancel), at most one event a pass.
@@ -105,11 +108,12 @@ impl<'a> ColumnBar<'a> {
             grab: t.column_bar_grab,
             fill: t.column_bar_fill.to_egui(),
             fill_alt: t.column_bar_fill_alt.to_egui(),
-            label: craft_theme::TypeRole::Label,
+            label: craft_theme::TypeRole::Caption,
+            label_min: t.column_bar_label_min,
         }
     }
 
-    /// Column names drawn in their shares (the app's field names).
+    /// Column names (the app's field names) for the hover text and AccessKit.
     pub fn names(mut self, names: &'a [String]) -> Self {
         self.names = Some(names);
         self
@@ -178,6 +182,8 @@ impl<'a> ColumnBar<'a> {
             }
             let share = shares(gesture.shown()).get(i).copied().unwrap_or_default();
             sensed.numeric(share * 100.0, 0.0..=100.0, KEY_STEP * 100.0).finish(ui);
+            let column_name = self.name(i, &labels);
+            ui.ctx().accesskit_node_builder(handle.id, |node| node.set_description(column_name));
             if handle.hovered() || handle.dragged() {
                 ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
             }
@@ -188,7 +194,7 @@ impl<'a> ColumnBar<'a> {
         }
         let shown = shares(live.as_deref().unwrap_or(self.widths));
         let edges = column_edges(&shown, bar, rtl);
-        self.paint(ui, &style, &tokens, bar, &edges, active);
+        self.paint(ui, &style, &tokens, &numbers, &labels, bar, (&shown, &edges), active);
         let response = match response.hover_pos().and_then(|at| edges.iter().position(|&x| (at.x - x) * forward < 0.0).or(edges.len().checked_sub(1)))
         {
             Some(column) if response.hovered() => {
@@ -208,19 +214,29 @@ impl<'a> ColumnBar<'a> {
         }
     }
 
-    fn paint(&self, ui: &Ui, style: &ColumnBarStyle, tokens: &craft_ui::theme::UiTokens, bar: Rect, edges: &[f32], active: Option<usize>) {
+    #[expect(clippy::too_many_arguments, reason = "one paint of the bar's parts")]
+    fn paint(
+        &self,
+        ui: &Ui,
+        style: &ColumnBarStyle,
+        tokens: &craft_ui::theme::UiTokens,
+        numbers: &LocaleNumbers,
+        labels: &ColumnBarLabels,
+        bar: Rect,
+        (shares, edges): (&[f64], &[f32]),
+        active: Option<usize>,
+    ) {
         let painter = ui.painter_at(bar);
         let format = role_format(tokens, style.label, tokens.color.text.normal.to_egui());
         let mut start = direction::start_x(ui, bar);
         for (i, &end) in edges.iter().enumerate() {
             let column = Rect::from_x_y_ranges(start.min(end)..=start.max(end), bar.y_range());
             painter.rect_filled(column, 0.0, if i % 2 == 0 { style.fill } else { style.fill_alt });
-            let text = match self.names.and_then(|names| names.get(i)) {
-                Some(name) => name.clone(),
-                None => letter(i),
-            };
+            // PdfCraft paints each column's percentage when the column is wider than 32.
+            let percent = numbers.format(shares.get(i).copied().unwrap_or_default() * 100.0, 0..=0);
+            let text = fmt(&labels.percent, &[("value", &percent)]);
             let galley = painter.layout_job(LayoutJob::single_section(text, format.clone()));
-            if galley.size().x <= column.width() {
+            if column.width() > style.label_min && galley.size().x <= column.width() {
                 painter.galley(column.center() - galley.size() / 2.0, galley, format.color);
             }
             start = end;

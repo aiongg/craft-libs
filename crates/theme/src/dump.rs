@@ -2709,6 +2709,7 @@ fn pages_lines(out: &mut Lines, t: &PagesTokens) {
         column_bar_divider,
         column_bar_divider_active,
         column_bar_grab,
+        column_bar_label_min,
         reading_column_gap,
         reading_nav_bar,
         reading_column_target,
@@ -2759,6 +2760,7 @@ fn pages_lines(out: &mut Lines, t: &PagesTokens) {
     out.line("pages.column_bar_divider", len(*column_bar_divider));
     out.line("pages.column_bar_divider_active", len(*column_bar_divider_active));
     out.line("pages.column_bar_grab", len(*column_bar_grab));
+    out.line("pages.column_bar_label_min", len(*column_bar_label_min));
     out.line("pages.reading_column_gap", len(*reading_column_gap));
     out.line("pages.reading_nav_bar", len(*reading_nav_bar));
     out.line("pages.reading_column_target", len(*reading_column_target));

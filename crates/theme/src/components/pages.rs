@@ -48,6 +48,8 @@ pub struct PagesTokens {
     pub column_bar_divider_active: f32,
     /// How far either side of a column divider grabs it: [`values::PAGES_COLUMN_BAR_GRAB`].
     pub column_bar_grab: f32,
+    /// The narrowest column that paints its percentage: [`values::PAGES_COLUMN_BAR_LABEL_MIN`].
+    pub column_bar_label_min: f32,
     /// Between the reading view's columns: [`values::PAGES_READING_COLUMN_GAP`].
     pub reading_column_gap: f32,
     /// Room under the reading columns for the page-turn bar: [`values::PAGES_READING_NAV_BAR`].
@@ -136,6 +138,7 @@ impl Family for PagesTokens {
         "column_bar_divider" 0.0..=8.0 => column_bar_divider;
         "column_bar_divider_active" 0.0..=16.0 => column_bar_divider_active;
         "column_bar_grab" 0.0..=32.0 => column_bar_grab;
+        "column_bar_label_min" 0.0..=256.0 => column_bar_label_min;
         "reading_column_gap" 0.0..=128.0 => reading_column_gap;
         "reading_nav_bar" 0.0..=256.0 => reading_nav_bar;
         "reading_column_target" 64.0..=2048.0 => reading_column_target;
@@ -179,6 +182,7 @@ impl Family for PagesTokens {
             column_bar_divider: values::PAGES_COLUMN_BAR_DIVIDER,
             column_bar_divider_active: values::PAGES_COLUMN_BAR_DIVIDER_ACTIVE,
             column_bar_grab: values::PAGES_COLUMN_BAR_GRAB,
+            column_bar_label_min: values::PAGES_COLUMN_BAR_LABEL_MIN,
             reading_column_gap: values::PAGES_READING_COLUMN_GAP,
             reading_nav_bar: values::PAGES_READING_NAV_BAR,
             reading_column_target: values::PAGES_READING_COLUMN_TARGET,

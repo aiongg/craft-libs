@@ -4,7 +4,7 @@
 //! frame outlines with their in and out ports.
 
 use egui::epaint::PathShape;
-use egui::{Align2, Color32, FontId, Painter, Pos2, Shape, Stroke, vec2};
+use egui::{Align2, FontId, Painter, Pos2, Shape, Stroke, vec2};
 use kurbo::{Point, Rect};
 
 use craft_ui::canvas::CanvasView;
@@ -138,6 +138,7 @@ impl<'a> TextFrameMarks<'a> {
             overset_stroke: t.frame_marks_overset_stroke,
             mark_min: t.frame_marks_mark_min,
             mark_max: t.frame_marks_mark_max,
+            paper: t.paper.to_egui(),
         }
     }
 
@@ -160,7 +161,7 @@ impl<'a> TextFrameMarks<'a> {
             let out_port = port_centre(corners[2], corners[3], style.port_inset);
             for (centre, threaded, is_out) in [(in_port, frame.threaded_in, false), (out_port, frame.threaded_out, true)] {
                 let square = egui::Rect::from_center_size(centre, vec2(style.port, style.port));
-                painter.rect_filled(square, 0.0, Color32::WHITE);
+                painter.rect_filled(square, 0.0, style.paper);
                 painter.rect_stroke(square, 0.0, line(self.color), egui::StrokeKind::Inside);
                 if is_out && frame.overset {
                     let arm = style.overset_arm;

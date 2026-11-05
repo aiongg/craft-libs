@@ -134,3 +134,35 @@ fn set_value_sets_the_columns_percentage() {
     let [EditEvent::Set { value, .. }] = events.as_slice() else { panic!("{events:?}") };
     assert!(close(value[0], 1.6) && close(value[1], 0.4), "{value:?}");
 }
+
+fn painted_texts(harness: &Harness<'_, App>) -> Vec<String> {
+    fn texts(shape: &Shape, out: &mut Vec<String>) {
+        match shape {
+            Shape::Vec(shapes) => shapes.iter().for_each(|shape| texts(shape, out)),
+            Shape::Text(text) => out.push(text.galley.text().to_owned()),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    harness.output().shapes.iter().for_each(|clipped| texts(&clipped.shape, &mut out));
+    out
+}
+
+// Each column of a 400 pt bar paints its percentage, as PdfCraft does; in a 100 pt bar the columns are 25 pt, under the style's label minimum, and paint none. The column's name is the divider's description.
+#[test]
+fn wide_columns_paint_their_percentage() {
+    let harness = open();
+    assert_eq!(painted_texts(&harness), ["25%", "25%", "25%", "25%"]);
+    let divider = harness.get_by_role_and_label(Role::Splitter, "Column 1 width");
+    assert_eq!(divider.accesskit_node().description().as_deref(), Some("Column A"));
+    let narrow =
+        HarnessBuilder::default().with_size(vec2(100.0, 100.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, app: &mut App| {
+                app.events.extend(ColumnBar::new("bar", &[1.0, 1.0, 1.0, 1.0]).show(ui).edit);
+            },
+            App::default(),
+        );
+    let mut narrow = narrow;
+    narrow.run();
+    assert!(painted_texts(&narrow).is_empty());
+}

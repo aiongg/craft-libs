@@ -2324,6 +2324,9 @@ pub const PAGES_COLUMN_BAR_DIVIDER: f32 = 1.5;
 pub const PAGES_COLUMN_BAR_DIVIDER_ACTIVE: f32 = 3.0;
 /// How far either side of a divider grabs it.
 pub const PAGES_COLUMN_BAR_GRAB: f32 = 4.0;
+/// The narrowest column that paints its percentage (PdfCraft `field_table_ui.rs:363`: wider
+/// than 32).
+pub const PAGES_COLUMN_BAR_LABEL_MIN: f32 = 32.0;
 /// Between columns.
 pub const PAGES_READING_COLUMN_GAP: f32 = 18.0;
 /// Room under the columns for the page-turn bar.
