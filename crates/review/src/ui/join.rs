@@ -27,7 +27,7 @@ craft_ui::words! {
 /// dialog): a secret text field (masked, its text is not read out by AccessKit: it may hold a link's secret)
 /// and Join, enabled when the field isn't blank and no join is pending; Enter joins. On join the
 /// field clears; while joining it shows Joining… with Cancel, and a failure's reason with
-/// Try Again.
+/// Try Again, which reports [`CollabRequest::RetryJoin`] (the app kept what the join started with).
 pub struct JoinField<'a> {
     id_salt: IdSalt,
     transport: &'a dyn CollabTransport,
@@ -71,8 +71,6 @@ impl<'a> JoinField<'a> {
         let style = ReviewStyle::of(&tokens);
         let id = ui.make_persistent_id(id_salt);
         let field_id = id.with("field");
-        // What the last join started with: a failed join tries again with it.
-        let last_id = id.with("last");
         let state = transport.join_state();
         let mut requests = Vec::new();
         let response = ui
@@ -99,7 +97,6 @@ impl<'a> JoinField<'a> {
                 if join {
                     let code = typed.trim().to_owned();
                     typed.clear();
-                    ui.data_mut(|data| data.insert_temp(last_id, code.clone()));
                     requests.push(CollabRequest::Join(code));
                 }
                 match &state {
@@ -113,11 +110,8 @@ impl<'a> JoinField<'a> {
                     }
                     JoinState::Failed(reason) => {
                         text(ui, &tokens, style.body_text, tokens.color.status.bad.fg.to_egui(), reason);
-                        let last: Option<String> = ui.data(|data| data.get_temp(last_id));
-                        if let Some(last) = last
-                            && ui.add(Button::new(&labels.retry).id_salt(id.with("retry"))).clicked()
-                        {
-                            requests.push(CollabRequest::Join(last));
+                        if ui.add(Button::new(&labels.retry).id_salt(id.with("retry"))).clicked() {
+                            requests.push(CollabRequest::RetryJoin);
                         }
                     }
                     JoinState::Idle | JoinState::Joined => {}

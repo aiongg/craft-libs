@@ -41,10 +41,13 @@ pub trait CollabTransport {
 
     fn join_state(&self) -> JoinState;
 
-    /// You may remove people from the session (you host it or own the file). The people bar
-    /// offers Remove on a right-click only when this is true.
+    /// Whether you may remove people from the session (you host it or own the file). The people
+    /// bar offers Remove on a right-click only when this is true; the default is `false`, so a
+    /// transport that cannot remove anyone needs no impl.
     // figcraft: crates/engine `live::can_remove_people`, used at `ui-egui/src/live.rs:485`.
-    fn can_remove(&self) -> bool;
+    fn can_remove(&self) -> bool {
+        false
+    }
 }
 
 /// What a collaboration widget asks the app to send, in the order the user did it.
@@ -69,6 +72,9 @@ pub enum CollabRequest {
     /// Join with what the user typed (a code or an invite link); the app parses it.
     Join(String),
     CancelJoin,
+    /// Try the failed join again with what it was started with; the app keeps that (FigCraft
+    /// `retry_join`).
+    RetryJoin,
     /// Remove a participant from the session (FigCraft `collab.removePerson`); offered only when
     /// [`CollabTransport::can_remove`] is true.
     Remove(ParticipantId),

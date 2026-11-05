@@ -2,9 +2,11 @@
 
 use std::collections::HashMap;
 
+use craft_theme::ControlSize;
 use craft_ui::behavior::ClaimedKey;
-use craft_ui::controls::Kbd;
+use craft_ui::controls::{IconButton, Kbd};
 use craft_ui::focus::key_owner::{KeyOwner, OwnerGate, owner};
+use craft_ui::icons::Icon;
 use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, PressMenu};
 use craft_ui::motion::{MIN_MOVE, glides_allowed};
@@ -58,6 +60,10 @@ craft_ui::words! {
         following: "presence.following" = "Following {name} · {key} to stop";
         follow_viewer: "presence.followViewer" = "{action} ({viewer})";
         remove: "presence.remove" = "Remove {name} from session";
+        people: "presence.people" = "People in this file";
+        following_hint: "presence.followingHint" = "Following";
+        nobody: "presence.nobody" = "Nobody else is here yet";
+        not_live: "presence.notLive" = "Not in a live session";
     }
 }
 
@@ -113,7 +119,8 @@ fn paint_name_tag(painter: &Painter, tokens: &UiTokens, at: Pos2, name: &str, fi
 }
 
 /// The avatars at the top of the right panel (FigCraft): yours first, then up to five others and
-/// a "+N" chip that opens a menu of everyone else; a click on someone follows their view (a frame
+/// a "+N" chip for the rest and a chevron that opens the menu of everyone (you first; Following
+/// marks who you follow; a line says when nobody else is here); a click on someone follows their view (a frame
 /// in their colour around the canvas while following, Esc stops), a click on yours opens
 /// Spotlight me, and a right-click on someone offers Remove when the transport allows it. Each
 /// avatar is a Tab stop named by the person, Enter follows.
@@ -158,14 +165,14 @@ impl<'a> PeopleBar<'a> {
         let radius = side / 2.0;
         let step = side * AVATAR_STEP;
         let margin = FRAME_WIDTH * 2.0;
-        // Room for avatars after yours, the "+N" chip counting as one.
+        // Room for avatars after yours, the "+N" chip counting as one; the chevron takes the last slot.
         let room = match ui.available_width() {
-            width if width.is_finite() => ((width - side - 2.0 * margin) / step).floor().max(0.0) as usize,
+            width if width.is_finite() => ((width - side - 2.0 * margin) / step - 1.0).floor().max(0.0) as usize,
             _ => usize::MAX,
         };
         let shown = if others.len() <= room.min(MAX_SHOWN) { others.len() } else { room.min(MAX_SHOWN + 1).saturating_sub(1) };
         let hidden = others.len() - shown;
-        let slots = usize::from(me.is_some()) + shown + usize::from(hidden > 0);
+        let slots = usize::from(me.is_some()) + shown + usize::from(hidden > 0) + 1;
         let width = 2.0 * margin + side + slots.saturating_sub(1) as f32 * step;
         let (rect, response) = ui.allocate_exact_size(vec2(width, side + 2.0 * margin), Sense::hover());
         let mut center = pos2(rect.min.x + margin + radius, rect.center().y);
@@ -203,22 +210,21 @@ impl<'a> PeopleBar<'a> {
         }
         if hidden > 0 {
             let at = advance(&mut center);
-            let chip = Rect::from_center_size(at, Vec2::splat(side));
-            let button = ui.interact(chip, id.with("more"), Sense::click());
             let name = fmt(&labels.more, &[("n", &hidden.to_string())]);
-            button.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
             ring(ui.painter(), &tokens, at, radius);
             ui.painter().circle_filled(at, radius, tokens.color.surface.sunken.to_egui());
             let muted = tokens.color.text.muted.to_egui();
-            let galley =
-                ui.painter().layout_job(LayoutJob::single_section(name.clone(), role_format(&tokens, ReviewStyle::of(&tokens).caption_text, muted)));
+            let galley = ui.painter().layout_job(LayoutJob::single_section(name, role_format(&tokens, ReviewStyle::of(&tokens).caption_text, muted)));
             ui.painter().galley(at - galley.size() / 2.0, galley, muted);
-            let entries: Vec<MenuEntry<PeopleCommand>> = others
-                .iter()
-                .map(|person| MenuItem::new(person.name.as_str(), PeopleCommand::Follow(person.id)).check(following == Some(person.id)).into())
-                .collect();
-            if let Some(PeopleCommand::Follow(who)) = PressMenu::new(&entries).show(ui, &button).chosen {
-                requests.push(CollabRequest::Follow(if following == Some(who) { None } else { Some(who) }));
+        }
+        let at = advance(&mut center);
+        let chevron =
+            IconButton::new(Icon::ChevronDown, &labels.people).size(ControlSize::Sm).show_at(ui, Rect::from_center_size(at, Vec2::splat(side)));
+        let entries = people_entries(&labels, me, &others, following);
+        if let Some(command) = PressMenu::new(&entries).show(ui, &chevron).chosen {
+            match command {
+                PeopleCommand::Follow(who) => requests.push(CollabRequest::Follow(if following == Some(who) { None } else { Some(who) })),
+                PeopleCommand::You | PeopleCommand::Spotlight | PeopleCommand::Remove(_) => {}
             }
         }
 
@@ -239,9 +245,36 @@ impl<'a> PeopleBar<'a> {
 
 #[derive(Clone, Copy)]
 enum PeopleCommand {
+    /// Your own row: it lists you and does nothing (FigCraft `live.rs:532`).
+    You,
     Follow(ParticipantId),
     Remove(ParticipantId),
     Spotlight,
+}
+
+/// The chevron menu's rows: you, then everyone else with a mark on who is followed, or the line
+/// that says why nobody else is listed (FigCraft `live.rs:569` `people_menu`).
+fn people_entries(
+    labels: &PresenceLabels,
+    me: Option<&Participant>,
+    others: &[&Participant],
+    following: Option<ParticipantId>,
+) -> Vec<MenuEntry<PeopleCommand>> {
+    let mut entries = Vec::new();
+    if let Some(me) = me {
+        let name = fmt(&labels.you, &[("name", &me.name)]);
+        entries.push(MenuItem::new(name, PeopleCommand::You).swatch(person_color(me)).into());
+    }
+    for person in others {
+        let followed = following == Some(person.id);
+        let row = MenuItem::new(person.name.as_str(), PeopleCommand::Follow(person.id)).swatch(person_color(person)).check(followed);
+        entries.push(if followed { row.detail(&labels.following_hint) } else { row }.into());
+    }
+    if others.is_empty() {
+        let note = if me.is_some() { &labels.nobody } else { &labels.not_live };
+        entries.push(MenuItem::new(note.as_str(), PeopleCommand::You).enabled(false).into());
+    }
+    entries
 }
 
 /// The ring that separates overlapping avatars from the panel.

@@ -243,6 +243,40 @@ mod screens {
         assert!(harness.query_by_label("Remove Bo Li from session").is_none());
     }
 
+    // The chevron lists you first and everyone else, marks who is followed, and says when nobody
+    // else is here; choosing someone follows them.
+    #[test]
+    fn people_menu_lists_everyone_and_the_empty_note() {
+        let mut harness = harness(show_people, Session { following: Some(ParticipantId(2)), ..session() });
+        harness.get_by_role_and_label(Role::Button, "People in this file").click();
+        harness.run();
+        assert_eq!(harness.get_all_by_label("Ana Ruiz (you)").count(), 2, "the avatar and the menu row");
+        let row = harness.get_by_label("Bo Li");
+        assert_eq!(row.accesskit_node().description().as_deref(), Some("Following"));
+        row.click();
+        harness.run();
+        assert_eq!(harness.state().requests, [CollabRequest::Follow(None)], "choosing the followed person stops following");
+
+        let mut harness = self::harness(show_people, Session { participants: vec![person(1, "Ana Ruiz")], ..session() });
+        harness.get_by_role_and_label(Role::Button, "People in this file").click();
+        harness.run();
+        harness.get_by_label("Nobody else is here yet");
+
+        let mut harness = self::harness(show_people, Session { participants: Vec::new(), ..session() });
+        harness.get_by_role_and_label(Role::Button, "People in this file").click();
+        harness.run();
+        harness.get_by_label("Not in a live session");
+    }
+
+    // Try Again asks the app to retry; the field keeps no copy of the code.
+    #[test]
+    fn a_failed_join_reports_retry() {
+        let mut harness = harness(show_join, Session { join: JoinState::Failed("No such session".into()), ..session() });
+        harness.get_by_role_and_label(Role::Button, "Try Again").click();
+        harness.run();
+        assert_eq!(harness.state().requests, [CollabRequest::RetryJoin]);
+    }
+
     fn show_vote(ui: &mut Ui, session: &mut Session) {
         let out = VotePill::new("vote", session).has_selection(session.has_selection).show(ui);
         session.requests.extend(out.requests);
