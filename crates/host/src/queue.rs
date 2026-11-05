@@ -320,7 +320,7 @@ impl<K: Clone + Eq + Send + 'static, R: Send + 'static> Shared<K, R> {
 ///   [`run_inline`](Self::run_inline) runs some on the calling thread.
 /// - **End.** [`shutdown`](Self::shutdown) drops the waiting jobs, cancels the running ones and
 ///   waits, bounded, for them to end (a render still inside a GPU driver while the process exits
-///   crashes there: LightCraft #620). Dropping the queue drops and cancels the same way without
+///   crashes there: storytold/lightcraft#620). Dropping the queue drops and cancels the same way without
 ///   waiting.
 ///
 /// `JobQueue<K, R>` is `Send + Sync` when `K` and `R` are `Send`, so it can live in egui memory or
@@ -450,7 +450,7 @@ impl<K: Clone + Eq + Hash + Send + 'static, R: Send + 'static> JobQueue<K, R> {
     /// has; one that hasn't is left to end on its own and its result is discarded. For owners about
     /// to end the process (`std::process::exit` never drops the queue). Never waits for a job
     /// running on the calling thread (a queue shut down by one of its own jobs).
-    // lightcraft: crates/preview/src/pool.rs:155 `shutdown` (LightCraft #620).
+    // lightcraft: crates/preview/src/pool.rs:155 `shutdown` (storytold/lightcraft#620).
     pub fn shutdown(&self, timeout: Duration) -> bool {
         let me = thread::current().id();
         let deadline = Instant::now().checked_add(timeout);
