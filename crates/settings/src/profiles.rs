@@ -29,6 +29,7 @@ pub enum ProfileError {
     NotFound,
     /// The file is not this app's settings (unparsable, or a newer schema).
     Unreadable(String),
+    /// Reading or writing the profile file failed.
     Io(io::Error),
 }
 

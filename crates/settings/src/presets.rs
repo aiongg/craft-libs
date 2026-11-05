@@ -50,7 +50,10 @@ pub enum PresetFolderError {
     /// No preset has that name.
     NotFound,
     /// The bytes are a preset of another kind: the envelope's `format` is `found`.
-    ForeignFormat { found: String },
+    ForeignFormat {
+        /// The envelope's `format` value.
+        found: String,
+    },
     /// The file is larger than [`MAX_FILE_BYTES`].
     TooLarge,
     /// The bytes are not a preset of this kind (unparsable JSON, a missing field, a newer
