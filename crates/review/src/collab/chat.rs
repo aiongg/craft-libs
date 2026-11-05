@@ -7,7 +7,9 @@ pub const CHAT_FADE_S: f64 = 1.0;
 /// A cursor chat message and when it last changed (monotonic seconds).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CursorChat {
+    #[allow(missing_docs)]
     pub text: String,
+    /// Monotonic time, in seconds, of the last change.
     pub changed: f64,
 }
 

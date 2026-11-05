@@ -6,6 +6,7 @@ use kurbo::{Point, Rect, Vec2};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
+/// Identifies an annotation within a document.
 pub struct AnnotationId(pub u64);
 
 /// What an annotation is (PDF annotation subtypes as Acrobat names them).
@@ -14,13 +15,19 @@ pub enum AnnotationKind {
     /// A sticky note.
     #[default]
     Note,
+    #[allow(missing_docs)]
     TextBox,
+    /// A text box with a leader line.
     Callout,
     /// A file attachment.
     Attach,
+    #[allow(missing_docs)]
     Highlight,
+    #[allow(missing_docs)]
     Underline,
+    #[allow(missing_docs)]
     StrikeOut,
+    #[allow(missing_docs)]
     Squiggly,
     /// Insert Text at a caret.
     Caret,
@@ -28,12 +35,19 @@ pub enum AnnotationKind {
     ReplaceText,
     /// Freehand drawing.
     Ink,
+    #[allow(missing_docs)]
     Line,
+    #[allow(missing_docs)]
     Arrow,
+    #[allow(missing_docs)]
     Rectangle,
+    #[allow(missing_docs)]
     Oval,
+    #[allow(missing_docs)]
     PolyLine,
+    #[allow(missing_docs)]
     Polygon,
+    #[allow(missing_docs)]
     Cloud,
 }
 
@@ -42,20 +56,27 @@ pub enum AnnotationKind {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum AnnotationTool {
     #[default]
+    /// Select and edit existing annotations.
     Select,
+    /// Draw a new annotation of this kind.
     Draw(AnnotationKind),
+    /// Remove the Ink strokes the pointer crosses.
     Eraser,
 }
 
 /// The toolbar's flyout groups, in Acrobat's order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AnnotationGroup {
+    /// Notes, text boxes, callouts and attachments.
     Comment,
+    /// Text markup tools.
     Highlight,
+    /// Drawing and shape tools, with the Eraser.
     Draw,
 }
 
 impl AnnotationGroup {
+    /// Every group, in toolbar order.
     pub const ALL: [AnnotationGroup; 3] = [AnnotationGroup::Comment, AnnotationGroup::Highlight, AnnotationGroup::Draw];
 
     /// The group's tools in Acrobat's order (PdfCraft `tools/comments.rs:81` `GROUPS`).
@@ -110,8 +131,11 @@ impl AnnotationKind {
 /// these and back.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Annotation {
+    #[allow(missing_docs)]
     pub id: AnnotationId,
+    #[allow(missing_docs)]
     pub page: usize,
+    #[allow(missing_docs)]
     pub kind: AnnotationKind,
     /// The bounding box on the page.
     pub rect: Rect,
@@ -121,9 +145,13 @@ pub struct Annotation {
     pub strokes: Vec<Vec<Point>>,
     /// Straight RGB.
     pub color: [u8; 3],
+    /// Opacity from 0.0 (clear) to 1.0 (solid).
     pub opacity: f32,
+    /// Line width in page units.
     pub stroke_width: f64,
+    /// The note or text-box text.
     pub text: String,
+    /// A locked annotation shows no handles.
     pub locked: bool,
 }
 
@@ -153,7 +181,9 @@ pub enum AnnotationHandle {
 /// What a point on the page hits.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AnnotationHit {
+    /// A handle of a selected annotation.
     Handle(AnnotationId, AnnotationHandle),
+    /// The body of an annotation.
     Body(AnnotationId),
 }
 
@@ -311,23 +341,35 @@ pub enum AnnotationEdit {
     /// A new annotation drawn with a tool; for a Note or Text box the app opens the composer
     /// ([`CommentComposer`](crate::ui::CommentComposer)) on it.
     Create(Annotation),
+    /// Move annotations by `delta`.
     Move {
+        #[allow(missing_docs)]
         ids: Vec<AnnotationId>,
+        /// How far the annotations move, in page units.
         delta: Vec2,
     },
+    /// Resize an annotation's box.
     Resize {
+        #[allow(missing_docs)]
         id: AnnotationId,
+        /// The new bounding box.
         rect: Rect,
     },
+    /// Move the defining points of an annotation.
     Reshape {
+        #[allow(missing_docs)]
         id: AnnotationId,
+        /// The new defining points.
         points: Vec<Point>,
     },
+    /// Remove these annotations.
     Delete(Vec<AnnotationId>),
     /// The Eraser crossed these strokes of an Ink annotation. One event per annotation per
     /// gesture, with the strokes in ascending order.
     Erase {
+        #[allow(missing_docs)]
         id: AnnotationId,
+        /// Indices of the crossed strokes in [`Annotation::strokes`].
         strokes: Vec<usize>,
     },
     /// The selection changed; the tool has applied it to [`AnnotateTool::selected`](crate::ui::AnnotateTool).

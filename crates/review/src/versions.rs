@@ -2,40 +2,55 @@
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
+/// Identifies a saved version.
 pub struct VersionId(pub u64);
 
 /// A saved version: named by the user, or an autosave.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Version {
+    #[allow(missing_docs)]
     pub id: VersionId,
     /// Empty for an autosave.
     pub title: String,
+    #[allow(missing_docs)]
     pub description: String,
     /// Unix seconds.
     pub created: i64,
+    #[allow(missing_docs)]
     pub author: String,
+    /// True for an automatic save, false for one named by the user.
     pub autosave: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
+/// Identifies a branch.
 pub struct BranchId(pub u64);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+/// Where a branch stands in its life.
 pub enum BranchState {
     #[default]
+    /// In progress.
     Active,
+    /// Its changes were merged back into the main file.
     Merged,
+    /// Put away; kept but no longer worked on.
     Archived,
 }
 
 /// A branch of the file (Figma's branching).
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Branch {
+    #[allow(missing_docs)]
     pub id: BranchId,
+    #[allow(missing_docs)]
     pub name: String,
+    #[allow(missing_docs)]
     pub state: BranchState,
+    /// Unix seconds.
     pub created: i64,
+    #[allow(missing_docs)]
     pub author: String,
 }
 

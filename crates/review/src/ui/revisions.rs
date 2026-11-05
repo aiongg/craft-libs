@@ -18,7 +18,9 @@ const DETAIL_LINES: usize = 8;
 pub mod counts {
     use craft_ui::localized::words::Counted;
 
+    /// Count word for the Accept All button.
     pub const ACCEPT_ALL: Counted = Counted::new("revisions.acceptAll", "Accept All ({n})", "Accept All ({n})");
+    /// Count word for the Reject All button.
     pub const REJECT_ALL: Counted = Counted::new("revisions.rejectAll", "Reject All ({n})", "Reject All ({n})");
 
     /// Every count word of the Revisions panel.
@@ -50,7 +52,7 @@ craft_ui::words! {
 /// PowerPoint's Compare pane (DeckCraft): "Compared with {name}" (and the by-position note),
 /// Accept All (n) and Reject All (n), then a card per change: a colour bar
 /// (`review.revision_bar_*` in `review.revision_inserted`, `_deleted` or `_changed` of
-/// [`ReviewStyle`](super::ReviewStyle)), the heading as a [`Link`](craft_ui::controls::Link)
+/// [`ReviewStyle`]), the heading as a [`Link`]
 /// (goes there), Accept and Reject at the right, up to eight detail lines with bullets. With no
 /// changes: "No differences left." and End Review. Every link and button is a Tab stop in reading
 /// order; counts through [`Counted`](craft_ui::localized::words::Counted) words.
@@ -63,6 +65,7 @@ pub struct RevisionsPanel<'a> {
 }
 
 impl<'a> RevisionsPanel<'a> {
+    /// A panel listing `revisions` found by comparing with `compared_with` (the other copy's name).
     pub fn new(id_salt: impl AsIdSalt, compared_with: &'a str, revisions: &'a [Revision]) -> Self {
         Self { id_salt: IdSalt::new(id_salt), compared_with, by_position: false, revisions, labels: None }
     }
@@ -73,12 +76,14 @@ impl<'a> RevisionsPanel<'a> {
         self
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: RevisionsLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
     // deckcraft: crates/ui-egui/src/panels/comments.rs:5 `revisions`.
+    /// Shows the panel and reports what the user did.
     pub fn show(self, ui: &mut Ui) -> RevisionsPanelOutput {
         let Self { id_salt, compared_with, by_position, revisions, labels } = self;
         let labels = labels.unwrap_or_else(|| RevisionsLabels::of(ui));
@@ -125,6 +130,7 @@ impl<'a> RevisionsPanel<'a> {
 /// What the Revisions panel did this pass.
 #[must_use]
 pub struct RevisionsPanelOutput {
+    /// The panel's response.
     pub response: Response,
     /// In the order they happened this pass.
     pub actions: Vec<RevisionAction>,

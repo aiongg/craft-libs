@@ -64,7 +64,7 @@ fn bubble_radius(style: &ReviewStyle) -> CornerRadius {
 /// focus moves into it); each change comes back as a [`CollabRequest::Chat`] for the app to
 /// send; Enter sends and keeps the bubble, Esc or an empty Enter closes it (an empty `Chat`).
 /// The bubble follows the pointer. The text field is the kernel's
-/// [`TextField`](craft_ui::controls::TextField); `/` is taken only while the canvas holds the
+/// [`TextField`]; `/` is taken only while the canvas holds the
 /// keys ([`focus::key_owner`](craft_ui::focus::key_owner)).
 pub struct CursorChatBox<'a> {
     id_salt: IdSalt,
@@ -82,12 +82,15 @@ impl<'a> CursorChatBox<'a> {
         Self { id_salt: IdSalt::new(id_salt), text, open, color: Color32::from_rgb(r, g, b), labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: ChatLabels) -> Self {
         self.labels = Some(labels);
         self
     }
 
     // figcraft: crates/ui-egui/src/live.rs:353 `open_chat`, `:362` `chat_box`.
+    /// Shows the box and returns the requests it made. `pointer` is the pointer position in screen
+    /// points, `None` off the canvas; a bubble that is open keeps its last position then.
     pub fn show(self, ui: &mut Ui, pointer: Option<Pos2>) -> CursorChatBoxOutput {
         let Self { id_salt, text, open, color: fill, labels } = self;
         let labels = labels.unwrap_or_else(|| ChatLabels::of(ui));
@@ -200,5 +203,6 @@ fn close(text: &mut String, open: &mut bool, requests: &mut Vec<CollabRequest>) 
 /// What the chat box did this pass.
 #[must_use]
 pub struct CursorChatBoxOutput {
+    /// The chat messages to send, in order.
     pub requests: Vec<CollabRequest>,
 }

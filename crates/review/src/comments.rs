@@ -7,20 +7,39 @@ use crate::annotate::AnnotationKind;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
+/// Identifies a comment thread.
 pub struct ThreadId(pub u64);
 
 /// Where a thread is.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CommentAnchor {
     /// A point on a page, in page units (PdfCraft's sticky notes and markups).
-    Page { page: usize, at: [f64; 2] },
+    Page {
+        /// Page index.
+        page: usize,
+        /// Position on the page, in page units.
+        at: [f64; 2],
+    },
     /// A point on the canvas, optionally inside a frame or node that carries it when it moves
     /// (FigCraft).
-    Canvas { at: [f64; 2], node: Option<u64> },
+    Canvas {
+        /// Position on the canvas, in canvas units.
+        at: [f64; 2],
+        /// Id of the frame or node that carries the thread, if any.
+        node: Option<u64>,
+    },
     /// A slide (DeckCraft), optionally at a point on it.
-    Slide { slide: usize, at: Option<[f64; 2]> },
+    Slide {
+        /// Slide index.
+        slide: usize,
+        /// Position on the slide, if the thread has one.
+        at: Option<[f64; 2]>,
+    },
     /// A time on a timeline (a review of a cut).
-    Time { seconds: f64 },
+    Time {
+        /// Position on the timeline, in seconds.
+        seconds: f64,
+    },
 }
 
 impl CommentAnchor {
@@ -49,10 +68,15 @@ impl CommentAnchor {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ReviewStatus {
     #[default]
+    /// No status set.
     None,
+    #[allow(missing_docs)]
     Accepted,
+    #[allow(missing_docs)]
     Rejected,
+    #[allow(missing_docs)]
     Cancelled,
+    #[allow(missing_docs)]
     Completed,
 }
 
@@ -65,18 +89,24 @@ impl ReviewStatus {
 /// An emoji reaction and who gave it.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Reaction {
+    #[allow(missing_docs)]
     pub emoji: String,
+    /// Names of the people who gave the reaction.
     pub people: Vec<String>,
 }
 
 /// One message in a thread; the first is the comment, the rest replies.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CommentMessage {
+    #[allow(missing_docs)]
     pub author: String,
     /// Unix seconds.
     pub created: i64,
+    /// Unix seconds of the last edit, if the message was edited.
     pub modified: Option<i64>,
+    #[allow(missing_docs)]
     pub text: String,
+    #[allow(missing_docs)]
     pub reactions: Vec<Reaction>,
     /// Read by the viewer (FigCraft's read state).
     pub read: bool,
@@ -85,17 +115,22 @@ pub struct CommentMessage {
 /// A comment and its replies.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CommentThread {
+    #[allow(missing_docs)]
     pub id: ThreadId,
+    /// Where the thread sits.
     pub anchor: CommentAnchor,
     /// The annotation kind the thread hangs on, for the card's icon, the Type sort and its
     /// heading; `None` for a plain comment.
     pub kind: Option<AnnotationKind>,
     /// The label colour of the annotation (straight RGB).
     pub color: Option<[u8; 3]>,
+    /// The comment first, then its replies.
     pub messages: Vec<CommentMessage>,
+    /// The thread's review status.
     pub status: ReviewStatus,
     /// Acrobat's per-comment checkmark.
     pub marked: bool,
+    /// A locked thread can't be edited.
     pub locked: bool,
     /// Figma's resolve.
     pub resolved: bool,
@@ -112,10 +147,13 @@ impl CommentThread {
 /// author, status, colour or checkmark is listed.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CommentFilter {
+    /// Kinds to hide; `None` is a plain comment.
     pub hidden_types: Vec<Option<AnnotationKind>>,
     /// The author of the thread's first message; empty for none.
     pub hidden_authors: Vec<String>,
+    #[allow(missing_docs)]
     pub hidden_statuses: Vec<ReviewStatus>,
+    /// Label colours to hide; `None` is a thread without a colour.
     pub hidden_colors: Vec<Option<[u8; 3]>>,
     /// `true` hides the marked threads, `false` the unmarked.
     pub hidden_checks: Vec<bool>,
@@ -147,10 +185,15 @@ impl CommentFilter {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum CommentSort {
     #[default]
+    /// By page, then position on the page.
     Page,
+    #[allow(missing_docs)]
     Author,
+    /// Newest first.
     Date,
+    #[allow(missing_docs)]
     Type,
+    #[allow(missing_docs)]
     Color,
 }
 

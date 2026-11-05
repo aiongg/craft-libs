@@ -31,6 +31,7 @@ pub use vote::{VoteScope, VoteSession};
 /// for request in out.requests { live.send(request) }   // collab.follow, collab.spotlight, collab.removePerson, …
 /// ```
 pub trait CollabTransport {
+    /// This participant's id.
     fn me(&self) -> ParticipantId;
 
     /// Everyone in the session, you included.
@@ -39,6 +40,7 @@ pub trait CollabTransport {
     /// The running or last vote.
     fn vote(&self) -> Option<VoteSession>;
 
+    /// The state of the join in progress, or the last one.
     fn join_state(&self) -> JoinState;
 
     /// Whether you may remove people from the session (you host it or own the file). The people
@@ -62,15 +64,20 @@ pub enum CollabRequest {
     Follow(Option<ParticipantId>),
     /// Ask everyone to follow you, or stop.
     Spotlight(bool),
+    /// Start a vote.
     StartVote {
+        /// Votes each person may cast.
         per_person: u32,
+        /// What the vote is on.
         scope: VoteScope,
     },
+    /// End the running vote.
     EndVote,
     /// Show the kept results of the last vote.
     ShowResults,
     /// Join with what the user typed (a code or an invite link); the app parses it.
     Join(String),
+    /// Cancel the join in progress.
     CancelJoin,
     /// Try the failed join again with what it was started with; the app keeps that (FigCraft
     /// `retry_join`).

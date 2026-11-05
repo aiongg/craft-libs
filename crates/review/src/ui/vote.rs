@@ -48,10 +48,12 @@ pub struct VotePill<'a> {
 }
 
 impl<'a> VotePill<'a> {
+    /// A pill showing the vote in `transport`'s session.
     pub fn new(id_salt: impl AsIdSalt, transport: &'a dyn CollabTransport) -> Self {
         Self { id_salt: IdSalt::new(id_salt), transport, editable: true, has_selection: false, labels: None }
     }
 
+    /// Whether the user may start and end votes; `true` by default.
     pub fn editable(mut self, on: bool) -> Self {
         self.editable = on;
         self
@@ -64,6 +66,7 @@ impl<'a> VotePill<'a> {
         self
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: VoteLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -117,6 +120,7 @@ impl<'a> VotePill<'a> {
 /// What the vote pill did this pass.
 #[must_use]
 pub struct VotePillOutput {
+    /// The pill's response.
     pub response: Response,
     /// Start vote, End vote or Results, in order.
     pub requests: Vec<CollabRequest>,

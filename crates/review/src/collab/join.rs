@@ -11,7 +11,10 @@ pub enum JoinState {
     /// In the session.
     Joined,
     /// The connection dropped and is being retried (`attempt` from 1).
-    Reconnecting { attempt: u32 },
+    Reconnecting {
+        /// The retry number, counting from 1.
+        attempt: u32,
+    },
     /// Couldn't join; the transport's reason, shown as it is.
     Failed(String),
 }

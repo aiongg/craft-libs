@@ -133,9 +133,11 @@ pub type TextQuads = Box<dyn Fn(kurbo::Point, kurbo::Point) -> Vec<[kurbo::Point
 ///   screen at any zoom, so hits test them against an icon side worked out each pass.
 /// - Locked annotations are selected but never moved.
 pub struct AnnotateTool {
+    /// The tool in use.
     pub tool: AnnotationTool,
     /// The page's annotations, refreshed by the app each pass.
     pub annotations: Vec<Annotation>,
+    /// The ids of the selected annotations.
     pub selected: Vec<AnnotationId>,
     /// The page the tool works on.
     pub page: usize,
@@ -158,6 +160,7 @@ pub struct AnnotateTool {
 }
 
 impl AnnotateTool {
+    /// A tool of kind `tool` working on `page`, with the default colours and width.
     pub fn new(tool: AnnotationTool, page: usize) -> Self {
         Self {
             tool,
@@ -194,6 +197,7 @@ pub const DEFAULT_STROKE_WIDTH: f64 = 1.0;
 /// Acrobat's default colours (Preferences > Commenting): red for shapes and notes, yellow for
 /// highlights (straight RGB).
 pub const DEFAULT_COLOR: [u8; 3] = [0xE0, 0x30, 0x30];
+/// The default highlight colour, straight RGB.
 pub const HIGHLIGHT_COLOR: [u8; 3] = [0xFF, 0xE0, 0x30];
 /// The colours the toolbar offers: Acrobat's quick colours for comments as PdfCraft carries them
 /// (`crates/ui-egui/src/tools/comments.rs:260` `SWATCHES`, rounded to 8 bits): yellow, orange, red,
@@ -727,7 +731,7 @@ impl CanvasTool for AnnotateTool {
 /// Draws a page's annotations over it: markups as translucent quads (highlight at the
 /// annotation's opacity, lines for underline and strike-out, a wave for squiggly), shapes and ink
 /// with their stroke, notes as their icon, text boxes with their text, and the handles of the
-/// selected ones through the kernel's [`Handle`](craft_ui::primitives::Handle) (`handle.*`
+/// selected ones through the kernel's [`Handle`] (`handle.*`
 /// tokens: squares, points as circles). Not interactive (the tool is).
 pub struct AnnotationOverlay<'a> {
     annotations: &'a [Annotation],
@@ -735,6 +739,7 @@ pub struct AnnotationOverlay<'a> {
 }
 
 impl<'a> AnnotationOverlay<'a> {
+    /// An overlay for `annotations`, with `selected` drawing handles.
     pub fn new(annotations: &'a [Annotation], selected: &'a [AnnotationId]) -> Self {
         Self { annotations, selected }
     }
@@ -1008,10 +1013,12 @@ pub struct AnnotationToolbarOutput {
 }
 
 impl<'a> AnnotationToolbar<'a> {
+    /// A toolbar for `tool`, whose `tool`, `color` and `width` it edits.
     pub fn new(id_salt: impl AsIdSalt, tool: &'a mut AnnotateTool) -> Self {
         Self { id_salt: IdSalt::new(id_salt), tool, labels: None }
     }
 
+    /// Uses these label texts instead of the ones read from the active locale's catalog.
     pub fn labels(mut self, labels: AnnotateLabels) -> Self {
         self.labels = Some(labels);
         self
