@@ -4,17 +4,17 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `patterns/page-view/continuous` | twelve pages, fit width, a text selection and margin grids on page 2 |
+//! | `patterns/page-view/continuous` | twelve pages of three page sizes, fit width, a text selection and margin grids on page 2 |
 //! | `patterns/page-view/spreads` | the pages two-up with a cover, not continuous, showing pages 2 and 3 |
 //! | `patterns/page-thumbnails/strip` | thirty thumbnails in two sections, page 4 current, 6 to 8 picked |
-//! | `patterns/page-setup/dialog` | the dialog over Letter with Normal margins, in inches, layout group on |
-//! | `patterns/page-range/field` | the field over pages 1 to 3 and 5 of 12, and the range options row |
+//! | `patterns/page-setup-dialog/dialog` | the dialog over Letter with Normal margins, in inches, layout group on |
+//! | `patterns/page-range-field/field` | the field with `1-x` typed over pages 1 to 3 and 5 of 12 (the error under it), and the range options row |
 //! | `patterns/page-list/artboards` | six artboards, the second active, the fourth locked, two picked |
 //! | `composites/column-bar/bar` | four columns at 40, 20, 20 and 20 percent |
 //! | `composites/edge-picker/cell` | outer edges on, inner off; the paragraph form beside it |
-//! | `composites/table-size/grid` | the 8 by 10 size grid |
+//! | `composites/table-size-picker/grid` | the 8 by 10 size grid with 3 by 4 hovered |
 //! | `patterns/table-properties/panel` | a 4 by 3 table with two cells selected and mixed row heights |
-//! | `patterns/page-preview/overlay` | page 3 of 8 in the preview over a dimmed strip |
+//! | `patterns/page-preview/overlay` | page 3 of 8 in the preview over a dimmed strip, opened this pass |
 
 use std::ops::Range;
 
@@ -22,16 +22,16 @@ use craft_ui::behavior::Selection;
 use craft_ui::canvas::textures::{FakeThumbSource, Revision, ThumbRender, ThumbRequest, ThumbSource};
 use craft_ui::canvas::{CanvasView, ToolHost};
 use craft_ui::edit::EditEvent;
+use craft_ui::localized::Labels as _;
 use craft_ui::localized::units::LengthUnit;
-use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem};
-use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryLabels, dialog_closed, dialog_shown, drive, lock, shared};
+use craft_ui::story::{Level, NoArgs, Story, StoryArgs, dialog_closed, dialog_shown, drive, last_event, lock, shared};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use craft_ui::typed_story;
 use egui::{Ui, vec2};
 use kurbo::{Point, Rect, Size};
 
+use super::access::{AccessBuilder, AccessDescriber, AccessPosition, BlockRole, PagesAccess};
 use super::column_bar::ColumnBar;
 use super::grid::{PageGrid, PageGrids};
 use super::list::{PageList, PageListEvent, PageListRow};
@@ -41,28 +41,28 @@ use super::setup::PageSetupDialog;
 use super::table::{BorderEdges, EdgeKey, EdgePicker, RowHeight, TableChange, TableProperties, TableSizePicker, TableValues};
 use super::text_selection::{PageTextSource, PageTexts, TextSelectState, TextSelectTool, TextSelection, TextSpan};
 use super::thumbnails::{PageThumbnails, ThumbnailEvent, ThumbnailSection};
-use super::view::{PageSource, PageView, PageViewState};
+use super::view::{PageSource, PageView, PageViewState, PlacedPage};
 use crate::layout::{Fit, LayoutOptions, PageDisplay};
 use crate::range::{PageRange, Subset};
 use crate::setup::PageSetup;
 
 /// `patterns/page-view/continuous`, `patterns/page-view/spreads`, `patterns/page-thumbnails/strip`,
-/// `patterns/page-setup/dialog`, `patterns/page-range/field`, `patterns/page-list/artboards`,
-/// `composites/column-bar/bar`, `composites/edge-picker/cell`, `composites/table-size/grid`,
+/// `patterns/page-setup-dialog/dialog`, `patterns/page-range-field/field`, `patterns/page-list/artboards`,
+/// `composites/column-bar/bar`, `composites/edge-picker/cell`, `composites/table-size-picker/grid`,
 /// `patterns/table-properties/panel`, `patterns/page-preview/overlay`.
 pub fn stories() -> Vec<Story> {
     vec![
-        typed_story!("patterns/page-view/continuous", Level::Patterns, "Page view", "Continuous", NoArgs {}, page_view_continuous),
-        typed_story!("patterns/page-view/spreads", Level::Patterns, "Page view", "Spreads", NoArgs {}, page_view_spreads),
-        typed_story!("patterns/page-thumbnails/strip", Level::Patterns, "Page thumbnails", "Strip", NoArgs {}, thumbnails),
-        typed_story!("patterns/page-setup/dialog", Level::Patterns, "Page setup", "Dialog", DialogArgs { open: true }, page_setup),
-        typed_story!("patterns/page-range/field", Level::Patterns, "Page range", "Field", NoArgs {}, page_range),
-        typed_story!("patterns/page-list/artboards", Level::Patterns, "Page list", "Artboards", NoArgs {}, page_list),
-        typed_story!("composites/column-bar/bar", Level::Composites, "Column bar", "Bar", NoArgs {}, column_bar),
-        typed_story!("composites/edge-picker/cell", Level::Composites, "Edge picker", "Cell", NoArgs {}, edge_picker),
-        typed_story!("composites/table-size/grid", Level::Composites, "Table size", "Grid", NoArgs {}, table_size),
-        typed_story!("patterns/table-properties/panel", Level::Patterns, "Table properties", "Panel", NoArgs {}, table_properties),
-        typed_story!("patterns/page-preview/overlay", Level::Patterns, "Page preview", "Overlay", DialogArgs { open: true }, page_preview),
+        typed_story!("patterns/page-view/continuous", Level::Patterns, "PageView", "Continuous", NoArgs {}, page_view_continuous),
+        typed_story!("patterns/page-view/spreads", Level::Patterns, "PageView", "Spreads", NoArgs {}, page_view_spreads),
+        typed_story!("patterns/page-thumbnails/strip", Level::Patterns, "PageThumbnails", "Strip", NoArgs {}, thumbnails),
+        typed_story!("patterns/page-setup-dialog/dialog", Level::Patterns, "PageSetupDialog", "Dialog", DialogArgs { open: true }, page_setup),
+        typed_story!("patterns/page-range-field/field", Level::Patterns, "PageRangeField", "Field", NoArgs {}, page_range),
+        typed_story!("patterns/page-list/artboards", Level::Patterns, "PageList", "Artboards", NoArgs {}, page_list),
+        typed_story!("composites/column-bar/bar", Level::Composites, "ColumnBar", "Bar", NoArgs {}, column_bar),
+        typed_story!("composites/edge-picker/cell", Level::Composites, "EdgePicker", "Cell", NoArgs {}, edge_picker),
+        typed_story!("composites/table-size-picker/grid", Level::Composites, "TableSizePicker", "Grid", NoArgs {}, table_size),
+        typed_story!("patterns/table-properties/panel", Level::Patterns, "TableProperties", "Panel", NoArgs {}, table_properties),
+        typed_story!("patterns/page-preview/overlay", Level::Patterns, "PagePreview", "Overlay", DialogArgs { open: true }, page_preview),
     ]
 }
 
@@ -72,6 +72,8 @@ craft_ui::words! {
     pub(crate) struct PagesStoryLabels {
         /// The two sections of the thumbnail strip.
         section_front: "pagesStory.sectionFront" = "Front matter";
+        /// The text typed into the page range field: a range that doesn't parse.
+        range_typed: "pagesStory.rangeTyped" = "1-x";
         section_body: "pagesStory.sectionBody" = "Body";
         /// The artboards of the page list.
         artboard_cover: "pagesStory.artboardCover" = "Cover";
@@ -89,31 +91,55 @@ struct DialogArgs {
     open: bool,
 }
 
-/// US Letter in points, the size of every sample page.
+/// US Letter, A4 and Letter on its side, in points: the sizes the sample pages take in turn.
 const LETTER: Size = Size::new(612.0, 792.0);
+const A4: Size = Size::new(595.0, 842.0);
+const LETTER_LANDSCAPE: Size = Size::new(792.0, 612.0);
+
+/// The size of page `page`: Letter, Letter, A4, Letter landscape, repeating (page 2, the one with
+/// the grids and the selection, is Letter).
+fn size_of(page: usize) -> Size {
+    SIZES[shape_of(page)]
+}
+
+const SIZES: [Size; 3] = [LETTER, A4, LETTER_LANDSCAPE];
+
+/// The index in [`SIZES`] of page `page`'s size.
+fn shape_of(page: usize) -> usize {
+    match page % 4 {
+        2 => 1,
+        3 => 2,
+        _ => 0,
+    }
+}
 
 /// The height of a document area over its width.
 const AREA_ASPECT: f32 = 0.75;
 
-/// A page source of flat-colour pictures: `count` Letter pages.
+/// A page source of flat-colour pictures: `count` pages of the sizes of [`size_of`].
 struct Pages {
     count: usize,
-    fake: FakeThumbSource<usize>,
+    fakes: [FakeThumbSource<usize>; 3],
 }
 
 impl Pages {
     fn new(count: usize) -> Self {
-        Pages { count, fake: FakeThumbSource::new().aspect(612, 792) }
+        let fake = |size: Size| FakeThumbSource::new().aspect(size.width as u32, size.height as u32);
+        Pages { count, fakes: SIZES.map(fake) }
+    }
+
+    fn fake_of(&self, page: usize) -> &FakeThumbSource<usize> {
+        &self.fakes[shape_of(page)]
     }
 }
 
 impl ThumbSource<usize> for Pages {
     fn revision(&self, key: &usize, request: &ThumbRequest) -> Revision {
-        self.fake.revision(key, request)
+        self.fake_of(*key).revision(key, request)
     }
 
     fn render(&self, key: &usize, request: &ThumbRequest) -> ThumbRender {
-        self.fake.render(key, request)
+        self.fake_of(*key).render(key, request)
     }
 }
 
@@ -122,15 +148,8 @@ impl PageSource for Pages {
         self.count
     }
 
-    fn page_size(&self, _page: usize) -> Size {
-        LETTER
-    }
-}
-
-fn last_event(ui: &mut Ui, event: Option<&str>) {
-    if let Some(event) = event {
-        let line = fmt(&StoryLabels::of(ui).last_event, &[("event", event)]);
-        ui.add(Text::new(line).content(Content::Muted));
+    fn page_size(&self, page: usize) -> Size {
+        size_of(page)
     }
 }
 
@@ -241,10 +260,54 @@ impl PageTexts for MockTexts {
 
 // --- Page view ---
 
+/// What the page view story reports.
+#[derive(Debug)]
+#[expect(dead_code, reason = "the variants are read through Debug, for the event line")]
+enum ViewEvent {
+    Selection(Option<TextSelection>),
+    Current(usize),
+}
+
+/// Describes the pages' mock text to a screen reader: one paragraph per page of lines of glyphs,
+/// each line at its place on screen. It describes no selection.
+struct MockAccess;
+
+impl AccessDescriber for MockAccess {
+    fn describe(&mut self, placed: &[PlacedPage], out: &mut AccessBuilder) {
+        for page in placed {
+            let to_screen = |rect: Rect| {
+                let scale = page.scale as f32;
+                let min = egui::pos2(page.rect.min.x + rect.x0 as f32 * scale, page.rect.min.y + rect.y0 as f32 * scale);
+                egui::Rect::from_min_size(min, vec2(rect.width() as f32 * scale, rect.height() as f32 * scale))
+            };
+            let Some(paragraph) = out.block(None, BlockRole::Paragraph) else { return };
+            for line in 0..LINES {
+                let glyphs = line * GLYPHS_PER_LINE..(line + 1) * GLYPHS_PER_LINE;
+                let text = MockText::joined(glyphs.clone());
+                let chars: Vec<(f32, f32)> = glyphs
+                    .clone()
+                    .map(|glyph| {
+                        let rect = to_screen(MockText::box_of(glyph));
+                        (rect.min.x, rect.width())
+                    })
+                    .collect();
+                let row = to_screen(MockText::box_of(glyphs.start).union(MockText::box_of(glyphs.end - 1)));
+                if out.line(paragraph, &text, &chars, row).is_none() {
+                    return;
+                }
+            }
+        }
+    }
+
+    fn selection(&self) -> Option<(AccessPosition, AccessPosition)> {
+        None
+    }
+}
+
 struct ViewDemo {
     state: PageViewState,
     text: TextSelectState,
-    last: Option<String>,
+    last: Option<ViewEvent>,
 }
 
 fn view_demo(state: PageViewState) -> ViewDemo {
@@ -276,18 +339,19 @@ fn show_view(ui: &mut Ui, name: &str, demo: &mut ViewDemo, options: LayoutOption
     let _ = ToolHost::new(out.canvas_id).show(ui, &out.canvas, &out.response, &mut tool);
     let selected = tool.changed();
     if selected {
-        demo.last = Some(format!("{:?}", demo.text.selection));
+        demo.last = Some(ViewEvent::Selection(demo.text.selection));
     }
     if out.current_changed {
-        demo.last = Some(format!("Current({})", demo.state.current + 1));
+        demo.last = Some(ViewEvent::Current(demo.state.current));
     }
+    PagesAccess::of(&out).show(ui.ctx(), &mut MockAccess);
     // The second page's grids, through a view that maps page points to its screen rectangle.
     if let Some(placed) = out.pages.iter().find(|placed| placed.page == 1) {
         let view = CanvasView::new(placed.rect, Point::new(LETTER.width / 2.0, LETTER.height / 2.0), placed.scale);
         let colors = PageGrids::style(&tokens);
         PageGrids::new(&view, &demo.state, &[sample_grid()], colors).paint(&ui.painter_at(out.canvas.rect));
     }
-    last_event(ui, demo.last.as_deref());
+    last_event(ui, demo.last.as_ref().map(|event| format!("{event:?}")).as_deref());
 }
 
 /// A default view state with `set` applied (the state's memory is private, so no struct update).
@@ -382,7 +446,7 @@ fn page_setup(ui: &mut Ui, args: &mut DialogArgs) {
         (),
         || PageSetupDialog::new(PageSetup::default()).unit(LengthUnit::Inches).layout(true),
         |_| {},
-        |setup| format!("{} × {} pt", setup.width, setup.height),
+        |setup| format!("{setup:?}"),
     );
 }
 
@@ -398,11 +462,12 @@ struct RangeDemo {
 /// Twelve pages: the count the field and the options work over.
 const RANGE_PAGES: usize = 12;
 
-// new: the field over pages 1–3 and 5 of 12, then with "1-x" typed (error under it).
+// new: the field over pages 1–3 and 5 of 12 with "1-x" typed (the error under it).
 fn page_range(ui: &mut Ui, _: &mut NoArgs) {
     let labels = PageRangeLabels::of(ui);
+    let typed = PagesStoryLabels::of(ui).range_typed;
     let demo = shared(ui, "page-range", || RangeDemo {
-        field: PageRangeFieldState::default(),
+        field: PageRangeFieldState::typed(&[0, 1, 2, 4], typed, RANGE_PAGES),
         selected: vec![0, 1, 2, 4],
         range: PageRange { all: false, from: 3, to: Some(9), subset: Subset::Odd },
         last: None,
@@ -535,13 +600,16 @@ fn edge_picker(ui: &mut Ui, _: &mut NoArgs) {
 
 // --- Table size ---
 
+/// The square the picker shows hovered: 3 rows by 4 columns.
+const HOVERED_SIZE: (usize, usize) = (3, 4);
+
 // new: the 8 × 10 grid with 3 × 4 hovered.
 fn table_size(ui: &mut Ui, _: &mut NoArgs) {
-    let out = TableSizePicker::new("size").show(ui);
+    let out = TableSizePicker::new("size").hovered(HOVERED_SIZE).show(ui);
     let demo = shared(ui, "table-size", || None::<String>);
     let mut demo = lock(&demo);
-    if let Some((rows, columns)) = out.picked {
-        *demo = Some(format!("Picked({rows}, {columns})"));
+    if let Some(picked) = out.picked {
+        *demo = Some(format!("{picked:?}"));
     }
     last_event(ui, demo.as_deref());
 }
@@ -614,12 +682,15 @@ fn table_properties(ui: &mut Ui, _: &mut NoArgs) {
 struct PreviewDemo {
     picked: Selection<usize>,
     at: usize,
+    /// The preview was drawn on the pass before, so it is not opened this pass.
+    shown: bool,
+    last: Option<String>,
 }
 
 // new: page 3 of 8 in the preview over a dimmed story area.
 fn page_preview(ui: &mut Ui, args: &mut DialogArgs) {
     const PREVIEW_PAGES: usize = 8;
-    let demo = shared(ui, "page-preview", || PreviewDemo { picked: Selection::new(), at: 2 });
+    let demo = shared(ui, "page-preview", || PreviewDemo { picked: Selection::new(), at: 2, shown: false, last: None });
     let mut demo = lock(&demo);
     let demo = &mut *demo;
     let pages = Pages::new(PREVIEW_PAGES);
@@ -628,11 +699,20 @@ fn page_preview(ui: &mut Ui, args: &mut DialogArgs) {
     });
     if dialog_shown(ui, args.open) {
         let shown: Vec<usize> = (0..PREVIEW_PAGES).collect();
-        let out = PagePreview::new("preview", &pages, &shown, &mut demo.at).show(ui.ctx());
+        let out = PagePreview::new("preview", &pages, &shown, &mut demo.at).opened(!demo.shown).show(ui.ctx());
+        demo.shown = true;
+        if out.stepped {
+            demo.last = Some(format!("{out:?}"));
+        }
         if out.closed {
+            demo.last = Some(format!("{out:?}"));
+            demo.shown = false;
             dialog_closed(ui, &mut args.open);
         }
+    } else {
+        demo.shown = false;
     }
+    last_event(ui, demo.last.as_deref());
 }
 
 #[cfg(test)]
