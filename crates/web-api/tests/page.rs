@@ -1,6 +1,7 @@
-#![cfg(target_arch = "wasm32")]
 //! Node tests for the page part: a canned control channel that records what it is asked, and the
 //! `window.<app>` functions called the way a page calls them. No browser.
+
+#![cfg(target_arch = "wasm32")]
 
 use std::cell::RefCell;
 use std::rc::Rc;
