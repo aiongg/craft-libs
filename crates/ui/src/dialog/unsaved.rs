@@ -64,11 +64,25 @@ pub struct UnsavedChangesDialog {
     name: String,
     remaining: usize,
     apply_to_all: bool,
+    /// What a programmatic OK ([`UnsavedChangesDialog::set_answer`]) answers; the default button's
+    /// when `None`.
+    chosen: Option<CloseAnswer>,
 }
 
 impl UnsavedChangesDialog {
     pub fn new(scope: CloseScope, document_name: impl Into<String>) -> Self {
-        Self { id: dialog_id("unsaved-changes"), scope, name: document_name.into(), remaining: 1, apply_to_all: false }
+        Self { id: dialog_id("unsaved-changes"), scope, name: document_name.into(), remaining: 1, apply_to_all: false, chosen: None }
+    }
+
+    /// The answer a host-side [`confirm`](DialogHost::confirm) gives, as pressing that button
+    /// would; the default button's until set.
+    pub fn set_answer(&mut self, answer: CloseAnswer) {
+        self.chosen = Some(answer);
+    }
+
+    /// Sets the "Apply to All" box. It counts only while more than one document remains.
+    pub fn set_apply_to_all(&mut self, on: bool) {
+        self.apply_to_all = on;
     }
 
     /// How many documents the guard still asks about, this one included; above one the "Apply to
@@ -121,12 +135,30 @@ impl StackDialog for UnsavedChangesDialog {
                 let _ = Checkbox::bool(label, apply_to_all).show(ui);
             });
         }
-        let answer = match prompt.show(ctx)? {
+        let role = prompt.show(ctx)?;
+        Some(DialogResult::Ok(self.answer(role)))
+    }
+
+    /// The answer set with [`UnsavedChangesDialog::set_answer`]; the default button's (Save, or
+    /// Don't Save when reverting) unless set.
+    fn confirm(&mut self, _ctx: &Context) -> Option<UnsavedAnswer> {
+        let mut answer = self.answer(ButtonRole::Default);
+        if let Some(chosen) = self.chosen {
+            answer.answer = chosen;
+        }
+        Some(answer)
+    }
+}
+
+impl UnsavedChangesDialog {
+    /// The answer a press of the `role` button gives.
+    fn answer(&self, role: ButtonRole) -> UnsavedAnswer {
+        let answer = match role {
             ButtonRole::Default if self.scope == CloseScope::Revert => CloseAnswer::DontSave,
             ButtonRole::Default => CloseAnswer::Save,
             ButtonRole::Alternate => CloseAnswer::DontSave,
             _ => CloseAnswer::Cancel,
         };
-        Some(DialogResult::Ok(UnsavedAnswer { answer, apply_to_all: self.apply_to_all && self.remaining > 1 }))
+        UnsavedAnswer { answer, apply_to_all: self.apply_to_all && self.remaining > 1 }
     }
 }

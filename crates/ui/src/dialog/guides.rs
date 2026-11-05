@@ -604,6 +604,13 @@ impl StackDialog for NewGuideDialog {
             _ => None,
         }
     }
+
+    fn confirm(&mut self, ctx: &Context) -> Option<NewGuideOptions> {
+        if !self.recalled {
+            self.recall(ctx);
+        }
+        Some(self.options())
+    }
 }
 
 /// Guide positions in document pixels, sorted, without duplicates (positions closer than 0.01
@@ -1146,6 +1153,19 @@ impl StackDialog for GuideLayoutDialog {
             Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
             _ => None,
         }
+    }
+
+    /// OK; `None` while the layout's fields do not calculate.
+    fn confirm(&mut self, ctx: &Context) -> Option<GuideLayoutResult> {
+        if !self.recalled {
+            self.recall(ctx);
+        }
+        let lines = self.calculate().ok()?;
+        let options = self.layout;
+        if let Some(host) = Host::try_of_ctx(ctx) {
+            Remembered::<GuideLayoutOptions>::new(LAYOUT_SCOPE).store(&host, &options);
+        }
+        Some(GuideLayoutResult { options, lines, color: self.color })
     }
 }
 

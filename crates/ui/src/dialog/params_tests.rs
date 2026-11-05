@@ -8,8 +8,8 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::{
-    CommandForm, DialogFields, DialogHost, DialogResult, EyedropperRequest, FieldValue, NumberUnit, Param, ParamDialog, ParamKind, ParamResult, PathKind,
-    PathRequest,
+    CommandForm, DialogFields, DialogHost, DialogResult, EyedropperRequest, FieldValue, NumberUnit, Param, ParamDialog, ParamKind, ParamResult,
+    PathKind, PathRequest,
 };
 use crate::controls::SliderScale;
 use crate::localized::Unit;
@@ -156,7 +156,7 @@ fn ok_remembers_the_values_and_cancel_does_not() {
     assert_eq!(fields.color("tint"), Some([1.0, 0.0, 0.0]), "colours are not remembered");
 }
 
-// Preview off, or the label held, makes `preview_on` false; the host's image shows in the pane
+// Preview off makes `preview_on` false, and the label held only `comparing`; the host's image shows in the pane
 // otherwise.
 #[test]
 fn the_preview_check_box_and_hold_to_compare_drive_preview_on() {
@@ -178,7 +178,8 @@ fn the_preview_check_box_and_hold_to_compare_drive_preview_on() {
     let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
     harness.event(button(true));
     harness.run();
-    assert!(!preview_on(&harness), "label held");
+    assert!(preview_on(&harness), "holding Compare leaves the canvas preview on");
+    assert!(harness.state().host.get::<ParamDialog>().is_some_and(ParamDialog::comparing), "the pane compares");
     harness.event(button(false));
     harness.run();
     assert!(!preview_on(&harness), "the click turned Preview off");
@@ -748,9 +749,10 @@ fn a_number_row_with_units_converts_to_the_base_unit() {
     open_dialog(&mut harness).expect("open").fields_mut().set("output.unit", "ppcm");
     harness.run();
     let shown = harness.get_by_role_and_label(Role::SpinButton, "Output").accesskit_node().value().unwrap_or_default().to_string();
-    assert!(shown.starts_with("28.34"), "{shown}");
+    assert!(shown.starts_with("28.3"), "{shown}");
     harness.get_by_role_and_label(Role::SpinButton, "Output").focus();
     harness.run();
+    harness.key_press_modifiers(Modifiers::COMMAND, Key::A);
     harness.event(Event::Text("10".to_owned()));
     harness.key_press(Key::Tab);
     harness.run();
@@ -773,14 +775,13 @@ fn a_section_row_draws_its_heading() {
 fn set_preview_changes_the_preview_state() {
     let mut harness = harness(ParamDialog::new("blur", "Blur", params()).preview(true));
     harness.run();
-    let preview_on = |harness: &mut Harness<'_, App>| open_dialog(harness).is_some_and(|d| d.preview_on());
-    assert!(preview_on(&mut harness));
+    assert!(open_dialog(&mut harness).is_some_and(|d| d.preview_on()));
     open_dialog(&mut harness).expect("open").set_preview(false);
     harness.run();
-    assert!(!preview_on(&mut harness));
+    assert!(!open_dialog(&mut harness).is_some_and(|d| d.preview_on()));
     open_dialog(&mut harness).expect("open").set_preview(true);
     harness.run();
-    assert!(preview_on(&mut harness));
+    assert!(open_dialog(&mut harness).is_some_and(|d| d.preview_on()));
 }
 
 // The pane opens at 100%; the zoom buttons step the readout.

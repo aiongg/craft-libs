@@ -552,6 +552,10 @@ impl StackDialog for AboutDialog {
             });
         response.outcome.filter(|outcome| outcome.closes()).map(|_| DialogResult::Ok(()))
     }
+
+    fn confirm(&mut self, _ctx: &Context) -> Option<()> {
+        Some(())
+    }
 }
 
 /// The About tab: the blurb, the version, the community button and the link row centred, the

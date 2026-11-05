@@ -341,4 +341,13 @@ impl StackDialog for PasswordDialog {
             _ => Some(DialogResult::Cancel),
         }
     }
+
+    /// OK with the typed password; `None` while a new password is empty or its confirmation
+    /// differs.
+    fn confirm(&mut self, _ctx: &Context) -> Option<PasswordAnswer> {
+        if matches!(self.purpose, PasswordPurpose::Set) && (self.input.is_empty() || self.input != self.confirm) {
+            return None;
+        }
+        Some(PasswordAnswer { secret: Secret::new(std::mem::take(&mut self.input.0)), tag: self.tag.take() })
+    }
 }

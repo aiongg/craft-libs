@@ -23,9 +23,9 @@ use crate::controls::text_field::{BoxState, TextField, field_box};
 use crate::controls::{
     AngleDial, Button, Checkbox, IconButton, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, TooltipExt as _, checkerboard,
 };
+use crate::direction;
 use crate::edit::{self, EditResponse};
 use crate::icons::Icon;
-use crate::direction;
 use crate::localized::{Labels as _, LocaleNumbers, Unit, Units, focus_first_field};
 use crate::theme::{Tokens, TokensOf};
 
@@ -300,7 +300,17 @@ struct RowTexts {
 
 impl Param {
     pub fn new(key: impl Into<String>, label: impl Into<String>, kind: ParamKind) -> Self {
-        Self { key: key.into(), label: label.into(), kind, unit: None, enabled_when: None, visible_when: None, browse: None, texts: None, options: None }
+        Self {
+            key: key.into(),
+            label: label.into(),
+            kind,
+            unit: None,
+            enabled_when: None,
+            visible_when: None,
+            browse: None,
+            texts: None,
+            options: None,
+        }
     }
 
     /// A bare number row: a [`ParamKind::Number`] open on both sides. Bound it with
@@ -345,14 +355,7 @@ impl Param {
     /// The result holds the base-unit value under the row's key and the chosen unit's
     /// [`id`](NumberUnit::id) as text under [`Param::unit_key`] (`"{key}.unit"`).
     /// [`Param::bounds`] are in base units. Both keys are remembered with the dialog.
-    pub fn number_with_units(
-        key: impl Into<String>,
-        label: impl Into<String>,
-        base: f64,
-        step: f64,
-        decimals: u32,
-        units: Vec<NumberUnit>,
-    ) -> Self {
+    pub fn number_with_units(key: impl Into<String>, label: impl Into<String>, base: f64, step: f64, decimals: u32, units: Vec<NumberUnit>) -> Self {
         let key = key.into();
         let mut param = Self::number(key.clone(), label, base, step, decimals);
         param.options.get_or_insert_default().units = Some(UnitChoices { units, key: format!("{key}.unit"), initial: 0 });
@@ -1423,9 +1426,17 @@ impl ParamDialog {
         &mut self.fields
     }
 
-    /// Whether the host should render the result now: Preview is on and not held to compare.
+    /// Whether the host should render the result onto the canvas now: the Preview check box is on.
+    /// Holding the box's label to compare does not change it; it shows the unfiltered image in the
+    /// dialog's pane only ([`comparing`](ParamDialog::comparing)).
     pub fn preview_on(&self) -> bool {
-        self.preview && self.state.preview().shows_result()
+        self.preview && self.state.preview().on
+    }
+
+    /// Whether the Preview label is held to compare: the host shows the unfiltered image in the
+    /// preview pane ([`set_preview_image`](ParamDialog::set_preview_image)) while it is.
+    pub fn comparing(&self) -> bool {
+        self.preview && self.state.preview().on && self.state.preview().compare
     }
 
     /// Turns the Preview check box on or off, as the user clicking it does: the state
@@ -1555,9 +1566,7 @@ impl ParamDialog {
             let readout = ui.add(Label::new(Units::of(ui).percent(f64::from(zoom) * 100.0)).selectable(false));
             ui.ctx().accesskit_node_builder(readout.id, |node| node.set_description(words.zoom.clone()));
             let into = ui.add(
-                IconButton::new(Icon::Plus, words.zoom_in.as_str())
-                    .id_salt((dialog, "zoom-in"))
-                    .enabled(zoom < ZOOM_STEPS[ZOOM_STEPS.len() - 1]),
+                IconButton::new(Icon::Plus, words.zoom_in.as_str()).id_salt((dialog, "zoom-in")).enabled(zoom < ZOOM_STEPS[ZOOM_STEPS.len() - 1]),
             );
             if out.clicked() {
                 zoom = ZOOM_STEPS.iter().rev().copied().find(|step| *step < zoom - 1e-4).unwrap_or(ZOOM_STEPS[0]);

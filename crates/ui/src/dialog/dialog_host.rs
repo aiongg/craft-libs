@@ -325,6 +325,17 @@ impl DialogHost {
         }
     }
 
+    /// [`confirm`](DialogHost::confirm) after `set` has changed the open `D`: the way automation
+    /// answers a dialog with other than its default (a prompt's Alternate answer, a check box
+    /// ticked). `false` as [`confirm`](DialogHost::confirm), and `set` does not run when no `D` is open.
+    pub fn confirm_with<D: StackDialog>(&mut self, ctx: &Context, set: impl FnOnce(&mut D)) -> bool {
+        match self.get_mut::<D>() {
+            Some(dialog) => set(dialog),
+            None => return false,
+        }
+        self.confirm::<D>(ctx)
+    }
+
     /// [`confirm`](DialogHost::confirm) for the open `D` that `id` names.
     pub fn confirm_by_id<D: StackDialog>(&mut self, ctx: &Context, id: DialogId) -> bool {
         match self.position_by_id::<D>(id) {
