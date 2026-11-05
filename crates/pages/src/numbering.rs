@@ -25,7 +25,9 @@ pub const PAGE_NUMBER_STYLES: [NumberStyle; 8] = [
 #[serde(default)]
 pub struct PageNumbering {
     pub style: NumberStyle,
-    /// The first page's number, 1 or more.
+    /// The first page's number. 0 is written in each style's zero form, as DesignCraft's
+    /// `NumberStyle::format` does: Roman "0", letters "", symbols "*", kanji "〇", padded
+    /// Arabic "00", "000", "0000".
     pub start: u32,
     pub prefix: String,
     pub include_prefix: bool,
@@ -39,7 +41,8 @@ impl Default for PageNumbering {
 
 impl PageNumbering {
     /// The label of the section's page `index` (0-based within the section): the prefix when
-    /// included, then `start + index` in the style ("A-iv"). Saturates at `u32::MAX`.
+    /// included, then `start + index` in the style ("A-iv"); a number of 0 is written in the
+    /// style's zero form (see [`start`](Self::start)). Saturates at `u32::MAX`.
     // designcraft: crates/ui-egui/src/section_options.rs:32 `open` (start number and prefix fields);
     // crates/doc/src/attrs/rules_lists.rs:144 `NumberStyle::format`.
     pub fn label(&self, index: usize) -> String {
