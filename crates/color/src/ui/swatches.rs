@@ -171,6 +171,7 @@ const PICK_PURPOSE: &str = "swatches";
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct SwatchLibrary {
+    /// The groups, in display order.
     pub groups: Vec<SwatchGroup>,
 }
 
@@ -184,7 +185,9 @@ impl Default for SwatchLibrary {
 /// Where a swatch is: its group's index and its index in the group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SwatchAt {
+    /// Index of the group.
     pub group: usize,
+    /// Index of the swatch within its group.
     pub index: usize,
 }
 
@@ -199,6 +202,7 @@ impl SwatchLibrary {
         self.groups.iter().enumerate().find_map(|(group, g)| g.entries.iter().position(|e| e.name == name).map(|index| SwatchAt { group, index }))
     }
 
+    /// The swatch at `at`, or `None` when out of range.
     pub fn get(&self, at: SwatchAt) -> Option<&SwatchEntry> {
         self.groups.get(at.group)?.entries.get(at.index)
     }
@@ -257,6 +261,7 @@ impl SwatchLibrary {
         true
     }
 
+    /// Removes and returns the swatch at `at`, or `None` when out of range.
     pub fn remove(&mut self, at: SwatchAt) -> Option<SwatchEntry> {
         let entries = &mut self.groups.get_mut(at.group)?.entries;
         (at.index < entries.len()).then(|| entries.remove(at.index))
@@ -443,6 +448,7 @@ impl<'a> SwatchesPanel<'a> {
     // pc: crates/ui-egui/src/panels/swatches_ui.rs:63 `panel` (the colour table cached per library
     // at :33 `colors`, `browser` with `flush: true`), :86 `handle` (Select → use, Activate → rename, Delete,
     // Move, group events), :121 `new_swatch`, :53 `use_swatch`.
+    /// Draws the panel and returns the user's actions this pass.
     pub fn show(self, ui: &mut Ui) -> SwatchesPanelResponse {
         let SwatchesPanel { id_salt, library, cmyk, foreground } = self;
         let cmyk = cmyk.unwrap_or_else(|| CmykConverter::coated());

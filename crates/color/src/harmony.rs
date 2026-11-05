@@ -18,26 +18,47 @@ use craft_theme::{Hsb, Srgba};
 #[serde(rename_all = "camelCase")]
 pub enum Harmony {
     #[default]
+    #[allow(missing_docs)]
     Complementary,
+    #[allow(missing_docs)]
     Complementary2,
+    #[allow(missing_docs)]
     SplitComplementary,
+    #[allow(missing_docs)]
     LeftComplement,
+    #[allow(missing_docs)]
     RightComplement,
+    #[allow(missing_docs)]
     Analogous,
+    #[allow(missing_docs)]
     Analogous2,
+    #[allow(missing_docs)]
     Monochromatic,
+    #[allow(missing_docs)]
     Shades,
+    #[allow(missing_docs)]
     Triad,
+    #[allow(missing_docs)]
     Triad2,
+    #[allow(missing_docs)]
     Triad3,
+    #[allow(missing_docs)]
     Tetrad,
+    #[allow(missing_docs)]
     Tetrad2,
+    #[allow(missing_docs)]
     Tetrad3,
+    #[allow(missing_docs)]
     Compound,
+    #[allow(missing_docs)]
     Compound2,
+    #[allow(missing_docs)]
     HighContrast,
+    #[allow(missing_docs)]
     HighContrast2,
+    #[allow(missing_docs)]
     HighContrast3,
+    #[allow(missing_docs)]
     Pentagram,
 }
 
@@ -247,6 +268,7 @@ pub enum Variation {
 }
 
 impl Variation {
+    /// The three variations in menu order.
     pub const ALL: [Variation; 3] = [Variation::TintsShades, Variation::WarmCool, Variation::VividMuted];
 
     /// The grid's ends, English (words keys): ("Shades", "Tints"), ("Cool", "Warm"),
@@ -264,6 +286,7 @@ impl Variation {
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct GuideOptions {
+    /// Which axis the grid varies along.
     pub variation: Variation,
     /// Variations on each side of a harmony colour, 1 to [`GuideOptions::MAX_STEPS`].
     pub steps: u32,
@@ -278,6 +301,7 @@ impl Default for GuideOptions {
 }
 
 impl GuideOptions {
+    /// Largest accepted value of `steps`.
     pub const MAX_STEPS: u32 = 20;
 
     /// The options with `steps` and `amount` in their ranges.
@@ -312,12 +336,15 @@ pub fn variation(color: Srgba, options: &GuideOptions, step: i32) -> Srgba {
 /// from −steps to +steps, the colour itself in the centre column.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Guide {
+    /// The harmony colours, base first.
     pub colors: Vec<Srgba>,
+    /// One row per harmony colour, each with `2 * steps + 1` variations from shades to tints.
     pub grid: Vec<Vec<Srgba>>,
 }
 
 impl Guide {
     // inv-vectorcraft: crates/color/src/harmony.rs:328 `Guide::new`.
+    /// Builds the guide for `base` under `rule`; `options` is clamped first.
     pub fn new(base: Srgba, rule: Harmony, options: &GuideOptions) -> Guide {
         let options = options.clamped();
         let n = options.steps as i32;

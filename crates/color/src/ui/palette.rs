@@ -69,6 +69,7 @@ impl SwatchPalette {
         }
     }
 
+    /// Sets the control size.
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self

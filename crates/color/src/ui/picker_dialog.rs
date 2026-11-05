@@ -54,7 +54,9 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ColorPickerMemory {
+    /// The component the area and strip edit.
     pub mode: AreaMode,
+    /// Only Web Colors: snap to the 216 web-safe colours.
     pub web_colors: bool,
 }
 

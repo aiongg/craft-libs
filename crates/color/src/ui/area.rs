@@ -109,6 +109,7 @@ impl ColorArea {
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -131,6 +132,7 @@ impl ColorArea {
         self
     }
 
+    /// The style the control draws with, read from the theme `tokens`.
     pub fn style(tokens: &UiTokens) -> ColorPartsStyle {
         parts_style(tokens)
     }

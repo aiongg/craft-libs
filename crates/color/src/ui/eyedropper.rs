@@ -46,12 +46,19 @@ craft_ui::words! {
 #[serde(rename_all = "camelCase")]
 pub enum SampleSize {
     #[default]
+    /// One pixel.
     Point,
+    /// Average of a 3 by 3 pixel square.
     Avg3,
+    /// Average of a 5 by 5 pixel square.
     Avg5,
+    /// Average of a 11 by 11 pixel square.
     Avg11,
+    /// Average of a 31 by 31 pixel square.
     Avg31,
+    /// Average of a 51 by 51 pixel square.
     Avg51,
+    /// Average of a 101 by 101 pixel square.
     Avg101,
 }
 
@@ -88,11 +95,16 @@ impl SampleSize {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SampleSource {
+    /// Only the selected layer.
     Current,
+    /// The selected layer and the layers below it.
     CurrentAndBelow,
     #[default]
+    /// Every layer, adjustments included.
     All,
+    /// Every layer, ignoring adjustment layers.
     AllNoAdjustments,
+    /// The selected layer and the layers below it, ignoring adjustment layers.
     CurrentAndBelowNoAdjustments,
 }
 
@@ -136,7 +148,9 @@ impl SampleSource {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct EyedropperOptions {
+    /// How many pixels one sample averages.
     pub size: SampleSize,
+    /// Which layers a sample reads.
     pub source: SampleSource,
     /// Show Sampling Ring: the ring while the button is held. Off with the Precise cursor
     /// preference whatever this says.
@@ -158,6 +172,7 @@ pub struct EyedropperBar<'a> {
 }
 
 impl<'a> EyedropperBar<'a> {
+    /// A bar that edits `options` in place.
     pub fn new(options: &'a mut EyedropperOptions) -> EyedropperBar<'a> {
         EyedropperBar { options }
     }
@@ -203,6 +218,7 @@ pub struct SamplingRingStyle {
     /// The hairlines on both edges, one physical pixel: black at alpha 160 outside, white at alpha
     /// 160 inside it.
     pub dark: Color32,
+    /// The white hairline, alpha 160, inside the dark one.
     pub light: Color32,
 }
 
@@ -265,6 +281,7 @@ pub fn eyedropper_ring(painter: &Painter, center: Pos2, new: Color32, current: C
 /// What an [`EyedropperTool`] picked.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EyedropperPick {
+    /// The sampled colour.
     pub color: Srgba,
     /// Alt was held: the colour is for the background.
     pub background: bool,
@@ -287,6 +304,7 @@ pub struct EyedropperTool<'a> {
 }
 
 impl<'a> EyedropperTool<'a> {
+    /// The tool with `options`; `sample` reads the colour at a document point with the given size and source, and returns `None` off the image or over transparency.
     pub fn new(options: EyedropperOptions, sample: impl FnMut([f64; 2], SampleSize, SampleSource) -> Option<Srgba> + 'a) -> EyedropperTool<'a> {
         EyedropperTool { options, sample: Box::new(sample), held: None, picked: None, foreground: Srgba::rgb(0.0, 0.0, 0.0) }
     }

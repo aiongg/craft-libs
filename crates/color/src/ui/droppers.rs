@@ -99,9 +99,13 @@ impl DropperState {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum DropperKind {
     #[default]
+    /// The plain eyedropper.
     Sample,
+    /// Black point dropper.
     Black,
+    /// Gray point dropper.
     Gray,
+    /// White point dropper.
     White,
 }
 
@@ -122,6 +126,7 @@ impl DropperKind {
 #[non_exhaustive]
 #[must_use = "the host applies the sample"]
 pub struct DropperButtonResponse {
+    /// The button's own egui response.
     pub response: Response,
     /// The colour the canvas sampled for this dropper this pass.
     pub sampled: Option<Srgba>,
@@ -146,15 +151,18 @@ pub struct DropperButton {
 }
 
 impl DropperButton {
+    /// A dropper button; `id_salt` keys its state; `label` is its label.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>) -> DropperButton {
         DropperButton { id_salt: IdSalt::new(id_salt), label: label.into(), kind: DropperKind::Sample, enabled: true }
     }
 
+    /// Sets which pipette the button shows.
     pub fn kind(mut self, kind: DropperKind) -> DropperButton {
         self.kind = kind;
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> DropperButton {
         self.enabled = enabled;
         self
@@ -163,6 +171,7 @@ impl DropperButton {
     // inv-effectcraft: crates/ui-egui/src/color_picker.rs:163 `arm` and :185 `take_sample` around
     // an `IconButton` (`Icon::Eyedropper`, the Black/Gray/White variants' bulb filled);
     // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:289 `sample_at` (the dialog side).
+    /// Draws the button and returns its response, the sampled colour and whether it is armed.
     pub fn show(self, ui: &mut Ui) -> DropperButtonResponse {
         let ctx = ui.ctx().clone();
         let owner = ui.make_persistent_id(self.id_salt);

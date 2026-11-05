@@ -9,10 +9,10 @@ use craft_theme::{Channel, ColorModel, DefaultOn, MAX_CHANNELS, ModelValues, Srg
 /// same sRGB colour reads as different inks in different documents.
 ///
 /// A host offers it by passing it to the picker
-/// ([`ColorPicker::models`](crate::ui::ColorPicker::models)); the
-/// [`ColorPickerDialog`](crate::ui::ColorPickerDialog) adds it when it is given a
+/// (`ColorPicker::models`, feature `ui`); the
+/// `ColorPickerDialog` adds it when it is given a
 /// `ColorPickerDialog::gamut`. Inks the user typed stay as typed while they
-/// still give the colour ([`PickedColor::model`](crate::ui::PickedColor::model)): a CMYK document
+/// still give the colour (`PickedColor::model`): a CMYK document
 /// fills with them, not with what its sRGB stand-in converts back to (PhotoCraft #4196).
 #[derive(Clone)]
 pub struct CmykModel {

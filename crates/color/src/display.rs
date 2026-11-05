@@ -3,7 +3,7 @@
 //! transform changes nothing, the canvas skips it.
 //!
 //! The monitor profile comes from the platform (craft-platform's display reading, or the ICC
-//! bytes of a [`craft_platform::screen::ScreenImage`]) or from the app's Color Settings; a
+//! bytes of a `craft_platform::screen::ScreenImage`) or from the app's Color Settings; a
 //! profile that is missing, unreadable, not RGB or unusable as a destination falls back to sRGB,
 //! and [`MonitorStatus`] says why.
 
@@ -157,11 +157,24 @@ pub enum MonitorStatus {
 #[non_exhaustive]
 pub enum MonitorProblem {
     /// The profile describes another colour space than RGB.
-    NotRgb { description: String, space: ColorSpace },
+    NotRgb {
+        /// The profile's description text, for display.
+        description: String,
+        /// The colour space the profile declares.
+        space: ColorSpace,
+    },
     /// The profile cannot link to sRGB as a destination; `reason` is the colour engine's text.
-    CannotLink { description: String, reason: String },
+    CannotLink {
+        /// The profile's description text, for display.
+        description: String,
+        /// The colour engine's error text.
+        reason: String,
+    },
     /// The profile bytes do not parse; `reason` is the parser's text.
-    Unreadable { reason: String },
+    Unreadable {
+        /// The parser's error text.
+        reason: String,
+    },
 }
 
 /// One monitor's profile and how it was resolved.
@@ -190,6 +203,7 @@ const _: () = {
 };
 
 impl DisplayCaches {
+    /// Empty caches: no monitor profile and no transform yet.
     pub fn new() -> DisplayCaches {
         DisplayCaches::default()
     }

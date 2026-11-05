@@ -42,6 +42,7 @@ pub const LUT_WORDS: &[craft_ui::localized::Word] = &[
 /// The chosen LUT.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LutChoice {
+    /// No LUT.
     None,
     /// A built-in look by id ([`craft_cms::lutfile::builtin`]).
     Builtin(&'static str),
@@ -49,7 +50,9 @@ pub enum LutChoice {
     Folder(PathBuf),
     /// The LUT the layer holds, loaded before: its title and grid size.
     Loaded {
+        /// The LUT's title.
         name: String,
+        /// The grid size: points per side.
         size: usize,
     },
 }
@@ -89,6 +92,7 @@ pub struct LutPicker<'a> {
 }
 
 impl<'a> LutPicker<'a> {
+    /// A picker showing `value`; `id_salt` keys its state.
     pub fn new(id_salt: impl AsIdSalt, value: &'a LutChoice) -> LutPicker<'a> {
         LutPicker { id_salt: IdSalt::new(id_salt), value, folder: None, enabled: true }
     }
@@ -99,6 +103,7 @@ impl<'a> LutPicker<'a> {
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> LutPicker<'a> {
         self.enabled = enabled;
         self
@@ -107,6 +112,7 @@ impl<'a> LutPicker<'a> {
     // pc: crates/ui-egui/src/panels/adjust_ui.rs:175 `color_lookup_editor` (rows at :191, wheel
     // cycling at :200), :113 `folder_luts` (2 s rescan), :137 `start_folder_scan`, :96 `FOLDER_LUT`,
     // :85 `browse_color_lookup` (the app's side).
+    /// Draws the picker and returns the edit and any LUT file the user loaded.
     pub fn show(self, ui: &mut Ui) -> LutPickerResponse {
         let Self { id_salt, value, folder, enabled } = self;
         let labels = LutPickerLabels::of(ui);

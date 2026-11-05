@@ -418,6 +418,7 @@ impl<'a> ColorPicker<'a> {
         self
     }
 
+    /// Turns input on or off; on by default.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

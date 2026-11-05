@@ -54,8 +54,11 @@ craft_ui::words! {
 /// A document's colour mode, as the prompts word it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ProfileMode {
+    #[allow(missing_docs)]
     Rgb,
+    #[allow(missing_docs)]
     Cmyk,
+    #[allow(missing_docs)]
     Gray,
 }
 
@@ -94,9 +97,13 @@ impl MonitorProblem {
 /// description), else the profile's description.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProfileStatus {
+    /// The document has no profile.
     Untagged,
+    /// The profile does not parse or link.
     Invalid,
+    /// The profile has no description.
     Unnamed,
+    /// The profile's description.
     Named(String),
 }
 
@@ -128,9 +135,17 @@ impl ProfileStatus {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProfileQuestion {
     /// The embedded profile differs from the working space; both names shown.
-    Mismatch { embedded: String, working: String },
+    Mismatch {
+        /// The name of the profile embedded in the file.
+        embedded: String,
+        /// The name of the working space.
+        working: String,
+    },
     /// The file has no profile.
-    Missing { working: String },
+    Missing {
+        /// The name of the working space.
+        working: String,
+    },
 }
 
 /// The user's choice.
@@ -152,7 +167,9 @@ pub enum ProfileAction {
 /// mode (the app sets its policy and turns Ask On Mismatch off).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ProfileAnswer {
+    /// What the user chose.
     pub action: ProfileAction,
+    /// Whether to apply the choice to later files of the same mode without asking.
     pub remember: bool,
 }
 

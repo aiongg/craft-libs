@@ -62,6 +62,7 @@ pub struct ColorSamplers {
 }
 
 impl ColorSamplers {
+    /// An empty set of sample points.
     pub fn new() -> ColorSamplers {
         ColorSamplers::default()
     }
@@ -108,6 +109,7 @@ impl ColorSamplers {
         Ok(())
     }
 
+    /// Removes every point.
     pub fn clear(&mut self) {
         self.points.clear();
     }
@@ -266,8 +268,11 @@ impl CanvasTool for ColorSamplerTool<'_> {
 pub struct SamplerReadout {
     /// The point's number, from 1.
     pub number: usize,
+    /// The pixel the point sits on, in document pixels.
     pub position: [i64; 2],
+    /// Red, green and blue, 0–255.
     pub rgb: [u8; 3],
+    /// Cyan, magenta, yellow and black ink, in percent.
     pub cmyk: [u8; 4],
 }
 

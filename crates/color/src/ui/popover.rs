@@ -85,6 +85,7 @@ impl<'a> ColorPopover<'a> {
         }
     }
 
+    /// Sets the control size.
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -110,6 +111,7 @@ impl<'a> ColorPopover<'a> {
         self
     }
 
+    /// Draws the swatch and, while open, its popover; returns the response.
     pub fn show(self, ui: &mut Ui) -> ColorPopoverResponse {
         let Self { id_salt, label, color, numbers, size, dimensions, enabled, picker: setup } = self;
         let enabled = enabled && ui.is_enabled();
