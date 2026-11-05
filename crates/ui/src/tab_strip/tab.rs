@@ -253,19 +253,17 @@ pub struct TabStyle {
     pub strip: Color32,
     /// The active tab's fill.
     pub active: Color32,
-    /// `tab.text` and `tab.text.inactive`.
-    /// The label colour of the selected tab.
+    /// The label colour of the selected tab (`tab.text`).
     pub text: Color32,
-    /// The label colour of the other tabs.
+    /// The label colour of the other tabs (`tab.text.inactive`).
     pub inactive_text: Color32,
     /// `tab.detail`.
     pub detail: Color32,
     /// The divider at a tab's trailing edge: `tab.divider`, one physical pixel.
     pub divider: Stroke,
-    /// `tab.close` and `tab.close.hover`.
-    /// The × colour at rest.
+    /// The × colour at rest (`tab.close`).
     pub close_color: Color32,
-    /// The × colour under the pointer.
+    /// The × colour under the pointer (`tab.close.hover`).
     pub close_hover: Color32,
     /// Behind the × under the pointer: `tab.close.fill`.
     pub close_fill: Color32,
@@ -276,10 +274,9 @@ pub struct TabStyle {
     pub indicator: Color32,
     /// `tab.underline`: under the selected text tab's label.
     pub underline: Color32,
-    /// The progress bar: `progress.track` and `progress.fill`.
-    /// The progress bar's track colour.
+    /// The progress bar's track colour (`progress.track`).
     pub track: Color32,
-    /// The progress bar's filled part.
+    /// The progress bar's filled part (`progress.fill`).
     pub fill: Color32,
 }
 

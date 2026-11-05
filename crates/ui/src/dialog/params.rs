@@ -1492,7 +1492,6 @@ impl ParamDialog {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParamResult {
     /// The dialog's [`key`](ParamDialog::key): the command the values are for.
-    /// The command the values are for.
     pub key: String,
     /// The values the user confirmed, keyed by parameter.
     pub fields: DialogFields,
