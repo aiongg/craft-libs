@@ -167,6 +167,8 @@ pub struct StandardPrompt {
     can_apply: bool,
     /// The `{name}` values of the app's texts ([`StandardPrompt::arg`]).
     args: Vec<(String, String)>,
+    /// Set by [`StandardPrompt::instance`].
+    instance: Option<DialogId>,
 }
 
 /// A prompt's title, message and answers, each answer `(role, label, key)`.
@@ -191,7 +193,19 @@ impl StandardPrompt {
             warnings: Vec::new(),
             can_apply: true,
             args: Vec::new(),
+            instance: None,
         }
+    }
+
+    /// Makes this prompt one of several of its kind, for a library feature that asks its own
+    /// question beside the app's prompts (the file service's Replace question). Its result is kept
+    /// apart: only [`DialogHost::take_by_id`] with the id `open` returns reaches it, so the app's
+    /// `take::<StandardPrompt>()` never takes it, and opening another prompt doesn't drop it.
+    /// [`DialogHost::confirm`] still answers it when it is the top prompt.
+    pub fn instance(mut self, instance: impl std::hash::Hash + fmt::Debug) -> Self {
+        self.id = dialog_id(("standard-prompt", std::mem::discriminant(&self.kind), instance));
+        self.instance = Some(self.id);
+        self
     }
 
     /// The answer a host-side [`confirm`](DialogHost::confirm) gives, as pressing that button
@@ -442,6 +456,10 @@ impl StackDialog for StandardPrompt {
 
     fn id(&self) -> DialogId {
         self.id
+    }
+
+    fn instance(&self) -> Option<DialogId> {
+        self.instance
     }
 
     // pc: the prompt files named on the constructors; built on `Prompt::new(..).answer(..)` with

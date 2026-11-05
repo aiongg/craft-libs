@@ -222,6 +222,19 @@ fn dialogs_of_different_instances_stay_open_and_answer_by_id() {
     assert!(!host.is_open::<ParamDialog>(), "the same instance was replaced, not added");
 }
 
+// A dialog with an instance keeps its result for its owner: `take` passes over it, and opening
+// another dialog of the type without an instance doesn't drop it.
+#[test]
+fn an_instance_result_is_taken_only_by_id() {
+    let ctx = Context::default();
+    let mut host = DialogHost::new();
+    let own = host.open(blur().instance("library"));
+    assert!(host.confirm_by_id::<ParamDialog>(&ctx, own));
+    host.open(blur());
+    assert!(host.take::<ParamDialog>().is_none(), "no result without an instance waits");
+    assert!(matches!(host.take_by_id::<ParamDialog>(own), Some(DialogResult::Ok(_))));
+}
+
 /// Counts the times the host told it that it was closed from outside.
 struct Releasing {
     key: &'static str,

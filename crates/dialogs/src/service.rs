@@ -301,11 +301,9 @@ impl FilePanels {
     /// question is a [`StandardPrompt::replace_file`](craft_ui::dialog::StandardPrompt::replace_file)
     /// the app's `DialogHost::show` draws, so `ui.dialog.confirm` and `ui.dialog.cancel` answer it
     /// like every prompt, and the answer is read on a later pump. A prompt of the app's own that is
-    /// open makes the question wait its turn instead of being replaced.
-    ///
-    /// The host keeps one result per prompt type: a `take::<StandardPrompt>()` of the app that runs
-    /// while the question is open takes its answer (the pick then ends as `Cancelled`), and the
-    /// app's `open` of another prompt replaces the open question the same way.
+    /// open makes the question wait its turn. The question is a prompt instance
+    /// ([`StandardPrompt::instance`](craft_ui::dialog::StandardPrompt::instance)), so the app's
+    /// `take::<StandardPrompt>()` and its own prompts leave its answer alone.
     // pc: crates/ui-egui/src/dialogs/replace_prompt.rs:23 open
     #[cfg(feature = "ui")]
     pub fn pump_with<W: HasWindowHandle + HasDisplayHandle>(&mut self, dialogs: &mut craft_ui::dialog::DialogHost, parent: Option<&W>) {
@@ -334,7 +332,8 @@ impl FilePanels {
         use craft_ui::dialog::StandardPrompt;
         for asked in self.prompts.iter_mut().filter(|a| a.dialog.is_none()) {
             let name = |p: &Path| p.file_name().map_or_else(|| p.to_string_lossy(), |n| n.to_string_lossy()).into_owned();
-            let prompt = StandardPrompt::replace_file(name(&asked.question.settled), Some(name(&asked.question.answered)));
+            let prompt = StandardPrompt::replace_file(name(&asked.question.settled), Some(name(&asked.question.answered)))
+                .instance(("craft-dialogs.replace", asked.id.0));
             match dialogs.open_unless_open(prompt) {
                 Ok(dialog) => asked.dialog = Some(dialog),
                 Err(_) => break,
@@ -343,7 +342,8 @@ impl FilePanels {
     }
 
     /// Settles the picks whose replace prompt has finished. A prompt that is neither open nor
-    /// holding a result was taken by someone else or replaced: the pick ends as `Cancelled`.
+    /// holding a result was closed from outside (the app cleared its dialogs): the pick ends as
+    /// `Cancelled`.
     #[cfg(feature = "ui")]
     fn collect_prompt_answers(&mut self, dialogs: &mut craft_ui::dialog::DialogHost) {
         use craft_ui::dialog::{DialogResult, PromptChoice, StandardPrompt};
@@ -817,14 +817,19 @@ mod service_tests {
             assert_eq!(answered(&service, id), Picked::Cancelled);
         }
 
-        // A result someone else took leaves no prompt to wait for: the pick ends rather than hangs.
+        // An app prompt of the same kind opened over the question, answered and drained as
+        // PhotoCraft drains its prompt results, leaves the question and its answer alone.
         #[test]
-        fn a_prompt_result_taken_elsewhere_ends_the_pick() {
-            let (service, mut panels, mut dialogs, id, _) = asked("prompt-taken");
-            assert!(dialogs.confirm::<StandardPrompt>(&Context::default()));
-            assert!(dialogs.take::<StandardPrompt>().is_some());
+        fn the_apps_prompts_leave_the_question_alone() {
+            let (service, mut panels, mut dialogs, id, settled) = asked("prompt-apart");
+            let ctx = Context::default();
+            dialogs.open(StandardPrompt::replace_file("Other.png", None));
+            assert!(dialogs.cancel::<StandardPrompt>(&ctx), "the app's prompt, on top");
+            assert!(dialogs.take::<StandardPrompt>().is_some_and(|r| r.is_cancel()));
+            assert!(dialogs.confirm::<StandardPrompt>(&ctx), "the question, still open");
+            assert!(dialogs.take::<StandardPrompt>().is_none(), "the question's answer is the service's");
             panels.pump_with(&mut dialogs, NONE);
-            assert_eq!(answered(&service, id), Picked::Cancelled);
+            assert_eq!(answered(&service, id), Picked::Paths(vec![settled]));
         }
     }
 }

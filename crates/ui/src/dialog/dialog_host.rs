@@ -291,7 +291,8 @@ impl DialogHost {
     /// waits: it was taken already, or no `D` has finished. Opening a `D` drops an untaken result
     /// of the type; if that `open` replaced a `D` that was still open, the replaced one's
     /// `Cancel` waits instead. Results are per type, so the app tells two `D` apart by what the
-    /// result carries (a key, a tag).
+    /// result carries (a key, a tag). A `D` opened with an instance ([`StackDialog::instance`])
+    /// keeps its result apart, for [`take_by_id`](DialogHost::take_by_id) only.
     pub fn take<D: StackDialog>(&mut self) -> Option<DialogResult<D::Result>> {
         self.take_keyed::<D>().map(|(result, _)| result)
     }
@@ -300,7 +301,7 @@ impl DialogHost {
     /// `Cancel` after a replace-by-open needs to tell which command it was. `None` key for a
     /// dialog without one.
     pub fn take_keyed<D: StackDialog>(&mut self) -> Option<(DialogResult<D::Result>, Option<String>)> {
-        let at = self.results.iter().rposition(|stored| stored.type_id == TypeId::of::<D>())?;
+        let at = self.results.iter().rposition(|stored| stored.type_id == TypeId::of::<D>() && stored.instance.is_none())?;
         self.take_at::<D>(at)
     }
 
