@@ -40,6 +40,7 @@ use std::ops::Range;
 
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasTool, CanvasView, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
+use craft_ui::edit::CancelReason;
 use craft_ui::ime::{Composer, Edit, surrounding_chars};
 use craft_ui::theme::ToEgui;
 use egui::ime_context::ImeMutationStamp;
@@ -1210,7 +1211,7 @@ impl<H: TextEditorHost> CanvasTool for TextEditorTool<'_, H> {
         self.editor.release();
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         self.editor.release();
     }
 

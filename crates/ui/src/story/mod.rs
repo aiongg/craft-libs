@@ -94,7 +94,7 @@ pub use args::{Arg, ArgValue, Args, NoArgs, StoryArgs, StoryChoice, show_typed};
 pub use choices::{SizeArg, ToneArg};
 /// `#[derive(StoryArgs)]` and `#[derive(StoryChoice)]`; see the traits.
 pub use craft_ui_macros::{StoryArgs, StoryChoice};
-pub use harness::{claim, drive, ensure_files, lock, shared};
+pub use harness::{claim, drive, ensure_files, lock, reset_on, shared};
 pub use pattern_words::PatternStoryLabels;
 pub use words::StoryLabels;
 
@@ -372,6 +372,13 @@ register! {
     crate::patterns::rail::flyout,
     crate::patterns::rail::tool,
     crate::popover,
+    crate::canvas::hover_stories,
+    crate::canvas::selection_stories,
+    crate::canvas::marquee::fields_stories,
+    crate::canvas::before_after::stories,
+    crate::canvas::brush::stories,
+    crate::behavior::stories_move,
+    crate::dialog::full_window::stories,
 }
 
 fn overview_key() -> egui::Id {

@@ -56,7 +56,7 @@ impl Rig {
     }
 
     fn down(&mut self, at: Point, modifiers: Modifiers) {
-        self.input(ToolInput::Down { doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
+        self.input(ToolInput::Down { button: egui::PointerButton::Primary, doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
     }
 
     fn drag_to(&mut self, at: Point, modifiers: Modifiers) {

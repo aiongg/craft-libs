@@ -106,6 +106,28 @@ fn a_tool_cursor_paints_its_badge() {
     assert_eq!(count(Some(CursorBadge::Add)), 4);
 }
 
+// A badged circle paints its glyph centred on the pointer, over the circle bitmap.
+#[test]
+fn a_badged_circle_paints_its_badge_at_the_pointer() {
+    let pointer = Pos2::new(50.0, 50.0);
+    let pass = |badge: CursorBadge| {
+        let cursor = ToolCursor::Badged { cursor: Box::new(ToolCursor::Circle { radius: 10.0, centre: false }), badge };
+        run(1.0, |ctx| {
+            CursorHost::set(ctx, &ctx.layer_painter(LayerId::background()), pointer, &cursor, &style(ctx));
+        })
+    };
+    let add = pass(CursorBadge::Add);
+    assert!(add.image.is_some(), "the circle is still a bitmap pointer");
+    assert_eq!(segments(&add.shapes), 4);
+    assert_eq!(segments(&pass(CursorBadge::Subtract).shapes), 2);
+    for shape in &add.shapes {
+        if let Shape::LineSegment { points, .. } = shape {
+            let middle = points[0].to_vec2() / 2.0 + points[1].to_vec2() / 2.0;
+            assert!((middle - pointer.to_vec2()).length() < 1e-3, "{points:?}");
+        }
+    }
+}
+
 // On Wayland the host falls back to the system cursor for a bitmap one.
 #[test]
 fn without_bitmap_cursors_the_system_cursor_stands_in() {

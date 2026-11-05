@@ -61,11 +61,23 @@ impl<T> RailTool<T> {
 pub struct ToolSlot<T> {
     pub id: SlotId,
     pub tools: Vec<RailTool<T>>,
+    /// The slot ends a group: [`group_end`](Self::group_end).
+    pub group_end: bool,
 }
 
 impl<T> ToolSlot<T> {
     pub fn new(id: SlotId, tools: Vec<RailTool<T>>) -> Self {
-        Self { id, tools }
+        Self { id, tools, group_end: false }
+    }
+
+    /// The slot ends a group of tools (default false): the [`ToolRail`] leaves `rail.group_gap`
+    /// after it, before the next slot (Liquify's gaps after Smooth, Push Left and Thaw). In two
+    /// columns the gap follows the row that holds the slot. The tool pill and the Edit Toolbar
+    /// drawer ignore it.
+    #[must_use]
+    pub fn group_end(mut self, end: bool) -> Self {
+        self.group_end = end;
+        self
     }
 }
 
@@ -323,6 +335,8 @@ pub struct ToolRail<'a, T> {
     scroll_bar_label: Option<String>,
     /// The Edit Toolbar drawer is open: the buttons drag and show no flyouts.
     editing: bool,
+    /// Plain letters pick tools by their shortcut ([`pick_by_key`](Self::pick_by_key)).
+    pick_by_key: bool,
 }
 
 impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
@@ -337,6 +351,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             label: None,
             scroll_bar_label: None,
             editing: false,
+            pick_by_key: false,
         }
     }
 
@@ -390,6 +405,30 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         self
     }
 
+    /// The rail reads its tools' [`shortcut`](RailTool::shortcut) letters itself (default off,
+    /// for a host that dispatches tool keys through its keymap): a full-window workspace's strip,
+    /// or a main window without a keymap of its own.
+    ///
+    /// - A plain letter picks the tool of the visible slots whose shortcut is that letter (one
+    ///   character, any letter case). Where several tools share it (Select and Mask's W: Quick
+    ///   Selection and Object Selection), it picks the slot's [shown tool](shown_tool), so the
+    ///   last one used.
+    /// - Shift + the letter cycles the tools that share it, in slot order, from the current tool
+    ///   (or the shown one when the current tool doesn't share the letter), skipping disabled
+    ///   tools. A letter only one tool has picks that tool with Shift too.
+    /// - The modifiers match exactly: Alt, Ctrl or Command with a letter picks nothing (Shift only
+    ///   cycles). A held key picks once; its repeats are consumed and ignored.
+    /// - The pick is [`ToolRailOutput::select`], and the key is consumed. Disabled and
+    ///   [hidden](Self::hidden) tools are never picked.
+    /// - Letters are read only when they are free for this rail: no text field, menu, popup list
+    ///   or popover has the keyboard, the focused widget did not claim the key
+    ///   ([`KeyClaim`](crate::behavior::KeyClaim)), and either no modal layer is open or the rail
+    ///   is drawn in the top one (the workspace it belongs to).
+    pub fn pick_by_key(mut self, on: bool) -> Self {
+        self.pick_by_key = on;
+        self
+    }
+
     /// The width of a rail with `columns` columns.
     pub fn metrics(tokens: &UiTokens, columns: usize) -> RailMetrics {
         let r = &tokens.component.rail;
@@ -426,6 +465,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             toggle_height: r.toggle_height,
             toggle_icon: r.toggle_icon,
             pad_x: metrics.pad_x,
+            group_gap: r.group_gap,
             left,
         };
         let (fill, pad_y) = (r.fill.to_egui(), r.pad_y);
@@ -447,6 +487,9 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             });
         });
         out.rect = shown.response.rect;
+        if self.pick_by_key && out.select.is_none() {
+            out.select = picked_by_key(ui, slots, self.hidden, current, last_used);
+        }
         let (columns, rtl, total) = (self.columns, direction::is_rtl(ui), slots.len());
         let button = self.edit_toolbar.is_some().then(|| id.with("edit-toolbar"));
         edit_update(ui.ctx(), self.id_salt, |edit| {
@@ -501,6 +544,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             // Each button with whether it takes input, in reading order.
             let mut cells: Vec<(Id, bool)> = Vec::new();
             let mut row: Option<Rect> = None;
+            let mut pending_gap = false;
             for k in 0..visible.len() + edit {
                 let (column, row_rect) = (k % grid.columns, row);
                 let row_rect = match (column, row_rect) {
@@ -522,6 +566,14 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
                         Some(response)
                     }
                 };
+                // Placing a button at an earlier row's rect moves the cursor back to that row's
+                // bottom, so the gap of a slot in the first of two columns is left after the row's
+                // last button.
+                pending_gap |= visible.get(k).is_some_and(|(index, _)| slots[*index].group_end);
+                if pending_gap && (column + 1 == grid.columns || k + 1 == visible.len() + edit) {
+                    group_gap(ui, grid, column);
+                    pending_gap = false;
+                }
                 if let Some(response) = response {
                     if response.gained_focus() {
                         response.scroll_to_me(None);
@@ -610,6 +662,87 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             ui.memory_mut(|m| m.request_focus_with_filter(cells[target].0, filter));
         }
     }
+}
+
+/// Leaves `rail.group_gap` (TK1) after the slot just placed in `column` of the row: in one
+/// column (or after the row's last column) the next row starts that much lower
+/// (`ui.add_space`); after a slot in the first of two columns, the gap goes after the row it
+/// holds. The keyboard grid ([`grid_step`]) and the drop places are unchanged.
+fn group_gap(ui: &mut Ui, grid: &Grid, column: usize) {
+    // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:904-905 (`strip.add_space(6.0)` after Smooth,
+    // Push Left and Thaw).
+    // A row's rect is allocated when its first column is placed, so space added after a slot in
+    // any column only moves the next row; the second column of a row already holds its rect.
+    let _ = column;
+    ui.add_space(grid.group_gap);
+}
+
+/// The tool [`ToolRail::pick_by_key`] picks this pass, consuming its key: the rules in that
+/// builder's doc, over [`visible_slots`] of `slots` without `hidden`, with [`shown_tool`] for a
+/// plain letter. `None` when no letter of a visible tool was pressed or the keys are not free
+/// for the rail (`focus::key_owner::keys_free` for `ui.layer_id()`, and `KeyClaim::claimed`).
+fn picked_by_key<T: Clone + PartialEq>(ui: &Ui, slots: &[ToolSlot<T>], hidden: &[T], current: &T, last_used: &LastUsed<T>) -> Option<T> {
+    // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1392-1404 (Shift+W and Shift+L flip the
+    // shared slot's tool; W, R, B, L, H, Z pick, W and L the slot's last-used tool).
+    if !crate::focus::key_owner::keys_free(ui.ctx(), ui.layer_id()) {
+        return None;
+    }
+    let visible = visible_slots(slots, hidden);
+    let letter = |tool: &RailTool<T>| {
+        let mut chars = tool.shortcut.as_deref()?.chars();
+        let c = chars.next()?;
+        chars.next().is_none().then(|| c.to_ascii_uppercase())
+    };
+    let mut letters: Vec<char> = Vec::new();
+    for (_, tools) in &visible {
+        for tool in tools.iter().filter(|tool| tool.enabled) {
+            if let Some(c) = letter(tool).filter(|c| !letters.contains(c)) {
+                letters.push(c);
+            }
+        }
+    }
+    for c in letters {
+        let Some(key) = Key::from_name(&c.to_string()) else { continue };
+        // Exact modifiers (Alt, Ctrl and Command belong to the tools' own gestures and to the
+        // shortcuts), and a held key picks once: its repeats are consumed without picking.
+        let pressed = |modifiers: Modifiers| {
+            let shortcut = egui::KeyboardShortcut::new(modifiers, key);
+            if crate::behavior::KeyClaim::claimed(ui.ctx(), &shortcut) {
+                return false;
+            }
+            ui.input_mut(|input| {
+                let mut fresh = false;
+                input.events.retain(|event| match event {
+                    egui::Event::Key { key: k, pressed: true, repeat, modifiers: m, .. } if *k == key && m.matches_exact(modifiers) => {
+                        fresh |= !repeat;
+                        false
+                    }
+                    _ => true,
+                });
+                fresh
+            })
+        };
+        let shift = pressed(Modifiers::SHIFT);
+        if !shift && !pressed(Modifiers::NONE) {
+            continue;
+        }
+        let sharing: Vec<(SlotId, &RailTool<T>)> = visible
+            .iter()
+            .flat_map(|(index, tools)| tools.iter().copied().map(move |tool| (slots[*index].id, tool)))
+            .filter(|(_, tool)| tool.enabled && letter(tool) == Some(c))
+            .collect();
+        // The slot the plain letter picks from: the current tool's when it shares the letter.
+        let (slot, _) = sharing.iter().find(|(_, tool)| tool.id == *current).or(sharing.first())?;
+        let tools: Vec<&RailTool<T>> = sharing.iter().filter(|(id, _)| id == slot).map(|(_, tool)| *tool).collect();
+        let shown =
+            shown_tool(current, *slot, &tools, last_used).filter(|tool| tool.enabled && letter(tool) == Some(c)).or(tools.first().copied())?;
+        if !shift || sharing.len() == 1 {
+            return Some(shown.id.clone());
+        }
+        let from = sharing.iter().position(|(_, tool)| tool.id == *current).or_else(|| sharing.iter().position(|(_, tool)| tool.id == shown.id))?;
+        return Some(sharing[(from + 1) % sharing.len()].1.id.clone());
+    }
+    None
 }
 
 /// What a drag between the Edit Toolbar drawer and the rail carries (egui's `DragAndDrop`
@@ -763,6 +896,8 @@ struct Grid {
     toggle_height: f32,
     toggle_icon: f32,
     pad_x: f32,
+    /// `rail.group_gap`: the space after a slot that ends a group.
+    group_gap: f32,
     /// The rail is against the left edge of the window.
     left: bool,
 }

@@ -7,10 +7,10 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect, Vec2};
 
 use super::geometry::{Hit, drawn, handle_part, hit, resized, resized_turned, turn, turned_angle, within};
-use super::{CropBox, CropFrame, CropLabels, CropNames, CropReadout, turn_toward};
+use super::{CropBox, CropFrame, CropKeyAction, CropLabels, CropNames, CropReadout, turn_toward};
 use crate::ui::CropGuide;
 use craft_ui::canvas::quad::BoxPart;
-use craft_ui::canvas::{CanvasView, RulerUnits};
+use craft_ui::canvas::{CanvasView, RulerUnits, ToolKey};
 use craft_ui::edit::{CancelReason, EditEvent};
 use craft_ui::localized::{LocaleNumbers, Unit};
 use craft_ui::theme::{Base, FontFamilies, ToEgui, UiTokens, current, install};
@@ -1185,4 +1185,98 @@ fn enter_is_ignored_while_another_widget_has_the_focus() {
     h.key_press(Key::Enter);
     h.run();
     assert_eq!(h.state().applied, 0, "Enter belongs to the focused button");
+}
+
+// Every key `show` reads (Enter, Esc, the arrows with and without ⇧ on the whole frame and on a
+// picked corner, X, and an Image-mode arrow that moves the view) gives through `CropFrame::key` the
+// action and frame `show` reports for the same press, and a release gives nothing (task TO-C3).
+#[test]
+fn host_keys_equal_show_keys() {
+    let tool_key = |key, modifiers, pressed| ToolKey { key, modifiers, pressed, repeat: false };
+    let b = CropBox { rect: RECT, angle: 30.0 };
+    // Frame-moving keys, with and without a picked corner: `show` and `key` agree on the frame.
+    let cases = [
+        (Key::ArrowRight, Modifiers::NONE, None),
+        (Key::ArrowDown, Modifiers::SHIFT, None),
+        (Key::ArrowLeft, Modifiers::NONE, Some(BoxPart::Corner(0))),
+        (Key::X, Modifiers::NONE, None),
+    ];
+    for (key, modifiers, picked) in cases {
+        let mut h = harness_with(b, 0.0, false, |_| {});
+        h.run();
+        if let Some(part) = picked {
+            h.key_press(Key::Tab);
+            h.run();
+            h.key_press(Key::PageDown);
+            h.run();
+            assert_eq!(h.state().picked, Some(part));
+        }
+        let mut v = view(&h);
+        let frame = CropFrame::new("crop", &b, names());
+        let Some(CropKeyAction::Set(want)) = frame.key(&tool_key(key, modifiers, true), &mut v, picked) else {
+            panic!("{key:?} gives a frame");
+        };
+        h.key_press_modifiers(modifiers, key);
+        h.run();
+        assert_eq!(state(&h), want, "{key:?} {picked:?}");
+        assert!(matches!(h.state().events.last(), Some(EditEvent::Set { .. })));
+    }
+
+    let mut v = view(&harness(|_| {}));
+    let frame = CropFrame::new("crop", &b, names());
+    assert_eq!(frame.key(&tool_key(Key::Enter, Modifiers::NONE, true), &mut v, None), Some(CropKeyAction::Apply));
+    assert_eq!(frame.key(&tool_key(Key::Escape, Modifiers::NONE, true), &mut v, None), Some(CropKeyAction::Discard));
+    assert_eq!(frame.key(&tool_key(Key::ArrowRight, Modifiers::NONE, false), &mut v, None), None, "a release does nothing");
+    assert_eq!(frame.key(&tool_key(Key::A, Modifiers::NONE, true), &mut v, None), None);
+    let mut h = harness(|_| {});
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    assert_eq!(h.state().applied, 1);
+    h.key_press(Key::Escape);
+    h.run();
+    assert_eq!(h.state().discarded, 1);
+
+    // Image mode: the arrow moves the image under the frame, so the frame goes the other way and the view follows it.
+    let upright = CropBox::upright(RECT);
+    let image = CropFrame::new("crop", &upright, names()).image_mode(true);
+    let mut v = view(&harness(|_| {}));
+    let center = v.center;
+    let Some(CropKeyAction::Set(next)) = image.key(&tool_key(Key::ArrowRight, Modifiers::NONE, true), &mut v, None) else {
+        panic!("an Image-mode arrow gives a frame");
+    };
+    assert_eq!(next, upright.moved(Vec2::new(-1.0, 0.0)));
+    assert_eq!(v.center, center + Vec2::new(-1.0, 0.0));
+}
+
+#[test]
+fn host_parts_equal_show_parts() {
+    let h = harness(|_| {});
+    let v = view(&h);
+    let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
+    let b = CropBox::upright(RECT);
+    let frame = CropFrame::new("crop", &b, names()).units(&px, &px);
+    let parts = frame.parts(&v, &crop_style(), &b, Some(BoxPart::Corner(2)));
+    assert_eq!(parts.group, "Crop frame");
+    assert_eq!(parts.value.as_deref(), Some("200.0 px × 140.0 px, 100.0 px, 80.0 px, 0.0°"));
+    let labels: Vec<_> = parts.parts.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(
+        labels,
+        [
+            "Whole frame",
+            "Top left corner",
+            "Top right corner",
+            "Bottom right corner",
+            "Bottom left corner",
+            "Top edge",
+            "Right edge",
+            "Bottom edge",
+            "Left edge"
+        ]
+    );
+    let selected: Vec<_> = parts.parts.iter().filter(|p| p.selected).map(|p| p.name.as_str()).collect();
+    assert_eq!(selected, ["Bottom right corner"]);
+    assert_eq!(parts.parts[3].value.as_deref(), Some("300.0 px, 220.0 px"));
+    assert_eq!(parts.parts[8].value.as_deref(), Some("100.0 px, 150.0 px"));
+    assert_eq!(parts.parts[0].rect.center(), screen(&h, Point::new(200.0, 150.0)));
 }

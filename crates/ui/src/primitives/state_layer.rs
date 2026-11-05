@@ -138,10 +138,10 @@ impl StateLayer {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["State layer"];
+pub const COMPONENTS: &[&str] = &["StateLayer"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!("primitives/state-layer/states", Level::Primitives, "State layer", "States", StatesArgs::default(), show)]
+    vec![typed_story!("primitives/state-layer/states", Level::Primitives, "StateLayer", "States", StatesArgs::default(), show)]
 }
 
 #[derive(StoryArgs, Debug, Default, PartialEq)]

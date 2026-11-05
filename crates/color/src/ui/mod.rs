@@ -12,7 +12,7 @@ mod area;
 mod choice;
 #[cfg(test)]
 mod choice_tests;
-mod colour_stories;
+mod color_stories;
 #[cfg(test)]
 mod dialog_tests;
 mod disc;
@@ -42,6 +42,7 @@ mod lut_picker_tests;
 mod paint_chip;
 #[cfg(test)]
 mod paint_chip_tests;
+mod paint_stories;
 mod pair;
 mod pair_stories;
 #[cfg(test)]
@@ -109,14 +110,16 @@ pub use wheel::{ColorWheel, ColorWheelResponse, ColorWheelStyle, WheelGeometry, 
 pub use choice::{ChosenColor, ColorChoice, ColorChoiceLabels, ColorChoiceResponse, NamedColor};
 pub use droppers::{DropperButton, DropperButtonResponse, DropperKind, DropperState, DropperTool};
 pub use eyedropper::{
-    EyedropperLabels, EyedropperOptions, EyedropperOptionsBar, EyedropperPick, EyedropperTool, SampleSize, SampleSource, SamplingRingStyle,
-    eyedropper_ring,
+    EyedropperBar, EyedropperLabels, EyedropperOptions, EyedropperPick, EyedropperTool, SampleSize, SampleSource, SamplingRingStyle, eyedropper_ring,
 };
 pub use harmony::{
     HARMONY_WORDS, HarmonyLabels, HarmonyMenuAction, HarmonyPanel, HarmonyPanelResponse, HarmonyPanelState, HarmonyWheel, HarmonyWheelResponse,
 };
 pub use lut_picker::{LUT_WORDS, LutChoice, LutPicker, LutPickerLabels, LutPickerResponse};
-pub use paint_chip::{GradientPreview, Paint, PaintChip, PaintLabels, PaintList, PaintListResponse};
+pub use paint_chip::{
+    FillKind, GradientPreview, ImagePreview, Paint, PaintChip, PaintKindLabels, PaintLabels, PaintLink, PaintLinkKind, PaintList, PaintListEvent,
+    PaintListLabels, PaintListOptions, PaintListResponse, PaintRow,
+};
 pub use panel::{ColorPanel, ColorPanelLabels, ColorPanelMode, ColorPanelRamp, ColorPanelResponse, ColorPanelState, PanelTarget};
 pub use picker_dialog::{ColorPickerDialog, ColorPickerLabels, ColorPickerMemory, ColorPickerResult};
 pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileLabels, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus};
@@ -261,6 +264,9 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <LutPickerLabels as Labels>::WORDS,
     LUT_WORDS,
     <PaintLabels as Labels>::WORDS,
+    <paint_chip::PaintKindLabels as Labels>::WORDS,
+    <paint_chip::PaintListLabels as Labels>::WORDS,
+    <paint_stories::PaintStoryLabels as Labels>::WORDS,
     <ProfileLabels as Labels>::WORDS,
     <ColorSamplerLabels as Labels>::WORDS,
     <ScreenPickerLabels as Labels>::WORDS,
@@ -283,11 +289,12 @@ pub const COMPONENTS: &[&str] = &[
     "ColorRamp",
     "ColorSamplers",
     "ColorWheel",
-    "EyedropperOptionsBar",
+    "EyedropperBar",
     "HarmonyPanel",
     "HexField",
     "LutPicker",
     "PaintChip",
+    "PaintList",
     "ProfileMismatchDialog",
     "SwatchPair",
     "SwatchPalette",
@@ -447,7 +454,8 @@ pub fn stories() -> Vec<Story> {
     stories.extend(wheel_stories::stories());
     stories.extend(ramp_stories::stories());
     stories.extend(disc_stories::stories());
-    stories.extend(colour_stories::stories());
+    stories.extend(color_stories::stories());
+    stories.extend(paint_stories::stories());
     stories
 }
 

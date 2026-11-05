@@ -145,7 +145,7 @@ impl Curve {
     /// those points alone, constant outside its end points), and each run owns the inputs from its
     /// first point on. A corner is where one run ends and the next begins, so the curve bends
     /// there and all-corner points make a polyline.
-    pub(crate) fn through(points: &[[f32; 2]], corners: &[bool], smooth: impl Fn(&[[f32; 2]]) -> Vec<f32>) -> Vec<f32> {
+    pub fn through(points: &[[f32; 2]], corners: &[bool], smooth: impl Fn(&[[f32; 2]]) -> Vec<f32>) -> Vec<f32> {
         let (points, corners) = Curve::normalised(points, corners);
         let (points, corners) = (points.as_slice(), corners.as_slice());
         if !corners.iter().any(|&corner| corner) {

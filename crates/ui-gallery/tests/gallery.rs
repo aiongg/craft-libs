@@ -316,12 +316,30 @@ fn the_bar_scale_sets_the_zoom_and_a_story_scale_applies_once_and_keyboard_zoom_
     assert!((ctx.zoom_factor() - own).abs() < 1e-4, "back to the gallery's scale: {}", ctx.zoom_factor());
 }
 
-/// Frames until the tree has settled, then the last one's AccessKit tree.
+/// The AccessKit tree once the overview's tiles stop moving. Selecting a component scrolls the
+/// overview to its tile with egui's scroll animation, which takes many frames; a click aimed at a
+/// node while the overview still scrolls lands where the node was.
 fn settled_tree(ctx: &Context, gallery: &mut Gallery) -> craft_ui::inspect::AccessTree {
+    use egui::accesskit::Role;
+    let tiles = |tree: &craft_ui::inspect::AccessTree| -> Vec<_> {
+        tree.walk(tree.root())
+            .into_iter()
+            .filter_map(|(id, _)| tree.node(id).filter(|n| n.role() == Role::Button).map(|n| (id, n.bounds())))
+            .filter(|(id, _)| tree.name(*id).is_some_and(|n| n.starts_with("Select ")))
+            .collect()
+    };
     for _ in 0..3 {
         frame(ctx, gallery);
     }
-    tree_of(ctx, gallery)
+    let mut tree = tree_of(ctx, gallery);
+    for _ in 0..120 {
+        let next = tree_of(ctx, gallery);
+        if tiles(&next) == tiles(&tree) {
+            return next;
+        }
+        tree = next;
+    }
+    panic!("the overview still scrolls after 120 frames");
 }
 
 /// The nodes named `name` with the given role.
@@ -348,6 +366,84 @@ fn click(ctx: &Context, gallery: &mut Gallery, name: &str, role: egui::accesskit
     }));
     ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
     frame(ctx, gallery);
+}
+
+/// Sends `action` to the one control named `name` with `role`, as a screen reader would.
+fn request_on(ctx: &Context, gallery: &mut Gallery, name: &str, role: egui::accesskit::Role, action: egui::accesskit::Action) {
+    use egui::accesskit::{ActionRequest, TreeId};
+    let tree = settled_tree(ctx, gallery);
+    let nodes = named(&tree, name, role);
+    assert_eq!(nodes.len(), 1, "one control named {name:?}");
+    let mut raw = input();
+    raw.events.push(egui::Event::AccessKitActionRequest(ActionRequest { action, target_tree: TreeId::ROOT, target_node: nodes[0], data: None }));
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    frame(ctx, gallery);
+}
+
+/// Focuses the Components filter and types `text` into it, or with an empty `text` clears it.
+fn type_filter(ctx: &Context, gallery: &mut Gallery, text: &str) {
+    use egui::accesskit::{Action, Role};
+    request_on(ctx, gallery, "Filter components", Role::SearchInput, Action::Focus);
+    let mut raw = input();
+    if text.is_empty() {
+        raw.events.push(egui::Event::Key {
+            key: egui::Key::A,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::COMMAND,
+        });
+        raw.events.push(egui::Event::Key {
+            key: egui::Key::Backspace,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+    } else {
+        raw.events.push(egui::Event::Text(text.to_owned()));
+    }
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    frame(ctx, gallery);
+}
+
+/// Opens the level of `component` in the Components list when it is closed.
+fn expand_level_of(ctx: &Context, gallery: &mut Gallery, component: &str) {
+    use egui::accesskit::{Action, Role};
+    let level = gallery.stories().iter().find(|s| s.component == component).expect("a story").level.title();
+    let tree = settled_tree(ctx, gallery);
+    let row = named(&tree, level, Role::TreeItem);
+    assert_eq!(row.len(), 1, "one row for the level {level}");
+    if tree.node(row[0]).is_some_and(|n| n.is_expanded() == Some(false)) {
+        request_on(ctx, gallery, level, Role::TreeItem, Action::Expand);
+    }
+}
+
+#[test]
+fn a_level_opens_and_closes_from_its_row_and_a_filter_shows_the_matches_of_a_closed_level() {
+    use egui::accesskit::{Action, Role};
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, _) = component_with_stories(&gallery);
+    let level = gallery.stories().iter().find(|s| s.component == component).unwrap().level.title();
+    // Nothing is selected, so every level starts closed.
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert_eq!(named(&tree, level, Role::TreeItem).len(), 1);
+    assert!(named(&tree, component, Role::TreeItem).is_empty(), "a closed level hides its components");
+    request_on(&ctx, &mut gallery, level, Role::TreeItem, Action::Expand);
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert_eq!(named(&tree, component, Role::TreeItem).len(), 1, "an open level lists its components");
+    request_on(&ctx, &mut gallery, level, Role::TreeItem, Action::Collapse);
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert!(named(&tree, component, Role::TreeItem).is_empty());
+    // Typing a filter opens every level with matches; clearing it returns to the closed level.
+    type_filter(&ctx, &mut gallery, component);
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert_eq!(named(&tree, component, Role::TreeItem).len(), 1, "the filter shows the match of a closed level");
+    type_filter(&ctx, &mut gallery, "");
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert!(named(&tree, component, Role::TreeItem).is_empty());
 }
 
 #[test]
@@ -682,6 +778,21 @@ fn neighbour_of(gallery: &Gallery, component: &str) -> &'static str {
     stories.iter().filter(|s| s.level == level && s.component != component).map(|s| s.component).min_by_key(|c| c.to_lowercase()).unwrap()
 }
 
+/// The first component by name whose tile shares a row with `component`'s. Selecting
+/// `component` scrolls its row to the top of the overview, so a tile in a row above it is out of
+/// view and a pointer aimed at it hits nothing.
+fn neighbour_in_row(tree: &craft_ui::inspect::AccessTree, gallery: &Gallery, component: &str) -> &'static str {
+    use egui::accesskit::Role;
+    let top =
+        |t: &str| named(tree, &format!("Select {t}"), Role::Button).first().and_then(|id| tree.node(*id)).and_then(|n| n.bounds()).map(|b| b.y0);
+    let row = top(component).expect("the component's tile");
+    let stories = gallery.stories();
+    let level = stories.iter().find(|s| s.component == component).map(|s| s.level).expect("a story of the component");
+    let mut others: Vec<_> = stories.iter().filter(|s| s.level == level && s.component != component).map(|s| s.component).collect();
+    others.sort_by_key(|c| c.to_lowercase());
+    others.into_iter().find(|t| top(t) == Some(row)).expect("a tile beside the component's")
+}
+
 fn story_name(gallery: &Gallery, id: &str) -> &'static str {
     gallery.stories().iter().find(|s| s.id == id).map(|s| s.name).expect("a story")
 }
@@ -696,7 +807,8 @@ fn a_list_row_click_selects_the_component_in_the_overview_without_opening_a_tab(
     let other = gallery.stories().iter().find(|s| s.component != component).unwrap().component;
     gallery.open_component(other);
     assert_eq!(gallery.front_tab(), PanelId::Component(other));
-    click(&ctx, &mut gallery, component, Role::ListBoxOption);
+    expand_level_of(&ctx, &mut gallery, component);
+    click(&ctx, &mut gallery, component, Role::TreeItem);
     assert_eq!(gallery.overview_selected(), Some(component));
     assert_eq!(gallery.front_tab(), PanelId::View);
     assert_eq!(gallery.open_tabs(), [other], "no tab was added or replaced");
@@ -709,7 +821,8 @@ fn open_on_a_row_and_open_on_a_tile_open_one_tab_between_them() {
     ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
     let (component, _) = component_with_stories(&gallery);
-    click(&ctx, &mut gallery, component, Role::ListBoxOption);
+    expand_level_of(&ctx, &mut gallery, component);
+    click(&ctx, &mut gallery, component, Role::TreeItem);
     let open = format!("Open {component}");
     let tree = settled_tree(&ctx, &mut gallery);
     assert_eq!(named(&tree, &open, Role::Button).len(), 2, "the selected row and its tile each have Open");
@@ -932,9 +1045,9 @@ fn a_pointer_click_on_a_tiles_heading_or_a_label_in_its_story_selects_the_tile()
     ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
     let (component, _) = component_with_stories(&gallery);
-    let neighbour = neighbour_of(&gallery, component);
     gallery.select_component(component);
     let tree = settled_tree(&ctx, &mut gallery);
+    let neighbour = neighbour_in_row(&tree, &gallery, component);
     let tile = named(&tree, &format!("Select {neighbour}"), Role::Button)[0];
     let tb = tree.node(tile).and_then(|n| n.bounds()).unwrap();
     let heading: Vec<_> = named(&tree, neighbour, Role::Label)
@@ -951,15 +1064,26 @@ fn a_pointer_click_on_a_tiles_heading_or_a_label_in_its_story_selects_the_tile()
         .filter(|s| s.level == gallery.stories().iter().find(|o| o.component == component).unwrap().level)
         .map(|s| s.component)
         .collect();
-    gallery.select_component(component);
-    let tree = settled_tree(&ctx, &mut gallery);
-    let (title, label) = titles
-        .iter()
-        .filter(|t| **t != component)
-        .find_map(|t| {
-            let tile = named(&tree, &format!("Select {t}"), Role::Button).first().copied()?;
-            // On screen: a tile below the fold has no pixels to click.
-            labels_in_tile(&tree, tile, t).into_iter().find(|l| tree.node(*l).and_then(|n| n.bounds()).is_some_and(|b| b.y1 < 780.0)).map(|l| (*t, l))
+    // Selecting a tile scrolls its row to the top of the view; the tiles on screen below it may
+    // have no label, so the selection moves along the level until one does.
+    let on_screen = |selected: &str, tree: &craft_ui::inspect::AccessTree| {
+        let top = named(tree, &format!("Select {selected}"), Role::Button).first().and_then(|id| tree.node(*id)).and_then(|n| n.bounds())?.y0;
+        titles.iter().filter(|t| **t != selected).find_map(|t| {
+            let tile = named(tree, &format!("Select {t}"), Role::Button).first().copied()?;
+            // On screen: a tile below the fold or scrolled above the view has no pixels to click.
+            labels_in_tile(tree, tile, t)
+                .into_iter()
+                .find(|l| tree.node(*l).and_then(|n| n.bounds()).is_some_and(|b| b.y0 >= top && b.y1 < 780.0))
+                .map(|l| (*t, l))
+        })
+    };
+    let (tree, title, label) = std::iter::once(component)
+        .chain(titles.iter().copied().filter(|t| *t != component))
+        .find_map(|selected| {
+            gallery.select_component(selected);
+            let tree = settled_tree(&ctx, &mut gallery);
+            let (title, label) = on_screen(selected, &tree)?;
+            Some((tree, title, label))
         })
         .expect("a tile with a label in its story");
     pointer_click(&ctx, &mut gallery, center_of(&tree, label));
@@ -976,7 +1100,7 @@ fn a_pointer_click_on_the_row_of_the_component_whose_tab_is_in_front_selects_it_
     gallery.open_component(component);
     assert_eq!(gallery.front_tab(), PanelId::Component(component));
     let tree = settled_tree(&ctx, &mut gallery);
-    let row = named(&tree, component, Role::ListBoxOption);
+    let row = named(&tree, component, Role::TreeItem);
     assert_eq!(row.len(), 1);
     pointer_click(&ctx, &mut gallery, center_of(&tree, row[0]));
     assert_eq!(gallery.front_tab(), PanelId::View, "the highlighted row still answers a click");
@@ -1036,9 +1160,9 @@ fn a_double_click_on_a_tile_header_opens_the_component() {
     ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
     let (component, _) = component_with_stories(&gallery);
-    let neighbour = neighbour_of(&gallery, component);
     gallery.select_component(component);
     let tree = settled_tree(&ctx, &mut gallery);
+    let neighbour = neighbour_in_row(&tree, &gallery, component);
     let tile = named(&tree, &format!("Select {neighbour}"), Role::Button)[0];
     let tb = tree.node(tile).and_then(|n| n.bounds()).unwrap();
     // The heading, not the Reset or Open buttons at the other end.
@@ -1067,6 +1191,85 @@ const MOCK_APP: &[&str] =
 /// Host text a story writes itself that equals the English of a registered word:
 /// `(text, stories, reason)`. The same text bypassing `Words` in another story still fails.
 const STORY_TEXT: &[(&str, &[&str], &str)] = &[
+    (
+        "Hand",
+        &[
+            "controls/segmented/icons",
+            "controls/segmented/text",
+            "patterns/app-preview/photo-editor",
+            "patterns/tool-rail/rail-in-dialog",
+            "patterns/rail/tool",
+            "patterns/toolbar/horizontal-overflow",
+            "patterns/toolbar/vertical-liquify",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a tool name in the story's sample tool strip",
+    ),
+    ("Liquify", &["patterns/full-window/workspace"], "the sample workspace title in the story"),
+    (
+        "Locked",
+        &[
+            "composites/layer-rows/indicators",
+            "composites/layer-rows/kinds",
+            "composites/layer-rows/masks",
+            "composites/layer-rows/sub-rows",
+            "composites/preset-browser/brushes",
+            "composites/preset-browser/drop-on-canvas",
+            "composites/preset-browser/footer-in-panel",
+            "composites/preset-browser/gradients",
+            "composites/preset-browser/hover-preview",
+            "composites/preset-browser/popover-grid",
+            "composites/preset-browser/reorder",
+            "composites/preset-browser/short-list",
+            "composites/preset-browser/swatches",
+            "composites/preset-browser/tool-presets",
+            "controls/icon-button/app-icon",
+            "controls/icon-button/plain",
+            "controls/icon-button/toggle",
+        ],
+        "a sample row state or tooltip in the story",
+    ),
+    ("Normal", &["composites/list-row/layers", "composites/list-row/masks"], "a blend mode name in the story's sample layer rows"),
+    (
+        "Opacity:",
+        &[
+            "composites/field/dialog",
+            "patterns/app-preview/photo-editor",
+            "patterns/options-bar/brush-and-transform",
+            "patterns/options-bar/cells",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a sample field label in the story",
+    ),
+    ("Pencil", &["patterns/shell/toolbar-drawer"], "a tool name in the story's sample tool strip"),
+    (
+        "Properties",
+        &[
+            "patterns/app-preview/photo-editor",
+            "patterns/dock-area/docked",
+            "patterns/dock-area/drag",
+            "patterns/dock-area/floating",
+            "patterns/dock-area/iconic",
+            "patterns/rail/panel",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a panel title in the story's sample workspace",
+    ),
+    (
+        "Settings",
+        &["controls/icon-button/app-icon", "controls/icon-button/plain", "controls/icon-button/toggle", "patterns/viewport/embedded"],
+        "a sample button name in the story",
+    ),
+    ("background", &["patterns/artboard-properties/section"], "the name of the story's `background` arg"),
     (
         "Background",
         &[
@@ -1481,11 +1684,79 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
     ("White", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
     ("Width", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
     ("Width", &["specimens/type/faces"], "sample text of the type specimen"),
-    ("Width", &["composites/font-axes/sliders"], "the sample axis name, as a font's name table gives it"),
+    ("Width", &["composites/axis-sliders/sliders"], "the sample axis name, as a font's name table gives it"),
     ("Workspace", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
     ("Yellow", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
     ("Yellow", &["composites/color/palette", "composites/color/palette-table"], "a swatch name in the story's sample palette"),
     ("Zoom", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
+    (
+        "Eyedropper",
+        &[
+            "controls/segmented/icons",
+            "controls/segmented/text",
+            "patterns/app-preview/photo-editor",
+            "patterns/canvas/tool-pill",
+            "patterns/rail/tool",
+            "patterns/tool-rail/rail-in-dialog",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a tool name in the story's sample tool strip",
+    ),
+    (
+        "File",
+        &[
+            "patterns/dialog/about",
+            "patterns/dialog/blocking",
+            "patterns/dialog/command-form",
+            "patterns/dialog/edit-guides",
+            "patterns/dialog/footer",
+            "patterns/dialog/frame",
+            "patterns/dialog/guide-layout",
+            "patterns/dialog/list-manager",
+            "patterns/dialog/modeless",
+            "patterns/dialog/new-guide",
+            "patterns/dialog/params",
+            "patterns/dialog/password",
+            "patterns/dialog/preview",
+            "patterns/dialog/prompt",
+            "patterns/dialog/properties",
+            "patterns/dialog/report",
+            "patterns/dialog/size",
+            "patterns/dialog/stack",
+            "patterns/dialog/standard-prompt",
+            "patterns/dialog/startup-queue",
+        ],
+        "a sample property label in the Properties story",
+    ),
+    (
+        "Size",
+        &[
+            "patterns/dialog/about",
+            "patterns/dialog/blocking",
+            "patterns/dialog/command-form",
+            "patterns/dialog/edit-guides",
+            "patterns/dialog/footer",
+            "patterns/dialog/frame",
+            "patterns/dialog/guide-layout",
+            "patterns/dialog/list-manager",
+            "patterns/dialog/modeless",
+            "patterns/dialog/new-guide",
+            "patterns/dialog/params",
+            "patterns/dialog/password",
+            "patterns/dialog/preview",
+            "patterns/dialog/prompt",
+            "patterns/dialog/properties",
+            "patterns/dialog/report",
+            "patterns/dialog/size",
+            "patterns/dialog/stack",
+            "patterns/dialog/standard-prompt",
+            "patterns/dialog/startup-queue",
+        ],
+        "a sample property label in the Properties story",
+    ),
 ];
 
 /// Whether a node is the gallery's own text: it names components and stories (the browser lists,
@@ -1501,7 +1772,7 @@ fn gallery_chrome(tree: &craft_ui::inspect::AccessTree, node: egui::accesskit::N
         ancestors.len() > 1 && ancestors[..ancestors.len() - 1].iter().all(|a| matches!(a.as_str(), "Window:" | "GenericContainer:" | "Pane:"));
     (data.role() == Role::Tab && own_tab_bar)
         || (data.role() == Role::Label && data.supports_action(Action::Click) && titles.contains(&name))
-        || ancestors.iter().any(|a| matches!(a.as_str(), "ListBox:Components" | "ListBox:Stories"))
+        || ancestors.iter().any(|a| matches!(a.as_str(), "Tree:Components" | "ListBox:Stories"))
         // The name on a tile, which is the name of a component or story.
         || (data.role() == Role::Label && ancestors.iter().any(|a| *a == format!("Button:Select {name}")))
         // The gallery's own workspace switch in its options bar.

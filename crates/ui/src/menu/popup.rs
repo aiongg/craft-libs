@@ -93,6 +93,7 @@ pub struct Menu<'a, T> {
     scroll_labels: Option<(Cow<'a, str>, Cow<'a, str>)>,
     header: Option<&'a mut dyn FnMut(&mut Ui) -> bool>,
     restart: bool,
+    min_width: Option<f32>,
 }
 
 /// What a menu did in a pass, from [`Menu::show`].
@@ -122,7 +123,17 @@ pub struct MenuResponse<T> {
 
 impl<'a, T: Clone> Menu<'a, T> {
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
-        Self { entries, size: ControlSize::Md, pressing: false, keyboard: false, top_limit: None, scroll_labels: None, header: None, restart: false }
+        Self {
+            entries,
+            size: ControlSize::Md,
+            pressing: false,
+            keyboard: false,
+            top_limit: None,
+            scroll_labels: None,
+            header: None,
+            restart: false,
+            min_width: None,
+        }
     }
 
     /// The rows' size; [`ControlSize::Md`] by default.
@@ -159,6 +170,13 @@ impl<'a, T: Clone> Menu<'a, T> {
         self
     }
 
+    /// The narrowest a level of this menu is, in place of `menu.min_width`; a level still widens
+    /// to its widest row.
+    pub fn min_width(mut self, width: f32) -> Self {
+        self.min_width = Some(width);
+        self
+    }
+
     /// Content above the top level's rows, scrolling with them (a menu bar's search field).
     /// `header` returns whether it holds the keyboard focus: the letters, ← / → and Space are then
     /// its own, not the menu's.
@@ -181,7 +199,10 @@ impl<'a, T: Clone> Menu<'a, T> {
         let id = popup.get_id();
         let shown_before = ctx.read_response(id).is_some();
         let tokens = Tokens::of(ui);
-        let style = MenuStyle::new(&tokens, self.size);
+        let mut style = MenuStyle::new(&tokens, self.size);
+        if let Some(width) = self.min_width {
+            style.min_width = width;
+        }
         let modifier = popup_style(ui);
         // A click that moved the menu is not one that closes it.
         let close = if self.restart { PopupCloseBehavior::IgnoreClicks } else { PopupCloseBehavior::CloseOnClickOutside };

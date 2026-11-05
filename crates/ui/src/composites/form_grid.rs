@@ -53,7 +53,8 @@ pub enum LabelAlign {
 ///
 /// The label column is as wide as the widest label (and at least `form.label_min`), the control
 /// column takes the rest. A label is centred on the first control height of its row, and names
-/// the row's control for AccessKit (`labelled_by`). Right to left, the columns swap.
+/// the row's control for AccessKit (`labelled_by`); the label draws its trailing colon, and its
+/// accessible text, so the control's name, is the label without it. Right to left, the columns swap.
 ///
 /// ```
 /// # use craft_ui::composites::FormGrid;
@@ -304,6 +305,7 @@ impl Form<'_> {
         let style = self.style;
         let ui = &mut *self.ui;
         let format = role_format(&self.tokens, style.label_role, style.label);
+        let bare = label.as_deref().map(|text| text.trim_end_matches([':', '：']).to_owned());
         let galley = label.map(|text| one_line(ui, text, format));
         let rect = ui.available_rect_before_wrap();
         let rtl = direction::is_rtl(ui);
@@ -333,7 +335,12 @@ impl Form<'_> {
             };
             let builder = UiBuilder::new().max_rect(band).layout(layout);
             let builder = if self.disabled { builder.disabled() } else { builder };
-            ui.scope_builder(builder, |ui| ui.add(Label::new(galley).selectable(false))).inner
+            let label = ui.scope_builder(builder, |ui| ui.add(Label::new(galley).selectable(false))).inner;
+            // The row's control is named by this node: it carries the label without its colon.
+            if let Some(bare) = bare {
+                ui.ctx().accesskit_node_builder(label.id, |node| node.set_value(bare));
+            }
+            label
         });
         if let Some(label) = &label_response {
             row = label.rect;

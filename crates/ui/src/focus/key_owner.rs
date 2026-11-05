@@ -5,7 +5,7 @@
 //! shell registers ([`AppShell::canvas`](crate::shell::AppShell::canvas)) counts as no focus at
 //! all, so a focused canvas is [`KeyOwner::App`].
 
-use egui::Context;
+use egui::{Context, LayerId};
 
 /// What has the keyboard, first match wins in this order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -74,6 +74,29 @@ pub fn register_canvas(ctx: &Context, id: egui::Id) {
 // pc: crates/ui-egui/src/input/shortcuts.rs:824 `handle_escape_and_view_keys`, :872 page keys.
 pub(crate) fn canvas_keys_free(ctx: &Context) -> bool {
     matches!(owner(ctx, &OwnerGate::default()), KeyOwner::App | KeyOwner::Widget)
+}
+
+/// Whether single keys (tool letters, brackets, zoom chords, undo) are free for the layer
+/// `layer`, the layer of a full-window workspace or of a rail inside one: `layer` is the top
+/// modal layer (or no modal layer or app-modal window is open), no text field is editing, and no
+/// menu, menu bar, popup list or popover has the keyboard. A focused control that is not text
+/// leaves the keys free; a key it claimed is still its own ([`KeyClaim`](crate::behavior::KeyClaim)).
+///
+/// [`owner`] answers [`KeyOwner::Dialog`] for any modal layer, so a layer that is itself the
+/// modal workspace asks this instead.
+pub fn keys_free(ctx: &Context, layer: LayerId) -> bool {
+    if crate::menu::any_open(ctx)
+        || crate::popup_list::owns_keys(ctx)
+        || crate::popup_list::passive_open(ctx)
+        || crate::menu::bar::is_focused(ctx)
+        || ctx.text_edit_focused()
+    {
+        return false;
+    }
+    match ctx.memory(|m| m.top_modal_layer()) {
+        Some(top) => top == layer,
+        None => !crate::viewport::ViewportWindow::any_app_modal(ctx),
+    }
 }
 
 /// For each event of this pass, whether it is a key press the focused widget claimed. Computed

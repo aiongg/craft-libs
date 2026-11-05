@@ -20,6 +20,7 @@ use super::{
     ToolHost, ToolPointer, ViewHistory, ViewPlace, ZoomTool,
 };
 use crate::controls::Button;
+use crate::edit::CancelReason;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
 use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
@@ -257,7 +258,8 @@ fn show_navigation(ui: &mut Ui, args: &mut NavigationArgs) {
     tools.zoom.out = temporary == Some(MomentaryTool::ZoomOut);
     let before = view;
     let tool: &mut dyn CanvasTool = if zooming { &mut tools.zoom } else { &mut tools.hand };
-    let hosted = ToolHost::new(canvas.id).document(size).navigation(prefs).show(ui, &shown, response, tool);
+    // The host works on the target view: a pan that begins while the zoom eases keeps the target zoom.
+    let hosted = ToolHost::new(canvas.id).document(size).navigation(prefs).show(ui, &view, response, tool);
     if let Some(v) = hosted.view {
         view = CanvasView { rect: view.rect, ..v };
     }
@@ -480,7 +482,7 @@ impl CanvasTool for MarqueeDemo {
         self.start = None;
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         self.start = None;
     }
 
@@ -538,7 +540,7 @@ fn show_tool_host(ui: &mut Ui, args: &mut ToolHostArgs) {
     if tools.shown != args.tool {
         let old = tools.shown;
         tools.shown = args.tool;
-        if let Some(v) = ToolHost::cancel(&ctx, canvas.id, tools.pick(old)) {
+        if let Some(v) = ToolHost::cancel(&ctx, canvas.id, tools.pick(old), CancelReason::Removed) {
             view = CanvasView { rect: view.rect, ..v };
         }
     }
@@ -548,7 +550,7 @@ fn show_tool_host(ui: &mut Ui, args: &mut ToolHostArgs) {
     if args.snap {
         host = host.snap(&targets);
     }
-    let hosted = host.show(ui, &shown, response, tools.pick(args.tool));
+    let hosted = host.show(ui, &view, response, tools.pick(args.tool));
     ctx.data_mut(|d| d.insert_temp(key, tools));
     if let Some(v) = hosted.view {
         view = CanvasView { rect: view.rect, ..v };

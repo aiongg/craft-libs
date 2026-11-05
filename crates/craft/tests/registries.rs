@@ -8,7 +8,7 @@ fn stories_list_the_kernel_first_then_each_enabled_crate() {
     assert!(kernel > 0 && ids.len() > kernel);
     assert!(craft::ui::story::registry().iter().map(|s| s.id).eq(ids[..kernel].iter().copied()));
     #[cfg(feature = "keymap")]
-    assert!(ids[kernel..].contains(&"patterns/keyboard-shortcuts/dialog"));
+    assert!(ids[kernel..].contains(&"patterns/shortcuts-dialog/dialog"));
     #[cfg(feature = "font-manager")]
     assert!(ids[kernel..].contains(&"patterns/fonts-panel/panel"));
 }

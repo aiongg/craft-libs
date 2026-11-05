@@ -17,7 +17,7 @@ use crate::story::{Level, Story, StoryArgs, StoryLabels, lock, shared};
 use crate::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Reorderable sections"];
+pub const COMPONENTS: &[&str] = &["ReorderableSections"];
 
 crate::words! {
     /// The sample text of the sections story, English by default.
@@ -43,7 +43,7 @@ pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
         "composites/reorderable-sections/sidebar",
         Level::Composites,
-        "Reorderable sections",
+        "ReorderableSections",
         "Sidebar",
         SidebarArgs { show_counts: true, rows: 4, albums_button: true, local_available: true, height: 260.0 },
         show_sidebar

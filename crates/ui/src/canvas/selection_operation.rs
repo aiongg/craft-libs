@@ -51,6 +51,26 @@ impl SelectionOperation {
         }
     }
 
+    /// The operation a selection tool's gesture uses (Photoshop's): the options bar's `bar`,
+    /// overridden by `modifiers` as [`from_modifiers`](Self::from_modifiers) reads them (⇧ add, ⌥
+    /// subtract, ⇧⌥ intersect). With nothing selected (`has_selection` false) there is nothing to
+    /// subtract from or intersect with, so ⌥ or ⇧⌥ over a bar of `New` gives `New`; a bar of
+    /// `Subtract` or `Intersect` is kept as it is (PhotoCraft #1106). The tool calls it with the
+    /// modifiers of the press (or [`DraftEvent::Started`](super::draft::DraftEvent::Started)'s
+    /// `intent`) and keeps the answer for the gesture; the mode badge before the press follows the
+    /// live modifiers through the same call.
+    pub fn resolve(bar: SelectionOperation, modifiers: Modifiers, has_selection: bool) -> SelectionOperation {
+        // pc: crates/ui-egui/src/canvas/tool_feedback.rs:55-86 `selection_mode` (modifiers over the
+        // bar), :92-100 `document_selection_mode` (⌥ with nothing selected and a New bar is New).
+        let operation = if modifiers.shift || modifiers.alt { Self::from_modifiers(modifiers) } else { bar };
+        let nothing_to_combine = modifiers.alt && !has_selection && bar == SelectionOperation::New;
+        if nothing_to_combine && matches!(operation, SelectionOperation::Subtract | SelectionOperation::Intersect) {
+            SelectionOperation::New
+        } else {
+            operation
+        }
+    }
+
     /// The badge beside the selection pointer: `Add` a plus, `Subtract` a minus, `Intersect` a
     /// cross, `New` none ([`SelectionBadge::New`]).
     pub fn badge(self) -> SelectionBadge {

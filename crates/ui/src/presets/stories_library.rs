@@ -14,9 +14,9 @@
 //! | `composites/preset-picker/contour-with-files` | `Square` field, 4 columns, built-in and user contours, Delete, Load, Replace, Save through the fake `Files` |
 //! | `composites/preset-picker/names-list` | `PickerField::Name`, List view, groups (LightCraft's curve presets, SoundCraft's menu) |
 //! | `composites/preset-picker/keeps-open` | `OnActivate`: a click selects, a double-click closes |
-//! | `composites/named-preset/contour-buttons` | style `Buttons`: New… with the suggested name, a name clash error, Load…, Save… |
-//! | `composites/named-preset/trace-menu` | style `Menu`: Save as New Preset…, Rename…, Delete, "Custom" when nothing matches |
-//! | `composites/named-preset/rtl` | the row and the picker in right to left |
+//! | `composites/named-preset-row/contour-buttons` | style `Buttons`: New… with the suggested name, a name clash error, Load…, Save… |
+//! | `composites/named-preset-row/trace-menu` | style `Menu`: Save as New Preset…, Rename…, Delete, "Custom" when nothing matches |
+//! | `composites/named-preset-row/rtl` | the row and the picker in right to left |
 
 use std::collections::HashSet;
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
@@ -38,8 +38,8 @@ use crate::primitives::{Content, Text};
 use crate::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, StoryLabels, ensure_files, lock, shared};
 use crate::typed_story;
 
-/// The components this module has stories for. "Preset browser" is listed in `presets/stories.rs`.
-pub const COMPONENTS: &[&str] = &["Preset library", "Preset picker", "Named preset"];
+/// The components this module has stories for. "PresetBrowser" is listed in `presets/stories.rs`.
+pub const COMPONENTS: &[&str] = &["PresetLibrary", "PresetPicker", "NamedPresetRow"];
 
 /// The stories above.
 pub(crate) fn stories() -> Vec<Story> {
@@ -47,7 +47,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-browser/footer-in-panel",
             Level::Composites,
-            "Preset browser",
+            "PresetBrowser",
             "Footer in panel",
             FooterArgs { height: 180.0, slider: true, new_group: true, count: true },
             show_footer
@@ -55,7 +55,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-browser/drop-on-canvas",
             Level::Composites,
-            "Preset browser",
+            "PresetBrowser",
             "Drop on canvas",
             DropArgs { canvas_height: 120.0 },
             show_drop
@@ -63,7 +63,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-browser/hover-preview",
             Level::Composites,
-            "Preset browser",
+            "PresetBrowser",
             "Hover preview",
             PreviewArgs { preview_height: 80.0 },
             show_preview
@@ -71,7 +71,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-library/groups-and-folders",
             Level::Composites,
-            "Preset library",
+            "PresetLibrary",
             "Groups and folders",
             LibraryArgs { height: 260.0, drag_groups: true },
             show_library
@@ -79,7 +79,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-picker/pattern-grid",
             Level::Composites,
-            "Preset picker",
+            "PresetPicker",
             "Pattern grid",
             GridArgs { columns: 6 },
             show_pattern_grid
@@ -87,7 +87,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-picker/shape-groups",
             Level::Composites,
-            "Preset picker",
+            "PresetPicker",
             "Shape groups",
             ShapeArgs { columns: 7 },
             show_shape_groups
@@ -95,7 +95,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-picker/contour-with-files",
             Level::Composites,
-            "Preset picker",
+            "PresetPicker",
             "Contour with files",
             ContourArgs { columns: 4, split: false },
             show_contour_files
@@ -103,7 +103,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-picker/names-list",
             Level::Composites,
-            "Preset picker",
+            "PresetPicker",
             "Names list",
             NamesArgs { editable: true },
             show_names_list
@@ -111,28 +111,28 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-picker/keeps-open",
             Level::Composites,
-            "Preset picker",
+            "PresetPicker",
             "Keeps open",
             KeepsOpenArgs { columns: 5, mode: FieldArg::Thumbnail },
             show_keeps_open
         ),
         typed_story!(
-            "composites/named-preset/contour-buttons",
+            "composites/named-preset-row/contour-buttons",
             Level::Composites,
-            "Named preset",
+            "NamedPresetRow",
             "Contour buttons",
             ButtonsArgs { clash: true },
             show_contour_buttons
         ),
         typed_story!(
-            "composites/named-preset/trace-menu",
+            "composites/named-preset-row/trace-menu",
             Level::Composites,
-            "Named preset",
+            "NamedPresetRow",
             "Trace menu",
             TraceArgs { custom: true },
             show_trace_menu
         ),
-        typed_story!("composites/named-preset/rtl", Level::Composites, "Named preset", "Right to left", NoArgs {}, show_rtl),
+        typed_story!("composites/named-preset-row/rtl", Level::Composites, "NamedPresetRow", "Right to left", NoArgs {}, show_rtl),
     ]
 }
 

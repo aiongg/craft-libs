@@ -96,7 +96,7 @@ fn field_tabs() -> Vec<PropertiesTab> {
 fn field_rows_draw_editable_and_read_only() {
     let mut editable = harness(PropertiesDialog::new("props-field-edit", "Properties", field_tabs()));
     editable.run();
-    assert!(editable.query_by_label("Title:").is_some());
+    assert!(editable.query_by_label("Title").is_some());
     editable.get_by_label("OK").click();
     editable.run();
     let Some(DialogResult::Ok(fields)) = &editable.state().result else { panic!("no result") };
@@ -106,7 +106,7 @@ fn field_rows_draw_editable_and_read_only() {
 
     let mut read_only = harness(PropertiesDialog::new("props-field-ro", "Properties", field_tabs()).read_only(true));
     read_only.run();
-    assert!(read_only.query_by_label("Title:").is_some());
+    assert!(read_only.query_by_label("Title").is_some());
     assert!(read_only.query_by_label("Untitled").is_some());
     assert!(read_only.query_by_label("#8000FF").is_some(), "0.5 encodes to 0x80, 1.0 to 0xFF");
     assert!(read_only.query_by_label("RGB Color").is_some());

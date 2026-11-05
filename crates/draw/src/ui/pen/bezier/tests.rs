@@ -6,9 +6,10 @@ use kurbo::{ParamCurve as _, ParamCurveDeriv as _, Point, Vec2};
 
 use super::story::PathHost;
 use super::{
-    BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, MAX_ANCHORS,
-    PathEdit, PathSelection,
+    AnchorsShown, BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,
+    MAX_ANCHORS, PathEdit, PathSelection, SegmentMark,
 };
+use crate::ui::pen::PathOptionsSettings;
 use craft_ui::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
 use craft_ui::edit::{CancelReason, EditEvent};
 use craft_ui::localized::LocaleNumbers;
@@ -34,6 +35,9 @@ struct Host {
     field: TypingField,
     modifiers: Option<Modifiers>,
     highlight: Option<BezierHit>,
+    segment_mark: SegmentMark,
+    anchors: AnchorsShown,
+    options: Option<PathOptionsSettings>,
 }
 
 /// Path 1: an open subpath of four anchors: a straight segment, then two curved ones.
@@ -72,6 +76,9 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
         field: TypingField::default(),
         modifiers: None,
         highlight: None,
+        segment_mark: SegmentMark::default(),
+        anchors: AnchorsShown::default(),
+        options: None,
     };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
@@ -87,7 +94,16 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
             if let Some(m) = host.modifiers {
                 overlay = overlay.modifiers(m);
             }
-            let response = overlay.highlight(host.highlight).tool(host.tool).handles(host.handles).show(ui, &canvas, &view);
+            if let Some(options) = &host.options {
+                overlay = overlay.path_options(options);
+            }
+            let response = overlay
+                .highlight(host.highlight)
+                .tool(host.tool)
+                .handles(host.handles)
+                .segment_mark(host.segment_mark)
+                .anchors(host.anchors)
+                .show(ui, &canvas, &view);
             if let Some(x) = host.guide {
                 let guides = [Guide::new(1, Orientation::Vertical, x)];
                 let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
@@ -606,6 +622,18 @@ fn lines(h: &Harness<'_, Host>, width: f32, color: Color32) -> usize {
     h.output().shapes.iter().map(|c| count(&c.shape, width, color)).sum()
 }
 
+/// The anchor-to-handle lines of the last frame.
+fn handle_lines(h: &Harness<'_, Host>, style: &super::BezierStyle) -> usize {
+    fn count(shape: &Shape, style: &super::BezierStyle) -> usize {
+        match shape {
+            Shape::Vec(shapes) => shapes.iter().map(|s| count(s, style)).sum(),
+            Shape::LineSegment { stroke, .. } => usize::from((stroke.width - style.control_line).abs() < 1e-3 && stroke.color == style.control.fill),
+            _ => 0,
+        }
+    }
+    h.output().shapes.iter().map(|c| count(&c.shape, style)).sum()
+}
+
 #[test]
 fn highlight_draws_the_hover_look_on_the_hit_only() {
     let style = BezierOverlay::style(&current(&two_paths().ctx));
@@ -628,4 +656,93 @@ fn highlight_draws_the_hover_look_on_the_hit_only() {
     assert_eq!(lines(&h, ring, style.halo), 1, "the ring's halo under the segment");
     assert_eq!(lines(&h, style.selected_segment, style.color), 1, "the ring");
     assert!(!square_widths(&h).contains(&enlarged), "no enlarged anchor for a segment");
+}
+
+// Task PE-A3 from here.
+
+// `hit_test` answers what a press takes, without a pass: handles, then anchors, then segments, in
+// a rotated and flipped view, as the overlay's own press does.
+#[test]
+fn hit_test_matches_the_overlays_press_priority() {
+    for (rotation, flip) in [(0.0, false), (0.7, true)] {
+        let mut h = two_paths();
+        h.state_mut().rotation = rotation;
+        h.state_mut().flip = flip;
+        h.state_mut().paths.selection = sel(1, &[(0, 2)]);
+        h.run();
+        let view = h.state().view.expect("drawn");
+        let test = |h: &Harness<'_, Host>, at: Pos2| {
+            let state = h.state();
+            BezierOverlay::hit_test(&state.paths.paths, &state.paths.selection, HandlesShown::Selected, &view, at, 6.0)
+        };
+        let handle = screen(&h, Point::new(290.0, 100.0));
+        assert_eq!(test(&h, handle), Some(BezierHit::Handle { path: 1, knot: KnotRef::new(0, 2), side: HandleSide::Out }));
+        let anchor_at = screen(&h, Point::new(160.0, 60.0));
+        assert_eq!(test(&h, anchor_at), Some(BezierHit::Anchor { path: 1, knot: KnotRef::new(0, 1) }));
+        let on_segment = screen(&h, Point::new(110.0, 60.0));
+        assert!(matches!(test(&h, on_segment), Some(BezierHit::Segment { path: 1, segment, .. }) if segment == KnotRef::new(0, 0)));
+        assert_eq!(test(&h, screen(&h, Point::new(10.0, 10.0))), None);
+    }
+}
+
+// `HitMark` on a segment draws the haloed segment and a hollow anchor at the point at t (gap row
+// 37); on an anchor the enlarged anchor; the `highlight` builder draws the same.
+#[test]
+fn hit_mark_draws_a_preview_anchor_at_t_on_a_segment() {
+    let mut h = two_paths();
+    let style = BezierOverlay::style(&current(&h.ctx));
+    let plain = square_widths(&h).iter().filter(|w| (**w - style.anchor.size).abs() < 1e-3).count();
+    h.state_mut().highlight = Some(BezierHit::Segment { path: 1, segment: KnotRef::new(0, 0), t: 0.5 });
+    h.run();
+    let marked = square_widths(&h).iter().filter(|w| (**w - style.anchor.size).abs() < 1e-3).count();
+    assert!(marked > plain, "a hollow anchor at t");
+}
+
+// A selected segment draws its two handles and no thick line by default (gap row 36);
+// `SegmentMark::Line` draws the line too.
+#[test]
+fn selected_segment_draws_handles_only_by_default() {
+    let mut h = two_paths();
+    let style = BezierOverlay::style(&current(&h.ctx));
+    let handle_lines = |h: &Harness<'_, Host>| handle_lines(h, &style);
+    let before = handle_lines(&h);
+    h.state_mut().paths.selection = PathSelection { path: Some(1), anchors: Vec::new(), segment: Some(KnotRef::new(0, 2)) };
+    h.run();
+    assert_eq!(lines(&h, style.selected_segment, style.color), 0, "no thick line");
+    assert_eq!(handle_lines(&h), before + 1, "the segment's handle (its other end is retracted)");
+    h.state_mut().segment_mark = SegmentMark::Line;
+    h.run();
+    assert_eq!(lines(&h, style.selected_segment, style.color), 1, "the line");
+}
+
+// `AnchorsShown::Hidden` draws outlines only: no anchor, no handle, no AccessKit part (gap row 38).
+#[test]
+fn anchors_hidden_draws_outlines_only() {
+    let mut h = two_paths();
+    let style = BezierOverlay::style(&current(&h.ctx));
+    h.state_mut().paths.selection = sel(1, &[(0, 2)]);
+    h.run();
+    assert_eq!(handle_lines(&h, &style), 2, "both handles of the selected anchor");
+    h.state_mut().anchors = AnchorsShown::Hidden;
+    h.run();
+    assert!(!square_widths(&h).iter().any(|w| (*w - style.anchor.size).abs() < 1e-3), "no anchor");
+    assert_eq!(handle_lines(&h, &style), 0, "no handle line");
+    assert!(objects(&h).is_empty(), "no AccessKit part");
+    h.state_mut().anchors = AnchorsShown::All;
+    h.run();
+    assert!(square_widths(&h).iter().any(|w| (*w - style.anchor.size).abs() < 1e-3), "anchors back");
+}
+
+// Path Options: a colour replaces `overlay.line` for paths without their own colour and a
+// thickness replaces `bezier.line`; the pen draft's line takes them too (task PE-C2's half).
+#[test]
+fn path_options_colour_and_thickness_change_the_pen_and_path_look() {
+    let mut h = two_paths();
+    let style = BezierOverlay::style(&current(&h.ctx));
+    assert_eq!(lines(&h, style.line, style.color), 1, "path 1 in the tokens' look");
+    h.state_mut().options = Some(PathOptionsSettings { color: Some([10, 200, 30]), thickness: Some(3.0), ..PathOptionsSettings::default() });
+    h.run();
+    let green = Color32::from_rgb(10, 200, 30);
+    assert_eq!(lines(&h, 3.0, green), 1, "path 1 takes the colour and thickness");
+    assert_eq!(lines(&h, 3.0, Color32::from_rgb(230, 110, 20)), 2, "path 2 keeps its own colour, takes the thickness");
 }

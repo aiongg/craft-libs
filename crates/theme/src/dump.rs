@@ -6,25 +6,28 @@
 use std::fmt::Write as _;
 
 use crate::{
-    AboutTokens, ActionsTokens, AlignTokens, AltTextTokens, AngleDialTokens, AppShellTokens, AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens,
-    BadgeTone, BarSizes, BezierTokens, BorderColors, BreadcrumbTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, CellSelectionTokens,
-    ChannelsTokens, CheckOffColors, CheckOnColors, CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens,
-    ColorRampTokens, ColorToken, ColorWheelTokens, ColumnBarTokens, CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens,
-    CurveTokens, DateTokens, DialogTokens, Dimmed, DockTokens, DragTokens, DropVeilTokens, Easing, Edge, EdgePickerTokens, Elevation,
-    ElevationTokens, EmptyStateTokens, EventLogTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens, FindTokens, FindingsTokens,
-    FloatTokens, FontPickerTokens, FontSlot, FormSpacing, FormTokens, FrameMarksTokens, Gaps, GlyphsTokens, GradientEditorTokens, GradientLineTokens,
-    GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HeaderFooterTokens, HistogramTokens, HistoryTokens,
-    IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayersTokens, LevelsTokens, LinkTokens,
-    ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarginsTokens, MarqueeTokens, MenuHue, MenuTokens, MetadataTokens, Motion, MotionTokens,
-    NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PagesTokens, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens,
-    PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens,
-    PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, ReviewTokens, Rgba,
-    RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens,
-    SheetTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States,
-    StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, TableSizeTokens, TableTokens, TextEditorTokens,
-    TextSelectionTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, ThumbnailsTokens, TileTokens, TimelineTokens,
-    TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens,
-    TreePickerTokens, TypeRole, TypeStyle, TypeTokens,
+    AboutTokens, ActionsTokens, AddBesideTokens, AdjustTokens, AlignTokens, AltTextTokens, AngleDialTokens, AppShellTokens, ArtboardTokens,
+    AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BeforeAfterTokens, BezierTokens, BlendIfTokens, BlurPinsTokens,
+    BorderColors, BreadcrumbTokens, BrushTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, CellSelectionTokens, ChannelsTokens,
+    CheckOffColors, CheckOnColors, CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens, ColorRampTokens, ColorToken,
+    ColorWheelTokens, ColumnBarTokens, CommandPaletteTokens, ComponentTokens, ConnectorTokens, ConstrainTokens, ControlSizes, CornerTokens,
+    CropTokens, CursorTokens, CurveTokens, DateTokens, DialogTokens, Dimmed, DockTokens, DragTokens, DropVeilTokens, Easing, Edge, EdgePickerTokens,
+    Elevation, ElevationTokens, EmptyStateTokens, EventLogTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens, FilterGalleryTokens,
+    FindTokens, FindingsTokens, FloatTokens, FontPickerTokens, FontSlot, FormSpacing, FormTokens, FrameMarksTokens, FullWindowTokens, Gaps,
+    GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GripTokens, GroupBoxTokens, GuideTokens, HandleTokens,
+    HarmonyTokens, HeaderFooterTokens, HistogramTokens, HistoryTokens, HoverTokens, IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens,
+    ItemColors, KbdTokens, LabelColor, LayerStyleTokens, LayersTokens, LevelsTokens, LineGuideTokens, LinkTokens, LiquifyTokens, ListManagerTokens,
+    ListSizes, ListTokens, ListboxTokens, MarginsTokens, MarqueeTokens, MeasureTokens, MenuHue, MenuTokens, MetadataTokens, Motion, MotionTokens,
+    NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, OutlineDraftTokens, Pads, PagesTokens, PaintChipTokens, PanelFooterTokens,
+    PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens,
+    ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens,
+    ReviewTokens, Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectMaskTokens,
+    SelectTokens, SelectionBarTokens, SelectionFrameTokens, ShapeDragTokens, ShapeTokens, SheetTokens, SizeTokens, SliceTokens, SliderRowTokens,
+    SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, StrokeEditorTokens, SwatchColor,
+    SwatchPaletteTokens, SwatchTokens, SymmetryTokens, TabSizes, TabTokens, TableSizeTokens, TableTokens, TextEditorTokens, TextSelectionTokens,
+    TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, ThumbnailsTokens, TileTokens, TimelineTokens, TitleBarTokens,
+    ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens,
+    TypeRole, TypeStyle, TypeTokens, VanishingPointTokens, WideAngleTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -299,6 +302,34 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         channels,
         check,
         color_picker,
+        select,
+        hover,
+        outline_draft,
+        selection_frame,
+        grip,
+        constrain,
+        line_guide,
+        before_after,
+        brush,
+        full_window,
+        corner,
+        stroke_editor,
+        measure,
+        symmetry,
+        adjust,
+        layer_style,
+        blend_if,
+        add_beside,
+        shape_drag,
+        slice,
+        artboard,
+        connector,
+        vanishing_point,
+        wide_angle,
+        blur_pins,
+        liquify,
+        select_mask,
+        filter_gallery,
         color_ramp,
         color_wheel,
         command_palette,
@@ -424,6 +455,34 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     canvas_lines(out, canvas);
     check_lines(out, check);
     color_picker_lines(out, color_picker);
+    select_lines(out, select);
+    hover_lines(out, hover);
+    outline_draft_lines(out, outline_draft);
+    selection_frame_lines(out, selection_frame);
+    grip_lines(out, grip);
+    constrain_lines(out, constrain);
+    line_guide_lines(out, line_guide);
+    before_after_lines(out, before_after);
+    brush_lines(out, brush);
+    full_window_lines(out, full_window);
+    corner_lines(out, corner);
+    stroke_editor_lines(out, stroke_editor);
+    measure_lines(out, measure);
+    symmetry_lines(out, symmetry);
+    adjust_lines(out, adjust);
+    layer_style_lines(out, layer_style);
+    blend_if_lines(out, blend_if);
+    add_beside_lines(out, add_beside);
+    shape_drag_lines(out, shape_drag);
+    slice_lines(out, slice);
+    artboard_lines(out, artboard);
+    connector_lines(out, connector);
+    vanishing_point_lines(out, vanishing_point);
+    wide_angle_lines(out, wide_angle);
+    blur_pins_lines(out, blur_pins);
+    liquify_lines(out, liquify);
+    select_mask_lines(out, select_mask);
+    filter_gallery_lines(out, filter_gallery);
     color_ramp_lines(out, color_ramp);
     color_wheel_lines(out, color_wheel);
     command_palette_lines(out, command_palette);
@@ -850,9 +909,11 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         bracket_arm,
         ghost_offset,
         label,
+        label_strong,
         detail_role,
         text,
         dimmed,
+        muted,
         selected_text,
         selected_dimmed,
         detail,
@@ -905,10 +966,12 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
     out.line("list.bracket_arm", len(*bracket_arm));
     out.line("list.ghost_offset", format!("{} {}", len(ghost_offset[0]), len(ghost_offset[1])));
     out.line("list.label", role(*label));
+    out.line("list.label_strong", role(*label_strong));
     out.line("list.detail_role", role(*detail_role));
     for (k, c) in [
         ("text", text),
         ("text.dimmed", dimmed),
+        ("text.muted", muted),
         ("text.selected", selected_text),
         ("text.selected.dimmed", selected_dimmed),
         ("detail", detail),
@@ -1309,6 +1372,7 @@ fn rail_lines(out: &mut Lines, t: &RailTokens) {
         gap,
         row_gap,
         panel_gap,
+        group_gap,
         pad_y,
         toggle_height,
         toggle_icon,
@@ -1340,6 +1404,7 @@ fn rail_lines(out: &mut Lines, t: &RailTokens) {
         ("gap", gap),
         ("row_gap", row_gap),
         ("panel_gap", panel_gap),
+        ("group_gap", group_gap),
         ("pad_y", pad_y),
         ("toggle_height", toggle_height),
         ("toggle_icon", toggle_icon),
@@ -1599,6 +1664,9 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
         perspective_click_dot,
         perspective_click_move,
         perspective_reach,
+        menu_width,
+        menu_max_width,
+        preset_width,
     } = t;
     out.line("crop.hit", len(*hit));
     out.line("crop.line", len(*line));
@@ -1621,6 +1689,9 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
     out.line("crop.perspective_click_dot", len(*perspective_click_dot));
     out.line("crop.perspective_click_move", len(*perspective_click_move));
     out.line("crop.perspective_reach", len(*perspective_reach));
+    out.line("crop.menu_width", len(*menu_width));
+    out.line("crop.menu_max_width", len(*menu_max_width));
+    out.line("crop.preset_width", len(*preset_width));
 }
 
 fn check_spelling_lines(out: &mut Lines, t: &CheckSpellingTokens) {
@@ -1728,6 +1799,14 @@ fn transform_lines(out: &mut Lines, t: &TransformTokens) {
         warp_anchor,
         warp_control,
         warp_reveal,
+        pin,
+        pin_ring,
+        pin_core,
+        pin_turn,
+        pin_turn_line,
+        mesh_line,
+        plane_corner,
+        plane_ring,
     } = t;
     out.line("transform.line", len(*line));
     out.line("transform.hit", len(*hit));
@@ -1744,6 +1823,18 @@ fn transform_lines(out: &mut Lines, t: &TransformTokens) {
     out.line("transform.warp_anchor", len(*warp_anchor));
     out.line("transform.warp_control", len(*warp_control));
     out.line("transform.warp_reveal", len(*warp_reveal));
+    for (name, v) in [
+        ("pin", pin),
+        ("pin_ring", pin_ring),
+        ("pin_core", pin_core),
+        ("pin_turn", pin_turn),
+        ("pin_turn_line", pin_turn_line),
+        ("mesh_line", mesh_line),
+        ("plane_corner", plane_corner),
+        ("plane_ring", plane_ring),
+    ] {
+        out.line(&format!("transform.{name}"), len(*v));
+    }
 }
 
 fn gradient_line_lines(out: &mut Lines, t: &GradientLineTokens) {
@@ -2717,8 +2808,10 @@ fn screen_picker_lines(out: &mut Lines, t: &ScreenPickerTokens) {
 }
 
 fn paint_chip_lines(out: &mut Lines, t: &PaintChipTokens) {
-    let PaintChipTokens { size } = t;
+    let PaintChipTokens { size, none_inset, none_line } = t;
     out.line("paint_chip.size", format!("{} {}", len(size[0]), len(size[1])));
+    out.line("paint_chip.none_inset", len(*none_inset));
+    out.line("paint_chip.none_line", len(*none_line));
 }
 
 fn harmony_lines(out: &mut Lines, t: &HarmonyTokens) {
@@ -2985,4 +3078,542 @@ fn alt_text_lines(out: &mut Lines, t: &AltTextTokens) {
     let AltTextTokens { box_width, row_gap } = t;
     out.line("alt_text.box_width", len(*box_width));
     out.line("alt_text.row_gap", len(*row_gap));
+}
+
+fn select_lines(out: &mut Lines, t: &SelectTokens) {
+    let SelectTokens { fastening, ring_radius, ring_offset, ring_halo, ring_line, width_ring_min, width_ring_gap } = t;
+    out.line("select.fastening", len(*fastening));
+    out.line("select.ring_radius", len(*ring_radius));
+    out.line("select.ring_offset", len(*ring_offset));
+    out.line("select.ring_halo", len(*ring_halo));
+    out.line("select.ring_line", len(*ring_line));
+    out.line("select.width_ring_min", len(*width_ring_min));
+    out.line("select.width_ring_gap", len(*width_ring_gap));
+}
+
+fn hover_lines(out: &mut Lines, t: &HoverTokens) {
+    let HoverTokens { outline, fill_alpha, edge_alpha, debounce_ms, busy_ms } = t;
+    out.line("hover.outline", len(*outline));
+    out.line("hover.fill_alpha", len(*fill_alpha));
+    out.line("hover.edge_alpha", len(*edge_alpha));
+    out.line("hover.debounce_ms", len(*debounce_ms));
+    out.line("hover.busy_ms", len(*busy_ms));
+}
+
+fn outline_draft_lines(out: &mut Lines, t: &OutlineDraftTokens) {
+    let OutlineDraftTokens { close, same_point } = t;
+    out.line("outline_draft.close", len(*close));
+    out.line("outline_draft.same_point", len(*same_point));
+}
+
+fn selection_frame_lines(out: &mut Lines, t: &SelectionFrameTokens) {
+    let SelectionFrameTokens { line, key_line, centre, outline, dash, gap, grow_step } = t;
+    out.line("selection_frame.line", len(*line));
+    out.line("selection_frame.key_line", len(*key_line));
+    out.line("selection_frame.centre", len(*centre));
+    out.line("selection_frame.outline", len(*outline));
+    out.line("selection_frame.dash", len(*dash));
+    out.line("selection_frame.gap", len(*gap));
+    out.line("selection_frame.grow_step", len(*grow_step));
+}
+
+fn grip_lines(out: &mut Lines, t: &GripTokens) {
+    let GripTokens { size, midpoint_height, stroke, hit_pad, warm_pad } = t;
+    out.line("grip.size", len(*size));
+    out.line("grip.midpoint_height", len(*midpoint_height));
+    out.line("grip.stroke", len(*stroke));
+    out.line("grip.hit_pad", len(*hit_pad));
+    out.line("grip.warm_pad", len(*warm_pad));
+}
+
+fn constrain_lines(out: &mut Lines, t: &ConstrainTokens) {
+    let ConstrainTokens { copy_reach, stroke_lock } = t;
+    out.line("constrain.copy_reach", len(*copy_reach));
+    out.line("constrain.stroke_lock", len(*stroke_lock));
+}
+
+fn line_guide_lines(out: &mut Lines, t: &LineGuideTokens) {
+    let LineGuideTokens { width, halo } = t;
+    out.line("line_guide.width", len(*width));
+    out.line("line_guide.halo", len(*halo));
+}
+
+fn before_after_lines(out: &mut Lines, t: &BeforeAfterTokens) {
+    let BeforeAfterTokens { line, halo, knob, gap_side, gap_stacked, caption_gap } = t;
+    out.line("before_after.line", len(*line));
+    out.line("before_after.halo", len(*halo));
+    out.line("before_after.knob", len(*knob));
+    out.line("before_after.gap_side", len(*gap_side));
+    out.line("before_after.gap_stacked", len(*gap_stacked));
+    out.line("before_after.caption_gap", len(*caption_gap));
+}
+
+fn brush_lines(out: &mut Lines, t: &BrushTokens) {
+    let BrushTokens {
+        resize_travel,
+        tip_min_radius,
+        tip_min_crosshair,
+        picker_width,
+        picker_height,
+        picker_min_width,
+        picker_min_height,
+        picker_head_max,
+        picker_list_min,
+        picker_gap,
+        picker_grip_room,
+        picker_field_min,
+        card_pad,
+        card_inset,
+        card_tip_width,
+        card_tip_base,
+        card_name_height,
+        card_name_inset,
+        card_tip_compact_inset,
+        card_number_gap,
+        card_tip_gap,
+        card_stroke_inset,
+        card_stroke_min,
+        card_stroke_max,
+        card_stroke_height,
+        card_max,
+        card_tip_only,
+        card_tip_name,
+        card_radius,
+        chip,
+        chip_tip,
+        chip_tip_at,
+        chip_chevron,
+        chip_number_at,
+        chip_chevron_inset,
+        panel_width,
+        section_list_width,
+        section_row,
+        section_switch_gap,
+        strip_height,
+        control_select,
+        ellipse_size,
+        ellipse_disc,
+        ellipse_radius,
+        ellipse_dot,
+        ellipse_grab,
+        ellipse_line,
+        ellipse_arrow_reach,
+        ellipse_head,
+        tip_grid_cell,
+        tip_grid_thumb,
+        tip_grid_max,
+        preview_tint,
+        card_fill,
+        strip_fill,
+        strip_border,
+        ellipse_disc_fill,
+        ellipse_disc_border,
+    } = t;
+    out.line("brush.resize_travel", len(*resize_travel));
+    out.line("brush.tip_min_radius", len(*tip_min_radius));
+    out.line("brush.tip_min_crosshair", len(*tip_min_crosshair));
+    out.line("brush.picker_width", len(*picker_width));
+    out.line("brush.picker_height", len(*picker_height));
+    out.line("brush.picker_min_width", len(*picker_min_width));
+    out.line("brush.picker_min_height", len(*picker_min_height));
+    out.line("brush.picker_head_max", len(*picker_head_max));
+    out.line("brush.picker_list_min", len(*picker_list_min));
+    out.line("brush.picker_gap", len(*picker_gap));
+    out.line("brush.picker_grip_room", len(*picker_grip_room));
+    out.line("brush.picker_field_min", len(*picker_field_min));
+    out.line("brush.card_pad", len(*card_pad));
+    out.line("brush.card_inset", len(*card_inset));
+    out.line("brush.card_tip_width", len(*card_tip_width));
+    out.line("brush.card_tip_base", len(*card_tip_base));
+    out.line("brush.card_name_height", len(*card_name_height));
+    out.line("brush.card_name_inset", len(*card_name_inset));
+    out.line("brush.card_tip_compact_inset", len(*card_tip_compact_inset));
+    out.line("brush.card_number_gap", len(*card_number_gap));
+    out.line("brush.card_tip_gap", len(*card_tip_gap));
+    out.line("brush.card_stroke_inset", len(*card_stroke_inset));
+    out.line("brush.card_stroke_min", len(*card_stroke_min));
+    out.line("brush.card_stroke_max", len(*card_stroke_max));
+    out.line("brush.card_stroke_height", len(*card_stroke_height));
+    out.line("brush.card_max", format!("{} {}", len(card_max[0]), len(card_max[1])));
+    out.line("brush.card_tip_only", format!("{} {}", len(card_tip_only[0]), len(card_tip_only[1])));
+    out.line("brush.card_tip_name", format!("{} {}", len(card_tip_name[0]), len(card_tip_name[1])));
+    out.line("brush.card_radius", len(*card_radius));
+    out.line("brush.chip", format!("{} {}", len(chip[0]), len(chip[1])));
+    out.line("brush.chip_tip", len(*chip_tip));
+    out.line("brush.chip_tip_at", format!("{} {}", len(chip_tip_at[0]), len(chip_tip_at[1])));
+    out.line("brush.chip_chevron", len(*chip_chevron));
+    out.line("brush.chip_number_at", len(*chip_number_at));
+    out.line("brush.chip_chevron_inset", len(*chip_chevron_inset));
+    out.line("brush.panel_width", len(*panel_width));
+    out.line("brush.section_list_width", len(*section_list_width));
+    out.line("brush.section_row", len(*section_row));
+    out.line("brush.section_switch_gap", len(*section_switch_gap));
+    out.line("brush.strip_height", len(*strip_height));
+    out.line("brush.control_select", len(*control_select));
+    out.line("brush.ellipse_size", len(*ellipse_size));
+    out.line("brush.ellipse_disc", len(*ellipse_disc));
+    out.line("brush.ellipse_radius", len(*ellipse_radius));
+    out.line("brush.ellipse_dot", len(*ellipse_dot));
+    out.line("brush.ellipse_grab", len(*ellipse_grab));
+    out.line("brush.ellipse_line", len(*ellipse_line));
+    out.line("brush.ellipse_arrow_reach", len(*ellipse_arrow_reach));
+    out.line("brush.ellipse_head", format!("{} {}", len(ellipse_head[0]), len(ellipse_head[1])));
+    out.line("brush.tip_grid_cell", format!("{} {}", len(tip_grid_cell[0]), len(tip_grid_cell[1])));
+    out.line("brush.tip_grid_thumb", len(*tip_grid_thumb));
+    out.line("brush.tip_grid_max", len(*tip_grid_max));
+    out.line("brush.preview_tint", hex(*preview_tint));
+    out.line("brush.card_fill", hex(*card_fill));
+    out.line("brush.strip_fill", hex(*strip_fill));
+    out.line("brush.strip_border", hex(*strip_border));
+    out.line("brush.ellipse_disc_fill", hex(*ellipse_disc_fill));
+    out.line("brush.ellipse_disc_border", hex(*ellipse_disc_border));
+}
+
+fn full_window_lines(out: &mut Lines, t: &FullWindowTokens) {
+    let FullWindowTokens {
+        side_width,
+        side_width_wide,
+        side_width_narrow,
+        side_pad_x,
+        side_pad_y,
+        footer_gap,
+        canvas_margin,
+        zoom_bar_height,
+        zoom_bar_pad_x,
+        zoom_bar_pad_y,
+        progress_width,
+        side_fill,
+        side_divider,
+        canvas_fill,
+        canvas_outline,
+    } = t;
+    out.line("full_window.side.width", len(*side_width));
+    out.line("full_window.side.width_wide", len(*side_width_wide));
+    out.line("full_window.side.width_narrow", len(*side_width_narrow));
+    out.line("full_window.side.pad_x", len(*side_pad_x));
+    out.line("full_window.side.pad_y", len(*side_pad_y));
+    out.line("full_window.footer.gap", len(*footer_gap));
+    out.line("full_window.canvas.margin", len(*canvas_margin));
+    out.line("full_window.zoom_bar.height", len(*zoom_bar_height));
+    out.line("full_window.zoom_bar.pad_x", len(*zoom_bar_pad_x));
+    out.line("full_window.zoom_bar.pad_y", len(*zoom_bar_pad_y));
+    out.line("full_window.progress.width", len(*progress_width));
+    out.line("full_window.side.fill", hex(*side_fill));
+    out.line("full_window.side.divider", hex(*side_divider));
+    out.line("full_window.canvas.fill", hex(*canvas_fill));
+    out.line("full_window.canvas.outline", hex(*canvas_outline));
+}
+
+fn corner_lines(out: &mut Lines, t: &CornerTokens) {
+    let CornerTokens { widget, dot, line, hit, click_slop, inset, min_side } = t;
+    out.line("corner.widget", len(*widget));
+    out.line("corner.dot", len(*dot));
+    out.line("corner.line", len(*line));
+    out.line("corner.hit", len(*hit));
+    out.line("corner.click_slop", len(*click_slop));
+    out.line("corner.inset", len(*inset));
+    out.line("corner.min_side", len(*min_side));
+}
+
+fn stroke_editor_lines(out: &mut Lines, t: &StrokeEditorTokens) {
+    let StrokeEditorTokens {
+        width,
+        screen_margin,
+        screen_margin_y,
+        min_width,
+        min_height,
+        opener_width,
+        opener_height,
+        preset_height,
+        choice_width,
+        field_width,
+        sample_height,
+        sample_stroke,
+        sample_inset,
+        sample_margin,
+        off_stroke,
+        off_slash_stroke,
+    } = t;
+    out.line("stroke_editor.width", len(*width));
+    out.line("stroke_editor.screen_margin", len(*screen_margin));
+    out.line("stroke_editor.screen_margin_y", len(*screen_margin_y));
+    out.line("stroke_editor.min_width", len(*min_width));
+    out.line("stroke_editor.min_height", len(*min_height));
+    out.line("stroke_editor.opener_width", len(*opener_width));
+    out.line("stroke_editor.opener_height", len(*opener_height));
+    out.line("stroke_editor.preset_height", len(*preset_height));
+    out.line("stroke_editor.choice_width", len(*choice_width));
+    out.line("stroke_editor.field_width", len(*field_width));
+    out.line("stroke_editor.sample_height", len(*sample_height));
+    out.line("stroke_editor.sample_stroke", len(*sample_stroke));
+    out.line("stroke_editor.sample_inset", len(*sample_inset));
+    out.line("stroke_editor.sample_margin", len(*sample_margin));
+    out.line("stroke_editor.off_stroke", len(*off_stroke));
+    out.line("stroke_editor.off_slash_stroke", len(*off_slash_stroke));
+}
+
+fn measure_lines(out: &mut Lines, t: &MeasureTokens) {
+    let MeasureTokens { hit, handle_arm, readout_gap } = t;
+    out.line("measure.hit", len(*hit));
+    out.line("measure.handle_arm", len(*handle_arm));
+    out.line("measure.readout_gap", len(*readout_gap));
+}
+
+fn symmetry_lines(out: &mut Lines, t: &SymmetryTokens) {
+    let SymmetryTokens { line, hit, handle_share } = t;
+    out.line("symmetry.line", len(*line));
+    out.line("symmetry.hit", len(*hit));
+    out.line("symmetry.handle_share", len(*handle_share));
+}
+
+fn adjust_lines(out: &mut Lines, t: &AdjustTokens) {
+    let AdjustTokens {
+        spectrum_bar,
+        range_band,
+        spectrum_master_extra,
+        range_thumb_width,
+        range_thumb_height,
+        range_thumb_radius,
+        hue_grab,
+        picker_dot,
+        picker_dot_inset,
+        picker_ring,
+        disabled_alpha,
+        threshold_histogram,
+        threshold_width,
+        threshold_inset,
+        threshold_marker_width,
+    } = t;
+    out.line("adjust.spectrum_bar", len(*spectrum_bar));
+    out.line("adjust.range_band", len(*range_band));
+    out.line("adjust.spectrum_master_extra", len(*spectrum_master_extra));
+    out.line("adjust.range_thumb_width", len(*range_thumb_width));
+    out.line("adjust.range_thumb_height", len(*range_thumb_height));
+    out.line("adjust.range_thumb_radius", len(*range_thumb_radius));
+    out.line("adjust.hue_grab", len(*hue_grab));
+    out.line("adjust.picker_dot", len(*picker_dot));
+    out.line("adjust.picker_dot_inset", len(*picker_dot_inset));
+    out.line("adjust.picker_ring", hex(*picker_ring));
+    out.line("adjust.disabled_alpha", len(*disabled_alpha));
+    out.line("adjust.threshold_histogram", len(*threshold_histogram));
+    out.line("adjust.threshold_width", len(*threshold_width));
+    out.line("adjust.threshold_inset", len(*threshold_inset));
+    out.line("adjust.threshold_marker_width", len(*threshold_marker_width));
+}
+
+fn layer_style_lines(out: &mut Lines, t: &LayerStyleTokens) {
+    let LayerStyleTokens { list_width, page_width, preset_thumb, presets_height, contour_thumb, contour_arrow, contour_cell, contour_graph } = t;
+    out.line("layer_style.list_width", len(*list_width));
+    out.line("layer_style.page_width", len(*page_width));
+    out.line("layer_style.preset_thumb", len(*preset_thumb));
+    out.line("layer_style.presets_height", len(*presets_height));
+    out.line("layer_style.contour_thumb", len(*contour_thumb));
+    out.line("layer_style.contour_arrow", len(*contour_arrow));
+    out.line("layer_style.contour_cell", len(*contour_cell));
+    out.line("layer_style.contour_graph", len(*contour_graph));
+}
+
+fn blend_if_lines(out: &mut Lines, t: &BlendIfTokens) {
+    let BlendIfTokens { width_min, width_max, height, ramp, inset, handle_width, handle_height, ramp_border } = t;
+    out.line("blend_if.width_min", len(*width_min));
+    out.line("blend_if.width_max", len(*width_max));
+    out.line("blend_if.height", len(*height));
+    out.line("blend_if.ramp", len(*ramp));
+    out.line("blend_if.inset", len(*inset));
+    out.line("blend_if.handle_width", len(*handle_width));
+    out.line("blend_if.handle_height", len(*handle_height));
+    out.line("blend_if.ramp_border", hex(*ramp_border));
+}
+
+fn add_beside_lines(out: &mut Lines, t: &AddBesideTokens) {
+    let AddBesideTokens { offset, radius, arm, line, ring } = t;
+    out.line("add_beside.offset", len(*offset));
+    out.line("add_beside.radius", len(*radius));
+    out.line("add_beside.arm", len(*arm));
+    out.line("add_beside.line", len(*line));
+    out.line("add_beside.ring", len(*ring));
+}
+
+fn shape_drag_lines(out: &mut Lines, t: &ShapeDragTokens) {
+    let ShapeDragTokens { click_slop, preview_line, preview_halo } = t;
+    out.line("shape_drag.click_slop", len(*click_slop));
+    out.line("shape_drag.preview_line", len(*preview_line));
+    out.line("shape_drag.preview_halo", len(*preview_halo));
+}
+
+fn slice_lines(out: &mut Lines, t: &SliceTokens) {
+    let SliceTokens {
+        outline,
+        selected_outline,
+        auto_dash,
+        auto_gap,
+        auto_alpha,
+        drag_dash,
+        drag_gap,
+        badge_offset,
+        badge_pad,
+        badge_radius,
+        badge_min,
+        click_slop,
+    } = t;
+    out.line("slice.outline", len(*outline));
+    out.line("slice.selected_outline", len(*selected_outline));
+    out.line("slice.auto_dash", len(*auto_dash));
+    out.line("slice.auto_gap", len(*auto_gap));
+    out.line("slice.auto_alpha", len(*auto_alpha));
+    out.line("slice.drag_dash", len(*drag_dash));
+    out.line("slice.drag_gap", len(*drag_gap));
+    out.line("slice.badge_offset", len(*badge_offset));
+    out.line("slice.badge_pad", format!("{} {}", len(badge_pad[0]), len(badge_pad[1])));
+    out.line("slice.badge_radius", len(*badge_radius));
+    out.line("slice.badge_min", format!("{} {}", len(badge_min[0]), len(badge_min[1])));
+    out.line("slice.click_slop", len(*click_slop));
+}
+
+fn artboard_lines(out: &mut Lines, t: &ArtboardTokens) {
+    let ArtboardTokens { click_slop, preview_line } = t;
+    out.line("artboard.click_slop", len(*click_slop));
+    out.line("artboard.preview_line", len(*preview_line));
+}
+
+fn connector_lines(out: &mut Lines, t: &ConnectorTokens) {
+    let ConnectorTokens {
+        line,
+        attach,
+        attach_active,
+        attach_fill_alpha,
+        ghost_alpha,
+        ghost_dash,
+        ghost_gap,
+        ghost_line_alpha,
+        click_slop,
+        end_handle,
+        path_handle,
+        attach_reach,
+        handle_reach,
+        min_run,
+        target_tolerance,
+        path_ring,
+        drop_outline,
+    } = t;
+    out.line("connector.line", len(*line));
+    out.line("connector.attach", len(*attach));
+    out.line("connector.attach_active", len(*attach_active));
+    out.line("connector.attach_fill_alpha", len(*attach_fill_alpha));
+    out.line("connector.ghost_alpha", len(*ghost_alpha));
+    out.line("connector.ghost_dash", len(*ghost_dash));
+    out.line("connector.ghost_gap", len(*ghost_gap));
+    out.line("connector.ghost_line_alpha", len(*ghost_line_alpha));
+    out.line("connector.click_slop", len(*click_slop));
+    out.line("connector.end_handle", len(*end_handle));
+    out.line("connector.path_handle", len(*path_handle));
+    out.line("connector.attach_reach", len(*attach_reach));
+    out.line("connector.handle_reach", len(*handle_reach));
+    out.line("connector.min_run", len(*min_run));
+    out.line("connector.target_tolerance", len(*target_tolerance));
+    out.line("connector.path_ring", len(*path_ring));
+    out.line("connector.drop_outline", len(*drop_outline));
+}
+
+fn vanishing_point_lines(out: &mut Lines, t: &VanishingPointTokens) {
+    let VanishingPointTokens {
+        line,
+        line_selected,
+        grid,
+        grid_alpha,
+        node,
+        pending,
+        halo_width,
+        source_arm,
+        press_reach,
+        click_slop,
+        ring_line,
+        paste_alpha,
+        halo,
+    } = t;
+    out.line("vanishing_point.line", len(*line));
+    out.line("vanishing_point.line_selected", len(*line_selected));
+    out.line("vanishing_point.grid", len(*grid));
+    out.line("vanishing_point.grid_alpha", len(*grid_alpha));
+    out.line("vanishing_point.node", len(*node));
+    out.line("vanishing_point.pending", len(*pending));
+    out.line("vanishing_point.halo_width", len(*halo_width));
+    out.line("vanishing_point.source_arm", len(*source_arm));
+    out.line("vanishing_point.press_reach", len(*press_reach));
+    out.line("vanishing_point.click_slop", len(*click_slop));
+    out.line("vanishing_point.ring_line", len(*ring_line));
+    out.line("vanishing_point.paste_alpha", len(*paste_alpha));
+    out.line("vanishing_point.halo", hex(*halo));
+}
+
+fn wide_angle_lines(out: &mut Lines, t: &WideAngleTokens) {
+    let WideAngleTokens { line, end, hit, min_drag, halo_width, halo, drawing } = t;
+    out.line("wide_angle.line", len(*line));
+    out.line("wide_angle.end", len(*end));
+    out.line("wide_angle.hit", len(*hit));
+    out.line("wide_angle.min_drag", len(*min_drag));
+    out.line("wide_angle.halo_width", len(*halo_width));
+    out.line("wide_angle.halo", hex(*halo));
+    out.line("wide_angle.drawing", hex(*drawing));
+}
+
+fn blur_pins_lines(out: &mut Lines, t: &BlurPinsTokens) {
+    let BlurPinsTokens {
+        dot,
+        grab,
+        ring,
+        ring_band,
+        handle,
+        line_grab,
+        line_width,
+        line_halo,
+        arc,
+        arc_halo,
+        dash,
+        dash_gap,
+        handle_outline,
+        feather_extra,
+        turn_extra,
+        round_corner,
+        halo,
+    } = t;
+    out.line("blur_pins.dot", len(*dot));
+    out.line("blur_pins.grab", len(*grab));
+    out.line("blur_pins.ring", len(*ring));
+    out.line("blur_pins.ring_band", len(*ring_band));
+    out.line("blur_pins.handle", len(*handle));
+    out.line("blur_pins.line_grab", len(*line_grab));
+    out.line("blur_pins.line_width", len(*line_width));
+    out.line("blur_pins.line_halo", len(*line_halo));
+    out.line("blur_pins.arc", len(*arc));
+    out.line("blur_pins.arc_halo", len(*arc_halo));
+    out.line("blur_pins.dash", len(*dash));
+    out.line("blur_pins.dash_gap", len(*dash_gap));
+    out.line("blur_pins.handle_outline", len(*handle_outline));
+    out.line("blur_pins.feather_extra", len(*feather_extra));
+    out.line("blur_pins.turn_extra", len(*turn_extra));
+    out.line("blur_pins.round_corner", len(*round_corner));
+    out.line("blur_pins.halo", hex(*halo));
+}
+
+fn liquify_lines(out: &mut Lines, t: &LiquifyTokens) {
+    let LiquifyTokens { lasso, mask_opacity, freeze, thaw } = t;
+    out.line("liquify.lasso", len(*lasso));
+    out.line("liquify.mask_opacity", len(*mask_opacity));
+    out.line("liquify.freeze", hex(*freeze));
+    out.line("liquify.thaw", hex(*thaw));
+}
+
+fn select_mask_lines(out: &mut Lines, t: &SelectMaskTokens) {
+    let SelectMaskTokens { close_reach, click_reach, trail } = t;
+    out.line("select_mask.close_reach", len(*close_reach));
+    out.line("select_mask.click_reach", len(*click_reach));
+    out.line("select_mask.trail", hex(*trail));
+}
+
+fn filter_gallery_lines(out: &mut Lines, t: &FilterGalleryTokens) {
+    let FilterGalleryTokens { thumb_width, thumb_height, stack_height } = t;
+    out.line("filter_gallery.thumb_width", len(*thumb_width));
+    out.line("filter_gallery.thumb_height", len(*thumb_height));
+    out.line("filter_gallery.stack_height", len(*stack_height));
 }

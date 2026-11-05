@@ -47,6 +47,11 @@ pub(super) fn show(ui: &mut Ui, bar: Id, owner: Id, current: &str, labels: &Pres
             state.store(child.ctx(), field);
         }
         let edit = TextField::new("rename", labels.name.as_str(), &draft).size(ControlSize::Md).show(&mut child);
+        if fresh && !child.memory(|m| m.has_focus(field)) {
+            // A bar started in the pass of a click elsewhere (a menu row) loses the focus to
+            // egui's click-away rule as the field registers: ask again, for the next pass.
+            child.memory_mut(|m| m.request_focus(field));
+        }
         ui.allocate_rect(child.min_rect(), egui::Sense::hover());
         let mut cancelled = false;
         match &edit.event {
@@ -64,6 +69,9 @@ pub(super) fn show(ui: &mut Ui, bar: Id, owner: Id, current: &str, labels: &Pres
             ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
         }
         if cancelled || edit.escaped {
+            // The Escape ends the rename only: a popover or dialog around the browser must not
+            // read the same press as its own close.
+            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
             ended = Some(Ended::Cancel);
         } else if edit.submitted || (edit.response.lost_focus() && !fresh) {
             ended = Some(Ended::Commit(text.clone()));

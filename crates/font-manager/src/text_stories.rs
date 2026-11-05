@@ -19,14 +19,14 @@ use crate::missing::{DocumentFont, MissingFontsDialog, document_fonts};
 use crate::{Catalog, FontEnv, Source};
 
 /// `patterns/font-picker/field`, `patterns/font-picker/filters`,
-/// `patterns/glyphs-panel/panel`, `patterns/missing-fonts/dialog`, `composites/font-axes/sliders`.
+/// `patterns/glyphs-panel/panel`, `patterns/missing-fonts-dialog/dialog`, `composites/axis-sliders/sliders`.
 pub fn stories() -> Vec<Story> {
     vec![
-        typed_story!("patterns/font-picker/field", Level::Patterns, "Font picker", "Field", NoArgs {}, picker::field),
-        typed_story!("patterns/font-picker/filters", Level::Patterns, "Font picker", "Filters", NoArgs {}, picker::filters),
-        typed_story!("patterns/glyphs-panel/panel", Level::Patterns, "Glyphs panel", "Panel", NoArgs {}, glyphs_panel),
-        typed_story!("patterns/missing-fonts/dialog", Level::Patterns, "Missing fonts", "Dialog", NoArgs {}, missing_fonts),
-        typed_story!("composites/font-axes/sliders", Level::Composites, "Font axes", "Sliders", NoArgs {}, font_axes),
+        typed_story!("patterns/font-picker/field", Level::Patterns, "FontPicker", "Field", NoArgs {}, picker::field),
+        typed_story!("patterns/font-picker/filters", Level::Patterns, "FontPicker", "Filters", NoArgs {}, picker::filters),
+        typed_story!("patterns/glyphs-panel/panel", Level::Patterns, "GlyphsPanel", "Panel", NoArgs {}, glyphs_panel),
+        typed_story!("patterns/missing-fonts-dialog/dialog", Level::Patterns, "MissingFontsDialog", "Dialog", NoArgs {}, missing_fonts),
+        typed_story!("composites/axis-sliders/sliders", Level::Composites, "AxisSliders", "Sliders", NoArgs {}, font_axes),
     ]
 }
 

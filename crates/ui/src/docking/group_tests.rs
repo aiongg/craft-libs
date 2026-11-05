@@ -680,6 +680,34 @@ fn the_group_menu_rows_come_from_the_installed_words() {
 }
 
 #[test]
+/// An app's own `DockConfig::panel_menu` words label the dock's menu rows in place of the installed ones.
+fn the_group_menu_rows_use_the_apps_panel_menu_words() {
+    use crate::localized::Labels as _;
+    use egui_kittest::{Harness, kittest::Queryable};
+    let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
+        |ui, (content, actions): &mut (TestContent, Vec<Action<u32>>)| {
+            let labels =
+                super::panel_menu::PanelMenuLabels { close_group: "Collapse Panel Group".into(), ..super::panel_menu::PanelMenuLabels::of(ui) };
+            let style = DockStyle::join(&super::DockConfig::default().panel_menu(labels), &super::DockLook::of(ui));
+            let out = DockArea::new(Id::unique(AREA)).show_content(ui, &docked(), &style, content);
+            actions.extend(out.actions);
+        },
+        (TestContent { protected: vec![0], ..Default::default() }, Vec::new()),
+    );
+    h.run_steps(2);
+    let at = h.ctx.read_response(Id::unique(AREA).with(("drag-bar", Some(&2u32)))).unwrap().rect.center();
+    h.input_mut().events.extend([
+        Event::PointerMoved(at),
+        Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed: true, modifiers: Modifiers::NONE },
+    ]);
+    h.run_steps(1);
+    h.input_mut().events.push(Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed: false, modifiers: Modifiers::NONE });
+    h.run_steps(2);
+    assert_eq!(h.query_all_by_label("Collapse Panel Group").count(), 1);
+    assert_eq!(h.query_all_by_label("Close Tab Group").count(), 0);
+}
+
+#[test]
 /// The drag bar's context menu contains Close Tab Group, Minimize, Float Tab Group and Move Group
 /// To; clicking Close emits `CloseGroup`, and Enter on the focused bar opens the menu.
 fn drag_bar_menu_has_the_group_items_and_opens_from_the_keyboard() {

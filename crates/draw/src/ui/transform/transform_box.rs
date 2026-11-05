@@ -325,13 +325,20 @@ pub struct TransformBox<'a> {
     policy: EditPolicy,
     modifiers: Option<Modifiers>,
     pixel_grid: bool,
+    reference_point: bool,
 }
 
 impl<'a> TransformBox<'a> {
     /// The host's box `state`, named `names` in the AccessKit tree.
     pub fn new(id_salt: impl AsIdSalt, state: &'a BoxState, names: TransformNames) -> Self {
+        Self::salted(IdSalt::new(id_salt), state, names)
+    }
+
+    /// The box under an `id_salt` a host already built: used as it is, not hashed again, so the
+    /// host's own `ui.make_persistent_id(id_salt)` is this box's id.
+    pub(crate) fn salted(id_salt: IdSalt, state: &'a BoxState, names: TransformNames) -> Self {
         Self {
-            id_salt: IdSalt::new(id_salt),
+            id_salt,
             state,
             names,
             rules: BoxRules::default(),
@@ -345,7 +352,18 @@ impl<'a> TransformBox<'a> {
             policy: EditPolicy::default(),
             modifiers: None,
             pixel_grid: false,
+            reference_point: true,
         }
+    }
+
+    /// Whether the reference point shows; true by default. False (Photoshop CC 2019 and later
+    /// with Show Reference Point off) hides it: it is not drawn, not hit, not a Page-key stop and
+    /// not in the AccessKit parts, and ⌥-press away from the handles does nothing. Its stored
+    /// position still pivots ⌥ scaling and rotating, and the box carries it along as before.
+    // new: Photoshop's Show Reference Point (S7-transform LC2); PhotoCraft always shows it.
+    pub fn reference_point(mut self, shown: bool) -> Self {
+        self.reference_point = shown;
+        self
     }
 
     /// The mode, scaling rule, aspect link, what the content allows and the rotate step;
@@ -460,7 +478,7 @@ impl<'a> TransformBox<'a> {
         let style = TransformBox::style(&tokens);
         let id = ui.make_persistent_id(self.id_salt);
         let mut out = TransformBoxResponse { id, event: None, apply: false, discard: false, picked: None, hovered: None, claimed: false };
-        let mut picked: Option<BoxPart> = ctx.data(|d| d.get_temp(pick_key(id)));
+        let mut picked: Option<BoxPart> = ctx.data(|d| d.get_temp(pick_key(id))).filter(|&p| self.reference_point || p != BoxPart::Pivot);
 
         // A drag whose press ended while the box was not shown is dropped, and its gesture with it.
         let mut drag: Option<Drag> =
@@ -601,7 +619,7 @@ impl<'a> TransformBox<'a> {
         let screen = on_screen(view, self.state);
         let part = self.takes(&screen, origin, style, mods)?;
         let from = view.to_doc(origin);
-        let alt_pivot = part == BoxPart::Pivot && mods.alt && raw_part(&screen, origin, style.hit) != BoxPart::Pivot;
+        let alt_pivot = part == BoxPart::Pivot && mods.alt && raw_part(&screen, origin, style.hit, self.reference_point) != BoxPart::Pivot;
         let start = if alt_pivot { BoxState { pivot: from, ..*self.state } } else { *self.state };
         Some(BoxPress { part, at_press: *self.state, start, from, origin, began: false, alt_pivot, last: *self.state })
     }
@@ -693,7 +711,7 @@ impl<'a> TransformBox<'a> {
     /// The part a press at screen point `p` with `mods` takes from the box mapped to the screen;
     /// `None` where the press is the tool's.
     fn takes(&self, screen: &BoxState, p: Pos2, style: &TransformStyle, mods: Modifiers) -> Option<BoxPart> {
-        let part = match raw_part(screen, p, style.hit) {
+        let part = match raw_part(screen, p, style.hit, self.reference_point) {
             BoxPart::Inside if !self.inside_moves => return None,
             BoxPart::Outside if self.zone == RotateZone::Band && !(self.rules.allows(BoxPart::Outside) && in_band(screen, p, style)) => {
                 return None;
@@ -701,7 +719,8 @@ impl<'a> TransformBox<'a> {
             part => part,
         };
         match part {
-            BoxPart::Inside | BoxPart::Outside if mods.alt => Some(BoxPart::Pivot),
+            // ⌥ away from the handles places the reference point; hidden, it does nothing.
+            BoxPart::Inside | BoxPart::Outside if mods.alt => self.reference_point.then_some(BoxPart::Pivot),
             BoxPart::Outside => Some(part),
             part => self.rules.allows(part).then_some(part),
         }
@@ -758,7 +777,7 @@ impl<'a> TransformBox<'a> {
     /// and the reference point, whatever [`inside_moves`](Self::inside_moves) and the modifiers
     /// make of a press there. The host applies the box on it, as [`show`](Self::show) does.
     pub fn double_click(&self, view: &CanvasView, style: &TransformStyle, point: Pos2) -> bool {
-        raw_part(&on_screen(view, self.state), point, style.hit) == BoxPart::Inside
+        raw_part(&on_screen(view, self.state), point, style.hit, self.reference_point) == BoxPart::Inside
     }
 
     /// Enter, Esc and the arrows; `idle`: no press is held.
@@ -774,7 +793,7 @@ impl<'a> TransformBox<'a> {
             return;
         }
         if let Some(by) = nudge::read(ui, nudge::STEP, nudge::BIG_STEP) {
-            let part = picked.filter(|&p| self.rules.allows(p)).unwrap_or(BoxPart::Inside);
+            let part = picked.filter(|&p| self.rules.allows(p) && (self.reference_point || p != BoxPart::Pivot)).unwrap_or(BoxPart::Inside);
             gesture.set(self.nudged(part, by));
         }
     }
@@ -804,7 +823,7 @@ impl<'a> TransformBox<'a> {
             .chain(
                 (0..4u8).map(|i| (BoxPart::Edge(i), q[usize::from(i)].midpoint(q[usize::from(i + 1) % 4]), self.names.edges[usize::from(i)].clone())),
             )
-            .chain([(BoxPart::Pivot, shown.pivot, self.names.pivot.clone())]);
+            .chain(self.reference_point.then(|| (BoxPart::Pivot, shown.pivot, self.names.pivot.clone())));
         for (part, at, name) in handles {
             if !self.rules.allows(part) {
                 continue;
@@ -834,7 +853,7 @@ impl<'a> TransformBox<'a> {
             _ => false,
         };
         if rotating {
-            turn_cursor(ctx, pointer, bisector(screen, nearest_corner(screen, pointer).0));
+            turn_cursor(ctx, pointer, quad::bisector(screen, nearest_corner(screen, pointer).0));
             return;
         }
         let q = &screen.quad;
@@ -842,7 +861,7 @@ impl<'a> TransformBox<'a> {
         let icon = match part {
             BoxPart::Corner(i) => {
                 // Along the corner's bisector on screen, out of the box.
-                let out = -bisector(screen, usize::from(i));
+                let out = -quad::bisector(screen, usize::from(i));
                 resize_cursor(view, view.unmap_vec(out))
             }
             BoxPart::Edge(i) => {
@@ -906,7 +925,9 @@ impl<'a> TransformBox<'a> {
                 }
             }
         }
-        paint_pivot(&painter, pos(screen.pivot), style);
+        if self.reference_point {
+            paint_pivot(&painter, pos(screen.pivot), style);
+        }
         if !keyboard {
             return;
         }
@@ -920,7 +941,7 @@ impl<'a> TransformBox<'a> {
                 }
             }
             None => {
-                let line = outset(&corners, style.line.width / 2.0 + style.focus_offset + style.focus.width / 2.0);
+                let line = quad::outset(&corners, style.line.width / 2.0 + style.focus_offset + style.focus.width / 2.0);
                 painter.add(Shape::closed_line(line.to_vec(), style.focus_halo));
                 painter.add(Shape::closed_line(line.to_vec(), style.focus));
             }
@@ -991,7 +1012,10 @@ fn screen_point(screen: &BoxState, part: BoxPart) -> Option<Point> {
 
 /// The part under screen point `p`: the nearest handle or the reference point within `hit`, else
 /// inside or outside.
-fn raw_part(screen: &BoxState, p: Pos2, hit: f32) -> BoxPart {
+fn raw_part(screen: &BoxState, p: Pos2, hit: f32, pivot: bool) -> BoxPart {
+    // A hidden reference point is moved out of reach so the inside or a handle wins there.
+    let far = Point::new(f64::INFINITY, f64::INFINITY);
+    let screen = if pivot { *screen } else { BoxState { pivot: far, ..*screen } };
     screen.part_at(Point::new(f64::from(p.x), f64::from(p.y)), f64::from(hit))
 }
 
@@ -1007,39 +1031,6 @@ fn in_band(screen: &BoxState, p: Pos2, style: &TransformStyle) -> bool {
     !screen.contains(Point::new(f64::from(p.x), f64::from(p.y))) && (style.band_inner..=style.band_outer).contains(&d)
 }
 
-/// Corner `i`'s bisector on screen, into the box; zero for a collapsed corner.
-fn bisector(screen: &BoxState, i: usize) -> egui::Vec2 {
-    let q = &screen.quad;
-    let unit = |to: Point| {
-        let d = to - q[i];
-        let l = d.hypot();
-        if l.is_finite() && l > 1e-9 { d / l } else { Vec2::ZERO }
-    };
-    let s = unit(q[(i + 1) % 4]) + unit(q[(i + 3) % 4]);
-    let l = s.hypot();
-    if l.is_finite() && l > 1e-6 { egui::vec2((s.x / l) as f32, (s.y / l) as f32) } else { egui::Vec2::ZERO }
-}
-
-/// The closed polygon `corners` moved `by` points outward, each corner along its mitre (kept
-/// within four times `by` at a sharp corner).
-pub(crate) fn outset(corners: &[Pos2; 4], by: f32) -> [Pos2; 4] {
-    let area: f32 = (0..4).map(|i| corners[i].x * corners[(i + 1) % 4].y - corners[(i + 1) % 4].x * corners[i].y).sum();
-    let side = if area >= 0.0 { 1.0 } else { -1.0 };
-    let normal = |a: Pos2, b: Pos2| {
-        let d = (b - a).normalized();
-        vec2(d.y, -d.x) * side
-    };
-    std::array::from_fn(|i| {
-        let (prev, here, next) = (corners[(i + 3) % 4], corners[i], corners[(i + 1) % 4]);
-        let (n1, n2) = (normal(prev, here), normal(here, next));
-        let sum = n1 + n2;
-        let k = 1.0 + n1.dot(n2);
-        let mitre = if k > 1e-3 && sum.is_finite() { sum * (by / k) } else { n1 * by };
-        let mitre = if mitre.length() > 4.0 * by { mitre.normalized() * 4.0 * by } else { mitre };
-        here + mitre
-    })
-}
-
 /// `v` rounded to `places` decimals, with no negative zero (a hair below zero never reads "-0").
 pub(crate) fn fixed(v: f64, places: i32) -> f64 {
     let k = 10f64.powi(places);
@@ -1048,7 +1039,7 @@ pub(crate) fn fixed(v: f64, places: i32) -> f64 {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Transform box"];
+pub const COMPONENTS: &[&str] = &["TransformBox"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum ModeArg {
@@ -1113,7 +1104,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "primitives/transform-box/free-transform",
             Level::Primitives,
-            "Transform box",
+            "TransformBox",
             "Free transform",
             FreeTransformArgs::default(),
             show_transform_box

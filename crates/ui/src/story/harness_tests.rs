@@ -82,3 +82,28 @@ fn a_story_after_an_ensure_files_story_sees_the_galleries_files() {
     })
     .drop_without_applying_deltas();
 }
+
+// The state under a name survives passes with the same args and is made again when they change.
+#[test]
+fn reset_on_drops_the_shared_state_when_the_args_change() {
+    let mut harness = HarnessBuilder::default().with_size(vec2(100.0, 50.0)).build_ui_state(
+        |ui, (args, seen): &mut (u32, Vec<(bool, u32)>)| {
+            let reset = reset_on(ui, "counter", args);
+            let state = shared(ui, "counter", || *args * 100);
+            let mut count = lock(&state);
+            *count += 1;
+            seen.push((reset, *count));
+        },
+        (1, Vec::new()),
+    );
+    harness.run_steps(2);
+    harness.state_mut().0 = 2;
+    harness.run_steps(2);
+    let seen = &harness.state().1;
+    let resets: Vec<usize> = seen.iter().enumerate().filter(|(_, (reset, _))| *reset).map(|(n, _)| n).collect();
+    assert_eq!(resets.len(), 1, "one reset, at the change: {seen:?}");
+    let at = resets[0];
+    assert!(at > 0 && seen[..at].iter().all(|(_, n)| (101..200).contains(n)), "kept while the args stay: {seen:?}");
+    assert_eq!(seen[at].1, 201, "made again from the new args: {seen:?}");
+    assert!(seen[at + 1..].iter().all(|(_, n)| (202..300).contains(n)), "kept after the change: {seen:?}");
+}

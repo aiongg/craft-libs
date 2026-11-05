@@ -1,5 +1,5 @@
 //! One keyed hook for every label in [`DockConfig`]. The dock's menu rows are not here: they are
-//! [`super::panel_menu::PanelMenuLabels`].
+//! [`super::panel_menu::PanelMenuLabels`], which an app overrides with [`DockConfig::panel_menu`].
 
 use super::{DockConfig, DockStyle};
 use crate::localized::{Labels, Word, Words};

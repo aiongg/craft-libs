@@ -23,14 +23,14 @@ use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 use crate::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Preset browser"];
+pub const COMPONENTS: &[&str] = &["PresetBrowser"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
             "composites/preset-browser/swatches",
             Level::Composites,
-            "Preset browser",
+            "PresetBrowser",
             "Swatches",
             PresetArgs::new(ViewArg::Grid, 28.0),
             show_swatches
@@ -38,7 +38,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-browser/gradients",
             Level::Composites,
-            "Preset browser",
+            "PresetBrowser",
             "Gradients",
             PresetArgs::new(ViewArg::Grid, 64.0),
             show_gradients
@@ -46,7 +46,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-browser/brushes",
             Level::Composites,
-            "Preset browser",
+            "PresetBrowser",
             "Brushes",
             PresetArgs::new(ViewArg::List, 32.0),
             show_brushes
@@ -54,7 +54,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-browser/tool-presets",
             Level::Composites,
-            "Preset browser",
+            "PresetBrowser",
             "Tool presets",
             PresetArgs::new(ViewArg::List, 32.0),
             show_tools
@@ -62,7 +62,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-browser/reorder",
             Level::Composites,
-            "Preset browser",
+            "PresetBrowser",
             "Reorder",
             PresetArgs::new(ViewArg::Grid, 36.0),
             show_reorder
@@ -70,7 +70,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-browser/popover-grid",
             Level::Composites,
-            "Preset browser",
+            "PresetBrowser",
             "Popover grid",
             PresetArgs::new(ViewArg::Grid, 40.0),
             show_popover
@@ -78,7 +78,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/preset-browser/short-list",
             Level::Composites,
-            "Preset browser",
+            "PresetBrowser",
             "Short list",
             PresetArgs::new(ViewArg::List, 28.0),
             show_short

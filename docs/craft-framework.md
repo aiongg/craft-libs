@@ -420,24 +420,24 @@ Decides whether a stored path or URL refers to a local file. Exists.
 
 ### craft-draw
 
-Vector and shape tools, pen, gradient, crop and free transform. UI-only family. New on the branch (step 1).
+Vector and shape tools, pen, stroke, gradient, crop, measure, symmetry, brush presets and free transform. UI-only family. New on the branch (step 1).
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `ui::artboard` | Artboard tool | planned, step 7 |
-| `ui::brush`, `ui::brush_presets`, `ui::brush_settings` | Brush cursor and resize; brush preset cards; brush settings panel | planned, step 7 |
-| `ui::connector` | Connector curves and handles | planned, step 7 |
-| `ui::corner` | Corner radius tool | planned, step 7 |
-| `ui::crop` | Crop frame and crop tool | exists; tool host wiring planned, step 7 |
+| `ui::add_beside`, `ui::artboard` | Add-beside buttons; artboard tool, bar and properties | exists |
+| `ui::brush_presets`, `ui::brush_settings` | Brush preset picker, cards and chip; brush settings panel | exists |
+| `ui::connector` | Connector tool, overlay and bar | exists |
+| `ui::corner` | Corner radius widgets | exists |
+| `ui::crop` | Crop frame and crop tool | exists |
 | `ui::gradient` | Gradient swatch, editor, palette and on-canvas gradient line | exists |
-| `ui::measure` | Measure overlay | planned, step 7 |
-| `ui::pattern`, `ui::picture_fill` | Pattern fill picker; picture fill options | planned, step 7 |
-| `ui::pen` | Pen draft and bezier paths | exists; Curvature mode, hidden anchors and hit testing planned, step 7 |
-| `ui::shape`, `ui::shape_drag` | Shape properties panel; shape drag tool | planned, step 7 |
-| `ui::slice` | Slice tool | planned, step 7 |
-| `ui::stroke` | Stroke options editor | planned, step 7 |
-| `ui::symmetry` | Paint symmetry | planned, step 7 |
-| `ui::transform` | Free transform box and transform fields | exists; tool-host wiring planned, step 7 |
+| `ui::measure` | Ruler tool, bar and box distances | exists |
+| `ui::pattern`, `ui::picture_fill` | Pattern fill picker; picture fill options | exists |
+| `ui::pen` | Pen draft and bezier paths | exists |
+| `ui::shape`, `ui::shape_drag` | Shape properties panel and options bar; shape drag tool and Create Shape dialog | exists |
+| `ui::slice` | Slice tool, overlay, bar and dialogs | exists |
+| `ui::stroke` | Stroke editor, button and preview | exists |
+| `ui::symmetry` | Paint symmetry guides, menu and transform | exists |
+| `ui::transform` | Free transform box and transform fields | exists |
 
 ### craft-font-catalog
 
@@ -532,24 +532,24 @@ Raster image editing. New on the branch (step 1). Core at the root, widgets in `
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `layer_style` | Layer style blending model | planned, step 7 |
-| `preview` | Live adjustment preview with damage tracking | planned, step 7 |
-| `selection` | Selection model | planned, step 7 |
-| `trace` | Mask outline tracing | planned, step 7 |
-| `ui::adjust` | Levels editor and the colour adjustment editors | exists (Levels); the other editors planned, step 7 |
-| `ui::blend_keys` | Blend-mode key picker | planned, step 7 |
-| `ui::blur_pins` | Blur pins on the canvas | planned, step 7 |
-| `ui::channels` | Channels panel | planned, step 6 |
-| `ui::fill` | Fill-from-surroundings workspace | planned, step 7 |
-| `ui::filter_gallery` | Filter gallery workspace | planned, step 7 |
-| `ui::layer_style` | Layer style page and effect list | planned, step 7 |
-| `ui::liquify` | Push-and-warp (liquify) workspace | planned, step 7 |
-| `ui::mask_view` | Mask and selection overlay views | planned, step 7 |
-| `ui::scopes` | Scope panel: histogram, vectorscope, clipping | planned, step 6 |
-| `ui::select`, `ui::select_mask`, `ui::selection` | Outline selection tools; select-and-mask workspace; ants, matte and quick-mask overlay | planned, step 7 |
-| `ui::transform_preview` | Live transform preview | planned, step 7 |
-| `ui::vanishing_point`, `ui::wide_angle` | Perspective plane and wide-angle correction workspaces | planned, step 7 |
-| `ui::warp` | Warp grid; mesh, pin and perspective warp | exists (grid); the modes planned, step 7 |
+| `layer_style` | Layer style blending model | exists |
+| `selection` | Selection model | exists |
+| `trace` | Mask outline tracing | exists |
+| `ui::adjust` | Levels editor and the colour adjustment editors | exists |
+| `ui::live_preview` | Live preview of an adjustment: keys, lanes, proxy plan |
+| `ui::blend_keys` | Blend-mode key picker | exists |
+| `ui::blur_pins` | Blur pins on the canvas | exists |
+| `ui::channels` | Channels panel | exists |
+| `ui::fill` | Fill-from-surroundings workspace | exists |
+| `ui::filter_gallery` | Filter gallery workspace | exists |
+| `ui::layer_style` | Layer style page and effect list | exists |
+| `ui::liquify` | Push-and-warp (liquify) workspace | exists |
+| `ui::mask_view` | Mask and selection overlay views | exists |
+| `ui::scopes` | Scope panel: histogram, vectorscope, clipping | exists |
+| `ui::select`, `ui::select_mask`, `ui::selection` | Outline selection tools; select-and-mask workspace; ants, matte and quick-mask overlay | exists |
+| `ui::transform_preview` | Live transform preview | exists |
+| `ui::vanishing_point`, `ui::wide_angle` | Perspective plane and wide-angle correction workspaces | exists |
+| `ui::warp` | Warp grid; mesh, pin and perspective warp | exists |
 
 ### craft-jpeg
 

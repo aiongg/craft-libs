@@ -770,8 +770,10 @@ impl Track {
 }
 
 /// The pointer now and where its button went down, in the coordinates of `response`'s layer,
-/// while `response` is pressed or was released this frame.
-pub(super) fn pointer(ui: &Ui, response: &Response) -> Option<(Pos2, Pos2)> {
+/// while `response` is pressed or was released this frame. A control that grabs from the press
+/// origin (a drag on a shape that is not a slider's thumb) converts through this, not through
+/// the raw input, which is in screen coordinates.
+pub fn pointer(ui: &Ui, response: &Response) -> Option<(Pos2, Pos2)> {
     let pos = response.interact_pointer_pos()?;
     let origin = ui.input(|i| i.pointer.press_origin())?;
     Some((pos, to_layer(ui, response, origin)))

@@ -44,16 +44,24 @@ pub struct PressMenu<'a, T> {
     size: ControlSize,
     scroll_labels: Option<(Cow<'a, str>, Cow<'a, str>)>,
     focus_owner: Option<(Id, bool)>,
+    min_width: Option<f32>,
 }
 
 impl<'a, T: Clone> PressMenu<'a, T> {
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
-        Self { entries, size: ControlSize::Md, scroll_labels: None, focus_owner: None }
+        Self { entries, size: ControlSize::Md, scroll_labels: None, focus_owner: None, min_width: None }
     }
 
     /// The rows' size; [`ControlSize::Md`] by default.
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The narrowest a level of the menu is, in place of `menu.min_width`; a level still widens to
+    /// its widest row.
+    pub fn min_width(mut self, width: f32) -> Self {
+        self.min_width = Some(width);
         self
     }
 
@@ -112,6 +120,9 @@ impl<'a, T: Clone> PressMenu<'a, T> {
         let mut menu = Menu::new(self.entries).size(self.size).pressing(owner).opened_by_keyboard(keyboard);
         if let Some((up, down)) = self.scroll_labels {
             menu = menu.scroll_labels(up, down);
+        }
+        if let Some(width) = self.min_width {
+            menu = menu.min_width(width);
         }
         let shown = menu.show(ui, popup);
         if escaped && !shown.open && ctx.data(|d| d.get_temp::<bool>(held)).unwrap_or(false) {

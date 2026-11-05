@@ -1144,7 +1144,7 @@ impl<'a> SmartGuides<'a> {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Guides", "Smart guides"];
+pub const COMPONENTS: &[&str] = &["Guides", "SmartGuides"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum LineArg {
@@ -1185,15 +1185,8 @@ impl Default for GuidesArgs {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!("primitives/guides/guides", Level::Primitives, "Guides", "Guides", GuidesArgs::default(), show_guides).on(Surface::Canvas),
-        typed_story!(
-            "primitives/smart-guides/move",
-            Level::Primitives,
-            "Smart guides",
-            "Move",
-            super::story::PlainArgs::default(),
-            show_smart_guides
-        )
-        .on(Surface::Canvas),
+        typed_story!("primitives/smart-guides/move", Level::Primitives, "SmartGuides", "Move", super::story::PlainArgs::default(), show_smart_guides)
+            .on(Surface::Canvas),
     ]
 }
 

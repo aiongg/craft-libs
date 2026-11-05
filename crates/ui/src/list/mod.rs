@@ -72,7 +72,7 @@ mod tree_tests;
 mod view;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ListRow", "List", "TreeRow", "FindingsList", "Table", "Metadata table", "Event log"];
+pub const COMPONENTS: &[&str] = &["ListRow", "List", "TreeRow", "FindingsList", "Table", "MetadataTable", "EventLog"];
 
 pub(crate) fn stories() -> Vec<crate::story::Story> {
     row::stories()

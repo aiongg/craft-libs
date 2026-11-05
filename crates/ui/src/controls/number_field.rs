@@ -771,6 +771,7 @@ impl<'a> NumberField<'a> {
         let arrows = if stepping && ui.memory(|m| m.has_focus(id)) && !Typing::composing(ui, id) { take_arrows(ui) } else { Vec::new() };
 
         let width = self.box_width.unwrap_or_else(|| if ui.layout().horizontal_justify() { ui.available_width() } else { style.field.width });
+        let width = parts.at_least(width);
         let look = TypingLook {
             size: vec2(width, style.field.height),
             margin: margin_x(parts.start, parts.end),
@@ -1451,6 +1452,8 @@ struct Parts {
     /// Room before and after the text.
     start: f32,
     end: f32,
+    /// The narrowest the text rect may be: one digit and the caret.
+    text_min: f32,
     font: FontId,
     /// The handle's and the unit's colours, enabled or not.
     scrub: Color32,
@@ -1484,7 +1487,15 @@ impl Parts {
         let unit_inset = if popup > 0.0 { popup_inset + popup + f.gap } else { f.pad_x };
         let end = suffix + unit_inset;
         let (scrub, unit) = if enabled { (style.scrub, style.unit) } else { (style.scrub_disabled, style.unit_disabled) };
-        Self { pad: f.pad_x, gap: f.gap, handle, prefix, suffix, popup, popup_inset, unit_inset, start, end, font, scrub, unit }
+        let text_min = width("0") + ui.visuals().text_cursor.stroke.width;
+        Self { pad: f.pad_x, gap: f.gap, handle, prefix, suffix, popup, popup_inset, unit_inset, start, end, text_min, font, scrub, unit }
+    }
+
+    /// The box width that leaves the text rect at least one digit and the caret wide: a long
+    /// scrub label or unit widens the box rather than squeezing the text out (egui's single-line
+    /// clip flips the text offset between passes on a rect narrower than the caret).
+    fn at_least(&self, width: f32) -> f32 {
+        width.max(self.start + self.end + self.text_min)
     }
 
     /// The scrub handle's hit area: from the box's start to halfway into the gap after it.
@@ -1583,7 +1594,7 @@ fn report(ctx: &Context, typed: &Typed<Numbers<'_>>, (lo, hi): (f64, f64), unit:
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Number field"];
+pub const COMPONENTS: &[&str] = &["NumberField"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, Default, PartialEq)]
 enum LocaleArg {
@@ -1623,23 +1634,23 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "controls/number-field/states",
             Level::Controls,
-            "Number field",
+            "NumberField",
             "States",
             StatesArgs { size: SizeArg::Md, locale: LocaleArg::En, edit_menu: true },
             show_states
         ),
-        typed_story!("controls/number-field/scrub", Level::Controls, "Number field", "Scrub", LocaleSizeArgs::default(), show_scrub),
+        typed_story!("controls/number-field/scrub", Level::Controls, "NumberField", "Scrub", LocaleSizeArgs::default(), show_scrub),
         typed_story!(
             "controls/number-field/right-to-left",
             Level::Controls,
-            "Number field",
+            "NumberField",
             "Right to left",
             LocaleSizeArgs::default(),
             show_right_to_left
         ),
-        typed_story!("controls/number-field/unit-menu", Level::Controls, "Number field", "Unit menu", LocaleSizeArgs::default(), show_unit_menu),
-        typed_story!("controls/number-field/presets", Level::Controls, "Number field", "Presets", LocaleSizeArgs::default(), show_presets),
-        typed_story!("controls/number-field/event-log", Level::Controls, "Number field", "Event log", PolicyArgs::default(), show_event_log),
+        typed_story!("controls/number-field/unit-menu", Level::Controls, "NumberField", "Unit menu", LocaleSizeArgs::default(), show_unit_menu),
+        typed_story!("controls/number-field/presets", Level::Controls, "NumberField", "Presets", LocaleSizeArgs::default(), show_presets),
+        typed_story!("controls/number-field/event-log", Level::Controls, "NumberField", "Event log", PolicyArgs::default(), show_event_log),
     ]
 }
 

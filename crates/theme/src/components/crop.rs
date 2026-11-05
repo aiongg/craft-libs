@@ -50,6 +50,12 @@ pub struct CropTokens {
     pub perspective_click_move: f32,
     /// Default reach of a perspective corner: `crop.perspective_reach`.
     pub perspective_reach: f32,
+    /// Width of the overlay menu and the gear popover of the options bar: `crop.menu_width`.
+    pub menu_width: f32,
+    /// Widest the gear popover grows: `crop.menu_max_width`.
+    pub menu_max_width: f32,
+    /// Width of the options bar's ratio preset select: `crop.preset_width`.
+    pub preset_width: f32,
 }
 
 /// Crop has no overridable field: its sizes come from the code, as every size does.
@@ -77,6 +83,9 @@ impl Family for CropTokens {
         "perspective_click_dot" 0.0..=1024.0 => perspective_click_dot;
         "perspective_click_move" 0.0..=1024.0 => perspective_click_move;
         "perspective_reach" 0.0..=64.0 => perspective_reach;
+        "menu_width" 0.0..=2048.0 => menu_width;
+        "menu_max_width" 0.0..=2048.0 => menu_max_width;
+        "preset_width" 0.0..=2048.0 => preset_width;
     };
 
     fn defaults(_: &Semantic<'_>) -> CropTokens {
@@ -102,6 +111,9 @@ impl Family for CropTokens {
             perspective_click_dot: values::CROP_PERSPECTIVE_CLICK_DOT,
             perspective_click_move: values::CROP_PERSPECTIVE_CLICK_MOVE,
             perspective_reach: values::CROP_PERSPECTIVE_REACH,
+            menu_width: values::CROP_MENU_WIDTH,
+            menu_max_width: values::CROP_MENU_MAX_WIDTH,
+            preset_width: values::CROP_PRESET_WIDTH,
         }
     }
 

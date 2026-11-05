@@ -3,7 +3,10 @@
 use egui::Modifiers;
 use kurbo::{Point, Rect, Vec2};
 
-use super::{Anchor9, BoxAllow, BoxPart, BoxRules, BoxState, Frame, Homography, Parts, ScaleRule, TransformMode, carry_pivot, keep_convex, turns};
+use super::{
+    Anchor9, BoxAllow, BoxPart, BoxRules, BoxState, Frame, Homography, Parts, ScaleRule, TransformMode, bisector, carry_pivot, keep_convex, outset,
+    turns,
+};
 
 const ALT_SHIFT: Modifiers = Modifiers { alt: true, shift: true, ctrl: false, mac_cmd: false, command: false };
 const PERSPECTIVE: Modifiers = Modifiers { alt: true, shift: true, ctrl: true, mac_cmd: false, command: true };
@@ -542,4 +545,61 @@ fn w_and_h_edits_on_a_distorted_box_keep_its_perspective() {
     assert!(got.iter().zip(&want_w).all(|(g, w)| (g.x - w.x).abs() < 1e-3 && (g.y - w.y).abs() < 1e-3), "{got:?}");
     let got = edit(1, 1.5);
     assert!((got[0].x + 25.153).abs() < 1e-3 && (got[0].y + 12.577).abs() < 1e-3, "{got:?}");
+}
+
+// A ⇧ move inside the box still locks to eight directions once `drag` calls `lock_direction`.
+#[test]
+fn shift_move_inside_a_box_still_locks_to_eight_directions() {
+    let mut s = session();
+    let shift = Modifiers { shift: true, ..Modifiers::NONE };
+    drag(&mut s, p(30.0, 25.0), p(50.0, 29.0), shift);
+    assert!(close(s.quad, corners(20.0, 0.0, 120.0, 50.0)), "{:?}", s.quad);
+    let mut s = session();
+    drag(&mut s, p(30.0, 25.0), p(50.0, 45.0), shift);
+    assert!(close(s.quad, corners(20.0, 20.0, 120.0, 70.0)), "{:?}", s.quad);
+}
+
+// `BoxRules::resize_only` refuses turning, skewing and distorting: the outside and ⌘-drags only
+// scale, corners stretch freely and ⇧ keeps the proportions.
+#[test]
+fn resize_only_rules_scale_and_move_but_never_turn() {
+    let rules = BoxRules::resize_only();
+    assert_eq!(rules.effective_mode(), TransformMode::Free);
+    assert_eq!(rules.scale, ScaleRule::Free);
+    assert!(!rules.allow.rotate && !rules.allow.skew && !rules.allow.distort);
+    // A corner drag stretches freely.
+    let mut s = session();
+    drag_with(&mut s, p(100.0, 50.0), p(150.0, 60.0), Modifiers::NONE, &rules);
+    assert!(close(s.quad, corners(0.0, 0.0, 150.0, 60.0)), "{:?}", s.quad);
+    // ⇧ keeps the proportions.
+    let mut s = session();
+    drag_with(&mut s, p(100.0, 50.0), p(200.0, 60.0), Modifiers { shift: true, ..Modifiers::NONE }, &rules);
+    let w = s.quad[1].x - s.quad[0].x;
+    let h = s.quad[3].y - s.quad[0].y;
+    assert!(eq6(w / h, 2.0), "{:?}", s.quad);
+    // ⌘ on a corner would distort; here it scales and stays a rectangle.
+    let cmd = Modifiers { command: true, ctrl: true, ..Modifiers::NONE };
+    let mut s = session();
+    drag_with(&mut s, p(100.0, 50.0), p(150.0, 70.0), cmd, &rules);
+    assert!(close(s.quad, corners(0.0, 0.0, 150.0, 70.0)), "{:?}", s.quad);
+    // Outside the box scales rather than turns.
+    let mut s = session();
+    drag_with(&mut s, p(130.0, 25.0), p(160.0, 25.0), Modifiers::NONE, &rules);
+    assert!(s.quad.iter().all(|q| eq6(q.y, 0.0) || eq6(q.y, 50.0)), "{:?}", s.quad);
+}
+
+#[test]
+fn outset_grows_either_winding_and_bisector_points_inward() {
+    let square = [egui::pos2(0.0, 0.0), egui::pos2(10.0, 0.0), egui::pos2(10.0, 10.0), egui::pos2(0.0, 10.0)];
+    let grown = outset(&square, 2.0);
+    assert_eq!(grown[0], egui::pos2(-2.0, -2.0));
+    assert_eq!(grown[2], egui::pos2(12.0, 12.0));
+    let mut reversed = square;
+    reversed.reverse();
+    assert_eq!(outset(&reversed, 2.0)[3], egui::pos2(-2.0, -2.0));
+    let screen = BoxState::from_rect(Rect::new(0.0, 0.0, 10.0, 10.0));
+    let b = bisector(&screen, 0);
+    assert!((b.x - 0.5f32.sqrt()).abs() < 1e-6 && (b.y - 0.5f32.sqrt()).abs() < 1e-6);
+    let collapsed = BoxState { quad: [p(1.0, 1.0); 4], pivot: p(1.0, 1.0) };
+    assert_eq!(bisector(&collapsed, 0), egui::Vec2::ZERO);
 }

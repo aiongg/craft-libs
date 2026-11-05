@@ -1,8 +1,8 @@
 //! Who has the keyboard.
 
-use egui::{Context, Id, RawInput, Sense, pos2, vec2};
+use egui::{Context, Id, LayerId, RawInput, Sense, pos2, vec2};
 
-use super::key_owner::{KeyOwner, OwnerGate, owner, register_canvas};
+use super::key_owner::{KeyOwner, OwnerGate, keys_free, owner, register_canvas};
 
 pub(crate) fn pass(ctx: &Context, f: impl FnMut(&mut egui::Ui)) {
     ctx.run_ui(RawInput::default(), f).drop_without_applying_deltas();
@@ -55,4 +55,22 @@ fn the_gate_and_a_text_field_take_the_keys_first() {
     assert_eq!(owner(&ctx, &OwnerGate { dialog: true, ..OwnerGate::default() }), KeyOwner::Dialog);
     assert_eq!(owner(&ctx, &OwnerGate { recording: true, dialog: true, ..OwnerGate::default() }), KeyOwner::Recorder);
     assert_eq!(owner(&ctx, &OwnerGate { blocked: true, recording: true, ..OwnerGate::default() }), KeyOwner::Blocked);
+}
+
+#[test]
+fn layer_keys_are_free_over_a_focused_control_and_not_under_a_popover_or_a_text_field() {
+    let layer = LayerId::background();
+    let ctx = Context::default();
+    assert!(keys_free(&ctx, layer));
+    focus_widget(&ctx, Id::unique("button"), false);
+    assert!(keys_free(&ctx, layer), "a focused control that is not text leaves the keys free");
+    crate::popup_list::record_open_as(&ctx, Id::unique("popover"), true, true);
+    assert!(!keys_free(&ctx, layer), "an open popover has the keys");
+
+    let ctx = Context::default();
+    let mut text = String::new();
+    for _ in 0..2 {
+        pass(&ctx, |ui| ui.text_edit_singleline(&mut text).request_focus());
+    }
+    assert!(!keys_free(&ctx, layer), "a text field has the keys");
 }

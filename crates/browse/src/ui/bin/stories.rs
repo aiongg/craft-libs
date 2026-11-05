@@ -29,9 +29,9 @@ use crate::ui::grid::{BadgeKind, BadgeSlot, TileBadge, TileLabels, TileStatus};
 use craft_ui::composites::FooterAction;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Media bin"];
+pub const COMPONENTS: &[&str] = &["MediaBin"];
 
-const COMPONENT: &str = "Media bin";
+const COMPONENT: &str = "MediaBin";
 
 craft_ui::words! {
     /// The words the media bin stories add around the panel.

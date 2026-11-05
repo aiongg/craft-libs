@@ -524,4 +524,4 @@ impl Drop for ScopeDepth {
 const SCOPE_DEPTH: &str = "craft_ui::edit::scope_depth";
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Edit lifecycle"];
+pub const COMPONENTS: &[&str] = &["EditPolicy"];

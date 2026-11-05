@@ -101,12 +101,14 @@ fn scope_views_show_the_right_rows() {
 
     let expanded = rig(ScopeView::Expanded, &[], false);
     assert!(expanded.query_by_label("Channel:").is_some());
+    assert!(expanded.query_by_label("Channel").is_some(), "the list is named by its own word, not the caption");
     assert!(expanded.query_by_role_and_label(Role::Table, "Statistics").is_some());
     assert!(expanded.query_by_label("Source:").is_none(), "one source shows no Source row");
     assert!(expanded.query_by_label("Green").is_none());
 
     let with_sources = rig(ScopeView::Expanded, &TWO_SOURCES, false);
     assert!(with_sources.query_by_label("Source:").is_some());
+    assert!(with_sources.query_by_label("Source").is_some());
 
     let all = rig(ScopeView::AllChannels, &[], false);
     for name in ["Red", "Green", "Blue"] {

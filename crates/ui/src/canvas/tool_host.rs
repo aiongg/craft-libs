@@ -23,6 +23,12 @@
 //!    the [`CursorHost`](super::CursorHost) (the OS pointer, a bitmap, or the painted tool icon
 //!    with its badge).
 //!
+//! A tool made of parts (a crop frame's corners and edges, a ruler's ends, a symmetry centre)
+//! returns them from [`CanvasTool::parts`]; the host makes them one Tab stop with
+//! [`PartFocus`](super::PartFocus), passes Page Up and Down picks back through
+//! [`CanvasTool::pick`], gives the tool the keys while that stop has the focus, and draws the focus
+//! ring round the picked part. Tools without parts (the default) get no Tab stop of their own.
+//!
 //! A momentary tool (Space for the Hand, see [`MomentaryKeys`](super::MomentaryKeys)) is the
 //! app's: it passes the temporary tool to `show` instead of the selected one; a drag in progress
 //! keeps the tool it started with until it ends. An app that switches tools calls
@@ -38,17 +44,19 @@
 //! ```
 
 use egui::{Context, CursorIcon, Event, Id, Key, Modifiers, Painter, PointerButton, Pos2, Response, Ui};
-use kurbo::{Point, Size, Vec2};
+use kurbo::{Point, Rect, Size, Vec2};
 
 use super::canvas_id::CanvasId;
 use super::claim::Claim;
 use super::cursor::{CursorHost, ToolCursor};
 use super::navigate::{Autoscroll, FlickPan, NavigationOptions};
+use super::part_focus::{Part, PartFocus};
 use super::pointer::{PenInput, PenSample};
 use super::snap::{SNAP_PX, SnapGesture, SnapTargets};
 use super::view::CanvasView;
 use super::{Readout, Turn};
 use crate::behavior::{ClaimedKey, KeyClaim};
+use crate::edit::CancelReason;
 use crate::localized::LocaleNumbers;
 use crate::theme::{Tokens, TokensOf as _, UiTokens};
 
@@ -104,6 +112,63 @@ pub struct ToolKey {
     pub pressed: bool,
     /// The key is a repeat of a held press.
     pub repeat: bool,
+}
+
+/// A tool's keyboard parts for one pass ([`CanvasTool::parts`]): the group the host makes one Tab
+/// stop, as [`PartFocus`] names it for AccessKit.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ToolParts {
+    /// The group's accessible name, e.g. "Crop frame", "Ruler" (the tool's words).
+    pub group: String,
+    /// The group's value for a screen reader, e.g. "1200 × 800, 40, 25, 0°".
+    pub value: Option<String>,
+    /// The parts in keyboard order (Page Down goes forward), with their screen rects this pass.
+    pub parts: Vec<Part>,
+}
+
+impl ToolParts {
+    /// A group named `group` with `parts`, no value.
+    pub fn new(group: impl Into<String>, parts: Vec<Part>) -> Self {
+        Self { group: group.into(), value: None, parts }
+    }
+
+    /// The group's value for a screen reader.
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+}
+
+/// A tool's drawing as one AccessKit object for one pass ([`CanvasTool::node`]): an outline being
+/// drawn, a ruler line. Tools on the host get no `Ui`, so the host adds the node for them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ToolNode {
+    /// The object's accessible name, e.g. "Selection outline", "Ruler" (the tool's words).
+    pub name: String,
+    /// Its value for a screen reader, e.g. "5 points", "120 px, 30°".
+    pub value: Option<String>,
+    /// The drawing's bounds in document units; the host maps them to the screen. `None` gives a
+    /// node of no size at the canvas centre.
+    pub bounds: Option<Rect>,
+}
+
+impl ToolNode {
+    /// An object named `name`, with no value and no bounds.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into(), value: None, bounds: None }
+    }
+
+    /// The object's value for a screen reader.
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
+    /// The drawing's bounds in document units.
+    pub fn bounds(mut self, bounds: Rect) -> Self {
+        self.bounds = Some(bounds);
+        self
+    }
 }
 
 /// The phase of the tool's pointer gesture this pass.
@@ -168,6 +233,11 @@ pub struct ToolContext<'a> {
     /// Caps Lock is on ([`CursorHost::caps_lock`]): the precise cursors of
     /// [`ToolCursor::brush`] and [`ToolCursor::tool`] take it.
     pub caps_lock: bool,
+    /// The tool's parts group ([`CanvasTool::parts`]) has the keyboard, as [`PartFocus`] says:
+    /// a tool uses its picked part for keys only while this is true, and otherwise treats them
+    /// as aimed at the whole object (or ignores them). Always `false` for a tool without parts
+    /// and outside a pass.
+    pub parts_focused: bool,
     requests: ToolRequests,
 }
 
@@ -245,9 +315,12 @@ pub trait CanvasTool {
     /// outlines). Default: nothing.
     fn hover(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    /// The gesture ends without a commit: Esc, the pointer lost, the host disabled, or the
-    /// app's [`ToolHost::cancel`] (a tool switch). The tool drops its drag state.
-    fn cancel(&mut self, cx: &mut ToolContext<'_>);
+    /// The gesture ends without a commit. `reason` says why: [`Escape`](CancelReason::Escape)
+    /// for Esc, [`FocusLost`](CancelReason::FocusLost) for a pointer the host lost,
+    /// [`Disabled`](CancelReason::Disabled) when the host was disabled, or the app's own reason
+    /// for [`ToolHost::cancel`] (a tool switch is [`Removed`](CancelReason::Removed)). The tool
+    /// drops its drag state and reports `reason` on the gesture's events.
+    fn cancel(&mut self, reason: CancelReason, cx: &mut ToolContext<'_>);
 
     /// A key while the canvas has the keyboard and no text field claims it. Return `true` to
     /// take it from the app's shortcuts (the pen's Delete, a marquee's arrows). Esc during a
@@ -278,15 +351,76 @@ pub trait CanvasTool {
     fn button(&self) -> PointerButton {
         PointerButton::Primary
     }
+
+    /// Whether a press of `button` with `modifiers` held starts a gesture with this tool. The host
+    /// asks at each press with no gesture running, for each button pressed in that pass (primary,
+    /// secondary, middle in that order), and begins with the first the tool takes;
+    /// [`ToolPointer::button`] then says which one it was. A gesture keeps its button until that
+    /// button comes up, whatever happens to the keys meanwhile. A brush takes the primary button
+    /// always and the secondary while Alt is held (the resize chord Alt + right-drag), so Alt +
+    /// click still paints (reversing the mode). Default: `button == self.button()`, so a tool that
+    /// doesn't override it never changes.
+    fn takes(&self, button: PointerButton, _modifiers: Modifiers) -> bool {
+        button == self.button()
+    }
+
+    /// The tool's keyboard parts this pass, or `None` (the default) for a tool without parts.
+    /// With parts the host makes the group one Tab stop ([`PartFocus`]), puts each part in the
+    /// AccessKit tree, and lets Page Up, Page Down, Home and End pick a part
+    /// ([`pick`](Self::pick)); the keys the tool reads through [`key`](Self::key) (arrows,
+    /// Delete, Enter) act on [`picked`](Self::picked). Called once per pass after
+    /// [`each_pass`](Self::each_pass), with `cx.pointer` unset.
+    fn parts(&self, _cx: &ToolContext<'_>) -> Option<ToolParts> {
+        None
+    }
+
+    /// The part the tool's keys act on, by [`Part::key`]. Default: none.
+    fn picked(&self) -> Option<u64> {
+        None
+    }
+
+    /// The host picked another part: Page Up or Down, Home or End while the group has the
+    /// keyboard, the first part when the group gains focus from the keyboard with none picked, or
+    /// `None` when the picked part is no longer among the parts. A press the tool claims on a part
+    /// also gives the group focus; the tool picks that part itself. Default: nothing.
+    fn pick(&mut self, _key: Option<u64>, _cx: &mut ToolContext<'_>) {}
+
+    /// The tool's drawing as one graphics object for screen readers this pass (an outline being
+    /// drawn, a ruler line), or `None` (the default) for a tool with nothing to describe. The host
+    /// adds it to the AccessKit tree as a child of the canvas node: role `GraphicsObject`,
+    /// hover-only, not a Tab stop, over [`ToolNode::bounds`] on the screen, as
+    /// [`Marquee`](super::Marquee) describes its ants. Called once per pass after
+    /// [`paint`](Self::paint), with the same context. Keyboard parts stay [`parts`](Self::parts).
+    fn node(&self, _cx: &ToolContext<'_>) -> Option<ToolNode> {
+        None
+    }
 }
 
 /// A pointer event from automation (PhotoCraft's `ui.pointer`), queued with
 /// [`ToolHost::inject`] and delivered on the next pass as if the OS pointer did it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ToolInput {
-    Down { doc: Point, pressure: f32, tilt: [f32; 2], rotation: f32, modifiers: Modifiers },
-    Move { doc: Point, pressure: f32, tilt: [f32; 2], rotation: f32, modifiers: Modifiers },
-    Up { doc: Point, modifiers: Modifiers },
+    /// A press of `button`. The host starts nothing when the tool takes no such button with
+    /// `modifiers` ([`CanvasTool::takes`]), as for the OS pointer.
+    Down {
+        button: PointerButton,
+        doc: Point,
+        pressure: f32,
+        tilt: [f32; 2],
+        rotation: f32,
+        modifiers: Modifiers,
+    },
+    Move {
+        doc: Point,
+        pressure: f32,
+        tilt: [f32; 2],
+        rotation: f32,
+        modifiers: Modifiers,
+    },
+    Up {
+        doc: Point,
+        modifiers: Modifiers,
+    },
 }
 
 /// The gesture a tool owns: its button, the last sample it got and the raw document point of
@@ -309,8 +443,6 @@ struct HostState {
     queued: Vec<ToolInput>,
     /// The view of the last pass, for [`ToolHost::cancel`] outside a pass.
     view: Option<CanvasView>,
-    /// The latest press of the click run: its count, time and screen point.
-    clicks: Option<(u32, f64, Pos2)>,
     /// Autoscroll's accumulated screen points while the view cannot move yet.
     scroll_carry: egui::Vec2,
     /// The tool asked to keep the keys in the last pass ([`ToolContext::keep_keys`]).
@@ -414,6 +546,7 @@ impl<'a> ToolHost<'a> {
                 time: 0.0,
                 dt: 0.0,
                 caps_lock: CursorHost::caps_lock(&ctx),
+                parts_focused: false,
                 cursor: None,
                 readout: None,
                 keep_keys: false,
@@ -439,11 +572,12 @@ impl<'a> ToolHost<'a> {
             autoscroll: self.autoscroll,
             navigation: self.navigation,
             ctx: ctx.clone(),
+            parts: None,
         };
         run.pass.time = ctx.input(|i| i.time);
         run.pass.dt = ctx.input(|i| i.unstable_dt);
         run.pass.modifiers = ctx.input(|i| i.modifiers);
-        run.step(self.enabled, self.keys);
+        run.step(ui, self.enabled, self.keys);
         run.finish(ui)
     }
 
@@ -463,7 +597,7 @@ impl<'a> ToolHost<'a> {
     /// app to adopt. `None` when no gesture ran, or when the canvas was not shown in the last
     /// pass (nothing to run the tool against; the gesture is dropped).
     // pc: crates/ui-egui/src/state.rs drag = None on tool switch; tool_memory.rs.
-    pub fn cancel(ctx: &Context, canvas: CanvasId, tool: &mut dyn CanvasTool) -> Option<CanvasView> {
+    pub fn cancel(ctx: &Context, canvas: CanvasId, tool: &mut dyn CanvasTool, reason: CancelReason) -> Option<CanvasView> {
         let id = canvas.id();
         let (active, view) = ctx.data_mut(|d| {
             let stored = d.get_temp_mut_or_default::<HostState>(id);
@@ -484,11 +618,12 @@ impl<'a> ToolHost<'a> {
             time: ctx.input(|i| i.time),
             dt: ctx.input(|i| i.unstable_dt),
             caps_lock: CursorHost::caps_lock(ctx),
+            parts_focused: false,
             cursor: None,
             readout: None,
             keep_keys: false,
         };
-        pass.call(Some(active.last), |cx| tool.cancel(cx));
+        pass.call(Some(active.last), |cx| tool.cancel(reason, cx));
         pass.view_changed.then_some(pass.view)
     }
 
@@ -585,6 +720,7 @@ struct Pass<'p> {
     time: f64,
     dt: f32,
     caps_lock: bool,
+    parts_focused: bool,
     cursor: Option<ToolCursor>,
     readout: Option<Readout>,
     keep_keys: bool,
@@ -606,6 +742,7 @@ impl Pass<'_> {
             tokens: self.tokens,
             numbers: self.numbers,
             caps_lock: self.caps_lock,
+            parts_focused: self.parts_focused,
             requests: ToolRequests::default(),
         }
     }
@@ -644,6 +781,18 @@ struct Run<'r, 'p> {
     autoscroll: bool,
     navigation: Option<NavigationOptions>,
     ctx: Context,
+    /// The tool's parts group this pass, when it has parts.
+    parts: Option<PartsPass>,
+}
+
+/// What the host's [`PartFocus`] group did this pass.
+#[derive(Clone, Copy, Debug, Default)]
+struct PartsPass {
+    /// The group has keyboard focus: keys go to the tool as when the canvas has it.
+    focused: bool,
+    /// The picked part's screen rect, while the focus came from the keyboard: the host draws
+    /// [`PartFocus::ring`] round it after the tool paints.
+    ring: Option<egui::Rect>,
 }
 
 impl Run<'_, '_> {
@@ -671,15 +820,12 @@ impl Run<'_, '_> {
     }
 
     /// `press` with its place in the click run: it continues the last press's run when it comes
-    /// soon and near enough (egui's double-click delay and distance), else it starts a new one.
-    fn press_clicks(&mut self, press: ToolPointer) -> ToolPointer {
-        let (delay, distance) = self.ctx.options(|o| (o.input_options.max_double_click_delay, o.input_options.max_click_dist));
-        let count = match self.state.clicks {
-            Some((n, at, pos)) if (0.0..delay).contains(&(press.time - at)) && press.screen.distance(pos) < distance => n.saturating_add(1),
-            _ => 1,
-        };
-        self.state.clicks = Some((count, press.time, press.screen));
-        ToolPointer { clicks: count, ..press }
+    /// soon and near enough (egui's double-click delay and distance) with the same button, else it
+    /// starts a new one.
+    /// The count comes from the context's one click run ([`super::claim::click_count`]), which
+    /// overlays share.
+    fn press_clicks(&self, press: ToolPointer) -> ToolPointer {
+        ToolPointer { clicks: super::claim::click_count(&self.ctx, press.button, press.time, press.screen), ..press }
     }
 
     fn call<R>(&mut self, pointer: Option<ToolPointer>, run: impl FnOnce(&mut dyn CanvasTool, &mut ToolContext<'_>) -> R) -> R {
@@ -722,10 +868,10 @@ impl Run<'_, '_> {
         }
     }
 
-    fn cancel(&mut self) {
+    fn cancel(&mut self, reason: CancelReason) {
         self.state.waiting = None;
         if let Some(active) = self.state.gesture.take() {
-            self.call(Some(active.last), |tool, cx| tool.cancel(cx));
+            self.call(Some(active.last), |tool, cx| tool.cancel(reason, cx));
             self.report(ToolGesture::Cancel);
         }
     }
@@ -763,12 +909,53 @@ impl Run<'_, '_> {
         }
     }
 
-    fn step(&mut self, enabled: bool, keys: bool) {
+    /// The tool's parts this pass, made one Tab stop: `None` for a tool without parts (no group,
+    /// no Tab stop, nothing else changes).
+    fn parts_focus(&mut self, ui: &mut Ui, enabled: bool) -> Option<PartsPass> {
+        let tool = &*self.tool;
+        let parts = tool.parts(&self.pass.context(None))?;
+        Some(self.show_parts(ui, parts, enabled))
+    }
+
+    /// Shows `parts` as one [`PartFocus`] group over the canvas under the tool's claim id
+    /// ([`tool_claim_id`], so a claimed press released on a part gives the group focus), named
+    /// `parts.group` with `parts.value`, picked [`CanvasTool::picked`], focusable while `enabled`.
+    /// A `pick` in the response goes to [`CanvasTool::pick`] (a [`call`](Self::call), so its
+    /// requests apply). Returns whether the group has focus and, while
+    /// [`keyboard`](super::PartFocusResponse::keyboard), the rect of the part picked after the
+    /// pick.
+    fn show_parts(&mut self, ui: &mut Ui, parts: ToolParts, enabled: bool) -> PartsPass {
+        // new: tools lead call 33; the overlays call `PartFocus` the same way.
+        let id = tool_claim_id(self.resp.id.id());
+        let mut focus = PartFocus::new(id, parts.group.as_str()).parts(&parts.parts).picked(self.tool.picked()).focusable(enabled);
+        if let Some(value) = parts.value.as_deref() {
+            focus = focus.value(value);
+        }
+        let shown = focus.show(ui, self.pass.canvas);
+        if let Some(key) = shown.pick {
+            self.call(None, |tool, cx| tool.pick(key, cx));
+        }
+        let ring = shown.keyboard.then(|| self.tool.picked().and_then(|key| parts.parts.iter().find(|p| p.key == key)).map(|p| p.rect)).flatten();
+        PartsPass { focused: shown.focused, ring }
+    }
+
+    fn step(&mut self, ui: &mut Ui, enabled: bool, keys: bool) {
         let ctx = self.ctx.clone();
         let canvas = self.pass.canvas;
         let claim = tool_claim_id(self.resp.id.id());
-        let button = self.tool.button();
-        let (pos, origin, pressed, down, released, key_events) = ctx.input(|i| {
+        let kept_keys = self.state.keep_keys;
+        if !enabled {
+            self.cancel(CancelReason::Disabled);
+        }
+        self.call(None, |tool, cx| tool.each_pass(cx));
+        self.glide();
+        // Before the key events are copied: the group takes its Page Up, Page Down, Home and End
+        // out of the input, so the tool does not see them a second time.
+        self.parts = self.parts_focus(ui, enabled);
+        self.pass.parts_focused = self.parts.is_some_and(|p| p.focused);
+
+        let (pos, origin, button, pressed, down, released, key_events) = ctx.input(|i| {
+            let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, self.pass.modifiers, |b| i.pointer.button_pressed(b));
             let key_events: Vec<ToolKey> = i
                 .events
                 .iter()
@@ -782,6 +969,7 @@ impl Run<'_, '_> {
             (
                 i.pointer.latest_pos(),
                 i.pointer.press_origin(),
+                button,
                 i.pointer.button_pressed(button),
                 i.pointer.button_down(button),
                 i.pointer.button_released(button),
@@ -790,13 +978,6 @@ impl Run<'_, '_> {
         });
         let modifiers = self.pass.modifiers;
         let pen = self.pen;
-        let kept_keys = self.state.keep_keys;
-
-        if !enabled {
-            self.cancel();
-        }
-        self.call(None, |tool, cx| tool.each_pass(cx));
-        self.glide();
 
         // A press that waited for another control's typing run.
         let waited = self.state.waiting.is_some();
@@ -838,7 +1019,7 @@ impl Run<'_, '_> {
         // The OS pointer's gesture.
         if let Some(active) = self.state.gesture.filter(|g| !g.injected) {
             if !down && !released {
-                self.cancel();
+                self.cancel(CancelReason::FocusLost);
             } else {
                 let at = pos.unwrap_or(active.last.screen);
                 let finished = released || !down;
@@ -863,7 +1044,8 @@ impl Run<'_, '_> {
 
         // Keys. Esc ends a gesture whoever has the keyboard; other keys need the canvas to have it.
         let mut took = None;
-        let keyboard = enabled && keys && canvas.has_focus() && !ctx.text_edit_focused();
+        let parts_focused = self.pass.parts_focused;
+        let keyboard = enabled && keys && (canvas.has_focus() || parts_focused) && !ctx.text_edit_focused();
         if keyboard {
             // egui drops the focus on Esc and moves it on the arrows unless the widget asks for them.
             let filter = egui::EventFilter { escape: true, horizontal_arrows: true, vertical_arrows: true, ..egui::EventFilter::default() };
@@ -871,7 +1053,7 @@ impl Run<'_, '_> {
         }
         for key in key_events {
             if enabled && keys && key.pressed && key.key == Key::Escape && self.state.gesture.is_some() {
-                self.cancel();
+                self.cancel(CancelReason::Escape);
                 took = Some(key);
             } else if keyboard {
                 let pointer = self.state.gesture.map(|g| g.last);
@@ -894,10 +1076,12 @@ impl Run<'_, '_> {
     }
 
     fn injected(&mut self, input: ToolInput, enabled: bool) {
-        let button = self.tool.button();
         let own = self.state.gesture.is_none_or(|g| g.injected);
         match input {
-            ToolInput::Down { doc, pressure, tilt, rotation, modifiers } if enabled && self.state.gesture.is_none() => {
+            ToolInput::Down { button, doc, pressure, tilt, rotation, modifiers } if enabled && self.state.gesture.is_none() => {
+                if taken_button(&*self.tool, modifiers, |b| b == button).is_none() {
+                    return;
+                }
                 let pen = PenSample { pressure, tilt, rotation, eraser: false, time_ms: 0.0 };
                 let p = self.sample(Pos2::ZERO, Some(doc), modifiers, Some(pen), button, true);
                 let p = self.press_clicks(p);
@@ -906,6 +1090,7 @@ impl Run<'_, '_> {
             ToolInput::Move { doc, pressure, tilt, rotation, modifiers } if enabled && own => {
                 let pen = PenSample { pressure, tilt, rotation, eraser: false, time_ms: 0.0 };
                 let gesture = self.state.gesture.is_some();
+                let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, modifiers, |_| true);
                 let p = self.sample(Pos2::ZERO, Some(doc), modifiers, Some(pen), button, false);
                 if gesture {
                     self.drag(p);
@@ -914,6 +1099,7 @@ impl Run<'_, '_> {
                 }
             }
             ToolInput::Up { doc, modifiers } if own && self.state.gesture.is_some() => {
+                let button = gesture_button(self.state.gesture.as_ref(), &*self.tool, modifiers, |_| true);
                 let p = self.sample(Pos2::ZERO, Some(doc), modifiers, None, button, false);
                 self.end(p);
             }
@@ -932,6 +1118,12 @@ impl Run<'_, '_> {
 
         let painter = ui.painter_at(canvas.rect);
         self.tool.paint(&painter, &self.pass.context(pointer));
+        if let Some(rect) = self.parts.and_then(|p| p.ring) {
+            PartFocus::ring(&painter, rect);
+        }
+        if let Some(node) = self.tool.node(&self.pass.context(pointer)) {
+            show_node(ui, canvas, &self.pass.view, node);
+        }
         if let Some(readout) = self.pass.readout.take()
             && let Some(p) = pointer
         {
@@ -961,6 +1153,21 @@ impl Run<'_, '_> {
     }
 }
 
+/// The buttons the host offers a press, in order.
+const PRESS_BUTTONS: [PointerButton; 3] = [PointerButton::Primary, PointerButton::Secondary, PointerButton::Middle];
+
+/// The first button of `PRESS_BUTTONS` that `tool` takes with `modifiers` and `wanted` accepts.
+fn taken_button(tool: &dyn CanvasTool, modifiers: Modifiers, wanted: impl Fn(PointerButton) -> bool) -> Option<PointerButton> {
+    PRESS_BUTTONS.into_iter().find(|b| wanted(*b) && tool.takes(*b, modifiers))
+}
+
+/// The button the host reads this pass: the button of `gesture` when one runs (a gesture keeps
+/// the button it began with, so releasing Alt mid-resize doesn't strand it), else the first
+/// button pressed this pass that the tool takes (`pressed`), else the tool's own button.
+fn gesture_button(gesture: Option<&Active>, tool: &dyn CanvasTool, modifiers: Modifiers, pressed: impl Fn(PointerButton) -> bool) -> PointerButton {
+    gesture.map_or_else(|| taken_button(tool, modifiers, pressed).unwrap_or_else(|| tool.button()), |g| g.button)
+}
+
 /// How [`ToolHost::sample`] snaps: the gesture kind, the targets and the tolerance in document
 /// units (see [`ToolHost::snap_tolerance`]).
 #[derive(Clone, Copy, Debug)]
@@ -984,7 +1191,7 @@ impl CanvasTool for NoTool {
 
     fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
 
     fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
 
@@ -997,6 +1204,31 @@ impl CanvasTool for NoTool {
 /// Alt as typed), so the app's chords (Cmd+Z, Cmd+S) still run.
 fn typed_keys() -> Vec<ClaimedKey> {
     Key::ALL.iter().map(|key| ClaimedKey::logical(Modifiers::NONE, *key)).collect()
+}
+
+/// Adds a tool's [`ToolNode`] to the AccessKit tree for this pass: a hover-only widget under the
+/// canvas node (`accessibility_parent(canvas.id)`), role `GraphicsObject`, labelled `node.name`
+/// with `node.value` as its current value, over `node.bounds` mapped through `view` and clipped to
+/// the canvas (no size at the canvas centre without bounds or off the canvas). Its id comes from
+/// the canvas id, so it stays the same from pass to pass.
+fn show_node(ui: &mut Ui, canvas: &Response, view: &CanvasView, node: ToolNode) {
+    // new: as `Marquee::describe` (`marquee.rs`, `fn describe`).
+    let id = canvas.id.with("craft_ui::canvas::ToolNode");
+    let corners = node
+        .bounds
+        .map(|b| [Point::new(b.x0, b.y0), Point::new(b.x1, b.y0), Point::new(b.x1, b.y1), Point::new(b.x0, b.y1)].map(|c| view.to_screen(c)));
+    let bounds = corners.map(|c| egui::Rect::from_points(&c).intersect(view.rect));
+    let rect = match bounds {
+        Some(r) if r.is_positive() => r,
+        _ => egui::Rect::from_center_size(view.rect.center(), egui::Vec2::ZERO),
+    };
+    let nodes = ui.new_child(egui::UiBuilder::new().max_rect(view.rect).accessibility_parent(canvas.id));
+    let response = nodes.interact(rect, id, egui::Sense::hover());
+    response.widget_info(|| {
+        let mut info = egui::WidgetInfo::labeled(egui::accesskit::Role::GraphicsObject, nodes.is_enabled(), &node.name);
+        info.current_text_value.clone_from(&node.value);
+        info
+    });
 }
 
 /// Lets the host's [`Claim`](super::Claim) name the tool as an overlay: the tool's claim id under the canvas.

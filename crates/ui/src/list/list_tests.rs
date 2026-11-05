@@ -27,6 +27,10 @@ struct Host {
     allow_empty: bool,
     type_ahead: bool,
     start_rename: Option<usize>,
+    /// Keys of rows the list may focus but not select.
+    unselectable: Vec<usize>,
+    /// Keys of rows drawn as spacers (also sections of `rows`).
+    spacers: Vec<usize>,
 }
 
 impl Host {
@@ -46,6 +50,8 @@ impl Host {
             allow_empty: true,
             type_ahead: false,
             start_rename: None,
+            unselectable: Vec::new(),
+            spacers: Vec::new(),
         }
     }
 
@@ -56,7 +62,7 @@ impl Host {
 
 fn show(ui: &mut Ui, host: &mut Host) {
     let hide = KeyboardShortcut::new(Modifiers::COMMAND, Key::Comma);
-    let Host { rows, names, visible, selection, events, heights, allow_empty, type_ahead, start_rename } = host;
+    let Host { rows, names, visible, selection, events, heights, allow_empty, type_ahead, start_rename, unselectable, spacers } = host;
     let mut list = List::new("list", "Layers", rows.as_slice())
         .selection(selection)
         .max_height(LIST_HEIGHT)
@@ -69,7 +75,14 @@ fn show(ui: &mut Ui, host: &mut Host) {
     if let Some(key) = start_rename.take() {
         list = list.start_rename(key);
     }
-    let out = list.show(ui, |_, &key| ListRow::new(key, names[key].clone()).toggle(ToggleColumn::eye("Visibility {row}", visible[key]).key(hide)));
+    let out = list.show(ui, |_, &key| {
+        if spacers.contains(&key) {
+            return ListRow::spacer(key);
+        }
+        ListRow::new(key, names[key].clone())
+            .toggle(ToggleColumn::eye("Visibility {row}", visible[key]).key(hide))
+            .selectable(!unselectable.contains(&key))
+    });
     for event in out.events {
         match &event {
             ListEvent::Row(RowEvent::Toggle(EditEvent::Update { value, .. } | EditEvent::Set { value, .. })) => visible[value.row] = value.on,
@@ -558,6 +571,83 @@ fn a_section_is_a_heading_that_is_not_selected_focused_or_counted() {
         assert!(focused(&harness) && active(&harness).as_deref() == Some("Row 1"), "the list is focused on its lead, not on {name}");
     }
     assert!(harness.state_mut().take_events().iter().all(|e| !matches!(e, ListEvent::Selection(_) | ListEvent::Activate(_) | ListEvent::Clicked(_))));
+}
+
+/// Row 0, a spacer, Row 2 (not selectable), Row 3, Row 4 (not selectable).
+fn gapped() -> Host {
+    let mut host = Host::new(5);
+    host.rows[1] = RowInfo::section(1);
+    host.spacers = vec![1];
+    host.unselectable = vec![2, 4];
+    host.heights = Some(|at| if at == 1 { 12.0 } else { 24.0 });
+    host
+}
+
+#[test]
+fn a_spacer_takes_room_without_a_node_and_a_press_on_it_keeps_the_selection() {
+    let mut harness = harness(gapped());
+    let (above, below) = (row(&harness, 0).rect(), row(&harness, 2).rect());
+    assert_eq!(below.top() - above.bottom(), 12.0, "the spacer's height");
+    assert_eq!(list(&harness).accesskit_node().size_of_set(), Some(4), "a spacer is not counted");
+    let gap = Rect::from_min_max(above.left_bottom(), below.right_top()).expand2(vec2(1.0, 0.5));
+    let inside =
+        harness.query_all_by(|_| true).filter(|n| n.accesskit_node().bounding_box().is_some()).filter(|n| gap.contains_rect(n.rect())).count();
+    assert_eq!(inside, 0, "no node sits in the spacer's rect");
+    let at = above.left_bottom() + vec2(20.0, 6.0);
+    click_at(&mut harness, at, PointerButton::Primary);
+    assert_eq!(harness.state().selection, Selection::only(0), "a press on the spacer does not clear the selection");
+    assert!(focused(&harness));
+}
+
+#[test]
+fn keys_move_the_lead_onto_rows_that_are_not_selectable_without_selecting_them() {
+    let mut harness = harness(gapped());
+    focus(&mut harness);
+    harness.state_mut().take_events();
+    for (pressed, lead) in [(Key::ArrowDown, "Row 2"), (Key::ArrowDown, "Row 3")] {
+        key(&mut harness, Modifiers::NONE, pressed);
+        assert_eq!(active(&harness).as_deref(), Some(lead), "{pressed:?}");
+    }
+    assert_eq!(harness.state().selection, Selection::only(3), "Row 3 is selectable");
+    key(&mut harness, Modifiers::NONE, Key::ArrowUp);
+    assert_eq!(active(&harness).as_deref(), Some("Row 2"));
+    assert_eq!(harness.state().selection.items, [3], "the lead moved onto Row 2 and the selection stayed");
+    key(&mut harness, Modifiers::NONE, Key::End);
+    assert_eq!(active(&harness).as_deref(), Some("Row 4"));
+    assert_eq!(harness.state().selection.items, [3]);
+    key(&mut harness, Modifiers::NONE, Key::Home);
+    assert_eq!(harness.state().selection, Selection::only(0), "Home lands on the selectable first row");
+    key(&mut harness, Modifiers::NONE, Key::ArrowDown);
+    key(&mut harness, Modifiers::NONE, Key::Space);
+    assert_eq!(harness.state().selection.items, [0], "Space on a row that is not selectable selects nothing");
+    let events = harness.state_mut().take_events();
+    assert!(events.contains(&ListEvent::LeadMoved(2)), "{events:?}");
+}
+
+#[test]
+fn a_click_on_a_row_that_is_not_selectable_makes_it_the_lead_only() {
+    let mut harness = harness(gapped());
+    let at = row(&harness, 2).rect().center();
+    harness.state_mut().take_events();
+    click_at(&mut harness, at, PointerButton::Primary);
+    assert_eq!(harness.state().selection.items, [0]);
+    assert_eq!(active(&harness).as_deref(), Some("Row 2"));
+    let events = harness.state_mut().take_events();
+    assert!(events.contains(&ListEvent::LeadMoved(2)) && events.contains(&ListEvent::Clicked(2)), "{events:?}");
+    assert!(events.iter().all(|e| !matches!(e, ListEvent::Selection(_))), "{events:?}");
+}
+
+#[test]
+fn a_shift_range_over_rows_that_are_not_selectable_leaves_them_out() {
+    let mut harness = harness(gapped());
+    focus(&mut harness);
+    key(&mut harness, Modifiers::NONE, Key::ArrowDown);
+    key(&mut harness, Modifiers::NONE, Key::ArrowDown);
+    assert_eq!(active(&harness).as_deref(), Some("Row 3"));
+    key(&mut harness, Modifiers::SHIFT, Key::Home);
+    let mut chosen = harness.state().selection.items.clone();
+    chosen.sort_unstable();
+    assert_eq!(chosen, [0, 3], "Row 2 is left out of the range");
 }
 
 #[test]

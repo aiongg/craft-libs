@@ -286,6 +286,7 @@ impl<'a> ComboBox<'a> {
                         chosen: checked == Some(option),
                         enabled: true,
                         tooltip: None,
+                        shortcut: None,
                     };
                     let outcome = rows.show(ui, &mut listbox, &row);
                     if outcome.picked {
@@ -599,12 +600,12 @@ impl ListOptions for Matches<'_, '_> {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Combo box"];
+pub const COMPONENTS: &[&str] = &["ComboBox"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("controls/combo-box/states", Level::Controls, "Combo box", "States", SizeArgs::default(), show_states),
-        typed_story!("controls/combo-box/font-size", Level::Controls, "Combo box", "Font size", SizeArgs::default(), show_font_size),
+        typed_story!("controls/combo-box/states", Level::Controls, "ComboBox", "States", SizeArgs::default(), show_states),
+        typed_story!("controls/combo-box/font-size", Level::Controls, "ComboBox", "Font size", SizeArgs::default(), show_font_size),
     ]
 }
 

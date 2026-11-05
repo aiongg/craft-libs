@@ -18,8 +18,8 @@
 
 use egui::accesskit::Role;
 use egui::{
-    Align2, Context, Event, Id, InputState, Key, Modifiers, MouseWheelUnit, Painter, Pos2, RawInput, Rect as ScreenRect, Response, Sense, Stroke,
-    TouchPhase, Ui, Vec2 as ScreenVec, WidgetInfo,
+    Align2, Context, Event, Id, InputState, Key, Modifiers, MouseWheelUnit, Painter, PointerButton, Pos2, RawInput, Rect as ScreenRect, Response,
+    Sense, Stroke, TouchPhase, Ui, Vec2 as ScreenVec, WidgetInfo,
 };
 use kurbo::{Point, Rect, Size};
 
@@ -29,6 +29,7 @@ use super::scrollbars::CanvasScrollbars;
 use super::tool_host::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
 use super::view::CanvasView;
 use super::zoom::{self, ZoomAnimation, ZoomLadder};
+use crate::edit::CancelReason;
 use crate::focus::key_owner::{canvas_keys_free, claimed_presses};
 use crate::localized::Labels;
 use crate::theme::{ToEgui, UiTokens};
@@ -367,7 +368,14 @@ impl PageKey {
     /// Returns whether one ran.
     // pc: crates/ui-egui/src/input/page_keys.rs:44 `handle`.
     pub fn handle(ctx: &Context, view: &mut CanvasView, size: Size, overscroll: bool) -> bool {
-        if !canvas_keys_free(ctx) {
+        Self::handle_where(ctx, view, size, overscroll, canvas_keys_free(ctx))
+    }
+
+    /// [`handle`](Self::handle) with the keys' gate given by the caller: `free` replaces the
+    /// "nothing but a widget has the keyboard" check, for a canvas in a modal layer of its own
+    /// (see [`keys_free`](crate::focus::key_owner::keys_free)).
+    pub fn handle_where(ctx: &Context, view: &mut CanvasView, size: Size, overscroll: bool, free: bool) -> bool {
+        if !free {
             return false;
         }
         let canvas = view.rect.size();
@@ -983,8 +991,8 @@ crate::words! {
 
 /// The Hand tool: a drag pans the view with the document under the pointer (the closed hand
 /// while dragging, the open hand otherwise); a release while still moving glides on with
-/// [`FlickPan`] when Flick Panning is on; Esc during the drag puts the view back. It does not
-/// autoscroll. The tool the Space key holds ([`MomentaryKeys`](super::MomentaryKeys)).
+/// [`FlickPan`] when Flick Panning is on; Esc during the drag puts the view back. The middle button
+/// drags it too. It does not autoscroll. The tool the Space key holds ([`MomentaryKeys`](super::MomentaryKeys)).
 #[derive(Clone, Debug, Default)]
 pub struct HandTool {
     /// The view and pointer when the drag began.
@@ -1006,6 +1014,11 @@ impl HandTool {
 }
 
 impl CanvasTool for HandTool {
+    /// The primary button and the middle button, which pans with every tool.
+    fn takes(&self, button: PointerButton, _modifiers: Modifiers) -> bool {
+        matches!(button, PointerButton::Primary | PointerButton::Middle)
+    }
+
     // pc: crates/ui-egui/src/canvas/tool_cursor.rs (Hand open/closed).
     fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
         ToolCursor::Hand { closed: self.start.is_some() }
@@ -1040,7 +1053,7 @@ impl CanvasTool for HandTool {
         cx.set_view(next);
     }
 
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, cx: &mut ToolContext<'_>) {
         if let Some((view, _)) = self.start.take() {
             cx.set_view(view);
         }
@@ -1182,7 +1195,7 @@ impl CanvasTool for ZoomTool {
         self.advance(pointer, cx);
     }
 
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, cx: &mut ToolContext<'_>) {
         self.hold = None;
         self.drag = None;
         if let Some((view, _, _)) = self.press.take() {
@@ -1252,7 +1265,7 @@ impl CanvasTool for RotateViewTool {
         true
     }
 
-    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, cx: &mut ToolContext<'_>) {
         if let Some((_, view)) = self.drag.take() {
             cx.set_view(view);
         }

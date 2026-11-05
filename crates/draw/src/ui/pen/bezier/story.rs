@@ -1,27 +1,35 @@
 //! The path overlay's story, and the host the story and the tests keep their paths in.
 
 use craft_ui::localized::Labels as _;
-use craft_ui::testing::canvas_story::ViewArgs;
+use craft_ui::testing::canvas_story::{PlainArgs, ViewArgs};
 use egui::{Color32, Ui};
 use kurbo::{ParamCurve as _, Point};
 
 use super::{
-    BezierNames, BezierOverlay, BezierResponse, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, PathEdit, PathSelection,
+    AnchorsShown, BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierTool, EditPath, EditSubpath, HandlesShown, Knot, KnotRef, PathEdit,
+    PathSelection, SegmentMark,
 };
 use craft_ui::canvas::RulerUnits;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
-use craft_ui::story::{Level, Story, StoryChoice, Surface};
+use craft_ui::story::{Level, Story, StoryChoice, Surface, lock, shared};
 use craft_ui::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Bezier paths"];
+pub const COMPONENTS: &[&str] = &["BezierTool"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum ToolArg {
     Direct,
     Convert,
     Show,
+    #[choice(name = "Add anchor")]
+    AddAnchor,
+    #[choice(name = "Delete anchor")]
+    DeleteAnchor,
+    #[choice(name = "Auto add/delete")]
+    AutoAddDelete,
+    Curvature,
 }
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
@@ -30,22 +38,46 @@ enum HandlesArg {
     All,
 }
 
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum SegmentArg {
+    #[choice(name = "Handles only")]
+    HandlesOnly,
+    Line,
+}
+
 #[derive(craft_ui::story::StoryArgs, Debug, PartialEq)]
 struct EditArgs {
     #[arg(flatten)]
     view: ViewArgs,
     tool: ToolArg,
     handles: HandlesArg,
+    #[arg(name = "segment mark")]
+    segment: SegmentArg,
+    #[arg(name = "hide anchors")]
+    hide_anchors: bool,
+    #[arg(name = "preview anchor")]
+    preview_anchor: bool,
 }
 
 impl Default for EditArgs {
     fn default() -> Self {
-        Self { view: ViewArgs::default(), tool: ToolArg::Direct, handles: HandlesArg::Selected }
+        Self {
+            view: ViewArgs::default(),
+            tool: ToolArg::Direct,
+            handles: HandlesArg::Selected,
+            segment: SegmentArg::HandlesOnly,
+            hide_anchors: false,
+            preview_anchor: false,
+        }
     }
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!("primitives/bezier-paths/edit", Level::Primitives, "Bezier paths", "Edit", EditArgs::default(), show_paths).on(Surface::Canvas)]
+    vec![
+        typed_story!("primitives/bezier-tool/edit", Level::Primitives, "BezierTool", "Edit", EditArgs::default(), show_paths).on(Surface::Canvas),
+        typed_story!("primitives/bezier-tool/curvature", Level::Primitives, "BezierTool", "Curvature", PlainArgs::default(), show_curvature)
+            .on(Surface::Canvas),
+    ]
 }
 
 /// A host's paths and selection, as the story and the tests keep them: it applies each edit to
@@ -111,61 +143,11 @@ fn find(paths: &mut [EditPath], key: u64) -> Option<&mut EditPath> {
     paths.iter_mut().find(|p| p.key == key)
 }
 
-fn knot_mut(paths: &mut [EditPath], key: u64, at: KnotRef) -> Option<&mut Knot> {
-    find(paths, key)?.subpaths.get_mut(at.subpath)?.knots.get_mut(at.knot)
-}
-
-/// Applies an edit as PhotoCraft's `photocraft_vector::edit` does.
-pub(crate) fn apply(paths: &mut [EditPath], edit: &PathEdit) {
-    match edit {
-        PathEdit::MoveAnchors { path, anchors, by } => {
-            for &at in anchors {
-                if let Some(k) = knot_mut(paths, *path, at) {
-                    k.anchor += *by;
-                    k.in_ctrl += *by;
-                    k.out_ctrl += *by;
-                }
-            }
-        }
-        &PathEdit::MoveHandle { path, knot, side, to, alone } => {
-            let Some(k) = knot_mut(paths, path, knot) else { return };
-            let other = match side {
-                HandleSide::In => HandleSide::Out,
-                HandleSide::Out => HandleSide::In,
-            };
-            let length = (k.handle(other) - k.anchor).hypot();
-            let away = k.anchor - to;
-            // A smooth knot keeps its handles collinear, the other keeping its length.
-            let opposite = (k.smooth && !alone && length > 0.0 && away.hypot() > 0.0).then(|| k.anchor + away.normalize() * length);
-            match side {
-                HandleSide::In => k.in_ctrl = to,
-                HandleSide::Out => k.out_ctrl = to,
-            }
-            match (other, opposite) {
-                (HandleSide::In, Some(p)) => k.in_ctrl = p,
-                (HandleSide::Out, Some(p)) => k.out_ctrl = p,
-                _ => {}
-            }
-            if alone {
-                k.smooth = false;
-            }
-        }
-        &PathEdit::BendSegment { path, segment, t, by } => {
-            let Some(sub) = find(paths, path).and_then(|p| p.subpaths.get_mut(segment.subpath)) else { return };
-            let Some((a, b)) = sub.segment_ends(segment.knot) else { return };
-            // The point at t follows `by`; each handle moves by its weight, the nearer one more.
-            let t = t.clamp(0.05, 0.95);
-            let s = 1.0 - t;
-            let k = 1.0 / (3.0 * s * t * (s * s + t * t));
-            sub.knots[a].out_ctrl += by * (s * k);
-            sub.knots[b].in_ctrl += by * (t * k);
-        }
-        &PathEdit::Convert { path, knot, out } => {
-            let Some(k) = knot_mut(paths, path, knot) else { return };
-            *k = match out {
-                None => Knot::corner(k.anchor),
-                Some(out) => Knot::smooth(k.anchor, out),
-            };
+/// Applies an edit to the path it names.
+fn apply(paths: &mut [EditPath], edit: &PathEdit) {
+    for path in paths {
+        if edit.apply(path) {
+            break;
         }
     }
 }
@@ -226,28 +208,85 @@ pub(crate) fn sample_paths() -> Vec<EditPath> {
     ]
 }
 
+/// The story's curvature paths: a closed loop of five smooth anchors and an open path with a
+/// corner, every handle the Curvature Pen's.
+pub(crate) fn curvature_paths() -> Vec<EditPath> {
+    let mut loop_ = EditSubpath {
+        knots: [(160.0, 90.0), (290.0, 130.0), (270.0, 250.0), (160.0, 300.0), (70.0, 190.0)]
+            .map(|(x, y)| Knot::smooth(Point::new(x, y), Point::new(x, y)))
+            .to_vec(),
+        closed: true,
+    };
+    loop_.reflow();
+    let mut line = EditSubpath {
+        knots: vec![
+            Knot::smooth(Point::new(380.0, 290.0), Point::new(380.0, 290.0)),
+            Knot::smooth(Point::new(450.0, 170.0), Point::new(450.0, 170.0)),
+            Knot::corner(Point::new(520.0, 250.0)),
+            Knot::smooth(Point::new(600.0, 120.0), Point::new(600.0, 120.0)),
+        ],
+        closed: false,
+    };
+    line.reflow();
+    vec![
+        EditPath { key: 1, subpaths: vec![loop_], color: None },
+        EditPath { key: 2, subpaths: vec![line], color: Some(Color32::from_rgb(230, 110, 20)) },
+    ]
+}
+
 /// Two paths on the story document. Direct: click an anchor (⇧ toggles, ⌥ its subpath), drag
 /// anchors, handles (⌥ alone) and segments, drag a marquee on empty canvas; Convert: click an
-/// anchor for a corner, drag from it for smooth handles. Tab to the paths: Page keys pick, the
-/// arrows move, Insert and Delete add and remove anchors, Esc deselects.
+/// anchor for a corner, drag from it for smooth handles; Add and Delete anchor, Auto add/delete
+/// (⌥ swaps Add and Delete) and Curvature act on a click. Tab to the paths: Page keys pick, the
+/// arrows move, Insert and Delete add and remove anchors, Esc deselects. The preview anchor shows
+/// the highlight a host draws for a hit it chooses.
 fn show_paths(ui: &mut Ui, args: &mut EditArgs) {
-    let key = ui.scope_id().with("bezier-story");
-    let mut host: PathHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PathHost::new(sample_paths()));
+    let kept = shared(ui, "paths", || PathHost::new(sample_paths()));
+    let mut host = lock(&kept);
     let tool = match args.tool {
         ToolArg::Convert => BezierTool::Convert,
         ToolArg::Show => BezierTool::Show,
         ToolArg::Direct => BezierTool::Direct,
+        ToolArg::AddAnchor => BezierTool::AddAnchor,
+        ToolArg::DeleteAnchor => BezierTool::DeleteAnchor,
+        ToolArg::AutoAddDelete => BezierTool::AutoAddDelete,
+        ToolArg::Curvature => BezierTool::Curvature,
     };
     let handles = if args.handles == HandlesArg::All { HandlesShown::All } else { HandlesShown::Selected };
+    let mark = match args.segment {
+        SegmentArg::HandlesOnly => SegmentMark::HandlesOnly,
+        SegmentArg::Line => SegmentMark::Line,
+    };
+    let anchors = if args.hide_anchors { AnchorsShown::Hidden } else { AnchorsShown::All };
+    let highlight = args.preview_anchor.then_some(BezierHit::Segment { path: 1, segment: KnotRef::new(0, 0), t: 0.5 });
     let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
     let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let names = BezierNames::of(ui);
-    let response = BezierOverlay::new("story-bezier", &host.paths, &host.selection, &px, &px, names).tool(tool).handles(handles).show(
+    let response = BezierOverlay::new("story-bezier", &host.paths, &host.selection, &px, &px, names)
+        .tool(tool)
+        .handles(handles)
+        .segment_mark(mark)
+        .anchors(anchors)
+        .highlight(highlight)
+        .show(ui, &canvas.response, &canvas.view);
+    host.apply(&response);
+}
+
+/// Two curvature paths under the Curvature tool: drag an anchor and the handles of every smooth
+/// anchor follow, click a segment to add an anchor (drag to place it), double-click an anchor to
+/// toggle it between smooth and corner; the arrows move the selected anchors and Enter toggles.
+fn show_curvature(ui: &mut Ui, args: &mut PlainArgs) {
+    let kept = shared(ui, "curvature", || PathHost::new(curvature_paths()));
+    let mut host = lock(&kept);
+    let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
+    let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
+    let names = BezierNames::of(ui);
+    let response = BezierOverlay::new("story-curvature", &host.paths, &host.selection, &px, &px, names).tool(BezierTool::Curvature).show(
         ui,
         &canvas.response,
         &canvas.view,
     );
     host.apply(&response);
-    ui.data_mut(|d| d.insert_temp(key, host));
 }

@@ -32,14 +32,21 @@ macro_rules! sizes {
 
 mod about;
 mod actions;
+mod add_beside;
+mod adjust;
 mod align;
 mod alt_text;
 mod angle_dial;
 mod app_shell;
+mod artboard;
 mod autocomplete;
 mod badge;
+mod before_after;
 mod bezier;
+mod blend_if;
+mod blur_pins;
 mod breadcrumb;
+mod brush;
 mod button;
 mod canvas;
 mod cell_selection;
@@ -52,6 +59,9 @@ mod color_ramp;
 mod color_wheel;
 mod column_bar;
 mod command_palette;
+mod connector;
+mod constrain;
+mod corner;
 mod crop;
 mod cursor;
 mod curve;
@@ -67,17 +77,20 @@ mod export;
 mod eyedropper;
 mod field;
 mod file_list;
+mod filter_gallery;
 mod find;
 mod findings;
 mod float;
 mod font_picker;
 mod form;
 mod frame_marks;
+mod full_window;
 mod glyphs;
 mod gradient_editor;
 mod gradient_line;
 mod gradient_palette;
 mod grid;
+mod grip;
 mod group_box;
 mod guide;
 mod handle;
@@ -85,25 +98,31 @@ mod harmony;
 mod header_footer;
 mod histogram;
 mod history;
+mod hover;
 mod icon_button;
 mod icon_picker;
 mod identify;
 mod inspector;
 mod kbd;
+mod layer_style;
 mod layers;
 mod levels;
+mod line_guide;
 mod link;
+mod liquify;
 mod list;
 mod list_manager;
 mod listbox;
 mod margins;
 mod marquee;
+mod measure;
 mod menu;
 mod metadata;
 mod navigator;
 mod new_document;
 mod notice;
 mod options_bar;
+mod outline_draft;
 mod pages;
 mod paint_chip;
 mod panel;
@@ -131,8 +150,13 @@ mod screen_picker;
 mod scroll;
 mod section;
 mod segmented;
+mod select;
+mod select_mask;
 mod selection_bar;
+mod selection_frame;
+mod shape_drag;
 mod sheet;
+mod slice;
 mod slider;
 mod slider_row;
 mod spinner;
@@ -140,8 +164,10 @@ mod split;
 mod split_button;
 mod start;
 mod status_bar;
+mod stroke_editor;
 mod swatch;
 mod swatch_palette;
+mod symmetry;
 mod tab;
 mod table;
 mod table_size;
@@ -162,6 +188,8 @@ mod tooltip;
 mod tour;
 mod transform;
 mod tree_picker;
+mod vanishing_point;
+mod wide_angle;
 
 use std::fmt;
 
@@ -174,14 +202,21 @@ use super::tokens::{ColorTokens, ElevationTokens, ShapeTokens, SizeTokens, Space
 
 pub use about::{AboutField, AboutTokens};
 pub use actions::{ActionsField, ActionsTokens};
+pub use add_beside::{AddBesideField, AddBesideTokens};
+pub use adjust::{AdjustField, AdjustTokens};
 pub use align::{AlignField, AlignTokens};
 pub use alt_text::{AltTextField, AltTextTokens};
 pub use angle_dial::{AngleDialField, AngleDialTokens};
 pub use app_shell::{AppShellField, AppShellTokens};
+pub use artboard::{ArtboardField, ArtboardTokens};
 pub use autocomplete::{AutocompleteField, AutocompleteTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
+pub use before_after::{BeforeAfterField, BeforeAfterTokens};
 pub use bezier::{BezierField, BezierTokens};
+pub use blend_if::{BlendIfField, BlendIfTokens};
+pub use blur_pins::{BlurPinsField, BlurPinsTokens};
 pub use breadcrumb::{BreadcrumbField, BreadcrumbTokens};
+pub use brush::{BrushField, BrushTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use canvas::{CanvasField, CanvasTokens};
 pub use cell_selection::{CellSelectionField, CellSelectionTokens};
@@ -194,6 +229,9 @@ pub use color_ramp::{ColorRampField, ColorRampTokens};
 pub use color_wheel::{ColorWheelField, ColorWheelTokens};
 pub use column_bar::{ColumnBarField, ColumnBarTokens};
 pub use command_palette::{CommandPaletteField, CommandPaletteTokens};
+pub use connector::{ConnectorField, ConnectorTokens};
+pub use constrain::{ConstrainField, ConstrainTokens};
+pub use corner::{CornerField, CornerTokens};
 pub use crop::{CropField, CropTokens};
 pub use cursor::{CursorField, CursorTokens};
 pub use curve::{CurveField, CurveTokens};
@@ -209,17 +247,20 @@ pub use export::{ExportField, ExportTokens};
 pub use eyedropper::{EyedropperField, EyedropperTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
 pub use file_list::{FileListField, FileListTokens};
+pub use filter_gallery::{FilterGalleryField, FilterGalleryTokens};
 pub use find::{FindField, FindTokens};
 pub use findings::{FindingsField, FindingsTokens};
 pub use float::{FloatField, FloatTokens};
 pub use font_picker::{FontPickerField, FontPickerTokens};
 pub use form::{FormField, FormSpacing, FormTokens};
 pub use frame_marks::{FrameMarksField, FrameMarksTokens};
+pub use full_window::{FullWindowField, FullWindowTokens};
 pub use glyphs::{GlyphsField, GlyphsTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
 pub use gradient_line::{GradientLineField, GradientLineTokens};
 pub use gradient_palette::{GradientPaletteField, GradientPaletteTokens};
 pub use grid::{GridField, GridTokens};
+pub use grip::{GripField, GripTokens};
 pub use group_box::{GroupBoxField, GroupBoxTokens};
 pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
@@ -227,24 +268,30 @@ pub use harmony::{HarmonyField, HarmonyTokens};
 pub use header_footer::{HeaderFooterField, HeaderFooterTokens};
 pub use histogram::{HistogramField, HistogramTokens};
 pub use history::{HistoryField, HistoryTokens};
+pub use hover::{HoverField, HoverTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use icon_picker::{IconPickerField, IconPickerTokens};
 pub use inspector::{InspectorField, InspectorTokens};
 pub use kbd::{KbdField, KbdTokens};
+pub use layer_style::{LayerStyleField, LayerStyleTokens};
 pub use layers::{LayersField, LayersTokens};
 pub use levels::{LevelsField, LevelsTokens};
+pub use line_guide::{LineGuideField, LineGuideTokens};
 pub use link::{LinkField, LinkTokens};
+pub use liquify::{LiquifyField, LiquifyTokens};
 pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
 pub use list_manager::{ListManagerField, ListManagerTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use margins::{MarginsField, MarginsTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
+pub use measure::{MeasureField, MeasureTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
 pub use metadata::{MetadataField, MetadataTokens};
 pub use navigator::{NavigatorField, NavigatorTokens};
 pub use new_document::{NewDocumentField, NewDocumentTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
+pub use outline_draft::{OutlineDraftField, OutlineDraftTokens};
 pub use pages::{PagesField, PagesTokens};
 pub use paint_chip::{PaintChipField, PaintChipTokens};
 pub use panel::{PanelField, PanelTokens};
@@ -272,8 +319,13 @@ pub use screen_picker::{ScreenPickerField, ScreenPickerTokens};
 pub use scroll::{ScrollField, ScrollTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
+pub use select::{SelectField, SelectTokens};
+pub use select_mask::{SelectMaskField, SelectMaskTokens};
 pub use selection_bar::{SelectionBarField, SelectionBarTokens};
+pub use selection_frame::{SelectionFrameField, SelectionFrameTokens};
+pub use shape_drag::{ShapeDragField, ShapeDragTokens};
 pub use sheet::{SheetField, SheetTokens};
+pub use slice::{SliceField, SliceTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
@@ -281,8 +333,10 @@ pub use split::{SplitField, SplitTokens};
 pub use split_button::{SplitButtonField, SplitButtonTokens};
 pub use start::{StartField, StartTokens};
 pub use status_bar::{StatusBarField, StatusBarTokens};
+pub use stroke_editor::{StrokeEditorField, StrokeEditorTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
+pub use symmetry::{SymmetryField, SymmetryTokens};
 pub use tab::{TabField, TabTokens};
 pub use table::{TableField, TableTokens};
 pub use table_size::{TableSizeField, TableSizeTokens};
@@ -303,6 +357,8 @@ pub use tooltip::{TooltipField, TooltipTokens};
 pub use tour::{TourField, TourTokens};
 pub use transform::{TransformField, TransformTokens};
 pub use tree_picker::{TreePickerField, TreePickerTokens};
+pub use vanishing_point::{VanishingPointField, VanishingPointTokens};
+pub use wide_angle::{WideAngleField, WideAngleTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
 /// family's defaults can depend on another's. Fields are added as families need them.
@@ -1073,6 +1129,62 @@ families! {
     section: SectionTokens => Section(SectionField);
     /// Segmented controls: one of a few options as separate pills.
     segmented: SegmentedTokens => Segmented(SegmentedField);
+    /// Selection tools: the lasso close reach, the Magnetic Lasso fastening point and closing ring.
+    select: SelectTokens => Select(SelectField);
+    /// Select and Mask's canvas marks: the polygon close reach, the Object Selection click reach and the stroke colour.
+    select_mask: SelectMaskTokens => SelectMask(SelectMaskField);
+    /// Hover outlines: the object under the pointer.
+    hover: HoverTokens => Hover(HoverField);
+    /// Outlines being drawn: the close reach and the same-point reach.
+    outline_draft: OutlineDraftTokens => OutlineDraft(OutlineDraftField);
+    /// Selection frames: the box, key object line, centre mark and dashed outline.
+    selection_frame: SelectionFrameTokens => SelectionFrame(SelectionFrameField);
+    /// Grips: the squares and midpoint bars of an object's selection.
+    grip: GripTokens => Grip(GripField);
+    /// Constrained moves: the copy reach and the stroke lock.
+    constrain: ConstrainTokens => Constrain(ConstrainField);
+    /// Line guides: the line a straight-line stroke previews.
+    line_guide: LineGuideTokens => LineGuide(LineGuideField);
+    /// Before and after views: the divider line, knob and gaps.
+    before_after: BeforeAfterTokens => BeforeAfter(BeforeAfterField);
+    /// Brushes: the cursor, resize gesture, preset cards, picker, chip, settings panel and tip ellipse.
+    brush: BrushTokens => Brush(BrushField);
+    /// Full-window editors: the side column, canvas region, zoom bar and progress bar.
+    full_window: FullWindowTokens => FullWindow(FullWindowField);
+    /// Corner widgets: the round marks at a rectangle's corners.
+    corner: CornerTokens => Corner(CornerField);
+    /// Stroke editors: the popover that edits a stroke, its opener and samples.
+    stroke_editor: StrokeEditorTokens => StrokeEditor(StrokeEditorField);
+    /// The Ruler tool: the reach of its ends and the arms of their crosses.
+    measure: MeasureTokens => Measure(MeasureField);
+    /// Symmetry guides: the axis lines and the Transform Symmetry handles' reach.
+    symmetry: SymmetryTokens => Symmetry(SymmetryField);
+    /// The adjustment editors: Hue/Saturation's spectrum bars and range thumbs, the point pickers' tone dot and Threshold's histogram.
+    adjust: AdjustTokens => Adjust(AdjustField);
+    /// The Layer Style dialog: the effect list and page columns, the Styles page's thumbnails and the contour field.
+    layer_style: LayerStyleTokens => LayerStyle(LayerStyleField);
+    /// The Blend If bar: its width range, ramp and handle triangles.
+    blend_if: BlendIfTokens => BlendIf(BlendIfField);
+    /// The "+" buttons beside a selected object.
+    add_beside: AddBesideTokens => AddBeside(AddBesideField);
+    /// The Shape tools' drag: the preview outline and the click slop.
+    shape_drag: ShapeDragTokens => ShapeDrag(ShapeDragField);
+    /// The Slice tool's overlay: outlines, dashes, badges and the click slop.
+    slice: SliceTokens => Slice(SliceField);
+    /// The Artboard tool: the drag preview and the click slop.
+    artboard: ArtboardTokens => Artboard(ArtboardField);
+    /// The Connector tool: the route, attach points, handles and the ghost.
+    connector: ConnectorTokens => Connector(ConnectorField);
+    /// Vanishing Point's marks: plane outlines, grid, nodes and the stamp ring's halo.
+    vanishing_point: VanishingPointTokens => VanishingPoint(VanishingPointField);
+    /// Adaptive Wide Angle's constraint marks.
+    wide_angle: WideAngleTokens => WideAngle(WideAngleField);
+    /// The blur pins' marks: dots, the amount ring, shape handles and grab reach.
+    blur_pins: BlurPinsTokens => BlurPins(BlurPinsField);
+    /// Liquify's marks on the canvas: the Freeze Lasso and the freeze mask.
+    liquify: LiquifyTokens => Liquify(LiquifyField);
+    /// The Filter Gallery's thumbnail and stack sizes.
+    filter_gallery: FilterGalleryTokens => FilterGallery(FilterGalleryField);
     /// Selection bars: the floating bar of actions beside a selection.
     selection_bar: SelectionBarTokens => SelectionBar(SelectionBarField);
     /// Sliders: a track filled to the value, with a thumb on it.

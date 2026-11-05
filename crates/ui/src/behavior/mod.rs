@@ -59,7 +59,12 @@ mod list_selection;
 #[cfg(test)]
 mod list_selection_tests;
 mod listbox;
+pub mod move_gesture;
+#[cfg(test)]
+mod move_gesture_tests;
 pub mod nudge;
+#[cfg(test)]
+mod nudge_tests;
 mod quirks;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod quirks_tests;
@@ -70,6 +75,7 @@ mod reorder_tests;
 pub mod scrub;
 #[cfg(test)]
 mod scrub_tests;
+pub(crate) mod stories_move;
 #[cfg(test)]
 mod tests;
 mod typing;
@@ -95,4 +101,4 @@ pub use reorder::{
 };
 pub use scrub::Scrub;
 pub use typing::{Codec, Escape, NotAValue, PlainText, Typed, Typing, TypingLook};
-pub(crate) use typing::{take_composing_keys, take_enter};
+pub(crate) use typing::{opening_press_keeps_focus, take_composing_keys, take_enter};

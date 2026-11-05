@@ -256,6 +256,23 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::OverlayCropInvalid => Fixed(Rgba::rgb(0xe5, 0x3e, 0x3e)),
         // Drawn over the document, not the panel, so one colour in both modes (PhotoCraft's default).
         T::OverlayGrid => Fixed(Rgba::rgb(0x8c, 0x8c, 0x8c)),
+        // CadCraft's pinned grip colours; grips sit on the document, so one value in both modes.
+        T::OverlayGrip => Fixed(Rgba::rgb(0x2f, 0x6b, 0xff)),
+        T::OverlayGripWarm => Fixed(Rgba::rgb(0xff, 0x7f, 0x9f)),
+        T::OverlayGripHot => Fixed(Rgba::rgb(0xff, 0x3b, 0x3b)),
+        T::OverlayGripDyn => Fixed(Rgba::rgb(0x26, 0xc6, 0xe8)),
+        // Warp pins and mesh sit on the document, so one value in both modes (PhotoCraft `puppet_ui.rs:367-388`).
+        T::OverlayPin => Fixed(Rgba::rgb(0xff, 0xd6, 0x0a)),
+        T::OverlayPinRing => Fixed(Rgba::rgb(0x00, 0x00, 0x00)),
+        T::OverlayPinTurn => Fixed(Rgba::rgb(0xff, 0xff, 0xff)),
+        T::OverlayMesh => Fixed(Rgba([40, 40, 40, 150])),
+        // Slices and artboard edges sit on the document, so one value in both modes (PhotoCraft `slice_ui.rs:242-321`, `artboard_ui.rs:97`).
+        T::OverlaySlice => Fixed(Rgba::rgb(0x38, 0xb5, 0xff)),
+        T::OverlaySliceSelected => Fixed(Rgba::rgb(0xff, 0xb0, 0x00)),
+        T::OverlaySliceAuto => Fixed(Rgba::rgb(110, 110, 110)),
+        T::OverlaySliceText => Fixed(Rgba::rgb(0xff, 0xff, 0xff)),
+        T::OverlayArtboard => Fixed(Rgba([0, 0, 0, 90])),
+        T::OverlayGripStroke => Fixed(Rgba::rgb(0x10, 0x30, 0x80)),
         T::DataSeries0 => series(0),
         T::DataSeries1 => series(1),
         T::DataSeries2 => series(2),
@@ -1086,6 +1103,22 @@ pub const TRANSFORM_WARP_ANCHOR: f32 = 5.0;
 pub const TRANSFORM_WARP_CONTROL: f32 = 5.5;
 /// Distance from the pointer within which a warp handle shows (PhotoCraft's `HANDLE_REVEAL_PX`).
 pub const TRANSFORM_WARP_REVEAL: f32 = 56.0;
+/// Diameter of a Puppet Warp pin's disc (PhotoCraft radius 5.5): `transform.pin`.
+pub const TRANSFORM_PIN: f32 = 11.0;
+/// Width of a pin's ring: `transform.pin_ring`.
+pub const TRANSFORM_PIN_RING: f32 = 1.25;
+/// Diameter of the selected pin's core (radius 2): `transform.pin_core`.
+pub const TRANSFORM_PIN_CORE: f32 = 4.0;
+/// Radius of the fixed-rotation ring and reach of the Option turn: `transform.pin_turn`.
+pub const TRANSFORM_PIN_TURN: f32 = 18.0;
+/// Width of the fixed-rotation ring and its line: `transform.pin_turn_line`.
+pub const TRANSFORM_PIN_TURN_LINE: f32 = 1.0;
+/// Width of the pin mesh's lines: `transform.mesh_line`.
+pub const TRANSFORM_MESH_LINE: f32 = 0.6;
+/// Diameter of a Perspective Warp plane's corner disc (radius 4.5): `transform.plane_corner`.
+pub const TRANSFORM_PLANE_CORNER: f32 = 9.0;
+/// Width of a plane corner's ring: `transform.plane_ring`.
+pub const TRANSFORM_PLANE_RING: f32 = 1.25;
 
 /// Width of a path's outline, in points, at every Size.
 pub const BEZIER_LINE: f32 = 1.0;
@@ -1528,6 +1561,12 @@ pub const CROP_PERSPECTIVE_CLICK_DOT: f32 = 4.0;
 pub const CROP_PERSPECTIVE_CLICK_MOVE: f32 = 3.0;
 /// Default reach of a perspective corner.
 pub const CROP_PERSPECTIVE_REACH: f32 = 8.0;
+/// Width of the options bar's overlay menu and gear popover: `crop.menu_width`.
+pub const CROP_MENU_WIDTH: f32 = 240.0;
+/// Widest the gear popover grows: `crop.menu_max_width`.
+pub const CROP_MENU_MAX_WIDTH: f32 = 300.0;
+/// Width of the options bar's ratio preset select: `crop.preset_width` (PhotoCraft's 140).
+pub const CROP_PRESET_WIDTH: f32 = 140.0;
 
 /// Canvas grid line width.
 pub const GRID_WIDTH: f32 = 1.0;
@@ -1574,6 +1613,10 @@ pub const SCREEN_PICKER_ZOOM_STEP: u32 = 2;
 pub const PAINT_CHIP_WIDTH: f32 = 30.0;
 /// Compact height of a paint chip.
 pub const PAINT_CHIP_HEIGHT: f32 = 22.0;
+/// Inset of the No Color diagonal's ends from the chip's edge (PhotoCraft's `shrink(3.0)`).
+pub const PAINT_CHIP_NONE_INSET: f32 = 3.0;
+/// Width of the No Color diagonal (PhotoCraft's 1.5 stroke).
+pub const PAINT_CHIP_NONE_LINE: f32 = 1.5;
 
 /// Compact side of the Color Guide's base colour button (VectorCraft's).
 pub const HARMONY_BASE: f32 = 26.0;
@@ -2372,3 +2415,543 @@ pub const ACTIONS_COLORS: [Rgba; 6] = [
 ];
 /// A Button Mode label on a coloured fill (PhotoCraft `actions.rs:297-313`).
 pub const ACTIONS_LABEL_ON_COLOR: Rgba = Rgba::rgb(20, 20, 20);
+
+// --- select ---
+/// Side of a Magnetic Lasso fastening point: `select.fastening`.
+pub const SELECT_FASTENING: f32 = 5.0;
+/// Radius of the Magnetic Lasso closing ring: `select.ring_radius`.
+pub const SELECT_RING_RADIUS: f32 = 4.0;
+/// Offset of the ring right of and below the pointer: `select.ring_offset`.
+pub const SELECT_RING_OFFSET: f32 = 12.0;
+/// Width of the ring halo: `select.ring_halo`.
+pub const SELECT_RING_HALO: f32 = 3.0;
+/// Width of the ring line: `select.ring_line`.
+pub const SELECT_RING_LINE: f32 = 1.2;
+/// Smallest radius of the Magnetic Lasso width circle: `select.width_ring_min`.
+pub const SELECT_WIDTH_RING_MIN: f32 = 2.0;
+/// Gap between the width circle's two rings: `select.width_ring_gap`.
+pub const SELECT_WIDTH_RING_GAP: f32 = 0.5;
+
+// --- hover ---
+/// Line width of a rect or path outline: `hover.outline`.
+pub const HOVER_OUTLINE: f32 = 1.5;
+/// A mask texel's alpha per unit of coverage: `hover.fill_alpha`.
+pub const HOVER_FILL_ALPHA: f32 = 0.42;
+/// A mask edge texel's alpha: `hover.edge_alpha`.
+pub const HOVER_EDGE_ALPHA: f32 = 0.95;
+/// How long the pointer rests before a lookup, in milliseconds: `hover.debounce_ms`.
+pub const HOVER_DEBOUNCE_MS: f32 = 120.0;
+/// Repaint interval while a lookup runs, in milliseconds: `hover.busy_ms`.
+pub const HOVER_BUSY_MS: f32 = 40.0;
+
+// --- outline_draft ---
+/// A press this near the first point closes an outline, in screen points: `outline_draft.close`.
+pub const OUTLINE_DRAFT_CLOSE: f32 = 8.0;
+/// A press this near the last point is the same click again: `outline_draft.same_point`.
+pub const OUTLINE_DRAFT_SAME_POINT: f32 = 3.0;
+
+// --- selection_frame ---
+/// The box line and a solid outline: `selection_frame.line`.
+pub const SELECTION_FRAME_LINE: f32 = 1.0;
+/// The key object's box line: `selection_frame.key_line`.
+pub const SELECTION_FRAME_KEY_LINE: f32 = 3.0;
+/// The centre mark's side: `selection_frame.centre`.
+pub const SELECTION_FRAME_CENTRE: f32 = 3.5;
+/// A dashed outline's width: `selection_frame.outline`.
+pub const SELECTION_FRAME_OUTLINE: f32 = 1.5;
+/// A dashed outline's dash: `selection_frame.dash`.
+pub const SELECTION_FRAME_DASH: f32 = 4.0;
+/// A dashed outline's gap: `selection_frame.gap`.
+pub const SELECTION_FRAME_GAP: f32 = 3.0;
+/// What one grow step adds to a grip: `selection_frame.grow_step`.
+pub const SELECTION_FRAME_GROW_STEP: f32 = 1.0;
+
+// --- grip ---
+/// A square grip's side, a midpoint's width: `grip.size`.
+pub const GRIP_SIZE: f32 = 10.0;
+/// A midpoint grip's height: `grip.midpoint_height`.
+pub const GRIP_MIDPOINT_HEIGHT: f32 = 5.0;
+/// The outline width: `grip.stroke`.
+pub const GRIP_STROKE: f32 = 1.0;
+/// The hit area beyond a grip's bounds: `grip.hit_pad`.
+pub const GRIP_HIT_PAD: f32 = 3.0;
+/// The warm area beyond a grip's bounds: `grip.warm_pad`.
+pub const GRIP_WARM_PAD: f32 = 2.0;
+
+// --- constrain ---
+/// Screen points of travel after which ⌥ held at the press copies: `constrain.copy_reach`.
+pub const CONSTRAIN_COPY_REACH: f32 = 2.0;
+/// Screen points a stroke travels before its direction locks: `constrain.stroke_lock`.
+pub const CONSTRAIN_STROKE_LOCK: f32 = 3.0;
+
+// --- line_guide ---
+/// The line width: `line_guide.width`.
+pub const LINE_GUIDE_WIDTH: f32 = 1.0;
+/// The halo's width, under the line: `line_guide.halo`.
+pub const LINE_GUIDE_HALO: f32 = 3.0;
+
+// --- before_after ---
+/// The divider line's width: `before_after.line`.
+pub const BEFORE_AFTER_LINE: f32 = 2.0;
+/// The halo's extra width on each side of the line: `before_after.halo`.
+pub const BEFORE_AFTER_HALO: f32 = 1.0;
+/// The knob's diameter: `before_after.knob`.
+pub const BEFORE_AFTER_KNOB: f32 = 20.0;
+/// Between two side-by-side panes: `before_after.gap_side`.
+pub const BEFORE_AFTER_GAP_SIDE: f32 = 12.0;
+/// Between two stacked panes: `before_after.gap_stacked`.
+pub const BEFORE_AFTER_GAP_STACKED: f32 = 28.0;
+/// Below a caption: `before_after.caption_gap`.
+pub const BEFORE_AFTER_CAPTION_GAP: f32 = 4.0;
+
+// --- brush ---
+/// Screen points of vertical resize travel from level 0 to 1: `brush.resize_travel`.
+pub const BRUSH_RESIZE_TRAVEL: f32 = 200.0;
+/// Below this on-screen radius the outline is unreadable and the crosshair shows: `brush.tip_min_radius`.
+pub const BRUSH_TIP_MIN_RADIUS: f32 = 3.0;
+/// The arm of that crosshair: `brush.tip_min_crosshair`.
+pub const BRUSH_TIP_MIN_CROSSHAIR: f32 = 4.0;
+/// The picker's width before the user drags its grip: `brush.picker_width`.
+pub const BRUSH_PICKER_WIDTH: f32 = 300.0;
+/// Its height: `brush.picker_height`.
+pub const BRUSH_PICKER_HEIGHT: f32 = 420.0;
+/// Its least width: `brush.picker_min_width`.
+pub const BRUSH_PICKER_MIN_WIDTH: f32 = 230.0;
+/// Its least height: `brush.picker_min_height`.
+pub const BRUSH_PICKER_MIN_HEIGHT: f32 = 170.0;
+/// The Size and Hardness block's greatest width: `brush.picker_head_max`.
+pub const BRUSH_PICKER_HEAD_MAX: f32 = 350.0;
+/// The least height of the card list: `brush.picker_list_min`.
+pub const BRUSH_PICKER_LIST_MIN: f32 = 80.0;
+/// Between the head and the search row, and around the hairline: `brush.picker_gap`.
+pub const BRUSH_PICKER_GAP: f32 = 6.0;
+/// Room the footer slider leaves for the grip: `brush.picker_grip_room`.
+pub const BRUSH_PICKER_GRIP_ROOM: f32 = 20.0;
+/// The search field's and the card scale slider's least width: `brush.picker_field_min`.
+pub const BRUSH_PICKER_FIELD_MIN: f32 = 60.0;
+/// Padding inside a card's tile: `brush.card_pad`.
+pub const BRUSH_CARD_PAD: f32 = 4.0;
+/// The tile's inset in its cell, at both ends: `brush.card_inset`.
+pub const BRUSH_CARD_INSET: f32 = 4.0;
+/// The tip cell's width: `brush.card_tip_width`.
+pub const BRUSH_CARD_TIP_WIDTH: f32 = 46.0;
+/// The tip thumbnail's base side: `brush.card_tip_base`.
+pub const BRUSH_CARD_TIP_BASE: f32 = 44.8;
+/// The name row's height: `brush.card_name_height`.
+pub const BRUSH_CARD_NAME_HEIGHT: f32 = 20.0;
+/// The name's inset from the row's ends: `brush.card_name_inset`.
+pub const BRUSH_CARD_NAME_INSET: f32 = 6.0;
+/// A compact card's tip thumbnail sits this far inside its cell's shorter side: `brush.card_tip_compact_inset`.
+pub const BRUSH_CARD_TIP_COMPACT_INSET: f32 = 2.0;
+/// The size number's distance from the bottom of the tip cell: `brush.card_number_gap`.
+pub const BRUSH_CARD_NUMBER_GAP: f32 = 1.0;
+/// The tip thumbnail's distance above the size number: `brush.card_tip_gap`.
+pub const BRUSH_CARD_TIP_GAP: f32 = 2.0;
+/// The stroke's inset from the tip cell: `brush.card_stroke_inset`.
+pub const BRUSH_CARD_STROKE_INSET: f32 = 8.0;
+/// The stroke's least width: `brush.card_stroke_min`.
+pub const BRUSH_CARD_STROKE_MIN: f32 = 24.0;
+/// The stroke's greatest width: `brush.card_stroke_max`.
+pub const BRUSH_CARD_STROKE_MAX: f32 = 260.0;
+/// The stroke's height: `brush.card_stroke_height`.
+pub const BRUSH_CARD_STROKE_HEIGHT: f32 = 36.0;
+/// A full card, width then height: `brush.card_max`.
+pub const BRUSH_CARD_MAX: [f32; 2] = [300.0, 70.0];
+/// A tip-only cell, width then height: `brush.card_tip_only`.
+pub const BRUSH_CARD_TIP_ONLY: [f32; 2] = [60.0, 70.0];
+/// A tip-and-name cell, width then height: `brush.card_tip_name`.
+pub const BRUSH_CARD_TIP_NAME: [f32; 2] = [150.0, 70.0];
+/// The card tile's corner radius: `brush.card_radius`.
+pub const BRUSH_CARD_RADIUS: f32 = 3.0;
+/// The options-bar chip, width then height: `brush.chip`.
+pub const BRUSH_CHIP: [f32; 2] = [44.0, 30.0];
+/// The chip's tip image side: `brush.chip_tip`.
+pub const BRUSH_CHIP_TIP: f32 = 14.0;
+/// The tip image's centre from the chip's leading top corner: `brush.chip_tip_at`.
+pub const BRUSH_CHIP_TIP_AT: [f32; 2] = [14.0, 11.0];
+/// The chip's chevron side: `brush.chip_chevron`.
+pub const BRUSH_CHIP_CHEVRON: f32 = 10.0;
+/// The chip's size number, its centre's distance from the chip's top: `brush.chip_number_at`.
+pub const BRUSH_CHIP_NUMBER_AT: f32 = 25.0;
+/// The chevron's centre, its distance from the chip's trailing end: `brush.chip_chevron_inset`.
+pub const BRUSH_CHIP_CHEVRON_INSET: f32 = 9.0;
+/// The Brush Settings panel's preferred width: `brush.panel_width`.
+pub const BRUSH_PANEL_WIDTH: f32 = 540.0;
+/// The section list's width: `brush.section_list_width`.
+pub const BRUSH_SECTION_LIST_WIDTH: f32 = 150.0;
+/// A section row's height: `brush.section_row`.
+pub const BRUSH_SECTION_ROW: f32 = 23.0;
+/// Before the first switch row: `brush.section_switch_gap`.
+pub const BRUSH_SECTION_SWITCH_GAP: f32 = 6.0;
+/// The stroke strip's height: `brush.strip_height`.
+pub const BRUSH_STRIP_HEIGHT: f32 = 76.0;
+/// The Control select's width in a dynamic control row: `brush.control_select`.
+pub const BRUSH_CONTROL_SELECT: f32 = 130.0;
+/// The tip ellipse widget's side: `brush.ellipse_size`.
+pub const BRUSH_ELLIPSE_SIZE: f32 = 84.0;
+/// The disc's radius: `brush.ellipse_disc`.
+pub const BRUSH_ELLIPSE_DISC: f32 = 40.0;
+/// The ellipse's major radius: `brush.ellipse_radius`.
+pub const BRUSH_ELLIPSE_RADIUS: f32 = 34.0;
+/// A roundness dot's radius: `brush.ellipse_dot`.
+pub const BRUSH_ELLIPSE_DOT: f32 = 4.0;
+/// How near a dot a press grabs it: `brush.ellipse_grab`.
+pub const BRUSH_ELLIPSE_GRAB: f32 = 7.0;
+/// The ellipse outline and arrow width: `brush.ellipse_line`.
+pub const BRUSH_ELLIPSE_LINE: f32 = 1.5;
+/// How far the arrow reaches past the ellipse: `brush.ellipse_arrow_reach`.
+pub const BRUSH_ELLIPSE_ARROW_REACH: f32 = 5.0;
+/// The arrow head's length then width: `brush.ellipse_head`.
+pub const BRUSH_ELLIPSE_HEAD: [f32; 2] = [7.0, 8.0];
+/// A cell of the grid of tips, width then height: `brush.tip_grid_cell`.
+pub const BRUSH_TIP_GRID_CELL: [f32; 2] = [44.0, 50.0];
+/// A tip's side in that grid before its size scale: `brush.tip_grid_thumb`.
+pub const BRUSH_TIP_GRID_THUMB: f32 = 34.0;
+/// The grid's greatest height: `brush.tip_grid_max`.
+pub const BRUSH_TIP_GRID_MAX: f32 = 104.0;
+
+// --- full_window ---
+/// A standard side column: `full_window.side.width`.
+pub const FULL_WINDOW_SIDE_WIDTH: f32 = 300.0;
+/// A wide side column: `full_window.side.width_wide`.
+pub const FULL_WINDOW_SIDE_WIDTH_WIDE: f32 = 350.0;
+/// A narrow side column: `full_window.side.width_narrow`.
+pub const FULL_WINDOW_SIDE_WIDTH_NARROW: f32 = 220.0;
+/// The padding inside a side column, across: `full_window.side.pad_x`.
+pub const FULL_WINDOW_SIDE_PAD_X: f32 = 14.0;
+/// The padding inside a side column, along: `full_window.side.pad_y`.
+pub const FULL_WINDOW_SIDE_PAD_Y: f32 = 12.0;
+/// The room kept on each side of a fitted image: `full_window.canvas.margin`.
+pub const FULL_WINDOW_CANVAS_MARGIN: f32 = 20.0;
+/// The zoom bar's height: `full_window.zoom_bar.height`.
+pub const FULL_WINDOW_ZOOM_BAR_HEIGHT: f32 = 30.0;
+/// The zoom bar's padding, across: `full_window.zoom_bar.pad_x`.
+pub const FULL_WINDOW_ZOOM_BAR_PAD_X: f32 = 10.0;
+/// The zoom bar's padding, along: `full_window.zoom_bar.pad_y`.
+pub const FULL_WINDOW_ZOOM_BAR_PAD_Y: f32 = 3.0;
+/// The zoom bar's progress bar width: `full_window.progress.width`.
+pub const FULL_WINDOW_PROGRESS_WIDTH: f32 = 90.0;
+
+/// Alpha (of 255) of the brush resize preview's default tint (PhotoCraft's).
+pub const BRUSH_PREVIEW_ALPHA: u8 = 110;
+/// Share of `surface.raised` a brush card's tile keeps (PhotoCraft darkens it to 90 %).
+pub const BRUSH_CARD_FILL_SHARE: f32 = 0.9;
+
+/// `c` with each colour channel multiplied by `share`, in gamma (sRGB) space.
+pub(super) fn darkened(c: Rgba, share: f32) -> Rgba {
+    let [r, g, b, a] = c.0;
+    let k = |v: u8| (f32::from(v) * share + 0.5) as u8;
+    Rgba([k(r), k(g), k(b), a])
+}
+
+// --- corner ---
+/// The widget's diameter: `corner.widget`.
+pub const CORNER_WIDGET: f32 = 10.0;
+/// The inner dot's diameter: `corner.dot`.
+pub const CORNER_DOT: f32 = 5.0;
+/// The outline's width: `corner.line`.
+pub const CORNER_LINE: f32 = 1.5;
+/// The pointer's reach: `corner.hit`.
+pub const CORNER_HIT: f32 = 7.0;
+/// Farthest a press on a widget may move and still be a click (the value of `bezier.click_slop`): `corner.click_slop`.
+pub const CORNER_CLICK_SLOP: f32 = 1.0;
+/// The least distance inside a corner: `corner.inset`.
+pub const CORNER_INSET: f32 = 10.0;
+/// The shortest side, on the screen, whose corners show widgets: `corner.min_side`.
+pub const CORNER_MIN_SIDE: f32 = 30.0;
+
+// --- stroke_editor ---
+/// The popover body's width: `stroke_editor.width`.
+pub const STROKE_EDITOR_WIDTH: f32 = 272.0;
+/// The room kept between the popover and the window's edge: `stroke_editor.screen_margin`.
+pub const STROKE_EDITOR_SCREEN_MARGIN: f32 = 24.0;
+/// The room kept above and below the popover: `stroke_editor.screen_margin_y`.
+pub const STROKE_EDITOR_SCREEN_MARGIN_Y: f32 = 40.0;
+/// The narrowest the body gets in a small window: `stroke_editor.min_width`.
+pub const STROKE_EDITOR_MIN_WIDTH: f32 = 160.0;
+/// The shortest the popover's scrolling body gets: `stroke_editor.min_height`.
+pub const STROKE_EDITOR_MIN_HEIGHT: f32 = 80.0;
+/// The opener's width: `stroke_editor.opener_width`.
+pub const STROKE_EDITOR_OPENER_WIDTH: f32 = 138.0;
+/// The opener's height: `stroke_editor.opener_height`.
+pub const STROKE_EDITOR_OPENER_HEIGHT: f32 = 24.0;
+/// A preset row's height: `stroke_editor.preset_height`.
+pub const STROKE_EDITOR_PRESET_HEIGHT: f32 = 32.0;
+/// A choice select's width: `stroke_editor.choice_width`.
+pub const STROKE_EDITOR_CHOICE_WIDTH: f32 = 152.0;
+/// A number field's width: `stroke_editor.field_width`.
+pub const STROKE_EDITOR_FIELD_WIDTH: f32 = 74.0;
+/// The tall sample's height: `stroke_editor.sample_height`.
+pub const STROKE_EDITOR_SAMPLE_HEIGHT: f32 = 58.0;
+/// The samples' line width: `stroke_editor.sample_stroke`.
+pub const STROKE_EDITOR_SAMPLE_STROKE: f32 = 2.5;
+/// The tall sample's rectangle inset: `stroke_editor.sample_inset`.
+pub const STROKE_EDITOR_SAMPLE_INSET: f32 = 12.0;
+/// The open sample line's distance from the sample's ends: `stroke_editor.sample_margin`.
+pub const STROKE_EDITOR_SAMPLE_MARGIN: f32 = 4.0;
+/// The off opener's line width: `stroke_editor.off_stroke`.
+pub const STROKE_EDITOR_OFF_STROKE: f32 = 1.0;
+/// The off opener's slash width: `stroke_editor.off_slash_stroke`.
+pub const STROKE_EDITOR_OFF_SLASH_STROKE: f32 = 1.5;
+
+// --- measure ---
+/// A press within this many screen points of an end grabs it: `measure.hit`.
+pub const MEASURE_HIT: f32 = 7.0;
+/// Each arm of an end's cross, in screen points: `measure.handle_arm`.
+pub const MEASURE_HANDLE_ARM: f32 = 5.0;
+/// The gap after each readout in the options bar: `measure.readout_gap`.
+pub const MEASURE_READOUT_GAP: f32 = 6.0;
+
+// --- symmetry ---
+/// Width of each axis line: `symmetry.line`.
+pub const SYMMETRY_LINE: f32 = 1.0;
+/// A press within this many screen points of the centre or rotation handle takes it: `symmetry.hit`.
+pub const SYMMETRY_HIT: f32 = 8.0;
+/// The rotation handle's distance from the centre as a share of the document's shorter side (a ratio, not a size): `symmetry.handle_share`.
+pub const SYMMETRY_HANDLE_SHARE: f32 = 0.35;
+
+// --- adjust ---
+/// A Hue/Saturation spectrum bar's height: `adjust.spectrum_bar`.
+pub const ADJUST_SPECTRUM_BAR: f32 = 10.0;
+/// The range band's height between the bars: `adjust.range_band`.
+pub const ADJUST_RANGE_BAND: f32 = 6.0;
+/// The height between the two bars that holds the range thumbs: `adjust.spectrum_master_extra`.
+pub const ADJUST_SPECTRUM_MASTER_EXTRA: f32 = 20.0;
+/// A range thumb's width: `adjust.range_thumb_width`.
+pub const ADJUST_RANGE_THUMB_WIDTH: f32 = 5.0;
+/// A range thumb's height: `adjust.range_thumb_height`.
+pub const ADJUST_RANGE_THUMB_HEIGHT: f32 = 12.0;
+/// A range thumb's corner radius (PhotoCraft `hue_saturation.rs:177`): `adjust.range_thumb_radius`.
+pub const ADJUST_RANGE_THUMB_RADIUS: f32 = 1.0;
+/// Distance from a press within which a range thumb is grabbed (PhotoCraft `hue_saturation.rs:25`): `adjust.hue_grab`.
+pub const ADJUST_HUE_GRAB: f32 = 10.0;
+/// A point picker's tone dot radius: `adjust.picker_dot`.
+pub const ADJUST_PICKER_DOT: f32 = 3.5;
+/// The tone dot's centre, in from the button's bottom-trailing corner: `adjust.picker_dot_inset`.
+pub const ADJUST_PICKER_DOT_INSET: f32 = 5.5;
+/// Threshold's histogram height: `adjust.threshold_histogram`.
+pub const ADJUST_THRESHOLD_HISTOGRAM: f32 = 90.0;
+/// Threshold's histogram widest width: `adjust.threshold_width`.
+pub const ADJUST_THRESHOLD_WIDTH: f32 = 300.0;
+/// Threshold's level marker inset from the histogram's edges (PhotoCraft `basic.rs:78`): `adjust.threshold_inset`.
+pub const ADJUST_THRESHOLD_INSET: f32 = 6.0;
+/// Width of Threshold's level marker (PhotoCraft `basic.rs:83`): `adjust.threshold_marker_width`.
+pub const ADJUST_THRESHOLD_MARKER_WIDTH: f32 = 1.0;
+/// The alpha multiplier of a disabled picker's tone dot and ring (PhotoCraft `adjust_dialog.rs:181`): `adjust.disabled_alpha`.
+pub const ADJUST_DISABLED_ALPHA: f32 = 0.4;
+
+// --- layer_style ---
+/// The effect list's width: `layer_style.list_width`.
+pub const LAYER_STYLE_LIST_WIDTH: f32 = 190.0;
+/// The page column's width: `layer_style.page_width`.
+pub const LAYER_STYLE_PAGE_WIDTH: f32 = 330.0;
+/// A Styles page thumbnail's side: `layer_style.preset_thumb`.
+pub const LAYER_STYLE_PRESET_THUMB: f32 = 32.0;
+/// The Styles page's scroll height: `layer_style.presets_height`.
+pub const LAYER_STYLE_PRESETS_HEIGHT: f32 = 340.0;
+/// The contour field's thumbnail side: `layer_style.contour_thumb`.
+pub const LAYER_STYLE_CONTOUR_THUMB: f32 = 36.0;
+/// The contour field's picker arrow width: `layer_style.contour_arrow`.
+pub const LAYER_STYLE_CONTOUR_ARROW: f32 = 14.0;
+/// A cell of the contour preset picker: `layer_style.contour_cell`.
+pub const LAYER_STYLE_CONTOUR_CELL: f32 = 40.0;
+/// The Contour Editor's graph side: `layer_style.contour_graph`.
+pub const LAYER_STYLE_CONTOUR_GRAPH: f32 = 220.0;
+
+// --- blend_if ---
+/// The bar's narrowest width: `blend_if.width_min`.
+pub const BLEND_IF_WIDTH_MIN: f32 = 120.0;
+/// The bar's widest width: `blend_if.width_max`.
+pub const BLEND_IF_WIDTH_MAX: f32 = 320.0;
+/// The bar's height: `blend_if.height`.
+pub const BLEND_IF_HEIGHT: f32 = 26.0;
+/// The ramp's height: `blend_if.ramp`.
+pub const BLEND_IF_RAMP: f32 = 12.0;
+/// The ramp's side inset: `blend_if.inset`.
+pub const BLEND_IF_INSET: f32 = 6.0;
+/// A handle triangle's width: `blend_if.handle_width`.
+pub const BLEND_IF_HANDLE_WIDTH: f32 = 10.0;
+/// A handle triangle's height: `blend_if.handle_height`.
+pub const BLEND_IF_HANDLE_HEIGHT: f32 = 10.0;
+
+// --- add_beside ---
+/// From the object's edge to a button's centre, in screen points: `add_beside.offset`.
+pub const ADD_BESIDE_OFFSET: f32 = 18.0;
+/// A button's radius: `add_beside.radius`.
+pub const ADD_BESIDE_RADIUS: f32 = 8.0;
+/// The plus's arm as a share of the radius (a ratio, not a size): `add_beside.arm`.
+pub const ADD_BESIDE_ARM: f32 = 0.5;
+/// The plus's width: `add_beside.line`.
+pub const ADD_BESIDE_LINE: f32 = 1.5;
+/// The ring's width: `add_beside.ring`.
+pub const ADD_BESIDE_RING: f32 = 1.0;
+
+// --- shape_drag ---
+/// A press and release closer than this many screen points is a click: `shape_drag.click_slop`.
+pub const SHAPE_DRAG_CLICK_SLOP: f32 = 3.0;
+/// The outline of the shape being drawn: `shape_drag.preview_line`.
+pub const SHAPE_DRAG_PREVIEW_LINE: f32 = 1.5;
+/// The dark halo's extra width on each side of the preview outline (PhotoCraft's `contrast_path`: 3 under 1): `shape_drag.preview_halo`.
+pub const SHAPE_DRAG_PREVIEW_HALO: f32 = 1.0;
+
+// --- slice ---
+/// A slice's outline width: `slice.outline`.
+pub const SLICE_OUTLINE: f32 = 1.0;
+/// The selected slice's outline width: `slice.selected_outline`.
+pub const SLICE_SELECTED_OUTLINE: f32 = 2.0;
+/// An auto slice's dash: `slice.auto_dash`.
+pub const SLICE_AUTO_DASH: f32 = 3.0;
+/// An auto slice's gap: `slice.auto_gap`.
+pub const SLICE_AUTO_GAP: f32 = 3.0;
+/// An auto slice's alpha over the slice colour (a ratio, not a size): `slice.auto_alpha`.
+pub const SLICE_AUTO_ALPHA: f32 = 0.7;
+/// A new slice preview's dash: `slice.drag_dash`.
+pub const SLICE_DRAG_DASH: f32 = 4.0;
+/// A new slice preview's gap: `slice.drag_gap`.
+pub const SLICE_DRAG_GAP: f32 = 4.0;
+/// The badge's offset from the slice's corner: `slice.badge_offset`.
+pub const SLICE_BADGE_OFFSET: f32 = 2.0;
+/// The badge's padding around the number, horizontal then vertical: `slice.badge_pad`.
+pub const SLICE_BADGE_PAD: [f32; 2] = [3.0, 1.0];
+/// The badge's corner radius: `slice.badge_radius`.
+pub const SLICE_BADGE_RADIUS: f32 = 2.0;
+/// The smallest slice on screen that shows a badge, width then height: `slice.badge_min`.
+pub const SLICE_BADGE_MIN: [f32; 2] = [18.0, 12.0];
+/// A drag no wider and no taller than this many document pixels is a click: `slice.click_slop`.
+pub const SLICE_CLICK_SLOP: f32 = 2.0;
+
+// --- artboard ---
+/// A drag shorter than this many screen points draws nothing: `artboard.click_slop`.
+pub const ARTBOARD_CLICK_SLOP: f32 = 3.0;
+/// The drag preview's width: `artboard.preview_line`.
+pub const ARTBOARD_PREVIEW_LINE: f32 = 1.5;
+
+// --- connector ---
+/// The route and rings' width: `connector.line`.
+pub const CONNECTOR_LINE: f32 = 1.5;
+/// An attach point's radius: `connector.attach`.
+pub const CONNECTOR_ATTACH: f32 = 4.0;
+/// The active attach point's radius: `connector.attach_active`.
+pub const CONNECTOR_ATTACH_ACTIVE: f32 = 7.0;
+/// The active attach point's fill alpha (a ratio, not a size): `connector.attach_fill_alpha`.
+pub const CONNECTOR_ATTACH_FILL_ALPHA: f32 = 0.25;
+/// The ghost's fill alpha (a ratio, not a size): `connector.ghost_alpha`.
+pub const CONNECTOR_GHOST_ALPHA: f32 = 0.08;
+/// The ghost outline's dash: `connector.ghost_dash`.
+pub const CONNECTOR_GHOST_DASH: f32 = 6.0;
+/// The ghost outline's gap: `connector.ghost_gap`.
+pub const CONNECTOR_GHOST_GAP: f32 = 4.0;
+/// The ghost outline's alpha (a ratio, not a size): `connector.ghost_line_alpha`.
+pub const CONNECTOR_GHOST_LINE_ALPHA: f32 = 0.6;
+/// A drag shorter than this many screen points makes nothing: `connector.click_slop`.
+pub const CONNECTOR_CLICK_SLOP: f32 = 4.0;
+/// An end handle's radius: `connector.end_handle`.
+pub const CONNECTOR_END_HANDLE: f32 = 5.0;
+/// A path handle's radius: `connector.path_handle`.
+pub const CONNECTOR_PATH_HANDLE: f32 = 3.5;
+/// An end within this many screen points of a site glues to it: `connector.attach_reach`.
+pub const CONNECTOR_ATTACH_REACH: f32 = 10.0;
+/// An end or path handle within this many screen points of a press is grabbed: `connector.handle_reach`.
+pub const CONNECTOR_HANDLE_REACH: f32 = 8.0;
+/// An elbow run shorter than this many screen points has no path handle: `connector.min_run`.
+pub const CONNECTOR_MIN_RUN: f32 = 28.0;
+/// A target is hit within this many screen points of its bounds: `connector.target_tolerance`.
+pub const CONNECTOR_TARGET_TOLERANCE: f32 = 2.0;
+/// A path handle's ring width: `connector.path_ring`.
+pub const CONNECTOR_PATH_RING: f32 = 1.0;
+/// The hovered target's outline width: `connector.drop_outline`.
+pub const CONNECTOR_DROP_OUTLINE: f32 = 1.0;
+
+// --- vanishing_point ---
+/// A plane's outline width: `vanishing_point.line`.
+pub const VANISHING_POINT_LINE: f32 = 1.25;
+/// The selected plane's outline width: `vanishing_point.line_selected`.
+pub const VANISHING_POINT_LINE_SELECTED: f32 = 2.0;
+/// A grid line's width: `vanishing_point.grid`.
+pub const VANISHING_POINT_GRID: f32 = 0.75;
+/// A grid line's alpha: `vanishing_point.grid_alpha`.
+pub const VANISHING_POINT_GRID_ALPHA: f32 = 0.6;
+/// A node square's side: `vanishing_point.node`.
+pub const VANISHING_POINT_NODE: f32 = 7.0;
+/// Create Plane's pending corner square: `vanishing_point.pending`.
+pub const VANISHING_POINT_PENDING: f32 = 6.0;
+/// The extra width of the halo: `vanishing_point.halo_width`.
+pub const VANISHING_POINT_HALO_WIDTH: f32 = 2.5;
+/// An arm of the source cross: `vanishing_point.source_arm`.
+pub const VANISHING_POINT_SOURCE_ARM: f32 = 7.0;
+/// How far from a node's centre a press reaches, in points (PhotoCraft `SNAP_PX`): `vanishing_point.press_reach`.
+pub const VANISHING_POINT_PRESS_REACH: f32 = 8.0;
+/// The click-versus-drag distance of a torn plane's far edge node, in document pixels (PhotoCraft `vp_ui.rs:728`): `vanishing_point.click_slop`.
+pub const VANISHING_POINT_CLICK_SLOP: f32 = 2.0;
+/// The white line of the stamp ring and the source cross: `vanishing_point.ring_line`.
+pub const VANISHING_POINT_RING_LINE: f32 = 1.0;
+/// The alpha of the pasted image's white tint, 0 to 1 (PhotoCraft draws it at 230 of 255): `vanishing_point.paste_alpha`.
+pub const VANISHING_POINT_PASTE_ALPHA: f32 = 230.0 / 255.0;
+
+// --- wide_angle ---
+/// A constraint line's width: `wide_angle.line`.
+pub const WIDE_ANGLE_LINE: f32 = 2.0;
+/// The end dots' radius: `wide_angle.end`.
+pub const WIDE_ANGLE_END: f32 = 3.5;
+/// How near a right-click must pass a curve to open its menu: `wide_angle.hit`.
+pub const WIDE_ANGLE_HIT: f32 = 10.0;
+/// A drag shorter than this many screen points adds no constraint: `wide_angle.min_drag`.
+pub const WIDE_ANGLE_MIN_DRAG: f32 = 6.0;
+/// The extra width of the halo: `wide_angle.halo_width`.
+pub const WIDE_ANGLE_HALO_WIDTH: f32 = 2.5;
+
+// --- blur_pins ---
+/// A pin's dot radius: `blur_pins.dot`.
+pub const BLUR_PINS_DOT: f32 = 5.0;
+/// How near a press grabs a pin: `blur_pins.grab`.
+pub const BLUR_PINS_GRAB: f32 = 9.0;
+/// The ring's radius: `blur_pins.ring`.
+pub const BLUR_PINS_RING: f32 = 24.0;
+/// The ring's band width: `blur_pins.ring_band`.
+pub const BLUR_PINS_RING_BAND: f32 = 5.0;
+/// A shape handle's radius: `blur_pins.handle`.
+pub const BLUR_PINS_HANDLE: f32 = 4.5;
+/// How near a press grabs a Tilt-Shift line: `blur_pins.line_grab`.
+pub const BLUR_PINS_LINE_GRAB: f32 = 5.0;
+/// A mark's line width: `blur_pins.line_width`.
+pub const BLUR_PINS_LINE_WIDTH: f32 = 1.5;
+/// The halo under a mark's line: `blur_pins.line_halo`.
+pub const BLUR_PINS_LINE_HALO: f32 = 3.0;
+/// The amount arc's width: `blur_pins.arc`.
+pub const BLUR_PINS_ARC: f32 = 2.5;
+/// The halo under the amount arc: `blur_pins.arc_halo`.
+pub const BLUR_PINS_ARC_HALO: f32 = 4.5;
+/// A dash of a Tilt-Shift transition line: `blur_pins.dash`.
+pub const BLUR_PINS_DASH: f32 = 6.0;
+/// The gap between dashes: `blur_pins.dash_gap`.
+pub const BLUR_PINS_DASH_GAP: f32 = 5.0;
+/// A handle's outline width: `blur_pins.handle_outline`.
+pub const BLUR_PINS_HANDLE_OUTLINE: f32 = 1.0;
+/// How much larger than a handle a feather dot is: `blur_pins.feather_extra`.
+pub const BLUR_PINS_FEATHER_EXTRA: f32 = 1.0;
+/// How much larger than a handle a Tilt-Shift turn dot is: `blur_pins.turn_extra`.
+pub const BLUR_PINS_TURN_EXTRA: f32 = 0.5;
+/// The rounding square's corner radius: `blur_pins.round_corner`.
+pub const BLUR_PINS_ROUND_CORNER: f32 = 1.0;
+
+// --- liquify ---
+/// The Freeze Lasso's line width: `liquify.lasso`.
+pub const LIQUIFY_LASSO: f32 = 1.5;
+/// The freeze mask's opacity over the image: `liquify.mask_opacity`.
+pub const LIQUIFY_MASK_OPACITY: f32 = 0.5;
+
+// --- select_mask ---
+/// A click this near the Polygonal Lasso's first vertex closes it: `select_mask.close_reach`.
+pub const SELECT_MASK_CLOSE_REACH: f32 = 6.0;
+/// An Object Selection drag shorter than this is a click: `select_mask.click_reach`.
+pub const SELECT_MASK_CLICK_REACH: f32 = 4.0;
+/// The opacity of the accent for the stroke being drawn: `select_mask.trail`.
+pub const SELECT_MASK_TRAIL_OPACITY: f32 = 0.43;
+
+// --- filter_gallery ---
+/// A filter thumbnail's width: `filter_gallery.thumb_width`.
+pub const FILTER_GALLERY_THUMB_WIDTH: f32 = 80.0;
+/// A filter thumbnail's height: `filter_gallery.thumb_height`.
+pub const FILTER_GALLERY_THUMB_HEIGHT: f32 = 56.0;
+/// The effect-layer stack's height: `filter_gallery.stack_height`.
+pub const FILTER_GALLERY_STACK_HEIGHT: f32 = 190.0;

@@ -1,5 +1,5 @@
 //! The Eyedropper tool (F04.07): its options ([`EyedropperOptions`]: Sample Size, Sample, Show
-//! Sampling Ring), its options bar ([`EyedropperOptionsBar`]), the sampling ring drawn while the
+//! Sampling Ring), its options bar ([`EyedropperBar`]), the sampling ring drawn while the
 //! button is held ([`eyedropper_ring`]) and the canvas tool ([`EyedropperTool`]).
 //!
 //! The Sample Size is shared with the dialog droppers ([`DropperTool`](super::DropperTool)) and
@@ -13,6 +13,7 @@ use egui::{Color32, Context, Painter, Pos2, Shape, Stroke, vec2};
 
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolPointer};
 use craft_ui::controls::{Checkbox, Select};
+use craft_ui::edit::CancelReason;
 use craft_ui::icons::Icon;
 use craft_ui::localized::SharedLabels;
 use craft_ui::patterns::{CellWidth, OptionsBar, OptionsBarSlots};
@@ -152,13 +153,13 @@ impl Default for EyedropperOptions {
 /// Size:" and its [`Select`](craft_ui::controls::Select) (130 points wide in PhotoCraft),
 /// "Sample:" and its Select (190 points), the Show Sampling Ring check box, a divider, then the
 /// hint in faint text. Edits write `options` directly.
-pub struct EyedropperOptionsBar<'a> {
+pub struct EyedropperBar<'a> {
     options: &'a mut EyedropperOptions,
 }
 
-impl<'a> EyedropperOptionsBar<'a> {
-    pub fn new(options: &'a mut EyedropperOptions) -> EyedropperOptionsBar<'a> {
-        EyedropperOptionsBar { options }
+impl<'a> EyedropperBar<'a> {
+    pub fn new(options: &'a mut EyedropperOptions) -> EyedropperBar<'a> {
+        EyedropperBar { options }
     }
 
     /// Fills the bar's body slot.
@@ -343,7 +344,7 @@ impl CanvasTool for EyedropperTool<'_> {
         self.held = None;
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         self.held = None;
         self.picked = None;
     }

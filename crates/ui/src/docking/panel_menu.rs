@@ -135,10 +135,13 @@ crate::words! {
 }
 
 impl PanelMenuLabels {
-    /// The labels of the installed words, shared between frames: the one source of every dock
-    /// menu row.
-    pub(crate) fn in_dock(ui: &Ui) -> std::sync::Arc<Self> {
-        <Self as crate::localized::SharedLabels>::shared(ui)
+    /// The labels of every dock menu row: the app's own ([`super::DockConfig::panel_menu`]) when
+    /// set, else the installed words, shared between frames.
+    pub(crate) fn in_dock(ui: &Ui, config: &super::DockConfig) -> std::sync::Arc<Self> {
+        match &config.panel_menu {
+            Some(labels) => labels.clone(),
+            None => <Self as crate::localized::SharedLabels>::shared(ui),
+        }
     }
 }
 

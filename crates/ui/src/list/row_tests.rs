@@ -156,6 +156,43 @@ fn dividers_belong_to_the_layer_form_in_compact_and_a_dimmed_label_and_detail_ta
     }
 }
 
+#[test]
+fn a_muted_label_takes_the_muted_color_unless_dimmed_or_selected_and_a_strong_one_the_strong_role() {
+    let ctx = context();
+    let s = style();
+    let drawn = |row: fn(ListRow<'static, u8>) -> ListRow<'static, u8>| {
+        shapes(&ctx, |ui| {
+            panel(ui, 240.0, |ui| {
+                let _ = row(ListRow::new(1u8, "Layer")).show(ui);
+            })
+        })
+    };
+    let color = |row| label_colors(&drawn(row))[0];
+    assert_eq!(color(|r| r.muted(true)), s.muted);
+    assert_eq!(color(|r| r.muted(true).dimmed(true)), s.dimmed, "dimmed wins over muted");
+    assert_eq!(color(|r| r.muted(true).selected(true)), s.selected_dimmed);
+    assert_ne!(s.muted, s.text);
+    // No font stack is installed here, so the two faces resolve to one family: the test reads the
+    // role's slot and the font the row painted against the role's font.
+    let mut roles = None;
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        let tokens = Tokens::of(ui);
+        let slot = |role| tokens.typography.get(role).font;
+        roles = Some((slot(s.label_role) != slot(s.label_strong_role), tokens.font(s.label_role), tokens.font(s.label_strong_role)));
+    })
+    .drop_without_applying_deltas();
+    let (slots_differ, plain, strong) = roles.expect("tokens");
+    assert!(slots_differ, "the strong role is another font slot");
+    let font = |row| {
+        drawn(row)
+            .iter()
+            .find_map(|s| if let Shape::Text(t) = s { t.galley.job.sections.first().map(|s| s.format.font_id.clone()) } else { None })
+            .expect("label")
+    };
+    assert_eq!(font(|r| r.strong(true)), strong);
+    assert_eq!(font(|r| r), plain);
+}
+
 fn to_rgba(c: egui::Color32) -> craft_theme::color::Rgba {
     craft_theme::color::Rgba([c.r(), c.g(), c.b(), c.a()])
 }
@@ -1554,4 +1591,115 @@ fn a_check_toggle_column_is_a_check_box() {
             .count()
     };
     assert_eq!(boxes(CheckState::Unchecked), 1, "the box shows off the pointer");
+}
+
+// An end column sits after the trailing items at the trailing edge, `list.toggle_column` wide,
+// counted by `min_width`, and mirrors in a right-to-left interface; rows without one keep their
+// layout.
+#[test]
+fn an_end_toggle_column_sits_at_the_trailing_edge_and_mirrors() {
+    let s = style();
+    let rects = |dir| {
+        let mut harness = harness::<()>(dir).build_ui(|ui| {
+            panel(ui, 240.0, |ui| {
+                let _ = ListRow::new(1u8, "Brush")
+                    .toggle(ToggleColumn::eye("Visibility {row}", true))
+                    .toggle(ToggleColumn::lock("Lock {row}", true).at_end(true))
+                    .trailing_item(16.0, |ui| drop(ui.label("fx")))
+                    .show(ui);
+            })
+        });
+        harness.run();
+        (
+            harness.get_by_role(Role::ListBoxOption).rect(),
+            harness.get_by_label("Visibility Brush").rect(),
+            harness.get_by_label("Lock Brush").rect(),
+            harness.get_by_label("fx").rect(),
+        )
+    };
+    let (row, eye, lock, fx) = rects(Direction::Ltr);
+    assert_eq!((eye.left() - row.left(), eye.width()), (0.0, s.toggle_column), "a leading column stays first");
+    assert_eq!((row.right() - s.trailing_pad - lock.right(), lock.width()), (0.0, s.toggle_column));
+    assert!(fx.right() <= lock.left() + 0.5, "the end column follows the trailing items: {fx:?} {lock:?}");
+    let (row, eye, lock, fx) = rects(Direction::Rtl);
+    assert_eq!((row.right() - eye.right(), eye.width()), (0.0, s.toggle_column));
+    assert_eq!((lock.left() - s.trailing_pad - row.left(), lock.width()), (0.0, s.toggle_column), "mirrored");
+    assert!(fx.left() >= lock.right() - 0.5, "{fx:?} {lock:?}");
+
+    let ctx = context();
+    let width = |columns: Vec<ToggleColumn>| {
+        let mut min = 0.0;
+        let _ = shapes(&ctx, |ui| {
+            let row = columns.iter().cloned().fold(ListRow::new(1u8, "Brush"), |row, column| row.toggle(column));
+            min = row.min_width(ui);
+        });
+        min
+    };
+    let lock = ToggleColumn::lock("Lock {row}", true);
+    let plain = width(vec![lock.clone()]);
+    assert_eq!(width(vec![lock.at_end(true)]), plain, "an end column costs what a leading one does");
+}
+
+// A sweep down an end column toggles the rows it crosses, and `ToggleEdit::column` is the index
+// in `toggle` order whatever the placement.
+#[test]
+fn a_sweep_over_an_end_column_reports_its_toggle_index() {
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, state: &mut Sweeps| {
+            panel(ui, 240.0, |ui| {
+                for row in 0..4 {
+                    let out = ListRow::new(row, format!("Row {row}"))
+                        .toggle(ToggleColumn::lock("Lock {row}", state.on[row]).at_end(true))
+                        .toggle(ToggleColumn::eye("Visibility {row}", true))
+                        .show(ui);
+                    for event in out.events {
+                        if let RowEvent::Toggle(event) = event {
+                            if let EditEvent::Update { value, .. } | EditEvent::Set { value, .. } = &event {
+                                state.on[value.row] = value.on;
+                            }
+                            state.events.push(event);
+                        }
+                    }
+                }
+            })
+        },
+        Sweeps { on: [true, true, true, true], events: Vec::new() },
+    );
+    harness.run();
+    let cell = |row: usize| harness.get_by_label(&format!("Lock Row {row}")).rect().center();
+    let (start, end) = (cell(0), cell(3));
+    harness.event(Event::PointerMoved(start));
+    harness.run();
+    harness.event(button(start, true, Modifiers::NONE));
+    harness.run();
+    for t in [0.25, 0.5, 0.75, 1.0] {
+        harness.event(Event::PointerMoved(start + (end - start) * t));
+        harness.run();
+    }
+    harness.event(button(end, false, Modifiers::NONE));
+    harness.run();
+    assert_eq!(harness.state().on, [false; 4], "every row the sweep crossed turned off");
+    let columns: Vec<usize> =
+        harness.state().events.iter().filter_map(|e| if let EditEvent::Update { value, .. } = e { Some(value.column) } else { None }).collect();
+    assert!(!columns.is_empty() && columns.iter().all(|c| *c == 0), "the lock is the first toggle added: {columns:?}");
+}
+
+// An always-visible column paints its off icon without the pointer in the dimmed colour (the
+// selected dimmed colour on a selected row); a plain column paints nothing there.
+#[test]
+fn an_always_visible_column_shows_its_off_icon_without_the_pointer() {
+    let (ctx, s) = (context(), style());
+    let drawn = |always, selected| {
+        let found = shapes(&ctx, |ui| {
+            panel(ui, 240.0, |ui| {
+                let _ = ListRow::new(1u8, "Brush").selected(selected).toggle(ToggleColumn::lock("Lock {row}", false).always_visible(always)).show(ui);
+            })
+        });
+        format!("{found:?}")
+    };
+    let colour = |c: egui::Color32| format!("{c:?}");
+    assert!(drawn(true, false).contains(&colour(s.dimmed)), "dimmed");
+    assert!(drawn(true, true).contains(&colour(s.selected_dimmed)), "selected dimmed");
+    assert!(!drawn(false, false).contains(&colour(s.dimmed)), "a plain off column paints nothing");
+    assert!(!drawn(false, true).contains(&colour(s.selected_dimmed)), "a plain off column paints nothing, selected");
 }

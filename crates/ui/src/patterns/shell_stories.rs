@@ -5,7 +5,10 @@ use std::time::Duration;
 use egui::{Rect, Ui, vec2};
 
 use super::rail::tool::story_slots;
-use super::{DrawerGroup, StatusBar, StatusItem, StatusReadout, StatusValues, ToolbarDrawer, Tour, TourEvent, TourStep};
+use super::{
+    DrawerGroup, LastUsed, StatusBar, StatusItem, StatusReadout, StatusValues, ToolRail, ToolSlot, ToolbarDrawer, Tour, TourEvent, TourStep,
+    apply_toolbar_edit,
+};
 use crate::localized::Labels as _;
 use crate::story::{Level, NoArgs, PatternStoryLabels, Story, Surface};
 use crate::typed_story;
@@ -81,16 +84,39 @@ fn show_readout(ui: &mut Ui, _args: &mut NoArgs) {
     ui.data_mut(|d| d.insert_temp(key, (zoom, item)));
 }
 
-/// A tool rail's column with the drawer open beside it.
+/// A tool rail whose Edit Toolbar button opens the drawer beside it; moves in the drawer change
+/// the rail. Closed at first, as in the app, so the drawer floats over the page only on request.
 fn show_drawer(ui: &mut Ui, _args: &mut NoArgs) {
-    let area = ui.allocate_space(vec2(ui.available_width().min(520.0), 360.0)).1;
-    let rail = Rect::from_min_size(area.min, vec2(40.0, area.height()));
+    let state = ui.make_persistent_id("toolbar-drawer-story");
     let words = PatternStoryLabels::of(ui);
-    let slots = story_slots(&words);
+    let defaults = story_slots(&words);
+    let mut open = ui.data(|d| d.get_temp::<bool>(state)).unwrap_or(false);
+    let mut slots = ui.data(|d| d.get_temp::<Vec<ToolSlot<&'static str>>>(state.with("slots"))).unwrap_or_else(|| defaults[..3].to_vec());
+    let mut last_used = ui.data(|d| d.get_temp::<LastUsed<&'static str>>(state.with("last"))).unwrap_or_default();
     let groups = [
-        DrawerGroup { label: "Select".to_owned(), tools: slots[1].tools.iter().chain(&slots[2].tools).cloned().collect() },
-        DrawerGroup { label: "Paint".to_owned(), tools: slots[5].tools.iter().chain(&slots[8].tools).cloned().collect() },
+        DrawerGroup { label: "Select".to_owned(), tools: defaults[1].tools.iter().chain(&defaults[2].tools).cloned().collect() },
+        DrawerGroup { label: "Paint".to_owned(), tools: defaults[5].tools.iter().chain(&defaults[8].tools).cloned().collect() },
     ];
-    let toolbar = &slots[..3];
-    ToolbarDrawer::new("drawer-story").rail("story").show(ui, rail, &groups, toolbar);
+    let rail = ui
+        .allocate_ui(vec2(40.0, 360.0), |ui| {
+            ToolRail::new("drawer-story-rail").edit_toolbar("Edit Toolbar…").editing(open).show(ui, &slots, &"move", &mut last_used, |_, _| {})
+        })
+        .inner;
+    if rail.edit_toolbar {
+        open = !open;
+    }
+    if open {
+        let out = ToolbarDrawer::new("drawer-story").rail("drawer-story-rail").show(ui, rail.rect, &groups, &slots);
+        for edit in &out.edits {
+            slots = apply_toolbar_edit(&slots, edit, &defaults[..3]);
+        }
+        if out.closed {
+            open = false;
+        }
+    }
+    ui.data_mut(|d| {
+        d.insert_temp(state, open);
+        d.insert_temp(state.with("slots"), slots);
+        d.insert_temp(state.with("last"), last_used);
+    });
 }

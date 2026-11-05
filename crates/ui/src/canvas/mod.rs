@@ -64,20 +64,29 @@
 //! # });
 //! ```
 
+pub mod before_after;
+pub mod brush;
 mod canvas_id;
 pub mod claim;
+#[cfg(test)]
+mod claim_tests;
 pub(crate) mod core_stories;
 mod crisp;
 mod cursor;
 #[cfg(test)]
 mod cursor_tests;
+pub mod draft;
+#[cfg(test)]
+mod draft_tests;
 pub mod geom;
 #[cfg(test)]
 mod geom_tests;
 mod grid;
 pub mod guides;
 pub mod hit;
-pub(crate) mod marquee;
+pub mod hover;
+pub(crate) mod hover_stories;
+pub mod marquee;
 mod momentary;
 #[cfg(test)]
 mod momentary_tests;
@@ -103,10 +112,12 @@ mod readout;
 pub(crate) mod ref_point;
 pub(crate) mod rulers;
 mod scrollbars;
+pub mod selection;
 mod selection_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod selection_bar_tests;
 mod selection_operation;
+pub(crate) mod selection_stories;
 pub(crate) mod shell_stories;
 mod snap;
 #[cfg(test)]
@@ -115,6 +126,9 @@ mod split;
 #[cfg(test)]
 mod split_tests;
 pub(crate) mod story;
+pub mod straight_line;
+#[cfg(test)]
+mod straight_line_tests;
 #[cfg(test)]
 mod tests;
 pub mod textures;
@@ -142,9 +156,10 @@ pub use crisp::{crisp, crisp_shape};
 pub use cursor::{CursorBadge, CursorHost, CursorOptions, CursorStyle, PaintingCursor, ToolCursor};
 pub use grid::{CanvasGrid, GridLine, GridStyle};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
+pub use marquee::fields::{ConstraintFields, ConstraintFieldsOutput};
 pub use marquee::{
-    Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle, fixed_size_pixels, marquee_pixels,
-    square_pixels,
+    Constraint, Marquee, MarqueeDrag, MarqueeGesture, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle, fixed_size_pixels,
+    marquee_pixels, square_pixels,
 };
 pub use momentary::{MomentaryKeys, MomentaryTool, SpringTool};
 pub use navigate::{Autoscroll, HandTool, NavigationLabels, NavigationOptions, RotateView, RotateViewTool, ZoomTool};
@@ -155,14 +170,17 @@ pub use pointer::{CanvasButtons, PenFeed, PenInput, PenSample};
 pub use raster::{CheckerColors, CheckerSize, Checkerboard, PixelRect, RasterDisplay, RasterResponse, RasterSource};
 pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
-pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
+pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse, unit_entries};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
 pub use selection_bar::{SelectionBar, SelectionBarLabels, SelectionBarResponse};
 pub use selection_operation::{SelectionOperation, SelectionOperationLabels};
 pub use snap::{SNAP_PX, SnapGesture, SnapKind, SnapLine, SnapOptions, SnapTarget, SnapTargets, union as snap_union};
 pub use split::{SplitLabels, SplitLayout, SplitPane, SplitResponse, SplitViews};
 pub use textures::{DetailPlan, MAX_TEXTURE, texture_factor, texture_side};
-pub use tool_host::{CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolPointer};
+pub use tool_host::{
+    CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolNode, ToolParts,
+    ToolPointer,
+};
 pub use tool_pill::{PillPlace, ToolPill, ToolPillLabels, ToolPillResponse};
 pub use turn::{
     PointerInk, SelectionBadge, distort_cursor, selection_badge_at, selection_badge_beside_pointer, selection_cursor, skew_cursor, turn_cursor,

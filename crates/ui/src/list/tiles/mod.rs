@@ -1108,7 +1108,9 @@ where
         let len = DisplayOrder::<K>::len(source);
 
         // The arrangement, rebuilt only when what it depends on changed.
-        let width = ui.available_width().max(1.0);
+        // A solid scroll bar takes its width from the area's inner rect, which never shrinks below
+        // the content: the arrangement leaves the bar's room out, or the bar lands past the edge.
+        let width = (ui.available_width() - ui.spacing().scroll.allocated_width()).max(1.0);
         let caption_line = tokens.typography.get(TypeRole::Caption).line_height;
         let spacing = ArrangeSpacing {
             gap: style.gap,

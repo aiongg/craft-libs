@@ -920,6 +920,7 @@ dependencies = [
  "craft-dialogs",
  "craft-docpath",
  "craft-draw",
+ "craft-ecproj-format",
  "craft-font-catalog",
  "craft-font-manager",
  "craft-font-store",
@@ -946,6 +947,7 @@ dependencies = [
  "craft-timeline",
  "craft-ui",
  "craft-update",
+ "craft-vectorcraft-format",
  "craft-window",
  "egui",
  "toml",
@@ -1084,7 +1086,9 @@ name = "craft-draw"
 version = "0.1.0"
 dependencies = [
  "craft-color",
+ "craft-host",
  "craft-i18n",
+ "craft-settings",
  "craft-theme",
  "craft-ui",
  "egui",
@@ -1092,6 +1096,15 @@ dependencies = [
  "kurbo 0.13.1",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "craft-ecproj-format"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1591,6 +1604,16 @@ dependencies = [
  "winreg",
  "winsafe",
  "zip",
+]
+
+[[package]]
+name = "craft-vectorcraft-format"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

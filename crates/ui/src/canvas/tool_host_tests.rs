@@ -3,17 +3,22 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use egui::accesskit::Role;
 use egui::{Event, Key, KeyboardShortcut, Modifiers, Painter, PointerButton, Pos2, Rect, Sense, pos2, vec2};
 use egui_kittest::Harness;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Size};
 
+use super::claim::PrimaryPress;
 use super::navigate::{HandTool, NavigationOptions, ZoomTool};
 use super::zoom::{self, ZoomAnimation, ZoomLadder};
 use super::{
     CanvasId, CanvasTool, CanvasView, Claim, SnapGesture, SnapKind, SnapTarget, SnapTargets, ToolAction, ToolContext, ToolGesture, ToolHost,
 };
-use super::{ToolHostResponse, ToolInput, ToolKey, ToolPointer};
+use super::{Part, ToolHostResponse, ToolInput, ToolKey, ToolNode, ToolParts, ToolPointer};
 use crate::behavior::KeyClaim;
+use crate::edit::CancelReason;
+use crate::testing::canvas;
 use crate::theme::{Base, install};
 
 type Log = Rc<RefCell<Vec<String>>>;
@@ -25,11 +30,26 @@ struct Probe {
     snap: Option<SnapGesture>,
     autoscrolls: bool,
     takes_key: bool,
+    /// The reason of each `cancel` call.
+    reasons: Rc<RefCell<Vec<CancelReason>>>,
+    /// Also takes the secondary button while Alt is held.
+    alt_secondary: bool,
+    /// The button and click count of each `press`.
+    presses: Rc<RefCell<Vec<(PointerButton, u32)>>>,
 }
 
 impl Probe {
     fn new(log: &Log) -> Self {
-        Self { log: log.clone(), action: ToolAction::Claimed, snap: None, autoscrolls: true, takes_key: false }
+        Self {
+            log: log.clone(),
+            action: ToolAction::Claimed,
+            snap: None,
+            autoscrolls: true,
+            takes_key: false,
+            reasons: Rc::default(),
+            alt_secondary: false,
+            presses: Rc::default(),
+        }
     }
 
     fn note(&self, what: &str, p: Option<&ToolPointer>) {
@@ -41,7 +61,12 @@ impl Probe {
 impl CanvasTool for Probe {
     fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
         self.note("press", Some(pointer));
+        self.presses.borrow_mut().push((pointer.button, pointer.clicks));
         self.action
+    }
+
+    fn takes(&self, button: PointerButton, modifiers: Modifiers) -> bool {
+        button == PointerButton::Primary || (self.alt_secondary && button == PointerButton::Secondary && modifiers.alt)
     }
 
     fn drag(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
@@ -52,7 +77,8 @@ impl CanvasTool for Probe {
         self.note("release", Some(pointer));
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
+        self.reasons.borrow_mut().push(reason);
         self.note("cancel", None);
     }
 
@@ -79,6 +105,8 @@ struct Rig {
     document: Size,
     /// An overlay that takes every primary press before the host.
     overlay: bool,
+    /// The click count the overlay saw at each press it took.
+    overlay_clicks: Vec<u32>,
     /// A text field next to the canvas, and whether it holds the focus.
     text: Option<String>,
     focus_text: bool,
@@ -96,6 +124,7 @@ impl Rig {
             targets: None,
             document: Size::ZERO,
             overlay: false,
+            overlay_clicks: Vec::new(),
             text: None,
             focus_text: false,
             focus_canvas: false,
@@ -136,6 +165,9 @@ fn harness(rig: Rig, step_dt: f32) -> Harness<'static, Rig> {
                 }
                 if rig.overlay && ui.input(|i| i.pointer.primary_pressed()) {
                     Claim::take(ui.ctx(), canvas.id, canvas.id.with("overlay"));
+                    if let Some(press) = PrimaryPress::current(ui.ctx()) {
+                        rig.overlay_clicks.push(press.clicks(ui.ctx()));
+                    }
                 }
                 let mut host = ToolHost::new(canvas_id).document(rig.document);
                 if let Some(prefs) = rig.navigation {
@@ -320,7 +352,11 @@ fn injected_input_drives_the_tool_like_the_pointer() {
     let view = h.state().view;
     let (da, db) = (view.to_doc(a), view.to_doc(b));
     let m = Modifiers::NONE;
-    ToolHost::inject(&h.ctx, id, ToolInput::Down { doc: da, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m });
+    ToolHost::inject(
+        &h.ctx,
+        id,
+        ToolInput::Down { button: egui::PointerButton::Primary, doc: da, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m },
+    );
     h.step();
     assert!(ToolHost::in_gesture(&h.ctx, id));
     ToolHost::inject(&h.ctx, id, ToolInput::Move { doc: db, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m });
@@ -339,7 +375,7 @@ fn cancel_from_the_app_runs_the_tools_cancel() {
     press(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
     let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
     assert!(ToolHost::in_gesture(&ctx, id));
-    ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool);
+    ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool, CancelReason::Removed);
     assert_eq!(log(&calls).iter().filter(|c| *c == "cancel").count(), 1, "{:?}", log(&calls));
     assert!(!ToolHost::in_gesture(&ctx, id));
     h.step();
@@ -359,7 +395,7 @@ fn a_tool_switch_mid_drag_cancels_the_old_tool_not_the_new_one() {
     press(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
     move_to(&mut h, pos2(120.0, 110.0));
     let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
-    ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool);
+    ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool, CancelReason::Removed);
     h.state_mut().tool = Box::new(Probe::new(&new));
     move_to(&mut h, pos2(140.0, 120.0));
     release(&mut h, pos2(140.0, 120.0), Modifiers::NONE);
@@ -378,9 +414,9 @@ fn cancelling_a_hand_drag_returns_the_view_it_started_from() {
     move_to(&mut h, pos2(260.0, 190.0));
     assert!((h.state().view.center - start.center).hypot() > 1.0, "the drag pans");
     let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
-    let back = ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool).expect("the Hand asks for its press view");
+    let back = ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool, CancelReason::Removed).expect("the Hand asks for its press view");
     assert_eq!(back.center, start.center);
-    assert_eq!(ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool), None, "no gesture is left");
+    assert_eq!(ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool, CancelReason::Removed), None, "no gesture is left");
 }
 
 // A flick released with the Hand glides on after the app passes another tool (Space came up).
@@ -420,7 +456,7 @@ impl CanvasTool for Counter {
 
     fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
 
     fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
 }
@@ -457,7 +493,7 @@ impl CanvasTool for Typist {
 
     fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
 
     fn key(&mut self, _key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         cx.keep_keys();
@@ -591,4 +627,377 @@ fn the_zoom_tool_zooms_while_the_press_is_held() {
     assert!((before.to_doc(at) - held.to_doc(at)).hypot() < 1e-6, "the press point stays put");
     release(&mut h, at, Modifiers::NONE);
     assert_eq!(h.state().view.zoom, held.zoom, "the release of a hold steps nothing");
+}
+
+/// A tool that takes the secondary button while Alt is held, as well as the primary (the brush
+/// resize chord and Alt + click).
+struct AltResize {
+    log: Log,
+    overridden: bool,
+}
+
+impl AltResize {
+    fn note(&self, what: &str, p: &ToolPointer) {
+        self.log.borrow_mut().push(format!("{what} {:?} x{}", p.button, p.clicks));
+    }
+}
+
+impl CanvasTool for AltResize {
+    fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+        self.note("press", pointer);
+        ToolAction::Claimed
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+        self.note("drag", pointer);
+    }
+
+    fn release(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+        self.note("release", pointer);
+    }
+
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
+
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+
+    fn takes(&self, button: PointerButton, modifiers: Modifiers) -> bool {
+        button == self.button() || (self.overridden && button == PointerButton::Secondary && modifiers.alt)
+    }
+}
+
+fn button_of(at: Pos2, button: PointerButton, pressed: bool, modifiers: Modifiers) -> Event {
+    Event::PointerButton { pos: at, button, pressed, modifiers }
+}
+
+// A brush-type tool gets both the Alt + right press (the resize chord, `Secondary`) and the Alt +
+// primary press (`Primary`); without Alt the secondary press is not the tool's.
+#[test]
+fn takes_gives_a_brush_type_tool_both_buttons_while_alt_is_held() {
+    let calls = Log::default();
+    let mut h = harness(Rig::new(AltResize { log: calls.clone(), overridden: true }), 0.05);
+    let at = pos2(100.0, 100.0);
+    move_to(&mut h, at);
+    h.event(Event::ModifiersChanged(Modifiers::ALT));
+    h.event(button_of(at, PointerButton::Secondary, true, Modifiers::ALT));
+    h.step();
+    assert_eq!(log(&calls), ["press Secondary x1"]);
+    h.event(button_of(at, PointerButton::Secondary, false, Modifiers::ALT));
+    h.step();
+    assert_eq!(log(&calls).last().map(String::as_str), Some("release Secondary x1"));
+    h.event(button_of(at, PointerButton::Primary, true, Modifiers::ALT));
+    h.step();
+    assert!(log(&calls).last().is_some_and(|c| c.starts_with("press Primary")), "{:?}", log(&calls));
+    h.event(button_of(at, PointerButton::Primary, false, Modifiers::ALT));
+    h.step();
+    // Without Alt the secondary press is not the tool's.
+    h.event(Event::ModifiersChanged(Modifiers::NONE));
+    let before = log(&calls).len();
+    h.event(button_of(at, PointerButton::Secondary, true, Modifiers::NONE));
+    h.step();
+    assert_eq!(log(&calls).len(), before, "{:?}", log(&calls));
+}
+
+// A tool that doesn't override `takes` gets only its `button()`, with or without Alt.
+#[test]
+fn takes_default_is_the_tools_button() {
+    let calls = Log::default();
+    let mut h = harness(Rig::new(AltResize { log: calls.clone(), overridden: false }), 0.05);
+    let at = pos2(100.0, 100.0);
+    move_to(&mut h, at);
+    h.event(Event::ModifiersChanged(Modifiers::ALT));
+    h.event(button_of(at, PointerButton::Secondary, true, Modifiers::ALT));
+    h.step();
+    assert!(log(&calls).is_empty(), "the secondary press is not the tool's");
+    h.event(button_of(at, PointerButton::Secondary, false, Modifiers::ALT));
+    h.step();
+    h.event(button_of(at, PointerButton::Primary, true, Modifiers::ALT));
+    h.step();
+    assert_eq!(log(&calls), ["press Primary x1"]);
+}
+
+// Alt released mid-gesture: the gesture still ends on the secondary button's release, not the
+// primary's, and drags keep arriving meanwhile.
+#[test]
+fn a_gesture_keeps_its_button_after_alt_is_released() {
+    let calls = Log::default();
+    let mut h = harness(Rig::new(AltResize { log: calls.clone(), overridden: true }), 0.05);
+    let at = pos2(100.0, 100.0);
+    move_to(&mut h, at);
+    h.event(Event::ModifiersChanged(Modifiers::ALT));
+    h.event(button_of(at, PointerButton::Secondary, true, Modifiers::ALT));
+    h.step();
+    h.event(Event::ModifiersChanged(Modifiers::NONE));
+    move_to(&mut h, pos2(140.0, 100.0));
+    move_to(&mut h, pos2(160.0, 100.0));
+    let drags = log(&calls).iter().filter(|c| c.starts_with("drag Secondary")).count();
+    assert!(drags >= 2, "{:?}", log(&calls));
+    assert!(!log(&calls).iter().any(|c| c.starts_with("release")), "still running");
+    h.event(button_of(pos2(160.0, 100.0), PointerButton::Secondary, false, Modifiers::NONE));
+    h.step();
+    assert_eq!(log(&calls).last().map(String::as_str), Some("release Secondary x1"));
+}
+
+fn descendants(node: egui_kittest::kittest::AccessKitNode<'_>) -> Vec<egui_kittest::kittest::AccessKitNode<'_>> {
+    node.children().flat_map(|child| std::iter::once(child).chain(descendants(child))).collect()
+}
+
+const PART_KEYS: [u64; 3] = [1, 2, 3];
+
+/// A tool made of three parts along the top of the canvas; Page keys pick, the arrows log.
+struct Parted {
+    picked: Option<u64>,
+    parts: bool,
+    node: Option<ToolNode>,
+    keys: Log,
+    /// `ToolContext::parts_focused` at each `key` call.
+    focus: Rc<RefCell<Vec<bool>>>,
+}
+
+impl Parted {
+    fn new(parts: bool, keys: &Log) -> Self {
+        Self { picked: None, parts, node: None, keys: keys.clone(), focus: Rc::default() }
+    }
+}
+
+impl CanvasTool for Parted {
+    fn press(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+        ToolAction::Ignored
+    }
+
+    fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
+
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+        self.focus.borrow_mut().push(cx.parts_focused);
+        self.keys.borrow_mut().push(format!("{:?} on {:?}", key.key, self.picked));
+        true
+    }
+
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+
+    fn parts(&self, _cx: &ToolContext<'_>) -> Option<ToolParts> {
+        self.parts.then(|| {
+            let parts = PART_KEYS
+                .iter()
+                .map(|&key| Part {
+                    key,
+                    name: format!("Handle {key}"),
+                    value: Some(format!("{key} px")),
+                    rect: Rect::from_center_size(pos2(40.0 + key as f32 * 40.0, 40.0), vec2(12.0, 12.0)),
+                    selected: false,
+                })
+                .collect();
+            ToolParts::new("Frame", parts).value("3 handles")
+        })
+    }
+
+    fn picked(&self) -> Option<u64> {
+        self.picked
+    }
+
+    fn pick(&mut self, key: Option<u64>, _cx: &mut ToolContext<'_>) {
+        self.picked = key;
+    }
+
+    fn node(&self, _cx: &ToolContext<'_>) -> Option<ToolNode> {
+        self.node.clone()
+    }
+}
+
+// A tool with parts is one Tab stop: Tab focuses the group, Page Down picks through `pick`, the
+// arrows then reach the tool's `key` and the host draws the focus ring round the picked part.
+#[test]
+fn a_tool_with_parts_is_one_tab_stop_whose_page_keys_pick() {
+    let keys = Log::default();
+    let mut h = harness(Rig::new(Parted::new(true, &keys)), 0.05);
+    h.key_press(Key::Tab);
+    h.run();
+    h.key_press(Key::Tab);
+    h.run();
+    h.key_press(Key::PageDown);
+    h.run();
+    h.key_press(Key::ArrowRight);
+    h.run();
+    assert_eq!(log(&keys).last().map(String::as_str), Some("ArrowRight on Some(2)"), "Tab picked the first part, Page Down the second");
+}
+
+// The keys the group used to pick a part do not reach the tool a second time, and
+// `ToolContext::parts_focused` is true only while the group has the keyboard.
+#[test]
+fn page_keys_that_pick_a_part_do_not_reach_the_tool_and_parts_focused_follows_the_group() {
+    let keys = Log::default();
+    let parted = Parted::new(true, &keys);
+    let focus = parted.focus.clone();
+    let mut h = harness(Rig::new(parted), 0.05);
+    focused(&mut h);
+    key(&mut h, Key::ArrowRight);
+    assert_eq!(*focus.borrow(), [false], "the canvas has the focus, the group does not: {:?}", log(&keys));
+    h.key_press(Key::Tab);
+    h.run();
+    key(&mut h, Key::PageDown);
+    key(&mut h, Key::Home);
+    key(&mut h, Key::ArrowRight);
+    let keys = log(&keys);
+    assert!(!keys.iter().any(|k| k.starts_with("PageDown") || k.starts_with("Home")), "{keys:?}");
+    assert_eq!(keys.last().map(String::as_str), Some("ArrowRight on Some(1)"), "{keys:?}");
+    assert_eq!(focus.borrow().last(), Some(&true), "{:?}", focus.borrow());
+}
+
+// Esc reaches the tool's `cancel` as `Escape`, and the app's own reason through `ToolHost::cancel`
+// as given; a button that went up unseen reaches it as `FocusLost`.
+#[test]
+fn each_cancel_reason_reaches_the_tool() {
+    let one = |act: &dyn Fn(&mut Harness<'static, Rig>)| {
+        let probe = Probe::new(&Log::default());
+        let reasons = probe.reasons.clone();
+        let mut h = harness(Rig::new(probe), 0.05);
+        focused(&mut h);
+        press(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
+        move_to(&mut h, pos2(140.0, 120.0));
+        act(&mut h);
+        reasons.borrow().clone()
+    };
+    assert_eq!(one(&|h| key(h, Key::Escape)), [CancelReason::Escape]);
+    assert_eq!(
+        one(&|h| {
+            let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
+            ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool, CancelReason::UndoDuringGesture);
+        }),
+        [CancelReason::UndoDuringGesture]
+    );
+    assert_eq!(one(&|h| canvas::lose_pointer(h, pos2(140.0, 120.0), PointerButton::Primary)), [CancelReason::FocusLost]);
+}
+
+// An injected press of a button the tool does not take (here the secondary one without Alt) starts
+// nothing; with Alt the tool takes it and the press carries the button.
+#[test]
+fn an_injected_press_of_an_untaken_button_starts_nothing() {
+    let calls = Log::default();
+    let probe = Probe { alt_secondary: true, ..Probe::new(&calls) };
+    let presses = probe.presses.clone();
+    let mut h = harness(Rig::new(probe), 0.05);
+    let id = h.state().id.expect("a pass ran");
+    let down = |button, modifiers| ToolInput::Down { button, doc: Point::new(120.0, 90.0), pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers };
+    ToolHost::inject(&h.ctx, id, down(PointerButton::Secondary, Modifiers::NONE));
+    h.step();
+    assert!(log(&calls).is_empty(), "{:?}", log(&calls));
+    assert!(!ToolHost::in_gesture(&h.ctx, id));
+    ToolHost::inject(&h.ctx, id, down(PointerButton::Secondary, Modifiers::ALT));
+    h.step();
+    assert!(ToolHost::in_gesture(&h.ctx, id));
+    assert_eq!(*presses.borrow(), [(PointerButton::Secondary, 1)]);
+}
+
+// Alt + right press, then a left press within the double-click time: the left press begins a new
+// click run.
+#[test]
+fn a_press_of_another_button_starts_a_new_click_run() {
+    let probe = Probe { alt_secondary: true, ..Probe::new(&Log::default()) };
+    let presses = probe.presses.clone();
+    let mut h = harness(Rig::new(probe), 0.05);
+    let at = pos2(100.0, 100.0);
+    canvas::press_button(&mut h, at, PointerButton::Secondary, Modifiers::ALT);
+    canvas::release_button(&mut h, at, PointerButton::Secondary, Modifiers::ALT);
+    canvas::press(&mut h, at, Modifiers::NONE);
+    canvas::release(&mut h, at, Modifiers::NONE);
+    canvas::press(&mut h, at, Modifiers::NONE);
+    canvas::release(&mut h, at, Modifiers::NONE);
+    assert_eq!(*presses.borrow(), [(PointerButton::Secondary, 1), (PointerButton::Primary, 1), (PointerButton::Primary, 2)]);
+}
+
+// The group and each part are in the AccessKit tree with the tool's names and values; the picked
+// part is the group's active descendant.
+#[test]
+fn tool_parts_reach_the_accesskit_tree() {
+    let keys = Log::default();
+    let mut parted = Parted::new(true, &keys);
+    parted.picked = Some(3);
+    let mut h = harness(Rig::new(parted), 0.05);
+    h.run();
+    let group = h.get_by_label("Frame");
+    assert_eq!(group.accesskit_node().role(), Role::Group);
+    assert_eq!(group.accesskit_node().value().as_deref(), Some("3 handles"));
+    let objects: Vec<_> = descendants(group.accesskit_node())
+        .into_iter()
+        .filter(|n| n.role() == Role::GraphicsObject)
+        .map(|n| (n.label().unwrap_or_default(), n.value().unwrap_or_default()))
+        .collect();
+    let want: Vec<_> = PART_KEYS.iter().map(|k| (format!("Handle {k}"), format!("{k} px"))).collect();
+    assert_eq!(objects, want);
+    assert_eq!(group.accesskit_node().active_descendant().and_then(|n| n.label()).as_deref(), Some("Handle 3"));
+}
+
+// A claimed press released on a part gives the group focus; a tool without parts adds no Tab stop.
+#[test]
+fn a_press_on_a_part_focuses_the_group_and_tools_without_parts_add_no_stop() {
+    struct Claims(Parted);
+    impl CanvasTool for Claims {
+        fn press(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+            ToolAction::Claimed
+        }
+        fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+        fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+        fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {}
+        fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+            self.0.key(key, cx)
+        }
+        fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+        fn parts(&self, cx: &ToolContext<'_>) -> Option<ToolParts> {
+            self.0.parts(cx)
+        }
+    }
+    let keys = Log::default();
+    let mut h = harness(Rig::new(Claims(Parted::new(true, &keys))), 0.05);
+    let on_part = pos2(80.0, 40.0);
+    press(&mut h, on_part, Modifiers::NONE);
+    release(&mut h, on_part, Modifiers::NONE);
+    key(&mut h, Key::ArrowLeft);
+    assert_eq!(keys.borrow().len(), 1, "the arrow reached the tool: the group has the focus");
+
+    // Without parts the canvas is the only stop and the group is not in the tree.
+    let keys = Log::default();
+    let mut h = harness(Rig::new(Parted::new(false, &keys)), 0.05);
+    h.run();
+    assert!(h.query_by_label("Frame").is_none());
+}
+
+// A press the host took and one an overlay took share one click run: `ToolPointer::clicks` and
+// `PrimaryPress::clicks` agree for a double click (after K8's `click_count`).
+#[test]
+fn the_host_and_an_overlay_count_one_click_run() {
+    let calls = Log::default();
+    let mut rig = Rig::new(AltResize { log: calls.clone(), overridden: false });
+    rig.overlay = true;
+    let mut h = harness(rig, 0.02);
+    let at = pos2(100.0, 100.0);
+    press(&mut h, at, Modifiers::NONE);
+    release(&mut h, at, Modifiers::NONE);
+    assert_eq!(h.state().overlay_clicks, [1]);
+    h.state_mut().overlay = false;
+    press(&mut h, at, Modifiers::NONE);
+    assert_eq!(log(&calls), ["press Primary x2"], "the host continues the overlay's run");
+    release(&mut h, at, Modifiers::NONE);
+}
+
+// A tool's `node` is one GraphicsObject under the canvas node with its name, value and screen
+// bounds; a tool returning `None` adds no node.
+#[test]
+fn a_tools_node_is_a_graphics_object_under_the_canvas() {
+    let keys = Log::default();
+    let mut tool = Parted::new(false, &keys);
+    tool.node = Some(ToolNode::new("Outline").value("5 points").bounds(kurbo::Rect::new(100.0, 50.0, 180.0, 90.0)));
+    let mut h = harness(Rig::new(tool), 0.05);
+    h.run();
+    let node = h.get_by_label("Outline");
+    assert_eq!(node.accesskit_node().role(), Role::GraphicsObject);
+    assert_eq!(node.accesskit_node().value().as_deref(), Some("5 points"));
+    let bounds = node.accesskit_node().raw_bounds().expect("bounds");
+    assert!((bounds.x0 - 100.0).abs() < 1.0 && (bounds.x1 - 180.0).abs() < 1.0, "{bounds:?}");
+
+    let mut h = harness(Rig::new(Parted::new(false, &keys)), 0.05);
+    h.run();
+    assert!(h.query_by_role(Role::GraphicsObject).is_none());
 }

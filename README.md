@@ -57,6 +57,9 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [`craft-draw`](crates/draw/README.md): vector and shape tools; the gradient editor and
   on-canvas gradient overlay, the pen and path overlays, the crop frame and perspective crop, and the
   free transform box and fields (`ui` feature).
+- [`craft-ecproj-format`](crates/ecproj-format/README.md): the envelope of EffectCraft `.ecproj`
+  project files: `savedBy`, the schema version and its check, and the file object with the
+  project and its saved view as type parameters. The project model stays in EffectCraft.
 - [`craft-imaging`](crates/imaging/README.md): raster image editing; the scope counting (every
   target) and, with the `ui` feature, the warp grid, the levels editor, the Channels panel and the
   scope panel with its clipping overlay.
@@ -128,6 +131,9 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [`craft-ui`](crates/ui/README.md): SVG catalogs, icon buttons, tabs, pane controls, transactional docking, print settings and theme helpers for egui frontends;
   assets, themes, localization and command handling stay in each app. Requires Rust 1.95 or later.
 - `craft-ui-macros`: the `StoryArgs` and `StoryChoice` derives for `craft_ui::story`; use them through `craft-ui`.
+- [`craft-vectorcraft-format`](crates/vectorcraft-format/README.md): the envelope of VectorCraft's
+  `.vectorcraft` file: its members, versions, embedded images and the data after the JSON, with the
+  document as a type parameter. The document and its migrations stay in VectorCraft.
 - [Shared UI component audit](docs/ui-components-audit.md): source inventory, extraction priorities
   and compatibility boundaries across the Craft suite.
 - [Theme infrastructure](docs/theme-infrastructure.md): eight-app comparison and the small shared

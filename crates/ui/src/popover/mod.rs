@@ -86,12 +86,14 @@ pub struct PopoverClose {
     escape: bool,
     enter: bool,
     focus_left: bool,
+    swallow_outside: bool,
 }
 
 impl Default for PopoverClose {
-    /// A press outside, Esc, and the focus leaving; not Enter.
+    /// A press outside, Esc, and the focus leaving; not Enter. The press outside also reaches
+    /// what it lands on.
     fn default() -> Self {
-        Self { outside: true, escape: true, enter: false, focus_left: true }
+        Self { outside: true, escape: true, enter: false, focus_left: true, swallow_outside: false }
     }
 }
 
@@ -117,6 +119,16 @@ impl PopoverClose {
     /// Close when the keyboard focus leaves the popover, its children and its anchor.
     pub fn focus_left(mut self, on: bool) -> Self {
         self.focus_left = on;
+        self
+    }
+
+    /// Whether a primary press outside the popover, its children, its anchor control and its
+    /// [toggle](Popover::toggle) reaches nothing under it, as a menu's closing press (decisions
+    /// §4.1): the press that closes a pen's Stroke Options popover never adds an anchor. Off by
+    /// default, so a press outside an ordinary popover also acts where it lands. Other buttons are
+    /// never swallowed.
+    pub fn swallow_outside(mut self, on: bool) -> Self {
+        self.swallow_outside = on;
         self
     }
 }
@@ -345,6 +357,11 @@ impl Popover {
         if close.focus_left && had && moved_away && !pressed {
             closing = closing.or(Some(CloseReason::FocusLeft));
         }
+        if close.swallow_outside {
+            let toggle_rect = toggle.and_then(|t| ctx.read_response(t)).map(|r| r.rect);
+            let allowed: Vec<Rect> = anchor_rect.into_iter().chain(toggle_rect).collect();
+            swallow_closing_press(&ctx, &family, &allowed);
+        }
 
         // Size of the content area.
         let margin = parts.screen_margin;
@@ -401,6 +418,10 @@ impl Popover {
                 state.focus_tries = u8::MAX;
             }
             let rect = framed.response.rect;
+            // The area's Dialog node has no bounds of its own: give it the surface's.
+            ctx.accesskit_node_builder(ui.unique_id(), |node| {
+                node.set_bounds(egui::accesskit::Rect { x0: rect.min.x.into(), y0: rect.min.y.into(), x1: rect.max.x.into(), y1: rect.max.y.into() });
+            });
             ui.painter().set(slot, Shape::Vec(surface.shapes(rect, ui.pixels_per_point())));
             let (inner, used) = framed.inner;
             let resized = match size {
@@ -464,6 +485,26 @@ impl Popover {
         }
         Some(PopoverResponse { inner, rect, closed_by: reason, size: size_now })
     }
+}
+
+/// Asks egui to swallow the next pass's primary presses outside the layers of `family` (the
+/// popover and the popups opened from it), letting presses in `allowed` (the anchor control and
+/// the toggle) through: `Memory::swallow_presses_outside` for each family layer
+/// (`LayerId::new(Order::Foreground, id)`, as the popover's own `Area`) and
+/// `Memory::allow_presses_in` for each rect. Called every pass the popover shows with
+/// [`PopoverClose::swallow_outside`] on; egui applies it from the next pass, so the press that
+/// closes the popover is the first one swallowed.
+fn swallow_closing_press(ctx: &Context, family: &[Id], allowed: &[Rect]) {
+    // pc: crates/ui-egui/src/tools/shape_stroke_ui.rs:164 `dismiss_from_canvas` (the press that closes
+    // the stroke popover is consumed, release included); the menus' `swallow_outside_press(true)` and `swallow_presses_outside` (`menu/popup.rs:238`, `:243`).
+    ctx.memory_mut(|m| {
+        for &id in family {
+            m.swallow_presses_outside(LayerId::new(Order::Foreground, id));
+        }
+        for &rect in allowed {
+            m.allow_presses_in(rect);
+        }
+    });
 }
 
 /// Registers `id` as the open popover of `group` and asks the one it replaces to close.

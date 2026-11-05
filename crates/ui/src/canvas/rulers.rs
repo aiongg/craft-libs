@@ -737,7 +737,7 @@ mod tests;
 /// [`LengthUnitLabels`](crate::localized::units::LengthUnitLabels), `current` marked. The command
 /// of a row is the unit's index in `units`.
 // pc: crates/ui-egui/src/canvas/rulers.rs:73 `unit_menu_items`.
-pub(crate) fn unit_entries(ui: &Ui, units: &[LengthUnit], current: LengthUnit) -> Vec<MenuEntry<usize>> {
+pub fn unit_entries(ui: &Ui, units: &[LengthUnit], current: LengthUnit) -> Vec<MenuEntry<usize>> {
     let labels = LengthUnitLabels::of(ui);
     units.iter().enumerate().map(|(i, &unit)| MenuItem::new(unit.label(&labels), i).radio(unit == current).into()).collect()
 }

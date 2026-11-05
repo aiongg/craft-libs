@@ -554,6 +554,14 @@ carbon = "arrows--horizontal"
 tabler = "arrows-exchange"
 
 [[icon]]
+name = "swap_vertical"
+directional = false
+lucide = "arrow-up-down"
+phosphor = "arrows-down-up"
+carbon = "arrows--vertical"
+tabler = "arrows-down-up"
+
+[[icon]]
 name = "ban"
 directional = false
 lucide = "ban"
@@ -1457,3 +1465,115 @@ directional = false
 lucide = "split"
 phosphor = "arrows-split"
 tabler = "arrows-split"
+
+[[icon]]
+name = "split_cross"
+directional = false
+lucide = "grid-2x2"
+phosphor = "squares-four"
+
+[[icon]]
+name = "split_vertical"
+directional = false
+lucide = "square-split-horizontal"
+phosphor = "square-split-horizontal"
+
+[[icon]]
+name = "split_horizontal"
+directional = false
+lucide = "square-split-vertical"
+phosphor = "square-split-vertical"
+
+[[icon]]
+name = "stroke_align_inside"
+directional = false
+phosphor = "stroke-align-inside"
+
+[[icon]]
+name = "stroke_align_center"
+directional = false
+phosphor = "stroke-align-center"
+
+[[icon]]
+name = "stroke_align_outside"
+directional = false
+phosphor = "stroke-align-outside"
+
+[[icon]]
+name = "stroke_cap_butt"
+directional = false
+phosphor = "stroke-cap-butt"
+
+[[icon]]
+name = "stroke_cap_round"
+directional = false
+phosphor = "stroke-cap-round"
+
+[[icon]]
+name = "stroke_cap_square"
+directional = false
+phosphor = "stroke-cap-square"
+
+[[icon]]
+name = "stroke_join_miter"
+directional = false
+phosphor = "stroke-join-miter"
+
+[[icon]]
+name = "stroke_join_round"
+directional = false
+phosphor = "stroke-join-round"
+
+[[icon]]
+name = "stroke_join_bevel"
+directional = false
+phosphor = "stroke-join-bevel"
+
+[[icon]]
+name = "route_straight"
+directional = false
+phosphor = "route-straight"
+
+[[icon]]
+name = "route_elbow"
+directional = false
+phosphor = "route-elbow"
+
+[[icon]]
+name = "route_curved"
+directional = false
+phosphor = "route-curved"
+
+[[icon]]
+name = "square_plus"
+directional = false
+lucide = "square-plus"
+phosphor = "plus-square"
+carbon = "add--alt"  # near: plus in a circle, not square
+tabler = "square-plus"
+
+[[icon]]
+name = "undo_2"
+directional = true
+lucide = "undo-2"
+phosphor = "arrow-bend-up-left"
+carbon = "undo"
+tabler = "arrow-back-up"
+
+# Fixed on screen: the canvas does not mirror in right-to-left, so these must not either
+# (Liquify's Twirl Counterclockwise and Push Left).
+[[icon]]
+name = "rotate_ccw"
+directional = false
+lucide = "rotate-ccw"
+phosphor = "arrow-counter-clockwise"
+carbon = "rotate--counterclockwise"
+tabler = "rotate"
+
+[[icon]]
+name = "arrow_left_fixed"
+directional = false
+lucide = "arrow-left"
+phosphor = "arrow-left"
+carbon = "arrow--left"
+tabler = "arrow-left"

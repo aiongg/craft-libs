@@ -74,3 +74,49 @@ fn a_three_form_locale_picks_the_form_of_a_stop_count() {
     let count = |n| russian.counted(&ctx, counts::COLOR_STOPS, &text, n);
     assert_eq!((count(1), count(2), count(5)), ("1 цвет".to_owned(), "2 цвета".to_owned(), "5 цветов".to_owned()));
 }
+
+#[test]
+fn registered_labels_localized_with_identity_equal_their_english() {
+    identity_holds::<crate::ui::picture_fill::PictureFillLabels>();
+    identity_holds::<crate::ui::picture_fill::stories::PictureStoryLabels>();
+    identity_holds::<crate::ui::gradient::map::GradientMapLabels>();
+    identity_holds::<crate::ui::connector::ConnectorToolLabels>();
+    identity_holds::<crate::ui::connector::ConnectorBarLabels>();
+    identity_holds::<crate::ui::connector::stories::ConnectorStoryLabels>();
+    identity_holds::<crate::ui::slice::SliceToolLabels>();
+    identity_holds::<crate::ui::slice::SliceLabels>();
+    identity_holds::<crate::ui::slice::stories::SliceStoryLabels>();
+    identity_holds::<crate::ui::pattern::PatternFillLabels>();
+    identity_holds::<crate::ui::pattern::stories::PatternStoryLabels>();
+    identity_holds::<crate::ui::brush_presets::BrushPickerLabels>();
+    identity_holds::<crate::ui::brush_presets::BrushCardLabels>();
+    identity_holds::<crate::ui::brush_presets::stories::BrushPresetStoryLabels>();
+    identity_holds::<crate::ui::symmetry::SymmetryLabels>();
+    identity_holds::<crate::ui::transform::session_stories::TransformSessionStoryLabels>();
+    identity_holds::<crate::ui::measure::stories::MeasureStoryLabels>();
+    identity_holds::<crate::ui::symmetry::stories::SymmetryStoryLabels>();
+    identity_holds::<crate::ui::crop::stories_tool::CropStoryLabels>();
+    identity_holds::<crate::ui::stroke::stories::StrokeStoryLabels>();
+    identity_holds::<crate::ui::transform::TransformBarLabels>();
+    identity_holds::<crate::ui::transform::TransformMenuLabels>();
+    identity_holds::<crate::ui::crop::CropBarLabels>();
+    identity_holds::<crate::ui::stroke::StrokeLabels>();
+    identity_holds::<crate::ui::brush_settings::BrushSettingsLabels>();
+    identity_holds::<crate::ui::brush_settings::stories::BrushSettingsStoryLabels>();
+    identity_holds::<crate::ui::pen::PathOptionsLabels>();
+    identity_holds::<crate::ui::add_beside_stories::AddBesideStoryLabels>();
+    identity_holds::<crate::ui::measure::RulerToolLabels>();
+    identity_holds::<crate::ui::measure::RulerBarLabels>();
+    identity_holds::<crate::ui::shape_drag::ShapeDragToolLabels>();
+    identity_holds::<crate::ui::shape_drag::CreateShapeLabels>();
+    identity_holds::<crate::ui::shape_drag::stories::ShapeDragStoryLabels>();
+    identity_holds::<crate::ui::artboard::ArtboardToolLabels>();
+    identity_holds::<crate::ui::artboard::ArtboardLabels>();
+    identity_holds::<crate::ui::artboard::stories::ArtboardStoryLabels>();
+    identity_holds::<crate::ui::shape::ShapeLabels>();
+    identity_holds::<crate::ui::shape::stories::ShapeStoryLabels>();
+    identity_holds::<crate::ui::add_beside::AddBesideLabels>();
+    identity_holds::<crate::ui::corner::CornerWidgetsLabels>();
+    identity_holds::<crate::ui::corner::stories::CornerStoryLabels>();
+    identity_holds::<crate::ui::stroke::stories::EventKindLabels>();
+}

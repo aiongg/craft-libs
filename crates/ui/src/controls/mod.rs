@@ -76,6 +76,7 @@ mod autocomplete;
 #[cfg(test)]
 mod autocomplete_tests;
 pub(crate) mod badge;
+pub mod blend_choice;
 mod breadcrumb;
 #[cfg(test)]
 mod breadcrumb_tests;
@@ -171,6 +172,7 @@ pub use autocomplete::{
     Autocomplete, AutocompleteKeys, AutocompleteLabels, AutocompleteResponse, AutocompleteStyle, Suggestion, completion_rest, paint_inline_completion,
 };
 pub use badge::{Badge, BadgeLook, BadgeStyle, BadgeTone};
+pub use blend_choice::BlendChoice;
 pub use breadcrumb::{BreadcrumbBar, BreadcrumbBarResponse, BreadcrumbLabels, BreadcrumbStyle, Crumb, path_crumbs};
 pub use button::{Button, ButtonStyle, ButtonTone};
 pub use check::IndicatorColors;
@@ -228,19 +230,19 @@ pub(crate) fn salt(ui: &mut Ui, id_salt: Option<IdSalt>) -> IdSalt {
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &[
-    "Chip field",
-    "Tree picker",
-    "Icon picker",
-    "Linked fields",
-    "Preview select",
-    "Split button",
+    "ChipField",
+    "TreePicker",
+    "IconPicker",
+    "LinkedFields",
+    "PreviewSelect",
+    "SplitButton",
     "Breadcrumb",
     "Rating",
-    "Date picker",
-    "Alt text",
+    "DatePicker",
+    "AltText",
     "Autocomplete",
-    "Apply row",
-    "Reset dot",
+    "ApplyRow",
+    "ResetDot",
 ];
 
 pub(crate) fn stories() -> Vec<crate::story::Story> {

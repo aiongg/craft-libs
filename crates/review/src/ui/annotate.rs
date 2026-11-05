@@ -502,9 +502,9 @@ impl CanvasTool for AnnotateTool {
         self.hover = Some(pointer.doc);
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
         if let Some(Gesture::Edit { id, begun: true, .. }) = self.gesture.take() {
-            self.edits.push(EditEvent::cancel(id, CancelReason::Escape));
+            self.edits.push(EditEvent::cancel(id, reason));
         }
     }
 

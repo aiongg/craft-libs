@@ -3,7 +3,7 @@
 use egui::accesskit::{Action, ActionRequest, Role};
 use egui::{Context, Event, Key, Modifiers, Pos2, RawInput, Rect, vec2};
 
-use super::{EyedropperLabels, EyedropperOptions, EyedropperOptionsBar, EyedropperPick, EyedropperTool, SampleSize, SampleSource};
+use super::{EyedropperBar, EyedropperLabels, EyedropperOptions, EyedropperPick, EyedropperTool, SampleSize, SampleSource};
 use craft_theme::Srgba;
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasTool, CanvasView, ToolHost, ToolInput};
@@ -66,7 +66,7 @@ impl Rig {
         let ctx = self.ctx.clone();
         let options = &mut self.options;
         let output = ctx.run_ui(input, |ui| {
-            OptionsBar::new("eyedropper-bar").show(ui, |slots| EyedropperOptionsBar::new(options).add_to(slots));
+            OptionsBar::new("eyedropper-bar").show(ui, |slots| EyedropperBar::new(options).add_to(slots));
         });
         if let Some(update) = output.platform_output.accesskit_update.clone() {
             self.nodes = update.nodes;
@@ -144,7 +144,7 @@ fn point(x: f64, y: f64) -> Point {
 }
 
 fn down<T>(h: &mut Harness<'_, Canvas<T>>, at: Point, modifiers: Modifiers) {
-    input(h, ToolInput::Down { doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
+    input(h, ToolInput::Down { button: egui::PointerButton::Primary, doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
 }
 
 fn move_to<T>(h: &mut Harness<'_, Canvas<T>>, at: Point, modifiers: Modifiers) {

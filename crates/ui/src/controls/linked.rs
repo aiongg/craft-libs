@@ -4,7 +4,7 @@
 use std::cell::RefCell;
 use std::ops::RangeInclusive;
 
-use egui::{Align, AsIdSalt, IdSalt, Layout, Modifiers, Response, Ui, vec2};
+use egui::{Align, AsIdSalt, Grid, IdSalt, Layout, Modifiers, Response, Ui, vec2};
 
 use super::expr::ExprUnits;
 use super::{ControlSize, IconButton, NumberField};
@@ -13,6 +13,7 @@ use crate::edit::{EditEvent, EditResponse};
 use crate::icons::Icon;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::patterns::unit_number_field;
+use crate::primitives::Text;
 use crate::theme::{Tokens, TokensOf as _};
 
 crate::words! {
@@ -93,6 +94,17 @@ pub enum LinkedLayout {
     Columns,
 }
 
+/// Where a field's caption goes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Captions {
+    /// Inside the box, as the scrub label (a row of short captions).
+    Inside,
+    /// Before the box, as a label that scrubs the field, the captions of a column aligned.
+    Outside,
+    /// Nowhere: only the field's accessible name.
+    Names,
+}
+
 /// A part of [`LinkedFields`] for [`show_cells`](LinkedFields::show_cells).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LinkedSlot {
@@ -113,8 +125,11 @@ pub enum LinkedSlot {
 /// if let Some(EditEvent::Commit { value: [w, h], .. }) = out.event { resize(w, h) }
 /// ```
 ///
-/// - **Fields.** One [`NumberField`](crate::controls::NumberField) per caption (the caption
-///   before it, as the field's scrub label), sharing the units, the decimals and the size, each
+/// - **Fields.** One [`NumberField`](crate::controls::NumberField) per caption (in a row the
+///   caption inside the box as the field's scrub label; in a column or columns before the box, as
+///   a label that scrubs the field, so a long caption ("Bottom Right") never narrows the text;
+///   with [`captions_as_names`](Self::captions_as_names) not shown, only the field's accessible
+///   name), sharing the units, the decimals and the size, each
 ///   with its range. With [`units`](Self::units) each field is a
 ///   [`unit_number_field`](crate::patterns::unit_number_field) (the unit after the number, typed
 ///   units and arithmetic, the unit's decimals), so its value with its unit is what screen
@@ -147,6 +162,7 @@ pub struct LinkedFields<'a, const N: usize> {
     units: Option<ExprUnits<'a>>,
     decimals: Option<RangeInclusive<usize>>,
     layout: LinkedLayout,
+    names_only: bool,
     size: ControlSize,
     enabled: bool,
     labels: Option<LinkedFieldsLabels>,
@@ -174,6 +190,7 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
             units: None,
             decimals: None,
             layout: LinkedLayout::Row,
+            names_only: false,
             size: ControlSize::Md,
             enabled: true,
             labels: None,
@@ -211,6 +228,14 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
         self
     }
 
+    /// Leaves the captions out: each is only its field's accessible name. For a host that
+    /// draws its own heading over the fields (PhotoCraft's Create Shape: one "Radius" label over
+    /// four corner fields).
+    pub fn captions_as_names(mut self) -> Self {
+        self.names_only = true;
+        self
+    }
+
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -233,6 +258,8 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
     pub fn show(self, ui: &mut Ui) -> EditResponse<[f64; N]> {
         let layout = self.layout;
         let side = IconButton::style(&Tokens::of(ui), self.size).side;
+        let outside = !self.names_only;
+        let grid_id = ui.make_persistent_id(self.id_salt).with("fields");
         self.run(ui, |ui, put| match layout {
             LinkedLayout::Row => Some(
                 ui.horizontal(|ui| {
@@ -247,7 +274,7 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
             ),
             LinkedLayout::Column => Some(
                 ui.horizontal(|ui| {
-                    let fields = ui.vertical(|ui| (0..N).for_each(|i| put(ui, LinkedSlot::Field(i))));
+                    let fields = ui.vertical(|ui| field_column(ui, grid_id, 0..N, outside, put));
                     link_between(ui, side, fields.response.rect.height(), |ui| put(ui, LinkedSlot::Link));
                 })
                 .response,
@@ -255,9 +282,9 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
             LinkedLayout::Columns => Some(
                 ui.horizontal(|ui| {
                     let split = N.div_ceil(2);
-                    let first = ui.vertical(|ui| (0..split).for_each(|i| put(ui, LinkedSlot::Field(i))));
+                    let first = ui.vertical(|ui| field_column(ui, grid_id.with(0), 0..split, outside, put));
                     link_between(ui, side, first.response.rect.height(), |ui| put(ui, LinkedSlot::Link));
-                    ui.vertical(|ui| (split..N).for_each(|i| put(ui, LinkedSlot::Field(i))));
+                    ui.vertical(|ui| field_column(ui, grid_id.with(1), split..N, outside, put));
                 })
                 .response,
             ),
@@ -301,7 +328,7 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
     /// Draws the slots through `arrange`, which returns the group's response (`None` for none),
     /// and turns the fields' events into the group's.
     fn run(self, ui: &mut Ui, arrange: impl FnOnce(&mut Ui, &mut dyn FnMut(&mut Ui, LinkedSlot)) -> Option<Response>) -> EditResponse<[f64; N]> {
-        let Self { id_salt, captions, values, linked, mode, numbers, ranges, units, decimals, layout: _, size, enabled, labels } = self;
+        let Self { id_salt, captions, values, linked, mode, numbers, ranges, units, decimals, layout, names_only, size, enabled, labels } = self;
         let ranges = ranges.unwrap_or_else(|| std::array::from_fn(|_| f64::NEG_INFINITY..=f64::INFINITY));
         let begin_key = ui.make_persistent_id(id_salt).with("begin");
         let reported_key = ui.make_persistent_id(id_salt).with("reported");
@@ -311,6 +338,13 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
         let mut edits: Vec<(usize, EditResponse<f64>)> = Vec::new();
         let link: RefCell<Option<Response>> = RefCell::new(None);
         let mut union: Option<Response> = None;
+        // Only a column places its captions before the boxes (`show` draws them); a row, or cells
+        // of the host's own layout, keeps them inside.
+        let captions_at = match (names_only, layout) {
+            (true, _) => Captions::Names,
+            (false, LinkedLayout::Column | LinkedLayout::Columns) => Captions::Outside,
+            (false, LinkedLayout::Row) => Captions::Inside,
+        };
         let mut put = |ui: &mut Ui, slot: LinkedSlot| {
             let response = match slot {
                 LinkedSlot::Field(i) => {
@@ -319,7 +353,15 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
                         Some(units) => unit_number_field(salt, captions[i], values[i], numbers, units),
                         None => NumberField::new(salt, captions[i], values[i], numbers),
                     };
-                    let field = field.size(size).enabled(enabled).range(ranges[i].clone()).scrub_label(captions[i]);
+                    let field = field.size(size).enabled(enabled).range(ranges[i].clone());
+                    let field = match captions_at {
+                        Captions::Inside => field.scrub_label(captions[i]),
+                        Captions::Outside => {
+                            let label = ui.add(Text::new(captions[i]));
+                            field.scrub_by(&label)
+                        }
+                        Captions::Names => field,
+                    };
                     let field = match &decimals {
                         Some(decimals) => field.decimals(decimals.clone()),
                         None => field,
@@ -411,6 +453,21 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
             response.mark_changed();
         }
         EditResponse::new(response, event).submitted(submitted).escaped(escaped)
+    }
+}
+
+/// The fields `range` one above the other. With `outside` captions they sit in a grid of
+/// caption and field, so the boxes line up whatever the captions' widths.
+fn field_column(ui: &mut Ui, id: egui::Id, range: std::ops::Range<usize>, outside: bool, put: &mut dyn FnMut(&mut Ui, LinkedSlot)) {
+    if outside {
+        Grid::new(id).show(ui, |ui| {
+            for i in range {
+                put(ui, LinkedSlot::Field(i));
+                ui.end_row();
+            }
+        });
+    } else {
+        range.for_each(|i| put(ui, LinkedSlot::Field(i)));
     }
 }
 

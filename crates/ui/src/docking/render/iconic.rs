@@ -288,7 +288,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// The Auto-Collapse Iconic Panels item of a column menu (U1): true when chosen.
     pub(super) fn auto_collapse_item(&mut self, ui: &mut Ui) -> bool {
-        let logical = PanelMenuLabels::in_dock(ui).auto_collapse.clone();
+        let logical = PanelMenuLabels::in_dock(ui, self.config).auto_collapse.clone();
         let text = self.content.action_label(ui, &logical, &self.look.font, self.look.text);
         let mut on = self.iconic.auto_collapse;
         let response = ui.add(egui::Checkbox::new(&mut on, text));

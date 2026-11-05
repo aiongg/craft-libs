@@ -1,6 +1,14 @@
 # craft-draw
 
-Vector and shape tools for Craft apps. With the `ui` feature, `craft_draw::ui` has the pen, crop and free transform overlays (below) and the gradient tools (`GradientEditor`, `GradientPalette`, `GradientSwatch`, `GradientRamp`, the stop rules in `gradient::stops`, and the on-canvas `GradientOverlay` with its `gradient_line` geometry), with their stories and words (`craft_draw::ui::stories()`, `craft_draw::ui::WORDS`).
+Vector and shape tools for Craft apps. With the `ui` feature, `craft_draw::ui` has the pen, crop and free transform overlays (below), the gradient tools (`GradientEditor`, `GradientPalette`, `GradientSwatch`, `GradientRamp`, the stop rules in `gradient::stops`, the on-canvas `GradientOverlay` with its `gradient_line` geometry, and the `GradientMapEditor`) and these tools and panels, each in its own module with its labels:
+
+- `stroke`: `StrokeEditor`, `StrokeButton` and `StrokePreview` over `StrokeStyle`; `corner`: `CornerWidgets` for corner radii;
+- `shape` and `shape_drag`: `ShapePanel`, `ShapeBar`, `ShapeDragTool` and `CreateShapeDialog`; `slice`: `SliceTool`, `SliceOverlay`, `SliceBar` and the Slice Options and Divide Slices dialogs; `artboard` and `add_beside`: `ArtboardTool`, `ArtboardBar`, `ArtboardProperties` and the add-beside buttons; `connector`: `ConnectorTool`, `ConnectorOverlay` and `ConnectorBar`;
+- `pattern` and `picture_fill`: `PatternFillEditor`, `PatternFillDialog` and `PictureFillEditor`;
+- `transform`: `TransformSession` with `TransformOverlay`, `TransformBar` and the Transform menu words; `crop`: `CropTool`, `CropSession` and `CropBar` beside the `CropFrame`; `measure`: `RulerTool`, `RulerBar` and `box_distances`; `symmetry`: `Symmetry` with `SymmetryOverlay`, `SymmetryMenu` and `SymmetryTransform`;
+- `brush_presets` and `brush_settings`: `BrushPresetPicker`, `BrushPresetChip` and `BrushSettingsPanel` (its answer is `BrushSettingsPanelOutput`).
+
+The main types of every module are re-exported at `craft_draw::ui`. Stories and words: `craft_draw::ui::stories()`, `craft_draw::ui::WORDS`.
 
 The gradient editor uses the colour picker and wells of `craft-color`.
 

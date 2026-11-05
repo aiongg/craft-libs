@@ -1,14 +1,14 @@
 //! [`CropFrame`]: the Crop tool's frame, shield, composition guides and Classic-mode gestures.
 
-use egui::{Color32, Context, CursorIcon, Id, IdSalt, Key, Mesh, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, pos2};
+use egui::{Color32, Context, CursorIcon, Event, Id, IdSalt, Key, Mesh, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, pos2};
 use kurbo::{Point, Rect, Vec2};
 
 use super::crop_guides::CropGuide;
-use crate::ui::transform::transform_box::{fixed, key_part, outset, part_key, pos};
-use craft_ui::behavior::nudge;
+use crate::ui::transform::transform_box::{fixed, key_part, part_key, pos};
+use craft_ui::behavior::nudge::{self, NudgeKeys};
 use craft_ui::canvas::claim::PrimaryPress;
 use craft_ui::canvas::quad::BoxPart;
-use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, crisp, resize_cursor, turn_cursor};
+use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, ToolCursor, ToolKey, ToolParts, crisp, resize_cursor, turn_cursor};
 use craft_ui::edit::order::Turn;
 use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::{Labels, Unit, Word, Words};
@@ -311,6 +311,17 @@ pub enum CropRelease {
     Straighten(f64),
     /// Nothing happened: a click without a move, or a Straighten line too short.
     Nothing,
+}
+
+/// What a key did to the frame ([`CropFrame::key`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CropKeyAction {
+    /// Enter: apply the crop.
+    Apply,
+    /// Esc with no drag: close the frame without applying it.
+    Discard,
+    /// An arrow or X: the frame after the key, one `EditEvent::Set` for the host.
+    Set(CropBox),
 }
 
 /// A drag [`CropFrame::show`] keeps between passes.
@@ -675,7 +686,7 @@ impl<'a> CropFrame<'a> {
 
         let shown = *gesture.shown();
         let screen = on_screen(view, &shown);
-        let parts = self.parts(screen, &style, &shown, picked);
+        let parts = self.part_list(screen, &style, &shown, picked);
         let mut focus = PartFocus::new(id, self.names.group.clone()).parts(&parts).picked(picked.map(part_key));
         let value = self.value.clone().or_else(|| self.group_value(&shown));
         if let Some(value) = value {
@@ -696,7 +707,7 @@ impl<'a> CropFrame<'a> {
         if let Some(d) = dragging
             && let Some(pointer) = pointer
         {
-            self.cursor(&ctx, view, &shown, d.core.kind, pointer);
+            self.drag_cursor(&ctx, view, &shown, d.core.kind, pointer);
             self.show_readout(&ctx, id, d.core.kind, &shown, pointer, self.readout_values());
             out.dragging = true;
             match d.core.kind {
@@ -778,6 +789,31 @@ impl<'a> CropFrame<'a> {
             return None;
         }
         Some(if self.framed { self.state.part_at(view.to_doc(point), view.doc_len(style.hit)) } else { BoxPart::Inside })
+    }
+
+    /// The pointer for `part` of this frame, as a hover over it or a drag of it shows it (what
+    /// [`show`](Self::show) sets on the context): resize arrows along the frame's own axes on a
+    /// corner or an edge, Move inside a drawn frame, the crosshair inside the
+    /// [default frame](Self::default_frame) and for `None` (Straighten, or a frame being drawn),
+    /// and for [`BoxPart::Outside`] the turn pointer, which is drawn on `ctx` at `pointer`, so the
+    /// host hides its own. The app must not turn Space into the Hand pointer during a Crop drag:
+    /// Space moves a frame being drawn.
+    pub fn cursor(&self, ctx: &Context, view: &CanvasView, part: Option<BoxPart>, pointer: Pos2) -> ToolCursor {
+        let crosshair = ToolCursor::System(CursorIcon::Crosshair);
+        let Some(part) = part else { return crosshair };
+        match part {
+            BoxPart::Corner(_) | BoxPart::Edge(_) => {
+                let (hx, hy) = part_handle(part).unwrap_or_default();
+                ToolCursor::System(self.resize_icon(view, hx, hy))
+            }
+            BoxPart::Outside => {
+                self.turn_pointer(ctx, view, self.state, pointer);
+                ToolCursor::Hidden
+            }
+            BoxPart::Inside if self.default_frame => crosshair,
+            BoxPart::Inside => ToolCursor::System(CursorIcon::Move),
+            BoxPart::Pivot => ToolCursor::System(CursorIcon::Default),
+        }
     }
 
     /// A press at canvas point `origin`: the press to track, a Straighten line while that is
@@ -1008,6 +1044,76 @@ impl<'a> CropFrame<'a> {
         self.framed && !self.default_frame && self.over(view, point, style) == Hit::Inside
     }
 
+    /// A key a host-driven tool received ([`ToolKey`], from the canvas tool host), by the rules
+    /// [`show`](Self::show) applies to the input: Enter applies, Esc discards, the arrows move the
+    /// whole frame or, with `picked`, that part as a plain drag of it would (⇧ by
+    /// [`nudge::BIG_STEP`]; in [Image mode](Self::image_mode) the whole-frame arrows move the image
+    /// under the frame, so the frame goes the other way and `view` follows it), and X swaps
+    /// portrait and landscape about the centre (re-centring `view` with
+    /// [Auto Center Preview](Self::auto_center)). The [bounds](Self::bounds) and the
+    /// [ratio](Self::ratio) hold. A release, another key or a frame that is not finite gives
+    /// `None`; the host passes keys only while the canvas or the tool's parts have the keyboard and
+    /// no text field claims them. `picked` is `None` unless the tool's parts group has the
+    /// keyboard ([`CropResponse::picked`] has the same rule in `show`).
+    pub fn key(&self, key: &ToolKey, view: &mut CanvasView, picked: Option<BoxPart>) -> Option<CropKeyAction> {
+        // new: the body `keys` shares with `show` (lead call 32).
+        if !key.pressed || !self.state.is_finite() {
+            return None;
+        }
+        match key.key {
+            Key::Enter if key.modifiers.matches_logically(Modifiers::NONE) => return Some(CropKeyAction::Apply),
+            Key::Escape if key.modifiers.matches_logically(Modifiers::NONE) => return Some(CropKeyAction::Discard),
+            _ => {}
+        }
+        let mut image_nudge = false;
+        let mut swapped = false;
+        let next = if let Some(nudge) = NudgeKeys::new().from_key(key) {
+            let by = nudge.by;
+            match picked.unwrap_or(BoxPart::Inside) {
+                // The image moves under the frame: the frame goes the other way.
+                BoxPart::Inside if self.image => {
+                    image_nudge = true;
+                    self.state.moved(-image_mode::screen_step(view, by))
+                }
+                part => self.nudged(part, by),
+            }
+        } else if key.key == Key::X && key.modifiers.matches_logically(Modifiers::NONE) {
+            swapped = true;
+            self.state.swapped()
+        } else {
+            return None;
+        };
+        let next = Some(next).filter(CropBox::is_finite)?;
+        let next = match self.bounds {
+            Some(bounds) => within(next, bounds, next.rect.size() != self.state.rect.size(), self.ratio.is_some()).unwrap_or(*self.state),
+            None => next,
+        };
+        if image_nudge {
+            // The view follows the frame, so the frame stays put on screen.
+            view.center += next.center() - self.state.center();
+        }
+        if swapped && self.image && self.auto_center {
+            *view = Self::view_for(&next, view);
+            view.center = next.center();
+        }
+        Some(CropKeyAction::Set(next))
+    }
+
+    /// The frame's keyboard parts on `view` for a host-driven tool's
+    /// [`CanvasTool::parts`](craft_ui::canvas::CanvasTool::parts): the group named by the
+    /// [names](CropNames::group) with the [value](Self::value) or "W × H, X, Y, angle°" through the
+    /// [units](Self::units), and its parts as [`show`](Self::show) gives them: the whole frame,
+    /// then the corners and the edges clockwise from the top left, `picked` marked selected.
+    /// The tool keys the parts by [`CropResponse::picked`]'s part.
+    pub fn parts(&self, view: &CanvasView, style: &CropStyle, frame: &CropBox, picked: Option<BoxPart>) -> ToolParts {
+        let parts = self.part_list(on_screen(view, frame), style, frame, picked);
+        let group = ToolParts::new(self.names.group.clone(), parts);
+        match self.value.clone().or_else(|| self.group_value(frame)) {
+            Some(value) => group.value(value),
+            None => group,
+        }
+    }
+
     /// Enter, Esc, the arrows and X; `idle`: no press is held; `enter_ok`: no other widget
     /// (a Tab-focused button) holds the keyboard, so Enter is the frame's.
     #[allow(clippy::too_many_arguments)]
@@ -1031,36 +1137,27 @@ impl<'a> CropFrame<'a> {
         if !idle {
             return;
         }
-        let mut image_nudge = false;
-        let mut swapped = false;
-        let next = if let Some(by) = nudge::read(ui, nudge::STEP, nudge::BIG_STEP) {
-            match picked.unwrap_or(BoxPart::Inside) {
-                // The image moves under the frame: the frame goes the other way.
-                BoxPart::Inside if self.image => {
-                    image_nudge = true;
-                    Some(self.state.moved(-image_mode::screen_step(view, by)))
-                }
-                part => Some(self.nudged(part, by)),
+        let press = |key| ToolKey { key, modifiers: Modifiers::NONE, pressed: true, repeat: false };
+        let action = if nudge::reads(ui) {
+            // The first arrow press of the pass, or X.
+            let taken = ui.input_mut(|i| {
+                let at = i.events.iter().position(|e| match e {
+                    Event::Key { key, pressed: true, modifiers, .. } => {
+                        NudgeKeys::new().from_key(&ToolKey { key: *key, modifiers: *modifiers, pressed: true, repeat: false }).is_some()
+                    }
+                    _ => false,
+                });
+                at.map(|at| i.events.remove(at))
+            });
+            match taken {
+                Some(Event::Key { key, modifiers, .. }) => self.key(&ToolKey { key, modifiers, pressed: true, repeat: false }, view, picked),
+                _ if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::X)) => self.key(&press(Key::X), view, picked),
+                _ => None,
             }
-        } else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::X)) {
-            swapped = true;
-            Some(self.state.swapped())
         } else {
             None
         };
-        if let Some(next) = next.filter(CropBox::is_finite) {
-            let next = match self.bounds {
-                Some(bounds) => within(next, bounds, next.rect.size() != self.state.rect.size(), self.ratio.is_some()).unwrap_or(*self.state),
-                None => next,
-            };
-            if image_nudge {
-                // The view follows the frame, so the frame stays put on screen.
-                view.center += next.center() - self.state.center();
-            }
-            if swapped && self.image && self.auto_center {
-                *view = Self::view_for(&next, view);
-                view.center = next.center();
-            }
+        if let Some(CropKeyAction::Set(next)) = action {
             gesture.set(next);
         }
     }
@@ -1090,7 +1187,7 @@ impl<'a> CropFrame<'a> {
 
     /// The keyboard parts of the frame `shown` (mapped to the screen as `screen`): the whole
     /// frame, the corners and the edges.
-    fn parts(&self, q: [Point; 4], style: &CropStyle, shown: &CropBox, picked: Option<BoxPart>) -> Vec<Part> {
+    fn part_list(&self, q: [Point; 4], style: &CropStyle, shown: &CropBox, picked: Option<BoxPart>) -> Vec<Part> {
         let reach = egui::Vec2::splat(2.0 * style.hit);
         let doc = shown.corners();
         let mid = |a: Point, b: Point| a.midpoint(b);
@@ -1130,7 +1227,7 @@ impl<'a> CropFrame<'a> {
     }
 
     /// The pointer during a drag of `kind`.
-    fn cursor(&self, ctx: &Context, view: &CanvasView, shown: &CropBox, kind: Kind, pointer: Pos2) {
+    fn drag_cursor(&self, ctx: &Context, view: &CanvasView, shown: &CropBox, kind: Kind, pointer: Pos2) {
         match kind {
             Kind::Draw { .. } => ctx.set_cursor_icon(CursorIcon::Crosshair),
             Kind::Move => ctx.set_cursor_icon(CursorIcon::Move),
@@ -1262,7 +1359,7 @@ impl<'a> CropFrame<'a> {
                 PartFocus::ring(painter, egui::Rect::from_center_size(centre, egui::Vec2::splat(size)));
             }
             _ => {
-                let line = outset(&q, style.frame.width / 2.0 + style.focus_offset + style.focus.width / 2.0);
+                let line = craft_ui::canvas::quad::outset(&q, style.frame.width / 2.0 + style.focus_offset + style.focus.width / 2.0);
                 painter.add(Shape::closed_line(line.to_vec(), style.focus_halo));
                 painter.add(Shape::closed_line(line.to_vec(), style.focus));
             }

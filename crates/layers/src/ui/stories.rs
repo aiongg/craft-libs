@@ -54,13 +54,13 @@ use super::tree::{
 };
 
 /// The components these stories cover.
-pub(crate) const COMPONENTS: &[&str] = &["Layers panel", "Layer rows", "Blend rows", "Layer filter bar", "Layers options dialog"];
+pub(crate) const COMPONENTS: &[&str] = &["LayersPanel", "LayerRows", "BlendRows", "LayerFilterBar", "LayersOptionsDialog"];
 
-const PANEL: &str = "Layers panel";
-const ROWS: &str = "Layer rows";
-const BLEND: &str = "Blend rows";
-const FILTER: &str = "Layer filter bar";
-const OPTIONS: &str = "Layers options dialog";
+const PANEL: &str = "LayersPanel";
+const ROWS: &str = "LayerRows";
+const BLEND: &str = "BlendRows";
+const FILTER: &str = "LayerFilterBar";
+const OPTIONS: &str = "LayersOptionsDialog";
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![

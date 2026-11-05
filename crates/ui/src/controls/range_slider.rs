@@ -51,6 +51,7 @@ pub struct RangeSlider {
     value: (f64, f64),
     range: RangeInclusive<f64>,
     step: Option<f64>,
+    width: Option<f32>,
     policy: EditPolicy,
     size: ControlSize,
     enabled: bool,
@@ -93,6 +94,7 @@ impl RangeSlider {
             value,
             range,
             step: None,
+            width: None,
             policy: EditPolicy::default(),
             size: ControlSize::Md,
             enabled: true,
@@ -102,6 +104,13 @@ impl RangeSlider {
     /// The step values snap to, as [`Slider::step`].
     pub fn step(mut self, step: f64) -> Self {
         self.step = Some(step);
+        self
+    }
+
+    /// The slider's length in points instead of `slider.width`, for one that shares a row with a
+    /// readout.
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
         self
     }
 
@@ -127,7 +136,7 @@ impl RangeSlider {
         let tokens = Tokens::of(ui);
         let style = range_style(&tokens, self.size);
         let scale = Scale::new(&self.range, self.step);
-        let (_, rect) = ui.allocate_space(Vec2::new(style.width, style.height));
+        let (_, rect) = ui.allocate_space(Vec2::new(self.width.unwrap_or(style.width), style.height));
         let id = ui.make_persistent_id(self.id_salt);
         let options = InteractOptions { enabled: self.enabled, ..Default::default() };
         let response = ui.interact_opt(rect, id, Sense::DRAG, options);
@@ -313,7 +322,7 @@ fn dragged(track: &Track, scale: &Scale, part: Part, anchor: (f64, f64), start: 
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Range slider"];
+pub const COMPONENTS: &[&str] = &["RangeSlider"];
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct RangeArgs {
@@ -322,14 +331,7 @@ struct RangeArgs {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!(
-        "controls/range-slider/range",
-        Level::Controls,
-        "Range slider",
-        "Range",
-        RangeArgs { size: SizeArg::Md, disabled: false },
-        show
-    )]
+    vec![typed_story!("controls/range-slider/range", Level::Controls, "RangeSlider", "Range", RangeArgs { size: SizeArg::Md, disabled: false }, show)]
 }
 
 /// A continuous range and one in steps of 5.
@@ -340,7 +342,10 @@ fn show(ui: &mut Ui, args: &mut RangeArgs) {
             for (i, (name, value)) in ["Levels", "Steps of 5"].into_iter().zip(values.iter_mut()).enumerate() {
                 let text = format!("{:.1} to {:.1}", value.0, value.1);
                 labelled(form, name, &text, |ui| {
+                    // Shorter than `slider.width` so the widest readout, "100.0 to 100.0", fits the
+                    // narrowest column beside the label.
                     let mut slider = RangeSlider::new(("range-slider", i), (format!("{name} from"), format!("{name} to")), *value, 0.0..=100.0)
+                        .width(120.0)
                         .size(size)
                         .enabled(enabled);
                     if i == 1 {

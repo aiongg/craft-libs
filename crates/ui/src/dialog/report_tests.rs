@@ -41,9 +41,10 @@ fn summary_count_and_notes_show_and_scroll() {
     let mut harness = harness(3, 480.0);
     harness.run();
     assert!(harness.query_by_label("Imported 12 pages.").is_some());
+    // One node per note: the notice carries the text; its inner label is hidden.
     assert!(harness.query_by_label("3 notes").is_some());
     for i in 0..3 {
-        assert!(harness.query_by_label(&format!("Font {i} was substituted")).is_some(), "note {i}");
+        assert!(harness.query_by_role_and_label(egui::accesskit::Role::Note, &format!("Font {i} was substituted")).is_some(), "note {i}");
     }
 
     let mut many = self::harness(60, 300.0);

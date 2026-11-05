@@ -276,6 +276,8 @@ pub struct ListRowStyle {
     pub icon_size: f32,
     /// Type role of the label: `list.label`.
     pub label_role: TypeRole,
+    /// Type role of the label of a [strong](ListRow::strong) row: `list.label_strong`.
+    pub label_strong_role: TypeRole,
     /// Type role of the detail line: `list.detail_role`.
     pub detail_role: TypeRole,
     /// Line height of the label and of the detail line.
@@ -284,6 +286,8 @@ pub struct ListRowStyle {
     /// `list.text`, `list.text.dimmed`, `list.text.selected` and `list.text.selected.dimmed`.
     pub text: Color32,
     pub dimmed: Color32,
+    /// `list.text.muted`: the label of a [muted](ListRow::muted) row.
+    pub muted: Color32,
     pub selected_text: Color32,
     pub selected_dimmed: Color32,
     /// `list.detail` and `list.detail.selected`.
@@ -418,6 +422,10 @@ pub struct ListRow<'a, K> {
     selected: bool,
     focused: bool,
     dimmed: bool,
+    muted: bool,
+    strong: bool,
+    selectable: bool,
+    spacer: bool,
     highlight: bool,
     layer: bool,
     clipped: bool,
@@ -474,6 +482,10 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             selected: false,
             focused: false,
             dimmed: false,
+            muted: false,
+            strong: false,
+            selectable: true,
+            spacer: false,
             highlight: false,
             layer: false,
             clipped: false,
@@ -491,6 +503,47 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             branch: None,
             tree_text: None,
         }
+    }
+
+    /// Empty room in a list: a row that takes its height but draws nothing, answers no pointer
+    /// and has no AccessKit node. Give its position [`DisplayOrder::is_section`] so that keys and
+    /// clicks skip it, and its height through [`List::heights`].
+    pub fn spacer(key: K) -> Self {
+        let mut row = Self::new(key, String::new());
+        row.spacer = true;
+        row
+    }
+
+    /// Whether the row is a [spacer](ListRow::spacer).
+    pub fn is_spacer(&self) -> bool {
+        self.spacer
+    }
+
+    /// Whether keys and clicks select the row (default true). A row that is not selectable is
+    /// still a stop for the lead: Up, Down, Home, End, Page Up and Page Down move the lead onto
+    /// it without changing the selection, a click makes it the lead without selecting it, and
+    /// Space on it selects nothing. Enter and a double click still activate it.
+    pub fn selectable(mut self, selectable: bool) -> Self {
+        self.selectable = selectable;
+        self
+    }
+
+    /// Whether the row is [selectable](ListRow::selectable).
+    pub fn is_selectable(&self) -> bool {
+        self.selectable
+    }
+
+    /// The label in the strong weight (`list.label_strong`), for a row that heads the others.
+    pub fn strong(mut self, strong: bool) -> Self {
+        self.strong = strong;
+        self
+    }
+
+    /// The label in `text.muted`: a secondary row that is still on. A [dimmed](ListRow::dimmed)
+    /// row (`text.faint`) wins over it; a selected muted row takes the selected dimmed color.
+    pub fn muted(mut self, muted: bool) -> Self {
+        self.muted = muted;
+        self
     }
 
     /// The row is clipped to the layer below: it is indented one step and shows the down-right
@@ -556,7 +609,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let style = Self::style(&Tokens::of(ui));
         let (column, leading) = self.extent(&style, group);
         let widths: Vec<(f32, bool)> = self.trailing.iter().map(|t| (t.width, t.optional)).collect();
-        min_width(&style, (self.columns.len(), self.indented_toggles), column, leading, &widths)
+        let ends = self.columns.iter().filter(|c| c.at_end).count();
+        min_width(&style, (self.columns.len() - ends, ends, self.indented_toggles), column, leading, &widths)
     }
 
     /// The width of a tree row's disclosure and clipping columns, and of the leading part.
@@ -614,7 +668,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
-    /// Adds a toggle column at the reading start, after those added before it.
+    /// Adds a toggle column at the reading start, after those added before it; one
+    /// [`at_end`](ToggleColumn::at_end) sits at the trailing end instead.
     pub fn toggle(mut self, column: ToggleColumn) -> Self {
         self.columns.push(column);
         self
@@ -838,11 +893,13 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             bracket_arm: l.bracket_arm,
             icon_size: tokens.size.icon.md,
             label_role: l.label,
+            label_strong_role: l.label_strong,
             detail_role: l.detail_role,
             label_line: tokens.typography.get(l.label).line_height,
             detail_line: tokens.typography.get(l.detail_role).line_height,
             text: l.text.to_egui(),
             dimmed: l.dimmed.to_egui(),
+            muted: l.muted.to_egui(),
             selected_text: l.selected_text.to_egui(),
             selected_dimmed: l.selected_dimmed.to_egui(),
             detail: l.detail.to_egui(),
@@ -896,6 +953,10 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             selected,
             focused,
             dimmed,
+            muted,
+            strong,
+            selectable: _,
+            spacer: _,
             highlight,
             layer,
             clipped,
@@ -959,22 +1020,30 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let leading = leading_width(&style, thumb, icon.is_some() || glyph.is_some(), thumb_width, &extras);
         let extras = if side > 0.0 && thumb != ThumbSize::None { extras } else { Vec::new() };
         let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
-        let min_width = min_width(&style, (columns.len(), indented_toggles), column, leading, &widths);
-        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), (columns.len(), indented_toggles), (indent, column), leading, &widths);
+        let ends = columns.iter().filter(|c| c.at_end).count();
+        let counts = (columns.len() - ends, ends, indented_toggles);
+        let min_width = min_width(&style, counts, column, leading, &widths);
+        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), counts, (indent, column), leading, &widths);
         // Parts that don't fit stay in their place and the row's trailing edge cuts them.
         let outer_clip = ui.clip_rect();
         ui.set_clip_rect(outer_clip.intersect(rect));
         let visible = ui.is_rect_visible(rect);
         let hovered = ui.rect_contains_pointer(rect) && ui.is_enabled();
         if visible {
-            paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer, striped }, columns.len(), &geometry);
+            paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer, striped }, counts.0, &geometry);
             paint_rule(ui, &style, rect, (rule, layer));
         }
 
         let mut toggles = Vec::with_capacity(columns.len());
         for (index, column) in columns.iter().enumerate() {
             let cell = Cell { index, row_id, key: &key, row_label: &label, selected };
-            let offset = geometry.toggles_start + index as f32 * style.toggle_column;
+            if column.at_end {
+                let at = end_cell(&geometry, &style, rect, &columns, index);
+                toggles.push(toggle::show(ui, &cell, column, (at, at), &style, &mut events));
+                continue;
+            }
+            let before = columns[..index].iter().filter(|c| !c.at_end).count();
+            let offset = geometry.toggles_start + before as f32 * style.toggle_column;
             let at = geometry.span(rect, offset, style.toggle_column);
             // A sweep crosses an indented cell anywhere between the leading edge and the cell.
             let reach = if indented_toggles { geometry.span(rect, 0.0, offset + style.toggle_column) } else { at };
@@ -1039,21 +1108,12 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         }
 
         let band = geometry.label_band(rect);
-        let (selected_text, selected_dimmed, selected_detail) = if layer {
-            (style.layer_selected_text, style.layer_selected_dimmed, style.layer_selected_detail)
-        } else {
-            (style.selected_text, style.selected_dimmed, style.selected_detail)
-        };
-        let (text, detail_text) = match (selected, dimmed) {
-            (true, true) => (selected_dimmed, selected_detail),
-            (true, false) => (selected_text, selected_detail),
-            (false, true) => (style.dimmed, style.detail),
-            (false, false) => (style.text, style.detail),
-        };
+        let (text, detail_text) = label_colors(&style, (selected, dimmed, muted), layer);
+        let label_role = if strong { style.label_strong_role } else { style.label_role };
         if renaming {
             rename::show(ui, row_id, &key, &label, rename_field_name.as_deref().unwrap_or(&label), band, &mut events);
         } else if visible {
-            paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), (text, italic));
+            paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), (text, italic, label_role));
         }
         for (item, at) in trailing.into_iter().zip(&geometry.items) {
             let Some((start, width)) = *at else { continue };
@@ -1097,10 +1157,34 @@ fn toggle_rooms(indented: bool) -> f32 {
 }
 
 /// The least width of a row: everything but the indent and the optional items, and `min_label`.
-fn min_width(style: &ListRowStyle, (columns, indented): (usize, bool), column: f32, leading: Option<f32>, items: &[(f32, bool)]) -> f32 {
+fn min_width(style: &ListRowStyle, (columns, ends, indented): (usize, usize, bool), column: f32, leading: Option<f32>, items: &[(f32, bool)]) -> f32 {
     let required: f32 = items.iter().filter(|(_, optional)| !optional).map(|(w, _)| w + style.gap).sum();
     let leading = leading.map_or(0.0, |side| side + style.gap);
-    columns as f32 * style.toggle_column * toggle_rooms(indented) + style.pad_x + column + leading + style.min_label + required + style.trailing_pad
+    columns as f32 * style.toggle_column * toggle_rooms(indented)
+        + style.pad_x
+        + column
+        + leading
+        + style.min_label
+        + required
+        + style.trailing_pad
+        + ends as f32 * style.toggle_column
+}
+
+/// The cell of the [end column](ToggleColumn::at_end) `index` of `columns` in a row of `rect`:
+/// `style.toggle_column` wide, the row's height, after the trailing items, the end columns in
+/// [`ListRow::toggle`] order towards the trailing edge, the last one `style.trailing_pad` from it;
+/// mirrored with the row ([`Geometry::span`]).
+///
+/// Filling it also changes the callers: [`min_width`] and [`Geometry::new`] count only the
+/// leading columns for the reading-start room and the dividers (`paint_background`'s
+/// `columns`), and reserve `n_end × style.toggle_column` at the trailing end before the trailing
+/// items are placed; a leading column's offset counts only the leading columns before it.
+/// Rows without end columns lay out exactly as before.
+fn end_cell(geometry: &Geometry, style: &ListRowStyle, rect: Rect, columns: &[ToggleColumn], index: usize) -> Rect {
+    // pc: crates/ui-egui/src/panels/brush_panel.rs:325 (the lock's 18 pt square centred 11 pt in
+    // from the row's right edge, after the name).
+    let place = columns[..index].iter().filter(|c| c.at_end).count();
+    geometry.span(rect, geometry.ends_start + place as f32 * style.toggle_column, style.toggle_column)
 }
 
 /// Where the parts of a row lie, as offsets from the reading start of the row.
@@ -1108,6 +1192,8 @@ struct Geometry {
     rtl: bool,
     /// Where the first toggle cell starts.
     toggles_start: f32,
+    /// Where the first end column starts; it moves out with the items of a row too narrow.
+    ends_start: f32,
     column_start: f32,
     leading_start: f32,
     label_start: f32,
@@ -1122,14 +1208,15 @@ impl Geometry {
         style: &ListRowStyle,
         rect: Rect,
         rtl: bool,
-        (columns, indented): (usize, bool),
+        (columns, ends, indented): (usize, usize, bool),
         (indent, column): (f32, f32),
         leading: Option<f32>,
         items: &[(f32, bool)],
     ) -> Geometry {
         let leading_columns = columns as f32 * style.toggle_column;
         let base = leading_columns * toggle_rooms(indented) + style.pad_x;
-        let end = rect.width() - style.trailing_pad;
+        let ends_start = rect.width() - style.trailing_pad - ends as f32 * style.toggle_column;
+        let end = ends_start;
         let leading_width = leading.map_or(0.0, |side| side + style.gap);
         // Trailing items are placed first. Optional ones stay while the label keeps its least
         // width at the full indent; the indent then shrinks for what is left.
@@ -1164,6 +1251,7 @@ impl Geometry {
         Geometry {
             rtl,
             toggles_start,
+            ends_start: ends_start + overflow,
             column_start: base + indent,
             leading_start: base + indent + column,
             label_start: base + indent + column + leading_width,
@@ -1291,6 +1379,23 @@ fn show_link<K: Clone>(
     let _ = response.on_hover_text(name);
 }
 
+/// The label's color and the detail line's for a row's state: dimmed (`text.faint`) wins over
+/// muted, and a selected muted row takes the selected dimmed color.
+fn label_colors(style: &ListRowStyle, (selected, dimmed, muted): (bool, bool, bool), layer: bool) -> (Color32, Color32) {
+    let (selected_text, selected_dimmed, selected_detail) = if layer {
+        (style.layer_selected_text, style.layer_selected_dimmed, style.layer_selected_detail)
+    } else {
+        (style.selected_text, style.selected_dimmed, style.selected_detail)
+    };
+    match (selected, dimmed, muted) {
+        (true, true, _) | (true, false, true) => (selected_dimmed, selected_detail),
+        (true, false, false) => (selected_text, selected_detail),
+        (false, true, _) => (style.dimmed, style.detail),
+        (false, false, true) => (style.muted, style.detail),
+        (false, false, false) => (style.text, style.detail),
+    }
+}
+
 /// The colour of the target brackets: the row's text colour.
 fn bracket_color(style: &ListRowStyle, selected: bool, layer: bool) -> Color32 {
     match (selected, layer) {
@@ -1350,7 +1455,7 @@ fn paint_label(
     band: Rect,
     label: &str,
     detail: Option<(&str, Color32)>,
-    (color, italic): (Color32, bool),
+    (color, italic, label_role): (Color32, bool, TypeRole),
 ) {
     if band.width() < 1.0 {
         return;
@@ -1370,7 +1475,7 @@ fn paint_label(
         let x = if direction::is_rtl(ui) { at.right() - galley.size().x } else { at.left() };
         ui.painter().galley(pos2(x, at.center().y - galley.size().y / 2.0), galley, color);
     };
-    line(ui, top, style.label_line, label, style.label_role, color, italic);
+    line(ui, top, style.label_line, label, label_role, color, italic);
     if let Some((detail, detail_color)) = detail {
         line(ui, top + style.label_line, style.detail_line, detail, style.detail_role, detail_color, false);
     }

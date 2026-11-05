@@ -282,13 +282,13 @@ const FIXED_WIDTH: &[&str] = &[
     "primitives/crop-frame/ratio",
     "primitives/crop-frame/straighten",
     "primitives/crop-frame/image-mode",
-    "primitives/bezier-paths/edit",
+    "primitives/bezier-tool/edit",
     "primitives/warp-grid/warp",
     "primitives/pen-draft/draw",
-    "patterns/keyboard-shortcuts/dialog",
+    "patterns/shortcuts-dialog/dialog",
     "patterns/fonts-panel/panel",
     "patterns/glyphs-panel/panel",
-    "patterns/text-styles/panel",
+    "patterns/text-styles-panel/panel",
     "composites/text-ruler/word",
     "composites/text-ruler/tabs-panel",
     "patterns/page-preview/overlay",
@@ -302,8 +302,93 @@ const FIXED_WIDTH: &[&str] = &[
     "patterns/comments/thread",
     "primitives/gradient-line/edit",
     "primitives/gradient-line/with-editor",
-    "foundations/edit/log",
+    "foundations/edit-policy/log",
     "controls/segmented/text",
+    // Step 7 stories: tool pictures, canvases and editors with a width of their own.
+    "primitives/hover-outline/outline",
+    "primitives/hover-lookup/lookup",
+    "primitives/selection/frame",
+    "primitives/selection/grips",
+    "primitives/selection/outline",
+    "primitives/selection/range-bands",
+    "patterns/constraint-fields/constraint-fields",
+    "primitives/before-after/modes",
+    "primitives/before-after/split-view",
+    "primitives/brush-cursor/cursor",
+    "primitives/brush-resize/resize",
+    "primitives/nudge-keys/arrows",
+    "primitives/move-gesture/layers",
+    "primitives/move-gesture/pixels",
+    "primitives/stroke-lock/stroke",
+    "patterns/paint-list/list",
+    "primitives/bezier-tool/curvature",
+    "primitives/pen-draft/curvature",
+    "primitives/pen-draft/auto-add-delete",
+    "composites/path-options-popover/popover",
+    "composites/transform-session/session",
+    "patterns/transform-bar/bar",
+    "primitives/corner-widgets/edit",
+    "primitives/crop-tool/default-frame",
+    "primitives/crop-tool/image-mode",
+    "primitives/crop-tool/ratio-and-size",
+    "primitives/crop-tool/straighten",
+    "primitives/crop-tool/box-undo",
+    "patterns/crop-bar/bar",
+    "patterns/crop-overlay-menu/menu",
+    "primitives/ruler-tool/line",
+    "primitives/ruler-tool/protractor",
+    "patterns/ruler-bar/readouts",
+    "primitives/box-distances/cases",
+    "primitives/symmetry/modes",
+    "primitives/symmetry-transform/transform",
+    "patterns/brush-settings-panel/panel",
+    "composites/brush-stroke-strip/strip",
+    "patterns/shape-bar/bar",
+    "primitives/shape-drag-tool/draw",
+    "primitives/slice-tool/slices",
+    "patterns/slice-bar/bar",
+    "primitives/artboard-tool/boards",
+    "patterns/artboard-bar/bar",
+    "primitives/add-beside-handles/buttons",
+    "composites/picture-fill-editor/editor",
+    "primitives/connector-tool/tool",
+    "primitives/connector-tool/routes",
+    "patterns/connector-bar/bar",
+    "patterns/levels-panel/states",
+    "patterns/curves-panel/states",
+    "patterns/hue-saturation-editor/ranges",
+    "patterns/color-balance-editor/tones",
+    "patterns/photo-filter-editor/sources",
+    "patterns/channel-mixer-editor/outputs",
+    "patterns/selective-color-editor/methods",
+    "patterns/adjust-session/properties-panel",
+    "composites/transform-preview/maps",
+    "patterns/warp-fields/group",
+    "patterns/pin-warp-bar/bar",
+    "patterns/perspective-bar/bar",
+    "composites/selection-overlay/ants",
+    "composites/live-preview/live",
+    "patterns/layer-style/dialog",
+    "patterns/layer-style/blending",
+    "patterns/layer-style-effects/bevel-emboss",
+    "patterns/layer-style-effects/stroke",
+    "patterns/layer-style-effects/inner-shadow",
+    "patterns/layer-style-effects/inner-glow",
+    "patterns/layer-style-effects/satin",
+    "patterns/layer-style-effects/color-overlay",
+    "patterns/layer-style-effects/gradient-overlay",
+    "patterns/layer-style-effects/pattern-overlay",
+    "patterns/layer-style-effects/outer-glow",
+    "patterns/layer-style-effects/drop-shadow",
+    "patterns/layer-style/styles",
+    "patterns/select-mask/tools",
+    "patterns/content-aware-fill/lasso",
+    "patterns/vanishing-point/planes",
+    "patterns/vanishing-point/stamp",
+    "composites/blur-pins/tilt",
+    "composites/blur-pins/field",
+    "composites/blur-pins/iris",
+    "composites/blur-pins/spin",
     "controls/select/wheel-steps",
     "controls/combo-box/font-size",
     "controls/slider/event-log",
@@ -317,7 +402,7 @@ const FIXED_WIDTH: &[&str] = &[
     "composites/form-grid/image-size",
     "composites/gradient/dialog",
     "composites/transform-fields/box",
-    "composites/levels-editor/event-log",
+    "patterns/levels-editor/event-log",
     "composites/list/ten-thousand-rows",
     "composites/list/reorder",
     "composites/list/reorder-tree",
@@ -326,7 +411,7 @@ const FIXED_WIDTH: &[&str] = &[
     "composites/menu/context-menu",
     "composites/color/full",
     "patterns/color/swatches",
-    "patterns/color/eyedropper-options",
+    "patterns/color/eyedropper-bar",
     "patterns/color/samplers",
     "patterns/color/harmony",
     "patterns/preferences/window",
@@ -386,10 +471,20 @@ const FLOATING: &[&str] = &[
 /// How far a focus ring, edge or shadow may reach past its widget; the tile's margin takes it.
 const DECORATION_SLACK: f32 = 2.5;
 
+/// The stories a pass of [`drawn_past_their_tile`] found out of bounds.
+struct Tried {
+    /// A shape beyond the tile's left or right edge before any clip.
+    painted: Vec<&'static str>,
+    /// A shape whose clip rect reaches past the tile.
+    clipped: Vec<&'static str>,
+    /// A tile that took more width than its column.
+    wider: Vec<(&'static str, f32)>,
+}
+
 /// Draws every story in an Overview tile at the narrowest tile width.
 /// Returns the ids of the stories with a shape beyond the tile's left or right edge before any
 /// clip, and the ids with a shape whose clip rect reaches past the tile.
-fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
+fn drawn_past_their_tile(width: f32) -> Tried {
     use super::story_state::StoryStates;
     use super::tiles::{Tile, Tiles, tiles_view};
     use craft_theme::SystemAppearance;
@@ -398,7 +493,7 @@ fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
     let gallery = Gallery::new(None);
     let appearance = gallery.appearance.clone();
     let system = SystemAppearance::default();
-    let (mut painted, mut clipped) = (Vec::new(), Vec::new());
+    let (mut painted, mut clipped, mut wider) = (Vec::new(), Vec::new(), Vec::new());
     for story in gallery.stories().to_vec() {
         let ctx = egui::Context::default();
         let base = appearance.configure(&ctx, None, false, system);
@@ -417,6 +512,7 @@ fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
                 let config = Tiles {
                     one_column: false,
                     overview: true,
+                    cull: false,
                     selectable: false,
                     selected: None,
                     buttons: false,
@@ -433,6 +529,9 @@ fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
             shapes = std::mem::take(&mut out.shapes);
             out.drop_without_applying_deltas();
         }
+        if let Some(excess) = super::tiles::used_width::excess(&ctx, story.id) {
+            wider.push((story.id, excess));
+        }
         let outside = |r: Rect| r.min.x < -DECORATION_SLACK || r.max.x > width + DECORATION_SLACK;
         let bounds = |c: &egui::epaint::ClippedShape| {
             let r = c.shape.visual_bounding_rect();
@@ -445,14 +544,66 @@ fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
             clipped.push(story.id);
         }
     }
-    (painted, clipped)
+    Tried { painted, clipped, wider }
 }
 
 #[test]
 fn no_story_paints_past_its_overview_tile() {
-    let (painted, clipped) = drawn_past_their_tile(super::tiles::TILE_MIN_WIDTH);
+    let Tried { painted, clipped, .. } = drawn_past_their_tile(super::tiles::TILE_MIN_WIDTH);
     let clipped: Vec<_> = clipped.into_iter().filter(|id| !FLOATING.contains(id)).collect();
     assert!(clipped.is_empty(), "stories visible outside a {} pt tile: {clipped:?}", super::tiles::TILE_MIN_WIDTH);
     let painted: Vec<_> = painted.into_iter().filter(|id| !FIXED_WIDTH.contains(id)).collect();
     assert!(painted.is_empty(), "stories that paint outside a {} pt tile: {painted:?}", super::tiles::TILE_MIN_WIDTH);
+}
+
+/// The slack allowed above does not apply here: a story that takes even one point more than its
+/// column makes the tile wider than the column beside it.
+#[test]
+fn no_overview_tile_is_wider_than_its_column() {
+    let wider: Vec<_> = drawn_past_their_tile(super::tiles::TILE_MIN_WIDTH).wider.into_iter().filter(|(id, _)| !FIXED_WIDTH.contains(id)).collect();
+    assert!(wider.is_empty(), "stories whose tile outgrows a {} pt column: {wider:?}", super::tiles::TILE_MIN_WIDTH);
+}
+
+/// The names of the Overview's "Select ..." tiles in a frame, with the top of each.
+fn drawn_tiles(ctx: &egui::Context, gallery: &mut Gallery, height: f32) -> Vec<(String, f32)> {
+    let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, height))), ..Default::default() };
+    let output = ctx.run_ui(input, |ui| gallery.show(ui));
+    let tree = output.platform_output.accesskit_update.as_ref().and_then(craft_ui::inspect::AccessTree::from_update);
+    output.drop_without_applying_deltas();
+    let tree = tree.unwrap();
+    tree.walk(tree.root())
+        .into_iter()
+        .filter_map(|(id, _)| {
+            let name = tree.name(id)?;
+            let name = name.strip_prefix("Select ")?.to_owned();
+            Some((name, tree.node(id)?.bounds()?.y0 as f32))
+        })
+        .collect()
+}
+
+#[test]
+fn an_overview_tile_far_below_the_fold_is_not_drawn_until_it_is_scrolled_to() {
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    // The first frame has no remembered row heights, so it draws every tile.
+    let first = drawn_tiles(&ctx, &mut gallery, 300.0);
+    let (last, _) = first.iter().max_by(|a, b| a.1.total_cmp(&b.1)).cloned().unwrap();
+    let mut later = Vec::new();
+    for _ in 0..3 {
+        later = drawn_tiles(&ctx, &mut gallery, 300.0);
+    }
+    assert!(later.len() < first.len(), "tiles far outside the window are skipped: {} of {}", later.len(), first.len());
+    assert!(later.iter().all(|(name, _)| *name != last), "{last} is far below the fold");
+    let component = gallery.stories.iter().find(|s| s.component == last).unwrap().component;
+    gallery.select_component(component);
+    let mut after = Vec::new();
+    for _ in 0..60 {
+        after = drawn_tiles(&ctx, &mut gallery, 300.0);
+    }
+    assert!(
+        after.iter().any(|(name, _)| *name == last),
+        "{last} is drawn once it is scrolled to: {:?}",
+        after.iter().map(|a| a.1).collect::<Vec<_>>()
+    );
 }

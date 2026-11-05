@@ -1,14 +1,25 @@
-//! [`PenDraft`]: the path being drawn with the Pen, as PhotoCraft's Pen tool draws it.
+//! [`PenDraft`]: the path being drawn with the Pen and the Curvature Pen, as PhotoCraft's tools
+//! draw it; [`PathMode`]: which path overlay a tool and the held keys run; the pen's Path Options
+//! ([`PathOptionsSettings`], [`PathOptionsPopover`]).
 
+mod auto;
 pub(crate) mod bezier;
+mod curvature_mode;
+#[cfg(test)]
+mod curvature_tests;
+mod mode;
+#[cfg(test)]
+mod mode_tests;
+mod options;
 pub(crate) mod story;
 
 use egui::{AsIdSalt, Color32, Context, Id, IdSalt, Key, Modifiers, Response, Shape, Stroke, Ui, vec2};
 use kurbo::Point;
 
+use auto::AutoEdit;
 pub use bezier::{
-    BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,
-    MAX_ANCHORS, PathEdit, PathSelection,
+    AnchorsShown, BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown,
+    HitMark, Knot, KnotRef, MAX_ANCHORS, PathEdit, PathSelection, SegmentMark,
 };
 use bezier::{adjusted, constrain, outline};
 use craft_ui::behavior::nudge;
@@ -20,6 +31,8 @@ use craft_ui::localized::words::format_in;
 use craft_ui::localized::{Labels, Word, Words};
 use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+pub use mode::{PathMode, PathTool, PenMode};
+pub use options::{PATH_OPTIONS_COLOR_KEY, PathOptionsLabels, PathOptionsPopover, PathOptionsPopoverResponse, PathOptionsSettings};
 
 /// The AccessKit names of the path being drawn. [`PenNames::english`] is English, and a host passes
 /// its own translated text or [`PenNames::of`] for the words installed in the context.
@@ -94,7 +107,7 @@ pub struct PenStyle {
 #[derive(Clone, Debug, PartialEq)]
 #[must_use = "keep the draft the events carry, end it when finished and continue the resumed path"]
 pub struct PenResponse {
-    /// The overlay's id, for [`PenDraft::remove_last`].
+    /// The overlay's id.
     pub id: Id,
     /// The draft's edits, each value the whole draft: Begin at its first change (a draft the host
     /// hands in, a resumed path's, begins at once), Update on each change, Commit when the pen
@@ -116,6 +129,16 @@ pub struct PenResponse {
     pub resumed: Option<(u64, KnotRef)>,
     /// The overlay owns the current press: the host's tool leaves it alone.
     pub claimed: bool,
+    /// A press at the pointer would close the path (over the first anchor of a draft that can
+    /// close: 2 or more anchors with the Pen, 3 or more in Curvature mode): the host shows its
+    /// close-path cursor (PhotoCraft `pen.rs:27-34`).
+    pub closes: bool,
+}
+
+/// The looks of one Pen pass.
+struct Looks {
+    pen: PenStyle,
+    bezier: BezierStyle,
 }
 
 /// What a press drags.
@@ -191,7 +214,23 @@ struct Drag {
 ///   since a draft ended with no change after such a step has no event to report.
 ///   [`GestureHost`](craft_ui::edit::GestureHost) judges an interruption from
 ///   [`ending`](craft_ui::edit::ending).
-/// - Order: the host shows the pen after its handles and guides, as it is a tool.
+/// - Order: the host shows the pen after its handles and guides, as it is a tool, and after the
+///   [`BezierOverlay`] whose tool [`PathMode::resolve`] picked (it claims only presses on parts).
+/// - [`PenMode::Curvature`] ([`mode`](Self::mode)): a click adds a smooth anchor the curve flows
+///   through, which follows the pointer while the button is down (past `bezier.click_slop`); a
+///   press on the first anchor of 3 or more closes at once; a press on another anchor grabs and
+///   drags it; the second click of a double-click on an anchor toggles it between smooth and
+///   corner. Every change reflows the handles ([`EditSubpath::reflow`]). ⇧ and ⌥ do nothing; the
+///   keys and the edit gesture are the Pen's; there is no resume. Hover: with two or more
+///   anchors a dashed preview of the curve the next click makes, with one a dashed line; always
+///   drawn, whatever the rubber band setting.
+/// - [`sensing`](Self::sensing) false: drawn, keys kept, no press taken (⌘ held).
+///   [`auto_add_delete`](Self::auto_add_delete) (Pen mode): a press on a segment of the draft
+///   inserts an anchor, on an anchor that is not the first or the last deletes it, each an
+///   Update; off while ⇧, ⌥ or ⌘ is held and while a handle is pulled. The hover shows the
+///   [`HitMark`] of what a press would do. [`path_options`](Self::path_options): the colour and
+///   thickness of the draft line and whether the Pen's rubber band shows (off by default, as
+///   Photoshop).
 pub struct PenDraft<'a> {
     id_salt: IdSalt,
     draft: Option<&'a EditSubpath>,
@@ -200,12 +239,58 @@ pub struct PenDraft<'a> {
     units: Option<(&'a RulerUnits, &'a RulerUnits)>,
     zero: Point,
     look: Option<PenStyle>,
+    mode: PenMode,
+    sensing: bool,
+    remove_last: bool,
+    auto_add_delete: bool,
+    path_options: Option<&'a PathOptionsSettings>,
 }
 
 impl<'a> PenDraft<'a> {
     /// The host's open `draft`, named `names` in the AccessKit tree.
     pub fn new(id_salt: impl AsIdSalt, draft: Option<&'a EditSubpath>, names: PenNames<'a>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), draft, names, ends: &[], units: None, zero: Point::ZERO, look: None }
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            draft,
+            names,
+            ends: &[],
+            units: None,
+            zero: Point::ZERO,
+            look: None,
+            mode: PenMode::default(),
+            sensing: true,
+            remove_last: false,
+            auto_add_delete: false,
+            path_options: None,
+        }
+    }
+
+    /// The Pen or the Curvature Pen; [`PenMode::Pen`] by default.
+    pub fn mode(mut self, mode: PenMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Whether the draft takes presses; true by default. False draws the draft and keeps its keys
+    /// (Enter, Esc, Backspace, Delete, the host's undo) while another overlay takes the pointer:
+    /// [`PathMode::draft_senses`] (⌘ making the pointer Direct Selection, gap row 39).
+    pub fn sensing(mut self, sensing: bool) -> Self {
+        self.sensing = sensing;
+        self
+    }
+
+    /// The Pen's Auto Add/Delete on the open draft (PhotoCraft's `pen_auto_add_delete`, on by
+    /// default there; the host passes its option). False by default. No effect in Curvature mode.
+    pub fn auto_add_delete(mut self, on: bool) -> Self {
+        self.auto_add_delete = on;
+        self
+    }
+
+    /// The user's Path Options: the draft line's colour and thickness, and the Pen's rubber band.
+    /// Without them: the tokens' look and no rubber band.
+    pub fn path_options(mut self, options: &'a PathOptionsSettings) -> Self {
+        self.path_options = Some(options);
+        self
     }
 
     /// The end points of the open paths a press continues: the path's key, the end's knot and its
@@ -257,19 +342,46 @@ impl<'a> PenDraft<'a> {
         }
     }
 
-    /// Removes the draft's last anchor on the overlay `id` ([`PenResponse::id`]) in its next
-    /// pass: the host's Undo while a draft is open (PhotoCraft ⌘Z). The only anchor discards the
-    /// draft.
-    pub fn remove_last(ctx: &Context, id: Id) {
-        ctx.data_mut(|d| d.insert_temp(remove_key(id), true));
-        ctx.request_repaint();
+    /// The look of this pass: the given or token look with the Path Options' colour and
+    /// thickness.
+    fn styled(&self, ui: &Ui) -> PenStyle {
+        let mut style = self.look.unwrap_or_else(|| PenDraft::style(&Tokens::of(ui)));
+        if let Some(options) = self.path_options {
+            if let Some([r, g, b]) = options.color {
+                style.color = Color32::from_rgb(r, g, b);
+            }
+            if let Some(thickness) = options.thickness {
+                style.draft_line = thickness;
+            }
+        }
+        style
+    }
+
+    /// [`PenResponse::closes`]: sensing, no button down and the pointer over the canvas.
+    fn closes_now(&self, ui: &Ui, canvas: &Response, view: &CanvasView, draft: &EditSubpath, style: &PenStyle) -> bool {
+        let (pointer, down) = ui.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down()));
+        self.sensing && !down && pointer.is_some_and(|p| view.rect.contains(p) && canvas.contains_pointer() && self.closes_at(draft, p, view, style))
+    }
+
+    /// Removes the draft's last anchor in this pass when `remove` is true: the host's Undo while a
+    /// draft is open (PhotoCraft ⌘Z). The only anchor discards the draft. The host cancels a
+    /// running press with `CancelReason::UndoDuringGesture` before it routes Undo, because the
+    /// pass ignores the request while a press is held.
+    pub fn remove_last(mut self, remove: bool) -> Self {
+        self.remove_last = remove;
+        self
     }
 
     /// Draws the draft over `view` and senses through the host's `canvas` response.
-    pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> PenResponse {
+    pub fn show(mut self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> PenResponse {
+        let style = self.styled(ui);
+        self.look = Some(style);
+        if self.mode == PenMode::Curvature {
+            return self.show_curvature(ui, canvas, view);
+        }
+        let looks = Looks { pen: style, bezier: BezierOverlay::style(&Tokens::of(ui)) };
         let ctx = ui.ctx().clone();
         let id = ui.make_persistent_id(self.id_salt);
-        let style = self.look.unwrap_or_else(|| PenDraft::style(&Tokens::of(ui)));
         let editing = ui.is_enabled();
         let host = self.draft.cloned().unwrap_or_default();
         let mut gesture = Gesture::load(ui, id, &host, EditPolicy::default().cancellable(false)).commit_on_interrupt(true).enabled(editing);
@@ -277,7 +389,7 @@ impl<'a> PenDraft<'a> {
         if !gesture.is_active() && !host.knots.is_empty() {
             gesture.begin();
         }
-        let mut out = PenResponse { id, event: None, finished: false, resumed: None, claimed: false };
+        let mut out = PenResponse { id, event: None, finished: false, resumed: None, claimed: false, closes: false };
 
         let mut drag: Option<Drag> = ctx
             .data(|d| d.get_temp(drag_key(id)))
@@ -288,22 +400,22 @@ impl<'a> PenDraft<'a> {
         {
             drag = match Claim::turn(&ctx, canvas.id, id) {
                 Turn::Waits => drag,
-                Turn::Runs => self.start(view, &style, &mut gesture, &mut out, d.press, mods),
+                Turn::Runs => self.start(view, &looks, &mut gesture, &mut out, d.press, mods),
                 Turn::Now => None,
             };
         }
-        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) && editing {
-            drag = self.press(&ctx, canvas, view, &style, &mut gesture, &mut out);
+        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) && editing && self.sensing {
+            drag = self.press(&ctx, canvas, view, &looks, &mut gesture, &mut out);
         }
         if let Some(d) = drag.take() {
             drag = if d.waits.is_some() { Some(d) } else { self.track(&ctx, view, &style, d, &mut gesture, &mut out) };
         }
-        let undo = ctx.data_mut(|d| d.remove_temp::<bool>(remove_key(id))).unwrap_or(false);
         if editing && drag.is_none() {
-            out.finished |= self.keys(ui, undo, &mut gesture);
+            out.finished |= self.keys(ui, self.remove_last, &mut gesture);
         }
 
         let draft = gesture.shown().clone();
+        out.closes = self.closes_now(ui, canvas, view, &draft, &style);
         let parts = self.parts(&draft, view, &style);
         PartFocus::new(id, &self.names.group).parts(&parts).focusable(false).picked(parts.last().map(|p| p.key)).show(ui, canvas);
 
@@ -315,7 +427,7 @@ impl<'a> PenDraft<'a> {
             }
             None => d.remove::<Drag>(drag_key(id)),
         });
-        self.paint(ui, canvas, view, &style, &draft, drag.as_ref());
+        self.paint(ui, canvas, view, &looks, &draft, drag.as_ref());
         out
     }
 
@@ -325,7 +437,7 @@ impl<'a> PenDraft<'a> {
         ctx: &Context,
         canvas: &Response,
         view: &CanvasView,
-        style: &PenStyle,
+        looks: &Looks,
         gesture: &mut Gesture<EditSubpath>,
         out: &mut PenResponse,
     ) -> Option<Drag> {
@@ -343,7 +455,7 @@ impl<'a> PenDraft<'a> {
         if Claim::turn(ctx, canvas.id, out.id) == Turn::Waits {
             return Some(Drag { press, kind: Kind::Pull, moved: false, in_ctrl: Point::ZERO, waits: Some(mods) });
         }
-        self.start(view, style, gesture, out, press, mods)
+        self.start(view, looks, gesture, out, press, mods)
     }
 
     /// The press `press` made with `mods`, against the draft now: begins what it takes, or
@@ -351,13 +463,26 @@ impl<'a> PenDraft<'a> {
     fn start(
         &self,
         view: &CanvasView,
-        style: &PenStyle,
+        looks: &Looks,
         gesture: &mut Gesture<EditSubpath>,
         out: &mut PenResponse,
         press: PrimaryPress,
         mods: Modifiers,
     ) -> Option<Drag> {
+        let Looks { pen: style, bezier } = looks;
         let mut draft = gesture.shown().clone();
+        // Auto Add/Delete takes the press whole: one Update, no drag, nothing added.
+        if let Some(edit) = self.auto_edit(&draft, press.origin, mods, false, view, bezier) {
+            let changed = match edit {
+                AutoEdit::Insert { segment, t } => draft.insert_at(segment, t).is_some(),
+                AutoEdit::Delete { knot } => draft.remove_knot(knot),
+            };
+            if changed {
+                gesture.begin();
+                gesture.update(draft, mods);
+            }
+            return None;
+        }
         let near = |p: Point| hit::point(press.origin, view.to_screen(p)) <= style.hit;
         let n = draft.knots.len();
         let handle = (n > 0 && mods.alt)
@@ -494,7 +619,8 @@ impl<'a> PenDraft<'a> {
             .collect()
     }
 
-    fn paint(&self, ui: &Ui, canvas: &Response, view: &CanvasView, style: &PenStyle, draft: &EditSubpath, drag: Option<&Drag>) {
+    fn paint(&self, ui: &Ui, canvas: &Response, view: &CanvasView, looks: &Looks, draft: &EditSubpath, drag: Option<&Drag>) {
+        let Looks { pen: style, bezier } = looks;
         let n = draft.knots.len();
         if n == 0 {
             return;
@@ -507,10 +633,23 @@ impl<'a> PenDraft<'a> {
         // The path so far, the first segment bending with a handle pulled out in a close drag.
         outline(&painter, to_screen * draft.bez_path(), f64::from(style.flatten), Stroke::new(style.draft_line, style.color));
         let last = draft.knots[n - 1];
+        let pointer = pointer.filter(|_| self.sensing);
+        let mods = ui.input(|i| i.modifiers);
+        // Where a press edits the draft, the hover marks that edit and no rubber band runs.
+        let auto = pointer.filter(|_| !pressing).and_then(|p| self.auto_edit(draft, p, mods, false, view, bezier));
+        if let Some(edit) = auto {
+            let found = match edit {
+                AutoEdit::Insert { segment, t } => BezierHit::Segment { path: 0, segment: KnotRef::new(0, segment), t },
+                AutoEdit::Delete { knot } => BezierHit::Anchor { path: 0, knot: KnotRef::new(0, knot) },
+            };
+            let path = EditPath { key: 0, subpaths: vec![draft.clone()], color: None };
+            HitMark::new(&path, found).paint(&painter, view, bezier);
+        }
         if let Some(pointer) = pointer
             && !pressing
+            && auto.is_none()
+            && self.path_options.is_some_and(|o| o.rubber_band)
         {
-            let mods = ui.input(|i| i.modifiers);
             let mut end = view.to_doc(pointer);
             if mods.shift {
                 end = last.anchor + constrain(end - last.anchor);
@@ -591,10 +730,6 @@ fn discard(gesture: &mut Gesture<EditSubpath>, reason: CancelReason, mods: Modif
     } else {
         gesture.cancel(reason);
     }
-}
-
-fn remove_key(id: Id) -> Id {
-    id.with("craft_ui::canvas::PenDraft::remove_last")
 }
 
 #[cfg(test)]

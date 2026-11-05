@@ -410,7 +410,7 @@ struct FormArgs {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["History panel", "Undo list"];
+pub const COMPONENTS: &[&str] = &["HistoryPanel", "UndoList"];
 
 /// The stories above.
 pub(crate) fn stories() -> Vec<Story> {
@@ -418,7 +418,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-panel/states",
             Level::Composites,
-            "History panel",
+            "HistoryPanel",
             "States",
             StatesArgs { footer: true, width: 260.0, height: 340.0 },
             show_states
@@ -426,7 +426,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-panel/snapshots",
             Level::Composites,
-            "History panel",
+            "HistoryPanel",
             "Snapshots",
             SnapshotsArgs { thumbnails: true, rename: true, source_on_snapshot: true },
             show_snapshots
@@ -434,7 +434,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-panel/source",
             Level::Composites,
-            "History panel",
+            "HistoryPanel",
             "Source",
             SourceArgs { source: SourceArg::State },
             show_source
@@ -442,16 +442,16 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-panel/non-linear",
             Level::Composites,
-            "History panel",
+            "HistoryPanel",
             "Non-linear",
             NonLinearArgs { non_linear: true },
             show_non_linear
         ),
-        typed_story!("composites/history-panel/branches", Level::Composites, "History panel", "Branches", NoArgs {}, show_branches),
+        typed_story!("composites/history-panel/branches", Level::Composites, "HistoryPanel", "Branches", NoArgs {}, show_branches),
         typed_story!(
             "composites/history-panel/newest-first",
             Level::Composites,
-            "History panel",
+            "HistoryPanel",
             "Newest first",
             NewestFirstArgs { newest_first: true },
             show_newest_first
@@ -459,17 +459,17 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-panel/short-dock",
             Level::Composites,
-            "History panel",
+            "HistoryPanel",
             "Short dock",
             ShortDockArgs { height: 160.0 },
             show_short_dock
         ),
-        typed_story!("composites/history-panel/menu", Level::Composites, "History panel", "Menu", NoArgs {}, show_menu),
-        typed_story!("composites/undo-list/popup", Level::Composites, "Undo list", "Popup", UndoArgs { steps: 30, marked: 3 }, show_undo_list),
+        typed_story!("composites/history-panel/menu", Level::Composites, "HistoryPanel", "Menu", NoArgs {}, show_menu),
+        typed_story!("composites/undo-list/popup", Level::Composites, "UndoList", "Popup", UndoArgs { steps: 30, marked: 3 }, show_undo_list),
         typed_story!(
             "composites/history-panel/new-snapshot",
             Level::Composites,
-            "History panel",
+            "HistoryPanel",
             "New Snapshot form",
             FormArgs { open: true },
             show_new_snapshot
@@ -477,7 +477,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-panel/options",
             Level::Composites,
-            "History panel",
+            "HistoryPanel",
             "History Options form",
             FormArgs { open: true },
             show_options

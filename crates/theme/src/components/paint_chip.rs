@@ -10,6 +10,10 @@ use crate::values;
 pub struct PaintChipTokens {
     /// Width and height of the chip: `paint_chip.size`.
     pub size: [f32; 2],
+    /// How far the No Color diagonal's ends sit inside the chip: `paint_chip.none_inset`.
+    pub none_inset: f32,
+    /// The No Color diagonal's width: `paint_chip.none_line`.
+    pub none_line: f32,
 }
 
 /// Paint chips have no overridable field: their sizes come from the code, as every size does.
@@ -22,6 +26,8 @@ impl Family for PaintChipTokens {
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { PaintChipTokens;
         "size.0" 0.0..=1024.0 => size[0];
         "size.1" 0.0..=1024.0 => size[1];
+        "none_inset" 0.0..=64.0 => none_inset;
+        "none_line" 0.0..=16.0 => none_line;
     };
 
     /// The Compact sizes (PhotoCraft's), scaled by the control height of the size and rounded to
@@ -29,7 +35,11 @@ impl Family for PaintChipTokens {
     fn defaults(s: &Semantic<'_>) -> PaintChipTokens {
         let k = s.size.control.md / values::COLOR_PICKER_BASE_CONTROL;
         let scale = |w: f32| (w * k).round();
-        PaintChipTokens { size: [scale(values::PAINT_CHIP_WIDTH), scale(values::PAINT_CHIP_HEIGHT)] }
+        PaintChipTokens {
+            size: [scale(values::PAINT_CHIP_WIDTH), scale(values::PAINT_CHIP_HEIGHT)],
+            none_inset: values::PAINT_CHIP_NONE_INSET,
+            none_line: values::PAINT_CHIP_NONE_LINE,
+        }
     }
 
     fn path(f: PaintChipField) -> String {

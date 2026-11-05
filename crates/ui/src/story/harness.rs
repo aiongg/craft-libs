@@ -4,6 +4,7 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use craft_host::{AppInfo, Files, Host, HostScope};
+use egui::util::id_type_map::IdTypeMap;
 use egui::{Context, Id, Ui};
 
 use super::{StoryLabels, dialog_closed, dialog_shown};
@@ -12,10 +13,43 @@ use crate::localized::Labels as _;
 
 /// State of one story instance, kept in egui memory under `name` in `ui`'s scope and made by
 /// `init` the first time. Two instances of a story (a component tab and a variants view) each
-/// get their own.
+/// get their own. `init` runs outside egui's data lock, so it may read the theme or load
+/// textures. [`reset_on`] drops it when the story's args change.
 pub fn shared<T: Send + 'static>(ui: &Ui, name: &str, init: impl FnOnce() -> T) -> Arc<Mutex<T>> {
     let key = ui.make_persistent_id(("craft_ui::story::shared", name));
-    ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, || Arc::new(Mutex::new(init()))).clone())
+    if let Some(kept) = ui.data(|d| d.get_temp::<Arc<Mutex<T>>>(key)) {
+        return kept;
+    }
+    let made = Arc::new(Mutex::new(init()));
+    ui.data_mut(|d| {
+        d.insert_temp(key, made.clone());
+        d.insert_temp(key.with("remove"), Dropper(|d: &mut IdTypeMap, key| d.remove::<Arc<Mutex<T>>>(key)));
+    });
+    made
+}
+
+/// Removes the [`shared`] state of one type; `shared` stores it beside the state, since
+/// [`reset_on`] doesn't know the state's type.
+#[derive(Clone, Copy)]
+struct Dropper(fn(&mut IdTypeMap, Id));
+
+/// The seed rule of a story whose state follows its args: when `args` differ from the last call's
+/// for `name` in `ui`'s scope, the [`shared`] state under `name` is dropped, so the next `shared`
+/// call makes it again from the new args. Returns whether it dropped state. Call it before
+/// `shared`; the first call only records the args.
+pub fn reset_on<A: PartialEq + Clone + Send + Sync + 'static>(ui: &Ui, name: &str, args: &A) -> bool {
+    let key = ui.make_persistent_id(("craft_ui::story::shared", name));
+    let seen_key = key.with("args");
+    ui.data_mut(|d| {
+        let changed = d.get_temp::<A>(seen_key).is_some_and(|seen| seen != *args);
+        if changed && let Some(Dropper(remove)) = d.get_temp::<Dropper>(key.with("remove")) {
+            remove(d, key);
+        }
+        if changed || d.get_temp::<A>(seen_key).is_none() {
+            d.insert_temp(seen_key, args.clone());
+        }
+        changed
+    })
 }
 
 /// Locks [`shared`] state; a story that panicked while holding it leaves the state as it was.

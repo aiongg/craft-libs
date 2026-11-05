@@ -6,7 +6,7 @@ use kurbo::{Point, Vec2};
 
 use super::bezier::{EditPath, EditSubpath, HandleSide, Knot, KnotRef};
 use super::story::PenHost;
-use super::{PenDraft, PenNames, PenResponse};
+use super::{PathOptionsSettings, PenDraft, PenNames, PenResponse};
 use craft_ui::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
 use craft_ui::edit::{self, CancelReason, EditEvent, Ending, GestureHost, UndoMarks};
 use craft_ui::localized::LocaleNumbers;
@@ -30,6 +30,12 @@ struct Host {
     last: Option<PenResponse>,
     resumed: Vec<(u64, KnotRef)>,
     field: TypingField,
+    /// The pen's Path Options, when the host gives any.
+    options: Option<PathOptionsSettings>,
+    auto: bool,
+    sensing: bool,
+    /// The host's Undo, passed to the next pass only.
+    remove_last: bool,
 }
 
 fn open_path() -> EditPath {
@@ -51,6 +57,10 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
         last: None,
         resumed: Vec::new(),
         field: TypingField::default(),
+        options: None,
+        auto: false,
+        sensing: true,
+        remove_last: false,
     };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
@@ -74,7 +84,16 @@ fn harness(paths: Vec<EditPath>) -> Harness<'static, Host> {
             }
             let ends = host.pen.ends();
             let names = PenNames::new("Path being drawn", |i, n| format!("Anchor {i} of {n}"));
-            let response = PenDraft::new("pen", host.pen.draft.as_ref(), names).ends(&ends).units(&px, &px).show(ui, &canvas, &view);
+            let mut pen = PenDraft::new("pen", host.pen.draft.as_ref(), names)
+                .ends(&ends)
+                .units(&px, &px)
+                .sensing(host.sensing)
+                .auto_add_delete(host.auto)
+                .remove_last(std::mem::take(&mut host.remove_last));
+            if let Some(options) = host.options.as_ref() {
+                pen = pen.path_options(options);
+            }
+            let response = pen.show(ui, &canvas, &view);
             host.field.note(response.event.is_some());
             host.events.extend(response.event.clone());
             host.resumed.extend(response.resumed);
@@ -312,16 +331,26 @@ fn backspace_removes_the_last_anchor_and_the_only_one_cancels() {
 #[test]
 fn remove_last_is_the_hosts_undo() {
     let mut h = three();
-    let id = h.state().last.as_ref().expect("shown").id;
-    PenDraft::remove_last(&h.ctx, id);
+    h.state_mut().remove_last = true;
     h.run();
     assert_eq!(draft(&h).knots.len(), 2);
-    PenDraft::remove_last(&h.ctx, id);
+    h.state_mut().remove_last = true;
     h.run();
-    PenDraft::remove_last(&h.ctx, id);
+    h.state_mut().remove_last = true;
     h.run();
     assert!(h.state().pen.draft.is_none());
     assert!(matches!(h.state().events.last(), Some(EditEvent::Cancel { .. })));
+}
+
+// The request is read in the pass it is made in: with no press held it never waits for a later pass.
+#[test]
+fn remove_last_is_read_in_its_own_pass() {
+    let mut h = three();
+    h.state_mut().remove_last = true;
+    h.step();
+    assert_eq!(draft(&h).knots.len(), 2);
+    h.run();
+    assert_eq!(draft(&h).knots.len(), 2, "one request removes one anchor");
 }
 
 /// The strokes and fills of the last frame, flattened.
@@ -357,6 +386,7 @@ fn rubber_end(h: &Harness<'_, Host>) -> Option<Pos2> {
 #[test]
 fn the_rubber_band_runs_from_the_last_anchor_to_where_a_click_would_land() {
     let mut h = empty();
+    h.state_mut().options = Some(PathOptionsSettings { rubber_band: true, ..PathOptionsSettings::default() });
     click_doc(&mut h, 60.0, 60.0);
     let last = screen(&h, doc(60.0, 60.0));
     let target = screen(&h, doc(200.0, 70.0));
@@ -751,4 +781,89 @@ fn a_press_during_a_typing_run_begins_after_the_runs_commit_but_the_pens_draft_n
     h.event(button(next, true, Modifiers::NONE));
     h.step();
     assert_eq!(draft(&h).knots.len(), 2, "no wait: {:?}", &h.state().events[before..]);
+}
+
+// Task PE-C2 from here.
+
+// Auto Add/Delete on: a press on a draft segment inserts an anchor and on an inner anchor deletes
+// it (Updates); with ⇧ held the press adds an anchor as usual.
+#[test]
+fn pen_auto_add_delete_edits_the_draft_and_shift_turns_it_off() {
+    let mut h = three();
+    h.state_mut().auto = true;
+    let begins = kinds(&h).iter().filter(|k| **k == "begin").count();
+    click_doc(&mut h, 110.0, 60.0);
+    let d = draft(&h);
+    assert_eq!(d.knots.len(), 4);
+    assert!(near(d.knots[1].anchor, doc(110.0, 60.0)), "{:?}", d.knots);
+    assert_eq!(kinds(&h).last(), Some(&"update"));
+    assert_eq!(kinds(&h).iter().filter(|k| **k == "begin").count(), begins, "one draft gesture");
+    // The inner anchor just made goes again.
+    click_doc(&mut h, 110.0, 60.0);
+    assert_eq!(draft(&h).knots.len(), 3);
+    // The last anchor still retracts and the first closes: neither is deleted.
+    let last = screen(&h, doc(160.0, 160.0));
+    click(&mut h, last, Modifiers::NONE);
+    assert_eq!(draft(&h).knots.len(), 3);
+    // With ⇧ the press adds an anchor.
+    let at = screen(&h, doc(110.0, 60.0));
+    click(&mut h, at, Modifiers::SHIFT);
+    assert_eq!(draft(&h).knots.len(), 4);
+    // Off by default: the same press adds an anchor.
+    let mut h = three();
+    click_doc(&mut h, 110.0, 60.0);
+    assert_eq!(draft(&h).knots.len(), 4);
+    assert!(near(draft(&h).knots[3].anchor, doc(110.0, 60.0)));
+}
+
+// `sensing(false)`: the draft draws and Enter still ends it, but a press is not claimed and adds
+// nothing (gap row 39).
+#[test]
+fn pen_sensing_off_draws_but_takes_no_press() {
+    let mut h = three();
+    h.state_mut().sensing = false;
+    click_doc(&mut h, 200.0, 200.0);
+    assert_eq!(draft(&h).knots.len(), 3);
+    assert!(!h.state().last.as_ref().is_some_and(|r| r.claimed));
+    assert!(!shapes(&h).is_empty(), "the draft still draws");
+    key(&mut h, Modifiers::NONE, Key::Enter);
+    assert!(matches!(h.state().events.last(), Some(EditEvent::Commit { changed: true, .. })), "{:?}", kinds(&h));
+    assert_eq!(h.state().pen.paths[0].subpaths[0].knots.len(), 3);
+}
+
+// `closes` is true over the first anchor of a two-anchor draft and false elsewhere and while a
+// press is down.
+#[test]
+fn pen_closes_flag_is_true_over_the_first_anchor() {
+    let mut h = empty();
+    click_doc(&mut h, 60.0, 60.0);
+    let closes = |h: &Harness<'_, Host>| h.state().last.as_ref().is_some_and(|r| r.closes);
+    let first = screen(&h, doc(60.0, 60.0));
+    move_to(&mut h, first, Modifiers::NONE);
+    assert!(!closes(&h), "one anchor cannot close");
+    click_doc(&mut h, 160.0, 60.0);
+    move_to(&mut h, first + vec2(2.0, 2.0), Modifiers::NONE);
+    assert!(closes(&h));
+    let away = screen(&h, doc(200.0, 200.0));
+    move_to(&mut h, away, Modifiers::NONE);
+    assert!(!closes(&h));
+    press(&mut h, first, Modifiers::NONE);
+    assert!(!closes(&h), "a press is down");
+}
+
+// The Pen's rubber band shows only with `PathOptionsSettings::rubber_band` on; without path
+// options it does not show (Photoshop's default).
+#[test]
+fn pen_rubber_band_follows_the_path_options() {
+    let mut h = empty();
+    click_doc(&mut h, 60.0, 60.0);
+    let target = screen(&h, doc(200.0, 70.0));
+    move_to(&mut h, target, Modifiers::NONE);
+    assert_eq!(rubber_end(&h), None, "no options");
+    h.state_mut().options = Some(PathOptionsSettings::default());
+    move_to(&mut h, target + vec2(0.5, 0.0), Modifiers::NONE);
+    assert_eq!(rubber_end(&h), None, "off by default");
+    h.state_mut().options = Some(PathOptionsSettings { rubber_band: true, ..PathOptionsSettings::default() });
+    move_to(&mut h, target, Modifiers::NONE);
+    assert!(rubber_end(&h).is_some());
 }

@@ -1,0 +1,59 @@
+//! [`BeforeAfterStyle`]: the before and after view's look, from tokens (task TK1).
+
+use egui::{Color32, FontId};
+
+use super::BeforeAfter;
+use craft_theme::TypeRole;
+
+use crate::theme::{ToEgui, UiTokens};
+
+/// What [`BeforeAfter`] draws besides the host's pictures.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct BeforeAfterStyle {
+    /// The divider line's width: `before_after.line` (2, FigCraft `dev_compare.rs:354`).
+    pub line: f32,
+    /// The divider line's colour: the overlay's light mark, white in every theme
+    /// (`overlay.handle_fill`; LightCraft's white line).
+    pub line_color: Color32,
+    /// The halo under the line, `before_after.halo` wider on each side: `overlay.halo`.
+    pub halo: Color32,
+    pub halo_width: f32,
+    /// The knob's diameter: `before_after.knob` (20, FigCraft `dev_compare.rs:356`).
+    pub knob: f32,
+    /// The knob's fill and its glyph: `accent.strong` and `text.on_strong`.
+    pub knob_fill: Color32,
+    pub knob_glyph: Color32,
+    /// Between two side-by-side panes: `before_after.gap_side` (12, LightCraft `detail.rs:479`).
+    pub gap_side: f32,
+    /// Between two stacked panes: `before_after.gap_stacked` (28, LightCraft `detail.rs:486`).
+    pub gap_stacked: f32,
+    /// Below a caption: `before_after.caption_gap` (4).
+    pub caption_gap: f32,
+    /// The captions: `type.label` in `text.muted`.
+    pub caption_font: FontId,
+    pub caption_color: Color32,
+}
+
+impl BeforeAfter {
+    /// The before and after look in `tokens`.
+    pub fn style(tokens: &UiTokens) -> BeforeAfterStyle {
+        // lightcraft: crates/ui-egui/src/panels/detail.rs:479 (6 each side), :486 (14 each side);
+        // figcraft: crates/ui-egui/src/panels/dev_compare.rs:354 (2 pt), :356 (knob radius 10).
+        let (b, c) = (&tokens.component.before_after, &tokens.color);
+        BeforeAfterStyle {
+            line: b.line,
+            line_color: c.overlay.handle_fill.to_egui(),
+            halo: c.overlay.halo.to_egui(),
+            halo_width: b.halo,
+            knob: b.knob,
+            knob_fill: c.accent.strong.to_egui(),
+            knob_glyph: c.text.on_strong.to_egui(),
+            gap_side: b.gap_side,
+            gap_stacked: b.gap_stacked,
+            caption_gap: b.caption_gap,
+            caption_font: tokens.font(TypeRole::Label),
+            caption_color: c.text.muted.to_egui(),
+        }
+    }
+}

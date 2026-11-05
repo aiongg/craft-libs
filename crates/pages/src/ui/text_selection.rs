@@ -10,6 +10,7 @@
 use std::ops::Range;
 
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
+use craft_ui::edit::CancelReason;
 use craft_ui::theme::{UiTokens, corner_radius};
 use egui::{CursorIcon, Key, Painter, Pos2, StrokeKind};
 use kurbo::{Point, Rect};
@@ -337,7 +338,7 @@ impl CanvasTool for TextSelectTool<'_> {
         self.end_gesture();
     }
 
-    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+    fn cancel(&mut self, _reason: CancelReason, _cx: &mut ToolContext<'_>) {
         if self.state.gesture.is_some() {
             let before = self.state.before;
             self.set(before);

@@ -58,12 +58,23 @@ pub struct CursorOptions {
     pub other_precise: bool,
     /// Caps Lock swaps a painting cursor for the precise one (Photoshop; PhotoCraft has it).
     pub caps_lock_precise: bool,
+    /// Show Only Crosshair While Painting: during a stroke a brush outline gives way to the
+    /// precise crosshair ([`BrushCursor::painting`](super::brush::BrushCursor::painting)).
+    /// Photoshop's preference; PhotoCraft has it. Off by default.
+    pub show_only_crosshair_while_painting: bool,
 }
 
 impl Default for CursorOptions {
-    /// Photoshop's defaults: Normal Brush Tip, no crosshair, standard other cursors, Caps Lock on.
+    /// Photoshop's defaults: Normal Brush Tip, no crosshair, standard other cursors, Caps Lock on,
+    /// the outline also while painting.
     fn default() -> Self {
-        Self { painting: PaintingCursor::NormalBrushTip, crosshair_in_brush_tip: false, other_precise: false, caps_lock_precise: true }
+        Self {
+            painting: PaintingCursor::NormalBrushTip,
+            crosshair_in_brush_tip: false,
+            other_precise: false,
+            caps_lock_precise: true,
+            show_only_crosshair_while_painting: false,
+        }
     }
 }
 
@@ -107,6 +118,9 @@ pub enum ToolCursor {
     Tool { icon: Icon, hotspot: Vec2, badge: Option<CursorBadge> },
     /// The system arrow with a badge beside it.
     Arrow { badge: Option<CursorBadge> },
+    /// `cursor` with `badge` centred on the hotspot: the + or − inside a brush circle
+    /// ([`BrushCursor::badge`](crate::canvas::BrushCursor::badge)).
+    Badged { cursor: Box<ToolCursor>, badge: CursorBadge },
     /// No pointer: the tool paints its own (a text caret, a transform box's turn arrow).
     Hidden,
 }
@@ -237,6 +251,11 @@ impl CursorHost {
                     Self::paint_badge(&tooltip_painter(ctx), pointer + style.badge_beside, *badge, style);
                 }
                 CursorIcon::Default
+            }
+            ToolCursor::Badged { cursor, badge } => {
+                let icon = Self::set(ctx, painter, pointer, cursor, style);
+                Self::paint_badge(&tooltip_painter(ctx), pointer, *badge, style);
+                icon
             }
             ToolCursor::Hidden => CursorIcon::None,
         };

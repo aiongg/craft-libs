@@ -66,15 +66,9 @@ impl ChannelKind {
     }
 }
 
-/// Channel Options › Color Indicates.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum ColorIndicates {
-    /// The overlay colour shows the masked areas (Photoshop's default).
-    #[default]
-    MaskedAreas,
-    /// The overlay colour shows the selected areas.
-    SelectedAreas,
-}
+/// Channel Options › Color Indicates; it lives in the egui-free [`crate::selection`] with the
+/// Quick Mask rules.
+pub use crate::selection::ColorIndicates;
 
 /// One of the six overlay colours of the context menu's Overlay Color.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -11,7 +11,8 @@ use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::DialogFields;
 use super::footer::{DialogLabels, Footer, Reset};
 use super::params::{
-    FooterExtra, Param, ParamResult, PathRequest, draw_rows, first_field_focused, open_fields, set_color_field, take_color_press, take_path_press,
+    EyedropperRequest, FooterExtra, Param, ParamResult, PathRequest, draw_rows, first_field_focused, open_fields, set_color_field,
+    set_eyedropper_state, take_color_press, take_eyedropper_press, take_path_press,
 };
 use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
@@ -45,6 +46,7 @@ pub struct CommandForm {
     body: Body,
     picked_color: Option<ColorRequest>,
     picked_path: Option<PathRequest>,
+    picked_eyedropper: Option<EyedropperRequest>,
     below: Option<Below>,
     history: bool,
     close_label: Option<Option<String>>,
@@ -71,6 +73,7 @@ impl CommandForm {
             body: Body::Scroll,
             picked_color: None,
             picked_path: None,
+            picked_eyedropper: None,
             below: None,
             history: false,
             close_label: None,
@@ -171,6 +174,17 @@ impl CommandForm {
         self.picked_path.take()
     }
 
+    /// The eyedropper toggle of a [`Param::eyedropper`] row the user pressed, once, as
+    /// [`ParamDialog::pick_eyedropper`](super::ParamDialog::pick_eyedropper).
+    pub fn pick_eyedropper(&mut self) -> Option<EyedropperRequest> {
+        self.picked_eyedropper.take()
+    }
+
+    /// Pops the eyedropper toggle of the row `key` back up, once the host's dropper has ended.
+    pub fn set_eyedropper(&self, ctx: &egui::Context, key: &str, armed: bool) {
+        set_eyedropper_state(ctx, self.id, key, armed);
+    }
+
     fn answer(&self) -> ParamResult {
         ParamResult { key: self.key.clone(), fields: self.fields.clone() }
     }
@@ -213,6 +227,7 @@ impl StackDialog for CommandForm {
         });
         self.picked_color = take_color_press(ctx, self.id).or(self.picked_color.take());
         self.picked_path = take_path_press(ctx, self.id).or(self.picked_path.take());
+        self.picked_eyedropper = take_eyedropper_press(ctx, self.id).or(self.picked_eyedropper.take());
         match shown.outcome? {
             Outcome::Ok => Some(DialogResult::Ok(self.answer())),
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),

@@ -7,7 +7,10 @@ use egui::{Event, Key, Modifiers, TextureId, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::{CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamDialog, ParamKind, ParamResult, PathKind, PathRequest};
+use super::{
+    CommandForm, DialogFields, DialogHost, DialogResult, EyedropperRequest, FieldValue, Param, ParamDialog, ParamKind, ParamResult, PathKind,
+    PathRequest,
+};
 use crate::controls::SliderScale;
 use crate::localized::Unit;
 use crate::theme::{Base, install};
@@ -83,7 +86,7 @@ fn the_registry_notation_parses_into_params() {
 fn typing_into_the_first_field_and_enter_answers_ok() {
     let mut harness = harness(ParamDialog::new("blur", "Blur", params()));
     harness.run();
-    assert!(harness.get_by_role_and_label(Role::SpinButton, "Radius:").accesskit_node().is_focused());
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Radius").accesskit_node().is_focused());
     harness.event(Event::Text("7".to_owned()));
     harness.run();
     harness.key_press(Key::Enter);
@@ -196,7 +199,7 @@ fn tab_visits_the_fields_and_buttons_only() {
         harness.run();
         seen.push(harness.query_by(|n| n.is_focused()).and_then(|n| n.accesskit_node().label()).unwrap_or_default());
     }
-    assert!(seen.iter().all(|label| ["Radius:", "OK", "Cancel"].contains(&label.as_str())), "{seen:?}");
+    assert!(seen.iter().all(|label| ["Radius", "OK", "Cancel"].contains(&label.as_str())), "{seen:?}");
     assert!(seen.iter().any(|label| label == "Cancel"), "{seen:?}");
 }
 
@@ -217,9 +220,25 @@ fn labels_and_option_labels_show_through_the_hosts_catalog() {
         })
         .build_ui_state(|ui, host: &mut DialogHost| host.show(ui.ctx()), host);
     harness.run();
-    harness.get_by_role_and_label(Role::SpinButton, "Radius-de:");
-    let select = harness.get_by_label("Method:");
+    harness.get_by_role_and_label(Role::SpinButton, "Radius-de");
+    let select = harness.get_by_label("Method");
     assert_eq!(select.accesskit_node().value().as_deref(), Some("Vergrößern"));
+}
+
+// `translated` is the lookup the dialogs use for runtime labels, public for the hosts' own.
+#[test]
+fn translated_looks_a_runtime_label_up_in_the_hosts_catalog() {
+    let (i18n, problems) = craft_i18n::I18n::new(&[("de", "\tZoom\tVergrößern\n", "")], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let de = i18n.from_code("de").expect("de");
+    let ctx = egui::Context::default();
+    assert_eq!(super::translated(&ctx, "Zoom"), "Zoom", "no Host: the text");
+    craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" })
+        .i18n(std::sync::Arc::new(i18n))
+        .lang(de)
+        .install(&ctx);
+    assert_eq!(super::translated(&ctx, "Zoom"), "Vergrößern");
+    assert_eq!(super::translated(&ctx, "Not in the catalog"), "Not in the catalog");
 }
 
 // A parsed `color=#808080` default shows as that hex: colour values are sRGB in 0..=1, as
@@ -229,7 +248,7 @@ fn a_parsed_hex_default_shows_as_that_hex() {
     let params = Param::parse_list(r##"{"tint":color=#808080}"##);
     let mut harness = harness(ParamDialog::new("tint", "Tint", params));
     harness.run();
-    let swatch = harness.get_by_label("Tint:");
+    let swatch = harness.get_by_role_and_label(Role::ColorWell, "Tint");
     assert_eq!(swatch.accesskit_node().value().as_deref().map(str::to_lowercase).as_deref(), Some("#808080"));
 }
 
@@ -245,8 +264,8 @@ fn labels_follow_photocrafts_source_label() {
 
     let mut harness = harness(ParamDialog::new("c", "C", params));
     harness.run();
-    harness.get_by_label("Cell Size:");
-    harness.get_by_label("Intent:");
+    harness.get_by_label("Cell Size");
+    harness.get_by_label("Intent");
 }
 
 // The log slider starts above a max/min ratio of 500 (PhotoCraft `uses_logarithmic_slider`).
@@ -288,7 +307,7 @@ fn a_swatch_press_goes_to_its_own_dialog() {
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui_state(|ui, host: &mut DialogHost| host.show(ui.ctx()), host);
     harness.run();
-    harness.get_by_label("Over:").click();
+    harness.get_by_label("Over").click();
     harness.run();
     assert_eq!(
         harness.state_mut().get_mut::<CommandForm>().unwrap().pick_color().map(|request| (request.key, request.title, request.color)),
@@ -365,19 +384,19 @@ fn a_row_is_enabled_only_while_its_condition_holds() {
     ];
     let mut harness = harness(ParamDialog::new("c", "C", rows));
     harness.run();
-    assert!(harness.get_by_role_and_label(Role::SpinButton, "Range:").accesskit_node().is_disabled());
-    let label = harness.get_by_role_and_label(Role::Label, "Range:");
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Range").accesskit_node().is_disabled());
+    let label = harness.get_by_role_and_label(Role::Label, "Range");
     assert!(label.accesskit_node().is_disabled(), "the row label is disabled too");
     harness.get_by_label("Localized").click();
     harness.run();
     harness.run();
-    assert!(!harness.get_by_role_and_label(Role::SpinButton, "Range:").accesskit_node().is_disabled());
+    assert!(!harness.get_by_role_and_label(Role::SpinButton, "Range").accesskit_node().is_disabled());
 }
 
 // A custom row draws the host's control and writes the dialog's values.
 #[test]
 fn a_custom_row_writes_the_fields() {
-    let rows = vec![Param::custom("center", "Center:", |ui, fields| {
+    let rows = vec![Param::custom("center", "Center:", |ui, fields, _| {
         let response = ui.button("Set center");
         if response.clicked() {
             fields.set("center", FieldValue::Point([25.0, 75.0]));
@@ -386,7 +405,7 @@ fn a_custom_row_writes_the_fields() {
     })];
     let mut harness = harness(ParamDialog::new("zoom", "Zoom", rows));
     harness.run();
-    harness.get_by_label("Center:").click();
+    harness.get_by_label("Center").click();
     harness.run();
     assert_eq!(open_dialog(&mut harness).expect("open").fields().point("center"), Some([25.0, 75.0]));
 }
@@ -411,7 +430,7 @@ fn an_optional_number_is_absent_until_custom_is_checked() {
     let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
     harness.run();
     assert_eq!(open_dialog(&mut harness).expect("open").fields().number("quality"), None);
-    assert!(harness.get_by_role_and_label(Role::SpinButton, "Quality:").accesskit_node().is_disabled());
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Quality").accesskit_node().is_disabled());
     harness.get_by_label("Custom").click();
     harness.run();
     assert_eq!(open_dialog(&mut harness).expect("open").fields().number("quality"), Some(8.0));
@@ -431,14 +450,14 @@ fn a_text_row_shows_its_hint_while_empty_and_the_row_has_a_tooltip() {
     let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
     harness.run();
     let field = |harness: &Harness<'_, App>| {
-        harness.get_by_role_and_label(Role::TextInput, "File Naming:").accesskit_node().data().placeholder().map(str::to_owned)
+        harness.get_by_role_and_label(Role::TextInput, "File Naming").accesskit_node().data().placeholder().map(str::to_owned)
     };
     assert_eq!(field(&harness).as_deref(), Some("{name}"));
-    harness.get_by_role_and_label(Role::TextInput, "File Naming:").focus();
+    harness.get_by_role_and_label(Role::TextInput, "File Naming").focus();
     harness.run();
     harness.event(Event::Text("x".to_owned()));
     harness.run();
-    harness.get_by_role_and_label(Role::TextInput, "File Naming:").hover();
+    harness.get_by_role_and_label(Role::TextInput, "File Naming").hover();
     for _ in 0..30 {
         harness.step();
     }
@@ -454,12 +473,12 @@ fn an_optional_number_with_no_decimals_shows_an_integer() {
     ];
     let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
     harness.run();
-    harness.get_by_role_and_label(Role::SpinButton, "Quality:").focus();
+    harness.get_by_role_and_label(Role::SpinButton, "Quality").focus();
     harness.run();
     harness.event(Event::Text("5.7".to_owned()));
     harness.key_press(Key::Tab);
     harness.run();
-    let shown = harness.get_by_role_and_label(Role::SpinButton, "Quality:").value();
+    let shown = harness.get_by_role_and_label(Role::SpinButton, "Quality").value();
     assert_eq!(shown.as_deref(), Some("6"), "{shown:?}");
 }
 
@@ -497,16 +516,203 @@ fn a_number_row_is_unbounded_on_open_sides_and_clamped_on_bounded_ones() {
     let mut harness = harness(ParamDialog::new("shift", "Shift", rows));
     harness.run();
     assert!(harness.query_by_role(Role::Slider).is_none());
-    harness.get_by_role_and_label(Role::SpinButton, "Offset:").focus();
+    harness.get_by_role_and_label(Role::SpinButton, "Offset").focus();
     harness.run();
     harness.event(Event::Text("-5000.25".to_owned()));
     harness.key_press(Key::Tab);
     harness.run();
-    harness.get_by_role_and_label(Role::SpinButton, "Count:").focus();
+    harness.get_by_role_and_label(Role::SpinButton, "Count").focus();
     harness.run();
     harness.event(Event::Text("99".to_owned()));
     harness.key_press(Key::Tab);
     harness.run();
     let fields = open_dialog(&mut harness).expect("open").fields().clone();
     assert_eq!((fields.number("offset"), fields.number("count")), (Some(-5000.25), Some(10.0)));
+}
+
+// `ParamRows` draws one form row per parameter outside a dialog: a range as slider and field, a
+// choice as a select, a bool as a check box, a colour as a swatch whose press comes back as
+// `ParamRowsResponse::color`; `changed` reports an edit.
+#[test]
+fn param_rows_draw_range_choice_bool_and_colour() {
+    use super::ParamRows;
+    struct Rows {
+        params: Vec<Param>,
+        fields: DialogFields,
+        changed: bool,
+        color: Option<String>,
+    }
+    let mut params = params();
+    params.push(Param::new(
+        "method",
+        "Method:",
+        ParamKind::Choice {
+            options: vec![("spin".to_owned(), "Spin".to_owned()), ("zoom".to_owned(), "Zoom".to_owned())],
+            default: Some("zoom".to_owned()),
+        },
+    ));
+    let mut harness = HarnessBuilder::default()
+        .with_size(vec2(400.0, 400.0))
+        .with_os(OperatingSystem::Nix)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, rows: &mut Rows| {
+                let shown = ParamRows::new("rows", &rows.params).show(ui, &mut rows.fields);
+                rows.changed = shown.changed;
+                rows.color = shown.color.map(|request| request.key);
+            },
+            Rows { params, fields: DialogFields::new(), changed: false, color: None },
+        );
+    harness.run();
+    let state = harness.state();
+    assert!(!state.changed, "filling defaults is not an edit");
+    assert_eq!((state.fields.number("radius"), state.fields.bool("monochromatic")), (Some(1.0), Some(false)));
+    assert_eq!(state.fields.text("method"), Some("zoom"));
+    harness.get_by_role_and_label(Role::SpinButton, "Radius");
+    harness.get_by_role_and_label(Role::CheckBox, "Monochromatic");
+    harness.get_by_label("Method");
+
+    harness.get_by_role_and_label(Role::CheckBox, "Monochromatic").click();
+    harness.run_steps(1);
+    assert!(harness.state().changed);
+    assert_eq!(harness.state().fields.bool("monochromatic"), Some(true));
+    harness.run_steps(2);
+    assert!(!harness.state().changed);
+
+    harness.get_by_label("Tint").click();
+    harness.run_steps(1);
+    assert_eq!(harness.state().color.as_deref(), Some("tint"));
+}
+
+// A Range row stores its value rounded to the decimals shown; none stores an integer.
+#[test]
+fn a_range_row_stores_the_value_rounded_to_its_decimals() {
+    for (places, text, expected) in [(1, "2.345", FieldValue::Number(2.3)), (0, "4.6", FieldValue::Int(5))] {
+        let row = Param::new("v", "V:", ParamKind::Range { min: 0.0, max: 10.0, default: 1.0, scale: SliderScale::Linear }).decimals(places);
+        let mut harness = harness(ParamDialog::new("round", "Round", vec![row]));
+        harness.run();
+        harness.event(Event::Text(text.to_owned()));
+        harness.run();
+        harness.key_press(Key::Enter);
+        harness.run();
+        harness.run();
+        let [DialogResult::Ok(ParamResult { fields, .. })] = &harness.state().answers[..] else { panic!("one OK") };
+        assert_eq!(fields.get("v"), Some(&expected));
+    }
+    let row = |places| Param::new("v", "V:", ParamKind::Range { min: 0.0, max: 10.0, default: 2.67, scale: SliderScale::Linear }).decimals(places);
+    for (places, expected) in [(1, FieldValue::Number(2.7)), (0, FieldValue::Int(3))] {
+        let mut harness = harness(ParamDialog::new("untouched", "Untouched", vec![row(places)]));
+        harness.run();
+        assert_eq!(open_dialog(&mut harness).expect("open").fields().get("v"), Some(&expected));
+    }
+}
+
+// Random sets an Int row to a value within its bounds; the pipette toggle reports its state.
+#[test]
+fn the_random_button_and_the_eyedropper_toggle_report_on_their_rows() {
+    let rows = vec![
+        Param::new("seed", "Seed:", ParamKind::Int { min: Some(10), max: Some(12), default: 0 }).randomize(),
+        Param::new("from", "From:", ParamKind::Color { default: None }).eyedropper(),
+    ];
+    let mut harness = harness(ParamDialog::new("seeded", "Seeded", rows));
+    harness.run();
+    harness.get_by_label("Random").click();
+    harness.run();
+    let seed = open_dialog(&mut harness).expect("open").fields().int("seed").expect("seed");
+    assert!((10..=12).contains(&seed), "{seed}");
+    harness.get_by_label("Eyedropper").click();
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").pick_eyedropper(), Some(EyedropperRequest { key: "from".into(), armed: true }));
+    harness.get_by_label("Eyedropper").click();
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").pick_eyedropper(), Some(EyedropperRequest { key: "from".into(), armed: false }));
+}
+
+// A full-width custom row has no library label; ParamDialog::below draws a note under the rows.
+#[test]
+fn a_full_width_custom_row_has_no_label_and_below_draws_a_note() {
+    let rows = vec![
+        Param::custom("center", "Center:", |ui, _, _| ui.button("Pick center")).full_width(),
+        Param::custom("plain", "Plain:", |ui, _, _| ui.button("Pick plain")),
+    ];
+    let mut harness = harness(ParamDialog::new("wide", "Wide", rows).below(|ui, _| {
+        ui.label("Monitor note");
+    }));
+    harness.run();
+    assert!(harness.query_by_label("Center").is_none());
+    assert!(harness.query_by_label("Pick center").is_some());
+    assert!(harness.query_by_label("Plain").is_some());
+    assert!(harness.query_by_label("Monitor note").is_some());
+}
+
+// A custom row asks the host for a colour under a key with no row; the answer lands under it and
+// is read back as the dialog's value.
+#[test]
+fn a_custom_row_asks_for_a_colour_under_its_own_key() {
+    let rows = vec![Param::custom("result", "Result:", |ui, _, custom| {
+        let response = ui.button("Pick color…");
+        if response.clicked() {
+            custom.pick_color("resultColor");
+        }
+        response
+    })];
+    let mut harness = harness(ParamDialog::new("replace", "Replace Color", rows));
+    harness.run();
+    harness.get_by_label("Result").click();
+    harness.run();
+    let dialog = open_dialog(&mut harness).expect("open");
+    let request = dialog.pick_color().expect("the press is reported");
+    assert_eq!(request.key, "resultColor");
+    assert_eq!(request.title.as_deref(), Some("Result"));
+    assert_eq!(dialog.pick_color(), None, "once");
+    dialog.set_color("resultColor", craft_theme::Srgba::from_rgb_array([0.0, 1.0, 0.0]));
+    assert_eq!(dialog.fields().color("resultColor"), Some([0.0, 1.0, 0.0]));
+}
+
+// Browse on an open-file row reports the extensions the host's file dialog filters by.
+#[test]
+fn an_open_file_row_reports_its_extensions() {
+    let rows = vec![Param::new("lut", "Look-up table:", ParamKind::Text { default: String::new() }).browse(PathKind::open_file(&["cube", "3dl"]))];
+    let mut harness = harness(ParamDialog::new("lookup", "Lookup", rows));
+    harness.run();
+    harness.get_by_label("Browse…").click();
+    harness.run();
+    let request = open_dialog(&mut harness).expect("open").pick_path().expect("reported");
+    assert_eq!(request.kind, PathKind::OpenFile { extensions: vec!["cube".into(), "3dl".into()] });
+}
+
+// Two dialogs of one command, told apart by `instance`, are open together and a swatch press in
+// one (the later, drawn on top) is reported to that one only.
+#[test]
+fn two_dialogs_of_one_command_keep_separate_state() {
+    use super::{DialogStack, StackDialog as _};
+    let make = |label: &str, instance: u32| {
+        let tint = Param::new("tint", label, ParamKind::Color { default: Some([1.0, 0.0, 0.0]) });
+        ParamDialog::new("tint-command", label.trim_end_matches(" tint:"), vec![tint]).instance(instance)
+    };
+    let mut harness = HarnessBuilder::default()
+        .with_size(vec2(900.0, 600.0))
+        .with_os(OperatingSystem::Nix)
+        .with_context_setup(|ctx| {
+            install(ctx, &Base::suite_default());
+            craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" }).install(ctx);
+        })
+        .build_ui_state(
+            |ui, dialogs: &mut Vec<ParamDialog>| {
+                let stack = DialogStack::default();
+                for dialog in dialogs {
+                    dialog.show(ui.ctx(), &stack);
+                }
+            },
+            vec![make("Beta tint:", 2), make("Alpha tint:", 1)],
+        );
+    harness.run();
+    assert_eq!(harness.query_all_by_role(Role::Dialog).count(), 2);
+    harness.state_mut()[1].fields_mut().set("tint", FieldValue::Color([0.0, 0.0, 1.0]));
+    harness.get_by_label("Alpha tint").click();
+    harness.run();
+    let [beta, alpha] = &mut harness.state_mut()[..] else { panic!("two dialogs") };
+    assert_eq!(alpha.pick_color().map(|r| r.key), Some("tint".to_owned()));
+    assert_eq!(beta.pick_color(), None);
+    assert_eq!(beta.fields().color("tint"), Some([1.0, 0.0, 0.0]));
 }

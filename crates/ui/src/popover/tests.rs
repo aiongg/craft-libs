@@ -481,6 +481,19 @@ fn the_anchor_has_a_popup_and_the_popover_is_a_named_dialog() {
 }
 
 #[test]
+fn the_dialog_node_has_the_popovers_rect() {
+    let mut h = host(Host::default());
+    h.state_mut().open = true;
+    h.run();
+    h.run();
+    let rect = h.get_by_role_and_label(Role::Dialog, "Picker").rect();
+    let shown = h.state().rect;
+    assert!(rect.width() > 0.0 && rect.height() > 0.0, "{rect:?}");
+    assert_eq!(rect.size(), shown.size());
+    assert_eq!(rect.min, shown.min);
+}
+
+#[test]
 fn the_stories_are_labelled_in_both_directions() {
     for story in crate::story::registry().into_iter().filter(|s| s.id.starts_with("patterns/popover/")) {
         for rtl in [false, true] {
@@ -621,4 +634,38 @@ fn child_lists_are_closed_when_the_popover_was_not_shown_in_a_pass() {
     h.run();
     assert!(h.state().open, "the editor is open again");
     assert!(h.query_by_role_and_label(Role::ListBoxOption, "B").is_none(), "its list is closed");
+}
+
+#[test]
+fn a_swallowing_popovers_closing_press_reaches_nothing() {
+    // The "After" button lies outside the popover; a press on it closes the popover without
+    // clicking it, only when the popover swallows its closing press.
+    let clicked = |swallow: bool| {
+        let mut h =
+            Harness::<(Host, bool, bool)>::builder().with_size(SCREEN).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+                |ui, (host, swallow, clicked)| {
+                    let chip = ui.button("Chip");
+                    if chip.clicked() {
+                        host.open = !host.open;
+                    }
+                    let popover = Popover::new("p", PopoverAnchor::Control(chip.clone()))
+                        .toggle(chip.id)
+                        .close(PopoverClose::default().swallow_outside(*swallow));
+                    let _ = popover.show(ui, &mut host.open, |ui, _| ui.label("Inside"));
+                    ui.add_space(300.0);
+                    if ui.button("After").clicked() {
+                        *clicked = true;
+                    }
+                },
+                (Host { open: true, ..Host::default() }, swallow, false),
+            );
+        h.run();
+        h.run();
+        let after = h.get_by_label("After").rect().center();
+        click(&mut h, after);
+        let (host, _, clicked) = h.state();
+        (host.open, *clicked)
+    };
+    assert_eq!(clicked(false), (false, true), "without the option the press also clicks");
+    assert_eq!(clicked(true), (false, false), "it closes and the press reaches nothing");
 }

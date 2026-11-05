@@ -5,20 +5,47 @@ use egui::{Key, Modifiers, Ui};
 use kurbo::Point;
 
 use super::bezier::story::sample_paths;
-use super::{PenDraft, PenNames, PenResponse};
-use crate::ui::pen::bezier::{BezierNames, BezierOverlay, BezierTool, EditPath, EditSubpath, KnotRef, PathSelection};
+use super::{PathOptionsPopover, PathOptionsSettings, PenDraft, PenMode, PenNames, PenResponse};
+use crate::ui::pen::bezier::{BezierNames, BezierOverlay, BezierTool, EditPath, EditSubpath, Knot, KnotRef, PathSelection};
 use craft_ui::canvas::RulerUnits;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
-use craft_ui::story::{Level, Story, Surface};
-use craft_ui::testing::canvas_story::PlainArgs;
+use craft_ui::story::{Level, Story, StoryArgs, Surface, lock, reset_on, shared};
+use craft_ui::testing::canvas_story::{PlainArgs, ViewArgs};
 use craft_ui::typed_story;
+use egui::Color32;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Pen draft"];
+pub const COMPONENTS: &[&str] = &["PenDraft", "PathOptionsPopover"];
+
+#[derive(StoryArgs, Debug, Default, PartialEq)]
+struct CurvatureArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    closed: bool,
+    #[arg(name = "corner anchors")]
+    corners: bool,
+    #[arg(name = "rubber band")]
+    rubber_band: bool,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!("primitives/pen-draft/draw", Level::Primitives, "Pen draft", "Draw", PlainArgs::default(), show_pen).on(Surface::Canvas)]
+    vec![
+        typed_story!("primitives/pen-draft/draw", Level::Primitives, "PenDraft", "Draw", PlainArgs::default(), show_pen).on(Surface::Canvas),
+        typed_story!("primitives/pen-draft/curvature", Level::Primitives, "PenDraft", "Curvature", CurvatureArgs::default(), show_curvature)
+            .on(Surface::Canvas),
+        typed_story!("primitives/pen-draft/auto-add-delete", Level::Primitives, "PenDraft", "Auto add/delete", PlainArgs::default(), show_auto)
+            .on(Surface::Canvas),
+        typed_story!(
+            "composites/path-options-popover/popover",
+            Level::Composites,
+            "PathOptionsPopover",
+            "Popover",
+            PlainArgs::default(),
+            show_options
+        )
+        .on(Surface::Canvas),
+    ]
 }
 
 /// A host's finished paths and open draft, as the story and the tests keep them: it keeps the
@@ -108,8 +135,8 @@ pub(crate) fn finished_paths() -> Vec<EditPath> {
 /// handle to move it alone; click the first anchor to close; press on an open path's end to carry
 /// on with it. Enter or Esc ends the path, Backspace removes the last anchor, ⌘Z does too.
 fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
-    let key = ui.scope_id().with("pen-story");
-    let mut host: PenHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PenHost::new(finished_paths()));
+    let kept = shared(ui, "draw", || PenHost::new(finished_paths()));
+    let mut host = lock(&kept);
     let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
     let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
@@ -121,12 +148,131 @@ fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
         &canvas.view,
     );
     let _ = shown;
-    if host.draft.is_some() && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
-        PenDraft::remove_last(ui.ctx(), ui.make_persistent_id("story-pen"));
-    }
+    let undo = host.draft.is_some() && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z));
     let ends = host.ends();
     let names = PenNames::of(ui);
-    let response = PenDraft::new("story-pen", host.draft.as_ref(), names).ends(&ends).units(&px, &px).show(ui, &canvas.response, &canvas.view);
+    let response =
+        PenDraft::new("story-pen", host.draft.as_ref(), names).ends(&ends).units(&px, &px).remove_last(undo).show(ui, &canvas.response, &canvas.view);
     host.apply(&response);
-    ui.data_mut(|d| d.insert_temp(key, host));
+}
+
+/// A draft of `points`: smooth anchors the Curvature Pen's handles flow through, the second one a
+/// corner when `corner`.
+fn curvature_draft(points: &[(f64, f64)], closed: bool, corner: bool) -> EditSubpath {
+    let knots = points
+        .iter()
+        .enumerate()
+        .map(|(i, &(x, y))| {
+            let at = Point::new(x, y);
+            if corner && i == 1 { Knot::corner(at) } else { Knot::smooth(at, at) }
+        })
+        .collect();
+    let mut draft = EditSubpath { knots, closed };
+    draft.reflow();
+    draft
+}
+
+/// The Curvature Pen on a draft of five anchors (the arguments choose a closed draft, a corner
+/// anchor and the rubber band): click for a smooth anchor, double-click an anchor to toggle it,
+/// drag an anchor to move it, click the first anchor to close, Backspace or ⌘Z removes the last.
+/// The preview curve to the pointer shows whatever the rubber band setting. Changing the draft's
+/// arguments starts it again.
+fn show_curvature(ui: &mut Ui, args: &mut CurvatureArgs) {
+    const POINTS: [(f64, f64); 5] = [(110.0, 280.0), (180.0, 150.0), (280.0, 110.0), (380.0, 200.0), (470.0, 140.0)];
+    reset_on(ui, "curvature", &(args.closed, args.corners));
+    let kept = shared(ui, "curvature", || {
+        let mut host = PenHost::new(Vec::new());
+        host.draft = Some(curvature_draft(&POINTS, args.closed, args.corners));
+        host
+    });
+    let mut host = lock(&kept);
+    let options = PathOptionsSettings { rubber_band: args.rubber_band, ..PathOptionsSettings::default() };
+    run_pen(ui, &mut host, args.view, "story-pen-curvature", PenMode::Curvature, false, Some(&options));
+}
+
+/// The Pen with Auto Add/Delete on an open draft: hover a segment of the draft to see the add
+/// look and click to add an anchor, hover an inner anchor to see the delete look and click to
+/// remove it; the first and last anchors are left to the pen, and ⇧ turns the behaviour off.
+fn show_auto(ui: &mut Ui, args: &mut PlainArgs) {
+    let kept = shared(ui, "auto", || {
+        let mut host = PenHost::new(Vec::new());
+        host.draft = Some(EditSubpath {
+            knots: vec![
+                Knot::corner(Point::new(100.0, 270.0)),
+                Knot::smooth(Point::new(220.0, 130.0), Point::new(280.0, 130.0)),
+                Knot::smooth(Point::new(380.0, 260.0), Point::new(440.0, 260.0)),
+                Knot::corner(Point::new(520.0, 120.0)),
+            ],
+            closed: false,
+        });
+        host
+    });
+    let mut host = lock(&kept);
+    run_pen(ui, &mut host, args.view, "story-pen-auto", PenMode::Pen, true, None);
+}
+
+/// The colours the story's stand-in for the app's colour picker cycles through.
+const PICKS: [Color32; 3] = [Color32::from_rgb(230, 110, 20), Color32::from_rgb(40, 140, 220), Color32::from_rgb(60, 170, 90)];
+
+/// The Path Options gear above a canvas strip with a draft and a finished path: the thickness,
+/// colour and rubber band reach both. The colour swatch cycles through a few colours, where an
+/// app opens its picker.
+fn show_options(ui: &mut Ui, args: &mut PlainArgs) {
+    let kept = shared(ui, "options", || {
+        let mut host = PenHost::new(finished_paths());
+        host.draft = Some(EditSubpath {
+            knots: vec![
+                Knot::corner(Point::new(80.0, 120.0)),
+                Knot::smooth(Point::new(160.0, 60.0), Point::new(210.0, 60.0)),
+                Knot::corner(Point::new(280.0, 110.0)),
+            ],
+            closed: false,
+        });
+        OptionsKept { host, settings: PathOptionsSettings::default(), open: false, picks: 0 }
+    });
+    let mut kept = lock(&kept);
+    let OptionsKept { host, settings, open, picks } = &mut *kept;
+    let response = PathOptionsPopover::new("story-path-options", settings).show(ui, open);
+    if let Some(value) = response.event.as_ref().and_then(EditEvent::value) {
+        *settings = *value;
+    }
+    if response.pick_color.is_some() {
+        let pick = PICKS[*picks % PICKS.len()];
+        settings.color = Some([pick.r(), pick.g(), pick.b()]);
+        *picks += 1;
+    }
+    run_pen(ui, host, args.view, "story-pen-options", PenMode::Pen, false, Some(settings));
+}
+
+/// What the Path Options story keeps: the host, the settings, whether the popover is open and how
+/// many colors the swatch has picked.
+struct OptionsKept {
+    host: PenHost,
+    settings: PathOptionsSettings,
+    open: bool,
+    picks: usize,
+}
+
+/// One pass of the pen over the host's finished paths: the paths in the Show tool, then the draft
+/// in `mode`, as an app runs them. The keys that change the draft go to it first.
+fn run_pen(ui: &mut Ui, host: &mut PenHost, view: ViewArgs, salt: &str, mode: PenMode, auto: bool, options: Option<&PathOptionsSettings>) {
+    let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+    let canvas = craft_ui::testing::canvas_story::document(ui, view, &document_name);
+    let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
+    let selection = PathSelection::default();
+    let names = BezierNames::of(ui);
+    let mut shown = BezierOverlay::new((salt, "paths"), &host.paths, &selection, &px, &px, names).tool(BezierTool::Show);
+    if let Some(options) = options {
+        shown = shown.path_options(options);
+    }
+    let _ = shown.show(ui, &canvas.response, &canvas.view);
+    let undo = host.draft.is_some() && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z));
+    let ends = host.ends();
+    let names = PenNames::of(ui);
+    let mut pen = PenDraft::new(salt, host.draft.as_ref(), names).mode(mode).auto_add_delete(auto).ends(&ends).units(&px, &px).remove_last(undo);
+    if let Some(options) = options {
+        pen = pen.path_options(options);
+    }
+    let response = pen.show(ui, &canvas.response, &canvas.view);
+    host.apply(&response);
 }

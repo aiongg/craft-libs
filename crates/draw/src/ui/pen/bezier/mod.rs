@@ -1,23 +1,35 @@
 //! [`BezierOverlay`]: paths with their anchors and direction handles on a canvas, edited as
-//! PhotoCraft's Direct Selection and Convert Point tools edit them.
+//! PhotoCraft's Direct Selection, Convert Point, Add and Delete Anchor Point and Curvature Pen
+//! tools edit them.
 
+mod hit_test;
+mod mark;
 mod model;
+mod ops;
+#[cfg(test)]
+mod ops_tests;
 pub(crate) mod story;
+mod tools;
+#[cfg(test)]
+mod tools_tests;
 
 use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, vec2};
-use kurbo::{Affine, BezPath, CubicBez, ParamCurve as _, ParamCurveNearest as _, PathEl, Point, Rect, Vec2};
+use kurbo::{Affine, BezPath, CubicBez, ParamCurve as _, PathEl, Point, Rect, Vec2};
 
+pub use mark::{AnchorsShown, HitMark, SegmentMark};
 pub use model::{EditPath, EditSubpath, HandleSide, Knot, KnotRef, PathEdit, PathSelection};
 
 use craft_ui::behavior::nudge;
 use craft_ui::canvas::claim::PrimaryPress;
-use craft_ui::canvas::{CanvasView, Claim, Marquee, MarqueeDrag, MarqueeLook, Part, PartFocus, RulerUnits, hit};
+use craft_ui::canvas::{CanvasView, Claim, Marquee, MarqueeDrag, MarqueeLook, Part, PartFocus, RulerUnits};
 use craft_ui::edit::order::Turn;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::words::format_in;
 use craft_ui::localized::{Labels, Word, Words};
 use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+
+use super::PathOptionsSettings;
 
 /// `style` with `change` applied: handle styles are `#[non_exhaustive]`, so a struct update is not
 /// available outside craft-ui.
@@ -41,6 +53,23 @@ pub enum BezierTool {
     Convert,
     /// Anchors drawn, not edited (PhotoCraft's Path Selection and Pen tools).
     Show,
+    /// Add Anchor Point: a click on a segment reports [`insert`](BezierResponse::insert) at the
+    /// hit's `t`; ⌥ makes it Delete Anchor Point. Hover: the segment mark with the anchor a click
+    /// adds ([`HitMark`]).
+    AddAnchor,
+    /// Delete Anchor Point: a click on an anchor reports [`delete`](BezierResponse::delete) of
+    /// that anchor; ⌥ makes it Add Anchor Point. Hover: the anchor mark.
+    DeleteAnchor,
+    /// The Pen's Auto Add/Delete while no path is being drawn: Add on a segment, Delete on an
+    /// anchor that is not an open subpath's end (the pen draft takes those), no ⌥ swap, no
+    /// marquee. Presses on empty canvas are left to the pen draft.
+    AutoAddDelete,
+    /// The Curvature Pen on finished paths: an anchor drags with the curve reflowing
+    /// ([`PathEdit::MoveCurvature`]); a segment gets a smooth anchor that drags the same way
+    /// ([`PathEdit::InsertCurvature`]); a double-click on an anchor toggles smooth and corner
+    /// ([`PathEdit::ToggleCurvature`]). Empty canvas is left to the pen draft. Arrows move the
+    /// selected anchors, Enter toggles the picked one.
+    Curvature,
 }
 
 /// Whose direction handles the overlay shows.
@@ -240,6 +269,25 @@ enum Target {
         path: u64,
         knot: KnotRef,
     },
+    /// The Curvature tool's drag of one anchor, grabbed at `from`.
+    CurvatureMove {
+        path: u64,
+        knot: KnotRef,
+        from: Point,
+    },
+    /// The Curvature tool's insert into `segment` at `t`, dragged from `from`, the point of the
+    /// curve at `t`.
+    CurvatureInsert {
+        path: u64,
+        segment: KnotRef,
+        t: f64,
+        from: Point,
+    },
+    /// The second click of a double-click on an anchor: a toggle on release, never a drag.
+    Toggle {
+        path: u64,
+        knot: KnotRef,
+    },
     /// A press the overlay took that moves nothing (⇧ on a selected anchor deselects it).
     Nothing,
 }
@@ -332,6 +380,12 @@ struct Pass<'p> {
 ///   [`delete`](BezierResponse::delete), Insert [`insert`](BezierResponse::insert) halfway along
 ///   the segment leaving the picked anchor; Esc deselects.
 /// - Selection is the host's: it passes it and applies [`select`](BezierResponse::select).
+/// - The anchor tools ([`BezierTool::AddAnchor`], [`BezierTool::DeleteAnchor`],
+///   [`BezierTool::AutoAddDelete`]) and [`BezierTool::Curvature`] claim only a press that hits
+///   what they edit, and draw the [`HitMark`] of what a press would take under the pointer.
+///   [`segment_mark`](Self::segment_mark), [`anchors`](Self::anchors) and
+///   [`path_options`](Self::path_options) change the look; [`hit_test`](Self::hit_test) answers
+///   the press priority without a pass.
 pub struct BezierOverlay<'a> {
     id_salt: IdSalt,
     paths: &'a [EditPath],
@@ -348,6 +402,9 @@ pub struct BezierOverlay<'a> {
     policy: EditPolicy,
     modifiers: Option<Modifiers>,
     highlight: Option<BezierHit>,
+    segment_mark: SegmentMark,
+    anchors: AnchorsShown,
+    path_options: Option<&'a PathOptionsSettings>,
 }
 
 impl<'a> BezierOverlay<'a> {
@@ -378,6 +435,9 @@ impl<'a> BezierOverlay<'a> {
             policy: EditPolicy::default(),
             modifiers: None,
             highlight: None,
+            segment_mark: SegmentMark::default(),
+            anchors: AnchorsShown::default(),
+            path_options: None,
         }
     }
 
@@ -445,6 +505,27 @@ impl<'a> BezierOverlay<'a> {
         self
     }
 
+    /// How a clicked segment shows; [`SegmentMark::HandlesOnly`] by default (gap row 36).
+    pub fn segment_mark(mut self, mark: SegmentMark) -> Self {
+        self.segment_mark = mark;
+        self
+    }
+
+    /// Whether anchors and handles show; [`AnchorsShown::All`] by default (gap row 38).
+    pub fn anchors(mut self, anchors: AnchorsShown) -> Self {
+        self.anchors = anchors;
+        self
+    }
+
+    /// The user's Path Options: a [`color`](PathOptionsSettings::color) replaces `overlay.line`
+    /// for paths without a colour of their own, a [`thickness`](PathOptionsSettings::thickness)
+    /// replaces `bezier.line` (and `bezier.selected_segment` grows by the same amount). The
+    /// rubber band setting is the pen draft's. None by default: the tokens' look.
+    pub fn path_options(mut self, options: &'a PathOptionsSettings) -> Self {
+        self.path_options = Some(options);
+        self
+    }
+
     pub fn style(tokens: &UiTokens) -> BezierStyle {
         let b = &tokens.component.bezier;
         let sized = |style: HandleStyle, size| adjusted(style, |h| (h.size, h.hit) = (size, 2.0 * b.hit));
@@ -473,8 +554,18 @@ impl<'a> BezierOverlay<'a> {
         let ctx = ui.ctx().clone();
         let id = ui.make_persistent_id(self.id_salt);
         let style = self.look.unwrap_or_else(|| BezierOverlay::style(&Tokens::of(ui)));
-        let limited = self.paths.iter().map(EditPath::anchor_count).sum::<usize>() > MAX_ANCHORS;
-        let shown = if limited { Vec::new() } else { self.shown_handles(view) };
+        let mut style = style;
+        if let Some(options) = self.path_options {
+            if let Some([r, g, b]) = options.color {
+                style.color = Color32::from_rgb(r, g, b);
+            }
+            if let Some(thickness) = options.thickness {
+                style.selected_segment += thickness - style.line;
+                style.line = thickness;
+            }
+        }
+        let limited = self.anchors == AnchorsShown::Hidden || self.paths.iter().map(EditPath::anchor_count).sum::<usize>() > MAX_ANCHORS;
+        let shown = if limited { Vec::new() } else { hit_test::shown_handles(self.paths, self.selection, self.handles, view) };
         let pass = Pass { ctx: ctx.clone(), id, canvas, view, style, shown, limited };
         let editing = self.tool != BezierTool::Show && ui.is_enabled();
         let mut out = BezierResponse { id, event: None, select: None, insert: None, delete: None, context: None, claimed: false };
@@ -511,7 +602,7 @@ impl<'a> BezierOverlay<'a> {
             }
         }
         if let Some(d) = drag.take() {
-            drag = if d.waits.is_some() { Some(d) } else { self.track(&pass, d, &mut gesture) };
+            drag = if d.waits.is_some() { Some(d) } else { self.track(&pass, d, &mut gesture, &mut out) };
         }
         let marquee_id = canvas.id.with_salt(IdSalt::new(marquee_salt(id)));
         if editing && self.tool == BezierTool::Direct && drag.is_none() {
@@ -603,6 +694,14 @@ impl<'a> BezierOverlay<'a> {
         let Some(hit) = self.hit_at(pass, press.origin).filter(|hit| self.takes(hit)) else {
             return nothing;
         };
+        if matches!(self.tool, BezierTool::AddAnchor | BezierTool::DeleteAnchor | BezierTool::AutoAddDelete) {
+            // One click, reported on the press: no gesture, no drag, no selection change.
+            self.anchor_click(hit, mods, out);
+            return nothing;
+        }
+        if self.tool == BezierTool::Curvature {
+            return self.curvature_press(hit, press, pass, parts, picked, out);
+        }
         let part_key = |path: u64, knot: KnotRef, side: Option<HandleSide>| {
             parts.iter().find(|(_, r)| self.paths[r.path].key == path && r.knot == knot && r.side == side).map(|(p, _)| p.key)
         };
@@ -661,16 +760,24 @@ impl<'a> BezierOverlay<'a> {
     }
 
     /// One pass of a press the overlay owns: the press that goes on, if it does.
-    fn track(&self, pass: &Pass<'_>, mut d: Drag, gesture: &mut Gesture<PathEdit>) -> Option<Drag> {
+    fn track(&self, pass: &Pass<'_>, mut d: Drag, gesture: &mut Gesture<PathEdit>, out: &mut BezierResponse) -> Option<Drag> {
         let (pointer, down, input_mods) = pass.ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
         let mods = self.modifiers.unwrap_or(input_mods);
         if d.cancelled {
             return down.then_some(d);
         }
         if let Some(pointer) = pointer {
-            if !d.began && d.target != Target::Nothing && pointer.distance(d.press.origin) > pass.style.click_slop {
+            if !d.began
+                && d.target != Target::Nothing
+                && !matches!(d.target, Target::Toggle { .. })
+                && pointer.distance(d.press.origin) > pass.style.click_slop
+            {
                 gesture.begin();
                 d.began = true;
+                if let Target::CurvatureInsert { path, segment, .. } = d.target {
+                    // Selected with the first Update, so a host never sees the selection without the insert.
+                    out.select = Some(insert_selection(path, segment));
+                }
             }
             if d.began
                 && let Some(edit) = self.edit(pass.view, &d, pointer, mods)
@@ -691,6 +798,11 @@ impl<'a> BezierOverlay<'a> {
             gesture.commit();
         } else if let Target::Convert { path, knot } = d.target {
             gesture.set(PathEdit::Convert { path, knot, out: None });
+        } else if let Target::Toggle { path, knot } = d.target {
+            gesture.set(PathEdit::ToggleCurvature { path, knot });
+        } else if let Target::CurvatureInsert { path, segment, t, .. } = d.target {
+            gesture.set(PathEdit::InsertCurvature { path, segment, t, by: Vec2::ZERO });
+            out.select = Some(insert_selection(path, segment));
         }
         None
     }
@@ -716,7 +828,15 @@ impl<'a> BezierOverlay<'a> {
                 let out = snapped(&BezierHit::Anchor { path, knot }, view.to_doc(pointer));
                 PathEdit::Convert { path, knot, out: Some(out) }
             }
-            Target::Nothing => return None,
+            &Target::CurvatureMove { path, knot, from } => {
+                let delta = if mods.shift { constrain(delta) } else { delta };
+                PathEdit::MoveCurvature { path, anchors: vec![knot], by: snapped(&BezierHit::Anchor { path, knot }, from + delta) - from }
+            }
+            &Target::CurvatureInsert { path, segment, t, from } => {
+                let delta = if mods.shift { constrain(delta) } else { delta };
+                PathEdit::InsertCurvature { path, segment, t, by: snapped(&BezierHit::Segment { path, segment, t }, from + delta) - from }
+            }
+            Target::Nothing | Target::Toggle { .. } => return None,
         })
     }
 
@@ -789,6 +909,10 @@ impl<'a> BezierOverlay<'a> {
             BezierTool::Direct => true,
             BezierTool::Convert => !matches!(hit, BezierHit::Segment { .. }),
             BezierTool::Show => false,
+            // The anchor tools' takes does not depend on the modifiers (⌥ swaps what a press reports).
+            BezierTool::AddAnchor | BezierTool::DeleteAnchor | BezierTool::AutoAddDelete | BezierTool::Curvature => {
+                self.tool_takes(hit, self.modifiers.unwrap_or_default())
+            }
         }
     }
 
@@ -816,12 +940,17 @@ impl<'a> BezierOverlay<'a> {
                 out.select = Some(PathSelection { path: Some(path), anchors: list, segment: None });
             }
         }
-        if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::A))
+        let keyed = self.moves_with_keys();
+        if keyed
+            && ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::A))
             && let Some(path) = focused_path
         {
             out.select = Some(PathSelection { path: Some(path.key), anchors: path.knot_refs().collect(), segment: None });
         }
-        if let Some((by, alone)) = nudge::read_with_alt(ui, self.steps.0, self.steps.1) {
+        if self.tool == BezierTool::Curvature {
+            self.curvature_keys(ui, part, gesture);
+        }
+        if keyed && let Some((by, alone)) = nudge::read_with_alt(ui, self.steps.0, self.steps.1) {
             match part {
                 Some(PartRef { path, knot, side: Some(side), .. }) => {
                     let path = &self.paths[path];
@@ -852,7 +981,7 @@ impl<'a> BezierOverlay<'a> {
                 out.insert = Some((path.key, r.knot, 0.5));
             }
         }
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) && *self.selection != PathSelection::default() {
+        if keyed && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) && *self.selection != PathSelection::default() {
             out.select = Some(PathSelection::default());
         }
     }
@@ -912,73 +1041,23 @@ impl<'a> BezierOverlay<'a> {
         parts
     }
 
-    /// The handles to show, in path order, in then out, leaving out retracted ones.
-    fn shown_handles(&self, view: &CanvasView) -> Vec<Shown> {
-        let mut shown = Vec::new();
-        let sel = self.selection;
-        for (index, path) in self.paths.iter().enumerate() {
-            let segment_ends = sel.segment.filter(|_| sel.path == Some(path.key)).and_then(|s| {
-                let (a, b) = path.subpaths.get(s.subpath)?.segment_ends(s.knot)?;
-                Some((KnotRef::new(s.subpath, a), KnotRef::new(s.subpath, b)))
-            });
-            for knot_ref in path.knot_refs() {
-                let Some(knot) = path.knot(knot_ref) else { continue };
-                for side in [HandleSide::In, HandleSide::Out] {
-                    let wanted = match self.handles {
-                        HandlesShown::All => true,
-                        HandlesShown::Selected => {
-                            sel.has_anchor(path.key, knot_ref)
-                                || segment_ends
-                                    .is_some_and(|(a, b)| (side == HandleSide::Out && a == knot_ref) || (side == HandleSide::In && b == knot_ref))
-                        }
-                    };
-                    if wanted && !knot.retracted(side) {
-                        shown.push(Shown { path: index, knot: knot_ref, side, at: view.to_screen(knot.handle(side)) });
-                    }
-                }
-            }
-        }
-        shown
+    /// What is under `pointer`, as [`BezierOverlay::hit_test`] answers it for this pass.
+    fn hit_at(&self, pass: &Pass<'_>, pointer: Pos2) -> Option<BezierHit> {
+        // PhotoCraft's Add, Delete, Auto and Curvature tools hit anchors and segments only: a
+        // shown handle must not hide what is under it (pc: anchor_tools.rs `target`).
+        let handles: &[Shown] = if self.reads_handles() { &pass.shown } else { &[] };
+        hit_test::hit_in(self.paths, handles, !pass.limited, pass.view, pointer, pass.style.hit)
     }
 
-    /// What is under `pointer`: the shown handles first, then anchors, then segments; the nearest
-    /// within `bezier.hit` of each kind, of equal distances the path drawn last.
-    fn hit_at(&self, pass: &Pass<'_>, pointer: Pos2) -> Option<BezierHit> {
-        let reach = pass.style.hit;
-        let nearest = |best: &mut Option<(BezierHit, f32)>, hit: BezierHit, d: f32| {
-            if d <= reach && best.is_none_or(|(_, bd)| d <= bd) {
-                *best = Some((hit, d));
-            }
-        };
-        let mut best = None;
-        for s in &pass.shown {
-            let path = self.paths[s.path].key;
-            nearest(&mut best, BezierHit::Handle { path, knot: s.knot, side: s.side }, hit::point(pointer, s.at));
-        }
-        if best.is_none() && !pass.limited {
-            for path in self.paths {
-                for k in path.knot_refs() {
-                    if let Some(knot) = path.knot(k) {
-                        nearest(&mut best, BezierHit::Anchor { path: path.key, knot: k }, hit::point(pointer, pass.view.to_screen(knot.anchor)));
-                    }
-                }
-            }
-        }
-        if best.is_none() {
-            let to_screen = pass.view.affine();
-            let p = Point::new(f64::from(pointer.x), f64::from(pointer.y));
-            for path in self.paths {
-                for (s, sub) in path.subpaths.iter().enumerate() {
-                    for i in 0..sub.segment_count() {
-                        let Some(c) = sub.segment(i) else { continue };
-                        let nearest_t = map_cubic(to_screen, c).nearest(p, 1e-3);
-                        let d = nearest_t.distance_sq.sqrt() as f32;
-                        nearest(&mut best, BezierHit::Segment { path: path.key, segment: KnotRef::new(s, i), t: nearest_t.t }, d);
-                    }
-                }
-            }
-        }
-        best.map(|(hit, _)| hit)
+    /// Whether the tool presses on shown handles: Direct, Convert and Show.
+    fn reads_handles(&self) -> bool {
+        matches!(self.tool, BezierTool::Direct | BezierTool::Convert | BezierTool::Show)
+    }
+
+    /// Whether the tool has the arrow, ⌘A and Esc keys: Direct, Convert and Curvature. Add and
+    /// Delete have Insert and Delete only, Auto Add/Delete none.
+    fn moves_with_keys(&self) -> bool {
+        matches!(self.tool, BezierTool::Direct | BezierTool::Convert | BezierTool::Curvature)
     }
 
     /// Draws the outlines, the selected segment, the shown handles and the anchors.
@@ -993,7 +1072,8 @@ impl<'a> BezierOverlay<'a> {
             for sub in &path.subpaths {
                 outline(&painter, to_screen * sub.bez_path(), tolerance, Stroke::new(style.line, color));
             }
-            if let Some(s) = self.selection.segment.filter(|_| self.selection.path == Some(path.key))
+            if self.segment_mark == SegmentMark::Line
+                && let Some(s) = self.selection.segment.filter(|_| self.selection.path == Some(path.key))
                 && let Some(c) = path.subpaths.get(s.subpath).and_then(|sub| sub.segment(s.knot))
             {
                 let mut seg = BezPath::new();
@@ -1020,36 +1100,20 @@ impl<'a> BezierOverlay<'a> {
                 painter.extend(Handle::shapes_with(&control, HandleShape::Rotate, s.at, ppp));
             }
         }
-        if let Some(hit) = self.highlight {
-            self.paint_highlight(&painter, pass, hit, ppp);
+        let hover = self.highlight.or_else(|| {
+            let pointer = pass.canvas.hover_pos().filter(|_| !pass.ctx.input(|i| i.pointer.primary_down()))?;
+            let mods = self.modifiers.unwrap_or_else(|| pass.ctx.input(|i| i.modifiers));
+            self.hover_mark(pass, pointer, mods)
+        });
+        if let Some(hit) = hover {
+            self.paint_highlight(&painter, pass, hit);
         }
     }
 
     /// The hover look of the Add, Delete and Convert Anchor tools on `hit`.
-    fn paint_highlight(&self, painter: &Painter, pass: &Pass<'_>, hit: BezierHit, ppp: f32) {
-        let (style, view) = (&pass.style, pass.view);
-        let Some(path) = self.paths.iter().find(|p| p.key == hit.path()) else { return };
-        let color = path.color.unwrap_or(style.color);
-        let tolerance = f64::from(style.flatten);
-        let (anchor, _, control) = style.looks(path.color);
-        let (point, shape, base) = match hit {
-            BezierHit::Segment { segment, .. } => {
-                if let Some(c) = path.subpaths.get(segment.subpath).and_then(|sub| sub.segment(segment.knot)) {
-                    let mut seg = BezPath::new();
-                    seg.move_to(c.p0);
-                    seg.curve_to(c.p1, c.p2, c.p3);
-                    let seg = view.affine() * seg;
-                    outline(painter, seg.clone(), tolerance, Stroke::new(style.selected_segment + 2.0 * style.highlight_halo, style.halo));
-                    outline(painter, seg, tolerance, Stroke::new(style.selected_segment, color));
-                }
-                return;
-            }
-            BezierHit::Anchor { knot, .. } => (path.knot(knot).map(|k| k.anchor), HandleShape::Square, anchor),
-            BezierHit::Handle { knot, side, .. } => (path.knot(knot).map(|k| k.handle(side)), HandleShape::Rotate, control),
-        };
-        if let Some(at) = point {
-            let look = adjusted(base, |h| h.size = style.highlight_anchor);
-            painter.extend(Handle::shapes_with(&look, shape, view.to_screen(at), ppp));
+    fn paint_highlight(&self, painter: &Painter, pass: &Pass<'_>, hit: BezierHit) {
+        if let Some(path) = self.paths.iter().find(|p| p.key == hit.path()) {
+            HitMark::new(path, hit).paint(painter, pass.view, &pass.style);
         }
     }
 
@@ -1072,6 +1136,11 @@ fn idle_value() -> PathEdit {
     PathEdit::MoveAnchors { path: 0, anchors: Vec::new(), by: Vec2::ZERO }
 }
 
+/// The selection a Curvature insert on `segment` makes: the new anchor alone.
+fn insert_selection(path: u64, segment: KnotRef) -> PathSelection {
+    PathSelection { path: Some(path), anchors: vec![KnotRef::new(segment.subpath, segment.knot + 1)], segment: None }
+}
+
 fn drag_key(id: Id) -> Id {
     id.with("craft_ui::canvas::BezierOverlay::drag")
 }
@@ -1091,7 +1160,10 @@ fn target_hit(target: &Target) -> Option<BezierHit> {
         Target::Anchors { hit, .. } => Some(hit),
         Target::Handle { path, knot, side, .. } => Some(BezierHit::Handle { path, knot, side }),
         Target::Bend { path, segment, t, .. } => Some(BezierHit::Segment { path, segment, t }),
-        Target::Convert { path, knot } => Some(BezierHit::Anchor { path, knot }),
+        Target::Convert { path, knot } | Target::CurvatureMove { path, knot, .. } | Target::Toggle { path, knot } => {
+            Some(BezierHit::Anchor { path, knot })
+        }
+        Target::CurvatureInsert { path, segment, t, .. } => Some(BezierHit::Segment { path, segment, t }),
         Target::Nothing => None,
     }
 }

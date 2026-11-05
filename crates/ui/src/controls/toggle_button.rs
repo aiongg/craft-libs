@@ -124,7 +124,7 @@ impl Widget for ToggleButton<'_> {
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Toggle button"];
+pub const COMPONENTS: &[&str] = &["ToggleButton"];
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct ToggleArgs {
@@ -137,7 +137,7 @@ pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
         "controls/toggle-button/toggle",
         Level::Controls,
-        "Toggle button",
+        "ToggleButton",
         "Toggle",
         ToggleArgs { size: SizeArg::Md, disabled: false, label: "Snap to grid".into() },
         show

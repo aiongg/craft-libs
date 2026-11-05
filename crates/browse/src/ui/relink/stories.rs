@@ -31,7 +31,7 @@ use egui::{Ui, vec2};
 use super::{LinkFilter, LinkList, LinkListEvent, LinkListSettings, LinkListState, LinkSort, RelinkDialog, RelinkOptions, RelinkOutcome, RelinkRow};
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Link list", "Relink dialog"];
+pub const COMPONENTS: &[&str] = &["LinkList", "RelinkDialog"];
 
 craft_ui::words! {
     /// The sample text of the link stories, English by default.
@@ -52,7 +52,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/link-list/list",
             Level::Patterns,
-            "Link list",
+            "LinkList",
             "Link list",
             ListArgs { filter: FilterArg::All, sort: SortArg::Name, thumbnails: SizeArg::Small, info_open: true, actions: true, height: 380.0 },
             show_list
@@ -60,7 +60,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/relink-dialog/dialog",
             Level::Patterns,
-            "Relink dialog",
+            "RelinkDialog",
             "Relink dialog",
             DialogArgs { open: true, relink_others: true, exact_names: false, slow_search: false },
             show_dialog
