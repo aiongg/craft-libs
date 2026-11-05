@@ -148,11 +148,17 @@ fn text_has_keys(ctx: &Context) -> bool {
     let last = Id::unique("craft_ui::focus::key_owner::last_text");
     if ctx.text_edit_focused() {
         let id = ctx.memory(|m| m.focused());
-        ctx.data_mut(|d| d.insert_temp(last, id));
+        let pass = ctx.cumulative_pass_nr();
+        ctx.data_mut(|d| d.insert_temp(last, (id, pass)));
         return true;
     }
-    let Some(Some(id)) = ctx.data(|d| d.get_temp::<Option<Id>>(last)) else {
+    let Some((Some(id), seen)) = ctx.data(|d| d.get_temp::<(Option<Id>, u64)>(last)) else {
         return false;
     };
+    // Only the pass right after the one that saw the focus: between passes (a host asking before
+    // the next pass) the dropped focus and the stale Esc are no longer this pass's.
+    if ctx.cumulative_pass_nr() != seen + 1 {
+        return false;
+    }
     ctx.memory(|m| m.had_focus_last_frame(id)) && ctx.input(|i| i.key_pressed(egui::Key::Escape) || i.key_pressed(egui::Key::Tab))
 }
