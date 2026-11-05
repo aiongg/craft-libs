@@ -23,6 +23,19 @@ const ANT_REPAINT: std::time::Duration = std::time::Duration::from_millis(60);
 const PREVIEW_DASH: f32 = 4.0;
 const PREVIEW_GAP: f32 = 3.0;
 
+/// How much of the header text's colour a hidden line's double divider keeps (GridCraft
+/// `grid/show.rs:548` `gamma_multiply(0.6)`).
+const HIDDEN_MARK_STRENGTH: f32 = 0.6;
+
+/// The select-all triangle's offsets in points from the corner's right, top, bottom and left
+/// edges (GridCraft `grid/show.rs:624-628`): the right angle sits `RIGHT` in from the right edge
+/// and `BOTTOM` up from the bottom, the other two points `TOP` down from the top and `LEFT` in
+/// from the left.
+const TRIANGLE_RIGHT: f32 = 3.0;
+const TRIANGLE_TOP: f32 = 5.0;
+const TRIANGLE_BOTTOM: f32 = 3.0;
+const TRIANGLE_LEFT: f32 = 7.0;
+
 /// The colours and strokes the grid paints with, from the theme.
 struct Look {
     background: Color32,
@@ -34,6 +47,7 @@ struct Look {
     header_whole_text: Color32,
     gridline: Stroke,
     header_line: Stroke,
+    hidden_mark: Stroke,
     accent: Stroke,
     /// A drag's preview outline.
     preview: Stroke,
@@ -41,6 +55,9 @@ struct Look {
     handle_fill: Color32,
     handle_stroke: Stroke,
     handle: f32,
+    accent_bar: f32,
+    hidden_offset: f32,
+    separator_inset: f32,
     font: FontId,
 }
 
@@ -59,12 +76,16 @@ impl Look {
             header_whole_text: c.text.normal.to_egui(),
             gridline: Line::Hairline.egui(ctx, c.line.divider.to_egui()),
             header_line: Line::Hairline.egui(ctx, c.line.border.to_egui()),
+            hidden_mark: Line::Hairline.egui(ctx, c.text.muted.to_egui().gamma_multiply(HIDDEN_MARK_STRENGTH)),
             accent: Line::W2.egui(ctx, c.accent.solid.to_egui()),
             preview: Line::W2.egui(ctx, c.text.muted.to_egui()),
             fill: style.selection_fill,
             handle_fill: style.fill_handle_fill,
             handle_stroke: Line::W1.egui(ctx, style.fill_handle_ring),
             handle: style.fill_handle,
+            accent_bar: style.header_accent_bar,
+            hidden_offset: style.hidden_mark_offset,
+            separator_inset: style.header_separator_inset,
             font: FontId::new(base.size * zoom.max(HEADER_MIN_ZOOM), base.family),
         }
     }
@@ -124,8 +145,10 @@ pub(super) fn paint<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, tokens: &UiTokens
     let panes = panes(&rows, &columns);
     for pane in &panes {
         let clipped = painter.with_clip_rect(pane.clip.intersect(painter.clip_rect()));
-        paint_gridlines(&clipped, geo, pane, &look);
-        paint_cells(pass, &clipped, geo, pane);
+        if pass.model.show_gridlines() {
+            paint_gridlines(&clipped, geo, pane, &look);
+        }
+        paint_cells(pass, &clipped, geo, pane, &look);
     }
     paint_selection(pass, &painter, geo, &state.selection, &look, state.editing);
     paint_marks(pass, ui, &painter, geo, &look, preview);
@@ -152,19 +175,23 @@ fn paint_gridlines(p: &Painter, geo: &SheetGeometry, pane: &Pane, look: &Look) {
     }
 }
 
-/// The app paints every shown cell of the pane; a merged cell once, over its whole rect.
-fn paint_cells<M: GridModel>(pass: &Pass<'_, M>, p: &Painter, geo: &SheetGeometry, pane: &Pane) {
+/// The app paints every shown cell of the pane; a merged cell once, over its whole rect, which
+/// first covers the gridlines under it (GridCraft `grid/quadrant.rs:185-210`).
+fn paint_cells<M: GridModel>(pass: &Pass<'_, M>, p: &Painter, geo: &SheetGeometry, pane: &Pane, look: &Look) {
+    let zoom = geo.layout.zoom;
     let area = CellRange::new(CellRef::new(pane.rows.first, pane.columns.first), CellRef::new(pane.rows.last, pane.columns.last));
     let merges: Vec<CellRange> = pass.model.merges().iter().copied().filter(|m| m.intersects(&area)).collect();
     for merge in &merges {
-        pass.model.paint_cell(p, geo.range_rect(*merge), merge.start);
+        let rect = geo.range_rect(*merge);
+        p.rect_filled(rect.shrink(pass.hairline / 2.0), 0.0, look.background);
+        pass.model.paint_cell(p, rect, merge.start, zoom);
     }
     for row in pane.rows.first..=pane.rows.last {
         for column in pane.columns.first..=pane.columns.last {
             let cell = CellRef::new(row, column);
             let rect = geo.cell_rect(cell);
             if rect.width() > 0.0 && rect.height() > 0.0 && !merges.iter().any(|m| m.contains(cell)) {
-                pass.model.paint_cell(p, rect, cell);
+                pass.model.paint_cell(p, rect, cell, zoom);
             }
         }
     }
@@ -303,32 +330,63 @@ fn paint_headers<M: GridModel>(
         let clip = p.with_clip_rect(Rect::from_x_y_ranges(span.from..=span.to, top.y_range()).intersect(p.clip_rect()));
         for column in span.first..=span.last {
             let rect = Rect::from_min_size(Pos2::new(geo.x(column), top.top()), Vec2::new(geo.cell_rect(CellRef::new(0, column)).width(), header.y));
+            if rect.width() <= 0.0 {
+                continue;
+            }
             let shown = selection.ranges().iter().any(|r| r.columns().contains(&column));
             let whole = selection.ranges().iter().any(|r| r.start.row == 0 && r.end.row + 1 == row_count && r.columns().contains(&column));
             let label = pass.model.column_label(column);
             paint_header(&clip, rect, &label, (shown, whole), look);
-            clip.vline(rect.right(), rect.y_range(), look.header_line);
+            if shown {
+                let bar = look.accent_bar;
+                clip.rect_filled(Rect::from_x_y_ranges(rect.x_range(), rect.bottom() - bar..=rect.bottom()), 0.0, look.accent.color);
+            }
+            clip.vline(rect.right(), rect.top() + look.separator_inset..=rect.bottom(), look.header_line);
+            let (before, after) = hidden_around(column, |i| pass.model.columns().size(i));
+            for x in [before.then_some(rect.left()), after.then_some(rect.right())].into_iter().flatten() {
+                for dx in [-look.hidden_offset, look.hidden_offset] {
+                    clip.vline(x + dx, rect.top() + look.separator_inset..=rect.bottom(), look.hidden_mark);
+                }
+            }
         }
     }
     for span in rows {
         let clip = p.with_clip_rect(Rect::from_x_y_ranges(left.x_range(), span.from..=span.to).intersect(p.clip_rect()));
         for row in span.first..=span.last {
             let rect = Rect::from_min_size(Pos2::new(left.left(), geo.y(row)), Vec2::new(header.x, geo.cell_rect(CellRef::new(row, 0)).height()));
+            if rect.height() <= 0.0 {
+                continue;
+            }
             let shown = selection.ranges().iter().any(|r| r.rows().contains(&row));
             let whole = selection.ranges().iter().any(|r| r.start.column == 0 && r.end.column + 1 == column_count && r.rows().contains(&row));
             paint_header(&clip, rect, &(row + 1).to_string(), (shown, whole), look);
-            clip.hline(rect.x_range(), rect.bottom(), look.header_line);
+            if shown {
+                let bar = look.accent_bar;
+                clip.rect_filled(Rect::from_x_y_ranges(rect.right() - bar..=rect.right(), rect.y_range()), 0.0, look.accent.color);
+            }
+            clip.hline(rect.left() + look.separator_inset..=rect.right(), rect.bottom(), look.header_line);
+            let (before, after) = hidden_around(row, |i| pass.model.rows().size(i));
+            for y in [before.then_some(rect.top()), after.then_some(rect.bottom())].into_iter().flatten() {
+                for dy in [-look.hidden_offset, look.hidden_offset] {
+                    clip.hline(rect.left() + look.separator_inset..=rect.right(), y + dy, look.hidden_mark);
+                }
+            }
         }
     }
     p.hline(corner.left()..=top.right(), cells.top(), look.header_line);
     p.vline(cells.left(), corner.top()..=left.bottom(), look.header_line);
-    let (w, h) = (corner.width(), corner.height());
     let triangle = vec![
-        Pos2::new(corner.right() - w * 0.2, corner.top() + h * 0.25),
-        Pos2::new(corner.right() - w * 0.2, corner.bottom() - h * 0.15),
-        Pos2::new(corner.left() + w * 0.35, corner.bottom() - h * 0.15),
+        Pos2::new(corner.right() - TRIANGLE_RIGHT, corner.top() + TRIANGLE_TOP),
+        Pos2::new(corner.right() - TRIANGLE_RIGHT, corner.bottom() - TRIANGLE_BOTTOM),
+        Pos2::new(corner.left() + TRIANGLE_LEFT, corner.bottom() - TRIANGLE_BOTTOM),
     ];
     p.add(Shape::convex_polygon(triangle, look.header_text, Stroke::NONE));
+}
+
+/// Whether the line before and the line after `line` are hidden (size 0), so its header edges get
+/// the double divider (GridCraft `grid/show.rs` `hidden_around`). Line 0 has nothing before it.
+fn hidden_around(line: u32, size: impl Fn(u32) -> f64) -> (bool, bool) {
+    (line > 0 && size(line - 1) <= 0.0, line < u32::MAX && size(line + 1) <= 0.0)
 }
 
 fn paint_header(p: &Painter, rect: Rect, text: &str, (shown, whole): (bool, bool), look: &Look) {
@@ -390,8 +448,9 @@ fn mirror_shape(shape: &mut Shape, axis: f32) {
     }
 }
 
-/// The AccessKit nodes of what is shown: the headers and rows of cells. They are created before
-/// the grid's own widget so the grid, on top of them, takes the pointer and the focus.
+/// The AccessKit nodes of what is shown: the headers and rows of cells, described from the
+/// pass's final geometry. They only name themselves (hover sense), so the grid's own widget
+/// under them keeps the pointer and the focus. The caller runs this only while AccessKit is on.
 pub(super) fn describe_cells<M: GridModel>(pass: &Pass<'_, M>, ui: &mut Ui, grid: Id, geo: &SheetGeometry) {
     let enabled = ui.is_enabled();
     let (rows, columns) = spans(geo);
@@ -459,12 +518,12 @@ fn describe_cell<M: GridModel>(pass: &Pass<'_, M>, row: &Ui, grid: Id, geo: &She
 }
 
 /// The grid's own node: its size, and the active cell as the focused descendant when that cell
-/// was described this pass (`described` is the geometry [`describe_cells`] ran on).
-pub(super) fn describe_grid<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, grid: Id, state: &GridState, described: &SheetGeometry) {
+/// is shown in `geo`, the geometry [`describe_cells`] ran on.
+pub(super) fn describe_grid<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, grid: Id, state: &GridState, geo: &SheetGeometry) {
     let active = state.selection.active();
-    let (rows, columns) = spans(described);
+    let (rows, columns) = spans(geo);
     let shown = rows.iter().any(|r| (r.first..=r.last).contains(&active.row)) && columns.iter().any(|c| (c.first..=c.last).contains(&active.column));
-    let visible = shown && described.cell_rect(active).width() > 0.0 && described.cell_rect(active).height() > 0.0;
+    let visible = shown && geo.cell_rect(active).width() > 0.0 && geo.cell_rect(active).height() > 0.0;
     ui.ctx().accesskit_node_builder(grid, |n| {
         n.set_row_count(pass.space.row_count() as usize);
         n.set_column_count(pass.space.column_count() as usize);

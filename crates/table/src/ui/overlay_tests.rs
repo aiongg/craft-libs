@@ -35,7 +35,7 @@ impl GridModel for Sheet {
     fn last_used(&self) -> CellRef {
         CellRef::new(9, 9)
     }
-    fn paint_cell(&self, _painter: &Painter, _rect: Rect, _c: CellRef) {}
+    fn paint_cell(&self, _painter: &Painter, _rect: Rect, _c: CellRef, _zoom: f32) {}
     fn cell_text(&self, _c: CellRef) -> String {
         String::new()
     }
