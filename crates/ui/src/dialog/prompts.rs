@@ -165,6 +165,8 @@ pub struct StandardPrompt {
     tone: Option<(Tone, String)>,
     warnings: Vec<String>,
     can_apply: bool,
+    /// The `{name}` values of the app's texts ([`StandardPrompt::arg`]).
+    args: Vec<(String, String)>,
 }
 
 impl StandardPrompt {
@@ -185,6 +187,7 @@ impl StandardPrompt {
             tone: None,
             warnings: Vec::new(),
             can_apply: true,
+            args: Vec::new(),
         }
     }
 
@@ -243,6 +246,15 @@ impl StandardPrompt {
         Self::new(PromptKind::Custom).message(message)
     }
 
+    /// Fills `{name}` in the app's own texts (title, message, button labels, details, tone line,
+    /// warnings) with `value`, after they are translated: the texts are catalog keys in the Host's
+    /// language, drawn fresh every pass, and the value is shown as given, never translated.
+    /// The library's own messages take their values from the constructors.
+    pub fn arg(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.args.push((name.into(), value.into()));
+        self
+    }
+
     /// Replaces the title of any kind.
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
@@ -255,7 +267,7 @@ impl StandardPrompt {
         self
     }
 
-    /// Adds a button with the app's translated label and its key (a plain letter, drawn as the
+    /// Adds a button with the app's label (looked up in the Host's catalog) and its key (a plain letter, drawn as the
     /// accelerator on Windows and Linux). The first call replaces the kind's own buttons.
     /// [`PromptChoice::Proceed`] is the default button (Enter), [`PromptChoice::Cancel`] answers
     /// Esc and the close box, and [`PromptChoice::Alternate`] is a third answer; each is listed
@@ -326,13 +338,23 @@ impl StandardPrompt {
     }
 
     /// The title, message and answers of the kind: `(role, label, key)`.
+    /// An app-given `text` in the Host's language with the [`arg`](Self::arg) values filled.
+    fn app_text(&self, ctx: &Context, text: &str) -> String {
+        let text = super::params::translated(ctx, text);
+        if self.args.is_empty() {
+            return text;
+        }
+        let args: Vec<(&str, &str)> = self.args.iter().map(|(name, value)| (name.as_str(), value.as_str())).collect();
+        craft_i18n::fmt(&text, &args)
+    }
+
     fn content(&self, ctx: &Context, labels: &PromptLabels) -> (String, String, Vec<(ButtonRole, String, Option<Key>)>) {
         let (mut title, mut message, mut answers) = self.kind_content(ctx, labels);
         if let Some(own) = &self.title {
-            title.clone_from(own);
+            title = self.app_text(ctx, own);
         }
         if let Some(own) = &self.message {
-            message.clone_from(own);
+            message = self.app_text(ctx, own);
         }
         if !self.buttons.is_empty() {
             answers = self
@@ -344,7 +366,7 @@ impl StandardPrompt {
                         PromptChoice::Alternate => ButtonRole::Alternate,
                         PromptChoice::Cancel => ButtonRole::Cancel,
                     };
-                    (role, label.clone(), *key)
+                    (role, self.app_text(ctx, label), *key)
                 })
                 .collect();
         }
@@ -436,13 +458,13 @@ impl StackDialog for StandardPrompt {
             prompt = prompt.disable(ButtonRole::Default);
         }
         if let Some((tone, text)) = &self.tone {
-            prompt = prompt.tone(*tone, text.clone());
+            prompt = prompt.tone(*tone, self.app_text(ctx, text));
         }
         if !self.warnings.is_empty() {
-            prompt = prompt.lines(self.warnings.iter().cloned());
+            prompt = prompt.lines(self.warnings.iter().map(|w| self.app_text(ctx, w)).collect::<Vec<_>>());
         }
         if let Some(text) = &self.details {
-            prompt = prompt.details(labels.details.clone(), text.clone());
+            prompt = prompt.details(labels.details.clone(), self.app_text(ctx, text));
         }
         if self.skip_key.is_some() {
             let skip = &mut self.skip;
