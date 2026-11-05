@@ -208,6 +208,28 @@ fn a_damaged_file_lists_its_warnings() {
     harness.get_by_label("Layer 2 is short");
 }
 
+// A message kept as several catalog texts switches language paragraph by paragraph, the
+// retry line with its value filled in.
+#[test]
+fn paragraphs_follow_the_language_each_on_its_own() {
+    let (i18n, problems) = craft_i18n::I18n::new(
+        &[("de", "\tThe file is damaged.\tDie Datei ist beschädigt.\n\tRetry in {n} s.\tNeuer Versuch in {n} s.\n", "")],
+        &["de"],
+    );
+    assert!(problems.is_empty(), "{problems:?}");
+    let de = i18n.from_code("de").expect("de");
+    let prompt = StandardPrompt::custom("Open").message("The file is damaged.").paragraph("Retry in {n} s.").arg("n", "5");
+    let mut harness = harness(prompt, OperatingSystem::Mac);
+    harness.run();
+    harness.get_by_label_contains("The file is damaged.\n\nRetry in 5 s.");
+    craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" })
+        .i18n(std::sync::Arc::new(i18n))
+        .lang(de)
+        .install(&harness.ctx);
+    harness.run();
+    harness.get_by_label_contains("Die Datei ist beschädigt.\n\nNeuer Versuch in 5 s.");
+}
+
 // An app's own prompt texts are catalog keys read at draw time: a prompt left open follows a
 // language switch, and an arg is filled in after translation and is not translated itself.
 #[test]

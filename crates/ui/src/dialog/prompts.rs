@@ -160,6 +160,8 @@ pub struct StandardPrompt {
     noun: Option<(String, String)>,
     title: Option<String>,
     message: Option<String>,
+    /// Paragraphs after the message ([`StandardPrompt::paragraph`]).
+    paragraphs: Vec<String>,
     buttons: Vec<(PromptChoice, String, Option<Key>)>,
     details: Option<String>,
     tone: Option<(Tone, String)>,
@@ -187,6 +189,7 @@ impl StandardPrompt {
             noun: None,
             title: None,
             message: None,
+            paragraphs: Vec::new(),
             buttons: Vec::new(),
             details: None,
             tone: None,
@@ -284,6 +287,14 @@ impl StandardPrompt {
         self
     }
 
+    /// Adds a paragraph after the message, translated on its own: a message the app's catalog
+    /// keeps as several texts (a damaged-file report, a notice with a retry line) follows a
+    /// language switch paragraph by paragraph. [`arg`](Self::arg) values fill it too.
+    pub fn paragraph(mut self, paragraph: impl Into<String>) -> Self {
+        self.paragraphs.push(paragraph.into());
+        self
+    }
+
     /// Adds a button with the app's label (looked up in the Host's catalog) and its key (a plain letter, drawn as the
     /// accelerator on Windows and Linux). The first call replaces the kind's own buttons.
     /// [`PromptChoice::Proceed`] is the default button (Enter), [`PromptChoice::Cancel`] answers
@@ -372,6 +383,12 @@ impl StandardPrompt {
         }
         if let Some(own) = &self.message {
             message = self.app_text(ctx, own);
+        }
+        for paragraph in &self.paragraphs {
+            if !message.is_empty() {
+                message.push_str("\n\n");
+            }
+            message.push_str(&self.app_text(ctx, paragraph));
         }
         if !self.buttons.is_empty() {
             answers = self
