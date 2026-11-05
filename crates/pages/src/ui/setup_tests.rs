@@ -53,7 +53,7 @@ fn type_into(harness: &mut Harness<'_, App>, field: &str, text: &str, key: Key) 
 #[test]
 fn ok_returns_the_edited_setup() {
     let mut harness = open(PageSetupDialog::new(PageSetup::default()).unit(LengthUnit::Inches));
-    type_into(&mut harness, "Top:", "1.5", Key::Enter);
+    type_into(&mut harness, "Top", "1.5", Key::Enter);
     let answers = &harness.state().answers;
     assert_eq!(answers.len(), 1);
     assert_eq!(answers[0].margins.top, 108.0);
@@ -64,12 +64,12 @@ fn ok_returns_the_edited_setup() {
 #[test]
 fn margins_that_dont_fit_refuse_ok() {
     let mut harness = open(PageSetupDialog::new(PageSetup::default()).unit(LengthUnit::Inches));
-    type_into(&mut harness, "Left:", "4.5", Key::Tab);
-    type_into(&mut harness, "Right:", "4.5", Key::Enter);
+    type_into(&mut harness, "Left", "4.5", Key::Tab);
+    type_into(&mut harness, "Right", "4.5", Key::Enter);
     assert!(harness.state().answers.is_empty());
     assert!(harness.state().host.get::<PageSetupDialog>().is_some(), "the dialog stays open");
     assert!(harness.query_all_by_label(&PageSetupLabels::default().margins_dont_fit).next().is_some(), "the message shows");
-    type_into(&mut harness, "Right:", "1", Key::Enter);
+    type_into(&mut harness, "Right", "1", Key::Enter);
     assert_eq!(harness.state().answers.len(), 1);
 }
 
@@ -77,7 +77,7 @@ fn margins_that_dont_fit_refuse_ok() {
 #[test]
 fn paper_list_and_orientation_follow_each_other() {
     let mut harness = open(PageSetupDialog::new(PageSetup::default()).unit(LengthUnit::Inches));
-    harness.get_by_role_and_label(Role::ComboBox, "Paper size:").click();
+    harness.get_by_role_and_label(Role::ComboBox, "Paper size").click();
     harness.run();
     harness.get_by_label("A4").click();
     harness.run();
@@ -91,10 +91,10 @@ fn paper_list_and_orientation_follow_each_other() {
 
     harness.get_by_label("Portrait").click();
     harness.run();
-    type_into(&mut harness, "Width:", "12", Key::Tab);
+    type_into(&mut harness, "Width", "12", Key::Tab);
     let setup = edited(&harness);
     assert_eq!((setup.width, setup.orientation), (864.0, Orientation::Landscape));
-    assert_eq!(harness.get_by_role_and_label(Role::ComboBox, "Paper size:").value().as_deref(), Some("Custom size"));
+    assert_eq!(harness.get_by_role_and_label(Role::ComboBox, "Paper size").value().as_deref(), Some("Custom size"));
 }
 
 // Over Moderate margins the Moderate item is checked; Normal reads "Normal  1" all" in inches; Custom Margins… returns PageSetup.
