@@ -1,4 +1,4 @@
-//! Behaviour tests of snapshots, the source choice and the forms (task H3).
+//! Behaviour tests of snapshots, the source choice and the forms.
 
 use egui::vec2;
 use egui_kittest::kittest::Queryable as _;

@@ -145,7 +145,7 @@ pub enum LinkedSlot {
 ///   taking the smallest factor (PhotoCraft's `k.min(wlim / sx).min(hlim / sy)`); in
 ///   [`LinkMode::Equal`] to the same value ([`follow_equal`]). Every value a gesture reports is
 ///   built from the values at its `Begin`, never from the previous update, so a scrub or a
-///   value typed digit by digit keeps the starting ratio (lead call L24). Unlinked, a field
+///   value typed digit by digit keeps the starting ratio. Unlinked, a field
 ///   moves alone.
 /// - **Linking.** Turning the link on in [`LinkMode::Equal`] sets every field to the first one's
 ///   value at once, one `Set` (DesignCraft's `setup_link`); in [`LinkMode::Ratio`] it changes no

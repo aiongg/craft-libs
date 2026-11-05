@@ -149,8 +149,8 @@ struct ClickRun {
 /// egui's `InputOptions::max_double_click_delay` and nearer than `max_click_dist` with the same
 /// button continues the run (`count + 1`, saturating); any other press, including one of another
 /// button, starts a new run of 1. A press nobody asks about
-/// is not counted. The tool host counts its presses here too (task K4 replaces its own
-/// `HostState::clicks` with this), injected presses at their screen point.
+/// is not counted. The tool host counts its presses here too (in place of its own
+/// `HostState::clicks`), injected presses at their screen point.
 pub(crate) fn click_count(ctx: &Context, button: PointerButton, time: f64, at: Pos2) -> u32 {
     // new: the rule of `tool_host.rs:675` `Run::press_clicks`, moved to one counter (step7-pen lead call 30).
     let key = Id::unique("craft-ui-click-run");

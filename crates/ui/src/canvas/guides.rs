@@ -468,7 +468,7 @@ impl<'a> Guides<'a> {
     /// horizontal guide, the left one a vertical guide. The ruler calls it when a drag starts on
     /// it, with the [`id`](GuidesResponse::id) of the guides it feeds; the guides run the drag
     /// until the release, wherever the pointer goes. Alt held turns the guide the other way
-    /// (PhotoCraft #5698). Released over the canvas and inside the bounds the drag commits with
+    /// (storytold/photocraft#5698). Released over the canvas and inside the bounds the drag commits with
     /// no key and the host adds the guide; elsewhere it is cancelled.
     ///
     /// The guides take the drag when they are shown, in this pass if that comes after the call,
@@ -992,7 +992,7 @@ fn guide_id(guides: Id, key: u64) -> Id {
 
 /// The screen ends of a guide at `position` across what the view shows (`visible`, the document
 /// bounds of the canvas rect), limited to `span` and to the canvas rect: a rotated view turns the
-/// guide with the document (PhotoCraft #3277). `None` when the guide is out of view.
+/// guide with the document (storytold/photocraft#3277). `None` when the guide is out of view.
 pub(super) fn segment(view: &CanvasView, visible: Rect, orientation: Orientation, position: f64, span: Option<&Range<f64>>) -> Option<[Pos2; 2]> {
     let (lo, hi) = orientation.flipped().range(visible);
     let (lo, hi) = match span {

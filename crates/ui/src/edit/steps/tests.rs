@@ -1,4 +1,4 @@
-//! Behaviour tests of the step list core (task H1).
+//! Behaviour tests of the step list core.
 
 use super::{DeleteRefused, HistoryStep, StepId, StepList};
 

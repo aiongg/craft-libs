@@ -178,7 +178,7 @@ impl fmt::Debug for PasswordAnswer {
 ///
 /// The field takes focus when the dialog opens, after the eye button was pressed, and whenever
 /// nothing in the window has focus; it asks only then: asking every pass interrupts the input
-/// method, and on Linux typed keys go through it (PdfCraft #2818), and Tab can still reach the
+/// method, and on Linux typed keys go through it (storytold/pdfcraft#2818), and Tab can still reach the
 /// eye button and the buttons. Enter submits from the field; Esc and the close box cancel. The
 /// eye button beside the (first) field shows or hides the text (its name says what it does:
 /// "Show password" / "Hide password"); the field's AccessKit node is a password field while the

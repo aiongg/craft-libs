@@ -1,5 +1,5 @@
 //! [`SelectionFrameStyle`] and [`GripSetStyle`]: the looks of the selection frame, outlines and
-//! grips, from tokens (task TK1). Every size is the same at every Size: they sit on the document.
+//! grips, from tokens. Every size is the same at every Size: they sit on the document.
 
 use egui::Color32;
 

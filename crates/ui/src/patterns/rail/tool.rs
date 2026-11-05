@@ -672,7 +672,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
     }
 }
 
-/// Leaves `rail.group_gap` (TK1) after the slot just placed in `column` of the row: in one
+/// Leaves `rail.group_gap` after the slot just placed in `column` of the row: in one
 /// column (or after the row's last column) the next row starts that much lower
 /// (`ui.add_space`); after a slot in the first of two columns, the gap goes after the row it
 /// holds. The keyboard grid ([`grid_step`]) and the drop places are unchanged.

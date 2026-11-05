@@ -1,4 +1,4 @@
-//! Tests of the selection frame, outlines and range helpers (task K11).
+//! Tests of the selection frame, outlines and range helpers.
 
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect as ScreenRect, Sense, pos2, vec2};
 use egui_kittest::Harness;

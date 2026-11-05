@@ -458,7 +458,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetPicker<'_, K> {
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tests {
-    //! Screen tests of the picker (task PR4).
+    //! Screen tests of the picker.
 
     use egui::{Event, PointerButton, Pos2};
     use egui_kittest::kittest::{NodeT as _, Queryable as _};

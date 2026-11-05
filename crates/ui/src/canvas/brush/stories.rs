@@ -1,4 +1,4 @@
-//! Stories of the brush cursor and the resize gesture (task KS2; task RG2 registers them). Fake
+//! Stories of the brush cursor and the resize gesture. Fake
 //! tips built by the story, so every state shows without an engine. The cursor story paints the
 //! [`ToolCursor`] the library returns with the painter (the host would show it as a bitmap), so
 //! the shapes show on any backend.

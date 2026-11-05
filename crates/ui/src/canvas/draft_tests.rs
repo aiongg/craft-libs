@@ -1,4 +1,4 @@
-//! Tests of the outline draft and the selection operation (task K9).
+//! Tests of the outline draft and the selection operation.
 
 use egui::Modifiers;
 use kurbo::Point;

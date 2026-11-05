@@ -1,4 +1,4 @@
-//! [`BeforeAfterStyle`]: the before and after view's look, from tokens (task TK1).
+//! [`BeforeAfterStyle`]: the before and after view's look, from tokens.
 
 use egui::{Color32, FontId};
 

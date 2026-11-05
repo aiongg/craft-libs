@@ -1,4 +1,4 @@
-//! Tests of the hover outline and lookup (task K10), over `ManualJobs` so each job finishes when
+//! Tests of the hover outline and lookup, over `ManualJobs` so each job finishes when
 //! the test says.
 
 use std::cell::Cell;

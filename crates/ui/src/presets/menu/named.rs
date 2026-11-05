@@ -457,7 +457,7 @@ fn effective_name(text: &str, suggestion: Option<&str>) -> String {
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tests {
-    //! Screen tests of the named preset row and of the picker with files (task PR7).
+    //! Screen tests of the named preset row and of the picker with files.
 
     use std::collections::HashMap;
     use std::path::PathBuf;
