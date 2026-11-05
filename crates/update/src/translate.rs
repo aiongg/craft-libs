@@ -81,7 +81,7 @@ impl Note {
 
 /// A button label: `label` (title case, the lookup key) translated, then in capitals, as the card
 /// draws its buttons.
-#[cfg(any(feature = "egui", test))]
+#[cfg(any(feature = "ui", test))]
 pub(crate) fn button(translate: Translate, label: &str) -> String {
     translate(label, &[]).to_uppercase()
 }
