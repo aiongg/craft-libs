@@ -141,6 +141,8 @@ mod commands;
 pub mod editor;
 #[cfg(feature = "ui")]
 pub mod egui;
+#[cfg(feature = "ui")]
+mod raw_clipboard;
 pub mod import;
 pub mod keymap;
 pub mod layout;

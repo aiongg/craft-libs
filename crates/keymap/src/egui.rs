@@ -256,6 +256,31 @@ impl Dispatcher {
         self
     }
 
+    /// Reads the clipboard keys egui's integrations drop, from the frame's raw input; call it
+    /// from `eframe::App::raw_input_hook` or before `Context::run`. It does nothing unless
+    /// [`with_clipboard_events`](Self::with_clipboard_events) is on. `typing` is whether a text
+    /// field has the keyboard this frame ([`Active::typing`]).
+    ///
+    /// Outside text fields, a V release whose ⌘V press egui-winit swallowed (egui issue #6329:
+    /// an image on the clipboard) and `PasteImage` become the ⌘V press, which the dispatcher
+    /// then runs as the Paste chord. It lives in the raw input because the press must exist
+    /// before egui reads the frame, and the dispatcher sees only the frame's `InputState`.
+    ///
+    /// On Linux and Windows, Ctrl+Insert, Shift+Insert and Shift+Delete are Copy, Paste and Cut.
+    /// egui-winit turns them into clipboard events only on Windows, so a native Linux build
+    /// gets them here: in a text field as egui's `Copy` and `Cut` events and a paste request,
+    /// outside text fields as the Cmd+C, Cmd+V and Cmd+X presses, which run those chords'
+    /// bindings. macOS has no such keys and the web browser handles them itself.
+    pub fn raw_input(&self, ctx: &Context, raw: &mut ::egui::RawInput, typing: bool) {
+        if !self.clipboard {
+            return;
+        }
+        if !typing {
+            crate::raw_clipboard::swallowed_paste(ctx, raw);
+        }
+        crate::raw_clipboard::insert_chords(ctx, raw, typing);
+    }
+
     /// Starts from what the platform reports about the keyboard layout. The dispatcher also
     /// learns from what plain presses type ([`Layout::observe`]), and takes whether the layout
     /// is Latin from egui when the integration reports it (egui-winit on Linux, with the suite's

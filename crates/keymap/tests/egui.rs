@@ -694,3 +694,122 @@ fn cmd_chords_on_period_follow_the_key_position() {
     let mut d = Dispatcher::new();
     assert_eq!(ran(&mut d, &km, 1.0, mods, typed(EguiKey::Colon, EguiKey::Period, mods, ":")), ["select.grow"]);
 }
+
+fn raw_key(key: EguiKey, pressed: bool, modifiers: Modifiers) -> Event {
+    Event::Key { key, physical_key: None, pressed, repeat: false, modifiers }
+}
+
+/// Runs `events` through the dispatcher's raw-input hook and returns the events left.
+fn raw_events(d: &Dispatcher, ctx: &egui::Context, typing: bool, events: Vec<Event>) -> Vec<Event> {
+    let mut raw = egui::RawInput { events, ..Default::default() };
+    d.raw_input(ctx, &mut raw, typing);
+    raw.events
+}
+
+fn v_presses(events: &[Event], with_command: bool) -> usize {
+    events.iter().filter(|e| matches!(e, Event::Key { key: EguiKey::V, pressed: true, modifiers, .. } if modifiers.command || !with_command)).count()
+}
+
+#[test]
+fn each_paste_key_is_one_press() {
+    let d = Dispatcher::new().with_clipboard_events(true);
+    let ctx = egui::Context::default();
+    let cmd = Modifiers::COMMAND;
+    let presses = |events| v_presses(&raw_events(&d, &ctx, false, events), false);
+    // A press that reached us, then its release.
+    assert_eq!(presses(vec![raw_key(EguiKey::V, true, cmd)]), 1);
+    assert_eq!(presses(vec![raw_key(EguiKey::V, false, cmd)]), 0, "the release of a press doesn't paste again");
+    // A text paste event whose V is released after Cmd adds nothing; the next image paste still pastes.
+    assert_eq!(presses(vec![Event::Paste("x".into())]), 0);
+    assert_eq!(presses(vec![Event::ModifiersChanged(Modifiers::NONE), raw_key(EguiKey::V, false, Modifiers::NONE)]), 0);
+    assert_eq!(presses(vec![Event::ModifiersChanged(cmd), raw_key(EguiKey::V, false, cmd)]), 1, "image paste");
+}
+
+#[test]
+fn a_swallowed_paste_press_is_added_once() {
+    let d = Dispatcher::new().with_clipboard_events(true);
+    let cmd = Modifiers::COMMAND;
+    let none = Modifiers::NONE;
+    let pastes = |ctx: &egui::Context, events| v_presses(&raw_events(&d, ctx, false, events), true);
+    // Cmd down, (the swallowed V press,) Cmd up, V up: in one frame or over several.
+    let ctx = egui::Context::default();
+    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), Event::ModifiersChanged(none), raw_key(EguiKey::V, false, none)]), 1);
+    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd)]), 0);
+    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(none)]), 0);
+    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 1, "released after Cmd");
+    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 0, "one swallowed press is one paste");
+    // A plain V tap after Cmd was used is a tool key, not a paste.
+    let ctx = egui::Context::default();
+    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), Event::ModifiersChanged(none)]), 0);
+    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, true, none), raw_key(EguiKey::V, false, none)]), 0);
+    // Without Cmd at all, a lone V release is nothing.
+    let ctx = egui::Context::default();
+    assert_eq!(pastes(&ctx, vec![raw_key(EguiKey::V, false, none)]), 0);
+    // Released with Cmd still held it pastes.
+    assert_eq!(pastes(&ctx, vec![Event::ModifiersChanged(cmd), raw_key(EguiKey::V, false, cmd)]), 1);
+    // egui 0.37's image-only clipboard paste is the same Cmd+V press.
+    let image = std::sync::Arc::new(egui::ColorImage::filled([1, 1], egui::Color32::BLACK));
+    let ctx = egui::Context::default();
+    assert_eq!(pastes(&ctx, vec![Event::PasteImage(image)]), 1);
+}
+
+#[test]
+fn a_swallowed_paste_reaches_the_paste_binding_and_text_fields_keep_theirs() {
+    let km = dispatch_keymap();
+    let ctx = egui::Context::default();
+    let mut d = Dispatcher::new().with_clipboard_events(true);
+    let image = std::sync::Arc::new(egui::ColorImage::filled([1, 1], egui::Color32::BLACK));
+    let events = raw_events(&d, &ctx, false, vec![Event::PasteImage(image.clone())]);
+    let (ran, _) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, events));
+    assert_eq!(ran, ["edit.paste"]);
+    // While typing the hook leaves the events to the text field, and with clipboard events off it does nothing.
+    assert_eq!(raw_events(&d, &ctx, true, vec![Event::PasteImage(image.clone())]), [Event::PasteImage(image.clone())]);
+    let off = Dispatcher::new();
+    assert_eq!(raw_events(&off, &ctx, false, vec![Event::PasteImage(image.clone())]), [Event::PasteImage(image)]);
+}
+
+#[test]
+fn insert_and_delete_chords_copy_paste_and_cut_on_linux() {
+    let d = Dispatcher::new().with_clipboard_events(true);
+    let ctx = egui::Context::default();
+    ctx.set_os(egui::os::OperatingSystem::Nix);
+    let after = |key, modifiers, typing| {
+        let mut raw = egui::RawInput { events: vec![raw_key(key, true, modifiers)], ..Default::default() };
+        d.raw_input(&ctx, &mut raw, typing);
+        raw.events
+    };
+    let is_press = |events: &[Event], key| matches!(events, [Event::Key { key: k, pressed: true, modifiers, .. }] if *k == key && modifiers.command);
+    // Outside text fields Ctrl+Insert and Shift+Insert are the Copy and Paste chords.
+    assert!(is_press(&after(EguiKey::Insert, Modifiers::CTRL, false), EguiKey::C));
+    assert!(is_press(&after(EguiKey::Insert, Modifiers::SHIFT, false), EguiKey::V));
+    // Outside text fields Shift+Delete stays itself (Fill in Photoshop).
+    assert!(matches!(after(EguiKey::Delete, Modifiers::SHIFT, false).as_slice(), [Event::Key { key: EguiKey::Delete, modifiers, .. }] if modifiers.shift));
+    // In a text field Ctrl+Insert and Shift+Delete are egui's events; Shift+Insert asks for the text.
+    assert_eq!(after(EguiKey::Insert, Modifiers::CTRL, true), [Event::Copy]);
+    assert_eq!(after(EguiKey::Delete, Modifiers::SHIFT, true), [Event::Cut]);
+    assert!(after(EguiKey::Insert, Modifiers::SHIFT, true).is_empty());
+    let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let mut raw = egui::RawInput { events: vec![raw_key(EguiKey::Insert, true, Modifiers::SHIFT)], ..Default::default() };
+        d.raw_input(ui.ctx(), &mut raw, true);
+    });
+    let asked = out.viewport_output.values().flat_map(|v| &v.commands).any(|c| matches!(c, egui::ViewportCommand::RequestPaste));
+    assert!(asked, "the window is asked for the clipboard text");
+    // Plain Insert, other modifiers, and the other platforms are left alone.
+    assert!(matches!(after(EguiKey::Insert, Modifiers::NONE, false).as_slice(), [Event::Key { key: EguiKey::Insert, .. }]));
+    assert!(matches!(after(EguiKey::Delete, Modifiers::SHIFT | Modifiers::CTRL, false).as_slice(), [Event::Key { key: EguiKey::Delete, .. }]));
+    ctx.set_os(egui::os::OperatingSystem::Mac);
+    assert!(matches!(after(EguiKey::Insert, Modifiers::CTRL, false).as_slice(), [Event::Key { key: EguiKey::Insert, .. }]));
+}
+
+#[test]
+fn rewritten_insert_chords_run_the_clipboard_bindings() {
+    let km = dispatch_keymap();
+    let ctx = egui::Context::default();
+    ctx.set_os(egui::os::OperatingSystem::Nix);
+    let mut d = Dispatcher::new().with_clipboard_events(true);
+    let mut raw = egui::RawInput { events: vec![raw_key(EguiKey::Insert, true, Modifiers::SHIFT)], ..Default::default() };
+    d.raw_input(&ctx, &mut raw, false);
+    let (ran, left) = run(&mut d, &km, &Active::NONE, frame(1.0, CTRL, raw.events));
+    assert_eq!(ran, ["edit.paste"]);
+    assert!(left.is_empty());
+}
