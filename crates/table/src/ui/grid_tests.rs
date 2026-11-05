@@ -696,10 +696,7 @@ fn a_selected_header_has_an_accent_bar() -> Result<(), craft_ui::testing::render
     let cell = geometry.cell_rect(CellRef::new(0, 0));
     let bar = pos2(cell.center().x, geometry.cells().top() - 1.5);
     let above = pos2(cell.center().x, geometry.cells().top() - 6.0);
-    let accent = {
-        let c = tokens.color.accent.solid.to_egui();
-        c
-    };
+    let accent = tokens.color.accent.solid.to_egui();
     let near = |a: egui::Color32, b: egui::Color32| a.to_array().iter().zip(b.to_array()).all(|(x, y)| x.abs_diff(y) <= 2);
     assert!(near(pixel(&image, bar), accent), "bar {:?} vs {accent:?}", pixel(&image, bar));
     assert!(!near(pixel(&image, above), accent), "the bar is thin");
