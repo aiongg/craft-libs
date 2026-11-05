@@ -10,8 +10,7 @@ use craft_ui::primitives::{Corner, FocusRing, Interactive};
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, scale};
 use egui::accesskit::Role;
 use egui::{
-    AsIdSalt, Color32, EventFilter, Id, IdSalt, Key, Modifiers, Painter, PointerButton, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, WidgetInfo,
-    pos2, vec2,
+    AsIdSalt, Color32, EventFilter, Id, IdSalt, Key, Modifiers, Painter, PointerButton, Pos2, Rect, Response, Sense, Ui, WidgetInfo, pos2, vec2,
 };
 
 use super::style::TimelineStyle;
@@ -57,24 +56,31 @@ pub struct KeyframeMark {
     pub interpolation: KeyframeInterpolation,
 }
 
-/// Draws a keyframe glyph centred at `center` (Premiere's glyphs): a `style.keyframe_hold`
-/// square for Hold, the diamond filling the `style.keyframe_glyph` box for Linear, a circle of
-/// radius `style.keyframe_bezier` for the Bezier kinds ([`TimelineStyle`](super::TimelineStyle)).
+/// The icon that marks a key of `interpolation` on a lane: solid shapes, as FilmCraft draws them
+/// (a diamond for Linear, a square for Hold, a circle for the Bezier kinds), with After Effects'
+/// own marks for Auto, Continuous and the eases.
+pub const fn keyframe_icon(interpolation: KeyframeInterpolation) -> Icon {
+    match interpolation {
+        KeyframeInterpolation::Linear => Icon::KeyLinearFilled,
+        KeyframeInterpolation::Hold => Icon::KeyHold,
+        KeyframeInterpolation::Bezier => Icon::KeyBezier,
+        KeyframeInterpolation::AutoBezier => Icon::KeyAutoBezier,
+        KeyframeInterpolation::ContinuousBezier => Icon::KeyContinuousBezier,
+        KeyframeInterpolation::EaseIn => Icon::KeyEaseIn,
+        KeyframeInterpolation::EaseOut => Icon::KeyEaseOut,
+    }
+}
+
+/// Draws a keyframe glyph ([`keyframe_icon`]) centred at `center`, `style.keyframe_glyph` points
+/// wide ([`TimelineStyle`](super::TimelineStyle)).
 // filmcraft: crates/ui-egui/src/panels/effect_controls_selection.rs:256 `paint`.
 pub fn paint_keyframe(painter: &Painter, center: Pos2, interpolation: KeyframeInterpolation, color: Color32, style: &super::TimelineStyle) {
-    match interpolation {
-        KeyframeInterpolation::Hold => {
-            painter.rect_filled(Rect::from_center_size(center, vec2(style.keyframe_hold, style.keyframe_hold)), 0.0, color);
-        }
-        KeyframeInterpolation::Linear => {
-            let half = style.keyframe_glyph / 2.0;
-            let points = vec![center + vec2(0.0, -half), center + vec2(half, 0.0), center + vec2(0.0, half), center + vec2(-half, 0.0)];
-            painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
-        }
-        _ => {
-            painter.circle_filled(center, style.keyframe_bezier, color);
-        }
-    }
+    paint_icon(painter, center, keyframe_icon(interpolation), color, style);
+}
+
+fn paint_icon(painter: &Painter, center: Pos2, icon: Icon, color: Color32, style: &super::TimelineStyle) {
+    let rect = Rect::from_center_size(center, vec2(style.keyframe_glyph, style.keyframe_glyph));
+    icons::paint_on(painter, rect, icon, icons::active(painter.ctx()), style.keyframe_glyph, IconSize::Sm.stroke(), color);
 }
 
 /// The keyframes of one property row on its lane.
@@ -545,10 +551,8 @@ impl KeyframeNavigator {
         if at_key {
             paint_keyframe(ui.painter(), center, KeyframeInterpolation::Linear, colors.accent.text.to_egui(), &style);
         } else {
-            let half = style.keyframe_glyph * 0.31;
-            let outline = vec![center + vec2(0.0, -half), center + vec2(half, 0.0), center + vec2(0.0, half), center + vec2(-half, 0.0)];
             let color = if response.hovered() { colors.text.normal } else { colors.text.muted };
-            ui.painter().add(Shape::closed_line(outline, scale::Stroke::Hairline.egui(ui.ctx(), color.to_egui())));
+            paint_icon(ui.painter(), center, Icon::KeyLinear, color.to_egui(), &style);
         }
         FocusRing::paint(ui, area, Corner::Control, &response);
         out

@@ -639,12 +639,12 @@ fn bottom_bar(
         ])
         .group([ToolbarItem::new(Icon::Split, labels.separate.as_str()).toggle(&mut separate_on)])
         .group([
-            ToolbarItem::new(Icon::Square, labels.hold.as_str()),
-            ToolbarItem::new(Icon::Diamond, labels.linear.as_str()),
-            ToolbarItem::new(Icon::Circle, labels.auto_bezier.as_str()),
-            ToolbarItem::new(Icon::Spline, labels.easy_ease.as_str()),
-            ToolbarItem::new(Icon::ChevronRight, labels.easy_ease_in.as_str()),
-            ToolbarItem::new(Icon::ChevronLeft, labels.easy_ease_out.as_str()),
+            ToolbarItem::new(Icon::KeyHold, labels.hold.as_str()),
+            ToolbarItem::new(Icon::KeyLinear, labels.linear.as_str()),
+            ToolbarItem::new(Icon::KeyAutoBezier, labels.auto_bezier.as_str()),
+            ToolbarItem::new(Icon::KeyframeEasyEase, labels.easy_ease.as_str()),
+            ToolbarItem::new(Icon::KeyEaseIn, labels.easy_ease_in.as_str()),
+            ToolbarItem::new(Icon::KeyEaseOut, labels.easy_ease_out.as_str()),
         ])
         .overflow(true)
         .show(&mut bar_ui);

@@ -270,3 +270,30 @@ fn navigator_arrows_are_icons() {
     assert!(images >= 2, "two arrow icons, found {images}");
     assert!(polygons <= 1, "only the diamond outline is a path: {polygons}");
 }
+
+// every key paints as a textured icon mesh, one per key, and nothing is a painted path or fill.
+#[test]
+fn lane_keys_paint_as_icons() {
+    use egui::epaint::Shape;
+    use egui::{Context, RawInput};
+
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 30.0));
+    let kinds = [KeyframeInterpolation::Linear, KeyframeInterpolation::Hold, KeyframeInterpolation::Bezier, KeyframeInterpolation::EaseIn];
+    let keys: Vec<KeyframeMark> = kinds
+        .iter()
+        .enumerate()
+        .map(|(at, kind)| KeyframeMark { id: KeyframeId(at as u64), time: secs(at as f64 + 1.0), interpolation: *kind })
+        .collect();
+    let mut selection = Selection::new();
+    let view = TimeView::new(Tick::ZERO, 100.0);
+    let mut output = ctx.run_ui(RawInput { screen_rect: Some(rect.expand(10.0)), ..RawInput::default() }, |ui| {
+        let _ = KeyframeLane::new("lane", &keys, &mut selection, &view, rate()).show(ui, rect);
+    });
+    output.textures_delta.clear();
+    let meshes =
+        output.shapes.iter().filter(|clipped| matches!(&clipped.shape, Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default())).count();
+    assert_eq!(meshes, kinds.len(), "one icon per key");
+    assert!(!output.shapes.iter().any(|clipped| matches!(&clipped.shape, Shape::Path(_) | Shape::Circle(_))));
+}
