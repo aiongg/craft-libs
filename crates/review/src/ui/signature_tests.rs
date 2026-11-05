@@ -138,7 +138,7 @@ fn picked_image_is_decoded_on_the_jobs_and_applied() {
     let Some(DialogResult::Ok(SignaturePadResult { signature: SavedSignature::Image(image), initials: false })) = answer else {
         panic!("expected an image, got {answer:?}");
     };
-    assert_eq!((image.width, image.height, image.rgba.len()), (3, 2, 24));
+    assert_eq!((image.width(), image.height(), image.rgba().len()), (3, 2, 24));
 }
 
 // An image past the side limit or the byte cap shows the error word and leaves Apply disabled.

@@ -1,7 +1,6 @@
 //! The signature pad dialog and saved signatures (N5.04).
 
 use std::cell::Cell;
-use std::hash::{Hash as _, Hasher as _};
 use std::io::Cursor;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
@@ -71,7 +70,7 @@ impl craft_host::Section for SignatureSettings {
 /// Draws a saved signature into `rect` in `color`: strokes scaled from pad units, typed text in
 /// the proportional face (the library has no script face) fitted to the rect, an image fitted
 /// keeping its aspect. An image's texture is cached by the painter's context under the image's
-/// hash, so this path hashes the pixels each call; the pad itself paints its own texture.
+/// [`key`](SignatureImage::key), computed once at construction.
 // pdfcraft: crates/ui-egui/src/tools/fill_sign.rs:406 `paint_saved`, `:309` `script_preview`.
 pub fn paint_signature(painter: &Painter, rect: Rect, signature: &SavedSignature, color: egui::Color32) {
     let painter = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
@@ -137,12 +136,12 @@ fn paint_typed(painter: &Painter, rect: Rect, label: &str, color: egui::Color32)
 
 /// `image` fitted into `rect` keeping its aspect.
 fn paint_image(painter: &Painter, rect: Rect, image: &SignatureImage) {
-    let (w, h) = (image.width as f32, image.height as f32);
+    let (w, h) = (image.width() as f32, image.height() as f32);
     if w < 1.0 || h < 1.0 {
         return;
     }
     let Some(texture) = image_texture(painter.ctx(), image) else { return };
-    paint_texture(painter, rect, &texture, [image.width, image.height]);
+    paint_texture(painter, rect, &texture, [image.width(), image.height()]);
 }
 
 /// `texture` of `size` pixels fitted into `rect` keeping its aspect.
@@ -158,21 +157,17 @@ fn paint_texture(painter: &Painter, rect: Rect, texture: &TextureHandle, size: [
 
 /// The texture of `image`, cached by the context under the image's hash.
 fn image_texture(ctx: &Context, image: &SignatureImage) -> Option<TextureHandle> {
-    let (width, height) = (usize::try_from(image.width).ok()?, usize::try_from(image.height).ok()?);
-    if width.checked_mul(height)?.checked_mul(4)? != image.rgba.len() {
+    let (width, height) = (usize::try_from(image.width()).ok()?, usize::try_from(image.height()).ok()?);
+    if width.checked_mul(height)?.checked_mul(4)? != image.rgba().len() {
         return None;
     }
-    let mut hasher = std::hash::DefaultHasher::new();
-    image.width.hash(&mut hasher);
-    image.height.hash(&mut hasher);
-    image.rgba.hash(&mut hasher);
-    let key = hasher.finish();
+    let key = image.key();
     let slot = Id::NULL.with("craft-review-signature-textures");
     let mut cache: Vec<(u64, TextureHandle)> = ctx.data(|data| data.get_temp(slot)).unwrap_or_default();
     if let Some((_, texture)) = cache.iter().find(|(k, _)| *k == key) {
         return Some(texture.clone());
     }
-    let pixels = ColorImage::from_rgba_unmultiplied([width, height], &image.rgba);
+    let pixels = ColorImage::from_rgba_unmultiplied([width, height], image.rgba());
     let texture = ctx.load_texture("signature-image", pixels, TextureOptions::LINEAR);
     cache.push((key, texture.clone()));
     if cache.len() > TEXTURES_KEPT {
@@ -216,7 +211,7 @@ fn decode_image(bytes: &[u8]) -> Decoded {
         .decode()
         .map_err(|error| if matches!(error, image::ImageError::Limits(_)) { PickError::TooLarge } else { PickError::Unreadable })?
         .into_rgba8();
-    Ok(SignatureImage { width: decoded.width(), height: decoded.height(), rgba: decoded.into_raw() })
+    Ok(SignatureImage::new(decoded.width(), decoded.height(), decoded.into_raw()))
 }
 
 /// The pad's image on the GPU, made once when the image arrives (or first shows) and painted
@@ -228,12 +223,12 @@ struct ImageTexture {
 
 impl ImageTexture {
     fn new(ctx: &Context, image: &SignatureImage) -> Option<Self> {
-        let (width, height) = (usize::try_from(image.width).ok()?, usize::try_from(image.height).ok()?);
-        if width.checked_mul(height)?.checked_mul(4)? != image.rgba.len() {
+        let (width, height) = (usize::try_from(image.width()).ok()?, usize::try_from(image.height()).ok()?);
+        if width.checked_mul(height)?.checked_mul(4)? != image.rgba().len() {
             return None;
         }
-        let pixels = ColorImage::from_rgba_unmultiplied([width, height], &image.rgba);
-        Some(Self { texture: ctx.load_texture("signature-pad-image", pixels, TextureOptions::LINEAR), size: [image.width, image.height] })
+        let pixels = ColorImage::from_rgba_unmultiplied([width, height], image.rgba());
+        Some(Self { texture: ctx.load_texture("signature-pad-image", pixels, TextureOptions::LINEAR), size: [image.width(), image.height()] })
     }
 }
 

@@ -27,7 +27,7 @@ fn ready_and_saved_follow_the_tab() {
 
     draft.tab = SignatureTab::Image;
     assert!(draft.saved().is_none());
-    let image = SignatureImage { width: 1, height: 1, rgba: vec![0, 0, 0, 255] };
+    let image = SignatureImage::new(1, 1, vec![0, 0, 0, 255]);
     draft.image = Some(image.clone());
     assert_eq!(draft.saved(), Some(SavedSignature::Image(image)));
 }
@@ -48,4 +48,16 @@ fn typed_text_is_capped() {
     assert!(draft.ready());
     draft.text.push('a');
     assert!(!draft.ready() && draft.saved().is_none());
+}
+
+// The cache key is made at construction from the content, and deserializing makes it again.
+#[test]
+fn image_key_follows_content_and_survives_serde() {
+    let image = SignatureImage::new(1, 1, vec![0, 0, 0, 255]);
+    assert_eq!(image.key(), SignatureImage::new(1, 1, vec![0, 0, 0, 255]).key());
+    assert_ne!(image.key(), SignatureImage::new(1, 1, vec![0, 0, 1, 255]).key());
+    let json = serde_json::to_string(&image).unwrap();
+    assert!(!json.contains("key"));
+    let back: SignatureImage = serde_json::from_str(&json).unwrap();
+    assert_eq!((back.key(), &back), (image.key(), &image));
 }

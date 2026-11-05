@@ -1,5 +1,7 @@
 //! Saved signatures and initials, and the signature pad's draft (N5.04).
 
+use std::hash::{Hash as _, Hasher as _};
+
 /// The largest image file the Image tab takes: 4 MiB (PdfCraft's "Choose a PNG or JPEG image
 /// (up to 4 MiB)").
 pub const MAX_IMAGE_BYTES: usize = 4 << 20;
@@ -12,12 +14,65 @@ pub const MAX_IMAGE_SIDE: u32 = 8192;
 /// `crates/fonts/src/script.rs:17`).
 pub const MAX_SIGNATURE_CHARS: usize = 256;
 
-/// A signature image: straight RGBA, transparency kept.
+/// A signature image: straight RGBA, transparency kept. [`new`](Self::new) hashes the pixels once
+/// into a key the painter caches the texture under; the key is not serialized, and deserializing
+/// derives it again.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(from = "RawSignatureImage", into = "RawSignatureImage")]
 pub struct SignatureImage {
-    pub width: u32,
-    pub height: u32,
-    pub rgba: Vec<u8>,
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
+    key: u64,
+}
+
+/// [`SignatureImage`] as stored.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct RawSignatureImage {
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
+}
+
+impl From<RawSignatureImage> for SignatureImage {
+    fn from(raw: RawSignatureImage) -> Self {
+        Self::new(raw.width, raw.height, raw.rgba)
+    }
+}
+
+impl From<SignatureImage> for RawSignatureImage {
+    fn from(image: SignatureImage) -> Self {
+        Self { width: image.width, height: image.height, rgba: image.rgba }
+    }
+}
+
+impl SignatureImage {
+    /// An image of `width` × `height` pixels in straight RGBA (`rgba` holds 4 bytes a pixel; an
+    /// image whose length doesn't fit paints nothing).
+    pub fn new(width: u32, height: u32, rgba: Vec<u8>) -> Self {
+        let mut hasher = std::hash::DefaultHasher::new();
+        width.hash(&mut hasher);
+        height.hash(&mut hasher);
+        rgba.hash(&mut hasher);
+        Self { width, height, rgba, key: hasher.finish() }
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn rgba(&self) -> &[u8] {
+        &self.rgba
+    }
+
+    /// The content key computed by [`new`](Self::new); equal images have equal keys.
+    pub fn key(&self) -> u64 {
+        self.key
+    }
 }
 
 /// A signature or initials kept for reuse.
