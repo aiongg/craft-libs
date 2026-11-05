@@ -116,6 +116,7 @@ mod new_document;
 mod notice;
 mod options_bar;
 mod outline_draft;
+mod pages;
 mod paint_chip;
 mod panel;
 mod panel_footer;
@@ -133,6 +134,7 @@ mod rating;
 mod readout;
 mod ref_point;
 mod reset_dot;
+mod review;
 mod ruler;
 mod sampler;
 mod scopes;
@@ -145,6 +147,7 @@ mod select_mask;
 mod selection_bar;
 mod selection_frame;
 mod shape_drag;
+mod sheet;
 mod slice;
 mod slider;
 mod slider_row;
@@ -164,6 +167,7 @@ mod text_styles;
 mod theme_chip;
 mod thumbnail;
 mod tile;
+mod timeline;
 mod title_bar;
 mod toast;
 mod toggle_button;
@@ -270,6 +274,7 @@ pub use new_document::{NewDocumentField, NewDocumentTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
 pub use outline_draft::{OutlineDraftField, OutlineDraftTokens};
+pub use pages::{PagesField, PagesTokens};
 pub use paint_chip::{PaintChipField, PaintChipTokens};
 pub use panel::{PanelField, PanelTokens};
 pub use panel_footer::{PanelFooterField, PanelFooterTokens};
@@ -287,6 +292,7 @@ pub use rating::{RatingField, RatingTokens};
 pub use readout::{ReadoutField, ReadoutTokens};
 pub use ref_point::{RefPointField, RefPointTokens};
 pub use reset_dot::{ResetDotField, ResetDotTokens};
+pub use review::{ReviewField, ReviewTokens};
 pub use ruler::{RulerField, RulerTokens};
 pub use sampler::{SamplerField, SamplerTokens};
 pub use scopes::{ScopesField, ScopesTokens};
@@ -299,6 +305,7 @@ pub use select_mask::{SelectMaskField, SelectMaskTokens};
 pub use selection_bar::{SelectionBarField, SelectionBarTokens};
 pub use selection_frame::{SelectionFrameField, SelectionFrameTokens};
 pub use shape_drag::{ShapeDragField, ShapeDragTokens};
+pub use sheet::{SheetField, SheetTokens};
 pub use slice::{SliceField, SliceTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use slider_row::{SliderRowField, SliderRowTokens};
@@ -318,6 +325,7 @@ pub use text_styles::{TextStylesField, TextStylesTokens};
 pub use theme_chip::{ThemeChipField, ThemeChipTokens};
 pub use thumbnail::{ThumbnailField, ThumbnailTokens};
 pub use tile::{TileField, TileTokens};
+pub use timeline::{TimelineField, TimelineTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
@@ -1015,6 +1023,14 @@ families! {
     kbd: KbdTokens => Kbd(KbdField);
     /// The Layers panel: indicators, mask badges, blend rows and the filter bar.
     layers: LayersTokens => Layers(LayersField);
+    /// The timeline: the sizes of its strips, tracks, clips, keyframes and markers.
+    timeline: TimelineTokens => Timeline(TimelineField);
+    /// Review: comment pins, thread popovers, version history, cursor chat and revision bars.
+    review: ReviewTokens => Review(ReviewField);
+    /// The spreadsheet grid: headers, outline lanes, slicers and filter buttons.
+    sheet: SheetTokens => Sheet(SheetField);
+    /// The page widgets of craft-pages, leaves named by part.
+    pages: PagesTokens => Pages(PagesField);
     /// Levels editors: the triangle thumbs and output bar under a histogram.
     levels: LevelsTokens => Levels(LevelsField);
     /// Lists: the rows of a list or tree panel.

@@ -95,6 +95,8 @@ pub(crate) struct Labelled {
     /// The whole element: indicator, gap and label.
     pub size: Vec2,
     truncated: bool,
+    /// Width of what sits between the indicator and the label, gap after included; 0 for none.
+    lead: f32,
 }
 
 /// What [`Labelled::layout`] needs from a control's style.
@@ -110,11 +112,17 @@ impl Labelled {
     /// as the `Ui`'s wrap mode says; at least one line is `height` tall with the indicator and the
     /// first line centred in it.
     pub(crate) fn layout(ui: &Ui, tokens: &UiTokens, layout: &Layout, label: &str) -> Self {
+        Self::layout_after(ui, tokens, layout, label, 0.0)
+    }
+
+    /// As [`layout`](Labelled::layout), with `lead` points (its gap to the label included) kept
+    /// free between the indicator's gap and the label.
+    pub(crate) fn layout_after(ui: &Ui, tokens: &UiTokens, layout: &Layout, label: &str, lead: f32) -> Self {
         let Layout { height, gap, label: role, indicator } = *layout;
         // The text colour depends on the state, known only after the interaction: painted later.
         let format = role_format(tokens, role, Color32::PLACEHOLDER);
         let line = tokens.typography.get(role).line_height;
-        let room = (ui.available_width() - indicator.x - gap).max(0.0);
+        let room = (ui.available_width() - indicator.x - gap - lead).max(0.0);
         let layout = |wrap: TextWrapping| {
             let mut job = LayoutJob::single_section(label.to_owned(), format.clone());
             job.wrap = wrap;
@@ -129,9 +137,9 @@ impl Labelled {
             TextWrapMode::Extend => (full, false),
         };
         let text = galley.size();
-        let width = indicator.x + if label.is_empty() { 0.0 } else { gap + text.x };
+        let width = indicator.x + lead + if label.is_empty() { 0.0 } else { gap + text.x };
         let size = vec2(width, height.max(text.y + (height - line).max(0.0)));
-        Self { galley, indicator, gap, height, line, size, truncated }
+        Self { galley, indicator, gap, height, line, size, truncated, lead }
     }
 
     /// The indicator's rect in the element's `rect`, at the reading start, and where the label's
@@ -148,9 +156,20 @@ impl Labelled {
         };
         let (start, forward) = (direction::start_x(ui, rect), direction::forward(ui));
         let indicator = Rect::from_center_size(pos2(start + forward * self.indicator.x / 2.0, center_y), self.indicator).round_to_pixels(ppp);
-        let label_start = start + forward * (self.indicator.x + self.gap);
+        let label_start = start + forward * (self.indicator.x + self.lead + self.gap);
         let left = if direction::is_rtl(ui) { label_start - text.x } else { label_start };
         (indicator, pos2(left, top).round_to_pixels(ppp))
+    }
+
+    /// The rect of the lead item (`side` square) in the element's `rect`: after the indicator and
+    /// its gap, centred like the indicator.
+    pub(crate) fn lead_rect(&self, ui: &Ui, rect: Rect, side: f32) -> Rect {
+        let (indicator, _) = self.place(ui, rect);
+        let forward = direction::forward(ui);
+        let start = if direction::is_rtl(ui) { indicator.left() } else { indicator.right() } + forward * self.gap;
+        let far = start + forward * side;
+        Rect::from_x_y_ranges(start.min(far)..=start.max(far), indicator.center().y - side / 2.0..=indicator.center().y + side / 2.0)
+            .round_to_pixels(ui.pixels_per_point())
     }
 
     /// Paints the label with its top-left corner at `pos`.

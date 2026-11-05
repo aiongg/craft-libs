@@ -1,0 +1,36 @@
+[package]
+name = "craft-review"
+description = "Review for Craft apps: comments and threads, annotations, signatures, version history and revisions; presence, voting, chat and join over the app's own transport."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# The review widgets (`craft_review::ui`).
+ui = ["dep:craft-ui", "dep:craft-host", "dep:craft-theme", "dep:egui", "dep:image", "dep:web-time"]
+# Screenshot and input tests of the widgets with egui_kittest (desktop only).
+screen-testing = ["ui", "craft-ui/screen-testing"]
+
+[dependencies]
+craft-host = { workspace = true, optional = true, features = ["ui"] }
+craft-i18n = { workspace = true }
+craft-theme = { workspace = true, optional = true }
+craft-ui = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"], optional = true }
+kurbo = { workspace = true, features = ["serde"] }
+serde = { workspace = true }
+web-time = { version = "1.1", optional = true }
+
+[dev-dependencies]
+egui = { workspace = true, features = ["default_fonts", "serde"] }
+serde_json = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+egui_kittest = { version = "0.37", features = ["wgpu"] }

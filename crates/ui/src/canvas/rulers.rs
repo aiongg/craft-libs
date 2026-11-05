@@ -9,6 +9,7 @@ use egui::{
     Stroke, Ui, WidgetInfo, pos2, vec2,
 };
 use kurbo::Point;
+use std::ops::{Range, RangeInclusive};
 
 use super::claim::PrimaryPress;
 use super::guides::segment;
@@ -120,6 +121,8 @@ pub struct RulerStyle {
     pub label: Color32,
     /// The pointer's marker and the cross hairs of a zero point drag: 1 point of `text.normal`.
     pub marker: Stroke,
+    /// The margin part of a strip, where the text part keeps `fill`: `ruler.margin_shade`.
+    pub margin_shade: Color32,
 }
 
 crate::words! {
@@ -140,6 +143,54 @@ impl RulerNames {
     pub fn new(horizontal: impl Into<String>, vertical: impl Into<String>, origin: impl Into<String>) -> Self {
         Self { horizontal: horizontal.into(), vertical: vertical.into(), origin: origin.into() }
     }
+}
+
+/// One tick of [`Rulers::ticks`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct RulerTick {
+    /// Ruler units from the zero point.
+    pub value: f64,
+    /// Along the strip's depth: `ruler.size` for a labelled tick, `ruler.tick_mid` halfway between
+    /// two, `ruler.tick_minor` for the rest.
+    pub length: f32,
+    /// A labelled tick's number, written by [`RulerUnits::tick_label`].
+    pub label: Option<String>,
+}
+
+/// Which tick table [`Rulers::ticks`] follows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TickRule<'a> {
+    /// The units' own table ([`RulerUnits::step`]): decimal steps and ten subdivisions, or the
+    /// host's custom table.
+    Metric,
+    /// Inches: a label every inch (every 2, 5, 10 … inches when smaller), subdivided by the
+    /// first of these counts, finest first, that keeps the ticks `ruler.step_min` / 10 points
+    /// apart, the spacing of the metric rule's tenths ([`INCH_SIXTEENTHS`], [`INCH_EIGHTHS`]).
+    Inches(&'a [u32]),
+}
+
+/// Word's inch ruler: sixteenths, down to halves.
+pub const INCH_SIXTEENTHS: [u32; 4] = [16, 8, 4, 2];
+/// DesignCraft's inch ruler: eighths, down to halves (`geom/src/units.rs:117`).
+pub const INCH_EIGHTHS: [u32; 3] = [8, 4, 2];
+
+/// The metric rule's subdivisions of a labelled step.
+const METRIC_SUBDIVISIONS: f32 = 10.0;
+/// Labelled inch steps in inches (DesignCraft's 1, 2, 5, 10 × base, `geom/src/units.rs:130-137`).
+const INCH_STEPS: [f64; 9] = [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0];
+/// The coarsest inch step, when even 500 inches are closer than `step_min`.
+const INCH_STEP_LAST: f64 = 1000.0;
+
+/// The labelled inch step and its subdivisions at `points_per_inch` screen points per inch:
+/// labels `step_min` points apart at least, ticks `step_min / 10` apart at least (the metric rule).
+fn inch_step(points_per_inch: f64, step_min: f32, finest: &[u32]) -> (f64, u32) {
+    let step = INCH_STEPS.into_iter().find(|step| step * points_per_inch >= f64::from(step_min)).unwrap_or(INCH_STEP_LAST);
+    if step > 1.0 {
+        return (step, 2);
+    }
+    let gap = f64::from(step_min / METRIC_SUBDIVISIONS);
+    let subdivisions = finest.iter().copied().find(|n| points_per_inch / f64::from(*n) >= gap).unwrap_or(1);
+    (step, subdivisions)
 }
 
 /// A zero point command of the host's, waiting for the rulers' next pass.
@@ -191,6 +242,8 @@ pub struct Rulers<'a> {
     names: RulerNames,
     policy: EditPolicy,
     units_menu: Option<(&'a [LengthUnit], LengthUnit)>,
+    /// The margin parts of the top and left strips, document units along each axis.
+    margins: (Vec<Range<f64>>, Vec<Range<f64>>),
 }
 
 /// The host's snapping of the zero point ([`Rulers::snap`]).
@@ -210,7 +263,17 @@ impl<'a> Rulers<'a> {
             names,
             policy: EditPolicy::default(),
             units_menu: None,
+            margins: (Vec::new(), Vec::new()),
         }
+    }
+
+    /// The margin parts of the strips, as document ranges along the x axis (the top strip) and the
+    /// y axis (the left strip): painted in [`RulerStyle::margin_shade`] under the ticks, while the
+    /// text part keeps the strip's fill. A page view's margins, a text frame's insets. A reversed
+    /// range is read the right way round.
+    pub fn margins(mut self, horizontal: impl IntoIterator<Item = Range<f64>>, vertical: impl IntoIterator<Item = Range<f64>>) -> Self {
+        self.margins = (horizontal.into_iter().collect(), vertical.into_iter().collect());
+        self
     }
 
     /// The document point the rulers count from.
@@ -291,6 +354,7 @@ impl<'a> Rulers<'a> {
             tick: Stroke::new(1.0, c.text.faint.to_egui()),
             label: c.text.muted.to_egui(),
             marker: Stroke::new(1.0, c.text.normal.to_egui()),
+            margin_shade: r.margin_shade.to_egui(),
         }
     }
 
@@ -312,15 +376,31 @@ impl<'a> Rulers<'a> {
         for r in [top, left, corner] {
             painter.rect_filled(r, 0.0, style.fill);
         }
+        let level = view.level(self.zero);
+        for (spans, strip, vertical) in [(&self.margins.0, top, false), (&self.margins.1, left, true)] {
+            let clipped = painter.with_clip_rect(strip);
+            for span in spans {
+                let at = |along: f64| {
+                    let s = level.to_screen(if vertical { Point::new(self.zero.x, along) } else { Point::new(along, self.zero.y) });
+                    if vertical { s.y } else { s.x }
+                };
+                let (a, b) = (at(span.start), at(span.end));
+                let (lo, hi) = (a.min(b), a.max(b));
+                let shade = if vertical {
+                    ScreenRect::from_min_max(pos2(strip.left(), lo), pos2(strip.right(), hi))
+                } else {
+                    ScreenRect::from_min_max(pos2(lo, strip.top()), pos2(hi, strip.bottom()))
+                };
+                clipped.rect_filled(shade, 0.0, style.margin_shade);
+            }
+        }
         let half = 0.5 / painter.pixels_per_point();
         Divider::paint(&painter, pos2(top.left(), top.bottom() - half), pos2(top.right(), top.bottom() - half), &tokens);
         Divider::paint(&painter, pos2(left.right() - half, left.top()), pos2(left.right() - half, left.bottom()), &tokens);
 
-        let level = view.level(self.zero);
-        let step_min = style.step_min;
         let (x, y) = self.units;
-        self.axis(&painter.with_clip_rect(top), &style, &level, top, false, x, view.zoom_x(), step_min);
-        self.axis(&painter.with_clip_rect(left), &style, &level, left, true, y, view.zoom, step_min);
+        self.axis(&painter.with_clip_rect(top), &style, &level, top, false, x, view.zoom_x());
+        self.axis(&painter.with_clip_rect(left), &style, &level, left, true, y, view.zoom);
 
         if let Some(h) = ctx.pointer_hover_pos().filter(|h| full.contains(*h)) {
             let (p, l) = (painter.with_clip_rect(top), painter.with_clip_rect(left));
@@ -378,23 +458,11 @@ impl<'a> Rulers<'a> {
 
     /// Ticks and labels of one ruler along `strip`, `level` giving the position of each tick.
     #[allow(clippy::too_many_arguments)]
-    fn axis(
-        &self,
-        painter: &Painter,
-        style: &RulerStyle,
-        level: &CanvasView,
-        strip: ScreenRect,
-        vertical: bool,
-        units: &RulerUnits,
-        zoom: f64,
-        step_min: f32,
-    ) {
-        let (step, subdivisions) = units.step(zoom, step_min);
-        let minor = step / f64::from(subdivisions);
-        if !(minor.is_finite() && minor > 0.0 && units.per_doc.is_finite() && units.per_doc > 0.0) {
+    fn axis(&self, painter: &Painter, style: &RulerStyle, level: &CanvasView, strip: ScreenRect, vertical: bool, units: &RulerUnits, zoom: f64) {
+        let zero = if vertical { self.zero.y } else { self.zero.x };
+        if !(units.per_doc.is_finite() && units.per_doc > 0.0) {
             return;
         }
-        let zero = if vertical { self.zero.y } else { self.zero.x };
         // The ruler's value (units from the zero point) at a screen coordinate along it and back.
         let value_at = |pos: Pos2| {
             let d = level.to_doc(pos);
@@ -408,34 +476,15 @@ impl<'a> Rulers<'a> {
         };
         let (a, b) = if vertical { (strip.left_top(), strip.left_bottom()) } else { (strip.left_top(), strip.right_top()) };
         let (v0, v1) = (value_at(a), value_at(b));
-        let (lo, hi) = (v0.min(v1), v0.max(v1));
-        let subdivisions = i64::from(subdivisions);
-        // One labelled step beyond each end: a label starts right of its tick.
-        let (first, last) = ((lo / minor).floor() as i64 - subdivisions, (hi / minor).ceil() as i64 + subdivisions);
-        if !(last - first <= MAX_TICKS) {
-            return;
-        }
         let font = &style.font;
-        for m in first..=last {
-            let c = screen_at(m as f64 * minor);
-            let rem = m.rem_euclid(subdivisions);
-            let major = rem == 0;
-            let len = if major {
-                style.size
-            } else if subdivisions % 2 == 0 && rem == subdivisions / 2 {
-                style.tick_mid
-            } else {
-                style.tick_minor
-            };
+        for tick in Rulers::ticks(units, TickRule::Metric, style, zoom, v0.min(v1)..=v0.max(v1)) {
+            let c = screen_at(tick.value);
             if vertical {
-                crisp(painter, pos2(strip.right() - len, c), pos2(strip.right(), c), style.tick);
+                crisp(painter, pos2(strip.right() - tick.length, c), pos2(strip.right(), c), style.tick);
             } else {
-                crisp(painter, pos2(c, strip.bottom() - len), pos2(c, strip.bottom()), style.tick);
+                crisp(painter, pos2(c, strip.bottom() - tick.length), pos2(c, strip.bottom()), style.tick);
             }
-            if !major {
-                continue;
-            }
-            let label = units.tick_label((m / subdivisions) as f64 * step, step);
+            let Some(label) = tick.label else { continue };
             if vertical {
                 // One character per line, centred in the strip: a narrow "1" lines up with a "0".
                 for (i, ch) in label.chars().enumerate() {
@@ -446,6 +495,41 @@ impl<'a> Rulers<'a> {
                 painter.text(pos2(c + style.label_pad, strip.top() + LABEL_TOP), Align2::LEFT_TOP, label, font.clone(), style.label);
             }
         }
+    }
+
+    /// The ticks of one ruler over `values` (ruler units from the zero point): the one tick rule
+    /// of every ruler, so a text ruler or a page view's ruler draws the same ticks as the canvas's.
+    /// One labelled step beyond each end is included, since a label starts right of its tick.
+    /// `zoom` is screen points per document unit along the axis, as [`RulerUnits::step`] takes it.
+    /// Empty when the units are unusable or the span would need more than [`MAX_TICKS`] ticks.
+    pub fn ticks(units: &RulerUnits, rule: TickRule<'_>, style: &RulerStyle, zoom: f64, values: RangeInclusive<f64>) -> Vec<RulerTick> {
+        let (step, subdivisions) = match rule {
+            TickRule::Metric => units.step(zoom, style.step_min),
+            TickRule::Inches(finest) => inch_step(zoom / units.per_doc, style.step_min, finest),
+        };
+        let minor = step / f64::from(subdivisions);
+        if !(minor.is_finite() && minor > 0.0 && units.per_doc.is_finite() && units.per_doc > 0.0) {
+            return Vec::new();
+        }
+        let (lo, hi) = (*values.start(), *values.end());
+        let subdivisions = i64::from(subdivisions);
+        let (first, last) = ((lo / minor).floor() as i64 - subdivisions, (hi / minor).ceil() as i64 + subdivisions);
+        if !(last - first <= MAX_TICKS) {
+            return Vec::new();
+        }
+        (first..=last)
+            .map(|m| {
+                let rem = m.rem_euclid(subdivisions);
+                let (length, label) = if rem == 0 {
+                    (style.size, Some(units.tick_label((m / subdivisions) as f64 * step, step)))
+                } else if subdivisions % 2 == 0 && rem == subdivisions / 2 {
+                    (style.tick_mid, None)
+                } else {
+                    (style.tick_minor, None)
+                };
+                RulerTick { value: m as f64 * minor, length, label }
+            })
+            .collect()
     }
 
     /// The zero point: dragged out of the corner, reset by its double-click, and the host's

@@ -194,6 +194,11 @@ impl<'a> Autocomplete<'a> {
         let mut pass = self.load(ui, id);
         let count = self.suggestions.len();
         let mut out = AutocompleteResponse { popup: None, accepted: None, dismissed: keys.dismissed };
+        // egui drops the focus on a press in the list before the pass starts; the editor that had
+        // it while the list showed keeps it, so the list stays until the release accepts a row.
+        if pass.memory.shown {
+            super::option_list::keep_focus(ui, id.with("popup"), Some(self.editor));
+        }
         let showing = count > 0 && !pass.memory.dismissed && self.has_focus(&ctx, id);
         out.dismissed |= pass.memory.shown && count == 0;
         pass.memory.shown = showing;

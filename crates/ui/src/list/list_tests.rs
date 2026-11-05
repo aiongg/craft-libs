@@ -27,6 +27,7 @@ struct Host {
     allow_empty: bool,
     type_ahead: bool,
     start_rename: Option<usize>,
+    draft: Option<fn(usize) -> Option<String>>,
     /// Keys of rows the list may focus but not select.
     unselectable: Vec<usize>,
     /// Keys of rows drawn as spacers (also sections of `rows`).
@@ -50,6 +51,7 @@ impl Host {
             allow_empty: true,
             type_ahead: false,
             start_rename: None,
+            draft: None,
             unselectable: Vec::new(),
             spacers: Vec::new(),
         }
@@ -62,7 +64,7 @@ impl Host {
 
 fn show(ui: &mut Ui, host: &mut Host) {
     let hide = KeyboardShortcut::new(Modifiers::COMMAND, Key::Comma);
-    let Host { rows, names, visible, selection, events, heights, allow_empty, type_ahead, start_rename, unselectable, spacers } = host;
+    let Host { rows, names, visible, selection, events, heights, allow_empty, type_ahead, start_rename, draft, unselectable, spacers } = host;
     let mut list = List::new("list", "Layers", rows.as_slice())
         .selection(selection)
         .max_height(LIST_HEIGHT)
@@ -74,6 +76,9 @@ fn show(ui: &mut Ui, host: &mut Host) {
     }
     if let Some(key) = start_rename.take() {
         list = list.start_rename(key);
+    }
+    if let Some(draft) = *draft {
+        list = list.rename_draft(move |&key| draft(key));
     }
     let out = list.show(ui, |_, &key| {
         if spacers.contains(&key) {
@@ -348,6 +353,37 @@ fn field(harness: &Harness<'_, Host>) -> Option<String> {
     harness.query_by_role(Role::TextInput).and_then(|n| n.value())
 }
 
+// A rename draft is the text the field opens with and the text that counts as unchanged; a row without one opens on its label.
+#[test]
+fn a_rename_draft_replaces_the_label_the_field_starts_from() {
+    let mut host = Host::new(4);
+    host.draft = Some(|key| match key {
+        1 => Some(String::new()),
+        2 => Some("Draft".to_owned()),
+        _ => None,
+    });
+    let mut harness = harness(host);
+    focus(&mut harness);
+    key(&mut harness, Modifiers::NONE, Key::F2);
+    assert_eq!(field(&harness).as_deref(), Some("Row 0"), "no draft keeps the label");
+    key(&mut harness, Modifiers::NONE, Key::Tab);
+    assert!(harness.query_by_role(Role::TextInput).is_some(), "the field is open");
+    assert_eq!(field(&harness).unwrap_or_default(), "", "an empty draft opens an empty field");
+    key(&mut harness, Modifiers::NONE, Key::Tab);
+    assert_eq!(field(&harness).as_deref(), Some("Draft"));
+    assert_eq!(
+        renamed_events(&harness.state_mut().take_events()),
+        [RowEvent::RenameEnded { row: 0, end: RenameEnd::Tab }, RowEvent::RenameEnded { row: 1, end: RenameEnd::Tab }],
+        "the draft left as it was reports no Renamed"
+    );
+    harness.event(Event::Text("!".into())); // replaces the selected draft
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(
+        renamed_events(&harness.state_mut().take_events()),
+        [RowEvent::Renamed { row: 2, text: "!".into() }, RowEvent::RenameEnded { row: 2, end: RenameEnd::Enter }]
+    );
+}
+
 #[test]
 fn rename_moves_on_with_tab_commits_when_another_starts_or_its_row_leaves() {
     let mut harness = harness(Host::new(5));
@@ -378,8 +414,17 @@ fn rename_moves_on_with_tab_commits_when_another_starts_or_its_row_leaves() {
 
     pause(&mut harness);
     let label = row(&harness, 2).rect().center();
-    click_at(&mut harness, label, PointerButton::Primary);
-    click_at(&mut harness, label, PointerButton::Primary);
+    // The press and the release are separate passes, as from a real pointer: the click reports on the
+    // release, and a press in the pass the field opens in would drop the field's focus.
+    harness.event(Event::PointerMoved(label));
+    harness.run();
+    for _ in 0..2 {
+        for pressed in [true, false] {
+            harness.event(Event::PointerButton { pos: label, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+            harness.step();
+        }
+    }
+    harness.run();
     assert_eq!(field(&harness).as_deref(), Some("Row 2"), "a double click on the label renames");
     key(&mut harness, Modifiers::NONE, Key::Enter);
     assert_eq!(field(&harness), None);
@@ -871,4 +916,42 @@ fn a_paint_depth_indents_the_row_as_the_true_depth_does() {
     assert_eq!(x_of(&filtered), plain);
     let unpainted = hooks(rows(0), true);
     assert!(x_of(&unpainted) < plain, "without a paint depth the row sits at its list depth");
+}
+
+// The popover a list is drawn in doesn't take its keys: ↓ moves the selection and Enter activates.
+#[test]
+fn a_list_in_a_popover_moves_with_down_and_picks_with_enter() {
+    use crate::popover::{Popover, PopoverAnchor};
+
+    struct App {
+        selection: Selection<usize>,
+        activated: Vec<usize>,
+    }
+    let app = App { selection: Selection::only(0), activated: Vec::new() };
+    let mut harness = Harness::builder().with_size(vec2(320.0, 300.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, app: &mut App| {
+            let anchor = ui.button("Open");
+            let mut open = true;
+            Popover::new("popover", PopoverAnchor::Control(anchor)).show(ui, &mut open, |ui, _| {
+                let rows: Vec<RowInfo<usize>> = (0..3).map(RowInfo::leaf).collect();
+                let out = List::new("list", "Items", rows.as_slice())
+                    .selection(&mut app.selection)
+                    .show(ui, |at, &key| ListRow::new(key, format!("Item {at}")));
+                ui.memory_mut(|m| m.request_focus(out.response.id));
+                for event in out.events {
+                    if let ListEvent::Activate(key) = event {
+                        app.activated.push(key);
+                    }
+                }
+            });
+        },
+        app,
+    );
+    harness.run();
+    for pressed in [Key::ArrowDown, Key::Enter] {
+        harness.key_press(pressed);
+        harness.run();
+    }
+    assert_eq!(harness.state().selection, Selection::only(1));
+    assert_eq!(harness.state().activated, [1]);
 }

@@ -36,6 +36,8 @@ struct Probe {
     alt_secondary: bool,
     /// The button and click count of each `press`.
     presses: Rc<RefCell<Vec<(PointerButton, u32)>>>,
+    /// The layout direction each `press` saw.
+    directions: Rc<RefCell<Vec<crate::direction::Direction>>>,
 }
 
 impl Probe {
@@ -49,6 +51,7 @@ impl Probe {
             reasons: Rc::default(),
             alt_secondary: false,
             presses: Rc::default(),
+            directions: Rc::default(),
         }
     }
 
@@ -59,8 +62,9 @@ impl Probe {
 }
 
 impl CanvasTool for Probe {
-    fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         self.note("press", Some(pointer));
+        self.directions.borrow_mut().push(cx.direction);
         self.presses.borrow_mut().push((pointer.button, pointer.clicks));
         self.action
     }
@@ -1000,4 +1004,20 @@ fn a_tools_node_is_a_graphics_object_under_the_canvas() {
     let mut h = harness(Rig::new(Parted::new(false, &keys)), 0.05);
     h.run();
     assert!(h.query_by_role(Role::GraphicsObject).is_none());
+}
+
+// A tool sees the interface's layout direction of the pass.
+#[test]
+fn the_tool_context_carries_the_layout_direction() {
+    use crate::direction::Direction;
+    let probe = Probe::new(&Log::default());
+    let seen = probe.directions.clone();
+    let mut h = harness(Rig::new(probe), 0.05);
+    let at = pos2(150.0, 100.0);
+    press(&mut h, at, Modifiers::NONE);
+    release(&mut h, at, Modifiers::NONE);
+    crate::direction::apply(&h.ctx, Direction::Rtl);
+    press(&mut h, at, Modifiers::NONE);
+    release(&mut h, at, Modifiers::NONE);
+    assert_eq!(*seen.borrow(), [Direction::Ltr, Direction::Rtl]);
 }

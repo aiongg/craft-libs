@@ -42,11 +42,15 @@ craft-pcraft-format = { workspace = true, optional = true }
 craft-pdf = { workspace = true, optional = true }
 craft-platform = { workspace = true, optional = true }
 craft-prepress = { workspace = true, optional = true }
+craft-pages = { workspace = true, optional = true }
 craft-print = { workspace = true, optional = true }
 craft-proof = { workspace = true, optional = true }
 craft-quit = { workspace = true, optional = true }
 craft-settings = { workspace = true, optional = true }
+craft-review = { workspace = true, optional = true }
+craft-table = { workspace = true, optional = true }
 craft-text = { workspace = true, optional = true }
+craft-timeline = { workspace = true, optional = true }
 craft-theme-store = { workspace = true, optional = true }
 craft-update = { workspace = true, optional = true }
 craft-vectorcraft-format = { workspace = true, optional = true }
@@ -68,11 +72,15 @@ ui = [
     "craft-host/ui",
     "craft-imaging?/ui",
     "craft-keymap?/ui",
+    "craft-pages?/ui",
     "craft-platform?/ui",
     "craft-print?/ui",
     "craft-quit?/ui",
+    "craft-review?/ui",
+    "craft-table?/ui",
     "craft-text?/ui",
     "craft-theme-store?/ui",
+    "craft-timeline?/ui",
     "craft-update?/ui",
     "craft-window?/ui",
 ]
@@ -86,7 +94,10 @@ screen-testing = [
     "craft-imaging?/screen-testing",
     "craft-keymap?/screen-testing",
     "craft-layers?/screen-testing",
+    "craft-review?/screen-testing",
+    "craft-table?/screen-testing",
     "craft-theme-store?/screen-testing",
+    "craft-timeline?/screen-testing",
     "craft-ui?/screen-testing",
     "craft-update?/screen-testing",
 ]
@@ -153,6 +164,8 @@ media-serde = ["media", "craft-media/serde"]
 
 menu = ["dep:craft-menu"]
 
+pages = ["dep:craft-pages"]
+
 pcraft-format = ["dep:craft-pcraft-format"]
 
 pdf = ["dep:craft-pdf"]
@@ -183,7 +196,11 @@ proof = ["dep:craft-proof"]
 quit = ["dep:craft-quit"]
 quit-menu = ["quit", "craft-quit/menu"]
 
+review = ["dep:craft-review"]
+
 settings = ["dep:craft-settings"]
+
+table = ["dep:craft-table"]
 
 text = ["dep:craft-text"]
 text-afrikaans = ["text", "craft-text/afrikaans"]
@@ -201,6 +218,7 @@ text-czech = ["text", "craft-text/czech"]
 text-danish = ["text", "craft-text/danish"]
 text-dutch = ["text", "craft-text/dutch"]
 text-estonian = ["text", "craft-text/estonian"]
+text-find = ["text", "craft-text/find"]
 text-finnish = ["text", "craft-text/finnish"]
 text-font-picker = ["text", "craft-text/font-picker"]
 text-french = ["text", "craft-text/french"]
@@ -248,6 +266,8 @@ text-turkmen = ["text", "craft-text/turkmen"]
 text-ukrainian = ["text", "craft-text/ukrainian"]
 
 theme-store = ["dep:craft-theme-store"]
+
+timeline = ["dep:craft-timeline"]
 
 ui-color_fonts = ["ui", "craft-ui/color_fonts"]
 ui-native-windows = ["ui", "craft-ui/native-windows"]

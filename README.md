@@ -106,6 +106,10 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   (app menu, Window, Help, system-key clashes), a platform backend trait, and key equivalents
   fed back to egui as the input egui-winit would have made. Commands and their enabled state
   stay in each app.
+- [`craft-pages`](crates/pages/README.md): pages for the document apps: page layout and fit modes,
+  paper sizes and page setup, page ranges and numbering; with `ui`, the page view, thumbnails, Page
+  Setup, margin handles, header and footer zones, text selection, reading view, page list and
+  document tables. The document, its layout and rendering stay in each app.
 - [`craft-pcraft-format`](crates/pcraft-format/README.md): the envelope of PhotoCraft's `.pcraft`
   bundle: `Manifest<D>` with the document as a type parameter, `TileRef`, the entry paths, the
   manifest decode limits and the migration runner. The document model stays in PhotoCraft.
@@ -120,11 +124,24 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [`craft-quit`](crates/quit/src/lib.rs): native macOS quit, egui close handling and an optional
   app menu. Unsaved-document decisions and save prompts stay in each app.
 
+- [`craft-review`](crates/review/README.md): review: the comments panel, comment pins, thread
+  popover and composer, Acrobat's annotation tool, the signature pad, version history and the
+  revisions panel, presence, voting, cursor chat and join over the app's own transport (`ui`
+  feature).
 - [`craft-settings`](crates/settings/README.md): `config.toml` settings storage for every app: platform folders, portable mode and overrides, atomic saves while running, backup, damaged-file recovery and schema migrations, plus remembered dialog options and preset folders (also on wasm32). Policy in [docs/settings-storage.md](docs/settings-storage.md).
+- [`craft-table`](crates/table/README.md): spreadsheet widgets: the cell grid with Excel's
+  keys, outline bands, the PivotTable field list, the condition builder, chart painting, slicers,
+  reference picking, selection statistics, error tags and filter buttons (`ui` feature).
 - [`craft-text`](crates/text/README.md): text processing below the composer. Its `hyphen` module finds
   hyphenation points, with a bundled US English dictionary and patterns and optional hypher patterns
   for 47 more languages (one cargo feature each). With `ui`, the canvas text editor, Character and
-  Paragraph controls, text style panels and Check Spelling dialog; `spell` and `quotes` without egui.
+  Paragraph controls, text style panels and Check Spelling dialog, and the paged-text controls
+  (ruler, Tabs, Paragraph, Columns and Hyperlink dialogs, notes editor, find); `spell` and `find`
+  (regex) are features.
+- [`craft-timeline`](crates/timeline/README.md): timelines: exact media time, frame rates,
+  timecode, the playback clock, a frame cache and frame server (egui-free); the timeline panel,
+  ruler, clips, keyframe lanes, graph editor, transport, timecode fields, preview, overview and
+  render queue (`ui` feature).
 - [`craft-ui`](crates/ui/README.md): SVG catalogs, icon buttons, tabs, pane controls, transactional docking, print settings and theme helpers for egui frontends;
   assets, themes, localization and command handling stay in each app. Requires Rust 1.95 or later.
 - `craft-ui-macros`: the `StoryArgs` and `StoryChoice` derives for `craft_ui::story`; use them through `craft-ui`.

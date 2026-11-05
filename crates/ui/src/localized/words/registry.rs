@@ -89,6 +89,7 @@ pub(super) const TABLES: &[&[Word]] = &[
     <crate::controls::ResetDotLabels as Labels>::WORDS,
     <crate::behavior::DragFeedbackLabels as Labels>::WORDS,
     <crate::list::TableLabels as Labels>::WORDS,
+    <crate::list::TileLabels as Labels>::WORDS,
     <crate::list::MetadataLabels as Labels>::WORDS,
     <crate::list::EventLogLabels as Labels>::WORDS,
     <crate::list::ClippedLabels as Labels>::WORDS,

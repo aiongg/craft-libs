@@ -192,3 +192,31 @@ fn a_control_tabbed_into_scrolls_into_view() {
     assert!(h.state().offset > 0.0, "the bar scrolled");
     assert!((button.center().x - view.center().x).abs() < 1.5, "centred: {button:?} in {view:?}");
 }
+
+// A length field takes its unit's word from the catalog: with "{n} in" translated, the field and its accessible value carry the translation.
+#[test]
+fn a_length_field_reads_its_unit_word_from_the_catalog() {
+    use crate::controls::expr::ExprUnits;
+    use crate::patterns::unit_number_field;
+    let (i18n, problems) = craft_i18n::I18n::new(&[("fr", "unit\t{n} in\t{n} po\n", "")], &["fr"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let fr = i18n.from_code("fr").expect("fr");
+    let i18n = std::sync::Arc::new(i18n);
+    let mut harness = Harness::builder()
+        .with_size([320.0, 120.0])
+        .with_context_setup(move |ctx| {
+            install(ctx, &Base::suite_default());
+            craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" })
+                .i18n(std::sync::Arc::clone(&i18n))
+                .lang(fr)
+                .install(ctx);
+        })
+        .build_ui(|ui| {
+            let numbers = LocaleNumbers::of(ui);
+            let units = ExprUnits { unit: Some(LengthUnit::Inches), suffix: "in", context: UnitContext::default() };
+            let _ = unit_number_field("margin", "Margin", 0.5, &numbers, &units).show(ui);
+        });
+    harness.run();
+    let value = harness.get_by_role_and_label(Role::SpinButton, "Margin").value().unwrap_or_default();
+    assert!(value.ends_with("po"), "{value:?}");
+}

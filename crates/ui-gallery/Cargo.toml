@@ -22,7 +22,7 @@ required-features = ["capture"]
 
 [dependencies]
 # The crates with a UI side the gallery shows; font-manager joins on native targets below.
-craft = { workspace = true, features = ["ui", "automation", "browse", "color", "draw", "imaging", "keymap", "layers", "platform-appearance", "text", "theme-store"] }
+craft = { workspace = true, features = ["ui", "automation", "browse", "color", "draw", "imaging", "keymap", "layers", "pages", "platform-appearance", "review", "table", "text", "text-find", "theme-store", "timeline"] }
 craft-host = { workspace = true, features = ["ui"] }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true }

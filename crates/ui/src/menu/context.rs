@@ -36,6 +36,7 @@ pub struct ContextMenu<'a, T> {
     request: Option<OpenAt>,
     own_gestures: bool,
     scroll_labels: Option<(Cow<'a, str>, Cow<'a, str>)>,
+    min_width: Option<f32>,
 }
 
 /// Where a host asks a [`ContextMenu`] to open this pass.
@@ -51,7 +52,7 @@ pub enum OpenAt {
 impl<'a, T: Clone> ContextMenu<'a, T> {
     /// A context menu of `entries` at the default control size, handling its own open and close gestures.
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
-        Self { entries, size: ControlSize::Md, request: None, own_gestures: true, scroll_labels: None }
+        Self { entries, size: ControlSize::Md, request: None, own_gestures: true, scroll_labels: None, min_width: None }
     }
 
     /// The rows' size; [`ControlSize::Md`] by default.
@@ -73,6 +74,13 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
     /// turns them off.
     pub fn own_gestures(mut self, own: bool) -> Self {
         self.own_gestures = own;
+        self
+    }
+
+    /// The narrowest a level of the menu is, in place of `menu.min_width`; a level still widens to
+    /// its widest row ([`Menu::min_width`]).
+    pub fn min_width(mut self, width: f32) -> Self {
+        self.min_width = Some(width);
         self
     }
 
@@ -125,6 +133,9 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
         let mut menu = Menu::new(self.entries).size(self.size).opened_by_keyboard(keyboard).restart(open && place.is_some());
         if let Some((up, down)) = self.scroll_labels {
             menu = menu.scroll_labels(up, down);
+        }
+        if let Some(width) = self.min_width {
+            menu = menu.min_width(width);
         }
         let shown = menu.show(ui, anchored);
         if escaped && !shown.open && ctx.data(|d| d.get_temp::<bool>(held)).unwrap_or(false) {

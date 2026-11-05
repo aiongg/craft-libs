@@ -23,10 +23,10 @@ use egui::{
 use super::icon::{ASPECT, CardList, entries_of};
 use super::list::{drop_items, inside_any, item_of, open_event};
 use super::{BinEvent, BinLabels, BinModel, BinState, MediaBin, ThumbPair};
-use crate::ui::grid::rename::{self, Rename};
 use crate::ui::grid::{
-    BadgeVisibility, TileContent, TileFace, TileLabels, TileLook, TileSource as _, TileStyle, TileZoom, ZoomStep, card_size, paint_tile,
+    BadgeVisibility, CaptionPlace, TileContent, TileFace, TileLabels, TileLook, TileSource as _, TileStyle, TileZoom, ZoomStep, card_size, paint_tile,
 };
+use craft_ui::list::{TileRename, TileRenameOutcome, show_tile_rename};
 
 /// A card in the Freeform view, where the host stores it.
 #[derive(Clone, Debug, PartialEq)]
@@ -279,7 +279,7 @@ where
     let mut drag: Option<Drag<K>> = ctx.data(|d| d.get_temp::<Option<Drag<K>>>(drag_slot)).flatten();
     let mut marquee: Option<Marquee<K>> = ctx.data(|d| d.get_temp::<Option<Marquee<K>>>(marquee_slot)).flatten();
     let rename_slot = id.with("rename");
-    let mut renaming: Option<Rename<K>> = ctx.data(|d| d.get_temp::<Option<Rename<K>>>(rename_slot)).flatten();
+    let mut renaming: Option<TileRename<K>> = ctx.data(|d| d.get_temp::<Option<TileRename<K>>>(rename_slot)).flatten();
     let pointer = ctx.input(|i| i.pointer.latest_pos());
     let delta = drag.as_ref().zip(pointer).map_or(Vec2::ZERO, |(drag, pointer)| drag.delta(pointer, snap, rtl));
     let moved = |from: Vec2| (from + delta).max(Vec2::ZERO);
@@ -299,7 +299,7 @@ where
     let mut hits: Vec<(usize, Hit)> = Vec::new();
     let mut bin_rects: Vec<(K, Rect)> = Vec::new();
     let mut lead_tile: Option<Id> = None;
-    let mut rename_shown: Option<rename::Outcome> = None;
+    let mut rename_shown: Option<TileRenameOutcome> = None;
     let extent = positions.iter().fold(Vec2::ZERO, |far, pos| far.max(*pos + cell)) + vec2(style.gap, style.gap);
     let grabbed_key = drag.as_ref().map(|d| d.keys[d.grabbed].clone());
     let is_dragged = |key: &K| drag.as_ref().is_some_and(|d| d.keys.contains(key));
@@ -370,6 +370,7 @@ where
                         content: &content,
                         picture,
                         caption: open.is_none().then_some(caption),
+                        caption_place: CaptionPlace::Below,
                         selected,
                         hovered: response.hovered() && drag.is_none(),
                         lead_focused: focused && is_lead,
@@ -389,7 +390,7 @@ where
                         texture.as_ref().map(|(_, state)| state),
                     );
                     if let Some(open) = open {
-                        rename_shown = Some(rename::show(ui, tile, caption, &tile_labels.rename, open));
+                        rename_shown = Some(show_tile_rename(ui, tile, caption, &tile_labels.rename, open));
                     } else if drag.is_none() {
                         response.clone().on_hover_text(content.name);
                     }
@@ -736,7 +737,7 @@ fn foreign_drop<K, M>(
 }
 
 /// Opens the rename of `key` with its whole name selected, ending another open one first.
-fn begin_rename<K, M>(model: &M, key: Option<K>, renaming: &mut Option<Rename<K>>, events: &mut Vec<BinEvent<K>>)
+fn begin_rename<K, M>(model: &M, key: Option<K>, renaming: &mut Option<TileRename<K>>, events: &mut Vec<BinEvent<K>>)
 where
     K: TextureKey + Debug,
     M: BinModel<K> + ?Sized,
@@ -748,11 +749,11 @@ where
     if let Some(open) = renaming.take() {
         end_rename(model, open, RenameEnd::Blur, events);
     }
-    *renaming = Some(Rename { text: item_of(model, &key).name, key, fresh: true });
+    *renaming = Some(TileRename { text: item_of(model, &key).name, key, fresh: true });
 }
 
 /// Takes what the rename field showed: the text so far, and the end if it came.
-fn settle_rename<K, M>(model: &M, shown: rename::Outcome, renaming: &mut Option<Rename<K>>, events: &mut Vec<BinEvent<K>>)
+fn settle_rename<K, M>(model: &M, shown: TileRenameOutcome, renaming: &mut Option<TileRename<K>>, events: &mut Vec<BinEvent<K>>)
 where
     K: TextureKey + Debug,
     M: BinModel<K> + ?Sized,
@@ -767,7 +768,7 @@ where
 }
 
 /// Closes a rename: a changed, non-empty text is reported unless Esc ended it.
-fn end_rename<K, M>(model: &M, open: Rename<K>, end: RenameEnd, events: &mut Vec<BinEvent<K>>)
+fn end_rename<K, M>(model: &M, open: TileRename<K>, end: RenameEnd, events: &mut Vec<BinEvent<K>>)
 where
     K: TextureKey + Debug,
     M: BinModel<K> + ?Sized,

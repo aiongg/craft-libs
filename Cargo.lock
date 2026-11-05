@@ -953,6 +953,7 @@ dependencies = [
  "craft-layers",
  "craft-media",
  "craft-menu",
+ "craft-pages",
  "craft-pcraft-format",
  "craft-pdf",
  "craft-platform",
@@ -960,10 +961,13 @@ dependencies = [
  "craft-print",
  "craft-proof",
  "craft-quit",
+ "craft-review",
  "craft-settings",
+ "craft-table",
  "craft-text",
  "craft-theme",
  "craft-theme-store",
+ "craft-timeline",
  "craft-ui",
  "craft-update",
  "craft-vectorcraft-format",
@@ -1352,6 +1356,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-pages"
+version = "0.1.0"
+dependencies = [
+ "craft-host",
+ "craft-i18n",
+ "craft-text",
+ "craft-theme",
+ "craft-ui",
+ "egui",
+ "egui_kittest",
+ "kurbo 0.13.1",
+ "serde",
+]
+
+[[package]]
 name = "craft-pcraft-format"
 version = "0.1.0"
 dependencies = [
@@ -1477,6 +1496,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-review"
+version = "0.1.0"
+dependencies = [
+ "craft-host",
+ "craft-i18n",
+ "craft-theme",
+ "craft-ui",
+ "egui",
+ "egui_kittest",
+ "image",
+ "kurbo 0.13.1",
+ "serde",
+ "serde_json",
+ "web-time",
+]
+
+[[package]]
 name = "craft-settings"
 version = "0.1.0"
 dependencies = [
@@ -1491,17 +1527,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-table"
+version = "0.1.0"
+dependencies = [
+ "craft-theme",
+ "craft-ui",
+ "egui",
+ "egui_kittest",
+]
+
+[[package]]
 name = "craft-text"
 version = "0.1.0"
 dependencies = [
  "craft-font-manager",
  "craft-host",
+ "craft-theme",
  "craft-ui",
  "egui",
  "egui_kittest",
  "hypher",
  "icu_segmenter",
  "miniz_oxide 0.8.9",
+ "regex",
+ "regex-syntax",
  "serde",
  "unicode-bidi",
  "unicode-bidi-mirroring",
@@ -1535,6 +1584,18 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "craft-timeline"
+version = "0.1.0"
+dependencies = [
+ "craft-theme",
+ "craft-ui",
+ "egui",
+ "egui_kittest",
+ "serde",
+ "web-time",
 ]
 
 [[package]]
@@ -3486,6 +3547,8 @@ dependencies = [
  "num-traits",
  "png 0.18.1",
  "tiff",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]

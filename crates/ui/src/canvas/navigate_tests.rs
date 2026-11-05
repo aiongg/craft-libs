@@ -341,3 +341,13 @@ fn page_keys_run_for_a_focused_canvas_or_button_but_not_a_claiming_widget() {
         assert_eq!((ran, v.center != before), (moved, moved));
     }
 }
+
+// A page view's wheel: Ctrl/Cmd + wheel and pinch zoom by `zoom_delta`, the wheel scrolls, and
+// the navigation preferences do not apply.
+#[test]
+fn the_page_wheel_scrolls_and_zooms_by_zoom_delta() {
+    assert_eq!(WheelNavigation::classify_page(vec2(0.0, 40.0), 1.0), Some(WheelAction::Pan(vec2(0.0, 40.0))));
+    assert_eq!(WheelNavigation::classify_page(vec2(30.0, 0.0), 1.0), Some(WheelAction::Pan(vec2(30.0, 0.0))));
+    assert_eq!(WheelNavigation::classify_page(vec2(0.0, 40.0), 1.25), Some(WheelAction::Zoom(1.25)));
+    assert_eq!(WheelNavigation::classify_page(egui::Vec2::ZERO, 1.0), None);
+}

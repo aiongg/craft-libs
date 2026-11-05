@@ -53,13 +53,17 @@ craft-media-testkit = { path = "crates/media-testkit" }
 craft-menu = { path = "crates/menu" }
 craft-pcraft-format = { path = "crates/pcraft-format" }
 craft-prepress = { path = "crates/prepress" }
+craft-pages = { path = "crates/pages" }
 craft-print = { path = "crates/print" }
 craft-proof = { path = "crates/proof" }
 craft-quit = { path = "crates/quit" }
+craft-review = { path = "crates/review" }
 craft-settings = { path = "crates/settings" }
+craft-table = { path = "crates/table" }
 craft-text = { path = "crates/text" }
 craft-theme = { path = "crates/theme" }
 craft-theme-store = { path = "crates/theme-store" }
+craft-timeline = { path = "crates/timeline" }
 craft-ui = { path = "crates/ui" }
 craft-ui-macros = { path = "crates/ui-macros" }
 craft-update = { path = "crates/update" }

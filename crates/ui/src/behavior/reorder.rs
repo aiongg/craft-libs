@@ -398,6 +398,26 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
         }
     }
 
+    /// The target of a drop of rows from another list, `items` (keys of that list's rows, which
+    /// `order` doesn't hold), with the pointer at `pointer` in the coordinates of `spans`. `None`
+    /// when `order` has no rows or the host's [`accepts`](Reorder::accepts) refuses the drop.
+    pub fn resolve_foreign(
+        &self,
+        order: &(impl DisplayOrder<K> + ?Sized),
+        spans: &(impl RowSpans + ?Sized),
+        pointer: f32,
+        items: &[K],
+        modifiers: Modifiers,
+    ) -> Option<Resolved<K>> {
+        let (at, position) = if self.axis == Axis::Horizontal && self.right_to_left {
+            self.locate(order, &Mirrored(spans), -pointer, items)?
+        } else {
+            self.locate(order, spans, pointer, items)?
+        };
+        let mv = Move { items: items.to_vec(), target: order.key(at).clone(), position, copy: self.copies(modifiers) };
+        self.accepts.as_ref().is_none_or(|accepts| accepts(&mv, modifiers)).then_some(Resolved { at, mv })
+    }
+
     fn resolve_in_reading_order(
         &self,
         order: &(impl DisplayOrder<K> + ?Sized),
@@ -406,11 +426,31 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
         dragged: &[K],
         modifiers: Modifiers,
     ) -> Option<Resolved<K>> {
+        let (at, position) = self.locate(order, spans, pointer, dragged)?;
+        let copy = self.copies(modifiers);
+        let positions = dragged_positions(order, dragged);
+        let items: Vec<K> = positions.iter().map(|&p| order.key(p).clone()).collect();
+        if items.is_empty() || !drop_changes_something(order, &positions, at, position, copy) {
+            return None;
+        }
+        let mv = Move { items, target: order.key(at).clone(), position, copy };
+        self.accepts.as_ref().is_none_or(|accepts| accepts(&mv, modifiers)).then_some(Resolved { at, mv })
+    }
+
+    /// The row the pointer is over and where a drop lands on it, for rows `dragged`; `None` for a
+    /// list without rows. `len` rows have spans.
+    fn locate(
+        &self,
+        order: &(impl DisplayOrder<K> + ?Sized),
+        spans: &(impl RowSpans + ?Sized),
+        pointer: f32,
+        dragged: &[K],
+    ) -> Option<(usize, DropPosition)> {
         let len = order.len().min(spans.len());
         if len == 0 {
             return None;
         }
-        let (at, position) = {
+        Some({
             let first_after = partition_point(len, |at| spans.span(at).end <= pointer);
             if first_after == len {
                 (len - 1, DropPosition::After)
@@ -436,15 +476,7 @@ impl<'a, K: Clone + PartialEq> Reorder<'a, K> {
                     (first_after, position)
                 }
             }
-        };
-        let copy = self.copies(modifiers);
-        let positions = dragged_positions(order, dragged);
-        let items: Vec<K> = positions.iter().map(|&p| order.key(p).clone()).collect();
-        if items.is_empty() || !drop_changes_something(order, &positions, at, position, copy) {
-            return None;
-        }
-        let mv = Move { items, target: order.key(at).clone(), position, copy };
-        self.accepts.as_ref().is_none_or(|accepts| accepts(&mv, modifiers)).then_some(Resolved { at, mv })
+        })
     }
 
     /// Whether the childless row at `at` takes an `Into` drop of `dragged` by

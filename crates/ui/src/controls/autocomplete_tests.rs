@@ -66,6 +66,16 @@ mod list {
         harness.run();
     }
 
+    // A pointer click on a row accepts it: the press doesn't take the editor's focus, so the list is still there at the release.
+    #[test]
+    fn a_click_on_a_row_accepts_it() {
+        let mut harness = harness();
+        focus_editor(&mut harness);
+        harness.get_by_role_and_label(Role::ListBoxOption, "ƒ  SUMIF").click();
+        harness.run();
+        assert_eq!(harness.state().accepted, [1]);
+    }
+
     // With the list showing, ↓ past the last row goes to the first; Tab reports `accepted` with the active row and the editor never sees the Tab.
     #[test]
     fn arrows_wrap_and_tab_accepts() {

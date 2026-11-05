@@ -11,13 +11,18 @@ plain text and a language and return what layout needs before it shapes and plac
 | `linebreak` | `linebreak` (default) | Line breaking on a box/glue/penalty model |
 | `spell` | `spell` | Spelling with a bundled US English word list (SCOWL 50), suggestions and the user's words |
 | `quotes` | always | Smart quotes: typed straight quotes become the language's quotation marks |
+| `find` | `find` | Find and replace patterns (Acrobat's and Word's options, Word's `^` codes and wildcards) and the matches across pages; pulls `regex` |
+| `styles` | always | Named style lists: folders in names, the next free name |
+| `lists` | always | Bullet and number markers per list level; the number styles page numbers use too |
 | `ui::editor` | `ui` | `TextEditor` and `TextEditorTool`: the text editor on a canvas over a `TextEditorHost`; input methods through craft-ui's `Composer`. Caret and underline sizes are the `text_editor.*` tokens |
 | `ui::character` | `ui` | `CharacterControls` and `ParagraphControls`: Photoshop's Character and Paragraph panels |
 | `ui::style_panel` | `ui` | `TextStylesPanel`: the Character Styles and Paragraph Styles panels |
 | `ui::spelling` | `ui` | `CheckSpellingDialog` and the user's words as a settings section |
+| `ui::ruler`, `ui::tabs_dialog`, `ui::notes`, `ui::columns`, `ui::hyperlink` | `ui` | The paged-text controls: the text ruler, Tabs dialog, notes editor, Columns and Hyperlink dialogs |
+| `ui::find` | `ui` and `find` | The find bar and Find and Replace |
 | | `font-picker` | The Character controls' family field is craft-font-manager's font picker |
 
-The `ui` stories (`patterns/text-editor/canvas`, `patterns/character/*`, `patterns/text-styles-panel/panel`, `patterns/check-spelling-dialog/dialog`) are in `craft::story::all()` with the `text` and `ui` features of the `craft` facade.
+The `ui` stories are in `craft::story::all()` with the `text` and `ui` features of the `craft` facade: `patterns/text-editor/canvas`, `patterns/character/{controls,paragraph}`, `patterns/text-styles-panel/panel`, `patterns/check-spelling-dialog/dialog`, `patterns/paragraph-dialog/dialog`, `patterns/tab-stops-dialog/dialog`, `patterns/notes-editor/editor`, `patterns/text-columns-dialog/dialog`, `patterns/hyperlink-dialog/dialog`, `patterns/find-bar/bar`, `patterns/find-replace-dialog/dialog`, `composites/text-ruler/{word,tabs-panel}` and `composites/style-chip/picker`. `ui::WORDS` lists the labels tables for the facade's catalog extraction.
 
 Language features (`spanish`, `german`, …, `all-languages`) add the data for one language to every
 module that uses it, and turn those modules on. Build with `default-features = false` to leave

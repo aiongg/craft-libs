@@ -35,13 +35,15 @@ struct EditorArgs {
 /// `patterns/text-editor/canvas`, `patterns/character/controls`, `patterns/character/paragraph`,
 /// `patterns/text-styles-panel/panel`, `patterns/check-spelling-dialog/dialog`.
 pub fn stories() -> Vec<Story> {
-    vec![
+    let mut all = vec![
         typed_story!("patterns/text-editor/canvas", Level::Patterns, "TextEditor", "Canvas", EditorArgs { marked: false }, text_editor),
         typed_story!("patterns/character/controls", Level::Patterns, "Character", "Controls", NoArgs {}, character_controls),
         typed_story!("patterns/character/paragraph", Level::Patterns, "Character", "Paragraph", NoArgs {}, paragraph_controls),
         typed_story!("patterns/text-styles-panel/panel", Level::Patterns, "TextStylesPanel", "Panel", NoArgs {}, text_styles),
         typed_story!("patterns/check-spelling-dialog/dialog", Level::Patterns, "CheckSpellingDialog", "Dialog", NoArgs {}, check_spelling),
-    ]
+    ];
+    all.extend(super::paged_stories::stories());
+    all
 }
 
 /// A story's state, kept in egui memory under the story's own id.
@@ -336,13 +338,15 @@ fn text_styles(ui: &mut Ui, _: &mut NoArgs) {
     let Panel { state: styles, current, overridden } = &mut *guard;
     let rows = [(0, "Basic Paragraph"), (1, "Body Copy"), (2, "Heading")].map(|(id, name)| TextStyleRow { id, name: name.to_owned() });
     let response = TextStylesPanel::new("styles", TextStyleKind::Paragraph, &rows, styles).current(Some(*current), *overridden).target(true).show(ui);
-    match response.action {
-        Some(TextStyleAction::Apply { id, clear_overrides }) => {
-            *current = id;
-            *overridden = *overridden && !clear_overrides && id == *current;
+    for action in response.actions {
+        match action {
+            TextStyleAction::Apply { id, clear_overrides } => {
+                *current = id;
+                *overridden = *overridden && !clear_overrides && id == *current;
+            }
+            TextStyleAction::ClearOverride => *overridden = false,
+            _ => {}
         }
-        Some(TextStyleAction::ClearOverride) => *overridden = false,
-        _ => {}
     }
 }
 

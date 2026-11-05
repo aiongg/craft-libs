@@ -1444,6 +1444,29 @@ carbon = "calendar"
 tabler = "calendar"
 
 [[icon]]
+name = "funnel"
+directional = false
+lucide = "funnel"
+phosphor = "funnel"
+carbon = "filter"
+tabler = "filter"
+
+[[icon]]
+name = "chart_line"
+directional = false
+lucide = "chart-line"
+phosphor = "chart-line"
+carbon = "chart--line"
+tabler = "chart-line"
+
+[[icon]]
+name = "split"
+directional = false
+lucide = "split"
+phosphor = "arrows-split"
+tabler = "arrows-split"
+
+[[icon]]
 name = "split_cross"
 directional = false
 lucide = "grid-2x2"
@@ -1554,3 +1577,230 @@ lucide = "arrow-left"
 phosphor = "arrow-left"
 carbon = "arrow--left"
 tabler = "arrow-left"
+
+[[icon]]
+name = "track_mute"
+directional = false
+lucide = "volume-off"
+phosphor = "speaker-simple-slash"
+carbon = "volume--mute"
+tabler = "volume-off"
+
+[[icon]]
+name = "solo"
+directional = false
+lucide = "headphones"
+phosphor = "headphones"
+carbon = "headphones"
+tabler = "headphones"
+
+[[icon]]
+name = "sync_lock"
+directional = false
+phosphor = "sync-lock"
+
+[[icon]]
+name = "snap"
+directional = false
+lucide = "magnet"
+phosphor = "magnet"
+tabler = "magnet"
+
+[[icon]]
+name = "linked_selection"
+directional = false
+lucide = "link-2"
+phosphor = "link-simple-horizontal"
+carbon = "link"
+tabler = "link"
+
+[[icon]]
+name = "mark_in"
+directional = false
+phosphor = "mark-in"
+
+[[icon]]
+name = "mark_out"
+directional = false
+phosphor = "mark-out"
+
+[[icon]]
+name = "step_back"
+directional = false
+lucide = "step-back"
+phosphor = "skip-back"
+carbon = "skip--back"
+tabler = "player-skip-back"
+
+[[icon]]
+name = "step_forward"
+directional = false
+lucide = "step-forward"
+phosphor = "skip-forward"
+carbon = "skip--forward"
+tabler = "player-skip-forward"
+
+[[icon]]
+name = "insert_clip"
+directional = false
+phosphor = "insert-clip"
+
+[[icon]]
+name = "overwrite_clip"
+directional = false
+phosphor = "overwrite-clip"
+
+[[icon]]
+name = "lift_clip"
+directional = false
+phosphor = "lift-clip"
+
+[[icon]]
+name = "extract_clip"
+directional = false
+phosphor = "extract-clip"
+
+[[icon]]
+name = "keyframe_linear"
+directional = false
+phosphor = "keyframe-linear"
+
+[[icon]]
+name = "keyframe_bezier"
+directional = false
+phosphor = "keyframe-bezier"
+
+[[icon]]
+name = "keyframe_auto_bezier"
+directional = false
+phosphor = "keyframe-auto-bezier"
+
+[[icon]]
+name = "keyframe_hold"
+directional = false
+phosphor = "keyframe-hold"
+
+[[icon]]
+name = "keyframe_ease_in"
+directional = false
+phosphor = "keyframe-ease-in"
+
+[[icon]]
+name = "keyframe_ease_out"
+directional = false
+phosphor = "keyframe-ease-out"
+
+[[icon]]
+name = "thumbs_up"
+directional = false
+lucide = "thumbs-up"
+phosphor = "thumbs-up"
+carbon = "thumbs-up"
+tabler = "thumb-up"
+
+[[icon]]
+name = "thumbs_down"
+directional = false
+lucide = "thumbs-down"
+phosphor = "thumbs-down"
+carbon = "thumbs-down"
+tabler = "thumb-down"
+
+[[icon]]
+name = "x_circle"
+directional = false
+lucide = "circle-x"
+phosphor = "x-circle"
+carbon = "close--outline"
+tabler = "circle-x"
+
+[[icon]]
+name = "warning_diamond"
+directional = false
+phosphor = "warning-diamond"
+carbon = "warning--diamond"
+
+[[icon]]
+name = "sort_ascending"
+directional = false
+lucide = "arrow-up-narrow-wide"
+phosphor = "sort-ascending"
+carbon = "sort--ascending"
+tabler = "sort-ascending"
+
+[[icon]]
+name = "sort_descending"
+directional = false
+lucide = "arrow-down-wide-narrow"
+phosphor = "sort-descending"
+carbon = "sort--descending"
+tabler = "sort-descending"
+
+[[icon]]
+name = "globe"
+directional = false
+lucide = "globe"
+phosphor = "globe"
+carbon = "earth"
+tabler = "world"
+
+[[icon]]
+name = "bookmark"
+directional = false
+lucide = "bookmark"
+phosphor = "bookmark-simple"
+carbon = "bookmark"
+tabler = "bookmark"
+
+[[icon]]
+name = "mail"
+directional = false
+lucide = "mail"
+phosphor = "envelope-simple"
+carbon = "email"
+tabler = "mail"
+
+[[icon]]
+name = "key_linear"
+directional = false
+phosphor = "key-linear"
+
+[[icon]]
+name = "key_linear_filled"
+directional = false
+phosphor = "key-linear-filled"
+
+[[icon]]
+name = "key_hold"
+directional = false
+phosphor = "key-hold"
+
+[[icon]]
+name = "key_bezier"
+directional = false
+phosphor = "key-bezier"
+
+[[icon]]
+name = "key_auto_bezier"
+directional = false
+phosphor = "key-auto-bezier"
+
+[[icon]]
+name = "key_continuous_bezier"
+directional = false
+phosphor = "key-continuous-bezier"
+
+[[icon]]
+name = "key_ease_in"
+directional = false
+phosphor = "key-ease-in"
+
+[[icon]]
+name = "key_ease_out"
+directional = false
+phosphor = "key-ease-out"
+
+[[icon]]
+name = "keyframe_easy_ease"
+directional = false
+phosphor = "keyframe-easy-ease"

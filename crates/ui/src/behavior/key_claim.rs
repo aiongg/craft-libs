@@ -1,6 +1,6 @@
 //! [`KeyClaim`]: the keys a focused control edits with, which the app's shortcuts leave to it.
 
-use egui::{Context, Id, Key, KeyboardShortcut, Modifiers, ViewportId};
+use egui::{Context, Event, Id, InputState, Key, KeyboardShortcut, Modifiers, ViewportId};
 
 /// Keys a focused control edits with that are also app shortcuts: a curve editor's Delete (Edit ›
 /// Clear in PhotoCraft) and `+`, `=` and `-`. The control claims them every pass it has keyboard
@@ -45,6 +45,33 @@ impl ClaimedKey {
     /// `modifiers` lacks, so Cmd/Ctrl+`+` (zoom) stays the app's.
     pub const fn logical(modifiers: Modifiers, key: Key) -> Self {
         Self { shortcut: KeyboardShortcut::new(modifiers, key), logical: true }
+    }
+
+    /// Consumes this pass's presses (key repeats included) of the key, and returns whether there
+    /// were any. For an [`exact`](Self::exact) key the modifiers must match exactly: unlike
+    /// egui's `consume_key`, which ignores an extra Shift or Alt, Shift+Delete or Alt+Left is not
+    /// a Delete or Left. A [`logical`](Self::logical) key matches as `consume_key` does, but never
+    /// with Ctrl or Cmd that it lacks. Use it with the same key a control passes to
+    /// [`KeyClaim::claim`], so the claim and the consumption agree.
+    ///
+    /// ```
+    /// use craft_ui::behavior::ClaimedKey;
+    /// use egui::{Key, Modifiers};
+    ///
+    /// # egui::__run_test_ui(|ui| {
+    /// let deleted = ui.input_mut(|i| ClaimedKey::exact(Modifiers::NONE, Key::Delete).consume(i));
+    /// assert!(!deleted, "no key was pressed");
+    /// # });
+    /// ```
+    pub fn consume(&self, input: &mut InputState) -> bool {
+        let mut found = false;
+        input.events.retain(|event| {
+            let hit = matches!(event, Event::Key { key, modifiers, pressed: true, .. }
+                if self.matches(&KeyboardShortcut::new(*modifiers, *key)));
+            found |= hit;
+            !hit
+        });
+        found
     }
 
     fn matches(&self, shortcut: &KeyboardShortcut) -> bool {
@@ -111,6 +138,25 @@ mod tests {
             }
         });
         output.drop_without_applying_deltas();
+    }
+
+    #[test]
+    fn consume_takes_a_key_only_with_exactly_its_modifiers() {
+        let press = |modifiers| Event::Key { key: Key::Delete, physical_key: None, pressed: true, repeat: false, modifiers };
+        let ctx = Context::default();
+        let run = |events: Vec<Event>, key: ClaimedKey| {
+            let mut taken = None;
+            let raw = RawInput { events, ..Default::default() };
+            ctx.run_ui(raw, |ui: &mut Ui| taken = Some(ui.input_mut(|i| key.consume(i)))).drop_without_applying_deltas();
+            taken
+        };
+        let delete = ClaimedKey::exact(Modifiers::NONE, Key::Delete);
+        assert_eq!(run(vec![press(Modifiers::NONE)], delete), Some(true));
+        assert_eq!(run(vec![press(Modifiers::SHIFT)], delete), Some(false), "Shift+Delete is Cut");
+        assert_eq!(run(vec![press(Modifiers::ALT)], delete), Some(false));
+        let plus = ClaimedKey::logical(Modifiers::NONE, Key::Delete);
+        assert_eq!(run(vec![press(Modifiers::SHIFT)], plus), Some(true), "a logical key allows Shift");
+        assert_eq!(run(vec![press(Modifiers::COMMAND)], plus), Some(false));
     }
 
     #[test]

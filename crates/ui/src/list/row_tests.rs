@@ -1703,3 +1703,129 @@ fn an_always_visible_column_shows_its_off_icon_without_the_pointer() {
     assert!(!drawn(false, false).contains(&colour(s.dimmed)), "a plain off column paints nothing");
     assert!(!drawn(false, true).contains(&colour(s.selected_dimmed)), "a plain off column paints nothing, selected");
 }
+
+// A sized glyph slot is as wide as the host says, so a wide row number is not clipped; the label
+// starts after it and the row's least width grows by the difference.
+#[test]
+fn a_sized_glyph_slot_takes_its_width() {
+    let (ctx, s) = (context(), style());
+    let wide = 3.0 * s.icon_size;
+    let mut painted = Rect::NOTHING;
+    let mut sized = (0.0, Rect::NOTHING);
+    let mut plain = (0.0, Rect::NOTHING);
+    shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let row = ListRow::new(1u8, "Page").glyph_sized(wide, |_, rect| painted = rect).show(ui);
+            sized = (row.min_width, row.label);
+            let row = ListRow::new(1u8, "Page").glyph(|_, _| {}).show(ui);
+            plain = (row.min_width, row.label);
+        })
+    });
+    assert_eq!(painted.size(), vec2(wide, s.icon_size), "the glyph gets the slot's width and the icon's height");
+    assert_eq!(sized.0 - plain.0, wide - s.icon_size, "the least width counts the slot");
+    assert_eq!(sized.1.left() - plain.1.left(), wide - s.icon_size, "the label starts after it");
+}
+
+// `leading_first` puts the glyph before a group's disclosure column: the glyph sits at the row's
+// start, the triangle after it, and the label starts where it does without the option.
+#[test]
+fn a_group_row_can_put_its_glyph_before_the_disclosure() {
+    let (ctx, s) = (context(), style());
+    let branch = tree::Branch { depth: 0, group: true, open: false, siblings: None };
+    let (mut after, mut first) = (Rect::NOTHING, Rect::NOTHING);
+    let (mut after_label, mut first_label, mut first_min, mut after_min) = (Rect::NOTHING, Rect::NOTHING, 0.0, 0.0);
+    shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let row = ListRow::new(1u8, "Group").branch(branch).glyph(|_, rect| after = rect).show(ui);
+            (after_label, after_min) = (row.label, row.min_width);
+            let row = ListRow::new(2u8, "Group").branch(branch).leading_first(true).glyph(|_, rect| first = rect).show(ui);
+            (first_label, first_min) = (row.label, row.min_width);
+        })
+    });
+    assert_eq!(first.left() - 0.0, s.pad_x, "the glyph starts at the row's padding");
+    assert_eq!(after.left() - first.left(), s.disclosure, "without the option it follows the disclosure column");
+    assert_eq!(first_label.left(), after_label.left());
+    assert_eq!(first_min, after_min);
+}
+
+const DESCRIPTION: &str = "Reworked the header grid, moved the logo into the shared library and fixed the baseline of the second column";
+
+/// The painted galley whose text is `text`.
+#[allow(clippy::expect_used)]
+fn galley_of(shapes: &[Shape], text: &str) -> std::sync::Arc<egui::Galley> {
+    shapes
+        .iter()
+        .find_map(|s| if let Shape::Text(t) = s { (t.galley.text() == text).then(|| t.galley.clone()) } else { None })
+        .expect("the text is painted")
+}
+
+// The lines wrap to the label band: the row is as high as the label, the gap and the wrapped
+// lines, at each width, and the lines stop at `max_lines`.
+#[test]
+fn wrapped_lines_set_the_rows_height_at_each_width() {
+    let (ctx, s) = (context(), style());
+    let at = |width: f32, max: usize| {
+        let mut high = 0.0;
+        let shapes = shapes(&ctx, |ui| {
+            panel(ui, width, |ui| {
+                let row = ListRow::new(1u8, "Release").detail("Today").lines(DESCRIPTION, max).show(ui);
+                high = row.response.rect.height();
+            })
+        });
+        (high, galley_of(&shapes, DESCRIPTION))
+    };
+    let (wide_high, wide) = at(520.0, 3);
+    let (narrow_high, narrow) = at(200.0, 3);
+    assert!(narrow.rows.len() > wide.rows.len(), "the narrow band wraps to more lines");
+    assert_eq!(narrow.rows.len(), 3, "and stops at three");
+    for (high, galley) in [(wide_high, &wide), (narrow_high, &narrow)] {
+        assert_eq!(high, s.height(ThumbSize::None, true).max(s.label_line + s.detail_line + s.gap + galley.size().y + s.gap));
+    }
+    assert!(narrow_high > wide_high);
+    let (one, _) = at(200.0, 1);
+    assert!(one < narrow_high, "fewer lines, a shorter row");
+}
+
+// The height asked for without showing is the height the row takes shown.
+#[test]
+fn height_in_is_the_shown_height() {
+    let ctx = context();
+    for width in [160.0, 240.0, 480.0] {
+        let (mut asked, mut shown) = (0.0, 0.0);
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            panel(ui, width, |ui| {
+                let row = || ListRow::new(1u8, "Release").detail("Today").lines(DESCRIPTION, 3).glyph_sized(12.0, |_, _| {});
+                asked = row().height_in(ui, width);
+                shown = row().show(ui).response.rect.height();
+            })
+        })
+        .drop_without_applying_deltas();
+        assert_eq!(asked, shown, "at {width}");
+    }
+}
+
+// A body replaces the label and detail and is measured by running it: the row is as high as the
+// body plus the gap, whatever the width wraps it to, and the label is not painted.
+#[test]
+fn a_body_row_is_as_high_as_its_body() {
+    let (ctx, s) = (context(), style());
+    let at = |width: f32| {
+        let mut high = 0.0;
+        let shapes = shapes(&ctx, |ui| {
+            panel(ui, width, |ui| {
+                let row = ListRow::new(1u8, "Gone").detail("Hidden").body(|ui| {
+                    ui.label(DESCRIPTION);
+                });
+                high = row.show(ui).response.rect.height();
+            })
+        });
+        let galley = galley_of(&shapes, DESCRIPTION);
+        assert!(!shapes.iter().any(|s| matches!(s, Shape::Text(t) if t.galley.text() == "Gone")), "the label is replaced");
+        (high, galley.size().y)
+    };
+    let (wide, wide_body) = at(520.0);
+    let (narrow, narrow_body) = at(200.0);
+    assert!(narrow_body > wide_body, "the body wraps");
+    assert_eq!(wide, s.height(ThumbSize::None, true).max(wide_body + s.gap));
+    assert_eq!(narrow, s.height(ThumbSize::None, true).max(narrow_body + s.gap));
+}

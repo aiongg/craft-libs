@@ -21,6 +21,12 @@
 //! - [`FindingsList`]: problems a check found, with a summary line; activating one reports it so
 //!   the app shows its item.
 //!
+//! - [`TileGrid`]: a virtualised grid of thumbnails (justified rows or equal cards) with groups,
+//!   badges, rating, the list selection rules, `GridNav` keys, drag and reorder, marquee, rename
+//!   in the caption and a context menu hook; pictures through
+//!   [`Thumbnails`](crate::canvas::textures::Thumbnails). [`ThumbnailSlider`] sets its tile size.
+//!   craft-browse's media bin and craft-pages' page thumbnails are built on it.
+//!
 //! - [`Table`]: rows of cells under a header of columns the user sorts, resizes, hides and
 //!   moves, arranged by a [`TableLayout`] the app keeps in its settings.
 //! - [`MetadataTable`]: name and value rows in groups, with a filter field and a column picker.
@@ -41,6 +47,8 @@ mod findings_stories;
 mod findings_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod list_tests;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod measured_tests;
 mod metadata;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod metadata_tests;
@@ -58,6 +66,7 @@ pub(crate) mod table_stories;
 mod table_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod table_ui_tests;
+mod tiles;
 mod toggle;
 mod tree;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -83,10 +92,16 @@ pub use events::{EventLevel, EventLog, EventLogLabels, EventLogOutput, EventLogS
 pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsListResponse, FindingsStyle, findings_summary};
 pub use metadata::{MetadataGroup, MetadataLabels, MetadataRow, MetadataStyle, MetadataTable, MetadataTableOutput, filter_metadata};
 pub use row::{
-    DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget, TrailingItem, drop_line,
-    paint_drop_mark,
+    DropMark, ListRow, ListRowStyle, RenameEnd, RowCommand, RowEvent, RowMenuLabels, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget,
+    TrailingItem, drop_line, paint_drop_mark,
 };
 pub use table::{CellContext, SortOrder, Table, TableColumn, TableEvent, TableLabels, TableLayout, TableOutput, TableSort, TableStyle};
+pub use tiles::{
+    ArrangeSpacing, BadgeKind, BadgeSlot, BadgeVisibility, CaptionPlace, CardOverlay, DescribeTile, FakeTiles, RatingKeys, SpaceAction,
+    ThumbnailSlider, TileArrangement, TileBadge, TileContent, TileEvent, TileFace, TileFlag, TileGrid, TileGridOutput, TileGroup, TileLabels,
+    TileLayout, TileLook, TileMark, TileRename, TileRenameOutcome, TileRow, TileSource, TileStatus, TileStyle, TileZoom, ZoomStep, arrange,
+    card_size, fit_name, paint_tile, show_tile_rename, stack_text,
+};
 pub use toggle::{ToggleColumn, ToggleEdit};
 pub use tree::{OpenChange, TreeRow, TreeState, TreeText, paint_disclosure};
 pub use view::{ContextMenuRequest, List, ListEvent, ListOutput};

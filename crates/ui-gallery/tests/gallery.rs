@@ -1577,7 +1577,9 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
         "a story arg label and an option name of the story, not a catalog word",
     ),
     ("Apply", &["specimens/type/faces"], "sample text of the type specimen"),
+    ("rejected", &["patterns/compare-tile/pair"], "a story arg label, not a catalog word"),
     ("Arrange", &["specimens/type/faces"], "sample text of the type specimen"),
+    ("Artboards", &["patterns/page-list/artboards"], "the story's name"),
     ("Background", MOCK_APP, "text of the sample host app (tools, menus, swatches, layers, fields); a real host keeps it in its own catalog"),
     (
         "Background",

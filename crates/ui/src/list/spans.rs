@@ -18,7 +18,7 @@ impl Spans {
     }
 
     /// Rows whose heights `height` gives, each at least one point.
-    pub(crate) fn mixed(rows: usize, height: impl Fn(usize) -> f32) -> Self {
+    pub(crate) fn mixed(rows: usize, mut height: impl FnMut(usize) -> f32) -> Self {
         let mut bottom = 0.0;
         Spans::Mixed {
             bottoms: (0..rows)

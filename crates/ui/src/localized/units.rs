@@ -14,6 +14,8 @@ pub(crate) const CM_PER_INCH: f64 = 2.54;
 /// Points per inch: PostScript points, which a pica is 12 of.
 pub(crate) const POINTS_PER_INCH: f64 = 72.0;
 
+use super::UnitKind;
+
 /// A length unit of a size field. Pixels and percent are the pixel units; the rest are physical
 /// and convert through the resolution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -136,6 +138,19 @@ impl LengthUnit {
             LengthUnit::Millimetres => "mm",
             LengthUnit::Points => "pt",
             LengthUnit::Picas => "pica",
+        }
+    }
+
+    /// The unit word that writes a number in this unit (`{n} pt`, `{n}%`): its [`UnitKind`].
+    pub fn kind(self) -> UnitKind {
+        match self {
+            LengthUnit::Pixels => UnitKind::Pixels,
+            LengthUnit::Percent => UnitKind::Percent,
+            LengthUnit::Inches => UnitKind::Inches,
+            LengthUnit::Centimetres => UnitKind::Centimetres,
+            LengthUnit::Millimetres => UnitKind::Millimetres,
+            LengthUnit::Points => UnitKind::Points,
+            LengthUnit::Picas => UnitKind::Picas,
         }
     }
 

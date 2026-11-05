@@ -19,6 +19,9 @@ use craft_theme::ControlSize;
 struct Draft {
     text: String,
     tab: Option<bool>,
+    /// The field has held the focus. A click in the pass that opened the field (a double click on
+    /// the label) takes the focus away at the end of that pass, so the field asks again until it has it.
+    held: bool,
 }
 
 /// The row whose rename is open, kept in egui memory per key type: only one field holds the focus.
@@ -50,12 +53,12 @@ pub(super) fn take_draft(ctx: &egui::Context, row_id: Id) -> Option<String> {
 }
 
 /// Shows the rename field in `band`, named `field_name` for a screen reader and starting from
-/// `label`, and reports how the rename ends, if it does.
+/// `start` (the label, or the row's draft), and reports how the rename ends, if it does.
 pub(super) fn show<K: Clone + Send + Sync + 'static>(
     ui: &mut Ui,
     row_id: Id,
     key: &K,
-    label: &str,
+    start: &str,
     field_name: &str,
     band: Rect,
     events: &mut Vec<RowEvent<K>>,
@@ -64,7 +67,8 @@ pub(super) fn show<K: Clone + Send + Sync + 'static>(
     let stored = ui.data(|d| d.get_temp::<Option<Draft>>(memory)).flatten();
     let fresh = stored.is_none();
     let previous_tab = stored.as_ref().and_then(|d| d.tab);
-    let draft = stored.map_or_else(|| label.to_owned(), |d| d.text);
+    let held = stored.as_ref().is_some_and(|d| d.held);
+    let draft = stored.map_or_else(|| start.to_owned(), |d| d.text);
     let height = TextField::style(&Tokens::of(ui), ControlSize::Sm).height.min(band.height());
     let band = Rect::from_center_size(band.center(), vec2(band.width(), height));
     let layout = Layout::top_down_justified(Align::Min);
@@ -74,8 +78,10 @@ pub(super) fn show<K: Clone + Send + Sync + 'static>(
         let ui = &mut child;
         // The id `TextField` gives its salt.
         let field = Interactive::id_in(ui, "rename");
-        if fresh {
+        if !held {
             ui.memory_mut(|m| m.request_focus(field));
+        }
+        if fresh {
             let mut state = TextEditState::default();
             state.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(draft.chars().count()))));
             state.store(ui.ctx(), field);
@@ -103,6 +109,7 @@ pub(super) fn show<K: Clone + Send + Sync + 'static>(
         Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }) => cancelled = true,
         _ => {}
     }
+    let held = held || edit.response.has_focus();
     let end = if cancelled || edit.escaped {
         Some(RenameEnd::Escape)
     } else if edit.submitted {
@@ -122,14 +129,14 @@ pub(super) fn show<K: Clone + Send + Sync + 'static>(
                 d.insert_temp(memory, None::<Draft>);
                 d.insert_temp(open_slot(), None::<Open<K>>);
             });
-            if end != RenameEnd::Escape && text != label {
+            if end != RenameEnd::Escape && text != start {
                 events.push(RowEvent::Renamed { row: key.clone(), text });
             }
             events.push(RowEvent::RenameEnded { row: key.clone(), end });
         }
         None => {
             ui.data_mut(|d| {
-                d.insert_temp(memory, Some(Draft { text, tab }));
+                d.insert_temp(memory, Some(Draft { text, tab, held }));
                 d.insert_temp(open_slot(), Some(Open { row_id, key: key.clone() }));
             });
         }

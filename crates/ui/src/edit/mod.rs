@@ -32,11 +32,14 @@
 //!   out (`edit::order`); a composite reports one edit at a time (`edit::parts`).
 //! - [`scope`] is for dialogs: controls inside it report only [`Update`](EditEvent::Update)s,
 //!   and the dialog owns one [`OuterGesture`].
+//! - [`GestureDraft`] keeps a dialog's draft value: it restores the value from before a gesture
+//!   when the gesture is cancelled.
 //! - [`GestureHost`] turns the events into undo steps for an application that keeps undo marks
 //!   ([`UndoMarks`]).
 //!
 //! Named `EditEvent` rather than `Edit`, which is [`crate::ime::Edit`].
 
+mod draft;
 mod gesture;
 pub mod history_panel;
 mod host;
@@ -55,6 +58,7 @@ use std::time::Duration;
 
 use egui::{Context, Id, InnerResponse, Modifiers, Response, Ui, UiBuilder, UiStackInfo};
 
+pub use draft::{DraftStep, GestureDraft};
 pub use gesture::Gesture;
 pub(crate) use gesture::{equals_to_f32, escape_pressed};
 pub use host::{GestureHost, UndoMarks};

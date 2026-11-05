@@ -114,3 +114,56 @@ fn labels_name_the_panes() {
     assert_eq!(harness.query_all_by_label("Ansicht 1").count(), 1);
     assert_eq!(harness.query_all_by_label("View 1").count(), 0);
 }
+
+#[test]
+fn the_first_pane_is_drawn_first_and_keeps_its_place() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let run = |first: Option<usize>| {
+        let mut calls = Vec::new();
+        let input = RawInput { screen_rect: Some(full()), ..RawInput::default() };
+        ctx.run_ui(input, |ui| {
+            let mut split = SplitViews::new("order", SplitLayout::Two);
+            if let Some(f) = first {
+                split = split.first(f);
+            }
+            split.show(ui, full(), |_, pane, rect| calls.push((pane, rect)));
+        })
+        .drop_without_applying_deltas();
+        calls
+    };
+    let by_default = run(None);
+    assert_eq!(by_default.iter().map(|c| c.0).collect::<Vec<_>>(), [1, 0]);
+    let right_first = run(Some(0));
+    assert_eq!(right_first.iter().map(|c| c.0).collect::<Vec<_>>(), [0, 1]);
+    let mut sorted = right_first.clone();
+    sorted.reverse();
+    assert_eq!(sorted, by_default, "the rects do not move");
+}
+
+// Tab visits the pane groups in reading order whichever pane is drawn first.
+#[test]
+fn tab_visits_the_panes_in_reading_order_with_first() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let base = std::cell::Cell::new(None);
+    let frame = |events: Vec<Event>| {
+        let input = RawInput { screen_rect: Some(full()), events, ..RawInput::default() };
+        ctx.run_ui(input, |ui| {
+            base.set(Some(ui.make_persistent_id(egui::IdSalt::new("tab-order"))));
+            SplitViews::new("tab-order", SplitLayout::Four).first(1).show(ui, full(), |_, _, _| {});
+        })
+        .drop_without_applying_deltas();
+    };
+    frame(vec![]);
+    let base = base.get().expect("the first frame ran");
+    let mut visited = Vec::new();
+    for _ in 0..3 {
+        for events in crate::testing::events::key_press(egui::Key::Tab, Modifiers::NONE) {
+            frame(events);
+        }
+        visited.push((0..4).find(|&i| ctx.memory(|m| m.has_focus(base.with(("group", i))))));
+    }
+    // Pane 0 (bottom right) is active and no Tab stop; reading order is 1 (top left), 2, 3.
+    assert_eq!(visited, [Some(1), Some(2), Some(3)]);
+}

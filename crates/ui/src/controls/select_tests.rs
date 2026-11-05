@@ -1499,3 +1499,37 @@ fn a_click_on_a_searchable_select_leaves_its_list_open() {
     harness.step();
     assert_eq!(expanded(&harness), Some(true), "the list stays open after the click");
 }
+
+/// A select whose second option's closed text is shorter than its list text.
+fn closed_texts(fit: bool) -> Harness<'static, usize> {
+    harness().build_ui_state(
+        move |ui, value: &mut usize| {
+            let mut select = Select::new("leader", "Leader", value).option(0, "None").option(1, "1 ……").option_closed_text("……");
+            if fit {
+                select = select.fit(true);
+            }
+            let _ = select.show(ui);
+        },
+        1,
+    )
+}
+
+// The closed box paints the option's closed text, the list and the accessible value keep the full text, and a fitted box is sized by the closed texts.
+#[test]
+fn the_closed_box_shows_the_closed_text_while_the_list_and_the_value_keep_the_full_text() {
+    let mut harness = closed_texts(false);
+    harness.run();
+    let painted = crate::testing::i18n_audit::drawn_texts(harness.output());
+    assert!(painted.iter().any(|t| t == "……") && !painted.iter().any(|t| t == "1 ……"), "{painted:?}");
+    assert_eq!(harness.get_by_role(Role::ComboBox).accesskit_node().data().value(), Some("1 ……"));
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    assert_eq!(options(&harness), ["None", "1 ……"]);
+
+    let width = |fit| {
+        let mut harness = closed_texts(fit);
+        harness.run();
+        harness.get_by_role(Role::ComboBox).rect().width()
+    };
+    assert!(width(true) < width(false), "the fitted box is narrower than the default width");
+}

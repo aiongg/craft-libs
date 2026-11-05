@@ -10,6 +10,7 @@ use egui::accesskit::{Action, Role};
 use egui::containers::scroll_area::ScrollSource;
 use egui::mutex::Mutex;
 use egui::os::OperatingSystem;
+use egui::scroll_area::ScrollBarVisibility;
 use egui::{
     Align, AsIdSalt, Context, CornerRadius, Event, EventFilter, Id, IdSalt, Key, KeyboardShortcut, Layout, Modifiers, PointerButton, Pos2, Rect,
     Response, ScrollArea, Sense, Ui, UiBuilder, WidgetInfo, pos2, text::LayoutJob, vec2,
@@ -17,18 +18,19 @@ use egui::{
 
 use super::drag::{DragOutcome, Dragging, RowDrag};
 use super::rename;
-use super::row::{ListRow, RenameEnd, RowEvent, RowResponse, ThumbSize, row_id};
+use super::row::{ListRow, RenameEnd, RowCommand, RowEvent, RowResponse, ThumbSize, row_id};
 use super::spans::Spans;
 use super::toggle::{self, ToggleColumn, ToggleEdit};
 use super::tree::{self, Branch, OpenChange, TreeText};
 use crate::behavior::{
-    Axis, DisplayOrder, ListKey, ListOptions, ListSelection, Listbox, Move, Reorder, RowInfo, Selection, SelectionChange, SelectionMode, StackKey,
-    TreeMove, first_item, tree_key,
+    Axis, DisplayOrder, ListDrag, ListKey, ListOptions, ListSelection, Listbox, Move, Reorder, RowInfo, Selection, SelectionChange, SelectionMode,
+    StackKey, TreeMove, first_item, tree_key,
 };
 use crate::composites::SectionLabel;
 use crate::direction;
 use crate::edit::{self, EditEvent, GestureId};
 use crate::localized::SharedLabels as _;
+use crate::menu::MenuEntry;
 use crate::patterns::panel::ScrollBarLabels;
 use crate::popup_list;
 use crate::primitives::FocusRing;
@@ -61,6 +63,27 @@ pub enum ListEvent<K> {
     /// reader's Expand and Collapse); the host applies it to its open state. A closing group
     /// that hid the lead has taken the lead already ([`LeadMoved`](ListEvent::LeadMoved)).
     Open(OpenChange<K>),
+    /// An entry of a row's [menu](List::row_menu) other than Rename was chosen, in the pass of
+    /// the click. Choosing Rename opens the row's rename field in that pass and reports nothing
+    /// until the rename ends ([`Row`](ListEvent::Row) `Renamed` and `RenameEnded`).
+    RowMenu {
+        /// The row whose menu it is.
+        key: K,
+        /// The entry's command.
+        command: RowCommand,
+    },
+    /// Rows of another list this one [accepts drops from](List::accept_from) were released over
+    /// it, in the pass of the release. The source list ends its drag in the same pass with
+    /// `Cancel(Dismissed)`: its own order did not change, and the host applies this drop instead
+    /// (whichever of the two lists is drawn first).
+    Dropped {
+        /// The rows dragged, with the id of the list they came from.
+        from: ListDrag<K>,
+        /// Where they land among this list's rows (`copy` as for a [reorder](List::reorder));
+        /// `None` over a list without rows, or where the host's
+        /// [`accepts`](Reorder::accepts) refuses.
+        target: Option<Move<K>>,
+    },
     /// What a row reported: toggle column edits (also those of a column's
     /// [key](super::ToggleColumn::key)) and renames.
     Row(RowEvent<K>),
@@ -115,6 +138,20 @@ pub struct ListOutput<K> {
     pub rows: Vec<(K, Rect)>,
 }
 
+/// The spans of a list's rows, and for a measured list the width they were measured at and
+/// whether the scroll bar is needed.
+struct Fit {
+    spans: Spans,
+    width: Option<f32>,
+    bar: bool,
+}
+
+impl Fit {
+    fn of(spans: Spans) -> Self {
+        Fit { spans, width: None, bar: false }
+    }
+}
+
 /// The heights of a list's rows.
 enum Heights<'a> {
     /// Every row as a [`ListRow`] with this thumbnail and, if true, a detail line.
@@ -123,9 +160,15 @@ enum Heights<'a> {
     Fixed(f32),
     /// Each row's own height.
     Mixed(Box<dyn Fn(usize) -> f32 + 'a>),
+    /// Each row as high as [`ListRow::height_in`] says at the width its label gets.
+    Measured,
 }
 
 type KeyTest<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
+type DraftFnRef<'a, K> = dyn Fn(&K) -> Option<String> + 'a;
+type DraftFn<'a, K> = Box<DraftFnRef<'a, K>>;
+type RowMenuFn<'a, K> = dyn Fn(&K) -> Vec<MenuEntry<RowCommand>> + 'a;
+type RowMenuEntries<'a, K> = Box<RowMenuFn<'a, K>>;
 
 /// A list of rows: a scroll area that lays out only the rows in view, one focus stop, the
 /// selection rules of [`ListSelection`], rename in place, and a hook for the host's context menu.
@@ -155,7 +198,9 @@ type KeyTest<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 ///   rows in view are built and drawn, with one above and one below, so the list takes 10,000 rows;
 ///   rows keep their state by key. Rows have one height ([`row_height`](List::row_height), or the
 ///   height of a [`ListRow`] with [thumbnails](List::thumbnails) or
-///   [detail lines](List::detail_lines)), or each its own ([`heights`](List::heights)).
+///   [detail lines](List::detail_lines)), or each its own ([`heights`](List::heights)), or as
+///   high as the row asks at its own width ([`measured`](List::measured): wrapped
+///   [lines](ListRow::lines), a [body](ListRow::body)).
 /// - **Focus.** The list is one Tab stop and keeps the focus while its rows scroll away; the rows
 ///   aren't focus stops. The focus sits on the lead (the first row with no lead shown), which
 ///   draws the focus ring while the keyboard is in use. A press on a row or on the empty space
@@ -172,7 +217,7 @@ type KeyTest<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 ///   for its context menu. Type-ahead is off ([`type_ahead`](List::type_ahead)), so single-letter tool keys keep
 ///   working; Cmd/Ctrl+A, Delete and other commands stay the app's.
 /// - **Rename.** A double click on a row's label, F2 or [`start_rename`](List::start_rename)
-///   opens the row's rename field; one at a time, so starting another commits the open one. Tab
+///   opens the row's rename field, starting from the label or the [`rename_draft`](List::rename_draft); one at a time, so starting another commits the open one. Tab
 ///   and Shift+Tab commit and rename the next and previous row; Enter and Esc give the focus
 ///   back to the list. A row being renamed stays drawn while it scrolls away, and commits when it
 ///   leaves the list.
@@ -210,6 +255,9 @@ pub struct List<'a, K, O: ?Sized> {
     type_ahead: bool,
     reveal: Option<K>,
     start_rename: Option<K>,
+    rename_draft: Option<DraftFn<'a, K>>,
+    row_menu: Option<RowMenuEntries<'a, K>>,
+    accept_from: Vec<Id>,
     reorder: Option<Reorder<'a, K>>,
     tree: bool,
     tree_text: Option<Arc<TreeText>>,
@@ -238,6 +286,9 @@ where
             type_ahead: false,
             reveal: None,
             start_rename: None,
+            rename_draft: None,
+            row_menu: None,
+            accept_from: Vec::new(),
             reorder: None,
             tree: false,
             tree_text: None,
@@ -363,11 +414,58 @@ where
         self
     }
 
+    /// The text a row's rename field starts from, `None` for the row's label (the default). A
+    /// rename that ends with the draft unchanged reports no `Renamed`, so a draft of `""` reports
+    /// a typed name only. Asked each pass for the row being renamed.
+    pub fn rename_draft(mut self, draft: impl Fn(&K) -> Option<String> + 'a) -> Self {
+        self.rename_draft = Some(Box::new(draft));
+        self
+    }
+
+    /// A "\u{2026}" button on every row with a menu of `entries(key)` (no button for an empty
+    /// list). The list draws the button and the menu itself, so a [`Rename`](RowCommand::Rename)
+    /// pick opens the row's rename field in the pass of the click, which [`start_rename`](List::start_rename)
+    /// from the host's own menu cannot (the host's menu is drawn after the list). It applies
+    /// where the list [renames](List::can_rename) the row. Other picks come back as
+    /// [`ListEvent::RowMenu`]. The button shows on a hovered or selected row and while its menu is
+    /// open; a screen reader finds it as a button named "More ({row})".
+    pub fn row_menu(mut self, entries: impl Fn(&K) -> Vec<MenuEntry<RowCommand>> + 'a) -> Self {
+        self.row_menu = Some(Box::new(entries));
+        self
+    }
+
+    /// Takes drops of rows dragged from the lists `lists` (their ids, from [`List::id_in`]): while
+    /// such rows are held over this list it shows the drop marker, and releasing them reports
+    /// [`ListEvent::Dropped`]. The lists must use the same key type. The target follows this
+    /// list's [`reorder`](List::reorder) rules (`accepts`, `into_rows`), or plain before and after
+    /// halves without one. The source list needs [`reorder`](List::reorder) to start drags.
+    pub fn accept_from(mut self, lists: impl IntoIterator<Item = Id>) -> Self {
+        self.accept_from = lists.into_iter().collect();
+        self
+    }
+
     /// Rows can be dragged and moved with the stacking keys by the rules of `reorder`, a
     /// vertical [`Reorder`]: where drops land, which the host refuses, whether Alt copies.
     pub fn reorder(mut self, reorder: Reorder<'a, K>) -> Self {
         debug_assert_eq!(reorder.axis(), Axis::Vertical, "a list's rows are stacked vertically");
         self.reorder = Some(reorder);
+        self
+    }
+
+    /// Each row as high as it asks for at the width the list gives it ([`ListRow::height_in`]:
+    /// wrapped [lines](ListRow::lines), a [body](ListRow::body)), in the pass the rows are drawn:
+    /// no height is guessed or carried over from an earlier pass.
+    ///
+    /// Spans stay exact for rows out of view because the list builds every row each pass and
+    /// measures it the same way (a row's text is laid out at its label band's width, and egui
+    /// caches the galleys across passes; a body runs once in a sizing pass). The width is the
+    /// list's width less the scroll bar's, which the list decides from the total height at the
+    /// full width and holds the bar to (it is always shown when needed, hidden when not), so
+    /// the bar never changes the width after the rows were measured. Keep `row` cheap: it runs for
+    /// every row. Section rows are `list.row_height` high; use [`heights`](List::heights) for
+    /// a spacer.
+    pub fn measured(mut self) -> Self {
+        self.heights = Heights::Measured;
         self
     }
 
@@ -390,6 +488,9 @@ where
             type_ahead,
             reveal,
             start_rename,
+            rename_draft,
+            row_menu,
+            accept_from,
             tree,
             tree_text,
             reorder,
@@ -404,11 +505,6 @@ where
         };
         let focused = ui.memory(|m| m.has_focus(id));
         let style = ListRow::<'_, K>::style(&Tokens::of(ui));
-        let spans = match &heights {
-            Heights::Rows(thumb, detail) => Spans::uniform(style.height(*thumb, *detail), rows.len()),
-            Heights::Fixed(height) => Spans::uniform(*height, rows.len()),
-            Heights::Mixed(height) => Spans::mixed(rows.len(), height),
-        };
         let dragging = state.drag.take();
         let mut pass = Pass {
             ctx: ui.ctx().clone(),
@@ -419,7 +515,9 @@ where
             events: Vec::new(),
             build: row,
             can_rename: can_rename.as_deref(),
+            rename_draft: rename_draft.as_deref(),
             can_drag: can_drag.as_deref(),
+            row_menu: row_menu.as_deref(),
             row_rects: Vec::new(),
             spacers: Vec::new(),
             focus: false,
@@ -430,6 +528,15 @@ where
             rtl: direction::is_rtl(ui),
         };
 
+        let measured = matches!(heights, Heights::Measured);
+        let fit = match &heights {
+            Heights::Rows(thumb, detail) => Fit::of(Spans::uniform(style.height(*thumb, *detail), rows.len())),
+            Heights::Fixed(height) => Fit::of(Spans::uniform(*height, rows.len())),
+            Heights::Mixed(height) => Fit::of(Spans::mixed(rows.len(), height)),
+            Heights::Measured => pass.fit(ui, max_height),
+        };
+        let spans = fit.spans;
+        pass.drag.accept_from(&accept_from);
         pass.end_for_gone_rows(ui);
         if let Some(key) = start_rename {
             pass.start_rename(key);
@@ -444,8 +551,8 @@ where
             pass.focus_arrived();
         }
         let mut menu_key = false;
-        // An open popup (the list's context menu) takes the keys.
-        if focused && ui.is_enabled() && !popup_list::any_open(ui.ctx()) {
+        // An open popup (the list's context menu) takes the keys; the popover the list is drawn in does not count.
+        if focused && ui.is_enabled() && !popup_list::any_open_beyond_drawing(ui.ctx()) {
             let page = pass.state.viewport.map_or(1, |h| spans.page(pass.state.offset..pass.state.offset + h));
             menu_key = pass.keys(ui, page, type_ahead, id);
         }
@@ -470,10 +577,15 @@ where
                 if let Some(height) = max_height {
                     scroll = scroll.max_height(height);
                 }
+                if measured {
+                    // The rows were measured at the width this decides.
+                    scroll =
+                        scroll.scroll_bar_visibility(if fit.bar { ScrollBarVisibility::AlwaysVisible } else { ScrollBarVisibility::AlwaysHidden });
+                }
                 if let Some(offset) = scroll_to {
                     scroll = scroll.vertical_scroll_offset(offset);
                 }
-                let out = scroll.show_viewport(ui, |ui, viewport| pass.draw(ui, viewport, &spans, focused));
+                let out = scroll.show_viewport(ui, |ui, viewport| pass.draw(ui, viewport, &spans, fit.width, focused));
                 pass.state.offset = out.state.clamped_offset().y;
                 pass.state.viewport = Some(out.inner_rect.height());
                 pass.state.view = Some(out.inner_rect);
@@ -487,6 +599,9 @@ where
         }
         if pass.focus {
             ui.memory_mut(|m| m.request_focus(id));
+        }
+        if let Some(dropped) = pass.drag.take_dropped() {
+            pass.events.push(ListEvent::Dropped { from: dropped.payload, target: dropped.target });
         }
         let DragOutcome { dragging, event, drop_target } = pass.drag.finish();
         pass.state.drag = dragging;
@@ -590,7 +705,8 @@ impl<K: Clone + Send + Sync + 'static> State<K> {
     }
 }
 
-/// The open rename: its row, and the row's label when it was last drawn.
+/// The open rename: its row, and the text its field started from when it was last drawn (the
+/// row's label or its draft).
 #[derive(Clone)]
 struct Renaming<K> {
     key: K,
@@ -630,7 +746,9 @@ struct Pass<'p, K, O: ?Sized, F> {
     events: Vec<ListEvent<K>>,
     build: F,
     can_rename: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
+    rename_draft: Option<&'p DraftFnRef<'p, K>>,
     can_drag: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
+    row_menu: Option<&'p RowMenuFn<'p, K>>,
     /// The rows drawn this frame.
     row_rects: Vec<(K, Rect)>,
     /// The spacers drawn this frame: a press on one is not a press on the empty space.
@@ -911,6 +1029,53 @@ where
         }
     }
 
+    /// The spans of a measured list: at the full width when the rows fit the list's height, else
+    /// at the width less the scroll bar's.
+    fn fit(&mut self, ui: &mut Ui, max_height: Option<f32>) -> Fit {
+        let room = ui.available_size();
+        let high = max_height.map_or(room.y, |max| room.y.min(max));
+        let full = self.measure(ui, room.x);
+        if full.total() <= high {
+            return Fit { spans: full, width: Some(room.x), bar: false };
+        }
+        let width = room.x - ui.spacing().scroll.allocated_width();
+        Fit { spans: self.measure(ui, width), width: Some(width), bar: true }
+    }
+
+    /// The rows' extents at `width`, each row built and asked for its height.
+    fn measure(&mut self, ui: &mut Ui, width: f32) -> Spans {
+        let style = ListRow::<K>::style(&Tokens::of(ui));
+        let heights: Vec<f32> = (0..self.rows.len())
+            .map(|at| {
+                if self.rows.is_section(at) {
+                    return style.row_height;
+                }
+                let key = self.rows.key(at).clone();
+                let built = (self.build)(at, &key);
+                let mut row = self.shaped(built, at);
+                if let Some(entries) = self.row_menu {
+                    row = row.menu(ui, entries(&key), self.renamable(&key));
+                }
+                row.height_in(ui, width)
+            })
+            .collect();
+        Spans::mixed(heights.len(), |at| heights[at])
+    }
+
+    /// `row` as a row of this list at `at`: a tree row with its branch, else with its place in the set.
+    fn shaped(&self, row: ListRow<'r, K>, at: usize) -> ListRow<'r, K> {
+        if self.tree {
+            row.tree_text(self.tree_text.clone()).branch(Branch {
+                depth: self.rows.depth(at),
+                group: self.rows.has_children(at),
+                open: self.rows.open(at),
+                siblings: Some(tree::siblings(self.rows, at)),
+            })
+        } else {
+            row.position_in_set(self.item_index(at))
+        }
+    }
+
     /// The scroll offset that reveals the row asked for, once the viewport is known.
     fn scroll_target(&mut self, spans: &Spans) -> Option<f32> {
         let height = self.state.viewport?;
@@ -922,11 +1087,21 @@ where
     /// the focus (the active descendant), the row being renamed (its field has the focus), the
     /// row that took a sweep's press (it ends the sweep) and the row a drag grabbed (egui's drag
     /// state is its).
-    fn draw(&mut self, ui: &mut Ui, viewport: Rect, spans: &Spans, focused: bool) {
+    fn draw(&mut self, ui: &mut Ui, viewport: Rect, spans: &Spans, measured_at: Option<f32>, focused: bool) {
         let content = ui.max_rect();
         let width = content.width();
+        // A scroll bar that is still sliding in or out gives the rows another width than the one
+        // measured: measure again at the width they are drawn at.
+        let remeasured;
+        let spans = match measured_at {
+            Some(at) if (at - width).abs() > 0.5 => {
+                remeasured = self.measure(ui, width);
+                &remeasured
+            }
+            _ => spans,
+        };
         ui.set_min_height(spans.total());
-        self.drag.resolve(ui, self.rows, spans, content.min.y);
+        self.drag.resolve(ui, self.rows, spans, content.min.y, content.x_range());
         let lead = self.lead_at();
         let position = |key: Option<&K>| key.and_then(|k| self.rows.position(k));
         let mut drawn: Vec<usize> = spans.in_view(viewport.min.y..viewport.max.y).collect();
@@ -960,26 +1135,31 @@ where
         }
         debug_assert!(!row.is_spacer(), "the spacer at {at} must be a section of the display order");
         let selectable = row.is_selectable();
-        if self.tree {
-            row = row.tree_text(self.tree_text.clone()).branch(Branch {
-                depth: self.rows.depth(at),
-                group: self.rows.has_children(at),
-                open: self.rows.open(at),
-                siblings: Some(tree::siblings(self.rows, at)),
-            });
-        } else {
-            row = row.position_in_set(self.item_index(at));
-        }
+        row = self.shaped(row, at);
         debug_assert!(*row.key() == key, "the row built for {key:?} has the key {:?}", row.key());
         let renaming = match &mut self.state.renaming {
             Some(open) if open.key == key => {
-                row.label().clone_into(&mut open.label);
+                match self.rename_draft.and_then(|draft| draft(&key)) {
+                    Some(draft) => {
+                        open.label.clone_from(&draft);
+                        row = row.rename_draft(draft);
+                    }
+                    None => row.label().clone_into(&mut open.label),
+                }
                 true
             }
             _ => false,
         };
         let mark = self.drag.mark(at);
-        let row = row.selected(self.selection.contains(&key)).focused(lead && focused).renaming(renaming).drop_mark(mark);
+        if let Some(entries) = self.row_menu {
+            row = row.menu(ui, entries(&key), self.renamable(&key));
+        }
+        let row = row
+            .rename_on_double_click(self.renamable(&key))
+            .selected(self.selection.contains(&key))
+            .focused(lead && focused)
+            .renaming(renaming)
+            .drop_mark(mark);
         let out = row.show_at(ui, rect);
         self.row_rects.push((key.clone(), rect));
         if lead {
@@ -991,10 +1171,21 @@ where
         });
         self.row_pointer(ui, (at, selectable), &key, &out);
         for event in out.events {
-            if let RowEvent::Open(change) = event {
-                self.focus = true;
-                self.open_change(at, change);
-                continue;
+            match event {
+                RowEvent::Open(change) => {
+                    self.focus = true;
+                    self.open_change(at, change);
+                    continue;
+                }
+                RowEvent::RenameStarted { row } => {
+                    self.start_rename(row);
+                    continue;
+                }
+                RowEvent::Menu { row, command } => {
+                    self.events.push(ListEvent::RowMenu { key: row, command });
+                    continue;
+                }
+                _ => {}
             }
             self.row_event(at, &event);
             self.events.push(ListEvent::Row(event));
@@ -1075,11 +1266,13 @@ where
     fn row_pointer(&mut self, ui: &Ui, (at, selectable): (usize, bool), key: &K, out: &RowResponse<K>) {
         let response = &out.response;
         let modifiers = ui.input(|i| i.modifiers);
-        if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
+        let on_label = ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| out.label.contains(p));
+        // The rename field asks for the focus itself in the pass of the double click; the list must not take it back.
+        let starts_rename = response.double_clicked() && on_label && self.renamable(key);
+        if (response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary)) && !starts_rename {
             self.focus = true;
         }
         if response.double_clicked() {
-            let on_label = ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| out.label.contains(p));
             if on_label && self.renamable(key) {
                 self.start_rename(key.clone());
             } else {

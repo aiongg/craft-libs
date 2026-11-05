@@ -195,3 +195,64 @@ fn liquify_and_footer_icons_are_drawn_in_every_set() {
         }
     }
 }
+
+/// Step 6b's timeline, review, sheet and hyperlink glyphs: each resolves, is drawn in the base set, and stays put in right-to-left.
+#[test]
+fn the_step_6b_icons_resolve_and_the_packs_that_have_them_draw_their_own() {
+    let wanted = [
+        (Icon::TrackMute, "track_mute"),
+        (Icon::Solo, "solo"),
+        (Icon::SyncLock, "sync_lock"),
+        (Icon::Snap, "snap"),
+        (Icon::LinkedSelection, "linked_selection"),
+        (Icon::MarkIn, "mark_in"),
+        (Icon::MarkOut, "mark_out"),
+        (Icon::StepBack, "step_back"),
+        (Icon::StepForward, "step_forward"),
+        (Icon::InsertClip, "insert_clip"),
+        (Icon::OverwriteClip, "overwrite_clip"),
+        (Icon::LiftClip, "lift_clip"),
+        (Icon::ExtractClip, "extract_clip"),
+        (Icon::KeyframeLinear, "keyframe_linear"),
+        (Icon::KeyframeBezier, "keyframe_bezier"),
+        (Icon::KeyframeAutoBezier, "keyframe_auto_bezier"),
+        (Icon::KeyframeHold, "keyframe_hold"),
+        (Icon::KeyframeEaseIn, "keyframe_ease_in"),
+        (Icon::KeyframeEaseOut, "keyframe_ease_out"),
+        (Icon::KeyLinear, "key_linear"),
+        (Icon::KeyLinearFilled, "key_linear_filled"),
+        (Icon::KeyHold, "key_hold"),
+        (Icon::KeyBezier, "key_bezier"),
+        (Icon::KeyAutoBezier, "key_auto_bezier"),
+        (Icon::KeyContinuousBezier, "key_continuous_bezier"),
+        (Icon::KeyEaseIn, "key_ease_in"),
+        (Icon::KeyEaseOut, "key_ease_out"),
+        (Icon::KeyframeEasyEase, "keyframe_easy_ease"),
+        (Icon::ThumbsUp, "thumbs_up"),
+        (Icon::ThumbsDown, "thumbs_down"),
+        (Icon::XCircle, "x_circle"),
+        (Icon::WarningDiamond, "warning_diamond"),
+        (Icon::SortAscending, "sort_ascending"),
+        (Icon::SortDescending, "sort_descending"),
+        (Icon::Globe, "globe"),
+        (Icon::Bookmark, "bookmark"),
+        (Icon::Mail, "mail"),
+    ];
+    for (icon, name) in wanted {
+        assert_eq!(icon.name(), name);
+        assert!(!icon.directional(), "{name}");
+        for set in IconSet::ALL {
+            assert!(alpha(&rasterise(icon, set, 16, 1.5, false)).any(|a| a > 0), "{name} is blank in {}", set.id());
+        }
+    }
+    // Lucide, Carbon and Tabler have their own mute speaker and thumbs.
+    for icon in [Icon::TrackMute, Icon::ThumbsUp, Icon::ThumbsDown, Icon::SortAscending] {
+        for set in [IconSet::Lucide, IconSet::Carbon, IconSet::Tabler] {
+            assert!(icon.drawn_in(set), "{} in {}", icon.name(), set.id());
+        }
+    }
+    // The sort glyphs differ in every set.
+    for set in IconSet::ALL {
+        assert_ne!(Icon::SortAscending.svg(set), Icon::SortDescending.svg(set), "{}", set.id());
+    }
+}

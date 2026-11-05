@@ -364,10 +364,12 @@ fn content<'a, T>(tool: &'a RailTool<T>, kbd: &'a Option<Kbd>) -> RowContent<'a>
         label: tool.label.as_str(),
         mnemonic: None,
         icon: Some(tool.icon),
+        swatch: None,
         kind: ItemKind::Plain,
         shortcut: kbd.as_ref(),
         submenu: false,
         tint: None,
+        detail: None,
     }
 }
 

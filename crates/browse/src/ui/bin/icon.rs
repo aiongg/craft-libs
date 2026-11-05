@@ -192,7 +192,7 @@ where
     let mut dropped_in_bin = false;
     for event in out.events {
         match event {
-            TileEvent::Selection(change) => events.push(BinEvent::Selection(change)),
+            TileEvent::Selection(change) | TileEvent::ContextPicked(change) => events.push(BinEvent::Selection(change)),
             TileEvent::Activate(key) => events.push(open_event(model, key, modifiers)),
             TileEvent::Remove(keys) => events.push(BinEvent::Remove(keys)),
             TileEvent::Drag(drag) => events.push(BinEvent::Drag(drag)),

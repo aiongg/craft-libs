@@ -425,6 +425,15 @@ pub fn dialog_shown(ui: &mut egui::Ui, open: bool) -> bool {
     shown
 }
 
+/// The story's "Last event: {event}" line, muted; nothing before the first event. Every story that
+/// reports what a widget returned shows it this way.
+pub fn last_event(ui: &mut egui::Ui, event: Option<&str>) {
+    if let Some(event) = event {
+        let line = crate::localized::fmt(&StoryLabels::of(ui).last_event, &[("event", event)]);
+        ui.add(crate::primitives::Text::new(line).content(crate::primitives::Content::Muted));
+    }
+}
+
 /// The dialog was closed: clears `open` in a component's tab, the tile's own state in an Overview tile.
 pub fn dialog_closed(ui: &egui::Ui, open: &mut bool) {
     if in_overview(ui.ctx()) {

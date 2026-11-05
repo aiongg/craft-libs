@@ -29,7 +29,7 @@ use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
 use crate::localized::Labels as _;
-use crate::localized::{LocaleNumbers, Unit, Words, first_field_id, incomplete, on_grid, round_half_away, stepped};
+use crate::localized::{LocaleNumbers, Unit, UnitKind, Units, Words, first_field_id, incomplete, on_grid, round_half_away, stepped};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, StoryLabels, variant_list};
@@ -169,6 +169,7 @@ pub struct NumberField<'a> {
     decimals: RangeInclusive<usize>,
     commit_decimals: Option<usize>,
     unit: Unit,
+    unit_kind: Option<UnitKind>,
     fallback: Option<Box<Reader<'a>>>,
     expressions: bool,
     handle: Option<Handle>,
@@ -360,6 +361,7 @@ impl<'a> NumberField<'a> {
             decimals: 0..=6,
             commit_decimals: None,
             unit: Unit::default(),
+            unit_kind: None,
             fallback: None,
             expressions: true,
             handle: None,
@@ -461,6 +463,14 @@ impl<'a> NumberField<'a> {
     /// The unit drawn around the number; typed text may include it.
     pub fn unit(mut self, unit: Unit) -> Self {
         self.unit = unit;
+        self.unit_kind = None;
+        self
+    }
+
+    /// The unit of `kind`, spelled by its word in the user's language ([`Units::unit`]) when the
+    /// field is shown; typed text may include it.
+    pub fn unit_kind(mut self, kind: UnitKind) -> Self {
+        self.unit_kind = Some(kind);
         self
     }
 
@@ -698,19 +708,33 @@ impl<'a> NumberField<'a> {
 
     /// Shows the field and returns this frame's edit. The response covers the box.
     pub fn show(self, ui: &mut Ui) -> EditResponse<f64> {
+        self.show_full(ui).edit
+    }
+
+    /// [`show`](NumberField::show) and whether the field's text is rejected this pass (it can't
+    /// become a value, and the field is marked invalid): a dialog refuses its OK button while
+    /// it is true.
+    pub fn show_full(self, ui: &mut Ui) -> NumberFieldOutput {
         let host = self.value;
-        self.show_blank(ui).map(|value| value.unwrap_or(host))
+        let NumberFieldOutput { edit, rejected } = self.show_blank(ui);
+        NumberFieldOutput { edit: edit.map(|value| value.unwrap_or(host)), rejected }
     }
 
     /// Shows a field made by [`optional`](NumberField::optional): its events carry `None` for an
     /// emptied field. On a field from [`new`](NumberField::new) it makes the field optional too,
     /// with a non-finite value standing for none.
-    pub fn show_optional(mut self, ui: &mut Ui) -> EditResponse<Option<f64>> {
-        self.optional = true;
-        self.show_blank(ui).map(|value| value.filter(|v| v.is_finite()))
+    pub fn show_optional(self, ui: &mut Ui) -> EditResponse<Option<f64>> {
+        self.show_optional_full(ui).edit
     }
 
-    fn show_blank(mut self, ui: &mut Ui) -> EditResponse<Option<f64>> {
+    /// [`show_optional`](NumberField::show_optional) and whether the text is rejected.
+    pub fn show_optional_full(mut self, ui: &mut Ui) -> NumberFieldOutput<Option<f64>> {
+        self.optional = true;
+        let NumberFieldOutput { edit, rejected } = self.show_blank(ui);
+        NumberFieldOutput { edit: edit.map(|value| value.filter(|v| v.is_finite())), rejected }
+    }
+
+    fn show_blank(mut self, ui: &mut Ui) -> NumberFieldOutput<Option<f64>> {
         if self.presets.any() && self.box_width.is_none() {
             // The box and the chevron are one unit whatever the parent layout; the chevron's room
             // comes off a justified layout's width.
@@ -728,7 +752,10 @@ impl<'a> NumberField<'a> {
         self.show_unit(ui)
     }
 
-    fn show_unit(mut self, ui: &mut Ui) -> EditResponse<Option<f64>> {
+    fn show_unit(mut self, ui: &mut Ui) -> NumberFieldOutput<Option<f64>> {
+        if let Some(kind) = self.unit_kind {
+            self.unit = Units::of(ui).unit(kind);
+        }
         let bounds = ordered(&self.range);
         if !(bounds.0.is_finite() && bounds.1.is_finite()) {
             debug_assert!(self.popup.is_none(), "a pop-up slider needs a finite range; set .range first");
@@ -870,7 +897,8 @@ impl<'a> NumberField<'a> {
         let focused = enabled && response.has_focus();
         let stepped = input.step(ui, &mut typed, &arrows, stepping, enabled);
 
-        let invalid = self.invalid || typed.rejected().is_some();
+        let rejected = typed.rejected().is_some();
+        let invalid = self.invalid || rejected;
         report(ui.ctx(), &typed, bounds, &self.unit, stepping.then_some(self.step));
         ui.painter().set(under, Shape::Vec(field_box(ui, &style.field, response.rect, BoxState::of(&response, enabled, invalid))));
         parts.paint(ui, &self, rect, typed.text_rect(), !typed.text().is_empty());
@@ -901,8 +929,19 @@ impl<'a> NumberField<'a> {
                 edit::ops::report(ui.ctx(), id, ops);
             }
         }
-        edit
+        NumberFieldOutput { edit, rejected }
     }
+}
+
+/// What [`NumberField::show_full`] returns.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct NumberFieldOutput<T = f64> {
+    /// The edit [`NumberField::show`] returns.
+    pub edit: EditResponse<T>,
+    /// The field's text can't become a value this pass and the field is marked invalid (the text
+    /// stays in the box until the user fixes it or leaves).
+    pub rejected: bool,
 }
 
 /// How the field reads its host during one of its own gestures, kept from the last pass: the

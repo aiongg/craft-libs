@@ -15,7 +15,7 @@ use egui::{Color32, Galley, Pos2, Rect, Response, Shape, Stroke, Ui, pos2, vec2}
 
 use super::item::ItemKind;
 use super::mnemonic;
-use crate::controls::{Kbd, ListboxStyle, icon_size};
+use crate::controls::{Kbd, ListboxStyle, Swatch, icon_size};
 use crate::direction;
 use crate::icons::{self, Icon};
 use crate::theme::{ToEgui, UiTokens, corner_radius, role_format};
@@ -95,11 +95,15 @@ pub(crate) struct RowContent<'r> {
     /// Underlined in the label.
     pub mnemonic: Option<char>,
     pub icon: Option<Icon>,
+    /// A colour swatch in the icon slot when there is no icon.
+    pub swatch: Option<Srgba>,
     pub kind: ItemKind,
     pub shortcut: Option<&'r Kbd>,
     pub submenu: bool,
     /// A user label colour behind the row.
     pub tint: Option<Srgba>,
+    /// A muted second line under the label ([`MenuItem::detail`](super::MenuItem::detail)).
+    pub detail: Option<&'r str>,
 }
 
 /// How a row is drawn this pass.
@@ -180,10 +184,25 @@ impl RowPainter<'_> {
         icons::paint_in(ui, rect, icon, icons::active(ui.ctx()), side, icon_size(self.size).stroke(), color);
     }
 
+    /// The detail line's galley in the shortcut's role, on one line.
+    fn detail_galley(&self, ui: &Ui, text: &str, color: Color32) -> Arc<Galley> {
+        let mut job = LayoutJob::single_section(text.to_owned(), role_format(self.tokens, self.style.shortcut_label, color));
+        job.wrap.max_width = f32::INFINITY;
+        ui.painter().layout_job(job)
+    }
+
+    /// The height of `row`: the list box row height, and a detail line's height more when it has
+    /// one.
+    pub fn height(&self, ui: &Ui, row: &RowContent<'_>) -> f32 {
+        let detail = row.detail.map_or(0.0, |text| self.detail_galley(ui, text, Color32::PLACEHOLDER).size().y);
+        self.style.rows.height + detail
+    }
+
     /// The width `row` needs in a level with `cols`' columns.
     pub fn width(&self, ui: &Ui, row: &RowContent<'_>, cols: &Columns) -> f32 {
         let s = &self.style.rows;
         let label = self.label_galley(ui, row, Color32::PLACEHOLDER).size().x;
+        let label = row.detail.map_or(label, |text| label.max(self.detail_galley(ui, text, Color32::PLACEHOLDER).size().x));
         let trailing = match (row.submenu, row.shortcut) {
             (true, _) => self.glyph(),
             (false, Some(kbd)) => self.shortcut_galley(ui, kbd, Color32::PLACEHOLDER).size().x,
@@ -229,20 +248,43 @@ impl RowPainter<'_> {
             }
             _ => {}
         }
-        if let Some(icon) = row.icon.filter(|_| cols.icons) {
-            let icon_center = start + forward * (self.marks_width(cols) + s.icon / 2.0);
-            icons::paint(ui, square(icon_center), icon, icon_size(self.size), text);
+        let icon_center = start + forward * (self.marks_width(cols) + s.icon / 2.0);
+        match (row.icon, row.swatch) {
+            (Some(icon), _) if cols.icons => icons::paint(ui, square(icon_center), icon, icon_size(self.size), text),
+            (None, Some(color)) if cols.icons => {
+                let style = Swatch::style(self.tokens, self.size);
+                ui.painter().extend(Swatch::shapes(&style, square(icon_center), Some(color.into()), false, state.enabled, ppp));
+            }
+            _ => {}
         }
         let galley = self.label_galley(ui, row, text);
-        let x = start + forward * self.label_offset(cols);
-        let x = if direction::is_rtl(ui) { x - galley.size().x } else { x };
-        ui.painter().galley(pos2(x, rect.center().y - galley.size().y / 2.0).round_to_pixels(ppp), galley, text);
+        let text_x = |width: f32| {
+            let x = start + forward * self.label_offset(cols);
+            if direction::is_rtl(ui) { x - width } else { x }
+        };
+        // With a detail line the label keeps its single-line padding and the line sits under it;
+        // the shortcut and arrow stay level with the label.
+        let (label_y, mid) = match row.detail {
+            Some(_) => (rect.top() + (s.height - galley.size().y) / 2.0, rect.top() + s.height / 2.0),
+            None => (rect.center().y - galley.size().y / 2.0, rect.center().y),
+        };
+        let label_bottom = label_y + galley.size().y;
+        ui.painter().galley(pos2(text_x(galley.size().x), label_y).round_to_pixels(ppp), galley, text);
+        if let Some(detail) = row.detail {
+            let color = match (state.enabled, active) {
+                (false, _) => s.text_disabled,
+                (true, true) => m.active_text,
+                (true, false) => shortcut,
+            };
+            let galley = self.detail_galley(ui, detail, color);
+            ui.painter().galley(pos2(text_x(galley.size().x), label_bottom).round_to_pixels(ppp), galley, color);
+        }
         if row.submenu {
-            self.submenu_arrow(ui, pos2(end - forward * self.glyph() / 2.0, rect.center().y), text);
+            self.submenu_arrow(ui, pos2(end - forward * self.glyph() / 2.0, mid), text);
         } else if let Some(kbd) = row.shortcut {
             let galley = self.shortcut_galley(ui, kbd, shortcut);
             let x = if direction::is_rtl(ui) { end } else { end - galley.size().x };
-            ui.painter().galley(pos2(x, rect.center().y - galley.size().y / 2.0).round_to_pixels(ppp), galley, shortcut);
+            ui.painter().galley(pos2(x, mid - galley.size().y / 2.0).round_to_pixels(ppp), galley, shortcut);
         }
     }
 
@@ -297,6 +339,9 @@ pub(crate) fn access(r: &Response, row: &RowContent<'_>, open: bool) {
         }
         if let (Some(kbd), Some(os)) = (row.shortcut, os) {
             n.set_keyboard_shortcut(kbd.spoken(os));
+        }
+        if let Some(detail) = row.detail {
+            n.set_description(detail);
         }
         if row.submenu {
             n.set_has_popup(HasPopup::Menu);

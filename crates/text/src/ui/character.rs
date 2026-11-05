@@ -26,6 +26,14 @@ use craft_ui::primitives::{Content, Icon as Mark, Text};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{AsIdSalt, Color32, IdSalt, Modifiers, Ui, vec2};
 
+mod paragraph_dialog;
+#[cfg(test)]
+mod paragraph_dialog_tests;
+
+pub use paragraph_dialog::{
+    LineSpacing, ParagraphAlign, ParagraphAnswer, ParagraphDialog, ParagraphDialogLabels, ParagraphFormat, SpacingKind, SpecialIndent,
+};
+
 craft_ui::words! {
     /// The Character controls' words, English by default (PhotoCraft's tooltips).
     #[non_exhaustive]

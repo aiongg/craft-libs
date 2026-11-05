@@ -32,9 +32,15 @@
 //!   (macOS Control-click, the browser's doubled taps, a single-line field's drag selection).
 //! - [`DragBadge`], [`set_drop_hint`] and [`DropVeil`]: what a drag shows: the badge at the
 //!   pointer, a drop target's hint in it, and the veil while files from outside hover.
+//! - [`cells`]: the selected cells of a sheet or a document table ([`cells::CellSelection`] over a
+//!   [`cells::CellSpace`]), with Excel's rules for clicks, Shift, Cmd/Ctrl, arrows, Enter and Tab
+//!   and merged cells; egui-free, used by craft-table's grid and craft-pages' tables.
 //! - [`nudge`]: an arrow key press as a move along the document axes (1 unit, Shift 10), for
 //!   canvas overlays.
 
+pub mod cells;
+#[cfg(test)]
+mod cells_tests;
 mod command_search;
 mod digit_keys;
 #[cfg(test)]

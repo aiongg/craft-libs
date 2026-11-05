@@ -31,3 +31,19 @@ fn words_list_the_platform_messages() {
     let words: Vec<_> = craft::words::all().into_iter().flatten().copied().collect();
     assert!(words.iter().any(|w| w.id == "open.failed"));
 }
+
+/// One id never names two English texts, across every crate's tables and count words.
+#[test]
+fn a_word_id_has_one_english_text_across_the_crates() {
+    let counts: Vec<_> = craft::words::counts().into_iter().flatten().map(|c| c.word).collect();
+    let mut seen = std::collections::HashMap::new();
+    let mut clashes = Vec::new();
+    for word in craft::words::all().into_iter().flatten().copied().chain(counts) {
+        if let Some(other) = seen.insert(word.key(), word.english)
+            && other != word.english
+        {
+            clashes.push(format!("{}: {other:?} and {:?}", word.key(), word.english));
+        }
+    }
+    assert!(clashes.is_empty(), "{clashes:#?}");
+}

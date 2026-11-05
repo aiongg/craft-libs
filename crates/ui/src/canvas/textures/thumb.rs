@@ -20,13 +20,19 @@ use super::style::{self, ThumbnailStyle};
 use crate::icons::{self, Icon, IconSize};
 use crate::theme::UiTokens;
 
-/// What a thumbnail is asked at: the side in pixels and the screen's density.
+/// What a thumbnail is asked at: the side in pixels, the screen's density and the part of the
+/// frame wanted.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ThumbRequest {
     /// The longest side of the picture, in pixels: a multiple of 16.
     pub side: u32,
     /// Pixels per point of the screen it shows on.
     pub pixels_per_point: f32,
+    /// The part of the frame to render, in fractions of the frame (0 to 1 on both axes), or the
+    /// whole frame. `side` is then the longest side of that part: a page larger than the texture
+    /// side on screen asks for the part in view and shows its detail. The region is part of the
+    /// picture's revision, so each region has its own texture.
+    pub region: Option<Rect>,
 }
 
 /// Requested sides are multiples of this many pixels.
@@ -43,8 +49,18 @@ impl ThumbRequest {
         let pixels = points * pixels_per_point;
         let steps = if pixels.is_finite() { (pixels / SIZE_STEP as f32).ceil().max(1.0) as u32 } else { 1 };
         let side = steps.saturating_mul(SIZE_STEP).min(MAX_TEXTURE / SIZE_STEP * SIZE_STEP);
-        ThumbRequest { side, pixels_per_point }
+        ThumbRequest { side, pixels_per_point, region: None }
     }
+
+    /// The request for the part `region` of the frame (fractions of the frame, 0 to 1).
+    pub fn region(self, region: Rect) -> ThumbRequest {
+        ThumbRequest { region: Some(region), ..self }
+    }
+}
+
+/// The request's region as hashable bits.
+fn region_bits(region: Option<Rect>) -> Option<[u32; 4]> {
+    region.map(|r| [r.min.x.to_bits(), r.min.y.to_bits(), r.max.x.to_bits(), r.max.y.to_bits()])
 }
 
 /// A background render: runs on a queue lane, checks the [`Cancel`] between steps, and returns the
@@ -277,7 +293,7 @@ impl<K: TextureKey> Thumbnails<K> {
     /// What `key` shows now; renders or queues it when its revision has no picture yet.
     ///
     /// In order: the request's side is lowered to `max_side` (rounded down to 16); the revision is
-    /// `source.revision(key, request)` combined with the side; the loader is
+    /// `source.revision(key, request)` combined with the side and the region; the loader is
     /// [asked](TextureLoader::ask) and its answer returned when it has one. Otherwise, while
     /// [held](Self::hold) or past the pass's render budget, the key's stand-in is returned as
     /// `Loading` (past the budget with `ctx.request_repaint()`). Otherwise `source.render`:
@@ -289,7 +305,7 @@ impl<K: TextureKey> Thumbnails<K> {
         let max_side = self.lock().options.max_side;
         let side = request.side.min((max_side / SIZE_STEP * SIZE_STEP).max(SIZE_STEP));
         let request = ThumbRequest { side, ..*request };
-        let revision = Revision::of(&(source.revision(key, &request), side));
+        let revision = Revision::of(&(source.revision(key, &request), side, region_bits(request.region)));
         if let Some(state) = self.loader.ask(ctx, key, revision, priority) {
             return state;
         }

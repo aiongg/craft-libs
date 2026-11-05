@@ -962,6 +962,23 @@ fn text_fields_report_their_role_name_value_placeholder_and_state() {
     assert_eq!(stops, ["Name", "Code", "Password", "Search layers"]);
 }
 
+// A secret field is masked like a password and AccessKit gets no value at all, not the bullets.
+#[test]
+fn a_secret_field_gives_accesskit_no_value() {
+    let mut harness = harness().build_ui(|ui| {
+        let _ = TextField::new("token", "Token", "abc123").secret(true).show(ui);
+        let _ = TextField::new("pass", "Password", "abc123").password(true).show(ui);
+    });
+    harness.run();
+    let token = harness.get_by_label("Token");
+    let token = token.accesskit_node();
+    // An AccessKit consumer reads a text input's value from its text runs, which are empty.
+    assert_eq!(token.role(), Role::PasswordInput);
+    assert!(token.value().is_none_or(|value| value.is_empty()), "{:?}", token.value());
+    let pass = harness.get_by_label("Password");
+    assert!(pass.accesskit_node().value().is_some(), "a password keeps its bullets as the value");
+}
+
 /// The baseline of every text shape whose text is `text`: the galley's top plus its first row's
 /// baseline offset (the row's bottom less the glyph descent, here the row's `max_y`).
 fn baseline_of(harness: &Harness<'_>, text: &str) -> Vec<f32> {

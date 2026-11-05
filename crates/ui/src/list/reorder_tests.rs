@@ -3,7 +3,7 @@
 //! stacking keys.
 
 use egui::accesskit::Role;
-use egui::{CursorIcon, DragAndDrop, Event, Key, Modifiers, PointerButton, Pos2, Sense, Ui, vec2};
+use egui::{CursorIcon, DragAndDrop, Event, Key, Modifiers, PointerButton, Pos2, Sense, Ui, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
@@ -637,4 +637,139 @@ fn a_drop_button_is_enabled_while_an_accepted_drag_is_over_it() {
     assert!(harness.get_by_label("Delete layer").accesskit_node().is_disabled(), "a refused drag leaves it disabled");
     footer_move(&mut harness, target, Some(false));
     assert_eq!(harness.state().dropped, None);
+}
+
+/// Two lists, `A` (keys 0 to 2) and `B` (keys 10 and 11), where `B` takes drops from `A`.
+struct Pair {
+    b_first: bool,
+    /// `B` sits left of `A` in one row, each in a fixed-width column.
+    beside: bool,
+    a_events: Vec<ListEvent<usize>>,
+    b_events: Vec<ListEvent<usize>>,
+    b_rows: Vec<RowInfo<usize>>,
+}
+
+fn show_pair(ui: &mut Ui, host: &mut Pair) {
+    let a_rows: Vec<RowInfo<usize>> = (0..3).map(RowInfo::leaf).collect();
+    let a_id = ui.scope_builder(egui::UiBuilder::new().id_salt("A"), |ui| List::id_in(ui, "list")).inner;
+    let show_a = |ui: &mut Ui| {
+        ui.scope_builder(egui::UiBuilder::new().id_salt("A"), |ui| {
+            List::new("list", "A", a_rows.as_slice())
+                .max_height(90.0)
+                .reorder(Reorder::new(Axis::Vertical))
+                .show(ui, |_, &key| ListRow::new(key, format!("A{key}")))
+                .events
+        })
+        .inner
+    };
+    let show_b = |ui: &mut Ui, rows: &[RowInfo<usize>]| {
+        ui.scope_builder(egui::UiBuilder::new().id_salt("B"), |ui| {
+            List::new("list", "B", rows).max_height(90.0).accept_from([a_id]).show(ui, |_, &key| ListRow::new(key, format!("B{key}"))).events
+        })
+        .inner
+    };
+    if host.beside {
+        let rows = host.b_rows.clone();
+        ui.horizontal_top(|ui| {
+            host.b_events.extend(ui.allocate_ui(vec2(140.0, 120.0), |ui| show_b(ui, &rows)).inner);
+            host.a_events.extend(ui.allocate_ui(vec2(140.0, 120.0), show_a).inner);
+        });
+    } else if host.b_first {
+        let rows = host.b_rows.clone();
+        host.b_events.extend(show_b(ui, &rows));
+        host.a_events.extend(show_a(ui));
+    } else {
+        host.a_events.extend(show_a(ui));
+        let rows = host.b_rows.clone();
+        host.b_events.extend(show_b(ui, &rows));
+    }
+}
+
+fn pair_harness(b_first: bool, b_rows: Vec<RowInfo<usize>>) -> Harness<'static, Pair> {
+    pair_harness_with(Pair { b_first, beside: false, a_events: Vec::new(), b_events: Vec::new(), b_rows })
+}
+
+fn pair_harness_with(host: Pair) -> Harness<'static, Pair> {
+    let mut harness = Harness::<Pair>::builder()
+        .with_size([320.0, 300.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(show_pair, host);
+    harness.run();
+    harness
+}
+
+fn pair_move(harness: &mut Harness<'_, Pair>, pos: Pos2, pressed: Option<bool>) {
+    harness.event(Event::PointerMoved(pos));
+    if let Some(pressed) = pressed {
+        harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+    }
+    harness.run();
+}
+
+// A drag from one list released over a list that takes drops from it: the target reports
+// `Dropped` with the rows and where they land in the pass of the release, the source ends as
+// dismissed in the same pass, and the target shows the marker while the rows are held over it.
+// Either list may be drawn first.
+#[test]
+fn rows_dropped_on_a_list_that_accepts_them_are_reported_by_the_target_in_one_pass() {
+    for b_first in [false, true] {
+        let mut harness = pair_harness(b_first, (10..12).map(RowInfo::leaf).collect());
+        let grab = harness.get_by_label("A1").rect().center();
+        let over = harness.get_by_label("B11").rect();
+        pair_move(&mut harness, grab, Some(true));
+        pair_move(&mut harness, grab + vec2(0.0, 6.0), None);
+        let lower = pos2(over.center().x, over.bottom() - 2.0);
+        pair_move(&mut harness, lower, None);
+        assert_eq!(
+            harness.state().b_events.iter().filter(|e| matches!(e, ListEvent::Dropped { .. })).count(),
+            0,
+            "nothing is dropped while held (B first: {b_first})"
+        );
+        pair_move(&mut harness, lower, Some(false));
+        let host = harness.state();
+        let [ListEvent::Dropped { from, target }] =
+            &host.b_events.iter().filter(|e| matches!(e, ListEvent::Dropped { .. })).cloned().collect::<Vec<_>>()[..]
+        else {
+            panic!("one drop (B first: {b_first}): {:?}", host.b_events)
+        };
+        assert_eq!(from.items, vec![1]);
+        assert_eq!(target, &Some(Move { items: vec![1], target: 11, position: DropPosition::After, copy: false }), "B first: {b_first}");
+        assert!(
+            host.a_events.iter().any(|e| matches!(e, ListEvent::Reorder(EditEvent::Cancel { reason: CancelReason::Dismissed, .. }))),
+            "the source cancels (B first: {b_first}): {:?}",
+            host.a_events
+        );
+        assert!(DragAndDrop::payload::<ListDrag<usize>>(&harness.ctx).is_none(), "the drop took the payload");
+    }
+}
+
+#[test]
+fn a_list_without_rows_takes_a_drop_with_no_target_and_other_lists_take_none() {
+    let mut harness = pair_harness(false, Vec::new());
+    let grab = harness.get_by_label("A0").rect().center();
+    pair_move(&mut harness, grab, Some(true));
+    pair_move(&mut harness, grab + vec2(0.0, 6.0), None);
+    let b = harness.get_by_label("B").rect();
+    pair_move(&mut harness, b.center(), None);
+    pair_move(&mut harness, b.center(), Some(false));
+    let drops: Vec<_> = harness.state().b_events.iter().filter(|e| matches!(e, ListEvent::Dropped { .. })).collect();
+    assert!(matches!(drops[..], [ListEvent::Dropped { target: None, .. }]), "{drops:?}");
+    assert!(harness.state().a_events.iter().all(|e| !matches!(e, ListEvent::Dropped { .. })), "the source takes no drop from itself");
+}
+
+// A list's scroll area clips only the scrolling axis to itself; sideways its clip reaches the
+// parent's edge. An empty list left of another must not take a drop released over its neighbour.
+#[test]
+fn a_drop_over_the_list_beside_an_empty_list_is_not_taken_by_the_empty_list() {
+    let mut harness = pair_harness_with(Pair { b_first: true, beside: true, a_events: Vec::new(), b_events: Vec::new(), b_rows: Vec::new() });
+    let grab = harness.get_by_label("A0").rect().center();
+    let over = harness.get_by_label("A2").rect().center();
+    pair_move(&mut harness, grab, Some(true));
+    pair_move(&mut harness, grab + vec2(0.0, 6.0), None);
+    pair_move(&mut harness, over, None);
+    pair_move(&mut harness, over, Some(false));
+    let host = harness.state();
+    assert!(host.b_events.iter().all(|e| !matches!(e, ListEvent::Dropped { .. })), "B takes no drop over A: {:?}", host.b_events);
+    assert!(host.a_events.iter().any(|e| matches!(e, ListEvent::Reorder(EditEvent::Commit { .. }))), "A reorders its own rows: {:?}", host.a_events);
 }

@@ -243,6 +243,32 @@ impl WheelNavigation {
         action
     }
 
+    /// The view change for one pass of a page view's wheel (Acrobat; PdfCraft `canvas.rs:2864`):
+    /// Ctrl/Cmd + wheel and a pinch zoom by egui's `zoom_delta`, the wheel scrolls up and down,
+    /// Shift + wheel sideways (egui folds Shift into `scroll.x`). The navigation preferences do
+    /// not apply. The host must keep egui's default wheel modifiers, not
+    /// [`configure`](Self::configure)'s: that call turns Ctrl + wheel into a sideways scroll.
+    pub fn classify_page(scroll: ScreenVec, zoom_delta: f32) -> Option<WheelAction> {
+        if zoom_delta.is_finite() && zoom_delta > 0.0 && zoom_delta != 1.0 {
+            return Some(WheelAction::Zoom(f64::from(zoom_delta)));
+        }
+        (scroll.x.is_finite() && scroll.y.is_finite() && scroll != ScreenVec::ZERO).then_some(WheelAction::Pan(scroll))
+    }
+
+    /// This pass's wheel input over `canvas` (hovered) classified by [`classify_page`](Self::classify_page);
+    /// consumes the scroll so a parent scroll area does not also move.
+    pub fn read_page(ctx: &Context, canvas: &Response) -> Option<WheelAction> {
+        if !canvas.hovered() {
+            return None;
+        }
+        let (scroll, zoom_delta) = ctx.input(|i| (i.smooth_scroll_delta, i.zoom_delta()));
+        let action = Self::classify_page(scroll, zoom_delta);
+        if action.is_some() {
+            ctx.input_mut(|i| i.smooth_scroll_delta = ScreenVec::ZERO);
+        }
+        action
+    }
+
     /// Apply `action` to `view` with the pointer at `pointer`: a factor zoom anchors at
     /// [`zoom::wheel_anchor`], a ladder step at the pointer, and both clamp to the ladder's range; a
     /// pan moves the view (within the scroll limits unless `prefs.overscroll`). At a zoom limit

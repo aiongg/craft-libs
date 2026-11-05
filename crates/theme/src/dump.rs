@@ -17,16 +17,16 @@ use crate::{
     GridTokens, GripTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, HistoryTokens, HoverTokens, IconButtonTokens,
     IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayerStyleTokens, LayersTokens, LevelsTokens, LineGuideTokens,
     LinkTokens, LiquifyTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MeasureTokens, MenuHue, MenuTokens,
-    MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, OutlineDraftTokens, Pads,
+    MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, OutlineDraftTokens, Pads, PagesTokens,
     PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens,
     PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens,
-    RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens,
-    SelectMaskTokens, SelectTokens, SelectionBarTokens, SelectionFrameTokens, ShapeDragTokens, ShapeTokens, SizeTokens, SliceTokens, SliderRowTokens,
-    SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, StrokeEditorTokens, SwatchColor,
-    SwatchPaletteTokens, SwatchTokens, SymmetryTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens,
-    ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens,
-    ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens, VanishingPointTokens,
-    WideAngleTokens,
+    RefPointTokens, ResetDotTokens, ReviewTokens, Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens,
+    SegmentedTokens, SelectMaskTokens, SelectTokens, SelectionBarTokens, SelectionFrameTokens, ShapeDragTokens, ShapeTokens, SheetTokens, SizeTokens,
+    SliceTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens,
+    StrokeEditorTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, SymmetryTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens,
+    TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TimelineTokens, TitleBarTokens, ToastTokens,
+    ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole,
+    TypeStyle, TypeTokens, VanishingPointTokens, WideAngleTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -360,6 +360,10 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         inspector,
         kbd,
         layers,
+        timeline,
+        pages,
+        review,
+        sheet,
         levels,
         list,
         listbox,
@@ -540,6 +544,10 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     actions_lines(out, actions);
     channels_lines(out, channels);
     layers_lines(out, layers);
+    timeline_lines(out, timeline);
+    pages_lines(out, pages);
+    review_lines(out, review);
+    sheet_lines(out, sheet);
     history_lines(out, history);
     tab_lines(out, tab);
     text_editor_lines(out, text_editor);
@@ -1681,8 +1689,10 @@ fn font_picker_lines(out: &mut Lines, t: &FontPickerTokens) {
 }
 
 fn text_styles_lines(out: &mut Lines, t: &TextStylesTokens) {
-    let TextStylesTokens { list_height } = t;
+    let TextStylesTokens { list_height, tile_side, preview_side } = t;
     out.line("text_styles.list_height", len(*list_height));
+    out.line("text_styles.tile_side", len(*tile_side));
+    out.line("text_styles.preview_side", len(*preview_side));
 }
 
 fn glyphs_lines(out: &mut Lines, t: &GlyphsTokens) {
@@ -1699,21 +1709,26 @@ fn glyphs_lines(out: &mut Lines, t: &GlyphsTokens) {
 }
 
 fn text_editor_lines(out: &mut Lines, t: &TextEditorTokens) {
-    let TextEditorTokens { caret_halo, caret_line, selection_alpha, preedit_underline, active_underline } = t;
+    let TextEditorTokens { caret_halo, caret_line, selection_alpha, preedit_underline, active_underline, notes_points, notes_max_indent } = t;
     out.line("text_editor.caret_halo", len(*caret_halo));
     out.line("text_editor.caret_line", len(*caret_line));
     out.line("text_editor.selection_alpha", len(*selection_alpha));
     out.line("text_editor.preedit_underline", len(*preedit_underline));
     out.line("text_editor.active_underline", len(*active_underline));
+    out.line("text_editor.notes_points", len(*notes_points));
+    out.line("text_editor.notes_max_indent", len(*notes_max_indent));
 }
 
 fn grid_lines(out: &mut Lines, t: &GridTokens) {
-    let GridTokens { width, minor_alpha, min_step, crossing, crossing_min } = t;
+    let GridTokens { width, minor_alpha, min_step, crossing, crossing_min, page_margins, page_columns, page_baseline } = t;
     out.line("grid.width", len(*width));
     out.line("grid.minor_alpha", len(*minor_alpha));
     out.line("grid.min_step", len(*min_step));
     out.line("grid.crossing", len(*crossing));
     out.line("grid.crossing_min", len(*crossing_min));
+    out.line("grid.page_margins", hex(*page_margins));
+    out.line("grid.page_columns", hex(*page_columns));
+    out.line("grid.page_baseline", hex(*page_baseline));
 }
 
 fn guide_lines(out: &mut Lines, g: &GuideTokens) {
@@ -1905,7 +1920,23 @@ fn readout_lines(out: &mut Lines, r: &ReadoutTokens) {
 }
 
 fn ruler_lines(out: &mut Lines, r: &RulerTokens) {
-    let RulerTokens { size, label, label_pitch, label_pad, step_min, tick_mid, tick_minor } = r;
+    let RulerTokens {
+        size,
+        label,
+        label_pitch,
+        label_pad,
+        step_min,
+        tick_mid,
+        tick_minor,
+        marker_half,
+        marker_column,
+        marker_tip,
+        marker_bar,
+        marker_stem,
+        marker_foot,
+        marker_selector,
+        margin_shade,
+    } = r;
     out.line("ruler.size", len(*size));
     out.line("ruler.label", len(*label));
     out.line("ruler.label_pitch", len(*label_pitch));
@@ -1913,6 +1944,14 @@ fn ruler_lines(out: &mut Lines, r: &RulerTokens) {
     out.line("ruler.step_min", len(*step_min));
     out.line("ruler.tick_mid", len(*tick_mid));
     out.line("ruler.tick_minor", len(*tick_minor));
+    out.line("ruler.marker_half", len(*marker_half));
+    out.line("ruler.marker_column", len(*marker_column));
+    out.line("ruler.marker_tip", len(*marker_tip));
+    out.line("ruler.marker_bar", len(*marker_bar));
+    out.line("ruler.marker_stem", len(*marker_stem));
+    out.line("ruler.marker_foot", len(*marker_foot));
+    out.line("ruler.marker_selector", len(*marker_selector));
+    out.line("ruler.margin_shade", hex(*margin_shade));
 }
 
 fn scroll_lines(out: &mut Lines, s: &ScrollTokens) {
@@ -2190,6 +2229,8 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
         ring_width,
         ring_hover_width,
         ring_halo_width,
+        ring_current_width,
+        start_caption_width,
         wheel_share,
         compare_caption,
         compare_margin,
@@ -2200,6 +2241,7 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
         ring_selected,
         ring_halo,
         ring_hover,
+        ring_current,
         caption,
         caption_selected,
         detail,
@@ -2229,6 +2271,8 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
     out.line("tile.ring_width", len(*ring_width));
     out.line("tile.ring_hover_width", len(*ring_hover_width));
     out.line("tile.ring_halo_width", len(*ring_halo_width));
+    out.line("tile.ring_current_width", len(*ring_current_width));
+    out.line("tile.start_caption_width", len(*start_caption_width));
     out.line("tile.wheel_share", len(*wheel_share));
     out.line("tile.compare_caption", len(*compare_caption));
     out.line("tile.compare_margin", len(*compare_margin));
@@ -2239,6 +2283,7 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
     out.line("tile.ring.selected", hex(*ring_selected));
     out.line("tile.ring.halo", hex(*ring_halo));
     out.line("tile.ring.hover", hex(*ring_hover));
+    out.line("tile.ring.current", hex(*ring_current));
     out.line("tile.caption", hex(*caption));
     out.line("tile.caption_selected", hex(*caption_selected));
     out.line("tile.detail", hex(*detail));
@@ -2387,6 +2432,376 @@ fn layers_lines(out: &mut Lines, t: &LayersTokens) {
     out.line("layers.mask.cross_width", len(*mask_cross_width));
     out.line("layers.mask.cross_inset", len(*mask_cross_inset));
     out.line("layers.indicator.ring_width", len(*indicator_ring_width));
+}
+
+fn timeline_lines(out: &mut Lines, t: &TimelineTokens) {
+    let TimelineTokens {
+        top_height,
+        ruler_height,
+        scrollbar_height,
+        scroll_thumb_min,
+        divider_height,
+        mix_row_height,
+        header_width,
+        video_track_height,
+        audio_track_height,
+        track_height_min,
+        track_height_max,
+        label_strip,
+        snap_distance,
+        edge_zone,
+        roll_zone,
+        fit_margin,
+        transport_button,
+        keyframe_glyph,
+        keyframe_snap,
+        keyframe_arrow_width,
+        keyframe_arrow_height,
+        keyframe_nav_step,
+        marker_width,
+        work_area_grab,
+        ruler_work_hit_pad,
+        ruler_render_hit_pad,
+        ruler_label_gap,
+        ruler_tick_gap,
+        scrub_step,
+        marker_height,
+        marker_hit,
+        marker_name_pad,
+        marker_name_gap,
+        marker_end_gap,
+        graph_key,
+        graph_key_hit,
+        graph_handle,
+        graph_handle_hit,
+        graph_top_inset,
+        graph_label_inset,
+        graph_reach,
+        graph_bar_height,
+        overview_inset_x,
+        overview_inset_y,
+        overview_box_outset,
+        overview_view_min,
+        ruler_marker_band,
+        ruler_work_height,
+        ruler_label_y,
+        ruler_tick_inset,
+        ruler_major_tick,
+        ruler_minor_tick,
+        ruler_render_bar,
+        ruler_head_half_width,
+        ruler_head_height,
+        ruler_cap_width,
+        scroll_knob_radius,
+        scroll_end_zone,
+        header_width_min,
+        header_width_max,
+        caption_row_height,
+        header_indent,
+    } = t;
+    out.line("timeline.top_height", len(*top_height));
+    out.line("timeline.ruler_height", len(*ruler_height));
+    out.line("timeline.scrollbar_height", len(*scrollbar_height));
+    out.line("timeline.scroll_thumb_min", len(*scroll_thumb_min));
+    out.line("timeline.divider_height", len(*divider_height));
+    out.line("timeline.mix_row_height", len(*mix_row_height));
+    out.line("timeline.header_width", len(*header_width));
+    out.line("timeline.video_track_height", len(*video_track_height));
+    out.line("timeline.audio_track_height", len(*audio_track_height));
+    out.line("timeline.track_height_min", len(*track_height_min));
+    out.line("timeline.track_height_max", len(*track_height_max));
+    out.line("timeline.label_strip", len(*label_strip));
+    out.line("timeline.snap_distance", len(*snap_distance));
+    out.line("timeline.edge_zone", len(*edge_zone));
+    out.line("timeline.roll_zone", len(*roll_zone));
+    out.line("timeline.fit_margin", len(*fit_margin));
+    out.line("timeline.transport_button", len(*transport_button));
+    out.line("timeline.keyframe_glyph", len(*keyframe_glyph));
+    out.line("timeline.keyframe_snap", len(*keyframe_snap));
+    out.line("timeline.keyframe_arrow_width", len(*keyframe_arrow_width));
+    out.line("timeline.keyframe_arrow_height", len(*keyframe_arrow_height));
+    out.line("timeline.keyframe_nav_step", len(*keyframe_nav_step));
+    out.line("timeline.marker_width", len(*marker_width));
+    out.line("timeline.work_area_grab", len(*work_area_grab));
+    out.line("timeline.ruler_work_hit_pad", len(*ruler_work_hit_pad));
+    out.line("timeline.ruler_render_hit_pad", len(*ruler_render_hit_pad));
+    out.line("timeline.ruler_label_gap", len(*ruler_label_gap));
+    out.line("timeline.ruler_tick_gap", len(*ruler_tick_gap));
+    out.line("timeline.scrub_step", len(*scrub_step));
+    out.line("timeline.marker_height", len(*marker_height));
+    out.line("timeline.marker_hit", len(*marker_hit));
+    out.line("timeline.marker_name_pad", len(*marker_name_pad));
+    out.line("timeline.marker_name_gap", len(*marker_name_gap));
+    out.line("timeline.marker_end_gap", len(*marker_end_gap));
+    out.line("timeline.graph_key", len(*graph_key));
+    out.line("timeline.graph_key_hit", len(*graph_key_hit));
+    out.line("timeline.graph_handle", len(*graph_handle));
+    out.line("timeline.graph_handle_hit", len(*graph_handle_hit));
+    out.line("timeline.graph_top_inset", len(*graph_top_inset));
+    out.line("timeline.graph_label_inset", len(*graph_label_inset));
+    out.line("timeline.graph_reach", len(*graph_reach));
+    out.line("timeline.graph_bar_height", len(*graph_bar_height));
+    out.line("timeline.overview_inset_x", len(*overview_inset_x));
+    out.line("timeline.overview_inset_y", len(*overview_inset_y));
+    out.line("timeline.overview_box_outset", len(*overview_box_outset));
+    out.line("timeline.overview_view_min", len(*overview_view_min));
+    out.line("timeline.ruler_marker_band", len(*ruler_marker_band));
+    out.line("timeline.ruler_work_height", len(*ruler_work_height));
+    out.line("timeline.ruler_label_y", len(*ruler_label_y));
+    out.line("timeline.ruler_tick_inset", len(*ruler_tick_inset));
+    out.line("timeline.ruler_major_tick", len(*ruler_major_tick));
+    out.line("timeline.ruler_minor_tick", len(*ruler_minor_tick));
+    out.line("timeline.ruler_render_bar", len(*ruler_render_bar));
+    out.line("timeline.ruler_head_half_width", len(*ruler_head_half_width));
+    out.line("timeline.ruler_head_height", len(*ruler_head_height));
+    out.line("timeline.ruler_cap_width", len(*ruler_cap_width));
+    out.line("timeline.scroll_knob_radius", len(*scroll_knob_radius));
+    out.line("timeline.scroll_end_zone", len(*scroll_end_zone));
+    out.line("timeline.header_width_min", len(*header_width_min));
+    out.line("timeline.header_width_max", len(*header_width_max));
+    out.line("timeline.caption_row_height", len(*caption_row_height));
+    out.line("timeline.header_indent", len(*header_indent));
+}
+
+fn review_lines(out: &mut Lines, t: &ReviewTokens) {
+    let ReviewTokens {
+        pin,
+        cluster_radius,
+        popover_width,
+        version_dot_x,
+        version_text_x,
+        chat_width,
+        chat_radius,
+        join_width,
+        revision_bar_width,
+        revision_bar_height,
+        status_accepted,
+        status_rejected,
+        status_cancelled,
+        status_completed,
+        card_accent,
+        revision_inserted,
+        revision_deleted,
+        revision_changed,
+        card_accent_width,
+        pin_inset,
+        pin_dot_radius,
+        pin_dot_inset,
+        pin_check_inset,
+        version_dot_radius,
+        version_dot_hollow_radius,
+        ink_light,
+        ink_dark,
+    } = t;
+    out.line("review.pin", len(*pin));
+    out.line("review.cluster_radius", len(*cluster_radius));
+    out.line("review.popover_width", len(*popover_width));
+    out.line("review.version_dot_x", len(*version_dot_x));
+    out.line("review.version_text_x", len(*version_text_x));
+    out.line("review.chat_width", len(*chat_width));
+    out.line("review.chat_radius", len(*chat_radius));
+    out.line("review.join_width", len(*join_width));
+    out.line("review.revision_bar_width", len(*revision_bar_width));
+    out.line("review.revision_bar_height", len(*revision_bar_height));
+    out.line("review.status_accepted", hex(*status_accepted));
+    out.line("review.status_rejected", hex(*status_rejected));
+    out.line("review.status_cancelled", hex(*status_cancelled));
+    out.line("review.status_completed", hex(*status_completed));
+    out.line("review.card_accent", hex(*card_accent));
+    out.line("review.revision_inserted", hex(*revision_inserted));
+    out.line("review.revision_deleted", hex(*revision_deleted));
+    out.line("review.revision_changed", hex(*revision_changed));
+    out.line("review.card_accent_width", len(*card_accent_width));
+    out.line("review.pin_inset", len(*pin_inset));
+    out.line("review.pin_dot_radius", len(*pin_dot_radius));
+    out.line("review.pin_dot_inset", len(*pin_dot_inset));
+    out.line("review.pin_check_inset", len(*pin_check_inset));
+    out.line("review.version_dot_radius", len(*version_dot_radius));
+    out.line("review.version_dot_hollow_radius", len(*version_dot_hollow_radius));
+    out.line("review.ink_light", hex(*ink_light));
+    out.line("review.ink_dark", hex(*ink_dark));
+}
+
+fn sheet_lines(out: &mut Lines, t: &SheetTokens) {
+    let SheetTokens {
+        column_header_height,
+        row_header_digit,
+        row_header_padding,
+        outline_lane,
+        outline_button_margin,
+        outline_button_min,
+        outline_inset,
+        outline_hit,
+        outline_radius,
+        slicer_header,
+        slicer_tile,
+        slicer_gap,
+        slicer_padding,
+        slicer_clear,
+        error_tag,
+        filter_button_min,
+        filter_button_max,
+        filter_button_inset,
+        error_tag_gap,
+        error_tag_radius,
+        filter_button_radius,
+        filter_button_glyph_inset,
+        stats_gap,
+        edge_grab,
+        border_grab,
+        outline_band_slack,
+        fill_handle,
+        header_accent_bar,
+        hidden_mark_offset,
+        header_separator_inset,
+        status_menu_min_width,
+        field_list_checklist_max,
+        field_list_area_min,
+        selection_fill,
+        fill_handle_fill,
+        fill_handle_ring,
+    } = t;
+    out.line("sheet.column_header_height", len(*column_header_height));
+    out.line("sheet.row_header_digit", len(*row_header_digit));
+    out.line("sheet.row_header_padding", len(*row_header_padding));
+    out.line("sheet.outline_lane", len(*outline_lane));
+    out.line("sheet.outline_button_margin", len(*outline_button_margin));
+    out.line("sheet.outline_button_min", len(*outline_button_min));
+    out.line("sheet.outline_inset", len(*outline_inset));
+    out.line("sheet.outline_hit", len(*outline_hit));
+    out.line("sheet.outline_radius", len(*outline_radius));
+    out.line("sheet.slicer_header", len(*slicer_header));
+    out.line("sheet.slicer_tile", len(*slicer_tile));
+    out.line("sheet.slicer_gap", len(*slicer_gap));
+    out.line("sheet.slicer_padding", len(*slicer_padding));
+    out.line("sheet.slicer_clear", len(*slicer_clear));
+    out.line("sheet.error_tag", len(*error_tag));
+    out.line("sheet.filter_button_min", len(*filter_button_min));
+    out.line("sheet.filter_button_max", len(*filter_button_max));
+    out.line("sheet.filter_button_inset", len(*filter_button_inset));
+    out.line("sheet.error_tag_gap", len(*error_tag_gap));
+    out.line("sheet.error_tag_radius", len(*error_tag_radius));
+    out.line("sheet.filter_button_radius", len(*filter_button_radius));
+    out.line("sheet.filter_button_glyph_inset", len(*filter_button_glyph_inset));
+    out.line("sheet.stats_gap", len(*stats_gap));
+    out.line("sheet.edge_grab", len(*edge_grab));
+    out.line("sheet.border_grab", len(*border_grab));
+    out.line("sheet.outline_band_slack", len(*outline_band_slack));
+    out.line("sheet.fill_handle", len(*fill_handle));
+    out.line("sheet.header_accent_bar", len(*header_accent_bar));
+    out.line("sheet.hidden_mark_offset", len(*hidden_mark_offset));
+    out.line("sheet.header_separator_inset", len(*header_separator_inset));
+    out.line("sheet.status_menu_min_width", len(*status_menu_min_width));
+    out.line("sheet.field_list_checklist_max", len(*field_list_checklist_max));
+    out.line("sheet.field_list_area_min", len(*field_list_area_min));
+    out.line("sheet.selection_fill", hex(*selection_fill));
+    out.line("sheet.fill_handle_fill", hex(*fill_handle_fill));
+    out.line("sheet.fill_handle_ring", hex(*fill_handle_ring));
+}
+
+fn pages_lines(out: &mut Lines, t: &PagesTokens) {
+    let PagesTokens {
+        gap,
+        margin,
+        side,
+        white_space_pad,
+        seam,
+        preview_room,
+        thumbnail_usual_width,
+        thumbnail_panel_inset,
+        margin_handle_grab,
+        header_footer_inset,
+        header_footer_hint_outline,
+        header_footer_edit_outline,
+        text_selection_radius,
+        text_selection_column_outline,
+        find_current_radius,
+        find_current_grow,
+        column_bar_outline,
+        column_bar_divider,
+        column_bar_divider_active,
+        column_bar_grab,
+        column_bar_label_min,
+        reading_column_gap,
+        reading_nav_bar,
+        reading_column_target,
+        reading_column_min,
+        frame_marks_port,
+        frame_marks_port_inset,
+        frame_marks_overset_arm,
+        frame_marks_overset_stroke,
+        frame_marks_mark_min,
+        frame_marks_mark_max,
+        edge_picker_side,
+        edge_picker_inset,
+        edge_picker_line_on,
+        edge_picker_line_off,
+        edge_picker_line_hover,
+        table_size_cell,
+        table_size_gap,
+        table_selection_outline,
+        text_selection_fill,
+        find_match,
+        find_current,
+        column_bar_fill,
+        column_bar_fill_alt,
+        frame_marks_overset,
+        edge_picker_fill,
+        edge_picker_line_off_color,
+        table_selection_fill,
+        paper,
+        ink,
+    } = t;
+    out.line("pages.gap", len(*gap));
+    out.line("pages.margin", len(*margin));
+    out.line("pages.side", len(*side));
+    out.line("pages.white_space_pad", len(*white_space_pad));
+    out.line("pages.seam", len(*seam));
+    out.line("pages.preview_room", len(*preview_room));
+    out.line("pages.thumbnail_usual_width", len(*thumbnail_usual_width));
+    out.line("pages.thumbnail_panel_inset", len(*thumbnail_panel_inset));
+    out.line("pages.margin_handle_grab", len(*margin_handle_grab));
+    out.line("pages.header_footer_inset", len(*header_footer_inset));
+    out.line("pages.header_footer_hint_outline", len(*header_footer_hint_outline));
+    out.line("pages.header_footer_edit_outline", len(*header_footer_edit_outline));
+    out.line("pages.text_selection_radius", len(*text_selection_radius));
+    out.line("pages.text_selection_column_outline", len(*text_selection_column_outline));
+    out.line("pages.find_current_radius", len(*find_current_radius));
+    out.line("pages.find_current_grow", len(*find_current_grow));
+    out.line("pages.column_bar_outline", len(*column_bar_outline));
+    out.line("pages.column_bar_divider", len(*column_bar_divider));
+    out.line("pages.column_bar_divider_active", len(*column_bar_divider_active));
+    out.line("pages.column_bar_grab", len(*column_bar_grab));
+    out.line("pages.column_bar_label_min", len(*column_bar_label_min));
+    out.line("pages.reading_column_gap", len(*reading_column_gap));
+    out.line("pages.reading_nav_bar", len(*reading_nav_bar));
+    out.line("pages.reading_column_target", len(*reading_column_target));
+    out.line("pages.reading_column_min", len(*reading_column_min));
+    out.line("pages.frame_marks_port", len(*frame_marks_port));
+    out.line("pages.frame_marks_port_inset", len(*frame_marks_port_inset));
+    out.line("pages.frame_marks_overset_arm", len(*frame_marks_overset_arm));
+    out.line("pages.frame_marks_overset_stroke", len(*frame_marks_overset_stroke));
+    out.line("pages.frame_marks_mark_min", len(*frame_marks_mark_min));
+    out.line("pages.frame_marks_mark_max", len(*frame_marks_mark_max));
+    out.line("pages.edge_picker_side", len(*edge_picker_side));
+    out.line("pages.edge_picker_inset", len(*edge_picker_inset));
+    out.line("pages.edge_picker_line_on", len(*edge_picker_line_on));
+    out.line("pages.edge_picker_line_off", len(*edge_picker_line_off));
+    out.line("pages.edge_picker_line_hover", len(*edge_picker_line_hover));
+    out.line("pages.table_size_cell", len(*table_size_cell));
+    out.line("pages.table_size_gap", len(*table_size_gap));
+    out.line("pages.table_selection_outline", len(*table_selection_outline));
+    out.line("pages.text_selection_fill", hex(*text_selection_fill));
+    out.line("pages.find_match", hex(*find_match));
+    out.line("pages.find_current", hex(*find_current));
+    out.line("pages.column_bar_fill", hex(*column_bar_fill));
+    out.line("pages.column_bar_fill_alt", hex(*column_bar_fill_alt));
+    out.line("pages.frame_marks_overset", hex(*frame_marks_overset));
+    out.line("pages.edge_picker_fill", hex(*edge_picker_fill));
+    out.line("pages.edge_picker_line_off_color", hex(*edge_picker_line_off_color));
+    out.line("pages.table_selection_fill", hex(*table_selection_fill));
+    out.line("pages.paper", hex(*paper));
+    out.line("pages.ink", hex(*ink));
 }
 
 fn swatch_palette_lines(out: &mut Lines, s: &SwatchPaletteTokens) {

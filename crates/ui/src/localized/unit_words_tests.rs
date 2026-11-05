@@ -39,3 +39,18 @@ fn a_translated_word_and_locale_digits_reach_the_text() {
     assert_eq!(units.degrees(45.0), "٤٥°");
     assert_eq!(units.unit(UnitKind::Percent).prefix(), "٪");
 }
+
+// A length in a unit reads its word with the unit's own digits, in the user's language; a field of that unit takes the same word.
+#[test]
+fn a_length_is_a_word_with_a_placeholder_for_each_unit() {
+    use super::units::LengthUnit;
+    let units = english();
+    assert_eq!(units.length(LengthUnit::Inches, 0.5), "0.5 in");
+    assert_eq!(units.length(LengthUnit::Points, 12.0), "12 pt");
+    assert_eq!(units.length(LengthUnit::Centimetres, 2.54), "2.54 cm");
+    assert_eq!(units.length(LengthUnit::Picas, 1.0), "1 pica");
+    let words = Words::new(|word| (word.english == "{n} in").then(|| "{n} po".to_owned()));
+    let french = Units::new(Arc::new(LocaleNumbers::from_tag("fr")), Arc::new(words));
+    assert_eq!(french.length(LengthUnit::Inches, 1.0), "1 po");
+    assert_eq!(french.unit(LengthUnit::Inches.kind()).suffix(), " po");
+}

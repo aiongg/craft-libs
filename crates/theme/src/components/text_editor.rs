@@ -19,6 +19,10 @@ pub struct TextEditorTokens {
     pub preedit_underline: f32,
     /// Width of the underline of the segment being converted, in points: `text_editor.active_underline`.
     pub active_underline: f32,
+    /// The size of the notes' default text, points: a notes indent scales as `size / this`: `text_editor.notes_points`.
+    pub notes_points: f32,
+    /// The largest notes indent, points: `text_editor.notes_max_indent`.
+    pub notes_max_indent: f32,
 }
 
 /// The text editor has no overridable field: its sizes come from the code, as every size does.
@@ -34,6 +38,8 @@ impl Family for TextEditorTokens {
         "selection_alpha" 0.0..=1.0 => selection_alpha;
         "preedit_underline" 0.0..=16.0 => preedit_underline;
         "active_underline" 0.0..=16.0 => active_underline;
+        "notes_points" 1.0..=144.0 => notes_points;
+        "notes_max_indent" 0.0..=4096.0 => notes_max_indent;
     };
 
     fn defaults(_: &Semantic<'_>) -> TextEditorTokens {
@@ -43,6 +49,8 @@ impl Family for TextEditorTokens {
             selection_alpha: values::TEXT_EDITOR_SELECTION_ALPHA,
             preedit_underline: values::TEXT_EDITOR_PREEDIT_UNDERLINE,
             active_underline: values::TEXT_EDITOR_ACTIVE_UNDERLINE,
+            notes_points: values::TEXT_EDITOR_NOTES_POINTS,
+            notes_max_indent: values::TEXT_EDITOR_NOTES_MAX_INDENT,
         }
     }
 

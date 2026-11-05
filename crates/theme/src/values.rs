@@ -1199,6 +1199,10 @@ pub const FONT_PICKER_MISSING_LIST_HEIGHT: f32 = 160.0;
 
 /// Height of the list (PhotoCraft's `styles_panel`).
 pub const TEXT_STYLES_LIST_HEIGHT: f32 = 220.0;
+/// The side of a style tile in the picker's grid view (FigCraft `widgets/style_picker.rs:34` `SWATCH`).
+pub const TEXT_STYLES_TILE_SIDE: f32 = 24.0;
+/// The side of a style's preview square in the chip and the list rows (FigCraft `widgets/style_picker.rs:226`, `:432`).
+pub const TEXT_STYLES_PREVIEW_SIDE: f32 = 14.0;
 
 /// Height of the Glyphs panel's grid, in points (PhotoCraft's `glyphs_panel` scroll area).
 pub const GLYPHS_GRID_HEIGHT: f32 = 260.0;
@@ -1225,6 +1229,10 @@ pub const TEXT_EDITOR_SELECTION_ALPHA: f32 = 110.0 / 255.0;
 /// Underline widths of marked text and of the segment being converted.
 pub const TEXT_EDITOR_PREEDIT_UNDERLINE: f32 = 1.5;
 pub const TEXT_EDITOR_ACTIVE_UNDERLINE: f32 = 3.0;
+/// The size of the notes' default text, points: a notes indent in points scales as `size / this` (DeckCraft `panels/notes.rs:18`, `:118`).
+pub const TEXT_EDITOR_NOTES_POINTS: f32 = 12.0;
+/// The largest notes indent, points (DeckCraft `panels/notes.rs:49`).
+pub const TEXT_EDITOR_NOTES_MAX_INDENT: f32 = 400.0;
 
 /// Points between split view panes (EffectCraft's `view.rs`).
 pub const SPLIT_GAP: f32 = 2.0;
@@ -1285,6 +1293,20 @@ pub const RULER_STEP_MIN: f32 = 60.0;
 pub const RULER_TICK_MID: f32 = 6.0;
 /// Length of the other minor ticks.
 pub const RULER_TICK_MINOR: f32 = 3.0;
+/// Half the width of a text-ruler marker (WordCraft `canvas/rulers.rs:75`, `first - 4.5`).
+pub const RULER_MARKER_HALF: f32 = 4.5;
+/// The width of a table-ruler column marker (WordCraft `table_ruler.rs:125`, `vec2(7.0, ..)`).
+pub const RULER_MARKER_COLUMN: f32 = 7.0;
+/// The height of a text-ruler indent triangle (WordCraft `canvas/rulers.rs:75`, `bar.min.y + 5.0`).
+pub const RULER_MARKER_TIP: f32 = 5.0;
+/// The height of the left indent's box under its triangle (WordCraft `canvas/rulers.rs:80-86`, `bar.max.y - 3.0` to `bar.max.y + 1.0`).
+pub const RULER_MARKER_BAR: f32 = 4.0;
+/// The height of a tab stop's stem (WordCraft `ruler_tabs.rs:91`, `base - 5.0`).
+pub const RULER_MARKER_STEM: f32 = 5.0;
+/// The length of a tab stop's foot, to either side of the stem (WordCraft `ruler_tabs.rs:82`).
+pub const RULER_MARKER_FOOT: f32 = 4.0;
+/// The side of the tab selector's box (WordCraft `ruler_tabs.rs:129`).
+pub const RULER_MARKER_SELECTOR: f32 = 14.0;
 
 /// The control height the Compact options bar sizes are set for.
 pub const OPTIONS_BAR_BASE_CONTROL: f32 = 24.0;
@@ -2033,6 +2055,340 @@ pub const LAYERS_MASK_CROSS_INSET: f32 = 1.0;
 /// Stroke of the Smart Filters indicator's rings.
 pub const LAYERS_INDICATOR_RING_WIDTH: f32 = 1.0;
 
+/// The timecode and toolbar strip over the track headers.
+pub const TIMELINE_TOP_HEIGHT: f32 = 58.0;
+/// The ruler's height.
+pub const TIMELINE_RULER_HEIGHT: f32 = 44.0;
+/// The scroll bar's height.
+pub const TIMELINE_SCROLLBAR_HEIGHT: f32 = 17.0;
+/// The least thumb length of the scroll bar.
+pub const TIMELINE_SCROLL_THUMB_MIN: f32 = 34.0;
+/// The divider between video and audio tracks.
+pub const TIMELINE_DIVIDER_HEIGHT: f32 = 5.0;
+/// The Mix row at the bottom.
+pub const TIMELINE_MIX_ROW_HEIGHT: f32 = 34.0;
+/// The track headers' default width.
+pub const TIMELINE_HEADER_WIDTH: f32 = 204.0;
+/// A new video track's height.
+pub const TIMELINE_VIDEO_TRACK_HEIGHT: f32 = 60.0;
+/// A new audio track's height.
+pub const TIMELINE_AUDIO_TRACK_HEIGHT: f32 = 56.0;
+/// The least a track's height can be dragged to.
+pub const TIMELINE_TRACK_HEIGHT_MIN: f32 = 8.0;
+/// The most a track's height can be dragged to.
+pub const TIMELINE_TRACK_HEIGHT_MAX: f32 = 600.0;
+/// The colour label strip at a header's leading edge.
+pub const TIMELINE_LABEL_STRIP: f32 = 5.0;
+/// How near a snap target must be.
+pub const TIMELINE_SNAP_DISTANCE: f32 = 9.0;
+/// The widest a clip's edge zone gets on each side of an edge.
+pub const TIMELINE_EDGE_ZONE: f32 = 7.0;
+/// The distance from a cut within which the Selection tool rolls.
+pub const TIMELINE_ROLL_ZONE: f32 = 2.5;
+/// The room `TimeView::fit` leaves.
+pub const TIMELINE_FIT_MARGIN: f32 = 10.0;
+/// A transport button's square.
+pub const TIMELINE_TRANSPORT_BUTTON: f32 = 28.0;
+/// A keyframe glyph's box.
+pub const TIMELINE_KEYFRAME_GLYPH: f32 = 15.0;
+/// How near the playhead or another key a Shift-dragged key snaps.
+pub const TIMELINE_KEYFRAME_SNAP: f32 = 8.0;
+/// The keyframe navigator's arrow box width.
+pub const TIMELINE_KEYFRAME_ARROW_WIDTH: f32 = 14.0;
+/// The keyframe navigator's arrow box height.
+pub const TIMELINE_KEYFRAME_ARROW_HEIGHT: f32 = 20.0;
+/// The room between the keyframe navigator's parts.
+pub const TIMELINE_KEYFRAME_NAV_STEP: f32 = 16.0;
+/// A marker flag's width.
+pub const TIMELINE_MARKER_WIDTH: f32 = 8.0;
+/// How near a work-area end must be to grab it (FilmCraft `panels/timeline_hit.rs` `EDGE_PX`).
+pub const TIMELINE_WORK_AREA_GRAB: f32 = 7.0;
+/// How far above and below the work-area bar the ruler still grabs it (FilmCraft `panels/timeline_hit.rs`, `expand2(vec2(zone, 1.0))`).
+pub const TIMELINE_RULER_WORK_HIT_PAD: f32 = 1.0;
+/// How far above and below a render-state bar its tooltip still shows (FilmCraft `panels/timeline/ruler.rs`, `expand2(vec2(0.0, 2.0))`).
+pub const TIMELINE_RULER_RENDER_HIT_PAD: f32 = 2.0;
+/// The least room between two ruler labels.
+pub const TIMELINE_RULER_LABEL_GAP: f32 = 110.0;
+/// The least room between two ruler ticks.
+pub const TIMELINE_RULER_TICK_GAP: f32 = 12.0;
+/// The drag length that moves a timecode field's value one frame.
+pub const TIMELINE_SCRUB_STEP: f32 = 1.0;
+/// A marker flag's height at most (EffectCraft `markers_ui.rs:287`).
+pub const TIMELINE_MARKER_HEIGHT: f32 = 10.0;
+/// A marker's hit width (`markers_ui.rs:310`).
+pub const TIMELINE_MARKER_HIT: f32 = 10.0;
+/// The room either side of a marker's name inside its box (`markers_ui.rs:304`).
+pub const TIMELINE_MARKER_NAME_PAD: f32 = 4.0;
+/// The room between a marker's flag and its name box (`markers_ui.rs:381`, `:389`).
+pub const TIMELINE_MARKER_NAME_GAP: f32 = 6.0;
+/// The room between a range marker's end and a name box after it (`markers_ui.rs:383`).
+pub const TIMELINE_MARKER_END_GAP: f32 = 3.0;
+/// A graph key's square (EffectCraft `graph.rs:543`).
+pub const TIMELINE_GRAPH_KEY: f32 = 7.0;
+/// A graph key's hit square (`graph.rs:545`).
+pub const TIMELINE_GRAPH_KEY_HIT: f32 = 11.0;
+/// A graph handle's dot radius (`graph.rs:488`).
+pub const TIMELINE_GRAPH_HANDLE: f32 = 3.5;
+/// A graph handle's hit square (`graph.rs:490`).
+pub const TIMELINE_GRAPH_HANDLE_HIT: f32 = 10.0;
+/// The room over the graph's plot (`graph.rs:412`).
+pub const TIMELINE_GRAPH_TOP_INSET: f32 = 6.0;
+/// The room between the plot's edge and its value labels (`graph.rs:441`).
+pub const TIMELINE_GRAPH_LABEL_INSET: f32 = 4.0;
+/// How far past the plot a key still counts as shown (`graph.rs:479`).
+pub const TIMELINE_GRAPH_REACH: f32 = 6.0;
+/// The graph's bottom bar (`graph.rs:411`).
+pub const TIMELINE_GRAPH_BAR_HEIGHT: f32 = 28.0;
+/// The room either side of the overview's runs (SoundCraft `universe.rs:61`).
+pub const TIMELINE_OVERVIEW_INSET_X: f32 = 8.0;
+/// The room over and under the overview's runs (`universe.rs:61`).
+pub const TIMELINE_OVERVIEW_INSET_Y: f32 = 4.0;
+/// How far the overview's view box reaches past the runs (`universe.rs:81`).
+pub const TIMELINE_OVERVIEW_BOX_OUTSET: f32 = 2.0;
+/// The least width the overview takes the time area to have (`universe.rs:80`).
+pub const TIMELINE_OVERVIEW_VIEW_MIN: f32 = 100.0;
+/// The ruler's marker band: the markers sit on its first row (FilmCraft `timeline_hit.rs:107`,
+/// the work-area bar starts under it; `ruler.rs` draws the pentagons at 2 pt, 12 pt tall).
+pub const TIMELINE_RULER_MARKER_BAND: f32 = 14.0;
+/// The work-area bar's height (`timeline_hit.rs:108`).
+pub const TIMELINE_RULER_WORK_HEIGHT: f32 = 6.0;
+/// How far below the ruler's top the time labels' centre line is (FilmCraft `timeline/ruler.rs:82`).
+pub const TIMELINE_RULER_LABEL_Y: f32 = 24.0;
+/// How far above the ruler's bottom the ticks start (`ruler.rs:83`).
+pub const TIMELINE_RULER_TICK_INSET: f32 = 3.0;
+/// A labelled tick's length (`ruler.rs:114`).
+pub const TIMELINE_RULER_MAJOR_TICK: f32 = 10.0;
+/// An unlabelled tick's length (`ruler.rs:114`).
+pub const TIMELINE_RULER_MINOR_TICK: f32 = 4.0;
+/// The render and cache bar's height at the ruler's bottom (`ruler.rs:125`).
+pub const TIMELINE_RULER_RENDER_BAR: f32 = 2.0;
+/// Half the playhead head's width (FilmCraft `timeline.rs:414`).
+pub const TIMELINE_RULER_HEAD_HALF_WIDTH: f32 = 5.0;
+/// The playhead head's height (`timeline.rs:413`).
+pub const TIMELINE_RULER_HEAD_HEIGHT: f32 = 13.0;
+/// A work-area end cap's width (`ruler.rs:157`).
+pub const TIMELINE_RULER_CAP_WIDTH: f32 = 3.0;
+/// The radius of the knobs at the scroll thumb's ends (`scrollbars.rs:35`).
+pub const TIMELINE_SCROLL_KNOB_RADIUS: f32 = 4.5;
+/// How near a thumb's end a press must be to resize the view (`scrollbars.rs:63`, `:65`).
+pub const TIMELINE_SCROLL_END_ZONE: f32 = 9.0;
+/// The least the track headers' width can be dragged to: FilmCraft's fixed header width
+/// (`state.rs:232`), which has no header resize.
+pub const TIMELINE_HEADER_WIDTH_MIN: f32 = 204.0;
+/// A caption row's height when the app gives none: FilmCraft `timeline_captions.rs:22` (`ROW_H`).
+pub const TIMELINE_CAPTION_ROW_HEIGHT: f32 = 28.0;
+/// How far each level of a track's depth indents its header: EffectCraft `panels/timeline.rs:2024`.
+pub const TIMELINE_HEADER_INDENT: f32 = 14.0;
+/// The most the track headers' width can be dragged to. FilmCraft has no header resize, so this
+/// value is the lead's.
+pub const TIMELINE_HEADER_WIDTH_MAX: f32 = 480.0;
+/// A comment pin's size.
+pub const REVIEW_PIN: f32 = 28.0;
+/// Pins nearer than this gather into a cluster.
+pub const REVIEW_CLUSTER_RADIUS: f32 = 24.0;
+/// The thread popover's width.
+pub const REVIEW_POPOVER_WIDTH: f32 = 300.0;
+/// The version history's timeline dot column.
+pub const REVIEW_VERSION_DOT_X: f32 = 20.0;
+/// The version history's text column.
+pub const REVIEW_VERSION_TEXT_X: f32 = 36.0;
+/// A cursor chat bubble's width.
+pub const REVIEW_CHAT_WIDTH: f32 = 220.0;
+/// A cursor chat bubble's corner radius.
+pub const REVIEW_CHAT_RADIUS: f32 = 14.0;
+/// The join field's width.
+pub const REVIEW_JOIN_WIDTH: f32 = 196.0;
+/// The revision card's colour bar width.
+pub const REVIEW_REVISION_BAR_WIDTH: f32 = 4.0;
+/// The revision card's colour bar height.
+pub const REVIEW_REVISION_BAR_HEIGHT: f32 = 16.0;
+/// The column headers' height.
+pub const SHEET_COLUMN_HEADER_HEIGHT: f32 = 21.0;
+/// The row headers' width per digit of the last visible row.
+pub const SHEET_ROW_HEADER_DIGIT: f32 = 7.0;
+/// The room around the row header's digits.
+pub const SHEET_ROW_HEADER_PADDING: f32 = 14.0;
+/// One outline lane.
+pub const SHEET_OUTLINE_LANE: f32 = 15.0;
+/// What an outline button's side is short of the lane (GridCraft `outline.rs:197`).
+pub const SHEET_OUTLINE_BUTTON_MARGIN: f32 = 4.0;
+/// An outline button's least side (GridCraft `outline.rs:197`).
+pub const SHEET_OUTLINE_BUTTON_MIN: f32 = 7.0;
+/// The first outline lane's inset from the band's edge (GridCraft `outline.rs:203`).
+pub const SHEET_OUTLINE_INSET: f32 = 2.0;
+/// How far an outline button's hit area reaches past its square (GridCraft `outline.rs:288`).
+pub const SHEET_OUTLINE_HIT: f32 = 1.5;
+/// An outline button's corner radius (GridCraft `outline.rs:268`).
+pub const SHEET_OUTLINE_RADIUS: f32 = 1.0;
+/// A slicer's header.
+pub const SHEET_SLICER_HEADER: f32 = 26.0;
+/// A slicer's value tile.
+pub const SHEET_SLICER_TILE: f32 = 22.0;
+/// The gap between slicer tiles.
+pub const SHEET_SLICER_GAP: f32 = 3.0;
+/// The padding round a slicer's tiles.
+pub const SHEET_SLICER_PADDING: f32 = 6.0;
+/// A slicer's clear button.
+pub const SHEET_SLICER_CLEAR: f32 = 16.0;
+/// The error checking tag's square.
+pub const SHEET_ERROR_TAG: f32 = 18.0;
+/// The filter button's least side.
+pub const SHEET_FILTER_BUTTON_MIN: f32 = 10.0;
+/// The filter button's largest side.
+pub const SHEET_FILTER_BUTTON_MAX: f32 = 18.0;
+/// The filter button's inset from the header cell's corner.
+pub const SHEET_FILTER_BUTTON_INSET: f32 = 2.0;
+/// The gap between the error checking tag and its cell.
+pub const SHEET_ERROR_TAG_GAP: f32 = 2.0;
+/// The error checking tag's corner radius.
+pub const SHEET_ERROR_TAG_RADIUS: f32 = 3.0;
+/// The filter button's corner radius.
+pub const SHEET_FILTER_BUTTON_RADIUS: f32 = 2.0;
+/// The filter button's inset round its glyph.
+pub const SHEET_FILTER_BUTTON_GLYPH_INSET: f32 = 1.5;
+/// The gap between statistics in the status bar.
+pub const SHEET_STATS_GAP: f32 = 10.0;
+/// How far from a header's far edge a press still grabs it (GridCraft `grid/interact.rs:949`).
+pub const SHEET_EDGE_GRAB: f32 = 4.0;
+/// How far from a selection's border a press still moves it (GridCraft `grid/interact.rs`, `expand(3.0)`/`shrink(3.0)`).
+pub const SHEET_BORDER_GRAB: f32 = 3.0;
+/// The room after the last lane in an outline band (GridCraft `outline.rs` `band`, `+ 3.0`).
+pub const SHEET_OUTLINE_BAND_SLACK: f32 = 3.0;
+/// The fill handle's side (GridCraft `grid/selection.rs:133`).
+pub const SHEET_FILL_HANDLE: f32 = 6.0;
+/// The accent bar on a selected header's inner edge (`grid/show.rs:566`).
+pub const SHEET_HEADER_ACCENT_BAR: f32 = 2.0;
+/// The distance of each line of the double divider from a hidden line's edge (`grid/show.rs:569-574`,
+/// `:610-614`).
+pub const SHEET_HIDDEN_MARK_OFFSET: f32 = 1.5;
+/// How far the headers' separators stop short of the header's start (`grid/show.rs:568`).
+pub const SHEET_HEADER_SEPARATOR_INSET: f32 = 3.0;
+/// The status bar menu's least width (`tabs.rs:480`).
+pub const SHEET_STATUS_MENU_MIN_WIDTH: f32 = 180.0;
+/// The field list's checklist, at most this tall (`pivot_pane.rs:39`).
+pub const SHEET_FIELD_LIST_CHECKLIST_MAX: f32 = 220.0;
+/// A field list area's least height (`pivot_pane.rs:90`).
+pub const SHEET_FIELD_LIST_AREA_MIN: f32 = 60.0;
+/// The alpha (0..=255) of the selection's fill in light and in dark themes (GridCraft
+/// `theme.rs:203`: 0x1C, 0x24).
+pub const SHEET_SELECTION_FILL_ALPHA: (u8, u8) = (0x1C, 0x24);
+
+/// The selected comment card's accent bar width (PdfCraft `comments_panel.rs:464`).
+pub const REVIEW_CARD_ACCENT_WIDTH: f32 = 4.0;
+/// The room between a pin's bubble and the avatar circle inside it: an 11 pt circle in a 28 pt
+/// bubble (FigCraft `canvas/comments.rs:357`).
+pub const REVIEW_PIN_INSET: f32 = 3.0;
+/// The unread dot's radius on a pin (FigCraft `canvas/comments.rs`, `circle_filled(c, 3.5, ACCENT)`).
+pub const REVIEW_PIN_DOT_RADIUS: f32 = 3.5;
+/// How far the unread dot sits in from the pin's top right corner (FigCraft `canvas/comments.rs`, `vec2(-2.0, 2.0)`).
+pub const REVIEW_PIN_DOT_INSET: f32 = 2.0;
+/// How far the resolved check sits in from the pin's bottom right corner (FigCraft `canvas/comments.rs`, `vec2(-3.0, -3.0)`).
+pub const REVIEW_PIN_CHECK_INSET: f32 = 3.0;
+/// The filled version dot's radius (FigCraft `panels/versions.rs:386`).
+pub const REVIEW_VERSION_DOT_RADIUS: f32 = 4.0;
+/// The hollow version dot's radius (`panels/versions.rs:388`).
+pub const REVIEW_VERSION_DOT_HOLLOW_RADIUS: f32 = 3.5;
+/// The dark ink on a light person colour, the same in every theme (FigCraft `live.rs:182`).
+pub const REVIEW_INK_DARK: Rgba = Rgba::rgb(0x1E, 0x1E, 0x1E);
+/// Between pages, and between rows.
+pub const PAGES_GAP: f32 = 14.0;
+/// Above the first and below the last row.
+pub const PAGES_MARGIN: f32 = 28.0;
+/// Kept clear at each side of the pages.
+pub const PAGES_SIDE: f32 = 70.0;
+/// What Hide White Space leaves above and below each page's text area, in points at 100 % zoom (WordCraft
+/// `canvas/geometry.rs:17,40` multiplies it by the zoom).
+pub const PAGES_WHITE_SPACE_PAD: f32 = 6.0;
+/// The seam Hide White Space draws between pages.
+pub const PAGES_SEAM: f32 = 1.0;
+/// The thumbnail width at zoom 1.
+pub const PAGES_THUMBNAIL_USUAL_WIDTH: f32 = 150.0;
+/// What the panel keeps free beside the thumbnails.
+pub const PAGES_THUMBNAIL_PANEL_INSET: f32 = 40.0;
+/// How far either side of an edge grabs it.
+pub const PAGES_MARGIN_HANDLE_GRAB: f32 = 4.0;
+/// A section's inset from its band, top and bottom.
+pub const PAGES_HEADER_FOOTER_INSET: f32 = 3.0;
+/// The dashed outline of a hovered empty section.
+pub const PAGES_HEADER_FOOTER_HINT_OUTLINE: f32 = 1.0;
+/// The edited section's outline and its neighbours'.
+pub const PAGES_HEADER_FOOTER_EDIT_OUTLINE: f32 = 1.0;
+/// Corner radius of the selection rects.
+pub const PAGES_TEXT_SELECTION_RADIUS: f32 = 1.0;
+/// The column rectangle's outline while dragging.
+pub const PAGES_TEXT_SELECTION_COLUMN_OUTLINE: f32 = 1.0;
+/// Alpha of the selection tint.
+pub const PAGES_TEXT_SELECTION_FILL_ALPHA: u8 = 70;
+/// Corner radius of the current match.
+pub const PAGES_FIND_CURRENT_RADIUS: f32 = 2.0;
+/// How much the current match grows past the others.
+pub const PAGES_FIND_CURRENT_GROW: f32 = 1.0;
+/// Alpha of a match's tint.
+pub const PAGES_FIND_MATCHED_ALPHA: u8 = 90;
+/// Alpha of the current match's tint.
+pub const PAGES_FIND_CURRENT_ALPHA: u8 = 110;
+/// The bar's outline.
+pub const PAGES_COLUMN_BAR_OUTLINE: f32 = 1.0;
+/// A divider at rest.
+pub const PAGES_COLUMN_BAR_DIVIDER: f32 = 1.5;
+/// A divider hovered, dragged or focused.
+pub const PAGES_COLUMN_BAR_DIVIDER_ACTIVE: f32 = 3.0;
+/// How far either side of a divider grabs it.
+pub const PAGES_COLUMN_BAR_GRAB: f32 = 4.0;
+/// The narrowest column that paints its percentage (PdfCraft `field_table_ui.rs:363`: wider
+/// than 32).
+pub const PAGES_COLUMN_BAR_LABEL_MIN: f32 = 32.0;
+/// Between columns.
+pub const PAGES_READING_COLUMN_GAP: f32 = 18.0;
+/// Room under the columns for the page-turn bar.
+pub const PAGES_READING_NAV_BAR: f32 = 44.0;
+/// One column per this much width.
+pub const PAGES_READING_COLUMN_TARGET: f32 = 295.0;
+/// The least column width.
+pub const PAGES_READING_COLUMN_MIN: f32 = 192.0;
+/// A port's side.
+pub const PAGES_FRAME_MARKS_PORT: f32 = 8.5;
+/// A port's distance from the frame's corner.
+pub const PAGES_FRAME_MARKS_PORT_INSET: f32 = 10.0;
+/// The overset mark's arm length.
+pub const PAGES_FRAME_MARKS_OVERSET_ARM: f32 = 5.0;
+/// The overset mark's stroke.
+pub const PAGES_FRAME_MARKS_OVERSET_STROKE: f32 = 1.5;
+/// The least hidden-character mark size.
+pub const PAGES_FRAME_MARKS_MARK_MIN: f32 = 6.0;
+/// The largest hidden-character mark size.
+pub const PAGES_FRAME_MARKS_MARK_MAX: f32 = 40.0;
+/// The square's side.
+pub const PAGES_EDGE_PICKER_SIDE: f32 = 64.0;
+/// The lines' inset from the square.
+pub const PAGES_EDGE_PICKER_INSET: f32 = 8.0;
+/// A chosen line.
+pub const PAGES_EDGE_PICKER_LINE_ON: f32 = 2.5;
+/// A line not chosen.
+pub const PAGES_EDGE_PICKER_LINE_OFF: f32 = 1.0;
+/// The line under the pointer.
+pub const PAGES_EDGE_PICKER_LINE_HOVER: f32 = 3.0;
+/// A square's side.
+pub const PAGES_TABLE_SIZE_CELL: f32 = 16.0;
+/// The space between squares.
+pub const PAGES_TABLE_SIZE_GAP: f32 = 2.0;
+/// The range outline.
+pub const PAGES_TABLE_SELECTION_OUTLINE: f32 = 1.0;
+/// Alpha of the selected cells' tint.
+pub const PAGES_TABLE_SELECTION_FILL_ALPHA: u8 = 110;
+/// The room the page preview keeps around the page (PdfCraft `canvas.rs:75` `MARGIN`, the value `pages.margin` has).
+pub const PAGES_PREVIEW_ROOM: f32 = 28.0;
+/// Alpha of an even column's fill in the column bar: 0.11 of the accent (PdfCraft `tools/field_table_ui.rs:362`).
+pub const PAGES_COLUMN_BAR_FILL_ALPHA: u8 = 28;
+/// Alpha of an odd column's fill in the column bar: 0.055 of the accent (PdfCraft `tools/field_table_ui.rs:362`).
+pub const PAGES_COLUMN_BAR_FILL_ALT_ALPHA: u8 = 14;
+/// The margin guides of a page grid: InDesign's magenta (DesignCraft `doc/src/lib.rs:476` `margin_color`).
+pub const GRID_PAGE_MARGINS: Rgba = Rgba::rgb(255, 56, 255);
+/// The column guides of a page grid: InDesign's violet (DesignCraft `doc/src/lib.rs:477` `column_color`).
+pub const GRID_PAGE_COLUMNS: Rgba = Rgba::rgb(166, 40, 255);
+/// The baseline grid's lines: InDesign's light blue (DesignCraft `doc/src/lib.rs:148` `BaselineGrid::default`).
+pub const GRID_PAGE_BASELINE: Rgba = Rgba::rgb(140, 205, 230);
+
 /// Side of a media tile's flag glyph in its badge bar (LightCraft `grid.rs`).
 pub const TILE_FLAG: f32 = 14.0;
 /// Side of a media tile's colour dot (LightCraft: radius 5).
@@ -2055,6 +2411,11 @@ pub const TILE_RING_WIDTH: f32 = 2.0;
 pub const TILE_RING_HOVER_WIDTH: f32 = 1.0;
 /// Width of the halo outside a media tile's selection ring (PhotoCraft preset ring).
 pub const TILE_RING_HALO_WIDTH: f32 = 1.0;
+/// Width of the current tile's ring (PdfCraft `panels/pages.rs`: the current page's border).
+pub const TILE_RING_CURRENT_WIDTH: f32 = 2.0;
+/// Width of the caption column at a tile's reading start (DeckCraft `panels/thumbs.rs:184`: the
+/// slide starts 30 in).
+pub const TILE_START_CAPTION_WIDTH: f32 = 30.0;
 /// Share of the grid's height one wheel notch scrolls (LightCraft `WHEEL_STRIP_SHARE`).
 pub const TILE_WHEEL_SHARE: f32 = 1.0 / 3.0;
 /// Opacity of the veil over a rejected tile, as a factor of `surface.scrim` (LightCraft alpha 110).
