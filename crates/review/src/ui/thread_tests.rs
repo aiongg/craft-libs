@@ -133,7 +133,7 @@ mod screens {
         let thread = CommentThread {
             id: ThreadId(7),
             anchor: CommentAnchor::Canvas { at: [0.0, 0.0], node: None },
-            kind: String::new(),
+            kind: None,
             color: None,
             messages: vec![message],
             status: ReviewStatus::None,

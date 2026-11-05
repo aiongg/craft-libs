@@ -17,7 +17,8 @@ use egui::{
 
 use super::ReviewStyle;
 use super::comments::{CommentEdit, age_text, avatar, text};
-use crate::comments::{CommentThread, ThreadId, initials};
+use crate::collab::initials;
+use crate::comments::{CommentThread, ThreadId};
 
 craft_ui::words! {
     /// The thread popover's and composer's words, English by default (FigCraft's).

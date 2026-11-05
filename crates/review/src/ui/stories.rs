@@ -136,7 +136,7 @@ fn apply_comment(threads: &mut Vec<CommentThread>, me: &str, edit: &CommentEdit)
             threads.push(CommentThread {
                 id: ThreadId(next_id(threads.iter().map(|t| t.id.0))),
                 anchor: CommentAnchor::Page { page: 1, at: [0.0, 0.0] },
-                kind: String::new(),
+                kind: None,
                 color: None,
                 messages: vec![message(me, text, START + 30 * DAY)],
                 status: ReviewStatus::None,
@@ -213,10 +213,10 @@ struct CommentsDemo {
 
 fn sample_threads(labels: &ReviewStoryLabels, tokens: &UiTokens) -> Vec<CommentThread> {
     let status = &tokens.color.status;
-    let make = |id: u64, page: usize, y: f64, kind: &str, color: Option<Color32>, messages: Vec<CommentMessage>| CommentThread {
+    let make = |id: u64, page: usize, y: f64, kind: Option<AnnotationKind>, color: Option<Color32>, messages: Vec<CommentMessage>| CommentThread {
         id: ThreadId(id),
         anchor: CommentAnchor::Page { page, at: [0.0, y] },
-        kind: kind.into(),
+        kind,
         color: color.map(rgb),
         messages,
         status: ReviewStatus::None,
@@ -225,20 +225,26 @@ fn sample_threads(labels: &ReviewStoryLabels, tokens: &UiTokens) -> Vec<CommentT
         resolved: false,
     };
     let day = |n: i64| START + n * DAY;
-    let mut logo =
-        make(1, 1, 40.0, &labels.kind_highlight, Some(status.warn.solid.to_egui()), vec![message(&labels.ana, &labels.comment_logo, day(1))]);
+    let mut logo = make(
+        1,
+        1,
+        40.0,
+        Some(AnnotationKind::Highlight),
+        Some(status.warn.solid.to_egui()),
+        vec![message(&labels.ana, &labels.comment_logo, day(1))],
+    );
     logo.status = ReviewStatus::Accepted;
-    let figure = make(2, 1, 200.0, &labels.kind_note, None, vec![message(&labels.bo, &labels.comment_figure, day(2))]);
+    let figure = make(2, 1, 200.0, Some(AnnotationKind::Note), None, vec![message(&labels.bo, &labels.comment_figure, day(2))]);
     let mut margin =
-        make(3, 2, 90.0, &labels.kind_note, Some(status.bad.solid.to_egui()), vec![message(&labels.ana, &labels.comment_margin, day(3))]);
+        make(3, 2, 90.0, Some(AnnotationKind::Note), Some(status.bad.solid.to_egui()), vec![message(&labels.ana, &labels.comment_margin, day(3))]);
     margin.marked = true;
-    let mut legal = make(4, 2, 300.0, &labels.kind_text_box, None, vec![message(&labels.bo, &labels.comment_legal, day(4))]);
+    let mut legal = make(4, 2, 300.0, Some(AnnotationKind::TextBox), None, vec![message(&labels.bo, &labels.comment_legal, day(4))]);
     legal.locked = true;
     let shorten = make(
         5,
         3,
         60.0,
-        &labels.kind_note,
+        Some(AnnotationKind::Note),
         Some(status.good.solid.to_egui()),
         vec![
             message(&labels.bo, &labels.comment_shorten, day(5)),
@@ -246,7 +252,7 @@ fn sample_threads(labels: &ReviewStoryLabels, tokens: &UiTokens) -> Vec<CommentT
             message(&labels.bo, &labels.reply_keep_quote, day(7)),
         ],
     );
-    let typo = make(6, 3, 250.0, &labels.kind_underline, None, vec![message(&labels.ana, &labels.comment_typo, day(8))]);
+    let typo = make(6, 3, 250.0, Some(AnnotationKind::Underline), None, vec![message(&labels.ana, &labels.comment_typo, day(8))]);
     vec![logo, figure, margin, legal, shorten, typo]
 }
 
@@ -262,7 +268,7 @@ fn comments_panel(ui: &mut Ui, _: &mut NoArgs) {
     });
     let mut demo = lock(&demo);
     let demo = &mut *demo;
-    let out = CommentsPanel::new("comments", &demo.threads, &mut demo.state, &labels.me).show(ui);
+    let out = CommentsPanel::new("comments", &demo.threads, &mut demo.state).show(ui);
     for edit in &out.edits {
         demo.last = Some(format!("{edit:?}"));
         apply_comment(&mut demo.threads, &labels.me, edit);
@@ -289,7 +295,7 @@ fn thread(ui: &mut Ui, _: &mut NoArgs) {
         let make = |id: u64, author: &str, text: &str| CommentThread {
             id: ThreadId(id),
             anchor: CommentAnchor::Canvas { at: [0.0, 0.0], node: None },
-            kind: String::new(),
+            kind: None,
             color: None,
             messages: vec![message(author, text, START + id as i64 * DAY)],
             status: ReviewStatus::None,

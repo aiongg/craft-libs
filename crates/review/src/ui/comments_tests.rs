@@ -8,6 +8,7 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
 use super::comments::{CommentEdit, CommentsPanel, CommentsPanelState};
+use crate::annotate::AnnotationKind;
 use crate::comments::{CommentAnchor, CommentMessage, CommentThread, ReviewStatus, ThreadId};
 
 fn message(author: &str, text: &str) -> CommentMessage {
@@ -20,7 +21,7 @@ fn thread(id: u64, page: usize, y: f64, text: &str, replies: usize) -> CommentTh
     CommentThread {
         id: ThreadId(id),
         anchor: CommentAnchor::Page { page, at: [0.0, y] },
-        kind: "Note".into(),
+        kind: Some(AnnotationKind::Note),
         color: None,
         messages,
         status: ReviewStatus::None,
@@ -37,7 +38,7 @@ struct App {
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
-    let out = CommentsPanel::new("comments", &app.threads, &mut app.state, "Me").show(ui);
+    let out = CommentsPanel::new("comments", &app.threads, &mut app.state).show(ui);
     app.edits.extend(out.edits);
 }
 
@@ -123,4 +124,59 @@ fn up_and_down_move_between_cards() {
     harness.run();
     assert_eq!(harness.state().state.selected, Some(ThreadId(2)));
     assert_eq!(harness.state().edits, [CommentEdit::Select(ThreadId(2)), CommentEdit::Select(ThreadId(3)), CommentEdit::Select(ThreadId(2))]);
+}
+
+// one reply reads "1 reply", and the title is a placeholder word.
+#[test]
+fn reply_count_uses_the_singular() {
+    let harness = harness(vec![thread(1, 1, 0.0, "first", 1)], None);
+    harness.get_by_label("1 reply");
+    harness.get_by_label("Comments 1");
+}
+
+// a page heading shows the count before filtering and folds its cards; the card of a folded group is
+// back after Expand, and `reveal` unfolds the group of a thread the app selected.
+#[test]
+fn page_groups_fold_and_count() {
+    let threads = vec![thread(1, 1, 0.0, "first", 0), thread(2, 1, 9.0, "second", 0), thread(3, 2, 0.0, "third", 0)];
+    let mut harness = harness(threads, None);
+    harness.get_by_label("Page 1");
+    harness.get_by_label("2");
+    harness.get_all_by_label("Collapse").next().expect("a fold button").click();
+    harness.run();
+    assert!(harness.query_by_label("Ana: first").is_none());
+    harness.get_by_label("Ana: third");
+    let second = harness.state().threads[1].clone();
+    let App { state, .. } = harness.state_mut();
+    state.reveal(&second);
+    harness.run();
+    harness.get_by_label("Ana: first");
+}
+
+// a filter that hides every type leaves "No comments match."; Show all brings the cards back.
+#[test]
+fn filter_hides_threads_and_reports_no_match() {
+    let mut harness = harness(vec![thread(1, 1, 0.0, "first", 0)], None);
+    harness.state_mut().state.filter.hidden_types.push(Some(AnnotationKind::Note));
+    harness.run();
+    harness.get_by_label("No comments match.");
+    assert!(harness.query_by_label("Ana: first").is_none());
+    harness.state_mut().state.filter.clear();
+    harness.run();
+    harness.get_by_label("Ana: first");
+}
+
+// the search ignores case and the clear button empties it.
+#[test]
+fn search_filters_and_clears() {
+    let mut harness = harness(vec![thread(1, 1, 0.0, "Alpha", 0), thread(2, 1, 5.0, "Beta", 0)], None);
+    harness.get_by_role_and_label(Role::SearchInput, "Search comments").focus();
+    harness.run();
+    harness.type_text("BETA");
+    harness.run();
+    assert!(harness.query_by_label("Ana: Alpha").is_none());
+    harness.get_by_label("Ana: Beta");
+    harness.get_by_label("Clear search").click();
+    harness.run();
+    harness.get_by_label("Ana: Alpha");
 }

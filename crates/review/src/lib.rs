@@ -28,7 +28,7 @@ mod versions_tests;
 #[cfg(feature = "ui")]
 pub use annotate::AnnotationEdit;
 pub use annotate::{Annotation, AnnotationGroup, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, AnnotationTool};
-pub use comments::{CommentAnchor, CommentMessage, CommentSort, CommentThread, Reaction, ReviewStatus, ThreadId};
+pub use comments::{CommentAnchor, CommentFilter, CommentMessage, CommentSort, CommentThread, Reaction, ReviewStatus, ThreadId};
 pub use revisions::{Revision, RevisionAction, RevisionKind};
 pub use signature::{SavedSignature, SignatureDraft, SignatureImage, SignatureTab};
 pub use versions::{Branch, BranchId, BranchState, HistoryRow, Version, VersionId};

@@ -1,5 +1,9 @@
 //! Comment threads: where they are, their messages, reactions and review status, and the
-//! panel's sort and search (N5.01, N5.02).
+//! panel's sort, search and filter (N5.01, N5.02).
+
+use craft_i18n::Folder;
+
+use crate::annotate::AnnotationKind;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
@@ -30,7 +34,8 @@ impl CommentAnchor {
     }
 
     /// The position the Page sort orders by within a page: top to bottom, or earliest first on a
-    /// timeline.
+    /// timeline. Acrobat sorts comments by position on the page; PdfCraft keeps the order the
+    /// document lists them in.
     fn vertical(&self) -> f64 {
         match self {
             CommentAnchor::Page { at, .. } | CommentAnchor::Canvas { at, .. } => at[1],
@@ -82,9 +87,9 @@ pub struct CommentMessage {
 pub struct CommentThread {
     pub id: ThreadId,
     pub anchor: CommentAnchor,
-    /// The annotation kind the thread hangs on, for the card's icon and the Type sort ("Note",
-    /// "Highlight"); empty for plain comments.
-    pub kind: String,
+    /// The annotation kind the thread hangs on, for the card's icon, the Type sort and its
+    /// heading; `None` for a plain comment.
+    pub kind: Option<AnnotationKind>,
     /// The label colour of the annotation (straight RGB).
     pub color: Option<[u8; 3]>,
     pub messages: Vec<CommentMessage>,
@@ -103,6 +108,41 @@ impl CommentThread {
     }
 }
 
+/// What the panel hides (PdfCraft's Filter comments menu): a thread shows unless its type,
+/// author, status, colour or checkmark is listed.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CommentFilter {
+    pub hidden_types: Vec<Option<AnnotationKind>>,
+    /// The author of the thread's first message; empty for none.
+    pub hidden_authors: Vec<String>,
+    pub hidden_statuses: Vec<ReviewStatus>,
+    pub hidden_colors: Vec<Option<[u8; 3]>>,
+    /// `true` hides the marked threads, `false` the unmarked.
+    pub hidden_checks: Vec<bool>,
+}
+
+impl CommentFilter {
+    /// Whether anything is hidden.
+    pub fn is_active(&self) -> bool {
+        *self != CommentFilter::default()
+    }
+
+    /// Shows everything again.
+    pub fn clear(&mut self) {
+        *self = CommentFilter::default();
+    }
+
+    /// Whether `thread` passes every list.
+    pub fn shows(&self, thread: &CommentThread) -> bool {
+        let author = thread.messages.first().map_or("", |m| m.author.as_str());
+        !self.hidden_types.contains(&thread.kind)
+            && !self.hidden_authors.iter().any(|hidden| hidden == author)
+            && !self.hidden_statuses.contains(&thread.status)
+            && !self.hidden_colors.contains(&thread.color)
+            && !self.hidden_checks.contains(&thread.marked)
+    }
+}
+
 /// How the panel orders threads (Acrobat's Sort by).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum CommentSort {
@@ -115,10 +155,11 @@ pub enum CommentSort {
 }
 
 /// The order of `threads` by `sort`, as indices: page then position on the page (top to bottom),
-/// author A–Z, newest first, kind, colour; ties keep document order.
+/// author A–Z, newest first, kind (by `kind_name`, the reader's name of a kind), colour; ties keep
+/// document order. A plain comment sorts before every kind.
 // pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:115 `show` (sorting),
 // `tools/comments/state.rs:297` `SortBy`.
-pub fn sort_threads(threads: &[CommentThread], sort: CommentSort) -> Vec<usize> {
+pub fn sort_threads(threads: &[CommentThread], sort: CommentSort, kind_name: impl Fn(AnnotationKind) -> String) -> Vec<usize> {
     let mut order: Vec<usize> = (0..threads.len()).collect();
     fn first(thread: &CommentThread) -> Option<&CommentMessage> {
         thread.messages.first()
@@ -130,25 +171,17 @@ pub fn sort_threads(threads: &[CommentThread], sort: CommentSort) -> Vec<usize> 
         }),
         CommentSort::Author => order.sort_by_key(|&i| first(&threads[i]).map(|m| m.author.to_lowercase()).unwrap_or_default()),
         CommentSort::Date => order.sort_by_key(|&i| std::cmp::Reverse(first(&threads[i]).map(|m| m.modified.unwrap_or(m.created)))),
-        CommentSort::Type => order.sort_by(|&a, &b| threads[a].kind.cmp(&threads[b].kind)),
+        CommentSort::Type => order.sort_by_cached_key(|&i| threads[i].kind.map(&kind_name)),
         CommentSort::Color => order.sort_by_key(|&i| threads[i].color),
     }
     order
 }
 
-/// Whether `thread` matches the search `query`: case-insensitive, in any message's text or
-/// author, or the kind.
-// pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:104 `matches`.
-pub fn matches(thread: &CommentThread, query: &str) -> bool {
-    let query = query.to_lowercase();
-    let has = |text: &str| text.to_lowercase().contains(&query);
-    has(&thread.kind) || thread.messages.iter().any(|m| has(&m.text) || has(&m.author))
-}
-
-/// "Ana María Ruiz" → "AM": the first letters of the first two words, upper case; none gives
-/// "?".
-// pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:72 `initials`.
-pub fn initials(name: &str) -> String {
-    let letters: String = name.split_whitespace().filter_map(|word| word.chars().next()).take(2).collect();
-    if letters.is_empty() { "?".into() } else { letters.to_uppercase() }
+/// Whether `thread` matches the search `query`: in any message's text or author, or the reader's
+/// name of the kind (`kind_name`), ignoring case (and the Turkish dotted and dotless i, as
+/// PdfCraft's `fold_case` does) through `folder`.
+// pdfcraft: crates/ui-egui/src/panels/comments_panel.rs:104 `matches`, `:107` `any_contains`.
+pub fn matches(thread: &CommentThread, query: &str, folder: &Folder, kind_name: impl Fn(AnnotationKind) -> String) -> bool {
+    let has = |text: &str| folder.contains(text, query);
+    thread.kind.is_some_and(|kind| has(&kind_name(kind))) || thread.messages.iter().any(|m| has(&m.text) || has(&m.author))
 }
