@@ -159,7 +159,7 @@ pub use new_document::{
     Orientation, PresetCategory, push_recent, size_line,
 };
 pub use params::{
-    CustomContext, CustomRow, EyedropperRequest, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, ParamRows, ParamRowsResponse, PathKind,
+    CustomContext, CustomRow, EyedropperRequest, NumberUnit, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, ParamRows, ParamRowsResponse, PathKind,
     PathRequest, translated,
 };
 pub use pass::any_modal;

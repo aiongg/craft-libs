@@ -8,7 +8,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::{
-    CommandForm, DialogFields, DialogHost, DialogResult, EyedropperRequest, FieldValue, Param, ParamDialog, ParamKind, ParamResult, PathKind,
+    CommandForm, DialogFields, DialogHost, DialogResult, EyedropperRequest, FieldValue, NumberUnit, Param, ParamDialog, ParamKind, ParamResult, PathKind,
     PathRequest,
 };
 use crate::controls::SliderScale;
@@ -715,4 +715,88 @@ fn two_dialogs_of_one_command_keep_separate_state() {
     assert_eq!(alpha.pick_color().map(|r| r.key), Some("tint".to_owned()));
     assert_eq!(beta.pick_color(), None);
     assert_eq!(beta.fields().color("tint"), Some([1.0, 0.0, 0.0]));
+}
+
+// A row hidden by `visible_when` draws nothing, and its value stays in the fields and the answer.
+#[test]
+fn visible_when_hides_a_row_and_keeps_its_value() {
+    let rows = vec![
+        Param::new("screen", "Screen:", ParamKind::Bool { default: false }),
+        Param::number("cell", "Cell size:", 8.0, 1.0, 0).visible_when("screen", true),
+    ];
+    let mut harness = harness(ParamDialog::new("bitmap", "Bitmap", rows));
+    harness.run();
+    assert!(harness.query_by_role_and_label(Role::SpinButton, "Cell size").is_none());
+    open_dialog(&mut harness).expect("open").fields_mut().set("screen", true);
+    harness.run();
+    assert!(harness.query_by_role_and_label(Role::SpinButton, "Cell size").is_some());
+    open_dialog(&mut harness).expect("open").fields_mut().set("screen", false);
+    harness.run();
+    assert!(harness.query_by_role_and_label(Role::SpinButton, "Cell size").is_none());
+    assert_eq!(open_dialog(&mut harness).expect("open").fields().number("cell"), Some(8.0));
+}
+
+// The field shows the value in the chosen unit; an edit stores the base unit and the unit's id.
+#[test]
+fn a_number_row_with_units_converts_to_the_base_unit() {
+    let units = vec![NumberUnit::new("ppi", "pixels/inch", 1.0), NumberUnit::new("ppcm", "pixels/cm", 2.54)];
+    let row = Param::number_with_units("output", "Output:", 72.0, 1.0, 2, units);
+    assert_eq!(row.unit_key(), Some("output.unit"));
+    let mut harness = harness(ParamDialog::new("bitmap", "Bitmap", vec![row]));
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").fields().text("output.unit"), Some("ppi"));
+    open_dialog(&mut harness).expect("open").fields_mut().set("output.unit", "ppcm");
+    harness.run();
+    let shown = harness.get_by_role_and_label(Role::SpinButton, "Output").accesskit_node().value().unwrap_or_default().to_string();
+    assert!(shown.starts_with("28.34"), "{shown}");
+    harness.get_by_role_and_label(Role::SpinButton, "Output").focus();
+    harness.run();
+    harness.event(Event::Text("10".to_owned()));
+    harness.key_press(Key::Tab);
+    harness.run();
+    let fields = open_dialog(&mut harness).expect("open").fields().clone();
+    assert_eq!((fields.number("output"), fields.text("output.unit")), (Some(25.4), Some("ppcm")));
+}
+
+// A section row draws its heading and holds no value.
+#[test]
+fn a_section_row_draws_its_heading() {
+    let rows = vec![Param::section("Halftone"), Param::number("cell", "Cell size:", 8.0, 1.0, 0)];
+    let mut harness = harness(ParamDialog::new("bitmap", "Bitmap", rows));
+    harness.run();
+    let _ = harness.get_by_label("Halftone");
+    assert_eq!(open_dialog(&mut harness).expect("open").fields().len(), 1);
+}
+
+// `set_preview` turns the Preview state off and on without the check box.
+#[test]
+fn set_preview_changes_the_preview_state() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).preview(true));
+    harness.run();
+    let preview_on = |harness: &mut Harness<'_, App>| open_dialog(harness).is_some_and(|d| d.preview_on());
+    assert!(preview_on(&mut harness));
+    open_dialog(&mut harness).expect("open").set_preview(false);
+    harness.run();
+    assert!(!preview_on(&mut harness));
+    open_dialog(&mut harness).expect("open").set_preview(true);
+    harness.run();
+    assert!(preview_on(&mut harness));
+}
+
+// The pane opens at 100%; the zoom buttons step the readout.
+#[test]
+fn the_preview_zoom_buttons_change_the_zoom() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).preview(true));
+    harness.run();
+    open_dialog(&mut harness).expect("open").set_preview_image(Some(SizedTexture::new(TextureId::default(), vec2(64.0, 48.0))));
+    harness.run();
+    let _ = harness.get_by_label("100%");
+    harness.get_by_label("Zoom in").click();
+    harness.run();
+    let _ = harness.get_by_label("150%");
+    harness.get_by_label("Zoom out").click();
+    harness.run();
+    harness.get_by_label("Zoom out").click();
+    harness.run();
+    let _ = harness.get_by_label("75%");
 }

@@ -156,6 +156,16 @@ fn filter_params() -> Vec<Param> {
         Param::new("lookup", "Look-up table:", super::ParamKind::Text { default: String::new() })
             .browse(super::PathKind::open_file(&["cube", "3dl"])),
     );
+    params.push(Param::section("Halftone"));
+    params.push(Param::number("cellSize", "Cell size:", 8.0, 1.0, 0).bounds(Some(1.0), Some(64.0)).visible_when("monochromatic", true));
+    params.push(Param::number_with_units(
+        "output",
+        "Output:",
+        72.0,
+        1.0,
+        2,
+        vec![super::NumberUnit::new("ppi", "pixels/inch", 1.0), super::NumberUnit::new("ppcm", "pixels/cm", 2.54)],
+    ));
     params.push(Param::custom("result", "Result:", |ui, _, custom| {
         let response = ui.button("Pick color…");
         if response.clicked() {
