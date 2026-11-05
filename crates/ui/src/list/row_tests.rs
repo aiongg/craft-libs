@@ -1725,3 +1725,25 @@ fn a_sized_glyph_slot_takes_its_width() {
     assert_eq!(sized.0 - plain.0, wide - s.icon_size, "the least width counts the slot");
     assert_eq!(sized.1.left() - plain.1.left(), wide - s.icon_size, "the label starts after it");
 }
+
+// `leading_first` puts the glyph before a group's disclosure column: the glyph sits at the row's
+// start, the triangle after it, and the label starts where it does without the option.
+#[test]
+fn a_group_row_can_put_its_glyph_before_the_disclosure() {
+    let (ctx, s) = (context(), style());
+    let branch = tree::Branch { depth: 0, group: true, open: false, siblings: None };
+    let (mut after, mut first) = (Rect::NOTHING, Rect::NOTHING);
+    let (mut after_label, mut first_label, mut first_min, mut after_min) = (Rect::NOTHING, Rect::NOTHING, 0.0, 0.0);
+    shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let row = ListRow::new(1u8, "Group").branch(branch).glyph(|_, rect| after = rect).show(ui);
+            (after_label, after_min) = (row.label, row.min_width);
+            let row = ListRow::new(2u8, "Group").branch(branch).leading_first(true).glyph(|_, rect| first = rect).show(ui);
+            (first_label, first_min) = (row.label, row.min_width);
+        })
+    });
+    assert_eq!(first.left() - 0.0, s.pad_x, "the glyph starts at the row's padding");
+    assert_eq!(after.left() - first.left(), s.disclosure, "without the option it follows the disclosure column");
+    assert_eq!(first_label.left(), after_label.left());
+    assert_eq!(first_min, after_min);
+}
