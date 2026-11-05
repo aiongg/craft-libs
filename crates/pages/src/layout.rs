@@ -116,9 +116,10 @@ impl LayoutOptions {
         LayoutOptions { display: PageDisplay::Columns, cover: false, continuous: true, page_gaps: true, markup: 0.0, min_columns: 1 };
 }
 
-/// The screen spacing of a page layout, screen points. The page view takes it from the `pages.*`
-/// size tokens (`craft_pages::ui::PageView::style`); this crate's core has no tokens, so the
-/// layout functions take it as a value.
+/// The spacing of a page layout: screen points, except [`white_space_pad`](Self::white_space_pad),
+/// which is in page points. The page view takes it from the `pages.*` size tokens
+/// (`craft_pages::ui::PageView::style`); this crate's core has no tokens, so the layout functions
+/// take it as a value.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PageSpacing {
     /// Between pages, and between rows (token `pages.gap`); unused with
@@ -129,10 +130,12 @@ pub struct PageSpacing {
     /// Kept clear at each side (token `pages.side`; PdfCraft's gutter for its floating
     /// quick-action bar).
     pub side: f64,
-    /// What Hide White Space leaves above and below each page's text area (token
+    /// What Hide White Space leaves above and below each page's text area, in page points: it
+    /// scales with the zoom, as WordCraft's `WHITE_SPACE_PAD` does (token
     /// `pages.white_space_pad`).
     pub white_space_pad: f64,
-    /// The seam Hide White Space draws between pages (token `pages.seam`).
+    /// The seam Hide White Space draws between pages, in screen points at any zoom (token
+    /// `pages.seam`).
     pub seam: f64,
 }
 
@@ -247,7 +250,8 @@ impl PagedLayout {
     /// [`white_space_pad`](PageSpacing::white_space_pad) shows, a [`seam`](PageSpacing::seam)
     /// between pages. The first page keeps its top and the last its bottom. Rects keep the full
     /// page size, so page coordinates still map as `(p - rect.min) / scale`; neighbouring rects
-    /// overlap in the hidden margins. Only for one column and more than one page; otherwise the
+    /// overlap in the hidden margins. The pad scales with `scale` (page points), the seam does not
+    /// (WordCraft's `WHITE_SPACE_PAD` times the scale, `SEAM` as is). Only for one column and more than one page; otherwise the
     /// layout is unchanged.
     // wordcraft: crates/ui-egui/src/canvas/geometry.rs:28 `collapse_white_space` (its
     // `WHITE_SPACE_PAD` and `SEAM` are the spacing's pad and seam).
