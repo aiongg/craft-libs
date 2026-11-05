@@ -48,6 +48,7 @@ impl Hasher for FxHasher {
     }
 }
 
+/// A hash map keyed with the fast non-cryptographic [`FxHasher`].
 pub type FxMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;
 
 /// Maps characters to 6-bit codes (1 = word boundary, 2.. = letters); 0 = not in the alphabet.
@@ -67,6 +68,7 @@ impl Default for Alphabet {
 }
 
 impl Alphabet {
+    /// The code of `c`, or 0 when `c` is not in the alphabet.
     pub fn code(&self, c: char) -> u8 {
         if (c as u32) < 128 { self.ascii[c as usize] } else { self.other.iter().find(|x| x.0 == c).map_or(0, |x| x.1) }
     }
@@ -224,10 +226,12 @@ impl Patterns {
         }
     }
 
+    /// Number of patterns.
     pub fn len(&self) -> usize {
         self.map.len()
     }
 
+    /// Whether there are no patterns.
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }

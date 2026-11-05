@@ -5,7 +5,7 @@
 //!   package manager or LibreOffice; it is not bundled). Without it Turkish text gets no spelling
 //!   marks. Capitalized stems are proper nouns (`Ankara`); foreign names inflected with an apostrophe
 //!   are accepted (`WordCraft'ta`), and the user dictionary applies as in English.
-//! - **Suggestions** tuned for Turkish ([`suggest`]): ASCII-diacritic restoration (`turkce` -> `Türkçe`),
+//! - **Suggestions** tuned for Turkish ([`mod@suggest`]): ASCII-diacritic restoration (`turkce` -> `Türkçe`),
 //!   common confusions (`yalnış` -> `yanlış`), detached particles (`geldimi` -> `geldi mi`), and typos.
 //! - **Grammar** ([`grammar`]): high-precision rules (reduplications, comma around conjunctions,
 //!   sentence start with abbreviations).

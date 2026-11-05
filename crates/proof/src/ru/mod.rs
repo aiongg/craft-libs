@@ -11,7 +11,7 @@
 //!   vowel (`северо-западный`, `сине-зелёный`). Compounds written solid are checked the same way
 //!   (`высокоэластичный`, `газоиспользующий`), and so are adjectives, participles and verbal nouns
 //!   with `не` (`невскрытый`, `непредоставление`; not verbs: `незнаю` stays wrong). Our supplement
-//!   adds words older dictionaries lack (`маркетплейс`, `промокод`, `интеграция`: [`extra`]).
+//!   adds words older dictionaries lack (`маркетплейс`, `промокод`, `интеграция`: `extra`).
 //!   Words in another script (`iPhone`), with digits or superscripts (`м²`), in camel case
 //!   (`ВКонтакте`) or abbreviations with an ending (`ГИПа`, `ПДн`) are left alone.
 //! - **Suggestions** tuned for Russian ([`suggest()`]): `е`/`ё`, the common confusions (`тся`/

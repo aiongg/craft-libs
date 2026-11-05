@@ -25,7 +25,7 @@
 //! in parentheses, `(aa)*(bb)`), with `ONLYINCOMPOUND` and `COMPOUNDMIN`; the parts of such a
 //! compound are stems, without affixes, as in Hunspell. Flag-based compounds (`COMPOUNDFLAG`,
 //! `COMPOUNDBEGIN`/`MIDDLE`/`END`, `COMPOUNDPERMITFLAG`, `COMPOUNDFORBIDFLAG`, `COMPOUNDWORDMAX`,
-//! the `CHECKCOMPOUND…` checks, `FORCEUCASE`…): see [`compound`].
+//! the `CHECKCOMPOUND…` checks, `FORCEUCASE`…): see `compound`.
 //! Morphological data (`AM` aliases, the fields after a stem) is skipped. Rejected: the other
 //! directives that change which words are correct (`COMPLEXPREFIXES`, `COMPOUNDMORESUFFIXES`…).
 //!
@@ -1708,6 +1708,7 @@ impl AffixDict {
         self.flags.len()
     }
 
+    /// Whether there are no stems.
     pub fn is_empty(&self) -> bool {
         self.flags.is_empty()
     }
@@ -2304,7 +2305,7 @@ impl AffixDict {
     }
 
     /// Every form of the stem `stem` (itself included), unsorted, possibly with repeats; at most
-    /// [`MAX_FORMS`], and at most [`MAX_FORMS_WORK`] rules tried along the continuation chains and
+    /// [`MAX_FORMS`], and at most `MAX_FORMS_WORK` rules tried along the continuation chains and
     /// cross products, so a dictionary with thousands of self-continuing rules can't make one stem
     /// cost millions of strings (#3613).
     pub fn forms(&self, stem: &str) -> Vec<String> {

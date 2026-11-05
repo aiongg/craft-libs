@@ -35,10 +35,12 @@ impl Dictionary {
         d
     }
 
+    /// Number of words.
     pub fn len(&self) -> usize {
         self.masks.len()
     }
 
+    /// Whether there are no words.
     pub fn is_empty(&self) -> bool {
         self.masks.is_empty()
     }
@@ -82,7 +84,8 @@ impl Dictionary {
     }
 
     /// Deserialize data written by [`Dictionary::to_bytes`]. Data that inflates past
-    /// [`MAX_BYTES`], or holds more than [`MAX_ENTRIES`] words or [`MAX_BYTES`] of them, is refused.
+    /// `MAX_BYTES` (64 MiB), or holds more than `MAX_ENTRIES` (4 000 000) words or `MAX_BYTES` of them,
+    /// is refused.
     pub fn from_bytes(data: &[u8]) -> Result<Dictionary, String> {
         Dictionary::from_bytes_within(data, MAX_BYTES, MAX_ENTRIES)
     }

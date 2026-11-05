@@ -91,9 +91,13 @@ impl Patterns {
 /// Hyphenation limits from the paragraph's Hyphenation settings.
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
+    /// Shortest word, in letters, that may be hyphenated.
     pub min_word: usize,
+    /// Fewest letters that must stay before a break.
     pub after_first: usize,
+    /// Fewest letters that must follow a break.
     pub before_last: usize,
+    /// Whether capitalized words may be hyphenated.
     pub capitalized: bool,
 }
 
@@ -106,11 +110,15 @@ impl Default for Limits {
 /// Where a word's break points came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Source {
+    /// The language's hyphenation dictionary.
     Dictionary,
+    /// The language's hyphenation patterns.
     Patterns,
+    /// A heuristic for a language without a dictionary or patterns.
     Heuristic,
     /// A language's syllable rules (Bulgarian, [`crate::bg`]).
     Rules,
+    /// No break points: the word is too short or no source applies.
     None,
 }
 

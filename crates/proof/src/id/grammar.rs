@@ -9,6 +9,7 @@ fn issue(start: usize, end: usize, message: String, suggestions: Vec<String>) ->
     Issue { start, end, kind: IssueKind::Grammar, message, suggestions, lang: ProofLang::Id }
 }
 
+/// Checks `text` for repeated words (offering the hyphenated form first) and spacing problems, with Indonesian messages.
 pub fn check(text: &str) -> Vec<Issue> {
     let mut issues = Vec::new();
     repeated_words(text, &words(text), &mut issues);

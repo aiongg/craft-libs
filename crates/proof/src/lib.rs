@@ -119,11 +119,15 @@ pub use lang::{PackLocale, ProofLang};
 /// A problem found in text: byte range, kind, message and suggestions.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Issue {
+    /// Byte offset in the checked text where the problem starts.
     pub start: usize,
+    /// Byte offset just past the problem's last byte.
     pub end: usize,
+    #[allow(missing_docs)]
     pub kind: IssueKind,
     /// In the language of the text it was found in (Polish rules explain in Polish).
     pub message: String,
+    #[allow(missing_docs)]
     pub suggestions: Vec<String>,
     /// The language the text was checked in: spelling suggestions come from its dictionary
     /// ([`suggest_in`]).
@@ -131,8 +135,11 @@ pub struct Issue {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The kind of a problem an [`Issue`] reports.
 pub enum IssueKind {
+    /// A word not in the dictionary.
     Spelling,
+    /// A grammar or spacing problem.
     Grammar,
 }
 
@@ -145,7 +152,7 @@ fn user_words() -> &'static RwLock<HashSet<String>> {
 static DICTIONARY_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 /// The key a word has in the user dictionary and the Ignore All list: lower case and composed
-/// (NFC), as spelling looks words up ([`composed`]). A word added, ignored, removed or loaded
+/// (NFC), as spelling looks words up (`composed`). A word added, ignored, removed or loaded
 /// decomposed (`zqprue\u{301}ba`) is then the same entry as its composed form (`zqpruéba`), and
 /// the other way round (#3562 review).
 fn dictionary_key(w: &str) -> String {
@@ -936,7 +943,7 @@ fn composed(word: &str) -> std::borrow::Cow<'_, str> {
 }
 
 /// [`is_correct_in`] with the File › Options › Proofing choices. A word with combining marks is
-/// checked as its composed form ([`composed`]).
+/// checked as its composed form (`composed`).
 pub fn is_correct_in_with(word: &str, lang: ProofLang, opts: &Options) -> bool {
     let word = &*composed(word);
     if lang.is_english() {
@@ -950,7 +957,7 @@ pub fn is_correct_in_with(word: &str, lang: ProofLang, opts: &Options) -> bool {
 }
 
 /// Spelling suggestions for a word misspelled in `lang` (best first, at most `max`), composed
-/// ([`composed`]) like the dictionaries' words.
+/// (`composed`) like the dictionaries' words.
 pub fn suggest_in(word: &str, max: usize, lang: ProofLang) -> Vec<String> {
     let word = &*composed(word);
     if lang.is_english() {
