@@ -3,12 +3,13 @@
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
 use craft_ui::testing::{HarnessExt as _, symbols};
-use craft_ui::theme::{Base, install};
+use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
 use egui::accesskit::Role;
 use egui::{Key, KeyboardShortcut, Modifiers, Ui};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
+use super::style::TimelineStyle;
 use super::transport::{MediaControls, TransportBar, TransportBarSettings, TransportButton};
 
 fn harness<S>(show: impl FnMut(&mut Ui, &mut S) + 'static, state: S) -> Harness<'static, S> {
@@ -118,4 +119,27 @@ fn media_controls_toggle_nudge_and_seek() {
         _ => None,
     });
     assert_eq!(step, Some(6.75), "Right moves a quarter second");
+}
+
+// the buttons are `timeline.transport_button` squares, not the toolbar's own size.
+#[test]
+fn transport_buttons_use_the_timeline_leaf_size() {
+    let harness = harness(
+        |ui, side: &mut f32| {
+            *side = TimelineStyle::of(&Tokens::of(ui)).transport_button;
+            let _ = TransportBar::new("bar", &TransportButton::PROGRAM).show(ui);
+        },
+        0.0,
+    );
+    let side = *harness.state();
+    let rect = harness.get_by_role_and_label(Role::Button, "Mark In (I)").rect();
+    assert!((rect.height() - side).abs() < 0.5, "{} against {side}", rect.height());
+    assert!((rect.width() - side).abs() < 0.5, "{} against {side}", rect.width());
+}
+
+// the media-controls bar is a named toolbar.
+#[test]
+fn media_controls_are_a_named_toolbar() {
+    let harness = harness(show_media, Media::default());
+    assert!(harness.query_by_role_and_label(Role::Toolbar, "Media controls").is_some());
 }

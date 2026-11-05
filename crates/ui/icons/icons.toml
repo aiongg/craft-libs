@@ -1759,3 +1759,48 @@ lucide = "mail"
 phosphor = "envelope-simple"
 carbon = "email"
 tabler = "mail"
+
+[[icon]]
+name = "key_linear"
+directional = false
+phosphor = "key-linear"
+
+[[icon]]
+name = "key_linear_filled"
+directional = false
+phosphor = "key-linear-filled"
+
+[[icon]]
+name = "key_hold"
+directional = false
+phosphor = "key-hold"
+
+[[icon]]
+name = "key_bezier"
+directional = false
+phosphor = "key-bezier"
+
+[[icon]]
+name = "key_auto_bezier"
+directional = false
+phosphor = "key-auto-bezier"
+
+[[icon]]
+name = "key_continuous_bezier"
+directional = false
+phosphor = "key-continuous-bezier"
+
+[[icon]]
+name = "key_ease_in"
+directional = false
+phosphor = "key-ease-in"
+
+[[icon]]
+name = "key_ease_out"
+directional = false
+phosphor = "key-ease-out"
+
+[[icon]]
+name = "keyframe_easy_ease"
+directional = false
+phosphor = "keyframe-easy-ease"

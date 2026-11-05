@@ -10,6 +10,7 @@ use egui::{
 
 use super::{LabelPalette, TimelineStyle};
 use crate::clips::{ClipEdge, ClipEdit, EdgeZones, SnapTargets, TrimKind, edge_at, snap_time};
+use crate::markers::MarkerColor;
 use crate::model::{ClipId, ClipInfo, TrackId};
 use crate::rates::FrameRate;
 use crate::time::{Tick, TimeView};
@@ -18,6 +19,15 @@ use crate::timecode::{TimeFormat, format_time};
 /// How much darker a disabled clip's label colour is drawn (FilmCraft `clips.rs` halves each
 /// channel).
 const DISABLED_DIVISOR: u8 = 2;
+/// How strongly a track's colour label tints its lane (FilmCraft `timeline.rs:255`
+/// `TRACK_LANE_TINT`, used at `:335`).
+const LANE_LABEL_TINT: f32 = 0.10;
+/// The lane's tint by its track's colour label, under the clips.
+fn paint_lane_tint(painter: &Painter, rect: Rect, palette: &LabelPalette, label: Option<MarkerColor>) {
+    if let Some(label) = label {
+        painter.rect_filled(rect, 0.0, palette.color(label).gamma_multiply(LANE_LABEL_TINT));
+    }
+}
 /// The locked hatch's line spacing, as a fraction of the caption line height.
 const HATCH_STEP_DIVISOR: f32 = 4.0;
 
@@ -103,7 +113,11 @@ pub type ClipPainter<'a> = Box<dyn FnMut(&Painter, Rect, &ClipInfo<'_>) + 'a>;
 ///   a click replaces, Shift toggles, Cmd/Ctrl toggles without linked partners (Premiere's),
 ///   reported as a [`SelectionChange`]; a double-click and a secondary click are reported.
 /// - A locked track draws stripes over its clips and starts no gesture.
-/// - Hover cursors: trim, roll, slip, slide, razor (craft-ui's canvas cursors).
+/// - Hover cursors are egui's system cursors, as FilmCraft's (`timeline/interact.rs:291-299`):
+///   `ResizeColumn` on a trim, ripple, roll or rate-stretch edge, `ResizeHorizontal` on a clip
+///   under Slip or Slide, `Crosshair` under the Razor. They are the kernel's `ToolCursor::System`
+///   form. Premiere's own bracket and bar cursors are bitmaps; the icon sets have no glyphs for
+///   them, so the lane doesn't draw them.
 /// - Keyboard: none here; the lane is not a Tab stop. The panel's time area holds the focus
 ///   (playhead keys); clips are selected with the pointer and Cmd/Ctrl+A, as in Premiere.
 /// - AccessKit: each visible clip a `Button` (named by its name, its start and duration as the
@@ -120,6 +134,7 @@ pub struct ClipLane<'a> {
     locked: bool,
     selection: &'a [ClipId],
     palette: Option<&'a LabelPalette>,
+    track_label: Option<MarkerColor>,
     content: Option<ClipPainter<'a>>,
 }
 
@@ -137,6 +152,7 @@ impl<'a> ClipLane<'a> {
             locked: false,
             selection: &[],
             palette: None,
+            track_label: None,
             content: None,
         }
     }
@@ -175,6 +191,14 @@ impl<'a> ClipLane<'a> {
         self
     }
 
+    /// The track's colour label: it tints the lane by [`LANE_LABEL_TINT`] of the
+    /// [`palette`](Self::palette)'s colour (FilmCraft `timeline.rs:335`, #1186). The panel passes
+    /// [`TrackInfo::label`](crate::TrackInfo::label).
+    pub fn track_label(mut self, label: Option<MarkerColor>) -> Self {
+        self.track_label = label;
+        self
+    }
+
     /// Paints a clip's content into its body rect (clipped to the visible part).
     pub fn content(mut self, paint: impl FnMut(&Painter, Rect, &ClipInfo<'_>) + 'a) -> Self {
         self.content = Some(Box::new(paint));
@@ -187,7 +211,7 @@ impl<'a> ClipLane<'a> {
     // `drag_update`, `:713` `commit_drag`, `:526` `escape_cancel`, `:260` `hover_cursor`;
     // `timeline_hit.rs:283` `grab_at`.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> ClipLaneResponse {
-        let Self { id_salt, track, clips, view, rate, tool, no_modifier_trims, snap, locked, selection, palette, mut content } = self;
+        let Self { id_salt, track, clips, view, rate, tool, no_modifier_trims, snap, locked, selection, palette, track_label, mut content } = self;
         let tokens = Tokens::of(ui);
         let style = TimelineStyle::of(&tokens);
         let lane = Lane {
@@ -236,6 +260,7 @@ impl<'a> ClipLane<'a> {
                 }
             };
             let painter = ui.painter_at(rect);
+            paint_lane_tint(&painter, rect, palette, track_label);
             for clip in clips {
                 if let Some(body) = lane.body(clip, rect) {
                     paint_clip(ui, &painter, &tokens, body, clip, palette, selection.contains(&clip.id), locked, content.as_mut());

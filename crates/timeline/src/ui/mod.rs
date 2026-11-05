@@ -32,7 +32,7 @@ pub mod transport;
 
 mod stories;
 
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+#[cfg(test)]
 mod clips_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod graph_tests;

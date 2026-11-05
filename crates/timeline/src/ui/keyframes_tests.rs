@@ -5,11 +5,11 @@ use craft_ui::edit::EditEvent;
 use craft_ui::testing::{HarnessExt as _, symbols};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
-use egui::{Modifiers, Pos2, Rect, Sense, Ui, pos2, vec2};
+use egui::{Key, KeyboardShortcut, Modifiers, Pos2, Rect, Sense, Ui, pos2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-use super::keyframes::{AnimationToggle, KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, KeyframeNavigator};
+use super::keyframes::{AnimationToggle, KeyframeId, KeyframeInterpolation, KeyframeLabels, KeyframeLane, KeyframeMark, KeyframeNavigator};
 use crate::rates::FrameRate;
 use crate::time::{Tick, TimeRange, TimeView};
 
@@ -40,6 +40,7 @@ struct Lane {
     bounds: Option<TimeRange>,
     moves: Vec<EditEvent<Tick>>,
     changes: Vec<SelectionChange<KeyframeId>>,
+    deletes: usize,
     rect: Rect,
 }
 
@@ -51,7 +52,16 @@ fn lane() -> Harness<'static, Lane> {
         .collect();
     harness(
         show_lane,
-        Lane { keys, selection: Selection::new(), playhead: secs(2.5), bounds: None, moves: Vec::new(), changes: Vec::new(), rect: Rect::NOTHING },
+        Lane {
+            keys,
+            selection: Selection::new(),
+            playhead: secs(2.5),
+            bounds: None,
+            moves: Vec::new(),
+            changes: Vec::new(),
+            deletes: 0,
+            rect: Rect::NOTHING,
+        },
     )
 }
 
@@ -60,15 +70,13 @@ fn show_lane(ui: &mut Ui, app: &mut Lane) {
     ui.allocate_rect(rect, Sense::hover());
     app.rect = rect;
     let view = TimeView::new(Tick::ZERO, 100.0);
-    let mut lane = KeyframeLane::new("lane", &app.keys, &app.selection, &view, rate()).playhead(app.playhead);
+    let mut lane = KeyframeLane::new("lane", &app.keys, &mut app.selection, &view, rate()).playhead(app.playhead);
     if let Some(bounds) = app.bounds {
         lane = lane.bounds(bounds);
     }
     let out = lane.show(ui, rect);
-    if let Some(change) = out.selection {
-        app.selection = change.selection.clone();
-        app.changes.push(change);
-    }
+    app.changes.extend(out.selection);
+    app.deletes += usize::from(out.delete);
     app.moves.extend(out.moved);
 }
 
@@ -140,6 +148,42 @@ fn keys_stay_inside_the_bounds() {
     assert_eq!(commit(&harness), Some(secs(0.5)));
 }
 
+// Left and Right move the selection along the keys, Shift+Left/Right nudge it a frame, and
+// Delete and Backspace each report a delete (the app's own Delete shortcut doesn't see them).
+#[test]
+fn keyboard_selects_nudges_and_deletes() {
+    let mut harness = lane();
+    let rect = harness.state().rect;
+    harness.click_at(key_at(rect, 2.0));
+    harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::ArrowRight));
+    assert_eq!(selected(&harness), [3], "Right selects the next key");
+    harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::ArrowLeft));
+    harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::ArrowLeft));
+    assert_eq!(selected(&harness), [1], "Left twice selects the first key");
+
+    harness.press(KeyboardShortcut::new(Modifiers::SHIFT, Key::ArrowRight));
+    assert!(
+        harness.state().moves.iter().any(|event| matches!(event, EditEvent::Set { value, .. } if *value == rate().frame_duration())),
+        "Shift+Right nudges the selected key a frame: {:?}",
+        harness.state().moves
+    );
+
+    harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Delete));
+    assert_eq!(harness.state().deletes, 1);
+    harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Backspace));
+    assert_eq!(harness.state().deletes, 2, "Backspace deletes as Delete does");
+}
+
+// the lane applies its own selection change in the pass: the key it paints and reports is selected.
+#[test]
+fn the_lane_applies_its_selection_changes() {
+    let mut harness = lane();
+    let rect = harness.state().rect;
+    harness.click_at(key_at(rect, 3.0));
+    assert_eq!(selected(&harness), [3]);
+    assert_eq!(harness.state().changes.last().map(|change| change.selection.items.clone()), Some(vec![KeyframeId(3)]));
+}
+
 #[derive(Default)]
 struct Nav {
     previous: usize,
@@ -191,4 +235,65 @@ fn animation_toggle_reports_a_set() {
     harness.run();
     let values: Vec<bool> = harness.state().events.iter().filter_map(|event| event.value().copied()).collect();
     assert_eq!(values, [true, false]);
+}
+
+// the toggle's words come from the labels the app passes.
+#[test]
+fn animation_toggle_takes_labels() {
+    use craft_ui::localized::Labels as _;
+    let harness = harness(
+        |ui, on: &mut bool| {
+            let labels = KeyframeLabels { toggle_animation: "Stopwatch".into(), ..KeyframeLabels::english() };
+            let _ = AnimationToggle::new("watch", on).labels(labels).show(ui);
+        },
+        false,
+    );
+    assert!(harness.query_by_role_and_label(Role::Button, "Stopwatch").is_some());
+}
+
+// the navigator's arrows are icons (textured meshes), not painted polygons.
+#[test]
+fn navigator_arrows_are_icons() {
+    use egui::epaint::Shape;
+    use egui::{Context, RawInput};
+
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut output =
+        ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(200.0, 60.0))), ..RawInput::default() }, |ui| {
+            let _ = KeyframeNavigator::new("nav", true, true, false).show(ui);
+        });
+    output.textures_delta.clear();
+    let images =
+        output.shapes.iter().filter(|clipped| matches!(&clipped.shape, Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default())).count();
+    let polygons = output.shapes.iter().filter(|clipped| matches!(&clipped.shape, Shape::Path(_))).count();
+    assert!(images >= 2, "two arrow icons, found {images}");
+    assert!(polygons <= 1, "only the diamond outline is a path: {polygons}");
+}
+
+// every key paints as a textured icon mesh, one per key, and nothing is a painted path or fill.
+#[test]
+fn lane_keys_paint_as_icons() {
+    use egui::epaint::Shape;
+    use egui::{Context, RawInput};
+
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 30.0));
+    let kinds = [KeyframeInterpolation::Linear, KeyframeInterpolation::Hold, KeyframeInterpolation::Bezier, KeyframeInterpolation::EaseIn];
+    let keys: Vec<KeyframeMark> = kinds
+        .iter()
+        .enumerate()
+        .map(|(at, kind)| KeyframeMark { id: KeyframeId(at as u64), time: secs(at as f64 + 1.0), interpolation: *kind })
+        .collect();
+    let mut selection = Selection::new();
+    let view = TimeView::new(Tick::ZERO, 100.0);
+    let mut output = ctx.run_ui(RawInput { screen_rect: Some(rect.expand(10.0)), ..RawInput::default() }, |ui| {
+        let _ = KeyframeLane::new("lane", &keys, &mut selection, &view, rate()).show(ui, rect);
+    });
+    output.textures_delta.clear();
+    let meshes =
+        output.shapes.iter().filter(|clipped| matches!(&clipped.shape, Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default())).count();
+    assert_eq!(meshes, kinds.len(), "one icon per key");
+    assert!(!output.shapes.iter().any(|clipped| matches!(&clipped.shape, Shape::Path(_) | Shape::Circle(_))));
 }

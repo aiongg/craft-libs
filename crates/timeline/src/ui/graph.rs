@@ -707,12 +707,12 @@ fn bottom_bar(
         .group([ToolbarItem::new(Icon::Layers, labels.show_reference.as_str()).toggle(&mut reference_on)])
         .group([ToolbarItem::new(Icon::Split, labels.separate.as_str()).toggle(&mut separate_on)])
         .group([
-            ToolbarItem::new(Icon::KeyframeHold, labels.hold.as_str()),
-            ToolbarItem::new(Icon::KeyframeLinear, labels.linear.as_str()),
-            ToolbarItem::new(Icon::KeyframeAutoBezier, labels.auto_bezier.as_str()),
-            ToolbarItem::new(Icon::KeyframeBezier, labels.easy_ease.as_str()),
-            ToolbarItem::new(Icon::KeyframeEaseIn, labels.easy_ease_in.as_str()),
-            ToolbarItem::new(Icon::KeyframeEaseOut, labels.easy_ease_out.as_str()),
+            ToolbarItem::new(Icon::KeyHold, labels.hold.as_str()),
+            ToolbarItem::new(Icon::KeyLinear, labels.linear.as_str()),
+            ToolbarItem::new(Icon::KeyAutoBezier, labels.auto_bezier.as_str()),
+            ToolbarItem::new(Icon::KeyframeEasyEase, labels.easy_ease.as_str()),
+            ToolbarItem::new(Icon::KeyEaseIn, labels.easy_ease_in.as_str()),
+            ToolbarItem::new(Icon::KeyEaseOut, labels.easy_ease_out.as_str()),
         ])
         .overflow(true)
         .show(&mut bar_ui);

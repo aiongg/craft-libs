@@ -12,6 +12,7 @@ use craft_ui::patterns::{Toolbar, ToolbarItem};
 use craft_ui::popover::{Popover, PopoverAnchor};
 use craft_ui::primitives::Corner;
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, role_format, scale, tabular};
+use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{AsIdSalt, IdSalt, Layout, Rect, Response, Sense, Ui, UiBuilder, vec2};
 
@@ -44,6 +45,7 @@ craft_ui::words! {
         seek: "transport.seek" = "Seek";
         toolbar: "transport.toolbar" = "Transport";
         more: "transport.more" = "More transport controls";
+        media_controls: "transport.mediaControls" = "Media controls";
     }
 }
 
@@ -109,23 +111,22 @@ impl TransportButton {
 }
 
 impl TransportButton {
-    /// The button's icon. The library has no transport glyphs yet: these are its nearest icons,
-    /// named for in the button's tooltip.
+    /// The button's icon.
     pub(super) fn icon(&self, playing: bool) -> Icon {
         match self {
             Self::AddMarker => Icon::Flag,
-            Self::MarkIn => Icon::TriangleRight,
-            Self::MarkOut => Icon::Triangle,
+            Self::MarkIn => Icon::MarkIn,
+            Self::MarkOut => Icon::MarkOut,
             Self::GoToIn => Icon::ChevronsLeft,
-            Self::StepBack => Icon::ChevronLeft,
+            Self::StepBack => Icon::StepBack,
             Self::PlayStop if playing => Icon::Pause,
             Self::PlayStop => Icon::Play,
-            Self::StepForward => Icon::ChevronRight,
+            Self::StepForward => Icon::StepForward,
             Self::GoToOut => Icon::ChevronsRight,
-            Self::Insert => Icon::NewLayer,
-            Self::Overwrite => Icon::SwapHorizontal,
-            Self::Lift => Icon::Scissors,
-            Self::Extract => Icon::SliceKnife,
+            Self::Insert => Icon::InsertClip,
+            Self::Overwrite => Icon::OverwriteClip,
+            Self::Lift => Icon::LiftClip,
+            Self::Extract => Icon::ExtractClip,
             Self::ExportFrame => Icon::Image,
             Self::Loop => Icon::Refresh,
             Self::Custom { icon, .. } => *icon,
@@ -219,16 +220,16 @@ impl<'a> TransportBar<'a> {
         let Self { id_salt, buttons, mut settings, playing, looping, editable, labels } = self;
         let labels = labels.unwrap_or_else(|| TransportLabels::of(ui));
         let tokens = Tokens::of(ui);
+        let side = TimelineStyle::of(&tokens).transport_button;
         let toolbar = Toolbar::style(&tokens);
         let id = ui.make_persistent_id(id_salt);
         let hidden: Vec<TransportButton> = settings.as_ref().map(|s| s.hidden.clone()).unwrap_or_default();
         let shown: Vec<&TransportButton> = buttons.iter().filter(|button| !hidden.contains(button)).collect();
 
-        let (row, response) = ui.allocate_exact_size(vec2(ui.available_width(), toolbar.button), Sense::hover());
+        let (row, response) = ui.allocate_exact_size(vec2(ui.available_width(), side), Sense::hover());
         let rtl = direction::is_rtl(ui);
-        let with_editor = editable && settings.is_some() && row.width() >= toolbar.button;
-        let editor_rect =
-            Rect::from_min_size(if rtl { row.left_top() } else { row.right_top() - vec2(toolbar.button, 0.0) }, vec2(toolbar.button, toolbar.button));
+        let with_editor = editable && settings.is_some() && row.width() >= side;
+        let editor_rect = Rect::from_min_size(if rtl { row.left_top() } else { row.right_top() - vec2(side, 0.0) }, vec2(side, side));
         let mut bar_rect = row;
         if with_editor {
             if rtl {
@@ -239,7 +240,7 @@ impl<'a> TransportBar<'a> {
         }
         // The buttons sit centred in the room the editor leaves.
         let count = shown.len() as f32;
-        let natural = count * toolbar.button + (count - 1.0).max(0.0) * toolbar.gap;
+        let natural = count * side + (count - 1.0).max(0.0) * toolbar.gap;
         let inset = ((bar_rect.width() - natural) / 2.0).max(0.0);
         let bar_rect = bar_rect.shrink2(vec2(inset, 0.0));
 
@@ -261,6 +262,7 @@ impl<'a> TransportBar<'a> {
             let mut bar = ui.new_child(UiBuilder::new().max_rect(bar_rect));
             let out = Toolbar::new(id.with("bar"), Orientation::Horizontal)
                 .label(labels.toolbar.as_str())
+                .button_size(side)
                 .more_label(labels.more.as_str())
                 .overflow(true)
                 .group(items)
@@ -320,8 +322,8 @@ pub struct TransportBarOutput {
 /// kernel's [`Slider`](craft_ui::controls::Slider) (one Tab stop; Left / Right a quarter
 /// second, Home / End) reporting an `EditEvent<f64>` gesture in seconds; the buttons are
 /// [`IconButton`](craft_ui::controls::IconButton) Tab stops. A press on the bar never reaches
-/// the canvas under it. AccessKit: the slider's value text is the time; the buttons are named by
-/// [`TransportLabels`].
+/// the canvas under it. AccessKit: the bar is a named toolbar (`TransportLabels::media_controls`);
+/// the slider's value text is the time; the buttons are named by [`TransportLabels`].
 pub struct MediaControls {
     id_salt: IdSalt,
     position: f64,
@@ -368,12 +370,18 @@ impl MediaControls {
         let format = tabular(role_format(&tokens, TimelineStyle::of(&tokens).transport_text, tokens.color.text.normal.to_egui()));
         let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(text.clone(), format.clone())));
         let side = IconButton::style(&tokens, ControlSize::Md).side;
-        let (row, response) = ui.allocate_exact_size(vec2(ui.available_width(), side), Sense::click_and_drag());
+        let (row, response) = ui.allocate_exact_size(vec2(ui.available_width(), side), Sense::CLICK | Sense::DRAG);
         let radius = Corner::Control.radius(&tokens);
         ui.painter().rect_filled(row, radius, tokens.color.surface.panel.to_egui());
 
         let mut out = MediaControlsOutput { response, toggle: false, nudge: None, seek: None };
-        let mut content = ui.new_child(UiBuilder::new().max_rect(row).layout(Layout::left_to_right(egui::Align::Center)));
+        let mut content = ui.new_child(
+            UiBuilder::new()
+                .max_rect(row)
+                .layout(Layout::left_to_right(egui::Align::Center))
+                .accessibility_role(Role::Toolbar)
+                .accessibility_label(labels.media_controls.clone()),
+        );
         let ui = &mut content;
         let play = if playing { Icon::Pause } else { Icon::Play };
         out.toggle = ui.add(IconButton::new(play, labels.play_pause_media.as_str()).with_id(id.with("play"))).clicked();

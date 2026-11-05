@@ -251,3 +251,28 @@ fn clicks_pick_clips_and_clear_on_empty_space() {
     harness.run();
     assert_eq!(harness.state().selection, vec![B]);
 }
+
+// a track's colour label tints its whole lane by a tenth (FilmCraft `TRACK_LANE_TINT`).
+#[test]
+fn the_track_label_tints_the_lane() {
+    use crate::markers::MarkerColor;
+    use egui::epaint::Shape;
+    use egui::{Context, RawInput};
+
+    let palette = super::LabelPalette::default();
+    let wanted = palette.color(MarkerColor(2)).gamma_multiply(0.10);
+    let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 40.0));
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let clips = [clip(A, "A", 0, 10)];
+    let view = TimeView::new(Tick::ZERO, 10.0);
+    let tinted = |label: Option<MarkerColor>| {
+        let mut output = ctx.run_ui(RawInput { screen_rect: Some(rect.expand(10.0)), ..RawInput::default() }, |ui| {
+            ClipLane::new("lane", TrackId(1), &clips, &view, FrameRate::FPS_24).palette(&palette).track_label(label).show(ui, rect);
+        });
+        output.textures_delta.clear();
+        output.shapes.iter().any(|clipped| matches!(&clipped.shape, Shape::Rect(shape) if shape.rect == rect && shape.fill == wanted))
+    };
+    assert!(tinted(Some(MarkerColor(2))));
+    assert!(!tinted(None), "no label, no tint");
+}
