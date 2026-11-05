@@ -43,12 +43,12 @@ impl DockConfig {
     /// showing panels of the same title still share a name:
     ///
     /// ```
-    /// let style = craft_ui::docking::DockStyle::default().localized(|key| match key {
+    /// let config = craft_ui::docking::DockConfig::default().localized(|key| match key {
     ///     "dock.moveGroup" => Some("Move the {name} tab group".to_owned()),
     ///     "dock.moveColumn" => Some("Move the {name} panel column".to_owned()),
     ///     _ => None,
     /// });
-    /// # assert_eq!(style.move_group_label, "Move the {name} tab group");
+    /// # assert_eq!(config.move_group_label, "Move the {name} tab group");
     /// ```
     #[must_use]
     pub fn localized(mut self, translate: impl Fn(&str) -> Option<String>) -> Self {
