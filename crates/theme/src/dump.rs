@@ -2492,6 +2492,8 @@ fn timeline_lines(out: &mut Lines, t: &TimelineTokens) {
         scroll_end_zone,
         header_width_min,
         header_width_max,
+        caption_row_height,
+        header_indent,
     } = t;
     out.line("timeline.top_height", len(*top_height));
     out.line("timeline.ruler_height", len(*ruler_height));
@@ -2553,6 +2555,8 @@ fn timeline_lines(out: &mut Lines, t: &TimelineTokens) {
     out.line("timeline.scroll_end_zone", len(*scroll_end_zone));
     out.line("timeline.header_width_min", len(*header_width_min));
     out.line("timeline.header_width_max", len(*header_width_max));
+    out.line("timeline.caption_row_height", len(*caption_row_height));
+    out.line("timeline.header_indent", len(*header_indent));
 }
 
 fn review_lines(out: &mut Lines, t: &ReviewTokens) {

@@ -2173,6 +2173,10 @@ pub const TIMELINE_SCROLL_END_ZONE: f32 = 9.0;
 /// The least the track headers' width can be dragged to: FilmCraft's fixed header width
 /// (`state.rs:232`), which has no header resize.
 pub const TIMELINE_HEADER_WIDTH_MIN: f32 = 204.0;
+/// A caption row's height when the app gives none: FilmCraft `timeline_captions.rs:22` (`ROW_H`).
+pub const TIMELINE_CAPTION_ROW_HEIGHT: f32 = 28.0;
+/// How far each level of a track's depth indents its header: EffectCraft `panels/timeline.rs:2024`.
+pub const TIMELINE_HEADER_INDENT: f32 = 14.0;
 /// The most the track headers' width can be dragged to. FilmCraft has no header resize, so this
 /// value is the lead's.
 pub const TIMELINE_HEADER_WIDTH_MAX: f32 = 480.0;

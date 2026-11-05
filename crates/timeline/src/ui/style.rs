@@ -132,6 +132,10 @@ pub struct TimelineStyle {
     pub header_width_min: f32,
     /// The most the track headers' width can be dragged to: `timeline.header_width_max`.
     pub header_width_max: f32,
+    /// A caption row's height when the app gives none: `timeline.caption_row_height`.
+    pub caption_row_height: f32,
+    /// How far each level of a track's depth indents its header: `timeline.header_indent`.
+    pub header_indent: f32,
     /// The type role of The ruler's time labels: the theme's caption role.
     pub ruler_text: TypeRole,
     /// The type role of A marker's name: the theme's caption role.
@@ -223,6 +227,8 @@ impl TimelineStyle {
             scroll_end_zone: t.scroll_end_zone,
             header_width_min: t.header_width_min,
             header_width_max: t.header_width_max,
+            caption_row_height: t.caption_row_height,
+            header_indent: t.header_indent,
             ruler_text: TypeRole::Caption,
             marker_text: TypeRole::Caption,
             graph_text: TypeRole::Caption,

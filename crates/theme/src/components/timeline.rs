@@ -128,6 +128,10 @@ pub struct TimelineTokens {
     pub header_width_min: f32,
     /// The most the track headers' width can be dragged to: [`values::TIMELINE_HEADER_WIDTH_MAX`].
     pub header_width_max: f32,
+    /// A caption row's height when the app gives none: [`values::TIMELINE_CAPTION_ROW_HEIGHT`].
+    pub caption_row_height: f32,
+    /// How far each level of a track's depth indents its header: [`values::TIMELINE_HEADER_INDENT`].
+    pub header_indent: f32,
 }
 
 /// Timeline tokens have no overridable field.
@@ -198,6 +202,8 @@ impl Family for TimelineTokens {
         "scroll_end_zone" 1.0..=64.0 => scroll_end_zone;
         "header_width_min" 32.0..=640.0 => header_width_min;
         "header_width_max" 64.0..=1024.0 => header_width_max;
+        "caption_row_height" 8.0..=128.0 => caption_row_height;
+        "header_indent" 0.0..=64.0 => header_indent;
     };
 
     fn defaults(_: &Semantic<'_>) -> TimelineTokens {
@@ -262,6 +268,8 @@ impl Family for TimelineTokens {
             scroll_end_zone: values::TIMELINE_SCROLL_END_ZONE,
             header_width_min: values::TIMELINE_HEADER_WIDTH_MIN,
             header_width_max: values::TIMELINE_HEADER_WIDTH_MAX,
+            caption_row_height: values::TIMELINE_CAPTION_ROW_HEIGHT,
+            header_indent: values::TIMELINE_HEADER_INDENT,
         }
     }
 

@@ -762,16 +762,15 @@ enum HeaderEdge {
 fn resolved_height(style: &TimelineStyle, track: &TrackInfo<'_>) -> f32 {
     let default = match track.kind {
         TrackKind::Video => style.video_track_height,
-        // No `timeline` leaf sizes a caption row (FilmCraft `timeline_captions.rs:22` `ROW_H`).
-        TrackKind::Caption | TrackKind::Audio | TrackKind::Other => style.audio_track_height,
+        TrackKind::Caption => style.caption_row_height,
+        TrackKind::Audio | TrackKind::Other => style.audio_track_height,
     };
     track.height.filter(|height| height.is_finite() && *height > 0.0).unwrap_or(default).clamp(style.track_height_min, style.track_height_max)
 }
 
-/// How far each level of a track's `depth` indents its name (EffectCraft `timeline.rs:2024`).
-/// No `timeline` leaf holds it.
+/// How far each level of a track's `depth` indents its name.
 fn header_indent(style: &TimelineStyle) -> f32 {
-    style.label_strip
+    style.header_indent
 }
 /// The factor one `=` or `-` press zooms by.
 const KEY_ZOOM: f64 = 2.0;
