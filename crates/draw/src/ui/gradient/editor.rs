@@ -128,11 +128,8 @@ craft_ui::words! {
         /// The fields row's labels, which name their fields: "Color", "Opacity", "Location",
         /// "Midpoint".
         color: "" = "Color";
-        #[allow(missing_docs)]
         opacity: "" = "Opacity";
-        #[allow(missing_docs)]
         location: "" = "Location";
-        #[allow(missing_docs)]
         midpoint_field: "" = "Midpoint";
         /// The Delete button's accessible name and tooltip: "Delete stop".
         delete: "gradient.deleteStop" = "Delete stop";

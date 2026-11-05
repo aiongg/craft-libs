@@ -261,29 +261,17 @@ words! {
     /// The words of the box's right-click menu ([`TransformSession::menu`]), Photoshop's and
     /// PhotoCraft's order (`canvas_tool_menu.rs:75`). `Default` is English.
     pub struct TransformMenuLabels {
-        #[allow(missing_docs)]
         free_transform: "transformMenu.freeTransform" = "Free Transform";
-        #[allow(missing_docs)]
         scale: "transformMenu.scale" = "Scale";
-        #[allow(missing_docs)]
         rotate: "transformMenu.rotate" = "Rotate";
-        #[allow(missing_docs)]
         skew: "transformMenu.skew" = "Skew";
-        #[allow(missing_docs)]
         distort: "transformMenu.distort" = "Distort";
-        #[allow(missing_docs)]
         perspective: "transformMenu.perspective" = "Perspective";
-        #[allow(missing_docs)]
         warp: "transformMenu.warp" = "Warp";
-        #[allow(missing_docs)]
         rotate_180: "transformMenu.rotate180" = "Rotate 180°";
-        #[allow(missing_docs)]
         rotate_90_clockwise: "transformMenu.rotate90Clockwise" = "Rotate 90° Clockwise";
-        #[allow(missing_docs)]
         rotate_90_counter_clockwise: "transformMenu.rotate90CounterClockwise" = "Rotate 90° Counter Clockwise";
-        #[allow(missing_docs)]
         flip_horizontal: "transformMenu.flipHorizontal" = "Flip Horizontal";
-        #[allow(missing_docs)]
         flip_vertical: "transformMenu.flipVertical" = "Flip Vertical";
     }
 }

@@ -17,8 +17,6 @@ type NumberRow<'a> = (&'a str, &'a str, &'a str, f64, fn(EditEvent<f64>) -> Warp
 
 words! {
     /// The words of [`WarpFields`] (PhotoCraft's Warp options bar). `Default` is English.
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     pub struct WarpFieldsLabels {
         split: "warpFields.split" = "Split:";
         split_crosswise: "warpFields.splitCrosswise" = "Split Warp Crosswise";

@@ -2,8 +2,6 @@
 
 craft_ui::words! {
     /// Adaptive Wide Angle's words, English by default (Photoshop's names).
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct WideAngleLabels {
         /// The title's name.

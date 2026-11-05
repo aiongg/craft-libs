@@ -31,27 +31,16 @@ words! {
     /// (`OptionsBar::commit_cancel`), which gives PhotoCraft's "Commit warp (Enter)". `Default` is
     /// English.
     pub struct TransformBarLabels {
-        #[allow(missing_docs)]
         interpolation: "transformBar.interpolation" = "Interpolation";
-        #[allow(missing_docs)]
         bicubic: "transformBar.bicubic" = "Bicubic";
-        #[allow(missing_docs)]
         bilinear: "transformBar.bilinear" = "Bilinear";
-        #[allow(missing_docs)]
         nearest_neighbor: "transformBar.nearestNeighbor" = "Nearest Neighbor";
-        #[allow(missing_docs)]
         show_reference_point: "transformBar.showReferencePoint" = "Show Reference Point";
-        #[allow(missing_docs)]
         commit_transform: "transformBar.commitTransform" = "Commit transform";
-        #[allow(missing_docs)]
         cancel_transform: "transformBar.cancelTransform" = "Cancel transform";
-        #[allow(missing_docs)]
         commit_warp: "transformBar.commitWarp" = "Commit warp";
-        #[allow(missing_docs)]
         cancel_warp: "transformBar.cancelWarp" = "Cancel warp";
-        #[allow(missing_docs)]
         reset_warp: "transformBar.resetWarp" = "Reset warp";
-        #[allow(missing_docs)]
         switch_warp: "transformBar.switchWarp" = "Switch between free transform and warp modes";
     }
 }

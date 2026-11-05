@@ -18,13 +18,9 @@ craft_ui::words! {
     /// The Ruler tool's AccessKit names, English by default.
     #[non_exhaustive]
     pub struct RulerToolLabels {
-        #[allow(missing_docs)]
         group: "rulerTool.group" = "Ruler";
-        #[allow(missing_docs)]
         start: "rulerTool.start" = "Start point";
-        #[allow(missing_docs)]
         end: "rulerTool.end" = "End point";
-        #[allow(missing_docs)]
         protractor: "rulerTool.protractor" = "Protractor point";
         /// The group's value; `{length}` and `{angle}` are formatted numbers.
         value: "rulerTool.value" = "Length {length}, angle {angle}°";

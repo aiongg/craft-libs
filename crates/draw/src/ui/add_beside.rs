@@ -21,17 +21,11 @@ craft_ui::words! {
     /// ("Add artboard beside").
     #[non_exhaustive]
     pub struct AddBesideLabels {
-        #[allow(missing_docs)]
         group: "addBeside.group" = "Add beside";
-        #[allow(missing_docs)]
         above: "addBeside.above" = "Add above";
-        #[allow(missing_docs)]
         right: "addBeside.right" = "Add right";
-        #[allow(missing_docs)]
         below: "addBeside.below" = "Add below";
-        #[allow(missing_docs)]
         left: "addBeside.left" = "Add left";
-        #[allow(missing_docs)]
         add_connected: "addBeside.addConnected" = "Add a connected shape";
     }
 }

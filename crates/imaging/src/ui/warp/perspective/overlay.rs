@@ -21,8 +21,6 @@ use crate::ui::warp::PerspectiveWarpStyle;
 
 words! {
     /// The AccessKit words of [`PerspectiveWarp`]. `Default` is English.
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     pub struct PerspectiveWarpLabels {
         group: "perspectiveWarp.group" = "Perspective Warp";
         corner: "perspectiveWarp.corner" = "Plane {plane}, corner {corner}";

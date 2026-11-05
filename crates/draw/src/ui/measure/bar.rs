@@ -19,39 +19,23 @@ craft_ui::words! {
     /// The Ruler options bar's words, English by default.
     #[non_exhaustive]
     pub struct RulerBarLabels {
-        #[allow(missing_docs)]
         x: "rulerBar.x" = "X:";
-        #[allow(missing_docs)]
         y: "rulerBar.y" = "Y:";
-        #[allow(missing_docs)]
         w: "rulerBar.w" = "W:";
-        #[allow(missing_docs)]
         h: "rulerBar.h" = "H:";
-        #[allow(missing_docs)]
         angle: "rulerBar.angle" = "A:";
-        #[allow(missing_docs)]
         l1: "rulerBar.l1" = "L1:";
-        #[allow(missing_docs)]
         l2: "rulerBar.l2" = "L2:";
         /// The readouts' AccessKit names, without the caption's colon.
         x_name: "rulerBar.xName" = "X";
-        #[allow(missing_docs)]
         y_name: "rulerBar.yName" = "Y";
-        #[allow(missing_docs)]
         w_name: "rulerBar.wName" = "W";
-        #[allow(missing_docs)]
         h_name: "rulerBar.hName" = "H";
-        #[allow(missing_docs)]
         angle_name: "rulerBar.angleName" = "A";
-        #[allow(missing_docs)]
         l1_name: "rulerBar.l1Name" = "L1";
-        #[allow(missing_docs)]
         l2_name: "rulerBar.l2Name" = "L2";
-        #[allow(missing_docs)]
         use_scale: "rulerBar.useScale" = "Use Measurement Scale";
-        #[allow(missing_docs)]
         straighten_layer: "rulerBar.straightenLayer" = "Straighten Layer";
-        #[allow(missing_docs)]
         clear: "rulerBar.clear" = "Clear";
     }
 }

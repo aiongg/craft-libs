@@ -327,7 +327,8 @@ pub fn all() -> impl Iterator<Item = Word> {
 
 /// Declares a labels struct from one table, `field: "id" = "English";` per row, and implements
 /// [`Labels`] and `Default` for it. An empty id makes the word a plain one, looked up by its
-/// English text. Every field is a `String`.
+/// English text. Every field is a `String`; each needs no doc of its own, since its English text
+/// says what it is.
 ///
 /// The struct also gets `localized(translate)`, which replaces each field with
 /// `translate(`[`Word::key`]`)` where it returns `Some`.
@@ -339,7 +340,7 @@ macro_rules! words {
         $(#[$meta])*
         #[derive(Clone, Debug, PartialEq, Eq)]
         $vis struct $name {
-            $($(#[$fmeta])* pub $field: String,)*
+            $($(#[$fmeta])* #[allow(missing_docs)] pub $field: String,)*
         }
 
         impl $crate::localized::Labels for $name {

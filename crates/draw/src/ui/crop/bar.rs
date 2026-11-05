@@ -28,111 +28,65 @@ craft_ui::words! {
     pub struct CropBarLabels {
         /// The preset list's accessible name.
         presets: "cropBar.presets" = "Crop ratio";
-        #[allow(missing_docs)]
         ratio: "cropBar.ratio" = "Ratio";
-        #[allow(missing_docs)]
         size_mode: "cropBar.sizeMode" = "W x H x Resolution";
         /// The names of [`CROP_RATIOS`](super::CROP_RATIOS), in its order.
         ratio_original: "cropBar.ratioOriginal" = "Original Ratio";
-        #[allow(missing_docs)]
         ratio_square: "cropBar.ratioSquare" = "1 : 1 (Square)";
-        #[allow(missing_docs)]
         ratio_4_5: "cropBar.ratio4x5" = "4 : 5 (8 : 10)";
-        #[allow(missing_docs)]
         ratio_5_7: "cropBar.ratio5x7" = "5 : 7";
-        #[allow(missing_docs)]
         ratio_2_3: "cropBar.ratio2x3" = "2 : 3 (4 : 6)";
-        #[allow(missing_docs)]
         ratio_16_9: "cropBar.ratio16x9" = "16 : 9";
-        #[allow(missing_docs)]
         front_image: "cropBar.frontImage" = "Front Image";
-        #[allow(missing_docs)]
         new_preset: "cropBar.newPreset" = "New Crop Preset…";
-        #[allow(missing_docs)]
         delete_preset: "cropBar.deletePreset" = "Delete Crop Preset…";
         /// The unit word of a px/in resolution in a preset name ("4 x 5 in 300 ppi").
         ppi: "cropBar.ppi" = "ppi";
-        #[allow(missing_docs)]
         pixels_per_inch: "cropBar.pixelsPerInch" = "px/in";
-        #[allow(missing_docs)]
         pixels_per_centimetre: "cropBar.pixelsPerCentimeter" = "px/cm";
-        #[allow(missing_docs)]
         width: "cropBar.width" = "Width";
-        #[allow(missing_docs)]
         height: "cropBar.height" = "Height";
-        #[allow(missing_docs)]
         resolution: "cropBar.resolution" = "Resolution";
-        #[allow(missing_docs)]
         resolution_unit: "cropBar.resolutionUnit" = "Resolution unit";
-        #[allow(missing_docs)]
         swap: "cropBar.swap" = "Swaps height and width";
-        #[allow(missing_docs)]
         clear: "cropBar.clear" = "Clear";
-        #[allow(missing_docs)]
         straighten: "cropBar.straighten" = "Straighten the image by drawing a line on it";
-        #[allow(missing_docs)]
         overlay: "cropBar.overlay" = "Set the overlay options for the Crop tool";
         /// The overlays in [`CropGuide::ALL`](super::CropGuide::ALL) order.
         thirds: "cropBar.thirds" = "Rule of Thirds";
-        #[allow(missing_docs)]
         grid: "cropBar.grid" = "Grid";
-        #[allow(missing_docs)]
         diagonal: "cropBar.diagonal" = "Diagonal";
-        #[allow(missing_docs)]
         triangle: "cropBar.triangle" = "Triangle";
-        #[allow(missing_docs)]
         golden_ratio: "cropBar.goldenRatio" = "Golden Ratio";
-        #[allow(missing_docs)]
         golden_spiral: "cropBar.goldenSpiral" = "Golden Spiral";
         /// The show rules in [`GuideShow::ALL`](super::GuideShow::ALL) order.
         show_auto: "cropBar.showAuto" = "Auto Show Overlay";
-        #[allow(missing_docs)]
         show_always: "cropBar.showAlways" = "Always Show Overlay";
-        #[allow(missing_docs)]
         show_never: "cropBar.showNever" = "Never Show Overlay";
-        #[allow(missing_docs)]
         cycle_overlay: "cropBar.cycleOverlay" = "Cycle Overlay";
-        #[allow(missing_docs)]
         cycle_orientation: "cropBar.cycleOrientation" = "Cycle Orientation";
-        #[allow(missing_docs)]
         options: "cropBar.options" = "Set additional Crop options";
-        #[allow(missing_docs)]
         classic_mode: "cropBar.classicMode" = "Use Classic Mode";
-        #[allow(missing_docs)]
         show_cropped_area: "cropBar.showCroppedArea" = "Show Cropped Area";
-        #[allow(missing_docs)]
         auto_center: "cropBar.autoCenter" = "Auto Center Preview";
-        #[allow(missing_docs)]
         shield: "cropBar.shield" = "Enable Crop Shield";
-        #[allow(missing_docs)]
         color: "cropBar.color" = "Color:";
         /// The shield colour radio group's accessible name.
         color_name: "cropBar.colorName" = "Color";
-        #[allow(missing_docs)]
         match_canvas: "cropBar.matchCanvas" = "Match Canvas";
-        #[allow(missing_docs)]
         custom: "cropBar.custom" = "Custom…";
-        #[allow(missing_docs)]
         shield_color: "cropBar.shieldColor" = "Crop Shield color";
-        #[allow(missing_docs)]
         opacity: "cropBar.opacity" = "Opacity:";
         /// The shield opacity row's accessible name.
         opacity_name: "cropBar.opacityName" = "Opacity";
-        #[allow(missing_docs)]
         auto_adjust: "cropBar.autoAdjust" = "Auto Adjust Opacity";
-        #[allow(missing_docs)]
         delete_pixels: "cropBar.deletePixels" = "Delete Cropped Pixels";
-        #[allow(missing_docs)]
         fill: "cropBar.fill" = "Fill:";
         /// The Fill select's accessible name.
         fill_name: "cropBar.fillName" = "Fill";
-        #[allow(missing_docs)]
         fill_background: "cropBar.fillBackground" = "Background (Default)";
-        #[allow(missing_docs)]
         fill_content_aware: "cropBar.fillContentAware" = "Content-Aware Fill";
-        #[allow(missing_docs)]
         commit: "cropBar.commit" = "Commit current crop operation";
-        #[allow(missing_docs)]
         cancel: "cropBar.cancel" = "Cancel current crop operation";
     }
 }

@@ -4,8 +4,6 @@
 
 craft_ui::words! {
     /// Filter Gallery's words, English by default (Photoshop's names).
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct FilterGalleryLabels {
         /// The title's name.

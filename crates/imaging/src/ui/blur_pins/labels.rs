@@ -2,8 +2,6 @@
 
 craft_ui::words! {
     /// The Blur Gallery pins' words, English by default.
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct BlurPinsLabels {
         /// The pins' group on the canvas.

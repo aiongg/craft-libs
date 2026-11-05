@@ -8,8 +8,6 @@ craft_ui::words! {
     /// ([`EffectSpec::photoshop`](crate::layer_style::EffectSpec::photoshop)) are shown through
     /// it ([`field`](Self::field), [`choice`](Self::choice), [`effect`](Self::effect)); an
     /// app's own specs show their own labels.
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct LayerStyleLabels {
         /// The effect list's accessible name.
@@ -225,8 +223,6 @@ impl LayerStyleLabels {
 
 craft_ui::words! {
     /// The accessible names of a [`BlendIfBar`](super::BlendIfBar)'s handles, English by default.
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct BlendIfBarLabels {
         black_low: "blendIf.blackLow" = "Black low";
@@ -247,8 +243,6 @@ craft_ui::words! {
 craft_ui::words! {
     /// The words of a [`ContourField`](super::ContourField), its preset picker and the Contour
     /// Editor, English by default.
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct ContourFieldLabels {
         /// The thumbnail's accessible name and tooltip: it opens the editor.

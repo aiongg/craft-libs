@@ -7,8 +7,6 @@
 
 craft_ui::words! {
     /// The words of the adjustment editors, in the installed language unless set.
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct AdjustLabels {
         // Channels and the Channel select (Levels, Curves).

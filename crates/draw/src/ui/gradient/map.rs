@@ -71,18 +71,13 @@ craft_ui::words! {
         gradient_map: "gradientMap.title" = "Gradient Map";
         /// The stop bar's own name (AccessKit), distinct from the group's.
         stops: "gradientMap.stops" = "Gradient stops";
-        #[allow(missing_docs)]
         preset: "gradientMap.preset" = "Preset";
         /// The preset button's text while the stops match no preset (always: the editor keeps no
         /// preset identity).
         custom: "gradientMap.custom" = "Custom";
-        #[allow(missing_docs)]
         preset_options: "gradientMap.presetOptions" = "Gradient Preset Options";
-        #[allow(missing_docs)]
         import_presets: "gradientMap.importPresets" = "Import .GRD";
-        #[allow(missing_docs)]
         reverse: "gradientMap.reverse" = "Reverse";
-        #[allow(missing_docs)]
         dither: "gradientMap.dither" = "Dither";
     }
 }

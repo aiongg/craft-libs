@@ -24,8 +24,6 @@ pub(crate) const POINT_LIMIT: Counted = Counted::new(
 
 craft_ui::words! {
     /// Content-Aware Fill's words, English by default (Photoshop's names).
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct FillLabels {
         /// The title's name and the settings column's header.

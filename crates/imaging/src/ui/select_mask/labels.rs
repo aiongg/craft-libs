@@ -41,8 +41,6 @@ impl LimitRefused {
 
 craft_ui::words! {
     /// Select and Mask's words, English by default (Photoshop's names).
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     #[non_exhaustive]
     pub struct SelectMaskLabels {
         /// The title's name.

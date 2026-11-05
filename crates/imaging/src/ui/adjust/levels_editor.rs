@@ -88,8 +88,6 @@ pub enum LevelsClip {
 craft_ui::words! {
     /// The editor's texts, whole phrases in the installed language unless set. Each thumb and the
     /// field under it share a name: one value, two ways to set it.
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     pub struct LevelsLabels {
         /// The histogram's accessible name.
         histogram: "" = "Histogram";

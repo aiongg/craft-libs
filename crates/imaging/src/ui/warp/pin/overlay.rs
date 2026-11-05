@@ -21,8 +21,6 @@ use crate::ui::warp::{PinWarpStyle, paint_mesh};
 
 words! {
     /// The AccessKit words of [`PinWarp`]. `Default` is English.
-    // Every field is one self-evident word; its English text is the default.
-    #[allow(missing_docs)]
     pub struct PinWarpLabels {
         group: "pinWarp.group" = "Puppet Warp";
         pin: "pinWarp.pin" = "Pin {n} of {count}";
