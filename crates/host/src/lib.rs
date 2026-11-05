@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use craft_i18n::{I18n, Lang};
 
-pub use files::{FileError, FileFilter, Files, NoPickFiles, PickAnswer, PickId, PickKind, PickRequest, Picked};
+pub use files::{FileError, FileFilter, Files, NoPickFiles, PickAnswer, PickId, PickKind, PickRequest, Picked, ScriptedFiles};
 #[cfg(not(target_arch = "wasm32"))]
 pub use services::ThreadJobs;
 pub use services::{AppInfo, Commands, InlineJobs, Jobs, ManualJobs, MemorySections, NoCommands, Section, SectionStore, Wake};

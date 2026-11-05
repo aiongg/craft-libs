@@ -7,6 +7,7 @@
 //! one; otherwise the service starts it in the last folder it remembers for the
 //! [`PickRequest::purpose`]. It applies the extension policy to a saved name before the app sees it.
 
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -290,6 +291,164 @@ impl Files for NoPickFiles {
     }
 }
 
+/// A file service that answers from a script, for tests of the features that ask for files. It
+/// records every [`PickRequest`], keeps files in memory, and answers each pick in order from the
+/// answers the test queued: the first queued answer goes to the first pick, and a pick with
+/// nothing queued is `Cancelled`.
+///
+/// A test that expects no picker asserts [`requests`](ScriptedFiles::requests) is empty. Every
+/// method takes `&self`, so a test keeps its own `Arc<ScriptedFiles>` and hands a clone to the
+/// Host as the `Arc<dyn Files>`.
+#[derive(Default)]
+pub struct ScriptedFiles {
+    state: Mutex<ScriptState>,
+}
+
+#[derive(Default)]
+struct ScriptState {
+    next: u64,
+    asked: Vec<PickRequest>,
+    /// Answers for the picks to come, first pick first.
+    queued: VecDeque<Picked>,
+    /// Picks stay open until the test answers them.
+    held: bool,
+    /// A Save is answered with the suggested name in the suggested folder.
+    save_suggested: bool,
+    /// Picks the test has not answered yet, oldest first.
+    open: Vec<(PickId, PickRequest)>,
+    answered: Vec<PickAnswer>,
+    files: HashMap<PathBuf, Vec<u8>>,
+}
+
+impl ScriptedFiles {
+    /// A service with nothing queued: every pick is `Cancelled`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A service that answers the picks with `answers`, in order.
+    pub fn answering(answers: impl IntoIterator<Item = Picked>) -> Self {
+        let files = Self::default();
+        files.state().queued.extend(answers);
+        files
+    }
+
+    /// A service whose picks stay open until the test answers them with
+    /// [`answer`](ScriptedFiles::answer) or [`answer_to`](ScriptedFiles::answer_to): the state of
+    /// a user who has the dialog on screen.
+    pub fn held() -> Self {
+        let files = Self::default();
+        files.state().held = true;
+        files
+    }
+
+    /// Answers every Save with the suggested name in the suggested folder; other picks follow the
+    /// queue as before.
+    pub fn saving_suggested(self) -> Self {
+        self.state().save_suggested = true;
+        self
+    }
+
+    /// Puts a file in memory, for [`Files::read`].
+    pub fn with_file(self, path: impl Into<PathBuf>, bytes: impl Into<Vec<u8>>) -> Self {
+        self.state().files.insert(path.into(), bytes.into());
+        self
+    }
+
+    /// Queues the answer of the next pick that has none yet.
+    pub fn queue(&self, picked: Picked) {
+        self.state().queued.push_back(picked);
+    }
+
+    /// Every request asked so far, in order.
+    pub fn requests(&self) -> Vec<PickRequest> {
+        self.state().asked.clone()
+    }
+
+    /// How many picks the test has yet to answer (a [`held`](ScriptedFiles::held) service).
+    pub fn open(&self) -> usize {
+        self.state().open.len()
+    }
+
+    /// Answers the newest open pick; its ticket, or `None` when none is open.
+    pub fn answer(&self, picked: Picked) -> Option<PickId> {
+        let mut state = self.state();
+        let (id, request) = state.open.pop()?;
+        state.answered.push(PickAnswer { id, request, picked });
+        Some(id)
+    }
+
+    /// Answers the open pick `id`; `false` when it is not open.
+    pub fn answer_to(&self, id: PickId, picked: Picked) -> bool {
+        let mut state = self.state();
+        let Some(at) = state.open.iter().position(|(open, _)| *open == id) else { return false };
+        let (_, request) = state.open.remove(at);
+        state.answered.push(PickAnswer { id, request, picked });
+        true
+    }
+
+    /// The bytes last written to `path`, or put there with [`with_file`](ScriptedFiles::with_file).
+    pub fn file(&self, path: &Path) -> Option<Vec<u8>> {
+        self.state().files.get(path).cloned()
+    }
+
+    fn state(&self) -> std::sync::MutexGuard<'_, ScriptState> {
+        self.state.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// The suggested name of a Save in its suggested folder.
+    fn suggested(request: &PickRequest) -> Picked {
+        let name = PathBuf::from(request.file_name.clone().unwrap_or_default());
+        Picked::Paths(vec![request.directory.as_ref().map_or_else(|| name.clone(), |dir| dir.join(&name))])
+    }
+}
+
+impl Files for ScriptedFiles {
+    fn pick(&self, request: PickRequest) -> PickId {
+        let mut state = self.state();
+        state.next += 1;
+        let id = PickId(state.next);
+        let suggested = (state.save_suggested && request.kind == PickKind::Save).then(|| Self::suggested(&request));
+        state.asked.push(request.clone());
+        if state.held {
+            state.open.push((id, request));
+            return id;
+        }
+        let picked = suggested.or_else(|| state.queued.pop_front()).unwrap_or(Picked::Cancelled);
+        state.answered.push(PickAnswer { id, request, picked });
+        id
+    }
+
+    fn take_answer(&self, id: PickId) -> Option<Picked> {
+        let mut state = self.state();
+        let at = state.answered.iter().position(|a| a.id == id)?;
+        Some(state.answered.remove(at).picked)
+    }
+
+    fn forget(&self, id: PickId) {
+        let mut state = self.state();
+        state.answered.retain(|a| a.id != id);
+        state.open.retain(|(open, _)| *open != id);
+    }
+
+    fn pick_pending(&self) -> bool {
+        !self.state().open.is_empty()
+    }
+
+    fn read(&self, path: &Path) -> Result<Vec<u8>, FileError> {
+        self.file(path).ok_or_else(|| FileError::NotFound(path.to_owned()))
+    }
+
+    fn write(&self, path: &Path, bytes: &[u8]) -> Result<(), FileError> {
+        self.state().files.insert(path.to_owned(), bytes.to_vec());
+        Ok(())
+    }
+
+    fn last_folder(&self, _purpose: &str) -> Option<PathBuf> {
+        None
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn with_path(e: std::io::Error, path: &Path) -> FileError {
     match FileError::from(e) {
@@ -326,5 +485,47 @@ mod tests {
         assert!(Picked::Cancelled.paths().is_empty());
         assert_eq!(Picked::Unavailable("no portal".into()).first_path(), None);
         assert!(Picked::Unavailable("no portal".into()).paths().is_empty());
+    }
+
+    #[test]
+    fn scripted_files_answer_in_order_then_cancel_and_record_requests() {
+        let files = ScriptedFiles::answering([Picked::Paths(vec!["/a.png".into()])]);
+        let first = files.pick(PickRequest::open("document"));
+        let second = files.pick(PickRequest::save("export").directory("/out"));
+        assert_eq!(files.take_answer(second), Some(Picked::Cancelled));
+        assert_eq!(files.take_answer(first), Some(Picked::Paths(vec!["/a.png".into()])));
+        let asked = files.requests();
+        assert_eq!(asked.iter().map(|r| r.purpose.as_str()).collect::<Vec<_>>(), ["document", "export"]);
+        assert_eq!(asked[1].directory, Some(PathBuf::from("/out")));
+        files.queue(Picked::Unavailable("no portal".into()));
+        let third = files.pick(PickRequest::folder("swatches"));
+        assert_eq!(files.take_answer(third), Some(Picked::Unavailable("no portal".into())));
+    }
+
+    #[test]
+    fn scripted_files_hold_picks_until_answered_and_keep_files_in_memory() {
+        let files = ScriptedFiles::held().with_file("/in.txt", b"in".to_vec());
+        let first = files.pick(PickRequest::open("a"));
+        let second = files.pick(PickRequest::open("b"));
+        assert!(files.pick_pending());
+        assert_eq!(files.take_answer(first), None);
+        assert!(files.answer_to(first, Picked::Cancelled));
+        assert_eq!(files.answer(Picked::Paths(vec!["/x".into()])), Some(second));
+        assert_eq!((files.take_answer(first), files.take_answer(second)), (Some(Picked::Cancelled), Some(Picked::Paths(vec!["/x".into()]))));
+        assert!(!files.pick_pending());
+
+        assert_eq!(files.read(Path::new("/in.txt")), Ok(b"in".to_vec()));
+        assert_eq!(files.read(Path::new("/none")), Err(FileError::NotFound("/none".into())));
+        files.write(Path::new("/out.txt"), b"out").expect("memory write");
+        assert_eq!(files.file(Path::new("/out.txt")), Some(b"out".to_vec()));
+    }
+
+    #[test]
+    fn scripted_files_can_answer_saves_with_the_suggested_name() {
+        let files = ScriptedFiles::new().saving_suggested();
+        let save = files.pick(PickRequest::save("export").directory("/out").file_name("shot.png"));
+        let open = files.pick(PickRequest::open("document"));
+        assert_eq!(files.take_answer(save), Some(Picked::Paths(vec!["/out/shot.png".into()])));
+        assert_eq!(files.take_answer(open), Some(Picked::Cancelled));
     }
 }

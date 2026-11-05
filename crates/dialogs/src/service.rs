@@ -266,6 +266,12 @@ impl FilePanels {
         self.replace_words = words;
     }
 
+    /// [`extension_policy`](FilePanels::extension_policy) on panels the app already keeps, for a
+    /// preference that changes while the app runs.
+    pub fn set_extension_policy(&mut self, policy: ExtensionPolicy) {
+        self.extension_policy = policy;
+    }
+
     /// Shows the next queued panel and collects answers. Called once per frame on the main thread
     /// with the app window (`Some(frame)` in eframe) as the parent; `None` shows free-standing
     /// panels. Save answers go through the extension policy, then the replace guard (which may
@@ -704,6 +710,20 @@ mod service_tests {
         assert!(service.take_answer(late).is_none());
         service.forget(orphan);
         assert!(service.take_answer(orphan).is_none());
+    }
+
+    // The policy set on panels the app keeps applies to the next answer.
+    #[test]
+    fn the_extension_policy_can_change_while_the_app_runs() {
+        let dir = scratch("policy");
+        let (service, mut panels, _) = service_with(vec![Answer::Paths(vec![dir.join("Photo")]), Answer::Paths(vec![dir.join("Photo")])]);
+        let first = service.pick(PickRequest::save("export").suggested_extension("png"));
+        panels.pump(NONE);
+        assert_eq!(answered(&service, first), Picked::Paths(vec![dir.join("Photo.png")]));
+        panels.set_extension_policy(ExtensionPolicy::AS_TYPED);
+        let second = service.pick(PickRequest::save("export").suggested_extension("png"));
+        panels.pump(NONE);
+        assert_eq!(answered(&service, second), Picked::Paths(vec![dir.join("Photo")]));
     }
 
     // Lowercase Extension off still adds the suggested extension (PhotoCraft `saved_path`).
