@@ -149,7 +149,7 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
     assert_eq!(s.width, BySize { sm: 6.0 * control.sm, md: 6.0 * control.md });
     assert_eq!((s.track_height, s.gradient_height, s.track_radius, s.radius), (3.0, 5.0, 2.0, Radius::Full.px()));
     assert_eq!(s.track, t.color(T::LineControlEdge));
-    assert_eq!(s.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentSolid), t.color(T::AccentSolid), t.color(T::TextDisabled)));
+    assert_eq!(s.fill, States::new(t.color(T::TextMuted), t.color(T::TextMuted), t.color(T::TextMuted), t.color(T::TextDisabled)));
     assert_eq!(s.thumb_colors, knob(&t));
     let (clear, soft) = (Rgba::TRANSPARENT, t.color(T::AccentSoft));
     assert_eq!((s.ring, s.ring_width), (States::new(clear, soft, soft, clear), 2.0));

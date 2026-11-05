@@ -1,5 +1,5 @@
 //! Sliders: a flat track in the control edge colour, the part from the start to the value filled
-//! in the accent colour, and a knob on the value. The thumb takes its edge from the `Surface`
+//! in the muted text colour, and a knob on the value. The thumb takes its edge from the `Surface`
 //! primitive (an outline, or a bevel in Classic) and its shadow from `elevation.knob`; this
 //! family holds the sizes, corners and colours.
 
@@ -48,8 +48,8 @@ pub struct SliderTokens {
     pub radius: f32,
     /// The track's fill: `line.control_edge`.
     pub track: Rgba,
-    /// The filled part, from the start to the value: an accent state indicator (`accent.solid` in
-    /// every state; `text.disabled` when disabled).
+    /// The filled part, from the start to the value: a state indicator (`text.muted` in every
+    /// enabled state; `text.disabled` when disabled).
     pub fill: States<Rgba>,
     /// The thumb: a knob, a `surface.knob` face with a `line.knob_edge` outline in every
     /// enabled state; disabled, a face halfway to `surface.panel` with a `line.divider` outline.
@@ -183,7 +183,7 @@ impl Family for SliderTokens {
             track_radius: values::SLIDER_TRACK_RADIUS.min(s.shape.radius.pill),
             radius: s.shape.radius.pill,
             track: c.line.control_edge,
-            fill: States::new(c.accent.solid, c.accent.solid, c.accent.solid, c.text.disabled),
+            fill: States::new(c.text.muted, c.text.muted, c.text.muted, c.text.disabled),
             thumb_colors: ThumbColors::knob(c),
             ring: States::new(clear, soft, soft, clear),
             ring_width: values::KNOB_RING,
