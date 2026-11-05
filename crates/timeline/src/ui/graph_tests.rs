@@ -68,23 +68,20 @@ struct Graph {
     actions: Vec<GraphAction>,
 }
 
-const AREA: Rect = Rect { min: pos2(0.0, 0.0), max: pos2(480.0, 320.0) };
+const AREA: Rect = Rect { min: pos2(0.0, 0.0), max: pos2(560.0, 320.0) };
 
 fn show_graph(ui: &mut Ui, app: &mut Graph) {
     let view = TimeView::new(Tick::ZERO, 100.0);
-    let out = GraphEditor::new("graph", &app.curves, &app.selection, &view, &mut app.range).show(ui, AREA);
-    if let Some(change) = out.selection {
-        app.selection = change.selection;
-    }
+    let out = GraphEditor::new("graph", &app.curves, &mut app.selection, &view, &mut app.range).show(ui, AREA);
     app.moved.extend(out.keys_moved);
     app.handles.extend(out.handle_moved);
-    app.actions.extend(out.action);
+    app.actions.extend(out.actions);
 }
 
 fn graph(curves: Vec<GraphCurve>, selection: Selection<KeyframeId>) -> Harness<'static, Graph> {
     let range = GraphRange { low: 0.0, high: 100.0, auto_zoom: false, ..GraphRange::default() };
     let mut harness = Harness::<Graph>::builder()
-        .with_size([480.0, 320.0])
+        .with_size([560.0, 320.0])
         .with_context_setup(|ctx| {
             install(ctx, &Base::suite_default());
             symbols::install(ctx);
@@ -164,9 +161,91 @@ fn bottom_bar_buttons_report_actions() {
     assert_eq!(harness.state().range.mode, GraphMode::Speed);
 
     harness.state_mut().actions.clear();
-    harness.get_by_role_and_label(Role::Group, &labels.speed_graph).focus();
+    harness.get_by_role_and_label(Role::Group, &labels.title).focus();
     harness.run();
     harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::F9));
     harness.press(KeyboardShortcut::new(Modifiers::SHIFT, Key::F9));
     assert_eq!(harness.state().actions, [GraphAction::EasyEase, GraphAction::EasyEaseIn]);
+}
+
+// Ctrl/Cmd+wheel reaches the editor as egui's zoom delta: the range scales about its middle, a
+// plain wheel leaves it, and auto-zoom ends.
+#[test]
+fn ctrl_wheel_zooms_the_value_range_about_its_middle() {
+    let wheel = |modifiers| egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: egui::vec2(0.0, 100.0),
+        phase: egui::TouchPhase::Move,
+        modifiers,
+        source: egui::MouseWheelSource::Unknown,
+    };
+    let mut harness = graph(vec![curve(vec![key(1, 2.0, 50.0)])], Selection::new());
+    harness.state_mut().range = GraphRange { auto_zoom: true, ..GraphRange::default() };
+    harness.hover_at(point(1.0, 50.0));
+    harness.event(wheel(Modifiers::NONE));
+    harness.run();
+    let before = harness.state().range;
+    assert!(before.auto_zoom, "a plain wheel leaves the range: {before:?}");
+
+    harness.event(wheel(Modifiers::COMMAND));
+    harness.run();
+    let range = harness.state().range;
+    assert!(!range.auto_zoom, "zooming ends auto-zoom");
+    assert!(((range.low + range.high) / 2.0 - (before.low + before.high) / 2.0).abs() < 1e-9, "the middle stays: {range:?}");
+    assert!(range.high - range.low < before.high - before.low, "wheel up zooms in: {range:?}");
+}
+
+// Backspace deletes as Delete does; an extra Shift or Alt makes another chord, which neither
+// deletes nor nudges.
+#[test]
+fn delete_and_backspace_report_delete_and_chords_are_exact() {
+    let mut harness = graph(vec![curve(vec![key(1, 2.0, 50.0)])], selected(&[1]));
+    let title = GraphEditorLabels::default().title;
+    harness.get_by_role_and_label(Role::Group, &title).focus();
+    harness.run();
+    for shortcut in [
+        KeyboardShortcut::new(Modifiers::SHIFT, Key::Delete),
+        KeyboardShortcut::new(Modifiers::SHIFT, Key::ArrowRight),
+        KeyboardShortcut::new(Modifiers::ALT, Key::ArrowUp),
+    ] {
+        harness.press(shortcut);
+    }
+    assert!(harness.state().actions.is_empty() && harness.state().moved.is_empty(), "{:?}", harness.state().actions);
+    harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Backspace));
+    harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Delete));
+    assert_eq!(harness.state().actions, [GraphAction::Delete, GraphAction::Delete]);
+}
+
+/// How many Tab presses bring the focus from the plot back to it.
+fn tab_stops(harness: &mut Harness<'static, Graph>) -> usize {
+    let title = GraphEditorLabels::default().title;
+    harness.get_by_role_and_label(Role::Group, &title).focus();
+    harness.run();
+    for presses in 1..=60 {
+        harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Tab));
+        if harness.get_by_role_and_label(Role::Group, &title).is_focused() {
+            return presses;
+        }
+    }
+    panic!("the focus never came back to the plot");
+}
+
+// The plot is the graph's one Tab stop: keys and handles add none.
+#[test]
+fn keys_and_handles_are_not_tab_stops() {
+    let mut with_handle = key(1, 2.0, 50.0);
+    with_handle.out_handle = Some((secs(3.0), 50.0));
+    let mut bare = graph(Vec::new(), Selection::new());
+    let mut busy = graph(vec![curve(vec![with_handle, key(2, 1.0, 20.0), key(3, 4.0, 80.0)])], selected(&[1]));
+    assert_eq!(tab_stops(&mut busy), tab_stops(&mut bare));
+}
+
+// The bar's reference toggle flips `GraphRange::reference`.
+#[test]
+fn the_reference_button_toggles_the_reference_graph() {
+    let mut harness = graph(vec![curve(vec![key(1, 2.0, 50.0)])], Selection::new());
+    let label = GraphEditorLabels::default().show_reference;
+    harness.get_by_label(&label).click();
+    harness.run();
+    assert!(harness.state().range.reference);
 }

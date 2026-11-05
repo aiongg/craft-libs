@@ -16,6 +16,11 @@ const TAIL_SECONDS: f64 = 10.0;
 const RUN_INSET: f32 = 0.5;
 const RUN_MIN_WIDTH: f32 = 1.0;
 
+/// The time the overview spans: the content's end plus the tail.
+fn overview_total(end: Tick) -> Tick {
+    end + Tick::from_seconds_f64(TAIL_SECONDS)
+}
+
 /// A run of touching clips of one colour on one track, in overview coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OverviewRun {
@@ -24,13 +29,16 @@ pub struct OverviewRun {
 }
 
 /// The overview's blocks for `tracks` (each a list of clip ranges and colours, in time order)
-/// over `total` time in `rect`: one row per track, each clip at least one point wide, and
+/// as [`TimelineOverview`] draws them in `outer`, the rect the widget is shown in: the
+/// widget's [`area`](TimelineOverview::area) over the content's `end` plus the tail the
+/// overview adds. One row per track, each clip at least one point wide, and
 /// neighbours of one colour that touch or overlap merged into one run, which covers exactly the
 /// same pixels in the same order (a drum edit holds tens of thousands of clips under a point
 /// wide). The app caches the result per document revision and rect.
 // soundcraft: crates/ui-egui/src/edit_window/universe.rs:15 `universe_runs`.
-pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], total: Tick, rect: Rect) -> Vec<OverviewRun> {
-    let total = total.0.max(1) as f32;
+pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], end: Tick, outer: Rect, style: &TimelineStyle) -> Vec<OverviewRun> {
+    let rect = TimelineOverview::area(outer, style);
+    let total = overview_total(end).0.max(1) as f32;
     let row = (rect.height() / tracks.len().max(1) as f32).max(1.0);
     let mut runs = Vec::new();
     for (index, clips) in tracks.iter().enumerate() {
@@ -62,7 +70,7 @@ pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], total: Tick, rect: Re
 /// Pro Tools' Universe (SoundCraft): the runs, the visible window as a box (1.5-point outline
 /// in the `timeline.overview_view` colour), the playhead while playing; a click or drag centres
 /// the window at the pointer, changing `view.start` directly. Total time is the content end
-/// plus 10 seconds. Not a Tab stop (the panel scrolls by keys); AccessKit: an `Image` named by
+/// plus 10 seconds. Not a Tab stop (a pointer-only `Sense::DRAG`; the panel scrolls by keys); AccessKit: an `Image` named by
 /// [`TimelineLabels::overview`](super::TimelineLabels::overview).
 pub struct TimelineOverview<'a> {
     id_salt: IdSalt,
@@ -90,6 +98,12 @@ impl<'a> TimelineOverview<'a> {
         self
     }
 
+    /// Where the runs and the view box draw inside `outer`, the rect the widget is shown in
+    /// (SoundCraft `universe.rs:61`). [`overview_runs`] places its runs there.
+    pub fn area(outer: Rect, style: &TimelineStyle) -> Rect {
+        outer.shrink2(vec2(style.overview_inset_x, style.overview_inset_y))
+    }
+
     // soundcraft: crates/ui-egui/src/edit_window/universe.rs:60 `universe`.
     pub fn show(self, ui: &mut Ui) -> Response {
         let Self { id_salt, runs, view, view_width, end, playhead, labels } = self;
@@ -98,13 +112,13 @@ impl<'a> TimelineOverview<'a> {
         let style = TimelineStyle::of(&tokens);
         let enabled = ui.is_enabled();
         let outer = ui.available_rect_before_wrap();
-        let area = outer.shrink2(vec2(style.overview_inset_x, style.overview_inset_y));
+        let area = Self::area(outer, &style);
         let id = ui.make_persistent_id(id_salt);
-        let response = ui.interact(area, id, Sense::drag());
+        let response = ui.interact(area, id, Sense::DRAG);
         ui.advance_cursor_after_rect(outer);
         response.widget_info(|| WidgetInfo::labeled(Role::Image, enabled, labels.overview.as_str()));
 
-        let total = (end + Tick::from_seconds_f64(TAIL_SECONDS)).0.max(1) as f64;
+        let total = overview_total(end).0.max(1) as f64;
         let to_fraction = |tick: Tick| (tick.0 as f64 / total) as f32;
         let shown_seconds = f64::from(view_width.max(style.overview_view_min)) / view.points_per_second.max(f64::EPSILON);
         let shown = to_fraction(Tick::from_seconds_f64(shown_seconds));
