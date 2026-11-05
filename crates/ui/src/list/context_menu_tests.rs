@@ -224,9 +224,10 @@ fn click(harness: &mut Harness<'_, Menus>, pos: Pos2) {
     harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
 }
 
+#[allow(clippy::expect_used)]
 fn menu_item(harness: &Harness<'_, Menus>, label: &str) -> Pos2 {
     let item = harness.query_by(|n| n.role() == Role::MenuItem && n.label().as_deref() == Some(label));
-    item.unwrap_or_else(|| panic!("the menu shows {label}")).rect().center()
+    item.expect("the menu shows the entry").rect().center()
 }
 
 // A Rename pick starts the rename field in the pass of the click: the pass that ran the command

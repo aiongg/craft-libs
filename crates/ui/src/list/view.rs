@@ -148,7 +148,8 @@ enum Heights<'a> {
 }
 
 type KeyTest<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
-type RowMenuEntries<'a, K> = Box<dyn Fn(&K) -> Vec<MenuEntry<RowCommand>> + 'a>;
+type RowMenuFn<'a, K> = dyn Fn(&K) -> Vec<MenuEntry<RowCommand>> + 'a;
+type RowMenuEntries<'a, K> = Box<RowMenuFn<'a, K>>;
 
 /// A list of rows: a scroll area that lays out only the rows in view, one focus stop, the
 /// selection rules of [`ListSelection`], rename in place, and a hook for the host's context menu.
@@ -687,7 +688,7 @@ struct Pass<'p, K, O: ?Sized, F> {
     build: F,
     can_rename: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
     can_drag: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
-    row_menu: Option<&'p (dyn Fn(&K) -> Vec<MenuEntry<RowCommand>> + 'p)>,
+    row_menu: Option<&'p RowMenuFn<'p, K>>,
     /// The rows drawn this frame.
     row_rects: Vec<(K, Rect)>,
     /// The spacers drawn this frame: a press on one is not a press on the empty space.

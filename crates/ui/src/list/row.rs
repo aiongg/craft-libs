@@ -1185,19 +1185,9 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             }
         }
 
-        let mut renaming = renaming;
         let has_menu = menu.is_some();
-        if let (Some(menu), Some(Some((start, width)))) = (menu, geometry.items.first()) {
-            let at = geometry.span(rect, *start, *width).round_to_pixels(ui.pixels_per_point());
-            match show_menu(ui, &style, at, (&menu, &label), (row_id, hovered, selected)) {
-                Some(RowCommand::Rename) if menu.can_rename => {
-                    renaming = true;
-                    events.push(RowEvent::RenameStarted { row: key.clone() });
-                }
-                Some(command) => events.push(RowEvent::Menu { row: key.clone(), command }),
-                None => {}
-            }
-        }
+        let renaming = renaming
+            | menu.is_some_and(|menu| run_menu(ui, &style, (&geometry, rect), (&menu, &label, &key), (row_id, hovered, selected), &mut events));
         let band = geometry.label_band(rect);
         let (text, detail_text) = label_colors(&style, (selected, dimmed, muted), layer);
         let label_role = if strong { style.label_strong_role } else { style.label_role };
@@ -1526,6 +1516,31 @@ fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbn
     }
     let color = if selected { style.thumb_border_selected } else { style.thumb_border };
     ui.painter().rect_stroke(at, corner_radius(style.thumb_radius), Stroke::new(1.0, color), StrokeKind::Outside);
+}
+
+/// Shows the row's menu at its trailing edge and reports what it chose; true when the pick opened
+/// the row's rename field.
+fn run_menu<K: Clone>(
+    ui: &mut Ui,
+    style: &ListRowStyle,
+    (geometry, rect): (&Geometry, Rect),
+    (menu, label, key): (&RowMenu, &str, &K),
+    state: (Id, bool, bool),
+    events: &mut Vec<RowEvent<K>>,
+) -> bool {
+    let Some(Some((start, width))) = geometry.items.first() else { return false };
+    let at = geometry.span(rect, *start, *width).round_to_pixels(ui.pixels_per_point());
+    match show_menu(ui, style, at, (menu, label), state) {
+        Some(RowCommand::Rename) if menu.can_rename => {
+            events.push(RowEvent::RenameStarted { row: key.clone() });
+            true
+        }
+        Some(command) => {
+            events.push(RowEvent::Menu { row: key.clone(), command });
+            false
+        }
+        None => false,
+    }
 }
 
 /// The "\u{2026}" button in `at` and its menu; the command chosen this pass. The button shows on a
