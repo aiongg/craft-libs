@@ -179,6 +179,19 @@ impl StackDialog for PropertiesDialog {
             _ => None,
         }
     }
+
+    fn confirm(&mut self, ctx: &Context) -> Option<DialogFields> {
+        if !self.state.is_open() {
+            let params: Vec<Param> = self
+                .tabs
+                .iter()
+                .flat_map(|tab| &tab.rows)
+                .filter_map(|row| if let PropertyRow::Field(param) = row { Some(param.clone()) } else { None })
+                .collect();
+            open_fields(ctx, self.id, &params, &mut self.fields);
+        }
+        Some(if self.read_only { DialogFields::new() } else { self.fields.clone() })
+    }
 }
 
 fn show_row(form: &mut Form<'_>, row: &PropertyRow, fields: &mut DialogFields, read_only: bool, numbers: &LocaleNumbers, gap: f32) {

@@ -35,6 +35,14 @@ crate::words! {
         eyedropper: "dialog.eyedropper" = "Eyedropper";
         /// The check box that switches an optional number on.
         custom: "dialog.custom" = "Custom";
+        /// The accessible name of the unit menu after a number row that has units.
+        unit: "dialog.unit" = "Unit";
+        /// The accessible name of the zoom button of a preview pane that makes the image larger.
+        zoom_in: "dialog.zoomIn" = "Zoom in";
+        /// The accessible name of the zoom button of a preview pane that makes the image smaller.
+        zoom_out: "dialog.zoomOut" = "Zoom out";
+        /// The accessible name of the zoom percentage of a preview pane.
+        zoom: "dialog.zoom" = "Zoom";
     }
 }
 

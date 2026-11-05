@@ -143,6 +143,8 @@ pub struct StandardPrompt {
     kind: PromptKind,
     skip_key: Option<String>,
     skip: bool,
+    /// What a programmatic OK ([`StandardPrompt::set_choice`]) answers.
+    chosen: PromptChoice,
     tag: Option<Box<dyn Any + Send>>,
     noun: Option<(String, String)>,
 }
@@ -150,7 +152,26 @@ pub struct StandardPrompt {
 impl StandardPrompt {
     /// A prompt asking `kind`, with no tag and no "Don't show again" box.
     pub fn new(kind: PromptKind) -> Self {
-        Self { id: dialog_id(("standard-prompt", std::mem::discriminant(&kind))), kind, skip_key: None, skip: false, tag: None, noun: None }
+        Self {
+            id: dialog_id(("standard-prompt", std::mem::discriminant(&kind))),
+            kind,
+            skip_key: None,
+            skip: false,
+            chosen: PromptChoice::Proceed,
+            tag: None,
+            noun: None,
+        }
+    }
+
+    /// The answer a host-side [`confirm`](DialogHost::confirm) gives, as pressing that button
+    /// would; Proceed (the default button) until set.
+    pub fn set_choice(&mut self, choice: PromptChoice) {
+        self.chosen = choice;
+    }
+
+    /// Sets the "Don't show again" box; it is stored with a Proceed answer, as a click would.
+    pub fn set_skip(&mut self, skip: bool) {
+        self.skip = skip;
     }
 
     // pc: crates/ui-egui/src/dialogs/delete_layer_prompt.rs:9 `intercept` (message, names, skip).
@@ -292,6 +313,23 @@ impl StackDialog for StandardPrompt {
             });
         }
         let role = prompt.show(ctx)?;
+        Some(DialogResult::Ok(self.answer(ctx, role)))
+    }
+
+    /// The answer set with [`StandardPrompt::set_choice`]: the default button's, Proceed, unless set.
+    fn confirm(&mut self, ctx: &Context) -> Option<PromptAnswer> {
+        let role = match self.chosen {
+            PromptChoice::Proceed => ButtonRole::Default,
+            PromptChoice::Alternate => ButtonRole::Alternate,
+            PromptChoice::Cancel => ButtonRole::Cancel,
+        };
+        Some(self.answer(ctx, role))
+    }
+}
+
+impl StandardPrompt {
+    /// The answer a press of the `role` button gives; Proceed stores the skip choice.
+    fn answer(&mut self, ctx: &Context, role: ButtonRole) -> PromptAnswer {
         let choice = match role {
             ButtonRole::Default => PromptChoice::Proceed,
             ButtonRole::Alternate => PromptChoice::Alternate,
@@ -300,7 +338,7 @@ impl StackDialog for StandardPrompt {
         if let (PromptChoice::Proceed, true, Some(key), Some(host)) = (choice, self.skip, &self.skip_key, craft_host::Host::try_of_ctx(ctx)) {
             Self::remembered(key).store(&host, &true);
         }
-        Some(DialogResult::Ok(PromptAnswer { choice, tag: self.tag.take() }))
+        PromptAnswer { choice, tag: self.tag.take() }
     }
 }
 

@@ -630,6 +630,15 @@ impl StackDialog for NewDocumentDialog {
             None => None,
         }
     }
+
+    /// Create with the dialog's values.
+    fn confirm(&mut self, ctx: &Context) -> Option<DocumentOptions> {
+        let labels = NewDocumentLabels::shared_ctx(ctx);
+        if !self.recalled {
+            self.recall(ctx, &labels);
+        }
+        Some(self.create(ctx, &labels))
+    }
 }
 
 impl NewDocumentDialog {

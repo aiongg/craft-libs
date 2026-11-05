@@ -140,4 +140,8 @@ impl StackDialog for ReportDialog {
         );
         matches!(shown.outcome, Some(Outcome::Ok | Outcome::Cancel | Outcome::Close)).then_some(DialogResult::Ok(()))
     }
+
+    fn confirm(&mut self, _ctx: &Context) -> Option<()> {
+        Some(())
+    }
 }

@@ -118,4 +118,9 @@ impl StackDialog for RecoveryDialog {
             _ => None,
         }
     }
+
+    /// Recover, the default button; `None` while recovery is blocked.
+    fn confirm(&mut self, _ctx: &Context) -> Option<RecoveryAnswer> {
+        self.document.blocked.is_none().then_some(RecoveryAnswer::Recover)
+    }
 }
