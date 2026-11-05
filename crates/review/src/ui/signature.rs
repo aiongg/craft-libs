@@ -47,6 +47,8 @@ craft_ui::words! {
         type_hint: "signature.typeHint" = "Type text";
         image_hint: "signature.imageHint" = "Choose a PNG or JPEG image (up to 4 MiB). Transparency is preserved.";
         browse: "signature.browse" = "Browse…";
+        browse_title: "signature.browseTitle" = "Choose an image";
+        image_filter: "signature.imageFilter" = "Image";
         undo: "signature.undo" = "Undo";
         clear: "signature.clear" = "Clear";
         apply: "signature.apply" = "Apply";
@@ -352,7 +354,7 @@ impl StackDialog for SignaturePadDialog {
             ready.set(draft.ready());
         });
         if browse {
-            self.browse(ctx);
+            self.browse(ctx, &labels);
         }
         match shown.outcome {
             Some(Outcome::Ok) => match self.draft.saved() {
@@ -381,10 +383,10 @@ impl StackDialog for SignaturePadDialog {
 
 impl SignaturePadDialog {
     /// Asks the host's file service for a PNG or JPEG.
-    fn browse(&mut self, ctx: &Context) {
+    fn browse(&mut self, ctx: &Context, labels: &SignatureLabels) {
         let Some(host) = Host::try_of_ctx(ctx) else { return };
         self.forget_pick(ctx);
-        let request = PickRequest::open("signature-image").filter("Image", &["png", "jpg", "jpeg"]);
+        let request = PickRequest::open("signature-image").title(&labels.browse_title).filter(&labels.image_filter, &["png", "jpg", "jpeg"]);
         self.pick = Some(host.files().pick(request));
     }
 
