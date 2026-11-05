@@ -20,7 +20,7 @@ use egui::{
 };
 
 use super::ReviewStyle;
-use super::annotate::AnnotateLabels;
+use super::annotate::{AnnotateLabels, PALETTE};
 use crate::annotate::AnnotationKind;
 use crate::collab::initials;
 use crate::comments::{CommentFilter, CommentSort, CommentThread, ReviewStatus, ThreadId, matches, sort_threads};
@@ -73,6 +73,17 @@ craft_ui::words! {
         /// The kind of a comment that hangs on no annotation: its heading and filter row.
         plain_kind: "comments.plainKind" = "Comment";
         no_color: "comments.noColor" = "No color";
+        /// The names of the toolbar's palette colours, in `annotate::PALETTE` order.
+        color_yellow: "comments.colorYellow" = "Yellow";
+        color_orange: "comments.colorOrange" = "Orange";
+        color_red: "comments.colorRed" = "Red";
+        color_pink: "comments.colorPink" = "Pink";
+        color_purple: "comments.colorPurple" = "Purple";
+        color_blue: "comments.colorBlue" = "Blue";
+        color_light_blue: "comments.colorLightBlue" = "Light blue";
+        color_green: "comments.colorGreen" = "Green";
+        color_grey: "comments.colorGrey" = "Grey";
+        color_black: "comments.colorBlack" = "Black";
         no_match: "comments.noMatch" = "No comments match.";
         filter: "comments.filter" = "Filter comments";
         filter_type: "comments.filterType" = "Type";
@@ -519,7 +530,7 @@ fn filter_menu(ui: &mut Ui, cx: &Cx, threads: &[CommentThread], state: &mut Comm
     let by_color = colors
         .iter()
         .map(|&color| {
-            let name = color.map_or_else(|| labels.no_color.clone(), |[r, g, b]| format!("#{r:02X}{g:02X}{b:02X}"));
+            let name = color.map_or_else(|| labels.no_color.clone(), |color| color_name(labels, color));
             let row = check(name, FilterRow::Color(color), filter.hidden_colors.contains(&color));
             match color {
                 Some([r, g, b]) => row.tint(Color32::from_rgb(r, g, b)).into(),
@@ -588,13 +599,34 @@ fn add_box(ui: &mut Ui, cx: &Cx, state: &mut CommentsPanelState, edits: &mut Vec
     }
 }
 
+/// A label colour's name when it is one of the toolbar's palette colours, else its hex.
+fn color_name(labels: &CommentsLabels, color: [u8; 3]) -> String {
+    let names = [
+        &labels.color_yellow,
+        &labels.color_orange,
+        &labels.color_red,
+        &labels.color_pink,
+        &labels.color_purple,
+        &labels.color_blue,
+        &labels.color_light_blue,
+        &labels.color_green,
+        &labels.color_grey,
+        &labels.color_black,
+    ];
+    const _: () = assert!(PALETTE.len() == 10);
+    match PALETTE.iter().position(|swatch| *swatch == color).and_then(|at| names.get(at)) {
+        Some(name) => (*name).clone(),
+        None => format!("#{:02X}{:02X}{:02X}", color[0], color[1], color[2]),
+    }
+}
+
 /// The heading a thread falls under for `sort`; `None` for none.
 fn group_of(cx: &Cx, thread: &CommentThread, sort: CommentSort) -> Option<String> {
     match sort {
         CommentSort::Page => thread.anchor.page().map(|page| fmt(&cx.labels.page, &[("label", &(cx.page_label)(page))])),
         CommentSort::Author => Some(thread.messages.first().map_or_else(|| cx.labels.unknown_author.clone(), |m| m.author.clone())),
         CommentSort::Type => Some(cx.kind_name(thread.kind)),
-        CommentSort::Color => Some(thread.color.map_or_else(|| cx.labels.no_color.clone(), |[r, g, b]| format!("#{r:02X}{g:02X}{b:02X}"))),
+        CommentSort::Color => Some(thread.color.map_or_else(|| cx.labels.no_color.clone(), |color| color_name(cx.labels, color))),
         CommentSort::Date => None,
     }
 }

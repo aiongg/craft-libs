@@ -33,7 +33,7 @@ use super::annotate::{AnnotateTool, AnnotationOverlay, AnnotationToolbar};
 use super::comments::{CommentEdit, CommentsPanel, CommentsPanelState};
 use super::revisions::RevisionsPanel;
 use super::signature::{SignaturePadDialog, SignaturePadResult};
-use super::thread::{CommentPins, ThreadPopover};
+use super::thread::{CommentPin, CommentPins, ThreadPopover};
 use super::versions::{VersionAction, VersionHistoryPanel};
 use crate::annotate::{Annotation, AnnotationEdit, AnnotationId, AnnotationKind, AnnotationTool};
 use crate::comments::{CommentAnchor, CommentMessage, CommentThread, Reaction, ReviewStatus, ThreadId};
@@ -280,6 +280,8 @@ struct ThreadDemo {
     threads: Vec<CommentThread>,
     /// Pin points as fractions of the canvas.
     spots: Vec<Pos2>,
+    /// A person colour per pin (straight RGB).
+    colors: [[u8; 3]; 3],
     open: Option<ThreadId>,
     draft: String,
     last: Option<String>,
@@ -317,7 +319,14 @@ fn thread(ui: &mut Ui, _: &mut NoArgs) {
             make(4, &labels.bo, &labels.thread_other_four),
         ];
         let spots = vec![pos2(0.18, 0.3), pos2(0.55, 0.45), pos2(0.55, 0.45), pos2(0.82, 0.75)];
-        ThreadDemo { threads, spots, open: Some(ThreadId(1)), draft: labels.thread_reply.clone(), last: None }
+        ThreadDemo {
+            threads,
+            spots,
+            colors: [[0x0D, 0x99, 0xFF], [0xFF, 0x73, 0x37], [0x14, 0xAE, 0x5C]],
+            open: Some(ThreadId(1)),
+            draft: labels.thread_reply.clone(),
+            last: None,
+        }
     });
     let mut demo = lock(&demo);
     let demo = &mut *demo;
@@ -329,7 +338,20 @@ fn thread(ui: &mut Ui, _: &mut NoArgs) {
     let nudge = |i: usize| if i == 2 { vec2(style.cluster_radius * 0.25, 0.0) } else { Vec2::ZERO };
     let to_screen = |i: usize, spot: Pos2| pos2(canvas.min.x + canvas.width() * spot.x, canvas.min.y + canvas.height() * spot.y) + nudge(i);
     let points: Vec<Pos2> = demo.spots.iter().enumerate().map(|(i, spot)| to_screen(i, *spot)).collect();
-    let pins: Vec<(ThreadId, Pos2, &str)> = demo.threads.iter().zip(&points).map(|(t, p)| (t.id, *p, t.messages[0].author.as_str())).collect();
+    let pins: Vec<CommentPin> = demo
+        .threads
+        .iter()
+        .zip(&points)
+        .map(|(t, p)| CommentPin {
+            id: t.id,
+            point: *p,
+            author: t.messages[0].author.as_str(),
+            text: t.messages[0].text.as_str(),
+            color: demo.colors[usize::try_from(t.id.0).unwrap_or(0) % demo.colors.len()],
+            unread: t.id.0 == 2,
+            resolved: t.id.0 == 4,
+        })
+        .collect();
     let out = CommentPins::new("pins", &pins, &labels.me).open(demo.open).show(ui);
     if let Some(id) = out.opened {
         demo.open = Some(id);
