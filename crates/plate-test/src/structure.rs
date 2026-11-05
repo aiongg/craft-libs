@@ -36,13 +36,13 @@ pub struct Summary {
 pub struct Group {
     /// `page 1`, `form` or `soft mask`.
     pub at: String,
-    /// The group's `/S` entry (the group subtype).
+    /// The group's `/S` entry (the group subtype); empty when absent.
     pub s: String,
     /// The group's `/CS` colour space family, when it has one.
     pub cs: Option<String>,
-    /// The group's `/I` flag: isolated.
+    /// The group's `/I` flag: isolated; false when absent.
     pub i: bool,
-    /// The group's `/K` flag: knockout.
+    /// The group's `/K` flag: knockout; false when absent.
     pub k: bool,
 }
 
