@@ -1,11 +1,13 @@
 //! [`Alert`]: a notice with one button.
 
+use craft_theme::Tone;
 use egui::accesskit::Role;
 use egui::{Context, Event, Id, Key};
 
 use super::dialog::{Dialog, InitialFocus};
 use super::footer::Footer;
 use super::prompt::{load_state, store_state};
+use super::prompt_extras::Extras;
 use super::size::Width;
 use super::stack::{DialogStack, dialog_id};
 
@@ -30,17 +32,33 @@ pub struct Alert<'a> {
     message: String,
     ok_label: String,
     stack: Option<&'a DialogStack>,
+    extras: Extras,
 }
 
 impl<'a> Alert<'a> {
     /// An alert with a `title`, a `message` and one OK button. `id` keys the dialog's remembered state and focus, so keep it stable per alert kind.
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>, message: impl Into<String>) -> Self {
-        Self { id: dialog_id(id), title: title.into(), message: message.into(), ok_label: "OK".to_owned(), stack: None }
+        Self { id: dialog_id(id), title: title.into(), message: message.into(), ok_label: "OK".to_owned(), stack: None, extras: Extras::default() }
     }
 
     /// The translated label of the button; "OK" by default.
     pub fn ok_label(mut self, label: impl Into<String>) -> Self {
         self.ok_label = label.into();
+        self
+    }
+
+    /// A line under the message in the colour of `tone` (`Warn` or `Bad`, from the theme's
+    /// status tokens), with the tone's icon.
+    pub fn tone(mut self, tone: Tone, text: impl Into<String>) -> Self {
+        self.extras.tone = Some((tone, text.into()));
+        self
+    }
+
+    /// A collapsible section under the message, closed on open. `label` is the translated name
+    /// of its header ("Details"); Space and Enter toggle it, and AccessKit reports it as a
+    /// disclosure triangle with its `expanded` state.
+    pub fn details(mut self, label: impl Into<String>, text: impl Into<String>) -> Self {
+        self.extras.details = Some((label.into(), text.into()));
         self
     }
 
@@ -57,7 +75,7 @@ impl<'a> Alert<'a> {
 
     /// Shows the alert; true the pass it is closed.
     pub fn show(self, ctx: &Context) -> bool {
-        let Self { id, title, message, ok_label, stack } = self;
+        let Self { id, title, message, ok_label, stack, extras } = self;
         let key = id.with("alert");
         let (mut state, first) = load_state(ctx, key);
         let opening = first == ctx.cumulative_frame_nr();
@@ -77,6 +95,7 @@ impl<'a> Alert<'a> {
         }
         let shown = dialog.show(ctx, &mut state, &mut (), |ui, ()| {
             ui.label(message);
+            extras.show(ui, id);
         });
         store_state(ctx, key, state, first);
         shown.outcome.is_some_and(|outcome| outcome.closes())
