@@ -38,6 +38,7 @@ pub enum ErrorKind {
 }
 
 impl ErrorKind {
+    /// A short lowercase name for messages and logs.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Unsupported => "unsupported",
@@ -57,25 +58,32 @@ impl ErrorKind {
 /// The error type of the whole crate.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AiError {
+    /// What went wrong, for the app to act on.
     pub kind: ErrorKind,
+    /// Human-readable detail. Secrets are scrubbed when built with [`AiError::redacted`].
     pub message: String,
+    /// How long to wait before retrying, when the provider said so.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry_after_secs: Option<u64>,
 }
 
 impl AiError {
+    /// Builds an error of the given kind.
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
         Self { kind, message: message.into(), retry_after_secs: None }
     }
 
+    /// Builds an [`ErrorKind::Unsupported`] error.
     pub fn unsupported(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::Unsupported, message)
     }
 
+    /// Builds an [`ErrorKind::InvalidRequest`] error.
     pub fn invalid(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::InvalidRequest, message)
     }
 
+    /// Builds an [`ErrorKind::Cancelled`] error.
     pub fn cancelled() -> Self {
         Self::new(ErrorKind::Cancelled, "cancelled")
     }
@@ -85,6 +93,7 @@ impl AiError {
         Self::new(kind, redact(message, secrets))
     }
 
+    /// Sets the wait, in seconds, before a retry.
     pub fn with_retry_after(mut self, secs: u64) -> Self {
         self.retry_after_secs = Some(secs);
         self

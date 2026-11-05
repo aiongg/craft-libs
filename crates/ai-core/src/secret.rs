@@ -13,6 +13,7 @@ use std::fmt;
 pub struct SecretString(String);
 
 impl SecretString {
+    /// Wraps a secret value.
     pub fn new(value: impl Into<String>) -> Self {
         Self(value.into())
     }
@@ -22,6 +23,7 @@ impl SecretString {
         &self.0
     }
 
+    /// True when the secret has no characters.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }

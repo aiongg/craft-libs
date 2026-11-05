@@ -13,9 +13,18 @@ pub const MAX_ID_LEN: usize = 128;
 /// Why a string was refused as an identifier.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IdError {
+    /// The value is empty.
     Empty,
-    TooLong { len: usize, max: usize },
+    /// The value is longer than the limit.
+    TooLong {
+        /// Length of the value in bytes.
+        len: usize,
+        /// Longest allowed length in bytes.
+        max: usize,
+    },
+    /// The value contains a character outside the allowed set.
     BadChar(char),
+    /// The value is the wrong shape. The text says how.
     Malformed(&'static str),
 }
 
@@ -71,6 +80,7 @@ macro_rules! validated_string {
                 Ok(Self(value))
             }
 
+            /// The wrapped string.
             pub fn as_str(&self) -> &str {
                 &self.0
             }
@@ -118,12 +128,16 @@ macro_rules! open_enum {
         $(#[$m])*
         #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         pub enum $name {
-            $($var,)+
+            $(
+                #[allow(missing_docs)]
+                $var,
+            )+
             /// A well-formed value this library does not know by name.
             Other(String),
         }
 
         impl $name {
+            /// The well-known name, or the text of `Other`.
             pub fn as_str(&self) -> &str {
                 match self {
                     $(Self::$var => $text,)+

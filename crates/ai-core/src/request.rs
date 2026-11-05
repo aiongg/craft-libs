@@ -21,14 +21,18 @@ pub const MAX_PARAMS_BYTES: usize = 64 * 1024;
 /// One typed input.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Input {
+    /// What the input is for.
     pub role: InputRole,
+    /// The data.
     pub payload: Payload,
 }
 
 /// A unit of work for a model.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Request {
+    /// What the model is asked to do.
     pub capability: CapabilityId,
+    /// The typed inputs, in the order given.
     #[serde(default)]
     pub inputs: Vec<Input>,
     /// Provider-neutral options such as `seed` or `size`. Capped by [`MAX_PARAMS_BYTES`].
@@ -47,25 +51,30 @@ fn one() -> u32 {
 }
 
 impl Request {
+    /// A request for `capability` with no inputs or params, one output, and no streaming.
     pub fn new(capability: CapabilityId) -> Self {
         Self { capability, inputs: Vec::new(), params: Map::new(), outputs: 1, stream: false }
     }
 
+    /// Adds an input.
     pub fn with_input(mut self, role: InputRole, payload: Payload) -> Self {
         self.inputs.push(Input { role, payload });
         self
     }
 
+    /// Sets a param, replacing any earlier value under `key`.
     pub fn with_param(mut self, key: &str, value: Value) -> Self {
         self.params.insert(key.to_owned(), value);
         self
     }
 
+    /// Sets how many results to return.
     pub fn with_outputs(mut self, n: u32) -> Self {
         self.outputs = n;
         self
     }
 
+    /// Asks for incremental results.
     pub fn streaming(mut self) -> Self {
         self.stream = true;
         self

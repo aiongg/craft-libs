@@ -24,27 +24,35 @@ use crate::request::Request;
 /// One thing a request sends.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DisclosureItem {
+    /// The role the input plays in the request.
     pub role: InputRole,
+    /// The kind of data sent.
     pub kind: PayloadKind,
+    /// Size in bytes when known.
     pub bytes: Option<u64>,
 }
 
 /// What a request will send to a connection.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Disclosure {
+    /// The app that sends the request.
     pub app: AppId,
+    /// The connection the request goes to.
     pub connection: ConnectionId,
     /// What the request asks the connection to do. Consent is given per capability.
     pub capability: CapabilityId,
+    /// Whether the connection is local or remote.
     pub locality: Locality,
     /// `scheme://host[:port]`, or the route name when there is no endpoint.
     pub destination: String,
+    /// The inputs the request sends.
     pub items: Vec<DisclosureItem>,
     /// Parameter names only, never values.
     pub param_names: Vec<String>,
 }
 
 impl Disclosure {
+    /// Builds the disclosure for sending `request` from `app` through `connection`.
     pub fn for_request(app: &AppId, connection: &Connection, request: &Request) -> Self {
         let destination = connection
             .endpoint
@@ -85,7 +93,9 @@ impl Disclosure {
 /// another's.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConsentRecord {
+    /// The app that agreed.
     pub app: AppId,
+    /// The connection agreed to.
     pub connection: ConnectionId,
     /// The destination agreed to. A different destination needs fresh consent.
     pub destination: String,
@@ -93,6 +103,7 @@ pub struct ConsentRecord {
     /// none and covers nothing, so the person is asked once more.
     #[serde(default)]
     pub capability: Option<CapabilityId>,
+    /// The kinds of data the agreement covers.
     pub kinds: Vec<PayloadKind>,
     /// Unix seconds. The agreement holds while the clock is before this; `None` holds until
     /// revoked.
@@ -111,6 +122,7 @@ impl ConsentRecord {
 /// An app's saved agreements.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConsentLedger {
+    /// The saved agreements.
     #[serde(default)]
     pub records: Vec<ConsentRecord>,
 }
@@ -165,6 +177,7 @@ impl ConsentLedger {
         }
     }
 
+    /// Removes every agreement the app has for the connection, whatever the destination or capability.
     pub fn revoke(&mut self, app: &AppId, connection: &ConnectionId) {
         self.records.retain(|r| !(&r.app == app && &r.connection == connection));
     }
