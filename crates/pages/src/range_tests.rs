@@ -26,6 +26,15 @@ fn range_text_formats_runs() {
 #[test]
 fn from_to_ranges_take_subsets() {
     assert_eq!(PageRange::default().pages(5), [0, 1, 2, 3, 4]);
-    let range = PageRange { all: false, from: 2, to: 9, subset: Subset::Even };
+    let range = PageRange { all: false, from: 2, to: Some(9), subset: Subset::Even };
     assert_eq!(range.pages(5), [1, 3]);
+}
+
+// A range with no end runs to the last page of any document.
+#[test]
+fn a_range_without_an_end_runs_to_the_last_page() {
+    let range = PageRange { all: false, from: 2, ..PageRange::default() };
+    assert_eq!(range.to, None);
+    assert_eq!(range.pages(4), [1, 2, 3]);
+    assert_eq!(range.pages(6), [1, 2, 3, 4, 5]);
 }

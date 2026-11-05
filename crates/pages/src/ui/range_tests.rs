@@ -84,6 +84,25 @@ fn menu_pick_returns_like_typed_pages() {
     assert_eq!(text(&harness).as_deref(), Some("1, 3, 5"));
 }
 
+// A state built with text that doesn't parse shows that text and the error under it on the first pass.
+#[test]
+fn a_typed_state_shows_the_error_at_once() {
+    let mut harness = field(vec![0]);
+    harness.state_mut().state = PageRangeFieldState::typed(&[0], "1-x", 6);
+    harness.run();
+    assert_eq!(text(&harness).as_deref(), Some("1-x"));
+    assert!(harness.query_by_label_contains("\"x\" is not a page number").is_some());
+    assert_eq!(harness.state().selected, vec![0]);
+}
+
+// Page numbers in the out-of-range message and the placeholder use the locale's digits.
+#[test]
+fn error_numbers_use_the_locale() {
+    let numbers = craft_ui::localized::LocaleNumbers::from_tag("ar-EG");
+    let message = PageRangeLabels::default().error(&crate::range::PageRangeError::OutOfRange { page: 12, count: 9 }, &numbers);
+    assert!(!message.contains("12") && !message.contains('9'), "{message}");
+}
+
 struct RowApp {
     range: PageRange,
 }

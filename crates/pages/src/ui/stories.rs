@@ -191,6 +191,10 @@ impl PageTextSource for MockText {
         (0..self.glyph_count()).find(|glyph| Self::box_of(*glyph).contains(p))
     }
 
+    fn glyph_box_at(&self, p: Point) -> Option<usize> {
+        self.glyph_at(p)
+    }
+
     fn line_rects(&self, glyphs: Range<usize>) -> Vec<Rect> {
         (0..LINES)
             .filter_map(|line| {
@@ -400,7 +404,7 @@ fn page_range(ui: &mut Ui, _: &mut NoArgs) {
     let demo = shared(ui, "page-range", || RangeDemo {
         field: PageRangeFieldState::default(),
         selected: vec![0, 1, 2, 4],
-        range: PageRange { all: false, from: 3, to: 9, subset: Subset::Odd },
+        range: PageRange { all: false, from: 3, to: Some(9), subset: Subset::Odd },
         last: None,
     });
     let mut demo = lock(&demo);

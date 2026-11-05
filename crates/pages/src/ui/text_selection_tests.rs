@@ -3,8 +3,9 @@
 use std::ops::Range;
 
 use craft_ui::canvas::{CanvasId, CanvasView, ToolHost};
+use craft_ui::direction::Direction;
 use craft_ui::theme::{Base, install};
-use egui::{Event, Key, Modifiers, PointerButton, Pos2, Sense, pos2, vec2};
+use egui::{CursorIcon, Event, Key, Modifiers, PointerButton, Pos2, Sense, pos2, vec2};
 use egui_kittest::{Harness, HarnessBuilder};
 use kurbo::{Point, Rect};
 
@@ -51,7 +52,12 @@ impl PageTextSource for Mock {
         21
     }
 
+    /// Nearest within 4 points, as a text layer takes a press between glyphs.
     fn glyph_at(&self, p: Point) -> Option<usize> {
+        (0..21).find(|glyph| Self::box_of(*glyph).inflate(4.0, 4.0).contains(p))
+    }
+
+    fn glyph_box_at(&self, p: Point) -> Option<usize> {
         (0..21).find(|glyph| Self::box_of(*glyph).contains(p))
     }
 
@@ -108,6 +114,10 @@ struct Rig {
 }
 
 fn rig() -> Harness<'static, Rig> {
+    rig_in(Direction::Ltr)
+}
+
+fn rig_in(direction: Direction) -> Harness<'static, Rig> {
     let rect = egui::Rect::from_min_size(pos2(0.0, 0.0), vec2(200.0, 100.0));
     let rig = Rig {
         view: CanvasView::new(rect, Point::new(100.0, 50.0), 1.0),
@@ -118,7 +128,10 @@ fn rig() -> Harness<'static, Rig> {
     HarnessBuilder::default()
         .with_step_dt(0.05)
         .with_size(vec2(200.0, 100.0))
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .with_context_setup(move |ctx| {
+            install(ctx, &Base::suite_default());
+            craft_ui::direction::apply(ctx, direction);
+        })
         .build_ui_state(
             |ui, rig: &mut Rig| {
                 let canvas_id = CanvasId::new(ui, "canvas");
@@ -225,4 +238,27 @@ fn multi_clicks_select_word_line_and_page() {
     // A press off any glyph clears the selection.
     press(&mut h, pos2(150.0, 90.0), Modifiers::NONE);
     assert_eq!(selection(&h), None);
+}
+
+// The I-beam shows only inside a glyph's box: a point a press would snap to (between lines) keeps the arrow.
+#[test]
+fn the_i_beam_needs_a_point_inside_a_glyph_box() {
+    let mut h = rig();
+    move_to(&mut h, Mock::center(4));
+    assert_eq!(h.output().platform_output.cursor_icon, CursorIcon::Text);
+    move_to(&mut h, pos2(45.0, 14.0));
+    assert_eq!(h.output().platform_output.cursor_icon, CursorIcon::Default);
+}
+
+// Shift-arrows extend toward the arrow's side: right to left, Shift-Left reaches the next glyph.
+#[test]
+fn shift_arrows_mirror_right_to_left() {
+    for (direction, key, head) in [(Direction::Ltr, Key::ArrowRight, 5), (Direction::Ltr, Key::ArrowLeft, 3), (Direction::Rtl, Key::ArrowLeft, 5), (Direction::Rtl, Key::ArrowRight, 3)] {
+        let mut h = rig_in(direction);
+        press(&mut h, Mock::center(4), Modifiers::NONE);
+        release(&mut h, Mock::center(4), Modifiers::NONE);
+        h.key_press_modifiers(Modifiers::SHIFT, key);
+        h.run();
+        assert_eq!(selection(&h), run(4, head), "{direction:?} {key:?}");
+    }
 }
