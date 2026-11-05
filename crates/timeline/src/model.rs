@@ -15,13 +15,14 @@ pub struct TrackId(pub u64);
 pub struct ClipId(pub u64);
 
 /// What a track holds; the panel groups video tracks above the divider (stacked upward from it,
-/// as Premiere does) and audio below.
+/// as Premiere does), audio below, and caption tracks in their own area above the video tracks
+/// (FilmCraft `timeline.rs:293-295`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TrackKind {
     #[default]
     Video,
     Audio,
-    /// Captions, above the video tracks.
+    /// Captions, in their own area above the video tracks.
     Caption,
     /// An app row with its own content: an After Effects layer, a property row, an automation
     /// lane. Shown in the order the model gives.
@@ -36,9 +37,11 @@ pub struct TrackInfo<'a> {
     pub kind: TrackKind,
     /// "V1", "A2", a layer name.
     pub name: &'a str,
-    /// Points; the user resizes it at the row's bottom edge (8–600, FilmCraft's clamps).
-    pub height: f32,
-    /// Nesting under the track before it (EffectCraft property rows, SoundCraft folders).
+    /// Points, clamped to `style.track_height_min`…`style.track_height_max`; the user resizes it
+    /// at the row's edge. `None` is the style's default for the kind.
+    pub height: Option<f32>,
+    /// Nesting under the track before it (EffectCraft property rows, SoundCraft folders): the
+    /// header's name is indented by it.
     pub depth: u8,
     pub label: Option<MarkerColor>,
     pub locked: Option<bool>,
@@ -118,6 +121,12 @@ pub trait TimelineModel {
 
     /// The work area (After Effects; Premiere's work area bar when shown).
     fn work_area(&self) -> Option<TimeRange> {
+        None
+    }
+
+    /// The master volume in dB. With `Some`, the panel draws the Mix row at the bottom of the
+    /// rows, naming it and showing the value (FilmCraft `timeline.rs:387-396`).
+    fn master_volume_db(&self) -> Option<f32> {
         None
     }
 }

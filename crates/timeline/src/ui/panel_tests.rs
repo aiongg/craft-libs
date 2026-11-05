@@ -1,12 +1,12 @@
 //! The timeline panel.
 
 use craft_ui::edit::EditEvent;
-use craft_ui::testing::HarnessExt as _;
+use craft_ui::testing::{HarnessExt as _, events};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
-use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, Pos2, Rect, TouchPhase, Ui, vec2};
+use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, Rect, TouchPhase, Ui, vec2};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::panel::{Timeline, TimelineEdit, TrackSwitch};
 use crate::clips::ClipEdit;
@@ -30,6 +30,7 @@ struct Model {
     view: TimeView,
     playhead: Tick,
     selection: Vec<ClipId>,
+    master: Option<f32>,
 }
 
 impl TimelineModel for Model {
@@ -56,7 +57,7 @@ impl TimelineModel for Model {
                 id,
                 kind,
                 name,
-                height: 0.0,
+                height: None,
                 depth: 0,
                 label: None,
                 locked: Some(false),
@@ -80,6 +81,10 @@ impl TimelineModel for Model {
     fn selection(&self) -> &[ClipId] {
         &self.selection
     }
+
+    fn master_volume_db(&self) -> Option<f32> {
+        self.master
+    }
 }
 
 struct App {
@@ -88,26 +93,34 @@ struct App {
     follow: FollowMode,
     playing: bool,
     time_area: Rect,
+    painted: usize,
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
-    let out = Timeline::new("timeline", &mut app.model).follow(app.follow, app.playing).show(ui);
+    let out = Timeline::new("timeline", &mut app.model).follow(app.follow, app.playing).content(|_, _, _| app.painted += 1).show(ui);
     app.time_area = out.time_area;
     app.edits.extend(out.edits);
 }
 
 /// V2 and V1 over A1; a clip in V1 and one in A1 (2 s to 6 s) at 20 points a second.
 fn harness() -> Harness<'static, App> {
+    harness_with(vec![(V2, TrackKind::Video, "V2"), (V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")], None)
+}
+
+fn harness_with(names: Vec<(TrackId, TrackKind, &'static str)>, master: Option<f32>) -> Harness<'static, App> {
     let model = Model {
-        names: vec![(V2, TrackKind::Video, "V2"), (V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")],
+        names,
+        master,
         clips: vec![(ClipId(1), V1, TimeRange::from_bounds(seconds(2), seconds(6))), (ClipId(2), A1, TimeRange::from_bounds(seconds(2), seconds(6)))],
         view: TimeView::new(Tick::ZERO, 20.0),
         playhead: Tick::ZERO,
         selection: Vec::new(),
     };
-    let app = App { model, edits: Vec::new(), follow: FollowMode::Page, playing: false, time_area: Rect::NOTHING };
+    let app = App { model, edits: Vec::new(), follow: FollowMode::Page, playing: false, time_area: Rect::NOTHING, painted: 0 };
     let mut harness = Harness::<App>::builder()
         .with_size([900.0, 500.0])
+        // Two clicks of a double-click must land within egui's double-click delay.
+        .with_step_dt(0.05)
         .with_context_setup(|ctx| {
             install(ctx, &Base::suite_default());
             ctx.all_styles_mut(|style| style.animation_time = 0.0);
@@ -285,4 +298,107 @@ fn view_follows_the_playhead_while_playing() {
     assert!(view.start > Tick::ZERO, "{view:?}");
     let x = view.x_of(late, 0.0);
     assert!((x - width * 0.05).abs() < 1.0, "the playhead lands 5 % from the left: {x}");
+}
+
+fn heights(harness: &Harness<'_, App>) -> Vec<(TrackId, f32)> {
+    harness
+        .state()
+        .edits
+        .iter()
+        .filter_map(|edit| match edit {
+            TimelineEdit::TrackHeight { track, height: EditEvent::Commit { value, .. } | EditEvent::Set { value, .. } } => Some((*track, *value)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A point in a row's header, clear of its switches.
+fn header_point(row: Rect, y: f32) -> Pos2 {
+    Pos2::new(row.left() + 40.0, y)
+}
+
+// A row at the style's default height resizes from that height, not from a collapsed one.
+#[test]
+fn dragging_a_default_height_rows_edge_starts_from_its_height() {
+    let mut harness = harness();
+    let a1 = row(&harness, "A1");
+    let from = header_point(a1, a1.bottom());
+    harness.drag(from, from + vec2(0.0, 10.0), Modifiers::NONE);
+    let got = heights(&harness);
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(got[0].0, A1);
+    assert!((got[0].1 - (a1.height() + 10.0)).abs() < 0.5, "{} from {}", got[0].1, a1.height());
+}
+
+// Video rows grow upward: dragging an edge up adds height, and the top video row has a top edge.
+#[test]
+fn video_rows_resize_with_negated_travel_and_the_top_row_has_a_top_edge() {
+    let mut harness = harness();
+    let v1 = row(&harness, "V1");
+    let from = header_point(v1, v1.bottom());
+    harness.drag(from, from - vec2(0.0, 10.0), Modifiers::NONE);
+    let got = heights(&harness);
+    assert!(got.len() == 1 && got[0].0 == V1 && (got[0].1 - (v1.height() + 10.0)).abs() < 0.5, "{got:?}");
+
+    harness.state_mut().edits.clear();
+    let v2 = row(&harness, "V2");
+    let from = header_point(v2, v2.top());
+    harness.drag(from, from - vec2(0.0, 10.0), Modifiers::NONE);
+    let got = heights(&harness);
+    assert!(got.len() == 1 && got[0].0 == V2 && (got[0].1 - (v2.height() + 10.0)).abs() < 0.5, "{got:?}");
+}
+
+// A double-click on a header toggles the height between 64 and 30 points (FilmCraft).
+#[test]
+fn double_clicking_a_header_toggles_its_height() {
+    let mut harness = harness();
+    let a1 = row(&harness, "A1");
+    let at = Pos2::new(a1.left() + 60.0, a1.top() + 3.0);
+    for frame in events::click(at, PointerButton::Primary, 2, Modifiers::NONE) {
+        for event in frame {
+            harness.event(event);
+        }
+        harness.step();
+    }
+    let got = heights(&harness);
+    let expected = if a1.height() < 50.0 { 64.0 } else { 30.0 };
+    assert_eq!(got, [(A1, expected)]);
+}
+
+// The colour strip and the two edges take the pointer only: no Tab stop reaches them, and each
+// edge has a name.
+#[test]
+fn tab_order_skips_the_pointer_only_parts() {
+    let mut harness = harness();
+    let mut seen = Vec::new();
+    for _ in 0..60 {
+        harness.key_press(Key::Tab);
+        harness.run();
+        let focused = harness.root().children_recursive().find(|node| node.accesskit_node().is_focused());
+        if let Some(node) = focused {
+            seen.push(format!("{:?}", node.accesskit_node().label()));
+        }
+    }
+    assert!(seen.iter().any(|label| label.contains("Toggle Track Lock V1")), "{seen:?}");
+    assert!(seen.iter().all(|label| !label.contains("Track Color") && !label.contains("Drag to change")), "{seen:?}");
+    harness.get_by_label("Drag to change the height of V1");
+    harness.get_by_label("Drag the top edge to change the height of V2");
+    harness.get_by_label("Drag to change the width of the track headers");
+}
+
+// Timeline::content reaches every lane's clips.
+#[test]
+fn content_is_painted_for_the_lanes_clips() {
+    let harness = harness();
+    assert!(harness.state().painted >= 2, "{}", harness.state().painted);
+}
+
+// Captions have their own area above the video rows; a model with a master volume shows the Mix row.
+#[test]
+fn caption_rows_sit_above_video_with_a_mix_row() {
+    let c1 = TrackId(9);
+    let harness = harness_with(vec![(c1, TrackKind::Caption, "C1"), (V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")], Some(-3.0));
+    let (c, v1, a1) = (row(&harness, "C1"), row(&harness, "V1"), row(&harness, "A1"));
+    assert!(c.bottom() < v1.top(), "{c:?} {v1:?}");
+    assert!(v1.bottom() < a1.top() && a1.bottom() <= harness.state().time_area.bottom(), "{v1:?} {a1:?}");
 }
