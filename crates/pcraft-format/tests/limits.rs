@@ -1,3 +1,4 @@
+//! Integration tests of craft-pcraft-format: manifest size and depth limits.
 use craft_pcraft_format::{Error, Limits, MAX_DEPTH, MAX_GROUP_DEPTH, MAX_MANIFEST_ITEMS, check_manifest, manifest_depth, parse_manifest};
 
 fn nested(depth: usize) -> Vec<u8> {

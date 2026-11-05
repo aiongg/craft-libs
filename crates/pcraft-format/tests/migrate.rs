@@ -1,3 +1,4 @@
+//! Integration tests of craft-pcraft-format: version migration steps.
 use craft_pcraft_format::{Error, FORMAT_VERSION, Step, migrate};
 use serde_json::{Value, json};
 

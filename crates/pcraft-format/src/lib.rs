@@ -107,9 +107,11 @@ pub fn is_valid_hash(hash: &str) -> bool {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[non_exhaustive]
 pub struct Manifest<D> {
+    #[allow(missing_docs)]
     pub format_version: u32,
     /// Free-form writer identification, for example `photocraft-format 0.1.0`.
     pub generator: String,
+    #[allow(missing_docs)]
     pub document: D,
     /// The thumbnail entry, [`THUMB`]. [`read_manifest`] refuses any other name.
     pub thumbnail: Option<String>,
@@ -136,8 +138,11 @@ impl<D> Manifest<D> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct TileRef {
+    /// Tile column.
     pub tx: i32,
+    /// Tile row.
     pub ty: i32,
+    #[allow(missing_docs)]
     pub hash: Hash,
 }
 

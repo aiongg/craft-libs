@@ -1,3 +1,4 @@
+//! Integration tests of craft-pcraft-format: manifest serialization and tile references.
 use craft_pcraft_format::{
     BLOBS_DIR, COMPOSITE, COMPOSITE_DIR, EXTENSION, FORMAT_VERSION, Limits, MANIFEST, Manifest, OBJECT_SUFFIX, SAVE_LOCK, Step, THUMB, TILES_DIR,
     TileRef, blob_path, is_valid_hash, tile_path,
