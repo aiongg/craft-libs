@@ -7,8 +7,9 @@ use std::sync::Arc;
 use craft_host::Host;
 use craft_settings::Remembered;
 use craft_theme::{ControlSize, Rgba, Srgba};
+use egui::epaint::RectShape;
 use egui::load::SizedTexture;
-use egui::{Color32, Context, CornerRadius, Id, Label, Rect, Response, Sense, Shape, StrokeKind, Ui, Vec2, pos2, vec2};
+use egui::{Color32, Context, CornerRadius, Id, Label, Pos2, Rect, Response, Sense, Shape, StrokeKind, Ui, Vec2, pos2, vec2};
 
 use super::color_request::ColorRequest;
 use super::dialog::{Dialog, Outcome};
@@ -28,7 +29,7 @@ use crate::edit::{self, EditResponse};
 use crate::icons::Icon;
 use crate::localized::{Labels as _, LocaleNumbers, Unit, Units, focus_first_field};
 use crate::primitives::SurfaceEdge;
-use crate::theme::{Tokens, TokensOf};
+use crate::theme::{ToEgui, Tokens, TokensOf};
 
 /// What a parameter is and which control edits it. Defaults are the values a dialog opens with
 /// when nothing is remembered and the host gave no [`values`](ParamDialog::values).
@@ -1799,8 +1800,26 @@ impl ParamDialog {
         };
         let inner = frame.map_or(well, |stroke| well.shrink(stroke.width));
         let painter = ui.painter_at(inner);
-        painter.extend(checkerboard(shown.intersect(inner), CornerRadius::ZERO, swatch.checker, swatch.checker_cell));
-        painter.image(image.id, shown, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        // The well's corners are the field's, less the border; the image has them where it reaches them.
+        let corners = frame.map_or(CornerRadius::ZERO, |stroke| field.surface.radius - stroke.width.round() as u8);
+        let visible = shown.intersect(inner);
+        let reaches = |own: Pos2, well: Pos2, r: u8| if own == well { r } else { 0 };
+        let well_corners = corners;
+        let corners = CornerRadius {
+            nw: reaches(visible.left_top(), inner.left_top(), corners.nw),
+            ne: reaches(visible.right_top(), inner.right_top(), corners.ne),
+            sw: reaches(visible.left_bottom(), inner.left_bottom(), corners.sw),
+            se: reaches(visible.right_bottom(), inner.right_bottom(), corners.se),
+        };
+        if frame.is_some() {
+            painter.add(Shape::rect_filled(inner, well_corners, tokens.component.dialog.preview_fill.to_egui()));
+        }
+        painter.extend(checkerboard(visible, corners, swatch.checker, swatch.checker_cell));
+        let uv = Rect::from_min_max(
+            pos2((visible.min.x - shown.min.x) / size.x, (visible.min.y - shown.min.y) / size.y),
+            pos2((visible.max.x - shown.min.x) / size.x, (visible.max.y - shown.min.y) / size.y),
+        );
+        painter.add(RectShape::filled(visible, corners, Color32::WHITE).with_texture(image.id, uv));
         if let Some(stroke) = frame {
             ui.painter().add(Shape::rect_stroke(well, field.surface.radius, stroke, StrokeKind::Inside));
         }

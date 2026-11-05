@@ -744,6 +744,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             // List: the muted label. Wide angle: the halo and the drawing colour.
             + 1
             + 2
+            // Dialog: the preview pane's well.
+            + 1
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));

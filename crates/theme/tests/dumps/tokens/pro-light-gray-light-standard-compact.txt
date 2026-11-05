@@ -908,6 +908,7 @@ dialog.scroll_min = 120
 dialog.anchor_cell = 24
 dialog.anchor_inset = 1
 dialog.anchor_mark_radius = 1
+dialog.preview.fill = #a0a0a0ff
 dock.gap = 4
 dock.body_gap = 0
 dock.border_width = 1
