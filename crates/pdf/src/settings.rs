@@ -501,11 +501,11 @@ pub struct OutputSettings {
     pub profiles: ProfileInclusion,
     /// PDF/X output intent profile name.
     pub output_intent: String,
-    /// PDF/X `OutputCondition`: free text naming the intended printing condition.
+    /// Output condition text, as entered.
     pub output_condition: String,
-    /// PDF/X `OutputConditionIdentifier`: the condition's identifier in its registry.
+    /// Output condition identifier, as entered.
     pub output_condition_id: String,
-    /// PDF/X `RegistryName`: web address of the registry that defines the condition.
+    /// Registry name, as entered.
     pub registry: String,
     /// Mark the file as trapped.
     pub trapped: bool,
