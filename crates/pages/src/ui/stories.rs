@@ -453,7 +453,7 @@ fn page_list(ui: &mut Ui, _: &mut NoArgs) {
     for event in out.events {
         demo.last = Some(format!("{event:?}"));
         match event {
-            PageListEvent::Activate(row) => demo.active = row,
+            PageListEvent::Go(row) => demo.active = row,
             PageListEvent::Rename { row, text } => {
                 if let Some(r) = demo.rows.get_mut(row) {
                     r.name = text;

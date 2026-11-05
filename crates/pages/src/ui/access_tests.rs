@@ -26,6 +26,8 @@ enum Content {
 struct Fake {
     content: Content,
     calls: usize,
+    /// The pages of the last `describe` call.
+    described: Vec<usize>,
     selection: Option<(AccessPosition, AccessPosition)>,
 }
 
@@ -36,8 +38,9 @@ fn line(out: &mut AccessBuilder, parent: AccessNode, text: &str, top: f32) -> Op
 }
 
 impl AccessDescriber for Fake {
-    fn describe(&mut self, _placed: &[PlacedPage], out: &mut AccessBuilder) {
+    fn describe(&mut self, placed: &[PlacedPage], out: &mut AccessBuilder) {
         self.calls += 1;
+        self.described = placed.iter().map(|page| page.page).collect();
         match self.content {
             Content::Mixed => {
                 if let Some(heading) = out.block(None, BlockRole::Heading(1)) {
@@ -77,19 +80,26 @@ impl AccessDescriber for Fake {
 
 struct App {
     placed: Vec<PlacedPage>,
+    visible: Rect,
     revision: u64,
     fake: Fake,
 }
 
 fn app(content: Content) -> App {
     let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(300.0, 400.0));
-    App { placed: vec![PlacedPage { page: 0, rect, scale: 1.0, band: (0.0, 400.0) }], revision: 0, fake: Fake { content, calls: 0, selection: None } }
+    App {
+        placed: vec![PlacedPage { page: 0, rect, scale: 1.0, band: (0.0, 400.0) }],
+        visible: rect,
+        revision: 0,
+        fake: Fake { content, calls: 0, described: Vec::new(), selection: None },
+    }
 }
 
 fn harness(app: App) -> Harness<'static, App> {
-    let mut harness = HarnessBuilder::default()
-        .with_size(vec2(400.0, 500.0))
-        .build_ui_state(|ui, app: &mut App| PagesAccess::new(view(), &app.placed).revision(app.revision).show(ui.ctx(), &mut app.fake), app);
+    let mut harness = HarnessBuilder::default().with_size(vec2(400.0, 500.0)).build_ui_state(
+        |ui, app: &mut App| PagesAccess::new(view(), &app.placed, app.visible).revision(app.revision).show(ui.ctx(), &mut app.fake),
+        app,
+    );
     harness.run();
     harness
 }
@@ -101,7 +111,7 @@ fn nothing_is_built_without_a_screen_reader() {
     let ctx = Context::default();
     for _ in 0..3 {
         let mut output = ctx.run_pass(egui::RawInput::default(), |ctx| {
-            PagesAccess::new(view(), &app.placed).show(ctx, &mut app.fake);
+            PagesAccess::new(view(), &app.placed, app.visible).show(ctx, &mut app.fake);
         });
         output.textures_delta.clear();
     }
@@ -157,4 +167,24 @@ fn the_tree_is_capped_and_reused() {
     harness.state_mut().placed[0].rect = harness.state().placed[0].rect.translate(vec2(0.0, 10.0));
     harness.run();
     assert_eq!(harness.state().fake.calls, 3, "a moved page rebuilds");
+}
+
+// Five tall pages stacked, the view showing only page 2: the very first pass describes pages 1 to 3 (the window follows the rect given in the pass, not a rect read back from the last pass); moving the visible area moves the window in that pass.
+#[test]
+fn the_page_window_follows_this_passes_visible_area() {
+    let mut app = app(Content::Paragraphs(1));
+    app.placed = (0..5)
+        .map(|page| {
+            let rect = Rect::from_min_size(pos2(0.0, page as f32 * 410.0), vec2(300.0, 400.0));
+            PlacedPage { page, rect, scale: 1.0, band: (0.0, 400.0) }
+        })
+        .collect();
+    app.visible = Rect::from_min_size(pos2(0.0, 2.0 * 410.0 + 10.0), vec2(300.0, 100.0));
+    let mut harness = harness(app);
+    assert_eq!(harness.state().fake.described, [1, 2, 3]);
+
+    let moved = Rect::from_min_size(pos2(0.0, 10.0), vec2(300.0, 100.0));
+    harness.state_mut().visible = moved;
+    harness.run();
+    assert_eq!(harness.state().fake.described, [0, 1], "page 0 in view, page 1 beside it");
 }

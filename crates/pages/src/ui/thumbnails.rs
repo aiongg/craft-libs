@@ -18,6 +18,7 @@
 //! for event in out.events {
 //!     match event {
 //!         ThumbnailEvent::Go(page) => view.go_to(page),
+//!         ThumbnailEvent::Activate(page) => start_show(page),
 //!         ThumbnailEvent::Reorder(EditEvent::Commit { value, .. }) => doc.apply(Edit::MovePages(value)),
 //!         ThumbnailEvent::Delete(pages) => doc.delete_pages(&pages),
 //!         ThumbnailEvent::ContextMenu(request) => page_menu.open(request),
@@ -36,7 +37,7 @@ use craft_ui::list::{
 use craft_ui::localized::words::Counted;
 use craft_ui::localized::{Labels as _, Words};
 use craft_ui::theme::{Tokens, TokensOf as _, UiTokens};
-use egui::{DragAndDrop, Key, Pos2, Rect, Response, Ui};
+use egui::{DragAndDrop, Pos2, Rect, Response, Ui};
 
 use super::style::PageThumbnailsStyle;
 use super::view::PageSource;
@@ -86,7 +87,9 @@ pub struct ThumbnailMarks {
 }
 
 /// Where page `p` (0-based) is after `mv` (craft-ui's [`Move`] over page indices: the pages
-/// `items` go before or after page `target`) in a document of `count` pages.
+/// `items` go before or after page `target`) in a document of `count` pages. A
+/// [`DropPosition::Into`] move (a drop onto a page, which pages don't take) places the pages
+/// before `target`, as `Before` does.
 // pdfcraft: crates/ui-egui/src/panels/pages.rs:283 `moved_index`.
 pub fn moved_page(mv: &Move<usize>, p: usize, count: usize) -> usize {
     if p >= count {
@@ -116,11 +119,11 @@ pub fn moved_page(mv: &Move<usize>, p: usize, count: usize) -> usize {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ThumbnailEvent {
-    /// The picked set changed (⌘/Ctrl-click, ⇧-click, ⇧-arrows, Esc); the panel has applied it
-    /// to the selection it was given.
-    Picked(SelectionChange<usize>),
-    /// A plain click, or an arrow key moving the lead: go to the page. The picked set became just
-    /// this page (reported first as [`Picked`](Self::Picked)).
+    /// The picked set changed (⌘/Ctrl-click, ⇧-click, ⇧-arrows, Esc, a secondary click on an
+    /// unpicked page); the panel has applied it to the selection it was given.
+    Selection(SelectionChange<usize>),
+    /// A plain click, or an arrow key moving the lead: this page becomes the current page. The
+    /// picked set became just this page (reported first as [`Selection`](Self::Selection)).
     Go(usize),
     /// A drag of pages as one edit gesture (`Begin`; `Commit` with the move on a drop that moves
     /// something; `Cancel` on Esc, on focus loss or when dropped where nothing moves), or a
@@ -131,11 +134,12 @@ pub enum ThumbnailEvent {
     /// are; never when every page is picked (a document keeps one page), never read-only.
     Delete(Vec<usize>),
     /// A double-click or Enter on a thumbnail (PowerPoint starts the slide show from it).
-    Open(usize),
+    Activate(usize),
     /// A click on the New Slide row ([`PageThumbnails::new_page_row`]).
     NewPage,
     /// The app's menu for the picked pages is asked for (secondary click, Menu key, ⇧F10). A
-    /// secondary click on an unpicked page makes it the picked set first ([`Picked`](Self::Picked)).
+    /// secondary click on an unpicked page makes it the picked set first
+    /// ([`Selection`](Self::Selection)), without going to it.
     ContextMenu(ContextMenuRequest<usize>),
     /// The app's menu for section `section` is asked for (secondary click on its header; the
     /// grid's `GroupContextMenu`).
@@ -184,11 +188,12 @@ pub struct PageThumbnailsOutput {
 ///   `ListDrag` payload is its own; Esc cancels. Files dragged in from outside report
 ///   [`PageThumbnailsOutput::file_gap`] (the grid's `file_drops`).
 /// - Keys (one Tab stop, the grid's): arrows go to the next page (`Go`), ⇧ extends, Home and End,
-///   Enter opens (`Activate` → [`ThumbnailEvent::Open`]), Delete and Backspace delete (`Remove`
-///   → [`ThumbnailEvent::Delete`], with this panel's rules), ⌘/Ctrl+] and [ move the picked
+///   Enter activates (`Activate` → [`ThumbnailEvent::Activate`]), Delete and Backspace delete
+///   (`Remove`, the current page when nothing is picked → [`ThumbnailEvent::Delete`], with this
+///   panel's rules), ⌘/Ctrl+] and [ move the picked
 ///   pages, ⌘/Ctrl + / − / 0 step [`THUMBNAIL_ZOOM`] (`Zoom`), Space toggles the lead
 ///   (`SpaceAction::Toggle`), no rating keys (`RatingKeys::None`). Esc with the grid focused and
-///   no drag clears the picked set (`Picked`). The Menu key and ⇧F10 ask for the menu.
+///   no drag clears the picked set (`Selection`). The Menu key and ⇧F10 ask for the menu.
 /// - AccessKit: the grid's `ListBox` named [`ThumbnailLabels::pages`], one `ListBoxOption` per
 ///   page named [`ThumbnailLabels::page`] (`TileContent::accessible_name`), selected when picked,
 ///   the current page `aria_current`; the size row's controls are their own Tab stops.
@@ -339,11 +344,6 @@ impl<'a> PageThumbnails<'a> {
             .collect();
         let open: Vec<bool> = sections.iter().map(|section| section.open).collect();
 
-        let delete_pressed = ui.input(|i| i.modifiers.is_none() && (i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace)));
-        let was_empty = picked.is_empty();
-        let escape_pressed =
-            ui.input(|i| i.key_pressed(Key::Escape) && !i.pointer.any_down()) && !DragAndDrop::has_payload_of_type::<ListDrag<usize>>(&ctx);
-
         let mut grid = TileGrid::new(id_salt, &tiles)
             .layout(TileLayout::Cards { side, aspect, caption: true })
             .selection(&mut *picked)
@@ -369,22 +369,7 @@ impl<'a> PageThumbnails<'a> {
             DragBadge::new((id, "drag"), text).show(&ctx);
         }
 
-        // Esc makes egui drop focus at the start of its pass, so the Esc rule reads the last pass's.
-        let focus_key = id.with("focused");
-        let was_focused = ctx.data(|d| d.get_temp::<bool>(focus_key)).unwrap_or(false);
-        let focused = ctx.memory(|m| m.has_focus(id));
-        ctx.data_mut(|d| d.insert_temp(focus_key, focused));
-        let mut events = page_events(out.events, count, editable, zoom);
-        // The grid reports Remove for a picked set only; with nothing picked the key deletes the
-        // current page.
-        if editable && was_empty && delete_pressed && focused && count > 1 && current < count {
-            events.push(ThumbnailEvent::Delete(vec![current]));
-        }
-        // The grid has no Esc of its own outside a drag or a marquee.
-        if escape_pressed && !was_empty && was_focused {
-            *picked = Selection::new();
-            events.push(ThumbnailEvent::Picked(SelectionChange { pick: SelectionPick::Clear, row: None, selection: Selection::new() }));
-        }
+        let events = page_events(out.events, count, editable, zoom);
         PageThumbnailsOutput { response: out.response, events, drop_target: out.drop_target, file_gap: out.file_gap }
     }
 }
@@ -416,8 +401,8 @@ impl TileSource<usize> for PageTiles<'_> {
     }
 
     /// The name is the page label; the accessible name [`ThumbnailLabels::page`] with it, then
-    /// [`ThumbnailLabels::hidden`] for a hidden slide; `hidden` and an `Icon::Star` `TileMark`
-    /// tipped [`ThumbnailLabels::animated`] from the marks.
+    /// [`ThumbnailLabels::hidden`] for a hidden slide, and the grid joins the tips of the marks
+    /// (an `Icon::Star` tipped [`ThumbnailLabels::animated`]) after it.
     fn content(&self, at: usize, content: &mut TileContent) {
         // deckcraft: crates/ui-egui/src/panels/thumbs.rs:116 `list` (number, hidden and animation marks).
         let label = self.source.page_label(at);
@@ -427,7 +412,6 @@ impl TileSource<usize> for PageTiles<'_> {
             accessible.push(self.labels.hidden.clone());
         }
         if marks.animated {
-            accessible.push(self.labels.animated.clone());
             content.marks.push(TileMark { icon: Icon::Star, tip: self.labels.animated.clone() });
         }
         content.name = label;
@@ -442,29 +426,28 @@ fn aspect_of(source: &dyn PageSource, at: usize) -> f32 {
     if size.width > 0.0 && size.height > 0.0 { (size.width / size.height) as f32 } else { 1.0 }
 }
 
-/// The grid's events as the panel's, in order: `Selection` → [`ThumbnailEvent::Picked`], then
-/// [`ThumbnailEvent::Go`] for a plain pick of one page (`SelectionPick::Replace` by a click or an
-/// arrow); `Clicked` → `Go`; `Activate` → `Open`; `Remove` → `Delete` unless read-only or every
-/// page is picked (the current page when nothing is picked); `Reorder` as is (only when
-/// editable); `ContextMenu` with a tile as is (the grid has already made an unpicked page the
-/// picked set); `GroupOpen` → `SectionOpen`; `GroupContextMenu` → `SectionMenu`; `NewItem` →
-/// `NewPage`; `Zoom` steps `zoom` on [`THUMBNAIL_ZOOM`]. Everything else is dropped.
+/// The grid's events as the panel's, in order: `Selection` and `ContextPicked` →
+/// [`ThumbnailEvent::Selection`], then [`ThumbnailEvent::Go`] for a plain pick of one page
+/// (`SelectionPick::Replace` by a click or an arrow; a context pick never goes); `Clicked` →
+/// `Go`; `Activate` → `Activate`; `Remove` → `Delete` unless read-only or every page is picked
+/// (the grid reports the current page when nothing is picked); `Reorder` as is (only when
+/// editable); `ContextMenu` as is; `GroupOpen` → `SectionOpen`; `GroupContextMenu` →
+/// `SectionMenu`; `NewItem` → `NewPage`; `Zoom` steps `zoom` on [`THUMBNAIL_ZOOM`]. Everything
+/// else is dropped.
 fn page_events(events: Vec<TileEvent<usize>>, page_count: usize, editable: bool, zoom: Option<&mut f32>) -> Vec<ThumbnailEvent> {
     // pdfcraft: crates/ui-egui/src/panels/pages.rs:90 `pages` (click goes, Delete keeps a page).
     let mut out = Vec::new();
     let mut zoom = zoom;
-    let mut events = events.into_iter().peekable();
-    while let Some(event) = events.next() {
+    for event in events {
         match event {
             TileEvent::Selection(change) => {
-                // A secondary click picks the page for its menu without going to it.
-                let menu = matches!(events.peek(), Some(TileEvent::ContextMenu(request)) if request.row == change.row);
-                let go = (change.pick == SelectionPick::Replace && !menu).then_some(change.row).flatten();
-                out.push(ThumbnailEvent::Picked(change));
+                let go = (change.pick == SelectionPick::Replace).then_some(change.row).flatten();
+                out.push(ThumbnailEvent::Selection(change));
                 out.extend(go.map(ThumbnailEvent::Go));
             }
+            TileEvent::ContextPicked(change) => out.push(ThumbnailEvent::Selection(change)),
             TileEvent::Clicked(page) => out.push(ThumbnailEvent::Go(page)),
-            TileEvent::Activate(page) => out.push(ThumbnailEvent::Open(page)),
+            TileEvent::Activate(page) => out.push(ThumbnailEvent::Activate(page)),
             TileEvent::Remove(pages) => {
                 if editable && !pages.is_empty() && pages.len() < page_count {
                     out.push(ThumbnailEvent::Delete(pages));
