@@ -1,16 +1,18 @@
 //! The time ruler and the timeline scroll bar (N1.01).
 
 use craft_ui::behavior::{ClaimedKey, KeyClaim};
+use craft_ui::controls::TooltipExt as _;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::FocusRing;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format, tabular};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format, tabular};
 use egui::accesskit::Role;
 use egui::{
-    AsIdSalt, CornerRadius, CursorIcon, EventFilter, Id, IdSalt, Key, Modifiers, PointerButton, Rect, Response, Sense, Shape, Stroke, Ui, WidgetInfo,
-    pos2, vec2,
+    Align2, AsIdSalt, CornerRadius, CursorIcon, EventFilter, Id, IdSalt, Key, Modifiers, PointerButton, Rect, Response, Sense, Shape, Stroke, Ui,
+    WidgetInfo, pos2, vec2,
 };
 
+use super::LabelPalette;
 use super::markers::{MarkerEdit, MarkerStrip};
 use super::style::TimelineStyle;
 use crate::clips::SnapTargets;
@@ -29,11 +31,37 @@ craft_ui::words! {
         work_area_start: "timelineRuler.workAreaStart" = "Work Area Start";
         work_area_end: "timelineRuler.workAreaEnd" = "Work Area End";
         scroll_bar: "timelineRuler.scrollBar" = "Zoom and Scroll";
+        video_tag: "timelineRuler.videoTag" = "V";
+        audio_tag: "timelineRuler.audioTag" = "A";
+        split_video_in: "timelineRuler.splitVideoIn" = "Split V In";
+        split_video_out: "timelineRuler.splitVideoOut" = "Split V Out";
+        split_audio_in: "timelineRuler.splitAudioIn" = "Split A In";
+        split_audio_out: "timelineRuler.splitAudioOut" = "Split A Out";
     }
 }
 
-/// Natural-log zoom per point of wheel travel over the ruler.
-pub(super) const WHEEL_ZOOM: f64 = 0.005;
+/// Zoom factor per point of wheel travel: `1 + dy · 0.01` (FilmCraft `timeline/interact.rs:228`).
+const WHEEL_ZOOM_SLOPE: f64 = 0.01;
+/// The wheel's zoom factor stays within `0.5..=2.0` (FilmCraft `timeline/interact.rs:228`).
+const WHEEL_ZOOM_LIMITS: (f64, f64) = (0.5, 2.0);
+
+/// The zoom factor of `dy` points of wheel travel (positive scrolls up and zooms in); every wheel
+/// zoom of the timeline uses it.
+pub(super) fn wheel_zoom_factor(dy: f32) -> f64 {
+    (1.0 + f64::from(dy) * WHEEL_ZOOM_SLOPE).clamp(WHEEL_ZOOM_LIMITS.0, WHEEL_ZOOM_LIMITS.1)
+}
+
+/// How far the work-area bar's hit area reaches above and below the bar: FilmCraft's
+/// `r.expand2(vec2(zone, 1.0))` (`timeline_hit.rs:116`). To become `timeline.ruler_work_hit_pad`.
+const WORK_HIT_PAD: f32 = 1.0;
+/// How far a render-bar span's hover area reaches above and below the bar (FilmCraft
+/// `timeline/ruler.rs:132`). To become `timeline.ruler_render_hit_pad`.
+const RENDER_HIT_PAD: f32 = 2.0;
+/// The height of a split-edit bracket, and where it starts below the label row's centre (FilmCraft
+/// `timeline/ruler.rs:94-98`: `y0 = label_y + 7`, a 7 pt stem).
+const SPLIT_MARK_HEIGHT: f32 = 7.0;
+/// The arm of a split-edit bracket, pointing into the span (FilmCraft `timeline/ruler.rs:100`).
+const SPLIT_MARK_ARM: f32 = 4.0;
 /// Frames one arrow key steps, without and with Shift.
 pub(super) const STEP_FRAMES: i64 = 1;
 pub(super) const SHIFT_STEP_FRAMES: i64 = 5;
@@ -81,10 +109,7 @@ fn arrow_target(ui: &Ui, id: Id, playhead: Tick, rate: FrameRate, end: Tick) -> 
     ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, ..EventFilter::default() }));
     KeyClaim::claim(ui.ctx(), id, &SCRUB_KEYS);
     let (key, shift) = ui.input_mut(|i| {
-        [true, false].into_iter().find_map(|shift| {
-            let modifiers = if shift { Modifiers::SHIFT } else { Modifiers::NONE };
-            [Key::ArrowLeft, Key::ArrowRight, Key::Home, Key::End].into_iter().find(|key| i.consume_key(modifiers, *key)).map(|key| (key, shift))
-        })
+        SCRUB_KEYS.iter().find(|claimed| claimed.consume(i)).map(|claimed| (claimed.shortcut.logical_key, claimed.shortcut.modifiers.shift))
     })?;
     let frames = if shift { SHIFT_STEP_FRAMES } else { STEP_FRAMES };
     let from = rate.frame_at(playhead);
@@ -123,6 +148,45 @@ pub struct RulerTick {
 pub trait RulerLabels {
     /// The ticks within `visible`, at `points_per_second`.
     fn ticks(&self, visible: TimeRange, points_per_second: f64) -> Vec<RulerTick>;
+}
+
+/// What a stretch of the render bar says about its frames.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RenderBarState {
+    /// A rendered preview (Premiere's green; After Effects' RAM cache).
+    Rendered,
+    /// Unrendered, but it should play in real time (yellow).
+    RealTime,
+    /// Unrendered, and it needs rendering to play in real time (red).
+    NeedsRender,
+    /// Frames on disk (After Effects' blue disk cache).
+    OnDisk,
+}
+
+/// One stretch of the render bar along the ruler's bottom edge.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RenderSpan {
+    pub range: TimeRange,
+    pub state: RenderBarState,
+    /// What hovering the stretch says ("Rendered preview"); no tooltip when empty.
+    pub tooltip: String,
+}
+
+impl RenderSpan {
+    pub fn new(range: TimeRange, state: RenderBarState, tooltip: impl Into<String>) -> Self {
+        Self { range, state, tooltip: tooltip.into() }
+    }
+}
+
+/// The split-edit points of a sequence (Premiere's L and J cuts): where the video and the audio
+/// of a clip start and end apart, drawn as brackets tagged V and A.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SplitMarks {
+    pub video_in: Option<Tick>,
+    pub video_out: Option<Tick>,
+    pub audio_in: Option<Tick>,
+    pub audio_out: Option<Tick>,
 }
 
 /// What the ruler counts in.
@@ -183,7 +247,8 @@ pub fn ruler_ticks(format: &TimeFormat, view: &TimeView, width: f32, style: &sup
 }
 
 /// The ruler across the top of a timeline: ticks and labels, the playhead's head, In and Out
-/// shading, the work-area bar, cache bars and the sequence markers (through
+/// shading (inside the span, as FilmCraft), the work-area bar, the render bar, split-edit marks
+/// and the sequence markers (through
 /// [`MarkerStrip`](super::MarkerStrip)).
 ///
 /// - Press and drag scrubs the playhead (snapped to `snap` targets when given; Shift snaps when
@@ -191,12 +256,13 @@ pub fn ruler_ticks(format: &TimeFormat, view: &TimeView, width: f32, style: &sup
 ///   during a scrub cancels it back to where it began.
 /// - The work-area bar drags by its middle (moves) or an end (moves that end), Shift snaps
 ///   (`style.work_area_grab`; EffectCraft `timeline.rs:538`), reported as an `EditEvent<TimeRange>` gesture;
-///   double-clicking it sets it to the visible span.
-/// - Wheel over the ruler zooms about the pointer (Alt+wheel in Premiere zooms anywhere; the
-///   panel decides), changing `view` directly.
+///   double-clicking it sets it to the visible span. The three zones are pointer-only.
+/// - Wheel over the ruler zooms about the pointer by FilmCraft's factor (Option+wheel in Premiere
+///   zooms anywhere; the panel decides), changing `view` directly.
 /// - Keyboard: one Tab stop. Left and Right step the playhead one frame (Shift: five), Home and
 ///   End go to the start and the end; each a `Set` event. Visible focus ring around the ruler.
-/// - AccessKit: a `Slider` named by [`TimelineRulerLabels::ruler`], value the playhead's text.
+/// - AccessKit: a `Slider` named by [`TimelineRulerLabels::ruler`], value the playhead's text,
+///   numeric value the playhead in seconds over `0..=end`.
 /// - Sizes from [`TimelineStyle`](super::TimelineStyle): `style.ruler_height` unless
 ///   [`height`](Self::height) says otherwise.
 pub struct TimelineRuler<'a> {
@@ -208,9 +274,11 @@ pub struct TimelineRuler<'a> {
     end: Tick,
     in_out: (Option<Tick>, Option<Tick>),
     work_area: Option<TimeRange>,
-    cached: &'a [TimeRange],
-    disk_cached: &'a [TimeRange],
+    render_bar: &'a [RenderSpan],
+    split_marks: SplitMarks,
     markers: &'a [Marker],
+    palette: Option<&'a LabelPalette>,
+    marker_bin: Option<Rect>,
     snap: Option<&'a SnapTargets>,
     height: Option<f32>,
     labels: Option<TimelineRulerLabels>,
@@ -228,9 +296,11 @@ impl<'a> TimelineRuler<'a> {
             end,
             in_out: (None, None),
             work_area: None,
-            cached: &[],
-            disk_cached: &[],
+            render_bar: &[],
+            split_marks: SplitMarks::default(),
             markers: &[],
+            palette: None,
+            marker_bin: None,
             snap: None,
             height: None,
             labels: None,
@@ -248,7 +318,7 @@ impl<'a> TimelineRuler<'a> {
         self
     }
 
-    /// Shades outside Mark In … Mark Out.
+    /// Shades inside Mark In … Mark Out (FilmCraft `timeline/ruler.rs:84-89`).
     pub fn in_out(mut self, marks: (Option<Tick>, Option<Tick>)) -> Self {
         self.in_out = marks;
         self
@@ -259,16 +329,36 @@ impl<'a> TimelineRuler<'a> {
         self
     }
 
-    /// Ranges with frames in RAM (green bar) and on disk (blue bar), After Effects' cache bars
-    /// (EffectCraft `timeline.rs:2379`); Premiere's render bar uses the same.
-    pub fn cache_bars(mut self, ram: &'a [TimeRange], disk: &'a [TimeRange]) -> Self {
-        self.cached = ram;
-        self.disk_cached = disk;
+    /// The render bar along the bottom edge: Premiere's per-stretch green, yellow and red with a
+    /// tooltip each (FilmCraft `timeline/ruler.rs:122-135`); After Effects' RAM and disk caches are
+    /// [`Rendered`](RenderBarState::Rendered) and [`OnDisk`](RenderBarState::OnDisk) stretches
+    /// (EffectCraft `timeline.rs:2379`). Later stretches paint over earlier ones.
+    pub fn render_bar(mut self, spans: &'a [RenderSpan]) -> Self {
+        self.render_bar = spans;
+        self
+    }
+
+    /// The split-edit brackets (FilmCraft `timeline/ruler.rs:91-107`).
+    pub fn split_marks(mut self, marks: SplitMarks) -> Self {
+        self.split_marks = marks;
         self
     }
 
     pub fn markers(mut self, markers: &'a [Marker]) -> Self {
         self.markers = markers;
+        self
+    }
+
+    /// The label colours of the markers (the app's, as the clips and headers use).
+    pub fn palette(mut self, palette: &'a LabelPalette) -> Self {
+        self.palette = Some(palette);
+        self
+    }
+
+    /// The marker bin's rect, at the right end of the marker row (After Effects); see
+    /// [`MarkerStrip::bin`].
+    pub fn marker_bin(mut self, rect: Rect) -> Self {
+        self.marker_bin = Some(rect);
         self
     }
 
@@ -294,7 +384,24 @@ impl<'a> TimelineRuler<'a> {
     // `draw_markers`; effectcraft: crates/ui-egui/src/panels/timeline.rs:2308 `work_area_bar`,
     // `:2379` `cache_bars`, `:2483` `ruler_scrub`.
     pub fn show(self, ui: &mut Ui) -> TimelineRulerResponse {
-        let Self { id_salt, view, scale, format, playhead, end, in_out, work_area, cached, disk_cached, markers, snap, height, labels } = self;
+        let Self {
+            id_salt,
+            view,
+            scale,
+            format,
+            playhead,
+            end,
+            in_out,
+            work_area,
+            render_bar,
+            split_marks,
+            markers,
+            palette,
+            marker_bin,
+            snap,
+            height,
+            labels,
+        } = self;
         let tokens = Tokens::of(ui);
         let style = TimelineStyle::of(&tokens);
         let labels = labels.unwrap_or_else(|| TimelineRulerLabels::of(ui));
@@ -316,14 +423,8 @@ impl<'a> TimelineRuler<'a> {
             return out;
         }
 
-        // Wheel and pinch over the ruler zoom about the pointer.
-        if let Some(pointer) = out.response.hover_pos().filter(|_| enabled) {
-            let (scroll, pinch) = ui.input(|i| (f64::from(i.smooth_scroll_delta().y), f64::from(i.zoom_delta())));
-            let factor = pinch * (scroll * WHEEL_ZOOM).exp();
-            if factor != 1.0 && factor.is_finite() {
-                view.zoom_about(factor, view.time_at(pointer.x, rect.left()), rect.width());
-                ui.input_mut(|i| i.smooth_scroll_delta = egui::Vec2::ZERO);
-            }
+        if enabled {
+            wheel_zoom(ui, &out.response, view, rect);
         }
         let view: TimeView = *view;
         let (left, pps) = (rect.left(), view.points_per_second);
@@ -387,7 +488,7 @@ impl<'a> TimelineRuler<'a> {
             let band = band(marker_end, work_end);
             let shown = *gesture.shown();
             let (x0, x1) = (view.x_of(shown.start, left), view.x_of(shown.end(), left));
-            let hit = band.expand2(vec2(0.0, grab / 2.0));
+            let hit = band.expand2(vec2(0.0, WORK_HIT_PAD));
             let bar = hit.intersect(Rect::from_min_max(pos2(x0, hit.top()), pos2(x1, hit.bottom())));
             let end_zone = |x: f32| Rect::from_min_max(pos2(x - grab, hit.top()), pos2(x + grab, hit.bottom())).intersect(rect);
             let zones = [
@@ -398,11 +499,12 @@ impl<'a> TimelineRuler<'a> {
             let anchor = gesture.anchor().copied().unwrap_or(*area);
             let origin = ui.input(|i| i.pointer.press_origin());
             let grab_key = id.with("work grab");
+            let mut fit = None;
             for (kind, zone, name, shown) in zones {
                 if zone.width() <= 0.0 {
                     continue;
                 }
-                let zone_response = ui.interact(zone, id.with(("work", kind as u8)), Sense::click_and_drag());
+                let zone_response = ui.interact(zone, id.with(("work", kind as u8)), Sense::CLICK | Sense::DRAG);
                 let text = match kind {
                     WorkGrab::Move => format!("{} \u{2013} {}", format_time(shown.start, &format), format_time(shown.end(), &format)),
                     WorkGrab::Start => format_time(shown.start, &format),
@@ -413,15 +515,17 @@ impl<'a> TimelineRuler<'a> {
                 if zone_response.hovered() || zone_response.dragged() {
                     ui.ctx().set_cursor_icon(if kind == WorkGrab::Move { CursorIcon::Grab } else { CursorIcon::ResizeHorizontal });
                 }
-                if zone_response.is_pointer_button_down_on() && pressed && enabled && !gesture.is_active() {
+                // The double-click arrives on the second release, after its press began a gesture; the span replaces the drag.
+                if zone_response.double_clicked() && enabled {
+                    fit = Some(TimeRange::from_bounds(view.start, view.time_at(rect.right(), left)));
+                } else if zone_response.is_pointer_button_down_on() && pressed && enabled && !gesture.is_active() {
                     ui.data_mut(|d| d.insert_temp(grab_key, (kind, origin.map_or(0.0, |p| p.x))));
                     gesture.begin();
                 }
-                if zone_response.double_clicked() && enabled {
-                    gesture.set(TimeRange::from_bounds(view.start, view.time_at(rect.right(), left)));
-                }
             }
-            if gesture.is_active()
+            if let Some(span) = fit {
+                gesture.set(span);
+            } else if gesture.is_active()
                 && ui.input(|i| i.pointer.primary_down() || released)
                 && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
                 && let Some((kind, press_x)) = ui.data(|d| d.get_temp::<(WorkGrab, f32)>(grab_key))
@@ -437,6 +541,9 @@ impl<'a> TimelineRuler<'a> {
             }
             if gesture.is_active() && released {
                 gesture.commit();
+            }
+            if !gesture.is_active() {
+                ui.data_mut(|d| d.remove::<(WorkGrab, f32)>(grab_key));
             }
             work_shown = Some(*gesture.shown());
         }
@@ -455,12 +562,7 @@ impl<'a> TimelineRuler<'a> {
             painter.rect_filled(span.intersect(rect), CornerRadius::ZERO, color.state.selected.to_egui());
         }
         let strip = band(render_top, height);
-        for (ranges, fill) in [(disk_cached, color.data.blue), (cached, color.data.green)] {
-            for range in ranges.iter().filter(|range| !range.is_empty()) {
-                let bar = Rect::from_min_max(pos2(view.x_of(range.start, left), strip.top()), pos2(view.x_of(range.end(), left), strip.bottom()));
-                painter.rect_filled(bar.intersect(rect), CornerRadius::ZERO, fill.to_egui());
-            }
-        }
+        paint_render_bar(ui, id, &painter, strip, &view, render_bar, &tokens);
         if let Some(area) = work_shown.filter(|area| !area.is_empty()) {
             let band = band(marker_end, work_end);
             let bar = Rect::from_min_max(pos2(view.x_of(area.start, left), band.top()), pos2(view.x_of(area.end(), left), band.bottom()));
@@ -488,9 +590,16 @@ impl<'a> TimelineRuler<'a> {
                 painter.galley(at, galley, text.color);
             }
         }
-        if !markers.is_empty() {
-            let strip = MarkerStrip::new(id.with("markers"), markers, &view).snap(snap).show(ui, band(0.0, marker_end));
-            out.markers = strip.edits;
+        paint_split_marks(ui, id, &painter, &view, rate, split_marks, (&tokens, &style, &labels));
+        if !markers.is_empty() || marker_bin.is_some() {
+            let mut strip = MarkerStrip::new(id.with("markers"), markers, &view).snap(snap).format(format);
+            if let Some(palette) = palette {
+                strip = strip.palette(palette);
+            }
+            if let Some(bin) = marker_bin {
+                strip = strip.bin(bin);
+            }
+            out.markers = strip.show(ui, band(0.0, marker_end)).edits;
         }
         let x = view.x_of(shown, left);
         let accent = color.accent.solid.to_egui();
@@ -503,8 +612,85 @@ impl<'a> TimelineRuler<'a> {
 
         let value = format_time(shown, &format);
         out.response.widget_info(|| WidgetInfo::labeled(Role::Slider, enabled, &labels.ruler));
-        ui.ctx().accesskit_node_builder(out.response.id, |node| node.set_value(value.as_str()));
+        ui.ctx().accesskit_node_builder(out.response.id, |node| {
+            node.set_value(value.as_str());
+            node.set_numeric_value(shown.seconds());
+            node.set_min_numeric_value(0.0);
+            node.set_max_numeric_value(end.max(Tick::ZERO).seconds());
+        });
         out
+    }
+}
+
+/// Wheel and pinch over the ruler zoom `view` about the pointer.
+fn wheel_zoom(ui: &Ui, response: &Response, view: &mut TimeView, rect: Rect) {
+    let Some(pointer) = response.hover_pos() else { return };
+    let (scroll, pinch) = ui.input(|i| (f64::from(i.smooth_scroll_delta().y), f64::from(i.zoom_delta())));
+    let factor = if scroll == 0.0 { pinch } else { pinch * wheel_zoom_factor(scroll as f32) };
+    if factor != 1.0 && factor.is_finite() {
+        view.zoom_about(factor, view.time_at(pointer.x, rect.left()), rect.width());
+        ui.input_mut(|i| i.smooth_scroll_delta = egui::Vec2::ZERO);
+    }
+}
+
+/// The render bar's stretches along `strip`, each with its hover tooltip.
+fn paint_render_bar(ui: &Ui, id: Id, painter: &egui::Painter, strip: Rect, view: &TimeView, spans: &[RenderSpan], tokens: &UiTokens) {
+    let (clip, left) = (painter.clip_rect(), painter.clip_rect().left());
+    let color = &tokens.color;
+    for (at, span) in spans.iter().enumerate().filter(|(_, span)| !span.range.is_empty()) {
+        let fill = match span.state {
+            RenderBarState::Rendered => color.data.green,
+            RenderBarState::RealTime => color.data.yellow,
+            RenderBarState::NeedsRender => color.data.red,
+            RenderBarState::OnDisk => color.data.blue,
+        };
+        let bar = Rect::from_min_max(pos2(view.x_of(span.range.start, left), strip.top()), pos2(view.x_of(span.range.end(), left), strip.bottom()))
+            .intersect(clip);
+        painter.rect_filled(bar, CornerRadius::ZERO, fill.to_egui());
+        if !span.tooltip.is_empty() && bar.width() > 0.0 {
+            let hover = ui.interact(bar.expand2(vec2(0.0, RENDER_HIT_PAD)).intersect(clip), id.with(("render", at)), Sense::hover());
+            hover.tooltip(span.tooltip.clone());
+        }
+    }
+}
+
+/// The split-edit brackets: video above the tick rows' middle, audio below (FilmCraft
+/// `timeline/ruler.rs:91-107`).
+fn paint_split_marks(
+    ui: &Ui,
+    id: Id,
+    painter: &egui::Painter,
+    view: &TimeView,
+    rate: FrameRate,
+    marks: SplitMarks,
+    (tokens, style, labels): (&UiTokens, &TimelineStyle, &TimelineRulerLabels),
+) {
+    let rect = painter.clip_rect();
+    let color = &tokens.color;
+    let bracket = Stroke::new(craft_theme::Stroke::W1_5.width(ui.pixels_per_point()), color.text.muted.to_egui());
+    let tag_format = role_format(tokens, style.ruler_text, color.text.muted.to_egui());
+    let tick_base = rect.bottom() - style.ruler_tick_inset;
+    let marks = [
+        (marks.video_in, true, false, labels.split_video_in.as_str()),
+        (marks.video_out, false, false, labels.split_video_out.as_str()),
+        (marks.audio_in, true, true, labels.split_audio_in.as_str()),
+        (marks.audio_out, false, true, labels.split_audio_out.as_str()),
+    ];
+    for (at, is_in, low, name) in marks.into_iter().filter_map(|(at, is_in, low, name)| at.map(|at| (at, is_in, low, name))) {
+        let x = view.x_of(if is_in { at } else { at + rate.frame_duration() }, rect.left());
+        let top = if low { tick_base - SPLIT_MARK_HEIGHT } else { rect.top() + style.ruler_label_y + SPLIT_MARK_HEIGHT };
+        let arm = if is_in { SPLIT_MARK_ARM } else { -SPLIT_MARK_ARM };
+        painter.line_segment([pos2(x, top), pos2(x, top + SPLIT_MARK_HEIGHT)], bracket);
+        painter.line_segment([pos2(x, top), pos2(x + arm, top)], bracket);
+        let tag = if low { labels.audio_tag.as_str() } else { labels.video_tag.as_str() };
+        let centre = pos2(x + 2.0 * arm, top + SPLIT_MARK_HEIGHT / 2.0);
+        painter.text(centre, Align2::CENTER_CENTER, tag, tag_format.font_id.clone(), tag_format.color);
+        let spot = ui.interact(
+            Rect::from_center_size(centre, vec2(SPLIT_MARK_ARM * 3.0, SPLIT_MARK_HEIGHT)).intersect(rect),
+            id.with(("split", name)),
+            Sense::hover(),
+        );
+        spot.widget_info(|| WidgetInfo::labeled(Role::Label, ui.is_enabled(), name));
     }
 }
 
@@ -544,7 +730,7 @@ impl<'a> TimelineScrollBar<'a> {
         let id = ui.make_persistent_id(id_salt);
         let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), style.scrollbar_height), Sense::hover());
         // Not a Tab stop: the panel's keys zoom and scroll.
-        let response = ui.interact(bar, id, Sense::drag());
+        let response = ui.interact(bar, id, Sense::DRAG);
         let enabled = ui.is_enabled();
         let width = bar.width();
         if !(view.points_per_second > 0.0 && view.points_per_second.is_finite() && width > 0.0) {
@@ -644,6 +830,12 @@ impl<'a> TimelineScrollBar<'a> {
         }
         let name = TimelineRulerLabels::of(ui).scroll_bar;
         response.widget_info(|| WidgetInfo::labeled(Role::ScrollBar, enabled, &name));
+        let max_start = view.max_start(end, width).seconds();
+        ui.ctx().accesskit_node_builder(response.id, |node| {
+            node.set_numeric_value(view.start.seconds().clamp(0.0, max_start.max(0.0)));
+            node.set_min_numeric_value(0.0);
+            node.set_max_numeric_value(max_start.max(0.0));
+        });
         response
     }
 }

@@ -38,7 +38,7 @@ use super::overview::{TimelineOverview, overview_runs};
 use super::panel::{Timeline, TimelineEdit, TrackSwitch};
 use super::preview::{FrameFit, FramePreview};
 use super::render_queue::{RenderItemId, RenderQueueEvent, RenderQueueItem, RenderQueueList, RenderStatus};
-use super::ruler::TimelineRuler;
+use super::ruler::{RenderBarState, RenderSpan, TimelineRuler};
 use super::timecode::{TimecodeField, TimecodePanel, TimecodePanelSettings, TimecodeRow, TimecodeRowKind, TimecodeSource};
 use super::transport::{MediaControls, TransportBar, TransportBarSettings, TransportButton};
 use super::{LabelPalette, TimelineStyle};
@@ -577,8 +577,7 @@ struct RulerDemo {
     playhead: Tick,
     marks: (Option<Tick>, Option<Tick>),
     work_area: Option<TimeRange>,
-    ram: Vec<TimeRange>,
-    disk: Vec<TimeRange>,
+    render: Vec<RenderSpan>,
     markers: Vec<Marker>,
     last: Option<String>,
 }
@@ -595,8 +594,11 @@ fn ruler(ui: &mut Ui, _: &mut NoArgs) {
         playhead: secs(5.0),
         marks: (Some(secs(3.0)), Some(secs(40.0))),
         work_area: Some(span(2.0, 60.0)),
-        ram: vec![span(1.0, 8.0), span(20.0, 31.0)],
-        disk: vec![span(8.0, 20.0)],
+        render: vec![
+            RenderSpan::new(span(1.0, 8.0), RenderBarState::Rendered, ""),
+            RenderSpan::new(span(8.0, 20.0), RenderBarState::OnDisk, ""),
+            RenderSpan::new(span(20.0, 31.0), RenderBarState::Rendered, ""),
+        ],
         markers: vec![
             Marker { id: MarkerId(1), start: secs(6.0), name: labels.marker_check.clone(), color: MarkerColor(0), ..Marker::default() },
             Marker {
@@ -619,7 +621,7 @@ fn ruler(ui: &mut Ui, _: &mut NoArgs) {
             .playhead(demo.playhead)
             .in_out(demo.marks)
             .work_area(demo.work_area)
-            .cache_bars(&demo.ram, &demo.disk)
+            .render_bar(&demo.render)
             .markers(&demo.markers)
             .show(ui);
         if let Some(event) = &out.scrub {

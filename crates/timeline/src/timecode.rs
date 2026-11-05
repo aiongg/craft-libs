@@ -2,8 +2,7 @@
 //! seconds, formatted and parsed the way Premiere's timecode fields do.
 //!
 //! Timecode is only a display of [`Tick`]s. The words around the values (the display names in a
-//! menu, the error notices) are the UI's: [`TimeDisplay::label`] gives the English name for
-//! `craft_ui::words!` tables.
+//! menu, the error notices) are the UI's.
 
 use crate::rates::{FrameRate, SampleRate};
 use crate::time::{TICKS_PER_SECOND, Tick};
@@ -32,19 +31,6 @@ impl TimeDisplay {
     /// The order of Premiere's Time Display menu.
     pub const ALL: [TimeDisplay; 6] =
         [TimeDisplay::Timecode, TimeDisplay::Feet35, TimeDisplay::Feet16, TimeDisplay::Frames, TimeDisplay::AudioSamples, TimeDisplay::Seconds];
-
-    /// The English menu name ("Feet + Frames 35mm"), the key of its word.
-    // filmcraft: crates/time/src/lib.rs:344.
-    pub fn label(self) -> &'static str {
-        match self {
-            TimeDisplay::Timecode => "Timecode",
-            TimeDisplay::Frames => "Frames",
-            TimeDisplay::Feet16 => "Feet + Frames 16mm",
-            TimeDisplay::Feet35 => "Feet + Frames 35mm",
-            TimeDisplay::AudioSamples => "Audio Samples",
-            TimeDisplay::Seconds => "Seconds",
-        }
-    }
 }
 
 /// Everything a time display needs: the rate, drop-frame, the display, the sample rate (for

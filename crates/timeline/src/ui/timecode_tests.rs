@@ -1,7 +1,7 @@
 //! The timecode field and panel (egui_kittest).
 
 use craft_ui::edit::EditEvent;
-use craft_ui::testing::{HarnessExt as _, symbols};
+use craft_ui::testing::{HarnessExt as _, events, symbols};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Key, KeyboardShortcut, Modifiers, PointerButton, Rect, Ui, vec2};
@@ -11,7 +11,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use super::timecode::{TimecodeField, TimecodePanel, TimecodePanelSettings, TimecodeRow};
 use crate::rates::FrameRate;
 use crate::time::Tick;
-use crate::timecode::TimeFormat;
+use crate::timecode::{TimeDisplay, TimeFormat, TimecodeError};
 
 fn rate() -> FrameRate {
     FrameRate::new(24, 1)
@@ -42,18 +42,35 @@ struct Field {
     events: Vec<EditEvent<Tick>>,
     submitted: bool,
     rect: Rect,
+    errors: Vec<TimecodeError>,
+    preset: Option<&'static str>,
 }
 
 fn show_field(ui: &mut Ui, app: &mut Field) {
     let format = format();
-    let out = TimecodeField::new("field", app.time, &format).show(ui);
-    app.rect = out.response.rect;
-    app.submitted |= out.submitted;
-    app.events.extend(out.event);
+    let mut field = TimecodeField::new("field", app.time, &format);
+    if let Some(text) = app.preset {
+        field = field.typing(text);
+    }
+    let out = field.show_full(ui);
+    app.rect = out.edit.response.rect;
+    app.submitted |= out.edit.submitted;
+    app.events.extend(out.edit.event);
+    app.errors.extend(out.error);
 }
 
 fn field() -> Harness<'static, Field> {
-    harness(show_field, Field { time: secs(10.0), events: Vec::new(), submitted: false, rect: Rect::NOTHING })
+    harness(show_field, Field { time: secs(10.0), events: Vec::new(), submitted: false, rect: Rect::NOTHING, errors: Vec::new(), preset: None })
+}
+
+fn play(harness: &mut Harness<'_, Field>, frames: Vec<events::Frame>) {
+    for frame in frames {
+        for event in frame {
+            harness.event(event);
+        }
+        harness.step();
+    }
+    harness.run();
 }
 
 // a drag of 10 pt moves 10 frames, 100 with Shift.
@@ -116,6 +133,45 @@ fn a_time_that_does_not_parse_commits_nothing() {
     assert!(harness.state().events.is_empty());
     let input = harness.get_by_role(Role::TextInput);
     assert_eq!(input.accesskit_node().data().invalid(), Some(egui::accesskit::Invalid::True));
+    assert_eq!(harness.state().errors, [TimecodeError::NotATime("xyz".into())], "Enter reports the error and keeps the field open");
+}
+
+// a click away from text that doesn't parse closes the field and reports the error (FilmCraft
+// `widgets.rs:178-184`); the focus is not pulled back.
+#[test]
+fn clicking_away_from_bad_text_closes_the_field() {
+    let mut harness = field();
+    type_into(&mut harness, "xyz");
+    let away = harness.state().rect.center() + vec2(0.0, 80.0);
+    play(&mut harness, events::click(away, PointerButton::Primary, 1, Modifiers::NONE));
+    assert!(harness.query_by_role(Role::TextInput).is_none(), "the field closed");
+    assert!(harness.state().events.is_empty());
+    assert_eq!(harness.state().errors, [TimecodeError::NotATime("xyz".into())]);
+}
+
+// Left on the whole selected text puts the caret on its last digit, so Backspace removes the
+// digit before it; egui alone would jump to the start.
+#[test]
+fn left_on_the_selected_value_goes_to_its_last_digit() {
+    let mut harness = field();
+    let centre = harness.state().rect.center();
+    play(&mut harness, events::click(centre, PointerButton::Primary, 1, Modifiers::NONE));
+    play(&mut harness, events::key_press(Key::ArrowLeft, Modifiers::NONE));
+    play(&mut harness, events::key_press(Key::Backspace, Modifiers::NONE));
+    assert_eq!(harness.get_by_role(Role::TextInput).value().as_deref(), Some("00:00:10:0"));
+}
+
+// the preset opens the field in its typing state once; Esc closes it for good.
+#[test]
+fn a_preset_opens_the_field_in_typing_state() {
+    let mut harness = harness(
+        show_field,
+        Field { time: secs(10.0), events: Vec::new(), submitted: false, rect: Rect::NOTHING, errors: Vec::new(), preset: Some("12") },
+    );
+    assert_eq!(harness.get_by_role(Role::TextInput).value().as_deref(), Some("12"));
+    harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Escape));
+    harness.run();
+    assert!(harness.query_by_role(Role::TextInput).is_none());
 }
 
 struct Panel {
@@ -127,6 +183,22 @@ fn show_panel(ui: &mut Ui, app: &mut Panel) {
     let text = |row: &TimecodeRow| format!("{:?}", row.kind);
     let out = TimecodePanel::new("panel", &mut app.settings, &text).show(ui);
     app.changed += usize::from(out.settings_changed);
+}
+
+// a row that shows its own display can go back to the sequence's display.
+#[test]
+fn a_row_can_return_to_the_sequence_display() {
+    let row = TimecodeRow { display: Some(TimeDisplay::Frames), ..TimecodeRow::default() };
+    let mut harness = harness(show_panel, Panel { settings: TimecodePanelSettings { rows: vec![row] }, changed: 0 });
+    let value = harness.get_by_value("Current Time \u{b7} Active Monitor: CurrentTime").rect();
+    harness.click_at_with(value.center(), PointerButton::Secondary, Modifiers::NONE);
+    harness.get_by_label("Sequence Display");
+    for _ in 0..7 {
+        harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::ArrowUp));
+    }
+    harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Enter));
+    assert_eq!(harness.state().settings.rows[0].display, None);
+    assert_eq!(harness.state().changed, 1);
 }
 
 // + adds a row; the row menu's Remove Row removes it.
