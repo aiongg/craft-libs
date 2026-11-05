@@ -8,34 +8,36 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `patterns/comments/panel` | six threads on three pages, the second selected |
-//! | `patterns/comments/thread` | four pins (two clustered) and an open popover with reactions and a mention |
-//! | `patterns/annotate/toolbar` | the toolbar over a page with a highlight, a rectangle (selected) and ink |
-//! | `patterns/signature-pad/dialog` | the pad on the Draw tab with two strokes |
-//! | `patterns/version-history/panel` | two branches, Current version, three named versions, an autosave group |
-//! | `patterns/revisions/panel` | an inserted, a changed and a deleted slide |
+//! | `patterns/comments-panel/panel` | six threads on three pages, the second selected |
+//! | `patterns/thread-popover/thread` | four pins (two clustered) and an open popover with reactions and a mention |
+//! | `patterns/annotation-toolbar/toolbar` | the toolbar with the Draw flyout open over a page with a highlight, a rectangle (selected) and ink |
+//! | `patterns/signature-pad-dialog/dialog` | the pad on the Draw tab with two strokes |
+//! | `patterns/version-history-panel/panel` | two branches, Current version, three named versions, an autosave group |
+//! | `patterns/revisions-panel/panel` | an inserted, a changed and a deleted slide |
+//! | `patterns/people-bar/session` | a live session: three other people with cursors, selections and a chat bubble, the people bar, a vote, your chat box and a failed join |
 
 use craft_ui::canvas::{CanvasId, CanvasView, ToolHost};
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::{Labels as _, fmt};
-use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryLabels, drive, lock, shared};
+use craft_ui::localized::Labels as _;
+use craft_ui::story::{Level, NoArgs, Story, StoryArgs, drive, last_event, lock, shared};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use craft_ui::typed_story;
-use std::cell::RefCell;
-use std::collections::HashMap;
-
-use egui::{Color32, Id, Pos2, Rect as ScreenRect, Sense, Ui, Vec2, pos2, vec2};
+use egui::{Color32, Pos2, Rect as ScreenRect, Sense, Ui, Vec2, pos2, vec2};
 use kurbo::{Point, Rect};
 
 use super::ReviewStyle;
 use super::annotate::{AnnotateTool, AnnotationOverlay, AnnotationToolbar};
+use super::chat::CursorChatBox;
 use super::comments::{CommentEdit, CommentsPanel, CommentsPanelState};
+use super::join::JoinField;
+use super::presence::{PeopleBar, RemoteCursors};
 use super::revisions::RevisionsPanel;
 use super::signature::{SignaturePadDialog, SignaturePadResult};
 use super::thread::{CommentPin, CommentPins, ThreadPopover};
 use super::versions::{VersionAction, VersionHistoryPanel};
-use crate::annotate::{Annotation, AnnotationEdit, AnnotationId, AnnotationKind, AnnotationTool};
+use super::vote::VotePill;
+use crate::annotate::{Annotation, AnnotationEdit, AnnotationGroup, AnnotationId, AnnotationKind, AnnotationTool};
+use crate::collab::{CollabRequest, CollabTransport, CursorChat, JoinState, PEOPLE_COLORS, Participant, ParticipantId, VoteSession};
 use crate::comments::{CommentAnchor, CommentMessage, CommentThread, Reaction, ReviewStatus, ThreadId};
 use crate::revisions::{Revision, RevisionAction, RevisionKind};
 use crate::signature::{SignatureDraft, SignatureTab};
@@ -43,12 +45,20 @@ use crate::versions::{Branch, BranchId, BranchState, Version, VersionId};
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("patterns/comments/panel", Level::Patterns, "Comments", "Panel", NoArgs {}, comments_panel),
-        typed_story!("patterns/comments/thread", Level::Patterns, "Comments", "Thread", NoArgs {}, thread),
-        typed_story!("patterns/annotate/toolbar", Level::Patterns, "Annotate", "Toolbar", NoArgs {}, annotate),
-        typed_story!("patterns/signature-pad/dialog", Level::Patterns, "Signature pad", "Dialog", PadArgs { open: true }, signature_pad),
-        typed_story!("patterns/version-history/panel", Level::Patterns, "Version history", "Panel", NoArgs {}, versions),
-        typed_story!("patterns/revisions/panel", Level::Patterns, "Revisions", "Panel", NoArgs {}, revisions),
+        typed_story!("patterns/comments-panel/panel", Level::Patterns, "CommentsPanel", "Panel", NoArgs {}, comments_panel),
+        typed_story!("patterns/thread-popover/thread", Level::Patterns, "ThreadPopover", "Thread", NoArgs {}, thread),
+        typed_story!("patterns/annotation-toolbar/toolbar", Level::Patterns, "AnnotationToolbar", "Toolbar", NoArgs {}, annotate),
+        typed_story!(
+            "patterns/signature-pad-dialog/dialog",
+            Level::Patterns,
+            "SignaturePadDialog",
+            "Dialog",
+            DialogArgs { open: true },
+            signature_pad
+        ),
+        typed_story!("patterns/people-bar/session", Level::Patterns, "PeopleBar", "Session", NoArgs {}, collaboration),
+        typed_story!("patterns/version-history-panel/panel", Level::Patterns, "VersionHistoryPanel", "Panel", NoArgs {}, versions),
+        typed_story!("patterns/revisions-panel/panel", Level::Patterns, "RevisionsPanel", "Panel", NoArgs {}, revisions),
     ]
 }
 
@@ -82,6 +92,11 @@ craft_ui::words! {
         thread_other_two: "reviewStory.threadOtherTwo" = "Use the blue from the palette.";
         thread_other_three: "reviewStory.threadOtherThree" = "Add alt text.";
         thread_other_four: "reviewStory.threadOtherFour" = "Same here.";
+        /// The collaboration story's other people, a chat line and the failed join's reason.
+        cy: "reviewStory.cy" = "Cy Okafor";
+        dee: "reviewStory.dee" = "Dee Park";
+        chat_line: "reviewStory.chatLine" = "Looks good to me";
+        join_failed: "reviewStory.joinFailed" = "No session with that code.";
         /// Sample version titles and descriptions.
         version_first: "reviewStory.versionFirst" = "First draft";
         version_review: "reviewStory.versionReview" = "Client review";
@@ -115,13 +130,6 @@ fn message(author: &str, text: &str, created: i64) -> CommentMessage {
 
 fn rgb(color: Color32) -> [u8; 3] {
     [color.r(), color.g(), color.b()]
-}
-
-fn last_event(ui: &mut Ui, event: Option<&str>) {
-    if let Some(event) = event {
-        let line = fmt(&StoryLabels::of(ui).last_event, &[("event", event)]);
-        ui.add(Text::new(line).content(Content::Muted));
-    }
 }
 
 fn next_id(ids: impl Iterator<Item = u64>) -> u64 {
@@ -385,16 +393,12 @@ fn thread(ui: &mut Ui, _: &mut NoArgs) {
 const PAGE: (f64, f64) = (480.0, 320.0);
 
 struct AnnotateDemo {
-    tool: AnnotationTool,
+    tool: AnnotateTool,
+    /// The Draw flyout opens once, with the story.
+    flyout_opened: bool,
     annotations: Vec<Annotation>,
     selected: Vec<AnnotationId>,
     last: Option<String>,
-}
-
-thread_local! {
-    /// The annotation tools of the story instances: the tool holds a closure slot that is not
-    /// `Send`, so it cannot live in egui memory, and its pending ink strokes must survive passes.
-    static TOOLS: RefCell<HashMap<Id, AnnotateTool>> = RefCell::new(HashMap::new());
 }
 
 fn annotation(id: u64, kind: AnnotationKind, rect: Rect, color: [u8; 3]) -> Annotation {
@@ -432,10 +436,9 @@ fn sample_annotations(tokens: &UiTokens) -> Vec<Annotation> {
     vec![highlight, rectangle, ink]
 }
 
-fn apply_annotation(demo: &mut AnnotateDemo, edit: &EditEvent<AnnotationEdit>) {
+fn apply_annotation(annotations: &mut Vec<Annotation>, selected: &mut Vec<AnnotationId>, edit: &EditEvent<AnnotationEdit>) {
     let done = matches!(edit, EditEvent::Commit { .. } | EditEvent::Set { .. });
     let Some(value) = edit.value().filter(|_| done) else { return };
-    let AnnotateDemo { annotations, selected, .. } = demo;
     match value {
         AnnotationEdit::Create(new) => {
             let id = AnnotationId(next_id(annotations.iter().map(|a| a.id.0)));
@@ -483,7 +486,8 @@ fn apply_annotation(demo: &mut AnnotateDemo, edit: &EditEvent<AnnotationEdit>) {
 fn annotate(ui: &mut Ui, _: &mut NoArgs) {
     let tokens = Tokens::of(ui);
     let demo = shared(ui, "annotate", || AnnotateDemo {
-        tool: AnnotationTool::Select,
+        tool: AnnotateTool::new(AnnotationTool::Select, 0),
+        flyout_opened: false,
         annotations: sample_annotations(&tokens),
         selected: vec![AnnotationId(2)],
         last: None,
@@ -491,11 +495,13 @@ fn annotate(ui: &mut Ui, _: &mut NoArgs) {
     let mut demo = lock(&demo);
     let demo = &mut *demo;
     let canvas_id = CanvasId::new(ui, "annotations");
-    let key = canvas_id.id();
-    let mut tool = TOOLS.with(|tools| tools.borrow_mut().remove(&key)).unwrap_or_else(|| AnnotateTool::new(demo.tool, 0));
-    tool.tool = demo.tool;
-    AnnotationToolbar::new("toolbar", &mut tool).show(ui);
-    demo.tool = tool.tool;
+    let toolbar = AnnotationToolbar::new("toolbar", &mut demo.tool).show(ui);
+    if !demo.flyout_opened
+        && let Some((_, popup)) = toolbar.flyouts.iter().find(|(group, _)| *group == AnnotationGroup::Draw)
+    {
+        egui::Popup::open_id(ui.ctx(), *popup);
+        demo.flyout_opened = true;
+    }
 
     let width = ui.available_width();
     let (area, _) = ui.allocate_exact_size(vec2(width, width * CANVAS_ASPECT), Sense::hover());
@@ -507,20 +513,19 @@ fn annotate(ui: &mut Ui, _: &mut NoArgs) {
     ui.painter().rect_filled(page, 0.0, tokens.color.surface.raised.to_egui());
 
     let canvas = canvas_id.interact(ui, area, Sense::click_and_drag() | Sense::FOCUSABLE);
-    tool.annotations.clone_from(&demo.annotations);
-    tool.selected.clone_from(&demo.selected);
-    let _ = ToolHost::new(canvas_id).show(ui, &view, &canvas, &mut tool);
-    for edit in tool.take_edits() {
+    demo.tool.annotations.clone_from(&demo.annotations);
+    demo.tool.selected.clone_from(&demo.selected);
+    let _ = ToolHost::new(canvas_id).show(ui, &view, &canvas, &mut demo.tool);
+    for edit in demo.tool.take_edits() {
         demo.last = Some(format!("{edit:?}"));
-        apply_annotation(demo, &edit);
+        apply_annotation(&mut demo.annotations, &mut demo.selected, &edit);
     }
-    TOOLS.with(|tools| tools.borrow_mut().insert(key, tool));
     AnnotationOverlay::new(&demo.annotations, &demo.selected).paint(&ui.painter_at(area), &Tokens::of(ui), |p| view.to_screen(p));
     last_event(ui, demo.last.as_deref());
 }
 
 #[derive(StoryArgs, Clone, Debug, PartialEq)]
-struct PadArgs {
+struct DialogArgs {
     open: bool,
 }
 
@@ -537,7 +542,7 @@ fn stroke(from: f32, to: f32, lift: f32) -> Vec<[f32; 2]> {
 }
 
 // new: the pad on the Draw tab with two strokes.
-fn signature_pad(ui: &mut Ui, args: &mut PadArgs) {
+fn signature_pad(ui: &mut Ui, args: &mut DialogArgs) {
     let labels = ReviewStoryLabels::of(ui);
     drive(
         ui,
@@ -555,6 +560,153 @@ fn signature_pad(ui: &mut Ui, args: &mut PadArgs) {
         |_| {},
         |SignaturePadResult { signature, initials }| format!("{signature:?}, initials: {initials}"),
     );
+}
+
+/// A fake live session: it applies what the widgets ask for, as an app's transport would.
+struct Session {
+    participants: Vec<Participant>,
+    vote: Option<VoteSession>,
+    join: JoinState,
+}
+
+const ME: ParticipantId = ParticipantId(1);
+
+impl CollabTransport for Session {
+    fn me(&self) -> ParticipantId {
+        ME
+    }
+
+    fn participants(&self) -> Vec<Participant> {
+        self.participants.clone()
+    }
+
+    fn vote(&self) -> Option<VoteSession> {
+        self.vote.clone()
+    }
+
+    fn join_state(&self) -> JoinState {
+        self.join.clone()
+    }
+
+    fn can_remove(&self) -> bool {
+        true
+    }
+}
+
+struct CollabDemo {
+    session: Session,
+    following: Option<ParticipantId>,
+    typed: String,
+    chat: String,
+    chat_open: bool,
+    last: Option<String>,
+}
+
+fn person(id: u64, name: &str) -> Participant {
+    Participant {
+        id: ParticipantId(id),
+        name: name.into(),
+        color: PEOPLE_COLORS[usize::try_from(id - 1).unwrap_or(0) % PEOPLE_COLORS.len()],
+        cursor: None,
+        selection: Vec::new(),
+        chat: None,
+        viewer: false,
+        spotlight: false,
+    }
+}
+
+fn sample_session(labels: &ReviewStoryLabels) -> Session {
+    let mut ana = person(2, &labels.ana);
+    ana.cursor = Some([PAGE.0 * 0.3, PAGE.1 * 0.4]);
+    ana.selection = vec![[[PAGE.0 * 0.45, PAGE.1 * 0.2], [PAGE.0 * 0.75, PAGE.1 * 0.45]]];
+    let mut bo = person(3, &labels.bo);
+    bo.cursor = Some([PAGE.0 * 0.7, PAGE.1 * 0.75]);
+    bo.chat = Some(CursorChat { text: labels.chat_line.clone(), changed: 0.0 });
+    let mut cy = person(4, &labels.cy);
+    cy.cursor = Some([PAGE.0 * 0.15, PAGE.1 * 0.8]);
+    cy.viewer = true;
+    let mut dee = person(5, &labels.dee);
+    dee.spotlight = true;
+    Session {
+        participants: vec![person(1, &labels.me), ana, bo, cy, dee],
+        vote: Some(VoteSession { per_person: 3, used: 1, ..VoteSession::default() }),
+        join: JoinState::Failed(labels.join_failed.clone()),
+    }
+}
+
+impl CollabDemo {
+    fn apply(&mut self, request: CollabRequest, now: f64) {
+        self.last = Some(format!("{request:?}"));
+        let session = &mut self.session;
+        match request {
+            CollabRequest::Chat(text) => {
+                if let Some(me) = session.participants.iter_mut().find(|p| p.id == ME) {
+                    me.chat = (!text.is_empty()).then_some(CursorChat { text, changed: now });
+                }
+            }
+            CollabRequest::Follow(who) => self.following = who,
+            CollabRequest::Spotlight(on) => {
+                if let Some(me) = session.participants.iter_mut().find(|p| p.id == ME) {
+                    me.spotlight = on;
+                }
+            }
+            CollabRequest::StartVote { per_person, scope } => {
+                session.vote = Some(VoteSession { per_person, scope, ..VoteSession::default() });
+            }
+            CollabRequest::EndVote => {
+                if let Some(vote) = &mut session.vote {
+                    vote.ended = true;
+                }
+            }
+            CollabRequest::Join(_) | CollabRequest::RetryJoin => session.join = JoinState::Joining,
+            CollabRequest::CancelJoin => session.join = JoinState::Idle,
+            CollabRequest::Remove(id) => session.participants.retain(|p| p.id != id),
+            _ => {}
+        }
+    }
+}
+
+// new: a live session over a grey canvas: three people with pointers, one with a selection and a
+// chat bubble, the people bar (one spotlighting, Remove allowed), a running vote, your chat box
+// (`/` over the canvas) and a failed join with Try Again.
+fn collaboration(ui: &mut Ui, _: &mut NoArgs) {
+    let labels = ReviewStoryLabels::of(ui);
+    let tokens = Tokens::of(ui);
+    let demo = shared(ui, "collaboration", || CollabDemo {
+        session: sample_session(&labels),
+        following: None,
+        typed: String::new(),
+        chat: String::new(),
+        chat_open: false,
+        last: None,
+    });
+    let mut demo = lock(&demo);
+    let demo = &mut *demo;
+    let now = ui.input(|i| i.time);
+    // The bubble of the sample chat keeps its full opacity: the story renews its time.
+    if let Some(chat) = demo.session.participants.iter_mut().find(|p| p.id.0 == 3).and_then(|p| p.chat.as_mut()) {
+        chat.changed = now;
+    }
+
+    let width = ui.available_width();
+    let (area, _) = ui.allocate_exact_size(vec2(width, width * CANVAS_ASPECT), Sense::hover());
+    ui.painter().rect_filled(area, 0.0, tokens.color.surface.canvas.to_egui());
+    let canvas_id = CanvasId::new(ui, "collaboration");
+    let _ = canvas_id.interact(ui, area, Sense::click_and_drag() | Sense::FOCUSABLE);
+    let to_screen = |p: [f64; 2]| pos2(area.min.x + area.width() * (p[0] / PAGE.0) as f32, area.min.y + area.height() * (p[1] / PAGE.1) as f32);
+    RemoteCursors::new("cursors", &demo.session).paint(ui, area, to_screen);
+
+    let mut requests = Vec::new();
+    let pointer = ui.input(|i| i.pointer.hover_pos()).filter(|p| area.contains(*p));
+    let color = demo.session.participants.iter().find(|p| p.id == ME).map_or([0, 0, 0], |p| p.color);
+    requests.extend(CursorChatBox::new("chat", &mut demo.chat, &mut demo.chat_open, color).show(ui, pointer).requests);
+    requests.extend(PeopleBar::new("people", &demo.session).following(demo.following).show(ui, area).requests);
+    requests.extend(VotePill::new("vote", &demo.session).has_selection(true).show(ui).requests);
+    requests.extend(JoinField::new("join", &demo.session, &mut demo.typed).show(ui).requests);
+    for request in requests {
+        demo.apply(request, now);
+    }
+    last_event(ui, demo.last.as_deref());
 }
 
 struct VersionsDemo {
@@ -711,7 +863,8 @@ mod tests {
                 })
                 .build_ui_state(
                     move |ui, args| {
-                        // The reaction emoji have no face in the test fonts.
+                        // The test fonts have no face for the reaction emoji; the gallery gets them from the system's
+                        // emoji faces (it embeds none).
                         ui.ctx().set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
                         (story.show)(ui, args);
                     },
