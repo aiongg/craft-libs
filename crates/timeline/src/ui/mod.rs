@@ -125,6 +125,9 @@ pub fn stories() -> Vec<craft_ui::story::Story> {
     stories::stories()
 }
 
+/// The count words of the timeline widgets, for the facade's catalog extraction.
+pub const COUNTS: &[craft_ui::localized::words::Counted] = &[render_queue::SECONDS];
+
 /// The labels tables of the timeline widgets, for the words registry.
 pub const WORDS: &[&[Word]] = &[
     <TimelineLabels as Labels>::WORDS,
@@ -133,6 +136,9 @@ pub const WORDS: &[&[Word]] = &[
     <GraphEditorLabels as Labels>::WORDS,
     <TransportLabels as Labels>::WORDS,
     <TimecodePanelLabels as Labels>::WORDS,
+    <TimeDisplayLabels as Labels>::WORDS,
+    <TimecodeFieldLabels as Labels>::WORDS,
+    <MarkerStripLabels as Labels>::WORDS,
     <MarkerDialogLabels as Labels>::WORDS,
     <RenderQueueLabels as Labels>::WORDS,
     <stories::TimelineStoryLabels as Labels>::WORDS,

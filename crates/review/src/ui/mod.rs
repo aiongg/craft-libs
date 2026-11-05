@@ -66,6 +66,10 @@ pub fn stories() -> Vec<craft_ui::story::Story> {
     stories::stories()
 }
 
+/// The count words of the review widgets, for the facade's catalog extraction.
+pub const COUNTS: &[craft_ui::localized::words::Counted] =
+    &[comments::counts::REPLIES, versions::counts::AUTOSAVES, revisions::counts::ACCEPT_ALL, revisions::counts::REJECT_ALL];
+
 /// The labels tables of the review widgets, for the words registry.
 pub const WORDS: &[&[Word]] = &[
     <CommentsLabels as Labels>::WORDS,

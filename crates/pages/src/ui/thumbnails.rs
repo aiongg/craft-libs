@@ -55,11 +55,11 @@ craft_ui::words! {
     /// words are the grid's (`TileLabels`).
     #[non_exhaustive]
     pub struct ThumbnailLabels {
-        pages: "pages.thumbnails" = "Pages";
-        page: "pages.thumbnail" = "Page {label}";
-        hidden: "pages.hiddenPage" = "Hidden";
-        animated: "pages.animatedPage" = "Has animations";
-        new_page: "pages.newPage" = "New Slide";
+        pages: "pageThumbnails.title" = "Pages";
+        page: "pageThumbnails.page" = "Page {label}";
+        hidden: "pageThumbnails.hidden" = "Hidden";
+        animated: "pageThumbnails.animated" = "Has animations";
+        new_page: "pageThumbnails.newPage" = "New Slide";
     }
 }
 

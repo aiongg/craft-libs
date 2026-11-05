@@ -36,13 +36,13 @@ craft_ui::words! {
     /// The zones' words (GridCraft's strings).
     #[non_exhaustive]
     pub struct HeaderFooterLabels {
-        add_header: "pages.addHeader" = "Add header";
-        add_footer: "pages.addFooter" = "Add footer";
-        header: "pages.header" = "Header";
-        footer: "pages.footer" = "Footer";
-        first_page: "pages.firstPageHeader" = "First Page Header";
-        even_page: "pages.evenPageHeader" = "Even Page Header";
-        odd_page: "pages.oddPageHeader" = "Odd Page Header";
+        add_header: "headerFooter.addHeader" = "Add header";
+        add_footer: "headerFooter.addFooter" = "Add footer";
+        header: "headerFooter.header" = "Header";
+        footer: "headerFooter.footer" = "Footer";
+        first_page: "headerFooter.firstPageHeader" = "First Page Header";
+        even_page: "headerFooter.evenPageHeader" = "Even Page Header";
+        odd_page: "headerFooter.oddPageHeader" = "Odd Page Header";
     }
 }
 

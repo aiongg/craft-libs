@@ -25,7 +25,7 @@ use crate::versions::{Branch, BranchId, BranchState, HistoryRow, Version, Versio
 pub mod counts {
     use craft_ui::localized::words::Counted;
 
-    pub(super) const AUTOSAVES: Counted = Counted::new("versions.autosaves", "{n} autosave version", "{n} autosave versions");
+    pub const AUTOSAVES: Counted = Counted::new("versions.autosaves", "{n} autosave version", "{n} autosave versions");
 
     /// Every count word of the Version history panel.
     pub const ALL: &[Counted] = &[AUTOSAVES];

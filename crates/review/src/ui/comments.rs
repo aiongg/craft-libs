@@ -29,7 +29,7 @@ use crate::comments::{CommentFilter, CommentSort, CommentThread, ReviewStatus, T
 pub mod counts {
     use craft_ui::localized::words::Counted;
 
-    pub(super) const REPLIES: Counted = Counted::new("comments.replies", "{n} reply", "{n} replies");
+    pub const REPLIES: Counted = Counted::new("comments.replies", "{n} reply", "{n} replies");
 
     /// Every count word of the Comments panel.
     pub const ALL: &[Counted] = &[REPLIES];

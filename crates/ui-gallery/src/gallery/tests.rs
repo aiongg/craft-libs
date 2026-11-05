@@ -293,13 +293,19 @@ const FIXED_WIDTH: &[&str] = &[
     "composites/text-ruler/tabs-panel",
     "patterns/page-preview/overlay",
     "patterns/cell-grid/sheet",
-    "patterns/cell-grid/outline",
+    "patterns/outline-band/outline",
     "patterns/condition-builder/rules",
     "composites/slicer/tiles",
     "patterns/timeline/panel",
     "composites/timeline-ruler/ruler",
     "patterns/graph-editor/editor",
-    "patterns/comments/thread",
+    "patterns/thread-popover/thread",
+    "patterns/annotation-toolbar/toolbar",
+    // A row of controls that does not wrap.
+    "patterns/find-bar/bar",
+    "patterns/people-bar/session",
+    // The open picker is a floating layer.
+    "composites/style-chip/picker",
     "primitives/gradient-line/edit",
     "primitives/gradient-line/with-editor",
     "foundations/edit-policy/log",
@@ -465,7 +471,9 @@ const FLOATING: &[&str] = &[
     "patterns/font-picker/field",
     "patterns/font-picker/filters",
     "patterns/page-preview/overlay",
-    "patterns/comments/thread",
+    "patterns/thread-popover/thread",
+    "patterns/annotation-toolbar/toolbar",
+    "composites/style-chip/picker",
 ];
 
 /// How far a focus ring, edge or shadow may reach past its widget; the tile's margin takes it.

@@ -17,38 +17,38 @@ craft_ui::words! {
     /// The panel's words (DesignCraft's strings).
     #[non_exhaustive]
     pub struct TablePropertiesLabels {
-        rows: "table.rows" = "Rows";
-        columns: "table.columns" = "Columns";
-        row_height: "table.rowHeight" = "Row Height";
+        rows: "tableProperties.rows" = "Rows";
+        columns: "tableProperties.columns" = "Columns";
+        row_height: "tableProperties.rowHeight" = "Row Height";
         /// The row height's length field (the select above it is "Row Height").
-        row_height_value: "table.rowHeightValue" = "Height";
-        at_least: "table.atLeast" = "At Least";
-        exactly: "table.exactly" = "Exactly";
-        column_width: "table.columnWidth" = "Column Width";
-        distribute_rows: "table.distributeRows" = "Distribute Rows Evenly";
-        distribute_rows_tip: "table.distributeRowsTip" = "Equal fixed heights for the selected rows; cell text may become overset.";
-        cell_text: "table.cellText" = "Cell Text";
-        align_top: "table.alignTop" = "Top";
-        align_center: "table.alignCenter" = "Center";
-        align_bottom: "table.alignBottom" = "Bottom";
-        align_justify: "table.alignJustify" = "Justify";
-        inset_top: "table.insetTop" = "Top";
-        inset_left: "table.insetLeft" = "Left";
-        inset_bottom: "table.insetBottom" = "Bottom";
-        inset_right: "table.insetRight" = "Right";
-        merge: "table.merge" = "Merge Cells";
-        unmerge: "table.unmerge" = "Unmerge";
-        insert_row: "table.insertRow" = "Insert Row";
-        insert_column: "table.insertColumn" = "Insert Column";
-        delete_row: "table.deleteRow" = "Delete Row";
-        delete_column: "table.deleteColumn" = "Delete Column";
-        direction: "table.direction" = "Direction";
-        left_to_right: "table.leftToRight" = "Left to Right";
-        right_to_left: "table.rightToLeft" = "Right to Left";
-        alternating_fills: "table.alternatingFills" = "Alternating Row Fills";
-        repeat_header: "table.repeatHeader" = "Repeat Header Rows";
-        header_rows: "table.headerRows" = "Header Rows";
-        footer_rows: "table.footerRows" = "Footer Rows";
+        row_height_value: "tableProperties.rowHeightValue" = "Height";
+        at_least: "tableProperties.atLeast" = "At Least";
+        exactly: "tableProperties.exactly" = "Exactly";
+        column_width: "tableProperties.columnWidth" = "Column Width";
+        distribute_rows: "tableProperties.distributeRows" = "Distribute Rows Evenly";
+        distribute_rows_tip: "tableProperties.distributeRowsTip" = "Equal fixed heights for the selected rows; cell text may become overset.";
+        cell_text: "tableProperties.cellText" = "Cell Text";
+        align_top: "tableProperties.alignTop" = "Top";
+        align_center: "tableProperties.alignCenter" = "Center";
+        align_bottom: "tableProperties.alignBottom" = "Bottom";
+        align_justify: "tableProperties.alignJustify" = "Justify";
+        inset_top: "tableProperties.insetTop" = "Top";
+        inset_left: "tableProperties.insetLeft" = "Left";
+        inset_bottom: "tableProperties.insetBottom" = "Bottom";
+        inset_right: "tableProperties.insetRight" = "Right";
+        merge: "tableProperties.merge" = "Merge Cells";
+        unmerge: "tableProperties.unmerge" = "Unmerge";
+        insert_row: "tableProperties.insertRow" = "Insert Row";
+        insert_column: "tableProperties.insertColumn" = "Insert Column";
+        delete_row: "tableProperties.deleteRow" = "Delete Row";
+        delete_column: "tableProperties.deleteColumn" = "Delete Column";
+        direction: "tableProperties.direction" = "Direction";
+        left_to_right: "tableProperties.leftToRight" = "Left to Right";
+        right_to_left: "tableProperties.rightToLeft" = "Right to Left";
+        alternating_fills: "tableProperties.alternatingFills" = "Alternating Row Fills";
+        repeat_header: "tableProperties.repeatHeader" = "Repeat Header Rows";
+        header_rows: "tableProperties.headerRows" = "Header Rows";
+        footer_rows: "tableProperties.footerRows" = "Footer Rows";
     }
 }
 

@@ -18,8 +18,8 @@ const DETAIL_LINES: usize = 8;
 pub mod counts {
     use craft_ui::localized::words::Counted;
 
-    pub(super) const ACCEPT_ALL: Counted = Counted::new("revisions.acceptAll", "Accept All ({n})", "Accept All ({n})");
-    pub(super) const REJECT_ALL: Counted = Counted::new("revisions.rejectAll", "Reject All ({n})", "Reject All ({n})");
+    pub const ACCEPT_ALL: Counted = Counted::new("revisions.acceptAll", "Accept All ({n})", "Accept All ({n})");
+    pub const REJECT_ALL: Counted = Counted::new("revisions.rejectAll", "Reject All ({n})", "Reject All ({n})");
 
     /// Every count word of the Revisions panel.
     pub const ALL: &[Counted] = &[ACCEPT_ALL, REJECT_ALL];

@@ -38,14 +38,14 @@ craft_ui::words! {
     /// The edges' names, shown as tooltips and AccessKit names.
     #[non_exhaustive]
     pub struct MarginLabels {
-        left: "pages.leftMargin" = "Left Margin";
-        right: "pages.rightMargin" = "Right Margin";
-        top: "pages.topMargin" = "Top Margin";
-        bottom: "pages.bottomMargin" = "Bottom Margin";
-        header: "pages.headerMargin" = "Header Margin";
-        footer: "pages.footerMargin" = "Footer Margin";
+        left: "margins.left" = "Left Margin";
+        right: "margins.right" = "Right Margin";
+        top: "margins.top" = "Top Margin";
+        bottom: "margins.bottom" = "Bottom Margin";
+        header: "margins.header" = "Header Margin";
+        footer: "margins.footer" = "Footer Margin";
         /// The drag tooltip: the edge's name and its value ("Left Margin: 1.25 in").
-        drag: "pages.marginDrag" = "{name}: {value}";
+        drag: "margins.drag" = "{name}: {value}";
     }
 }
 

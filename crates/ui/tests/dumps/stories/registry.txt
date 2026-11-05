@@ -207,10 +207,10 @@ patterns/dialog/footer = Dialog | Footer | Panel | open=Bool(true); shape=Choice
 patterns/dialog/stack = Dialog | Stack | Panel | open=Bool(true); child open=Bool(false)
 patterns/dialog/prompt = Dialog | Prompt and alert | Panel | kind=Choice { options: ["prompt", "alert"], index: 0 }; open=Bool(true); translated labels=Bool(false)
 patterns/dialog/blocking = Dialog | Blocking overlay | Panel | busy for 2 s=Bool(false); scrim=Bool(false); wait card=Bool(false)
-patterns/dialog/params = Dialog | Parameters | Panel | open=Bool(true); layout=Choice { options: ["sidecolumn", "bottomfooter"], index: 0 }; preview=Bool(true)
+patterns/dialog/params = Dialog | Parameters | Panel | open=Bool(true); layout=Choice { options: ["sidecolumn", "bottomfooter", "stacked"], index: 0 }; preview=Bool(true)
 patterns/dialog/command-form = Dialog | Command form | Panel | open=Bool(true); ok enabled=Bool(true)
 patterns/dialog/size = Dialog | Image and canvas size | Panel | open=Bool(true); kind=Choice { options: ["image", "canvas"], index: 0 }; resample=Bool(true)
-patterns/dialog/standard-prompt = Dialog | Standard prompts | Panel | open=Bool(true); kind=Choice { options: ["confirmdelete", "damagedfile", "changedondisk", "replacefile", "trashmask", "unsaved"], index: 0 }; several documents=Bool(false)
+patterns/dialog/standard-prompt = Dialog | Standard prompts | Panel | open=Bool(true); kind=Choice { options: ["confirmdelete", "damagedfile", "changedondisk", "replacefile", "trashmask", "trashvectormask", "rasterize", "gpuwarning", "unsaved"], index: 0 }; several documents=Bool(false); alternate form=Bool(false)
 patterns/dialog/properties = Dialog | Properties | Panel | open=Bool(true); read only=Bool(false)
 patterns/dialog/report = Dialog | Report | Panel | open=Bool(true); notes=Number { value: 6.0, min: 0.0, max: 40.0 }
 patterns/dialog/startup-queue = Dialog | Startup queue | Panel | recovery=Bool(true); warning=Bool(true); update=Bool(true)

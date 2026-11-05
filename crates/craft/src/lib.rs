@@ -233,8 +233,12 @@ pub mod words {
         all.push(craft_keymap::ui::COUNTS);
         #[cfg(feature = "pages")]
         all.push(craft_pages::ui::COUNTS);
+        #[cfg(feature = "review")]
+        all.push(craft_review::ui::COUNTS);
         #[cfg(feature = "text")]
         all.push(craft_text::ui::COUNTS);
+        #[cfg(feature = "timeline")]
+        all.push(craft_timeline::ui::COUNTS);
         all
     }
 }

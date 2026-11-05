@@ -364,25 +364,25 @@ crate::words! {
     pub struct TileLabels {
         /// A tile's accessible name: `{name}`, then `{details}` (the parts below that apply,
         /// joined with ", ").
-        tile_name: "browse.tile.name" = "{name}, {details}";
-        picked: "browse.tile.picked" = "picked";
-        rejected: "browse.tile.rejected" = "rejected";
+        tile_name: "tiles.name" = "{name}, {details}";
+        picked: "tiles.picked" = "picked";
+        rejected: "tiles.rejected" = "rejected";
         /// `{label}` the app's label name.
-        label: "browse.tile.label" = "{label} label";
-        offline: "browse.tile.offline" = "Offline";
+        label: "tiles.label" = "{label} label";
+        offline: "tiles.offline" = "Offline";
         /// An offline tile's accessible detail: `{offline}` (the word above), then the host's
         /// `{message}`.
-        offline_with: "browse.tile.offlineWith" = "{offline}: {message}";
-        unreadable: "browse.tile.unreadable" = "Unreadable";
-        failed: "browse.tile.failed" = "Preview failed";
+        offline_with: "tiles.offlineWith" = "{offline}: {message}";
+        unreadable: "tiles.unreadable" = "Unreadable";
+        failed: "tiles.failed" = "Preview failed";
         /// The stack badge: `{n}` tiles.
-        stack: "browse.tile.stack" = "×{n}";
+        stack: "tiles.stack" = "×{n}";
         /// The tile size slider's accessible name.
-        thumbnail_size: "browse.tile.thumbnailSize" = "Thumbnail Size";
-        smaller: "browse.tile.smaller" = "Smaller Thumbnails";
-        larger: "browse.tile.larger" = "Larger Thumbnails";
+        thumbnail_size: "tiles.thumbnailSize" = "Thumbnail Size";
+        smaller: "tiles.smaller" = "Smaller Thumbnails";
+        larger: "tiles.larger" = "Larger Thumbnails";
         /// The rename field's accessible name.
-        rename: "browse.tile.rename" = "Name";
+        rename: "tiles.rename" = "Name";
     }
 }
 

@@ -22,7 +22,7 @@ plain text and a language and return what layout needs before it shapes and plac
 | `ui::find` | `ui` and `find` | The find bar and Find and Replace |
 | | `font-picker` | The Character controls' family field is craft-font-manager's font picker |
 
-The `ui` stories (`patterns/text-editor/canvas`, `patterns/character/*`, `patterns/text-styles-panel/panel`, `patterns/check-spelling-dialog/dialog`) are in `craft::story::all()` with the `text` and `ui` features of the `craft` facade.
+The `ui` stories are in `craft::story::all()` with the `text` and `ui` features of the `craft` facade: `patterns/text-editor/canvas`, `patterns/character/{controls,paragraph}`, `patterns/text-styles-panel/panel`, `patterns/check-spelling-dialog/dialog`, `patterns/paragraph-dialog/dialog`, `patterns/tab-stops-dialog/dialog`, `patterns/notes-editor/editor`, `patterns/text-columns-dialog/dialog`, `patterns/hyperlink-dialog/dialog`, `patterns/find-bar/bar`, `patterns/find-replace-dialog/dialog`, `composites/text-ruler/{word,tabs-panel}` and `composites/style-chip/picker`. `ui::WORDS` lists the labels tables for the facade's catalog extraction.
 
 Language features (`spanish`, `german`, …, `all-languages`) add the data for one language to every
 module that uses it, and turn those modules on. Build with `default-features = false` to leave
