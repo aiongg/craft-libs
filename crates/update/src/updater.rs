@@ -215,6 +215,18 @@ impl Updater {
         self.status = Status::Idle;
     }
 
+    /// Whether an installation is running.
+    pub fn is_installing(&self) -> bool {
+        self.install.is_some()
+    }
+
+    /// The prompt's status line in the interface language: the installer's error, or one of the
+    /// updater's own notes ("Save or close your open work first"). `None` when there is none or
+    /// no prompt is open.
+    pub fn status_message(&self) -> Option<String> {
+        self.prompt.as_ref().and_then(StartupPrompt::message)
+    }
+
     /// Whether the startup prompt is showing.
     pub fn prompt_open(&self) -> bool {
         self.prompt.is_some()
@@ -376,7 +388,12 @@ impl Updater {
         }
     }
 
-    fn request_install(&mut self, ctx: &egui::Context, can_start: bool) {
+    /// Starts installing the offered release, as the prompt's Update and Restart does. With
+    /// `can_start` false (the app holds unsaved work) nothing starts and the prompt's message asks
+    /// the user to save first; with no prompt open nothing happens. Progress and failures show
+    /// through [`is_installing`](Self::is_installing) and [`status_message`](Self::status_message),
+    /// and a finished install ends in [`Action::Close`] from [`show`](Self::show).
+    pub fn request_install(&mut self, ctx: &egui::Context, can_start: bool) {
         if can_start {
             self.start_install(ctx);
         } else if let Some(prompt) = &mut self.prompt {
@@ -719,6 +736,8 @@ mod tests {
         u.request_install(&ctx, false);
         assert!(u.install.is_none(), "nothing is scheduled while there is unsaved work");
         assert!(u.prompt.as_ref().is_some_and(|p| !p.is_installing && p.message().is_some()));
+        assert!(!u.is_installing());
+        assert!(u.status_message().is_some_and(|m| m.contains("Save or close")), "the public status line carries the note");
     }
 
     /// The updater's own messages follow the interface language while the prompt shows them:

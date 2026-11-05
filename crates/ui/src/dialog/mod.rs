@@ -100,6 +100,7 @@ pub(crate) mod preview_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod preview_tests;
 mod prompt;
+mod prompt_extras;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod prompt_tests;
 mod prompts;

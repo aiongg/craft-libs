@@ -40,6 +40,8 @@ craft_ui::words! {
         up_to_date: "update.upToDate" = "{app} {running} is the newest version.";
         failed: "update.failed" = "The update check failed.";
         check_again: "update.checkAgain" = "Check Again";
+        /// The label of the row that links the release notes in the check dialog's available state.
+        release_notes: "update.releaseNotes" = "Release Notes";
     }
 }
 
@@ -199,28 +201,65 @@ pub enum CheckChoice {
     Close,
     /// Failed state only: run another check.
     CheckAgain,
+    /// Available state only: install the release and restart (the default where the app can
+    /// update itself); the app calls `Updater::request_install`.
+    Update,
+    /// Available state only: open the release page in the browser (the default elsewhere).
+    Download,
 }
 
 /// The result of a manual "Check for Updates": a spinner while checking, "newest version" when
 /// up to date, the error and Check Again when it failed. The app opens it when the user starts a
 /// check and feeds [`set_status`](UpdateCheckDialog::set_status) each pass; an available release
-/// closes it and opens an [`UpdatePromptDialog`] instead. OK, Enter, Esc and the close box close
-/// it. Result: [`CheckChoice`].
+/// closes it and opens an [`UpdatePromptDialog`] instead, unless the app calls
+/// [`set_available`](UpdateCheckDialog::set_available): the dialog then shows the "update
+/// available" state itself, with a Release Notes row and Update and Restart / Download / Later
+/// like the prompt (while [`set_installing`](UpdateCheckDialog::set_installing) the install
+/// buttons are disabled and the progress line shows). OK, Enter, Esc and the close box close it
+/// in the other states. Result: [`CheckChoice`].
 pub struct UpdateCheckDialog {
     id: DialogId,
     running_version: String,
     status: Status,
+    available: Option<(Release, bool)>,
+    installing: bool,
+    message: Option<String>,
     state: DialogState<()>,
 }
 
 impl UpdateCheckDialog {
     pub fn new(running_version: impl Into<String>) -> Self {
-        Self { id: dialog_id(CHECK_KEY), running_version: running_version.into(), status: Status::Checking, state: DialogState::new() }
+        Self {
+            id: dialog_id(CHECK_KEY),
+            running_version: running_version.into(),
+            status: Status::Checking,
+            available: None,
+            installing: false,
+            message: None,
+            state: DialogState::new(),
+        }
     }
 
     /// The updater's status this pass.
     pub fn set_status(&mut self, status: Status) {
         self.status = status;
+    }
+
+    /// Shows the "update available" state for `release` (`self_updating` offers Update and
+    /// Restart as the default, else Download is). `None` returns to the state of the
+    /// [`status`](UpdateCheckDialog::set_status).
+    pub fn set_available(&mut self, release: Option<Release>, self_updating: bool) {
+        self.available = release.map(|release| (release, self_updating));
+    }
+
+    /// Disables the install buttons while the installer runs (`Updater::is_installing`).
+    pub fn set_installing(&mut self, installing: bool) {
+        self.installing = installing;
+    }
+
+    /// The install's progress or error line in the available state (`Updater::status_message`).
+    pub fn set_message(&mut self, message: Option<String>) {
+        self.message = message;
     }
 }
 
@@ -237,11 +276,14 @@ impl StackDialog for UpdateCheckDialog {
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<CheckChoice>> {
         // Idle means the check ended with nothing to show (a release opened the prompt, or the
         // check was dismissed): the dialog closes instead of staying on the stack unseen.
-        if self.status == Status::Idle {
+        if self.status == Status::Idle && self.available.is_none() {
             return Some(DialogResult::Ok(CheckChoice::Close));
         }
         let labels = UpdateLabels::of_ctx(ctx);
         let subject = Subject::of(ctx);
+        if self.available.is_some() {
+            return self.show_available(ctx, stack, &labels, &subject);
+        }
         let failed = matches!(self.status, Status::Failed(_));
         let mut footer = Footer::standard().without_cancel();
         if failed {
@@ -282,6 +324,64 @@ impl StackDialog for UpdateCheckDialog {
         match shown.outcome? {
             Outcome::Alternate => Some(DialogResult::Ok(CheckChoice::CheckAgain)),
             Outcome::Ok | Outcome::Cancel | Outcome::Close => Some(DialogResult::Ok(CheckChoice::Close)),
+            _ => None,
+        }
+    }
+}
+
+impl UpdateCheckDialog {
+    /// The available state: the prompt's content and buttons under the check dialog's title.
+    fn show_available(&mut self, ctx: &Context, stack: &DialogStack, labels: &UpdateLabels, subject: &Subject) -> Option<DialogResult<CheckChoice>> {
+        let (release, self_updating) = self.available.as_ref()?;
+        let version = release.version_label();
+        let message =
+            labels.available_message.replace("{app}", subject.name).replace("{version}", &version).replace("{running}", &self.running_version);
+        let (default, other) = if *self_updating {
+            ((CheckChoice::Update, &labels.update_and_restart), Some((CheckChoice::Download, &labels.download)))
+        } else {
+            ((CheckChoice::Download, &labels.download), None)
+        };
+        let enabled = !self.installing;
+        let mut buttons = vec![FooterButton::new(ButtonRole::Default, default.1.as_str()).enabled(enabled)];
+        if let Some((_, label)) = other {
+            buttons.push(FooterButton::new(ButtonRole::Alternate, label.as_str()).enabled(enabled));
+        }
+        buttons.push(FooterButton::new(ButtonRole::Cancel, labels.later.as_str()));
+        let footer = Footer::custom(move |ui, fx| {
+            fx.buttons(ui, buttons);
+        });
+        let (installing, status, running) = (self.installing, &self.message, &self.running_version);
+        let shown = Dialog::new(CHECK_KEY, labels.check_title.as_str()).stack(stack).width(Width::Standard).footer(footer).show(
+            ctx,
+            &mut self.state,
+            &mut (),
+            |ui, ()| {
+                subject.head(ui, &labels.version_line.replace("{running}", running).replace("{version}", &version));
+                ui.add_space(current(ui.ctx()).component.dialog.pad);
+                if let Some(status) = status {
+                    Notice::new(status.as_str()).tone(Tone::Warn).id_salt("status").show(ui);
+                }
+                if installing {
+                    ui.horizontal(|ui| {
+                        ui.add(Spinner::new());
+                        ui.add(Text::new(labels.installing.as_str()));
+                    });
+                } else {
+                    ui.add(Text::new(message.as_str()));
+                }
+                if !release.html_url.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.add(Text::new(labels.release_notes.as_str()).content(Content::Muted));
+                        ui.add(Link::new(labels.whats_new.as_str()).url(release.html_url.as_str()));
+                    });
+                }
+            },
+        );
+        match shown.outcome? {
+            Outcome::Ok | Outcome::Alternate if self.installing => None,
+            Outcome::Ok => Some(DialogResult::Ok(default.0)),
+            Outcome::Alternate => Some(DialogResult::Ok(other.map_or(CheckChoice::Close, |(choice, _)| choice))),
+            Outcome::Cancel | Outcome::Close => Some(DialogResult::Ok(CheckChoice::Close)),
             _ => None,
         }
     }
@@ -379,6 +479,41 @@ mod tests {
         harness.run_steps(3);
         harness.run_steps(3);
         assert!(harness.state().is_open::<UpdatePromptDialog>());
+    }
+
+    // The available state shows the release notes row and the install buttons; Enter updates
+    // where the app can, Esc is Later, and the install buttons are off while installing.
+    #[test]
+    fn the_check_dialog_can_show_an_available_update() {
+        let release = Release { tag: "v2.0.0".into(), html_url: "https://example.com/r".into(), ..Release::default() };
+        let available = |self_updating| {
+            let mut dialog = UpdateCheckDialog::new("1.0.0");
+            dialog.set_status(Status::UpToDate);
+            dialog.set_available(Some(release.clone()), self_updating);
+            dialog
+        };
+        let mut harness = opened(available(true));
+        assert!(harness.query_by_label_contains("is available").is_some());
+        assert!(harness.query_by_label("Release Notes").is_some());
+        assert!(harness.query_by_label("Update and Restart").is_some());
+        harness.key_press(Key::Enter);
+        harness.run_steps(3);
+        assert_eq!(harness.state_mut().take::<UpdateCheckDialog>(), Some(DialogResult::Ok(CheckChoice::Update)));
+
+        let mut harness = opened(available(false));
+        harness.key_press(Key::Enter);
+        harness.run_steps(3);
+        assert_eq!(harness.state_mut().take::<UpdateCheckDialog>(), Some(DialogResult::Ok(CheckChoice::Download)));
+
+        let mut harness = opened(available(true));
+        harness.state_mut().get_mut::<UpdateCheckDialog>().unwrap().set_installing(true);
+        harness.run_steps(3);
+        harness.key_press(Key::Enter);
+        harness.run_steps(3);
+        assert!(harness.state().is_open::<UpdateCheckDialog>(), "Enter does nothing while installing");
+        harness.key_press(Key::Escape);
+        harness.run_steps(3);
+        assert_eq!(harness.state_mut().take::<UpdateCheckDialog>(), Some(DialogResult::Ok(CheckChoice::Close)));
     }
 
     // The check dialog shows the spinner, then the up-to-date or failed text as the status
