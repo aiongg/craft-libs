@@ -31,3 +31,21 @@ fn ready_and_saved_follow_the_tab() {
     draft.image = Some(image.clone());
     assert_eq!(draft.saved(), Some(SavedSignature::Image(image)));
 }
+
+// A bare click leaves a one-point stroke; Undo takes it with the stroke before it.
+#[test]
+fn undo_skips_bare_clicks() {
+    let mut draft = SignatureDraft { strokes: vec![stroke(4), stroke(3), stroke(1)], ..SignatureDraft::default() };
+    assert!(draft.undo_stroke());
+    assert_eq!(draft.strokes, vec![stroke(4)]);
+    assert!(draft.undo_stroke() && draft.strokes.is_empty());
+    assert!(!draft.undo_stroke());
+}
+
+#[test]
+fn typed_text_is_capped() {
+    let mut draft = SignatureDraft::new(false, &"a".repeat(MAX_SIGNATURE_CHARS));
+    assert!(draft.ready());
+    draft.text.push('a');
+    assert!(!draft.ready() && draft.saved().is_none());
+}

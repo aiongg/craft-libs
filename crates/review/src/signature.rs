@@ -4,6 +4,14 @@
 /// (up to 4 MiB)").
 pub const MAX_IMAGE_BYTES: usize = 4 << 20;
 
+/// The largest decoded image side the Image tab takes, in pixels: 8192 × 8192 at most (a 12 MP
+/// JPEG decodes to about 48 MB; the limit keeps the decode job bounded).
+pub const MAX_IMAGE_SIDE: u32 = 8192;
+
+/// The longest typed signature, in characters (PdfCraft `pdfcraft_fonts::MAX_SIGNATURE_CHARS`,
+/// `crates/fonts/src/script.rs:17`).
+pub const MAX_SIGNATURE_CHARS: usize = 256;
+
 /// A signature image: straight RGBA, transparency kept.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SignatureImage {
@@ -17,7 +25,7 @@ pub struct SignatureImage {
 pub enum SavedSignature {
     /// Strokes in pad units (0…1 on both axes of the pad's box).
     Drawn(Vec<Vec<[f32; 2]>>),
-    /// Text drawn in the script face.
+    /// Text drawn in the proportional face (the library has no script face).
     Typed(String),
     Image(SignatureImage),
 }
@@ -57,19 +65,26 @@ impl SignatureDraft {
         Self { text, initials, ..Self::default() }
     }
 
-    /// Whether Apply is enabled: the current tab has something (text that isn't blank, a stroke,
-    /// an image).
+    /// Whether Apply is enabled: the current tab has something (text that isn't blank and at most
+    /// [`MAX_SIGNATURE_CHARS`] long, a stroke, an image).
     pub fn ready(&self) -> bool {
         match self.tab {
-            SignatureTab::Type => !self.text.trim().is_empty(),
+            SignatureTab::Type => !self.text.trim().is_empty() && self.text.chars().take(MAX_SIGNATURE_CHARS + 1).count() <= MAX_SIGNATURE_CHARS,
             SignatureTab::Draw => self.strokes.iter().any(|stroke| stroke.len() > 1),
             SignatureTab::Image | SignatureTab::Scan => self.image.is_some(),
         }
     }
 
-    /// Undo on the Draw tab: drop the last stroke.
-    pub fn undo_stroke(&mut self) {
-        self.strokes.pop();
+    /// Undo on the Draw tab: drops the last stroke and any one-point strokes (bare clicks) behind
+    /// it. Returns whether a visible stroke was removed.
+    // pdfcraft: crates/ui-egui/src/tools/fill_sign.rs:114 `SigDraft::undo_stroke`.
+    pub fn undo_stroke(&mut self) -> bool {
+        while let Some(stroke) = self.strokes.pop() {
+            if stroke.len() > 1 {
+                return true;
+            }
+        }
+        false
     }
 
     /// Clear: strokes, text and image (and the scan).
