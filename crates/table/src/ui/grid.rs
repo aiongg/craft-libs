@@ -302,7 +302,6 @@ impl SheetGeometry {
             .collect()
     }
 
-    /// Logical x to screen x and back (identity left-to-right).
     /// The scroll that shows `range` whole (as little change as possible); a range in a frozen
     /// pane keeps the scroll of that axis.
     fn scroll_to_reveal(&self, range: CellRange) -> Vec2 {
@@ -329,6 +328,7 @@ impl SheetGeometry {
         )
     }
 
+    /// Logical x to screen x and back (identity left-to-right).
     pub fn mirror_x(&self, x: f32) -> f32 {
         if self.layout.right_to_left { self.layout.rect.left() + self.layout.rect.right() - x } else { x }
     }
@@ -416,6 +416,7 @@ impl Default for GridState {
 
 /// What the grid asks of the app.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum GridEdit {
     /// Start editing the active cell: `typed` replaces its content (a key typed on the grid),
     /// `None` edits it in place (F2, a double-click).
@@ -446,23 +447,56 @@ pub enum GridEdit {
     AutoFitRow {
         row: u32,
     },
+    /// A double-click on the edge where a hidden column sits: Excel's Unhide (GridCraft
+    /// `grid/interact.rs:970`).
+    UnhideColumn {
+        column: u32,
+    },
+    /// A double-click on the edge where a hidden row sits.
+    UnhideRow {
+        row: u32,
+    },
+    /// The fill handle dragged: the range the current selection grows to (the source plus the
+    /// filled cells), as one gesture. `Update`s show the preview, `Commit` carries the range and
+    /// the modifiers held (Cmd/Ctrl swaps copying and extending a series, as in Excel), `Cancel`
+    /// (Esc) drops it. A commit with `changed` false filled nothing. The grid selects the range
+    /// when the gesture commits.
+    Fill {
+        range: EditEvent<CellRange>,
+    },
+    /// The selection dragged by its border: the cell its top-left corner moves to, as one
+    /// gesture like [`Fill`](Self::Fill). The app moves the cells (cut and paste); the grid
+    /// selects the moved range when the gesture commits.
+    MoveCells {
+        to: EditEvent<CellRef>,
+    },
+    /// Esc while [`CellGrid::copy_mark`] shows the marching ants: the app ends copy mode.
+    ClearCopyMark,
+    /// Enter while [`CellGrid::copy_mark`] shows the marching ants: paste what was copied at the
+    /// active cell and end copy mode (Excel).
+    PasteAtActive,
     Copy,
     Cut,
     Paste(String),
     /// Cmd+Page Down / Up.
     NextSheet,
     PreviousSheet,
-    /// A secondary click (or the Menu key, Shift+F10) on the cells or a header; the app opens
-    /// its menu at `at`. The selection has already moved as Excel moves it (a click outside the
-    /// selection selects the cell or line first).
+    /// A secondary click (or the Menu key, Shift+F10) on the cells or a header. The selection has
+    /// already moved as Excel moves it (a click outside the selection selects the cell or line
+    /// first). `anchor` is the clicked cell's or header's rect (the active cell's for a key),
+    /// where a menu opened from the keyboard goes; `pointer` is where a secondary click was, `None`
+    /// for a key (the fields of `craft_ui::list::ContextMenuRequest`). Both are in screen
+    /// coordinates, mirrored for a right-to-left sheet.
     ContextMenu {
-        at: Pos2,
+        anchor: Rect,
+        pointer: Option<Pos2>,
         target: GridMenuTarget,
     },
 }
 
 /// Where a grid's context menu was asked for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum GridMenuTarget {
     Cells,
     ColumnHeader(u32),
@@ -485,7 +519,10 @@ pub enum GridMenuTarget {
 ///   ([`CellSelection::extend_to`]), Shift+click extends from the anchor, Cmd/Ctrl+click adds a
 ///   range ([`CellSelection::add`]); a header click selects the line, a drag over headers
 ///   several ([`CellSpace::whole_rows`], [`CellSpace::whole_columns`]); the corner selects all;
-///   wheel scrolls (Shift horizontally), Cmd/Ctrl+wheel zooms about the pointer.
+///   wheel scrolls (Shift horizontally, never past the sheet's last rows and columns),
+///   Cmd/Ctrl+wheel zooms about the pointer. The fill handle on the current range's corner
+///   drags a [`GridEdit::Fill`], the range's border a [`GridEdit::MoveCells`] (Esc cancels
+///   either); a double-click on the edge where a hidden line sits reports an unhide.
 /// - Keys while the grid has the focus and the app's editor is closed. The grid is one Tab stop
 ///   and keeps arrows, Tab, Enter and Esc (egui's focus lock filter, as GridCraft); Delete,
 ///   Backspace and typed text go through [`craft_ui::focus::key_owner`] so the app's shortcuts
@@ -495,8 +532,11 @@ pub enum GridMenuTarget {
 ///   the row start, Cmd/Ctrl+Home A1 and Cmd/Ctrl+End [`GridModel::last_used`], Enter and Tab
 ///   move the active cell ([`CellSelection::advance`]; Shift back), Cmd/Ctrl+A selects all, F2
 ///   edits, Delete clears, Backspace clears and edits, typed text starts an edit with it
-///   (unless a shortcut typed it, GridCraft's Alt+= on Windows; an IME composition goes to the
-///   editor, not the grid), Copy, Cut and Paste events. F6 and Shift+F6 leave the grid for the
+///   (unless a shortcut typed it, GridCraft's Alt+= on Windows). Typing goes through
+///   [`craft_ui::ime::Composer`] with its caret at the active cell, so an IME composition
+///   starts there and reports [`GridEdit::BeginEdit`] with the editor taking the rest. Copy,
+///   Cut and Paste events. While [`CellGrid::copy_mark`] shows ranges, Esc and Enter report
+///   [`GridEdit::ClearCopyMark`] and [`GridEdit::PasteAtActive`]. F6 and Shift+F6 leave the grid for the
 ///   next and previous focus region (owner answer Q-S6b-11).
 /// - AccessKit: `Grid` with `Row`s of `Cell`s (only the visible ones; `row_count` and
 ///   `column_count` give the sheet's size, each cell its `row_index` and `column_index`), the
@@ -508,11 +548,20 @@ pub struct CellGrid<'a, M: GridModel> {
     state: &'a mut GridState,
     headings: bool,
     right_to_left: bool,
+    copy_mark: &'a [CellRange],
 }
 
 impl<'a, M: GridModel> CellGrid<'a, M> {
     pub fn new(id_salt: impl AsIdSalt, model: &'a M, state: &'a mut GridState) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), model, state, headings: true, right_to_left: false }
+        Self { id_salt: IdSalt::new(id_salt), model, state, headings: true, right_to_left: false, copy_mark: &[] }
+    }
+
+    /// Copy mode: the copied ranges get marching ants. While any are shown, Esc reports
+    /// [`GridEdit::ClearCopyMark`] and Enter [`GridEdit::PasteAtActive`] (Excel; GridCraft
+    /// `grid/keyboard.rs:113`, `:137`). The app owns the mark and passes it every pass.
+    pub fn copy_mark(mut self, ranges: &'a [CellRange]) -> Self {
+        self.copy_mark = ranges;
+        self
     }
 
     pub fn headings(mut self, on: bool) -> Self {
@@ -529,7 +578,7 @@ impl<'a, M: GridModel> CellGrid<'a, M> {
     // `grid/keyboard.rs:7` `keyboard`, `grid/selection.rs:93` `paint_selection`,
     // `grid/quadrant.rs:112` `paint_quadrant`.
     pub fn show(self, ui: &mut Ui) -> CellGridResponse {
-        let Self { id_salt, model, state, headings, right_to_left } = self;
+        let Self { id_salt, model, state, headings, right_to_left, copy_mark } = self;
         let tokens = Tokens::of(ui);
         let ppp = ui.ctx().pixels_per_point();
         let (rect, _) = ui.allocate_exact_size(ui.available_size_before_wrap(), Sense::hover());
@@ -545,8 +594,10 @@ impl<'a, M: GridModel> CellGrid<'a, M> {
             .hidden_rows(&hidden_row)
             .hidden_columns(&hidden_column)
             .selectable(&selectable);
-        let pass = Pass { model, space, id, rect, style: SheetStyle::of(&tokens), headings, right_to_left, hairline: Line::Hairline.width(ppp) };
+        let pass =
+            Pass { model, space, id, rect, style: SheetStyle::of(&tokens), headings, right_to_left, copy_mark, hairline: Line::Hairline.width(ppp) };
 
+        input::clamp_scroll(&pass, state);
         let described = pass.geometry(state);
         paint::describe_cells(&pass, ui, id, &described);
         let response = ui.interact(rect, id, Sense::click_and_drag());
@@ -555,10 +606,11 @@ impl<'a, M: GridModel> CellGrid<'a, M> {
         let before = state.selection.clone();
         let mut edits = Vec::new();
         input::wheel(&pass, ui, state);
-        input::pointer(&pass, ui, &response, state, &mut edits);
+        let preview = input::pointer(&pass, ui, &response, state, &mut edits);
         input::keys(&pass, ui, &response, state, &mut edits);
+        input::clamp_scroll(&pass, state);
         let geometry = pass.geometry(state);
-        paint::paint(&pass, ui, &tokens, state, &geometry);
+        paint::paint(&pass, ui, &tokens, state, &geometry, preview);
         paint::describe_grid(&pass, ui, id, state, &described);
         if response.has_focus() {
             let focus = Line::W2.egui(ui.ctx(), tokens.color.line.focus.to_egui());
@@ -578,6 +630,8 @@ struct Pass<'a, M: GridModel> {
     style: SheetStyle,
     headings: bool,
     right_to_left: bool,
+    /// The ranges marked as copied.
+    copy_mark: &'a [CellRange],
     /// The width of a hairline in points.
     hairline: f32,
 }
