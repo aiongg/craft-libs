@@ -621,9 +621,10 @@ fn versions(ui: &mut Ui, _: &mut NoArgs) {
             }
             VersionAction::Preview(id) => demo.previewing = Some(id),
             VersionAction::Current => demo.previewing = None,
-            VersionAction::Rename { id, title } => {
+            VersionAction::Rename { id, title, description } => {
                 if let Some(v) = demo.versions.iter_mut().find(|v| v.id == id) {
                     v.title = title;
+                    v.description = description;
                 }
             }
             VersionAction::Duplicate(id) => {

@@ -87,7 +87,10 @@ fn row_menu_restores_renames_duplicates_and_deletes() {
     choose(&mut harness, "Rename");
     harness.type_text("Release");
     harness.press(enter());
-    assert_eq!(harness.state().actions.last(), Some(&VersionAction::Rename { id: VersionId(4), title: "Release".into() }));
+    assert_eq!(
+        harness.state().actions.last(),
+        Some(&VersionAction::Rename { id: VersionId(4), title: "Release".into(), description: String::new() })
+    );
 }
 
 // Rename in the row's menu opens the field in the pass of the click (not on the next one).
@@ -136,7 +139,7 @@ fn the_slot_puts_the_dot_and_the_text_in_their_columns() {
         let tokens = craft_ui::theme::Tokens::of(ui);
         let (style, row) = (ReviewStyle::of(&tokens), ListRow::<u8>::style(&tokens));
         let columns = Columns::new(&style, &row);
-        let slot_start = row.pad_x + columns.indent(false);
+        let slot_start = row.pad_x + columns.indent();
         assert!((slot_start + columns.slot / 2.0 - style.version_dot_x).abs() < 0.01, "dot");
         assert!((slot_start + columns.slot + row.gap - style.version_text_x).abs() < 0.01, "text");
     });
@@ -216,4 +219,19 @@ fn esc_in_a_text_field_stays_with_the_field() {
     let mut harness = banner_harness(true);
     harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Escape));
     assert!(harness.state().actions.is_empty(), "{:?}", harness.state().actions);
+}
+
+// Edit description opens the form with the version's title and description; Enter reports both.
+#[test]
+fn editing_a_description_reports_title_and_description() {
+    let mut harness = harness();
+    harness.get_by_role_and_label(Role::Button, "More (Final)").click();
+    harness.run();
+    harness.get_by_label("Edit description").click();
+    harness.run();
+    harness.get_all_by_label("Description").next().expect("the form's field").click();
+    harness.run();
+    harness.type_text("Signed off");
+    harness.press(enter());
+    assert_eq!(harness.state().actions, [VersionAction::Rename { id: VersionId(4), title: "Final".into(), description: "Signed off".into() }]);
 }

@@ -7,12 +7,14 @@ use craft_ui::behavior::{ClaimedKey, RowInfo, Selection, SelectionMode};
 use craft_ui::controls::{Button, IconButton, Link, TextField};
 use craft_ui::edit::EditEvent;
 use craft_ui::focus::key_owner::{KeyOwner, OwnerGate, owner};
-use craft_ui::icons::Icon;
+use craft_ui::icons::{self, Icon, IconSize};
 use craft_ui::list::{List, ListEvent, ListRow, ListRowStyle, RowCommand, RowEvent};
 use craft_ui::localized::{Labels as _, Words, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, corner_radius};
-use egui::{Align, AsIdSalt, Context, Frame, Id, IdSalt, Key, Layout, Margin, Modifiers, Painter, Rect, Response, Stroke, Ui, UiBuilder, pos2};
+use egui::{
+    Align, AsIdSalt, Context, Frame, Id, IdSalt, Key, Layout, Margin, Modifiers, Painter, Rect, Response, Sense, Stroke, Ui, UiBuilder, pos2,
+};
 
 use super::ReviewStyle;
 use super::comments::{age_text, text};
@@ -44,6 +46,7 @@ craft_ui::words! {
         no_versions: "versions.noVersions" = "No saved versions yet. Save a version to mark a point in your work you can come back to.";
         restore: "versions.restore" = "Restore this version";
         rename: "versions.rename" = "Rename";
+        edit_description: "versions.editDescription" = "Edit description";
         duplicate: "versions.duplicate" = "Duplicate";
         delete: "versions.delete" = "Delete";
         delete_confirm: "versions.deleteConfirm" = "Delete \u{201c}{title}\u{201d}? This can't be undone.";
@@ -80,9 +83,11 @@ pub enum VersionAction {
     /// Back to the current version.
     Current,
     Restore(VersionId),
+    /// A new title and description (a title edited in the row keeps the description).
     Rename {
         id: VersionId,
         title: String,
+        description: String,
     },
     Duplicate(VersionId),
     Delete(VersionId),
@@ -149,6 +154,7 @@ impl<'a> VersionHistoryPanel<'a> {
                 ui.spacing_mut().item_spacing.y = tokens.space.gap.stack;
                 header(ui, &cx, &mut state, &mut actions);
                 branch_section(ui, &cx, branches, &mut state, &mut actions);
+                edit_strip(ui, &cx, &mut state, &mut actions);
                 confirm_strip(ui, &cx, &mut state, &mut actions);
                 history(ui, &cx, &mut state, &mut actions);
             })
@@ -203,6 +209,9 @@ impl<'a> VersionPreviewBanner<'a> {
             .inner_margin(Margin::same(tokens.space.pad.control as i8))
             .show(&mut inner, |ui| {
                 ui.horizontal(|ui| {
+                    // Decorative: the title and date beside it say it.
+                    let (clock, _) = ui.allocate_exact_size(egui::Vec2::splat(tokens.size.icon.md), Sense::empty());
+                    icons::paint(ui, clock, Icon::Clock, IconSize::Sm, tokens.color.text.muted.to_egui());
                     text(ui, &tokens, style.strong_text, tokens.color.text.normal.to_egui(), fmt(&labels.previewing, &[("title", &name)]));
                     text(ui, &tokens, style.body_text, tokens.color.text.muted.to_egui(), age_text(ui.ctx(), version.created));
                     if ui.add(Button::new(&labels.restore).variant(ButtonVariant::Primary).id_salt(id.with("restore"))).clicked() {
@@ -246,6 +255,8 @@ struct PanelState {
     form: Option<(String, String)>,
     /// The Create branch form: the name.
     branch: Option<String>,
+    /// The version whose title and description are being edited, with the draft of each.
+    edit: Option<(VersionId, String, String)>,
     /// The version whose Delete awaits its confirmation.
     confirm: Option<VersionId>,
 }
@@ -281,12 +292,13 @@ enum BranchMenu {
 #[derive(Clone, Copy)]
 enum RowMenu {
     Restore,
+    Edit,
     Duplicate,
     Delete,
 }
 
 impl RowMenu {
-    const ALL: [RowMenu; 3] = [RowMenu::Restore, RowMenu::Duplicate, RowMenu::Delete];
+    const ALL: [RowMenu; 4] = [RowMenu::Restore, RowMenu::Edit, RowMenu::Duplicate, RowMenu::Delete];
 
     fn command(self) -> RowCommand {
         RowCommand::Other(self as usize)
@@ -311,28 +323,56 @@ fn header(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<Versio
         });
     });
     let Some((title, description)) = state.form.as_mut() else { return };
+    match details_form(ui, cx, "form", (title, description), &labels.save) {
+        Some(true) => {
+            let (title, description) = state.form.take().unwrap_or_default();
+            actions.push(VersionAction::Save { title, description });
+        }
+        Some(false) => state.form = None,
+        None => {}
+    }
+}
+
+/// The Title and Description fields with a submit button and Cancel: `Some(true)` to submit
+/// (the button or Enter), `Some(false)` to cancel (the button or Esc). `salt` names the form's ids.
+fn details_form(ui: &mut Ui, cx: &Cx, salt: &str, (title, description): (&mut String, &mut String), submit: &str) -> Option<bool> {
+    let labels = cx.labels;
     let (mut save, mut cancel) = (false, false);
-    let field = TextField::new(cx.id.with("form-title"), &labels.title_field, title.as_str()).placeholder(&labels.title_field).show(ui);
+    let field = TextField::new(cx.id.with((salt, "title")), &labels.title_field, title.as_str()).placeholder(&labels.title_field).show(ui);
     if let Some(value) = field.event.as_ref().and_then(EditEvent::value) {
         title.clone_from(value);
     }
     save |= field.submitted;
     cancel |= field.escaped;
-    let field = TextField::new(cx.id.with("form-description"), &labels.description, description.as_str()).placeholder(&labels.description).show(ui);
+    let field =
+        TextField::new(cx.id.with((salt, "description")), &labels.description, description.as_str()).placeholder(&labels.description).show(ui);
     if let Some(value) = field.event.as_ref().and_then(EditEvent::value) {
         description.clone_from(value);
     }
     save |= field.submitted;
     cancel |= field.escaped;
     ui.horizontal(|ui| {
-        save |= ui.add(Button::new(&labels.save).variant(ButtonVariant::Primary).id_salt(cx.id.with("form-save"))).clicked();
-        cancel |= ui.add(Button::new(&labels.cancel).id_salt(cx.id.with("form-cancel"))).clicked();
+        save |= ui.add(Button::new(submit).variant(ButtonVariant::Primary).id_salt(cx.id.with((salt, "submit")))).clicked();
+        cancel |= ui.add(Button::new(&labels.cancel).id_salt(cx.id.with((salt, "cancel")))).clicked();
     });
-    if save {
-        let (title, description) = state.form.take().unwrap_or_default();
-        actions.push(VersionAction::Save { title, description });
-    } else if cancel {
-        state.form = None;
+    if save { Some(true) } else { cancel.then_some(false) }
+}
+
+/// The edit form of a version's title and description, above the list.
+fn edit_strip(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<VersionAction>) {
+    let Some((id, title, description)) = state.edit.as_mut() else { return };
+    let id = *id;
+    match details_form(ui, cx, "edit", (title, description), &cx.labels.save) {
+        Some(true) => {
+            if let Some((_, title, description)) = state.edit.take() {
+                let title = title.trim().to_owned();
+                if !title.is_empty() {
+                    actions.push(VersionAction::Rename { id, title, description: description.trim().to_owned() });
+                }
+            }
+        }
+        Some(false) => state.edit = None,
+        None => {}
     }
 }
 
@@ -469,10 +509,6 @@ fn paint_timeline(ui: &Ui, cx: &Cx, rows: &[(RowKey, Rect)], clip: Rect, (first,
         if key != last {
             painter.line_segment([pos2(x, y + radius), pos2(x, rect.max.y)], stroke);
         }
-        if matches!(key, RowKey::Group(_)) {
-            // The group's slot is empty: its dot belongs on the timeline, not beside the disclosure.
-            paint_dot(&painter, Rect::from_center_size(pos2(x, y), egui::Vec2::splat(2.0 * radius)), cx.tokens, cx.style, false);
-        }
     }
 }
 
@@ -505,7 +541,8 @@ fn group_open(cx: &Cx, members: &[usize], state: &PanelState) -> bool {
 pub(super) struct Columns {
     /// The glyph slot's width.
     pub(super) slot: f32,
-    /// The indent of a row without a disclosure column.
+    /// The indent before the slot; a group's glyph comes before its disclosure column
+    /// ([`ListRow::leading_first`]), so every row shares it.
     indent: f32,
 }
 
@@ -518,10 +555,8 @@ impl Columns {
         Columns { slot, indent }
     }
 
-    /// A group's disclosure column comes before the slot (the kernel has no way to put the
-    /// glyph first), so a group takes no indent and its dot is drawn with the timeline.
-    pub(super) fn indent(&self, group: bool) -> f32 {
-        if group { 0.0 } else { self.indent }
+    pub(super) fn indent(&self) -> f32 {
+        self.indent
     }
 }
 
@@ -540,7 +575,7 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<Versi
     let words = Words::of(ui);
     let row_style = ListRow::<RowKey>::style(tokens);
     let columns = Columns::new(cx.style, &row_style);
-    let (slot, indent) = (columns.slot, |group: bool| columns.indent(group));
+    let (slot, indent) = (columns.slot, columns.indent());
     let mut selection = std::mem::take(&mut state.selection);
     let list = List::new(cx.id.with("history"), &labels.title, order.as_slice())
         .selection(&mut selection)
@@ -560,11 +595,11 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<Versi
         let filled = dot_filled(cx, key);
         let dot = move |painter: &Painter, rect: Rect| paint_dot(painter, rect, cx.tokens, cx.style, filled);
         match key {
-            RowKey::Current => ListRow::new(key.clone(), &labels.current).indent(indent(false)).glyph_sized(slot, dot),
+            RowKey::Current => ListRow::new(key.clone(), &labels.current).indent(indent).glyph_sized(slot, dot),
             RowKey::Group(head) => {
                 let n = sizes.get(head).copied().unwrap_or_default();
                 let text = words.counted(&ctx, counts::AUTOSAVES, &labels.autosaves, u64::try_from(n).unwrap_or(u64::MAX));
-                ListRow::new(key.clone(), text).indent(indent(true)).glyph_sized(slot, |_, _| {})
+                ListRow::new(key.clone(), text).indent(indent).leading_first(true).glyph_sized(slot, dot)
             }
             RowKey::Version(id) => {
                 let Some(version) = cx.versions.iter().find(|v| v.id == *id) else { return ListRow::new(key.clone(), String::new()) };
@@ -573,7 +608,12 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<Versi
                     if version.author.is_empty() { date.clone() } else { fmt(&labels.detail, &[("date", &date), ("author", &version.author)]) };
                 let label = if version.title.trim().is_empty() { date } else { version.title.clone() };
                 // A version inside an open group sits in the same dot column as the others.
-                ListRow::new(key.clone(), label).indent(indent(false)).paint_depth(0).detail(detail).glyph_sized(slot, dot)
+                ListRow::new(key.clone(), label)
+                    .indent(indent)
+                    .paint_depth(0)
+                    .detail(detail)
+                    .description(version.description.clone())
+                    .glyph_sized(slot, dot)
             }
         }
     });
@@ -604,12 +644,18 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<Versi
             }
             ListEvent::Row(RowEvent::Renamed { row: RowKey::Version(id), text }) => {
                 let title = text.trim();
-                if !title.is_empty() && cx.versions.iter().any(|v| v.id == id && v.title != title) {
-                    actions.push(VersionAction::Rename { id, title: title.to_owned() });
+                if let Some(v) = cx.versions.iter().find(|v| v.id == id && v.title != title).filter(|_| !title.is_empty()) {
+                    actions.push(VersionAction::Rename { id, title: title.to_owned(), description: v.description.clone() });
                 }
             }
             ListEvent::RowMenu { key: RowKey::Version(id), command } => match RowMenu::of(command) {
                 Some(RowMenu::Restore) => actions.push(VersionAction::Restore(id)),
+                Some(RowMenu::Edit) => {
+                    if let Some(v) = cx.versions.iter().find(|v| v.id == id) {
+                        state.edit = Some((id, v.title.clone(), v.description.clone()));
+                        state.confirm = None;
+                    }
+                }
                 Some(RowMenu::Duplicate) => actions.push(VersionAction::Duplicate(id)),
                 Some(RowMenu::Delete) => state.confirm = Some(id),
                 None => {}
@@ -629,6 +675,7 @@ fn row_menu(labels: &VersionsLabels, autosave: bool) -> Vec<MenuEntry<RowCommand
     let mut entries = vec![MenuItem::new(labels.restore.clone(), RowMenu::Restore.command()).into()];
     if !autosave {
         entries.push(MenuItem::new(labels.rename.clone(), RowCommand::Rename).into());
+        entries.push(MenuItem::new(labels.edit_description.clone(), RowMenu::Edit.command()).into());
     }
     entries.push(MenuItem::new(labels.duplicate.clone(), RowMenu::Duplicate.command()).into());
     entries.push(MenuItem::new(labels.delete.clone(), RowMenu::Delete.command()).into());
