@@ -16,12 +16,17 @@ use serde::{Deserialize, Serialize};
 pub struct Appearance {
     /// A built-in theme id.
     pub theme: String,
+    /// Light, dark or the OS's mode.
     pub mode: ModeChoice,
+    /// Standard, high or the OS's contrast.
     pub contrast: ContrastChoice,
+    /// True for the Comfortable size set, false for Compact.
     pub comfortable: bool,
     /// Index into [`TextSize::ALL`].
     pub text_size: usize,
+    /// Full, reduced or the OS's motion.
     pub motion: MotionChoice,
+    /// True to lay the interface out right to left.
     pub rtl: bool,
     /// Stored as the interface scale's code (`"auto"` or a percent).
     pub scale: InterfaceScale,
@@ -87,14 +92,17 @@ impl Appearance {
         }
     }
 
+    /// The size set: Comfortable or Compact.
     pub fn size(&self) -> Size {
         if self.comfortable { Size::Comfortable } else { Size::Compact }
     }
 
+    /// The text size at index `text_size` of [`TextSize::ALL`]; the default when the index is out of range.
     pub fn text_size(&self) -> TextSize {
         TextSize::ALL.get(self.text_size).copied().unwrap_or_default()
     }
 
+    /// The layout direction.
     pub fn direction(&self) -> Direction {
         if self.rtl { Direction::Rtl } else { Direction::Ltr }
     }
