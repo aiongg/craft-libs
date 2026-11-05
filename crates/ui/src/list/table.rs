@@ -12,7 +12,7 @@ use egui::os::OperatingSystem;
 use egui::text::LayoutJob;
 use egui::{
     Align, AsIdSalt, Color32, Context, CornerRadius, CursorIcon, DragAndDrop, Event, EventFilter, Id, IdSalt, Key, Label, Layout, Modifiers,
-    PointerButton, Rect, Response, ScrollArea, Sense, Stroke, Ui, UiBuilder, Vec2, WidgetInfo, pos2, vec2,
+    PointerButton, Rangef, Rect, Response, ScrollArea, Sense, Stroke, Ui, UiBuilder, Vec2, WidgetInfo, pos2, vec2,
 };
 use serde::{Deserialize, Serialize};
 
@@ -1946,7 +1946,7 @@ where
             ui.add(Text::new(self.labels.empty.as_str()).content(Content::Muted));
             return;
         }
-        pass.drag.resolve(ui, pass.rows, self.spans, content.min.y + header);
+        pass.drag.resolve(ui, pass.rows, self.spans, content.min.y + header, Rangef::new(content.min.x, content.min.x + width));
         let lead = pass.lead_at();
         let position = |key: Option<&K>| key.and_then(|k| pass.rows.position(k));
         let mut drawn: Vec<usize> = self.spans.in_view(viewport.min.y..viewport.max.y - header).collect();

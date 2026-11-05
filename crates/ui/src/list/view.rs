@@ -984,7 +984,7 @@ where
         let content = ui.max_rect();
         let width = content.width();
         ui.set_min_height(spans.total());
-        self.drag.resolve(ui, self.rows, spans, content.min.y);
+        self.drag.resolve(ui, self.rows, spans, content.min.y, content.x_range());
         let lead = self.lead_at();
         let position = |key: Option<&K>| key.and_then(|k| self.rows.position(k));
         let mut drawn: Vec<usize> = spans.in_view(viewport.min.y..viewport.max.y).collect();

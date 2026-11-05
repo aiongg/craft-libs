@@ -5,7 +5,7 @@ use craft_ui::controls::{Button, CheckState, ControlSize};
 use craft_ui::direction;
 use craft_ui::edit::{EditEvent, GestureId};
 use craft_ui::icons::Icon;
-use craft_ui::list::{List, ListEvent, ListRow, RowEvent, ThumbSize, ToggleColumn, ToggleEdit};
+use craft_ui::list::{List, ListEvent, ListRow, RowEvent, ToggleColumn, ToggleEdit};
 use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt, PressMenu};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, margin};
@@ -240,15 +240,7 @@ impl<'a> FieldListPane<'a> {
         let tokens = Tokens::of(ui);
         let style = SheetStyle::of(&tokens);
         let id = ui.make_persistent_id(id_salt);
-        let cx = Cx {
-            id,
-            labels: &labels,
-            areas,
-            fields,
-            values_row,
-            style,
-            row_height: ListRow::<String>::style(&tokens).height(ThumbSize::None, false),
-        };
+        let cx = Cx { id, labels: &labels, areas, fields, values_row, style };
         let mut edits = Vec::new();
         let mut pass = Pass::default();
 
@@ -333,7 +325,6 @@ struct Cx<'a> {
     fields: &'a [PivotField],
     values_row: Option<ValuesRow>,
     style: SheetStyle,
-    row_height: f32,
 }
 
 impl Cx<'_> {

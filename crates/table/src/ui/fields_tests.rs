@@ -101,18 +101,15 @@ fn dragging_a_field_onto_another_area_moves_it() {
             _ => None,
         })
         .collect();
-    // The source list ends its drag as dismissed; the target reports the drop as one move.
+    // The source list ends its drag as dismissed; the target reports the drop as one move. The
+    // areas report in draw order, and Columns draws before Rows.
     let [
         (began, EditEvent::Begin { id, .. }),
-        (ended, EditEvent::Cancel { id: cancelled, reason: CancelReason::Dismissed }),
         (area, EditEvent::Set { value, .. }),
+        (ended, EditEvent::Cancel { id: cancelled, reason: CancelReason::Dismissed }),
     ] = &moves[..]
     else {
-        panic!(
-            "begin, cancel, set: {moves:?}; to {to:?}; filters {:?}; columns {:?}",
-            harness.get_by_role_and_label(Role::ListBox, "Filters").rect(),
-            harness.get_by_role_and_label(Role::ListBox, "Columns").rect()
-        )
+        panic!("begin, set, cancel: {moves:?}")
     };
     assert_eq!((*began, *ended, *area, id), (FieldArea::Rows, FieldArea::Rows, FieldArea::Columns, cancelled));
     assert_eq!(value.items, ["Region".to_string()]);
