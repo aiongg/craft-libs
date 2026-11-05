@@ -1,5 +1,6 @@
 //! The version history panel and the preview banner (N5.06).
 
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 
 use craft_theme::ButtonVariant;
@@ -106,7 +107,7 @@ pub enum VersionAction {
 /// week with [`relative_age`](craft_ui::localized::relative_age), then the date through
 /// craft-i18n's `I18n::dates()`), runs of two or more autosaves collapsed (a lone autosave is a row);
 /// per-row "…" (the list's own [`row_menu`](craft_ui::list::List::row_menu)) with Restore, Rename,
-/// Duplicate and Delete (a confirm strip above the list). A branch shows its state and date, with
+/// Duplicate and Delete (the row turns into the confirmation in place). A branch shows its state and date, with
 /// a "…" menu of Open, Review and merge, and Archive while active. The history is the kernel's
 /// [`List`](craft_ui::list::List) of [`ListRow`](craft_ui::list::ListRow)s (title and the date and
 /// author as the detail line; the dot column painted in the row's leading slot at
@@ -155,7 +156,6 @@ impl<'a> VersionHistoryPanel<'a> {
                 header(ui, &cx, &mut state, &mut actions);
                 branch_section(ui, &cx, branches, &mut state, &mut actions);
                 edit_strip(ui, &cx, &mut state, &mut actions);
-                confirm_strip(ui, &cx, &mut state, &mut actions);
                 history(ui, &cx, &mut state, &mut actions);
             })
             .response;
@@ -445,22 +445,31 @@ fn branch_section(ui: &mut Ui, cx: &Cx, branches: &[Branch], state: &mut PanelSt
     }
 }
 
-/// "Delete this version?" with Delete and Cancel, above the list.
-fn confirm_strip(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<VersionAction>) {
-    let Some(pending) = state.confirm else { return };
+/// What the delete confirmation of a version row reports.
+#[derive(Clone, Copy)]
+enum Confirmed {
+    Delete,
+    Cancel,
+}
+
+/// The confirmation that replaces the row of the version `name`: the question, Delete and Cancel
+/// (FigCraft `confirm_row`, `versions.rs:582`). The row runs it twice per pass, once to measure
+/// it, so it only reports through `outcome`.
+fn confirm_body(ui: &mut Ui, cx: &Cx, name: &str, outcome: &Cell<Option<Confirmed>>) {
     let (tokens, labels) = (cx.tokens, cx.labels);
-    let name = cx.versions.iter().find(|v| v.id == pending).map_or_else(String::new, |v| version_name(ui.ctx(), v));
-    text(ui, tokens, ReviewStyle::of(tokens).body_text, tokens.color.text.normal.to_egui(), fmt(&labels.delete_confirm, &[("title", &name)]));
+    text(ui, tokens, cx.style.body_text, tokens.color.text.normal.to_egui(), fmt(&labels.delete_confirm, &[("title", name)]));
     ui.horizontal(|ui| {
         if ui.add(Button::new(&labels.delete).variant(ButtonVariant::Primary).id_salt(cx.id.with("confirm-delete"))).clicked() {
-            state.confirm = None;
-            actions.push(VersionAction::Delete(pending));
+            outcome.set(Some(Confirmed::Delete));
         }
         if ui.add(Button::new(&labels.cancel).id_salt(cx.id.with("confirm-cancel"))).clicked() {
-            state.confirm = None;
+            outcome.set(Some(Confirmed::Cancel));
         }
     });
 }
+
+/// How many lines of a version's description a row shows (FigCraft `version_row`, `versions.rs:415`).
+const DESCRIPTION_LINES: usize = 3;
 
 /// The timeline's stroke (FigCraft's `border_strong`, `versions.rs:376`).
 fn timeline_stroke(painter: &Painter, tokens: &UiTokens) -> Stroke {
@@ -577,11 +586,14 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<Versi
     let columns = Columns::new(cx.style, &row_style);
     let (slot, indent) = (columns.slot, columns.indent());
     let mut selection = std::mem::take(&mut state.selection);
+    let pending = state.confirm;
+    let confirmed = Cell::new(None);
+    let outcome = &confirmed;
     let list = List::new(cx.id.with("history"), &labels.title, order.as_slice())
         .selection(&mut selection)
         .mode(SelectionMode::Single)
         .tree(true)
-        .detail_lines(true)
+        .measured()
         .renamable(true)
         .can_rename(|key| matches!(key, RowKey::Version(id) if cx.versions.iter().any(|v| v.id == *id && !v.autosave)))
         .row_menu(|key| match key {
@@ -608,16 +620,26 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<Versi
                     if version.author.is_empty() { date.clone() } else { fmt(&labels.detail, &[("date", &date), ("author", &version.author)]) };
                 let label = if version.title.trim().is_empty() { date } else { version.title.clone() };
                 // A version inside an open group sits in the same dot column as the others.
-                ListRow::new(key.clone(), label)
+                let row = ListRow::new(key.clone(), label.clone())
                     .indent(indent)
                     .paint_depth(0)
                     .detail(detail)
+                    .lines(version.description.clone(), DESCRIPTION_LINES)
                     .description(version.description.clone())
-                    .glyph_sized(slot, dot)
+                    .glyph_sized(slot, dot);
+                if pending == Some(*id) { row.body(move |ui| confirm_body(ui, cx, &label, outcome)) } else { row }
             }
         }
     });
     state.selection = selection;
+    match confirmed.get() {
+        Some(Confirmed::Delete) => {
+            state.confirm = None;
+            actions.extend(pending.map(VersionAction::Delete));
+        }
+        Some(Confirmed::Cancel) => state.confirm = None,
+        None => {}
+    }
     if let (Some(first), Some(last)) = (order.first(), order.last()) {
         paint_timeline(ui, cx, &out.rows, out.response.rect, (&first.key, &last.key));
     }
