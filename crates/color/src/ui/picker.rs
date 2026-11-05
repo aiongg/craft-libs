@@ -41,6 +41,27 @@ pub struct PickedColor {
     pub model: Option<ModelValues>,
 }
 
+impl PickedColor {
+    /// A colour set as such (hex, a sample): `color` is encoded sRGB with straight alpha and no
+    /// model values stay with it.
+    pub fn rgb(color: Srgba) -> PickedColor {
+        PickedColor { color, model: None }
+    }
+
+    /// A colour picked in the model of `values`, which stay with it as typed. `color` is what
+    /// `values` give in encoded sRGB; the caller converts it, as the model decides.
+    pub fn in_model(color: Srgba, values: ModelValues) -> PickedColor {
+        PickedColor { color, model: Some(values) }
+    }
+
+    /// A colour picked as CMYK `inks` in percent (cyan, magenta, yellow, black, each 0 to 100,
+    /// the units of the picker's fields). `color` is the sRGB the inks convert to under the
+    /// host's CMYK converter.
+    pub fn cmyk(color: Srgba, inks: [f32; 4]) -> PickedColor {
+        PickedColor::in_model(color, ModelValues::new("cmyk", &inks))
+    }
+}
+
 /// How a [`ColorPicker`] lays out its parts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]

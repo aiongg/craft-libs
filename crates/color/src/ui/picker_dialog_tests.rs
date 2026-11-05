@@ -312,6 +312,23 @@ fn set_color_and_confirm_answer_ok_with_the_colour() {
     assert_eq!((answer.key.as_str(), answer.picked.color), ("foreground", red));
 }
 
+/// An app builds a CMYK answer with `PickedColor::cmyk`: the dialog shows the inks and OK answers them.
+#[test]
+fn a_cmyk_picked_colour_built_by_an_app_shows_its_inks_and_is_answered() {
+    let converter = CmykConverter::coated();
+    let rgb = converter.to_srgb([0.1, 0.2, 0.3, 0.4]);
+    let picked = super::PickedColor::cmyk(Srgba::rgb(rgb[0], rgb[1], rgb[2]), [10.0, 20.0, 30.0, 40.0]);
+    assert_eq!(picked.model, Some(ModelValues::new("cmyk", &[10.0, 20.0, 30.0, 40.0])));
+    assert_eq!(super::PickedColor::rgb(BLUE).model, None);
+    let mut rig = Rig::open(ColorPickerDialog::foreground(BLUE).cmyk(converter));
+    rig.host.get_mut::<ColorPickerDialog>().expect("open").set_color(picked);
+    rig.frames(3);
+    assert_eq!(rig.node(Role::SpinButton, "Black").1.numeric_value(), Some(40.0));
+    assert!(rig.host.confirm::<ColorPickerDialog>(&rig.ctx));
+    let Some(DialogResult::Ok(answer)) = rig.host.take::<ColorPickerDialog>() else { panic!("confirm answers OK") };
+    assert_eq!(answer.picked, picked);
+}
+
 /// A given title is a catalog key, read every pass: it follows the language while open.
 #[test]
 fn a_given_title_follows_the_hosts_language_while_open() {
