@@ -46,9 +46,23 @@ pub enum SelectMaskEdit {
         sample_all_layers: bool,
     },
     /// A Brush stroke.
-    Brush { points: Vec<[f64; 2]>, size: f64, hardness: f64, mode: EditMode },
+    Brush {
+        #[allow(missing_docs)]
+        points: Vec<[f64; 2]>,
+        #[allow(missing_docs)]
+        size: f64,
+        #[allow(missing_docs)]
+        hardness: f64,
+        #[allow(missing_docs)]
+        mode: EditMode,
+    },
     /// A Lasso or Polygonal Lasso polygon (3 points or more).
-    Lasso { points: Vec<[f64; 2]>, mode: EditMode },
+    Lasso {
+        #[allow(missing_docs)]
+        points: Vec<[f64; 2]>,
+        #[allow(missing_docs)]
+        mode: EditMode,
+    },
     /// An Object Selection click or rect.
     Object {
         #[serde(flatten)]

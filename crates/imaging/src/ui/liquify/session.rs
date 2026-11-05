@@ -50,7 +50,10 @@ impl LiquifyStroke {
 #[serde(rename_all = "camelCase")]
 pub enum LiquifyGlobal {
     /// The Reconstruct button: scales the unfrozen field towards zero by `amount` percent.
-    Reconstruct { amount: f64 },
+    Reconstruct {
+        #[allow(missing_docs)]
+        amount: f64,
+    },
     /// Mask Options › Mask All: freezes everything.
     MaskAll,
     /// Mask Options › None (and ⌘D): thaws everything.

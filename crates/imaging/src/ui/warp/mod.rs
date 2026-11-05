@@ -411,16 +411,41 @@ pub enum WarpSplit {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum WarpEdit {
     /// Move the control point `index` (an anchor carries its handles along: the host's rule).
-    Point { index: usize, by: Vec2 },
+    Point {
+        #[allow(missing_docs)]
+        index: usize,
+        #[allow(missing_docs)]
+        by: Vec2,
+    },
     /// Pull the surface at the host's parameters `(s, t)` ([`WarpGrid::surface`]).
-    Surface { s: f64, t: f64, by: Vec2 },
+    Surface {
+        #[allow(missing_docs)]
+        s: f64,
+        #[allow(missing_docs)]
+        t: f64,
+        #[allow(missing_docs)]
+        by: Vec2,
+    },
     /// Insert lines of anchors: the host's mesh becomes [`WarpMesh::split`] of itself with these
     /// arguments. Always a [`Set`](EditEvent::Set).
     ///
     /// `thirds` is set when the cut is of a one-patch mesh that PhotoCraft's custom warp first
     /// divides at its thirds ([`WarpMesh::commit_thirds`]): the host applies that to its mesh
     /// before `split`, and `column`, `row`, `u` and `v` name a patch of the result.
-    Split { split: WarpSplit, column: usize, row: usize, u: f64, v: f64, thirds: bool },
+    Split {
+        #[allow(missing_docs)]
+        split: WarpSplit,
+        #[allow(missing_docs)]
+        column: usize,
+        #[allow(missing_docs)]
+        row: usize,
+        #[allow(missing_docs)]
+        u: f64,
+        #[allow(missing_docs)]
+        v: f64,
+        #[allow(missing_docs)]
+        thirds: bool,
+    },
 }
 
 /// The AccessKit names of a warp mesh's parts. [`WarpNames::english`] is English, and a host passes

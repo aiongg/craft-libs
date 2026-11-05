@@ -144,7 +144,10 @@ pub enum WarpFieldsEdit {
     /// coming from a preset and takes 50 otherwise.
     Style(String),
     /// The orientation button.
-    Orientation { vertical: bool },
+    Orientation {
+        /// The new orientation is vertical.
+        vertical: bool,
+    },
     /// The Bend field: a scrub or typing run, or a Set.
     Bend(EditEvent<f64>),
     /// The H field.

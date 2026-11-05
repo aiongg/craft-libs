@@ -117,7 +117,10 @@ pub enum DragKind {
     Outline,
     /// The selected pixels, or the floating piece: ⌘ cuts them out first, ⌘⌥ (`copy`) lifts a
     /// copy, a floating piece moves with a plain press (PhotoCraft's `select.float`).
-    Pixels { copy: bool },
+    Pixels {
+        #[allow(missing_docs)]
+        copy: bool,
+    },
 }
 
 /// The value of a selection drag: what moves and by how much.
@@ -136,7 +139,12 @@ pub struct SelectionDrag {
 pub enum SelectEvent {
     /// An outline closed or a marquee was released: select `shape` with `operation` (latched at the
     /// press, [`SelectionOperation::resolve`]). One undo step.
-    Commit { shape: SelectionShape, operation: SelectionOperation },
+    Commit {
+        #[allow(missing_docs)]
+        shape: SelectionShape,
+        #[allow(missing_docs)]
+        operation: SelectionOperation,
+    },
     /// A click that drew nothing (a marquee released within its click slop): deselect. One undo
     /// step (PhotoCraft's `select.deselect`).
     Deselect,
@@ -155,9 +163,15 @@ pub enum SelectPhase {
     Idle,
     /// A marquee being dragged: the rectangle the release would select (whole pixels), `None`
     /// while the drag is still a click.
-    Marquee { rect: Option<Rect> },
+    Marquee {
+        #[allow(missing_docs)]
+        rect: Option<Rect>,
+    },
     /// An outline being drawn with `points` points so far.
-    Outline { points: usize },
+    Outline {
+        #[allow(missing_docs)]
+        points: usize,
+    },
     /// The selection being dragged.
     Dragging(DragKind),
 }
